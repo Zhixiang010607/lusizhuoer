@@ -166,7 +166,7 @@ async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId
   return profile;
 }
 
-exports.main = async (event = {}) => {
+async function main(event = {}) {
   const action = event.action || "session";
   if (action === "health") return { ok: true, message: "员工账号云函数已就绪" };
   const caller = await currentUser();
@@ -232,4 +232,18 @@ exports.main = async (event = {}) => {
     return { ok: true, uid: staff.auth_uid, status };
   }
   fail("不支持的操作");
+}
+
+exports.main = async (event = {}) => {
+  try {
+    return await main(event);
+  } catch (error) {
+    console.error("staffAccount failed", {
+      action: event?.action || "session",
+      code: error?.code || "FUNCTION_ERROR",
+      message: error?.message || String(error),
+      stack: error?.stack
+    });
+    return { ok: false, code: error?.code || "FUNCTION_ERROR", message: error?.message || "员工账号服务暂不可用，请稍后重试" };
+  }
 };
