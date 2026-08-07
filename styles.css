@@ -532,6 +532,9 @@ textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px #1f5eff18; out
 .role-switch button small { color: var(--muted); font-size: 9px; }
 .role-switch button.active { border-color: #8aafff; color: #124bc4; background: #edf4ff; box-shadow: 0 0 0 3px #1f5eff0d; }
 .role-switch button.active > span { color: white; background: var(--blue); }
+.login-method-switch { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; padding: 4px; border-radius: 10px; background: #eef3f8; }
+.login-method-switch button { min-width: 0; padding: 9px 10px; border: 1px solid transparent; border-radius: 7px; color: #52647a; background: transparent; font-weight: 700; font-size: 12px; }
+.login-method-switch button.active { border-color: #c8d9ff; color: #164bc2; background: white; box-shadow: 0 2px 7px #243e5a14; }
 .login-form { display: grid; gap: 10px; }
 .password-field { position: relative; display: block; }
 .password-field input { padding-right: 60px; }

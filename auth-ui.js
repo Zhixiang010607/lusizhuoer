@@ -1,12 +1,13 @@
 (() => {
   "use strict";
   const page = location.pathname.split("/").pop() || "index.html";
-  const homes = { hq: "index.html", operation: "local.html", store: "store-detail.html" };
-  const labels = { hq: "总部工作区", operation: "运营工作区", store: "门店工作区" };
+  const homes = { hq: "index.html", operation: "local.html", store: "store-detail.html", teacher: "teacher-detail.html" };
+  const labels = { hq: "总部工作区", operation: "运营工作区", store: "门店工作区", teacher: "老师工作区" };
   const access = {
     hq: new Set(["index.html", "store-create.html", "project-create.html", "teacher-create.html", "operation-account-create.html", "store-management.html", "project-management.html", "teacher-management.html", "operation-account-management.html", "store-detail.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "verification-review.html"]),
     operation: new Set(["local.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "verification-review.html"]),
-    store: new Set(["store-detail.html", "customer-detail.html", "customer-query.html", "customer-create.html", "recharge-create.html", "verification-create.html", "verification-supplemental.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html"])
+    store: new Set(["store-detail.html", "customer-detail.html", "customer-query.html", "customer-create.html", "recharge-create.html", "verification-create.html", "verification-supplemental.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html"]),
+    teacher: new Set(["teacher-detail.html"])
   };
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
@@ -26,8 +27,8 @@
 
   const primaryNav = document.querySelector(".side-project-bar > .side-nav");
   if (primaryNav) {
-    const navLabel = session.role === "hq" ? "全局视图" : session.role === "operation" ? "运营分析" : "门店首页";
-    const navIcon = session.role === "hq" ? "总" : session.role === "operation" ? "运" : "店";
+    const navLabel = session.role === "hq" ? "全局视图" : session.role === "operation" ? "运营分析" : session.role === "teacher" ? "我的工作台" : "门店首页";
+    const navIcon = session.role === "hq" ? "总" : session.role === "operation" ? "运" : session.role === "teacher" ? "师" : "店";
     primaryNav.innerHTML = `<a class="active" href="${homeUrl}"><span class="nav-icon">${navIcon}</span><span>${navLabel}</span></a>`;
     if (session.role === "store") {
       document.querySelectorAll(".side-project-bar > .side-menu-group").forEach((group) => { group.hidden = true; });

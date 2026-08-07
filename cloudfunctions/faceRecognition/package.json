@@ -1,0 +1,9 @@
+{
+  "name": "lusizhuoer-face-recognition",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "dependencies": {
+    "tencentcloud-sdk-nodejs": "^4.1.188"
+  }
+}

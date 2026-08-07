@@ -1,38 +1,103 @@
-﻿(() => {
+(() => {
   "use strict";
-  const VERSION = "0.14.19", $ = (id) => document.getElementById(id);
+
+  const VERSION = "0.16.0";
+  const $ = (id) => document.getElementById(id);
   const roles = {
-    store: { name: "门店", placeholder: "请输入门店登录账号", hint: "门店账号 STORE001 / 密码任意填写", target: "store-detail.html" },
-    hq: { name: "总部", placeholder: "请输入总部登录账号", hint: "总部账号 HQ001 / 密码任意填写", target: "index.html" },
-    operation: { name: "运营", placeholder: "请输入运营登录账号", hint: "运营账号 OP001 / 密码任意填写", target: "local.html" }
+    hq: { name: "总部", target: "index.html" },
+    operation: { name: "运营", target: "local.html" },
+    store: { name: "门店", target: "store-detail.html" },
+    teacher: { name: "老师", target: "teacher-detail.html" }
   };
-  let activeRole = "hq";
-  $("loginStore").innerHTML += Array.from({ length: 16 }, (_, i) => `<option value="S${String(i + 1).padStart(3, "0")}">${["悉尼", "墨尔本", "布里斯班", "珀斯"][i % 4]}门店 ${i + 1}（S${String(i + 1).padStart(3, "0")}）</option>`).join("");
-  function selectRole(role) {
-    activeRole = role;
-    document.querySelectorAll("[data-role]").forEach((button) => { const selected = button.dataset.role === role; button.classList.toggle("active", selected); button.setAttribute("aria-selected", String(selected)); });
-    $("storeField").hidden = role !== "store"; $("loginAccount").placeholder = roles[role].placeholder; $("demoHint").textContent = roles[role].hint; $("loginError").textContent = "";
+  let loginMode = "password";
+  let activeSession = null;
+
+  function setError(message = "") { $("loginError").textContent = message; }
+  function setBusy(button, busy, normalText) {
+    button.disabled = busy;
+    button.textContent = busy ? "处理中…" : normalText;
   }
-  document.querySelectorAll("[data-role]").forEach((button) => button.addEventListener("click", () => selectRole(button.dataset.role)));
-  $("togglePassword").addEventListener("click", () => { const visible = $("loginPassword").type === "text"; $("loginPassword").type = visible ? "password" : "text"; $("togglePassword").textContent = visible ? "显示" : "隐藏"; });
-  $("forgotPassword").addEventListener("click", (event) => { event.preventDefault(); window.alert("正式系统将由管理员执行密码重置；静态原型不发送验证码。"); });
-  $("loginForm").addEventListener("submit", (event) => {
-    event.preventDefault(); const account = $("loginAccount").value.trim(), password = $("loginPassword").value;
-    if (activeRole === "store" && !$("loginStore").value) { $("loginError").textContent = "请选择所属门店"; return; }
-    if (!account || !password) { $("loginError").textContent = "请输入登录账号和密码"; return; }
-    $("loginError").textContent = "";
+  function selectLoginMode(mode) {
+    loginMode = mode;
+    const password = mode === "password";
+    $("passwordLoginMode").classList.toggle("active", password);
+    $("smsLoginMode").classList.toggle("active", !password);
+    $("passwordLoginMode").setAttribute("aria-selected", String(password));
+    $("smsLoginMode").setAttribute("aria-selected", String(!password));
+    $("passwordLoginField").hidden = !password;
+    $("smsLoginField").hidden = password;
+    setError();
+  }
+  function createSession(identity, staff) {
+    const profile = staff.profile;
+    const session = {
+      role: profile.role,
+      phone: $("loginPhone").value.trim(),
+      account: $("loginPhone").value.trim(),
+      store: profile.storeId || "",
+      staffName: profile.staffName || "",
+      cloudbaseUserId: staff.uid || identity?.user?.id || identity?.user?.uid || "",
+      loginAt: new Date().toISOString(),
+      sessionId: `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    };
+    ["prototypeSession", "prototypeRole", "prototypeAccount", "prototypeStore"].forEach((key) => sessionStorage.removeItem(key));
+    sessionStorage.setItem("prototypeSession", JSON.stringify(session));
+    sessionStorage.setItem("prototypeRole", session.role);
+    sessionStorage.setItem("prototypeAccount", session.account);
+    sessionStorage.setItem("prototypeStore", session.store);
+    return session;
+  }
+
+  $("passwordLoginMode").addEventListener("click", () => selectLoginMode("password"));
+  $("smsLoginMode").addEventListener("click", () => selectLoginMode("sms"));
+  $("togglePassword").addEventListener("click", () => {
+    const visible = $("loginPassword").type === "text";
+    $("loginPassword").type = visible ? "password" : "text";
+    $("togglePassword").textContent = visible ? "显示" : "隐藏";
+  });
+  $("forgotPassword").addEventListener("click", (event) => {
+    event.preventDefault();
+    window.alert("请联系总部管理员重置密码。正式版将要求手机号短信验证后才能修改密码，并留下操作记录。");
+  });
+  $("sendSmsCode").addEventListener("click", async () => {
+    const button = $("sendSmsCode");
     try {
-      const store = activeRole === "store" ? $("loginStore").value : "";
-      ["prototypeSession", "prototypeRole", "prototypeAccount", "prototypeStore"].forEach((key) => sessionStorage.removeItem(key));
-      const session = { role: activeRole, account, store, loginAt: new Date().toISOString(), sessionId: `${Date.now()}-${Math.random().toString(36).slice(2)}` };
-      sessionStorage.setItem("prototypeSession", JSON.stringify(session));
-      sessionStorage.setItem("prototypeRole", activeRole); sessionStorage.setItem("prototypeAccount", account); sessionStorage.setItem("prototypeStore", store);
-    } catch (_) { $("loginError").textContent = "当前浏览器禁止创建会话，请允许本地会话存储后重试"; return; }
-    $("successMessage").textContent = `${roles[activeRole].name}身份验证通过。正式部署后将由后端签发安全会话并按角色加载菜单。`; $("loginSuccess").showModal();
+      setError(); setBusy(button, true, "获取验证码");
+      await window.CloudBasePhoneAuth.sendCode($("loginPhone").value);
+      setError("验证码已发送，请查收短信后在 10 分钟内完成登录。");
+    } catch (error) {
+      setError(error.message || "验证码发送失败，请稍后重试");
+    } finally { setBusy(button, false, "获取验证码"); }
+  });
+  $("loginForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const phone = $("loginPhone").value.trim();
+    const password = $("loginPassword").value;
+    const code = $("loginSmsCode").value;
+    const submit = event.currentTarget.querySelector('[type="submit"]');
+    if (!phone) return setError("请输入中国大陆手机号");
+    if (loginMode === "password" && !password) return setError("请输入登录密码");
+    if (loginMode === "sms" && !code) return setError("请输入短信验证码");
+    try {
+      setError(); setBusy(submit, true, "登录系统");
+      const identity = loginMode === "password"
+        ? await window.CloudBasePhoneAuth.signInWithPassword(phone, password)
+        : await window.CloudBasePhoneAuth.signInWithCode(code);
+      const staff = await window.CloudBasePhoneAuth.getStaffSession();
+      activeSession = createSession(identity, staff);
+      const roleName = roles[activeSession.role]?.name || "员工";
+      $("successMessage").textContent = `${roleName}身份已由后台核验。手机号只能绑定一个业务身份，角色不由登录页选择。`;
+      $("loginSuccess").showModal();
+    } catch (error) {
+      setError(error.message || "登录失败，请检查手机号、密码或验证码");
+    } finally { setBusy(submit, false, "登录系统"); }
   });
   $("enterDemo").addEventListener("click", () => {
-    const suffix = activeRole === "store" ? `?storeId=${encodeURIComponent($("loginStore").value)}` : "";
-    window.location.href = roles[activeRole].target + suffix;
+    const role = activeSession?.role;
+    const target = roles[role]?.target || "login.html";
+    const suffix = role === "store" && activeSession.store ? `?storeId=${encodeURIComponent(activeSession.store)}` : "";
+    window.location.href = target + suffix;
   });
-  document.documentElement.dataset.prototypeVersion = VERSION; selectRole("hq");
+  document.documentElement.dataset.prototypeVersion = VERSION;
+  selectLoginMode("password");
 })();
