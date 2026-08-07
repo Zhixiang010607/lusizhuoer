@@ -57,6 +57,12 @@
     return session;
   }
 
+  function enterWorkspace(session) {
+    const target = roles[session?.role]?.target || "login.html";
+    const suffix = session?.role === "store" && session.store ? `?storeId=${encodeURIComponent(session.store)}` : "";
+    window.location.replace(target + suffix);
+  }
+
   $("passwordLoginMode").addEventListener("click", () => selectLoginMode("password"));
   $("smsLoginMode").addEventListener("click", () => { selectLoginMode("sms"); refreshSmsButton(); });
   $("loginPhone").addEventListener("input", refreshSmsButton);
@@ -97,18 +103,10 @@
       if (bootstrapMode) await window.CloudBasePhoneAuth.bootstrapHq();
       const staff = await window.CloudBasePhoneAuth.getStaffSession();
       activeSession = createSession(identity, staff);
-      const roleName = roles[activeSession.role]?.name || "员工";
-      $("successMessage").textContent = `${roleName}身份已由后台核验。手机号只能绑定一个业务身份，角色不由登录页选择。`;
-      $("loginSuccess").showModal();
+      enterWorkspace(activeSession);
     } catch (error) {
       setError(error.message || "登录失败，请检查手机号、密码或验证码");
     } finally { setBusy(submit, false, "登录系统"); }
-  });
-  $("enterDemo").addEventListener("click", () => {
-    const role = activeSession?.role;
-    const target = roles[role]?.target || "login.html";
-    const suffix = role === "store" && activeSession.store ? `?storeId=${encodeURIComponent(activeSession.store)}` : "";
-    window.location.href = target + suffix;
   });
   document.documentElement.dataset.prototypeVersion = VERSION;
   selectLoginMode("password");
