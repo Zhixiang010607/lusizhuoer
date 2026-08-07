@@ -175,7 +175,9 @@ async function main(event = {}) {
     if (!caller.profile && String(caller.uid) === String(process.env.BOOTSTRAP_HQ_UID || "")) {
       caller.profile = await ensureBootstrapHq(caller);
     }
-    if (!caller.profile) fail("该手机号尚未被总部绑定业务身份", "UNASSIGNED_PHONE");
+    if (!caller.profile) {
+      fail(`该手机号尚未被总部绑定业务身份。Current auth UID: ${caller.uid}`, "UNASSIGNED_PHONE");
+    }
     return { ok: true, uid: caller.uid, profile: caller.profile };
   }
   if (action === "bootstrapHq") {
