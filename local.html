@@ -1,0 +1,86 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>总部局部分析静态原型</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-view="local">
+  <aside class="side-project-bar" aria-label="项目栏">
+    <div class="side-brand"><span>HQ</span><div><strong>总部工作台</strong><small>项目栏</small></div></div>
+    <p class="side-section-title">数据看板</p>
+    <nav class="side-nav">
+      <a href="index.html"><span class="nav-icon">全</span><span>全局视图</span></a>
+      <a class="active" href="local.html"><span class="nav-icon">局</span><span>局部分析</span></a>
+    </nav>
+    <details class="side-menu-group">
+      <summary><span class="nav-icon">管</span><span>管理</span></summary>
+      <nav><a href="store-management.html">门店管理</a><a href="project-management.html">项目管理</a><a href="teacher-management.html">老师管理</a></nav>
+    </details>
+    <details class="side-menu-group"><summary><span class="nav-icon">查</span><span>查询</span></summary><nav><a href="customer-query.html">客户查询</a><a href="recharge-query.html">充值查询</a><a href="verification-query.html">核销查询</a></nav></details>
+    <details class="side-menu-group" data-menu="review"><summary><span class="nav-icon">审</span><span>审核</span></summary><nav><a href="recharge-review.html">充值审核</a><a href="verification-review.html">核销审核</a></nav></details><div class="side-footer">静态原型 v0.14.19</div>
+  </aside>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">HEADQUARTERS ANALYTICS</p>
+      <h1>总部局部分析</h1>
+      <p class="subtitle">选择具体对象，再选择分类维度</p>
+    </div>
+    <div class="header-actions">
+      <div class="status"><span></span>本地模式</div>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel filters" aria-label="局部分析筛选">
+      <div class="filter-grid">
+        <label>时间周期
+          <select id="period">
+            <option value="thisWeek">本周（周一至今天）</option>
+            <option value="thisMonth">本月（1日至今天）</option>
+            <option value="last7">近 7 日</option>
+            <option value="last30" selected>近 30 日</option>
+            <option value="q1">本年第一季度（1—3月）</option>
+            <option value="q2">本年第二季度（4—6月）</option>
+            <option value="q3">本年第三季度（7—9月）</option>
+            <option value="q4">本年第四季度（10—12月）</option>
+            <option value="ytd">本年截至今天</option>
+            <option value="custom">自定义</option>
+          </select>
+        </label>
+        <label>开始日期<input id="dateFrom" type="date"></label>
+        <label>结束日期<input id="dateTo" type="date"></label>
+        <label>门店下拉搜索<select id="store"><option value="all">全部门店</option></select></label>
+        <label>项目下拉搜索<select id="project"><option value="all">全部项目</option></select></label>
+        <label>业务老师下拉搜索<select id="teacher"><option value="all">全部老师</option></select></label>
+        <label>排名数量
+          <select id="limit"><option value="10" selected>Top 10</option><option value="20">Top 20</option><option value="50">Top 50</option><option value="all">全部</option></select>
+        </label>
+      </div>
+      <input id="search" type="hidden" value="">
+      <div id="breakdownControls" class="breakdown-controls" aria-label="分类方式"></div>
+      <div class="filter-actions"><p id="scopeText">统计范围</p><button id="reset" type="button">重置筛选</button></div>
+    </section>
+
+    <section class="metric-grid" aria-label="核心指标">
+      <button class="metric-card" data-drill="recharge"><span>有效充值次数</span><strong id="rechargeTotal">0</strong><small id="rechargeDelta">—</small></button>
+      <button class="metric-card" data-drill="verification"><span>有效核销次数</span><strong id="verificationTotal">0</strong><small id="verificationDelta">—</small></button>
+      <div class="metric-card neutral"><span>已纳入门店</span><strong id="storeTotal">0</strong><small>按当前筛选范围</small></div>
+      <div class="metric-card neutral"><span>已纳入老师</span><strong id="teacherTotal">0</strong><small>按当前筛选范围</small></div>
+    </section>
+
+    <section class="dashboard-grid">
+      <article class="panel chart-card wide"><div class="panel-heading"><div><h2>充值与核销趋势</h2><p>按当前局部筛选结果</p></div><span class="badge">按日</span></div><div id="trendChart" class="chart-scroll" role="img" aria-label="充值与核销趋势图"></div></article>
+      <section id="analysisGrid" class="analysis-grid wide" aria-label="分类统计图"></section>
+      <article class="panel table-card wide">
+        <div class="panel-heading"><div><h2>局部排名</h2><p>跟随当前查看对象和分类维度</p></div><button id="exportBtn" type="button">导出当前数据</button></div>
+        <div class="table-scroll"><table><thead><tr><th>排名</th><th>分类对象</th><th>分类维度</th><th>有效充值</th><th>有效核销</th><th>占比</th></tr></thead><tbody id="rankingBody"></tbody></table></div>
+      </article>
+    </section>
+  </main>
+
+  <dialog id="detailDialog"><div class="dialog-heading"><h2>明细下钻示意</h2><button id="closeDialog" aria-label="关闭">×</button></div><p id="detailText"></p><p class="dialog-note">网页部署后，此处跳转至带入相同筛选条件的充值查询或核销查询。</p></dialog>
+  <script src="app.js"></script>
+<script src="auth-ui.js"></script></body>
+</html>

@@ -1,0 +1,13 @@
+﻿<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>客户建立</title><link rel="stylesheet" href="styles.css"></head>
+<body data-store-business="customer"><aside class="side-project-bar" aria-label="项目栏"><div class="side-brand"><span>HQ</span><div><strong>门店工作区</strong><small>项目栏</small></div></div><p class="side-section-title">门店业务</p><nav class="side-nav"></nav><div class="side-footer">静态原型 v0.14.19</div></aside>
+<header class="topbar"><div><p class="eyebrow">CUSTOMER ENROLLMENT</p><h1>客户建立</h1><p class="subtitle">姓名、生日、建档照片、面容录入与特别注意事项</p></div><div class="status"><span></span>门店业务</div></header>
+<main class="store-business-main"><form id="customerCreateForm" class="panel store-business-form store-business-full-panel">
+  <div class="customer-create-layout">
+    <section class="customer-create-fields">
+      <h2>客户资料</h2>
+      <div class="store-business-grid"><label>客户姓名<input id="createCustomerName" required maxlength="40" placeholder="请输入真实姓名"></label><label>生日<input id="createCustomerBirthday" type="date" required></label><label class="full-field">特别注意事项<textarea id="createCustomerNotes" rows="3" maxlength="500" placeholder="无则填写“无”"></textarea></label></div>
+      <label class="consent-row"><input id="faceConsent" type="checkbox" required> 已取得面容信息采集授权</label>
+    </section>
+    <section class="capture-panel customer-create-capture"><div><h3>建档照片与面容</h3></div><div id="faceCaptureStatus" class="capture-status pending">尚未拍摄</div><button id="captureFace" type="button">拍照</button><div class="form-submit-row customer-create-submit"><span id="customerCreateMessage"></span><button type="submit">建立客户档案</button></div></section>
+  </div>
+</form></main><script src="store-business.js"></script><script src="auth-ui.js"></script></body></html>

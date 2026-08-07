@@ -1,0 +1,16 @@
+﻿(() => {
+  "use strict";
+  const VERSION = "0.14.19", p = new URLSearchParams(location.search), $ = (id) => document.getElementById(id), id = p.get("storeId") || "S001", seed = Number(id.replace(/\D/g, "")) || 1;
+  const city = ["悉尼", "墨尔本", "布里斯班", "珀斯"][(seed - 1) % 4], name = `${city}门店 ${seed}`, projects = ["普拉提", "体态评估", "康复训练", "瑜伽", "力量训练", "产后恢复"];
+  const info = (items) => items.map(([k, v]) => `<article><span>${k}</span><strong>${v}</strong></article>`).join("");
+  $("storeHero").innerHTML = `<div class="profile-avatar store-profile-avatar">店</div><div><span class="profile-type">门店编号</span><h2>${name}</h2><p>${id} · 正常营业 · 门店账号有效</p></div><div class="profile-metrics"><span><strong>${128 + seed * 3}</strong>客户</span><span><strong>${6}</strong>项目</span><span><strong>${8}</strong>老师</span></div>`;
+  $("storeBasicGrid").innerHTML = info([["门店编号", id], ["门店名称", name], ["城市", city], ["地址", `${100 + seed} ${["George St", "Collins St", "Queen St", "Hay St"][(seed - 1) % 4]}`], ["门店状态", "正常"], ["开业日期", `2022-${String(seed % 12 + 1).padStart(2, "0")}-01`], ["联系电话", "按权限脱敏显示"], ["最后修改", "HQ001 · 总部管理员"]]);
+  $("storeProjectBody").innerHTML = projects.map((project, i) => { const projectId = `P${String(i + 1).padStart(3, "0")}`, recharge = 180 + (seed * 23 + i * 41) % 320, used = 92 + (seed * 17 + i * 29) % 170; return `<tr><td><a class="record-link" href="project-detail.html?projectId=${projectId}">${projectId} · ${project}</a></td><td>${recharge}</td><td>${used}</td><td><strong>${recharge - used}</strong></td><td>正常</td></tr>`; }).join("");
+  $("storeTeacherBody").innerHTML = Array.from({ length: 8 }, (_, i) => { const teacherId = `T${String((seed * 3 + i) % 32 + 1).padStart(3, "0")}`; return `<tr><td><a class="record-link" href="teacher-detail.html?teacherId=${teacherId}">业务老师 ${String((seed * 3 + i) % 32 + 1).padStart(2, "0")}（${teacherId}）</a></td><td>${3 + i % 4}</td><td>${46 + (seed * 7 + i * 19) % 110}</td><td>${i % 5 === 0 ? 1 : 0}</td><td>在职</td></tr>`; }).join("");
+  const customers = Array.from({ length: 18 }, (_, i) => ({ id: `C${String(seed).padStart(3, "0")}${String(i + 1).padStart(3, "0")}`, name: `客户${i + 1}`, projects: 1 + i % 5, bought: 26 + (seed * 5 + i * 11) % 80, used: 8 + (seed * 3 + i * 7) % 24 }));
+  $("storeCustomerBody").innerHTML = customers.map((c, i) => `<tr><td><a class="record-link" href="customer-detail.html?customerId=${c.id}&customerName=${encodeURIComponent(c.name)}&storeId=${id}">${c.id}</a></td><td>${c.name}</td><td>${c.projects}</td><td>${c.bought}</td><td>${c.used}</td><td><strong>${c.bought - c.used}</strong></td><td>2026-08-${String(i % 12 + 1).padStart(2, "0")}</td><td>正常</td></tr>`).join("");
+  $("storeCustomerCount").textContent = `${customers.length}位客户`;
+  $("storeAccountInfo").innerHTML = info([["登录账号", `STORE${String(seed).padStart(3, "0")}`], ["账号类型", "门店账号"], ["绑定门店", `${name}（${id}）`], ["账号状态", "正常"]]);
+  $("storeAuditTimeline").innerHTML = `<div><strong>2022-03-01 09:00</strong><span>HQ001 · 总部管理员创建门店</span></div><div><strong>2025-08-16 11:20</strong><span>OP001 · 运营管理员更新门店地址</span></div><div><strong>2026-07-09 15:35</strong><span>HQ001 · 总部管理员调整项目授权</span></div>`;
+  document.documentElement.dataset.prototypeVersion = VERSION;
+})();

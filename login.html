@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>系统登录</title><link rel="stylesheet" href="styles.css"></head>
+<body class="login-page">
+  <main class="login-shell">
+    <section class="login-brand-panel">
+      <div class="login-brand"><span>HQ</span><div><strong>门店业务管理系统</strong><small>充值 · 核销 · 客户 · 数据看板</small></div></div>
+      <div class="login-brand-copy"><p class="eyebrow">BUSINESS MANAGEMENT PLATFORM</p><h1>一个入口，三种身份</h1><p>系统根据登录账号确定门店、总部或运营权限。每次业务操作自动记录账号、人员名称和所属门店。</p></div>
+      <div class="login-feature-list"><div><b>01</b><span><strong>总部管理</strong>全局数据、审核和基础资料</span></div><div><b>02</b><span><strong>运营协作</strong>日常审核和运营分析</span></div><div><b>03</b><span><strong>门店业务</strong>客户建档、充值和核销</span></div></div>
+      <p class="login-security-note">正式系统通过HTTPS和后端会话认证；前端不保存明文密码。</p>
+    </section>
+    <section class="login-form-panel">
+      <div class="login-form-wrap">
+        <div class="login-heading"><span class="login-system-mark">HQ</span><div><h2>欢迎登录</h2><p>请选择登录身份并输入账号信息</p></div></div>
+        <div class="role-switch" role="tablist" aria-label="登录身份">
+          <button class="active" type="button" role="tab" aria-selected="true" data-role="hq"><span>总</span><b>总部登录</b><small>全局管理</small></button>
+          <button type="button" role="tab" aria-selected="false" data-role="operation"><span>运</span><b>运营登录</b><small>审核运营</small></button>
+          <button type="button" role="tab" aria-selected="false" data-role="store"><span>店</span><b>门店登录</b><small>单门店业务</small></button>
+        </div>
+        <form id="loginForm" class="login-form" novalidate>
+          <div id="storeField"><label>所属门店<select id="loginStore"><option value="">请选择门店</option></select></label></div>
+          <label>登录账号<input id="loginAccount" autocomplete="username" placeholder="请输入总部登录账号" required></label>
+          <label>登录密码<span class="password-field"><input id="loginPassword" type="password" autocomplete="current-password" placeholder="请输入登录密码" required><button id="togglePassword" type="button" aria-label="显示密码">显示</button></span></label>
+          <div class="login-options"><label><input id="rememberAccount" type="checkbox">记住账号</label><a href="#" id="forgotPassword">忘记密码？</a></div>
+          <p id="loginError" class="login-error" role="alert"></p>
+          <button class="login-submit" type="submit">登录系统</button>
+          <div class="demo-accounts"><strong>静态演示账号</strong><span id="demoHint">总部账号 HQ001 / 密码任意填写</span></div>
+        </form>
+      </div>
+    </section>
+  </main>
+  <dialog id="loginSuccess"><div class="login-success-icon">✓</div><h2>演示登录成功</h2><p id="successMessage"></p><button id="enterDemo" type="button">进入对应演示页面</button></dialog>
+  <script src="login.js"></script>
+</body></html>

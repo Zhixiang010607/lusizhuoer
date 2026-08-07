@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>产品创建</title><link rel="stylesheet" href="styles.css"></head>
+<body data-hq-create="project">
+  <aside class="side-project-bar" aria-label="项目栏"><div class="side-brand"><span>HQ</span><div><strong>总部工作台</strong><small>项目栏</small></div></div><p class="side-section-title">数据看板</p><nav class="side-nav"><a href="index.html"><span class="nav-icon">全</span><span>全局视图</span></a></nav><div class="side-footer">静态原型 v0.14.19</div></aside>
+  <header class="topbar"><div><p class="eyebrow">PRODUCT CREATION</p><h1>产品创建</h1></div><div class="status"><span></span>总部权限</div></header>
+  <main class="hq-create-main">
+    <form id="projectCreateForm" class="panel hq-create-form product-create-form">
+      <section class="hq-create-section product-create-section">
+        <div class="panel-heading"><div><h2>产品资料</h2></div><span id="generatedProjectCode" class="badge"></span></div>
+        <div class="product-create-fields">
+          <label>产品名称<input id="projectCreateName" required maxlength="60" placeholder="请输入产品名称"></label>
+          <label class="product-description-field">产品介绍<textarea id="projectCreateDescription" required maxlength="1000" placeholder="请输入产品介绍"></textarea></label>
+        </div>
+      </section>
+      <div class="hq-create-actions"><span id="projectCreateMessage"></span><a class="button-link secondary-button" href="project-management.html">返回产品管理</a><button type="submit">创建产品</button></div>
+    </form>
+  </main>
+  <script src="project-create.js"></script><script src="auth-ui.js"></script>
+</body>
+</html>

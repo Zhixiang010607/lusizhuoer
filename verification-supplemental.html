@@ -1,0 +1,32 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>补录核销</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-store-business="verification-supplemental">
+  <aside class="side-project-bar" aria-label="项目栏">
+    <div class="side-brand"><span>HQ</span><div><strong>门店工作区</strong><small>项目栏</small></div></div>
+    <p class="side-section-title">门店业务</p><nav class="side-nav"></nav><div class="side-footer">静态原型 v0.14.19</div>
+  </aside>
+  <header class="topbar"><div><p class="eyebrow">SUPPLEMENTAL VERIFICATION</p><h1>补录核销</h1><p class="subtitle">门店发起补录，人脸识别、备注和运营审核；不发送设备开启信号</p></div><div class="status"><span></span>人脸核验必需</div></header>
+  <main class="store-business-main store-workflow-main">
+    <section class="panel store-business-form workflow-lookup-panel">
+      <div class="panel-heading"><div><h2>第一步：查找并确认客户</h2></div><span class="badge">客户确认</span></div>
+      <div class="lookup-mode-switch" role="tablist" aria-label="客户查找方式"><button class="active" type="button" data-lookup-mode="select">现有客户下拉框＋生日</button><button type="button" data-lookup-mode="manual">手动输入姓名＋生日</button></div>
+      <div id="selectLookupFields" class="customer-lookup-grid"><label>现有客户<select id="serviceCustomerSelect"></select></label><label>生日<input id="serviceSelectBirthday" type="date" readonly aria-readonly="true"></label><button id="serviceSelectLookup" type="button">查询客户</button></div>
+      <div id="manualLookupFields" class="customer-lookup-grid" hidden><label>客户姓名<input id="serviceCustomerName" placeholder="手动输入客户姓名"></label><label>生日<input id="serviceCustomerBirthday" type="date"></label><button id="serviceCustomerLookup" type="button">查询客户</button></div>
+      <div id="serviceCustomerResults" class="service-customer-results customer-core-preview"><div class="lookup-placeholder"><strong>等待查询客户</strong><span>查询成功后，此处显示客户建档照片、姓名、生日和客户编号。</span></div></div>
+      <button id="confirmCustomerSelection" class="confirm-customer-button" type="button" disabled>确认此客户并进入补录</button>
+    </section>
+    <form id="verificationCreateForm" class="panel store-business-form workflow-action-panel business-step-disabled">
+      <div class="panel-heading"><div><h2>第二步：补录信息与人脸识别</h2><p id="selectedCustomerText"></p></div><span class="badge">补录 · 待运营审核</span></div>
+      <div class="store-business-grid"><label>项目<select id="verificationProject" required></select></label><label>业务老师<select id="verificationTeacher" required></select></label><label class="full-field">补录原因／门店留言<textarea id="verificationNote" rows="3" maxlength="500" required placeholder="必填：说明补录原因，可留下沟通信息"></textarea></label></div>
+      <section class="capture-panel workflow-capture-panel"><div><h3>人脸识别核验</h3></div><div class="capture-status-stack"><span id="verificationPhotoStatus" class="capture-status pending">尚未核验</span></div><button id="captureVerificationPhoto" type="button">启动人脸识别</button><div class="form-submit-row workflow-capture-submit"><span id="verificationCreateMessage"></span><button id="verificationSubmit" type="submit">提交补录审核（不打开设备）</button></div></section>
+    </form>
+  </main>
+  <script src="store-business.js?v=0.14.19"></script><script src="auth-ui.js?v=0.14.19"></script>
+</body>
+</html>
