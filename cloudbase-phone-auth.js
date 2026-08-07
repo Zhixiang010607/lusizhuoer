@@ -67,8 +67,8 @@
       if (result.error) throw new Error(result.error.message || "手机号或密码错误");
       return result.data;
     },
-    async getStaffSession() {
-      const result = await getApp().callFunction({ name: "staffAccount", data: { action: "session" } });
+    async getStaffSession(phone) {
+      const result = await getApp().callFunction({ name: "staffAccount", data: { action: "session", phone: normalizePhone(phone) } });
       const data = result?.result || result?.data?.result || result?.data;
       if (!data?.ok || !data?.profile?.role) {
         throw new Error(data?.message || "该手机号尚未被总部绑定业务身份");

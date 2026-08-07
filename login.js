@@ -101,7 +101,7 @@
         ? await window.CloudBasePhoneAuth.signInWithPassword(phone, password)
         : await window.CloudBasePhoneAuth.signInWithCode(code);
       if (bootstrapMode) await window.CloudBasePhoneAuth.bootstrapHq();
-      const staff = await window.CloudBasePhoneAuth.getStaffSession();
+      const staff = await window.CloudBasePhoneAuth.getStaffSession(phone);
       activeSession = createSession(identity, staff);
       enterWorkspace(activeSession);
     } catch (error) {

@@ -96,6 +96,36 @@ async function findStaffProfile(uid) {
   return { staffId: staff.id, role: staff.role_code, staffName: staff.staff_name, storeId };
 }
 
+async function recoverStaffProfileByVerifiedPhone(uid, phone) {
+  const normalizedPhone = validatePhone(phone);
+  let identity;
+  try {
+    identity = await getAuth().queryUserInfo({ platform: "PHONE", platformId: normalizedPhone });
+  } catch (error) {
+    console.warn("Could not verify caller phone for staff recovery", error?.message || error);
+    return null;
+  }
+
+  if (String(identity?.userInfo?.uid || "") !== String(uid)) return null;
+
+  const { data, error } = await rdb()
+    .from("staff_accounts")
+    .select("id, account_status")
+    .eq("phone", normalizedPhone)
+    .limit(1);
+  asDatabaseError(error, "Read staff account by verified phone");
+  const staff = data?.[0];
+  if (!staff) return null;
+  if (staff.account_status !== "ACTIVE") fail("This staff account is archived and cannot sign in", "ARCHIVED_ACCOUNT");
+
+  const { error: updateError } = await rdb()
+    .from("staff_accounts")
+    .update({ auth_uid: String(uid), updated_at: new Date().toISOString() })
+    .eq("id", staff.id);
+  asDatabaseError(updateError, "Restore staff account binding");
+  return findStaffProfile(uid);
+}
+
 function bootstrapHqProfile(uid, userInfo) {
   if (!process.env.BOOTSTRAP_HQ_UID || String(uid) !== String(process.env.BOOTSTRAP_HQ_UID)) return null;
   return {
@@ -172,6 +202,9 @@ async function main(event = {}) {
   const caller = await currentUser();
 
   if (action === "session") {
+    if (!caller.profile && event.phone) {
+      caller.profile = await recoverStaffProfileByVerifiedPhone(caller.uid, event.phone);
+    }
     if (!caller.profile && String(caller.uid) === String(process.env.BOOTSTRAP_HQ_UID || "")) {
       caller.profile = await ensureBootstrapHq(caller);
     }
