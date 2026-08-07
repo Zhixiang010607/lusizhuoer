@@ -90,6 +90,12 @@
       if (!data?.ok) throw new Error(data?.message || "员工账号创建失败");
       return data;
     },
+    async setStaffStatus({ uid = "", phone = "", status }) {
+      const result = await getApp().callFunction({ name: "staffAccount", data: { action: "setStaffStatus", uid, phone, status } });
+      const data = result?.result || result?.data?.result || result?.data;
+      if (!data?.ok) throw new Error(data?.message || "人员状态更新失败");
+      return data;
+    },
     smsCooldownRemaining(phone) { return cooldownRemaining(phone); }
   };
 })();

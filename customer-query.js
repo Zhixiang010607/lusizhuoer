@@ -82,10 +82,10 @@
   }
   function render() {
     const selected = selectedCustomers(), activeCount = selected.filter((customer) => !archived.has(customer.id)).length;
-    $("customerSummary").textContent = `共 ${selected.length} 位客户；活跃 ${activeCount} 位，已存档 ${selected.length - activeCount} 位`;
+    $("customerSummary").textContent = `共 ${selected.length} 位客户；活跃 ${activeCount} 位，封存 ${selected.length - activeCount} 位`;
     $("customerQueryBody").innerHTML = selected.map((customer) => {
       const isArchived = archived.has(customer.id), detail = `customer-detail.html?customerId=${encodeURIComponent(customer.id)}&customerName=${encodeURIComponent(customer.name)}&storeId=${encodeURIComponent(customer.store.id)}`;
-      return `<tr><td><a class="record-link" href="${detail}">${customer.id}</a></td><td>${customer.name}</td><td>${customer.birthday}</td><td>${customer.store.name}（${customer.store.id}）</td><td>${categoryLabels[categoryOf(customer)]}</td><td>${customer.recharge}</td><td>${customer.verification}</td><td><span class="record-status ${isArchived ? "status-已作废" : "status-正常"}">${isArchived ? "已存档" : "活跃"}</span></td><td><button class="archive-customer-button" data-archive-id="${customer.id}" type="button">${isArchived ? "恢复为活跃" : "设为存档"}</button></td></tr>`;
+      return `<tr><td><a class="record-link" href="${detail}">${customer.id}</a></td><td>${customer.name}</td><td>${customer.birthday}</td><td>${customer.store.name}（${customer.store.id}）</td><td>${categoryLabels[categoryOf(customer)]}</td><td>${customer.recharge}</td><td>${customer.verification}</td><td><span class="record-status ${isArchived ? "status-已作废" : "status-正常"}">${isArchived ? "封存" : "活跃"}</span></td><td><button class="archive-customer-button" data-archive-id="${customer.id}" type="button">${isArchived ? "恢复为活跃" : "封存客户"}</button></td></tr>`;
     }).join("") || `<tr><td colspan="9" class="query-empty">没有符合条件的客户</td></tr>`;
     document.querySelectorAll("[data-archive-id]").forEach((button) => button.addEventListener("click", () => openArchive(button.dataset.archiveId)));
     renderCategories();

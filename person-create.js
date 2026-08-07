@@ -65,7 +65,7 @@
     message.textContent = "正在创建真实登录账号…";
     try {
       if (!window.CloudBasePhoneAuth?.provisionStaff) throw new Error("账号服务未加载，请刷新页面后重试");
-      await window.CloudBasePhoneAuth.provisionStaff({
+      const provisioned = await window.CloudBasePhoneAuth.provisionStaff({
         staffName: name,
         phone,
         role: type === "teacher" ? "teacher" : type === "hq" ? "hq" : "operation",
@@ -84,7 +84,7 @@
     const displayName = displayNameFor(name);
     people.push({
       id, name: displayName, originalName: name, displayName, identityNumber, phone,
-      account: `staff_${phone}`, password: initialPassword, status: "正常",
+      account: `staff_${phone}`, authUid: provisioned.uid, password: initialPassword, status: "活跃",
       createdAt: new Date().toISOString(),
       createdBy: { account: session?.account || "HQ001", name: session?.name || "总部管理员" }
     });

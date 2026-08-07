@@ -56,11 +56,11 @@ async function findStaffProfile(uid) {
     .from("staff_accounts")
     .select("id, staff_name, role_code, account_status")
     .eq("auth_uid", String(uid))
-    .eq("account_status", "ACTIVE")
     .limit(1);
   asDatabaseError(error, "读取员工身份");
   const staff = data?.[0];
   if (!staff || !ROLES.has(staff.role_code)) return null;
+  if (staff.account_status !== "ACTIVE") fail("该人员账号已封存，无法登录", "ARCHIVED_ACCOUNT");
 
   let storeId = "";
   if (staff.role_code === "store") {
@@ -73,6 +73,14 @@ async function findStaffProfile(uid) {
     asDatabaseError(assignment.error, "读取门店绑定");
     storeId = assignment.data?.[0]?.store_id ? String(assignment.data[0].store_id) : "";
     if (!storeId) fail("该门店账号尚未绑定有效门店", "UNASSIGNED_STORE");
+    const store = await rdb().from("stores").select("store_status").eq("id", Number(storeId)).limit(1);
+    asDatabaseError(store.error, "读取门店状态");
+    if (store.data?.[0]?.store_status !== "ACTIVE") fail("关联门店已封存，无法登录", "ARCHIVED_STORE");
+  }
+  if (staff.role_code === "teacher") {
+    const teacher = await rdb().from("teachers").select("teacher_status").eq("staff_account_id", staff.id).limit(1);
+    asDatabaseError(teacher.error, "读取老师状态");
+    if (teacher.data?.[0]?.teacher_status === "ARCHIVED") fail("该老师资料已封存，无法登录", "ARCHIVED_TEACHER");
   }
   return { staffId: staff.id, role: staff.role_code, staffName: staff.staff_name, storeId };
 }
@@ -93,7 +101,12 @@ async function currentUser() {
   // 总部创建员工时不需要额外读取认证资料。先走本地配置的总部身份，
   // 避免 manager SDK 冷启动时再叠加一次远端认证查询而触发短超时。
   const bootstrapProfile = bootstrapHqProfile(uid, {});
-  if (bootstrapProfile) return { uid: String(uid), userInfo: {}, profile: bootstrapProfile };
+  if (bootstrapProfile) {
+    // 已建立总部资料后，必须以 staff_accounts 的状态为准。
+    // 这样总部人员被封存后同样无法继续登录。
+    const profile = await findStaffProfile(uid);
+    return { uid: String(uid), userInfo: {}, profile: profile || bootstrapProfile };
+  }
   let userInfo = {};
   try {
     const result = await auth.getEndUserInfo(uid);
@@ -196,6 +209,27 @@ exports.main = async (event = {}) => {
     if (!uid) fail("缺少员工 UID");
     await manager().user.modifyUser({ uid, password: validatePassword(event.newPassword) });
     return { ok: true };
+  }
+  if (action === "setStaffStatus") {
+    requireHq(caller);
+    const uid = String(event.uid || "").trim();
+    const phone = String(event.phone || "").replace(/\D/g, "");
+    const status = String(event.status || "").toUpperCase();
+    if ((!uid && !/^1[3-9]\d{9}$/.test(phone)) || !["ACTIVE", "ARCHIVED"].includes(status)) fail("人员状态只能是 ACTIVE（活跃）或 ARCHIVED（封存）");
+    let lookup = rdb().from("staff_accounts").select("id, auth_uid, role_code");
+    lookup = uid ? lookup.eq("auth_uid", uid) : lookup.eq("phone", phone);
+    const { data, error } = await lookup.limit(1);
+    asDatabaseError(error, "查找人员账号");
+    const staff = data?.[0];
+    if (!staff) fail("未找到该人员账号", "NOT_FOUND");
+    const updated = await rdb().from("staff_accounts").update({ account_status: status, updated_at: new Date().toISOString() }).eq("id", staff.id);
+    asDatabaseError(updated.error, "更新人员状态");
+    if (staff.role_code === "teacher") {
+      const teacherUpdate = await rdb().from("teachers").update({ teacher_status: status, updated_at: new Date().toISOString() }).eq("staff_account_id", staff.id);
+      asDatabaseError(teacherUpdate.error, "同步老师资料状态");
+    }
+    await manager().user.modifyUser({ uid: staff.auth_uid, userStatus: status === "ACTIVE" ? "ACTIVE" : "BLOCKED" });
+    return { ok: true, uid: staff.auth_uid, status };
   }
   fail("不支持的操作");
 };

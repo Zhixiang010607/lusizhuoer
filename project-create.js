@@ -16,7 +16,7 @@
     const projects = storedProjects(), id = nextProjectId();
     let session = null;
     try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
-    projects.push({ id, name: $("projectCreateName").value.trim(), description: $("projectCreateDescription").value.trim(), status: "正常", createdAt: new Date().toISOString(), createdBy: { account: session?.account || "HQ001", name: session?.name || "总部管理员" } });
+    projects.push({ id, name: $("projectCreateName").value.trim(), description: $("projectCreateDescription").value.trim(), status: "活跃", createdAt: new Date().toISOString(), createdBy: { account: session?.account || "HQ001", name: session?.name || "总部管理员" } });
     sessionStorage.setItem("prototypeCreatedProjects", JSON.stringify(projects));
     location.href = `project-management.html?created=${encodeURIComponent(id)}`;
   }
