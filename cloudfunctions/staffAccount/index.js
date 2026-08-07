@@ -2,17 +2,16 @@
 
 /*
  * 员工账号云函数
- *
- * 身份信息仅保存在 CloudBase 内部用户的 description 字段中；前端不能指定角色。
- * 部署前在此云函数环境变量中配置一次 BOOTSTRAP_HQ_UID，用于首次把总部管理员设为 hq。
+ * CloudBase 身份认证只负责手机号、密码和验证码。
+ * 业务身份只保存在 PostgreSQL 的 public.staff_accounts 表，绝不写入 user_desc JSON。
  */
 const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
-// 云函数环境会自动使用当前 CloudBase 环境，无需把环境 ID 或密钥写进代码。
+
 const app = cloudbase.init({});
 const auth = app.auth();
+const rdb = app.rdb();
 const manager = CloudBaseManager.init({ envId: process.env.TCB_ENV });
-
 const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 
 function fail(message, code = "BAD_REQUEST") {
@@ -36,24 +35,42 @@ function validatePassword(password) {
   return value;
 }
 
-function cleanProfile(value) {
-  if (!value || typeof value !== "object" || !ROLES.has(value.role)) return null;
-  return {
-    role: value.role,
-    staffName: String(value.staffName || ""),
-    storeId: value.role === "store" ? String(value.storeId || "") : ""
-  };
+function asDatabaseError(error, action) {
+  if (error) fail(`${action}失败：${error.message || "数据库暂不可用"}`, "DATABASE_ERROR");
 }
 
-function parseProfile(description) {
-  try { return cleanProfile(JSON.parse(description || "")); } catch (_) { return null; }
+async function findStaffProfile(uid) {
+  const { data, error } = await rdb
+    .from("staff_accounts")
+    .select("id, staff_name, role_code, account_status")
+    .eq("auth_uid", String(uid))
+    .eq("account_status", "ACTIVE")
+    .limit(1);
+  asDatabaseError(error, "读取员工身份");
+  const staff = data?.[0];
+  if (!staff || !ROLES.has(staff.role_code)) return null;
+
+  let storeId = "";
+  if (staff.role_code === "store") {
+    const assignment = await rdb
+      .from("staff_store_assignments")
+      .select("store_id")
+      .eq("staff_account_id", staff.id)
+      .eq("assignment_status", "ACTIVE")
+      .limit(1);
+    asDatabaseError(assignment.error, "读取门店绑定");
+    storeId = assignment.data?.[0]?.store_id ? String(assignment.data[0].store_id) : "";
+    if (!storeId) fail("该门店账号尚未绑定有效门店", "UNASSIGNED_STORE");
+  }
+  return { staffId: staff.id, role: staff.role_code, staffName: staff.staff_name, storeId };
 }
 
 function bootstrapHqProfile(uid, userInfo) {
   if (!process.env.BOOTSTRAP_HQ_UID || String(uid) !== String(process.env.BOOTSTRAP_HQ_UID)) return null;
   return {
+    staffId: null,
     role: "hq",
-    staffName: String(userInfo?.nickName || "总部管理员"),
+    staffName: String(userInfo?.nickName || userInfo?.name || "总部管理员"),
     storeId: ""
   };
 }
@@ -61,45 +78,72 @@ function bootstrapHqProfile(uid, userInfo) {
 async function currentUser() {
   const { uid } = auth.getUserInfo();
   if (!uid) fail("请先完成手机号登录", "UNAUTHENTICATED");
-  // 首个总部用户只以 BOOTSTRAP_HQ_UID 识别，不读取其控制台用户描述。
-  // 这样可兼容身份认证控制台中的旧用户记录。
-  const hqProfile = bootstrapHqProfile(uid);
-  if (hqProfile) return { uid, userInfo: { nickName: hqProfile.staffName }, profile: hqProfile };
-  const { userInfo } = await auth.getEndUserInfo(uid);
-  if (!userInfo) fail("未找到当前登录用户", "UNAUTHENTICATED");
-  // 首个总部用户来自控制台身份认证，某些旧用户记录不支持写入 description。
-  // 因此仅对环境变量指定的 UID 做一次总部兜底识别；其余员工仍使用受控创建时写入的 profile。
-  return { uid, userInfo, profile: parseProfile(userInfo.description) };
+  let userInfo = {};
+  try {
+    const result = await auth.getEndUserInfo(uid);
+    userInfo = result?.userInfo || {};
+  } catch (_) {
+    // 身份认证资料不完整时，首个总部仍可由 BOOTSTRAP_HQ_UID 恢复登录。
+  }
+  const profile = await findStaffProfile(uid) || bootstrapHqProfile(uid, userInfo);
+  return { uid: String(uid), userInfo, profile };
 }
 
 function requireHq(caller) {
   if (caller.profile?.role !== "hq") fail("仅总部账号可以管理员工账号", "FORBIDDEN");
 }
 
+async function ensureBootstrapHq(caller) {
+  if (!process.env.BOOTSTRAP_HQ_UID || caller.uid !== String(process.env.BOOTSTRAP_HQ_UID)) {
+    fail("首次总部初始化未获授权", "FORBIDDEN");
+  }
+  const existing = await findStaffProfile(caller.uid);
+  if (existing) return existing;
+  const phone = validatePhone(caller.userInfo?.phone || caller.userInfo?.phoneNumber || caller.userInfo?.phone_number);
+  const staffName = String(caller.userInfo?.nickName || caller.userInfo?.name || "总部管理员");
+  const { error } = await rdb.from("staff_accounts").insert({
+    auth_uid: caller.uid,
+    phone,
+    staff_name: staffName,
+    role_code: "hq",
+    account_status: "ACTIVE"
+  });
+  asDatabaseError(error, "初始化总部账户");
+  return findStaffProfile(caller.uid);
+}
+
+async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId }) {
+  const { data, error } = await rdb.from("staff_accounts").insert({
+    auth_uid: uid,
+    phone,
+    staff_name: staffName,
+    role_code: role,
+    account_status: "ACTIVE"
+  });
+  asDatabaseError(error, "保存员工业务身份");
+  if (role !== "store") return;
+  const staffId = data?.[0]?.id;
+  if (!staffId) fail("员工身份保存后未返回账号编号", "DATABASE_ERROR");
+  const { error: assignmentError } = await rdb.from("staff_store_assignments").insert({
+    staff_account_id: staffId,
+    store_id: Number(storeId),
+    assignment_status: "ACTIVE"
+  });
+  asDatabaseError(assignmentError, "绑定门店");
+}
+
 exports.main = async (event = {}) => {
   const action = event.action || "session";
-
   if (action === "health") return { ok: true, message: "员工账号云函数已就绪" };
-
   const caller = await currentUser();
 
   if (action === "session") {
     if (!caller.profile) fail("该手机号尚未被总部绑定业务身份", "UNASSIGNED_PHONE");
-    return {
-      ok: true,
-      uid: caller.uid,
-      phone: caller.userInfo.phone || "",
-      profile: caller.profile
-    };
+    return { ok: true, uid: caller.uid, profile: caller.profile };
   }
-
   if (action === "bootstrapHq") {
-    if (!process.env.BOOTSTRAP_HQ_UID || String(caller.uid) !== String(process.env.BOOTSTRAP_HQ_UID)) {
-      fail("首次总部初始化未获授权", "FORBIDDEN");
-    }
-    return { ok: true, profile: caller.profile };
+    return { ok: true, profile: await ensureBootstrapHq(caller) };
   }
-
   if (action === "provisionStaff") {
     requireHq(caller);
     const staffName = String(event.staffName || "").trim();
@@ -109,9 +153,8 @@ exports.main = async (event = {}) => {
     const password = validatePassword(event.initialPassword);
     if (!staffName) fail("请填写员工姓名");
     if (!ROLES.has(role) || role === "hq") fail("员工角色必须是运营、门店或老师");
-    if (role === "store" && !storeId) fail("门店员工必须绑定门店");
+    if (role === "store" && !/^\d+$/.test(storeId)) fail("门店员工必须绑定已创建门店的数字编号");
 
-    const profile = { role, staffName, storeId: role === "store" ? storeId : "" };
     const created = await manager.user.createUser({
       name: `staff_${phone}`,
       password,
@@ -119,11 +162,13 @@ exports.main = async (event = {}) => {
       userStatus: "ACTIVE",
       nickName: staffName,
       phone,
-      description: JSON.stringify(profile)
+      description: "业务员工登录账号"
     });
-    return { ok: true, uid: created?.Data?.Uid || "", phone, profile };
+    const uid = String(created?.Data?.Uid || "");
+    if (!uid) fail("认证账号已创建，但未返回 UID；请勿重复提交并联系总部处理", "AUTH_CREATE_INCOMPLETE");
+    await createStaffDatabaseProfile({ uid, phone, staffName, role, storeId });
+    return { ok: true, uid, phone, profile: await findStaffProfile(uid) };
   }
-
   if (action === "resetPassword") {
     requireHq(caller);
     const uid = String(event.uid || "").trim();
@@ -131,6 +176,5 @@ exports.main = async (event = {}) => {
     await manager.user.modifyUser({ uid, password: validatePassword(event.newPassword) });
     return { ok: true };
   }
-
   fail("不支持的操作");
 };
