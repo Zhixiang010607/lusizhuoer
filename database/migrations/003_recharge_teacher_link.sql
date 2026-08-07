@@ -1,5 +1,5 @@
--- 充值记录补齐老师关联字段。
--- 字段允许为空：由业务配置决定老师是否必填；但所有记录表都保留该关联位置。
+-- Add the teacher relationship column to recharge records.
+-- The column may be nullable by business configuration, but every record table retains the relationship for traceability.
 
 ALTER TABLE public.recharge_records
   ADD COLUMN IF NOT EXISTS teacher_id BIGINT REFERENCES public.teachers(id);

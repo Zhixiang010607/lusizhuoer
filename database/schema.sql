@@ -1,6 +1,6 @@
--- 门店业务管理系统：CloudBase PostgreSQL（PG 模式）初始结构
--- 在「SQL 型数据库 → SQL 编辑器」中执行。
--- 本文件不保存人脸照片、SecretKey 或身份证照片，只保存必要的业务标识与审计结果。
+-- Store management system: initial CloudBase PostgreSQL schema.
+-- Run this file in the CloudBase SQL editor.
+-- This schema stores business identifiers and audit results only. Do not store face photos, secret keys, or ID-card images here.
 
 CREATE TABLE IF NOT EXISTS public.staff_accounts (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS public.staff_store_assignments (
 );
 
 CREATE INDEX IF NOT EXISTS idx_assignment_store ON public.staff_store_assignments (store_id, assignment_status);
--- 每个门店最多一个有效门店账号；封存原账号后才可以换绑新手机号。
+-- Each store may have only one active store account. Archive the old assignment before binding a replacement phone number.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_one_active_store_account_per_store
   ON public.staff_store_assignments (store_id)
   WHERE assignment_status = 'ACTIVE';
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS public.teachers (
   teacher_code VARCHAR(32) NOT NULL UNIQUE,
   staff_account_id BIGINT UNIQUE REFERENCES public.staff_accounts(id),
   teacher_name VARCHAR(64) NOT NULL,
-  -- 身份证原文应由云函数加密后写入；查询、去重仅使用 SHA-256 哈希。
+  -- Encrypt the raw ID-card value in a cloud function. Use the SHA-256 hash only for lookup and deduplication.
   id_card_ciphertext BYTEA NOT NULL,
   id_card_hash CHAR(64) NOT NULL UNIQUE,
   phone CHAR(11) NOT NULL,
@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
   customer_code VARCHAR(32) NOT NULL UNIQUE,
   customer_name VARCHAR(64) NOT NULL,
   phone CHAR(11),
-  -- 腾讯云人员库 PersonId，不保存人脸图片或特征值。
+  -- Tencent Cloud face-library PersonId. Do not store face images or biometric feature vectors.
   face_person_id VARCHAR(128) UNIQUE,
   face_consent_at TIMESTAMPTZ,
   customer_status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' CHECK (customer_status IN ('ACTIVE', 'ARCHIVED')),
@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS public.recharge_records (
   recharge_code VARCHAR(32) NOT NULL UNIQUE,
   customer_id BIGINT NOT NULL REFERENCES public.customers(id),
   store_id BIGINT NOT NULL REFERENCES public.stores(id),
-  -- 业务配置可设为选填；字段始终保留，保证可追溯老师归属。
+  -- This relationship may be optional by business configuration, but the column is retained for teacher traceability.
   teacher_id BIGINT REFERENCES public.teachers(id),
   product_id BIGINT NOT NULL REFERENCES public.products(id),
   amount_cent INTEGER NOT NULL CHECK (amount_cent >= 0),
@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS public.verification_records (
   verification_code VARCHAR(32) NOT NULL UNIQUE,
   customer_id BIGINT NOT NULL REFERENCES public.customers(id),
   store_id BIGINT NOT NULL REFERENCES public.stores(id),
-  -- 业务配置可设为选填；字段始终保留，保证可追溯老师归属。
+  -- This relationship may be optional by business configuration, but the column is retained for teacher traceability.
   teacher_id BIGINT REFERENCES public.teachers(id),
   face_request_id VARCHAR(128),
   face_score NUMERIC(6,3),
@@ -143,7 +143,7 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
 CREATE INDEX IF NOT EXISTS idx_audit_entity ON public.audit_logs (entity_type, entity_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_actor_time ON public.audit_logs (actor_staff_id, created_at DESC);
 
--- 默认拒绝客户端对业务表的直接访问；后续只经云函数按角色读写。
+-- Deny direct client access to business tables by default. Use role-aware cloud functions for reads and writes.
 ALTER TABLE public.staff_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.stores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.staff_store_assignments ENABLE ROW LEVEL SECURITY;

@@ -1,5 +1,5 @@
--- 所有主数据仅使用 ACTIVE（活跃）和 ARCHIVED（封存）两种业务状态。
--- CloudBase 身份认证的 BLOCKED 仅是认证层禁用标志，不是业务状态值。
+-- All master data uses only the ACTIVE and ARCHIVED business states.
+-- CloudBase authentication BLOCKED is an authentication-layer flag, not a business status value.
 UPDATE public.staff_accounts SET account_status = 'ARCHIVED' WHERE account_status = 'BLOCKED';
 
 ALTER TABLE public.staff_accounts
@@ -8,7 +8,7 @@ ALTER TABLE public.staff_accounts
   ADD CONSTRAINT staff_accounts_account_status_check
   CHECK (account_status IN ('ACTIVE', 'ARCHIVED'));
 
--- 老师资料封存时，同步封存其登录账号；反之恢复为活跃。
+-- When a teacher record is archived, archive its linked login account. Restore the account when the teacher becomes active.
 CREATE OR REPLACE FUNCTION public.sync_teacher_account_status()
 RETURNS TRIGGER
 LANGUAGE plpgsql

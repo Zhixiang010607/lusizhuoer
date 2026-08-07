@@ -1,4 +1,4 @@
--- 老师仅可发起本人业务的审核申请。门店字段保留为关联审计用途，前端老师端不得展示。
+-- Teachers may request review only for their own work. Store fields remain for audit linkage and must not be shown in the teacher UI.
 CREATE TABLE IF NOT EXISTS public.verification_review_requests (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   request_code VARCHAR(32) NOT NULL UNIQUE,

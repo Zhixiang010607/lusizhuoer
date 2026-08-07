@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS public.staff_store_assignments (
   UNIQUE (staff_account_id, store_id)
 );
 CREATE INDEX IF NOT EXISTS idx_assignment_store ON public.staff_store_assignments (store_id, assignment_status);
--- 每个门店最多一个有效门店账号；封存原账号后才可以换绑新手机号。
+-- Each store may have only one active store account. Archive the old assignment before binding a replacement phone number.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_one_active_store_account_per_store
   ON public.staff_store_assignments (store_id)
   WHERE assignment_status = 'ACTIVE';
@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS public.recharge_records (
   recharge_code VARCHAR(32) NOT NULL UNIQUE,
   customer_id BIGINT NOT NULL REFERENCES public.customers(id),
   store_id BIGINT NOT NULL REFERENCES public.stores(id),
-  -- 业务配置可设为选填；字段始终保留，保证可追溯老师归属。
+  -- This relationship may be optional by business configuration, but the column is retained for teacher traceability.
   teacher_id BIGINT REFERENCES public.teachers(id),
   product_id BIGINT NOT NULL REFERENCES public.products(id),
   amount_cent INTEGER NOT NULL CHECK (amount_cent >= 0),
@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS public.verification_records (
   verification_code VARCHAR(32) NOT NULL UNIQUE,
   customer_id BIGINT NOT NULL REFERENCES public.customers(id),
   store_id BIGINT NOT NULL REFERENCES public.stores(id),
-  -- 业务配置可设为选填；字段始终保留，保证可追溯老师归属。
+  -- This relationship may be optional by business configuration, but the column is retained for teacher traceability.
   teacher_id BIGINT REFERENCES public.teachers(id),
   face_request_id VARCHAR(128),
   face_score NUMERIC(6,3),
