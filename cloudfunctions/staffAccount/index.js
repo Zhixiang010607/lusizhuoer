@@ -90,6 +90,10 @@ function bootstrapHqProfile(uid, userInfo) {
 async function currentUser() {
   const { uid } = auth.getUserInfo();
   if (!uid) fail("请先完成手机号登录", "UNAUTHENTICATED");
+  // 总部创建员工时不需要额外读取认证资料。先走本地配置的总部身份，
+  // 避免 manager SDK 冷启动时再叠加一次远端认证查询而触发短超时。
+  const bootstrapProfile = bootstrapHqProfile(uid, {});
+  if (bootstrapProfile) return { uid: String(uid), userInfo: {}, profile: bootstrapProfile };
   let userInfo = {};
   try {
     const result = await auth.getEndUserInfo(uid);
@@ -99,8 +103,6 @@ async function currentUser() {
   }
   // 总部会话是登录链路的最低依赖：不等待数据库或管理 SDK 初始化。
   // 因此即使员工管理功能临时故障，总部仍可正常登录、排查和恢复。
-  const bootstrapProfile = bootstrapHqProfile(uid, userInfo);
-  if (bootstrapProfile) return { uid: String(uid), userInfo, profile: bootstrapProfile };
   const profile = await findStaffProfile(uid);
   return { uid: String(uid), userInfo, profile };
 }
@@ -137,7 +139,8 @@ async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId
     account_status: "ACTIVE"
   });
   asDatabaseError(error, "保存员工业务身份");
-  if (role !== "store") return;
+  const profile = { staffId: data?.[0]?.id || null, role, staffName, storeId: "" };
+  if (role !== "store") return profile;
   const staffId = data?.[0]?.id;
   if (!staffId) fail("员工身份保存后未返回账号编号", "DATABASE_ERROR");
   const { error: assignmentError } = await rdb().from("staff_store_assignments").insert({
@@ -146,6 +149,8 @@ async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId
     assignment_status: "ACTIVE"
   });
   asDatabaseError(assignmentError, "绑定门店");
+  profile.storeId = String(storeId);
+  return profile;
 }
 
 exports.main = async (event = {}) => {
@@ -182,8 +187,8 @@ exports.main = async (event = {}) => {
     });
     const uid = String(created?.Data?.Uid || "");
     if (!uid) fail("认证账号已创建，但未返回 UID；请勿重复提交并联系总部处理", "AUTH_CREATE_INCOMPLETE");
-    await createStaffDatabaseProfile({ uid, phone, staffName, role, storeId });
-    return { ok: true, uid, phone, profile: await findStaffProfile(uid) };
+    const profile = await createStaffDatabaseProfile({ uid, phone, staffName, role, storeId });
+    return { ok: true, uid, phone, profile };
   }
   if (action === "resetPassword") {
     requireHq(caller);
