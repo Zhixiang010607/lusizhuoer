@@ -99,6 +99,8 @@ CREATE TABLE IF NOT EXISTS public.recharge_records (
   recharge_code VARCHAR(32) NOT NULL UNIQUE,
   customer_id BIGINT NOT NULL REFERENCES public.customers(id),
   store_id BIGINT NOT NULL REFERENCES public.stores(id),
+  -- 业务配置可设为选填；字段始终保留，保证可追溯老师归属。
+  teacher_id BIGINT REFERENCES public.teachers(id),
   product_id BIGINT NOT NULL REFERENCES public.products(id),
   amount_cent INTEGER NOT NULL CHECK (amount_cent >= 0),
   payment_status VARCHAR(16) NOT NULL DEFAULT 'PENDING' CHECK (payment_status IN ('PENDING', 'PAID', 'REJECTED', 'VOID')),
@@ -108,12 +110,14 @@ CREATE TABLE IF NOT EXISTS public.recharge_records (
 
 CREATE INDEX IF NOT EXISTS idx_recharge_customer_time ON public.recharge_records (customer_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_recharge_store_time ON public.recharge_records (store_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_recharge_teacher_time ON public.recharge_records (teacher_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.verification_records (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   verification_code VARCHAR(32) NOT NULL UNIQUE,
   customer_id BIGINT NOT NULL REFERENCES public.customers(id),
   store_id BIGINT NOT NULL REFERENCES public.stores(id),
+  -- 业务配置可设为选填；字段始终保留，保证可追溯老师归属。
   teacher_id BIGINT REFERENCES public.teachers(id),
   face_request_id VARCHAR(128),
   face_score NUMERIC(6,3),
