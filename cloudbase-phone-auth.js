@@ -13,10 +13,11 @@
 
   function getApp() {
     if (app) return app;
-    if (!window.cloudbase || !window.registerAuth || !window.CloudBaseAuthConfig) {
+    if (!window.cloudbase || !window.registerAuth || !window.registerFunctions || !window.CloudBaseAuthConfig) {
       throw new Error("CloudBase 登录组件未加载，请刷新后重试");
     }
     window.registerAuth(window.cloudbase);
+    window.registerFunctions(window.cloudbase);
     app = window.cloudbase.init(window.CloudBaseAuthConfig);
     return app;
   }
@@ -60,6 +61,15 @@
       const result = await getApp().callFunction({ name: "staffAccount", data: { action: "bootstrapHq" } });
       const data = result?.result || result?.data?.result || result?.data;
       if (!data?.ok) throw new Error(data?.message || "总部初始化未获授权");
+      return data;
+    },
+    async provisionStaff({ staffName, phone, role, initialPassword, storeId = "" }) {
+      const result = await getApp().callFunction({
+        name: "staffAccount",
+        data: { action: "provisionStaff", staffName, phone: normalizePhone(phone), role, initialPassword, storeId }
+      });
+      const data = result?.result || result?.data?.result || result?.data;
+      if (!data?.ok) throw new Error(data?.message || "员工账号创建失败");
       return data;
     }
   };
