@@ -29,6 +29,14 @@
     $("smsLoginField").hidden = password;
     setError();
   }
+  function refreshSmsButton() {
+    const button = $("sendSmsCode");
+    if (!button || loginMode !== "sms") return;
+    let remaining = 0;
+    try { remaining = window.CloudBasePhoneAuth?.smsCooldownRemaining?.($("loginPhone").value) || 0; } catch (_) { remaining = 0; }
+    button.disabled = remaining > 0;
+    button.textContent = remaining > 0 ? `${remaining}秒后重发` : "获取验证码";
+  }
   function createSession(identity, staff) {
     const profile = staff.profile;
     const session = {
@@ -50,7 +58,8 @@
   }
 
   $("passwordLoginMode").addEventListener("click", () => selectLoginMode("password"));
-  $("smsLoginMode").addEventListener("click", () => selectLoginMode("sms"));
+  $("smsLoginMode").addEventListener("click", () => { selectLoginMode("sms"); refreshSmsButton(); });
+  $("loginPhone").addEventListener("input", refreshSmsButton);
   $("togglePassword").addEventListener("click", () => {
     const visible = $("loginPassword").type === "text";
     $("loginPassword").type = visible ? "password" : "text";
@@ -65,7 +74,8 @@
     try {
       setError(); setBusy(button, true, "获取验证码");
       await window.CloudBasePhoneAuth.sendCode($("loginPhone").value);
-      setError("验证码已发送，请查收短信后在 10 分钟内完成登录。");
+      setError("验证码已发送。60 秒内不可重发；请尽快完成登录。");
+      refreshSmsButton();
     } catch (error) {
       setError(error.message || "验证码发送失败，请稍后重试");
     } finally { setBusy(button, false, "获取验证码"); }
@@ -102,4 +112,5 @@
   });
   document.documentElement.dataset.prototypeVersion = VERSION;
   selectLoginMode("password");
+  window.setInterval(refreshSmsButton, 1000);
 })();

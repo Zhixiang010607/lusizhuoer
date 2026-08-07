@@ -6,13 +6,25 @@
  * 业务身份只保存在 PostgreSQL 的 public.staff_accounts 表，绝不写入 user_desc JSON。
  */
 const cloudbase = require("@cloudbase/node-sdk");
-const CloudBaseManager = require("@cloudbase/manager-node");
 
 const app = cloudbase.init({});
 const auth = app.auth();
-const rdb = app.rdb();
-const manager = CloudBaseManager.init({ envId: process.env.TCB_ENV });
 const ROLES = new Set(["hq", "operation", "store", "teacher"]);
+let rdbClient = null;
+let managerClient = null;
+
+function rdb() {
+  if (!rdbClient) rdbClient = app.rdb();
+  return rdbClient;
+}
+
+function manager() {
+  if (!managerClient) {
+    const CloudBaseManager = require("@cloudbase/manager-node");
+    managerClient = CloudBaseManager.init({ envId: process.env.TCB_ENV });
+  }
+  return managerClient;
+}
 
 function fail(message, code = "BAD_REQUEST") {
   const error = new Error(message);
@@ -40,7 +52,7 @@ function asDatabaseError(error, action) {
 }
 
 async function findStaffProfile(uid) {
-  const { data, error } = await rdb
+  const { data, error } = await rdb()
     .from("staff_accounts")
     .select("id, staff_name, role_code, account_status")
     .eq("auth_uid", String(uid))
@@ -52,7 +64,7 @@ async function findStaffProfile(uid) {
 
   let storeId = "";
   if (staff.role_code === "store") {
-    const assignment = await rdb
+    const assignment = await rdb()
       .from("staff_store_assignments")
       .select("store_id")
       .eq("staff_account_id", staff.id)
@@ -85,7 +97,11 @@ async function currentUser() {
   } catch (_) {
     // 身份认证资料不完整时，首个总部仍可由 BOOTSTRAP_HQ_UID 恢复登录。
   }
-  const profile = await findStaffProfile(uid) || bootstrapHqProfile(uid, userInfo);
+  // 总部会话是登录链路的最低依赖：不等待数据库或管理 SDK 初始化。
+  // 因此即使员工管理功能临时故障，总部仍可正常登录、排查和恢复。
+  const bootstrapProfile = bootstrapHqProfile(uid, userInfo);
+  if (bootstrapProfile) return { uid: String(uid), userInfo, profile: bootstrapProfile };
+  const profile = await findStaffProfile(uid);
   return { uid: String(uid), userInfo, profile };
 }
 
@@ -101,7 +117,7 @@ async function ensureBootstrapHq(caller) {
   if (existing) return existing;
   const phone = validatePhone(caller.userInfo?.phone || caller.userInfo?.phoneNumber || caller.userInfo?.phone_number);
   const staffName = String(caller.userInfo?.nickName || caller.userInfo?.name || "总部管理员");
-  const { error } = await rdb.from("staff_accounts").insert({
+  const { error } = await rdb().from("staff_accounts").insert({
     auth_uid: caller.uid,
     phone,
     staff_name: staffName,
@@ -113,7 +129,7 @@ async function ensureBootstrapHq(caller) {
 }
 
 async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId }) {
-  const { data, error } = await rdb.from("staff_accounts").insert({
+  const { data, error } = await rdb().from("staff_accounts").insert({
     auth_uid: uid,
     phone,
     staff_name: staffName,
@@ -124,7 +140,7 @@ async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId
   if (role !== "store") return;
   const staffId = data?.[0]?.id;
   if (!staffId) fail("员工身份保存后未返回账号编号", "DATABASE_ERROR");
-  const { error: assignmentError } = await rdb.from("staff_store_assignments").insert({
+  const { error: assignmentError } = await rdb().from("staff_store_assignments").insert({
     staff_account_id: staffId,
     store_id: Number(storeId),
     assignment_status: "ACTIVE"
@@ -155,7 +171,7 @@ exports.main = async (event = {}) => {
     if (!ROLES.has(role)) fail("员工角色必须是总部、运营、门店或老师");
     if (role === "store" && !/^\d+$/.test(storeId)) fail("门店员工必须绑定已创建门店的数字编号");
 
-    const created = await manager.user.createUser({
+    const created = await manager().user.createUser({
       name: `staff_${phone}`,
       password,
       type: "internalUser",
@@ -173,7 +189,7 @@ exports.main = async (event = {}) => {
     requireHq(caller);
     const uid = String(event.uid || "").trim();
     if (!uid) fail("缺少员工 UID");
-    await manager.user.modifyUser({ uid, password: validatePassword(event.newPassword) });
+    await manager().user.modifyUser({ uid, password: validatePassword(event.newPassword) });
     return { ok: true };
   }
   fail("不支持的操作");
