@@ -49,12 +49,23 @@ function parseProfile(description) {
   try { return cleanProfile(JSON.parse(description || "")); } catch (_) { return null; }
 }
 
+function bootstrapHqProfile(uid, userInfo) {
+  if (!process.env.BOOTSTRAP_HQ_UID || String(uid) !== String(process.env.BOOTSTRAP_HQ_UID)) return null;
+  return {
+    role: "hq",
+    staffName: String(userInfo?.nickName || "总部管理员"),
+    storeId: ""
+  };
+}
+
 async function currentUser() {
   const { uid } = auth.getUserInfo();
   if (!uid) fail("请先完成手机号登录", "UNAUTHENTICATED");
   const { userInfo } = await auth.getEndUserInfo(uid);
   if (!userInfo) fail("未找到当前登录用户", "UNAUTHENTICATED");
-  return { uid, userInfo, profile: parseProfile(userInfo.description) };
+  // 首个总部用户来自控制台身份认证，某些旧用户记录不支持写入 description。
+  // 因此仅对环境变量指定的 UID 做一次总部兜底识别；其余员工仍使用受控创建时写入的 profile。
+  return { uid, userInfo, profile: parseProfile(userInfo.description) || bootstrapHqProfile(uid, userInfo) };
 }
 
 function requireHq(caller) {
@@ -79,13 +90,10 @@ exports.main = async (event = {}) => {
   }
 
   if (action === "bootstrapHq") {
-    if (!process.env.BOOTSTRAP_HQ_UID || caller.uid !== process.env.BOOTSTRAP_HQ_UID) {
+    if (!process.env.BOOTSTRAP_HQ_UID || String(caller.uid) !== String(process.env.BOOTSTRAP_HQ_UID)) {
       fail("首次总部初始化未获授权", "FORBIDDEN");
     }
-    const staffName = String(event.staffName || caller.userInfo.nickName || "总部管理员").trim();
-    const profile = { role: "hq", staffName, storeId: "" };
-    await manager.user.modifyUser({ uid: caller.uid, description: JSON.stringify(profile) });
-    return { ok: true, profile };
+    return { ok: true, profile: caller.profile };
   }
 
   if (action === "provisionStaff") {
