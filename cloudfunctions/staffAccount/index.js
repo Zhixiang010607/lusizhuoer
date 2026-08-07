@@ -5,16 +5,27 @@
  * CloudBase 身份认证只负责手机号、密码和验证码。
  * 业务身份只保存在 PostgreSQL 的 public.staff_accounts 表，绝不写入 user_desc JSON。
  */
-const cloudbase = require("@cloudbase/node-sdk");
-
-const app = cloudbase.init({});
-const auth = app.auth();
 const ROLES = new Set(["hq", "operation", "store", "teacher"]);
+let app = null;
+let auth = null;
 let rdbClient = null;
 let managerClient = null;
 
+function getApp() {
+  if (!app) {
+    const cloudbase = require("@cloudbase/node-sdk");
+    app = cloudbase.init({});
+  }
+  return app;
+}
+
+function getAuth() {
+  if (!auth) auth = getApp().auth();
+  return auth;
+}
+
 function rdb() {
-  if (!rdbClient) rdbClient = app.rdb();
+  if (!rdbClient) rdbClient = getApp().rdb();
   return rdbClient;
 }
 
@@ -96,7 +107,7 @@ function bootstrapHqProfile(uid, userInfo) {
 }
 
 async function currentUser() {
-  const { uid } = auth.getUserInfo();
+  const { uid } = getAuth().getUserInfo();
   if (!uid) fail("请先完成手机号登录", "UNAUTHENTICATED");
   // 总部创建员工时不需要额外读取认证资料。先走本地配置的总部身份，
   // 避免 manager SDK 冷启动时再叠加一次远端认证查询而触发短超时。
@@ -109,7 +120,7 @@ async function currentUser() {
   }
   let userInfo = {};
   try {
-    const result = await auth.getEndUserInfo(uid);
+    const result = await getAuth().getEndUserInfo(uid);
     userInfo = result?.userInfo || {};
   } catch (_) {
     // 身份认证资料不完整时，首个总部仍可由 BOOTSTRAP_HQ_UID 恢复登录。
