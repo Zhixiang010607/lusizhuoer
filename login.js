@@ -7,7 +7,7 @@
     hq: { name: "总部", target: "index.html" },
     operation: { name: "运营", target: "local.html" },
     store: { name: "门店", target: "store-detail.html" },
-    teacher: { name: "老师", target: "teacher-detail.html" }
+    teacher: { name: "老师", target: "teacher-work-orders.html" }
   };
   let loginMode = "password";
   let activeSession = null;
