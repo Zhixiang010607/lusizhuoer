@@ -109,24 +109,13 @@ function bootstrapHqProfile(uid, userInfo) {
 async function currentUser() {
   const { uid } = getAuth().getUserInfo();
   if (!uid) fail("请先完成手机号登录", "UNAUTHENTICATED");
-  // 总部创建员工时不需要额外读取认证资料。先走本地配置的总部身份，
-  // 避免 manager SDK 冷启动时再叠加一次远端认证查询而触发短超时。
-  const bootstrapProfile = bootstrapHqProfile(uid, {});
-  if (bootstrapProfile) {
-    // 已建立总部资料后，必须以 staff_accounts 的状态为准。
-    // 这样总部人员被封存后同样无法继续登录。
-    const profile = await findStaffProfile(uid);
-    return { uid: String(uid), userInfo: {}, profile: profile || bootstrapProfile };
-  }
   let userInfo = {};
   try {
     const result = await getAuth().getEndUserInfo(uid);
     userInfo = result?.userInfo || {};
   } catch (_) {
-    // 身份认证资料不完整时，首个总部仍可由 BOOTSTRAP_HQ_UID 恢复登录。
+    // User details are only needed when the bootstrap HQ account is first created.
   }
-  // 总部会话是登录链路的最低依赖：不等待数据库或管理 SDK 初始化。
-  // 因此即使员工管理功能临时故障，总部仍可正常登录、排查和恢复。
   const profile = await findStaffProfile(uid);
   return { uid: String(uid), userInfo, profile };
 }
@@ -183,6 +172,9 @@ async function main(event = {}) {
   const caller = await currentUser();
 
   if (action === "session") {
+    if (!caller.profile && String(caller.uid) === String(process.env.BOOTSTRAP_HQ_UID || "")) {
+      caller.profile = await ensureBootstrapHq(caller);
+    }
     if (!caller.profile) fail("该手机号尚未被总部绑定业务身份", "UNASSIGNED_PHONE");
     return { ok: true, uid: caller.uid, profile: caller.profile };
   }
