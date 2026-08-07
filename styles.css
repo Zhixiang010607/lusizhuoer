@@ -144,6 +144,14 @@ body[data-teacher-workspace] .teacher-workspace-main { width: min(1240px, calc(1
 .teacher-review-dialog textarea, .teacher-review-dialog select { width: 100%; }
 .teacher-dialog-hint { margin: -4px 0 0; color: var(--muted); font-size: 12px; }
 .teacher-review-dialog .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+body[data-teacher-service] .teacher-service-main { width: min(1120px, calc(100% - 32px)); }
+.teacher-service-panel { margin-bottom: 16px; padding: 16px; }
+.teacher-store-lookup-grid { display: grid; grid-template-columns: 1.2fr repeat(3, minmax(130px, .8fr)) auto; gap: 10px; align-items: end; }
+.teacher-store-select-grid { display: grid; grid-template-columns: minmax(260px, 1fr) auto; gap: 10px; align-items: end; }
+.teacher-store-select-grid button { height: 37px; white-space: nowrap; }
+.teacher-store-lookup-grid button { height: 37px; white-space: nowrap; }
+.teacher-step-disabled { position: relative; pointer-events: none; opacity: .48; filter: grayscale(.15); }
+.teacher-step-disabled::after { content: "请先完成上一步"; position: absolute; inset: 0; display: grid; place-items: center; border-radius: inherit; color: #40506b; background: #f6f8fb99; font-weight: 800; }
 body[data-hq-create] .topbar { flex: 0 0 auto; min-height: 52px; }
 body[data-hq-create] .hq-create-main { flex: 1 1 auto; min-height: 0; width: min(1180px, calc(100% - 28px)); margin: 12px auto 14px; overflow: hidden; }
 body[data-hq-create] .hq-create-form { height: 100%; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; padding: 16px; overflow: hidden; }
@@ -637,7 +645,7 @@ textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px #1f5eff18; out
   .topbar { padding: 10px 16px; }
   main { width: min(100% - 22px, 1480px); margin-top: 10px; }
   .dashboard-grid, .management-grid, .detail-bottom-grid { grid-template-columns: 1fr; }
-  .teacher-summary-grid, .teacher-work-layout, .teacher-detail-grid, .teacher-review-section { grid-template-columns: 1fr; }
+  .teacher-summary-grid, .teacher-work-layout, .teacher-detail-grid, .teacher-review-section, .teacher-store-lookup-grid, .teacher-store-select-grid { grid-template-columns: 1fr; }
   .store-workflow-main { grid-template-columns: minmax(270px, .82fr) minmax(0, 1.18fr); gap: 12px; min-height: calc(100dvh - 136px); }
   .store-workflow-main > .panel { min-height: 0; height: auto; padding: 16px; }
   .store-workflow-main .panel-heading { margin-bottom: 10px; }

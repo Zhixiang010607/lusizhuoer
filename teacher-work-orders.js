@@ -21,11 +21,11 @@
 
   const verificationApplications = () => ownRows("prototypeTeacherVerificationApplications");
   const rechargeVoidApplications = () => ownRows("prototypeTeacherRechargeVoidApplications");
-  const verificationRows = () => baseVerifications.map((row) => {
+  const verificationRows = () => [...baseVerifications, ...ownRows("prototypeTeacherVerificationRecords")].map((row) => {
     const latest = verificationApplications().filter((item) => item.recordId === row.id && item.status === "pending").at(-1);
     return latest ? { ...row, status: "review" } : row;
   });
-  const rechargeRows = () => baseRecharges.map((row) => {
+  const rechargeRows = () => [...baseRecharges, ...ownRows("prototypeTeacherRechargeRecords")].map((row) => {
     const latest = rechargeVoidApplications().filter((item) => item.recordId === row.id && item.status === "pending").at(-1);
     return latest ? { ...row, status: "review" } : row;
   });
