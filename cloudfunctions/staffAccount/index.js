@@ -152,7 +152,7 @@ exports.main = async (event = {}) => {
     const storeId = String(event.storeId || "").trim();
     const password = validatePassword(event.initialPassword);
     if (!staffName) fail("请填写员工姓名");
-    if (!ROLES.has(role) || role === "hq") fail("员工角色必须是运营、门店或老师");
+    if (!ROLES.has(role)) fail("员工角色必须是总部、运营、门店或老师");
     if (role === "store" && !/^\d+$/.test(storeId)) fail("门店员工必须绑定已创建门店的数字编号");
 
     const created = await manager.user.createUser({

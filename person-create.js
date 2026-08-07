@@ -4,7 +4,9 @@
   const $ = (id) => document.getElementById(id);
   const config = type === "teacher"
     ? { prefix: "T", baseCount: 32, key: "prototypeCreatedTeachers", baseNames: Array.from({ length: 32 }, (_, index) => `业务老师 ${String(index + 1).padStart(2, "0")}`) }
-    : { prefix: "OP", baseCount: 8, key: "prototypeCreatedOperations", baseNames: Array.from({ length: 8 }, (_, index) => `运营人员${index + 1}`) };
+    : type === "hq"
+      ? { prefix: "HQ", baseCount: 1, key: "prototypeCreatedHeadquarters", baseNames: ["总部管理员"] }
+      : { prefix: "OP", baseCount: 8, key: "prototypeCreatedOperations", baseNames: Array.from({ length: 8 }, (_, index) => `运营人员${index + 1}`) };
 
   function stored(key) {
     try { return JSON.parse(sessionStorage.getItem(key) || "[]"); } catch (_) { return []; }
@@ -44,18 +46,19 @@
   async function submitPerson(event) {
     event.preventDefault();
     const name = $("personCreateName").value.trim();
-    const identityNumber = $("personIdentityNumber").value.trim().toUpperCase();
+    const identityInput = $("personIdentityNumber");
+    const identityNumber = identityInput ? identityInput.value.trim().toUpperCase() : "";
     const phone = $("personPhone").value.trim();
     const message = $("personCreateMessage");
     const submitButton = event.currentTarget.querySelector('button[type="submit"]');
 
-    if (allIdentityNumbers().has(identityNumber)) {
-      $("personIdentityNumber").setCustomValidity("身份证号码不可重复");
-      $("personIdentityNumber").reportValidity();
+    if (identityNumber && allIdentityNumbers().has(identityNumber)) {
+      identityInput.setCustomValidity("身份证号码不可重复");
+      identityInput.reportValidity();
       message.textContent = "身份证号码已存在";
       return;
     }
-    $("personIdentityNumber").setCustomValidity("");
+    if (identityInput) identityInput.setCustomValidity("");
 
     const initialPassword = strongInitialPassword();
     submitButton.disabled = true;
@@ -65,7 +68,7 @@
       await window.CloudBasePhoneAuth.provisionStaff({
         staffName: name,
         phone,
-        role: type === "teacher" ? "teacher" : "operation",
+        role: type === "teacher" ? "teacher" : type === "hq" ? "hq" : "operation",
         initialPassword
       });
     } catch (error) {
@@ -91,7 +94,7 @@
     submitButton.disabled = false;
   }
 
-  $("personIdentityNumber").addEventListener("input", () => {
+  $("personIdentityNumber")?.addEventListener("input", () => {
     $("personIdentityNumber").setCustomValidity("");
     $("personCreateMessage").textContent = "";
   });
