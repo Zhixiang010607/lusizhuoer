@@ -35,6 +35,10 @@ CREATE TABLE IF NOT EXISTS public.staff_store_assignments (
   UNIQUE (staff_account_id, store_id)
 );
 CREATE INDEX IF NOT EXISTS idx_assignment_store ON public.staff_store_assignments (store_id, assignment_status);
+-- 每个门店最多一个有效门店账号；封存原账号后才可以换绑新手机号。
+CREATE UNIQUE INDEX IF NOT EXISTS uq_one_active_store_account_per_store
+  ON public.staff_store_assignments (store_id)
+  WHERE assignment_status = 'ACTIVE';
 
 CREATE TABLE IF NOT EXISTS public.teachers (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
