@@ -61,11 +61,15 @@ function bootstrapHqProfile(uid, userInfo) {
 async function currentUser() {
   const { uid } = auth.getUserInfo();
   if (!uid) fail("请先完成手机号登录", "UNAUTHENTICATED");
+  // 首个总部用户只以 BOOTSTRAP_HQ_UID 识别，不读取其控制台用户描述。
+  // 这样可兼容身份认证控制台中的旧用户记录。
+  const hqProfile = bootstrapHqProfile(uid);
+  if (hqProfile) return { uid, userInfo: { nickName: hqProfile.staffName }, profile: hqProfile };
   const { userInfo } = await auth.getEndUserInfo(uid);
   if (!userInfo) fail("未找到当前登录用户", "UNAUTHENTICATED");
   // 首个总部用户来自控制台身份认证，某些旧用户记录不支持写入 description。
   // 因此仅对环境变量指定的 UID 做一次总部兜底识别；其余员工仍使用受控创建时写入的 profile。
-  return { uid, userInfo, profile: parseProfile(userInfo.description) || bootstrapHqProfile(uid, userInfo) };
+  return { uid, userInfo, profile: parseProfile(userInfo.description) };
 }
 
 function requireHq(caller) {
