@@ -3,20 +3,24 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>我的工单</title>
+  <title>我的业务工单</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body data-teacher-workspace>
-  <aside class="side-project-bar" aria-label="老师工作台"><div class="side-brand"><span>师</span><div><strong>老师工作台</strong><small>个人业务</small></div></div><p class="side-section-title">我的工作</p><nav class="side-nav"><a class="active" href="teacher-work-orders.html"><span class="nav-icon">单</span><span>我的工单</span></a></nav><div class="side-footer">老师账号</div></aside>
-  <header class="topbar"><div><p class="eyebrow">MY WORK ORDERS</p><h1>我的工单</h1><p class="subtitle">仅查看本人负责的工单</p></div><div class="status"><span></span>账号已登录</div></header>
+  <aside class="side-project-bar" aria-label="老师工作台"><div class="side-brand"><span>师</span><div><strong>老师工作台</strong><small>个人业务</small></div></div><p class="side-section-title">我的业务</p><nav class="side-nav"><a class="active" href="teacher-work-orders.html"><span class="nav-icon">单</span><span>我的业务工单</span></a></nav><div class="side-footer">老师账号</div></aside>
+  <header class="topbar"><div><p class="eyebrow">MY BUSINESS RECORDS</p><h1>我的业务工单</h1><p class="subtitle">核销、充值和本人发起的审核申请</p></div><div class="status"><span></span>仅本人数据</div></header>
   <main class="teacher-workspace-main">
-    <section class="teacher-privacy-banner"><i>✓</i><div><strong>个人数据范围</strong><br>本页仅展示当前老师本人负责的工单；不显示门店资料、门店联系人或其他老师的任何工单。</div></section>
-    <section id="teacherSummary" class="teacher-summary-grid" aria-label="我的工单统计"></section>
-    <section class="teacher-work-layout">
-      <article class="panel teacher-orders-panel"><div class="panel-heading"><div><h2>工单列表</h2><p>按当前老师账号自动筛选</p></div><span id="teacherOrderCount" class="badge"></span></div><div class="teacher-order-filters"><label>工单状态<select id="teacherOrderStatus"><option value="all">全部状态</option><option value="pending">待处理</option><option value="progress">处理中</option><option value="done">已完成</option></select></label><label>工单类型<select id="teacherOrderType"><option value="all">全部类型</option><option value="核销服务">核销服务</option><option value="课程服务">课程服务</option><option value="客户回访">客户回访</option></select></label><button id="clearTeacherFilters" type="button">重置筛选</button></div><div class="table-scroll"><table><thead><tr><th>工单号</th><th>类型</th><th>客户</th><th>预约时间</th><th>状态</th><th>操作</th></tr></thead><tbody id="teacherOrdersBody"></tbody></table></div></article>
-      <aside class="panel teacher-today-panel"><div class="panel-heading"><div><h2>今日待办</h2><p>仅本人</p></div></div><div id="teacherTodayList" class="teacher-today-list"></div></aside>
+    <section class="teacher-privacy-banner"><i>✓</i><div><strong>数据权限</strong><br>仅显示当前登录老师 ID 绑定的核销、充值及审核申请；本页不展示门店资料、门店联系人，也不显示其他老师的记录。</div></section>
+    <section id="teacherSummary" class="teacher-summary-grid" aria-label="我的业务统计"></section>
+    <section class="panel teacher-business-panel">
+      <div class="panel-heading"><div><h2>我的业务记录</h2><p>列表已经按当前老师身份自动过滤</p></div><div class="teacher-actions"><button id="openVerificationReview" type="button">提交核销审核</button><button id="openRechargeVoid" class="secondary-button" type="button">申请作废充值审核</button></div></div>
+      <div class="teacher-record-tabs" role="tablist" aria-label="业务记录类型"><button class="active" id="teacherVerificationTab" type="button" role="tab" aria-selected="true">我的核销</button><button id="teacherRechargeTab" type="button" role="tab" aria-selected="false">我的充值</button></div>
+      <div class="teacher-order-filters"><label>记录状态<select id="teacherRecordStatus"><option value="all">全部状态</option><option value="normal">正常</option><option value="review">审核中</option><option value="void">已作废</option></select></label><label>时间范围<select id="teacherRecordRange"><option value="all">全部时间</option><option value="recent">近 30 天</option><option value="history">更早记录</option></select></label><button id="clearTeacherFilters" type="button">重置筛选</button></div>
+      <div class="table-scroll"><table><thead id="teacherRecordsHead"></thead><tbody id="teacherOrdersBody"></tbody></table></div>
     </section>
+    <section class="teacher-review-section"><article class="panel teacher-review-card"><div class="panel-heading"><div><h2>我提交的核销审核</h2><p>补录或作废申请，仅限本人核销记录</p></div><span id="verificationApplicationCount" class="badge"></span></div><div id="verificationApplicationList" class="teacher-application-list"></div></article><article class="panel teacher-review-card"><div class="panel-heading"><div><h2>我提交的充值作废审核</h2><p>仅限本人充值记录</p></div><span id="rechargeApplicationCount" class="badge"></span></div><div id="rechargeApplicationList" class="teacher-application-list"></div></article></section>
   </main>
+  <dialog id="teacherReviewDialog" class="teacher-review-dialog"><form id="teacherReviewForm"><div class="dialog-heading"><div><p class="eyebrow">PERSONAL REVIEW REQUEST</p><h2 id="teacherReviewTitle">提交审核</h2></div><button id="closeTeacherReview" type="button" aria-label="关闭">×</button></div><p id="teacherReviewHint" class="teacher-dialog-hint"></p><label id="teacherReviewKindField">审核类型<select id="teacherReviewKind"><option value="补录">补录核销</option><option value="作废">作废核销</option></select></label><label>选择本人记录<select id="teacherReviewRecord" required></select></label><label>申请原因<textarea id="teacherReviewReason" rows="4" maxlength="500" required placeholder="请说明申请原因，提交后进入运营审核队列"></textarea></label><p id="teacherReviewMessage" class="form-message" aria-live="polite"></p><div class="dialog-actions"><button id="cancelTeacherReview" type="button">取消</button><button type="submit">提交审核申请</button></div></form></dialog>
   <script src="teacher-work-orders.js"></script><script src="auth-ui.js"></script>
 </body>
 </html>

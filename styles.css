@@ -114,6 +114,36 @@ body[data-teacher-workspace] .teacher-workspace-main { width: min(1240px, calc(1
 .teacher-empty { padding: 26px 12px; text-align: center; color: var(--muted); }
 .teacher-detail-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr); gap: 16px; }
 .teacher-detail-grid .detail-info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.teacher-business-panel { padding: 16px; }
+.teacher-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.teacher-actions button { min-height: 34px; padding: 7px 11px; font-size: 12px; }
+.teacher-record-tabs { display: flex; gap: 5px; margin: 12px 0 14px; padding: 5px; border-radius: 10px; background: #edf2f8; }
+.teacher-record-tabs button { flex: 1; border: 0; border-radius: 7px; color: #58667a; background: transparent; font-weight: 800; }
+.teacher-record-tabs button.active { color: #15469c; background: white; box-shadow: 0 2px 8px #12345b1a; }
+.teacher-business-panel table { width: 100%; border-collapse: collapse; }
+.teacher-business-panel th, .teacher-business-panel td { padding: 12px 9px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+.teacher-business-panel th { color: var(--muted); font-size: 11px; }
+.teacher-business-panel td:first-child { color: #184fc7; font-weight: 800; }
+.teacher-order-status.normal { color: #087157; background: #ddf7ee; }
+.teacher-order-status.review { color: #145eb6; background: #e7f1ff; }
+.teacher-order-status.void { color: #7a3446; background: #fae9ee; }
+.teacher-review-section { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+.teacher-review-card { padding: 16px; }
+.teacher-application-list { display: grid; gap: 9px; }
+.teacher-application-list article { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 11px; border: 1px solid var(--line); border-radius: 10px; background: #fafcff; }
+.teacher-application-list article div { display: grid; gap: 4px; min-width: 0; }
+.teacher-application-list strong { font-size: 12px; }
+.teacher-application-list span { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.teacher-review-dialog { width: min(520px, calc(100vw - 28px)); border: 0; border-radius: 16px; box-shadow: 0 24px 80px #0c1b3466; }
+.teacher-review-dialog::backdrop { background: #08172988; }
+.teacher-review-dialog form { display: grid; gap: 14px; padding: 18px; }
+.teacher-review-dialog .dialog-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.teacher-review-dialog .dialog-heading h2 { margin: 0; }
+.teacher-review-dialog .dialog-heading button { width: 30px; height: 30px; padding: 0; border: 0; color: #667085; background: transparent; font-size: 24px; }
+.teacher-review-dialog label { display: grid; gap: 6px; color: #344054; font-size: 12px; font-weight: 800; }
+.teacher-review-dialog textarea, .teacher-review-dialog select { width: 100%; }
+.teacher-dialog-hint { margin: -4px 0 0; color: var(--muted); font-size: 12px; }
+.teacher-review-dialog .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
 body[data-hq-create] .topbar { flex: 0 0 auto; min-height: 52px; }
 body[data-hq-create] .hq-create-main { flex: 1 1 auto; min-height: 0; width: min(1180px, calc(100% - 28px)); margin: 12px auto 14px; overflow: hidden; }
 body[data-hq-create] .hq-create-form { height: 100%; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; padding: 16px; overflow: hidden; }
@@ -607,7 +637,7 @@ textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px #1f5eff18; out
   .topbar { padding: 10px 16px; }
   main { width: min(100% - 22px, 1480px); margin-top: 10px; }
   .dashboard-grid, .management-grid, .detail-bottom-grid { grid-template-columns: 1fr; }
-  .teacher-summary-grid, .teacher-work-layout, .teacher-detail-grid { grid-template-columns: 1fr; }
+  .teacher-summary-grid, .teacher-work-layout, .teacher-detail-grid, .teacher-review-section { grid-template-columns: 1fr; }
   .store-workflow-main { grid-template-columns: minmax(270px, .82fr) minmax(0, 1.18fr); gap: 12px; min-height: calc(100dvh - 136px); }
   .store-workflow-main > .panel { min-height: 0; height: auto; padding: 16px; }
   .store-workflow-main .panel-heading { margin-bottom: 10px; }
