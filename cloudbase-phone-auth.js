@@ -4,7 +4,6 @@
   let auth = null;
   let verifyOtp = null;
   const SMS_COOLDOWN_MS = 60 * 1000;
-  const SMS_DAILY_LIMIT = 5;
 
   function normalizePhone(phone) {
     const digits = String(phone || "").replace(/\D/g, "");
@@ -31,7 +30,6 @@
   }
 
   function smsStateKey(phone) { return `lusizhuoerSmsState:${phone}`; }
-  function todayKey() { return new Date().toISOString().slice(0, 10); }
   function readSmsState(phone) {
     try { return JSON.parse(localStorage.getItem(smsStateKey(phone)) || "{}"); } catch (_) { return {}; }
   }
@@ -47,11 +45,8 @@
     async sendCode(phone) {
       const normalizedPhone = normalizePhone(phone);
       const state = readSmsState(normalizedPhone);
-      const today = todayKey();
-      const count = state.day === today ? Number(state.count || 0) : 0;
       const remaining = cooldownRemaining(normalizedPhone);
       if (remaining > 0) throw new Error(`验证码已发送，请 ${remaining} 秒后再试`);
-      if (count >= SMS_DAILY_LIMIT) throw new Error("该手机号今日验证码发送次数已达上限，请明天再试或使用密码登录");
       const result = await getAuth().signInWithOtp({
         phone: normalizedPhone,
         options: { shouldCreateUser: false }
@@ -59,7 +54,7 @@
       if (result.error) throw new Error(result.error.message || "验证码发送失败");
       verifyOtp = result.data?.verifyOtp;
       if (!verifyOtp) throw new Error("验证码服务未返回验证会话");
-      writeSmsState(normalizedPhone, { day: today, count: count + 1, lastSentAt: Date.now() });
+      writeSmsState(normalizedPhone, { lastSentAt: Date.now() });
     },
     async signInWithCode(code) {
       if (!verifyOtp) throw new Error("请先获取短信验证码");
