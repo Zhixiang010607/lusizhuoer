@@ -55,6 +55,12 @@
         throw new Error(data?.message || "该手机号尚未被总部绑定业务身份");
       }
       return data;
+    },
+    async bootstrapHq() {
+      const result = await getApp().callFunction({ name: "staffAccount", data: { action: "bootstrapHq" } });
+      const data = result?.result || result?.data?.result || result?.data;
+      if (!data?.ok) throw new Error(data?.message || "总部初始化未获授权");
+      return data;
     }
   };
 })();

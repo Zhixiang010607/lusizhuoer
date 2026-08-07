@@ -11,6 +11,7 @@
   };
   let loginMode = "password";
   let activeSession = null;
+  const bootstrapMode = new URLSearchParams(location.search).get("bootstrap") === "1";
 
   function setError(message = "") { $("loginError").textContent = message; }
   function setBusy(button, busy, normalText) {
@@ -83,6 +84,7 @@
       const identity = loginMode === "password"
         ? await window.CloudBasePhoneAuth.signInWithPassword(phone, password)
         : await window.CloudBasePhoneAuth.signInWithCode(code);
+      if (bootstrapMode) await window.CloudBasePhoneAuth.bootstrapHq();
       const staff = await window.CloudBasePhoneAuth.getStaffSession();
       activeSession = createSession(identity, staff);
       const roleName = roles[activeSession.role]?.name || "员工";
