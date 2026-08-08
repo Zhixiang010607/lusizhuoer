@@ -1,8 +1,29 @@
 ﻿(() => {
   "use strict";
   const VERSION = "0.14.19", p = new URLSearchParams(location.search), $ = (id) => document.getElementById(id), id = p.get("storeId") || "S001", seed = Number(id.replace(/\D/g, "")) || 1;
-  const city = ["悉尼", "墨尔本", "布里斯班", "珀斯"][(seed - 1) % 4], name = `${city}门店 ${seed}`, projects = ["普拉提", "体态评估", "康复训练", "瑜伽", "力量训练", "产后恢复"];
   const info = (items) => items.map(([k, v]) => `<article><span>${k}</span><strong>${v}</strong></article>`).join("");
+  let createdStores = [];
+  try { createdStores = JSON.parse(sessionStorage.getItem("prototypeCreatedStores") || "[]"); } catch (_) { createdStores = []; }
+  const actualStore = createdStores.find((store) => store.id === id);
+  if (!actualStore) {
+    $("storeHero").innerHTML = `<div><span class="profile-type">门店详情</span><h2>未找到门店</h2><p>该门店不存在或尚未创建。</p></div>`;
+    $("storeBasicGrid").innerHTML = "";
+    ["storeProjectBody", "storeTeacherBody", "storeCustomerBody"].forEach((target) => { if ($(target)) $(target).innerHTML = `<tr><td colspan="8" class="query-empty">暂无数据</td></tr>`; });
+    $("storeCustomerCount") && ($("storeCustomerCount").textContent = "0位客户");
+    document.documentElement.dataset.prototypeVersion = VERSION;
+    return;
+  }
+  const city = actualStore.city || "未填写", name = actualStore.name, projects = [];
+  const contacts = (actualStore.contacts || []).map((contact) => `${contact.name || "联系人"} · ${contact.phone || "未填写"}`).join("；") || "未填写";
+  $("storeHero").innerHTML = `<div class="profile-avatar store-profile-avatar">店</div><div><span class="profile-type">门店编号</span><h2>${name}</h2><p>${id} · ${actualStore.status || "活跃"}</p></div>`;
+  $("storeBasicGrid").innerHTML = info([["门店编号", id], ["门店名称", name], ["地区", [actualStore.province, actualStore.city, actualStore.district].filter(Boolean).join(" · ") || "未填写"], ["地址", actualStore.address || "未填写"], ["门店状态", actualStore.status || "活跃"], ["联系人", contacts]]);
+  ["storeProjectBody", "storeTeacherBody", "storeCustomerBody"].forEach((target) => { if ($(target)) $(target).innerHTML = `<tr><td colspan="8" class="query-empty">暂无业务数据</td></tr>`; });
+  $("storeCustomerCount") && ($("storeCustomerCount").textContent = "0位客户");
+  $("storeAccountInfo") && ($("storeAccountInfo").innerHTML = info([["登录账号", actualStore.account || "未生成"], ["账号状态", actualStore.status || "活跃"]]));
+  $("storeAuditTimeline") && ($("storeAuditTimeline").innerHTML = `<p class="query-empty">暂无操作记录</p>`);
+  document.documentElement.dataset.prototypeVersion = VERSION;
+  return;
+  /* Legacy prototype-only layout below is unreachable. */
   $("storeHero").innerHTML = `<div class="profile-avatar store-profile-avatar">店</div><div><span class="profile-type">门店编号</span><h2>${name}</h2><p>${id} · 正常营业 · 门店账号有效</p></div><div class="profile-metrics"><span><strong>${128 + seed * 3}</strong>客户</span><span><strong>${6}</strong>项目</span><span><strong>${8}</strong>老师</span></div>`;
   $("storeBasicGrid").innerHTML = info([["门店编号", id], ["门店名称", name], ["城市", city], ["地址", `${100 + seed} ${["George St", "Collins St", "Queen St", "Hay St"][(seed - 1) % 4]}`], ["门店状态", "正常"], ["开业日期", `2022-${String(seed % 12 + 1).padStart(2, "0")}-01`], ["联系电话", "按权限脱敏显示"], ["最后修改", "HQ001 · 总部管理员"]]);
   $("storeProjectBody").innerHTML = projects.map((project, i) => { const projectId = `P${String(i + 1).padStart(3, "0")}`, recharge = 180 + (seed * 23 + i * 41) % 320, used = 92 + (seed * 17 + i * 29) % 170; return `<tr><td><a class="record-link" href="project-detail.html?projectId=${projectId}">${projectId} · ${project}</a></td><td>${recharge}</td><td>${used}</td><td><strong>${recharge - used}</strong></td><td>正常</td></tr>`; }).join("");

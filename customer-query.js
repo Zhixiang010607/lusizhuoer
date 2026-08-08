@@ -4,14 +4,12 @@
   let loginSession = null;
   try { loginSession = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { loginSession = null; }
   const scopedStoreId = loginSession?.role === "store" ? loginSession.store : "";
-  const stores = Array.from({ length: 16 }, (_, i) => ({ id: `S${String(i + 1).padStart(3, "0")}`, name: `${["悉尼", "墨尔本", "布里斯班", "珀斯"][i % 4]}门店 ${i + 1}` }));
-  const names = ["张静", "王芳", "李娜", "陈晨", "刘敏", "赵悦", "张静", "王芳"];
+  let createdStores = [];
+  try { createdStores = JSON.parse(sessionStorage.getItem("prototypeCreatedStores") || "[]"); } catch (_) { createdStores = []; }
+  const stores = createdStores.map((store) => ({ id: store.id, name: store.name || store.id }));
   let customerOverrides = {};
   try { customerOverrides = JSON.parse(sessionStorage.getItem("prototypeCustomerOverrides") || "{}"); } catch (_) { customerOverrides = {}; }
-  const baseCustomers = Array.from({ length: 96 }, (_, i) => {
-    const store = stores[i % stores.length], phase = i % 3, id = `C${store.id.slice(1)}${String(i + 1).padStart(4, "0")}`, saved = customerOverrides[id] || {};
-    return { id, name: saved.name || names[i % names.length], birthday: saved.birthday || `${1986 + i % 22}-${String(i % 12 + 1).padStart(2, "0")}-${String(i % 27 + 1).padStart(2, "0")}`, store, createdDate: `2026-${String(i % 8 + 1).padStart(2, "0")}-${String(i % 27 + 1).padStart(2, "0")}`, recharge: phase === 0 ? 0 : 8 + i % 28, verification: phase === 2 ? 1 + i % 16 : 0 };
-  });
+  const baseCustomers = [];
   let createdCustomers = [];
   try { createdCustomers = JSON.parse(sessionStorage.getItem("prototypeCreatedCustomers") || "[]"); } catch (_) { createdCustomers = []; }
   const customers = [...baseCustomers, ...createdCustomers.map((customer) => ({ ...customer, ...(customerOverrides[customer.id] || {}), store: stores.find((store) => store.id === customer.storeId) || { id: customer.storeId, name: customer.storeId }, createdDate: customer.createdDate || new Date().toISOString().slice(0, 10), recharge: 0, verification: 0 }))];

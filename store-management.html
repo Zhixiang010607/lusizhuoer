@@ -1,47 +1,9 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>门店管理</title><link rel="stylesheet" href="styles.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>门店管理</title><link rel="stylesheet" href="styles.css"></head>
 <body data-management="store">
-  <aside class="side-project-bar" aria-label="项目栏">
-    <div class="side-brand"><span>HQ</span><div><strong>总部工作台</strong><small>项目栏</small></div></div>
-    <p class="side-section-title">数据看板</p>
-    <nav class="side-nav"><a href="index.html"><span class="nav-icon">全</span><span>全局视图</span></a><a href="local.html"><span class="nav-icon">局</span><span>局部分析</span></a></nav>
-    <details class="side-menu-group" open><summary><span class="nav-icon">管</span><span>管理</span></summary><nav><a class="active" href="store-management.html">门店管理</a><a href="project-management.html">项目管理</a><a href="teacher-management.html">老师管理</a></nav></details>
-    <details class="side-menu-group"><summary><span class="nav-icon">查</span><span>查询</span></summary><nav><a href="customer-query.html">客户查询</a><a href="recharge-query.html">充值查询</a><a href="verification-query.html">核销查询</a></nav></details>
-    <details class="side-menu-group" data-menu="review"><summary><span class="nav-icon">审</span><span>审核</span></summary><nav><a href="recharge-review.html">充值审核</a><a href="verification-review.html">核销审核</a></nav></details><div class="side-footer">静态原型 v0.14.19</div>
-  </aside>
-  <header class="topbar"><div><p class="eyebrow">MASTER DATA MANAGEMENT</p><h1>门店管理</h1><p class="subtitle">门店资料、核销统计与全部客户项目明细</p></div><div class="status"><span></span>本地模式</div></header>
-  <main>
-    <section class="panel management-toolbar">
-      <label>选择门店（名称＋省/州＋城市＋区）<select id="entitySelect"></select></label>
-      <div class="toolbar-actions"><button id="confirmStore">确定</button><button id="addEntity">新增门店</button></div>
-    </section>
-    <section class="panel management-toolbar store-manual-lookup">
-      <strong>手动核对门店</strong>
-      <label>门店名称<input id="manualStoreName" maxlength="60" placeholder="请输入门店名称"></label>
-      <label>省<select id="manualStoreProvince"><option value="">请选择省</option></select></label>
-      <label>城市<select id="manualStoreCity" disabled><option value="">请先选择省</option></select></label>
-      <label>区<select id="manualStoreDistrict" disabled><option value="">请先选择城市</option></select></label>
-      <div class="toolbar-actions"><button id="lookupManualStore" type="button">核对门店</button></div>
-    </section>
-    <div id="storeManagementContent" hidden>
-    <section class="panel management-toolbar">
-      <label>时间周期<select id="managePeriod"><option value="last30">近30日</option><option value="q1">本年第一季度</option><option value="q2">本年第二季度</option><option value="q3">本年第三季度</option><option value="q4">本年第四季度</option><option value="ytd">本年截至今天</option></select></label>
-      <div class="toolbar-actions"><button id="viewStore">查看门店页面</button><button id="deleteEntity" class="danger-button">封存门店</button></div>
-    </section>
-    <section id="entityInfo" class="management-summary"></section>
-
-    <section class="management-grid">
-      <article class="panel table-card"><div class="panel-heading"><div><h2>各老师核销数据</h2><p>每位老师总核销次数及各项目核销次数</p></div><span class="badge">老师</span></div><div class="table-scroll"><table><thead id="teacherVerificationHead"></thead><tbody id="teacherVerificationBody"></tbody></table></div></article>
-      <article class="panel table-card"><div class="panel-heading"><div><h2>各项目核销数据</h2><p>每个项目总核销次数及各老师核销次数</p></div><span class="badge">项目</span></div><div class="table-scroll"><table><thead id="projectVerificationHead"></thead><tbody id="projectVerificationBody"></tbody></table></div></article>
-    </section>
-
-    <section class="panel table-card customer-management-table">
-      <div class="panel-heading"><div><h2>本门店全部客户信息</h2><p>按客户与项目显示总购买次数、有效核销次数和剩余次数</p></div><span id="customerCount" class="badge">0位客户</span></div>
-      <div class="table-scroll"><table><thead><tr><th>客户编号（可查看）</th><th>客户姓名</th><th>生日</th><th>当前门店</th><th>项目编号</th><th>项目</th><th>总购买次数</th><th>有效核销次数</th><th>剩余次数</th><th>最近充值</th><th>最近核销</th><th>状态</th></tr></thead><tbody id="customerBody"></tbody></table></div>
-    </section>
-    </div>
-    <dialog id="storeLookupDialog"><div class="dialog-heading"><h2>请核对门店信息</h2><button id="closeStoreLookup" type="button" aria-label="关闭">×</button></div><div id="storeLookupPreview" class="management-summary"></div><div class="dialog-actions"><button id="confirmStoreLookup" type="button">确认无误，进入门店</button></div></dialog>
-  </main>
-  <script src="china-regions.js"></script><script src="management.js"></script>
-<script src="auth-ui.js"></script></body></html>
+  <aside class="side-project-bar" aria-label="项目栏"><div class="side-brand"><span>HQ</span><div><strong>总部工作区</strong><small>项目栏</small></div></div><nav class="side-nav"></nav><div class="side-footer">总部权限</div></aside>
+  <header class="topbar"><div><p class="eyebrow">STORE MANAGEMENT</p><h1>门店管理</h1><p class="subtitle">按门店名称、联系人电话或已有门店查询；点击结果查看门店详情。</p></div><div class="status"><span></span>总部权限</div></header>
+  <main><section class="panel management-toolbar people-search-toolbar"><label>按门店名称查询<input id="entityNameSearch" type="search" autocomplete="off" placeholder="输入完整或部分门店名称"></label><label>按联系人电话查询<input id="entityPhoneSearch" type="search" inputmode="tel" autocomplete="off" placeholder="输入完整或部分联系电话"></label><label>直接选择系统已有门店<select id="entitySelect"><option value="">请选择门店</option></select></label><div class="toolbar-actions"><button id="searchPeople" type="button">搜索</button><button id="addEntity" type="button">新增门店</button></div></section><section id="entityInfo" class="management-summary"></section></main>
+  <script src="management.js"></script><script src="auth-ui.js"></script>
+</body></html>

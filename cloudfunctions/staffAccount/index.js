@@ -77,7 +77,15 @@ async function findStaffProfile(uid) {
   let rows;
   try {
     rows = await executeSql(
-      `SELECT id, staff_name, role_code, account_status FROM public.staff_accounts WHERE auth_uid = ${sqlText(uid)} LIMIT 1`
+      `SELECT a.id, a.staff_name, a.role_code, a.account_status,
+        sa.store_id, s.store_status, t.id AS teacher_id, t.teacher_status
+       FROM public.staff_accounts a
+       LEFT JOIN public.staff_store_assignments sa
+         ON sa.staff_account_id = a.id AND sa.assignment_status = 'ACTIVE'
+       LEFT JOIN public.stores s ON s.id = sa.store_id
+       LEFT JOIN public.teachers t ON t.staff_account_id = a.id
+       WHERE a.auth_uid = ${sqlText(uid)}
+       LIMIT 1`
     );
   } catch (error) {
     asDatabaseError(error, "读取员工身份");
@@ -88,32 +96,12 @@ async function findStaffProfile(uid) {
 
   let storeId = "";
   if (staff.role_code === "store") {
-    let assignments;
-    try {
-      assignments = await executeSql(
-        `SELECT store_id FROM public.staff_store_assignments WHERE staff_account_id = ${Number(staff.id)} AND assignment_status = 'ACTIVE' LIMIT 1`
-      );
-    } catch (error) {
-      asDatabaseError(error, "读取门店绑定");
-    }
-    storeId = assignments?.[0]?.store_id ? String(assignments[0].store_id) : "";
+    storeId = staff.store_id ? String(staff.store_id) : "";
     if (!storeId) fail("该门店账号尚未绑定有效门店", "UNASSIGNED_STORE");
-    let stores;
-    try {
-      stores = await executeSql(`SELECT store_status FROM public.stores WHERE id = ${Number(storeId)} LIMIT 1`);
-    } catch (error) {
-      asDatabaseError(error, "读取门店状态");
-    }
-    if (stores?.[0]?.store_status !== "ACTIVE") fail("关联门店已封存，无法登录", "ARCHIVED_STORE");
+    if (staff.store_status !== "ACTIVE") fail("关联门店已封存，无法登录", "ARCHIVED_STORE");
   }
   if (staff.role_code === "teacher") {
-    let teachers;
-    try {
-      teachers = await executeSql(`SELECT teacher_status FROM public.teachers WHERE staff_account_id = ${Number(staff.id)} LIMIT 1`);
-    } catch (error) {
-      asDatabaseError(error, "读取老师状态");
-    }
-    if (teachers?.[0]?.teacher_status === "ARCHIVED") fail("该老师资料已封存，无法登录", "ARCHIVED_TEACHER");
+    if (staff.teacher_status === "ARCHIVED") fail("该老师资料已封存，无法登录", "ARCHIVED_TEACHER");
   }
   return { staffId: staff.id, role: staff.role_code, staffName: staff.staff_name, storeId };
 }
@@ -162,15 +150,17 @@ function bootstrapHqProfile(uid, userInfo) {
   };
 }
 
-async function currentUser() {
+async function currentUser(includeUserInfo = false) {
   const { uid } = getAuth().getUserInfo();
   if (!uid) fail("请先完成手机号登录", "UNAUTHENTICATED");
   let userInfo = {};
-  try {
-    const result = await getAuth().getEndUserInfo(uid);
-    userInfo = result?.userInfo || {};
-  } catch (_) {
-    // User details are only needed when the bootstrap HQ account is first created.
+  if (includeUserInfo) {
+    try {
+      const result = await getAuth().getEndUserInfo(uid);
+      userInfo = result?.userInfo || {};
+    } catch (_) {
+      // User details are only needed when the bootstrap HQ account is first created.
+    }
   }
   const profile = await findStaffProfile(uid);
   return { uid: String(uid), userInfo, profile };
@@ -186,6 +176,14 @@ async function ensureBootstrapHq(caller) {
   }
   const existing = await findStaffProfile(caller.uid);
   if (existing) return existing;
+  if (!caller.userInfo || Object.keys(caller.userInfo).length === 0) {
+    try {
+      const result = await getAuth().getEndUserInfo(caller.uid);
+      caller.userInfo = result?.userInfo || {};
+    } catch (_) {
+      fail("无法读取首次总部账号资料", "AUTH_PROFILE_UNAVAILABLE");
+    }
+  }
   const phone = validatePhone(caller.userInfo?.phone || caller.userInfo?.phoneNumber || caller.userInfo?.phone_number);
   const staffName = String(caller.userInfo?.nickName || caller.userInfo?.name || "总部管理员");
   try {
@@ -209,7 +207,7 @@ async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId
   }
   const profile = { staffId: rows?.[0]?.id || null, role, staffName, storeId: "" };
   if (role !== "store") return profile;
-  const staffId = data?.[0]?.id;
+  const staffId = rows?.[0]?.id;
   if (!staffId) fail("员工身份保存后未返回账号编号", "DATABASE_ERROR");
   try {
     await executeSql(
@@ -225,7 +223,7 @@ async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId
 async function main(event = {}) {
   const action = event.action || "session";
   if (action === "health") return { ok: true, message: "员工账号云函数已就绪" };
-  const caller = await currentUser();
+  const caller = await currentUser(false);
 
   if (action === "session") {
     if (!caller.profile && event.phone) {

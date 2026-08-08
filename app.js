@@ -4,27 +4,10 @@
   // 文档同步约束：每次业务或界面变更都必须同步更新 main.tex 与 README.md。
   const PROTOTYPE_VERSION = "0.14.19";
 
-  // 部署升级点：将 MockDataSource 替换为 ApiDataSource，页面渲染代码无需改动。
-  class MockDataSource {
+  // Start with an empty dataset. Real dashboard data is supplied by the backend later.
+  class EmptyDataSource {
     async load() {
-      const projects = ["普拉提", "体态评估", "康复训练", "瑜伽", "力量训练", "产后恢复"];
-      const stores = Array.from({ length: 36 }, (_, i) => ({ id: `S${String(i + 1).padStart(3, "0")}`, name: `${["悉尼", "墨尔本", "布里斯班", "珀斯"][i % 4]}门店 ${i + 1}` }));
-      const teachers = Array.from({ length: 72 }, (_, i) => ({ id: `T${String(i + 1).padStart(3, "0")}`, name: `业务老师 ${String(i + 1).padStart(2, "0")}` }));
-      const rows = [];
-      stores.forEach((store, si) => projects.forEach((project, pi) => {
-        const recharge = 35 + ((si * 31 + pi * 17) % 170);
-        const verification = 18 + ((si * 19 + pi * 23) % Math.max(30, recharge));
-        rows.push({ storeId: store.id, store: store.name, project, recharge, verification });
-      }));
-      const teacherRows = [];
-      teachers.forEach((teacher, ti) => {
-        const assignedStoreIndexes = [...new Set([ti % stores.length, (ti * 7 + 3) % stores.length])];
-        assignedStoreIndexes.forEach((si) => projects.forEach((project, pi) => {
-          const store = stores[si];
-          teacherRows.push({ storeId: store.id, store: store.name, teacherId: teacher.id, teacher: teacher.name, project, recharge: 6 + ((ti * 17 + si * 5 + pi * 9) % 94), verification: 4 + ((ti * 13 + si * 7 + pi * 11) % 86) });
-        }));
-      });
-      return { stores, teachers, projects, rows, teacherRows };
+      return { stores: [], teachers: [], projects: [], rows: [], teacherRows: [] };
     }
   }
 
@@ -299,7 +282,7 @@
 
   async function init() {
     document.documentElement.dataset.prototypeVersion = PROTOTYPE_VERSION;
-    state.data = await new MockDataSource().load();
+    state.data = await new EmptyDataSource().load();
     fillSelect("store", state.data.stores, "id", "name");
     fillSelect("project", state.data.projects);
     fillSelect("teacher", state.data.teachers, "id", "name");

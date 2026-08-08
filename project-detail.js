@@ -1,17 +1,68 @@
-﻿(() => {
+(() => {
   "use strict";
-  const VERSION = "0.14.19", p = new URLSearchParams(location.search), $ = (id) => document.getElementById(id), id = p.get("projectId") || "P001", seed = Number(id.replace(/\D/g, "")) || 1;
-  const names = ["普拉提", "体态评估", "康复训练", "瑜伽", "力量训练", "产后恢复"], name = names[(seed - 1) % names.length], cities = ["悉尼", "墨尔本", "布里斯班", "珀斯"];
-  const info = (items) => items.map(([k, v]) => `<article><span>${k}</span><strong>${v}</strong></article>`).join("");
-  $("projectHero").innerHTML = `<div class="profile-avatar project-profile-avatar">项</div><div><span class="profile-type">项目编号</span><h2>${name}</h2><p>${id} · 正常 · 设备权限已配置</p></div><div class="profile-metrics"><span><strong>${12 + seed}</strong>门店</span><span><strong>${24 + seed * 2}</strong>老师</span><span><strong>${680 + seed * 47}</strong>客户</span></div>`;
-  $("projectBasicGrid").innerHTML = info([["项目编号", id], ["项目名称", name], ["项目状态", "正常"], ["单位", "次"], ["设备权限代码", `DEVICE-${String(seed).padStart(3, "0")}`], ["虚拟端口规则", `PORT-{门店}-${id}`], ["创建人员", "HQ001 · 总部管理员"], ["最后修改", "OP001 · 运营管理员"]]);
-  const stores = Array.from({ length: 12 }, (_, i) => { const n = i + 1; return { id: `S${String(n).padStart(3, "0")}`, name: `${cities[i % 4]}门店 ${n}` }; });
-  $("projectStoreBody").innerHTML = stores.map((s, i) => { const recharge = 120 + (seed * 31 + i * 23) % 260, used = 62 + (seed * 17 + i * 19) % 130; return `<tr><td><a class="record-link" href="store-detail.html?storeId=${s.id}">${s.name}（${s.id}）</a></td><td>${recharge}</td><td>${used}</td><td><strong>${recharge - used}</strong></td><td>正常</td></tr>`; }).join("");
-  $("projectTeacherBody").innerHTML = Array.from({ length: 16 }, (_, i) => { const teacherId = `T${String((seed * 5 + i) % 32 + 1).padStart(3, "0")}`; return `<tr><td><a class="record-link" href="teacher-detail.html?teacherId=${teacherId}">业务老师 ${String((seed * 5 + i) % 32 + 1).padStart(2, "0")}（${teacherId}）</a></td><td>${2 + i % 4}</td><td>${38 + (seed * 9 + i * 17) % 120}</td><td>${i % 6 === 0 ? 1 : 0}</td><td>在职</td></tr>`; }).join("");
-  const customers = Array.from({ length: 20 }, (_, i) => { const store = stores[i % stores.length], customerId = `C${String(i % 12 + 1).padStart(3, "0")}${String(i + 1).padStart(3, "0")}`, bought = 18 + (seed * 7 + i * 9) % 60, used = 4 + (seed * 3 + i * 5) % 18; return { store, id: customerId, name: `客户${i + 1}`, bought, used: Math.min(used, bought) }; });
-  $("projectCustomerBody").innerHTML = customers.map((c, i) => `<tr><td><a class="record-link" href="customer-detail.html?customerId=${c.id}&customerName=${encodeURIComponent(c.name)}&storeId=${c.store.id}">${c.id}</a></td><td>${c.name}</td><td><a class="record-link" href="store-detail.html?storeId=${c.store.id}">${c.store.name}</a></td><td>${c.bought}</td><td>${c.used}</td><td><strong>${c.bought - c.used}</strong></td><td>2026-08-${String(i % 12 + 1).padStart(2, "0")}</td><td>正常</td></tr>`).join("");
-  $("projectCustomerCount").textContent = `${customers.length}位客户`;
-  $("projectDeviceInfo").innerHTML = `<span>项目权限代码</span><strong>DEVICE-${String(seed).padStart(3, "0")}</strong><span>虚拟端口模板</span><strong>PORT-{STORE}-${id}</strong><span>授权触发</span><strong class="success-text">核销与照片保存成功后</strong><span>失败处理</span><strong>进入重试队列并保留核销</strong>`;
-  $("projectAuditTimeline").innerHTML = `<div><strong>2022-02-10 09:00</strong><span>HQ001 · 总部管理员创建项目</span></div><div><strong>2025-06-18 14:20</strong><span>OP001 · 运营管理员更新设备权限代码</span></div><div><strong>2026-05-12 11:35</strong><span>HQ001 · 总部管理员调整门店授权范围</span></div>`;
-  document.documentElement.dataset.prototypeVersion = VERSION;
+  const $ = (id) => document.getElementById(id);
+  const projectId = new URLSearchParams(location.search).get("projectId");
+  const escapeHtml = (value) => String(value ?? "").replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char]);
+  const read = (key) => { try { return JSON.parse(sessionStorage.getItem(key) || "[]"); } catch (_) { return []; } };
+  const projects = read("prototypeCreatedProjects");
+  const stores = read("prototypeCreatedStores");
+  const teachers = read("prototypeCreatedTeachers");
+  const project = projects.find((item) => item.id === projectId);
+  const recharges = read("prototypeRechargeApplications");
+  const verifications = read("prototypeVerificationRecords");
+
+  function dateAllowed(record, period) {
+    if (period === "all") return true;
+    const date = new Date(record.createdAt || record.time || record.updatedAt || 0);
+    if (!Number.isFinite(date.getTime())) return false;
+    const now = new Date();
+    if (period === "30") return date >= new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
+    return date >= new Date(now.getFullYear(), 0, 1);
+  }
+  function effectiveRecharge(record) { return ["正常", "已通过", "APPROVED", "approved"].includes(record.status); }
+  function effectiveVerification(record) { return ["正常", "已通过", "APPROVED", "approved"].includes(record.status); }
+  function nameForStore(id) { return stores.find((item) => item.id === id)?.name || id; }
+  function nameForTeacher(id) { return teachers.find((item) => item.id === id)?.name || id; }
+  function empty(target, colspan) { $(target).innerHTML = `<tr><td colspan="${colspan}" class="query-empty">暂无业务数据</td></tr>`; }
+
+  function renderStores() {
+    if (!project) return empty("projectStoreBody", 4);
+    const period = $("storePeriod").value;
+    const rows = new Map();
+    recharges.filter((record) => record.projectId === project.id && effectiveRecharge(record) && dateAllowed(record, period)).forEach((record) => {
+      const current = rows.get(record.storeId) || { storeId: record.storeId, recharge: 0, verification: 0 };
+      current.recharge += Number(record.count || 0); rows.set(record.storeId, current);
+    });
+    verifications.filter((record) => record.projectId === project.id && effectiveVerification(record) && dateAllowed(record, period)).forEach((record) => {
+      const current = rows.get(record.storeId) || { storeId: record.storeId, recharge: 0, verification: 0 };
+      current.verification += Number(record.count || 1); rows.set(record.storeId, current);
+    });
+    const values = [...rows.values()].sort((a, b) => nameForStore(a.storeId).localeCompare(nameForStore(b.storeId), "zh-CN"));
+    if (!values.length) return empty("projectStoreBody", 4);
+    $("projectStoreBody").innerHTML = values.map((row) => `<tr><td><a class="record-link" href="store-detail.html?storeId=${encodeURIComponent(row.storeId)}">${escapeHtml(nameForStore(row.storeId))}（${escapeHtml(row.storeId)}）</a></td><td>${row.recharge}</td><td>${row.verification}</td><td><strong>${row.recharge - row.verification}</strong></td></tr>`).join("");
+  }
+  function renderTeachers() {
+    if (!project) return empty("projectTeacherBody", 2);
+    const period = $("teacherPeriod").value;
+    const rows = new Map();
+    verifications.filter((record) => record.projectId === project.id && effectiveVerification(record) && dateAllowed(record, period)).forEach((record) => {
+      const current = rows.get(record.teacherId) || { teacherId: record.teacherId, verification: 0 };
+      current.verification += Number(record.count || 1); rows.set(record.teacherId, current);
+    });
+    const values = [...rows.values()].sort((a, b) => b.verification - a.verification);
+    if (!values.length) return empty("projectTeacherBody", 2);
+    $("projectTeacherBody").innerHTML = values.map((row) => `<tr><td>${escapeHtml(nameForTeacher(row.teacherId))}（${escapeHtml(row.teacherId || "未绑定")}）</td><td>${row.verification}</td></tr>`).join("");
+  }
+  function renderProfile() {
+    if (!project) {
+      $("projectHero").innerHTML = `<div><span class="profile-type">产品详情</span><h2>未找到产品</h2><p>该产品不存在或尚未创建。</p></div>`;
+      $("projectBasicGrid").innerHTML = ""; renderStores(); renderTeachers(); return;
+    }
+    $("projectHero").innerHTML = `<div class="profile-avatar project-profile-avatar">产</div><div><span class="profile-type">产品编号</span><h2>${escapeHtml(project.name)}</h2><p>${escapeHtml(project.id)} · ${escapeHtml(project.status || "活跃")}</p></div>`;
+    $("projectBasicGrid").innerHTML = [["产品编号", project.id], ["产品名称", project.name], ["状态", project.status || "活跃"], ["说明", project.description || "未填写"]].map(([key, value]) => `<article><span>${key}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
+    renderStores(); renderTeachers();
+  }
+  $("storePeriod").addEventListener("change", renderStores);
+  $("teacherPeriod").addEventListener("change", renderTeachers);
+  renderProfile();
 })();

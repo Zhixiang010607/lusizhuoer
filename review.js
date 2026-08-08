@@ -1,19 +1,30 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.19", type = document.body.dataset.review, $ = (id) => document.getElementById(id), stores = Array.from({ length: 12 }, (_, i) => ({ id: `S${String(i + 1).padStart(3, "0")}`, name: `${["悉尼", "墨尔本", "布里斯班", "珀斯"][i % 4]}门店 ${i + 1}` })), projects = ["普拉提", "体态评估", "康复训练", "瑜伽", "力量训练", "产后恢复"];
+  const VERSION = "0.14.19", type = document.body.dataset.review, $ = (id) => document.getElementById(id);
+  let createdStores = [];
+  try { createdStores = JSON.parse(sessionStorage.getItem("prototypeCreatedStores") || "[]"); } catch (_) { createdStores = []; }
+  const stores = createdStores.map((store) => ({ id: store.id, name: store.name || store.id }));
   let session = null, pendingAction = null; try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   const canDecide = ["operation", "hq"].includes(session?.role);
   const reviewerRole = session?.role === "hq" ? "总部" : "运营";
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
-  const generated = Array.from({ length: 30 }, (_, i) => { const store = stores[i % stores.length], customerId = `C${String(i % 12 + 1).padStart(3, "0")}${String(i + 1).padStart(3, "0")}`, recordPrefix = type === "recharge" ? "RC" : "VE", kind = type === "recharge" ? ["新充值", "修改申请", "删除申请"][i % 3] : ["补录", "作废"][i % 2]; return { id: `AP-${type === "recharge" ? "R" : "V"}-${String(i + 1).padStart(4, "0")}`, kind, recordId: `${recordPrefix}-${String(i + 1).padStart(5, "0")}`, store, customerId, customerName: ["张静", "王芳", "李娜", "陈晨"][i % 4] + (Math.floor(i / 4) + 1), projectId: `P${String(i % 6 + 1).padStart(3, "0")}`, project: projects[i % 6], teacherId: `T${String(i % 12 + 1).padStart(3, "0")}`, status: i % 7 === 5 ? "approved" : i % 7 === 6 ? "rejected" : "pending", amount: type === "recharge" ? 10 + i % 20 : 1, applicantNote: type === "verification" ? `${kind}原因：门店现场业务记录需要${kind === "补录" ? "补记" : "撤销"}` : "门店提交审核", time: `2026-08-${String(i % 12 + 1).padStart(2, "0")} ${String(9 + i % 9).padStart(2, "0")}:${String(10 + i % 40).padStart(2, "0")}:${String(5 + i * 3 % 55).padStart(2, "0")}` }; });
+  const normalizeStatus = (status) => ({ "待审核": "pending", "已通过": "approved", "已驳回": "rejected" }[status] || status || "pending");
+  const storeFor = (storeId) => stores.find((store) => store.id === storeId) || { id: storeId || "", name: storeId || "未绑定门店" };
   let stored = [];
-  if (type === "verification") { try { stored = JSON.parse(sessionStorage.getItem("prototypeVerificationReviewApplications") || "[]").map((item) => ({ ...item, store: stores.find((store) => store.id === item.storeId) || { id: item.storeId, name: item.storeId }, _stored: true })); } catch (_) { stored = []; } }
-  const items = [...stored, ...generated], statusText = { pending: "待审核", approved: "已通过", rejected: "已驳回" };
+  try {
+    if (type === "verification") {
+      stored = JSON.parse(sessionStorage.getItem("prototypeVerificationReviewApplications") || "[]").map((item) => ({ ...item, store: storeFor(item.storeId), status: normalizeStatus(item.status), time: item.time || item.createdAt || "", sourceKey: "prototypeVerificationReviewApplications" }));
+    } else {
+      stored = JSON.parse(sessionStorage.getItem("prototypeRechargeApplications") || "[]").map((item) => ({ id: item.id, kind: item.kind || "新充值", recordId: item.recordId || item.id, storeId: item.storeId, store: storeFor(item.storeId), customerId: item.customerId, customerName: item.customerName || item.name, projectId: item.projectId, project: item.projectName || item.project || item.projectId || "", amount: Number(item.count || item.unitCount || 1), applicantNote: item.note || "", status: normalizeStatus(item.status), time: item.createdAt || item.time || "", reviewedAt: item.reviewedAt, sourceKey: "prototypeRechargeApplications" }));
+    }
+  } catch (_) { stored = []; }
+  const items = stored, statusText = { pending: "待审核", approved: "已通过", rejected: "已驳回" };
   const isoDate = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   const formatTime = (value) => String(value).replace("T", " ").replace(/\.\d{3}Z$/, "").slice(0, 19);
-  const approvalTime = (item) => item.status === "pending" ? "待批准" : item.reviewedAt ? formatTime(item.reviewedAt) : `${item.time.slice(0, 10)} 18:00:00`;
+  const approvalTime = (item) => item.status === "pending" ? "待批准" : item.reviewedAt ? formatTime(item.reviewedAt) : "未记录";
   function applyTimeRange() {
     const range = $("reviewTimeRange").value, today = new Date(), start = new Date(today);
+    if (range === "all") { $("reviewDateStart").value = ""; $("reviewDateEnd").value = ""; $("reviewDateStart").disabled = true; $("reviewDateEnd").disabled = true; return; }
     if (range === "sevenDays") start.setDate(today.getDate() - 6);
     else if (range === "month") start.setMonth(today.getMonth() - 1);
     else if (range === "quarter") start.setMonth(Math.floor(today.getMonth() / 3) * 3, 1);
@@ -26,7 +37,7 @@
   const saveCommunications = (rows) => { try { sessionStorage.setItem("prototypeCommunications", JSON.stringify(rows)); } catch (_) { /* 静态演示 */ } };
   function render() {
     const start = $("reviewDateStart").value, end = $("reviewDateEnd").value;
-    const rows = items.filter((item) => ($("reviewStore").value === "all" || item.store.id === $("reviewStore").value) && ($("reviewType").value === "all" || item.kind === $("reviewType").value) && ($("reviewStatus").value === "all" || item.status === $("reviewStatus").value) && (!start || item.time.slice(0, 10) >= start) && (!end || item.time.slice(0, 10) <= end));
+    const rows = items.filter((item) => ($("reviewStore").value === "all" || item.store.id === $("reviewStore").value) && ($("reviewType").value === "all" || item.kind === $("reviewType").value) && ($("reviewStatus").value === "all" || item.status === $("reviewStatus").value) && (!start || item.time.slice(0, 10) >= start) && (!end || item.time.slice(0, 10) <= end)).sort((a, b) => (a.status === "pending" ? 0 : 1) - (b.status === "pending" ? 0 : 1) || String(b.time).localeCompare(String(a.time)));
     $("reviewCount").innerHTML = `<strong>${rows.length}</strong><span>条符合条件</span>`;
     $("reviewBody").innerHTML = rows.map((item) => {
       const actions = item.status === "pending" && canDecide ? `<div class="review-actions"><button data-id="${item.id}" data-action="approved">批准</button><button class="reject" data-id="${item.id}" data-action="rejected">拒绝</button></div>` : item.status === "pending" ? `<span class="record-status status-审核中">仅运营可审批</span>` : `<span class="record-status status-${statusText[item.status]}">${statusText[item.status]}</span>`;
@@ -34,7 +45,7 @@
       if (type === "recharge") return `<tr><td>${item.id}</td><td>${item.kind}</td><td><a class="record-link" href="recharge-detail.html?${detailParams}">${item.recordId}</a></td><td>${link("store-detail.html", "storeId", item.store.id, item.store.name)}</td><td>${item.customerName}（${item.customerId}）</td><td>${item.project}</td><td>${item.kind === "删除申请" ? `-${item.amount}次` : `+${item.amount}次`}</td><td>${item.store.id}账号 · 门店人员</td><td>${item.time}</td><td>${statusText[item.status]}</td><td>${actions}</td><td>${approvalTime(item)}</td></tr>`;
       const impact = item.kind === "补录" ? "核销 +1" : "核销 -1 / 余额 +1", device = item.kind === "补录" ? "不发送" : "不重复发送";
       return `<tr><td>${item.id}</td><td>${item.kind}</td><td><a class="record-link" href="verification-detail.html?${detailParams}">${item.recordId}</a></td><td>${item.store.name}</td><td>${item.customerName}（${item.customerId}）</td><td>${item.project} / ${item.teacherId}</td><td><span class="photo-required-status">${item.photo || "已拍摄"}</span></td><td>${impact}</td><td>${device}</td><td>${item.store.id}账号 · 门店人员</td><td>${statusText[item.status]}</td><td>${actions}</td><td>${approvalTime(item)}</td></tr>`;
-    }).join("") || `<tr><td colspan="12" class="query-empty">当前条件下没有审核记录</td></tr>`;
+    }).join("") || `<tr><td colspan="${type === "verification" ? 13 : 12}" class="query-empty">当前条件下没有审核记录</td></tr>`;
     document.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", () => openReview(button.dataset.id, button.dataset.action)));
   }
   function renderReviewCommunications(item) {
@@ -47,6 +58,6 @@
   function closeDialog() { pendingAction = null; $("reviewDialog").close(); }
   $("reviewStore").innerHTML = `<option value="all">全部门店</option>${stores.map((store) => `<option value="${store.id}">${store.name}（${store.id}）</option>`).join("")}`; document.querySelector(".review-table thead tr")?.insertAdjacentHTML("beforeend", "<th>批准/驳回时间</th>"); applyTimeRange();
   ["reviewStore", "reviewType", "reviewStatus"].forEach((id) => $(id).addEventListener("change", render)); $("reviewTimeRange").addEventListener("change", () => { applyTimeRange(); render(); }); ["reviewDateStart", "reviewDateEnd"].forEach((id) => $(id).addEventListener("change", render)); $("closeReviewDialog").addEventListener("click", closeDialog); $("cancelReview").addEventListener("click", closeDialog);
-  $("confirmReview").addEventListener("click", () => { if (!pendingAction || !canDecide) return; const note = $("reviewNote").value.trim(); if (!note) { window.alert("必须填写审核留言／备注"); return; } const { item, action } = pendingAction; item.status = action; item.reviewedAt = new Date().toISOString(); const communications = loadCommunications(); communications.push({ recordType: type, recordId: item.recordId, role: reviewerRole, account: session.account, name: `${reviewerRole}人员`, message: `${action === "approved" ? "批准" : "拒绝"}${item.kind}：${note}`, time: new Date().toISOString() }); saveCommunications(communications); if (item._stored) { const saved = JSON.parse(sessionStorage.getItem("prototypeVerificationReviewApplications") || "[]"), target = saved.find((entry) => entry.id === item.id); if (target) { target.status = action; target.operatorNote = note; target.reviewedAt = item.reviewedAt; } sessionStorage.setItem("prototypeVerificationReviewApplications", JSON.stringify(saved)); } closeDialog(); render(); });
+  $("confirmReview").addEventListener("click", () => { if (!pendingAction || !canDecide) return; const note = $("reviewNote").value.trim(); if (!note) { window.alert("必须填写审核留言／备注"); return; } const { item, action } = pendingAction; item.status = action; item.reviewedAt = new Date().toISOString(); const communications = loadCommunications(); communications.push({ recordType: type, recordId: item.recordId, role: reviewerRole, account: session.account, name: `${reviewerRole}人员`, message: `${action === "approved" ? "批准" : "拒绝"}${item.kind}：${note}`, time: new Date().toISOString() }); saveCommunications(communications); try { const sourceKey = item.sourceKey || "prototypeVerificationReviewApplications", saved = JSON.parse(sessionStorage.getItem(sourceKey) || "[]"), target = saved.find((entry) => entry.id === item.id); if (target) { target.status = action; target.operatorNote = note; target.reviewedAt = item.reviewedAt; sessionStorage.setItem(sourceKey, JSON.stringify(saved)); } } catch (_) { /* local preview only */ } closeDialog(); render(); });
   document.documentElement.dataset.prototypeVersion = VERSION; render();
 })();

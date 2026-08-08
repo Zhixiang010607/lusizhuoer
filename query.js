@@ -4,24 +4,13 @@
   let loginSession = null;
   try { loginSession = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { loginSession = null; }
   const scopedStoreId = loginSession?.role === "store" ? loginSession.store : "";
-  const stores = Array.from({ length: 16 }, (_, i) => ({ id: `S${String(i + 1).padStart(3, "0")}`, name: `${["悉尼", "墨尔本", "布里斯班", "珀斯"][i % 4]}门店 ${i + 1}` }));
-  const projects = ["普拉提", "体态评估", "康复训练", "瑜伽", "力量训练", "产后恢复"].map((name, i) => ({ id: `P${String(i + 1).padStart(3, "0")}`, name }));
-  const teachers = Array.from({ length: 12 }, (_, i) => ({ id: `T${String(i + 1).padStart(3, "0")}`, name: `业务老师 ${String(i + 1).padStart(2, "0")}` }));
-  const commonNames = ["张静", "王芳", "李娜", "陈晨", "张静", "刘敏", "王芳", "赵悦"], nameCounts = new Map();
+  const stores = [];
+  const projects = [];
+  const teachers = [];
   let customerOverrides = {}, lookupMode = "select";
   try { customerOverrides = JSON.parse(sessionStorage.getItem("prototypeCustomerOverrides") || "{}"); } catch (_) { customerOverrides = {}; }
-  const customers = Array.from({ length: 32 }, (_, i) => {
-    const name = commonNames[i % commonNames.length], sequence = (nameCounts.get(name) || 0) + 1; nameCounts.set(name, sequence);
-    const id = `C${String(i % 10 + 1).padStart(3, "0")}${String(i + 1).padStart(3, "0")}`, saved = customerOverrides[id] || {}, currentName = saved.name || name;
-    return { id, name: currentName, birthday: saved.birthday || `${1987 + i % 18}-${String(i % 12 + 1).padStart(2, "0")}-${String(i % 27 + 1).padStart(2, "0")}`, displayName: `${currentName}${sequence}` };
-  });
-  const statuses = ["正常", "正常", "补录", "作废"];
-  const records = Array.from({ length: 96 }, (_, i) => {
-    const store = stores[i % stores.length], project = projects[(i * 5) % projects.length], customer = customers[(i * 7) % customers.length], teacher = teachers[(i * 3) % teachers.length], status = statuses[i % statuses.length];
-    const root = `${type === "recharge" ? "RC" : "VE"}-${String(i % 48 + 1).padStart(5, "0")}`;
-    const month = i % 8 + 1, day = i % 27 + 1;
-    return { id: root, store, project, customer, teacher, status, reviewProgress: status === "正常" || i % 2 === 0 ? "已完成" : "审核中", month, day, dateKey: `2026-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`, amount: 8 + i % 23 };
-  });
+  const customers = [];
+  const records = [];
   const statusTag = (status) => `<span class="record-status status-${status}">${status}</span>`;
   const selectedStoreId = () => scopedStoreId || $("queryStore").value;
   const isoDate = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;

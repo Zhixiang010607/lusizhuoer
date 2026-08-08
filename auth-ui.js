@@ -4,7 +4,7 @@
   const homes = { hq: "index.html", operation: "local.html", store: "store-detail.html", teacher: "teacher-work-orders.html" };
   const labels = { hq: "总部工作区", operation: "运营工作区", store: "门店工作区", teacher: "老师工作区" };
   const access = {
-    hq: new Set(["index.html", "store-create.html", "project-create.html", "teacher-create.html", "operation-account-create.html", "hq-account-create.html", "hq-management.html", "store-management.html", "project-management.html", "teacher-management.html", "operation-account-management.html", "store-detail.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "verification-review.html"]),
+    hq: new Set(["index.html", "store-create.html", "project-create.html", "teacher-create.html", "operation-account-create.html", "hq-account-create.html", "hq-management.html", "store-management.html", "project-management.html", "teacher-management.html", "operation-account-management.html", "staff-detail.html", "store-detail.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "verification-review.html"]),
     operation: new Set(["local.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "verification-review.html"]),
     store: new Set(["store-detail.html", "customer-detail.html", "customer-query.html", "customer-create.html", "recharge-create.html", "verification-create.html", "verification-supplemental.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html"]),
     teacher: new Set(["teacher-work-orders.html", "teacher-work-order-detail.html", "teacher-verification-create.html", "teacher-recharge-create.html"])
@@ -53,6 +53,16 @@
         document.querySelector('[data-menu="shared-query"]')?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="hq-management"><summary><span class="nav-icon">管</span><span>管理</span></summary><nav>${managementLinks.map(([href, text]) => `<a class="${page === href ? "active" : ""}" href="${href}">${text}</a>`).join("")}</nav></details>`);
       }
     }
+  }
+
+  if (["hq", "operation"].includes(session.role)) {
+    let reviewMenu = document.querySelector('[data-menu="review"]');
+    if (!reviewMenu) {
+      const anchor = (session.role === "hq" ? document.querySelector('[data-menu="hq-management"]') : null) || document.querySelector('[data-menu="shared-query"]') || primaryNav;
+      anchor?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="review"><summary><span class="nav-icon">审</span><span>审核</span></summary><nav><a class="${page === "recharge-review.html" ? "active" : ""}" href="recharge-review.html">充值审核</a><a class="${page === "verification-review.html" ? "active" : ""}" href="verification-review.html">核销审核</a></nav></details>`);
+      reviewMenu = document.querySelector('[data-menu="review"]');
+    }
+    if (reviewMenu) { reviewMenu.hidden = false; reviewMenu.open = true; }
   }
 
   document.querySelectorAll("a[href]").forEach((link) => {

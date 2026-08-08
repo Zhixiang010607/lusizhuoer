@@ -344,6 +344,14 @@ button.metric-card:hover { transform: translateY(-2px); box-shadow: 0 14px 32px 
 .table-scroll { max-height: 390px; border: 1px solid var(--line); border-radius: 10px; }
 .management-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(190px, .7fr) auto; gap: 9px; align-items: end; padding: 12px; }
 .people-search-toolbar { grid-template-columns: minmax(190px, 1fr) minmax(190px, 1fr) minmax(230px, 1.1fr) auto; }
+.people-result-panel { grid-column: 1 / -1; padding: 18px; }
+.people-result-list { display: grid; gap: 10px; }
+.people-result-row, .staff-status-panel { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.people-result-row strong { display: block; color: var(--navy); }
+.people-result-row span { display: block; margin-top: 5px; color: var(--muted); font-size: 13px; }
+.staff-status-panel { margin-top: 18px; }
+.staff-status-panel h2 { margin: 0 0 5px; font-size: 16px; }
+.staff-status-panel p { margin: 0; color: var(--muted); }
 .store-manual-lookup { grid-template-columns: minmax(210px, 1.35fr) repeat(3, minmax(150px, 1fr)) auto; gap: 14px; padding: 18px 20px; margin-top: 14px; border: 1px solid #d8e4f3; background: linear-gradient(135deg, #f8fbff, #ffffff); }
 .store-manual-lookup > strong { grid-column: 1 / -1; color: var(--navy); font-size: 15px; }
 .store-manual-lookup label { min-width: 0; color: #41536d; font-weight: 700; }

@@ -11,23 +11,20 @@
   const passwordFor = (scope, id, fallback) => passwordOverrides[`${scope}:${id}`] || fallback;
   let createdProjects = [];
   try { createdProjects = JSON.parse(sessionStorage.getItem("prototypeCreatedProjects") || "[]"); } catch (_) { createdProjects = []; }
-  const projects = [...["普拉提", "体态评估", "康复训练", "瑜伽", "力量训练", "产后恢复"].map((name, i) => ({ id: `P${String(i + 1).padStart(3, "0")}`, name, status: "活跃", extra: `${name}课程与训练服务` })), ...createdProjects.map((project) => ({ id: project.id, name: project.name, status: project.status === "正常" ? "活跃" : (project.status || "活跃"), extra: project.description || "" }))];
+  const projects = createdProjects.map((project) => ({ id: project.id, name: project.name, status: project.status === "正常" ? "活跃" : (project.status || "活跃"), extra: project.description || "" }));
   let createdStores = [];
   try { createdStores = JSON.parse(sessionStorage.getItem("prototypeCreatedStores") || "[]"); } catch (_) { createdStores = []; }
-  const storeRegions = [["北京市", "北京市", "朝阳区"], ["上海市", "上海市", "浦东新区"], ["广东省", "广州市", "天河区"], ["广东省", "深圳市", "南山区"], ["浙江省", "杭州市", "西湖区"], ["四川省", "成都市", "武侯区"]];
   const chinaRegions = window.ChinaRegions || {};
-  const stores = [...Array.from({ length: 16 }, (_, i) => { const id = `S${String(i + 1).padStart(3, "0")}`, region = storeRegions[i % storeRegions.length]; return { id, name: `${region[1]}门店 ${i + 1}`, province: region[0], city: region[1], district: region[2], status: "活跃", extra: `${["建国路", "世纪大道", "天河路", "深南大道", "文三路", "人民南路"][i % 6]} ${100 + i}号`, contacts: [{ name: `联系人 ${i + 1}`, phone: `13${String(100000000 + i).slice(-9)}` }], account: `STORE${id.slice(1)}`, password: passwordFor("store", id, `1${String(i + 1).padStart(11, "0")}`) }; }), ...createdStores.map((store) => ({ id: store.id, name: store.name, province: store.province || "未填写", city: store.city || "未填写", district: store.district || "未填写", status: store.status === "正常" ? "活跃" : (store.status || "活跃"), extra: store.address || "", contacts: store.contacts || [], account: store.account || `STORE${String(store.id).slice(1)}`, password: passwordFor("store", store.id, store.password || `1${String(store.id).replace(/\D/g, "").padStart(11, "0")}`), createdBy: store.createdBy }))];
-  let createdTeachers = [], createdOperations = [], createdHeadquarters = [];
-  try {
-    createdTeachers = JSON.parse(sessionStorage.getItem("prototypeCreatedTeachers") || "[]");
-    createdOperations = JSON.parse(sessionStorage.getItem("prototypeCreatedOperations") || "[]");
-    createdHeadquarters = JSON.parse(sessionStorage.getItem("prototypeCreatedHeadquarters") || "[]");
-  } catch (_) { createdTeachers = []; createdOperations = []; createdHeadquarters = []; }
-  const teachers = [...Array.from({ length: 32 }, (_, i) => { const id = `T${String(i + 1).padStart(3, "0")}`; const name = `业务老师 ${String(i + 1).padStart(2, "0")}`; return { id, name, displayName: name, status: "活跃", extra: name, identityNumber: `1101011990${String(i + 1).padStart(8, "0")}`, phone: `04${String(20000000 + i).slice(-8)}` }; }), ...createdTeachers.map((teacher) => ({ id: teacher.id, name: teacher.originalName || teacher.name, displayName: teacher.displayName || teacher.name, status: teacher.status === "正常" ? "活跃" : (teacher.status || "活跃"), extra: teacher.displayName || teacher.name, identityNumber: teacher.identityNumber || "", phone: teacher.phone || "未填写", authUid: teacher.authUid || "", createdBy: teacher.createdBy }))];
-  const operations = [...Array.from({ length: 8 }, (_, i) => { const id = `OP${String(i + 1).padStart(3, "0")}`; const name = `运营人员${i + 1}`; return { id, name, displayName: name, status: "活跃", extra: name, phone: `04${String(30000000 + i).slice(-8)}`, account: id, password: passwordFor("operation", id, `2${String(i + 1).padStart(11, "0")}`) }; }), ...createdOperations.map((operation) => ({ id: operation.id, name: operation.originalName || operation.name, displayName: operation.displayName || operation.name, status: operation.status === "正常" ? "活跃" : (operation.status || "活跃"), extra: operation.displayName || operation.name, phone: operation.phone || "未填写", authUid: operation.authUid || "", account: operation.account || operation.id, password: passwordFor("operation", operation.id, operation.password || ""), createdBy: operation.createdBy }))];
-  const headquarters = [{ id: "HQ001", name: "总部管理员", displayName: "总部管理员", phone: "13900000000", account: "HQ001", password: passwordFor("hq", "HQ001", "总部账号密码"), status: "活跃" }, ...createdHeadquarters.map((person) => ({ id: person.id, name: person.originalName || person.name, displayName: person.displayName || person.name, phone: person.phone || "未填写", account: person.account || person.id, password: passwordFor("hq", person.id, person.password || ""), authUid: person.authUid || "", status: person.status === "正常" ? "活跃" : (person.status || "活跃"), createdBy: person.createdBy }))];
+  const stores = createdStores.map((store) => ({ id: store.id, name: store.name, province: store.province || "未填写", city: store.city || "未填写", district: store.district || "未填写", status: store.status === "正常" ? "活跃" : (store.status || "活跃"), extra: store.address || "", contacts: store.contacts || [], account: store.account || `STORE${String(store.id).slice(1)}`, password: passwordFor("store", store.id, store.password || `1${String(store.id).replace(/\D/g, "").padStart(11, "0")}`), createdBy: store.createdBy }));
+  // People management only renders records returned by the backend. No sample staff data is shown.
+  const teachers = [];
+  const operations = [];
+  const headquarters = [];
   const entitySets = { store: stores, project: projects, teacher: teachers, operation: operations, hq: headquarters };
   const labels = { store: "门店", project: "项目", teacher: "老师", operation: "运营", hq: "总部" };
+  const searchListTypes = new Set(["store", "teacher", "operation", "hq"]);
+  let peopleSearchApplied = false;
+  let peopleSearch = { name: "", phone: "", selectedId: "" };
 
   function periodFactor() {
     return ({ last30: .22, q1: .65, q2: .72, q3: .58, q4: .2, ytd: 1 })[$("managePeriod")?.value] || 1;
@@ -38,13 +35,16 @@
   }
 
   function visibleEntities() {
+    if (searchListTypes.has(type) && !peopleSearchApplied) return [];
     const legacySearch = $("entitySearch")?.value.trim().toUpperCase() || "";
-    const nameSearch = $("entityNameSearch")?.value.trim().toUpperCase() || legacySearch;
-    const phoneSearch = $("entityPhoneSearch")?.value.replace(/\D/g, "") || "";
+    const nameSearch = searchListTypes.has(type) ? peopleSearch.name : ($("entityNameSearch")?.value.trim().toUpperCase() || legacySearch);
+    const phoneSearch = searchListTypes.has(type) ? peopleSearch.phone : ($("entityPhoneSearch")?.value.replace(/\D/g, "") || "");
     return entitySets[type].filter((item) => {
+      if (searchListTypes.has(type) && peopleSearch.selectedId) return item.id === peopleSearch.selectedId;
       const matchesName = !nameSearch || [item.name, item.originalName, item.displayName]
         .some((value) => String(value || "").toUpperCase().includes(nameSearch));
-      const matchesPhone = !phoneSearch || String(item.phone || "").replace(/\D/g, "").includes(phoneSearch);
+      const contactPhones = Array.isArray(item.contacts) ? item.contacts.map((contact) => contact.phone).join(" ") : "";
+      const matchesPhone = !phoneSearch || `${item.phone || ""} ${contactPhones}`.replace(/\D/g, "").includes(phoneSearch);
       return matchesName && matchesPhone;
     });
   }
@@ -84,7 +84,7 @@
   }
 
   function refillSelect(selectedId) {
-    const select = $("entitySelect"), items = visibleEntities();
+    const select = $("entitySelect"), items = searchListTypes.has(type) ? entitySets[type] : visibleEntities();
     const options = items.map((item) => type === "store"
       ? `<option value="${item.id}">${escapeHtml(storeSelectionName(item))} · ${escapeHtml(item.province)} · ${escapeHtml(item.city)} · ${escapeHtml(item.district)}${item.status === "活跃" ? "" : " · 封存"}</option>`
       : `<option value="${item.id}">${escapeHtml(item.displayName || item.name)}（${item.id}）${item.phone ? ` · ${escapeHtml(item.phone)}` : ""}${item.status === "活跃" ? "" : " · 封存"}</option>`).join("");
@@ -114,22 +114,20 @@
     }
     if (type === "teacher") {
       const captions = ["老师编号", "老师姓名", "显示名称", "联系电话", "状态", "创建人员", "最后修改人员"];
-      const values = [entity.id, entity.name, entity.displayName || entity.name, entity.phone || "未填写", entity.status, entity.createdBy ? `${entity.createdBy.account} · ${entity.createdBy.name}` : "HQ001 · 总部管理员", "HQ001 · 总部管理员"];
+      const values = [entity.id, entity.name, entity.displayName || entity.name, entity.phone || "未填写", entity.status, entity.createdBy ? `${entity.createdBy.account} · ${entity.createdBy.name}` : "未记录", "未记录"];
       $("entityInfo").innerHTML = values.map((value, i) => `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
       return;
     }
     if (type === "operation") {
       const captions = ["运营编号", "姓名", "显示名称", "联系电话", "账号密码", "状态", "创建人员", "最后修改人员"];
-      const values = [entity.account || entity.id, entity.name, entity.displayName || entity.name, entity.phone || "未填写", entity.password, entity.status, entity.createdBy ? `${entity.createdBy.account} · ${entity.createdBy.name}` : "HQ001 · 总部管理员", "HQ001 · 总部管理员"];
-      $("entityInfo").innerHTML = values.map((value, i) => i === 4 ? passwordCard(value, entity) : `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
-      bindPasswordEditor(entity);
+      const values = [entity.account || entity.id, entity.name, entity.displayName || entity.name, entity.phone || "未填写", "不展示，请通过重置密码设置", entity.status, entity.createdBy ? `${entity.createdBy.account} · ${entity.createdBy.name}` : "未记录", "未记录"];
+      $("entityInfo").innerHTML = values.map((value, i) => `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
       return;
     }
     if (type === "hq") {
       const captions = ["总部编号", "姓名", "联系电话", "账号密码", "状态", "创建人员", "最后修改人员"];
-      const values = [entity.account || entity.id, entity.name, entity.phone || "未填写", entity.password, entity.status, entity.createdBy ? `${entity.createdBy.account} · ${entity.createdBy.name}` : "系统初始化", "HQ001 · 总部管理员"];
-      $("entityInfo").innerHTML = values.map((value, i) => i === 3 ? passwordCard(value, entity) : `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
-      bindPasswordEditor(entity);
+      const values = [entity.account || entity.id, entity.name, entity.phone || "未填写", "不展示，请通过重置密码设置", entity.status, entity.createdBy ? `${entity.createdBy.account} · ${entity.createdBy.name}` : "未记录", "未记录"];
+      $("entityInfo").innerHTML = values.map((value, i) => `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
       return;
     }
     const captions = {
@@ -217,9 +215,16 @@
   }
 
   function render() {
+    if (searchListTypes.has(type)) {
+      renderPeopleResults();
+      return;
+    }
     const entity = activeEntity();
     if (!entity) {
-      $("entityInfo").innerHTML = `<article class="panel info-card"><span>查询结果</span><strong>未找到匹配的姓名或联系电话</strong></article>`;
+      const message = entitySets[type].length
+        ? "未找到匹配的姓名或联系电话"
+        : `暂无${labels[type]}数据，请先新增${labels[type]}。`;
+      $("entityInfo").innerHTML = `<article class="panel info-card"><span>查询结果</span><strong>${message}</strong></article>`;
       $("simpleStatsBody") && ($("simpleStatsBody").innerHTML = "");
       return;
     }
@@ -227,6 +232,23 @@
     if (type === "store") renderStoreTables(entity);
     if (type === "project") renderProjectTable(entity);
     if (type === "teacher") renderTeacherTable(entity);
+  }
+
+  function renderPeopleResults() {
+    const target = $("entityInfo");
+    if (!peopleSearchApplied) {
+      target.innerHTML = `<article class="panel info-card"><span>查询结果</span><strong>请输入姓名、联系电话，或选择系统已有${labels[type]}后点击搜索。</strong></article>`;
+      $("simpleStatsBody") && ($("simpleStatsBody").innerHTML = "");
+      return;
+    }
+    const results = visibleEntities();
+    if (!results.length) {
+      target.innerHTML = `<article class="panel info-card"><span>查询结果</span><strong>没有符合条件的${labels[type]}。</strong></article>`;
+      $("simpleStatsBody") && ($("simpleStatsBody").innerHTML = "");
+      return;
+    }
+    target.innerHTML = `<section class="panel people-result-panel"><div class="panel-heading"><div><h2>查询结果</h2><p>共 ${results.length} 条。总部可进入该账号自身范围内的全局视图。</p></div></div><div class="people-result-list">${results.map((person) => { const detail = type === "store" ? `store-detail.html?storeId=${encodeURIComponent(person.id)}` : `staff-detail.html?role=${encodeURIComponent(type)}&id=${encodeURIComponent(person.id)}`; const location = type === "store" ? [person.province, person.city, person.district].filter(Boolean).join(" · ") : person.phone || "未填写"; return `<article class="people-result-row"><div><strong>${escapeHtml(person.name)}</strong><span>${escapeHtml(person.id)} · ${escapeHtml(location)} · ${escapeHtml(person.status)}</span></div><a class="button-link secondary-button" href="${detail}">进入全局视图</a></article>`; }).join("")}</div></section>`;
+    $("simpleStatsBody") && ($("simpleStatsBody").innerHTML = "");
   }
 
   function addEntity(event) {
@@ -269,7 +291,6 @@
     if (!["teacher", "operation", "hq"].includes(type) || !window.CloudBasePhoneAuth?.listStaff) return;
     try {
       const remote = await window.CloudBasePhoneAuth.listStaff(type);
-      if (!remote.length) return;
       const records = remote.map((person) => ({
         id: person.person_code || `${type.toUpperCase()}${person.id}`,
         account: person.person_code || `${type.toUpperCase()}${person.id}`,
@@ -284,7 +305,7 @@
       refillSelect();
       render();
     } catch (_) {
-      // Local prototype data remains available if the backend is unavailable.
+      // Keep the page empty if staff data cannot be read. Never show sample records.
     }
   }
 
@@ -292,28 +313,27 @@
     document.documentElement.dataset.prototypeVersion = VERSION;
     const pageParams = new URLSearchParams(location.search);
     refillSelect(pageParams.get("created"));
-    $("entitySelect").addEventListener("change", () => { if (type !== "store") render(); });
-    ["entitySearch", "entityNameSearch", "entityPhoneSearch"].forEach((id) => $(id)?.addEventListener("input", () => { refillSelect(); render(); }));
+    $("entitySelect").addEventListener("change", () => { if (type !== "store" && !searchListTypes.has(type)) render(); });
+    ["entitySearch", "entityNameSearch", "entityPhoneSearch"].forEach((id) => $(id)?.addEventListener("input", () => { if (!searchListTypes.has(type)) { refillSelect(); render(); } }));
+    $("searchPeople")?.addEventListener("click", () => {
+      peopleSearchApplied = true;
+      peopleSearch = {
+        name: $("entityNameSearch")?.value.trim().toUpperCase() || "",
+        phone: $("entityPhoneSearch")?.value.replace(/\D/g, "") || "",
+        selectedId: $("entitySelect")?.value || ""
+      };
+      render();
+    });
     $("managePeriod")?.addEventListener("change", render);
     $("addEntity").addEventListener("click", () => { if (type === "store") location.href = "store-create.html"; else if (type === "project") location.href = "project-create.html"; else if (type === "teacher") location.href = "teacher-create.html"; else if (type === "operation") location.href = "operation-account-create.html"; else if (type === "hq") location.href = "hq-account-create.html"; else $("entityDialog").showModal(); });
-    $("deleteEntity").addEventListener("click", deactivateEntity);
+    $("deleteEntity")?.addEventListener("click", deactivateEntity);
     $("confirmStore")?.addEventListener("click", () => {
       if (!activeEntity()) { window.alert("请先选择门店"); return; }
       $("storeManagementContent").hidden = false;
       render();
     });
-    if (type === "store") {
-      fillOptions($("manualStoreProvince"), Object.keys(chinaRegions), "请选择省");
-      $("manualStoreProvince").addEventListener("change", populateManualCities);
-      $("manualStoreCity").addEventListener("change", populateManualDistricts);
-      $("lookupManualStore").addEventListener("click", lookupManualStore);
-      $("closeStoreLookup").addEventListener("click", () => $("storeLookupDialog").close());
-      $("confirmStoreLookup").addEventListener("click", () => { const id = $("confirmStoreLookup").dataset.storeId; if (id) location.href = `store-detail.html?storeId=${encodeURIComponent(id)}`; });
-    }
     if (type === "project") renderProjectList();
-    if (type === "store" && $("viewStore")) $("viewStore").addEventListener("click", () => { window.location.href = `store-detail.html?storeId=${encodeURIComponent(activeEntity().id)}`; });
     if (type === "project" && $("viewProject")) $("viewProject").addEventListener("click", () => { window.location.href = `project-detail.html?projectId=${encodeURIComponent(activeEntity().id)}`; });
-    if (type === "teacher" && $("viewTeacher")) $("viewTeacher").addEventListener("click", () => { window.location.href = `teacher-detail.html?teacherId=${encodeURIComponent(activeEntity().id)}`; });
     $("cancelEntity")?.addEventListener("click", () => $("entityDialog").close());
     $("entityForm")?.addEventListener("submit", addEntity);
     if (type !== "store" && type !== "project") render();
