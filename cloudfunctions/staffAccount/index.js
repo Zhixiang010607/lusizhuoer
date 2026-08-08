@@ -8,7 +8,6 @@
 const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 let app = null;
 let auth = null;
-let rdbClient = null;
 let managerClient = null;
 
 function getApp() {
@@ -24,17 +23,29 @@ function getAuth() {
   return auth;
 }
 
-function rdb() {
-  if (!rdbClient) rdbClient = getApp().rdb();
-  return rdbClient;
-}
-
 function manager() {
   if (!managerClient) {
     const CloudBaseManager = require("@cloudbase/manager-node");
     managerClient = CloudBaseManager.init({ envId: process.env.TCB_ENV });
   }
   return managerClient;
+}
+
+function sqlText(value) {
+  return `'${String(value ?? "").replace(/'/g, "''")}'`;
+}
+
+function parseSqlRows(result) {
+  const columns = result?.Columns || [];
+  return (result?.Rows || []).map((raw) => {
+    const values = Array.isArray(raw) ? raw : JSON.parse(raw);
+    return Object.fromEntries(columns.map((column, index) => [column, values[index]]));
+  });
+}
+
+async function executeSql(sql) {
+  const result = await manager().database.executePGSql({ Sql: sql });
+  return parseSqlRows(result);
 }
 
 function fail(message, code = "BAD_REQUEST") {
@@ -63,35 +74,46 @@ function asDatabaseError(error, action) {
 }
 
 async function findStaffProfile(uid) {
-  const { data, error } = await rdb()
-    .from("staff_accounts")
-    .select("id, staff_name, role_code, account_status")
-    .eq("auth_uid", String(uid))
-    .limit(1);
-  asDatabaseError(error, "读取员工身份");
-  const staff = data?.[0];
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT id, staff_name, role_code, account_status FROM public.staff_accounts WHERE auth_uid = ${sqlText(uid)} LIMIT 1`
+    );
+  } catch (error) {
+    asDatabaseError(error, "读取员工身份");
+  }
+  const staff = rows?.[0];
   if (!staff || !ROLES.has(staff.role_code)) return null;
   if (staff.account_status !== "ACTIVE") fail("该人员账号已封存，无法登录", "ARCHIVED_ACCOUNT");
 
   let storeId = "";
   if (staff.role_code === "store") {
-    const assignment = await rdb()
-      .from("staff_store_assignments")
-      .select("store_id")
-      .eq("staff_account_id", staff.id)
-      .eq("assignment_status", "ACTIVE")
-      .limit(1);
-    asDatabaseError(assignment.error, "读取门店绑定");
-    storeId = assignment.data?.[0]?.store_id ? String(assignment.data[0].store_id) : "";
+    let assignments;
+    try {
+      assignments = await executeSql(
+        `SELECT store_id FROM public.staff_store_assignments WHERE staff_account_id = ${Number(staff.id)} AND assignment_status = 'ACTIVE' LIMIT 1`
+      );
+    } catch (error) {
+      asDatabaseError(error, "读取门店绑定");
+    }
+    storeId = assignments?.[0]?.store_id ? String(assignments[0].store_id) : "";
     if (!storeId) fail("该门店账号尚未绑定有效门店", "UNASSIGNED_STORE");
-    const store = await rdb().from("stores").select("store_status").eq("id", Number(storeId)).limit(1);
-    asDatabaseError(store.error, "读取门店状态");
-    if (store.data?.[0]?.store_status !== "ACTIVE") fail("关联门店已封存，无法登录", "ARCHIVED_STORE");
+    let stores;
+    try {
+      stores = await executeSql(`SELECT store_status FROM public.stores WHERE id = ${Number(storeId)} LIMIT 1`);
+    } catch (error) {
+      asDatabaseError(error, "读取门店状态");
+    }
+    if (stores?.[0]?.store_status !== "ACTIVE") fail("关联门店已封存，无法登录", "ARCHIVED_STORE");
   }
   if (staff.role_code === "teacher") {
-    const teacher = await rdb().from("teachers").select("teacher_status").eq("staff_account_id", staff.id).limit(1);
-    asDatabaseError(teacher.error, "读取老师状态");
-    if (teacher.data?.[0]?.teacher_status === "ARCHIVED") fail("该老师资料已封存，无法登录", "ARCHIVED_TEACHER");
+    let teachers;
+    try {
+      teachers = await executeSql(`SELECT teacher_status FROM public.teachers WHERE staff_account_id = ${Number(staff.id)} LIMIT 1`);
+    } catch (error) {
+      asDatabaseError(error, "读取老师状态");
+    }
+    if (teachers?.[0]?.teacher_status === "ARCHIVED") fail("该老师资料已封存，无法登录", "ARCHIVED_TEACHER");
   }
   return { staffId: staff.id, role: staff.role_code, staffName: staff.staff_name, storeId };
 }
@@ -108,21 +130,25 @@ async function recoverStaffProfileByVerifiedPhone(uid, phone) {
 
   if (String(identity?.userInfo?.uid || "") !== String(uid)) return null;
 
-  const { data, error } = await rdb()
-    .from("staff_accounts")
-    .select("id, account_status")
-    .eq("phone", normalizedPhone)
-    .limit(1);
-  asDatabaseError(error, "Read staff account by verified phone");
-  const staff = data?.[0];
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT id, account_status FROM public.staff_accounts WHERE phone = ${sqlText(normalizedPhone)} LIMIT 1`
+    );
+  } catch (error) {
+    asDatabaseError(error, "Read staff account by verified phone");
+  }
+  const staff = rows?.[0];
   if (!staff) return null;
   if (staff.account_status !== "ACTIVE") fail("This staff account is archived and cannot sign in", "ARCHIVED_ACCOUNT");
 
-  const { error: updateError } = await rdb()
-    .from("staff_accounts")
-    .update({ auth_uid: String(uid), updated_at: new Date().toISOString() })
-    .eq("id", staff.id);
-  asDatabaseError(updateError, "Restore staff account binding");
+  try {
+    await executeSql(
+      `UPDATE public.staff_accounts SET auth_uid = ${sqlText(uid)}, updated_at = NOW() WHERE id = ${Number(staff.id)}`
+    );
+  } catch (error) {
+    asDatabaseError(error, "Restore staff account binding");
+  }
   return findStaffProfile(uid);
 }
 
@@ -162,36 +188,36 @@ async function ensureBootstrapHq(caller) {
   if (existing) return existing;
   const phone = validatePhone(caller.userInfo?.phone || caller.userInfo?.phoneNumber || caller.userInfo?.phone_number);
   const staffName = String(caller.userInfo?.nickName || caller.userInfo?.name || "总部管理员");
-  const { error } = await rdb().from("staff_accounts").insert({
-    auth_uid: caller.uid,
-    phone,
-    staff_name: staffName,
-    role_code: "hq",
-    account_status: "ACTIVE"
-  });
-  asDatabaseError(error, "初始化总部账户");
+  try {
+    await executeSql(
+      `INSERT INTO public.staff_accounts (auth_uid, phone, staff_name, role_code, account_status) VALUES (${sqlText(caller.uid)}, ${sqlText(phone)}, ${sqlText(staffName)}, 'hq', 'ACTIVE')`
+    );
+  } catch (error) {
+    asDatabaseError(error, "初始化总部账户");
+  }
   return findStaffProfile(caller.uid);
 }
 
 async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId }) {
-  const { data, error } = await rdb().from("staff_accounts").insert({
-    auth_uid: uid,
-    phone,
-    staff_name: staffName,
-    role_code: role,
-    account_status: "ACTIVE"
-  });
-  asDatabaseError(error, "保存员工业务身份");
-  const profile = { staffId: data?.[0]?.id || null, role, staffName, storeId: "" };
+  let rows;
+  try {
+    rows = await executeSql(
+      `INSERT INTO public.staff_accounts (auth_uid, phone, staff_name, role_code, account_status) VALUES (${sqlText(uid)}, ${sqlText(phone)}, ${sqlText(staffName)}, ${sqlText(role)}, 'ACTIVE') RETURNING id`
+    );
+  } catch (error) {
+    asDatabaseError(error, "保存员工业务身份");
+  }
+  const profile = { staffId: rows?.[0]?.id || null, role, staffName, storeId: "" };
   if (role !== "store") return profile;
   const staffId = data?.[0]?.id;
   if (!staffId) fail("员工身份保存后未返回账号编号", "DATABASE_ERROR");
-  const { error: assignmentError } = await rdb().from("staff_store_assignments").insert({
-    staff_account_id: staffId,
-    store_id: Number(storeId),
-    assignment_status: "ACTIVE"
-  });
-  asDatabaseError(assignmentError, "绑定门店");
+  try {
+    await executeSql(
+      `INSERT INTO public.staff_store_assignments (staff_account_id, store_id, assignment_status) VALUES (${Number(staffId)}, ${Number(storeId)}, 'ACTIVE')`
+    );
+  } catch (error) {
+    asDatabaseError(error, "绑定门店");
+  }
   profile.storeId = String(storeId);
   return profile;
 }
@@ -254,17 +280,33 @@ async function main(event = {}) {
     const phone = String(event.phone || "").replace(/\D/g, "");
     const status = String(event.status || "").toUpperCase();
     if ((!uid && !/^1[3-9]\d{9}$/.test(phone)) || !["ACTIVE", "ARCHIVED"].includes(status)) fail("人员状态只能是 ACTIVE（活跃）或 ARCHIVED（封存）");
-    let lookup = rdb().from("staff_accounts").select("id, auth_uid, role_code");
-    lookup = uid ? lookup.eq("auth_uid", uid) : lookup.eq("phone", phone);
-    const { data, error } = await lookup.limit(1);
-    asDatabaseError(error, "查找人员账号");
-    const staff = data?.[0];
+    let rows;
+    try {
+      const column = uid ? "auth_uid" : "phone";
+      const value = uid || phone;
+      rows = await executeSql(
+        `SELECT id, auth_uid, role_code FROM public.staff_accounts WHERE ${column} = ${sqlText(value)} LIMIT 1`
+      );
+    } catch (error) {
+      asDatabaseError(error, "查找人员账号");
+    }
+    const staff = rows?.[0];
     if (!staff) fail("未找到该人员账号", "NOT_FOUND");
-    const updated = await rdb().from("staff_accounts").update({ account_status: status, updated_at: new Date().toISOString() }).eq("id", staff.id);
-    asDatabaseError(updated.error, "更新人员状态");
+    try {
+      await executeSql(
+        `UPDATE public.staff_accounts SET account_status = ${sqlText(status)}, updated_at = NOW() WHERE id = ${Number(staff.id)}`
+      );
+    } catch (error) {
+      asDatabaseError(error, "更新人员状态");
+    }
     if (staff.role_code === "teacher") {
-      const teacherUpdate = await rdb().from("teachers").update({ teacher_status: status, updated_at: new Date().toISOString() }).eq("staff_account_id", staff.id);
-      asDatabaseError(teacherUpdate.error, "同步老师资料状态");
+      try {
+        await executeSql(
+          `UPDATE public.teachers SET teacher_status = ${sqlText(status)}, updated_at = NOW() WHERE staff_account_id = ${Number(staff.id)}`
+        );
+      } catch (error) {
+        asDatabaseError(error, "同步老师资料状态");
+      }
     }
     await manager().user.modifyUser({ uid: staff.auth_uid, userStatus: status === "ACTIVE" ? "ACTIVE" : "BLOCKED" });
     return { ok: true, uid: staff.auth_uid, status };
