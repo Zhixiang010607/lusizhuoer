@@ -96,6 +96,12 @@
       if (!data?.ok) throw new Error(data?.message || "人员状态更新失败");
       return data;
     },
+    async listStaff(role) {
+      const result = await getApp().callFunction({ name: "staffAccount", data: { action: "listStaff", role } });
+      const data = result?.result || result?.data?.result || result?.data;
+      if (!data?.ok) throw new Error(data?.message || "人员列表读取失败");
+      return data.staff || [];
+    },
     smsCooldownRemaining(phone) { return cooldownRemaining(phone); }
   };
 })();

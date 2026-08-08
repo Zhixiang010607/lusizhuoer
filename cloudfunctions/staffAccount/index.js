@@ -242,6 +242,16 @@ async function main(event = {}) {
   if (action === "bootstrapHq") {
     return { ok: true, profile: await ensureBootstrapHq(caller) };
   }
+  if (action === "listStaff") {
+    requireHq(caller);
+    const role = String(event.role || "");
+    if (!ROLES.has(role)) fail("Unsupported staff role");
+    const codePrefix = role === "teacher" ? "T" : role === "operation" ? "OP" : role === "hq" ? "HQ" : "S";
+    const rows = await executeSql(
+      `SELECT id, auth_uid, phone, staff_name, role_code, account_status, ${sqlText(codePrefix)} || LPAD(id::text, 3, '0') AS person_code FROM public.staff_accounts WHERE role_code = ${sqlText(role)} ORDER BY id ASC`
+    );
+    return { ok: true, staff: rows };
+  }
   if (action === "provisionStaff") {
     requireHq(caller);
     const staffName = String(event.staffName || "").trim();

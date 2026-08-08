@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>总部管理</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-management="hq">
+  <aside class="side-project-bar" aria-label="项目栏">
+    <div class="side-brand"><span>HQ</span><div><strong>总部工作台</strong><small>项目栏</small></div></div>
+    <p class="side-section-title">总部管理</p><nav class="side-nav"></nav><div class="side-footer">静态原型</div>
+  </aside>
+  <header class="topbar"><div><p class="eyebrow">HEADQUARTERS MANAGEMENT</p><h1>总部管理</h1><p class="subtitle">查看、创建和封存总部账号；不提供删除操作</p></div><div class="status"><span></span>总部权限</div></header>
+  <main>
+    <section class="panel management-toolbar people-search-toolbar">
+      <label>按姓名查询<input id="entityNameSearch" type="search" autocomplete="off" placeholder="输入姓名；同名总部人员会全部显示"></label>
+      <label>按联系电话查询<input id="entityPhoneSearch" type="search" inputmode="tel" autocomplete="off" placeholder="输入完整或部分联系电话"></label>
+      <label>直接选择系统已有总部人员<select id="entitySelect"></select></label>
+      <div class="toolbar-actions"><button id="addEntity">新增总部人员</button><button id="deleteEntity" class="danger-button">封存总部人员</button></div>
+    </section>
+    <section id="entityInfo" class="management-summary"></section>
+    <section class="panel customer-permission-banner"><strong>总部账号规则</strong><span>一个手机号只能对应一个业务身份。姓名查询会展示所有同名人员；封存后该人员无法登录。</span></section>
+  </main>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
+  <script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js"></script><script src="management.js"></script><script src="auth-ui.js"></script>
+</body>
+</html>

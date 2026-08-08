@@ -17,15 +17,20 @@
   const storeRegions = [["北京市", "北京市", "朝阳区"], ["上海市", "上海市", "浦东新区"], ["广东省", "广州市", "天河区"], ["广东省", "深圳市", "南山区"], ["浙江省", "杭州市", "西湖区"], ["四川省", "成都市", "武侯区"]];
   const chinaRegions = window.ChinaRegions || {};
   const stores = [...Array.from({ length: 16 }, (_, i) => { const id = `S${String(i + 1).padStart(3, "0")}`, region = storeRegions[i % storeRegions.length]; return { id, name: `${region[1]}门店 ${i + 1}`, province: region[0], city: region[1], district: region[2], status: "活跃", extra: `${["建国路", "世纪大道", "天河路", "深南大道", "文三路", "人民南路"][i % 6]} ${100 + i}号`, contacts: [{ name: `联系人 ${i + 1}`, phone: `13${String(100000000 + i).slice(-9)}` }], account: `STORE${id.slice(1)}`, password: passwordFor("store", id, `1${String(i + 1).padStart(11, "0")}`) }; }), ...createdStores.map((store) => ({ id: store.id, name: store.name, province: store.province || "未填写", city: store.city || "未填写", district: store.district || "未填写", status: store.status === "正常" ? "活跃" : (store.status || "活跃"), extra: store.address || "", contacts: store.contacts || [], account: store.account || `STORE${String(store.id).slice(1)}`, password: passwordFor("store", store.id, store.password || `1${String(store.id).replace(/\D/g, "").padStart(11, "0")}`), createdBy: store.createdBy }))];
-  let createdTeachers = [], createdOperations = [];
-  try { createdTeachers = JSON.parse(sessionStorage.getItem("prototypeCreatedTeachers") || "[]"); createdOperations = JSON.parse(sessionStorage.getItem("prototypeCreatedOperations") || "[]"); } catch (_) { createdTeachers = []; createdOperations = []; }
+  let createdTeachers = [], createdOperations = [], createdHeadquarters = [];
+  try {
+    createdTeachers = JSON.parse(sessionStorage.getItem("prototypeCreatedTeachers") || "[]");
+    createdOperations = JSON.parse(sessionStorage.getItem("prototypeCreatedOperations") || "[]");
+    createdHeadquarters = JSON.parse(sessionStorage.getItem("prototypeCreatedHeadquarters") || "[]");
+  } catch (_) { createdTeachers = []; createdOperations = []; createdHeadquarters = []; }
   const teachers = [...Array.from({ length: 32 }, (_, i) => { const id = `T${String(i + 1).padStart(3, "0")}`; const name = `业务老师 ${String(i + 1).padStart(2, "0")}`; return { id, name, displayName: name, status: "活跃", extra: name, identityNumber: `1101011990${String(i + 1).padStart(8, "0")}`, phone: `04${String(20000000 + i).slice(-8)}` }; }), ...createdTeachers.map((teacher) => ({ id: teacher.id, name: teacher.originalName || teacher.name, displayName: teacher.displayName || teacher.name, status: teacher.status === "正常" ? "活跃" : (teacher.status || "活跃"), extra: teacher.displayName || teacher.name, identityNumber: teacher.identityNumber || "", phone: teacher.phone || "未填写", authUid: teacher.authUid || "", createdBy: teacher.createdBy }))];
-  const operations = [...Array.from({ length: 8 }, (_, i) => { const id = `OP${String(i + 1).padStart(3, "0")}`; const name = `运营人员${i + 1}`; return { id, name, displayName: name, status: "活跃", extra: name, identityNumber: `1101011988${String(i + 1).padStart(8, "0")}`, phone: `04${String(30000000 + i).slice(-8)}`, account: id, password: passwordFor("operation", id, `2${String(i + 1).padStart(11, "0")}`) }; }), ...createdOperations.map((operation) => ({ id: operation.id, name: operation.originalName || operation.name, displayName: operation.displayName || operation.name, status: operation.status === "正常" ? "活跃" : (operation.status || "活跃"), extra: operation.displayName || operation.name, identityNumber: operation.identityNumber || "", phone: operation.phone || "未填写", authUid: operation.authUid || "", account: operation.account || operation.id, password: passwordFor("operation", operation.id, operation.password || ""), createdBy: operation.createdBy }))];
-  const entitySets = { store: stores, project: projects, teacher: teachers, operation: operations };
-  const labels = { store: "门店", project: "项目", teacher: "老师账号", operation: "运营账号" };
+  const operations = [...Array.from({ length: 8 }, (_, i) => { const id = `OP${String(i + 1).padStart(3, "0")}`; const name = `运营人员${i + 1}`; return { id, name, displayName: name, status: "活跃", extra: name, phone: `04${String(30000000 + i).slice(-8)}`, account: id, password: passwordFor("operation", id, `2${String(i + 1).padStart(11, "0")}`) }; }), ...createdOperations.map((operation) => ({ id: operation.id, name: operation.originalName || operation.name, displayName: operation.displayName || operation.name, status: operation.status === "正常" ? "活跃" : (operation.status || "活跃"), extra: operation.displayName || operation.name, phone: operation.phone || "未填写", authUid: operation.authUid || "", account: operation.account || operation.id, password: passwordFor("operation", operation.id, operation.password || ""), createdBy: operation.createdBy }))];
+  const headquarters = [{ id: "HQ001", name: "总部管理员", displayName: "总部管理员", phone: "13900000000", account: "HQ001", password: passwordFor("hq", "HQ001", "总部账号密码"), status: "活跃" }, ...createdHeadquarters.map((person) => ({ id: person.id, name: person.originalName || person.name, displayName: person.displayName || person.name, phone: person.phone || "未填写", account: person.account || person.id, password: passwordFor("hq", person.id, person.password || ""), authUid: person.authUid || "", status: person.status === "正常" ? "活跃" : (person.status || "活跃"), createdBy: person.createdBy }))];
+  const entitySets = { store: stores, project: projects, teacher: teachers, operation: operations, hq: headquarters };
+  const labels = { store: "门店", project: "项目", teacher: "老师", operation: "运营", hq: "总部" };
 
   function periodFactor() {
-    return ({ last30: .22, q1: .65, q2: .72, q3: .58, q4: .2, ytd: 1 })[$("managePeriod").value] || 1;
+    return ({ last30: .22, q1: .65, q2: .72, q3: .58, q4: .2, ytd: 1 })[$("managePeriod")?.value] || 1;
   }
 
   function entityIndex(entity) {
@@ -33,10 +38,15 @@
   }
 
   function visibleEntities() {
-    const search = $("entitySearch")?.value.trim().toUpperCase() || "";
-    if (!search) return entitySets[type];
-    return entitySets[type].filter((item) => [item.name, item.originalName, item.displayName, item.identityNumber]
-      .some((value) => String(value || "").toUpperCase().includes(search)));
+    const legacySearch = $("entitySearch")?.value.trim().toUpperCase() || "";
+    const nameSearch = $("entityNameSearch")?.value.trim().toUpperCase() || legacySearch;
+    const phoneSearch = $("entityPhoneSearch")?.value.replace(/\D/g, "") || "";
+    return entitySets[type].filter((item) => {
+      const matchesName = !nameSearch || [item.name, item.originalName, item.displayName]
+        .some((value) => String(value || "").toUpperCase().includes(nameSearch));
+      const matchesPhone = !phoneSearch || String(item.phone || "").replace(/\D/g, "").includes(phoneSearch);
+      return matchesName && matchesPhone;
+    });
   }
 
   function activeEntity() {
@@ -75,10 +85,9 @@
 
   function refillSelect(selectedId) {
     const select = $("entitySelect"), items = visibleEntities();
-    const showIdentity = Boolean($("entitySearch")?.value.trim());
     const options = items.map((item) => type === "store"
       ? `<option value="${item.id}">${escapeHtml(storeSelectionName(item))} · ${escapeHtml(item.province)} · ${escapeHtml(item.city)} · ${escapeHtml(item.district)}${item.status === "活跃" ? "" : " · 封存"}</option>`
-      : `<option value="${item.id}">${escapeHtml(item.displayName || item.name)}（${item.id}）${showIdentity ? ` · 身份证 ${escapeHtml(item.identityNumber || "未填写")}` : ""}${item.status === "活跃" ? "" : " · 封存"}</option>`).join("");
+      : `<option value="${item.id}">${escapeHtml(item.displayName || item.name)}（${item.id}）${item.phone ? ` · ${escapeHtml(item.phone)}` : ""}${item.status === "活跃" ? "" : " · 封存"}</option>`).join("");
     select.innerHTML = type === "store" ? `<option value="">请选择门店</option>${options}` : options;
     select.disabled = !items.length;
     select.value = selectedId && items.some((item) => item.id === selectedId) ? selectedId : (type === "store" ? "" : (items[0]?.id || ""));
@@ -104,15 +113,22 @@
       return;
     }
     if (type === "teacher") {
-      const captions = ["老师编号", "老师姓名", "显示名称", "身份证号码", "联系电话", "状态", "创建人员", "最后修改人员"];
-      const values = [entity.id, entity.name, entity.displayName || entity.name, entity.identityNumber, entity.phone || "未填写", entity.status, entity.createdBy ? `${entity.createdBy.account} · ${entity.createdBy.name}` : "HQ001 · 总部管理员", "HQ001 · 总部管理员"];
+      const captions = ["老师编号", "老师姓名", "显示名称", "联系电话", "状态", "创建人员", "最后修改人员"];
+      const values = [entity.id, entity.name, entity.displayName || entity.name, entity.phone || "未填写", entity.status, entity.createdBy ? `${entity.createdBy.account} · ${entity.createdBy.name}` : "HQ001 · 总部管理员", "HQ001 · 总部管理员"];
       $("entityInfo").innerHTML = values.map((value, i) => `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
       return;
     }
     if (type === "operation") {
-      const captions = ["运营账号", "姓名", "显示名称", "身份证号码", "联系电话", "账号密码", "状态", "创建人员", "最后修改人员"];
-      const values = [entity.account || entity.id, entity.name, entity.displayName || entity.name, entity.identityNumber, entity.phone || "未填写", entity.password, entity.status, entity.createdBy ? `${entity.createdBy.account} · ${entity.createdBy.name}` : "HQ001 · 总部管理员", "HQ001 · 总部管理员"];
-      $("entityInfo").innerHTML = values.map((value, i) => i === 5 ? passwordCard(value, entity) : `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
+      const captions = ["运营编号", "姓名", "显示名称", "联系电话", "账号密码", "状态", "创建人员", "最后修改人员"];
+      const values = [entity.account || entity.id, entity.name, entity.displayName || entity.name, entity.phone || "未填写", entity.password, entity.status, entity.createdBy ? `${entity.createdBy.account} · ${entity.createdBy.name}` : "HQ001 · 总部管理员", "HQ001 · 总部管理员"];
+      $("entityInfo").innerHTML = values.map((value, i) => i === 4 ? passwordCard(value, entity) : `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
+      bindPasswordEditor(entity);
+      return;
+    }
+    if (type === "hq") {
+      const captions = ["总部编号", "姓名", "联系电话", "账号密码", "状态", "创建人员", "最后修改人员"];
+      const values = [entity.account || entity.id, entity.name, entity.phone || "未填写", entity.password, entity.status, entity.createdBy ? `${entity.createdBy.account} · ${entity.createdBy.name}` : "系统初始化", "HQ001 · 总部管理员"];
+      $("entityInfo").innerHTML = values.map((value, i) => i === 3 ? passwordCard(value, entity) : `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
       bindPasswordEditor(entity);
       return;
     }
@@ -143,7 +159,7 @@
   }
 
   function renderStoreTables(store) {
-    const storeTeachers = assignedTeachers(store).filter((teacher) => teacher.status === "正常");
+    const storeTeachers = assignedTeachers(store).filter((teacher) => teacher.status === "活跃");
     $("teacherVerificationHead").innerHTML = `<tr><th>老师（编号）</th><th>总核销</th>${projects.map((project) => `<th>${project.name}</th>`).join("")}</tr>`;
     $("teacherVerificationBody").innerHTML = storeTeachers.map((teacher) => {
       const values = projects.map((project) => verification(store, teacher, project));
@@ -203,7 +219,7 @@
   function render() {
     const entity = activeEntity();
     if (!entity) {
-      $("entityInfo").innerHTML = `<article class="panel info-card"><span>查询结果</span><strong>未找到匹配的姓名或身份证号码</strong></article>`;
+      $("entityInfo").innerHTML = `<article class="panel info-card"><span>查询结果</span><strong>未找到匹配的姓名或联系电话</strong></article>`;
       $("simpleStatsBody") && ($("simpleStatsBody").innerHTML = "");
       return;
     }
@@ -236,7 +252,7 @@
     const entity = activeEntity();
     if (entity.status !== "活跃") return;
     if (!window.confirm(`确认封存${labels[type]}“${entity.name}”？历史充值、核销和客户引用仍会保留，且不删除任何资料。`)) return;
-    if (["teacher", "operation"].includes(type) && entity.authUid) {
+    if (["teacher", "operation", "hq"].includes(type) && entity.authUid) {
       try {
         await window.CloudBasePhoneAuth?.setStaffStatus({ uid: entity.authUid || "", phone: entity.phone || "", status: "ARCHIVED" });
       } catch (error) {
@@ -249,14 +265,37 @@
     render();
   }
 
+  async function syncRemotePeople() {
+    if (!["teacher", "operation", "hq"].includes(type) || !window.CloudBasePhoneAuth?.listStaff) return;
+    try {
+      const remote = await window.CloudBasePhoneAuth.listStaff(type);
+      if (!remote.length) return;
+      const records = remote.map((person) => ({
+        id: person.person_code || `${type.toUpperCase()}${person.id}`,
+        account: person.person_code || `${type.toUpperCase()}${person.id}`,
+        name: person.staff_name,
+        displayName: person.staff_name,
+        phone: person.phone || "未填写",
+        authUid: person.auth_uid || "",
+        status: person.account_status === "ARCHIVED" ? "封存" : "活跃",
+        password: passwordFor(type, person.person_code || person.id, "总部可重置")
+      }));
+      entitySets[type].splice(0, entitySets[type].length, ...records);
+      refillSelect();
+      render();
+    } catch (_) {
+      // Local prototype data remains available if the backend is unavailable.
+    }
+  }
+
   function init() {
     document.documentElement.dataset.prototypeVersion = VERSION;
     const pageParams = new URLSearchParams(location.search);
     refillSelect(pageParams.get("created"));
     $("entitySelect").addEventListener("change", () => { if (type !== "store") render(); });
-    $("entitySearch")?.addEventListener("input", () => { refillSelect(); render(); });
-    $("managePeriod").addEventListener("change", render);
-    $("addEntity").addEventListener("click", () => { if (type === "store") location.href = "store-create.html"; else if (type === "project") location.href = "project-create.html"; else if (type === "teacher") location.href = "teacher-create.html"; else if (type === "operation") location.href = "operation-account-create.html"; else $("entityDialog").showModal(); });
+    ["entitySearch", "entityNameSearch", "entityPhoneSearch"].forEach((id) => $(id)?.addEventListener("input", () => { refillSelect(); render(); }));
+    $("managePeriod")?.addEventListener("change", render);
+    $("addEntity").addEventListener("click", () => { if (type === "store") location.href = "store-create.html"; else if (type === "project") location.href = "project-create.html"; else if (type === "teacher") location.href = "teacher-create.html"; else if (type === "operation") location.href = "operation-account-create.html"; else if (type === "hq") location.href = "hq-account-create.html"; else $("entityDialog").showModal(); });
     $("deleteEntity").addEventListener("click", deactivateEntity);
     $("confirmStore")?.addEventListener("click", () => {
       if (!activeEntity()) { window.alert("请先选择门店"); return; }
@@ -283,8 +322,10 @@
       else if (type === "project") location.replace("project-create.html");
       else if (type === "teacher") location.replace("teacher-create.html");
       else if (type === "operation") location.replace("operation-account-create.html");
+      else if (type === "hq") location.replace("hq-account-create.html");
       else window.setTimeout(() => $("entityDialog").showModal(), 0);
     }
+    void syncRemotePeople();
   }
 
   init();
