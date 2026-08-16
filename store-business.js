@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.35", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.36", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   const storeId = String(session?.store || ""), storeNo = Number(storeId.replace(/\D/g, "")) || 1;
@@ -234,6 +234,8 @@
   function setupLookup() {
     let activeCustomers = [];
     const customerSelect = $("serviceCustomerSelect");
+    const confirmButton = $("confirmCustomerSelection");
+    confirmButton.dataset.initialText = confirmButton.textContent.trim();
     customerSelect.disabled = true;
     customerSelect.innerHTML = `<option value="">正在从数据库读取本门店活跃客户…</option>`;
     const loadActiveCustomers = async () => {
@@ -308,6 +310,42 @@
     $("confirmCustomerSelection").disabled = true;
     $("serviceCustomerResults").innerHTML = `<div class="lookup-placeholder"><strong>等待查询客户</strong><span>查询成功后，此处显示客户建档照片、姓名、生日和客户编号。</span></div>`;
     disableBusinessStep();
+  }
+  function securelyResetCompletedBusiness(form) {
+    stopFaceCamera();
+    rechargeRequest = null;
+    customerDetailCache.clear();
+    customerDetailRequests.clear();
+    form.reset();
+
+    // The lookup controls are outside the business form, so erase them
+    // explicitly and return the workflow to its first step.
+    $("serviceCustomerSelect").value = "";
+    $("serviceSelectBirthday").value = "";
+    $("serviceCustomerName").value = "";
+    $("serviceCustomerBirthday").value = "";
+    document.querySelectorAll("[data-lookup-mode]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.lookupMode === "select");
+    });
+    $("selectLookupFields").hidden = false;
+    $("manualLookupFields").hidden = true;
+
+    if ($("rechargeProject")) $("rechargeProject").value = "";
+    if ($("rechargeTeacher")) $("rechargeTeacher").value = "";
+    if ($("rechargeCount")) $("rechargeCount").value = "";
+    if ($("rechargeNote")) $("rechargeNote").value = "";
+    if ($("verificationTeacher")) $("verificationTeacher").value = "";
+    if ($("verificationNote")) $("verificationNote").value = "";
+    if ($("verificationProject")) {
+      $("verificationProject").innerHTML = `<option value="">确认客户后从数据库加载可核销项目</option>`;
+      $("verificationProject").disabled = true;
+    }
+
+    resetCandidate();
+    $("selectedCustomerText").textContent = "";
+    const confirmButton = $("confirmCustomerSelection");
+    confirmButton.textContent = confirmButton.dataset.initialText || "确认此客户并继续";
+    $("serviceCustomerSelect").focus({ preventScroll: true });
   }
   function customerPreviewMarkup(customer, hasPhoto = false) {
     const photo = hasPhoto
@@ -430,8 +468,8 @@
       try {
         const result = await callCustomerEnrollment({ action: "createRechargeApplication", ...payload, clientRequestId });
         if (String(result.recordStatus || "") !== "PENDING") throw new Error("数据库返回的充值单状态不是待审核，已停止后续操作");
-        rechargeRequest = null;
-        $("rechargeCreateMessage").textContent = `${selectedCustomer.name} · ${project.name} · ${count} 次充值单 ${result.rechargeCode} 已提交，当前为待审核；仅审核通过后才增加次数`;
+        securelyResetCompletedBusiness(form);
+        $("rechargeCreateMessage").textContent = "充值申请已提交并进入待审核；当前页面数据已安全清空，仅审核通过后才增加次数。";
       } catch (error) {
         $("rechargeCreateMessage").textContent = error?.message || "充值申请提交失败，请核对数据库与云函数";
       } finally {
@@ -502,9 +540,11 @@
       const records = JSON.parse(sessionStorage.getItem("prototypeVerificationRecords") || "[]"), project = verificationBalanceProjects.find((item) => item.id === projectId), recordId = `${supplemental ? "VE-SUP" : "VE-NEW"}-${Date.now()}`;
       if (!project) { $("verificationCreateMessage").textContent = "所选项目余额已失效，请重新确认客户后再试"; return; }
       records.push({ id: recordId, customerId: selectedCustomer.id, customerName: selectedCustomer.name, name: selectedCustomer.name, birthday: selectedCustomer.birthday, storeId, projectId, projectName: project.name, teacherId, count: 1, faceVerification: "活体检测与人脸比对通过", verificationType: supplemental ? "补录" : "正常", status: supplemental ? "待运营审核" : "正常", deviceSignal: supplemental ? "不发送（补录）" : "虚拟端口已发送", account: session.account, note, createdAt: new Date().toISOString() }); saveList("prototypeVerificationRecords", records); addCommunication("verification", recordId, note);
-      if (supplemental) { const apps = JSON.parse(sessionStorage.getItem("prototypeVerificationReviewApplications") || "[]"); apps.push({ id: `AP-V-${Date.now()}`, kind: "补录", recordId, storeId, customerId: selectedCustomer.id, customerName: selectedCustomer.name, projectId, project: project.name, teacherId, applicantNote: note, status: "pending", time: new Date().toISOString(), faceVerification: "活体检测与人脸比对通过", deviceSignal: "不发送" }); saveList("prototypeVerificationReviewApplications", apps); $("verificationCreateMessage").textContent = `${selectedCustomer.name} · ${project.name} 补录已提交运营审核；不会打开设备`; }
-      else $("verificationCreateMessage").textContent = `${selectedCustomer.name} · ${project.name} 正常核销成功；已向虚拟端口发送项目权限信号`;
-      resetVerificationCapture();
+      if (supplemental) { const apps = JSON.parse(sessionStorage.getItem("prototypeVerificationReviewApplications") || "[]"); apps.push({ id: `AP-V-${Date.now()}`, kind: "补录", recordId, storeId, customerId: selectedCustomer.id, customerName: selectedCustomer.name, projectId, project: project.name, teacherId, applicantNote: note, status: "pending", time: new Date().toISOString(), faceVerification: "活体检测与人脸比对通过", deviceSignal: "不发送" }); saveList("prototypeVerificationReviewApplications", apps); }
+      securelyResetCompletedBusiness(event.currentTarget);
+      $("verificationCreateMessage").textContent = supplemental
+        ? "补录核销已提交审核；当前客户资料、业务选择和现场照片已安全清空。"
+        : "正常核销已完成；当前客户资料、业务选择和现场照片已安全清空。";
     });
   }
 
