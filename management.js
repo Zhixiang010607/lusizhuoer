@@ -84,9 +84,12 @@
     const options = items.map((item) => type === "store"
       ? `<option value="${item.id}">${escapeHtml(storeSelectionName(item))} · ${escapeHtml(item.province)} · ${escapeHtml(item.city)} · ${escapeHtml(item.district)}${item.status === "活跃" ? "" : " · 封存"}</option>`
       : `<option value="${item.id}">${escapeHtml(item.displayName || item.name)}（${item.id}）${item.phone ? ` · ${escapeHtml(item.phone)}` : ""}${item.status === "活跃" ? "" : " · 封存"}</option>`).join("");
-    select.innerHTML = type === "store" ? `<option value="">请选择门店</option>${options}` : options;
+    const placeholder = `请选择${labels[type] || "对象"}`;
+    select.innerHTML = searchListTypes.has(type) ? `<option value="">${placeholder}</option>${options}` : options;
     select.disabled = !items.length;
-    select.value = selectedId && items.some((item) => item.id === selectedId) ? selectedId : (type === "store" ? "" : (items[0]?.id || ""));
+    select.value = selectedId && items.some((item) => item.id === selectedId)
+      ? selectedId
+      : (searchListTypes.has(type) ? "" : (items[0]?.id || ""));
   }
 
   function assignedTeachers(store) {
@@ -214,7 +217,7 @@
   function renderPeopleResults() {
     const target = $("entityInfo");
     if (!peopleSearchApplied) {
-      target.innerHTML = `<article class="panel info-card"><span>查询结果</span><strong>输入姓名或联系电话后点击“按条件搜索”，或选择已有${labels[type]}后点击“查看所选”。</strong></article>`;
+      target.innerHTML = `<article class="panel info-card"><span>查询结果</span><strong>输入姓名或联系电话后点击“按条件搜索”；未填写条件时，选择系统已有${labels[type]}后点击同一按钮即可查看。</strong></article>`;
       $("simpleStatsBody") && ($("simpleStatsBody").innerHTML = "");
       return;
     }
@@ -231,29 +234,23 @@
   function searchPeopleByFields() {
     const name = $("entityNameSearch")?.value.trim().toUpperCase() || "";
     const phone = $("entityPhoneSearch")?.value.replace(/\D/g, "") || "";
-    if (!name && !phone) {
-      peopleSearchApplied = false;
-      $("entityInfo").innerHTML = `<article class="panel info-card"><span>查询结果</span><strong>请先输入姓名或联系电话，再点击“按条件搜索”。</strong></article>`;
-      return;
-    }
-    // Text criteria are a separate search mode. A stale select value must
-    // never constrain a name/phone search.
-    peopleSearchApplied = true;
-    peopleSearch = { name, phone, selectedId: "" };
-    render();
-  }
-
-  function viewSelectedPerson() {
     const selectedId = $("entitySelect")?.value || "";
-    if (!selectedId) {
-      peopleSearchApplied = false;
-      $("entityInfo").innerHTML = `<article class="panel info-card"><span>查询结果</span><strong>请先选择一位系统已有${labels[type]}，再点击“查看所选”。</strong></article>`;
+    if (name || phone) {
+      // Text criteria take precedence. This keeps it independent from a
+      // previous direct selection while retaining one shared search button.
+      peopleSearchApplied = true;
+      peopleSearch = { name, phone, selectedId: "" };
+      render();
       return;
     }
-    // Direct selection is independent from field searching.
-    peopleSearchApplied = true;
-    peopleSearch = { name: "", phone: "", selectedId };
-    render();
+    if (selectedId) {
+      peopleSearchApplied = true;
+      peopleSearch = { name: "", phone: "", selectedId };
+      render();
+      return;
+    }
+    peopleSearchApplied = false;
+    $("entityInfo").innerHTML = `<article class="panel info-card"><span>查询结果</span><strong>请先输入姓名、联系电话，或选择系统已有${labels[type]}，再点击“按条件搜索”。</strong></article>`;
   }
 
   function addEntity(event) {
@@ -373,7 +370,6 @@
       }
     }));
     $("searchPeople")?.addEventListener("click", searchPeopleByFields);
-    $("selectPeople")?.addEventListener("click", viewSelectedPerson);
     $("managePeriod")?.addEventListener("change", render);
     $("addEntity").addEventListener("click", () => { if (type === "store") location.href = "store-create.html"; else if (type === "project") location.href = "project-create.html"; else if (type === "teacher") location.href = "teacher-create.html"; else if (type === "operation") location.href = "operation-account-create.html"; else if (type === "hq") location.href = "hq-account-create.html"; else $("entityDialog").showModal(); });
     $("deleteEntity")?.addEventListener("click", deactivateEntity);
