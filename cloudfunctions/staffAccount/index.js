@@ -8,7 +8,7 @@
 const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "2026-08-16-product-database-v1";
+const FUNCTION_VERSION = "2026-08-16-dml-returning-v2";
 let app = null;
 let auth = null;
 let managerClient = null;
@@ -378,13 +378,21 @@ async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId
   try {
     rows = existing
       ? await executeSql(
-        `UPDATE public.staff_accounts
-         SET auth_uid = ${sqlText(uid)}, staff_name = ${sqlText(staffName)}, account_status = 'ACTIVE', updated_at = NOW()
-         WHERE id = ${Number(existing.id)}
-         RETURNING id`
+        `WITH updated_account AS (
+           UPDATE public.staff_accounts
+           SET auth_uid = ${sqlText(uid)}, staff_name = ${sqlText(staffName)}, account_status = 'ACTIVE', updated_at = NOW()
+           WHERE id = ${Number(existing.id)}
+           RETURNING id
+         )
+         SELECT id FROM updated_account`
       )
       : await executeSql(
-        `INSERT INTO public.staff_accounts (auth_uid, phone, staff_name, role_code, account_status) VALUES (${sqlText(uid)}, ${sqlText(phone)}, ${sqlText(staffName)}, ${sqlText(role)}, 'ACTIVE') RETURNING id`
+        `WITH created_account AS (
+           INSERT INTO public.staff_accounts (auth_uid, phone, staff_name, role_code, account_status)
+           VALUES (${sqlText(uid)}, ${sqlText(phone)}, ${sqlText(staffName)}, ${sqlText(role)}, 'ACTIVE')
+           RETURNING id
+         )
+         SELECT id FROM created_account`
       );
   } catch (error) {
     asDatabaseError(error, "保存员工业务身份");
@@ -407,12 +415,15 @@ async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId
         fail("该门店账号已绑定其他门店；一个联系人账号只能绑定一个门店", "STORE_ACCOUNT_ALREADY_ASSIGNED");
       }
       storeRows = await executeSql(
-        `UPDATE public.stores
-         SET store_account_id = ${Number(staffId)}, updated_at = NOW()
-         WHERE id = ${targetStoreId}
-           AND store_status = 'ACTIVE'
-           AND (store_account_id IS NULL OR store_account_id = ${Number(staffId)})
-         RETURNING id`
+        `WITH bound_store AS (
+           UPDATE public.stores
+           SET store_account_id = ${Number(staffId)}, updated_at = NOW()
+           WHERE id = ${targetStoreId}
+             AND store_status = 'ACTIVE'
+             AND (store_account_id IS NULL OR store_account_id = ${Number(staffId)})
+           RETURNING id
+         )
+         SELECT id FROM bound_store`
       );
     } else {
       const activeRows = await executeSql(
@@ -424,11 +435,14 @@ async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId
         fail("该门店账号已绑定其他门店；一个联系人账号只能绑定一个门店", "STORE_ACCOUNT_ALREADY_ASSIGNED");
       }
       storeRows = await executeSql(
-        `INSERT INTO public.staff_store_assignments (staff_account_id, store_id, assignment_status)
-         VALUES (${Number(staffId)}, ${targetStoreId}, 'ACTIVE')
-         ON CONFLICT (staff_account_id, store_id)
-         DO UPDATE SET assignment_status = 'ACTIVE'
-         RETURNING store_id`
+        `WITH bound_assignment AS (
+           INSERT INTO public.staff_store_assignments (staff_account_id, store_id, assignment_status)
+           VALUES (${Number(staffId)}, ${targetStoreId}, 'ACTIVE')
+           ON CONFLICT (staff_account_id, store_id)
+           DO UPDATE SET assignment_status = 'ACTIVE'
+           RETURNING store_id
+         )
+         SELECT store_id FROM bound_assignment`
       );
     }
     if (!storeRows?.[0]) fail("门店不存在、已封存或已绑定其他门店账号", "STORE_BINDING_FAILED");
@@ -438,6 +452,25 @@ async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId
   }
   profile.storeId = String(storeId);
   return profile;
+}
+
+async function assertPhoneCanUseRole(phone, role) {
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT id, role_code, account_status
+       FROM public.staff_accounts
+       WHERE phone = ${sqlText(phone)}
+       LIMIT 1`
+    );
+  } catch (error) {
+    asDatabaseError(error, "检查手机号业务身份");
+  }
+  const account = rows?.[0] || null;
+  if (account && account.role_code !== role) {
+    fail("该手机号已经绑定其他业务身份；一个手机号只能有一个身份", "PHONE_ROLE_CONFLICT");
+  }
+  return account;
 }
 
 async function writeCredentialEvent({ targetStaffId, actorStaffId = null, eventType, passwordChangeRequired }) {
@@ -540,6 +573,45 @@ async function findStoreByContactPhone(phone, capabilities) {
   }
 }
 
+async function findRecoverableStoreByProfile(input, capabilities) {
+  const layout = await getStoreBindingLayout();
+  const noActiveContact = capabilities.storeContacts
+    ? `AND NOT EXISTS (
+         SELECT 1 FROM public.store_contacts contact
+         WHERE contact.store_id = store.id AND contact.contact_status = 'ACTIVE'
+       )`
+    : "";
+  const noJsonContact = capabilities.contactsJson
+    ? "AND COALESCE(jsonb_array_length(store.contacts_json), 0) = 0"
+    : "";
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT DISTINCT store.id, store.store_code, store.store_name, store.province, store.city,
+              store.district, store.address_detail, store.store_status
+       FROM public.stores store
+       ${storeAccountJoin(layout)}
+       WHERE store.store_name = ${sqlText(input.storeName)}
+         AND store.province = ${sqlText(input.province)}
+         AND store.city = ${sqlText(input.city)}
+         AND store.district = ${sqlText(input.district)}
+         AND store.address_detail = ${sqlText(input.addressDetail)}
+         AND store.store_status = 'ACTIVE'
+         AND account.id IS NULL
+         ${noActiveContact}
+         ${noJsonContact}
+       ORDER BY store.id ASC
+       LIMIT 2`
+    );
+  } catch (error) {
+    asDatabaseError(error, "读取未完成门店资料");
+  }
+  if (rows.length > 1) {
+    fail("发现多条相同的未完成门店资料，请先由总部在数据库中核对后再绑定账号", "INCOMPLETE_STORE_AMBIGUOUS");
+  }
+  return rows[0] || null;
+}
+
 async function ensureSingleStoreContact(storeId, input, capabilities) {
   if (!capabilities.storeContacts) return;
   let contacts;
@@ -594,6 +666,7 @@ async function createOrRecoverStore(caller, input) {
   const capabilities = await getStoreCreationCapabilities();
   let existing = input.existingStoreId ? await loadStoreById(input.existingStoreId) : null;
   if (!existing) existing = await findStoreByContactPhone(input.contactPhone, capabilities);
+  if (!existing) existing = await findRecoverableStoreByProfile(input, capabilities);
   if (existing) {
     if (existing.store_status !== "ACTIVE") {
       fail("该门店已封存，不能绑定或恢复登录账号", "ARCHIVED_STORE");
@@ -638,9 +711,12 @@ async function createOrRecoverStore(caller, input) {
   let rows;
   try {
     rows = await executeSql(
-      `INSERT INTO public.stores (${columns.join(", ")})
-       ${prefix}VALUES (${values.join(", ")})
-       RETURNING id, store_code`
+      `WITH created_store AS (
+         INSERT INTO public.stores (${columns.join(", ")})
+         ${prefix}VALUES (${values.join(", ")})
+         RETURNING id, store_code
+       )
+       SELECT id, store_code FROM created_store`
     );
   } catch (error) {
     asDatabaseError(error, "创建门店资料");
@@ -754,13 +830,18 @@ async function createProductRecord(event) {
   let rows;
   try {
     rows = await executeSql(
-      `INSERT INTO public.products
-         (product_name, product_type, description, product_status, idempotency_key)
-       VALUES
-         (${sqlText(input.productName)}, ${sqlText(input.productType)}, ${sqlText(input.description)},
-          'ACTIVE', ${sqlText(input.clientRequestId)})
-       RETURNING id, product_code, product_name, product_type, description, product_status,
-                 created_at, updated_at`
+      `WITH created_product AS (
+         INSERT INTO public.products
+           (product_name, product_type, description, product_status, idempotency_key)
+         VALUES
+           (${sqlText(input.productName)}, ${sqlText(input.productType)}, ${sqlText(input.description)},
+            'ACTIVE', ${sqlText(input.clientRequestId)})
+         RETURNING id, product_code, product_name, product_type, description, product_status,
+                   created_at, updated_at
+       )
+       SELECT id, product_code, product_name, product_type, description, product_status,
+              created_at, updated_at
+       FROM created_product`
     );
   } catch (error) {
     try {
@@ -859,11 +940,16 @@ async function main(event = {}) {
     let rows;
     try {
       rows = await executeSql(
-        `UPDATE public.products
-         SET product_status = ${sqlText(status)}, updated_at = NOW()
-         WHERE (${idCondition}) OR product_code = ${sqlText(productRef)}
-         RETURNING id, product_code, product_name, product_type, description, product_status,
-                   created_at, updated_at`
+        `WITH updated_product AS (
+           UPDATE public.products
+           SET product_status = ${sqlText(status)}, updated_at = NOW()
+           WHERE (${idCondition}) OR product_code = ${sqlText(productRef)}
+           RETURNING id, product_code, product_name, product_type, description, product_status,
+                     created_at, updated_at
+         )
+         SELECT id, product_code, product_name, product_type, description, product_status,
+                created_at, updated_at
+         FROM updated_product`
       );
     } catch (error) {
       asDatabaseError(error, "更新产品状态");
@@ -1013,6 +1099,16 @@ async function main(event = {}) {
     requireHq(caller);
     const input = storeInputFromEvent(event);
     const password = validatePassword(event.initialPassword);
+    try {
+      await assertPhoneCanUseRole(input.contactPhone, "store");
+    } catch (error) {
+      stageFail(
+        "ACCOUNT_PREFLIGHT",
+        error?.message || "门店登录手机号检查失败",
+        error?.code || "ACCOUNT_PREFLIGHT_FAILED",
+        error
+      );
+    }
     let store;
     try {
       store = await createOrRecoverStore(caller, input);
