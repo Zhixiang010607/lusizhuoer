@@ -1,6 +1,70 @@
 (() => {
   "use strict";
-  const VERSION = "0.14.19", type = document.body.dataset.recordDetail, p = new URLSearchParams(location.search), $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.37", type = document.body.dataset.recordDetail, p = new URLSearchParams(location.search), $ = (id) => document.getElementById(id);
+  const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+  const loadSessionRows = (key) => { try { const rows = JSON.parse(sessionStorage.getItem(key) || "[]"); return Array.isArray(rows) ? rows : []; } catch (_) { return []; } };
+  const createdRecordId = p.get("recordId") || "";
+  const createdRecord = p.get("source") === "created"
+    ? loadSessionRows(type === "recharge" ? "prototypeRechargeRecords" : "prototypeVerificationRecords").find((row) => String(row?.id || "") === createdRecordId)
+    : null;
+
+  if (p.get("source") === "created") {
+    let loginSession = null; try { loginSession = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { loginSession = null; }
+    if (!createdRecord) {
+      $("recordHero").innerHTML = `<div class="profile-avatar">!</div><div><span class="profile-type">工单读取失败</span><h2>未找到刚生成的工单</h2><p>请返回查询页面，从数据库中的记录重新进入。</p></div>`;
+      $("recordInfo").innerHTML = `<article><span>工单编号</span><strong>${escapeHtml(createdRecordId || "—")}</strong></article>`;
+      [$("versionBody")?.closest(".detail-section"), $("recordAudit")?.closest(".detail-section"), $("communicationLog")?.closest(".detail-section"), $("verificationVoidPanel")].filter(Boolean).forEach((section) => { section.hidden = true; });
+      document.documentElement.dataset.prototypeVersion = VERSION;
+      return;
+    }
+
+    const recordCode = String(createdRecord.recordCode || createdRecord.id);
+    const statusCode = String(createdRecord.status || "PENDING").toUpperCase();
+    const statusLabel = { PENDING: "待审核", APPROVED: "已通过", REJECTED: "已驳回" }[statusCode] || statusCode;
+    const storeLabel = [createdRecord.storeName, createdRecord.storeId].filter(Boolean).join(" · ") || "—";
+    const customerLabel = [createdRecord.customerName, createdRecord.customerId].filter(Boolean).join(" · ") || "—";
+    const projectLabel = [createdRecord.projectName, createdRecord.projectCode].filter(Boolean).join(" · ") || "—";
+    const teacherLabel = createdRecord.teacherName
+      ? [createdRecord.teacherName, createdRecord.teacherCode].filter(Boolean).join(" · ")
+      : "未指定";
+    const createdAt = createdRecord.createdAt ? new Date(createdRecord.createdAt).toLocaleString("zh-CN", { hour12: false }) : "—";
+    const typeLabel = type === "recharge" ? "充值单" : String(createdRecord.verificationType || "核销单");
+    const cards = (items) => items.map(([key, value]) => `<article><span>${escapeHtml(key)}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
+
+    $("recordHero").innerHTML = `<div class="profile-avatar">${type === "recharge" ? "充" : "核"}</div><div><span class="profile-type">${escapeHtml(typeLabel)}</span><h2>${escapeHtml(recordCode)}</h2><p>${escapeHtml(customerLabel)} · ${escapeHtml(projectLabel)} · ${escapeHtml(statusLabel)}</p></div>`;
+    const info = type === "recharge"
+      ? [["充值单编号", recordCode], ["申请类型", createdRecord.applicationType || "新充值"], ["门店", storeLabel], ["客户", customerLabel], ["项目", projectLabel], ["业务老师", teacherLabel], ["充值次数", `+${Number(createdRecord.count || 0)} 次`], ["提交时间", createdAt], ["审核状态", statusLabel]]
+      : [["核销单编号", recordCode], ["核销类型", createdRecord.verificationType || "正常核销"], ["门店", storeLabel], ["客户", customerLabel], ["项目", projectLabel], ["业务老师", teacherLabel], ["核销次数", `${Number(createdRecord.count || 1)} 次`], ["提交时间", createdAt], ["审核状态", statusLabel], ["人脸识别", createdRecord.faceVerification || "—"]];
+    $("recordInfo").innerHTML = cards(info);
+
+    const versionSection = $("versionBody")?.closest(".detail-section");
+    if (versionSection) versionSection.hidden = true;
+    $("recordAudit").innerHTML = `<div><strong>${escapeHtml(createdAt)}</strong><span>${type === "recharge" ? "充值申请已创建并进入待审核" : statusCode === "PENDING" ? "补录核销已提交，等待审核" : "正常核销单已生成"}</span></div>`;
+    if (type === "verification") {
+      $("deviceEvidence").innerHTML = `<span>人脸识别</span><strong>${escapeHtml(createdRecord.faceVerification || "—")}</strong><span>设备信号</span><strong>${escapeHtml(createdRecord.deviceSignal || "—")}</strong>`;
+      $("verificationVoidPanel").hidden = true;
+    }
+
+    const loadCommunications = () => loadSessionRows("prototypeCommunications");
+    const renderCommunications = () => {
+      const rows = loadCommunications().filter((row) => row.recordType === type && String(row.recordId) === String(createdRecord.id));
+      $("communicationLog").innerHTML = rows.map((row) => `<article class="communication-item"><div><strong>${escapeHtml(row.role)} · ${escapeHtml(row.name)}</strong><time>${new Date(row.time).toLocaleString("zh-CN", { hour12: false })}</time></div><p>${escapeHtml(row.message)}</p></article>`).join("");
+    };
+    $("sendCommunication").addEventListener("click", () => {
+      const message = $("communicationMessage").value.trim();
+      if (!message) return;
+      const rows = loadCommunications();
+      const role = loginSession?.role === "store" ? "门店" : loginSession?.role === "operation" ? "运营" : "总部";
+      rows.push({ recordType: type, recordId: createdRecord.id, role, account: loginSession?.account || "unknown", name: `${role}人员`, message, time: new Date().toISOString() });
+      sessionStorage.setItem("prototypeCommunications", JSON.stringify(rows));
+      $("communicationMessage").value = "";
+      renderCommunications();
+    });
+    renderCommunications();
+    document.documentElement.dataset.prototypeVersion = VERSION;
+    return;
+  }
+
   const id = p.get("recordId") || (type === "recharge" ? "RC-00001" : "VE-00001"), customer = p.get("customerId") || "C001001", store = p.get("storeId") || "S001", seed = Number(id.replace(/\D/g, "")) || 1, project = ["普拉提", "体态评估", "康复训练", "瑜伽", "力量训练", "产后恢复"][seed % 6];
   let loginSession = null; try { loginSession = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { loginSession = null; }
   const verificationKind = p.get("kind") || (id.includes("SUP") ? "补录" : "正常");
@@ -11,7 +75,6 @@
   try { customerOverrides = JSON.parse(sessionStorage.getItem("prototypeCustomerOverrides") || "{}"); } catch (_) { customerOverrides = {}; }
   const customerName = customerOverrides[customer]?.name || p.get("customerName") || "客户1";
   const cards = (items) => items.map(([k, v]) => `<article><span>${k}</span><strong>${v}</strong></article>`).join("");
-  const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
   const baseId = id.replace(/-V\d+$/, ""), viewedId = !/-V\d+$/.test(id) ? `${baseId}-V2` : id;
   $("recordHero").innerHTML = `<div class="profile-avatar">${type === "recharge" ? "充" : "核"}</div><div><span class="profile-type">记录编号</span><h2>${viewedId}</h2><p>${store} · ${project} · ${displayStatus}</p></div>`;
   const projectId = `P${String(seed % 6 + 1).padStart(3, "0")}`;
