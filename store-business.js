@@ -1,11 +1,11 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.33", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.34", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   const storeId = String(session?.store || ""), storeNo = Number(storeId.replace(/\D/g, "")) || 1;
   let storeName = `门店 ${storeNo}`;
-  let databaseCustomers = [], databaseTeachers = [], databaseProducts = [], candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, verificationBalanceProjects = [], rechargeRequest = null, previewCustomerCode = "";
+  let databaseCustomers = [], databaseTeachers = [], databaseProducts = [], candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, verificationBalanceProjects = [], rechargeRequest = null, customerEnrollmentRequest = null, previewCustomerCode = "";
   const customerDetailCache = new Map(), customerDetailRequests = new Map();
   const allCustomers = () => databaseCustomers;
   const saveList = (key, value) => { try { sessionStorage.setItem(key, JSON.stringify(value)); } catch (_) { /* 当前静态会话不可持久化时不保存演示数据。 */ } };
@@ -27,7 +27,7 @@
     if (submit) submit.disabled = !(faceCaptured && capturedPhotoDataUrl && consent?.checked);
   }
   function resetCapturedPhoto() {
-    capturedPhotoDataUrl = ""; faceCaptured = false;
+    capturedPhotoDataUrl = ""; faceCaptured = false; customerEnrollmentRequest = null;
     const preview = $("facePhotoPreview"), placeholder = $("faceCameraPlaceholder");
     const canvas = $("faceCaptureCanvas");
     if (canvas) { canvas.width = 0; canvas.height = 0; }
@@ -141,6 +141,14 @@
     }
     return rechargeRequest.key;
   }
+  function nextCustomerEnrollmentRequestId(payload) {
+    const fingerprint = JSON.stringify(payload);
+    if (!customerEnrollmentRequest || customerEnrollmentRequest.fingerprint !== fingerprint) {
+      const key = window.crypto?.randomUUID?.() || `customer_${Date.now()}_${Math.random().toString(36).slice(2, 14)}`;
+      customerEnrollmentRequest = { key, fingerprint };
+    }
+    return customerEnrollmentRequest.key;
+  }
   function setupCustomerCreate() {
     const video = $("faceCamera"), preview = $("facePhotoPreview"), placeholder = $("faceCameraPlaceholder"), status = $("faceCaptureStatus"), message = $("customerCreateMessage"), capture = $("captureFace"), openCamera = $("openFaceCamera"), retake = $("retakeFace");
     $("faceConsent").addEventListener("change", syncCustomerCreateSubmit);
@@ -199,12 +207,13 @@
       if (!faceCaptured || !capturedPhotoDataUrl || !$("faceConsent").checked) { message.textContent = "必须拍摄客户照片并取得明确授权后才能建立档案"; return; }
       const submit = event.currentTarget.querySelector('[type="submit"]'); submit.disabled = true; message.textContent = "正在上传照片、创建人脸档案并保存客户资料…";
       try {
-        const data = await callCustomerEnrollment({ action: "registerCustomer", customerName: name, birthDate: birthday, notes, consent: true, imageBase64: capturedPhotoDataUrl });
+        const clientRequestId = nextCustomerEnrollmentRequestId({ name, birthday, notes, photoLength: capturedPhotoDataUrl.length, photoTail: capturedPhotoDataUrl.slice(-48) });
+        const data = await callCustomerEnrollment({ action: "registerCustomer", customerName: name, birthDate: birthday, notes, consent: true, imageBase64: capturedPhotoDataUrl, clientRequestId });
         const customer = data.customer;
         const savedCustomer = { id: customer.customerCode, name, birthday, notes: customer.notes ?? notes, storeId: customer.storeId || storeId, customerStatus: customer.customerStatus, customerProcessStatus: customer.customerProcessStatus, totalRechargeCount: customer.totalRechargeCount || 0, totalVerificationCount: customer.totalVerificationCount || 0, totalExperienceCount: customer.totalExperienceCount || 0, hasProfilePhoto: true, createdAt: customer.createdAt || "" };
         databaseCustomers = [savedCustomer, ...databaseCustomers.filter((item) => item.id !== savedCustomer.id)];
         message.textContent = `客户 ${name}（${customer.customerCode}）已建立；照片已留存腾讯云并已录入人脸库。`;
-        event.target.reset(); resetCapturedPhoto();
+        customerEnrollmentRequest = null; event.target.reset(); resetCapturedPhoto();
       } catch (error) {
         message.textContent = error?.message || "客户建档失败；照片和人脸资料不会保留为半成品，请重试";
       } finally { syncCustomerCreateSubmit(); }

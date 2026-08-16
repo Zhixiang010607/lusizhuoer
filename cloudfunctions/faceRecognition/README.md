@@ -2,7 +2,7 @@
 
 该函数仅在 CloudBase 后端运行，用于门店客户建档、照片质量检测、私有照片留存、人脸人员库录入和后续人员搜索。客户不需要提供身份证。
 
-当前版本：`2026-08-17-fast-customer-photo-preview-v25`
+当前版本：`2026-08-17-multiple-customer-profiles-v26`
 
 ## 必需环境变量
 
@@ -33,7 +33,10 @@
 - 图片只能有一张人脸，人脸宽和高均至少 100 px。
 - 不允许口罩、闭眼、明显低头、歪头或侧脸。
 - 后端会再次执行质量检测，不能依赖前端结果。
-- `CreatePerson` 使用算法模型 3.0、`QualityControl=3`、`UniquePersonControl=2`。
+- `CreatePerson` 使用算法模型 3.0、`QualityControl=3`、`UniquePersonControl=0`。
+- 同一自然人可以建立多个独立客户档案；每次建档都会生成不同的客户编号和腾讯人脸 `PersonId`。系统不会按人脸、姓名或生日阻止重复建档。
+- 页面为每次明确的新建档操作生成 `clientRequestId`；同一次提交因网络超时而重试时返回原客户档案，不会误建第二条。重新拍照或修改资料后再次提交会生成新的客户编号。
+- 核销必须先选中具体客户编号，再使用该档案绑定的 `PersonId` 做 1:1 人脸验证，因此多个档案不会在核销时互相替代。
 - 已经选择客户的核销只调用 `VerifyFace`，现场照片只与数据库中该客户的 `PersonId` 做 1:1 比对，不搜索其他客户。
 - `SearchPersons` 仅保留给明确需要 1:N 查人的场景，默认阈值 85，并检查前两名分差。
 - 人脸结果只能用于找到候选客户，不能仅凭分数自动扣次；还要展示客户核心信息供员工核对。
@@ -63,7 +66,7 @@
 ```json
 {
   "ok": true,
-  "version": "2026-08-17-fast-customer-photo-preview-v25",
+  "version": "2026-08-17-multiple-customer-profiles-v26",
   "photoBucketId": "customer-photos",
   "livenessEnabled": true
 }
@@ -72,7 +75,7 @@
 ## 支持的动作
 
 - `validateCapture`：拍照后立即检查单人、人脸尺寸、质量、口罩、闭眼和姿态。
-- `registerCustomer`：服务端重复质量检查，可选活体检测，然后入人员库、上传私有照片并写客户表。若腾讯人脸库中存在上次失败遗留、但尚未绑定任何客户的人员记录，会安全复用其 PersonId 继续建档；只有已经绑定数据库客户时才拒绝重复建档。
+- `registerCustomer`：服务端质量检查、可选活体检测，然后以新的唯一客户编号和 `PersonId` 入人员库、上传私有照片并写客户表。同一张脸、相同姓名或相同生日都允许建立新的独立客户档案。
 - `listActiveStoreCustomers`：根据当前 CloudBase 登录账号在服务端解析真实门店，只返回该门店 `customer_status='ACTIVE'` 客户的编号、姓名和生日。下拉框不会预取备注、照片、状态或业务汇总。
 - `listActiveTeachers`：仅允许活跃门店账号调用，从 `teachers` 与 `staff_accounts` 联表读取“老师资料活跃且登录账号活跃”的真实老师。正常核销、补录核销和充值页面不再生成演示老师；数据库无记录时下拉框保持空。
 - `listActiveProducts`：仅允许活跃门店账号调用，只返回数据库中 `product_status='ACTIVE'` 产品的内部 ID、编号和名称；不会预取介绍、类别或任何价格字段。

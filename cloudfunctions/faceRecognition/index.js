@@ -2,8 +2,9 @@
 
 const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
+const crypto = require("crypto");
 
-const FUNCTION_VERSION = "2026-08-17-fast-customer-photo-preview-v25";
+const FUNCTION_VERSION = "2026-08-17-multiple-customer-profiles-v26";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -304,10 +305,24 @@ function validDate(value) {
   return date;
 }
 
-function customerCode(storeId) {
+function customerCode(storeId, clientRequestId = "") {
+  if (clientRequestId) {
+    let storeToken;
+    try { storeToken = BigInt(String(storeId)).toString(36).toUpperCase(); }
+    catch (_) { storeToken = String(storeId).replace(/[^A-Za-z0-9]/g, "").slice(-12).toUpperCase() || "0"; }
+    const requestToken = crypto.createHash("sha256").update(clientRequestId).digest("hex").slice(0, 16).toUpperCase();
+    return `C${storeToken}-${requestToken}`;
+  }
   const stamp = Date.now().toString(36).toUpperCase();
   const random = Math.random().toString(36).slice(2, 8).toUpperCase();
   return `C${storeId}-${stamp}-${random}`;
+}
+
+function optionalClientRequestId(value) {
+  const requestId = String(value || "").trim();
+  if (!requestId) return "";
+  if (!/^[A-Za-z0-9_-]{8,96}$/.test(requestId)) fail("clientRequestId is invalid.", "BAD_REQUEST");
+  return requestId;
 }
 
 async function activeStoreCaller() {
@@ -918,11 +933,14 @@ async function findCustomerByFacePerson(storeId, personId) {
   return rows[0] || null;
 }
 
-async function findAnyCustomerByFacePerson(personId) {
+async function findCustomerByCode(customerCodeValue) {
   const rows = await executeSql(
-    `SELECT id, customer_code, customer_name, created_store_id, customer_status
+    `SELECT id, customer_code, customer_name, birth_date, notes,
+            profile_photo_file_id, face_person_id, created_store_id,
+            customer_status, customer_process_status,
+            total_recharge_count, total_verification_count, total_experience_count, created_at
        FROM public.customers
-      WHERE face_person_id = ${sqlText(personId)}
+      WHERE customer_code = ${sqlText(customerCodeValue)}
       LIMIT 1`
   );
   return rows[0] || null;
@@ -946,24 +964,49 @@ async function registerCustomer(event) {
   const name = String(event.customerName || "").trim();
   const birthDate = validDate(event.birthDate);
   const notes = String(event.notes || "").trim();
+  const clientRequestId = optionalClientRequestId(event.clientRequestId);
   const consent = event.consent === true;
   if (!name || name.length > 64) fail("Customer name is required and must not exceed 64 characters.");
   if (!consent) fail("Explicit customer consent is required before collecting a face photo.", "CONSENT_REQUIRED");
   if (notes.length > 500) fail("Notes must not exceed 500 characters.");
 
-  const duplicate = await executeSql(
-    `SELECT customer_code FROM public.customers
-      WHERE created_store_id = ${caller.storeId}
-        AND customer_name = ${sqlText(name)}
-        AND birth_date = ${sqlText(birthDate)}::date
-        AND customer_status = 'ACTIVE'
-      LIMIT 1`
-  );
-  if (duplicate[0]) fail(`An active customer already exists: ${duplicate[0].customer_code}`, "DUPLICATE_CUSTOMER");
+  let personId = customerCode(caller.storeId, clientRequestId);
+  if (clientRequestId) {
+    const existing = await findCustomerByCode(personId);
+    if (existing) {
+      const sameRequestData = String(existing.created_store_id) === String(caller.storeId)
+        && String(existing.customer_name) === name
+        && String(existing.birth_date || "").slice(0, 10) === birthDate
+        && String(existing.notes || "") === notes;
+      if (!sameRequestData) fail("同一个 clientRequestId 已用于另一份客户资料，请重新发起建档。", "IDEMPOTENCY_CONFLICT");
+      return {
+        ok: true,
+        idempotentReplay: true,
+        customer: {
+          id: String(existing.id),
+          customerCode: existing.customer_code,
+          customerName: existing.customer_name,
+          birthDate: String(existing.birth_date || "").slice(0, 10),
+          notes: existing.notes || "",
+          photoFileId: existing.profile_photo_file_id,
+          facePersonId: existing.face_person_id,
+          faceId: "",
+          customerStatus: existing.customer_status,
+          customerProcessStatus: existing.customer_process_status,
+          totalRechargeCount: Number(existing.total_recharge_count || 0),
+          totalVerificationCount: Number(existing.total_verification_count || 0),
+          totalExperienceCount: Number(existing.total_experience_count || 0),
+          storeId: String(existing.created_store_id),
+          captureQuality: null,
+          liveness: null,
+          createdAt: existing.created_at
+        }
+      };
+    }
+  }
 
   const { base64, buffer } = cleanImage(event.imageBase64);
   const groupId = required("FACE_GROUP_ID");
-  let personId = customerCode(caller.storeId);
   const api = faceClient();
   let storedPhoto = null;
   let personCreated = false;
@@ -975,31 +1018,16 @@ async function registerCustomer(event) {
       PersonId: personId,
       PersonName: name,
       Image: base64,
-      UniquePersonControl: 2,
+      // One natural person may intentionally own multiple independent customer
+      // profiles. Each profile gets its own customer code and PersonId. The
+      // selected profile is verified later with a 1:1 face comparison, so a
+      // group-wide duplicate-face rejection must not be used here.
+      UniquePersonControl: 0,
       QualityControl: 3,
       NeedRotateDetection: 0
     });
-    const similarPersonId = String(faceResult?.SimilarPersonId || "").trim();
-    if (similarPersonId) {
-      const linkedCustomer = await findAnyCustomerByFacePerson(similarPersonId);
-      if (linkedCustomer) {
-        const sameStore = String(linkedCustomer.created_store_id) === String(caller.storeId);
-        const message = sameStore
-          ? `该人脸已绑定客户 ${linkedCustomer.customer_name}（${linkedCustomer.customer_code}），请直接查询原客户档案。`
-          : "该人脸已绑定其他门店的客户档案，请联系总部核对，不能重复建档。";
-        fail(message, "DUPLICATE_FACE");
-      }
-
-      // CreatePerson can detect a person left in the Tencent face group by a
-      // previous interrupted request before the customer row or photo existed.
-      // Reuse that unlinked PersonId so the retry can finish atomically. It was
-      // not created by this invocation, therefore the catch block must not
-      // delete it if a later storage/database step fails again.
-      personId = similarPersonId;
-    } else {
-      personCreated = true;
-      if (!faceResult?.FaceId) fail("人脸服务没有返回有效 FaceId，客户档案未创建。", "FACE_ENROLLMENT_INCOMPLETE");
-    }
+    personCreated = true;
+    if (!faceResult?.FaceId) fail("人脸服务没有返回有效 FaceId，客户档案未创建。", "FACE_ENROLLMENT_INCOMPLETE");
     storedPhoto = await uploadCustomerPhoto(caller.storeId, personId, buffer);
     const fileID = storedPhoto.reference;
     const saved = await executeSql(
