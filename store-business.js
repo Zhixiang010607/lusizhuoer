@@ -11,7 +11,7 @@
   let customerOverrides = {};
   try { customerOverrides = JSON.parse(sessionStorage.getItem("prototypeCustomerOverrides") || "{}"); } catch (_) { customerOverrides = {}; }
   const baseCustomers = Array.from({ length: 96 }, (_, i) => { const sid = `S${String(i % 16 + 1).padStart(3, "0")}`, id = `C${sid.slice(1)}${String(i + 1).padStart(4, "0")}`, current = customerOverrides[id] || {}; return { id, name: current.name || names[i % names.length], birthday: current.birthday || `${1986 + i % 22}-${String(i % 12 + 1).padStart(2, "0")}-${String(i % 27 + 1).padStart(2, "0")}`, storeId: sid, profilePhotoId: `PH-${id}` }; });
-  let created = [], archived = new Set(), candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false;
+  let created = [], archived = new Set(), candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", cameraStream = null;
   try { created = JSON.parse(sessionStorage.getItem("prototypeCreatedCustomers") || "[]").map((customer) => ({ ...customer, ...(customerOverrides[customer.id] || {}) })); archived = new Set(JSON.parse(sessionStorage.getItem("prototypeArchivedCustomers") || "[]")); } catch (_) { created = []; archived = new Set(); }
   const allCustomers = () => [...baseCustomers, ...created].filter((customer) => customer.storeId === storeId);
   const saveList = (key, value) => { try { sessionStorage.setItem(key, JSON.stringify(value)); } catch (_) { /* 当前静态会话不可持久化时不保存演示数据。 */ } };
@@ -23,17 +23,67 @@
   const fillProjects = (id) => { $(id).innerHTML = `<option value="">请选择项目</option>${projects.map((project) => `<option value="${project.id}">${project.name}（${project.id}）</option>`).join("")}`; };
   const projectBalances = (customer) => { const seed = [...customer.id].reduce((sum, char) => sum + char.charCodeAt(0), 0); return projects.map((project, i) => ({ ...project, remaining: customer.id.includes("N") ? 0 : 3 + (seed * (i + 3) + i * 11) % 38 })); };
 
+  function stopFaceCamera() {
+    if (cameraStream) cameraStream.getTracks().forEach((track) => track.stop());
+    cameraStream = null;
+    const video = $("faceCamera");
+    if (video) video.srcObject = null;
+  }
+  function resetCapturedPhoto() {
+    capturedPhotoDataUrl = ""; faceCaptured = false;
+    const preview = $("facePhotoPreview"), placeholder = $("faceCameraPlaceholder");
+    preview.hidden = true; preview.removeAttribute("src"); placeholder.hidden = false;
+    $("retakeFace").hidden = true; $("faceCaptureStatus").className = "capture-status pending"; $("faceCaptureStatus").textContent = "尚未拍摄";
+  }
+  function cloudFunctionData(result) { return result?.result || result?.data?.result || result?.data || {}; }
+  async function callCustomerEnrollment(payload) {
+    if (!window.cloudbase || !window.CloudBaseAuthConfig || !window.registerFunctions) throw new Error("CloudBase 客户建档组件未加载，请刷新后重试");
+    window.registerAuth?.(window.cloudbase); window.registerFunctions(window.cloudbase);
+    const app = window.cloudbase.init(window.CloudBaseAuthConfig);
+    const result = await app.callFunction({ name: "faceRecognition", data: payload });
+    const data = cloudFunctionData(result);
+    if (!data?.ok) throw new Error(data?.message || "腾讯云客户建档失败");
+    return data;
+  }
   function setupCustomerCreate() {
-    $("captureFace").addEventListener("click", () => { faceCaptured = true; $("faceCaptureStatus").className = "capture-status complete"; $("faceCaptureStatus").textContent = "建档照片已保存 · 面容检查通过"; });
-    $("customerCreateForm").addEventListener("submit", (event) => {
-      event.preventDefault(); const name = $("createCustomerName").value.trim(), birthday = $("createCustomerBirthday").value, notes = $("createCustomerNotes").value.trim() || "无";
-      if (!name || !birthday) { $("customerCreateMessage").textContent = "姓名和生日必须填写"; return; }
-      if (!faceCaptured || !$("faceConsent").checked) { $("customerCreateMessage").textContent = "必须完成面容录入并确认客户授权"; return; }
+    const video = $("faceCamera"), preview = $("facePhotoPreview"), placeholder = $("faceCameraPlaceholder"), status = $("faceCaptureStatus"), message = $("customerCreateMessage"), capture = $("captureFace"), openCamera = $("openFaceCamera"), retake = $("retakeFace");
+    openCamera.addEventListener("click", async () => {
+      try {
+        stopFaceCamera(); resetCapturedPhoto();
+        if (!navigator.mediaDevices?.getUserMedia) throw new Error("当前浏览器不支持摄像头访问，请使用最新版 Chrome 或 Edge");
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+        video.srcObject = cameraStream; video.hidden = false; placeholder.hidden = true; await video.play(); capture.disabled = false;
+        status.className = "capture-status pending"; status.textContent = "摄像头已打开，请确认客户正对镜头后拍照";
+      } catch (error) {
+        stopFaceCamera(); capture.disabled = true; status.className = "capture-status pending"; status.textContent = "无法打开摄像头"; message.textContent = error?.message || "请检查浏览器摄像头权限";
+      }
+    });
+    capture.addEventListener("click", () => {
+      if (!cameraStream || !video.videoWidth || !video.videoHeight) { message.textContent = "摄像头画面尚未就绪，请稍后重新拍照"; return; }
+      const canvas = $("faceCaptureCanvas"), maxWidth = 1280, scale = Math.min(1, maxWidth / video.videoWidth);
+      canvas.width = Math.round(video.videoWidth * scale); canvas.height = Math.round(video.videoHeight * scale);
+      canvas.getContext("2d", { alpha: false }).drawImage(video, 0, 0, canvas.width, canvas.height);
+      capturedPhotoDataUrl = canvas.toDataURL("image/jpeg", 0.9); faceCaptured = true; preview.src = capturedPhotoDataUrl; preview.hidden = false; video.hidden = true; stopFaceCamera(); capture.disabled = true; retake.hidden = false;
+      status.className = "capture-status complete"; status.textContent = "照片已拍摄；建立档案时将上传腾讯云并录入人脸库"; message.textContent = "";
+    });
+    retake.addEventListener("click", () => { resetCapturedPhoto(); openCamera.click(); });
+    window.addEventListener("pagehide", stopFaceCamera, { once: true });
+    $("customerCreateForm").addEventListener("submit", async (event) => {
+      event.preventDefault(); const name = $("createCustomerName").value.trim(), birthday = $("createCustomerBirthday").value, notes = $("createCustomerNotes").value.trim();
+      if (!name || !birthday) { message.textContent = "姓名和生日必须填写"; return; }
+      if (!faceCaptured || !capturedPhotoDataUrl || !$("faceConsent").checked) { message.textContent = "必须拍摄客户照片并取得明确授权后才能建立档案"; return; }
       const duplicate = allCustomers().find((customer) => customer.name === name && customer.birthday === birthday && !archived.has(customer.id));
-      if (duplicate) { $("customerCreateMessage").textContent = `发现本门店同名同生日客户 ${duplicate.id}，请先核对，不能重复建档`; return; }
-      const id = `C${storeId.slice(1)}N${String(created.length + 1).padStart(4, "0")}`;
-      created.push({ id, name, birthday, notes, storeId, faceStatus: "已录入", profilePhotoId: `PH-${id}`, profilePhotoStatus: "已保存", createdBy: session.account }); saveList("prototypeCreatedCustomers", created);
-      $("customerCreateMessage").textContent = `客户 ${name}（${id}）建立成功，建档照片已关联并绑定 ${storeName}`; event.target.reset(); faceCaptured = false; $("faceCaptureStatus").className = "capture-status pending"; $("faceCaptureStatus").textContent = "尚未拍摄";
+      if (duplicate) { message.textContent = `发现本门店同名同生日客户 ${duplicate.id}，请先核对，不能重复建档`; return; }
+      const submit = event.currentTarget.querySelector('[type="submit"]'); submit.disabled = true; message.textContent = "正在上传照片、创建人脸档案并保存客户资料…";
+      try {
+        const data = await callCustomerEnrollment({ action: "registerCustomer", customerName: name, birthDate: birthday, notes, consent: true, imageBase64: capturedPhotoDataUrl });
+        const customer = data.customer;
+        created.push({ id: customer.customerCode, name, birthday, notes, storeId, faceStatus: "已录入", profilePhotoId: customer.photoFileId, profilePhotoStatus: "已保存", facePersonId: customer.facePersonId, createdBy: session.account }); saveList("prototypeCreatedCustomers", created);
+        message.textContent = `客户 ${name}（${customer.customerCode}）已建立；照片已留存腾讯云并已录入人脸库。`;
+        event.target.reset(); resetCapturedPhoto();
+      } catch (error) {
+        message.textContent = error?.message || "客户建档失败；照片和人脸资料不会保留为半成品，请重试";
+      } finally { submit.disabled = false; }
     });
   }
   function setupLookup() {
@@ -81,12 +131,12 @@
     $("confirmCustomerSelection").textContent = `已确认 ${selectedCustomer.name}（${selectedCustomer.id}）`;
   }
   function setupRecharge() {
-    setupLookup(); fillProjects("rechargeProject");
+    setupLookup(); fillProjects("rechargeProject"); $("rechargeTeacher").innerHTML = `<option value="">请选择老师</option>${teachers.map((teacher) => `<option value="${teacher.id}">${teacher.name}（${teacher.id}）</option>`).join("")}`;
     $("rechargeCreateForm").addEventListener("submit", (event) => {
-      event.preventDefault(); const projectId = $("rechargeProject").value, count = Number($("rechargeCount").value);
-      if (!selectedCustomer || !projectId || !Number.isInteger(count) || count < 1) { $("rechargeCreateMessage").textContent = "必须确认客户、选择项目并填写有效次数"; return; }
+      event.preventDefault(); const projectId = $("rechargeProject").value, teacherId = $("rechargeTeacher").value, count = Number($("rechargeCount").value);
+      if (!selectedCustomer || !projectId || !teacherId || !Number.isInteger(count) || count < 1) { $("rechargeCreateMessage").textContent = "必须确认客户、选择项目和老师并填写有效次数"; return; }
       const records = JSON.parse(sessionStorage.getItem("prototypeRechargeApplications") || "[]"), project = projects.find((item) => item.id === projectId), recordId = `RC-NEW-${Date.now()}`, note = $("rechargeNote").value.trim();
-      records.push({ id: recordId, customerId: selectedCustomer.id, customerName: selectedCustomer.name, name: selectedCustomer.name, birthday: selectedCustomer.birthday, storeId, projectId, projectName: project.name, count, status: "待审核", account: session.account, note, createdAt: new Date().toISOString() }); saveList("prototypeRechargeApplications", records); addCommunication("recharge", recordId, note);
+      records.push({ id: recordId, customerId: selectedCustomer.id, customerName: selectedCustomer.name, name: selectedCustomer.name, birthday: selectedCustomer.birthday, storeId, projectId, projectName: project.name, teacherId, count, status: "待审核", account: session.account, note, createdAt: new Date().toISOString() }); saveList("prototypeRechargeApplications", records); addCommunication("recharge", recordId, note);
       $("rechargeCreateMessage").textContent = `${selectedCustomer.name} · ${project.name} · ${count}次充值申请已提交，审核通过后计入次数`;
     });
   }

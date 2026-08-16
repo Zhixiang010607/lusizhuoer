@@ -5,7 +5,7 @@
   let loginSession = null; try { loginSession = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { loginSession = null; }
   const verificationKind = p.get("kind") || (id.includes("SUP") ? "补录" : "正常");
   const applicationType = type === "recharge" ? (p.get("kind") || "新充值") : verificationKind;
-  const displayStatus = type === "verification" ? verificationKind : (applicationType === "删除申请" ? "作废" : applicationType === "修改申请" ? "补录" : "正常");
+  const displayStatus = type === "verification" ? verificationKind : (applicationType === "作废充值" ? "作废" : "正常");
   const reviewProgress = displayStatus === "正常" ? "已完成" : "审核中";
   let customerOverrides = {};
   try { customerOverrides = JSON.parse(sessionStorage.getItem("prototypeCustomerOverrides") || "{}"); } catch (_) { customerOverrides = {}; }

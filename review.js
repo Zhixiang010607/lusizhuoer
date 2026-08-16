@@ -15,7 +15,7 @@
     if (type === "verification") {
       stored = JSON.parse(sessionStorage.getItem("prototypeVerificationReviewApplications") || "[]").map((item) => ({ ...item, store: storeFor(item.storeId), status: normalizeStatus(item.status), time: item.time || item.createdAt || "", sourceKey: "prototypeVerificationReviewApplications" }));
     } else {
-      stored = JSON.parse(sessionStorage.getItem("prototypeRechargeApplications") || "[]").map((item) => ({ id: item.id, kind: item.kind || "新充值", recordId: item.recordId || item.id, storeId: item.storeId, store: storeFor(item.storeId), customerId: item.customerId, customerName: item.customerName || item.name, projectId: item.projectId, project: item.projectName || item.project || item.projectId || "", amount: Number(item.count || item.unitCount || 1), applicantNote: item.note || "", status: normalizeStatus(item.status), time: item.createdAt || item.time || "", reviewedAt: item.reviewedAt, sourceKey: "prototypeRechargeApplications" }));
+      stored = JSON.parse(sessionStorage.getItem("prototypeRechargeApplications") || "[]").map((item) => ({ id: item.id, kind: item.kind || "新充值", recordId: item.recordId || item.id, storeId: item.storeId, store: storeFor(item.storeId), customerId: item.customerId, customerName: item.customerName || item.name, projectId: item.projectId, project: item.projectName || item.project || item.projectId || "", teacherId: item.teacherId || "", amount: Number(item.count || item.unitCount || 1), applicantNote: item.note || "", status: normalizeStatus(item.status), time: item.createdAt || item.time || "", reviewedAt: item.reviewedAt, sourceKey: "prototypeRechargeApplications" }));
     }
   } catch (_) { stored = []; }
   const items = stored, statusText = { pending: "待审核", approved: "已通过", rejected: "已驳回" };
@@ -42,10 +42,10 @@
     $("reviewBody").innerHTML = rows.map((item) => {
       const actions = item.status === "pending" && canDecide ? `<div class="review-actions"><button data-id="${item.id}" data-action="approved">批准</button><button class="reject" data-id="${item.id}" data-action="rejected">拒绝</button></div>` : item.status === "pending" ? `<span class="record-status status-审核中">仅运营可审批</span>` : `<span class="record-status status-${statusText[item.status]}">${statusText[item.status]}</span>`;
       const detailParams = `recordId=${encodeURIComponent(item.recordId)}&customerId=${encodeURIComponent(item.customerId)}&customerName=${encodeURIComponent(item.customerName)}&storeId=${encodeURIComponent(item.store.id)}&kind=${encodeURIComponent(item.kind)}`;
-      if (type === "recharge") return `<tr><td>${item.id}</td><td>${item.kind}</td><td><a class="record-link" href="recharge-detail.html?${detailParams}">${item.recordId}</a></td><td>${link("store-detail.html", "storeId", item.store.id, item.store.name)}</td><td>${item.customerName}（${item.customerId}）</td><td>${item.project}</td><td>${item.kind === "删除申请" ? `-${item.amount}次` : `+${item.amount}次`}</td><td>${item.store.id}账号 · 门店人员</td><td>${item.time}</td><td>${statusText[item.status]}</td><td>${actions}</td><td>${approvalTime(item)}</td></tr>`;
-      const impact = item.kind === "补录" ? "核销 +1" : "核销 -1 / 余额 +1", device = item.kind === "补录" ? "不发送" : "不重复发送";
-      return `<tr><td>${item.id}</td><td>${item.kind}</td><td><a class="record-link" href="verification-detail.html?${detailParams}">${item.recordId}</a></td><td>${item.store.name}</td><td>${item.customerName}（${item.customerId}）</td><td>${item.project} / ${item.teacherId}</td><td><span class="photo-required-status">${item.photo || "已拍摄"}</span></td><td>${impact}</td><td>${device}</td><td>${item.store.id}账号 · 门店人员</td><td>${statusText[item.status]}</td><td>${actions}</td><td>${approvalTime(item)}</td></tr>`;
-    }).join("") || `<tr><td colspan="${type === "verification" ? 13 : 12}" class="query-empty">当前条件下没有审核记录</td></tr>`;
+      if (type === "recharge") return `<tr><td>${item.id}</td><td>${item.kind}</td><td><a class="record-link" href="recharge-detail.html?${detailParams}">${item.recordId}</a></td><td>${link("store-detail.html", "storeId", item.store.id, item.store.name)}</td><td>${item.customerName}（${item.customerId}）</td><td>${item.project}</td><td>${item.teacherId || "—"}</td><td>${item.kind === "作废充值" ? `-${item.amount}次` : `+${item.amount}次`}</td><td>${item.time ? formatTime(item.time) : "未记录"}</td><td>${statusText[item.status]}</td><td>${actions}</td><td>${approvalTime(item)}</td></tr>`;
+      const impact = item.kind === "补录" ? "核销 +1" : "核销 -1 / 余额 +1";
+      return `<tr><td>${item.id}</td><td>${item.kind}</td><td><a class="record-link" href="verification-detail.html?${detailParams}">${item.recordId}</a></td><td>${item.store.name}</td><td>${item.customerName}（${item.customerId}）</td><td>${item.project}</td><td>${item.teacherId}</td><td>${impact}</td><td>${item.time ? formatTime(item.time) : "未记录"}</td><td>${statusText[item.status]}</td><td>${actions}</td><td>${approvalTime(item)}</td></tr>`;
+    }).join("") || `<tr><td colspan="12" class="query-empty">当前条件下没有审核记录</td></tr>`;
     document.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", () => openReview(button.dataset.id, button.dataset.action)));
   }
   function renderReviewCommunications(item) {
@@ -56,6 +56,18 @@
   }
   function openReview(id, action) { const item = items.find((entry) => entry.id === id); pendingAction = { item, action }; $("reviewDialogTitle").textContent = action === "approved" ? "确认批准" : "确认拒绝"; $("reviewDialogSummary").innerHTML = `<strong>${item.id} · ${item.kind}</strong><span>${item.store.name} · ${item.customerName} · ${item.project}</span><span>审批账号：${session.account} · ${reviewerRole}人员</span>`; $("reviewNote").value = ""; $("confirmReview").classList.toggle("danger-button", action === "rejected"); renderReviewCommunications(item); $("reviewDialog").showModal(); }
   function closeDialog() { pendingAction = null; $("reviewDialog").close(); }
+  function organizeReviewToolbar() {
+    const toolbar = document.querySelector(".review-toolbar"), count = $("reviewCount");
+    if (!toolbar || !count || toolbar.querySelector(".review-filter-row")) return;
+    const basicRow = document.createElement("div"), dateRow = document.createElement("div");
+    basicRow.className = "review-filter-row review-basic-row";
+    dateRow.className = "review-filter-row review-date-row";
+    [$("reviewStore"), $("reviewType"), $("reviewStatus")].forEach((field) => basicRow.append(field.closest("label")));
+    [$("reviewTimeRange"), $("reviewDateStart"), $("reviewDateEnd")].forEach((field) => dateRow.append(field.closest("label")));
+    dateRow.append(count);
+    toolbar.append(basicRow, dateRow);
+  }
+  organizeReviewToolbar();
   $("reviewStore").innerHTML = `<option value="all">全部门店</option>${stores.map((store) => `<option value="${store.id}">${store.name}（${store.id}）</option>`).join("")}`; document.querySelector(".review-table thead tr")?.insertAdjacentHTML("beforeend", "<th>批准/驳回时间</th>"); applyTimeRange();
   ["reviewStore", "reviewType", "reviewStatus"].forEach((id) => $(id).addEventListener("change", render)); $("reviewTimeRange").addEventListener("change", () => { applyTimeRange(); render(); }); ["reviewDateStart", "reviewDateEnd"].forEach((id) => $(id).addEventListener("change", render)); $("closeReviewDialog").addEventListener("click", closeDialog); $("cancelReview").addEventListener("click", closeDialog);
   $("confirmReview").addEventListener("click", () => { if (!pendingAction || !canDecide) return; const note = $("reviewNote").value.trim(); if (!note) { window.alert("必须填写审核留言／备注"); return; } const { item, action } = pendingAction; item.status = action; item.reviewedAt = new Date().toISOString(); const communications = loadCommunications(); communications.push({ recordType: type, recordId: item.recordId, role: reviewerRole, account: session.account, name: `${reviewerRole}人员`, message: `${action === "approved" ? "批准" : "拒绝"}${item.kind}：${note}`, time: new Date().toISOString() }); saveCommunications(communications); try { const sourceKey = item.sourceKey || "prototypeVerificationReviewApplications", saved = JSON.parse(sessionStorage.getItem(sourceKey) || "[]"), target = saved.find((entry) => entry.id === item.id); if (target) { target.status = action; target.operatorNote = note; target.reviewedAt = item.reviewedAt; sessionStorage.setItem(sourceKey, JSON.stringify(saved)); } } catch (_) { /* local preview only */ } closeDialog(); render(); });
