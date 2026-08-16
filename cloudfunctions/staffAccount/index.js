@@ -9,6 +9,7 @@ const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 let app = null;
 let auth = null;
 let managerClient = null;
+let storeBindingLayout = null;
 
 function getApp() {
   if (!app) {
@@ -48,6 +49,40 @@ async function executeSql(sql) {
   return parseSqlRows(result);
 }
 
+function databaseBoolean(value) {
+  return [true, "true", "t", 1, "1"].includes(value);
+}
+
+async function getStoreBindingLayout() {
+  if (storeBindingLayout) return storeBindingLayout;
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT
+        EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'stores' AND column_name = 'store_account_id'
+        ) AS has_store_account_id,
+        EXISTS (
+          SELECT 1 FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_name = 'staff_store_assignments'
+        ) AS has_staff_store_assignments`
+    );
+  } catch (error) {
+    asDatabaseError(error, "读取门店绑定结构");
+  }
+  const layout = rows?.[0] || {};
+  if (databaseBoolean(layout.has_store_account_id)) {
+    storeBindingLayout = "stores";
+    return storeBindingLayout;
+  }
+  if (databaseBoolean(layout.has_staff_store_assignments)) {
+    storeBindingLayout = "assignments";
+    return storeBindingLayout;
+  }
+  fail("数据库缺少门店账号绑定结构，请先执行完整数据库建表脚本", "DATABASE_SCHEMA_MISSING");
+}
+
 function fail(message, code = "BAD_REQUEST") {
   const error = new Error(message);
   error.code = code;
@@ -76,14 +111,16 @@ function asDatabaseError(error, action) {
 async function findStaffProfile(uid) {
   let rows;
   try {
+    const layout = await getStoreBindingLayout();
+    const storeJoin = layout === "stores"
+      ? "LEFT JOIN public.stores s ON s.store_account_id = a.id"
+      : "LEFT JOIN public.staff_store_assignments sa ON sa.staff_account_id = a.id AND sa.assignment_status = 'ACTIVE' LEFT JOIN public.stores s ON s.id = sa.store_id";
     rows = await executeSql(
       `SELECT a.id, a.staff_name, a.role_code, a.account_status,
         a.password_initialized_at, a.password_changed_at, a.password_change_required,
-        sa.store_id, s.store_status, t.id AS teacher_id, t.teacher_status
+        s.id AS store_id, s.store_status, t.id AS teacher_id, t.teacher_status
        FROM public.staff_accounts a
-       LEFT JOIN public.staff_store_assignments sa
-         ON sa.staff_account_id = a.id AND sa.assignment_status = 'ACTIVE'
-       LEFT JOIN public.stores s ON s.id = sa.store_id
+       ${storeJoin}
        LEFT JOIN public.teachers t ON t.staff_account_id = a.id
        WHERE a.auth_uid = ${sqlText(uid)}
        LIMIT 1`
@@ -243,9 +280,22 @@ async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId
   const staffId = rows?.[0]?.id;
   if (!staffId) fail("员工身份保存后未返回账号编号", "DATABASE_ERROR");
   try {
-    await executeSql(
-      `INSERT INTO public.staff_store_assignments (staff_account_id, store_id, assignment_status) VALUES (${Number(staffId)}, ${Number(storeId)}, 'ACTIVE')`
-    );
+    const layout = await getStoreBindingLayout();
+    const storeRows = layout === "stores"
+      ? await executeSql(
+        `UPDATE public.stores
+         SET store_account_id = ${Number(staffId)}, updated_at = NOW()
+         WHERE id = ${Number(storeId)}
+           AND store_status = 'ACTIVE'
+           AND (store_account_id IS NULL OR store_account_id = ${Number(staffId)})
+         RETURNING id`
+      )
+      : await executeSql(
+        `INSERT INTO public.staff_store_assignments (staff_account_id, store_id, assignment_status)
+         VALUES (${Number(staffId)}, ${Number(storeId)}, 'ACTIVE')
+         RETURNING store_id`
+      );
+    if (!storeRows?.[0]) fail("门店不存在、已封存或已绑定其他门店账号", "STORE_BINDING_FAILED");
   } catch (error) {
     asDatabaseError(error, "绑定门店");
   }
@@ -411,7 +461,28 @@ async function main(event = {}) {
         asDatabaseError(error, "同步老师资料状态");
       }
     }
-    await manager().user.modifyUser({ uid: staff.auth_uid, userStatus: status === "ACTIVE" ? "ACTIVE" : "BLOCKED" });
+    if (staff.role_code === "store") {
+      try {
+        const layout = await getStoreBindingLayout();
+        if (layout === "stores") {
+          await executeSql(
+            `UPDATE public.stores SET store_status = ${sqlText(status)}, updated_at = NOW() WHERE store_account_id = ${Number(staff.id)}`
+          );
+        } else {
+          await executeSql(
+            `UPDATE public.stores s
+             SET store_status = ${sqlText(status)}, updated_at = NOW()
+             FROM public.staff_store_assignments sa
+             WHERE sa.store_id = s.id AND sa.staff_account_id = ${Number(staff.id)}`
+          );
+        }
+      } catch (error) {
+        asDatabaseError(error, "同步门店资料状态");
+      }
+    }
+    if (staff.auth_uid) {
+      await manager().user.modifyUser({ uid: staff.auth_uid, userStatus: status === "ACTIVE" ? "ACTIVE" : "BLOCKED" });
+    }
     return { ok: true, uid: staff.auth_uid, status };
   }
   fail("不支持的操作");
