@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const tencentcloud = require("tencentcloud-sdk-nodejs");
 const IaiClient = tencentcloud.iai.v20200303.Client;
 
-const FUNCTION_VERSION = "2026-08-16-private-photo-read-v12";
+const FUNCTION_VERSION = "2026-08-16-customer-product-balance-v13";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -317,6 +317,48 @@ async function getCustomerPhotoUrl(event) {
   return { ok: true, customerCode: customer.customer_code, photoUrl, expiresIn };
 }
 
+async function getCustomerProductBalances(event) {
+  const caller = await activeStoreCaller();
+  const customerCode = String(event.customerCode || "").trim();
+  if (!customerCode || customerCode.length > 96) fail("必须提供已选择客户的有效编号。", "CUSTOMER_REQUIRED");
+
+  const customers = await executeSql(
+    `SELECT id, customer_code
+       FROM public.customers
+      WHERE customer_code = ${sqlText(customerCode)}
+        AND created_store_id = ${caller.storeId}
+        AND customer_status = 'ACTIVE'
+      LIMIT 1`
+  );
+  const customer = customers[0];
+  if (!customer) fail("未找到本门店已选择的活跃客户。", "CUSTOMER_NOT_FOUND");
+
+  const rows = await executeSql(
+    `SELECT p.id AS product_id, p.product_code, p.product_name,
+            b.total_recharge_count, b.total_verification_count, b.remaining_count,
+            b.updated_at
+       FROM public.customer_product_balances b
+       JOIN public.products p ON p.id = b.product_id
+      WHERE b.customer_id = ${sqlText(customer.id)}::bigint
+        AND p.product_status = 'ACTIVE'
+      ORDER BY p.product_name, p.product_code`
+  );
+
+  return {
+    ok: true,
+    customerCode: customer.customer_code,
+    balances: rows.map((row) => ({
+      productId: String(row.product_id),
+      productCode: row.product_code,
+      productName: row.product_name,
+      purchasedCount: Number(row.total_recharge_count || 0),
+      effectiveVerificationCount: Number(row.total_verification_count || 0),
+      remainingCount: Number(row.remaining_count || 0),
+      updatedAt: row.updated_at
+    }))
+  };
+}
+
 async function deleteFacePerson(api, groupId, personId) {
   if (!personId) return;
   try { await api.DeletePerson({ GroupId: groupId, PersonId: personId }); } catch (error) { console.warn("Face person cleanup failed", error?.message || error); }
@@ -599,6 +641,7 @@ exports.main = async (event = {}) => {
     if (action === "validateCapture") return await validateCapture(event);
     if (action === "registerCustomer") return await registerCustomer(event);
     if (action === "getCustomerPhotoUrl") return await getCustomerPhotoUrl(event);
+    if (action === "getCustomerProductBalances") return await getCustomerProductBalances(event);
     if (action === "searchCustomer") return await searchCustomer(event);
     if (action === "verifyCustomerFace") return await verifyCustomerFace(event);
     fail("Unsupported action.");

@@ -240,16 +240,18 @@ verification type.
 |---|---|---|
 | `id` | Internal order ID | `1` |
 | `verification_code` | Auto-generated verification order number | `VX202608160001` |
-| `verification_type` | `NORMAL`, `SUPPLEMENT`, `EXPERIENCE`, or `VOID` | `SUPPLEMENT` |
+| `verification_type` | `NORMAL`, `SUPPLEMENT`, or `EXPERIENCE` | `SUPPLEMENT` |
 | `store_id` / `teacher_id` / `customer_id` / `product_id` | Related business entities | `1 / 1 / 1 / 1` |
-| `unit_count` | Verification units | `1` |
-| `record_status` | `PENDING`, `APPROVED`, or `REJECTED` | `PENDING` |
+| `unit_count` | Verification units; fixed at one per order | `1` |
+| `record_status` | `PENDING`, `APPROVED`, `REJECTED`, or `VOIDED` | `PENDING` |
 | `submitted_by_account_id` | Submitting account | `3` |
 | `submitted_at` | Submission time | `2026-08-16 10:32` |
 | `reviewed_by_account_id` / `reviewed_at` | HQ review information | `NULL / NULL` |
 | `message` | General message; default is empty | `` |
 | `supplement_note` | Required only when the type is `SUPPLEMENT` | `客户到店后补录` |
 | `review_note` | HQ review note; default is empty | `` |
+| `void_note` | Void explanation on the same original order | `` |
+| `voided_by_account_id` / `voided_at` | Account and time that voided an approved order | `NULL / NULL` |
 | `face_request_id` | Optional Tencent face request ID | `req_xxx` |
 | `created_at` / `updated_at` | System timestamps | `2026-08-16 10:32` |
 
@@ -267,15 +269,22 @@ staff member.
 |---|---|---|
 | `customer_id` | Customer | `1` |
 | `product_id` | Product | `1` |
-| `total_recharge_count` | Approved recharge units | `10` |
-| `total_verification_count` | Approved verification units | `4` |
-| `remaining_count` | Recharge minus verification units | `6` |
+| `total_recharge_count` | Net approved purchased units (`NEW` minus approved `VOID`) | `10` |
+| `total_verification_count` | Approved consumptive units; only `NORMAL` and `SUPPLEMENT` | `4` |
+| `remaining_count` | Purchased minus consumptive verification units | `6` |
 | `updated_at` | Last automatic calculation time | `2026-08-16 10:32` |
 
 | customer | product | recharge units | verification units | remaining units |
 |---|---|---:|---:|---:|
 | CUS202608160001 | PRD001 | 10 | 4 | 6 |
 | CUS202608160001 | PRD005 | 6 | 1 | 5 |
+
+`PENDING`, `REJECTED`, and `VOIDED` orders never consume a purchased unit.
+`EXPERIENCE` also never consumes one. Voiding the original approved `NORMAL`
+or `SUPPLEMENT` row therefore restores its units to `remaining_count`; voiding
+an `EXPERIENCE` row restores zero. The database locks the customer row while
+rebuilding the balance, so concurrent approvals or void retries cannot change
+the count twice.
 
 ## 11. `record_status_history` - review history
 
@@ -288,7 +297,7 @@ verification order. It does not create an extra approval order.
 | `record_type` | `RECHARGE` or `VERIFICATION` | `RECHARGE` |
 | `record_id` | Original order ID | `1` |
 | `previous_status` | Status before the change | `PENDING` |
-| `current_status` | Status after the change | `APPROVED` |
+| `current_status` | Status after the change, including `VOIDED` | `APPROVED` |
 | `changed_by_account_id` | Account changing the status | `1` |
 | `change_note` | Review explanation; default is empty | `资料核对无误` |
 | `changed_at` | Change time | `2026-08-16 11:00` |

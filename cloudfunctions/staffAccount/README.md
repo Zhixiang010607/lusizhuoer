@@ -12,3 +12,9 @@
 首次流程：先在 CloudBase 身份认证控制台为总部管理员账号绑定一个中国大陆手机号并设置密码，再把该用户 UID 写入云函数环境变量 `BOOTSTRAP_HQ_UID`。该 UID 会被函数直接识别为总部，不依赖用户描述字段；之后总部即可通过 `provisionStaff` 自动创建员工，用户不能自行注册。
 
 密码由 CloudBase 校验：必须是 8–32 位，且含四类字符（大写、小写、数字、特殊字符）中的至少三类。因此“纯 12 位数字密码”不符合 CloudBase 的安全规则。
+
+`voidVerification` 仅允许总部调用。它调用数据库函数
+`public.void_verification_record`，只把原核销单从 `APPROVED` 改为
+`VOIDED`，不新建第二张核销单。`NORMAL` 和 `SUPPLEMENT` 会自动返还已消耗
+次数，`EXPERIENCE` 不消耗也不返还。部署此版本前必须先执行
+`database/migrations/022_void_original_verification.sql`。

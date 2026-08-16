@@ -31,7 +31,8 @@
   const photo = photoUrl ? `<img src="${escapeHtml(photoUrl)}" alt="${escapeHtml(customer.name || "客户")}的建档照片">` : `<div class="customer-photo-placeholder" aria-label="暂无可显示的客户建档照片">客户照片</div>`;
   $("customerProfilePhoto").innerHTML = photo;
   $("customerBasicInfo").innerHTML = [infoCard("客户姓名", customer.name), infoCard("客户编号", customer.id), infoCard("生日", customer.birthday), infoCard("所属门店", storeLabel)].join("");
-  $("customerRecentInfo").innerHTML = `<article><span>最近充值时间</span><strong>${escapeHtml(dateText(latest(recharges)))}</strong></article><article><span>最近核销时间</span><strong>${escapeHtml(dateText(latest(verifications)))}</strong></article>`;
+  const customerCreatedAt = customer.createdAt || customer.created_at || customer.createdTime || "";
+  $("customerRecentInfo").innerHTML = `<article><span>最近充值时间</span><strong>${escapeHtml(dateText(latest(recharges)))}</strong></article><article><span>最近核销时间</span><strong>${escapeHtml(dateText(latest(verifications)))}</strong></article><article><span>客户建立时间</span><strong>${escapeHtml(dateText(customerCreatedAt))}</strong></article>`;
   $("customerNotes").value = customer.notes || "";
 
   const projects = new Map();

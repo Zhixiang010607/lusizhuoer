@@ -196,6 +196,12 @@
         "产品状态更新失败"
       );
     },
+    async voidVerification({ verificationId, voidNote = "" }) {
+      return callStaffAccount(
+        { action: "voidVerification", verificationId, voidNote },
+        "核销单作废失败"
+      );
+    },
     smsCooldownRemaining(phone) { return cooldownRemaining(phone); }
   };
 })();

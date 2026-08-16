@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.23", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.25", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   const storeId = String(session?.store || ""), storeNo = Number(storeId.replace(/\D/g, "")) || 1;
@@ -11,7 +11,7 @@
   let customerOverrides = {};
   try { customerOverrides = JSON.parse(sessionStorage.getItem("prototypeCustomerOverrides") || "{}"); } catch (_) { customerOverrides = {}; }
   const baseCustomers = Array.from({ length: 96 }, (_, i) => { const sid = `S${String(i % 16 + 1).padStart(3, "0")}`, id = `C${sid.slice(1)}${String(i + 1).padStart(4, "0")}`, current = customerOverrides[id] || {}; return { id, name: current.name || names[i % names.length], birthday: current.birthday || `${1986 + i % 22}-${String(i % 12 + 1).padStart(2, "0")}-${String(i % 27 + 1).padStart(2, "0")}`, storeId: sid, profilePhotoId: `PH-${id}` }; });
-  let created = [], archived = new Set(), candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", cameraStream = null, customerPreviewRequest = 0;
+  let created = [], archived = new Set(), candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, verificationBalanceProjects = [];
   try { created = JSON.parse(sessionStorage.getItem("prototypeCreatedCustomers") || "[]").map((customer) => ({ ...customer, ...(customerOverrides[customer.id] || {}) })); archived = new Set(JSON.parse(sessionStorage.getItem("prototypeArchivedCustomers") || "[]")); } catch (_) { created = []; archived = new Set(); }
   const allCustomers = () => [...baseCustomers, ...created].filter((customer) => customer.storeId === storeId);
   const saveList = (key, value) => { try { sessionStorage.setItem(key, JSON.stringify(value)); } catch (_) { /* 当前静态会话不可持久化时不保存演示数据。 */ } };
@@ -21,7 +21,6 @@
     rows.push({ recordType, recordId, role: "门店", account: session.account, name: "门店人员", message: message.trim(), time: new Date().toISOString() }); saveList("prototypeCommunications", rows);
   };
   const fillProjects = (id) => { $(id).innerHTML = `<option value="">请选择项目</option>${projects.map((project) => `<option value="${project.id}">${project.name}（${project.id}）</option>`).join("")}`; };
-  const projectBalances = (customer) => { const seed = [...customer.id].reduce((sum, char) => sum + char.charCodeAt(0), 0); return projects.map((project, i) => ({ ...project, remaining: customer.id.includes("N") ? 0 : 3 + (seed * (i + 3) + i * 11) % 38 })); };
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
 
   function stopFaceCamera() {
@@ -151,7 +150,7 @@
       try {
         const data = await callCustomerEnrollment({ action: "registerCustomer", customerName: name, birthDate: birthday, notes, consent: true, imageBase64: capturedPhotoDataUrl });
         const customer = data.customer;
-        created.push({ id: customer.customerCode, name, birthday, notes, storeId: customer.storeId || storeId, customerStatus: customer.customerStatus, customerProcessStatus: customer.customerProcessStatus, totalRechargeCount: customer.totalRechargeCount || 0, totalVerificationCount: customer.totalVerificationCount || 0, totalExperienceCount: customer.totalExperienceCount || 0, faceStatus: "已录入", profilePhotoId: customer.photoFileId, profilePhotoStatus: "已保存", facePersonId: customer.facePersonId, createdBy: session.account }); saveList("prototypeCreatedCustomers", created);
+        created.push({ id: customer.customerCode, name, birthday, notes, storeId: customer.storeId || storeId, customerStatus: customer.customerStatus, customerProcessStatus: customer.customerProcessStatus, totalRechargeCount: customer.totalRechargeCount || 0, totalVerificationCount: customer.totalVerificationCount || 0, totalExperienceCount: customer.totalExperienceCount || 0, faceStatus: "已录入", profilePhotoId: customer.photoFileId, profilePhotoStatus: "已保存", facePersonId: customer.facePersonId, createdAt: customer.createdAt || "", createdBy: session.account }); saveList("prototypeCreatedCustomers", created);
         message.textContent = `客户 ${name}（${customer.customerCode}）已建立；照片已留存腾讯云并已录入人脸库。`;
         event.target.reset(); resetCapturedPhoto();
       } catch (error) {
@@ -162,18 +161,29 @@
   function setupLookup() {
     const activeCustomers = allCustomers().filter((customer) => !archived.has(customer.id));
     $("serviceCustomerSelect").innerHTML = `<option value="">请选择现有客户</option>${activeCustomers.map((customer) => `<option value="${customer.id}">${customer.name}（${customer.id}）</option>`).join("")}`;
-    $("serviceCustomerSelect").addEventListener("change", () => { const customer = activeCustomers.find((item) => item.id === $("serviceCustomerSelect").value); $("serviceSelectBirthday").value = customer?.birthday || ""; resetCandidate(); });
+    const lookupSelectedCustomer = () => {
+      resetCandidate();
+      const id = $("serviceCustomerSelect").value;
+      const birthday = $("serviceSelectBirthday").value;
+      if (!id) return;
+      if (!birthday) { showLookupError("所选客户缺少生日资料，暂时不能办理业务，请先补全档案。"); return; }
+      const customer = activeCustomers.find((item) => item.id === id && item.birthday === birthday);
+      if (!customer) { showLookupError("所选生日与客户档案不一致，请重新核对。"); return; }
+      renderCustomerCore(customer);
+    };
+    $("serviceCustomerSelect").addEventListener("change", () => {
+      const customer = activeCustomers.find((item) => item.id === $("serviceCustomerSelect").value);
+      $("serviceSelectBirthday").value = customer?.birthday || "";
+      lookupSelectedCustomer();
+    });
     $("serviceCustomerName").addEventListener("input", resetCandidate); $("serviceCustomerBirthday").addEventListener("change", resetCandidate);
     document.querySelectorAll("[data-lookup-mode]").forEach((button) => button.addEventListener("click", () => {
       document.querySelectorAll("[data-lookup-mode]").forEach((item) => item.classList.toggle("active", item === button));
       const manual = button.dataset.lookupMode === "manual"; $("selectLookupFields").hidden = manual; $("manualLookupFields").hidden = !manual; resetCandidate();
     }));
     $("serviceSelectLookup").addEventListener("click", () => {
-      resetCandidate(); const id = $("serviceCustomerSelect").value, birthday = $("serviceSelectBirthday").value;
-      if (!id || !birthday) { showLookupError("必须选择现有客户并确认生日。"); return; }
-      const customer = activeCustomers.find((item) => item.id === id && item.birthday === birthday);
-      if (!customer) { showLookupError("所选生日与客户档案不一致，请重新核对。"); return; }
-      renderCustomerCore(customer);
+      if (!$("serviceCustomerSelect").value) { resetCandidate(); showLookupError("必须先选择现有客户。"); return; }
+      lookupSelectedCustomer();
     });
     $("serviceCustomerLookup").addEventListener("click", () => {
       resetCandidate(); const name = $("serviceCustomerName").value.trim(), birthday = $("serviceCustomerBirthday").value;
@@ -190,8 +200,10 @@
   function showLookupError(message) { $("serviceCustomerResults").innerHTML = `<div class="lookup-placeholder error"><strong>未能确认客户</strong><span>${message}</span></div>`; }
   function resetCandidate() {
     customerPreviewRequest += 1;
+    balanceRequest += 1;
     candidateCustomer = null;
     selectedCustomer = null;
+    verificationBalanceProjects = [];
     if (["verification", "verification-supplemental"].includes(page)) resetVerificationCapture();
     $("confirmCustomerSelection").disabled = true;
     $("serviceCustomerResults").innerHTML = `<div class="lookup-placeholder"><strong>等待查询客户</strong><span>查询成功后，此处显示客户建档照片、姓名、生日和客户编号。</span></div>`;
@@ -229,10 +241,42 @@
     }
   }
   function disableBusinessStep() { document.querySelector("form.store-business-form")?.classList.add("business-step-disabled"); }
-  function confirmCustomer(id) {
+  async function loadVerificationBalances(customer) {
+    const select = $("verificationProject");
+    if (!select) return;
+    const request = ++balanceRequest;
+    verificationBalanceProjects = [];
+    select.disabled = true;
+    select.innerHTML = `<option value="">正在读取该客户的真实项目余额…</option>`;
+    try {
+      const result = await callCustomerEnrollment({ action: "getCustomerProductBalances", customerCode: customer.id });
+      if (request !== balanceRequest || selectedCustomer?.id !== customer.id) return;
+      verificationBalanceProjects = (Array.isArray(result?.balances) ? result.balances : [])
+        .filter((item) => Number(item.remainingCount) > 0)
+        .map((item) => ({
+          id: String(item.productId),
+          code: String(item.productCode || ""),
+          name: String(item.productName || item.productCode || "未命名产品"),
+          purchased: Number(item.purchasedCount || 0),
+          verified: Number(item.effectiveVerificationCount || 0),
+          remaining: Number(item.remainingCount || 0)
+        }));
+      select.innerHTML = verificationBalanceProjects.length
+        ? `<option value="">请选择有剩余次数的项目</option>${verificationBalanceProjects.map((project) => `<option value="${escapeHtml(project.id)}">${escapeHtml(project.name)}（${escapeHtml(project.code)} · 剩余 ${project.remaining} 次）</option>`).join("")}`
+        : `<option value="">该客户没有可核销的剩余项目</option>`;
+      select.disabled = verificationBalanceProjects.length === 0;
+    } catch (error) {
+      if (request !== balanceRequest || selectedCustomer?.id !== customer.id) return;
+      select.innerHTML = `<option value="">项目余额读取失败，禁止继续核销</option>`;
+      select.disabled = true;
+      const message = $("verificationCreateMessage");
+      if (message) message.textContent = error?.message || "项目余额读取失败，请刷新后重试";
+    }
+  }
+  async function confirmCustomer(id) {
     selectedCustomer = allCustomers().find((customer) => customer.id === id);
     $("selectedCustomerText").textContent = `已确认：${selectedCustomer.name}（${selectedCustomer.id}）· ${selectedCustomer.birthday} · ${storeName}`; document.querySelector("form.store-business-form").classList.remove("business-step-disabled");
-    if (["verification", "verification-supplemental"].includes(page)) { resetVerificationCapture(); const balances = projectBalances(selectedCustomer).filter((project) => project.remaining > 0); $("verificationProject").innerHTML = `<option value="">请选择有剩余次数的项目</option>${balances.map((project) => `<option value="${project.id}">${project.name}（剩余 ${project.remaining} 次）</option>`).join("")}`; }
+    if (["verification", "verification-supplemental"].includes(page)) { resetVerificationCapture(); await loadVerificationBalances(selectedCustomer); }
     $("confirmCustomerSelection").textContent = `已确认 ${selectedCustomer.name}（${selectedCustomer.id}）`;
   }
   function setupRecharge() {
@@ -305,7 +349,8 @@
       if (!selectedCustomer || !projectId || !teacherId) { $("verificationCreateMessage").textContent = "必须确认客户并选择项目和老师"; return; }
       if (!photoCaptured) { $("verificationCreateMessage").textContent = "人脸识别核验未通过，禁止核销和发送设备信号"; return; }
       if (supplemental && !note) { $("verificationCreateMessage").textContent = "补录必须填写门店备注／原因"; return; }
-      const records = JSON.parse(sessionStorage.getItem("prototypeVerificationRecords") || "[]"), project = projects.find((item) => item.id === projectId), recordId = `${supplemental ? "VE-SUP" : "VE-NEW"}-${Date.now()}`;
+      const records = JSON.parse(sessionStorage.getItem("prototypeVerificationRecords") || "[]"), project = verificationBalanceProjects.find((item) => item.id === projectId), recordId = `${supplemental ? "VE-SUP" : "VE-NEW"}-${Date.now()}`;
+      if (!project) { $("verificationCreateMessage").textContent = "所选项目余额已失效，请重新确认客户后再试"; return; }
       records.push({ id: recordId, customerId: selectedCustomer.id, customerName: selectedCustomer.name, name: selectedCustomer.name, birthday: selectedCustomer.birthday, storeId, projectId, projectName: project.name, teacherId, count: 1, faceVerification: "活体检测与人脸比对通过", verificationType: supplemental ? "补录" : "正常", status: supplemental ? "待运营审核" : "正常", deviceSignal: supplemental ? "不发送（补录）" : "虚拟端口已发送", account: session.account, note, createdAt: new Date().toISOString() }); saveList("prototypeVerificationRecords", records); addCommunication("verification", recordId, note);
       if (supplemental) { const apps = JSON.parse(sessionStorage.getItem("prototypeVerificationReviewApplications") || "[]"); apps.push({ id: `AP-V-${Date.now()}`, kind: "补录", recordId, storeId, customerId: selectedCustomer.id, customerName: selectedCustomer.name, projectId, project: project.name, teacherId, applicantNote: note, status: "pending", time: new Date().toISOString(), faceVerification: "活体检测与人脸比对通过", deviceSignal: "不发送" }); saveList("prototypeVerificationReviewApplications", apps); $("verificationCreateMessage").textContent = `${selectedCustomer.name} · ${project.name} 补录已提交运营审核；不会打开设备`; }
       else $("verificationCreateMessage").textContent = `${selectedCustomer.name} · ${project.name} 正常核销成功；已向虚拟端口发送项目权限信号`;

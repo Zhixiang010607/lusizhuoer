@@ -8,7 +8,7 @@
 const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "2026-08-16-external-staff-auth-v8";
+const FUNCTION_VERSION = "2026-08-16-verification-void-v9";
 let app = null;
 let auth = null;
 let managerClient = null;
@@ -1121,6 +1121,30 @@ async function main(event = {}) {
     }
     if (!rows?.[0]) fail("未找到该产品", "NOT_FOUND");
     return { ok: true, product: rows[0] };
+  }
+  if (action === "voidVerification") {
+    requireHq(caller);
+    const verificationId = numericId(event.verificationId, "核销单编号");
+    const voidNote = String(event.voidNote || "").trim();
+    if (voidNote.length > 1000) fail("作废说明不能超过 1000 个字符", "BAD_REQUEST");
+
+    let rows;
+    try {
+      rows = await executeSql(
+        `SELECT id, verification_code, verification_type, unit_count, record_status,
+                customer_id, product_id, void_note, voided_by_account_id, voided_at
+         FROM public.void_verification_record(
+           ${verificationId},
+           ${numericId(caller.profile.staffId, "当前总部账号")},
+           ${sqlText(voidNote)}
+         )`
+      );
+    } catch (error) {
+      asDatabaseError(error, "作废核销单");
+    }
+    const record = rows?.[0];
+    if (!record) fail("未找到该核销单", "NOT_FOUND");
+    return { ok: true, verification: record };
   }
   if (action === "listStores") {
     requireHq(caller);

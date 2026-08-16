@@ -228,14 +228,14 @@ CREATE TABLE public.verification_records (
   verification_code VARCHAR(32) NOT NULL UNIQUE
     DEFAULT ('VX' || TO_CHAR(CURRENT_DATE, 'YYYYMMDD') || LPAD(nextval('public.verification_code_seq')::TEXT, 4, '0')),
   verification_type VARCHAR(16) NOT NULL DEFAULT 'NORMAL'
-    CHECK (verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE', 'VOID')),
+    CHECK (verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')),
   store_id BIGINT NOT NULL REFERENCES public.stores(id),
   teacher_id BIGINT NOT NULL REFERENCES public.teachers(id),
   customer_id BIGINT NOT NULL REFERENCES public.customers(id),
   product_id BIGINT NOT NULL REFERENCES public.products(id),
-  unit_count INTEGER NOT NULL DEFAULT 1 CHECK (unit_count > 0),
+  unit_count INTEGER NOT NULL DEFAULT 1 CHECK (unit_count = 1),
   record_status VARCHAR(16) NOT NULL DEFAULT 'PENDING'
-    CHECK (record_status IN ('PENDING', 'APPROVED', 'REJECTED')),
+    CHECK (record_status IN ('PENDING', 'APPROVED', 'REJECTED', 'VOIDED')),
   submitted_by_account_id BIGINT NOT NULL REFERENCES public.staff_accounts(id),
   submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   reviewed_by_account_id BIGINT REFERENCES public.staff_accounts(id),
@@ -243,10 +243,18 @@ CREATE TABLE public.verification_records (
   message TEXT NOT NULL DEFAULT '',
   supplement_note TEXT NOT NULL DEFAULT '',
   review_note TEXT NOT NULL DEFAULT '',
+  void_note TEXT NOT NULL DEFAULT '',
+  voided_by_account_id BIGINT REFERENCES public.staff_accounts(id),
+  voided_at TIMESTAMPTZ,
   face_request_id VARCHAR(128),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CHECK (verification_type = 'SUPPLEMENT' OR supplement_note = '')
+  CHECK (verification_type = 'SUPPLEMENT' OR supplement_note = ''),
+  CHECK (
+    (record_status = 'VOIDED' AND voided_by_account_id IS NOT NULL AND voided_at IS NOT NULL)
+    OR
+    (record_status <> 'VOIDED' AND voided_by_account_id IS NULL AND voided_at IS NULL AND void_note = '')
+  )
 );
 
 -- Per-customer, per-product totals for the customer home page.
@@ -257,7 +265,9 @@ CREATE TABLE public.customer_product_balances (
   total_verification_count INTEGER NOT NULL DEFAULT 0 CHECK (total_verification_count >= 0),
   remaining_count INTEGER NOT NULL DEFAULT 0 CHECK (remaining_count >= 0),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (customer_id, product_id)
+  PRIMARY KEY (customer_id, product_id),
+  CONSTRAINT customer_product_balances_count_equation
+    CHECK (remaining_count = total_recharge_count - total_verification_count)
 );
 
 -- The audit trail belongs to the original order; no extra approval document is created.
@@ -266,7 +276,7 @@ CREATE TABLE public.record_status_history (
   record_type VARCHAR(16) NOT NULL CHECK (record_type IN ('RECHARGE', 'VERIFICATION')),
   record_id BIGINT NOT NULL,
   previous_status VARCHAR(16),
-  current_status VARCHAR(16) NOT NULL CHECK (current_status IN ('PENDING', 'APPROVED', 'REJECTED')),
+  current_status VARCHAR(16) NOT NULL CHECK (current_status IN ('PENDING', 'APPROVED', 'REJECTED', 'VOIDED')),
   changed_by_account_id BIGINT REFERENCES public.staff_accounts(id),
   change_note TEXT NOT NULL DEFAULT '',
   changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -437,6 +447,92 @@ CREATE TRIGGER trg_validate_verification_customer_store
 BEFORE INSERT OR UPDATE OF store_id, customer_id ON public.verification_records
 FOR EACH ROW EXECUTE FUNCTION public.validate_order_customer_store();
 
+CREATE OR REPLACE FUNCTION public.validate_verification_status_transition()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.record_status = 'VOIDED' THEN
+      RAISE EXCEPTION 'a verification cannot be created in VOIDED status'
+        USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF NEW.record_status IS DISTINCT FROM OLD.record_status THEN
+    IF OLD.record_status = 'PENDING'
+       AND NEW.record_status NOT IN ('APPROVED', 'REJECTED') THEN
+      RAISE EXCEPTION 'invalid verification transition: % -> %', OLD.record_status, NEW.record_status
+        USING ERRCODE = '23514';
+    ELSIF OLD.record_status = 'APPROVED'
+          AND NEW.record_status <> 'VOIDED' THEN
+      RAISE EXCEPTION 'invalid verification transition: % -> %', OLD.record_status, NEW.record_status
+        USING ERRCODE = '23514';
+    ELSIF OLD.record_status IN ('REJECTED', 'VOIDED') THEN
+      RAISE EXCEPTION 'verification status % is terminal', OLD.record_status
+        USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_validate_verification_status_transition
+BEFORE INSERT OR UPDATE OF record_status
+ON public.verification_records
+FOR EACH ROW EXECUTE FUNCTION public.validate_verification_status_transition();
+
+CREATE OR REPLACE FUNCTION public.void_verification_record(
+  p_verification_id BIGINT,
+  p_actor_account_id BIGINT,
+  p_void_note TEXT DEFAULT ''
+)
+RETURNS public.verification_records
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  current_record public.verification_records%ROWTYPE;
+BEGIN
+  SELECT *
+  INTO current_record
+  FROM public.verification_records
+  WHERE id = p_verification_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'verification record % does not exist', p_verification_id
+      USING ERRCODE = 'P0002';
+  END IF;
+
+  IF current_record.record_status = 'VOIDED' THEN
+    RETURN current_record;
+  END IF;
+
+  IF current_record.record_status <> 'APPROVED' THEN
+    RAISE EXCEPTION 'only an APPROVED verification can be voided; current status is %',
+      current_record.record_status
+      USING ERRCODE = '23514';
+  END IF;
+
+  UPDATE public.verification_records
+  SET record_status = 'VOIDED',
+      void_note = COALESCE(p_void_note, ''),
+      voided_by_account_id = p_actor_account_id,
+      voided_at = NOW()
+  WHERE id = p_verification_id
+  RETURNING * INTO current_record;
+
+  RETURN current_record;
+END;
+$$;
+
+COMMENT ON FUNCTION public.void_verification_record(BIGINT, BIGINT, TEXT) IS
+  'Voids the original approved verification. NORMAL/SUPPLEMENT restore their consumed units through the balance refresh trigger; EXPERIENCE restores zero units.';
+
+REVOKE ALL ON FUNCTION public.void_verification_record(BIGINT, BIGINT, TEXT) FROM PUBLIC;
+
 -- Recalculate all customer totals from approved original orders. The customer
 -- row is locked first, so concurrent approvals serialize on the same customer.
 CREATE OR REPLACE FUNCTION public.refresh_customer_balance(p_customer_id BIGINT)
@@ -462,7 +558,9 @@ BEGIN
     FROM public.verification_records
     WHERE customer_id = p_customer_id
       AND record_status = 'APPROVED'
-      AND verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')
+      -- EXPERIENCE never consumes a purchased product unit. A voided original
+      -- row is excluded because its record_status is no longer APPROVED.
+      AND verification_type IN ('NORMAL', 'SUPPLEMENT')
     GROUP BY customer_id, product_id
   )
   SELECT
@@ -486,7 +584,7 @@ BEGIN
   UPDATE public.customers c
   SET
     total_recharge_count = COALESCE((SELECT SUM(b.total_recharge_count) FROM public.customer_product_balances b WHERE b.customer_id = c.id), 0),
-    total_verification_count = COALESCE((SELECT SUM(b.total_verification_count) FROM public.customer_product_balances b WHERE b.customer_id = c.id), 0),
+    total_verification_count = COALESCE((SELECT SUM(v.unit_count) FROM public.verification_records v WHERE v.customer_id = c.id AND v.record_status = 'APPROVED' AND v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')), 0),
     total_experience_count = COALESCE((SELECT SUM(v.unit_count) FROM public.verification_records v WHERE v.customer_id = c.id AND v.record_status = 'APPROVED' AND v.verification_type = 'EXPERIENCE'), 0),
     latest_recharge_at = (SELECT MAX(submitted_at) FROM public.recharge_records r WHERE r.customer_id = c.id AND r.record_status = 'APPROVED'),
     latest_verification_at = (SELECT MAX(submitted_at) FROM public.verification_records v WHERE v.customer_id = c.id AND v.record_status = 'APPROVED' AND v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')),
@@ -532,8 +630,14 @@ DECLARE
   changed_note TEXT;
 BEGIN
   order_type = CASE TG_TABLE_NAME WHEN 'recharge_records' THEN 'RECHARGE' ELSE 'VERIFICATION' END;
-  changed_by = COALESCE(NEW.reviewed_by_account_id, NEW.submitted_by_account_id);
-  changed_note = COALESCE(NULLIF(NEW.review_note, ''), NEW.message, '');
+
+  IF TG_TABLE_NAME = 'verification_records' AND NEW.record_status = 'VOIDED' THEN
+    changed_by = NEW.voided_by_account_id;
+    changed_note = COALESCE(NEW.void_note, '');
+  ELSE
+    changed_by = COALESCE(NEW.reviewed_by_account_id, NEW.submitted_by_account_id);
+    changed_note = COALESCE(NULLIF(NEW.review_note, ''), NEW.message, '');
+  END IF;
   IF TG_OP = 'INSERT' OR NEW.record_status IS DISTINCT FROM OLD.record_status THEN
     INSERT INTO public.record_status_history
       (record_type, record_id, previous_status, current_status, changed_by_account_id, change_note)
