@@ -35,7 +35,7 @@ An archived account cannot sign in. Archiving does not delete historical records
 | Teacher | `teachers` | One login account; identity-card hash and encrypted value are HQ-only |
 | Store | `stores` | Province, city, district, address; multiple `store_contacts`; one active store login binding |
 | Product | `products` | Product status and product details |
-| Customer | `customers` | Created store, optional phone, face-library person ID and consent time |
+| Customer | `customers` | Created store, face-library person ID and consent time; no customer phone is stored |
 
 `operation_store_scopes` is the only way an operation account receives access to a store. No scope means no store data access.
 

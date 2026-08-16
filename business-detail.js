@@ -30,13 +30,18 @@
     return `<tr class="${viewedId === versionId ? "selected-version" : ""}"><td><a class="record-link" href="${versionUrl(versionId)}">${versionId}</a>${viewedId === versionId ? '<span class="current-view-badge">正在查看</span>' : ""}</td><td>${version}</td><td>门店：${store} · ${project}${evidence}</td><td>${status}</td><td>${operator}</td><td>${relation}</td></tr>`;
   };
   $("versionBody").innerHTML = versionRow(`${baseId}-V1`, "V1", "历史版本", `${store}账号 · 门店人员`, type === "verification" ? "原始记录及人脸识别结果" : "原始记录") + versionRow(`${baseId}-V2`, "V2", "当前有效", "OP001 · 运营管理员", type === "verification" ? "关联V1、原始记录及人脸识别结果" : "关联V1及原始记录");
-  $("recordAudit").innerHTML = `<div><strong>2026-08-05 16:20:18</strong><span>${store}账号 · 门店人员提交单据并创建记录</span></div><div><strong>2026-08-05 17:02:41</strong><span>OP001 · 运营管理员审核并生成当前版本</span></div>`;
+  const ownerView = ["store", "teacher"].includes(loginSession?.role);
+  if (ownerView) {
+    document.querySelector("#recordAudit")?.closest(".detail-section")?.querySelector("h2") && (document.querySelector("#recordAudit").closest(".detail-section").querySelector("h2").textContent = "审核结果与留言");
+    $("recordAudit").innerHTML = `<div><strong>审核结果</strong><span>${reviewProgress === "审核中" ? "待审核" : "已通过"}</span></div><div><strong>留言区</strong><span></span></div>`;
+    const communicationHeading = $("communicationLog")?.closest(".communication-panel")?.querySelector("h2");
+    if (communicationHeading) communicationHeading.textContent = "留言区";
+  } else $("recordAudit").innerHTML = `<div><strong>2026-08-05 16:20:18</strong><span>${store}账号 · 门店人员提交单据并创建记录</span></div><div><strong>2026-08-05 17:02:41</strong><span>OP001 · 运营管理员审核并生成当前版本</span></div>`;
   if (type === "verification") $("deviceEvidence").innerHTML = verificationKind === "补录" ? `<span>虚拟端口</span><strong>不调用</strong><span>原因</span><strong>补录核销不打开设备</strong>` : `<span>虚拟端口</span><strong>PORT-${store}-P${String(seed % 6 + 1).padStart(3, "0")}</strong><span>机器响应</span><strong class="success-text">权限已打开</strong>`;
   const loadCommunications = () => { try { return JSON.parse(sessionStorage.getItem("prototypeCommunications") || "[]"); } catch (_) { return []; } };
   const saveCommunications = (rows) => { try { sessionStorage.setItem("prototypeCommunications", JSON.stringify(rows)); } catch (_) { /* 静态演示 */ } };
   function renderCommunications() {
-    const seeded = [{ recordType: type, recordId: id, role: "门店", account: store, name: "门店人员", message: "单据已提交，请查看当前业务信息。", time: "2026-08-05T16:20:00" }];
-    const rows = [...seeded, ...loadCommunications().filter((row) => row.recordType === type && row.recordId === id)];
+    const rows = loadCommunications().filter((row) => row.recordType === type && row.recordId === id);
     $("communicationLog").innerHTML = rows.map((row) => `<article class="communication-item"><div><strong>${escapeHtml(row.role)} · ${escapeHtml(row.name)}</strong><time>${new Date(row.time).toLocaleString("zh-CN", { hour12: false })}</time></div><p>${escapeHtml(row.message)}</p></article>`).join("");
     $("communicationLog").scrollTop = $("communicationLog").scrollHeight;
   }

@@ -48,7 +48,6 @@ CREATE TABLE IF NOT EXISTS public.products (
   product_code VARCHAR(32) NOT NULL UNIQUE,
   product_name VARCHAR(100) NOT NULL,
   product_type VARCHAR(32) NOT NULL,
-  price_cent INTEGER NOT NULL CHECK (price_cent >= 0),
   product_status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' CHECK (product_status IN ('ACTIVE', 'ARCHIVED')),
   description TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -59,10 +58,17 @@ CREATE TABLE IF NOT EXISTS public.customers (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   customer_code VARCHAR(32) NOT NULL UNIQUE,
   customer_name VARCHAR(64) NOT NULL,
-  phone CHAR(11),
+  birth_date DATE,
+  notes TEXT NOT NULL DEFAULT '',
+  profile_photo_file_id VARCHAR(512),
+  photo_captured_at TIMESTAMPTZ,
   face_person_id VARCHAR(128) UNIQUE,
   face_consent_at TIMESTAMPTZ,
   customer_status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' CHECK (customer_status IN ('ACTIVE', 'ARCHIVED')),
+  customer_process_status VARCHAR(32) NOT NULL DEFAULT 'INFORMATION_ONLY' CHECK (customer_process_status IN ('INFORMATION_ONLY', 'RECHARGED_NO_CONSUMPTION', 'RECHARGED_WITH_CONSUMPTION')),
+  total_recharge_count INTEGER NOT NULL DEFAULT 0 CHECK (total_recharge_count >= 0),
+  total_verification_count INTEGER NOT NULL DEFAULT 0 CHECK (total_verification_count >= 0),
+  total_experience_count INTEGER NOT NULL DEFAULT 0 CHECK (total_experience_count >= 0),
   created_store_id BIGINT NOT NULL REFERENCES public.stores(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -156,7 +162,6 @@ CREATE TABLE IF NOT EXISTS public.recharge_records (
   store_id BIGINT NOT NULL REFERENCES public.stores(id),
   teacher_id BIGINT REFERENCES public.teachers(id),
   product_id BIGINT NOT NULL REFERENCES public.products(id),
-  amount_cent INTEGER NOT NULL CHECK (amount_cent >= 0),
   unit_count INTEGER NOT NULL DEFAULT 1 CHECK (unit_count > 0),
   idempotency_key VARCHAR(64),
   payment_status VARCHAR(16) NOT NULL DEFAULT 'PENDING' CHECK (payment_status IN ('PENDING', 'PAID', 'REJECTED', 'VOID')),
@@ -275,8 +280,8 @@ CREATE TABLE IF NOT EXISTS public.customer_product_balances (
 CREATE INDEX IF NOT EXISTS idx_staff_role_status ON public.staff_accounts (role_code, account_status);
 CREATE INDEX IF NOT EXISTS idx_store_lookup ON public.stores (store_name, province, city, district);
 CREATE INDEX IF NOT EXISTS idx_teacher_name ON public.teachers (teacher_name);
-CREATE INDEX IF NOT EXISTS idx_customer_phone ON public.customers (phone);
 CREATE INDEX IF NOT EXISTS idx_customer_store ON public.customers (created_store_id);
+CREATE INDEX IF NOT EXISTS idx_customer_store_name_birth_active ON public.customers (created_store_id, customer_name, birth_date) WHERE customer_status = 'ACTIVE';
 CREATE INDEX IF NOT EXISTS idx_assignment_store ON public.staff_store_assignments (store_id, assignment_status);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_one_active_store_account_per_store ON public.staff_store_assignments (store_id) WHERE assignment_status = 'ACTIVE';
 CREATE UNIQUE INDEX IF NOT EXISTS uq_one_primary_store_contact ON public.store_contacts (store_id) WHERE is_primary = TRUE AND contact_status = 'ACTIVE';
@@ -421,7 +426,7 @@ DROP POLICY IF EXISTS customer_product_balance_scoped_read ON public.customer_pr
 CREATE POLICY customer_product_balance_scoped_read ON public.customer_product_balances FOR SELECT TO authenticated USING (public.has_store_scope(store_id) OR EXISTS (SELECT 1 FROM public.recharge_records r WHERE r.customer_id = customer_product_balances.customer_id AND r.store_id = customer_product_balances.store_id AND r.product_id = customer_product_balances.product_id AND r.teacher_id = public.current_teacher_id()));
 
 CREATE OR REPLACE VIEW public.v_account_access AS SELECT a.id AS account_id, a.auth_uid, a.phone, a.staff_name, a.account_status, l.subject_type, l.subject_id, r.role_code, ARRAY_AGG(p.permission_code ORDER BY p.permission_code) FILTER (WHERE p.permission_code IS NOT NULL) AS permissions FROM public.staff_accounts a LEFT JOIN public.account_identity_links l ON l.account_id = a.id AND l.link_status = 'ACTIVE' LEFT JOIN public.account_role_assignments r ON r.account_id = a.id AND r.grant_status = 'ACTIVE' LEFT JOIN public.role_permissions p ON p.role_code = r.role_code GROUP BY a.id, a.auth_uid, a.phone, a.staff_name, a.account_status, l.subject_type, l.subject_id, r.role_code;
-CREATE OR REPLACE VIEW public.v_product_store_summary AS WITH x AS (SELECT product_id, store_id FROM public.recharge_records UNION SELECT product_id, store_id FROM public.verification_records) SELECT p.id AS product_id, s.id AS store_id, s.store_code, s.store_name, s.province, s.city, s.district, COUNT(DISTINCT r.id) FILTER (WHERE r.record_status = 'APPROVED') AS recharge_count, COALESCE(SUM(r.amount_cent) FILTER (WHERE r.record_status = 'APPROVED'), 0) AS recharge_amount_cent, COUNT(DISTINCT v.id) FILTER (WHERE v.record_status = 'APPROVED') AS verification_count FROM x JOIN public.products p ON p.id = x.product_id JOIN public.stores s ON s.id = x.store_id LEFT JOIN public.recharge_records r ON r.product_id = x.product_id AND r.store_id = x.store_id LEFT JOIN public.verification_records v ON v.product_id = x.product_id AND v.store_id = x.store_id GROUP BY p.id, s.id, s.store_code, s.store_name, s.province, s.city, s.district;
+CREATE OR REPLACE VIEW public.v_product_store_summary AS WITH x AS (SELECT product_id, store_id FROM public.recharge_records UNION SELECT product_id, store_id FROM public.verification_records) SELECT p.id AS product_id, s.id AS store_id, s.store_code, s.store_name, s.province, s.city, s.district, COUNT(DISTINCT r.id) FILTER (WHERE r.record_status = 'APPROVED') AS recharge_count, COUNT(DISTINCT v.id) FILTER (WHERE v.record_status = 'APPROVED') AS verification_count FROM x JOIN public.products p ON p.id = x.product_id JOIN public.stores s ON s.id = x.store_id LEFT JOIN public.recharge_records r ON r.product_id = x.product_id AND r.store_id = x.store_id LEFT JOIN public.verification_records v ON v.product_id = x.product_id AND v.store_id = x.store_id GROUP BY p.id, s.id, s.store_code, s.store_name, s.province, s.city, s.district;
 CREATE OR REPLACE VIEW public.v_product_teacher_summary AS SELECT p.id AS product_id, t.id AS teacher_id, t.teacher_code, t.teacher_name, COUNT(v.id) FILTER (WHERE v.record_status = 'APPROVED') AS verification_count FROM public.products p JOIN public.verification_records v ON v.product_id = p.id JOIN public.teachers t ON t.id = v.teacher_id GROUP BY p.id, t.id, t.teacher_code, t.teacher_name;
 CREATE OR REPLACE VIEW public.v_store_global_view AS SELECT s.id AS store_id, s.store_code, s.store_name, s.store_status, s.province, s.city, s.district, s.address_detail, COUNT(DISTINCT c.id) FILTER (WHERE c.customer_status = 'ACTIVE') AS active_customer_count, COUNT(DISTINCT r.id) FILTER (WHERE r.record_status = 'APPROVED') AS approved_recharge_count, COUNT(DISTINCT v.id) FILTER (WHERE v.record_status = 'APPROVED') AS approved_verification_count FROM public.stores s LEFT JOIN public.customers c ON c.created_store_id = s.id LEFT JOIN public.recharge_records r ON r.store_id = s.id LEFT JOIN public.verification_records v ON v.store_id = s.id GROUP BY s.id, s.store_code, s.store_name, s.store_status, s.province, s.city, s.district, s.address_detail;
 CREATE OR REPLACE VIEW public.v_teacher_global_view AS SELECT t.id AS teacher_id, t.teacher_code, t.teacher_name, t.teacher_status, t.staff_account_id, COUNT(DISTINCT r.id) FILTER (WHERE r.record_status = 'APPROVED') AS approved_recharge_count, COUNT(DISTINCT v.id) FILTER (WHERE v.record_status = 'APPROVED') AS approved_verification_count FROM public.teachers t LEFT JOIN public.recharge_records r ON r.teacher_id = t.id LEFT JOIN public.verification_records v ON v.teacher_id = t.id GROUP BY t.id, t.teacher_code, t.teacher_name, t.teacher_status, t.staff_account_id;

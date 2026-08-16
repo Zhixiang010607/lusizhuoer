@@ -319,7 +319,6 @@ SELECT
   s.city,
   s.district,
   COUNT(DISTINCT r.id) FILTER (WHERE r.payment_status = 'PAID') AS recharge_count,
-  COALESCE(SUM(r.amount_cent) FILTER (WHERE r.payment_status = 'PAID'), 0) AS recharge_amount_cent,
   COUNT(DISTINCT v.id) FILTER (WHERE v.verification_status = 'SUCCESS') AS verification_count,
   MAX(GREATEST(COALESCE(r.updated_at, r.created_at), COALESCE(v.updated_at, v.created_at))) AS latest_activity_at
 FROM product_store_activity a

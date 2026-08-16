@@ -1,16 +1,32 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>客户详情</title><link rel="stylesheet" href="styles.css"></head>
-<body data-detail="customer">
-  <aside class="side-project-bar" aria-label="项目栏"><div class="side-brand"><span>HQ</span><div><strong>总部工作台</strong><small>项目栏</small></div></div><p class="side-section-title">数据看板</p><nav class="side-nav"><a href="index.html"><span class="nav-icon">全</span><span>全局视图</span></a><a href="local.html"><span class="nav-icon">局</span><span>局部分析</span></a></nav><details class="side-menu-group" open><summary><span class="nav-icon">管</span><span>管理</span></summary><nav><a class="active" href="store-management.html">门店管理</a><a href="project-management.html">项目管理</a><a href="teacher-management.html">老师管理</a></nav></details><details class="side-menu-group"><summary><span class="nav-icon">查</span><span>查询</span></summary><nav><a href="customer-query.html">客户查询</a><a href="recharge-query.html">充值查询</a><a href="verification-query.html">核销查询</a></nav></details><details class="side-menu-group" data-menu="review"><summary><span class="nav-icon">审</span><span>审核</span></summary><nav><a href="recharge-review.html">充值审核</a><a href="verification-review.html">核销审核</a></nav></details><div class="side-footer">静态原型 v0.14.19</div></aside>
-  <header class="topbar"><div><p class="eyebrow">CUSTOMER PROFILE</p><h1>客户详情</h1><p class="subtitle">客户档案、项目权益和完整业务记录</p></div><div class="header-actions"><a class="back-link" href="store-management.html">← 返回门店管理</a><div class="status"><span></span>正常</div></div></header>
-  <main class="detail-page">
-    <section id="profileHero" class="panel profile-hero"></section>
-    <nav class="detail-anchor-nav" aria-label="详情分区"><a href="#basicInfo">基础资料</a><a href="#projectRights">项目权益</a><a href="#rechargeRecords">充值记录</a><a href="#verificationRecords">核销记录</a><a href="#photos">照片与审计</a></nav>
-    <section id="basicInfo" class="panel detail-section"><div class="panel-heading"><div><h2>基础资料</h2><p>客户身份、归属和联系资料摘要</p></div><span class="badge">客户档案</span></div><div id="basicInfoGrid" class="detail-info-grid"></div></section>
-    <section id="projectRights" class="panel detail-section table-card"><div class="panel-heading"><div><h2>项目权益</h2><p>各项目累计购买、有效核销和当前剩余次数</p></div></div><div class="table-scroll"><table><thead><tr><th>项目编号</th><th>项目名称</th><th>总购买次数</th><th>有效核销</th><th>剩余次数</th><th>最近充值</th><th>最近核销</th><th>状态</th></tr></thead><tbody id="projectRightsBody"></tbody></table></div></section>
-    <section id="rechargeRecords" class="panel detail-section table-card"><div class="panel-heading"><div><h2>充值记录</h2><p>包含正常及历史版本记录</p></div></div><div class="table-scroll"><table><thead><tr><th>记录编号</th><th>提交时间</th><th>项目</th><th>次数</th><th>门店</th><th>状态</th><th>审核进度</th></tr></thead><tbody id="rechargeBody"></tbody></table></div></section>
-    <section id="verificationRecords" class="panel detail-section table-card"><div class="panel-heading"><div><h2>核销记录</h2><p>每次核销均包含门店、老师、照片和设备指令结果</p></div></div><div class="table-scroll"><table><thead><tr><th>记录编号</th><th>提交时间</th><th>门店</th><th>项目</th><th>老师</th><th>次数</th><th>照片</th><th>状态</th><th>审核进度</th></tr></thead><tbody id="verificationBody"></tbody></table></div></section>
-    <section id="photos" class="detail-bottom-grid"><article class="panel detail-section"><div class="panel-heading"><div><h2>照片与人脸权限</h2><p>敏感信息仅对获授权角色开放</p></div></div><div class="privacy-placeholder"><strong>照片受权限保护</strong><span>创建客户照片、核销现场照片及人脸比对结果将在完成权限校验后显示。静态原型不保存真实影像和人脸特征。</span></div></article><article class="panel detail-section"><div class="panel-heading"><div><h2>档案审计</h2><p>关键创建与修改信息</p></div></div><div id="auditTimeline" class="audit-timeline"></div></article></section>
-  </main><script src="detail.js"></script>
-<script src="auth-ui.js"></script></body></html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>客户主页</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-customer-profile>
+  <aside class="side-project-bar" aria-label="项目栏"><div class="side-brand"><span>HQ</span><div><strong>总部工作台</strong><small>项目栏</small></div></div><p class="side-section-title">数据看板</p><nav class="side-nav"><a href="index.html"><span class="nav-icon">全</span><span>全局视图</span></a><a href="local.html"><span class="nav-icon">局</span><span>局部分析</span></a></nav><details class="side-menu-group"><summary><span class="nav-icon">管</span><span>管理</span></summary><nav><a href="store-management.html">门店管理</a><a href="project-management.html">项目管理</a><a href="teacher-management.html">老师管理</a></nav></details><details class="side-menu-group" open><summary><span class="nav-icon">查</span><span>查询</span></summary><nav><a class="active" href="customer-query.html">客户查询</a><a href="recharge-query.html">充值查询</a><a href="verification-query.html">核销查询</a></nav></details><details class="side-menu-group" data-menu="review"><summary><span class="nav-icon">审</span><span>审核</span></summary><nav><a href="recharge-review.html">充值审核</a><a href="verification-review.html">核销审核</a></nav></details><div class="side-footer">静态原型</div></aside>
+
+  <header class="topbar"><div><p class="eyebrow">CUSTOMER PROFILE</p><h1>客户主页</h1><p class="subtitle">客户资料、项目次数与业务记录</p></div><a class="back-link" href="customer-query.html">← 返回客户查询</a></header>
+
+  <main class="customer-profile-main">
+    <section class="customer-profile-grid">
+      <article class="panel customer-basic-panel"><div class="panel-heading"><div><h2>客户资料</h2></div><span class="badge">客户</span></div><div id="customerBasicInfo" class="detail-info-grid customer-basic-info"></div><div class="customer-basic-recent"><span>最近业务时间</span><div id="customerRecentInfo" class="customer-recent-info"></div></div></article>
+      <article class="panel customer-photo-panel"><div class="panel-heading"><div><h2>客户照片</h2></div></div><figure id="customerProfilePhoto" class="customer-photo-frame"></figure></article>
+    </section>
+
+    <section class="panel customer-notes-panel"><div class="panel-heading"><div><h2>备注区</h2><p>没有备注时保持空白。</p></div></div><textarea id="customerNotes" rows="1" readonly aria-label="客户备注"></textarea></section>
+
+    <section class="panel customer-project-panel"><div class="panel-heading"><div><h2>项目次数汇总</h2><p>按每个已充值项目汇总总充值次数、核销次数和剩余次数。</p></div></div><div class="table-scroll customer-record-scroll"><table><thead><tr><th>项目</th><th>总充值次数</th><th>核销次数</th><th>剩余次数</th></tr></thead><tbody id="customerProjectSummary"></tbody></table></div></section>
+
+    <section class="customer-records-grid">
+      <article class="panel customer-record-panel"><div class="panel-heading"><div><h2>充值记录</h2><p>可在本区域上下滑动查看。</p></div></div><div class="table-scroll customer-record-scroll"><table><thead><tr><th>充值单号</th><th>项目</th><th>充值次数</th><th>提交时间</th><th>审核结果</th></tr></thead><tbody id="customerRechargeRecords"></tbody></table></div></article>
+      <article class="panel customer-record-panel"><div class="panel-heading"><div><h2>核销记录</h2><p>可在本区域上下滑动查看。</p></div></div><div class="table-scroll customer-record-scroll"><table><thead><tr><th>核销单号</th><th>项目</th><th>核销类型</th><th>提交时间</th><th>审核结果</th></tr></thead><tbody id="customerVerificationRecords"></tbody></table></div></article>
+    </section>
+  </main>
+  <script src="customer-profile.js"></script>
+  <script src="auth-ui.js"></script>
+</body>
+</html>

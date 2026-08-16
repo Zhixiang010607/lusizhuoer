@@ -12,6 +12,9 @@
   try { created = JSON.parse(sessionStorage.getItem(isVerification ? "prototypeTeacherVerificationRecords" : "prototypeTeacherRechargeRecords") || "[]"); } catch (_) { created = []; }
   const record = created.find((row) => row.id === recordId && row.teacherId === teacherId);
   const recordCustomer = record?.customer || customer, recordProject = record?.project || project, recordTime = record?.time ? String(record.time).replace("T", " ").slice(0, 16) : (isVerification ? `2026-08-${String(number).padStart(2, "0")} 10:00` : `2026-07-${String(17 + number).padStart(2, "0")} 14:30`);
+  const baseStatus = isVerification ? (number === 3 ? "review" : number === 8 ? "void" : "normal") : (number === 5 ? "review" : number === 7 ? "void" : "normal");
+  const reviewStatus = record?.status || baseStatus;
+  const reviewResult = { normal: "已通过", review: "待审核", void: "已作废", pending: "待审核", approved: "已通过", rejected: "已驳回" }[reviewStatus] || "待审核";
   const fields = isVerification ? [["核销编号", recordId], ["客户", recordCustomer], ["项目", recordProject], ["人脸核验", record?.face || "人脸核验通过"], ["核销时间", recordTime], ["负责老师", session.staffName || "当前登录老师"]] : [["充值编号", recordId], ["客户", recordCustomer], ["项目", recordProject], ["充值次数", `${record?.count || 10 + number * 5} 次`], ["提交时间", recordTime], ["负责老师", session.staffName || "当前登录老师"]];
-  document.title = isVerification ? "我的核销详情" : "我的充值详情"; document.querySelector("h1").textContent = isVerification ? "我的核销详情" : "我的充值详情"; $("teacherOrderInfo").innerHTML = fields.map(([key, value]) => `<article><span>${key}</span><strong>${value}</strong></article>`).join(""); $("detailStatus").textContent = "正常";
+  document.title = isVerification ? "我的核销详情" : "我的充值详情"; document.querySelector("h1").textContent = isVerification ? "我的核销详情" : "我的充值详情"; $("teacherOrderInfo").innerHTML = fields.map(([key, value]) => `<article><span>${key}</span><strong>${value}</strong></article>`).join(""); $("detailStatus").textContent = reviewResult; $("teacherReviewResult").textContent = reviewResult; $("teacherReviewMessage").textContent = "";
 })();

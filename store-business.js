@@ -60,9 +60,10 @@
     });
     capture.addEventListener("click", () => {
       if (!cameraStream || !video.videoWidth || !video.videoHeight) { message.textContent = "摄像头画面尚未就绪，请稍后重新拍照"; return; }
-      const canvas = $("faceCaptureCanvas"), maxWidth = 1280, scale = Math.min(1, maxWidth / video.videoWidth);
-      canvas.width = Math.round(video.videoWidth * scale); canvas.height = Math.round(video.videoHeight * scale);
-      canvas.getContext("2d", { alpha: false }).drawImage(video, 0, 0, canvas.width, canvas.height);
+      const canvas = $("faceCaptureCanvas"), cropSize = Math.min(video.videoWidth, video.videoHeight), maxSide = 1280, scale = Math.min(1, maxSide / cropSize);
+      const sourceX = Math.round((video.videoWidth - cropSize) / 2), sourceY = Math.round((video.videoHeight - cropSize) / 2);
+      canvas.width = Math.round(cropSize * scale); canvas.height = canvas.width;
+      canvas.getContext("2d", { alpha: false }).drawImage(video, sourceX, sourceY, cropSize, cropSize, 0, 0, canvas.width, canvas.height);
       capturedPhotoDataUrl = canvas.toDataURL("image/jpeg", 0.9); faceCaptured = true; preview.src = capturedPhotoDataUrl; preview.hidden = false; video.hidden = true; stopFaceCamera(); capture.disabled = true; retake.hidden = false;
       status.className = "capture-status complete"; status.textContent = "照片已拍摄；建立档案时将上传腾讯云并录入人脸库"; message.textContent = "";
     });

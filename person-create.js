@@ -17,14 +17,6 @@
     return `${config.prefix}${String(highest + 1).padStart(3, "0")}`;
   }
 
-  function allIdentityNumbers() {
-    const seededTeachers = Array.from({ length: 32 }, (_, index) => `1101011990${String(index + 1).padStart(8, "0")}`);
-    const seededOperations = Array.from({ length: 8 }, (_, index) => `1101011988${String(index + 1).padStart(8, "0")}`);
-    return new Set([...seededTeachers, ...seededOperations, ...stored("prototypeCreatedTeachers"), ...stored("prototypeCreatedOperations")]
-      .map((person) => typeof person === "string" ? person : String(person.identityNumber || "").trim().toUpperCase())
-      .filter(Boolean));
-  }
-
   function displayNameFor(name) {
     const existing = [...config.baseNames, ...stored(config.key).map((person) => person.originalName || person.name)];
     const count = existing.filter((item) => item === name).length;
@@ -46,19 +38,9 @@
   async function submitPerson(event) {
     event.preventDefault();
     const name = $("personCreateName").value.trim();
-    const identityInput = $("personIdentityNumber");
-    const identityNumber = identityInput ? identityInput.value.trim().toUpperCase() : "";
     const phone = $("personPhone").value.trim();
     const message = $("personCreateMessage");
     const submitButton = event.currentTarget.querySelector('button[type="submit"]');
-
-    if (identityNumber && allIdentityNumbers().has(identityNumber)) {
-      identityInput.setCustomValidity("身份证号码不可重复");
-      identityInput.reportValidity();
-      message.textContent = "身份证号码已存在";
-      return;
-    }
-    if (identityInput) identityInput.setCustomValidity("");
 
     const initialPassword = strongInitialPassword();
     submitButton.disabled = true;
@@ -83,7 +65,7 @@
     const id = nextId();
     const displayName = displayNameFor(name);
     people.push({
-      id, name: displayName, originalName: name, displayName, identityNumber, phone,
+      id, name: displayName, originalName: name, displayName, phone,
       account: `staff_${phone}`, authUid: provisioned.uid, password: initialPassword, status: "活跃",
       createdAt: new Date().toISOString(),
       createdBy: { account: session?.account || "HQ001", name: session?.name || "总部管理员" }
@@ -94,10 +76,6 @@
     submitButton.disabled = false;
   }
 
-  $("personIdentityNumber")?.addEventListener("input", () => {
-    $("personIdentityNumber").setCustomValidity("");
-    $("personCreateMessage").textContent = "";
-  });
   $("generatedPersonCode").textContent = `编号 ${nextId()}（自动生成）`;
   $("personCreateForm").addEventListener("submit", submitPerson);
 })();

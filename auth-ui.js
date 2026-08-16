@@ -4,7 +4,7 @@
   const homes = { hq: "index.html", operation: "local.html", store: "store-detail.html", teacher: "teacher-work-orders.html" };
   const labels = { hq: "总部工作区", operation: "运营工作区", store: "门店工作区", teacher: "老师工作区" };
   const access = {
-    hq: new Set(["index.html", "store-create.html", "project-create.html", "teacher-create.html", "operation-account-create.html", "hq-account-create.html", "hq-management.html", "store-management.html", "project-management.html", "teacher-management.html", "operation-account-management.html", "staff-detail.html", "store-detail.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "verification-review.html"]),
+    hq: new Set(["index.html", "store-create.html", "project-create.html", "teacher-create.html", "operation-account-create.html", "hq-account-create.html", "hq-management.html", "store-management.html", "project-management.html", "teacher-management.html", "operation-account-management.html", "staff-detail.html", "store-detail.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "verification-review.html", "recharge-demo.html", "verification-demo.html", "store-work-order-demo.html", "store-verification-work-order-demo.html", "customer-profile-demo.html"]),
     operation: new Set(["local.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "verification-review.html"]),
     store: new Set(["store-detail.html", "customer-detail.html", "customer-query.html", "customer-create.html", "recharge-create.html", "verification-create.html", "verification-supplemental.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html"]),
     teacher: new Set(["teacher-work-orders.html", "teacher-work-order-detail.html", "teacher-verification-create.html", "teacher-recharge-create.html"])
@@ -63,6 +63,14 @@
       reviewMenu = document.querySelector('[data-menu="review"]');
     }
     if (reviewMenu) { reviewMenu.hidden = false; reviewMenu.open = true; }
+    if (session.role === "hq") {
+      let demoMenu = document.querySelector('[data-menu="demo"]');
+      if (!demoMenu) {
+        reviewMenu?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="demo"><summary><span class="nav-icon">单</span><span>工单</span></summary><nav><a class="${page === "recharge-demo.html" ? "active" : ""}" href="recharge-demo.html">充值工单</a><a class="${page === "verification-demo.html" ? "active" : ""}" href="verification-demo.html">核销工单</a><a class="${page === "store-work-order-demo.html" ? "active" : ""}" href="store-work-order-demo.html">门店充值工单</a><a class="${page === "store-verification-work-order-demo.html" ? "active" : ""}" href="store-verification-work-order-demo.html">门店核销工单</a><a class="${page === "customer-profile-demo.html" ? "active" : ""}" href="customer-profile-demo.html">客户主页</a></nav></details>`);
+        demoMenu = document.querySelector('[data-menu="demo"]');
+      }
+      if (demoMenu) { demoMenu.hidden = false; demoMenu.open = true; }
+    }
   }
 
   document.querySelectorAll("a[href]").forEach((link) => {

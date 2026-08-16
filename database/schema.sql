@@ -68,7 +68,6 @@ CREATE TABLE IF NOT EXISTS public.products (
   product_code VARCHAR(32) NOT NULL UNIQUE,
   product_name VARCHAR(100) NOT NULL,
   product_type VARCHAR(32) NOT NULL,
-  price_cent INTEGER NOT NULL CHECK (price_cent >= 0),
   product_status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' CHECK (product_status IN ('ACTIVE', 'ARCHIVED')),
   description TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -81,18 +80,25 @@ CREATE TABLE IF NOT EXISTS public.customers (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   customer_code VARCHAR(32) NOT NULL UNIQUE,
   customer_name VARCHAR(64) NOT NULL,
-  phone CHAR(11),
+  birth_date DATE,
+  notes TEXT NOT NULL DEFAULT '',
+  profile_photo_file_id VARCHAR(512),
+  photo_captured_at TIMESTAMPTZ,
   -- Tencent Cloud face-library PersonId. Do not store face images or biometric feature vectors.
   face_person_id VARCHAR(128) UNIQUE,
   face_consent_at TIMESTAMPTZ,
   customer_status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' CHECK (customer_status IN ('ACTIVE', 'ARCHIVED')),
+  customer_process_status VARCHAR(32) NOT NULL DEFAULT 'INFORMATION_ONLY' CHECK (customer_process_status IN ('INFORMATION_ONLY', 'RECHARGED_NO_CONSUMPTION', 'RECHARGED_WITH_CONSUMPTION')),
+  total_recharge_count INTEGER NOT NULL DEFAULT 0 CHECK (total_recharge_count >= 0),
+  total_verification_count INTEGER NOT NULL DEFAULT 0 CHECK (total_verification_count >= 0),
+  total_experience_count INTEGER NOT NULL DEFAULT 0 CHECK (total_experience_count >= 0),
   created_store_id BIGINT NOT NULL REFERENCES public.stores(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_customer_phone ON public.customers (phone);
 CREATE INDEX IF NOT EXISTS idx_customer_store ON public.customers (created_store_id);
+CREATE INDEX IF NOT EXISTS idx_customer_store_name_birth_active ON public.customers (created_store_id, customer_name, birth_date) WHERE customer_status = 'ACTIVE';
 
 CREATE TABLE IF NOT EXISTS public.recharge_records (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -102,7 +108,6 @@ CREATE TABLE IF NOT EXISTS public.recharge_records (
   -- This relationship may be optional by business configuration, but the column is retained for teacher traceability.
   teacher_id BIGINT REFERENCES public.teachers(id),
   product_id BIGINT NOT NULL REFERENCES public.products(id),
-  amount_cent INTEGER NOT NULL CHECK (amount_cent >= 0),
   payment_status VARCHAR(16) NOT NULL DEFAULT 'PENDING' CHECK (payment_status IN ('PENDING', 'PAID', 'REJECTED', 'VOID')),
   created_by BIGINT NOT NULL REFERENCES public.staff_accounts(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
