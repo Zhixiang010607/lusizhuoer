@@ -81,7 +81,10 @@
         stage: payload?.stage || result?.stage,
         requestId: payload?.requestId || result?.requestId,
         storeId: payload?.storeId || result?.storeId,
-        storeCode: payload?.storeCode || result?.storeCode
+        storeCode: payload?.storeCode || result?.storeCode,
+        storeRolledBack: payload?.storeRolledBack || result?.storeRolledBack,
+        causeCode: payload?.causeCode || result?.causeCode,
+        causeMessage: payload?.causeMessage || result?.causeMessage
       });
       throw error;
     }

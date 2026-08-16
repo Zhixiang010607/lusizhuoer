@@ -142,6 +142,7 @@
         location.href = `store-management.html?created=${encodeURIComponent(String(storeId))}`;
       }, 350);
     } catch (error) {
+      if (error?.storeRolledBack) clearPendingStore(payload.contactPhone);
       rememberPendingStore(payload.contactPhone, error);
       const retryHint = error?.storeId ? "门店资料已保留；请使用同一资料再次提交以恢复账号绑定。" : "";
       message.textContent = `${error?.message || "门店与登录账号创建失败"}${retryHint}`;

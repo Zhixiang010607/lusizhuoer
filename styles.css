@@ -546,6 +546,11 @@ body[data-store-business="customer"] .customer-create-capture::before { display:
 .customer-capture-meta { grid-column: 2; grid-row: 1; align-self: end; }
 .customer-capture-meta h3 { margin: 0 0 5px; font-size: 15px; }
 .customer-capture-meta p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.capture-check-results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 10px; }
+.capture-check-results > div { min-width: 0; padding: 8px 9px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.capture-check-results span, .capture-check-results strong { display: block; overflow-wrap: anywhere; }
+.capture-check-results span { color: var(--muted); font-size: 10px; }
+.capture-check-results strong { margin-top: 3px; color: var(--ink); font-size: 11px; line-height: 1.35; }
 body[data-store-business="customer"] .customer-create-capture .capture-status { grid-column: 2; grid-row: 2; text-align: center; }
 .customer-create-capture .camera-actions { grid-column: 2; grid-row: 3; display: grid; gap: 7px; }
 .customer-create-capture .camera-actions button { width: 100%; }
@@ -577,6 +582,15 @@ textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px #1f5eff18; out
 .workflow-capture-panel > button,
 .workflow-capture-panel .workflow-capture-submit,
 .workflow-capture-panel .workflow-capture-submit button { min-width: 0; max-width: none; inline-size: 100%; }
+.live-verification-panel::before { display: none; }
+.live-verification-panel > .verification-camera-stage { grid-column: 1; grid-row: 1 / 6; position: relative; display: grid; width: min(100%, 100cqh); max-height: 100%; aspect-ratio: 1 / 1; align-self: center; justify-self: center; overflow: hidden; border: 1px dashed #9fb4cc; border-radius: 10px; background: #101a2b; }
+.verification-camera-stage video, .verification-camera-stage img { width: 100%; height: 100%; object-fit: cover; }
+.verification-camera-stage video { transform: scaleX(-1); }
+.live-verification-panel > .verification-capture-meta { grid-column: 2; grid-row: 1; align-self: end; }
+.live-verification-panel > .capture-status-stack { grid-column: 2; grid-row: 2; }
+.live-verification-panel > .verification-camera-actions { grid-column: 2; grid-row: 3; display: grid; gap: 7px; width: 100%; }
+.live-verification-panel > .verification-camera-actions button { width: 100%; }
+.live-verification-panel > .workflow-capture-submit { grid-column: 2; grid-row: 4; }
 .consent-row { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 12px; }
 .consent-row input { width: 17px; height: 17px; margin: 0; }
 .form-submit-row { display: flex; align-items: center; justify-content: flex-end; gap: 16px; margin-top: auto; padding-top: 18px; border-top: 1px solid var(--line); }
@@ -892,6 +906,11 @@ textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px #1f5eff18; out
   .workflow-action-panel .workflow-capture-panel .capture-status-stack { grid-column: 1; grid-row: 3; min-height: 34px; }
   .workflow-action-panel .workflow-capture-panel > button { grid-column: 1; grid-row: 4; }
   .workflow-action-panel .workflow-capture-panel .workflow-capture-submit { grid-column: 1; grid-row: 5; }
+  .workflow-action-panel .live-verification-panel > .verification-camera-stage { grid-column: 1; grid-row: 1; width: min(100%, 420px); max-height: none; }
+  .workflow-action-panel .live-verification-panel > .verification-capture-meta { grid-column: 1; grid-row: 2; }
+  .workflow-action-panel .live-verification-panel > .capture-status-stack { grid-column: 1; grid-row: 3; }
+  .workflow-action-panel .live-verification-panel > .verification-camera-actions { grid-column: 1; grid-row: 4; }
+  .workflow-action-panel .live-verification-panel > .workflow-capture-submit { grid-column: 1; grid-row: 5; }
   .customer-create-layout { grid-template-columns: 1fr; }
   body[data-store-business="customer"] .customer-create-capture { min-height: 520px; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(180px, 1fr) auto auto auto auto; }
   .customer-camera-stage { grid-column: 1; grid-row: 1; width: min(100%, 420px); aspect-ratio: 1 / 1; min-height: 0; justify-self: center; }

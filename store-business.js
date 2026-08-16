@@ -1,9 +1,9 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.19", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.22", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
-  const storeId = session?.store || "", storeNo = Number(storeId.replace(/\D/g, "")) || 1;
+  const storeId = String(session?.store || ""), storeNo = Number(storeId.replace(/\D/g, "")) || 1;
   const storeName = `${["悉尼", "墨尔本", "布里斯班", "珀斯"][(storeNo - 1) % 4]}门店 ${storeNo}`;
   const projects = ["普拉提", "体态评估", "康复训练", "瑜伽", "力量训练", "产后恢复"].map((name, i) => ({ id: `P${String(i + 1).padStart(3, "0")}`, name }));
   const teachers = Array.from({ length: 8 }, (_, i) => ({ id: `T${String((storeNo * 3 + i) % 72 + 1).padStart(3, "0")}`, name: `业务老师 ${String((storeNo * 3 + i) % 72 + 1).padStart(2, "0")}` }));
@@ -26,46 +26,117 @@
   function stopFaceCamera() {
     if (cameraStream) cameraStream.getTracks().forEach((track) => track.stop());
     cameraStream = null;
-    const video = $("faceCamera");
-    if (video) video.srcObject = null;
+    [$("faceCamera"), $("verificationCamera")].filter(Boolean).forEach((video) => { video.srcObject = null; });
+  }
+  function syncCustomerCreateSubmit() {
+    const submit = document.querySelector('#customerCreateForm [type="submit"]');
+    const consent = $("faceConsent");
+    if (submit) submit.disabled = !(faceCaptured && capturedPhotoDataUrl && consent?.checked);
   }
   function resetCapturedPhoto() {
     capturedPhotoDataUrl = ""; faceCaptured = false;
     const preview = $("facePhotoPreview"), placeholder = $("faceCameraPlaceholder");
+    const canvas = $("faceCaptureCanvas");
+    if (canvas) { canvas.width = 0; canvas.height = 0; }
     preview.hidden = true; preview.removeAttribute("src"); placeholder.hidden = false;
-    $("retakeFace").hidden = true; $("faceCaptureStatus").className = "capture-status pending"; $("faceCaptureStatus").textContent = "尚未拍摄";
+    $("openFaceCamera").hidden = false; $("openFaceCamera").disabled = false;
+    $("captureFace").disabled = true; $("retakeFace").hidden = true;
+    $("faceCaptureStatus").className = "capture-status pending"; $("faceCaptureStatus").textContent = "尚未拍摄";
+    if ($("faceQualityResult")) $("faceQualityResult").textContent = "待检测";
+    if ($("faceLivenessResult")) $("faceLivenessResult").textContent = "待检测";
+    syncCustomerCreateSubmit();
   }
-  function cloudFunctionData(result) { return result?.result || result?.data?.result || result?.data || {}; }
+  function parsedObject(value) {
+    if (value && typeof value === "object") return value;
+    if (typeof value !== "string") return null;
+    try { const parsed = JSON.parse(value); return parsed && typeof parsed === "object" ? parsed : null; } catch (_) { return null; }
+  }
+  function cloudFunctionData(result) {
+    return [result?.result, result?.data?.result, result?.data, result].map(parsedObject).find((candidate) => candidate && (
+      Object.prototype.hasOwnProperty.call(candidate, "ok") ||
+      Object.prototype.hasOwnProperty.call(candidate, "message") ||
+      Object.prototype.hasOwnProperty.call(candidate, "code")
+    )) || {};
+  }
+  function registerCloudBaseComponent(register, componentName) {
+    if (typeof register !== "function") return;
+    try { register(window.cloudbase); }
+    catch (error) {
+      const detail = String(error?.message || error || "").toLowerCase();
+      if (!(detail.includes("duplicate component") && detail.includes(componentName))) throw error;
+    }
+  }
   async function callCustomerEnrollment(payload) {
     if (!window.cloudbase || !window.CloudBaseAuthConfig || !window.registerFunctions) throw new Error("CloudBase 客户建档组件未加载，请刷新后重试");
-    window.registerAuth?.(window.cloudbase); window.registerFunctions(window.cloudbase);
+    registerCloudBaseComponent(window.registerAuth, "auth");
+    registerCloudBaseComponent(window.registerFunctions, "functions");
     const app = window.cloudbase.init(window.CloudBaseAuthConfig);
-    const result = await app.callFunction({ name: "faceRecognition", data: payload });
+    let result;
+    try {
+      result = await app.callFunction({ name: "faceRecognition", data: payload });
+    } catch (error) {
+      const diagnostic = [error?.code, error?.requestId || error?.RequestId].filter(Boolean).join(" · ");
+      throw new Error(`${error?.message || "腾讯云函数调用失败"}${diagnostic ? `（${diagnostic}）` : ""}`);
+    }
     const data = cloudFunctionData(result);
-    if (!data?.ok) throw new Error(data?.message || "腾讯云客户建档失败");
+    if (!data?.ok) {
+      const diagnostic = [data?.code, data?.requestId].filter(Boolean).join(" · ");
+      const error = new Error(`${data?.message || "腾讯云客户建档失败：云函数没有返回业务结果"}${diagnostic ? `（${diagnostic}）` : ""}`);
+      error.code = data?.code || "EMPTY_FUNCTION_RESULT";
+      error.requestId = data?.requestId || "";
+      throw error;
+    }
     return data;
   }
   function setupCustomerCreate() {
     const video = $("faceCamera"), preview = $("facePhotoPreview"), placeholder = $("faceCameraPlaceholder"), status = $("faceCaptureStatus"), message = $("customerCreateMessage"), capture = $("captureFace"), openCamera = $("openFaceCamera"), retake = $("retakeFace");
+    $("faceConsent").addEventListener("change", syncCustomerCreateSubmit);
+    syncCustomerCreateSubmit();
     openCamera.addEventListener("click", async () => {
       try {
         stopFaceCamera(); resetCapturedPhoto();
+        openCamera.hidden = true;
         if (!navigator.mediaDevices?.getUserMedia) throw new Error("当前浏览器不支持摄像头访问，请使用最新版 Chrome 或 Edge");
-        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 960 }, height: { ideal: 1280 } }, audio: false });
         video.srcObject = cameraStream; video.hidden = false; placeholder.hidden = true; await video.play(); capture.disabled = false;
         status.className = "capture-status pending"; status.textContent = "摄像头已打开，请确认客户正对镜头后拍照";
       } catch (error) {
-        stopFaceCamera(); capture.disabled = true; status.className = "capture-status pending"; status.textContent = "无法打开摄像头"; message.textContent = error?.message || "请检查浏览器摄像头权限";
+        stopFaceCamera(); openCamera.hidden = false; capture.disabled = true; status.className = "capture-status pending"; status.textContent = "无法打开摄像头"; message.textContent = error?.message || "请检查浏览器摄像头权限";
       }
     });
-    capture.addEventListener("click", () => {
+    capture.addEventListener("click", async () => {
       if (!cameraStream || !video.videoWidth || !video.videoHeight) { message.textContent = "摄像头画面尚未就绪，请稍后重新拍照"; return; }
-      const canvas = $("faceCaptureCanvas"), cropSize = Math.min(video.videoWidth, video.videoHeight), maxSide = 1280, scale = Math.min(1, maxSide / cropSize);
-      const sourceX = Math.round((video.videoWidth - cropSize) / 2), sourceY = Math.round((video.videoHeight - cropSize) / 2);
-      canvas.width = Math.round(cropSize * scale); canvas.height = canvas.width;
-      canvas.getContext("2d", { alpha: false }).drawImage(video, sourceX, sourceY, cropSize, cropSize, 0, 0, canvas.width, canvas.height);
-      capturedPhotoDataUrl = canvas.toDataURL("image/jpeg", 0.9); faceCaptured = true; preview.src = capturedPhotoDataUrl; preview.hidden = false; video.hidden = true; stopFaceCamera(); capture.disabled = true; retake.hidden = false;
-      status.className = "capture-status complete"; status.textContent = "照片已拍摄；建立档案时将上传腾讯云并录入人脸库"; message.textContent = "";
+      const canvas = $("faceCaptureCanvas"), targetRatio = 3 / 4;
+      let sourceWidth = video.videoWidth, sourceHeight = video.videoHeight;
+      if (sourceWidth / sourceHeight > targetRatio) sourceWidth = sourceHeight * targetRatio;
+      else sourceHeight = sourceWidth / targetRatio;
+      const sourceX = Math.round((video.videoWidth - sourceWidth) / 2), sourceY = Math.round((video.videoHeight - sourceHeight) / 2);
+      const outputHeight = Math.round(Math.min(sourceHeight, 1280));
+      canvas.height = outputHeight; canvas.width = Math.round(outputHeight * targetRatio);
+      canvas.getContext("2d", { alpha: false }).drawImage(video, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
+      capturedPhotoDataUrl = canvas.toDataURL("image/jpeg", 0.88); faceCaptured = false; preview.src = capturedPhotoDataUrl; preview.hidden = false; video.hidden = true; stopFaceCamera(); openCamera.hidden = true; capture.disabled = true; retake.hidden = false;
+      status.className = "capture-status pending"; status.textContent = "正在检查人脸、清晰度、遮挡和拍摄角度…"; message.textContent = ""; syncCustomerCreateSubmit();
+      if ($("faceQualityResult")) $("faceQualityResult").textContent = "检测中…";
+      if ($("faceLivenessResult")) $("faceLivenessResult").textContent = "等待质量检测";
+      try {
+        const validation = await callCustomerEnrollment({ action: "validateCapture", imageBase64: capturedPhotoDataUrl });
+        faceCaptured = true;
+        const score = Number(validation?.quality?.qualityScore);
+        const qualityThreshold = validation?.quality?.qualityThreshold;
+        const live = validation?.liveness || {};
+        if ($("faceQualityResult")) $("faceQualityResult").textContent = Number.isFinite(score) ? `通过 · ${score} 分${qualityThreshold != null ? `（要求 ${qualityThreshold}）` : ""}` : "通过";
+        if ($("faceLivenessResult")) $("faceLivenessResult").textContent = live.checked ? `通过 · ${live.score} 分${live.threshold != null ? `（要求 ${live.threshold}）` : ""}` : "未启用";
+        status.className = "capture-status complete"; status.textContent = `${live.checked ? "照片质量与活体检测" : "照片质量检查"}通过；可以建立客户档案`;
+      } catch (error) {
+        faceCaptured = false;
+        const livenessFailed = error?.code === "LIVENESS_FAILED";
+        const captureRejected = ["FACE_NOT_FOUND", "MULTIPLE_FACES", "FACE_TOO_SMALL", "FACE_QUALITY_LOW", "FACE_MASKED", "EYES_CLOSED", "FACE_POSE_INVALID"].includes(error?.code);
+        status.className = "capture-status pending"; status.textContent = livenessFailed ? "活体检测未通过，请重新拍照" : captureRejected ? "照片质量未通过，请重新拍照" : "检测服务调用失败，请查看下方错误";
+        if ($("faceQualityResult")) $("faceQualityResult").textContent = livenessFailed ? "通过" : captureRejected ? "未通过" : "检测失败";
+        if ($("faceLivenessResult")) $("faceLivenessResult").textContent = livenessFailed ? "未通过" : captureRejected ? "未执行" : "检测失败";
+        message.textContent = error?.message || "照片不符合建档要求，请重新拍摄";
+      }
+      syncCustomerCreateSubmit();
     });
     retake.addEventListener("click", () => { resetCapturedPhoto(); openCamera.click(); });
     window.addEventListener("pagehide", stopFaceCamera, { once: true });
@@ -79,12 +150,12 @@
       try {
         const data = await callCustomerEnrollment({ action: "registerCustomer", customerName: name, birthDate: birthday, notes, consent: true, imageBase64: capturedPhotoDataUrl });
         const customer = data.customer;
-        created.push({ id: customer.customerCode, name, birthday, notes, storeId, faceStatus: "已录入", profilePhotoId: customer.photoFileId, profilePhotoStatus: "已保存", facePersonId: customer.facePersonId, createdBy: session.account }); saveList("prototypeCreatedCustomers", created);
+        created.push({ id: customer.customerCode, name, birthday, notes, storeId: customer.storeId || storeId, customerStatus: customer.customerStatus, customerProcessStatus: customer.customerProcessStatus, totalRechargeCount: customer.totalRechargeCount || 0, totalVerificationCount: customer.totalVerificationCount || 0, totalExperienceCount: customer.totalExperienceCount || 0, faceStatus: "已录入", profilePhotoId: customer.photoFileId, profilePhotoStatus: "已保存", facePersonId: customer.facePersonId, createdBy: session.account }); saveList("prototypeCreatedCustomers", created);
         message.textContent = `客户 ${name}（${customer.customerCode}）已建立；照片已留存腾讯云并已录入人脸库。`;
         event.target.reset(); resetCapturedPhoto();
       } catch (error) {
         message.textContent = error?.message || "客户建档失败；照片和人脸资料不会保留为半成品，请重试";
-      } finally { submit.disabled = false; }
+      } finally { syncCustomerCreateSubmit(); }
     });
   }
   function setupLookup() {
@@ -116,7 +187,14 @@
     $("confirmCustomerSelection").addEventListener("click", () => { if (candidateCustomer) confirmCustomer(candidateCustomer.id); });
   }
   function showLookupError(message) { $("serviceCustomerResults").innerHTML = `<div class="lookup-placeholder error"><strong>未能确认客户</strong><span>${message}</span></div>`; }
-  function resetCandidate() { candidateCustomer = null; selectedCustomer = null; $("confirmCustomerSelection").disabled = true; $("serviceCustomerResults").innerHTML = `<div class="lookup-placeholder"><strong>等待查询客户</strong><span>查询成功后，此处显示客户建档照片、姓名、生日和客户编号。</span></div>`; disableBusinessStep(); }
+  function resetCandidate() {
+    candidateCustomer = null;
+    selectedCustomer = null;
+    if (["verification", "verification-supplemental"].includes(page)) resetVerificationCapture();
+    $("confirmCustomerSelection").disabled = true;
+    $("serviceCustomerResults").innerHTML = `<div class="lookup-placeholder"><strong>等待查询客户</strong><span>查询成功后，此处显示客户建档照片、姓名、生日和客户编号。</span></div>`;
+    disableBusinessStep();
+  }
   function renderCustomerCore(customer) {
     const photoId = customer.profilePhotoId;
     if (!photoId) { showLookupError("客户建档照片不存在，无法确认客户，请联系有权限人员处理档案。"); return; }
@@ -128,7 +206,7 @@
   function confirmCustomer(id) {
     selectedCustomer = allCustomers().find((customer) => customer.id === id);
     $("selectedCustomerText").textContent = `已确认：${selectedCustomer.name}（${selectedCustomer.id}）· ${selectedCustomer.birthday} · ${storeName}`; document.querySelector("form.store-business-form").classList.remove("business-step-disabled");
-    if (["verification", "verification-supplemental"].includes(page)) { photoCaptured = false; $("verificationPhotoStatus").className = "capture-status pending"; $("verificationPhotoStatus").textContent = "尚未核验"; const balances = projectBalances(selectedCustomer).filter((project) => project.remaining > 0); $("verificationProject").innerHTML = `<option value="">请选择有剩余次数的项目</option>${balances.map((project) => `<option value="${project.id}">${project.name}（剩余 ${project.remaining} 次）</option>`).join("")}`; }
+    if (["verification", "verification-supplemental"].includes(page)) { resetVerificationCapture(); const balances = projectBalances(selectedCustomer).filter((project) => project.remaining > 0); $("verificationProject").innerHTML = `<option value="">请选择有剩余次数的项目</option>${balances.map((project) => `<option value="${project.id}">${project.name}（剩余 ${project.remaining} 次）</option>`).join("")}`; }
     $("confirmCustomerSelection").textContent = `已确认 ${selectedCustomer.name}（${selectedCustomer.id}）`;
   }
   function setupRecharge() {
@@ -141,10 +219,61 @@
       $("rechargeCreateMessage").textContent = `${selectedCustomer.name} · ${project.name} · ${count}次充值申请已提交，审核通过后计入次数`;
     });
   }
+  function syncVerificationSubmit() {
+    const submit = $("verificationSubmit");
+    if (submit) submit.disabled = !photoCaptured;
+  }
+  function resetVerificationCapture() {
+    stopFaceCamera(); capturedPhotoDataUrl = ""; photoCaptured = false;
+    const video = $("verificationCamera"), preview = $("verificationPhotoPreview"), placeholder = $("verificationCameraPlaceholder"), canvas = $("verificationCaptureCanvas"), open = $("openVerificationCamera"), capture = $("captureVerificationPhoto"), retake = $("retakeVerificationPhoto");
+    if (!video || !preview || !placeholder || !canvas || !open || !capture || !retake) return;
+    video.hidden = true; preview.hidden = true; preview.removeAttribute("src"); placeholder.hidden = false;
+    canvas.width = 0; canvas.height = 0; open.hidden = false; open.disabled = false; capture.disabled = true; retake.hidden = true;
+    $("verificationPhotoStatus").className = "capture-status pending"; $("verificationPhotoStatus").textContent = "尚未核验";
+    syncVerificationSubmit();
+  }
   function setupVerification() {
     const supplementalPage = page === "verification-supplemental";
     setupLookup(); $("verificationProject").innerHTML = `<option value="">确认客户后加载可核销项目</option>`; $("verificationTeacher").innerHTML = `<option value="">请选择老师</option>${teachers.map((teacher) => `<option value="${teacher.id}">${teacher.name}（${teacher.id}）</option>`).join("")}`;
-    $("captureVerificationPhoto").addEventListener("click", () => { photoCaptured = true; $("verificationPhotoStatus").className = "capture-status complete"; $("verificationPhotoStatus").textContent = "活体检测与人脸比对通过"; });
+    const video = $("verificationCamera"), preview = $("verificationPhotoPreview"), placeholder = $("verificationCameraPlaceholder"), canvas = $("verificationCaptureCanvas"), open = $("openVerificationCamera"), capture = $("captureVerificationPhoto"), retake = $("retakeVerificationPhoto"), status = $("verificationPhotoStatus"), message = $("verificationCreateMessage");
+    resetVerificationCapture();
+    open.addEventListener("click", async () => {
+      try {
+        if (!selectedCustomer) throw new Error("请先查询并确认需要核销的客户");
+        resetVerificationCapture(); open.hidden = true;
+        if (!navigator.mediaDevices?.getUserMedia) throw new Error("当前浏览器不支持摄像头访问，请使用最新版 Chrome 或 Edge");
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 960 }, height: { ideal: 1280 } }, audio: false });
+        video.srcObject = cameraStream; video.hidden = false; placeholder.hidden = true; await video.play(); capture.disabled = false;
+        status.className = "capture-status pending"; status.textContent = "摄像头已打开，请让所选客户正对镜头"; message.textContent = "";
+      } catch (error) {
+        stopFaceCamera(); open.hidden = false; capture.disabled = true; status.className = "capture-status pending"; status.textContent = "无法开始验证"; message.textContent = error?.message || "请检查摄像头权限";
+      }
+    });
+    capture.addEventListener("click", async () => {
+      if (!selectedCustomer) { message.textContent = "请重新确认需要核销的客户"; return; }
+      if (!cameraStream || !video.videoWidth || !video.videoHeight) { message.textContent = "摄像头画面尚未就绪，请稍后重试"; return; }
+      const targetRatio = 3 / 4;
+      let sourceWidth = video.videoWidth, sourceHeight = video.videoHeight;
+      if (sourceWidth / sourceHeight > targetRatio) sourceWidth = sourceHeight * targetRatio;
+      else sourceHeight = sourceWidth / targetRatio;
+      const sourceX = Math.round((video.videoWidth - sourceWidth) / 2), sourceY = Math.round((video.videoHeight - sourceHeight) / 2), outputHeight = Math.round(Math.min(sourceHeight, 1280));
+      canvas.height = outputHeight; canvas.width = Math.round(outputHeight * targetRatio);
+      canvas.getContext("2d", { alpha: false }).drawImage(video, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
+      capturedPhotoDataUrl = canvas.toDataURL("image/jpeg", 0.88); preview.src = capturedPhotoDataUrl; preview.hidden = false; video.hidden = true; stopFaceCamera(); open.hidden = true; capture.disabled = true; retake.hidden = false;
+      photoCaptured = false; syncVerificationSubmit(); status.className = "capture-status pending"; status.textContent = "正在与所选客户进行 1:1 人脸验证…"; message.textContent = "";
+      try {
+        const result = await callCustomerEnrollment({ action: "verifyCustomerFace", customerCode: selectedCustomer.id, imageBase64: capturedPhotoDataUrl });
+        if (!result.matched) throw new Error(`${result.message || "1:1 人脸验证未通过"}（相似度 ${result.score ?? 0}，要求 ${result.threshold ?? "-"}）`);
+        photoCaptured = true;
+        const livenessText = result?.liveness?.checked ? "、活体检测" : "";
+        status.className = "capture-status complete"; status.textContent = `所选客户 1:1 人脸验证${livenessText}通过（${result.score} 分）`;
+      } catch (error) {
+        photoCaptured = false; status.className = "capture-status pending"; status.textContent = "1:1 人脸验证未通过，请重新拍照"; message.textContent = error?.message || "现场人脸与所选客户不一致";
+      }
+      syncVerificationSubmit();
+    });
+    retake.addEventListener("click", () => { resetVerificationCapture(); open.click(); });
+    window.addEventListener("pagehide", stopFaceCamera, { once: true });
     $("verificationCreateForm").addEventListener("submit", (event) => {
       event.preventDefault(); const projectId = $("verificationProject").value, teacherId = $("verificationTeacher").value, note = $("verificationNote").value.trim(), supplemental = supplementalPage;
       if (!selectedCustomer || !projectId || !teacherId) { $("verificationCreateMessage").textContent = "必须确认客户并选择项目和老师"; return; }
@@ -154,7 +283,7 @@
       records.push({ id: recordId, customerId: selectedCustomer.id, customerName: selectedCustomer.name, name: selectedCustomer.name, birthday: selectedCustomer.birthday, storeId, projectId, projectName: project.name, teacherId, count: 1, faceVerification: "活体检测与人脸比对通过", verificationType: supplemental ? "补录" : "正常", status: supplemental ? "待运营审核" : "正常", deviceSignal: supplemental ? "不发送（补录）" : "虚拟端口已发送", account: session.account, note, createdAt: new Date().toISOString() }); saveList("prototypeVerificationRecords", records); addCommunication("verification", recordId, note);
       if (supplemental) { const apps = JSON.parse(sessionStorage.getItem("prototypeVerificationReviewApplications") || "[]"); apps.push({ id: `AP-V-${Date.now()}`, kind: "补录", recordId, storeId, customerId: selectedCustomer.id, customerName: selectedCustomer.name, projectId, project: project.name, teacherId, applicantNote: note, status: "pending", time: new Date().toISOString(), faceVerification: "活体检测与人脸比对通过", deviceSignal: "不发送" }); saveList("prototypeVerificationReviewApplications", apps); $("verificationCreateMessage").textContent = `${selectedCustomer.name} · ${project.name} 补录已提交运营审核；不会打开设备`; }
       else $("verificationCreateMessage").textContent = `${selectedCustomer.name} · ${project.name} 正常核销成功；已向虚拟端口发送项目权限信号`;
-      photoCaptured = false; $("verificationPhotoStatus").className = "capture-status pending"; $("verificationPhotoStatus").textContent = "尚未核验";
+      resetVerificationCapture();
     });
   }
 

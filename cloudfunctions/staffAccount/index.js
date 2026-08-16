@@ -8,7 +8,7 @@
 const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "2026-08-16-product-unique-name-v4";
+const FUNCTION_VERSION = "2026-08-16-external-staff-auth-v8";
 let app = null;
 let auth = null;
 let managerClient = null;
@@ -145,25 +145,46 @@ function requestIdFrom(error) {
   return String(error?.RequestId || error?.requestId || error?.response?.RequestId || "");
 }
 
+function cloudErrorDetails(error) {
+  const nested = error?.response?.data?.Response?.Error ||
+    error?.response?.Response?.Error ||
+    error?.data?.Response?.Error ||
+    error?.response?.Error ||
+    {};
+  return {
+    code: String(error?.code || error?.Code || nested?.Code || "").trim(),
+    message: String(error?.message || error?.Message || nested?.Message || "").trim().slice(0, 300)
+  };
+}
+
 function stageFail(stage, message, code, cause) {
   const requestId = requestIdFrom(cause);
+  const causeDetails = cloudErrorDetails(cause);
   console.error("staff account provision failed", {
     stage,
     code,
     requestId: requestId || undefined,
-    causeCode: cause?.code,
-    causeMessage: cause?.message
+    causeCode: causeDetails.code || undefined,
+    causeMessage: causeDetails.message || undefined
   });
   const error = new Error(message);
   error.code = code;
   error.stage = stage;
   error.requestId = requestId || undefined;
+  error.causeCode = causeDetails.code || undefined;
+  error.causeMessage = causeDetails.message || undefined;
   throw error;
 }
 
 function isDuplicateAuthError(error) {
-  const text = `${error?.code || ""} ${error?.message || ""}`.toLowerCase();
-  return text.includes("duplicatedata") || text.includes("duplicate") || text.includes("already exist");
+  const text = `${error?.code || ""} ${error?.message || ""} ${error?.response?.Code || ""} ${error?.response?.Message || ""}`.toLowerCase();
+  return text.includes("duplicatedata") ||
+    text.includes("duplicate") ||
+    text.includes("duplicated") ||
+    text.includes("already exist") ||
+    text.includes("already registered") ||
+    text.includes("已存在") ||
+    text.includes("已注册");
 }
 
 function managerDependencyInstalled() {
@@ -175,10 +196,14 @@ function managerDependencyInstalled() {
   }
 }
 
-async function findAuthUserByExactPhone(phone) {
-  let response;
+function normalizedMainlandPhone(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  return digits.length === 13 && digits.startsWith("86") ? digits.slice(2) : digits;
+}
+
+async function describeAuthUsersByPhone(phone) {
   try {
-    response = await manager().user.describeUserList({ phone, pageNo: 1, pageSize: 20 });
+    return await manager().user.describeUserList({ phone, pageNo: 1, pageSize: 20 });
   } catch (error) {
     stageFail(
       "AUTH_LOOKUP",
@@ -187,12 +212,78 @@ async function findAuthUserByExactPhone(phone) {
       error
     );
   }
-  const matches = (response?.Data?.UserList || []).filter((user) =>
-    String(user?.Phone || "").replace(/\D/g, "") === phone
-  );
+}
+
+async function describeAuthUsersByName(name) {
+  try {
+    return await manager().user.describeUserList({ name, pageNo: 1, pageSize: 20 });
+  } catch (error) {
+    stageFail(
+      "AUTH_LOOKUP",
+      "无法按登录名读取认证账号。请检查云函数的用户管理权限。",
+      "AUTH_LOOKUP_FAILED",
+      error
+    );
+  }
+}
+
+async function findAuthUserByExactPhone(phone) {
+  const responses = [await describeAuthUsersByPhone(phone)];
+  let users = responses[0]?.Data?.UserList || [];
+  let matches = users.filter((user) => normalizedMainlandPhone(user?.Phone) === phone);
+
+  // Some CloudBase accounts are returned with an E.164-style +86 prefix.
+  // The phone filter is fuzzy, but not every console/runtime version treats
+  // the 11-digit and +86 forms identically, so retry the prefixed form once.
+  if (!matches.length) {
+    const prefixed = await describeAuthUsersByPhone(`+86${phone}`);
+    responses.push(prefixed);
+    users = [...users, ...(prefixed?.Data?.UserList || [])];
+    const uniqueUsers = Array.from(new Map(users.map((user) => [String(user?.Uid || ""), user])).values());
+    matches = uniqueUsers.filter((user) => normalizedMainlandPhone(user?.Phone) === phone);
+  }
+  if (!matches.length) {
+    const username = `staff_${phone}`;
+    const byName = await describeAuthUsersByName(username);
+    responses.push(byName);
+    const nameMatches = (byName?.Data?.UserList || []).filter((user) => String(user?.Name || "") === username);
+    if (nameMatches.length > 1) {
+      const error = new Error("Multiple identity users share this generated username");
+      error.RequestId = byName?.RequestId;
+      stageFail(
+        "AUTH_LOOKUP",
+        "认证系统返回多个同登录名账号，请由总部先处理认证账号。",
+        "AUTH_USERNAME_AMBIGUOUS",
+        error
+      );
+    }
+    const namedUser = nameMatches[0] || null;
+    if (namedUser) {
+      const namedPhone = normalizedMainlandPhone(namedUser?.Phone);
+      if (namedPhone && namedPhone !== phone) {
+        fail("该登录名已绑定其他手机号，请由总部先处理认证账号", "AUTH_USERNAME_CONFLICT");
+      }
+      if (!namedPhone) {
+        try {
+          await manager().user.modifyUser({ uid: String(namedUser.Uid), phone });
+          namedUser.Phone = phone;
+        } catch (error) {
+          const cause = cloudErrorDetails(error);
+          const diagnostic = [cause.code, cause.message].filter(Boolean).join("：");
+          stageFail(
+            "AUTH_REPAIR",
+            `检测到未绑定手机号的已有登录账号，但补充手机号失败。${diagnostic ? `腾讯云返回 ${diagnostic}。` : "请检查云函数的用户管理权限。"}`,
+            "AUTH_PHONE_REPAIR_FAILED",
+            error
+          );
+        }
+      }
+      matches = [namedUser];
+    }
+  }
   if (matches.length > 1) {
     const error = new Error("Multiple identity users share this phone");
-    error.RequestId = response?.RequestId;
+    error.RequestId = responses.map((response) => response?.RequestId).filter(Boolean).join(",");
     stageFail(
       "AUTH_LOOKUP",
       "认证系统返回了多个同手机号账号，请由总部先处理认证账号。",
@@ -727,6 +818,36 @@ async function createOrRecoverStore(caller, input) {
   return { id: String(store.id), code: String(store.store_code) };
 }
 
+async function removeUnboundStore(storeId) {
+  const targetStoreId = numericId(storeId, "门店编号");
+  try {
+    const layout = await getStoreBindingLayout();
+    const unboundCondition = layout === "stores"
+      ? "store.store_account_id IS NULL"
+      : `NOT EXISTS (
+           SELECT 1 FROM public.staff_store_assignments assignment
+           WHERE assignment.store_id = store.id AND assignment.assignment_status = 'ACTIVE'
+         )`;
+    await executeSql(
+      `DELETE FROM public.stores store
+       WHERE store.id = ${targetStoreId}
+         AND ${unboundCondition}`
+    );
+    const remaining = await executeSql(
+      `SELECT id FROM public.stores WHERE id = ${targetStoreId} LIMIT 1`
+    );
+    return !remaining?.[0];
+  } catch (error) {
+    console.error("unbound store cleanup failed", {
+      storeId: targetStoreId,
+      code: error?.code,
+      requestId: requestIdFrom(error) || undefined,
+      message: error?.message
+    });
+    return false;
+  }
+}
+
 async function getProductCreationCapabilities() {
   let rows;
   try {
@@ -1050,7 +1171,10 @@ async function main(event = {}) {
         const created = await manager().user.createUser({
           name: `staff_${phone}`,
           password,
-          type: "internalUser",
+          // Business permissions are resolved from PostgreSQL staff_accounts.
+          // Creating these as external users avoids consuming the CloudBase
+          // package's limited internal/organization-member quota.
+          type: "externalUser",
           userStatus: "ACTIVE",
           nickName: staffName,
           phone,
@@ -1071,9 +1195,11 @@ async function main(event = {}) {
         authCreated = true;
       } catch (error) {
         if (!isDuplicateAuthError(error)) {
+          const cause = cloudErrorDetails(error);
+          const diagnostic = [cause.code, cause.message].filter(Boolean).join("：");
           stageFail(
             "AUTH_CREATE",
-            "认证登录账号创建失败。请确认手机号未被注册，并检查云函数权限。",
+            `认证登录账号创建失败。${diagnostic ? `腾讯云返回 ${diagnostic}。` : "请检查云函数的用户管理权限。"}`,
             "AUTH_CREATE_FAILED",
             error
           );
@@ -1189,11 +1315,17 @@ async function main(event = {}) {
         warning: account.warning || undefined
       };
     } catch (error) {
-      // The store profile is deliberately retained here: a retry with the
-      // same contact phone safely resumes the account binding instead of
-      // creating a duplicate store or overwriting a password.
-      error.storeId = store.id;
-      error.storeCode = store.code;
+      // CloudBase Identity and PostgreSQL cannot share one transaction. Roll
+      // back only an unbound store, and never delete a store whose account was
+      // bound by a concurrent request. If cleanup cannot be confirmed, retain
+      // the identifiers so the same form can safely resume the binding.
+      const removed = await removeUnboundStore(store.id);
+      if (!removed) {
+        error.storeId = store.id;
+        error.storeCode = store.code;
+      } else {
+        error.storeRolledBack = true;
+      }
       error.stage = error.stage || "ACCOUNT_BINDING";
       throw error;
     }
@@ -1309,6 +1441,9 @@ exports.main = async (event = {}) => {
       requestId: error?.requestId || requestIdFrom(error) || undefined,
       storeId: error?.storeId || undefined,
       storeCode: error?.storeCode || undefined,
+      storeRolledBack: error?.storeRolledBack || undefined,
+      causeCode: error?.causeCode || undefined,
+      causeMessage: error?.causeMessage || undefined,
       message: error?.message || "员工账号服务暂不可用，请稍后重试"
     };
   }
