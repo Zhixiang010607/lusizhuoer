@@ -102,7 +102,9 @@
           record.voidReviewedAt = reviewedAt;
           if (action === "approved") {
             record.status = "VOIDED";
-            record.balanceRestored = true;
+            // A still-pending original application has not changed the balance
+            // yet.  Only an already-approved original record restores a count.
+            record.balanceRestored = String(record.originalStatus || "").toUpperCase() === "APPROVED";
           } else {
             record.status = record.originalStatus || "APPROVED";
             record.applicationType = type === "recharge" ? (record.originalKind || "新充值") : record.applicationType;

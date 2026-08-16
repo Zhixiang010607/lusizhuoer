@@ -779,6 +779,7 @@ body[data-store-business] .form-submit-row button:disabled {
 .order-comment-card time { display: block; margin-top: 8px; color: var(--muted); font-size: 11px; }
 .void-reason-field { display: grid; gap: 6px; color: var(--ink); font-size: 12px; font-weight: 800; }
 .void-reason-field textarea { width: 100%; }
+.store-void-action { display: grid; gap: 10px; }
 .void-application-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
 .void-application-actions button { background: #bd2c2c; }
 .store-review-message p { min-height: 48px; margin: 0; }

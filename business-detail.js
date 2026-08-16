@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.14.39";
+  const VERSION = "0.14.42";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -146,7 +146,7 @@
     $("orderKeyfacts").innerHTML = ["门店", "客户", "项目", "业务老师"].map((label) => factCard(label, "", "")).join("");
     $("orderInfo").innerHTML = infoCard(type === "recharge" ? "充值单编号" : "核销单编号", recordId);
     $("orderComments").innerHTML = "";
-    $("voidApplicationPanel").hidden = true;
+    $("storeVoidAction").hidden = true;
   }
 
   function renderRecord(record) {
@@ -159,6 +159,9 @@
     const voidActive = voidStarted && String(record.voidStatus || "").toUpperCase() !== "REJECTED";
     const kind = voidActive ? (recharge ? "作废申请" : "作废核销") : normalKind;
     const status = statusView(first(record.status, record.recordStatus));
+    if (String(record.status || record.recordStatus || "").toUpperCase() === "VOIDED" && record.balanceRestored === false) {
+      status.hint = "作废审核已通过；原单尚未生效，客户次数无需恢复";
+    }
     const storeCode = first(record.storeCode, record.storeId);
     const customerCode = first(record.customerCode, record.customerId);
     const projectCode = first(record.projectCode, record.productCode, record.projectId, record.productId);
@@ -192,11 +195,14 @@
     $("reviewMessage").value = reviewMessage;
     $("reviewMessage").setAttribute("aria-label", reviewMessage ? "审核留言" : "暂无审核留言");
     const isReviewer = ["hq", "operation"].includes(session?.role);
-    $("reviewPanelTitle").textContent = isReviewer ? "总部审核" : "审核结果";
+    const canStoreVoid = session?.role === "store" && !voidStarted;
+    $("reviewPanelTitle").textContent = isReviewer ? "总部审核" : canStoreVoid ? "作废申请" : "审核结果";
     $("reviewNoteField").hidden = !isReviewer;
     $("reviewActions").hidden = !isReviewer;
     $("reviewPanelHint").textContent = isReviewer
       ? "请前往审核中心处理本工单；此详情页与总部工单模板保持一致。"
+      : canStoreVoid
+      ? "填写作废说明后提交；工单将重新以作废状态进入审核，审核通过前不改变客户次数。"
       : "门店仅可查看审核状态和完整留言记录。";
 
     $("orderKeyfacts").innerHTML = [
@@ -215,8 +221,8 @@
   }
 
   function setupVoidApplication(record, originalKind, voidStarted, session) {
-    const panel = $("voidApplicationPanel");
-    const canApply = session?.role === "store" && !voidStarted && String(record.status || "").toUpperCase() === "APPROVED";
+    const panel = $("storeVoidAction");
+    const canApply = session?.role === "store" && !voidStarted;
     panel.hidden = !canApply;
     if (!canApply) return;
     $("submitVoidApplication").onclick = () => {
