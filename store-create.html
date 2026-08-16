@@ -1,32 +1,64 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>门店创建</title><link rel="stylesheet" href="styles.css"></head>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>门店创建</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
 <body data-hq-create="store">
   <aside class="side-project-bar" aria-label="项目栏">
-    <div class="side-brand"><span>HQ</span><div><strong>总部工作台</strong><small>项目栏</small></div></div>
-    <p class="side-section-title">数据看板</p><nav class="side-nav"><a href="index.html"><span class="nav-icon">全</span><span>全局视图</span></a></nav>
-    <div class="side-footer">静态原型 v0.14.19</div>
+    <div class="side-brand"><span>HQ</span><div><strong>总部工作区</strong><small>项目栏</small></div></div>
+    <p class="side-section-title">数据看板</p>
+    <nav class="side-nav"><a href="index.html"><span class="nav-icon">全</span><span>全局视图</span></a></nav>
+    <div class="side-footer">总部权限</div>
   </aside>
-  <header class="topbar"><div><p class="eyebrow">STORE CREATION</p><h1>门店创建</h1></div><div class="status"><span></span>总部权限</div></header>
+  <header class="topbar">
+    <div><p class="eyebrow">STORE CREATION</p><h1>门店创建</h1></div>
+    <div class="status"><span></span>总部权限</div>
+  </header>
   <main class="hq-create-main">
     <form id="storeCreateForm" class="panel hq-create-form">
       <section class="hq-create-section">
-        <div class="panel-heading"><div><h2>门店资料</h2></div><span id="generatedStoreCode" class="badge"></span></div>
+        <div class="panel-heading">
+          <div><h2>门店资料</h2></div>
+          <span id="generatedStoreCode" class="badge">编号将在创建成功后自动生成</span>
+        </div>
         <div class="hq-create-grid">
-          <label>门店名称<input id="storeCreateName" required maxlength="60" placeholder="请输入门店名称"></label>
+          <label>门店名称<input id="storeCreateName" required maxlength="60" autocomplete="organization" placeholder="请输入门店名称"></label>
           <label>省<select id="storeCreateProvince" required><option value="">请选择省</option></select></label>
           <label>城市<select id="storeCreateCity" required disabled><option value="">请先选择省</option></select></label>
           <label>区<select id="storeCreateDistrict" required disabled><option value="">请先选择城市</option></select></label>
-          <label>门店地址<input id="storeCreateAddress" required maxlength="160" placeholder="请输入完整地址"></label>
+          <label>门店地址<input id="storeCreateAddress" required maxlength="160" autocomplete="street-address" placeholder="请输入完整地址"></label>
         </div>
       </section>
       <section class="hq-create-section contact-section">
-        <div class="panel-heading"><div><h2>联系人</h2></div><button id="addStoreContact" type="button">添加联系人</button></div>
-        <div id="storeContactList" class="store-contact-list"></div>
+        <div class="panel-heading">
+          <div>
+            <h2>门店登录联系人</h2>
+            <p>每个门店只允许一位联系人；联系人姓名和手机号同时作为该门店的登录账号。</p>
+          </div>
+        </div>
+        <div class="hq-create-grid">
+          <label>联系人姓名<input id="storeContactName" required maxlength="40" autocomplete="name" placeholder="请输入联系人姓名"></label>
+          <label>联系人手机号<input id="storeContactPhone" required type="tel" inputmode="tel" maxlength="30" autocomplete="tel" placeholder="请输入中国大陆手机号"></label>
+          <label>初始登录密码<input id="storeInitialPassword" required type="password" minlength="8" maxlength="32" autocomplete="new-password" placeholder="至少 8 位，含三类字符"></label>
+        </div>
       </section>
-      <div class="hq-create-actions"><span id="storeCreateMessage"></span><a class="button-link secondary-button" href="store-management.html">返回门店管理</a><button type="submit">创建门店</button></div>
+      <div class="hq-create-actions">
+        <span id="storeCreateMessage" aria-live="polite"></span>
+        <a class="button-link secondary-button" href="store-management.html">返回门店管理</a>
+        <button type="submit">创建门店与登录账号</button>
+      </div>
     </form>
   </main>
-  <script src="china-regions.js"></script><script src="store-create.js"></script><script src="auth-ui.js"></script>
+  <script src="china-regions.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
+  <script src="cloudbase-auth-config.js"></script>
+  <script src="cloudbase-phone-auth.js"></script>
+  <script src="store-create.js"></script>
+  <script src="auth-ui.js"></script>
 </body>
 </html>

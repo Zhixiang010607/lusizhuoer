@@ -60,7 +60,17 @@
       throw new Error(error?.message || fallback);
     }
     const payload = functionPayload(result);
-    if (!payload?.ok) throw new Error(functionFailureMessage(result, payload, fallback));
+    if (!payload?.ok) {
+      const error = new Error(functionFailureMessage(result, payload, fallback));
+      Object.assign(error, {
+        code: payload?.code || result?.code,
+        stage: payload?.stage || result?.stage,
+        requestId: payload?.requestId || result?.requestId,
+        storeId: payload?.storeId || result?.storeId,
+        storeCode: payload?.storeCode || result?.storeCode
+      });
+      throw error;
+    }
     return payload;
   }
 
@@ -119,6 +129,23 @@
         "员工账号创建失败"
       );
     },
+    async createStoreWithAccount({ storeName, province, city, district, addressDetail, contactName, contactPhone, initialPassword, existingStoreId = "" }) {
+      return callStaffAccount(
+        {
+          action: "createStoreWithAccount",
+          storeName,
+          province,
+          city,
+          district,
+          addressDetail,
+          contactName,
+          contactPhone: normalizePhone(contactPhone),
+          initialPassword,
+          existingStoreId
+        },
+        "门店与登录账号创建失败"
+      );
+    },
     async changeOwnPassword(newPassword) {
       return callStaffAccount({ action: "changeOwnPassword", newPassword }, "密码修改失败");
     },
@@ -131,6 +158,10 @@
     async listStaff(role) {
       const data = await callStaffAccount({ action: "listStaff", role }, "人员列表读取失败");
       return data.staff || [];
+    },
+    async listStores() {
+      const data = await callStaffAccount({ action: "listStores" }, "门店列表读取失败");
+      return data.stores || [];
     },
     smsCooldownRemaining(phone) { return cooldownRemaining(phone); }
   };

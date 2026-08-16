@@ -9,10 +9,9 @@
   let createdProjects = [];
   try { createdProjects = JSON.parse(sessionStorage.getItem("prototypeCreatedProjects") || "[]"); } catch (_) { createdProjects = []; }
   const projects = createdProjects.map((project) => ({ id: project.id, name: project.name, status: project.status === "正常" ? "活跃" : (project.status || "活跃"), extra: project.description || "" }));
-  let createdStores = [];
-  try { createdStores = JSON.parse(sessionStorage.getItem("prototypeCreatedStores") || "[]"); } catch (_) { createdStores = []; }
   const chinaRegions = window.ChinaRegions || {};
-  const stores = createdStores.map((store) => ({ id: store.id, name: store.name, province: store.province || "未填写", city: store.city || "未填写", district: store.district || "未填写", status: store.status === "正常" ? "活跃" : (store.status || "活跃"), extra: store.address || "", contacts: store.contacts || [], account: store.account || `STORE${String(store.id).slice(1)}`, createdBy: store.createdBy }));
+  // 门店只来自 CloudBase / PostgreSQL；不再读取浏览器中的临时门店数据。
+  const stores = [];
   // People management only renders records returned by the backend. No sample staff data is shown.
   const teachers = [];
   const operations = [];
@@ -280,7 +279,7 @@
     const entity = activeEntity();
     if (entity.status !== "活跃") return;
     if (!window.confirm(`确认封存${labels[type]}“${entity.name}”？历史充值、核销和客户引用仍会保留，且不删除任何资料。`)) return;
-    if (["teacher", "operation", "hq"].includes(type) && entity.authUid) {
+    if (["teacher", "operation", "hq", "store"].includes(type) && entity.authUid) {
       try {
         await window.CloudBasePhoneAuth?.setStaffStatus({ uid: entity.authUid || "", phone: entity.phone || "", status: "ARCHIVED" });
       } catch (error) {
@@ -311,6 +310,43 @@
       render();
     } catch (_) {
       // Keep the page empty if staff data cannot be read. Never show sample records.
+    }
+  }
+
+  async function syncRemoteStores(selectedId = "") {
+    if (type !== "store") return;
+    if (!window.CloudBasePhoneAuth?.listStores) {
+      refillSelect();
+      render();
+      return;
+    }
+    try {
+      const remote = await window.CloudBasePhoneAuth.listStores();
+      const records = remote.map((store) => {
+        const contactName = String(store.contact_name || store.staff_name || "").trim();
+        const contactPhone = String(store.contact_phone || store.phone || "").trim();
+        return {
+          id: String(store.id),
+          name: String(store.store_name || store.name || "").trim(),
+          province: String(store.province || "").trim(),
+          city: String(store.city || "").trim(),
+          district: String(store.district || "").trim(),
+          status: store.store_status === "ARCHIVED" ? "封存" : (store.store_status ? "活跃" : ""),
+          extra: String(store.address_detail || store.address || "").trim(),
+          contacts: contactName || contactPhone ? [{ name: contactName, phone: contactPhone }] : [],
+          account: String(store.store_code || "").trim(),
+          authUid: String(store.auth_uid || "").trim(),
+          phone: contactPhone
+        };
+      }).filter((store) => store.id && store.name);
+      stores.splice(0, stores.length, ...records);
+      refillSelect(String(selectedId || ""));
+      render();
+    } catch (error) {
+      // 读取失败时保持空列表；绝不回退到本地演示数据。
+      console.warn("门店列表读取失败", error);
+      refillSelect();
+      render();
     }
   }
 
@@ -359,7 +395,8 @@
       else if (type === "hq") location.replace("hq-account-create.html");
       else window.setTimeout(() => $("entityDialog").showModal(), 0);
     }
-    void syncRemotePeople();
+    if (type === "store") void syncRemoteStores(pageParams.get("created") || "");
+    else void syncRemotePeople();
   }
 
   init();
