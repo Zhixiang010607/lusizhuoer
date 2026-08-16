@@ -767,11 +767,10 @@ body[data-store-business] .form-submit-row button:disabled {
 .verification-order-actions button { background: #08765f; }
 .verification-order-actions .reject { background: #bd2c2c; }
 .verification-order-actions button:disabled { cursor: not-allowed; opacity: .45; }
-.store-readonly-result { align-content: start; }
-.store-review-readonly { display: grid; gap: 6px; margin-top: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fafcff; }
-.store-review-readonly span { color: var(--muted); font-size: 11px; }
-.store-review-readonly strong { font-size: 15px; }
-.store-review-readonly.store-review-message { min-height: 112px; align-content: start; background: white; }
+.unified-order-review .verification-order-review-note textarea[readonly] { cursor: default; background: #fafcff; }
+.unified-order-review .verification-order-actions button:disabled { opacity: .56; cursor: not-allowed; }
+.unified-review-status { margin: 0; color: var(--muted); font-size: 12px; }
+.unified-review-status strong { color: var(--ink); }
 .store-review-message p { min-height: 48px; margin: 0; }
 .review-actions { display: flex; gap: 6px; }
 .review-actions button { padding: 6px 9px; background: #08765f; font-size: 11px; white-space: nowrap; }
