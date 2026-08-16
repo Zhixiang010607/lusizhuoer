@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const tencentcloud = require("tencentcloud-sdk-nodejs");
 const IaiClient = tencentcloud.iai.v20200303.Client;
 
-const FUNCTION_VERSION = "2026-08-17-customer-photo-sign-v18";
+const FUNCTION_VERSION = "2026-08-17-lazy-dropdown-details-v23";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -297,7 +297,8 @@ async function activeStoreCaller() {
          ON sa.staff_account_id = a.id AND sa.assignment_status = 'ACTIVE'
        JOIN public.stores s ON s.id = sa.store_id`;
   const rows = await executeSql(
-    `SELECT a.id AS staff_id, a.role_code, a.account_status, s.id AS store_id, s.store_status
+    `SELECT a.id AS staff_id, a.role_code, a.account_status,
+            s.id AS store_id, s.store_code, s.store_name, s.store_status
        FROM public.staff_accounts a
        ${storeJoin}
       WHERE a.auth_uid = ${sqlText(uid)}
@@ -306,7 +307,13 @@ async function activeStoreCaller() {
   const caller = rows[0];
   if (!caller || caller.role_code !== "store") fail("Only an active store account can create a customer.", "FORBIDDEN");
   if (caller.account_status !== "ACTIVE" || caller.store_status !== "ACTIVE") fail("The store account or store is archived.", "ARCHIVED");
-  return { uid: String(uid), staffId: Number(caller.staff_id), storeId: Number(caller.store_id) };
+  return {
+    uid: String(uid),
+    staffId: Number(caller.staff_id),
+    storeId: Number(caller.store_id),
+    storeCode: String(caller.store_code || ""),
+    storeName: String(caller.store_name || "")
+  };
 }
 
 async function activeCustomerStatusCaller() {
@@ -453,16 +460,23 @@ async function deleteUploadedFile(storedPhoto) {
   }
 }
 
-async function getCustomerPhotoUrl(event) {
-  const caller = await activeCustomerStatusCaller();
+async function getCustomerPhotoUrl(event, options = {}) {
+  const requireActiveStoreCustomer = options.requireActiveStoreCustomer === true;
+  const caller = requireActiveStoreCustomer
+    ? await activeStoreCaller()
+    : await activeCustomerStatusCaller();
   const customerCode = String(event.customerCode || "").trim();
   if (!customerCode || customerCode.length > 96) fail("必须提供已选择客户的有效编号。", "CUSTOMER_REQUIRED");
 
   const rows = await executeSql(
-    `SELECT customer_code, profile_photo_file_id
-      FROM public.customers
-      WHERE customer_code = ${sqlText(customerCode)}
-        ${customerStatusScope(caller)}
+    `SELECT c.customer_code, c.customer_name, c.birth_date, c.notes,
+            c.customer_status, c.customer_process_status,
+            c.total_recharge_count, c.total_verification_count, c.total_experience_count,
+            c.created_store_id, c.created_at, c.profile_photo_file_id
+       FROM public.customers c
+      WHERE c.customer_code = ${sqlText(customerCode)}
+        ${customerStatusScope(caller, "c")}
+        ${requireActiveStoreCustomer ? "AND c.customer_status = 'ACTIVE'" : ""}
       LIMIT 1`
   );
   const customer = rows[0];
@@ -556,6 +570,7 @@ async function getCustomerPhotoUrl(event) {
             SET profile_photo_file_id = ${sqlText(resolvedReference)}, updated_at = NOW()
           WHERE customer_code = ${sqlText(customer.customer_code)}
             ${customerStatusScope(caller)}
+            ${requireActiveStoreCustomer ? "AND customer_status = 'ACTIVE'" : ""}
             AND profile_photo_file_id = ${sqlText(String(customer.profile_photo_file_id).trim())}`
       );
     } catch (error) {
@@ -565,7 +580,230 @@ async function getCustomerPhotoUrl(event) {
       });
     }
   }
-  return { ok: true, customerCode: customer.customer_code, photoUrl, expiresIn };
+  return {
+    ok: true,
+    customerCode: customer.customer_code,
+    notes: customer.notes || "",
+    customer: {
+      customerCode: customer.customer_code,
+      customerName: customer.customer_name,
+      birthDate: customer.birth_date,
+      notes: customer.notes || "",
+      customerStatus: customer.customer_status,
+      customerProcessStatus: customer.customer_process_status,
+      totalRechargeCount: Number(customer.total_recharge_count || 0),
+      totalVerificationCount: Number(customer.total_verification_count || 0),
+      totalExperienceCount: Number(customer.total_experience_count || 0),
+      storeId: String(customer.created_store_id),
+      hasProfilePhoto: true,
+      createdAt: customer.created_at
+    },
+    photoUrl,
+    expiresIn
+  };
+}
+
+async function getActiveStoreCustomerDetail(event) {
+  return getCustomerPhotoUrl(event, { requireActiveStoreCustomer: true });
+}
+
+async function listActiveStoreCustomers() {
+  const caller = await activeStoreCaller();
+  const rows = await executeSql(
+    `SELECT customer_code, customer_name, birth_date
+       FROM public.customers
+      WHERE created_store_id = ${caller.storeId}
+        AND customer_status = 'ACTIVE'
+      ORDER BY customer_name, birth_date, customer_code
+      LIMIT 1000`
+  );
+  return {
+    ok: true,
+    storeId: String(caller.storeId),
+    storeCode: caller.storeCode,
+    storeName: caller.storeName,
+    customers: rows.map((customer) => ({
+      customerCode: customer.customer_code,
+      customerName: customer.customer_name,
+      birthDate: customer.birth_date
+    }))
+  };
+}
+
+async function listActiveTeachers() {
+  // Teachers are not permanently assigned to one store in the canonical
+  // schema. A real active store caller may choose only teachers whose profile
+  // and login account are both active.
+  await activeStoreCaller();
+  const rows = await executeSql(
+    `SELECT t.id AS teacher_id, t.teacher_code, t.teacher_name
+       FROM public.teachers t
+       JOIN public.staff_accounts a ON a.id = t.staff_account_id
+      WHERE t.teacher_status = 'ACTIVE'
+        AND a.role_code = 'teacher'
+        AND a.account_status = 'ACTIVE'
+      ORDER BY t.teacher_name, t.teacher_code
+      LIMIT 1000`
+  );
+  return {
+    ok: true,
+    teachers: rows.map((teacher) => ({
+      teacherId: String(teacher.teacher_id),
+      teacherCode: teacher.teacher_code,
+      teacherName: teacher.teacher_name
+    }))
+  };
+}
+
+async function listActiveProducts() {
+  await activeStoreCaller();
+  const rows = await executeSql(
+    `SELECT id AS product_id, product_code, product_name
+       FROM public.products
+      WHERE product_status = 'ACTIVE'
+      ORDER BY product_name, product_code
+      LIMIT 1000`
+  );
+  return {
+    ok: true,
+    products: rows.map((product) => ({
+      productId: String(product.product_id),
+      productCode: product.product_code,
+      productName: product.product_name
+    }))
+  };
+}
+
+function positiveDatabaseId(value, label) {
+  const text = String(value ?? "").trim();
+  if (!/^[1-9]\d{0,18}$/.test(text)) fail(`必须选择有效的${label}。`, "BAD_REQUEST");
+  return text;
+}
+
+function rechargeSubmissionKey(value) {
+  const text = String(value || "").trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{7,63}$/.test(text)) {
+    fail("充值申请缺少有效的防重复提交编号，请刷新页面后重试。", "IDEMPOTENCY_KEY_REQUIRED");
+  }
+  return text;
+}
+
+async function requireRechargeSubmissionSchema() {
+  const rows = await executeSql(
+    `SELECT EXISTS (
+       SELECT 1
+         FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'recharge_records'
+          AND column_name = 'idempotency_key'
+     ) AS has_idempotency_key`
+  );
+  if (!databaseBoolean(rows?.[0]?.has_idempotency_key)) {
+    fail("充值单数据库缺少防重复提交字段，请先执行迁移 023。", "DATABASE_SCHEMA_MISSING");
+  }
+}
+
+async function createRechargeApplication(event) {
+  const caller = await activeStoreCaller();
+  const customerCode = String(event.customerCode || "").trim();
+  if (!customerCode || customerCode.length > 96) fail("必须先确认本门店的活跃客户。", "CUSTOMER_REQUIRED");
+  const productId = positiveDatabaseId(event.productId, "项目");
+  const teacherId = positiveDatabaseId(event.teacherId, "老师");
+  const unitCount = Number(event.unitCount);
+  if (!Number.isInteger(unitCount) || unitCount < 1 || unitCount > 999) {
+    fail("充值次数必须是 1 至 999 的整数。", "INVALID_UNIT_COUNT");
+  }
+  const message = String(event.message || "").trim();
+  if (message.length > 500) fail("门店留言不能超过 500 个字符。", "MESSAGE_TOO_LONG");
+  const idempotencyKey = rechargeSubmissionKey(event.clientRequestId);
+
+  await requireRechargeSubmissionSchema();
+  const customers = await executeSql(
+    `SELECT id, customer_code, customer_name
+       FROM public.customers
+      WHERE customer_code = ${sqlText(customerCode)}
+        AND created_store_id = ${caller.storeId}
+        AND customer_status = 'ACTIVE'
+      LIMIT 1`
+  );
+  const customer = customers[0];
+  if (!customer) fail("未找到本门店已确认的活跃客户。", "CUSTOMER_NOT_FOUND");
+
+  const products = await executeSql(
+    `SELECT id, product_code, product_name
+       FROM public.products
+      WHERE id = ${sqlText(productId)}::bigint
+        AND product_status = 'ACTIVE'
+      LIMIT 1`
+  );
+  const product = products[0];
+  if (!product) fail("所选项目不存在或已经封存，请重新选择。", "PRODUCT_NOT_ACTIVE");
+
+  const teachers = await executeSql(
+    `SELECT t.id, t.teacher_code, t.teacher_name
+       FROM public.teachers t
+       JOIN public.staff_accounts a ON a.id = t.staff_account_id
+      WHERE t.id = ${sqlText(teacherId)}::bigint
+        AND t.teacher_status = 'ACTIVE'
+        AND a.role_code = 'teacher'
+        AND a.account_status = 'ACTIVE'
+      LIMIT 1`
+  );
+  const teacher = teachers[0];
+  if (!teacher) fail("所选老师不存在或已经封存，请重新选择。", "TEACHER_NOT_ACTIVE");
+
+  const rows = await executeSql(
+    `WITH inserted AS (
+       INSERT INTO public.recharge_records
+         (recharge_type, store_id, teacher_id, customer_id, product_id,
+          unit_count, record_status, submitted_by_account_id, message, idempotency_key)
+       VALUES
+         ('NEW', ${caller.storeId}, ${sqlText(teacherId)}::bigint,
+          ${sqlText(customer.id)}::bigint, ${sqlText(productId)}::bigint,
+          ${unitCount}, 'PENDING', ${caller.staffId}, ${sqlText(message)}, ${sqlText(idempotencyKey)})
+       ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
+       RETURNING id, recharge_code, recharge_type, store_id, teacher_id, customer_id,
+                 product_id, unit_count, record_status, submitted_by_account_id,
+                 submitted_at, message, idempotency_key
+     )
+     SELECT *, TRUE AS created_now FROM inserted
+     UNION ALL
+     SELECT r.id, r.recharge_code, r.recharge_type, r.store_id, r.teacher_id,
+            r.customer_id, r.product_id, r.unit_count, r.record_status,
+            r.submitted_by_account_id, r.submitted_at, r.message,
+            r.idempotency_key, FALSE AS created_now
+       FROM public.recharge_records r
+      WHERE r.idempotency_key = ${sqlText(idempotencyKey)}
+        AND NOT EXISTS (SELECT 1 FROM inserted)
+     LIMIT 1`
+  );
+  const record = rows[0];
+  if (!record) fail("充值申请未能写入数据库，请稍后重试。", "RECHARGE_CREATE_FAILED");
+
+  const sameRequest = record.recharge_type === "NEW"
+    && String(record.store_id) === String(caller.storeId)
+    && String(record.teacher_id) === String(teacherId)
+    && String(record.customer_id) === String(customer.id)
+    && String(record.product_id) === String(productId)
+    && Number(record.unit_count) === unitCount
+    && String(record.message || "") === message;
+  if (!sameRequest) {
+    fail("该防重复提交编号已经用于另一张充值单，请刷新页面后重新提交。", "IDEMPOTENCY_CONFLICT");
+  }
+
+  return {
+    ok: true,
+    createdNow: databaseBoolean(record.created_now),
+    rechargeId: String(record.id),
+    rechargeCode: record.recharge_code,
+    rechargeType: record.recharge_type,
+    recordStatus: record.record_status,
+    submittedAt: record.submitted_at,
+    unitCount: Number(record.unit_count),
+    customer: { customerCode: customer.customer_code, customerName: customer.customer_name },
+    product: { productId: String(product.id), productCode: product.product_code, productName: product.product_name },
+    teacher: { teacherId: String(teacher.id), teacherCode: teacher.teacher_code, teacherName: teacher.teacher_name }
+  };
 }
 
 async function getCustomerProductBalances(event) {
@@ -736,6 +974,7 @@ async function registerCustomer(event) {
         customerCode: customer.customer_code,
         customerName: name,
         birthDate,
+        notes,
         photoFileId: customer.profile_photo_file_id,
         facePersonId: customer.face_person_id,
         faceId: faceResult.FaceId || "",
@@ -804,7 +1043,7 @@ async function searchCustomer(event) {
   }
 
   const rows = await executeSql(
-    `SELECT id, customer_code, customer_name, birth_date, customer_status, customer_process_status,
+    `SELECT id, customer_code, customer_name, birth_date, notes, customer_status, customer_process_status,
             total_recharge_count, total_verification_count, total_experience_count, created_store_id
        FROM public.customers
       WHERE face_person_id = ${sqlText(best.PersonId)}
@@ -821,6 +1060,7 @@ async function searchCustomer(event) {
     customerCode: customer.customer_code,
     customerName: customer.customer_name,
     birthDate: customer.birth_date,
+    notes: customer.notes || "",
     customerStatus: customer.customer_status,
     customerProcessStatus: customer.customer_process_status,
     totalRechargeCount: Number(customer.total_recharge_count || 0),
@@ -891,6 +1131,11 @@ exports.main = async (event = {}) => {
     if (action === "health") return { ok: true, version: FUNCTION_VERSION, groupId: required("FACE_GROUP_ID"), photoBucketId: String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim(), livenessEnabled: faceSettings().livenessEnabled, message: "Face customer enrollment is ready." };
     if (action === "validateCapture") return await validateCapture(event);
     if (action === "registerCustomer") return await registerCustomer(event);
+    if (action === "listActiveStoreCustomers") return await listActiveStoreCustomers();
+    if (action === "listActiveTeachers") return await listActiveTeachers();
+    if (action === "listActiveProducts") return await listActiveProducts();
+    if (action === "createRechargeApplication") return await createRechargeApplication(event);
+    if (action === "getActiveStoreCustomerDetail") return await getActiveStoreCustomerDetail(event);
     if (action === "getCustomerPhotoUrl") return await getCustomerPhotoUrl(event);
     if (action === "getCustomerProductBalances") return await getCustomerProductBalances(event);
     if (action === "getCustomerStatus") return await getCustomerStatus(event);

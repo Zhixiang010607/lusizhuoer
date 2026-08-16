@@ -1,26 +1,18 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.25", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.31", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   const storeId = String(session?.store || ""), storeNo = Number(storeId.replace(/\D/g, "")) || 1;
-  const storeName = `${["悉尼", "墨尔本", "布里斯班", "珀斯"][(storeNo - 1) % 4]}门店 ${storeNo}`;
-  const projects = ["普拉提", "体态评估", "康复训练", "瑜伽", "力量训练", "产后恢复"].map((name, i) => ({ id: `P${String(i + 1).padStart(3, "0")}`, name }));
-  const teachers = Array.from({ length: 8 }, (_, i) => ({ id: `T${String((storeNo * 3 + i) % 72 + 1).padStart(3, "0")}`, name: `业务老师 ${String((storeNo * 3 + i) % 72 + 1).padStart(2, "0")}` }));
-  const names = ["张静", "王芳", "李娜", "陈晨", "刘敏", "赵悦", "张静", "王芳"];
-  let customerOverrides = {};
-  try { customerOverrides = JSON.parse(sessionStorage.getItem("prototypeCustomerOverrides") || "{}"); } catch (_) { customerOverrides = {}; }
-  const baseCustomers = Array.from({ length: 96 }, (_, i) => { const sid = `S${String(i % 16 + 1).padStart(3, "0")}`, id = `C${sid.slice(1)}${String(i + 1).padStart(4, "0")}`, current = customerOverrides[id] || {}; return { id, name: current.name || names[i % names.length], birthday: current.birthday || `${1986 + i % 22}-${String(i % 12 + 1).padStart(2, "0")}-${String(i % 27 + 1).padStart(2, "0")}`, storeId: sid, profilePhotoId: `PH-${id}` }; });
-  let created = [], archived = new Set(), candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, verificationBalanceProjects = [];
-  try { created = JSON.parse(sessionStorage.getItem("prototypeCreatedCustomers") || "[]").map((customer) => ({ ...customer, ...(customerOverrides[customer.id] || {}) })); archived = new Set(JSON.parse(sessionStorage.getItem("prototypeArchivedCustomers") || "[]")); } catch (_) { created = []; archived = new Set(); }
-  const allCustomers = () => [...baseCustomers, ...created].filter((customer) => customer.storeId === storeId);
+  let storeName = `门店 ${storeNo}`;
+  let databaseCustomers = [], databaseTeachers = [], databaseProducts = [], candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, verificationBalanceProjects = [], rechargeRequest = null;
+  const allCustomers = () => databaseCustomers;
   const saveList = (key, value) => { try { sessionStorage.setItem(key, JSON.stringify(value)); } catch (_) { /* 当前静态会话不可持久化时不保存演示数据。 */ } };
   const addCommunication = (recordType, recordId, message) => {
     if (!message.trim()) return;
     let rows = []; try { rows = JSON.parse(sessionStorage.getItem("prototypeCommunications") || "[]"); } catch (_) { rows = []; }
     rows.push({ recordType, recordId, role: "门店", account: session.account, name: "门店人员", message: message.trim(), time: new Date().toISOString() }); saveList("prototypeCommunications", rows);
   };
-  const fillProjects = (id) => { $(id).innerHTML = `<option value="">请选择项目</option>${projects.map((project) => `<option value="${project.id}">${project.name}（${project.id}）</option>`).join("")}`; };
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
 
   function stopFaceCamera() {
@@ -88,6 +80,63 @@
     }
     return data;
   }
+  async function loadActiveTeachers(selectId, messageId) {
+    const select = $(selectId);
+    if (!select) return;
+    select.disabled = true;
+    select.innerHTML = `<option value="">正在从数据库读取活跃老师…</option>`;
+    try {
+      const result = await callCustomerEnrollment({ action: "listActiveTeachers" });
+      databaseTeachers = (Array.isArray(result?.teachers) ? result.teachers : []).map((teacher) => ({
+        id: String(teacher.teacherId || ""),
+        code: String(teacher.teacherCode || ""),
+        name: String(teacher.teacherName || "")
+      })).filter((teacher) => teacher.id && teacher.name);
+      select.innerHTML = databaseTeachers.length
+        ? `<option value="">请选择老师</option>${databaseTeachers.map((teacher) => `<option value="${escapeHtml(teacher.id)}">${escapeHtml(teacher.name)}（${escapeHtml(teacher.code)}）</option>`).join("")}`
+        : `<option value="">数据库中暂无活跃老师</option>`;
+      select.disabled = databaseTeachers.length === 0;
+    } catch (error) {
+      databaseTeachers = [];
+      select.innerHTML = `<option value="">老师数据读取失败，禁止提交</option>`;
+      select.disabled = true;
+      const message = $(messageId);
+      if (message) message.textContent = error?.message || "无法从数据库读取活跃老师，请刷新后重试";
+    }
+  }
+  async function loadActiveProducts(selectId, messageId) {
+    const select = $(selectId);
+    if (!select) return;
+    select.disabled = true;
+    select.innerHTML = `<option value="">正在从数据库读取活跃项目…</option>`;
+    try {
+      const result = await callCustomerEnrollment({ action: "listActiveProducts" });
+      databaseProducts = (Array.isArray(result?.products) ? result.products : []).map((product) => ({
+        id: String(product.productId || ""),
+        code: String(product.productCode || ""),
+        name: String(product.productName || "")
+      })).filter((product) => product.id && product.name);
+      select.innerHTML = databaseProducts.length
+        ? `<option value="">请选择项目</option>${databaseProducts.map((product) => `<option value="${escapeHtml(product.id)}">${escapeHtml(product.name)}（${escapeHtml(product.code)}）</option>`).join("")}`
+        : `<option value="">数据库中暂无活跃项目</option>`;
+      select.disabled = databaseProducts.length === 0;
+    } catch (error) {
+      databaseProducts = [];
+      select.innerHTML = `<option value="">项目数据读取失败，禁止提交</option>`;
+      select.disabled = true;
+      const message = $(messageId);
+      if (message) message.textContent = error?.message || "无法从数据库读取活跃项目，请刷新后重试";
+    }
+  }
+
+  function nextRechargeRequestId(payload) {
+    const fingerprint = JSON.stringify(payload);
+    if (!rechargeRequest || rechargeRequest.fingerprint !== fingerprint) {
+      const key = window.crypto?.randomUUID?.() || `recharge_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
+      rechargeRequest = { key, fingerprint };
+    }
+    return rechargeRequest.key;
+  }
   function setupCustomerCreate() {
     const video = $("faceCamera"), preview = $("facePhotoPreview"), placeholder = $("faceCameraPlaceholder"), status = $("faceCaptureStatus"), message = $("customerCreateMessage"), capture = $("captureFace"), openCamera = $("openFaceCamera"), retake = $("retakeFace");
     $("faceConsent").addEventListener("change", syncCustomerCreateSubmit);
@@ -144,13 +193,12 @@
       event.preventDefault(); const name = $("createCustomerName").value.trim(), birthday = $("createCustomerBirthday").value, notes = $("createCustomerNotes").value.trim();
       if (!name || !birthday) { message.textContent = "姓名和生日必须填写"; return; }
       if (!faceCaptured || !capturedPhotoDataUrl || !$("faceConsent").checked) { message.textContent = "必须拍摄客户照片并取得明确授权后才能建立档案"; return; }
-      const duplicate = allCustomers().find((customer) => customer.name === name && customer.birthday === birthday && !archived.has(customer.id));
-      if (duplicate) { message.textContent = `发现本门店同名同生日客户 ${duplicate.id}，请先核对，不能重复建档`; return; }
       const submit = event.currentTarget.querySelector('[type="submit"]'); submit.disabled = true; message.textContent = "正在上传照片、创建人脸档案并保存客户资料…";
       try {
         const data = await callCustomerEnrollment({ action: "registerCustomer", customerName: name, birthDate: birthday, notes, consent: true, imageBase64: capturedPhotoDataUrl });
         const customer = data.customer;
-        created.push({ id: customer.customerCode, name, birthday, notes, storeId: customer.storeId || storeId, customerStatus: customer.customerStatus, customerProcessStatus: customer.customerProcessStatus, totalRechargeCount: customer.totalRechargeCount || 0, totalVerificationCount: customer.totalVerificationCount || 0, totalExperienceCount: customer.totalExperienceCount || 0, faceStatus: "已录入", profilePhotoId: customer.photoFileId, profilePhotoStatus: "已保存", facePersonId: customer.facePersonId, createdAt: customer.createdAt || "", createdBy: session.account }); saveList("prototypeCreatedCustomers", created);
+        const savedCustomer = { id: customer.customerCode, name, birthday, notes: customer.notes ?? notes, storeId: customer.storeId || storeId, customerStatus: customer.customerStatus, customerProcessStatus: customer.customerProcessStatus, totalRechargeCount: customer.totalRechargeCount || 0, totalVerificationCount: customer.totalVerificationCount || 0, totalExperienceCount: customer.totalExperienceCount || 0, hasProfilePhoto: true, createdAt: customer.createdAt || "" };
+        databaseCustomers = [savedCustomer, ...databaseCustomers.filter((item) => item.id !== savedCustomer.id)];
         message.textContent = `客户 ${name}（${customer.customerCode}）已建立；照片已留存腾讯云并已录入人脸库。`;
         event.target.reset(); resetCapturedPhoto();
       } catch (error) {
@@ -159,8 +207,32 @@
     });
   }
   function setupLookup() {
-    const activeCustomers = allCustomers().filter((customer) => !archived.has(customer.id));
-    $("serviceCustomerSelect").innerHTML = `<option value="">请选择现有客户</option>${activeCustomers.map((customer) => `<option value="${customer.id}">${customer.name}（${customer.id}）</option>`).join("")}`;
+    let activeCustomers = [];
+    const customerSelect = $("serviceCustomerSelect");
+    customerSelect.disabled = true;
+    customerSelect.innerHTML = `<option value="">正在从数据库读取本门店活跃客户…</option>`;
+    const loadActiveCustomers = async () => {
+      try {
+        const result = await callCustomerEnrollment({ action: "listActiveStoreCustomers" });
+        storeName = String(result?.storeName || result?.storeCode || storeName);
+        activeCustomers = (Array.isArray(result?.customers) ? result.customers : []).map((customer) => ({
+          id: String(customer.customerCode || ""),
+          name: String(customer.customerName || ""),
+          birthday: String(customer.birthDate || "").slice(0, 10)
+        })).filter((customer) => customer.id && customer.name && customer.birthday);
+        databaseCustomers = activeCustomers;
+        customerSelect.innerHTML = activeCustomers.length
+          ? `<option value="">请选择现有客户</option>${activeCustomers.map((customer) => `<option value="${escapeHtml(customer.id)}">${escapeHtml(customer.name)}（${escapeHtml(customer.id)}）</option>`).join("")}`
+          : `<option value="">本门店暂无活跃客户</option>`;
+        customerSelect.disabled = activeCustomers.length === 0;
+      } catch (error) {
+        activeCustomers = [];
+        databaseCustomers = [];
+        customerSelect.innerHTML = `<option value="">客户数据读取失败</option>`;
+        customerSelect.disabled = true;
+        showLookupError(error?.message || "无法从数据库读取本门店活跃客户，请刷新重试。");
+      }
+    };
     const lookupSelectedCustomer = () => {
       resetCandidate();
       const id = $("serviceCustomerSelect").value;
@@ -196,6 +268,7 @@
       } else showLookupError("未找到本门店活跃客户；请核对信息，或先恢复已存档客户。");
     });
     $("confirmCustomerSelection").addEventListener("click", () => { if (candidateCustomer) confirmCustomer(candidateCustomer.id); });
+    loadActiveCustomers();
   }
   function showLookupError(message) { $("serviceCustomerResults").innerHTML = `<div class="lookup-placeholder error"><strong>未能确认客户</strong><span>${message}</span></div>`; }
   function resetCandidate() {
@@ -210,18 +283,31 @@
     disableBusinessStep();
   }
   async function renderCustomerCore(customer) {
-    const photoId = customer.profilePhotoId;
-    if (!photoId) { showLookupError("客户建档照片不存在，无法确认客户，请联系有权限人员处理档案。"); return; }
     const request = ++customerPreviewRequest;
     candidateCustomer = null;
     $("confirmCustomerSelection").disabled = true;
     $("serviceCustomerResults").innerHTML = `<div class="lookup-placeholder"><strong>正在安全读取客户照片</strong><span>正在验证当前门店权限并生成短时访问地址…</span></div>`;
     try {
-      const result = await callCustomerEnrollment({ action: "getCustomerPhotoUrl", customerCode: customer.id });
+      const result = await callCustomerEnrollment({ action: "getActiveStoreCustomerDetail", customerCode: customer.id });
       if (request !== customerPreviewRequest) return;
+      const detail = result?.customer && typeof result.customer === "object" ? result.customer : {};
+      if (String(detail.customerCode || "") !== customer.id) throw new Error("客户详情与所选客户不一致，请重新查询");
+      customer.name = String(detail.customerName || customer.name || "");
+      customer.birthday = String(detail.birthDate || customer.birthday || "").slice(0, 10);
+      customer.notes = String(detail.notes || "");
+      customer.storeId = String(detail.storeId || "");
+      customer.customerStatus = String(detail.customerStatus || "");
+      customer.customerProcessStatus = String(detail.customerProcessStatus || "");
+      customer.totalRechargeCount = Number(detail.totalRechargeCount || 0);
+      customer.totalVerificationCount = Number(detail.totalVerificationCount || 0);
+      customer.totalExperienceCount = Number(detail.totalExperienceCount || 0);
+      customer.hasProfilePhoto = detail.hasProfilePhoto === true;
+      customer.createdAt = detail.createdAt || "";
       const photoUrl = String(result?.photoUrl || "");
+      const customerNotes = customer.notes.trim();
+      customer.notes = customerNotes;
       if (!/^https:\/\//i.test(photoUrl)) throw new Error("客户照片临时地址无效，请刷新后重试");
-      $("serviceCustomerResults").innerHTML = `<div class="customer-core-card"><div class="customer-core-heading"><span>客户身份确认</span><strong>${escapeHtml(customer.name)}</strong></div><div class="customer-profile-layout"><figure class="customer-profile-photo"><div class="profile-photo-visual has-photo"><img id="selectedCustomerProfilePhoto" alt="${escapeHtml(customer.name)}的客户建档照片" referrerpolicy="no-referrer"></div><figcaption><strong>客户建档照片</strong><span>私有照片 · 临时授权显示</span></figcaption></figure><div class="customer-profile-details"><div class="customer-core-facts"><div><span>姓名</span><strong>${escapeHtml(customer.name)}</strong></div><div><span>生日</span><strong>${escapeHtml(customer.birthday)}</strong></div><div><span>客户编号</span><strong>${escapeHtml(customer.id)}</strong></div></div><p class="profile-photo-note">请核对照片与现场客户。该地址短时有效，照片无法读取时禁止继续确认客户。</p></div></div></div>`;
+      $("serviceCustomerResults").innerHTML = `<div class="customer-core-card"><div class="customer-core-heading"><span>客户身份确认</span><strong>${escapeHtml(customer.name)}</strong></div><div class="customer-profile-layout"><figure class="customer-profile-photo"><div class="profile-photo-visual has-photo"><img id="selectedCustomerProfilePhoto" alt="${escapeHtml(customer.name)}的客户建档照片" referrerpolicy="no-referrer"></div><figcaption><strong>客户建档照片</strong><span>私有照片 · 临时授权显示</span></figcaption></figure><div class="customer-profile-details"><div class="customer-core-facts"><div><span>姓名</span><strong>${escapeHtml(customer.name)}</strong></div><div><span>生日</span><strong>${escapeHtml(customer.birthday)}</strong></div><div><span>客户编号</span><strong>${escapeHtml(customer.id)}</strong></div><div><span>客户备注</span><strong>${escapeHtml(customerNotes || "—")}</strong></div></div><p class="profile-photo-note">请核对照片与现场客户。该地址短时有效，照片无法读取时禁止继续确认客户。</p></div></div></div>`;
       const image = $("selectedCustomerProfilePhoto");
       image.addEventListener("load", () => {
         if (request !== customerPreviewRequest) return;
@@ -280,13 +366,28 @@
     $("confirmCustomerSelection").textContent = `已确认 ${selectedCustomer.name}（${selectedCustomer.id}）`;
   }
   function setupRecharge() {
-    setupLookup(); fillProjects("rechargeProject"); $("rechargeTeacher").innerHTML = `<option value="">请选择老师</option>${teachers.map((teacher) => `<option value="${teacher.id}">${teacher.name}（${teacher.id}）</option>`).join("")}`;
-    $("rechargeCreateForm").addEventListener("submit", (event) => {
-      event.preventDefault(); const projectId = $("rechargeProject").value, teacherId = $("rechargeTeacher").value, count = Number($("rechargeCount").value);
-      if (!selectedCustomer || !projectId || !teacherId || !Number.isInteger(count) || count < 1) { $("rechargeCreateMessage").textContent = "必须确认客户、选择项目和老师并填写有效次数"; return; }
-      const records = JSON.parse(sessionStorage.getItem("prototypeRechargeApplications") || "[]"), project = projects.find((item) => item.id === projectId), recordId = `RC-NEW-${Date.now()}`, note = $("rechargeNote").value.trim();
-      records.push({ id: recordId, customerId: selectedCustomer.id, customerName: selectedCustomer.name, name: selectedCustomer.name, birthday: selectedCustomer.birthday, storeId, projectId, projectName: project.name, teacherId, count, status: "待审核", account: session.account, note, createdAt: new Date().toISOString() }); saveList("prototypeRechargeApplications", records); addCommunication("recharge", recordId, note);
-      $("rechargeCreateMessage").textContent = `${selectedCustomer.name} · ${project.name} · ${count}次充值申请已提交，审核通过后计入次数`;
+    setupLookup(); loadActiveProducts("rechargeProject", "rechargeCreateMessage"); loadActiveTeachers("rechargeTeacher", "rechargeCreateMessage");
+    $("rechargeCreateForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget, submit = form.querySelector('[type="submit"]');
+      const projectId = $("rechargeProject").value, teacherId = $("rechargeTeacher").value, count = Number($("rechargeCount").value), note = $("rechargeNote").value.trim();
+      if (!selectedCustomer || !projectId || !teacherId || !Number.isInteger(count) || count < 1 || count > 999) { $("rechargeCreateMessage").textContent = "必须确认客户、选择项目和老师，并填写 1 至 999 的整数充值次数"; return; }
+      const project = databaseProducts.find((item) => item.id === projectId), teacher = databaseTeachers.find((item) => item.id === teacherId);
+      if (!project || !teacher) { $("rechargeCreateMessage").textContent = "项目或老师数据已经失效，请刷新页面后重新选择"; return; }
+      const payload = { customerCode: selectedCustomer.id, productId: project.id, teacherId: teacher.id, unitCount: count, message: note };
+      const clientRequestId = nextRechargeRequestId(payload);
+      submit.disabled = true;
+      $("rechargeCreateMessage").textContent = "正在向数据库提交待审核充值单…";
+      try {
+        const result = await callCustomerEnrollment({ action: "createRechargeApplication", ...payload, clientRequestId });
+        if (String(result.recordStatus || "") !== "PENDING") throw new Error("数据库返回的充值单状态不是待审核，已停止后续操作");
+        rechargeRequest = null;
+        $("rechargeCreateMessage").textContent = `${selectedCustomer.name} · ${project.name} · ${count} 次充值单 ${result.rechargeCode} 已提交，当前为待审核；仅审核通过后才增加次数`;
+      } catch (error) {
+        $("rechargeCreateMessage").textContent = error?.message || "充值申请提交失败，请核对数据库与云函数";
+      } finally {
+        submit.disabled = false;
+      }
     });
   }
   function syncVerificationSubmit() {
@@ -304,7 +405,7 @@
   }
   function setupVerification() {
     const supplementalPage = page === "verification-supplemental";
-    setupLookup(); $("verificationProject").innerHTML = `<option value="">确认客户后加载可核销项目</option>`; $("verificationTeacher").innerHTML = `<option value="">请选择老师</option>${teachers.map((teacher) => `<option value="${teacher.id}">${teacher.name}（${teacher.id}）</option>`).join("")}`;
+    setupLookup(); $("verificationProject").innerHTML = `<option value="">确认客户后从数据库加载可核销项目</option>`; loadActiveTeachers("verificationTeacher", "verificationCreateMessage");
     const video = $("verificationCamera"), preview = $("verificationPhotoPreview"), placeholder = $("verificationCameraPlaceholder"), canvas = $("verificationCaptureCanvas"), open = $("openVerificationCamera"), capture = $("captureVerificationPhoto"), retake = $("retakeVerificationPhoto"), status = $("verificationPhotoStatus"), message = $("verificationCreateMessage");
     resetVerificationCapture();
     open.addEventListener("click", async () => {

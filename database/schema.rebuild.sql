@@ -214,6 +214,7 @@ CREATE TABLE public.recharge_records (
   reviewed_at TIMESTAMPTZ,
   message TEXT NOT NULL DEFAULT '',
   review_note TEXT NOT NULL DEFAULT '',
+  idempotency_key VARCHAR(64),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CHECK (
@@ -297,6 +298,9 @@ CREATE INDEX idx_recharge_customer_time ON public.recharge_records (customer_id,
 CREATE INDEX idx_recharge_store_time ON public.recharge_records (store_id, submitted_at DESC);
 CREATE INDEX idx_recharge_teacher_time ON public.recharge_records (teacher_id, submitted_at DESC);
 CREATE INDEX idx_recharge_status_time ON public.recharge_records (record_status, submitted_at DESC);
+CREATE UNIQUE INDEX uq_recharge_idempotency_key
+  ON public.recharge_records (idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
 CREATE INDEX idx_verification_customer_time ON public.verification_records (customer_id, submitted_at DESC);
 CREATE INDEX idx_verification_store_time ON public.verification_records (store_id, submitted_at DESC);
 CREATE INDEX idx_verification_teacher_time ON public.verification_records (teacher_id, submitted_at DESC);
