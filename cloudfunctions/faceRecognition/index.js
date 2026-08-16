@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const tencentcloud = require("tencentcloud-sdk-nodejs");
 const IaiClient = tencentcloud.iai.v20200303.Client;
 
-const FUNCTION_VERSION = "2026-08-16-storage-header-fix-v11";
+const FUNCTION_VERSION = "2026-08-16-private-photo-read-v12";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -120,6 +120,15 @@ function photoStorageSettings() {
     bucketId: String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim(),
     accessToken: required("CLOUDBASE_SERVICE_ROLE_KEY")
   };
+}
+
+function parsePhotoReference(value) {
+  const reference = String(value || "").trim();
+  if (!reference.startsWith("pg://")) fail("客户照片引用格式无效。", "PHOTO_REFERENCE_INVALID");
+  const path = reference.slice(5);
+  const separator = path.indexOf("/");
+  if (separator <= 0 || separator === path.length - 1) fail("客户照片引用格式无效。", "PHOTO_REFERENCE_INVALID");
+  return { bucketId: path.slice(0, separator), objectName: path.slice(separator + 1) };
 }
 
 function cleanImage(value) {
@@ -274,6 +283,38 @@ async function deleteUploadedFile(storedPhoto) {
   } catch (error) {
     console.warn("Photo cleanup failed", error?.message || error);
   }
+}
+
+async function getCustomerPhotoUrl(event) {
+  const caller = await activeStoreCaller();
+  const customerCode = String(event.customerCode || "").trim();
+  if (!customerCode || customerCode.length > 96) fail("必须提供已选择客户的有效编号。", "CUSTOMER_REQUIRED");
+
+  const rows = await executeSql(
+    `SELECT customer_code, profile_photo_file_id
+       FROM public.customers
+      WHERE customer_code = ${sqlText(customerCode)}
+        AND created_store_id = ${caller.storeId}
+        AND customer_status = 'ACTIVE'
+      LIMIT 1`
+  );
+  const customer = rows[0];
+  if (!customer) fail("未找到本门店已选择的活跃客户。", "CUSTOMER_NOT_FOUND");
+  if (!customer.profile_photo_file_id) fail("该客户没有可用的建档照片。", "CUSTOMER_PHOTO_MISSING");
+
+  const reference = parsePhotoReference(customer.profile_photo_file_id);
+  const storage = photoStorageSettings();
+  if (reference.bucketId !== storage.bucketId) fail("客户照片不属于指定私有存储桶。", "PHOTO_BUCKET_MISMATCH");
+  const expiresIn = Math.floor(numberSetting("CUSTOMER_PHOTO_URL_TTL_SECONDS", 120, 30, 600));
+  const signed = await manager().storage.signObject({
+    bucketId: reference.bucketId,
+    objectName: reference.objectName,
+    expiresIn,
+    accessToken: storage.accessToken
+  });
+  const photoUrl = String(signed?.signedURL || signed?.Data?.signedURL || signed?.data?.signedURL || "").trim();
+  if (!/^https:\/\//i.test(photoUrl)) fail("私有客户照片临时访问地址生成失败。", "PHOTO_SIGN_FAILED");
+  return { ok: true, customerCode: customer.customer_code, photoUrl, expiresIn };
 }
 
 async function deleteFacePerson(api, groupId, personId) {
@@ -557,6 +598,7 @@ exports.main = async (event = {}) => {
     if (action === "health") return { ok: true, version: FUNCTION_VERSION, groupId: required("FACE_GROUP_ID"), photoBucketId: String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim(), livenessEnabled: faceSettings().livenessEnabled, message: "Face customer enrollment is ready." };
     if (action === "validateCapture") return await validateCapture(event);
     if (action === "registerCustomer") return await registerCustomer(event);
+    if (action === "getCustomerPhotoUrl") return await getCustomerPhotoUrl(event);
     if (action === "searchCustomer") return await searchCustomer(event);
     if (action === "verifyCustomerFace") return await verifyCustomerFace(event);
     fail("Unsupported action.");
