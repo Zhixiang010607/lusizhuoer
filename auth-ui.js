@@ -25,8 +25,19 @@
     if (params.get("storeId") !== session.store) { params.set("storeId", session.store); location.replace(`${page}?${params.toString()}`); return; }
   }
 
+  const sidebar = document.querySelector(".side-project-bar");
   const primaryNav = document.querySelector(".side-project-bar > .side-nav");
   if (primaryNav) {
+    // Some management pages used to omit this static heading.  The primary
+    // navigation is rebuilt after login, so keep its section title in the
+    // same position on every workspace page instead of letting it disappear.
+    let primarySectionTitle = Array.from(sidebar?.children || []).find((node) => node.classList?.contains("side-section-title"));
+    if (!primarySectionTitle) {
+      primarySectionTitle = document.createElement("p");
+      primarySectionTitle.className = "side-section-title";
+      primaryNav.before(primarySectionTitle);
+    }
+    primarySectionTitle.textContent = session.role === "hq" ? "数据看板" : "工作台";
     const navLabel = session.role === "hq" ? "全局视图" : session.role === "operation" ? "运营分析" : session.role === "teacher" ? "我的工作台" : "门店首页";
     const navIcon = session.role === "hq" ? "总" : session.role === "operation" ? "运" : session.role === "teacher" ? "师" : "店";
     primaryNav.innerHTML = `<a class="active" href="${homeUrl}"><span class="nav-icon">${navIcon}</span><span>${navLabel}</span></a>`;
