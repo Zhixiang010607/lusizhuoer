@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.31", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.32", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   const storeId = String(session?.store || ""), storeNo = Number(storeId.replace(/\D/g, "")) || 1;
@@ -80,9 +80,10 @@
     }
     return data;
   }
-  async function loadActiveTeachers(selectId, messageId) {
+  async function loadActiveTeachers(selectId, messageId, options = {}) {
     const select = $(selectId);
     if (!select) return;
+    const optional = options.optional === true;
     select.disabled = true;
     select.innerHTML = `<option value="">正在从数据库读取活跃老师…</option>`;
     try {
@@ -93,15 +94,17 @@
         name: String(teacher.teacherName || "")
       })).filter((teacher) => teacher.id && teacher.name);
       select.innerHTML = databaseTeachers.length
-        ? `<option value="">请选择老师</option>${databaseTeachers.map((teacher) => `<option value="${escapeHtml(teacher.id)}">${escapeHtml(teacher.name)}（${escapeHtml(teacher.code)}）</option>`).join("")}`
-        : `<option value="">数据库中暂无活跃老师</option>`;
-      select.disabled = databaseTeachers.length === 0;
+        ? `<option value="">${optional ? "不指定业务老师" : "请选择老师"}</option>${databaseTeachers.map((teacher) => `<option value="${escapeHtml(teacher.id)}">${escapeHtml(teacher.name)}（${escapeHtml(teacher.code)}）</option>`).join("")}`
+        : `<option value="">${optional ? "不指定业务老师" : "数据库中暂无活跃老师"}</option>`;
+      select.disabled = !optional && databaseTeachers.length === 0;
     } catch (error) {
       databaseTeachers = [];
-      select.innerHTML = `<option value="">老师数据读取失败，禁止提交</option>`;
-      select.disabled = true;
+      select.innerHTML = `<option value="">${optional ? "不指定业务老师" : "老师数据读取失败，禁止提交"}</option>`;
+      select.disabled = !optional;
       const message = $(messageId);
-      if (message) message.textContent = error?.message || "无法从数据库读取活跃老师，请刷新后重试";
+      if (message) message.textContent = optional
+        ? `老师列表读取失败，仍可不指定老师提交：${error?.message || "请稍后刷新重试"}`
+        : (error?.message || "无法从数据库读取活跃老师，请刷新后重试");
     }
   }
   async function loadActiveProducts(selectId, messageId) {
@@ -366,15 +369,15 @@
     $("confirmCustomerSelection").textContent = `已确认 ${selectedCustomer.name}（${selectedCustomer.id}）`;
   }
   function setupRecharge() {
-    setupLookup(); loadActiveProducts("rechargeProject", "rechargeCreateMessage"); loadActiveTeachers("rechargeTeacher", "rechargeCreateMessage");
+    setupLookup(); loadActiveProducts("rechargeProject", "rechargeCreateMessage"); loadActiveTeachers("rechargeTeacher", "rechargeCreateMessage", { optional: true });
     $("rechargeCreateForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = event.currentTarget, submit = form.querySelector('[type="submit"]');
       const projectId = $("rechargeProject").value, teacherId = $("rechargeTeacher").value, count = Number($("rechargeCount").value), note = $("rechargeNote").value.trim();
-      if (!selectedCustomer || !projectId || !teacherId || !Number.isInteger(count) || count < 1 || count > 999) { $("rechargeCreateMessage").textContent = "必须确认客户、选择项目和老师，并填写 1 至 999 的整数充值次数"; return; }
-      const project = databaseProducts.find((item) => item.id === projectId), teacher = databaseTeachers.find((item) => item.id === teacherId);
-      if (!project || !teacher) { $("rechargeCreateMessage").textContent = "项目或老师数据已经失效，请刷新页面后重新选择"; return; }
-      const payload = { customerCode: selectedCustomer.id, productId: project.id, teacherId: teacher.id, unitCount: count, message: note };
+      if (!selectedCustomer || !projectId || !Number.isInteger(count) || count < 1 || count > 999) { $("rechargeCreateMessage").textContent = "必须确认客户、选择项目，并填写 1 至 999 的整数充值次数"; return; }
+      const project = databaseProducts.find((item) => item.id === projectId), teacher = teacherId ? databaseTeachers.find((item) => item.id === teacherId) : null;
+      if (!project || (teacherId && !teacher)) { $("rechargeCreateMessage").textContent = "项目或老师数据已经失效，请刷新页面后重新选择"; return; }
+      const payload = { customerCode: selectedCustomer.id, productId: project.id, teacherId: teacher?.id || "", unitCount: count, message: note };
       const clientRequestId = nextRechargeRequestId(payload);
       submit.disabled = true;
       $("rechargeCreateMessage").textContent = "正在向数据库提交待审核充值单…";

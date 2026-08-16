@@ -214,7 +214,7 @@ messages. No money field is stored.
 | `recharge_type` | `NEW` or `VOID` | `NEW` |
 | `original_recharge_id` | Original order when type is `VOID` | `NULL` |
 | `store_id` | Related store | `1` |
-| `teacher_id` | Related teacher | `1` |
+| `teacher_id` | Optional related business teacher | `NULL` |
 | `customer_id` | Related customer | `1` |
 | `product_id` | Related product | `1` |
 | `unit_count` | Recharge units, not money | `10` |

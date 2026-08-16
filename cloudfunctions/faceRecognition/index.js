@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const tencentcloud = require("tencentcloud-sdk-nodejs");
 const IaiClient = tencentcloud.iai.v20200303.Client;
 
-const FUNCTION_VERSION = "2026-08-17-lazy-dropdown-details-v23";
+const FUNCTION_VERSION = "2026-08-17-optional-recharge-teacher-v24";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -696,10 +696,21 @@ async function requireRechargeSubmissionSchema() {
         WHERE table_schema = 'public'
           AND table_name = 'recharge_records'
           AND column_name = 'idempotency_key'
-     ) AS has_idempotency_key`
+     ) AS has_idempotency_key,
+     EXISTS (
+       SELECT 1
+         FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'recharge_records'
+          AND column_name = 'teacher_id'
+          AND is_nullable = 'YES'
+     ) AS teacher_is_optional`
   );
   if (!databaseBoolean(rows?.[0]?.has_idempotency_key)) {
     fail("充值单数据库缺少防重复提交字段，请先执行迁移 023。", "DATABASE_SCHEMA_MISSING");
+  }
+  if (!databaseBoolean(rows?.[0]?.teacher_is_optional)) {
+    fail("充值单数据库尚未允许业务老师为空，请先执行迁移 024。", "DATABASE_SCHEMA_MISSING");
   }
 }
 
@@ -708,7 +719,8 @@ async function createRechargeApplication(event) {
   const customerCode = String(event.customerCode || "").trim();
   if (!customerCode || customerCode.length > 96) fail("必须先确认本门店的活跃客户。", "CUSTOMER_REQUIRED");
   const productId = positiveDatabaseId(event.productId, "项目");
-  const teacherId = positiveDatabaseId(event.teacherId, "老师");
+  const teacherIdText = String(event.teacherId ?? "").trim();
+  const teacherId = teacherIdText ? positiveDatabaseId(teacherIdText, "老师") : null;
   const unitCount = Number(event.unitCount);
   if (!Number.isInteger(unitCount) || unitCount < 1 || unitCount > 999) {
     fail("充值次数必须是 1 至 999 的整数。", "INVALID_UNIT_COUNT");
@@ -739,18 +751,22 @@ async function createRechargeApplication(event) {
   const product = products[0];
   if (!product) fail("所选项目不存在或已经封存，请重新选择。", "PRODUCT_NOT_ACTIVE");
 
-  const teachers = await executeSql(
-    `SELECT t.id, t.teacher_code, t.teacher_name
-       FROM public.teachers t
-       JOIN public.staff_accounts a ON a.id = t.staff_account_id
-      WHERE t.id = ${sqlText(teacherId)}::bigint
-        AND t.teacher_status = 'ACTIVE'
-        AND a.role_code = 'teacher'
-        AND a.account_status = 'ACTIVE'
-      LIMIT 1`
-  );
-  const teacher = teachers[0];
-  if (!teacher) fail("所选老师不存在或已经封存，请重新选择。", "TEACHER_NOT_ACTIVE");
+  let teacher = null;
+  if (teacherId) {
+    const teachers = await executeSql(
+      `SELECT t.id, t.teacher_code, t.teacher_name
+         FROM public.teachers t
+         JOIN public.staff_accounts a ON a.id = t.staff_account_id
+        WHERE t.id = ${sqlText(teacherId)}::bigint
+          AND t.teacher_status = 'ACTIVE'
+          AND a.role_code = 'teacher'
+          AND a.account_status = 'ACTIVE'
+        LIMIT 1`
+    );
+    teacher = teachers[0] || null;
+    if (!teacher) fail("所选老师不存在或已经封存，请重新选择。", "TEACHER_NOT_ACTIVE");
+  }
+  const teacherIdSql = teacherId ? `${sqlText(teacherId)}::bigint` : "NULL";
 
   const rows = await executeSql(
     `WITH inserted AS (
@@ -758,7 +774,7 @@ async function createRechargeApplication(event) {
          (recharge_type, store_id, teacher_id, customer_id, product_id,
           unit_count, record_status, submitted_by_account_id, message, idempotency_key)
        VALUES
-         ('NEW', ${caller.storeId}, ${sqlText(teacherId)}::bigint,
+         ('NEW', ${caller.storeId}, ${teacherIdSql},
           ${sqlText(customer.id)}::bigint, ${sqlText(productId)}::bigint,
           ${unitCount}, 'PENDING', ${caller.staffId}, ${sqlText(message)}, ${sqlText(idempotencyKey)})
        ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
@@ -782,7 +798,7 @@ async function createRechargeApplication(event) {
 
   const sameRequest = record.recharge_type === "NEW"
     && String(record.store_id) === String(caller.storeId)
-    && String(record.teacher_id) === String(teacherId)
+    && String(record.teacher_id || "") === String(teacherId || "")
     && String(record.customer_id) === String(customer.id)
     && String(record.product_id) === String(productId)
     && Number(record.unit_count) === unitCount
@@ -802,7 +818,7 @@ async function createRechargeApplication(event) {
     unitCount: Number(record.unit_count),
     customer: { customerCode: customer.customer_code, customerName: customer.customer_name },
     product: { productId: String(product.id), productCode: product.product_code, productName: product.product_name },
-    teacher: { teacherId: String(teacher.id), teacherCode: teacher.teacher_code, teacherName: teacher.teacher_name }
+    teacher: teacher ? { teacherId: String(teacher.id), teacherCode: teacher.teacher_code, teacherName: teacher.teacher_name } : null
   };
 }
 

@@ -202,7 +202,7 @@ CREATE TABLE public.recharge_records (
     CHECK (recharge_type IN ('NEW', 'VOID')),
   original_recharge_id BIGINT REFERENCES public.recharge_records(id),
   store_id BIGINT NOT NULL REFERENCES public.stores(id),
-  teacher_id BIGINT NOT NULL REFERENCES public.teachers(id),
+  teacher_id BIGINT REFERENCES public.teachers(id),
   customer_id BIGINT NOT NULL REFERENCES public.customers(id),
   product_id BIGINT NOT NULL REFERENCES public.products(id),
   unit_count INTEGER NOT NULL CHECK (unit_count > 0),
