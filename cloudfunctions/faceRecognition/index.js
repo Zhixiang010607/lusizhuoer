@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const tencentcloud = require("tencentcloud-sdk-nodejs");
 const IaiClient = tencentcloud.iai.v20200303.Client;
 
-const FUNCTION_VERSION = "2026-08-16-capture-check-v6";
+const FUNCTION_VERSION = "2026-08-16-capture-check-v7";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -23,7 +23,7 @@ function manager() {
 }
 
 function required(name) {
-  const value = process.env[name];
+  const value = String(process.env[name] || "").trim();
   if (!value) throw new Error(`Missing cloud function environment variable: ${name}`);
   return value;
 }
