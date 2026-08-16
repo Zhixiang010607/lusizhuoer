@@ -277,6 +277,8 @@ CREATE INDEX idx_stores_lookup ON public.stores (store_name, province, city, dis
 CREATE INDEX idx_store_contacts_store_status ON public.store_contacts (store_id, contact_status);
 CREATE INDEX idx_teachers_name_status ON public.teachers (teacher_name, teacher_status);
 CREATE INDEX idx_products_name_status ON public.products (product_name, product_status);
+CREATE UNIQUE INDEX uq_products_normalized_name
+  ON public.products (LOWER(BTRIM(product_name)));
 CREATE UNIQUE INDEX uq_products_idempotency_key
   ON public.products (idempotency_key)
   WHERE idempotency_key IS NOT NULL;

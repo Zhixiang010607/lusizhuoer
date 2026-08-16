@@ -8,7 +8,7 @@
 const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "2026-08-16-product-readback-v3";
+const FUNCTION_VERSION = "2026-08-16-product-unique-name-v4";
 let app = null;
 let auth = null;
 let managerClient = null;
@@ -752,6 +752,11 @@ async function getProductCreationCapabilities() {
           SELECT 1 FROM information_schema.columns
           WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'idempotency_key'
         ) AS has_idempotency_key,
+        EXISTS (
+          SELECT 1 FROM pg_indexes
+          WHERE schemaname = 'public' AND tablename = 'products'
+            AND indexname = 'uq_products_normalized_name'
+        ) AS has_unique_product_name,
         COALESCE((
           SELECT column_default
           FROM information_schema.columns
@@ -769,11 +774,14 @@ async function getProductCreationCapabilities() {
   if (!databaseBoolean(row.has_product_type) || !databaseBoolean(row.has_product_status)) {
     fail("products 表缺少基础字段，请先执行完整数据库建表脚本", "DATABASE_SCHEMA_MISSING");
   }
-  const ready = databaseBoolean(row.has_description) &&
+  const baseReady = databaseBoolean(row.has_description) &&
     databaseBoolean(row.has_idempotency_key) &&
     Boolean(String(row.product_code_default || "").trim());
-  if (!ready) {
+  if (!baseReady) {
     fail("产品表尚未完成升级，请先执行 018_product_creation_idempotency.sql", "DATABASE_SCHEMA_MISSING");
+  }
+  if (!databaseBoolean(row.has_unique_product_name)) {
+    fail("产品表尚未启用名称唯一约束，请先执行 019_unique_product_name.sql", "DATABASE_SCHEMA_MISSING");
   }
   return { ready: true };
 }
@@ -809,6 +817,28 @@ async function findProductByRequestId(clientRequestId) {
   return rows?.[0] || null;
 }
 
+async function findProductByName(productName) {
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT id, product_code, product_name, product_type, description, product_status,
+              created_at, updated_at
+       FROM public.products
+       WHERE LOWER(BTRIM(product_name)) = LOWER(BTRIM(${sqlText(productName)}))
+       ORDER BY id ASC
+       LIMIT 1`
+    );
+  } catch (error) {
+    asDatabaseError(error, "检查产品名称");
+  }
+  return rows?.[0] || null;
+}
+
+function failProductNameExists(product) {
+  const code = String(product?.product_code || "").trim();
+  fail(`已存在同名产品${code ? `（${code}）` : ""}，不能重复创建`, "PRODUCT_NAME_EXISTS");
+}
+
 function assertSameProductRequest(product, input) {
   const same = String(product?.product_name || "").trim() === input.productName &&
     String(product?.product_type || "").trim() === input.productType &&
@@ -826,6 +856,8 @@ async function createProductRecord(event) {
     assertSameProductRequest(recovered, input);
     return { product: recovered, created: false };
   }
+  const duplicateName = await findProductByName(input.productName);
+  if (duplicateName) failProductNameExists(duplicateName);
 
   let rows;
   try {
@@ -850,8 +882,12 @@ async function createProductRecord(event) {
         assertSameProductRequest(concurrent, input);
         return { product: concurrent, created: false };
       }
+      const concurrentName = await findProductByName(input.productName);
+      if (concurrentName) failProductNameExists(concurrentName);
     } catch (recoveryError) {
-      if (recoveryError?.code === "IDEMPOTENCY_CONFLICT") throw recoveryError;
+      if (["IDEMPOTENCY_CONFLICT", "PRODUCT_NAME_EXISTS"].includes(recoveryError?.code)) {
+        throw recoveryError;
+      }
     }
     asDatabaseError(error, "创建产品资料");
   }
