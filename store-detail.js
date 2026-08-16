@@ -1,37 +1,82 @@
-﻿(() => {
+(() => {
   "use strict";
-  const VERSION = "0.14.19", p = new URLSearchParams(location.search), $ = (id) => document.getElementById(id), id = p.get("storeId") || "S001", seed = Number(id.replace(/\D/g, "")) || 1;
-  const info = (items) => items.map(([k, v]) => `<article><span>${k}</span><strong>${v}</strong></article>`).join("");
-  let createdStores = [];
-  try { createdStores = JSON.parse(sessionStorage.getItem("prototypeCreatedStores") || "[]"); } catch (_) { createdStores = []; }
-  const actualStore = createdStores.find((store) => store.id === id);
-  if (!actualStore) {
-    $("storeHero").innerHTML = `<div><span class="profile-type">门店详情</span><h2>未找到门店</h2><p>该门店不存在或尚未创建。</p></div>`;
-    $("storeBasicGrid").innerHTML = "";
-    ["storeProjectBody", "storeTeacherBody", "storeCustomerBody"].forEach((target) => { if ($(target)) $(target).innerHTML = `<tr><td colspan="8" class="query-empty">暂无数据</td></tr>`; });
-    $("storeCustomerCount") && ($("storeCustomerCount").textContent = "0位客户");
-    document.documentElement.dataset.prototypeVersion = VERSION;
-    return;
+
+  const VERSION = "0.14.21";
+  const params = new URLSearchParams(location.search);
+  const storeRef = String(params.get("authUid") || params.get("storeId") || "").trim();
+  const $ = (id) => document.getElementById(id);
+  const escapeHtml = (value) => String(value ?? "").replace(/[&<>"]/g, (char) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"
+  })[char]);
+  const info = (items) => items.map(([label, value]) =>
+    `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`
+  ).join("");
+
+  function renderEmptyRows(message = "暂无业务数据") {
+    ["storeProjectBody", "storeTeacherBody", "storeCustomerBody"].forEach((target) => {
+      if ($(target)) $(target).innerHTML = `<tr><td colspan="8" class="query-empty">${escapeHtml(message)}</td></tr>`;
+    });
+    if ($("storeCustomerCount")) $("storeCustomerCount").textContent = "0位客户";
   }
-  const city = actualStore.city || "未填写", name = actualStore.name, projects = [];
-  const contacts = (actualStore.contacts || []).map((contact) => `${contact.name || "联系人"} · ${contact.phone || "未填写"}`).join("；") || "未填写";
-  $("storeHero").innerHTML = `<div class="profile-avatar store-profile-avatar">店</div><div><span class="profile-type">门店编号</span><h2>${name}</h2><p>${id} · ${actualStore.status || "活跃"}</p></div>`;
-  $("storeBasicGrid").innerHTML = info([["门店编号", id], ["门店名称", name], ["地区", [actualStore.province, actualStore.city, actualStore.district].filter(Boolean).join(" · ") || "未填写"], ["地址", actualStore.address || "未填写"], ["门店状态", actualStore.status || "活跃"], ["联系人", contacts]]);
-  ["storeProjectBody", "storeTeacherBody", "storeCustomerBody"].forEach((target) => { if ($(target)) $(target).innerHTML = `<tr><td colspan="8" class="query-empty">暂无业务数据</td></tr>`; });
-  $("storeCustomerCount") && ($("storeCustomerCount").textContent = "0位客户");
-  $("storeAccountInfo") && ($("storeAccountInfo").innerHTML = info([["登录账号", actualStore.account || "未生成"], ["账号状态", actualStore.status || "活跃"]]));
-  $("storeAuditTimeline") && ($("storeAuditTimeline").innerHTML = `<p class="query-empty">暂无操作记录</p>`);
-  document.documentElement.dataset.prototypeVersion = VERSION;
-  return;
-  /* Legacy prototype-only layout below is unreachable. */
-  $("storeHero").innerHTML = `<div class="profile-avatar store-profile-avatar">店</div><div><span class="profile-type">门店编号</span><h2>${name}</h2><p>${id} · 正常营业 · 门店账号有效</p></div><div class="profile-metrics"><span><strong>${128 + seed * 3}</strong>客户</span><span><strong>${6}</strong>项目</span><span><strong>${8}</strong>老师</span></div>`;
-  $("storeBasicGrid").innerHTML = info([["门店编号", id], ["门店名称", name], ["城市", city], ["地址", `${100 + seed} ${["George St", "Collins St", "Queen St", "Hay St"][(seed - 1) % 4]}`], ["门店状态", "正常"], ["开业日期", `2022-${String(seed % 12 + 1).padStart(2, "0")}-01`], ["联系电话", "按权限脱敏显示"], ["最后修改", "HQ001 · 总部管理员"]]);
-  $("storeProjectBody").innerHTML = projects.map((project, i) => { const projectId = `P${String(i + 1).padStart(3, "0")}`, recharge = 180 + (seed * 23 + i * 41) % 320, used = 92 + (seed * 17 + i * 29) % 170; return `<tr><td><a class="record-link" href="project-detail.html?projectId=${projectId}">${projectId} · ${project}</a></td><td>${recharge}</td><td>${used}</td><td><strong>${recharge - used}</strong></td><td>正常</td></tr>`; }).join("");
-  $("storeTeacherBody").innerHTML = Array.from({ length: 8 }, (_, i) => { const teacherId = `T${String((seed * 3 + i) % 32 + 1).padStart(3, "0")}`; return `<tr><td><a class="record-link" href="teacher-detail.html?teacherId=${teacherId}">业务老师 ${String((seed * 3 + i) % 32 + 1).padStart(2, "0")}（${teacherId}）</a></td><td>${3 + i % 4}</td><td>${46 + (seed * 7 + i * 19) % 110}</td><td>${i % 5 === 0 ? 1 : 0}</td><td>在职</td></tr>`; }).join("");
-  const customers = Array.from({ length: 18 }, (_, i) => ({ id: `C${String(seed).padStart(3, "0")}${String(i + 1).padStart(3, "0")}`, name: `客户${i + 1}`, projects: 1 + i % 5, bought: 26 + (seed * 5 + i * 11) % 80, used: 8 + (seed * 3 + i * 7) % 24 }));
-  $("storeCustomerBody").innerHTML = customers.map((c, i) => `<tr><td><a class="record-link" href="customer-detail.html?customerId=${c.id}&customerName=${encodeURIComponent(c.name)}&storeId=${id}">${c.id}</a></td><td>${c.name}</td><td>${c.projects}</td><td>${c.bought}</td><td>${c.used}</td><td><strong>${c.bought - c.used}</strong></td><td>2026-08-${String(i % 12 + 1).padStart(2, "0")}</td><td>正常</td></tr>`).join("");
-  $("storeCustomerCount").textContent = `${customers.length}位客户`;
-  $("storeAccountInfo").innerHTML = info([["登录账号", `STORE${String(seed).padStart(3, "0")}`], ["账号类型", "门店账号"], ["绑定门店", `${name}（${id}）`], ["账号状态", "正常"]]);
-  $("storeAuditTimeline").innerHTML = `<div><strong>2022-03-01 09:00</strong><span>HQ001 · 总部管理员创建门店</span></div><div><strong>2025-08-16 11:20</strong><span>OP001 · 运营管理员更新门店地址</span></div><div><strong>2026-07-09 15:35</strong><span>HQ001 · 总部管理员调整项目授权</span></div>`;
-  document.documentElement.dataset.prototypeVersion = VERSION;
+
+  function renderError(message) {
+    $("storeHero").innerHTML = `<div><span class="profile-type">门店详情</span><h2>无法读取门店</h2><p>${escapeHtml(message)}</p></div>`;
+    $("storeBasicGrid").innerHTML = "";
+    $("storeAccountInfo").innerHTML = "";
+    $("storeAuditTimeline").innerHTML = `<p class="query-empty">暂无操作记录</p>`;
+    renderEmptyRows("暂无数据");
+  }
+
+  function renderStore(store) {
+    const authUid = String(store.auth_uid || "").trim();
+    const storeCode = String(store.store_code || "").trim();
+    const status = store.store_status === "ARCHIVED" ? "封存" : "活跃";
+    const locationText = [store.province, store.city, store.district].filter(Boolean).join(" · ") || "未填写";
+    const contactName = String(store.contact_name || "").trim() || "未填写";
+    const contactPhone = String(store.contact_phone || "").trim() || "未填写";
+
+    $("storeHero").innerHTML = `<div class="profile-avatar store-profile-avatar">店</div><div><span class="profile-type">门店账号</span><h2>${escapeHtml(store.store_name)}</h2><p>${escapeHtml(authUid)} · ${escapeHtml(status)}</p></div>`;
+    $("storeBasicGrid").innerHTML = info([
+      ["唯一身份 ID", authUid],
+      ["业务编号", storeCode],
+      ["门店名称", store.store_name],
+      ["地区", locationText],
+      ["详细地址", store.address_detail || "未填写"],
+      ["门店状态", status]
+    ]);
+    $("storeAccountInfo").innerHTML = info([
+      ["唯一身份 ID", authUid],
+      ["登录联系人", contactName],
+      ["登录手机号", contactPhone],
+      ["账号状态", status]
+    ]);
+    $("storeAuditTimeline").innerHTML = `<p class="query-empty">暂无操作记录</p>`;
+    renderEmptyRows();
+  }
+
+  async function load() {
+    document.documentElement.dataset.prototypeVersion = VERSION;
+    if (!storeRef) {
+      renderError("缺少门店唯一身份 ID。");
+      return;
+    }
+    if (!window.CloudBasePhoneAuth?.listStores) {
+      renderError("门店数据库服务尚未加载，请刷新页面后重试。");
+      return;
+    }
+    try {
+      const stores = await window.CloudBasePhoneAuth.listStores();
+      const store = stores.find((item) => [item.auth_uid, item.id, item.store_code]
+        .map((value) => String(value || "").trim()).includes(storeRef));
+      if (!store) {
+        renderError("未找到该门店账号，或门店尚未绑定有效认证身份。");
+        return;
+      }
+      renderStore(store);
+    } catch (error) {
+      renderError(error?.message || "门店资料读取失败，请稍后重试。");
+    }
+  }
+
+  void load();
 })();

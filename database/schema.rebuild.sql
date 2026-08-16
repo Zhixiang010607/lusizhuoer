@@ -72,7 +72,7 @@ $$;
 CREATE TABLE public.staff_accounts (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   staff_code VARCHAR(32) NOT NULL UNIQUE,
-  auth_uid VARCHAR(64) UNIQUE,
+  auth_uid VARCHAR(64) NOT NULL UNIQUE CHECK (BTRIM(auth_uid) <> ''),
   phone CHAR(11) NOT NULL UNIQUE,
   staff_name VARCHAR(64) NOT NULL,
   role_code VARCHAR(16) NOT NULL CHECK (role_code IN ('hq', 'operation', 'store', 'teacher')),

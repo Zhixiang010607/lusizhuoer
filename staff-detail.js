@@ -31,7 +31,8 @@
     $("staffDetailTitle").textContent = `${labels[role]}全局视图`;
     $("backToManagement").href = pages[role];
     const cards = [
-      ["编号", staff.person_code],
+      ["唯一身份 ID", staff.auth_uid],
+      ["业务编号", staff.person_code],
       ["姓名", staff.staff_name],
       ["联系电话", staff.phone || "未填写"],
       ["身份", labels[role]],
@@ -68,7 +69,7 @@
     }
     try {
       const records = await window.CloudBasePhoneAuth.listStaff(role);
-      staff = records.find((item) => item.person_code === personId);
+      staff = records.find((item) => String(item.auth_uid || "") === personId);
       if (!staff) {
         renderError("未找到该人员，可能已被删除或无权查看。");
         return;

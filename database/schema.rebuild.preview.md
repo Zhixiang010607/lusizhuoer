@@ -29,13 +29,15 @@ customers + stores + teachers + products -> verification_records
 
 This is the only table containing login phone numbers. One phone can occur only
 once, so one phone cannot receive two business identities. A user with
-`ARCHIVED` status cannot sign in.
+`ARCHIVED` status cannot sign in. `auth_uid` is required and is the universal
+login identity used by HQ, operation, store, and teacher accounts. Business
+codes remain display codes and are not authentication identities.
 
 | Field | Meaning | Example |
 |---|---|---|
 | `id` | Internal account ID | `1` |
 | `staff_code` | Automatically generated account code | `HQ001` |
-| `auth_uid` | CloudBase authentication UID | `2085744699220090881` |
+| `auth_uid` | Required, globally unique CloudBase authentication identity | `2085744699220090881` |
 | `phone` | Login phone only, unique | `139****2329` |
 | `staff_name` | Account holder name | `乐玉米` |
 | `role_code` | `hq`, `operation`, `store`, or `teacher` | `hq` |

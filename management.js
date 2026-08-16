@@ -1,7 +1,7 @@
 ﻿(() => {
   "use strict";
 
-  const VERSION = "0.14.20";
+  const VERSION = "0.14.21";
   const type = document.body.dataset.management;
   const $ = (id) => document.getElementById(id);
   const fmt = new Intl.NumberFormat("zh-CN");
@@ -84,7 +84,7 @@
   function refillSelect(selectedId) {
     const select = $("entitySelect"), items = searchListTypes.has(type) ? entitySets[type] : visibleEntities();
     const options = items.map((item) => type === "store"
-      ? `<option value="${item.id}">${escapeHtml(storeSelectionName(item))} · ${escapeHtml(item.province)} · ${escapeHtml(item.city)} · ${escapeHtml(item.district)}${item.status === "活跃" ? "" : " · 封存"}</option>`
+      ? `<option value="${item.id}">${escapeHtml(storeSelectionName(item))}（${escapeHtml(item.id)}） · ${escapeHtml(item.province)} · ${escapeHtml(item.city)} · ${escapeHtml(item.district)}${item.status === "活跃" ? "" : " · 封存"}</option>`
       : `<option value="${item.id}">${escapeHtml(item.displayName || item.name)}（${item.id}）${item.phone ? ` · ${escapeHtml(item.phone)}` : ""}${item.status === "活跃" ? "" : " · 封存"}</option>`).join("");
     const placeholder = `请选择${labels[type] || "对象"}`;
     select.innerHTML = searchListTypes.has(type) ? `<option value="">${placeholder}</option>${options}` : options;
@@ -229,7 +229,7 @@
       $("simpleStatsBody") && ($("simpleStatsBody").innerHTML = "");
       return;
     }
-    target.innerHTML = `<section class="panel people-result-panel"><div class="panel-heading"><div><h2>查询结果</h2><p>共 ${results.length} 条。总部可进入该账号自身范围内的全局视图。</p></div></div><div class="people-result-list">${results.map((person) => { const detail = type === "store" ? `store-detail.html?storeId=${encodeURIComponent(person.id)}` : `staff-detail.html?role=${encodeURIComponent(type)}&id=${encodeURIComponent(person.id)}`; const location = type === "store" ? [person.province, person.city, person.district].filter(Boolean).join(" · ") : person.phone || "未填写"; return `<article class="people-result-row"><div><strong>${escapeHtml(person.name)}</strong><span>${escapeHtml(person.id)} · ${escapeHtml(location)} · ${escapeHtml(person.status)}</span></div><a class="button-link secondary-button" href="${detail}">进入全局视图</a></article>`; }).join("")}</div></section>`;
+    target.innerHTML = `<section class="panel people-result-panel"><div class="panel-heading"><div><h2>查询结果</h2><p>共 ${results.length} 条。总部可进入该账号自身范围内的全局视图。</p></div></div><div class="people-result-list">${results.map((person) => { const detail = type === "store" ? `store-detail.html?authUid=${encodeURIComponent(person.id)}` : `staff-detail.html?role=${encodeURIComponent(type)}&id=${encodeURIComponent(person.id)}`; const location = type === "store" ? [person.province, person.city, person.district].filter(Boolean).join(" · ") : person.phone || "未填写"; return `<article class="people-result-row"><div><strong>${escapeHtml(person.name)}</strong><span>${escapeHtml(person.id)} · ${escapeHtml(location)} · ${escapeHtml(person.status)}</span></div><a class="button-link secondary-button" href="${detail}">进入全局视图</a></article>`; }).join("")}</div></section>`;
     $("simpleStatsBody") && ($("simpleStatsBody").innerHTML = "");
   }
 
@@ -333,14 +333,16 @@
     try {
       const remote = await window.CloudBasePhoneAuth.listStaff(type);
       const records = remote.map((person) => ({
-        id: person.person_code || `${type.toUpperCase()}${person.id}`,
+        id: String(person.auth_uid || "").trim(),
+        databaseId: String(person.id || "").trim(),
+        businessCode: person.person_code || `${type.toUpperCase()}${person.id}`,
         account: person.person_code || `${type.toUpperCase()}${person.id}`,
         name: person.staff_name,
         displayName: person.staff_name,
         phone: person.phone || "未填写",
         authUid: person.auth_uid || "",
         status: person.account_status === "ARCHIVED" ? "封存" : "活跃"
-      }));
+      })).filter((person) => person.id && person.name);
       entitySets[type].splice(0, entitySets[type].length, ...records);
       peopleDataLoadError = "";
       refillSelect();
@@ -368,7 +370,9 @@
         const contactName = String(store.contact_name || store.staff_name || "").trim();
         const contactPhone = String(store.contact_phone || store.phone || "").trim();
         return {
-          id: String(store.id),
+          id: String(store.auth_uid || "").trim(),
+          databaseId: String(store.id || "").trim(),
+          businessCode: String(store.store_code || "").trim(),
           name: String(store.store_name || store.name || "").trim(),
           province: String(store.province || "").trim(),
           city: String(store.city || "").trim(),
@@ -383,7 +387,8 @@
       }).filter((store) => store.id && store.name);
       stores.splice(0, stores.length, ...records);
       peopleDataLoadError = "";
-      refillSelect(String(selectedId || ""));
+      const selected = records.find((store) => [store.id, store.databaseId, store.businessCode].includes(String(selectedId || "")));
+      refillSelect(selected?.id || "");
       render();
     } catch (error) {
       // 读取失败时保持空列表；绝不回退到本地演示数据。
