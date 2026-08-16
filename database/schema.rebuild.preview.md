@@ -10,6 +10,7 @@ recharge amount.
 
 ```text
 staff_accounts
+  |- credential_events
   |- teachers
   |- stores
   |- operation_store_scopes -> stores
@@ -39,6 +40,9 @@ once, so one phone cannot receive two business identities. A user with
 | `staff_name` | Account holder name | `乐玉米` |
 | `role_code` | `hq`, `operation`, `store`, or `teacher` | `hq` |
 | `account_status` | `ACTIVE` or `ARCHIVED` | `ACTIVE` |
+| `password_initialized_at` | Initial temporary-password creation time | `2026-08-16 09:00` |
+| `password_changed_at` | Last reset or self-change time | `2026-08-16 09:30` |
+| `password_change_required` | Whether the user must replace a temporary password | `true` |
 | `created_at` | Account creation time | `2026-08-16 09:00` |
 | `updated_at` | Last account change time | `2026-08-16 09:00` |
 
@@ -48,6 +52,19 @@ once, so one phone cannot receive two business identities. A user with
 | 2 | OP001 | 王运营 | operation | ACTIVE |
 | 3 | TCH001 | 李老师 | teacher | ACTIVE |
 | 4 | STA001 | 上海静安旗舰店账号 | store | ACTIVE |
+
+## 1a. `credential_events` - HQ-only password administration audit
+
+This table records only who created, reset, or changed a credential and when.
+It never contains an actual password or password hash. Only HQ can read it
+through RLS.
+
+| Field | Meaning | Example |
+|---|---|---|
+| `target_staff_account_id` | Account whose credential changed | `3` |
+| `actor_staff_account_id` | HQ actor; null only for a system event | `1` |
+| `event_type` | `ACCOUNT_CREATED`, `HQ_PASSWORD_RESET`, or `SELF_PASSWORD_CHANGED` | `HQ_PASSWORD_RESET` |
+| `occurred_at` | Event time | `2026-08-16 09:30` |
 
 ## 2. `stores` - store master data
 

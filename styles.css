@@ -32,8 +32,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .login-security-note,
 .login-heading p,
 .role-switch button small,
-.demo-accounts,
-.login-options a { display: none !important; }
+.demo-accounts { display: none !important; }
 .workflow-lookup-panel .panel-heading .badge { display: none !important; }
 html:not([data-auth-ready]) body:not(.login-page) { visibility: hidden; }
 body { margin: 0; padding-left: 190px; color: var(--ink); background: var(--page); font-size: 13px; line-height: 1.4; }
@@ -361,6 +360,7 @@ button.metric-card:hover { transform: translateY(-2px); box-shadow: 0 14px 32px 
 .staff-status-panel { margin-top: 18px; }
 .staff-status-panel h2 { margin: 0 0 5px; font-size: 16px; }
 .staff-status-panel p { margin: 0; color: var(--muted); }
+.staff-admin-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .store-manual-lookup { grid-template-columns: minmax(210px, 1.35fr) repeat(3, minmax(150px, 1fr)) auto; gap: 14px; padding: 18px 20px; margin-top: 14px; border: 1px solid #d8e4f3; background: linear-gradient(135deg, #f8fbff, #ffffff); }
 .store-manual-lookup > strong { grid-column: 1 / -1; color: var(--navy); font-size: 15px; }
 .store-manual-lookup label { min-width: 0; color: #41536d; font-weight: 700; }

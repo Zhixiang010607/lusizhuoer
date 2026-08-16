@@ -2,7 +2,6 @@
   "use strict";
   const type = document.body.dataset.personCreate;
   const $ = (id) => document.getElementById(id);
-  const DEFAULT_INITIAL_PASSWORD = "Init@123456789";
   const config = type === "teacher"
     ? { prefix: "T", baseCount: 32, key: "prototypeCreatedTeachers", baseNames: Array.from({ length: 32 }, (_, index) => `业务老师 ${String(index + 1).padStart(2, "0")}`) }
     : type === "hq"
@@ -31,9 +30,10 @@
     const message = $("personCreateMessage");
     const submitButton = event.currentTarget.querySelector('button[type="submit"]');
 
-    const initialPassword = DEFAULT_INITIAL_PASSWORD;
-    if (initialPassword.length < 8) {
-      message.textContent = "初始密码至少 8 位，并需包含大写、小写、数字、特殊字符中的至少三类";
+    const initialPassword = $("personInitialPassword").value;
+    const passwordGroups = [/[A-Z]/, /[a-z]/, /\d/, /[^A-Za-z\d]/].filter((rule) => rule.test(initialPassword)).length;
+    if (initialPassword.length < 8 || initialPassword.length > 32 || passwordGroups < 3) {
+      message.textContent = "初始密码需为 8–32 位，并包含大写、小写、数字、特殊字符中的至少三类";
       return;
     }
     submitButton.disabled = true;
@@ -59,21 +59,16 @@
     const displayName = displayNameFor(name);
     people.push({
       id, name: displayName, originalName: name, displayName, phone,
-      account: `staff_${phone}`, authUid: provisioned.uid, password: initialPassword, status: "活跃",
+      account: `staff_${phone}`, authUid: provisioned.uid, status: "活跃",
       createdAt: new Date().toISOString(),
       createdBy: { account: session?.account || "HQ001", name: session?.name || "总部管理员" }
     });
     sessionStorage.setItem(config.key, JSON.stringify(people));
     message.textContent = `创建成功：登录手机号 ${phone}。账号已自动绑定，初始密码请安全交给本人。`;
     event.currentTarget.reset();
-    $("personInitialPassword").value = DEFAULT_INITIAL_PASSWORD;
     submitButton.disabled = false;
   }
 
   $("generatedPersonCode").textContent = `编号 ${nextId()}（自动生成）`;
-  if ($("personInitialPassword")) {
-    $("personInitialPassword").value = DEFAULT_INITIAL_PASSWORD;
-    $("personInitialPassword").readOnly = true;
-  }
   $("personCreateForm").addEventListener("submit", submitPerson);
 })();

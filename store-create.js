@@ -53,12 +53,10 @@
     const created = storedStores(), id = nextStoreId();
     let session = null;
     try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
-    created.push({ id, name: $("storeCreateName").value.trim(), province: $("storeCreateProvince").value.trim(), city: $("storeCreateCity").value.trim(), district: $("storeCreateDistrict").value.trim(), address: $("storeCreateAddress").value.trim(), contacts, account: `STORE${id.slice(1)}`, password: randomPassword(), status: "活跃", createdAt: new Date().toISOString(), createdBy: { account: session?.account || "HQ001", name: session?.name || "总部管理员" } });
+    created.push({ id, name: $("storeCreateName").value.trim(), province: $("storeCreateProvince").value.trim(), city: $("storeCreateCity").value.trim(), district: $("storeCreateDistrict").value.trim(), address: $("storeCreateAddress").value.trim(), contacts, account: `STORE${id.slice(1)}`, status: "活跃", createdAt: new Date().toISOString(), createdBy: { account: session?.account || "HQ001", name: session?.name || "总部管理员" } });
     sessionStorage.setItem("prototypeCreatedStores", JSON.stringify(created));
     location.href = `store-management.html?created=${encodeURIComponent(id)}`;
   }
-  function randomPassword() { return Array.from({ length: 12 }, () => Math.floor(Math.random() * 10)).join(""); }
-
   refreshCode(); populateProvinces(); addContact();
   $("storeCreateProvince").addEventListener("change", populateCities);
   $("storeCreateCity").addEventListener("change", populateDistricts);

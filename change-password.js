@@ -23,8 +23,23 @@
     try {
       if (!window.CloudBasePhoneAuth?.changeOwnPassword) throw new Error("账号服务未加载，请刷新后重试");
       await window.CloudBasePhoneAuth.changeOwnPassword(value);
+      try {
+        const session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null");
+        if (session) {
+          session.passwordChangeRequired = false;
+          sessionStorage.setItem("prototypeSession", JSON.stringify(session));
+        }
+      } catch (_) { /* keep the completed password change even if local state is unavailable */ }
       form.reset();
       message.textContent = "密码已修改。下次登录请使用新密码。";
+      window.setTimeout(() => {
+        let session = null;
+        try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
+        const homes = { hq: "index.html", operation: "local.html", store: "store-detail.html", teacher: "teacher-work-orders.html" };
+        const target = homes[session?.role] || "login.html";
+        const suffix = session?.role === "store" && session.store ? `?storeId=${encodeURIComponent(session.store)}` : "";
+        location.replace(target + suffix);
+      }, 700);
     } catch (error) {
       message.textContent = error?.message || "密码修改失败，请稍后重试。";
     } finally {

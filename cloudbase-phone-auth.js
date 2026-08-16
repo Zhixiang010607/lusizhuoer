@@ -96,6 +96,12 @@
       if (!data?.ok) throw new Error(data?.message || "密码修改失败");
       return data;
     },
+    async resetStaffPassword({ uid, newPassword }) {
+      const result = await getApp().callFunction({ name: "staffAccount", data: { action: "resetPassword", uid, newPassword } });
+      const data = result?.result || result?.data?.result || result?.data;
+      if (!data?.ok) throw new Error(data?.message || "Password reset failed");
+      return data;
+    },
     async setStaffStatus({ uid = "", phone = "", status }) {
       const result = await getApp().callFunction({ name: "staffAccount", data: { action: "setStaffStatus", uid, phone, status } });
       const data = result?.result || result?.data?.result || result?.data;

@@ -6,16 +6,13 @@
   const $ = (id) => document.getElementById(id);
   const fmt = new Intl.NumberFormat("zh-CN");
   const escapeHtml = (value) => String(value).replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char]);
-  let passwordOverrides = {};
-  try { passwordOverrides = JSON.parse(sessionStorage.getItem("prototypeAccountPasswordOverrides") || "{}"); } catch (_) { passwordOverrides = {}; }
-  const passwordFor = (scope, id, fallback) => passwordOverrides[`${scope}:${id}`] || fallback;
   let createdProjects = [];
   try { createdProjects = JSON.parse(sessionStorage.getItem("prototypeCreatedProjects") || "[]"); } catch (_) { createdProjects = []; }
   const projects = createdProjects.map((project) => ({ id: project.id, name: project.name, status: project.status === "正常" ? "活跃" : (project.status || "活跃"), extra: project.description || "" }));
   let createdStores = [];
   try { createdStores = JSON.parse(sessionStorage.getItem("prototypeCreatedStores") || "[]"); } catch (_) { createdStores = []; }
   const chinaRegions = window.ChinaRegions || {};
-  const stores = createdStores.map((store) => ({ id: store.id, name: store.name, province: store.province || "未填写", city: store.city || "未填写", district: store.district || "未填写", status: store.status === "正常" ? "活跃" : (store.status || "活跃"), extra: store.address || "", contacts: store.contacts || [], account: store.account || `STORE${String(store.id).slice(1)}`, password: passwordFor("store", store.id, store.password || `1${String(store.id).replace(/\D/g, "").padStart(11, "0")}`), createdBy: store.createdBy }));
+  const stores = createdStores.map((store) => ({ id: store.id, name: store.name, province: store.province || "未填写", city: store.city || "未填写", district: store.district || "未填写", status: store.status === "正常" ? "活跃" : (store.status || "活跃"), extra: store.address || "", contacts: store.contacts || [], account: store.account || `STORE${String(store.id).slice(1)}`, createdBy: store.createdBy }));
   // People management only renders records returned by the backend. No sample staff data is shown.
   const teachers = [];
   const operations = [];
@@ -106,10 +103,9 @@
   function renderSummary(entity) {
     if (type === "store") {
       const contacts = entity.contacts?.length ? entity.contacts.map((contact) => `${contact.name} · ${contact.phone}`).join("；") : "未填写";
-      const captions = ["门店编号", "门店名称", "所在地区", "地址", "联系人", "门店账号", "账号密码", "状态", "创建人员", "最后修改人员"];
-      const values = [entity.id, entity.name, [entity.province, entity.city, entity.district].filter(Boolean).join(" · ") || "未填写", entity.extra || "未填写", contacts, entity.account, entity.password, entity.status, entity.createdBy ? `${entity.createdBy.account} · ${entity.createdBy.name}` : "HQ001 · 总部管理员", "HQ001 · 总部管理员"];
-      $("entityInfo").innerHTML = values.map((value, i) => i === 6 ? passwordCard(value, entity) : `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
-      bindPasswordEditor(entity);
+      const captions = ["门店编号", "门店名称", "所在地区", "地址", "联系人", "门店账号", "状态", "创建人员", "最后修改人员"];
+      const values = [entity.id, entity.name, [entity.province, entity.city, entity.district].filter(Boolean).join(" · ") || "未填写", entity.extra || "未填写", contacts, entity.account, entity.status, entity.createdBy ? `${entity.createdBy.account} · ${entity.createdBy.name}` : "HQ001 · 总部管理员", "HQ001 · 总部管理员"];
+      $("entityInfo").innerHTML = values.map((value, i) => `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
       return;
     }
     if (type === "teacher") {
@@ -119,14 +115,14 @@
       return;
     }
     if (type === "operation") {
-      const captions = ["运营编号", "姓名", "显示名称", "联系电话", "账号密码", "状态", "创建人员", "最后修改人员"];
-      const values = [entity.account || entity.id, entity.name, entity.displayName || entity.name, entity.phone || "未填写", "不展示，请通过重置密码设置", entity.status, entity.createdBy ? `${entity.createdBy.account} · ${entity.createdBy.name}` : "未记录", "未记录"];
+      const captions = ["运营编号", "姓名", "显示名称", "联系电话", "状态", "创建人员", "最后修改人员"];
+      const values = [entity.account || entity.id, entity.name, entity.displayName || entity.name, entity.phone || "未填写", entity.status, entity.createdBy ? `${entity.createdBy.account} · ${entity.createdBy.name}` : "未记录", "未记录"];
       $("entityInfo").innerHTML = values.map((value, i) => `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
       return;
     }
     if (type === "hq") {
-      const captions = ["总部编号", "姓名", "联系电话", "账号密码", "状态", "创建人员", "最后修改人员"];
-      const values = [entity.account || entity.id, entity.name, entity.phone || "未填写", "不展示，请通过重置密码设置", entity.status, entity.createdBy ? `${entity.createdBy.account} · ${entity.createdBy.name}` : "未记录", "未记录"];
+      const captions = ["总部编号", "姓名", "联系电话", "状态", "创建人员", "最后修改人员"];
+      const values = [entity.account || entity.id, entity.name, entity.phone || "未填写", entity.status, entity.createdBy ? `${entity.createdBy.account} · ${entity.createdBy.name}` : "未记录", "未记录"];
       $("entityInfo").innerHTML = values.map((value, i) => `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
       return;
     }
@@ -136,24 +132,6 @@
     captions.push("创建人员", "最后修改人员");
     const values = [entity.id, entity.name, entity.extra || "未填写", entity.status, "HQ001 · 总部管理员", "OP001 · 运营管理员"];
     $("entityInfo").innerHTML = values.map((value, i) => `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
-  }
-
-  function passwordCard(password, entity) {
-    return `<article class="panel info-card password-card"><span>账号密码（总部可见）</span><strong>${escapeHtml(password)}</strong><button id="editAccountPassword" type="button">修改密码</button></article>`;
-  }
-  function bindPasswordEditor(entity) {
-    $("editAccountPassword")?.addEventListener("click", () => {
-      const card = $("editAccountPassword").closest("article");
-      card.innerHTML = `<span>账号密码（12位数字）</span><input id="accountPasswordInput" inputmode="numeric" maxlength="12" value="${escapeHtml(entity.password)}"><div><button id="saveAccountPassword" type="button">保存</button><button id="cancelAccountPassword" type="button">取消</button></div>`;
-      $("cancelAccountPassword").addEventListener("click", render);
-      $("saveAccountPassword").addEventListener("click", () => {
-        const value = $("accountPasswordInput").value.trim();
-        if (!/^\d{12}$/.test(value)) { $("accountPasswordInput").setCustomValidity("密码必须为12位数字"); $("accountPasswordInput").reportValidity(); return; }
-        entity.password = value; passwordOverrides[`${type}:${entity.id}`] = value;
-        try { sessionStorage.setItem("prototypeAccountPasswordOverrides", JSON.stringify(passwordOverrides)); } catch (_) { /* static prototype */ }
-        render();
-      });
-    });
   }
 
   function renderStoreTables(store) {
@@ -298,8 +276,7 @@
         displayName: person.staff_name,
         phone: person.phone || "未填写",
         authUid: person.auth_uid || "",
-        status: person.account_status === "ARCHIVED" ? "封存" : "活跃",
-        password: passwordFor(type, person.person_code || person.id, "总部可重置")
+        status: person.account_status === "ARCHIVED" ? "封存" : "活跃"
       }));
       entitySets[type].splice(0, entitySets[type].length, ...records);
       refillSelect();

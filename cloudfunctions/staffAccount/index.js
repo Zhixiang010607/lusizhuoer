@@ -78,6 +78,7 @@ async function findStaffProfile(uid) {
   try {
     rows = await executeSql(
       `SELECT a.id, a.staff_name, a.role_code, a.account_status,
+        a.password_initialized_at, a.password_changed_at, a.password_change_required,
         sa.store_id, s.store_status, t.id AS teacher_id, t.teacher_status
        FROM public.staff_accounts a
        LEFT JOIN public.staff_store_assignments sa
@@ -103,7 +104,15 @@ async function findStaffProfile(uid) {
   if (staff.role_code === "teacher") {
     if (staff.teacher_status === "ARCHIVED") fail("该老师资料已封存，无法登录", "ARCHIVED_TEACHER");
   }
-  return { staffId: staff.id, role: staff.role_code, staffName: staff.staff_name, storeId };
+  return {
+    staffId: staff.id,
+    role: staff.role_code,
+    staffName: staff.staff_name,
+    storeId,
+    passwordChangeRequired: [true, "true", "t", 1, "1"].includes(staff.password_change_required),
+    passwordInitializedAt: staff.password_initialized_at || null,
+    passwordChangedAt: staff.password_changed_at || null
+  };
 }
 
 async function recoverStaffProfileByVerifiedPhone(uid, phone) {
@@ -244,6 +253,34 @@ async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId
   return profile;
 }
 
+async function writeCredentialEvent({ targetStaffId, actorStaffId = null, eventType, passwordChangeRequired }) {
+  const targetId = Number(targetStaffId);
+  const actorId = actorStaffId === null || actorStaffId === undefined ? "NULL" : String(Number(actorStaffId));
+  if (!Number.isInteger(targetId) || targetId <= 0) fail("Credential event is missing a staff account", "DATABASE_ERROR");
+  if (!['ACCOUNT_CREATED', 'HQ_PASSWORD_RESET', 'SELF_PASSWORD_CHANGED'].includes(eventType)) {
+    fail("Unsupported credential event", "BAD_REQUEST");
+  }
+  try {
+    await executeSql(
+      `UPDATE public.staff_accounts
+       SET password_initialized_at = CASE WHEN ${sqlText(eventType)} = 'ACCOUNT_CREATED'
+                                            THEN COALESCE(password_initialized_at, NOW())
+                                          ELSE password_initialized_at END,
+           password_changed_at = NOW(),
+           password_change_required = ${passwordChangeRequired ? "TRUE" : "FALSE"},
+           updated_at = NOW()
+       WHERE id = ${targetId}`
+    );
+    await executeSql(
+      `INSERT INTO public.credential_events
+        (target_staff_account_id, actor_staff_account_id, event_type)
+       VALUES (${targetId}, ${actorId}, ${sqlText(eventType)})`
+    );
+  } catch (error) {
+    asDatabaseError(error, "Record credential management event");
+  }
+}
+
 async function main(event = {}) {
   const action = event.action || "session";
   if (action === "health") return { ok: true, message: "员工账号云函数已就绪" };
@@ -270,7 +307,11 @@ async function main(event = {}) {
     if (!ROLES.has(role)) fail("Unsupported staff role");
     const codePrefix = role === "teacher" ? "T" : role === "operation" ? "OP" : role === "hq" ? "HQ" : "S";
     const rows = await executeSql(
-      `SELECT id, auth_uid, phone, staff_name, role_code, account_status, ${sqlText(codePrefix)} || LPAD(id::text, 3, '0') AS person_code FROM public.staff_accounts WHERE role_code = ${sqlText(role)} ORDER BY id ASC`
+      `SELECT id, auth_uid, phone, staff_name, role_code, account_status,
+              password_initialized_at, password_changed_at, password_change_required,
+              ${sqlText(codePrefix)} || LPAD(id::text, 3, '0') AS person_code
+       FROM public.staff_accounts
+       WHERE role_code = ${sqlText(role)} ORDER BY id ASC`
     );
     return { ok: true, staff: rows };
   }
@@ -297,18 +338,43 @@ async function main(event = {}) {
     const uid = String(created?.Data?.Uid || "");
     if (!uid) fail("认证账号已创建，但未返回 UID；请勿重复提交并联系总部处理", "AUTH_CREATE_INCOMPLETE");
     const profile = await createStaffDatabaseProfile({ uid, phone, staffName, role, storeId });
+    await writeCredentialEvent({
+      targetStaffId: profile.staffId,
+      actorStaffId: caller.profile.staffId,
+      eventType: "ACCOUNT_CREATED",
+      passwordChangeRequired: true
+    });
     return { ok: true, uid, phone, profile };
   }
   if (action === "resetPassword") {
     requireHq(caller);
     const uid = String(event.uid || "").trim();
     if (!uid) fail("缺少员工 UID");
-    await manager().user.modifyUser({ uid, password: validatePassword(event.newPassword) });
+    const newPassword = validatePassword(event.newPassword);
+    const rows = await executeSql(
+      `SELECT id, auth_uid FROM public.staff_accounts WHERE auth_uid = ${sqlText(uid)} LIMIT 1`
+    );
+    const target = rows?.[0];
+    if (!target) fail("Target staff account was not found", "NOT_FOUND");
+    await manager().user.modifyUser({ uid, password: newPassword });
+    await writeCredentialEvent({
+      targetStaffId: target.id,
+      actorStaffId: caller.profile.staffId,
+      eventType: "HQ_PASSWORD_RESET",
+      passwordChangeRequired: true
+    });
     return { ok: true };
   }
   if (action === "changeOwnPassword") {
     const newPassword = validatePassword(event.newPassword);
+    if (!caller.profile?.staffId) fail("This login account has no staff identity", "UNASSIGNED_PHONE");
     await manager().user.modifyUser({ uid: caller.uid, password: newPassword });
+    await writeCredentialEvent({
+      targetStaffId: caller.profile.staffId,
+      actorStaffId: caller.profile.staffId,
+      eventType: "SELF_PASSWORD_CHANGED",
+      passwordChangeRequired: false
+    });
     return { ok: true };
   }
   if (action === "setStaffStatus") {

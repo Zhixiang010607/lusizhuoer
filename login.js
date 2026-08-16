@@ -18,6 +18,7 @@
   const isLocalPreview = ["127.0.0.1", "localhost"].includes(location.hostname);
   let loginMode = "password";
   let activeSession = null;
+  let passwordResetCodeSent = false;
   const bootstrapMode = new URLSearchParams(location.search).get("bootstrap") === "1";
 
   function setError(message = "") { $("loginError").textContent = message; }
@@ -44,6 +45,25 @@
     button.disabled = remaining > 0;
     button.textContent = remaining > 0 ? `${remaining}秒后重发` : "获取验证码";
   }
+  function setResetError(message = "") { $("passwordResetMessage").textContent = message; }
+  function showPasswordReset(show) {
+    $("loginForm").hidden = show;
+    $("passwordResetForm").hidden = !show;
+    setError();
+    setResetError();
+    if (show) $("resetPhone").focus();
+  }
+  function validPassword(value) {
+    const groups = [/[A-Z]/, /[a-z]/, /\d/, /[^A-Za-z\d]/].filter((rule) => rule.test(value)).length;
+    return value.length >= 8 && value.length <= 32 && groups >= 3;
+  }
+  function refreshResetSmsButton() {
+    const button = $("sendResetSms");
+    let remaining = 0;
+    try { remaining = window.CloudBasePhoneAuth?.smsCooldownRemaining?.($("resetPhone").value) || 0; } catch (_) { remaining = 0; }
+    button.disabled = remaining > 0;
+    button.textContent = remaining > 0 ? `${remaining}秒后重发` : "获取验证码";
+  }
   function createSession(identity, staff) {
     const profile = staff.profile;
     const session = {
@@ -52,6 +72,7 @@
       account: $("loginPhone").value.trim(),
       store: profile.storeId || "",
       staffName: profile.staffName || "",
+      passwordChangeRequired: Boolean(profile.passwordChangeRequired),
       cloudbaseUserId: staff.uid || identity?.user?.id || identity?.user?.uid || "",
       loginAt: new Date().toISOString(),
       sessionId: `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -80,7 +101,43 @@
   });
   $("forgotPassword").addEventListener("click", (event) => {
     event.preventDefault();
-    window.alert("请联系总部管理员重置密码。正式版将要求手机号短信验证后才能修改密码，并留下操作记录。");
+    showPasswordReset(true);
+  });
+  $("backToLogin").addEventListener("click", (event) => { event.preventDefault(); showPasswordReset(false); });
+  $("resetPhone").addEventListener("input", refreshResetSmsButton);
+  $("sendResetSms").addEventListener("click", async () => {
+    if (isLocalPreview) return setResetError("本地演示账号不发送真实短信，请使用正式 CloudBase 网站测试。");
+    const button = $("sendResetSms");
+    try {
+      setResetError(); setBusy(button, true, "获取验证码");
+      await window.CloudBasePhoneAuth.sendCode($("resetPhone").value);
+      passwordResetCodeSent = true;
+      setResetError("验证码已发送。60 秒内不能重复发送，请尽快完成修改。");
+    } catch (error) {
+      setResetError(error?.message || "验证码发送失败，请稍后重试。");
+    } finally { refreshResetSmsButton(); }
+  });
+  $("passwordResetForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const code = $("resetSmsCode").value.trim();
+    const password = $("resetNewPassword").value;
+    const confirmation = $("resetConfirmPassword").value;
+    if (isLocalPreview) return setResetError("本地演示不能修改真实 CloudBase 密码。");
+    if (!passwordResetCodeSent) return setResetError("请先获取短信验证码。");
+    if (!code) return setResetError("请输入短信验证码。");
+    if (!validPassword(password)) return setResetError("新密码需为 8–32 位，且至少包含三类字符。");
+    if (password !== confirmation) return setResetError("两次输入的新密码不一致。");
+    const button = event.currentTarget.querySelector('[type="submit"]');
+    try {
+      setResetError(); setBusy(button, true, "验证并修改密码");
+      await window.CloudBasePhoneAuth.signInWithCode(code);
+      await window.CloudBasePhoneAuth.changeOwnPassword(password);
+      event.currentTarget.reset();
+      passwordResetCodeSent = false;
+      window.setTimeout(() => { showPasswordReset(false); setError("密码已修改，请使用新密码登录。"); }, 700);
+    } catch (error) {
+      setResetError(error?.message || "密码修改失败，请检查验证码或联系总部。");
+    } finally { setBusy(button, false, "验证并修改密码"); }
   });
   $("sendSmsCode").addEventListener("click", async () => {
     const button = $("sendSmsCode");
@@ -128,5 +185,6 @@
     $("demoHint").innerHTML = "<b>仅本地演示：</b>总部 13900000001 / Demo@HQ2026；运营 13900000002 / Demo@OP2026；门店 13900000003 / Demo@ST2026；老师 13900000004 / Demo@TC2026。请使用密码登录。";
   }
   selectLoginMode("password");
-  window.setInterval(refreshSmsButton, 1000);
+  window.setInterval(() => { refreshSmsButton(); refreshResetSmsButton(); }, 1000);
+  showPasswordReset(new URLSearchParams(location.search).get("mode") === "reset");
 })();

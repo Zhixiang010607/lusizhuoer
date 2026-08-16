@@ -113,6 +113,7 @@ AS $$
 $$;
 
 ALTER TABLE public.staff_accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.credential_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.stores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.store_contacts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.teachers ENABLE ROW LEVEL SECURITY;
@@ -132,6 +133,12 @@ CREATE POLICY staff_accounts_self_or_hq_read
 ON public.staff_accounts
 FOR SELECT TO authenticated
 USING (id = public.current_staff_account_id() OR public.is_hq());
+
+DROP POLICY IF EXISTS credential_events_hq_read ON public.credential_events;
+CREATE POLICY credential_events_hq_read
+ON public.credential_events
+FOR SELECT TO authenticated
+USING (public.is_hq());
 
 DROP POLICY IF EXISTS stores_scoped_read ON public.stores;
 CREATE POLICY stores_scoped_read

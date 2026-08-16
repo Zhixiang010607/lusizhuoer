@@ -83,9 +83,6 @@
 
   document.querySelectorAll(".side-brand strong").forEach((node) => { node.textContent = labels[session.role]; });
   const footer = document.querySelector(".side-footer");
-  if (footer && !footer.querySelector("#changeOwnPassword")) {
-    footer.querySelector("span")?.insertAdjacentHTML("afterend", '<button id="changeOwnPassword" type="button">修改密码</button>');
-  }
   if (footer) footer.innerHTML = `<span>${session.account}${session.store ? ` · ${session.store}` : ""}</span><button id="logoutWorkspace" type="button">退出登录</button>`;
   let message = "";
   try { message = sessionStorage.getItem("prototypeAccessMessage") || ""; if (message) sessionStorage.removeItem("prototypeAccessMessage"); } catch (_) { message = ""; }
@@ -100,7 +97,6 @@
     ["prototypeSession", "prototypeRole", "prototypeAccount", "prototypeStore", "prototypeAccessMessage"].forEach((key) => sessionStorage.removeItem(key));
     location.replace("login.html");
   });
-  $("changeOwnPassword")?.addEventListener("click", () => { location.href = "change-password.html"; });
   document.documentElement.dataset.authReady = "true";
 
   function $(id) { return document.getElementById(id); }

@@ -8,6 +8,7 @@ BEGIN;
 -- Remove only the application's existing business tables. CloudBase auth tables
 -- are not touched by this script.
 DROP TABLE IF EXISTS public.business_events CASCADE;
+DROP TABLE IF EXISTS public.credential_events CASCADE;
 DROP TABLE IF EXISTS public.record_status_history CASCADE;
 DROP TABLE IF EXISTS public.customer_product_balances CASCADE;
 DROP TABLE IF EXISTS public.verification_records CASCADE;
@@ -60,9 +61,26 @@ CREATE TABLE public.staff_accounts (
   role_code VARCHAR(16) NOT NULL CHECK (role_code IN ('hq', 'operation', 'store', 'teacher')),
   account_status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE'
     CHECK (account_status IN ('ACTIVE', 'ARCHIVED')),
+  password_initialized_at TIMESTAMPTZ,
+  password_changed_at TIMESTAMPTZ,
+  password_change_required BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Credential management records only password lifecycle events. Password values
+-- and password hashes are intentionally never stored in the business database.
+CREATE TABLE public.credential_events (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  target_staff_account_id BIGINT NOT NULL REFERENCES public.staff_accounts(id),
+  actor_staff_account_id BIGINT REFERENCES public.staff_accounts(id),
+  event_type VARCHAR(32) NOT NULL
+    CHECK (event_type IN ('ACCOUNT_CREATED', 'HQ_PASSWORD_RESET', 'SELF_PASSWORD_CHANGED')),
+  occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_credential_events_target_time
+  ON public.credential_events (target_staff_account_id, occurred_at DESC);
 
 CREATE TABLE public.stores (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
