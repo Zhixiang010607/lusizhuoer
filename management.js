@@ -6,9 +6,9 @@
   const $ = (id) => document.getElementById(id);
   const fmt = new Intl.NumberFormat("zh-CN");
   const escapeHtml = (value) => String(value).replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char]);
-  let createdProjects = [];
-  try { createdProjects = JSON.parse(sessionStorage.getItem("prototypeCreatedProjects") || "[]"); } catch (_) { createdProjects = []; }
-  const projects = createdProjects.map((project) => ({ id: project.id, name: project.name, status: project.status === "正常" ? "活跃" : (project.status || "活跃"), extra: project.description || "" }));
+  // 产品只来自 CloudBase / PostgreSQL；不再读取浏览器临时产品数据。
+  const projects = [];
+  let productListMessage = "正在读取产品数据…";
   const chinaRegions = window.ChinaRegions || {};
   // 门店只来自 CloudBase / PostgreSQL；不再读取浏览器中的临时门店数据。
   const stores = [];
@@ -128,11 +128,8 @@
       $("entityInfo").innerHTML = values.map((value, i) => `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
       return;
     }
-    const captions = {
-      project: ["项目编号", "产品名称", "产品介绍", "状态"],
-    }[type];
-    captions.push("创建人员", "最后修改人员");
-    const values = [entity.id, entity.name, entity.extra || "未填写", entity.status, "HQ001 · 总部管理员", "OP001 · 运营管理员"];
+    const captions = ["产品编号", "产品名称", "产品类别", "产品介绍", "状态", "创建时间", "最后更新时间"];
+    const values = [entity.id, entity.name, entity.productType || "未填写", entity.extra || "未填写", entity.status, entity.createdAt || "未记录", entity.updatedAt || "未记录"];
     $("entityInfo").innerHTML = values.map((value, i) => `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
   }
 
@@ -165,16 +162,15 @@
   }
 
   function renderProjectTable(project) {
-    $("simpleStatsBody").innerHTML = stores.slice(0, 12).map((store) => {
-      const storeTeachers = assignedTeachers(store);
-      const used = storeTeachers.reduce((sum, teacher) => sum + verification(store, teacher, project), 0);
-      const recharge = Math.round(used * (1.25 + entityIndex(store) % 3 * .1));
-      return `<tr><td><a class="record-link" href="store-detail.html?storeId=${encodeURIComponent(store.id)}">${store.name}（${store.id}）</a></td><td>${fmt.format(recharge)}</td><td>${fmt.format(used)}</td><td>${storeTeachers.length}</td><td>${project.status}</td></tr>`;
-    }).join("");
+    $("simpleStatsBody").innerHTML = `<tr><td colspan="5" class="query-empty">该产品当前没有真实充值或核销数据</td></tr>`;
   }
 
   function renderProjectList() {
-    $("projectList").innerHTML = projects.map((project) => `<button type="button" data-project-id="${project.id}"><strong>${escapeHtml(project.name)}</strong><span>${escapeHtml(project.id)} · ${escapeHtml(project.status)}</span></button>`).join("");
+    if (!projects.length) {
+      $("projectList").innerHTML = `<section class="panel query-empty">${escapeHtml(productListMessage || "暂无产品数据，请先新增产品。")}</section>`;
+      return;
+    }
+    $("projectList").innerHTML = projects.map((project) => `<button type="button" data-project-id="${project.id}"><strong>${escapeHtml(project.name)}</strong><span>${escapeHtml(project.id)} · ${escapeHtml(project.productType || "未分类")} · ${escapeHtml(project.status)}</span></button>`).join("");
     $("projectList").querySelectorAll("[data-project-id]").forEach((button) => button.addEventListener("click", () => {
       $("entitySelect").value = button.dataset.projectId;
       $("projectManagementContent").hidden = false;
@@ -209,6 +205,10 @@
       return;
     }
     renderSummary(entity);
+    if (type === "project" && $("deleteEntity")) {
+      $("deleteEntity").textContent = entity.status === "活跃" ? "封存产品" : "激活产品";
+      $("deleteEntity").classList.toggle("danger-button", entity.status === "活跃");
+    }
     if (type === "store") renderStoreTables(entity);
     if (type === "project") renderProjectTable(entity);
     if (type === "teacher") renderTeacherTable(entity);
@@ -274,8 +274,30 @@
 
   async function deactivateEntity() {
     const entity = activeEntity();
-    if (entity.status !== "活跃") return;
-    if (!window.confirm(`确认封存${labels[type]}“${entity.name}”？历史充值、核销和客户引用仍会保留，且不删除任何资料。`)) return;
+    if (!entity) return;
+    const activatingProject = type === "project" && entity.status !== "活跃";
+    if (entity.status !== "活跃" && !activatingProject) return;
+    const actionText = activatingProject ? "激活" : "封存";
+    const confirmText = activatingProject
+      ? `确认激活产品“${entity.name}”？`
+      : `确认封存${labels[type]}“${entity.name}”？历史充值、核销和客户引用仍会保留，且不删除任何资料。`;
+    if (!window.confirm(confirmText)) return;
+    if (type === "project") {
+      try {
+        if (!window.CloudBasePhoneAuth?.setProductStatus) {
+          throw new Error("产品数据库服务尚未加载，请刷新页面后重试。");
+        }
+        await window.CloudBasePhoneAuth.setProductStatus({
+          productRef: entity.id,
+          status: activatingProject ? "ACTIVE" : "ARCHIVED"
+        });
+        await syncRemoteProducts(entity.id);
+        return;
+      } catch (error) {
+        window.alert(error?.message || `产品${actionText}失败；数据库状态未修改。`);
+        return;
+      }
+    }
     if (["teacher", "operation", "hq", "store"].includes(type) && entity.authUid) {
       try {
         await window.CloudBasePhoneAuth?.setStaffStatus({ uid: entity.authUid || "", phone: entity.phone || "", status: "ARCHIVED" });
@@ -347,6 +369,45 @@
     }
   }
 
+  async function syncRemoteProducts(selectedId = "") {
+    if (type !== "project") return;
+    projects.splice(0, projects.length);
+    productListMessage = "正在读取产品数据…";
+    renderProjectList();
+    if (!window.CloudBasePhoneAuth?.listProducts) {
+      productListMessage = "产品数据库服务尚未加载，请刷新页面后重试。";
+      renderProjectList();
+      return;
+    }
+    try {
+      const remote = await window.CloudBasePhoneAuth.listProducts();
+      const records = remote.map((product) => ({
+        id: String(product.product_code || "").trim(),
+        databaseId: String(product.id || "").trim(),
+        name: String(product.product_name || "").trim(),
+        productType: String(product.product_type || "").trim(),
+        extra: String(product.description || "").trim(),
+        status: product.product_status === "ARCHIVED" ? "封存" : "活跃",
+        createdAt: String(product.created_at || "").trim(),
+        updatedAt: String(product.updated_at || "").trim()
+      })).filter((product) => product.id && product.name);
+      projects.splice(0, projects.length, ...records);
+      productListMessage = records.length ? "" : "暂无产品数据，请先新增产品。";
+      refillSelect(String(selectedId || ""));
+      renderProjectList();
+      const selected = projects.some((product) => product.id === String(selectedId || ""));
+      $("projectManagementContent").hidden = !selected;
+      if (selected) render();
+    } catch (error) {
+      console.warn("产品列表读取失败", error);
+      projects.splice(0, projects.length);
+      productListMessage = error?.message || "产品数据库读取失败，请刷新页面后重试。";
+      refillSelect();
+      renderProjectList();
+      $("projectManagementContent").hidden = true;
+    }
+  }
+
   function init() {
     document.documentElement.dataset.prototypeVersion = VERSION;
     const pageParams = new URLSearchParams(location.search);
@@ -378,8 +439,10 @@
       $("storeManagementContent").hidden = false;
       render();
     });
-    if (type === "project") renderProjectList();
-    if (type === "project" && $("viewProject")) $("viewProject").addEventListener("click", () => { window.location.href = `project-detail.html?projectId=${encodeURIComponent(activeEntity().id)}`; });
+    if (type === "project" && $("viewProject")) $("viewProject").addEventListener("click", () => {
+      const project = activeEntity();
+      if (project) window.location.href = `project-detail.html?projectId=${encodeURIComponent(project.id)}`;
+    });
     $("cancelEntity")?.addEventListener("click", () => $("entityDialog").close());
     $("entityForm")?.addEventListener("submit", addEntity);
     if (type !== "store" && type !== "project") render();
@@ -392,6 +455,7 @@
       else window.setTimeout(() => $("entityDialog").showModal(), 0);
     }
     if (type === "store") void syncRemoteStores(pageParams.get("created") || "");
+    else if (type === "project") void syncRemoteProducts(pageParams.get("created") || "");
     else void syncRemotePeople();
   }
 

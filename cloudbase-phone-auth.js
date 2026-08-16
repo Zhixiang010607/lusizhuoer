@@ -163,6 +163,22 @@
       const data = await callStaffAccount({ action: "listStores" }, "门店列表读取失败");
       return data.stores || [];
     },
+    async createProduct({ productName, productType, description = "", clientRequestId = "" }) {
+      return callStaffAccount(
+        { action: "createProduct", productName, productType, description, clientRequestId },
+        "产品创建失败"
+      );
+    },
+    async listProducts() {
+      const data = await callStaffAccount({ action: "listProducts" }, "产品列表读取失败");
+      return data.products || [];
+    },
+    async setProductStatus({ productRef, status }) {
+      return callStaffAccount(
+        { action: "setProductStatus", productRef, status },
+        "产品状态更新失败"
+      );
+    },
     smsCooldownRemaining(phone) { return cooldownRemaining(phone); }
   };
 })();

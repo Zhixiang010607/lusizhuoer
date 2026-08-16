@@ -1,26 +1,66 @@
 (() => {
   "use strict";
+
   const $ = (id) => document.getElementById(id);
+  const pendingRequestKey = "pendingProductCreateRequestId";
 
-  function storedProjects() {
-    try { return JSON.parse(sessionStorage.getItem("prototypeCreatedProjects") || "[]"); } catch (_) { return []; }
+  function createRequestId() {
+    if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+    return `product_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
   }
 
-  function nextProjectId() {
-    const highest = storedProjects().reduce((max, project) => Math.max(max, Number(String(project.id || "").replace(/\D/g, "")) || 0), 6);
-    return `P${String(highest + 1).padStart(3, "0")}`;
+  function pendingRequestId() {
+    let requestId = sessionStorage.getItem(pendingRequestKey) || "";
+    if (!requestId) {
+      requestId = createRequestId();
+      sessionStorage.setItem(pendingRequestKey, requestId);
+    }
+    return requestId;
   }
 
-  function submitProject(event) {
+  async function submitProject(event) {
     event.preventDefault();
-    const projects = storedProjects(), id = nextProjectId();
-    let session = null;
-    try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
-    projects.push({ id, name: $("projectCreateName").value.trim(), description: $("projectCreateDescription").value.trim(), status: "活跃", createdAt: new Date().toISOString(), createdBy: { account: session?.account || "HQ001", name: session?.name || "总部管理员" } });
-    sessionStorage.setItem("prototypeCreatedProjects", JSON.stringify(projects));
-    location.href = `project-management.html?created=${encodeURIComponent(id)}`;
+    const form = event.currentTarget;
+    const submit = form.querySelector('[type="submit"]');
+    const message = $("projectCreateMessage");
+    const productName = $("projectCreateName").value.trim();
+    const productType = $("projectCreateType").value.trim();
+    const description = $("projectCreateDescription").value.trim();
+
+    if (!productName || !productType || !description) {
+      message.textContent = "请完整填写产品名称、产品类别和产品介绍";
+      return;
+    }
+    if (!window.CloudBasePhoneAuth?.createProduct) {
+      message.textContent = "产品数据库服务尚未加载，请刷新页面后重试";
+      return;
+    }
+
+    submit.disabled = true;
+    message.textContent = "正在写入产品数据库…";
+    try {
+      const result = await window.CloudBasePhoneAuth.createProduct({
+        productName,
+        productType,
+        description,
+        clientRequestId: pendingRequestId()
+      });
+      const productCode = String(result?.product?.product_code || "").trim();
+      if (!productCode) throw new Error("产品已写入，但服务未返回产品编号");
+      sessionStorage.removeItem(pendingRequestKey);
+      location.href = `project-management.html?created=${encodeURIComponent(productCode)}`;
+    } catch (error) {
+      if (error?.code === "IDEMPOTENCY_CONFLICT") {
+        sessionStorage.removeItem(pendingRequestKey);
+        message.textContent = "创建内容已经改变，请再次点击“创建产品”。";
+      } else {
+        message.textContent = error?.message || "产品创建失败，请稍后重试";
+      }
+    } finally {
+      submit.disabled = false;
+    }
   }
 
-  $("generatedProjectCode").textContent = `编号 ${nextProjectId()}（自动生成）`;
+  $("generatedProjectCode").textContent = "产品编号由数据库自动生成";
   $("projectCreateForm").addEventListener("submit", submitProject);
 })();

@@ -10,12 +10,13 @@
         <div class="panel-heading"><div><h2>产品资料</h2></div><span id="generatedProjectCode" class="badge"></span></div>
         <div class="product-create-fields">
           <label>产品名称<input id="projectCreateName" required maxlength="60" placeholder="请输入产品名称"></label>
+          <label>产品类别<input id="projectCreateType" required maxlength="32" placeholder="例如：护理项目"></label>
           <label class="product-description-field">产品介绍<textarea id="projectCreateDescription" required maxlength="1000" placeholder="请输入产品介绍"></textarea></label>
         </div>
       </section>
       <div class="hq-create-actions"><span id="projectCreateMessage"></span><a class="button-link secondary-button" href="project-management.html">返回产品管理</a><button type="submit">创建产品</button></div>
     </form>
   </main>
-  <script src="project-create.js"></script><script src="auth-ui.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js"></script><script src="project-create.js"></script><script src="auth-ui.js"></script>
 </body>
 </html>

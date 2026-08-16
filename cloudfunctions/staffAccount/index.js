@@ -8,7 +8,7 @@
 const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "2026-08-16-store-account-v1";
+const FUNCTION_VERSION = "2026-08-16-product-database-v1";
 let app = null;
 let auth = null;
 let managerClient = null;
@@ -651,6 +651,136 @@ async function createOrRecoverStore(caller, input) {
   return { id: String(store.id), code: String(store.store_code) };
 }
 
+async function getProductCreationCapabilities() {
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT
+        EXISTS (
+          SELECT 1 FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_name = 'products'
+        ) AS has_products,
+        EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'description'
+        ) AS has_description,
+        EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'product_type'
+        ) AS has_product_type,
+        EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'product_status'
+        ) AS has_product_status,
+        EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'idempotency_key'
+        ) AS has_idempotency_key,
+        COALESCE((
+          SELECT column_default
+          FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'product_code'
+          LIMIT 1
+        ), '') AS product_code_default`
+    );
+  } catch (error) {
+    asDatabaseError(error, "读取产品表结构");
+  }
+  const row = rows?.[0] || {};
+  if (!databaseBoolean(row.has_products)) {
+    fail("数据库缺少 products 表，请先执行完整数据库建表脚本", "DATABASE_SCHEMA_MISSING");
+  }
+  if (!databaseBoolean(row.has_product_type) || !databaseBoolean(row.has_product_status)) {
+    fail("products 表缺少基础字段，请先执行完整数据库建表脚本", "DATABASE_SCHEMA_MISSING");
+  }
+  const ready = databaseBoolean(row.has_description) &&
+    databaseBoolean(row.has_idempotency_key) &&
+    Boolean(String(row.product_code_default || "").trim());
+  if (!ready) {
+    fail("产品表尚未完成升级，请先执行 018_product_creation_idempotency.sql", "DATABASE_SCHEMA_MISSING");
+  }
+  return { ready: true };
+}
+
+function productInputFromEvent(event) {
+  const clientRequestId = String(event.clientRequestId || "").trim();
+  if (!/^[A-Za-z0-9_-]{8,64}$/.test(clientRequestId)) {
+    fail("产品创建请求编号格式无效", "BAD_REQUEST");
+  }
+  const description = String(event.description || "").trim();
+  if (description.length > 1000) fail("产品介绍不能超过 1000 个字符", "BAD_REQUEST");
+  return {
+    productName: requiredText(event.productName, "产品名称", 100),
+    productType: requiredText(event.productType, "产品类别", 32),
+    description,
+    clientRequestId
+  };
+}
+
+async function findProductByRequestId(clientRequestId) {
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT id, product_code, product_name, product_type, description, product_status,
+              created_at, updated_at
+       FROM public.products
+       WHERE idempotency_key = ${sqlText(clientRequestId)}
+       LIMIT 1`
+    );
+  } catch (error) {
+    asDatabaseError(error, "读取产品创建请求");
+  }
+  return rows?.[0] || null;
+}
+
+function assertSameProductRequest(product, input) {
+  const same = String(product?.product_name || "").trim() === input.productName &&
+    String(product?.product_type || "").trim() === input.productType &&
+    String(product?.description || "").trim() === input.description;
+  if (!same) {
+    fail("同一产品创建请求编号已用于其他产品，请刷新创建页面后重试", "IDEMPOTENCY_CONFLICT");
+  }
+}
+
+async function createProductRecord(event) {
+  const input = productInputFromEvent(event);
+  await getProductCreationCapabilities();
+  const recovered = await findProductByRequestId(input.clientRequestId);
+  if (recovered) {
+    assertSameProductRequest(recovered, input);
+    return { product: recovered, created: false };
+  }
+
+  let rows;
+  try {
+    rows = await executeSql(
+      `INSERT INTO public.products
+         (product_name, product_type, description, product_status, idempotency_key)
+       VALUES
+         (${sqlText(input.productName)}, ${sqlText(input.productType)}, ${sqlText(input.description)},
+          'ACTIVE', ${sqlText(input.clientRequestId)})
+       RETURNING id, product_code, product_name, product_type, description, product_status,
+                 created_at, updated_at`
+    );
+  } catch (error) {
+    try {
+      const concurrent = await findProductByRequestId(input.clientRequestId);
+      if (concurrent) {
+        assertSameProductRequest(concurrent, input);
+        return { product: concurrent, created: false };
+      }
+    } catch (recoveryError) {
+      if (recoveryError?.code === "IDEMPOTENCY_CONFLICT") throw recoveryError;
+    }
+    asDatabaseError(error, "创建产品资料");
+  }
+  const product = rows?.[0];
+  if (!product?.id || !product?.product_code) {
+    fail("产品创建后数据库未返回产品编号", "DATABASE_ERROR");
+  }
+  return { product, created: true };
+}
+
 async function main(event = {}) {
   const action = event.action || "session";
   if (action === "health") {
@@ -691,6 +821,55 @@ async function main(event = {}) {
        WHERE role_code = ${sqlText(role)} ORDER BY id ASC`
     );
     return { ok: true, staff: rows };
+  }
+  if (action === "listProducts") {
+    if (!caller.profile?.role) fail("当前登录账号没有有效业务身份", "UNASSIGNED_PHONE");
+    await getProductCreationCapabilities();
+    const statusFilter = caller.profile.role === "hq" ? "" : "WHERE product_status = 'ACTIVE'";
+    let rows;
+    try {
+      rows = await executeSql(
+        `SELECT id, product_code, product_name, product_type, description, product_status,
+                created_at, updated_at
+         FROM public.products
+         ${statusFilter}
+         ORDER BY id ASC`
+      );
+    } catch (error) {
+      asDatabaseError(error, "读取产品列表");
+    }
+    return { ok: true, products: rows };
+  }
+  if (action === "createProduct") {
+    requireHq(caller);
+    const result = await createProductRecord(event);
+    return { ok: true, product: result.product, created: result.created };
+  }
+  if (action === "setProductStatus") {
+    requireHq(caller);
+    const productRef = String(event.productRef || "").trim();
+    const status = String(event.status || "").toUpperCase();
+    if (!productRef) fail("缺少产品编号", "BAD_REQUEST");
+    if (!["ACTIVE", "ARCHIVED"].includes(status)) {
+      fail("产品状态只能是 ACTIVE（活跃）或 ARCHIVED（封存）", "BAD_REQUEST");
+    }
+    const idCondition = /^\d+$/.test(productRef)
+      ? `id = ${numericId(productRef, "产品编号")}`
+      : "FALSE";
+    let rows;
+    try {
+      rows = await executeSql(
+        `UPDATE public.products
+         SET product_status = ${sqlText(status)}, updated_at = NOW()
+         WHERE (${idCondition}) OR product_code = ${sqlText(productRef)}
+         RETURNING id, product_code, product_name, product_type, description, product_status,
+                   created_at, updated_at`
+      );
+    } catch (error) {
+      asDatabaseError(error, "更新产品状态");
+    }
+    if (!rows?.[0]) fail("未找到该产品", "NOT_FOUND");
+    return { ok: true, product: rows[0] };
   }
   if (action === "listStores") {
     requireHq(caller);

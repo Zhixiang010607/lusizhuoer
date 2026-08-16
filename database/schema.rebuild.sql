@@ -50,6 +50,23 @@ CREATE SEQUENCE public.customer_code_seq START WITH 1;
 CREATE SEQUENCE public.recharge_code_seq START WITH 1;
 CREATE SEQUENCE public.verification_code_seq START WITH 1;
 
+CREATE OR REPLACE FUNCTION public.next_product_code()
+RETURNS TEXT
+LANGUAGE plpgsql
+VOLATILE
+AS $$
+DECLARE
+  code_number BIGINT;
+BEGIN
+  code_number := nextval('public.product_code_seq');
+  RETURN 'PRD' || LPAD(
+    code_number::TEXT,
+    GREATEST(3, LENGTH(code_number::TEXT)),
+    '0'
+  );
+END;
+$$;
+
 -- One table manages every login account. A phone number belongs to exactly one
 -- business identity and is never copied into customer data.
 CREATE TABLE public.staff_accounts (
@@ -128,10 +145,11 @@ CREATE TABLE public.teachers (
 CREATE TABLE public.products (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   product_code VARCHAR(32) NOT NULL UNIQUE
-    DEFAULT ('PRD' || LPAD(nextval('public.product_code_seq')::TEXT, 3, '0')),
+    DEFAULT public.next_product_code(),
   product_name VARCHAR(100) NOT NULL,
   product_type VARCHAR(32) NOT NULL,
   description TEXT NOT NULL DEFAULT '',
+  idempotency_key VARCHAR(64),
   product_status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE'
     CHECK (product_status IN ('ACTIVE', 'ARCHIVED')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -259,6 +277,9 @@ CREATE INDEX idx_stores_lookup ON public.stores (store_name, province, city, dis
 CREATE INDEX idx_store_contacts_store_status ON public.store_contacts (store_id, contact_status);
 CREATE INDEX idx_teachers_name_status ON public.teachers (teacher_name, teacher_status);
 CREATE INDEX idx_products_name_status ON public.products (product_name, product_status);
+CREATE UNIQUE INDEX uq_products_idempotency_key
+  ON public.products (idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
 CREATE INDEX idx_customers_store_name ON public.customers (created_store_id, customer_name);
 CREATE INDEX idx_recharge_customer_time ON public.recharge_records (customer_id, submitted_at DESC);
 CREATE INDEX idx_recharge_store_time ON public.recharge_records (store_id, submitted_at DESC);
