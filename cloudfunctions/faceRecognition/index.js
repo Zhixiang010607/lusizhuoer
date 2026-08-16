@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const tencentcloud = require("tencentcloud-sdk-nodejs");
 const IaiClient = tencentcloud.iai.v20200303.Client;
 
-const FUNCTION_VERSION = "2026-08-16-customer-product-balance-v13";
+const FUNCTION_VERSION = "2026-08-17-customer-profile-photo-v15";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -250,6 +250,99 @@ async function activeStoreCaller() {
   return { uid: String(uid), staffId: Number(caller.staff_id), storeId: Number(caller.store_id) };
 }
 
+async function activeCustomerStatusCaller() {
+  const { uid } = app().auth().getUserInfo();
+  if (!uid) fail("请先登录后再管理客户状态。", "UNAUTHENTICATED");
+  const rows = await executeSql(
+    `SELECT id AS staff_id, role_code, account_status
+       FROM public.staff_accounts
+      WHERE auth_uid = ${sqlText(uid)}
+      LIMIT 1`
+  );
+  const account = rows[0];
+  if (!account) fail("当前登录账号尚未绑定业务身份。", "STAFF_PROFILE_MISSING");
+  if (account.account_status !== "ACTIVE") fail("当前登录账号已封存。", "ARCHIVED");
+  if (account.role_code === "hq") {
+    return { uid: String(uid), staffId: Number(account.staff_id), role: "hq", storeId: null };
+  }
+  if (account.role_code === "store") {
+    const store = await activeStoreCaller();
+    return { ...store, role: "store" };
+  }
+  fail("只有总部或客户所属门店可以修改客户状态。", "FORBIDDEN");
+}
+
+function customerStatusCode(event) {
+  const customerCodeValue = String(event.customerCode || "").trim();
+  if (!customerCodeValue || customerCodeValue.length > 96) fail("必须提供有效客户编号。", "CUSTOMER_REQUIRED");
+  return customerCodeValue;
+}
+
+function customerStatusScope(caller) {
+  return caller.role === "store" ? ` AND created_store_id = ${caller.storeId}` : "";
+}
+
+async function findCustomerStatus(caller, customerCodeValue) {
+  const rows = await executeSql(
+    `SELECT id, customer_code, customer_name, created_store_id, customer_status, updated_at
+       FROM public.customers
+      WHERE customer_code = ${sqlText(customerCodeValue)}
+        ${customerStatusScope(caller)}
+      LIMIT 1`
+  );
+  return rows[0] || null;
+}
+
+function customerStatusResult(customer) {
+  return {
+    ok: true,
+    customer: {
+      id: String(customer.id),
+      customerCode: customer.customer_code,
+      customerName: customer.customer_name,
+      storeId: String(customer.created_store_id),
+      customerStatus: customer.customer_status,
+      updatedAt: customer.updated_at
+    }
+  };
+}
+
+async function getCustomerStatus(event) {
+  const caller = await activeCustomerStatusCaller();
+  const customerCodeValue = customerStatusCode(event);
+  const customer = await findCustomerStatus(caller, customerCodeValue);
+  if (!customer) fail("未找到当前账号有权查看的客户档案。", "CUSTOMER_NOT_FOUND");
+  return customerStatusResult(customer);
+}
+
+async function updateCustomerStatus(event) {
+  const caller = await activeCustomerStatusCaller();
+  const customerCodeValue = customerStatusCode(event);
+  const targetStatus = String(event.targetStatus || "").trim().toUpperCase();
+  const expectedStatus = String(event.expectedStatus || "").trim().toUpperCase();
+  if (!["ACTIVE", "ARCHIVED"].includes(targetStatus)) fail("客户状态只能切换为活跃或封存。", "CUSTOMER_STATUS_INVALID");
+  if (expectedStatus && !["ACTIVE", "ARCHIVED"].includes(expectedStatus)) fail("原客户状态无效，请刷新后重试。", "CUSTOMER_STATUS_INVALID");
+
+  const before = await findCustomerStatus(caller, customerCodeValue);
+  if (!before) fail("未找到当前账号有权管理的客户档案。", "CUSTOMER_NOT_FOUND");
+  if (expectedStatus && before.customer_status !== expectedStatus && before.customer_status !== targetStatus) {
+    fail("客户状态已被其他人员修改，请刷新后重试。", "CUSTOMER_STATUS_CONFLICT");
+  }
+  if (before.customer_status !== targetStatus) {
+    await executeSql(
+      `UPDATE public.customers
+          SET customer_status = ${sqlText(targetStatus)}, updated_at = NOW()
+        WHERE customer_code = ${sqlText(customerCodeValue)}
+          ${customerStatusScope(caller)}
+          AND customer_status = ${sqlText(before.customer_status)}`
+    );
+  }
+  const customer = await findCustomerStatus(caller, customerCodeValue);
+  if (!customer) fail("客户状态更新后无法读取档案。", "DATABASE_ERROR");
+  if (customer.customer_status !== targetStatus) fail("客户状态已被其他人员修改，请刷新后重试。", "CUSTOMER_STATUS_CONFLICT");
+  return customerStatusResult(customer);
+}
+
 async function uploadCustomerPhoto(storeId, personId, buffer) {
   const { bucketId, accessToken } = photoStorageSettings();
   const objectName = `${storeId}/${personId}/${Date.now()}.jpg`;
@@ -286,20 +379,19 @@ async function deleteUploadedFile(storedPhoto) {
 }
 
 async function getCustomerPhotoUrl(event) {
-  const caller = await activeStoreCaller();
+  const caller = await activeCustomerStatusCaller();
   const customerCode = String(event.customerCode || "").trim();
   if (!customerCode || customerCode.length > 96) fail("必须提供已选择客户的有效编号。", "CUSTOMER_REQUIRED");
 
   const rows = await executeSql(
     `SELECT customer_code, profile_photo_file_id
-       FROM public.customers
+      FROM public.customers
       WHERE customer_code = ${sqlText(customerCode)}
-        AND created_store_id = ${caller.storeId}
-        AND customer_status = 'ACTIVE'
+        ${customerStatusScope(caller)}
       LIMIT 1`
   );
   const customer = rows[0];
-  if (!customer) fail("未找到本门店已选择的活跃客户。", "CUSTOMER_NOT_FOUND");
+  if (!customer) fail("未找到当前账号有权查看的客户档案。", "CUSTOMER_NOT_FOUND");
   if (!customer.profile_photo_file_id) fail("该客户没有可用的建档照片。", "CUSTOMER_PHOTO_MISSING");
 
   const reference = parsePhotoReference(customer.profile_photo_file_id);
@@ -642,6 +734,8 @@ exports.main = async (event = {}) => {
     if (action === "registerCustomer") return await registerCustomer(event);
     if (action === "getCustomerPhotoUrl") return await getCustomerPhotoUrl(event);
     if (action === "getCustomerProductBalances") return await getCustomerProductBalances(event);
+    if (action === "getCustomerStatus") return await getCustomerStatus(event);
+    if (action === "updateCustomerStatus") return await updateCustomerStatus(event);
     if (action === "searchCustomer") return await searchCustomer(event);
     if (action === "verifyCustomerFace") return await verifyCustomerFace(event);
     fail("Unsupported action.");
