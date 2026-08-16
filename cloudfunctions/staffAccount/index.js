@@ -6,6 +6,9 @@
  * 业务身份只保存在 PostgreSQL 的 public.staff_accounts 表，绝不写入 user_desc JSON。
  */
 const ROLES = new Set(["hq", "operation", "store", "teacher"]);
+// Change this whenever the function contract changes. It is intentionally
+// non-sensitive and lets the CloudBase console confirm the deployed source.
+const FUNCTION_VERSION = "2026-08-16-session-bind-v2";
 let app = null;
 let auth = null;
 let managerClient = null;
@@ -333,7 +336,13 @@ async function writeCredentialEvent({ targetStaffId, actorStaffId = null, eventT
 
 async function main(event = {}) {
   const action = event.action || "session";
-  if (action === "health") return { ok: true, message: "员工账号云函数已就绪" };
+  if (action === "health") {
+    return {
+      ok: true,
+      message: "员工账号云函数已就绪",
+      version: FUNCTION_VERSION
+    };
+  }
   const caller = await currentUser(false);
 
   if (action === "session") {
@@ -346,7 +355,7 @@ async function main(event = {}) {
     if (!caller.profile) {
       fail(`该手机号尚未被总部绑定业务身份。Current auth UID: ${caller.uid}`, "UNASSIGNED_PHONE");
     }
-    return { ok: true, uid: caller.uid, profile: caller.profile };
+    return { ok: true, version: FUNCTION_VERSION, uid: caller.uid, profile: caller.profile };
   }
   if (action === "bootstrapHq") {
     return { ok: true, profile: await ensureBootstrapHq(caller) };
