@@ -36,15 +36,15 @@
       </section>
 
       <section class="panel verification-order-decision unified-order-review" data-order-review>
-        <div class="panel-heading"><div><h2>总部审核</h2><p id="reviewPanelHint">请选择本张核销工单的审核结果。</p></div></div>
-        <label class="verification-order-review-note">总部审核说明（选填）<textarea id="reviewMessage" rows="2" maxlength="500" readonly aria-label="总部审核说明"></textarea></label>
-        <div class="verification-order-actions"><button id="reviewApprove" type="button" disabled>通过</button><button id="reviewReject" class="reject" type="button" disabled>驳回</button></div>
+        <div class="panel-heading"><div><h2 id="reviewPanelTitle">总部审核</h2><p id="reviewPanelHint">请选择本张核销工单的审核结果。</p></div></div>
+        <label id="reviewNoteField" class="verification-order-review-note">总部审核说明（选填）<textarea id="reviewMessage" rows="2" maxlength="500" readonly aria-label="总部审核说明"></textarea></label>
+        <div id="reviewActions" class="verification-order-actions"><button id="reviewApprove" type="button" disabled>通过</button><button id="reviewReject" class="reject" type="button" disabled>驳回</button></div>
         <p class="unified-review-status">当前审核结果：<strong id="reviewStatus">待审核</strong></p>
       </section>
     </section>
 
     <section class="panel order-comments-panel">
-      <div class="panel-heading"><div><h2>留言记录</h2><p id="orderCommentsHint">原申请保留门店与总部两条留言；提交作废后追加本次双方留言。</p></div><span id="orderCommentsCount" class="badge">2 条</span></div>
+      <div class="panel-heading"><div><h2>留言记录</h2><p id="orderCommentsHint">原申请和作废申请均按门店／总部保留；未填写内容显示“无”。</p></div><span id="orderCommentsCount" class="badge">4 项</span></div>
       <div id="orderComments" class="order-comment-grid"></div>
     </section>
 

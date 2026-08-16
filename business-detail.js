@@ -91,26 +91,21 @@
 
   function commentCard(title, message, time) {
     const text = clean(message);
-    return `<article class="order-comment-card"><h3>${escapeHtml(title)}</h3><p>${text ? escapeHtml(text) : "暂无留言"}</p>${clean(time) ? `<time>${escapeHtml(formatTime(time))}</time>` : ""}</article>`;
+    return `<article class="order-comment-card"><h3>${escapeHtml(title)}</h3><p>${text ? escapeHtml(text) : "无"}</p>${clean(time) ? `<time>${escapeHtml(formatTime(time))}</time>` : ""}</article>`;
   }
 
   function renderComments(record) {
-    const voidStarted = Boolean(record.voidSubmittedAt || record.voidStatus || record.voidStoreNote);
     const originalStore = first(record.initialStoreNote, record.note, record.message, record.applicantNote);
     const originalHq = first(record.initialHqNote, record.reviewNote, record.hqReviewNote, record.approvalNote, record.rejectionNote);
     const cards = [
       commentCard("门店原申请留言", originalStore, first(record.createdAt, record.submittedAt)),
-      commentCard("总部原审核留言", originalHq, first(record.reviewedAt, record.approvedAt, record.rejectedAt))
+      commentCard("总部原审核留言", originalHq, first(record.reviewedAt, record.approvedAt, record.rejectedAt)),
+      commentCard("门店作废申请留言", record.voidStoreNote, record.voidSubmittedAt),
+      commentCard("总部作废审核留言", record.voidReviewNote, record.voidReviewedAt)
     ];
-    if (voidStarted) {
-      cards.push(commentCard("门店作废申请留言", record.voidStoreNote, record.voidSubmittedAt));
-      cards.push(commentCard("总部作废审核留言", record.voidReviewNote, record.voidReviewedAt));
-    }
     $("orderComments").innerHTML = cards.join("");
-    $("orderCommentsCount").textContent = `${cards.length} 条`;
-    $("orderCommentsHint").textContent = voidStarted
-      ? "已保留原申请与作废申请的全部双方留言，共 4 条。"
-      : "当前仅显示原申请的门店与总部留言，共 2 条。";
+    $("orderCommentsCount").textContent = "4 项";
+    $("orderCommentsHint").textContent = "原申请和作废申请均按门店／总部保留；未填写内容显示“无”。";
   }
 
   function recordFromQuery(recordId) {
@@ -197,9 +192,12 @@
     $("reviewMessage").value = reviewMessage;
     $("reviewMessage").setAttribute("aria-label", reviewMessage ? "审核留言" : "暂无审核留言");
     const isReviewer = ["hq", "operation"].includes(session?.role);
+    $("reviewPanelTitle").textContent = isReviewer ? "总部审核" : "审核结果";
+    $("reviewNoteField").hidden = !isReviewer;
+    $("reviewActions").hidden = !isReviewer;
     $("reviewPanelHint").textContent = isReviewer
       ? "请前往审核中心处理本工单；此详情页与总部工单模板保持一致。"
-      : "总部审核区仅供查看；工单字段和版式与总部模板一致。";
+      : "门店仅可查看审核状态和完整留言记录。";
 
     $("orderKeyfacts").innerHTML = [
       factCard("门店", record.storeName, storeCode),
