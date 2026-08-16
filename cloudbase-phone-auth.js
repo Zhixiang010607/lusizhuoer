@@ -5,6 +5,16 @@
   let verifyOtp = null;
   const SMS_COOLDOWN_MS = 60 * 1000;
 
+  function registerCloudBaseComponent(register, componentName) {
+    try {
+      register(window.cloudbase);
+    } catch (error) {
+      const detail = String(error?.message || error || "").toLowerCase();
+      const alreadyRegistered = detail.includes("duplicate component") && detail.includes(componentName);
+      if (!alreadyRegistered) throw error;
+    }
+  }
+
   function normalizePhone(phone) {
     const digits = String(phone || "").replace(/\D/g, "");
     if (!/^1[3-9]\d{9}$/.test(digits)) throw new Error("请输入有效的中国大陆手机号");
@@ -17,8 +27,12 @@
     if (!window.cloudbase || !window.registerAuth || !window.registerFunctions || !window.CloudBaseAuthConfig) {
       throw new Error("CloudBase 登录组件未加载，请刷新后重试");
     }
-    window.registerAuth(window.cloudbase);
-    window.registerFunctions(window.cloudbase);
+    // Depending on the CDN bundle/version, auth and functions may already be
+    // registered when their scripts load. Re-registering them aborts every
+    // CloudBase request with INVALID_OPERATION, so only ignore that exact,
+    // harmless duplicate-registration condition.
+    registerCloudBaseComponent(window.registerAuth, "auth");
+    registerCloudBaseComponent(window.registerFunctions, "functions");
     app = window.cloudbase.init(window.CloudBaseAuthConfig);
     return app;
   }

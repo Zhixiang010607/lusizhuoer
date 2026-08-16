@@ -1,7 +1,7 @@
 ﻿(() => {
   "use strict";
 
-  const VERSION = "0.14.19";
+  const VERSION = "0.14.20";
   const type = document.body.dataset.management;
   const $ = (id) => document.getElementById(id);
   const fmt = new Intl.NumberFormat("zh-CN");
@@ -21,6 +21,8 @@
   const searchListTypes = new Set(["store", "teacher", "operation", "hq"]);
   let peopleSearchApplied = false;
   let peopleSearch = { name: "", phone: "", selectedId: "" };
+  let peopleDataLoadPromise = Promise.resolve();
+  let peopleDataLoadError = "";
 
   function periodFactor() {
     return ({ last30: .22, q1: .65, q2: .72, q3: .58, q4: .2, ytd: 1 })[$("managePeriod")?.value] || 1;
@@ -217,7 +219,7 @@
   function renderPeopleResults() {
     const target = $("entityInfo");
     if (!peopleSearchApplied) {
-      target.innerHTML = `<article class="panel info-card"><span>查询结果</span><strong>输入姓名或联系电话后点击“按条件搜索”；未填写条件时，选择系统已有${labels[type]}后点击同一按钮即可查看。</strong></article>`;
+      target.replaceChildren();
       $("simpleStatsBody") && ($("simpleStatsBody").innerHTML = "");
       return;
     }
@@ -231,7 +233,18 @@
     $("simpleStatsBody") && ($("simpleStatsBody").innerHTML = "");
   }
 
-  function searchPeopleByFields() {
+  async function searchPeopleByFields() {
+    const searchButton = $("searchPeople");
+    if (searchButton) searchButton.disabled = true;
+    try {
+      await peopleDataLoadPromise;
+    } finally {
+      if (searchButton) searchButton.disabled = false;
+    }
+    if (peopleDataLoadError) {
+      window.alert(peopleDataLoadError);
+      return;
+    }
     const name = $("entityNameSearch")?.value.trim().toUpperCase() || "";
     const phone = $("entityPhoneSearch")?.value.replace(/\D/g, "") || "";
     const selectedId = $("entitySelect")?.value || "";
@@ -250,7 +263,7 @@
       return;
     }
     peopleSearchApplied = false;
-    $("entityInfo").innerHTML = `<article class="panel info-card"><span>查询结果</span><strong>请先输入姓名、联系电话，或选择系统已有${labels[type]}，再点击“按条件搜索”。</strong></article>`;
+    $("entityInfo").replaceChildren();
   }
 
   function addEntity(event) {
@@ -312,7 +325,11 @@
   }
 
   async function syncRemotePeople() {
-    if (!["teacher", "operation", "hq"].includes(type) || !window.CloudBasePhoneAuth?.listStaff) return;
+    if (!["teacher", "operation", "hq"].includes(type)) return;
+    if (!window.CloudBasePhoneAuth?.listStaff) {
+      peopleDataLoadError = "人员数据库服务尚未加载，请刷新页面后重试。";
+      return;
+    }
     try {
       const remote = await window.CloudBasePhoneAuth.listStaff(type);
       const records = remote.map((person) => ({
@@ -325,16 +342,22 @@
         status: person.account_status === "ARCHIVED" ? "封存" : "活跃"
       }));
       entitySets[type].splice(0, entitySets[type].length, ...records);
+      peopleDataLoadError = "";
       refillSelect();
       render();
-    } catch (_) {
-      // Keep the page empty if staff data cannot be read. Never show sample records.
+    } catch (error) {
+      peopleDataLoadError = error?.message || "人员数据读取失败，请刷新页面后重试。";
+      console.warn("人员列表读取失败", error);
+      entitySets[type].splice(0, entitySets[type].length);
+      refillSelect();
+      render();
     }
   }
 
   async function syncRemoteStores(selectedId = "") {
     if (type !== "store") return;
     if (!window.CloudBasePhoneAuth?.listStores) {
+      peopleDataLoadError = "门店数据库服务尚未加载，请刷新页面后重试。";
       refillSelect();
       render();
       return;
@@ -359,11 +382,14 @@
         };
       }).filter((store) => store.id && store.name);
       stores.splice(0, stores.length, ...records);
+      peopleDataLoadError = "";
       refillSelect(String(selectedId || ""));
       render();
     } catch (error) {
       // 读取失败时保持空列表；绝不回退到本地演示数据。
+      peopleDataLoadError = error?.message || "门店数据读取失败，请刷新页面后重试。";
       console.warn("门店列表读取失败", error);
+      stores.splice(0, stores.length);
       refillSelect();
       render();
     }
@@ -430,7 +456,12 @@
         render();
       }
     }));
-    $("searchPeople")?.addEventListener("click", searchPeopleByFields);
+    $("searchPeople")?.addEventListener("click", () => void searchPeopleByFields());
+    ["entityNameSearch", "entityPhoneSearch"].forEach((id) => $(id)?.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      void searchPeopleByFields();
+    }));
     $("managePeriod")?.addEventListener("change", render);
     $("addEntity").addEventListener("click", () => { if (type === "store") location.href = "store-create.html"; else if (type === "project") location.href = "project-create.html"; else if (type === "teacher") location.href = "teacher-create.html"; else if (type === "operation") location.href = "operation-account-create.html"; else if (type === "hq") location.href = "hq-account-create.html"; else $("entityDialog").showModal(); });
     $("deleteEntity")?.addEventListener("click", deactivateEntity);
@@ -454,9 +485,9 @@
       else if (type === "hq") location.replace("hq-account-create.html");
       else window.setTimeout(() => $("entityDialog").showModal(), 0);
     }
-    if (type === "store") void syncRemoteStores(pageParams.get("created") || "");
+    if (type === "store") peopleDataLoadPromise = syncRemoteStores(pageParams.get("created") || "");
     else if (type === "project") void syncRemoteProducts(pageParams.get("created") || "");
-    else void syncRemotePeople();
+    else peopleDataLoadPromise = syncRemotePeople();
   }
 
   init();
