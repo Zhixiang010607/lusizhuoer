@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const tencentcloud = require("tencentcloud-sdk-nodejs");
 const IaiClient = tencentcloud.iai.v20200303.Client;
 
-const FUNCTION_VERSION = "2026-08-16-private-pg-storage-v9";
+const FUNCTION_VERSION = "2026-08-16-orphan-face-recovery-v10";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -295,6 +295,16 @@ async function findCustomerByFacePerson(storeId, personId) {
   return rows[0] || null;
 }
 
+async function findAnyCustomerByFacePerson(personId) {
+  const rows = await executeSql(
+    `SELECT id, customer_code, customer_name, created_store_id, customer_status
+       FROM public.customers
+      WHERE face_person_id = ${sqlText(personId)}
+      LIMIT 1`
+  );
+  return rows[0] || null;
+}
+
 async function deleteCustomerRecord(storeId, personId) {
   if (!personId) return;
   try {
@@ -330,7 +340,7 @@ async function registerCustomer(event) {
 
   const { base64, buffer } = cleanImage(event.imageBase64);
   const groupId = required("FACE_GROUP_ID");
-  const personId = customerCode(caller.storeId);
+  let personId = customerCode(caller.storeId);
   const api = faceClient();
   let storedPhoto = null;
   let personCreated = false;
@@ -346,11 +356,27 @@ async function registerCustomer(event) {
       QualityControl: 3,
       NeedRotateDetection: 0
     });
-    if (faceResult?.SimilarPersonId) {
-      fail("该客户的人脸疑似已经在人员库中存在，请先查询原客户档案，不要重复建档。", "DUPLICATE_FACE");
+    const similarPersonId = String(faceResult?.SimilarPersonId || "").trim();
+    if (similarPersonId) {
+      const linkedCustomer = await findAnyCustomerByFacePerson(similarPersonId);
+      if (linkedCustomer) {
+        const sameStore = String(linkedCustomer.created_store_id) === String(caller.storeId);
+        const message = sameStore
+          ? `该人脸已绑定客户 ${linkedCustomer.customer_name}（${linkedCustomer.customer_code}），请直接查询原客户档案。`
+          : "该人脸已绑定其他门店的客户档案，请联系总部核对，不能重复建档。";
+        fail(message, "DUPLICATE_FACE");
+      }
+
+      // CreatePerson can detect a person left in the Tencent face group by a
+      // previous interrupted request before the customer row or photo existed.
+      // Reuse that unlinked PersonId so the retry can finish atomically. It was
+      // not created by this invocation, therefore the catch block must not
+      // delete it if a later storage/database step fails again.
+      personId = similarPersonId;
+    } else {
+      personCreated = true;
+      if (!faceResult?.FaceId) fail("人脸服务没有返回有效 FaceId，客户档案未创建。", "FACE_ENROLLMENT_INCOMPLETE");
     }
-    personCreated = true;
-    if (!faceResult?.FaceId) fail("人脸服务没有返回有效 FaceId，客户档案未创建。", "FACE_ENROLLMENT_INCOMPLETE");
     storedPhoto = await uploadCustomerPhoto(caller.storeId, personId, buffer);
     const fileID = storedPhoto.reference;
     const saved = await executeSql(

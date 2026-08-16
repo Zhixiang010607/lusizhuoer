@@ -2,7 +2,7 @@
 
 该函数仅在 CloudBase 后端运行，用于门店客户建档、照片质量检测、私有照片留存、人脸人员库录入和后续人员搜索。客户不需要提供身份证。
 
-当前版本：`2026-08-16-private-pg-storage-v9`
+当前版本：`2026-08-16-orphan-face-recovery-v10`
 
 ## 必需环境变量
 
@@ -62,7 +62,7 @@
 ```json
 {
   "ok": true,
-  "version": "2026-08-16-private-pg-storage-v9",
+  "version": "2026-08-16-orphan-face-recovery-v10",
   "photoBucketId": "customer-photos",
   "livenessEnabled": true
 }
@@ -71,7 +71,7 @@
 ## 支持的动作
 
 - `validateCapture`：拍照后立即检查单人、人脸尺寸、质量、口罩、闭眼和姿态。
-- `registerCustomer`：服务端重复质量检查，可选活体检测，然后入人员库、上传私有照片并写客户表。
+- `registerCustomer`：服务端重复质量检查，可选活体检测，然后入人员库、上传私有照片并写客户表。若腾讯人脸库中存在上次失败遗留、但尚未绑定任何客户的人员记录，会安全复用其 PersonId 继续建档；只有已经绑定数据库客户时才拒绝重复建档。
 - `searchCustomer`：质量检查、可选活体检测、人员搜索、阈值和候选分差判断，再从本门店客户表返回档案。
 
 正式上线前还要提供客户授权记录、照片与人脸数据删除流程、访问审计，并确认腾讯云高精度静态活体服务已开通和计费。
