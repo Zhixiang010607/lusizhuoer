@@ -18,8 +18,6 @@
   const customers = read("prototypeCreatedCustomers");
   const customer = customers.find((row) => row.id === customerId) || { id: customerId, name: params.get("customerName") || "", birthday: "", storeId: params.get("storeId") || "", notes: "" };
   const stores = read("prototypeCreatedStores");
-  const store = stores.find((row) => row.id === customer.storeId);
-  const storeLabel = store ? `${store.name} · ${store.id}` : customer.storeId ? `— · ${customer.storeId}` : "—";
   const rechargeRecords = read("prototypeRechargeApplications").filter((row) => row.customerId === customer.id);
   const verificationRecords = read("prototypeVerificationRecords").filter((row) => row.customerId === customer.id);
   const teacherRechargeRecords = read("prototypeTeacherRechargeRecords").filter((row) => row.customerId === customer.id);
@@ -29,6 +27,15 @@
   const ordered = (rows) => rows.slice().sort((a, b) => String(b.createdAt || b.time || "").localeCompare(String(a.createdAt || a.time || "")));
   const latest = (rows) => ordered(rows)[0]?.createdAt || ordered(rows)[0]?.time || "";
   const infoCard = (label, value) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || "—")}</strong></article>`;
+
+  function customerStoreLabel() {
+    if (customer.storeName) return `${customer.storeName}${customer.storeCode ? ` · ${customer.storeCode}` : customer.storeId ? ` · ${customer.storeId}` : ""}`;
+    const store = stores.find((row) => String(row.id) === String(customer.storeId));
+    return store ? `${store.name} · ${store.code || store.id}` : customer.storeId ? `— · ${customer.storeId}` : "—";
+  }
+  function renderCustomerBasicInfo() {
+    $("customerBasicInfo").innerHTML = [infoCard("客户姓名", customer.name), infoCard("客户编号", customer.id), infoCard("生日", customer.birthday), infoCard("所属门店", customerStoreLabel())].join("");
+  }
 
   function parsedObject(value) {
     if (value && typeof value === "object") return value;
@@ -104,7 +111,18 @@
     statusRequestPending = true; renderCustomerStatus(currentCustomerStatus, "正在读取数据库中的客户状态…");
     try {
       const data = await callCustomerService({ action: "getCustomerStatus", customerCode: customerId });
-      const status = normalizeCustomerStatus(data?.customer?.customerStatus);
+      const profile = data?.customer || {};
+      const status = normalizeCustomerStatus(profile.customerStatus);
+      customer.name = profile.customerName || customer.name;
+      customer.birthday = profile.birthDate || customer.birthday;
+      customer.notes = profile.notes ?? customer.notes;
+      customer.createdAt = profile.createdAt || customer.createdAt;
+      customer.storeId = profile.storeId || customer.storeId;
+      customer.storeName = profile.storeName || customer.storeName;
+      customer.storeCode = profile.storeCode || customer.storeCode;
+      renderCustomerBasicInfo();
+      document.title = customer.name ? `${customer.name} · 客户主页` : "客户主页";
+      $("customerNotes").value = customer.notes || "";
       mirrorCustomerStatus(status); renderCustomerStatus(status, "");
     } catch (error) {
       renderCustomerStatus(currentCustomerStatus, error?.message || "客户状态读取失败，请刷新后重试");
@@ -151,7 +169,7 @@
   const photoUrl = /^(https:|blob:|data:image\/)/i.test(candidatePhotoUrl) ? candidatePhotoUrl : "";
   const photo = photoUrl ? `<img src="${escapeHtml(photoUrl)}" alt="${escapeHtml(customer.name || "客户")}的建档照片">` : `<div class="customer-photo-placeholder" aria-label="暂无可显示的客户建档照片">客户照片</div>`;
   $("customerProfilePhoto").innerHTML = photo;
-  $("customerBasicInfo").innerHTML = [infoCard("客户姓名", customer.name), infoCard("客户编号", customer.id), infoCard("生日", customer.birthday), infoCard("所属门店", storeLabel)].join("");
+  renderCustomerBasicInfo();
   const customerCreatedAt = customer.createdAt || customer.created_at || customer.createdTime || "";
   $("customerRecentInfo").innerHTML = `<article><span>最近充值时间</span><strong>${escapeHtml(dateText(latest(recharges)))}</strong></article><article><span>最近核销时间</span><strong>${escapeHtml(dateText(latest(verifications)))}</strong></article><article><span>客户建立时间</span><strong>${escapeHtml(dateText(customerCreatedAt))}</strong></article><article class="customer-status-cell"><span>客户状态</span><div class="customer-status-actions"><span id="customerStatusBadge" class="record-status">正在读取状态</span><button id="customerStatusToggle" type="button" disabled>封存客户</button></div></article>`;
   $("customerNotes").value = customer.notes || "";

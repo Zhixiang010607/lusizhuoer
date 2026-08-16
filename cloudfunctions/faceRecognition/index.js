@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const tencentcloud = require("tencentcloud-sdk-nodejs");
 const IaiClient = tencentcloud.iai.v20200303.Client;
 
-const FUNCTION_VERSION = "2026-08-17-customer-profile-photo-v15";
+const FUNCTION_VERSION = "2026-08-17-customer-photo-sign-v18";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -129,6 +129,65 @@ function parsePhotoReference(value) {
   const separator = path.indexOf("/");
   if (separator <= 0 || separator === path.length - 1) fail("客户照片引用格式无效。", "PHOTO_REFERENCE_INVALID");
   return { bucketId: path.slice(0, separator), objectName: path.slice(separator + 1) };
+}
+
+function photoObjectCandidates(bucketId, objectName) {
+  const bucket = String(bucketId || "").trim().replace(/^\/+|\/+$/g, "");
+  const object = String(objectName || "").trim().replace(/^\/+/, "");
+  if (!bucket || !object) return [];
+  const prefix = `${bucket}/`;
+  const candidates = [object];
+  if (object.startsWith(prefix)) candidates.push(object.slice(prefix.length));
+  else candidates.push(`${prefix}${object}`);
+  return [...new Set(candidates.filter(Boolean))];
+}
+
+function storageObjectMissing(error) {
+  const detail = [error?.code, error?.message].filter(Boolean).join(" ").toUpperCase();
+  return detail.includes("STORAGE_OBJECT_NOT_FOUND") || detail.includes("OBJECT NOT FOUND");
+}
+
+function signedPhotoUrl(value, depth = 0) {
+  if (depth > 4 || value === null || value === undefined) return "";
+  if (typeof value === "string") return /^https:\/\//i.test(value.trim()) ? value.trim() : "";
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const url = signedPhotoUrl(item, depth + 1);
+      if (url) return url;
+    }
+    return "";
+  }
+  if (typeof value !== "object") return "";
+  for (const [key, item] of Object.entries(value)) {
+    if (/^(?:signedurl|fullsignedurl|url)$/i.test(key) && typeof item === "string" && /^https:\/\//i.test(item.trim())) {
+      return item.trim();
+    }
+  }
+  for (const item of Object.values(value)) {
+    const url = signedPhotoUrl(item, depth + 1);
+    if (url) return url;
+  }
+  return "";
+}
+
+function safeResponseShape(value, depth = 0) {
+  if (depth > 2 || value === null || value === undefined) return typeof value;
+  if (Array.isArray(value)) return value.slice(0, 2).map((item) => safeResponseShape(item, depth + 1));
+  if (typeof value !== "object") return typeof value;
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, safeResponseShape(item, depth + 1)]));
+}
+
+function responseErrorText(value, depth = 0) {
+  if (depth > 4 || value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map((item) => responseErrorText(item, depth + 1)).filter(Boolean).join(" ");
+  if (typeof value !== "object") return "";
+  const messages = [];
+  for (const [key, item] of Object.entries(value)) {
+    if (/^(?:error|code|message)$/i.test(key)) messages.push(responseErrorText(item, depth + 1));
+    else if (/^(?:data|result|results|items)$/i.test(key)) messages.push(responseErrorText(item, depth + 1));
+  }
+  return messages.filter(Boolean).join(" ");
 }
 
 function cleanImage(value) {
@@ -278,16 +337,20 @@ function customerStatusCode(event) {
   return customerCodeValue;
 }
 
-function customerStatusScope(caller) {
-  return caller.role === "store" ? ` AND created_store_id = ${caller.storeId}` : "";
+function customerStatusScope(caller, tableAlias = "") {
+  const column = tableAlias ? `${tableAlias}.created_store_id` : "created_store_id";
+  return caller.role === "store" ? ` AND ${column} = ${caller.storeId}` : "";
 }
 
 async function findCustomerStatus(caller, customerCodeValue) {
   const rows = await executeSql(
-    `SELECT id, customer_code, customer_name, created_store_id, customer_status, updated_at
-       FROM public.customers
-      WHERE customer_code = ${sqlText(customerCodeValue)}
-        ${customerStatusScope(caller)}
+    `SELECT c.id, c.customer_code, c.customer_name, c.birth_date, c.notes,
+            c.created_store_id, c.customer_status, c.created_at, c.updated_at,
+            s.store_name, s.store_code
+       FROM public.customers c
+       JOIN public.stores s ON s.id = c.created_store_id
+      WHERE c.customer_code = ${sqlText(customerCodeValue)}
+        ${customerStatusScope(caller, "c")}
       LIMIT 1`
   );
   return rows[0] || null;
@@ -300,8 +363,13 @@ function customerStatusResult(customer) {
       id: String(customer.id),
       customerCode: customer.customer_code,
       customerName: customer.customer_name,
+      birthDate: customer.birth_date,
+      notes: customer.notes || "",
       storeId: String(customer.created_store_id),
+      storeName: customer.store_name,
+      storeCode: customer.store_code,
       customerStatus: customer.customer_status,
+      createdAt: customer.created_at,
       updatedAt: customer.updated_at
     }
   };
@@ -346,7 +414,7 @@ async function updateCustomerStatus(event) {
 async function uploadCustomerPhoto(storeId, personId, buffer) {
   const { bucketId, accessToken } = photoStorageSettings();
   const objectName = `${storeId}/${personId}/${Date.now()}.jpg`;
-  const uploaded = await manager().storage.uploadObject({
+  await manager().storage.uploadObject({
     bucketId,
     objectName,
     body: buffer,
@@ -356,7 +424,11 @@ async function uploadCustomerPhoto(storeId, personId, buffer) {
     upsert: false,
     accessToken
   });
-  const savedObjectName = String(uploaded?.Key || uploaded?.Data?.Key || objectName);
+  // Persist the objectName supplied to uploadObject. Some manager-node/storage
+  // responses include the bucket name in Key; persisting that value produced
+  // references such as pg://bucket/bucket/path and later lookups could miss the
+  // real object. Retrieval still supports those legacy references below.
+  const savedObjectName = objectName;
   return {
     bucketId,
     objectName: savedObjectName,
@@ -368,11 +440,14 @@ async function deleteUploadedFile(storedPhoto) {
   if (!storedPhoto?.bucketId || !storedPhoto?.objectName) return;
   try {
     const { accessToken } = photoStorageSettings();
-    await manager().storage.deleteObject({
-      bucketId: storedPhoto.bucketId,
-      objectName: storedPhoto.objectName,
-      accessToken
-    });
+    for (const objectName of photoObjectCandidates(storedPhoto.bucketId, storedPhoto.objectName)) {
+      try {
+        await manager().storage.deleteObject({ bucketId: storedPhoto.bucketId, objectName, accessToken });
+        return;
+      } catch (error) {
+        if (!storageObjectMissing(error)) throw error;
+      }
+    }
   } catch (error) {
     console.warn("Photo cleanup failed", error?.message || error);
   }
@@ -398,14 +473,98 @@ async function getCustomerPhotoUrl(event) {
   const storage = photoStorageSettings();
   if (reference.bucketId !== storage.bucketId) fail("客户照片不属于指定私有存储桶。", "PHOTO_BUCKET_MISMATCH");
   const expiresIn = Math.floor(numberSetting("CUSTOMER_PHOTO_URL_TTL_SECONDS", 120, 30, 600));
-  const signed = await manager().storage.signObject({
-    bucketId: reference.bucketId,
-    objectName: reference.objectName,
-    expiresIn,
-    accessToken: storage.accessToken
-  });
-  const photoUrl = String(signed?.signedURL || signed?.Data?.signedURL || signed?.data?.signedURL || "").trim();
-  if (!/^https:\/\//i.test(photoUrl)) fail("私有客户照片临时访问地址生成失败。", "PHOTO_SIGN_FAILED");
+  let photoUrl = "";
+  let resolvedObjectName = "";
+  const missingFailures = [];
+  const signingFailures = [];
+  const objectCandidates = photoObjectCandidates(reference.bucketId, reference.objectName);
+  for (const objectName of objectCandidates) {
+    try {
+      const signed = await manager().storage.signObject({
+        bucketId: reference.bucketId,
+        objectName,
+        expiresIn,
+        accessToken: storage.accessToken
+      });
+      photoUrl = signedPhotoUrl(signed);
+
+      // manager-node 5.6.x normally returns { signedURL }, while some
+      // CloudBase gateways wrap the response. If the single-object response
+      // resolves without a URL, try the documented batch endpoint once and
+      // parse both response shapes without exposing the signed token.
+      let batchSigned = null;
+      if (!photoUrl && typeof manager().storage.signObjects === "function") {
+        batchSigned = await manager().storage.signObjects({
+          bucketId: reference.bucketId,
+          paths: [objectName],
+          expiresIn,
+          accessToken: storage.accessToken
+        });
+        photoUrl = signedPhotoUrl(batchSigned);
+      }
+
+      if (photoUrl) {
+        resolvedObjectName = objectName;
+        break;
+      }
+
+      const responseError = responseErrorText([signed, batchSigned]);
+      if (storageObjectMissing({ message: responseError })) {
+        missingFailures.push({ objectName });
+      } else {
+        signingFailures.push({
+          objectName,
+          responseShape: safeResponseShape([signed, batchSigned]),
+          responseError: responseError.slice(0, 240)
+        });
+      }
+    } catch (error) {
+      const failure = {
+        objectName,
+        code: String(error?.code || ""),
+        requestId: error?.requestId || error?.RequestId || "",
+        message: String(error?.message || "").slice(0, 240)
+      };
+      if (storageObjectMissing(error)) missingFailures.push(failure);
+      else signingFailures.push(failure);
+    }
+  }
+  if (!photoUrl && missingFailures.length === objectCandidates.length) {
+    console.warn("Customer photo object is missing", {
+      customerCode: customer.customer_code,
+      bucketId: reference.bucketId,
+      candidates: objectCandidates,
+      failures: missingFailures
+    });
+    fail("该客户的照片文件已不存在，需要在客户档案中重新采集照片。", "CUSTOMER_PHOTO_OBJECT_MISSING");
+  }
+  if (!photoUrl) {
+    console.error("Customer photo signing returned no HTTPS URL", {
+      customerCode: customer.customer_code,
+      bucketId: reference.bucketId,
+      candidates: objectCandidates,
+      failures: signingFailures
+    });
+    fail("私有客户照片临时访问地址生成失败，请查看云函数日志中的签名阶段错误。", "PHOTO_SIGN_FAILED");
+  }
+
+  const resolvedReference = `pg://${reference.bucketId}/${resolvedObjectName}`;
+  if (resolvedReference !== String(customer.profile_photo_file_id).trim()) {
+    try {
+      await executeSql(
+        `UPDATE public.customers
+            SET profile_photo_file_id = ${sqlText(resolvedReference)}, updated_at = NOW()
+          WHERE customer_code = ${sqlText(customer.customer_code)}
+            ${customerStatusScope(caller)}
+            AND profile_photo_file_id = ${sqlText(String(customer.profile_photo_file_id).trim())}`
+      );
+    } catch (error) {
+      console.warn("Customer photo reference normalization failed", {
+        customerCode: customer.customer_code,
+        message: error?.message || String(error)
+      });
+    }
+  }
   return { ok: true, customerCode: customer.customer_code, photoUrl, expiresIn };
 }
 
