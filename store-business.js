@@ -1,11 +1,12 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.32", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.33", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   const storeId = String(session?.store || ""), storeNo = Number(storeId.replace(/\D/g, "")) || 1;
   let storeName = `门店 ${storeNo}`;
-  let databaseCustomers = [], databaseTeachers = [], databaseProducts = [], candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, verificationBalanceProjects = [], rechargeRequest = null;
+  let databaseCustomers = [], databaseTeachers = [], databaseProducts = [], candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, verificationBalanceProjects = [], rechargeRequest = null, previewCustomerCode = "";
+  const customerDetailCache = new Map(), customerDetailRequests = new Map();
   const allCustomers = () => databaseCustomers;
   const saveList = (key, value) => { try { sessionStorage.setItem(key, JSON.stringify(value)); } catch (_) { /* 当前静态会话不可持久化时不保存演示数据。 */ } };
   const addCommunication = (recordType, recordId, message) => {
@@ -237,13 +238,14 @@
       }
     };
     const lookupSelectedCustomer = () => {
-      resetCandidate();
       const id = $("serviceCustomerSelect").value;
       const birthday = $("serviceSelectBirthday").value;
-      if (!id) return;
-      if (!birthday) { showLookupError("所选客户缺少生日资料，暂时不能办理业务，请先补全档案。"); return; }
+      if (!id) { resetCandidate(); return; }
+      if (!birthday) { resetCandidate(); showLookupError("所选客户缺少生日资料，暂时不能办理业务，请先补全档案。"); return; }
       const customer = activeCustomers.find((item) => item.id === id && item.birthday === birthday);
-      if (!customer) { showLookupError("所选生日与客户档案不一致，请重新核对。"); return; }
+      if (!customer) { resetCandidate(); showLookupError("所选生日与客户档案不一致，请重新核对。"); return; }
+      if (previewCustomerCode === id && (candidateCustomer?.id === id || customerDetailRequests.has(id))) return;
+      resetCandidate();
       renderCustomerCore(customer);
     };
     $("serviceCustomerSelect").addEventListener("change", () => {
@@ -279,25 +281,50 @@
     balanceRequest += 1;
     candidateCustomer = null;
     selectedCustomer = null;
+    previewCustomerCode = "";
     verificationBalanceProjects = [];
     if (["verification", "verification-supplemental"].includes(page)) resetVerificationCapture();
     $("confirmCustomerSelection").disabled = true;
     $("serviceCustomerResults").innerHTML = `<div class="lookup-placeholder"><strong>等待查询客户</strong><span>查询成功后，此处显示客户建档照片、姓名、生日和客户编号。</span></div>`;
     disableBusinessStep();
   }
+  function customerPreviewMarkup(customer, hasPhoto = false) {
+    const photo = hasPhoto
+      ? `<div class="profile-photo-visual has-photo"><img id="selectedCustomerProfilePhoto" alt="${escapeHtml(customer.name)}的客户建档照片" referrerpolicy="no-referrer"></div>`
+      : `<div class="profile-photo-visual"><strong>照片加载中…</strong></div>`;
+    return `<div class="customer-core-card"><div class="customer-core-heading"><span>客户身份确认</span><strong>${escapeHtml(customer.name)}</strong></div><div class="customer-profile-layout"><figure class="customer-profile-photo">${photo}<figcaption><strong>客户建档照片</strong><span>${hasPhoto ? "私有照片 · 临时授权显示" : "正在读取私有照片"}</span></figcaption></figure><div class="customer-profile-details"><div class="customer-core-facts"><div><span>姓名</span><strong>${escapeHtml(customer.name)}</strong></div><div><span>生日</span><strong>${escapeHtml(customer.birthday)}</strong></div><div><span>客户编号</span><strong>${escapeHtml(customer.id)}</strong></div></div><p class="profile-photo-note">请核对照片与现场客户。照片无法读取时禁止继续确认客户。</p></div></div></div>`;
+  }
+  async function loadCustomerDetail(customerCode) {
+    const now = Date.now();
+    const cached = customerDetailCache.get(customerCode);
+    if (cached && cached.expiresAt > now + 10000) return cached.result;
+    if (customerDetailRequests.has(customerCode)) return customerDetailRequests.get(customerCode);
+    const request = callCustomerEnrollment({ action: "getActiveStoreCustomerDetail", customerCode })
+      .then((result) => {
+        const ttlSeconds = Math.max(30, Number(result?.expiresIn || 120));
+        // Keep only a short page cache. It removes repeated clicks without
+        // keeping an ACTIVE/store authorization result around for long.
+        const cacheSeconds = Math.min(30, Math.max(10, ttlSeconds - 10));
+        customerDetailCache.set(customerCode, { result, expiresAt: Date.now() + cacheSeconds * 1000 });
+        return result;
+      })
+      .finally(() => customerDetailRequests.delete(customerCode));
+    customerDetailRequests.set(customerCode, request);
+    return request;
+  }
   async function renderCustomerCore(customer) {
     const request = ++customerPreviewRequest;
+    previewCustomerCode = customer.id;
     candidateCustomer = null;
     $("confirmCustomerSelection").disabled = true;
-    $("serviceCustomerResults").innerHTML = `<div class="lookup-placeholder"><strong>正在安全读取客户照片</strong><span>正在验证当前门店权限并生成短时访问地址…</span></div>`;
+    $("serviceCustomerResults").innerHTML = customerPreviewMarkup(customer);
     try {
-      const result = await callCustomerEnrollment({ action: "getActiveStoreCustomerDetail", customerCode: customer.id });
+      const result = await loadCustomerDetail(customer.id);
       if (request !== customerPreviewRequest) return;
       const detail = result?.customer && typeof result.customer === "object" ? result.customer : {};
       if (String(detail.customerCode || "") !== customer.id) throw new Error("客户详情与所选客户不一致，请重新查询");
       customer.name = String(detail.customerName || customer.name || "");
       customer.birthday = String(detail.birthDate || customer.birthday || "").slice(0, 10);
-      customer.notes = String(detail.notes || "");
       customer.storeId = String(detail.storeId || "");
       customer.customerStatus = String(detail.customerStatus || "");
       customer.customerProcessStatus = String(detail.customerProcessStatus || "");
@@ -307,10 +334,8 @@
       customer.hasProfilePhoto = detail.hasProfilePhoto === true;
       customer.createdAt = detail.createdAt || "";
       const photoUrl = String(result?.photoUrl || "");
-      const customerNotes = customer.notes.trim();
-      customer.notes = customerNotes;
       if (!/^https:\/\//i.test(photoUrl)) throw new Error("客户照片临时地址无效，请刷新后重试");
-      $("serviceCustomerResults").innerHTML = `<div class="customer-core-card"><div class="customer-core-heading"><span>客户身份确认</span><strong>${escapeHtml(customer.name)}</strong></div><div class="customer-profile-layout"><figure class="customer-profile-photo"><div class="profile-photo-visual has-photo"><img id="selectedCustomerProfilePhoto" alt="${escapeHtml(customer.name)}的客户建档照片" referrerpolicy="no-referrer"></div><figcaption><strong>客户建档照片</strong><span>私有照片 · 临时授权显示</span></figcaption></figure><div class="customer-profile-details"><div class="customer-core-facts"><div><span>姓名</span><strong>${escapeHtml(customer.name)}</strong></div><div><span>生日</span><strong>${escapeHtml(customer.birthday)}</strong></div><div><span>客户编号</span><strong>${escapeHtml(customer.id)}</strong></div><div><span>客户备注</span><strong>${escapeHtml(customerNotes || "—")}</strong></div></div><p class="profile-photo-note">请核对照片与现场客户。该地址短时有效，照片无法读取时禁止继续确认客户。</p></div></div></div>`;
+      $("serviceCustomerResults").innerHTML = customerPreviewMarkup(customer, true);
       const image = $("selectedCustomerProfilePhoto");
       image.addEventListener("load", () => {
         if (request !== customerPreviewRequest) return;

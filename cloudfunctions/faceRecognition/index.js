@@ -2,15 +2,15 @@
 
 const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
-const tencentcloud = require("tencentcloud-sdk-nodejs");
-const IaiClient = tencentcloud.iai.v20200303.Client;
 
-const FUNCTION_VERSION = "2026-08-17-optional-recharge-teacher-v24";
+const FUNCTION_VERSION = "2026-08-17-fast-customer-photo-preview-v25";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
 let managerClient = null;
 let storeBindingLayout = null;
+let iaiClientClass = null;
+const signedCustomerPhotoCache = new Map();
 
 function app() {
   if (!cloudApp) cloudApp = cloudbase.init({});
@@ -94,7 +94,11 @@ async function getStoreBindingLayout() {
 }
 
 function faceClient() {
-  return new IaiClient({
+  // Customer list/detail/photo actions do not use Tencent IAI. Loading the
+  // large face SDK only for actual face operations keeps ordinary customer
+  // selection fast, especially after a cold start.
+  if (!iaiClientClass) iaiClientClass = require("tencentcloud-sdk-nodejs").iai.v20200303.Client;
+  return new iaiClientClass({
     credential: { secretId: required("FACE_SECRET_ID"), secretKey: required("FACE_SECRET_KEY") },
     region: "ap-guangzhou",
     profile: { httpProfile: { endpoint: "iai.tencentcloudapi.com" } }
@@ -168,6 +172,25 @@ function signedPhotoUrl(value, depth = 0) {
     if (url) return url;
   }
   return "";
+}
+
+function cachedCustomerPhoto(cacheKey) {
+  const now = Date.now();
+  for (const [key, value] of signedCustomerPhotoCache) {
+    if (!value || value.expiresAt <= now + 10000) signedCustomerPhotoCache.delete(key);
+  }
+  const cached = signedCustomerPhotoCache.get(cacheKey);
+  return cached && cached.expiresAt > now + 10000 ? cached : null;
+}
+
+function rememberCustomerPhoto(cacheKeys, value) {
+  for (const key of new Set(cacheKeys.filter(Boolean))) {
+    signedCustomerPhotoCache.delete(key);
+    signedCustomerPhotoCache.set(key, value);
+  }
+  while (signedCustomerPhotoCache.size > 500) {
+    signedCustomerPhotoCache.delete(signedCustomerPhotoCache.keys().next().value);
+  }
 }
 
 function safeResponseShape(value, depth = 0) {
@@ -489,10 +512,18 @@ async function getCustomerPhotoUrl(event, options = {}) {
   const expiresIn = Math.floor(numberSetting("CUSTOMER_PHOTO_URL_TTL_SECONDS", 120, 30, 600));
   let photoUrl = "";
   let resolvedObjectName = "";
+  let responseExpiresIn = expiresIn;
   const missingFailures = [];
   const signingFailures = [];
   const objectCandidates = photoObjectCandidates(reference.bucketId, reference.objectName);
-  for (const objectName of objectCandidates) {
+  const cacheKey = `${reference.bucketId}/${reference.objectName}`;
+  const cached = cachedCustomerPhoto(cacheKey);
+  if (cached) {
+    photoUrl = cached.photoUrl;
+    resolvedObjectName = cached.resolvedObjectName;
+    responseExpiresIn = Math.max(10, Math.floor((cached.expiresAt - Date.now()) / 1000));
+  }
+  for (const objectName of photoUrl ? [] : objectCandidates) {
     try {
       const signed = await manager().storage.signObject({
         bucketId: reference.bucketId,
@@ -519,6 +550,11 @@ async function getCustomerPhotoUrl(event, options = {}) {
 
       if (photoUrl) {
         resolvedObjectName = objectName;
+        const cachedValue = { photoUrl, resolvedObjectName, expiresAt: Date.now() + expiresIn * 1000 };
+        rememberCustomerPhoto([
+          cacheKey,
+          `${reference.bucketId}/${resolvedObjectName}`
+        ], cachedValue);
         break;
       }
 
@@ -599,7 +635,7 @@ async function getCustomerPhotoUrl(event, options = {}) {
       createdAt: customer.created_at
     },
     photoUrl,
-    expiresIn
+    expiresIn: responseExpiresIn
   };
 }
 
