@@ -2,13 +2,14 @@
 
 该函数仅在 CloudBase 后端运行，用于门店客户建档、照片质量检测、私有照片留存、人脸人员库录入和后续人员搜索。客户不需要提供身份证。
 
-当前版本：`2026-08-16-customer-persist-v8`
+当前版本：`2026-08-16-private-pg-storage-v9`
 
 ## 必需环境变量
 
 - `FACE_SECRET_ID`
 - `FACE_SECRET_KEY`
 - `FACE_GROUP_ID=lusizhuoerdatabase`
+- `CLOUDBASE_SERVICE_ROLE_KEY`：CloudBase PG 云存储的服务端 API Key，只能保存在云函数环境变量中。
 
 不要把腾讯云密钥写入前端 JavaScript、README 或 GitHub。
 
@@ -23,6 +24,7 @@
 - `FACE_MAX_ROLL=15`
 - `FACE_LIVENESS_ENABLED=false`：未开通高精度静态活体服务前保持 `false`；开通后改为 `true`。
 - `FACE_LIVENESS_THRESHOLD=40`：腾讯云高精度静态活体推荐阈值。
+- `CUSTOMER_PHOTO_BUCKET_ID=customer-photos`
 
 ## 拍摄和质量要求
 
@@ -41,9 +43,9 @@
 - 访问权限：私有
 - 单文件限制：5 MB
 - MIME 白名单：`image/jpeg`
-- 对象路径：`customer-photos/<storeId>/<customerCode>/<timestamp>.jpg`
+- 对象路径：`<storeId>/<customerCode>/<timestamp>.jpg`
 
-数据库只保存私有对象 `fileID`，不保存公开下载地址。照片只能通过有权限的后端接口读取。
+该桶不为 `anon` 或 `authenticated` 创建任何 RLS Policy，客户端访问默认拒绝；只有使用 `service_role` 的云函数可以读写。数据库保存 `pg://<bucketId>/<objectName>` 私有引用，不保存公开下载地址。
 
 ## 部署
 
@@ -60,8 +62,9 @@
 ```json
 {
   "ok": true,
-  "version": "2026-08-16-face-quality-v4",
-  "livenessEnabled": false
+  "version": "2026-08-16-private-pg-storage-v9",
+  "photoBucketId": "customer-photos",
+  "livenessEnabled": true
 }
 ```
 

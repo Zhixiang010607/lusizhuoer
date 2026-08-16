@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const tencentcloud = require("tencentcloud-sdk-nodejs");
 const IaiClient = tencentcloud.iai.v20200303.Client;
 
-const FUNCTION_VERSION = "2026-08-16-customer-persist-v8";
+const FUNCTION_VERSION = "2026-08-16-private-pg-storage-v9";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -112,6 +112,13 @@ function faceSettings() {
     maxYaw: numberSetting("FACE_MAX_YAW", 20, 0, 90),
     maxPitch: numberSetting("FACE_MAX_PITCH", 20, 0, 90),
     maxRoll: numberSetting("FACE_MAX_ROLL", 15, 0, 90)
+  };
+}
+
+function photoStorageSettings() {
+  return {
+    bucketId: String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim(),
+    accessToken: required("CLOUDBASE_SERVICE_ROLE_KEY")
   };
 }
 
@@ -234,9 +241,40 @@ async function activeStoreCaller() {
   return { uid: String(uid), staffId: Number(caller.staff_id), storeId: Number(caller.store_id) };
 }
 
-async function deleteUploadedFile(fileID) {
-  if (!fileID) return;
-  try { await app().deleteFile({ fileList: [fileID] }); } catch (error) { console.warn("Photo cleanup failed", error?.message || error); }
+async function uploadCustomerPhoto(storeId, personId, buffer) {
+  const { bucketId, accessToken } = photoStorageSettings();
+  const objectName = `${storeId}/${personId}/${Date.now()}.jpg`;
+  const uploaded = await manager().storage.uploadObject({
+    bucketId,
+    objectName,
+    body: buffer,
+    contentType: "image/jpeg",
+    contentLength: buffer.length,
+    cacheControl: "private, no-store",
+    xRobotsTag: "noindex, nofollow, noarchive",
+    upsert: false,
+    accessToken
+  });
+  const savedObjectName = String(uploaded?.Key || uploaded?.Data?.Key || objectName);
+  return {
+    bucketId,
+    objectName: savedObjectName,
+    reference: `pg://${bucketId}/${savedObjectName}`
+  };
+}
+
+async function deleteUploadedFile(storedPhoto) {
+  if (!storedPhoto?.bucketId || !storedPhoto?.objectName) return;
+  try {
+    const { accessToken } = photoStorageSettings();
+    await manager().storage.deleteObject({
+      bucketId: storedPhoto.bucketId,
+      objectName: storedPhoto.objectName,
+      accessToken
+    });
+  } catch (error) {
+    console.warn("Photo cleanup failed", error?.message || error);
+  }
 }
 
 async function deleteFacePerson(api, groupId, personId) {
@@ -294,7 +332,7 @@ async function registerCustomer(event) {
   const groupId = required("FACE_GROUP_ID");
   const personId = customerCode(caller.storeId);
   const api = faceClient();
-  let fileID = "";
+  let storedPhoto = null;
   let personCreated = false;
   try {
     const quality = await inspectFaceImage(api, base64);
@@ -313,10 +351,8 @@ async function registerCustomer(event) {
     }
     personCreated = true;
     if (!faceResult?.FaceId) fail("人脸服务没有返回有效 FaceId，客户档案未创建。", "FACE_ENROLLMENT_INCOMPLETE");
-    const cloudPath = `customer-photos/${caller.storeId}/${personId}/${Date.now()}.jpg`;
-    const upload = await app().uploadFile({ cloudPath, fileContent: buffer });
-    fileID = String(upload?.fileID || "");
-    if (!fileID) fail("Photo storage did not return a file identifier.", "STORAGE_ERROR");
+    storedPhoto = await uploadCustomerPhoto(caller.storeId, personId, buffer);
+    const fileID = storedPhoto.reference;
     const saved = await executeSql(
       `INSERT INTO public.customers
         (customer_code, customer_name, birth_date, notes, profile_photo_file_id,
@@ -357,7 +393,7 @@ async function registerCustomer(event) {
     };
   } catch (error) {
     await deleteCustomerRecord(caller.storeId, personId);
-    await deleteUploadedFile(fileID);
+    await deleteUploadedFile(storedPhoto);
     if (personCreated) await deleteFacePerson(api, groupId, personId);
     throw error;
   }
@@ -493,7 +529,7 @@ async function verifyCustomerFace(event) {
 exports.main = async (event = {}) => {
   try {
     const action = event.action || "health";
-    if (action === "health") return { ok: true, version: FUNCTION_VERSION, groupId: required("FACE_GROUP_ID"), livenessEnabled: faceSettings().livenessEnabled, message: "Face customer enrollment is ready." };
+    if (action === "health") return { ok: true, version: FUNCTION_VERSION, groupId: required("FACE_GROUP_ID"), photoBucketId: String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim(), livenessEnabled: faceSettings().livenessEnabled, message: "Face customer enrollment is ready." };
     if (action === "validateCapture") return await validateCapture(event);
     if (action === "registerCustomer") return await registerCustomer(event);
     if (action === "searchCustomer") return await searchCustomer(event);
