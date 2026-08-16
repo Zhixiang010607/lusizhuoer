@@ -215,7 +215,7 @@
   function renderPeopleResults() {
     const target = $("entityInfo");
     if (!peopleSearchApplied) {
-      target.innerHTML = `<article class="panel info-card"><span>查询结果</span><strong>请输入姓名、联系电话，或选择系统已有${labels[type]}后点击搜索。</strong></article>`;
+      target.innerHTML = `<article class="panel info-card"><span>查询结果</span><strong>输入姓名或联系电话后点击“按条件搜索”，或选择已有${labels[type]}后点击“查看所选”。</strong></article>`;
       $("simpleStatsBody") && ($("simpleStatsBody").innerHTML = "");
       return;
     }
@@ -227,6 +227,34 @@
     }
     target.innerHTML = `<section class="panel people-result-panel"><div class="panel-heading"><div><h2>查询结果</h2><p>共 ${results.length} 条。总部可进入该账号自身范围内的全局视图。</p></div></div><div class="people-result-list">${results.map((person) => { const detail = type === "store" ? `store-detail.html?storeId=${encodeURIComponent(person.id)}` : `staff-detail.html?role=${encodeURIComponent(type)}&id=${encodeURIComponent(person.id)}`; const location = type === "store" ? [person.province, person.city, person.district].filter(Boolean).join(" · ") : person.phone || "未填写"; return `<article class="people-result-row"><div><strong>${escapeHtml(person.name)}</strong><span>${escapeHtml(person.id)} · ${escapeHtml(location)} · ${escapeHtml(person.status)}</span></div><a class="button-link secondary-button" href="${detail}">进入全局视图</a></article>`; }).join("")}</div></section>`;
     $("simpleStatsBody") && ($("simpleStatsBody").innerHTML = "");
+  }
+
+  function searchPeopleByFields() {
+    const name = $("entityNameSearch")?.value.trim().toUpperCase() || "";
+    const phone = $("entityPhoneSearch")?.value.replace(/\D/g, "") || "";
+    if (!name && !phone) {
+      peopleSearchApplied = false;
+      $("entityInfo").innerHTML = `<article class="panel info-card"><span>查询结果</span><strong>请先输入姓名或联系电话，再点击“按条件搜索”。</strong></article>`;
+      return;
+    }
+    // Text criteria are a separate search mode. A stale select value must
+    // never constrain a name/phone search.
+    peopleSearchApplied = true;
+    peopleSearch = { name, phone, selectedId: "" };
+    render();
+  }
+
+  function viewSelectedPerson() {
+    const selectedId = $("entitySelect")?.value || "";
+    if (!selectedId) {
+      peopleSearchApplied = false;
+      $("entityInfo").innerHTML = `<article class="panel info-card"><span>查询结果</span><strong>请先选择一位系统已有${labels[type]}，再点击“查看所选”。</strong></article>`;
+      return;
+    }
+    // Direct selection is independent from field searching.
+    peopleSearchApplied = true;
+    peopleSearch = { name: "", phone: "", selectedId };
+    render();
   }
 
   function addEntity(event) {
@@ -290,17 +318,26 @@
     document.documentElement.dataset.prototypeVersion = VERSION;
     const pageParams = new URLSearchParams(location.search);
     refillSelect(pageParams.get("created"));
-    $("entitySelect").addEventListener("change", () => { if (type !== "store" && !searchListTypes.has(type)) render(); });
-    ["entitySearch", "entityNameSearch", "entityPhoneSearch"].forEach((id) => $(id)?.addEventListener("input", () => { if (!searchListTypes.has(type)) { refillSelect(); render(); } }));
-    $("searchPeople")?.addEventListener("click", () => {
-      peopleSearchApplied = true;
-      peopleSearch = {
-        name: $("entityNameSearch")?.value.trim().toUpperCase() || "",
-        phone: $("entityPhoneSearch")?.value.replace(/\D/g, "") || "",
-        selectedId: $("entitySelect")?.value || ""
-      };
-      render();
+    $("entitySelect").addEventListener("change", () => {
+      if (searchListTypes.has(type)) {
+        // Choosing a person switches to the direct-view mode; clear stale
+        // field criteria so the two lookup methods cannot conflict.
+        $("entityNameSearch").value = "";
+        $("entityPhoneSearch").value = "";
+      } else if (type !== "store") {
+        render();
+      }
     });
+    ["entitySearch", "entityNameSearch", "entityPhoneSearch"].forEach((id) => $(id)?.addEventListener("input", (event) => {
+      if (searchListTypes.has(type)) {
+        if (id !== "entitySearch" && event.currentTarget.value.trim()) $("entitySelect").value = "";
+      } else {
+        refillSelect();
+        render();
+      }
+    }));
+    $("searchPeople")?.addEventListener("click", searchPeopleByFields);
+    $("selectPeople")?.addEventListener("click", viewSelectedPerson);
     $("managePeriod")?.addEventListener("change", render);
     $("addEntity").addEventListener("click", () => { if (type === "store") location.href = "store-create.html"; else if (type === "project") location.href = "project-create.html"; else if (type === "teacher") location.href = "teacher-create.html"; else if (type === "operation") location.href = "operation-account-create.html"; else if (type === "hq") location.href = "hq-account-create.html"; else $("entityDialog").showModal(); });
     $("deleteEntity")?.addEventListener("click", deactivateEntity);

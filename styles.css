@@ -352,6 +352,8 @@ button.metric-card:hover { transform: translateY(-2px); box-shadow: 0 14px 32px 
 .table-scroll { max-height: 390px; border: 1px solid var(--line); border-radius: 10px; }
 .management-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(190px, .7fr) auto; gap: 9px; align-items: end; padding: 12px; }
 .people-search-toolbar { grid-template-columns: minmax(190px, 1fr) minmax(190px, 1fr) minmax(230px, 1.1fr) auto; }
+.people-search-toolbar .toolbar-actions { flex-wrap: wrap; gap: 7px; }
+.people-search-toolbar .toolbar-actions button { white-space: nowrap; }
 .people-result-panel { grid-column: 1 / -1; padding: 18px; }
 .people-result-list { display: grid; gap: 10px; }
 .people-result-row, .staff-status-panel { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
