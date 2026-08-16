@@ -8,7 +8,7 @@
 const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "2026-08-16-session-bind-v2";
+const FUNCTION_VERSION = "2026-08-16-provision-v3";
 let app = null;
 let auth = null;
 let managerClient = null;
@@ -90,6 +90,68 @@ function fail(message, code = "BAD_REQUEST") {
   const error = new Error(message);
   error.code = code;
   throw error;
+}
+
+function requestIdFrom(error) {
+  return String(error?.RequestId || error?.requestId || error?.response?.RequestId || "");
+}
+
+function stageFail(stage, message, code, cause) {
+  const requestId = requestIdFrom(cause);
+  console.error("staff account provision failed", {
+    stage,
+    code,
+    requestId: requestId || undefined,
+    causeCode: cause?.code,
+    causeMessage: cause?.message
+  });
+  const error = new Error(message);
+  error.code = code;
+  error.stage = stage;
+  error.requestId = requestId || undefined;
+  throw error;
+}
+
+function isDuplicateAuthError(error) {
+  const text = `${error?.code || ""} ${error?.message || ""}`.toLowerCase();
+  return text.includes("duplicatedata") || text.includes("duplicate") || text.includes("already exist");
+}
+
+function managerDependencyInstalled() {
+  try {
+    require.resolve("@cloudbase/manager-node");
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function findAuthUserByExactPhone(phone) {
+  let response;
+  try {
+    response = await manager().user.describeUserList({ phone, pageNo: 1, pageSize: 20 });
+  } catch (error) {
+    stageFail(
+      "AUTH_LOOKUP",
+      "无法读取认证账号。请确认云函数已点击“保存并安装依赖”，并检查函数权限。",
+      "AUTH_LOOKUP_FAILED",
+      error
+    );
+  }
+  const matches = (response?.Data?.UserList || []).filter((user) =>
+    String(user?.Phone || "").replace(/\D/g, "") === phone
+  );
+  if (matches.length > 1) {
+    const error = new Error("Multiple identity users share this phone");
+    error.RequestId = response?.RequestId;
+    stageFail(
+      "AUTH_LOOKUP",
+      "认证系统返回了多个同手机号账号，请由总部先处理认证账号。",
+      "AUTH_PHONE_AMBIGUOUS",
+      error
+    );
+  }
+  return matches[0] || null;
 }
 
 function validatePhone(phone) {
@@ -340,7 +402,8 @@ async function main(event = {}) {
     return {
       ok: true,
       message: "员工账号云函数已就绪",
-      version: FUNCTION_VERSION
+      version: FUNCTION_VERSION,
+      managerNodeInstalled: managerDependencyInstalled()
     };
   }
   const caller = await currentUser(false);
@@ -385,25 +448,102 @@ async function main(event = {}) {
     if (!ROLES.has(role)) fail("员工角色必须是总部、运营、门店或老师");
     if (role === "store" && !/^\d+$/.test(storeId)) fail("门店员工必须绑定已创建门店的数字编号");
 
-    const created = await manager().user.createUser({
-      name: `staff_${phone}`,
-      password,
-      type: "internalUser",
-      userStatus: "ACTIVE",
-      nickName: staffName,
+    let authUser = await findAuthUserByExactPhone(phone);
+    let authCreated = false;
+
+    if (!authUser) {
+      try {
+        const created = await manager().user.createUser({
+          name: `staff_${phone}`,
+          password,
+          type: "internalUser",
+          userStatus: "ACTIVE",
+          nickName: staffName,
+          phone,
+          description: "业务员工登录账号"
+        });
+        const uid = String(created?.Data?.Uid || "");
+        if (!uid) {
+          const error = new Error("CreateUser did not return a UID");
+          error.RequestId = created?.RequestId;
+          stageFail(
+            "AUTH_CREATE",
+            "认证账号创建后未返回 UID。请勿重复提交，先由总部检查认证用户。",
+            "AUTH_CREATE_INCOMPLETE",
+            error
+          );
+        }
+        authUser = { Uid: uid };
+        authCreated = true;
+      } catch (error) {
+        if (!isDuplicateAuthError(error)) {
+          stageFail(
+            "AUTH_CREATE",
+            "认证登录账号创建失败。请确认手机号未被注册，并检查云函数权限。",
+            "AUTH_CREATE_FAILED",
+            error
+          );
+        }
+        // Two HQ requests may arrive together. Re-query by the exact phone and
+        // then continue safely without overwriting an existing password.
+        authUser = await findAuthUserByExactPhone(phone);
+        if (!authUser?.Uid) {
+          stageFail(
+            "AUTH_CREATE",
+            "认证账号创建冲突，但无法读取已有账号。请勿重复提交。",
+            "AUTH_CREATE_CONFLICT",
+            error
+          );
+        }
+      }
+    }
+
+    const uid = String(authUser?.Uid || "");
+    if (!uid) fail("认证账号无有效 UID，请勿重复提交", "AUTH_CREATE_INCOMPLETE");
+
+    let profile;
+    try {
+      profile = await createStaffDatabaseProfile({ uid, phone, staffName, role, storeId });
+    } catch (error) {
+      stageFail(
+        "DB_PROFILE",
+        error?.code === "PHONE_ROLE_CONFLICT" || error?.code === "PHONE_ALREADY_PROVISIONED" || error?.code === "STORE_BINDING_FAILED"
+          ? error.message
+          : "认证账号已存在，但员工业务资料绑定失败。请勿重复创建，稍后可用同一手机号继续恢复。",
+        error?.code || "STAFF_PROFILE_SAVE_FAILED",
+        error
+      );
+    }
+
+    let warning = "";
+    if (authCreated) {
+      try {
+        await writeCredentialEvent({
+          targetStaffId: profile.staffId,
+          actorStaffId: caller.profile.staffId,
+          eventType: "ACCOUNT_CREATED",
+          passwordChangeRequired: true
+        });
+      } catch (error) {
+        // The login account and business identity are already usable. Do not
+        // make the HQ create screen look like it failed solely due to audit.
+        console.error("credential audit write failed after provision", {
+          code: error?.code,
+          requestId: requestIdFrom(error) || undefined,
+          message: error?.message
+        });
+        warning = "账号已创建，但密码审计记录未写入；请稍后检查数据库迁移。";
+      }
+    }
+    return {
+      ok: true,
+      uid,
       phone,
-      description: "业务员工登录账号"
-    });
-    const uid = String(created?.Data?.Uid || "");
-    if (!uid) fail("认证账号已创建，但未返回 UID；请勿重复提交并联系总部处理", "AUTH_CREATE_INCOMPLETE");
-    const profile = await createStaffDatabaseProfile({ uid, phone, staffName, role, storeId });
-    await writeCredentialEvent({
-      targetStaffId: profile.staffId,
-      actorStaffId: caller.profile.staffId,
-      eventType: "ACCOUNT_CREATED",
-      passwordChangeRequired: true
-    });
-    return { ok: true, uid, phone, profile };
+      profile,
+      authAccount: authCreated ? "created" : "recovered",
+      passwordInitialized: authCreated,
+      warning: warning || undefined
+    };
   }
   if (action === "resetPassword") {
     requireHq(caller);
@@ -503,10 +643,18 @@ exports.main = async (event = {}) => {
   } catch (error) {
     console.error("staffAccount failed", {
       action: event?.action || "session",
+      stage: error?.stage,
       code: error?.code || "FUNCTION_ERROR",
+      requestId: error?.requestId || requestIdFrom(error) || undefined,
       message: error?.message || String(error),
       stack: error?.stack
     });
-    return { ok: false, code: error?.code || "FUNCTION_ERROR", message: error?.message || "员工账号服务暂不可用，请稍后重试" };
+    return {
+      ok: false,
+      code: error?.code || "FUNCTION_ERROR",
+      stage: error?.stage || undefined,
+      requestId: error?.requestId || requestIdFrom(error) || undefined,
+      message: error?.message || "员工账号服务暂不可用，请稍后重试"
+    };
   }
 };

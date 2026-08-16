@@ -38,9 +38,10 @@
     }
     submitButton.disabled = true;
     message.textContent = "正在创建真实登录账号…";
+    let provisioned;
     try {
       if (!window.CloudBasePhoneAuth?.provisionStaff) throw new Error("账号服务未加载，请刷新页面后重试");
-      const provisioned = await window.CloudBasePhoneAuth.provisionStaff({
+      provisioned = await window.CloudBasePhoneAuth.provisionStaff({
         staffName: name,
         phone,
         role: type === "teacher" ? "teacher" : type === "hq" ? "hq" : "operation",
@@ -64,7 +65,11 @@
       createdBy: { account: session?.account || "HQ001", name: session?.name || "总部管理员" }
     });
     sessionStorage.setItem(config.key, JSON.stringify(people));
-    message.textContent = `创建成功：登录手机号 ${phone}。账号已自动绑定，初始密码请安全交给本人。`;
+    const recovered = provisioned.authAccount === "recovered";
+    message.textContent = recovered
+      ? `业务账号已恢复并绑定：登录手机号 ${phone}。原有登录密码未被覆盖。`
+      : `创建成功：登录手机号 ${phone}。账号已自动绑定，初始密码请安全交给本人。`;
+    if (provisioned.warning) message.textContent += ` ${provisioned.warning}`;
     event.currentTarget.reset();
     submitButton.disabled = false;
   }

@@ -29,6 +29,41 @@
     return auth;
   }
 
+  function functionPayload(result) {
+    const candidates = [result?.result, result?.data?.result, result?.data, result].map((candidate) => {
+      if (typeof candidate !== "string") return candidate;
+      try { return JSON.parse(candidate); } catch (_) { return candidate; }
+    });
+    return candidates.find((candidate) => candidate && typeof candidate === "object" && (
+      Object.prototype.hasOwnProperty.call(candidate, "ok") ||
+      Object.prototype.hasOwnProperty.call(candidate, "message") ||
+      Object.prototype.hasOwnProperty.call(candidate, "errMsg") ||
+      Object.prototype.hasOwnProperty.call(candidate, "error")
+    )) || {};
+  }
+
+  function functionFailureMessage(result, payload, fallback) {
+    const detail = payload?.message || payload?.error?.message || payload?.errMsg ||
+      result?.message || result?.error?.message || result?.errMsg || fallback;
+    const code = payload?.code || payload?.error?.code || result?.code || result?.error?.code;
+    const stage = payload?.stage || result?.stage;
+    const requestId = payload?.requestId || result?.requestId;
+    const diagnostic = [code, stage, requestId].filter(Boolean).join(" · ");
+    return diagnostic ? `${detail}（${diagnostic}）` : detail;
+  }
+
+  async function callStaffAccount(data, fallback) {
+    let result;
+    try {
+      result = await getApp().callFunction({ name: "staffAccount", data });
+    } catch (error) {
+      throw new Error(error?.message || fallback);
+    }
+    const payload = functionPayload(result);
+    if (!payload?.ok) throw new Error(functionFailureMessage(result, payload, fallback));
+    return payload;
+  }
+
   function smsStateKey(phone) { return `lusizhuoerSmsState:${phone}`; }
   function readSmsState(phone) {
     try { return JSON.parse(localStorage.getItem(smsStateKey(phone)) || "{}"); } catch (_) { return {}; }
@@ -68,50 +103,33 @@
       return result.data;
     },
     async getStaffSession(phone) {
-      const result = await getApp().callFunction({ name: "staffAccount", data: { action: "session", phone: normalizePhone(phone) } });
-      const data = result?.result || result?.data?.result || result?.data;
-      if (!data?.ok || !data?.profile?.role) {
-        throw new Error(data?.message || "该手机号尚未被总部绑定业务身份");
-      }
+      const data = await callStaffAccount(
+        { action: "session", phone: normalizePhone(phone) },
+        "该手机号尚未被总部绑定业务身份"
+      );
+      if (!data?.profile?.role) throw new Error("该手机号尚未被总部绑定业务身份");
       return data;
     },
     async bootstrapHq() {
-      const result = await getApp().callFunction({ name: "staffAccount", data: { action: "bootstrapHq" } });
-      const data = result?.result || result?.data?.result || result?.data;
-      if (!data?.ok) throw new Error(data?.message || "总部初始化未获授权");
-      return data;
+      return callStaffAccount({ action: "bootstrapHq" }, "总部初始化未获授权");
     },
     async provisionStaff({ staffName, phone, role, initialPassword, storeId = "" }) {
-      const result = await getApp().callFunction({
-        name: "staffAccount",
-        data: { action: "provisionStaff", staffName, phone: normalizePhone(phone), role, initialPassword, storeId }
-      });
-      const data = result?.result || result?.data?.result || result?.data;
-      if (!data?.ok) throw new Error(data?.message || "员工账号创建失败");
-      return data;
+      return callStaffAccount(
+        { action: "provisionStaff", staffName, phone: normalizePhone(phone), role, initialPassword, storeId },
+        "员工账号创建失败"
+      );
     },
     async changeOwnPassword(newPassword) {
-      const result = await getApp().callFunction({ name: "staffAccount", data: { action: "changeOwnPassword", newPassword } });
-      const data = result?.result || result?.data?.result || result?.data;
-      if (!data?.ok) throw new Error(data?.message || "密码修改失败");
-      return data;
+      return callStaffAccount({ action: "changeOwnPassword", newPassword }, "密码修改失败");
     },
     async resetStaffPassword({ uid, newPassword }) {
-      const result = await getApp().callFunction({ name: "staffAccount", data: { action: "resetPassword", uid, newPassword } });
-      const data = result?.result || result?.data?.result || result?.data;
-      if (!data?.ok) throw new Error(data?.message || "Password reset failed");
-      return data;
+      return callStaffAccount({ action: "resetPassword", uid, newPassword }, "密码重置失败");
     },
     async setStaffStatus({ uid = "", phone = "", status }) {
-      const result = await getApp().callFunction({ name: "staffAccount", data: { action: "setStaffStatus", uid, phone, status } });
-      const data = result?.result || result?.data?.result || result?.data;
-      if (!data?.ok) throw new Error(data?.message || "人员状态更新失败");
-      return data;
+      return callStaffAccount({ action: "setStaffStatus", uid, phone, status }, "人员状态更新失败");
     },
     async listStaff(role) {
-      const result = await getApp().callFunction({ name: "staffAccount", data: { action: "listStaff", role } });
-      const data = result?.result || result?.data?.result || result?.data;
-      if (!data?.ok) throw new Error(data?.message || "人员列表读取失败");
+      const data = await callStaffAccount({ action: "listStaff", role }, "人员列表读取失败");
       return data.staff || [];
     },
     smsCooldownRemaining(phone) { return cooldownRemaining(phone); }
