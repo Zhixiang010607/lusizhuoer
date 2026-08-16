@@ -1,11 +1,11 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.37", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.38", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   const storeId = String(session?.store || ""), storeNo = Number(storeId.replace(/\D/g, "")) || 1;
   let storeName = `门店 ${storeNo}`;
-  let databaseCustomers = [], databaseTeachers = [], databaseProducts = [], candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, verificationBalanceProjects = [], rechargeRequest = null, customerEnrollmentRequest = null, previewCustomerCode = "";
+  let databaseCustomers = [], databaseTeachers = [], databaseProducts = [], candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, verificationBalanceProjects = [], rechargeRequest = null, customerEnrollmentRequest = null, previewCustomerCode = "", customerSubmissionBusy = false;
   const customerDetailCache = new Map(), customerDetailRequests = new Map();
   const allCustomers = () => databaseCustomers;
   const saveList = (key, value) => { try { sessionStorage.setItem(key, JSON.stringify(value)); } catch (_) { /* 当前静态会话不可持久化时不保存演示数据。 */ } };
@@ -43,7 +43,13 @@
   function syncCustomerCreateSubmit() {
     const submit = document.querySelector('#customerCreateForm [type="submit"]');
     const consent = $("faceConsent");
-    if (submit) submit.disabled = !(faceCaptured && capturedPhotoDataUrl && consent?.checked);
+    const nameReady = Boolean($("createCustomerName")?.value.trim());
+    const birthdayReady = Boolean($("createCustomerBirthday")?.value);
+    const ready = !customerSubmissionBusy && nameReady && birthdayReady && faceCaptured && Boolean(capturedPhotoDataUrl) && Boolean(consent?.checked);
+    if (submit) {
+      submit.disabled = !ready;
+      submit.setAttribute("aria-disabled", String(!ready));
+    }
   }
   function resetCapturedPhoto() {
     capturedPhotoDataUrl = ""; faceCaptured = false; customerEnrollmentRequest = null;
@@ -185,6 +191,8 @@
   function setupCustomerCreate() {
     const video = $("faceCamera"), preview = $("facePhotoPreview"), placeholder = $("faceCameraPlaceholder"), status = $("faceCaptureStatus"), message = $("customerCreateMessage"), capture = $("captureFace"), openCamera = $("openFaceCamera"), retake = $("retakeFace");
     $("faceConsent").addEventListener("change", syncCustomerCreateSubmit);
+    $("createCustomerName").addEventListener("input", syncCustomerCreateSubmit);
+    $("createCustomerBirthday").addEventListener("change", syncCustomerCreateSubmit);
     syncCustomerCreateSubmit();
     openCamera.addEventListener("click", async () => {
       try {
@@ -237,8 +245,8 @@
     $("customerCreateForm").addEventListener("submit", async (event) => {
       event.preventDefault(); const name = $("createCustomerName").value.trim(), birthday = $("createCustomerBirthday").value, notes = $("createCustomerNotes").value.trim();
       if (!name || !birthday) { message.textContent = "姓名和生日必须填写"; return; }
-      if (!faceCaptured || !capturedPhotoDataUrl || !$("faceConsent").checked) { message.textContent = "必须拍摄客户照片并取得明确授权后才能建立档案"; return; }
-      const submit = event.currentTarget.querySelector('[type="submit"]'); submit.disabled = true; message.textContent = "正在上传照片、创建人脸档案并保存客户资料…";
+      if (!faceCaptured || !capturedPhotoDataUrl || !$("faceConsent").checked) { message.textContent = "必须完成拍照、照片质量与活体检测，并取得明确授权后才能建立档案"; return; }
+      customerSubmissionBusy = true; syncCustomerCreateSubmit(); message.textContent = "正在上传照片、创建人脸档案并保存客户资料…";
       try {
         const clientRequestId = nextCustomerEnrollmentRequestId({ name, birthday, notes, photoLength: capturedPhotoDataUrl.length, photoTail: capturedPhotoDataUrl.slice(-48) });
         const data = await callCustomerEnrollment({ action: "registerCustomer", customerName: name, birthDate: birthday, notes, consent: true, imageBase64: capturedPhotoDataUrl, clientRequestId });
@@ -247,7 +255,7 @@
         message.textContent = "客户档案已建立；当前页面中的客户资料、授权状态和照片已安全清空。";
       } catch (error) {
         message.textContent = error?.message || "客户建档失败；照片和人脸资料不会保留为半成品，请重试";
-      } finally { syncCustomerCreateSubmit(); }
+      } finally { customerSubmissionBusy = false; syncCustomerCreateSubmit(); }
     });
   }
   function setupLookup() {
@@ -487,7 +495,14 @@
   }
   function syncVerificationSubmit() {
     const submit = $("verificationSubmit");
-    if (submit) submit.disabled = !photoCaptured;
+    const projectReady = Boolean($("verificationProject")?.value);
+    const teacherReady = Boolean($("verificationTeacher")?.value);
+    const noteReady = page !== "verification-supplemental" || Boolean($("verificationNote")?.value.trim());
+    const ready = Boolean(selectedCustomer) && photoCaptured && projectReady && teacherReady && noteReady;
+    if (submit) {
+      submit.disabled = !ready;
+      submit.setAttribute("aria-disabled", String(!ready));
+    }
   }
   function resetVerificationCapture() {
     stopFaceCamera(); capturedPhotoDataUrl = ""; photoCaptured = false;
@@ -502,6 +517,9 @@
     const supplementalPage = page === "verification-supplemental";
     setupLookup(); $("verificationProject").innerHTML = `<option value="">确认客户后从数据库加载可核销项目</option>`; loadActiveTeachers("verificationTeacher", "verificationCreateMessage");
     const video = $("verificationCamera"), preview = $("verificationPhotoPreview"), placeholder = $("verificationCameraPlaceholder"), canvas = $("verificationCaptureCanvas"), open = $("openVerificationCamera"), capture = $("captureVerificationPhoto"), retake = $("retakeVerificationPhoto"), status = $("verificationPhotoStatus"), message = $("verificationCreateMessage");
+    $("verificationProject").addEventListener("change", syncVerificationSubmit);
+    $("verificationTeacher").addEventListener("change", syncVerificationSubmit);
+    $("verificationNote").addEventListener("input", syncVerificationSubmit);
     resetVerificationCapture();
     open.addEventListener("click", async () => {
       try {
@@ -543,7 +561,7 @@
     $("verificationCreateForm").addEventListener("submit", (event) => {
       event.preventDefault(); const projectId = $("verificationProject").value, teacherId = $("verificationTeacher").value, note = $("verificationNote").value.trim(), supplemental = supplementalPage;
       if (!selectedCustomer || !projectId || !teacherId) { $("verificationCreateMessage").textContent = "必须确认客户并选择项目和老师"; return; }
-      if (!photoCaptured) { $("verificationCreateMessage").textContent = "人脸识别核验未通过，禁止核销和发送设备信号"; return; }
+      if (!photoCaptured) { $("verificationCreateMessage").textContent = "必须完成现场拍照并通过所选客户的 1:1 人脸验证，才能核销和发送设备信号"; return; }
       if (supplemental && !note) { $("verificationCreateMessage").textContent = "补录必须填写门店备注／原因"; return; }
       const records = JSON.parse(sessionStorage.getItem("prototypeVerificationRecords") || "[]"), project = verificationBalanceProjects.find((item) => item.id === projectId), recordId = `${supplemental ? "VE-SUP" : "VE-NEW"}-${Date.now()}`;
       if (!project) { $("verificationCreateMessage").textContent = "所选项目余额已失效，请重新确认客户后再试"; return; }

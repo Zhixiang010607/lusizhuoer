@@ -610,6 +610,13 @@ textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px #1f5eff18; out
 .consent-row input { width: 17px; height: 17px; margin: 0; }
 .form-submit-row { display: flex; align-items: center; justify-content: flex-end; gap: 16px; margin-top: auto; padding-top: 18px; border-top: 1px solid var(--line); }
 .form-submit-row span { margin-right: auto; color: var(--muted); font-size: 12px; }
+body[data-store-business] .form-submit-row button:disabled {
+  cursor: not-allowed;
+  color: #738196;
+  background: #dfe6ef;
+  box-shadow: none;
+  opacity: 1;
+}
 .customer-lookup-grid { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
 .customer-lookup-grid button { height: 40px; }
 .lookup-mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 5px; border-radius: 11px; background: #edf2f7; }
