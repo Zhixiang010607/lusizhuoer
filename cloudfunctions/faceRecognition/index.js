@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const tencentcloud = require("tencentcloud-sdk-nodejs");
 const IaiClient = tencentcloud.iai.v20200303.Client;
 
-const FUNCTION_VERSION = "2026-08-16-capture-check-v7";
+const FUNCTION_VERSION = "2026-08-16-customer-persist-v8";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -244,6 +244,32 @@ async function deleteFacePerson(api, groupId, personId) {
   try { await api.DeletePerson({ GroupId: groupId, PersonId: personId }); } catch (error) { console.warn("Face person cleanup failed", error?.message || error); }
 }
 
+async function findCustomerByFacePerson(storeId, personId) {
+  const rows = await executeSql(
+    `SELECT id, customer_code, profile_photo_file_id, face_person_id,
+            customer_status, customer_process_status,
+            total_recharge_count, total_verification_count, total_experience_count, created_at
+       FROM public.customers
+      WHERE created_store_id = ${storeId}
+        AND face_person_id = ${sqlText(personId)}
+      LIMIT 1`
+  );
+  return rows[0] || null;
+}
+
+async function deleteCustomerRecord(storeId, personId) {
+  if (!personId) return;
+  try {
+    await executeSql(
+      `DELETE FROM public.customers
+        WHERE created_store_id = ${storeId}
+          AND face_person_id = ${sqlText(personId)}`
+    );
+  } catch (error) {
+    console.warn("Customer database cleanup failed", error?.message || error);
+  }
+}
+
 async function registerCustomer(event) {
   const caller = await activeStoreCaller();
   const name = String(event.customerName || "").trim();
@@ -303,7 +329,10 @@ async function registerCustomer(event) {
                  customer_status, customer_process_status,
                  total_recharge_count, total_verification_count, total_experience_count, created_at`
     );
-    const customer = saved[0];
+    // CloudBase can successfully execute a writable statement without exposing
+    // the rows produced by RETURNING. Read the persisted row back before
+    // treating an empty write result as a failure.
+    const customer = saved[0] || await findCustomerByFacePerson(caller.storeId, personId);
     if (!customer) fail("Customer record was not returned after creation.", "DATABASE_ERROR");
     return {
       ok: true,
@@ -327,6 +356,7 @@ async function registerCustomer(event) {
       }
     };
   } catch (error) {
+    await deleteCustomerRecord(caller.storeId, personId);
     await deleteUploadedFile(fileID);
     if (personCreated) await deleteFacePerson(api, groupId, personId);
     throw error;
