@@ -90,6 +90,12 @@
       if (!data?.ok) throw new Error(data?.message || "员工账号创建失败");
       return data;
     },
+    async changeOwnPassword(newPassword) {
+      const result = await getApp().callFunction({ name: "staffAccount", data: { action: "changeOwnPassword", newPassword } });
+      const data = result?.result || result?.data?.result || result?.data;
+      if (!data?.ok) throw new Error(data?.message || "密码修改失败");
+      return data;
+    },
     async setStaffStatus({ uid = "", phone = "", status }) {
       const result = await getApp().callFunction({ name: "staffAccount", data: { action: "setStaffStatus", uid, phone, status } });
       const data = result?.result || result?.data?.result || result?.data;

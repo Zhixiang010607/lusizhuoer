@@ -197,11 +197,35 @@ async function ensureBootstrapHq(caller) {
 }
 
 async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId }) {
+  let existingRows;
+  try {
+    existingRows = await executeSql(
+      `SELECT id, auth_uid, role_code FROM public.staff_accounts WHERE phone = ${sqlText(phone)} LIMIT 1`
+    );
+  } catch (error) {
+    asDatabaseError(error, "Read existing staff profile");
+  }
+
+  const existing = existingRows?.[0];
+  if (existing && existing.role_code !== role) {
+    fail("该手机号已经绑定其他业务身份；一个手机号只能有一个身份", "PHONE_ROLE_CONFLICT");
+  }
+  if (existing?.auth_uid && String(existing.auth_uid) !== String(uid)) {
+    fail("该手机号已经有可用登录账号；请使用修改密码功能，不要重复创建", "PHONE_ALREADY_PROVISIONED");
+  }
+
   let rows;
   try {
-    rows = await executeSql(
-      `INSERT INTO public.staff_accounts (auth_uid, phone, staff_name, role_code, account_status) VALUES (${sqlText(uid)}, ${sqlText(phone)}, ${sqlText(staffName)}, ${sqlText(role)}, 'ACTIVE') RETURNING id`
-    );
+    rows = existing
+      ? await executeSql(
+        `UPDATE public.staff_accounts
+         SET auth_uid = ${sqlText(uid)}, staff_name = ${sqlText(staffName)}, account_status = 'ACTIVE', updated_at = NOW()
+         WHERE id = ${Number(existing.id)}
+         RETURNING id`
+      )
+      : await executeSql(
+        `INSERT INTO public.staff_accounts (auth_uid, phone, staff_name, role_code, account_status) VALUES (${sqlText(uid)}, ${sqlText(phone)}, ${sqlText(staffName)}, ${sqlText(role)}, 'ACTIVE') RETURNING id`
+      );
   } catch (error) {
     asDatabaseError(error, "保存员工业务身份");
   }
@@ -280,6 +304,11 @@ async function main(event = {}) {
     const uid = String(event.uid || "").trim();
     if (!uid) fail("缺少员工 UID");
     await manager().user.modifyUser({ uid, password: validatePassword(event.newPassword) });
+    return { ok: true };
+  }
+  if (action === "changeOwnPassword") {
+    const newPassword = validatePassword(event.newPassword);
+    await manager().user.modifyUser({ uid: caller.uid, password: newPassword });
     return { ok: true };
   }
   if (action === "setStaffStatus") {

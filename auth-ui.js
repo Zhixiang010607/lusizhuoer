@@ -4,10 +4,10 @@
   const homes = { hq: "index.html", operation: "local.html", store: "store-detail.html", teacher: "teacher-work-orders.html" };
   const labels = { hq: "总部工作区", operation: "运营工作区", store: "门店工作区", teacher: "老师工作区" };
   const access = {
-    hq: new Set(["index.html", "store-create.html", "project-create.html", "teacher-create.html", "operation-account-create.html", "hq-account-create.html", "hq-management.html", "store-management.html", "project-management.html", "teacher-management.html", "operation-account-management.html", "staff-detail.html", "store-detail.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "verification-review.html", "recharge-demo.html", "verification-demo.html", "store-work-order-demo.html", "store-verification-work-order-demo.html", "customer-profile-demo.html"]),
-    operation: new Set(["local.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "verification-review.html"]),
-    store: new Set(["store-detail.html", "customer-detail.html", "customer-query.html", "customer-create.html", "recharge-create.html", "verification-create.html", "verification-supplemental.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html"]),
-    teacher: new Set(["teacher-work-orders.html", "teacher-work-order-detail.html", "teacher-verification-create.html", "teacher-recharge-create.html"])
+    hq: new Set(["index.html", "change-password.html", "store-create.html", "project-create.html", "teacher-create.html", "operation-account-create.html", "hq-account-create.html", "hq-management.html", "store-management.html", "project-management.html", "teacher-management.html", "operation-account-management.html", "staff-detail.html", "store-detail.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "verification-review.html", "recharge-demo.html", "verification-demo.html", "store-work-order-demo.html", "store-verification-work-order-demo.html", "customer-profile-demo.html"]),
+    operation: new Set(["local.html", "change-password.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "verification-review.html"]),
+    store: new Set(["store-detail.html", "change-password.html", "customer-detail.html", "customer-query.html", "customer-create.html", "recharge-create.html", "verification-create.html", "verification-supplemental.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html"]),
+    teacher: new Set(["teacher-work-orders.html", "change-password.html", "teacher-work-order-detail.html", "teacher-verification-create.html", "teacher-recharge-create.html"])
   };
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
@@ -83,6 +83,9 @@
 
   document.querySelectorAll(".side-brand strong").forEach((node) => { node.textContent = labels[session.role]; });
   const footer = document.querySelector(".side-footer");
+  if (footer && !footer.querySelector("#changeOwnPassword")) {
+    footer.querySelector("span")?.insertAdjacentHTML("afterend", '<button id="changeOwnPassword" type="button">修改密码</button>');
+  }
   if (footer) footer.innerHTML = `<span>${session.account}${session.store ? ` · ${session.store}` : ""}</span><button id="logoutWorkspace" type="button">退出登录</button>`;
   let message = "";
   try { message = sessionStorage.getItem("prototypeAccessMessage") || ""; if (message) sessionStorage.removeItem("prototypeAccessMessage"); } catch (_) { message = ""; }
@@ -97,6 +100,7 @@
     ["prototypeSession", "prototypeRole", "prototypeAccount", "prototypeStore", "prototypeAccessMessage"].forEach((key) => sessionStorage.removeItem(key));
     location.replace("login.html");
   });
+  $("changeOwnPassword")?.addEventListener("click", () => { location.href = "change-password.html"; });
   document.documentElement.dataset.authReady = "true";
 
   function $(id) { return document.getElementById(id); }

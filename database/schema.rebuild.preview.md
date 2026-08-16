@@ -290,3 +290,6 @@ verification order. It does not create an extra approval order.
    totals, recent business times, business stage, and the per-product summary.
 7. The customer row is locked during recalculation so approvals for the same
    customer are serialized under concurrent requests.
+8. RLS makes browser clients read-only and limits every read by the signed-in
+   account's role. Cloud Functions perform all create, update, review, and
+   archive operations with trusted server-side access.

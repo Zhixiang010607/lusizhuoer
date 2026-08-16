@@ -2,6 +2,7 @@
   "use strict";
   const type = document.body.dataset.personCreate;
   const $ = (id) => document.getElementById(id);
+  const DEFAULT_INITIAL_PASSWORD = "Init@123456789";
   const config = type === "teacher"
     ? { prefix: "T", baseCount: 32, key: "prototypeCreatedTeachers", baseNames: Array.from({ length: 32 }, (_, index) => `业务老师 ${String(index + 1).padStart(2, "0")}`) }
     : type === "hq"
@@ -23,18 +24,6 @@
     return count ? `${name}+${count}` : name;
   }
 
-  function strongInitialPassword() {
-    const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-    const lower = "abcdefghijkmnopqrstuvwxyz";
-    const digits = "23456789";
-    const special = "!@#$%^&*";
-    const pick = (source) => source[Math.floor(Math.random() * source.length)];
-    const password = [pick(upper), pick(lower), pick(digits), pick(special)];
-    const all = upper + lower + digits + special;
-    while (password.length < 12) password.push(pick(all));
-    return password.sort(() => Math.random() - 0.5).join("");
-  }
-
   async function submitPerson(event) {
     event.preventDefault();
     const name = $("personCreateName").value.trim();
@@ -42,7 +31,11 @@
     const message = $("personCreateMessage");
     const submitButton = event.currentTarget.querySelector('button[type="submit"]');
 
-    const initialPassword = strongInitialPassword();
+    const initialPassword = DEFAULT_INITIAL_PASSWORD;
+    if (initialPassword.length < 8) {
+      message.textContent = "初始密码至少 8 位，并需包含大写、小写、数字、特殊字符中的至少三类";
+      return;
+    }
     submitButton.disabled = true;
     message.textContent = "正在创建真实登录账号…";
     try {
@@ -71,11 +64,16 @@
       createdBy: { account: session?.account || "HQ001", name: session?.name || "总部管理员" }
     });
     sessionStorage.setItem(config.key, JSON.stringify(people));
-    message.textContent = `创建成功：登录手机号 ${phone}；初始密码 ${initialPassword}。请立即安全交给本人并记录。`;
+    message.textContent = `创建成功：登录手机号 ${phone}。账号已自动绑定，初始密码请安全交给本人。`;
     event.currentTarget.reset();
+    $("personInitialPassword").value = DEFAULT_INITIAL_PASSWORD;
     submitButton.disabled = false;
   }
 
   $("generatedPersonCode").textContent = `编号 ${nextId()}（自动生成）`;
+  if ($("personInitialPassword")) {
+    $("personInitialPassword").value = DEFAULT_INITIAL_PASSWORD;
+    $("personInitialPassword").readOnly = true;
+  }
   $("personCreateForm").addEventListener("submit", submitPerson);
 })();
