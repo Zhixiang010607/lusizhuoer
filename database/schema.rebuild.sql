@@ -294,18 +294,56 @@ CREATE UNIQUE INDEX uq_products_idempotency_key
   ON public.products (idempotency_key)
   WHERE idempotency_key IS NOT NULL;
 CREATE INDEX idx_customers_store_name ON public.customers (created_store_id, customer_name);
-CREATE INDEX idx_recharge_customer_time ON public.recharge_records (customer_id, submitted_at DESC);
-CREATE INDEX idx_recharge_store_time ON public.recharge_records (store_id, submitted_at DESC);
-CREATE INDEX idx_recharge_teacher_time ON public.recharge_records (teacher_id, submitted_at DESC);
+CREATE INDEX idx_customers_active_store_lookup
+  ON public.customers (created_store_id, customer_name, birth_date, id)
+  WHERE customer_status = 'ACTIVE';
+CREATE INDEX idx_recharge_customer_cursor ON public.recharge_records (customer_id, submitted_at DESC, id DESC);
+CREATE INDEX idx_recharge_store_cursor ON public.recharge_records (store_id, submitted_at DESC, id DESC);
+CREATE INDEX idx_recharge_teacher_cursor ON public.recharge_records (teacher_id, submitted_at DESC, id DESC)
+  WHERE teacher_id IS NOT NULL;
 CREATE INDEX idx_recharge_status_time ON public.recharge_records (record_status, submitted_at DESC);
+CREATE INDEX idx_recharge_pending_review_cursor
+  ON public.recharge_records (submitted_at DESC, id DESC)
+  WHERE record_status = 'PENDING';
+CREATE INDEX idx_recharge_approved_balance
+  ON public.recharge_records (customer_id, product_id, recharge_type)
+  INCLUDE (unit_count, submitted_at)
+  WHERE record_status = 'APPROVED';
+CREATE INDEX idx_recharge_product_store_cursor
+  ON public.recharge_records (product_id, store_id, submitted_at DESC, id DESC);
+CREATE INDEX idx_recharge_product_teacher_cursor
+  ON public.recharge_records (product_id, teacher_id, submitted_at DESC, id DESC)
+  WHERE teacher_id IS NOT NULL;
+CREATE INDEX idx_recharge_submitted_brin
+  ON public.recharge_records USING BRIN (submitted_at) WITH (pages_per_range = 128);
 CREATE UNIQUE INDEX uq_recharge_idempotency_key
   ON public.recharge_records (idempotency_key)
   WHERE idempotency_key IS NOT NULL;
-CREATE INDEX idx_verification_customer_time ON public.verification_records (customer_id, submitted_at DESC);
-CREATE INDEX idx_verification_store_time ON public.verification_records (store_id, submitted_at DESC);
-CREATE INDEX idx_verification_teacher_time ON public.verification_records (teacher_id, submitted_at DESC);
+CREATE INDEX idx_verification_customer_cursor ON public.verification_records (customer_id, submitted_at DESC, id DESC);
+CREATE INDEX idx_verification_store_cursor ON public.verification_records (store_id, submitted_at DESC, id DESC);
+CREATE INDEX idx_verification_teacher_cursor ON public.verification_records (teacher_id, submitted_at DESC, id DESC);
 CREATE INDEX idx_verification_status_time ON public.verification_records (record_status, submitted_at DESC);
-CREATE INDEX idx_history_lookup ON public.record_status_history (record_type, record_id, changed_at DESC);
+CREATE INDEX idx_verification_pending_review_cursor
+  ON public.verification_records (submitted_at DESC, id DESC)
+  WHERE record_status = 'PENDING';
+CREATE INDEX idx_verification_approved_balance
+  ON public.verification_records (customer_id, product_id, verification_type)
+  INCLUDE (unit_count, submitted_at)
+  WHERE record_status = 'APPROVED';
+CREATE INDEX idx_verification_product_store_cursor
+  ON public.verification_records (product_id, store_id, submitted_at DESC, id DESC);
+CREATE INDEX idx_verification_product_teacher_cursor
+  ON public.verification_records (product_id, teacher_id, submitted_at DESC, id DESC);
+CREATE INDEX idx_verification_submitted_brin
+  ON public.verification_records USING BRIN (submitted_at) WITH (pages_per_range = 128);
+CREATE INDEX idx_customer_product_balances_product
+  ON public.customer_product_balances (product_id, customer_id);
+CREATE INDEX idx_history_record_cursor ON public.record_status_history (record_type, record_id, changed_at DESC, id DESC);
+
+COMMENT ON COLUMN public.customers.profile_photo_file_id IS
+  'Private CloudBase Storage object reference only. Never store image bytes, base64 data, or a signed public URL here.';
+COMMENT ON COLUMN public.verification_records.face_request_id IS
+  'Tencent face API request identifier only. Live verification image bytes are not retained in PostgreSQL.';
 
 CREATE OR REPLACE FUNCTION public.assign_staff_code()
 RETURNS TRIGGER
