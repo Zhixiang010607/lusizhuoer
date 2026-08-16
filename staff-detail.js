@@ -42,12 +42,15 @@
       ["最后密码变更", formatTime(staff.password_changed_at)]
     ];
     $("staffDetailContent").innerHTML = cards.map(([label, value]) => `<article class="panel info-card"><span>${label}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
-    $("staffScopeHint").textContent = role === "teacher"
-      ? "仅显示该老师本人绑定的核销、充值与审核记录。"
-      : role === "operation"
-        ? "仅显示该运营账号被授权范围内的数据。"
-        : "总部账号可查看总部管理范围内的数据。";
-    $("staffScopeContent").textContent = "暂无该账号范围内的业务数据";
+    const scopePanel = document.querySelector(".staff-global-panel");
+    if (role === "hq") {
+      scopePanel?.remove();
+    } else {
+      $("staffScopeHint").textContent = role === "teacher"
+        ? "仅显示该老师本人绑定的核销、充值与审核记录。"
+        : "仅显示该运营账号被授权范围内的数据。";
+      $("staffScopeContent").textContent = "暂无该账号范围内的业务数据";
+    }
 
     const statusAction = $("staffStatusAction");
     statusAction.hidden = false;
