@@ -8,7 +8,7 @@
 const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "2026-08-16-dml-returning-v2";
+const FUNCTION_VERSION = "2026-08-16-product-readback-v3";
 let app = null;
 let auth = null;
 let managerClient = null;
@@ -855,10 +855,18 @@ async function createProductRecord(event) {
     }
     asDatabaseError(error, "创建产品资料");
   }
-  const product = rows?.[0];
+  // CloudBase executePGSql can report a successful writable statement without
+  // exposing the rows produced by RETURNING. Always read the persisted record
+  // back through a plain SELECT before deciding that creation failed. The
+  // idempotency key makes this safe for retries and concurrent submissions.
+  const returnedProduct = rows?.[0];
+  const product = returnedProduct?.id && returnedProduct?.product_code
+    ? returnedProduct
+    : await findProductByRequestId(input.clientRequestId);
   if (!product?.id || !product?.product_code) {
     fail("产品创建后数据库未返回产品编号", "DATABASE_ERROR");
   }
+  assertSameProductRequest(product, input);
   return { product, created: true };
 }
 
