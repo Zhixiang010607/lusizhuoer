@@ -2,7 +2,7 @@
 
 该函数仅在 CloudBase 后端运行，用于门店客户建档、照片质量检测、私有照片留存、人脸人员库录入和后续人员搜索。客户不需要提供身份证。
 
-当前版本：`2026-08-16-orphan-face-recovery-v10`
+当前版本：`2026-08-16-storage-header-fix-v11`
 
 ## 必需环境变量
 
@@ -62,7 +62,7 @@
 ```json
 {
   "ok": true,
-  "version": "2026-08-16-orphan-face-recovery-v10",
+  "version": "2026-08-16-storage-header-fix-v11",
   "photoBucketId": "customer-photos",
   "livenessEnabled": true
 }

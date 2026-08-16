@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const tencentcloud = require("tencentcloud-sdk-nodejs");
 const IaiClient = tencentcloud.iai.v20200303.Client;
 
-const FUNCTION_VERSION = "2026-08-16-orphan-face-recovery-v10";
+const FUNCTION_VERSION = "2026-08-16-storage-header-fix-v11";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -251,7 +251,6 @@ async function uploadCustomerPhoto(storeId, personId, buffer) {
     contentType: "image/jpeg",
     contentLength: buffer.length,
     cacheControl: "private, no-store",
-    xRobotsTag: "noindex, nofollow, noarchive",
     upsert: false,
     accessToken
   });
