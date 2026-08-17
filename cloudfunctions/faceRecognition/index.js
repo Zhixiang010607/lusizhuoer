@@ -4,7 +4,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
-const FUNCTION_VERSION = "2026-08-17-order-submission-v29";
+const FUNCTION_VERSION = "v31";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -696,6 +696,160 @@ async function listActiveStoreCustomers() {
   };
 }
 
+// This is deliberately a server-scoped query: the browser supplies filters
+// only.  The store id always comes from the authenticated CloudBase UID.
+async function queryStoreCustomers(event = {}) {
+  const caller = await activeStoreCaller();
+  const mode = String(event.mode || "browse").trim().toLowerCase();
+  if (!["browse", "manual"].includes(mode)) fail("客户查询方式无效。", "BAD_REQUEST");
+  const process = String(event.processStatus || "all").trim().toUpperCase();
+  const status = String(event.customerStatus || "all").trim().toUpperCase();
+  const allowedProcesses = new Set(["ALL", "INFORMATION_ONLY", "RECHARGED_NO_CONSUMPTION", "RECHARGED_WITH_CONSUMPTION"]);
+  if (!allowedProcesses.has(process)) fail("业务阶段筛选无效。", "BAD_REQUEST");
+  if (!["ALL", "ACTIVE", "ARCHIVED"].includes(status)) fail("客户状态筛选无效。", "BAD_REQUEST");
+  const name = String(event.name || "").trim();
+  const birthDate = String(event.birthDate || "").trim();
+  const startDate = String(event.startDate || "").trim();
+  const endDate = String(event.endDate || "").trim();
+  if (name.length > 100) fail("客户姓名查询不能超过 100 个字符。", "BAD_REQUEST");
+  for (const [label, value] of [["生日", birthDate], ["开始日期", startDate], ["结束日期", endDate]]) {
+    if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) fail(`${label}格式无效。`, "BAD_REQUEST");
+  }
+  if (startDate && endDate && startDate > endDate) fail("开始日期不能晚于结束日期。", "BAD_REQUEST");
+  const clauses = [`c.created_store_id = ${caller.storeId}`];
+  if (mode === "manual") {
+    if (name) clauses.push(`c.customer_name ILIKE '%' || ${sqlText(name)} || '%'`);
+    if (birthDate) clauses.push(`c.birth_date = ${sqlText(birthDate)}::date`);
+  } else {
+    if (process !== "ALL") clauses.push(`c.customer_process_status = ${sqlText(process)}`);
+    if (status !== "ALL") clauses.push(`c.customer_status = ${sqlText(status)}`);
+    if (startDate) clauses.push(`c.created_at >= ${sqlText(startDate)}::date`);
+    if (endDate) clauses.push(`c.created_at < (${sqlText(endDate)}::date + INTERVAL '1 day')`);
+  }
+  const rows = await executeSql(
+    `SELECT c.customer_code, c.customer_name, c.birth_date, c.customer_status,
+            c.customer_process_status, c.total_recharge_count, c.total_verification_count,
+            c.created_at, s.store_name, s.store_code
+       FROM public.customers c
+       JOIN public.stores s ON s.id = c.created_store_id
+      WHERE ${clauses.join(" AND ")}
+      ORDER BY c.created_at DESC, c.id DESC
+      LIMIT 1000`
+  );
+  return {
+    ok: true,
+    storeId: String(caller.storeId), storeCode: caller.storeCode, storeName: caller.storeName,
+    customers: rows.map((customer) => ({
+      customerCode: customer.customer_code, customerName: customer.customer_name,
+      birthDate: customer.birth_date, customerStatus: customer.customer_status,
+      customerProcessStatus: customer.customer_process_status,
+      totalRechargeCount: Number(customer.total_recharge_count || 0),
+      totalVerificationCount: Number(customer.total_verification_count || 0),
+      createdAt: customer.created_at, storeName: customer.store_name, storeCode: customer.store_code
+    }))
+  };
+}
+
+async function getStoreDashboard(event = {}) {
+  const caller = await activeStoreCaller();
+  const customerPage = Math.min(Math.max(Number(event.customerPage) || 1, 1), 100000);
+  const customerPageSize = 10;
+  const customerOffset = (customerPage - 1) * customerPageSize;
+  const [storeRows, projects, teachers, customerCountRows, customers] = await Promise.all([
+    executeSql(
+    `SELECT id, store_code, store_name, province, city, district,
+            address_detail, store_status
+       FROM public.stores
+      WHERE id = ${caller.storeId}
+      LIMIT 1`
+    ),
+    executeSql(
+    `WITH balance_totals AS (
+       SELECT b.product_id,
+              SUM(b.total_recharge_count) AS total_recharge_count,
+              SUM(b.remaining_count) AS remaining_count
+         FROM public.customer_product_balances b
+         JOIN public.customers c ON c.id = b.customer_id
+        WHERE c.created_store_id = ${caller.storeId}
+        GROUP BY b.product_id
+     ), verification_totals AS (
+       SELECT v.product_id, SUM(v.unit_count) AS total_verification_count
+         FROM public.verification_records v
+        WHERE v.store_id = ${caller.storeId}
+          AND v.record_status = 'APPROVED'
+        GROUP BY v.product_id
+     ), used_products AS (
+       SELECT product_id FROM balance_totals
+       UNION
+       SELECT product_id FROM verification_totals
+     )
+     SELECT p.id AS product_id, p.product_code, p.product_name, p.product_status,
+            COALESCE(b.total_recharge_count, 0) AS total_recharge_count,
+            COALESCE(v.total_verification_count, 0) AS total_verification_count,
+            COALESCE(b.remaining_count, 0) AS remaining_count
+       FROM used_products u
+       JOIN public.products p ON p.id = u.product_id
+       LEFT JOIN balance_totals b ON b.product_id = p.id
+       LEFT JOIN verification_totals v ON v.product_id = p.id
+      ORDER BY p.product_name, p.product_code`
+    ),
+    executeSql(
+    `SELECT t.id AS teacher_id, t.teacher_code, t.teacher_name, t.teacher_status,
+            p.id AS product_id, p.product_code, p.product_name,
+            COALESCE(SUM(v.unit_count), 0) AS valid_verification_count
+       FROM public.verification_records v
+       JOIN public.teachers t ON t.id = v.teacher_id
+       JOIN public.products p ON p.id = v.product_id
+      WHERE v.store_id = ${caller.storeId}
+        AND v.record_status = 'APPROVED'
+      GROUP BY t.id, t.teacher_code, t.teacher_name, t.teacher_status,
+               p.id, p.product_code, p.product_name
+      ORDER BY valid_verification_count DESC, t.teacher_name, p.product_name`
+    ),
+    executeSql(
+      `SELECT COUNT(*) AS customer_total
+         FROM public.customers
+        WHERE created_store_id = ${caller.storeId}`
+    ),
+    executeSql(
+    `SELECT c.id AS customer_id, c.customer_code, c.customer_name, c.birth_date,
+            c.customer_status, c.total_recharge_count, c.total_verification_count,
+            COALESCE(COUNT(b.product_id) FILTER (
+              WHERE b.total_recharge_count > 0 OR b.total_verification_count > 0
+            ), 0) AS product_count,
+            COALESCE(SUM(b.remaining_count), 0) AS remaining_count,
+            GREATEST(c.latest_recharge_at, c.latest_verification_at) AS last_business_at
+       FROM public.customers c
+       LEFT JOIN public.customer_product_balances b ON b.customer_id = c.id
+      WHERE c.created_store_id = ${caller.storeId}
+      GROUP BY c.id, c.customer_code, c.customer_name, c.birth_date,
+               c.customer_status, c.total_recharge_count, c.total_verification_count,
+               c.latest_recharge_at, c.latest_verification_at
+      ORDER BY c.created_at DESC, c.id DESC
+      LIMIT ${customerPageSize} OFFSET ${customerOffset}`
+    )
+  ]);
+  const store = storeRows[0];
+  if (!store) fail("未找到当前登录账号绑定的门店。", "STORE_NOT_FOUND");
+  const customerTotal = Number(customerCountRows?.[0]?.customer_total || 0);
+  const customerPages = Math.max(1, Math.ceil(customerTotal / customerPageSize));
+  if (customerTotal && customerPage > customerPages) fail("客户分页超出有效范围。", "PAGE_OUT_OF_RANGE");
+
+  return {
+    ok: true,
+    store: {
+      ...store,
+      auth_uid: caller.uid,
+      projects,
+      teachers,
+      customers,
+      customer_total: customerTotal,
+      customer_page: customerPage,
+      customer_page_size: customerPageSize
+    }
+  };
+}
+
 async function listActiveTeachers() {
   // Teachers are not permanently assigned to one store in the canonical
   // schema. A real active store caller may choose only teachers whose profile
@@ -1366,6 +1520,8 @@ exports.main = async (event = {}) => {
     if (action === "validateCapture") return await validateCapture(event);
     if (action === "registerCustomer") return await registerCustomer(event);
     if (action === "listActiveStoreCustomers") return await listActiveStoreCustomers();
+    if (action === "queryStoreCustomers") return await queryStoreCustomers(event);
+    if (action === "getStoreDashboard") return await getStoreDashboard(event);
     if (action === "listActiveTeachers") return await listActiveTeachers();
     if (action === "listActiveProducts") return await listActiveProducts();
     if (action === "createRechargeApplication") return await createRechargeApplication(event);

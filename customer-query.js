@@ -1,111 +1,28 @@
-﻿(() => {
+(() => {
   "use strict";
-  const VERSION = "0.14.21", $ = (id) => document.getElementById(id);
-  const formatBirthday = (value, fallback = "") => {
-    const raw = String(value ?? "").trim();
-    if (!raw) return fallback;
-    const match = raw.match(/^(\d{4})[-年](\d{1,2})[-月](\d{1,2})(?:日|[T\s].*)?$/);
-    return match ? `${match[1]}年${match[2].padStart(2, "0")}月${match[3].padStart(2, "0")}日` : raw;
-  };
-  let loginSession = null;
-  try { loginSession = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { loginSession = null; }
-  const scopedStoreId = loginSession?.role === "store" ? loginSession.store : "";
-  let createdStores = [];
-  try { createdStores = JSON.parse(sessionStorage.getItem("prototypeCreatedStores") || "[]"); } catch (_) { createdStores = []; }
-  const stores = createdStores.map((store) => ({ id: store.id, code: store.code || store.storeCode || store.store_code || "", name: store.name || store.storeName || "" }));
-  let customerOverrides = {};
-  try { customerOverrides = JSON.parse(sessionStorage.getItem("prototypeCustomerOverrides") || "{}"); } catch (_) { customerOverrides = {}; }
-  const baseCustomers = [];
-  let createdCustomers = [];
-  try { createdCustomers = JSON.parse(sessionStorage.getItem("prototypeCreatedCustomers") || "[]"); } catch (_) { createdCustomers = []; }
-  const customers = [...baseCustomers, ...createdCustomers.map((customer) => ({ ...customer, ...(customerOverrides[customer.id] || {}), store: stores.find((store) => String(store.id) === String(customer.storeId)) || { id: customer.storeId, code: customer.storeCode || "", name: customer.storeName || "" }, createdDate: customer.createdDate || new Date().toISOString().slice(0, 10), recharge: 0, verification: 0 }))];
-  const categoryOf = (customer) => customer.recharge === 0 ? "registered" : customer.verification === 0 ? "charged" : "consumed";
-  const categoryLabels = { all: "全部客户", registered: "有信息但没有充值", charged: "已充值但没有消费", consumed: "已充值并已有消费" };
-  let archived = new Set(), pendingAction = null, lookupMode = "select";
-  try { archived = new Set(JSON.parse(sessionStorage.getItem("prototypeArchivedCustomers") || "[]")); } catch (_) { archived = new Set(); }
-
-  function saveArchive(action) {
-    try {
-      sessionStorage.setItem("prototypeArchivedCustomers", JSON.stringify([...archived]));
-      const audit = JSON.parse(sessionStorage.getItem("prototypeCustomerStatusAudit") || "[]");
-      audit.push(action); sessionStorage.setItem("prototypeCustomerStatusAudit", JSON.stringify(audit));
-    } catch (_) { /* 静态演示状态仅在当前会话有效；正式系统必须服务端审计。 */ }
+  const $=id=>document.getElementById(id), esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const stage={INFORMATION_ONLY:"有信息但没有充值",RECHARGED_NO_CONSUMPTION:"已充值但没有消费",RECHARGED_WITH_CONSUMPTION:"已充值并已有消费"};
+  let mode="select", rows=[], pending=null, loading=false;
+  const resultData=r=>{for(const x of [r?.result,r?.data?.result,r?.data,r]){if(x&&typeof x==="object"&&("ok" in x||"message" in x))return x;try{const p=JSON.parse(x);if(p&&typeof p==="object")return p}catch(_){}}return {}};
+  function register(fn){try{fn?.(window.cloudbase)}catch(e){if(!String(e?.message||"").includes("duplicate component"))throw e}}
+  async function call(data){
+    if(!window.cloudbase||!window.CloudBaseAuthConfig||!window.registerFunctions)throw Error("数据库组件未加载，请刷新页面后重试。");
+    register(window.registerAuth);register(window.registerFunctions);
+    let r;try{r=await window.cloudbase.init(window.CloudBaseAuthConfig).callFunction({name:"faceRecognition",data})}catch(e){throw Error(e?.message||"数据库查询失败，请检查网络和登录状态。")}
+    const d=resultData(r);if(!d.ok)throw Error(d.message||"数据库没有返回有效结果。");return d;
   }
-  function allowedCustomers() { return scopedStoreId ? customers.filter((customer) => customer.store.id === scopedStoreId) : customers; }
-  function renderStoreContext() {
-    const store = stores.find((item) => String(item.id) === String(scopedStoreId));
-    const customerStore = customers.find((item) => String(item.store?.id) === String(scopedStoreId))?.store;
-    const storeName = String(loginSession?.storeName || store?.name || customerStore?.name || "").trim();
-    const storeCode = String(loginSession?.storeCode || store?.code || customerStore?.code || "").trim();
-    $("customerStoreName").textContent = [storeName || "门店名称未返回", storeCode || "门店编号未返回"].join(" · ");
+  function payload(){const process={all:"ALL",registered:"INFORMATION_ONLY",charged:"RECHARGED_NO_CONSUMPTION",consumed:"RECHARGED_WITH_CONSUMPTION"};return mode==="manual"?{action:"queryStoreCustomers",mode:"manual",name:$("customerName").value.trim(),birthDate:$("customerBirthday").value}:{action:"queryStoreCustomers",mode:"browse",processStatus:process[$("customerCategory").value]||"ALL",customerStatus:$("customerArchive").value,startDate:$("customerDateStart").value,endDate:$("customerDateEnd").value}}
+  function render(){
+    const active=rows.filter(x=>x.customerStatus==="ACTIVE").length;
+    $("customerSummary").textContent=`共 ${rows.length} 位客户；活跃 ${active} 位，封存 ${rows.length-active} 位`;
+    $("customerQueryBody").innerHTML=rows.map(c=>{const archived=c.customerStatus==="ARCHIVED",bd=String(c.birthDate||"").replace(/^(\d{4})-(\d{2})-(\d{2}).*/,"$1年$2月$3日"),link=`customer-detail.html?customerId=${encodeURIComponent(c.customerCode)}&customerName=${encodeURIComponent(c.customerName)}`;return `<tr><td><a class="record-link" href="${link}">${esc(c.customerCode)}</a></td><td>${esc(c.customerName)}</td><td>${bd||"—"}</td><td>${esc([c.storeName,c.storeCode].filter(Boolean).join(" · ")||"—")}</td><td>${esc(stage[c.customerProcessStatus]||"—")}</td><td>${Number(c.totalRechargeCount||0)}</td><td>${Number(c.totalVerificationCount||0)}</td><td><span class="record-status ${archived?"status-已作废":"status-正常"}">${archived?"封存":"活跃"}</span></td><td><button class="archive-customer-button" data-code="${esc(c.customerCode)}" data-status="${c.customerStatus}">${archived?"恢复为活跃":"封存客户"}</button></td></tr>`}).join("")||'<tr><td colspan="9" class="query-empty">没有符合条件的客户</td></tr>';
+    document.querySelectorAll("[data-code]").forEach(b=>b.onclick=()=>openStatus(b.dataset.code,b.dataset.status));renderCategories();
   }
-  function setLookupMode(mode, { clearOpposite = true } = {}) {
-    const changed = lookupMode !== mode;
-    lookupMode = mode;
-    if (clearOpposite && changed && mode === "select") {
-      $("customerName").value = ""; $("customerBirthday").value = ""; $("customerBirthday").syncChineseBirthday?.();
-    }
-    document.querySelectorAll("[data-customer-query-mode]").forEach((button) => { const selected = button.dataset.customerQueryMode === mode; button.classList.toggle("active", selected); button.setAttribute("aria-pressed", String(selected)); });
-    document.querySelectorAll("[data-customer-query-panel]").forEach((panel) => panel.classList.toggle("active", panel.dataset.customerQueryPanel === mode));
-    render();
-  }
-  const isoDate = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-  function applyTimeRange() {
-    const range = $("customerTimeRange").value, today = new Date(), start = new Date(today);
-    if (range === "sevenDays") start.setDate(today.getDate() - 6);
-    else if (range === "month") start.setMonth(today.getMonth() - 1);
-    else if (range === "quarter") start.setMonth(Math.floor(today.getMonth() / 3) * 3, 1);
-    else if (range === "year") start.setMonth(0, 1);
-    else start.setFullYear(today.getFullYear() - 1);
-    if (range !== "custom" || !$("customerDateStart").value || !$("customerDateEnd").value) { $("customerDateStart").value = isoDate(start); $("customerDateEnd").value = isoDate(today); }
-    $("customerDateStart").disabled = range !== "custom"; $("customerDateEnd").disabled = range !== "custom";
-  }
-  function matchesBaseFilters(customer, includeCategory = true) {
-    const name = $("customerName").value.trim(), birthday = $("customerBirthday").value;
-    if (lookupMode === "manual") return (!name || customer.name.includes(name)) && (!birthday || customer.birthday === birthday);
-    const category = $("customerCategory").value, state = $("customerArchive").value, isArchived = archived.has(customer.id), start = $("customerDateStart").value, end = $("customerDateEnd").value;
-    return (!includeCategory || category === "all" || categoryOf(customer) === category) && (state === "all" || (state === "archived") === isArchived) && (!start || customer.createdDate >= start) && (!end || customer.createdDate <= end);
-  }
-  function selectedCustomers() { return allowedCustomers().filter((customer) => matchesBaseFilters(customer)); }
-  function renderCategories() {
-    const source = allowedCustomers().filter((customer) => matchesBaseFilters(customer, false));
-    $("customerCategoryGrid").innerHTML = Object.entries(categoryLabels).map(([key, label]) => {
-      const count = key === "all" ? source.length : source.filter((customer) => categoryOf(customer) === key).length;
-      return `<button class="customer-category-card ${$("customerCategory").value === key ? "selected" : ""}" data-category="${key}"><span>${label}</span><strong>${count}</strong><small>当前客户状态范围</small></button>`;
-    }).join("");
-    document.querySelectorAll("[data-category]").forEach((button) => button.addEventListener("click", () => { $("customerCategory").value = button.dataset.category; render(); }));
-  }
-  function render() {
-    const selected = selectedCustomers(), activeCount = selected.filter((customer) => !archived.has(customer.id)).length;
-    $("customerSummary").textContent = `共 ${selected.length} 位客户；活跃 ${activeCount} 位，封存 ${selected.length - activeCount} 位`;
-    $("customerQueryBody").innerHTML = selected.map((customer) => {
-      const isArchived = archived.has(customer.id), detail = `customer-detail.html?customerId=${encodeURIComponent(customer.id)}&customerName=${encodeURIComponent(customer.name)}&storeId=${encodeURIComponent(customer.store.id)}`;
-      const storeLabel = [customer.store.name, customer.store.code].filter(Boolean).join(" · ") || "—";
-      return `<tr><td><a class="record-link" href="${detail}">${customer.id}</a></td><td>${customer.name}</td><td>${formatBirthday(customer.birthday)}</td><td>${storeLabel}</td><td>${categoryLabels[categoryOf(customer)]}</td><td>${customer.recharge}</td><td>${customer.verification}</td><td><span class="record-status ${isArchived ? "status-已作废" : "status-正常"}">${isArchived ? "封存" : "活跃"}</span></td><td><button class="archive-customer-button" data-archive-id="${customer.id}" type="button">${isArchived ? "恢复为活跃" : "封存客户"}</button></td></tr>`;
-    }).join("") || `<tr><td colspan="9" class="query-empty">没有符合条件的客户</td></tr>`;
-    document.querySelectorAll("[data-archive-id]").forEach((button) => button.addEventListener("click", () => openArchive(button.dataset.archiveId)));
-    renderCategories();
-  }
-  function openArchive(id) {
-    const customer = allowedCustomers().find((item) => item.id === id); if (!customer) return;
-    const restoring = archived.has(id); pendingAction = { id, restoring };
-    $("customerActionTitle").textContent = restoring ? "恢复为活跃" : "设为存档";
-    $("customerActionText").textContent = restoring ? `将 ${customer.name}（${id}）恢复为活跃后，可再次被充值和核销办理检索找到。` : `将 ${customer.name}（${id}）设为存档后，不再进入充值或核销办理客户范围，但全部历史记录继续保留。`;
-    $("customerActionDialog").showModal();
-  }
-  function confirmArchive() {
-    if (!pendingAction) return;
-    const { id, restoring } = pendingAction, customer = allowedCustomers().find((item) => item.id === id); if (!customer) return;
-    if (restoring) archived.delete(id); else archived.add(id);
-    saveArchive({ customerId: id, storeId: customer.store.id, account: loginSession?.account || "unknown", from: restoring ? "archived" : "active", to: restoring ? "active" : "archived", changedAt: new Date().toISOString() });
-    pendingAction = null; $("customerActionDialog").close(); render();
-  }
-
-  document.documentElement.dataset.prototypeVersion = VERSION; renderStoreContext(); applyTimeRange(); setLookupMode("select", { clearOpposite: false });
-  ["customerCategory", "customerArchive", "customerDateStart", "customerDateEnd"].forEach((id) => $(id).addEventListener("change", render)); $("customerTimeRange").addEventListener("change", () => { applyTimeRange(); render(); });
-  ["customerName", "customerBirthday"].forEach((id) => { $(id).addEventListener("focus", () => setLookupMode("manual")); $(id).addEventListener("input", () => { setLookupMode("manual"); render(); }); $(id).addEventListener("change", () => { setLookupMode("manual"); render(); }); });
-  document.querySelectorAll("[data-customer-query-mode]").forEach((button) => button.addEventListener("click", () => setLookupMode(button.dataset.customerQueryMode)));
-  document.querySelectorAll("[data-customer-query-panel]").forEach((panel) => panel.addEventListener("click", () => setLookupMode(panel.dataset.customerQueryPanel)));
-  $("resetCustomerQuery").addEventListener("click", () => { $("customerCategory").value = "all"; $("customerArchive").value = "all"; $("customerName").value = ""; $("customerBirthday").value = ""; $("customerBirthday").syncChineseBirthday?.(); $("customerTimeRange").value = "custom"; applyTimeRange(); setLookupMode("select"); });
-  $("closeCustomerAction").addEventListener("click", () => $("customerActionDialog").close()); $("cancelCustomerAction").addEventListener("click", () => $("customerActionDialog").close()); $("confirmCustomerAction").addEventListener("click", confirmArchive);
+  function renderCategories(){const n={all:rows.length,registered:0,charged:0,consumed:0};rows.forEach(x=>{if(x.customerProcessStatus==="INFORMATION_ONLY")n.registered++;else if(x.customerProcessStatus==="RECHARGED_NO_CONSUMPTION")n.charged++;else if(x.customerProcessStatus==="RECHARGED_WITH_CONSUMPTION")n.consumed++});const labels={all:"全部客户",registered:"有信息但没有充值",charged:"已充值但没有消费",consumed:"已充值并已有消费"};$("customerCategoryGrid").innerHTML=Object.entries(labels).map(([k,v])=>`<button class="customer-category-card ${$("customerCategory").value===k?"selected":""}" data-category="${k}"><span>${v}</span><strong>${n[k]}</strong><small>当前查询结果</small></button>`).join("");document.querySelectorAll("[data-category]").forEach(b=>b.onclick=()=>{$("customerCategory").value=b.dataset.category;mode="select";load()})}
+  async function load(){if(loading)return;loading=true;$("customerQueryBody").innerHTML='<tr><td colspan="9" class="query-empty">正在从数据库读取本门店客户…</td></tr>';try{const d=await call(payload());rows=Array.isArray(d.customers)?d.customers:[];$("customerStoreName").textContent=[d.storeName||"当前门店",d.storeCode||""].filter(Boolean).join(" · ");render()}catch(e){rows=[];$("customerSummary").textContent="数据库读取失败";$("customerQueryBody").innerHTML=`<tr><td colspan="9" class="query-empty">${esc(e.message)}</td></tr>`;$("customerCategoryGrid").innerHTML=""}finally{loading=false}}
+  function setMode(next){if(next!==mode){if(next==="select"){$("customerName").value="";$("customerBirthday").value="";$("customerBirthday").syncChineseBirthday?.()}else{$("customerCategory").value="all";$("customerArchive").value="all"}}mode=next;document.querySelectorAll("[data-customer-query-mode]").forEach(x=>x.classList.toggle("active",x.dataset.customerQueryMode===mode));document.querySelectorAll("[data-customer-query-panel]").forEach(x=>x.classList.toggle("active",x.dataset.customerQueryPanel===mode))}
+  function openStatus(code,status){pending={code,status};const archived=status==="ARCHIVED";$("customerActionTitle").textContent=archived?"恢复为活跃":"设为存档";$("customerActionText").textContent=archived?`将客户 ${code} 恢复为活跃。`:`将客户 ${code} 设为存档。`;$("customerActionDialog").showModal()}
+  async function confirm(){if(!pending)return;try{await call({action:"updateCustomerStatus",customerCode:pending.code,expectedStatus:pending.status,targetStatus:pending.status==="ARCHIVED"?"ACTIVE":"ARCHIVED"});$("customerActionDialog").close();load()}catch(e){$("customerActionText").textContent=e.message}}
+  function range(){const t=new Date(),s=new Date(t),r=$("customerTimeRange").value;if(r==="sevenDays")s.setDate(t.getDate()-6);else if(r==="month")s.setMonth(t.getMonth()-1);else if(r==="quarter")s.setMonth(Math.floor(t.getMonth()/3)*3,1);else if(r==="year")s.setMonth(0,1);else s.setFullYear(t.getFullYear()-1);if(r!=="custom"||!$("customerDateStart").value){$("customerDateStart").value=s.toISOString().slice(0,10);$("customerDateEnd").value=t.toISOString().slice(0,10)}$("customerDateStart").disabled=r!=="custom";$("customerDateEnd").disabled=r!=="custom"}
+  range();document.querySelectorAll("[data-customer-query-mode],[data-customer-query-panel]").forEach(x=>x.onclick=()=>{setMode(x.dataset.customerQueryMode||x.dataset.customerQueryPanel);load()});["customerCategory","customerArchive","customerDateStart","customerDateEnd"].forEach(id=>$(id).onchange=()=>{mode="select";load()});$("customerTimeRange").onchange=()=>{range();mode="select";load()};["customerName","customerBirthday"].forEach(id=>$(id).onchange=()=>{mode="manual";load()});$("resetCustomerQuery").onclick=()=>{$("customerCategory").value="all";$("customerArchive").value="all";$("customerName").value="";$("customerBirthday").value="";$("customerTimeRange").value="custom";range();mode="select";load()};$("closeCustomerAction").onclick=$("cancelCustomerAction").onclick=()=>$("customerActionDialog").close();$("confirmCustomerAction").onclick=confirm;load();
 })();

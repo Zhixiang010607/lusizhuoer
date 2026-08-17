@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.14.22";
+  const VERSION = "0.15.1";
   const TEACHER_PAGE_SIZE = 5;
   const CUSTOMER_PAGE_SIZE = 10;
   const params = new URLSearchParams(location.search);
@@ -13,7 +13,47 @@
   const info = (items) => items.map(([label, value]) =>
     `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`
   ).join("");
-  const state = { teacherRows: [], customerRows: [], teacherPage: 1, customerPage: 1 };
+  const state = { teacherRows: [], customerRows: [], teacherPage: 1, customerPage: 1, customerTotal: 0 };
+
+  function parsedObject(value) {
+    if (value && typeof value === "object") return value;
+    if (typeof value !== "string") return null;
+    try { const parsed = JSON.parse(value); return parsed && typeof parsed === "object" ? parsed : null; } catch (_) { return null; }
+  }
+
+  function cloudFunctionData(result) {
+    return [result?.result, result?.data?.result, result?.data, result]
+      .map(parsedObject)
+      .find((candidate) => candidate && (
+        Object.prototype.hasOwnProperty.call(candidate, "ok") ||
+        Object.prototype.hasOwnProperty.call(candidate, "message") ||
+        Object.prototype.hasOwnProperty.call(candidate, "code")
+      )) || {};
+  }
+
+  function registerCloudBaseComponent(register, componentName) {
+    if (typeof register !== "function") return;
+    try { register(window.cloudbase); }
+    catch (error) {
+      const detail = String(error?.message || error || "").toLowerCase();
+      if (!(detail.includes("duplicate component") && detail.includes(componentName))) throw error;
+    }
+  }
+
+  async function loadCurrentStoreDashboard(customerPage = 1) {
+    if (!window.cloudbase || !window.CloudBaseAuthConfig || !window.registerFunctions) {
+      throw new Error("门店首页数据库组件尚未加载，请刷新页面后重试。");
+    }
+    registerCloudBaseComponent(window.registerAuth, "auth");
+    registerCloudBaseComponent(window.registerFunctions, "functions");
+    const result = await window.cloudbase.init(window.CloudBaseAuthConfig).callFunction({
+      name: "faceRecognition",
+      data: { action: "getStoreDashboard", customerPage }
+    });
+    const data = cloudFunctionData(result);
+    if (!data.ok || !data.store) throw new Error(data.message || "门店首页数据库没有返回有效数据。");
+    return data.store;
+  }
 
   function firstValue(object, keys, fallback = "—") {
     for (const key of keys) {
@@ -84,10 +124,10 @@
   function renderCustomers() {
     const target = $("storeCustomerBody");
     if (!target) return;
-    const total = state.customerRows.length;
+    const total = state.customerTotal;
     const pages = Math.max(1, Math.ceil(total / CUSTOMER_PAGE_SIZE));
     state.customerPage = Math.min(Math.max(1, state.customerPage), pages);
-    const rows = state.customerRows.slice((state.customerPage - 1) * CUSTOMER_PAGE_SIZE, state.customerPage * CUSTOMER_PAGE_SIZE);
+    const rows = state.customerRows;
     if (!rows.length) {
       target.innerHTML = '<tr><td colspan="8" class="query-empty">暂无门店客户</td></tr>';
     } else {
@@ -95,7 +135,7 @@
         const id = firstValue(row, ["customer_id", "id"], "");
         const code = firstValue(row, ["customer_code", "code"], "");
         const name = firstValue(row, ["customer_name", "name"]);
-        const reference = id || code;
+        const reference = code || id;
         const label = code ? `${name} · ${code}` : name;
         const customer = reference ? `<a class="record-link" href="customer-detail.html?customerId=${encodeURIComponent(reference)}">${escapeHtml(label)}</a>` : escapeHtml(label);
         const status = firstValue(row, ["customer_status", "status"]) === "ARCHIVED" ? "封存" : "活跃";
@@ -110,6 +150,7 @@
     if ($("storeProjectBody")) $("storeProjectBody").innerHTML = `<tr><td colspan="5" class="query-empty">${escapeHtml(message)}</td></tr>`;
     state.teacherRows = [];
     state.customerRows = [];
+    state.customerTotal = 0;
     renderTeachers();
     renderCustomers();
   }
@@ -127,6 +168,7 @@
     const locationText = [store.province, store.city, store.district].filter(Boolean).join(" · ") || "未填写";
 
     $("storeHero").innerHTML = `<div class="profile-avatar store-profile-avatar">店</div><div><span class="profile-type">门店账号</span><h2>${escapeHtml(store.store_name)}</h2><p>${escapeHtml(authUid)} · ${escapeHtml(status)}</p></div>`;
+    if ($("storeHeaderStatus")) $("storeHeaderStatus").innerHTML = `<span></span>${status === "封存" ? "已封存" : "正常营业"}`;
     $("storeBasicGrid").innerHTML = info([
       ["唯一身份 ID", authUid],
       ["业务编号", storeCode],
@@ -139,9 +181,20 @@
     state.teacherRows = Array.isArray(store.teachers) ? store.teachers : (Array.isArray(store.teacher_stats) ? store.teacher_stats : []);
     state.customerRows = Array.isArray(store.customers) ? store.customers : [];
     state.teacherPage = 1;
-    state.customerPage = 1;
+    state.customerTotal = Number(store.customer_total ?? state.customerRows.length);
+    state.customerPage = Number(store.customer_page || 1);
     renderTeachers();
     renderCustomers();
+  }
+
+  async function loadCustomerPage(page) {
+    const target = $("storeCustomerBody");
+    if (target) target.innerHTML = '<tr><td colspan="8" class="query-empty">正在读取客户数据…</td></tr>';
+    try {
+      renderStore(await loadCurrentStoreDashboard(page));
+    } catch (error) {
+      if (target) target.innerHTML = `<tr><td colspan="8" class="query-empty">${escapeHtml(error?.message || "客户数据读取失败")}</td></tr>`;
+    }
   }
 
   document.addEventListener("click", (event) => {
@@ -152,8 +205,7 @@
       state.teacherPage = page;
       renderTeachers();
     } else {
-      state.customerPage = page;
-      renderCustomers();
+      void loadCustomerPage(page);
     }
   });
 
@@ -163,11 +215,17 @@
       renderError("缺少门店唯一身份 ID。");
       return;
     }
-    if (!window.CloudBasePhoneAuth?.listStores) {
-      renderError("门店数据库服务尚未加载，请刷新页面后重试。");
-      return;
-    }
     try {
+      let session = null;
+      try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
+      if (session?.role === "store") {
+        renderStore(await loadCurrentStoreDashboard());
+        return;
+      }
+      if (!window.CloudBasePhoneAuth?.listStores) {
+        renderError("门店数据库服务尚未加载，请刷新页面后重试。");
+        return;
+      }
       const stores = await window.CloudBasePhoneAuth.listStores();
       const store = stores.find((item) => [item.auth_uid, item.id, item.store_code]
         .map((value) => String(value || "").trim()).includes(storeRef));
