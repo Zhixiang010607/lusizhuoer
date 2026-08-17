@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>门店管理</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=0.14.52">
 </head>
 <body data-management="store">
   <aside class="side-project-bar" aria-label="项目栏">
@@ -16,12 +16,13 @@
     <div>
       <p class="eyebrow">STORE MANAGEMENT</p>
       <h1>门店管理</h1>
-      <p class="subtitle">默认显示全部门店；可按联系人电话筛选，点击门店名称进入门店全局视图。</p>
+      <p class="subtitle">默认分别显示全部活跃与封存门店；门店名称、联系人电话可单独或联合查询。</p>
     </div>
     <div class="status"><span></span>总部权限</div>
   </header>
   <main>
     <section class="panel store-directory-toolbar">
+      <label>按门店名称查询<input id="entityNameSearch" type="search" autocomplete="off" placeholder="输入门店名称；同名门店会全部显示"></label>
       <label>按联系人电话查询<input id="entityPhoneSearch" type="search" inputmode="tel" autocomplete="off" placeholder="输入完整或部分联系人电话"></label>
       <div class="toolbar-actions">
         <button id="searchPeople" type="button">查询</button>
@@ -29,6 +30,19 @@
       </div>
     </section>
     <section id="storeDirectory" class="store-directory-grid" aria-live="polite">
+      <section class="panel store-directory-panel store-search-results-panel">
+        <div class="panel-heading">
+          <div><h2>查询结果</h2></div>
+          <span id="searchStoreCount" class="badge">0 家</span>
+        </div>
+        <div class="store-directory-window store-directory-search-window">
+          <table class="store-directory-table">
+            <colgroup><col class="store-name-column"><col class="store-contact-column"><col class="store-phone-column"><col class="store-address-column"><col class="store-status-column"></colgroup>
+            <thead><tr><th>门店名称</th><th>联系人</th><th>联系电话</th><th>完整地址</th><th>状态</th></tr></thead>
+            <tbody id="searchStoreRows"><tr><td colspan="5" class="store-directory-empty">尚未查询</td></tr></tbody>
+          </table>
+        </div>
+      </section>
       <section class="panel store-directory-panel">
         <div class="panel-heading">
           <div><h2>活跃门店</h2></div>
@@ -36,9 +50,9 @@
         </div>
         <div class="store-directory-window">
           <table class="store-directory-table">
-            <colgroup><col class="store-name-column"><col class="store-contact-column"><col class="store-phone-column"><col class="store-address-column"></colgroup>
-            <thead><tr><th>门店名称</th><th>联系人</th><th>联系电话</th><th>完整地址</th></tr></thead>
-            <tbody id="activeStoreRows"><tr><td colspan="4" class="store-directory-empty">正在读取门店数据…</td></tr></tbody>
+            <colgroup><col class="store-name-column"><col class="store-contact-column"><col class="store-phone-column"><col class="store-address-column"><col class="store-status-column"></colgroup>
+            <thead><tr><th>门店名称</th><th>联系人</th><th>联系电话</th><th>完整地址</th><th>状态</th></tr></thead>
+            <tbody id="activeStoreRows"><tr><td colspan="5" class="store-directory-empty">正在读取门店数据…</td></tr></tbody>
           </table>
         </div>
       </section>
@@ -49,9 +63,9 @@
         </div>
         <div class="store-directory-window">
           <table class="store-directory-table">
-            <colgroup><col class="store-name-column"><col class="store-contact-column"><col class="store-phone-column"><col class="store-address-column"></colgroup>
-            <thead><tr><th>门店名称</th><th>联系人</th><th>联系电话</th><th>完整地址</th></tr></thead>
-            <tbody id="archivedStoreRows"><tr><td colspan="4" class="store-directory-empty">正在读取门店数据…</td></tr></tbody>
+            <colgroup><col class="store-name-column"><col class="store-contact-column"><col class="store-phone-column"><col class="store-address-column"><col class="store-status-column"></colgroup>
+            <thead><tr><th>门店名称</th><th>联系人</th><th>联系电话</th><th>完整地址</th><th>状态</th></tr></thead>
+            <tbody id="archivedStoreRows"><tr><td colspan="5" class="store-directory-empty">正在读取门店数据…</td></tr></tbody>
           </table>
         </div>
       </section>
@@ -62,7 +76,7 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
   <script src="cloudbase-phone-auth.js?v=0.17.0"></script>
-  <script src="store-management.js?v=0.14.22"></script>
+  <script src="store-management.js?v=0.14.23"></script>
   <script src="auth-ui.js?v=0.17.1"></script>
 </body>
 </html>
