@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.43", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.44", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   const formatBirthday = (value, fallback = "—") => {
     const raw = String(value ?? "").trim();
     if (!raw) return fallback;
@@ -657,9 +657,10 @@
     if (teacherWorkflowStarted || !storeId) return;
     teacherWorkflowStarted = true;
     $("teacherBusinessStore").disabled = true;
-    $("confirmTeacherBusinessStore").disabled = true;
+    $("confirmTeacherBusinessStore").disabled = false;
+    $("confirmTeacherBusinessStore").textContent = "重新选择门店";
     $("teacherBusinessStoreState").textContent = "已选择";
-    $("teacherBusinessStoreMessage").textContent = `当前办理门店：${storeName}。如需更换门店，请重新打开本页面。`;
+    $("teacherBusinessStoreMessage").textContent = `当前办理门店：${storeName}。如选择有误，可返回重新选择。`;
     $("teacherCustomerWorkflow")?.classList.remove("teacher-step-disabled");
     if (page === "recharge") setupRecharge();
     else setupVerification();
@@ -693,6 +694,11 @@
       $("teacherBusinessStoreMessage").textContent = "";
     });
     confirm.addEventListener("click", () => {
+      if (teacherWorkflowStarted) {
+        stopFaceCamera();
+        window.location.reload();
+        return;
+      }
       const selected = teacherBusinessStores.find((store) => store.id === select.value);
       if (!selected) { $("teacherBusinessStoreMessage").textContent = "请先选择门店。"; return; }
       storeId = selected.id;
