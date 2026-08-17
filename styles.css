@@ -758,6 +758,7 @@ body[data-store-business] .form-submit-row button:disabled {
 .verification-order-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(280px, .55fr); gap: 14px; margin-top: 14px; align-items: stretch; }
 .verification-order-details, .verification-order-decision { padding: 17px; }
 .verification-order-info { margin-top: 14px; }
+.recharge-order-info { grid-template-columns: 1.05fr .72fr 1.58fr 1.2fr; }
 .verification-order-info article { min-width: 0; min-height: 78px; }
 .verification-order-info article:not(.order-message-field) span, .verification-order-info article:not(.order-message-field) strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .verification-order-info article:not(.order-message-field) strong { font-size: 13px; }
