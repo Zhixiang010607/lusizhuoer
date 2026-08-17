@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.14.42";
+  const VERSION = "0.15.0";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -158,7 +158,9 @@
       : first(record.originalKind, record.verificationType, record.applicationType, "正常核销");
     const voidActive = voidStarted && String(record.voidStatus || "").toUpperCase() !== "REJECTED";
     const kind = voidActive ? (recharge ? "作废申请" : "作废核销") : normalKind;
-    const status = statusView(first(record.status, record.recordStatus));
+    const status = statusView(voidStarted
+      ? first(record.voidStatus, record.voidRequestStatus)
+      : first(record.status, record.recordStatus));
     if (String(record.status || record.recordStatus || "").toUpperCase() === "VOIDED" && record.balanceRestored === false) {
       status.hint = "作废审核已通过；原单尚未生效，客户次数无需恢复";
     }
@@ -222,53 +224,48 @@
 
   function setupVoidApplication(record, originalKind, voidStarted, session) {
     const panel = $("storeVoidAction");
-    const canApply = session?.role === "store" && !voidStarted;
+    const canApply = session?.role === "store"
+      && !voidStarted
+      && record.databaseBacked !== false
+      && String(record.status || record.recordStatus || "").toUpperCase() === "APPROVED";
     panel.hidden = !canApply;
     if (!canApply) return;
-    $("submitVoidApplication").onclick = () => {
+    $("submitVoidApplication").onclick = async () => {
       const reason = $("voidReason").value.trim();
       if (!reason) { $("voidApplicationMessage").textContent = "必须填写作废说明。"; return; }
       if (!window.confirm("确认提交作废申请？提交后将进入审核，审核通过前不会改变客户次数。")) return;
-      const now = new Date().toISOString();
-      const voidKind = type === "recharge" ? "作废充值" : "作废";
-      const updated = {
-        ...record,
-        originalKind,
-        originalStatus: record.status,
-        voidStatus: "PENDING",
-        voidSubmittedAt: now,
-        voidStoreNote: reason,
-        voidReviewNote: "",
-        status: "PENDING",
-        applicationType: type === "recharge" ? "作废申请" : record.applicationType,
-        verificationType: type === "verification" ? "作废核销" : record.verificationType
-      };
-      saveRecord(updated);
-      const applicationKey = type === "recharge" ? "prototypeRechargeApplications" : "prototypeVerificationReviewApplications";
-      const applications = loadSessionRows(applicationKey);
-      applications.unshift({
-        id: `AP-${type === "recharge" ? "R" : "V"}-${Date.now()}`,
-        kind: voidKind,
-        recordId: updated.id,
-        storeId: updated.storeId,
-        customerId: updated.customerId,
-        customerName: updated.customerName,
-        projectId: updated.projectId,
-        project: updated.projectName,
-        projectName: updated.projectName,
-        teacherId: updated.teacherId || "",
-        count: updated.count,
-        unitCount: updated.count,
-        applicantNote: reason,
-        initialStoreNote: first(record.initialStoreNote, record.note),
-        initialHqNote: first(record.initialHqNote, record.reviewNote),
-        status: "pending",
-        time: now,
-        createdAt: now,
-        isVoidApplication: true
-      });
-      try { sessionStorage.setItem(applicationKey, JSON.stringify(applications)); } catch (_) { /* 静态原型 */ }
-      location.reload();
+      if (typeof window.CloudBasePhoneAuth?.requestOrderVoid !== "function") {
+        $("voidApplicationMessage").textContent = "作废申请服务未加载，请刷新页面重试。";
+        return;
+      }
+      const button = $("submitVoidApplication");
+      button.disabled = true;
+      button.textContent = "正在提交…";
+      $("voidApplicationMessage").textContent = "正在写入作废审核申请…";
+      try {
+        const result = await window.CloudBasePhoneAuth.requestOrderVoid({
+          recordType: type.toUpperCase(),
+          recordId: record.id,
+          note: reason
+        });
+        const updated = {
+          ...record,
+          originalKind,
+          originalStatus: record.status,
+          voidStatus: "PENDING",
+          voidSubmittedAt: result?.order?.void_requested_at || result?.void_requested_at || new Date().toISOString(),
+          voidStoreNote: reason,
+          voidReviewNote: ""
+        };
+        saveRecord(updated);
+        $("voidApplicationMessage").textContent = "作废申请已提交，审核通过前不改变客户次数。";
+        renderRecord(updated);
+      } catch (error) {
+        $("voidApplicationMessage").textContent = error?.message || "作废申请提交失败。";
+      } finally {
+        button.disabled = false;
+        button.textContent = "提交作废申请";
+      }
     };
   }
 

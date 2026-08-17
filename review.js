@@ -1,30 +1,56 @@
-﻿(() => {
+(() => {
   "use strict";
-  const VERSION = "0.14.19", type = document.body.dataset.review, $ = (id) => document.getElementById(id);
-  let createdStores = [];
-  try { createdStores = JSON.parse(sessionStorage.getItem("prototypeCreatedStores") || "[]"); } catch (_) { createdStores = []; }
-  const stores = createdStores.map((store) => ({ id: store.id, name: store.name || store.id }));
-  let session = null, pendingAction = null; try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
-  const canDecide = ["operation", "hq"].includes(session?.role);
+  const VERSION = "0.15.0";
+  const pageType = document.body.dataset.review;
+  const recordType = pageType === "recharge" ? "RECHARGE" : "VERIFICATION";
+  const $ = (id) => document.getElementById(id);
+  const statusText = { PENDING: "待审核", APPROVED: "已通过", REJECTED: "已驳回" };
+  let rows = [], pendingAction = null, loadingSequence = 0, session = null;
+  try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
+  const canDecide = ["hq", "operation"].includes(session?.role);
   const reviewerRole = session?.role === "hq" ? "总部" : "运营";
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
-  const normalizeStatus = (status) => ({ "待审核": "pending", "已通过": "approved", "已驳回": "rejected" }[status] || status || "pending");
-  const storeFor = (storeId) => stores.find((store) => store.id === storeId) || { id: storeId || "", name: storeId || "未绑定门店" };
-  let stored = [];
-  try {
-    if (type === "verification") {
-      stored = JSON.parse(sessionStorage.getItem("prototypeVerificationReviewApplications") || "[]").map((item) => ({ ...item, store: storeFor(item.storeId), status: normalizeStatus(item.status), time: item.time || item.createdAt || "", sourceKey: "prototypeVerificationReviewApplications" }));
-    } else {
-      stored = JSON.parse(sessionStorage.getItem("prototypeRechargeApplications") || "[]").map((item) => ({ ...item, id: item.id, kind: item.kind || "新充值", recordId: item.recordId || item.id, storeId: item.storeId, store: storeFor(item.storeId), customerId: item.customerId, customerName: item.customerName || item.name, projectId: item.projectId, project: item.projectName || item.project || item.projectId || "", teacherId: item.teacherId || "", amount: Number(item.count || item.unitCount || 1), applicantNote: item.applicantNote || item.note || "", status: normalizeStatus(item.status), time: item.createdAt || item.time || "", reviewedAt: item.reviewedAt, sourceKey: "prototypeRechargeApplications" }));
-    }
-  } catch (_) { stored = []; }
-  const items = stored, statusText = { pending: "待审核", approved: "已通过", rejected: "已驳回" };
+  const pick = (row, snake, camel) => row?.[snake] ?? row?.[camel] ?? "";
+  const clean = (value) => String(value ?? "").trim();
   const isoDate = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-  const formatTime = (value) => String(value).replace("T", " ").replace(/\.\d{3}Z$/, "").slice(0, 19);
-  const approvalTime = (item) => item.status === "pending" ? "待批准" : item.reviewedAt ? formatTime(item.reviewedAt) : "未记录";
+  function formatTime(value) {
+    const text = clean(value);
+    if (!text) return "—";
+    const parsed = new Date(text);
+    if (Number.isNaN(parsed.getTime())) return text.replace("T", " ").slice(0, 19);
+    return parsed.toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).replace(/\//g, "-");
+  }
+  function normalizeRow(row) {
+    const applicationType = clean(pick(row, "application_type", "applicationType")).toUpperCase();
+    const status = clean(pick(row, "application_status", "applicationStatus")).toUpperCase() || "PENDING";
+    const isVoid = applicationType === "VOID";
+    return {
+      raw: row, id: clean(row.id), recordCode: clean(pick(row, "record_code", "recordCode")), isVoid, status,
+      kind: pageType === "recharge" ? (isVoid ? "作废充值" : "新充值") : (isVoid ? "作废" : "补录"),
+      time: pick(row, "application_time", "applicationTime"),
+      reviewedAt: isVoid ? pick(row, "void_reviewed_at", "voidReviewedAt") : pick(row, "original_reviewed_at", "originalReviewedAt"),
+      originalCreatedAt: pick(row, "original_submitted_at", "originalSubmittedAt"), originalReviewedAt: pick(row, "original_reviewed_at", "originalReviewedAt"),
+      initialStoreNote: pick(row, "initial_store_note", "initialStoreNote"), initialHqNote: pick(row, "initial_review_note", "initialReviewNote"),
+      applicantNote: isVoid ? pick(row, "void_request_note", "voidRequestNote") : pick(row, "initial_store_note", "initialStoreNote"),
+      operatorNote: isVoid ? pick(row, "void_review_note", "voidReviewNote") : pick(row, "initial_review_note", "initialReviewNote"),
+      store: { id: clean(pick(row, "store_id", "storeId")), code: clean(pick(row, "store_code", "storeCode")), name: clean(pick(row, "store_name", "storeName")) || "未命名门店" },
+      customerId: clean(pick(row, "customer_code", "customerCode")) || clean(pick(row, "customer_id", "customerId")), customerName: clean(pick(row, "customer_name", "customerName")) || "未命名客户",
+      projectId: clean(pick(row, "product_code", "productCode")) || clean(pick(row, "product_id", "productId")), project: clean(pick(row, "product_name", "productName")) || "未命名项目",
+      teacherId: clean(pick(row, "teacher_code", "teacherCode")), teacherName: clean(pick(row, "teacher_name", "teacherName")), amount: Number(pick(row, "unit_count", "unitCount")) || 0
+    };
+  }
+  function applicationTypeFilter() {
+    const value = $("reviewType").value;
+    if (value === "all") return "";
+    if (value === "作废充值" || value === "作废") return "VOID";
+    return pageType === "recharge" ? "NEW" : "SUPPLEMENT";
+  }
   function applyTimeRange() {
     const range = $("reviewTimeRange").value, today = new Date(), start = new Date(today);
-    if (range === "all") { $("reviewDateStart").value = ""; $("reviewDateEnd").value = ""; $("reviewDateStart").disabled = true; $("reviewDateEnd").disabled = true; return; }
+    if (range === "all") {
+      $("reviewDateStart").value = ""; $("reviewDateEnd").value = "";
+      $("reviewDateStart").disabled = true; $("reviewDateEnd").disabled = true; return;
+    }
     if (range === "sevenDays") start.setDate(today.getDate() - 6);
     else if (range === "month") start.setMonth(today.getMonth() - 1);
     else if (range === "quarter") start.setMonth(Math.floor(today.getMonth() / 3) * 3, 1);
@@ -32,90 +58,90 @@
     if (range !== "custom" || !$("reviewDateStart").value || !$("reviewDateEnd").value) { $("reviewDateStart").value = isoDate(start); $("reviewDateEnd").value = isoDate(today); }
     $("reviewDateStart").disabled = range !== "custom"; $("reviewDateEnd").disabled = range !== "custom";
   }
-  const link = (page, key, value, label) => session?.role === "hq" ? `<a class="record-link" href="${page}?${key}=${encodeURIComponent(value)}">${label}</a>` : label;
-  const loadCommunications = () => { try { return JSON.parse(sessionStorage.getItem("prototypeCommunications") || "[]"); } catch (_) { return []; } };
-  const saveCommunications = (rows) => { try { sessionStorage.setItem("prototypeCommunications", JSON.stringify(rows)); } catch (_) { /* 静态演示 */ } };
+  function setLoading(message) {
+    $("reviewBody").innerHTML = `<tr><td colspan="12" class="query-empty">${escapeHtml(message)}</td></tr>`;
+    $("reviewCount").innerHTML = `<strong>—</strong><span>${escapeHtml(message)}</span>`;
+  }
+  function populateStoreFilter(sourceRows) {
+    const selected = $("reviewStore").value || "all";
+    const stores = [...new Map(sourceRows.map((row) => [row.store.id, row.store])).values()].filter((store) => store.id).sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
+    $("reviewStore").innerHTML = `<option value="all">全部门店</option>${stores.map((store) => `<option value="${escapeHtml(store.id)}">${escapeHtml(store.name)}（${escapeHtml(store.code || store.id)}）</option>`).join("")}`;
+    if ([...$("reviewStore").options].some((option) => option.value === selected)) $("reviewStore").value = selected;
+  }
+  function impactText(item) {
+    if (pageType === "recharge") return `${item.isVoid ? "-" : "+"}${item.amount}次`;
+    if (!item.isVoid) return `核销 +${item.amount || 1}`;
+    return clean(pick(item.raw, "original_type", "originalType")) === "EXPERIENCE" ? "体验核销：无次数变化" : `余额 +${item.amount || 1}`;
+  }
   function render() {
-    const start = $("reviewDateStart").value, end = $("reviewDateEnd").value;
-    const rows = items.filter((item) => ($("reviewStore").value === "all" || item.store.id === $("reviewStore").value) && ($("reviewType").value === "all" || item.kind === $("reviewType").value) && ($("reviewStatus").value === "all" || item.status === $("reviewStatus").value) && (!start || item.time.slice(0, 10) >= start) && (!end || item.time.slice(0, 10) <= end)).sort((a, b) => (a.status === "pending" ? 0 : 1) - (b.status === "pending" ? 0 : 1) || String(b.time).localeCompare(String(a.time)));
     $("reviewCount").innerHTML = `<strong>${rows.length}</strong><span>条符合条件</span>`;
     $("reviewBody").innerHTML = rows.map((item) => {
-      const actions = item.status === "pending" && canDecide ? `<div class="review-actions"><button data-id="${item.id}" data-action="approved">批准</button><button class="reject" data-id="${item.id}" data-action="rejected">拒绝</button></div>` : item.status === "pending" ? `<span class="record-status status-审核中">仅运营可审批</span>` : `<span class="record-status status-${statusText[item.status]}">${statusText[item.status]}</span>`;
-      const detailParams = `recordId=${encodeURIComponent(item.recordId)}&customerId=${encodeURIComponent(item.customerId)}&customerName=${encodeURIComponent(item.customerName)}&storeId=${encodeURIComponent(item.store.id)}&kind=${encodeURIComponent(item.kind)}`;
-      if (type === "recharge") return `<tr><td>${item.id}</td><td>${item.kind}</td><td><a class="record-link" href="recharge-detail.html?${detailParams}">${item.recordId}</a></td><td>${link("store-detail.html", "storeId", item.store.id, item.store.name)}</td><td>${item.customerName}（${item.customerId}）</td><td>${item.project}</td><td>${item.teacherId || "—"}</td><td>${item.kind === "作废充值" ? `-${item.amount}次` : `+${item.amount}次`}</td><td>${item.time ? formatTime(item.time) : "未记录"}</td><td>${statusText[item.status]}</td><td>${actions}</td><td>${approvalTime(item)}</td></tr>`;
-      const impact = item.kind === "作废" ? "核销 -1 / 余额 +1" : "核销 +1";
-      return `<tr><td>${item.id}</td><td>${item.kind}</td><td><a class="record-link" href="verification-detail.html?${detailParams}">${item.recordId}</a></td><td>${item.store.name}</td><td>${item.customerName}（${item.customerId}）</td><td>${item.project}</td><td>${item.teacherId}</td><td>${impact}</td><td>${item.time ? formatTime(item.time) : "未记录"}</td><td>${statusText[item.status]}</td><td>${actions}</td><td>${approvalTime(item)}</td></tr>`;
+      const actions = item.status === "PENDING" && canDecide ? `<div class="review-actions"><button data-id="${escapeHtml(item.id)}" data-action="APPROVED">通过</button><button class="reject" data-id="${escapeHtml(item.id)}" data-action="REJECTED">驳回</button></div>` : `<span class="record-status status-${escapeHtml(statusText[item.status] || item.status)}">${escapeHtml(statusText[item.status] || item.status)}</span>`;
+      const teacher = item.teacherName ? `${item.teacherName}${item.teacherId ? `（${item.teacherId}）` : ""}` : "—";
+      return `<tr><td>${escapeHtml(item.recordCode)}</td><td>${escapeHtml(item.kind)}</td><td>${escapeHtml(item.recordCode)}</td><td>${escapeHtml(item.store.name)}${item.store.code ? `（${escapeHtml(item.store.code)}）` : ""}</td><td>${escapeHtml(item.customerName)}（${escapeHtml(item.customerId)}）</td><td>${escapeHtml(item.project)}${item.projectId ? `（${escapeHtml(item.projectId)}）` : ""}</td><td>${escapeHtml(teacher)}</td><td>${escapeHtml(impactText(item))}</td><td>${escapeHtml(formatTime(item.time))}</td><td>${escapeHtml(statusText[item.status] || item.status)}</td><td>${actions}</td><td>${escapeHtml(item.status === "PENDING" ? "待审核" : formatTime(item.reviewedAt))}</td></tr>`;
     }).join("") || `<tr><td colspan="12" class="query-empty">当前条件下没有审核记录</td></tr>`;
     document.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", () => openReview(button.dataset.id, button.dataset.action)));
   }
-  function renderReviewCommunications(item) {
-    const isVoid = item.isVoidApplication || item.kind === "作废" || item.kind === "作废充值";
-    const rows = isVoid
-      ? [
-          { title: "门店原申请留言", message: item.initialStoreNote || "暂无留言", time: item.originalCreatedAt || "" },
-          { title: "总部原审核留言", message: item.initialHqNote || "暂无留言", time: item.originalReviewedAt || "" },
-          { title: "门店作废申请留言", message: item.applicantNote || "暂无留言", time: item.time },
-          { title: "总部作废审核留言", message: item.operatorNote || "待本次审核填写", time: item.reviewedAt || "" }
-        ]
-      : [
-          { title: "门店申请留言", message: item.applicantNote || "暂无留言", time: item.time },
-          { title: "总部审核留言", message: item.operatorNote || "待本次审核填写", time: item.reviewedAt || "" }
-        ];
-    $("reviewCommunicationLog").innerHTML = rows.map((row) => `<article class="communication-item"><div><strong>${escapeHtml(row.title)}</strong><time>${escapeHtml(row.time || "—")}</time></div><p>${escapeHtml(row.message)}</p></article>`).join("");
-    $("reviewCommunicationLog").scrollTop = $("reviewCommunicationLog").scrollHeight;
+  async function refresh({ preserveStores = true } = {}) {
+    if (typeof window.CloudBasePhoneAuth?.listReviewOrders !== "function") { setLoading("审核数据服务未加载，请刷新页面重试"); return; }
+    const sequence = ++loadingSequence;
+    setLoading("正在读取审核工单…");
+    try {
+      const result = await window.CloudBasePhoneAuth.listReviewOrders({ recordType, storeId: $("reviewStore").value === "all" ? "" : $("reviewStore").value, applicationType: applicationTypeFilter(), status: $("reviewStatus").value === "all" ? "" : $("reviewStatus").value.toUpperCase(), startDate: $("reviewDateStart").value, endDate: $("reviewDateEnd").value, limit: 500 });
+      if (sequence !== loadingSequence) return;
+      rows = (Array.isArray(result) ? result : []).map(normalizeRow);
+      if (!preserveStores || $("reviewStore").options.length <= 1) populateStoreFilter(rows);
+      render();
+    } catch (error) {
+      if (sequence !== loadingSequence) return;
+      rows = []; setLoading(error?.message || "审核工单读取失败");
+    }
   }
-  function openReview(id, action) { const item = items.find((entry) => entry.id === id); pendingAction = { item, action }; $("reviewDialogTitle").textContent = action === "approved" ? "确认批准" : "确认拒绝"; $("reviewDialogSummary").innerHTML = `<strong>${item.id} · ${item.kind}</strong><span>${item.store.name} · ${item.customerName} · ${item.project}</span><span>审批账号：${session.account} · ${reviewerRole}人员</span>`; $("reviewNote").value = ""; $("confirmReview").classList.toggle("danger-button", action === "rejected"); renderReviewCommunications(item); $("reviewDialog").showModal(); }
+  function renderReviewCommunications(item) {
+    const communicationRows = item.isVoid ? [
+      { title: "门店原申请留言", message: item.initialStoreNote, time: item.originalCreatedAt }, { title: "总部／运营原审核留言", message: item.initialHqNote, time: item.originalReviewedAt },
+      { title: "门店作废申请留言", message: item.applicantNote, time: item.time }, { title: "总部／运营作废审核留言", message: item.operatorNote, time: item.reviewedAt }
+    ] : [
+      { title: "门店申请留言", message: item.applicantNote, time: item.time }, { title: "总部／运营审核留言", message: item.operatorNote, time: item.reviewedAt }
+    ];
+    $("reviewCommunicationLog").innerHTML = communicationRows.map((row) => `<article class="communication-item"><div><strong>${escapeHtml(row.title)}</strong><time>${escapeHtml(formatTime(row.time))}</time></div><p>${escapeHtml(clean(row.message) || "无")}</p></article>`).join("");
+  }
+  function openReview(id, action) {
+    const item = rows.find((entry) => entry.id === id); if (!item) return;
+    pendingAction = { item, action };
+    $("reviewDialogTitle").textContent = action === "APPROVED" ? "确认通过" : "确认驳回";
+    $("reviewDialogSummary").innerHTML = `<strong>${escapeHtml(item.recordCode)} · ${escapeHtml(item.kind)}</strong><span>${escapeHtml(item.store.name)} · ${escapeHtml(item.customerName)} · ${escapeHtml(item.project)}</span><span>审核角色：${escapeHtml(reviewerRole)}</span>`;
+    $("reviewNote").value = ""; $("confirmReview").classList.toggle("danger-button", action === "REJECTED"); renderReviewCommunications(item); $("reviewDialog").showModal();
+  }
   function closeDialog() { pendingAction = null; $("reviewDialog").close(); }
+  async function confirmReview() {
+    if (!pendingAction || !canDecide) return;
+    const note = $("reviewNote").value.trim();
+    if (!window.confirm(`确认${pendingAction.action === "APPROVED" ? "通过" : "驳回"}该${pendingAction.item.kind}申请？`)) return;
+    const button = $("confirmReview"); button.disabled = true; button.textContent = "正在提交…";
+    try {
+      await window.CloudBasePhoneAuth.reviewOrder({ recordType, recordId: pendingAction.item.id, decision: pendingAction.action, note });
+      closeDialog(); await refresh();
+    } catch (error) { window.alert(error?.message || "工单审核失败"); }
+    finally { button.disabled = false; button.textContent = "确认"; }
+  }
   function organizeReviewToolbar() {
     const toolbar = document.querySelector(".review-toolbar"), count = $("reviewCount");
     if (!toolbar || !count || toolbar.querySelector(".review-filter-row")) return;
     const basicRow = document.createElement("div"), dateRow = document.createElement("div");
-    basicRow.className = "review-filter-row review-basic-row";
-    dateRow.className = "review-filter-row review-date-row";
+    basicRow.className = "review-filter-row review-basic-row"; dateRow.className = "review-filter-row review-date-row";
     [$("reviewStore"), $("reviewType"), $("reviewStatus")].forEach((field) => basicRow.append(field.closest("label")));
     [$("reviewTimeRange"), $("reviewDateStart"), $("reviewDateEnd")].forEach((field) => dateRow.append(field.closest("label")));
-    dateRow.append(count);
-    toolbar.append(basicRow, dateRow);
+    dateRow.append(count); toolbar.append(basicRow, dateRow);
   }
   organizeReviewToolbar();
-  $("reviewStore").innerHTML = `<option value="all">全部门店</option>${stores.map((store) => `<option value="${store.id}">${store.name}（${store.id}）</option>`).join("")}`; document.querySelector(".review-table thead tr")?.insertAdjacentHTML("beforeend", "<th>批准/驳回时间</th>"); applyTimeRange();
-  ["reviewStore", "reviewType", "reviewStatus"].forEach((id) => $(id).addEventListener("change", render)); $("reviewTimeRange").addEventListener("change", () => { applyTimeRange(); render(); }); ["reviewDateStart", "reviewDateEnd"].forEach((id) => $(id).addEventListener("change", render)); $("closeReviewDialog").addEventListener("click", closeDialog); $("cancelReview").addEventListener("click", closeDialog);
-  $("confirmReview").addEventListener("click", () => {
-    if (!pendingAction || !canDecide) return;
-    const note = $("reviewNote").value.trim();
-    if (!note) { window.alert("必须填写审核留言／备注"); return; }
-    const { item, action } = pendingAction, reviewedAt = new Date().toISOString();
-    item.status = action; item.reviewedAt = reviewedAt; item.operatorNote = note;
-    const isVoid = item.isVoidApplication || item.kind === "作废" || item.kind === "作废充值";
-    const communications = loadCommunications();
-    communications.push({ recordType: type, recordId: item.recordId, role: reviewerRole, account: session.account, name: `${reviewerRole}人员`, message: `${action === "approved" ? "批准" : "拒绝"}${item.kind}：${note}`, time: reviewedAt });
-    saveCommunications(communications);
-    try {
-      const sourceKey = item.sourceKey || "prototypeVerificationReviewApplications", saved = JSON.parse(sessionStorage.getItem(sourceKey) || "[]"), target = saved.find((entry) => entry.id === item.id);
-      if (target) { target.status = action; target.operatorNote = note; target.reviewedAt = reviewedAt; sessionStorage.setItem(sourceKey, JSON.stringify(saved)); }
-      if (isVoid) {
-        const recordKey = type === "recharge" ? "prototypeRechargeRecords" : "prototypeVerificationRecords";
-        const records = JSON.parse(sessionStorage.getItem(recordKey) || "[]"), record = records.find((entry) => String(entry.id || entry.recordCode) === String(item.recordId));
-        if (record) {
-          record.voidStatus = action.toUpperCase();
-          record.voidReviewNote = note;
-          record.voidReviewedAt = reviewedAt;
-          if (action === "approved") {
-            record.status = "VOIDED";
-            // A still-pending original application has not changed the balance
-            // yet.  Only an already-approved original record restores a count.
-            record.balanceRestored = String(record.originalStatus || "").toUpperCase() === "APPROVED";
-          } else {
-            record.status = record.originalStatus || "APPROVED";
-            record.applicationType = type === "recharge" ? (record.originalKind || "新充值") : record.applicationType;
-            record.verificationType = type === "verification" ? (record.originalKind || "正常核销") : record.verificationType;
-            record.balanceRestored = false;
-          }
-          sessionStorage.setItem(recordKey, JSON.stringify(records));
-        }
-      }
-    } catch (_) { /* 静态原型 */ }
-    closeDialog(); render();
-  });
-  document.documentElement.dataset.prototypeVersion = VERSION; render();
+  $("reviewStore").innerHTML = `<option value="all">全部门店</option>`;
+  document.querySelector(".review-table thead tr")?.insertAdjacentHTML("beforeend", "<th>批准/驳回时间</th>");
+  applyTimeRange();
+  ["reviewStore", "reviewType", "reviewStatus"].forEach((id) => $(id).addEventListener("change", () => refresh()));
+  $("reviewTimeRange").addEventListener("change", () => { applyTimeRange(); refresh(); });
+  ["reviewDateStart", "reviewDateEnd"].forEach((id) => $(id).addEventListener("change", () => refresh()));
+  $("closeReviewDialog").addEventListener("click", closeDialog); $("cancelReview").addEventListener("click", closeDialog); $("confirmReview").addEventListener("click", confirmReview);
+  document.documentElement.dataset.prototypeVersion = VERSION;
+  refresh({ preserveStores: false });
 })();

@@ -199,7 +199,26 @@
     async voidVerification({ verificationId, voidNote = "" }) {
       return callStaffAccount(
         { action: "voidVerification", verificationId, voidNote },
-        "核销单作废失败"
+        "核销作废申请提交失败"
+      );
+    },
+    async requestOrderVoid({ recordType, recordId, note }) {
+      return callStaffAccount(
+        { action: "requestOrderVoid", recordType, recordId, note },
+        "作废申请提交失败"
+      );
+    },
+    async listReviewOrders({ recordType, storeId = "", applicationType = "", status = "", startDate = "", endDate = "", limit = 200 } = {}) {
+      const data = await callStaffAccount(
+        { action: "listReviewOrders", recordType, storeId, applicationType, status, startDate, endDate, limit },
+        "审核工单读取失败"
+      );
+      return data.orders || [];
+    },
+    async reviewOrder({ recordType, recordId, decision, note }) {
+      return callStaffAccount(
+        { action: "reviewOrder", recordType, recordId, decision, note },
+        "工单审核失败"
       );
     },
     smsCooldownRemaining(phone) { return cooldownRemaining(phone); }

@@ -4,7 +4,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
-const FUNCTION_VERSION = "2026-08-17-storage-env-binding-v27";
+const FUNCTION_VERSION = "2026-08-17-order-submission-v28";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -888,6 +888,145 @@ async function createRechargeApplication(event) {
   };
 }
 
+async function requireVerificationSubmissionSchema() {
+  const rows = await executeSql(
+    `SELECT EXISTS (
+       SELECT 1
+         FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'verification_records'
+          AND column_name = 'idempotency_key'
+     ) AS has_idempotency_key`
+  );
+  if (!databaseBoolean(rows?.[0]?.has_idempotency_key)) {
+    fail("核销单数据库缺少防重复提交字段，请先执行迁移 026。", "DATABASE_SCHEMA_MISSING");
+  }
+}
+
+async function createVerificationApplication(event) {
+  const caller = await activeStoreCaller();
+  const customerCode = String(event.customerCode || "").trim();
+  if (!customerCode || customerCode.length > 96) fail("必须先确认本门店的活跃客户。", "CUSTOMER_REQUIRED");
+  const productId = positiveDatabaseId(event.productId, "项目");
+  const teacherId = positiveDatabaseId(event.teacherId, "老师");
+  const verificationType = String(event.verificationType || "").trim().toUpperCase();
+  if (!["NORMAL", "SUPPLEMENT"].includes(verificationType)) {
+    fail("仅支持正常核销或补录核销。", "INVALID_VERIFICATION_TYPE");
+  }
+  const message = String(event.message || "").trim();
+  if (message.length > 500) fail("门店留言不能超过 500 个字符。", "MESSAGE_TOO_LONG");
+  if (verificationType === "SUPPLEMENT" && !message) {
+    fail("补录核销必须填写补录原因。", "SUPPLEMENT_NOTE_REQUIRED");
+  }
+  const faceRequestId = String(event.faceRequestId || "").trim();
+  if (!/^[A-Za-z0-9_-]{8,128}$/.test(faceRequestId)) {
+    fail("必须先完成现场拍照及所选客户的 1:1 人脸验证。", "FACE_VERIFICATION_REQUIRED");
+  }
+  const idempotencyKey = rechargeSubmissionKey(event.clientRequestId);
+  await requireVerificationSubmissionSchema();
+
+  const customers = await executeSql(
+    `SELECT id, customer_code, customer_name
+       FROM public.customers
+      WHERE customer_code = ${sqlText(customerCode)}
+        AND created_store_id = ${caller.storeId}
+        AND customer_status = 'ACTIVE'
+      LIMIT 1`
+  );
+  const customer = customers[0];
+  if (!customer) fail("未找到本门店已确认的活跃客户。", "CUSTOMER_NOT_FOUND");
+
+  const products = await executeSql(
+    `SELECT id, product_code, product_name
+       FROM public.products
+      WHERE id = ${sqlText(productId)}::bigint
+        AND product_status = 'ACTIVE'
+      LIMIT 1`
+  );
+  const product = products[0];
+  if (!product) fail("所选项目不存在或已经封存，请重新选择。", "PRODUCT_NOT_ACTIVE");
+
+  const teachers = await executeSql(
+    `SELECT t.id, t.teacher_code, t.teacher_name
+       FROM public.teachers t
+       JOIN public.staff_accounts a ON a.id = t.staff_account_id
+      WHERE t.id = ${sqlText(teacherId)}::bigint
+        AND t.teacher_status = 'ACTIVE'
+        AND a.role_code = 'teacher'
+        AND a.account_status = 'ACTIVE'
+      LIMIT 1`
+  );
+  const teacher = teachers[0];
+  if (!teacher) fail("所选老师不存在或已经封存，请重新选择。", "TEACHER_NOT_ACTIVE");
+
+  const initialStatus = verificationType === "NORMAL" ? "APPROVED" : "PENDING";
+  const supplementNote = verificationType === "SUPPLEMENT" ? message : "";
+  let rows;
+  try {
+    rows = await executeSql(
+      `WITH inserted AS (
+         INSERT INTO public.verification_records
+           (verification_type, store_id, teacher_id, customer_id, product_id,
+            unit_count, record_status, submitted_by_account_id, message,
+            supplement_note, face_request_id, idempotency_key)
+         VALUES
+           (${sqlText(verificationType)}, ${caller.storeId}, ${sqlText(teacherId)}::bigint,
+            ${sqlText(customer.id)}::bigint, ${sqlText(productId)}::bigint,
+            1, ${sqlText(initialStatus)}, ${caller.staffId}, ${sqlText(message)},
+            ${sqlText(supplementNote)}, ${sqlText(faceRequestId)}, ${sqlText(idempotencyKey)})
+         ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
+         RETURNING id, verification_code, verification_type, store_id, teacher_id,
+                   customer_id, product_id, unit_count, record_status,
+                   submitted_by_account_id, submitted_at, message, supplement_note,
+                   face_request_id, idempotency_key
+       )
+       SELECT *, TRUE AS created_now FROM inserted
+       UNION ALL
+       SELECT v.id, v.verification_code, v.verification_type, v.store_id,
+              v.teacher_id, v.customer_id, v.product_id, v.unit_count,
+              v.record_status, v.submitted_by_account_id, v.submitted_at,
+              v.message, v.supplement_note, v.face_request_id,
+              v.idempotency_key, FALSE AS created_now
+         FROM public.verification_records v
+        WHERE v.idempotency_key = ${sqlText(idempotencyKey)}
+          AND NOT EXISTS (SELECT 1 FROM inserted)
+       LIMIT 1`
+    );
+  } catch (error) {
+    if (String(error?.message || "").toLowerCase().includes("insufficient purchased units")) {
+      fail("该客户所选项目的剩余次数不足，不能提交正常核销。", "INSUFFICIENT_BALANCE");
+    }
+    throw error;
+  }
+  const record = rows[0];
+  if (!record) fail("核销申请未能写入数据库，请稍后重试。", "VERIFICATION_CREATE_FAILED");
+
+  const sameRequest = String(record.verification_type) === verificationType
+    && String(record.store_id) === String(caller.storeId)
+    && String(record.teacher_id) === String(teacherId)
+    && String(record.customer_id) === String(customer.id)
+    && String(record.product_id) === String(productId)
+    && String(record.message || "") === message
+    && String(record.face_request_id || "") === faceRequestId;
+  if (!sameRequest) {
+    fail("该防重复提交编号已经用于另一张核销单，请刷新页面后重新提交。", "IDEMPOTENCY_CONFLICT");
+  }
+
+  return {
+    ok: true,
+    createdNow: databaseBoolean(record.created_now),
+    verificationId: String(record.id),
+    verificationCode: record.verification_code,
+    verificationType: record.verification_type,
+    recordStatus: record.record_status,
+    submittedAt: record.submitted_at,
+    unitCount: Number(record.unit_count || 1),
+    customer: { customerCode: customer.customer_code, customerName: customer.customer_name },
+    product: { productId: String(product.id), productCode: product.product_code, productName: product.product_name },
+    teacher: { teacherId: String(teacher.id), teacherCode: teacher.teacher_code, teacherName: teacher.teacher_name }
+  };
+}
+
 async function getCustomerProductBalances(event) {
   const caller = await activeStoreCaller();
   const customerCode = String(event.customerCode || "").trim();
@@ -1230,6 +1369,7 @@ exports.main = async (event = {}) => {
     if (action === "listActiveTeachers") return await listActiveTeachers();
     if (action === "listActiveProducts") return await listActiveProducts();
     if (action === "createRechargeApplication") return await createRechargeApplication(event);
+    if (action === "createVerificationApplication") return await createVerificationApplication(event);
     if (action === "getActiveStoreCustomerDetail") return await getActiveStoreCustomerDetail(event);
     if (action === "getCustomerPhotoUrl") return await getCustomerPhotoUrl(event);
     if (action === "getCustomerProductBalances") return await getCustomerProductBalances(event);

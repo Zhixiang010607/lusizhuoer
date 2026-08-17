@@ -8,7 +8,7 @@
 const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "2026-08-16-verification-void-v9";
+const FUNCTION_VERSION = "2026-08-17-order-review-v10";
 let app = null;
 let auth = null;
 let managerClient = null;
@@ -419,6 +419,18 @@ async function currentUser(includeUserInfo = false) {
 
 function requireHq(caller) {
   if (caller.profile?.role !== "hq") fail("仅总部账号可以管理员工账号", "FORBIDDEN");
+}
+
+function requireReviewer(caller) {
+  if (!["hq", "operation"].includes(caller.profile?.role)) {
+    fail("仅总部或运营账号可以审核业务工单", "FORBIDDEN");
+  }
+}
+
+function requireStore(caller) {
+  if (caller.profile?.role !== "store" || !caller.profile?.storeId) {
+    fail("仅已绑定门店的门店账号可以提交作废申请", "FORBIDDEN");
+  }
 }
 
 async function ensureBootstrapHq(caller) {
@@ -1027,6 +1039,133 @@ async function createProductRecord(event) {
   return { product, created: true };
 }
 
+function reviewFilterSql(event, alias, statusExpression, typeExpression, timeExpression) {
+  const clauses = [];
+  const storeId = String(event.storeId || "").trim();
+  const status = String(event.status || "").trim().toUpperCase();
+  const applicationType = String(event.applicationType || "").trim().toUpperCase();
+  const startDate = String(event.startDate || "").trim();
+  const endDate = String(event.endDate || "").trim();
+  if (storeId) clauses.push(`${alias}.store_id = ${numericId(storeId, "门店编号")}`);
+  if (["PENDING", "APPROVED", "REJECTED"].includes(status)) clauses.push(`${statusExpression} = ${sqlText(status)}`);
+  if (applicationType) clauses.push(`${typeExpression} = ${sqlText(applicationType)}`);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(startDate)) clauses.push(`${timeExpression} >= ${sqlText(startDate)}::date`);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(endDate)) clauses.push(`${timeExpression} < (${sqlText(endDate)}::date + INTERVAL '1 day')`);
+  return clauses.length ? `AND ${clauses.join(" AND ")}` : "";
+}
+
+async function listReviewOrders(caller, event) {
+  requireReviewer(caller);
+  const recordType = String(event.recordType || "").trim().toUpperCase();
+  if (!["RECHARGE", "VERIFICATION"].includes(recordType)) fail("不支持的审核工单类型", "BAD_REQUEST");
+  const limit = Math.min(Math.max(Number(event.limit) || 200, 1), 500);
+  let sql;
+  if (recordType === "RECHARGE") {
+    const statusExpression = "CASE WHEN r.void_request_status <> 'NONE' THEN r.void_request_status ELSE r.record_status END";
+    const typeExpression = "CASE WHEN r.void_request_status <> 'NONE' THEN 'VOID' ELSE 'NEW' END";
+    const timeExpression = "CASE WHEN r.void_request_status <> 'NONE' THEN r.void_requested_at ELSE r.submitted_at END";
+    sql = `SELECT r.id, r.recharge_code AS record_code, 'RECHARGE'::text AS record_type,
+                  ${typeExpression} AS application_type,
+                  ${statusExpression} AS application_status,
+                  ${timeExpression} AS application_time,
+                  r.record_status AS original_status, r.recharge_type AS original_type,
+                  r.unit_count, r.message AS initial_store_note, r.review_note AS initial_review_note,
+                  r.submitted_at AS original_submitted_at, r.reviewed_at AS original_reviewed_at,
+                  r.void_request_status, r.void_request_note, r.void_requested_at,
+                  r.void_review_note, r.void_reviewed_at,
+                  s.id AS store_id, s.store_code, s.store_name,
+                  c.id AS customer_id, c.customer_code, c.customer_name,
+                  p.id AS product_id, p.product_code, p.product_name,
+                  t.id AS teacher_id, t.teacher_code, t.teacher_name
+             FROM public.recharge_records r
+             JOIN public.stores s ON s.id = r.store_id
+             JOIN public.customers c ON c.id = r.customer_id
+             JOIN public.products p ON p.id = r.product_id
+        LEFT JOIN public.teachers t ON t.id = r.teacher_id
+            WHERE TRUE
+              ${reviewFilterSql(event, "r", statusExpression, typeExpression, timeExpression)}
+         ORDER BY (${statusExpression} = 'PENDING') DESC, ${timeExpression} DESC, r.id DESC
+            LIMIT ${limit}`;
+  } else {
+    const statusExpression = "CASE WHEN v.void_request_status <> 'NONE' THEN v.void_request_status ELSE v.record_status END";
+    const typeExpression = "CASE WHEN v.void_request_status <> 'NONE' THEN 'VOID' ELSE v.verification_type END";
+    const timeExpression = "CASE WHEN v.void_request_status <> 'NONE' THEN v.void_requested_at ELSE v.submitted_at END";
+    sql = `SELECT v.id, v.verification_code AS record_code, 'VERIFICATION'::text AS record_type,
+                  ${typeExpression} AS application_type,
+                  ${statusExpression} AS application_status,
+                  ${timeExpression} AS application_time,
+                  v.record_status AS original_status, v.verification_type AS original_type,
+                  v.unit_count, v.message AS initial_store_note, v.review_note AS initial_review_note,
+                  v.supplement_note, v.submitted_at AS original_submitted_at,
+                  v.reviewed_at AS original_reviewed_at,
+                  v.void_request_status, v.void_request_note, v.void_requested_at,
+                  v.void_review_note, v.void_reviewed_at,
+                  s.id AS store_id, s.store_code, s.store_name,
+                  c.id AS customer_id, c.customer_code, c.customer_name,
+                  p.id AS product_id, p.product_code, p.product_name,
+                  t.id AS teacher_id, t.teacher_code, t.teacher_name
+             FROM public.verification_records v
+             JOIN public.stores s ON s.id = v.store_id
+             JOIN public.customers c ON c.id = v.customer_id
+             JOIN public.products p ON p.id = v.product_id
+             JOIN public.teachers t ON t.id = v.teacher_id
+            WHERE (v.void_request_status <> 'NONE' OR v.verification_type = 'SUPPLEMENT')
+              ${reviewFilterSql(event, "v", statusExpression, typeExpression, timeExpression)}
+         ORDER BY (${statusExpression} = 'PENDING') DESC, ${timeExpression} DESC, v.id DESC
+            LIMIT ${limit}`;
+  }
+  try {
+    return await executeSql(sql);
+  } catch (error) {
+    asDatabaseError(error, "读取审核工单");
+  }
+}
+
+async function requestOrderVoid(caller, event) {
+  requireStore(caller);
+  const recordType = String(event.recordType || "").trim().toUpperCase();
+  if (!["RECHARGE", "VERIFICATION"].includes(recordType)) fail("不支持的工单类型", "BAD_REQUEST");
+  const recordId = numericId(event.recordId || event.verificationId, "工单编号");
+  const note = String(event.note || event.voidNote || "").trim();
+  if (!note) fail("提交作废申请必须填写说明", "VOID_NOTE_REQUIRED");
+  if (note.length > 1000) fail("作废说明不能超过 1000 个字符", "BAD_REQUEST");
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT record_id, record_code, record_status, void_request_status, void_requested_at
+         FROM public.request_order_void(${sqlText(recordType)}, ${recordId},
+              ${numericId(caller.profile.staffId, "当前门店账号")}, ${sqlText(note)})`
+    );
+  } catch (error) {
+    asDatabaseError(error, "提交作废申请");
+  }
+  if (!rows?.[0]) fail("未找到该工单", "NOT_FOUND");
+  return rows[0];
+}
+
+async function reviewOrder(caller, event) {
+  requireReviewer(caller);
+  const recordType = String(event.recordType || "").trim().toUpperCase();
+  const decision = String(event.decision || "").trim().toUpperCase();
+  if (!["RECHARGE", "VERIFICATION"].includes(recordType)) fail("不支持的工单类型", "BAD_REQUEST");
+  if (!["APPROVED", "REJECTED"].includes(decision)) fail("审核结果只能是通过或驳回", "BAD_REQUEST");
+  const recordId = numericId(event.recordId, "工单编号");
+  const note = String(event.note || "").trim();
+  if (note.length > 1000) fail("审核留言不能超过 1000 个字符", "BAD_REQUEST");
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT record_id, record_code, record_status, void_request_status, reviewed_at
+         FROM public.review_order_application(${sqlText(recordType)}, ${recordId},
+              ${numericId(caller.profile.staffId, "当前审核账号")}, ${sqlText(decision)}, ${sqlText(note)})`
+    );
+  } catch (error) {
+    asDatabaseError(error, "审核业务工单");
+  }
+  if (!rows?.[0]) fail("未找到该工单", "NOT_FOUND");
+  return rows[0];
+}
+
 async function main(event = {}) {
   const action = event.action || "session";
   if (action === "health") {
@@ -1122,29 +1261,22 @@ async function main(event = {}) {
     if (!rows?.[0]) fail("未找到该产品", "NOT_FOUND");
     return { ok: true, product: rows[0] };
   }
+  if (action === "listReviewOrders") {
+    return { ok: true, orders: await listReviewOrders(caller, event) };
+  }
+  if (action === "reviewOrder") {
+    return { ok: true, order: await reviewOrder(caller, event) };
+  }
+  if (action === "requestOrderVoid") {
+    return { ok: true, order: await requestOrderVoid(caller, event) };
+  }
   if (action === "voidVerification") {
-    requireHq(caller);
-    const verificationId = numericId(event.verificationId, "核销单编号");
-    const voidNote = String(event.voidNote || "").trim();
-    if (voidNote.length > 1000) fail("作废说明不能超过 1000 个字符", "BAD_REQUEST");
-
-    let rows;
-    try {
-      rows = await executeSql(
-        `SELECT id, verification_code, verification_type, unit_count, record_status,
-                customer_id, product_id, void_note, voided_by_account_id, voided_at
-         FROM public.void_verification_record(
-           ${verificationId},
-           ${numericId(caller.profile.staffId, "当前总部账号")},
-           ${sqlText(voidNote)}
-         )`
-      );
-    } catch (error) {
-      asDatabaseError(error, "作废核销单");
-    }
-    const record = rows?.[0];
-    if (!record) fail("未找到该核销单", "NOT_FOUND");
-    return { ok: true, verification: record };
+    const order = await requestOrderVoid(caller, {
+      recordType: "VERIFICATION",
+      recordId: event.verificationId,
+      note: event.voidNote
+    });
+    return { ok: true, order, verification: order };
   }
   if (action === "listStores") {
     requireHq(caller);

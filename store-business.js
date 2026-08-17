@@ -5,7 +5,7 @@
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   const storeId = String(session?.store || ""), storeNo = Number(storeId.replace(/\D/g, "")) || 1;
   let storeName = `门店 ${storeNo}`;
-  let databaseCustomers = [], databaseTeachers = [], databaseProducts = [], candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, verificationBalanceProjects = [], rechargeRequest = null, customerEnrollmentRequest = null, previewCustomerCode = "", customerSubmissionBusy = false;
+  let databaseCustomers = [], databaseTeachers = [], databaseProducts = [], candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, verificationBalanceProjects = [], rechargeRequest = null, verificationRequest = null, verificationFaceRequestId = "", customerEnrollmentRequest = null, previewCustomerCode = "", customerSubmissionBusy = false;
   const customerDetailCache = new Map(), customerDetailRequests = new Map();
   const allCustomers = () => databaseCustomers;
   const saveList = (key, value) => { try { sessionStorage.setItem(key, JSON.stringify(value)); } catch (_) { /* 当前静态会话不可持久化时不保存演示数据。 */ } };
@@ -179,6 +179,14 @@
       rechargeRequest = { key, fingerprint };
     }
     return rechargeRequest.key;
+  }
+  function nextVerificationRequestId(payload) {
+    const fingerprint = JSON.stringify(payload);
+    if (!verificationRequest || verificationRequest.fingerprint !== fingerprint) {
+      const key = window.crypto?.randomUUID?.() || `verification_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
+      verificationRequest = { key, fingerprint };
+    }
+    return verificationRequest.key;
   }
   function nextCustomerEnrollmentRequestId(payload) {
     const fingerprint = JSON.stringify(payload);
@@ -505,7 +513,7 @@
     }
   }
   function resetVerificationCapture() {
-    stopFaceCamera(); capturedPhotoDataUrl = ""; photoCaptured = false;
+    stopFaceCamera(); capturedPhotoDataUrl = ""; photoCaptured = false; verificationFaceRequestId = "";
     const video = $("verificationCamera"), preview = $("verificationPhotoPreview"), placeholder = $("verificationCameraPlaceholder"), canvas = $("verificationCaptureCanvas"), open = $("openVerificationCamera"), capture = $("captureVerificationPhoto"), retake = $("retakeVerificationPhoto");
     if (!video || !preview || !placeholder || !canvas || !open || !capture || !retake) return;
     video.hidden = true; preview.hidden = true; preview.removeAttribute("src"); placeholder.hidden = false;
@@ -549,6 +557,8 @@
         const result = await callCustomerEnrollment({ action: "verifyCustomerFace", customerCode: selectedCustomer.id, imageBase64: capturedPhotoDataUrl });
         if (!result.matched) throw new Error(`${result.message || "1:1 人脸验证未通过"}（相似度 ${result.score ?? 0}，要求 ${result.threshold ?? "-"}）`);
         photoCaptured = true;
+        verificationFaceRequestId = String(result.requestId || "");
+        if (!verificationFaceRequestId) throw new Error("人脸验证服务未返回验证请求编号，请重新拍照验证");
         const livenessText = result?.liveness?.checked ? "、活体检测" : "";
         status.className = "capture-status complete"; status.textContent = `所选客户 1:1 人脸验证${livenessText}通过（${result.score} 分）`;
       } catch (error) {
@@ -558,18 +568,44 @@
     });
     retake.addEventListener("click", () => { resetVerificationCapture(); open.click(); });
     window.addEventListener("pagehide", stopFaceCamera, { once: true });
-    $("verificationCreateForm").addEventListener("submit", (event) => {
-      event.preventDefault(); const projectId = $("verificationProject").value, teacherId = $("verificationTeacher").value, note = $("verificationNote").value.trim(), supplemental = supplementalPage;
+    $("verificationCreateForm").addEventListener("submit", async (event) => {
+      event.preventDefault(); const form = event.currentTarget, submit = form.querySelector('[type="submit"]'), projectId = $("verificationProject").value, teacherId = $("verificationTeacher").value, note = $("verificationNote").value.trim(), supplemental = supplementalPage;
       if (!selectedCustomer || !projectId || !teacherId) { $("verificationCreateMessage").textContent = "必须确认客户并选择项目和老师"; return; }
       if (!photoCaptured) { $("verificationCreateMessage").textContent = "必须完成现场拍照并通过所选客户的 1:1 人脸验证，才能核销和发送设备信号"; return; }
       if (supplemental && !note) { $("verificationCreateMessage").textContent = "补录必须填写门店备注／原因"; return; }
-      const records = JSON.parse(sessionStorage.getItem("prototypeVerificationRecords") || "[]"), project = verificationBalanceProjects.find((item) => item.id === projectId), recordId = `${supplemental ? "VE-SUP" : "VE-NEW"}-${Date.now()}`;
+      const project = verificationBalanceProjects.find((item) => item.id === projectId);
       if (!project) { $("verificationCreateMessage").textContent = "所选项目余额已失效，请重新确认客户后再试"; return; }
       const teacher = databaseTeachers.find((item) => item.id === teacherId);
-      const record = { id: recordId, recordCode: recordId, recordType: "verification", customerId: selectedCustomer.id, customerName: selectedCustomer.name, name: selectedCustomer.name, birthday: selectedCustomer.birthday, storeId, storeName, projectId, projectCode: project.code || "", projectName: project.name, teacherId, teacherCode: teacher?.code || "", teacherName: teacher?.name || "", count: 1, faceVerification: "活体检测与人脸比对通过", verificationType: supplemental ? "补录核销" : "正常核销", status: supplemental ? "PENDING" : "APPROVED", deviceSignal: supplemental ? "不发送（补录）" : "虚拟端口已发送", account: session.account, note, createdAt: new Date().toISOString(), databaseBacked: false };
-      records.push(record); saveList("prototypeVerificationRecords", records); addCommunication("verification", recordId, note);
-      if (supplemental) { const apps = JSON.parse(sessionStorage.getItem("prototypeVerificationReviewApplications") || "[]"); apps.push({ id: `AP-V-${Date.now()}`, kind: "补录", recordId, storeId, customerId: selectedCustomer.id, customerName: selectedCustomer.name, projectId, project: project.name, teacherId, applicantNote: note, status: "pending", time: new Date().toISOString(), faceVerification: "活体检测与人脸比对通过", deviceSignal: "不发送" }); saveList("prototypeVerificationReviewApplications", apps); }
-      openGeneratedOrder("verification", record);
+      if (!teacher) { $("verificationCreateMessage").textContent = "老师数据已经失效，请刷新页面后重新选择"; return; }
+      const payload = { customerCode: selectedCustomer.id, productId: project.id, teacherId: teacher.id, verificationType: supplemental ? "SUPPLEMENT" : "NORMAL", message: note, faceRequestId: verificationFaceRequestId };
+      const clientRequestId = nextVerificationRequestId(payload);
+      submit.disabled = true;
+      $("verificationCreateMessage").textContent = supplemental ? "正在向数据库提交待审核补录单…" : "正在向数据库提交核销单…";
+      try {
+        const result = await callCustomerEnrollment({ action: "createVerificationApplication", ...payload, clientRequestId });
+        const expectedStatus = supplemental ? "PENDING" : "APPROVED";
+        if (String(result.recordStatus || "") !== expectedStatus) throw new Error("数据库返回的核销单状态与当前业务类型不一致，已停止跳转");
+        if (!result.verificationId || !result.verificationCode) throw new Error("数据库已响应，但没有返回核销单编号，已停止跳转");
+        const record = {
+          id: String(result.verificationId), recordCode: String(result.verificationCode), recordType: "verification",
+          customerId: String(result.customer?.customerCode || selectedCustomer.id), customerName: String(result.customer?.customerName || selectedCustomer.name),
+          name: selectedCustomer.name, birthday: selectedCustomer.birthday, storeId, storeName,
+          projectId: String(result.product?.productId || project.id), projectCode: String(result.product?.productCode || project.code || ""), projectName: String(result.product?.productName || project.name),
+          teacherId: String(result.teacher?.teacherId || teacher.id), teacherCode: String(result.teacher?.teacherCode || teacher.code || ""), teacherName: String(result.teacher?.teacherName || teacher.name),
+          count: Number(result.unitCount || 1), faceVerification: "活体检测与人脸比对通过",
+          verificationType: supplemental ? "补录核销" : "正常核销", status: String(result.recordStatus),
+          deviceSignal: supplemental ? "不发送（补录）" : "设备信号待接入", account: session.account, note,
+          createdAt: result.submittedAt || new Date().toISOString(), databaseBacked: true
+        };
+        saveGeneratedOrder("prototypeVerificationRecords", record);
+        addCommunication("verification", record.id, note);
+        openGeneratedOrder("verification", record);
+      } catch (error) {
+        $("verificationCreateMessage").textContent = error?.message || "核销申请提交失败，请核对数据库与云函数";
+      } finally {
+        submit.disabled = false;
+        syncVerificationSubmit();
+      }
     });
   }
 
