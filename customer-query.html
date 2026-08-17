@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>客户查询</title><link rel="stylesheet" href="styles.css?v=0.14.51"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>客户查询</title><link rel="stylesheet" href="styles.css?v=0.14.53"></head>
 <body data-customer-query>
   <aside class="side-project-bar" aria-label="项目栏">
     <div class="side-brand"><span>HQ</span><div><strong>总部工作台</strong><small>项目栏</small></div></div><p class="side-section-title">数据看板</p>
@@ -12,17 +12,17 @@
   <header class="topbar"><div><p class="eyebrow">CUSTOMER QUERY</p><h1>客户查询</h1><p class="subtitle">选择现有客户，或按姓名和生日查询</p></div><div class="status"><span></span>仅允许存档与恢复为活跃</div></header>
   <main>
     <section class="panel query-filter-panel">
-      <div class="panel-heading"><div><h2>查询条件</h2></div><span class="badge">本门店范围</span></div>
+      <div class="panel-heading"><div><h2>查询条件</h2></div><span id="customerScopeBadge" class="badge">本门店范围</span></div>
       <div class="query-filter-grid customer-query-filters">
         <div class="customer-query-toolbar">
-          <div class="customer-query-store-context" aria-label="当前门店"><span>当前门店</span><strong id="customerStoreName">正在读取门店信息</strong></div>
+          <div class="customer-query-store-context" aria-label="查询门店范围"><span id="customerScopeLabel">当前门店</span><strong id="customerStoreName">正在读取门店信息</strong><select id="customerStoreScope" aria-label="选择查询门店" hidden><option value="ALL">全部门店</option></select></div>
           <div class="customer-query-toolbar-actions"><button id="runCustomerQuery" type="button">查询客户</button><button id="resetCustomerQuery" type="button">重置查询</button></div>
           <span id="customerSummary" class="customer-query-summary"></span>
         </div>
         <p id="customerQueryNotice" class="customer-query-notice" aria-live="polite"></p>
         <div class="customer-query-methods" aria-label="客户查询方式">
           <section id="customerSelectPanel" class="customer-query-method active" data-customer-query-panel="select">
-            <button class="customer-query-method-heading" type="button" data-customer-query-mode="select"><span>方式一</span><strong>筛选本门店全部客户</strong><small>按业务阶段、状态及建档时间筛选</small></button>
+            <button class="customer-query-method-heading" type="button" data-customer-query-mode="select"><span>方式一</span><strong id="customerBrowseTitle">筛选本门店全部客户</strong><small>按业务阶段、状态及建档时间筛选</small></button>
             <div class="customer-query-row customer-query-stage-row">
               <label>业务阶段<select id="customerCategory"><option value="all">全部客户</option><option value="registered">有信息但没有充值</option><option value="charged">已充值但没有消费</option><option value="consumed">已充值并已有消费</option></select></label>
               <label>客户状态<select id="customerArchive"><option value="all">全部</option><option value="active">活跃</option><option value="archived">已存档</option></select></label>
@@ -44,9 +44,9 @@
       </div>
     </section>
     <section id="customerCategoryGrid" class="customer-category-grid four-cards" aria-label="客户业务分类"></section>
-    <section class="panel customer-permission-banner"><strong>门店权限</strong><span>仅允许存档或恢复为活跃。</span></section>
-    <section class="panel table-card"><div class="panel-heading"><div><h2>客户结果</h2></div><span class="badge">客户</span></div><div class="table-scroll"><table class="customer-results-table"><colgroup><col class="customer-col-code"><col class="customer-col-name"><col class="customer-col-birthday"><col class="customer-col-store"><col class="customer-col-stage"><col class="customer-col-count"><col class="customer-col-count"><col class="customer-col-status"><col class="customer-col-action"></colgroup><thead><tr><th>客户编号</th><th>客户姓名</th><th>生日</th><th>门店</th><th>业务阶段</th><th>充值次数</th><th>核销次数</th><th>客户状态</th><th>操作</th></tr></thead><tbody id="customerQueryBody"></tbody></table></div></section>
+    <section class="panel customer-permission-banner"><strong id="customerPermissionTitle">门店权限</strong><span id="customerPermissionText">仅允许存档或恢复为活跃。</span></section>
+    <section class="panel table-card"><div class="panel-heading"><div><h2>客户结果</h2></div><div class="record-query-pager"><button id="customerPreviousPage" type="button">上一页</button><span id="customerPageLabel">第 1 页</span><button id="customerNextPage" type="button">下一页</button></div></div><div class="table-scroll"><table class="customer-results-table"><colgroup><col class="customer-col-code"><col class="customer-col-name"><col class="customer-col-birthday"><col class="customer-col-store"><col class="customer-col-stage"><col class="customer-col-count"><col class="customer-col-count"><col class="customer-col-status"><col class="customer-col-action"></colgroup><thead><tr><th>客户编号</th><th>客户姓名</th><th>生日</th><th>门店</th><th>业务阶段</th><th>充值次数</th><th>核销次数</th><th>客户状态</th><th>操作</th></tr></thead><tbody id="customerQueryBody"></tbody></table></div></section>
   </main>
   <dialog id="customerActionDialog"><div class="dialog-heading"><h2 id="customerActionTitle">客户状态变更</h2><button id="closeCustomerAction" aria-label="关闭">×</button></div><p id="customerActionText"></p><p class="field-lock-note">本操作只改变客户档案状态，不删除或修改任何客户资料、充值、核销、照片、版本或审计记录。</p><div class="dialog-actions"><button id="cancelCustomerAction" type="button">取消</button><button id="confirmCustomerAction" type="button">确认状态变更</button></div></dialog>
-  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="customer-query.js?v=0.15.2"></script><script src="auth-ui.js?v=0.17.3"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.17.0"></script><script src="customer-query.js?v=0.15.3"></script><script src="auth-ui.js?v=0.17.3"></script>
 </body></html>

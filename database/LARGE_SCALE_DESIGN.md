@@ -33,7 +33,7 @@ ORDER BY submitted_at DESC, id DESC
 LIMIT 50;
 ```
 
-`025_large_scale_order_indexes.sql` 已为客户历史、门店历史、老师历史、审核队列、产品统计和余额刷新建立相应索引。
+`025_large_scale_order_indexes.sql` 已为客户历史、门店历史、老师历史、审核队列、产品统计和余额刷新建立相应索引。`033_hq_query_indexes.sql` 为总部“全部门店”客户、充值和核销查询补充全局 `(时间,id)`、状态、项目与核销类型游标索引；总部和门店页面都保持每页最多 100 条。
 
 ## 3. 次数与并发
 
@@ -55,7 +55,8 @@ LIMIT 50;
 ## 5. 上线检查
 
 1. 在业务量还小时执行 `database/migrations/025_large_scale_order_indexes.sql`。
-2. 对主要查询执行 `EXPLAIN (ANALYZE, BUFFERS)`，确认使用 `*_cursor`、`*_approved_balance` 或 `*_pending_review_cursor` 索引。
-3. 压测同一客户并发审批和不同客户并发审批，确认余额不为负且幂等重试只生成一张工单。
-4. 确认 CloudBase Storage 为私有桶，照片字段中没有 `data:`、Base64 或永久公开 URL。
-5. 监控 PostgreSQL 慢查询、连接数、缓存命中率、表膨胀，以及对象存储容量和下载流量。
+2. 启用总部跨门店查询前执行 `database/migrations/033_hq_query_indexes.sql`。
+3. 对主要查询执行 `EXPLAIN (ANALYZE, BUFFERS)`，确认使用 `*_cursor`、`*_approved_balance` 或 `*_pending_review_cursor` 索引。
+4. 压测同一客户并发审批和不同客户并发审批，确认余额不为负且幂等重试只生成一张工单。
+5. 确认 CloudBase Storage 为私有桶，照片字段中没有 `data:`、Base64 或永久公开 URL。
+6. 监控 PostgreSQL 慢查询、连接数、缓存命中率、表膨胀，以及对象存储容量和下载流量。

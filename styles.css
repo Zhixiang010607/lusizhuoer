@@ -246,6 +246,7 @@ body[data-customer-query] .customer-query-toolbar { display: flex; align-items: 
 body[data-customer-query] .customer-query-store-context { display: flex; flex: 0 1 360px; min-width: 240px; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid #d5dfeb; border-radius: 9px; background: #f7faff; }
 body[data-customer-query] .customer-query-store-context span { color: var(--muted); font-size: 12px; }
 body[data-customer-query] .customer-query-store-context strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--navy); }
+body[data-customer-query] .customer-query-store-context select { flex: 1 1 260px; min-width: 200px; height: 32px; margin: 0; color: var(--navy); font-weight: 700; background: #fff; }
 body[data-customer-query] .customer-query-store-context small { color: #526985; white-space: nowrap; }
 body[data-customer-query] .customer-query-toolbar-actions { display: flex; gap: 6px; }
 body[data-customer-query] .customer-query-toolbar-actions button { min-height: 34px; padding: 6px 11px; font-size: 11px; }

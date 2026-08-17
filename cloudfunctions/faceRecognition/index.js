@@ -4,7 +4,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
-const FUNCTION_VERSION = "v34";
+const FUNCTION_VERSION = "v35";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -381,6 +381,55 @@ async function activeCustomerStatusCaller() {
     return { ...store, role: "store" };
   }
   fail("只有总部或客户所属门店可以修改客户状态。", "FORBIDDEN");
+}
+
+// Customer and business-record query pages are shared by headquarters and
+// stores.  The authenticated CloudBase UID is always the source of authority:
+// stores are pinned to their active binding, while HQ may optionally narrow an
+// otherwise global query to one real store.  Operations are deliberately not
+// included in this contract.
+async function activeScopedQueryCaller(event = {}) {
+  const caller = await activeCustomerStatusCaller();
+  const requestedStore = String(event.storeId || "").trim();
+  if (caller.role === "store") {
+    if (requestedStore && requestedStore !== String(caller.storeId)) {
+      fail("门店账号不能查询其他门店或全部门店。", "FORBIDDEN");
+    }
+    return { ...caller, storeId: String(caller.storeId), scopeMode: "STORE" };
+  }
+
+  if (!requestedStore || requestedStore.toUpperCase() === "ALL") {
+    return {
+      ...caller,
+      storeId: null,
+      storeCode: "",
+      storeName: "全部门店",
+      storeStatus: "",
+      scopeMode: "ALL"
+    };
+  }
+
+  const storeId = businessQueryDatabaseId(requestedStore, "门店");
+  const stores = await executeSql(
+    `SELECT id, store_code, store_name, store_status
+       FROM public.stores
+      WHERE id = ${storeId}::bigint
+      LIMIT 1`
+  );
+  const store = stores[0];
+  if (!store) fail("所选门店不存在，请刷新门店列表后重试。", "STORE_NOT_FOUND");
+  return {
+    ...caller,
+    storeId: String(store.id),
+    storeCode: String(store.store_code || ""),
+    storeName: String(store.store_name || ""),
+    storeStatus: String(store.store_status || ""),
+    scopeMode: "STORE"
+  };
+}
+
+function scopedStoreClause(caller, column) {
+  return caller.storeId ? `${column} = ${caller.storeId}::bigint` : "TRUE";
 }
 
 async function activeCustomerProfileCaller() {
@@ -819,10 +868,23 @@ async function listActiveStoreCustomers() {
   };
 }
 
-// This is deliberately a server-scoped query: the browser supplies filters
-// only.  The store id always comes from the authenticated CloudBase UID.
+function scopedQueryCursorTimestamp(value, label) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const match = text.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?Z$/);
+  if (text.length > 100 || !match) fail(`${label}格式无效。`, "BAD_REQUEST");
+  optionalBusinessQueryDate(match[1], label);
+  if (Number(match[2]) > 23 || Number(match[3]) > 59 || Number(match[4]) > 59) {
+    fail(`${label}格式无效。`, "BAD_REQUEST");
+  }
+  return text;
+}
+
+// The browser supplies filters only. Headquarters may choose all stores or
+// one verified store; a store account is always pinned to its own active
+// binding by activeScopedQueryCaller.
 async function queryStoreCustomers(event = {}) {
-  const caller = await activeStoreCaller();
+  const caller = await activeScopedQueryCaller(event);
   const mode = String(event.mode || "browse").trim().toLowerCase();
   if (!["browse", "manual"].includes(mode)) fail("客户查询方式无效。", "BAD_REQUEST");
   const process = String(event.processStatus || "all").trim().toUpperCase();
@@ -831,45 +893,97 @@ async function queryStoreCustomers(event = {}) {
   if (!allowedProcesses.has(process)) fail("业务阶段筛选无效。", "BAD_REQUEST");
   if (!["ALL", "ACTIVE", "ARCHIVED"].includes(status)) fail("客户状态筛选无效。", "BAD_REQUEST");
   const name = String(event.name || "").trim();
-  const birthDate = String(event.birthDate || "").trim();
-  const startDate = String(event.startDate || "").trim();
-  const endDate = String(event.endDate || "").trim();
+  const birthDate = optionalBusinessQueryDate(event.birthDate, "生日");
+  const startDate = optionalBusinessQueryDate(event.startDate, "开始日期");
+  const endDate = optionalBusinessQueryDate(event.endDate, "结束日期");
   if (name.length > 100) fail("客户姓名查询不能超过 100 个字符。", "BAD_REQUEST");
-  for (const [label, value] of [["生日", birthDate], ["开始日期", startDate], ["结束日期", endDate]]) {
-    if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) fail(`${label}格式无效。`, "BAD_REQUEST");
-  }
   if (startDate && endDate && startDate > endDate) fail("开始日期不能晚于结束日期。", "BAD_REQUEST");
-  const clauses = [`c.created_store_id = ${caller.storeId}`];
+
+  const requestedLimit = Number(event.limit);
+  const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 100, 1), 100);
+  const cursorCreatedAt = scopedQueryCursorTimestamp(event.cursorCreatedAt, "分页时间游标");
+  const cursorIdText = String(event.cursorId || "").trim();
+  if (Boolean(cursorCreatedAt) !== Boolean(cursorIdText)) fail("分页游标不完整。", "BAD_REQUEST");
+  const cursorId = cursorIdText ? businessQueryDatabaseId(cursorIdText, "分页客户") : "";
+
+  const baseClauses = [scopedStoreClause(caller, "c.created_store_id")];
   if (mode === "manual") {
-    if (name) clauses.push(`c.customer_name ILIKE '%' || ${sqlText(name)} || '%'`);
-    if (birthDate) clauses.push(`c.birth_date = ${sqlText(birthDate)}::date`);
+    if (name) baseClauses.push(`c.customer_name ILIKE '%' || ${sqlText(name)} || '%'`);
+    if (birthDate) baseClauses.push(`c.birth_date = ${sqlText(birthDate)}::date`);
   } else {
-    if (process !== "ALL") clauses.push(`c.customer_process_status = ${sqlText(process)}`);
-    if (status !== "ALL") clauses.push(`c.customer_status = ${sqlText(status)}`);
-    if (startDate) clauses.push(`c.created_at >= ${sqlText(startDate)}::date`);
-    if (endDate) clauses.push(`c.created_at < (${sqlText(endDate)}::date + INTERVAL '1 day')`);
+    if (status !== "ALL") baseClauses.push(`c.customer_status = ${sqlText(status)}`);
+    if (startDate) baseClauses.push(`c.created_at >= (${sqlText(startDate)}::date::timestamp AT TIME ZONE 'Asia/Shanghai')`);
+    if (endDate) baseClauses.push(`c.created_at < ((${sqlText(endDate)}::date + 1)::timestamp AT TIME ZONE 'Asia/Shanghai')`);
   }
-  const rows = await executeSql(
-    `SELECT c.customer_code, c.customer_name, c.birth_date, c.customer_status,
+
+  const listClauses = [...baseClauses];
+  if (mode === "browse" && process !== "ALL") {
+    listClauses.push(`c.customer_process_status = ${sqlText(process)}`);
+  }
+  if (cursorCreatedAt) {
+    listClauses.push(`(c.created_at, c.id) < (${sqlText(cursorCreatedAt)}::timestamptz, ${cursorId}::bigint)`);
+  }
+
+  const selectedProcessClause = mode === "browse" && process !== "ALL"
+    ? `c.customer_process_status = ${sqlText(process)}`
+    : "TRUE";
+  const summarySql = `SELECT COUNT(*) AS total,
+                             COUNT(*) FILTER (WHERE c.customer_status = 'ACTIVE' AND ${selectedProcessClause}) AS active,
+                             COUNT(*) FILTER (WHERE c.customer_status = 'ARCHIVED' AND ${selectedProcessClause}) AS archived,
+                             COUNT(*) FILTER (WHERE c.customer_process_status = 'INFORMATION_ONLY') AS information_only,
+                             COUNT(*) FILTER (WHERE c.customer_process_status = 'RECHARGED_NO_CONSUMPTION') AS recharged_no_consumption,
+                             COUNT(*) FILTER (WHERE c.customer_process_status = 'RECHARGED_WITH_CONSUMPTION') AS recharged_with_consumption
+                        FROM public.customers c
+                       WHERE ${baseClauses.join(" AND ")}`;
+  const listSql = `SELECT c.id, c.customer_code, c.customer_name, c.birth_date, c.customer_status,
             c.customer_process_status, c.total_recharge_count, c.total_verification_count,
-            c.created_at, s.store_name, s.store_code
+            c.created_at, c.created_store_id AS store_id, s.store_name, s.store_code,
+            TO_CHAR(c.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_created_at
        FROM public.customers c
        JOIN public.stores s ON s.id = c.created_store_id
-      WHERE ${clauses.join(" AND ")}
+      WHERE ${listClauses.join(" AND ")}
       ORDER BY c.created_at DESC, c.id DESC
-      LIMIT 1000`
-  );
+      LIMIT ${limit + 1}`;
+  const [rawCustomers, summaryRows] = await Promise.all([executeSql(listSql), executeSql(summarySql)]);
+  const hasMore = rawCustomers.length > limit;
+  const pageRows = rawCustomers.slice(0, limit);
+  const last = pageRows[pageRows.length - 1];
+  const summary = summaryRows[0] || {};
+  const processCounts = {
+    INFORMATION_ONLY: Number(summary.information_only || 0),
+    RECHARGED_NO_CONSUMPTION: Number(summary.recharged_no_consumption || 0),
+    RECHARGED_WITH_CONSUMPTION: Number(summary.recharged_with_consumption || 0)
+  };
+  const selectedTotal = mode === "browse" && process !== "ALL"
+    ? processCounts[process]
+    : Number(summary.total || 0);
   return {
     ok: true,
-    storeId: String(caller.storeId), storeCode: caller.storeCode, storeName: caller.storeName,
-    customers: rows.map((customer) => ({
+    scopeMode: caller.scopeMode,
+    storeId: caller.storeId ? String(caller.storeId) : "",
+    storeCode: caller.storeCode,
+    storeName: caller.storeName,
+    storeStatus: caller.storeStatus || "",
+    summary: {
+      total: Number(summary.total || 0),
+      selectedTotal,
+      active: Number(summary.active || 0),
+      archived: Number(summary.archived || 0),
+      informationOnly: processCounts.INFORMATION_ONLY,
+      rechargedNoConsumption: processCounts.RECHARGED_NO_CONSUMPTION,
+      rechargedWithConsumption: processCounts.RECHARGED_WITH_CONSUMPTION
+    },
+    customers: pageRows.map((customer) => ({
       customerCode: customer.customer_code, customerName: customer.customer_name,
       birthDate: customer.birth_date, customerStatus: customer.customer_status,
       customerProcessStatus: customer.customer_process_status,
       totalRechargeCount: Number(customer.total_recharge_count || 0),
       totalVerificationCount: Number(customer.total_verification_count || 0),
-      createdAt: customer.created_at, storeName: customer.store_name, storeCode: customer.store_code
-    }))
+      createdAt: customer.created_at, storeId: String(customer.store_id),
+      storeName: customer.store_name, storeCode: customer.store_code
+    })),
+    hasMore,
+    nextCursor: hasMore && last ? { createdAt: last.cursor_created_at, id: String(last.id) } : null
   };
 }
 
@@ -890,11 +1004,11 @@ function businessQueryDatabaseId(value, label) {
   return id;
 }
 
-// Store business-record search is intentionally separate from the HQ review
-// queue. The browser supplies filters only; the authenticated CloudBase UID
-// is always resolved to the one store that may be read.
+// Business-record search is intentionally separate from the HQ review queue.
+// The authenticated UID establishes either one store scope or HQ's verified
+// all/single-store scope; browser filters never grant access by themselves.
 async function queryStoreBusinessRecords(event = {}) {
-  const caller = await activeStoreCaller();
+  const caller = await activeScopedQueryCaller(event);
   const recordType = String(event.recordType || "").trim().toUpperCase();
   if (!["RECHARGE", "VERIFICATION"].includes(recordType)) fail("工单类型无效。", "BAD_REQUEST");
 
@@ -921,23 +1035,15 @@ async function queryStoreBusinessRecords(event = {}) {
     ? businessQueryDatabaseId(productIdText, "项目")
     : "";
   const requestedLimit = Number(event.limit);
-  const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 100, 1), 200);
-  const cursorSubmittedAt = String(event.cursorSubmittedAt || "").trim();
+  const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 100, 1), 100);
+  const cursorSubmittedAt = scopedQueryCursorTimestamp(event.cursorSubmittedAt, "分页时间游标");
   const cursorIdText = String(event.cursorId || "").trim();
   if (Boolean(cursorSubmittedAt) !== Boolean(cursorIdText)) fail("分页游标不完整。", "BAD_REQUEST");
-  if (cursorSubmittedAt) {
-    const cursorMatch = cursorSubmittedAt.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?: ?(?:Z|[+-]\d{2}:?\d{2})(?: [A-Z]{2,5})?)?$/);
-    if (cursorSubmittedAt.length > 100 || !cursorMatch) fail("分页时间游标格式无效。", "BAD_REQUEST");
-    optionalBusinessQueryDate(cursorMatch[1], "分页日期");
-    if (Number(cursorMatch[2]) > 23 || Number(cursorMatch[3]) > 59 || Number(cursorMatch[4]) > 59) {
-      fail("分页时间游标格式无效。", "BAD_REQUEST");
-    }
-  }
   const cursorId = cursorIdText ? businessQueryDatabaseId(cursorIdText, "分页工单") : "";
 
   const alias = recordType === "RECHARGE" ? "r" : "v";
   const table = recordType === "RECHARGE" ? "recharge_records" : "verification_records";
-  const baseClauses = [`${alias}.store_id = ${caller.storeId}`];
+  const baseClauses = [scopedStoreClause(caller, `${alias}.store_id`)];
   if (mode === "manual") {
     if (customerName) baseClauses.push(`c.customer_name ILIKE '%' || ${sqlText(customerName)} || '%'`);
     if (birthDate) baseClauses.push(`c.birth_date = ${sqlText(birthDate)}::date`);
@@ -946,8 +1052,8 @@ async function queryStoreBusinessRecords(event = {}) {
     if (recordType === "VERIFICATION" && verificationType !== "ALL") {
       baseClauses.push(`v.verification_type = ${sqlText(verificationType)}`);
     }
-    if (startDate) baseClauses.push(`${alias}.submitted_at >= ${sqlText(startDate)}::date`);
-    if (endDate) baseClauses.push(`${alias}.submitted_at < (${sqlText(endDate)}::date + INTERVAL '1 day')`);
+    if (startDate) baseClauses.push(`${alias}.submitted_at >= (${sqlText(startDate)}::date::timestamp AT TIME ZONE 'Asia/Shanghai')`);
+    if (endDate) baseClauses.push(`${alias}.submitted_at < ((${sqlText(endDate)}::date + 1)::timestamp AT TIME ZONE 'Asia/Shanghai')`);
   }
 
   const listClauses = [...baseClauses];
@@ -968,7 +1074,9 @@ async function queryStoreBusinessRecords(event = {}) {
        TO_CHAR(v.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_submitted_at,
        (NULLIF(BTRIM(v.face_request_id), '') IS NOT NULL) AS has_face_request`;
   const teacherJoin = `LEFT JOIN public.teachers t ON t.id = ${alias}.teacher_id`;
-  const baseJoin = `JOIN public.customers c ON c.id = ${alias}.customer_id
+  const baseJoin = `JOIN public.customers c
+                      ON c.id = ${alias}.customer_id
+                     AND c.created_store_id = ${alias}.store_id
                     JOIN public.stores s ON s.id = ${alias}.store_id
                     JOIN public.products p ON p.id = ${alias}.product_id
                     ${teacherJoin}`;
@@ -993,7 +1101,7 @@ async function queryStoreBusinessRecords(event = {}) {
   const productsSql = `SELECT DISTINCT p.id AS product_id, p.product_code, p.product_name
                           FROM public.${table} ${alias}
                           JOIN public.products p ON p.id = ${alias}.product_id
-                         WHERE ${alias}.store_id = ${caller.storeId}
+                         WHERE ${scopedStoreClause(caller, `${alias}.store_id`)}
                          ORDER BY p.product_name, p.product_code`;
 
   const [rawRecords, summaryRows, productRows] = await Promise.all([
@@ -1007,9 +1115,11 @@ async function queryStoreBusinessRecords(event = {}) {
   const summary = summaryRows[0] || {};
   return {
     ok: true,
-    storeId: String(caller.storeId),
+    scopeMode: caller.scopeMode,
+    storeId: caller.storeId ? String(caller.storeId) : "",
     storeCode: caller.storeCode,
     storeName: caller.storeName,
+    storeStatus: caller.storeStatus || "",
     recordType,
     summary: {
       total: Number(summary.total || 0),

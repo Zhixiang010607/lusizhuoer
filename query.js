@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.1";
+  const VERSION = "0.15.2";
   const type = document.body.dataset.query;
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
@@ -18,13 +18,16 @@
   try { loginSession = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { loginSession = null; }
 
   document.documentElement.dataset.prototypeVersion = VERSION;
-  if (loginSession?.role === "store") initializeStoreRecordQuery();
+  if (["store", "hq"].includes(loginSession?.role)) initializeScopedRecordQuery();
   else initializeLegacyRecordQuery();
 
-  function initializeStoreRecordQuery() {
+  function initializeScopedRecordQuery() {
+    const isHq = loginSession?.role === "hq";
     document.body.classList.add("store-record-query");
     document.body.setAttribute("data-customer-query", "");
-    document.querySelector(".topbar .subtitle").textContent = `筛选本门店全部${type === "verification" ? "核销" : "充值"}记录，或按姓名和生日查询`;
+    document.querySelector(".topbar .subtitle").textContent = isHq
+      ? `筛选全部门店或指定门店的${type === "verification" ? "核销" : "充值"}记录，或按姓名和生日查询`
+      : `筛选本门店全部${type === "verification" ? "核销" : "充值"}记录，或按姓名和生日查询`;
     document.querySelector(".topbar .status").innerHTML = "<span></span>数据库记录";
     $("legacyRecordQueryMain").hidden = true;
     $("storeRecordQueryMain").hidden = false;
@@ -40,6 +43,16 @@
     let nextCursor = null;
     let hasMore = false;
     let requestSequence = 0;
+
+    if (isHq) {
+      $("recordScopeBadge").textContent = "总部可选范围";
+      $("recordScopeLabel").textContent = "门店范围";
+      $("recordStoreName").hidden = true;
+      $("recordStoreScope").hidden = false;
+      $("recordBrowseTitle").textContent = `筛选全部门店或指定门店的${noun}记录`;
+      $("recordPermissionTitle").textContent = "总部范围";
+      $("recordPermissionText").textContent = `可读取全部门店或指定门店的数据库${noun}单；封存门店与封存客户的历史记录仍会保留。`;
+    }
 
     const resultData = (response) => {
       for (const candidate of [response?.result, response?.data?.result, response?.data, response]) {
@@ -76,6 +89,29 @@
     function notice(message = "", error = false) {
       $("recordQueryNotice").textContent = message;
       $("recordQueryNotice").classList.toggle("error", error);
+    }
+    function scopeLabel() {
+      if (!isHq) return "本门店";
+      const selected = $("recordStoreScope").selectedOptions[0];
+      return $("recordStoreScope").value === "ALL" ? "全部门店" : (selected?.textContent || "所选门店");
+    }
+    async function loadStoreOptions() {
+      if (!isHq) return;
+      if (typeof window.CloudBasePhoneAuth?.listStores !== "function") {
+        throw new Error("门店列表组件未加载，请刷新页面后重试。");
+      }
+      const stores = await window.CloudBasePhoneAuth.listStores();
+      const options = (Array.isArray(stores) ? stores : []).map((store) => {
+        const id = String(store.id ?? store.store_id ?? "");
+        if (!/^\d+$/.test(id)) return "";
+        const name = String(store.store_name || store.storeName || "未命名门店");
+        const code = String(store.store_code || store.storeCode || "");
+        const archived = String(store.store_status || store.storeStatus || "").toUpperCase() === "ARCHIVED";
+        const label = [name, code].filter(Boolean).join(" · ") + (archived ? "（已封存）" : "");
+        return `<option value="${escapeHtml(id)}">${escapeHtml(label)}</option>`;
+      }).join("");
+      $("recordStoreScope").innerHTML = `<option value="ALL">全部门店</option>${options}`;
+      $("recordStoreScope").value = "ALL";
     }
     function localDateText(date) {
       return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -124,6 +160,7 @@
         mode,
         limit: 100
       };
+      if (isHq && $("recordStoreScope").value !== "ALL") data.storeId = $("recordStoreScope").value;
       if (mode === "manual") {
         data.customerName = $("recordCustomerName").value.trim();
         data.birthDate = $("recordCustomerBirthday").value;
@@ -175,6 +212,11 @@
       const [label, className] = states[String(code || "").toUpperCase()] || ["未记录", ""];
       return `<span class="record-status ${className}">${label}</span>`;
     }
+    function selectedRecordTotal() {
+      return mode === "browse"
+        ? ({ ALL: summary.total, PENDING: summary.pending, APPROVED: summary.approved, CLOSED: summary.closed }[$("recordStatusCategory").value] ?? summary.total)
+        : summary.total;
+    }
     function renderRows() {
       const detailPage = recordType === "RECHARGE" ? "recharge-detail.html" : "verification-detail.html";
       $("recordQueryBody").innerHTML = rows.map((record) => {
@@ -194,9 +236,7 @@
         return `${commonStart}<td>${escapeHtml(teacher)}</td><td>${verificationTypeTag(record.originalType)}</td><td>${escapeHtml(formatDateTime(record.submittedAt))}</td><td>${face}</td><td>${statusTag(record.recordStatus)}</td><td>${voidStatusTag(record.voidRequestStatus)}</td></tr>`;
       }).join("") || `<tr><td colspan="${columnCount}" class="query-empty">没有符合条件的${noun}记录</td></tr>`;
 
-      const selectedCount = mode === "browse"
-        ? ({ ALL: summary.total, PENDING: summary.pending, APPROVED: summary.approved, CLOSED: summary.closed }[$("recordStatusCategory").value] ?? summary.total)
-        : summary.total;
+      const selectedCount = selectedRecordTotal();
       const customerCount = new Set(rows.map((record) => record.customerCode)).size;
       $("recordSummary").textContent = `当前条件 ${selectedCount} 条；本页 ${rows.length} 条，涉及 ${customerCount} 位客户`;
       $("recordPageLabel").textContent = `第 ${pageIndex + 1} / ${Math.max(1, Math.ceil(selectedCount / 100))} 页`;
@@ -227,27 +267,33 @@
         pageIndex = 0;
       }
       const sequence = ++requestSequence;
-      notice(`正在从数据库读取本门店${noun}记录…`);
-      $("recordQueryBody").innerHTML = `<tr><td colspan="${columnCount}" class="query-empty">正在从数据库读取本门店${noun}记录…</td></tr>`;
+      const currentScope = scopeLabel();
+      notice(`正在从数据库读取${currentScope}${noun}记录…`);
+      $("recordQueryBody").innerHTML = `<tr><td colspan="${columnCount}" class="query-empty">正在从数据库读取${escapeHtml(currentScope)}${noun}记录…</td></tr>`;
       $("runRecordQuery").disabled = true;
       $("recordPreviousPage").disabled = true;
       $("recordNextPage").disabled = true;
       try {
         const data = await call(queryPayload());
-        if (sequence !== requestSequence) return;
+        if (sequence !== requestSequence) return false;
         rows = Array.isArray(data.records) ? data.records : [];
-        summary = { ...summary, ...(data.summary || {}) };
+        summary = { total: 0, pending: 0, approved: 0, closed: 0, voidPending: 0, ...(data.summary || {}) };
         hasMore = data.hasMore === true;
         nextCursor = data.nextCursor || null;
         fillProducts(data.products);
-        $("recordStoreName").textContent = [data.storeName || "当前门店", data.storeCode || ""].filter(Boolean).join(" · ");
+        if (!isHq) $("recordStoreName").textContent = [data.storeName || "当前门店", data.storeCode || ""].filter(Boolean).join(" · ");
         renderCategories();
         renderRows();
-        const voidNotice = Number(summary.voidPending || 0) > 0 ? `，其中 ${Number(summary.voidPending)} 条正在等待作废审核` : "";
-        notice(`数据库查询完成，共 ${Number(summary.total || 0)} 条${noun}记录${voidNotice}。`);
+        const canIncludeVoidSummary = mode !== "browse" || ["ALL", "APPROVED"].includes($("recordStatusCategory").value);
+        const voidNotice = canIncludeVoidSummary && Number(summary.voidPending || 0) > 0
+          ? `，其中 ${Number(summary.voidPending)} 条正在等待作废审核`
+          : "";
+        notice(`${currentScope}数据库查询完成，共 ${Number(selectedRecordTotal() || 0)} 条${noun}记录${voidNotice}。`);
+        return true;
       } catch (error) {
-        if (sequence !== requestSequence) return;
+        if (sequence !== requestSequence) return false;
         rows = [];
+        summary = { total: 0, pending: 0, approved: 0, closed: 0, voidPending: 0 };
         hasMore = false;
         nextCursor = null;
         $("recordSummary").textContent = "数据库读取失败";
@@ -256,6 +302,7 @@
         $("recordPreviousPage").disabled = pageIndex === 0;
         $("recordNextPage").disabled = true;
         notice(error.message || "数据库读取失败", true);
+        return false;
       } finally {
         if (sequence === requestSequence) $("runRecordQuery").disabled = false;
       }
@@ -281,7 +328,14 @@
     $("recordCustomerName").oninput = () => setMode("manual");
     $("recordCustomerBirthday").onchange = () => { setMode("manual"); load({ resetPage: true }); };
     $("runRecordQuery").onclick = () => load({ resetPage: true });
+    if (isHq) {
+      $("recordStoreScope").onchange = () => {
+        $("recordProduct").value = "ALL";
+        load({ resetPage: true });
+      };
+    }
     $("resetRecordQuery").onclick = () => {
+      if (isHq) $("recordStoreScope").value = "ALL";
       $("recordProduct").value = "ALL";
       $("recordStatusCategory").value = "ALL";
       if (recordType === "VERIFICATION") $("recordVerificationType").value = "ALL";
@@ -305,12 +359,20 @@
       load({ resetPage: false });
     };
     setMode("browse");
-    load({ resetPage: true });
+    if (isHq) {
+      loadStoreOptions()
+        .then(() => load({ resetPage: true }))
+        .catch(async (error) => {
+          const loaded = await load({ resetPage: true });
+          if (loaded) notice(`已显示全部门店${noun}记录；${error.message || "门店列表读取失败"}`, true);
+        });
+    } else {
+      load({ resetPage: true });
+    }
   }
 
-  // HQ and operation still share these URLs. Preserve their existing static
-  // shell until a separately scoped cross-store query contract is designed;
-  // the new store database action must never be called under those roles.
+  // Operation keeps its existing shell. The database query contract above is
+  // deliberately limited to HQ and store identities on both client and server.
   function initializeLegacyRecordQuery() {
     $("storeRecordQueryMain").hidden = true;
     $("legacyRecordQueryMain").hidden = false;
