@@ -1,6 +1,6 @@
 # staffAccount 云函数
 
-当前版本：`v38`
+当前版本：`v39`
 
 用于总部自动创建运营、门店和老师账号；前端只传姓名、手机号、角色和初始密码，云函数使用当前登录总部账号进行授权。
 
@@ -26,7 +26,9 @@
 审核工单，不能借详情或写接口读取、审核普通与体验等非审核核销记录。
 `session.profile` 同时返回运营个人信息所需的 `phone` 和 `accountStatus`。
 `getHqDashboard` 仅允许总部账号调用，为总部全局首页返回真实数据库汇总：
-`{ ok, version, range, totals, rows, teacherRows }`。不传 `startDate` 和
+`{ ok, version, range, totals, stores, rows, teacherRows }`。`stores` 始终从
+门店主表返回全部门店；所选日期内没有有效业务的门店仍返回，并将充值、核销显示为 0。
+不传 `startDate` 和
 `endDate` 时，服务端按 `Asia/Shanghai` 当前日期返回包含当天的近 30 个自然日；
 自定义日期必须以 `YYYY-MM-DD` 同时传入，开始日期不得晚于结束日期，范围最多
 366 日。统计只包含当前仍为 `APPROVED` 的工单，充值按 `unit_count` 汇总并兼容
@@ -35,7 +37,7 @@
 总部首页部署前还需单独执行迁移
 `035_hq_dashboard_approved_covering_indexes.sql`，为两张工单表的已通过日期范围聚合提供覆盖索引。
 
-部署 `v38` 前必须确认已依次执行迁移 `026` 至 `029`，
+部署 `v39` 前必须确认已依次执行迁移 `026` 至 `029`，
 然后执行 `database/migrations/032_restrict_order_void_eligibility.sql`，并继续完成
 `033`、`034` 和 `035`。
-部署后调用 `{ "action": "health" }`，返回版本必须为 `v38`。
+部署后调用 `{ "action": "health" }`，返回版本必须为 `v39`。

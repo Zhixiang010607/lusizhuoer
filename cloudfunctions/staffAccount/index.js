@@ -9,7 +9,7 @@ const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 const OPERATION_ACTIONS = new Set(["listReviewOrders", "reviewOrder"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v38";
+const FUNCTION_VERSION = "v39";
 let app = null;
 let auth = null;
 let managerClient = null;
@@ -1324,6 +1324,15 @@ async function getHqDashboard(event) {
            FULL OUTER JOIN verification_by_store_product v
              ON v.store_id = r.store_id
             AND v.product_id = r.product_id
+       ), all_store_rows AS (
+         SELECT s.id AS store_id,
+                s.store_code::text AS store_code,
+                s.store_name::text AS store_name,
+                COALESCE(SUM(sp.recharge_count), 0)::bigint AS recharge_count,
+                COALESCE(SUM(sp.verification_count), 0)::bigint AS verification_count
+           FROM public.stores s
+      LEFT JOIN store_product_rows sp ON sp.store_id = s.id
+          GROUP BY s.id, s.store_code, s.store_name
        ), totals AS (
          SELECT COALESCE((SELECT SUM(recharge_count) FROM recharge_by_store_product), 0)::bigint AS recharge_count,
                 COALESCE((SELECT SUM(verification_count) FROM verification_by_store_product), 0)::bigint AS verification_count
@@ -1345,6 +1354,24 @@ async function getHqDashboard(event) {
                 t.verification_count
            FROM bounds b
           CROSS JOIN totals t
+         UNION ALL
+         SELECT 'STORE'::text,
+                TO_CHAR(b.start_date, 'YYYY-MM-DD'),
+                TO_CHAR(b.end_date, 'YYYY-MM-DD'),
+                (b.end_date - b.start_date + 1)::integer,
+                store_row.store_id,
+                store_row.store_code,
+                store_row.store_name,
+                NULL::bigint,
+                NULL::text,
+                NULL::text,
+                NULL::bigint,
+                NULL::text,
+                NULL::text,
+                store_row.recharge_count,
+                store_row.verification_count
+           FROM all_store_rows store_row
+          CROSS JOIN bounds b
          UNION ALL
          SELECT 'ROW'::text,
                 TO_CHAR(b.start_date, 'YYYY-MM-DD'),
@@ -1389,7 +1416,7 @@ async function getHqDashboard(event) {
        )
        SELECT *
          FROM result_rows
-        ORDER BY CASE row_type WHEN 'TOTAL' THEN 0 WHEN 'ROW' THEN 1 ELSE 2 END,
+        ORDER BY CASE row_type WHEN 'TOTAL' THEN 0 WHEN 'STORE' THEN 1 WHEN 'ROW' THEN 2 ELSE 3 END,
                  store_name NULLS LAST, store_id NULLS LAST,
                  product_name NULLS LAST, product_id NULLS LAST,
                  teacher_name NULLS LAST, teacher_id NULLS LAST`
@@ -1401,6 +1428,13 @@ async function getHqDashboard(event) {
   const totalRow = dashboardRows?.find((row) => row.row_type === "TOTAL");
   if (!totalRow) fail("总部首页统计未返回日期范围", "DATABASE_ERROR");
 
+  const stores = (dashboardRows || []).filter((row) => row.row_type === "STORE").map((row) => ({
+    storeId: String(row.store_id),
+    storeCode: String(row.store_code || ""),
+    storeName: String(row.store_name || ""),
+    recharge: Number(row.recharge_count || 0),
+    verification: Number(row.verification_count || 0)
+  }));
   const rows = (dashboardRows || []).filter((row) => row.row_type === "ROW").map((row) => ({
     storeId: String(row.store_id),
     storeCode: String(row.store_code || ""),
@@ -1437,9 +1471,10 @@ async function getHqDashboard(event) {
     totals: {
       recharge: Number(totalRow.recharge_count || 0),
       verification: Number(totalRow.verification_count || 0),
-      stores: new Set(rows.map((row) => row.storeId).filter(Boolean)).size,
+      stores: stores.length,
       teachers: new Set(teacherRows.map((row) => row.teacherId).filter(Boolean)).size
     },
+    stores,
     rows,
     teacherRows
   };

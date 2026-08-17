@@ -2,7 +2,7 @@
   "use strict";
 
   // 文档同步约束：每次业务或界面变更都必须同步更新 main.tex 与 README.md。
-  const PROTOTYPE_VERSION = "0.15.1";
+  const PROTOTYPE_VERSION = "0.15.2";
   const BUSINESS_TIME_ZONE = "Asia/Shanghai";
   const EMPTY_DATA = Object.freeze({
     stores: [],
@@ -117,15 +117,16 @@
   function normalizeDashboard(payload, requestedRange) {
     const source = payload?.dashboard && typeof payload.dashboard === "object" ? payload.dashboard : payload;
     if (!source || typeof source !== "object") throw new Error("数据库返回的数据格式不正确");
+    const stores = normalizeRows(source.stores);
     const rows = normalizeRows(source.rows);
     const teacherRows = normalizeRows(source.teacherRows || source.teacher_rows, true);
     const totals = source.totals || {};
     const derivedRecharge = rows.reduce((sum, row) => sum + row.recharge, 0);
     const derivedVerification = rows.reduce((sum, row) => sum + row.verification, 0);
-    const derivedStores = new Set(rows.map((row) => row.storeId).filter(Boolean)).size;
+    const derivedStores = stores.length || new Set(rows.map((row) => row.storeId).filter(Boolean)).size;
     const derivedTeachers = new Set(teacherRows.map((row) => row.teacherId).filter(Boolean)).size;
     return {
-      stores: Array.isArray(source.stores) ? source.stores : [],
+      stores,
       teachers: Array.isArray(source.teachers) ? source.teachers : [],
       projects: Array.isArray(source.projects) ? source.projects : [],
       rows,
@@ -384,7 +385,9 @@
     $("analysisGrid").innerHTML = dimensions.map((dimension) => {
       const isTeacher = dimension === "teacher";
       const teacherContext = isTeacher || selected.includes("teacher");
-      const source = teacherContext ? teacherRows : rows;
+      const source = dimension === "store" && !selected.length && state.data.stores.length
+        ? state.data.stores
+        : teacherContext ? teacherRows : rows;
       return `<article class="panel chart-card"><div class="panel-heading"><div><h2>${scopeName} · 按${dimensionLabels[dimension]}统计</h2><p>${teacherContext ? "有效核销次数" : "有效充值与有效核销次数"} · 图内横向滚动</p></div><span class="badge">${dimensionLabels[dimension]}</span></div>${barChartMarkup(source, dimension, teacherContext)}</article>`;
     }).join("");
   }
@@ -398,8 +401,12 @@
 
   function renderRanking(rows, teacherRows) {
     const dimension = rankingDimension();
-    const teacherContext = dimension === "teacher" || selectedDimensions().includes("teacher");
-    const items = aggregate(teacherContext ? teacherRows : rows, dimension);
+    const selected = selectedDimensions();
+    const teacherContext = dimension === "teacher" || selected.includes("teacher");
+    const source = dimension === "store" && !selected.length && state.data.stores.length
+      ? state.data.stores
+      : teacherContext ? teacherRows : rows;
+    const items = aggregate(source, dimension);
     const total = items.reduce((s, x) => s + x.verification, 0) || 1;
     $("rankingBody").innerHTML = items.map((x, i) => {
       const safeName = escapeHtml(x.name);
