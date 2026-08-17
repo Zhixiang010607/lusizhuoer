@@ -1,9 +1,9 @@
 (() => {
   "use strict";
-  const VERSION = "0.15.5";
+  const VERSION = "0.15.6";
   const pageType = document.body.dataset.review;
   const recordType = pageType === "recharge" ? "RECHARGE" : "VERIFICATION";
-  const columnCount = pageType === "recharge" ? 11 : 12;
+  const columnCount = pageType === "recharge" ? 10 : 11;
   const $ = (id) => document.getElementById(id);
   const statusText = { PENDING: "待审核", APPROVED: "已通过", REJECTED: "已驳回" };
   let rows = [], pendingAction = null, loadingSequence = 0, session = null, queryMode = "filters";
@@ -115,7 +115,7 @@
         ? `<a class="record-link" href="${detailPage}?recordId=${encodeURIComponent(item.id)}&recordCode=${encodeURIComponent(item.recordCode)}&source=review" title="查看${pageType === "recharge" ? "充值" : "核销"}工单 ${escapeHtml(item.recordCode)}">${escapeHtml(item.recordCode)}</a>`
         : escapeHtml(item.recordCode);
       const duplicateRecordCell = pageType === "recharge" ? "" : `<td>${escapeHtml(item.recordCode)}</td>`;
-      return `<tr><td>${orderCode}</td><td>${escapeHtml(item.kind)}</td>${duplicateRecordCell}<td>${escapeHtml(item.store.name)}${item.store.code ? `（${escapeHtml(item.store.code)}）` : ""}</td><td>${escapeHtml(item.customerName)}（${escapeHtml(item.customerId)}）</td><td>${escapeHtml(item.project)}${item.projectId ? `（${escapeHtml(item.projectId)}）` : ""}</td><td>${escapeHtml(teacher)}</td><td>${escapeHtml(impactText(item))}</td><td>${escapeHtml(formatTime(item.time))}</td><td>${escapeHtml(statusText[item.status] || item.status)}</td><td>${actions}</td><td>${escapeHtml(item.status === "PENDING" ? "待审核" : formatTime(item.reviewedAt))}</td></tr>`;
+      return `<tr><td>${orderCode}</td><td>${escapeHtml(item.kind)}</td>${duplicateRecordCell}<td>${escapeHtml(item.store.name)}${item.store.code ? `（${escapeHtml(item.store.code)}）` : ""}</td><td>${escapeHtml(item.customerName)}（${escapeHtml(item.customerId)}）</td><td>${escapeHtml(item.project)}${item.projectId ? `（${escapeHtml(item.projectId)}）` : ""}</td><td>${escapeHtml(teacher)}</td><td>${escapeHtml(impactText(item))}</td><td>${escapeHtml(formatTime(item.time))}</td><td>${actions}</td><td>${escapeHtml(item.status === "PENDING" ? "待审核" : formatTime(item.reviewedAt))}</td></tr>`;
     }).join("") || `<tr><td colspan="${columnCount}" class="query-empty">当前条件下没有审核记录</td></tr>`;
     document.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", () => openReview(button.dataset.id, button.dataset.action)));
   }
