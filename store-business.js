@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.38", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.39", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   const storeId = String(session?.store || ""), storeNo = Number(storeId.replace(/\D/g, "")) || 1;
@@ -67,16 +67,17 @@
   function securelyResetCustomerCreateForm(form) {
     stopFaceCamera();
     customerEnrollmentRequest = null;
-    form.reset();
+    const customerForm = form || $("customerCreateForm");
+    if (typeof customerForm?.reset === "function") customerForm.reset();
     // Explicitly erase the live values as well as the form defaults so that a
     // browser restore/autofill cycle cannot leave the previous customer's
     // personal data visible after a successful enrollment.
-    $("createCustomerName").value = "";
-    $("createCustomerBirthday").value = "";
-    $("createCustomerNotes").value = "";
-    $("faceConsent").checked = false;
+    if ($("createCustomerName")) $("createCustomerName").value = "";
+    if ($("createCustomerBirthday")) $("createCustomerBirthday").value = "";
+    if ($("createCustomerNotes")) $("createCustomerNotes").value = "";
+    if ($("faceConsent")) $("faceConsent").checked = false;
     resetCapturedPhoto();
-    $("createCustomerName").focus({ preventScroll: true });
+    $("createCustomerName")?.focus({ preventScroll: true });
   }
   function parsedObject(value) {
     if (value && typeof value === "object") return value;
@@ -251,7 +252,11 @@
     retake.addEventListener("click", () => { resetCapturedPhoto(); openCamera.click(); });
     window.addEventListener("pagehide", stopFaceCamera, { once: true });
     $("customerCreateForm").addEventListener("submit", async (event) => {
-      event.preventDefault(); const name = $("createCustomerName").value.trim(), birthday = $("createCustomerBirthday").value, notes = $("createCustomerNotes").value.trim();
+      event.preventDefault();
+      // Event.currentTarget is cleared by the browser once this async handler
+      // yields, so retain the form reference before awaiting the cloud call.
+      const customerForm = event.currentTarget;
+      const name = $("createCustomerName").value.trim(), birthday = $("createCustomerBirthday").value, notes = $("createCustomerNotes").value.trim();
       if (!name || !birthday) { message.textContent = "姓名和生日必须填写"; return; }
       if (!faceCaptured || !capturedPhotoDataUrl || !$("faceConsent").checked) { message.textContent = "必须完成拍照、照片质量与活体检测，并取得明确授权后才能建立档案"; return; }
       customerSubmissionBusy = true; syncCustomerCreateSubmit(); message.textContent = "正在上传照片、创建人脸档案并保存客户资料…";
@@ -259,7 +264,7 @@
         const clientRequestId = nextCustomerEnrollmentRequestId({ name, birthday, notes, photoLength: capturedPhotoDataUrl.length, photoTail: capturedPhotoDataUrl.slice(-48) });
         const data = await callCustomerEnrollment({ action: "registerCustomer", customerName: name, birthDate: birthday, notes, consent: true, imageBase64: capturedPhotoDataUrl, clientRequestId });
         if (!data.customer?.customerCode) throw new Error("客户档案已提交，但云函数没有返回客户编号，请先查询确认，禁止重复提交");
-        securelyResetCustomerCreateForm(event.currentTarget);
+        securelyResetCustomerCreateForm(customerForm);
         message.textContent = "客户档案已建立；当前页面中的客户资料、授权状态和照片已安全清空。";
       } catch (error) {
         message.textContent = error?.message || "客户建档失败；照片和人脸资料不会保留为半成品，请重试";
