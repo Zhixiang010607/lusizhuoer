@@ -1,9 +1,9 @@
 (() => {
   "use strict";
-  const VERSION = "0.17.1";
+  const VERSION = "0.17.2";
   const pageType = document.body.dataset.review;
   const recordType = pageType === "recharge" ? "RECHARGE" : "VERIFICATION";
-  const columnCount = pageType === "recharge" ? 10 : 11;
+  const columnCount = 10;
   const $ = (id) => document.getElementById(id);
   const statusText = { PENDING: "待审核", APPROVED: "已通过", REJECTED: "已驳回" };
   let rows = [], pendingAction = null, loadingSequence = 0, session = null, queryMode = "filters";
@@ -26,6 +26,7 @@
     const applicationType = clean(pick(row, "application_type", "applicationType")).toUpperCase();
     const status = clean(pick(row, "application_status", "applicationStatus")).toUpperCase() || "PENDING";
     const isVoid = applicationType === "VOID";
+    const customerCode = clean(pick(row, "customer_code", "customerCode"));
     return {
       raw: row, id: clean(row.id), recordCode: clean(pick(row, "record_code", "recordCode")), isVoid, status,
       kind: pageType === "recharge" ? (isVoid ? "作废充值" : "新充值") : (isVoid ? "作废" : "补录"),
@@ -36,7 +37,7 @@
       applicantNote: isVoid ? pick(row, "void_request_note", "voidRequestNote") : pick(row, "initial_store_note", "initialStoreNote"),
       operatorNote: isVoid ? pick(row, "void_review_note", "voidReviewNote") : pick(row, "initial_review_note", "initialReviewNote"),
       store: { id: clean(pick(row, "store_id", "storeId")), code: clean(pick(row, "store_code", "storeCode")), name: clean(pick(row, "store_name", "storeName")) || "未命名门店" },
-      customerId: clean(pick(row, "customer_code", "customerCode")) || clean(pick(row, "customer_id", "customerId")), customerName: clean(pick(row, "customer_name", "customerName")) || "未命名客户",
+      customerCode, customerId: customerCode || clean(pick(row, "customer_id", "customerId")), customerName: clean(pick(row, "customer_name", "customerName")) || "未命名客户",
       projectId: clean(pick(row, "product_code", "productCode")) || clean(pick(row, "product_id", "productId")), project: clean(pick(row, "product_name", "productName")) || "未命名项目",
       teacherId: clean(pick(row, "teacher_code", "teacherCode")), teacherName: clean(pick(row, "teacher_name", "teacherName")), amount: Number(pick(row, "unit_count", "unitCount")) || 0
     };
@@ -123,8 +124,14 @@
       const orderCode = item.id
         ? `<a class="record-link" href="${detailPage}?recordId=${encodeURIComponent(item.id)}&recordCode=${encodeURIComponent(item.recordCode)}&source=review" title="查看${pageType === "recharge" ? "充值" : "核销"}工单 ${escapeHtml(item.recordCode)}">${escapeHtml(item.recordCode)}</a>`
         : escapeHtml(item.recordCode);
-      const duplicateRecordCell = pageType === "recharge" ? "" : `<td>${escapeHtml(item.recordCode)}</td>`;
-      return `<tr><td>${orderCode}</td><td>${escapeHtml(item.kind)}</td>${duplicateRecordCell}<td>${escapeHtml(item.store.name)}${item.store.code ? `（${escapeHtml(item.store.code)}）` : ""}</td><td>${escapeHtml(item.customerName)}（${escapeHtml(item.customerId)}）</td><td>${escapeHtml(item.project)}${item.projectId ? `（${escapeHtml(item.projectId)}）` : ""}</td><td>${escapeHtml(teacher)}</td><td>${escapeHtml(impactText(item))}</td><td>${escapeHtml(formatTime(item.time))}</td><td>${actions}</td><td>${escapeHtml(item.status === "PENDING" ? "—" : formatTime(item.reviewedAt))}</td></tr>`;
+      const customerText = `${item.customerName}${item.customerId ? `（${item.customerId}）` : ""}`;
+      const customerHref = item.customerCode
+        ? `customer-detail.html?customerId=${encodeURIComponent(item.customerCode)}&customerName=${encodeURIComponent(item.customerName)}&storeId=${encodeURIComponent(item.store.id)}`
+        : "";
+      const customer = customerHref
+        ? `<a class="record-link" href="${escapeHtml(customerHref)}" title="查看客户主页 ${escapeHtml(item.customerName)}">${escapeHtml(customerText)}</a>`
+        : escapeHtml(customerText);
+      return `<tr><td>${orderCode}</td><td>${escapeHtml(item.kind)}</td><td>${escapeHtml(item.store.name)}${item.store.code ? `（${escapeHtml(item.store.code)}）` : ""}</td><td>${customer}</td><td>${escapeHtml(item.project)}${item.projectId ? `（${escapeHtml(item.projectId)}）` : ""}</td><td>${escapeHtml(teacher)}</td><td>${escapeHtml(impactText(item))}</td><td>${escapeHtml(formatTime(item.time))}</td><td>${actions}</td><td>${escapeHtml(item.status === "PENDING" ? "—" : formatTime(item.reviewedAt))}</td></tr>`;
     }).join("") || `<tr><td colspan="${columnCount}" class="query-empty">当前条件下没有审核记录</td></tr>`;
     document.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", () => openReview(button.dataset.id, button.dataset.action)));
   }
