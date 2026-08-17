@@ -810,6 +810,7 @@ body[data-store-business] .form-submit-row button:disabled {
 .verification-order-actions button:disabled { cursor: not-allowed; opacity: .45; }
 .unified-order-review .verification-order-review-note textarea[readonly] { cursor: default; background: #fafcff; }
 .unified-order-review .verification-order-actions button:disabled { opacity: .56; cursor: not-allowed; }
+.unified-order-review.store-void-mode { align-content: start; align-self: start; }
 .unified-review-status { margin: 0; color: var(--muted); font-size: 12px; }
 .unified-review-status strong { color: var(--ink); }
 .order-comments-panel, .void-application-panel { margin-top: 14px; padding: 17px; }

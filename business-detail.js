@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.2";
+  const VERSION = "0.15.3";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -181,6 +181,10 @@
   }
 
   function renderMissing(recordId) {
+    const session = readSession();
+    const storeMode = session?.role === "store";
+    $("reviewStatusRow").hidden = storeMode;
+    document.querySelector("[data-order-review]")?.classList.toggle("store-void-mode", storeMode);
     $("orderKindTag").textContent = type === "recharge" ? "充值" : "核销";
     $("orderTitle").textContent = `${type === "recharge" ? "充值单" : "核销单"} ${recordId || "—"}`;
     $("orderDescription").textContent = "未找到该工单的数据，请返回查询页面后重新进入。";
@@ -225,6 +229,12 @@
       ? (Number.isFinite(countNumber) && countNumber > 0 ? `+${countNumber}` : "—")
       : (Number.isFinite(countNumber) && countNumber > 0 ? String(countNumber) : "1");
     const session = readSession();
+    const isReviewer = ["hq", "operation"].includes(session?.role);
+    const storeMode = session?.role === "store";
+    const canStoreVoid = storeMode
+      && !voidStarted
+      && record.databaseBacked !== false
+      && String(record.status || record.recordStatus || "").toUpperCase() === "APPROVED";
     const description = String(record.voidStatus || "").toUpperCase() === "REJECTED"
       ? "作废申请已被驳回，原业务与客户次数保持不变。"
       : voidStarted
@@ -240,17 +250,21 @@
     $("orderStatus").textContent = status.label;
     $("orderStatusHint").textContent = status.hint;
     $("reviewStatus").textContent = status.label;
+    $("reviewStatusRow").hidden = storeMode;
+    document.querySelector("[data-order-review]")?.classList.toggle("store-void-mode", storeMode);
     $("reviewMessage").value = reviewMessage;
     $("reviewMessage").setAttribute("aria-label", reviewMessage ? "审核留言" : "暂无审核留言");
-    const isReviewer = ["hq", "operation"].includes(session?.role);
-    const canStoreVoid = session?.role === "store" && !voidStarted;
-    $("reviewPanelTitle").textContent = isReviewer ? "总部审核" : canStoreVoid ? "作废申请" : "审核结果";
+    $("reviewPanelTitle").textContent = isReviewer ? "总部审核" : storeMode ? "作废申请" : "审核结果";
     $("reviewNoteField").hidden = !isReviewer;
     $("reviewActions").hidden = !isReviewer;
     $("reviewPanelHint").textContent = isReviewer
       ? "请前往审核中心处理本工单；此详情页与总部工单模板保持一致。"
       : canStoreVoid
       ? "填写作废说明后提交；工单将重新以作废状态进入审核，审核通过前不改变客户次数。"
+      : storeMode && voidStarted
+      ? "作废申请已提交；留言已记录在下方。"
+      : storeMode
+      ? "仅已通过且尚未作废的工单可提交一次作废申请。"
       : "门店仅可查看审核状态和完整留言记录。";
 
     $("orderKeyfacts").innerHTML = [
@@ -265,15 +279,11 @@
       : [["核销单编号", recordCode], ["核销类型", kind], ["客户", customerLabel], ["项目", projectLabel], ["业务老师", teacherLabel], ["核销次数", countLabel], ["提交时间", submittedAt], ["审核时间", reviewedAt]];
     $("orderInfo").innerHTML = items.map(([label, value]) => infoCard(label, value)).join("");
     renderComments(record);
-    setupVoidApplication(record, normalKind, voidStarted, session);
+    setupVoidApplication(record, normalKind, voidStarted, canStoreVoid);
   }
 
-  function setupVoidApplication(record, originalKind, voidStarted, session) {
+  function setupVoidApplication(record, originalKind, voidStarted, canApply) {
     const panel = $("storeVoidAction");
-    const canApply = session?.role === "store"
-      && !voidStarted
-      && record.databaseBacked !== false
-      && String(record.status || record.recordStatus || "").toUpperCase() === "APPROVED";
     panel.hidden = !canApply;
     if (!canApply) return;
     $("submitVoidApplication").onclick = async () => {
