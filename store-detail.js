@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.1";
+  const VERSION = "0.15.2";
   const TEACHER_PAGE_SIZE = 5;
   const CUSTOMER_PAGE_SIZE = 10;
   const params = new URLSearchParams(location.search);
@@ -175,7 +175,9 @@
       ["门店名称", store.store_name],
       ["地区", locationText],
       ["详细地址", store.address_detail || "未填写"],
-      ["门店状态", status]
+      ["门店状态", status],
+      ["联系人", store.contact_name || "未填写"],
+      ["联系电话", store.contact_phone || "未填写"]
     ]);
     renderProjects(Array.isArray(store.projects) ? store.projects : (Array.isArray(store.project_stats) ? store.project_stats : []));
     state.teacherRows = Array.isArray(store.teachers) ? store.teachers : (Array.isArray(store.teacher_stats) ? store.teacher_stats : []);

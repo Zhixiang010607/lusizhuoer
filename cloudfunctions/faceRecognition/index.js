@@ -4,7 +4,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
-const FUNCTION_VERSION = "v31";
+const FUNCTION_VERSION = "v32";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -757,10 +757,19 @@ async function getStoreDashboard(event = {}) {
   const customerOffset = (customerPage - 1) * customerPageSize;
   const [storeRows, projects, teachers, customerCountRows, customers] = await Promise.all([
     executeSql(
-    `SELECT id, store_code, store_name, province, city, district,
-            address_detail, store_status
-       FROM public.stores
-      WHERE id = ${caller.storeId}
+    `SELECT s.id, s.store_code, s.store_name, s.province, s.city, s.district,
+            s.address_detail, s.store_status,
+            contact.contact_name, contact.contact_phone
+       FROM public.stores s
+       LEFT JOIN LATERAL (
+         SELECT sc.contact_name, sc.contact_phone
+           FROM public.store_contacts sc
+          WHERE sc.store_id = s.id
+            AND sc.contact_status = 'ACTIVE'
+          ORDER BY sc.is_primary DESC, sc.id ASC
+          LIMIT 1
+       ) contact ON TRUE
+      WHERE s.id = ${caller.storeId}
       LIMIT 1`
     ),
     executeSql(
