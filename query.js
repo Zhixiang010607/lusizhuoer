@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.0";
+  const VERSION = "0.15.1";
   const type = document.body.dataset.query;
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
@@ -98,6 +98,8 @@
       const custom = range === "custom";
       $("recordDateStart").disabled = !custom;
       $("recordDateEnd").disabled = !custom;
+      $("recordDateStart").syncChineseDate?.();
+      $("recordDateEnd").syncChineseDate?.();
     }
     function setMode(next) {
       mode = next === "manual" ? "manual" : "browse";
@@ -336,6 +338,8 @@
       }
       $("queryDateStart").disabled = range !== "custom";
       $("queryDateEnd").disabled = range !== "custom";
+      $("queryDateStart").syncChineseDate?.();
+      $("queryDateEnd").syncChineseDate?.();
     }
     function availableCustomers() {
       const storeId = selectedStoreId();

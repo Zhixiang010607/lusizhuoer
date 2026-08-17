@@ -2,7 +2,7 @@
   "use strict";
 
   // 文档同步约束：每次业务或界面变更都必须同步更新 main.tex 与 README.md。
-  const PROTOTYPE_VERSION = "0.14.19";
+  const PROTOTYPE_VERSION = "0.14.20";
 
   // Start with an empty dataset. Real dashboard data is supplied by the backend later.
   class EmptyDataSource {
@@ -49,6 +49,8 @@
     }
     $("dateFrom").value = toDateInput(start);
     $("dateTo").value = toDateInput(end);
+    $("dateFrom").syncChineseDate?.();
+    $("dateTo").syncChineseDate?.();
   }
 
   function selectedRange() {

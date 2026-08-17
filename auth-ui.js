@@ -203,6 +203,7 @@
     const birthdayInputIds = [
       "createCustomerBirthday",
       "customerBirthday",
+      "recordCustomerBirthday",
       "serviceCustomerBirthday",
       "queryCustomerBirthday",
       "teacherCustomerBirthday"
@@ -298,7 +299,49 @@
     });
   }
 
+  function initializeChineseDateInputs() {
+    if (!document.body.matches("[data-query], [data-customer-query], [data-view]")) return;
+    const inputs = Array.from(document.querySelectorAll('input[type="date"]'));
+    const formatVisibleDate = (value) => {
+      const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      return match ? `${match[1]}年${match[2]}月${match[3]}日` : "请选择日期";
+    };
+
+    inputs.forEach((input) => {
+      if (input.dataset.chineseDateReady === "true") return;
+      input.dataset.chineseDateReady = "true";
+
+      const wrapper = document.createElement("div");
+      wrapper.className = "chinese-date-input";
+      input.insertAdjacentElement("beforebegin", wrapper);
+      wrapper.append(input);
+
+      const visibleValue = document.createElement("span");
+      visibleValue.className = "chinese-date-input-value";
+      visibleValue.setAttribute("aria-hidden", "true");
+      wrapper.append(visibleValue);
+
+      const sync = () => {
+        const hasValue = /^\d{4}-\d{2}-\d{2}$/.test(String(input.value || ""));
+        visibleValue.textContent = formatVisibleDate(input.value);
+        wrapper.classList.toggle("is-empty", !hasValue);
+        wrapper.classList.toggle("is-disabled", input.disabled);
+      };
+      input.syncChineseDate = sync;
+      input.addEventListener("input", sync);
+      input.addEventListener("change", sync);
+      input.form?.addEventListener("reset", () => setTimeout(sync, 0));
+      sync();
+    });
+
+    const syncAll = () => inputs.forEach((input) => input.syncChineseDate?.());
+    document.addEventListener("change", () => queueMicrotask(syncAll));
+    document.addEventListener("click", () => queueMicrotask(syncAll));
+    window.addEventListener("pageshow", syncAll);
+  }
+
   initializeChineseBirthdayInputs();
+  initializeChineseDateInputs();
   document.documentElement.dataset.authReady = "true";
 
   function $(id) { return document.getElementById(id); }

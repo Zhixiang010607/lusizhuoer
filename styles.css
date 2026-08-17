@@ -342,6 +342,22 @@ input[readonly] { cursor: default; color: #344054; background: #f2f5f8; }
 .chinese-birthday-input { display: grid; grid-template-columns: minmax(78px, 1.35fr) auto minmax(58px, 1fr) auto minmax(58px, 1fr) auto; align-items: center; gap: 5px; width: 100%; margin-top: 5px; }
 .chinese-birthday-input select { min-width: 0; margin-top: 0; }
 .chinese-birthday-input span { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.chinese-date-input { position: relative; width: 100%; margin-top: 5px; }
+.chinese-date-input input[type="date"] { margin-top: 0; color: transparent; caret-color: transparent; }
+.chinese-date-input input[type="date"]::-webkit-datetime-edit { opacity: 0; }
+.chinese-date-input input[type="date"]::-webkit-calendar-picker-indicator { position: relative; z-index: 2; opacity: 1; cursor: pointer; }
+.chinese-date-input-value { position: absolute; z-index: 1; top: 50%; right: 38px; left: 10px; overflow: hidden; transform: translateY(-50%); color: var(--ink); font-size: 12px; line-height: 1; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.chinese-date-input.is-empty .chinese-date-input-value,
+.chinese-date-input.is-disabled .chinese-date-input-value { color: var(--muted); }
+body[data-query] .query-filter-panel .chinese-date-input,
+body[data-customer-query] .query-filter-panel .chinese-date-input { margin-top: 3px; }
+body[data-query] .query-filter-panel .chinese-date-input input[type="date"],
+body[data-customer-query] .query-filter-panel .chinese-date-input input[type="date"] { margin-top: 0; }
+@media (forced-colors: active) {
+  .chinese-date-input-value { display: none; }
+  .chinese-date-input input[type="date"] { color: CanvasText; caret-color: auto; }
+  .chinese-date-input input[type="date"]::-webkit-datetime-edit { opacity: 1; }
+}
 .filter-actions { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
 .filter-actions p { margin: 0; color: var(--muted); font-size: 13px; }
 .breakdown-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-height: 48px; margin-top: 14px; padding: 10px 12px; border: 1px solid #dce5f0; border-radius: 10px; color: #40536a; background: #f7faff; font-size: 13px; }
