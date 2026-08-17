@@ -8,7 +8,7 @@
 const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "2026-08-18-review-query-modes-v13";
+const FUNCTION_VERSION = "v34";
 let app = null;
 let auth = null;
 let managerClient = null;
@@ -1061,10 +1061,18 @@ function reviewFilterSql(event, alias, recordCodeExpression, statusExpression, t
 }
 
 async function listReviewOrders(caller, event) {
-  requireReviewer(caller);
+  const exactLookup = Boolean(String(event.recordId || "").trim() || String(event.recordCode || "").trim());
+  const storeReader = caller.profile?.role === "store";
+  if (storeReader) {
+    requireStore(caller);
+    if (!exactLookup) fail("门店只能按精确工单编号读取本门店工单", "FORBIDDEN");
+  } else {
+    requireReviewer(caller);
+  }
   const recordType = String(event.recordType || "").trim().toUpperCase();
   if (!["RECHARGE", "VERIFICATION"].includes(recordType)) fail("不支持的审核工单类型", "BAD_REQUEST");
-  const limit = Math.min(Math.max(Number(event.limit) || 200, 1), 500);
+  const scopedEvent = storeReader ? { ...event, storeId: caller.profile.storeId } : event;
+  const limit = storeReader ? 1 : Math.min(Math.max(Number(event.limit) || 200, 1), 500);
   let sql;
   if (recordType === "RECHARGE") {
     const statusExpression = "CASE WHEN r.void_request_status <> 'NONE' THEN r.void_request_status ELSE r.record_status END";
@@ -1089,7 +1097,7 @@ async function listReviewOrders(caller, event) {
              JOIN public.products p ON p.id = r.product_id
         LEFT JOIN public.teachers t ON t.id = r.teacher_id
             WHERE TRUE
-              ${reviewFilterSql(event, "r", "r.recharge_code", statusExpression, typeExpression)}
+              ${reviewFilterSql(scopedEvent, "r", "r.recharge_code", statusExpression, typeExpression)}
          ORDER BY (${statusExpression} = 'PENDING') DESC, ${timeExpression} DESC, r.id DESC
             LIMIT ${limit}`;
   } else {
@@ -1115,8 +1123,8 @@ async function listReviewOrders(caller, event) {
              JOIN public.customers c ON c.id = v.customer_id
              JOIN public.products p ON p.id = v.product_id
              JOIN public.teachers t ON t.id = v.teacher_id
-            WHERE (v.void_request_status <> 'NONE' OR v.verification_type = 'SUPPLEMENT')
-              ${reviewFilterSql(event, "v", "v.verification_code", statusExpression, typeExpression)}
+            WHERE ${exactLookup ? "TRUE" : "(v.void_request_status <> 'NONE' OR v.verification_type = 'SUPPLEMENT')"}
+              ${reviewFilterSql(scopedEvent, "v", "v.verification_code", statusExpression, typeExpression)}
          ORDER BY (${statusExpression} = 'PENDING') DESC, ${timeExpression} DESC, v.id DESC
             LIMIT ${limit}`;
   }
