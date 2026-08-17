@@ -239,9 +239,9 @@
         select.append(new Option(placeholder, ""));
         return select;
       };
-      const yearSelect = createSelect("生日年份", "年份");
-      const monthSelect = createSelect("生日月份", "月份");
-      const daySelect = createSelect("生日日期", "日期");
+      const yearSelect = createSelect("生日年份", "请选择");
+      const monthSelect = createSelect("生日月份", "请选择");
+      const daySelect = createSelect("生日日期", "请选择");
 
       for (let year = currentYear; year >= 1900; year -= 1) {
         yearSelect.append(new Option(String(year), String(year)));
@@ -267,7 +267,7 @@
         const maximum = yearSelect.value && monthSelect.value
           ? new Date(Number(yearSelect.value), Number(monthSelect.value), 0).getDate()
           : 31;
-        daySelect.replaceChildren(new Option("日期", ""));
+        daySelect.replaceChildren(new Option("请选择", ""));
         for (let day = 1; day <= maximum; day += 1) {
           daySelect.append(new Option(pad2(day), String(day)));
         }
