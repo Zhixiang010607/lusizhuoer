@@ -928,6 +928,30 @@ body[data-store-business] .form-submit-row button:disabled {
 .store-phone-cell { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .store-directory-empty { height: 78px; color: var(--muted); text-align: center !important; }
 .store-directory-empty.error-text { color: var(--danger); }
+.teacher-directory-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(260px, 1fr) auto; align-items: end; gap: 12px; }
+.teacher-directory-toolbar > label { display: grid; gap: 6px; }
+.teacher-directory-toolbar .toolbar-actions { justify-content: flex-start; }
+.teacher-directory-grid { display: grid; gap: 14px; margin-top: 14px; }
+.teacher-directory-panel { min-width: 0; padding: 14px; }
+.teacher-directory-panel .panel-heading { margin-bottom: 10px; }
+.teacher-directory-window { max-height: 280px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.teacher-directory-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.teacher-directory-table .teacher-name-column { width: 32%; }
+.teacher-directory-table .teacher-code-column { width: 24%; }
+.teacher-directory-table .teacher-phone-column { width: 28%; }
+.teacher-directory-table .teacher-status-column { width: 16%; }
+.teacher-directory-table th,
+.teacher-directory-table td { padding: 11px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+.teacher-directory-table th { position: sticky; top: 0; z-index: 1; background: #f3f6fa; color: var(--muted); font-size: 12px; }
+.teacher-directory-table tbody tr:last-child td { border-bottom: 0; }
+.teacher-directory-table tbody tr:hover td { background: #f8fbff; }
+.teacher-global-link { font-weight: 750; }
+.teacher-phone-cell { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.teacher-status-badge { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 9px; font-size: 12px; font-weight: 750; }
+.teacher-status-badge.active { color: #067a5c; background: #e7f8f2; }
+.teacher-status-badge.archived { color: #7a4b00; background: #fff3d6; }
+.teacher-directory-empty { height: 78px; color: var(--muted); text-align: center !important; }
+.teacher-directory-empty.error-text { color: var(--danger); }
 @media (max-width: 900px) { .login-shell { grid-template-columns: 1fr; } .login-brand-panel { min-height: 340px; } .login-brand-copy { margin: 45px 0 25px; } .login-feature-list { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 760px) {
   body { padding-left: 0; }
@@ -951,6 +975,9 @@ body[data-store-business] .form-submit-row button:disabled {
   .store-directory-toolbar { grid-template-columns: 1fr; }
   .store-directory-window { max-height: 300px; }
   .store-directory-table { min-width: 720px; }
+  .teacher-directory-toolbar { grid-template-columns: 1fr; }
+  .teacher-directory-window { max-height: 260px; }
+  .teacher-directory-table { min-width: 620px; }
   .toolbar-actions { justify-content: stretch; }
   .toolbar-actions button { flex: 1; }
   .management-summary, .detail-info-grid { grid-template-columns: repeat(2, 1fr); }
