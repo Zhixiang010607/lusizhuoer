@@ -1,6 +1,6 @@
 ﻿<!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>客户查询</title><link rel="stylesheet" href="styles.css?v=0.14.27"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>客户查询</title><link rel="stylesheet" href="styles.css?v=0.14.28"></head>
 <body data-customer-query>
   <aside class="side-project-bar" aria-label="项目栏">
     <div class="side-brand"><span>HQ</span><div><strong>总部工作台</strong><small>项目栏</small></div></div><p class="side-section-title">数据看板</p>
@@ -14,13 +14,24 @@
     <section class="panel query-filter-panel">
       <div class="panel-heading"><div><h2>查询条件</h2></div><span class="badge">本门店范围</span></div>
       <div class="query-filter-grid customer-query-filters">
-        <div class="customer-query-row customer-query-lookup-row">
-          <label>门店<select id="customerStore"></select></label>
-          <div class="record-customer-filter"><span class="field-label">客户查找方式</span><div class="lookup-mode-switch query-lookup-switch"><button class="active" type="button" data-customer-query-mode="select">选择现有客户</button><button type="button" data-customer-query-mode="manual">手动输入姓名＋生日</button></div></div>
-          <label id="customerSelectField">现有客户<select id="customerSelect"></select></label>
-          <label id="customerSelectBirthdayField">生日<input id="customerSelectBirthday" readonly placeholder="选择客户后显示"></label>
-          <label id="customerManualNameField" hidden>客户姓名<input id="customerName" placeholder="输入姓名；同名客户全部显示"></label>
-          <label id="customerManualBirthdayField" hidden>生日<input id="customerBirthday" type="date"></label>
+        <div class="customer-query-store-context" aria-label="当前门店">
+          <span>当前门店</span><strong id="customerStoreName">正在读取门店信息</strong><small id="customerStoreCode">—</small>
+        </div>
+        <div class="customer-query-methods" aria-label="客户查询方式">
+          <section id="customerSelectPanel" class="customer-query-method active" data-customer-query-panel="select">
+            <button class="customer-query-method-heading" type="button" data-customer-query-mode="select"><span>方式一</span><strong>从本门店全部客户中筛选</strong><small>选择全部客户，或指定一位现有客户</small></button>
+            <div class="customer-query-method-fields">
+              <label id="customerSelectField">本门店客户<select id="customerSelect"></select></label>
+              <label id="customerSelectBirthdayField">生日<input id="customerSelectBirthday" readonly placeholder="选择客户后显示"></label>
+            </div>
+          </section>
+          <section id="customerManualPanel" class="customer-query-method" data-customer-query-panel="manual">
+            <button class="customer-query-method-heading" type="button" data-customer-query-mode="manual"><span>方式二</span><strong>按姓名＋生日查询</strong><small>可单独填写一项，也可以联合查询</small></button>
+            <div class="customer-query-method-fields">
+              <label id="customerManualNameField">客户姓名<input id="customerName" placeholder="输入姓名；同名客户全部显示"></label>
+              <label id="customerManualBirthdayField">生日<input id="customerBirthday" type="date"></label>
+            </div>
+          </section>
         </div>
         <div class="customer-query-row customer-query-stage-row">
           <label>业务阶段<select id="customerCategory"><option value="all">全部客户</option><option value="registered">有信息但没有充值</option><option value="charged">已充值但没有消费</option><option value="consumed">已充值并已有消费</option></select></label>
@@ -39,5 +50,5 @@
     <section class="panel table-card"><div class="panel-heading"><div><h2>客户结果</h2></div><span class="badge">客户</span></div><div class="table-scroll"><table class="customer-results-table"><colgroup><col class="customer-col-code"><col class="customer-col-name"><col class="customer-col-birthday"><col class="customer-col-store"><col class="customer-col-stage"><col class="customer-col-count"><col class="customer-col-count"><col class="customer-col-status"><col class="customer-col-action"></colgroup><thead><tr><th>客户编号</th><th>客户姓名</th><th>生日</th><th>门店</th><th>业务阶段</th><th>充值次数</th><th>核销次数</th><th>客户状态</th><th>操作</th></tr></thead><tbody id="customerQueryBody"></tbody></table></div></section>
   </main>
   <dialog id="customerActionDialog"><div class="dialog-heading"><h2 id="customerActionTitle">客户状态变更</h2><button id="closeCustomerAction" aria-label="关闭">×</button></div><p id="customerActionText"></p><p class="field-lock-note">本操作只改变客户档案状态，不删除或修改任何客户资料、充值、核销、照片、版本或审计记录。</p><div class="dialog-actions"><button id="cancelCustomerAction" type="button">取消</button><button id="confirmCustomerAction" type="button">确认状态变更</button></div></dialog>
-  <script src="customer-query.js"></script><script src="auth-ui.js?v=0.17.0"></script>
+  <script src="customer-query.js?v=0.14.20"></script><script src="auth-ui.js?v=0.17.0"></script>
 </body></html>

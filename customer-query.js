@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.19", $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.20", $ = (id) => document.getElementById(id);
   const formatBirthday = (value, fallback = "") => {
     const raw = String(value ?? "").trim();
     if (!raw) return fallback;
@@ -32,14 +32,16 @@
     } catch (_) { /* 静态演示状态仅在当前会话有效；正式系统必须服务端审计。 */ }
   }
   function allowedCustomers() { return scopedStoreId ? customers.filter((customer) => customer.store.id === scopedStoreId) : customers; }
-  function fillStore() {
-    const visible = scopedStoreId ? stores.filter((store) => store.id === scopedStoreId) : stores;
-    $("customerStore").innerHTML = `${scopedStoreId ? "" : '<option value="all">全部门店</option>'}${visible.map((store) => `<option value="${store.id}">${store.name}（${store.id}）</option>`).join("")}`;
-    if (scopedStoreId) { $("customerStore").value = scopedStoreId; $("customerStore").disabled = true; }
+  function renderStoreContext() {
+    const store = stores.find((item) => String(item.id) === String(scopedStoreId));
+    const customerStore = customers.find((item) => String(item.store?.id) === String(scopedStoreId))?.store;
+    const storeName = String(loginSession?.storeName || store?.name || customerStore?.name || (scopedStoreId ? `门店 ${scopedStoreId}` : "当前账号全部门店"));
+    const storeCode = String(loginSession?.storeCode || store?.id || customerStore?.code || customerStore?.id || scopedStoreId || "全部门店");
+    $("customerStoreName").textContent = storeName;
+    $("customerStoreCode").textContent = `门店编号：${storeCode}`;
   }
   function customersForSelectedStore() {
-    const storeId = scopedStoreId || $("customerStore").value;
-    return allowedCustomers().filter((customer) => storeId === "all" || customer.store.id === storeId).sort((a, b) => a.name.localeCompare(b.name, "zh-CN") || a.id.localeCompare(b.id));
+    return allowedCustomers().sort((a, b) => a.name.localeCompare(b.name, "zh-CN") || a.id.localeCompare(b.id));
   }
   function updateSelectedCustomer() {
     const customer = customersForSelectedStore().find((item) => item.id === $("customerSelect").value);
@@ -47,15 +49,22 @@
   }
   function fillCustomerSelect() {
     const previous = $("customerSelect").value, visible = customersForSelectedStore();
-    $("customerSelect").innerHTML = `<option value="all">全部现有客户</option>${visible.map((customer) => `<option value="${customer.id}">${customer.name}（${customer.id}）</option>`).join("")}`;
+    $("customerSelect").innerHTML = `<option value="">请选择本门店客户</option><option value="all">全部本门店客户</option>${visible.map((customer) => `<option value="${customer.id}">${customer.name}（${customer.id}）</option>`).join("")}`;
     $("customerSelect").value = visible.some((customer) => customer.id === previous) ? previous : "all";
     updateSelectedCustomer();
   }
-  function setLookupMode(mode) {
+  function setLookupMode(mode, { clearOpposite = true } = {}) {
+    const changed = lookupMode !== mode;
     lookupMode = mode;
-    $("customerSelectField").hidden = mode !== "select"; $("customerSelectBirthdayField").hidden = mode !== "select";
-    $("customerManualNameField").hidden = mode !== "manual"; $("customerManualBirthdayField").hidden = mode !== "manual";
-    document.querySelectorAll("[data-customer-query-mode]").forEach((button) => button.classList.toggle("active", button.dataset.customerQueryMode === mode));
+    if (clearOpposite && changed && mode === "select") {
+      $("customerName").value = ""; $("customerBirthday").value = ""; $("customerBirthday").syncChineseBirthday?.();
+      if (!$("customerSelect").value) $("customerSelect").value = "all";
+      updateSelectedCustomer();
+    } else if (clearOpposite && changed) {
+      $("customerSelect").value = ""; $("customerSelectBirthday").value = "";
+    }
+    document.querySelectorAll("[data-customer-query-mode]").forEach((button) => { const selected = button.dataset.customerQueryMode === mode; button.classList.toggle("active", selected); button.setAttribute("aria-pressed", String(selected)); });
+    document.querySelectorAll("[data-customer-query-panel]").forEach((panel) => panel.classList.toggle("active", panel.dataset.customerQueryPanel === mode));
     render();
   }
   const isoDate = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -70,10 +79,10 @@
     $("customerDateStart").disabled = range !== "custom"; $("customerDateEnd").disabled = range !== "custom";
   }
   function matchesBaseFilters(customer, includeCategory = true) {
-    const storeId = scopedStoreId || $("customerStore").value, category = $("customerCategory").value, state = $("customerArchive").value;
+    const category = $("customerCategory").value, state = $("customerArchive").value;
     const selectedId = $("customerSelect").value, name = $("customerName").value.trim(), birthday = $("customerBirthday").value, isArchived = archived.has(customer.id), start = $("customerDateStart").value, end = $("customerDateEnd").value;
     const customerMatch = lookupMode === "select" ? selectedId === "all" || customer.id === selectedId : (!name || customer.name.includes(name)) && (!birthday || customer.birthday === birthday);
-    return (storeId === "all" || customer.store.id === storeId) && customerMatch && (!includeCategory || category === "all" || categoryOf(customer) === category) && (state === "all" || (state === "archived") === isArchived) && (!start || customer.createdDate >= start) && (!end || customer.createdDate <= end);
+    return customerMatch && (!includeCategory || category === "all" || categoryOf(customer) === category) && (state === "all" || (state === "archived") === isArchived) && (!start || customer.createdDate >= start) && (!end || customer.createdDate <= end);
   }
   function selectedCustomers() { return allowedCustomers().filter((customer) => matchesBaseFilters(customer)); }
   function renderCategories() {
@@ -109,10 +118,13 @@
     pendingAction = null; $("customerActionDialog").close(); render();
   }
 
-  document.documentElement.dataset.prototypeVersion = VERSION; fillStore(); fillCustomerSelect(); applyTimeRange(); setLookupMode("select");
-  $("customerStore").addEventListener("change", () => { fillCustomerSelect(); render(); }); $("customerSelect").addEventListener("change", () => { updateSelectedCustomer(); render(); });
-  ["customerCategory", "customerArchive", "customerBirthday", "customerDateStart", "customerDateEnd"].forEach((id) => $(id).addEventListener("change", render)); $("customerName").addEventListener("input", render); $("customerTimeRange").addEventListener("change", () => { applyTimeRange(); render(); });
+  document.documentElement.dataset.prototypeVersion = VERSION; renderStoreContext(); fillCustomerSelect(); applyTimeRange(); setLookupMode("select", { clearOpposite: false });
+  $("customerSelect").addEventListener("focus", () => setLookupMode("select"));
+  $("customerSelect").addEventListener("change", () => { setLookupMode("select"); updateSelectedCustomer(); render(); });
+  ["customerCategory", "customerArchive", "customerDateStart", "customerDateEnd"].forEach((id) => $(id).addEventListener("change", render)); $("customerTimeRange").addEventListener("change", () => { applyTimeRange(); render(); });
+  ["customerName", "customerBirthday"].forEach((id) => { $(id).addEventListener("focus", () => setLookupMode("manual")); $(id).addEventListener("input", () => { setLookupMode("manual"); render(); }); $(id).addEventListener("change", () => { setLookupMode("manual"); render(); }); });
   document.querySelectorAll("[data-customer-query-mode]").forEach((button) => button.addEventListener("click", () => setLookupMode(button.dataset.customerQueryMode)));
-  $("resetCustomerQuery").addEventListener("click", () => { $("customerStore").value = scopedStoreId || "all"; $("customerCategory").value = "all"; $("customerArchive").value = "all"; $("customerName").value = ""; $("customerBirthday").value = ""; $("customerBirthday").syncChineseBirthday?.(); $("customerTimeRange").value = "custom"; applyTimeRange(); fillCustomerSelect(); $("customerSelect").value = "all"; updateSelectedCustomer(); setLookupMode("select"); });
+  document.querySelectorAll("[data-customer-query-panel]").forEach((panel) => panel.addEventListener("click", () => setLookupMode(panel.dataset.customerQueryPanel)));
+  $("resetCustomerQuery").addEventListener("click", () => { $("customerCategory").value = "all"; $("customerArchive").value = "all"; $("customerName").value = ""; $("customerBirthday").value = ""; $("customerBirthday").syncChineseBirthday?.(); $("customerTimeRange").value = "custom"; applyTimeRange(); fillCustomerSelect(); $("customerSelect").value = "all"; updateSelectedCustomer(); setLookupMode("select"); });
   $("closeCustomerAction").addEventListener("click", () => $("customerActionDialog").close()); $("cancelCustomerAction").addEventListener("click", () => $("customerActionDialog").close()); $("confirmCustomerAction").addEventListener("click", confirmArchive);
 })();
