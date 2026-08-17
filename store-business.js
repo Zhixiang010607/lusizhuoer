@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.39", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.40", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   const storeId = String(session?.store || ""), storeNo = Number(storeId.replace(/\D/g, "")) || 1;
@@ -264,8 +264,16 @@
         const clientRequestId = nextCustomerEnrollmentRequestId({ name, birthday, notes, photoLength: capturedPhotoDataUrl.length, photoTail: capturedPhotoDataUrl.slice(-48) });
         const data = await callCustomerEnrollment({ action: "registerCustomer", customerName: name, birthDate: birthday, notes, consent: true, imageBase64: capturedPhotoDataUrl, clientRequestId });
         if (!data.customer?.customerCode) throw new Error("客户档案已提交，但云函数没有返回客户编号，请先查询确认，禁止重复提交");
+        const createdCustomer = data.customer;
+        const customerPageParams = new URLSearchParams({
+          customerId: String(createdCustomer.customerCode),
+          customerName: String(createdCustomer.customerName || name)
+        });
+        const createdStoreId = createdCustomer.storeId || storeId;
+        if (createdStoreId) customerPageParams.set("storeId", String(createdStoreId));
         securelyResetCustomerCreateForm(customerForm);
-        message.textContent = "客户档案已建立；当前页面中的客户资料、授权状态和照片已安全清空。";
+        message.textContent = "客户档案已建立；资料和现场照片已安全清空，正在打开客户主页…";
+        window.location.assign(`customer-detail.html?${customerPageParams.toString()}`);
       } catch (error) {
         message.textContent = error?.message || "客户建档失败；照片和人脸资料不会保留为半成品，请重试";
       } finally { customerSubmissionBusy = false; syncCustomerCreateSubmit(); }
