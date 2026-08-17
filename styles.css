@@ -691,7 +691,7 @@ body[data-store-business] .form-submit-row button:disabled {
 .review-query-panel { align-items: end; }
 .review-query-panel[hidden] { display: none !important; }
 .review-filter-row { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)) auto; gap: 9px; align-items: end; }
-.review-code-panel { display: grid; grid-template-columns: minmax(280px, 650px) auto; gap: 9px; align-items: end; }
+.review-code-panel { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 9px; align-items: end; justify-self: start; width: min(100%, 560px); }
 .review-query-panel > button { min-height: 35px; white-space: nowrap; }
 .review-count { justify-self: end; min-width: 130px; display: flex; align-items: baseline; justify-content: center; gap: 7px; padding: 11px 14px; border-radius: 10px; color: var(--muted); background: #f4f7fa; font-size: 11px; }
 .review-count strong { color: var(--ink); font-size: 22px; }
