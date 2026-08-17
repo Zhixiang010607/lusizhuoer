@@ -2,7 +2,7 @@
 
 该函数仅在 CloudBase 后端运行，用于门店客户建档、照片质量检测、私有照片留存、人脸人员库录入和后续人员搜索。客户不需要提供身份证。
 
-当前版本：`v37`
+当前版本：`v38`
 
 ## 必需环境变量
 
@@ -66,7 +66,7 @@
 ```json
 {
   "ok": true,
-  "version": "v37",
+  "version": "v38",
   "photoBucketId": "customer-photos",
   "livenessEnabled": true
 }
@@ -79,6 +79,7 @@
 - `listActiveStoreCustomers`：根据当前 CloudBase 登录账号在服务端解析真实门店，只返回该门店 `customer_status='ACTIVE'` 客户的编号、姓名和生日。下拉框不会预取备注、照片、状态或业务汇总。
 - `queryStoreCustomers`：总部与门店共用的真实客户查询。服务端先根据 CloudBase UID 验证活跃身份；总部可查看全部门店或选择一个真实门店，门店账号始终锁定到自身绑定门店，运营和老师无权调用。结果使用 `(created_at,id)` 游标分页且每页最多 100 条，业务阶段、活跃／封存及总数均由数据库对完整筛选范围汇总。
 - `queryStoreBusinessRecords`：总部与门店共用的充值／核销查询。总部可查看全部门店或选择一个真实门店；门店范围只来自服务端 UID 绑定，浏览器不能扩大权限，运营和老师无权调用。支持按项目、原单状态、核销类型、提交日期或客户姓名＋生日查询，并分别返回原单状态与作废申请状态。列表按 `(submitted_at,id)` 游标分页且每页最多 100 条，顶部统计由数据库对完整筛选范围汇总。部署前至少确认已执行迁移 `026_order_review_and_void_workflow.sql`（当前完整流程还应继续执行 `027`--`032`），并执行 `033_hq_query_indexes.sql` 支撑总部跨门店查询。
+- `getStoreDashboard`：总部与门店共用的真实门店主页。门店账号始终按当前 CloudBase UID 锁定自身绑定门店；总部必须提交一个真实数字门店 ID，服务端验证门店存在后返回该门店基础资料、项目累计、老师核销和分页客户数据。运营和老师无权调用，浏览器传入的门店编号不能扩大门店账号权限。该动作依赖迁移 `021_customer_product_effective_balances.sql` 的客户余额汇总；生产环境建议同时执行迁移 `031_store_dashboard_indexes.sql`。
 - `listActiveTeachers`：仅允许活跃门店账号调用，从 `teachers` 与 `staff_accounts` 联表读取“老师资料活跃且登录账号活跃”的真实老师。正常核销、补录核销和充值页面不再生成演示老师；数据库无记录时下拉框保持空。
 - `listActiveProducts`：仅允许活跃门店账号调用，只返回数据库中 `product_status='ACTIVE'` 产品的内部 ID、编号和名称；不会预取介绍、类别或任何价格字段。
 - `createRechargeApplication`：只创建一张 `NEW`、`PENDING` 的真实充值单，并使用 `idempotency_key` 防止双击或网络重试重复建单。业务老师可以为空；选择老师时仍校验老师资料和登录账号均为活跃。提交待审核单不会增加客户充值次数；只有审核把同一张单改为 `APPROVED` 后，数据库汇总触发器才会计入次数。部署前依次确认已执行迁移 `021_customer_product_effective_balances.sql`、`023_recharge_pending_submission.sql` 和 `024_optional_recharge_teacher.sql`。

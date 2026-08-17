@@ -4,7 +4,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
-const FUNCTION_VERSION = "v37";
+const FUNCTION_VERSION = "v38";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -1200,16 +1200,29 @@ async function queryStoreBusinessRecords(event = {}) {
 }
 
 async function getStoreDashboard(event = {}) {
-  const caller = await activeStoreCaller();
-  const customerPage = Math.min(Math.max(Number(event.customerPage) || 1, 1), 100000);
+  const caller = await activeScopedQueryCaller(event);
+  if (!caller.storeId) fail("总部查看门店主页时必须选择具体门店。", "STORE_REQUIRED");
+  const storeId = businessQueryDatabaseId(caller.storeId, "门店");
+  const requestedCustomerPage = Number(event.customerPage || 1);
+  if (!Number.isInteger(requestedCustomerPage) || requestedCustomerPage < 1) {
+    fail("客户分页必须是正整数。", "BAD_REQUEST");
+  }
+  const customerPage = Math.min(requestedCustomerPage, 100000);
   const customerPageSize = 10;
   const customerOffset = (customerPage - 1) * customerPageSize;
+  const layout = await getStoreBindingLayout();
+  const accountJoin = layout === "stores"
+    ? "LEFT JOIN public.staff_accounts account ON account.id = s.store_account_id"
+    : `LEFT JOIN public.staff_store_assignments assignment
+         ON assignment.store_id = s.id AND assignment.assignment_status = 'ACTIVE'
+       LEFT JOIN public.staff_accounts account ON account.id = assignment.staff_account_id`;
   const [storeRows, projects, teachers, customerCountRows, customers] = await Promise.all([
     executeSql(
     `SELECT s.id, s.store_code, s.store_name, s.province, s.city, s.district,
             s.address_detail, s.store_status,
-            contact.contact_name, contact.contact_phone
+            contact.contact_name, contact.contact_phone, account.auth_uid
        FROM public.stores s
+       ${accountJoin}
        LEFT JOIN LATERAL (
          SELECT sc.contact_name, sc.contact_phone
            FROM public.store_contacts sc
@@ -1218,7 +1231,7 @@ async function getStoreDashboard(event = {}) {
           ORDER BY sc.is_primary DESC, sc.id ASC
           LIMIT 1
        ) contact ON TRUE
-      WHERE s.id = ${caller.storeId}
+      WHERE s.id = ${storeId}::bigint
       LIMIT 1`
     ),
     executeSql(
@@ -1228,12 +1241,12 @@ async function getStoreDashboard(event = {}) {
               SUM(b.remaining_count) AS remaining_count
          FROM public.customer_product_balances b
          JOIN public.customers c ON c.id = b.customer_id
-        WHERE c.created_store_id = ${caller.storeId}
+        WHERE c.created_store_id = ${storeId}::bigint
         GROUP BY b.product_id
      ), verification_totals AS (
        SELECT v.product_id, SUM(v.unit_count) AS total_verification_count
          FROM public.verification_records v
-        WHERE v.store_id = ${caller.storeId}
+        WHERE v.store_id = ${storeId}::bigint
           AND v.record_status = 'APPROVED'
         GROUP BY v.product_id
      ), used_products AS (
@@ -1258,7 +1271,7 @@ async function getStoreDashboard(event = {}) {
        FROM public.verification_records v
        JOIN public.teachers t ON t.id = v.teacher_id
        JOIN public.products p ON p.id = v.product_id
-      WHERE v.store_id = ${caller.storeId}
+      WHERE v.store_id = ${storeId}::bigint
         AND v.record_status = 'APPROVED'
       GROUP BY t.id, t.teacher_code, t.teacher_name, t.teacher_status,
                p.id, p.product_code, p.product_name
@@ -1267,7 +1280,7 @@ async function getStoreDashboard(event = {}) {
     executeSql(
       `SELECT COUNT(*) AS customer_total
          FROM public.customers
-        WHERE created_store_id = ${caller.storeId}`
+        WHERE created_store_id = ${storeId}::bigint`
     ),
     executeSql(
     `SELECT c.id AS customer_id, c.customer_code, c.customer_name, c.birth_date,
@@ -1279,7 +1292,7 @@ async function getStoreDashboard(event = {}) {
             GREATEST(c.latest_recharge_at, c.latest_verification_at) AS last_business_at
        FROM public.customers c
        LEFT JOIN public.customer_product_balances b ON b.customer_id = c.id
-      WHERE c.created_store_id = ${caller.storeId}
+      WHERE c.created_store_id = ${storeId}::bigint
       GROUP BY c.id, c.customer_code, c.customer_name, c.birth_date,
                c.customer_status, c.total_recharge_count, c.total_verification_count,
                c.latest_recharge_at, c.latest_verification_at
@@ -1297,7 +1310,7 @@ async function getStoreDashboard(event = {}) {
     ok: true,
     store: {
       ...store,
-      auth_uid: caller.uid,
+      auth_uid: String(store.auth_uid || ""),
       projects,
       teachers,
       customers,

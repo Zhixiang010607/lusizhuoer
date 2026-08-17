@@ -41,7 +41,7 @@
   }
 
   function storeReference(store) {
-    return String(store.auth_uid || store.id || store.store_code || "").trim();
+    return String(store.id || store.store_code || store.auth_uid || "").trim();
   }
 
   function storeRow(store) {

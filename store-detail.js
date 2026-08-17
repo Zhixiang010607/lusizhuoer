@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.3";
+  const VERSION = "0.15.4";
   const TEACHER_PAGE_SIZE = 5;
   const CUSTOMER_PAGE_SIZE = 10;
   const params = new URLSearchParams(location.search);
@@ -14,7 +14,7 @@
   const info = (items) => items.map(([label, value]) =>
     `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`
   ).join("");
-  const state = { teacherRows: [], customerRows: [], teacherPage: 1, customerPage: 1, customerTotal: 0 };
+  const state = { teacherRows: [], customerRows: [], teacherPage: 1, customerPage: 1, customerTotal: 0, dashboardStoreId: "" };
 
   function parsedObject(value) {
     if (value && typeof value === "object") return value;
@@ -41,15 +41,17 @@
     }
   }
 
-  async function loadCurrentStoreDashboard(customerPage = 1) {
+  async function loadCurrentStoreDashboard(customerPage = 1, storeId = "") {
     if (!window.cloudbase || !window.CloudBaseAuthConfig || !window.registerFunctions) {
       throw new Error("门店首页数据库组件尚未加载，请刷新页面后重试。");
     }
     registerCloudBaseComponent(window.registerAuth, "auth");
     registerCloudBaseComponent(window.registerFunctions, "functions");
+    const request = { action: "getStoreDashboard", customerPage };
+    if (storeId) request.storeId = String(storeId);
     const result = await window.cloudbase.init(window.CloudBaseAuthConfig).callFunction({
       name: "faceRecognition",
-      data: { action: "getStoreDashboard", customerPage }
+      data: request
     });
     const data = cloudFunctionData(result);
     if (!data.ok || !data.store) throw new Error(data.message || "门店首页数据库没有返回有效数据。");
@@ -158,6 +160,7 @@
 
   function renderError(message) {
     $("storeHero").innerHTML = `<div><span class="profile-type">门店详情</span><h2>无法读取门店</h2><p>${escapeHtml(message)}</p></div>`;
+    if ($("storeHeaderStatus")) $("storeHeaderStatus").textContent = "读取失败";
     $("storeBasicGrid").innerHTML = "";
     renderEmptyRows("暂无数据");
   }
@@ -194,7 +197,7 @@
     const target = $("storeCustomerBody");
     if (target) target.innerHTML = '<tr><td colspan="8" class="query-empty">正在读取客户数据…</td></tr>';
     try {
-      renderStore(await loadCurrentStoreDashboard(page));
+      renderStore(await loadCurrentStoreDashboard(page, state.dashboardStoreId));
     } catch (error) {
       if (target) target.innerHTML = `<tr><td colspan="8" class="query-empty">${escapeHtml(error?.message || "客户数据读取失败")}</td></tr>`;
     }
@@ -222,6 +225,7 @@
       let session = null;
       try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
       if (session?.role === "store") {
+        state.dashboardStoreId = "";
         renderStore(await loadCurrentStoreDashboard());
         return;
       }
@@ -236,7 +240,13 @@
         renderError("未找到该门店账号，或门店尚未绑定有效认证身份。");
         return;
       }
-      renderStore(store);
+      const targetStoreId = String(store.id || "").trim();
+      if (!/^\d+$/.test(targetStoreId)) {
+        renderError("所选门店缺少有效数据库编号，请刷新门店列表后重试。");
+        return;
+      }
+      state.dashboardStoreId = targetStoreId;
+      renderStore(await loadCurrentStoreDashboard(1, targetStoreId));
     } catch (error) {
       renderError(error?.message || "门店资料读取失败，请稍后重试。");
     }
