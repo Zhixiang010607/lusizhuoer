@@ -1,14 +1,14 @@
 (() => {
   "use strict";
-  const VERSION = "0.15.1";
+  const VERSION = "0.15.2";
   const pageType = document.body.dataset.review;
   const recordType = pageType === "recharge" ? "RECHARGE" : "VERIFICATION";
   const $ = (id) => document.getElementById(id);
   const statusText = { PENDING: "待审核", APPROVED: "已通过", REJECTED: "已驳回" };
   let rows = [], pendingAction = null, loadingSequence = 0, session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
-  const canDecide = ["hq", "operation"].includes(session?.role);
-  const reviewerRole = session?.role === "hq" ? "总部" : "运营";
+  let canDecide = false;
+  let reviewerRole = "审核人员";
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
   const pick = (row, snake, camel) => row?.[snake] ?? row?.[camel] ?? "";
   const clean = (value) => String(value ?? "").trim();
@@ -61,6 +61,43 @@
   function setLoading(message) {
     $("reviewBody").innerHTML = `<tr><td colspan="12" class="query-empty">${escapeHtml(message)}</td></tr>`;
     $("reviewCount").innerHTML = `<strong>—</strong><span>${escapeHtml(message)}</span>`;
+  }
+  function saveAuthoritativeSession(data) {
+    const profile = data?.profile || {};
+    const role = clean(profile.role).toLowerCase();
+    if (!["hq", "operation"].includes(role)) {
+      throw new Error(`当前云端业务身份为“${role || "未绑定"}”，仅总部或运营账号可以审核工单。请退出后重新登录正确账号。`);
+    }
+    session = {
+      ...(session || {}),
+      role,
+      account: clean(session?.account || session?.phone),
+      phone: clean(session?.phone || session?.account),
+      store: profile.storeId || "",
+      staffName: profile.staffName || session?.staffName || "",
+      cloudbaseUserId: data?.uid || session?.cloudbaseUserId || ""
+    };
+    canDecide = true;
+    reviewerRole = role === "hq" ? "总部" : "运营";
+    sessionStorage.setItem("prototypeSession", JSON.stringify(session));
+    sessionStorage.setItem("prototypeRole", role);
+    sessionStorage.setItem("prototypeAccount", session.account);
+    sessionStorage.setItem("prototypeStore", session.store || "");
+  }
+  async function confirmReviewerIdentity() {
+    const account = clean(session?.account || session?.phone);
+    if (!account) throw new Error("当前页面没有有效登录会话，请退出后重新登录");
+    const isLocalDemo = ["127.0.0.1", "localhost"].includes(location.hostname) && clean(session?.cloudbaseUserId).startsWith("local-demo-");
+    if (isLocalDemo) {
+      const role = clean(session?.role).toLowerCase();
+      if (!["hq", "operation"].includes(role)) throw new Error("本地演示账号没有审核权限");
+      canDecide = true;
+      reviewerRole = role === "hq" ? "总部" : "运营";
+      return;
+    }
+    if (typeof window.CloudBasePhoneAuth?.getStaffSession !== "function") throw new Error("云端身份服务未加载，请刷新页面重试");
+    const data = await window.CloudBasePhoneAuth.getStaffSession(account);
+    saveAuthoritativeSession(data);
   }
   function populateStoreFilter(sourceRows) {
     const selected = $("reviewStore").value || "all";
@@ -142,5 +179,14 @@
   ["reviewDateStart", "reviewDateEnd"].forEach((id) => $(id).addEventListener("change", () => refresh()));
   $("closeReviewDialog").addEventListener("click", closeDialog); $("cancelReview").addEventListener("click", closeDialog); $("confirmReview").addEventListener("click", confirmReview);
   document.documentElement.dataset.prototypeVersion = VERSION;
-  refresh({ preserveStores: false });
+  (async () => {
+    setLoading("正在确认审核账号身份…");
+    try {
+      await confirmReviewerIdentity();
+      await refresh({ preserveStores: false });
+    } catch (error) {
+      rows = [];
+      setLoading(error?.message || "审核账号身份确认失败，请退出后重新登录");
+    }
+  })();
 })();
