@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.12";
+  const VERSION = "0.15.13";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -35,6 +35,11 @@
     if (!link) return;
     const session = readSession();
     const source = clean(params.get("source")).toLowerCase();
+    if (source === "teacher" && session?.role === "teacher") {
+      link.href = "teacher-work-orders.html";
+      link.textContent = "← 返回我的工作台";
+      return;
+    }
     if (source === "review" && ["hq", "operation"].includes(session?.role)) {
       link.href = type === "recharge" ? "recharge-review.html" : "verification-review.html";
       link.textContent = type === "recharge" ? "← 返回充值审核" : "← 返回核销审核";
@@ -98,6 +103,76 @@
       reviewNote: field(row, "initial_review_note", "initialReviewNote"),
       databaseBacked: true
     };
+  }
+
+  function normalizeTeacherOrder(row) {
+    if (!row) return null;
+    const originalType = clean(row.originalType).toUpperCase();
+    const voidRequestStatus = clean(row.voidRequestStatus).toUpperCase() || "NONE";
+    const originalKind = type === "recharge"
+      ? ({ NEW: "新充值", VOID: "历史冲销" }[originalType] || originalType || "充值")
+      : ({ NORMAL: "正常核销", SUPPLEMENT: "补录核销", EXPERIENCE: "体验核销" }[originalType] || originalType || "核销");
+    return {
+      id: clean(row.id),
+      recordCode: clean(row.recordCode),
+      originalType,
+      originalKind,
+      status: clean(row.recordStatus),
+      recordStatus: clean(row.recordStatus),
+      voidStatus: voidRequestStatus === "NONE" ? "" : voidRequestStatus,
+      voidRequestStatus,
+      storeId: clean(row.storeId),
+      storeCode: clean(row.storeCode),
+      storeName: clean(row.storeName),
+      customerCode: clean(row.customerCode),
+      customerName: clean(row.customerName),
+      projectCode: clean(row.productCode),
+      projectName: clean(row.productName),
+      teacherCode: clean(row.teacherCode),
+      teacherName: clean(row.teacherName),
+      count: row.unitCount,
+      createdAt: row.submittedAt,
+      reviewedAt: row.reviewedAt,
+      initialStoreNote: clean(row.message),
+      initialHqNote: clean(row.reviewNote),
+      reviewNote: clean(row.reviewNote),
+      databaseBacked: true
+    };
+  }
+
+  function parsedObject(value) {
+    if (value && typeof value === "object") return value;
+    if (typeof value !== "string") return null;
+    try { return JSON.parse(value); } catch (_) { return null; }
+  }
+
+  function cloudFunctionPayload(result) {
+    return [result?.result, result?.data?.result, result?.data, result]
+      .map(parsedObject)
+      .find((candidate) => candidate && (Object.prototype.hasOwnProperty.call(candidate, "ok") || Object.prototype.hasOwnProperty.call(candidate, "code"))) || {};
+  }
+
+  function registerCloudBaseComponent(register, componentName) {
+    if (typeof register !== "function") return;
+    try { register(window.cloudbase); }
+    catch (error) {
+      const detail = String(error?.message || error || "").toLowerCase();
+      if (!(detail.includes("duplicate component") && detail.includes(componentName))) throw error;
+    }
+  }
+
+  async function loadTeacherOrder(recordId) {
+    if (!/^\d+$/.test(recordId)) throw new Error("老师工单必须使用数据库编号读取");
+    if (!window.cloudbase || !window.CloudBaseAuthConfig || !window.registerFunctions) throw new Error("工单数据服务未加载，请刷新页面重试");
+    registerCloudBaseComponent(window.registerAuth, "auth");
+    registerCloudBaseComponent(window.registerFunctions, "functions");
+    const raw = await window.cloudbase.init(window.CloudBaseAuthConfig).callFunction({
+      name: "faceRecognition",
+      data: { action: "getTeacherWorkspace", recordType: type.toUpperCase(), recordId }
+    });
+    const payload = cloudFunctionPayload(raw);
+    if (!payload.ok || !payload.record) throw new Error(payload.message || "未找到当前老师本人绑定的工单");
+    return normalizeTeacherOrder(payload.record);
   }
 
   function formatTime(value) {
@@ -229,6 +304,7 @@
   function renderMissing(recordId) {
     const session = readSession();
     const storeMode = session?.role === "store";
+    const teacherMode = session?.role === "teacher";
     $("reviewStatusRow").hidden = storeMode;
     document.querySelector("[data-order-review]")?.classList.toggle("store-void-mode", storeMode);
     $("orderKindTag").textContent = type === "recharge" ? "充值" : "核销";
@@ -245,6 +321,11 @@
     if (storeMode) {
       $("reviewPanelTitle").textContent = "作废申请";
       $("reviewPanelHint").textContent = "原工单审核通过后可提交一次作废申请。";
+      $("reviewNoteField").hidden = true;
+      $("reviewActions").hidden = true;
+    } else if (teacherMode) {
+      $("reviewPanelTitle").textContent = "审核结果";
+      $("reviewPanelHint").textContent = "老师仅可查看本人绑定工单的审核结果与已有留言。";
       $("reviewNoteField").hidden = true;
       $("reviewActions").hidden = true;
     }
@@ -281,7 +362,7 @@
     const reviewMessage = first(record.reviewNote, record.hqReviewNote, record.approvalNote, record.rejectionNote);
     const countNumber = Number(first(record.count, record.unitCount, recharge ? "0" : "1"));
     const countLabel = recharge
-      ? (Number.isFinite(countNumber) && countNumber > 0 ? `+${countNumber}` : "—")
+      ? (Number.isFinite(countNumber) && countNumber > 0 ? `${String(record.originalType || "").toUpperCase() === "VOID" ? "−" : "+"}${countNumber}` : "—")
       : (Number.isFinite(countNumber) && countNumber > 0 ? String(countNumber) : "1");
     const session = readSession();
     const isReviewer = ["hq", "operation"].includes(session?.role);
@@ -317,6 +398,8 @@
       ? "作废申请已提交；留言已记录在下方。"
       : storeMode
       ? "仅已通过且尚未作废的工单可提交一次作废申请。"
+      : session?.role === "teacher"
+      ? "老师仅可查看本人绑定工单的审核状态和已有留言记录。"
       : "门店仅可查看审核状态和完整留言记录。";
 
     $("orderKeyfacts").innerHTML = [
@@ -418,6 +501,8 @@
     const recordReference = first(recordId, displayCode);
     const source = clean(params.get("source")).toLowerCase();
     const cached = findRecord(recordReference);
+    const recordCode = first(params.get("recordCode"), /^\d+$/.test(recordId) ? "" : recordId).toUpperCase();
+    const numericRecordId = /^\d+$/.test(recordId) ? recordId : "";
     const databaseReference = /^\d+$/.test(recordId) || /^[A-Z]{2}[A-Z0-9_-]{4,38}$/i.test(displayCode);
     const shouldReadDatabase = ["review", "created", "query"].includes(source) || databaseReference || cached?.databaseBacked === true;
     if (shouldReadDatabase) {
@@ -426,9 +511,14 @@
       $("orderStatus").className = "pending";
       $("orderStatus").textContent = "读取中";
       try {
+        const session = readSession();
+        if (session?.role === "teacher") {
+          const record = await loadTeacherOrder(numericRecordId);
+          saveRecord(record);
+          renderRecord(record);
+          return;
+        }
         if (typeof window.CloudBasePhoneAuth?.listReviewOrders !== "function") throw new Error("工单数据服务未加载，请刷新页面重试");
-        const recordCode = first(params.get("recordCode"), /^\d+$/.test(recordId) ? "" : recordId).toUpperCase();
-        const numericRecordId = /^\d+$/.test(recordId) ? recordId : "";
         const orders = await window.CloudBasePhoneAuth.listReviewOrders({
           recordType: type.toUpperCase(),
           recordId: numericRecordId,
@@ -448,7 +538,9 @@
         renderRecord(record);
       } catch (error) {
         renderMissing(displayCode);
-        $("orderDescription").textContent = error?.message || "工单读取失败，请返回审核列表后重试。";
+        $("orderDescription").textContent = error?.message || (readSession()?.role === "teacher"
+          ? "工单读取失败，请返回我的工作台后重试。"
+          : "工单读取失败，请返回审核列表后重试。");
       }
       return;
     }
