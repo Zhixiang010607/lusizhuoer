@@ -16,28 +16,53 @@
     <div>
       <p class="eyebrow">STORE MANAGEMENT</p>
       <h1>门店管理</h1>
-      <p class="subtitle">按门店名称、联系人电话或已有门店查询；点击结果查看门店详情。</p>
+      <p class="subtitle">默认显示全部门店；可按联系人电话筛选，点击门店名称进入门店全局视图。</p>
     </div>
     <div class="status"><span></span>总部权限</div>
   </header>
   <main>
-    <section class="panel management-toolbar people-search-toolbar">
-      <label>按门店名称查询<input id="entityNameSearch" type="search" autocomplete="off" placeholder="输入完整或部分门店名称"></label>
+    <section class="panel store-directory-toolbar">
       <label>按联系人电话查询<input id="entityPhoneSearch" type="search" inputmode="tel" autocomplete="off" placeholder="输入完整或部分联系人电话"></label>
-      <label>直接选择系统已有门店<select id="entitySelect"><option value="">请选择门店</option></select></label>
       <div class="toolbar-actions">
-        <button id="searchPeople" type="button">按条件搜索</button>
+        <button id="searchPeople" type="button">查询</button>
         <button id="addEntity" type="button">新增门店</button>
       </div>
     </section>
-    <section id="entityInfo" class="management-summary"></section>
+    <section id="storeDirectory" class="store-directory-grid" aria-live="polite">
+      <section class="panel store-directory-panel">
+        <div class="panel-heading">
+          <div><h2>活跃门店</h2></div>
+          <span id="activeStoreCount" class="badge">0 家</span>
+        </div>
+        <div class="store-directory-window">
+          <table class="store-directory-table">
+            <colgroup><col class="store-name-column"><col class="store-contact-column"><col class="store-phone-column"><col class="store-address-column"></colgroup>
+            <thead><tr><th>门店名称</th><th>联系人</th><th>联系电话</th><th>完整地址</th></tr></thead>
+            <tbody id="activeStoreRows"><tr><td colspan="4" class="store-directory-empty">正在读取门店数据…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="panel store-directory-panel">
+        <div class="panel-heading">
+          <div><h2>封存门店</h2></div>
+          <span id="archivedStoreCount" class="badge">0 家</span>
+        </div>
+        <div class="store-directory-window">
+          <table class="store-directory-table">
+            <colgroup><col class="store-name-column"><col class="store-contact-column"><col class="store-phone-column"><col class="store-address-column"></colgroup>
+            <thead><tr><th>门店名称</th><th>联系人</th><th>联系电话</th><th>完整地址</th></tr></thead>
+            <tbody id="archivedStoreRows"><tr><td colspan="4" class="store-directory-empty">正在读取门店数据…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
   </main>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
   <script src="cloudbase-phone-auth.js?v=0.14.21"></script>
-  <script src="management.js?v=0.14.21"></script>
+  <script src="store-management.js?v=0.14.22"></script>
   <script src="auth-ui.js"></script>
 </body>
 </html>

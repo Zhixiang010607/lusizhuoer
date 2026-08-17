@@ -906,6 +906,28 @@ body[data-store-business] .form-submit-row button:disabled {
   .workflow-action-panel .capture-panel, .store-business-full-panel > .capture-panel { grid-template-columns: minmax(280px, .9fr) minmax(180px, 1.1fr) auto auto; }
   .workflow-action-panel .workflow-capture-panel { grid-template-columns: minmax(300px, 1fr) minmax(190px, .45fr); }
 }
+
+.store-directory-toolbar { display: grid; grid-template-columns: minmax(280px, 520px) auto; align-items: end; gap: 12px; }
+.store-directory-toolbar > label { display: grid; gap: 6px; }
+.store-directory-toolbar .toolbar-actions { justify-content: flex-start; }
+.store-directory-grid { display: grid; gap: 14px; margin-top: 14px; }
+.store-directory-panel { min-width: 0; padding: 14px; }
+.store-directory-panel .panel-heading { margin-bottom: 10px; }
+.store-directory-window { max-height: 330px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.store-directory-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.store-directory-table .store-name-column { width: 24%; }
+.store-directory-table .store-contact-column { width: 14%; }
+.store-directory-table .store-phone-column { width: 18%; }
+.store-directory-table .store-address-column { width: 44%; }
+.store-directory-table th,
+.store-directory-table td { padding: 11px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+.store-directory-table th { position: sticky; top: 0; z-index: 1; background: #f3f6fa; color: var(--muted); font-size: 12px; }
+.store-directory-table tbody tr:last-child td { border-bottom: 0; }
+.store-directory-table tbody tr:hover td { background: #f8fbff; }
+.store-global-link { font-weight: 750; }
+.store-phone-cell { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.store-directory-empty { height: 78px; color: var(--muted); text-align: center !important; }
+.store-directory-empty.error-text { color: var(--danger); }
 @media (max-width: 900px) { .login-shell { grid-template-columns: 1fr; } .login-brand-panel { min-height: 340px; } .login-brand-copy { margin: 45px 0 25px; } .login-feature-list { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 760px) {
   body { padding-left: 0; }
@@ -926,6 +948,9 @@ body[data-store-business] .form-submit-row button:disabled {
   .filter-grid { grid-template-columns: repeat(2, 1fr); } .metric-grid { grid-template-columns: repeat(2, 1fr); }
   .dashboard-grid, .management-grid, .detail-bottom-grid { grid-template-columns: 1fr; } .wide { grid-column: auto; }
   .management-toolbar, .store-manual-lookup { grid-template-columns: 1fr; }
+  .store-directory-toolbar { grid-template-columns: 1fr; }
+  .store-directory-window { max-height: 300px; }
+  .store-directory-table { min-width: 720px; }
   .toolbar-actions { justify-content: stretch; }
   .toolbar-actions button { flex: 1; }
   .management-summary, .detail-info-grid { grid-template-columns: repeat(2, 1fr); }
