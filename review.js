@@ -1,12 +1,13 @@
 (() => {
   "use strict";
-  const VERSION = "0.17.4";
+  const VERSION = "0.17.5";
   const pageType = document.body.dataset.review;
   const recordType = pageType === "recharge" ? "RECHARGE" : "VERIFICATION";
   const columnCount = 10;
   const $ = (id) => document.getElementById(id);
   const statusText = { PENDING: "待审核", APPROVED: "已通过", REJECTED: "已驳回" };
   let rows = [], pendingAction = null, loadingSequence = 0, session = null, queryMode = "filters";
+  let nextCursor = null, hasMore = false, listLoading = false;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   let canDecide = false;
   let reviewerRole = "审核人员";
@@ -51,6 +52,7 @@
   function setLoading(message) {
     $("reviewBody").innerHTML = `<tr><td colspan="${columnCount}" class="query-empty">${escapeHtml(message)}</td></tr>`;
     $("reviewCount").innerHTML = `<strong>—</strong><span>${escapeHtml(message)}</span>`;
+    if ($("reviewLoadMore")) $("reviewLoadMore").hidden = true;
   }
   function saveAuthoritativeSession(data) {
     const profile = data?.profile || {};
@@ -106,7 +108,14 @@
   }
   function populateStoreFilter(sourceRows) {
     const selected = $("reviewStore").value || "all";
-    const stores = [...new Map(sourceRows.map((row) => [row.store.id, row.store])).values()].filter((store) => store.id).sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
+    const stores = [...new Map(sourceRows.map((row) => {
+      const store = row?.store || {
+        id: clean(pick(row, "store_id", "storeId")),
+        code: clean(pick(row, "store_code", "storeCode")),
+        name: clean(pick(row, "store_name", "storeName")) || "未命名门店"
+      };
+      return [store.id, store];
+    })).values()].filter((store) => store.id).sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
     $("reviewStore").innerHTML = `<option value="all">全部门店</option>${stores.map((store) => `<option value="${escapeHtml(store.id)}">${escapeHtml(store.name)}（${escapeHtml(store.code || store.id)}）</option>`).join("")}`;
     if ([...$("reviewStore").options].some((option) => option.value === selected)) $("reviewStore").value = selected;
   }
@@ -116,7 +125,7 @@
     return clean(pick(item.raw, "original_type", "originalType")) === "EXPERIENCE" ? "体验核销：无次数变化" : `余额 +${item.amount || 1}`;
   }
   function render() {
-    $("reviewCount").innerHTML = `<strong>${rows.length}</strong><span>条符合条件</span>`;
+    $("reviewCount").innerHTML = `<strong>${rows.length}</strong><span>${hasMore ? "条已加载，可继续加载" : "条符合条件"}</span>`;
     $("reviewBody").innerHTML = rows.map((item) => {
       const actions = item.status === "PENDING" && canDecide ? `<div class="review-actions"><button data-id="${escapeHtml(item.id)}" data-action="APPROVED">通过</button><button class="reject" data-id="${escapeHtml(item.id)}" data-action="REJECTED">驳回</button></div>` : `<span class="record-status status-${escapeHtml(statusText[item.status] || item.status)}">${escapeHtml(statusText[item.status] || item.status)}</span>`;
       const teacher = item.teacherName ? `${item.teacherName}${item.teacherId ? `（${item.teacherId}）` : ""}` : "—";
@@ -135,11 +144,21 @@
       return `<tr><td>${orderCode}</td><td>${escapeHtml(item.kind)}</td><td>${escapeHtml(item.store.name)}${item.store.code ? `（${escapeHtml(item.store.code)}）` : ""}</td><td>${customer}</td><td>${escapeHtml(item.project)}${item.projectId ? `（${escapeHtml(item.projectId)}）` : ""}</td><td>${escapeHtml(teacher)}</td><td>${escapeHtml(impactText(item))}</td><td>${escapeHtml(formatTime(item.time))}</td><td>${actions}</td><td>${escapeHtml(item.status === "PENDING" ? "—" : formatTime(item.reviewedAt))}</td></tr>`;
     }).join("") || `<tr><td colspan="${columnCount}" class="query-empty">当前条件下没有审核记录</td></tr>`;
     document.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", () => openReview(button.dataset.id, button.dataset.action)));
+    const loadMore = $("reviewLoadMore");
+    if (loadMore) {
+      loadMore.hidden = queryMode !== "filters" || !hasMore;
+      loadMore.disabled = listLoading;
+      loadMore.textContent = listLoading ? "正在加载…" : "加载更多审核记录";
+    }
   }
-  async function refresh({ preserveStores = true } = {}) {
+  async function refresh({ preserveStores = true, append = false } = {}) {
     if (typeof window.CloudBasePhoneAuth?.listReviewOrders !== "function") { setLoading("审核数据服务未加载，请刷新页面重试"); return; }
+    if (listLoading) return;
+    if (append && (!hasMore || !nextCursor)) return;
+    listLoading = true;
     const sequence = ++loadingSequence;
-    setLoading("正在读取审核工单…");
+    if (!append) setLoading("正在读取审核工单…");
+    else render();
     try {
       const recordCode = queryMode === "code" ? clean($("reviewCode").value).toUpperCase() : "";
       if (queryMode === "code" && !recordCode) {
@@ -153,16 +172,27 @@
         storeId: queryMode === "filters" && $("reviewStore").value !== "all" ? $("reviewStore").value : "",
         applicationType: queryMode === "filters" ? applicationTypeFilter() : "",
         status: queryMode === "filters" && $("reviewStatus").value !== "all" ? $("reviewStatus").value.toUpperCase() : "",
-        limit: queryMode === "code" ? 1 : 500
+        limit: queryMode === "code" ? 1 : 100,
+        paged: queryMode === "filters",
+        cursor: append ? nextCursor : null
       });
       if (sequence !== loadingSequence) return;
-      rows = (Array.isArray(result) ? result : []).map(normalizeRow);
-      if (!preserveStores || $("reviewStore").options.length <= 1) populateStoreFilter(rows);
+      const sourceRows = Array.isArray(result) ? result : Array.isArray(result?.orders) ? result.orders : [];
+      const incoming = sourceRows.map(normalizeRow);
+      if (append) {
+        const known = new Set(rows.map((row) => row.id));
+        incoming.forEach((row) => { if (!known.has(row.id)) rows.push(row); });
+      } else rows = incoming;
+      hasMore = queryMode === "filters" && result?.hasMore === true;
+      nextCursor = hasMore ? result.nextCursor : null;
+      const storeRows = Array.isArray(result?.stores) && result.stores.length ? result.stores : rows;
+      if (!append && (!preserveStores || $("reviewStore").options.length <= 1)) populateStoreFilter(storeRows);
       render();
     } catch (error) {
       if (sequence !== loadingSequence) return;
-      rows = []; setLoading(error?.message || "审核工单读取失败");
-    }
+      if (!append) { rows = []; hasMore = false; nextCursor = null; setLoading(error?.message || "审核工单读取失败"); }
+      else window.alert(error?.message || "更多审核工单读取失败");
+    } finally { listLoading = false; if (sequence === loadingSequence && rows.length) render(); }
   }
   function renderReviewCommunications(item) {
     const communicationRows = [{
@@ -213,6 +243,7 @@
     }
     if (!initial) {
       rows = [];
+      hasMore = false; nextCursor = null;
       setLoading(codeMode ? "请输入完整工单编号后查询" : "选择条件后点击“按条件查询”");
       if (codeMode) $("reviewCode").focus();
     }
@@ -222,6 +253,7 @@
   $("reviewModeFilters").addEventListener("click", () => setQueryMode("filters"));
   $("reviewModeCode").addEventListener("click", () => setQueryMode("code"));
   $("reviewFilterSearch").addEventListener("click", () => refresh());
+  $("reviewLoadMore")?.addEventListener("click", () => refresh({ append:true }));
   $("reviewCodeSearch").addEventListener("click", () => refresh());
   $("reviewCode").addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); refresh(); } });
   $("closeReviewDialog").addEventListener("click", closeDialog); $("cancelReview").addEventListener("click", closeDialog); $("confirmReview").addEventListener("click", confirmReview);

@@ -16,6 +16,11 @@
   const infoCard = (label, value) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || "—")}</strong></article>`;
   const verificationTypeText = (value) => ({ NORMAL:"正常核销", SUPPLEMENT:"补录核销", EXPERIENCE:"体验核销" }[value] || value || "正常核销");
   let profile = null, balances = [], recharges = [], verifications = [], requestPending = false;
+  let customerServiceApp = null;
+  const historyState = {
+    RECHARGE: { hasMore:false, nextCursor:null, loading:false },
+    VERIFICATION: { hasMore:false, nextCursor:null, loading:false }
+  };
 
   function hasReviewContext() {
     return ["RECHARGE", "VERIFICATION"].includes(reviewRecordType) && /^\d+$/.test(reviewRecordId);
@@ -62,7 +67,10 @@
     if (!window.cloudbase || !window.CloudBaseAuthConfig || !window.registerFunctions) throw new Error("客户数据库组件未加载，请刷新页面后重试。");
     registerComponent(window.registerAuth, "auth"); registerComponent(window.registerFunctions, "functions");
     let result;
-    try { result = await window.cloudbase.init(window.CloudBaseAuthConfig).callFunction({ name:"faceRecognition", data:payload }); }
+    try {
+      customerServiceApp ||= window.cloudbase.init(window.CloudBaseAuthConfig);
+      result = await customerServiceApp.callFunction({ name:"faceRecognition", data:payload });
+    }
     catch (error) { throw new Error(error?.message || "客户数据库调用失败，请检查网络和登录状态。"); }
     const data = cloudFunctionData(result);
     if (!data.ok) throw new Error(data.message || "客户数据库没有返回有效结果。");
@@ -113,6 +121,48 @@
       const codeCell = detail ? `<a class="record-link" href="${escapeHtml(detail)}">${escapeHtml(code)}</a>` : escapeHtml(code);
       return `<tr><td>${codeCell}</td><td>${escapeHtml([row.productName, row.productCode].filter(Boolean).join(" · "))}</td><td>${escapeHtml(verificationTypeText(row.verificationType))}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row))}</td></tr>`;
     }).join("") : emptyRow(5, "暂无核销记录");
+    syncHistoryButton("RECHARGE");
+    syncHistoryButton("VERIFICATION");
+  }
+  function historyKey(row) { return String(row?.id || ""); }
+  function syncHistoryButton(type) {
+    const button = $(type === "RECHARGE" ? "loadMoreRecharges" : "loadMoreVerifications");
+    if (!button) return;
+    const state = historyState[type];
+    button.hidden = !state.hasMore;
+    button.disabled = state.loading;
+    button.textContent = state.loading ? "正在加载…" : "加载更多";
+  }
+  function profilePayload(extra = {}) {
+    return session?.role === "operation"
+      ? { action:"getReviewCustomerProfile", customerCode, reviewRecordType, reviewRecordId, ...extra }
+      : { action:"getCustomerProfile", customerCode, ...extra };
+  }
+  async function loadMoreHistory(type) {
+    const state = historyState[type];
+    if (!state?.hasMore || state.loading || !state.nextCursor) return;
+    state.loading = true; syncHistoryButton(type);
+    try {
+      const data = await callCustomerService(profilePayload({
+        historyType:type,
+        historyLimit:50,
+        cursorSubmittedAt:state.nextCursor.submittedAt,
+        cursorId:state.nextCursor.id
+      }));
+      const field = type === "RECHARGE" ? "recharges" : "verifications";
+      const page = data.history?.[field] || {};
+      const incoming = Array.isArray(data[field]) ? data[field] : [];
+      const target = type === "RECHARGE" ? recharges : verifications;
+      const known = new Set(target.map(historyKey));
+      incoming.forEach((row) => { if (!known.has(historyKey(row))) target.push(row); });
+      state.hasMore = page.hasMore === true;
+      state.nextCursor = page.nextCursor || null;
+      renderRecords();
+    } catch (error) {
+      window.alert(error?.message || "客户历史记录加载失败，请重试。");
+    } finally {
+      state.loading = false; syncHistoryButton(type);
+    }
   }
   function renderPhoto(content, error = false) {
     const frame = $("customerProfilePhoto"); frame.classList.toggle("customer-photo-error", error); frame.innerHTML = content;
@@ -123,7 +173,7 @@
     try {
       const data = await callCustomerService({ action:"getCustomerPhotoUrl", customerCode });
       const url = String(data.photoUrl || "").trim(); if (!/^https:\/\//i.test(url)) throw new Error("客户照片临时地址无效。");
-      renderPhoto(`<img id="customerProfilePhotoImage" src="${escapeHtml(url)}" alt="${escapeHtml(profile?.customerName || "客户")}的建档照片" referrerpolicy="no-referrer">`);
+      renderPhoto(`<img id="customerProfilePhotoImage" src="${escapeHtml(url)}" alt="${escapeHtml(profile?.customerName || "客户")}的建档照片" referrerpolicy="no-referrer" decoding="async" fetchpriority="high">`);
       $("customerProfilePhotoImage").addEventListener("error", () => renderPhoto('<div class="customer-photo-placeholder">照片读取失败，请刷新重试</div>', true), { once:true });
     } catch (error) { renderPhoto(`<div class="customer-photo-placeholder">${escapeHtml(error.message || "照片读取失败")}</div>`, true); }
   }
@@ -146,22 +196,27 @@
     $("customerProjectSummary").innerHTML = emptyRow(4, "客户项目数据读取失败");
     $("customerRechargeRecords").innerHTML = emptyRow(5, "充值记录读取失败");
     $("customerVerificationRecords").innerHTML = emptyRow(5, "核销记录读取失败");
+    ["loadMoreRecharges", "loadMoreVerifications"].forEach((id) => { if ($(id)) $(id).hidden = true; });
     renderPhoto('<div class="customer-photo-placeholder">客户资料读取失败</div>', true);
   }
   async function loadProfile() {
     if (!customerCode) { renderLoadError("缺少客户编号，请返回客户查询重新进入。"); return; }
     if (session?.role === "operation" && !hasReviewContext()) { renderLoadError("运营账号必须从审核记录进入客户主页。"); return; }
     $("customerBasicInfo").innerHTML = infoCard("数据库状态", "正在读取客户主页…");
+    void loadPhoto();
     try {
-      const payload = session?.role === "operation"
-        ? { action:"getReviewCustomerProfile", customerCode, reviewRecordType, reviewRecordId }
-        : { action:"getCustomerProfile", customerCode };
-      const data = await callCustomerService(payload);
+      const data = await callCustomerService(profilePayload({ historyLimit:50 }));
       profile = data.customer; balances = Array.isArray(data.balances) ? data.balances : [];
       recharges = Array.isArray(data.recharges) ? data.recharges : []; verifications = Array.isArray(data.verifications) ? data.verifications : [];
-      renderBasic(); renderRecent(); renderBalances(); renderRecords(); void loadPhoto();
+      historyState.RECHARGE.hasMore = data.history?.recharges?.hasMore === true;
+      historyState.RECHARGE.nextCursor = data.history?.recharges?.nextCursor || null;
+      historyState.VERIFICATION.hasMore = data.history?.verifications?.hasMore === true;
+      historyState.VERIFICATION.nextCursor = data.history?.verifications?.nextCursor || null;
+      renderBasic(); renderRecent(); renderBalances(); renderRecords();
     } catch (error) { renderLoadError(error.message || "客户主页数据库读取失败，请刷新重试。"); }
   }
   configureBackLink();
+  $("loadMoreRecharges")?.addEventListener("click", () => loadMoreHistory("RECHARGE"));
+  $("loadMoreVerifications")?.addEventListener("click", () => loadMoreHistory("VERIFICATION"));
   void loadProfile();
 })();

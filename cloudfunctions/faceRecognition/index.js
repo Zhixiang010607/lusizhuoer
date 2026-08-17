@@ -4,7 +4,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
-const FUNCTION_VERSION = "v38";
+const FUNCTION_VERSION = "v39";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -579,6 +579,59 @@ async function updateCustomerStatus(event) {
   return customerStatusResult(customer);
 }
 
+function customerHistoryOptions(event = {}) {
+  const requestedLimit = Number(event.historyLimit);
+  const limit = Number.isFinite(requestedLimit)
+    ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100)
+    : 50;
+  const type = String(event.historyType || "").trim().toUpperCase();
+  if (type && !["RECHARGE", "VERIFICATION"].includes(type)) fail("客户历史类型无效。", "BAD_REQUEST");
+  const cursorSubmittedAt = scopedQueryCursorTimestamp(event.cursorSubmittedAt, "客户历史游标时间");
+  const cursorId = String(event.cursorId || "").trim();
+  if ((cursorSubmittedAt || cursorId) && !type) fail("客户历史游标必须指定记录类型。", "BAD_REQUEST");
+  if (Boolean(cursorSubmittedAt) !== Boolean(cursorId)) fail("客户历史游标不完整。", "BAD_REQUEST");
+  return {
+    limit,
+    type,
+    cursorSubmittedAt,
+    cursorId: cursorId ? businessQueryDatabaseId(cursorId, "客户历史游标编号") : ""
+  };
+}
+
+function customerHistoryPage(rows, limit) {
+  const hasMore = rows.length > limit;
+  const visibleRows = rows.slice(0, limit);
+  const last = visibleRows[visibleRows.length - 1];
+  return {
+    rows: visibleRows,
+    page: {
+      hasMore,
+      nextCursor: hasMore && last
+        ? { submittedAt: last.cursor_submitted_at, id: String(last.id) }
+        : null
+    }
+  };
+}
+
+function mapCustomerRecharges(rows) {
+  return rows.map((row) => ({
+    id: String(row.id), rechargeCode: row.recharge_code, rechargeType: row.recharge_type,
+    unitCount: Number(row.unit_count || 0), recordStatus: row.record_status,
+    voidRequestStatus: row.void_request_status, submittedAt: row.submitted_at, reviewedAt: row.reviewed_at,
+    productId: String(row.product_id), productCode: row.product_code, productName: row.product_name
+  }));
+}
+
+function mapCustomerVerifications(rows) {
+  return rows.map((row) => ({
+    id: String(row.id), verificationCode: row.verification_code, verificationType: row.verification_type,
+    unitCount: Number(row.unit_count || 1), recordStatus: row.record_status,
+    voidRequestStatus: row.void_request_status, submittedAt: row.submitted_at, reviewedAt: row.reviewed_at,
+    productId: String(row.product_id), productCode: row.product_code, productName: row.product_name,
+    teacherId: row.teacher_id ? String(row.teacher_id) : "", teacherCode: row.teacher_code || "", teacherName: row.teacher_name || ""
+  }));
+}
+
 async function getCustomerProfile(event, options = {}) {
   const operationReviewContext = options.operationReviewContext === true;
   const caller = operationReviewContext
@@ -603,7 +656,42 @@ async function getCustomerProfile(event, options = {}) {
   const customer = customerRows[0];
   if (!customer) fail("未找到当前账号有权查看的客户档案。", "CUSTOMER_NOT_FOUND");
   const customerId = String(customer.id);
-  const [balances, recharges, verifications] = await Promise.all([
+  const historyOptions = customerHistoryOptions(event);
+  const cursorSql = historyOptions.cursorSubmittedAt
+    ? (alias) => `AND (${alias}.submitted_at, ${alias}.id) < (${sqlText(historyOptions.cursorSubmittedAt)}::timestamptz, ${historyOptions.cursorId}::bigint)`
+    : () => "";
+  const rechargeSql = `SELECT r.id, r.recharge_code, r.recharge_type, r.unit_count,
+               r.record_status, r.void_request_status, r.submitted_at, r.reviewed_at,
+               TO_CHAR(r.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_submitted_at,
+               p.id AS product_id, p.product_code, p.product_name
+          FROM public.recharge_records r
+          JOIN public.products p ON p.id = r.product_id
+         WHERE r.customer_id = ${sqlText(customerId)}::bigint
+           ${historyOptions.type === "RECHARGE" ? cursorSql("r") : ""}
+         ORDER BY r.submitted_at DESC, r.id DESC
+         LIMIT ${historyOptions.limit + 1}`;
+  const verificationSql = `SELECT v.id, v.verification_code, v.verification_type, v.unit_count,
+               v.record_status, v.void_request_status, v.submitted_at, v.reviewed_at,
+               TO_CHAR(v.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_submitted_at,
+               p.id AS product_id, p.product_code, p.product_name,
+               t.id AS teacher_id, t.teacher_code, t.teacher_name
+          FROM public.verification_records v
+          JOIN public.products p ON p.id = v.product_id
+          LEFT JOIN public.teachers t ON t.id = v.teacher_id
+         WHERE v.customer_id = ${sqlText(customerId)}::bigint
+           ${historyOptions.type === "VERIFICATION" ? cursorSql("v") : ""}
+         ORDER BY v.submitted_at DESC, v.id DESC
+         LIMIT ${historyOptions.limit + 1}`;
+
+  if (historyOptions.type) {
+    const historyRows = await executeSql(historyOptions.type === "RECHARGE" ? rechargeSql : verificationSql);
+    const historyPage = customerHistoryPage(historyRows, historyOptions.limit);
+    return historyOptions.type === "RECHARGE"
+      ? { ok: true, recharges: mapCustomerRecharges(historyPage.rows), history: { recharges: historyPage.page } }
+      : { ok: true, verifications: mapCustomerVerifications(historyPage.rows), history: { verifications: historyPage.page } };
+  }
+
+  const [balances, rechargeRows, verificationRows] = await Promise.all([
     executeSql(
       `SELECT p.id AS product_id, p.product_code, p.product_name, p.product_status,
               b.total_recharge_count, b.total_verification_count, b.remaining_count, b.updated_at
@@ -612,29 +700,11 @@ async function getCustomerProfile(event, options = {}) {
         WHERE b.customer_id = ${sqlText(customerId)}::bigint
         ORDER BY p.product_name, p.product_code`
     ),
-    executeSql(
-      `SELECT r.id, r.recharge_code, r.recharge_type, r.unit_count,
-              r.record_status, r.void_request_status, r.submitted_at, r.reviewed_at,
-              p.id AS product_id, p.product_code, p.product_name
-         FROM public.recharge_records r
-         JOIN public.products p ON p.id = r.product_id
-        WHERE r.customer_id = ${sqlText(customerId)}::bigint
-        ORDER BY r.submitted_at DESC, r.id DESC
-        LIMIT 500`
-    ),
-    executeSql(
-      `SELECT v.id, v.verification_code, v.verification_type, v.unit_count,
-              v.record_status, v.void_request_status, v.submitted_at, v.reviewed_at,
-              p.id AS product_id, p.product_code, p.product_name,
-              t.id AS teacher_id, t.teacher_code, t.teacher_name
-         FROM public.verification_records v
-         JOIN public.products p ON p.id = v.product_id
-         LEFT JOIN public.teachers t ON t.id = v.teacher_id
-        WHERE v.customer_id = ${sqlText(customerId)}::bigint
-        ORDER BY v.submitted_at DESC, v.id DESC
-        LIMIT 500`
-    )
+    executeSql(rechargeSql),
+    executeSql(verificationSql)
   ]);
+  const rechargePage = customerHistoryPage(rechargeRows, historyOptions.limit);
+  const verificationPage = customerHistoryPage(verificationRows, historyOptions.limit);
   return {
     ok: true,
     customer: {
@@ -657,19 +727,9 @@ async function getCustomerProfile(event, options = {}) {
       totalVerificationCount: Number(row.total_verification_count || 0),
       remainingCount: Number(row.remaining_count || 0), updatedAt: row.updated_at
     })),
-    recharges: recharges.map((row) => ({
-      id: String(row.id), rechargeCode: row.recharge_code, rechargeType: row.recharge_type,
-      unitCount: Number(row.unit_count || 0), recordStatus: row.record_status,
-      voidRequestStatus: row.void_request_status, submittedAt: row.submitted_at, reviewedAt: row.reviewed_at,
-      productId: String(row.product_id), productCode: row.product_code, productName: row.product_name
-    })),
-    verifications: verifications.map((row) => ({
-      id: String(row.id), verificationCode: row.verification_code, verificationType: row.verification_type,
-      unitCount: Number(row.unit_count || 1), recordStatus: row.record_status,
-      voidRequestStatus: row.void_request_status, submittedAt: row.submitted_at, reviewedAt: row.reviewed_at,
-      productId: String(row.product_id), productCode: row.product_code, productName: row.product_name,
-      teacherId: row.teacher_id ? String(row.teacher_id) : "", teacherCode: row.teacher_code || "", teacherName: row.teacher_name || ""
-    }))
+    recharges: mapCustomerRecharges(rechargePage.rows),
+    verifications: mapCustomerVerifications(verificationPage.rows),
+    history: { recharges: rechargePage.page, verifications: verificationPage.page }
   };
 }
 
@@ -883,26 +943,35 @@ async function getActiveStoreCustomerDetail(event) {
   return getCustomerPhotoUrl(event, { requireActiveStoreCustomer: true });
 }
 
-async function listActiveStoreCustomers() {
+async function listActiveStoreCustomers(event = {}) {
   const caller = await activeStoreCaller();
+  const requestedLimit = Number(event.limit);
+  const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100) : 100;
+  const customerName = String(event.customerName || "").trim();
+  const birthDate = optionalBusinessQueryDate(event.birthDate, "客户生日");
+  if (customerName.length > 100) fail("客户姓名不能超过 100 个字符。", "BAD_REQUEST");
+  if (Boolean(customerName) !== Boolean(birthDate)) fail("按资料查询时必须同时填写客户姓名和生日。", "BAD_REQUEST");
   const rows = await executeSql(
     `SELECT customer_code, customer_name, birth_date
        FROM public.customers
       WHERE created_store_id = ${caller.storeId}
         AND customer_status = 'ACTIVE'
+        ${customerName ? `AND customer_name = ${sqlText(customerName)} AND birth_date = ${sqlText(birthDate)}::date` : ""}
       ORDER BY customer_name, birth_date, customer_code
-      LIMIT 1000`
+      LIMIT ${limit + 1}`
   );
+  const hasMore = rows.length > limit;
   return {
     ok: true,
     storeId: String(caller.storeId),
     storeCode: caller.storeCode,
     storeName: caller.storeName,
-    customers: rows.map((customer) => ({
+    customers: rows.slice(0, limit).map((customer) => ({
       customerCode: customer.customer_code,
       customerName: customer.customer_name,
       birthDate: customer.birth_date
-    }))
+    })),
+    hasMore
   };
 }
 
@@ -1990,7 +2059,7 @@ exports.main = async (event = {}) => {
     if (action === "health") return { ok: true, version: FUNCTION_VERSION, groupId: required("FACE_GROUP_ID"), photoBucketId: String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim(), livenessEnabled: faceSettings().livenessEnabled, message: "Face customer enrollment is ready." };
     if (action === "validateCapture") return await validateCapture(event);
     if (action === "registerCustomer") return await registerCustomer(event);
-    if (action === "listActiveStoreCustomers") return await listActiveStoreCustomers();
+    if (action === "listActiveStoreCustomers") return await listActiveStoreCustomers(event);
     if (action === "queryStoreCustomers") return await queryStoreCustomers(event);
     if (action === "queryStoreBusinessRecords") return await queryStoreBusinessRecords(event);
     if (action === "getStoreDashboard") return await getStoreDashboard(event);

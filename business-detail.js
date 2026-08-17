@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.11";
+  const VERSION = "0.15.12";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -433,9 +433,8 @@
           recordType: type.toUpperCase(),
           recordId: numericRecordId,
           recordCode,
-          // 旧版云函数可能忽略 recordCode；只有编号而没有数据库 ID 时，
-          // 多取候选记录并在浏览器端再次按唯一工单编号精确匹配。
-          limit: numericRecordId ? 1 : 500
+          // 数据库按 ID／完整业务编号精确读取，详情页永远只取一条。
+          limit: 1
         });
         const exactOrder = Array.isArray(orders)
           ? orders.find((item) => (

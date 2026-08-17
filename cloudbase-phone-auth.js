@@ -283,12 +283,20 @@
         "作废申请提交失败"
       );
     },
-    async listReviewOrders({ recordType, recordId = "", recordCode = "", storeId = "", applicationType = "", status = "", limit = 200 } = {}) {
+    async listReviewOrders({ recordType, recordId = "", recordCode = "", storeId = "", applicationType = "", status = "", limit = 200, paged = false, cursor = null } = {}) {
+      const payload = { action: "listReviewOrders", recordType, recordId, recordCode, storeId, applicationType, status, limit, paged };
+      if (cursor) {
+        payload.cursorPending = cursor.pending;
+        payload.cursorApplicationTime = cursor.applicationTime || "";
+        payload.cursorId = cursor.id || "";
+      }
       const data = await callStaffAccount(
-        { action: "listReviewOrders", recordType, recordId, recordCode, storeId, applicationType, status, limit },
+        payload,
         "审核工单读取失败"
       );
-      return data.orders || [];
+      return paged
+        ? { orders: data.orders || [], hasMore: data.hasMore === true, nextCursor: data.nextCursor || null, stores: data.stores || [] }
+        : data.orders || [];
     },
     async reviewOrder({ recordType, recordId, decision, note }) {
       return callStaffAccount(

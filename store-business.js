@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.40", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.41", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   const formatBirthday = (value, fallback = "—") => {
     const raw = String(value ?? "").trim();
     if (!raw) return fallback;
@@ -13,6 +13,7 @@
   let storeName = `门店 ${storeNo}`;
   let databaseCustomers = [], databaseTeachers = [], databaseProducts = [], candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, verificationBalanceProjects = [], rechargeRequest = null, verificationRequest = null, verificationFaceRequestId = "", customerEnrollmentRequest = null, previewCustomerCode = "", customerSubmissionBusy = false;
   const customerDetailCache = new Map(), customerDetailRequests = new Map();
+  let customerServiceApp = null;
   const allCustomers = () => databaseCustomers;
   const saveList = (key, value) => { try { sessionStorage.setItem(key, JSON.stringify(value)); } catch (_) { /* 当前静态会话不可持久化时不保存演示数据。 */ } };
   const saveGeneratedOrder = (key, record) => {
@@ -112,10 +113,10 @@
     if (!window.cloudbase || !window.CloudBaseAuthConfig || !window.registerFunctions) throw new Error("CloudBase 客户建档组件未加载，请刷新后重试");
     registerCloudBaseComponent(window.registerAuth, "auth");
     registerCloudBaseComponent(window.registerFunctions, "functions");
-    const app = window.cloudbase.init(window.CloudBaseAuthConfig);
+    customerServiceApp ||= window.cloudbase.init(window.CloudBaseAuthConfig);
     let result;
     try {
-      result = await app.callFunction({ name: "faceRecognition", data: payload });
+      result = await customerServiceApp.callFunction({ name: "faceRecognition", data: payload });
     } catch (error) {
       const diagnostic = [error?.code, error?.requestId || error?.RequestId].filter(Boolean).join(" · ");
       throw new Error(`${error?.message || "腾讯云函数调用失败"}${diagnostic ? `（${diagnostic}）` : ""}`);
@@ -231,10 +232,10 @@
       if (sourceWidth / sourceHeight > targetRatio) sourceWidth = sourceHeight * targetRatio;
       else sourceHeight = sourceWidth / targetRatio;
       const sourceX = Math.round((video.videoWidth - sourceWidth) / 2), sourceY = Math.round((video.videoHeight - sourceHeight) / 2);
-      const outputHeight = Math.round(Math.min(sourceHeight, 1280));
+      const outputHeight = Math.round(Math.min(sourceHeight, 1024));
       canvas.height = outputHeight; canvas.width = Math.round(outputHeight * targetRatio);
       canvas.getContext("2d", { alpha: false }).drawImage(video, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
-      capturedPhotoDataUrl = canvas.toDataURL("image/jpeg", 0.88); faceCaptured = false; preview.src = capturedPhotoDataUrl; preview.hidden = false; video.hidden = true; stopFaceCamera(); openCamera.hidden = true; capture.disabled = true; retake.hidden = false;
+      capturedPhotoDataUrl = canvas.toDataURL("image/jpeg", 0.85); faceCaptured = false; preview.src = capturedPhotoDataUrl; preview.hidden = false; video.hidden = true; stopFaceCamera(); openCamera.hidden = true; capture.disabled = true; retake.hidden = false;
       status.className = "capture-status pending"; status.textContent = "正在检查人脸、清晰度、遮挡和拍摄角度…"; message.textContent = ""; syncCustomerCreateSubmit();
       if ($("faceQualityResult")) $("faceQualityResult").textContent = "检测中…";
       if ($("faceLivenessResult")) $("faceLivenessResult").textContent = "等待质量检测";
@@ -298,7 +299,7 @@
     customerSelect.innerHTML = `<option value="">正在从数据库读取本门店活跃客户…</option>`;
     const loadActiveCustomers = async () => {
       try {
-        const result = await callCustomerEnrollment({ action: "listActiveStoreCustomers" });
+        const result = await callCustomerEnrollment({ action: "listActiveStoreCustomers", limit:100 });
         storeName = String(result?.storeName || result?.storeCode || storeName);
         activeCustomers = (Array.isArray(result?.customers) ? result.customers : []).map((customer) => ({
           id: String(customer.customerCode || ""),
@@ -307,7 +308,7 @@
         })).filter((customer) => customer.id && customer.name && customer.birthday);
         databaseCustomers = activeCustomers;
         customerSelect.innerHTML = activeCustomers.length
-          ? `<option value="">请选择现有客户</option>${activeCustomers.map((customer) => `<option value="${escapeHtml(customer.id)}">${escapeHtml(customer.name)}（${escapeHtml(customer.id)}）</option>`).join("")}`
+          ? `<option value="">${result?.hasMore ? "请选择现有客户（先显示前 100 位，其他客户请用姓名＋生日查询）" : "请选择现有客户"}</option>${activeCustomers.map((customer) => `<option value="${escapeHtml(customer.id)}">${escapeHtml(customer.name)}（${escapeHtml(customer.id)}）</option>`).join("")}`
           : `<option value="">本门店暂无活跃客户</option>`;
         customerSelect.disabled = activeCustomers.length === 0;
       } catch (error) {
@@ -341,15 +342,23 @@
       if (!$("serviceCustomerSelect").value) { resetCandidate(); showLookupError("必须先选择现有客户。"); return; }
       lookupSelectedCustomer();
     });
-    $("serviceCustomerLookup").addEventListener("click", () => {
+    $("serviceCustomerLookup").addEventListener("click", async () => {
       resetCandidate(); const name = $("serviceCustomerName").value.trim(), birthday = $("serviceCustomerBirthday").value;
       if (!name || !birthday) { showLookupError("客户姓名和生日都必须填写。"); return; }
-      const matches = activeCustomers.filter((customer) => customer.name === name && customer.birthday === birthday);
-      if (matches.length === 1) renderCustomerCore(matches[0]);
-      else if (matches.length > 1) {
-        $("serviceCustomerResults").innerHTML = `<div class="duplicate-customer-list"><strong>找到 ${matches.length} 位同名同生日客户，请按编号选择：</strong>${matches.map((customer) => `<button type="button" data-preview-customer="${customer.id}">${customer.name} · ${customer.id}</button>`).join("")}</div>`;
-        document.querySelectorAll("[data-preview-customer]").forEach((button) => button.addEventListener("click", () => renderCustomerCore(matches.find((customer) => customer.id === button.dataset.previewCustomer))));
-      } else showLookupError("未找到本门店活跃客户；请核对信息，或先恢复已存档客户。");
+      const button = $("serviceCustomerLookup"); button.disabled = true;
+      $("serviceCustomerResults").innerHTML = `<div class="lookup-placeholder"><strong>正在查询客户</strong><span>仅在本门店活跃客户中按姓名和生日精确查询。</span></div>`;
+      try {
+        const result = await callCustomerEnrollment({ action:"listActiveStoreCustomers", customerName:name, birthDate:birthday, limit:100 });
+        const matches = (Array.isArray(result?.customers) ? result.customers : []).map((customer) => ({
+          id:String(customer.customerCode || ""), name:String(customer.customerName || ""), birthday:String(customer.birthDate || "").slice(0, 10)
+        })).filter((customer) => customer.id && customer.name && customer.birthday);
+        if (matches.length === 1) renderCustomerCore(matches[0]);
+        else if (matches.length > 1) {
+          $("serviceCustomerResults").innerHTML = `<div class="duplicate-customer-list"><strong>找到 ${matches.length} 位同名同生日客户，请按编号选择：</strong>${matches.map((customer) => `<button type="button" data-preview-customer="${escapeHtml(customer.id)}">${escapeHtml(customer.name)} · ${escapeHtml(customer.id)}</button>`).join("")}</div>`;
+          document.querySelectorAll("[data-preview-customer]").forEach((item) => item.addEventListener("click", () => renderCustomerCore(matches.find((customer) => customer.id === item.dataset.previewCustomer))));
+        } else showLookupError("未找到本门店活跃客户；请核对信息，或先恢复已存档客户。");
+      } catch (error) { showLookupError(error?.message || "客户查询失败，请重试。"); }
+      finally { button.disabled = false; }
     });
     $("confirmCustomerSelection").addEventListener("click", () => { if (candidateCustomer) confirmCustomer(candidateCustomer.id); });
     loadActiveCustomers();
@@ -369,7 +378,7 @@
   }
   function customerPreviewMarkup(customer, hasPhoto = false) {
     const photo = hasPhoto
-      ? `<div class="profile-photo-visual has-photo"><img id="selectedCustomerProfilePhoto" alt="${escapeHtml(customer.name)}的客户建档照片" referrerpolicy="no-referrer"></div>`
+      ? `<div class="profile-photo-visual has-photo"><img id="selectedCustomerProfilePhoto" alt="${escapeHtml(customer.name)}的客户建档照片" referrerpolicy="no-referrer" decoding="async" fetchpriority="high"></div>`
       : `<div class="profile-photo-visual"><strong>照片加载中…</strong></div>`;
     return `<div class="customer-core-card"><div class="customer-core-heading"><span>客户身份确认</span><strong>${escapeHtml(customer.name)}</strong></div><div class="customer-profile-layout"><figure class="customer-profile-photo">${photo}<figcaption><strong>客户建档照片</strong><span>${hasPhoto ? "私有照片 · 临时授权显示" : "正在读取私有照片"}</span></figcaption></figure><div class="customer-profile-details"><div class="customer-core-facts"><div><span>姓名</span><strong>${escapeHtml(customer.name)}</strong></div><div><span>生日</span><strong>${escapeHtml(formatBirthday(customer.birthday))}</strong></div><div><span>客户编号</span><strong>${escapeHtml(customer.id)}</strong></div></div><p class="profile-photo-note">请核对照片与现场客户。照片无法读取时禁止继续确认客户。</p></div></div></div>`;
   }
@@ -569,10 +578,10 @@
       let sourceWidth = video.videoWidth, sourceHeight = video.videoHeight;
       if (sourceWidth / sourceHeight > targetRatio) sourceWidth = sourceHeight * targetRatio;
       else sourceHeight = sourceWidth / targetRatio;
-      const sourceX = Math.round((video.videoWidth - sourceWidth) / 2), sourceY = Math.round((video.videoHeight - sourceHeight) / 2), outputHeight = Math.round(Math.min(sourceHeight, 1280));
+      const sourceX = Math.round((video.videoWidth - sourceWidth) / 2), sourceY = Math.round((video.videoHeight - sourceHeight) / 2), outputHeight = Math.round(Math.min(sourceHeight, 1024));
       canvas.height = outputHeight; canvas.width = Math.round(outputHeight * targetRatio);
       canvas.getContext("2d", { alpha: false }).drawImage(video, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
-      capturedPhotoDataUrl = canvas.toDataURL("image/jpeg", 0.88); preview.src = capturedPhotoDataUrl; preview.hidden = false; video.hidden = true; stopFaceCamera(); open.hidden = true; capture.disabled = true; retake.hidden = false;
+      capturedPhotoDataUrl = canvas.toDataURL("image/jpeg", 0.85); preview.src = capturedPhotoDataUrl; preview.hidden = false; video.hidden = true; stopFaceCamera(); open.hidden = true; capture.disabled = true; retake.hidden = false;
       photoCaptured = false; syncVerificationSubmit(); status.className = "capture-status pending"; status.textContent = "正在与所选客户进行 1:1 人脸验证…"; message.textContent = "";
       try {
         const result = await callCustomerEnrollment({ action: "verifyCustomerFace", customerCode: selectedCustomer.id, imageBase64: capturedPhotoDataUrl });

@@ -9,7 +9,7 @@ const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 const OPERATION_ACTIONS = new Set(["listReviewOrders", "reviewOrder"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v39";
+const FUNCTION_VERSION = "v40";
 let app = null;
 let auth = null;
 let managerClient = null;
@@ -1118,16 +1118,42 @@ async function listReviewOrders(caller, event) {
   const recordType = String(event.recordType || "").trim().toUpperCase();
   if (!["RECHARGE", "VERIFICATION"].includes(recordType)) fail("不支持的审核工单类型", "BAD_REQUEST");
   const scopedEvent = storeReader ? { ...event, storeId: caller.profile.storeId } : event;
-  const limit = storeReader ? 1 : Math.min(Math.max(Number(event.limit) || 200, 1), 500);
+  const paged = event.paged === true && !exactLookup && !storeReader;
+  const requestedLimit = Number(event.limit);
+  const limit = storeReader ? 1 : paged
+    ? Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 100, 1), 100)
+    : Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 200, 1), 500);
+  const cursorApplicationTime = String(event.cursorApplicationTime || "").trim();
+  const cursorIdValue = String(event.cursorId || "").trim();
+  const hasCursor = Boolean(cursorApplicationTime || cursorIdValue || event.cursorPending !== undefined);
+  if (hasCursor && (!paged || !cursorApplicationTime || !cursorIdValue || typeof event.cursorPending !== "boolean")) {
+    fail("审核列表游标不完整", "BAD_REQUEST");
+  }
+  if (cursorApplicationTime && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/.test(cursorApplicationTime)) {
+    fail("审核列表游标时间无效", "BAD_REQUEST");
+  }
+  if (cursorApplicationTime) {
+    const parsedCursorTime = new Date(cursorApplicationTime);
+    if (Number.isNaN(parsedCursorTime.getTime())
+      || parsedCursorTime.toISOString().slice(0, 19) !== cursorApplicationTime.slice(0, 19)) {
+      fail("审核列表游标时间无效", "BAD_REQUEST");
+    }
+  }
+  const cursorId = cursorIdValue ? numericId(cursorIdValue, "审核列表游标编号") : "";
+  const sqlLimit = paged ? limit + 1 : limit;
   let sql;
   if (recordType === "RECHARGE") {
     const statusExpression = "CASE WHEN r.void_request_status <> 'NONE' THEN r.void_request_status ELSE r.record_status END";
     const typeExpression = "CASE WHEN r.void_request_status <> 'NONE' THEN 'VOID' ELSE 'NEW' END";
     const timeExpression = "CASE WHEN r.void_request_status <> 'NONE' THEN r.void_requested_at ELSE r.submitted_at END";
+    const cursorClause = hasCursor
+      ? `AND ((${statusExpression} = 'PENDING')::int, ${timeExpression}, r.id) < (${event.cursorPending ? 1 : 0}, ${sqlText(cursorApplicationTime)}::timestamptz, ${cursorId}::bigint)`
+      : "";
     sql = `SELECT r.id, r.recharge_code AS record_code, 'RECHARGE'::text AS record_type,
                   ${typeExpression} AS application_type,
                   ${statusExpression} AS application_status,
                   ${timeExpression} AS application_time,
+                  TO_CHAR(${timeExpression} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_application_time,
                   r.record_status AS original_status, r.recharge_type AS original_type,
                   r.unit_count, r.message AS initial_store_note, r.review_note AS initial_review_note,
                   r.submitted_at AS original_submitted_at, r.reviewed_at AS original_reviewed_at,
@@ -1144,16 +1170,21 @@ async function listReviewOrders(caller, event) {
         LEFT JOIN public.teachers t ON t.id = r.teacher_id
             WHERE TRUE
               ${reviewFilterSql(scopedEvent, "r", "r.recharge_code", statusExpression, typeExpression)}
+              ${cursorClause}
          ORDER BY (${statusExpression} = 'PENDING') DESC, ${timeExpression} DESC, r.id DESC
-            LIMIT ${limit}`;
+            LIMIT ${sqlLimit}`;
   } else {
     const statusExpression = "CASE WHEN v.void_request_status <> 'NONE' THEN v.void_request_status ELSE v.record_status END";
     const typeExpression = "CASE WHEN v.void_request_status <> 'NONE' THEN 'VOID' ELSE v.verification_type END";
     const timeExpression = "CASE WHEN v.void_request_status <> 'NONE' THEN v.void_requested_at ELSE v.submitted_at END";
+    const cursorClause = hasCursor
+      ? `AND ((${statusExpression} = 'PENDING')::int, ${timeExpression}, v.id) < (${event.cursorPending ? 1 : 0}, ${sqlText(cursorApplicationTime)}::timestamptz, ${cursorId}::bigint)`
+      : "";
     sql = `SELECT v.id, v.verification_code AS record_code, 'VERIFICATION'::text AS record_type,
                   ${typeExpression} AS application_type,
                   ${statusExpression} AS application_status,
                   ${timeExpression} AS application_time,
+                  TO_CHAR(${timeExpression} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_application_time,
                   v.record_status AS original_status, v.verification_type AS original_type,
                   v.unit_count, v.message AS initial_store_note, v.review_note AS initial_review_note,
                   v.supplement_note, v.submitted_at AS original_submitted_at,
@@ -1171,11 +1202,29 @@ async function listReviewOrders(caller, event) {
              JOIN public.teachers t ON t.id = v.teacher_id
             WHERE ${exactLookup && !operationReviewer ? "TRUE" : "(v.void_request_status <> 'NONE' OR v.verification_type = 'SUPPLEMENT')"}
               ${reviewFilterSql(scopedEvent, "v", "v.verification_code", statusExpression, typeExpression)}
+              ${cursorClause}
          ORDER BY (${statusExpression} = 'PENDING') DESC, ${timeExpression} DESC, v.id DESC
-            LIMIT ${limit}`;
+            LIMIT ${sqlLimit}`;
   }
   try {
-    return await executeSql(sql);
+    const rows = await executeSql(sql);
+    if (!paged) return rows;
+    const hasMore = rows.length > limit;
+    const orders = rows.slice(0, limit);
+    const last = orders[orders.length - 1];
+    const stores = !hasCursor
+      ? await executeSql(`SELECT id AS store_id, store_code, store_name FROM public.stores ORDER BY store_name, store_code, id`)
+      : [];
+    return {
+      orders,
+      hasMore,
+      nextCursor: hasMore && last ? {
+        pending: String(last.application_status || "").toUpperCase() === "PENDING",
+        applicationTime: last.cursor_application_time,
+        id: String(last.id)
+      } : null,
+      stores
+    };
   } catch (error) {
     asDatabaseError(error, "读取审核工单");
   }
@@ -1583,7 +1632,8 @@ async function main(event = {}) {
     return { ok: true, product: rows[0] };
   }
   if (action === "listReviewOrders") {
-    return { ok: true, orders: await listReviewOrders(caller, event) };
+    const result = await listReviewOrders(caller, event);
+    return Array.isArray(result) ? { ok: true, orders: result } : { ok: true, ...result };
   }
   if (action === "reviewOrder") {
     return { ok: true, order: await reviewOrder(caller, event) };
