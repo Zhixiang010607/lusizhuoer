@@ -72,6 +72,8 @@
       phone: $("loginPhone").value.trim(),
       account: $("loginPhone").value.trim(),
       store: profile.storeId || "",
+      storeCode: profile.storeCode || "",
+      storeName: profile.storeName || "",
       staffName: profile.staffName || "",
       staffId: profile.staffId || "",
       staffCode: profile.staffCode || (profile.staffId ? `${staffCodePrefix}${String(profile.staffId).padStart(3, "0")}` : ""),

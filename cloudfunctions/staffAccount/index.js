@@ -323,7 +323,7 @@ async function findStaffProfile(uid) {
     rows = await executeSql(
       `SELECT a.id, a.staff_name, a.role_code, a.account_status,
         a.password_initialized_at, a.password_changed_at, a.password_change_required,
-        s.id AS store_id, s.store_status, t.id AS teacher_id, t.teacher_status
+        s.id AS store_id, s.store_code, s.store_name, s.store_status, t.id AS teacher_id, t.teacher_status
        FROM public.staff_accounts a
        ${storeJoin}
        LEFT JOIN public.teachers t ON t.staff_account_id = a.id
@@ -352,6 +352,8 @@ async function findStaffProfile(uid) {
     role: staff.role_code,
     staffName: staff.staff_name,
     storeId,
+    storeCode: staff.store_code || "",
+    storeName: staff.store_name || "",
     passwordChangeRequired: [true, "true", "t", 1, "1"].includes(staff.password_change_required),
     passwordInitializedAt: staff.password_initialized_at || null,
     passwordChangedAt: staff.password_changed_at || null
