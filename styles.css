@@ -360,20 +360,46 @@ input[readonly] { cursor: default; color: #344054; background: #f2f5f8; }
 .chinese-birthday-input select { min-width: 0; margin-top: 0; }
 .chinese-birthday-input span { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .chinese-date-input { position: relative; width: 100%; margin-top: 5px; }
-.chinese-date-input input[type="date"] { margin-top: 0; color: transparent; caret-color: transparent; }
-.chinese-date-input input[type="date"]::-webkit-datetime-edit { opacity: 0; }
-.chinese-date-input input[type="date"]::-webkit-calendar-picker-indicator { position: relative; z-index: 2; opacity: 1; cursor: pointer; }
-.chinese-date-input-value { position: absolute; z-index: 1; top: 50%; right: 38px; left: 10px; overflow: hidden; transform: translateY(-50%); color: var(--ink); font-size: 12px; line-height: 1; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.chinese-date-trigger { width: 100%; height: 35px; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; padding: 0 8px 0 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: white; font-size: 12px; font-weight: 500; text-align: left; }
+.chinese-date-trigger:hover:not(:disabled) { border-color: #9db6d3; background: #fbfdff; }
+.chinese-date-trigger:focus-visible { border-color: var(--blue); box-shadow: 0 0 0 3px #1f5eff18; outline: none; }
+.chinese-date-trigger:disabled { cursor: not-allowed; color: var(--muted); background: #f2f5f8; }
+.chinese-date-input-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chinese-date-input-icon { flex: 0 0 auto; width: 16px; height: 16px; display: grid; place-content: center; border: 1px solid #8ea0b5; border-radius: 3px; color: #526985; font-size: 8px; font-weight: 900; line-height: 1; }
 .chinese-date-input.is-empty .chinese-date-input-value,
 .chinese-date-input.is-disabled .chinese-date-input-value { color: var(--muted); }
 body[data-query] .query-filter-panel .chinese-date-input,
 body[data-customer-query] .query-filter-panel .chinese-date-input { margin-top: 3px; }
-body[data-query] .query-filter-panel .chinese-date-input input[type="date"],
-body[data-customer-query] .query-filter-panel .chinese-date-input input[type="date"] { margin-top: 0; }
+body[data-query] .query-filter-panel .chinese-date-trigger,
+body[data-customer-query] .query-filter-panel .chinese-date-trigger { height: 31px; font-size: 11px; }
+.chinese-date-calendar { position: fixed; z-index: 1200; width: min(296px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); overflow: auto; overscroll-behavior: contain; padding: 12px; border: 1px solid #cbd7e5; border-radius: 12px; color: var(--ink); background: white; box-shadow: 0 18px 44px rgba(23, 32, 51, .24); }
+.chinese-date-calendar-header { display: grid; grid-template-columns: 36px minmax(0, 1fr) 36px; align-items: center; gap: 7px; }
+.chinese-date-calendar-header strong { text-align: center; font-size: 14px; }
+.chinese-date-calendar-header button { width: 36px; height: 36px; padding: 0; border: 1px solid #d7e0eb; color: #35516f; background: #f7faff; font-size: 22px; line-height: 1; }
+.chinese-date-calendar-header button:hover { border-color: #aac0da; background: #edf4ff; }
+.chinese-date-calendar-weekdays,
+.chinese-date-calendar-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.chinese-date-calendar-days { display: grid; gap: 3px; }
+.chinese-date-calendar-weekdays { margin: 10px 0 5px; color: #65758a; font-size: 11px; font-weight: 800; text-align: center; }
+.chinese-date-calendar-weekdays span { min-height: 20px; display: grid; place-content: center; }
+.chinese-date-calendar-day { width: 100%; min-width: 0; height: 34px; padding: 0; border: 1px solid transparent; border-radius: 7px; color: #243b55; background: transparent; font-size: 11px; font-weight: 600; }
+.chinese-date-calendar-day:hover:not(:disabled),
+.chinese-date-calendar-day:focus-visible { border-color: #aac6e8; color: #124a94; background: #edf5ff; outline: none; }
+.chinese-date-calendar-day.is-outside-month { color: #9aa8b8; }
+.chinese-date-calendar-day.is-today { border-color: #7da9df; }
+.chinese-date-calendar-day.is-selected { border-color: var(--blue); color: white; background: var(--blue); }
+.chinese-date-calendar-day:focus-visible { position: relative; z-index: 1; outline: 2px solid #0b57d0; outline-offset: 2px; }
+.chinese-date-calendar-day:disabled { cursor: not-allowed; color: #c2cad4; background: transparent; }
+.chinese-date-calendar-footer { display: flex; justify-content: space-between; gap: 10px; margin-top: 9px; padding-top: 9px; border-top: 1px solid #e2e8f0; }
+.chinese-date-calendar-footer button { min-height: 36px; padding: 5px 10px; color: #1756a9; background: transparent; font-size: 11px; font-weight: 800; }
+.chinese-date-calendar-footer button:hover:not(:disabled) { background: #edf4ff; }
+.chinese-date-calendar-footer button:disabled { cursor: not-allowed; color: #aab4c0; }
 @media (forced-colors: active) {
-  .chinese-date-input-value { display: none; }
-  .chinese-date-input input[type="date"] { color: CanvasText; caret-color: auto; }
-  .chinese-date-input input[type="date"]::-webkit-datetime-edit { opacity: 1; }
+  .chinese-date-trigger,
+  .chinese-date-calendar,
+  .chinese-date-calendar button { border: 1px solid ButtonText; }
+  .chinese-date-calendar-day.is-selected { color: HighlightText; background: Highlight; }
+  .chinese-date-calendar-day:focus-visible { outline-color: CanvasText; }
 }
 .filter-actions { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
 .filter-actions p { margin: 0; color: var(--muted); font-size: 13px; }

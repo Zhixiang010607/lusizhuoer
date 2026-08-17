@@ -302,10 +302,257 @@
   function initializeChineseDateInputs() {
     if (!document.body.matches("[data-query], [data-customer-query], [data-view]")) return;
     const inputs = Array.from(document.querySelectorAll('input[type="date"]'));
+    if (!inputs.length) return;
+    const pad2 = (value) => String(value).padStart(2, "0");
+    const today = new Date();
+    const currentTodayIso = () => {
+      const current = new Date();
+      return `${current.getFullYear()}-${pad2(current.getMonth() + 1)}-${pad2(current.getDate())}`;
+    };
+    const weekdayNames = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
     const formatVisibleDate = (value) => {
       const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
       return match ? `${match[1]}年${match[2]}月${match[3]}日` : "请选择日期";
     };
+    const parseIsoDate = (value) => {
+      const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!match) return null;
+      const year = Number(match[1]);
+      const month = Number(match[2]);
+      const day = Number(match[3]);
+      const check = new Date(year, month - 1, day);
+      return check.getFullYear() === year && check.getMonth() === month - 1 && check.getDate() === day
+        ? { year, month, day }
+        : null;
+    };
+    const dateIso = (year, monthIndex, day) => `${year}-${pad2(monthIndex + 1)}-${pad2(day)}`;
+    const inputLabel = (input) => {
+      const key = String(input.id || "").toLowerCase();
+      if (key.includes("start") || key.includes("from")) return "开始日期";
+      if (key.includes("end") || key.includes("to")) return "结束日期";
+      return "日期";
+    };
+
+    const calendar = document.createElement("section");
+    calendar.id = "chineseDateCalendar";
+    calendar.className = "chinese-date-calendar";
+    calendar.setAttribute("role", "dialog");
+    calendar.setAttribute("aria-modal", "false");
+    calendar.setAttribute("aria-label", "选择日期");
+    calendar.hidden = true;
+    calendar.innerHTML = `
+      <div class="chinese-date-calendar-header">
+        <button id="chineseDatePreviousMonth" type="button" aria-label="上个月">‹</button>
+        <strong id="chineseDateCalendarTitle" aria-live="polite"></strong>
+        <button id="chineseDateNextMonth" type="button" aria-label="下个月">›</button>
+      </div>
+      <div class="chinese-date-calendar-weekdays" aria-hidden="true"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div>
+      <div id="chineseDateCalendarDays" class="chinese-date-calendar-days" role="grid"></div>
+      <div class="chinese-date-calendar-footer"><button id="chineseDateClear" type="button">清除</button><button id="chineseDateToday" type="button">今天</button></div>
+    `;
+    document.body.append(calendar);
+
+    const calendarTitle = calendar.querySelector("#chineseDateCalendarTitle");
+    const calendarDays = calendar.querySelector("#chineseDateCalendarDays");
+    const previousMonth = calendar.querySelector("#chineseDatePreviousMonth");
+    const nextMonth = calendar.querySelector("#chineseDateNextMonth");
+    const clearDate = calendar.querySelector("#chineseDateClear");
+    const chooseToday = calendar.querySelector("#chineseDateToday");
+    let activeInput = null;
+    let activeTrigger = null;
+    let viewYear = today.getFullYear();
+    let viewMonth = today.getMonth();
+
+    const withinBounds = (input, iso) => (!input.min || iso >= input.min) && (!input.max || iso <= input.max);
+    const closeCalendar = (restoreFocus = false) => {
+      if (calendar.hidden) return;
+      calendar.hidden = true;
+      activeTrigger?.setAttribute("aria-expanded", "false");
+      const trigger = activeTrigger;
+      activeInput = null;
+      activeTrigger = null;
+      if (restoreFocus) trigger?.focus();
+    };
+    const setInputDate = (input, value) => {
+      const nextValue = String(value || "");
+      const changed = input.value !== nextValue;
+      input.value = nextValue;
+      input.syncChineseDate?.();
+      if (changed) {
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      closeCalendar(true);
+    };
+    const preferredDayButton = () => calendarDays.querySelector('[aria-selected="true"]:not(:disabled)')
+      || calendarDays.querySelector('[aria-current="date"]:not(:disabled)')
+      || calendarDays.querySelector("button:not(.is-outside-month):not(:disabled)")
+      || calendarDays.querySelector("button:not(:disabled)");
+    const setRovingFocus = (button) => {
+      calendarDays.querySelectorAll("button").forEach((item) => { item.tabIndex = item === button ? 0 : -1; });
+      button?.focus();
+    };
+    const renderCalendar = () => {
+      if (!activeInput) return;
+      calendarTitle.textContent = `${viewYear}年${viewMonth + 1}月`;
+      calendarDays.replaceChildren();
+      const firstWeekday = new Date(viewYear, viewMonth, 1).getDay();
+      const selectedValue = activeInput.value;
+      const todayIso = currentTodayIso();
+      let row = null;
+      for (let index = 0; index < 42; index += 1) {
+        if (index % 7 === 0) {
+          row = document.createElement("div");
+          row.className = "chinese-date-calendar-row";
+          row.setAttribute("role", "row");
+          calendarDays.append(row);
+        }
+        const date = new Date(viewYear, viewMonth, index - firstWeekday + 1);
+        const iso = dateIso(date.getFullYear(), date.getMonth(), date.getDate());
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "chinese-date-calendar-day";
+        button.textContent = String(date.getDate());
+        button.dataset.date = iso;
+        button.setAttribute("role", "gridcell");
+        button.setAttribute("aria-label", `${formatVisibleDate(iso)} ${weekdayNames[date.getDay()]}`);
+        button.setAttribute("aria-selected", iso === selectedValue ? "true" : "false");
+        button.tabIndex = -1;
+        if (date.getMonth() !== viewMonth) button.classList.add("is-outside-month");
+        if (iso === todayIso) {
+          button.classList.add("is-today");
+          button.setAttribute("aria-current", "date");
+        }
+        if (iso === selectedValue) button.classList.add("is-selected");
+        button.disabled = !withinBounds(activeInput, iso);
+        button.addEventListener("click", () => setInputDate(activeInput, iso));
+        row.append(button);
+      }
+      const preferred = preferredDayButton();
+      if (preferred) preferred.tabIndex = 0;
+      chooseToday.disabled = !withinBounds(activeInput, todayIso);
+    };
+    const positionCalendar = () => {
+      if (!activeTrigger || calendar.hidden) return;
+      const anchor = activeTrigger.getBoundingClientRect();
+      const panelWidth = calendar.offsetWidth || 280;
+      const panelHeight = calendar.offsetHeight || 330;
+      const viewport = window.visualViewport;
+      const viewportLeft = viewport?.offsetLeft || 0;
+      const viewportTop = viewport?.offsetTop || 0;
+      const viewportWidth = viewport?.width || window.innerWidth;
+      const viewportHeight = viewport?.height || window.innerHeight;
+      const left = Math.min(
+        Math.max(viewportLeft + 8, anchor.left),
+        Math.max(viewportLeft + 8, viewportLeft + viewportWidth - panelWidth - 8)
+      );
+      const below = anchor.bottom + 6;
+      const top = below + panelHeight <= viewportTop + viewportHeight - 8
+        ? below
+        : Math.max(viewportTop + 8, anchor.top - panelHeight - 6);
+      calendar.style.left = `${Math.round(left)}px`;
+      calendar.style.top = `${Math.round(top)}px`;
+    };
+    const openCalendar = (input, trigger) => {
+      if (input.disabled) return;
+      const selected = parseIsoDate(input.value) || parseIsoDate(currentTodayIso());
+      activeInput = input;
+      activeTrigger?.setAttribute("aria-expanded", "false");
+      activeTrigger = trigger;
+      viewYear = selected.year;
+      viewMonth = selected.month - 1;
+      calendar.setAttribute("aria-label", `选择${inputLabel(input)}`);
+      trigger.setAttribute("aria-expanded", "true");
+      calendar.hidden = false;
+      renderCalendar();
+      positionCalendar();
+      requestAnimationFrame(() => {
+        if (!calendar.hidden) setRovingFocus(preferredDayButton());
+      });
+    };
+    const changeMonth = (offset) => {
+      const next = new Date(viewYear, viewMonth + offset, 1);
+      viewYear = next.getFullYear();
+      viewMonth = next.getMonth();
+      renderCalendar();
+    };
+    const focusCalendarDate = (date) => {
+      if (!activeInput) return;
+      const iso = dateIso(date.getFullYear(), date.getMonth(), date.getDate());
+      if (!withinBounds(activeInput, iso)) return;
+      viewYear = date.getFullYear();
+      viewMonth = date.getMonth();
+      renderCalendar();
+      requestAnimationFrame(() => {
+        if (!calendar.hidden) setRovingFocus(calendarDays.querySelector(`[data-date="${iso}"]`));
+      });
+    };
+
+    previousMonth.addEventListener("click", () => changeMonth(-1));
+    nextMonth.addEventListener("click", () => changeMonth(1));
+    clearDate.addEventListener("click", () => activeInput && setInputDate(activeInput, ""));
+    chooseToday.addEventListener("click", () => activeInput && setInputDate(activeInput, currentTodayIso()));
+    calendarDays.addEventListener("keydown", (event) => {
+      const current = event.target.closest("button[data-date]");
+      const currentDate = parseIsoDate(current?.dataset.date);
+      if (!currentDate) return;
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        current.click();
+        return;
+      }
+      const date = new Date(currentDate.year, currentDate.month - 1, currentDate.day);
+      const dayOffsets = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
+      if (event.key in dayOffsets) {
+        date.setDate(date.getDate() + dayOffsets[event.key]);
+      } else if (event.key === "Home") {
+        date.setDate(date.getDate() - date.getDay());
+      } else if (event.key === "End") {
+        date.setDate(date.getDate() + 6 - date.getDay());
+      } else if (event.key === "PageUp" || event.key === "PageDown") {
+        const direction = event.key === "PageUp" ? -1 : 1;
+        const monthOffset = direction * (event.shiftKey ? 12 : 1);
+        const targetMonth = new Date(date.getFullYear(), date.getMonth() + monthOffset, 1);
+        const lastDay = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0).getDate();
+        date.setFullYear(targetMonth.getFullYear(), targetMonth.getMonth(), Math.min(date.getDate(), lastDay));
+      } else {
+        return;
+      }
+      event.preventDefault();
+      focusCalendarDate(date);
+    });
+    calendar.addEventListener("keydown", (event) => {
+      if (event.key === "Tab") {
+        const focusable = Array.from(calendar.querySelectorAll("button:not(:disabled)"))
+          .filter((button) => button.tabIndex >= 0);
+        const atBoundary = event.shiftKey
+          ? document.activeElement === focusable[0]
+          : document.activeElement === focusable[focusable.length - 1];
+        if (atBoundary) {
+          event.preventDefault();
+          closeCalendar(true);
+        }
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeCalendar(true);
+      }
+    });
+    document.addEventListener("pointerdown", (event) => {
+      if (!activeInput || calendar.contains(event.target) || activeTrigger?.contains(event.target)) return;
+      closeCalendar(false);
+    });
+    document.addEventListener("focusin", (event) => {
+      if (!activeInput || calendar.contains(event.target) || activeTrigger?.contains(event.target)) return;
+      closeCalendar(false);
+    });
+    window.addEventListener("resize", positionCalendar);
+    window.addEventListener("scroll", (event) => {
+      if (!calendar.contains(event.target)) closeCalendar(false);
+    }, true);
+    window.visualViewport?.addEventListener("resize", positionCalendar);
+    window.visualViewport?.addEventListener("scroll", () => closeCalendar(false));
 
     inputs.forEach((input) => {
       if (input.dataset.chineseDateReady === "true") return;
@@ -314,23 +561,44 @@
       const wrapper = document.createElement("div");
       wrapper.className = "chinese-date-input";
       input.insertAdjacentElement("beforebegin", wrapper);
+      input.type = "hidden";
       wrapper.append(input);
 
+      const trigger = document.createElement("button");
+      trigger.type = "button";
+      trigger.className = "chinese-date-trigger";
+      trigger.setAttribute("aria-haspopup", "dialog");
+      trigger.setAttribute("aria-controls", calendar.id);
+      trigger.setAttribute("aria-expanded", "false");
       const visibleValue = document.createElement("span");
       visibleValue.className = "chinese-date-input-value";
-      visibleValue.setAttribute("aria-hidden", "true");
-      wrapper.append(visibleValue);
+      const icon = document.createElement("span");
+      icon.className = "chinese-date-input-icon";
+      icon.setAttribute("aria-hidden", "true");
+      icon.textContent = "日";
+      trigger.append(visibleValue, icon);
+      wrapper.append(trigger);
 
       const sync = () => {
         const hasValue = /^\d{4}-\d{2}-\d{2}$/.test(String(input.value || ""));
         visibleValue.textContent = formatVisibleDate(input.value);
         wrapper.classList.toggle("is-empty", !hasValue);
         wrapper.classList.toggle("is-disabled", input.disabled);
+        trigger.disabled = input.disabled;
+        trigger.setAttribute("aria-label", `${inputLabel(input)}：${visibleValue.textContent}`);
+        if (activeInput === input && input.disabled) closeCalendar(false);
       };
       input.syncChineseDate = sync;
       input.addEventListener("input", sync);
       input.addEventListener("change", sync);
       input.form?.addEventListener("reset", () => setTimeout(sync, 0));
+      trigger.addEventListener("click", () => activeInput === input ? closeCalendar(false) : openCalendar(input, trigger));
+      trigger.addEventListener("keydown", (event) => {
+        if (event.altKey && event.key === "ArrowDown") {
+          event.preventDefault();
+          openCalendar(input, trigger);
+        }
+      });
       sync();
     });
 
