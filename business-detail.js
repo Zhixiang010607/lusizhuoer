@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.1";
+  const VERSION = "0.15.2";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -118,7 +118,9 @@
 
   function findRecord(recordId) {
     const key = type === "recharge" ? "prototypeRechargeRecords" : "prototypeVerificationRecords";
-    return loadSessionRows(key).find((row) => String(row?.id || row?.recordCode || "") === recordId) || null;
+    return loadSessionRows(key).find((row) => (
+      String(row?.id || "") === recordId || String(row?.recordCode || "") === recordId
+    )) || null;
   }
 
   function recordKey() {
@@ -316,18 +318,33 @@
   async function initialize() {
     const recordId = first(params.get("recordId"));
     const displayCode = first(params.get("recordCode"), recordId);
-    const cached = findRecord(recordId);
+    const recordReference = first(recordId, displayCode);
+    const cached = findRecord(recordReference);
     if (cached) { renderRecord(cached); return; }
-    if (params.get("source") === "review") {
+    const source = clean(params.get("source")).toLowerCase();
+    const databaseReference = /^\d+$/.test(recordId) || /^[A-Z]{2}[A-Z0-9_-]{4,38}$/i.test(displayCode);
+    if (["review", "created", "query"].includes(source) || databaseReference) {
       renderMissing(displayCode);
       $("orderDescription").textContent = "正在从数据库读取该张工单…";
       $("orderStatus").className = "pending";
       $("orderStatus").textContent = "读取中";
       try {
         if (typeof window.CloudBasePhoneAuth?.listReviewOrders !== "function") throw new Error("工单数据服务未加载，请刷新页面重试");
-        const orders = await window.CloudBasePhoneAuth.listReviewOrders({ recordType: type.toUpperCase(), recordId, limit: 1 });
+        const recordCode = first(params.get("recordCode"), /^\d+$/.test(recordId) ? "" : recordId).toUpperCase();
+        const numericRecordId = /^\d+$/.test(recordId) ? recordId : "";
+        const orders = await window.CloudBasePhoneAuth.listReviewOrders({
+          recordType: type.toUpperCase(),
+          recordId: numericRecordId,
+          recordCode,
+          // 旧版云函数可能忽略 recordCode；只有编号而没有数据库 ID 时，
+          // 多取候选记录并在浏览器端再次按唯一工单编号精确匹配。
+          limit: numericRecordId ? 1 : 500
+        });
         const exactOrder = Array.isArray(orders)
-          ? orders.find((item) => clean(item?.id) === clean(recordId))
+          ? orders.find((item) => (
+              (recordCode && clean(field(item, "record_code", "recordCode")).toUpperCase() === recordCode) ||
+              (numericRecordId && clean(item?.id) === numericRecordId)
+            ))
           : null;
         const record = normalizeDatabaseOrder(exactOrder);
         if (!record) throw new Error("数据库中未找到该张工单");
@@ -338,7 +355,7 @@
       }
       return;
     }
-    const record = params.get("source") === "created" ? null : recordFromQuery(recordId);
+    const record = source === "created" ? null : recordFromQuery(recordReference);
     if (record) renderRecord(record);
     else renderMissing(displayCode);
   }
