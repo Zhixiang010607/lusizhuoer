@@ -6,6 +6,12 @@
   const $ = (id) => document.getElementById(id);
   const fmt = new Intl.NumberFormat("zh-CN");
   const escapeHtml = (value) => String(value).replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char]);
+  const formatBirthday = (value, fallback = "—") => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return fallback;
+    const match = raw.match(/^(\d{4})[-年](\d{1,2})[-月](\d{1,2})(?:日|[T\s].*)?$/);
+    return match ? `${match[1]}年${match[2].padStart(2, "0")}月${match[3].padStart(2, "0")}日` : raw;
+  };
   // 产品只来自 CloudBase / PostgreSQL；不再读取浏览器临时产品数据。
   const projects = [];
   let productListMessage = "正在读取产品数据…";
@@ -157,7 +163,7 @@
       const recentRecharge = `2026-${String(ci % 8 + 1).padStart(2, "0")}-${String(ci % 27 + 1).padStart(2, "0")}`;
       const recentVerification = `2026-${String((ci + pi) % 8 + 1).padStart(2, "0")}-${String((ci * 2 + pi) % 27 + 1).padStart(2, "0")}`;
       const customerUrl = `customer-detail.html?customerId=${encodeURIComponent(customer.id)}&storeId=${encodeURIComponent(store.id)}`;
-      rows.push(`<tr><td><a class="record-link" href="${customerUrl}">${customer.id}</a></td><td>${customer.name}</td><td>${customer.birthday}</td><td>${store.name}</td><td>${project.id}</td><td>${project.name}</td><td>${purchased}</td><td>${used}</td><td><strong>${purchased - used}</strong></td><td>${recentRecharge}</td><td>${recentVerification}</td><td>正常</td></tr>`);
+      rows.push(`<tr><td><a class="record-link" href="${customerUrl}">${customer.id}</a></td><td>${customer.name}</td><td>${formatBirthday(customer.birthday)}</td><td>${store.name}</td><td>${project.id}</td><td>${project.name}</td><td>${purchased}</td><td>${used}</td><td><strong>${purchased - used}</strong></td><td>${recentRecharge}</td><td>${recentVerification}</td><td>正常</td></tr>`);
     }));
     $("customerBody").innerHTML = rows.join("");
     $("customerCount").textContent = `${customers.length}位客户`;

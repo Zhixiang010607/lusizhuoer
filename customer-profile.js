@@ -6,6 +6,12 @@
   const read = (key) => { try { return JSON.parse(sessionStorage.getItem(key) || "[]"); } catch (_) { return []; } };
   const readObject = (key) => { try { return JSON.parse(sessionStorage.getItem(key) || "null"); } catch (_) { return null; } };
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+  const formatBirthday = (value, fallback = "—") => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return fallback;
+    const match = raw.match(/^(\d{4})[-年](\d{1,2})[-月](\d{1,2})(?:日|[T\s].*)?$/);
+    return match ? `${match[1]}年${match[2].padStart(2, "0")}月${match[3].padStart(2, "0")}日` : raw;
+  };
   const dateText = (value) => value ? String(value).replace("T", " ").replace(/\.\d{3}Z$/, "").slice(0, 16) : "—";
   const statusText = (value) => ({ pending: "待审核", approved: "已通过", rejected: "已驳回", "待审核": "待审核", "已通过": "已通过", "已驳回": "已驳回", "正常": "已通过", normal: "已通过", "待运营审核": "待审核" }[value] || "待审核");
   const approved = (value) => ["approved", "已通过", "正常", "normal"].includes(value);
@@ -34,7 +40,7 @@
     return store ? `${store.name} · ${store.code || store.id}` : customer.storeId ? `— · ${customer.storeId}` : "—";
   }
   function renderCustomerBasicInfo() {
-    $("customerBasicInfo").innerHTML = [infoCard("客户姓名", customer.name), infoCard("客户编号", customer.id), infoCard("生日", customer.birthday), infoCard("所属门店", customerStoreLabel())].join("");
+    $("customerBasicInfo").innerHTML = [infoCard("客户姓名", customer.name), infoCard("客户编号", customer.id), infoCard("生日", formatBirthday(customer.birthday)), infoCard("所属门店", customerStoreLabel())].join("");
   }
 
   function parsedObject(value) {

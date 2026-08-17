@@ -1,6 +1,12 @@
 ﻿(() => {
   "use strict";
   const VERSION = "0.14.19", $ = (id) => document.getElementById(id);
+  const formatBirthday = (value, fallback = "") => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return fallback;
+    const match = raw.match(/^(\d{4})[-年](\d{1,2})[-月](\d{1,2})(?:日|[T\s].*)?$/);
+    return match ? `${match[1]}年${match[2].padStart(2, "0")}月${match[3].padStart(2, "0")}日` : raw;
+  };
   let loginSession = null;
   try { loginSession = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { loginSession = null; }
   const scopedStoreId = loginSession?.role === "store" ? loginSession.store : "";
@@ -37,7 +43,7 @@
   }
   function updateSelectedCustomer() {
     const customer = customersForSelectedStore().find((item) => item.id === $("customerSelect").value);
-    $("customerSelectBirthday").value = customer?.birthday || "";
+    $("customerSelectBirthday").value = formatBirthday(customer?.birthday);
   }
   function fillCustomerSelect() {
     const previous = $("customerSelect").value, visible = customersForSelectedStore();
@@ -83,7 +89,7 @@
     $("customerSummary").textContent = `共 ${selected.length} 位客户；活跃 ${activeCount} 位，封存 ${selected.length - activeCount} 位`;
     $("customerQueryBody").innerHTML = selected.map((customer) => {
       const isArchived = archived.has(customer.id), detail = `customer-detail.html?customerId=${encodeURIComponent(customer.id)}&customerName=${encodeURIComponent(customer.name)}&storeId=${encodeURIComponent(customer.store.id)}`;
-      return `<tr><td><a class="record-link" href="${detail}">${customer.id}</a></td><td>${customer.name}</td><td>${customer.birthday}</td><td>${customer.store.name}（${customer.store.id}）</td><td>${categoryLabels[categoryOf(customer)]}</td><td>${customer.recharge}</td><td>${customer.verification}</td><td><span class="record-status ${isArchived ? "status-已作废" : "status-正常"}">${isArchived ? "封存" : "活跃"}</span></td><td><button class="archive-customer-button" data-archive-id="${customer.id}" type="button">${isArchived ? "恢复为活跃" : "封存客户"}</button></td></tr>`;
+      return `<tr><td><a class="record-link" href="${detail}">${customer.id}</a></td><td>${customer.name}</td><td>${formatBirthday(customer.birthday)}</td><td>${customer.store.name}（${customer.store.id}）</td><td>${categoryLabels[categoryOf(customer)]}</td><td>${customer.recharge}</td><td>${customer.verification}</td><td><span class="record-status ${isArchived ? "status-已作废" : "status-正常"}">${isArchived ? "封存" : "活跃"}</span></td><td><button class="archive-customer-button" data-archive-id="${customer.id}" type="button">${isArchived ? "恢复为活跃" : "封存客户"}</button></td></tr>`;
     }).join("") || `<tr><td colspan="9" class="query-empty">没有符合条件的客户</td></tr>`;
     document.querySelectorAll("[data-archive-id]").forEach((button) => button.addEventListener("click", () => openArchive(button.dataset.archiveId)));
     renderCategories();
@@ -107,6 +113,6 @@
   $("customerStore").addEventListener("change", () => { fillCustomerSelect(); render(); }); $("customerSelect").addEventListener("change", () => { updateSelectedCustomer(); render(); });
   ["customerCategory", "customerArchive", "customerBirthday", "customerDateStart", "customerDateEnd"].forEach((id) => $(id).addEventListener("change", render)); $("customerName").addEventListener("input", render); $("customerTimeRange").addEventListener("change", () => { applyTimeRange(); render(); });
   document.querySelectorAll("[data-customer-query-mode]").forEach((button) => button.addEventListener("click", () => setLookupMode(button.dataset.customerQueryMode)));
-  $("resetCustomerQuery").addEventListener("click", () => { $("customerStore").value = scopedStoreId || "all"; $("customerCategory").value = "all"; $("customerArchive").value = "all"; $("customerName").value = ""; $("customerBirthday").value = ""; $("customerTimeRange").value = "custom"; applyTimeRange(); fillCustomerSelect(); $("customerSelect").value = "all"; updateSelectedCustomer(); setLookupMode("select"); });
+  $("resetCustomerQuery").addEventListener("click", () => { $("customerStore").value = scopedStoreId || "all"; $("customerCategory").value = "all"; $("customerArchive").value = "all"; $("customerName").value = ""; $("customerBirthday").value = ""; $("customerBirthday").syncChineseBirthday?.(); $("customerTimeRange").value = "custom"; applyTimeRange(); fillCustomerSelect(); $("customerSelect").value = "all"; updateSelectedCustomer(); setLookupMode("select"); });
   $("closeCustomerAction").addEventListener("click", () => $("customerActionDialog").close()); $("cancelCustomerAction").addEventListener("click", () => $("customerActionDialog").close()); $("confirmCustomerAction").addEventListener("click", confirmArchive);
 })();

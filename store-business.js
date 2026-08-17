@@ -1,6 +1,12 @@
 ﻿(() => {
   "use strict";
   const VERSION = "0.14.40", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const formatBirthday = (value, fallback = "—") => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return fallback;
+    const match = raw.match(/^(\d{4})[-年](\d{1,2})[-月](\d{1,2})(?:日|[T\s].*)?$/);
+    return match ? `${match[1]}年${match[2].padStart(2, "0")}月${match[3].padStart(2, "0")}日` : raw;
+  };
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   const storeId = String(session?.store || ""), storeNo = Number(storeId.replace(/\D/g, "")) || 1;
@@ -73,7 +79,10 @@
     // browser restore/autofill cycle cannot leave the previous customer's
     // personal data visible after a successful enrollment.
     if ($("createCustomerName")) $("createCustomerName").value = "";
-    if ($("createCustomerBirthday")) $("createCustomerBirthday").value = "";
+    if ($("createCustomerBirthday")) {
+      $("createCustomerBirthday").value = "";
+      $("createCustomerBirthday").syncChineseBirthday?.();
+    }
     if ($("createCustomerNotes")) $("createCustomerNotes").value = "";
     if ($("faceConsent")) $("faceConsent").checked = false;
     resetCapturedPhoto();
@@ -282,6 +291,7 @@
   function setupLookup() {
     let activeCustomers = [];
     const customerSelect = $("serviceCustomerSelect");
+    $("serviceSelectBirthday").type = "text";
     const confirmButton = $("confirmCustomerSelection");
     confirmButton.dataset.initialText = confirmButton.textContent.trim();
     customerSelect.disabled = true;
@@ -310,18 +320,16 @@
     };
     const lookupSelectedCustomer = () => {
       const id = $("serviceCustomerSelect").value;
-      const birthday = $("serviceSelectBirthday").value;
       if (!id) { resetCandidate(); return; }
-      if (!birthday) { resetCandidate(); showLookupError("所选客户缺少生日资料，暂时不能办理业务，请先补全档案。"); return; }
-      const customer = activeCustomers.find((item) => item.id === id && item.birthday === birthday);
-      if (!customer) { resetCandidate(); showLookupError("所选生日与客户档案不一致，请重新核对。"); return; }
+      const customer = activeCustomers.find((item) => item.id === id);
+      if (!customer?.birthday) { resetCandidate(); showLookupError("所选客户缺少生日资料，暂时不能办理业务，请先补全档案。"); return; }
       if (previewCustomerCode === id && (candidateCustomer?.id === id || customerDetailRequests.has(id))) return;
       resetCandidate();
       renderCustomerCore(customer);
     };
     $("serviceCustomerSelect").addEventListener("change", () => {
       const customer = activeCustomers.find((item) => item.id === $("serviceCustomerSelect").value);
-      $("serviceSelectBirthday").value = customer?.birthday || "";
+      $("serviceSelectBirthday").value = formatBirthday(customer?.birthday, "");
       lookupSelectedCustomer();
     });
     $("serviceCustomerName").addEventListener("input", resetCandidate); $("serviceCustomerBirthday").addEventListener("change", resetCandidate);
@@ -363,7 +371,7 @@
     const photo = hasPhoto
       ? `<div class="profile-photo-visual has-photo"><img id="selectedCustomerProfilePhoto" alt="${escapeHtml(customer.name)}的客户建档照片" referrerpolicy="no-referrer"></div>`
       : `<div class="profile-photo-visual"><strong>照片加载中…</strong></div>`;
-    return `<div class="customer-core-card"><div class="customer-core-heading"><span>客户身份确认</span><strong>${escapeHtml(customer.name)}</strong></div><div class="customer-profile-layout"><figure class="customer-profile-photo">${photo}<figcaption><strong>客户建档照片</strong><span>${hasPhoto ? "私有照片 · 临时授权显示" : "正在读取私有照片"}</span></figcaption></figure><div class="customer-profile-details"><div class="customer-core-facts"><div><span>姓名</span><strong>${escapeHtml(customer.name)}</strong></div><div><span>生日</span><strong>${escapeHtml(customer.birthday)}</strong></div><div><span>客户编号</span><strong>${escapeHtml(customer.id)}</strong></div></div><p class="profile-photo-note">请核对照片与现场客户。照片无法读取时禁止继续确认客户。</p></div></div></div>`;
+    return `<div class="customer-core-card"><div class="customer-core-heading"><span>客户身份确认</span><strong>${escapeHtml(customer.name)}</strong></div><div class="customer-profile-layout"><figure class="customer-profile-photo">${photo}<figcaption><strong>客户建档照片</strong><span>${hasPhoto ? "私有照片 · 临时授权显示" : "正在读取私有照片"}</span></figcaption></figure><div class="customer-profile-details"><div class="customer-core-facts"><div><span>姓名</span><strong>${escapeHtml(customer.name)}</strong></div><div><span>生日</span><strong>${escapeHtml(formatBirthday(customer.birthday))}</strong></div><div><span>客户编号</span><strong>${escapeHtml(customer.id)}</strong></div></div><p class="profile-photo-note">请核对照片与现场客户。照片无法读取时禁止继续确认客户。</p></div></div></div>`;
   }
   async function loadCustomerDetail(customerCode) {
     const now = Date.now();
@@ -460,7 +468,7 @@
   }
   async function confirmCustomer(id) {
     selectedCustomer = allCustomers().find((customer) => customer.id === id);
-    $("selectedCustomerText").textContent = `已确认：${selectedCustomer.name}（${selectedCustomer.id}）· ${selectedCustomer.birthday} · ${storeName}`; document.querySelector("form.store-business-form").classList.remove("business-step-disabled");
+    $("selectedCustomerText").textContent = `已确认：${selectedCustomer.name}（${selectedCustomer.id}）· ${formatBirthday(selectedCustomer.birthday)} · ${storeName}`; document.querySelector("form.store-business-form").classList.remove("business-step-disabled");
     if (["verification", "verification-supplemental"].includes(page)) { resetVerificationCapture(); await loadVerificationBalances(selectedCustomer); }
     $("confirmCustomerSelection").textContent = `已确认 ${selectedCustomer.name}（${selectedCustomer.id}）`;
   }

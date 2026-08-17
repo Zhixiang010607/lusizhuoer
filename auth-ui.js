@@ -206,6 +206,107 @@
       location.replace("login.html");
     }
   });
+
+  function initializeChineseBirthdayInputs() {
+    const birthdayInputIds = [
+      "createCustomerBirthday",
+      "customerBirthday",
+      "serviceCustomerBirthday",
+      "queryCustomerBirthday",
+      "teacherCustomerBirthday"
+    ];
+    const currentYear = new Date().getFullYear();
+    const pad2 = (value) => String(value).padStart(2, "0");
+
+    birthdayInputIds.forEach((id) => {
+      const input = $(id);
+      if (!input || input.dataset.chineseBirthdayReady === "true") return;
+
+      const wasRequired = input.required;
+      input.dataset.chineseBirthdayReady = "true";
+      input.required = false;
+      input.type = "hidden";
+
+      const wrapper = document.createElement("div");
+      wrapper.className = "chinese-birthday-input";
+      wrapper.setAttribute("role", "group");
+      wrapper.setAttribute("aria-label", "生日（年、月、日）");
+
+      const createSelect = (ariaLabel, placeholder) => {
+        const select = document.createElement("select");
+        select.setAttribute("aria-label", ariaLabel);
+        if (wasRequired) select.required = true;
+        select.append(new Option(placeholder, ""));
+        return select;
+      };
+      const yearSelect = createSelect("生日年份", "年份");
+      const monthSelect = createSelect("生日月份", "月份");
+      const daySelect = createSelect("生日日期", "日期");
+
+      for (let year = currentYear; year >= 1900; year -= 1) {
+        yearSelect.append(new Option(String(year), String(year)));
+      }
+      for (let month = 1; month <= 12; month += 1) {
+        monthSelect.append(new Option(pad2(month), String(month)));
+      }
+
+      const appendUnit = (unit) => {
+        const span = document.createElement("span");
+        span.textContent = unit;
+        wrapper.append(span);
+      };
+      wrapper.append(yearSelect);
+      appendUnit("年");
+      wrapper.append(monthSelect);
+      appendUnit("月");
+      wrapper.append(daySelect);
+      appendUnit("日");
+      input.insertAdjacentElement("afterend", wrapper);
+
+      const fillDays = (selectedDay = "") => {
+        const maximum = yearSelect.value && monthSelect.value
+          ? new Date(Number(yearSelect.value), Number(monthSelect.value), 0).getDate()
+          : 31;
+        daySelect.replaceChildren(new Option("日期", ""));
+        for (let day = 1; day <= maximum; day += 1) {
+          daySelect.append(new Option(pad2(day), String(day)));
+        }
+        if (selectedDay && Number(selectedDay) <= maximum) daySelect.value = String(Number(selectedDay));
+      };
+
+      const updateIsoValue = () => {
+        input.value = yearSelect.value && monthSelect.value && daySelect.value
+          ? `${yearSelect.value}-${pad2(monthSelect.value)}-${pad2(daySelect.value)}`
+          : "";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      };
+
+      const syncFromInput = () => {
+        const match = String(input.value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        yearSelect.value = match?.[1] || "";
+        monthSelect.value = match ? String(Number(match[2])) : "";
+        fillDays(match?.[3] || "");
+      };
+      input.syncChineseBirthday = syncFromInput;
+
+      yearSelect.addEventListener("change", () => {
+        const selectedDay = daySelect.value;
+        fillDays(selectedDay);
+        updateIsoValue();
+      });
+      monthSelect.addEventListener("change", () => {
+        const selectedDay = daySelect.value;
+        fillDays(selectedDay);
+        updateIsoValue();
+      });
+      daySelect.addEventListener("change", updateIsoValue);
+      input.form?.addEventListener("reset", () => setTimeout(syncFromInput, 0));
+      syncFromInput();
+    });
+  }
+
+  initializeChineseBirthdayInputs();
   document.documentElement.dataset.authReady = "true";
 
   function $(id) { return document.getElementById(id); }

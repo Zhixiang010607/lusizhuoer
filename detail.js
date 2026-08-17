@@ -7,6 +7,12 @@
   let loginSession = null; try { loginSession = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { loginSession = null; }
   const canOpenAggregates = loginSession?.role === "hq";
   const escapeHtml = (value) => String(value).replace(/[&<>\"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char]);
+  const formatBirthday = (value, fallback = "—") => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return fallback;
+    const match = raw.match(/^(\d{4})[-年](\d{1,2})[-月](\d{1,2})(?:日|[T\s].*)?$/);
+    return match ? `${match[1]}年${match[2].padStart(2, "0")}月${match[3].padStart(2, "0")}日` : raw;
+  };
   const numberFrom = (value) => Number(String(value).replace(/\D/g, "")) || 1;
   const projects = ["普拉提", "体态评估", "康复训练", "瑜伽", "力量训练", "产后恢复"];
   const cities = ["悉尼", "墨尔本", "布里斯班", "珀斯"];
@@ -23,7 +29,7 @@
     const store = `${cities[(storeNo - 1) % cities.length]}门店 ${storeNo}`;
     $("profileHero").innerHTML = `<div class="profile-avatar">${name.slice(-2)}</div><div><span class="profile-type">客户编号</span><h2>${escapeHtml(name)}</h2><p><a class="record-link" href="#basicInfo">${escapeHtml(id)}</a> · ${escapeHtml(store)} · 正常客户</p></div><div class="profile-metrics"><span><strong>${3 + seed % 4}</strong>持有项目</span><span><strong>${68 + seed % 90}</strong>累计购买</span><span><strong>${21 + seed % 55}</strong>剩余次数</span></div>`;
     $("basicInfoGrid").innerHTML = infoCards([
-      ["客户编号", id], ["客户姓名", name], ["生日", birthday],
+      ["客户编号", id], ["客户姓名", name], ["生日", formatBirthday(birthday)],
       ["当前门店", `${store}（${storeId}）`], ["客户状态", "正常"], ["建档日期", "2024-03-18"], ["手机号码", "按权限脱敏显示"], ["备注", "无特殊备注"]
     ]);
     const rights = projects.slice(0, 3 + seed % 4).map((project, i) => {

@@ -1,6 +1,12 @@
 ﻿(() => {
   "use strict";
   const VERSION = "0.14.19", type = document.body.dataset.query, $ = (id) => document.getElementById(id);
+  const formatBirthday = (value, fallback = "") => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return fallback;
+    const match = raw.match(/^(\d{4})[-年](\d{1,2})[-月](\d{1,2})(?:日|[T\s].*)?$/);
+    return match ? `${match[1]}年${match[2].padStart(2, "0")}月${match[3].padStart(2, "0")}日` : raw;
+  };
   let loginSession = null;
   try { loginSession = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { loginSession = null; }
   const scopedStoreId = loginSession?.role === "store" ? loginSession.store : "";
@@ -37,7 +43,7 @@
   }
   function updateSelectedBirthday() {
     const customer = availableCustomers().find((item) => item.id === $("queryCustomerSelect").value);
-    $("querySelectBirthday").value = customer?.birthday || "";
+    $("querySelectBirthday").value = formatBirthday(customer?.birthday);
   }
   function fillFilters() {
     const visibleStores = scopedStoreId ? stores.filter((store) => store.id === scopedStoreId) : stores;
@@ -49,13 +55,13 @@
   function renderCustomerMatches() {
     if (lookupMode === "select") {
       const customer = availableCustomers().find((item) => item.id === $("queryCustomerSelect").value);
-      $("queryCustomerMatches").innerHTML = customer ? `<strong>${customer.displayName}</strong><span>${customer.id} · ${customer.birthday}</span>` : "选择具体客户可按客户编号精确查询。";
+      $("queryCustomerMatches").innerHTML = customer ? `<strong>${customer.displayName}</strong><span>${customer.id} · ${formatBirthday(customer.birthday)}</span>` : "选择具体客户可按客户编号精确查询。";
       return;
     }
     const term = $("queryCustomerManual").value.trim(), birthday = $("queryCustomerBirthday").value;
     if (!term) { $("queryCustomerMatches").textContent = "请输入客户姓名；同名客户会全部列出并同时显示客户编号。"; return; }
     const matches = availableCustomers().filter((customer) => customer.name.includes(term) && (!birthday || customer.birthday === birthday));
-    $("queryCustomerMatches").innerHTML = matches.length ? `<strong>匹配 ${matches.length} 位客户：</strong>${matches.map((customer) => `<span>${customer.displayName}（${customer.id}）· ${customer.birthday}</span>`).join("")}` : "未找到姓名和生日匹配的客户。";
+    $("queryCustomerMatches").innerHTML = matches.length ? `<strong>匹配 ${matches.length} 位客户：</strong>${matches.map((customer) => `<span>${customer.displayName}（${customer.id}）· ${formatBirthday(customer.birthday)}</span>`).join("")}` : "未找到姓名和生日匹配的客户。";
   }
   function setLookupMode(mode) {
     lookupMode = mode; $("querySelectCustomerField").hidden = mode !== "select"; $("querySelectBirthdayField").hidden = mode !== "select"; $("queryManualCustomerField").hidden = mode !== "manual"; $("queryManualBirthdayField").hidden = mode !== "manual";
@@ -72,11 +78,11 @@
       const recordLink = `<a class="record-link" href="${detail}">${record.id}</a>`, customerLink = `<a class="record-link" href="customer-detail.html?customerId=${record.customer.id}&customerName=${encodeURIComponent(record.customer.displayName)}&storeId=${record.store.id}">${record.customer.id}</a>`;
       const canOpenAggregates = loginSession?.role === "hq";
       const teacherLink = canOpenAggregates ? `<a class="record-link" href="teacher-detail.html?teacherId=${encodeURIComponent(record.teacher.id)}">${record.teacher.name}（${record.teacher.id}）</a>` : `${record.teacher.name}（${record.teacher.id}）`, storeLink = canOpenAggregates ? `<a class="record-link" href="store-detail.html?storeId=${encodeURIComponent(record.store.id)}">${record.store.name}</a>` : record.store.name, projectLink = canOpenAggregates ? `<a class="record-link" href="project-detail.html?projectId=${encodeURIComponent(record.project.id)}">${record.project.name}</a>` : record.project.name;
-      return type === "recharge" ? `<tr><td>${recordLink}</td><td>${customerLink}</td><td>${record.customer.displayName}</td><td>${record.customer.birthday}</td><td>${storeLink}</td><td>${projectLink}</td><td>+${record.amount}</td><td>${date}</td><td>${statusTag(record.status)}</td><td>${statusTag(record.reviewProgress)}</td></tr>` : `<tr><td>${recordLink}</td><td>${customerLink}</td><td>${record.customer.displayName}</td><td>${record.customer.birthday}</td><td>${storeLink}</td><td>${projectLink}</td><td>${teacherLink}</td><td>${date}</td><td><span class="photo-required-status">已拍摄</span></td><td>${statusTag(record.status)}</td><td>${statusTag(record.reviewProgress)}</td></tr>`;
+      return type === "recharge" ? `<tr><td>${recordLink}</td><td>${customerLink}</td><td>${record.customer.displayName}</td><td>${formatBirthday(record.customer.birthday)}</td><td>${storeLink}</td><td>${projectLink}</td><td>+${record.amount}</td><td>${date}</td><td>${statusTag(record.status)}</td><td>${statusTag(record.reviewProgress)}</td></tr>` : `<tr><td>${recordLink}</td><td>${customerLink}</td><td>${record.customer.displayName}</td><td>${formatBirthday(record.customer.birthday)}</td><td>${storeLink}</td><td>${projectLink}</td><td>${teacherLink}</td><td>${date}</td><td><span class="photo-required-status">已拍摄</span></td><td>${statusTag(record.status)}</td><td>${statusTag(record.reviewProgress)}</td></tr>`;
     }).join("") || `<tr><td colspan="${type === "recharge" ? 10 : 11}" class="query-empty">当前组合条件下没有记录</td></tr>`;
   }
   document.documentElement.dataset.prototypeVersion = VERSION; fillFilters(); applyTimeRange();
   $("queryStore").addEventListener("change", () => { fillCustomerSelect(); renderCustomerMatches(); render(); }); $("queryCustomerSelect").addEventListener("change", () => { updateSelectedBirthday(); renderCustomerMatches(); render(); }); $("queryCustomerManual").addEventListener("input", () => { renderCustomerMatches(); render(); }); $("queryCustomerBirthday").addEventListener("change", () => { renderCustomerMatches(); render(); }); $("queryProject").addEventListener("change", render); $("queryTimeRange").addEventListener("change", () => { applyTimeRange(); render(); }); ["queryDateStart", "queryDateEnd"].forEach((id) => $(id).addEventListener("change", render));
   document.querySelectorAll("[data-query-mode]").forEach((button) => button.addEventListener("click", () => setLookupMode(button.dataset.queryMode)));
-  $("resetQuery").addEventListener("click", () => { $("queryStore").value = scopedStoreId || "all"; $("queryProject").value = "all"; $("queryCustomerManual").value = ""; $("queryCustomerBirthday").value = ""; $("queryTimeRange").value = "custom"; applyTimeRange(); fillCustomerSelect(); $("queryCustomerSelect").value = "all"; updateSelectedBirthday(); setLookupMode("select"); }); setLookupMode("select");
+  $("resetQuery").addEventListener("click", () => { $("queryStore").value = scopedStoreId || "all"; $("queryProject").value = "all"; $("queryCustomerManual").value = ""; $("queryCustomerBirthday").value = ""; $("queryCustomerBirthday").syncChineseBirthday?.(); $("queryTimeRange").value = "custom"; applyTimeRange(); fillCustomerSelect(); $("queryCustomerSelect").value = "all"; updateSelectedBirthday(); setLookupMode("select"); }); setLookupMode("select");
 })();
