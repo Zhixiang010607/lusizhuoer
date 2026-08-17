@@ -408,6 +408,12 @@ body[data-management="hq"] #entityInfo .info-card strong { white-space: nowrap; 
 .management-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .management-grid .table-card { min-width: 0; }
 .management-grid .table-scroll { max-height: 470px; }
+.store-detail-table { max-height: none; overflow-x: auto; overflow-y: visible; }
+.table-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-height: 0; margin-top: 10px; }
+.table-pagination:empty { display: none; }
+.table-pagination button { min-width: 68px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); cursor: pointer; }
+.table-pagination button:disabled { cursor: default; opacity: .45; }
+.table-pagination span { color: var(--muted); font-size: 12px; }
 .customer-management-table { margin-top: 16px; }
 .customer-management-table .table-scroll { max-height: 560px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 18px; }
