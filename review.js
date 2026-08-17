@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const VERSION = "0.15.3";
+  const VERSION = "0.15.4";
   const pageType = document.body.dataset.review;
   const recordType = pageType === "recharge" ? "RECHARGE" : "VERIFICATION";
   const columnCount = pageType === "recharge" ? 11 : 12;
@@ -13,6 +13,12 @@
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
   const pick = (row, snake, camel) => row?.[snake] ?? row?.[camel] ?? "";
   const clean = (value) => String(value ?? "").trim();
+  function staffCodeFor(role, staffId) {
+    const id = clean(staffId);
+    if (!id) return "";
+    const prefix = role === "hq" ? "HQ" : role === "operation" ? "OP" : role === "teacher" ? "TCH" : "S";
+    return `${prefix}${id.padStart(3, "0")}`;
+  }
   const isoDate = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   function formatTime(value) {
     const text = clean(value);
@@ -76,6 +82,8 @@
       phone: clean(session?.phone || session?.account),
       store: profile.storeId || "",
       staffName: profile.staffName || session?.staffName || "",
+      staffId: profile.staffId || session?.staffId || "",
+      staffCode: profile.staffCode || session?.staffCode || staffCodeFor(role, profile.staffId || session?.staffId),
       cloudbaseUserId: data?.uid || session?.cloudbaseUserId || ""
     };
     canDecide = true;
@@ -141,19 +149,20 @@
     }
   }
   function renderReviewCommunications(item) {
-    const communicationRows = item.isVoid ? [
-      { title: "门店原申请留言", message: item.initialStoreNote, time: item.originalCreatedAt }, { title: "总部／运营原审核留言", message: item.initialHqNote, time: item.originalReviewedAt },
-      { title: "门店作废申请留言", message: item.applicantNote, time: item.time }, { title: "总部／运营作废审核留言", message: item.operatorNote, time: item.reviewedAt }
-    ] : [
-      { title: "门店申请留言", message: item.applicantNote, time: item.time }, { title: "总部／运营审核留言", message: item.operatorNote, time: item.reviewedAt }
-    ];
+    const communicationRows = [{
+      title: item.isVoid ? "门店作废申请留言" : "门店申请留言",
+      message: item.applicantNote,
+      time: item.time
+    }];
     $("reviewCommunicationLog").innerHTML = communicationRows.map((row) => `<article class="communication-item"><div><strong>${escapeHtml(row.title)}</strong><time>${escapeHtml(formatTime(row.time))}</time></div><p>${escapeHtml(clean(row.message) || "无")}</p></article>`).join("");
   }
   function openReview(id, action) {
     const item = rows.find((entry) => entry.id === id); if (!item) return;
     pendingAction = { item, action };
     $("reviewDialogTitle").textContent = action === "APPROVED" ? "确认通过" : "确认驳回";
-    $("reviewDialogSummary").innerHTML = `<strong>${escapeHtml(item.recordCode)} · ${escapeHtml(item.kind)}</strong><span>${escapeHtml(item.store.name)} · ${escapeHtml(item.customerName)} · ${escapeHtml(item.project)}</span><span>审核角色：${escapeHtml(reviewerRole)}</span>`;
+    const reviewerName = clean(session?.staffName) || reviewerRole;
+    const reviewerCode = clean(session?.staffCode) || staffCodeFor(clean(session?.role).toLowerCase(), session?.staffId);
+    $("reviewDialogSummary").innerHTML = `<strong>${escapeHtml(item.recordCode)} · ${escapeHtml(item.kind)}</strong><span>${escapeHtml(item.store.name)} · ${escapeHtml(item.customerName)}（${escapeHtml(item.customerId)}） · ${escapeHtml(item.project)}</span><span>审核人员：${escapeHtml(reviewerName)}${reviewerCode ? ` · ${escapeHtml(reviewerCode)}` : ""}</span>`;
     $("reviewNote").value = ""; $("confirmReview").classList.toggle("danger-button", action === "REJECTED"); renderReviewCommunications(item); $("reviewDialog").showModal();
   }
   function closeDialog() { pendingAction = null; $("reviewDialog").close(); }

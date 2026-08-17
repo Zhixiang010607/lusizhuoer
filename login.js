@@ -66,12 +66,15 @@
   }
   function createSession(identity, staff) {
     const profile = staff.profile;
+    const staffCodePrefix = profile.role === "hq" ? "HQ" : profile.role === "operation" ? "OP" : profile.role === "teacher" ? "TCH" : "S";
     const session = {
       role: profile.role,
       phone: $("loginPhone").value.trim(),
       account: $("loginPhone").value.trim(),
       store: profile.storeId || "",
       staffName: profile.staffName || "",
+      staffId: profile.staffId || "",
+      staffCode: profile.staffCode || (profile.staffId ? `${staffCodePrefix}${String(profile.staffId).padStart(3, "0")}` : ""),
       passwordChangeRequired: Boolean(profile.passwordChangeRequired),
       cloudbaseUserId: staff.uid || identity?.user?.id || identity?.user?.uid || "",
       loginAt: new Date().toISOString(),

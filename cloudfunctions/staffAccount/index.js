@@ -8,7 +8,7 @@
 const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "2026-08-17-recharge-void-balance-v11";
+const FUNCTION_VERSION = "2026-08-18-reviewer-identity-v12";
 let app = null;
 let auth = null;
 let managerClient = null;
@@ -348,6 +348,7 @@ async function findStaffProfile(uid) {
   }
   return {
     staffId: staff.id,
+    staffCode: `${staff.role_code === "hq" ? "HQ" : staff.role_code === "operation" ? "OP" : staff.role_code === "teacher" ? "TCH" : "S"}${String(staff.id).padStart(3, "0")}`,
     role: staff.role_code,
     staffName: staff.staff_name,
     storeId,
