@@ -782,11 +782,9 @@ body[data-store-business] .form-submit-row button:disabled {
 .verification-order-actions button:disabled { cursor: not-allowed; opacity: .45; }
 .unified-order-review .verification-order-review-note textarea[readonly] { cursor: default; background: #fafcff; }
 .unified-order-review .verification-order-actions button:disabled { opacity: .56; cursor: not-allowed; }
-.unified-order-review.store-void-mode { align-self: start; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 14px 16px; }
-.unified-order-review.store-void-mode .panel-heading { flex: 1 1 auto; }
+.unified-order-review.store-void-mode { align-self: start; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; align-items: stretch; justify-content: stretch; gap: 13px; padding: 17px; }
+.unified-order-review.store-void-mode .panel-heading { min-width: 0; }
 .unified-order-review.store-void-mode .panel-heading h2 { margin: 0; }
-.unified-order-review.store-void-mode.store-void-expanded { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; align-items: stretch; justify-content: stretch; gap: 13px; padding: 17px; }
-.unified-order-review.store-void-mode.store-void-expanded .store-void-action { width: 100%; }
 .unified-review-status { margin: 0; color: var(--muted); font-size: 12px; }
 .unified-review-status strong { color: var(--ink); }
 .order-comments-panel, .void-application-panel { margin-top: 14px; padding: 17px; }
@@ -799,13 +797,14 @@ body[data-store-business] .form-submit-row button:disabled {
 .void-reason-field textarea { width: 100%; }
 .store-void-action { flex: 0 0 auto; }
 .store-void-action.is-expanded { width: 100%; min-width: 0; display: grid; gap: 10px; }
-.unified-order-review.store-void-mode .store-void-action.is-expanded { flex: 1 1 100%; }
-.store-void-action:not(.is-expanded) .void-reason-field,
-.store-void-action:not(.is-expanded) .form-message { display: none; }
+.unified-order-review.store-void-mode .store-void-action { width: 100%; min-width: 0; display: grid; gap: 10px; flex: 1 1 100%; }
+.unified-order-review:not(.store-void-mode) .store-void-action:not(.is-expanded) .void-reason-field,
+.unified-order-review:not(.store-void-mode) .store-void-action:not(.is-expanded) .form-message { display: none; }
 .void-application-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
-.store-void-action:not(.is-expanded) .void-application-actions { margin-top: 0; }
+.unified-order-review:not(.store-void-mode) .store-void-action:not(.is-expanded) .void-application-actions { margin-top: 0; }
 .void-application-actions button { min-width: 132px; min-height: 40px; background: #bd2c2c; font-weight: 800; }
 .void-application-actions button:disabled { cursor: not-allowed; color: #8793a5; background: #e9eef4; opacity: 1; }
+.unified-order-review.store-void-mode .void-reason-field textarea:disabled { cursor: not-allowed; color: #8793a5; background: #f2f5f8; }
 .review-actions { display: flex; gap: 6px; }
 .review-actions button { padding: 6px 9px; background: #08765f; font-size: 11px; white-space: nowrap; }
 .review-actions button.reject { background: #bd2c2c; }
