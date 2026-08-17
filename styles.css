@@ -1000,7 +1000,7 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .store-directory-grid { display: grid; gap: 14px; margin-top: 14px; }
 .store-directory-panel { min-width: 0; padding: 14px; }
 .store-directory-panel .panel-heading { margin-bottom: 10px; }
-.store-directory-window { max-height: 330px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.store-directory-window { height: 260px; min-height: 260px; max-height: 260px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
 .store-directory-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .store-directory-table .store-name-column { width: 22%; }
 .store-directory-table .store-contact-column { width: 13%; }
@@ -1008,14 +1008,14 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .store-directory-table .store-address-column { width: 38%; }
 .store-directory-table .store-status-column { width: 10%; }
 .store-directory-table th,
-.store-directory-table td { padding: 11px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+.store-directory-table td { height: 40px; padding: 0 12px; overflow: hidden; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; text-overflow: ellipsis; white-space: nowrap; }
 .store-directory-table th { position: sticky; top: 0; z-index: 1; background: #f3f6fa; color: var(--muted); font-size: 12px; }
 .store-directory-table tbody tr:last-child td { border-bottom: 0; }
 .store-directory-table tbody tr:hover td { background: #f8fbff; }
 .store-global-link { font-weight: 750; }
 .store-phone-cell { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.store-directory-empty { height: 78px; color: var(--muted); text-align: center !important; }
-.store-directory-empty.error-text { color: var(--danger); }
+.store-directory-table td.store-directory-empty { height: 200px; color: var(--muted); text-align: center !important; }
+.store-directory-table td.store-directory-empty.error-text { color: var(--danger); }
 .teacher-directory-grid { display: grid; gap: 14px; margin-top: 14px; }
 .teacher-directory-panel { min-width: 0; padding: 14px; }
 .teacher-directory-panel .panel-heading { margin-bottom: 10px; }
@@ -1038,7 +1038,7 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .store-status-badge.active { color: #067a5c; background: #e7f8f2; }
 .teacher-status-badge.archived,
 .store-status-badge.archived { color: #7a4b00; background: #fff3d6; }
-.teacher-directory-table td.teacher-directory-empty { height: 218px; color: var(--muted); text-align: center !important; }
+.teacher-directory-table td.teacher-directory-empty { height: 200px; color: var(--muted); text-align: center !important; }
 .teacher-directory-table td.teacher-directory-empty.error-text { color: var(--danger); }
 @media (max-width: 1000px) and (min-width: 761px) {
   .store-directory-toolbar,
@@ -1068,10 +1068,12 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
   .management-toolbar, .store-manual-lookup { grid-template-columns: 1fr; }
   .store-directory-toolbar,
   .teacher-directory-toolbar { grid-template-columns: 1fr; gap: 14px; padding: 16px; }
-  .store-directory-window { max-height: 300px; }
+  .store-directory-window { height: 260px; min-height: 260px; max-height: 260px; }
   .store-directory-table { min-width: 780px; }
   .teacher-directory-window { height: 260px; min-height: 260px; max-height: 260px; }
   .teacher-directory-table { min-width: 620px; }
+  .store-directory-table td.store-directory-empty,
+  .teacher-directory-table td.teacher-directory-empty { padding-left: 16px; text-align: left !important; }
   .toolbar-actions { justify-content: stretch; }
   .toolbar-actions button { flex: 1; }
   .management-summary, .detail-info-grid { grid-template-columns: repeat(2, 1fr); }
