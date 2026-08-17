@@ -8,7 +8,7 @@
 const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "2026-08-17-order-review-v10";
+const FUNCTION_VERSION = "2026-08-17-recharge-void-balance-v11";
 let app = null;
 let auth = null;
 let managerClient = null;
@@ -1160,6 +1160,14 @@ async function reviewOrder(caller, event) {
               ${numericId(caller.profile.staffId, "当前审核账号")}, ${sqlText(decision)}, ${sqlText(note)})`
     );
   } catch (error) {
+    const databaseMessage = String(error?.message || "");
+    if (
+      recordType === "RECHARGE" &&
+      decision === "APPROVED" &&
+      /cannot approve recharge void|insufficient purchased units/i.test(databaseMessage)
+    ) {
+      fail("该项目剩余次数不足，批准充值作废会导致剩余次数小于 0。", "INSUFFICIENT_PRODUCT_BALANCE");
+    }
     asDatabaseError(error, "审核业务工单");
   }
   if (!rows?.[0]) fail("未找到该工单", "NOT_FOUND");

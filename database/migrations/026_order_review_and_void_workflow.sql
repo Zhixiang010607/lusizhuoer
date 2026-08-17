@@ -217,6 +217,11 @@ DECLARE
   current_status TEXT;
   current_void_status TEXT;
   current_code TEXT;
+  recharge_customer_id BIGINT;
+  recharge_product_id BIGINT;
+  recharge_units INTEGER;
+  current_recharge_type TEXT;
+  current_remaining BIGINT;
 BEGIN
   SELECT role_code INTO actor_role
     FROM public.staff_accounts
@@ -232,8 +237,10 @@ BEGIN
   END IF;
 
   IF UPPER(p_record_type) = 'RECHARGE' THEN
-    SELECT record_status, void_request_status, recharge_code
-      INTO current_status, current_void_status, current_code
+    SELECT record_status, void_request_status, recharge_code, customer_id, product_id,
+           unit_count, recharge_type
+      INTO current_status, current_void_status, current_code,
+           recharge_customer_id, recharge_product_id, recharge_units, current_recharge_type
       FROM public.recharge_records WHERE id = p_record_id FOR UPDATE;
   ELSIF UPPER(p_record_type) = 'VERIFICATION' THEN
     SELECT record_status, void_request_status, verification_code
@@ -246,6 +253,43 @@ BEGIN
 
   IF current_void_status = 'PENDING' THEN
     IF UPPER(p_record_type) = 'RECHARGE' THEN
+      IF decision = 'APPROVED' THEN
+        -- Serialize all balance-changing decisions for this customer. This uses
+        -- the same customer row lock as refresh_customer_balance(), so two
+        -- concurrent approvals cannot both rely on the same available units.
+        PERFORM 1
+          FROM public.customers
+         WHERE id = recharge_customer_id
+         FOR UPDATE;
+        IF NOT FOUND THEN
+          RAISE EXCEPTION 'customer does not exist' USING ERRCODE = 'P0002';
+        END IF;
+
+        SELECT
+          COALESCE((
+            SELECT SUM(CASE r.recharge_type WHEN 'NEW' THEN r.unit_count ELSE -r.unit_count END)
+              FROM public.recharge_records r
+             WHERE r.customer_id = recharge_customer_id
+               AND r.product_id = recharge_product_id
+               AND r.record_status = 'APPROVED'
+          ), 0)
+          - COALESCE((
+            SELECT SUM(v.unit_count)
+              FROM public.verification_records v
+             WHERE v.customer_id = recharge_customer_id
+               AND v.product_id = recharge_product_id
+               AND v.record_status = 'APPROVED'
+               AND v.verification_type IN ('NORMAL', 'SUPPLEMENT')
+          ), 0)
+          INTO current_remaining;
+
+        IF current_remaining
+             - CASE current_recharge_type WHEN 'NEW' THEN recharge_units ELSE -recharge_units END < 0 THEN
+          RAISE EXCEPTION 'cannot approve recharge void: customer product balance would become negative'
+            USING ERRCODE = '23514';
+        END IF;
+      END IF;
+
       UPDATE public.recharge_records
          SET void_request_status = decision,
              void_reviewed_by_account_id = p_actor_account_id,
