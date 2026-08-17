@@ -232,16 +232,16 @@
       wrapper.setAttribute("role", "group");
       wrapper.setAttribute("aria-label", "生日（年、月、日）");
 
-      const createSelect = (ariaLabel, placeholder) => {
+      const createSelect = (ariaLabel) => {
         const select = document.createElement("select");
         select.setAttribute("aria-label", ariaLabel);
         if (wasRequired) select.required = true;
-        select.append(new Option(placeholder, ""));
+        select.append(new Option("", ""));
         return select;
       };
-      const yearSelect = createSelect("生日年份", "请选择");
-      const monthSelect = createSelect("生日月份", "请选择");
-      const daySelect = createSelect("生日日期", "请选择");
+      const yearSelect = createSelect("生日年份");
+      const monthSelect = createSelect("生日月份");
+      const daySelect = createSelect("生日日期");
 
       for (let year = currentYear; year >= 1900; year -= 1) {
         yearSelect.append(new Option(String(year), String(year)));
@@ -267,7 +267,7 @@
         const maximum = yearSelect.value && monthSelect.value
           ? new Date(Number(yearSelect.value), Number(monthSelect.value), 0).getDate()
           : 31;
-        daySelect.replaceChildren(new Option("请选择", ""));
+        daySelect.replaceChildren(new Option("", ""));
         for (let day = 1; day <= maximum; day += 1) {
           daySelect.append(new Option(pad2(day), String(day)));
         }
