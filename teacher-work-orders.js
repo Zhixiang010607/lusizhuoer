@@ -1,6 +1,7 @@
 (() => {
   "use strict";
   const $ = (id) => document.getElementById(id);
+  const formatDateTime = window.AppDateTime.format;
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   if (!session || session.role !== "teacher") return;
@@ -11,8 +12,8 @@
   const labels = { normal: "正常", review: "审核中", void: "已作废" };
   const customerNames = ["王女士", "陈先生", "林女士", "周先生", "张女士", "刘先生"];
   const projects = ["普拉提", "体态评估", "康复训练", "瑜伽", "力量训练", "产后恢复"];
-  const baseVerifications = Array.from({ length: 9 }, (_, index) => ({ id: `VE-${teacherId}-${String(index + 1).padStart(4, "0")}`, teacherId, customer: customerNames[(hash + index) % customerNames.length], project: projects[(hash + index * 2) % projects.length], time: `2026-08-${String(1 + index).padStart(2, "0")} ${String(9 + index % 8).padStart(2, "0")}:20`, status: index === 2 ? "review" : index === 7 ? "void" : "normal", face: "人脸核验通过" }));
-  const baseRecharges = Array.from({ length: 7 }, (_, index) => ({ id: `RC-${teacherId}-${String(index + 1).padStart(4, "0")}`, teacherId, customer: customerNames[(hash + index * 2) % customerNames.length], project: projects[(hash + index) % projects.length], count: 10 + index * 5, time: `2026-07-${String(18 + index).padStart(2, "0")} 14:30`, status: index === 4 ? "review" : index === 6 ? "void" : "normal" }));
+  const baseVerifications = Array.from({ length: 9 }, (_, index) => ({ id: `VE-${teacherId}-${String(index + 1).padStart(4, "0")}`, teacherId, customer: customerNames[(hash + index) % customerNames.length], project: projects[(hash + index * 2) % projects.length], time: `2026-08-${String(1 + index).padStart(2, "0")} ${String(9 + index % 8).padStart(2, "0")}:20:00`, status: index === 2 ? "review" : index === 7 ? "void" : "normal", face: "人脸核验通过" }));
+  const baseRecharges = Array.from({ length: 7 }, (_, index) => ({ id: `RC-${teacherId}-${String(index + 1).padStart(4, "0")}`, teacherId, customer: customerNames[(hash + index * 2) % customerNames.length], project: projects[(hash + index) % projects.length], count: 10 + index * 5, time: `2026-07-${String(18 + index).padStart(2, "0")} 14:30:00`, status: index === 4 ? "review" : index === 6 ? "void" : "normal" }));
   const read = (key) => { try { return JSON.parse(sessionStorage.getItem(key) || "[]"); } catch (_) { return []; } };
   const write = (key, rows) => sessionStorage.setItem(key, JSON.stringify(rows));
   const ownRows = (key) => read(key).filter((row) => row.teacherId === teacherId);
@@ -44,7 +45,7 @@
     const verification = activeType === "verification";
     $("teacherRecordsHead").innerHTML = verification ? "<tr><th>核销编号</th><th>客户</th><th>项目</th><th>人脸核验</th><th>核销时间</th><th>状态</th><th>操作</th></tr>" : "<tr><th>充值编号</th><th>客户</th><th>项目</th><th>充值次数</th><th>提交时间</th><th>状态</th><th>操作</th></tr>";
     const rows = filteredRows();
-    $("teacherOrdersBody").innerHTML = rows.length ? rows.map((row) => `<tr><td>${row.id}</td><td>${row.customer}</td><td>${row.project}</td>${verification ? `<td>${row.face}</td>` : `<td>${row.count} 次</td>`}<td>${row.time}</td><td><span class="teacher-order-status ${row.status}">${labels[row.status]}</span></td><td><a class="teacher-order-link" href="teacher-work-order-detail.html?type=${activeType}&recordId=${encodeURIComponent(row.id)}">查看</a></td></tr>`).join("") : `<tr><td colspan="7" class="teacher-empty">没有符合条件的本人记录</td></tr>`;
+    $("teacherOrdersBody").innerHTML = rows.length ? rows.map((row) => `<tr><td>${row.id}</td><td>${row.customer}</td><td>${row.project}</td>${verification ? `<td>${row.face}</td>` : `<td>${row.count} 次</td>`}<td>${formatDateTime(row.time)}</td><td><span class="teacher-order-status ${row.status}">${labels[row.status]}</span></td><td><a class="teacher-order-link" href="teacher-work-order-detail.html?type=${activeType}&recordId=${encodeURIComponent(row.id)}">查看</a></td></tr>`).join("") : `<tr><td colspan="7" class="teacher-empty">没有符合条件的本人记录</td></tr>`;
   }
   function renderApplications() {
     const renderList = (rows, target, count, empty) => { $(count).textContent = `${rows.length} 条`; $(target).innerHTML = rows.length ? rows.slice().reverse().map((row) => `<article><div><strong>${row.kind} · ${row.recordId}</strong><span>${row.reason}</span></div><b class="teacher-order-status ${row.status === "pending" ? "review" : row.status}">${row.status === "pending" ? "待运营审核" : labels[row.status] || row.status}</b></article>`).join("") : `<p class="teacher-empty">${empty}</p>`; };

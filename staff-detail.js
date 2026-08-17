@@ -10,9 +10,7 @@
   let staff = null;
 
   function formatTime(value) {
-    if (!value) return "尚未记录";
-    const date = new Date(value);
-    return Number.isNaN(date.valueOf()) ? String(value) : date.toLocaleString("zh-CN", { hour12: false });
+    return window.AppDateTime.format(value, "尚未记录");
   }
 
   function credentialStatus() {

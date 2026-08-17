@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const VERSION = "0.15.6";
+  const VERSION = "0.17.1";
   const pageType = document.body.dataset.review;
   const recordType = pageType === "recharge" ? "RECHARGE" : "VERIFICATION";
   const columnCount = pageType === "recharge" ? 10 : 11;
@@ -20,11 +20,7 @@
     return `${prefix}${id.padStart(3, "0")}`;
   }
   function formatTime(value) {
-    const text = clean(value);
-    if (!text) return "—";
-    const parsed = new Date(text);
-    if (Number.isNaN(parsed.getTime())) return text.replace("T", " ").slice(0, 19);
-    return parsed.toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).replace(/\//g, "-");
+    return window.AppDateTime.format(value);
   }
   function normalizeRow(row) {
     const applicationType = clean(pick(row, "application_type", "applicationType")).toUpperCase();

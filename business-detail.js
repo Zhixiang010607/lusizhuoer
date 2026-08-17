@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.5";
+  const VERSION = "0.15.6";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -75,14 +75,7 @@
   }
 
   function formatTime(value) {
-    const text = clean(value);
-    if (!text) return "";
-    const date = new Date(text);
-    if (Number.isNaN(date.getTime())) return text;
-    return date.toLocaleString("zh-CN", {
-      year: "numeric", month: "2-digit", day: "2-digit",
-      hour: "2-digit", minute: "2-digit", hour12: false
-    }).replace(/\//g, "-");
+    return window.AppDateTime.format(value, "");
   }
 
   function statusView(value) {

@@ -1,6 +1,7 @@
 (() => {
   "use strict";
   const $ = (id) => document.getElementById(id);
+  const formatDateTime = window.AppDateTime.format;
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   if (!session || session.role !== "teacher") return;
@@ -11,7 +12,7 @@
   let created = [];
   try { created = JSON.parse(sessionStorage.getItem(isVerification ? "prototypeTeacherVerificationRecords" : "prototypeTeacherRechargeRecords") || "[]"); } catch (_) { created = []; }
   const record = created.find((row) => row.id === recordId && row.teacherId === teacherId);
-  const recordCustomer = record?.customer || customer, recordProject = record?.project || project, recordTime = record?.time ? String(record.time).replace("T", " ").slice(0, 16) : (isVerification ? `2026-08-${String(number).padStart(2, "0")} 10:00` : `2026-07-${String(17 + number).padStart(2, "0")} 14:30`);
+  const recordCustomer = record?.customer || customer, recordProject = record?.project || project, recordTime = formatDateTime(record?.time || (isVerification ? `2026-08-${String(number).padStart(2, "0")} 10:00:00` : `2026-07-${String(17 + number).padStart(2, "0")} 14:30:00`));
   const baseStatus = isVerification ? (number === 3 ? "review" : number === 8 ? "void" : "normal") : (number === 5 ? "review" : number === 7 ? "void" : "normal");
   const reviewStatus = record?.status || baseStatus;
   const reviewResult = { normal: "已通过", review: "待审核", void: "已作废", pending: "待审核", approved: "已通过", rejected: "已驳回" }[reviewStatus] || "待审核";

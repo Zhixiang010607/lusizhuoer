@@ -1,11 +1,12 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.2";
+  const VERSION = "0.15.3";
   const TEACHER_PAGE_SIZE = 5;
   const CUSTOMER_PAGE_SIZE = 10;
   const params = new URLSearchParams(location.search);
   const storeRef = String(params.get("authUid") || params.get("storeId") || "").trim();
+  const formatDateTime = window.AppDateTime.format;
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"]/g, (char) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"
@@ -139,7 +140,7 @@
         const label = code ? `${name} · ${code}` : name;
         const customer = reference ? `<a class="record-link" href="customer-detail.html?customerId=${encodeURIComponent(reference)}">${escapeHtml(label)}</a>` : escapeHtml(label);
         const status = firstValue(row, ["customer_status", "status"]) === "ARCHIVED" ? "封存" : "活跃";
-        return `<tr><td>${customer}</td><td>${escapeHtml(formatBirthday(firstValue(row, ["birthday", "birth_date"], "")))}</td><td>${escapeHtml(firstValue(row, ["product_count", "held_product_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["total_recharge_count", "purchase_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["total_verification_count", "verification_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["remaining_count", "balance"], 0))}</td><td>${escapeHtml(firstValue(row, ["last_business_at", "last_recharge_at", "updated_at"]))}</td><td>${escapeHtml(status)}</td></tr>`;
+        return `<tr><td>${customer}</td><td>${escapeHtml(formatBirthday(firstValue(row, ["birthday", "birth_date"], "")))}</td><td>${escapeHtml(firstValue(row, ["product_count", "held_product_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["total_recharge_count", "purchase_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["total_verification_count", "verification_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["remaining_count", "balance"], 0))}</td><td>${escapeHtml(formatDateTime(firstValue(row, ["last_business_at", "last_recharge_at", "updated_at"])))}</td><td>${escapeHtml(status)}</td></tr>`;
       }).join("");
     }
     if ($("storeCustomerCount")) $("storeCustomerCount").textContent = `${total}位客户`;

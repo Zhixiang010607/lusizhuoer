@@ -1,11 +1,12 @@
 ﻿(() => {
   "use strict";
 
-  const VERSION = "0.14.21";
+  const VERSION = "0.14.22";
   const type = document.body.dataset.management;
   const $ = (id) => document.getElementById(id);
   const fmt = new Intl.NumberFormat("zh-CN");
   const escapeHtml = (value) => String(value).replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char]);
+  const formatDateTime = window.AppDateTime.format;
   const formatBirthday = (value, fallback = "—") => {
     const raw = String(value ?? "").trim();
     if (!raw) return fallback;
@@ -137,7 +138,7 @@
       return;
     }
     const captions = ["产品编号", "产品名称", "产品类别", "产品介绍", "状态", "创建时间", "最后更新时间"];
-    const values = [entity.id, entity.name, entity.productType || "未填写", entity.extra || "未填写", entity.status, entity.createdAt || "未记录", entity.updatedAt || "未记录"];
+    const values = [entity.id, entity.name, entity.productType || "未填写", entity.extra || "未填写", entity.status, formatDateTime(entity.createdAt, "未记录"), formatDateTime(entity.updatedAt, "未记录")];
     $("entityInfo").innerHTML = values.map((value, i) => `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
   }
 

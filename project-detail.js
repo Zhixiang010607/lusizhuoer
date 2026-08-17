@@ -10,9 +10,7 @@
   }
 
   function formatTimestamp(value) {
-    if (!value) return "未记录";
-    const date = new Date(value);
-    return Number.isFinite(date.getTime()) ? date.toLocaleString("zh-CN", { hour12: false }) : String(value);
+    return window.AppDateTime.format(value, "未记录");
   }
 
   function renderMissing(message) {
