@@ -242,10 +242,18 @@ body[data-query] .query-lookup-switch button,
 body[data-customer-query] .query-lookup-switch button { min-height: 0; height: 25px; padding: 0 6px; border-radius: 6px; font-size: 10px; line-height: 1; }
 body[data-customer-query] .customer-query-filters { grid-template-columns: 1fr; gap: 6px; align-items: end; }
 body[data-customer-query] .customer-query-row { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px 12px; align-items: end; }
-body[data-customer-query] .customer-query-store-context { display: block; padding: 9px 12px; border: 1px solid #d5dfeb; border-radius: 10px; background: #f7faff; }
+body[data-customer-query] .customer-query-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+body[data-customer-query] .customer-query-store-context { display: flex; flex: 0 1 360px; min-width: 240px; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid #d5dfeb; border-radius: 9px; background: #f7faff; }
 body[data-customer-query] .customer-query-store-context span { color: var(--muted); font-size: 12px; }
 body[data-customer-query] .customer-query-store-context strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--navy); }
 body[data-customer-query] .customer-query-store-context small { color: #526985; white-space: nowrap; }
+body[data-customer-query] .customer-query-toolbar-actions { display: flex; gap: 6px; }
+body[data-customer-query] .customer-query-toolbar-actions button { min-height: 34px; padding: 6px 11px; font-size: 11px; }
+body[data-customer-query] .customer-query-toolbar-actions #resetCustomerQuery { color: #35516f; background: #edf2f7; }
+body[data-customer-query] .customer-query-summary { margin-left: auto; color: var(--muted); font-size: 12px; }
+body[data-customer-query] .customer-query-notice { margin: 0; padding: 0 2px; color: #35618d; font-size: 12px; }
+body[data-customer-query] .customer-query-notice:empty { display: none; }
+body[data-customer-query] .customer-query-notice.error { color: #b42318; }
 body[data-customer-query] .customer-query-methods { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 10px; }
 body[data-customer-query] .customer-query-method { min-width: 0; padding: 9px; border: 2px solid #d8e1ec; border-radius: 12px; background: #f8fafc; transition: border-color .15s ease, background .15s ease, box-shadow .15s ease, opacity .15s ease; opacity: .68; }
 body[data-customer-query] .customer-query-method.active { border-color: var(--blue); background: #f3f7ff; box-shadow: 0 0 0 2px rgba(36, 99, 235, .09); opacity: 1; }
