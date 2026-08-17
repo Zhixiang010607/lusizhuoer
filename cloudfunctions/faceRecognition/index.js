@@ -4,7 +4,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
-const FUNCTION_VERSION = "v32";
+const FUNCTION_VERSION = "v33";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -383,6 +383,41 @@ async function activeCustomerStatusCaller() {
   fail("只有总部或客户所属门店可以修改客户状态。", "FORBIDDEN");
 }
 
+async function activeCustomerProfileCaller() {
+  const { uid } = app().auth().getUserInfo();
+  if (!uid) fail("请先登录后再查看客户主页。", "UNAUTHENTICATED");
+  const rows = await executeSql(
+    `SELECT id AS staff_id, role_code, account_status
+       FROM public.staff_accounts
+      WHERE auth_uid = ${sqlText(uid)}
+      LIMIT 1`
+  );
+  const account = rows[0];
+  if (!account) fail("当前登录账号尚未绑定业务身份。", "STAFF_PROFILE_MISSING");
+  if (account.account_status !== "ACTIVE") fail("当前登录账号已封存。", "ARCHIVED");
+  if (account.role_code === "store") {
+    const store = await activeStoreCaller();
+    return { ...store, role: "store" };
+  }
+  if (["hq", "operation"].includes(account.role_code)) {
+    return { uid: String(uid), staffId: Number(account.staff_id), role: account.role_code, storeId: null };
+  }
+  fail("当前登录身份无权查看客户主页。", "FORBIDDEN");
+}
+
+function customerProfileScope(caller, alias = "c") {
+  if (caller.role === "store") return ` AND ${alias}.created_store_id = ${caller.storeId}`;
+  if (caller.role === "operation") {
+    return ` AND EXISTS (
+      SELECT 1 FROM public.operation_store_scopes oss
+       WHERE oss.operation_account_id = ${caller.staffId}
+         AND oss.store_id = ${alias}.created_store_id
+         AND oss.scope_status = 'ACTIVE'
+    )`;
+  }
+  return "";
+}
+
 function customerStatusCode(event) {
   const customerCodeValue = String(event.customerCode || "").trim();
   if (!customerCodeValue || customerCodeValue.length > 96) fail("必须提供有效客户编号。", "CUSTOMER_REQUIRED");
@@ -461,6 +496,94 @@ async function updateCustomerStatus(event) {
   if (!customer) fail("客户状态更新后无法读取档案。", "DATABASE_ERROR");
   if (customer.customer_status !== targetStatus) fail("客户状态已被其他人员修改，请刷新后重试。", "CUSTOMER_STATUS_CONFLICT");
   return customerStatusResult(customer);
+}
+
+async function getCustomerProfile(event) {
+  const caller = await activeCustomerProfileCaller();
+  const customerCodeValue = customerStatusCode(event);
+  const customerRows = await executeSql(
+    `SELECT c.id, c.customer_code, c.customer_name, c.birth_date, c.notes,
+            c.customer_status, c.customer_process_status,
+            c.total_recharge_count, c.total_verification_count, c.total_experience_count,
+            c.latest_recharge_at, c.latest_verification_at, c.created_at, c.updated_at,
+            c.created_store_id, s.store_code, s.store_name
+       FROM public.customers c
+       JOIN public.stores s ON s.id = c.created_store_id
+      WHERE c.customer_code = ${sqlText(customerCodeValue)}
+        ${customerProfileScope(caller, "c")}
+      LIMIT 1`
+  );
+  const customer = customerRows[0];
+  if (!customer) fail("未找到当前账号有权查看的客户档案。", "CUSTOMER_NOT_FOUND");
+  const customerId = String(customer.id);
+  const [balances, recharges, verifications] = await Promise.all([
+    executeSql(
+      `SELECT p.id AS product_id, p.product_code, p.product_name, p.product_status,
+              b.total_recharge_count, b.total_verification_count, b.remaining_count, b.updated_at
+         FROM public.customer_product_balances b
+         JOIN public.products p ON p.id = b.product_id
+        WHERE b.customer_id = ${sqlText(customerId)}::bigint
+        ORDER BY p.product_name, p.product_code`
+    ),
+    executeSql(
+      `SELECT r.id, r.recharge_code, r.recharge_type, r.unit_count,
+              r.record_status, r.void_request_status, r.submitted_at, r.reviewed_at,
+              p.id AS product_id, p.product_code, p.product_name
+         FROM public.recharge_records r
+         JOIN public.products p ON p.id = r.product_id
+        WHERE r.customer_id = ${sqlText(customerId)}::bigint
+        ORDER BY r.submitted_at DESC, r.id DESC
+        LIMIT 500`
+    ),
+    executeSql(
+      `SELECT v.id, v.verification_code, v.verification_type, v.unit_count,
+              v.record_status, v.void_request_status, v.submitted_at, v.reviewed_at,
+              p.id AS product_id, p.product_code, p.product_name,
+              t.id AS teacher_id, t.teacher_code, t.teacher_name
+         FROM public.verification_records v
+         JOIN public.products p ON p.id = v.product_id
+         LEFT JOIN public.teachers t ON t.id = v.teacher_id
+        WHERE v.customer_id = ${sqlText(customerId)}::bigint
+        ORDER BY v.submitted_at DESC, v.id DESC
+        LIMIT 500`
+    )
+  ]);
+  return {
+    ok: true,
+    customer: {
+      customerCode: customer.customer_code, customerName: customer.customer_name,
+      birthDate: customer.birth_date, notes: customer.notes || "",
+      customerStatus: customer.customer_status,
+      customerProcessStatus: customer.customer_process_status,
+      totalRechargeCount: Number(customer.total_recharge_count || 0),
+      totalVerificationCount: Number(customer.total_verification_count || 0),
+      totalExperienceCount: Number(customer.total_experience_count || 0),
+      latestRechargeAt: customer.latest_recharge_at,
+      latestVerificationAt: customer.latest_verification_at,
+      createdAt: customer.created_at, updatedAt: customer.updated_at,
+      storeId: String(customer.created_store_id), storeCode: customer.store_code, storeName: customer.store_name
+    },
+    balances: balances.map((row) => ({
+      productId: String(row.product_id), productCode: row.product_code, productName: row.product_name,
+      productStatus: row.product_status,
+      totalRechargeCount: Number(row.total_recharge_count || 0),
+      totalVerificationCount: Number(row.total_verification_count || 0),
+      remainingCount: Number(row.remaining_count || 0), updatedAt: row.updated_at
+    })),
+    recharges: recharges.map((row) => ({
+      id: String(row.id), rechargeCode: row.recharge_code, rechargeType: row.recharge_type,
+      unitCount: Number(row.unit_count || 0), recordStatus: row.record_status,
+      voidRequestStatus: row.void_request_status, submittedAt: row.submitted_at, reviewedAt: row.reviewed_at,
+      productId: String(row.product_id), productCode: row.product_code, productName: row.product_name
+    })),
+    verifications: verifications.map((row) => ({
+      id: String(row.id), verificationCode: row.verification_code, verificationType: row.verification_type,
+      unitCount: Number(row.unit_count || 1), recordStatus: row.record_status,
+      voidRequestStatus: row.void_request_status, submittedAt: row.submitted_at, reviewedAt: row.reviewed_at,
+      productId: String(row.product_id), productCode: row.product_code, productName: row.product_name,
+      teacherId: row.teacher_id ? String(row.teacher_id) : "", teacherCode: row.teacher_code || "", teacherName: row.teacher_name || ""
+    }))
+  };
 }
 
 async function uploadCustomerPhoto(storeId, personId, buffer) {
@@ -1539,6 +1662,7 @@ exports.main = async (event = {}) => {
     if (action === "getCustomerPhotoUrl") return await getCustomerPhotoUrl(event);
     if (action === "getCustomerProductBalances") return await getCustomerProductBalances(event);
     if (action === "getCustomerStatus") return await getCustomerStatus(event);
+    if (action === "getCustomerProfile") return await getCustomerProfile(event);
     if (action === "updateCustomerStatus") return await updateCustomerStatus(event);
     if (action === "searchCustomer") return await searchCustomer(event);
     if (action === "verifyCustomerFace") return await verifyCustomerFace(event);
