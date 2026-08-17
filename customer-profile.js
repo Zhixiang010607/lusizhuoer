@@ -72,9 +72,15 @@
   function renderRecords() {
     $("customerRechargeRecords").innerHTML = recharges.length ? recharges.map((row) => {
       const units = Number(row.unitCount || 0), prefix = row.rechargeType === "VOID" ? "−" : "+";
-      return `<tr><td>${escapeHtml(row.rechargeCode || row.id)}</td><td>${escapeHtml([row.productName, row.productCode].filter(Boolean).join(" · "))}</td><td>${prefix}${units}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row))}</td></tr>`;
+      const code = row.rechargeCode || row.id;
+      const detail = `recharge-detail.html?recordId=${encodeURIComponent(row.id)}&recordCode=${encodeURIComponent(code)}&source=query`;
+      return `<tr><td><a class="record-link" href="${detail}">${escapeHtml(code)}</a></td><td>${escapeHtml([row.productName, row.productCode].filter(Boolean).join(" · "))}</td><td>${prefix}${units}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row))}</td></tr>`;
     }).join("") : emptyRow(5, "暂无充值记录");
-    $("customerVerificationRecords").innerHTML = verifications.length ? verifications.map((row) => `<tr><td>${escapeHtml(row.verificationCode || row.id)}</td><td>${escapeHtml([row.productName, row.productCode].filter(Boolean).join(" · "))}</td><td>${escapeHtml(verificationTypeText(row.verificationType))}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row))}</td></tr>`).join("") : emptyRow(5, "暂无核销记录");
+    $("customerVerificationRecords").innerHTML = verifications.length ? verifications.map((row) => {
+      const code = row.verificationCode || row.id;
+      const detail = `verification-detail.html?recordId=${encodeURIComponent(row.id)}&recordCode=${encodeURIComponent(code)}&source=query`;
+      return `<tr><td><a class="record-link" href="${detail}">${escapeHtml(code)}</a></td><td>${escapeHtml([row.productName, row.productCode].filter(Boolean).join(" · "))}</td><td>${escapeHtml(verificationTypeText(row.verificationType))}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row))}</td></tr>`;
+    }).join("") : emptyRow(5, "暂无核销记录");
   }
   function renderPhoto(content, error = false) {
     const frame = $("customerProfilePhoto"); frame.classList.toggle("customer-photo-error", error); frame.innerHTML = content;
