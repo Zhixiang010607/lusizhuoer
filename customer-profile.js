@@ -1,7 +1,11 @@
 (() => {
   "use strict";
   const $ = (id) => document.getElementById(id);
-  const customerCode = new URLSearchParams(location.search).get("customerId") || "";
+  const params = new URLSearchParams(location.search);
+  const customerCode = params.get("customerId") || "";
+  const pageSource = String(params.get("source") || "").trim().toLowerCase();
+  const reviewRecordType = String(params.get("reviewRecordType") || "").trim().toUpperCase();
+  const reviewRecordId = String(params.get("reviewRecordId") || "").trim();
   const session = (() => { try { return JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { return null; } })();
   const canManageStatus = ["hq", "store"].includes(session?.role);
   const canReadPhoto = ["hq", "store"].includes(session?.role);
@@ -12,6 +16,29 @@
   const infoCard = (label, value) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || "—")}</strong></article>`;
   const verificationTypeText = (value) => ({ NORMAL:"正常核销", SUPPLEMENT:"补录核销", EXPERIENCE:"体验核销" }[value] || value || "正常核销");
   let profile = null, balances = [], recharges = [], verifications = [], requestPending = false;
+
+  function hasReviewContext() {
+    return ["RECHARGE", "VERIFICATION"].includes(reviewRecordType) && /^\d+$/.test(reviewRecordId);
+  }
+  function configureBackLink() {
+    const link = document.querySelector(".back-link");
+    if (!link || pageSource !== "review" || !["hq", "operation"].includes(session?.role) || !hasReviewContext()) return;
+    link.href = reviewRecordType === "RECHARGE" ? "recharge-review.html" : "verification-review.html";
+    link.textContent = reviewRecordType === "RECHARGE" ? "← 返回充值审核" : "← 返回核销审核";
+  }
+  function detailHref(page, rowId, code) {
+    if (!rowId || !code) return "";
+    const detailParams = new URLSearchParams({ recordId:String(rowId), recordCode:String(code) });
+    if (["hq", "operation"].includes(session?.role) && pageSource === "review" && hasReviewContext()) {
+      detailParams.set("source", "customer");
+      detailParams.set("customerId", customerCode);
+      detailParams.set("reviewRecordType", reviewRecordType);
+      detailParams.set("reviewRecordId", reviewRecordId);
+    } else {
+      detailParams.set("source", "query");
+    }
+    return `${page}?${detailParams.toString()}`;
+  }
 
   function parsedObject(value) {
     if (value && typeof value === "object") return value;
@@ -73,13 +100,18 @@
     $("customerRechargeRecords").innerHTML = recharges.length ? recharges.map((row) => {
       const units = Number(row.unitCount || 0), prefix = row.rechargeType === "VOID" ? "−" : "+";
       const code = row.rechargeCode || row.id;
-      const detail = `recharge-detail.html?recordId=${encodeURIComponent(row.id)}&recordCode=${encodeURIComponent(code)}&source=query`;
-      return `<tr><td><a class="record-link" href="${detail}">${escapeHtml(code)}</a></td><td>${escapeHtml([row.productName, row.productCode].filter(Boolean).join(" · "))}</td><td>${prefix}${units}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row))}</td></tr>`;
+      const detail = detailHref("recharge-detail.html", row.id, code);
+      const codeCell = detail ? `<a class="record-link" href="${escapeHtml(detail)}">${escapeHtml(code)}</a>` : escapeHtml(code);
+      return `<tr><td>${codeCell}</td><td>${escapeHtml([row.productName, row.productCode].filter(Boolean).join(" · "))}</td><td>${prefix}${units}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row))}</td></tr>`;
     }).join("") : emptyRow(5, "暂无充值记录");
     $("customerVerificationRecords").innerHTML = verifications.length ? verifications.map((row) => {
       const code = row.verificationCode || row.id;
-      const detail = `verification-detail.html?recordId=${encodeURIComponent(row.id)}&recordCode=${encodeURIComponent(code)}&source=query`;
-      return `<tr><td><a class="record-link" href="${detail}">${escapeHtml(code)}</a></td><td>${escapeHtml([row.productName, row.productCode].filter(Boolean).join(" · "))}</td><td>${escapeHtml(verificationTypeText(row.verificationType))}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row))}</td></tr>`;
+      const operationCanOpen = session?.role !== "operation"
+        || String(row.voidRequestStatus || "NONE").toUpperCase() !== "NONE"
+        || String(row.verificationType || "").toUpperCase() === "SUPPLEMENT";
+      const detail = operationCanOpen ? detailHref("verification-detail.html", row.id, code) : "";
+      const codeCell = detail ? `<a class="record-link" href="${escapeHtml(detail)}">${escapeHtml(code)}</a>` : escapeHtml(code);
+      return `<tr><td>${codeCell}</td><td>${escapeHtml([row.productName, row.productCode].filter(Boolean).join(" · "))}</td><td>${escapeHtml(verificationTypeText(row.verificationType))}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row))}</td></tr>`;
     }).join("") : emptyRow(5, "暂无核销记录");
   }
   function renderPhoto(content, error = false) {
@@ -118,13 +150,18 @@
   }
   async function loadProfile() {
     if (!customerCode) { renderLoadError("缺少客户编号，请返回客户查询重新进入。"); return; }
+    if (session?.role === "operation" && !hasReviewContext()) { renderLoadError("运营账号必须从审核记录进入客户主页。"); return; }
     $("customerBasicInfo").innerHTML = infoCard("数据库状态", "正在读取客户主页…");
     try {
-      const data = await callCustomerService({ action:"getCustomerProfile", customerCode });
+      const payload = session?.role === "operation"
+        ? { action:"getReviewCustomerProfile", customerCode, reviewRecordType, reviewRecordId }
+        : { action:"getCustomerProfile", customerCode };
+      const data = await callCustomerService(payload);
       profile = data.customer; balances = Array.isArray(data.balances) ? data.balances : [];
       recharges = Array.isArray(data.recharges) ? data.recharges : []; verifications = Array.isArray(data.verifications) ? data.verifications : [];
       renderBasic(); renderRecent(); renderBalances(); renderRecords(); void loadPhoto();
     } catch (error) { renderLoadError(error.message || "客户主页数据库读取失败，请刷新重试。"); }
   }
+  configureBackLink();
   void loadProfile();
 })();

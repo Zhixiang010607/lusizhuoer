@@ -4,7 +4,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
-const FUNCTION_VERSION = "v36";
+const FUNCTION_VERSION = "v37";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -454,9 +454,49 @@ async function activeCustomerProfileCaller() {
   fail("当前登录身份无权查看客户主页。", "FORBIDDEN");
 }
 
+async function activeOperationReviewCaller() {
+  const { uid } = app().auth().getUserInfo();
+  if (!uid) fail("请先登录后再查看审核客户资料。", "UNAUTHENTICATED");
+  const rows = await executeSql(
+    `SELECT id AS staff_id, role_code, account_status
+       FROM public.staff_accounts
+      WHERE auth_uid = ${sqlText(uid)}
+      LIMIT 1`
+  );
+  const account = rows[0];
+  if (!account) fail("当前登录账号尚未绑定业务身份。", "STAFF_PROFILE_MISSING");
+  if (account.account_status !== "ACTIVE") fail("当前登录账号已封存。", "ARCHIVED");
+  if (account.role_code !== "operation") fail("只有运营审核账号可以使用审核客户资料入口。", "FORBIDDEN");
+  return { uid: String(uid), staffId: Number(account.staff_id), role: "operation", storeId: null };
+}
+
 function customerProfileScope(caller, alias = "c") {
   if (caller.role === "store") return ` AND ${alias}.created_store_id = ${caller.storeId}`;
   return "";
+}
+
+function operationReviewCustomerScope(event, alias = "c") {
+  const recordType = String(event.reviewRecordType || "").trim().toUpperCase();
+  if (!["RECHARGE", "VERIFICATION"].includes(recordType)) {
+    fail("运营客户主页缺少有效审核工单类型。", "REVIEW_CONTEXT_REQUIRED");
+  }
+  const recordId = businessQueryDatabaseId(event.reviewRecordId, "审核工单");
+  if (recordType === "RECHARGE") {
+    return ` AND EXISTS (
+      SELECT 1
+        FROM public.recharge_records review_record
+       WHERE review_record.id = ${recordId}::bigint
+         AND review_record.customer_id = ${alias}.id
+    )`;
+  }
+  return ` AND EXISTS (
+    SELECT 1
+      FROM public.verification_records review_record
+     WHERE review_record.id = ${recordId}::bigint
+       AND review_record.customer_id = ${alias}.id
+       AND (review_record.void_request_status <> 'NONE'
+            OR review_record.verification_type = 'SUPPLEMENT')
+  )`;
 }
 
 function customerStatusCode(event) {
@@ -539,19 +579,25 @@ async function updateCustomerStatus(event) {
   return customerStatusResult(customer);
 }
 
-async function getCustomerProfile(event) {
-  const caller = await activeCustomerProfileCaller();
+async function getCustomerProfile(event, options = {}) {
+  const operationReviewContext = options.operationReviewContext === true;
+  const caller = operationReviewContext
+    ? await activeOperationReviewCaller()
+    : await activeCustomerProfileCaller();
   const customerCodeValue = customerStatusCode(event);
+  const profileScope = operationReviewContext
+    ? operationReviewCustomerScope(event, "c")
+    : customerProfileScope(caller, "c");
   const customerRows = await executeSql(
     `SELECT c.id, c.customer_code, c.customer_name, c.birth_date, c.notes,
             c.customer_status, c.customer_process_status,
             c.total_recharge_count, c.total_verification_count, c.total_experience_count,
             c.latest_recharge_at, c.latest_verification_at, c.created_at, c.updated_at,
             c.created_store_id, s.store_code, s.store_name
-       FROM public.customers c
-       JOIN public.stores s ON s.id = c.created_store_id
+      FROM public.customers c
+      JOIN public.stores s ON s.id = c.created_store_id
       WHERE c.customer_code = ${sqlText(customerCodeValue)}
-        ${customerProfileScope(caller, "c")}
+        ${profileScope}
       LIMIT 1`
   );
   const customer = customerRows[0];
@@ -1944,6 +1990,7 @@ exports.main = async (event = {}) => {
     if (action === "getCustomerProductBalances") return await getCustomerProductBalances(event);
     if (action === "getCustomerStatus") return await getCustomerStatus(event);
     if (action === "getCustomerProfile") return await getCustomerProfile(event);
+    if (action === "getReviewCustomerProfile") return await getCustomerProfile(event, { operationReviewContext: true });
     if (action === "updateCustomerStatus") return await updateCustomerStatus(event);
     if (action === "searchCustomer") return await searchCustomer(event);
     if (action === "verifyCustomerFace") return await verifyCustomerFace(event);

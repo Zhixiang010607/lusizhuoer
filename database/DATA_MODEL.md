@@ -11,7 +11,7 @@ Each account has exactly one active business identity through `account_identity_
 | Account role | Linked business entity | Global view scope |
 | --- | --- | --- |
 | `hq` | `hq_profiles` | All business data |
-| `operation` | `operation_profiles` | Own profile plus the shared HQ review queue only |
+| `operation` | `operation_profiles` | Own profile, the shared HQ review queue, and review-bound read-only supporting context |
 | `store` | `stores` | Its own store only |
 | `teacher` | `teachers` | Its own records only |
 
@@ -37,7 +37,7 @@ An archived account cannot sign in. Archiving does not delete historical records
 | Product | `products` | Product status and product details |
 | Customer | `customers` | Created store, face-library person ID and consent time; no customer phone is stored |
 
-`operation_store_scopes` is retained only as archived audit history. Migration 034 archives every active operation/store scope and prevents a scope from becoming active again. Operation accounts do not read store, customer, product or query data; the review service returns only the fields required to review recharge and verification orders.
+`operation_store_scopes` is retained only as archived audit history. Migration 034 archives every active operation/store scope and prevents a scope from becoming active again. Operation accounts do not receive store, product, management or query scopes. They may open read-only order/customer context from the shared review queue; customer access is bound server-side to one exact review record and does not include photos or status changes.
 
 ## 3. Recharge record
 
@@ -137,11 +137,11 @@ The database views provide global summaries without replacing detail records:
 | Role | Can read |
 | --- | --- |
 | Headquarters | All master data, all records, all global views |
-| Operation | Its own account profile and the shared recharge/verification review queue; no query, master-data or customer access |
+| Operation | Its own account profile, the shared recharge/verification review queue, and exact review-bound read-only order/customer context; no independent query or master-data access |
 | Store | Its own store, customers, recharge records, verification records |
 | Teacher | Only its own recharge and verification records; no other teacher or store global view |
 
-The access restriction is implemented in PostgreSQL RLS and must also be checked by cloud functions. `staffAccount` allows operation accounts only `session`, `listReviewOrders` and `reviewOrder`; `faceRecognition` does not grant operation accounts customer or business-query actions. Frontend navigation alone is never treated as permission control.
+The access restriction is implemented in PostgreSQL RLS and must also be checked by cloud functions. `staffAccount` allows operation accounts only `session`, `listReviewOrders` and `reviewOrder`; exact verification details remain limited to reviewable supplemental/void records. `faceRecognition` exposes only `getReviewCustomerProfile` to operation accounts, requiring an exact review record that belongs to the requested customer; ordinary customer profile, photo, status, and business-query actions remain forbidden. Frontend navigation alone is never treated as permission control.
 
 ## 7. Run order for the current deployment
 

@@ -9,7 +9,7 @@ const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 const OPERATION_ACTIONS = new Set(["listReviewOrders", "reviewOrder"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v37";
+const FUNCTION_VERSION = "v38";
 let app = null;
 let auth = null;
 let managerClient = null;
@@ -1108,6 +1108,7 @@ function reviewFilterSql(event, alias, recordCodeExpression, statusExpression, t
 async function listReviewOrders(caller, event) {
   const exactLookup = Boolean(String(event.recordId || "").trim() || String(event.recordCode || "").trim());
   const storeReader = caller.profile?.role === "store";
+  const operationReviewer = caller.profile?.role === "operation";
   if (storeReader) {
     requireStore(caller);
     if (!exactLookup) fail("门店只能按精确工单编号读取本门店工单", "FORBIDDEN");
@@ -1168,7 +1169,7 @@ async function listReviewOrders(caller, event) {
              JOIN public.customers c ON c.id = v.customer_id
              JOIN public.products p ON p.id = v.product_id
              JOIN public.teachers t ON t.id = v.teacher_id
-            WHERE ${exactLookup ? "TRUE" : "(v.void_request_status <> 'NONE' OR v.verification_type = 'SUPPLEMENT')"}
+            WHERE ${exactLookup && !operationReviewer ? "TRUE" : "(v.void_request_status <> 'NONE' OR v.verification_type = 'SUPPLEMENT')"}
               ${reviewFilterSql(scopedEvent, "v", "v.verification_code", statusExpression, typeExpression)}
          ORDER BY (${statusExpression} = 'PENDING') DESC, ${timeExpression} DESC, v.id DESC
             LIMIT ${limit}`;
@@ -1214,6 +1215,22 @@ async function reviewOrder(caller, event) {
   const recordId = numericId(event.recordId, "工单编号");
   const note = String(event.note || "").trim();
   if (note.length > 1000) fail("审核留言不能超过 1000 个字符", "BAD_REQUEST");
+  if (caller.profile?.role === "operation") {
+    const visibleRows = await listReviewOrders(caller, {
+      recordType,
+      recordId,
+      status: "PENDING",
+      limit: 1
+    });
+    const visibleRecord = visibleRows?.[0];
+    if (
+      !visibleRecord ||
+      String(visibleRecord.id) !== String(recordId) ||
+      String(visibleRecord.application_status || "").toUpperCase() !== "PENDING"
+    ) {
+      fail("运营账号只能审核当前审核列表中的待处理工单", "FORBIDDEN");
+    }
+  }
   let rows;
   try {
     rows = await executeSql(

@@ -2,7 +2,7 @@
 
 该函数仅在 CloudBase 后端运行，用于门店客户建档、照片质量检测、私有照片留存、人脸人员库录入和后续人员搜索。客户不需要提供身份证。
 
-当前版本：`v36`
+当前版本：`v37`
 
 ## 必需环境变量
 
@@ -66,7 +66,7 @@
 ```json
 {
   "ok": true,
-  "version": "v36",
+  "version": "v37",
   "photoBucketId": "customer-photos",
   "livenessEnabled": true
 }
@@ -83,7 +83,9 @@
 - `listActiveProducts`：仅允许活跃门店账号调用，只返回数据库中 `product_status='ACTIVE'` 产品的内部 ID、编号和名称；不会预取介绍、类别或任何价格字段。
 - `createRechargeApplication`：只创建一张 `NEW`、`PENDING` 的真实充值单，并使用 `idempotency_key` 防止双击或网络重试重复建单。业务老师可以为空；选择老师时仍校验老师资料和登录账号均为活跃。提交待审核单不会增加客户充值次数；只有审核把同一张单改为 `APPROVED` 后，数据库汇总触发器才会计入次数。部署前依次确认已执行迁移 `021_customer_product_effective_balances.sql`、`023_recharge_pending_submission.sql` 和 `024_optional_recharge_teacher.sql`。
 - `getActiveStoreCustomerDetail`：客户在下拉框中被选中后才调用；重新确认客户仍为本门店活跃客户，再返回完整客户资料和私有照片短时签名地址。短时地址会在安全有效期内由页面与云函数温实例复用，避免重复签名和重复查询；每次返回前仍先执行当前门店权限校验。
-- `getCustomerPhotoUrl`：总部可读取任意客户、门店只可读取本门店客户；运营和老师无权访问客户主页。验证权限后为私有建档照片生成短时有效的签名地址。客户主页使用此动作，浏览器不能直接使用数据库中的 `pg://` 引用。
+- `getCustomerProfile`：总部可读取任意客户、门店只可读取本门店客户；运营和老师不能调用该常规客户主页入口。
+- `getReviewCustomerProfile`：仅活跃运营审核账号可调用，并且必须同时提交审核工单类型和数据库工单 ID。服务端验证该充值／核销审核工单确实属于目标客户后，才返回只读客户资料、余额与业务历史；缺少上下文、客户不匹配或普通非审核核销均拒绝。该动作不返回客户照片，也不能修改客户状态。
+- `getCustomerPhotoUrl`：总部可读取任意客户、门店只可读取本门店客户；运营和老师无权访问客户照片。验证权限后为私有建档照片生成短时有效的签名地址。客户主页使用此动作，浏览器不能直接使用数据库中的 `pg://` 引用。
   - 兼容旧版本曾保存的重复桶名前缀（例如 `pg://bucket/bucket/path`）：读取时自动尝试两个合法对象名，成功后把数据库引用规范化。
   - 兼容 CloudBase `signObject` 的直接／包装返回结构；单对象接口未返回 URL 时自动使用 `signObjects` 复核，并继续尝试旧照片路径。
   - 若两个路径都不存在，返回 `CUSTOMER_PHOTO_OBJECT_MISSING`，该客户需要重新采集照片；不会把底层存储错误直接暴露给页面。

@@ -1,6 +1,6 @@
 # staffAccount 云函数
 
-当前版本：`v37`
+当前版本：`v38`
 
 用于总部自动创建运营、门店和老师账号；前端只传姓名、手机号、角色和初始密码，云函数使用当前登录总部账号进行授权。
 
@@ -21,7 +21,9 @@
 补录核销（`SUPPLEMENT`）。体验核销（`EXPERIENCE`）及其他业务类型均禁止；
 待审核、已驳回、已作废或已经进入过作废审核生命周期的工单也禁止再次申请。
 总部或运营负责审核。运营账号只允许调用 `session`、`listReviewOrders` 和
-`reviewOrder`，其他员工、门店、产品、改密与作废申请动作均拒绝。
+`reviewOrder`，其他员工、门店、产品、改密与作废申请动作均拒绝。运营按精确编号
+读取核销详情和提交审核结果时，均被限制在补录核销或已进入作废申请生命周期的待处理
+审核工单，不能借详情或写接口读取、审核普通与体验等非审核核销记录。
 `session.profile` 同时返回运营个人信息所需的 `phone` 和 `accountStatus`。
 `getHqDashboard` 仅允许总部账号调用，为总部全局首页返回真实数据库汇总：
 `{ ok, version, range, totals, rows, teacherRows }`。不传 `startDate` 和
@@ -33,7 +35,7 @@
 总部首页部署前还需单独执行迁移
 `035_hq_dashboard_approved_covering_indexes.sql`，为两张工单表的已通过日期范围聚合提供覆盖索引。
 
-部署 `v37` 前必须确认已依次执行迁移 `026` 至 `029`，
+部署 `v38` 前必须确认已依次执行迁移 `026` 至 `029`，
 然后执行 `database/migrations/032_restrict_order_void_eligibility.sql`，并继续完成
 `033`、`034` 和 `035`。
-部署后调用 `{ "action": "health" }`，返回版本必须为 `v37`。
+部署后调用 `{ "action": "health" }`，返回版本必须为 `v38`。

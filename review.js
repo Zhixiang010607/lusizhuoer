@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const VERSION = "0.17.3";
+  const VERSION = "0.17.4";
   const pageType = document.body.dataset.review;
   const recordType = pageType === "recharge" ? "RECHARGE" : "VERIFICATION";
   const columnCount = 10;
@@ -121,13 +121,13 @@
       const actions = item.status === "PENDING" && canDecide ? `<div class="review-actions"><button data-id="${escapeHtml(item.id)}" data-action="APPROVED">通过</button><button class="reject" data-id="${escapeHtml(item.id)}" data-action="REJECTED">驳回</button></div>` : `<span class="record-status status-${escapeHtml(statusText[item.status] || item.status)}">${escapeHtml(statusText[item.status] || item.status)}</span>`;
       const teacher = item.teacherName ? `${item.teacherName}${item.teacherId ? `（${item.teacherId}）` : ""}` : "—";
       const detailPage = pageType === "recharge" ? "recharge-detail.html" : "verification-detail.html";
-      const canOpenSupportingPages = session?.role !== "operation";
+      const canOpenSupportingPages = ["hq", "operation"].includes(session?.role);
       const orderCode = item.id && canOpenSupportingPages
         ? `<a class="record-link" href="${detailPage}?recordId=${encodeURIComponent(item.id)}&recordCode=${encodeURIComponent(item.recordCode)}&source=review" title="查看${pageType === "recharge" ? "充值" : "核销"}工单 ${escapeHtml(item.recordCode)}">${escapeHtml(item.recordCode)}</a>`
         : escapeHtml(item.recordCode);
       const customerText = `${item.customerName}${item.customerId ? `（${item.customerId}）` : ""}`;
-      const customerHref = item.customerCode
-        ? `customer-detail.html?customerId=${encodeURIComponent(item.customerCode)}&customerName=${encodeURIComponent(item.customerName)}&storeId=${encodeURIComponent(item.store.id)}`
+      const customerHref = item.customerCode && item.id
+        ? `customer-detail.html?customerId=${encodeURIComponent(item.customerCode)}&source=review&reviewRecordType=${encodeURIComponent(recordType)}&reviewRecordId=${encodeURIComponent(item.id)}`
         : "";
       const customer = customerHref && canOpenSupportingPages
         ? `<a class="record-link" href="${escapeHtml(customerHref)}" title="查看客户主页 ${escapeHtml(item.customerName)}">${escapeHtml(customerText)}</a>`

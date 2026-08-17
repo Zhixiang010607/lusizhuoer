@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.10";
+  const VERSION = "0.15.11";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -28,6 +28,31 @@
 
   function first(...values) {
     return values.map(clean).find(Boolean) || "";
+  }
+
+  function configureBackLink() {
+    const link = document.querySelector(".back-link");
+    if (!link) return;
+    const session = readSession();
+    const source = clean(params.get("source")).toLowerCase();
+    if (source === "review" && ["hq", "operation"].includes(session?.role)) {
+      link.href = type === "recharge" ? "recharge-review.html" : "verification-review.html";
+      link.textContent = type === "recharge" ? "← 返回充值审核" : "← 返回核销审核";
+      return;
+    }
+    if (source !== "customer") return;
+    const customerCode = clean(params.get("customerId"));
+    const reviewRecordType = clean(params.get("reviewRecordType")).toUpperCase();
+    const reviewRecordId = clean(params.get("reviewRecordId"));
+    if (!customerCode || !["RECHARGE", "VERIFICATION"].includes(reviewRecordType) || !/^\d+$/.test(reviewRecordId)) return;
+    const customerParams = new URLSearchParams({
+      customerId: customerCode,
+      source: "review",
+      reviewRecordType,
+      reviewRecordId
+    });
+    link.href = `customer-detail.html?${customerParams.toString()}`;
+    link.textContent = "← 返回客户主页";
   }
 
   function field(row, snake, camel) {
@@ -387,11 +412,7 @@
   }
 
   async function initialize() {
-    if (readSession()?.role === "operation") {
-      renderMissing(first(params.get("recordCode"), params.get("recordId")));
-      $("orderDescription").textContent = "运营账号请在审核列表中查看并处理工单。";
-      return;
-    }
+    configureBackLink();
     const recordId = first(params.get("recordId"));
     const displayCode = first(params.get("recordCode"), recordId);
     const recordReference = first(recordId, displayCode);
