@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.0";
+  const VERSION = "0.17.0";
   const $ = (id) => document.getElementById(id);
   const roles = {
     hq: { name: "总部", target: "index.html" },
@@ -78,6 +78,7 @@
       passwordChangeRequired: Boolean(profile.passwordChangeRequired),
       cloudbaseUserId: staff.uid || identity?.user?.id || identity?.user?.uid || "",
       loginAt: new Date().toISOString(),
+      identityVerifiedAt: Date.now(),
       sessionId: `${Date.now()}-${Math.random().toString(36).slice(2)}`
     };
     ["prototypeSession", "prototypeRole", "prototypeAccount", "prototypeStore"].forEach((key) => sessionStorage.removeItem(key));
@@ -135,6 +136,7 @@
       setResetError(); setBusy(button, true, "验证并修改密码");
       await window.CloudBasePhoneAuth.signInWithCode(code);
       await window.CloudBasePhoneAuth.changeOwnPassword(password);
+      window.CloudBasePhoneAuth.announceAuthenticationChanged?.();
       event.currentTarget.reset();
       passwordResetCodeSent = false;
       window.setTimeout(() => { showPasswordReset(false); setError("密码已修改，请使用新密码登录。"); }, 700);
@@ -178,6 +180,7 @@
       if (bootstrapMode) await window.CloudBasePhoneAuth.bootstrapHq();
       const staff = await window.CloudBasePhoneAuth.getStaffSession(phone);
       activeSession = createSession(identity, staff);
+      window.CloudBasePhoneAuth.announceWorkspaceSession?.(activeSession);
       enterWorkspace(activeSession);
     } catch (error) {
       setError(error.message || "登录失败，请检查手机号、密码或验证码");
@@ -190,4 +193,6 @@
   selectLoginMode("password");
   window.setInterval(() => { refreshSmsButton(); refreshResetSmsButton(); }, 1000);
   showPasswordReset(new URLSearchParams(location.search).get("mode") === "reset");
+  const redirectReason = new URLSearchParams(location.search).get("reason");
+  if (redirectReason && !new URLSearchParams(location.search).has("mode")) setError(redirectReason);
 })();

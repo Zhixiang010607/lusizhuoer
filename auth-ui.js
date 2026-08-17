@@ -1,6 +1,10 @@
 (() => {
   "use strict";
   const page = location.pathname.split("/").pop() || "index.html";
+  const AUTH_CHANNEL_NAME = "lusizhuoer-auth-session-v1";
+  const AUTH_STATE_KEY = "lusizhuoerActiveAuth";
+  const SESSION_KEYS = ["prototypeSession", "prototypeRole", "prototypeAccount", "prototypeStore", "prototypeAccessMessage"];
+  const isLocalPreview = ["127.0.0.1", "localhost"].includes(location.hostname);
   const homes = { hq: "index.html", operation: "local.html", store: "store-detail.html", teacher: "teacher-work-orders.html" };
   const labels = { hq: "总部工作区", operation: "运营工作区", store: "门店工作区", teacher: "老师工作区" };
   const access = {
@@ -13,6 +17,33 @@
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   const valid = session && access[session.role] && session.account && (session.role !== "store" || session.store);
   if (!valid) { location.replace(`login.html?reason=${encodeURIComponent("请先选择身份并登录")}`); return; }
+
+  function clearWorkspaceSession() {
+    SESSION_KEYS.forEach((key) => sessionStorage.removeItem(key));
+  }
+  function redirectForSessionChange(message) {
+    if (document.documentElement.dataset.authRedirecting === "true") return;
+    document.documentElement.dataset.authRedirecting = "true";
+    clearWorkspaceSession();
+    location.replace(`login.html?reason=${encodeURIComponent(message)}`);
+  }
+  function stateMatchesExpected(state) {
+    if (!state || state.type !== "SIGNED_IN") return false;
+    if (String(state.uid || "") !== String(session.cloudbaseUserId || "")) return false;
+    if (String(state.role || "").toLowerCase() !== String(session.role || "").toLowerCase()) return false;
+    return session.role !== "store" || String(state.store || "") === String(session.store || "");
+  }
+  function parseSharedAuthState(value) {
+    try { return JSON.parse(value || "null"); } catch (_) { return null; }
+  }
+
+  if (!isLocalPreview) {
+    const sharedState = parseSharedAuthState(localStorage.getItem(AUTH_STATE_KEY));
+    if (sharedState?.type === "SIGNED_IN" && !stateMatchesExpected(sharedState)) {
+      redirectForSessionChange("此浏览器已登录另一个账号，当前页面已退出。若需同时使用总部和门店账号，请使用不同浏览器、不同浏览器用户配置或无痕窗口。");
+      return;
+    }
+  }
 
   const homeUrl = session.role === "store" ? `${homes.store}?storeId=${encodeURIComponent(session.store)}` : homes[session.role];
   if (!access[session.role].has(page)) {
@@ -104,9 +135,76 @@
   if (window.matchMedia("(min-width: 761px) and (max-width: 1100px)").matches) {
     document.querySelectorAll(".side-menu-group[open]").forEach((group) => group.removeAttribute("open"));
   }
-  $("logoutWorkspace")?.addEventListener("click", () => {
-    ["prototypeSession", "prototypeRole", "prototypeAccount", "prototypeStore", "prototypeAccessMessage"].forEach((key) => sessionStorage.removeItem(key));
-    location.replace("login.html");
+  if (!isLocalPreview) {
+    if (typeof window.BroadcastChannel === "function") {
+      const authChannel = new BroadcastChannel(AUTH_CHANNEL_NAME);
+      authChannel.addEventListener("message", (event) => {
+        const state = event.data;
+        if (state?.type === "SIGNED_IN" && !stateMatchesExpected(state)) {
+          redirectForSessionChange("此浏览器已切换到另一个账号，旧工作区已安全退出。");
+        } else if (["SIGNED_OUT", "AUTH_CHANGED"].includes(state?.type)) {
+          redirectForSessionChange("当前云端登录状态已变更，请重新登录。");
+        }
+      });
+    }
+    window.addEventListener("storage", (event) => {
+      if (event.key !== AUTH_STATE_KEY) return;
+      const state = parseSharedAuthState(event.newValue);
+      if (!state) redirectForSessionChange("当前云端账号已退出，请重新登录。");
+      else if (!stateMatchesExpected(state)) redirectForSessionChange("此浏览器已切换到另一个账号，旧工作区已安全退出。");
+    });
+
+    let identityCheck = null;
+    let lastIdentityCheckAt = Number(session.identityVerifiedAt || 0);
+    async function verifyLiveIdentity({ force = false } = {}) {
+      if (document.documentElement.dataset.authRedirecting === "true") return;
+      if (!force && Date.now() - lastIdentityCheckAt < 15000) return;
+      if (typeof window.CloudBasePhoneAuth?.validateWorkspaceSession !== "function") return;
+      if (identityCheck) return identityCheck;
+      identityCheck = window.CloudBasePhoneAuth.validateWorkspaceSession(session)
+        .then(() => {
+          lastIdentityCheckAt = Date.now();
+          session.identityVerifiedAt = lastIdentityCheckAt;
+          sessionStorage.setItem("prototypeSession", JSON.stringify(session));
+        })
+        .catch((error) => {
+          if (error?.code === "AUTH_SESSION_CHANGED") {
+            redirectForSessionChange(`${error.message || "当前账号与本页面不一致"}，请重新登录。`);
+            return;
+          }
+          // 身份服务短暂失败时不把用户误判为越权；下一次页面重新获得焦点时再核对。
+          console.warn("Live identity check deferred", error);
+        })
+        .finally(() => { identityCheck = null; });
+      return identityCheck;
+    }
+    window.addEventListener("focus", () => verifyLiveIdentity({ force: true }));
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") verifyLiveIdentity({ force: true });
+    });
+    verifyLiveIdentity();
+  }
+
+  $("logoutWorkspace")?.addEventListener("click", async () => {
+    const button = $("logoutWorkspace");
+    if (button) button.disabled = true;
+    try {
+      if (!isLocalPreview && typeof window.CloudBasePhoneAuth?.signOut === "function") {
+        await window.CloudBasePhoneAuth.signOut();
+      } else if (!isLocalPreview) {
+        localStorage.removeItem(AUTH_STATE_KEY);
+        if (typeof window.BroadcastChannel === "function") {
+          const channel = new BroadcastChannel(AUTH_CHANNEL_NAME);
+          channel.postMessage({ type: "SIGNED_OUT", occurredAt: Date.now() });
+          channel.close();
+        }
+      }
+    } catch (error) {
+      console.warn("Cloud sign-out failed", error);
+    } finally {
+      clearWorkspaceSession();
+      location.replace("login.html");
+    }
   });
   document.documentElement.dataset.authReady = "true";
 

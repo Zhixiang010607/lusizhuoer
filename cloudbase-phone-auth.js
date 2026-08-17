@@ -4,6 +4,8 @@
   let auth = null;
   let verifyOtp = null;
   const SMS_COOLDOWN_MS = 60 * 1000;
+  const AUTH_CHANNEL_NAME = "lusizhuoer-auth-session-v1";
+  const AUTH_STATE_KEY = "lusizhuoerActiveAuth";
 
   function registerCloudBaseComponent(register, componentName) {
     try {
@@ -103,6 +105,34 @@
     return Math.max(0, Math.ceil((Number(state.lastSentAt || 0) + SMS_COOLDOWN_MS - Date.now()) / 1000));
   }
 
+  function announceAuthEvent(type, session = null) {
+    const state = {
+      type,
+      uid: String(session?.cloudbaseUserId || ""),
+      role: String(session?.role || ""),
+      store: String(session?.store || ""),
+      sessionId: String(session?.sessionId || ""),
+      occurredAt: Date.now()
+    };
+    try {
+      if (type === "SIGNED_IN") localStorage.setItem(AUTH_STATE_KEY, JSON.stringify(state));
+      else localStorage.removeItem(AUTH_STATE_KEY);
+    } catch (_) { /* storage may be unavailable */ }
+    if (typeof window.BroadcastChannel !== "function") return;
+    const channel = new BroadcastChannel(AUTH_CHANNEL_NAME);
+    try {
+      channel.postMessage(state);
+    } finally {
+      channel.close();
+    }
+  }
+
+  function sessionChanged(message) {
+    const error = new Error(message);
+    error.code = "AUTH_SESSION_CHANGED";
+    return error;
+  }
+
   window.CloudBasePhoneAuth = {
     async sendCode(phone) {
       const normalizedPhone = normalizePhone(phone);
@@ -136,6 +166,45 @@
       );
       if (!data?.profile?.role) throw new Error("该手机号尚未被总部绑定业务身份");
       return data;
+    },
+    async validateWorkspaceSession(expectedSession) {
+      const expected = expectedSession && typeof expectedSession === "object" ? expectedSession : {};
+      const account = expected.phone || expected.account;
+      if (!account || !expected.cloudbaseUserId || !expected.role) {
+        throw sessionChanged("当前页面登录信息不完整，请重新登录");
+      }
+      const data = await this.getStaffSession(account);
+      const profile = data?.profile || {};
+      const currentUid = String(data?.uid || "");
+      const expectedUid = String(expected.cloudbaseUserId || "");
+      const currentRole = String(profile.role || "").toLowerCase();
+      const expectedRole = String(expected.role || "").toLowerCase();
+      const currentStore = String(profile.storeId || "");
+      const expectedStore = String(expected.store || "");
+      if (!currentUid || currentUid !== expectedUid) {
+        throw sessionChanged("此浏览器已经切换到另一个登录账号");
+      }
+      if (!currentRole || currentRole !== expectedRole) {
+        throw sessionChanged("当前云端账号身份与本页面不一致");
+      }
+      if (expectedRole === "store" && (!currentStore || currentStore !== expectedStore)) {
+        throw sessionChanged("当前门店账号与本页面门店不一致");
+      }
+      return data;
+    },
+    announceWorkspaceSession(session) {
+      announceAuthEvent("SIGNED_IN", session);
+    },
+    announceAuthenticationChanged() {
+      announceAuthEvent("AUTH_CHANGED");
+    },
+    async signOut() {
+      try {
+        const result = await getAuth().signOut();
+        if (result?.error) throw new Error(result.error.message || "退出登录失败");
+      } finally {
+        announceAuthEvent("SIGNED_OUT");
+      }
     },
     async bootstrapHq() {
       return callStaffAccount({ action: "bootstrapHq" }, "总部初始化未获授权");

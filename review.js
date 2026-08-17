@@ -58,6 +58,19 @@
   function saveAuthoritativeSession(data) {
     const profile = data?.profile || {};
     const role = clean(profile.role).toLowerCase();
+    const expectedUid = clean(session?.cloudbaseUserId);
+    const currentUid = clean(data?.uid);
+    const expectedRole = clean(session?.role).toLowerCase();
+    if (expectedUid && currentUid && expectedUid !== currentUid) {
+      const error = new Error("此浏览器已经切换到另一个登录账号，旧审核页面不能继续使用");
+      error.code = "AUTH_SESSION_CHANGED";
+      throw error;
+    }
+    if (expectedRole && role && expectedRole !== role) {
+      const error = new Error("当前云端账号身份与本审核页面不一致");
+      error.code = "AUTH_SESSION_CHANGED";
+      throw error;
+    }
     if (!["hq", "operation"].includes(role)) {
       throw new Error(`当前云端业务身份为“${role || "未绑定"}”，仅总部或运营账号可以审核工单。请退出后重新登录正确账号。`);
     }
@@ -90,8 +103,8 @@
       reviewerRole = role === "hq" ? "总部" : "运营";
       return;
     }
-    if (typeof window.CloudBasePhoneAuth?.getStaffSession !== "function") throw new Error("云端身份服务未加载，请刷新页面重试");
-    const data = await window.CloudBasePhoneAuth.getStaffSession(account);
+    if (typeof window.CloudBasePhoneAuth?.validateWorkspaceSession !== "function") throw new Error("云端身份服务未加载，请刷新页面重试");
+    const data = await window.CloudBasePhoneAuth.validateWorkspaceSession(session);
     saveAuthoritativeSession(data);
   }
   function populateStoreFilter(sourceRows) {
@@ -215,6 +228,11 @@
       await confirmReviewerIdentity();
       await refresh({ preserveStores: false });
     } catch (error) {
+      if (error?.code === "AUTH_SESSION_CHANGED") {
+        ["prototypeSession", "prototypeRole", "prototypeAccount", "prototypeStore", "prototypeAccessMessage"].forEach((key) => sessionStorage.removeItem(key));
+        location.replace(`login.html?reason=${encodeURIComponent(`${error.message || "当前登录身份已变更"}，请重新登录。`)}`);
+        return;
+      }
       rows = [];
       setLoading(error?.message || "审核账号身份确认失败，请退出后重新登录");
     }
