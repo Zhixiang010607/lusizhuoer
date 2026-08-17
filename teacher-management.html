@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>老师管理</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=0.17.1">
 </head>
 <body data-management="teacher">
   <aside class="side-project-bar" aria-label="项目栏">
@@ -30,6 +30,16 @@
       </div>
     </section>
     <section id="teacherDirectory" class="teacher-directory-grid" aria-live="polite">
+      <section class="panel teacher-directory-panel teacher-search-results-panel">
+        <div class="panel-heading"><div><h2>查询结果</h2></div><span id="searchTeacherCount" class="badge">0 人</span></div>
+        <div class="teacher-directory-window teacher-directory-search-window">
+          <table class="teacher-directory-table">
+            <colgroup><col class="teacher-name-column"><col class="teacher-code-column"><col class="teacher-phone-column"><col class="teacher-status-column"></colgroup>
+            <thead><tr><th>老师姓名</th><th>老师编号</th><th>联系电话</th><th>状态</th></tr></thead>
+            <tbody id="searchTeacherRows"><tr><td colspan="4" class="teacher-directory-empty">尚未查询</td></tr></tbody>
+          </table>
+        </div>
+      </section>
       <section class="panel teacher-directory-panel">
         <div class="panel-heading"><div><h2>活跃老师</h2></div><span id="activeTeacherCount" class="badge">0 人</span></div>
         <div class="teacher-directory-window">
@@ -47,16 +57,6 @@
             <colgroup><col class="teacher-name-column"><col class="teacher-code-column"><col class="teacher-phone-column"><col class="teacher-status-column"></colgroup>
             <thead><tr><th>老师姓名</th><th>老师编号</th><th>联系电话</th><th>状态</th></tr></thead>
             <tbody id="archivedTeacherRows"><tr><td colspan="4" class="teacher-directory-empty">正在读取老师数据…</td></tr></tbody>
-          </table>
-        </div>
-      </section>
-      <section class="panel teacher-directory-panel">
-        <div class="panel-heading"><div><h2>查询结果</h2></div><span id="searchTeacherCount" class="badge">0 人</span></div>
-        <div class="teacher-directory-window">
-          <table class="teacher-directory-table">
-            <colgroup><col class="teacher-name-column"><col class="teacher-code-column"><col class="teacher-phone-column"><col class="teacher-status-column"></colgroup>
-            <thead><tr><th>老师姓名</th><th>老师编号</th><th>联系电话</th><th>状态</th></tr></thead>
-            <tbody id="searchTeacherRows"><tr><td colspan="4" class="teacher-directory-empty">尚未查询</td></tr></tbody>
           </table>
         </div>
       </section>

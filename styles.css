@@ -935,6 +935,8 @@ body[data-store-business] .form-submit-row button:disabled {
 .teacher-directory-panel { min-width: 0; padding: 14px; }
 .teacher-directory-panel .panel-heading { margin-bottom: 10px; }
 .teacher-directory-window { max-height: 280px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.teacher-directory-search-window { height: 168px; max-height: 168px; }
+.teacher-directory-search-window .teacher-directory-empty { height: 126px; }
 .teacher-directory-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .teacher-directory-table .teacher-name-column { width: 32%; }
 .teacher-directory-table .teacher-code-column { width: 24%; }
