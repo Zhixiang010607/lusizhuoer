@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const VERSION = "0.15.0";
+  const VERSION = "0.15.1";
   const pageType = document.body.dataset.review;
   const recordType = pageType === "recharge" ? "RECHARGE" : "VERIFICATION";
   const $ = (id) => document.getElementById(id);
@@ -136,7 +136,6 @@
   }
   organizeReviewToolbar();
   $("reviewStore").innerHTML = `<option value="all">全部门店</option>`;
-  document.querySelector(".review-table thead tr")?.insertAdjacentHTML("beforeend", "<th>批准/驳回时间</th>");
   applyTimeRange();
   ["reviewStore", "reviewType", "reviewStatus"].forEach((id) => $(id).addEventListener("change", () => refresh()));
   $("reviewTimeRange").addEventListener("change", () => { applyTimeRange(); refresh(); });
