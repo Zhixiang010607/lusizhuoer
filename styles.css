@@ -274,11 +274,11 @@ body.store-record-query .verification-query-primary-row { grid-template-columns:
 body.store-record-query #resetRecordQuery { color: #35516f; background: #edf2f7; }
 body.store-record-query .customer-permission-banner { margin-top: 0; }
 body.store-record-query .store-record-results { margin-top: 0; }
-body.store-record-query .record-query-results-table { width: 100%; min-width: 1350px; table-layout: auto; }
-body.store-record-query .verification-record-results-table { min-width: 1580px; }
+body.store-record-query .record-query-results-table { width: 100%; min-width: 1380px; table-layout: auto; }
+body.store-record-query .verification-record-results-table { min-width: 1610px; }
 body.store-record-query .record-col-order { width: 135px; }
-body.store-record-query .record-col-customer-code { width: 200px; }
-body.store-record-query .record-col-customer-name { width: 115px; }
+body.store-record-query .record-col-customer-code { width: 215px; }
+body.store-record-query .record-col-customer-name { width: 125px; }
 body.store-record-query .record-col-birthday { width: 115px; }
 body.store-record-query .record-col-store { width: 150px; }
 body.store-record-query .record-col-product { width: 150px; }
@@ -289,6 +289,10 @@ body.store-record-query .record-col-time { width: 155px; }
 body.store-record-query .record-col-face { width: 90px; }
 body.store-record-query .record-col-status { width: 95px; }
 body.store-record-query .record-col-void-status { width: 110px; }
+body.store-record-query .record-query-results-table th:nth-child(2),
+body.store-record-query .record-query-results-table td:nth-child(2) { padding-right: 20px; }
+body.store-record-query .record-query-results-table th:nth-child(3),
+body.store-record-query .record-query-results-table td:nth-child(3) { padding-left: 16px; }
 body.store-record-query .record-query-pager { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
 body.store-record-query .record-query-pager button { min-height: 28px; padding: 4px 8px; font-size: 10px; }
 body.store-record-query .record-query-pager button:disabled { cursor: not-allowed; opacity: .45; }
