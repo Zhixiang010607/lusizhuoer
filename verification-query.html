@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>核销查询</title>
-  <link rel="stylesheet" href="styles.css?v=0.14.48">
+  <link rel="stylesheet" href="styles.css?v=0.14.49">
 </head>
 <body data-query="verification">
   <aside class="side-project-bar" aria-label="项目栏">
@@ -55,7 +55,7 @@
     <section class="panel customer-permission-banner"><strong>门店范围</strong><span>只读取当前登录门店的数据库核销单；封存客户的历史记录仍会保留。</span></section>
     <section class="panel table-card query-results store-record-results">
       <div class="panel-heading"><div><h2>核销结果</h2></div><div class="record-query-pager"><button id="recordPreviousPage" type="button">上一页</button><span id="recordPageLabel">第 1 页</span><button id="recordNextPage" type="button">下一页</button></div></div>
-      <div class="table-scroll"><table class="record-query-results-table verification-record-results-table"><thead><tr><th>核销单号</th><th>客户编号</th><th>客户姓名</th><th>生日</th><th>门店</th><th>项目</th><th>老师</th><th>核销类型</th><th>提交时间</th><th>人脸核验</th><th>原单状态</th><th>作废状态</th></tr></thead><tbody id="recordQueryBody"></tbody></table></div>
+      <div class="table-scroll"><table class="record-query-results-table verification-record-results-table"><colgroup><col class="record-col-order"><col class="record-col-customer-code"><col class="record-col-customer-name"><col class="record-col-birthday"><col class="record-col-store"><col class="record-col-product"><col class="record-col-teacher"><col class="record-col-type"><col class="record-col-time"><col class="record-col-face"><col class="record-col-status"><col class="record-col-void-status"></colgroup><thead><tr><th>核销单号</th><th>客户编号</th><th>客户姓名</th><th>生日</th><th>门店</th><th>项目</th><th>老师</th><th>核销类型</th><th>提交时间</th><th>人脸核验</th><th>原单状态</th><th>作废状态</th></tr></thead><tbody id="recordQueryBody"></tbody></table></div>
     </section>
   </main>
 
