@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.41", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.42", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   const formatBirthday = (value, fallback = "—") => {
     const raw = String(value ?? "").trim();
     if (!raw) return fallback;
@@ -9,11 +9,15 @@
   };
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
-  const storeId = String(session?.store || ""), storeNo = Number(storeId.replace(/\D/g, "")) || 1;
+  const teacherMode = session?.role === "teacher" && document.body.hasAttribute("data-teacher-business");
+  if (!session || (teacherMode ? !["recharge", "verification"].includes(page) : session.role !== "store")) return;
+  let storeId = teacherMode ? "" : String(session?.store || "");
+  const storeNo = Number(storeId.replace(/\D/g, "")) || 1;
   let storeName = `门店 ${storeNo}`;
   let databaseCustomers = [], databaseTeachers = [], databaseProducts = [], candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, verificationBalanceProjects = [], rechargeRequest = null, verificationRequest = null, verificationFaceRequestId = "", customerEnrollmentRequest = null, previewCustomerCode = "", customerSubmissionBusy = false;
   const customerDetailCache = new Map(), customerDetailRequests = new Map();
   let customerServiceApp = null;
+  let teacherBusinessStores = [], teacherBusinessProfile = null, teacherWorkflowStarted = false;
   const allCustomers = () => databaseCustomers;
   const saveList = (key, value) => { try { sessionStorage.setItem(key, JSON.stringify(value)); } catch (_) { /* 当前静态会话不可持久化时不保存演示数据。 */ } };
   const saveGeneratedOrder = (key, record) => {
@@ -31,14 +35,16 @@
     capturedPhotoDataUrl = "";
     photoCaptured = false;
     faceCaptured = false;
-    const target = type === "recharge" ? "recharge-detail.html" : "verification-detail.html";
-    const query = new URLSearchParams({ recordId: String(record.id), source: "created" });
+    const target = teacherMode ? "teacher-work-order-detail.html" : (type === "recharge" ? "recharge-detail.html" : "verification-detail.html");
+    const query = teacherMode
+      ? new URLSearchParams({ type, recordId: String(record.id) })
+      : new URLSearchParams({ recordId: String(record.id), source: "created" });
     window.location.assign(`${target}?${query.toString()}`);
   }
   const addCommunication = (recordType, recordId, message) => {
     if (!message.trim()) return;
     let rows = []; try { rows = JSON.parse(sessionStorage.getItem("prototypeCommunications") || "[]"); } catch (_) { rows = []; }
-    rows.push({ recordType, recordId, role: "门店", account: session.account, name: "门店人员", message: message.trim(), time: new Date().toISOString() }); saveList("prototypeCommunications", rows);
+    rows.push({ recordType, recordId, role: teacherMode ? "老师" : "门店", account: session.account, name: teacherMode ? (session.staffName || "老师") : "门店人员", message: message.trim(), time: new Date().toISOString() }); saveList("prototypeCommunications", rows);
   };
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
 
@@ -116,7 +122,10 @@
     customerServiceApp ||= window.cloudbase.init(window.CloudBaseAuthConfig);
     let result;
     try {
-      result = await customerServiceApp.callFunction({ name: "faceRecognition", data: payload });
+      const scopedPayload = teacherMode && payload.action !== "getTeacherBusinessContext"
+        ? { ...payload, storeId }
+        : payload;
+      result = await customerServiceApp.callFunction({ name: "faceRecognition", data: scopedPayload });
     } catch (error) {
       const diagnostic = [error?.code, error?.requestId || error?.RequestId].filter(Boolean).join(" · ");
       throw new Error(`${error?.message || "腾讯云函数调用失败"}${diagnostic ? `（${diagnostic}）` : ""}`);
@@ -134,7 +143,7 @@
   async function loadActiveTeachers(selectId, messageId, options = {}) {
     const select = $(selectId);
     if (!select) return;
-    const optional = options.optional === true;
+    const optional = teacherMode ? false : options.optional === true;
     select.disabled = true;
     select.innerHTML = `<option value="">正在从数据库读取活跃老师…</option>`;
     try {
@@ -148,6 +157,11 @@
         ? `<option value="">${optional ? "不指定业务老师" : "请选择老师"}</option>${databaseTeachers.map((teacher) => `<option value="${escapeHtml(teacher.id)}">${escapeHtml(teacher.name)}（${escapeHtml(teacher.code)}）</option>`).join("")}`
         : `<option value="">${optional ? "不指定业务老师" : "数据库中暂无活跃老师"}</option>`;
       select.disabled = !optional && databaseTeachers.length === 0;
+      if (teacherMode && databaseTeachers.length === 1) {
+        select.value = databaseTeachers[0].id;
+        select.disabled = true;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      }
     } catch (error) {
       databaseTeachers = [];
       select.innerHTML = `<option value="">${optional ? "不指定业务老师" : "老师数据读取失败，禁止提交"}</option>`;
@@ -639,6 +653,57 @@
     });
   }
 
+  function startTeacherWorkflow() {
+    if (teacherWorkflowStarted || !storeId) return;
+    teacherWorkflowStarted = true;
+    $("teacherBusinessStore").disabled = true;
+    $("confirmTeacherBusinessStore").disabled = true;
+    $("teacherBusinessStoreState").textContent = "已选择";
+    $("teacherBusinessStoreMessage").textContent = `当前办理门店：${storeName}。如需更换门店，请重新打开本页面。`;
+    $("teacherCustomerWorkflow")?.classList.remove("teacher-step-disabled");
+    if (page === "recharge") setupRecharge();
+    else setupVerification();
+  }
+
+  async function setupTeacherBusiness() {
+    const select = $("teacherBusinessStore");
+    const confirm = $("confirmTeacherBusinessStore");
+    select.disabled = true;
+    confirm.disabled = true;
+    select.innerHTML = `<option value="">正在读取可用门店…</option>`;
+    try {
+      const result = await callCustomerEnrollment({ action:"getTeacherBusinessContext" });
+      teacherBusinessProfile = result?.teacher || null;
+      teacherBusinessStores = (Array.isArray(result?.stores) ? result.stores : []).map((store) => ({
+        id:String(store.storeId || ""), code:String(store.storeCode || ""), name:String(store.storeName || "")
+      })).filter((store) => store.id && store.name);
+      $("teacherBusinessIdentity").textContent = teacherBusinessProfile
+        ? `${teacherBusinessProfile.teacherName || "当前老师"} · ${teacherBusinessProfile.teacherCode || teacherBusinessProfile.teacherId}`
+        : "当前老师";
+      select.innerHTML = `<option value="">请选择本次办理门店</option>${teacherBusinessStores.map((store) => `<option value="${escapeHtml(store.id)}">${escapeHtml(store.name)} · ${escapeHtml(store.code || store.id)}</option>`).join("")}`;
+      select.disabled = teacherBusinessStores.length === 0;
+      confirm.disabled = true;
+      if (!teacherBusinessStores.length) $("teacherBusinessStoreMessage").textContent = "数据库中没有可用的活跃门店，暂时不能办理业务。";
+    } catch (error) {
+      select.innerHTML = `<option value="">门店读取失败</option>`;
+      $("teacherBusinessStoreMessage").textContent = error?.message || "无法读取老师与门店资料，请刷新重试。";
+    }
+    select.addEventListener("change", () => {
+      confirm.disabled = !teacherBusinessStores.some((store) => store.id === select.value);
+      $("teacherBusinessStoreMessage").textContent = "";
+    });
+    confirm.addEventListener("click", () => {
+      const selected = teacherBusinessStores.find((store) => store.id === select.value);
+      if (!selected) { $("teacherBusinessStoreMessage").textContent = "请先选择门店。"; return; }
+      storeId = selected.id;
+      storeName = [selected.name, selected.code].filter(Boolean).join(" · ");
+      startTeacherWorkflow();
+    });
+  }
+
   document.documentElement.dataset.prototypeVersion = VERSION;
-  if (page === "customer") setupCustomerCreate(); else if (page === "recharge") setupRecharge(); else if (["verification", "verification-supplemental"].includes(page)) setupVerification();
+  if (teacherMode) setupTeacherBusiness();
+  else if (page === "customer") setupCustomerCreate();
+  else if (page === "recharge") setupRecharge();
+  else if (["verification", "verification-supplemental"].includes(page)) setupVerification();
 })();

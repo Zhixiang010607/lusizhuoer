@@ -4,7 +4,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
-const FUNCTION_VERSION = "v39";
+const FUNCTION_VERSION = "v40";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -361,6 +361,98 @@ async function activeStoreCaller() {
   };
 }
 
+async function activeTeacherCaller() {
+  const { uid } = app().auth().getUserInfo();
+  if (!uid) fail("请先登录老师账号后再办理业务。", "UNAUTHENTICATED");
+  const rows = await executeSql(
+    `SELECT a.id AS staff_id, a.role_code, a.account_status,
+            t.id AS teacher_id, t.teacher_code, t.teacher_name, t.teacher_status
+       FROM public.staff_accounts a
+       JOIN public.teachers t ON t.staff_account_id = a.id
+      WHERE a.auth_uid = ${sqlText(uid)}
+      LIMIT 1`
+  );
+  const caller = rows[0];
+  if (!caller || caller.role_code !== "teacher") fail("只有老师账号可以使用老师办理入口。", "FORBIDDEN");
+  if (caller.account_status !== "ACTIVE" || caller.teacher_status !== "ACTIVE") {
+    fail("老师账号或老师资料已经封存。", "ARCHIVED");
+  }
+  return {
+    uid: String(uid),
+    role: "teacher",
+    staffId: Number(caller.staff_id),
+    teacherId: String(caller.teacher_id),
+    teacherCode: String(caller.teacher_code || ""),
+    teacherName: String(caller.teacher_name || "")
+  };
+}
+
+async function activeBusinessCaller(event = {}) {
+  const { uid } = app().auth().getUserInfo();
+  if (!uid) fail("请先登录后再办理业务。", "UNAUTHENTICATED");
+  const accounts = await executeSql(
+    `SELECT a.id AS staff_id, a.role_code, a.account_status,
+            t.id AS teacher_id, t.teacher_code, t.teacher_name, t.teacher_status
+       FROM public.staff_accounts a
+       LEFT JOIN public.teachers t ON t.staff_account_id = a.id
+      WHERE a.auth_uid = ${sqlText(uid)}
+      LIMIT 1`
+  );
+  const account = accounts[0];
+  if (!account) fail("当前登录账号尚未绑定业务身份。", "STAFF_PROFILE_MISSING");
+  if (account.account_status !== "ACTIVE") fail("当前登录账号已经封存。", "ARCHIVED");
+  if (account.role_code === "store") return { ...(await activeStoreCaller()), role: "store", teacherId: "" };
+  if (account.role_code !== "teacher") fail("只有门店或老师账号可以办理充值和核销。", "FORBIDDEN");
+
+  if (!account.teacher_id) fail("当前老师账号尚未绑定老师资料。", "TEACHER_PROFILE_MISSING");
+  if (account.teacher_status !== "ACTIVE") fail("老师资料已经封存。", "ARCHIVED");
+  const storeId = positiveDatabaseId(event.storeId, "门店");
+  const stores = await executeSql(
+    `SELECT id, store_code, store_name, store_status
+       FROM public.stores
+      WHERE id = ${sqlText(storeId)}::bigint
+        AND store_status = 'ACTIVE'
+      LIMIT 1`
+  );
+  const store = stores[0];
+  if (!store) fail("所选门店不存在或已经封存，请重新选择。", "STORE_NOT_ACTIVE");
+  return {
+    uid: String(uid),
+    role: "teacher",
+    staffId: Number(account.staff_id),
+    teacherId: String(account.teacher_id),
+    teacherCode: String(account.teacher_code || ""),
+    teacherName: String(account.teacher_name || ""),
+    storeId: Number(store.id),
+    storeCode: String(store.store_code || ""),
+    storeName: String(store.store_name || "")
+  };
+}
+
+async function getTeacherBusinessContext() {
+  const teacher = await activeTeacherCaller();
+  const stores = await executeSql(
+    `SELECT id, store_code, store_name
+       FROM public.stores
+      WHERE store_status = 'ACTIVE'
+      ORDER BY store_name, store_code, id
+      LIMIT 1000`
+  );
+  return {
+    ok: true,
+    teacher: {
+      teacherId: teacher.teacherId,
+      teacherCode: teacher.teacherCode,
+      teacherName: teacher.teacherName
+    },
+    stores: stores.map((store) => ({
+      storeId: String(store.id),
+      storeCode: String(store.store_code || ""),
+      storeName: String(store.store_name || "")
+    }))
+  };
+}
+
 async function activeCustomerStatusCaller() {
   const { uid } = app().auth().getUserInfo();
   if (!uid) fail("请先登录后再管理客户状态。", "UNAUTHENTICATED");
@@ -507,7 +599,7 @@ function customerStatusCode(event) {
 
 function customerStatusScope(caller, tableAlias = "") {
   const column = tableAlias ? `${tableAlias}.created_store_id` : "created_store_id";
-  return caller.role === "store" ? ` AND ${column} = ${caller.storeId}` : "";
+  return caller.storeId ? ` AND ${column} = ${caller.storeId}` : "";
 }
 
 async function findCustomerStatus(caller, customerCodeValue) {
@@ -783,9 +875,9 @@ async function deleteUploadedFile(storedPhoto) {
 
 async function getCustomerPhotoUrl(event, options = {}) {
   const requireActiveStoreCustomer = options.requireActiveStoreCustomer === true;
-  const caller = requireActiveStoreCustomer
+  const caller = options.caller || (requireActiveStoreCustomer
     ? await activeStoreCaller()
-    : await activeCustomerStatusCaller();
+    : await activeCustomerStatusCaller());
   const customerCode = String(event.customerCode || "").trim();
   if (!customerCode || customerCode.length > 96) fail("必须提供已选择客户的有效编号。", "CUSTOMER_REQUIRED");
 
@@ -940,11 +1032,12 @@ async function getCustomerPhotoUrl(event, options = {}) {
 }
 
 async function getActiveStoreCustomerDetail(event) {
-  return getCustomerPhotoUrl(event, { requireActiveStoreCustomer: true });
+  const caller = await activeBusinessCaller(event);
+  return getCustomerPhotoUrl(event, { requireActiveStoreCustomer: true, caller });
 }
 
 async function listActiveStoreCustomers(event = {}) {
-  const caller = await activeStoreCaller();
+  const caller = await activeBusinessCaller(event);
   const requestedLimit = Number(event.limit);
   const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100) : 100;
   const customerName = String(event.customerName || "").trim();
@@ -1390,12 +1483,16 @@ async function getStoreDashboard(event = {}) {
   };
 }
 
-async function listActiveTeachers() {
+async function listActiveTeachers(event = {}) {
   // Teachers are not permanently assigned to one store in the canonical
   // schema. A real active store caller may choose only teachers whose profile
   // and login account are both active.
-  await activeStoreCaller();
-  const rows = await executeSql(
+  const caller = await activeBusinessCaller(event);
+  const rows = caller.role === "teacher" ? [{
+    teacher_id: caller.teacherId,
+    teacher_code: caller.teacherCode,
+    teacher_name: caller.teacherName
+  }] : await executeSql(
     `SELECT t.id AS teacher_id, t.teacher_code, t.teacher_name
        FROM public.teachers t
        JOIN public.staff_accounts a ON a.id = t.staff_account_id
@@ -1415,8 +1512,8 @@ async function listActiveTeachers() {
   };
 }
 
-async function listActiveProducts() {
-  await activeStoreCaller();
+async function listActiveProducts(event = {}) {
+  await activeBusinessCaller(event);
   const rows = await executeSql(
     `SELECT id AS product_id, product_code, product_name
        FROM public.products
@@ -1475,12 +1572,17 @@ async function requireRechargeSubmissionSchema() {
 }
 
 async function createRechargeApplication(event) {
-  const caller = await activeStoreCaller();
+  const caller = await activeBusinessCaller(event);
   const customerCode = String(event.customerCode || "").trim();
   if (!customerCode || customerCode.length > 96) fail("必须先确认本门店的活跃客户。", "CUSTOMER_REQUIRED");
   const productId = positiveDatabaseId(event.productId, "项目");
   const teacherIdText = String(event.teacherId ?? "").trim();
-  const teacherId = teacherIdText ? positiveDatabaseId(teacherIdText, "老师") : null;
+  if (caller.role === "teacher" && teacherIdText && teacherIdText !== String(caller.teacherId)) {
+    fail("老师账号只能把充值绑定到本人。", "FORBIDDEN");
+  }
+  const teacherId = caller.role === "teacher"
+    ? positiveDatabaseId(caller.teacherId, "老师")
+    : (teacherIdText ? positiveDatabaseId(teacherIdText, "老师") : null);
   const unitCount = Number(event.unitCount);
   if (!Number.isInteger(unitCount) || unitCount < 1 || unitCount > 999) {
     fail("充值次数必须是 1 至 999 的整数。", "INVALID_UNIT_COUNT");
@@ -1598,14 +1700,21 @@ async function requireVerificationSubmissionSchema() {
 }
 
 async function createVerificationApplication(event) {
-  const caller = await activeStoreCaller();
+  const caller = await activeBusinessCaller(event);
   const customerCode = String(event.customerCode || "").trim();
   if (!customerCode || customerCode.length > 96) fail("必须先确认本门店的活跃客户。", "CUSTOMER_REQUIRED");
   const productId = positiveDatabaseId(event.productId, "项目");
-  const teacherId = positiveDatabaseId(event.teacherId, "老师");
+  const requestedTeacherId = String(event.teacherId || "").trim();
+  if (caller.role === "teacher" && requestedTeacherId && requestedTeacherId !== String(caller.teacherId)) {
+    fail("老师账号只能把核销绑定到本人。", "FORBIDDEN");
+  }
+  const teacherId = positiveDatabaseId(caller.role === "teacher" ? caller.teacherId : requestedTeacherId, "老师");
   const verificationType = String(event.verificationType || "").trim().toUpperCase();
   if (!["NORMAL", "SUPPLEMENT"].includes(verificationType)) {
     fail("仅支持正常核销或补录核销。", "INVALID_VERIFICATION_TYPE");
+  }
+  if (caller.role === "teacher" && verificationType !== "NORMAL") {
+    fail("老师办理入口只允许提交正常核销。", "FORBIDDEN");
   }
   const message = String(event.message || "").trim();
   if (message.length > 500) fail("门店留言不能超过 500 个字符。", "MESSAGE_TOO_LONG");
@@ -1722,7 +1831,7 @@ async function createVerificationApplication(event) {
 }
 
 async function getCustomerProductBalances(event) {
-  const caller = await activeStoreCaller();
+  const caller = await activeBusinessCaller(event);
   const customerCode = String(event.customerCode || "").trim();
   if (!customerCode || customerCode.length > 96) fail("必须提供已选择客户的有效编号。", "CUSTOMER_REQUIRED");
 
@@ -1760,6 +1869,134 @@ async function getCustomerProductBalances(event) {
       remainingCount: Number(row.remaining_count || 0),
       updatedAt: row.updated_at
     }))
+  };
+}
+
+function teacherWorkspaceOptions(event = {}) {
+  const recordType = String(event.recordType || "").trim().toUpperCase();
+  if (recordType && !["RECHARGE", "VERIFICATION"].includes(recordType)) {
+    fail("老师工单类型无效。", "BAD_REQUEST");
+  }
+  const requestedLimit = Number(event.limit);
+  const limit = Number.isFinite(requestedLimit)
+    ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100)
+    : 50;
+  const cursorSubmittedAt = scopedQueryCursorTimestamp(event.cursorSubmittedAt, "老师工单游标时间");
+  const cursorIdText = String(event.cursorId || "").trim();
+  if (Boolean(cursorSubmittedAt) !== Boolean(cursorIdText)) fail("老师工单游标不完整。", "BAD_REQUEST");
+  if (cursorSubmittedAt && !recordType) fail("老师工单游标必须指定记录类型。", "BAD_REQUEST");
+  const recordIdText = String(event.recordId || "").trim();
+  return {
+    recordType,
+    limit,
+    cursorSubmittedAt,
+    cursorId: cursorIdText ? businessQueryDatabaseId(cursorIdText, "老师工单游标编号") : "",
+    recordId: recordIdText ? businessQueryDatabaseId(recordIdText, "老师工单编号") : ""
+  };
+}
+
+function teacherOrderRows(rows, recordType, teacher = {}) {
+  return rows.map((row) => ({
+    id: String(row.id),
+    recordType,
+    recordCode: String(row.record_code || ""),
+    originalType: String(row.original_type || ""),
+    unitCount: Number(row.unit_count || (recordType === "VERIFICATION" ? 1 : 0)),
+    recordStatus: String(row.record_status || ""),
+    voidRequestStatus: String(row.void_request_status || "NONE"),
+    submittedAt: row.submitted_at,
+    reviewedAt: row.reviewed_at,
+    message: String(row.message || ""),
+    reviewNote: String(row.review_note || ""),
+    hasFaceRequest: Boolean(row.face_request_id),
+    teacherCode: String(teacher.teacherCode || ""),
+    teacherName: String(teacher.teacherName || ""),
+    storeId: String(row.store_id || ""),
+    storeCode: String(row.store_code || ""),
+    storeName: String(row.store_name || ""),
+    customerCode: String(row.customer_code || ""),
+    customerName: String(row.customer_name || ""),
+    productCode: String(row.product_code || ""),
+    productName: String(row.product_name || "")
+  }));
+}
+
+function teacherOrderPage(rows, recordType, limit, teacher) {
+  const hasMore = rows.length > limit;
+  const visible = rows.slice(0, limit);
+  const last = visible[visible.length - 1];
+  return {
+    records: teacherOrderRows(visible, recordType, teacher),
+    page: {
+      hasMore,
+      nextCursor: hasMore && last
+        ? { submittedAt: String(last.cursor_submitted_at || ""), id: String(last.id) }
+        : null
+    }
+  };
+}
+
+async function getTeacherWorkspace(event = {}) {
+  const caller = await activeTeacherCaller();
+  const options = teacherWorkspaceOptions(event);
+  const profile = {
+    teacherId: caller.teacherId,
+    teacherCode: caller.teacherCode,
+    teacherName: caller.teacherName
+  };
+  const query = async (recordType) => {
+    const alias = recordType === "RECHARGE" ? "r" : "v";
+    const table = recordType === "RECHARGE" ? "recharge_records" : "verification_records";
+    const codeColumn = recordType === "RECHARGE" ? "recharge_code" : "verification_code";
+    const typeColumn = recordType === "RECHARGE" ? "recharge_type" : "verification_type";
+    const cursorClause = options.cursorSubmittedAt && options.recordType === recordType
+      ? `AND (${alias}.submitted_at, ${alias}.id) < (${sqlText(options.cursorSubmittedAt)}::timestamptz, ${options.cursorId}::bigint)`
+      : "";
+    const recordClause = options.recordId && options.recordType === recordType
+      ? `AND ${alias}.id = ${options.recordId}::bigint`
+      : "";
+    return executeSql(
+      `SELECT ${alias}.id, ${alias}.${codeColumn} AS record_code,
+              ${alias}.${typeColumn} AS original_type, ${alias}.unit_count,
+              ${alias}.record_status, ${alias}.void_request_status,
+              ${alias}.submitted_at, ${alias}.reviewed_at,
+              ${alias}.message, ${alias}.review_note,
+              ${recordType === "VERIFICATION" ? `${alias}.face_request_id` : "NULL::text AS face_request_id"},
+              TO_CHAR(${alias}.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_submitted_at,
+              s.id AS store_id, s.store_code, s.store_name,
+              c.customer_code, c.customer_name,
+              p.product_code, p.product_name
+         FROM public.${table} ${alias}
+         JOIN public.stores s ON s.id = ${alias}.store_id
+         JOIN public.customers c ON c.id = ${alias}.customer_id
+         JOIN public.products p ON p.id = ${alias}.product_id
+        WHERE ${alias}.teacher_id = ${sqlText(caller.teacherId)}::bigint
+          ${recordClause}
+          ${cursorClause}
+        ORDER BY ${alias}.submitted_at DESC, ${alias}.id DESC
+        LIMIT ${options.recordId ? 1 : options.limit + 1}`
+    );
+  };
+
+  if (options.recordId) {
+    if (!options.recordType) fail("读取老师工单详情时必须指定工单类型。", "BAD_REQUEST");
+    const rows = await query(options.recordType);
+    const order = teacherOrderRows(rows, options.recordType, profile)[0];
+    if (!order) fail("未找到当前老师本人绑定的工单。", "ORDER_NOT_FOUND");
+    return { ok: true, profile, record: order };
+  }
+  if (options.recordType) {
+    const page = teacherOrderPage(await query(options.recordType), options.recordType, options.limit, profile);
+    return { ok: true, profile, page: { records: page.records, ...page.page } };
+  }
+  const [rechargeRows, verificationRows] = await Promise.all([query("RECHARGE"), query("VERIFICATION")]);
+  const rechargePage = teacherOrderPage(rechargeRows, "RECHARGE", options.limit, profile);
+  const verificationPage = teacherOrderPage(verificationRows, "VERIFICATION", options.limit, profile);
+  return {
+    ok: true,
+    profile,
+    recharges: { records: rechargePage.records, ...rechargePage.page },
+    verifications: { records: verificationPage.records, ...verificationPage.page }
   };
 }
 
@@ -2003,7 +2240,7 @@ async function searchCustomer(event) {
 }
 
 async function verifyCustomerFace(event) {
-  const caller = await activeStoreCaller();
+  const caller = await activeBusinessCaller(event);
   const customerCode = String(event.customerCode || "").trim();
   if (!customerCode || customerCode.length > 96) fail("必须提供已选择客户的有效编号。", "CUSTOMER_REQUIRED");
 
@@ -2063,8 +2300,10 @@ exports.main = async (event = {}) => {
     if (action === "queryStoreCustomers") return await queryStoreCustomers(event);
     if (action === "queryStoreBusinessRecords") return await queryStoreBusinessRecords(event);
     if (action === "getStoreDashboard") return await getStoreDashboard(event);
-    if (action === "listActiveTeachers") return await listActiveTeachers();
-    if (action === "listActiveProducts") return await listActiveProducts();
+    if (action === "getTeacherBusinessContext") return await getTeacherBusinessContext();
+    if (action === "getTeacherWorkspace") return await getTeacherWorkspace(event);
+    if (action === "listActiveTeachers") return await listActiveTeachers(event);
+    if (action === "listActiveProducts") return await listActiveProducts(event);
     if (action === "createRechargeApplication") return await createRechargeApplication(event);
     if (action === "createVerificationApplication") return await createVerificationApplication(event);
     if (action === "getActiveStoreCustomerDetail") return await getActiveStoreCustomerDetail(event);

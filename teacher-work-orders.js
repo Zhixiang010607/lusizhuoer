@@ -1,80 +1,64 @@
 (() => {
   "use strict";
+  const VERSION = "0.15.0";
   const $ = (id) => document.getElementById(id);
-  const formatDateTime = window.AppDateTime.format;
+  const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
+  const formatDateTime = (value) => window.AppDateTime?.format?.(value, "—") || "—";
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   if (!session || session.role !== "teacher") return;
 
-  const hash = Array.from(String(session.cloudbaseUserId || session.account || "teacher")).reduce((total, char) => (total * 31 + char.charCodeAt(0)) >>> 0, 7);
-  const teacherId = `T${String(hash % 900 + 100).padStart(3, "0")}`;
-  const teacherName = session.staffName || "当前登录老师";
-  const labels = { normal: "正常", review: "审核中", void: "已作废" };
-  const customerNames = ["王女士", "陈先生", "林女士", "周先生", "张女士", "刘先生"];
-  const projects = ["普拉提", "体态评估", "康复训练", "瑜伽", "力量训练", "产后恢复"];
-  const baseVerifications = Array.from({ length: 9 }, (_, index) => ({ id: `VE-${teacherId}-${String(index + 1).padStart(4, "0")}`, teacherId, customer: customerNames[(hash + index) % customerNames.length], project: projects[(hash + index * 2) % projects.length], time: `2026-08-${String(1 + index).padStart(2, "0")} ${String(9 + index % 8).padStart(2, "0")}:20:00`, status: index === 2 ? "review" : index === 7 ? "void" : "normal", face: "人脸核验通过" }));
-  const baseRecharges = Array.from({ length: 7 }, (_, index) => ({ id: `RC-${teacherId}-${String(index + 1).padStart(4, "0")}`, teacherId, customer: customerNames[(hash + index * 2) % customerNames.length], project: projects[(hash + index) % projects.length], count: 10 + index * 5, time: `2026-07-${String(18 + index).padStart(2, "0")} 14:30:00`, status: index === 4 ? "review" : index === 6 ? "void" : "normal" }));
-  const read = (key) => { try { return JSON.parse(sessionStorage.getItem(key) || "[]"); } catch (_) { return []; } };
-  const write = (key, rows) => sessionStorage.setItem(key, JSON.stringify(rows));
-  const ownRows = (key) => read(key).filter((row) => row.teacherId === teacherId);
-  let activeType = "verification";
-  let dialogMode = "verification";
-
-  const verificationApplications = () => ownRows("prototypeTeacherVerificationApplications");
-  const rechargeVoidApplications = () => ownRows("prototypeTeacherRechargeVoidApplications");
-  const verificationRows = () => ownRows("prototypeTeacherVerificationRecords").map((row) => {
-    const latest = verificationApplications().filter((item) => item.recordId === row.id && item.status === "pending").at(-1);
-    return latest ? { ...row, status: "review" } : row;
-  });
-  const rechargeRows = () => ownRows("prototypeTeacherRechargeRecords").map((row) => {
-    const latest = rechargeVoidApplications().filter((item) => item.recordId === row.id && item.status === "pending").at(-1);
-    return latest ? { ...row, status: "review" } : row;
-  });
-
-  function renderSummary() {
-    const verification = verificationRows(), recharge = rechargeRows();
-    const reviewing = verification.filter((row) => row.status === "review").length + recharge.filter((row) => row.status === "review").length;
-    $("teacherSummary").innerHTML = [["primary", teacherName, "", `老师编号：${teacherId}`], ["", "我的核销", verification.length, "仅本人绑定记录"], ["", "我的充值", recharge.length, "仅本人绑定记录"], ["", "审核中", reviewing, "等待运营处理"]].map(([kind, title, value, note]) => `<article class="panel teacher-summary-card ${kind}"><span>${title}</span><strong>${value === "" ? "老师工作台" : value}</strong><small>${note}</small></article>`).join("");
+  const state = { activeType: "VERIFICATION", loading: false, records: { RECHARGE: [], VERIFICATION: [] }, cursors: { RECHARGE: null, VERIFICATION: null }, hasMore: { RECHARGE: false, VERIFICATION: false } };
+  function parsedObject(value) { if (value && typeof value === "object") return value; if (typeof value !== "string") return null; try { const parsed = JSON.parse(value); return parsed && typeof parsed === "object" ? parsed : null; } catch (_) { return null; } }
+  function responseData(result) { return [result?.result, result?.data?.result, result?.data, result].map(parsedObject).find((candidate) => candidate && (Object.prototype.hasOwnProperty.call(candidate, "ok") || Object.prototype.hasOwnProperty.call(candidate, "code"))) || {}; }
+  function register(registerFn, name) { if (typeof registerFn !== "function") return; try { registerFn(window.cloudbase); } catch (error) { const message = String(error?.message || error || "").toLowerCase(); if (!(message.includes("duplicate component") && message.includes(name))) throw error; } }
+  async function callWorkspace(data) {
+    if (!window.cloudbase || !window.CloudBaseAuthConfig || !window.registerFunctions) throw new Error("数据库组件尚未加载，请刷新重试。");
+    register(window.registerAuth, "auth"); register(window.registerFunctions, "functions");
+    const raw = await window.cloudbase.init(window.CloudBaseAuthConfig).callFunction({ name: "faceRecognition", data: { action: "getTeacherWorkspace", ...data } });
+    const result = responseData(raw); if (!result.ok) throw new Error(result.message || "无法读取老师工作台。"); return result;
   }
-  function currentRows() { return activeType === "verification" ? verificationRows() : rechargeRows(); }
-  function filteredRows() {
-    const status = $("teacherRecordStatus").value, range = $("teacherRecordRange").value;
-    return currentRows().filter((row, index) => (status === "all" || row.status === status) && (range === "all" || (range === "recent" ? index < 4 : index >= 4)));
+  const typeLabel = (row) => row.recordType === "RECHARGE" ? (row.originalType === "VOID" ? "历史冲销" : "充值") : ({ NORMAL: "正常核销", SUPPLEMENT: "补录核销", EXPERIENCE: "体验核销" }[row.originalType] || "核销");
+  function statusLabel(row) {
+    if (row.recordStatus === "VOIDED" || row.voidRequestStatus === "APPROVED") return ["已作废", "void"];
+    if (row.recordStatus === "APPROVED" && row.voidRequestStatus === "PENDING") return ["已通过 · 作废待审", "review"];
+    if (row.recordStatus === "APPROVED" && row.voidRequestStatus === "REJECTED") return ["已通过 · 作废驳回", "normal"];
+    return ({ PENDING: ["待审核", "review"], APPROVED: ["已通过", "normal"], REJECTED: ["已驳回", "void"] }[row.recordStatus] || ["未知状态", "review"]);
+  }
+  function renderProfile(profile = {}) {
+    const values = [["老师姓名", profile.teacherName || session.staffName || "—"], ["老师短编号", profile.teacherCode || session.staffCode || "—"], ["登录手机号", session.phone || session.account || "—"], ["账号状态", "活跃"]];
+    $("teacherProfileInfo").innerHTML = values.map(([label, value]) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
   }
   function renderRecords() {
-    const verification = activeType === "verification";
-    $("teacherRecordsHead").innerHTML = verification ? "<tr><th>核销编号</th><th>客户</th><th>项目</th><th>人脸核验</th><th>核销时间</th><th>状态</th><th>操作</th></tr>" : "<tr><th>充值编号</th><th>客户</th><th>项目</th><th>充值次数</th><th>提交时间</th><th>状态</th><th>操作</th></tr>";
-    const rows = filteredRows();
-    $("teacherOrdersBody").innerHTML = rows.length ? rows.map((row) => `<tr><td>${row.id}</td><td>${row.customer}</td><td>${row.project}</td>${verification ? `<td>${row.face}</td>` : `<td>${row.count} 次</td>`}<td>${formatDateTime(row.time)}</td><td><span class="teacher-order-status ${row.status}">${labels[row.status]}</span></td><td><a class="teacher-order-link" href="teacher-work-order-detail.html?type=${activeType}&recordId=${encodeURIComponent(row.id)}">查看</a></td></tr>`).join("") : `<tr><td colspan="7" class="teacher-empty">没有符合条件的本人记录</td></tr>`;
+    const type = state.activeType, verification = type === "VERIFICATION", rows = state.records[type];
+    $("teacherRecordsHead").innerHTML = `<tr><th>${verification ? "核销单号" : "充值单号"}</th><th>门店</th><th>客户</th><th>项目</th><th>${verification ? "核销类型／人脸" : "充值次数"}</th><th>提交时间</th><th>状态</th></tr>`;
+    $("teacherOrdersBody").innerHTML = rows.length ? rows.map((row) => {
+      const [status, statusClass] = statusLabel(row);
+      const amount = verification ? `${escapeHtml(typeLabel(row))}${row.hasFaceRequest ? " · 已核验" : " · 无人脸记录"}` : `${row.originalType === "VOID" ? "−" : "+"}${escapeHtml(row.unitCount)} 次`;
+      const detail = `teacher-work-order-detail.html?type=${verification ? "verification" : "recharge"}&recordId=${encodeURIComponent(row.id)}`;
+      return `<tr><td><a class="teacher-order-link" href="${detail}">${escapeHtml(row.recordCode)}</a></td><td>${escapeHtml(row.storeName)} · ${escapeHtml(row.storeCode)}</td><td>${escapeHtml(row.customerName)} · ${escapeHtml(row.customerCode)}</td><td>${escapeHtml(row.productName)} · ${escapeHtml(row.productCode)}</td><td>${amount}</td><td>${escapeHtml(formatDateTime(row.submittedAt))}</td><td><span class="teacher-order-status ${statusClass}">${escapeHtml(status)}</span></td></tr>`;
+    }).join("") : `<tr><td colspan="7" class="teacher-empty">暂无本人绑定的${verification ? "核销" : "充值"}工单</td></tr>`;
+    $("teacherLoadedCount").textContent = `${rows.length} 条`; $("teacherLoadMore").hidden = !state.hasMore[type]; $("teacherLoadMore").disabled = state.loading;
   }
-  function renderApplications() {
-    const renderList = (rows, target, count, empty) => { $(count).textContent = `${rows.length} 条`; $(target).innerHTML = rows.length ? rows.slice().reverse().map((row) => `<article><div><strong>${row.kind} · ${row.recordId}</strong><span>${row.reason}</span></div><b class="teacher-order-status ${row.status === "pending" ? "review" : row.status}">${row.status === "pending" ? "待运营审核" : labels[row.status] || row.status}</b></article>`).join("") : `<p class="teacher-empty">${empty}</p>`; };
-    renderList(verificationApplications(), "verificationApplicationList", "verificationApplicationCount", "暂未提交核销审核申请");
-    renderList(rechargeVoidApplications(), "rechargeApplicationList", "rechargeApplicationCount", "暂未提交充值作废审核申请");
+  function mergePage(type, page) {
+    const known = new Set(state.records[type].map((row) => String(row.id)));
+    for (const row of Array.isArray(page?.records) ? page.records : []) if (!known.has(String(row.id))) state.records[type].push(row);
+    state.cursors[type] = page?.nextCursor || null; state.hasMore[type] = Boolean(page?.hasMore && page?.nextCursor);
   }
-  function setActiveTab(type) { activeType = type; $("teacherVerificationTab").classList.toggle("active", type === "verification"); $("teacherRechargeTab").classList.toggle("active", type === "recharge"); $("teacherVerificationTab").setAttribute("aria-selected", String(type === "verification")); $("teacherRechargeTab").setAttribute("aria-selected", String(type === "recharge")); renderRecords(); }
-  function openDialog(mode) {
-    dialogMode = mode; const verification = mode === "verification", rows = verification ? verificationRows() : rechargeRows();
-    $("teacherReviewTitle").textContent = verification ? "提交核销审核" : "申请作废充值审核";
-    $("teacherReviewHint").textContent = verification ? "只能对本人绑定的核销记录提交补录或作废审核。" : "只能对本人绑定的充值记录提交作废审核。";
-    $("teacherReviewKindField").hidden = !verification;
-    $("teacherReviewRecord").innerHTML = `<option value="">请选择本人${verification ? "核销" : "充值"}记录</option>${rows.filter((row) => row.status === "normal").map((row) => `<option value="${row.id}">${row.id} · ${row.customer} · ${row.project}</option>`).join("")}`;
-    $("teacherReviewReason").value = ""; $("teacherReviewMessage").textContent = ""; $("teacherReviewDialog").showModal();
+  async function loadMore() {
+    const type = state.activeType; if (state.loading || !state.hasMore[type] || !state.cursors[type]) return;
+    state.loading = true; renderRecords(); $("teacherWorkspaceMessage").textContent = "正在继续读取…";
+    try { const result = await callWorkspace({ recordType: type, cursorSubmittedAt: state.cursors[type].submittedAt, cursorId: state.cursors[type].id, limit: 50 }); mergePage(type, result.page); $("teacherWorkspaceMessage").textContent = ""; }
+    catch (error) { $("teacherWorkspaceMessage").textContent = error?.message || "继续加载失败。"; }
+    finally { state.loading = false; renderRecords(); }
   }
-  function closeDialog() { $("teacherReviewDialog").close(); }
-  function submitApplication(event) {
-    event.preventDefault(); const recordId = $("teacherReviewRecord").value, reason = $("teacherReviewReason").value.trim();
-    if (!recordId || !reason) { $("teacherReviewMessage").textContent = "请选择本人记录并填写申请原因。"; return; }
-    const verification = dialogMode === "verification", key = verification ? "prototypeTeacherVerificationApplications" : "prototypeTeacherRechargeVoidApplications";
-    const rows = read(key); if (rows.some((row) => row.teacherId === teacherId && row.recordId === recordId && row.status === "pending")) { $("teacherReviewMessage").textContent = "该记录已有待审核申请，不能重复提交。"; return; }
-    rows.push({ id: `${verification ? "AP-V" : "AP-RV"}-${Date.now()}`, teacherId, teacherName, recordId, kind: verification ? $("teacherReviewKind").value : "作废充值", reason, status: "pending", submittedAt: new Date().toISOString() }); write(key, rows);
-    closeDialog(); renderSummary(); renderRecords(); renderApplications();
+  function setType(type) {
+    state.activeType = type; $("teacherVerificationTab").classList.toggle("active", type === "VERIFICATION"); $("teacherRechargeTab").classList.toggle("active", type === "RECHARGE");
+    $("teacherVerificationTab").setAttribute("aria-selected", String(type === "VERIFICATION")); $("teacherRechargeTab").setAttribute("aria-selected", String(type === "RECHARGE")); renderRecords();
   }
-  $("teacherVerificationTab").addEventListener("click", () => setActiveTab("verification"));
-  $("teacherRechargeTab").addEventListener("click", () => setActiveTab("recharge"));
-  $("teacherRecordStatus").addEventListener("change", renderRecords); $("teacherRecordRange").addEventListener("change", renderRecords);
-  $("clearTeacherFilters").addEventListener("click", () => { $("teacherRecordStatus").value = "all"; $("teacherRecordRange").value = "all"; renderRecords(); });
-  $("openVerificationReview").addEventListener("click", () => openDialog("verification")); $("openRechargeVoid").addEventListener("click", () => openDialog("recharge"));
-  $("closeTeacherReview").addEventListener("click", closeDialog); $("cancelTeacherReview").addEventListener("click", closeDialog); $("teacherReviewForm").addEventListener("submit", submitApplication);
-  renderSummary(); renderRecords(); renderApplications();
+  async function init() {
+    try { const result = await callWorkspace({ limit: 50 }); renderProfile(result.profile); mergePage("RECHARGE", result.recharges); mergePage("VERIFICATION", result.verifications); renderRecords(); }
+    catch (error) { renderProfile({}); $("teacherWorkspaceMessage").textContent = error?.message || "老师工作台读取失败。"; $("teacherOrdersBody").innerHTML = '<tr><td colspan="7" class="teacher-empty">无法读取数据库工单，请刷新重试</td></tr>'; }
+  }
+  $("teacherVerificationTab").addEventListener("click", () => setType("VERIFICATION")); $("teacherRechargeTab").addEventListener("click", () => setType("RECHARGE")); $("teacherLoadMore").addEventListener("click", loadMore); init();
 })();

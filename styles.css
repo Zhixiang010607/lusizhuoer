@@ -157,6 +157,16 @@ body[data-teacher-service] .teacher-service-main { width: min(1120px, calc(100% 
 .teacher-store-lookup-grid button { height: 37px; white-space: nowrap; }
 .teacher-step-disabled { position: relative; pointer-events: none; opacity: .48; filter: grayscale(.15); }
 .teacher-step-disabled::after { content: "请先完成上一步"; position: absolute; inset: 0; display: grid; place-items: center; border-radius: inherit; color: #40506b; background: #f6f8fb99; font-weight: 800; }
+.teacher-business-main { width: min(1680px, calc(100% - 28px)); margin: 14px auto 24px; }
+.teacher-business-store-panel { padding: 18px 20px; }
+.teacher-business-store-row { display: grid; grid-template-columns: minmax(220px, .7fr) minmax(320px, 1.35fr) auto; gap: 14px; align-items: end; }
+.teacher-business-store-row label { min-width: 0; display: grid; gap: 7px; color: #344054; font-size: 12px; font-weight: 800; }
+.teacher-business-store-row label > strong { min-height: 40px; display: flex; align-items: center; padding: 0 12px; overflow: hidden; border: 1px solid var(--line); border-radius: 9px; background: #f8fafc; text-overflow: ellipsis; white-space: nowrap; }
+.teacher-business-store-row select, .teacher-business-store-row button { min-height: 40px; margin: 0; }
+.teacher-business-store-row button { white-space: nowrap; }
+.teacher-business-main .store-business-main { width: 100%; min-height: 0; margin-top: 14px; }
+.teacher-load-more-row { display: flex; justify-content: center; padding-top: 14px; }
+.teacher-load-more-row button { min-width: 120px; }
 body[data-hq-create] .topbar { flex: 0 0 auto; min-height: 52px; }
 body[data-hq-create] .hq-create-main { flex: 1 1 auto; min-height: 0; width: min(1180px, calc(100% - 28px)); margin: 12px auto 14px; overflow: hidden; }
 body[data-hq-create] .hq-create-form { height: 100%; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; padding: 16px; overflow: hidden; }
@@ -1066,6 +1076,10 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 @media (max-width: 900px) { .login-shell { grid-template-columns: 1fr; } .login-brand-panel { min-height: 340px; } .login-brand-copy { margin: 45px 0 25px; } .login-feature-list { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 760px) {
   body { padding-left: 0; }
+  .teacher-business-main { width: min(100% - 14px, 1680px); margin-top: 8px; }
+  .teacher-business-store-panel { padding: 16px; }
+  .teacher-business-store-row { grid-template-columns: 1fr; gap: 11px; }
+  .teacher-business-store-row button { width: 100%; }
   body[data-hq-create] { height: auto; min-height: 100dvh; overflow: auto; }
   body[data-hq-create] .hq-create-main,
   body[data-hq-create] .hq-create-form { height: auto; min-height: 0; overflow: visible; }

@@ -1,9 +1,47 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>老师办理核销</title><link rel="stylesheet" href="styles.css"></head>
-<body data-teacher-service="verification"><aside class="side-project-bar" aria-label="老师工作台"><div class="side-brand"><span>师</span><div><strong>老师工作台</strong><small>个人业务</small></div></div><p class="side-section-title">业务办理</p><nav class="side-nav"><a href="teacher-work-orders.html"><span class="nav-icon">单</span><span>我的业务工单</span></a></nav><div class="side-footer">老师账号</div></aside>
-<header class="topbar"><div><p class="eyebrow">TEACHER VERIFICATION</p><h1>办理核销</h1><p class="subtitle">先核对门店，再查找客户并完成人脸核验</p></div><div class="status"><span></span>老师本人办理</div></header>
-<main class="teacher-service-main"><section class="teacher-privacy-banner"><i>✓</i><div><strong>临时门店选择</strong><br>本次办理必须先搜索并核对门店；门店仅用于本条业务绑定，不会成为老师的默认门店，也不会出现在老师工单列表中。</div></section>
-<section id="teacherStoreStep" class="panel teacher-service-panel"><div class="panel-heading"><div><h2>第一步：搜索并核对门店</h2><p>核对无误后才能查找该门店客户</p></div><span id="teacherStoreState" class="badge">尚未选择</span></div><div class="lookup-mode-switch"><button class="active" type="button" data-store-mode="select">现有门店选择</button><button type="button" data-store-mode="manual">名称＋省市区搜索</button></div><div id="teacherSelectStoreFields" class="teacher-store-select-grid"><label>现有门店<select id="teacherStoreSelect"></select></label><button id="teacherSelectStore" type="button">核对门店</button></div><div id="teacherManualStoreFields" class="teacher-store-lookup-grid" hidden><label>门店名称<input id="teacherStoreName" maxlength="60" placeholder="请输入门店名称"></label><label>省<select id="teacherStoreProvince"><option value="">请选择省</option></select></label><label>城市<select id="teacherStoreCity" disabled><option value="">请先选择省</option></select></label><label>区<select id="teacherStoreDistrict" disabled><option value="">请先选择城市</option></select></label><button id="teacherLookupStore" type="button">搜索并核对</button></div><p id="teacherStoreMessage" class="form-message"></p></section>
-<section id="teacherCustomerStep" class="panel teacher-service-panel teacher-step-disabled"><div class="panel-heading"><div><h2>第二步：查找并确认客户</h2><p>仅查询本次已核对门店内的客户</p></div><span class="badge">客户确认</span></div><div class="lookup-mode-switch"><button class="active" type="button" data-customer-mode="select">现有客户＋生日</button><button type="button" data-customer-mode="manual">姓名＋生日</button></div><div id="teacherSelectCustomerFields" class="customer-lookup-grid"><label>现有客户<select id="teacherCustomerSelect"></select></label><label>生日<input id="teacherSelectBirthday" type="date" readonly></label><button id="teacherSelectCustomer" type="button">查询客户</button></div><div id="teacherManualCustomerFields" class="customer-lookup-grid" hidden><label>客户姓名<input id="teacherCustomerName" maxlength="40" placeholder="请输入客户姓名"></label><label>生日<input id="teacherCustomerBirthday" type="date"></label><button id="teacherManualCustomer" type="button">查询客户</button></div><div id="teacherCustomerPreview" class="service-customer-results customer-core-preview"><div class="lookup-placeholder"><strong>等待查询客户</strong><span>请先完成门店核对。</span></div></div><button id="teacherConfirmCustomer" class="confirm-customer-button" type="button" disabled>确认此客户</button></section>
-<form id="teacherServiceForm" class="panel teacher-service-panel teacher-step-disabled"><div class="panel-heading"><div><h2>第三步：核销信息与人脸识别</h2><p id="teacherSelectedCustomer"></p></div><span class="badge">正常核销</span></div><div class="store-business-grid"><label>项目<select id="teacherProject" required><option value="">请选择项目</option></select></label><label>业务老师<input id="teacherName" readonly></label><label class="full-field">备注／留言<textarea id="teacherNote" rows="3" maxlength="500" placeholder="可选"></textarea></label></div><section class="capture-panel workflow-capture-panel"><div><h3>人脸识别核验</h3></div><div class="capture-status-stack"><span id="teacherFaceStatus" class="capture-status pending">尚未核验</span></div><button id="teacherCaptureFace" type="button">启动人脸识别</button><div class="form-submit-row workflow-capture-submit"><span id="teacherServiceMessage"></span><button type="submit">确认核销并提交</button></div></section></form>
-<dialog id="teacherStoreDialog"><div class="dialog-heading"><h2>请核对门店信息</h2><button id="closeTeacherStoreDialog" type="button" aria-label="关闭">×</button></div><div id="teacherStorePreview" class="management-summary"></div><div class="dialog-actions"><button id="confirmTeacherStore" type="button">核对无误，选择此门店</button></div></dialog></main>
-<script src="china-regions.js"></script><script src="teacher-service.js"></script><script src="auth-ui.js?v=0.17.6"></script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>老师办理核销</title>
+  <link rel="stylesheet" href="styles.css?v=0.15.9">
+</head>
+<body data-store-business="verification" data-teacher-business>
+  <aside class="side-project-bar" aria-label="老师工作台"><div class="side-brand"><span>师</span><div><strong>老师工作台</strong><small>本人业务</small></div></div><nav class="side-nav"></nav><div class="side-footer">老师账号</div></aside>
+  <header class="topbar"><div><p class="eyebrow">TEACHER VERIFICATION</p><h1>办理核销</h1><p class="subtitle">先选择门店，再按门店流程确认客户并完成人脸核验</p></div><div class="status"><span></span>绑定当前老师</div></header>
+  <main class="teacher-business-main">
+    <section class="panel teacher-business-store-panel">
+      <div class="panel-heading"><div><h2>第一步：选择本次办理门店</h2><p>门店只对本次办理生效；提交后工单自动绑定当前老师</p></div><span id="teacherBusinessStoreState" class="badge">尚未选择</span></div>
+      <div class="teacher-business-store-row"><label>当前老师<strong id="teacherBusinessIdentity">正在确认身份…</strong></label><label>办理门店<select id="teacherBusinessStore"><option value="">正在读取可用门店…</option></select></label><button id="confirmTeacherBusinessStore" type="button" disabled>确认门店</button></div>
+      <p id="teacherBusinessStoreMessage" class="form-message"></p>
+    </section>
+    <div class="store-business-main store-workflow-main">
+      <section id="teacherCustomerWorkflow" class="panel store-business-form workflow-lookup-panel teacher-step-disabled">
+        <div class="panel-heading"><div><h2>第二步：查找并确认客户</h2></div><span class="badge">所选门店 · 活跃客户</span></div>
+        <div class="lookup-mode-switch" role="tablist" aria-label="客户查找方式"><button class="active" type="button" data-lookup-mode="select">现有客户下拉框＋生日</button><button type="button" data-lookup-mode="manual">手动输入姓名＋生日</button></div>
+        <div id="selectLookupFields" class="customer-lookup-grid"><label>现有客户<select id="serviceCustomerSelect"></select></label><label>生日<input id="serviceSelectBirthday" type="date" readonly aria-readonly="true"></label><button id="serviceSelectLookup" type="button">查询客户</button></div>
+        <div id="manualLookupFields" class="customer-lookup-grid" hidden><label>客户姓名<input id="serviceCustomerName" placeholder="手动输入客户姓名"></label><label>生日<input id="serviceCustomerBirthday" type="date"></label><button id="serviceCustomerLookup" type="button">查询客户</button></div>
+        <div id="serviceCustomerResults" class="service-customer-results customer-core-preview"><div class="lookup-placeholder"><strong>等待选择门店</strong><span>选择门店后，此处显示客户建档照片、姓名、生日和客户编号。</span></div></div>
+        <button id="confirmCustomerSelection" class="confirm-customer-button" type="button" disabled>确认此客户并进入核销</button>
+      </section>
+      <form id="verificationCreateForm" class="panel store-business-form workflow-action-panel business-step-disabled">
+        <div class="panel-heading"><div><h2>第三步：核销信息与人脸识别</h2><p id="selectedCustomerText"></p></div><span class="badge">正常核销</span></div>
+        <div class="store-business-grid"><label>项目<select id="verificationProject" required></select></label><label>业务老师<select id="verificationTeacher" required></select></label><label class="full-field">老师备注／留言<textarea id="verificationNote" rows="3" maxlength="500" placeholder="可给当前核销单留言"></textarea></label></div>
+        <section class="capture-panel workflow-capture-panel live-verification-panel">
+          <div class="verification-camera-stage"><video id="verificationCamera" autoplay muted playsinline hidden></video><img id="verificationPhotoPreview" alt="现场核销人脸照片预览" hidden><div id="verificationCameraPlaceholder" class="camera-placeholder"><strong>等待打开摄像头</strong><span>现场照片只用于与当前所选客户进行 1:1 验证。</span></div><canvas id="verificationCaptureCanvas" hidden></canvas></div>
+          <div class="verification-capture-meta"><h3>1:1 人脸验证</h3><p>只验证当前所选客户，不搜索其他客户。</p></div>
+          <div class="capture-status-stack"><span id="verificationPhotoStatus" class="capture-status pending">尚未核验</span></div>
+          <div class="camera-actions verification-camera-actions"><button id="openVerificationCamera" type="button">打开摄像头</button><button id="captureVerificationPhoto" type="button" disabled>拍照并验证</button><button id="retakeVerificationPhoto" type="button" hidden>重新拍照</button></div>
+          <div class="form-submit-row workflow-capture-submit"><span id="verificationCreateMessage"></span><button id="verificationSubmit" type="submit" disabled aria-disabled="true">确认正常核销并开启设备</button></div>
+        </section>
+      </form>
+    </div>
+  </main>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
+  <script src="cloudbase-auth-config.js"></script>
+  <script src="store-business.js?v=0.14.42"></script>
+  <script src="auth-ui.js?v=0.17.6"></script>
+</body>
+</html>
