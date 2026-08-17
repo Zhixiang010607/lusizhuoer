@@ -2,7 +2,7 @@
 
 该函数仅在 CloudBase 后端运行，用于门店客户建档、照片质量检测、私有照片留存、人脸人员库录入和后续人员搜索。客户不需要提供身份证。
 
-当前版本：`2026-08-17-multiple-customer-profiles-v26`
+当前版本：`v34`
 
 ## 必需环境变量
 
@@ -66,7 +66,7 @@
 ```json
 {
   "ok": true,
-  "version": "2026-08-17-multiple-customer-profiles-v26",
+  "version": "v34",
   "photoBucketId": "customer-photos",
   "livenessEnabled": true
 }
@@ -77,6 +77,7 @@
 - `validateCapture`：拍照后立即检查单人、人脸尺寸、质量、口罩、闭眼和姿态。
 - `registerCustomer`：服务端质量检查、可选活体检测，然后以新的唯一客户编号和 `PersonId` 入人员库、上传私有照片并写客户表。同一张脸、相同姓名或相同生日都允许建立新的独立客户档案。
 - `listActiveStoreCustomers`：根据当前 CloudBase 登录账号在服务端解析真实门店，只返回该门店 `customer_status='ACTIVE'` 客户的编号、姓名和生日。下拉框不会预取备注、照片、状态或业务汇总。
+- `queryStoreBusinessRecords`：门店充值／核销查询专用动作。服务端根据当前 CloudBase UID 解析真实门店，不接受浏览器指定的门店范围；支持按项目、原单状态、核销类型、提交日期或客户姓名＋生日查询，并分别返回原单状态与作废申请状态。列表按提交时间游标分页，顶部统计由数据库对完整筛选范围汇总，不使用当前页数量冒充总数。部署前至少确认已执行迁移 `026_order_review_and_void_workflow.sql`（当前完整流程还应继续执行 `027`--`032`）。
 - `listActiveTeachers`：仅允许活跃门店账号调用，从 `teachers` 与 `staff_accounts` 联表读取“老师资料活跃且登录账号活跃”的真实老师。正常核销、补录核销和充值页面不再生成演示老师；数据库无记录时下拉框保持空。
 - `listActiveProducts`：仅允许活跃门店账号调用，只返回数据库中 `product_status='ACTIVE'` 产品的内部 ID、编号和名称；不会预取介绍、类别或任何价格字段。
 - `createRechargeApplication`：只创建一张 `NEW`、`PENDING` 的真实充值单，并使用 `idempotency_key` 防止双击或网络重试重复建单。业务老师可以为空；选择老师时仍校验老师资料和登录账号均为活跃。提交待审核单不会增加客户充值次数；只有审核把同一张单改为 `APPROVED` 后，数据库汇总触发器才会计入次数。部署前依次确认已执行迁移 `021_customer_product_effective_balances.sql`、`023_recharge_pending_submission.sql` 和 `024_optional_recharge_teacher.sql`。

@@ -267,6 +267,18 @@ body[data-customer-query] .customer-query-method-fields { display: grid; grid-te
 body[data-customer-query] .customer-query-method .customer-query-row { grid-column: auto; }
 body[data-customer-query] .customer-query-method .customer-query-stage-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 body[data-customer-query] .customer-query-method .customer-query-time-row { grid-template-columns: 1.15fr 1fr 1fr; margin-top: 8px; }
+body.store-record-query .store-record-query-main { grid-template-rows: auto auto auto minmax(0, 1fr); }
+body.store-record-query .query-filter-panel { display: block; }
+body.store-record-query .record-query-primary-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+body.store-record-query .verification-query-primary-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+body.store-record-query #resetRecordQuery { color: #35516f; background: #edf2f7; }
+body.store-record-query .customer-permission-banner { margin-top: 0; }
+body.store-record-query .store-record-results { margin-top: 0; }
+body.store-record-query .record-query-results-table { width: 100%; min-width: 1180px; table-layout: fixed; }
+body.store-record-query .verification-record-results-table { min-width: 1380px; }
+body.store-record-query .record-query-pager { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
+body.store-record-query .record-query-pager button { min-height: 28px; padding: 4px 8px; font-size: 10px; }
+body.store-record-query .record-query-pager button:disabled { cursor: not-allowed; opacity: .45; }
 @media (min-width: 761px) {
   body.login-page { height: 100dvh; min-height: 0; overflow: hidden; display: grid; place-items: center; }
   .login-shell { max-height: calc(100dvh - 32px); min-height: min(470px, calc(100dvh - 32px)); margin: 0 auto; }
@@ -1045,3 +1057,16 @@ body[data-store-business] .form-submit-row button:disabled {
 }
 @media (max-width: 450px) { .filter-grid, .metric-grid, .management-summary, .detail-info-grid, .query-filter-grid { grid-template-columns: 1fr; } .table-card .panel-heading, .ranking-actions { width: 100%; flex-wrap: wrap; } .ranking-actions > * { flex: 1; } .ranking-dimension select { width: 100%; } }
 @media (max-width: 600px) { .login-shell { width: 100%; min-height: 100vh; margin: 0; border-radius: 0; } .login-brand-panel { min-height: 270px; padding: 28px 22px; } .login-brand-copy { margin: 34px 0 0; } .login-brand-copy h1 { font-size: 34px; } .login-feature-list, .login-security-note { display: none; } .login-form-panel { padding: 34px 20px; } .role-switch button small { display: none; } }
+
+@media (min-width: 761px) and (max-width: 1100px) {
+  body.store-record-query .customer-query-filters { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
+  body.store-record-query .customer-query-store-context { flex-basis: 100%; min-width: 0; }
+  body.store-record-query .record-query-primary-row,
+  body.store-record-query .verification-query-primary-row,
+  body.store-record-query .customer-query-time-row,
+  body.store-record-query .customer-query-method-fields { grid-template-columns: 1fr; }
+  body.store-record-query .customer-category-grid.four-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

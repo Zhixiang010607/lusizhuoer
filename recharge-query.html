@@ -1,5 +1,68 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>充值查询</title><link rel="stylesheet" href="styles.css"></head>
-<body data-query="recharge"><aside class="side-project-bar" aria-label="项目栏"><div class="side-brand"><span>HQ</span><div><strong>总部工作台</strong><small>项目栏</small></div></div><p class="side-section-title">数据看板</p><nav class="side-nav"><a href="index.html"><span class="nav-icon">全</span><span>全局视图</span></a><a href="local.html"><span class="nav-icon">局</span><span>局部分析</span></a></nav><details class="side-menu-group"><summary><span class="nav-icon">管</span><span>管理</span></summary><nav><a href="store-management.html">门店管理</a><a href="project-management.html">项目管理</a><a href="teacher-management.html">老师管理</a></nav></details><details class="side-menu-group" open><summary><span class="nav-icon">查</span><span>查询</span></summary><nav><a href="customer-query.html">客户查询</a><a class="active" href="recharge-query.html">充值查询</a><a href="verification-query.html">核销查询</a></nav></details><details class="side-menu-group" data-menu="review"><summary><span class="nav-icon">审</span><span>审核</span></summary><nav><a href="recharge-review.html">充值审核</a><a href="verification-review.html">核销审核</a></nav></details><div class="side-footer">静态原型 v0.14.19</div></aside>
-<header class="topbar"><div><p class="eyebrow">BUSINESS RECORD QUERY</p><h1>充值查询</h1><p class="subtitle">选择现有客户，或手动输入姓名查询全部同名客户</p></div><div class="status"><span></span>本地模式</div></header>
-<main><section class="panel query-filter-panel"><div class="record-query-grid"><label>门店<select id="queryStore"></select></label><div class="record-customer-filter"><span class="field-label">客户查找方式</span><div class="lookup-mode-switch query-lookup-switch"><button class="active" type="button" data-query-mode="select">选择现有客户</button><button type="button" data-query-mode="manual">手动输入姓名＋生日</button></div></div><label id="querySelectCustomerField">现有客户<select id="queryCustomerSelect"></select></label><label id="querySelectBirthdayField">生日<input id="querySelectBirthday" readonly placeholder="选择客户后显示"></label><label id="queryManualCustomerField" hidden>客户姓名<input id="queryCustomerManual" placeholder="输入姓名；同名客户全部显示"></label><label id="queryManualBirthdayField" hidden>生日<input id="queryCustomerBirthday" type="date"></label><label>项目名称<select id="queryProject"></select></label><label>时间范围<select id="queryTimeRange"><option value="sevenDays">近 7 天</option><option value="month">近 1 个月</option><option value="quarter">本季度</option><option value="year">本年度</option><option value="custom" selected>自定义：过去一年</option></select></label><label>开始日期<input id="queryDateStart" type="date"></label><label>结束日期<input id="queryDateEnd" type="date"></label></div><div id="queryCustomerMatches" class="query-customer-matches">选择具体客户可按客户编号精确查询。</div><div class="query-filter-actions"><span id="querySummary">0条记录</span><button id="resetQuery">重置条件</button></div></section>
-<section class="panel table-card query-results"><div class="panel-heading"><div><h2>充值记录</h2></div><span class="badge">充值</span></div><div class="table-scroll"><table><thead><tr><th>充值编号（可查看）</th><th>客户编号</th><th>客户姓名</th><th>生日</th><th>门店</th><th>项目</th><th>充值次数</th><th>提交时间</th><th>状态</th><th>审核进度</th></tr></thead><tbody id="queryBody"></tbody></table></div></section></main><script src="query.js"></script><script src="auth-ui.js?v=0.17.1"></script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>充值查询</title>
+  <link rel="stylesheet" href="styles.css?v=0.14.46">
+</head>
+<body data-query="recharge">
+  <aside class="side-project-bar" aria-label="项目栏">
+    <div class="side-brand"><span>HQ</span><div><strong>总部工作台</strong><small>项目栏</small></div></div><p class="side-section-title">数据看板</p>
+    <nav class="side-nav"><a href="index.html"><span class="nav-icon">全</span><span>全局视图</span></a><a href="local.html"><span class="nav-icon">局</span><span>局部分析</span></a></nav>
+    <details class="side-menu-group"><summary><span class="nav-icon">管</span><span>管理</span></summary><nav><a href="store-management.html">门店管理</a><a href="project-management.html">项目管理</a><a href="teacher-management.html">老师管理</a></nav></details>
+    <details class="side-menu-group" open><summary><span class="nav-icon">查</span><span>查询</span></summary><nav><a href="customer-query.html">客户查询</a><a class="active" href="recharge-query.html">充值查询</a><a href="verification-query.html">核销查询</a></nav></details>
+    <details class="side-menu-group" data-menu="review"><summary><span class="nav-icon">审</span><span>审核</span></summary><nav><a href="recharge-review.html">充值审核</a><a href="verification-review.html">核销审核</a></nav></details>
+    <div class="side-footer">静态原型 v0.14.19</div>
+  </aside>
+  <header class="topbar"><div><p class="eyebrow">RECHARGE QUERY</p><h1>充值查询</h1><p class="subtitle">选择现有客户，或手动输入姓名查询全部同名客户</p></div><div class="status"><span></span>本地模式</div></header>
+
+  <main id="storeRecordQueryMain" class="store-record-query-main" hidden>
+    <section class="panel query-filter-panel">
+      <div class="panel-heading"><div><h2>查询条件</h2></div><span class="badge">本门店范围</span></div>
+      <div class="query-filter-grid customer-query-filters">
+        <div class="customer-query-toolbar">
+          <div class="customer-query-store-context" aria-label="当前门店"><span>当前门店</span><strong id="recordStoreName">正在读取门店信息</strong></div>
+          <div class="customer-query-toolbar-actions"><button id="runRecordQuery" type="button">查询充值</button><button id="resetRecordQuery" type="button">重置查询</button></div>
+          <span id="recordSummary" class="customer-query-summary"></span>
+        </div>
+        <p id="recordQueryNotice" class="customer-query-notice" aria-live="polite"></p>
+        <div class="customer-query-methods" aria-label="充值查询方式">
+          <section class="customer-query-method active" data-record-query-panel="browse">
+            <button class="customer-query-method-heading" type="button" data-record-query-mode="browse"><span>方式一</span><strong>筛选本门店全部充值记录</strong><small>按项目、原单状态及提交时间筛选</small></button>
+            <div class="customer-query-row record-query-primary-row">
+              <label>项目<select id="recordProduct"><option value="ALL">全部项目</option></select></label>
+              <label>原单状态<select id="recordStatusCategory"><option value="ALL">全部充值单</option><option value="PENDING">待审核</option><option value="APPROVED">已通过</option><option value="CLOSED">已驳回／已作废</option></select></label>
+            </div>
+            <div class="customer-query-row customer-query-time-row">
+              <label>时间范围<select id="recordTimeRange"><option value="all" selected>全部时间</option><option value="sevenDays">近 7 天</option><option value="month">近 1 个月</option><option value="quarter">本季度</option><option value="year">本年度</option><option value="custom">自定义日期</option></select></label>
+              <label>开始日期<input id="recordDateStart" type="date"></label>
+              <label>结束日期<input id="recordDateEnd" type="date"></label>
+            </div>
+          </section>
+          <section class="customer-query-method" data-record-query-panel="manual">
+            <button class="customer-query-method-heading" type="button" data-record-query-mode="manual"><span>方式二</span><strong>按姓名＋生日查询</strong><small>可单独填写一项，也可以联合查询</small></button>
+            <div class="customer-query-method-fields">
+              <label>客户姓名<input id="recordCustomerName" placeholder="输入姓名；同名客户全部显示"></label>
+              <label>生日<input id="recordCustomerBirthday" type="date"></label>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+    <section id="recordCategoryGrid" class="customer-category-grid four-cards" aria-label="充值原单状态统计"></section>
+    <section class="panel customer-permission-banner"><strong>门店范围</strong><span>只读取当前登录门店的数据库充值单；封存客户的历史记录仍会保留。</span></section>
+    <section class="panel table-card query-results store-record-results">
+      <div class="panel-heading"><div><h2>充值结果</h2></div><div class="record-query-pager"><button id="recordPreviousPage" type="button">上一页</button><span id="recordPageLabel">第 1 页</span><button id="recordNextPage" type="button">下一页</button></div></div>
+      <div class="table-scroll"><table class="record-query-results-table recharge-record-results-table"><thead><tr><th>充值单号</th><th>客户编号</th><th>客户姓名</th><th>生日</th><th>门店</th><th>项目</th><th>充值次数</th><th>提交时间</th><th>原单状态</th><th>作废状态</th></tr></thead><tbody id="recordQueryBody"></tbody></table></div>
+    </section>
+  </main>
+
+  <main id="legacyRecordQueryMain">
+    <section class="panel query-filter-panel"><div class="record-query-grid"><label>门店<select id="queryStore"></select></label><div class="record-customer-filter"><span class="field-label">客户查找方式</span><div class="lookup-mode-switch query-lookup-switch"><button class="active" type="button" data-query-mode="select">选择现有客户</button><button type="button" data-query-mode="manual">手动输入姓名＋生日</button></div></div><label id="querySelectCustomerField">现有客户<select id="queryCustomerSelect"></select></label><label id="querySelectBirthdayField">生日<input id="querySelectBirthday" readonly placeholder="选择客户后显示"></label><label id="queryManualCustomerField" hidden>客户姓名<input id="queryCustomerManual" placeholder="输入姓名；同名客户全部显示"></label><label id="queryManualBirthdayField" hidden>生日<input id="queryCustomerBirthday" type="date"></label><label>项目名称<select id="queryProject"></select></label><label>时间范围<select id="queryTimeRange"><option value="sevenDays">近 7 天</option><option value="month">近 1 个月</option><option value="quarter">本季度</option><option value="year">本年度</option><option value="custom" selected>自定义：过去一年</option></select></label><label>开始日期<input id="queryDateStart" type="date"></label><label>结束日期<input id="queryDateEnd" type="date"></label></div><div id="queryCustomerMatches" class="query-customer-matches">选择具体客户可按客户编号精确查询。</div><div class="query-filter-actions"><span id="querySummary">0条记录</span><button id="resetQuery">重置条件</button></div></section>
+    <section class="panel table-card query-results"><div class="panel-heading"><div><h2>充值记录</h2></div><span class="badge">充值</span></div><div class="table-scroll"><table><thead><tr><th>充值编号（可查看）</th><th>客户编号</th><th>客户姓名</th><th>生日</th><th>门店</th><th>项目</th><th>充值次数</th><th>提交时间</th><th>状态</th><th>审核进度</th></tr></thead><tbody id="queryBody"></tbody></table></div></section>
+  </main>
+
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="datetime.js?v=0.1.0"></script><script src="query.js?v=0.15.0"></script><script src="auth-ui.js?v=0.17.1"></script>
+</body>
+</html>

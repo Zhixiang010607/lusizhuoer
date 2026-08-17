@@ -4,7 +4,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
-const FUNCTION_VERSION = "v33";
+const FUNCTION_VERSION = "v34";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -873,6 +873,184 @@ async function queryStoreCustomers(event = {}) {
   };
 }
 
+function optionalBusinessQueryDate(value, label) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) fail(`${label}格式无效。`, "BAD_REQUEST");
+  const parsed = new Date(`${text}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.valueOf()) || parsed.toISOString().slice(0, 10) !== text) {
+    fail(`${label}不是有效日期。`, "BAD_REQUEST");
+  }
+  return text;
+}
+
+function businessQueryDatabaseId(value, label) {
+  const id = positiveDatabaseId(value, label);
+  if (BigInt(id) > 9223372036854775807n) fail(`${label}超出数据库编号范围。`, "BAD_REQUEST");
+  return id;
+}
+
+// Store business-record search is intentionally separate from the HQ review
+// queue. The browser supplies filters only; the authenticated CloudBase UID
+// is always resolved to the one store that may be read.
+async function queryStoreBusinessRecords(event = {}) {
+  const caller = await activeStoreCaller();
+  const recordType = String(event.recordType || "").trim().toUpperCase();
+  if (!["RECHARGE", "VERIFICATION"].includes(recordType)) fail("工单类型无效。", "BAD_REQUEST");
+
+  const mode = String(event.mode || "browse").trim().toLowerCase();
+  if (!["browse", "manual"].includes(mode)) fail("工单查询方式无效。", "BAD_REQUEST");
+  const statusCategory = String(event.statusCategory || "ALL").trim().toUpperCase();
+  if (!["ALL", "PENDING", "APPROVED", "CLOSED"].includes(statusCategory)) {
+    fail("工单状态筛选无效。", "BAD_REQUEST");
+  }
+  const verificationType = String(event.verificationType || "ALL").trim().toUpperCase();
+  if (!["ALL", "NORMAL", "SUPPLEMENT", "EXPERIENCE"].includes(verificationType)) {
+    fail("核销类型筛选无效。", "BAD_REQUEST");
+  }
+
+  const customerName = String(event.customerName || "").trim();
+  if (customerName.length > 100) fail("客户姓名查询不能超过 100 个字符。", "BAD_REQUEST");
+  const birthDate = optionalBusinessQueryDate(event.birthDate, "生日");
+  const startDate = optionalBusinessQueryDate(event.startDate, "开始日期");
+  const endDate = optionalBusinessQueryDate(event.endDate, "结束日期");
+  if (startDate && endDate && startDate > endDate) fail("开始日期不能晚于结束日期。", "BAD_REQUEST");
+
+  const productIdText = String(event.productId || "").trim();
+  const productId = productIdText && productIdText.toUpperCase() !== "ALL"
+    ? businessQueryDatabaseId(productIdText, "项目")
+    : "";
+  const requestedLimit = Number(event.limit);
+  const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 100, 1), 200);
+  const cursorSubmittedAt = String(event.cursorSubmittedAt || "").trim();
+  const cursorIdText = String(event.cursorId || "").trim();
+  if (Boolean(cursorSubmittedAt) !== Boolean(cursorIdText)) fail("分页游标不完整。", "BAD_REQUEST");
+  if (cursorSubmittedAt) {
+    const cursorMatch = cursorSubmittedAt.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?: ?(?:Z|[+-]\d{2}:?\d{2})(?: [A-Z]{2,5})?)?$/);
+    if (cursorSubmittedAt.length > 100 || !cursorMatch) fail("分页时间游标格式无效。", "BAD_REQUEST");
+    optionalBusinessQueryDate(cursorMatch[1], "分页日期");
+    if (Number(cursorMatch[2]) > 23 || Number(cursorMatch[3]) > 59 || Number(cursorMatch[4]) > 59) {
+      fail("分页时间游标格式无效。", "BAD_REQUEST");
+    }
+  }
+  const cursorId = cursorIdText ? businessQueryDatabaseId(cursorIdText, "分页工单") : "";
+
+  const alias = recordType === "RECHARGE" ? "r" : "v";
+  const table = recordType === "RECHARGE" ? "recharge_records" : "verification_records";
+  const baseClauses = [`${alias}.store_id = ${caller.storeId}`];
+  if (mode === "manual") {
+    if (customerName) baseClauses.push(`c.customer_name ILIKE '%' || ${sqlText(customerName)} || '%'`);
+    if (birthDate) baseClauses.push(`c.birth_date = ${sqlText(birthDate)}::date`);
+  } else {
+    if (productId) baseClauses.push(`${alias}.product_id = ${productId}`);
+    if (recordType === "VERIFICATION" && verificationType !== "ALL") {
+      baseClauses.push(`v.verification_type = ${sqlText(verificationType)}`);
+    }
+    if (startDate) baseClauses.push(`${alias}.submitted_at >= ${sqlText(startDate)}::date`);
+    if (endDate) baseClauses.push(`${alias}.submitted_at < (${sqlText(endDate)}::date + INTERVAL '1 day')`);
+  }
+
+  const listClauses = [...baseClauses];
+  if (statusCategory === "PENDING") listClauses.push(`${alias}.record_status = 'PENDING'`);
+  else if (statusCategory === "APPROVED") listClauses.push(`${alias}.record_status = 'APPROVED'`);
+  else if (statusCategory === "CLOSED") listClauses.push(`${alias}.record_status IN ('REJECTED', 'VOIDED')`);
+  if (cursorSubmittedAt) {
+    listClauses.push(`(${alias}.submitted_at, ${alias}.id) < (${sqlText(cursorSubmittedAt)}::timestamptz, ${cursorId}::bigint)`);
+  }
+
+  const recordSelect = recordType === "RECHARGE"
+    ? `r.id, r.recharge_code AS record_code, r.recharge_type AS original_type,
+       r.unit_count, r.record_status, r.void_request_status, r.submitted_at, r.reviewed_at,
+       TO_CHAR(r.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_submitted_at,
+       FALSE AS has_face_request`
+    : `v.id, v.verification_code AS record_code, v.verification_type AS original_type,
+       v.unit_count, v.record_status, v.void_request_status, v.submitted_at, v.reviewed_at,
+       TO_CHAR(v.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_submitted_at,
+       (NULLIF(BTRIM(v.face_request_id), '') IS NOT NULL) AS has_face_request`;
+  const teacherJoin = `LEFT JOIN public.teachers t ON t.id = ${alias}.teacher_id`;
+  const baseJoin = `JOIN public.customers c ON c.id = ${alias}.customer_id
+                    JOIN public.stores s ON s.id = ${alias}.store_id
+                    JOIN public.products p ON p.id = ${alias}.product_id
+                    ${teacherJoin}`;
+  const summarySql = `SELECT COUNT(*) AS total,
+                             COUNT(*) FILTER (WHERE ${alias}.record_status = 'PENDING') AS pending,
+                             COUNT(*) FILTER (WHERE ${alias}.record_status = 'APPROVED') AS approved,
+                             COUNT(*) FILTER (WHERE ${alias}.record_status IN ('REJECTED', 'VOIDED')) AS closed,
+                             COUNT(*) FILTER (WHERE ${alias}.void_request_status = 'PENDING') AS void_pending
+                        FROM public.${table} ${alias}
+                        ${baseJoin}
+                       WHERE ${baseClauses.join(" AND ")}`;
+  const listSql = `SELECT ${recordSelect},
+                          c.customer_code, c.customer_name, c.birth_date,
+                          s.id AS store_id, s.store_code, s.store_name,
+                          p.id AS product_id, p.product_code, p.product_name,
+                          t.id AS teacher_id, t.teacher_code, t.teacher_name
+                     FROM public.${table} ${alias}
+                     ${baseJoin}
+                    WHERE ${listClauses.join(" AND ")}
+                    ORDER BY ${alias}.submitted_at DESC, ${alias}.id DESC
+                    LIMIT ${limit + 1}`;
+  const productsSql = `SELECT DISTINCT p.id AS product_id, p.product_code, p.product_name
+                          FROM public.${table} ${alias}
+                          JOIN public.products p ON p.id = ${alias}.product_id
+                         WHERE ${alias}.store_id = ${caller.storeId}
+                         ORDER BY p.product_name, p.product_code`;
+
+  const [rawRecords, summaryRows, productRows] = await Promise.all([
+    executeSql(listSql),
+    executeSql(summarySql),
+    executeSql(productsSql)
+  ]);
+  const hasMore = rawRecords.length > limit;
+  const pageRows = rawRecords.slice(0, limit);
+  const last = pageRows[pageRows.length - 1];
+  const summary = summaryRows[0] || {};
+  return {
+    ok: true,
+    storeId: String(caller.storeId),
+    storeCode: caller.storeCode,
+    storeName: caller.storeName,
+    recordType,
+    summary: {
+      total: Number(summary.total || 0),
+      pending: Number(summary.pending || 0),
+      approved: Number(summary.approved || 0),
+      closed: Number(summary.closed || 0),
+      voidPending: Number(summary.void_pending || 0)
+    },
+    products: productRows.map((product) => ({
+      productId: String(product.product_id),
+      productCode: product.product_code,
+      productName: product.product_name
+    })),
+    records: pageRows.map((record) => ({
+      id: String(record.id),
+      recordCode: record.record_code,
+      originalType: record.original_type,
+      unitCount: Number(record.unit_count || 0),
+      recordStatus: record.record_status,
+      voidRequestStatus: record.void_request_status,
+      submittedAt: record.submitted_at,
+      reviewedAt: record.reviewed_at,
+      customerCode: record.customer_code,
+      customerName: record.customer_name,
+      birthDate: record.birth_date,
+      storeId: String(record.store_id),
+      storeCode: record.store_code,
+      storeName: record.store_name,
+      productId: String(record.product_id),
+      productCode: record.product_code,
+      productName: record.product_name,
+      teacherId: record.teacher_id === null || record.teacher_id === undefined ? "" : String(record.teacher_id),
+      teacherCode: record.teacher_code || "",
+      teacherName: record.teacher_name || "",
+      hasFaceRequest: databaseBoolean(record.has_face_request)
+    })),
+    hasMore,
+    nextCursor: hasMore && last ? { submittedAt: last.cursor_submitted_at, id: String(last.id) } : null
+  };
+}
+
 async function getStoreDashboard(event = {}) {
   const caller = await activeStoreCaller();
   const customerPage = Math.min(Math.max(Number(event.customerPage) || 1, 1), 100000);
@@ -1653,6 +1831,7 @@ exports.main = async (event = {}) => {
     if (action === "registerCustomer") return await registerCustomer(event);
     if (action === "listActiveStoreCustomers") return await listActiveStoreCustomers();
     if (action === "queryStoreCustomers") return await queryStoreCustomers(event);
+    if (action === "queryStoreBusinessRecords") return await queryStoreBusinessRecords(event);
     if (action === "getStoreDashboard") return await getStoreDashboard(event);
     if (action === "listActiveTeachers") return await listActiveTeachers();
     if (action === "listActiveProducts") return await listActiveProducts();
