@@ -4,7 +4,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
-const FUNCTION_VERSION = "2026-08-17-multiple-customer-profiles-v26";
+const FUNCTION_VERSION = "2026-08-17-storage-env-binding-v27";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -18,8 +18,14 @@ function app() {
   return cloudApp;
 }
 
+function cloudbaseEnvId() {
+  const envId = String(process.env.CLOUDBASE_ENV_ID || process.env.TCB_ENV || "").trim();
+  if (!envId) throw new Error("Missing cloud function environment variable: CLOUDBASE_ENV_ID or TCB_ENV");
+  return envId;
+}
+
 function manager() {
-  if (!managerClient) managerClient = CloudBaseManager.init({ envId: process.env.TCB_ENV });
+  if (!managerClient) managerClient = CloudBaseManager.init({ envId: cloudbaseEnvId() });
   return managerClient;
 }
 
@@ -123,7 +129,8 @@ function faceSettings() {
 function photoStorageSettings() {
   return {
     bucketId: String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim(),
-    accessToken: required("CLOUDBASE_SERVICE_ROLE_KEY")
+    accessToken: required("CLOUDBASE_SERVICE_ROLE_KEY"),
+    envId: cloudbaseEnvId()
   };
 }
 
@@ -457,7 +464,7 @@ async function updateCustomerStatus(event) {
 }
 
 async function uploadCustomerPhoto(storeId, personId, buffer) {
-  const { bucketId, accessToken } = photoStorageSettings();
+  const { bucketId, accessToken, envId } = photoStorageSettings();
   const objectName = `${storeId}/${personId}/${Date.now()}.jpg`;
   await manager().storage.uploadObject({
     bucketId,
@@ -467,7 +474,8 @@ async function uploadCustomerPhoto(storeId, personId, buffer) {
     contentLength: buffer.length,
     cacheControl: "private, no-store",
     upsert: false,
-    accessToken
+    accessToken,
+    envId
   });
   // Persist the objectName supplied to uploadObject. Some manager-node/storage
   // responses include the bucket name in Key; persisting that value produced
@@ -484,10 +492,15 @@ async function uploadCustomerPhoto(storeId, personId, buffer) {
 async function deleteUploadedFile(storedPhoto) {
   if (!storedPhoto?.bucketId || !storedPhoto?.objectName) return;
   try {
-    const { accessToken } = photoStorageSettings();
+    const { accessToken, envId } = photoStorageSettings();
     for (const objectName of photoObjectCandidates(storedPhoto.bucketId, storedPhoto.objectName)) {
       try {
-        await manager().storage.deleteObject({ bucketId: storedPhoto.bucketId, objectName, accessToken });
+        await manager().storage.deleteObject({
+          bucketId: storedPhoto.bucketId,
+          objectName,
+          accessToken,
+          envId
+        });
         return;
       } catch (error) {
         if (!storageObjectMissing(error)) throw error;
@@ -544,7 +557,8 @@ async function getCustomerPhotoUrl(event, options = {}) {
         bucketId: reference.bucketId,
         objectName,
         expiresIn,
-        accessToken: storage.accessToken
+        accessToken: storage.accessToken,
+        envId: storage.envId
       });
       photoUrl = signedPhotoUrl(signed);
 
@@ -558,7 +572,8 @@ async function getCustomerPhotoUrl(event, options = {}) {
           bucketId: reference.bucketId,
           paths: [objectName],
           expiresIn,
-          accessToken: storage.accessToken
+          accessToken: storage.accessToken,
+          envId: storage.envId
         });
         photoUrl = signedPhotoUrl(batchSigned);
       }
