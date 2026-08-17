@@ -237,15 +237,15 @@ BEGIN
   END IF;
 
   IF UPPER(p_record_type) = 'RECHARGE' THEN
-    SELECT record_status, void_request_status, recharge_code, customer_id, product_id,
-           unit_count, recharge_type
+    SELECT r.record_status, r.void_request_status, r.recharge_code, r.customer_id, r.product_id,
+           r.unit_count, r.recharge_type
       INTO current_status, current_void_status, current_code,
            recharge_customer_id, recharge_product_id, recharge_units, current_recharge_type
-      FROM public.recharge_records WHERE id = p_record_id FOR UPDATE;
+      FROM public.recharge_records AS r WHERE r.id = p_record_id FOR UPDATE;
   ELSIF UPPER(p_record_type) = 'VERIFICATION' THEN
-    SELECT record_status, void_request_status, verification_code
+    SELECT v.record_status, v.void_request_status, v.verification_code
       INTO current_status, current_void_status, current_code
-      FROM public.verification_records WHERE id = p_record_id FOR UPDATE;
+      FROM public.verification_records AS v WHERE v.id = p_record_id FOR UPDATE;
   ELSE
     RAISE EXCEPTION 'unsupported record type' USING ERRCODE = '22023';
   END IF;

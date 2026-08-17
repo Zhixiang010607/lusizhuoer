@@ -1,5 +1,8 @@
 BEGIN;
 
+-- PostgreSQL exposes RETURNS TABLE column names as PL/pgSQL variables.  The
+-- explicit aliases below keep record_status and void_request_status bound to
+-- the locked business-order row instead of the output variables.
 CREATE OR REPLACE FUNCTION public.review_order_application(
   p_record_type VARCHAR,
   p_record_id BIGINT,
@@ -23,9 +26,9 @@ DECLARE
   current_recharge_type TEXT;
   current_remaining BIGINT;
 BEGIN
-  SELECT role_code INTO actor_role
-    FROM public.staff_accounts
-   WHERE id = p_actor_account_id AND account_status = 'ACTIVE';
+  SELECT a.role_code INTO actor_role
+    FROM public.staff_accounts AS a
+   WHERE a.id = p_actor_account_id AND a.account_status = 'ACTIVE';
   IF actor_role NOT IN ('hq', 'operation') THEN
     RAISE EXCEPTION 'only headquarters or operations can review orders' USING ERRCODE = '42501';
   END IF;
@@ -41,11 +44,15 @@ BEGIN
            r.unit_count, r.recharge_type
       INTO current_status, current_void_status, current_code,
            recharge_customer_id, recharge_product_id, recharge_units, current_recharge_type
-      FROM public.recharge_records AS r WHERE r.id = p_record_id FOR UPDATE;
+      FROM public.recharge_records AS r
+     WHERE r.id = p_record_id
+       FOR UPDATE;
   ELSIF UPPER(p_record_type) = 'VERIFICATION' THEN
     SELECT v.record_status, v.void_request_status, v.verification_code
       INTO current_status, current_void_status, current_code
-      FROM public.verification_records AS v WHERE v.id = p_record_id FOR UPDATE;
+      FROM public.verification_records AS v
+     WHERE v.id = p_record_id
+       FOR UPDATE;
   ELSE
     RAISE EXCEPTION 'unsupported record type' USING ERRCODE = '22023';
   END IF;
@@ -54,10 +61,9 @@ BEGIN
   IF current_void_status = 'PENDING' THEN
     IF UPPER(p_record_type) = 'RECHARGE' THEN
       IF decision = 'APPROVED' THEN
-        -- Serialize balance decisions with refresh_customer_balance().
         PERFORM 1
-          FROM public.customers
-         WHERE id = recharge_customer_id
+          FROM public.customers AS c
+         WHERE c.id = recharge_customer_id
          FOR UPDATE;
         IF NOT FOUND THEN
           RAISE EXCEPTION 'customer does not exist' USING ERRCODE = 'P0002';
@@ -66,14 +72,14 @@ BEGIN
         SELECT
           COALESCE((
             SELECT SUM(CASE r.recharge_type WHEN 'NEW' THEN r.unit_count ELSE -r.unit_count END)
-              FROM public.recharge_records r
+              FROM public.recharge_records AS r
              WHERE r.customer_id = recharge_customer_id
                AND r.product_id = recharge_product_id
                AND r.record_status = 'APPROVED'
           ), 0)
           - COALESCE((
             SELECT SUM(v.unit_count)
-              FROM public.verification_records v
+              FROM public.verification_records AS v
              WHERE v.customer_id = recharge_customer_id
                AND v.product_id = recharge_product_id
                AND v.record_status = 'APPROVED'
@@ -92,7 +98,7 @@ BEGIN
         END IF;
       END IF;
 
-      UPDATE public.recharge_records
+      UPDATE public.recharge_records AS r
          SET void_request_status = decision,
              void_reviewed_by_account_id = p_actor_account_id,
              void_review_note = BTRIM(COALESCE(p_note, '')), void_reviewed_at = NOW(),
@@ -100,9 +106,9 @@ BEGIN
              voided_by_account_id = CASE WHEN decision = 'APPROVED' THEN p_actor_account_id ELSE NULL END,
              voided_at = CASE WHEN decision = 'APPROVED' THEN NOW() ELSE NULL END,
              updated_at = NOW()
-       WHERE id = p_record_id;
+       WHERE r.id = p_record_id;
     ELSE
-      UPDATE public.verification_records
+      UPDATE public.verification_records AS v
          SET void_request_status = decision,
              void_reviewed_by_account_id = p_actor_account_id,
              void_review_note = BTRIM(COALESCE(p_note, '')), void_reviewed_at = NOW(),
@@ -111,7 +117,7 @@ BEGIN
              voided_by_account_id = CASE WHEN decision = 'APPROVED' THEN p_actor_account_id ELSE NULL END,
              voided_at = CASE WHEN decision = 'APPROVED' THEN NOW() ELSE NULL END,
              updated_at = NOW()
-       WHERE id = p_record_id;
+       WHERE v.id = p_record_id;
     END IF;
     current_status := CASE WHEN decision = 'APPROVED' THEN 'VOIDED' ELSE 'APPROVED' END;
     current_void_status := decision;
@@ -120,20 +126,21 @@ BEGIN
       RAISE EXCEPTION 'this application is no longer pending' USING ERRCODE = '23514';
     END IF;
     IF UPPER(p_record_type) = 'RECHARGE' THEN
-      UPDATE public.recharge_records
+      UPDATE public.recharge_records AS r
          SET record_status = decision, reviewed_by_account_id = p_actor_account_id,
              reviewed_at = NOW(), review_note = BTRIM(p_note), updated_at = NOW()
-       WHERE id = p_record_id;
+       WHERE r.id = p_record_id;
     ELSE
-      UPDATE public.verification_records
+      UPDATE public.verification_records AS v
          SET record_status = decision, reviewed_by_account_id = p_actor_account_id,
              reviewed_at = NOW(), review_note = BTRIM(p_note), updated_at = NOW()
-       WHERE id = p_record_id;
+       WHERE v.id = p_record_id;
     END IF;
     current_status := decision;
   END IF;
 
-  RETURN QUERY SELECT p_record_id, current_code, current_status, current_void_status, NOW();
+  RETURN QUERY
+  SELECT p_record_id, current_code, current_status, current_void_status, NOW();
 END;
 $$;
 
