@@ -272,6 +272,7 @@ body.store-record-query .store-record-query-main { grid-template-rows: auto auto
 body.store-record-query .query-filter-panel { display: block; }
 body.store-record-query .record-query-primary-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 body.store-record-query .verification-query-primary-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+body.store-record-query .customer-query-method .customer-query-time-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 body.store-record-query #resetRecordQuery { color: #35516f; background: #edf2f7; }
 body.store-record-query .customer-permission-banner { margin-top: 0; }
 body.store-record-query .store-record-results { margin-top: 0; }
@@ -1137,7 +1138,7 @@ body[data-store-business] .form-submit-row button:disabled {
   body.store-record-query .customer-query-store-context { flex-basis: 100%; min-width: 0; }
   body.store-record-query .record-query-primary-row,
   body.store-record-query .verification-query-primary-row,
-  body.store-record-query .customer-query-time-row,
+  body.store-record-query .customer-query-method .customer-query-time-row,
   body.store-record-query .customer-query-method-fields { grid-template-columns: 1fr; }
   body.store-record-query .customer-category-grid.four-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
