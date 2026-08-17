@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.6";
+  const VERSION = "0.15.8";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -39,11 +39,12 @@
     const originalType = clean(field(row, "original_type", "originalType")).toUpperCase();
     const voidStatusValue = clean(field(row, "void_request_status", "voidRequestStatus")).toUpperCase();
     const originalKind = type === "recharge"
-      ? "新充值"
+      ? ({ NEW: "新充值" }[originalType] || originalType || "充值")
       : ({ NORMAL: "正常核销", SUPPLEMENT: "补录核销", EXPERIENCE: "体验核销" }[originalType] || originalType || "核销");
     return {
       id: clean(row.id),
       recordCode: field(row, "record_code", "recordCode"),
+      originalType,
       originalKind,
       status: field(row, "original_status", "originalStatus"),
       recordStatus: field(row, "original_status", "originalStatus"),
@@ -76,6 +77,33 @@
 
   function formatTime(value) {
     return window.AppDateTime.format(value, "");
+  }
+
+  function isVoidableOriginalType(record) {
+    const originalType = first(record?.originalType, record?.rechargeType, record?.verificationType).toUpperCase();
+    return type === "recharge"
+      ? originalType === "NEW"
+      : ["NORMAL", "SUPPLEMENT"].includes(originalType);
+  }
+
+  function hasVoidLifecycle(record) {
+    const voidRequestStatus = first(record?.voidStatus, record?.voidRequestStatus).toUpperCase();
+    return Boolean(
+      record?.voidSubmittedAt ||
+      record?.voidStoreNote ||
+      (voidRequestStatus && voidRequestStatus !== "NONE")
+    );
+  }
+
+  function canStoreRequestVoid(record, storeMode, voidStarted = hasVoidLifecycle(record)) {
+    const originalStatus = first(record?.status, record?.recordStatus).toUpperCase();
+    return Boolean(
+      storeMode &&
+      !voidStarted &&
+      record?.databaseBacked === true &&
+      originalStatus === "APPROVED" &&
+      isVoidableOriginalType(record)
+    );
   }
 
   function statusView(value) {
@@ -201,7 +229,7 @@
   function renderRecord(record) {
     const recharge = type === "recharge";
     const recordCode = first(record.recordCode, record.rechargeCode, record.verificationCode, record.id);
-    const voidStarted = Boolean(record.voidSubmittedAt || record.voidStatus || record.voidStoreNote);
+    const voidStarted = hasVoidLifecycle(record);
     const normalKind = recharge
       ? first(record.originalKind, record.applicationType, record.rechargeType, "新充值")
       : first(record.originalKind, record.verificationType, record.applicationType, "正常核销");
@@ -233,10 +261,7 @@
     const session = readSession();
     const isReviewer = ["hq", "operation"].includes(session?.role);
     const storeMode = session?.role === "store";
-    const canStoreVoid = storeMode
-      && !voidStarted
-      && record.databaseBacked === true
-      && originalStatusCode === "APPROVED";
+    const canStoreVoid = canStoreRequestVoid(record, storeMode, voidStarted);
     const description = String(record.voidStatus || "").toUpperCase() === "REJECTED"
       ? "作废申请已被驳回，原业务与客户次数保持不变。"
       : voidStarted
@@ -293,6 +318,7 @@
       if (voidStatus === "REJECTED") return "作废申请已驳回，不能再次提交";
       return "该工单已提交过作废申请";
     }
+    if (!isVoidableOriginalType(record)) return "仅正常充值、正常核销和补录核销可以申请作废";
     if (originalStatus === "PENDING") return "原工单审核通过后才可申请作废";
     if (originalStatus === "REJECTED") return "原工单未通过，不能申请作废";
     if (originalStatus === "VOIDED") return "该工单已作废";
@@ -305,8 +331,8 @@
     const reasonField = $("voidReason");
     const reviewPanel = document.querySelector("[data-order-review]");
     panel.hidden = !storeMode;
-    panel.classList.toggle("is-expanded", canApply);
-    reviewPanel?.classList.toggle("store-void-expanded", storeMode && canApply);
+    panel.classList.toggle("is-expanded", storeMode);
+    reviewPanel?.classList.toggle("store-void-expanded", storeMode);
     reasonField.disabled = !canApply;
     button.onclick = null;
     button.disabled = !canApply;

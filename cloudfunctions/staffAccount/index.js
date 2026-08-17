@@ -8,7 +8,7 @@
 const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v34";
+const FUNCTION_VERSION = "v35";
 let app = null;
 let auth = null;
 let managerClient = null;
@@ -1151,6 +1151,9 @@ async function requestOrderVoid(caller, event) {
               ${numericId(caller.profile.staffId, "当前门店账号")}, ${sqlText(note)})`
     );
   } catch (error) {
+    if (/order type cannot request a void/i.test(String(error?.message || ""))) {
+      fail("仅正常充值、正常核销和补录核销可以申请作废", "VOID_TYPE_NOT_ALLOWED");
+    }
     asDatabaseError(error, "提交作废申请");
   }
   if (!rows?.[0]) fail("未找到该工单", "NOT_FOUND");
