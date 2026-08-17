@@ -283,8 +283,12 @@ BEGIN
           ), 0)
           INTO current_remaining;
 
-        IF current_remaining
-             - CASE current_recharge_type WHEN 'NEW' THEN recharge_units ELSE -recharge_units END < 0 THEN
+        IF (current_remaining - (
+          CASE current_recharge_type
+            WHEN 'NEW' THEN recharge_units
+            ELSE -recharge_units
+          END
+        )) < 0 THEN
           RAISE EXCEPTION 'cannot approve recharge void: customer product balance would become negative'
             USING ERRCODE = '23514';
         END IF;
