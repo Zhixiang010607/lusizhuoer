@@ -4,20 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>老师办理补录核销</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.10">
+  <link rel="stylesheet" href="styles.css?v=0.15.11">
 </head>
 <body data-store-business="verification-supplemental" data-teacher-business>
   <aside class="side-project-bar" aria-label="老师工作台"><div class="side-brand"><span>师</span><div><strong>老师工作台</strong><small>本人业务</small></div></div><nav class="side-nav"></nav><div class="side-footer">老师账号</div></aside>
   <header class="topbar"><div><p class="eyebrow">TEACHER SUPPLEMENTAL VERIFICATION</p><h1>办理补录核销</h1><p class="subtitle">先选择门店，再确认客户、人脸核验并提交补录审核</p></div><div class="status"><span></span>绑定当前老师</div></header>
   <main class="teacher-business-main">
     <section class="panel teacher-business-store-panel">
-      <div class="panel-heading"><div><h2>第一步：选择本次办理门店</h2><p>门店只对本次办理生效；提交后工单自动绑定当前老师</p></div><span id="teacherBusinessStoreState" class="badge">尚未选择</span></div>
+      <div class="panel-heading"><div><h2>选择本次办理门店</h2><p>门店只对本次办理生效；提交后工单自动绑定当前老师</p></div><span id="teacherBusinessStoreState" class="badge">尚未选择</span></div>
       <div class="teacher-business-store-row"><label>当前老师<strong id="teacherBusinessIdentity">正在确认身份…</strong></label><label>办理门店<select id="teacherBusinessStore"><option value="">正在读取可用门店…</option></select></label><button id="confirmTeacherBusinessStore" type="button" disabled>确认门店</button></div>
       <p id="teacherBusinessStoreMessage" class="form-message"></p>
     </section>
     <div class="store-business-main store-workflow-main">
       <section id="teacherCustomerWorkflow" class="panel store-business-form workflow-lookup-panel teacher-step-disabled">
-        <div class="panel-heading"><div><h2>第二步：查找并确认客户</h2></div><span class="badge">所选门店 · 活跃客户</span></div>
+        <div class="panel-heading"><div><h2>第一步：查找并确认客户</h2></div><span class="badge">客户确认</span></div>
         <div class="lookup-mode-switch" role="tablist" aria-label="客户查找方式"><button class="active" type="button" data-lookup-mode="select">现有客户下拉框＋生日</button><button type="button" data-lookup-mode="manual">手动输入姓名＋生日</button></div>
         <div id="selectLookupFields" class="customer-lookup-grid"><label>现有客户<select id="serviceCustomerSelect"></select></label><label>生日<input id="serviceSelectBirthday" type="date" readonly aria-readonly="true"></label><button id="serviceSelectLookup" type="button">查询客户</button></div>
         <div id="manualLookupFields" class="customer-lookup-grid" hidden><label>客户姓名<input id="serviceCustomerName" placeholder="手动输入客户姓名"></label><label>生日<input id="serviceCustomerBirthday" type="date"></label><button id="serviceCustomerLookup" type="button">查询客户</button></div>
@@ -25,7 +25,7 @@
         <button id="confirmCustomerSelection" class="confirm-customer-button" type="button" disabled>确认此客户并进入补录</button>
       </section>
       <form id="verificationCreateForm" class="panel store-business-form workflow-action-panel business-step-disabled">
-        <div class="panel-heading"><div><h2>第三步：补录信息与人脸识别</h2><p id="selectedCustomerText"></p></div><span class="badge">补录 · 待审核</span></div>
+        <div class="panel-heading"><div><h2>第二步：补录信息与人脸识别</h2><p id="selectedCustomerText"></p></div><span class="badge">补录 · 待运营审核</span></div>
         <div class="store-business-grid"><label>项目<select id="verificationProject" required></select></label><label>业务老师<select id="verificationTeacher" required></select></label><label class="full-field">补录原因／老师留言<textarea id="verificationNote" rows="3" maxlength="500" required placeholder="必填：说明补录原因，留言将进入审核记录"></textarea></label></div>
         <section class="capture-panel workflow-capture-panel live-verification-panel">
           <div class="verification-camera-stage"><video id="verificationCamera" autoplay muted playsinline hidden></video><img id="verificationPhotoPreview" alt="现场补录人脸照片预览" hidden><div id="verificationCameraPlaceholder" class="camera-placeholder"><strong>等待打开摄像头</strong><span>现场照片只用于与当前所选客户进行 1:1 验证。</span></div><canvas id="verificationCaptureCanvas" hidden></canvas></div>
