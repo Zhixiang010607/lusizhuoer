@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.3";
+  const VERSION = "0.15.4";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -329,11 +329,11 @@
     const recordId = first(params.get("recordId"));
     const displayCode = first(params.get("recordCode"), recordId);
     const recordReference = first(recordId, displayCode);
-    const cached = findRecord(recordReference);
-    if (cached) { renderRecord(cached); return; }
     const source = clean(params.get("source")).toLowerCase();
+    const cached = findRecord(recordReference);
     const databaseReference = /^\d+$/.test(recordId) || /^[A-Z]{2}[A-Z0-9_-]{4,38}$/i.test(displayCode);
-    if (["review", "created", "query"].includes(source) || databaseReference) {
+    const shouldReadDatabase = ["review", "created", "query"].includes(source) || databaseReference || cached?.databaseBacked === true;
+    if (shouldReadDatabase) {
       renderMissing(displayCode);
       $("orderDescription").textContent = "正在从数据库读取该张工单…";
       $("orderStatus").className = "pending";
@@ -358,6 +358,7 @@
           : null;
         const record = normalizeDatabaseOrder(exactOrder);
         if (!record) throw new Error("数据库中未找到该张工单");
+        saveRecord(record);
         renderRecord(record);
       } catch (error) {
         renderMissing(displayCode);
@@ -365,6 +366,7 @@
       }
       return;
     }
+    if (cached) { renderRecord(cached); return; }
     const record = source === "created" ? null : recordFromQuery(recordReference);
     if (record) renderRecord(record);
     else renderMissing(displayCode);
