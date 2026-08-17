@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const VERSION = "0.17.2";
+  const VERSION = "0.17.3";
   const pageType = document.body.dataset.review;
   const recordType = pageType === "recharge" ? "RECHARGE" : "VERIFICATION";
   const columnCount = 10;
@@ -121,14 +121,15 @@
       const actions = item.status === "PENDING" && canDecide ? `<div class="review-actions"><button data-id="${escapeHtml(item.id)}" data-action="APPROVED">通过</button><button class="reject" data-id="${escapeHtml(item.id)}" data-action="REJECTED">驳回</button></div>` : `<span class="record-status status-${escapeHtml(statusText[item.status] || item.status)}">${escapeHtml(statusText[item.status] || item.status)}</span>`;
       const teacher = item.teacherName ? `${item.teacherName}${item.teacherId ? `（${item.teacherId}）` : ""}` : "—";
       const detailPage = pageType === "recharge" ? "recharge-detail.html" : "verification-detail.html";
-      const orderCode = item.id
+      const canOpenSupportingPages = session?.role !== "operation";
+      const orderCode = item.id && canOpenSupportingPages
         ? `<a class="record-link" href="${detailPage}?recordId=${encodeURIComponent(item.id)}&recordCode=${encodeURIComponent(item.recordCode)}&source=review" title="查看${pageType === "recharge" ? "充值" : "核销"}工单 ${escapeHtml(item.recordCode)}">${escapeHtml(item.recordCode)}</a>`
         : escapeHtml(item.recordCode);
       const customerText = `${item.customerName}${item.customerId ? `（${item.customerId}）` : ""}`;
       const customerHref = item.customerCode
         ? `customer-detail.html?customerId=${encodeURIComponent(item.customerCode)}&customerName=${encodeURIComponent(item.customerName)}&storeId=${encodeURIComponent(item.store.id)}`
         : "";
-      const customer = customerHref
+      const customer = customerHref && canOpenSupportingPages
         ? `<a class="record-link" href="${escapeHtml(customerHref)}" title="查看客户主页 ${escapeHtml(item.customerName)}">${escapeHtml(customerText)}</a>`
         : escapeHtml(customerText);
       return `<tr><td>${orderCode}</td><td>${escapeHtml(item.kind)}</td><td>${escapeHtml(item.store.name)}${item.store.code ? `（${escapeHtml(item.store.code)}）` : ""}</td><td>${customer}</td><td>${escapeHtml(item.project)}${item.projectId ? `（${escapeHtml(item.projectId)}）` : ""}</td><td>${escapeHtml(teacher)}</td><td>${escapeHtml(impactText(item))}</td><td>${escapeHtml(formatTime(item.time))}</td><td>${actions}</td><td>${escapeHtml(item.status === "PENDING" ? "—" : formatTime(item.reviewedAt))}</td></tr>`;

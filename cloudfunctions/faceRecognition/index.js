@@ -4,7 +4,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
-const FUNCTION_VERSION = "v35";
+const FUNCTION_VERSION = "v36";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -448,22 +448,14 @@ async function activeCustomerProfileCaller() {
     const store = await activeStoreCaller();
     return { ...store, role: "store" };
   }
-  if (["hq", "operation"].includes(account.role_code)) {
-    return { uid: String(uid), staffId: Number(account.staff_id), role: account.role_code, storeId: null };
+  if (account.role_code === "hq") {
+    return { uid: String(uid), staffId: Number(account.staff_id), role: "hq", storeId: null };
   }
   fail("当前登录身份无权查看客户主页。", "FORBIDDEN");
 }
 
 function customerProfileScope(caller, alias = "c") {
   if (caller.role === "store") return ` AND ${alias}.created_store_id = ${caller.storeId}`;
-  if (caller.role === "operation") {
-    return ` AND EXISTS (
-      SELECT 1 FROM public.operation_store_scopes oss
-       WHERE oss.operation_account_id = ${caller.staffId}
-         AND oss.store_id = ${alias}.created_store_id
-         AND oss.scope_status = 'ACTIVE'
-    )`;
-  }
   return "";
 }
 

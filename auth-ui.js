@@ -9,7 +9,7 @@
   const labels = { hq: "总部工作区", operation: "运营工作区", store: "门店工作区", teacher: "老师工作区" };
   const access = {
     hq: new Set(["index.html", "change-password.html", "store-create.html", "project-create.html", "teacher-create.html", "operation-account-create.html", "hq-account-create.html", "hq-management.html", "store-management.html", "project-management.html", "teacher-management.html", "operation-account-management.html", "staff-detail.html", "store-detail.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "verification-review.html"]),
-    operation: new Set(["local.html", "change-password.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "verification-review.html"]),
+    operation: new Set(["local.html", "recharge-review.html", "verification-review.html"]),
     store: new Set(["store-detail.html", "change-password.html", "customer-detail.html", "customer-query.html", "customer-create.html", "recharge-create.html", "verification-create.html", "verification-supplemental.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html"]),
     teacher: new Set(["teacher-work-orders.html", "change-password.html", "teacher-work-order-detail.html", "teacher-verification-create.html", "teacher-recharge-create.html"])
   };
@@ -68,8 +68,8 @@
       primarySectionTitle.className = "side-section-title";
       primaryNav.before(primarySectionTitle);
     }
-    primarySectionTitle.textContent = session.role === "hq" ? "数据看板" : "工作台";
-    const navLabel = session.role === "hq" ? "全局视图" : session.role === "operation" ? "运营分析" : session.role === "teacher" ? "我的工作台" : "门店首页";
+    primarySectionTitle.textContent = session.role === "hq" ? "数据看板" : session.role === "operation" ? "运营账号" : "工作台";
+    const navLabel = ["hq", "operation"].includes(session.role) ? "全局视图" : session.role === "teacher" ? "我的工作台" : "门店首页";
     const navIcon = session.role === "hq" ? "总" : session.role === "operation" ? "运" : session.role === "teacher" ? "师" : "店";
     primaryNav.innerHTML = `<a class="active" href="${homeUrl}"><span class="nav-icon">${navIcon}</span><span>${navLabel}</span></a>`;
     if (session.role === "store") {
@@ -81,19 +81,19 @@
     } else if (session.role === "teacher") {
       const businessLinks = [["teacher-verification-create.html", "办理核销"], ["teacher-recharge-create.html", "办理充值"]];
       primaryNav.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="teacher-business"><summary><span class="nav-icon">办</span><span>业务办理</span></summary><nav>${businessLinks.map(([href, text]) => `<a class="${page === href ? "active" : ""}" href="${href}">${text}</a>`).join("")}</nav></details>`);
+    } else if (session.role === "operation") {
+      document.querySelectorAll(".side-project-bar > .side-menu-group").forEach((group) => { group.hidden = true; });
     } else {
       const queryLinks = [["customer-query.html", "客户查询"], ["recharge-query.html", "充值查询"], ["verification-query.html", "核销查询"]];
       document.querySelectorAll(".side-project-bar > .side-menu-group").forEach((group) => {
         if (group.querySelector("summary")?.textContent.includes("查询")) group.hidden = true;
       });
       primaryNav.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="shared-query"><summary><span class="nav-icon">查</span><span>查询</span></summary><nav>${queryLinks.map(([href, text]) => `<a class="${page === href ? "active" : ""}" href="${href}">${text}</a>`).join("")}</nav></details>`);
-      if (session.role === "hq") {
-        document.querySelectorAll(".side-project-bar > .side-menu-group").forEach((group) => {
-          if (group.querySelector("summary")?.textContent.includes("管理")) group.hidden = true;
-        });
-        const managementLinks = [["store-management.html", "门店管理"], ["project-management.html", "产品管理"], ["teacher-management.html", "老师管理"], ["operation-account-management.html", "运营管理"], ["hq-management.html", "总部管理"]];
-        document.querySelector('[data-menu="shared-query"]')?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="hq-management"><summary><span class="nav-icon">管</span><span>管理</span></summary><nav>${managementLinks.map(([href, text]) => `<a class="${page === href ? "active" : ""}" href="${href}">${text}</a>`).join("")}</nav></details>`);
-      }
+      document.querySelectorAll(".side-project-bar > .side-menu-group").forEach((group) => {
+        if (group.querySelector("summary")?.textContent.includes("管理")) group.hidden = true;
+      });
+      const managementLinks = [["store-management.html", "门店管理"], ["project-management.html", "产品管理"], ["teacher-management.html", "老师管理"], ["operation-account-management.html", "运营管理"], ["hq-management.html", "总部管理"]];
+      document.querySelector('[data-menu="shared-query"]')?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="hq-management"><summary><span class="nav-icon">管</span><span>管理</span></summary><nav>${managementLinks.map(([href, text]) => `<a class="${page === href ? "active" : ""}" href="${href}">${text}</a>`).join("")}</nav></details>`);
     }
   }
 

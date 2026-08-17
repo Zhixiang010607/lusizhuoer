@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.9";
+  const VERSION = "0.15.10";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -387,6 +387,11 @@
   }
 
   async function initialize() {
+    if (readSession()?.role === "operation") {
+      renderMissing(first(params.get("recordCode"), params.get("recordId")));
+      $("orderDescription").textContent = "运营账号请在审核列表中查看并处理工单。";
+      return;
+    }
     const recordId = first(params.get("recordId"));
     const displayCode = first(params.get("recordCode"), recordId);
     const recordReference = first(recordId, displayCode);

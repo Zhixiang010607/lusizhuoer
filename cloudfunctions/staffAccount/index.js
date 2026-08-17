@@ -6,9 +6,10 @@
  * 业务身份只保存在 PostgreSQL 的 public.staff_accounts 表，绝不写入 user_desc JSON。
  */
 const ROLES = new Set(["hq", "operation", "store", "teacher"]);
+const OPERATION_ACTIONS = new Set(["listReviewOrders", "reviewOrder"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v35";
+const FUNCTION_VERSION = "v37";
 let app = null;
 let auth = null;
 let managerClient = null;
@@ -309,6 +310,48 @@ function validatePassword(password) {
   return value;
 }
 
+function strictDashboardDate(value, label) {
+  const text = String(value || "").trim();
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) fail(`${label}必须使用 YYYY-MM-DD 格式`, "BAD_REQUEST");
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(`${text}T00:00:00.000Z`);
+  if (
+    year < 1 ||
+    !Number.isFinite(parsed.valueOf()) ||
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() + 1 !== month ||
+    parsed.getUTCDate() !== day
+  ) {
+    fail(`${label}不是有效日期`, "BAD_REQUEST");
+  }
+  return text;
+}
+
+function dashboardDateRange(event) {
+  const rawStart = event.startDate === undefined || event.startDate === null
+    ? ""
+    : String(event.startDate).trim();
+  const rawEnd = event.endDate === undefined || event.endDate === null
+    ? ""
+    : String(event.endDate).trim();
+  if (Boolean(rawStart) !== Boolean(rawEnd)) {
+    fail("开始日期和结束日期必须同时提供", "BAD_REQUEST");
+  }
+  if (!rawStart) return null;
+
+  const startDate = strictDashboardDate(rawStart, "开始日期");
+  const endDate = strictDashboardDate(rawEnd, "结束日期");
+  const startTime = Date.parse(`${startDate}T00:00:00.000Z`);
+  const endTime = Date.parse(`${endDate}T00:00:00.000Z`);
+  if (startTime > endTime) fail("开始日期不能晚于结束日期", "BAD_REQUEST");
+  const days = Math.floor((endTime - startTime) / 86400000) + 1;
+  if (days > 366) fail("统计日期范围最多为 366 天", "BAD_REQUEST");
+  return { startDate, endDate, days };
+}
+
 function asDatabaseError(error, action) {
   if (error) fail(`${action}失败：${error.message || "数据库暂不可用"}`, "DATABASE_ERROR");
 }
@@ -321,7 +364,7 @@ async function findStaffProfile(uid) {
       ? "LEFT JOIN public.stores s ON s.store_account_id = a.id"
       : "LEFT JOIN public.staff_store_assignments sa ON sa.staff_account_id = a.id AND sa.assignment_status = 'ACTIVE' LEFT JOIN public.stores s ON s.id = sa.store_id";
     rows = await executeSql(
-      `SELECT a.id, a.staff_name, a.role_code, a.account_status,
+      `SELECT a.id, a.phone, a.staff_name, a.role_code, a.account_status,
         a.password_initialized_at, a.password_changed_at, a.password_change_required,
         s.id AS store_id, s.store_code, s.store_name, s.store_status, t.id AS teacher_id, t.teacher_status
        FROM public.staff_accounts a
@@ -351,6 +394,8 @@ async function findStaffProfile(uid) {
     staffCode: `${staff.role_code === "hq" ? "HQ" : staff.role_code === "operation" ? "OP" : staff.role_code === "teacher" ? "TCH" : "S"}${String(staff.id).padStart(3, "0")}`,
     role: staff.role_code,
     staffName: staff.staff_name,
+    phone: staff.phone || "",
+    accountStatus: staff.account_status || "",
     storeId,
     storeCode: staff.store_code || "",
     storeName: staff.store_name || "",
@@ -1191,6 +1236,198 @@ async function reviewOrder(caller, event) {
   return rows[0];
 }
 
+async function getHqDashboard(event) {
+  const requestedRange = dashboardDateRange(event);
+  const startDateSql = requestedRange
+    ? `${sqlText(requestedRange.startDate)}::date`
+    : "((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai')::date - 29)";
+  const endDateSql = requestedRange
+    ? `${sqlText(requestedRange.endDate)}::date`
+    : "(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai')::date";
+
+  let dashboardRows;
+  try {
+    dashboardRows = await executeSql(
+      `WITH date_bounds AS (
+         SELECT ${startDateSql} AS start_date,
+                ${endDateSql} AS end_date
+       ), bounds AS (
+         SELECT start_date,
+                end_date,
+                start_date::timestamp AT TIME ZONE 'Asia/Shanghai' AS start_at,
+                (end_date + 1)::timestamp AT TIME ZONE 'Asia/Shanghai' AS end_at
+           FROM date_bounds
+       ), recharge_by_store_product AS (
+         SELECT r.store_id,
+                r.product_id,
+                SUM(CASE WHEN r.recharge_type = 'VOID'
+                         THEN -r.unit_count::bigint
+                         ELSE r.unit_count::bigint END)::bigint AS recharge_count
+           FROM public.recharge_records r
+          CROSS JOIN bounds b
+          WHERE r.record_status = 'APPROVED'
+            AND r.submitted_at >= b.start_at
+            AND r.submitted_at < b.end_at
+          GROUP BY r.store_id, r.product_id
+       ), verification_groups AS (
+         SELECT v.store_id,
+                v.product_id,
+                v.teacher_id,
+                GROUPING(v.teacher_id)::integer AS teacher_rollup,
+                SUM(v.unit_count::bigint)::bigint AS verification_count
+           FROM public.verification_records v
+          CROSS JOIN bounds b
+          WHERE v.record_status = 'APPROVED'
+            AND v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')
+            AND v.submitted_at >= b.start_at
+            AND v.submitted_at < b.end_at
+          GROUP BY GROUPING SETS (
+            (v.store_id, v.product_id),
+            (v.store_id, v.product_id, v.teacher_id)
+          )
+       ), verification_by_store_product AS (
+         SELECT store_id,
+                product_id,
+                verification_count
+           FROM verification_groups
+          WHERE teacher_rollup = 1
+       ), verification_by_teacher AS (
+         SELECT store_id,
+                product_id,
+                teacher_id,
+                verification_count
+           FROM verification_groups
+          WHERE teacher_rollup = 0
+       ), store_product_rows AS (
+         SELECT COALESCE(r.store_id, v.store_id) AS store_id,
+                COALESCE(r.product_id, v.product_id) AS product_id,
+                COALESCE(r.recharge_count, 0)::bigint AS recharge_count,
+                COALESCE(v.verification_count, 0)::bigint AS verification_count
+           FROM recharge_by_store_product r
+           FULL OUTER JOIN verification_by_store_product v
+             ON v.store_id = r.store_id
+            AND v.product_id = r.product_id
+       ), totals AS (
+         SELECT COALESCE((SELECT SUM(recharge_count) FROM recharge_by_store_product), 0)::bigint AS recharge_count,
+                COALESCE((SELECT SUM(verification_count) FROM verification_by_store_product), 0)::bigint AS verification_count
+       ), result_rows AS (
+         SELECT 'TOTAL'::text AS row_type,
+                TO_CHAR(b.start_date, 'YYYY-MM-DD') AS start_date,
+                TO_CHAR(b.end_date, 'YYYY-MM-DD') AS end_date,
+                (b.end_date - b.start_date + 1)::integer AS range_days,
+                NULL::bigint AS store_id,
+                NULL::text AS store_code,
+                NULL::text AS store_name,
+                NULL::bigint AS product_id,
+                NULL::text AS product_code,
+                NULL::text AS product_name,
+                NULL::bigint AS teacher_id,
+                NULL::text AS teacher_code,
+                NULL::text AS teacher_name,
+                t.recharge_count,
+                t.verification_count
+           FROM bounds b
+          CROSS JOIN totals t
+         UNION ALL
+         SELECT 'ROW'::text,
+                TO_CHAR(b.start_date, 'YYYY-MM-DD'),
+                TO_CHAR(b.end_date, 'YYYY-MM-DD'),
+                (b.end_date - b.start_date + 1)::integer,
+                sp.store_id,
+                s.store_code::text,
+                s.store_name::text,
+                sp.product_id,
+                p.product_code::text,
+                p.product_name::text,
+                NULL::bigint,
+                NULL::text,
+                NULL::text,
+                sp.recharge_count,
+                sp.verification_count
+           FROM store_product_rows sp
+          CROSS JOIN bounds b
+      LEFT JOIN public.stores s ON s.id = sp.store_id
+      LEFT JOIN public.products p ON p.id = sp.product_id
+         UNION ALL
+         SELECT 'TEACHER'::text,
+                TO_CHAR(b.start_date, 'YYYY-MM-DD'),
+                TO_CHAR(b.end_date, 'YYYY-MM-DD'),
+                (b.end_date - b.start_date + 1)::integer,
+                vt.store_id,
+                s.store_code::text,
+                s.store_name::text,
+                vt.product_id,
+                p.product_code::text,
+                p.product_name::text,
+                vt.teacher_id,
+                teacher.teacher_code::text,
+                teacher.teacher_name::text,
+                0::bigint,
+                vt.verification_count
+           FROM verification_by_teacher vt
+          CROSS JOIN bounds b
+      LEFT JOIN public.stores s ON s.id = vt.store_id
+      LEFT JOIN public.products p ON p.id = vt.product_id
+      LEFT JOIN public.teachers teacher ON teacher.id = vt.teacher_id
+       )
+       SELECT *
+         FROM result_rows
+        ORDER BY CASE row_type WHEN 'TOTAL' THEN 0 WHEN 'ROW' THEN 1 ELSE 2 END,
+                 store_name NULLS LAST, store_id NULLS LAST,
+                 product_name NULLS LAST, product_id NULLS LAST,
+                 teacher_name NULLS LAST, teacher_id NULLS LAST`
+    );
+  } catch (error) {
+    asDatabaseError(error, "读取总部首页数据");
+  }
+
+  const totalRow = dashboardRows?.find((row) => row.row_type === "TOTAL");
+  if (!totalRow) fail("总部首页统计未返回日期范围", "DATABASE_ERROR");
+
+  const rows = (dashboardRows || []).filter((row) => row.row_type === "ROW").map((row) => ({
+    storeId: String(row.store_id),
+    storeCode: String(row.store_code || ""),
+    storeName: String(row.store_name || ""),
+    productId: String(row.product_id),
+    productCode: String(row.product_code || ""),
+    productName: String(row.product_name || ""),
+    recharge: Number(row.recharge_count || 0),
+    verification: Number(row.verification_count || 0)
+  }));
+  const teacherRows = (dashboardRows || []).filter((row) => row.row_type === "TEACHER").map((row) => ({
+    storeId: String(row.store_id),
+    storeCode: String(row.store_code || ""),
+    storeName: String(row.store_name || ""),
+    productId: String(row.product_id),
+    productCode: String(row.product_code || ""),
+    productName: String(row.product_name || ""),
+    teacherId: row.teacher_id === null || row.teacher_id === undefined ? "" : String(row.teacher_id),
+    teacherCode: String(row.teacher_code || ""),
+    teacherName: String(row.teacher_name || ""),
+    recharge: 0,
+    verification: Number(row.verification_count || 0)
+  }));
+
+  return {
+    ok: true,
+    version: FUNCTION_VERSION,
+    range: {
+      startDate: String(totalRow.start_date),
+      endDate: String(totalRow.end_date),
+      days: Number(totalRow.range_days),
+      timeZone: "Asia/Shanghai"
+    },
+    totals: {
+      recharge: Number(totalRow.recharge_count || 0),
+      verification: Number(totalRow.verification_count || 0),
+      stores: new Set(rows.map((row) => row.storeId).filter(Boolean)).size,
+      teachers: new Set(teacherRows.map((row) => row.teacherId).filter(Boolean)).size
+    },
+    rows,
+    teacherRows
+  };
+}
+
 async function main(event = {}) {
   const action = event.action || "session";
   if (action === "health") {
@@ -1214,6 +1451,13 @@ async function main(event = {}) {
       fail(`该手机号尚未被总部绑定业务身份。Current auth UID: ${caller.uid}`, "UNASSIGNED_PHONE");
     }
     return { ok: true, version: FUNCTION_VERSION, uid: caller.uid, profile: caller.profile };
+  }
+  if (caller.profile?.role === "operation" && !OPERATION_ACTIONS.has(action)) {
+    fail("运营账号仅可查看本人资料并审核业务工单", "FORBIDDEN");
+  }
+  if (action === "getHqDashboard") {
+    requireHq(caller);
+    return await getHqDashboard(event);
   }
   if (action === "bootstrapHq") {
     return { ok: true, profile: await ensureBootstrapHq(caller) };

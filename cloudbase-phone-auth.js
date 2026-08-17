@@ -249,6 +249,12 @@
       const data = await callStaffAccount({ action: "listStores" }, "门店列表读取失败");
       return data.stores || [];
     },
+    async getHqDashboard({ startDate, endDate } = {}) {
+      return callStaffAccount(
+        { action: "getHqDashboard", startDate, endDate },
+        "总部首页数据库统计读取失败"
+      );
+    },
     async createProduct({ productName, productType, description = "", clientRequestId = "" }) {
       return callStaffAccount(
         { action: "createProduct", productName, productType, description, clientRequestId },

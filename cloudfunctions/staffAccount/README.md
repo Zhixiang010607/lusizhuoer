@@ -1,6 +1,6 @@
 # staffAccount 云函数
 
-当前版本：`v35`
+当前版本：`v37`
 
 用于总部自动创建运营、门店和老师账号；前端只传姓名、手机号、角色和初始密码，云函数使用当前登录总部账号进行授权。
 
@@ -20,6 +20,20 @@
 仅以下原工单允许申请：已通过的正常充值（`NEW`）、正常核销（`NORMAL`）和
 补录核销（`SUPPLEMENT`）。体验核销（`EXPERIENCE`）及其他业务类型均禁止；
 待审核、已驳回、已作废或已经进入过作废审核生命周期的工单也禁止再次申请。
-总部或运营负责审核。部署 `v35` 前必须确认已依次执行迁移 `026` 至 `029`，
-然后执行 `database/migrations/032_restrict_order_void_eligibility.sql`。
-部署后调用 `{ "action": "health" }`，返回版本必须为 `v35`。
+总部或运营负责审核。运营账号只允许调用 `session`、`listReviewOrders` 和
+`reviewOrder`，其他员工、门店、产品、改密与作废申请动作均拒绝。
+`session.profile` 同时返回运营个人信息所需的 `phone` 和 `accountStatus`。
+`getHqDashboard` 仅允许总部账号调用，为总部全局首页返回真实数据库汇总：
+`{ ok, version, range, totals, rows, teacherRows }`。不传 `startDate` 和
+`endDate` 时，服务端按 `Asia/Shanghai` 当前日期返回包含当天的近 30 个自然日；
+自定义日期必须以 `YYYY-MM-DD` 同时传入，开始日期不得晚于结束日期，范围最多
+366 日。统计只包含当前仍为 `APPROVED` 的工单，充值按 `unit_count` 汇总并兼容
+历史 `VOID` 反向记录，核销包含 `NORMAL`、`SUPPLEMENT` 和 `EXPERIENCE`；
+已封存的门店、项目和老师历史数据仍保留。运营账号不在该动作白名单内。
+总部首页部署前还需单独执行迁移
+`035_hq_dashboard_approved_covering_indexes.sql`，为两张工单表的已通过日期范围聚合提供覆盖索引。
+
+部署 `v37` 前必须确认已依次执行迁移 `026` 至 `029`，
+然后执行 `database/migrations/032_restrict_order_void_eligibility.sql`，并继续完成
+`033`、`034` 和 `035`。
+部署后调用 `{ "action": "health" }`，返回版本必须为 `v37`。

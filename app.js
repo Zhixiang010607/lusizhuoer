@@ -2,47 +2,173 @@
   "use strict";
 
   // 文档同步约束：每次业务或界面变更都必须同步更新 main.tex 与 README.md。
-  const PROTOTYPE_VERSION = "0.14.20";
-
-  // Start with an empty dataset. Real dashboard data is supplied by the backend later.
-  class EmptyDataSource {
-    async load() {
-      return { stores: [], teachers: [], projects: [], rows: [], teacherRows: [] };
-    }
-  }
+  const PROTOTYPE_VERSION = "0.15.0";
+  const BUSINESS_TIME_ZONE = "Asia/Shanghai";
+  const EMPTY_DATA = Object.freeze({
+    stores: [],
+    teachers: [],
+    projects: [],
+    rows: [],
+    teacherRows: [],
+    totals: { recharge: 0, verification: 0, stores: 0, teachers: 0 }
+  });
 
   const $ = (id) => document.getElementById(id);
   const fmt = new Intl.NumberFormat("zh-CN");
-  const state = { data: null, breakdowns: new Set(), view: document.body.dataset.view || "global" };
+  const state = {
+    data: EMPTY_DATA,
+    breakdowns: new Set(),
+    view: document.body.dataset.view || "global",
+    requestSequence: 0,
+    requestState: "idle",
+    requestError: "",
+    retryable: false,
+    loadedAt: null,
+    range: null
+  };
   const dimensionLabels = { store: "门店", project: "项目", teacher: "老师" };
-  const filters = ["period", "dateFrom", "dateTo", "store", "project", "teacher", "limit", "search"];
+  const dateFilters = ["period", "dateFrom", "dateTo"];
+
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;"
+    })[character]);
+  }
+
+  function csvCell(value) {
+    let text = String(value ?? "");
+    if (/^\s*[=+\-@]/.test(text)) text = `'${text}`;
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+
+  function finiteCount(value, fallback = 0) {
+    if (value === null || value === undefined || value === "") return fallback;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+  }
+
+  function finiteNumber(value, fallback = 0) {
+    if (value === null || value === undefined || value === "") return fallback;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  function pick(source, ...keys) {
+    for (const key of keys) {
+      if (source?.[key] !== null && source?.[key] !== undefined && source[key] !== "") return source[key];
+    }
+    return "";
+  }
+
+  function entityLabel(name, code, fallback) {
+    const cleanName = String(name || "").trim();
+    const cleanCode = String(code || "").trim();
+    if (cleanName && cleanCode && !cleanName.includes(cleanCode)) return `${cleanName} · ${cleanCode}`;
+    return cleanName || cleanCode || fallback;
+  }
+
+  function normalizeRows(rows, teacherContext = false) {
+    if (!Array.isArray(rows)) return [];
+    return rows.map((row) => {
+      const storeId = String(pick(row, "storeId", "store_id"));
+      const projectId = String(pick(row, "projectId", "productId", "product_id"));
+      const teacherId = String(pick(row, "teacherId", "teacher_id"));
+      return {
+        storeId,
+        store: entityLabel(
+          pick(row, "store", "storeName", "store_name"),
+          pick(row, "storeCode", "store_code"),
+          storeId ? `门店 ${storeId}` : "未指定门店"
+        ),
+        projectId,
+        project: entityLabel(
+          pick(row, "project", "product", "productName", "product_name"),
+          pick(row, "projectCode", "productCode", "product_code"),
+          projectId ? `项目 ${projectId}` : "未指定项目"
+        ),
+        teacherId,
+        teacher: teacherContext ? entityLabel(
+          pick(row, "teacher", "teacherName", "teacher_name"),
+          pick(row, "teacherCode", "teacher_code"),
+          teacherId ? `老师 ${teacherId}` : "未指定老师"
+        ) : "",
+        recharge: finiteNumber(pick(row, "recharge", "rechargeCount", "recharge_count")),
+        verification: finiteCount(pick(row, "verification", "verificationCount", "verification_count"))
+      };
+    });
+  }
+
+  function normalizeDashboard(payload, requestedRange) {
+    const source = payload?.dashboard && typeof payload.dashboard === "object" ? payload.dashboard : payload;
+    if (!source || typeof source !== "object") throw new Error("数据库返回的数据格式不正确");
+    const rows = normalizeRows(source.rows);
+    const teacherRows = normalizeRows(source.teacherRows || source.teacher_rows, true);
+    const totals = source.totals || {};
+    const derivedRecharge = rows.reduce((sum, row) => sum + row.recharge, 0);
+    const derivedVerification = rows.reduce((sum, row) => sum + row.verification, 0);
+    const derivedStores = new Set(rows.map((row) => row.storeId).filter(Boolean)).size;
+    const derivedTeachers = new Set(teacherRows.map((row) => row.teacherId).filter(Boolean)).size;
+    return {
+      stores: Array.isArray(source.stores) ? source.stores : [],
+      teachers: Array.isArray(source.teachers) ? source.teachers : [],
+      projects: Array.isArray(source.projects) ? source.projects : [],
+      rows,
+      teacherRows,
+      totals: {
+        recharge: finiteNumber(pick(totals, "recharge", "rechargeCount", "recharge_count"), derivedRecharge),
+        verification: finiteCount(pick(totals, "verification", "verificationCount", "verification_count"), derivedVerification),
+        stores: finiteCount(pick(totals, "stores", "storeCount", "store_count"), derivedStores),
+        teachers: finiteCount(pick(totals, "teachers", "teacherCount", "teacher_count"), derivedTeachers)
+      },
+      range: {
+        startDate: String(pick(source.range, "startDate", "start_date") || requestedRange.startDate),
+        endDate: String(pick(source.range, "endDate", "end_date") || requestedRange.endDate),
+        timeZone: String(pick(source.range, "timeZone", "time_zone") || BUSINESS_TIME_ZONE)
+      }
+    };
+  }
+
+  function businessToday() {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: BUSINESS_TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).formatToParts(new Date());
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    return new Date(Date.UTC(Number(values.year), Number(values.month) - 1, Number(values.day)));
+  }
 
   function toDateInput(date) {
     const pad = (value) => String(value).padStart(2, "0");
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
   }
 
   function setPeriodDates(period) {
-    const today = new Date();
-    const year = today.getFullYear();
+    const today = businessToday();
+    const year = today.getUTCFullYear();
     let start;
     let end = new Date(today);
     if (period === "thisWeek") {
-      const weekday = today.getDay() || 7;
+      const weekday = today.getUTCDay() || 7;
       start = new Date(today);
-      start.setDate(today.getDate() - weekday + 1);
+      start.setUTCDate(today.getUTCDate() - weekday + 1);
     } else if (period === "thisMonth") {
-      start = new Date(year, today.getMonth(), 1);
+      start = new Date(Date.UTC(year, today.getUTCMonth(), 1));
     } else if (period === "last7" || period === "last30") {
       const days = period === "last7" ? 7 : 30;
       start = new Date(today);
-      start.setDate(today.getDate() - days + 1);
+      start.setUTCDate(today.getUTCDate() - days + 1);
     } else if (period === "ytd") {
-      start = new Date(year, 0, 1);
+      start = new Date(Date.UTC(year, 0, 1));
     } else if (/^q[1-4]$/.test(period)) {
       const quarter = Number(period.slice(1));
-      start = new Date(year, (quarter - 1) * 3, 1);
-      const naturalEnd = new Date(year, quarter * 3, 0);
+      start = new Date(Date.UTC(year, (quarter - 1) * 3, 1));
+      const naturalEnd = new Date(Date.UTC(year, quarter * 3, 0));
       end = start > today ? naturalEnd : new Date(Math.min(naturalEnd.getTime(), today.getTime()));
     } else {
       return;
@@ -53,17 +179,25 @@
     $("dateTo").syncChineseDate?.();
   }
 
+  function parseDateInput(value) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return null;
+    const [year, month, day] = String(value).split("-").map(Number);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    return toDateInput(parsed) === value ? parsed : null;
+  }
+
   function selectedRange() {
-    const start = new Date(`${$("dateFrom").value}T00:00:00`);
-    const selectedEnd = new Date(`${$("dateTo").value}T23:59:59`);
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-    if (!Number.isFinite(start.getTime()) || !Number.isFinite(selectedEnd.getTime()) || start > today) {
-      return { days: 0, isFuture: true };
-    }
-    const end = new Date(Math.min(selectedEnd.getTime(), today.getTime()));
-    const days = Math.max(0, Math.floor((end - start) / 86400000) + 1);
-    return { days, isFuture: false };
+    const startDate = $("dateFrom").value;
+    const endDate = $("dateTo").value;
+    const start = parseDateInput(startDate);
+    const end = parseDateInput(endDate);
+    if (!start || !end) return { valid: false, message: "请选择完整的开始日期和结束日期" };
+    if (start > end) return { valid: false, message: "开始日期不能晚于结束日期" };
+    const today = businessToday();
+    if (start > today || end > today) return { valid: false, message: "统计日期不能晚于今天" };
+    const days = Math.floor((end - start) / 86400000) + 1;
+    if (days > 366) return { valid: false, message: "单次统计范围不能超过 366 天" };
+    return { valid: true, startDate, endDate, days };
   }
 
   function fillSelect(id, items, valueKey, labelKey) {
@@ -81,21 +215,19 @@
     const project = $("project").value;
     const teacherId = $("teacher").value;
     const q = $("search").value.trim().toLowerCase();
-    const range = selectedRange();
-    const factor = Math.min(range.days / 365, 1);
     const rows = state.data.rows.filter((r) =>
       (storeId === "all" || r.storeId === storeId) &&
       (project === "all" || r.project === project) &&
       (!q || `${r.store} ${r.storeId} ${r.project}`.toLowerCase().includes(q))
-    ).map((r) => ({ ...r, recharge: Math.round(r.recharge * factor), verification: Math.round(r.verification * factor) }));
+    );
     const teacherRows = state.data.teacherRows.filter((r) =>
       (storeId === "all" || r.storeId === storeId) &&
       (teacherId === "all" || r.teacherId === teacherId) &&
       (project === "all" || r.project === project) &&
       (!q || `${r.store} ${r.storeId} ${r.teacher} ${r.teacherId} ${r.project}`.toLowerCase().includes(q))
-    ).map((r) => ({ ...r, recharge: Math.round(r.recharge * factor), verification: Math.round(r.verification * factor) }));
+    );
     const localViewNeedsObject = state.view === "local" && selectedDimensions().length === 0;
-    return { rows: range.isFuture || localViewNeedsObject ? [] : rows, teacherRows: range.isFuture || localViewNeedsObject ? [] : teacherRows };
+    return { rows: localViewNeedsObject ? [] : rows, teacherRows: localViewNeedsObject ? [] : teacherRows };
   }
 
   function aggregate(rows, key) {
@@ -150,34 +282,19 @@
   }
 
   function renderMetrics(rows, teacherRows) {
-    const teacherSelected = $("teacher").value !== "all";
-    const metricRows = teacherSelected ? teacherRows : rows;
-    const recharge = metricRows.reduce((s, r) => s + r.recharge, 0);
-    const verification = metricRows.reduce((s, r) => s + r.verification, 0);
+    const totals = state.data.totals || {};
+    const derivedRecharge = rows.reduce((sum, row) => sum + row.recharge, 0);
+    const derivedVerification = rows.reduce((sum, row) => sum + row.verification, 0);
+    const recharge = finiteNumber(totals.recharge, derivedRecharge);
+    const verification = finiteCount(totals.verification, derivedVerification);
+    const stores = finiteCount(totals.stores, new Set(rows.map((row) => row.storeId).filter(Boolean)).size);
+    const teachers = finiteCount(totals.teachers, new Set(teacherRows.map((row) => row.teacherId).filter(Boolean)).size);
     $("rechargeTotal").textContent = fmt.format(recharge);
     $("verificationTotal").textContent = fmt.format(verification);
-    $("rechargeDelta").textContent = `较上一周期 +${(3.2 + rows.length % 7).toFixed(1)}%`;
-    $("verificationDelta").textContent = `较上一周期 +${(1.8 + teacherRows.length % 5).toFixed(1)}%`;
-    $("storeTotal").textContent = new Set(metricRows.map((r) => r.storeId)).size;
-    $("teacherTotal").textContent = new Set(teacherRows.map((r) => r.teacherId)).size;
-  }
-
-  function renderTrend(rows, teacherRows) {
-    if (!$("trendChart")) return;
-    const trendRows = $("teacher").value !== "all" ? teacherRows : rows;
-    if (!trendRows.length) {
-      $("trendChart").innerHTML = `<div class="empty-state">所选时间周期暂无有效充值或核销数据</div>`;
-      return;
-    }
-    const days = Math.max(1, Math.min(selectedRange().days, 45));
-    const totalR = trendRows.reduce((s, r) => s + r.recharge, 0);
-    const totalV = trendRows.reduce((s, r) => s + r.verification, 0);
-    const pointsR = Array.from({ length: days }, (_, i) => 35 + (Math.sin(i * .65) + 1.3) * totalR / Math.max(days, 1) / 2.9 + (i % 5) * 3);
-    const pointsV = Array.from({ length: days }, (_, i) => 30 + (Math.cos(i * .55) + 1.4) * totalV / Math.max(days, 1) / 2.6 + (i % 4) * 2);
-    const max = Math.max(...pointsR, ...pointsV, 1);
-    const path = (values) => values.map((v, i) => `${i ? "L" : "M"}${45 + i * (810 / Math.max(values.length - 1, 1))},${225 - v / max * 180}`).join(" ");
-    const grid = [0, 1, 2, 3, 4].map((i) => `<line class="grid-line" x1="45" y1="${45 + i * 45}" x2="855" y2="${45 + i * 45}"/>`).join("");
-    $("trendChart").innerHTML = `<div class="chart-legend"><span><i class="legend-dot" style="background:#1f5eff"></i>有效充值</span><span><i class="legend-dot" style="background:#00a884"></i>有效核销</span></div><svg class="trend-svg" viewBox="0 0 900 260" preserveAspectRatio="none">${grid}<path class="trend-recharge" d="${path(pointsR)}"/><path class="trend-verification" d="${path(pointsV)}"/><text class="axis-text" x="45" y="250">${$("dateFrom").value}</text><text class="axis-text" x="790" y="250">${$("dateTo").value}</text></svg>`;
+    $("rechargeDelta").textContent = "数据库有效记录";
+    $("verificationDelta").textContent = "数据库有效记录";
+    $("storeTotal").textContent = fmt.format(stores);
+    $("teacherTotal").textContent = fmt.format(teachers);
   }
 
   function limited(items) {
@@ -198,23 +315,47 @@
     return { max, step, ticks };
   }
 
+  function signedAxis(values) {
+    const minimum = Math.min(0, ...values);
+    const maximum = Math.max(0, ...values);
+    if (minimum >= 0) {
+      const positive = flexibleAxis(maximum);
+      return { min: 0, max: positive.max, step: positive.step, ticks: positive.ticks };
+    }
+    const positive = flexibleAxis(Math.max(Math.abs(minimum), maximum), 4);
+    const ticks = [];
+    for (let tick = -positive.max; tick <= positive.max; tick += positive.step) ticks.push(tick);
+    return { min: -positive.max, max: positive.max, step: positive.step, ticks };
+  }
+
   function barChartMarkup(sourceRows, dimension, verificationOnly = false) {
     const items = limited(aggregate(sourceRows, dimension));
     if (!items.length) return `<div class="empty-state">当前筛选与分类范围内暂无有效数据</div>`;
     const series = verificationOnly ? ["verification"] : ["recharge", "verification"];
-    const largestValue = Math.max(...items.flatMap((x) => series.map((key) => x[key])), 0);
-    const axis = flexibleAxis(largestValue);
+    const values = items.flatMap((x) => series.map((key) => x[key]));
+    const axis = signedAxis(values);
+    const axisRange = axis.max - axis.min;
     const tickMarkup = axis.ticks.map((tick) => {
-      const top = 20 + (1 - tick / axis.max) * 240;
+      const top = 20 + (axis.max - tick) / axisRange * 240;
       return `<span class="bar-axis-tick" style="top:${top}px">${fmt.format(tick)}</span>`;
     }).join("");
     const gridMarkup = axis.ticks.map((tick) => {
-      const top = 20 + (1 - tick / axis.max) * 240;
-      return `<i class="bar-grid-line" style="top:${top}px"></i>`;
+      const top = 20 + (axis.max - tick) / axisRange * 240;
+      return `<i class="bar-grid-line ${tick === 0 ? "zero" : ""}" style="top:${top}px"></i>`;
     }).join("");
-    const barsMarkup = items.map((x) => `<button class="bar-group" data-name="${x.name}" title="${x.name}：${verificationOnly ? `核销 ${x.verification}` : `充值 ${x.recharge}，核销 ${x.verification}`}"><span class="bars ${verificationOnly ? "single" : ""}">${series.map((key) => `<i class="bar ${key}" style="height:${x[key] / axis.max * 100}%"></i>`).join("")}</span><span class="bar-label">${x.name}</span></button>`).join("");
-    const legend = verificationOnly ? `<span><i class="legend-dot" style="background:#00a884"></i>有效核销</span>` : `<span><i class="legend-dot" style="background:#1f5eff"></i>有效充值</span><span><i class="legend-dot" style="background:#00a884"></i>有效核销</span>`;
-    return `<div class="bar-scroll"><div class="chart-legend">${legend}<span>纵轴：次数 · 间隔 ${fmt.format(axis.step)}</span></div><div class="bar-chart-body"><div class="bar-y-axis"><strong>次数</strong>${tickMarkup}</div><div class="bar-plot-scroll"><div class="bar-canvas" aria-label="纵轴从0到${axis.max}次，每${axis.step}次一个刻度">${gridMarkup}${barsMarkup}</div></div></div></div>`;
+    const barsMarkup = items.map((x) => {
+      const safeName = escapeHtml(x.name);
+      const safeTitle = escapeHtml(`${x.name}：${verificationOnly ? `核销 ${x.verification}` : `充值 ${x.recharge}，核销 ${x.verification}`}`);
+      return `<button class="bar-group" data-name="${safeName}" title="${safeTitle}"><span class="bars ${verificationOnly ? "single" : ""}">${series.map((key, index) => {
+        const value = x[key];
+        const top = (axis.max - Math.max(value, 0)) / axisRange * 100;
+        const height = Math.abs(value) / axisRange * 100;
+        return `<i class="bar ${key} ${value < 0 ? "negative" : ""} ${value === 0 ? "zero-value" : ""}" style="--bar-index:${index};top:${top}%;height:${height}%"></i>`;
+      }).join("")}</span><span class="bar-label">${safeName}</span></button>`;
+    }).join("");
+    const hasNegative = values.some((value) => value < 0);
+    const legend = verificationOnly ? `<span><i class="legend-dot" style="background:#00a884"></i>有效核销</span>` : `<span><i class="legend-dot" style="background:#1f5eff"></i>有效充值</span><span><i class="legend-dot" style="background:#00a884"></i>有效核销</span>${hasNegative ? `<span><i class="legend-dot" style="background:#b42318"></i>历史冲销（负值）</span>` : ""}`;
+    return `<div class="bar-scroll"><div class="chart-legend">${legend}<span>纵轴：次数 · 间隔 ${fmt.format(axis.step)}</span></div><div class="bar-chart-body"><div class="bar-y-axis"><strong>次数</strong>${tickMarkup}</div><div class="bar-plot-scroll"><div class="bar-canvas" aria-label="纵轴从${axis.min}到${axis.max}次，每${axis.step}次一个刻度">${gridMarkup}${barsMarkup}</div></div></div></div>`;
   }
 
   function renderAnalysis(rows, teacherRows) {
@@ -225,7 +366,7 @@
       $("analysisGrid").innerHTML = `<article class="panel chart-card"><div class="empty-state">${message}</div></article>`;
       return;
     }
-    const scopeName = selected.length ? selected.map((key) => $(key).selectedOptions[0].text).join(" · ") : "全局";
+    const scopeName = escapeHtml(selected.length ? selected.map((key) => $(key).selectedOptions[0].text).join(" · ") : "全局");
     $("analysisGrid").innerHTML = dimensions.map((dimension) => {
       const isTeacher = dimension === "teacher";
       const teacherContext = isTeacher || selected.includes("teacher");
@@ -244,21 +385,24 @@
   function renderRanking(rows, teacherRows) {
     const dimension = rankingDimension();
     const teacherContext = dimension === "teacher" || selectedDimensions().includes("teacher");
-    const items = limited(aggregate(teacherContext ? teacherRows : rows, dimension));
+    const items = aggregate(teacherContext ? teacherRows : rows, dimension);
     const total = items.reduce((s, x) => s + x.verification, 0) || 1;
-    $("rankingBody").innerHTML = items.map((x, i) => `<tr data-name="${x.name}"><td>${i + 1}</td><td>${x.name}</td><td>按${dimensionLabels[dimension]}</td><td>${teacherContext ? "—" : fmt.format(x.recharge)}</td><td>${fmt.format(x.verification)}</td><td>${(x.verification / total * 100).toFixed(1)}%</td></tr>`).join("") || `<tr><td colspan="6">没有符合条件的数据</td></tr>`;
+    $("rankingBody").innerHTML = items.map((x, i) => {
+      const safeName = escapeHtml(x.name);
+      return `<tr data-name="${safeName}"><td>${i + 1}</td><td>${safeName}</td><td>按${dimensionLabels[dimension]}</td><td>${teacherContext ? "—" : fmt.format(x.recharge)}</td><td>${fmt.format(x.verification)}</td><td>${(x.verification / total * 100).toFixed(1)}%</td></tr>`;
+    }).join("") || `<tr><td colspan="6">当前日期范围暂无有效数据</td></tr>`;
   }
 
   function renderScope() {
     const text = `${$("dateFrom").value} 至 ${$("dateTo").value} · ${$("store").selectedOptions[0].text} · ${$("project").selectedOptions[0].text} · ${$("teacher").selectedOptions[0].text}`;
-    $("scopeText").textContent = `当前统计范围：${text}；客户范围：全部客户（含活跃及已存档）`;
+    const updatedAt = state.loadedAt ? state.loadedAt.toLocaleTimeString("zh-CN", { hour12: false }) : "—";
+    $("scopeText").textContent = `当前统计范围：${text}；客户范围：全部客户（含活跃及已存档）；数据库更新：${updatedAt}`;
   }
 
   function render() {
     const { rows, teacherRows } = currentData();
     renderBreakdownControls();
     renderMetrics(rows, teacherRows);
-    renderTrend(rows, teacherRows);
     renderAnalysis(rows, teacherRows);
     renderRanking(rows, teacherRows);
     renderScope();
@@ -270,37 +414,124 @@
   }
 
   function exportCsv() {
+    if (state.requestState !== "ready") return;
     const { rows, teacherRows } = currentData();
     const teacherContext = rankingDimension() === "teacher" || selectedDimensions().includes("teacher");
-    const csv = teacherContext
-      ? ["门店编号,门店,老师编号,老师,项目,有效充值次数,有效核销次数", ...teacherRows.map((r) => [r.storeId, r.store, r.teacherId, r.teacher, r.project, r.recharge, r.verification].join(","))].join("\n")
-      : ["门店编号,门店,项目,有效充值次数,有效核销次数", ...rows.map((r) => [r.storeId, r.store, r.project, r.recharge, r.verification].join(","))].join("\n");
+    const values = teacherContext
+      ? [["门店编号", "门店", "老师编号", "老师", "项目", "有效充值次数", "有效核销次数"], ...teacherRows.map((row) => [row.storeId, row.store, row.teacherId, row.teacher, row.project, row.recharge, row.verification])]
+      : [["门店编号", "门店", "项目", "有效充值次数", "有效核销次数"], ...rows.map((row) => [row.storeId, row.store, row.project, row.recharge, row.verification])];
+    const csv = values.map((row) => row.map(csvCell).join(",")).join("\r\n");
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }));
     link.download = "总部看板当前筛选数据.csv";
     link.click();
-    URL.revokeObjectURL(link.href);
+    window.setTimeout(() => URL.revokeObjectURL(link.href), 0);
   }
 
-  async function init() {
-    document.documentElement.dataset.prototypeVersion = PROTOTYPE_VERSION;
-    state.data = await new EmptyDataSource().load();
-    fillSelect("store", state.data.stores, "id", "name");
-    fillSelect("project", state.data.projects);
-    fillSelect("teacher", state.data.teachers, "id", "name");
-    setPeriodDates("last30");
-    filters.forEach((id) => $(id).addEventListener(id === "search" ? "input" : "change", () => {
-      if (id === "period" && $("period").value !== "custom") setPeriodDates($("period").value);
-      if (id === "dateFrom" || id === "dateTo") $("period").value = "custom";
-      if (["store", "project", "teacher"].includes(id)) resetBreakdowns();
+  function setControlsLoading(loading) {
+    dateFilters.forEach((id) => {
+      $(id).disabled = loading;
+      $(id).syncChineseDate?.();
+    });
+    $("reset").disabled = loading;
+    $("exportBtn").disabled = loading || state.requestState !== "ready";
+    $("rankingDimension").disabled = loading || state.requestState !== "ready";
+    document.querySelectorAll("[data-drill]").forEach((button) => {
+      button.disabled = loading || state.requestState !== "ready";
+    });
+    $("dashboardMain").setAttribute("aria-busy", loading ? "true" : "false");
+  }
+
+  function renderRequestState(message, kind) {
+    const safeMessage = escapeHtml(message);
+    ["rechargeTotal", "verificationTotal", "storeTotal", "teacherTotal"].forEach((id) => { $(id).textContent = "—"; });
+    $("rechargeDelta").textContent = kind === "loading" ? "正在读取数据库" : "数据库读取失败";
+    $("verificationDelta").textContent = kind === "loading" ? "正在读取数据库" : "数据库读取失败";
+    $("analysisGrid").innerHTML = `<article class="panel chart-card dashboard-request-state ${kind}"><div class="empty-state">${safeMessage}</div></article>`;
+    $("rankingBody").innerHTML = `<tr><td colspan="6">${safeMessage}</td></tr>`;
+    $("scopeText").textContent = message;
+    $("dashboardRetry").hidden = !(kind === "error" && state.retryable);
+  }
+
+  function beginRequest() {
+    state.requestState = "loading";
+    state.requestError = "";
+    state.retryable = false;
+    state.loadedAt = null;
+    state.data = EMPTY_DATA;
+    setControlsLoading(true);
+    renderRequestState("正在从数据库读取总部统计数据…", "loading");
+  }
+
+  function failRequest(message, retryable) {
+    state.requestState = "error";
+    state.requestError = message;
+    state.retryable = retryable;
+    state.loadedAt = null;
+    state.data = EMPTY_DATA;
+    setControlsLoading(false);
+    renderRequestState(message, "error");
+  }
+
+  async function loadDashboard() {
+    const range = selectedRange();
+    if (!range.valid) {
+      state.requestSequence += 1;
+      failRequest(range.message, false);
+      return;
+    }
+
+    const sequence = ++state.requestSequence;
+    beginRequest();
+    try {
+      if (typeof window.CloudBasePhoneAuth?.getHqDashboard !== "function") {
+        throw new Error("总部数据库服务未加载，请刷新页面后重试");
+      }
+      const payload = await window.CloudBasePhoneAuth.getHqDashboard({
+        startDate: range.startDate,
+        endDate: range.endDate
+      });
+      if (sequence !== state.requestSequence) return;
+      const data = normalizeDashboard(payload, range);
+      state.data = data;
+      state.range = data.range;
+      state.loadedAt = new Date();
+      state.requestState = "ready";
+      state.requestError = "";
+      state.retryable = false;
+      resetBreakdowns();
+      setControlsLoading(false);
+      $("dashboardRetry").hidden = true;
       render();
+    } catch (error) {
+      if (sequence !== state.requestSequence) return;
+      failRequest(error?.message || "总部首页数据库统计读取失败，请稍后重试", true);
+    }
+  }
+
+  function init() {
+    document.documentElement.dataset.prototypeVersion = PROTOTYPE_VERSION;
+    setPeriodDates("last30");
+    dateFilters.forEach((id) => $(id).addEventListener("change", () => {
+      if (id === "period" && $("period").value !== "custom") {
+        setPeriodDates($("period").value);
+      } else if (id === "dateFrom" || id === "dateTo") {
+        $("period").value = "custom";
+      }
+      void loadDashboard();
     }));
     $("reset").addEventListener("click", () => {
       ["store", "project", "teacher"].forEach((id) => $(id).value = "all");
-      $("period").value = "last30"; $("limit").value = "10"; $("search").value = ""; setPeriodDates("last30"); resetBreakdowns(); render();
+      $("period").value = "last30";
+      $("limit").value = "10";
+      $("search").value = "";
+      setPeriodDates("last30");
+      void loadDashboard();
     });
+    $("dashboardRetry").addEventListener("click", () => { void loadDashboard(); });
     $("exportBtn").addEventListener("click", exportCsv);
     if ($("rankingDimension")) $("rankingDimension").addEventListener("change", () => {
+      if (state.requestState !== "ready") return;
       const { rows, teacherRows } = currentData();
       renderRanking(rows, teacherRows);
     });
@@ -308,11 +539,12 @@
     document.addEventListener("click", (event) => {
       const card = event.target.closest("[data-drill]");
       const point = event.target.closest("[data-name]");
+      if (state.requestState !== "ready") return;
       if (card) showDetail(card.dataset.drill === "recharge" ? "有效充值明细" : "有效核销明细");
       else if (point) showDetail(`${point.dataset.name} 的有效明细`);
     });
     resetBreakdowns();
-    render();
+    void loadDashboard();
   }
 
   init();

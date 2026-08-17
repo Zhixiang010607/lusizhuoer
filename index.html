@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>总部数据看板</title>
-  <link rel="stylesheet" href="styles.css?v=0.14.51">
+  <link rel="stylesheet" href="styles.css?v=0.14.58">
 </head>
 <body data-view="global">
   <aside class="side-project-bar" aria-label="项目栏">
@@ -12,7 +12,6 @@
     <p class="side-section-title">数据看板</p>
     <nav class="side-nav">
       <a class="active" href="index.html"><span class="nav-icon">全</span><span>全局视图</span></a>
-      <a href="local.html"><span class="nav-icon">局</span><span>局部分析</span></a>
     </nav>
     <details class="side-menu-group">
       <summary><span class="nav-icon">管</span><span>管理</span></summary>
@@ -25,14 +24,14 @@
     <div>
       <p class="eyebrow">HEADQUARTERS ANALYTICS</p>
       <h1>总部数据看板</h1>
-      <p class="subtitle">静态交互原型 · 本地示例数据</p>
+      <p class="subtitle">真实数据库统计 · 默认显示最近 30 日</p>
     </div>
     <div class="header-actions">
-      <div class="status"><span></span>本地模式</div>
+      <div class="status"><span></span>数据库模式</div>
     </div>
   </header>
 
-  <main>
+  <main id="dashboardMain" aria-busy="true">
     <section class="panel filters" aria-label="全局时间筛选">
       <div class="filter-grid global-filter-grid">
         <label>时间周期
@@ -61,23 +60,26 @@
       </div>
       <div id="breakdownControls" class="hidden-controls" aria-hidden="true"></div>
       <div class="filter-actions">
-        <p id="scopeText">统计范围</p>
+        <div class="dashboard-scope-status">
+          <p id="scopeText" role="status" aria-live="polite">正在连接数据库…</p>
+          <button id="dashboardRetry" class="dashboard-retry" type="button" hidden>重新读取</button>
+        </div>
         <button id="reset" type="button">重置筛选</button>
       </div>
     </section>
 
     <section class="metric-grid" aria-label="核心指标">
       <button class="metric-card" data-drill="recharge">
-        <span>有效充值次数</span><strong id="rechargeTotal">0</strong><small id="rechargeDelta">—</small>
+        <span>有效充值次数</span><strong id="rechargeTotal">—</strong><small id="rechargeDelta">数据库有效记录</small>
       </button>
       <button class="metric-card" data-drill="verification">
-        <span>有效核销次数</span><strong id="verificationTotal">0</strong><small id="verificationDelta">—</small>
+        <span>有效核销次数</span><strong id="verificationTotal">—</strong><small id="verificationDelta">数据库有效记录</small>
       </button>
       <div class="metric-card neutral">
-        <span>已纳入门店</span><strong id="storeTotal">0</strong><small>按当前筛选范围</small>
+        <span>已纳入门店</span><strong id="storeTotal">—</strong><small>当前日期范围</small>
       </div>
       <div class="metric-card neutral">
-        <span>已纳入老师</span><strong id="teacherTotal">0</strong><small>按当前筛选范围</small>
+        <span>已纳入老师</span><strong id="teacherTotal">—</strong><small>当前日期范围</small>
       </div>
     </section>
 
@@ -109,11 +111,17 @@
   </main>
 
   <dialog id="detailDialog">
-    <div class="dialog-heading"><h2>明细下钻示意</h2><button id="closeDialog" aria-label="关闭">×</button></div>
+    <div class="dialog-heading"><h2>数据库统计范围</h2><button id="closeDialog" aria-label="关闭">×</button></div>
     <p id="detailText"></p>
-    <p class="dialog-note">网页部署后，此处跳转至带入相同筛选条件的充值查询或核销查询。</p>
+    <p class="dialog-note">当前汇总来自数据库；逐笔记录请从侧栏进入充值查询或核销查询，并使用相同日期范围。</p>
   </dialog>
 
-  <script src="app.js?v=0.14.20"></script>
-<script src="auth-ui.js?v=0.17.3"></script></body>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
+  <script src="cloudbase-auth-config.js"></script>
+  <script src="cloudbase-phone-auth.js?v=0.17.4"></script>
+  <script src="app.js?v=0.15.0"></script>
+  <script src="auth-ui.js?v=0.17.5"></script>
+</body>
 </html>

@@ -11,7 +11,7 @@ Each account has exactly one active business identity through `account_identity_
 | Account role | Linked business entity | Global view scope |
 | --- | --- | --- |
 | `hq` | `hq_profiles` | All business data |
-| `operation` | `operation_profiles` | Assigned stores only |
+| `operation` | `operation_profiles` | Own profile plus the shared HQ review queue only |
 | `store` | `stores` | Its own store only |
 | `teacher` | `teachers` | Its own records only |
 
@@ -31,13 +31,13 @@ An archived account cannot sign in. Archiving does not delete historical records
 | Entity | Main table | Required relationships |
 | --- | --- | --- |
 | Headquarters person | `hq_profiles` | One login account |
-| Operation person | `operation_profiles` | One login account; optional store scopes |
+| Operation person | `operation_profiles` | One login account; no store business-data scope |
 | Teacher | `teachers` | One login account; identity-card hash and encrypted value are HQ-only |
 | Store | `stores` | Province, city, district, address; multiple `store_contacts`; one active store login binding |
 | Product | `products` | Product status and product details |
 | Customer | `customers` | Created store, face-library person ID and consent time; no customer phone is stored |
 
-`operation_store_scopes` is the only way an operation account receives access to a store. No scope means no store data access.
+`operation_store_scopes` is retained only as archived audit history. Migration 034 archives every active operation/store scope and prevents a scope from becoming active again. Operation accounts do not read store, customer, product or query data; the review service returns only the fields required to review recharge and verification orders.
 
 ## 3. Recharge record
 
@@ -127,7 +127,7 @@ The database views provide global summaries without replacing detail records:
 | `v_account_access` | Resolve logged-in account, identity ID, role, permissions |
 | `v_store_global_view` | One store global view |
 | `v_teacher_global_view` | One teacher global view |
-| `v_operation_global_view` | One operation global view within assigned stores |
+| `v_operation_global_view` | Current operation account's own profile only (HQ may manage all profiles) |
 | `v_hq_global_view` | Headquarters-wide global view |
 | `v_product_store_summary` | Product statistics by store and period |
 | `v_product_teacher_summary` | Product verification statistics by teacher and period |
@@ -137,20 +137,23 @@ The database views provide global summaries without replacing detail records:
 | Role | Can read |
 | --- | --- |
 | Headquarters | All master data, all records, all global views |
-| Operation | Only assigned-store records and summaries |
+| Operation | Its own account profile and the shared recharge/verification review queue; no query, master-data or customer access |
 | Store | Its own store, customers, recharge records, verification records |
 | Teacher | Only its own recharge and verification records; no other teacher or store global view |
 
-The access restriction is implemented in PostgreSQL RLS and must also be checked by cloud functions. Frontend navigation alone is never treated as permission control.
+The access restriction is implemented in PostgreSQL RLS and must also be checked by cloud functions. `staffAccount` allows operation accounts only `session`, `listReviewOrders` and `reviewOrder`; `faceRecognition` does not grant operation accounts customer or business-query actions. Frontend navigation alone is never treated as permission control.
 
-## 7. Run order for the current database
+## 7. Run order for the current deployment
 
-The current CloudBase database already has the initial schema. Run these additive migrations in order:
+For a database already upgraded through migration 029, execute the current additive files separately and in this order:
 
 ```text
-006_global_views_and_access_scopes.sql
-007_account_identity_and_permission_model.sql
-008_recharge_and_verification_workflow_status.sql
+030_store_customer_query_indexes.sql
+031_store_dashboard_indexes.sql
+032_restrict_order_void_eligibility.sql
+033_hq_query_indexes.sql
+034_operation_review_only_access.sql
+035_hq_dashboard_approved_covering_indexes.sql
 ```
 
-Do not run the old review-request tables for new business flow. They remain only for legacy compatibility and will not be shown by the application.
+Migration 032 deliberately stops and rolls back when migration 026 is missing. In that case, do not deploy the new cloud functions yet; first complete the missing earlier migrations in numeric order. Migration 034 keeps operation scope rows as archived audit history and does not change the recharge/verification review functions. Migration 035 adds only the two covering indexes used by the headquarters dashboard's date-bounded approved-order aggregation.
