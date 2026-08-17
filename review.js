@@ -1,12 +1,12 @@
 (() => {
   "use strict";
-  const VERSION = "0.15.4";
+  const VERSION = "0.15.5";
   const pageType = document.body.dataset.review;
   const recordType = pageType === "recharge" ? "RECHARGE" : "VERIFICATION";
   const columnCount = pageType === "recharge" ? 11 : 12;
   const $ = (id) => document.getElementById(id);
   const statusText = { PENDING: "待审核", APPROVED: "已通过", REJECTED: "已驳回" };
-  let rows = [], pendingAction = null, loadingSequence = 0, session = null;
+  let rows = [], pendingAction = null, loadingSequence = 0, session = null, queryMode = "filters";
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   let canDecide = false;
   let reviewerRole = "审核人员";
@@ -19,7 +19,6 @@
     const prefix = role === "hq" ? "HQ" : role === "operation" ? "OP" : role === "teacher" ? "TCH" : "S";
     return `${prefix}${id.padStart(3, "0")}`;
   }
-  const isoDate = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   function formatTime(value) {
     const text = clean(value);
     if (!text) return "—";
@@ -51,19 +50,6 @@
     if (value === "all") return "";
     if (value === "作废充值" || value === "作废") return "VOID";
     return pageType === "recharge" ? "NEW" : "SUPPLEMENT";
-  }
-  function applyTimeRange() {
-    const range = $("reviewTimeRange").value, today = new Date(), start = new Date(today);
-    if (range === "all") {
-      $("reviewDateStart").value = ""; $("reviewDateEnd").value = "";
-      $("reviewDateStart").disabled = true; $("reviewDateEnd").disabled = true; return;
-    }
-    if (range === "sevenDays") start.setDate(today.getDate() - 6);
-    else if (range === "month") start.setMonth(today.getMonth() - 1);
-    else if (range === "quarter") start.setMonth(Math.floor(today.getMonth() / 3) * 3, 1);
-    else if (range === "year") start.setMonth(0, 1);
-    if (range !== "custom" || !$("reviewDateStart").value || !$("reviewDateEnd").value) { $("reviewDateStart").value = isoDate(start); $("reviewDateEnd").value = isoDate(today); }
-    $("reviewDateStart").disabled = range !== "custom"; $("reviewDateEnd").disabled = range !== "custom";
   }
   function setLoading(message) {
     $("reviewBody").innerHTML = `<tr><td colspan="${columnCount}" class="query-empty">${escapeHtml(message)}</td></tr>`;
@@ -138,7 +124,20 @@
     const sequence = ++loadingSequence;
     setLoading("正在读取审核工单…");
     try {
-      const result = await window.CloudBasePhoneAuth.listReviewOrders({ recordType, storeId: $("reviewStore").value === "all" ? "" : $("reviewStore").value, applicationType: applicationTypeFilter(), status: $("reviewStatus").value === "all" ? "" : $("reviewStatus").value.toUpperCase(), startDate: $("reviewDateStart").value, endDate: $("reviewDateEnd").value, limit: 500 });
+      const recordCode = queryMode === "code" ? clean($("reviewCode").value).toUpperCase() : "";
+      if (queryMode === "code" && !recordCode) {
+        rows = [];
+        setLoading(`请输入完整${pageType === "recharge" ? "充值" : "核销"}工单编号`);
+        return;
+      }
+      const result = await window.CloudBasePhoneAuth.listReviewOrders({
+        recordType,
+        recordCode,
+        storeId: queryMode === "filters" && $("reviewStore").value !== "all" ? $("reviewStore").value : "",
+        applicationType: queryMode === "filters" ? applicationTypeFilter() : "",
+        status: queryMode === "filters" && $("reviewStatus").value !== "all" ? $("reviewStatus").value.toUpperCase() : "",
+        limit: queryMode === "code" ? 1 : 500
+      });
       if (sequence !== loadingSequence) return;
       rows = (Array.isArray(result) ? result : []).map(normalizeRow);
       if (!preserveStores || $("reviewStore").options.length <= 1) populateStoreFilter(rows);
@@ -177,21 +176,37 @@
     } catch (error) { window.alert(error?.message || "工单审核失败"); }
     finally { button.disabled = false; button.textContent = "确认"; }
   }
-  function organizeReviewToolbar() {
-    const toolbar = document.querySelector(".review-toolbar"), count = $("reviewCount");
-    if (!toolbar || !count || toolbar.querySelector(".review-filter-row")) return;
-    const basicRow = document.createElement("div"), dateRow = document.createElement("div");
-    basicRow.className = "review-filter-row review-basic-row"; dateRow.className = "review-filter-row review-date-row";
-    [$("reviewStore"), $("reviewType"), $("reviewStatus")].forEach((field) => basicRow.append(field.closest("label")));
-    [$("reviewTimeRange"), $("reviewDateStart"), $("reviewDateEnd")].forEach((field) => dateRow.append(field.closest("label")));
-    dateRow.append(count); toolbar.append(basicRow, dateRow);
+  function setQueryMode(mode, { initial = false } = {}) {
+    queryMode = mode === "code" ? "code" : "filters";
+    const codeMode = queryMode === "code";
+    $("reviewFilterPanel").hidden = codeMode;
+    $("reviewCodePanel").hidden = !codeMode;
+    $("reviewModeFilters").classList.toggle("active", !codeMode);
+    $("reviewModeCode").classList.toggle("active", codeMode);
+    $("reviewModeFilters").setAttribute("aria-selected", String(!codeMode));
+    $("reviewModeCode").setAttribute("aria-selected", String(codeMode));
+    [$("reviewStore"), $("reviewType"), $("reviewStatus"), $("reviewFilterSearch")].forEach((field) => { field.disabled = codeMode; });
+    [$("reviewCode"), $("reviewCodeSearch")].forEach((field) => { field.disabled = !codeMode; });
+    if (codeMode) {
+      $("reviewStore").value = "all";
+      $("reviewType").value = "all";
+      $("reviewStatus").value = "all";
+    } else {
+      $("reviewCode").value = "";
+    }
+    if (!initial) {
+      rows = [];
+      setLoading(codeMode ? "请输入完整工单编号后查询" : "选择条件后点击“按条件查询”");
+      if (codeMode) $("reviewCode").focus();
+    }
   }
-  organizeReviewToolbar();
   $("reviewStore").innerHTML = `<option value="all">全部门店</option>`;
-  applyTimeRange();
-  ["reviewStore", "reviewType", "reviewStatus"].forEach((id) => $(id).addEventListener("change", () => refresh()));
-  $("reviewTimeRange").addEventListener("change", () => { applyTimeRange(); refresh(); });
-  ["reviewDateStart", "reviewDateEnd"].forEach((id) => $(id).addEventListener("change", () => refresh()));
+  setQueryMode("filters", { initial: true });
+  $("reviewModeFilters").addEventListener("click", () => setQueryMode("filters"));
+  $("reviewModeCode").addEventListener("click", () => setQueryMode("code"));
+  $("reviewFilterSearch").addEventListener("click", () => refresh());
+  $("reviewCodeSearch").addEventListener("click", () => refresh());
+  $("reviewCode").addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); refresh(); } });
   $("closeReviewDialog").addEventListener("click", closeDialog); $("cancelReview").addEventListener("click", closeDialog); $("confirmReview").addEventListener("click", confirmReview);
   document.documentElement.dataset.prototypeVersion = VERSION;
   (async () => {

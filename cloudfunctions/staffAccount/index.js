@@ -8,7 +8,7 @@
 const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "2026-08-18-reviewer-identity-v12";
+const FUNCTION_VERSION = "2026-08-18-review-query-modes-v13";
 let app = null;
 let auth = null;
 let managerClient = null;
@@ -1040,20 +1040,21 @@ async function createProductRecord(event) {
   return { product, created: true };
 }
 
-function reviewFilterSql(event, alias, statusExpression, typeExpression, timeExpression) {
+function reviewFilterSql(event, alias, recordCodeExpression, statusExpression, typeExpression) {
   const clauses = [];
   const recordId = String(event.recordId || "").trim();
+  const recordCode = String(event.recordCode || "").trim().toUpperCase();
   const storeId = String(event.storeId || "").trim();
   const status = String(event.status || "").trim().toUpperCase();
   const applicationType = String(event.applicationType || "").trim().toUpperCase();
-  const startDate = String(event.startDate || "").trim();
-  const endDate = String(event.endDate || "").trim();
   if (recordId) clauses.push(`${alias}.id = ${numericId(recordId, "工单编号")}`);
+  if (recordCode) {
+    if (!/^[A-Z0-9_-]{2,40}$/.test(recordCode)) fail("工单编号格式不正确", "BAD_REQUEST");
+    clauses.push(`UPPER(${recordCodeExpression}) = ${sqlText(recordCode)}`);
+  }
   if (storeId) clauses.push(`${alias}.store_id = ${numericId(storeId, "门店编号")}`);
   if (["PENDING", "APPROVED", "REJECTED"].includes(status)) clauses.push(`${statusExpression} = ${sqlText(status)}`);
   if (applicationType) clauses.push(`${typeExpression} = ${sqlText(applicationType)}`);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(startDate)) clauses.push(`${timeExpression} >= ${sqlText(startDate)}::date`);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(endDate)) clauses.push(`${timeExpression} < (${sqlText(endDate)}::date + INTERVAL '1 day')`);
   return clauses.length ? `AND ${clauses.join(" AND ")}` : "";
 }
 
@@ -1086,7 +1087,7 @@ async function listReviewOrders(caller, event) {
              JOIN public.products p ON p.id = r.product_id
         LEFT JOIN public.teachers t ON t.id = r.teacher_id
             WHERE TRUE
-              ${reviewFilterSql(event, "r", statusExpression, typeExpression, timeExpression)}
+              ${reviewFilterSql(event, "r", "r.recharge_code", statusExpression, typeExpression)}
          ORDER BY (${statusExpression} = 'PENDING') DESC, ${timeExpression} DESC, r.id DESC
             LIMIT ${limit}`;
   } else {
@@ -1113,7 +1114,7 @@ async function listReviewOrders(caller, event) {
              JOIN public.products p ON p.id = v.product_id
              JOIN public.teachers t ON t.id = v.teacher_id
             WHERE (v.void_request_status <> 'NONE' OR v.verification_type = 'SUPPLEMENT')
-              ${reviewFilterSql(event, "v", statusExpression, typeExpression, timeExpression)}
+              ${reviewFilterSql(event, "v", "v.verification_code", statusExpression, typeExpression)}
          ORDER BY (${statusExpression} = 'PENDING') DESC, ${timeExpression} DESC, v.id DESC
             LIMIT ${limit}`;
   }

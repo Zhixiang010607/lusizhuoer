@@ -208,9 +208,9 @@
         "作废申请提交失败"
       );
     },
-    async listReviewOrders({ recordType, recordId = "", storeId = "", applicationType = "", status = "", startDate = "", endDate = "", limit = 200 } = {}) {
+    async listReviewOrders({ recordType, recordId = "", recordCode = "", storeId = "", applicationType = "", status = "", limit = 200 } = {}) {
       const data = await callStaffAccount(
-        { action: "listReviewOrders", recordType, recordId, storeId, applicationType, status, startDate, endDate, limit },
+        { action: "listReviewOrders", recordType, recordId, recordCode, storeId, applicationType, status, limit },
         "审核工单读取失败"
       );
       return data.orders || [];

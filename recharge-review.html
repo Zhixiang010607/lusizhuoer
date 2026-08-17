@@ -40,12 +40,20 @@
 
   <main>
     <section class="panel review-toolbar">
-      <label>门店<select id="reviewStore"></select></label>
-      <label>申请类型<select id="reviewType"><option value="all">全部类型</option><option value="新充值">新充值</option><option value="作废充值">作废充值</option></select></label>
-      <label>审核状态<select id="reviewStatus"><option value="all" selected>全部状态</option><option value="pending">待审核</option><option value="approved">已通过</option><option value="rejected">已驳回</option></select></label>
-      <label>时间范围<select id="reviewTimeRange"><option value="all" selected>全部时间</option><option value="sevenDays">近 7 天</option><option value="month">近 1 个月</option><option value="quarter">本季度</option><option value="year">本年度</option><option value="custom">自定义时间</option></select></label>
-      <label>开始日期<input id="reviewDateStart" type="date"></label>
-      <label>结束日期<input id="reviewDateEnd" type="date"></label>
+      <div class="review-query-mode" role="tablist" aria-label="审核查询方式">
+        <button id="reviewModeFilters" class="active" type="button" role="tab" aria-selected="true">按条件查询</button>
+        <button id="reviewModeCode" type="button" role="tab" aria-selected="false">按编号查询</button>
+      </div>
+      <div id="reviewFilterPanel" class="review-filter-row review-query-panel">
+        <label>门店<select id="reviewStore"></select></label>
+        <label>申请类型<select id="reviewType"><option value="all">全部类型</option><option value="新充值">新充值</option><option value="作废充值">作废充值</option></select></label>
+        <label>审核状态<select id="reviewStatus"><option value="all" selected>全部状态</option><option value="pending">待审核</option><option value="approved">已通过</option><option value="rejected">已驳回</option></select></label>
+        <button id="reviewFilterSearch" class="primary-action" type="button">按条件查询</button>
+      </div>
+      <div id="reviewCodePanel" class="review-code-panel review-query-panel" hidden>
+        <label>工单编号<input id="reviewCode" type="search" maxlength="40" autocomplete="off" placeholder="输入完整充值单号，例如 RC202608170009"></label>
+        <button id="reviewCodeSearch" class="primary-action" type="button">按编号查询</button>
+      </div>
       <div class="review-count" id="reviewCount"></div>
     </section>
 
@@ -72,8 +80,8 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
-  <script src="cloudbase-phone-auth.js?v=0.15.1"></script>
-  <script src="review.js?v=0.15.4"></script>
+  <script src="cloudbase-phone-auth.js?v=0.15.2"></script>
+  <script src="review.js?v=0.15.5"></script>
   <script src="auth-ui.js"></script>
 </body>
 </html>
