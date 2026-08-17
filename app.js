@@ -2,7 +2,7 @@
   "use strict";
 
   // 文档同步约束：每次业务或界面变更都必须同步更新 main.tex 与 README.md。
-  const PROTOTYPE_VERSION = "0.15.0";
+  const PROTOTYPE_VERSION = "0.15.1";
   const BUSINESS_TIME_ZONE = "Asia/Shanghai";
   const EMPTY_DATA = Object.freeze({
     stores: [],
@@ -69,6 +69,18 @@
     const cleanCode = String(code || "").trim();
     if (cleanName && cleanCode && !cleanName.includes(cleanCode)) return `${cleanName} · ${cleanCode}`;
     return cleanName || cleanCode || fallback;
+  }
+
+  function chartEntityLabelMarkup(value) {
+    const text = String(value || "").trim();
+    const separator = " · ";
+    const separatorIndex = text.lastIndexOf(separator);
+    if (separatorIndex <= 0) {
+      return `<span class="bar-label-name">${escapeHtml(text)}</span>`;
+    }
+    const name = text.slice(0, separatorIndex);
+    const code = text.slice(separatorIndex + separator.length);
+    return `<span class="bar-label-name">${escapeHtml(name)}</span><span class="bar-label-code">${escapeHtml(code)}</span>`;
   }
 
   function normalizeRows(rows, teacherContext = false) {
@@ -345,13 +357,15 @@
     }).join("");
     const barsMarkup = items.map((x) => {
       const safeName = escapeHtml(x.name);
-      const safeTitle = escapeHtml(`${x.name}：${verificationOnly ? `核销 ${x.verification}` : `充值 ${x.recharge}，核销 ${x.verification}`}`);
-      return `<button class="bar-group" data-name="${safeName}" title="${safeTitle}"><span class="bars ${verificationOnly ? "single" : ""}">${series.map((key, index) => {
+      const safeTitle = escapeHtml(`${x.name}：${verificationOnly ? `有效核销 ${fmt.format(x.verification)} 次` : `有效充值 ${fmt.format(x.recharge)} 次，有效核销 ${fmt.format(x.verification)} 次`}；打开明细`);
+      return `<button class="bar-group" type="button" data-name="${safeName}" title="${safeTitle}" aria-label="${safeTitle}"><span class="bars ${verificationOnly ? "single" : ""}">${series.map((key, index) => {
         const value = x[key];
         const top = (axis.max - Math.max(value, 0)) / axisRange * 100;
         const height = Math.abs(value) / axisRange * 100;
-        return `<i class="bar ${key} ${value < 0 ? "negative" : ""} ${value === 0 ? "zero-value" : ""}" style="--bar-index:${index};top:${top}%;height:${height}%"></i>`;
-      }).join("")}</span><span class="bar-label">${safeName}</span></button>`;
+        const valueTop = value < 0 ? top + height : top;
+        const valueClass = value < 0 ? "negative" : value === 0 ? "zero" : "positive";
+        return `<i class="bar ${key} ${value < 0 ? "negative" : ""} ${value === 0 ? "zero-value" : ""}" aria-hidden="true" style="--bar-index:${index};top:${top}%;height:${height}%"></i><span class="bar-value ${key} ${valueClass}" aria-hidden="true" style="--bar-index:${index};top:${valueTop}%">${escapeHtml(fmt.format(value))}</span>`;
+      }).join("")}</span><span class="bar-label" aria-hidden="true">${chartEntityLabelMarkup(x.name)}</span></button>`;
     }).join("");
     const hasNegative = values.some((value) => value < 0);
     const legend = verificationOnly ? `<span><i class="legend-dot" style="background:#00a884"></i>有效核销</span>` : `<span><i class="legend-dot" style="background:#1f5eff"></i>有效充值</span><span><i class="legend-dot" style="background:#00a884"></i>有效核销</span>${hasNegative ? `<span><i class="legend-dot" style="background:#b42318"></i>历史冲销（负值）</span>` : ""}`;
