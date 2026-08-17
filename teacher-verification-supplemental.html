@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>老师办理充值</title>
+  <title>老师办理补录核销</title>
   <link rel="stylesheet" href="styles.css?v=0.15.10">
 </head>
-<body data-store-business="recharge" data-teacher-business>
+<body data-store-business="verification-supplemental" data-teacher-business>
   <aside class="side-project-bar" aria-label="老师工作台"><div class="side-brand"><span>师</span><div><strong>老师工作台</strong><small>本人业务</small></div></div><nav class="side-nav"></nav><div class="side-footer">老师账号</div></aside>
-  <header class="topbar"><div><p class="eyebrow">TEACHER RECHARGE</p><h1>办理充值</h1><p class="subtitle">先选择门店，再按门店流程确认客户并提交充值</p></div><div class="status"><span></span>绑定当前老师</div></header>
+  <header class="topbar"><div><p class="eyebrow">TEACHER SUPPLEMENTAL VERIFICATION</p><h1>办理补录核销</h1><p class="subtitle">先选择门店，再确认客户、人脸核验并提交补录审核</p></div><div class="status"><span></span>绑定当前老师</div></header>
   <main class="teacher-business-main">
     <section class="panel teacher-business-store-panel">
       <div class="panel-heading"><div><h2>第一步：选择本次办理门店</h2><p>门店只对本次办理生效；提交后工单自动绑定当前老师</p></div><span id="teacherBusinessStoreState" class="badge">尚未选择</span></div>
@@ -22,12 +22,18 @@
         <div id="selectLookupFields" class="customer-lookup-grid"><label>现有客户<select id="serviceCustomerSelect"></select></label><label>生日<input id="serviceSelectBirthday" type="date" readonly aria-readonly="true"></label><button id="serviceSelectLookup" type="button">查询客户</button></div>
         <div id="manualLookupFields" class="customer-lookup-grid" hidden><label>客户姓名<input id="serviceCustomerName" placeholder="手动输入客户姓名"></label><label>生日<input id="serviceCustomerBirthday" type="date"></label><button id="serviceCustomerLookup" type="button">查询客户</button></div>
         <div id="serviceCustomerResults" class="service-customer-results customer-core-preview"><div class="lookup-placeholder"><strong>等待选择门店</strong><span>选择门店后，此处显示客户建档照片、姓名、生日和客户编号。</span></div></div>
-        <button id="confirmCustomerSelection" class="confirm-customer-button" type="button" disabled>确认此客户并进入充值</button>
+        <button id="confirmCustomerSelection" class="confirm-customer-button" type="button" disabled>确认此客户并进入补录</button>
       </section>
-      <form id="rechargeCreateForm" class="panel store-business-form workflow-action-panel business-step-disabled">
-        <div class="panel-heading"><div><h2>第三步：填写充值信息</h2><p id="selectedCustomerText"></p></div><span class="badge">充值</span></div>
-        <div class="store-business-grid"><label>项目<select id="rechargeProject" required></select></label><label>业务老师<select id="rechargeTeacher" required></select></label><label>充值次数<input id="rechargeCount" type="number" min="1" max="999" value="10" required></label><label class="full-field">老师留言<textarea id="rechargeNote" rows="3" maxlength="500" placeholder="可给审核人员留言"></textarea></label></div>
-        <div class="form-submit-row"><span id="rechargeCreateMessage"></span><button type="submit">提交充值申请</button></div>
+      <form id="verificationCreateForm" class="panel store-business-form workflow-action-panel business-step-disabled">
+        <div class="panel-heading"><div><h2>第三步：补录信息与人脸识别</h2><p id="selectedCustomerText"></p></div><span class="badge">补录 · 待审核</span></div>
+        <div class="store-business-grid"><label>项目<select id="verificationProject" required></select></label><label>业务老师<select id="verificationTeacher" required></select></label><label class="full-field">补录原因／老师留言<textarea id="verificationNote" rows="3" maxlength="500" required placeholder="必填：说明补录原因，留言将进入审核记录"></textarea></label></div>
+        <section class="capture-panel workflow-capture-panel live-verification-panel">
+          <div class="verification-camera-stage"><video id="verificationCamera" autoplay muted playsinline hidden></video><img id="verificationPhotoPreview" alt="现场补录人脸照片预览" hidden><div id="verificationCameraPlaceholder" class="camera-placeholder"><strong>等待打开摄像头</strong><span>现场照片只用于与当前所选客户进行 1:1 验证。</span></div><canvas id="verificationCaptureCanvas" hidden></canvas></div>
+          <div class="verification-capture-meta"><h3>1:1 人脸验证</h3><p>只验证当前所选客户，不搜索其他客户。</p></div>
+          <div class="capture-status-stack"><span id="verificationPhotoStatus" class="capture-status pending">尚未核验</span></div>
+          <div class="camera-actions verification-camera-actions"><button id="openVerificationCamera" type="button">打开摄像头</button><button id="captureVerificationPhoto" type="button" disabled>拍照并验证</button><button id="retakeVerificationPhoto" type="button" hidden>重新拍照</button></div>
+          <div class="form-submit-row workflow-capture-submit"><span id="verificationCreateMessage"></span><button id="verificationSubmit" type="submit" disabled aria-disabled="true">提交补录审核（不打开设备）</button></div>
+        </section>
       </form>
     </div>
   </main>

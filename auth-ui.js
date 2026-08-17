@@ -11,7 +11,7 @@
     hq: new Set(["index.html", "change-password.html", "store-create.html", "project-create.html", "teacher-create.html", "operation-account-create.html", "hq-account-create.html", "hq-management.html", "store-management.html", "project-management.html", "teacher-management.html", "operation-account-management.html", "staff-detail.html", "store-detail.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "verification-review.html"]),
     operation: new Set(["local.html", "recharge-review.html", "verification-review.html", "customer-detail.html", "recharge-detail.html", "verification-detail.html"]),
     store: new Set(["store-detail.html", "change-password.html", "customer-detail.html", "customer-query.html", "customer-create.html", "recharge-create.html", "verification-create.html", "verification-supplemental.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html"]),
-    teacher: new Set(["teacher-work-orders.html", "change-password.html", "teacher-work-order-detail.html", "teacher-verification-create.html", "teacher-recharge-create.html"])
+    teacher: new Set(["teacher-work-orders.html", "change-password.html", "teacher-work-order-detail.html", "teacher-verification-create.html", "teacher-verification-supplemental.html", "teacher-recharge-create.html"])
   };
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
@@ -79,7 +79,7 @@
       const queryLinks = [["customer-query.html", "客户查询"], ["recharge-query.html", "充值查询"], ["verification-query.html", "核销查询"]];
       document.querySelector('[data-menu="store-business"]')?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="store-query"><summary><span class="nav-icon">查</span><span>查询</span></summary><nav>${queryLinks.map(([href, text]) => `<a class="${page === href ? "active" : ""}" href="${href}">${text}</a>`).join("")}</nav></details>`);
     } else if (session.role === "teacher") {
-      const businessLinks = [["teacher-verification-create.html", "办理核销"], ["teacher-recharge-create.html", "办理充值"]];
+      const businessLinks = [["teacher-verification-create.html", "办理核销"], ["teacher-verification-supplemental.html", "补录核销"], ["teacher-recharge-create.html", "办理充值"]];
       primaryNav.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="teacher-business"><summary><span class="nav-icon">办</span><span>业务办理</span></summary><nav>${businessLinks.map(([href, text]) => `<a class="${page === href ? "active" : ""}" href="${href}">${text}</a>`).join("")}</nav></details>`);
     } else if (session.role === "operation") {
       document.querySelectorAll(".side-project-bar > .side-menu-group").forEach((group) => { group.hidden = true; });

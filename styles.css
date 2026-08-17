@@ -671,6 +671,7 @@ dialog::backdrop { background: #0b142a88; backdrop-filter: blur(3px); }
 .store-business-form { display: flex; flex-direction: column; gap: 22px; padding: 26px; }
 .workflow-lookup-panel .service-customer-results { flex: 1 1 0; min-height: 250px; align-content: start; }
 .workflow-action-panel .capture-panel { flex: 1 1 180px; min-height: 150px; align-content: stretch; }
+.workflow-action-panel .live-verification-panel { flex-basis: 230px; min-height: 230px; }
 .workflow-action-panel .capture-panel::before { min-height: 130px; align-self: stretch; }
 .store-business-full-panel > .capture-panel { flex: 1 1 180px; min-height: 150px; align-content: stretch; }
 .store-business-full-panel > .capture-panel::before { min-height: 130px; align-self: stretch; }
@@ -720,8 +721,8 @@ textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px #1f5eff18; out
 .capture-status-stack { display: grid; gap: 7px; justify-items: stretch; }
 .workflow-capture-panel { container-type: size; grid-template-columns: minmax(250px, 1fr) minmax(170px, .48fr); grid-template-rows: auto auto auto auto minmax(0, 1fr); gap: 10px 16px; align-items: center; overflow: hidden; }
 .workflow-action-panel .workflow-capture-panel::before { grid-column: 1; grid-row: 1 / 6; width: min(100%, 100cqh); height: auto; min-height: 0; max-height: 100%; aspect-ratio: 1 / 1; align-self: center; justify-self: center; }
-.workflow-capture-panel > div:first-of-type { grid-column: 2; grid-row: 1; align-self: end; }
-.workflow-capture-panel > div:first-of-type h3 { margin: 0; }
+.workflow-capture-panel > .verification-capture-meta { grid-column: 2; grid-row: 1; min-width: 0; align-self: end; }
+.workflow-capture-panel > .verification-capture-meta h3 { margin: 0; }
 .workflow-capture-panel .capture-status-stack { grid-column: 2; grid-row: 2; min-width: 0; min-height: 34px; align-content: center; }
 .workflow-capture-panel > button { grid-column: 2; grid-row: 3; width: 100%; min-height: 34px; }
 .workflow-capture-panel .workflow-capture-submit { grid-column: 2; grid-row: 4; align-self: start; display: grid; grid-template-columns: minmax(0, 1fr); justify-content: stretch; gap: 7px; width: 100%; margin: 0; padding: 0; border: 0; }
@@ -732,6 +733,8 @@ textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px #1f5eff18; out
 .workflow-capture-panel .workflow-capture-submit button { min-width: 0; max-width: none; inline-size: 100%; }
 .live-verification-panel::before { display: none; }
 .live-verification-panel > .verification-camera-stage { grid-column: 1; grid-row: 1 / 6; position: relative; display: grid; width: min(100%, 100cqh); max-height: 100%; aspect-ratio: 1 / 1; align-self: center; justify-self: center; overflow: hidden; border: 1px dashed #9fb4cc; border-radius: 10px; background: #101a2b; }
+.verification-camera-stage > * { grid-area: 1 / 1; }
+.verification-camera-stage .camera-placeholder { width: 100%; height: 100%; }
 .verification-camera-stage video, .verification-camera-stage img { width: 100%; height: 100%; object-fit: cover; }
 .verification-camera-stage video { transform: scaleX(-1); }
 .live-verification-panel > .verification-capture-meta { grid-column: 2; grid-row: 1; align-self: end; }
@@ -1122,13 +1125,13 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
   .customer-category-grid { grid-template-columns: 1fr; }
   .business-lookup-fields { grid-template-columns: 1fr; }
   .store-business-grid, .customer-lookup-grid, .capture-panel { grid-template-columns: 1fr; }
-  .workflow-action-panel .workflow-capture-panel { min-height: 390px; grid-template-columns: 1fr; grid-template-rows: minmax(180px, 1fr) auto auto auto auto; }
+  .workflow-action-panel .workflow-capture-panel { min-height: 520px; grid-template-columns: 1fr; grid-template-rows: minmax(180px, 1fr) auto auto auto auto; }
   .workflow-action-panel .workflow-capture-panel::before { grid-column: 1; grid-row: 1; }
-  .workflow-action-panel .workflow-capture-panel > div:first-of-type { grid-column: 1; grid-row: 2; align-self: auto; }
+  .workflow-action-panel .workflow-capture-panel > .verification-capture-meta { grid-column: 1; grid-row: 2; align-self: auto; }
   .workflow-action-panel .workflow-capture-panel .capture-status-stack { grid-column: 1; grid-row: 3; min-height: 34px; }
   .workflow-action-panel .workflow-capture-panel > button { grid-column: 1; grid-row: 4; }
   .workflow-action-panel .workflow-capture-panel .workflow-capture-submit { grid-column: 1; grid-row: 5; }
-  .workflow-action-panel .live-verification-panel > .verification-camera-stage { grid-column: 1; grid-row: 1; width: min(100%, 420px); max-height: none; }
+  .workflow-action-panel .live-verification-panel > .verification-camera-stage { grid-column: 1; grid-row: 1; width: min(100%, 280px); max-height: none; }
   .workflow-action-panel .live-verification-panel > .verification-capture-meta { grid-column: 1; grid-row: 2; }
   .workflow-action-panel .live-verification-panel > .capture-status-stack { grid-column: 1; grid-row: 3; }
   .workflow-action-panel .live-verification-panel > .verification-camera-actions { grid-column: 1; grid-row: 4; }

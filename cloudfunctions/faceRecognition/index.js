@@ -4,7 +4,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
-const FUNCTION_VERSION = "v40";
+const FUNCTION_VERSION = "v41";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -1712,9 +1712,6 @@ async function createVerificationApplication(event) {
   const verificationType = String(event.verificationType || "").trim().toUpperCase();
   if (!["NORMAL", "SUPPLEMENT"].includes(verificationType)) {
     fail("仅支持正常核销或补录核销。", "INVALID_VERIFICATION_TYPE");
-  }
-  if (caller.role === "teacher" && verificationType !== "NORMAL") {
-    fail("老师办理入口只允许提交正常核销。", "FORBIDDEN");
   }
   const message = String(event.message || "").trim();
   if (message.length > 500) fail("门店留言不能超过 500 个字符。", "MESSAGE_TOO_LONG");

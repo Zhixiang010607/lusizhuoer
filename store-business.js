@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.42", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.43", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   const formatBirthday = (value, fallback = "—") => {
     const raw = String(value ?? "").trim();
     if (!raw) return fallback;
@@ -10,7 +10,7 @@
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   const teacherMode = session?.role === "teacher" && document.body.hasAttribute("data-teacher-business");
-  if (!session || (teacherMode ? !["recharge", "verification"].includes(page) : session.role !== "store")) return;
+  if (!session || (teacherMode ? !["recharge", "verification", "verification-supplemental"].includes(page) : session.role !== "store")) return;
   let storeId = teacherMode ? "" : String(session?.store || "");
   const storeNo = Number(storeId.replace(/\D/g, "")) || 1;
   let storeName = `门店 ${storeNo}`;
