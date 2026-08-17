@@ -804,6 +804,10 @@ body[data-store-business] .form-submit-row button:disabled {
 .review-count strong { color: var(--ink); font-size: 22px; }
 .review-table { margin-top: 9px; }
 .review-table .table-scroll { max-height: 650px; }
+body[data-review] .review-table .record-status { display: inline-flex; align-items: center; justify-content: center; min-width: 58px; border: 1px solid transparent; font-weight: 900; }
+body[data-review] .review-table .status-已通过 { color: #067a5c; background: #e7f8f2; border-color: #b7e7d8; }
+body[data-review] .review-table .status-已驳回 { color: #b42318; background: #fef0ee; border-color: #fac5bf; }
+body[data-review] .review-table .status-待审核 { color: #8a5b00; background: #fff4d9; border-color: #f0d58c; }
 .verification-order-main { width: min(1260px, calc(100% - 32px)); }
 .verification-order-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; padding: 20px; }
 .verification-order-title > span { display: inline-flex; padding: 4px 8px; border-radius: 999px; color: #6643a5; background: #efe9ff; font-size: 10px; font-weight: 800; }
