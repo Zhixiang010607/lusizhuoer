@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.0";
+  const VERSION = "0.15.1";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -28,6 +28,50 @@
 
   function first(...values) {
     return values.map(clean).find(Boolean) || "";
+  }
+
+  function field(row, snake, camel) {
+    return row?.[snake] ?? row?.[camel] ?? "";
+  }
+
+  function normalizeDatabaseOrder(row) {
+    if (!row) return null;
+    const originalType = clean(field(row, "original_type", "originalType")).toUpperCase();
+    const voidStatusValue = clean(field(row, "void_request_status", "voidRequestStatus")).toUpperCase();
+    const originalKind = type === "recharge"
+      ? "新充值"
+      : ({ NORMAL: "正常核销", SUPPLEMENT: "补录核销", EXPERIENCE: "体验核销" }[originalType] || originalType || "核销");
+    return {
+      id: clean(row.id),
+      recordCode: field(row, "record_code", "recordCode"),
+      originalKind,
+      status: field(row, "original_status", "originalStatus"),
+      recordStatus: field(row, "original_status", "originalStatus"),
+      voidStatus: voidStatusValue && voidStatusValue !== "NONE" ? field(row, "application_status", "applicationStatus") : "",
+      voidSubmittedAt: voidStatusValue && voidStatusValue !== "NONE" ? field(row, "void_requested_at", "voidRequestedAt") : "",
+      voidStoreNote: field(row, "void_request_note", "voidRequestNote"),
+      voidReviewNote: field(row, "void_review_note", "voidReviewNote"),
+      voidReviewedAt: field(row, "void_reviewed_at", "voidReviewedAt"),
+      storeId: field(row, "store_id", "storeId"),
+      storeCode: field(row, "store_code", "storeCode"),
+      storeName: field(row, "store_name", "storeName"),
+      customerId: field(row, "customer_id", "customerId"),
+      customerCode: field(row, "customer_code", "customerCode"),
+      customerName: field(row, "customer_name", "customerName"),
+      projectId: field(row, "product_id", "productId"),
+      projectCode: field(row, "product_code", "productCode"),
+      projectName: field(row, "product_name", "productName"),
+      teacherId: field(row, "teacher_id", "teacherId"),
+      teacherCode: field(row, "teacher_code", "teacherCode"),
+      teacherName: field(row, "teacher_name", "teacherName"),
+      count: field(row, "unit_count", "unitCount"),
+      createdAt: field(row, "original_submitted_at", "originalSubmittedAt"),
+      reviewedAt: field(row, "original_reviewed_at", "originalReviewedAt"),
+      initialStoreNote: field(row, "initial_store_note", "initialStoreNote"),
+      initialHqNote: field(row, "initial_review_note", "initialReviewNote"),
+      reviewNote: field(row, "initial_review_note", "initialReviewNote"),
+      databaseBacked: true
+    };
   }
 
   function formatTime(value) {
@@ -269,10 +313,37 @@
     };
   }
 
-  const recordId = first(params.get("recordId"));
-  const record = findRecord(recordId) || (params.get("source") === "created" ? null : recordFromQuery(recordId));
-  if (record) renderRecord(record);
-  else renderMissing(recordId);
+  async function initialize() {
+    const recordId = first(params.get("recordId"));
+    const displayCode = first(params.get("recordCode"), recordId);
+    const cached = findRecord(recordId);
+    if (cached) { renderRecord(cached); return; }
+    if (params.get("source") === "review") {
+      renderMissing(displayCode);
+      $("orderDescription").textContent = "正在从数据库读取该张工单…";
+      $("orderStatus").className = "pending";
+      $("orderStatus").textContent = "读取中";
+      try {
+        if (typeof window.CloudBasePhoneAuth?.listReviewOrders !== "function") throw new Error("工单数据服务未加载，请刷新页面重试");
+        const orders = await window.CloudBasePhoneAuth.listReviewOrders({ recordType: type.toUpperCase(), recordId, limit: 1 });
+        const exactOrder = Array.isArray(orders)
+          ? orders.find((item) => clean(item?.id) === clean(recordId))
+          : null;
+        const record = normalizeDatabaseOrder(exactOrder);
+        if (!record) throw new Error("数据库中未找到该张工单");
+        renderRecord(record);
+      } catch (error) {
+        renderMissing(displayCode);
+        $("orderDescription").textContent = error?.message || "工单读取失败，请返回审核列表后重试。";
+      }
+      return;
+    }
+    const record = params.get("source") === "created" ? null : recordFromQuery(recordId);
+    if (record) renderRecord(record);
+    else renderMissing(displayCode);
+  }
+
+  initialize();
 
   document.documentElement.dataset.prototypeVersion = VERSION;
 })();

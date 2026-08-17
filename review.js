@@ -1,8 +1,9 @@
 (() => {
   "use strict";
-  const VERSION = "0.15.2";
+  const VERSION = "0.15.3";
   const pageType = document.body.dataset.review;
   const recordType = pageType === "recharge" ? "RECHARGE" : "VERIFICATION";
+  const columnCount = pageType === "recharge" ? 11 : 12;
   const $ = (id) => document.getElementById(id);
   const statusText = { PENDING: "待审核", APPROVED: "已通过", REJECTED: "已驳回" };
   let rows = [], pendingAction = null, loadingSequence = 0, session = null;
@@ -59,7 +60,7 @@
     $("reviewDateStart").disabled = range !== "custom"; $("reviewDateEnd").disabled = range !== "custom";
   }
   function setLoading(message) {
-    $("reviewBody").innerHTML = `<tr><td colspan="12" class="query-empty">${escapeHtml(message)}</td></tr>`;
+    $("reviewBody").innerHTML = `<tr><td colspan="${columnCount}" class="query-empty">${escapeHtml(message)}</td></tr>`;
     $("reviewCount").innerHTML = `<strong>—</strong><span>${escapeHtml(message)}</span>`;
   }
   function saveAuthoritativeSession(data) {
@@ -115,8 +116,13 @@
     $("reviewBody").innerHTML = rows.map((item) => {
       const actions = item.status === "PENDING" && canDecide ? `<div class="review-actions"><button data-id="${escapeHtml(item.id)}" data-action="APPROVED">通过</button><button class="reject" data-id="${escapeHtml(item.id)}" data-action="REJECTED">驳回</button></div>` : `<span class="record-status status-${escapeHtml(statusText[item.status] || item.status)}">${escapeHtml(statusText[item.status] || item.status)}</span>`;
       const teacher = item.teacherName ? `${item.teacherName}${item.teacherId ? `（${item.teacherId}）` : ""}` : "—";
-      return `<tr><td>${escapeHtml(item.recordCode)}</td><td>${escapeHtml(item.kind)}</td><td>${escapeHtml(item.recordCode)}</td><td>${escapeHtml(item.store.name)}${item.store.code ? `（${escapeHtml(item.store.code)}）` : ""}</td><td>${escapeHtml(item.customerName)}（${escapeHtml(item.customerId)}）</td><td>${escapeHtml(item.project)}${item.projectId ? `（${escapeHtml(item.projectId)}）` : ""}</td><td>${escapeHtml(teacher)}</td><td>${escapeHtml(impactText(item))}</td><td>${escapeHtml(formatTime(item.time))}</td><td>${escapeHtml(statusText[item.status] || item.status)}</td><td>${actions}</td><td>${escapeHtml(item.status === "PENDING" ? "待审核" : formatTime(item.reviewedAt))}</td></tr>`;
-    }).join("") || `<tr><td colspan="12" class="query-empty">当前条件下没有审核记录</td></tr>`;
+      const detailPage = pageType === "recharge" ? "recharge-detail.html" : "verification-detail.html";
+      const orderCode = item.id
+        ? `<a class="record-link" href="${detailPage}?recordId=${encodeURIComponent(item.id)}&recordCode=${encodeURIComponent(item.recordCode)}&source=review" title="查看${pageType === "recharge" ? "充值" : "核销"}工单 ${escapeHtml(item.recordCode)}">${escapeHtml(item.recordCode)}</a>`
+        : escapeHtml(item.recordCode);
+      const duplicateRecordCell = pageType === "recharge" ? "" : `<td>${escapeHtml(item.recordCode)}</td>`;
+      return `<tr><td>${orderCode}</td><td>${escapeHtml(item.kind)}</td>${duplicateRecordCell}<td>${escapeHtml(item.store.name)}${item.store.code ? `（${escapeHtml(item.store.code)}）` : ""}</td><td>${escapeHtml(item.customerName)}（${escapeHtml(item.customerId)}）</td><td>${escapeHtml(item.project)}${item.projectId ? `（${escapeHtml(item.projectId)}）` : ""}</td><td>${escapeHtml(teacher)}</td><td>${escapeHtml(impactText(item))}</td><td>${escapeHtml(formatTime(item.time))}</td><td>${escapeHtml(statusText[item.status] || item.status)}</td><td>${actions}</td><td>${escapeHtml(item.status === "PENDING" ? "待审核" : formatTime(item.reviewedAt))}</td></tr>`;
+    }).join("") || `<tr><td colspan="${columnCount}" class="query-empty">当前条件下没有审核记录</td></tr>`;
     document.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", () => openReview(button.dataset.id, button.dataset.action)));
   }
   async function refresh({ preserveStores = true } = {}) {

@@ -1041,11 +1041,13 @@ async function createProductRecord(event) {
 
 function reviewFilterSql(event, alias, statusExpression, typeExpression, timeExpression) {
   const clauses = [];
+  const recordId = String(event.recordId || "").trim();
   const storeId = String(event.storeId || "").trim();
   const status = String(event.status || "").trim().toUpperCase();
   const applicationType = String(event.applicationType || "").trim().toUpperCase();
   const startDate = String(event.startDate || "").trim();
   const endDate = String(event.endDate || "").trim();
+  if (recordId) clauses.push(`${alias}.id = ${numericId(recordId, "工单编号")}`);
   if (storeId) clauses.push(`${alias}.store_id = ${numericId(storeId, "门店编号")}`);
   if (["PENDING", "APPROVED", "REJECTED"].includes(status)) clauses.push(`${statusExpression} = ${sqlText(status)}`);
   if (applicationType) clauses.push(`${typeExpression} = ${sqlText(applicationType)}`);
