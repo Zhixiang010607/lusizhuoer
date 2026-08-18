@@ -144,10 +144,12 @@
 部署为网页时：
 
 1. 按编号依次执行尚未运行的数据库迁移；正式 migration 工具使用完整的 `037_verification_photo_evidence.sql` 与 `038_verification_profile_photo_snapshot.sql`，腾讯云 `ExecutePGSql` 控制台必须改用 `database/cloudbase-console/` 下的六个短文件并严格按 `037-01` 至 `038-03` 执行；若 `037-01` 已成功而旧版 `037-02` 报 `SQLSTATE 42601`，不要重跑 `037-01`，先单独执行 `ROLLBACK;`，再从当前 `037-02` 继续；
-2. 可选在 CloudBase PG 云存储中新建私有桶 `verification-photos`；未建立时 v49 会安全回退到现有 `customer-photos` 私有桶。配置 `VERIFICATION_PHOTO_URL_TTL_SECONDS`、`VERIFICATION_FACE_EVIDENCE_TTL_MINUTES`、`VERIFICATION_PHOTO_CLEANUP_TOKEN` 和每小时草稿清理触发器；
-3. 部署 `staffAccount-v41.zip` 与 `faceRecognition-v49.zip`，再分别调用 `health` 核对版本；v49 会兼容存储网关成功写入后的异常响应，并在浏览器因私有桶跨域限制无法读取图片字节时，通过同一工单权限校验逐张安全取得 PDF／图片导出所需的高清照片；
+2. 可选在 CloudBase PG 云存储中新建私有桶 `verification-photos`；未建立时 v50 会安全回退到现有 `customer-photos` 私有桶。配置 `VERIFICATION_PHOTO_URL_TTL_SECONDS`、`VERIFICATION_FACE_EVIDENCE_TTL_MINUTES`、`VERIFICATION_PHOTO_CLEANUP_TOKEN` 和每小时草稿清理触发器；
+3. 部署 `staffAccount-v41.zip` 与 `faceRecognition-v50.zip`，再分别调用 `health` 核对版本；v50 默认使用最长 15 分钟的私有签名地址，并向浏览器返回缓存地址的真实剩余有效期，避免误用已经过期的原图链接。浏览器因私有桶跨域限制无法读取图片字节时，仍会通过同一工单权限校验逐张安全取得 PDF／图片导出所需的高清照片；
 4. 部署当前静态文件到 CloudBase 静态网站托管；
 5. 通过总部、运营、门店和老师真实账号完成核销照片查看、提交人上传／替换、非提交人拒绝和 24 小时截止回归测试。
+
+核销详情的高清原图查看器支持按钮、鼠标滚轮、键盘、拖动和手机／iPad 双指缩放。页面先显示缩略图，高清图解码完成后再替换；最多只保留两张已解码原图，减少连续查看照片造成的内存占用。
 
 生产环境不得信任前端传入的门店或账号权限范围，所有数据权限必须由后端根据登录账号重新校验。
 

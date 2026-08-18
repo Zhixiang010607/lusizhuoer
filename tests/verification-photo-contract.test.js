@@ -38,7 +38,7 @@ function functionSource(source, name) {
   throw new Error(`function ${name} body is incomplete`);
 }
 
-includes(cloud, 'const FUNCTION_VERSION = "v49"', "cloud version");
+includes(cloud, 'const FUNCTION_VERSION = "v50"', "cloud version");
 includes(cloud, "const MAX_VERIFICATION_IMAGE_BYTES = 3 * 1024 * 1024", "original upload limit");
 includes(cloud, "const MAX_THUMBNAIL_BYTES = 384 * 1024", "thumbnail upload limit");
 includes(cloud, "if (action === \"getVerificationPhotos\")", "thumbnail list action");
@@ -59,6 +59,7 @@ includes(cloud, '/^(?:face-evidence|records)\\//', "fallback bucket evidence pre
 includes(cloud, "verificationPhotoFallbackBucketId", "health reports safe fallback bucket");
 includes(cloud, "crypto.timingSafeEqual", "cleanup token comparison");
 includes(cloud, "thumbnailTransformUrl", "retained profile thumbnail transform");
+includes(functionSource(cloud, "verificationPhotoUrlTtlSeconds"), 'numberSetting("VERIFICATION_PHOTO_URL_TTL_SECONDS", 900, 60, 900)', "private photo URLs default to the bounded 15-minute speed window");
 const verificationSignSource = functionSource(cloud, "signVerificationPhoto");
 includes(verificationSignSource, 'typeof manager().storage.signObjects === "function"', "batch signing compatibility fallback");
 includes(verificationSignSource, "Verification photo signing returned no HTTPS URL", "safe verification signing diagnostics");
@@ -146,7 +147,6 @@ const signingHarness = {
   photoStorageSettings: () => ({ bucketId: "customer-photos", accessToken: "token", envId: "env" }),
   verificationPhotoStorageForEvidence: () => ({ bucketId: "customer-photos", accessToken: "token", envId: "env" }),
   photoObjectCandidates: (_bucket, objectName) => [objectName],
-  cachedVerificationPhoto: () => null,
   responseErrorText: () => "",
   storageObjectMissing: () => false,
   safeResponseShape: () => ({}),
@@ -163,17 +163,25 @@ const signingHarness = {
 };
 vm.createContext(signingHarness);
 vm.runInContext([
+  functionSource(cloud, "cachedVerificationPhoto"),
   functionSource(cloud, "signedPhotoUrl"),
   functionSource(cloud, "thumbnailTransformUrl"),
   verificationSignSource,
   "module.exports = { signVerificationPhoto };"
 ].join("\n"), signingHarness, { filename: "verification-storage-signing.js" });
 const verificationSignTestPromise = (async () => {
-  const signedUrl = await signingHarness.module.exports.signVerificationPhoto(
+  const signedPhoto = await signingHarness.module.exports.signVerificationPhoto(
     "pg://customer-photos/records/9/slot-1/thumbnail.jpg",
     300
   );
-  assert.equal(signedUrl, "https://example.invalid/private-thumbnail.jpg");
+  assert.equal(signedPhoto.url, "https://example.invalid/private-thumbnail.jpg");
+  assert.ok(signedPhoto.expiresIn > 0 && signedPhoto.expiresIn <= 300, "signed photo returns its real remaining lifetime");
+  const cachedPhoto = await signingHarness.module.exports.signVerificationPhoto(
+    "pg://customer-photos/records/9/slot-1/thumbnail.jpg",
+    300
+  );
+  assert.equal(cachedPhoto.url, signedPhoto.url);
+  assert.ok(cachedPhoto.expiresIn <= signedPhoto.expiresIn, "cached signing never overstates its remaining lifetime");
   assert.deepEqual(signingCalls, ["single", "batch"], "empty single response falls back to batch signing once");
 })();
 
@@ -232,7 +240,7 @@ assert.ok(
     < functionSource(cloud, "getVerificationPhotos").indexOf("signVerificationPhoto("),
   "original URLs must be signed only after the verification-order permission check"
 );
-includes(detailUi, 'const VERSION = "0.15.24"', "detail UI cache version");
+includes(detailUi, 'const VERSION = "0.15.26"', "detail UI cache version");
 includes(detailUi, 'return "客户原始留存照"', "retained profile label");
 includes(detailUi, 'return "本次核销人脸照"', "current face label");
 includes(detailUi, "Array.from({ length: 5 }", "five-card gallery");
@@ -285,6 +293,14 @@ includes(detailUi, 'action: "getVerificationPhotoExportData"', "PDF/image export
 includes(detailUi, 'cache: "force-cache"', "export reuses cached signed original when available");
 includes(detailUi, "Math.min(3, queue.length)", "at most three private originals export concurrently");
 includes(detailUi, "verificationExportBlobCache", "consecutive PDF/JPG exports reuse downloaded originals");
+includes(detailUi, "photo?.originalUrlExpiresIn ?? payload?.expiresIn", "client honors each cached URL's real remaining lifetime");
+includes(detailUi, "while (verificationPhotoPreloads.size > 2)", "decoded original preload cache is bounded to two images");
+const originalViewerSource = functionSource(detailUi, "openVerificationPhoto");
+assert.ok(
+  originalViewerSource.indexOf("showVerificationPhotoOriginal(cachedOriginalUrl")
+    < originalViewerSource.indexOf('callFaceRecognition({ action: "getVerificationPhotoOriginalUrl"'),
+  "cached private originals begin decoding before the background audit request"
+);
 includes(detailUi, "if (failures.length)", "existing photo failures block incomplete exports");
 const exportPhotosSource = functionSource(detailUi, "verificationExportPhotos");
 assert.ok(
@@ -298,18 +314,55 @@ includes(functionSource(detailUi, "uploadVerificationPhoto"), "verificationPhoto
 assert.ok(!functionSource(detailUi, "chooseVerificationPhoto").includes("capture"), "gallery/file picker must not force camera capture");
 includes(detailHtml, 'id="verificationPhotoGrid"', "five-slot gallery mount");
 includes(detailHtml, 'id="verificationPhotoViewer"', "original image dialog");
+includes(detailHtml, 'aria-labelledby="verificationPhotoViewerTitle"', "viewer accessible title");
+includes(detailHtml, 'id="verificationPhotoOriginalFrame"', "zoomable photo viewport");
+includes(detailHtml, 'id="zoomOutVerificationPhoto"', "zoom-out control");
+includes(detailHtml, 'id="zoomInVerificationPhoto"', "zoom-in control");
+includes(detailHtml, 'id="resetVerificationPhotoZoom"', "fit-to-window control");
+includes(detailHtml, 'id="verificationPhotoZoomValue" aria-live="polite"', "announced zoom percentage");
 includes(detailHtml, 'id="verificationPhotoCameraDialog"', "camera preview dialog");
 includes(detailHtml, 'id="verificationPhotoCameraVideo" autoplay playsinline muted', "mobile inline camera preview");
 includes(detailHtml, 'id="switchVerificationPhotoCamera"', "front/rear camera switch action");
 includes(detailHtml, 'aria-label="切换前后摄像头"', "camera switch accessible name");
 includes(detailHtml, 'order-export.js?v=0.1.1', "export renderer cache bust");
-includes(detailHtml, 'business-detail.js?v=0.15.24', "detail script cache bust");
-includes(detailHtml, 'styles.css?v=0.15.19', "detail styles cache bust");
+includes(detailHtml, 'business-detail.js?v=0.15.26', "detail script cache bust");
+includes(detailHtml, 'styles.css?v=0.15.21', "detail styles cache bust");
 includes(styles, "grid-template-columns: repeat(3, minmax(0, 1fr))", "roomy three-column desktop gallery");
 includes(styles, ".verification-photo-actions", "separate camera and upload action layout");
 includes(styles, ".verification-photo-camera-stage", "camera preview stage styles");
 includes(styles, ".verification-photo-camera-stage video.is-user-facing", "front camera mirrored preview");
 includes(styles, "grid-template-columns: minmax(0, 1fr) auto auto", "three camera dialog actions");
+includes(styles, "touch-action: none", "viewer owns mobile pinch and drag gestures");
+includes(styles, "overscroll-behavior: contain", "viewer gestures do not scroll the page behind the dialog");
+includes(styles, "will-change: transform", "viewer zoom is compositor accelerated");
+includes(styles, "@media (max-height: 680px)", "low-height mobile landscape keeps the viewer inside the dialog");
+includes(styles, "min-height: 120px", "very short viewports retain a usable but scroll-safe photo stage");
+
+const viewerHarness = { module: { exports: {} } };
+vm.createContext(viewerHarness);
+vm.runInContext([
+  functionSource(detailUi, "clampVerificationPhotoViewerScale"),
+  functionSource(detailUi, "verificationPhotoViewerPointerGeometry"),
+  functionSource(detailUi, "verificationPhotoViewerKeyboardAction"),
+  "module.exports = { clampVerificationPhotoViewerScale, verificationPhotoViewerPointerGeometry, verificationPhotoViewerKeyboardAction };"
+].join("\n"), viewerHarness, { filename: "verification-photo-viewer-contract.js" });
+assert.equal(viewerHarness.module.exports.clampVerificationPhotoViewerScale(0.5), 1);
+assert.equal(viewerHarness.module.exports.clampVerificationPhotoViewerScale(2.5), 2.5);
+assert.equal(viewerHarness.module.exports.clampVerificationPhotoViewerScale(99), 5);
+assert.deepEqual(
+  JSON.parse(JSON.stringify(viewerHarness.module.exports.verificationPhotoViewerPointerGeometry([{ x: 0, y: 0 }, { x: 3, y: 4 }]))),
+  { distance: 5, centerX: 1.5, centerY: 2 },
+  "two-pointer zoom geometry"
+);
+assert.equal(viewerHarness.module.exports.verificationPhotoViewerKeyboardAction("+"), "ZOOM_IN");
+assert.equal(viewerHarness.module.exports.verificationPhotoViewerKeyboardAction("-"), "ZOOM_OUT");
+assert.equal(viewerHarness.module.exports.verificationPhotoViewerKeyboardAction("0"), "RESET");
+assert.equal(viewerHarness.module.exports.verificationPhotoViewerKeyboardAction("ArrowRight"), "PAN_RIGHT");
+includes(detailUi, 'addEventListener("pointercancel", handleVerificationPhotoViewerPointerEnd)', "cancelled touch gestures release viewer state");
+includes(detailUi, 'addEventListener("lostpointercapture", handleVerificationPhotoViewerPointerEnd)', "system-cancelled pointer capture cannot poison the next gesture");
+includes(detailUi, 'addEventListener("wheel", handleVerificationPhotoViewerWheel, { passive: false })', "desktop wheel zoom can prevent page scrolling");
+includes(functionSource(detailUi, "resetVerificationPhotoViewerTransform"), "verificationPhotoViewerPointers.clear()", "viewer reset clears all active pointers");
+includes(functionSource(detailUi, "resetVerificationPhotoViewerTransform"), "releasePointerCapture(pointerId)", "viewer close/reset releases captured pointers");
 
 const cameraHarness = { module: { exports: {} } };
 vm.createContext(cameraHarness);

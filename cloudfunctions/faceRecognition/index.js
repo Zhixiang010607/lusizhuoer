@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 const https = require("https");
 
-const FUNCTION_VERSION = "v49";
+const FUNCTION_VERSION = "v50";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 // SCF synchronous events are capped at 6 MB and Base64 adds roughly 33%.
 // These verification-photo limits leave room for the JSON envelope while
@@ -51,6 +51,10 @@ function numberSetting(name, fallback, minimum, maximum) {
     throw new Error(`${name} must be a number between ${minimum} and ${maximum}.`);
   }
   return parsed;
+}
+
+function verificationPhotoUrlTtlSeconds() {
+  return Math.trunc(numberSetting("VERIFICATION_PHOTO_URL_TTL_SECONDS", 900, 60, 900));
 }
 
 function booleanSetting(name, fallback = false) {
@@ -398,7 +402,10 @@ async function signVerificationPhoto(referenceValue, expiresIn, options = {}) {
   const transformKey = options.thumbnailTransform === true ? "thumbnail" : "original";
   const cacheKey = `${reference.bucketId}/${reference.objectName}/${transformKey}`;
   const cached = cachedVerificationPhoto(cacheKey);
-  if (cached) return cached.url;
+  if (cached) return {
+    url: cached.url,
+    expiresIn: Math.max(1, Math.floor((cached.expiresAt - Date.now()) / 1000))
+  };
   let url = "";
   const candidates = isRetainedProfile
     ? photoObjectCandidates(reference.bucketId, reference.objectName)
@@ -470,11 +477,12 @@ async function signVerificationPhoto(referenceValue, expiresIn, options = {}) {
     fail("核销照片临时访问地址生成失败，请查看云函数日志中的签名阶段错误。", "PHOTO_SIGN_FAILED");
   }
   if (options.thumbnailTransform === true) url = thumbnailTransformUrl(url);
-  signedVerificationPhotoCache.set(cacheKey, { url, expiresAt: Date.now() + expiresIn * 1000 });
+  const cacheEntry = { url, expiresAt: Date.now() + expiresIn * 1000 };
+  signedVerificationPhotoCache.set(cacheKey, cacheEntry);
   while (signedVerificationPhotoCache.size > 1000) {
     signedVerificationPhotoCache.delete(signedVerificationPhotoCache.keys().next().value);
   }
-  return url;
+  return { url, expiresIn: Math.max(1, Math.floor((cacheEntry.expiresAt - Date.now()) / 1000)) };
 }
 
 function rounded(value) {
@@ -2667,11 +2675,13 @@ async function getVerificationPhotos(event) {
       WHERE verification_id = ${context.verificationId}::bigint
       ORDER BY photo_slot`
   );
-  const expiresIn = Math.trunc(numberSetting("VERIFICATION_PHOTO_URL_TTL_SECONDS", 300, 60, 900));
+  const expiresIn = verificationPhotoUrlTtlSeconds();
   const photos = await Promise.all(rows.map(async (row) => {
     let thumbnailUrl = "";
+    let thumbnailUrlExpiresIn = 0;
     let thumbnailError = "";
     let originalUrl = "";
+    let originalUrlExpiresIn = 0;
     let originalError = "";
     const retainedProfile = String(row.photo_kind || "") === "PROFILE";
     const [thumbnailResult, originalResult] = await Promise.allSettled([
@@ -2683,16 +2693,24 @@ async function getVerificationPhotos(event) {
         allowCustomerProfile: retainedProfile
       })
     ]);
-    if (thumbnailResult.status === "fulfilled") thumbnailUrl = thumbnailResult.value;
+    if (thumbnailResult.status === "fulfilled") {
+      thumbnailUrl = thumbnailResult.value.url;
+      thumbnailUrlExpiresIn = thumbnailResult.value.expiresIn;
+    }
     else thumbnailError = String(thumbnailResult.reason?.code || "PHOTO_THUMBNAIL_UNAVAILABLE");
-    if (originalResult.status === "fulfilled") originalUrl = originalResult.value;
+    if (originalResult.status === "fulfilled") {
+      originalUrl = originalResult.value.url;
+      originalUrlExpiresIn = originalResult.value.expiresIn;
+    }
     else originalError = String(originalResult.reason?.code || "PHOTO_ORIGINAL_UNAVAILABLE");
     return {
       slot: Number(row.photo_slot),
       kind: String(row.photo_kind || ""),
       thumbnailUrl,
+      thumbnailUrlExpiresIn,
       thumbnailError,
       originalUrl,
+      originalUrlExpiresIn,
       originalError,
       originalBytes: Number(row.original_bytes || 0),
       thumbnailBytes: Number(row.thumbnail_bytes || 0),
@@ -2728,8 +2746,8 @@ async function getVerificationPhotoOriginalUrl(event) {
   );
   const photo = rows[0];
   if (!photo) fail("该照片位置尚未上传。", "PHOTO_NOT_FOUND");
-  const expiresIn = Math.trunc(numberSetting("VERIFICATION_PHOTO_URL_TTL_SECONDS", 300, 60, 900));
-  const photoUrl = await signVerificationPhoto(photo.original_object_ref, expiresIn, {
+  const expiresIn = verificationPhotoUrlTtlSeconds();
+  const signedPhoto = await signVerificationPhoto(photo.original_object_ref, expiresIn, {
     allowCustomerProfile: String(photo.photo_kind || "") === "PROFILE"
   });
   await executeSql(
@@ -2742,11 +2760,11 @@ async function getVerificationPhotoOriginalUrl(event) {
   return {
     ok: true,
     slot,
-    photoUrl,
+    photoUrl: signedPhoto.url,
     originalBytes: Number(photo.original_bytes || 0),
     width: Number(photo.image_width || 0),
     height: Number(photo.image_height || 0),
-    expiresIn
+    expiresIn: signedPhoto.expiresIn
   };
 }
 
@@ -2885,11 +2903,12 @@ async function uploadVerificationExtraPhoto(event) {
       saved?.old_thumbnail_object_ref && saved.old_thumbnail_object_ref !== uploadedThumbnail.reference
         ? deleteVerificationPhotoObject(saved.old_thumbnail_object_ref) : Promise.resolve()
     ]);
-    const expiresIn = Math.trunc(numberSetting("VERIFICATION_PHOTO_URL_TTL_SECONDS", 300, 60, 900));
+    const expiresIn = verificationPhotoUrlTtlSeconds();
     let thumbnailUrl = "";
     let thumbnailError = "";
     try {
-      thumbnailUrl = await signVerificationPhoto(uploadedThumbnail.reference, expiresIn);
+      const signedThumbnail = await signVerificationPhoto(uploadedThumbnail.reference, expiresIn);
+      thumbnailUrl = signedThumbnail.url;
     } catch (error) {
       // The immutable object references and database row are already saved.
       // A temporary preview-signing problem must not report the upload itself
@@ -2974,6 +2993,7 @@ exports.main = async (event = {}) => {
       photoBucketId: String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim(),
       verificationPhotoBucketId: String(process.env.VERIFICATION_PHOTO_BUCKET_ID || "verification-photos").trim(),
       verificationPhotoFallbackBucketId: String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim(),
+      verificationPhotoUrlTtlSeconds: verificationPhotoUrlTtlSeconds(),
       verificationPhotoCleanupConfigured: Boolean(String(process.env.VERIFICATION_PHOTO_CLEANUP_TOKEN || "").trim()),
       livenessEnabled: faceSettings().livenessEnabled,
       message: "Face customer enrollment and private verification photos are ready."

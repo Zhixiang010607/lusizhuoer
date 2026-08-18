@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.24";
+  const VERSION = "0.15.26";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -18,7 +18,13 @@
   let verificationCameraSwitchBusy = false;
   let verificationCameraRequest = 0;
   let verificationPhotoViewerRequest = 0;
+  let verificationPhotoViewerScale = 1;
+  let verificationPhotoViewerTranslateX = 0;
+  let verificationPhotoViewerTranslateY = 0;
+  let verificationPhotoViewerPinch = null;
   const verificationPhotoPreloads = new Map();
+  const verificationPhotoViewerPointers = new Map();
+  const verificationPhotoOriginalAuditCache = new Set();
   const verificationExportBlobCache = new Map();
   let verificationExportDirectFetchUnavailable = false;
   let orderExportBusy = false;
@@ -649,6 +655,153 @@
       || (navigator.platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1);
   }
 
+  function clampVerificationPhotoViewerScale(value) {
+    return Math.min(5, Math.max(1, Number(value) || 1));
+  }
+
+  function verificationPhotoViewerPointerGeometry(points) {
+    const values = Array.from(points || []);
+    if (values.length < 2) return null;
+    const left = values[0];
+    const right = values[1];
+    const deltaX = Number(right.x || 0) - Number(left.x || 0);
+    const deltaY = Number(right.y || 0) - Number(left.y || 0);
+    return {
+      distance: Math.max(1, Math.hypot(deltaX, deltaY)),
+      centerX: (Number(left.x || 0) + Number(right.x || 0)) / 2,
+      centerY: (Number(left.y || 0) + Number(right.y || 0)) / 2
+    };
+  }
+
+  function verificationPhotoViewerKeyboardAction(key) {
+    if (["+", "=", "Add", "PageUp"].includes(key)) return "ZOOM_IN";
+    if (["-", "_", "Subtract", "PageDown"].includes(key)) return "ZOOM_OUT";
+    if (["0", "Home"].includes(key)) return "RESET";
+    if (key === "ArrowLeft") return "PAN_LEFT";
+    if (key === "ArrowRight") return "PAN_RIGHT";
+    if (key === "ArrowUp") return "PAN_UP";
+    if (key === "ArrowDown") return "PAN_DOWN";
+    return "";
+  }
+
+  function applyVerificationPhotoViewerTransform() {
+    const frame = $("verificationPhotoOriginalFrame");
+    const image = $("verificationPhotoOriginal");
+    const output = $("verificationPhotoZoomValue");
+    verificationPhotoViewerScale = clampVerificationPhotoViewerScale(verificationPhotoViewerScale);
+    const imageWidth = Number(image?.clientWidth || 0);
+    const imageHeight = Number(image?.clientHeight || 0);
+    const maxX = Math.max(0, (imageWidth * verificationPhotoViewerScale - Number(frame?.clientWidth || 0)) / 2);
+    const maxY = Math.max(0, (imageHeight * verificationPhotoViewerScale - Number(frame?.clientHeight || 0)) / 2);
+    verificationPhotoViewerTranslateX = Math.min(maxX, Math.max(-maxX, verificationPhotoViewerTranslateX));
+    verificationPhotoViewerTranslateY = Math.min(maxY, Math.max(-maxY, verificationPhotoViewerTranslateY));
+    if (verificationPhotoViewerScale === 1) {
+      verificationPhotoViewerTranslateX = 0;
+      verificationPhotoViewerTranslateY = 0;
+    }
+    if (image) image.style.transform = `translate3d(${verificationPhotoViewerTranslateX}px, ${verificationPhotoViewerTranslateY}px, 0) scale(${verificationPhotoViewerScale})`;
+    if (output) output.value = `${Math.round(verificationPhotoViewerScale * 100)}%`;
+    const zoomOut = $("zoomOutVerificationPhoto");
+    if (zoomOut) zoomOut.disabled = verificationPhotoViewerScale <= 1;
+    const zoomIn = $("zoomInVerificationPhoto");
+    if (zoomIn) zoomIn.disabled = verificationPhotoViewerScale >= 5;
+  }
+
+  function resetVerificationPhotoViewerTransform() {
+    const frame = $("verificationPhotoOriginalFrame");
+    for (const pointerId of verificationPhotoViewerPointers.keys()) {
+      try {
+        if (frame?.hasPointerCapture?.(pointerId)) frame.releasePointerCapture(pointerId);
+      } catch (_) { /* 指针可能已经由系统释放 */ }
+    }
+    verificationPhotoViewerScale = 1;
+    verificationPhotoViewerTranslateX = 0;
+    verificationPhotoViewerTranslateY = 0;
+    verificationPhotoViewerPinch = null;
+    verificationPhotoViewerPointers.clear();
+    frame?.classList.remove("is-dragging");
+    applyVerificationPhotoViewerTransform();
+  }
+
+  function zoomVerificationPhotoViewer(nextScale, clientX, clientY) {
+    const frame = $("verificationPhotoOriginalFrame");
+    const previousScale = verificationPhotoViewerScale;
+    const scale = clampVerificationPhotoViewerScale(nextScale);
+    if (!frame || scale === previousScale) return applyVerificationPhotoViewerTransform();
+    const bounds = frame.getBoundingClientRect();
+    const focusX = Number.isFinite(Number(clientX)) ? Number(clientX) - bounds.left - bounds.width / 2 : 0;
+    const focusY = Number.isFinite(Number(clientY)) ? Number(clientY) - bounds.top - bounds.height / 2 : 0;
+    const contentX = (focusX - verificationPhotoViewerTranslateX) / previousScale;
+    const contentY = (focusY - verificationPhotoViewerTranslateY) / previousScale;
+    verificationPhotoViewerScale = scale;
+    verificationPhotoViewerTranslateX = focusX - contentX * scale;
+    verificationPhotoViewerTranslateY = focusY - contentY * scale;
+    applyVerificationPhotoViewerTransform();
+  }
+
+  function handleVerificationPhotoViewerPointerDown(event) {
+    const frame = $("verificationPhotoOriginalFrame");
+    if (!frame || !$('verificationPhotoOriginal')?.getAttribute("src")) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    verificationPhotoViewerPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    try { frame.setPointerCapture(event.pointerId); } catch (_) { /* 部分旧版 Safari 不支持捕获 */ }
+    frame.classList.add("is-dragging");
+    verificationPhotoViewerPinch = verificationPhotoViewerPointerGeometry(verificationPhotoViewerPointers.values());
+  }
+
+  function handleVerificationPhotoViewerPointerMove(event) {
+    if (!verificationPhotoViewerPointers.has(event.pointerId)) return;
+    event.preventDefault();
+    const previous = verificationPhotoViewerPointers.get(event.pointerId);
+    verificationPhotoViewerPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (verificationPhotoViewerPointers.size >= 2) {
+      const geometry = verificationPhotoViewerPointerGeometry(verificationPhotoViewerPointers.values());
+      if (geometry && verificationPhotoViewerPinch) {
+        verificationPhotoViewerTranslateX += geometry.centerX - verificationPhotoViewerPinch.centerX;
+        verificationPhotoViewerTranslateY += geometry.centerY - verificationPhotoViewerPinch.centerY;
+        zoomVerificationPhotoViewer(verificationPhotoViewerScale * geometry.distance / verificationPhotoViewerPinch.distance, geometry.centerX, geometry.centerY);
+      }
+      verificationPhotoViewerPinch = geometry;
+      return;
+    }
+    verificationPhotoViewerPinch = null;
+    verificationPhotoViewerTranslateX += event.clientX - previous.x;
+    verificationPhotoViewerTranslateY += event.clientY - previous.y;
+    applyVerificationPhotoViewerTransform();
+  }
+
+  function handleVerificationPhotoViewerPointerEnd(event) {
+    const frame = $("verificationPhotoOriginalFrame");
+    verificationPhotoViewerPointers.delete(event.pointerId);
+    if (event.type !== "lostpointercapture") {
+      try { frame?.releasePointerCapture(event.pointerId); } catch (_) { /* 已释放 */ }
+    }
+    verificationPhotoViewerPinch = verificationPhotoViewerPointerGeometry(verificationPhotoViewerPointers.values());
+    if (!verificationPhotoViewerPointers.size) frame?.classList.remove("is-dragging");
+  }
+
+  function handleVerificationPhotoViewerWheel(event) {
+    event.preventDefault();
+    const factor = event.deltaY < 0 ? 1.16 : 1 / 1.16;
+    zoomVerificationPhotoViewer(verificationPhotoViewerScale * factor, event.clientX, event.clientY);
+  }
+
+  function handleVerificationPhotoViewerKeydown(event) {
+    const action = verificationPhotoViewerKeyboardAction(event.key);
+    if (!action) return;
+    event.preventDefault();
+    if (action === "ZOOM_IN") return zoomVerificationPhotoViewer(verificationPhotoViewerScale * 1.25);
+    if (action === "ZOOM_OUT") return zoomVerificationPhotoViewer(verificationPhotoViewerScale / 1.25);
+    if (action === "RESET") return resetVerificationPhotoViewerTransform();
+    if (verificationPhotoViewerScale <= 1) return;
+    const step = 48;
+    if (action === "PAN_LEFT") verificationPhotoViewerTranslateX += step;
+    if (action === "PAN_RIGHT") verificationPhotoViewerTranslateX -= step;
+    if (action === "PAN_UP") verificationPhotoViewerTranslateY += step;
+    if (action === "PAN_DOWN") verificationPhotoViewerTranslateY -= step;
+    applyVerificationPhotoViewerTransform();
+  }
+
   function resetVerificationPhotoPanel(message = "正在读取私有照片权限与缩略图…") {
     const panel = $("verificationPhotoPanel");
     if (!panel) return;
@@ -668,25 +821,56 @@
   function preloadVerificationPhotoOriginal(photo, explicitIntent = false) {
     const url = clean(photo?.originalUrl);
     const bytes = Number(photo?.originalBytes || 0);
-    if (!url || verificationPhotoPreloads.has(url)) return;
+    if (!url) return null;
+    const existing = verificationPhotoPreloads.get(url);
+    if (existing) {
+      verificationPhotoPreloads.delete(url);
+      verificationPhotoPreloads.set(url, existing);
+      if (explicitIntent) existing.fetchPriority = "high";
+      return existing;
+    }
     const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-    if (!explicitIntent && (connection?.saveData === true || /(^|-)2g$/i.test(String(connection?.effectiveType || "")))) return;
-    if (!explicitIntent && (!bytes || bytes > 768 * 1024)) return;
+    if (!explicitIntent && (connection?.saveData === true || /(^|-)2g$/i.test(String(connection?.effectiveType || "")))) return null;
+    if (!explicitIntent && (!bytes || bytes > 3 * 1024 * 1024)) return null;
     const preload = new Image();
     preload.decoding = "async";
     preload.referrerPolicy = "no-referrer";
     preload.fetchPriority = explicitIntent ? "high" : "low";
     verificationPhotoPreloads.set(url, preload);
-    preload.addEventListener("error", () => verificationPhotoPreloads.delete(url), { once: true });
+    while (verificationPhotoPreloads.size > 2) verificationPhotoPreloads.delete(verificationPhotoPreloads.keys().next().value);
+    preload.addEventListener("error", () => {
+      if (verificationPhotoPreloads.get(url) === preload) verificationPhotoPreloads.delete(url);
+    }, { once: true });
     preload.src = url;
+    return preload;
   }
 
   function scheduleVerificationPhotoPreloads(photos) {
-    const candidates = photos.filter((photo) => clean(photo?.originalUrl));
-    if (!candidates.length) return;
-    const run = () => candidates.forEach((photo) => preloadVerificationPhotoOriginal(photo));
-    if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 1400 });
-    else setTimeout(run, 500);
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (connection?.saveData === true || /(^|-)2g$/i.test(String(connection?.effectiveType || ""))) return;
+    const priorityPhotos = photos.filter((photo) => Number(photo?.slot) < 2 && clean(photo?.originalUrl));
+    if (!priorityPhotos.length) return;
+    const run = () => priorityPhotos.forEach((photo) => preloadVerificationPhotoOriginal(photo, true));
+    if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 350 });
+    else setTimeout(run, 120);
+  }
+
+  async function waitForVerificationPhotoPreload(url, photo) {
+    const preload = preloadVerificationPhotoOriginal({ ...photo, originalUrl: url }, true);
+    if (!preload) throw new Error("高清原图地址无效");
+    if (preload.complete && preload.naturalWidth) return preload;
+    if (typeof preload.decode === "function") {
+      try {
+        await preload.decode();
+        if (preload.naturalWidth) return preload;
+      } catch (_) { /* 旧版 Safari 改用 load 事件 */ }
+    }
+    await new Promise((resolve, reject) => {
+      if (preload.complete) return preload.naturalWidth ? resolve() : reject(new Error("高清原图解码失败"));
+      preload.addEventListener("load", resolve, { once: true });
+      preload.addEventListener("error", () => reject(new Error("高清原图载入失败")), { once: true });
+    });
+    return preload;
   }
 
   function verificationPhotoCard(photo, slot, payload) {
@@ -709,7 +893,7 @@
     const photos = Array.isArray(payload?.photos) ? payload.photos : [];
     const loadedAt = Date.now();
     photos.forEach((photo) => {
-      photo.originalUrlExpiresAt = loadedAt + Math.max(0, Number(payload?.expiresIn || 0) * 1000);
+      photo.originalUrlExpiresAt = loadedAt + Math.max(0, Number(photo?.originalUrlExpiresIn ?? payload?.expiresIn ?? 0) * 1000);
     });
     currentVerificationPhotoPayload = { ...payload, photos, loadedAt, error: null };
     const bySlot = new Map(photos.map((photo) => [Number(photo.slot), photo]));
@@ -1087,6 +1271,17 @@
     }
   }
 
+  async function showVerificationPhotoOriginal(url, listPhoto, request) {
+    const dialog = $("verificationPhotoViewer");
+    const image = $("verificationPhotoOriginal");
+    if (!dialog || !image || !url) return false;
+    await waitForVerificationPhotoPreload(url, listPhoto);
+    if (request !== verificationPhotoViewerRequest || !dialog.open) return false;
+    image.dataset.photoQuality = "original";
+    if (image.src !== url) image.src = url;
+    return true;
+  }
+
   async function openVerificationPhoto(recordId, slot) {
     const dialog = $("verificationPhotoViewer");
     const image = $("verificationPhotoOriginal");
@@ -1097,45 +1292,50 @@
     const cachedUrlValid = cachedOriginalUrl && Number(listPhoto?.originalUrlExpiresAt || 0) > Date.now() + 10000;
     const status = $("verificationPhotoViewerStatus");
     image.fetchPriority = "high";
+    resetVerificationPhotoViewerTransform();
     $("verificationPhotoViewerTitle").textContent = cachedUrlValid
       ? `${photoSlotLabel(slot)} · ${listPhoto?.width || "—"} × ${listPhoto?.height || "—"}`
       : `${photoSlotLabel(slot)} · 正在加载高清原图`;
-    if (status) status.textContent = cachedUrlValid ? "正在显示已预备的高清原图…" : "先显示缩略图，高清原图加载完成后自动替换。";
+    if (status) status.textContent = "先显示缩略图，高清原图加载完成后自动替换；可双指、滚轮或按钮放大。";
     image.removeAttribute("src");
     image.alt = `${photoSlotLabel(slot)}原图`;
     image.onload = () => {
       if (request !== verificationPhotoViewerRequest || !dialog.open || !status) return;
+      applyVerificationPhotoViewerTransform();
       status.textContent = image.dataset.photoQuality === "original"
-        ? "高清原图已加载，可缩放或滚动查看。"
+        ? "高清原图已加载，可双指缩放、滚轮缩放或拖动查看。"
         : "缩略图已显示，高清原图仍在加载…";
     };
     image.onerror = () => {
       if (request === verificationPhotoViewerRequest && dialog.open && status) status.textContent = "正在重新获取高清原图地址…";
     };
-    if (cachedUrlValid) {
-      image.dataset.photoQuality = "original";
-      image.src = cachedOriginalUrl;
-    } else if (clean(listPhoto?.thumbnailUrl)) {
+    if (clean(listPhoto?.thumbnailUrl)) {
       image.dataset.photoQuality = "thumbnail";
       image.src = listPhoto.thumbnailUrl;
     }
     dialog.showModal();
+    $("verificationPhotoOriginalFrame")?.focus({ preventScroll: true });
+    const auditKey = `${recordId}:${slot}:${clean(listPhoto?.uploadedAt)}`;
+    const cachedLoadPromise = cachedUrlValid
+      ? showVerificationPhotoOriginal(cachedOriginalUrl, listPhoto, request).catch(() => false)
+      : Promise.resolve(false);
+    if (cachedUrlValid && verificationPhotoOriginalAuditCache.has(auditKey) && await cachedLoadPromise) return;
     try {
       const payload = await callFaceRecognition({ action: "getVerificationPhotoOriginalUrl", recordId, slot });
       if (request !== verificationPhotoViewerRequest || !dialog.open) return;
+      verificationPhotoOriginalAuditCache.add(auditKey);
       if (listPhoto) {
         listPhoto.originalUrl = payload.photoUrl;
         listPhoto.originalUrlExpiresAt = Date.now() + Math.max(0, Number(payload.expiresIn || 0) * 1000);
       }
-      if (image.src !== payload.photoUrl) {
-        image.dataset.photoQuality = "original";
-        image.src = payload.photoUrl;
-      }
+      const cachedDisplayed = await cachedLoadPromise;
+      if (!cachedDisplayed || payload.photoUrl !== cachedOriginalUrl) await showVerificationPhotoOriginal(payload.photoUrl, listPhoto, request);
       $("verificationPhotoViewerTitle").textContent = `${photoSlotLabel(slot)} · ${payload.width || "—"} × ${payload.height || "—"}`;
     } catch (error) {
       if (request !== verificationPhotoViewerRequest || !dialog.open) return;
-      if (!cachedUrlValid) $("verificationPhotoViewerTitle").textContent = error?.message || "原图读取失败";
-      if (status) status.textContent = cachedUrlValid ? "高清原图已显示；查看审计暂时写入失败。" : "高清原图读取失败，请关闭后重试。";
+      const cachedDisplayed = await cachedLoadPromise;
+      if (!cachedDisplayed) $("verificationPhotoViewerTitle").textContent = error?.message || "原图读取失败";
+      if (status) status.textContent = cachedDisplayed ? "高清原图已显示；查看审计暂时写入失败。" : "高清原图读取失败，请关闭后重试。";
     }
   }
 
@@ -1439,11 +1639,25 @@
   }
 
   $("closeVerificationPhotoViewer")?.addEventListener("click", () => $("verificationPhotoViewer")?.close());
+  $("zoomOutVerificationPhoto")?.addEventListener("click", () => zoomVerificationPhotoViewer(verificationPhotoViewerScale / 1.25));
+  $("zoomInVerificationPhoto")?.addEventListener("click", () => zoomVerificationPhotoViewer(verificationPhotoViewerScale * 1.25));
+  $("resetVerificationPhotoZoom")?.addEventListener("click", resetVerificationPhotoViewerTransform);
+  $("verificationPhotoOriginalFrame")?.addEventListener("pointerdown", handleVerificationPhotoViewerPointerDown);
+  $("verificationPhotoOriginalFrame")?.addEventListener("pointermove", handleVerificationPhotoViewerPointerMove);
+  $("verificationPhotoOriginalFrame")?.addEventListener("pointerup", handleVerificationPhotoViewerPointerEnd);
+  $("verificationPhotoOriginalFrame")?.addEventListener("pointercancel", handleVerificationPhotoViewerPointerEnd);
+  $("verificationPhotoOriginalFrame")?.addEventListener("lostpointercapture", handleVerificationPhotoViewerPointerEnd);
+  $("verificationPhotoOriginalFrame")?.addEventListener("wheel", handleVerificationPhotoViewerWheel, { passive: false });
+  $("verificationPhotoOriginalFrame")?.addEventListener("dblclick", (event) => {
+    zoomVerificationPhotoViewer(verificationPhotoViewerScale > 1 ? 1 : 2.5, event.clientX, event.clientY);
+  });
+  $("verificationPhotoOriginalFrame")?.addEventListener("keydown", handleVerificationPhotoViewerKeydown);
   $("verificationPhotoViewer")?.addEventListener("click", (event) => {
     if (event.target === event.currentTarget) event.currentTarget.close();
   });
   $("verificationPhotoViewer")?.addEventListener("close", () => {
     verificationPhotoViewerRequest += 1;
+    resetVerificationPhotoViewerTransform();
     const image = $("verificationPhotoOriginal");
     image?.removeAttribute("src");
     if (image) { image.onload = null; image.onerror = null; delete image.dataset.photoQuality; }
@@ -1456,7 +1670,12 @@
     if (event.target === event.currentTarget) event.currentTarget.close();
   });
   $("verificationPhotoCameraDialog")?.addEventListener("close", () => stopVerificationPhotoCamera());
-  window.addEventListener("pagehide", () => stopVerificationPhotoCamera());
+  window.addEventListener("resize", applyVerificationPhotoViewerTransform);
+  window.addEventListener("pagehide", () => {
+    stopVerificationPhotoCamera();
+    verificationPhotoPreloads.clear();
+    verificationPhotoOriginalAuditCache.clear();
+  });
   $("exportOrderPdf")?.addEventListener("click", () => exportCurrentOrder("pdf"));
   $("exportOrderImage")?.addEventListener("click", () => exportCurrentOrder("image"));
 

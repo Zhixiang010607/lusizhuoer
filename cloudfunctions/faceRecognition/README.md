@@ -2,7 +2,7 @@
 
 该函数仅在 CloudBase 后端运行，用于门店客户建档、照片质量检测、私有照片留存、人脸人员库录入和后续人员搜索。客户不需要提供身份证。
 
-当前版本：`v49`
+当前版本：`v50`
 
 ## 必需环境变量
 
@@ -27,7 +27,7 @@
 - `CUSTOMER_PHOTO_BUCKET_ID=customer-photos`
 - `CUSTOMER_PHOTO_URL_TTL_SECONDS=120`：核销／充值选择客户时，私有照片临时地址的有效秒数；允许 30--600 秒。
 - `VERIFICATION_PHOTO_BUCKET_ID=verification-photos`：可选的核销证据专用私有 PG 存储桶。未创建该桶或该桶返回 `STORAGE_BUCKET_NOT_FOUND` 时，仅核销证据对象会自动回退到现有 `customer-photos` 私有桶，不影响 1:1 人脸验证。
-- `VERIFICATION_PHOTO_URL_TTL_SECONDS=300`：核销缩略图和按需原图的签名地址有效秒数；允许 60--900 秒。
+- `VERIFICATION_PHOTO_URL_TTL_SECONDS=900`：核销缩略图和按需原图的签名地址有效秒数；允许 60--900 秒。默认 15 分钟以复用浏览器私有缓存，地址仍会过期且不会写入持久存储。
 - `VERIFICATION_FACE_EVIDENCE_TTL_MINUTES=30`：人脸比对通过后、正式提交核销单前的照片草稿有效分钟；允许 5--120 分钟。
 - `VERIFICATION_PHOTO_CLEANUP_TOKEN`：至少 32 位随机清理凭证，只放云函数环境变量和定时触发器事件中。
 
@@ -56,14 +56,14 @@
 
 该桶不为 `anon` 或 `authenticated` 创建任何 RLS Policy，客户端访问默认拒绝；只有使用 `service_role` 的云函数可以读写。数据库保存 `pg://<bucketId>/<objectName>` 私有引用，不保存公开下载地址。
 
-建议另建 PG 存储桶 `verification-photos` 以便分开管理和保留策略；该桶不存在时 v49 会自动使用现有的私有 `customer-photos` 桶：
+建议另建 PG 存储桶 `verification-photos` 以便分开管理和保留策略；该桶不存在时 v50 会自动使用现有的私有 `customer-photos` 桶：
 
 - 访问权限：私有；不要给 `anon` 或 `authenticated` 添加 SELECT/INSERT/UPDATE/DELETE Policy。
 - 单文件限制：5 MB；MIME 白名单仅 `image/jpeg`。
 - CORS：只允许正式静态站点域名及本地测试域名的 `GET`；本实现的写入经过云函数，不需要浏览器直传权限。
 - 对象路径：人脸凭证使用 `face-evidence/<store>/<staff>/<token>/...`，补充照片使用 `records/<verificationId>/slot-<n>/...`；每次替换都生成新对象名。
 - 每单固定展示客户建档留存照、本次核销人脸照和 3 个补充照片位。客户留存照引用在建单事务中固化，缩略图使用 CloudBase 图片处理按需生成；人脸照和补充照分别保存高清原图与小缩略图。
-- 原图和缩略图设置私有长期缓存；数据库从不保存签名 URL。详情首屏在完成账号和工单权限校验后，同时准备最多 5 张缩略图及短时原图地址；页面只自动低优先预载小于 768 KB 的现有原图，省流或 2G 网络不预载。点击时立即使用仍有效的地址显示高清图，并在后台再次校验权限和写入查看审计。
+- 原图和缩略图设置私有长期缓存；数据库从不保存签名 URL。详情首屏在完成账号和工单权限校验后，同时准备最多 5 张缩略图及短时原图地址；页面仅在非省流、非 2G 网络下提前解码前两个照片位，并把已解码原图限制为最多 2 张。点击时先显示缩略图，再无闪烁替换为高清图；同页重复查看可复用仍有效的私有地址，首次查看仍会在后台再次校验权限并写入查看审计。
 - 创建一个每小时定时触发器调用 `{ "action":"cleanupVerificationPhotoDrafts", "cleanupToken":"与环境变量相同的随机值" }`，清除过期且未建单的人脸照片草稿。一次最多清理 100 组，可按返回值继续触发。
 
 ## 部署
@@ -81,10 +81,11 @@
 ```json
 {
   "ok": true,
-  "version": "v49",
+  "version": "v50",
   "photoBucketId": "customer-photos",
   "verificationPhotoBucketId": "verification-photos",
   "verificationPhotoFallbackBucketId": "customer-photos",
+  "verificationPhotoUrlTtlSeconds": 900,
   "verificationPhotoCleanupConfigured": true,
   "livenessEnabled": true
 }
@@ -119,7 +120,7 @@
 - `getVerificationPhotoOriginalUrl`：用户实际点击后再次校验相同工单权限，复用或刷新该照片位的短时原图地址，并写入 `VIEW_ORIGINAL` 查看审计。
 - `getVerificationPhotoExportData`：仅供当前工单导出使用；先复用 `getVerificationPhotoOriginalUrl` 的实时账号、工单权限和查看审计，再由云函数通过 HTTPS 读取单张私有 JPEG，以最多 4 MB 的 Base64 返回。网页优先复用已经加载的原图缓存，只有浏览器因私有桶 CORS／临时地址失效而无法读取字节时才逐张调用该安全兜底；不要求公开存储桶，也不向未授权账号签发或代理照片。
 - `uploadVerificationExtraPhoto`：仅允许核销单 `submitted_by_account_id` 对应的真实登录账号，在 `submitted_at + 24 hours` 之前上传或替换照片位 2--4；总部、运营、其他门店或其他老师均不可写。数据库触发器和云函数双重校验，照片位 0 的客户留存照和照片位 1 的本次核销人脸照永久不可替换。
-- v49 兼容 CloudBase 存储网关已经完成二进制写入、但 manager-node 5.6.4 因成功响应缺少大写 `Id/Key` 而抛出的格式异常；云函数继续使用自己生成的不可预测对象名和私有引用，不把成功上传误报为失败。照片与数据库已经保存后，即使即时缩略图签名暂时失败，也只返回预览警告并由列表刷新重试，不回滚或误报整次上传。
+- v50 在保留 v49 存储兼容处理的基础上，将私有照片签名默认有效期调整为 15 分钟，并为每条缓存命中的地址返回真实剩余秒数；浏览器不会再把即将过期的旧地址误认为完整 15 分钟有效。照片桶仍保持私有，所有列表、原图与导出读取仍先经过账号和工单权限校验。
 - `cleanupVerificationPhotoDrafts`：定时触发器使用恒定时间比较的专用随机凭证清理过期未消费草稿；不删除已经绑定核销单的照片。
 
 正式上线前还要提供客户授权记录、照片与人脸数据删除流程、访问审计，并确认腾讯云高精度静态活体服务已开通和计费。

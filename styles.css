@@ -912,8 +912,14 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .verification-photo-viewer .dialog-heading h2 { margin: 0; }
 .verification-photo-viewer .dialog-heading p { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
 .verification-photo-viewer .dialog-heading button { flex: 0 0 34px; width: 34px; height: 34px; padding: 0; }
-.verification-photo-original-frame { min-height: 180px; display: grid; place-items: center; overflow: auto; border-radius: 10px; background: #0b142a; }
-.verification-photo-original-frame img { display: block; max-width: 100%; max-height: calc(100dvh - 130px); object-fit: contain; }
+.verification-photo-viewer-controls { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.verification-photo-viewer-controls button { min-width: 44px; min-height: 44px; padding: 8px 13px; color: #174f86; border: 1px solid #c7d7ea; background: #edf5ff; }
+.verification-photo-viewer-controls output { min-width: 62px; color: var(--ink); font-size: 12px; font-weight: 900; text-align: center; font-variant-numeric: tabular-nums; }
+.verification-photo-original-frame { position: relative; width: 100%; height: min(72dvh, 760px); min-height: 220px; display: grid; place-items: center; overflow: hidden; touch-action: none; overscroll-behavior: contain; border-radius: 10px; outline: none; background: #0b142a; cursor: grab; user-select: none; }
+.verification-photo-original-frame.is-dragging { cursor: grabbing; }
+.verification-photo-original-frame:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; }
+.verification-photo-original-frame img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; transform: translate3d(0, 0, 0) scale(1); transform-origin: center center; will-change: transform; -webkit-user-drag: none; user-select: none; }
+@media (prefers-reduced-motion: no-preference) { .verification-photo-original-frame img { transition: transform .08s linear; } .verification-photo-original-frame.is-dragging img { transition: none; } }
 .verification-photo-camera-dialog { width: min(760px, calc(100vw - 28px)); max-height: calc(100dvh - 28px); padding: 16px; overflow: auto; }
 .verification-photo-camera-dialog .dialog-heading { align-items: start; gap: 14px; margin-bottom: 12px; }
 .verification-photo-camera-dialog .dialog-heading h2 { margin: 0; }
@@ -1235,8 +1241,19 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 @media (max-width: 560px) {
   .verification-photo-panel { padding: 14px; }
   .verification-photo-grid { grid-template-columns: 1fr; }
+  .verification-photo-viewer { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); padding: 12px; }
+  .verification-photo-viewer-controls { position: sticky; top: -12px; z-index: 2; padding: 8px 0; background: #fff; }
+  .verification-photo-original-frame { height: min(68dvh, 620px); min-height: 260px; }
   .verification-photo-camera-dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); padding: 12px; }
   .verification-photo-camera-dialog-actions { grid-template-columns: 1fr; }
+}
+@media (max-height: 680px) {
+  .verification-photo-original-frame { height: min(46dvh, 420px); min-height: 180px; }
+}
+@media (max-height: 480px) {
+  .verification-photo-viewer .dialog-heading { margin-bottom: 6px; }
+  .verification-photo-viewer-controls { margin-bottom: 6px; }
+  .verification-photo-original-frame { height: 38dvh; min-height: 120px; }
 }
 @media (max-width: 450px) { .filter-grid, .metric-grid, .management-summary, .detail-info-grid, .query-filter-grid { grid-template-columns: 1fr; } .table-card .panel-heading, .ranking-actions { width: 100%; flex-wrap: wrap; } .ranking-actions > * { flex: 1; } .ranking-dimension select { width: 100%; } }
 @media (max-width: 600px) { .login-shell { width: 100%; min-height: 100vh; margin: 0; border-radius: 0; } .login-brand-panel { min-height: 270px; padding: 28px 22px; } .login-brand-copy { margin: 34px 0 0; } .login-brand-copy h1 { font-size: 34px; } .login-feature-list, .login-security-note { display: none; } .login-form-panel { padding: 34px 20px; } .role-switch button small { display: none; } }
