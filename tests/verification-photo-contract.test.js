@@ -79,15 +79,15 @@ includes(detailUi, 'action: "getVerificationPhotos"', "detail thumbnail request"
 includes(detailUi, 'action: "getVerificationPhotoOriginalUrl"', "detail original request");
 includes(detailUi, 'action: "uploadVerificationExtraPhoto"', "detail upload request");
 includes(detailUi, 'loading="lazy"', "lazy thumbnail loading");
-includes(detailUi, 'const VERSION = "0.15.16"', "detail UI cache version");
+includes(detailUi, 'const VERSION = "0.15.17"', "detail UI cache version");
 includes(detailUi, 'return "客户原始留存照"', "retained profile label");
 includes(detailUi, 'return "本次核销人脸照"', "current face label");
 includes(detailUi, "Array.from({ length: 5 }", "five-card gallery");
 includes(detailUi, "slot >= 2", "immutable profile and face UI positions");
 includes(detailHtml, 'id="verificationPhotoGrid"', "five-slot gallery mount");
 includes(detailHtml, 'id="verificationPhotoViewer"', "original image dialog");
-includes(detailHtml, 'business-detail.js?v=0.15.16', "detail script cache bust");
-includes(detailHtml, 'styles.css?v=0.15.14', "detail styles cache bust");
+includes(detailHtml, 'business-detail.js?v=0.15.17', "detail script cache bust");
+includes(detailHtml, 'styles.css?v=0.15.15', "detail styles cache bust");
 includes(styles, "grid-template-columns: repeat(5, minmax(0, 1fr))", "five-column desktop gallery");
 
 for (const page of [

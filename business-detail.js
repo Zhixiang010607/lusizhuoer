@@ -1,13 +1,17 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.16";
+  const VERSION = "0.15.17";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
   let photoServiceApp = null;
   let verificationPhotoRequest = 0;
+  let currentRecord = null;
+  let currentVerificationPhotoPayload = null;
+  let verificationPhotoLoadPromise = Promise.resolve();
+  let orderExportBusy = false;
 
   function loadSessionRows(key) {
     try {
@@ -206,6 +210,133 @@
     return window.AppDateTime.format(value, "");
   }
 
+  function exportButtons() {
+    return [$("exportOrderPdf"), $("exportOrderImage")].filter(Boolean);
+  }
+
+  function setExportControls(enabled, message = "") {
+    exportButtons().forEach((button) => { button.disabled = !enabled || orderExportBusy; });
+    const status = $("orderExportMessage");
+    if (status && message !== undefined) status.textContent = message;
+  }
+
+  function elementText(element, selector) {
+    return clean(element?.querySelector(selector)?.textContent);
+  }
+
+  function exportDocumentData(record) {
+    const recharge = type === "recharge";
+    const facts = Array.from($("orderKeyfacts")?.children || []).map((element) => ({
+      label: elementText(element, "span"),
+      value: elementText(element, "strong")
+    }));
+    const details = Array.from($("orderInfo")?.children || []).map((element) => ({
+      label: elementText(element, "span"),
+      value: elementText(element, "strong")
+    }));
+    const messages = recharge
+      ? Array.from($("orderComments")?.querySelectorAll(".order-comment-card") || []).map((element) => ({
+          label: elementText(element, "h3"),
+          value: elementText(element, "p") || "无",
+          time: elementText(element, "time")
+        }))
+      : [
+          { label: "门店留言", value: clean($("verificationStoreMessage")?.textContent) || "无", time: clean($("verificationStoreMessageTime")?.textContent) },
+          { label: "总部留言", value: clean($("verificationHqMessage")?.textContent) || "无", time: clean($("verificationHqMessageTime")?.textContent) }
+        ];
+    const customerName = first(record.customerName, record.customerCode, "客户");
+    const projectName = first(record.projectName, record.productName, record.projectCode, record.productCode, "项目");
+    return {
+      filename: `${customerName}+${projectName}+${recharge ? "充值" : "核销"}`,
+      title: clean($("orderTitle")?.textContent) || `${recharge ? "充值" : "核销"}工单`,
+      subtitle: clean($("orderDescription")?.textContent) || "业务工单完整导出",
+      status: clean($("orderStatus")?.textContent) || "—",
+      statusTone: $("orderStatus")?.classList.contains("rejected") ? "rejected" : $("orderStatus")?.classList.contains("pending") ? "pending" : "approved",
+      facts,
+      detailTitle: recharge ? "充值信息" : "核销信息",
+      detailSubtitle: "该工单数据库中保存的完整业务内容",
+      details,
+      messages
+    };
+  }
+
+  async function fetchVerificationPhotoBlob(recordId, photo) {
+    const slot = Number(photo.slot);
+    const payload = await callFaceRecognition({ action: "getVerificationPhotoOriginalUrl", recordId, slot });
+    const response = await fetch(payload.photoUrl, {
+      method: "GET",
+      mode: "cors",
+      credentials: "omit",
+      cache: "no-store",
+      referrerPolicy: "no-referrer"
+    });
+    if (!response.ok) throw new Error(`${photoSlotLabel(slot)}读取失败（HTTP ${response.status}）`);
+    const blob = await response.blob();
+    if (!blob.size || !String(blob.type || "").toLowerCase().startsWith("image/")) {
+      throw new Error(`${photoSlotLabel(slot)}没有返回有效图片`);
+    }
+    return blob;
+  }
+
+  async function verificationExportPhotos(record) {
+    await verificationPhotoLoadPromise;
+    if (currentVerificationPhotoPayload?.error) throw currentVerificationPhotoPayload.error;
+    const available = new Map((currentVerificationPhotoPayload?.photos || []).map((photo) => [Number(photo.slot), photo]));
+    const output = Array.from({ length: 5 }, (_, slot) => ({
+      slot,
+      label: photoSlotLabel(slot),
+      meta: available.has(slot) ? "正在读取高清原图" : "空照片位",
+      placeholder: available.has(slot) ? "照片读取中" : "尚未上传",
+      blob: null
+    }));
+    const queue = Array.from(available.values());
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(2, queue.length) }, async () => {
+      while (cursor < queue.length) {
+        const index = cursor;
+        cursor += 1;
+        const photo = queue[index];
+        const slot = Number(photo.slot);
+        const blob = await fetchVerificationPhotoBlob(clean(record.id), photo);
+        output[slot] = {
+          slot,
+          label: photoSlotLabel(slot),
+          meta: [photoSizeLabel(blob.size), formatTime(photo.uploadedAt) || "已保存"].filter(Boolean).join(" · "),
+          placeholder: "照片读取失败",
+          blob
+        };
+        setExportControls(false, `正在读取核销高清照片 ${index + 1} / ${queue.length}…`);
+      }
+    });
+    await Promise.all(workers);
+    return output;
+  }
+
+  async function exportCurrentOrder(format) {
+    if (orderExportBusy || !currentRecord) return;
+    if (!window.OrderExporter?.exportOrder) {
+      setExportControls(true, "导出组件未加载，请刷新页面重试。");
+      return;
+    }
+    orderExportBusy = true;
+    setExportControls(false, type === "verification" ? "正在准备工单与照片…" : "正在生成完整工单…");
+    try {
+      const photos = type === "verification" ? await verificationExportPhotos(currentRecord) : [];
+      setExportControls(false, format === "pdf" ? "正在分页生成 PDF…" : "正在生成高清图片…");
+      const result = await window.OrderExporter.exportOrder({
+        format,
+        documentData: exportDocumentData(currentRecord),
+        photos
+      });
+      setExportControls(false, `已生成：${result.filename}`);
+    } catch (error) {
+      setExportControls(false, error?.message || "工单导出失败，请重试。");
+    } finally {
+      orderExportBusy = false;
+      setExportControls(Boolean(currentRecord), $("orderExportMessage")?.textContent || "");
+    }
+  }
+
   function isVoidableOriginalType(record) {
     const originalType = first(record?.originalType, record?.rechargeType, record?.verificationType).toUpperCase();
     return type === "recharge" && originalType === "NEW";
@@ -336,6 +467,7 @@
   function resetVerificationPhotoPanel(message = "正在读取私有照片权限与缩略图…") {
     const panel = $("verificationPhotoPanel");
     if (!panel) return;
+    currentVerificationPhotoPayload = null;
     verificationPhotoRequest += 1;
     $("verificationPhotoCount").textContent = "0 / 5";
     $("verificationPhotoHint").textContent = message;
@@ -362,6 +494,7 @@
 
   function renderVerificationPhotos(payload, recordId) {
     const photos = Array.isArray(payload?.photos) ? payload.photos : [];
+    currentVerificationPhotoPayload = { ...payload, photos, error: null };
     const bySlot = new Map(photos.map((photo) => [Number(photo.slot), photo]));
     $("verificationPhotoCount").textContent = `${photos.length} / 5`;
     const deadline = formatTime(payload?.editableUntil);
@@ -392,12 +525,15 @@
       const payload = await callFaceRecognition({ action: "getVerificationPhotos", recordId });
       if (request !== verificationPhotoRequest) return;
       renderVerificationPhotos(payload, recordId);
+      return payload;
     } catch (error) {
       if (request !== verificationPhotoRequest) return;
+      currentVerificationPhotoPayload = { photos: [], error };
       $("verificationPhotoHint").textContent = "核销照片读取失败";
       $("verificationPhotoMessage").className = "verification-photo-message error";
       $("verificationPhotoMessage").textContent = error?.message || "请核对迁移 037、038、私有存储桶和云函数版本";
       $("verificationPhotoGrid").innerHTML = "";
+      return null;
     }
   }
 
@@ -538,6 +674,10 @@
   }
 
   function renderMissing(recordId) {
+    currentRecord = null;
+    currentVerificationPhotoPayload = null;
+    verificationPhotoLoadPromise = Promise.resolve();
+    setExportControls(false, "工单读取完成后可以导出。");
     const session = readSession();
     const recharge = type === "recharge";
     const storeMode = session?.role === "store";
@@ -575,6 +715,7 @@
   }
 
   function renderRecord(record) {
+    currentRecord = record;
     const recharge = type === "recharge";
     const recordCode = first(record.recordCode, record.rechargeCode, record.verificationCode, record.id);
     const voidStarted = recharge && hasVoidLifecycle(record);
@@ -641,7 +782,8 @@
 
     if (!recharge) {
       renderVerificationMessages(record);
-      loadVerificationPhotos(record);
+      verificationPhotoLoadPromise = loadVerificationPhotos(record);
+      setExportControls(true, "可导出完整工单；导出时会按权限读取高清照片。");
       return;
     }
 
@@ -666,6 +808,7 @@
       : "门店仅可查看审核状态和完整留言记录。";
     renderComments(record);
     setupVoidApplication(record, normalKind, voidStarted, canStoreVoid, storeMode);
+    setExportControls(true, "可导出完整充值工单。");
   }
 
   function voidActionUnavailableReason(record, voidStarted) {
@@ -808,7 +951,10 @@
     if (event.target === event.currentTarget) event.currentTarget.close();
   });
   $("verificationPhotoViewer")?.addEventListener("close", () => $("verificationPhotoOriginal")?.removeAttribute("src"));
+  $("exportOrderPdf")?.addEventListener("click", () => exportCurrentOrder("pdf"));
+  $("exportOrderImage")?.addEventListener("click", () => exportCurrentOrder("image"));
 
+  setExportControls(false, "工单读取完成后可以导出。");
   initialize();
 
   document.documentElement.dataset.prototypeVersion = VERSION;
