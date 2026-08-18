@@ -891,8 +891,8 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .verification-photo-preview { position: relative; width: 100%; aspect-ratio: 4 / 3; display: grid; place-items: center; overflow: hidden; padding: 0; border: 0; border-radius: 0; color: #64748b; background: linear-gradient(145deg, #eaf1f8, #f8fbff); font-size: 12px; font-weight: 800; }
 .verification-photo-preview.has-photo { cursor: zoom-in; }
 .verification-photo-preview.has-photo::after { content: "点击查看原图"; position: absolute; right: 8px; bottom: 8px; padding: 4px 7px; border-radius: 999px; color: #fff; background: #102a49d9; font-size: 9px; }
-.verification-photo-preview img { width: 100%; height: 100%; display: block; object-fit: cover; transition: transform .16s ease; }
-.verification-photo-preview.has-photo:hover img { transform: scale(1.025); }
+.verification-photo-preview img { width: 100%; height: 100%; display: block; object-fit: contain; transition: opacity .16s ease; }
+.verification-photo-preview.has-photo:hover img { opacity: .96; }
 .verification-photo-preview:focus-visible { outline: 3px solid #2563eb; outline-offset: -3px; }
 .verification-photo-card-body { min-width: 0; display: grid; gap: 7px; padding: 10px; }
 .verification-photo-card-body > div { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }

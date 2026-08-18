@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.1";
+  const VERSION = "0.16.3";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -15,7 +15,7 @@
   let verificationPhotoUploadTask = null;
   let verificationPhotoRetryCandidate = null;
   let verificationPhotoTaskSequence = 0;
-  const verificationPhotoLocalPreviewUrls = new Set();
+  const verificationPhotoLocalPreviews = new Map();
   let verificationCameraStream = null;
   let verificationCameraTarget = null;
   let verificationCameraFacingMode = "environment";
@@ -431,7 +431,10 @@
     if (databaseBacked) {
       setExportControls(false, "正在核对数据库中的最新照片清单…");
       try {
-        manifest = await fetchVerificationPhotoManifest(recordId);
+        manifest = mergeVerificationPhotoLocalPreviews(
+          await fetchVerificationPhotoManifest(recordId),
+          recordId
+        );
         renderVerificationPhotos(manifest, recordId);
       } catch (error) {
         throw new Error(`核销照片清单暂时无法确认，本次没有生成文件。${clean(error?.message) || "请刷新页面后重试。"}`);
@@ -457,7 +460,7 @@
     let cursor = 0;
     let completed = 0;
     const failures = [];
-    const workers = Array.from({ length: Math.min(3, queue.length) }, async () => {
+    const workers = Array.from({ length: Math.min(2, queue.length) }, async () => {
       while (cursor < queue.length) {
         const index = cursor;
         cursor += 1;
@@ -820,7 +823,7 @@
     if (!panel) return;
     currentVerificationPhotoPayload = null;
     verificationPhotoRequest += 1;
-    $("verificationPhotoCount").textContent = "0 / 5";
+    $("verificationPhotoCount").textContent = "已绑定 0 / 5";
     $("verificationPhotoHint").textContent = message;
     $("verificationPhotoGrid").innerHTML = Array.from({ length: 5 }, (_, slot) => `
       <article class="verification-photo-card">
@@ -886,11 +889,83 @@
     return preload;
   }
 
+  function revokeVerificationPhotoLocalPreview(slot) {
+    const normalizedSlot = Number(slot);
+    const preview = verificationPhotoLocalPreviews.get(normalizedSlot);
+    if (!preview) return;
+    if (preview.remoteProbe) {
+      preview.remoteProbe.onload = null;
+      preview.remoteProbe.onerror = null;
+    }
+    [preview.thumbnailUrl, preview.originalUrl].forEach((url) => {
+      if (clean(url).startsWith("blob:")) URL.revokeObjectURL(url);
+    });
+    verificationPhotoLocalPreviews.delete(normalizedSlot);
+  }
+
+  function clearVerificationPhotoLocalPreviews() {
+    Array.from(verificationPhotoLocalPreviews.keys()).forEach(revokeVerificationPhotoLocalPreview);
+  }
+
+  function mergeVerificationPhotoLocalPreviews(payload, recordId) {
+    const photos = Array.isArray(payload?.photos) ? payload.photos.map((photo) => ({ ...photo })) : [];
+    const bySlot = new Map(photos.map((photo) => [Number(photo.slot), photo]));
+    verificationPhotoLocalPreviews.forEach((preview, slot) => {
+      if (clean(preview.recordId) !== clean(recordId)) return;
+      const remotePhoto = bySlot.get(slot) || {};
+      bySlot.set(slot, {
+        ...preview.photo,
+        ...remotePhoto,
+        slot,
+        thumbnailUrl: preview.thumbnailUrl,
+        originalUrl: preview.originalUrl,
+        originalUrlExpiresAt: Number.MAX_SAFE_INTEGER,
+        localPreview: true
+      });
+    });
+    return {
+      ...payload,
+      photos: Array.from(bySlot.values()).sort((left, right) => Number(left.slot) - Number(right.slot))
+    };
+  }
+
+  function promoteUsableVerificationPhotoPreviews(payload, recordId, request) {
+    const remoteBySlot = new Map((Array.isArray(payload?.photos) ? payload.photos : []).map((photo) => [Number(photo.slot), photo]));
+    verificationPhotoLocalPreviews.forEach((preview, slot) => {
+      if (clean(preview.recordId) !== clean(recordId)) return;
+      const remotePhoto = remoteBySlot.get(slot);
+      const remoteThumbnailUrl = clean(remotePhoto?.thumbnailUrl);
+      if (!remoteThumbnailUrl || preview.remoteProbeUrl === remoteThumbnailUrl) return;
+      const probe = new Image();
+      preview.remoteProbe = probe;
+      preview.remoteProbeUrl = remoteThumbnailUrl;
+      probe.decoding = "async";
+      probe.referrerPolicy = "no-referrer";
+      probe.fetchPriority = "high";
+      probe.onload = () => {
+        if (request !== verificationPhotoRequest || verificationPhotoLocalPreviews.get(slot) !== preview) return;
+        revokeVerificationPhotoLocalPreview(slot);
+        renderVerificationPhotos(mergeVerificationPhotoLocalPreviews(payload, recordId), recordId);
+        setVerificationPhotoButtonsDisabled(verificationPhotoUploadBusy);
+      };
+      probe.onerror = () => {
+        if (verificationPhotoLocalPreviews.get(slot) !== preview) return;
+        preview.remoteProbe = null;
+        preview.remoteProbeUrl = "";
+      };
+      probe.src = remoteThumbnailUrl;
+    });
+  }
+
   function verificationPhotoCard(photo, slot, payload) {
     const label = photoSlotLabel(slot);
     const canUpload = slot >= 2 && payload.canEdit === true;
+    const localPreview = photo?.localPreview === true || clean(photo?.thumbnailUrl).startsWith("blob:");
+    const previewFailure = clean(photo?.thumbnailError).toUpperCase() === "PHOTO_NOT_FOUND"
+      ? "存储文件未找到"
+      : "预览地址暂不可用";
     const preview = photo
-      ? `<button class="verification-photo-preview has-photo" type="button" data-view-verification-photo="${slot}" aria-label="查看${escapeHtml(label)}原图">${photo.thumbnailUrl ? `<img src="${escapeHtml(photo.thumbnailUrl)}" alt="${escapeHtml(label)}缩略图" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : "<span>缩略图暂不可用<br>点击读取原图</span>"}</button>`
+      ? `<button class="verification-photo-preview has-photo" type="button" data-view-verification-photo="${slot}" aria-label="查看${escapeHtml(label)}原图">${photo.thumbnailUrl ? `<img src="${escapeHtml(photo.thumbnailUrl)}" alt="${escapeHtml(label)}缩略图" loading="${localPreview ? "eager" : "lazy"}" ${localPreview ? 'fetchpriority="high"' : ""} decoding="async" referrerpolicy="no-referrer">` : `<span>${escapeHtml(previewFailure)}<br>点击重新读取原图</span>`}</button>`
       : `<div class="verification-photo-preview"><span>${slot === 0 ? "未保存客户留存照" : slot === 1 ? "未保存本次人脸凭证" : "尚未上传"}</span></div>`;
     const size = photoSizeLabel(photo?.originalBytes);
     const meta = photo ? [size, formatTime(photo.uploadedAt) || "已绑定"].filter(Boolean).join(" · ") : "空照片位";
@@ -903,14 +978,16 @@
   }
 
   function renderVerificationPhotos(payload, recordId) {
-    const photos = Array.isArray(payload?.photos) ? payload.photos : [];
+    const photos = Array.isArray(payload?.photos) ? payload.photos.map((photo) => ({ ...photo })) : [];
     const loadedAt = Date.now();
     photos.forEach((photo) => {
-      photo.originalUrlExpiresAt = loadedAt + Math.max(0, Number(photo?.originalUrlExpiresIn ?? payload?.expiresIn ?? 0) * 1000);
+      photo.originalUrlExpiresAt = photo.localPreview === true || clean(photo.originalUrl).startsWith("blob:")
+        ? Number.MAX_SAFE_INTEGER
+        : loadedAt + Math.max(0, Number(photo?.originalUrlExpiresIn ?? payload?.expiresIn ?? 0) * 1000);
     });
     currentVerificationPhotoPayload = { ...payload, photos, loadedAt, error: null };
     const bySlot = new Map(photos.map((photo) => [Number(photo.slot), photo]));
-    $("verificationPhotoCount").textContent = `${photos.length} / 5`;
+    $("verificationPhotoCount").textContent = `已绑定 ${photos.length} / 5`;
     const deadline = formatTime(payload?.editableUntil);
     $("verificationPhotoHint").textContent = payload?.canEdit
       ? `你是本单提交人，可在 ${deadline || "提交后 24 小时内"} 前上传或替换 3 张补充照片。客户留存照与本次核销人脸照均不可修改。`
@@ -972,6 +1049,23 @@
 
   function verificationPhotoUploadCanceled() {
     return verificationPhotoUploadError("照片上传已取消", "PHOTO_UPLOAD_CANCELED");
+  }
+
+  function verificationPhotoBlobDataUrl(blob) {
+    if (!(blob instanceof Blob) || !blob.size) {
+      return Promise.reject(verificationPhotoUploadError("照片处理结果无效", "PHOTO_UPLOAD_SOURCE_INVALID"));
+    }
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.addEventListener("load", () => {
+        const value = clean(reader.result);
+        if (/^data:image\/jpeg;base64,/i.test(value)) resolve(value);
+        else reject(verificationPhotoUploadError("浏览器无法生成兼容上传数据", "PHOTO_UPLOAD_SOURCE_INVALID"));
+      }, { once: true });
+      reader.addEventListener("error", () => reject(verificationPhotoUploadError("读取待上传照片失败", "PHOTO_UPLOAD_SOURCE_INVALID")), { once: true });
+      reader.addEventListener("abort", () => reject(verificationPhotoUploadCanceled()), { once: true });
+      reader.readAsDataURL(blob);
+    });
   }
 
   function isVerificationPhotoUploadCanceled(error) {
@@ -1361,10 +1455,9 @@
     try {
       const payload = await callFaceRecognition({ action: "getVerificationPhotos", recordId });
       if (request !== verificationPhotoRequest) return null;
-      renderVerificationPhotos(payload, recordId);
+      renderVerificationPhotos(mergeVerificationPhotoLocalPreviews(payload, recordId), recordId);
       setVerificationPhotoButtonsDisabled(verificationPhotoUploadBusy);
-      verificationPhotoLocalPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
-      verificationPhotoLocalPreviewUrls.clear();
+      promoteUsableVerificationPhotoPreviews(payload, recordId, request);
       return payload;
     } catch (_) {
       return null;
@@ -1374,27 +1467,35 @@
   function applyCommittedVerificationPhoto(task, payload) {
     if (!task.prepared || !currentVerificationPhotoPayload) return;
     const photos = Array.isArray(currentVerificationPhotoPayload.photos) ? [...currentVerificationPhotoPayload.photos] : [];
+    revokeVerificationPhotoLocalPreview(task.slot);
     const thumbnailUrl = URL.createObjectURL(task.prepared.thumbnailBlob);
     const originalUrl = URL.createObjectURL(task.prepared.originalBlob);
-    verificationPhotoLocalPreviewUrls.add(thumbnailUrl);
-    verificationPhotoLocalPreviewUrls.add(originalUrl);
     const serverPhoto = payload?.photo && typeof payload.photo === "object" ? payload.photo : {};
     const photo = {
       ...serverPhoto,
       slot: task.slot,
-      thumbnailUrl: clean(serverPhoto.thumbnailUrl) || thumbnailUrl,
-      originalUrl: clean(serverPhoto.originalUrl) || originalUrl,
-      originalUrlExpiresAt: clean(serverPhoto.originalUrl) ? Date.now() + 60000 : Number.MAX_SAFE_INTEGER,
+      thumbnailUrl,
+      originalUrl,
+      originalUrlExpiresAt: Number.MAX_SAFE_INTEGER,
+      localPreview: true,
       originalBytes: Number(serverPhoto.originalBytes || task.prepared.originalBlob.size),
       thumbnailBytes: Number(serverPhoto.thumbnailBytes || task.prepared.thumbnailBlob.size),
       width: Number(serverPhoto.width || task.prepared.imageWidth),
       height: Number(serverPhoto.height || task.prepared.imageHeight),
       uploadedAt: serverPhoto.uploadedAt || new Date().toISOString()
     };
+    verificationPhotoLocalPreviews.set(Number(task.slot), {
+      recordId: clean(task.recordId),
+      thumbnailUrl,
+      originalUrl,
+      photo,
+      remoteProbe: null,
+      remoteProbeUrl: ""
+    });
     const next = photos.filter((item) => Number(item.slot) !== task.slot);
     next.push(photo);
     next.sort((left, right) => Number(left.slot) - Number(right.slot));
-    renderVerificationPhotos({ ...currentVerificationPhotoPayload, photos: next }, task.recordId);
+    renderVerificationPhotos(mergeVerificationPhotoLocalPreviews({ ...currentVerificationPhotoPayload, photos: next }, task.recordId), task.recordId);
     setVerificationPhotoButtonsDisabled(true);
   }
 
@@ -1577,7 +1678,7 @@
         }
         if (directVerificationPhotoUploadUnavailable(error)) {
           task.beginDispatched = false;
-          throw verificationPhotoUploadError("新版照片直传服务尚未部署，请先执行迁移 039 并部署 faceRecognition v51。", "PHOTO_UPLOAD_DIRECT_UNAVAILABLE");
+          throw verificationPhotoUploadError("新版照片上传服务尚未部署，请先执行迁移 039 并部署 faceRecognition v52。", "PHOTO_UPLOAD_DIRECT_UNAVAILABLE");
         }
         throw error;
       } finally {
@@ -1587,22 +1688,47 @@
       if (clean(begin?.requestId) && clean(begin.requestId) !== task.requestId) {
         throw verificationPhotoUploadError("服务器上传任务编号不一致，已停止上传", "PHOTO_UPLOAD_REQUEST_MISMATCH");
       }
-      if (!task.requestId || !signedUploadTarget(begin?.originalUpload)?.url) {
+      if (!task.requestId) {
         throw verificationPhotoUploadError("服务器没有返回有效的安全上传任务", "PHOTO_UPLOAD_INTENT_INVALID");
       }
       task.intentStarted = true;
+      if (begin?.alreadyCommitted === true || verificationPhotoUploadStatus(begin) === "COMMITTED") {
+        finishVerificationPhotoTask(task, "success", `${photoSlotLabel(task.slot)}已经安全保存；照片列表正在刷新。`, { refresh: true });
+        return;
+      }
       if (task.cancelRequested) return await reconcileVerificationPhotoCancellation(task, "canceled");
-      task.uploadParts = {};
-      const uploads = [uploadVerificationPhotoBlob(task, "高清原图", begin.originalUpload, task.prepared.originalBlob)];
-      if (signedUploadTarget(begin.thumbnailUpload)?.url) uploads.push(uploadVerificationPhotoBlob(task, "预览图", begin.thumbnailUpload, task.prepared.thumbnailBlob));
-      await Promise.all(uploads);
-      assertVerificationPhotoTask(task);
-      setVerificationPhotoTaskStage(task, "COMMITTING", "上传完成，正在安全入库", "正在校验照片完整性并绑定到核销单…", 90, { cancelLabel: "取消并核对" });
-      const committed = await callFaceRecognition({
-        action: "commitVerificationPhotoUpload",
-        recordId: task.recordId,
-        requestId: task.requestId
-      });
+      const uploadMode = clean(begin?.uploadMode).toUpperCase() || "DIRECT";
+      let committed;
+      if (uploadMode === "FUNCTION") {
+        setVerificationPhotoTaskStage(task, "UPLOADING", "正在通过兼容通道上传", "腾讯云直传地址暂不可用，正在由受保护的云函数保存这一张照片…", 0, {
+          indeterminate: true,
+          progressText: "上传中"
+        });
+        const imageBase64 = await verificationPhotoBlobDataUrl(task.prepared.originalBlob);
+        assertVerificationPhotoTask(task);
+        committed = await callFaceRecognition({
+          action: "commitVerificationPhotoUpload",
+          recordId: task.recordId,
+          requestId: task.requestId,
+          functionUploadProof: clean(begin?.functionUploadProof),
+          imageBase64
+        });
+      } else {
+        if (uploadMode !== "DIRECT" || !signedUploadTarget(begin?.originalUpload)?.url) {
+          throw verificationPhotoUploadError("服务器没有返回有效的安全上传地址", "PHOTO_UPLOAD_INTENT_INVALID");
+        }
+        task.uploadParts = {};
+        const uploads = [uploadVerificationPhotoBlob(task, "高清原图", begin.originalUpload, task.prepared.originalBlob)];
+        if (signedUploadTarget(begin.thumbnailUpload)?.url) uploads.push(uploadVerificationPhotoBlob(task, "预览图", begin.thumbnailUpload, task.prepared.thumbnailBlob));
+        await Promise.all(uploads);
+        assertVerificationPhotoTask(task);
+        setVerificationPhotoTaskStage(task, "COMMITTING", "上传完成，正在安全入库", "正在校验照片完整性并绑定到核销单…", 90, { cancelLabel: "取消并核对" });
+        committed = await callFaceRecognition({
+          action: "commitVerificationPhotoUpload",
+          recordId: task.recordId,
+          requestId: task.requestId
+        });
+      }
       if (task.cancelRequested) return await reconcileVerificationPhotoCancellation(task, "canceled");
       applyCommittedVerificationPhoto(task, committed);
       finishVerificationPhotoTask(task, "success", `${photoSlotLabel(task.slot)}已安全保存；可继续上传下一张。`, { refresh: true });
@@ -2301,8 +2427,7 @@
     verificationPhotoUploadTask?.xhrs?.forEach((xhr) => { try { xhr.abort(); } catch (_) { /* 页面正在退出 */ } });
     verificationPhotoPreloads.clear();
     verificationPhotoOriginalAuditCache.clear();
-    verificationPhotoLocalPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
-    verificationPhotoLocalPreviewUrls.clear();
+    clearVerificationPhotoLocalPreviews();
   });
   $("exportOrderPdf")?.addEventListener("click", () => exportCurrentOrder("pdf"));
   $("exportOrderImage")?.addEventListener("click", () => exportCurrentOrder("image"));

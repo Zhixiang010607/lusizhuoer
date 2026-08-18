@@ -3,9 +3,8 @@
 const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
-const https = require("https");
 
-const FUNCTION_VERSION = "v51";
+const FUNCTION_VERSION = "v52";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 // SCF synchronous events are capped at 6 MB and Base64 adds roughly 33%.
 // These verification-photo limits leave room for the JSON envelope while
@@ -19,7 +18,6 @@ let managerClient = null;
 let storeBindingLayout = null;
 let iaiClientClass = null;
 let verificationPhotoUploadSchemaReady = null;
-let verificationPhotoUploadBucketId = "";
 const signedCustomerPhotoCache = new Map();
 const signedVerificationPhotoCache = new Map();
 
@@ -93,6 +91,21 @@ async function executeSql(sql) {
 
 function databaseBoolean(value) {
   return [true, "true", "t", 1, "1"].includes(value);
+}
+
+async function mapWithConcurrency(items, limit, mapper) {
+  const rows = Array.isArray(items) ? items : [];
+  const output = new Array(rows.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(Math.max(1, Number(limit) || 1), rows.length) }, async () => {
+    while (cursor < rows.length) {
+      const index = cursor;
+      cursor += 1;
+      output[index] = await mapper(rows[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return output;
 }
 
 async function getStoreBindingLayout() {
@@ -196,11 +209,51 @@ function storageBucketMissing(error) {
   return detail.includes("STORAGE_BUCKET_NOT_FOUND") || detail.includes("BUCKET NOT FOUND");
 }
 
+function signedUploadFunctionFallbackAllowed(error) {
+  const detail = [error?.code, error?.message, responseErrorText(error)]
+    .filter(Boolean).join(" ").toUpperCase();
+  return detail.includes("STORAGE_INVALID_REQUEST")
+    && detail.includes("RELATED RESOURCE DOES NOT EXIST");
+}
+
 function storageUploadResponseMismatch(error) {
   const detail = String(error?.message || "");
   return detail.includes("上传成功但响应格式异常")
     && detail.includes("Id")
     && detail.includes("Key");
+}
+
+function verificationPhotoStorageEnvironmentError(error, storage) {
+  const mismatch = new Error(
+    `腾讯云照片存储无法在环境 ${storage.envId} 中识别私有桶 ${storage.bucketId}。请确认这是 PG 云存储桶的真实 ID，并确认 CLOUDBASE_SERVICE_ROLE_KEY 属于同一环境。`
+  );
+  mismatch.code = "PHOTO_STORAGE_ENV_MISMATCH";
+  mismatch.requestId = error?.requestId || error?.RequestId || "";
+  return mismatch;
+}
+
+function verificationPhotoStorageAccessError(error, storage) {
+  const detail = [error?.code, error?.message, responseErrorText(error)]
+    .filter(Boolean).join(" ").toUpperCase();
+  const configurationFailure = storageBucketMissing(error)
+    || (detail.includes("STORAGE_INVALID_REQUEST") && detail.includes("RELATED RESOURCE DOES NOT EXIST"))
+    || ["401", "403", "AUTH", "JWT", "TOKEN", "EXCEED_AUTHORITY", "ACTION_FORBIDDEN"]
+      .some((marker) => detail.includes(marker));
+  if (configurationFailure) return verificationPhotoStorageEnvironmentError(error, storage);
+  const unavailable = new Error("腾讯云照片存储暂时无法确认服务端上传通道，请稍后重试。");
+  unavailable.code = "PHOTO_STORAGE_CHECK_FAILED";
+  unavailable.requestId = error?.requestId || error?.RequestId || "";
+  return unavailable;
+}
+
+function verificationPhotoBucketReady(row, requiredBytes = MAX_VERIFICATION_IMAGE_BYTES) {
+  if (!row || databaseBoolean(row.public)) return false;
+  const limit = Number(row.file_size_limit || 0);
+  if (Number.isFinite(limit) && limit > 0 && limit < requiredBytes) return false;
+  const allowed = row.allowed_mime_types;
+  if (allowed === null || allowed === undefined || allowed === "") return true;
+  const mimeTypes = Array.isArray(allowed) ? allowed : String(allowed).match(/[\w.+-]+\/[\w.+-]+/g) || [];
+  return mimeTypes.map((value) => String(value).toLowerCase()).includes("image/jpeg");
 }
 
 function signedPhotoUrl(value, depth = 0) {
@@ -326,6 +379,28 @@ function verificationPhotoUploadBytes(event = {}) {
   return bytes;
 }
 
+function verificationPhotoFunctionUploadProof(context, request) {
+  const payload = [
+    "verification-photo-function-upload-v1",
+    String(request.request_id || ""),
+    String(context.verificationId || ""),
+    String(context.caller.staffId || ""),
+    String(request.photo_slot || ""),
+    String(request.expected_original_bytes || ""),
+    String(request.original_object_ref || "")
+  ].join("\n");
+  return crypto.createHmac("sha256", required("CLOUDBASE_SERVICE_ROLE_KEY")).update(payload).digest("hex");
+}
+
+function requireVerificationPhotoFunctionUploadProof(event, context, request) {
+  const supplied = String(event.functionUploadProof || "").trim().toLowerCase();
+  const expected = verificationPhotoFunctionUploadProof(context, request);
+  if (!/^[a-f0-9]{64}$/.test(supplied)
+      || !crypto.timingSafeEqual(Buffer.from(supplied, "hex"), Buffer.from(expected, "hex"))) {
+    fail("该上传任务没有使用云函数兼容通道的授权，请重新选择照片。", "PHOTO_FUNCTION_UPLOAD_NOT_AUTHORIZED");
+  }
+}
+
 function nestedResponseValue(value, keyPattern, validator, depth = 0) {
   if (depth > 5 || value === null || value === undefined) return "";
   if (Array.isArray(value)) {
@@ -385,35 +460,6 @@ function signedVerificationPhotoUpload(response, storage, objectName) {
   };
 }
 
-async function signVerificationPhotoUploadObject(objectName) {
-  const candidates = verificationPhotoStorageCandidates();
-  const ordered = verificationPhotoUploadBucketId
-    ? [...candidates].sort((left) => left.bucketId === verificationPhotoUploadBucketId ? -1 : 1)
-    : candidates;
-  let missingBucketError = null;
-  for (const storage of ordered) {
-    try {
-      const response = await manager().storage.signUploadObject({
-        bucketId: storage.bucketId,
-        objectName,
-        upsert: false,
-        accessToken: storage.accessToken,
-        envId: storage.envId
-      });
-      verificationPhotoUploadBucketId = storage.bucketId;
-      return signedVerificationPhotoUpload(response, storage, objectName);
-    } catch (error) {
-      if (!storageBucketMissing(error)) throw error;
-      missingBucketError = error;
-      if (verificationPhotoUploadBucketId === storage.bucketId) verificationPhotoUploadBucketId = "";
-      console.warn("Verification photo upload bucket missing; trying the existing private customer photo bucket", {
-        bucketId: storage.bucketId
-      });
-    }
-  }
-  throw missingBucketError || new Error("核销照片私有存储桶不可用。");
-}
-
 async function signVerificationPhotoUploadReference(referenceValue) {
   const reference = verificationPhotoReference(referenceValue);
   const storage = verificationPhotoStorageForEvidence(reference);
@@ -425,8 +471,25 @@ async function signVerificationPhotoUploadReference(referenceValue) {
     accessToken: storage.accessToken,
     envId: storage.envId
   });
-  verificationPhotoUploadBucketId = storage.bucketId;
   return signedVerificationPhotoUpload(response, storage, reference.objectName);
+}
+
+async function requireVerificationPhotoFunctionFallbackStorage(referenceValue) {
+  const reference = verificationPhotoReference(referenceValue);
+  const storage = verificationPhotoStorageForEvidence(reference);
+  if (!storage) fail("核销照片不属于允许的私有存储桶。", "PHOTO_BUCKET_MISMATCH");
+  try {
+    await manager().storage.listObjects({
+      bucketId: reference.bucketId,
+      limit: 1,
+      withDelimiter: false,
+      accessToken: storage.accessToken,
+      envId: storage.envId
+    });
+  } catch (error) {
+    throw verificationPhotoStorageAccessError(error, storage);
+  }
+  return storage;
 }
 
 function verificationPhotoObjectInfoBody(value, depth = 0) {
@@ -480,18 +543,73 @@ async function inspectVerificationPhotoObject(referenceValue, expectedBytes) {
   if (contentType !== "image/jpeg") {
     fail("已上传文件不是 JPEG 照片。", "PHOTO_FORMAT_INVALID");
   }
-  const signed = await signVerificationPhoto(referenceValue, 60);
-  const buffer = await downloadVerificationPhotoBytes(signed.url);
+  const buffer = await downloadVerificationPhotoAuthenticated(referenceValue, MAX_VERIFICATION_IMAGE_BYTES);
   if (buffer.length !== bytes) {
     fail("已上传照片内容不完整，请取消后重试。", "PHOTO_UPLOAD_SIZE_MISMATCH");
   }
+  return verificationPhotoBufferMetadata(buffer);
+}
+
+function verificationPhotoBufferMetadata(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 4 || buffer.length > MAX_VERIFICATION_IMAGE_BYTES) {
+    fail("补充照片必须是小于 3 MB 的 JPEG。", "PHOTO_TOO_LARGE");
+  }
   const dimensions = jpegDimensions(buffer);
   return {
-    bytes,
+    bytes: buffer.length,
     width: dimensions.width,
     height: dimensions.height,
     sha256: crypto.createHash("sha256").update(buffer).digest("hex")
   };
+}
+
+async function downloadVerificationPhotoAuthenticated(referenceValue, maximumBytes, options = {}) {
+  const reference = verificationPhotoReference(referenceValue);
+  const verificationStorage = verificationPhotoStorageForEvidence(reference);
+  const customerStorage = photoStorageSettings();
+  const retainedProfile = options.allowCustomerProfile === true
+    && reference.bucketId === customerStorage.bucketId;
+  const storage = retainedProfile ? customerStorage : verificationStorage;
+  if (!storage) fail("核销照片不属于允许的私有存储桶。", "PHOTO_BUCKET_MISMATCH");
+  let response;
+  const objectNames = retainedProfile
+    ? photoObjectCandidates(reference.bucketId, reference.objectName)
+    : [reference.objectName];
+  for (const objectName of objectNames) {
+    try {
+      response = await manager().storage.downloadAuthenticatedObject({
+        bucketId: reference.bucketId,
+        objectName,
+        method: "GET",
+        accessToken: storage.accessToken,
+        envId: storage.envId
+      });
+      break;
+    } catch (error) {
+      if (!storageObjectMissing(error)) throw error;
+    }
+  }
+  if (!response) fail("照片尚未上传完成。", "PHOTO_UPLOAD_INCOMPLETE");
+  const status = Number(response?.status || 0);
+  const declaredBytes = Number(response?.headers?.["content-length"] || 0);
+  if (status !== 200 || !response?.body) {
+    fail("无法读取已上传照片内容。", "PHOTO_UPLOAD_DOWNLOAD_FAILED");
+  }
+  if (declaredBytes > maximumBytes) fail("补充照片超过 3 MB。", "PHOTO_TOO_LARGE");
+  const chunks = [];
+  let totalBytes = 0;
+  for await (const chunk of response.body) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    totalBytes += buffer.length;
+    if (totalBytes > maximumBytes) {
+      response.body.destroy?.();
+      fail("补充照片超过 3 MB。", "PHOTO_TOO_LARGE");
+    }
+    chunks.push(buffer);
+  }
+  const result = Buffer.concat(chunks);
+  if (!result.length) fail("已上传照片内容为空。", "PHOTO_UPLOAD_INCOMPLETE");
+  return result;
 }
 
 function jpegDimensions(buffer) {
@@ -568,6 +686,49 @@ async function uploadVerificationPhotoObject(objectName, buffer) {
   throw missingBucketError || new Error("核销照片私有存储桶不可用。");
 }
 
+async function uploadVerificationPhotoReference(referenceValue, buffer) {
+  const reference = verificationPhotoReference(referenceValue);
+  const storage = verificationPhotoStorageForEvidence(reference);
+  if (!storage) fail("核销照片不属于允许的私有存储桶。", "PHOTO_BUCKET_MISMATCH");
+  try {
+    await manager().storage.uploadObject({
+      bucketId: reference.bucketId,
+      objectName: reference.objectName,
+      body: buffer,
+      contentType: "image/jpeg",
+      contentLength: buffer.length,
+      cacheControl: "private, max-age=31536000, immutable",
+      upsert: false,
+      accessToken: storage.accessToken,
+      envId: storage.envId
+    });
+  } catch (error) {
+    if (storageUploadResponseMismatch(error)) {
+      console.warn("CloudBase fallback upload succeeded without Id/Key response metadata", {
+        bucketId: reference.bucketId,
+        objectName: reference.objectName
+      });
+    } else {
+      // The cloud-function response may be lost after Storage committed the
+      // object. A retry keeps the same random request path; accept it only if
+      // the authenticated bytes are exactly the same JPEG.
+      let existing = null;
+      try {
+        existing = await downloadVerificationPhotoAuthenticated(referenceValue, MAX_VERIFICATION_IMAGE_BYTES);
+      } catch (_) { /* preserve the original upload error */ }
+      if (existing) {
+        const expectedSha = crypto.createHash("sha256").update(buffer).digest("hex");
+        const existingSha = crypto.createHash("sha256").update(existing).digest("hex");
+        if (existing.length === buffer.length && existingSha === expectedSha) return reference;
+        fail("同一上传请求的照片内容与已有文件不一致，请取消后重新上传。", "PHOTO_UPLOAD_CONTENT_CONFLICT");
+      }
+      if (signedUploadFunctionFallbackAllowed(error)) throw verificationPhotoStorageEnvironmentError(error, storage);
+      throw error;
+    }
+  }
+  return reference;
+}
+
 function verificationPhotoStorageForEvidence(reference) {
   if (!/^(?:face-evidence|records)\//.test(reference.objectName)) return null;
   return verificationPhotoStorageCandidates().find((storage) => storage.bucketId === reference.bucketId) || null;
@@ -631,8 +792,11 @@ async function signVerificationPhoto(referenceValue, expiresIn, options = {}) {
   const missingFailures = [];
   const signingFailures = [];
   for (const objectName of candidates) {
+    let signed = null;
+    let batchSigned = null;
+    const attemptErrors = [];
     try {
-      const signed = await manager().storage.signObject({
+      signed = await manager().storage.signObject({
         bucketId: reference.bucketId,
         objectName,
         expiresIn,
@@ -640,12 +804,14 @@ async function signVerificationPhoto(referenceValue, expiresIn, options = {}) {
         envId: storage.envId
       });
       url = signedPhotoUrl(signed);
-
-      // manager-node and CloudBase storage gateways may wrap signObject
-      // responses differently. Use the documented batch endpoint as the
-      // same compatibility fallback already used by customer photos.
-      let batchSigned = null;
-      if (!url && typeof manager().storage.signObjects === "function") {
+    } catch (error) {
+      attemptErrors.push(error);
+    }
+    // Always try the documented batch endpoint after a single-object error
+    // or response-shape mismatch. Some PG Storage gateways intermittently
+    // reject one endpoint while the other can still sign the same object.
+    if (!url && typeof manager().storage.signObjects === "function") {
+      try {
         batchSigned = await manager().storage.signObjects({
           bucketId: reference.bucketId,
           paths: [objectName],
@@ -654,31 +820,31 @@ async function signVerificationPhoto(referenceValue, expiresIn, options = {}) {
           envId: storage.envId
         });
         url = signedPhotoUrl(batchSigned);
+      } catch (error) {
+        attemptErrors.push(error);
       }
-      if (url) break;
+    }
+    if (url) break;
 
-      const responseError = responseErrorText([signed, batchSigned]);
-      if (storageObjectMissing({ message: responseError })) {
-        missingFailures.push({ objectName });
-      } else {
-        signingFailures.push({
-          objectName,
-          responseShape: safeResponseShape([signed, batchSigned]),
-          responseError: responseError.slice(0, 240)
-        });
-      }
-    } catch (error) {
-      const failure = {
+    const responseError = responseErrorText([signed, batchSigned]);
+    if (responseError) attemptErrors.push({ message: responseError });
+    const failures = attemptErrors.map((error) => ({
+      objectName,
+      code: String(error?.code || ""),
+      requestId: error?.requestId || error?.RequestId || "",
+      message: String(error?.message || "").slice(0, 240)
+    }));
+    if (failures.length && failures.every((failure) => storageObjectMissing(failure))) {
+      missingFailures.push(...failures);
+    } else {
+      signingFailures.push(...(failures.length ? failures : [{
         objectName,
-        code: String(error?.code || ""),
-        requestId: error?.requestId || error?.RequestId || "",
-        message: String(error?.message || "").slice(0, 240)
-      };
-      if (storageObjectMissing(error)) missingFailures.push(failure);
-      else signingFailures.push(failure);
+        responseShape: safeResponseShape([signed, batchSigned]),
+        responseError: responseError.slice(0, 240)
+      }]));
     }
   }
-  if (!url && missingFailures.length === candidates.length) {
+  if (!url && missingFailures.length > 0 && signingFailures.length === 0) {
     console.warn("Verification photo object is missing", {
       bucketId: reference.bucketId,
       candidates,
@@ -2894,23 +3060,21 @@ async function getVerificationPhotos(event) {
       ORDER BY photo_slot`
   );
   const expiresIn = verificationPhotoUrlTtlSeconds();
-  const photos = await Promise.all(rows.map(async (row) => {
+  // The grid needs only thumbnails. Signing five thumbnails with a bounded
+  // concurrency avoids the former 10-24 simultaneous storage-sign requests
+  // (thumbnail + original + compatibility retry). A full-size URL is issued
+  // only after the user opens or exports that photo, with fresh authorization.
+  const photos = await mapWithConcurrency(rows, 2, async (row) => {
     let thumbnailUrl = "";
     let thumbnailUrlExpiresIn = 0;
     let thumbnailError = "";
-    let originalUrl = "";
-    let originalUrlExpiresIn = 0;
-    let originalError = "";
     const retainedProfile = String(row.photo_kind || "") === "PROFILE";
     const generatedExtraThumbnail = String(row.photo_kind || "") === "EXTRA"
       && String(row.thumbnail_object_ref || "") === String(row.original_object_ref || "");
-    const [thumbnailResult, originalResult] = await Promise.allSettled([
+    const [thumbnailResult] = await Promise.allSettled([
       signVerificationPhoto(row.thumbnail_object_ref, expiresIn, {
         allowCustomerProfile: retainedProfile,
         thumbnailTransform: retainedProfile || generatedExtraThumbnail
-      }),
-      signVerificationPhoto(row.original_object_ref, expiresIn, {
-        allowCustomerProfile: retainedProfile
       })
     ]);
     if (thumbnailResult.status === "fulfilled") {
@@ -2918,27 +3082,22 @@ async function getVerificationPhotos(event) {
       thumbnailUrlExpiresIn = thumbnailResult.value.expiresIn;
     }
     else thumbnailError = String(thumbnailResult.reason?.code || "PHOTO_THUMBNAIL_UNAVAILABLE");
-    if (originalResult.status === "fulfilled") {
-      originalUrl = originalResult.value.url;
-      originalUrlExpiresIn = originalResult.value.expiresIn;
-    }
-    else originalError = String(originalResult.reason?.code || "PHOTO_ORIGINAL_UNAVAILABLE");
     return {
       slot: Number(row.photo_slot),
       kind: String(row.photo_kind || ""),
       thumbnailUrl,
       thumbnailUrlExpiresIn,
       thumbnailError,
-      originalUrl,
-      originalUrlExpiresIn,
-      originalError,
+      originalUrl: "",
+      originalUrlExpiresIn: 0,
+      originalError: "",
       originalBytes: Number(row.original_bytes || 0),
       thumbnailBytes: Number(row.thumbnail_bytes || 0),
       width: Number(row.image_width || 0),
       height: Number(row.image_height || 0),
       uploadedAt: row.updated_at || row.created_at
     };
-  }));
+  });
   return {
     ok: true,
     recordId: String(context.record.id),
@@ -2953,7 +3112,7 @@ async function getVerificationPhotos(event) {
   };
 }
 
-async function getVerificationPhotoOriginalUrl(event) {
+async function verificationPhotoOriginalContext(event) {
   const context = await verificationPhotoContext(event);
   const slot = Number(event.slot);
   if (!Number.isInteger(slot) || slot < 0 || slot > 4) fail("核销照片位置无效。", "PHOTO_SLOT_INVALID");
@@ -2966,10 +3125,6 @@ async function getVerificationPhotoOriginalUrl(event) {
   );
   const photo = rows[0];
   if (!photo) fail("该照片位置尚未上传。", "PHOTO_NOT_FOUND");
-  const expiresIn = verificationPhotoUrlTtlSeconds();
-  const signedPhoto = await signVerificationPhoto(photo.original_object_ref, expiresIn, {
-    allowCustomerProfile: String(photo.photo_kind || "") === "PROFILE"
-  });
   await executeSql(
     `INSERT INTO public.verification_photo_events
       (verification_id, photo_slot, event_type, actor_account_id)
@@ -2977,6 +3132,15 @@ async function getVerificationPhotoOriginalUrl(event) {
       (${context.verificationId}::bigint, ${slot}::smallint,
        'VIEW_ORIGINAL', ${context.caller.staffId}::bigint)`
   );
+  return { context, slot, photo };
+}
+
+async function getVerificationPhotoOriginalUrl(event) {
+  const { slot, photo } = await verificationPhotoOriginalContext(event);
+  const expiresIn = verificationPhotoUrlTtlSeconds();
+  const signedPhoto = await signVerificationPhoto(photo.original_object_ref, expiresIn, {
+    allowCustomerProfile: String(photo.photo_kind || "") === "PROFILE"
+  });
   return {
     ok: true,
     slot,
@@ -2988,90 +3152,37 @@ async function getVerificationPhotoOriginalUrl(event) {
   };
 }
 
-function verificationPhotoDownloadError(message, code) {
-  const error = new Error(message);
-  error.code = code;
-  return error;
-}
-
-function downloadVerificationPhotoBytes(url, redirectCount = 0) {
-  return new Promise((resolve, reject) => {
-    let target;
-    try { target = new URL(String(url || "")); }
-    catch (_) { reject(verificationPhotoDownloadError("核销照片原图地址无效。", "PHOTO_DOWNLOAD_URL_INVALID")); return; }
-    if (target.protocol !== "https:") {
-      reject(verificationPhotoDownloadError("核销照片原图地址必须使用 HTTPS。", "PHOTO_DOWNLOAD_URL_INVALID"));
-      return;
-    }
-    const request = https.get(target, { headers: { Accept: "image/jpeg" } }, (response) => {
-      const status = Number(response.statusCode || 0);
-      const location = String(response.headers.location || "").trim();
-      if ([301, 302, 303, 307, 308].includes(status) && location) {
-        response.resume();
-        if (redirectCount >= 3) {
-          reject(verificationPhotoDownloadError("核销照片下载重定向次数过多。", "PHOTO_DOWNLOAD_REDIRECT"));
-          return;
-        }
-        let nextUrl;
-        try { nextUrl = new URL(location, target).toString(); }
-        catch (_) { reject(verificationPhotoDownloadError("核销照片重定向地址无效。", "PHOTO_DOWNLOAD_URL_INVALID")); return; }
-        resolve(downloadVerificationPhotoBytes(nextUrl, redirectCount + 1));
-        return;
-      }
-      if (status !== 200) {
-        response.resume();
-        reject(verificationPhotoDownloadError(`核销照片下载失败（HTTP ${status || "未知"}）。`, "PHOTO_DOWNLOAD_FAILED"));
-        return;
-      }
-      const declaredBytes = Number(response.headers["content-length"] || 0);
-      if (declaredBytes > MAX_IMAGE_BYTES) {
-        response.resume();
-        reject(verificationPhotoDownloadError("核销照片原图超过安全导出大小。", "PHOTO_EXPORT_TOO_LARGE"));
-        return;
-      }
-      const chunks = [];
-      let totalBytes = 0;
-      response.on("data", (chunk) => {
-        totalBytes += chunk.length;
-        if (totalBytes > MAX_IMAGE_BYTES) {
-          request.destroy(verificationPhotoDownloadError("核销照片原图超过安全导出大小。", "PHOTO_EXPORT_TOO_LARGE"));
-          return;
-        }
-        chunks.push(chunk);
-      });
-      response.on("end", () => {
-        const buffer = Buffer.concat(chunks);
-        if (!buffer.length || buffer.length > MAX_IMAGE_BYTES
-            || buffer.length < 4 || buffer[0] !== 0xff || buffer[1] !== 0xd8 || buffer[2] !== 0xff) {
-          reject(verificationPhotoDownloadError("核销照片没有返回有效 JPEG 数据。", "PHOTO_EXPORT_INVALID"));
-          return;
-        }
-        resolve(buffer);
-      });
-      response.on("error", reject);
-    });
-    request.setTimeout(15000, () => request.destroy(
-      verificationPhotoDownloadError("核销照片原图下载超时。", "PHOTO_DOWNLOAD_TIMEOUT")
-    ));
-    request.on("error", reject);
-  });
-}
-
 async function getVerificationPhotoExportData(event) {
-  // Reuse the original-view action so every exported photo receives the same
-  // live account/order authorization and VIEW_ORIGINAL audit event.
-  const original = await getVerificationPhotoOriginalUrl(event);
-  if (Number(original.originalBytes || 0) > MAX_IMAGE_BYTES) {
+  // Export uses the same live authorization and VIEW_ORIGINAL audit as an
+  // interactive view, but reads the private object through the authenticated
+  // storage API. It therefore remains reliable when temporary URL signing is
+  // degraded and never makes the evidence bucket public.
+  const { slot, photo } = await verificationPhotoOriginalContext(event);
+  if (Number(photo.original_bytes || 0) > MAX_IMAGE_BYTES) {
     fail("核销照片原图超过安全导出大小。", "PHOTO_EXPORT_TOO_LARGE");
   }
-  const buffer = await downloadVerificationPhotoBytes(original.photoUrl);
+  let buffer;
+  try {
+    buffer = await downloadVerificationPhotoAuthenticated(photo.original_object_ref, MAX_IMAGE_BYTES, {
+      allowCustomerProfile: String(photo.photo_kind || "") === "PROFILE"
+    });
+  } catch (error) {
+    if (String(error?.code || "") === "PHOTO_UPLOAD_INCOMPLETE") {
+      fail("核销照片存储文件未找到。", "PHOTO_NOT_FOUND");
+    }
+    throw error;
+  }
+  if (Number(photo.original_bytes || 0) > 0 && buffer.length !== Number(photo.original_bytes)) {
+    fail("核销照片存储内容与数据库记录不一致。", "PHOTO_EXPORT_INVALID");
+  }
+  const dimensions = jpegDimensions(buffer);
   return {
     ok: true,
-    slot: original.slot,
+    slot,
     imageBase64: `data:image/jpeg;base64,${buffer.toString("base64")}`,
     bytes: buffer.length,
-    width: original.width,
-    height: original.height
+    width: dimensions.width,
+    height: dimensions.height
   };
 }
 
@@ -3135,10 +3246,99 @@ function verificationPhotoUploadConflict(row) {
   };
 }
 
+async function availableVerificationPhotoUploadStorage(requiredBytes) {
+  const candidates = verificationPhotoStorageCandidates();
+  if (!candidates.length) fail("未配置核销照片私有存储桶。", "PHOTO_BUCKET_NOT_CONFIGURED");
+  const rows = await executeSql(
+    `SELECT id, name, public, file_size_limit, allowed_mime_types
+       FROM storage.buckets
+      WHERE id IN (${candidates.map((candidate) => sqlText(candidate.bucketId)).join(",")})`
+  );
+  const metadata = new Map(rows.map((row) => [String(row.id || ""), row]));
+  const storage = candidates.find((candidate) => verificationPhotoBucketReady(metadata.get(candidate.bucketId), requiredBytes));
+  if (!storage) {
+    fail(
+      `当前 PostgreSQL 环境中找不到配置合格的私有照片桶 ${candidates.map((candidate) => candidate.bucketId).join(" / ")}；请确认桶存在、保持私有、允许 image/jpeg，且单文件上限不少于照片大小。`,
+      metadata.size ? "PHOTO_BUCKET_CONFIGURATION_INVALID" : "PHOTO_BUCKET_NOT_FOUND"
+    );
+  }
+  return storage;
+}
+
+async function verificationPhotoStorageHealth() {
+  const configuredBucketIds = [...new Set([
+    String(process.env.VERIFICATION_PHOTO_BUCKET_ID || "verification-photos").trim(),
+    String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim()
+  ].filter(Boolean))];
+  try {
+    const rows = configuredBucketIds.length ? await executeSql(
+      `SELECT id, name, public, file_size_limit, allowed_mime_types
+         FROM storage.buckets
+        WHERE id IN (${configuredBucketIds.map(sqlText).join(",")})
+        ORDER BY id`
+    ) : [];
+    const availableBucketIds = rows.map((row) => String(row.id || "")).filter(Boolean);
+    const readyBucketIds = rows.filter((row) => verificationPhotoBucketReady(row))
+      .map((row) => String(row.id || "")).filter(Boolean);
+    const serviceRoleKeyConfigured = Boolean(String(process.env.CLOUDBASE_SERVICE_ROLE_KEY || "").trim());
+    let serviceRoleStorageReady = false;
+    let serviceRoleStorageError = "";
+    let serviceRoleStorageRequestId = "";
+    if (!availableBucketIds.length) {
+      serviceRoleStorageError = "PHOTO_BUCKET_NOT_FOUND";
+    } else if (!readyBucketIds.length) {
+      serviceRoleStorageError = "PHOTO_BUCKET_CONFIGURATION_INVALID";
+    } else if (!serviceRoleKeyConfigured) {
+      serviceRoleStorageError = "SERVICE_ROLE_KEY_MISSING";
+    } else {
+      const storage = verificationPhotoStorageCandidates()
+        .find((candidate) => readyBucketIds.includes(candidate.bucketId));
+      if (!storage) {
+        serviceRoleStorageError = "PHOTO_BUCKET_CONFIG_MISMATCH";
+      } else {
+        try {
+          await manager().storage.listObjects({
+            bucketId: storage.bucketId,
+            limit: 1,
+            withDelimiter: false,
+            accessToken: storage.accessToken,
+            envId: storage.envId
+          });
+          serviceRoleStorageReady = true;
+        } catch (error) {
+          serviceRoleStorageError = String(error?.code || "PHOTO_STORAGE_ACCESS_FAILED");
+          serviceRoleStorageRequestId = String(error?.requestId || error?.RequestId || "");
+        }
+      }
+    }
+    return {
+      configuredBucketIds,
+      availableBucketIds,
+      readyBucketIds,
+      bucketMetadataReady: readyBucketIds.length > 0,
+      bucketCheckError: "",
+      serviceRoleStorageReady,
+      serviceRoleStorageError,
+      serviceRoleStorageRequestId
+    };
+  } catch (error) {
+    return {
+      configuredBucketIds,
+      availableBucketIds: [],
+      readyBucketIds: [],
+      bucketMetadataReady: false,
+      bucketCheckError: String(error?.code || "DATABASE_CHECK_FAILED"),
+      serviceRoleStorageReady: false,
+      serviceRoleStorageError: "DATABASE_CHECK_FAILED",
+      serviceRoleStorageRequestId: ""
+    };
+  }
+}
+
 async function beginVerificationPhotoUpload(event) {
   await requireVerificationPhotoUploadSchema();
   const context = await verificationPhotoContext(event);
-  requireVerificationPhotoUploadOwner(context, { requireWindow: true });
+  requireVerificationPhotoUploadOwner(context);
   const requestId = verificationPhotoUploadRequestId(event);
   const slot = verificationPhotoUploadSlot(event);
   const originalBytes = verificationPhotoUploadBytes(event);
@@ -3155,19 +3355,34 @@ async function beginVerificationPhotoUpload(event) {
       LIMIT 1`
   );
   const existing = existingRows[0];
+  if (existing && String(existing.request_id) === requestId
+      && String(existing.request_status) === "COMMITTED") {
+    if (Number(existing.photo_slot) !== slot
+        || Number(existing.expected_original_bytes) !== originalBytes) {
+      fail("同一上传请求编号不能对应不同照片或照片位。", "PHOTO_UPLOAD_REQUEST_MISMATCH");
+    }
+    return {
+      ok: true,
+      ...verificationPhotoUploadState(existing),
+      editableUntil: context.record.editable_until,
+      alreadyCommitted: true
+    };
+  }
   if (existing && String(existing.request_id) !== requestId
       && String(existing.request_status) === "UPLOADING") {
     return verificationPhotoUploadConflict(existing);
   }
+  requireVerificationPhotoUploadOwner(context, { requireWindow: true });
 
-  let provisionalUpload = null;
+  let uploadMode = "DIRECT";
+  let signedUploadFailure = null;
   let objectReference = String(existing?.original_object_ref || "");
   let bucketId = String(existing?.bucket_id || "");
   if (!objectReference) {
+    const storage = await availableVerificationPhotoUploadStorage(originalBytes);
     const nonce = crypto.randomBytes(24).toString("hex");
     const objectName = `records/${context.verificationId}/slot-${slot}/direct-${Date.now()}-${nonce}.jpg`;
-    provisionalUpload = await signVerificationPhotoUploadObject(objectName);
-    bucketId = provisionalUpload.bucketId;
+    bucketId = storage.bucketId;
     objectReference = `pg://${bucketId}/${objectName}`;
   }
 
@@ -3208,15 +3423,33 @@ async function beginVerificationPhotoUpload(event) {
     };
   }
   const storedReference = String(request.original_object_ref || objectReference);
-  let upload = provisionalUpload;
-  if (!upload || `pg://${upload.bucketId}/${upload.objectName}` !== storedReference) {
+  let upload = null;
+  try {
     upload = await signVerificationPhotoUploadReference(storedReference);
+  } catch (error) {
+    if (!signedUploadFunctionFallbackAllowed(error)) throw error;
+    await requireVerificationPhotoFunctionFallbackStorage(storedReference);
+    uploadMode = "FUNCTION";
+    signedUploadFailure = error;
+  }
+  if (uploadMode === "FUNCTION") {
+    console.warn("Signed verification-photo upload unavailable; using the authenticated cloud-function fallback", {
+      verificationId: context.verificationId,
+      slot,
+      bucketId,
+      code: String(signedUploadFailure?.code || "PHOTO_UPLOAD_SIGN_FAILED"),
+      requestId: signedUploadFailure?.requestId || signedUploadFailure?.RequestId || ""
+    });
   }
   return {
     ok: true,
     ...state,
     editableUntil: context.record.editable_until,
-    originalUpload: { ...upload, expectedBytes: state.expectedBytes },
+    uploadMode,
+    functionUploadProof: uploadMode === "FUNCTION"
+      ? verificationPhotoFunctionUploadProof(context, request)
+      : undefined,
+    originalUpload: upload ? { ...upload, expectedBytes: state.expectedBytes } : null,
     thumbnailUpload: null
   };
 }
@@ -3339,10 +3572,32 @@ async function commitVerificationPhotoUpload(event) {
     return { ok: true, ...initialState, alreadyCommitted: true };
   }
   requireVerificationPhotoUploadOwner(context, { requireWindow: true });
-  const inspected = await inspectVerificationPhotoObject(
-    request.original_object_ref,
-    Number(request.expected_original_bytes)
-  );
+  let inspected;
+  if (event.imageBase64) {
+    requireVerificationPhotoFunctionUploadProof(event, context, request);
+    const fallbackPhoto = cleanVerificationJpeg(
+      event.imageBase64,
+      "补充照片",
+      MAX_VERIFICATION_IMAGE_BYTES
+    );
+    if (fallbackPhoto.buffer.length !== Number(request.expected_original_bytes)) {
+      fail("补充照片大小与上传请求不一致，请取消后重试。", "PHOTO_UPLOAD_SIZE_MISMATCH");
+    }
+    await uploadVerificationPhotoReference(request.original_object_ref, fallbackPhoto.buffer);
+    inspected = await inspectVerificationPhotoObject(
+      request.original_object_ref,
+      Number(request.expected_original_bytes)
+    );
+    const submittedSha = crypto.createHash("sha256").update(fallbackPhoto.buffer).digest("hex");
+    if (inspected.sha256 !== submittedSha) {
+      fail("存储中的照片与本次上传内容不一致，请取消后重试。", "PHOTO_UPLOAD_CONTENT_CONFLICT");
+    }
+  } else {
+    inspected = await inspectVerificationPhotoObject(
+      request.original_object_ref,
+      Number(request.expected_original_bytes)
+    );
+  }
   const rows = await executeSql(
     `SELECT *
        FROM public.commit_verification_photo_upload(
@@ -3602,19 +3857,31 @@ async function cleanupVerificationPhotoDrafts(event) {
 exports.main = async (event = {}) => {
   try {
     const action = event.action || "health";
-    if (action === "health") return {
-      ok: true,
-      version: FUNCTION_VERSION,
-      groupId: required("FACE_GROUP_ID"),
-      photoBucketId: String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim(),
-      verificationPhotoBucketId: String(process.env.VERIFICATION_PHOTO_BUCKET_ID || "verification-photos").trim(),
-      verificationPhotoFallbackBucketId: String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim(),
-      verificationPhotoUrlTtlSeconds: verificationPhotoUrlTtlSeconds(),
-      verificationPhotoUploadTtlSeconds: verificationPhotoUploadTtlSeconds(),
-      verificationPhotoCleanupConfigured: Boolean(String(process.env.VERIFICATION_PHOTO_CLEANUP_TOKEN || "").trim()),
-      livenessEnabled: faceSettings().livenessEnabled,
-      message: "Face customer enrollment and private verification photos are ready."
-    };
+    if (action === "health") {
+      const storageHealth = await verificationPhotoStorageHealth();
+      return {
+        ok: true,
+        version: FUNCTION_VERSION,
+        groupId: required("FACE_GROUP_ID"),
+        photoBucketId: String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim(),
+        verificationPhotoBucketId: String(process.env.VERIFICATION_PHOTO_BUCKET_ID || "verification-photos").trim(),
+        verificationPhotoFallbackBucketId: String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim(),
+        verificationPhotoUrlTtlSeconds: verificationPhotoUrlTtlSeconds(),
+        verificationPhotoUploadTtlSeconds: verificationPhotoUploadTtlSeconds(),
+        verificationPhotoCleanupConfigured: Boolean(String(process.env.VERIFICATION_PHOTO_CLEANUP_TOKEN || "").trim()),
+        verificationPhotoServiceRoleKeyConfigured: Boolean(String(process.env.CLOUDBASE_SERVICE_ROLE_KEY || "").trim()),
+        verificationPhotoConfiguredBucketIds: storageHealth.configuredBucketIds,
+        verificationPhotoAvailableBucketIds: storageHealth.availableBucketIds,
+        verificationPhotoReadyBucketIds: storageHealth.readyBucketIds,
+        verificationPhotoBucketMetadataReady: storageHealth.bucketMetadataReady,
+        verificationPhotoBucketCheckError: storageHealth.bucketCheckError || undefined,
+        verificationPhotoServiceRoleStorageReady: storageHealth.serviceRoleStorageReady,
+        verificationPhotoServiceRoleStorageError: storageHealth.serviceRoleStorageError || undefined,
+        verificationPhotoServiceRoleStorageRequestId: storageHealth.serviceRoleStorageRequestId || undefined,
+        livenessEnabled: faceSettings().livenessEnabled,
+        message: "Face customer enrollment and private verification photos are ready."
+      };
+    }
     if (action === "validateCapture") return await validateCapture(event);
     if (action === "registerCustomer") return await registerCustomer(event);
     if (action === "listActiveStoreCustomers") return await listActiveStoreCustomers(event);

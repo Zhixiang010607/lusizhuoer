@@ -23,6 +23,9 @@ ROLLBACK;
 11. `039-04-cancel-upload-function.sql`
 12. `039-05-verify-direct-upload.sql`（只读验收）
 
+照片迁移已经完成后，如需核对 v52 当前使用的真实 PG 存储桶，可单独执行
+`photo-storage-v52-readonly-check.sql`。它只读检查桶 ID、私有状态、单文件上限、JPEG MIME、迁移 039 表以及现有 RLS 策略，不是新 migration，不需要按编号重复执行。私有照片桶没有面向 `anon`／`authenticated` 的整桶策略是预期状态；服务端 `service_role` 会绕过 RLS，实际 Key 是否可访问由 v52 的 `health.verificationPhotoServiceRoleStorageReady` 验证。
+
 不要把 `ROLLBACK;` 与上述文件放在同一次执行中；不要选中函数的一部分执行；已经成功提交的前一部分不要重复运行。
 
 ## `037-01` 已成功、旧版 `037-02`／`037-03` 失败时
