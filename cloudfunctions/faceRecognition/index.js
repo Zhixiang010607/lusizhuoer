@@ -4,7 +4,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
-const FUNCTION_VERSION = "v43";
+const FUNCTION_VERSION = "v44";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 // SCF synchronous events are capped at 6 MB and Base64 adds roughly 33%.
 // These verification-photo limits leave room for the JSON envelope while
@@ -330,22 +330,46 @@ function cachedVerificationPhoto(cacheKey) {
   return cached && cached.expiresAt > now + 10000 ? cached : null;
 }
 
-async function signVerificationPhoto(referenceValue, expiresIn) {
+function thumbnailTransformUrl(url) {
+  const separator = String(url).includes("?") ? "&" : "?";
+  return `${url}${separator}imageMogr2/thumbnail/480x480/format/webp/rquality/82`;
+}
+
+async function signVerificationPhoto(referenceValue, expiresIn, options = {}) {
   const reference = verificationPhotoReference(referenceValue);
-  const storage = verificationPhotoStorageSettings();
-  if (reference.bucketId !== storage.bucketId) fail("核销照片不属于指定私有存储桶。", "PHOTO_BUCKET_MISMATCH");
-  const cacheKey = `${reference.bucketId}/${reference.objectName}`;
+  const verificationStorage = verificationPhotoStorageSettings();
+  const customerStorage = photoStorageSettings();
+  const isVerificationObject = reference.bucketId === verificationStorage.bucketId;
+  const isRetainedProfile = options.allowCustomerProfile === true && reference.bucketId === customerStorage.bucketId;
+  if (!isVerificationObject && !isRetainedProfile) {
+    fail("核销照片不属于允许的私有存储桶。", "PHOTO_BUCKET_MISMATCH");
+  }
+  const storage = isVerificationObject ? verificationStorage : customerStorage;
+  const transformKey = options.thumbnailTransform === true ? "thumbnail" : "original";
+  const cacheKey = `${reference.bucketId}/${reference.objectName}/${transformKey}`;
   const cached = cachedVerificationPhoto(cacheKey);
   if (cached) return cached.url;
-  const signed = await manager().storage.signObject({
-    bucketId: reference.bucketId,
-    objectName: reference.objectName,
-    expiresIn,
-    accessToken: storage.accessToken,
-    envId: storage.envId
-  });
-  const url = signedPhotoUrl(signed);
+  let url = "";
+  const candidates = isRetainedProfile
+    ? photoObjectCandidates(reference.bucketId, reference.objectName)
+    : [reference.objectName];
+  for (const objectName of candidates) {
+    try {
+      const signed = await manager().storage.signObject({
+        bucketId: reference.bucketId,
+        objectName,
+        expiresIn,
+        accessToken: storage.accessToken,
+        envId: storage.envId
+      });
+      url = signedPhotoUrl(signed);
+      if (url) break;
+    } catch (error) {
+      if (!storageObjectMissing(error)) throw error;
+    }
+  }
   if (!url) fail("核销照片临时访问地址生成失败。", "PHOTO_SIGN_FAILED");
+  if (options.thumbnailTransform === true) url = thumbnailTransformUrl(url);
   signedVerificationPhotoCache.set(cacheKey, { url, expiresAt: Date.now() + expiresIn * 1000 });
   while (signedVerificationPhotoCache.size > 1000) {
     signedVerificationPhotoCache.delete(signedVerificationPhotoCache.keys().next().value);
@@ -1876,10 +1900,17 @@ async function requireVerificationSubmissionSchema() {
      ) AS has_idempotency_key,
      TO_REGPROCEDURE(
        'public.create_verification_with_face_photo(character varying,bigint,bigint,bigint,bigint,character varying,bigint,text,text,character varying,character varying,character varying)'
-     ) IS NOT NULL AS has_photo_create_function`
+     ) IS NOT NULL AS has_photo_create_function,
+     COALESCE(POSITION(
+       'PROFILE_BOUND' IN PG_GET_FUNCTIONDEF(TO_REGPROCEDURE(
+         'public.create_verification_with_face_photo(character varying,bigint,bigint,bigint,bigint,character varying,bigint,text,text,character varying,character varying,character varying)'
+       ))
+     ), 0) > 0 AS has_profile_snapshot`
   );
-  if (!databaseBoolean(rows?.[0]?.has_idempotency_key) || !databaseBoolean(rows?.[0]?.has_photo_create_function)) {
-    fail("核销单数据库缺少照片证据结构，请先依次执行迁移 026 和 037。", "DATABASE_SCHEMA_MISSING");
+  if (!databaseBoolean(rows?.[0]?.has_idempotency_key)
+      || !databaseBoolean(rows?.[0]?.has_photo_create_function)
+      || !databaseBoolean(rows?.[0]?.has_profile_snapshot)) {
+    fail("核销单数据库缺少五张照片证据结构，请先依次执行迁移 026、037 和 038。", "DATABASE_SCHEMA_MISSING");
   }
 }
 
@@ -2532,7 +2563,13 @@ async function getVerificationPhotos(event) {
   const photos = await Promise.all(rows.map(async (row) => {
     let thumbnailUrl = "";
     let thumbnailError = "";
-    try { thumbnailUrl = await signVerificationPhoto(row.thumbnail_object_ref, expiresIn); }
+    const retainedProfile = String(row.photo_kind || "") === "PROFILE";
+    try {
+      thumbnailUrl = await signVerificationPhoto(row.thumbnail_object_ref, expiresIn, {
+        allowCustomerProfile: retainedProfile,
+        thumbnailTransform: retainedProfile
+      });
+    }
     catch (error) { thumbnailError = String(error?.code || "PHOTO_THUMBNAIL_UNAVAILABLE"); }
     return {
       slot: Number(row.photo_slot),
@@ -2554,7 +2591,7 @@ async function getVerificationPhotos(event) {
     editableUntil: context.record.editable_until,
     isSubmitter: String(context.record.submitted_by_account_id) === String(context.caller.staffId),
     canEdit: context.canEdit,
-    maxPhotos: 4,
+    maxPhotos: 5,
     expiresIn,
     photos
   };
@@ -2563,9 +2600,9 @@ async function getVerificationPhotos(event) {
 async function getVerificationPhotoOriginalUrl(event) {
   const context = await verificationPhotoContext(event);
   const slot = Number(event.slot);
-  if (!Number.isInteger(slot) || slot < 0 || slot > 3) fail("核销照片位置无效。", "PHOTO_SLOT_INVALID");
+  if (!Number.isInteger(slot) || slot < 0 || slot > 4) fail("核销照片位置无效。", "PHOTO_SLOT_INVALID");
   const rows = await executeSql(
-    `SELECT original_object_ref, original_bytes, image_width, image_height
+    `SELECT photo_kind, original_object_ref, original_bytes, image_width, image_height
        FROM public.verification_photos
       WHERE verification_id = ${context.verificationId}::bigint
         AND photo_slot = ${slot}
@@ -2574,7 +2611,9 @@ async function getVerificationPhotoOriginalUrl(event) {
   const photo = rows[0];
   if (!photo) fail("该照片位置尚未上传。", "PHOTO_NOT_FOUND");
   const expiresIn = Math.trunc(numberSetting("VERIFICATION_PHOTO_URL_TTL_SECONDS", 300, 60, 900));
-  const photoUrl = await signVerificationPhoto(photo.original_object_ref, expiresIn);
+  const photoUrl = await signVerificationPhoto(photo.original_object_ref, expiresIn, {
+    allowCustomerProfile: String(photo.photo_kind || "") === "PROFILE"
+  });
   await executeSql(
     `INSERT INTO public.verification_photo_events
       (verification_id, photo_slot, event_type, actor_account_id)
@@ -2602,7 +2641,7 @@ async function uploadVerificationExtraPhoto(event) {
     fail("该核销单已超过提交后的 24 小时，不能再上传或替换照片。", "PHOTO_WINDOW_EXPIRED");
   }
   const slot = Number(event.slot);
-  if (!Number.isInteger(slot) || slot < 1 || slot > 3) fail("只能上传补充照片 1 至 3。", "PHOTO_SLOT_INVALID");
+  if (!Number.isInteger(slot) || slot < 2 || slot > 4) fail("只能上传补充照片 1 至 3。", "PHOTO_SLOT_INVALID");
   const original = cleanVerificationJpeg(event.imageBase64, "补充照片", MAX_VERIFICATION_IMAGE_BYTES);
   const thumbnail = cleanVerificationJpeg(event.thumbnailBase64, "补充照片缩略图", MAX_THUMBNAIL_BYTES);
   const dimensions = verificationPhotoDimensions(event);

@@ -117,14 +117,14 @@ face_status = PASSED
 record_status = APPROVED
 ```
 
-Every verification created after migration 037 also has private photo evidence:
+Every verification created after migrations 037 and 038 also has private photo evidence:
 
 - `verification_photo_drafts` holds a short-lived, unconsumed face photo after successful 1:1 verification and before the order transaction.
-- `verification_photos` has four fixed slots per order. Slot 0 is the immutable face-verification original and thumbnail. Slots 1--3 are optional supplemental originals and thumbnails.
+- `verification_photos` has five fixed slots per order. Slot 0 snapshots the customer's retained enrollment-photo reference, slot 1 is the immutable face-verification original and thumbnail, and slots 2--4 are optional supplemental originals and thumbnails.
 - The face evidence token is bound to the exact store, customer, submitting staff account and face API request, then consumed atomically by `create_verification_with_face_photo` when the order is inserted.
-- Only `verification_records.submitted_by_account_id` may insert or replace slots 1--3, and only while the database server time is earlier than `submitted_at + interval '24 hours'`. The trigger repeats this rule even if a stale or modified browser bypasses the UI.
+- Only `verification_records.submitted_by_account_id` may insert or replace slots 2--4, and only while the database server time is earlier than `submitted_at + interval '24 hours'`. Slots 0 and 1 are immutable. The trigger repeats these rules even if a stale or modified browser bypasses the UI.
 - PostgreSQL stores private `pg://` object references, byte counts, dimensions and SHA-256 metadata. It never stores public or signed URLs. Direct `anon` and `authenticated` table access is revoked and RLS is enabled without client policies.
-- `verification_photo_events` is append-only application audit data for face binding, supplemental upload/replacement and every original-photo view. Thumbnail display does not create four extra writes on each detail-page load.
+- `verification_photo_events` is append-only application audit data for retained-profile binding, face binding, supplemental upload/replacement and every original-photo view. Thumbnail display does not create five extra writes on each detail-page load.
 
 ## 5. Detail pages and global views
 
@@ -166,6 +166,7 @@ For a database already upgraded through migration 029, execute the current addit
 035_hq_dashboard_approved_covering_indexes.sql
 036_disable_verification_void_workflow.sql
 037_verification_photo_evidence.sql
+038_verification_profile_photo_snapshot.sql
 ```
 
-Migration 032 deliberately stops and rolls back when migration 026 is missing. In that case, do not deploy the new cloud functions yet; first complete the missing earlier migrations in numeric order. Migration 034 keeps operation scope rows as archived audit history and does not change the recharge/verification review functions. Migration 035 adds only the two covering indexes used by the headquarters dashboard's date-bounded approved-order aggregation. Migration 036 closes any legacy pending verification void as rejected without changing the original verification or balance, retires the old direct SQL function, and blocks every future verification void transition. Migration 037 adds private verification photo metadata, the atomic order-plus-face-photo insertion function, and the submitter/24-hour database guard; it does not create the CloudBase Storage bucket, which must be created separately as private infrastructure.
+Migration 032 deliberately stops and rolls back when migration 026 is missing. In that case, do not deploy the new cloud functions yet; first complete the missing earlier migrations in numeric order. Migration 034 keeps operation scope rows as archived audit history and does not change the recharge/verification review functions. Migration 035 adds only the two covering indexes used by the headquarters dashboard's date-bounded approved-order aggregation. Migration 036 closes any legacy pending verification void as rejected without changing the original verification or balance, retires the old direct SQL function, and blocks every future verification void transition. Migration 037 adds private verification photo metadata, the atomic order-plus-face-photo insertion function, and the submitter/24-hour database guard. Migration 038 adds the immutable customer enrollment-photo snapshot and shifts the face/extras into slots 1 and 2--4. Neither migration creates the CloudBase Storage buckets, which must be created separately as private infrastructure.

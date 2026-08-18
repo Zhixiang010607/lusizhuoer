@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.15";
+  const VERSION = "0.15.16";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -322,7 +322,9 @@
   }
 
   function photoSlotLabel(slot) {
-    return slot === 0 ? "人脸核验照片" : `补充照片 ${slot}`;
+    if (slot === 0) return "客户原始留存照";
+    if (slot === 1) return "本次核销人脸照";
+    return `补充照片 ${slot - 1}`;
   }
 
   function photoSizeLabel(bytes) {
@@ -335,11 +337,11 @@
     const panel = $("verificationPhotoPanel");
     if (!panel) return;
     verificationPhotoRequest += 1;
-    $("verificationPhotoCount").textContent = "0 / 4";
+    $("verificationPhotoCount").textContent = "0 / 5";
     $("verificationPhotoHint").textContent = message;
-    $("verificationPhotoGrid").innerHTML = Array.from({ length: 4 }, (_, slot) => `
+    $("verificationPhotoGrid").innerHTML = Array.from({ length: 5 }, (_, slot) => `
       <article class="verification-photo-card">
-        <div class="verification-photo-preview"><span>${slot === 0 ? "正在读取人脸照片…" : "正在读取…"}</span></div>
+        <div class="verification-photo-preview"><span>${slot < 2 ? "正在读取只读照片…" : "正在读取…"}</span></div>
         <div class="verification-photo-card-body"><div><strong>${escapeHtml(photoSlotLabel(slot))}</strong><span>—</span></div></div>
       </article>`).join("");
     $("verificationPhotoMessage").className = "verification-photo-message";
@@ -348,26 +350,27 @@
 
   function verificationPhotoCard(photo, slot, payload) {
     const label = photoSlotLabel(slot);
-    const canUpload = slot > 0 && payload.canEdit === true;
+    const canUpload = slot >= 2 && payload.canEdit === true;
     const preview = photo
       ? `<button class="verification-photo-preview has-photo" type="button" data-view-verification-photo="${slot}" aria-label="查看${escapeHtml(label)}原图">${photo.thumbnailUrl ? `<img src="${escapeHtml(photo.thumbnailUrl)}" alt="${escapeHtml(label)}缩略图" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : "<span>缩略图暂不可用<br>点击读取原图</span>"}</button>`
-      : `<div class="verification-photo-preview"><span>${slot === 0 ? "未保存人脸凭证" : "尚未上传"}</span></div>`;
-    const meta = photo ? `${photoSizeLabel(photo.originalBytes)} · ${formatTime(photo.uploadedAt) || "已上传"}` : "空照片位";
-    const upload = slot === 0 ? "" : `<button class="verification-photo-upload" type="button" data-upload-verification-photo="${slot}" ${canUpload ? "" : "disabled"}>${photo ? "替换照片" : "拍照／上传"}</button>`;
+      : `<div class="verification-photo-preview"><span>${slot === 0 ? "未保存客户留存照" : slot === 1 ? "未保存本次人脸凭证" : "尚未上传"}</span></div>`;
+    const size = photoSizeLabel(photo?.originalBytes);
+    const meta = photo ? [size, formatTime(photo.uploadedAt) || "已绑定"].filter(Boolean).join(" · ") : "空照片位";
+    const upload = slot < 2 ? "" : `<button class="verification-photo-upload" type="button" data-upload-verification-photo="${slot}" ${canUpload ? "" : "disabled"}>${photo ? "替换照片" : "拍照／上传"}</button>`;
     return `<article class="verification-photo-card">${preview}<div class="verification-photo-card-body"><div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(meta)}</span></div>${upload}</div></article>`;
   }
 
   function renderVerificationPhotos(payload, recordId) {
     const photos = Array.isArray(payload?.photos) ? payload.photos : [];
     const bySlot = new Map(photos.map((photo) => [Number(photo.slot), photo]));
-    $("verificationPhotoCount").textContent = `${photos.length} / 4`;
+    $("verificationPhotoCount").textContent = `${photos.length} / 5`;
     const deadline = formatTime(payload?.editableUntil);
     $("verificationPhotoHint").textContent = payload?.canEdit
-      ? `你是本单提交人，可在 ${deadline || "提交后 24 小时内"} 前上传或替换 3 张补充照片。人脸照片不可修改。`
+      ? `你是本单提交人，可在 ${deadline || "提交后 24 小时内"} 前上传或替换 3 张补充照片。客户留存照与本次核销人脸照均不可修改。`
       : payload?.isSubmitter
       ? `照片修改窗口已于 ${deadline || "提交后 24 小时"} 结束；现有照片永久只读。`
       : "照片仅供有权查看本核销单的账号浏览；只有本单提交人可在 24 小时内上传或替换补充照片。";
-    $("verificationPhotoGrid").innerHTML = Array.from({ length: 4 }, (_, slot) => verificationPhotoCard(bySlot.get(slot), slot, payload)).join("");
+    $("verificationPhotoGrid").innerHTML = Array.from({ length: 5 }, (_, slot) => verificationPhotoCard(bySlot.get(slot), slot, payload)).join("");
     $("verificationPhotoGrid").querySelectorAll("[data-view-verification-photo]").forEach((button) => {
       button.addEventListener("click", () => openVerificationPhoto(recordId, Number(button.dataset.viewVerificationPhoto)));
     });
@@ -393,7 +396,7 @@
       if (request !== verificationPhotoRequest) return;
       $("verificationPhotoHint").textContent = "核销照片读取失败";
       $("verificationPhotoMessage").className = "verification-photo-message error";
-      $("verificationPhotoMessage").textContent = error?.message || "请核对迁移 037、私有存储桶和云函数版本";
+      $("verificationPhotoMessage").textContent = error?.message || "请核对迁移 037、038、私有存储桶和云函数版本";
       $("verificationPhotoGrid").innerHTML = "";
     }
   }
