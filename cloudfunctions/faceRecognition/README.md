@@ -2,7 +2,7 @@
 
 该函数仅在 CloudBase 后端运行，用于门店客户建档、照片质量检测、私有照片留存、人脸人员库录入和后续人员搜索。客户不需要提供身份证。
 
-当前版本：`v47`
+当前版本：`v49`
 
 ## 必需环境变量
 
@@ -56,7 +56,7 @@
 
 该桶不为 `anon` 或 `authenticated` 创建任何 RLS Policy，客户端访问默认拒绝；只有使用 `service_role` 的云函数可以读写。数据库保存 `pg://<bucketId>/<objectName>` 私有引用，不保存公开下载地址。
 
-建议另建 PG 存储桶 `verification-photos` 以便分开管理和保留策略；该桶不存在时 v47 会自动使用现有的私有 `customer-photos` 桶：
+建议另建 PG 存储桶 `verification-photos` 以便分开管理和保留策略；该桶不存在时 v49 会自动使用现有的私有 `customer-photos` 桶：
 
 - 访问权限：私有；不要给 `anon` 或 `authenticated` 添加 SELECT/INSERT/UPDATE/DELETE Policy。
 - 单文件限制：5 MB；MIME 白名单仅 `image/jpeg`。
@@ -81,7 +81,7 @@
 ```json
 {
   "ok": true,
-  "version": "v47",
+  "version": "v49",
   "photoBucketId": "customer-photos",
   "verificationPhotoBucketId": "verification-photos",
   "verificationPhotoFallbackBucketId": "customer-photos",
@@ -117,7 +117,9 @@
 - `searchCustomer`：质量检查、可选活体检测、人员搜索、阈值和候选分差判断，再从本门店客户表返回档案。
 - `getVerificationPhotos`：总部可查看全部核销照片，门店只能查看本店，老师只能查看本人绑定工单，运营只能查看审核范围内的补录核销。一次返回最多 5 张短时缩略图、同期限原图地址（客户留存照、本次核销人脸照、3 张补充照）和服务端计算的上传权限；所有地址仅在本次权限校验通过后签发，数据库不保存签名地址。
 - `getVerificationPhotoOriginalUrl`：用户实际点击后再次校验相同工单权限，复用或刷新该照片位的短时原图地址，并写入 `VIEW_ORIGINAL` 查看审计。
+- `getVerificationPhotoExportData`：仅供当前工单导出使用；先复用 `getVerificationPhotoOriginalUrl` 的实时账号、工单权限和查看审计，再由云函数通过 HTTPS 读取单张私有 JPEG，以最多 4 MB 的 Base64 返回。网页优先复用已经加载的原图缓存，只有浏览器因私有桶 CORS／临时地址失效而无法读取字节时才逐张调用该安全兜底；不要求公开存储桶，也不向未授权账号签发或代理照片。
 - `uploadVerificationExtraPhoto`：仅允许核销单 `submitted_by_account_id` 对应的真实登录账号，在 `submitted_at + 24 hours` 之前上传或替换照片位 2--4；总部、运营、其他门店或其他老师均不可写。数据库触发器和云函数双重校验，照片位 0 的客户留存照和照片位 1 的本次核销人脸照永久不可替换。
+- v49 兼容 CloudBase 存储网关已经完成二进制写入、但 manager-node 5.6.4 因成功响应缺少大写 `Id/Key` 而抛出的格式异常；云函数继续使用自己生成的不可预测对象名和私有引用，不把成功上传误报为失败。照片与数据库已经保存后，即使即时缩略图签名暂时失败，也只返回预览警告并由列表刷新重试，不回滚或误报整次上传。
 - `cleanupVerificationPhotoDrafts`：定时触发器使用恒定时间比较的专用随机凭证清理过期未消费草稿；不删除已经绑定核销单的照片。
 
 正式上线前还要提供客户授权记录、照片与人脸数据删除流程、访问审计，并确认腾讯云高精度静态活体服务已开通和计费。

@@ -3,8 +3,9 @@
 const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
+const https = require("https");
 
-const FUNCTION_VERSION = "v47";
+const FUNCTION_VERSION = "v49";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 // SCF synchronous events are capped at 6 MB and Base64 adds roughly 33%.
 // These verification-photo limits leave room for the JSON envelope while
@@ -185,6 +186,13 @@ function storageBucketMissing(error) {
   return detail.includes("STORAGE_BUCKET_NOT_FOUND") || detail.includes("BUCKET NOT FOUND");
 }
 
+function storageUploadResponseMismatch(error) {
+  const detail = String(error?.message || "");
+  return detail.includes("上传成功但响应格式异常")
+    && detail.includes("Id")
+    && detail.includes("Key");
+}
+
 function signedPhotoUrl(value, depth = 0) {
   if (depth > 4 || value === null || value === undefined) return "";
   if (typeof value === "string") return /^https:\/\//i.test(value.trim()) ? value.trim() : "";
@@ -313,6 +321,21 @@ async function uploadVerificationPhotoObject(objectName, buffer) {
         reference: `pg://${storage.bucketId}/${objectName}`
       };
     } catch (error) {
+      // manager-node 5.6.4 throws this only after the storage gateway has
+      // already returned an HTTP success response. We persist the exact
+      // bucket/objectName supplied by this function, so missing response
+      // metadata must not turn a completed upload into a false failure.
+      if (storageUploadResponseMismatch(error)) {
+        console.warn("CloudBase upload succeeded without Id/Key response metadata", {
+          bucketId: storage.bucketId,
+          objectName
+        });
+        return {
+          bucketId: storage.bucketId,
+          objectName,
+          reference: `pg://${storage.bucketId}/${objectName}`
+        };
+      }
       if (!storageBucketMissing(error)) throw error;
       missingBucketError = error;
       console.warn("Verification photo bucket missing; trying the existing private customer photo bucket", {
@@ -1108,17 +1131,25 @@ async function getCustomerProfile(event, options = {}) {
 async function uploadCustomerPhoto(storeId, personId, buffer) {
   const { bucketId, accessToken, envId } = photoStorageSettings();
   const objectName = `${storeId}/${personId}/${Date.now()}.jpg`;
-  await manager().storage.uploadObject({
-    bucketId,
-    objectName,
-    body: buffer,
-    contentType: "image/jpeg",
-    contentLength: buffer.length,
-    cacheControl: "private, no-store",
-    upsert: false,
-    accessToken,
-    envId
-  });
+  try {
+    await manager().storage.uploadObject({
+      bucketId,
+      objectName,
+      body: buffer,
+      contentType: "image/jpeg",
+      contentLength: buffer.length,
+      cacheControl: "private, no-store",
+      upsert: false,
+      accessToken,
+      envId
+    });
+  } catch (error) {
+    if (!storageUploadResponseMismatch(error)) throw error;
+    console.warn("CloudBase customer photo upload succeeded without Id/Key response metadata", {
+      bucketId,
+      objectName
+    });
+  }
   // Persist the objectName supplied to uploadObject. Some manager-node/storage
   // responses include the bucket name in Key; persisting that value produced
   // references such as pg://bucket/bucket/path and later lookups could miss the
@@ -2719,6 +2750,93 @@ async function getVerificationPhotoOriginalUrl(event) {
   };
 }
 
+function verificationPhotoDownloadError(message, code) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function downloadVerificationPhotoBytes(url, redirectCount = 0) {
+  return new Promise((resolve, reject) => {
+    let target;
+    try { target = new URL(String(url || "")); }
+    catch (_) { reject(verificationPhotoDownloadError("核销照片原图地址无效。", "PHOTO_DOWNLOAD_URL_INVALID")); return; }
+    if (target.protocol !== "https:") {
+      reject(verificationPhotoDownloadError("核销照片原图地址必须使用 HTTPS。", "PHOTO_DOWNLOAD_URL_INVALID"));
+      return;
+    }
+    const request = https.get(target, { headers: { Accept: "image/jpeg" } }, (response) => {
+      const status = Number(response.statusCode || 0);
+      const location = String(response.headers.location || "").trim();
+      if ([301, 302, 303, 307, 308].includes(status) && location) {
+        response.resume();
+        if (redirectCount >= 3) {
+          reject(verificationPhotoDownloadError("核销照片下载重定向次数过多。", "PHOTO_DOWNLOAD_REDIRECT"));
+          return;
+        }
+        let nextUrl;
+        try { nextUrl = new URL(location, target).toString(); }
+        catch (_) { reject(verificationPhotoDownloadError("核销照片重定向地址无效。", "PHOTO_DOWNLOAD_URL_INVALID")); return; }
+        resolve(downloadVerificationPhotoBytes(nextUrl, redirectCount + 1));
+        return;
+      }
+      if (status !== 200) {
+        response.resume();
+        reject(verificationPhotoDownloadError(`核销照片下载失败（HTTP ${status || "未知"}）。`, "PHOTO_DOWNLOAD_FAILED"));
+        return;
+      }
+      const declaredBytes = Number(response.headers["content-length"] || 0);
+      if (declaredBytes > MAX_IMAGE_BYTES) {
+        response.resume();
+        reject(verificationPhotoDownloadError("核销照片原图超过安全导出大小。", "PHOTO_EXPORT_TOO_LARGE"));
+        return;
+      }
+      const chunks = [];
+      let totalBytes = 0;
+      response.on("data", (chunk) => {
+        totalBytes += chunk.length;
+        if (totalBytes > MAX_IMAGE_BYTES) {
+          request.destroy(verificationPhotoDownloadError("核销照片原图超过安全导出大小。", "PHOTO_EXPORT_TOO_LARGE"));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      response.on("end", () => {
+        const buffer = Buffer.concat(chunks);
+        if (!buffer.length || buffer.length > MAX_IMAGE_BYTES
+            || buffer.length < 4 || buffer[0] !== 0xff || buffer[1] !== 0xd8 || buffer[2] !== 0xff) {
+          reject(verificationPhotoDownloadError("核销照片没有返回有效 JPEG 数据。", "PHOTO_EXPORT_INVALID"));
+          return;
+        }
+        resolve(buffer);
+      });
+      response.on("error", reject);
+    });
+    request.setTimeout(15000, () => request.destroy(
+      verificationPhotoDownloadError("核销照片原图下载超时。", "PHOTO_DOWNLOAD_TIMEOUT")
+    ));
+    request.on("error", reject);
+  });
+}
+
+async function getVerificationPhotoExportData(event) {
+  // Reuse the original-view action so every exported photo receives the same
+  // live account/order authorization and VIEW_ORIGINAL audit event.
+  const original = await getVerificationPhotoOriginalUrl(event);
+  if (Number(original.originalBytes || 0) > MAX_IMAGE_BYTES) {
+    fail("核销照片原图超过安全导出大小。", "PHOTO_EXPORT_TOO_LARGE");
+  }
+  const buffer = await downloadVerificationPhotoBytes(original.photoUrl);
+  return {
+    ok: true,
+    slot: original.slot,
+    imageBase64: `data:image/jpeg;base64,${buffer.toString("base64")}`,
+    bytes: buffer.length,
+    width: original.width,
+    height: original.height
+  };
+}
+
 async function uploadVerificationExtraPhoto(event) {
   const context = await verificationPhotoContext(event);
   if (!context.canEdit) {
@@ -2768,6 +2886,21 @@ async function uploadVerificationExtraPhoto(event) {
         ? deleteVerificationPhotoObject(saved.old_thumbnail_object_ref) : Promise.resolve()
     ]);
     const expiresIn = Math.trunc(numberSetting("VERIFICATION_PHOTO_URL_TTL_SECONDS", 300, 60, 900));
+    let thumbnailUrl = "";
+    let thumbnailError = "";
+    try {
+      thumbnailUrl = await signVerificationPhoto(uploadedThumbnail.reference, expiresIn);
+    } catch (error) {
+      // The immutable object references and database row are already saved.
+      // A temporary preview-signing problem must not report the upload itself
+      // as failed; the normal gallery refresh will retry signing separately.
+      thumbnailError = String(error?.code || "PHOTO_THUMBNAIL_UNAVAILABLE");
+      console.warn("Supplemental photo saved but immediate thumbnail signing failed", {
+        verificationId: context.verificationId,
+        slot,
+        code: thumbnailError
+      });
+    }
     return {
       ok: true,
       recordId: String(context.record.id),
@@ -2776,7 +2909,8 @@ async function uploadVerificationExtraPhoto(event) {
       photo: {
         slot,
         kind: "EXTRA",
-        thumbnailUrl: await signVerificationPhoto(uploadedThumbnail.reference, expiresIn),
+        thumbnailUrl,
+        thumbnailError,
         originalBytes: original.buffer.length,
         thumbnailBytes: thumbnail.buffer.length,
         width: dimensions.width,
@@ -2867,6 +3001,7 @@ exports.main = async (event = {}) => {
     if (action === "verifyCustomerFace") return await verifyCustomerFace(event);
     if (action === "getVerificationPhotos") return await getVerificationPhotos(event);
     if (action === "getVerificationPhotoOriginalUrl") return await getVerificationPhotoOriginalUrl(event);
+    if (action === "getVerificationPhotoExportData") return await getVerificationPhotoExportData(event);
     if (action === "uploadVerificationExtraPhoto") return await uploadVerificationExtraPhoto(event);
     if (action === "cleanupVerificationPhotoDrafts") return await cleanupVerificationPhotoDrafts(event);
     fail("Unsupported action.");

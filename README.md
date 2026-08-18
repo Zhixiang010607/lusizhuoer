@@ -144,8 +144,8 @@
 部署为网页时：
 
 1. 按编号依次执行尚未运行的数据库迁移；正式 migration 工具使用完整的 `037_verification_photo_evidence.sql` 与 `038_verification_profile_photo_snapshot.sql`，腾讯云 `ExecutePGSql` 控制台必须改用 `database/cloudbase-console/` 下的六个短文件并严格按 `037-01` 至 `038-03` 执行；若 `037-01` 已成功而旧版 `037-02` 报 `SQLSTATE 42601`，不要重跑 `037-01`，先单独执行 `ROLLBACK;`，再从当前 `037-02` 继续；
-2. 可选在 CloudBase PG 云存储中新建私有桶 `verification-photos`；未建立时 v47 会安全回退到现有 `customer-photos` 私有桶。配置 `VERIFICATION_PHOTO_URL_TTL_SECONDS`、`VERIFICATION_FACE_EVIDENCE_TTL_MINUTES`、`VERIFICATION_PHOTO_CLEANUP_TOKEN` 和每小时草稿清理触发器；
-3. 部署 `staffAccount-v41.zip` 与 `faceRecognition-v47.zip`，再分别调用 `health` 核对版本；
+2. 可选在 CloudBase PG 云存储中新建私有桶 `verification-photos`；未建立时 v49 会安全回退到现有 `customer-photos` 私有桶。配置 `VERIFICATION_PHOTO_URL_TTL_SECONDS`、`VERIFICATION_FACE_EVIDENCE_TTL_MINUTES`、`VERIFICATION_PHOTO_CLEANUP_TOKEN` 和每小时草稿清理触发器；
+3. 部署 `staffAccount-v41.zip` 与 `faceRecognition-v49.zip`，再分别调用 `health` 核对版本；v49 会兼容存储网关成功写入后的异常响应，并在浏览器因私有桶跨域限制无法读取图片字节时，通过同一工单权限校验逐张安全取得 PDF／图片导出所需的高清照片；
 4. 部署当前静态文件到 CloudBase 静态网站托管；
 5. 通过总部、运营、门店和老师真实账号完成核销照片查看、提交人上传／替换、非提交人拒绝和 24 小时截止回归测试。
 

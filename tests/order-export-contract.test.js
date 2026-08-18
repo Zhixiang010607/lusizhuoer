@@ -62,13 +62,15 @@ assert.ok(twoPagePdf.includes("xref\n0 9"), "multi-page PDF xref count");
 for (const html of [rechargeHtml, verificationHtml]) {
   includes(html, 'id="exportOrderPdf"', "PDF export button");
   includes(html, 'id="exportOrderImage"', "image export button");
-  assert.ok(html.indexOf("order-export.js?v=0.1.0") < html.indexOf("business-detail.js?v=0.15.21"), "exporter must load before detail controller");
+  assert.ok(html.indexOf("order-export.js?v=0.1.0") < html.indexOf("business-detail.js?v=0.15.22"), "exporter must load before detail controller");
 }
 
 includes(detailSource, 'filename: `${customerName}+${projectName}+${recharge ? "充值" : "核销"}`', "required filename contract");
 includes(detailSource, 'action: "getVerificationPhotoOriginalUrl"', "existing authorized original-photo action");
+includes(detailSource, 'action: "getVerificationPhotoExportData"', "CORS-safe authorized export fallback");
+includes(detailSource, 'cache: "force-cache"', "reuse already loaded original-photo response");
 includes(detailSource, 'mode: "cors"', "private photo CORS fetch");
-includes(detailSource, "Math.min(2, queue.length)", "bounded original-photo concurrency");
+includes(detailSource, "Math.min(3, queue.length)", "bounded original-photo concurrency");
 includes(detailSource, 'placeholder: "照片暂无法读取"', "failed original placeholder");
 includes(detailSource, 'placeholder: listError ? "照片信息暂不可用"', "photo-list failure placeholder");
 includes(detailSource, "catch (error)", "per-photo export failure isolation");

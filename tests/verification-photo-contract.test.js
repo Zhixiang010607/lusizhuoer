@@ -38,11 +38,12 @@ function functionSource(source, name) {
   throw new Error(`function ${name} body is incomplete`);
 }
 
-includes(cloud, 'const FUNCTION_VERSION = "v47"', "cloud version");
+includes(cloud, 'const FUNCTION_VERSION = "v49"', "cloud version");
 includes(cloud, "const MAX_VERIFICATION_IMAGE_BYTES = 3 * 1024 * 1024", "original upload limit");
 includes(cloud, "const MAX_THUMBNAIL_BYTES = 384 * 1024", "thumbnail upload limit");
 includes(cloud, "if (action === \"getVerificationPhotos\")", "thumbnail list action");
 includes(cloud, "if (action === \"getVerificationPhotoOriginalUrl\")", "on-demand original action");
+includes(cloud, "if (action === \"getVerificationPhotoExportData\")", "CORS-safe export action");
 includes(cloud, "if (action === \"uploadVerificationExtraPhoto\")", "supplemental upload action");
 includes(cloud, "if (action === \"cleanupVerificationPhotoDrafts\")", "draft cleanup action");
 includes(cloud, "String(record.submitted_by_account_id) === String(caller.staffId)", "exact submitter check");
@@ -88,9 +89,10 @@ vm.createContext(storageHarness);
 vm.runInContext([
   functionSource(cloud, "verificationPhotoStorageCandidates"),
   functionSource(cloud, "storageBucketMissing"),
+  functionSource(cloud, "storageUploadResponseMismatch"),
   functionSource(cloud, "uploadVerificationPhotoObject"),
   functionSource(cloud, "verificationPhotoStorageForEvidence"),
-  "module.exports = { verificationPhotoStorageCandidates, storageBucketMissing, uploadVerificationPhotoObject, verificationPhotoStorageForEvidence };"
+  "module.exports = { verificationPhotoStorageCandidates, storageBucketMissing, storageUploadResponseMismatch, uploadVerificationPhotoObject, verificationPhotoStorageForEvidence };"
 ].join("\n"), storageHarness, { filename: "verification-storage-fallback.js" });
 const storageApi = storageHarness.module.exports;
 
@@ -108,6 +110,12 @@ const storageFallbackTestPromise = (async () => {
   const fallbackUpload = await storageApi.uploadVerificationPhotoObject("face-evidence/7/8/token/original.jpg", Buffer.from("jpeg"));
   assert.deepEqual(storageCalls, ["verification-photos", "customer-photos"], "missing dedicated bucket falls back exactly once");
   assert.equal(fallbackUpload.reference, "pg://customer-photos/face-evidence/7/8/token/original.jpg");
+
+  uploadFailure = new Error("上传成功但响应格式异常：缺少 Id 或 Key");
+  storageCalls.length = 0;
+  const recoveredUpload = await storageApi.uploadVerificationPhotoObject("records/9/slot-2/file.jpg", Buffer.from("jpeg"));
+  assert.deepEqual(storageCalls, ["verification-photos"], "successful upload response mismatch must not retry into another bucket");
+  assert.equal(recoveredUpload.reference, "pg://verification-photos/records/9/slot-2/file.jpg");
 
   uploadFailure = Object.assign(new Error("Access denied"), { code: "STORAGE_ACCESS_DENIED" });
   storageCalls.length = 0;
@@ -209,12 +217,22 @@ includes(detailUi, 'action: "getVerificationPhotoOriginalUrl"', "detail original
 includes(detailUi, 'action: "uploadVerificationExtraPhoto"', "detail upload request");
 includes(detailUi, 'loading="lazy"', "lazy thumbnail loading");
 includes(cloud, "originalUrl,", "authorized list returns short-lived original URL");
+includes(cloud, "storageUploadResponseMismatch", "successful CloudBase upload response compatibility");
+includes(functionSource(cloud, "uploadVerificationPhotoObject"), "storageUploadResponseMismatch(error)", "verification upload success-shape recovery");
+includes(functionSource(cloud, "uploadCustomerPhoto"), "storageUploadResponseMismatch(error)", "customer upload success-shape recovery");
+includes(functionSource(cloud, "uploadVerificationExtraPhoto"), "thumbnailError,", "saved upload survives immediate thumbnail-signing failure");
+assert.ok(
+  functionSource(cloud, "getVerificationPhotoExportData").indexOf("getVerificationPhotoOriginalUrl(event)")
+    < functionSource(cloud, "getVerificationPhotoExportData").indexOf("downloadVerificationPhotoBytes("),
+  "PDF fallback must authorize and audit the exact photo before server-side download"
+);
+includes(functionSource(cloud, "downloadVerificationPhotoBytes"), "MAX_IMAGE_BYTES", "PDF fallback response is size bounded");
 assert.ok(
   functionSource(cloud, "getVerificationPhotos").indexOf("verificationPhotoContext(event)")
     < functionSource(cloud, "getVerificationPhotos").indexOf("signVerificationPhoto("),
   "original URLs must be signed only after the verification-order permission check"
 );
-includes(detailUi, 'const VERSION = "0.15.21"', "detail UI cache version");
+includes(detailUi, 'const VERSION = "0.15.22"', "detail UI cache version");
 includes(detailUi, 'return "客户原始留存照"', "retained profile label");
 includes(detailUi, 'return "本次核销人脸照"', "current face label");
 includes(detailUi, "Array.from({ length: 5 }", "five-card gallery");
@@ -228,12 +246,15 @@ includes(detailUi, "preloadVerificationPhotoOriginal", "small original backgroun
 includes(detailUi, "connection?.saveData === true", "data-saver preload guard");
 includes(detailUi, "originalUrlExpiresAt", "short-lived original URL expiry guard");
 includes(detailUi, 'image.fetchPriority = "high"', "clicked original receives high network priority");
+includes(detailUi, 'action: "getVerificationPhotoExportData"', "PDF/image export authorized binary fallback");
+includes(detailUi, 'cache: "force-cache"', "export reuses cached signed original when available");
+includes(detailUi, "Math.min(3, queue.length)", "at most three private originals export concurrently");
 assert.ok(!functionSource(detailUi, "chooseVerificationPhoto").includes("capture"), "gallery/file picker must not force camera capture");
 includes(detailHtml, 'id="verificationPhotoGrid"', "five-slot gallery mount");
 includes(detailHtml, 'id="verificationPhotoViewer"', "original image dialog");
 includes(detailHtml, 'id="verificationPhotoCameraDialog"', "camera preview dialog");
 includes(detailHtml, 'id="verificationPhotoCameraVideo" autoplay playsinline muted', "mobile inline camera preview");
-includes(detailHtml, 'business-detail.js?v=0.15.21', "detail script cache bust");
+includes(detailHtml, 'business-detail.js?v=0.15.22', "detail script cache bust");
 includes(detailHtml, 'styles.css?v=0.15.18', "detail styles cache bust");
 includes(styles, "grid-template-columns: repeat(3, minmax(0, 1fr))", "roomy three-column desktop gallery");
 includes(styles, ".verification-photo-actions", "separate camera and upload action layout");

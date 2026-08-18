@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.21";
+  const VERSION = "0.15.22";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -266,22 +266,55 @@
     };
   }
 
-  async function fetchVerificationPhotoBlob(recordId, photo) {
-    const slot = Number(photo.slot);
-    const payload = await callFaceRecognition({ action: "getVerificationPhotoOriginalUrl", recordId, slot });
-    const response = await fetch(payload.photoUrl, {
+  async function fetchVerificationPhotoUrlBlob(url, slot) {
+    const response = await fetch(url, {
       method: "GET",
       mode: "cors",
       credentials: "omit",
-      cache: "no-store",
+      cache: "force-cache",
       referrerPolicy: "no-referrer"
     });
-    if (!response.ok) throw new Error(`${photoSlotLabel(slot)}读取失败（HTTP ${response.status}）`);
+    if (!response.ok) {
+      const error = new Error(`${photoSlotLabel(slot)}读取失败（HTTP ${response.status}）`);
+      error.httpStatus = response.status;
+      throw error;
+    }
     const blob = await response.blob();
     if (!blob.size || !String(blob.type || "").toLowerCase().startsWith("image/")) {
       throw new Error(`${photoSlotLabel(slot)}没有返回有效图片`);
     }
     return blob;
+  }
+
+  function verificationPhotoDataBlob(value, slot) {
+    const match = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/i.exec(String(value || "").trim());
+    if (!match) throw new Error(`${photoSlotLabel(slot)}安全导出数据格式无效`);
+    const binary = atob(match[1]);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    if (!bytes.length || bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff) {
+      throw new Error(`${photoSlotLabel(slot)}安全导出数据不是有效 JPEG`);
+    }
+    return new Blob([bytes], { type: "image/jpeg" });
+  }
+
+  async function fetchVerificationPhotoBlob(recordId, photo) {
+    const slot = Number(photo.slot);
+    const cachedUrl = clean(photo?.originalUrl);
+    const cachedUrlValid = cachedUrl && Number(photo?.originalUrlExpiresAt || 0) > Date.now() + 10000;
+    if (cachedUrlValid) {
+      try { return await fetchVerificationPhotoUrlBlob(cachedUrl, slot); }
+      catch (_) { /* CORS, expiry and transient download failures use the authorized server fallback below. */ }
+    } else {
+      try {
+        const payload = await callFaceRecognition({ action: "getVerificationPhotoOriginalUrl", recordId, slot });
+        photo.originalUrl = payload.photoUrl;
+        photo.originalUrlExpiresAt = Date.now() + Math.max(0, Number(payload.expiresIn || 0) * 1000);
+        return await fetchVerificationPhotoUrlBlob(payload.photoUrl, slot);
+      } catch (_) { /* Use the server-scoped binary fallback below. */ }
+    }
+    const payload = await callFaceRecognition({ action: "getVerificationPhotoExportData", recordId, slot });
+    return verificationPhotoDataBlob(payload.imageBase64, slot);
   }
 
   function exportPhotoFailureMeta(error) {
@@ -309,7 +342,7 @@
     let cursor = 0;
     let completed = 0;
     let failed = 0;
-    const workers = Array.from({ length: Math.min(2, queue.length) }, async () => {
+    const workers = Array.from({ length: Math.min(3, queue.length) }, async () => {
       while (cursor < queue.length) {
         const index = cursor;
         cursor += 1;
