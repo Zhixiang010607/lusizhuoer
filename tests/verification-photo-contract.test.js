@@ -24,7 +24,9 @@ function functionSource(source, name) {
   const match = marker.exec(source);
   assert.ok(match, `function ${name} must exist`);
   const start = match.index;
-  const bodyStart = source.indexOf("{", start);
+  const signatureEnd = source.indexOf(") {", start);
+  assert.ok(signatureEnd >= 0, `function ${name} signature must be complete`);
+  const bodyStart = signatureEnd + 2;
   let depth = 0;
   for (let index = bodyStart; index < source.length; index += 1) {
     if (source[index] === "{") depth += 1;
@@ -36,7 +38,7 @@ function functionSource(source, name) {
   throw new Error(`function ${name} body is incomplete`);
 }
 
-includes(cloud, 'const FUNCTION_VERSION = "v45"', "cloud version");
+includes(cloud, 'const FUNCTION_VERSION = "v46"', "cloud version");
 includes(cloud, "const MAX_VERIFICATION_IMAGE_BYTES = 3 * 1024 * 1024", "original upload limit");
 includes(cloud, "const MAX_THUMBNAIL_BYTES = 384 * 1024", "thumbnail upload limit");
 includes(cloud, "if (action === \"getVerificationPhotos\")", "thumbnail list action");
@@ -56,6 +58,9 @@ includes(cloud, '/^(?:face-evidence|records)\\//', "fallback bucket evidence pre
 includes(cloud, "verificationPhotoFallbackBucketId", "health reports safe fallback bucket");
 includes(cloud, "crypto.timingSafeEqual", "cleanup token comparison");
 includes(cloud, "thumbnailTransformUrl", "retained profile thumbnail transform");
+const verificationSignSource = functionSource(cloud, "signVerificationPhoto");
+includes(verificationSignSource, 'typeof manager().storage.signObjects === "function"', "batch signing compatibility fallback");
+includes(verificationSignSource, "Verification photo signing returned no HTTPS URL", "safe verification signing diagnostics");
 includes(cloud, "allowCustomerProfile: retainedProfile", "profile bucket is allowed only for profile evidence");
 includes(cloud, "maxPhotos: 5", "five-photo response contract");
 includes(cloud, "slot < 2 || slot > 4", "only three supplemental cloud slots are writable");
@@ -124,6 +129,46 @@ const storageFallbackTestPromise = (async () => {
   );
 })();
 
+const signingCalls = [];
+const signingHarness = {
+  module: { exports: {} },
+  console: { warn() {}, error() {} },
+  signedVerificationPhotoCache: new Map(),
+  verificationPhotoReference: () => ({ bucketId: "customer-photos", objectName: "records/9/slot-1/thumbnail.jpg" }),
+  photoStorageSettings: () => ({ bucketId: "customer-photos", accessToken: "token", envId: "env" }),
+  verificationPhotoStorageForEvidence: () => ({ bucketId: "customer-photos", accessToken: "token", envId: "env" }),
+  photoObjectCandidates: (_bucket, objectName) => [objectName],
+  cachedVerificationPhoto: () => null,
+  responseErrorText: () => "",
+  storageObjectMissing: () => false,
+  safeResponseShape: () => ({}),
+  fail: (message, code) => { const error = new Error(message); error.code = code; throw error; },
+  manager: () => ({
+    storage: {
+      signObject: async () => { signingCalls.push("single"); return { data: {} }; },
+      signObjects: async () => {
+        signingCalls.push("batch");
+        return { data: [{ signedURL: "https://example.invalid/private-thumbnail.jpg" }] };
+      }
+    }
+  })
+};
+vm.createContext(signingHarness);
+vm.runInContext([
+  functionSource(cloud, "signedPhotoUrl"),
+  functionSource(cloud, "thumbnailTransformUrl"),
+  verificationSignSource,
+  "module.exports = { signVerificationPhoto };"
+].join("\n"), signingHarness, { filename: "verification-storage-signing.js" });
+const verificationSignTestPromise = (async () => {
+  const signedUrl = await signingHarness.module.exports.signVerificationPhoto(
+    "pg://customer-photos/records/9/slot-1/thumbnail.jpg",
+    300
+  );
+  assert.equal(signedUrl, "https://example.invalid/private-thumbnail.jpg");
+  assert.deepEqual(signingCalls, ["single", "batch"], "empty single response falls back to batch signing once");
+})();
+
 includes(migration037, "photo_slot BETWEEN 0 AND 3", "initial four-slot migration");
 includes(migration037, "the face-verification photo is immutable", "initial immutable face evidence");
 includes(migration037, "REVOKE ALL ON TABLE public.verification_photos FROM PUBLIC", "photo table is not public");
@@ -186,7 +231,7 @@ for (const page of [
   includes(read(page), "store-business.js?v=0.14.45", `${page} create script cache bust`);
 }
 
-storageFallbackTestPromise
+Promise.all([storageFallbackTestPromise, verificationSignTestPromise])
   .then(() => console.log("verification photo contract: PASS"))
   .catch((error) => {
     console.error(error);

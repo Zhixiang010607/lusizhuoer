@@ -4,7 +4,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
-const FUNCTION_VERSION = "v45";
+const FUNCTION_VERSION = "v46";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 // SCF synchronous events are capped at 6 MB and Base64 adds roughly 33%.
 // These verification-photo limits leave room for the JSON envelope while
@@ -380,6 +380,8 @@ async function signVerificationPhoto(referenceValue, expiresIn, options = {}) {
   const candidates = isRetainedProfile
     ? photoObjectCandidates(reference.bucketId, reference.objectName)
     : [reference.objectName];
+  const missingFailures = [];
+  const signingFailures = [];
   for (const objectName of candidates) {
     try {
       const signed = await manager().storage.signObject({
@@ -390,12 +392,60 @@ async function signVerificationPhoto(referenceValue, expiresIn, options = {}) {
         envId: storage.envId
       });
       url = signedPhotoUrl(signed);
+
+      // manager-node and CloudBase storage gateways may wrap signObject
+      // responses differently. Use the documented batch endpoint as the
+      // same compatibility fallback already used by customer photos.
+      let batchSigned = null;
+      if (!url && typeof manager().storage.signObjects === "function") {
+        batchSigned = await manager().storage.signObjects({
+          bucketId: reference.bucketId,
+          paths: [objectName],
+          expiresIn,
+          accessToken: storage.accessToken,
+          envId: storage.envId
+        });
+        url = signedPhotoUrl(batchSigned);
+      }
       if (url) break;
+
+      const responseError = responseErrorText([signed, batchSigned]);
+      if (storageObjectMissing({ message: responseError })) {
+        missingFailures.push({ objectName });
+      } else {
+        signingFailures.push({
+          objectName,
+          responseShape: safeResponseShape([signed, batchSigned]),
+          responseError: responseError.slice(0, 240)
+        });
+      }
     } catch (error) {
-      if (!storageObjectMissing(error)) throw error;
+      const failure = {
+        objectName,
+        code: String(error?.code || ""),
+        requestId: error?.requestId || error?.RequestId || "",
+        message: String(error?.message || "").slice(0, 240)
+      };
+      if (storageObjectMissing(error)) missingFailures.push(failure);
+      else signingFailures.push(failure);
     }
   }
-  if (!url) fail("核销照片临时访问地址生成失败。", "PHOTO_SIGN_FAILED");
+  if (!url && missingFailures.length === candidates.length) {
+    console.warn("Verification photo object is missing", {
+      bucketId: reference.bucketId,
+      candidates,
+      failures: missingFailures
+    });
+    fail("该核销照片文件已不存在。", "PHOTO_NOT_FOUND");
+  }
+  if (!url) {
+    console.error("Verification photo signing returned no HTTPS URL", {
+      bucketId: reference.bucketId,
+      candidates,
+      failures: signingFailures
+    });
+    fail("核销照片临时访问地址生成失败，请查看云函数日志中的签名阶段错误。", "PHOTO_SIGN_FAILED");
+  }
   if (options.thumbnailTransform === true) url = thumbnailTransformUrl(url);
   signedVerificationPhotoCache.set(cacheKey, { url, expiresAt: Date.now() + expiresIn * 1000 });
   while (signedVerificationPhotoCache.size > 1000) {

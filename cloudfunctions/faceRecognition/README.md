@@ -2,7 +2,7 @@
 
 该函数仅在 CloudBase 后端运行，用于门店客户建档、照片质量检测、私有照片留存、人脸人员库录入和后续人员搜索。客户不需要提供身份证。
 
-当前版本：`v45`
+当前版本：`v46`
 
 ## 必需环境变量
 
@@ -56,7 +56,7 @@
 
 该桶不为 `anon` 或 `authenticated` 创建任何 RLS Policy，客户端访问默认拒绝；只有使用 `service_role` 的云函数可以读写。数据库保存 `pg://<bucketId>/<objectName>` 私有引用，不保存公开下载地址。
 
-建议另建 PG 存储桶 `verification-photos` 以便分开管理和保留策略；该桶不存在时 v45 会自动使用现有的私有 `customer-photos` 桶：
+建议另建 PG 存储桶 `verification-photos` 以便分开管理和保留策略；该桶不存在时 v46 会自动使用现有的私有 `customer-photos` 桶：
 
 - 访问权限：私有；不要给 `anon` 或 `authenticated` 添加 SELECT/INSERT/UPDATE/DELETE Policy。
 - 单文件限制：5 MB；MIME 白名单仅 `image/jpeg`。
@@ -81,7 +81,7 @@
 ```json
 {
   "ok": true,
-  "version": "v45",
+  "version": "v46",
   "photoBucketId": "customer-photos",
   "verificationPhotoBucketId": "verification-photos",
   "verificationPhotoFallbackBucketId": "customer-photos",
