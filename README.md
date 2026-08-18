@@ -153,7 +153,7 @@
 
 如果生产库已经成功执行迁移 039，本次 v53／v1 拆分没有新增 SQL 或 migration，不要重跑 037--039；只需按“`faceRecognition v53` → `verificationPhoto v1` → 两个 health → 当前静态前端 → 强制刷新浏览器”的顺序更新。部署前在同一 CloudBase 环境的 PostgreSQL SQL 编辑器执行 `SELECT id FROM storage.buckets WHERE id IN ('customer-photos') ORDER BY id;`，当前两个桶环境变量都为 `customer-photos` 时应恰好返回这一行；同时用 `SELECT TO_REGCLASS('public.verification_photo_upload_requests');` 确认迁移 039 表存在。完整配置、触发器和健康检查预期见 `cloudfunctions/verificationPhoto/README.md` 与 `cloudfunctions/faceRecognition/README.md`。
 
-核销详情的高清原图查看器支持按钮、鼠标滚轮、键盘、拖动和手机／iPad 双指缩放。页面先显示缩略图，高清图解码完成后再替换；最多只保留两张已解码原图，减少连续查看照片造成的内存占用。
+核销详情的高清原图查看器支持按钮、鼠标滚轮、键盘、拖动和手机／iPad 双指缩放。页面先显示缩略图，高清图解码完成后再替换；临时签名地址不可用时，查看器会在相同工单权限和查看审计下改用 `verificationPhoto` 的鉴权读取通道取回原图，并且只创建当前页面内存 Blob，不持久化照片。最多只保留两张已解码原图，减少连续查看照片造成的内存占用。
 
 生产环境不得信任前端传入的门店或账号权限范围，所有数据权限必须由后端根据登录账号重新校验。
 

@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.4";
+  const VERSION = "0.16.5";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -22,6 +22,7 @@
   let verificationCameraSwitchBusy = false;
   let verificationCameraRequest = 0;
   let verificationPhotoViewerRequest = 0;
+  let verificationPhotoViewerFallbackUrl = "";
   let verificationPhotoViewerScale = 1;
   let verificationPhotoViewerTranslateX = 0;
   let verificationPhotoViewerTranslateY = 0;
@@ -2029,6 +2030,14 @@
     return true;
   }
 
+  function revokeVerificationPhotoViewerFallback() {
+    const url = verificationPhotoViewerFallbackUrl;
+    verificationPhotoViewerFallbackUrl = "";
+    if (!url) return;
+    verificationPhotoPreloads.delete(url);
+    if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+  }
+
   async function openVerificationPhoto(recordId, slot) {
     const dialog = $("verificationPhotoViewer");
     const image = $("verificationPhotoOriginal");
@@ -2038,6 +2047,7 @@
     const cachedOriginalUrl = clean(listPhoto?.originalUrl);
     const cachedUrlValid = cachedOriginalUrl && Number(listPhoto?.originalUrlExpiresAt || 0) > Date.now() + 10000;
     const status = $("verificationPhotoViewerStatus");
+    revokeVerificationPhotoViewerFallback();
     image.fetchPriority = "high";
     resetVerificationPhotoViewerTransform();
     $("verificationPhotoViewerTitle").textContent = cachedUrlValid
@@ -2081,8 +2091,29 @@
     } catch (error) {
       if (request !== verificationPhotoViewerRequest || !dialog.open) return;
       const cachedDisplayed = await cachedLoadPromise;
-      if (!cachedDisplayed) $("verificationPhotoViewerTitle").textContent = error?.message || "原图读取失败";
-      if (status) status.textContent = cachedDisplayed ? "高清原图已显示；查看审计暂时写入失败。" : "高清原图读取失败，请关闭后重试。";
+      if (cachedDisplayed) {
+        if (status) status.textContent = "高清原图已显示；临时地址刷新暂不可用。";
+        return;
+      }
+      if (status) status.textContent = "临时访问地址暂不可用，正在通过安全通道取回高清原图…";
+      try {
+        const blob = await fetchVerificationPhotoExportFallback(recordId, slot);
+        if (request !== verificationPhotoViewerRequest || !dialog.open) return;
+        const fallbackUrl = URL.createObjectURL(blob);
+        verificationPhotoViewerFallbackUrl = fallbackUrl;
+        const displayed = await showVerificationPhotoOriginal(fallbackUrl, {
+          ...listPhoto,
+          originalBytes: blob.size
+        }, request);
+        if (!displayed || request !== verificationPhotoViewerRequest || !dialog.open) return;
+        verificationPhotoOriginalAuditCache.add(auditKey);
+        $("verificationPhotoViewerTitle").textContent = `${photoSlotLabel(slot)} · ${listPhoto?.width || "—"} × ${listPhoto?.height || "—"}`;
+        if (status) status.textContent = "高清原图已通过安全通道加载，可双指缩放、滚轮缩放或拖动查看。";
+      } catch (fallbackError) {
+        if (request !== verificationPhotoViewerRequest || !dialog.open) return;
+        $("verificationPhotoViewerTitle").textContent = fallbackError?.message || error?.message || "原图读取失败";
+        if (status) status.textContent = "高清原图读取失败，请关闭后重试。";
+      }
     }
   }
 
@@ -2408,6 +2439,7 @@
     const image = $("verificationPhotoOriginal");
     image?.removeAttribute("src");
     if (image) { image.onload = null; image.onerror = null; delete image.dataset.photoQuality; }
+    revokeVerificationPhotoViewerFallback();
   });
   $("captureVerificationPhotoCamera")?.addEventListener("click", captureVerificationPhotoCamera);
   $("switchVerificationPhotoCamera")?.addEventListener("click", switchVerificationPhotoCamera);
@@ -2427,6 +2459,7 @@
     verificationPhotoUploadTask?.xhrs?.forEach((xhr) => { try { xhr.abort(); } catch (_) { /* 页面正在退出 */ } });
     verificationPhotoPreloads.clear();
     verificationPhotoOriginalAuditCache.clear();
+    revokeVerificationPhotoViewerFallback();
     clearVerificationPhotoLocalPreviews();
   });
   $("exportOrderPdf")?.addEventListener("click", () => exportCurrentOrder("pdf"));
