@@ -1,5 +1,7 @@
 -- Execute this entire file only after migration 037 has committed. If a
 -- previous partial attempt failed, run ROLLBACK in a separate query first.
+-- Tencent CloudBase ExecutePGSql editor users must instead run the shorter
+-- database/cloudbase-console/038-01 through 038-03 files in order.
 BEGIN;
 
 -- Run after migration 037.  This expands each verification order from four

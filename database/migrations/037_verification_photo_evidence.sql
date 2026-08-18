@@ -1,5 +1,7 @@
 -- Execute this entire file at once. If a previous pasted/partial attempt ended
 -- with SQLSTATE 42601, run ROLLBACK in a separate query before retrying.
+-- Tencent CloudBase ExecutePGSql editor users must instead run the shorter
+-- database/cloudbase-console/037-01 through 037-03 files in order.
 BEGIN;
 
 -- Verification photo evidence is stored as private CloudBase Storage objects.

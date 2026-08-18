@@ -143,7 +143,7 @@
 
 部署为网页时：
 
-1. 按编号依次执行尚未运行的数据库迁移；本次新增 `037_verification_photo_evidence.sql` 与 `038_verification_profile_photo_snapshot.sql`，必须在 026--036 后依次单独执行；
+1. 按编号依次执行尚未运行的数据库迁移；正式 migration 工具使用完整的 `037_verification_photo_evidence.sql` 与 `038_verification_profile_photo_snapshot.sql`，腾讯云 `ExecutePGSql` 控制台必须改用 `database/cloudbase-console/` 下的六个短文件并严格按 `037-01` 至 `038-03` 执行；
 2. 在 CloudBase PG 云存储中新建私有桶 `verification-photos`，配置 `VERIFICATION_PHOTO_BUCKET_ID`、`VERIFICATION_PHOTO_URL_TTL_SECONDS`、`VERIFICATION_FACE_EVIDENCE_TTL_MINUTES`、`VERIFICATION_PHOTO_CLEANUP_TOKEN` 和每小时草稿清理触发器；
 3. 部署 `staffAccount-v41.zip` 与 `faceRecognition-v44.zip`，再分别调用 `health` 核对版本；
 4. 部署当前静态文件到 CloudBase 静态网站托管；
