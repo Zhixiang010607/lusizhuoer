@@ -9,6 +9,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 const auth = read("auth-ui.js");
 const ui = read("store-business.js");
 const query = read("verification-query.html");
+const queryUi = read("query.js");
 const cloud = read("cloudfunctions/faceRecognition/index.js");
 const migration = read("database/migrations/041_experience_verification_device_signal.sql");
 
@@ -30,6 +31,9 @@ assert.ok(ui.includes('const expectedStatus = "APPROVED"'), "experience submissi
 assert.ok(ui.includes("自动完成体验核销并发送设备开启信号"), "experience submission must request device start");
 assert.ok(!query.includes('<option value="SUPPLEMENT">'), "query UI must remove supplemental filter");
 assert.ok(query.includes('<option value="EXPERIENCE">体验核销</option>'), "query UI must retain experience filter");
+assert.ok(!query.includes('id="recordStatusCategory"'), "verification query must not expose a redundant order-status filter");
+assert.ok(query.includes('id="recordCategoryGrid"') && query.includes('aria-label="核销原单状态统计" hidden'), "verification status summary cards must stay hidden");
+assert.ok(queryUi.includes('const statusCategoryValue = () => $("recordStatusCategory")?.value || "ALL"'), "shared query code must tolerate the intentionally absent verification status filter");
 
 assert.ok(cloud.includes('if (!["NORMAL", "EXPERIENCE"].includes(verificationType))'), "API must reject new supplemental submissions");
 assert.ok(cloud.includes('const initialStatus = "APPROVED"'), "API must auto-complete both allowed verification types");

@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.3";
+  const VERSION = "0.15.4";
   const type = document.body.dataset.query;
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
@@ -43,6 +43,7 @@
     let nextCursor = null;
     let hasMore = false;
     let requestSequence = 0;
+    const statusCategoryValue = () => $("recordStatusCategory")?.value || "ALL";
 
     if (isHq) {
       $("recordScopeBadge").textContent = "总部可选范围";
@@ -166,7 +167,7 @@
         data.birthDate = $("recordCustomerBirthday").value;
       } else {
         data.productId = $("recordProduct").value;
-        data.statusCategory = $("recordStatusCategory").value;
+        data.statusCategory = statusCategoryValue();
         data.startDate = $("recordDateStart").value;
         data.endDate = $("recordDateEnd").value;
         if (recordType === "VERIFICATION") data.verificationType = $("recordVerificationType").value;
@@ -214,7 +215,7 @@
     }
     function selectedRecordTotal() {
       return mode === "browse"
-        ? ({ ALL: summary.total, PENDING: summary.pending, APPROVED: summary.approved, CLOSED: summary.closed }[$("recordStatusCategory").value] ?? summary.total)
+        ? ({ ALL: summary.total, PENDING: summary.pending, APPROVED: summary.approved, CLOSED: summary.closed }[statusCategoryValue()] ?? summary.total)
         : summary.total;
     }
     function renderRows() {
@@ -244,6 +245,12 @@
       $("recordNextPage").disabled = !hasMore;
     }
     function renderCategories() {
+      if (!$("recordStatusCategory")) {
+        $("recordCategoryGrid").hidden = true;
+        $("recordCategoryGrid").innerHTML = "";
+        return;
+      }
+      $("recordCategoryGrid").hidden = false;
       const labels = {
         ALL: `全部${noun}单`,
         PENDING: "待审核",
@@ -251,7 +258,7 @@
         CLOSED: "已驳回／已作废"
       };
       const counts = { ALL: summary.total, PENDING: summary.pending, APPROVED: summary.approved, CLOSED: summary.closed };
-      const selected = mode === "browse" ? $("recordStatusCategory").value : "";
+      const selected = mode === "browse" ? statusCategoryValue() : "";
       $("recordCategoryGrid").innerHTML = Object.entries(labels).map(([key, label]) => `<button class="customer-category-card ${selected === key ? "selected" : ""}" data-record-category="${key}"><span>${label}</span><strong>${Number(counts[key] || 0)}</strong><small>数据库汇总</small></button>`).join("");
       document.querySelectorAll("[data-record-category]").forEach((button) => {
         button.onclick = () => {
@@ -284,7 +291,7 @@
         if (!isHq) $("recordStoreName").textContent = [data.storeName || "当前门店", data.storeCode || ""].filter(Boolean).join(" · ");
         renderCategories();
         renderRows();
-        const canIncludeVoidSummary = mode !== "browse" || ["ALL", "APPROVED"].includes($("recordStatusCategory").value);
+        const canIncludeVoidSummary = recordType === "RECHARGE" && (mode !== "browse" || ["ALL", "APPROVED"].includes(statusCategoryValue()));
         const voidNotice = canIncludeVoidSummary && Number(summary.voidPending || 0) > 0
           ? `，其中 ${Number(summary.voidPending)} 条正在等待作废审核`
           : "";
@@ -316,7 +323,7 @@
       };
     });
     ["recordProduct", "recordStatusCategory"].forEach((id) => {
-      $(id).onchange = () => { setMode("browse"); load({ resetPage: true }); };
+      if ($(id)) $(id).onchange = () => { setMode("browse"); load({ resetPage: true }); };
     });
     if (recordType === "VERIFICATION") {
       $("recordVerificationType").onchange = () => { setMode("browse"); load({ resetPage: true }); };
@@ -337,7 +344,7 @@
     $("resetRecordQuery").onclick = () => {
       if (isHq) $("recordStoreScope").value = "ALL";
       $("recordProduct").value = "ALL";
-      $("recordStatusCategory").value = "ALL";
+      if ($("recordStatusCategory")) $("recordStatusCategory").value = "ALL";
       if (recordType === "VERIFICATION") $("recordVerificationType").value = "ALL";
       $("recordCustomerName").value = "";
       $("recordCustomerBirthday").value = "";
