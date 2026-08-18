@@ -2,7 +2,7 @@
 
 该函数仅在 CloudBase 后端运行，用于门店客户建档、照片质量检测、私有照片留存、人脸人员库录入和后续人员搜索。客户不需要提供身份证。
 
-当前版本：`v44`
+当前版本：`v45`
 
 ## 必需环境变量
 
@@ -26,7 +26,7 @@
 - `FACE_LIVENESS_THRESHOLD=40`：腾讯云高精度静态活体推荐阈值。
 - `CUSTOMER_PHOTO_BUCKET_ID=customer-photos`
 - `CUSTOMER_PHOTO_URL_TTL_SECONDS=120`：核销／充值选择客户时，私有照片临时地址的有效秒数；允许 30--600 秒。
-- `VERIFICATION_PHOTO_BUCKET_ID=verification-photos`：核销证据专用私有 PG 存储桶。
+- `VERIFICATION_PHOTO_BUCKET_ID=verification-photos`：可选的核销证据专用私有 PG 存储桶。未创建该桶或该桶返回 `STORAGE_BUCKET_NOT_FOUND` 时，仅核销证据对象会自动回退到现有 `customer-photos` 私有桶，不影响 1:1 人脸验证。
 - `VERIFICATION_PHOTO_URL_TTL_SECONDS=300`：核销缩略图和按需原图的签名地址有效秒数；允许 60--900 秒。
 - `VERIFICATION_FACE_EVIDENCE_TTL_MINUTES=30`：人脸比对通过后、正式提交核销单前的照片草稿有效分钟；允许 5--120 分钟。
 - `VERIFICATION_PHOTO_CLEANUP_TOKEN`：至少 32 位随机清理凭证，只放云函数环境变量和定时触发器事件中。
@@ -56,7 +56,7 @@
 
 该桶不为 `anon` 或 `authenticated` 创建任何 RLS Policy，客户端访问默认拒绝；只有使用 `service_role` 的云函数可以读写。数据库保存 `pg://<bucketId>/<objectName>` 私有引用，不保存公开下载地址。
 
-另建 PG 存储桶 `verification-photos`：
+建议另建 PG 存储桶 `verification-photos` 以便分开管理和保留策略；该桶不存在时 v45 会自动使用现有的私有 `customer-photos` 桶：
 
 - 访问权限：私有；不要给 `anon` 或 `authenticated` 添加 SELECT/INSERT/UPDATE/DELETE Policy。
 - 单文件限制：5 MB；MIME 白名单仅 `image/jpeg`。
@@ -81,9 +81,10 @@
 ```json
 {
   "ok": true,
-  "version": "v44",
+  "version": "v45",
   "photoBucketId": "customer-photos",
   "verificationPhotoBucketId": "verification-photos",
+  "verificationPhotoFallbackBucketId": "customer-photos",
   "verificationPhotoCleanupConfigured": true,
   "livenessEnabled": true
 }

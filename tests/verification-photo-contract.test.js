@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 
 const root = path.resolve(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
@@ -18,7 +19,24 @@ function includes(text, expected, label) {
   assert.ok(text.includes(expected), `${label}: missing ${JSON.stringify(expected)}`);
 }
 
-includes(cloud, 'const FUNCTION_VERSION = "v44"', "cloud version");
+function functionSource(source, name) {
+  const marker = new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\(`);
+  const match = marker.exec(source);
+  assert.ok(match, `function ${name} must exist`);
+  const start = match.index;
+  const bodyStart = source.indexOf("{", start);
+  let depth = 0;
+  for (let index = bodyStart; index < source.length; index += 1) {
+    if (source[index] === "{") depth += 1;
+    else if (source[index] === "}") {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, index + 1);
+    }
+  }
+  throw new Error(`function ${name} body is incomplete`);
+}
+
+includes(cloud, 'const FUNCTION_VERSION = "v45"', "cloud version");
 includes(cloud, "const MAX_VERIFICATION_IMAGE_BYTES = 3 * 1024 * 1024", "original upload limit");
 includes(cloud, "const MAX_THUMBNAIL_BYTES = 384 * 1024", "thumbnail upload limit");
 includes(cloud, "if (action === \"getVerificationPhotos\")", "thumbnail list action");
@@ -31,6 +49,11 @@ includes(cloud, "v.teacher_id = ${sqlText(caller.teacherId)}::bigint", "teacher 
 includes(cloud, "v.store_id = ${Number(caller.storeId)}::bigint", "store view scope");
 includes(cloud, "v.verification_type = 'SUPPLEMENT' AND v.void_request_status = 'NONE'", "operation review scope");
 includes(cloud, "Promise.allSettled", "parallel and partial-upload handling");
+includes(cloud, "verificationPhotoStorageCandidates", "dedicated and existing private bucket candidates");
+includes(cloud, "storageBucketMissing", "missing dedicated bucket detection");
+includes(cloud, 'detail.includes("STORAGE_BUCKET_NOT_FOUND")', "exact missing bucket fallback condition");
+includes(cloud, '/^(?:face-evidence|records)\\//', "fallback bucket evidence prefix restriction");
+includes(cloud, "verificationPhotoFallbackBucketId", "health reports safe fallback bucket");
 includes(cloud, "crypto.timingSafeEqual", "cleanup token comparison");
 includes(cloud, "thumbnailTransformUrl", "retained profile thumbnail transform");
 includes(cloud, "allowCustomerProfile: retainedProfile", "profile bucket is allowed only for profile evidence");
@@ -39,6 +62,67 @@ includes(cloud, "slot < 2 || slot > 4", "only three supplemental cloud slots are
 
 const worstCaseEventBytes = Math.ceil((3 * 1024 * 1024 + 384 * 1024) * 4 / 3) + 32 * 1024;
 assert.ok(worstCaseEventBytes < 6 * 1024 * 1024, "Base64 upload event must stay under the 6 MB SCF limit");
+
+const storageCalls = [];
+let uploadFailure = null;
+const storageHarness = {
+  module: { exports: {} },
+  console: { warn() {} },
+  verificationPhotoStorageSettings: () => ({ bucketId: "verification-photos", accessToken: "token", envId: "env" }),
+  photoStorageSettings: () => ({ bucketId: "customer-photos", accessToken: "token", envId: "env" }),
+  manager: () => ({
+    storage: {
+      uploadObject: async ({ bucketId }) => {
+        storageCalls.push(bucketId);
+        if (bucketId === "verification-photos" && uploadFailure) throw uploadFailure;
+      }
+    }
+  })
+};
+vm.createContext(storageHarness);
+vm.runInContext([
+  functionSource(cloud, "verificationPhotoStorageCandidates"),
+  functionSource(cloud, "storageBucketMissing"),
+  functionSource(cloud, "uploadVerificationPhotoObject"),
+  functionSource(cloud, "verificationPhotoStorageForEvidence"),
+  "module.exports = { verificationPhotoStorageCandidates, storageBucketMissing, uploadVerificationPhotoObject, verificationPhotoStorageForEvidence };"
+].join("\n"), storageHarness, { filename: "verification-storage-fallback.js" });
+const storageApi = storageHarness.module.exports;
+
+assert.deepEqual(
+  Array.from(storageApi.verificationPhotoStorageCandidates(), (item) => item.bucketId),
+  ["verification-photos", "customer-photos"],
+  "dedicated storage is attempted before the existing private customer bucket"
+);
+assert.equal(storageApi.storageBucketMissing({ code: "STORAGE_BUCKET_NOT_FOUND" }), true);
+assert.equal(storageApi.storageBucketMissing({ code: "STORAGE_OBJECT_NOT_FOUND" }), false);
+
+const storageFallbackTestPromise = (async () => {
+  uploadFailure = Object.assign(new Error("Bucket not found"), { code: "STORAGE_BUCKET_NOT_FOUND" });
+  storageCalls.length = 0;
+  const fallbackUpload = await storageApi.uploadVerificationPhotoObject("face-evidence/7/8/token/original.jpg", Buffer.from("jpeg"));
+  assert.deepEqual(storageCalls, ["verification-photos", "customer-photos"], "missing dedicated bucket falls back exactly once");
+  assert.equal(fallbackUpload.reference, "pg://customer-photos/face-evidence/7/8/token/original.jpg");
+
+  uploadFailure = Object.assign(new Error("Access denied"), { code: "STORAGE_ACCESS_DENIED" });
+  storageCalls.length = 0;
+  await assert.rejects(
+    storageApi.uploadVerificationPhotoObject("records/9/slot-2/file.jpg", Buffer.from("jpeg")),
+    /Access denied/,
+    "authorization failures must never fall back"
+  );
+  assert.deepEqual(storageCalls, ["verification-photos"], "non-missing-bucket errors stop immediately");
+
+  assert.equal(
+    storageApi.verificationPhotoStorageForEvidence({ bucketId: "customer-photos", objectName: "records/9/slot-2/file.jpg" }).bucketId,
+    "customer-photos"
+  );
+  assert.equal(
+    storageApi.verificationPhotoStorageForEvidence({ bucketId: "customer-photos", objectName: "7/customer-profile.jpg" }),
+    null,
+    "fallback signing and deletion reject non-evidence customer-photo paths"
+  );
+})();
 
 includes(migration037, "photo_slot BETWEEN 0 AND 3", "initial four-slot migration");
 includes(migration037, "the face-verification photo is immutable", "initial immutable face evidence");
@@ -90,7 +174,7 @@ includes(detailUi, 'if (source === "camera") input.setAttribute("capture", "envi
 includes(detailHtml, 'id="verificationPhotoGrid"', "five-slot gallery mount");
 includes(detailHtml, 'id="verificationPhotoViewer"', "original image dialog");
 includes(detailHtml, 'business-detail.js?v=0.15.19', "detail script cache bust");
-includes(detailHtml, 'styles.css?v=0.15.16', "detail styles cache bust");
+includes(detailHtml, 'styles.css?v=0.15.17', "detail styles cache bust");
 includes(styles, "grid-template-columns: repeat(3, minmax(0, 1fr))", "roomy three-column desktop gallery");
 includes(styles, ".verification-photo-actions", "separate camera and upload action layout");
 
@@ -102,4 +186,9 @@ for (const page of [
   includes(read(page), "store-business.js?v=0.14.45", `${page} create script cache bust`);
 }
 
-console.log("verification photo contract: PASS");
+storageFallbackTestPromise
+  .then(() => console.log("verification photo contract: PASS"))
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });

@@ -885,7 +885,7 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .verification-message-card time { flex: 0 0 auto; color: var(--muted); font-size: 10px; }
 .verification-message-text { min-height: 72px; max-height: 150px; margin: 8px 0 0; overflow-y: auto; overscroll-behavior: contain; padding: 10px; border: 1px solid #dce4ee; border-radius: 8px; color: #344054; background: #fff; font-size: 12px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-gutter: stable; }
 .verification-message-text:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
-.verification-photo-panel { margin-top: 14px; }
+.verification-photo-panel { margin-top: 14px; padding: 18px 20px 20px; }
 .verification-photo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .verification-photo-card { min-width: 0; display: grid; grid-template-rows: auto auto; align-content: start; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #f8fbff; }
 .verification-photo-preview { position: relative; width: 100%; aspect-ratio: 4 / 3; display: grid; place-items: center; overflow: hidden; padding: 0; border: 0; border-radius: 0; color: #64748b; background: linear-gradient(145deg, #eaf1f8, #f8fbff); font-size: 12px; font-weight: 800; }
@@ -1216,7 +1216,10 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
   .evidence-grid { grid-template-columns: 1fr; }
   .profile-metrics { width: 100%; margin-left: 0; overflow-x: auto; }
 }
-@media (max-width: 560px) { .verification-photo-grid { grid-template-columns: 1fr; } }
+@media (max-width: 560px) {
+  .verification-photo-panel { padding: 14px; }
+  .verification-photo-grid { grid-template-columns: 1fr; }
+}
 @media (max-width: 450px) { .filter-grid, .metric-grid, .management-summary, .detail-info-grid, .query-filter-grid { grid-template-columns: 1fr; } .table-card .panel-heading, .ranking-actions { width: 100%; flex-wrap: wrap; } .ranking-actions > * { flex: 1; } .ranking-dimension select { width: 100%; } }
 @media (max-width: 600px) { .login-shell { width: 100%; min-height: 100vh; margin: 0; border-radius: 0; } .login-brand-panel { min-height: 270px; padding: 28px 22px; } .login-brand-copy { margin: 34px 0 0; } .login-brand-copy h1 { font-size: 34px; } .login-feature-list, .login-security-note { display: none; } .login-form-panel { padding: 34px 20px; } .role-switch button small { display: none; } }
 

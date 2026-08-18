@@ -4,7 +4,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
-const FUNCTION_VERSION = "v44";
+const FUNCTION_VERSION = "v45";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 // SCF synchronous events are capped at 6 MB and Base64 adds roughly 33%.
 // These verification-photo limits leave room for the JSON envelope while
@@ -149,6 +149,12 @@ function verificationPhotoStorageSettings() {
   };
 }
 
+function verificationPhotoStorageCandidates() {
+  const candidates = [verificationPhotoStorageSettings(), photoStorageSettings()];
+  return candidates.filter((candidate, index) => candidate.bucketId
+    && candidates.findIndex((item) => item.bucketId === candidate.bucketId) === index);
+}
+
 function parsePhotoReference(value) {
   const reference = String(value || "").trim();
   if (!reference.startsWith("pg://")) fail("客户照片引用格式无效。", "PHOTO_REFERENCE_INVALID");
@@ -172,6 +178,11 @@ function photoObjectCandidates(bucketId, objectName) {
 function storageObjectMissing(error) {
   const detail = [error?.code, error?.message].filter(Boolean).join(" ").toUpperCase();
   return detail.includes("STORAGE_OBJECT_NOT_FOUND") || detail.includes("OBJECT NOT FOUND");
+}
+
+function storageBucketMissing(error) {
+  const detail = [error?.code, error?.message].filter(Boolean).join(" ").toUpperCase();
+  return detail.includes("STORAGE_BUCKET_NOT_FOUND") || detail.includes("BUCKET NOT FOUND");
 }
 
 function signedPhotoUrl(value, depth = 0) {
@@ -282,31 +293,47 @@ function verificationPhotoReference(value) {
 }
 
 async function uploadVerificationPhotoObject(objectName, buffer) {
-  const storage = verificationPhotoStorageSettings();
-  await manager().storage.uploadObject({
-    bucketId: storage.bucketId,
-    objectName,
-    body: buffer,
-    contentType: "image/jpeg",
-    contentLength: buffer.length,
-    cacheControl: "private, max-age=31536000, immutable",
-    upsert: false,
-    accessToken: storage.accessToken,
-    envId: storage.envId
-  });
-  return {
-    bucketId: storage.bucketId,
-    objectName,
-    reference: `pg://${storage.bucketId}/${objectName}`
-  };
+  let missingBucketError = null;
+  for (const storage of verificationPhotoStorageCandidates()) {
+    try {
+      await manager().storage.uploadObject({
+        bucketId: storage.bucketId,
+        objectName,
+        body: buffer,
+        contentType: "image/jpeg",
+        contentLength: buffer.length,
+        cacheControl: "private, max-age=31536000, immutable",
+        upsert: false,
+        accessToken: storage.accessToken,
+        envId: storage.envId
+      });
+      return {
+        bucketId: storage.bucketId,
+        objectName,
+        reference: `pg://${storage.bucketId}/${objectName}`
+      };
+    } catch (error) {
+      if (!storageBucketMissing(error)) throw error;
+      missingBucketError = error;
+      console.warn("Verification photo bucket missing; trying the existing private customer photo bucket", {
+        bucketId: storage.bucketId
+      });
+    }
+  }
+  throw missingBucketError || new Error("核销照片私有存储桶不可用。");
+}
+
+function verificationPhotoStorageForEvidence(reference) {
+  if (!/^(?:face-evidence|records)\//.test(reference.objectName)) return null;
+  return verificationPhotoStorageCandidates().find((storage) => storage.bucketId === reference.bucketId) || null;
 }
 
 async function deleteVerificationPhotoObject(referenceValue) {
   if (!referenceValue) return true;
   try {
     const reference = verificationPhotoReference(referenceValue);
-    const storage = verificationPhotoStorageSettings();
-    if (reference.bucketId !== storage.bucketId) return false;
+    const storage = verificationPhotoStorageForEvidence(reference);
+    if (!storage) return false;
     await manager().storage.deleteObject({
       bucketId: reference.bucketId,
       objectName: reference.objectName,
@@ -337,14 +364,14 @@ function thumbnailTransformUrl(url) {
 
 async function signVerificationPhoto(referenceValue, expiresIn, options = {}) {
   const reference = verificationPhotoReference(referenceValue);
-  const verificationStorage = verificationPhotoStorageSettings();
   const customerStorage = photoStorageSettings();
-  const isVerificationObject = reference.bucketId === verificationStorage.bucketId;
+  const verificationStorage = verificationPhotoStorageForEvidence(reference);
+  const isVerificationObject = Boolean(verificationStorage);
   const isRetainedProfile = options.allowCustomerProfile === true && reference.bucketId === customerStorage.bucketId;
   if (!isVerificationObject && !isRetainedProfile) {
     fail("核销照片不属于允许的私有存储桶。", "PHOTO_BUCKET_MISMATCH");
   }
-  const storage = isVerificationObject ? verificationStorage : customerStorage;
+  const storage = isRetainedProfile ? customerStorage : verificationStorage;
   const transformKey = options.thumbnailTransform === true ? "thumbnail" : "original";
   const cacheKey = `${reference.bucketId}/${reference.objectName}/${transformKey}`;
   const cached = cachedVerificationPhoto(cacheKey);
@@ -2752,6 +2779,7 @@ exports.main = async (event = {}) => {
       groupId: required("FACE_GROUP_ID"),
       photoBucketId: String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim(),
       verificationPhotoBucketId: String(process.env.VERIFICATION_PHOTO_BUCKET_ID || "verification-photos").trim(),
+      verificationPhotoFallbackBucketId: String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim(),
       verificationPhotoCleanupConfigured: Boolean(String(process.env.VERIFICATION_PHOTO_CLEANUP_TOKEN || "").trim()),
       livenessEnabled: faceSettings().livenessEnabled,
       message: "Face customer enrollment and private verification photos are ready."
