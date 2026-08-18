@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.18";
+  const VERSION = "0.15.19";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -278,38 +278,66 @@
     return blob;
   }
 
+  function exportPhotoFailureMeta(error) {
+    const code = clean(error?.code).toUpperCase();
+    const message = clean(error?.message);
+    if (code === "PHOTO_NOT_FOUND" || message.includes("尚未上传") || message.includes("不存在")) return "照片文件未找到";
+    if (code === "PHOTO_SIGN_FAILED" || message.includes("临时访问地址")) return "已保存 · 临时访问地址生成失败";
+    if (message.includes("HTTP") || message.includes("下载")) return "已保存 · 照片下载失败";
+    return "已保存 · 导出时暂无法读取原图";
+  }
+
   async function verificationExportPhotos(record) {
     await verificationPhotoLoadPromise;
-    if (currentVerificationPhotoPayload?.error) throw currentVerificationPhotoPayload.error;
+    const listError = currentVerificationPhotoPayload?.error || null;
     const available = new Map((currentVerificationPhotoPayload?.photos || []).map((photo) => [Number(photo.slot), photo]));
     const output = Array.from({ length: 5 }, (_, slot) => ({
       slot,
       label: photoSlotLabel(slot),
-      meta: available.has(slot) ? "正在读取高清原图" : "空照片位",
-      placeholder: available.has(slot) ? "照片读取中" : "尚未上传",
+      meta: listError ? "照片清单读取失败" : available.has(slot) ? "正在读取高清原图" : "空照片位",
+      placeholder: listError ? "照片信息暂不可用" : available.has(slot) ? "照片读取中" : "尚未上传",
       blob: null
     }));
-    const queue = Array.from(available.values());
+    if (listError) return { photos: output, warning: "照片清单暂无法读取，已保留五个照片位和说明" };
+    const queue = Array.from(available.values()).filter((photo) => Number.isInteger(Number(photo.slot)) && Number(photo.slot) >= 0 && Number(photo.slot) <= 4);
     let cursor = 0;
+    let completed = 0;
+    let failed = 0;
     const workers = Array.from({ length: Math.min(2, queue.length) }, async () => {
       while (cursor < queue.length) {
         const index = cursor;
         cursor += 1;
         const photo = queue[index];
         const slot = Number(photo.slot);
-        const blob = await fetchVerificationPhotoBlob(clean(record.id), photo);
-        output[slot] = {
-          slot,
-          label: photoSlotLabel(slot),
-          meta: [photoSizeLabel(blob.size), formatTime(photo.uploadedAt) || "已保存"].filter(Boolean).join(" · "),
-          placeholder: "照片读取失败",
-          blob
-        };
-        setExportControls(false, `正在读取核销高清照片 ${index + 1} / ${queue.length}…`);
+        try {
+          const blob = await fetchVerificationPhotoBlob(clean(record.id), photo);
+          output[slot] = {
+            slot,
+            label: photoSlotLabel(slot),
+            meta: [photoSizeLabel(blob.size), formatTime(photo.uploadedAt) || "已保存"].filter(Boolean).join(" · "),
+            placeholder: "照片读取失败",
+            blob
+          };
+        } catch (error) {
+          failed += 1;
+          output[slot] = {
+            slot,
+            label: photoSlotLabel(slot),
+            meta: exportPhotoFailureMeta(error),
+            placeholder: "照片暂无法读取",
+            blob: null
+          };
+        } finally {
+          completed += 1;
+          setExportControls(false, `正在读取核销高清照片 ${completed} / ${queue.length}…`);
+        }
       }
     });
     await Promise.all(workers);
-    return output;
+    return {
+      photos: output,
+      warning: failed ? `${failed} 张照片暂无法读取，已用占位信息完成导出` : ""
+    };
   }
 
   async function exportCurrentOrder(format) {
@@ -321,14 +349,14 @@
     orderExportBusy = true;
     setExportControls(false, type === "verification" ? "正在准备工单与照片…" : "正在生成完整工单…");
     try {
-      const photos = type === "verification" ? await verificationExportPhotos(currentRecord) : [];
+      const photoResult = type === "verification" ? await verificationExportPhotos(currentRecord) : { photos: [], warning: "" };
       setExportControls(false, format === "pdf" ? "正在分页生成 PDF…" : "正在生成高清图片…");
       const result = await window.OrderExporter.exportOrder({
         format,
         documentData: exportDocumentData(currentRecord),
-        photos
+        photos: photoResult.photos
       });
-      setExportControls(false, `已生成：${result.filename}`);
+      setExportControls(false, `已生成：${result.filename}${photoResult.warning ? `（${photoResult.warning}）` : ""}`);
     } catch (error) {
       setExportControls(false, error?.message || "工单导出失败，请重试。");
     } finally {
