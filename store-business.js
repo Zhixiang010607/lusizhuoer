@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.47", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.50", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   const formatBirthday = (value, fallback = "—") => {
     const raw = String(value ?? "").trim();
     if (!raw) return fallback;
@@ -12,9 +12,9 @@
   const teacherMode = session?.role === "teacher" && document.body.hasAttribute("data-teacher-business");
   const hqMode = session?.role === "hq"
     && !document.body.hasAttribute("data-teacher-business")
-    && ["customer", "recharge", "verification", "verification-supplemental"].includes(page);
+    && ["customer", "recharge", "verification", "verification-experience"].includes(page);
   if (!session || (teacherMode
-    ? !["recharge", "verification", "verification-supplemental"].includes(page)
+    ? !["recharge", "verification", "verification-experience"].includes(page)
     : !hqMode && session.role !== "store")) return;
   let storeId = teacherMode || hqMode ? "" : String(session?.store || "");
   const storeNo = Number(storeId.replace(/\D/g, "")) || 1;
@@ -499,7 +499,7 @@
     selectedCustomer = null;
     previewCustomerCode = "";
     verificationBalanceProjects = [];
-    if (["verification", "verification-supplemental"].includes(page)) resetVerificationCapture();
+    if (["verification", "verification-experience"].includes(page)) resetVerificationCapture();
     $("confirmCustomerSelection").disabled = true;
     $("serviceCustomerResults").innerHTML = `<div class="lookup-placeholder"><strong>等待查询客户</strong><span>查询成功后，此处显示客户建档照片、姓名、生日和客户编号。</span></div>`;
     disableBusinessStep();
@@ -606,7 +606,7 @@
   async function confirmCustomer(id) {
     selectedCustomer = allCustomers().find((customer) => customer.id === id);
     $("selectedCustomerText").textContent = `已确认：${selectedCustomer.name}（${selectedCustomer.id}）· ${formatBirthday(selectedCustomer.birthday)} · ${storeName}`; document.querySelector("form.store-business-form").classList.remove("business-step-disabled");
-    if (["verification", "verification-supplemental"].includes(page)) { resetVerificationCapture(); await loadVerificationBalances(selectedCustomer); }
+    if (["verification", "verification-experience"].includes(page)) { resetVerificationCapture(); await loadVerificationBalances(selectedCustomer); }
     $("confirmCustomerSelection").textContent = `已确认 ${selectedCustomer.name}（${selectedCustomer.id}）`;
   }
   function setupRecharge() {
@@ -663,8 +663,7 @@
     const submit = $("verificationSubmit");
     const projectReady = Boolean($("verificationProject")?.value);
     const teacherReady = Boolean($("verificationTeacher")?.value);
-    const noteReady = page !== "verification-supplemental" || Boolean($("verificationNote")?.value.trim());
-    const ready = Boolean(selectedCustomer) && photoCaptured && projectReady && teacherReady && noteReady;
+    const ready = Boolean(selectedCustomer) && photoCaptured && projectReady && teacherReady;
     if (submit) {
       submit.disabled = !ready;
       submit.setAttribute("aria-disabled", String(!ready));
@@ -680,7 +679,7 @@
     syncVerificationSubmit();
   }
   function setupVerification() {
-    const supplementalPage = page === "verification-supplemental";
+    const experiencePage = page === "verification-experience";
     setupLookup(); $("verificationProject").innerHTML = `<option value="">确认客户后从数据库加载可核销项目</option>`; loadActiveTeachers("verificationTeacher", "verificationCreateMessage");
     const video = $("verificationCamera"), preview = $("verificationPhotoPreview"), placeholder = $("verificationCameraPlaceholder"), canvas = $("verificationCaptureCanvas"), open = $("openVerificationCamera"), capture = $("captureVerificationPhoto"), retake = $("retakeVerificationPhoto"), status = $("verificationPhotoStatus"), message = $("verificationCreateMessage");
     $("verificationProject").addEventListener("change", syncVerificationSubmit);
@@ -751,21 +750,20 @@
     retake.addEventListener("click", () => { resetVerificationCapture(); open.click(); });
     window.addEventListener("pagehide", stopFaceCamera, { once: true });
     $("verificationCreateForm").addEventListener("submit", async (event) => {
-      event.preventDefault(); const form = event.currentTarget, submit = form.querySelector('[type="submit"]'), projectId = $("verificationProject").value, teacherId = $("verificationTeacher").value, note = $("verificationNote").value.trim(), supplemental = supplementalPage;
+      event.preventDefault(); const form = event.currentTarget, submit = form.querySelector('[type="submit"]'), projectId = $("verificationProject").value, teacherId = $("verificationTeacher").value, note = $("verificationNote").value.trim(), experience = experiencePage;
       if (!selectedCustomer || !projectId || !teacherId) { $("verificationCreateMessage").textContent = "必须确认客户并选择项目和老师"; return; }
       if (!photoCaptured) { $("verificationCreateMessage").textContent = "必须完成现场拍照并通过所选客户的 1:1 人脸验证，才能核销和发送设备信号"; return; }
-      if (supplemental && !note) { $("verificationCreateMessage").textContent = "补录必须填写门店备注／原因"; return; }
       const project = verificationBalanceProjects.find((item) => item.id === projectId);
       if (!project) { $("verificationCreateMessage").textContent = "所选项目余额已失效，请重新确认客户后再试"; return; }
       const teacher = databaseTeachers.find((item) => item.id === teacherId);
       if (!teacher) { $("verificationCreateMessage").textContent = "老师数据已经失效，请刷新页面后重新选择"; return; }
-      const payload = { customerCode: selectedCustomer.id, productId: project.id, teacherId: teacher.id, verificationType: supplemental ? "SUPPLEMENT" : "NORMAL", message: note, faceRequestId: verificationFaceRequestId, faceEvidenceToken: verificationFaceEvidenceToken };
+      const payload = { customerCode: selectedCustomer.id, productId: project.id, teacherId: teacher.id, verificationType: experience ? "EXPERIENCE" : "NORMAL", message: note, faceRequestId: verificationFaceRequestId, faceEvidenceToken: verificationFaceEvidenceToken };
       const clientRequestId = nextVerificationRequestId({ storeId, ...payload });
       submit.disabled = true;
-      $("verificationCreateMessage").textContent = supplemental ? "正在向数据库提交待审核补录单…" : "正在向数据库提交核销单…";
+      $("verificationCreateMessage").textContent = experience ? "正在自动完成体验核销并发送设备开启信号…" : "正在提交核销并发送设备开启信号…";
       try {
         const result = await callCustomerEnrollment({ action: "createVerificationApplication", ...payload, clientRequestId });
-        const expectedStatus = supplemental ? "PENDING" : "APPROVED";
+        const expectedStatus = "APPROVED";
         if (String(result.recordStatus || "") !== expectedStatus) throw new Error("数据库返回的核销单状态与当前业务类型不一致，已停止跳转");
         if (!result.verificationId || !result.verificationCode) throw new Error("数据库已响应，但没有返回核销单编号，已停止跳转");
         const record = {
@@ -775,8 +773,8 @@
           projectId: String(result.product?.productId || project.id), projectCode: String(result.product?.productCode || project.code || ""), projectName: String(result.product?.productName || project.name),
           teacherId: String(result.teacher?.teacherId || teacher.id), teacherCode: String(result.teacher?.teacherCode || teacher.code || ""), teacherName: String(result.teacher?.teacherName || teacher.name),
           count: Number(result.unitCount || 1), faceVerification: "活体检测与人脸比对通过",
-          verificationType: supplemental ? "补录核销" : "正常核销", status: String(result.recordStatus),
-          deviceSignal: supplemental ? "不发送（补录）" : "设备信号待接入", account: session.account, note,
+          verificationType: experience ? "体验核销" : "正常核销", status: String(result.recordStatus),
+          deviceSignal: result.deviceSignal?.status === "PENDING" ? "已发送至虚拟设备端口" : "设备信号已登记", account: session.account, note,
           createdAt: result.submittedAt || new Date().toISOString(), databaseBacked: true
         };
         saveGeneratedOrder("prototypeVerificationRecords", record);
@@ -944,5 +942,5 @@
   else if (hqMode) setupHqBusiness();
   else if (page === "customer") setupCustomerCreate();
   else if (page === "recharge") setupRecharge();
-  else if (["verification", "verification-supplemental"].includes(page)) setupVerification();
+  else if (["verification", "verification-experience"].includes(page)) setupVerification();
 })();

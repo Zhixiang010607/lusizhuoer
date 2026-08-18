@@ -18,7 +18,9 @@ const parts = [
   "039-03-commit-upload-function.sql",
   "039-04-cancel-upload-function.sql",
   "039-05-verify-direct-upload.sql",
-  "040-01-fix-verification-photo-commit-ambiguity.sql"
+  "040-01-fix-verification-photo-commit-ambiguity.sql",
+  "041-01-experience-device-port.sql",
+  "041-02-experience-create-function.sql"
 ];
 
 function transactionBody(source) {
@@ -49,6 +51,16 @@ for (const migration of ["037", "038"]) {
     .join("\n\n");
   assert.equal(reconstructed, canonical, `CloudBase parts must reconstruct migration ${migration} exactly`);
 }
+
+const canonical041 = transactionBody(fs.readFileSync(
+  path.join(root, "database", "migrations", "041_experience_verification_device_signal.sql"),
+  "utf8"
+));
+const reconstructed041 = parts
+  .filter((filename) => filename.startsWith("041-"))
+  .map((filename) => transactionBody(fs.readFileSync(path.join(consoleDir, filename), "utf8")))
+  .join("\n\n");
+assert.equal(reconstructed041, canonical041, "CloudBase parts must reconstruct migration 041 exactly");
 
 const directParts = Object.fromEntries(
   parts.filter((filename) => filename.startsWith("039-")).map((filename) => [

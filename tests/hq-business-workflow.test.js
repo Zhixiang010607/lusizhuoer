@@ -15,13 +15,13 @@ const pages = [
   "customer-create.html",
   "recharge-create.html",
   "verification-create.html",
-  "verification-supplemental.html"
+  "verification-experience.html"
 ];
 const allBusinessPages = [
   ...pages,
   "teacher-recharge-create.html",
   "teacher-verification-create.html",
-  "teacher-verification-supplemental.html"
+  "teacher-verification-experience.html"
 ];
 const teacherBusinessPages = allBusinessPages.filter((page) => page.startsWith("teacher-"));
 
@@ -55,22 +55,28 @@ for (const page of pages) {
   includes(authUi, `"${page}"`, `HQ route ${page}`);
   const html = read(page);
   includes(html, `data-store-business=`, `${page} reuses the shared workflow`);
-  includes(html, "store-business.js?v=0.14.49", `${page} workflow cache key`);
+  includes(html, "store-business.js?v=0.14.50", `${page} workflow cache key`);
   includes(html, "styles.css?v=0.15.29", `${page} responsive store selector styles`);
   assert.ok(!fs.existsSync(path.join(root, `hq-${page}`)), `${page} must not have a duplicated HQ page`);
 }
 for (const file of fs.readdirSync(root).filter((file) => file.endsWith(".html") && read(file).includes("auth-ui.js?v="))) {
-  includes(read(file), "auth-ui.js?v=0.18.1", `${file} auth cache key`);
+  includes(read(file), "auth-ui.js?v=0.18.3", `${file} auth cache key`);
 }
-for (const page of teacherBusinessPages) includes(read(page), "store-business.js?v=0.14.47", `${page} shared script version`);
+for (const page of teacherBusinessPages) includes(read(page), "store-business.js?v=0.14.50", `${page} shared script version`);
 
 for (const [href, label] of [
   ["customer-create.html", "客户建立"],
   ["recharge-create.html", "办卡充值"],
   ["verification-create.html", "核销办理"],
-  ["verification-supplemental.html", "补录核销"]
+  ["verification-experience.html", "体验核销"]
 ]) includes(authUi, `["${href}", "${label}"]`, `HQ business navigation ${label}`);
+assert.ok(!authUi.includes("verification-supplemental.html"), "retired supplemental route must not remain in access or navigation");
+assert.ok(!authUi.includes("teacher-verification-supplemental.html"), "retired teacher supplemental route must not remain in access or navigation");
 includes(authUi, 'data-menu="hq-business"', "dedicated HQ business navigation group");
+includes(authUi, 'a[href^="verification-review.html"]', "verification-review entry is hidden without deleting its route");
+includes(authUi, 'link.hidden = true', "retired verification-review entry is not displayed");
+assert.ok(authUi.includes('"verification-review.html"'), "historical verification-review access route must remain available");
+assert.ok(fs.existsSync(path.join(root, "verification-review.html")), "historical verification-review implementation must remain on disk");
 
 // The selector is created only for HQ on the shared, non-teacher pages. It
 // starts with an empty prompt, locks the whole workflow with inert, and reloads
@@ -179,7 +185,7 @@ const activeBusinessCaller = activeHarness.module.exports;
   includes(cloud, 'if (action === "getHqBusinessContext")', "HQ context dispatcher");
   includes(cloud, '["hq", "store", "teacher"].includes(caller.role)', "HQ submitter can edit verification photos");
   includes(cloud, '["hq", "store", "teacher"].includes(context.caller.role)', "HQ upload ownership guard");
-  includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v55"', "deployable service versions");
+  includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v56"', "deployable service versions");
 
   console.log("hq business workflow tests passed");
 })().catch((error) => {

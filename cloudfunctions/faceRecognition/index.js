@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v55";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v56";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -2469,12 +2469,20 @@ async function requireVerificationSubmissionSchema() {
        'PROFILE_BOUND' IN PG_GET_FUNCTIONDEF(TO_REGPROCEDURE(
          'public.create_verification_with_face_photo(character varying,bigint,bigint,bigint,bigint,character varying,bigint,text,text,character varying,character varying,character varying)'
        ))
-     ), 0) > 0 AS has_profile_snapshot`
+     ), 0) > 0 AS has_profile_snapshot,
+     TO_REGCLASS('public.device_signal_outbox') IS NOT NULL AS has_device_signal_outbox,
+     COALESCE(POSITION(
+       'device_signal_outbox' IN PG_GET_FUNCTIONDEF(TO_REGPROCEDURE(
+         'public.create_verification_with_face_photo(character varying,bigint,bigint,bigint,bigint,character varying,bigint,text,text,character varying,character varying,character varying)'
+       ))
+     ), 0) > 0 AS has_atomic_device_signal`
   );
   if (!databaseBoolean(rows?.[0]?.has_idempotency_key)
       || !databaseBoolean(rows?.[0]?.has_photo_create_function)
-      || !databaseBoolean(rows?.[0]?.has_profile_snapshot)) {
-    fail("核销单数据库缺少五张照片证据结构，请先依次执行迁移 026、037 和 038。", "DATABASE_SCHEMA_MISSING");
+      || !databaseBoolean(rows?.[0]?.has_profile_snapshot)
+      || !databaseBoolean(rows?.[0]?.has_device_signal_outbox)
+      || !databaseBoolean(rows?.[0]?.has_atomic_device_signal)) {
+    fail("核销单数据库缺少照片证据或设备信号结构，请先依次执行迁移 026、037、038 和 041。", "DATABASE_SCHEMA_MISSING");
   }
 }
 
@@ -2489,14 +2497,11 @@ async function createVerificationApplication(event) {
   }
   const teacherId = positiveDatabaseId(caller.role === "teacher" ? caller.teacherId : requestedTeacherId, "老师");
   const verificationType = String(event.verificationType || "").trim().toUpperCase();
-  if (!["NORMAL", "SUPPLEMENT"].includes(verificationType)) {
-    fail("仅支持正常核销或补录核销。", "INVALID_VERIFICATION_TYPE");
+  if (!["NORMAL", "EXPERIENCE"].includes(verificationType)) {
+    fail("仅支持正常核销或体验核销。", "INVALID_VERIFICATION_TYPE");
   }
   const message = String(event.message || "").trim();
   if (message.length > 500) fail("门店留言不能超过 500 个字符。", "MESSAGE_TOO_LONG");
-  if (verificationType === "SUPPLEMENT" && !message) {
-    fail("补录核销必须填写补录原因。", "SUPPLEMENT_NOTE_REQUIRED");
-  }
   const faceRequestId = String(event.faceRequestId || "").trim();
   if (!/^[A-Za-z0-9_-]{8,128}$/.test(faceRequestId)) {
     fail("必须先完成现场拍照及所选客户的 1:1 人脸验证。", "FACE_VERIFICATION_REQUIRED");
@@ -2542,8 +2547,8 @@ async function createVerificationApplication(event) {
   const teacher = teachers[0];
   if (!teacher) fail("所选老师不存在或已经封存，请重新选择。", "TEACHER_NOT_ACTIVE");
 
-  const initialStatus = verificationType === "NORMAL" ? "APPROVED" : "PENDING";
-  const supplementNote = verificationType === "SUPPLEMENT" ? message : "";
+  const initialStatus = "APPROVED";
+  const supplementNote = "";
   let rows;
   try {
     rows = await executeSql(
@@ -2590,6 +2595,17 @@ async function createVerificationApplication(event) {
     fail("该防重复提交编号已经用于另一张核销单，请刷新页面后重新提交。", "IDEMPOTENCY_CONFLICT");
   }
 
+  const signalRows = await executeSql(
+    `SELECT id, signal_type, signal_status, created_at
+       FROM public.device_signal_outbox
+      WHERE verification_id = ${sqlText(record.id)}::bigint
+      LIMIT 1`
+  );
+  const signal = signalRows[0];
+  if (!signal) {
+    fail("核销单已创建，但设备开启信号没有进入虚拟端口队列，请立即联系管理员。", "DEVICE_SIGNAL_NOT_QUEUED");
+  }
+
   return {
     ok: true,
     createdNow: databaseBoolean(record.created_now),
@@ -2601,7 +2617,14 @@ async function createVerificationApplication(event) {
     unitCount: Number(record.unit_count || 1),
     customer: { customerCode: customer.customer_code, customerName: customer.customer_name },
     product: { productId: String(product.id), productCode: product.product_code, productName: product.product_name },
-    teacher: { teacherId: String(teacher.id), teacherCode: teacher.teacher_code, teacherName: teacher.teacher_name }
+    teacher: { teacherId: String(teacher.id), teacherCode: teacher.teacher_code, teacherName: teacher.teacher_name },
+    deviceSignal: {
+      id: String(signal.id),
+      port: "VIRTUAL_DEVICE_START",
+      type: signal.signal_type,
+      status: signal.signal_status,
+      queuedAt: signal.created_at
+    }
   };
 }
 

@@ -5,13 +5,13 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const css = fs.readFileSync(path.join(root, "styles.css"), "utf8");
 const script = fs.readFileSync(path.join(root, "store-business.js"), "utf8");
-const workflowPages = ["recharge-create.html", "verification-create.html", "verification-supplemental.html"];
+const workflowPages = ["recharge-create.html", "verification-create.html", "verification-experience.html"];
 
 for (const page of workflowPages) {
   const html = fs.readFileSync(path.join(root, page), "utf8");
   assert.match(html, /id="workflowResizeHandle"[^>]*role="separator"/, `${page} should expose the workflow resize handle`);
   assert.match(html, /styles\.css\?v=0\.15\.29/, `${page} should load the current responsive stylesheet`);
-  assert.match(html, /store-business\.js\?v=0\.14\.49/, `${page} should load the current workflow script`);
+  assert.match(html, /store-business\.js\?v=0\.14\.50/, `${page} should load the current workflow script`);
 }
 
 const customerHtml = fs.readFileSync(path.join(root, "customer-create.html"), "utf8");

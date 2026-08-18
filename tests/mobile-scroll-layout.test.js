@@ -32,12 +32,12 @@ const businessPages = [
   "customer-create.html",
   "recharge-create.html",
   "verification-create.html",
-  "verification-supplemental.html"
+  "verification-experience.html"
 ];
 const teacherBusinessPages = [
   "teacher-recharge-create.html",
   "teacher-verification-create.html",
-  "teacher-verification-supplemental.html"
+  "teacher-verification-experience.html"
 ];
 for (const file of businessPages) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
