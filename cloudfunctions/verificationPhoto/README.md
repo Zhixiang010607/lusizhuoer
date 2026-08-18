@@ -1,6 +1,6 @@
 # verificationPhoto 云函数
 
-当前版本：`v2`
+当前版本：`v3`
 
 该函数专门处理核销单的五个照片位：列表与缩略图、按需读取高清原图、导出原图，以及三个补充照片位的开始、提交、状态恢复和取消。它不执行质量检测、活体检测、客户建档或人脸比对，也不暴露这些动作。
 
@@ -23,7 +23,7 @@
 - 超时：`60 秒`
 - 并发／实例：先使用平台默认值；如果监控确认主要延迟来自冷启动，可为生产版本配置 `1` 个预置并发实例。预置实例持续计费，不要在没有监控证据时盲目增加。
 
-最终 `verificationPhoto-v2.zip` 的根目录必须是：
+最终 `verificationPhoto-v3.zip` 的根目录必须是：
 
 ```text
 index.js      # 由本目录 deploy-index.js 复制并改名
@@ -38,13 +38,15 @@ README.md
 
 ```text
 CLOUDBASE_ENV_ID=rusizhuoer-d9gbcsgym07651694
-CLOUDBASE_SERVICE_ROLE_KEY=<同一 CloudBase 环境的服务端 API Key>
+CLOUDBASE_APIKEY=<平台托管的同一 CloudBase 环境 service-role API Key>
 CUSTOMER_PHOTO_BUCKET_ID=customer-photos
 VERIFICATION_PHOTO_BUCKET_ID=customer-photos
 VERIFICATION_PHOTO_CLEANUP_TOKEN=<至少 32 个随机字符，两个函数保持相同>
 ```
 
-`CLOUDBASE_SERVICE_ROLE_KEY` 只能放在云函数环境变量中，不能写入网页、GitHub、ZIP、日志或截图。该 Key、环境 ID、PostgreSQL 实例和照片桶必须全部属于同一个 CloudBase 环境。
+优先使用平台托管变量 `CLOUDBASE_APIKEY`。代码仍兼容旧变量 `CLOUDBASE_SERVICE_ROLE_KEY`，但两者同时存在时只使用 `CLOUDBASE_APIKEY`。service-role Key 只能放在云函数环境变量中，不能写入网页、GitHub、ZIP、日志或截图；Key、环境 ID、PostgreSQL 实例和照片桶必须全部属于同一个 CloudBase 环境。
+
+`verificationPhoto` 与 `faceRecognition` 必须在各自函数的环境变量页面分开配置；每个变量名称和值各占一行／一个输入项。不要把整段 `KEY=value` 文本、其他变量名、引号或换行一起粘进某一个变量值。两个函数使用同一个安全随机、至少 32 位的 `VERIFICATION_PHOTO_CLEANUP_TOKEN`，但该值只存在环境变量中，不写进 triggers-only 配置。
 
 当前环境已经使用私有桶 `customer-photos`，不需要为了本函数新建桶。只有计划单独管理核销照片的生命周期时，才把 `VERIFICATION_PHOTO_BUCKET_ID` 改成已创建的私有桶 `verification-photos`；不能只改变量而不创建真实桶。
 
@@ -57,13 +59,25 @@ VERIFICATION_PHOTO_UPLOAD_TTL_SECONDS=600
 
 - `VERIFICATION_PHOTO_URL_TTL_SECONDS`：核销缩略图／原图短时读取地址，允许 60--900 秒。
 - `VERIFICATION_PHOTO_UPLOAD_TTL_SECONDS`：一项补充照片上传任务的业务有效期，允许 120--900 秒。
-`VERIFICATION_PHOTO_CLEANUP_TOKEN` 是取消／过期上传的必需清理凭证。应使用密码管理器或安全随机生成器创建，至少 32 个随机字符，不要使用示例文本。
+`VERIFICATION_PHOTO_CLEANUP_TOKEN` 仅用于控制台／管理端手工补跑清理，不写入定时触发器配置。应使用密码管理器或安全随机生成器创建，至少 32 个随机字符，不要使用示例文本。普通登录客户端即使获得该值也会被函数拒绝。
 
 本函数不需要也不要配置 `CUSTOMER_PHOTO_URL_TTL_SECONDS`、`VERIFICATION_FACE_EVIDENCE_TTL_MINUTES`、`FACE_SECRET_ID`、`FACE_SECRET_KEY`、`FACE_GROUP_ID`、`FACE_LIVENESS_*`、`FACE_QUALITY_THRESHOLD`、`FACE_VERIFY_THRESHOLD` 或任何其他客户照片 URL／人脸草稿／阈值变量。前两个变量只保留在 `faceRecognition`；照片专用函数会读取工单已经固化的客户留存照引用，但不调用常规客户照片 URL 接口，也不创建或清理正式建单前的人脸照片草稿。
 
+## 客户端调用权限
+
+在当前 CloudBase 环境的**云函数安全规则**中，把下面这个函数级成员合并到现有顶层规则对象；这里只展示要合并的成员，不是可覆盖整份规则的完整文件：
+
+```text
+"verificationPhoto": {
+  "invoke": "auth.loginType != 'ANONYMOUS' && auth != null"
+}
+```
+
+必须保留现有顶层 `"*"` 条目和其他函数条目，不要用上面的片段替换整份安全规则。该规则允许已登录网页通过 `callFunction` 调用照片函数，匿名或无会话请求仍被平台拒绝；出现 `EXCEED_AUTHORITY` 时先确认这条成员已经合并、当前账号不是匿名登录且会话没有过期。Timer 由平台触发器调用，不走普通客户端 `invoke` 授权；函数内部仍会单独验证可信 Timer 来源。
+
 ## 存储与数据库前置条件
 
-本次总部共享办理与 v54／v2 更新不新增 SQL。生产库已经成功执行迁移 039 时，不要重跑 037、038 或 039。部署前在同一个 CloudBase PostgreSQL 环境执行只读检查：
+本次 v55／v3 更新不新增 SQL。生产库已经成功执行迁移 039 时，不要重跑 037、038 或 039。部署前在同一个 CloudBase PostgreSQL 环境执行只读检查：
 
 ```sql
 SELECT
@@ -98,23 +112,37 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 
 ## 定时清理
 
-在 `verificationPhoto` 上创建每小时一次的定时触发器，事件为：
+在 `verificationPhoto` 的触发器配置编辑器中填写以下完整配置。CloudBase 只接受顶层 `triggers` 数组；这里不能填写业务事件、`action` 或 `cleanupToken`：
+
+```json
+{
+  "triggers": [
+    {
+      "name": "cleanup-verification-photo-uploads-hourly",
+      "type": "timer",
+      "config": "0 10 * * * * *"
+    }
+  ]
+}
+```
+
+该七段 Cron 在每小时第 10 分钟运行，与 `faceRecognition` 的整点清理错峰。v3 同时验证 SCF 保留变量 `TRIGGER_SRC=timer`、平台函数名、事件类型、精确触发器名、时间格式和“无终端用户 UID”，普通客户端伪造 `Type: Timer` 或触发器名不能进入清理。它只清理迁移 039 中已经取消或过期、且超过安全等待期的补充照片上传对象；已绑定工单的照片不会删除。原 `faceRecognition` 的人脸草稿触发器使用另一个固定名称，两个配置不要互换。
+
+控制台需要手工补跑时才使用以下测试事件，并确保调用没有终端用户 UID：
 
 ```json
 {
   "action": "cleanupVerificationPhotoUploads",
-  "cleanupToken": "与 VERIFICATION_PHOTO_CLEANUP_TOKEN 完全相同的值"
+  "cleanupToken": "与环境变量 VERIFICATION_PHOTO_CLEANUP_TOKEN 完全一致的真实值"
 }
 ```
-
-它只清理迁移 039 中已经取消或过期、且超过安全等待期的补充照片上传对象。原 `faceRecognition` 的人脸草稿清理触发器仍保留，并继续调用 `cleanupVerificationPhotoDrafts`；不要把两个触发动作互换。
 
 ## 部署顺序与健康检查
 
 1. 确认迁移 039 表和真实桶均存在。
-2. 部署 `faceRecognition-v54.zip`，调用 `health` 确认 `version: "v54"`，并先验证原有建档、活体、1:1 核销人脸和总部四个共享办理入口。
-3. 新建或更新函数 `verificationPhoto`，上传 `verificationPhoto-v2.zip`，配置上述环境变量、512 MB 内存和 60 秒超时。
-4. 对 `verificationPhoto` 调用 `{ "action": "health" }`，确认 `version: "v2"` 与全部就绪字段。
+2. 部署 `faceRecognition-v55.zip`，调用 `health` 确认 `version: "v55"`，并先验证原有建档、活体、1:1 核销人脸和总部四个共享办理入口。
+3. 新建或更新函数 `verificationPhoto`，上传 `verificationPhoto-v3.zip`，配置上述环境变量、512 MB 内存和 60 秒超时。
+4. 对 `verificationPhoto` 调用 `{ "action": "health" }`，确认 `version: "v3"` 与全部就绪字段，再保存本节的 triggers-only 配置。
 5. 只有两个函数均验证成功后，才发布当前静态前端并强制刷新浏览器；不要先发前端。
 
 `verificationPhoto` 应返回类似：
@@ -123,7 +151,7 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 {
   "ok": true,
   "ready": true,
-  "version": "v2",
+  "version": "v3",
   "service": "verificationPhoto",
   "uploadMode": "FUNCTION",
   "photoBucketId": "customer-photos",
@@ -132,6 +160,7 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
   "verificationPhotoUrlTtlSeconds": 900,
   "verificationPhotoUploadTtlSeconds": 600,
   "verificationPhotoCleanupConfigured": true,
+  "verificationPhotoCleanupTimerTriggerName": "cleanup-verification-photo-uploads-hourly",
   "verificationPhotoServiceRoleKeyConfigured": true,
   "verificationPhotoUploadSchemaReady": true,
   "verificationPhotoBucketMetadataReady": true,

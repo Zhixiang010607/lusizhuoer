@@ -5,7 +5,11 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v2" : "v54";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v55";
+const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
+  ? "cleanup-verification-photo-uploads-hourly"
+  : "cleanup-verification-photo-drafts-hourly";
+const EXPECTED_FUNCTION_NAME = PHOTO_ONLY_FUNCTION ? "verificationPhoto" : "faceRecognition";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 // SCF synchronous events are capped at 6 MB and Base64 adds roughly 33%.
 // These verification-photo limits leave room for the JSON envelope while
@@ -42,6 +46,24 @@ function required(name) {
   const value = String(process.env[name] || "").trim();
   if (!value) throw new Error(`Missing cloud function environment variable: ${name}`);
   return value;
+}
+
+function cloudbaseServiceRoleKey() {
+  const managedValue = String(process.env.CLOUDBASE_APIKEY || "").trim();
+  const legacyValue = String(process.env.CLOUDBASE_SERVICE_ROLE_KEY || "").trim();
+  const value = managedValue || legacyValue;
+  if (!value) {
+    throw new Error(
+      "Missing CloudBase service-role API key: CLOUDBASE_APIKEY or CLOUDBASE_SERVICE_ROLE_KEY"
+    );
+  }
+  return value;
+}
+
+function cloudbaseServiceRoleKeyConfigured() {
+  const managedValue = String(process.env.CLOUDBASE_APIKEY || "").trim();
+  const legacyValue = String(process.env.CLOUDBASE_SERVICE_ROLE_KEY || "").trim();
+  return Boolean(managedValue || legacyValue);
 }
 
 function numberSetting(name, fallback, minimum, maximum) {
@@ -161,7 +183,7 @@ function faceSettings() {
 function photoStorageSettings() {
   return {
     bucketId: String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim(),
-    accessToken: required("CLOUDBASE_SERVICE_ROLE_KEY"),
+    accessToken: cloudbaseServiceRoleKey(),
     envId: cloudbaseEnvId()
   };
 }
@@ -169,7 +191,7 @@ function photoStorageSettings() {
 function verificationPhotoStorageSettings() {
   return {
     bucketId: String(process.env.VERIFICATION_PHOTO_BUCKET_ID || "verification-photos").trim(),
-    accessToken: required("CLOUDBASE_SERVICE_ROLE_KEY"),
+    accessToken: cloudbaseServiceRoleKey(),
     envId: cloudbaseEnvId()
   };
 }
@@ -226,7 +248,7 @@ function storageUploadResponseMismatch(error) {
 
 function verificationPhotoStorageEnvironmentError(error, storage) {
   const mismatch = new Error(
-    `腾讯云照片存储无法在环境 ${storage.envId} 中识别私有桶 ${storage.bucketId}。请确认这是 PG 云存储桶的真实 ID，并确认 CLOUDBASE_SERVICE_ROLE_KEY 属于同一环境。`
+    `腾讯云照片存储无法在环境 ${storage.envId} 中识别私有桶 ${storage.bucketId}。请确认这是 PG 云存储桶的真实 ID，并确认 CLOUDBASE_APIKEY（或兼容变量 CLOUDBASE_SERVICE_ROLE_KEY）属于同一环境。`
   );
   mismatch.code = "PHOTO_STORAGE_ENV_MISMATCH";
   mismatch.requestId = error?.requestId || error?.RequestId || "";
@@ -390,7 +412,7 @@ function verificationPhotoFunctionUploadProof(context, request) {
     String(request.expected_original_bytes || ""),
     String(request.original_object_ref || "")
   ].join("\n");
-  return crypto.createHmac("sha256", required("CLOUDBASE_SERVICE_ROLE_KEY")).update(payload).digest("hex");
+  return crypto.createHmac("sha256", cloudbaseServiceRoleKey()).update(payload).digest("hex");
 }
 
 function requireVerificationPhotoFunctionUploadProof(event, context, request) {
@@ -3347,7 +3369,7 @@ async function verificationPhotoStorageHealth() {
     const availableBucketIds = rows.map((row) => String(row.id || "")).filter(Boolean);
     const readyBucketIds = rows.filter((row) => verificationPhotoBucketReady(row))
       .map((row) => String(row.id || "")).filter(Boolean);
-    const serviceRoleKeyConfigured = Boolean(String(process.env.CLOUDBASE_SERVICE_ROLE_KEY || "").trim());
+    const serviceRoleKeyConfigured = cloudbaseServiceRoleKeyConfigured();
     let serviceRoleStorageReady = false;
     let serviceRoleStorageError = "";
     let serviceRoleStorageRequestId = "";
@@ -3835,13 +3857,62 @@ async function uploadVerificationExtraPhoto(event) {
 }
 
 function requireVerificationPhotoCleanupToken(event) {
+  requireCleanupControlPlaneCaller();
   const expectedToken = required("VERIFICATION_PHOTO_CLEANUP_TOKEN");
+  if (expectedToken.length < 32) {
+    fail("核销照片清理凭证配置无效，必须至少包含 32 个字符。", "CLEANUP_CONFIGURATION_INVALID");
+  }
   const suppliedToken = String(event.cleanupToken || "");
   const expectedBuffer = Buffer.from(expectedToken);
   const suppliedBuffer = Buffer.from(suppliedToken);
   if (expectedBuffer.length !== suppliedBuffer.length || !crypto.timingSafeEqual(expectedBuffer, suppliedBuffer)) {
     fail("核销照片草稿清理凭证无效。", "FORBIDDEN");
   }
+}
+
+function verificationPhotoCleanupTokenConfigured() {
+  return String(process.env.VERIFICATION_PHOTO_CLEANUP_TOKEN || "").trim().length >= 32;
+}
+
+function requireCleanupControlPlaneCaller() {
+  let caller;
+  try {
+    caller = app().auth().getUserInfo();
+  } catch (_) {
+    fail("无法验证核销照片清理调用来源。", "CLEANUP_CALLER_UNVERIFIED");
+  }
+  if (String(caller?.uid || "").trim()) {
+    fail("普通客户端不能执行核销照片清理。", "FORBIDDEN");
+  }
+}
+
+function trustedCleanupTimerKind(event = {}, context = {}) {
+  const eventType = String(event?.Type || "").trim();
+  // A warm SCF instance may retain process environment state between calls.
+  // Only the platform Timer event shape opts into this branch; once inside,
+  // the reserved runtime source marker is mandatory as the trust boundary.
+  if (eventType !== "Timer") return "";
+
+  // TRIGGER_SRC and SCF_FUNCTIONNAME are reserved SCF runtime values. Unlike
+  // event fields, an ordinary callFunction caller cannot manufacture them.
+  const triggerSource = String(process.env.TRIGGER_SRC || "").trim();
+  if (triggerSource !== "timer") {
+    fail("核销照片定时清理调用来源无效。", "UNTRUSTED_TIMER_EVENT");
+  }
+  if (String(event?.TriggerName || "").trim() !== CLEANUP_TIMER_TRIGGER_NAME) {
+    fail("核销照片定时清理触发器名称无效。", "UNTRUSTED_TIMER_EVENT");
+  }
+  const environmentFunctionName = String(process.env.SCF_FUNCTIONNAME || "").trim();
+  const contextFunctionName = String(context?.function_name || "").trim();
+  if (environmentFunctionName !== EXPECTED_FUNCTION_NAME
+      || (contextFunctionName && contextFunctionName !== EXPECTED_FUNCTION_NAME)) {
+    fail("核销照片定时清理函数身份无效。", "UNTRUSTED_TIMER_EVENT");
+  }
+  if (!Number.isFinite(Date.parse(String(event?.Time || "")))) {
+    fail("核销照片定时清理时间无效。", "UNTRUSTED_TIMER_EVENT");
+  }
+  requireCleanupControlPlaneCaller();
+  return PHOTO_ONLY_FUNCTION ? "UPLOADS" : "DRAFTS";
 }
 
 async function cleanupVerificationPhotoUploadRequests() {
@@ -3910,8 +3981,7 @@ async function cleanupVerificationPhotoUploadRequests() {
   return { uploadRequestsCleaned, uploadRequestBatchSize };
 }
 
-async function cleanupVerificationPhotoUploads(event) {
-  requireVerificationPhotoCleanupToken(event);
+async function runVerificationPhotoUploadsCleanup() {
   const uploadCleanup = await cleanupVerificationPhotoUploadRequests();
   return {
     ok: true,
@@ -3920,15 +3990,51 @@ async function cleanupVerificationPhotoUploads(event) {
   };
 }
 
-async function cleanupVerificationPhotoDrafts(event) {
+async function cleanupVerificationPhotoUploads(event) {
   requireVerificationPhotoCleanupToken(event);
+  return runVerificationPhotoUploadsCleanup();
+}
+
+async function runVerificationPhotoDraftsCleanup() {
+  // Claim candidates with a no-op UPDATE before touching storage. SKIP LOCKED
+  // excludes a still-running order-creation transaction; the new row version
+  // also forces any waiter to recheck the now-expired predicate. The grace
+  // period and evidence anti-join are repeated again before final deletion.
   const rows = await executeSql(
-    `SELECT evidence_token, original_object_ref, thumbnail_object_ref
-       FROM public.verification_photo_drafts
-      WHERE consumed_at IS NULL
-        AND expires_at <= NOW()
-      ORDER BY expires_at, evidence_token
-      LIMIT 100`
+    `WITH candidates AS (
+       SELECT draft.evidence_token
+         FROM public.verification_photo_drafts AS draft
+        WHERE draft.consumed_at IS NULL
+          AND draft.expires_at <= CLOCK_TIMESTAMP() - INTERVAL '10 minutes'
+          AND NOT EXISTS (
+            SELECT 1
+              FROM public.verification_photos AS photo
+             WHERE photo.source_evidence_token = draft.evidence_token
+                OR photo.original_object_ref = draft.original_object_ref
+                OR photo.thumbnail_object_ref = draft.original_object_ref
+                OR photo.original_object_ref = draft.thumbnail_object_ref
+                OR photo.thumbnail_object_ref = draft.thumbnail_object_ref
+          )
+        ORDER BY draft.expires_at, draft.evidence_token
+        LIMIT 100
+          FOR UPDATE OF draft SKIP LOCKED
+     )
+     UPDATE public.verification_photo_drafts AS draft
+        SET expires_at = draft.expires_at
+       FROM candidates
+      WHERE draft.evidence_token = candidates.evidence_token
+        AND draft.consumed_at IS NULL
+        AND draft.expires_at <= CLOCK_TIMESTAMP() - INTERVAL '10 minutes'
+        AND NOT EXISTS (
+          SELECT 1
+            FROM public.verification_photos AS photo
+           WHERE photo.source_evidence_token = draft.evidence_token
+              OR photo.original_object_ref = draft.original_object_ref
+              OR photo.thumbnail_object_ref = draft.original_object_ref
+              OR photo.original_object_ref = draft.thumbnail_object_ref
+              OR photo.thumbnail_object_ref = draft.thumbnail_object_ref
+        )
+    RETURNING draft.evidence_token, draft.original_object_ref, draft.thumbnail_object_ref`
   );
   let cleaned = 0;
   for (const row of rows) {
@@ -3941,7 +4047,16 @@ async function cleanupVerificationPhotoDrafts(event) {
       `DELETE FROM public.verification_photo_drafts
         WHERE evidence_token = ${sqlText(row.evidence_token)}
           AND consumed_at IS NULL
-          AND expires_at <= NOW()
+          AND expires_at <= CLOCK_TIMESTAMP() - INTERVAL '10 minutes'
+          AND NOT EXISTS (
+            SELECT 1
+              FROM public.verification_photos AS photo
+             WHERE photo.source_evidence_token = verification_photo_drafts.evidence_token
+                OR photo.original_object_ref = verification_photo_drafts.original_object_ref
+                OR photo.thumbnail_object_ref = verification_photo_drafts.original_object_ref
+                OR photo.original_object_ref = verification_photo_drafts.thumbnail_object_ref
+                OR photo.thumbnail_object_ref = verification_photo_drafts.thumbnail_object_ref
+          )
       RETURNING evidence_token`
     );
     if (deleted.length) cleaned += 1;
@@ -3953,8 +4068,22 @@ async function cleanupVerificationPhotoDrafts(event) {
   };
 }
 
-exports.main = async (event = {}) => {
+async function cleanupVerificationPhotoDrafts(event) {
+  requireVerificationPhotoCleanupToken(event);
+  return runVerificationPhotoDraftsCleanup();
+}
+
+async function handleTrustedCleanupTimer(event, context) {
+  const kind = trustedCleanupTimerKind(event, context);
+  if (!kind) return null;
+  if (kind === "UPLOADS") return runVerificationPhotoUploadsCleanup();
+  return runVerificationPhotoDraftsCleanup();
+}
+
+exports.main = async (event = {}, context = {}) => {
   try {
+    const scheduledCleanup = await handleTrustedCleanupTimer(event, context);
+    if (scheduledCleanup) return scheduledCleanup;
     const action = event.action || "health";
     if (action === "health") {
       const storageHealth = await verificationPhotoStorageHealth();
@@ -3974,8 +4103,9 @@ exports.main = async (event = {}) => {
           verificationPhotoFallbackBucketId: String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim(),
           verificationPhotoUrlTtlSeconds: verificationPhotoUrlTtlSeconds(),
           verificationPhotoUploadTtlSeconds: verificationPhotoUploadTtlSeconds(),
-          verificationPhotoCleanupConfigured: Boolean(String(process.env.VERIFICATION_PHOTO_CLEANUP_TOKEN || "").trim()),
-          verificationPhotoServiceRoleKeyConfigured: Boolean(String(process.env.CLOUDBASE_SERVICE_ROLE_KEY || "").trim()),
+          verificationPhotoCleanupConfigured: verificationPhotoCleanupTokenConfigured(),
+          verificationPhotoServiceRoleKeyConfigured: cloudbaseServiceRoleKeyConfigured(),
+          verificationPhotoCleanupTimerTriggerName: CLEANUP_TIMER_TRIGGER_NAME,
           verificationPhotoConfiguredBucketIds: storageHealth.configuredBucketIds,
           verificationPhotoAvailableBucketIds: storageHealth.availableBucketIds,
           verificationPhotoReadyBucketIds: storageHealth.readyBucketIds,
@@ -4000,8 +4130,9 @@ exports.main = async (event = {}) => {
         verificationPhotoFallbackBucketId: String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim(),
         verificationPhotoUrlTtlSeconds: verificationPhotoUrlTtlSeconds(),
         verificationPhotoUploadTtlSeconds: verificationPhotoUploadTtlSeconds(),
-        verificationPhotoCleanupConfigured: Boolean(String(process.env.VERIFICATION_PHOTO_CLEANUP_TOKEN || "").trim()),
-        verificationPhotoServiceRoleKeyConfigured: Boolean(String(process.env.CLOUDBASE_SERVICE_ROLE_KEY || "").trim()),
+        verificationPhotoCleanupConfigured: verificationPhotoCleanupTokenConfigured(),
+        verificationPhotoServiceRoleKeyConfigured: cloudbaseServiceRoleKeyConfigured(),
+        verificationPhotoCleanupTimerTriggerName: CLEANUP_TIMER_TRIGGER_NAME,
         verificationPhotoConfiguredBucketIds: storageHealth.configuredBucketIds,
         verificationPhotoAvailableBucketIds: storageHealth.availableBucketIds,
         verificationPhotoReadyBucketIds: storageHealth.readyBucketIds,
@@ -4058,7 +4189,11 @@ exports.main = async (event = {}) => {
     if (action === "cleanupVerificationPhotoDrafts") return await cleanupVerificationPhotoDrafts(event);
     fail("Unsupported action.");
   } catch (error) {
-    console.error("faceRecognition failed", { action: event?.action || "health", code: error?.code || "FUNCTION_ERROR", message: error?.message || String(error) });
+    console.error("faceRecognition failed", {
+      action: event?.action || (event?.Type === "Timer" ? `Timer:${event?.TriggerName || "unknown"}` : "health"),
+      code: error?.code || "FUNCTION_ERROR",
+      message: error?.message || String(error)
+    });
     return {
       ok: false,
       code: error?.code || "FUNCTION_ERROR",

@@ -655,7 +655,7 @@ const functionProofSource = functionSource(cloud, "verificationPhotoFunctionUplo
 for (const binding of [
   '"verification-photo-function-upload-v1"', "request.request_id", "context.verificationId",
   "context.caller.staffId", "request.photo_slot", "request.expected_original_bytes",
-  "request.original_object_ref", 'createHmac("sha256", required("CLOUDBASE_SERVICE_ROLE_KEY"))'
+  "request.original_object_ref", 'createHmac("sha256", cloudbaseServiceRoleKey())'
 ]) includes(functionProofSource, binding, `FUNCTION proof binding ${binding}`);
 const requireFunctionProofSource = functionSource(cloud, "requireVerificationPhotoFunctionUploadProof");
 includes(requireFunctionProofSource, "/^[a-f0-9]{64}$/", "fallback proof strict hexadecimal shape");
@@ -666,7 +666,7 @@ const functionProofHarness = {
   module: { exports: {} },
   crypto,
   Buffer,
-  required: (name) => name === "CLOUDBASE_SERVICE_ROLE_KEY" ? "test-service-role-secret" : "",
+  cloudbaseServiceRoleKey: () => "test-service-role-secret",
   fail(message, code) { throw Object.assign(new Error(message), { code }); }
 };
 vm.createContext(functionProofHarness);

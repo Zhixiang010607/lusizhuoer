@@ -38,7 +38,7 @@ function functionSource(source, name) {
 }
 
 function mainSource(source) {
-  const start = source.indexOf("exports.main = async (event = {}) => {");
+  const start = source.indexOf("exports.main = async (event = {}, context = {}) => {");
   assert.ok(start >= 0, "cloud function main dispatcher must exist");
   return source.slice(start);
 }
@@ -125,12 +125,16 @@ const routeHarness = {
       CUSTOMER_PHOTO_BUCKET_ID: "customer-photos",
       VERIFICATION_PHOTO_BUCKET_ID: "customer-photos",
       VERIFICATION_PHOTO_CLEANUP_TOKEN: "configured",
-      CLOUDBASE_SERVICE_ROLE_KEY: "configured"
+      CLOUDBASE_APIKEY: "configured"
     }
   },
   console: { error() {} },
   PHOTO_ONLY_FUNCTION: true,
-  FUNCTION_VERSION: "v2",
+  FUNCTION_VERSION: "v3",
+  CLEANUP_TIMER_TRIGGER_NAME: "cleanup-verification-photo-uploads-hourly",
+  handleTrustedCleanupTimer: async () => null,
+  verificationPhotoCleanupTokenConfigured: () => true,
+  cloudbaseServiceRoleKeyConfigured: () => true,
   verificationPhotoStorageHealth: async () => ({
     configuredBucketIds: ["customer-photos"],
     availableBucketIds: ["customer-photos"],
@@ -192,7 +196,7 @@ vm.runInContext(
 
   const health = await routeHarness.exports.main({ action: "health" });
   assert.equal(health.ok, true);
-  assert.equal(health.version, "v2");
+  assert.equal(health.version, "v3");
   assert.equal(health.service, "verificationPhoto");
   assert.equal(health.uploadMode, "FUNCTION");
   assert.equal(health.ready, true);
@@ -325,7 +329,7 @@ const proofHarness = {
   module: { exports: {} },
   crypto,
   Buffer,
-  required: () => "test-service-role-secret",
+  cloudbaseServiceRoleKey: () => "test-service-role-secret",
   fail: (message, code) => { const error = new Error(message); error.code = code; throw error; }
 };
 vm.createContext(proofHarness);
@@ -385,10 +389,12 @@ includes(commitSource, "public.commit_verification_photo_upload", "commit remain
 
 const cleanupTokenSource = functionSource(faceService, "requireVerificationPhotoCleanupToken");
 const cleanupSource = functionSource(faceService, "cleanupVerificationPhotoUploadRequests");
+const photoOnlyCleanupRunSource = functionSource(faceService, "runVerificationPhotoUploadsCleanup");
 const photoOnlyCleanupSource = functionSource(faceService, "cleanupVerificationPhotoUploads");
 includes(cleanupTokenSource, "crypto.timingSafeEqual", "cleanup token is compared in constant time");
 includes(photoOnlyCleanupSource, "requireVerificationPhotoCleanupToken(event)", "photo-only cleanup requires its private trigger token");
-includes(photoOnlyCleanupSource, "cleanupVerificationPhotoUploadRequests()", "photo-only cleanup is limited to upload intents");
+includes(photoOnlyCleanupSource, "runVerificationPhotoUploadsCleanup()", "manual photo cleanup enters the shared bounded runner");
+includes(photoOnlyCleanupRunSource, "cleanupVerificationPhotoUploadRequests()", "photo-only cleanup runner is limited to upload intents");
 includes(cleanupSource, "WHERE status IN ('CANCELLED', 'EXPIRED')", "only cancelled or expired upload objects enter cleanup");
 includes(cleanupSource, "AND upload.cleanup_after <= CLOCK_TIMESTAMP()", "cleanup waits for the late-upload safety interval");
 includes(cleanupSource, "AND upload.objects_cleaned_at IS NULL", "cleanup is idempotent");
