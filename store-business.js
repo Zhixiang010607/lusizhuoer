@@ -249,6 +249,36 @@
   }
   function setupCustomerCreate() {
     const video = $("faceCamera"), preview = $("facePhotoPreview"), placeholder = $("faceCameraPlaceholder"), status = $("faceCaptureStatus"), message = $("customerCreateMessage"), capture = $("captureFace"), openCamera = $("openFaceCamera"), retake = $("retakeFace");
+    const layout = document.querySelector(".customer-create-layout");
+    const resizeHandle = $("customerCreateResizeHandle");
+    if (layout && resizeHandle) {
+      const layoutWideEnough = () => window.matchMedia("(min-width: 761px)").matches;
+      const setFieldsWidth = (positionX) => {
+        if (!layoutWideEnough()) return;
+        const box = layout.getBoundingClientRect();
+        const minFields = Math.min(360, box.width * 0.46);
+        const minCapture = Math.min(440, box.width * 0.54);
+        const upper = Math.max(minFields, box.width - minCapture - 10);
+        const value = Math.max(minFields, Math.min(positionX - box.left, upper));
+        layout.style.setProperty("--customer-fields-width", `${Math.round(value)}px`);
+        resizeHandle.setAttribute("aria-valuenow", String(Math.round(value / box.width * 100)));
+      };
+      let dragging = false;
+      resizeHandle.addEventListener("pointerdown", (event) => {
+        if (!layoutWideEnough()) return;
+        dragging = true; resizeHandle.classList.add("is-dragging");
+        resizeHandle.setPointerCapture?.(event.pointerId); setFieldsWidth(event.clientX); event.preventDefault();
+      });
+      resizeHandle.addEventListener("pointermove", (event) => { if (dragging) setFieldsWidth(event.clientX); });
+      const finishResize = () => { dragging = false; resizeHandle.classList.remove("is-dragging"); };
+      resizeHandle.addEventListener("pointerup", finishResize); resizeHandle.addEventListener("pointercancel", finishResize);
+      resizeHandle.addEventListener("keydown", (event) => {
+        if (!layoutWideEnough() || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+        const box = layout.getBoundingClientRect();
+        const current = parseFloat(getComputedStyle(layout).getPropertyValue("--customer-fields-width")) || box.width * .42;
+        setFieldsWidth(box.left + current + (event.key === "ArrowLeft" ? -24 : 24)); event.preventDefault();
+      });
+    }
     $("faceConsent").addEventListener("change", syncCustomerCreateSubmit);
     $("createCustomerName").addEventListener("input", syncCustomerCreateSubmit);
     $("createCustomerBirthday").addEventListener("change", syncCustomerCreateSubmit);

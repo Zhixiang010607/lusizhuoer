@@ -1,4 +1,4 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>客户建立</title><link rel="stylesheet" href="styles.css?v=0.15.27"></head>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>客户建立</title><link rel="stylesheet" href="styles.css?v=0.15.28"></head>
 <body data-store-business="customer"><aside class="side-project-bar" aria-label="项目栏"><div class="side-brand"><span>HQ</span><div><strong>门店工作区</strong><small>项目栏</small></div></div><p class="side-section-title">门店业务</p><nav class="side-nav"></nav><div class="side-footer">静态原型 v0.14.19</div></aside>
 <header class="topbar"><div><p class="eyebrow">CUSTOMER ENROLLMENT</p><h1>客户建立</h1><p class="subtitle">姓名、生日、建档照片、面容录入与特别注意事项</p></div><div class="status"><span></span>门店业务</div></header>
 <main class="store-business-main"><form id="customerCreateForm" class="panel store-business-form store-business-full-panel" autocomplete="off">
@@ -8,6 +8,7 @@
       <div class="store-business-grid"><label>客户姓名<input id="createCustomerName" required maxlength="40" placeholder="请输入真实姓名" autocomplete="off"></label><label>生日<input id="createCustomerBirthday" type="date" required autocomplete="off"></label><label class="full-field">特别注意事项<textarea id="createCustomerNotes" rows="3" maxlength="500" placeholder="无则留空" autocomplete="off"></textarea></label></div>
       <label class="consent-row"><input id="faceConsent" type="checkbox" required> 已取得客户明确授权：采集建档照片和面容信息，仅用于客户建档、身份核验和门店服务</label>
     </section>
+    <div id="customerCreateResizeHandle" class="customer-create-resize-handle" role="separator" aria-orientation="vertical" aria-label="调整客户资料与拍照区域宽度" tabindex="0"></div>
     <section class="capture-panel customer-create-capture">
       <div class="customer-camera-stage"><video id="faceCamera" autoplay muted playsinline hidden></video><img id="facePhotoPreview" alt="客户建档照片预览" hidden><div id="faceCameraPlaceholder" class="camera-placeholder"><strong>等待打开摄像头</strong><span>拍摄后会先预览；不满意可重新拍照，确认建档时才上传至腾讯云。</span></div><canvas id="faceCaptureCanvas" hidden></canvas></div>
       <div class="customer-capture-meta"><h3>建档照片与面容</h3><p>请让客户正对摄像头，避免逆光、遮挡和多人入镜。</p><div id="captureCheckResults" class="capture-check-results" aria-live="polite"><div><span>照片质量</span><strong id="faceQualityResult">待检测</strong></div><div><span>活体检测</span><strong id="faceLivenessResult">待检测</strong></div></div></div>
@@ -16,4 +17,4 @@
       <div class="form-submit-row customer-create-submit"><span id="customerCreateMessage"></span><button type="submit" disabled aria-disabled="true">建立客户档案</button></div>
     </section>
   </div>
-</form></main><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="store-business.js?v=0.14.47"></script><script src="auth-ui.js?v=0.18.0"></script></body></html>
+</form></main><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="store-business.js?v=0.14.48"></script><script src="auth-ui.js?v=0.18.0"></script></body></html>
