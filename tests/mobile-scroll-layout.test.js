@@ -20,4 +20,30 @@ for (const file of ["customer-detail.html", "customer-query.html", "recharge-que
   assert(/<meta\s+name="viewport"/.test(html), `${file} must declare a mobile viewport`);
 }
 
+const businessMobileRules = css.slice(css.lastIndexOf("/* Tablet and phone business workflows"));
+assert(businessMobileRules.includes("body[data-store-business]"), "business workflows must opt into tablet and phone document scrolling");
+assert(/body\[data-store-business\][\s\S]*?height:\s*auto[\s\S]*?overflow-y:\s*auto/.test(businessMobileRules), "business workflow document must grow and scroll vertically");
+assert(/workflow-lookup-panel \.service-customer-results[\s\S]*?flex:\s*0 0 auto[\s\S]*?overflow:\s*visible/.test(businessMobileRules), "customer result card must grow instead of clipping its final fact");
+assert(/customer-core-preview[\s\S]*?max-height:\s*none[\s\S]*?overflow:\s*visible/.test(businessMobileRules), "customer confirmation preview must expose all facts");
+assert(/customer-core-facts strong[\s\S]*?overflow-wrap:\s*anywhere/.test(businessMobileRules), "long customer numbers must wrap on narrow screens");
+assert(/@media \(max-width:\s*560px\)[\s\S]*?customer-profile-layout[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/.test(businessMobileRules), "phone customer profile must use a true one-column layout");
+
+const businessPages = [
+  "customer-create.html",
+  "recharge-create.html",
+  "verification-create.html",
+  "verification-supplemental.html",
+  "teacher-recharge-create.html",
+  "teacher-verification-create.html",
+  "teacher-verification-supplemental.html"
+];
+for (const file of businessPages) {
+  const html = fs.readFileSync(path.join(root, file), "utf8");
+  assert(html.includes('styles.css?v=0.15.25'), `${file} must use the unclipped customer-card stylesheet cache key`);
+  assert(html.includes("data-store-business"), `${file} must be a store business workflow`);
+}
+
+const storeBusiness = fs.readFileSync(path.join(root, "store-business.js"), "utf8");
+assert(storeBusiness.includes("<span>客户编号</span><strong>${escapeHtml(customer.id)}</strong>"), "customer confirmation card must render the full customer number");
+
 console.log("mobile scroll layout tests passed");

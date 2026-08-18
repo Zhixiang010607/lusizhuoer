@@ -4,7 +4,8 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
-const FUNCTION_VERSION = "v52";
+const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v1" : "v53";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 // SCF synchronous events are capped at 6 MB and Base64 adds roughly 33%.
 // These verification-photo limits leave room for the JSON envelope while
@@ -3208,6 +3209,31 @@ async function requireVerificationPhotoUploadSchema() {
   verificationPhotoUploadSchemaReady = true;
 }
 
+async function verificationPhotoUploadSchemaHealth() {
+  try {
+    const rows = await executeSql(
+      `SELECT
+         TO_REGCLASS('public.verification_photo_upload_requests') IS NOT NULL AS has_table,
+         TO_REGPROCEDURE(
+           'public.begin_verification_photo_upload(character varying,bigint,smallint,bigint,character varying,character varying,integer,integer)'
+         ) IS NOT NULL AS has_begin,
+         TO_REGPROCEDURE(
+           'public.commit_verification_photo_upload(character varying,bigint,bigint,integer,integer,integer,character)'
+         ) IS NOT NULL AS has_commit,
+         TO_REGPROCEDURE(
+           'public.cancel_verification_photo_upload(character varying,bigint,bigint)'
+         ) IS NOT NULL AS has_cancel`
+    );
+    const schema = rows[0] || {};
+    return {
+      ready: [schema.has_table, schema.has_begin, schema.has_commit, schema.has_cancel].every(databaseBoolean),
+      error: ""
+    };
+  } catch (error) {
+    return { ready: false, error: String(error?.code || "DATABASE_CHECK_FAILED") };
+  }
+}
+
 function requireVerificationPhotoUploadOwner(context, options = {}) {
   const isOwner = ["store", "teacher"].includes(context.caller.role)
     && String(context.record.submitted_by_account_id) === String(context.caller.staffId);
@@ -3374,7 +3400,7 @@ async function beginVerificationPhotoUpload(event) {
   }
   requireVerificationPhotoUploadOwner(context, { requireWindow: true });
 
-  let uploadMode = "DIRECT";
+  let uploadMode = PHOTO_ONLY_FUNCTION ? "FUNCTION" : "DIRECT";
   let signedUploadFailure = null;
   let objectReference = String(existing?.original_object_ref || "");
   let bucketId = String(existing?.bucket_id || "");
@@ -3424,15 +3450,17 @@ async function beginVerificationPhotoUpload(event) {
   }
   const storedReference = String(request.original_object_ref || objectReference);
   let upload = null;
-  try {
-    upload = await signVerificationPhotoUploadReference(storedReference);
-  } catch (error) {
-    if (!signedUploadFunctionFallbackAllowed(error)) throw error;
-    await requireVerificationPhotoFunctionFallbackStorage(storedReference);
-    uploadMode = "FUNCTION";
-    signedUploadFailure = error;
+  if (!PHOTO_ONLY_FUNCTION) {
+    try {
+      upload = await signVerificationPhotoUploadReference(storedReference);
+    } catch (error) {
+      if (!signedUploadFunctionFallbackAllowed(error)) throw error;
+      await requireVerificationPhotoFunctionFallbackStorage(storedReference);
+      uploadMode = "FUNCTION";
+      signedUploadFailure = error;
+    }
   }
-  if (uploadMode === "FUNCTION") {
+  if (uploadMode === "FUNCTION" && signedUploadFailure) {
     console.warn("Signed verification-photo upload unavailable; using the authenticated cloud-function fallback", {
       verificationId: context.verificationId,
       slot,
@@ -3572,6 +3600,9 @@ async function commitVerificationPhotoUpload(event) {
     return { ok: true, ...initialState, alreadyCommitted: true };
   }
   requireVerificationPhotoUploadOwner(context, { requireWindow: true });
+  if (PHOTO_ONLY_FUNCTION && !event.imageBase64) {
+    fail("独立核销照片服务必须通过云函数提交照片内容。", "PHOTO_FUNCTION_UPLOAD_REQUIRED");
+  }
   let inspected;
   if (event.imageBase64) {
     requireVerificationPhotoFunctionUploadProof(event, context, request);
@@ -3584,14 +3615,13 @@ async function commitVerificationPhotoUpload(event) {
       fail("补充照片大小与上传请求不一致，请取消后重试。", "PHOTO_UPLOAD_SIZE_MISMATCH");
     }
     await uploadVerificationPhotoReference(request.original_object_ref, fallbackPhoto.buffer);
-    inspected = await inspectVerificationPhotoObject(
-      request.original_object_ref,
-      Number(request.expected_original_bytes)
-    );
-    const submittedSha = crypto.createHash("sha256").update(fallbackPhoto.buffer).digest("hex");
-    if (inspected.sha256 !== submittedSha) {
-      fail("存储中的照片与本次上传内容不一致，请取消后重试。", "PHOTO_UPLOAD_CONTENT_CONFLICT");
-    }
+    // The cloud function supplied these exact bytes to the private storage
+    // API. Validate the JPEG once in memory and avoid immediately downloading
+    // the same object again. uploadVerificationPhotoReference already performs
+    // an authenticated byte-for-byte comparison when a retry finds an object
+    // at the request-bound immutable path, so lost-response idempotency remains
+    // fail-closed without adding two storage round trips to every upload.
+    inspected = verificationPhotoBufferMetadata(fallbackPhoto.buffer);
   } else {
     inspected = await inspectVerificationPhotoObject(
       request.original_object_ref,
@@ -3763,7 +3793,7 @@ async function uploadVerificationExtraPhoto(event) {
   }
 }
 
-async function cleanupVerificationPhotoDrafts(event) {
+function requireVerificationPhotoCleanupToken(event) {
   const expectedToken = required("VERIFICATION_PHOTO_CLEANUP_TOKEN");
   const suppliedToken = String(event.cleanupToken || "");
   const expectedBuffer = Buffer.from(expectedToken);
@@ -3771,6 +3801,86 @@ async function cleanupVerificationPhotoDrafts(event) {
   if (expectedBuffer.length !== suppliedBuffer.length || !crypto.timingSafeEqual(expectedBuffer, suppliedBuffer)) {
     fail("核销照片草稿清理凭证无效。", "FORBIDDEN");
   }
+}
+
+async function cleanupVerificationPhotoUploadRequests() {
+  let uploadRequestsCleaned = 0;
+  let uploadRequestBatchSize = 0;
+  const schemaRows = await executeSql(
+    `SELECT TO_REGCLASS('public.verification_photo_upload_requests') IS NOT NULL AS has_upload_requests`
+  );
+  if (!databaseBoolean(schemaRows[0]?.has_upload_requests)) {
+    return { uploadRequestsCleaned, uploadRequestBatchSize };
+  }
+  await executeSql(
+    `UPDATE public.verification_photo_upload_requests
+        SET status = 'EXPIRED', updated_at = NOW()
+      WHERE status = 'UPLOADING'
+        AND expires_at <= CLOCK_TIMESTAMP()`
+  );
+  const uploadRows = await executeSql(
+    `SELECT upload.request_id, upload.original_object_ref, upload.thumbnail_object_ref
+       FROM public.verification_photo_upload_requests upload
+      WHERE upload.status IN ('CANCELLED', 'EXPIRED')
+        AND upload.cleanup_after <= CLOCK_TIMESTAMP()
+        AND upload.objects_cleaned_at IS NULL
+        AND NOT EXISTS (
+          SELECT 1
+            FROM public.verification_photos photo
+           WHERE photo.verification_id = upload.verification_id
+             AND (photo.original_object_ref = upload.original_object_ref
+                  OR photo.thumbnail_object_ref = upload.original_object_ref
+                  OR (upload.thumbnail_object_ref IS NOT NULL
+                      AND (photo.original_object_ref = upload.thumbnail_object_ref
+                           OR photo.thumbnail_object_ref = upload.thumbnail_object_ref)))
+        )
+      ORDER BY upload.cleanup_after, upload.request_id
+      LIMIT 100`
+  );
+  uploadRequestBatchSize = uploadRows.length;
+  for (const row of uploadRows) {
+    const references = [...new Set([
+      row.original_object_ref,
+      row.thumbnail_object_ref
+    ].filter(Boolean))];
+    const deletionResults = await Promise.all(references.map((reference) => deleteVerificationPhotoObject(reference)));
+    if (!deletionResults.every(Boolean)) continue;
+    const updated = await executeSql(
+      `UPDATE public.verification_photo_upload_requests
+          SET objects_cleaned_at = NOW(), updated_at = NOW()
+        WHERE request_id = ${sqlText(row.request_id)}
+          AND status IN ('CANCELLED', 'EXPIRED')
+          AND objects_cleaned_at IS NULL
+      RETURNING request_id`
+    );
+    if (updated.length) uploadRequestsCleaned += 1;
+  }
+  await executeSql(
+    `DELETE FROM public.verification_photo_upload_requests
+      WHERE status IN ('CANCELLED', 'EXPIRED')
+        AND objects_cleaned_at IS NOT NULL
+        AND updated_at < NOW() - INTERVAL '7 days'`
+  );
+  await executeSql(
+    `DELETE FROM public.verification_photo_upload_requests
+      WHERE status = 'COMMITTED'
+        AND committed_at < NOW() - INTERVAL '7 days'`
+  );
+  return { uploadRequestsCleaned, uploadRequestBatchSize };
+}
+
+async function cleanupVerificationPhotoUploads(event) {
+  requireVerificationPhotoCleanupToken(event);
+  const uploadCleanup = await cleanupVerificationPhotoUploadRequests();
+  return {
+    ok: true,
+    uploadRequestsCleaned: uploadCleanup.uploadRequestsCleaned,
+    remainingBatchPossible: uploadCleanup.uploadRequestBatchSize === 100
+  };
+}
+
+async function cleanupVerificationPhotoDrafts(event) {
+  requireVerificationPhotoCleanupToken(event);
   const rows = await executeSql(
     `SELECT evidence_token, original_object_ref, thumbnail_object_ref
        FROM public.verification_photo_drafts
@@ -3795,62 +3905,10 @@ async function cleanupVerificationPhotoDrafts(event) {
     );
     if (deleted.length) cleaned += 1;
   }
-  let uploadRequestsCleaned = 0;
-  let uploadRequestBatchSize = 0;
-  const schemaRows = await executeSql(
-    `SELECT TO_REGCLASS('public.verification_photo_upload_requests') IS NOT NULL AS has_upload_requests`
-  );
-  if (databaseBoolean(schemaRows[0]?.has_upload_requests)) {
-    await executeSql(
-      `UPDATE public.verification_photo_upload_requests
-          SET status = 'EXPIRED', updated_at = NOW()
-        WHERE status = 'UPLOADING'
-          AND expires_at <= CLOCK_TIMESTAMP()`
-    );
-    const uploadRows = await executeSql(
-      `SELECT request_id, original_object_ref, thumbnail_object_ref
-         FROM public.verification_photo_upload_requests
-        WHERE status IN ('CANCELLED', 'EXPIRED')
-          AND cleanup_after <= CLOCK_TIMESTAMP()
-          AND objects_cleaned_at IS NULL
-        ORDER BY cleanup_after, request_id
-        LIMIT 100`
-    );
-    uploadRequestBatchSize = uploadRows.length;
-    for (const row of uploadRows) {
-      const references = [...new Set([
-        row.original_object_ref,
-        row.thumbnail_object_ref
-      ].filter(Boolean))];
-      const deletionResults = await Promise.all(references.map((reference) => deleteVerificationPhotoObject(reference)));
-      if (!deletionResults.every(Boolean)) continue;
-      const updated = await executeSql(
-        `UPDATE public.verification_photo_upload_requests
-            SET objects_cleaned_at = NOW(), updated_at = NOW()
-          WHERE request_id = ${sqlText(row.request_id)}
-            AND status IN ('CANCELLED', 'EXPIRED')
-            AND objects_cleaned_at IS NULL
-        RETURNING request_id`
-      );
-      if (updated.length) uploadRequestsCleaned += 1;
-    }
-    await executeSql(
-      `DELETE FROM public.verification_photo_upload_requests
-        WHERE status IN ('CANCELLED', 'EXPIRED')
-          AND objects_cleaned_at IS NOT NULL
-          AND updated_at < NOW() - INTERVAL '7 days'`
-    );
-    await executeSql(
-      `DELETE FROM public.verification_photo_upload_requests
-        WHERE status = 'COMMITTED'
-          AND committed_at < NOW() - INTERVAL '7 days'`
-    );
-  }
   return {
     ok: true,
     cleaned,
-    uploadRequestsCleaned,
-    remainingBatchPossible: rows.length === 100 || uploadRequestBatchSize === 100
+    remainingBatchPossible: rows.length === 100
   };
 }
 
@@ -3859,6 +3917,39 @@ exports.main = async (event = {}) => {
     const action = event.action || "health";
     if (action === "health") {
       const storageHealth = await verificationPhotoStorageHealth();
+      if (PHOTO_ONLY_FUNCTION) {
+        const schemaHealth = await verificationPhotoUploadSchemaHealth();
+        const ready = schemaHealth.ready
+          && storageHealth.bucketMetadataReady
+          && storageHealth.serviceRoleStorageReady;
+        return {
+          ok: true,
+          ready,
+          version: FUNCTION_VERSION,
+          service: "verificationPhoto",
+          uploadMode: "FUNCTION",
+          photoBucketId: String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim(),
+          verificationPhotoBucketId: String(process.env.VERIFICATION_PHOTO_BUCKET_ID || "verification-photos").trim(),
+          verificationPhotoFallbackBucketId: String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim(),
+          verificationPhotoUrlTtlSeconds: verificationPhotoUrlTtlSeconds(),
+          verificationPhotoUploadTtlSeconds: verificationPhotoUploadTtlSeconds(),
+          verificationPhotoCleanupConfigured: Boolean(String(process.env.VERIFICATION_PHOTO_CLEANUP_TOKEN || "").trim()),
+          verificationPhotoServiceRoleKeyConfigured: Boolean(String(process.env.CLOUDBASE_SERVICE_ROLE_KEY || "").trim()),
+          verificationPhotoConfiguredBucketIds: storageHealth.configuredBucketIds,
+          verificationPhotoAvailableBucketIds: storageHealth.availableBucketIds,
+          verificationPhotoReadyBucketIds: storageHealth.readyBucketIds,
+          verificationPhotoBucketMetadataReady: storageHealth.bucketMetadataReady,
+          verificationPhotoBucketCheckError: storageHealth.bucketCheckError || undefined,
+          verificationPhotoServiceRoleStorageReady: storageHealth.serviceRoleStorageReady,
+          verificationPhotoServiceRoleStorageError: storageHealth.serviceRoleStorageError || undefined,
+          verificationPhotoServiceRoleStorageRequestId: storageHealth.serviceRoleStorageRequestId || undefined,
+          verificationPhotoUploadSchemaReady: schemaHealth.ready,
+          verificationPhotoUploadSchemaError: schemaHealth.error || undefined,
+          message: ready
+            ? "Private verification photo service is ready."
+            : "Verification photo service is reachable but its database or private storage configuration is incomplete."
+        };
+      }
       return {
         ok: true,
         version: FUNCTION_VERSION,
@@ -3881,6 +3972,17 @@ exports.main = async (event = {}) => {
         livenessEnabled: faceSettings().livenessEnabled,
         message: "Face customer enrollment and private verification photos are ready."
       };
+    }
+    if (PHOTO_ONLY_FUNCTION) {
+      if (action === "getVerificationPhotos") return await getVerificationPhotos(event);
+      if (action === "getVerificationPhotoOriginalUrl") return await getVerificationPhotoOriginalUrl(event);
+      if (action === "getVerificationPhotoExportData") return await getVerificationPhotoExportData(event);
+      if (action === "beginVerificationPhotoUpload") return await beginVerificationPhotoUpload(event);
+      if (action === "getVerificationPhotoUploadStatus") return await getVerificationPhotoUploadStatus(event);
+      if (action === "cancelVerificationPhotoUpload") return await cancelVerificationPhotoUpload(event);
+      if (action === "commitVerificationPhotoUpload") return await commitVerificationPhotoUpload(event);
+      if (action === "cleanupVerificationPhotoUploads") return await cleanupVerificationPhotoUploads(event);
+      fail("Unsupported verification photo action.", "ACTION_NOT_FOUND");
     }
     if (action === "validateCapture") return await validateCapture(event);
     if (action === "registerCustomer") return await registerCustomer(event);

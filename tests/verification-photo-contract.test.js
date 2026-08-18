@@ -38,7 +38,7 @@ function functionSource(source, name) {
   throw new Error(`function ${name} body is incomplete`);
 }
 
-includes(cloud, 'const FUNCTION_VERSION = "v52"', "cloud version");
+includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v1" : "v53"', "split cloud versions");
 includes(cloud, "const MAX_VERIFICATION_IMAGE_BYTES = 3 * 1024 * 1024", "original upload limit");
 includes(cloud, "const MAX_THUMBNAIL_BYTES = 384 * 1024", "thumbnail upload limit");
 includes(cloud, "if (action === \"getVerificationPhotos\")", "thumbnail list action");
@@ -285,7 +285,11 @@ assert.ok(
     < functionSource(cloud, "getVerificationPhotos").indexOf("signVerificationPhoto("),
   "thumbnail URLs must be signed only after the verification-order permission check"
 );
-includes(detailUi, 'const VERSION = "0.16.3"', "detail UI cache version");
+includes(detailUi, 'const VERSION = "0.16.4"', "detail UI cache version");
+includes(functionSource(detailUi, "callVerificationPhoto"), 'callFunction({ name: "verificationPhoto", data })', "all photo operations use the dedicated photo cloud function");
+includes(functionSource(detailUi, "callVerificationPhotoLifecycle"), "callVerificationPhoto(data)", "bounded photo lifecycle calls use the dedicated photo helper");
+includes(functionSource(detailUi, "loadTeacherOrder"), 'name: "faceRecognition"', "teacher workspace remains on the business and face cloud function");
+assert.ok(!detailUi.includes("callFaceRecognition("), "photo detail UI must not route photo actions through faceRecognition");
 includes(detailUi, 'return "客户原始留存照"', "retained profile label");
 includes(detailUi, 'return "本次核销人脸照"', "current face label");
 includes(detailUi, "Array.from({ length: 5 }", "five-card gallery");
@@ -343,7 +347,7 @@ includes(detailUi, "while (verificationPhotoPreloads.size > 2)", "decoded origin
 const originalViewerSource = functionSource(detailUi, "openVerificationPhoto");
 assert.ok(
   originalViewerSource.indexOf("showVerificationPhotoOriginal(cachedOriginalUrl")
-    < originalViewerSource.indexOf('callFaceRecognition({ action: "getVerificationPhotoOriginalUrl"'),
+    < originalViewerSource.indexOf('callVerificationPhoto({ action: "getVerificationPhotoOriginalUrl"'),
   "cached private originals begin decoding before the background audit request"
 );
 includes(detailUi, "if (failures.length)", "existing photo failures block incomplete exports");
@@ -376,7 +380,7 @@ includes(detailHtml, 'id="verificationPhotoCameraVideo" autoplay playsinline mut
 includes(detailHtml, 'id="switchVerificationPhotoCamera"', "front/rear camera switch action");
 includes(detailHtml, 'aria-label="切换前后摄像头"', "camera switch accessible name");
 includes(detailHtml, 'order-export.js?v=0.1.1', "export renderer cache bust");
-includes(detailHtml, 'business-detail.js?v=0.16.3', "detail script cache bust");
+includes(detailHtml, 'business-detail.js?v=0.16.4', "detail script cache bust");
 includes(detailHtml, 'styles.css?v=0.15.24', "detail styles cache bust");
 includes(detailUi, "const verificationPhotoLocalPreviews = new Map()", "local photo previews are owned per slot");
 includes(functionSource(detailUi, "verificationPhotoCard"), 'loading="${localPreview ? "eager" : "lazy"}"', "just-committed local preview loads eagerly");

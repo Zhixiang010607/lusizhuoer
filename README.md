@@ -4,7 +4,7 @@
 
 ## 腾讯云客户人脸识别后端
 
-`cloudfunctions/faceRecognition/` 是 CloudBase 云函数源码。它使用腾讯云人脸识别的人员库与人脸搜索能力，人员库 ID 为 `lusizhuoerdatabase`；客户首次授权建档时录入人脸，后续核销可搜索匹配客户。函数密钥只能配置在 CloudBase 环境变量 `FACE_SECRET_ID`、`FACE_SECRET_KEY` 中，严禁出现在网页代码、GitHub 或文档中。
+`cloudfunctions/faceRecognition/` 是 CloudBase 人脸与业务云函数源码。它使用腾讯云人脸识别的人员库与 1:1 核验能力，人员库 ID 为 `lusizhuoerdatabase`；客户首次授权建档时录入人脸，后续核销只与已经选定客户的档案核验。`cloudfunctions/verificationPhoto/` 是独立核销照片云函数，不安装腾讯人脸 SDK，只处理照片查看、导出和三个补充照片位的上传／取消／恢复。函数密钥只能配置在 CloudBase 环境变量 `FACE_SECRET_ID`、`FACE_SECRET_KEY` 中，严禁出现在网页代码、GitHub 或文档中；照片函数不需要这两个变量。
 
 前端通过已登录 CloudBase UID 调用云函数，门店、总部及客户范围均在服务端重新校验。正式处理真实人脸数据前仍必须确认活体检测服务、客户明确授权、人脸数据删除渠道和访问审计均已启用。
 
@@ -114,7 +114,7 @@
 正式系统创建记录时门店字段不可为空，并保存发生时的门店名称快照。
 
 每一条新核销记录必须固化客户建档原始留存照引用，并保存一张不可修改的本次人脸核验现场照片。照片未拍摄、上传失败、保存失败或数据库绑定失败时，核销不得成功、不得扣减次数，
-也不得向物理机器发送开放权限信号。每张核销单另有 3 个补充照片位；仅真实提交账号可在服务器记录的 `submitted_at + 24 hours` 之前上传或替换，审核进行中也不冻结照片，超过截止时间后所有角色只读。核销详情固定显示 5 个照片位，首屏只懒加载私有缩略图，点击单张照片时才签发并加载高清原图。补充照片的“拍照”会打开实时预览并默认使用后置摄像头；手机和 iPad 可在弹窗中切换前后摄像头，“从相册上传”仍是独立入口。相册照片在 Web Worker 中缩放和编码，相机画布直接生成 JPEG。v52 默认让浏览器把 JPEG 二进制 `PUT` 直传到服务端为数据库已锁定随机对象签发的短时地址；只有 CloudBase 签名接口精确返回 `STORAGE_INVALID_REQUEST: The related resource does not exist` 时，才改由云函数把同一 JPEG 写入数据库任务已经保存的同一桶和对象路径。每张核销单在数据库层最多只有一个进行中的补充照片任务；桶 ID 预检后先建立／复用数据库任务，再签发地址，必须成功、权威失败或经服务端确认取消后，才允许上传下一张，避免无归属签名、多标签页或慢请求反向覆盖新照片。
+也不得向物理机器发送开放权限信号。每张核销单另有 3 个补充照片位；仅真实提交账号可在服务器记录的 `submitted_at + 24 hours` 之前上传或替换，审核进行中也不冻结照片，超过截止时间后所有角色只读。核销详情固定显示 5 个照片位，首屏只懒加载私有缩略图，点击单张照片时才签发并加载高清原图。补充照片的“拍照”会打开实时预览并默认使用后置摄像头；手机和 iPad 可在弹窗中切换前后摄像头，“从相册上传”仍是独立入口。相册照片在 Web Worker 中缩放和编码，相机画布直接生成 JPEG。当前网页固定调用 `verificationPhoto v1`，先用迁移 039 建立／复用数据库上传任务并锁定随机对象，再把 JPEG 和任务绑定证明通过 CloudBase `callFunction` 提交给照片函数；不再依赖浏览器 PG 存储 PUT 签名。每张核销单在数据库层最多只有一个进行中的补充照片任务，必须成功、权威失败或经服务端确认取消后，才允许上传下一张，避免无归属对象、多标签页或慢请求反向覆盖新照片。
 
 静态原型中的删除采用软删除：对象状态改为“已停用”，不删除历史充值、核销、客户或统计引用。
 新增和停用操作在当前页面会话中立即生效；刷新页面后恢复示例数据。正式部署时由后端数据库持久化并记录账号、姓名、时间和审计日志。
@@ -143,14 +143,15 @@
 
 部署为网页时：
 
-1. 按编号依次执行尚未运行的数据库迁移；正式 migration 工具使用完整的 `037_verification_photo_evidence.sql` 与 `038_verification_profile_photo_snapshot.sql`，腾讯云 `ExecutePGSql` 控制台必须改用 `database/cloudbase-console/` 下的六个短文件并严格按 `037-01` 至 `038-03` 执行；若 `037-01` 已成功而旧版 `037-02` 报 `SQLSTATE 42601`，不要重跑 `037-01`，先单独执行 `ROLLBACK;`，再从当前 `037-02` 继续；
+1. 按编号依次执行尚未运行的数据库迁移；正式 migration 工具使用完整的 `037_verification_photo_evidence.sql` 与 `038_verification_profile_photo_snapshot.sql`，腾讯云 `ExecutePGSql` 控制台必须改用 `database/cloudbase-console/` 下的七个短文件并严格按 `037-01` 至 `037-03`、`038-01` 至 `038-04` 执行；若 `037-01` 已成功而旧版 `037-02` 报 `SQLSTATE 42601`，不要重跑 `037-01`，先单独执行 `ROLLBACK;`，再从当前 `037-02` 继续；
 2. 执行迁移 `039_direct_verification_photo_upload.sql`（CloudBase SQL 编辑器应依次执行独立的 `039-01` 至 `039-05`），建立短时上传任务、每单唯一进行中任务和原子提交函数；
-3. 可选在 CloudBase PG 云存储中新建私有桶 `verification-photos`；也可以把 `VERIFICATION_PHOTO_BUCKET_ID` 和 `CUSTOMER_PHOTO_BUCKET_ID` 都设为现有私有桶 `customer-photos`。v52 会对候选桶去重，并在上传任务开始前查询当前 PostgreSQL 环境的 `storage.buckets.id`；候选桶都不存在时直接拒绝。配置 `VERIFICATION_PHOTO_URL_TTL_SECONDS`、`VERIFICATION_PHOTO_UPLOAD_TTL_SECONDS`、`VERIFICATION_FACE_EVIDENCE_TTL_MINUTES`、`VERIFICATION_PHOTO_CLEANUP_TOKEN` 和每小时草稿／取消上传清理触发器；静态站点域名须加入 Web 安全域名，桶的 CORS 仅允许该域名使用 `PUT`、`GET`、`HEAD` 和 `Content-Type`；
-4. 部署 `staffAccount-v41.zip` 与 `faceRecognition-v52.zip`，再分别调用 `health` 核对版本；v52 先由数据库建立／复用单任务锁，再为数据库保存的精确对象引用签发单对象、短时、不可覆盖的私有地址。正常使用 `DIRECT` 二进制直传，只有已知 `STORAGE_INVALID_REQUEST` 签名端点错误使用受同一数据库任务约束的 `FUNCTION` 回退；两条路径提交时都重新核验真实对象大小、MIME、JPEG 内容、尺寸和 SHA-256。默认使用最长 15 分钟的私有读取地址，并向浏览器返回缓存地址的真实剩余有效期，避免误用已经过期的原图链接。浏览器因私有桶跨域限制无法读取图片字节时，仍会通过同一工单权限校验逐张安全取得 PDF／图片导出所需的高清照片；
-5. 部署当前静态文件到 CloudBase 静态网站托管；
-6. 通过总部、运营、门店和老师真实账号完成核销照片查看、提交人上传／替换、非提交人拒绝和 24 小时截止回归测试。
+3. 可选在 CloudBase PG 云存储中新建私有桶 `verification-photos`；也可以把 `VERIFICATION_PHOTO_BUCKET_ID` 和 `CUSTOMER_PHOTO_BUCKET_ID` 都设为现有私有桶 `customer-photos`。两个云函数会对候选桶去重并查询当前 PostgreSQL 环境的真实 `storage.buckets.id`，候选桶都不存在时直接拒绝。两个函数都配置照片桶、`VERIFICATION_PHOTO_URL_TTL_SECONDS`、`VERIFICATION_PHOTO_UPLOAD_TTL_SECONDS` 和同一个 `VERIFICATION_PHOTO_CLEANUP_TOKEN`；`CUSTOMER_PHOTO_URL_TTL_SECONDS`、`VERIFICATION_FACE_EVIDENCE_TTL_MINUTES` 及全部 `FACE_*` 只配置在 `faceRecognition`。两个函数分别建立人脸草稿与补充上传任务的每小时清理触发器。静态站点域名须加入 Web 安全域名；当前补充照片通过云函数传输，不要求桶开放浏览器 `PUT` CORS；
+4. 部署 `staffAccount-v41.zip` 与 `faceRecognition-v53.zip`，调用各自 `health` 核对版本，并先验证原有建档、活体与 1:1 核销人脸能力；
+5. 新建或更新名称精确为 `verificationPhoto` 的云函数，部署 `verificationPhoto-v1.zip`，配置同环境的服务端 Key 和照片桶、512 MB 内存、60 秒超时，再调用 `health` 确认 `ready: true`、`verificationPhotoUploadSchemaReady: true`、桶和服务端存储均就绪。该函数固定通过 `FUNCTION` 模式接收补充照片，同时重新核验真实对象大小、MIME、JPEG 内容、尺寸和 SHA-256；原图与导出继续按同一账号、工单和照片位权限通过鉴权存储通道读取；
+6. 部署当前静态文件到 CloudBase 静态网站托管并强制刷新浏览器；
+7. 通过总部、运营、门店和老师真实账号完成核销照片查看、提交人上传／替换、取消后重试、非提交人拒绝和 24 小时截止回归测试。
 
-如果生产库已经成功执行迁移 039，本次 v52 修复没有新增 SQL 或 migration，不要重跑 037--039；只需按“`faceRecognition v52` → 当前静态前端 → 强制刷新浏览器”的顺序更新。部署前在同一 CloudBase 环境的 PostgreSQL SQL 编辑器执行 `SELECT id FROM storage.buckets WHERE id IN ('customer-photos') ORDER BY id;`，当前两个桶环境变量都为 `customer-photos` 时应恰好返回这一行；同时用 `SELECT TO_REGCLASS('public.verification_photo_upload_requests');` 确认迁移 039 表存在。完整只读检查和预期结果见 `cloudfunctions/faceRecognition/README.md`。
+如果生产库已经成功执行迁移 039，本次 v53／v1 拆分没有新增 SQL 或 migration，不要重跑 037--039；只需按“`faceRecognition v53` → `verificationPhoto v1` → 两个 health → 当前静态前端 → 强制刷新浏览器”的顺序更新。部署前在同一 CloudBase 环境的 PostgreSQL SQL 编辑器执行 `SELECT id FROM storage.buckets WHERE id IN ('customer-photos') ORDER BY id;`，当前两个桶环境变量都为 `customer-photos` 时应恰好返回这一行；同时用 `SELECT TO_REGCLASS('public.verification_photo_upload_requests');` 确认迁移 039 表存在。完整配置、触发器和健康检查预期见 `cloudfunctions/verificationPhoto/README.md` 与 `cloudfunctions/faceRecognition/README.md`。
 
 核销详情的高清原图查看器支持按钮、鼠标滚轮、键盘、拖动和手机／iPad 双指缩放。页面先显示缩略图，高清图解码完成后再替换；最多只保留两张已解码原图，减少连续查看照片造成的内存占用。
 

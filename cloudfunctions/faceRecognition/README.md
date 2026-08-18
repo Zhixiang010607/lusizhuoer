@@ -1,8 +1,10 @@
 # faceRecognition 云函数
 
-该函数仅在 CloudBase 后端运行，用于门店客户建档、照片质量检测、私有照片留存、人脸人员库录入和后续人员搜索。客户不需要提供身份证。
+该函数仅在 CloudBase 后端运行，用于门店客户建档、照片质量检测、私有照片留存、人脸人员库录入、1:1 核验和业务数据接口。客户不需要提供身份证。核销单照片的列表、原图、导出及三个补充照片位上传已拆到独立的 `verificationPhoto v1`；当前静态前端不再把这些照片动作发给本函数。
 
-当前版本：`v52`
+当前版本：`v53`
+
+v53 与 `verificationPhoto v1` 共享同一份经过权限校验的照片服务实现，但由启动模式限制可调用动作。`faceRecognition` 保留人脸 SDK和人脸／业务动作；`verificationPhoto` 的部署包不安装腾讯人脸 SDK，也拒绝所有人脸、客户、充值和建单动作。部署和环境变量详见 `../verificationPhoto/README.md`。
 
 ## 必需环境变量
 
@@ -27,9 +29,9 @@
 - `FACE_LIVENESS_THRESHOLD=40`：腾讯云高精度静态活体推荐阈值。
 - `CUSTOMER_PHOTO_BUCKET_ID=customer-photos`
 - `CUSTOMER_PHOTO_URL_TTL_SECONDS=120`：核销／充值选择客户时，私有照片临时地址的有效秒数；允许 30--600 秒。
-- `VERIFICATION_PHOTO_BUCKET_ID=verification-photos`：可选的核销证据专用私有 PG 存储桶。也可以与 `CUSTOMER_PHOTO_BUCKET_ID` 一样都配置为现有的 `customer-photos`；v52 会去重候选桶，并在建立补充照片任务前查询当前 PostgreSQL 环境的 `storage.buckets`，只选择确实存在的桶 ID。
+- `VERIFICATION_PHOTO_BUCKET_ID=verification-photos`：可选的核销证据专用私有 PG 存储桶。也可以与 `CUSTOMER_PHOTO_BUCKET_ID` 一样都配置为现有的 `customer-photos`；v53 会去重候选桶，并在写入照片前查询当前 PostgreSQL 环境的 `storage.buckets`，只选择确实存在的桶 ID。两个云函数必须配置相同值。
 - `VERIFICATION_PHOTO_URL_TTL_SECONDS=900`：核销缩略图和按需原图的签名地址有效秒数；允许 60--900 秒。默认 15 分钟以复用浏览器私有缓存，地址仍会过期且不会写入持久存储。
-- `VERIFICATION_PHOTO_UPLOAD_TTL_SECONDS=600`：一次直传任务在业务层的有效秒数；允许 120--900 秒。到期后数据库拒绝提交并释放该核销单的单任务锁。CloudBase 上传签名本身的实际失效时间由存储服务控制，因此取消／过期对象要等创建满 3 小时后再做最终清理。
+- `VERIFICATION_PHOTO_UPLOAD_TTL_SECONDS=600`：一次补充照片上传任务在业务层的有效秒数；允许 120--900 秒。到期后数据库拒绝提交并释放该核销单的单任务锁。取消／过期对象要等创建满安全等待期后再做最终清理。
 - `VERIFICATION_FACE_EVIDENCE_TTL_MINUTES=30`：人脸比对通过后、正式提交核销单前的照片草稿有效分钟；允许 5--120 分钟。
 - `VERIFICATION_PHOTO_CLEANUP_TOKEN`：至少 32 位随机清理凭证，只放云函数环境变量和定时触发器事件中。
 
@@ -58,17 +60,17 @@
 
 该桶不为 `anon` 或 `authenticated` 创建任何 RLS Policy，客户端访问默认拒绝；控制台因此显示“未配置 RLS、API 访问将被拒绝”属于预期状态。官方 `service_role` 具备 `BYPASSRLS`，只有配置同环境服务端 API Key 的云函数可以读写。不要为消除控制台提示把照片桶公开或给网页账号增加整桶权限。数据库保存 `pg://<bucketId>/<objectName>` 私有引用，不保存公开下载地址。
 
-可以另建 PG 存储桶 `verification-photos` 以便分开管理和保留策略，但不是必需条件。v52 按 `VERIFICATION_PHOTO_BUCKET_ID`、`CUSTOMER_PHOTO_BUCKET_ID` 的顺序对候选桶去重，并在创建补充照片任务前用 `storage.buckets.id` 预检当前数据库环境中实际存在的桶；两个环境变量都填写 `customer-photos` 时只检查、使用这一个桶。如果候选桶都不存在，服务端直接返回 `PHOTO_BUCKET_NOT_FOUND`，不会先向浏览器发放无效上传地址：
+可以另建 PG 存储桶 `verification-photos` 以便分开管理和保留策略，但不是必需条件。v53 与 `verificationPhoto v1` 按 `VERIFICATION_PHOTO_BUCKET_ID`、`CUSTOMER_PHOTO_BUCKET_ID` 的顺序对候选桶去重，并在写入前用 `storage.buckets.id` 预检当前数据库环境中实际存在的桶；两个环境变量都填写 `customer-photos` 时只检查、使用这一个桶。如果候选桶都不存在，服务端直接返回 `PHOTO_BUCKET_NOT_FOUND`：
 
 - 访问权限：私有；不要给 `anon` 或 `authenticated` 添加 SELECT/INSERT/UPDATE/DELETE Policy。
 - 单文件限制：5 MB；MIME 白名单仅 `image/jpeg`。
-- CORS：只允许正式静态站点域名及本地测试域名；读取允许 `GET`／`HEAD`，直传允许 `PUT`，请求头只开放 `Content-Type`。不要使用 `*` 来源，也不要开放浏览器列桶、删除或覆盖权限。桶仍保持私有且不给 `anon`／`authenticated` 建 Policy；浏览器只能使用服务端为一个随机对象名签发的完整短时 URL。
+- CORS：当前补充照片通过 `verificationPhoto` 云函数传输，不再要求浏览器 `PUT` CORS。保留正式静态站点所需的受限读取配置即可；不要使用 `*` 来源，也不要开放浏览器列桶、删除或覆盖权限。桶仍保持私有且不给 `anon`／`authenticated` 建 Policy。
 - 对象路径：人脸凭证使用 `face-evidence/<store>/<staff>/<token>/...`，新版补充照片使用 `records/<verificationId>/slot-<n>/direct-<timestamp>-<server nonce>.jpg`；路径全部由云函数随机生成，浏览器输入不会进入路径，每次替换都使用新对象名且签名禁止覆盖。
-- 每单固定展示客户建档留存照、本次核销人脸照和 3 个补充照片位。客户留存照引用在建单事务中固化；v52 的补充照片通常只直传一份高清 JPEG，提交时云函数使用存储服务的鉴权下载接口读取私有对象，并验证实际字节数、MIME、JPEG 文件头、真实尺寸和 SHA-256；缩略图由 CloudBase 图片处理按需生成。迁移 039 仍兼容旧版已经保存的“原图＋独立缩略图”。
-- v52 的正常路径是 `DIRECT`：数据库先通过迁移 039 的原子函数建立／复用上传请求并锁定“每单一个进行中任务”，随后云函数才为数据库已保存的精确 `pg://桶/随机对象` 引用签发 PUT 地址。这样签名失败不会产生没有数据库任务归属的新地址。
-- 只有签名接口明确返回 `STORAGE_INVALID_REQUEST` 且错误正文同时包含 `The related resource does not exist` 时，v52 才返回 `uploadMode=FUNCTION`。网页仅在这一精确兼容分支把已压缩 JPEG 交给云函数；云函数只能写入该上传请求中已经锁定的同一桶、同一随机对象路径，重新计算字节数、尺寸和 SHA-256 后仍调用同一个数据库提交函数。401／403、普通网络错误、桶缺失或其他签名错误都不会触发该回退。`FUNCTION` 比二进制直传慢，只是存储签名端点异常时的安全兼容路径。
+- 每单固定展示客户建档留存照、本次核销人脸照和 3 个补充照片位。客户留存照引用在建单事务中固化；补充照片只保存一份高清 JPEG，提交时服务端验证实际字节数、MIME、JPEG 文件头、真实尺寸和 SHA-256；缩略图由 CloudBase 图片处理按需生成。迁移 039 仍兼容旧版已经保存的“原图＋独立缩略图”。
+- 当前网页固定调用独立的 `verificationPhoto v1`，其响应为 `uploadMode=FUNCTION`：数据库先建立／复用上传请求并锁定“每单一个进行中任务”，网页再把压缩 JPEG 和该任务的短时证明提交给函数；函数只能写入任务已锁定的同一桶和随机对象路径。这样不依赖浏览器 PUT 签名，取消、重试、提交人和 24 小时限制仍由迁移 039 原子函数控制。
+- `faceRecognition v53` 暂时保留 v52 的 `DIRECT`／精确 `FUNCTION` 回退实现，供旧客户端平滑升级和共享服务测试；当前生产前端不调用这组兼容照片动作。两个函数均不会接受客户端指定的桶或对象路径。
 - 原图和缩略图设置私有长期缓存；数据库从不保存签名 URL。详情首屏仅以最多 2 路并发准备 5 张缩略图，不提前签发 5 张高清原图；点击时才重新校验权限、写查看审计并取得该照片的短时原图地址。页面先显示缩略图，再无闪烁替换为高清图；同页重复查看可复用仍有效的私有地址，并把已解码原图限制为最多 2 张。
-- 创建一个每小时定时触发器调用 `{ "action":"cleanupVerificationPhotoDrafts", "cleanupToken":"与环境变量相同的随机值" }`，清除过期且未建单的人脸照片草稿，以及取消／过期的直传孤儿对象。一次最多各处理 100 组，可按返回值继续触发。直传对象至少等创建满 3 小时才删除，避免“取消后旧签名仍有效、迟到 PUT 在清理后重新产生永久孤儿”的竞态。
+- 在本函数保留每小时定时触发器 `{ "action":"cleanupVerificationPhotoDrafts", "cleanupToken":"与环境变量相同的随机值" }`，它只清除过期且未建单的人脸照片草稿。取消／过期的迁移 039 补充照片任务改由 `verificationPhoto` 的 `cleanupVerificationPhotoUploads` 触发器清理；两个动作不要互换。
 
 ## 部署
 
@@ -77,10 +79,11 @@
 首次上线迁移 039 时必须安排一个短暂停写窗口，并严格按下列顺序部署，避免旧页面绕过单任务锁：
 
 1. 在完整 PostgreSQL migration 工具中执行 `database/migrations/039_direct_verification_photo_upload.sql`；腾讯云 SQL 编辑器则依次单独执行 `039-01`、`039-02`、`039-03`、`039-04`、`039-05`。
-2. 部署 `faceRecognition v52`。迁移 039 存在后，旧 `uploadVerificationExtraPhoto` Base64 写入口会返回 `PHOTO_UPLOAD_DIRECT_REQUIRED`，不能与新上传流程并发覆盖。
-3. 发布使用四阶段直传动作的静态前端，再结束停写窗口。
+2. 部署 `faceRecognition v53`，先验证建档与 1:1 人脸核验保持正常。
+3. 新建或更新名称精确为 `verificationPhoto` 的函数并部署 `verificationPhoto-v1.zip`；配置同环境服务端 Key、两个照片桶、核销照片读取／上传 TTL 和清理凭证，内存 512 MB、超时 60 秒。该函数不配置 `CUSTOMER_PHOTO_URL_TTL_SECONDS`、`VERIFICATION_FACE_EVIDENCE_TTL_MINUTES` 或任何 `FACE_*`。
+4. 分别调用两个函数的 `health`，全部成功后再发布调用独立照片函数的静态前端并结束停写窗口。
 
-如果生产库已经成功执行 039，本次 v52 修复**没有新的 SQL 或 migration**，不要重跑 037、038 或 039；部署顺序简化为“`faceRecognition v52` → 当前静态前端 → 强制刷新浏览器”。不要先发布依赖 `uploadMode` 的新前端；旧云函数不会返回 v52 的精确函数回退协议。
+如果生产库已经成功执行 039，本次 v53／v1 拆分**没有新的 SQL 或 migration**，不要重跑 037、038 或 039；部署顺序简化为“`faceRecognition v53` → `verificationPhoto v1` → 两个 health → 当前静态前端 → 强制刷新浏览器”。不要先发布调用 `verificationPhoto` 的前端，否则函数尚不存在时所有核销照片都会读取或上传失败。
 
 部署后测试：
 
@@ -93,7 +96,7 @@
 ```json
 {
   "ok": true,
-  "version": "v52",
+  "version": "v53",
   "photoBucketId": "customer-photos",
   "verificationPhotoBucketId": "verification-photos",
   "verificationPhotoFallbackBucketId": "customer-photos",
@@ -125,7 +128,7 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
  ORDER BY id;
 ```
 
-对上述 `customer-photos` 配置，第一条应返回非空 `upload_request_table` 和 `configured_bucket_exists=true`，第二条应恰好返回一行 `customer-photos`，同时 `public=false`、`file_size_limit` 不少于 3145728、`allowed_mime_types` 为空或包含 `image/jpeg`。如果使用专用桶，把查询中的候选集合改为 `('verification-photos', 'customer-photos')`，并确认至少一个 ID 与云函数环境变量逐字一致。SQL 不能核对云函数 API Key；还要确认 `CLOUDBASE_ENV_ID`、`CLOUDBASE_SERVICE_ROLE_KEY` 和执行 SQL 的 PostgreSQL 实例都属于同一个 CloudBase 环境。v52 的 `verificationPhotoServiceRoleStorageReady=true` 会额外使用同一把服务端 Key 对真实桶执行只读 `listObjects`，可直接识别错环境、失效 Key 或权限异常；若为 `false`，查看同响应的错误码和请求 ID。
+对上述 `customer-photos` 配置，第一条应返回非空 `upload_request_table` 和 `configured_bucket_exists=true`，第二条应恰好返回一行 `customer-photos`，同时 `public=false`、`file_size_limit` 不少于 5242880（5 MB）、`allowed_mime_types` 为空或包含 `image/jpeg`。如果使用专用桶，把查询中的候选集合改为 `('verification-photos', 'customer-photos')`，并确认至少一个 ID 与两个云函数的环境变量逐字一致。SQL 不能核对云函数 API Key；还要确认 `CLOUDBASE_ENV_ID`、`CLOUDBASE_SERVICE_ROLE_KEY` 和执行 SQL 的 PostgreSQL 实例都属于同一个 CloudBase 环境。两个 health 的 `verificationPhotoServiceRoleStorageReady=true` 会额外使用各自的服务端 Key 对真实桶执行只读 `listObjects`，可直接识别错环境、失效 Key 或权限异常；若为 `false`，查看同响应的错误码和请求 ID。
 
 ## 支持的动作
 
@@ -155,13 +158,13 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 - `getVerificationPhotos`：总部可查看全部核销照片，门店只能查看本店，老师只能查看本人绑定工单，运营只能查看审核范围内的补录核销。一次仅返回最多 5 张短时缩略图（客户留存照、本次核销人脸照、3 张补充照）和服务端计算的上传权限；高清原图不在列表阶段签发，数据库也不保存任何签名地址。
 - `getVerificationPhotoOriginalUrl`：用户实际点击后再次校验相同工单权限，复用或刷新该照片位的短时原图地址，并写入 `VIEW_ORIGINAL` 查看审计。
 - `getVerificationPhotoExportData`：仅供当前工单导出使用；执行与原图查看相同的实时账号、工单权限和 `VIEW_ORIGINAL` 审计，然后由云函数使用服务端鉴权通道直接读取单张私有 JPEG，以最多 4 MB 的 Base64 返回，不依赖临时下载地址。网页优先复用本页已经加载或刚提交的原图 Blob，只有浏览器无法读取字节时才逐张调用该安全兜底；不要求公开存储桶，也不向未授权账号签发或代理照片。
-- `beginVerificationPhotoUpload`：入参仅为 `recordId`、客户端幂等 `requestId`、照片位 `slot=2..4` 和压缩后 JPEG 的实际 `originalBytes`。服务端先验证当前登录账号确为工单提交人且仍在 24 小时内；新请求先按真实 `storage.buckets.id` 选择桶，再调用数据库原子函数建立／复用任务并取得单任务锁，最后只对数据库返回的精确对象引用签名。每单数据库层最多一条 `UPLOADING`，跨标签页也不能同时传第二张；同一 `requestId` 重试返回同一任务，不重复计数。每单／提交人一小时最多建立 30 个新任务。响应的 `uploadMode` 为 `DIRECT` 或上述严格受限的 `FUNCTION`。
-- `commitVerificationPhotoUpload`：正常 `DIRECT` 入参只有 `recordId` 和 `requestId`；云函数核对对象路径、桶、MIME 和预期字节，再用存储服务鉴权下载读取最多 3 MB 原图，检查 JPEG、解析真实尺寸并计算 SHA-256。仅当 `begin` 已返回 `uploadMode=FUNCTION` 时，网页额外发送该次压缩 JPEG 和服务端绑定该请求／工单／提交人／照片位／字节／对象引用的短时 HMAC 证明；伪造或从 DIRECT 请求强行调用函数传输都会被拒绝。服务端仍只使用数据库请求中保存的对象引用和预期字节，不接受客户端桶、路径、尺寸或散列。数据库函数随后重新锁订单和请求，在同一事务中写照片、写审计并把任务改为 `COMMITTED`。
+- `beginVerificationPhotoUpload`：入参仅为 `recordId`、客户端幂等 `requestId`、照片位 `slot=2..4` 和压缩后 JPEG 的实际 `originalBytes`。服务端先验证当前登录账号确为工单提交人且仍在 24 小时内；新请求先按真实 `storage.buckets.id` 选择桶，再调用数据库原子函数建立／复用任务并取得单任务锁。每单数据库层最多一条 `UPLOADING`，跨标签页也不能同时传第二张；同一 `requestId` 重试返回同一任务，不重复计数。每单／提交人一小时最多建立 30 个新任务。当前网页在 `verificationPhoto v1` 调用该动作，固定收到 `uploadMode=FUNCTION`。
+- `commitVerificationPhotoUpload`：`verificationPhoto v1` 要求网页发送 `recordId`、`requestId`、该次压缩 JPEG 和服务端绑定该请求／工单／提交人／照片位／字节／对象引用的短时 HMAC 证明。服务端只使用数据库请求中保存的对象引用和预期字节，不接受客户端桶、路径、尺寸或散列；它重新检查 JPEG、解析真实尺寸并计算 SHA-256，再由数据库函数锁定订单和请求，在同一事务中写照片、写审计并把任务改为 `COMMITTED`。本函数保留 DIRECT 兼容处理，但当前网页不使用。
 - `cancelVerificationPhotoUpload`：入参为 `recordId`、`requestId`；仅提交人可取消自己的未提交任务。取消立刻释放“每单一个任务”锁，但对象等签名保守失效 3 小时后才由定时清理删除，防止迟到 PUT 复活孤儿文件。已经提交的任务不能撤回照片。
 - `getVerificationPhotoUploadStatus`：入参为 `recordId`、`requestId`；仅提交人可读取，返回 `UPLOADING`／`COMMITTED`／`CANCELLED`／`EXPIRED` 及对象是否已经到达存储。用于断网或页面恢复，不签发查看权限，也不扩大工单范围。
-- `uploadMode=DIRECT` 时，`originalUpload.url` 已包含短时上传 token。浏览器只需对完整 URL 发 `PUT`，请求体为 JPEG Blob，并使用返回的 `headers: { "Content-Type": "image/jpeg" }`；不要再把 token 放进 Authorization、自定义 header 或 query。`uploadMode=FUNCTION` 时 `originalUpload` 为 `null`，网页不得尝试 PUT。两种响应都绝不包含 `CLOUDBASE_SERVICE_ROLE_KEY`，`thumbnailUpload` 固定为 `null`，因为缩略图由服务端图片处理生成。
-- `uploadVerificationExtraPhoto`：仅用于“迁移 039 尚未执行”的旧版短时兼容。迁移 039 一旦存在，该旧入口立即返回 `PHOTO_UPLOAD_DIRECT_REQUIRED`，防止旧页面绕过单任务锁；它与 v52 受上传请求约束的 `FUNCTION` 精确回退不是同一条路径，不可混用。
-- v52 保留 v51 的私有读取、缓存、单对象直传、可取消任务、服务端内容检查和数据库原子提交；新增实际桶 ID 预检、先锁任务后签名、鉴权流式读取，以及仅针对已知签名端点错误的精确函数回退。照片桶仍保持私有，所有列表、原图与导出读取仍先经过账号和工单权限校验。
+- `verificationPhoto v1` 的 `originalUpload` 固定为 `null`，网页不得尝试 PUT；函数响应绝不包含 `CLOUDBASE_SERVICE_ROLE_KEY`，`thumbnailUpload` 固定为 `null`，因为缩略图由服务端图片处理生成。
+- `uploadVerificationExtraPhoto`：仅用于“迁移 039 尚未执行”的旧版短时兼容。迁移 039 一旦存在，该旧入口立即返回 `PHOTO_UPLOAD_DIRECT_REQUIRED`，防止旧页面绕过单任务锁；它与受上传请求约束的新 `FUNCTION` 路径不是同一条路径，不可混用。
+- v53 新增照片专用启动模式和动作白名单，使相同的权限、存储和数据库提交实现可以安全运行在不含腾讯人脸 SDK 的 `verificationPhoto v1` 包中。照片桶仍保持私有，所有列表、原图与导出读取仍先经过账号和工单权限校验。
 - `cleanupVerificationPhotoDrafts`：定时触发器使用恒定时间比较的专用随机凭证清理过期未消费草稿；不删除已经绑定核销单的照片。
 
 正式上线前还要提供客户授权记录、照片与人脸数据删除流程、访问审计，并确认腾讯云高精度静态活体服务已开通和计费。

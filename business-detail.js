@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.3";
+  const VERSION = "0.16.4";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -189,7 +189,7 @@
     }
   }
 
-  async function callFaceRecognition(data) {
+  async function callVerificationPhoto(data) {
     if (!window.cloudbase || !window.CloudBaseAuthConfig || !window.registerFunctions) {
       throw new Error("核销照片服务未加载，请刷新页面重试");
     }
@@ -198,7 +198,7 @@
     photoServiceApp ||= window.cloudbase.init(window.CloudBaseAuthConfig);
     let raw;
     try {
-      raw = await photoServiceApp.callFunction({ name: "faceRecognition", data });
+      raw = await photoServiceApp.callFunction({ name: "verificationPhoto", data });
     } catch (error) {
       const diagnostic = [error?.code, error?.requestId || error?.RequestId].filter(Boolean).join(" · ");
       throw new Error(`${error?.message || "核销照片云函数调用失败"}${diagnostic ? `（${diagnostic}）` : ""}`);
@@ -218,7 +218,7 @@
     const timeout = new Promise((_, reject) => {
       timer = setTimeout(() => reject(verificationPhotoUploadError("网络响应较慢，请再次确认上传状态", "PHOTO_UPLOAD_CONFIRM_TIMEOUT")), timeoutMs);
     });
-    return Promise.race([callFaceRecognition(data), timeout]).finally(() => clearTimeout(timer));
+    return Promise.race([callVerificationPhoto(data), timeout]).finally(() => clearTimeout(timer));
   }
 
   async function loadTeacherOrder(recordId) {
@@ -353,7 +353,7 @@
     let lastError = null;
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       try {
-        const payload = await callFaceRecognition({ action: "getVerificationPhotoExportData", recordId, slot });
+        const payload = await callVerificationPhoto({ action: "getVerificationPhotoExportData", recordId, slot });
         return verificationPhotoDataBlob(payload.imageBase64, slot);
       } catch (error) {
         lastError = error;
@@ -382,7 +382,7 @@
       }
     } else if (!cachedUrlValid && !verificationExportDirectFetchUnavailable) {
       try {
-        const payload = await callFaceRecognition({ action: "getVerificationPhotoOriginalUrl", recordId, slot });
+        const payload = await callVerificationPhoto({ action: "getVerificationPhotoOriginalUrl", recordId, slot });
         photo.originalUrl = payload.photoUrl;
         photo.originalUrlExpiresAt = Date.now() + Math.max(0, Number(payload.expiresIn || 0) * 1000);
         const blob = await fetchVerificationPhotoUrlBlob(payload.photoUrl, slot);
@@ -415,7 +415,7 @@
   }
 
   async function fetchVerificationPhotoManifest(recordId) {
-    const payload = await callFaceRecognition({ action: "getVerificationPhotos", recordId });
+    const payload = await callVerificationPhoto({ action: "getVerificationPhotos", recordId });
     if (payload?.ok !== true || !Array.isArray(payload?.photos)) {
       throw new Error("核销照片清单返回格式无效");
     }
@@ -1022,7 +1022,7 @@
       return;
     }
     try {
-      const payload = await callFaceRecognition({ action: "getVerificationPhotos", recordId });
+      const payload = await callVerificationPhoto({ action: "getVerificationPhotos", recordId });
       if (request !== verificationPhotoRequest) return;
       renderVerificationPhotos(payload, recordId);
       return payload;
@@ -1031,7 +1031,7 @@
       currentVerificationPhotoPayload = { photos: [], error };
       $("verificationPhotoHint").textContent = "核销照片读取失败";
       $("verificationPhotoMessage").className = "verification-photo-message error";
-      $("verificationPhotoMessage").textContent = error?.message || "请核对迁移 037、038、私有存储桶和云函数版本";
+      $("verificationPhotoMessage").textContent = error?.message || "请核对迁移 037—039、私有存储桶和 verificationPhoto v1 云函数";
       $("verificationPhotoGrid").innerHTML = "";
       return null;
     }
@@ -1060,7 +1060,7 @@
       reader.addEventListener("load", () => {
         const value = clean(reader.result);
         if (/^data:image\/jpeg;base64,/i.test(value)) resolve(value);
-        else reject(verificationPhotoUploadError("浏览器无法生成兼容上传数据", "PHOTO_UPLOAD_SOURCE_INVALID"));
+        else reject(verificationPhotoUploadError("浏览器无法准备照片上传数据", "PHOTO_UPLOAD_SOURCE_INVALID"));
       }, { once: true });
       reader.addEventListener("error", () => reject(verificationPhotoUploadError("读取待上传照片失败", "PHOTO_UPLOAD_SOURCE_INVALID")), { once: true });
       reader.addEventListener("abort", () => reject(verificationPhotoUploadCanceled()), { once: true });
@@ -1453,7 +1453,7 @@
     if (!/^\d+$/.test(clean(recordId)) || !$("verificationPhotoPanel")) return null;
     const request = ++verificationPhotoRequest;
     try {
-      const payload = await callFaceRecognition({ action: "getVerificationPhotos", recordId });
+      const payload = await callVerificationPhoto({ action: "getVerificationPhotos", recordId });
       if (request !== verificationPhotoRequest) return null;
       renderVerificationPhotos(mergeVerificationPhotoLocalPreviews(payload, recordId), recordId);
       setVerificationPhotoButtonsDisabled(verificationPhotoUploadBusy);
@@ -1657,7 +1657,7 @@
         });
       }, 8000);
       try {
-        begin = await callFaceRecognition({
+        begin = await callVerificationPhoto({
           action: "beginVerificationPhotoUpload",
           recordId: task.recordId,
           slot: task.slot,
@@ -1678,7 +1678,7 @@
         }
         if (directVerificationPhotoUploadUnavailable(error)) {
           task.beginDispatched = false;
-          throw verificationPhotoUploadError("新版照片上传服务尚未部署，请先执行迁移 039 并部署 faceRecognition v52。", "PHOTO_UPLOAD_DIRECT_UNAVAILABLE");
+          throw verificationPhotoUploadError("新版照片上传服务尚未部署，请先执行迁移 039、部署 verificationPhoto v1，并将 faceRecognition 更新到 v53。", "PHOTO_UPLOAD_DIRECT_UNAVAILABLE");
         }
         throw error;
       } finally {
@@ -1700,13 +1700,13 @@
       const uploadMode = clean(begin?.uploadMode).toUpperCase() || "DIRECT";
       let committed;
       if (uploadMode === "FUNCTION") {
-        setVerificationPhotoTaskStage(task, "UPLOADING", "正在通过兼容通道上传", "腾讯云直传地址暂不可用，正在由受保护的云函数保存这一张照片…", 0, {
+        setVerificationPhotoTaskStage(task, "UPLOADING", "正在上传这一张照片", "独立照片服务正在安全保存，请保持页面开启；完成后才能上传下一张。", 0, {
           indeterminate: true,
           progressText: "上传中"
         });
         const imageBase64 = await verificationPhotoBlobDataUrl(task.prepared.originalBlob);
         assertVerificationPhotoTask(task);
-        committed = await callFaceRecognition({
+        committed = await callVerificationPhoto({
           action: "commitVerificationPhotoUpload",
           recordId: task.recordId,
           requestId: task.requestId,
@@ -1723,7 +1723,7 @@
         await Promise.all(uploads);
         assertVerificationPhotoTask(task);
         setVerificationPhotoTaskStage(task, "COMMITTING", "上传完成，正在安全入库", "正在校验照片完整性并绑定到核销单…", 90, { cancelLabel: "取消并核对" });
-        committed = await callFaceRecognition({
+        committed = await callVerificationPhoto({
           action: "commitVerificationPhotoUpload",
           recordId: task.recordId,
           requestId: task.requestId
@@ -2068,7 +2068,7 @@
       : Promise.resolve(false);
     if (cachedUrlValid && verificationPhotoOriginalAuditCache.has(auditKey) && await cachedLoadPromise) return;
     try {
-      const payload = await callFaceRecognition({ action: "getVerificationPhotoOriginalUrl", recordId, slot });
+      const payload = await callVerificationPhoto({ action: "getVerificationPhotoOriginalUrl", recordId, slot });
       if (request !== verificationPhotoViewerRequest || !dialog.open) return;
       verificationPhotoOriginalAuditCache.add(auditKey);
       if (listPhoto) {

@@ -1392,3 +1392,63 @@ body[data-operation-home] .operation-home-main { width: min(1180px, calc(100% - 
     resize: vertical;
   }
 }
+
+/* Tablet and phone business workflows must grow with their customer card.
+   A fixed viewport/flex result area used to clip the customer number and trap
+   touch scrolling below the confirmation card. */
+@media (max-width: 980px) {
+  body[data-store-business] {
+    height: auto;
+    min-height: 100dvh;
+    display: block;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body[data-store-business] .store-business-main,
+  body[data-store-business] .store-workflow-main,
+  body[data-store-business] .store-workflow-main > .panel,
+  body[data-store-business] .store-business-full-panel,
+  body[data-store-business][data-teacher-business] .teacher-business-main > .store-business-main,
+  body[data-store-business][data-teacher-business] .teacher-business-main > .store-workflow-main > .panel {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  body[data-store-business] .store-workflow-main {
+    grid-template-columns: 1fr;
+    margin-bottom: 24px;
+  }
+
+  body[data-store-business] .workflow-lookup-panel .service-customer-results {
+    flex: 0 0 auto;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  body[data-store-business] .customer-core-preview {
+    max-height: none;
+    overflow: visible;
+  }
+
+  body[data-store-business] .customer-core-facts strong,
+  body[data-store-business] .customer-profile-photo figcaption span {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+}
+
+@media (max-width: 560px) {
+  body[data-store-business] .customer-profile-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  body[data-store-business] .customer-profile-photo {
+    width: min(100%, 260px);
+    justify-self: center;
+  }
+}

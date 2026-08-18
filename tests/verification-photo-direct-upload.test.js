@@ -144,7 +144,7 @@ const lifecycleHarness = {
 };
 vm.createContext(lifecycleHarness);
 vm.runInContext(`
-  const callFaceRecognition = () => new Promise(() => {});
+  const callVerificationPhoto = () => new Promise(() => {});
   ${functionSource(ui, "verificationPhotoUploadError")}
   ${functionSource(ui, "callVerificationPhotoLifecycle")}
   module.exports = { callVerificationPhotoLifecycle };
@@ -268,7 +268,7 @@ async function runBrowserUploadMode(beginResponse) {
     const assertVerificationPhotoTask = (task) => {
       if (verificationPhotoUploadTask !== task) throw new Error("stale task");
     };
-    const callFaceRecognition = async (payload) => {
+    const callVerificationPhoto = async (payload) => {
       globalThis.__calls.push(payload);
       if (payload.action === "beginVerificationPhotoUpload") return globalThis.__beginResponse;
       return { ok: true, photo: { slot: 2 } };
@@ -439,8 +439,8 @@ function cancellationScenario(responses) {
   vm.createContext(harness);
   vm.runInContext(`
     const clean = (value) => String(value || "").trim();
-    const callFaceRecognition = async () => globalThis.__queue.length ? globalThis.__queue.shift() : { status: "UPLOADING" };
-    const callVerificationPhotoLifecycle = callFaceRecognition;
+    const callVerificationPhoto = async () => globalThis.__queue.length ? globalThis.__queue.shift() : { status: "UPLOADING" };
+    const callVerificationPhotoLifecycle = callVerificationPhoto;
     const setTimeout = (callback) => { callback(); return 1; };
     const setVerificationPhotoTaskStage = (...args) => globalThis.__stages.push(args);
     const finishVerificationPhotoTask = (...args) => globalThis.__finishes.push(args);
@@ -834,6 +834,8 @@ assert.ok(
 );
 includes(commitCloud, "inspected = await inspectVerificationPhotoObject", "server-inspected metadata");
 includes(commitCloud, "if (event.imageBase64)", "commit accepts bytes only for the explicit function fallback");
+includes(commitCloud, "if (PHOTO_ONLY_FUNCTION && !event.imageBase64)", "dedicated photo service refuses a byte-less direct-upload commit");
+includes(commitCloud, '"PHOTO_FUNCTION_UPLOAD_REQUIRED"', "dedicated photo service has a stable function-upload-only error");
 assert.ok(
   commitCloud.indexOf("requireVerificationPhotoFunctionUploadProof(event, context, request)")
     < commitCloud.indexOf("cleanVerificationJpeg("),
@@ -847,11 +849,21 @@ assert.ok(
 );
 assert.ok(
   commitCloud.indexOf("uploadVerificationPhotoReference(request.original_object_ref, fallbackPhoto.buffer)")
-    < commitCloud.indexOf("inspectVerificationPhotoObject("),
-  "fallback upload is re-read through authenticated storage inspection before database commit"
+    < commitCloud.indexOf("verificationPhotoBufferMetadata(fallbackPhoto.buffer)"),
+  "function upload derives commit metadata from the exact server-validated JPEG bytes after storage accepts them"
 );
-includes(commitCloud, "submittedSha", "fallback upload is compared with the exact submitted JPEG");
-includes(commitCloud, '"PHOTO_UPLOAD_CONTENT_CONFLICT"', "lost-response retry cannot bind different bytes");
+assert.ok(
+  commitCloud.indexOf("verificationPhotoBufferMetadata(fallbackPhoto.buffer)")
+    < commitCloud.indexOf("public.commit_verification_photo_upload"),
+  "function upload computes server-owned dimensions and hash before the atomic database commit"
+);
+assert.ok(
+  !commitCloud.slice(
+    commitCloud.indexOf("if (event.imageBase64)"),
+    commitCloud.indexOf("} else {", commitCloud.indexOf("if (event.imageBase64)"))
+  ).includes("inspectVerificationPhotoObject("),
+  "normal function uploads avoid immediately downloading the JPEG that this invocation just stored"
+);
 for (const value of ["inspected.bytes", "inspected.width", "inspected.height", "inspected.sha256"]) {
   includes(commitCloud, value, `database receives authoritative ${value}`);
 }
