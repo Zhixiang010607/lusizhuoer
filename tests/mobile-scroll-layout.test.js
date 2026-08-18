@@ -16,7 +16,7 @@ assert(/customer-project-panel[\s\S]*?customer-record-panel[\s\S]*?height:\s*aut
 
 for (const file of ["customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html"]) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
-  assert(html.includes('styles.css?v=0.15.13'), `${file} must use the mobile-scroll stylesheet cache key`);
+  assert(html.includes('styles.css?v=0.15.32'), `${file} must use the current stylesheet cache key`);
   assert(/<meta\s+name="viewport"/.test(html), `${file} must declare a mobile viewport`);
 }
 
@@ -41,16 +41,31 @@ const teacherBusinessPages = [
 ];
 for (const file of businessPages) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
-  assert(html.includes('styles.css?v=0.15.29'), `${file} must use the resizable workflow stylesheet cache key`);
+  assert(html.includes('styles.css?v=0.15.32'), `${file} must use the current stylesheet cache key`);
   assert(html.includes("data-store-business"), `${file} must be a store business workflow`);
 }
 for (const file of teacherBusinessPages) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
-  assert(html.includes('styles.css?v=0.15.27'), `${file} must use the unclipped customer-card stylesheet cache key`);
+  assert(html.includes('styles.css?v=0.15.32'), `${file} must use the current stylesheet cache key`);
   assert(html.includes("data-store-business"), `${file} must be a store business workflow`);
 }
 
 const storeBusiness = fs.readFileSync(path.join(root, "store-business.js"), "utf8");
 assert(storeBusiness.includes("<span>客户编号</span><strong>${escapeHtml(customer.id)}</strong>"), "customer confirmation card must render the full customer number");
+
+const desktopRules = css.slice(css.lastIndexOf("/* Desktop pages normally fit within the viewport"));
+assert(/@media \(min-width:\s*761px\)/.test(desktopRules), "desktop scroll fallback must start at the desktop breakpoint");
+assert(/html\s*\{[\s\S]*?overflow-y:\s*auto/.test(desktopRules), "desktop document root must allow vertical scrolling");
+assert(/body\.login-page\s*\{[\s\S]*?height:\s*auto[\s\S]*?overflow-y:\s*auto/.test(desktopRules), "desktop login must scroll when the sign-in card exceeds the viewport");
+assert(/body\[data-query\],[\s\S]*?body\[data-store-business\]\s*\{[\s\S]*?height:\s*auto[\s\S]*?overflow-y:\s*auto/.test(desktopRules), "fixed-height app shells must use document scrolling on desktop");
+assert(/body\[data-query\] main,[\s\S]*?overflow:\s*visible/.test(desktopRules), "desktop query main content must not be clipped");
+assert(/body\[data-hq-create\] \.hq-create-main,[\s\S]*?overflow:\s*visible/.test(desktopRules), "desktop creation forms must not be clipped");
+assert(/@media \(min-width:\s*981px\)[\s\S]*?store-business-main[\s\S]*?min-height:\s*max\(610px/.test(desktopRules), "desktop business workflows must grow beyond short viewports");
+
+for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))) {
+  const html = fs.readFileSync(path.join(root, file), "utf8");
+  if (!html.includes("styles.css")) continue;
+  assert(html.includes('styles.css?v=0.15.32'), `${file} must use the desktop-scroll stylesheet cache key`);
+}
 
 console.log("mobile scroll layout tests passed");

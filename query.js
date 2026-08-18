@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.4";
+  const VERSION = "0.15.5";
   const type = document.body.dataset.query;
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
@@ -181,7 +181,10 @@
     function fillProducts(products) {
       const target = $("recordProduct");
       const selected = target.value || "ALL";
-      target.innerHTML = `<option value="ALL">全部项目</option>${(Array.isArray(products) ? products : []).map((product) => `<option value="${escapeHtml(product.productId)}">${escapeHtml([product.productName, product.productCode].filter(Boolean).join(" · "))}</option>`).join("")}`;
+      target.innerHTML = `<option value="ALL">全部项目</option>${(Array.isArray(products) ? products : []).map((product) => {
+        const archived = String(product.productStatus || "").toUpperCase() === "ARCHIVED" ? "（已封存）" : "";
+        return `<option value="${escapeHtml(product.productId)}">${escapeHtml([product.productName, product.productCode].filter(Boolean).join(" · ") + archived)}</option>`;
+      }).join("")}`;
       target.value = Array.from(target.options).some((option) => option.value === selected) ? selected : "ALL";
     }
     function statusTag(code) {

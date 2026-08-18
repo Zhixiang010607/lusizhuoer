@@ -1523,3 +1523,80 @@ body[data-operation-home] .operation-home-main { width: min(1180px, calc(100% - 
     justify-self: center;
   }
 }
+
+/* Desktop pages normally fit within the viewport, but the document becomes the
+   vertical scroll owner whenever browser chrome, display scaling, or extra
+   content makes a complete page taller than the available screen. */
+@media (min-width: 761px) {
+  html {
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  body {
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  body.login-page {
+    height: auto;
+    min-height: 100dvh;
+    padding-top: 16px;
+    padding-bottom: 16px;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  body.login-page .login-shell {
+    min-height: 470px;
+    max-height: none;
+  }
+
+  body[data-query],
+  body[data-customer-query],
+  body[data-hq-create],
+  body[data-store-business] {
+    height: auto;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  body[data-query] main,
+  body[data-customer-query] main {
+    height: auto;
+    min-height: calc(100dvh - 70px);
+    overflow: visible;
+  }
+
+  body[data-hq-create] .hq-create-main,
+  body[data-hq-create] .hq-create-form {
+    height: auto;
+    overflow: visible;
+  }
+}
+
+@media (min-width: 981px) {
+  body[data-store-business] .store-business-main {
+    height: auto;
+    min-height: max(610px, calc(100dvh - 82px));
+  }
+
+  body[data-store-business] .store-workflow-main > .panel,
+  body[data-store-business] .store-business-full-panel {
+    height: auto;
+    min-height: 610px;
+  }
+
+  body[data-store-business][data-teacher-business] .teacher-business-main > .store-business-main {
+    height: auto;
+    min-height: max(610px, calc(100dvh - 85px));
+  }
+
+  body[data-store-business][data-teacher-business] .teacher-business-main > .store-workflow-main > .panel {
+    height: auto;
+    min-height: 610px;
+  }
+}

@@ -39,6 +39,9 @@ assert.ok(cloud.includes('if (!["NORMAL", "EXPERIENCE"].includes(verificationTyp
 assert.ok(cloud.includes('const initialStatus = "APPROVED"'), "API must auto-complete both allowed verification types");
 assert.ok(cloud.includes("FROM public.device_signal_outbox"), "API must verify the virtual-port signal was queued");
 assert.ok(cloud.includes('port: "VIRTUAL_DEVICE_START"'), "API must return the stable virtual device port");
+assert.ok(cloud.includes("FROM public.products p\n                         WHERE p.product_status = 'ACTIVE'"), "query project options must include every active product even without existing records");
+assert.ok(cloud.includes('FROM public.${table} product_record'), "query project options must retain archived products that have historical records in scope");
+assert.ok(queryUi.includes('product.productStatus || ""'), "query dropdown must distinguish archived historical products");
 
 for (const expected of [
   "CREATE TABLE IF NOT EXISTS public.device_signal_outbox",

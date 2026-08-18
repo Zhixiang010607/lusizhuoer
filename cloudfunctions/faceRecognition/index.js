@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v56";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v57";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -2066,11 +2066,17 @@ async function queryStoreBusinessRecords(event = {}) {
                     WHERE ${listClauses.join(" AND ")}
                     ORDER BY ${alias}.submitted_at DESC, ${alias}.id DESC
                     LIMIT ${limit + 1}`;
-  const productsSql = `SELECT DISTINCT p.id AS product_id, p.product_code, p.product_name
-                          FROM public.${table} ${alias}
-                          JOIN public.products p ON p.id = ${alias}.product_id
-                         WHERE ${scopedStoreClause(caller, `${alias}.store_id`)}
-                         ORDER BY p.product_name, p.product_code`;
+  const productsSql = `SELECT p.id AS product_id, p.product_code, p.product_name, p.product_status
+                          FROM public.products p
+                         WHERE p.product_status = 'ACTIVE'
+                            OR EXISTS (
+                              SELECT 1
+                                FROM public.${table} product_record
+                               WHERE product_record.product_id = p.id
+                                 AND ${scopedStoreClause(caller, "product_record.store_id")}
+                            )
+                         ORDER BY CASE WHEN p.product_status = 'ACTIVE' THEN 0 ELSE 1 END,
+                                  p.product_name, p.product_code`;
 
   const [rawRecords, summaryRows, productRows] = await Promise.all([
     executeSql(listSql),
@@ -2099,7 +2105,8 @@ async function queryStoreBusinessRecords(event = {}) {
     products: productRows.map((product) => ({
       productId: String(product.product_id),
       productCode: product.product_code,
-      productName: product.product_name
+      productName: product.product_name,
+      productStatus: product.product_status
     })),
     records: pageRows.map((record) => ({
       id: String(record.id),
