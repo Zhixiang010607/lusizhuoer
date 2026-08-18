@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.26";
+  const VERSION = "0.16.0";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -12,6 +12,10 @@
   let currentVerificationPhotoPayload = null;
   let verificationPhotoLoadPromise = Promise.resolve();
   let verificationPhotoUploadBusy = false;
+  let verificationPhotoUploadTask = null;
+  let verificationPhotoRetryCandidate = null;
+  let verificationPhotoTaskSequence = 0;
+  const verificationPhotoLocalPreviewUrls = new Set();
   let verificationCameraStream = null;
   let verificationCameraTarget = null;
   let verificationCameraFacingMode = "environment";
@@ -203,6 +207,7 @@
     if (!payload?.ok) {
       const error = new Error(payload?.message || "核销照片服务没有返回业务结果");
       error.code = payload?.code || "PHOTO_SERVICE_FAILED";
+      error.payload = payload;
       throw error;
     }
     return payload;
@@ -951,12 +956,74 @@
     return new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("浏览器无法生成 JPEG 照片")), "image/jpeg", quality));
   }
 
-  function blobDataUrl(blob) {
+  function verificationPhotoUploadError(message, code = "PHOTO_UPLOAD_FAILED") {
+    const error = new Error(message);
+    error.code = code;
+    return error;
+  }
+
+  function verificationPhotoUploadCanceled() {
+    return verificationPhotoUploadError("照片上传已取消", "PHOTO_UPLOAD_CANCELED");
+  }
+
+  function isVerificationPhotoUploadCanceled(error) {
+    return error?.code === "PHOTO_UPLOAD_CANCELED" || error?.name === "AbortError";
+  }
+
+  function assertVerificationPhotoTask(task) {
+    if (!task || task.cancelRequested || verificationPhotoUploadTask !== task) throw verificationPhotoUploadCanceled();
+  }
+
+  function yieldVerificationPhotoWork(task) {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.addEventListener("load", () => resolve(String(reader.result || "")), { once: true });
-      reader.addEventListener("error", () => reject(new Error("浏览器无法读取所选照片")), { once: true });
-      reader.readAsDataURL(blob);
+      const resume = () => {
+        try { assertVerificationPhotoTask(task); resolve(); }
+        catch (error) { reject(error); }
+      };
+      if (document.hidden) setTimeout(resume, 0);
+      else requestAnimationFrame(resume);
+    });
+  }
+
+  function updateVerificationPhotoTaskUi(task, options = {}) {
+    const bar = $("verificationPhotoUploadTask");
+    if (!bar) return;
+    const progress = Math.max(0, Math.min(100, Number(options.progress ?? task?.progress ?? 0)));
+    if (task) task.progress = progress;
+    bar.hidden = false;
+    bar.dataset.state = clean(options.state || task?.state || "PREPARING").toLowerCase();
+    $("verificationPhotoUploadTaskTitle").textContent = options.title || `${photoSlotLabel(task?.slot)}上传任务`;
+    $("verificationPhotoUploadTaskDetail").textContent = options.detail || "正在准备照片…";
+    const meter = $("verificationPhotoUploadProgress");
+    if (meter) { meter.value = progress; meter.setAttribute("aria-valuetext", `${Math.round(progress)}%`); }
+    $("verificationPhotoUploadPercent").textContent = `${Math.round(progress)}%`;
+    const cancel = $("cancelVerificationPhotoUpload");
+    if (cancel) {
+      cancel.hidden = options.canCancel === false;
+      cancel.disabled = options.cancelDisabled === true;
+      cancel.textContent = options.cancelLabel || "取消上传";
+    }
+    const retry = $("retryVerificationPhotoUpload");
+    if (retry) {
+      retry.hidden = options.canRetry !== true;
+      retry.disabled = options.canRetry !== true || verificationPhotoUploadBusy;
+    }
+  }
+
+  function setVerificationPhotoTaskStage(task, state, title, detail, progress, options = {}) {
+    if (!task) return;
+    task.state = state;
+    updateVerificationPhotoTaskUi(task, { state, title, detail, progress, ...options });
+    const message = $("verificationPhotoMessage");
+    if (message) {
+      message.className = `verification-photo-message${options.error ? " error" : ""}`;
+      message.textContent = detail || title || "";
+    }
+  }
+
+  function setVerificationPhotoButtonsDisabled(disabled) {
+    $("verificationPhotoGrid")?.querySelectorAll("[data-capture-verification-photo], [data-upload-verification-photo]").forEach((button) => {
+      button.disabled = disabled || currentVerificationPhotoPayload?.canEdit !== true;
     });
   }
 
@@ -976,8 +1043,10 @@
     });
   }
 
-  async function prepareVerificationPhoto(file) {
+  async function prepareVerificationPhotoOnMainThread(file, task) {
+    await yieldVerificationPhotoWork(task);
     const image = await decodePhotoFile(file);
+    assertVerificationPhotoTask(task);
     const naturalWidth = Number(image.width || image.naturalWidth || 0);
     const naturalHeight = Number(image.height || image.naturalHeight || 0);
     if (!naturalWidth || !naturalHeight) throw new Error("无法读取照片尺寸");
@@ -985,85 +1054,549 @@
     const original = document.createElement("canvas");
     original.width = Math.max(1, Math.round(naturalWidth * originalScale));
     original.height = Math.max(1, Math.round(naturalHeight * originalScale));
-    original.getContext("2d", { alpha: false }).drawImage(image, 0, 0, original.width, original.height);
-    image.close?.();
-    let originalBlob = await canvasBlob(original, 0.92);
-    if (originalBlob.size > 3 * 1024 * 1024) originalBlob = await canvasBlob(original, 0.86);
-    if (originalBlob.size > 3 * 1024 * 1024) {
-      const reducedScale = Math.min(1, 1800 / Math.max(original.width, original.height));
-      const reduced = document.createElement("canvas");
-      reduced.width = Math.max(1, Math.round(original.width * reducedScale));
-      reduced.height = Math.max(1, Math.round(original.height * reducedScale));
-      reduced.getContext("2d", { alpha: false }).drawImage(original, 0, 0, reduced.width, reduced.height);
-      original.width = reduced.width; original.height = reduced.height;
-      original.getContext("2d", { alpha: false }).drawImage(reduced, 0, 0);
-      originalBlob = await canvasBlob(original, 0.88);
-    }
-    if (originalBlob.size > 3 * 1024 * 1024) throw new Error("照片处理后仍超过 3 MB，请换一张照片");
-    const thumbScale = Math.min(1, 480 / Math.max(original.width, original.height));
     const thumbnail = document.createElement("canvas");
-    thumbnail.width = Math.max(1, Math.round(original.width * thumbScale));
-    thumbnail.height = Math.max(1, Math.round(original.height * thumbScale));
-    thumbnail.getContext("2d", { alpha: false }).drawImage(original, 0, 0, thumbnail.width, thumbnail.height);
-    const thumbnailBlob = await canvasBlob(thumbnail, 0.82);
+    let reduced = null;
+    try {
+      original.getContext("2d", { alpha: false, desynchronized: true }).drawImage(image, 0, 0, original.width, original.height);
+      image.close?.();
+      await yieldVerificationPhotoWork(task);
+      let originalBlob = await canvasBlob(original, 0.92);
+      assertVerificationPhotoTask(task);
+      if (originalBlob.size > 3 * 1024 * 1024) originalBlob = await canvasBlob(original, 0.86);
+      if (originalBlob.size > 3 * 1024 * 1024) {
+        await yieldVerificationPhotoWork(task);
+        const reducedScale = Math.min(1, 1800 / Math.max(original.width, original.height));
+        reduced = document.createElement("canvas");
+        reduced.width = Math.max(1, Math.round(original.width * reducedScale));
+        reduced.height = Math.max(1, Math.round(original.height * reducedScale));
+        reduced.getContext("2d", { alpha: false, desynchronized: true }).drawImage(original, 0, 0, reduced.width, reduced.height);
+        original.width = reduced.width; original.height = reduced.height;
+        original.getContext("2d", { alpha: false }).drawImage(reduced, 0, 0);
+        originalBlob = await canvasBlob(original, 0.88);
+      }
+      if (originalBlob.size > 3 * 1024 * 1024) throw new Error("照片处理后仍超过 3 MB，请换一张照片");
+      await yieldVerificationPhotoWork(task);
+      const thumbScale = Math.min(1, 480 / Math.max(original.width, original.height));
+      thumbnail.width = Math.max(1, Math.round(original.width * thumbScale));
+      thumbnail.height = Math.max(1, Math.round(original.height * thumbScale));
+      thumbnail.getContext("2d", { alpha: false, desynchronized: true }).drawImage(original, 0, 0, thumbnail.width, thumbnail.height);
+      const thumbnailBlob = await canvasBlob(thumbnail, 0.82);
+      assertVerificationPhotoTask(task);
+      return { originalBlob, thumbnailBlob, imageWidth: original.width, imageHeight: original.height };
+    } finally {
+      image.close?.();
+      original.width = original.height = 1;
+      thumbnail.width = thumbnail.height = 1;
+      if (reduced) reduced.width = reduced.height = 1;
+    }
+  }
+
+  function prepareVerificationPhotoInWorker(file, task) {
+    if (typeof Worker !== "function" || typeof OffscreenCanvas !== "function" || typeof createImageBitmap !== "function") {
+      return Promise.reject(verificationPhotoUploadError("后台照片处理不可用", "PHOTO_WORKER_UNAVAILABLE"));
+    }
+    return new Promise((resolve, reject) => {
+      let worker;
+      try { worker = new Worker(`verification-photo-worker.js?v=${encodeURIComponent(VERSION)}`); }
+      catch (_) { reject(verificationPhotoUploadError("后台照片处理不可用", "PHOTO_WORKER_UNAVAILABLE")); return; }
+      task.worker = worker;
+      const finish = () => {
+        if (task.worker === worker) task.worker = null;
+        if (task.cancelPreparation === cancelPreparation) task.cancelPreparation = null;
+        worker.terminate();
+      };
+      const cancelPreparation = () => {
+        finish();
+        reject(verificationPhotoUploadCanceled());
+      };
+      task.cancelPreparation = cancelPreparation;
+      worker.addEventListener("message", (event) => {
+        const result = event.data || {};
+        if (result.id !== task.id) return;
+        finish();
+        if (task.cancelRequested || verificationPhotoUploadTask !== task) return reject(verificationPhotoUploadCanceled());
+        if (!result.ok) return reject(verificationPhotoUploadError(result.message || "浏览器无法处理照片", result.code || "PHOTO_PREPARE_FAILED"));
+        resolve({
+          originalBlob: result.originalBlob,
+          thumbnailBlob: result.thumbnailBlob,
+          imageWidth: Number(result.imageWidth || 0),
+          imageHeight: Number(result.imageHeight || 0)
+        });
+      });
+      worker.addEventListener("error", () => {
+        finish();
+        reject(verificationPhotoUploadError("后台照片处理启动失败", "PHOTO_WORKER_UNAVAILABLE"));
+      }, { once: true });
+      worker.postMessage({ id: task.id, file, maxInputBytes: 20 * 1024 * 1024, maxOutputBytes: 3 * 1024 * 1024 });
+    });
+  }
+
+  async function prepareVerificationPhotoFromCanvas(canvas, task) {
+    assertVerificationPhotoTask(task);
+    const width = Number(canvas?.width || 0);
+    const height = Number(canvas?.height || 0);
+    if (!width || !height) throw new Error("摄像头画面尚未准备好");
+    const thumbnail = document.createElement("canvas");
+    let reduced = null;
+    try {
+      let finalCanvas = canvas;
+      let finalWidth = width;
+      let finalHeight = height;
+      let originalBlob = await canvasBlob(finalCanvas, 0.92);
+      assertVerificationPhotoTask(task);
+      if (originalBlob.size > 3 * 1024 * 1024) originalBlob = await canvasBlob(finalCanvas, 0.86);
+      if (originalBlob.size > 3 * 1024 * 1024) {
+        await yieldVerificationPhotoWork(task);
+        const reducedScale = Math.min(1, 1800 / Math.max(width, height));
+        finalWidth = Math.max(1, Math.round(width * reducedScale));
+        finalHeight = Math.max(1, Math.round(height * reducedScale));
+        reduced = document.createElement("canvas");
+        reduced.width = finalWidth;
+        reduced.height = finalHeight;
+        reduced.getContext("2d", { alpha: false, desynchronized: true }).drawImage(canvas, 0, 0, finalWidth, finalHeight);
+        finalCanvas = reduced;
+        originalBlob = await canvasBlob(finalCanvas, 0.88);
+      }
+      if (originalBlob.size > 3 * 1024 * 1024) throw new Error("拍摄照片超过 3 MB，请重试");
+      await yieldVerificationPhotoWork(task);
+      const scale = Math.min(1, 480 / Math.max(finalWidth, finalHeight));
+      thumbnail.width = Math.max(1, Math.round(finalWidth * scale));
+      thumbnail.height = Math.max(1, Math.round(finalHeight * scale));
+      thumbnail.getContext("2d", { alpha: false, desynchronized: true }).drawImage(finalCanvas, 0, 0, thumbnail.width, thumbnail.height);
+      const thumbnailBlob = await canvasBlob(thumbnail, 0.82);
+      return { originalBlob, thumbnailBlob, imageWidth: finalWidth, imageHeight: finalHeight };
+    } finally {
+      thumbnail.width = thumbnail.height = 1;
+      if (reduced) reduced.width = reduced.height = 1;
+      canvas.width = canvas.height = 1;
+    }
+  }
+
+  async function prepareVerificationPhoto(file, task, sourceCanvas = null) {
+    if (task.prepared) return task.prepared;
+    if (sourceCanvas) return prepareVerificationPhotoFromCanvas(sourceCanvas, task);
+    try {
+      return await prepareVerificationPhotoInWorker(file, task);
+    } catch (error) {
+      if (!["PHOTO_WORKER_UNAVAILABLE", "PHOTO_DECODE_FAILED"].includes(error?.code)) throw error;
+      assertVerificationPhotoTask(task);
+      return prepareVerificationPhotoOnMainThread(file, task);
+    }
+  }
+
+  function directVerificationPhotoUploadUnavailable(error) {
+    const code = clean(error?.code).toUpperCase();
+    const message = clean(error?.message).toLowerCase();
+    return ["ACTION_NOT_FOUND", "UNKNOWN_ACTION", "UNSUPPORTED_ACTION", "PHOTO_UPLOAD_DIRECT_UNAVAILABLE", "DATABASE_SCHEMA_MISSING"].includes(code)
+      || ((message.includes("beginverificationphotoupload") || message.includes("不支持的操作")) && (message.includes("not found") || message.includes("unknown") || message.includes("不支持")));
+  }
+
+  function signedUploadTarget(value) {
+    if (!value) return null;
+    if (typeof value === "string") return { url: value, method: "PUT", headers: {} };
     return {
-      imageBase64: await blobDataUrl(originalBlob),
-      thumbnailBase64: await blobDataUrl(thumbnailBlob),
-      imageWidth: original.width,
-      imageHeight: original.height
+      url: clean(value.url || value.signedUrl),
+      method: clean(value.method || "PUT").toUpperCase(),
+      contentType: clean(value.contentType || "image/jpeg"),
+      expectedBytes: Number(value.expectedBytes || 0),
+      headers: {}
     };
   }
 
-  function setVerificationPhotoButtonsDisabled(disabled) {
-    $("verificationPhotoGrid")?.querySelectorAll("button").forEach((button) => { button.disabled = disabled; });
+  function updateSignedUploadProgress(task) {
+    const parts = Object.values(task.uploadParts || {});
+    const total = parts.reduce((sum, part) => sum + Number(part.total || 0), 0);
+    const loaded = parts.reduce((sum, part) => sum + Math.min(Number(part.loaded || 0), Number(part.total || 0)), 0);
+    const percent = total > 0 ? loaded / total : 0;
+    setVerificationPhotoTaskStage(task, "UPLOADING", `${photoSlotLabel(task.slot)}正在上传`, `正在直传私有存储 ${Math.round(percent * 100)}%（请勿关闭页面）`, 32 + percent * 53);
   }
 
-  async function uploadVerificationPhoto(recordId, slot, file) {
-    if (verificationPhotoUploadBusy) return;
+  function uploadVerificationPhotoBlob(task, name, targetValue, blob) {
+    const target = signedUploadTarget(targetValue);
+    if (!target?.url) return Promise.reject(verificationPhotoUploadError(`${name}上传地址无效`, "PHOTO_UPLOAD_URL_INVALID"));
+    task.uploadParts[name] = { loaded: 0, total: blob.size };
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      task.xhrs.add(xhr);
+      let settled = false;
+      const done = (callback, value) => {
+        if (settled) return;
+        settled = true;
+        task.xhrs.delete(xhr);
+        callback(value);
+      };
+      xhr.open(target.method || "PUT", target.url, true);
+      xhr.timeout = 180000;
+      if (target.expectedBytes > 0 && target.expectedBytes !== blob.size) {
+        done(reject, verificationPhotoUploadError(`${name}大小与服务器授权不一致，请重新选择照片`, "PHOTO_UPLOAD_SIZE_MISMATCH"));
+        return;
+      }
+      xhr.setRequestHeader("Content-Type", target.contentType || blob.type || "image/jpeg");
+      xhr.upload.addEventListener("progress", (event) => {
+        task.uploadParts[name].loaded = event.lengthComputable ? event.loaded : Math.min(blob.size, event.loaded || 0);
+        updateSignedUploadProgress(task);
+      });
+      xhr.addEventListener("load", () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          task.uploadParts[name].loaded = blob.size;
+          updateSignedUploadProgress(task);
+          done(resolve);
+        } else {
+          done(reject, verificationPhotoUploadError(`${name}上传失败（HTTP ${xhr.status || "未知"}）`, "PHOTO_STORAGE_UPLOAD_FAILED"));
+        }
+      });
+      xhr.addEventListener("error", () => done(reject, verificationPhotoUploadError(`${name}网络上传失败，请检查网络以及 CloudBase Web 安全域名／存储 CORS 配置后重试`, "PHOTO_STORAGE_NETWORK_FAILED")));
+      xhr.addEventListener("timeout", () => done(reject, verificationPhotoUploadError(`${name}上传超时，请重试`, "PHOTO_STORAGE_TIMEOUT")));
+      xhr.addEventListener("abort", () => done(reject, verificationPhotoUploadCanceled()));
+      xhr.send(blob);
+    });
+  }
+
+  function verificationPhotoUploadStatus(payload) {
+    return clean(payload?.status || payload?.requestStatus || payload?.uploadStatus).toUpperCase();
+  }
+
+  function verificationPhotoUploadTerminal(status) {
+    return ["COMMITTED", "COMPLETED", "CANCELED", "CANCELLED", "FAILED", "EXPIRED"].includes(clean(status).toUpperCase());
+  }
+
+  function verificationPhotoUploadRequestNotFound(error) {
+    return ["PHOTO_UPLOAD_REQUEST_NOT_FOUND", "PHOTO_UPLOAD_NOT_FOUND"].includes(clean(error?.code).toUpperCase());
+  }
+
+  function verificationPhotoRetryFromTask(task) {
+    return {
+      recordId: task.recordId,
+      slot: task.slot,
+      file: task.file,
+      prepared: task.prepared,
+      source: task.source
+    };
+  }
+
+  function verificationPhotoManifestReady() {
+    return currentVerificationPhotoPayload && !currentVerificationPhotoPayload.error && Array.isArray(currentVerificationPhotoPayload.photos);
+  }
+
+  function finishVerificationPhotoTask(task, outcome, detail, options = {}) {
+    if (verificationPhotoUploadTask !== task) return;
+    task.worker?.terminate?.();
+    task.cancelPreparation?.();
+    task.cancelPreparation = null;
+    task.xhrs?.forEach((xhr) => { try { xhr.abort(); } catch (_) { /* 已结束 */ } });
+    task.xhrs?.clear?.();
+    verificationPhotoUploadTask = null;
+    verificationPhotoUploadBusy = false;
+    const retryRequested = outcome === "failed" || outcome === "canceled";
+    const hasRetrySource = Boolean(task.prepared?.originalBlob && task.prepared?.thumbnailBlob)
+      || Boolean(task.file && Number(task.file.size || 0) > 0);
+    const retry = retryRequested && hasRetrySource;
+    verificationPhotoRetryCandidate = retry ? verificationPhotoRetryFromTask(task) : null;
+    const title = outcome === "success" ? `${photoSlotLabel(task.slot)}上传成功` : outcome === "canceled" ? "上传已取消" : "照片上传失败";
+    const finalDetail = retryRequested && !hasRetrySource && task.source === "camera"
+      ? `${detail} 拍摄画面未完成处理，请重新拍照。`
+      : detail;
+    setVerificationPhotoTaskStage(task, outcome.toUpperCase(), title, finalDetail, outcome === "success" ? 100 : task.progress, {
+      canCancel: false,
+      canRetry: retry,
+      error: outcome === "failed"
+    });
+    setVerificationPhotoButtonsDisabled(false);
+    const manifestReady = verificationPhotoManifestReady();
+    setExportControls(Boolean(currentRecord) && manifestReady, manifestReady
+      ? (outcome === "success" ? "照片已保存，可以导出完整工单。" : "照片任务已结束，可以导出当前完整工单。")
+      : "照片清单读取失败，暂时不能导出完整工单。");
+    if (options.refresh !== false) verificationPhotoLoadPromise = refreshVerificationPhotosSilently(task.recordId);
+  }
+
+  async function refreshVerificationPhotosSilently(recordId) {
+    if (!/^\d+$/.test(clean(recordId)) || !$("verificationPhotoPanel")) return null;
+    const request = ++verificationPhotoRequest;
+    try {
+      const payload = await callFaceRecognition({ action: "getVerificationPhotos", recordId });
+      if (request !== verificationPhotoRequest) return null;
+      renderVerificationPhotos(payload, recordId);
+      setVerificationPhotoButtonsDisabled(verificationPhotoUploadBusy);
+      verificationPhotoLocalPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
+      verificationPhotoLocalPreviewUrls.clear();
+      return payload;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function applyCommittedVerificationPhoto(task, payload) {
+    if (!task.prepared || !currentVerificationPhotoPayload) return;
+    const photos = Array.isArray(currentVerificationPhotoPayload.photos) ? [...currentVerificationPhotoPayload.photos] : [];
+    const thumbnailUrl = URL.createObjectURL(task.prepared.thumbnailBlob);
+    const originalUrl = URL.createObjectURL(task.prepared.originalBlob);
+    verificationPhotoLocalPreviewUrls.add(thumbnailUrl);
+    verificationPhotoLocalPreviewUrls.add(originalUrl);
+    const serverPhoto = payload?.photo && typeof payload.photo === "object" ? payload.photo : {};
+    const photo = {
+      ...serverPhoto,
+      slot: task.slot,
+      thumbnailUrl: clean(serverPhoto.thumbnailUrl) || thumbnailUrl,
+      originalUrl: clean(serverPhoto.originalUrl) || originalUrl,
+      originalUrlExpiresAt: clean(serverPhoto.originalUrl) ? Date.now() + 60000 : Number.MAX_SAFE_INTEGER,
+      originalBytes: Number(serverPhoto.originalBytes || task.prepared.originalBlob.size),
+      thumbnailBytes: Number(serverPhoto.thumbnailBytes || task.prepared.thumbnailBlob.size),
+      width: Number(serverPhoto.width || task.prepared.imageWidth),
+      height: Number(serverPhoto.height || task.prepared.imageHeight),
+      uploadedAt: serverPhoto.uploadedAt || new Date().toISOString()
+    };
+    const next = photos.filter((item) => Number(item.slot) !== task.slot);
+    next.push(photo);
+    next.sort((left, right) => Number(left.slot) - Number(right.slot));
+    renderVerificationPhotos({ ...currentVerificationPhotoPayload, photos: next }, task.recordId);
+    setVerificationPhotoButtonsDisabled(true);
+  }
+
+  async function reconcileVerificationPhotoCancellation(task, outcome = "canceled", failure = null) {
+    if (task.cancelPromise) return task.cancelPromise;
+    task.cancelPromise = (async () => {
+      setVerificationPhotoTaskStage(task, "CANCELING", "正在取消上传", "正在中止网络传输并等待服务器确认…", task.progress, { cancelDisabled: true, cancelLabel: "正在确认…" });
+      task.worker?.terminate?.();
+      task.cancelPreparation?.();
+      task.cancelPreparation = null;
+      task.worker = null;
+      task.xhrs.forEach((xhr) => { try { xhr.abort(); } catch (_) { /* 已结束 */ } });
+      let latest = null;
+      let cancelNotFound = false;
+      let statusNotFound = false;
+      const cancellationRecordId = clean(task.cancelRecordId || task.recordId);
+      try { latest = await callFaceRecognition({ action: "cancelVerificationPhotoUpload", recordId: cancellationRecordId, requestId: task.requestId }); }
+      catch (error) { cancelNotFound = verificationPhotoUploadRequestNotFound(error); }
+      for (let attempt = 0; attempt < 6 && !verificationPhotoUploadTerminal(verificationPhotoUploadStatus(latest)); attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 300 + attempt * 250));
+        try { latest = await callFaceRecognition({ action: "getVerificationPhotoUploadStatus", recordId: cancellationRecordId, requestId: task.requestId }); }
+        catch (error) {
+          statusNotFound = verificationPhotoUploadRequestNotFound(error);
+          if (cancelNotFound && statusNotFound) break;
+        }
+      }
+      const status = verificationPhotoUploadStatus(latest);
+      if (cancelNotFound && statusNotFound) {
+        finishVerificationPhotoTask(task, outcome, outcome === "failed"
+          ? (failure?.message || "服务器未建立照片任务，可重新上传。")
+          : "服务器确认没有该上传任务；已安全取消，可重新上传。", { refresh: false });
+        return;
+      }
+      if (["COMMITTED", "COMPLETED"].includes(status)) {
+        if (task.remoteConflict) {
+          finishVerificationPhotoTask(task, "canceled", "已有上传任务已经完成；本次所选照片尚未上传，可点击“重新上传”。", { refresh: true });
+        } else {
+          if (latest?.photo) applyCommittedVerificationPhoto(task, latest);
+          finishVerificationPhotoTask(task, "success", "取消指令到达时服务器已经完成保存；页面已按最终结果同步。", { refresh: true });
+        }
+        return;
+      }
+      if (verificationPhotoUploadTerminal(status)) {
+        finishVerificationPhotoTask(task, outcome, outcome === "failed" ? (failure?.message || "照片上传失败，可重试") : "服务器已确认取消；可重新上传本张照片。", { refresh: true });
+        return;
+      }
+      setVerificationPhotoTaskStage(task, "CANCELING", "取消尚未确认", "为了避免旧任务覆盖新照片，确认服务器结束前不能开始下一张；请点击“重新确认取消”。", task.progress, {
+        cancelDisabled: false,
+        cancelLabel: "重新确认取消",
+        error: true
+      });
+      task.cancelPromise = null;
+    })();
+    return task.cancelPromise;
+  }
+
+  async function monitorExistingVerificationPhotoUpload(task) {
+    setVerificationPhotoTaskStage(task, "WAITING", "检测到已有照片上传", "另一标签页或设备的上传尚未结束；不会自动取消。正在读取其状态…", 25, {
+      cancelDisabled: false,
+      cancelLabel: "取消已有任务"
+    });
+    let latest = null;
+    for (let attempt = 0; attempt < 6 && verificationPhotoUploadTask === task && !task.cancelRequested; attempt += 1) {
+      try {
+        latest = await callFaceRecognition({
+          action: "getVerificationPhotoUploadStatus",
+          recordId: clean(task.cancelRecordId || task.recordId),
+          requestId: task.requestId
+        });
+      } catch (error) {
+        if (verificationPhotoUploadRequestNotFound(error)) {
+          finishVerificationPhotoTask(task, "canceled", "已有上传任务已结束；本次所选照片尚未上传，可点击“重新上传”。", { refresh: true });
+          return;
+        }
+      }
+      if (verificationPhotoUploadTerminal(verificationPhotoUploadStatus(latest))) {
+        finishVerificationPhotoTask(task, "canceled", "已有上传任务已结束；本次所选照片尚未上传，可点击“重新上传”。", { refresh: true });
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 650 + attempt * 250));
+    }
+    if (verificationPhotoUploadTask !== task || task.cancelRequested) return;
+    setVerificationPhotoTaskStage(task, "WAITING", "已有上传仍在进行", "为防止两个任务互相覆盖，请等待它完成；如确认不再需要，可点击“取消已有任务”。", 25, {
+      cancelDisabled: false,
+      cancelLabel: "取消已有任务"
+    });
+  }
+
+  async function cancelVerificationPhotoUpload() {
+    const task = verificationPhotoUploadTask;
+    if (!task) return;
+    task.cancelRequested = true;
+    task.cancelPreparation?.();
+    task.cancelPreparation = null;
+    task.worker?.terminate?.();
+    task.worker = null;
+    task.xhrs.forEach((xhr) => { try { xhr.abort(); } catch (_) { /* 已结束 */ } });
+    if (task.beginInFlight) {
+      setVerificationPhotoTaskStage(task, "CANCELING", "正在取消上传", "正在等待服务器返回上传任务编号，确认后会立即取消…", task.progress, { cancelDisabled: true, cancelLabel: "正在确认…" });
+      return;
+    }
+    if (!task.intentStarted && !task.beginDispatched) {
+      finishVerificationPhotoTask(task, "canceled", "已在照片离开设备前取消；可重新上传。", { refresh: false });
+      return;
+    }
+    await reconcileVerificationPhotoCancellation(task, "canceled");
+  }
+
+  async function runVerificationPhotoUpload(task, sourceCanvas = null) {
+    try {
+      setVerificationPhotoTaskStage(task, "PREPARING", `正在处理${photoSlotLabel(task.slot)}`, "在设备后台校正方向、生成高清图和预览图…", 8);
+      task.prepared = await prepareVerificationPhoto(task.file, task, sourceCanvas);
+      assertVerificationPhotoTask(task);
+      if (!task.prepared?.originalBlob || !task.prepared?.thumbnailBlob) throw new Error("照片处理结果无效");
+      setVerificationPhotoTaskStage(task, "AUTHORIZING", "正在申请安全上传", "正在验证提交人身份、24 小时修改期限和照片位置…", 25);
+      let begin;
+      task.beginDispatched = true;
+      task.beginInFlight = true;
+      try {
+        begin = await callFaceRecognition({
+          action: "beginVerificationPhotoUpload",
+          recordId: task.recordId,
+          slot: task.slot,
+          requestId: task.requestId,
+          originalBytes: task.prepared.originalBlob.size
+        });
+      } catch (error) {
+        if (clean(error?.code).toUpperCase() === "PHOTO_UPLOAD_ALREADY_ACTIVE") {
+          const activeRequest = error?.payload?.activeRequest && typeof error.payload.activeRequest === "object" ? error.payload.activeRequest : {};
+          const activeRequestId = clean(activeRequest.requestId || error?.payload?.requestId || error?.payload?.activeRequestId);
+          if (!activeRequestId) throw error;
+          task.requestId = activeRequestId;
+          task.cancelRecordId = clean(activeRequest.recordId || task.recordId);
+          task.intentStarted = true;
+          task.remoteConflict = true;
+          task.beginInFlight = false;
+          return await monitorExistingVerificationPhotoUpload(task);
+        }
+        if (directVerificationPhotoUploadUnavailable(error)) {
+          task.beginDispatched = false;
+          throw verificationPhotoUploadError("新版照片直传服务尚未部署，请先执行迁移 039 并部署 faceRecognition v51。", "PHOTO_UPLOAD_DIRECT_UNAVAILABLE");
+        }
+        throw error;
+      } finally {
+        task.beginInFlight = false;
+      }
+      if (clean(begin?.requestId) && clean(begin.requestId) !== task.requestId) {
+        throw verificationPhotoUploadError("服务器上传任务编号不一致，已停止上传", "PHOTO_UPLOAD_REQUEST_MISMATCH");
+      }
+      if (!task.requestId || !signedUploadTarget(begin?.originalUpload)?.url) {
+        throw verificationPhotoUploadError("服务器没有返回有效的安全上传任务", "PHOTO_UPLOAD_INTENT_INVALID");
+      }
+      task.intentStarted = true;
+      if (task.cancelRequested) return await reconcileVerificationPhotoCancellation(task, "canceled");
+      task.uploadParts = {};
+      const uploads = [uploadVerificationPhotoBlob(task, "高清原图", begin.originalUpload, task.prepared.originalBlob)];
+      if (signedUploadTarget(begin.thumbnailUpload)?.url) uploads.push(uploadVerificationPhotoBlob(task, "预览图", begin.thumbnailUpload, task.prepared.thumbnailBlob));
+      await Promise.all(uploads);
+      assertVerificationPhotoTask(task);
+      setVerificationPhotoTaskStage(task, "COMMITTING", "上传完成，正在安全入库", "正在校验照片完整性并绑定到核销单…", 90, { cancelLabel: "取消并核对" });
+      const committed = await callFaceRecognition({
+        action: "commitVerificationPhotoUpload",
+        recordId: task.recordId,
+        requestId: task.requestId
+      });
+      if (task.cancelRequested) return await reconcileVerificationPhotoCancellation(task, "canceled");
+      applyCommittedVerificationPhoto(task, committed);
+      finishVerificationPhotoTask(task, "success", `${photoSlotLabel(task.slot)}已安全保存；可继续上传下一张。`, { refresh: true });
+    } catch (error) {
+      if (verificationPhotoUploadTask !== task) return;
+      if (task.cancelRequested || isVerificationPhotoUploadCanceled(error)) {
+        if (task.intentStarted || task.beginDispatched) await reconcileVerificationPhotoCancellation(task, "canceled");
+        else finishVerificationPhotoTask(task, "canceled", "上传已取消，可重新上传。", { refresh: false });
+        return;
+      }
+      if (task.intentStarted || task.beginDispatched) {
+        task.cancelRequested = true;
+        await reconcileVerificationPhotoCancellation(task, "failed", error);
+        return;
+      }
+      finishVerificationPhotoTask(task, "failed", error?.message || "照片上传失败，请重试", { refresh: false });
+    }
+  }
+
+  async function uploadVerificationPhoto(recordId, slot, file, options = {}) {
+    if (verificationPhotoUploadBusy) {
+      updateVerificationPhotoTaskUi(verificationPhotoUploadTask, { detail: "请等待当前照片成功，或先取消当前任务，再上传下一张。" });
+      return;
+    }
     if (orderExportBusy) {
       $("verificationPhotoMessage").className = "verification-photo-message error";
       $("verificationPhotoMessage").textContent = "工单正在导出，请等待完成后再上传照片。";
       return;
     }
     verificationPhotoUploadBusy = true;
-    const status = $("verificationPhotoMessage");
-    status.className = "verification-photo-message";
-    status.textContent = `正在处理并上传${photoSlotLabel(slot)}…`;
+    const task = {
+      id: ++verificationPhotoTaskSequence,
+      recordId: clean(recordId),
+      slot: Number(slot),
+      file,
+      prepared: options.prepared || null,
+      source: options.source || "library",
+      state: "PREPARING",
+      progress: 0,
+      cancelRequested: false,
+      requestId: "",
+      beginDispatched: false,
+      beginInFlight: false,
+      intentStarted: false,
+      xhrs: new Set(),
+      uploadParts: {}
+    };
+    task.requestId = `vp_${Date.now().toString(36)}_${crypto.getRandomValues(new Uint32Array(3)).reduce((text, value) => text + value.toString(36).padStart(7, "0"), "")}`.slice(0, 64);
+    verificationPhotoUploadTask = task;
+    verificationPhotoRetryCandidate = null;
     setVerificationPhotoButtonsDisabled(true);
     setExportControls(false, "照片正在上传，保存完成后才能导出完整工单。");
-    try {
-      const images = await prepareVerificationPhoto(file);
-      await callFaceRecognition({ action: "uploadVerificationExtraPhoto", recordId, slot, ...images });
-      status.textContent = `${photoSlotLabel(slot)}已安全保存。`;
-      verificationPhotoLoadPromise = loadVerificationPhotos({ id: recordId, databaseBacked: true });
-      await verificationPhotoLoadPromise;
-    } catch (error) {
-      verificationPhotoLoadPromise = loadVerificationPhotos({ id: recordId, databaseBacked: true });
-      await verificationPhotoLoadPromise;
-      $("verificationPhotoMessage").className = "verification-photo-message error";
-      $("verificationPhotoMessage").textContent = error?.message || "照片上传失败，请重试";
-    } finally {
-      verificationPhotoUploadBusy = false;
-      const manifestReady = currentVerificationPhotoPayload
-        && !currentVerificationPhotoPayload.error
-        && Array.isArray(currentVerificationPhotoPayload.photos);
-      setExportControls(Boolean(currentRecord) && manifestReady, manifestReady
-        ? "照片清单已刷新，可以导出完整工单。"
-        : "照片清单读取失败，暂时不能导出完整工单。");
-    }
+    await runVerificationPhotoUpload(task, options.sourceCanvas || null);
   }
 
   function chooseVerificationPhoto(recordId, slot) {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "image/*";
+    if (verificationPhotoUploadBusy) {
+      updateVerificationPhotoTaskUi(verificationPhotoUploadTask, { detail: "一次只能上传一张；请等待成功，或取消当前任务。" });
+      return;
+    }
+    const input = $("verificationPhotoFileInput");
+    if (!input) return;
+    input.value = "";
+    input.dataset.recordId = clean(recordId);
+    input.dataset.slot = String(slot);
     input.setAttribute("aria-label", `从相册或文件中选择${photoSlotLabel(slot)}`);
-    input.addEventListener("change", () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      uploadVerificationPhoto(recordId, slot, file);
-    }, { once: true });
     input.click();
+  }
+
+  function handleVerificationPhotoFileSelected(event) {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file) return;
+    uploadVerificationPhoto(clean(input.dataset.recordId), Number(input.dataset.slot), file, { source: "library" });
+  }
+
+  function retryVerificationPhotoUpload() {
+    const candidate = verificationPhotoRetryCandidate;
+    if (!candidate || verificationPhotoUploadBusy) return;
+    uploadVerificationPhoto(candidate.recordId, candidate.slot, candidate.file, {
+      source: candidate.source,
+      prepared: candidate.prepared
+    });
   }
 
   function releaseVerificationPhotoCameraStream() {
@@ -1261,9 +1794,8 @@
       canvas.width = Math.max(1, Math.round(width * scale));
       canvas.height = Math.max(1, Math.round(height * scale));
       canvas.getContext("2d", { alpha: false }).drawImage(video, 0, 0, canvas.width, canvas.height);
-      const photo = await canvasBlob(canvas, 0.96);
       $("verificationPhotoCameraDialog").close();
-      await uploadVerificationPhoto(target.recordId, target.slot, photo);
+      await uploadVerificationPhoto(target.recordId, target.slot, null, { source: "camera", sourceCanvas: canvas });
     } catch (error) {
       capture.disabled = false;
       message.className = "verification-photo-camera-message error";
@@ -1664,6 +2196,9 @@
   });
   $("captureVerificationPhotoCamera")?.addEventListener("click", captureVerificationPhotoCamera);
   $("switchVerificationPhotoCamera")?.addEventListener("click", switchVerificationPhotoCamera);
+  $("verificationPhotoFileInput")?.addEventListener("change", handleVerificationPhotoFileSelected);
+  $("cancelVerificationPhotoUpload")?.addEventListener("click", cancelVerificationPhotoUpload);
+  $("retryVerificationPhotoUpload")?.addEventListener("click", retryVerificationPhotoUpload);
   $("cancelVerificationPhotoCamera")?.addEventListener("click", () => $("verificationPhotoCameraDialog")?.close());
   $("closeVerificationPhotoCamera")?.addEventListener("click", () => $("verificationPhotoCameraDialog")?.close());
   $("verificationPhotoCameraDialog")?.addEventListener("click", (event) => {
@@ -1673,8 +2208,12 @@
   window.addEventListener("resize", applyVerificationPhotoViewerTransform);
   window.addEventListener("pagehide", () => {
     stopVerificationPhotoCamera();
+    verificationPhotoUploadTask?.worker?.terminate?.();
+    verificationPhotoUploadTask?.xhrs?.forEach((xhr) => { try { xhr.abort(); } catch (_) { /* 页面正在退出 */ } });
     verificationPhotoPreloads.clear();
     verificationPhotoOriginalAuditCache.clear();
+    verificationPhotoLocalPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
+    verificationPhotoLocalPreviewUrls.clear();
   });
   $("exportOrderPdf")?.addEventListener("click", () => exportCurrentOrder("pdf"));
   $("exportOrderImage")?.addEventListener("click", () => exportCurrentOrder("image"));

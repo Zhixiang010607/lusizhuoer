@@ -38,7 +38,7 @@ function functionSource(source, name) {
   throw new Error(`function ${name} body is incomplete`);
 }
 
-includes(cloud, 'const FUNCTION_VERSION = "v50"', "cloud version");
+includes(cloud, 'const FUNCTION_VERSION = "v51"', "cloud version");
 includes(cloud, "const MAX_VERIFICATION_IMAGE_BYTES = 3 * 1024 * 1024", "original upload limit");
 includes(cloud, "const MAX_THUMBNAIL_BYTES = 384 * 1024", "thumbnail upload limit");
 includes(cloud, "if (action === \"getVerificationPhotos\")", "thumbnail list action");
@@ -222,7 +222,10 @@ includes(createUi, 'const VERSION = "0.14.45"', "create UI cache version");
 
 includes(detailUi, 'action: "getVerificationPhotos"', "detail thumbnail request");
 includes(detailUi, 'action: "getVerificationPhotoOriginalUrl"', "detail original request");
-includes(detailUi, 'action: "uploadVerificationExtraPhoto"', "detail upload request");
+includes(detailUi, 'action: "beginVerificationPhotoUpload"', "detail direct-upload begin request");
+includes(detailUi, 'action: "commitVerificationPhotoUpload"', "detail direct-upload commit request");
+includes(detailUi, 'action: "cancelVerificationPhotoUpload"', "detail direct-upload cancel request");
+assert.ok(!detailUi.includes('action: "uploadVerificationExtraPhoto"'), "detail page no longer transports Base64 photos through the cloud function");
 includes(detailUi, 'loading="lazy"', "lazy thumbnail loading");
 includes(cloud, "originalUrl,", "authorized list returns short-lived original URL");
 includes(cloud, "storageUploadResponseMismatch", "successful CloudBase upload response compatibility");
@@ -240,7 +243,7 @@ assert.ok(
     < functionSource(cloud, "getVerificationPhotos").indexOf("signVerificationPhoto("),
   "original URLs must be signed only after the verification-order permission check"
 );
-includes(detailUi, 'const VERSION = "0.15.26"', "detail UI cache version");
+includes(detailUi, 'const VERSION = "0.16.0"', "detail UI cache version");
 includes(detailUi, 'return "客户原始留存照"', "retained profile label");
 includes(detailUi, 'return "本次核销人脸照"', "current face label");
 includes(detailUi, "Array.from({ length: 5 }", "five-card gallery");
@@ -310,7 +313,7 @@ assert.ok(
 );
 includes(exportPhotosSource, "verificationPhotoManifestSignature(confirmedManifest) !== manifestSignature", "editable photo manifest is rechecked after downloads");
 includes(functionSource(detailUi, "fetchVerificationPhotoManifest"), "payload?.ok !== true || !Array.isArray(payload?.photos)", "null/loading manifest cannot be treated as five empty slots");
-includes(functionSource(detailUi, "uploadVerificationPhoto"), "verificationPhotoLoadPromise = loadVerificationPhotos", "upload refresh is part of the authoritative photo-load promise");
+includes(functionSource(detailUi, "finishVerificationPhotoTask"), "verificationPhotoLoadPromise = refreshVerificationPhotosSilently", "completed upload refreshes the authoritative manifest in the background");
 assert.ok(!functionSource(detailUi, "chooseVerificationPhoto").includes("capture"), "gallery/file picker must not force camera capture");
 includes(detailHtml, 'id="verificationPhotoGrid"', "five-slot gallery mount");
 includes(detailHtml, 'id="verificationPhotoViewer"', "original image dialog");
@@ -325,8 +328,8 @@ includes(detailHtml, 'id="verificationPhotoCameraVideo" autoplay playsinline mut
 includes(detailHtml, 'id="switchVerificationPhotoCamera"', "front/rear camera switch action");
 includes(detailHtml, 'aria-label="切换前后摄像头"', "camera switch accessible name");
 includes(detailHtml, 'order-export.js?v=0.1.1', "export renderer cache bust");
-includes(detailHtml, 'business-detail.js?v=0.15.26', "detail script cache bust");
-includes(detailHtml, 'styles.css?v=0.15.21', "detail styles cache bust");
+includes(detailHtml, 'business-detail.js?v=0.16.0', "detail script cache bust");
+includes(detailHtml, 'styles.css?v=0.15.22', "detail styles cache bust");
 includes(styles, "grid-template-columns: repeat(3, minmax(0, 1fr))", "roomy three-column desktop gallery");
 includes(styles, ".verification-photo-actions", "separate camera and upload action layout");
 includes(styles, ".verification-photo-camera-stage", "camera preview stage styles");

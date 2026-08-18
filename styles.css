@@ -907,6 +907,22 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .verification-photo-camera:disabled { color: #94a3b8; border-color: #d5dde7; background: #eef2f6; }
 .verification-photo-message { min-height: 18px; margin: 10px 0 0; color: var(--muted); font-size: 11px; }
 .verification-photo-message.error { color: #b42318; }
+.verification-photo-upload-task { position: sticky; bottom: 12px; z-index: 4; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; margin-top: 14px; padding: 13px 14px; border: 1px solid #bfd4ee; border-radius: 12px; background: #f6fafff5; box-shadow: 0 10px 30px #1e3a5f1c; backdrop-filter: blur(10px); }
+.verification-photo-upload-task[hidden] { display: none; }
+.verification-photo-upload-task[data-state="uploading"], .verification-photo-upload-task[data-state="committing"] { border-color: #86b6ed; background: #eef7fff5; }
+.verification-photo-upload-task[data-state="success"] { border-color: #9bd8bd; background: #effcf6f5; }
+.verification-photo-upload-task[data-state="failed"], .verification-photo-upload-task[data-state="canceling"] { border-color: #efc0ba; background: #fff7f5f5; }
+.verification-photo-upload-task-copy { min-width: 0; display: grid; gap: 5px; }
+.verification-photo-upload-task-copy strong { color: var(--ink); font-size: 13px; }
+.verification-photo-upload-task-copy p { min-width: 0; margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.verification-photo-upload-progress-row { display: grid; grid-template-columns: minmax(100px, 1fr) 42px; align-items: center; gap: 9px; }
+.verification-photo-upload-progress-row progress { width: 100%; height: 8px; overflow: hidden; border: 0; border-radius: 999px; background: #dce8f5; accent-color: #2563eb; }
+.verification-photo-upload-progress-row progress::-webkit-progress-bar { border-radius: 999px; background: #dce8f5; }
+.verification-photo-upload-progress-row progress::-webkit-progress-value { border-radius: 999px; background: #2563eb; transition: width .18s ease; }
+.verification-photo-upload-progress-row span { color: #174f86; font-size: 11px; font-weight: 900; text-align: right; font-variant-numeric: tabular-nums; }
+.verification-photo-upload-task-actions { display: flex; align-items: center; gap: 8px; }
+.verification-photo-upload-task-actions button { min-height: 38px; white-space: nowrap; }
+.verification-photo-upload-task-actions .secondary { color: #174f86; border: 1px solid #c7d7ea; background: #fff; }
 .verification-photo-viewer { width: min(1040px, calc(100vw - 28px)); max-height: calc(100dvh - 28px); padding: 14px; overflow: auto; }
 .verification-photo-viewer .dialog-heading { align-items: start; gap: 14px; margin-bottom: 12px; }
 .verification-photo-viewer .dialog-heading h2 { margin: 0; }
@@ -1241,6 +1257,9 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 @media (max-width: 560px) {
   .verification-photo-panel { padding: 14px; }
   .verification-photo-grid { grid-template-columns: 1fr; }
+  .verification-photo-upload-task { grid-template-columns: 1fr; bottom: 8px; gap: 10px; }
+  .verification-photo-upload-task-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .verification-photo-upload-task-actions button { width: 100%; }
   .verification-photo-viewer { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); padding: 12px; }
   .verification-photo-viewer-controls { position: sticky; top: -12px; z-index: 2; padding: 8px 0; background: #fff; }
   .verification-photo-original-frame { height: min(68dvh, 620px); min-height: 260px; }
