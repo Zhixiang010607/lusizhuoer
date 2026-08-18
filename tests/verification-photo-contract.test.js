@@ -243,7 +243,7 @@ assert.ok(
     < functionSource(cloud, "getVerificationPhotos").indexOf("signVerificationPhoto("),
   "original URLs must be signed only after the verification-order permission check"
 );
-includes(detailUi, 'const VERSION = "0.16.0"', "detail UI cache version");
+includes(detailUi, 'const VERSION = "0.16.1"', "detail UI cache version");
 includes(detailUi, 'return "客户原始留存照"', "retained profile label");
 includes(detailUi, 'return "本次核销人脸照"', "current face label");
 includes(detailUi, "Array.from({ length: 5 }", "five-card gallery");
@@ -328,8 +328,8 @@ includes(detailHtml, 'id="verificationPhotoCameraVideo" autoplay playsinline mut
 includes(detailHtml, 'id="switchVerificationPhotoCamera"', "front/rear camera switch action");
 includes(detailHtml, 'aria-label="切换前后摄像头"', "camera switch accessible name");
 includes(detailHtml, 'order-export.js?v=0.1.1', "export renderer cache bust");
-includes(detailHtml, 'business-detail.js?v=0.16.0', "detail script cache bust");
-includes(detailHtml, 'styles.css?v=0.15.22', "detail styles cache bust");
+includes(detailHtml, 'business-detail.js?v=0.16.1', "detail script cache bust");
+includes(detailHtml, 'styles.css?v=0.15.23', "detail styles cache bust");
 includes(styles, "grid-template-columns: repeat(3, minmax(0, 1fr))", "roomy three-column desktop gallery");
 includes(styles, ".verification-photo-actions", "separate camera and upload action layout");
 includes(styles, ".verification-photo-camera-stage", "camera preview stage styles");

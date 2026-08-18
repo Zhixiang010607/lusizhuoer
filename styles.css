@@ -911,7 +911,8 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .verification-photo-upload-task[hidden] { display: none; }
 .verification-photo-upload-task[data-state="uploading"], .verification-photo-upload-task[data-state="committing"] { border-color: #86b6ed; background: #eef7fff5; }
 .verification-photo-upload-task[data-state="success"] { border-color: #9bd8bd; background: #effcf6f5; }
-.verification-photo-upload-task[data-state="failed"], .verification-photo-upload-task[data-state="canceling"] { border-color: #efc0ba; background: #fff7f5f5; }
+.verification-photo-upload-task[data-state="failed"], .verification-photo-upload-task[data-state="recovering"] { border-color: #efc0ba; background: #fff7f5f5; }
+.verification-photo-upload-task[data-state="canceling"] { border-color: #c8d4e3; background: #f5f8fcf5; }
 .verification-photo-upload-task-copy { min-width: 0; display: grid; gap: 5px; }
 .verification-photo-upload-task-copy strong { color: var(--ink); font-size: 13px; }
 .verification-photo-upload-task-copy p { min-width: 0; margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }

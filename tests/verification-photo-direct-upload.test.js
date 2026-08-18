@@ -76,6 +76,8 @@ assert.ok(
 includes(runUpload, 'clean(error?.code).toUpperCase() === "PHOTO_UPLOAD_ALREADY_ACTIVE"', "cross-tab active conflict");
 includes(runUpload, "return await monitorExistingVerificationPhotoUpload(task)", "active conflict never starts a second PUT");
 includes(runUpload, "task.intentStarted = true", "server intent acknowledgement");
+includes(runUpload, "网络较慢，仍在连接", "a slow begin request explains that photo bytes have not started uploading");
+includes(runUpload, "clearTimeout(beginSlowTimer)", "slow-connection notice is cleared when begin settles");
 
 const finishTask = functionSource(ui, "finishVerificationPhotoTask");
 assert.ok(
@@ -96,12 +98,41 @@ for (const contract of [
   'action: "cancelVerificationPhotoUpload"', 'action: "getVerificationPhotoUploadStatus"',
   "recordId: cancellationRecordId", "requestId: task.requestId",
   '["COMMITTED", "COMPLETED"].includes(status)', "verificationPhotoUploadTerminal(status)",
-  "确认服务器结束前不能开始下一张", "task.cancelPromise = null"
+  "再上传下一张", "task.cancelPromise = null"
 ]) includes(reconcile, contract, `cancel reconciliation ${contract}`);
 includes(reconcile, "cancelNotFound && statusNotFound", "two authoritative not-found confirmations may unlock a never-created intent");
 assert.ok(
-  !reconcile.slice(reconcile.indexOf('setVerificationPhotoTaskStage(task, "CANCELING", "取消尚未确认"')).includes("finishVerificationPhotoTask("),
+  !reconcile.slice(reconcile.lastIndexOf('cancelLabel: "再次确认"')).includes("finishVerificationPhotoTask("),
   "an unconfirmed cancellation keeps the global task locked"
+);
+includes(functionSource(ui, "updateVerificationPhotoTaskUi"), 'meter.removeAttribute("value")', "cancel and recovery states use an indeterminate progress bar");
+includes(functionSource(ui, "verificationPhotoCancellationCopy"), "上传未完成，正在恢复", "automatic cleanup keeps the upload failure visible");
+includes(functionSource(ui, "verificationPhotoCancellationCopy"), "正在停止上传", "user cancellation has plain-language copy");
+includes(reconcile, 'task.reconcileOutcome = "failed"', "a failed upload keeps its recovery outcome across manual rechecks");
+includes(reconcile, "task.reconcileFailure = failure", "a failed upload keeps its original error across manual rechecks");
+includes(functionSource(ui, "cancelVerificationPhotoUpload"), 'task.reconcileOutcome || "canceled"', "the recheck button preserves failure recovery instead of relabeling it as user cancellation");
+includes(reconcile, "progressText: cancelingCopy.progressText", "cancel progress never leaves a stale percentage visible");
+includes(reconcile, "callVerificationPhotoLifecycle", "cancel and status checks have bounded client waits");
+includes(reconcile, "if (task.beginInFlight)", "not-found checks cannot unlock while the original begin request is unresolved");
+includes(functionSource(ui, "updateSignedUploadProgress"), "task.lastRenderedUploadPercent + 5", "upload progress DOM updates are rate limited to visible increments");
+includes(styles, '[data-state="canceling"]', "normal cancellation is visually distinct from a failed upload");
+
+const lifecycleHarness = {
+  module: { exports: {} },
+  setTimeout: (callback) => { queueMicrotask(callback); return 1; },
+  clearTimeout: () => {}
+};
+vm.createContext(lifecycleHarness);
+vm.runInContext(`
+  const callFaceRecognition = () => new Promise(() => {});
+  ${functionSource(ui, "verificationPhotoUploadError")}
+  ${functionSource(ui, "callVerificationPhotoLifecycle")}
+  module.exports = { callVerificationPhotoLifecycle };
+`, lifecycleHarness, { filename: "verification-photo-lifecycle-timeout.js" });
+const lifecycleTimeoutPromise = assert.rejects(
+  lifecycleHarness.module.exports.callVerificationPhotoLifecycle({ action: "getVerificationPhotoUploadStatus" }, 1),
+  (error) => error?.code === "PHOTO_UPLOAD_CONFIRM_TIMEOUT",
+  "a hung cancellation/status check becomes a visible retry state instead of an endless disabled button"
 );
 
 const xhrUpload = functionSource(ui, "uploadVerificationPhotoBlob");
@@ -172,7 +203,7 @@ const xhrContractPromise = (async () => {
   assert.equal(firstXhr.headers["Content-Type"], "image/jpeg");
   assert.equal(firstXhr.headers["X-Test-Signature"], undefined, "raw PUT sends only Content-Type; credentials stay inside the signed URL");
   firstXhr.upload.emit("progress", { lengthComputable: true, loaded: 50 });
-  assert.equal(progressSamples.at(-1), 58.5, "50% storage progress maps into the 32%-85% upload stage");
+  assert.equal(progressSamples.at(-1), 50, "storage upload shows the real 0%-100% transfer progress");
   firstXhr.status = 204;
   firstXhr.emit("load");
   await firstPromise;
@@ -277,6 +308,7 @@ function cancellationScenario(responses) {
   vm.runInContext(`
     const clean = (value) => String(value || "").trim();
     const callFaceRecognition = async () => globalThis.__queue.length ? globalThis.__queue.shift() : { status: "UPLOADING" };
+    const callVerificationPhotoLifecycle = callFaceRecognition;
     const setTimeout = (callback) => { callback(); return 1; };
     const setVerificationPhotoTaskStage = (...args) => globalThis.__stages.push(args);
     const finishVerificationPhotoTask = (...args) => globalThis.__finishes.push(args);
@@ -284,6 +316,7 @@ function cancellationScenario(responses) {
     ${functionSource(ui, "verificationPhotoUploadStatus")}
     ${functionSource(ui, "verificationPhotoUploadTerminal")}
     ${functionSource(ui, "verificationPhotoUploadRequestNotFound")}
+    ${functionSource(ui, "verificationPhotoCancellationCopy")}
     ${reconcile}
     module.exports = { reconcileVerificationPhotoCancellation };
   `, harness, { filename: "verification-photo-cancel-race.js" });
@@ -309,7 +342,7 @@ const cancelRacePromise = (async () => {
   await pending.harness.module.exports.reconcileVerificationPhotoCancellation(pendingTask, "canceled");
   assert.equal(pending.finishes.length, 0, "non-terminal cancellation never unlocks a retry");
   assert.equal(pendingTask.cancelPromise, null, "user may explicitly retry cancellation reconciliation");
-  assert.ok(pending.stages.some((args) => String(args[3]).includes("确认服务器结束前不能开始下一张")));
+  assert.ok(pending.stages.some((args) => String(args[3]).includes("再上传下一张")));
 })();
 
 // Cloud function contract: live authorization precedes signing; clients never
@@ -463,7 +496,7 @@ assert.ok(
   "commit and cancel take locks in the same order, serializing their race"
 );
 
-Promise.all([xhrContractPromise, singleTaskPromise, cancelRacePromise])
+Promise.all([lifecycleTimeoutPromise, xhrContractPromise, singleTaskPromise, cancelRacePromise])
   .then(() => console.log("verification photo direct upload: PASS"))
   .catch((error) => {
     console.error(error);

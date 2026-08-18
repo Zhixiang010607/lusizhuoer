@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.0";
+  const VERSION = "0.16.1";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -211,6 +211,14 @@
       throw error;
     }
     return payload;
+  }
+
+  function callVerificationPhotoLifecycle(data, timeoutMs = 8000) {
+    let timer = null;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(verificationPhotoUploadError("网络响应较慢，请再次确认上传状态", "PHOTO_UPLOAD_CONFIRM_TIMEOUT")), timeoutMs);
+    });
+    return Promise.race([callFaceRecognition(data), timeout]).finally(() => clearTimeout(timer));
   }
 
   async function loadTeacherOrder(recordId) {
@@ -991,12 +999,27 @@
     const progress = Math.max(0, Math.min(100, Number(options.progress ?? task?.progress ?? 0)));
     if (task) task.progress = progress;
     bar.hidden = false;
-    bar.dataset.state = clean(options.state || task?.state || "PREPARING").toLowerCase();
+    const state = clean(options.state || task?.state || "PREPARING").toUpperCase();
+    bar.dataset.state = state.toLowerCase();
     $("verificationPhotoUploadTaskTitle").textContent = options.title || `${photoSlotLabel(task?.slot)}上传任务`;
     $("verificationPhotoUploadTaskDetail").textContent = options.detail || "正在准备照片…";
     const meter = $("verificationPhotoUploadProgress");
-    if (meter) { meter.value = progress; meter.setAttribute("aria-valuetext", `${Math.round(progress)}%`); }
-    $("verificationPhotoUploadPercent").textContent = `${Math.round(progress)}%`;
+    const stageProgressText = {
+      PREPARING: "处理中",
+      AUTHORIZING: "连接中",
+      WAITING: "等待中",
+      COMMITTING: "保存中",
+      CANCELING: "停止中",
+      RECOVERING: "恢复中"
+    }[state] || "";
+    const indeterminate = options.indeterminate === true || Boolean(stageProgressText);
+    const progressText = clean(options.progressText) || stageProgressText || `${Math.round(progress)}%`;
+    if (meter) {
+      if (indeterminate) meter.removeAttribute("value");
+      else meter.value = progress;
+      meter.setAttribute("aria-valuetext", progressText);
+    }
+    $("verificationPhotoUploadPercent").textContent = progressText;
     const cancel = $("cancelVerificationPhotoUpload");
     if (cancel) {
       cancel.hidden = options.canCancel === false;
@@ -1019,6 +1042,24 @@
       message.className = `verification-photo-message${options.error ? " error" : ""}`;
       message.textContent = detail || title || "";
     }
+  }
+
+  function verificationPhotoCancellationCopy(outcome, failure = null) {
+    if (outcome === "failed") {
+      const failureMessage = clean(failure?.message) || "照片没有上传完成";
+      return {
+        title: "上传未完成，正在恢复",
+        detail: `${failureMessage}；正在清理本次未完成任务，完成后即可重新上传。`,
+        progressText: "恢复中",
+        cancelLabel: "正在恢复…"
+      };
+    }
+    return {
+      title: "正在停止上传",
+      detail: "正在停止本次上传。出现“已取消”后，就可以重新拍照或选择文件。",
+      progressText: "停止中",
+      cancelLabel: "正在停止…"
+    };
   }
 
   function setVerificationPhotoButtonsDisabled(disabled) {
@@ -1208,7 +1249,11 @@
     const total = parts.reduce((sum, part) => sum + Number(part.total || 0), 0);
     const loaded = parts.reduce((sum, part) => sum + Math.min(Number(part.loaded || 0), Number(part.total || 0)), 0);
     const percent = total > 0 ? loaded / total : 0;
-    setVerificationPhotoTaskStage(task, "UPLOADING", `${photoSlotLabel(task.slot)}正在上传`, `正在直传私有存储 ${Math.round(percent * 100)}%（请勿关闭页面）`, 32 + percent * 53);
+    const displayPercent = Math.max(0, Math.min(100, Math.round(percent * 100)));
+    if (displayPercent < 100 && Number.isFinite(task.lastRenderedUploadPercent)
+      && displayPercent < task.lastRenderedUploadPercent + 5) return;
+    task.lastRenderedUploadPercent = displayPercent;
+    setVerificationPhotoTaskStage(task, "UPLOADING", `${photoSlotLabel(task.slot)}正在上传`, `照片正在上传 ${displayPercent}%（请勿关闭页面）`, displayPercent);
   }
 
   function uploadVerificationPhotoBlob(task, name, targetValue, blob) {
@@ -1296,9 +1341,10 @@
     const finalDetail = retryRequested && !hasRetrySource && task.source === "camera"
       ? `${detail} 拍摄画面未完成处理，请重新拍照。`
       : detail;
-    setVerificationPhotoTaskStage(task, outcome.toUpperCase(), title, finalDetail, outcome === "success" ? 100 : task.progress, {
+    setVerificationPhotoTaskStage(task, outcome.toUpperCase(), title, finalDetail, outcome === "success" ? 100 : 0, {
       canCancel: false,
       canRetry: retry,
+      progressText: outcome === "success" ? "100%" : outcome === "canceled" ? "已取消" : "未完成",
       error: outcome === "failed"
     });
     setVerificationPhotoButtonsDisabled(false);
@@ -1353,9 +1399,22 @@
   }
 
   async function reconcileVerificationPhotoCancellation(task, outcome = "canceled", failure = null) {
+    if (outcome === "failed") {
+      task.reconcileOutcome = "failed";
+      task.reconcileFailure = failure;
+    }
+    outcome = task.reconcileOutcome || outcome;
+    failure = task.reconcileFailure || failure;
     if (task.cancelPromise) return task.cancelPromise;
     task.cancelPromise = (async () => {
-      setVerificationPhotoTaskStage(task, "CANCELING", "正在取消上传", "正在中止网络传输并等待服务器确认…", task.progress, { cancelDisabled: true, cancelLabel: "正在确认…" });
+      const cancelingCopy = verificationPhotoCancellationCopy(outcome, failure);
+      setVerificationPhotoTaskStage(task, outcome === "failed" ? "RECOVERING" : "CANCELING", cancelingCopy.title, cancelingCopy.detail, task.progress, {
+        cancelDisabled: true,
+        cancelLabel: cancelingCopy.cancelLabel,
+        indeterminate: true,
+        progressText: cancelingCopy.progressText,
+        error: outcome === "failed"
+      });
       task.worker?.terminate?.();
       task.cancelPreparation?.();
       task.cancelPreparation = null;
@@ -1365,18 +1424,29 @@
       let cancelNotFound = false;
       let statusNotFound = false;
       const cancellationRecordId = clean(task.cancelRecordId || task.recordId);
-      try { latest = await callFaceRecognition({ action: "cancelVerificationPhotoUpload", recordId: cancellationRecordId, requestId: task.requestId }); }
+      try { latest = await callVerificationPhotoLifecycle({ action: "cancelVerificationPhotoUpload", recordId: cancellationRecordId, requestId: task.requestId }); }
       catch (error) { cancelNotFound = verificationPhotoUploadRequestNotFound(error); }
       for (let attempt = 0; attempt < 6 && !verificationPhotoUploadTerminal(verificationPhotoUploadStatus(latest)); attempt += 1) {
         await new Promise((resolve) => setTimeout(resolve, 300 + attempt * 250));
-        try { latest = await callFaceRecognition({ action: "getVerificationPhotoUploadStatus", recordId: cancellationRecordId, requestId: task.requestId }); }
+        try { latest = await callVerificationPhotoLifecycle({ action: "getVerificationPhotoUploadStatus", recordId: cancellationRecordId, requestId: task.requestId }, 6000); }
         catch (error) {
+          if (clean(error?.code).toUpperCase() === "PHOTO_UPLOAD_CONFIRM_TIMEOUT") break;
           statusNotFound = verificationPhotoUploadRequestNotFound(error);
           if (cancelNotFound && statusNotFound) break;
         }
       }
       const status = verificationPhotoUploadStatus(latest);
       if (cancelNotFound && statusNotFound) {
+        if (task.beginInFlight) {
+          setVerificationPhotoTaskStage(task, "CANCELING", "停止请求已收到", "网络仍在处理最初的上传连接。请稍候几秒后再次确认；确认前不会开始下一张。", task.progress, {
+            cancelDisabled: false,
+            cancelLabel: "再次确认",
+            indeterminate: true,
+            progressText: "待确认"
+          });
+          task.cancelPromise = null;
+          return;
+        }
         finishVerificationPhotoTask(task, outcome, outcome === "failed"
           ? (failure?.message || "服务器未建立照片任务，可重新上传。")
           : "服务器确认没有该上传任务；已安全取消，可重新上传。", { refresh: false });
@@ -1395,9 +1465,13 @@
         finishVerificationPhotoTask(task, outcome, outcome === "failed" ? (failure?.message || "照片上传失败，可重试") : "服务器已确认取消；可重新上传本张照片。", { refresh: true });
         return;
       }
-      setVerificationPhotoTaskStage(task, "CANCELING", "取消尚未确认", "为了避免旧任务覆盖新照片，确认服务器结束前不能开始下一张；请点击“重新确认取消”。", task.progress, {
+      setVerificationPhotoTaskStage(task, outcome === "failed" ? "RECOVERING" : "CANCELING", outcome === "failed" ? "上传恢复尚未完成" : "还在确认上传已停止", outcome === "failed"
+        ? `${clean(failure?.message) || "照片没有上传完成"}；网络响应较慢。为防止旧照片稍后覆盖新照片，请检查网络后再次确认。`
+        : "网络响应较慢。为防止旧照片稍后覆盖新照片，请先确认这次上传已经停止，再上传下一张。", task.progress, {
         cancelDisabled: false,
-        cancelLabel: "重新确认取消",
+        cancelLabel: "再次确认",
+        indeterminate: true,
+        progressText: "待确认",
         error: true
       });
       task.cancelPromise = null;
@@ -1413,12 +1487,13 @@
     let latest = null;
     for (let attempt = 0; attempt < 6 && verificationPhotoUploadTask === task && !task.cancelRequested; attempt += 1) {
       try {
-        latest = await callFaceRecognition({
+        latest = await callVerificationPhotoLifecycle({
           action: "getVerificationPhotoUploadStatus",
           recordId: clean(task.cancelRecordId || task.recordId),
           requestId: task.requestId
-        });
+        }, 6000);
       } catch (error) {
+        if (clean(error?.code).toUpperCase() === "PHOTO_UPLOAD_CONFIRM_TIMEOUT") break;
         if (verificationPhotoUploadRequestNotFound(error)) {
           finishVerificationPhotoTask(task, "canceled", "已有上传任务已结束；本次所选照片尚未上传，可点击“重新上传”。", { refresh: true });
           return;
@@ -1447,14 +1522,20 @@
     task.worker = null;
     task.xhrs.forEach((xhr) => { try { xhr.abort(); } catch (_) { /* 已结束 */ } });
     if (task.beginInFlight) {
-      setVerificationPhotoTaskStage(task, "CANCELING", "正在取消上传", "正在等待服务器返回上传任务编号，确认后会立即取消…", task.progress, { cancelDisabled: true, cancelLabel: "正在确认…" });
+      setVerificationPhotoTaskStage(task, "CANCELING", "正在停止上传", "停止请求已经收到。出现“已取消”后，就可以重新拍照或选择文件。", task.progress, {
+        cancelDisabled: true,
+        cancelLabel: "正在停止…",
+        indeterminate: true,
+        progressText: "停止中"
+      });
+      await reconcileVerificationPhotoCancellation(task, task.reconcileOutcome || "canceled", task.reconcileFailure || null);
       return;
     }
     if (!task.intentStarted && !task.beginDispatched) {
       finishVerificationPhotoTask(task, "canceled", "已在照片离开设备前取消；可重新上传。", { refresh: false });
       return;
     }
-    await reconcileVerificationPhotoCancellation(task, "canceled");
+    await reconcileVerificationPhotoCancellation(task, task.reconcileOutcome || "canceled", task.reconcileFailure || null);
   }
 
   async function runVerificationPhotoUpload(task, sourceCanvas = null) {
@@ -1467,6 +1548,13 @@
       let begin;
       task.beginDispatched = true;
       task.beginInFlight = true;
+      const beginSlowTimer = setTimeout(() => {
+        if (verificationPhotoUploadTask !== task || !task.beginInFlight || task.cancelRequested) return;
+        setVerificationPhotoTaskStage(task, "AUTHORIZING", "网络较慢，仍在连接", "照片还没有开始传输。可以继续等待，或点击“取消上传”。", task.progress, {
+          indeterminate: true,
+          progressText: "连接中"
+        });
+      }, 8000);
       try {
         begin = await callFaceRecognition({
           action: "beginVerificationPhotoUpload",
@@ -1493,6 +1581,7 @@
         }
         throw error;
       } finally {
+        clearTimeout(beginSlowTimer);
         task.beginInFlight = false;
       }
       if (clean(begin?.requestId) && clean(begin.requestId) !== task.requestId) {
