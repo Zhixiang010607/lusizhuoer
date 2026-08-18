@@ -45,6 +45,17 @@
     return auth;
   }
 
+  function authResponseData(result, fallback) {
+    if (!result || typeof result !== "object") {
+      throw new Error(`${fallback}，认证服务没有返回有效结果`);
+    }
+    if (result.error) throw new Error(result.error.message || fallback);
+    if (!result.data || typeof result.data !== "object") {
+      throw new Error(`${fallback}，认证服务没有返回有效会话`);
+    }
+    return result.data;
+  }
+
   function functionPayload(result) {
     const candidates = [result?.result, result?.data?.result, result?.data, result].map((candidate) => {
       if (typeof candidate !== "string") return candidate;
@@ -143,21 +154,19 @@
         phone: normalizedPhone,
         options: { shouldCreateUser: false }
       });
-      if (result.error) throw new Error(result.error.message || "验证码发送失败");
-      verifyOtp = result.data?.verifyOtp;
+      const data = authResponseData(result, "验证码发送失败");
+      verifyOtp = data.verifyOtp;
       if (!verifyOtp) throw new Error("验证码服务未返回验证会话");
       writeSmsState(normalizedPhone, { lastSentAt: Date.now() });
     },
     async signInWithCode(code) {
       if (!verifyOtp) throw new Error("请先获取短信验证码");
       const result = await verifyOtp({ token: String(code || "").trim() });
-      if (result.error) throw new Error(result.error.message || "验证码无效或已过期");
-      return result.data;
+      return authResponseData(result, "验证码无效或已过期");
     },
     async signInWithPassword(phone, password) {
       const result = await getAuth().signInWithPassword({ phone: normalizePhone(phone), password });
-      if (result.error) throw new Error(result.error.message || "手机号或密码错误");
-      return result.data;
+      return authResponseData(result, "手机号或密码错误");
     },
     async getStaffSession(phone) {
       const data = await callStaffAccount(

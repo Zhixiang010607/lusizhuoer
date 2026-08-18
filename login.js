@@ -1,7 +1,8 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.17.0";
+  const VERSION = "0.17.2";
+  const SMS_BRAND = "露思卓儿";
   const $ = (id) => document.getElementById(id);
   const roles = {
     hq: { name: "总部", target: "index.html" },
@@ -47,6 +48,7 @@
   }
   function setResetError(message = "") { $("passwordResetMessage").textContent = message; }
   function showPasswordReset(show) {
+    $("loginWelcomeHeading").hidden = show;
     $("loginForm").hidden = show;
     $("passwordResetForm").hidden = !show;
     setError();
@@ -118,13 +120,16 @@
       setResetError(); setBusy(button, true, "获取验证码");
       await window.CloudBasePhoneAuth.sendCode($("resetPhone").value);
       passwordResetCodeSent = true;
-      setResetError("验证码已发送。60 秒内不能重复发送，请尽快完成修改。");
+      setResetError(`${SMS_BRAND}验证码已发送。60 秒内不能重复发送，请尽快完成修改。`);
     } catch (error) {
       setResetError(error?.message || "验证码发送失败，请稍后重试。");
     } finally { refreshResetSmsButton(); }
   });
   $("passwordResetForm").addEventListener("submit", async (event) => {
     event.preventDefault();
+    // Browsers clear Event.currentTarget after an async listener yields. Keep
+    // the form itself so mobile Safari never evaluates null.reset().
+    const form = event.currentTarget;
     const code = $("resetSmsCode").value.trim();
     const password = $("resetNewPassword").value;
     const confirmation = $("resetConfirmPassword").value;
@@ -133,13 +138,13 @@
     if (!code) return setResetError("请输入短信验证码。");
     if (!validPassword(password)) return setResetError("新密码需为 8–32 位，且至少包含三类字符。");
     if (password !== confirmation) return setResetError("两次输入的新密码不一致。");
-    const button = event.currentTarget.querySelector('[type="submit"]');
+    const button = form.querySelector('[type="submit"]');
     try {
       setResetError(); setBusy(button, true, "验证并修改密码");
       await window.CloudBasePhoneAuth.signInWithCode(code);
       await window.CloudBasePhoneAuth.changeOwnPassword(password);
       window.CloudBasePhoneAuth.announceAuthenticationChanged?.();
-      event.currentTarget.reset();
+      form.reset();
       passwordResetCodeSent = false;
       window.setTimeout(() => { showPasswordReset(false); setError("密码已修改，请使用新密码登录。"); }, 700);
     } catch (error) {
@@ -151,7 +156,7 @@
     try {
       setError(); setBusy(button, true, "获取验证码");
       await window.CloudBasePhoneAuth.sendCode($("loginPhone").value);
-      setError("验证码已发送。60 秒内不可重发；请尽快完成登录。");
+      setError(`${SMS_BRAND}验证码已发送。60 秒内不可重发；请尽快完成登录。`);
       refreshSmsButton();
     } catch (error) {
       setError(error.message || "验证码发送失败，请稍后重试");
