@@ -147,12 +147,14 @@
 部署为网页时：
 
 1. 按编号依次执行尚未运行的数据库迁移；正式 migration 工具使用完整的 `037_verification_photo_evidence.sql` 与 `038_verification_profile_photo_snapshot.sql`，腾讯云 `ExecutePGSql` 控制台必须改用 `database/cloudbase-console/` 下的七个短文件并严格按 `037-01` 至 `037-03`、`038-01` 至 `038-04` 执行；若 `037-01` 已成功而旧版 `037-02` 报 `SQLSTATE 42601`，不要重跑 `037-01`，先单独执行 `ROLLBACK;`，再从当前 `037-02` 继续；
-2. 执行迁移 `039_direct_verification_photo_upload.sql`（CloudBase SQL 编辑器应依次执行独立的 `039-01` 至 `039-05`），建立短时上传任务、每单唯一进行中任务和原子提交函数；
+2. 执行迁移 `039_direct_verification_photo_upload.sql`（CloudBase SQL 编辑器应依次执行独立的 `039-01` 至 `039-05`），建立短时上传任务、每单唯一进行中任务和原子提交函数；随后执行 `040_fix_verification_photo_commit_ambiguity.sql`（控制台使用 `040-01`），消除提交函数返回字段与冲突键 `photo_slot` 的 PL/pgSQL 歧义；
 3. 可选在 CloudBase PG 云存储中新建私有桶 `verification-photos`；也可以把 `VERIFICATION_PHOTO_BUCKET_ID` 和 `CUSTOMER_PHOTO_BUCKET_ID` 都设为现有私有桶 `customer-photos`。两个云函数会对候选桶去重并查询当前 PostgreSQL 环境的真实 `storage.buckets.id`，候选桶都不存在时直接拒绝。`faceRecognition` 与 `verificationPhoto` 的环境变量必须在各自函数中分开配置，并在 CloudBase 控制台“一项变量一行／一个输入框”；不能把整段 `KEY=value` 文本粘到任意单个变量值中。两边优先使用平台托管的 `CLOUDBASE_APIKEY`，仍兼容旧 `CLOUDBASE_SERVICE_ROLE_KEY`，并配置同一个至少 32 位安全随机 `VERIFICATION_PHOTO_CLEANUP_TOKEN`。清理凭证只用于无终端用户 UID 的控制台手工补跑，绝不能写入 Timer JSON。`CUSTOMER_PHOTO_URL_TTL_SECONDS`、`VERIFICATION_FACE_EVIDENCE_TTL_MINUTES` 及全部 `FACE_*` 只配置在 `faceRecognition`。在现有云函数安全规则中合并 `verificationPhoto.invoke = auth.loginType != 'ANONYMOUS' && auth != null`，同时保留必需的顶层 `*` 和所有其他函数条目；客户端出现 `EXCEED_AUTHORITY` 时检查该项、登录类型和会话。平台 Timer 不走普通客户端 `invoke` 授权。两个函数分别保存 triggers-only 定时配置：`faceRecognition` 使用 `cleanup-verification-photo-drafts-hourly`，`verificationPhoto` 使用 `cleanup-verification-photo-uploads-hourly`；触发器不携带业务 `action` 或凭证。静态站点域名须加入 Web 安全域名；当前补充照片通过云函数传输，不要求桶开放浏览器 `PUT` CORS；
 4. 部署 `staffAccount-v41.zip` 与 `faceRecognition-v55.zip`，调用各自 `health` 核对版本，并先验证原有建档、活体、1:1 核销人脸，以及总部必须选择唯一 `ACTIVE` 门店后才能使用四个共享办理入口；
 5. 新建或更新名称精确为 `verificationPhoto` 的云函数，部署 `verificationPhoto-v3.zip`，配置同环境的服务端 Key 和照片桶、512 MB 内存、60 秒超时，再调用 `health` 确认 `version: "v3"`、`ready: true`、`verificationPhotoUploadSchemaReady: true`、桶和服务端存储均就绪。该函数固定通过 `FUNCTION` 模式接收补充照片，同时重新核验真实对象大小、MIME、JPEG 内容、尺寸和 SHA-256；原图与导出继续按同一账号、工单和照片位权限通过鉴权存储通道读取；
 6. 部署当前静态文件到 CloudBase 静态网站托管并强制刷新浏览器；
 7. 通过总部、运营、门店和老师真实账号完成角色边界回归，并验证总部四个办理入口只能选一个活跃门店、无“全部门店”；同时完成核销照片查看、总部／门店／老师原提交人上传或替换、取消后重试、非提交人拒绝和 24 小时截止测试。
+
+生产库已经执行 039、但补充照片上传出现 `column reference "photo_slot" is ambiguous (SQLSTATE 42702)` 时，只需完整执行一次 040；不要重跑 037--039。040 只替换原子提交函数，不改表、不删除或重写已有照片数据。
 
 如果生产库已经成功执行迁移 039，本次 v55／v3 更新没有新增 SQL 或 migration，不要重跑 037--039；只需按“`faceRecognition v55` → `faceRecognition health` 与人脸／总部办理冒烟测试 → `verificationPhoto v3` → `verificationPhoto health` → 配置两个 Timer → 当前静态前端 → 强制刷新浏览器”的顺序更新。不要在旧 v54／v2 上先启用新 triggers-only Timer，旧函数会把 Timer 当成 `health` 而不会清理；也不要先发布新前端，否则旧函数会拒绝总部办理或照片动作。部署前在同一 CloudBase 环境的 PostgreSQL SQL 编辑器执行 `SELECT id FROM storage.buckets WHERE id IN ('customer-photos') ORDER BY id;`，当前两个桶环境变量都为 `customer-photos` 时应恰好返回这一行；同时用 `SELECT TO_REGCLASS('public.verification_photo_upload_requests');` 确认迁移 039 表存在。完整配置、触发器和健康检查预期见 `cloudfunctions/verificationPhoto/README.md` 与 `cloudfunctions/faceRecognition/README.md`。
 

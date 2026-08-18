@@ -97,11 +97,12 @@ v55 与 `verificationPhoto v3` 共享同一份经过权限校验的照片服务�
 首次上线迁移 039 时必须安排一个短暂停写窗口，并严格按下列顺序部署，避免旧页面绕过单任务锁：
 
 1. 在完整 PostgreSQL migration 工具中执行 `database/migrations/039_direct_verification_photo_upload.sql`；腾讯云 SQL 编辑器则依次单独执行 `039-01`、`039-02`、`039-03`、`039-04`、`039-05`。
-2. 部署 `faceRecognition-v55.zip`，先调用 `health` 确认版本，再验证建档、活体、1:1 人脸核验和总部四个共享办理入口。总部办理必须先确认唯一 `ACTIVE` 门店，且不能提交“全部门店”。
-3. 新建或更新名称精确为 `verificationPhoto` 的函数并部署 `verificationPhoto-v3.zip`；配置同环境服务端 Key、两个照片桶、核销照片读取／上传 TTL 和清理凭证，内存 512 MB、超时 60 秒。该函数不配置 `CUSTOMER_PHOTO_URL_TTL_SECONDS`、`VERIFICATION_FACE_EVIDENCE_TTL_MINUTES` 或任何 `FACE_*`。
-4. 调用 `verificationPhoto` 的 `health`，确认版本与全部就绪字段后，再发布当前静态前端并结束停写窗口；发布后强制刷新浏览器。
+2. 执行 `database/migrations/040_fix_verification_photo_commit_ambiguity.sql`；腾讯云 SQL 编辑器只需执行一次 `040-01-fix-verification-photo-commit-ambiguity.sql`。已经完成 039 的生产库不要重跑 039。
+3. 部署 `faceRecognition-v55.zip`，先调用 `health` 确认版本，再验证建档、活体、1:1 人脸核验和总部四个共享办理入口。总部办理必须先确认唯一 `ACTIVE` 门店，且不能提交“全部门店”。
+4. 新建或更新名称精确为 `verificationPhoto` 的函数并部署 `verificationPhoto-v3.zip`；配置同环境服务端 Key、两个照片桶、核销照片读取／上传 TTL 和清理凭证，内存 512 MB、超时 60 秒。该函数不配置 `CUSTOMER_PHOTO_URL_TTL_SECONDS`、`VERIFICATION_FACE_EVIDENCE_TTL_MINUTES` 或任何 `FACE_*`。
+5. 调用 `verificationPhoto` 的 `health`，确认版本与全部就绪字段后，再发布当前静态前端并结束停写窗口；发布后强制刷新浏览器。
 
-如果生产库已经成功执行 039，本次 v55／v3 更新**没有新的 SQL 或 migration**，不要重跑 037、038 或 039；部署顺序简化为“`faceRecognition v55` → `faceRecognition health` 与人脸／总部办理冒烟测试 → `verificationPhoto v3` → `verificationPhoto health` → 配置两个 Timer → 当前静态前端 → 强制刷新浏览器”。不要先创建 triggers-only Timer 后继续运行旧 v54／v2：旧版本会把 Timer 当成 `health`，不会清理。
+如果生产库已经成功执行 039、但尚未执行 040，只需额外执行一次 040，不要重跑 037、038 或 039。完成 040 后，部署顺序简化为“`faceRecognition v55` → `faceRecognition health` 与人脸／总部办理冒烟测试 → `verificationPhoto v3` → `verificationPhoto health` → 配置两个 Timer → 当前静态前端 → 强制刷新浏览器”。不要先创建 triggers-only Timer 后继续运行旧 v54／v2：旧版本会把 Timer 当成 `health`，不会清理。
 
 部署后测试：
 

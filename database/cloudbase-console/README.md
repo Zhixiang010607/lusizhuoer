@@ -1,6 +1,6 @@
 # 腾讯云 CloudBase SQL 编辑器执行说明
 
-`ExecutePGSql` SQL 编辑器不适合一次提交包含多个 PL/pgSQL 函数的长迁移。完整的 `037`、`038`、`039` 文件保留给正式 migration 工具；在腾讯云控制台中请改用本目录的短文件。
+`ExecutePGSql` SQL 编辑器不适合一次提交包含多个 PL/pgSQL 函数的长迁移。完整的 `037`、`038`、`039`、`040` 文件保留给正式 migration 工具；在腾讯云控制台中请改用本目录的短文件。
 
 如果控制台此前已经出现红色事务错误，先新建一次独立查询，仅执行：
 
@@ -22,6 +22,9 @@ ROLLBACK;
 10. `039-03-commit-upload-function.sql`
 11. `039-04-cancel-upload-function.sql`
 12. `039-05-verify-direct-upload.sql`（只读验收）
+13. `040-01-fix-verification-photo-commit-ambiguity.sql`（修复补充照片提交时 `photo_slot` 歧义）
+
+如果 039 已经执行成功、但补充照片上传报 `column reference "photo_slot" is ambiguous (SQLSTATE 42702)`，不要重跑 037--039，只需完整执行一次 `040-01-fix-verification-photo-commit-ambiguity.sql`。它仅替换原子提交函数，不改表、不删除或重写已有照片数据。
 
 照片迁移已经完成后，如需核对 v52 当前使用的真实 PG 存储桶，可单独执行
 `photo-storage-v52-readonly-check.sql`。它只读检查桶 ID、私有状态、单文件上限、JPEG MIME、迁移 039 表以及现有 RLS 策略，不是新 migration，不需要按编号重复执行。私有照片桶没有面向 `anon`／`authenticated` 的整桶策略是预期状态；服务端 `service_role` 会绕过 RLS，实际 Key 是否可访问由 v52 的 `health.verificationPhotoServiceRoleStorageReady` 验证。
@@ -43,5 +46,6 @@ ROLLBACK;
 9. `039-03-commit-upload-function.sql`
 10. `039-04-cancel-upload-function.sql`
 11. `039-05-verify-direct-upload.sql`
+12. `040-01-fix-verification-photo-commit-ambiguity.sql`
 
 旧版 `037-02` 的状态判断缺少 `CASE` 表达式括号，会报 `syntax error at end of input (SQLSTATE 42601)`；旧版 `037-03` 随后提示 `create_verification_with_face_photo ... does not exist` 是同一问题造成的连锁错误。当前文件已在真实 PostgreSQL 引擎中按上述顺序完整执行通过。

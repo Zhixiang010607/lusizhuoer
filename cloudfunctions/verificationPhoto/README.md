@@ -77,7 +77,7 @@ VERIFICATION_PHOTO_UPLOAD_TTL_SECONDS=600
 
 ## 存储与数据库前置条件
 
-本次 v55／v3 更新不新增 SQL。生产库已经成功执行迁移 039 时，不要重跑 037、038 或 039。部署前在同一个 CloudBase PostgreSQL 环境执行只读检查：
+生产库已经成功执行迁移 039 时不要重跑 037、038 或 039，但必须确认已执行一次迁移 040；040 仅修复 `commit_verification_photo_upload` 中 `photo_slot` 的 PL/pgSQL 歧义，不改表或现有照片数据。部署前在同一个 CloudBase PostgreSQL 环境执行只读检查：
 
 ```sql
 SELECT

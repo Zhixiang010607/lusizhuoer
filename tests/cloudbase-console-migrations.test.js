@@ -17,7 +17,8 @@ const parts = [
   "039-02-begin-upload-function.sql",
   "039-03-commit-upload-function.sql",
   "039-04-cancel-upload-function.sql",
-  "039-05-verify-direct-upload.sql"
+  "039-05-verify-direct-upload.sql",
+  "040-01-fix-verification-photo-commit-ambiguity.sql"
 ];
 
 function transactionBody(source) {
@@ -120,5 +121,25 @@ assert.ok(directVerification.includes("commit_verification_photo_upload"));
 assert.ok(directVerification.includes("cancel_verification_photo_upload"));
 assert.ok(directVerification.includes("uq_verification_photo_upload_one_active_order"));
 assert.ok(directVerification.includes("verification_photos_metadata_v39_check"));
+
+const commitAmbiguityFix = fs.readFileSync(
+  path.join(consoleDir, "040-01-fix-verification-photo-commit-ambiguity.sql"),
+  "utf8"
+);
+const canonicalCommitAmbiguityFix = fs.readFileSync(
+  path.join(root, "database", "migrations", "040_fix_verification_photo_commit_ambiguity.sql"),
+  "utf8"
+);
+for (const source of [commitAmbiguityFix, canonicalCommitAmbiguityFix]) {
+  assert.ok(source.includes("CREATE OR REPLACE FUNCTION public.commit_verification_photo_upload"));
+  assert.ok(source.includes("ON CONFLICT ON CONSTRAINT verification_photos_verification_id_photo_slot_key DO UPDATE"));
+  assert.ok(!source.includes("ON CONFLICT (verification_id, photo_slot) DO UPDATE"));
+  assert.ok(source.includes("Migration 040:"));
+}
+assert.equal(
+  normalizedExecutableSql(commitAmbiguityFix),
+  normalizedExecutableSql(canonicalCommitAmbiguityFix),
+  "CloudBase 040 must match the canonical migration executable SQL"
+);
 
 console.log("cloudbase console migrations: PASS");
