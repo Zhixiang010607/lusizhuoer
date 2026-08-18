@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.19";
+  const VERSION = "0.15.20";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -11,6 +11,10 @@
   let currentRecord = null;
   let currentVerificationPhotoPayload = null;
   let verificationPhotoLoadPromise = Promise.resolve();
+  let verificationPhotoUploadBusy = false;
+  let verificationCameraStream = null;
+  let verificationCameraTarget = null;
+  let verificationCameraRequest = 0;
   let orderExportBusy = false;
 
   function loadSessionRows(key) {
@@ -492,6 +496,12 @@
     return value >= 1024 * 1024 ? `${(value / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(value / 1024))} KB`;
   }
 
+  function usesMobilePhotoLibrary() {
+    const userAgent = String(navigator.userAgent || "");
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(userAgent)
+      || (navigator.platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1);
+  }
+
   function resetVerificationPhotoPanel(message = "正在读取私有照片权限与缩略图…") {
     const panel = $("verificationPhotoPanel");
     if (!panel) return;
@@ -516,9 +526,10 @@
       : `<div class="verification-photo-preview"><span>${slot === 0 ? "未保存客户留存照" : slot === 1 ? "未保存本次人脸凭证" : "尚未上传"}</span></div>`;
     const size = photoSizeLabel(photo?.originalBytes);
     const meta = photo ? [size, formatTime(photo.uploadedAt) || "已绑定"].filter(Boolean).join(" · ") : "空照片位";
+    const libraryLabel = usesMobilePhotoLibrary() ? (photo ? "从相册替换" : "从相册上传") : (photo ? "上传替换" : "上传文件");
     const actions = slot < 2 ? "" : `<div class="verification-photo-actions">
       <button class="verification-photo-upload verification-photo-camera" type="button" data-capture-verification-photo="${slot}" ${canUpload ? "" : "disabled"}>${photo ? "重新拍照" : "拍照"}</button>
-      <button class="verification-photo-upload" type="button" data-upload-verification-photo="${slot}" ${canUpload ? "" : "disabled"}>${photo ? "上传替换" : "上传文件"}</button>
+      <button class="verification-photo-upload" type="button" data-upload-verification-photo="${slot}" ${canUpload ? "" : "disabled"}>${libraryLabel}</button>
     </div>`;
     return `<article class="verification-photo-card">${preview}<div class="verification-photo-card-body"><div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(meta)}</span></div>${actions}</div></article>`;
   }
@@ -539,10 +550,10 @@
       button.addEventListener("click", () => openVerificationPhoto(recordId, Number(button.dataset.viewVerificationPhoto)));
     });
     $("verificationPhotoGrid").querySelectorAll("[data-capture-verification-photo]").forEach((button) => {
-      button.addEventListener("click", () => chooseVerificationPhoto(recordId, Number(button.dataset.captureVerificationPhoto), "camera"));
+      button.addEventListener("click", () => openVerificationPhotoCamera(recordId, Number(button.dataset.captureVerificationPhoto)));
     });
     $("verificationPhotoGrid").querySelectorAll("[data-upload-verification-photo]").forEach((button) => {
-      button.addEventListener("click", () => chooseVerificationPhoto(recordId, Number(button.dataset.uploadVerificationPhoto), "file"));
+      button.addEventListener("click", () => chooseVerificationPhoto(recordId, Number(button.dataset.uploadVerificationPhoto)));
     });
   }
 
@@ -638,30 +649,143 @@
     };
   }
 
-  function chooseVerificationPhoto(recordId, slot, source) {
+  function setVerificationPhotoButtonsDisabled(disabled) {
+    $("verificationPhotoGrid")?.querySelectorAll("button").forEach((button) => { button.disabled = disabled; });
+  }
+
+  async function uploadVerificationPhoto(recordId, slot, file) {
+    if (verificationPhotoUploadBusy) return;
+    verificationPhotoUploadBusy = true;
+    const status = $("verificationPhotoMessage");
+    status.className = "verification-photo-message";
+    status.textContent = `正在处理并上传${photoSlotLabel(slot)}…`;
+    setVerificationPhotoButtonsDisabled(true);
+    try {
+      const images = await prepareVerificationPhoto(file);
+      await callFaceRecognition({ action: "uploadVerificationExtraPhoto", recordId, slot, ...images });
+      status.textContent = `${photoSlotLabel(slot)}已安全保存。`;
+      await loadVerificationPhotos({ id: recordId, databaseBacked: true });
+    } catch (error) {
+      await loadVerificationPhotos({ id: recordId, databaseBacked: true });
+      $("verificationPhotoMessage").className = "verification-photo-message error";
+      $("verificationPhotoMessage").textContent = error?.message || "照片上传失败，请重试";
+    } finally {
+      verificationPhotoUploadBusy = false;
+    }
+  }
+
+  function chooseVerificationPhoto(recordId, slot) {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = "image/jpeg,image/png,image/webp";
-    if (source === "camera") input.setAttribute("capture", "environment");
-    input.addEventListener("change", async () => {
+    input.accept = "image/*";
+    input.setAttribute("aria-label", `从相册或文件中选择${photoSlotLabel(slot)}`);
+    input.addEventListener("change", () => {
       const file = input.files?.[0];
       if (!file) return;
-      const status = $("verificationPhotoMessage");
-      status.className = "verification-photo-message";
-      status.textContent = `正在处理并上传${photoSlotLabel(slot)}…`;
-      $("verificationPhotoGrid").querySelectorAll("button").forEach((button) => { button.disabled = true; });
-      try {
-        const images = await prepareVerificationPhoto(file);
-        await callFaceRecognition({ action: "uploadVerificationExtraPhoto", recordId, slot, ...images });
-        status.textContent = `${photoSlotLabel(slot)}已安全保存。`;
-        await loadVerificationPhotos({ id: recordId, databaseBacked: true });
-      } catch (error) {
-        await loadVerificationPhotos({ id: recordId, databaseBacked: true });
-        $("verificationPhotoMessage").className = "verification-photo-message error";
-        $("verificationPhotoMessage").textContent = error?.message || "照片上传失败，请重试";
-      }
+      uploadVerificationPhoto(recordId, slot, file);
     }, { once: true });
     input.click();
+  }
+
+  function stopVerificationPhotoCamera(clearTarget = true) {
+    verificationCameraRequest += 1;
+    verificationCameraStream?.getTracks?.().forEach((track) => track.stop());
+    verificationCameraStream = null;
+    const video = $("verificationPhotoCameraVideo");
+    if (video) video.srcObject = null;
+    const capture = $("captureVerificationPhotoCamera");
+    if (capture) capture.disabled = true;
+    const placeholder = $("verificationPhotoCameraPlaceholder");
+    if (placeholder) {
+      placeholder.hidden = false;
+      placeholder.textContent = "正在开启摄像头…";
+    }
+    if (clearTarget) verificationCameraTarget = null;
+  }
+
+  async function openVerificationPhotoCamera(recordId, slot) {
+    const dialog = $("verificationPhotoCameraDialog");
+    const video = $("verificationPhotoCameraVideo");
+    const message = $("verificationPhotoCameraMessage");
+    const placeholder = $("verificationPhotoCameraPlaceholder");
+    if (!dialog || !video || !message || !placeholder) return;
+    stopVerificationPhotoCamera();
+    verificationCameraTarget = { recordId, slot };
+    const request = verificationCameraRequest;
+    $("verificationPhotoCameraTitle").textContent = `拍摄${photoSlotLabel(slot)}`;
+    message.className = "verification-photo-camera-message";
+    message.textContent = "请允许浏览器使用摄像头；优先开启后置摄像头。";
+    if (!dialog.open) dialog.showModal();
+    if (!navigator.mediaDevices?.getUserMedia) {
+      placeholder.textContent = "当前浏览器无法直接开启摄像头";
+      message.className = "verification-photo-camera-message error";
+      message.textContent = "请关闭窗口，使用“上传文件”从手机或 iPad 相册选择照片。";
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        },
+        audio: false
+      });
+      if (request !== verificationCameraRequest || !dialog.open) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      verificationCameraStream = stream;
+      video.srcObject = stream;
+      await video.play();
+      if (request !== verificationCameraRequest || !dialog.open) return;
+      placeholder.hidden = true;
+      $("captureVerificationPhotoCamera").disabled = false;
+      message.textContent = "摄像头已开启。调整画面后点击“拍摄并使用”。";
+    } catch (error) {
+      verificationCameraStream?.getTracks?.().forEach((track) => track.stop());
+      verificationCameraStream = null;
+      video.srcObject = null;
+      placeholder.hidden = false;
+      placeholder.textContent = "摄像头开启失败";
+      message.className = "verification-photo-camera-message error";
+      message.textContent = error?.name === "NotAllowedError"
+        ? "未获得摄像头权限。请在浏览器设置中允许摄像头，或使用“上传文件”从相册选择。"
+        : "无法使用摄像头。请检查设备摄像头，或使用“上传文件”从相册选择。";
+    }
+  }
+
+  async function captureVerificationPhotoCamera() {
+    const target = verificationCameraTarget;
+    const video = $("verificationPhotoCameraVideo");
+    const canvas = $("verificationPhotoCameraCanvas");
+    const capture = $("captureVerificationPhotoCamera");
+    const message = $("verificationPhotoCameraMessage");
+    const width = Number(video?.videoWidth || 0);
+    const height = Number(video?.videoHeight || 0);
+    if (!target || !canvas || !width || !height || verificationPhotoUploadBusy) {
+      if (message) {
+        message.className = "verification-photo-camera-message error";
+        message.textContent = "摄像头画面尚未准备好，请稍后再试。";
+      }
+      return;
+    }
+    capture.disabled = true;
+    message.className = "verification-photo-camera-message";
+    message.textContent = "正在保存拍摄画面…";
+    try {
+      const scale = Math.min(1, 2400 / Math.max(width, height));
+      canvas.width = Math.max(1, Math.round(width * scale));
+      canvas.height = Math.max(1, Math.round(height * scale));
+      canvas.getContext("2d", { alpha: false }).drawImage(video, 0, 0, canvas.width, canvas.height);
+      const photo = await canvasBlob(canvas, 0.96);
+      $("verificationPhotoCameraDialog").close();
+      await uploadVerificationPhoto(target.recordId, target.slot, photo);
+    } catch (error) {
+      capture.disabled = false;
+      message.className = "verification-photo-camera-message error";
+      message.textContent = error?.message || "拍摄失败，请重试";
+    }
   }
 
   async function openVerificationPhoto(recordId, slot) {
@@ -985,6 +1109,14 @@
     if (event.target === event.currentTarget) event.currentTarget.close();
   });
   $("verificationPhotoViewer")?.addEventListener("close", () => $("verificationPhotoOriginal")?.removeAttribute("src"));
+  $("captureVerificationPhotoCamera")?.addEventListener("click", captureVerificationPhotoCamera);
+  $("cancelVerificationPhotoCamera")?.addEventListener("click", () => $("verificationPhotoCameraDialog")?.close());
+  $("closeVerificationPhotoCamera")?.addEventListener("click", () => $("verificationPhotoCameraDialog")?.close());
+  $("verificationPhotoCameraDialog")?.addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) event.currentTarget.close();
+  });
+  $("verificationPhotoCameraDialog")?.addEventListener("close", () => stopVerificationPhotoCamera());
+  window.addEventListener("pagehide", () => stopVerificationPhotoCamera());
   $("exportOrderPdf")?.addEventListener("click", () => exportCurrentOrder("pdf"));
   $("exportOrderImage")?.addEventListener("click", () => exportCurrentOrder("image"));
 

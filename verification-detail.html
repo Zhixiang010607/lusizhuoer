@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>核销工单详情</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.17">
+  <link rel="stylesheet" href="styles.css?v=0.15.18">
 </head>
 <body data-record-detail="verification">
   <aside class="side-project-bar" aria-label="项目栏">
@@ -70,6 +70,20 @@
     <div class="verification-photo-original-frame"><img id="verificationPhotoOriginal" alt="核销现场原图" decoding="async" referrerpolicy="no-referrer"></div>
   </dialog>
 
+  <dialog id="verificationPhotoCameraDialog" class="verification-photo-camera-dialog" aria-labelledby="verificationPhotoCameraTitle">
+    <div class="dialog-heading"><div><h2 id="verificationPhotoCameraTitle">拍摄补充照片</h2><p>实时摄像头画面不会自动上传，点击“拍摄并使用”后才会保存。</p></div><button id="closeVerificationPhotoCamera" type="button" aria-label="关闭摄像头">×</button></div>
+    <div class="verification-photo-camera-stage">
+      <video id="verificationPhotoCameraVideo" autoplay playsinline muted aria-label="摄像头实时画面"></video>
+      <p id="verificationPhotoCameraPlaceholder">正在开启摄像头…</p>
+    </div>
+    <p id="verificationPhotoCameraMessage" class="verification-photo-camera-message" role="status">请允许浏览器使用摄像头。</p>
+    <div class="verification-photo-camera-dialog-actions">
+      <button id="captureVerificationPhotoCamera" type="button" disabled>拍摄并使用</button>
+      <button id="cancelVerificationPhotoCamera" class="secondary" type="button">取消</button>
+    </div>
+    <canvas id="verificationPhotoCameraCanvas" hidden></canvas>
+  </dialog>
+
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
@@ -77,7 +91,7 @@
   <script src="cloudbase-phone-auth.js?v=0.17.6"></script>
   <script src="datetime.js?v=0.1.1"></script>
   <script src="order-export.js?v=0.1.0"></script>
-  <script src="business-detail.js?v=0.15.19"></script>
+  <script src="business-detail.js?v=0.15.20"></script>
   <script src="auth-ui.js?v=0.17.9"></script>
 </body>
 </html>
