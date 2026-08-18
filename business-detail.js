@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.17";
+  const VERSION = "0.15.18";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -488,8 +488,11 @@
       : `<div class="verification-photo-preview"><span>${slot === 0 ? "未保存客户留存照" : slot === 1 ? "未保存本次人脸凭证" : "尚未上传"}</span></div>`;
     const size = photoSizeLabel(photo?.originalBytes);
     const meta = photo ? [size, formatTime(photo.uploadedAt) || "已绑定"].filter(Boolean).join(" · ") : "空照片位";
-    const upload = slot < 2 ? "" : `<button class="verification-photo-upload" type="button" data-upload-verification-photo="${slot}" ${canUpload ? "" : "disabled"}>${photo ? "替换照片" : "拍照／上传"}</button>`;
-    return `<article class="verification-photo-card">${preview}<div class="verification-photo-card-body"><div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(meta)}</span></div>${upload}</div></article>`;
+    const actions = slot < 2 ? "" : `<div class="verification-photo-actions">
+      <button class="verification-photo-upload verification-photo-camera" type="button" data-capture-verification-photo="${slot}" ${canUpload ? "" : "disabled"}>${photo ? "重新拍照" : "拍照"}</button>
+      <button class="verification-photo-upload" type="button" data-upload-verification-photo="${slot}" ${canUpload ? "" : "disabled"}>${photo ? "上传替换" : "上传文件"}</button>
+    </div>`;
+    return `<article class="verification-photo-card">${preview}<div class="verification-photo-card-body"><div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(meta)}</span></div>${actions}</div></article>`;
   }
 
   function renderVerificationPhotos(payload, recordId) {
@@ -507,8 +510,11 @@
     $("verificationPhotoGrid").querySelectorAll("[data-view-verification-photo]").forEach((button) => {
       button.addEventListener("click", () => openVerificationPhoto(recordId, Number(button.dataset.viewVerificationPhoto)));
     });
+    $("verificationPhotoGrid").querySelectorAll("[data-capture-verification-photo]").forEach((button) => {
+      button.addEventListener("click", () => chooseVerificationPhoto(recordId, Number(button.dataset.captureVerificationPhoto), "camera"));
+    });
     $("verificationPhotoGrid").querySelectorAll("[data-upload-verification-photo]").forEach((button) => {
-      button.addEventListener("click", () => chooseVerificationPhoto(recordId, Number(button.dataset.uploadVerificationPhoto)));
+      button.addEventListener("click", () => chooseVerificationPhoto(recordId, Number(button.dataset.uploadVerificationPhoto), "file"));
     });
   }
 
@@ -604,11 +610,11 @@
     };
   }
 
-  function chooseVerificationPhoto(recordId, slot) {
+  function chooseVerificationPhoto(recordId, slot, source) {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/jpeg,image/png,image/webp";
-    input.setAttribute("capture", "environment");
+    if (source === "camera") input.setAttribute("capture", "environment");
     input.addEventListener("change", async () => {
       const file = input.files?.[0];
       if (!file) return;

@@ -886,7 +886,7 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .verification-message-text { min-height: 72px; max-height: 150px; margin: 8px 0 0; overflow-y: auto; overscroll-behavior: contain; padding: 10px; border: 1px solid #dce4ee; border-radius: 8px; color: #344054; background: #fff; font-size: 12px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-gutter: stable; }
 .verification-message-text:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
 .verification-photo-panel { margin-top: 14px; }
-.verification-photo-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.verification-photo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .verification-photo-card { min-width: 0; display: grid; grid-template-rows: auto auto; align-content: start; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #f8fbff; }
 .verification-photo-preview { position: relative; width: 100%; aspect-ratio: 4 / 3; display: grid; place-items: center; overflow: hidden; padding: 0; border: 0; border-radius: 0; color: #64748b; background: linear-gradient(145deg, #eaf1f8, #f8fbff); font-size: 12px; font-weight: 800; }
 .verification-photo-preview.has-photo { cursor: zoom-in; }
@@ -901,6 +901,10 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .verification-photo-upload { width: 100%; min-height: 36px; padding: 7px 10px; border: 1px solid #c7d7ea; color: #174f86; background: #edf5ff; font-size: 11px; }
 .verification-photo-upload:hover { background: #e1efff; }
 .verification-photo-upload:disabled { color: #94a3b8; background: #eef2f6; cursor: not-allowed; }
+.verification-photo-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.verification-photo-camera { color: #fff; border-color: #174f86; background: #174f86; }
+.verification-photo-camera:hover { background: #0f3f70; }
+.verification-photo-camera:disabled { color: #94a3b8; border-color: #d5dde7; background: #eef2f6; }
 .verification-photo-message { min-height: 18px; margin: 10px 0 0; color: var(--muted); font-size: 11px; }
 .verification-photo-message.error { color: #b42318; }
 .verification-photo-viewer { width: min(1040px, calc(100vw - 28px)); max-height: calc(100dvh - 28px); padding: 14px; overflow: auto; }
