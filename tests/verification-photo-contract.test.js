@@ -285,7 +285,7 @@ assert.ok(
     < functionSource(cloud, "getVerificationPhotos").indexOf("signVerificationPhoto("),
   "thumbnail URLs must be signed only after the verification-order permission check"
 );
-includes(detailUi, 'const VERSION = "0.16.5"', "detail UI cache version");
+includes(detailUi, 'const VERSION = "0.16.6"', "detail UI cache version");
 includes(functionSource(detailUi, "callVerificationPhoto"), 'callFunction({ name: "verificationPhoto", data })', "all photo operations use the dedicated photo cloud function");
 includes(functionSource(detailUi, "callVerificationPhotoLifecycle"), "callVerificationPhoto(data)", "bounded photo lifecycle calls use the dedicated photo helper");
 includes(functionSource(detailUi, "loadTeacherOrder"), 'name: "faceRecognition"', "teacher workspace remains on the business and face cloud function");
@@ -388,8 +388,8 @@ includes(detailHtml, 'id="verificationPhotoCameraVideo" autoplay playsinline mut
 includes(detailHtml, 'id="switchVerificationPhotoCamera"', "front/rear camera switch action");
 includes(detailHtml, 'aria-label="切换前后摄像头"', "camera switch accessible name");
 includes(detailHtml, 'order-export.js?v=0.1.1', "export renderer cache bust");
-includes(detailHtml, 'business-detail.js?v=0.16.5', "detail script cache bust");
-includes(detailHtml, 'styles.css?v=0.15.24', "detail styles cache bust");
+includes(detailHtml, 'business-detail.js?v=0.16.6', "detail script cache bust");
+includes(detailHtml, 'styles.css?v=0.15.31', "detail styles cache bust");
 includes(detailUi, "const verificationPhotoLocalPreviews = new Map()", "local photo previews are owned per slot");
 includes(functionSource(detailUi, "verificationPhotoCard"), 'loading="${localPreview ? "eager" : "lazy"}"', "just-committed local preview loads eagerly");
 includes(functionSource(detailUi, "verificationPhotoCard"), 'fetchpriority="high"', "just-committed local preview receives high fetch priority");
@@ -398,7 +398,7 @@ includes(functionSource(detailUi, "refreshVerificationPhotosSilently"), "promote
 includes(functionSource(detailUi, "promoteUsableVerificationPhotoPreviews"), "probe.onload", "remote thumbnail must load before local Blob release");
 includes(functionSource(detailUi, "promoteUsableVerificationPhotoPreviews"), "revokeVerificationPhotoLocalPreview(slot)", "remote promotion releases only its own slot");
 includes(styles, "object-fit: contain", "gallery shows the complete photo without visual cropping");
-includes(styles, "grid-template-columns: repeat(3, minmax(0, 1fr))", "roomy three-column desktop gallery");
+includes(styles, "grid-template-columns: repeat(5, minmax(0, 1fr))", "all five desktop evidence photos stay in one visible row");
 includes(styles, ".verification-photo-actions", "separate camera and upload action layout");
 includes(styles, ".verification-photo-camera-stage", "camera preview stage styles");
 includes(styles, ".verification-photo-camera-stage video.is-user-facing", "front camera mirrored preview");
@@ -408,6 +408,11 @@ includes(styles, "overscroll-behavior: contain", "viewer gestures do not scroll 
 includes(styles, "will-change: transform", "viewer zoom is compositor accelerated");
 includes(styles, "@media (max-height: 680px)", "low-height mobile landscape keeps the viewer inside the dialog");
 includes(styles, "min-height: 120px", "very short viewports retain a usable but scroll-safe photo stage");
+includes(styles, ".verification-photo-viewer[open]", "original photo viewer owns the full viewport");
+includes(styles, "width: 100vw; height: 100dvh", "full-screen original viewer uses the complete page");
+includes(styles, "#closeVerificationPhotoViewer", "full-screen viewer exposes a floating close control");
+includes(styles, "opacity: .48", "close control stays deliberately faint until hovered or focused");
+includes(styles, "max-width: 100vw; max-height: 100dvh; object-fit: contain", "full-screen original keeps the complete image visible");
 
 const localPreviewHarness = {
   module: { exports: {} },

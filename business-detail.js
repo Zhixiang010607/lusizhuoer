@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.5";
+  const VERSION = "0.16.6";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -15,6 +15,7 @@
   let verificationPhotoUploadTask = null;
   let verificationPhotoRetryCandidate = null;
   let verificationPhotoTaskSequence = 0;
+  let verificationPhotoSuccessDismissTimer = 0;
   const verificationPhotoLocalPreviews = new Map();
   let verificationCameraStream = null;
   let verificationCameraTarget = null;
@@ -1088,9 +1089,33 @@
     });
   }
 
+  function cancelVerificationPhotoTaskDismiss() {
+    if (verificationPhotoSuccessDismissTimer) window.clearTimeout(verificationPhotoSuccessDismissTimer);
+    verificationPhotoSuccessDismissTimer = 0;
+    $("verificationPhotoUploadTask")?.classList.remove("is-dismissing");
+  }
+
+  function scheduleVerificationPhotoTaskDismiss() {
+    cancelVerificationPhotoTaskDismiss();
+    const bar = $("verificationPhotoUploadTask");
+    if (!bar) return;
+    verificationPhotoSuccessDismissTimer = window.setTimeout(() => {
+      verificationPhotoSuccessDismissTimer = 0;
+      if (verificationPhotoUploadTask || bar.dataset.state !== "success") return;
+      bar.classList.add("is-dismissing");
+      verificationPhotoSuccessDismissTimer = window.setTimeout(() => {
+        verificationPhotoSuccessDismissTimer = 0;
+        if (verificationPhotoUploadTask || bar.dataset.state !== "success") return;
+        bar.hidden = true;
+        bar.classList.remove("is-dismissing");
+      }, 180);
+    }, 3000);
+  }
+
   function updateVerificationPhotoTaskUi(task, options = {}) {
     const bar = $("verificationPhotoUploadTask");
     if (!bar) return;
+    cancelVerificationPhotoTaskDismiss();
     const progress = Math.max(0, Math.min(100, Number(options.progress ?? task?.progress ?? 0)));
     if (task) task.progress = progress;
     bar.hidden = false;
@@ -1443,6 +1468,7 @@
       error: outcome === "failed"
     });
     setVerificationPhotoButtonsDisabled(false);
+    if (outcome === "success") scheduleVerificationPhotoTaskDismiss();
     const manifestReady = verificationPhotoManifestReady();
     setExportControls(Boolean(currentRecord) && manifestReady, manifestReady
       ? (outcome === "success" ? "照片已保存，可以导出完整工单。" : "照片任务已结束，可以导出当前完整工单。")

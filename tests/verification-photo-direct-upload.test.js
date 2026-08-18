@@ -105,6 +105,12 @@ assert.ok(
   "a late old response cannot unlock or overwrite the new task"
 );
 includes(finishTask, "verificationPhotoRetryCandidate", "failed or cancelled photo can be retried");
+includes(finishTask, 'if (outcome === "success") scheduleVerificationPhotoTaskDismiss()', "only a successful upload schedules automatic dismissal");
+const dismissTask = functionSource(ui, "scheduleVerificationPhotoTaskDismiss");
+includes(dismissTask, "}, 3000)", "successful upload remains visible for three seconds");
+includes(dismissTask, 'bar.dataset.state !== "success"', "an obsolete success timer cannot hide a newer task state");
+includes(functionSource(ui, "updateVerificationPhotoTaskUi"), "cancelVerificationPhotoTaskDismiss()", "a new task cancels the previous success timer");
+includes(styles, ".verification-photo-upload-task.is-dismissing", "successful upload dismissal has a short visual transition");
 includes(functionSource(ui, "retryVerificationPhotoUpload"), "prepared: candidate.prepared", "retry reuses prepared image bytes");
 
 const cancelTask = functionSource(ui, "cancelVerificationPhotoUpload");
@@ -408,6 +414,7 @@ vm.runInContext(`
   let verificationPhotoLoadPromise = Promise.resolve();
   const photoSlotLabel = () => "补充照片";
   const setVerificationPhotoTaskStage = () => { globalThis.__stageCalls = (globalThis.__stageCalls || 0) + 1; };
+  const scheduleVerificationPhotoTaskDismiss = () => { globalThis.__dismissCalls = (globalThis.__dismissCalls || 0) + 1; };
   const setVerificationPhotoButtonsDisabled = () => {};
   const setExportControls = () => {};
   const refreshVerificationPhotosSilently = async () => null;
@@ -417,7 +424,7 @@ vm.runInContext(`
   module.exports = {
     newTask,
     finishVerificationPhotoTask,
-    state: () => ({ task: verificationPhotoUploadTask, busy: verificationPhotoUploadBusy, stages: globalThis.__stageCalls || 0 })
+    state: () => ({ task: verificationPhotoUploadTask, busy: verificationPhotoUploadBusy, stages: globalThis.__stageCalls || 0, dismisses: globalThis.__dismissCalls || 0 })
   };
 `, lateHarness, { filename: "verification-photo-late-response.js" });
 const oldTask = { id: 1, slot: 2, recordId: "71", xhrs: new Set() };
@@ -425,9 +432,11 @@ lateHarness.module.exports.finishVerificationPhotoTask(oldTask, "success", "late
 assert.equal(lateHarness.module.exports.state().task, lateHarness.module.exports.newTask, "late old completion preserves the new owner");
 assert.equal(lateHarness.module.exports.state().busy, true, "late old completion preserves the global lock");
 assert.equal(lateHarness.module.exports.state().stages, 0, "late old completion cannot mutate the new progress UI");
+assert.equal(lateHarness.module.exports.state().dismisses, 0, "late old completion cannot schedule dismissal for the new task");
 lateHarness.module.exports.finishVerificationPhotoTask(lateHarness.module.exports.newTask, "success", "done", { refresh: false });
 assert.equal(lateHarness.module.exports.state().task, null);
 assert.equal(lateHarness.module.exports.state().busy, false);
+assert.equal(lateHarness.module.exports.state().dismisses, 1, "current successful upload schedules one dismissal");
 
 // Exercise cancellation reconciliation for all important races: a confirmed
 // cancel, commit winning the race, and a non-terminal server response.

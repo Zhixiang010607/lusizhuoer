@@ -920,10 +920,11 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .verification-message-text { min-height: 72px; max-height: 150px; margin: 8px 0 0; overflow-y: auto; overscroll-behavior: contain; padding: 10px; border: 1px solid #dce4ee; border-radius: 8px; color: #344054; background: #fff; font-size: 12px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-gutter: stable; }
 .verification-message-text:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
 .verification-photo-panel { margin-top: 14px; padding: 18px 20px 20px; }
-.verification-photo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.verification-photo-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
 .verification-photo-card { min-width: 0; display: grid; grid-template-rows: auto auto; align-content: start; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #f8fbff; }
 .verification-photo-preview { position: relative; width: 100%; aspect-ratio: 4 / 3; display: grid; place-items: center; overflow: hidden; padding: 0; border: 0; border-radius: 0; color: #64748b; background: linear-gradient(145deg, #eaf1f8, #f8fbff); font-size: 12px; font-weight: 800; }
 .verification-photo-preview.has-photo { cursor: zoom-in; }
+.verification-photo-preview.has-photo { background: #0b142a; }
 .verification-photo-preview.has-photo::after { content: "点击查看原图"; position: absolute; right: 8px; bottom: 8px; padding: 4px 7px; border-radius: 999px; color: #fff; background: #102a49d9; font-size: 9px; }
 .verification-photo-preview img { width: 100%; height: 100%; display: block; object-fit: contain; transition: opacity .16s ease; }
 .verification-photo-preview.has-photo:hover img { opacity: .96; }
@@ -941,8 +942,9 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .verification-photo-camera:disabled { color: #94a3b8; border-color: #d5dde7; background: #eef2f6; }
 .verification-photo-message { min-height: 18px; margin: 10px 0 0; color: var(--muted); font-size: 11px; }
 .verification-photo-message.error { color: #b42318; }
-.verification-photo-upload-task { position: sticky; bottom: 12px; z-index: 4; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; margin-top: 14px; padding: 13px 14px; border: 1px solid #bfd4ee; border-radius: 12px; background: #f6fafff5; box-shadow: 0 10px 30px #1e3a5f1c; backdrop-filter: blur(10px); }
+.verification-photo-upload-task { position: sticky; bottom: 12px; z-index: 4; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; margin-top: 14px; padding: 13px 14px; border: 1px solid #bfd4ee; border-radius: 12px; background: #f6fafff5; box-shadow: 0 10px 30px #1e3a5f1c; opacity: 1; transform: translateY(0); backdrop-filter: blur(10px); transition: opacity .18s ease, transform .18s ease; }
 .verification-photo-upload-task[hidden] { display: none; }
+.verification-photo-upload-task.is-dismissing { opacity: 0; transform: translateY(6px); pointer-events: none; }
 .verification-photo-upload-task[data-state="uploading"], .verification-photo-upload-task[data-state="committing"] { border-color: #86b6ed; background: #eef7fff5; }
 .verification-photo-upload-task[data-state="success"] { border-color: #9bd8bd; background: #effcf6f5; }
 .verification-photo-upload-task[data-state="failed"], .verification-photo-upload-task[data-state="recovering"] { border-color: #efc0ba; background: #fff7f5f5; }
@@ -1303,6 +1305,21 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
   .verification-photo-camera-dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); padding: 12px; }
   .verification-photo-camera-dialog-actions { grid-template-columns: 1fr; }
 }
+
+/* Original-photo viewing owns the full viewport. The image always keeps its
+   native aspect ratio; only the low-opacity close and zoom controls float over it. */
+.verification-photo-viewer[open] { position: fixed; inset: 0; width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; overflow: hidden; border: 0; border-radius: 0; color: #fff; background: #030817fa; }
+.verification-photo-viewer::backdrop { background: #030817f2; backdrop-filter: blur(2px); }
+.verification-photo-viewer .dialog-heading { position: absolute; inset: 0 0 auto 0; z-index: 5; justify-content: flex-end; width: 100%; margin: 0; padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 0; pointer-events: none; background: none; }
+.verification-photo-viewer .dialog-heading > div { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+#closeVerificationPhotoViewer { pointer-events: auto; flex: 0 0 46px; width: 46px; height: 46px; padding: 0; border: 1px solid #ffffff38; border-radius: 50%; color: #ffffffc7; background: #07142666; box-shadow: 0 5px 20px #0006; opacity: .48; font-size: 30px; font-weight: 300; line-height: 1; backdrop-filter: blur(8px); transition: opacity .16s ease, background .16s ease, transform .16s ease; }
+#closeVerificationPhotoViewer:hover, #closeVerificationPhotoViewer:focus-visible { color: #fff; background: #10213fbf; opacity: 1; transform: scale(1.04); outline: 2px solid #ffffffa6; outline-offset: 2px; }
+.verification-photo-viewer .verification-photo-viewer-controls { position: absolute; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); top: auto; z-index: 5; width: max-content; max-width: calc(100vw - 24px); margin: 0; padding: 5px 7px; border: 1px solid #ffffff2e; border-radius: 999px; background: #07142680; opacity: .38; transform: translateX(-50%); backdrop-filter: blur(9px); transition: opacity .16s ease; }
+.verification-photo-viewer .verification-photo-viewer-controls:hover, .verification-photo-viewer .verification-photo-viewer-controls:focus-within { opacity: 1; }
+.verification-photo-viewer .verification-photo-viewer-controls button { min-width: 40px; min-height: 38px; padding: 6px 10px; border-color: #ffffff26; color: #fff; background: #ffffff14; }
+.verification-photo-viewer .verification-photo-viewer-controls output { color: #fff; }
+.verification-photo-viewer .verification-photo-original-frame { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; border-radius: 0; background: #030817; }
+.verification-photo-viewer .verification-photo-original-frame img { width: auto; height: auto; max-width: 100vw; max-height: 100dvh; object-fit: contain; }
 @media (max-height: 680px) {
   .verification-photo-original-frame { height: min(46dvh, 420px); min-height: 180px; }
 }
