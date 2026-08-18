@@ -17,9 +17,12 @@ assert.match(css, /@media \(min-width: 761px\) and \(max-width: 1100px\)[\s\S]*?
 assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.mobile-account-menu \{[^}]*display: block;/, "phone project bar must expose the account menu");
 assert.match(css, /\.mobile-account-popover button \{[^}]*width: 100%/, "logout action must fill the account popover width");
 assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.side-project-bar \{[^}]*max-width: 100vw;/, "phone project bar must stay inside the viewport");
+assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.side-project-bar \{[^}]*justify-content: flex-start;[^}]*overflow-x: auto;[^}]*overflow-y: hidden;/, "phone project bar must use a compact horizontally scrollable rail");
 assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.side-brand,[^}]*display: none;/, "phone project bar must remove the space-consuming brand block");
 assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.side-nav a span:last-child \{ display: none; \}/, "phone home navigation must use its compact icon label");
 assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.side-menu-group summary::after \{ display: none; \}/, "phone menu icons must not reserve space for arrows");
+assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.side-menu-group nav \{[^}]*position: fixed;[^}]*right: max\(8px, env\(safe-area-inset-right\)\);[^}]*left: max\(8px, env\(safe-area-inset-left\)\);/, "phone submenus must stay inside the viewport while the top rail scrolls");
+assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.mobile-account-menu \{[^}]*position: sticky;[^}]*right: -1px;/, "phone logout trigger must remain visible at the right edge");
 assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.mobile-account-popover \{[^}]*position: fixed;[^}]*right: max\(8px, env\(safe-area-inset-right\)\);[^}]*left: max\(8px, env\(safe-area-inset-left\)\);[^}]*max-width: 260px;/, "phone logout card must be sized against both viewport edges instead of its trigger");
 
 for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))) {
