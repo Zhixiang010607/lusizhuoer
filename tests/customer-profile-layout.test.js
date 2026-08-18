@@ -16,6 +16,6 @@ assert.match(desktopBlock, /\.customer-profile-main \{[^}]*grid-auto-rows: auto;
 assert.doesNotMatch(desktopBlock, /grid-template-rows:\s*178px/, "customer header must not be compressed into the old fixed row");
 assert.match(desktopBlock, /\.customer-project-panel \.customer-record-scroll \{[^}]*height: 166px;[^}]*max-height: 166px;/, "project records should keep their own bounded scroll area");
 assert.match(desktopBlock, /\.customer-record-panel \.customer-record-scroll \{[^}]*height: 158px;[^}]*max-height: 158px;/, "order records should keep their own bounded scroll area");
-assert.match(html, /styles\.css\?v=0\.14\.32/, "customer page should bust the stylesheet cache");
+assert.match(html, /styles\.css\?v=0\.15\.13/, "customer page should bust the stylesheet cache");
 
 console.log("customer profile layout contract: ok");

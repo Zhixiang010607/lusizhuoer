@@ -1256,3 +1256,77 @@ body[data-operation-home] .operation-home-main { width: min(1180px, calc(100% - 
   body.store-record-query .customer-query-method-fields { grid-template-columns: 1fr; }
   body.store-record-query .customer-category-grid.four-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* On phones the document owns vertical scrolling. Nested fixed-height panels
+   otherwise trap touch gestures and make the lower content unreachable. */
+@media (max-width: 760px) {
+  body[data-customer-profile],
+  body[data-query],
+  body[data-customer-query] {
+    height: auto;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body[data-query],
+  body[data-customer-query] { display: block; }
+
+  body[data-query] main,
+  body[data-customer-query] main {
+    height: auto;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: none;
+    grid-auto-rows: auto;
+    margin-top: 8px;
+    margin-bottom: 22px;
+    overflow: visible;
+  }
+
+  body[data-query] .query-results,
+  body[data-customer-query] main > .table-card {
+    min-height: 0;
+    overflow: visible;
+  }
+
+  body[data-query] .query-results .table-scroll,
+  body[data-customer-query] main > .table-card .table-scroll {
+    flex: none;
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: visible;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body[data-customer-profile] .customer-profile-main {
+    min-height: 0;
+    margin-bottom: 24px;
+    overflow: visible;
+  }
+
+  body[data-customer-profile] .customer-profile-main > * { min-height: 0; }
+
+  body[data-customer-profile] .customer-profile-grid,
+  body[data-customer-profile] .customer-records-grid { grid-template-columns: 1fr; }
+
+  body[data-customer-profile] .customer-project-panel .customer-record-scroll,
+  body[data-customer-profile] .customer-record-panel .customer-record-scroll {
+    height: auto;
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: visible;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body[data-customer-profile] .customer-notes-panel textarea {
+    min-height: 72px;
+    height: auto;
+    max-height: 160px;
+    overflow-y: auto;
+    resize: vertical;
+  }
+}
