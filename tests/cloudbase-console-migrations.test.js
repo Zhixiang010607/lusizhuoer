@@ -43,6 +43,17 @@ for (const migration of ["037", "038"]) {
   assert.equal(reconstructed, canonical, `CloudBase parts must reconstruct migration ${migration} exactly`);
 }
 
+for (const filename of [
+  "037-02-create-verification-function.sql",
+  "038-02-create-verification-function.sql"
+]) {
+  const source = fs.readFileSync(path.join(consoleDir, filename), "utf8");
+  assert.ok(
+    source.includes("normalized_status <> (CASE WHEN normalized_type = 'NORMAL' THEN 'APPROVED' ELSE 'PENDING' END) THEN"),
+    `${filename} must parenthesize the CASE expression before PL/pgSQL THEN`
+  );
+}
+
 const verification = fs.readFileSync(path.join(consoleDir, "038-04-verify-photo-migrations.sql"), "utf8");
 assert.ok(verification.includes("create_function_ready"));
 assert.ok(verification.includes("verification_photos_slot_v38_check"));

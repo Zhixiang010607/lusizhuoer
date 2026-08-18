@@ -19,3 +19,16 @@ ROLLBACK;
 7. `038-04-verify-photo-migrations.sql`（只读验收）
 
 不要把 `ROLLBACK;` 与上述文件放在同一次执行中；不要选中函数的一部分执行；已经成功提交的前一部分不要重复运行。
+
+## `037-01` 已成功、旧版 `037-02`／`037-03` 失败时
+
+不需要重跑 `037-01`。先新建独立查询只执行一次 `ROLLBACK;`，然后重新下载当前版本并依次执行：
+
+1. `037-02-create-verification-function.sql`
+2. `037-03-extra-photo-function.sql`
+3. `038-01-five-slot-schema-upgrade.sql`
+4. `038-02-create-verification-function.sql`
+5. `038-03-extra-photo-function.sql`
+6. `038-04-verify-photo-migrations.sql`
+
+旧版 `037-02` 的状态判断缺少 `CASE` 表达式括号，会报 `syntax error at end of input (SQLSTATE 42601)`；旧版 `037-03` 随后提示 `create_verification_with_face_photo ... does not exist` 是同一问题造成的连锁错误。当前文件已在真实 PostgreSQL 引擎中按上述顺序完整执行通过。

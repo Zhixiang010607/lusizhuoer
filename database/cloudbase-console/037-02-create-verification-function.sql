@@ -49,7 +49,7 @@ BEGIN
   IF normalized_type NOT IN ('NORMAL', 'SUPPLEMENT') THEN
     RAISE EXCEPTION 'unsupported verification type' USING ERRCODE = '22023';
   END IF;
-  IF normalized_status <> CASE WHEN normalized_type = 'NORMAL' THEN 'APPROVED' ELSE 'PENDING' END THEN
+  IF normalized_status <> (CASE WHEN normalized_type = 'NORMAL' THEN 'APPROVED' ELSE 'PENDING' END) THEN
     RAISE EXCEPTION 'verification status does not match verification type'
       USING ERRCODE = '22023';
   END IF;
