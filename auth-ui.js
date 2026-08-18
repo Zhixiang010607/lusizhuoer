@@ -92,7 +92,7 @@
       document.querySelectorAll(".side-project-bar > .side-menu-group").forEach((group) => {
         if (group.querySelector("summary")?.textContent.includes("管理")) group.hidden = true;
       });
-      const managementLinks = [["store-management.html", "门店管理"], ["project-management.html", "产品管理"], ["teacher-management.html", "老师管理"], ["operation-account-management.html", "运营管理"], ["hq-management.html", "总部管理"]];
+      const managementLinks = [["project-management.html", "产品管理"], ["store-management.html", "门店管理"], ["teacher-management.html", "老师管理"], ["operation-account-management.html", "运营管理"], ["hq-management.html", "总部管理"]];
       document.querySelector('[data-menu="shared-query"]')?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="hq-management"><summary><span class="nav-icon">管</span><span>管理</span></summary><nav>${managementLinks.map(([href, text]) => `<a class="${page === href ? "active" : ""}" href="${href}">${text}</a>`).join("")}</nav></details>`);
     }
   }
