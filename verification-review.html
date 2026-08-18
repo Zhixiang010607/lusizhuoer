@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>核销审核</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.8">
+  <link rel="stylesheet" href="styles.css?v=0.15.12">
 </head>
 <body data-review="verification">
   <aside class="side-project-bar" aria-label="项目栏">
@@ -16,7 +16,7 @@
     <details class="side-menu-group" open data-menu="review"><summary><span class="nav-icon">审</span><span>审核</span></summary><nav><a href="recharge-review.html">充值审核</a><a class="active" href="verification-review.html">核销审核</a></nav></details>
     <div class="side-footer">总部工作台</div>
   </aside>
-  <header class="topbar"><div><p class="eyebrow">VERIFICATION REVIEW</p><h1>核销审核</h1><p class="subtitle">仅审核补录和作废申请</p></div><div class="status"><span></span>运营审批权限</div></header>
+  <header class="topbar"><div><p class="eyebrow">VERIFICATION REVIEW</p><h1>核销审核</h1><p class="subtitle">仅补录核销需要总部或运营审核</p></div><div class="status"><span></span>运营审批权限</div></header>
   <main>
     <section class="panel review-toolbar">
       <div class="review-query-mode" role="tablist" aria-label="审核查询方式">
@@ -25,7 +25,7 @@
       </div>
       <div id="reviewFilterPanel" class="review-filter-row review-query-panel">
         <label>门店<select id="reviewStore"></select></label>
-        <label>申请类型<select id="reviewType"><option value="all">全部类型</option><option value="补录">补录申请</option><option value="作废">作废申请</option></select></label>
+        <label>申请类型<select id="reviewType"><option value="all">全部类型</option><option value="补录">补录申请</option></select></label>
         <label>审核状态<select id="reviewStatus"><option value="all" selected>全部状态</option><option value="pending">待审核</option><option value="approved">已通过</option><option value="rejected">已驳回</option></select></label>
         <button id="reviewFilterSearch" class="primary-action" type="button">按条件查询</button>
       </div>
@@ -36,7 +36,7 @@
       <div class="review-count" id="reviewCount"></div>
     </section>
     <section class="panel table-card review-table">
-      <div class="panel-heading"><div><h2>核销审核记录</h2><p>保留补录和作废审核历史；可筛选待审核单据</p></div><span class="badge">核销</span></div>
+      <div class="panel-heading"><div><h2>核销审核记录</h2><p>核销作废流程已停用；这里仅处理补录核销申请</p></div><span class="badge">核销</span></div>
       <div class="table-scroll"><table><thead><tr><th>核销单号</th><th>类型</th><th>门店</th><th>客户</th><th>项目</th><th>老师</th><th>次数影响</th><th>提交时间</th><th>审核操作/结果</th><th>审核时间</th></tr></thead><tbody id="reviewBody"></tbody></table></div>
       <div class="form-submit-row"><span></span><button id="reviewLoadMore" type="button" hidden>加载更多审核记录</button></div>
     </section>
@@ -52,9 +52,9 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
-  <script src="cloudbase-phone-auth.js?v=0.17.5"></script>
+  <script src="cloudbase-phone-auth.js?v=0.17.6"></script>
   <script src="datetime.js?v=0.1.1"></script>
-  <script src="review.js?v=0.17.5"></script>
+  <script src="review.js?v=0.17.6"></script>
   <script src="auth-ui.js?v=0.17.8"></script>
 </body>
 </html>

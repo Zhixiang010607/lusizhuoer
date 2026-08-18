@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.2";
+  const VERSION = "0.15.3";
   const type = document.body.dataset.query;
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
@@ -34,7 +34,7 @@
 
     const recordType = type === "verification" ? "VERIFICATION" : "RECHARGE";
     const noun = recordType === "RECHARGE" ? "充值" : "核销";
-    const columnCount = recordType === "RECHARGE" ? 10 : 12;
+    const columnCount = recordType === "RECHARGE" ? 10 : 11;
     let mode = "browse";
     let rows = [];
     let summary = { total: 0, pending: 0, approved: 0, closed: 0, voidPending: 0 };
@@ -233,7 +233,7 @@
         const face = record.hasFaceRequest
           ? '<span class="photo-required-status">已核验</span>'
           : '<span class="record-status">未记录</span>';
-        return `${commonStart}<td>${escapeHtml(teacher)}</td><td>${verificationTypeTag(record.originalType)}</td><td>${escapeHtml(formatDateTime(record.submittedAt))}</td><td>${face}</td><td>${statusTag(record.recordStatus)}</td><td>${voidStatusTag(record.voidRequestStatus)}</td></tr>`;
+        return `${commonStart}<td>${escapeHtml(teacher)}</td><td>${verificationTypeTag(record.originalType)}</td><td>${escapeHtml(formatDateTime(record.submittedAt))}</td><td>${face}</td><td>${statusTag(record.recordStatus)}</td></tr>`;
       }).join("") || `<tr><td colspan="${columnCount}" class="query-empty">没有符合条件的${noun}记录</td></tr>`;
 
       const selectedCount = selectedRecordTotal();

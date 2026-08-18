@@ -4,7 +4,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
-const FUNCTION_VERSION = "v41";
+const FUNCTION_VERSION = "v42";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -586,8 +586,8 @@ function operationReviewCustomerScope(event, alias = "c") {
       FROM public.verification_records review_record
      WHERE review_record.id = ${recordId}::bigint
        AND review_record.customer_id = ${alias}.id
-       AND (review_record.void_request_status <> 'NONE'
-            OR review_record.verification_type = 'SUPPLEMENT')
+       AND review_record.verification_type = 'SUPPLEMENT'
+       AND review_record.void_request_status = 'NONE'
   )`;
 }
 
@@ -1284,7 +1284,9 @@ async function queryStoreBusinessRecords(event = {}) {
                              COUNT(*) FILTER (WHERE ${alias}.record_status = 'PENDING') AS pending,
                              COUNT(*) FILTER (WHERE ${alias}.record_status = 'APPROVED') AS approved,
                              COUNT(*) FILTER (WHERE ${alias}.record_status IN ('REJECTED', 'VOIDED')) AS closed,
-                             COUNT(*) FILTER (WHERE ${alias}.void_request_status = 'PENDING') AS void_pending
+                             ${recordType === "RECHARGE"
+                               ? `COUNT(*) FILTER (WHERE ${alias}.void_request_status = 'PENDING')`
+                               : "0::bigint"} AS void_pending
                         FROM public.${table} ${alias}
                         ${baseJoin}
                        WHERE ${baseClauses.join(" AND ")}`;
@@ -1904,6 +1906,7 @@ function teacherOrderRows(rows, recordType, teacher = {}) {
     submittedAt: row.submitted_at,
     reviewedAt: row.reviewed_at,
     message: String(row.message || ""),
+    supplementNote: String(row.supplement_note || ""),
     reviewNote: String(row.review_note || ""),
     hasFaceRequest: Boolean(row.face_request_id),
     teacherCode: String(teacher.teacherCode || ""),
@@ -1957,7 +1960,9 @@ async function getTeacherWorkspace(event = {}) {
               ${alias}.${typeColumn} AS original_type, ${alias}.unit_count,
               ${alias}.record_status, ${alias}.void_request_status,
               ${alias}.submitted_at, ${alias}.reviewed_at,
-              ${alias}.message, ${alias}.review_note,
+              ${alias}.message,
+              ${recordType === "VERIFICATION" ? `${alias}.supplement_note` : "NULL::text AS supplement_note"},
+              ${alias}.review_note,
               ${recordType === "VERIFICATION" ? `${alias}.face_request_id` : "NULL::text AS face_request_id"},
               TO_CHAR(${alias}.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_submitted_at,
               s.id AS store_id, s.store_code, s.store_name,

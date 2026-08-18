@@ -507,11 +507,7 @@ BEGIN
        AND NEW.record_status NOT IN ('APPROVED', 'REJECTED') THEN
       RAISE EXCEPTION 'invalid verification transition: % -> %', OLD.record_status, NEW.record_status
         USING ERRCODE = '23514';
-    ELSIF OLD.record_status = 'APPROVED'
-          AND NEW.record_status <> 'VOIDED' THEN
-      RAISE EXCEPTION 'invalid verification transition: % -> %', OLD.record_status, NEW.record_status
-        USING ERRCODE = '23514';
-    ELSIF OLD.record_status IN ('REJECTED', 'VOIDED') THEN
+    ELSIF OLD.record_status IN ('APPROVED', 'REJECTED', 'VOIDED') THEN
       RAISE EXCEPTION 'verification status % is terminal', OLD.record_status
         USING ERRCODE = '23514';
     END IF;
@@ -525,55 +521,6 @@ CREATE TRIGGER trg_validate_verification_status_transition
 BEFORE INSERT OR UPDATE OF record_status
 ON public.verification_records
 FOR EACH ROW EXECUTE FUNCTION public.validate_verification_status_transition();
-
-CREATE OR REPLACE FUNCTION public.void_verification_record(
-  p_verification_id BIGINT,
-  p_actor_account_id BIGINT,
-  p_void_note TEXT DEFAULT ''
-)
-RETURNS public.verification_records
-LANGUAGE plpgsql
-AS $$
-DECLARE
-  current_record public.verification_records%ROWTYPE;
-BEGIN
-  SELECT *
-  INTO current_record
-  FROM public.verification_records
-  WHERE id = p_verification_id
-  FOR UPDATE;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'verification record % does not exist', p_verification_id
-      USING ERRCODE = 'P0002';
-  END IF;
-
-  IF current_record.record_status = 'VOIDED' THEN
-    RETURN current_record;
-  END IF;
-
-  IF current_record.record_status <> 'APPROVED' THEN
-    RAISE EXCEPTION 'only an APPROVED verification can be voided; current status is %',
-      current_record.record_status
-      USING ERRCODE = '23514';
-  END IF;
-
-  UPDATE public.verification_records
-  SET record_status = 'VOIDED',
-      void_note = COALESCE(p_void_note, ''),
-      voided_by_account_id = p_actor_account_id,
-      voided_at = NOW()
-  WHERE id = p_verification_id
-  RETURNING * INTO current_record;
-
-  RETURN current_record;
-END;
-$$;
-
-COMMENT ON FUNCTION public.void_verification_record(BIGINT, BIGINT, TEXT) IS
-  'Voids the original approved verification. NORMAL/SUPPLEMENT restore their consumed units through the balance refresh trigger; EXPERIENCE restores zero units.';
-
-REVOKE ALL ON FUNCTION public.void_verification_record(BIGINT, BIGINT, TEXT) FROM PUBLIC;
 
 -- Recalculate all customer totals from approved original orders. The customer
 -- row is locked first, so concurrent approvals serialize on the same customer.

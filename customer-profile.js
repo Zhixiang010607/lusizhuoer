@@ -76,8 +76,12 @@
     if (!data.ok) throw new Error(data.message || "客户数据库没有返回有效结果。");
     return data;
   }
-  function orderStatus(row) {
+  function orderStatus(row, recordType) {
     const status = String(row.recordStatus || "").toUpperCase();
+    if (recordType === "VERIFICATION") {
+      if (status === "VOIDED") return "历史已作废";
+      return { PENDING:"待审核", APPROVED:"已通过", REJECTED:"已驳回" }[status] || "待审核";
+    }
     const voidStatus = String(row.voidRequestStatus || "NONE").toUpperCase();
     if (status === "VOIDED" || voidStatus === "APPROVED") return "已作废";
     const base = { PENDING:"待审核", APPROVED:"已通过", REJECTED:"已驳回" }[status] || "待审核";
@@ -110,16 +114,15 @@
       const code = row.rechargeCode || row.id;
       const detail = detailHref("recharge-detail.html", row.id, code);
       const codeCell = detail ? `<a class="record-link" href="${escapeHtml(detail)}">${escapeHtml(code)}</a>` : escapeHtml(code);
-      return `<tr><td>${codeCell}</td><td>${escapeHtml([row.productName, row.productCode].filter(Boolean).join(" · "))}</td><td>${prefix}${units}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row))}</td></tr>`;
+      return `<tr><td>${codeCell}</td><td>${escapeHtml([row.productName, row.productCode].filter(Boolean).join(" · "))}</td><td>${prefix}${units}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row, "RECHARGE"))}</td></tr>`;
     }).join("") : emptyRow(5, "暂无充值记录");
     $("customerVerificationRecords").innerHTML = verifications.length ? verifications.map((row) => {
       const code = row.verificationCode || row.id;
       const operationCanOpen = session?.role !== "operation"
-        || String(row.voidRequestStatus || "NONE").toUpperCase() !== "NONE"
         || String(row.verificationType || "").toUpperCase() === "SUPPLEMENT";
       const detail = operationCanOpen ? detailHref("verification-detail.html", row.id, code) : "";
       const codeCell = detail ? `<a class="record-link" href="${escapeHtml(detail)}">${escapeHtml(code)}</a>` : escapeHtml(code);
-      return `<tr><td>${codeCell}</td><td>${escapeHtml([row.productName, row.productCode].filter(Boolean).join(" · "))}</td><td>${escapeHtml(verificationTypeText(row.verificationType))}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row))}</td></tr>`;
+      return `<tr><td>${codeCell}</td><td>${escapeHtml([row.productName, row.productCode].filter(Boolean).join(" · "))}</td><td>${escapeHtml(verificationTypeText(row.verificationType))}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row, "VERIFICATION"))}</td></tr>`;
     }).join("") : emptyRow(5, "暂无核销记录");
     syncHistoryButton("RECHARGE");
     syncHistoryButton("VERIFICATION");

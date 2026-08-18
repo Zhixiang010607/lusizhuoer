@@ -271,20 +271,14 @@
         "产品状态更新失败"
       );
     },
-    async voidVerification({ verificationId, voidNote = "" }) {
-      return callStaffAccount(
-        { action: "voidVerification", verificationId, voidNote },
-        "核销作废申请提交失败"
-      );
-    },
     async requestOrderVoid({ recordType, recordId, note }) {
       return callStaffAccount(
         { action: "requestOrderVoid", recordType, recordId, note },
         "作废申请提交失败"
       );
     },
-    async listReviewOrders({ recordType, recordId = "", recordCode = "", storeId = "", applicationType = "", status = "", limit = 200, paged = false, cursor = null } = {}) {
-      const payload = { action: "listReviewOrders", recordType, recordId, recordCode, storeId, applicationType, status, limit, paged };
+    async listReviewOrders({ recordType, recordId = "", recordCode = "", storeId = "", applicationType = "", status = "", limit = 200, paged = false, detailRead = false, cursor = null } = {}) {
+      const payload = { action: "listReviewOrders", recordType, recordId, recordCode, storeId, applicationType, status, limit, paged, detailRead };
       if (cursor) {
         payload.cursorPending = cursor.pending;
         payload.cursorApplicationTime = cursor.applicationTime || "";

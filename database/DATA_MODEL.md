@@ -89,7 +89,8 @@ Verification status also has exactly three values:
 | --- | --- | --- |
 | `PENDING` | 待处理 | Record is awaiting a business decision or face result |
 | `APPROVED` | 通过 | Valid consumption; normal successful face verification writes this directly |
-| `REJECTED` | 拒绝/作废 | Failed, rejected, or later voided verification |
+| `REJECTED` | 已驳回 | Failed or rejected verification |
+| `VOIDED` | 历史已作废 | Legacy audit state only; new verification voids are disabled by migration 036 |
 
 Verification also has one independent tag:
 
@@ -141,7 +142,7 @@ The database views provide global summaries without replacing detail records:
 | Store | Its own store, customers, recharge records, verification records |
 | Teacher | Only its own recharge and verification records; no other teacher or store global view |
 
-The access restriction is implemented in PostgreSQL RLS and must also be checked by cloud functions. `staffAccount` allows operation accounts only `session`, `listReviewOrders` and `reviewOrder`; exact verification details remain limited to reviewable supplemental/void records. `faceRecognition` exposes only `getReviewCustomerProfile` to operation accounts, requiring an exact review record that belongs to the requested customer; ordinary customer profile, photo, status, and business-query actions remain forbidden. Frontend navigation alone is never treated as permission control.
+The access restriction is implemented in PostgreSQL RLS and must also be checked by cloud functions. `staffAccount` allows operation accounts only `session`, `listReviewOrders` and `reviewOrder`; exact verification details are limited to reviewable supplemental records. `faceRecognition` exposes only `getReviewCustomerProfile` to operation accounts, requiring an exact recharge or supplemental-verification review record that belongs to the requested customer; ordinary customer profile, photo, status, and business-query actions remain forbidden. Frontend navigation alone is never treated as permission control. Verification orders cannot start or change a void lifecycle after migration 036; corrections use a separate recharge order.
 
 ## 7. Run order for the current deployment
 
@@ -154,6 +155,7 @@ For a database already upgraded through migration 029, execute the current addit
 033_hq_query_indexes.sql
 034_operation_review_only_access.sql
 035_hq_dashboard_approved_covering_indexes.sql
+036_disable_verification_void_workflow.sql
 ```
 
-Migration 032 deliberately stops and rolls back when migration 026 is missing. In that case, do not deploy the new cloud functions yet; first complete the missing earlier migrations in numeric order. Migration 034 keeps operation scope rows as archived audit history and does not change the recharge/verification review functions. Migration 035 adds only the two covering indexes used by the headquarters dashboard's date-bounded approved-order aggregation.
+Migration 032 deliberately stops and rolls back when migration 026 is missing. In that case, do not deploy the new cloud functions yet; first complete the missing earlier migrations in numeric order. Migration 034 keeps operation scope rows as archived audit history and does not change the recharge/verification review functions. Migration 035 adds only the two covering indexes used by the headquarters dashboard's date-bounded approved-order aggregation. Migration 036 closes any legacy pending verification void as rejected without changing the original verification or balance, retires the old direct SQL function, and blocks every future verification void transition.

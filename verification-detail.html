@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>核销工单详情</title>
-  <link rel="stylesheet" href="styles.css?v=0.14.47">
+  <link rel="stylesheet" href="styles.css?v=0.15.12">
 </head>
 <body data-record-detail="verification">
   <aside class="side-project-bar" aria-label="项目栏">
@@ -35,21 +35,19 @@
         <div id="orderInfo" class="detail-info-grid verification-order-info recharge-order-info"></div>
       </section>
 
-      <section class="panel verification-order-decision unified-order-review" data-order-review>
-        <div class="panel-heading"><div><h2 id="reviewPanelTitle">总部审核</h2><p id="reviewPanelHint">请选择本张核销工单的审核结果。</p></div></div>
-        <label id="reviewNoteField" class="verification-order-review-note">总部审核说明（选填）<textarea id="reviewMessage" rows="2" maxlength="500" readonly aria-label="总部审核说明"></textarea></label>
-        <div id="reviewActions" class="verification-order-actions"><button id="reviewApprove" type="button" disabled>通过</button><button id="reviewReject" class="reject" type="button" disabled>驳回</button></div>
-        <div id="storeVoidAction" class="store-void-action" hidden>
-          <label class="void-reason-field">作废说明（必填）<textarea id="voidReason" rows="3" maxlength="500" placeholder="请说明本次作废原因" disabled></textarea></label>
-          <div class="void-application-actions"><span id="voidApplicationMessage" class="form-message" aria-live="polite"></span><button id="submitVoidApplication" class="reject" type="button" disabled>提交作废申请</button></div>
+      <section class="panel verification-order-decision verification-order-messages" data-verification-messages>
+        <div class="panel-heading"><div><h2 id="reviewPanelTitle">工单留言</h2><p id="reviewPanelHint">门店提交留言与总部审核留言集中显示。</p></div><span class="badge">2 项</span></div>
+        <div class="verification-message-list">
+          <article class="verification-message-card">
+            <div><h3>门店留言</h3><time id="verificationStoreMessageTime">—</time></div>
+            <p id="verificationStoreMessage" class="verification-message-text" tabindex="0">无</p>
+          </article>
+          <article class="verification-message-card">
+            <div><h3>总部留言</h3><time id="verificationHqMessageTime">—</time></div>
+            <p id="verificationHqMessage" class="verification-message-text" tabindex="0">无</p>
+          </article>
         </div>
-        <p id="reviewStatusRow" class="unified-review-status">当前审核结果：<strong id="reviewStatus">待审核</strong></p>
       </section>
-    </section>
-
-    <section class="panel order-comments-panel">
-      <div class="panel-heading"><div><h2>留言记录</h2><p id="orderCommentsHint">原申请和作废申请均按门店／总部保留；未填写内容显示“无”。</p></div><span id="orderCommentsCount" class="badge">4 项</span></div>
-      <div id="orderComments" class="order-comment-grid"></div>
     </section>
   </main>
 
@@ -57,9 +55,9 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
-  <script src="cloudbase-phone-auth.js?v=0.17.5"></script>
+  <script src="cloudbase-phone-auth.js?v=0.17.6"></script>
   <script src="datetime.js?v=0.1.1"></script>
-  <script src="business-detail.js?v=0.15.13"></script>
+  <script src="business-detail.js?v=0.15.14"></script>
   <script src="auth-ui.js?v=0.17.8"></script>
 </body>
 </html>

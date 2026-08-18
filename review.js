@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const VERSION = "0.17.5";
+  const VERSION = "0.17.6";
   const pageType = document.body.dataset.review;
   const recordType = pageType === "recharge" ? "RECHARGE" : "VERIFICATION";
   const columnCount = 10;
@@ -30,7 +30,7 @@
     const customerCode = clean(pick(row, "customer_code", "customerCode"));
     return {
       raw: row, id: clean(row.id), recordCode: clean(pick(row, "record_code", "recordCode")), isVoid, status,
-      kind: pageType === "recharge" ? (isVoid ? "作废充值" : "新充值") : (isVoid ? "作废" : "补录"),
+      kind: pageType === "recharge" ? (isVoid ? "作废充值" : "新充值") : "补录核销",
       time: pick(row, "application_time", "applicationTime"),
       reviewedAt: isVoid ? pick(row, "void_reviewed_at", "voidReviewedAt") : pick(row, "original_reviewed_at", "originalReviewedAt"),
       originalCreatedAt: pick(row, "original_submitted_at", "originalSubmittedAt"), originalReviewedAt: pick(row, "original_reviewed_at", "originalReviewedAt"),
@@ -46,7 +46,7 @@
   function applicationTypeFilter() {
     const value = $("reviewType").value;
     if (value === "all") return "";
-    if (value === "作废充值" || value === "作废") return "VOID";
+    if (pageType === "recharge" && value === "作废充值") return "VOID";
     return pageType === "recharge" ? "NEW" : "SUPPLEMENT";
   }
   function setLoading(message) {
@@ -121,8 +121,7 @@
   }
   function impactText(item) {
     if (pageType === "recharge") return `${item.isVoid ? "-" : "+"}${item.amount}次`;
-    if (!item.isVoid) return `核销 +${item.amount || 1}`;
-    return clean(pick(item.raw, "original_type", "originalType")) === "EXPERIENCE" ? "体验核销：无次数变化" : `余额 +${item.amount || 1}`;
+    return `核销 +${item.amount || 1}`;
   }
   function render() {
     $("reviewCount").innerHTML = `<strong>${rows.length}</strong><span>${hasMore ? "条已加载，可继续加载" : "条符合条件"}</span>`;
@@ -196,7 +195,7 @@
   }
   function renderReviewCommunications(item) {
     const communicationRows = [{
-      title: item.isVoid ? "门店作废申请留言" : "门店申请留言",
+      title: pageType === "recharge" && item.isVoid ? "门店作废申请留言" : "门店申请留言",
       message: item.applicantNote,
       time: item.time
     }];

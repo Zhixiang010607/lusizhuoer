@@ -287,7 +287,7 @@ body.store-record-query #resetRecordQuery { color: #35516f; background: #edf2f7;
 body.store-record-query .customer-permission-banner { margin-top: 0; }
 body.store-record-query .store-record-results { margin-top: 0; }
 body.store-record-query .record-query-results-table { width: 100%; min-width: 1380px; table-layout: auto; }
-body.store-record-query .verification-record-results-table { min-width: 1610px; }
+body.store-record-query .verification-record-results-table { min-width: 1500px; }
 body.store-record-query .record-col-order { width: 135px; }
 body.store-record-query .record-col-customer-code { width: 215px; }
 body.store-record-query .record-col-customer-name { width: 125px; }
@@ -872,6 +872,14 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .verification-order-note textarea { min-height: 58px; margin: 0; color: #40536a; border-color: #d6e1f0; background: white; font-size: 12px; line-height: 1.55; resize: none; }
 .verification-order-decision { display: grid; align-content: space-between; gap: 13px; }
 .verification-order-decision .panel-heading { margin-bottom: 0; }
+.verification-order-messages { align-content: start; }
+.verification-message-list { min-height: 0; display: grid; gap: 10px; }
+.verification-message-card { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fafcff; }
+.verification-message-card > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.verification-message-card h3 { margin: 0; color: var(--ink); font-size: 12px; }
+.verification-message-card time { flex: 0 0 auto; color: var(--muted); font-size: 10px; }
+.verification-message-text { min-height: 72px; max-height: 150px; margin: 8px 0 0; overflow-y: auto; overscroll-behavior: contain; padding: 10px; border: 1px solid #dce4ee; border-radius: 8px; color: #344054; background: #fff; font-size: 12px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-gutter: stable; }
+.verification-message-text:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
 .verification-order-review-note { display: grid; gap: 6px; color: #344054; font-size: 12px; font-weight: 800; }
 .verification-order-review-note textarea { min-height: 68px; margin: 0; resize: vertical; }
 .verification-order-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

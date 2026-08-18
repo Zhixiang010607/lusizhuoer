@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const VERSION = "0.15.1";
+  const VERSION = "0.15.2";
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
   const formatDateTime = (value) => window.AppDateTime?.format?.(value, "—") || "—";
@@ -20,6 +20,10 @@
   }
   const typeLabel = (row) => row.recordType === "RECHARGE" ? (row.originalType === "VOID" ? "历史冲销" : "充值") : ({ NORMAL: "正常核销", SUPPLEMENT: "补录核销", EXPERIENCE: "体验核销" }[row.originalType] || "核销");
   function statusLabel(row) {
+    if (row.recordType === "VERIFICATION") {
+      if (row.recordStatus === "VOIDED") return ["历史已作废", "void"];
+      return ({ PENDING: ["待审核", "review"], APPROVED: ["已通过", "normal"], REJECTED: ["已驳回", "void"] }[row.recordStatus] || ["未知状态", "review"]);
+    }
     if (row.recordStatus === "VOIDED" || row.voidRequestStatus === "APPROVED") return ["已作废", "void"];
     if (row.recordStatus === "APPROVED" && row.voidRequestStatus === "PENDING") return ["已通过 · 作废待审", "review"];
     if (row.recordStatus === "APPROVED" && row.voidRequestStatus === "REJECTED") return ["已通过 · 作废驳回", "normal"];

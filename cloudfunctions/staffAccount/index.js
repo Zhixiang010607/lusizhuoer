@@ -9,7 +9,7 @@ const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 const OPERATION_ACTIONS = new Set(["listReviewOrders", "reviewOrder"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v40";
+const FUNCTION_VERSION = "v41";
 let app = null;
 let auth = null;
 let managerClient = null;
@@ -1174,9 +1174,9 @@ async function listReviewOrders(caller, event) {
          ORDER BY (${statusExpression} = 'PENDING') DESC, ${timeExpression} DESC, r.id DESC
             LIMIT ${sqlLimit}`;
   } else {
-    const statusExpression = "CASE WHEN v.void_request_status <> 'NONE' THEN v.void_request_status ELSE v.record_status END";
-    const typeExpression = "CASE WHEN v.void_request_status <> 'NONE' THEN 'VOID' ELSE v.verification_type END";
-    const timeExpression = "CASE WHEN v.void_request_status <> 'NONE' THEN v.void_requested_at ELSE v.submitted_at END";
+    const statusExpression = "v.record_status";
+    const typeExpression = "v.verification_type";
+    const timeExpression = "v.submitted_at";
     const cursorClause = hasCursor
       ? `AND ((${statusExpression} = 'PENDING')::int, ${timeExpression}, v.id) < (${event.cursorPending ? 1 : 0}, ${sqlText(cursorApplicationTime)}::timestamptz, ${cursorId}::bigint)`
       : "";
@@ -1200,7 +1200,7 @@ async function listReviewOrders(caller, event) {
              JOIN public.customers c ON c.id = v.customer_id
              JOIN public.products p ON p.id = v.product_id
              JOIN public.teachers t ON t.id = v.teacher_id
-            WHERE ${exactLookup && !operationReviewer ? "TRUE" : "(v.void_request_status <> 'NONE' OR v.verification_type = 'SUPPLEMENT')"}
+            WHERE ${exactLookup && !operationReviewer && event.detailRead === true ? "TRUE" : "v.verification_type = 'SUPPLEMENT' AND v.void_request_status = 'NONE'"}
               ${reviewFilterSql(scopedEvent, "v", "v.verification_code", statusExpression, typeExpression)}
               ${cursorClause}
          ORDER BY (${statusExpression} = 'PENDING') DESC, ${timeExpression} DESC, v.id DESC
@@ -1233,7 +1233,9 @@ async function listReviewOrders(caller, event) {
 async function requestOrderVoid(caller, event) {
   requireStore(caller);
   const recordType = String(event.recordType || "").trim().toUpperCase();
-  if (!["RECHARGE", "VERIFICATION"].includes(recordType)) fail("不支持的工单类型", "BAD_REQUEST");
+  if (recordType !== "RECHARGE") {
+    fail("核销工单不再支持作废；如需补回次数，请提交充值工单", "VERIFICATION_VOID_DISABLED");
+  }
   const recordId = numericId(event.recordId || event.verificationId, "工单编号");
   const note = String(event.note || event.voidNote || "").trim();
   if (!note) fail("提交作废申请必须填写说明", "VOID_NOTE_REQUIRED");
@@ -1247,7 +1249,7 @@ async function requestOrderVoid(caller, event) {
     );
   } catch (error) {
     if (/order type cannot request a void/i.test(String(error?.message || ""))) {
-      fail("仅正常充值、正常核销和补录核销可以申请作废", "VOID_TYPE_NOT_ALLOWED");
+      fail("仅已通过的正常充值可以申请作废", "VOID_TYPE_NOT_ALLOWED");
     }
     asDatabaseError(error, "提交作废申请");
   }
@@ -1264,6 +1266,22 @@ async function reviewOrder(caller, event) {
   const recordId = numericId(event.recordId, "工单编号");
   const note = String(event.note || "").trim();
   if (note.length > 1000) fail("审核留言不能超过 1000 个字符", "BAD_REQUEST");
+  if (recordType === "VERIFICATION") {
+    const verificationRows = await executeSql(
+      `SELECT verification_type, record_status, void_request_status
+         FROM public.verification_records
+        WHERE id = ${recordId}
+        LIMIT 1`
+    );
+    const verification = verificationRows[0];
+    if (!verification) fail("未找到该核销工单", "NOT_FOUND");
+    if (
+      String(verification.verification_type || "").toUpperCase() !== "SUPPLEMENT" ||
+      String(verification.void_request_status || "NONE").toUpperCase() !== "NONE"
+    ) {
+      fail("核销审核只处理补录核销；核销作废流程已停用", "VERIFICATION_REVIEW_NOT_ALLOWED");
+    }
+  }
   if (caller.profile?.role === "operation") {
     const visibleRows = await listReviewOrders(caller, {
       recordType,
@@ -1642,12 +1660,7 @@ async function main(event = {}) {
     return { ok: true, order: await requestOrderVoid(caller, event) };
   }
   if (action === "voidVerification") {
-    const order = await requestOrderVoid(caller, {
-      recordType: "VERIFICATION",
-      recordId: event.verificationId,
-      note: event.voidNote
-    });
-    return { ok: true, order, verification: order };
+    fail("核销工单不再支持作废；如需补回次数，请提交充值工单", "VERIFICATION_VOID_DISABLED");
   }
   if (action === "listStores") {
     requireHq(caller);
