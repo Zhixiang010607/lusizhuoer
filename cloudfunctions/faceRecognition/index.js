@@ -4,7 +4,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
-const FUNCTION_VERSION = "v46";
+const FUNCTION_VERSION = "v47";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 // SCF synchronous events are capped at 6 MB and Base64 adds roughly 33%.
 // These verification-photo limits leave room for the JSON envelope while
@@ -2629,7 +2629,7 @@ async function verifyCustomerFace(event) {
 async function getVerificationPhotos(event) {
   const context = await verificationPhotoContext(event);
   const rows = await executeSql(
-    `SELECT photo_slot, photo_kind, thumbnail_object_ref,
+    `SELECT photo_slot, photo_kind, thumbnail_object_ref, original_object_ref,
             original_bytes, thumbnail_bytes, image_width, image_height,
             created_at, updated_at
        FROM public.verification_photos
@@ -2640,19 +2640,29 @@ async function getVerificationPhotos(event) {
   const photos = await Promise.all(rows.map(async (row) => {
     let thumbnailUrl = "";
     let thumbnailError = "";
+    let originalUrl = "";
+    let originalError = "";
     const retainedProfile = String(row.photo_kind || "") === "PROFILE";
-    try {
-      thumbnailUrl = await signVerificationPhoto(row.thumbnail_object_ref, expiresIn, {
+    const [thumbnailResult, originalResult] = await Promise.allSettled([
+      signVerificationPhoto(row.thumbnail_object_ref, expiresIn, {
         allowCustomerProfile: retainedProfile,
         thumbnailTransform: retainedProfile
-      });
-    }
-    catch (error) { thumbnailError = String(error?.code || "PHOTO_THUMBNAIL_UNAVAILABLE"); }
+      }),
+      signVerificationPhoto(row.original_object_ref, expiresIn, {
+        allowCustomerProfile: retainedProfile
+      })
+    ]);
+    if (thumbnailResult.status === "fulfilled") thumbnailUrl = thumbnailResult.value;
+    else thumbnailError = String(thumbnailResult.reason?.code || "PHOTO_THUMBNAIL_UNAVAILABLE");
+    if (originalResult.status === "fulfilled") originalUrl = originalResult.value;
+    else originalError = String(originalResult.reason?.code || "PHOTO_ORIGINAL_UNAVAILABLE");
     return {
       slot: Number(row.photo_slot),
       kind: String(row.photo_kind || ""),
       thumbnailUrl,
       thumbnailError,
+      originalUrl,
+      originalError,
       originalBytes: Number(row.original_bytes || 0),
       thumbnailBytes: Number(row.thumbnail_bytes || 0),
       width: Number(row.image_width || 0),

@@ -38,7 +38,7 @@ function functionSource(source, name) {
   throw new Error(`function ${name} body is incomplete`);
 }
 
-includes(cloud, 'const FUNCTION_VERSION = "v46"', "cloud version");
+includes(cloud, 'const FUNCTION_VERSION = "v47"', "cloud version");
 includes(cloud, "const MAX_VERIFICATION_IMAGE_BYTES = 3 * 1024 * 1024", "original upload limit");
 includes(cloud, "const MAX_THUMBNAIL_BYTES = 384 * 1024", "thumbnail upload limit");
 includes(cloud, "if (action === \"getVerificationPhotos\")", "thumbnail list action");
@@ -208,7 +208,13 @@ includes(detailUi, 'action: "getVerificationPhotos"', "detail thumbnail request"
 includes(detailUi, 'action: "getVerificationPhotoOriginalUrl"', "detail original request");
 includes(detailUi, 'action: "uploadVerificationExtraPhoto"', "detail upload request");
 includes(detailUi, 'loading="lazy"', "lazy thumbnail loading");
-includes(detailUi, 'const VERSION = "0.15.20"', "detail UI cache version");
+includes(cloud, "originalUrl,", "authorized list returns short-lived original URL");
+assert.ok(
+  functionSource(cloud, "getVerificationPhotos").indexOf("verificationPhotoContext(event)")
+    < functionSource(cloud, "getVerificationPhotos").indexOf("signVerificationPhoto("),
+  "original URLs must be signed only after the verification-order permission check"
+);
+includes(detailUi, 'const VERSION = "0.15.21"', "detail UI cache version");
 includes(detailUi, 'return "客户原始留存照"', "retained profile label");
 includes(detailUi, 'return "本次核销人脸照"', "current face label");
 includes(detailUi, "Array.from({ length: 5 }", "five-card gallery");
@@ -218,12 +224,16 @@ includes(detailUi, "data-upload-verification-photo", "separate file upload actio
 includes(detailUi, 'photo ? "从相册替换" : "从相册上传"', "mobile photo-library action label");
 includes(detailUi, "navigator.mediaDevices.getUserMedia", "real camera preview API");
 includes(detailUi, 'facingMode: { ideal: "environment" }', "rear camera preference");
+includes(detailUi, "preloadVerificationPhotoOriginal", "small original background preload");
+includes(detailUi, "connection?.saveData === true", "data-saver preload guard");
+includes(detailUi, "originalUrlExpiresAt", "short-lived original URL expiry guard");
+includes(detailUi, 'image.fetchPriority = "high"', "clicked original receives high network priority");
 assert.ok(!functionSource(detailUi, "chooseVerificationPhoto").includes("capture"), "gallery/file picker must not force camera capture");
 includes(detailHtml, 'id="verificationPhotoGrid"', "five-slot gallery mount");
 includes(detailHtml, 'id="verificationPhotoViewer"', "original image dialog");
 includes(detailHtml, 'id="verificationPhotoCameraDialog"', "camera preview dialog");
 includes(detailHtml, 'id="verificationPhotoCameraVideo" autoplay playsinline muted', "mobile inline camera preview");
-includes(detailHtml, 'business-detail.js?v=0.15.20', "detail script cache bust");
+includes(detailHtml, 'business-detail.js?v=0.15.21', "detail script cache bust");
 includes(detailHtml, 'styles.css?v=0.15.18', "detail styles cache bust");
 includes(styles, "grid-template-columns: repeat(3, minmax(0, 1fr))", "roomy three-column desktop gallery");
 includes(styles, ".verification-photo-actions", "separate camera and upload action layout");

@@ -2,7 +2,7 @@
 
 该函数仅在 CloudBase 后端运行，用于门店客户建档、照片质量检测、私有照片留存、人脸人员库录入和后续人员搜索。客户不需要提供身份证。
 
-当前版本：`v46`
+当前版本：`v47`
 
 ## 必需环境变量
 
@@ -56,14 +56,14 @@
 
 该桶不为 `anon` 或 `authenticated` 创建任何 RLS Policy，客户端访问默认拒绝；只有使用 `service_role` 的云函数可以读写。数据库保存 `pg://<bucketId>/<objectName>` 私有引用，不保存公开下载地址。
 
-建议另建 PG 存储桶 `verification-photos` 以便分开管理和保留策略；该桶不存在时 v46 会自动使用现有的私有 `customer-photos` 桶：
+建议另建 PG 存储桶 `verification-photos` 以便分开管理和保留策略；该桶不存在时 v47 会自动使用现有的私有 `customer-photos` 桶：
 
 - 访问权限：私有；不要给 `anon` 或 `authenticated` 添加 SELECT/INSERT/UPDATE/DELETE Policy。
 - 单文件限制：5 MB；MIME 白名单仅 `image/jpeg`。
 - CORS：只允许正式静态站点域名及本地测试域名的 `GET`；本实现的写入经过云函数，不需要浏览器直传权限。
 - 对象路径：人脸凭证使用 `face-evidence/<store>/<staff>/<token>/...`，补充照片使用 `records/<verificationId>/slot-<n>/...`；每次替换都生成新对象名。
 - 每单固定展示客户建档留存照、本次核销人脸照和 3 个补充照片位。客户留存照引用在建单事务中固化，缩略图使用 CloudBase 图片处理按需生成；人脸照和补充照分别保存高清原图与小缩略图。
-- 原图和缩略图设置私有长期缓存；数据库从不保存签名 URL。详情首屏只签名并懒加载最多 5 张缩略图，点击后才为单张原图生成 5 分钟临时地址。
+- 原图和缩略图设置私有长期缓存；数据库从不保存签名 URL。详情首屏在完成账号和工单权限校验后，同时准备最多 5 张缩略图及短时原图地址；页面只自动低优先预载小于 768 KB 的现有原图，省流或 2G 网络不预载。点击时立即使用仍有效的地址显示高清图，并在后台再次校验权限和写入查看审计。
 - 创建一个每小时定时触发器调用 `{ "action":"cleanupVerificationPhotoDrafts", "cleanupToken":"与环境变量相同的随机值" }`，清除过期且未建单的人脸照片草稿。一次最多清理 100 组，可按返回值继续触发。
 
 ## 部署
@@ -81,7 +81,7 @@
 ```json
 {
   "ok": true,
-  "version": "v46",
+  "version": "v47",
   "photoBucketId": "customer-photos",
   "verificationPhotoBucketId": "verification-photos",
   "verificationPhotoFallbackBucketId": "customer-photos",
@@ -115,8 +115,8 @@
 - `getCustomerStatus`：总部可读取任意客户、门店只可读取本门店客户的资料与当前活跃／封存状态；返回客户姓名、生日、备注、建立时间，以及关联门店的真实名称和门店编号。
 - `updateCustomerStatus`：总部或客户所属门店把同一客户档案在 `ACTIVE` 与 `ARCHIVED` 之间切换；只更新状态和更新时间，不删除照片、面容档案或历史工单。
 - `searchCustomer`：质量检查、可选活体检测、人员搜索、阈值和候选分差判断，再从本门店客户表返回档案。
-- `getVerificationPhotos`：总部可查看全部核销照片，门店只能查看本店，老师只能查看本人绑定工单，运营只能查看审核范围内的补录核销。一次返回最多 5 张短时缩略图（客户留存照、本次核销人脸照、3 张补充照）和服务端计算的上传权限；不预签原图。
-- `getVerificationPhotoOriginalUrl`：再次校验相同工单权限后，只为用户点击的一个照片位签发原图短时地址。
+- `getVerificationPhotos`：总部可查看全部核销照片，门店只能查看本店，老师只能查看本人绑定工单，运营只能查看审核范围内的补录核销。一次返回最多 5 张短时缩略图、同期限原图地址（客户留存照、本次核销人脸照、3 张补充照）和服务端计算的上传权限；所有地址仅在本次权限校验通过后签发，数据库不保存签名地址。
+- `getVerificationPhotoOriginalUrl`：用户实际点击后再次校验相同工单权限，复用或刷新该照片位的短时原图地址，并写入 `VIEW_ORIGINAL` 查看审计。
 - `uploadVerificationExtraPhoto`：仅允许核销单 `submitted_by_account_id` 对应的真实登录账号，在 `submitted_at + 24 hours` 之前上传或替换照片位 2--4；总部、运营、其他门店或其他老师均不可写。数据库触发器和云函数双重校验，照片位 0 的客户留存照和照片位 1 的本次核销人脸照永久不可替换。
 - `cleanupVerificationPhotoDrafts`：定时触发器使用恒定时间比较的专用随机凭证清理过期未消费草稿；不删除已经绑定核销单的照片。
 

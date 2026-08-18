@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.20";
+  const VERSION = "0.15.21";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -15,6 +15,8 @@
   let verificationCameraStream = null;
   let verificationCameraTarget = null;
   let verificationCameraRequest = 0;
+  let verificationPhotoViewerRequest = 0;
+  const verificationPhotoPreloads = new Map();
   let orderExportBusy = false;
 
   function loadSessionRows(key) {
@@ -518,6 +520,30 @@
     $("verificationPhotoMessage").textContent = "";
   }
 
+  function preloadVerificationPhotoOriginal(photo, explicitIntent = false) {
+    const url = clean(photo?.originalUrl);
+    const bytes = Number(photo?.originalBytes || 0);
+    if (!url || verificationPhotoPreloads.has(url)) return;
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (!explicitIntent && (connection?.saveData === true || /(^|-)2g$/i.test(String(connection?.effectiveType || "")))) return;
+    if (!explicitIntent && (!bytes || bytes > 768 * 1024)) return;
+    const preload = new Image();
+    preload.decoding = "async";
+    preload.referrerPolicy = "no-referrer";
+    preload.fetchPriority = explicitIntent ? "high" : "low";
+    verificationPhotoPreloads.set(url, preload);
+    preload.addEventListener("error", () => verificationPhotoPreloads.delete(url), { once: true });
+    preload.src = url;
+  }
+
+  function scheduleVerificationPhotoPreloads(photos) {
+    const candidates = photos.filter((photo) => clean(photo?.originalUrl));
+    if (!candidates.length) return;
+    const run = () => candidates.forEach((photo) => preloadVerificationPhotoOriginal(photo));
+    if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 1400 });
+    else setTimeout(run, 500);
+  }
+
   function verificationPhotoCard(photo, slot, payload) {
     const label = photoSlotLabel(slot);
     const canUpload = slot >= 2 && payload.canEdit === true;
@@ -536,7 +562,11 @@
 
   function renderVerificationPhotos(payload, recordId) {
     const photos = Array.isArray(payload?.photos) ? payload.photos : [];
-    currentVerificationPhotoPayload = { ...payload, photos, error: null };
+    const loadedAt = Date.now();
+    photos.forEach((photo) => {
+      photo.originalUrlExpiresAt = loadedAt + Math.max(0, Number(payload?.expiresIn || 0) * 1000);
+    });
+    currentVerificationPhotoPayload = { ...payload, photos, loadedAt, error: null };
     const bySlot = new Map(photos.map((photo) => [Number(photo.slot), photo]));
     $("verificationPhotoCount").textContent = `${photos.length} / 5`;
     const deadline = formatTime(payload?.editableUntil);
@@ -547,7 +577,12 @@
       : "照片仅供有权查看本核销单的账号浏览；只有本单提交人可在 24 小时内上传或替换补充照片。";
     $("verificationPhotoGrid").innerHTML = Array.from({ length: 5 }, (_, slot) => verificationPhotoCard(bySlot.get(slot), slot, payload)).join("");
     $("verificationPhotoGrid").querySelectorAll("[data-view-verification-photo]").forEach((button) => {
-      button.addEventListener("click", () => openVerificationPhoto(recordId, Number(button.dataset.viewVerificationPhoto)));
+      const slot = Number(button.dataset.viewVerificationPhoto);
+      const warmOriginal = () => preloadVerificationPhotoOriginal(bySlot.get(slot), true);
+      button.addEventListener("pointerenter", warmOriginal, { once: true });
+      button.addEventListener("focus", warmOriginal, { once: true });
+      button.addEventListener("touchstart", warmOriginal, { once: true, passive: true });
+      button.addEventListener("click", () => openVerificationPhoto(recordId, slot));
     });
     $("verificationPhotoGrid").querySelectorAll("[data-capture-verification-photo]").forEach((button) => {
       button.addEventListener("click", () => openVerificationPhotoCamera(recordId, Number(button.dataset.captureVerificationPhoto)));
@@ -555,6 +590,7 @@
     $("verificationPhotoGrid").querySelectorAll("[data-upload-verification-photo]").forEach((button) => {
       button.addEventListener("click", () => chooseVerificationPhoto(recordId, Number(button.dataset.uploadVerificationPhoto)));
     });
+    scheduleVerificationPhotoPreloads(photos);
   }
 
   async function loadVerificationPhotos(record) {
@@ -792,16 +828,51 @@
     const dialog = $("verificationPhotoViewer");
     const image = $("verificationPhotoOriginal");
     if (!dialog || !image) return;
-    $("verificationPhotoViewerTitle").textContent = `${photoSlotLabel(slot)} · 正在加载原图`;
+    const request = ++verificationPhotoViewerRequest;
+    const listPhoto = (currentVerificationPhotoPayload?.photos || []).find((photo) => Number(photo.slot) === slot);
+    const cachedOriginalUrl = clean(listPhoto?.originalUrl);
+    const cachedUrlValid = cachedOriginalUrl && Number(listPhoto?.originalUrlExpiresAt || 0) > Date.now() + 10000;
+    const status = $("verificationPhotoViewerStatus");
+    image.fetchPriority = "high";
+    $("verificationPhotoViewerTitle").textContent = cachedUrlValid
+      ? `${photoSlotLabel(slot)} · ${listPhoto?.width || "—"} × ${listPhoto?.height || "—"}`
+      : `${photoSlotLabel(slot)} · 正在加载高清原图`;
+    if (status) status.textContent = cachedUrlValid ? "正在显示已预备的高清原图…" : "先显示缩略图，高清原图加载完成后自动替换。";
     image.removeAttribute("src");
     image.alt = `${photoSlotLabel(slot)}原图`;
+    image.onload = () => {
+      if (request !== verificationPhotoViewerRequest || !dialog.open || !status) return;
+      status.textContent = image.dataset.photoQuality === "original"
+        ? "高清原图已加载，可缩放或滚动查看。"
+        : "缩略图已显示，高清原图仍在加载…";
+    };
+    image.onerror = () => {
+      if (request === verificationPhotoViewerRequest && dialog.open && status) status.textContent = "正在重新获取高清原图地址…";
+    };
+    if (cachedUrlValid) {
+      image.dataset.photoQuality = "original";
+      image.src = cachedOriginalUrl;
+    } else if (clean(listPhoto?.thumbnailUrl)) {
+      image.dataset.photoQuality = "thumbnail";
+      image.src = listPhoto.thumbnailUrl;
+    }
     dialog.showModal();
     try {
       const payload = await callFaceRecognition({ action: "getVerificationPhotoOriginalUrl", recordId, slot });
-      image.src = payload.photoUrl;
+      if (request !== verificationPhotoViewerRequest || !dialog.open) return;
+      if (listPhoto) {
+        listPhoto.originalUrl = payload.photoUrl;
+        listPhoto.originalUrlExpiresAt = Date.now() + Math.max(0, Number(payload.expiresIn || 0) * 1000);
+      }
+      if (image.src !== payload.photoUrl) {
+        image.dataset.photoQuality = "original";
+        image.src = payload.photoUrl;
+      }
       $("verificationPhotoViewerTitle").textContent = `${photoSlotLabel(slot)} · ${payload.width || "—"} × ${payload.height || "—"}`;
     } catch (error) {
-      $("verificationPhotoViewerTitle").textContent = error?.message || "原图读取失败";
+      if (request !== verificationPhotoViewerRequest || !dialog.open) return;
+      if (!cachedUrlValid) $("verificationPhotoViewerTitle").textContent = error?.message || "原图读取失败";
+      if (status) status.textContent = cachedUrlValid ? "高清原图已显示；查看审计暂时写入失败。" : "高清原图读取失败，请关闭后重试。";
     }
   }
 
@@ -1108,7 +1179,12 @@
   $("verificationPhotoViewer")?.addEventListener("click", (event) => {
     if (event.target === event.currentTarget) event.currentTarget.close();
   });
-  $("verificationPhotoViewer")?.addEventListener("close", () => $("verificationPhotoOriginal")?.removeAttribute("src"));
+  $("verificationPhotoViewer")?.addEventListener("close", () => {
+    verificationPhotoViewerRequest += 1;
+    const image = $("verificationPhotoOriginal");
+    image?.removeAttribute("src");
+    if (image) { image.onload = null; image.onerror = null; delete image.dataset.photoQuality; }
+  });
   $("captureVerificationPhotoCamera")?.addEventListener("click", captureVerificationPhotoCamera);
   $("cancelVerificationPhotoCamera")?.addEventListener("click", () => $("verificationPhotoCameraDialog")?.close());
   $("closeVerificationPhotoCamera")?.addEventListener("click", () => $("verificationPhotoCameraDialog")?.close());
