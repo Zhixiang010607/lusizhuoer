@@ -60,7 +60,7 @@ for (const page of pages) {
   assert.ok(!fs.existsSync(path.join(root, `hq-${page}`)), `${page} must not have a duplicated HQ page`);
 }
 for (const file of fs.readdirSync(root).filter((file) => file.endsWith(".html") && read(file).includes("auth-ui.js?v="))) {
-  includes(read(file), "auth-ui.js?v=0.18.0", `${file} auth cache key`);
+  includes(read(file), "auth-ui.js?v=0.18.1", `${file} auth cache key`);
 }
 for (const page of teacherBusinessPages) includes(read(page), "store-business.js?v=0.14.47", `${page} shared script version`);
 
@@ -97,6 +97,8 @@ includes(styles, ".hq-business-store-row", "HQ store selector layout");
 includes(styles, ".business-store-unconfirmed", "HQ workflow lock fallback styling");
 includes(styles, "pointer-events: none", "legacy browsers cannot click pre-confirm controls");
 includes(styles, "body[data-store-business] .hq-business-store-panel", "mobile HQ store selector layout");
+includes(authUi, 'window.matchMedia("(max-width: 1100px)")', "phone and tablet navigation groups start collapsed");
+includes(authUi, 'document.querySelectorAll(".side-menu-group[open]")', "compact navigation removes every default-open group");
 
 // Server-side scope is authoritative on every action. HQ and teachers require
 // one positive ACTIVE store; stores remain pinned to their account binding.

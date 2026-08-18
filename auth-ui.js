@@ -126,7 +126,7 @@
     document.body.insertAdjacentHTML("afterbegin", `<div class="access-notice" role="status">${message}</div>`);
     window.setTimeout(() => document.querySelector(".access-notice")?.remove(), 4200);
   }
-  if (window.matchMedia("(min-width: 761px) and (max-width: 1100px)").matches) {
+  if (window.matchMedia("(max-width: 1100px)").matches) {
     document.querySelectorAll(".side-menu-group[open]").forEach((group) => group.removeAttribute("open"));
   }
   if (!isLocalPreview) {
