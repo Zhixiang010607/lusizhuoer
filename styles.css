@@ -677,8 +677,12 @@ dialog::backdrop { background: #0b142a88; backdrop-filter: blur(3px); }
 .business-lookup-result span { margin-right: auto; }
 .business-lookup-result button, .archive-customer-button { padding: 7px 10px; font-size: 11px; }
 .store-business-main { width: min(1680px, calc(100% - 28px)); min-height: calc(100vh - 168px); display: grid; align-items: stretch; margin-top: 18px; }
-.store-workflow-main { grid-template-columns: minmax(360px, .9fr) minmax(520px, 1.35fr); gap: 18px; }
-.store-workflow-main > .panel, .store-business-full-panel { height: 100%; min-height: 610px; }
+.store-workflow-main { --workflow-lookup-width: 39%; grid-template-columns: minmax(320px, var(--workflow-lookup-width)) 14px minmax(0, 1fr); gap: 0; }
+.store-workflow-main > .panel, .store-business-full-panel { min-width: 0; height: 100%; min-height: 610px; }
+.workflow-lookup-panel, .workflow-action-panel { container-type: inline-size; }
+.workflow-resize-handle { display: grid; place-items: center; min-width: 14px; cursor: col-resize; touch-action: none; user-select: none; }
+.workflow-resize-handle::before { content: ""; width: 3px; height: 52px; border-radius: 4px; background: #c5d2e2; box-shadow: 0 -8px #c5d2e2, 0 8px #c5d2e2; transition: background .15s ease, box-shadow .15s ease; }
+.workflow-resize-handle:hover::before, .workflow-resize-handle:focus-visible::before, .workflow-resize-handle.is-dragging::before { background: var(--blue); box-shadow: 0 -8px var(--blue), 0 8px var(--blue); }
 .store-business-form { display: flex; flex-direction: column; gap: 22px; padding: 26px; }
 .workflow-lookup-panel .service-customer-results { flex: 1 1 0; min-height: 250px; align-content: start; }
 .workflow-action-panel .capture-panel { flex: 1 1 180px; min-height: 150px; align-content: stretch; }
@@ -762,6 +766,24 @@ textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px #1f5eff18; out
 .live-verification-panel > .verification-camera-actions { grid-column: 2; grid-row: 3; display: grid; gap: 7px; width: 100%; }
 .live-verification-panel > .verification-camera-actions button { width: 100%; }
 .live-verification-panel > .workflow-capture-submit { grid-column: 2; grid-row: 4; }
+@container (max-width: 520px) {
+  .workflow-lookup-panel .customer-lookup-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .workflow-lookup-panel .customer-lookup-grid > button { grid-column: 1 / -1; width: 100%; }
+  .workflow-action-panel .store-business-grid { grid-template-columns: minmax(0, 1fr); }
+  .workflow-action-panel .store-business-grid .full-field { grid-column: 1; }
+  .workflow-action-panel .workflow-capture-panel { min-height: 520px; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(180px, 1fr) auto auto auto auto; }
+  .workflow-action-panel .workflow-capture-panel::before { grid-column: 1; grid-row: 1; }
+  .workflow-action-panel .workflow-capture-panel > .verification-capture-meta { grid-column: 1; grid-row: 2; align-self: auto; }
+  .workflow-action-panel .workflow-capture-panel > .capture-status-stack { grid-column: 1; grid-row: 3; }
+  .workflow-action-panel .workflow-capture-panel > .verification-camera-actions { grid-column: 1; grid-row: 4; }
+  .workflow-action-panel .workflow-capture-panel > .workflow-capture-submit { grid-column: 1; grid-row: 5; }
+  .workflow-action-panel .live-verification-panel > .verification-camera-stage { grid-column: 1; grid-row: 1; width: min(100%, 280px); max-height: none; }
+}
+@container (max-width: 380px) {
+  .workflow-lookup-panel .customer-lookup-grid, .workflow-lookup-panel .lookup-mode-switch { grid-template-columns: minmax(0, 1fr); }
+  .workflow-lookup-panel .customer-profile-layout { grid-template-columns: minmax(0, 1fr); }
+  .workflow-lookup-panel .customer-profile-photo { width: min(100%, 240px); justify-self: center; }
+}
 .consent-row { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 12px; }
 .consent-row input { width: 17px; height: 17px; margin: 0; }
 .form-submit-row { display: flex; align-items: center; justify-content: flex-end; gap: 16px; margin-top: auto; padding-top: 18px; border-top: 1px solid var(--line); }
@@ -773,7 +795,8 @@ body[data-store-business] .form-submit-row button:disabled {
   box-shadow: none;
   opacity: 1;
 }
-.customer-lookup-grid { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
+.customer-lookup-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 12px; align-items: end; }
+.customer-lookup-grid > * { min-width: 0; }
 .customer-lookup-grid button { height: 40px; }
 .lookup-mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 5px; border-radius: 11px; background: #edf2f7; }
 .lookup-mode-switch button { padding: 10px 12px; color: var(--muted); background: transparent; box-shadow: none; font-size: 12px; }
@@ -1066,7 +1089,7 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 @media (max-width: 1150px) { .query-filter-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 1150px) { .record-query-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 1150px) { .business-lookup-panel { grid-template-columns: 1fr; } .business-lookup-fields { grid-template-columns: 1fr 1fr auto; } }
-@media (max-width: 1150px) { .store-workflow-main { grid-template-columns: 1fr; } .store-workflow-main > .panel, .store-business-full-panel { min-height: auto; } }
+@media (max-width: 1150px) { .store-workflow-main > .panel, .store-business-full-panel { min-height: auto; } }
 @media (max-width: 1150px) { .review-filter-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } .review-code-panel { grid-template-columns: minmax(0, 1fr) auto; } .review-count { grid-column: auto; justify-self: stretch; } }
 @media (max-width: 980px) { .verification-order-grid { grid-template-columns: 1fr; } .verification-order-keyfacts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 980px) { .verification-photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -1092,7 +1115,7 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
   .teacher-summary-grid, .teacher-work-layout, .teacher-detail-grid, .teacher-review-section, .teacher-store-lookup-grid, .teacher-store-select-grid { grid-template-columns: 1fr; }
   body[data-store-business][data-teacher-business] .teacher-business-main { --teacher-business-sidebar-width: 80px; }
   body[data-store-business][data-teacher-business] .teacher-business-main > .store-business-main { min-height: calc(100dvh - 78px); height: calc(100dvh - 78px); }
-  .store-workflow-main { grid-template-columns: minmax(270px, .82fr) minmax(0, 1.18fr); gap: 12px; min-height: calc(100dvh - 136px); }
+  .store-workflow-main { grid-template-columns: minmax(270px, var(--workflow-lookup-width)) 14px minmax(0, 1fr); gap: 0; min-height: calc(100dvh - 136px); }
   .store-workflow-main > .panel { min-height: 0; height: auto; padding: 16px; }
   .store-workflow-main .panel-heading { margin-bottom: 10px; }
   .store-workflow-main .lookup-mode-switch { margin-bottom: 10px; }
@@ -1237,6 +1260,7 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
   .workflow-action-panel .live-verification-panel > .workflow-capture-submit { grid-column: 1; grid-row: 5; }
   .customer-create-layout { grid-template-columns: 1fr; gap: 10px; }
   .customer-create-resize-handle { display: none; }
+  .workflow-resize-handle { display: none; }
   body[data-store-business="customer"] .customer-create-capture { min-height: 520px; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(180px, 1fr) auto auto auto auto; }
   .customer-camera-stage { grid-column: 1; grid-row: 1; width: min(100%, 420px); aspect-ratio: 1 / 1; min-height: 0; justify-self: center; }
   .customer-capture-meta { grid-column: 1; grid-row: 2; align-self: auto; }
@@ -1432,6 +1456,10 @@ body[data-operation-home] .operation-home-main { width: min(1180px, calc(100% - 
   body[data-store-business] .store-workflow-main {
     grid-template-columns: 1fr;
     margin-bottom: 24px;
+  }
+
+  body[data-store-business] .workflow-resize-handle {
+    display: none;
   }
 
   body[data-store-business] .hq-business-store-panel {

@@ -23,6 +23,7 @@ const allBusinessPages = [
   "teacher-verification-create.html",
   "teacher-verification-supplemental.html"
 ];
+const teacherBusinessPages = allBusinessPages.filter((page) => page.startsWith("teacher-"));
 
 function includes(source, expected, label) {
   assert.ok(source.includes(expected), `${label}: missing ${JSON.stringify(expected)}`);
@@ -54,14 +55,14 @@ for (const page of pages) {
   includes(authUi, `"${page}"`, `HQ route ${page}`);
   const html = read(page);
   includes(html, `data-store-business=`, `${page} reuses the shared workflow`);
-  includes(html, "store-business.js?v=0.14.47", `${page} workflow cache key`);
-  includes(html, "styles.css?v=0.15.27", `${page} responsive store selector styles`);
+  includes(html, "store-business.js?v=0.14.49", `${page} workflow cache key`);
+  includes(html, "styles.css?v=0.15.29", `${page} responsive store selector styles`);
   assert.ok(!fs.existsSync(path.join(root, `hq-${page}`)), `${page} must not have a duplicated HQ page`);
 }
 for (const file of fs.readdirSync(root).filter((file) => file.endsWith(".html") && read(file).includes("auth-ui.js?v="))) {
   includes(read(file), "auth-ui.js?v=0.18.0", `${file} auth cache key`);
 }
-for (const page of allBusinessPages) includes(read(page), "store-business.js?v=0.14.47", `${page} shared script version`);
+for (const page of teacherBusinessPages) includes(read(page), "store-business.js?v=0.14.47", `${page} shared script version`);
 
 for (const [href, label] of [
   ["customer-create.html", "客户建立"],

@@ -247,6 +247,64 @@
     }
     return customerEnrollmentRequest.key;
   }
+  function setupWorkflowResize() {
+    const layout = document.querySelector(".store-workflow-main");
+    const resizeHandle = $("workflowResizeHandle");
+    if (!layout || !resizeHandle || resizeHandle.dataset.resizeReady === "true") return;
+    resizeHandle.dataset.resizeReady = "true";
+    const layoutWideEnough = () => window.matchMedia("(min-width: 981px)").matches;
+    const resizeLimits = () => {
+      const box = layout.getBoundingClientRect();
+      const handleWidth = resizeHandle.getBoundingClientRect().width || 12;
+      const available = Math.max(1, box.width - handleWidth);
+      const compact = box.width < 1100;
+      const minLookup = Math.min(compact ? 270 : 340, available * .46);
+      const minAction = Math.min(compact ? 360 : 500, available * .54);
+      return { box, available, minLookup, maxLookup: Math.max(minLookup, available - minAction) };
+    };
+    const setLookupWidth = (positionX) => {
+      if (!layoutWideEnough()) return;
+      const { box, available, minLookup, maxLookup } = resizeLimits();
+      const value = Math.max(minLookup, Math.min(positionX - box.left, maxLookup));
+      const percent = value / available * 100;
+      layout.style.setProperty("--workflow-lookup-width", `${percent.toFixed(2)}%`);
+      resizeHandle.setAttribute("aria-valuemin", String(Math.round(minLookup / available * 100)));
+      resizeHandle.setAttribute("aria-valuemax", String(Math.round(maxLookup / available * 100)));
+      resizeHandle.setAttribute("aria-valuenow", String(Math.round(percent)));
+    };
+    const resetLookupWidth = () => {
+      layout.style.removeProperty("--workflow-lookup-width");
+      resizeHandle.setAttribute("aria-valuenow", "39");
+    };
+    let dragging = false;
+    resizeHandle.addEventListener("pointerdown", (event) => {
+      if (!layoutWideEnough()) return;
+      dragging = true;
+      resizeHandle.classList.add("is-dragging");
+      resizeHandle.setPointerCapture?.(event.pointerId);
+      setLookupWidth(event.clientX);
+      event.preventDefault();
+    });
+    resizeHandle.addEventListener("pointermove", (event) => { if (dragging) setLookupWidth(event.clientX); });
+    const finishResize = () => {
+      dragging = false;
+      resizeHandle.classList.remove("is-dragging");
+    };
+    resizeHandle.addEventListener("pointerup", finishResize);
+    resizeHandle.addEventListener("pointercancel", finishResize);
+    resizeHandle.addEventListener("dblclick", resetLookupWidth);
+    resizeHandle.addEventListener("keydown", (event) => {
+      if (!layoutWideEnough() || !["ArrowLeft", "ArrowRight", "Home"].includes(event.key)) return;
+      if (event.key === "Home") resetLookupWidth();
+      else {
+        const box = layout.getBoundingClientRect();
+        const current = layout.querySelector(".workflow-lookup-panel")?.getBoundingClientRect().width || box.width * .39;
+        setLookupWidth(box.left + current + (event.key === "ArrowLeft" ? -24 : 24));
+      }
+      event.preventDefault();
+    });
+    window.addEventListener("resize", () => { if (!layoutWideEnough()) resetLookupWidth(); });
+  }
   function setupCustomerCreate() {
     const video = $("faceCamera"), preview = $("facePhotoPreview"), placeholder = $("faceCameraPlaceholder"), status = $("faceCaptureStatus"), message = $("customerCreateMessage"), capture = $("captureFace"), openCamera = $("openFaceCamera"), retake = $("retakeFace");
     const layout = document.querySelector(".customer-create-layout");
@@ -881,6 +939,7 @@
     // evidence value. HQ must reconfirm a concrete store on a clean workflow.
     if (hqMode && event.persisted) window.location.reload();
   });
+  setupWorkflowResize();
   if (teacherMode) setupTeacherBusiness();
   else if (hqMode) setupHqBusiness();
   else if (page === "customer") setupCustomerCreate();

@@ -32,12 +32,19 @@ const businessPages = [
   "customer-create.html",
   "recharge-create.html",
   "verification-create.html",
-  "verification-supplemental.html",
+  "verification-supplemental.html"
+];
+const teacherBusinessPages = [
   "teacher-recharge-create.html",
   "teacher-verification-create.html",
   "teacher-verification-supplemental.html"
 ];
 for (const file of businessPages) {
+  const html = fs.readFileSync(path.join(root, file), "utf8");
+  assert(html.includes('styles.css?v=0.15.29'), `${file} must use the resizable workflow stylesheet cache key`);
+  assert(html.includes("data-store-business"), `${file} must be a store business workflow`);
+}
+for (const file of teacherBusinessPages) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
   assert(html.includes('styles.css?v=0.15.27'), `${file} must use the unclipped customer-card stylesheet cache key`);
   assert(html.includes("data-store-business"), `${file} must be a store business workflow`);

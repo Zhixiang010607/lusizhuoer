@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>核销办理</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.27">
+  <link rel="stylesheet" href="styles.css?v=0.15.29">
 </head>
 <body data-store-business="verification">
   <aside class="side-project-bar" aria-label="项目栏">
@@ -26,6 +26,7 @@
       <div id="serviceCustomerResults" class="service-customer-results customer-core-preview"><div class="lookup-placeholder"><strong>等待查询客户</strong><span>查询成功后，此处显示客户建档照片、姓名、生日和客户编号。</span></div></div>
       <button id="confirmCustomerSelection" class="confirm-customer-button" type="button" disabled>确认此客户并进入核销</button>
     </section>
+    <div id="workflowResizeHandle" class="workflow-resize-handle" role="separator" aria-orientation="vertical" aria-label="调整客户确认与核销信息区域宽度" tabindex="0"></div>
     <form id="verificationCreateForm" class="panel store-business-form workflow-action-panel business-step-disabled">
       <div class="panel-heading"><div><h2>第二步：核销信息与人脸识别</h2><p id="selectedCustomerText"></p></div><span class="badge">正常核销</span></div>
       <div class="store-business-grid"><label>项目<select id="verificationProject" required></select></label><label>业务老师<select id="verificationTeacher" required></select></label><label class="full-field">门店备注／留言<textarea id="verificationNote" rows="3" maxlength="500" placeholder="可给当前核销单留言"></textarea></label></div>
@@ -42,7 +43,7 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
-  <script src="store-business.js?v=0.14.47"></script>
+  <script src="store-business.js?v=0.14.49"></script>
   <script src="auth-ui.js?v=0.18.0"></script>
 </body>
 </html>

@@ -578,11 +578,10 @@ assert.deepEqual(
   "exact rear camera switch constraint"
 );
 
-for (const page of [
-  "customer-create.html", "recharge-create.html", "verification-create.html",
-  "verification-supplemental.html", "teacher-recharge-create.html",
-  "teacher-verification-create.html", "teacher-verification-supplemental.html"
-]) {
+for (const page of ["customer-create.html", "recharge-create.html", "verification-create.html", "verification-supplemental.html"]) {
+  includes(read(page), "store-business.js?v=0.14.49", `${page} create script cache bust`);
+}
+for (const page of ["teacher-recharge-create.html", "teacher-verification-create.html", "teacher-verification-supplemental.html"]) {
   includes(read(page), "store-business.js?v=0.14.47", `${page} create script cache bust`);
 }
 
