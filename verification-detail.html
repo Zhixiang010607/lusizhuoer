@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>核销工单详情</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.12">
+  <link rel="stylesheet" href="styles.css?v=0.15.13">
 </head>
 <body data-record-detail="verification">
   <aside class="side-project-bar" aria-label="项目栏">
@@ -49,7 +49,21 @@
         </div>
       </section>
     </section>
+
+    <section id="verificationPhotoPanel" class="panel verification-photo-panel">
+      <div class="panel-heading">
+        <div><h2>核销现场照片</h2><p id="verificationPhotoHint">正在读取私有照片权限与缩略图…</p></div>
+        <span id="verificationPhotoCount" class="badge">0 / 4</span>
+      </div>
+      <div id="verificationPhotoGrid" class="verification-photo-grid" aria-live="polite"></div>
+      <p id="verificationPhotoMessage" class="verification-photo-message" role="status"></p>
+    </section>
   </main>
+
+  <dialog id="verificationPhotoViewer" class="verification-photo-viewer">
+    <div class="dialog-heading"><div><h2 id="verificationPhotoViewerTitle">查看核销照片</h2><p>私有原图使用短时授权地址，仅在点击后加载。</p></div><button id="closeVerificationPhotoViewer" type="button" aria-label="关闭原图">×</button></div>
+    <div class="verification-photo-original-frame"><img id="verificationPhotoOriginal" alt="核销现场原图" decoding="async" referrerpolicy="no-referrer"></div>
+  </dialog>
 
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
@@ -57,7 +71,7 @@
   <script src="cloudbase-auth-config.js"></script>
   <script src="cloudbase-phone-auth.js?v=0.17.6"></script>
   <script src="datetime.js?v=0.1.1"></script>
-  <script src="business-detail.js?v=0.15.14"></script>
+  <script src="business-detail.js?v=0.15.15"></script>
   <script src="auth-ui.js?v=0.17.8"></script>
 </body>
 </html>

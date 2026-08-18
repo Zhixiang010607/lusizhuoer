@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.44", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.45", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   const formatBirthday = (value, fallback = "—") => {
     const raw = String(value ?? "").trim();
     if (!raw) return fallback;
@@ -14,7 +14,7 @@
   let storeId = teacherMode ? "" : String(session?.store || "");
   const storeNo = Number(storeId.replace(/\D/g, "")) || 1;
   let storeName = `门店 ${storeNo}`;
-  let databaseCustomers = [], databaseTeachers = [], databaseProducts = [], candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, verificationBalanceProjects = [], rechargeRequest = null, verificationRequest = null, verificationFaceRequestId = "", customerEnrollmentRequest = null, previewCustomerCode = "", customerSubmissionBusy = false;
+  let databaseCustomers = [], databaseTeachers = [], databaseProducts = [], candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", verificationThumbnailDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, verificationBalanceProjects = [], rechargeRequest = null, verificationRequest = null, verificationFaceRequestId = "", verificationFaceEvidenceToken = "", customerEnrollmentRequest = null, previewCustomerCode = "", customerSubmissionBusy = false;
   const customerDetailCache = new Map(), customerDetailRequests = new Map();
   let customerServiceApp = null;
   let teacherBusinessStores = [], teacherBusinessProfile = null, teacherWorkflowStarted = false;
@@ -33,6 +33,8 @@
     // in this page's JavaScript state any longer than necessary.
     stopFaceCamera();
     capturedPhotoDataUrl = "";
+    verificationThumbnailDataUrl = "";
+    verificationFaceEvidenceToken = "";
     photoCaptured = false;
     faceCaptured = false;
     const target = teacherMode ? "teacher-work-order-detail.html" : (type === "recharge" ? "recharge-detail.html" : "verification-detail.html");
@@ -52,6 +54,23 @@
     if (cameraStream) cameraStream.getTracks().forEach((track) => track.stop());
     cameraStream = null;
     [$("faceCamera"), $("verificationCamera")].filter(Boolean).forEach((video) => { video.srcObject = null; });
+  }
+
+  function resizedCanvasDataUrl(sourceCanvas, maximumLongSide, quality) {
+    const sourceWidth = sourceCanvas.width;
+    const sourceHeight = sourceCanvas.height;
+    const scale = Math.min(1, maximumLongSide / Math.max(sourceWidth, sourceHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+    canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+    canvas.getContext("2d", { alpha: false }).drawImage(sourceCanvas, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", quality);
+  }
+
+  function dataUrlBytes(value) {
+    const comma = String(value || "").indexOf(",");
+    const base64Length = comma >= 0 ? String(value).length - comma - 1 : 0;
+    return Math.floor(base64Length * 3 / 4);
   }
   function syncCustomerCreateSubmit() {
     const submit = document.querySelector('#customerCreateForm [type="submit"]');
@@ -557,7 +576,7 @@
     }
   }
   function resetVerificationCapture() {
-    stopFaceCamera(); capturedPhotoDataUrl = ""; photoCaptured = false; verificationFaceRequestId = "";
+    stopFaceCamera(); capturedPhotoDataUrl = ""; verificationThumbnailDataUrl = ""; photoCaptured = false; verificationFaceRequestId = ""; verificationFaceEvidenceToken = "";
     const video = $("verificationCamera"), preview = $("verificationPhotoPreview"), placeholder = $("verificationCameraPlaceholder"), canvas = $("verificationCaptureCanvas"), open = $("openVerificationCamera"), capture = $("captureVerificationPhoto"), retake = $("retakeVerificationPhoto");
     if (!video || !preview || !placeholder || !canvas || !open || !capture || !retake) return;
     video.hidden = true; preview.hidden = true; preview.removeAttribute("src"); placeholder.hidden = false;
@@ -578,7 +597,7 @@
         if (!selectedCustomer) throw new Error("请先查询并确认需要核销的客户");
         resetVerificationCapture(); open.hidden = true;
         if (!navigator.mediaDevices?.getUserMedia) throw new Error("当前浏览器不支持摄像头访问，请使用最新版 Chrome 或 Edge");
-        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 960 }, height: { ideal: 1280 } }, audio: false });
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1440 }, height: { ideal: 1920 } }, audio: false });
         video.srcObject = cameraStream; video.hidden = false; placeholder.hidden = true; await video.play(); capture.disabled = false;
         status.className = "capture-status pending"; status.textContent = "摄像头已打开，请让所选客户正对镜头"; message.textContent = "";
       } catch (error) {
@@ -592,17 +611,41 @@
       let sourceWidth = video.videoWidth, sourceHeight = video.videoHeight;
       if (sourceWidth / sourceHeight > targetRatio) sourceWidth = sourceHeight * targetRatio;
       else sourceHeight = sourceWidth / targetRatio;
-      const sourceX = Math.round((video.videoWidth - sourceWidth) / 2), sourceY = Math.round((video.videoHeight - sourceHeight) / 2), outputHeight = Math.round(Math.min(sourceHeight, 1024));
+      const sourceX = Math.round((video.videoWidth - sourceWidth) / 2), sourceY = Math.round((video.videoHeight - sourceHeight) / 2), outputHeight = Math.round(Math.min(sourceHeight, 1920));
       canvas.height = outputHeight; canvas.width = Math.round(outputHeight * targetRatio);
       canvas.getContext("2d", { alpha: false }).drawImage(video, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
-      capturedPhotoDataUrl = canvas.toDataURL("image/jpeg", 0.85); preview.src = capturedPhotoDataUrl; preview.hidden = false; video.hidden = true; stopFaceCamera(); open.hidden = true; capture.disabled = true; retake.hidden = false;
+      let evidenceWidth = canvas.width, evidenceHeight = canvas.height;
+      capturedPhotoDataUrl = canvas.toDataURL("image/jpeg", 0.92);
+      if (dataUrlBytes(capturedPhotoDataUrl) > 3 * 1024 * 1024) {
+        capturedPhotoDataUrl = resizedCanvasDataUrl(canvas, 1600, 0.9);
+        const scale = Math.min(1, 1600 / Math.max(canvas.width, canvas.height));
+        evidenceWidth = Math.max(1, Math.round(canvas.width * scale));
+        evidenceHeight = Math.max(1, Math.round(canvas.height * scale));
+      }
+      if (dataUrlBytes(capturedPhotoDataUrl) > 3 * 1024 * 1024) {
+        capturedPhotoDataUrl = resizedCanvasDataUrl(canvas, 1400, 0.86);
+        const scale = Math.min(1, 1400 / Math.max(canvas.width, canvas.height));
+        evidenceWidth = Math.max(1, Math.round(canvas.width * scale));
+        evidenceHeight = Math.max(1, Math.round(canvas.height * scale));
+      }
+      verificationThumbnailDataUrl = resizedCanvasDataUrl(canvas, 480, 0.82);
+      preview.src = capturedPhotoDataUrl; preview.hidden = false; video.hidden = true; stopFaceCamera(); open.hidden = true; capture.disabled = true; retake.hidden = false;
       photoCaptured = false; syncVerificationSubmit(); status.className = "capture-status pending"; status.textContent = "正在与所选客户进行 1:1 人脸验证…"; message.textContent = "";
       try {
-        const result = await callCustomerEnrollment({ action: "verifyCustomerFace", customerCode: selectedCustomer.id, imageBase64: capturedPhotoDataUrl });
+        const result = await callCustomerEnrollment({
+          action: "verifyCustomerFace",
+          customerCode: selectedCustomer.id,
+          imageBase64: capturedPhotoDataUrl,
+          thumbnailBase64: verificationThumbnailDataUrl,
+          imageWidth: evidenceWidth,
+          imageHeight: evidenceHeight
+        });
         if (!result.matched) throw new Error(`${result.message || "1:1 人脸验证未通过"}（相似度 ${result.score ?? 0}，要求 ${result.threshold ?? "-"}）`);
         photoCaptured = true;
         verificationFaceRequestId = String(result.requestId || "");
         if (!verificationFaceRequestId) throw new Error("人脸验证服务未返回验证请求编号，请重新拍照验证");
+        verificationFaceEvidenceToken = String(result.faceEvidenceToken || "");
+        if (!/^[0-9a-f]{48}$/.test(verificationFaceEvidenceToken)) throw new Error("现场人脸照片没有安全保存，请重新拍照验证");
         const livenessText = result?.liveness?.checked ? "、活体检测" : "";
         status.className = "capture-status complete"; status.textContent = `所选客户 1:1 人脸验证${livenessText}通过（${result.score} 分）`;
       } catch (error) {
@@ -621,7 +664,7 @@
       if (!project) { $("verificationCreateMessage").textContent = "所选项目余额已失效，请重新确认客户后再试"; return; }
       const teacher = databaseTeachers.find((item) => item.id === teacherId);
       if (!teacher) { $("verificationCreateMessage").textContent = "老师数据已经失效，请刷新页面后重新选择"; return; }
-      const payload = { customerCode: selectedCustomer.id, productId: project.id, teacherId: teacher.id, verificationType: supplemental ? "SUPPLEMENT" : "NORMAL", message: note, faceRequestId: verificationFaceRequestId };
+      const payload = { customerCode: selectedCustomer.id, productId: project.id, teacherId: teacher.id, verificationType: supplemental ? "SUPPLEMENT" : "NORMAL", message: note, faceRequestId: verificationFaceRequestId, faceEvidenceToken: verificationFaceEvidenceToken };
       const clientRequestId = nextVerificationRequestId(payload);
       submit.disabled = true;
       $("verificationCreateMessage").textContent = supplemental ? "正在向数据库提交待审核补录单…" : "正在向数据库提交核销单…";
@@ -646,6 +689,7 @@
         openGeneratedOrder("verification", record);
       } catch (error) {
         $("verificationCreateMessage").textContent = error?.message || "核销申请提交失败，请核对数据库与云函数";
+        if (["FACE_PHOTO_EVIDENCE_REQUIRED", "FACE_PHOTO_EVIDENCE_INVALID"].includes(error?.code)) resetVerificationCapture();
       } finally {
         submit.disabled = false;
         syncVerificationSubmit();

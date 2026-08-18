@@ -1,11 +1,13 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.14";
+  const VERSION = "0.15.15";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
+  let photoServiceApp = null;
+  let verificationPhotoRequest = 0;
 
   function loadSessionRows(key) {
     try {
@@ -163,6 +165,29 @@
     }
   }
 
+  async function callFaceRecognition(data) {
+    if (!window.cloudbase || !window.CloudBaseAuthConfig || !window.registerFunctions) {
+      throw new Error("核销照片服务未加载，请刷新页面重试");
+    }
+    registerCloudBaseComponent(window.registerAuth, "auth");
+    registerCloudBaseComponent(window.registerFunctions, "functions");
+    photoServiceApp ||= window.cloudbase.init(window.CloudBaseAuthConfig);
+    let raw;
+    try {
+      raw = await photoServiceApp.callFunction({ name: "faceRecognition", data });
+    } catch (error) {
+      const diagnostic = [error?.code, error?.requestId || error?.RequestId].filter(Boolean).join(" · ");
+      throw new Error(`${error?.message || "核销照片云函数调用失败"}${diagnostic ? `（${diagnostic}）` : ""}`);
+    }
+    const payload = cloudFunctionPayload(raw);
+    if (!payload?.ok) {
+      const error = new Error(payload?.message || "核销照片服务没有返回业务结果");
+      error.code = payload?.code || "PHOTO_SERVICE_FAILED";
+      throw error;
+    }
+    return payload;
+  }
+
   async function loadTeacherOrder(recordId) {
     if (!/^\d+$/.test(recordId)) throw new Error("老师工单必须使用数据库编号读取");
     if (!window.cloudbase || !window.CloudBaseAuthConfig || !window.registerFunctions) throw new Error("工单数据服务未加载，请刷新页面重试");
@@ -296,6 +321,193 @@
     $("verificationHqMessageTime").textContent = formatTime(first(record?.reviewedAt, record?.approvedAt, record?.rejectedAt)) || "—";
   }
 
+  function photoSlotLabel(slot) {
+    return slot === 0 ? "人脸核验照片" : `补充照片 ${slot}`;
+  }
+
+  function photoSizeLabel(bytes) {
+    const value = Number(bytes || 0);
+    if (!Number.isFinite(value) || value <= 0) return "";
+    return value >= 1024 * 1024 ? `${(value / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(value / 1024))} KB`;
+  }
+
+  function resetVerificationPhotoPanel(message = "正在读取私有照片权限与缩略图…") {
+    const panel = $("verificationPhotoPanel");
+    if (!panel) return;
+    verificationPhotoRequest += 1;
+    $("verificationPhotoCount").textContent = "0 / 4";
+    $("verificationPhotoHint").textContent = message;
+    $("verificationPhotoGrid").innerHTML = Array.from({ length: 4 }, (_, slot) => `
+      <article class="verification-photo-card">
+        <div class="verification-photo-preview"><span>${slot === 0 ? "正在读取人脸照片…" : "正在读取…"}</span></div>
+        <div class="verification-photo-card-body"><div><strong>${escapeHtml(photoSlotLabel(slot))}</strong><span>—</span></div></div>
+      </article>`).join("");
+    $("verificationPhotoMessage").className = "verification-photo-message";
+    $("verificationPhotoMessage").textContent = "";
+  }
+
+  function verificationPhotoCard(photo, slot, payload) {
+    const label = photoSlotLabel(slot);
+    const canUpload = slot > 0 && payload.canEdit === true;
+    const preview = photo
+      ? `<button class="verification-photo-preview has-photo" type="button" data-view-verification-photo="${slot}" aria-label="查看${escapeHtml(label)}原图">${photo.thumbnailUrl ? `<img src="${escapeHtml(photo.thumbnailUrl)}" alt="${escapeHtml(label)}缩略图" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : "<span>缩略图暂不可用<br>点击读取原图</span>"}</button>`
+      : `<div class="verification-photo-preview"><span>${slot === 0 ? "未保存人脸凭证" : "尚未上传"}</span></div>`;
+    const meta = photo ? `${photoSizeLabel(photo.originalBytes)} · ${formatTime(photo.uploadedAt) || "已上传"}` : "空照片位";
+    const upload = slot === 0 ? "" : `<button class="verification-photo-upload" type="button" data-upload-verification-photo="${slot}" ${canUpload ? "" : "disabled"}>${photo ? "替换照片" : "拍照／上传"}</button>`;
+    return `<article class="verification-photo-card">${preview}<div class="verification-photo-card-body"><div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(meta)}</span></div>${upload}</div></article>`;
+  }
+
+  function renderVerificationPhotos(payload, recordId) {
+    const photos = Array.isArray(payload?.photos) ? payload.photos : [];
+    const bySlot = new Map(photos.map((photo) => [Number(photo.slot), photo]));
+    $("verificationPhotoCount").textContent = `${photos.length} / 4`;
+    const deadline = formatTime(payload?.editableUntil);
+    $("verificationPhotoHint").textContent = payload?.canEdit
+      ? `你是本单提交人，可在 ${deadline || "提交后 24 小时内"} 前上传或替换 3 张补充照片。人脸照片不可修改。`
+      : payload?.isSubmitter
+      ? `照片修改窗口已于 ${deadline || "提交后 24 小时"} 结束；现有照片永久只读。`
+      : "照片仅供有权查看本核销单的账号浏览；只有本单提交人可在 24 小时内上传或替换补充照片。";
+    $("verificationPhotoGrid").innerHTML = Array.from({ length: 4 }, (_, slot) => verificationPhotoCard(bySlot.get(slot), slot, payload)).join("");
+    $("verificationPhotoGrid").querySelectorAll("[data-view-verification-photo]").forEach((button) => {
+      button.addEventListener("click", () => openVerificationPhoto(recordId, Number(button.dataset.viewVerificationPhoto)));
+    });
+    $("verificationPhotoGrid").querySelectorAll("[data-upload-verification-photo]").forEach((button) => {
+      button.addEventListener("click", () => chooseVerificationPhoto(recordId, Number(button.dataset.uploadVerificationPhoto)));
+    });
+  }
+
+  async function loadVerificationPhotos(record) {
+    const recordId = clean(record?.id);
+    if (!$("verificationPhotoPanel")) return;
+    resetVerificationPhotoPanel();
+    const request = verificationPhotoRequest;
+    if (record?.databaseBacked !== true || !/^\d+$/.test(recordId)) {
+      $("verificationPhotoHint").textContent = "当前不是数据库核销单，无法读取私有照片。";
+      return;
+    }
+    try {
+      const payload = await callFaceRecognition({ action: "getVerificationPhotos", recordId });
+      if (request !== verificationPhotoRequest) return;
+      renderVerificationPhotos(payload, recordId);
+    } catch (error) {
+      if (request !== verificationPhotoRequest) return;
+      $("verificationPhotoHint").textContent = "核销照片读取失败";
+      $("verificationPhotoMessage").className = "verification-photo-message error";
+      $("verificationPhotoMessage").textContent = error?.message || "请核对迁移 037、私有存储桶和云函数版本";
+      $("verificationPhotoGrid").innerHTML = "";
+    }
+  }
+
+  function canvasBlob(canvas, quality) {
+    return new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("浏览器无法生成 JPEG 照片")), "image/jpeg", quality));
+  }
+
+  function blobDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.addEventListener("load", () => resolve(String(reader.result || "")), { once: true });
+      reader.addEventListener("error", () => reject(new Error("浏览器无法读取所选照片")), { once: true });
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function decodePhotoFile(file) {
+    if (!file || file.size <= 0) throw new Error("请选择一张有效照片");
+    if (file.size > 20 * 1024 * 1024) throw new Error("原始文件不能超过 20 MB");
+    if (typeof createImageBitmap === "function") {
+      try { return await createImageBitmap(file, { imageOrientation: "from-image" }); }
+      catch (_) { /* Older browsers fall back to an Image element below. */ }
+    }
+    return await new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const image = new Image();
+      image.addEventListener("load", () => { URL.revokeObjectURL(url); resolve(image); }, { once: true });
+      image.addEventListener("error", () => { URL.revokeObjectURL(url); reject(new Error("不支持该照片格式，请使用相机、JPEG 或 PNG")); }, { once: true });
+      image.src = url;
+    });
+  }
+
+  async function prepareVerificationPhoto(file) {
+    const image = await decodePhotoFile(file);
+    const naturalWidth = Number(image.width || image.naturalWidth || 0);
+    const naturalHeight = Number(image.height || image.naturalHeight || 0);
+    if (!naturalWidth || !naturalHeight) throw new Error("无法读取照片尺寸");
+    const originalScale = Math.min(1, 2400 / Math.max(naturalWidth, naturalHeight));
+    const original = document.createElement("canvas");
+    original.width = Math.max(1, Math.round(naturalWidth * originalScale));
+    original.height = Math.max(1, Math.round(naturalHeight * originalScale));
+    original.getContext("2d", { alpha: false }).drawImage(image, 0, 0, original.width, original.height);
+    image.close?.();
+    let originalBlob = await canvasBlob(original, 0.92);
+    if (originalBlob.size > 3 * 1024 * 1024) originalBlob = await canvasBlob(original, 0.86);
+    if (originalBlob.size > 3 * 1024 * 1024) {
+      const reducedScale = Math.min(1, 1800 / Math.max(original.width, original.height));
+      const reduced = document.createElement("canvas");
+      reduced.width = Math.max(1, Math.round(original.width * reducedScale));
+      reduced.height = Math.max(1, Math.round(original.height * reducedScale));
+      reduced.getContext("2d", { alpha: false }).drawImage(original, 0, 0, reduced.width, reduced.height);
+      original.width = reduced.width; original.height = reduced.height;
+      original.getContext("2d", { alpha: false }).drawImage(reduced, 0, 0);
+      originalBlob = await canvasBlob(original, 0.88);
+    }
+    if (originalBlob.size > 3 * 1024 * 1024) throw new Error("照片处理后仍超过 3 MB，请换一张照片");
+    const thumbScale = Math.min(1, 480 / Math.max(original.width, original.height));
+    const thumbnail = document.createElement("canvas");
+    thumbnail.width = Math.max(1, Math.round(original.width * thumbScale));
+    thumbnail.height = Math.max(1, Math.round(original.height * thumbScale));
+    thumbnail.getContext("2d", { alpha: false }).drawImage(original, 0, 0, thumbnail.width, thumbnail.height);
+    const thumbnailBlob = await canvasBlob(thumbnail, 0.82);
+    return {
+      imageBase64: await blobDataUrl(originalBlob),
+      thumbnailBase64: await blobDataUrl(thumbnailBlob),
+      imageWidth: original.width,
+      imageHeight: original.height
+    };
+  }
+
+  function chooseVerificationPhoto(recordId, slot) {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/jpeg,image/png,image/webp";
+    input.setAttribute("capture", "environment");
+    input.addEventListener("change", async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const status = $("verificationPhotoMessage");
+      status.className = "verification-photo-message";
+      status.textContent = `正在处理并上传${photoSlotLabel(slot)}…`;
+      $("verificationPhotoGrid").querySelectorAll("button").forEach((button) => { button.disabled = true; });
+      try {
+        const images = await prepareVerificationPhoto(file);
+        await callFaceRecognition({ action: "uploadVerificationExtraPhoto", recordId, slot, ...images });
+        status.textContent = `${photoSlotLabel(slot)}已安全保存。`;
+        await loadVerificationPhotos({ id: recordId, databaseBacked: true });
+      } catch (error) {
+        await loadVerificationPhotos({ id: recordId, databaseBacked: true });
+        $("verificationPhotoMessage").className = "verification-photo-message error";
+        $("verificationPhotoMessage").textContent = error?.message || "照片上传失败，请重试";
+      }
+    }, { once: true });
+    input.click();
+  }
+
+  async function openVerificationPhoto(recordId, slot) {
+    const dialog = $("verificationPhotoViewer");
+    const image = $("verificationPhotoOriginal");
+    if (!dialog || !image) return;
+    $("verificationPhotoViewerTitle").textContent = `${photoSlotLabel(slot)} · 正在加载原图`;
+    image.removeAttribute("src");
+    image.alt = `${photoSlotLabel(slot)}原图`;
+    dialog.showModal();
+    try {
+      const payload = await callFaceRecognition({ action: "getVerificationPhotoOriginalUrl", recordId, slot });
+      image.src = payload.photoUrl;
+      $("verificationPhotoViewerTitle").textContent = `${photoSlotLabel(slot)} · ${payload.width || "—"} × ${payload.height || "—"}`;
+    } catch (error) {
+      $("verificationPhotoViewerTitle").textContent = error?.message || "原图读取失败";
+    }
+  }
+
   function recordFromQuery(recordId) {
     const kind = first(params.get("kind"), type === "recharge" ? "新充值" : "正常核销");
     return {
@@ -337,6 +549,7 @@
     $("orderInfo").innerHTML = infoCard(recharge ? "充值单编号" : "核销单编号", recordId);
     if (!recharge) {
       renderVerificationMessages(null);
+      resetVerificationPhotoPanel("尚未读取到可关联的数据库核销单。");
       return;
     }
     $("reviewStatusRow").hidden = storeMode;
@@ -425,6 +638,7 @@
 
     if (!recharge) {
       renderVerificationMessages(record);
+      loadVerificationPhotos(record);
       return;
     }
 
@@ -585,6 +799,12 @@
     if (record) renderRecord(record);
     else renderMissing(displayCode);
   }
+
+  $("closeVerificationPhotoViewer")?.addEventListener("click", () => $("verificationPhotoViewer")?.close());
+  $("verificationPhotoViewer")?.addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) event.currentTarget.close();
+  });
+  $("verificationPhotoViewer")?.addEventListener("close", () => $("verificationPhotoOriginal")?.removeAttribute("src"));
 
   initialize();
 
