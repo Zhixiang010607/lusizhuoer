@@ -16,7 +16,7 @@ assert(/customer-project-panel[\s\S]*?customer-record-panel[\s\S]*?height:\s*aut
 
 for (const file of ["customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html"]) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
-  assert(html.includes('styles.css?v=0.15.33'), `${file} must use the current stylesheet cache key`);
+  assert(html.includes('styles.css?v=0.15.34'), `${file} must use the current stylesheet cache key`);
   assert(/<meta\s+name="viewport"/.test(html), `${file} must declare a mobile viewport`);
 }
 
@@ -41,12 +41,12 @@ const teacherBusinessPages = [
 ];
 for (const file of businessPages) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
-  assert(html.includes('styles.css?v=0.15.33'), `${file} must use the current stylesheet cache key`);
+  assert(html.includes('styles.css?v=0.15.34'), `${file} must use the current stylesheet cache key`);
   assert(html.includes("data-store-business"), `${file} must be a store business workflow`);
 }
 for (const file of teacherBusinessPages) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
-  assert(html.includes('styles.css?v=0.15.33'), `${file} must use the current stylesheet cache key`);
+  assert(html.includes('styles.css?v=0.15.34'), `${file} must use the current stylesheet cache key`);
   assert(html.includes("data-store-business"), `${file} must be a store business workflow`);
 }
 
@@ -65,7 +65,7 @@ assert(/@media \(min-width:\s*981px\)[\s\S]*?store-business-main[\s\S]*?min-heig
 for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
   if (!html.includes("styles.css")) continue;
-  assert(html.includes('styles.css?v=0.15.33'), `${file} must use the desktop-scroll stylesheet cache key`);
+  assert(html.includes('styles.css?v=0.15.34'), `${file} must use the desktop-scroll stylesheet cache key`);
 }
 
 console.log("mobile scroll layout tests passed");

@@ -16,6 +16,11 @@ assert.match(css, /\.mobile-account-menu \{ display: none; \}/, "account menu mu
 assert.match(css, /@media \(min-width: 761px\) and \(max-width: 1100px\)[\s\S]*?\.mobile-account-menu \{[^}]*display: block;/, "collapsed tablet sidebar must expose the account menu");
 assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.mobile-account-menu \{[^}]*display: block;/, "phone project bar must expose the account menu");
 assert.match(css, /\.mobile-account-popover button \{[^}]*width: 100%/, "logout action must fill the account popover width");
+assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.side-project-bar \{[^}]*max-width: 100vw;/, "phone project bar must stay inside the viewport");
+assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.side-brand,[^}]*display: none;/, "phone project bar must remove the space-consuming brand block");
+assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.side-nav a span:last-child \{ display: none; \}/, "phone home navigation must use its compact icon label");
+assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.side-menu-group summary::after \{ display: none; \}/, "phone menu icons must not reserve space for arrows");
+assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.mobile-account-popover \{[^}]*position: fixed;[^}]*right: max\(8px, env\(safe-area-inset-right\)\);[^}]*left: max\(8px, env\(safe-area-inset-left\)\);[^}]*max-width: 260px;/, "phone logout card must be sized against both viewport edges instead of its trigger");
 
 for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))) {
   const html = fs.readFileSync(path.join(root, file), "utf8");

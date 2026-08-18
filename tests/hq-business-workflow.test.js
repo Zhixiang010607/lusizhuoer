@@ -56,7 +56,7 @@ for (const page of pages) {
   const html = read(page);
   includes(html, `data-store-business=`, `${page} reuses the shared workflow`);
   includes(html, "store-business.js?v=0.14.50", `${page} workflow cache key`);
-  includes(html, "styles.css?v=0.15.33", `${page} responsive store selector styles`);
+  includes(html, "styles.css?v=0.15.34", `${page} responsive store selector styles`);
   assert.ok(!fs.existsSync(path.join(root, `hq-${page}`)), `${page} must not have a duplicated HQ page`);
 }
 for (const file of fs.readdirSync(root).filter((file) => file.endsWith(".html") && read(file).includes("auth-ui.js?v="))) {
