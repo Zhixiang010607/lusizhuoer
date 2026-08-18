@@ -922,11 +922,12 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .verification-photo-camera-stage { position: relative; width: 100%; aspect-ratio: 4 / 3; display: grid; place-items: center; overflow: hidden; border-radius: 12px; background: #081729; }
 .verification-photo-camera-stage > * { grid-area: 1 / 1; }
 .verification-photo-camera-stage video { width: 100%; height: 100%; display: block; object-fit: contain; background: #081729; }
+.verification-photo-camera-stage video.is-user-facing { transform: scaleX(-1); }
 .verification-photo-camera-stage p { z-index: 1; margin: 0; padding: 24px; color: #e7eef8; text-align: center; font-size: 12px; font-weight: 800; }
 .verification-photo-camera-stage p[hidden] { display: none; }
 .verification-photo-camera-message { min-height: 20px; margin: 10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .verification-photo-camera-message.error { color: #b42318; }
-.verification-photo-camera-dialog-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 9px; margin-top: 10px; }
+.verification-photo-camera-dialog-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 9px; margin-top: 10px; }
 .verification-photo-camera-dialog-actions button { min-height: 42px; }
 .verification-photo-camera-dialog-actions .secondary { color: #174f86; border: 1px solid #c7d7ea; background: #edf5ff; }
 .verification-order-review-note { display: grid; gap: 6px; color: #344054; font-size: 12px; font-weight: 800; }

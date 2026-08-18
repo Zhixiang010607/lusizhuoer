@@ -232,7 +232,7 @@ assert.ok(
     < functionSource(cloud, "getVerificationPhotos").indexOf("signVerificationPhoto("),
   "original URLs must be signed only after the verification-order permission check"
 );
-includes(detailUi, 'const VERSION = "0.15.23"', "detail UI cache version");
+includes(detailUi, 'const VERSION = "0.15.24"', "detail UI cache version");
 includes(detailUi, 'return "客户原始留存照"', "retained profile label");
 includes(detailUi, 'return "本次核销人脸照"', "current face label");
 includes(detailUi, "Array.from({ length: 5 }", "five-card gallery");
@@ -241,7 +241,42 @@ includes(detailUi, "data-capture-verification-photo", "separate camera action");
 includes(detailUi, "data-upload-verification-photo", "separate file upload action");
 includes(detailUi, 'photo ? "从相册替换" : "从相册上传"', "mobile photo-library action label");
 includes(detailUi, "navigator.mediaDevices.getUserMedia", "real camera preview API");
-includes(detailUi, 'facingMode: { ideal: "environment" }', "rear camera preference");
+includes(detailUi, 'startVerificationPhotoCamera("environment")', "rear camera preference");
+includes(detailUi, "nextVerificationCameraFacingMode", "front/rear camera toggle");
+includes(detailUi, "releaseVerificationPhotoCameraStream", "camera switch releases old stream");
+includes(detailUi, "verificationCameraSwitchBusy", "camera switch concurrency guard");
+const cameraStartSource = functionSource(detailUi, "startVerificationPhotoCamera");
+const cameraSwitchSource = functionSource(detailUi, "switchVerificationPhotoCamera");
+includes(cameraStartSource, "!dialog.open || !verificationCameraTarget", "closed camera dialogs cannot reopen a camera stream");
+assert.ok(
+  cameraStartSource.indexOf("releaseVerificationPhotoCameraStream()")
+    < cameraStartSource.indexOf("navigator.mediaDevices.getUserMedia"),
+  "old camera tracks must be released before requesting the other camera"
+);
+assert.ok(
+  cameraStartSource.indexOf("request !== verificationCameraRequest")
+    < cameraStartSource.indexOf("verificationCameraStream = stream"),
+  "late camera streams must be rejected before becoming active"
+);
+includes(cameraSwitchSource, "startVerificationPhotoCamera(previousFacingMode)", "failed switch restores previous camera");
+includes(cameraSwitchSource, "startVerificationPhotoCamera(nextFacingMode)", "camera switch has an ideal-mode compatibility retry");
+const cameraSwitchAliveGuard = "!dialog?.open || verificationCameraTarget !== target";
+const firstNextCameraStart = cameraSwitchSource.indexOf("startVerificationPhotoCamera(nextFacingMode, true)");
+const secondNextCameraStart = cameraSwitchSource.indexOf("startVerificationPhotoCamera(nextFacingMode)");
+assert.ok(
+  cameraSwitchSource.indexOf(cameraSwitchAliveGuard) >= 0
+    && firstNextCameraStart < cameraSwitchSource.indexOf(cameraSwitchAliveGuard)
+    && cameraSwitchSource.indexOf(cameraSwitchAliveGuard) < secondNextCameraStart,
+  "closing or retargeting during an exact camera switch must prevent the ideal compatibility retry"
+);
+assert.ok(
+  cameraSwitchSource.lastIndexOf(cameraSwitchAliveGuard) < cameraSwitchSource.indexOf("startVerificationPhotoCamera(previousFacingMode)"),
+  "closing or retargeting during a camera switch must prevent reopening the previous camera"
+);
+includes(cameraSwitchSource, "if (verificationCameraTarget === target) verificationCameraSwitchBusy = false", "an old camera switch cannot clear the busy state of a newly opened photo slot");
+includes(cameraStartSource, "cameraCount === 1 && !usesMobilePhotoLibrary()", "mobile and iPad keep the camera switch available when device enumeration is incomplete");
+includes(functionSource(detailUi, "captureVerificationPhotoCamera"), "verificationCameraSwitchBusy", "capture is blocked while switching cameras");
+includes(detailUi, '$("switchVerificationPhotoCamera")?.addEventListener("click", switchVerificationPhotoCamera)', "camera switch button wiring");
 includes(detailUi, "preloadVerificationPhotoOriginal", "small original background preload");
 includes(detailUi, "connection?.saveData === true", "data-saver preload guard");
 includes(detailUi, "originalUrlExpiresAt", "short-lived original URL expiry guard");
@@ -265,12 +300,36 @@ includes(detailHtml, 'id="verificationPhotoGrid"', "five-slot gallery mount");
 includes(detailHtml, 'id="verificationPhotoViewer"', "original image dialog");
 includes(detailHtml, 'id="verificationPhotoCameraDialog"', "camera preview dialog");
 includes(detailHtml, 'id="verificationPhotoCameraVideo" autoplay playsinline muted', "mobile inline camera preview");
+includes(detailHtml, 'id="switchVerificationPhotoCamera"', "front/rear camera switch action");
+includes(detailHtml, 'aria-label="切换前后摄像头"', "camera switch accessible name");
 includes(detailHtml, 'order-export.js?v=0.1.1', "export renderer cache bust");
-includes(detailHtml, 'business-detail.js?v=0.15.23', "detail script cache bust");
-includes(detailHtml, 'styles.css?v=0.15.18', "detail styles cache bust");
+includes(detailHtml, 'business-detail.js?v=0.15.24', "detail script cache bust");
+includes(detailHtml, 'styles.css?v=0.15.19', "detail styles cache bust");
 includes(styles, "grid-template-columns: repeat(3, minmax(0, 1fr))", "roomy three-column desktop gallery");
 includes(styles, ".verification-photo-actions", "separate camera and upload action layout");
 includes(styles, ".verification-photo-camera-stage", "camera preview stage styles");
+includes(styles, ".verification-photo-camera-stage video.is-user-facing", "front camera mirrored preview");
+includes(styles, "grid-template-columns: minmax(0, 1fr) auto auto", "three camera dialog actions");
+
+const cameraHarness = { module: { exports: {} } };
+vm.createContext(cameraHarness);
+vm.runInContext([
+  functionSource(detailUi, "nextVerificationCameraFacingMode"),
+  functionSource(detailUi, "verificationCameraConstraint"),
+  "module.exports = { nextVerificationCameraFacingMode, verificationCameraConstraint };"
+].join("\n"), cameraHarness, { filename: "verification-camera-contract.js" });
+assert.equal(cameraHarness.module.exports.nextVerificationCameraFacingMode("environment"), "user");
+assert.equal(cameraHarness.module.exports.nextVerificationCameraFacingMode("user"), "environment");
+assert.deepEqual(
+  JSON.parse(JSON.stringify(cameraHarness.module.exports.verificationCameraConstraint("user"))),
+  { video: { facingMode: { ideal: "user" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false },
+  "front camera constraint"
+);
+assert.deepEqual(
+  JSON.parse(JSON.stringify(cameraHarness.module.exports.verificationCameraConstraint("environment", true))),
+  { video: { facingMode: { exact: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false },
+  "exact rear camera switch constraint"
+);
 
 for (const page of [
   "customer-create.html", "recharge-create.html", "verification-create.html",

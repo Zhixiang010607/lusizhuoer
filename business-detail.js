@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.23";
+  const VERSION = "0.15.24";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -14,6 +14,8 @@
   let verificationPhotoUploadBusy = false;
   let verificationCameraStream = null;
   let verificationCameraTarget = null;
+  let verificationCameraFacingMode = "environment";
+  let verificationCameraSwitchBusy = false;
   let verificationCameraRequest = 0;
   let verificationPhotoViewerRequest = 0;
   const verificationPhotoPreloads = new Map();
@@ -880,20 +882,123 @@
     input.click();
   }
 
-  function stopVerificationPhotoCamera(clearTarget = true) {
-    verificationCameraRequest += 1;
+  function releaseVerificationPhotoCameraStream() {
     verificationCameraStream?.getTracks?.().forEach((track) => track.stop());
     verificationCameraStream = null;
     const video = $("verificationPhotoCameraVideo");
-    if (video) video.srcObject = null;
+    if (video) {
+      video.srcObject = null;
+      video.classList.remove("is-user-facing");
+    }
+  }
+
+  function stopVerificationPhotoCamera(clearTarget = true) {
+    verificationCameraRequest += 1;
+    verificationCameraSwitchBusy = false;
+    releaseVerificationPhotoCameraStream();
     const capture = $("captureVerificationPhotoCamera");
     if (capture) capture.disabled = true;
+    const cameraSwitch = $("switchVerificationPhotoCamera");
+    if (cameraSwitch) {
+      cameraSwitch.disabled = true;
+      cameraSwitch.textContent = "切换摄像头";
+      cameraSwitch.setAttribute("aria-label", "切换前后摄像头");
+    }
     const placeholder = $("verificationPhotoCameraPlaceholder");
     if (placeholder) {
       placeholder.hidden = false;
       placeholder.textContent = "正在开启摄像头…";
     }
     if (clearTarget) verificationCameraTarget = null;
+  }
+
+  function verificationCameraConstraint(facingMode, exact = false) {
+    return {
+      video: {
+        facingMode: exact ? { exact: facingMode } : { ideal: facingMode },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      },
+      audio: false
+    };
+  }
+
+  async function verificationCameraCount() {
+    if (typeof navigator.mediaDevices?.enumerateDevices !== "function") return null;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      return devices.filter((device) => device.kind === "videoinput").length;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function verificationCameraName(facingMode) {
+    return facingMode === "user" ? "前置摄像头" : "后置摄像头";
+  }
+
+  function nextVerificationCameraFacingMode(facingMode) {
+    return facingMode === "user" ? "environment" : "user";
+  }
+
+  async function startVerificationPhotoCamera(facingMode, exact = false) {
+    const dialog = $("verificationPhotoCameraDialog");
+    const video = $("verificationPhotoCameraVideo");
+    const message = $("verificationPhotoCameraMessage");
+    const placeholder = $("verificationPhotoCameraPlaceholder");
+    const capture = $("captureVerificationPhotoCamera");
+    const cameraSwitch = $("switchVerificationPhotoCamera");
+    if (!dialog || !dialog.open || !verificationCameraTarget || !video || !message || !placeholder || !capture || !cameraSwitch) return false;
+    const request = ++verificationCameraRequest;
+    releaseVerificationPhotoCameraStream();
+    capture.disabled = true;
+    cameraSwitch.disabled = true;
+    placeholder.hidden = false;
+    placeholder.textContent = `正在开启${verificationCameraName(facingMode)}…`;
+    message.className = "verification-photo-camera-message";
+    message.textContent = `正在请求${verificationCameraName(facingMode)}。`;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(verificationCameraConstraint(facingMode, exact));
+      if (request !== verificationCameraRequest || !dialog.open) {
+        stream.getTracks().forEach((track) => track.stop());
+        return false;
+      }
+      verificationCameraStream = stream;
+      const activeFacingMode = clean(stream.getVideoTracks?.()[0]?.getSettings?.().facingMode).toLowerCase();
+      verificationCameraFacingMode = ["user", "environment"].includes(activeFacingMode) ? activeFacingMode : facingMode;
+      video.classList.toggle("is-user-facing", verificationCameraFacingMode === "user");
+      video.srcObject = stream;
+      await video.play();
+      if (request !== verificationCameraRequest || !dialog.open) {
+        stream.getTracks().forEach((track) => track.stop());
+        return false;
+      }
+      placeholder.hidden = true;
+      capture.disabled = false;
+      const nextFacingMode = nextVerificationCameraFacingMode(verificationCameraFacingMode);
+      cameraSwitch.textContent = `切换到${nextFacingMode === "user" ? "前置" : "后置"}`;
+      cameraSwitch.setAttribute("aria-label", `切换到${verificationCameraName(nextFacingMode)}`);
+      const cameraCount = await verificationCameraCount();
+      if (request !== verificationCameraRequest || !dialog.open) return false;
+      const confirmedSingleCamera = cameraCount === 1 && !usesMobilePhotoLibrary();
+      cameraSwitch.disabled = confirmedSingleCamera;
+      message.textContent = confirmedSingleCamera
+        ? `${verificationCameraName(verificationCameraFacingMode)}已开启；当前设备只检测到一个摄像头。`
+        : `${verificationCameraName(verificationCameraFacingMode)}已开启，可拍摄或切换前后摄像头。`;
+      return true;
+    } catch (error) {
+      if (request !== verificationCameraRequest || !dialog.open) return false;
+      releaseVerificationPhotoCameraStream();
+      placeholder.hidden = false;
+      placeholder.textContent = "摄像头开启失败";
+      message.className = "verification-photo-camera-message error";
+      message.textContent = error?.name === "NotAllowedError"
+        ? "未获得摄像头权限。请在浏览器设置中允许摄像头，或使用“上传文件”从相册选择。"
+        : exact && error?.name === "OverconstrainedError"
+        ? `当前设备没有可用的${verificationCameraName(facingMode)}。`
+        : "无法使用摄像头。请检查设备摄像头，或使用“上传文件”从相册选择。";
+      return false;
+    }
   }
 
   async function openVerificationPhotoCamera(recordId, slot) {
@@ -904,7 +1009,7 @@
     if (!dialog || !video || !message || !placeholder) return;
     stopVerificationPhotoCamera();
     verificationCameraTarget = { recordId, slot };
-    const request = verificationCameraRequest;
+    verificationCameraFacingMode = "environment";
     $("verificationPhotoCameraTitle").textContent = `拍摄${photoSlotLabel(slot)}`;
     message.className = "verification-photo-camera-message";
     message.textContent = "请允许浏览器使用摄像头；优先开启后置摄像头。";
@@ -915,36 +1020,37 @@
       message.textContent = "请关闭窗口，使用“上传文件”从手机或 iPad 相册选择照片。";
       return;
     }
+    await startVerificationPhotoCamera("environment");
+  }
+
+  async function switchVerificationPhotoCamera() {
+    if (verificationCameraSwitchBusy || !verificationCameraTarget || !verificationCameraStream) return;
+    verificationCameraSwitchBusy = true;
+    const dialog = $("verificationPhotoCameraDialog");
+    const target = verificationCameraTarget;
+    const previousFacingMode = verificationCameraFacingMode;
+    const nextFacingMode = nextVerificationCameraFacingMode(previousFacingMode);
+    const message = $("verificationPhotoCameraMessage");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        },
-        audio: false
-      });
-      if (request !== verificationCameraRequest || !dialog.open) {
-        stream.getTracks().forEach((track) => track.stop());
+      let switched = await startVerificationPhotoCamera(nextFacingMode, true);
+      if (!dialog?.open || verificationCameraTarget !== target) return;
+      if (!switched) switched = await startVerificationPhotoCamera(nextFacingMode);
+      if (!dialog?.open || verificationCameraTarget !== target) return;
+      if (switched && verificationCameraFacingMode === nextFacingMode) return;
+      if (switched) {
+        if (message) {
+          message.className = "verification-photo-camera-message error";
+          message.textContent = `浏览器仍在使用${verificationCameraName(previousFacingMode)}；当前设备可能不支持网页切换摄像头。`;
+        }
         return;
       }
-      verificationCameraStream = stream;
-      video.srcObject = stream;
-      await video.play();
-      if (request !== verificationCameraRequest || !dialog.open) return;
-      placeholder.hidden = true;
-      $("captureVerificationPhotoCamera").disabled = false;
-      message.textContent = "摄像头已开启。调整画面后点击“拍摄并使用”。";
-    } catch (error) {
-      verificationCameraStream?.getTracks?.().forEach((track) => track.stop());
-      verificationCameraStream = null;
-      video.srcObject = null;
-      placeholder.hidden = false;
-      placeholder.textContent = "摄像头开启失败";
-      message.className = "verification-photo-camera-message error";
-      message.textContent = error?.name === "NotAllowedError"
-        ? "未获得摄像头权限。请在浏览器设置中允许摄像头，或使用“上传文件”从相册选择。"
-        : "无法使用摄像头。请检查设备摄像头，或使用“上传文件”从相册选择。";
+      const restored = await startVerificationPhotoCamera(previousFacingMode);
+      if (restored && message) {
+        message.className = "verification-photo-camera-message error";
+        message.textContent = `未检测到可用的${verificationCameraName(nextFacingMode)}，已恢复${verificationCameraName(previousFacingMode)}。`;
+      }
+    } finally {
+      if (verificationCameraTarget === target) verificationCameraSwitchBusy = false;
     }
   }
 
@@ -956,7 +1062,7 @@
     const message = $("verificationPhotoCameraMessage");
     const width = Number(video?.videoWidth || 0);
     const height = Number(video?.videoHeight || 0);
-    if (!target || !canvas || !width || !height || verificationPhotoUploadBusy) {
+    if (!target || !canvas || !width || !height || verificationPhotoUploadBusy || verificationCameraSwitchBusy) {
       if (message) {
         message.className = "verification-photo-camera-message error";
         message.textContent = "摄像头画面尚未准备好，请稍后再试。";
@@ -1343,6 +1449,7 @@
     if (image) { image.onload = null; image.onerror = null; delete image.dataset.photoQuality; }
   });
   $("captureVerificationPhotoCamera")?.addEventListener("click", captureVerificationPhotoCamera);
+  $("switchVerificationPhotoCamera")?.addEventListener("click", switchVerificationPhotoCamera);
   $("cancelVerificationPhotoCamera")?.addEventListener("click", () => $("verificationPhotoCameraDialog")?.close());
   $("closeVerificationPhotoCamera")?.addEventListener("click", () => $("verificationPhotoCameraDialog")?.close());
   $("verificationPhotoCameraDialog")?.addEventListener("click", (event) => {
