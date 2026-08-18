@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v1" : "v53";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v2" : "v54";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 // SCF synchronous events are capped at 6 MB and Base64 adds roughly 33%.
 // These verification-photo limits leave room for the JSON envelope while
@@ -1041,11 +1041,22 @@ async function activeBusinessCaller(event = {}) {
   const account = accounts[0];
   if (!account) fail("当前登录账号尚未绑定业务身份。", "STAFF_PROFILE_MISSING");
   if (account.account_status !== "ACTIVE") fail("当前登录账号已经封存。", "ARCHIVED");
-  if (account.role_code === "store") return { ...(await activeStoreCaller()), role: "store", teacherId: "" };
-  if (account.role_code !== "teacher") fail("只有门店或老师账号可以办理充值和核销。", "FORBIDDEN");
+  if (account.role_code === "store") {
+    const store = await activeStoreCaller();
+    const requestedStore = String(event.storeId || "").trim();
+    if (requestedStore && requestedStore !== String(store.storeId)) {
+      fail("门店账号不能为其他门店办理业务。", "FORBIDDEN");
+    }
+    return { ...store, role: "store", teacherId: "" };
+  }
+  if (!["teacher", "hq"].includes(account.role_code)) {
+    fail("只有门店、老师或总部账号可以办理业务。", "FORBIDDEN");
+  }
 
-  if (!account.teacher_id) fail("当前老师账号尚未绑定老师资料。", "TEACHER_PROFILE_MISSING");
-  if (account.teacher_status !== "ACTIVE") fail("老师资料已经封存。", "ARCHIVED");
+  if (account.role_code === "teacher") {
+    if (!account.teacher_id) fail("当前老师账号尚未绑定老师资料。", "TEACHER_PROFILE_MISSING");
+    if (account.teacher_status !== "ACTIVE") fail("老师资料已经封存。", "ARCHIVED");
+  }
   const storeId = positiveDatabaseId(event.storeId, "门店");
   const stores = await executeSql(
     `SELECT id, store_code, store_name, store_status
@@ -1058,14 +1069,43 @@ async function activeBusinessCaller(event = {}) {
   if (!store) fail("所选门店不存在或已经封存，请重新选择。", "STORE_NOT_ACTIVE");
   return {
     uid: String(uid),
-    role: "teacher",
+    role: String(account.role_code),
     staffId: Number(account.staff_id),
-    teacherId: String(account.teacher_id),
-    teacherCode: String(account.teacher_code || ""),
-    teacherName: String(account.teacher_name || ""),
+    teacherId: account.role_code === "teacher" ? String(account.teacher_id) : "",
+    teacherCode: account.role_code === "teacher" ? String(account.teacher_code || "") : "",
+    teacherName: account.role_code === "teacher" ? String(account.teacher_name || "") : "",
     storeId: Number(store.id),
     storeCode: String(store.store_code || ""),
     storeName: String(store.store_name || "")
+  };
+}
+
+async function activeCustomerCreationCaller(event = {}) {
+  const caller = await activeBusinessCaller(event);
+  if (!["store", "hq"].includes(caller.role)) {
+    fail("只有门店或总部账号可以建立客户档案。", "FORBIDDEN");
+  }
+  return caller;
+}
+
+async function getHqBusinessContext() {
+  const caller = await activeCustomerStatusCaller();
+  if (caller.role !== "hq") fail("只有总部账号可以使用总部业务办理入口。", "FORBIDDEN");
+  const stores = await executeSql(
+    `SELECT id, store_code, store_name
+       FROM public.stores
+      WHERE store_status = 'ACTIVE'
+      ORDER BY store_name, store_code, id
+      LIMIT 1000`
+  );
+  return {
+    ok: true,
+    headquarters: { staffId: String(caller.staffId) },
+    stores: stores.map((store) => ({
+      storeId: String(store.id),
+      storeCode: String(store.store_code || ""),
+      storeName: String(store.store_name || "")
+    }))
   };
 }
 
@@ -1252,7 +1292,7 @@ async function verificationPhotoContext(event, options = {}) {
   );
   const record = rows[0];
   if (!record) fail("未找到当前账号有权查看的核销工单。", "VERIFICATION_NOT_FOUND");
-  const canEdit = ["store", "teacher"].includes(caller.role)
+  const canEdit = ["hq", "store", "teacher"].includes(caller.role)
     && String(record.submitted_by_account_id) === String(caller.staffId)
     && databaseBoolean(record.within_edit_window);
   return { caller, record, verificationId, canEdit };
@@ -2366,6 +2406,7 @@ async function createRechargeApplication(event) {
 
   const sameRequest = record.recharge_type === "NEW"
     && String(record.store_id) === String(caller.storeId)
+    && String(record.submitted_by_account_id) === String(caller.staffId)
     && String(record.teacher_id || "") === String(teacherId || "")
     && String(record.customer_id) === String(customer.id)
     && String(record.product_id) === String(productId)
@@ -2760,7 +2801,7 @@ async function deleteCustomerRecord(storeId, personId) {
 }
 
 async function registerCustomer(event) {
-  const caller = await activeStoreCaller();
+  const caller = await activeCustomerCreationCaller(event);
   const name = String(event.customerName || "").trim();
   const birthDate = validDate(event.birthDate);
   const notes = String(event.notes || "").trim();
@@ -2878,7 +2919,7 @@ async function registerCustomer(event) {
 }
 
 async function validateCapture(event) {
-  await activeStoreCaller();
+  await activeCustomerCreationCaller(event);
   const { base64 } = cleanImage(event.imageBase64);
   const api = faceClient();
   const quality = await inspectFaceImage(api, base64);
@@ -3235,7 +3276,7 @@ async function verificationPhotoUploadSchemaHealth() {
 }
 
 function requireVerificationPhotoUploadOwner(context, options = {}) {
-  const isOwner = ["store", "teacher"].includes(context.caller.role)
+  const isOwner = ["hq", "store", "teacher"].includes(context.caller.role)
     && String(context.record.submitted_by_account_id) === String(context.caller.staffId);
   if (!isOwner) fail("只有提交该核销单的账号可以管理补充照片。", "PHOTO_SUBMITTER_ONLY");
   if (options.requireWindow === true && !context.canEdit) {
@@ -3990,6 +4031,7 @@ exports.main = async (event = {}) => {
     if (action === "queryStoreCustomers") return await queryStoreCustomers(event);
     if (action === "queryStoreBusinessRecords") return await queryStoreBusinessRecords(event);
     if (action === "getStoreDashboard") return await getStoreDashboard(event);
+    if (action === "getHqBusinessContext") return await getHqBusinessContext();
     if (action === "getTeacherBusinessContext") return await getTeacherBusinessContext();
     if (action === "getTeacherWorkspace") return await getTeacherWorkspace(event);
     if (action === "listActiveTeachers") return await listActiveTeachers(event);

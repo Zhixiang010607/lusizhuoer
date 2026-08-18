@@ -163,12 +163,14 @@ body[data-teacher-service] .teacher-service-main { width: min(1120px, calc(100% 
 .teacher-step-disabled { position: relative; pointer-events: none; opacity: .48; filter: grayscale(.15); }
 .teacher-step-disabled::after { content: "请先完成上一步"; position: absolute; inset: 0; display: grid; place-items: center; border-radius: inherit; color: #40506b; background: #f6f8fb99; font-weight: 800; }
 .teacher-business-main { width: min(1680px, calc(100% - 28px)); margin: 14px auto 24px; }
-.teacher-business-store-panel { padding: 18px 20px; }
-.teacher-business-store-row { display: grid; grid-template-columns: minmax(220px, .7fr) minmax(320px, 1.35fr) auto; gap: 14px; align-items: end; }
-.teacher-business-store-row label { min-width: 0; display: grid; gap: 7px; color: #344054; font-size: 12px; font-weight: 800; }
-.teacher-business-store-row label > strong { min-height: 40px; display: flex; align-items: center; padding: 0 12px; overflow: hidden; border: 1px solid var(--line); border-radius: 9px; background: #f8fafc; text-overflow: ellipsis; white-space: nowrap; }
-.teacher-business-store-row select, .teacher-business-store-row button { min-height: 40px; margin: 0; }
-.teacher-business-store-row button { white-space: nowrap; }
+.teacher-business-store-panel, .hq-business-store-panel { padding: 18px 20px; }
+.hq-business-store-panel { flex: 0 0 auto; width: min(1680px, calc(100% - 28px)); margin: 12px auto 0; }
+.teacher-business-store-row, .hq-business-store-row { display: grid; grid-template-columns: minmax(220px, .7fr) minmax(320px, 1.35fr) auto; gap: 14px; align-items: end; }
+.teacher-business-store-row label, .hq-business-store-row label { min-width: 0; display: grid; gap: 7px; color: #344054; font-size: 12px; font-weight: 800; }
+.teacher-business-store-row label > strong, .hq-business-store-row label > strong { min-height: 40px; display: flex; align-items: center; padding: 0 12px; overflow: hidden; border: 1px solid var(--line); border-radius: 9px; background: #f8fafc; text-overflow: ellipsis; white-space: nowrap; }
+.teacher-business-store-row select, .teacher-business-store-row button, .hq-business-store-row select, .hq-business-store-row button { min-height: 40px; margin: 0; }
+.teacher-business-store-row button, .hq-business-store-row button { white-space: nowrap; }
+.business-store-unconfirmed { opacity: .55; filter: grayscale(.18); pointer-events: none; user-select: none; }
 .teacher-business-main .store-business-main { width: 100%; min-height: 0; margin-top: 14px; }
 .teacher-load-more-row { display: flex; justify-content: center; padding-top: 14px; }
 .teacher-load-more-row button { min-width: 120px; }
@@ -1168,9 +1170,9 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 @media (max-width: 760px) {
   body { padding-left: 0; }
   .teacher-business-main { width: min(100% - 14px, 1680px); margin-top: 8px; }
-  .teacher-business-store-panel { padding: 16px; }
-  .teacher-business-store-row { grid-template-columns: 1fr; gap: 11px; }
-  .teacher-business-store-row button { width: 100%; }
+  .teacher-business-store-panel, .hq-business-store-panel { padding: 16px; }
+  .teacher-business-store-row, .hq-business-store-row { grid-template-columns: 1fr; gap: 11px; }
+  .teacher-business-store-row button, .hq-business-store-row button { width: 100%; }
   body[data-hq-create] { height: auto; min-height: 100dvh; overflow: auto; }
   body[data-hq-create] .hq-create-main,
   body[data-hq-create] .hq-create-form { height: auto; min-height: 0; overflow: visible; }
@@ -1420,6 +1422,20 @@ body[data-operation-home] .operation-home-main { width: min(1180px, calc(100% - 
   body[data-store-business] .store-workflow-main {
     grid-template-columns: 1fr;
     margin-bottom: 24px;
+  }
+
+  body[data-store-business] .hq-business-store-panel {
+    width: min(100% - 14px, 1680px);
+    margin-top: 8px;
+  }
+
+  body[data-store-business] .hq-business-store-row {
+    grid-template-columns: 1fr;
+    gap: 11px;
+  }
+
+  body[data-store-business] .hq-business-store-row button {
+    width: 100%;
   }
 
   body[data-store-business] .workflow-lookup-panel .service-customer-results {

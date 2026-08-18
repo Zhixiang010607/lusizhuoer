@@ -130,7 +130,7 @@ const routeHarness = {
   },
   console: { error() {} },
   PHOTO_ONLY_FUNCTION: true,
-  FUNCTION_VERSION: "v1",
+  FUNCTION_VERSION: "v2",
   verificationPhotoStorageHealth: async () => ({
     configuredBucketIds: ["customer-photos"],
     availableBucketIds: ["customer-photos"],
@@ -192,7 +192,7 @@ vm.runInContext(
 
   const health = await routeHarness.exports.main({ action: "health" });
   assert.equal(health.ok, true);
-  assert.equal(health.version, "v1");
+  assert.equal(health.version, "v2");
   assert.equal(health.service, "verificationPhoto");
   assert.equal(health.uploadMode, "FUNCTION");
   assert.equal(health.ready, true);
@@ -315,7 +315,9 @@ vm.runInContext(`${functionSource(faceService, "requireVerificationPhotoUploadOw
 const ownerGuard = ownerHarness.module.exports;
 assert.doesNotThrow(() => ownerGuard({ caller: { role: "store", staffId: 9 }, record: { submitted_by_account_id: 9 }, canEdit: true }, { requireWindow: true }));
 assert.doesNotThrow(() => ownerGuard({ caller: { role: "teacher", staffId: 9 }, record: { submitted_by_account_id: 9 }, canEdit: true }, { requireWindow: true }));
-assert.throws(() => ownerGuard({ caller: { role: "hq", staffId: 9 }, record: { submitted_by_account_id: 9 }, canEdit: true }), (error) => error.code === "PHOTO_SUBMITTER_ONLY");
+assert.doesNotThrow(() => ownerGuard({ caller: { role: "hq", staffId: 9 }, record: { submitted_by_account_id: 9 }, canEdit: true }, { requireWindow: true }));
+assert.throws(() => ownerGuard({ caller: { role: "operation", staffId: 9 }, record: { submitted_by_account_id: 9 }, canEdit: true }), (error) => error.code === "PHOTO_SUBMITTER_ONLY");
+assert.throws(() => ownerGuard({ caller: { role: "hq", staffId: 10 }, record: { submitted_by_account_id: 9 }, canEdit: true }), (error) => error.code === "PHOTO_SUBMITTER_ONLY");
 assert.throws(() => ownerGuard({ caller: { role: "store", staffId: 10 }, record: { submitted_by_account_id: 9 }, canEdit: true }), (error) => error.code === "PHOTO_SUBMITTER_ONLY");
 assert.throws(() => ownerGuard({ caller: { role: "store", staffId: 9 }, record: { submitted_by_account_id: 9 }, canEdit: false }, { requireWindow: true }), (error) => error.code === "PHOTO_WINDOW_EXPIRED");
 

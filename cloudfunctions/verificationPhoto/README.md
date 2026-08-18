@@ -1,10 +1,10 @@
 # verificationPhoto 云函数
 
-当前版本：`v1`
+当前版本：`v2`
 
 该函数专门处理核销单的五个照片位：列表与缩略图、按需读取高清原图、导出原图，以及三个补充照片位的开始、提交、状态恢复和取消。它不执行质量检测、活体检测、客户建档或人脸比对，也不暴露这些动作。
 
-补充照片复用迁移 039 的单任务锁、提交人权限和 24 小时截止规则，但照片内容固定通过 CloudBase `callFunction` 传给本函数，由服务端写入数据库任务已经锁定的随机对象。浏览器不再请求 PG 云存储 PUT 签名，因此不依赖照片桶的浏览器 PUT CORS，也不会再次遇到签名端点的 `STORAGE_INVALID_REQUEST`。照片仍保持私有；列表、原图、导出和写入均先校验当前登录账号与工单权限。
+补充照片复用迁移 039 的单任务锁、提交人权限和 24 小时截止规则，但照片内容固定通过 CloudBase `callFunction` 传给本函数，由服务端写入数据库任务已经锁定的随机对象。总部、门店或老师只有在当前登录账号就是工单原提交账号、且服务器时间仍早于 `submitted_at + 24 hours` 时才能上传或替换；不同总部账号也不能互相代传，运营始终无写权限。浏览器不再请求 PG 云存储 PUT 签名，因此不依赖照片桶的浏览器 PUT CORS，也不会再次遇到签名端点的 `STORAGE_INVALID_REQUEST`。照片仍保持私有；列表、原图、导出和写入均先校验当前登录账号与工单权限。
 
 ## 为什么拆成独立函数
 
@@ -23,7 +23,7 @@
 - 超时：`60 秒`
 - 并发／实例：先使用平台默认值；如果监控确认主要延迟来自冷启动，可为生产版本配置 `1` 个预置并发实例。预置实例持续计费，不要在没有监控证据时盲目增加。
 
-最终 `verificationPhoto-v1.zip` 的根目录必须是：
+最终 `verificationPhoto-v2.zip` 的根目录必须是：
 
 ```text
 index.js      # 由本目录 deploy-index.js 复制并改名
@@ -63,7 +63,7 @@ VERIFICATION_PHOTO_UPLOAD_TTL_SECONDS=600
 
 ## 存储与数据库前置条件
 
-本次拆分不新增 SQL。生产库已经成功执行迁移 039 时，不要重跑 037、038 或 039。部署前在同一个 CloudBase PostgreSQL 环境执行只读检查：
+本次总部共享办理与 v54／v2 更新不新增 SQL。生产库已经成功执行迁移 039 时，不要重跑 037、038 或 039。部署前在同一个 CloudBase PostgreSQL 环境执行只读检查：
 
 ```sql
 SELECT
@@ -112,10 +112,10 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 ## 部署顺序与健康检查
 
 1. 确认迁移 039 表和真实桶均存在。
-2. 部署 `faceRecognition-v53.zip`，先验证原有建档与 1:1 核销人脸能力。
-3. 新建或更新函数 `verificationPhoto`，上传 `verificationPhoto-v1.zip`，配置上述环境变量、512 MB 内存和 60 秒超时。
-4. 分别对两个函数调用 `{ "action": "health" }`。
-5. 只有两个健康检查均成功后，才发布调用 `verificationPhoto` 的静态前端并强制刷新浏览器。
+2. 部署 `faceRecognition-v54.zip`，调用 `health` 确认 `version: "v54"`，并先验证原有建档、活体、1:1 核销人脸和总部四个共享办理入口。
+3. 新建或更新函数 `verificationPhoto`，上传 `verificationPhoto-v2.zip`，配置上述环境变量、512 MB 内存和 60 秒超时。
+4. 对 `verificationPhoto` 调用 `{ "action": "health" }`，确认 `version: "v2"` 与全部就绪字段。
+5. 只有两个函数均验证成功后，才发布当前静态前端并强制刷新浏览器；不要先发前端。
 
 `verificationPhoto` 应返回类似：
 
@@ -123,7 +123,7 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 {
   "ok": true,
   "ready": true,
-  "version": "v1",
+  "version": "v2",
   "service": "verificationPhoto",
   "uploadMode": "FUNCTION",
   "photoBucketId": "customer-photos",
@@ -141,4 +141,4 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 
 若 `ready`、任一 `Ready` 字段、`verificationPhotoCleanupConfigured` 或 `verificationPhotoServiceRoleKeyConfigured` 为 `false`，先修复环境 ID、服务端 Key、清理凭证、迁移 039 或桶配置，保存同一响应中的错误码和请求 ID，不要用公开桶或整桶 Policy 绕过错误。
 
-部署后至少用真实总部、运营、门店和老师账号验证：有权账号可查看；只有真实提交人且在 `submitted_at + 24 hours` 内可写；其他账号和超时请求被拒绝；取消后可重新选择；一张成功后才可开始下一张；刷新后已提交照片仍可见；五张齐全时 PDF／图片导出不缺图。
+部署后至少用真实总部、运营、门店和老师账号验证：总部四个办理入口必须先确认唯一 `ACTIVE` 门店且没有“全部门店”，运营没有办理入口，老师没有客户建立且工单老师锁定为本人；有权账号可查看核销照片；只有总部／门店／老师中的真实原提交账号且在 `submitted_at + 24 hours` 内可写；其他总部账号、其他角色账号和超时请求被拒绝；取消后可重新选择；一张成功后才可开始下一张；刷新后已提交照片仍可见；五张齐全时 PDF／图片导出不缺图。

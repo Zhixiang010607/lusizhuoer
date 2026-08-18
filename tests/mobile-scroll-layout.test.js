@@ -39,7 +39,7 @@ const businessPages = [
 ];
 for (const file of businessPages) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
-  assert(html.includes('styles.css?v=0.15.25'), `${file} must use the unclipped customer-card stylesheet cache key`);
+  assert(html.includes('styles.css?v=0.15.27'), `${file} must use the unclipped customer-card stylesheet cache key`);
   assert(html.includes("data-store-business"), `${file} must be a store business workflow`);
 }
 

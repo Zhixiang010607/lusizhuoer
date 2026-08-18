@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.45", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.47", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   const formatBirthday = (value, fallback = "—") => {
     const raw = String(value ?? "").trim();
     if (!raw) return fallback;
@@ -10,10 +10,15 @@
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   const teacherMode = session?.role === "teacher" && document.body.hasAttribute("data-teacher-business");
-  if (!session || (teacherMode ? !["recharge", "verification", "verification-supplemental"].includes(page) : session.role !== "store")) return;
-  let storeId = teacherMode ? "" : String(session?.store || "");
+  const hqMode = session?.role === "hq"
+    && !document.body.hasAttribute("data-teacher-business")
+    && ["customer", "recharge", "verification", "verification-supplemental"].includes(page);
+  if (!session || (teacherMode
+    ? !["recharge", "verification", "verification-supplemental"].includes(page)
+    : !hqMode && session.role !== "store")) return;
+  let storeId = teacherMode || hqMode ? "" : String(session?.store || "");
   const storeNo = Number(storeId.replace(/\D/g, "")) || 1;
-  let storeName = `门店 ${storeNo}`;
+  let storeName = teacherMode || hqMode ? "尚未选择门店" : `门店 ${storeNo}`;
   let databaseCustomers = [], databaseTeachers = [], databaseProducts = [], candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", verificationThumbnailDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, verificationBalanceProjects = [], rechargeRequest = null, verificationRequest = null, verificationFaceRequestId = "", verificationFaceEvidenceToken = "", customerEnrollmentRequest = null, previewCustomerCode = "", customerSubmissionBusy = false;
   const customerDetailCache = new Map(), customerDetailRequests = new Map();
   let customerServiceApp = null;
@@ -40,13 +45,15 @@
     const target = teacherMode ? "teacher-work-order-detail.html" : (type === "recharge" ? "recharge-detail.html" : "verification-detail.html");
     const query = teacherMode
       ? new URLSearchParams({ type, recordId: String(record.id) })
-      : new URLSearchParams({ recordId: String(record.id), source: "created" });
+      : new URLSearchParams({ recordId: String(record.id), source: "created", ...(hqMode ? { origin: "hq-business", businessPage: page } : {}) });
     window.location.assign(`${target}?${query.toString()}`);
   }
   const addCommunication = (recordType, recordId, message) => {
     if (!message.trim()) return;
     let rows = []; try { rows = JSON.parse(sessionStorage.getItem("prototypeCommunications") || "[]"); } catch (_) { rows = []; }
-    rows.push({ recordType, recordId, role: teacherMode ? "老师" : "门店", account: session.account, name: teacherMode ? (session.staffName || "老师") : "门店人员", message: message.trim(), time: new Date().toISOString() }); saveList("prototypeCommunications", rows);
+    const actorRole = teacherMode ? "老师" : hqMode ? "总部" : "门店";
+    const actorName = session.staffName || (teacherMode ? "老师" : hqMode ? "总部人员" : "门店人员");
+    rows.push({ recordType, recordId, role: actorRole, account: session.account, name: actorName, message: message.trim(), time: new Date().toISOString() }); saveList("prototypeCommunications", rows);
   };
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
 
@@ -141,7 +148,7 @@
     customerServiceApp ||= window.cloudbase.init(window.CloudBaseAuthConfig);
     let result;
     try {
-      const scopedPayload = teacherMode && payload.action !== "getTeacherBusinessContext"
+      const scopedPayload = (teacherMode || hqMode) && !["getTeacherBusinessContext", "getHqBusinessContext"].includes(payload.action)
         ? { ...payload, storeId }
         : payload;
       result = await customerServiceApp.callFunction({ name: "faceRecognition", data: scopedPayload });
@@ -304,7 +311,7 @@
       if (!faceCaptured || !capturedPhotoDataUrl || !$("faceConsent").checked) { message.textContent = "必须完成拍照、照片质量与活体检测，并取得明确授权后才能建立档案"; return; }
       customerSubmissionBusy = true; syncCustomerCreateSubmit(); message.textContent = "正在上传照片、创建人脸档案并保存客户资料…";
       try {
-        const clientRequestId = nextCustomerEnrollmentRequestId({ name, birthday, notes, photoLength: capturedPhotoDataUrl.length, photoTail: capturedPhotoDataUrl.slice(-48) });
+        const clientRequestId = nextCustomerEnrollmentRequestId({ storeId, name, birthday, notes, photoLength: capturedPhotoDataUrl.length, photoTail: capturedPhotoDataUrl.slice(-48) });
         const data = await callCustomerEnrollment({ action: "registerCustomer", customerName: name, birthDate: birthday, notes, consent: true, imageBase64: capturedPhotoDataUrl, clientRequestId });
         if (!data.customer?.customerCode) throw new Error("客户档案已提交，但云函数没有返回客户编号，请先查询确认，禁止重复提交");
         const createdCustomer = data.customer;
@@ -524,7 +531,7 @@
       const project = databaseProducts.find((item) => item.id === projectId), teacher = teacherId ? databaseTeachers.find((item) => item.id === teacherId) : null;
       if (!project || (teacherId && !teacher)) { $("rechargeCreateMessage").textContent = "项目或老师数据已经失效，请刷新页面后重新选择"; return; }
       const payload = { customerCode: selectedCustomer.id, productId: project.id, teacherId: teacher?.id || "", unitCount: count, message: note };
-      const clientRequestId = nextRechargeRequestId(payload);
+      const clientRequestId = nextRechargeRequestId({ storeId, ...payload });
       submit.disabled = true;
       $("rechargeCreateMessage").textContent = "正在向数据库提交待审核充值单…";
       try {
@@ -665,7 +672,7 @@
       const teacher = databaseTeachers.find((item) => item.id === teacherId);
       if (!teacher) { $("verificationCreateMessage").textContent = "老师数据已经失效，请刷新页面后重新选择"; return; }
       const payload = { customerCode: selectedCustomer.id, productId: project.id, teacherId: teacher.id, verificationType: supplemental ? "SUPPLEMENT" : "NORMAL", message: note, faceRequestId: verificationFaceRequestId, faceEvidenceToken: verificationFaceEvidenceToken };
-      const clientRequestId = nextVerificationRequestId(payload);
+      const clientRequestId = nextVerificationRequestId({ storeId, ...payload });
       submit.disabled = true;
       $("verificationCreateMessage").textContent = supplemental ? "正在向数据库提交待审核补录单…" : "正在向数据库提交核销单…";
       try {
@@ -751,8 +758,101 @@
     });
   }
 
+  function installHqBusinessStorePanel() {
+    const workflow = document.querySelector("main.store-business-main");
+    if (!workflow) return null;
+    document.body.setAttribute("data-hq-business", "");
+    workflow.classList.add("business-store-unconfirmed");
+    workflow.setAttribute("inert", "");
+    const lockedControls = Array.from(workflow.querySelectorAll("button, input, select, textarea, a[href]")).map((control) => ({
+      control,
+      disabled: "disabled" in control ? control.disabled : null,
+      tabindex: control.getAttribute("tabindex"),
+      ariaDisabled: control.getAttribute("aria-disabled")
+    }));
+    lockedControls.forEach(({ control, disabled }) => {
+      if (disabled !== null) control.disabled = true;
+      control.setAttribute("tabindex", "-1");
+      control.setAttribute("aria-disabled", "true");
+    });
+    const panel = document.createElement("section");
+    panel.className = "panel hq-business-store-panel";
+    panel.innerHTML = `<div class="panel-heading"><div><h2>选择本次办理门店</h2><p>总部每次只能为一个具体门店办理业务，不能选择全部门店</p></div><span id="hqBusinessStoreState" class="badge">尚未选择</span></div><div class="hq-business-store-row"><label>当前总部账号<strong id="hqBusinessIdentity"></strong></label><label>办理门店<select id="hqBusinessStore"><option value="">正在读取活跃门店…</option></select></label><button id="confirmHqBusinessStore" type="button" disabled>确认门店</button></div><p id="hqBusinessStoreMessage" class="form-message" role="status"></p>`;
+    workflow.before(panel);
+    return {
+      workflow,
+      panel,
+      unlock() {
+        workflow.removeAttribute("inert");
+        lockedControls.forEach(({ control, disabled, tabindex, ariaDisabled }) => {
+          if (disabled !== null) control.disabled = disabled;
+          if (tabindex === null) control.removeAttribute("tabindex"); else control.setAttribute("tabindex", tabindex);
+          if (ariaDisabled === null) control.removeAttribute("aria-disabled"); else control.setAttribute("aria-disabled", ariaDisabled);
+        });
+      }
+    };
+  }
+
+  async function setupHqBusiness() {
+    const installed = installHqBusinessStorePanel();
+    if (!installed) return;
+    const { workflow, unlock } = installed;
+    const select = $("hqBusinessStore");
+    const confirm = $("confirmHqBusinessStore");
+    const message = $("hqBusinessStoreMessage");
+    $("hqBusinessIdentity").textContent = [session.staffName, session.account].filter(Boolean).join(" · ") || "当前总部账号";
+    let stores = [];
+    try {
+      const result = await callCustomerEnrollment({ action: "getHqBusinessContext" });
+      stores = (Array.isArray(result?.stores) ? result.stores : []).map((store) => ({
+        id: String(store.storeId || ""),
+        code: String(store.storeCode || ""),
+        name: String(store.storeName || "")
+      })).filter((store) => store.id && store.name);
+      select.innerHTML = `<option value="">请选择本次办理门店</option>${stores.map((store) => `<option value="${escapeHtml(store.id)}">${escapeHtml(store.name)} · ${escapeHtml(store.code || store.id)}</option>`).join("")}`;
+      select.disabled = stores.length === 0;
+      if (!stores.length) message.textContent = "数据库中没有可办理业务的活跃门店。";
+    } catch (error) {
+      select.innerHTML = `<option value="">门店读取失败</option>`;
+      select.disabled = true;
+      message.textContent = error?.message || "无法读取总部可办理门店，请刷新后重试。";
+    }
+    select.addEventListener("change", () => {
+      confirm.disabled = !stores.some((store) => store.id === select.value);
+      message.textContent = "";
+    });
+    confirm.addEventListener("click", () => {
+      if (!workflow.hasAttribute("inert")) {
+        stopFaceCamera();
+        window.location.reload();
+        return;
+      }
+      const selected = stores.find((store) => store.id === select.value);
+      if (!selected) { message.textContent = "必须先选择一个具体门店。"; return; }
+      storeId = selected.id;
+      storeName = [selected.name, selected.code].filter(Boolean).join(" · ");
+      select.disabled = true;
+      unlock();
+      workflow.classList.remove("business-store-unconfirmed");
+      $("hqBusinessStoreState").textContent = "已选择";
+      confirm.textContent = "重新选择门店";
+      message.textContent = `当前办理门店：${storeName}。如选择有误，请重新选择并清空本页资料。`;
+      const scopeBadge = workflow.querySelector(".workflow-lookup-panel .badge");
+      if (scopeBadge) scopeBadge.textContent = storeName;
+      if (page === "customer") setupCustomerCreate();
+      else if (page === "recharge") setupRecharge();
+      else setupVerification();
+    });
+  }
+
   document.documentElement.dataset.prototypeVersion = VERSION;
+  window.addEventListener("pageshow", (event) => {
+    // A back-forward-cache restore retains every in-memory form, camera and
+    // evidence value. HQ must reconfirm a concrete store on a clean workflow.
+    if (hqMode && event.persisted) window.location.reload();
+  });
   if (teacherMode) setupTeacherBusiness();
+  else if (hqMode) setupHqBusiness();
   else if (page === "customer") setupCustomerCreate();
   else if (page === "recharge") setupRecharge();
   else if (["verification", "verification-supplemental"].includes(page)) setupVerification();
