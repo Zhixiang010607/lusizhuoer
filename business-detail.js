@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.22";
+  const VERSION = "0.15.23";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -17,6 +17,8 @@
   let verificationCameraRequest = 0;
   let verificationPhotoViewerRequest = 0;
   const verificationPhotoPreloads = new Map();
+  const verificationExportBlobCache = new Map();
+  let verificationExportDirectFetchUnavailable = false;
   let orderExportBusy = false;
 
   function loadSessionRows(key) {
@@ -254,9 +256,12 @@
     const projectName = first(record.projectName, record.productName, record.projectCode, record.productCode, "项目");
     return {
       filename: `${customerName}+${projectName}+${recharge ? "充值" : "核销"}`,
+      kind: clean($("orderKindTag")?.textContent) || (recharge ? "充值" : "核销"),
       title: clean($("orderTitle")?.textContent) || `${recharge ? "充值" : "核销"}工单`,
       subtitle: clean($("orderDescription")?.textContent) || "业务工单完整导出",
+      statusLabel: "当前审核状态",
       status: clean($("orderStatus")?.textContent) || "—",
+      statusHint: clean($("orderStatusHint")?.textContent) || "—",
       statusTone: $("orderStatus")?.classList.contains("rejected") ? "rejected" : $("orderStatus")?.classList.contains("pending") ? "pending" : "approved",
       facts,
       detailTitle: recharge ? "充值信息" : "核销信息",
@@ -267,23 +272,33 @@
   }
 
   async function fetchVerificationPhotoUrlBlob(url, slot) {
-    const response = await fetch(url, {
-      method: "GET",
-      mode: "cors",
-      credentials: "omit",
-      cache: "force-cache",
-      referrerPolicy: "no-referrer"
-    });
-    if (!response.ok) {
-      const error = new Error(`${photoSlotLabel(slot)}读取失败（HTTP ${response.status}）`);
-      error.httpStatus = response.status;
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const timeout = window.setTimeout(() => controller?.abort(), 12000);
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        mode: "cors",
+        credentials: "omit",
+        cache: "force-cache",
+        referrerPolicy: "no-referrer",
+        signal: controller?.signal
+      });
+      if (!response.ok) {
+        const error = new Error(`${photoSlotLabel(slot)}读取失败（HTTP ${response.status}）`);
+        error.httpStatus = response.status;
+        throw error;
+      }
+      const blob = await response.blob();
+      if (!blob.size || !String(blob.type || "").toLowerCase().startsWith("image/")) {
+        throw new Error(`${photoSlotLabel(slot)}没有返回有效图片`);
+      }
+      return blob;
+    } catch (error) {
+      if (error?.name === "AbortError") throw new Error(`${photoSlotLabel(slot)}高清原图读取超时`);
       throw error;
+    } finally {
+      window.clearTimeout(timeout);
     }
-    const blob = await response.blob();
-    if (!blob.size || !String(blob.type || "").toLowerCase().startsWith("image/")) {
-      throw new Error(`${photoSlotLabel(slot)}没有返回有效图片`);
-    }
-    return blob;
   }
 
   function verificationPhotoDataBlob(value, slot) {
@@ -298,23 +313,68 @@
     return new Blob([bytes], { type: "image/jpeg" });
   }
 
+  function verificationExportCacheKey(recordId, photo) {
+    return [clean(recordId), Number(photo?.slot), Number(photo?.originalBytes || 0), clean(photo?.uploadedAt)].join(":");
+  }
+
+  function waitForVerificationPhotoRetry(milliseconds) {
+    return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+  }
+
+  function verificationPhotoExportCanRetry(error) {
+    return !new Set([
+      "PHOTO_NOT_FOUND", "PHOTO_SLOT_INVALID", "PHOTO_EXPORT_TOO_LARGE", "PHOTO_EXPORT_INVALID",
+      "FORBIDDEN", "UNAUTHORIZED", "ARCHIVED", "BAD_REQUEST"
+    ]).has(clean(error?.code).toUpperCase());
+  }
+
+  async function fetchVerificationPhotoExportFallback(recordId, slot) {
+    let lastError = null;
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        const payload = await callFaceRecognition({ action: "getVerificationPhotoExportData", recordId, slot });
+        return verificationPhotoDataBlob(payload.imageBase64, slot);
+      } catch (error) {
+        lastError = error;
+        if (!verificationPhotoExportCanRetry(error) || attempt >= 2) break;
+        await waitForVerificationPhotoRetry(350 * attempt);
+      }
+    }
+    throw lastError || new Error(`${photoSlotLabel(slot)}高清原图读取失败`);
+  }
+
   async function fetchVerificationPhotoBlob(recordId, photo) {
     const slot = Number(photo.slot);
+    const cacheKey = verificationExportCacheKey(recordId, photo);
+    const cachedBlob = verificationExportBlobCache.get(cacheKey);
+    if (cachedBlob instanceof Blob && cachedBlob.size) return cachedBlob;
     const cachedUrl = clean(photo?.originalUrl);
     const cachedUrlValid = cachedUrl && Number(photo?.originalUrlExpiresAt || 0) > Date.now() + 10000;
-    if (cachedUrlValid) {
-      try { return await fetchVerificationPhotoUrlBlob(cachedUrl, slot); }
-      catch (_) { /* CORS, expiry and transient download failures use the authorized server fallback below. */ }
-    } else {
+    if (cachedUrlValid && !verificationExportDirectFetchUnavailable) {
+      try {
+        const blob = await fetchVerificationPhotoUrlBlob(cachedUrl, slot);
+        verificationExportBlobCache.set(cacheKey, blob);
+        return blob;
+      } catch (error) {
+        if (error instanceof TypeError) verificationExportDirectFetchUnavailable = true;
+        // CORS, expiry and transient download failures use the authorized server fallback below.
+      }
+    } else if (!cachedUrlValid && !verificationExportDirectFetchUnavailable) {
       try {
         const payload = await callFaceRecognition({ action: "getVerificationPhotoOriginalUrl", recordId, slot });
         photo.originalUrl = payload.photoUrl;
         photo.originalUrlExpiresAt = Date.now() + Math.max(0, Number(payload.expiresIn || 0) * 1000);
-        return await fetchVerificationPhotoUrlBlob(payload.photoUrl, slot);
-      } catch (_) { /* Use the server-scoped binary fallback below. */ }
+        const blob = await fetchVerificationPhotoUrlBlob(payload.photoUrl, slot);
+        verificationExportBlobCache.set(cacheKey, blob);
+        return blob;
+      } catch (error) {
+        if (error instanceof TypeError) verificationExportDirectFetchUnavailable = true;
+        // Use the server-scoped binary fallback below.
+      }
     }
-    const payload = await callFaceRecognition({ action: "getVerificationPhotoExportData", recordId, slot });
-    return verificationPhotoDataBlob(payload.imageBase64, slot);
+    const blob = await fetchVerificationPhotoExportFallback(recordId, slot);
+    verificationExportBlobCache.set(cacheKey, blob);
+    return blob;
   }
 
   function exportPhotoFailureMeta(error) {
@@ -326,22 +386,56 @@
     return "已保存 · 导出时暂无法读取原图";
   }
 
+  function verificationPhotoManifestSignature(payload) {
+    return (Array.isArray(payload?.photos) ? payload.photos : [])
+      .map((photo) => [Number(photo?.slot), Number(photo?.originalBytes || 0), clean(photo?.uploadedAt)].join(":"))
+      .sort()
+      .join("|");
+  }
+
+  async function fetchVerificationPhotoManifest(recordId) {
+    const payload = await callFaceRecognition({ action: "getVerificationPhotos", recordId });
+    if (payload?.ok !== true || !Array.isArray(payload?.photos)) {
+      throw new Error("核销照片清单返回格式无效");
+    }
+    return payload;
+  }
+
   async function verificationExportPhotos(record) {
     await verificationPhotoLoadPromise;
-    const listError = currentVerificationPhotoPayload?.error || null;
-    const available = new Map((currentVerificationPhotoPayload?.photos || []).map((photo) => [Number(photo.slot), photo]));
+    if (verificationPhotoUploadBusy) throw new Error("照片仍在上传，请等待保存完成后再导出。");
+    const recordId = clean(record?.id);
+    const databaseBacked = record?.databaseBacked === true && /^\d+$/.test(recordId);
+    let manifest = currentVerificationPhotoPayload;
+    if (databaseBacked) {
+      setExportControls(false, "正在核对数据库中的最新照片清单…");
+      try {
+        manifest = await fetchVerificationPhotoManifest(recordId);
+        renderVerificationPhotos(manifest, recordId);
+      } catch (error) {
+        throw new Error(`核销照片清单暂时无法确认，本次没有生成文件。${clean(error?.message) || "请刷新页面后重试。"}`);
+      }
+    } else if (!manifest) {
+      manifest = { ok: true, photos: [], error: null };
+    }
+    const listError = manifest?.error || null;
+    if (listError || !Array.isArray(manifest?.photos)) {
+      throw new Error("核销照片清单暂时无法确认，本次没有生成文件。请刷新页面后重试。");
+    }
+    const manifestSignature = verificationPhotoManifestSignature(manifest);
+    const available = new Map(manifest.photos.map((photo) => [Number(photo.slot), photo]));
     const output = Array.from({ length: 5 }, (_, slot) => ({
       slot,
       label: photoSlotLabel(slot),
-      meta: listError ? "照片清单读取失败" : available.has(slot) ? "正在读取高清原图" : "空照片位",
-      placeholder: listError ? "照片信息暂不可用" : available.has(slot) ? "照片读取中" : "尚未上传",
+      required: available.has(slot),
+      meta: available.has(slot) ? "正在读取高清原图" : "空照片位",
+      placeholder: available.has(slot) ? "照片读取中" : "尚未上传",
       blob: null
     }));
-    if (listError) return { photos: output, warning: "照片清单暂无法读取，已保留五个照片位和说明" };
     const queue = Array.from(available.values()).filter((photo) => Number.isInteger(Number(photo.slot)) && Number(photo.slot) >= 0 && Number(photo.slot) <= 4);
     let cursor = 0;
     let completed = 0;
-    let failed = 0;
+    const failures = [];
     const workers = Array.from({ length: Math.min(3, queue.length) }, async () => {
       while (cursor < queue.length) {
         const index = cursor;
@@ -349,23 +443,17 @@
         const photo = queue[index];
         const slot = Number(photo.slot);
         try {
-          const blob = await fetchVerificationPhotoBlob(clean(record.id), photo);
+          const blob = await fetchVerificationPhotoBlob(recordId, photo);
           output[slot] = {
             slot,
             label: photoSlotLabel(slot),
+            required: true,
             meta: [photoSizeLabel(blob.size), formatTime(photo.uploadedAt) || "已保存"].filter(Boolean).join(" · "),
             placeholder: "照片读取失败",
             blob
           };
         } catch (error) {
-          failed += 1;
-          output[slot] = {
-            slot,
-            label: photoSlotLabel(slot),
-            meta: exportPhotoFailureMeta(error),
-            placeholder: "照片暂无法读取",
-            blob: null
-          };
+          failures.push({ slot, message: exportPhotoFailureMeta(error) });
         } finally {
           completed += 1;
           setExportControls(false, `正在读取核销高清照片 ${completed} / ${queue.length}…`);
@@ -373,14 +461,36 @@
       }
     });
     await Promise.all(workers);
-    return {
-      photos: output,
-      warning: failed ? `${failed} 张照片暂无法读取，已用占位信息完成导出` : ""
-    };
+    if (failures.length) {
+      const labels = failures.sort((left, right) => left.slot - right.slot)
+        .map((failure) => `${photoSlotLabel(failure.slot)}（${failure.message}）`).join("、");
+      throw new Error(`${labels}未能完整载入，本次没有生成文件。请检查网络后重试。`);
+    }
+    const requiredCount = output.filter((photo) => photo.required).length;
+    const loadedCount = output.filter((photo) => photo.required && photo.blob instanceof Blob && photo.blob.size).length;
+    if (loadedCount !== requiredCount) throw new Error("核销照片完整性检查未通过，本次没有生成文件。请重试。");
+    const editableUntil = Date.parse(manifest?.editableUntil || "");
+    if (databaseBacked && Number.isFinite(editableUntil) && editableUntil > Date.now()) {
+      setExportControls(false, "正在确认照片清单没有在导出期间发生变化…");
+      let confirmedManifest;
+      try { confirmedManifest = await fetchVerificationPhotoManifest(recordId); }
+      catch (error) {
+        throw new Error(`核销照片最终确认失败，本次没有生成文件。${clean(error?.message) || "请重试。"}`);
+      }
+      if (verificationPhotoManifestSignature(confirmedManifest) !== manifestSignature) {
+        renderVerificationPhotos(confirmedManifest, recordId);
+        throw new Error("核销照片在导出期间发生了变化，本次没有生成文件。请重新导出以包含最新照片。");
+      }
+    }
+    return { photos: output, warning: "" };
   }
 
   async function exportCurrentOrder(format) {
     if (orderExportBusy || !currentRecord) return;
+    if (verificationPhotoUploadBusy) {
+      setExportControls(false, "照片正在上传，请等待保存完成后再导出。");
+      return;
+    }
     if (!window.OrderExporter?.exportOrder) {
       setExportControls(true, "导出组件未加载，请刷新页面重试。");
       return;
@@ -724,22 +834,36 @@
 
   async function uploadVerificationPhoto(recordId, slot, file) {
     if (verificationPhotoUploadBusy) return;
+    if (orderExportBusy) {
+      $("verificationPhotoMessage").className = "verification-photo-message error";
+      $("verificationPhotoMessage").textContent = "工单正在导出，请等待完成后再上传照片。";
+      return;
+    }
     verificationPhotoUploadBusy = true;
     const status = $("verificationPhotoMessage");
     status.className = "verification-photo-message";
     status.textContent = `正在处理并上传${photoSlotLabel(slot)}…`;
     setVerificationPhotoButtonsDisabled(true);
+    setExportControls(false, "照片正在上传，保存完成后才能导出完整工单。");
     try {
       const images = await prepareVerificationPhoto(file);
       await callFaceRecognition({ action: "uploadVerificationExtraPhoto", recordId, slot, ...images });
       status.textContent = `${photoSlotLabel(slot)}已安全保存。`;
-      await loadVerificationPhotos({ id: recordId, databaseBacked: true });
+      verificationPhotoLoadPromise = loadVerificationPhotos({ id: recordId, databaseBacked: true });
+      await verificationPhotoLoadPromise;
     } catch (error) {
-      await loadVerificationPhotos({ id: recordId, databaseBacked: true });
+      verificationPhotoLoadPromise = loadVerificationPhotos({ id: recordId, databaseBacked: true });
+      await verificationPhotoLoadPromise;
       $("verificationPhotoMessage").className = "verification-photo-message error";
       $("verificationPhotoMessage").textContent = error?.message || "照片上传失败，请重试";
     } finally {
       verificationPhotoUploadBusy = false;
+      const manifestReady = currentVerificationPhotoPayload
+        && !currentVerificationPhotoPayload.error
+        && Array.isArray(currentVerificationPhotoPayload.photos);
+      setExportControls(Boolean(currentRecord) && manifestReady, manifestReady
+        ? "照片清单已刷新，可以导出完整工单。"
+        : "照片清单读取失败，暂时不能导出完整工单。");
     }
   }
 

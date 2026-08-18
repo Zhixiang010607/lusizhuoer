@@ -232,7 +232,7 @@ assert.ok(
     < functionSource(cloud, "getVerificationPhotos").indexOf("signVerificationPhoto("),
   "original URLs must be signed only after the verification-order permission check"
 );
-includes(detailUi, 'const VERSION = "0.15.22"', "detail UI cache version");
+includes(detailUi, 'const VERSION = "0.15.23"', "detail UI cache version");
 includes(detailUi, 'return "客户原始留存照"', "retained profile label");
 includes(detailUi, 'return "本次核销人脸照"', "current face label");
 includes(detailUi, "Array.from({ length: 5 }", "five-card gallery");
@@ -249,12 +249,24 @@ includes(detailUi, 'image.fetchPriority = "high"', "clicked original receives hi
 includes(detailUi, 'action: "getVerificationPhotoExportData"', "PDF/image export authorized binary fallback");
 includes(detailUi, 'cache: "force-cache"', "export reuses cached signed original when available");
 includes(detailUi, "Math.min(3, queue.length)", "at most three private originals export concurrently");
+includes(detailUi, "verificationExportBlobCache", "consecutive PDF/JPG exports reuse downloaded originals");
+includes(detailUi, "if (failures.length)", "existing photo failures block incomplete exports");
+const exportPhotosSource = functionSource(detailUi, "verificationExportPhotos");
+assert.ok(
+  exportPhotosSource.indexOf("fetchVerificationPhotoManifest(recordId)")
+    < exportPhotosSource.indexOf("const available = new Map"),
+  "database photo manifest must be refreshed before deciding which slots are empty"
+);
+includes(exportPhotosSource, "verificationPhotoManifestSignature(confirmedManifest) !== manifestSignature", "editable photo manifest is rechecked after downloads");
+includes(functionSource(detailUi, "fetchVerificationPhotoManifest"), "payload?.ok !== true || !Array.isArray(payload?.photos)", "null/loading manifest cannot be treated as five empty slots");
+includes(functionSource(detailUi, "uploadVerificationPhoto"), "verificationPhotoLoadPromise = loadVerificationPhotos", "upload refresh is part of the authoritative photo-load promise");
 assert.ok(!functionSource(detailUi, "chooseVerificationPhoto").includes("capture"), "gallery/file picker must not force camera capture");
 includes(detailHtml, 'id="verificationPhotoGrid"', "five-slot gallery mount");
 includes(detailHtml, 'id="verificationPhotoViewer"', "original image dialog");
 includes(detailHtml, 'id="verificationPhotoCameraDialog"', "camera preview dialog");
 includes(detailHtml, 'id="verificationPhotoCameraVideo" autoplay playsinline muted', "mobile inline camera preview");
-includes(detailHtml, 'business-detail.js?v=0.15.22', "detail script cache bust");
+includes(detailHtml, 'order-export.js?v=0.1.1', "export renderer cache bust");
+includes(detailHtml, 'business-detail.js?v=0.15.23', "detail script cache bust");
 includes(detailHtml, 'styles.css?v=0.15.18', "detail styles cache bust");
 includes(styles, "grid-template-columns: repeat(3, minmax(0, 1fr))", "roomy three-column desktop gallery");
 includes(styles, ".verification-photo-actions", "separate camera and upload action layout");

@@ -118,6 +118,90 @@
     return y + (subtitle ? 68 : 48);
   }
 
+  function drawDocumentHeader(context, documentData, draw) {
+    const top = 44;
+    const gap = 28;
+    const statusWidth = 276;
+    const leftWidth = CONTENT_WIDTH - statusWidth - gap;
+    const kind = text(documentData.kind, documentData.detailTitle || "业务工单");
+    const title = text(documentData.title, "业务工单");
+    const subtitle = text(documentData.subtitle, "业务工单完整导出");
+    const statusLabel = text(documentData.statusLabel, "当前审核状态");
+    const status = text(documentData.status);
+    const statusHint = text(documentData.statusHint, "—");
+    setFont(context, 18, 800);
+    const kindWidth = Math.min(leftWidth, Math.max(96, context.measureText(kind).width + 34));
+    const titleY = top + 51;
+    const titleMetrics = drawWrappedText(context, title, PAGE_MARGIN, titleY, leftWidth, {
+      draw: false,
+      size: 42,
+      lineHeight: 52,
+      weight: 900
+    });
+    const subtitleY = titleY + titleMetrics.height + 8;
+    const subtitleMetrics = drawWrappedText(context, subtitle, PAGE_MARGIN, subtitleY, leftWidth, {
+      draw: false,
+      size: 18,
+      lineHeight: 28
+    });
+    const statusX = PAGE_MARGIN + leftWidth + gap;
+    const hintMetrics = drawWrappedText(context, statusHint, statusX + 20, top + 82, statusWidth - 40, {
+      draw: false,
+      size: 16,
+      lineHeight: 24
+    });
+    const statusHeight = Math.max(132, 102 + hintMetrics.height);
+    const bottom = Math.max(subtitleY + subtitleMetrics.height, top + statusHeight) + 30;
+    if (!draw) return bottom;
+
+    context.fillStyle = "#10233f";
+    context.fillRect(0, 0, CANVAS_WIDTH, 18);
+    context.fillStyle = "#edf4ff";
+    roundedRect(context, PAGE_MARGIN, top, kindWidth, 34, 17);
+    context.fill();
+    context.fillStyle = "#245796";
+    setFont(context, 18, 800);
+    context.textBaseline = "middle";
+    context.fillText(kind, PAGE_MARGIN + 17, top + 17);
+
+    drawWrappedText(context, title, PAGE_MARGIN, titleY, leftWidth, {
+      draw: true,
+      size: 42,
+      lineHeight: 52,
+      weight: 900,
+      color: "#10233f"
+    });
+    drawWrappedText(context, subtitle, PAGE_MARGIN, subtitleY, leftWidth, {
+      draw: true,
+      size: 18,
+      lineHeight: 28,
+      color: "#667085"
+    });
+
+    context.fillStyle = "#f8fafc";
+    context.strokeStyle = "#d9e2ee";
+    context.lineWidth = 1;
+    roundedRect(context, statusX, top, statusWidth, statusHeight, 16);
+    context.fill();
+    context.stroke();
+    context.fillStyle = "#667085";
+    setFont(context, 15, 600);
+    context.textBaseline = "top";
+    context.fillText(statusLabel, statusX + 20, top + 18);
+    const statusColor = documentData.statusTone === "rejected" ? "#b42318"
+      : documentData.statusTone === "pending" ? "#8a5b00" : "#067a5c";
+    context.fillStyle = statusColor;
+    setFont(context, 26, 900);
+    context.fillText(status, statusX + 20, top + 44);
+    drawWrappedText(context, statusHint, statusX + 20, top + 82, statusWidth - 40, {
+      draw: true,
+      size: 16,
+      lineHeight: 24,
+      color: "#667085"
+    });
+    return bottom;
+  }
+
   function drawInfoGrid(context, items, y, draw, paginate) {
     const gap = 14;
     const width = (CONTENT_WIDTH - gap) / 2;
@@ -229,32 +313,11 @@
   function layoutDocument(context, documentData, photos, options = {}) {
     const draw = options.draw === true;
     const paginate = options.paginate === true;
-    let y = PAGE_MARGIN;
     if (draw) {
       context.fillStyle = "#ffffff";
       context.fillRect(0, 0, context.canvas.width, context.canvas.height);
-      context.fillStyle = "#10233f";
-      context.fillRect(0, 0, CANVAS_WIDTH, 18);
-      context.fillStyle = "#10233f";
-      setFont(context, 42, 900);
-      context.textBaseline = "top";
-      context.fillText(text(documentData.title), PAGE_MARGIN, y);
-      context.fillStyle = "#667085";
-      setFont(context, 18, 400);
-      context.fillText(text(documentData.subtitle, "业务工单完整导出"), PAGE_MARGIN, y + 58);
-      context.fillStyle = documentData.statusTone === "rejected" ? "#b42318" : documentData.statusTone === "pending" ? "#8a5b00" : "#067a5c";
-      roundedRect(context, CANVAS_WIDTH - PAGE_MARGIN - 170, y + 4, 170, 48, 24);
-      context.globalAlpha = 0.12;
-      context.fill();
-      context.globalAlpha = 1;
-      setFont(context, 20, 800);
-      context.textAlign = "center";
-      context.textBaseline = "middle";
-      context.fillText(text(documentData.status), CANVAS_WIDTH - PAGE_MARGIN - 85, y + 28);
-      context.textAlign = "left";
-      context.textBaseline = "top";
     }
-    y += 108;
+    let y = drawDocumentHeader(context, documentData, draw);
     y = drawInfoGrid(context, documentData.facts || [], y, draw, paginate);
     y += 12;
     y = ensureSpace(y, 70, paginate);
@@ -328,8 +391,10 @@
     let objectUrl = "";
     try {
       if (typeof createImageBitmap === "function") {
-        image = await createImageBitmap(blob, { imageOrientation: "from-image" });
-      } else {
+        try { image = await createImageBitmap(blob, { imageOrientation: "from-image" }); }
+        catch (_) { image = null; }
+      }
+      if (!image) {
         objectUrl = URL.createObjectURL(blob);
         image = await new Promise((resolve, reject) => {
           const element = new Image();
@@ -360,10 +425,14 @@
       let placeholder = item.placeholder || "尚未上传";
       if (item.blob instanceof Blob) {
         try { image = await decodeBlobToCanvas(item.blob); }
-        catch (_) { placeholder = "照片载入失败"; }
+        catch (error) { throw new Error(`${text(item.label, "核销照片")}解码失败，本次没有生成文件。请重试。`); }
       }
+      if (item.required && !image) throw new Error(`${text(item.label, "核销照片")}尚未完整载入，本次没有生成文件。请重试。`);
       prepared.push({ ...item, image, placeholder });
     }
+    const requiredCount = prepared.filter((item) => item.required).length;
+    const embeddedCount = prepared.filter((item) => item.required && item.image).length;
+    if (embeddedCount !== requiredCount) throw new Error("核销照片完整性检查未通过，本次没有生成文件。请重试。");
     return prepared;
   }
 
