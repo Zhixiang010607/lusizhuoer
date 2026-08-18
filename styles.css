@@ -70,6 +70,11 @@ button, input, select { font: inherit; }
 .side-footer span { display: block; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-footer button { width: 100%; padding: 7px 9px; border: 1px solid #ffffff1d; color: #d9e6f2; background: #ffffff0a; font-size: 10px; }
 .side-footer button:hover { background: #ffffff16; }
+.mobile-account-menu { display: none; }
+.mobile-account-menu summary { list-style: none; }
+.mobile-account-menu summary::-webkit-details-marker { display: none; }
+.mobile-account-popover strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mobile-account-popover button { width: 100%; border: 1px solid #ffffff26; color: #fff; background: #1f5eff; }
 .access-notice { position: fixed; top: 18px; left: 50%; z-index: 100; transform: translateX(-50%); padding: 11px 16px; border: 1px solid #f0c66c; border-radius: 10px; color: #6b4800; background: #fff7df; box-shadow: var(--shadow); font-size: 12px; font-weight: 700; }
 h1, h2, p { margin-top: 0; }
 h1 { margin-bottom: 3px; font-size: clamp(22px, 2.4vw, 30px); letter-spacing: -.02em; }
@@ -1109,6 +1114,13 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
   .side-menu-group:not([open]) nav { display: none; }
   .side-menu-group[open]:not(:focus-within) nav { display: none; }
   .side-footer { min-height: 0; padding: 8px 0 0; }
+  .mobile-account-menu { position: relative; display: block; margin-top: auto; }
+  .mobile-account-menu summary { display: flex; justify-content: center; padding: 9px; border-radius: 8px; color: #d8e5f2; cursor: pointer; }
+  .mobile-account-menu summary span:last-child { display: none; }
+  .mobile-account-menu[open] summary { color: #fff; background: #ffffff14; }
+  .mobile-account-popover { position: absolute; left: 60px; bottom: 0; z-index: 45; width: 190px; padding: 10px; border: 1px solid #ffffff20; border-radius: 10px; color: #d9e6f2; background: #0d1d31; box-shadow: var(--shadow); }
+  .mobile-account-popover strong { margin-bottom: 8px; font-size: 10px; }
+  .mobile-account-popover button { min-height: 34px; padding: 7px 9px; font-size: 11px; }
   .topbar { padding: 10px 16px; }
   main { width: min(100% - 22px, 1480px); margin-top: 10px; }
   .dashboard-grid, .management-grid, .detail-bottom-grid, .customer-profile-grid, .customer-records-grid { grid-template-columns: 1fr; }
@@ -1220,6 +1232,13 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
   .side-menu-group summary { padding: 7px 9px; }
   .side-menu-group summary span:last-of-type { display: none; }
   .side-menu-group nav { position: absolute; top: 42px; right: 0; z-index: 30; min-width: 150px; margin: 0; padding: 8px; border: 1px solid #ffffff20; border-radius: 9px; background: #0d1d31; box-shadow: var(--shadow); }
+  .mobile-account-menu { position: relative; display: block; flex: 0 0 auto; margin: 0 0 0 auto; }
+  .mobile-account-menu summary { display: flex; align-items: center; padding: 7px 9px; border-radius: 8px; color: #d8e5f2; cursor: pointer; }
+  .mobile-account-menu summary span:last-child { display: none; }
+  .mobile-account-menu[open] summary { color: #fff; background: #ffffff14; }
+  .mobile-account-popover { position: absolute; top: 42px; right: 0; z-index: 45; width: min(210px, calc(100vw - 24px)); padding: 10px; border: 1px solid #ffffff20; border-radius: 10px; color: #d9e6f2; background: #0d1d31; box-shadow: var(--shadow); }
+  .mobile-account-popover strong { margin-bottom: 8px; font-size: 10px; }
+  .mobile-account-popover button { min-height: 36px; padding: 8px 10px; font-size: 11px; }
   .topbar { padding: 10px 12px; align-items: flex-start; } .header-actions { flex-direction: column; align-items: flex-end; } .order-export-actions { width: 100%; flex-direction: row; justify-content: flex-end; } .order-export-message { width: 100%; text-align: right; } .status { display: none; } main { width: min(100% - 14px, 1480px); margin-top: 8px; }
   .filter-grid { grid-template-columns: repeat(2, 1fr); } .metric-grid { grid-template-columns: repeat(2, 1fr); }
   .dashboard-grid, .management-grid, .detail-bottom-grid { grid-template-columns: 1fr; } .wide { grid-column: auto; }

@@ -125,6 +125,14 @@
   document.querySelectorAll(".side-brand strong").forEach((node) => { node.textContent = labels[session.role]; });
   const footer = document.querySelector(".side-footer");
   if (footer) footer.innerHTML = `<span>${session.account}${session.store ? ` · ${session.store}` : ""}</span><button id="logoutWorkspace" type="button">退出登录</button>`;
+  if (sidebar) {
+    const mobileAccountMenu = document.createElement("details");
+    mobileAccountMenu.className = "mobile-account-menu";
+    mobileAccountMenu.innerHTML = `<summary aria-label="账户与退出登录"><span class="nav-icon">退</span><span>账户</span></summary><div class="mobile-account-popover"><strong></strong><button id="logoutWorkspaceMobile" type="button">退出登录</button></div>`;
+    mobileAccountMenu.querySelector("strong").textContent = `${session.account}${session.store ? ` · ${session.store}` : ""}`;
+    if (footer) footer.before(mobileAccountMenu);
+    else sidebar.append(mobileAccountMenu);
+  }
   let message = "";
   try { message = sessionStorage.getItem("prototypeAccessMessage") || ""; if (message) sessionStorage.removeItem("prototypeAccessMessage"); } catch (_) { message = ""; }
   if (message) {
@@ -184,9 +192,12 @@
     verifyLiveIdentity();
   }
 
-  $("logoutWorkspace")?.addEventListener("click", async () => {
-    const button = $("logoutWorkspace");
-    if (button) button.disabled = true;
+  const logoutButtons = [$("logoutWorkspace"), $("logoutWorkspaceMobile")].filter(Boolean);
+  let logoutInProgress = false;
+  async function logoutWorkspace() {
+    if (logoutInProgress) return;
+    logoutInProgress = true;
+    logoutButtons.forEach((button) => { button.disabled = true; });
     try {
       if (!isLocalPreview && typeof window.CloudBasePhoneAuth?.signOut === "function") {
         await window.CloudBasePhoneAuth.signOut();
@@ -204,7 +215,8 @@
       clearWorkspaceSession();
       location.replace("login.html");
     }
-  });
+  }
+  logoutButtons.forEach((button) => button.addEventListener("click", logoutWorkspace));
 
   function initializeChineseBirthdayInputs() {
     const birthdayInputIds = [
