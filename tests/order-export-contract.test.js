@@ -74,8 +74,14 @@ assert.ok(twoPagePdf.includes("xref\n0 9"), "multi-page PDF xref count");
 for (const html of [rechargeHtml, verificationHtml]) {
   includes(html, 'id="exportOrderPdf"', "PDF export button");
   includes(html, 'id="exportOrderImage"', "image export button");
-  assert.ok(html.indexOf("order-export.js?v=0.1.2") < html.indexOf("business-detail.js?v=0.16.9"), "exporter must load before detail controller");
+  assert.ok(html.indexOf("order-export.js?v=0.1.2") < html.indexOf("business-detail.js?v=0.16.10"), "exporter must load before detail controller");
 }
+
+includes(verificationHtml, 'class="verification-order-keyfacts verification-order-five-keyfacts"', "verification detail uses a five-fact header");
+assert.doesNotMatch(verificationHtml, /id="orderInfo"|<h2>核销信息<\/h2>|verificationHqMessage|总部留言/, "verification detail removes the duplicated information section and HQ message");
+includes(verificationHtml, '<h2 id="reviewPanelTitle">门店留言</h2>', "verification detail keeps one store message panel");
+includes(detailSource, 'keyFacts.push(factCard("提交时间", submittedAt, ""))', "verification detail adds submission time beside the four key facts");
+includes(detailSource, 'if (recharge) $("orderInfo").innerHTML', "the shared controller only renders the detail grid for recharge and refund orders");
 
 includes(detailSource, 'filename: `${customerName}+${projectName}+${refund ? "退费" : recharge ? "充值" : "核销"}`', "required filename contract");
 includes(detailSource, 'kind: clean($("orderKindTag")?.textContent)', "header order-kind export");
@@ -98,6 +104,7 @@ includes(detailSource, "compactVerification: !recharge", "verification PDF uses 
 includes(detailSource, "facts: recharge ? facts : verificationFacts", "verification PDF keeps only the four header facts");
 includes(detailSource, "details: recharge ? details : []", "verification PDF removes repeated detail grid and unit count");
 includes(detailSource, "`提交时间：${submittedAt}`", "verification PDF keeps submission time in the header");
+includes(detailSource, 'facts.find((item) => item.label === "提交时间")?.value', "verification PDF reads submission time from the compact screen header");
 const exportDataSource = detailSource.slice(detailSource.indexOf("function exportDocumentData"), detailSource.indexOf("async function fetchVerificationPhotoUrlBlob"));
 assert.ok(!exportDataSource.includes("verificationHqMessage"), "verification PDF keeps only the store message");
 assert.ok(!/html2canvas|jspdf|unpkg|cdnjs/i.test(exporterSource), "export must not load a third-party DOM service");

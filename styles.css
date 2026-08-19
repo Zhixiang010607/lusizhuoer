@@ -967,6 +967,7 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .verification-order-status strong.approved { color: #08765f; }
 .verification-order-status strong.rejected { color: #b42c2c; }
 .verification-order-keyfacts { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding-top: 4px; }
+.verification-order-keyfacts.verification-order-five-keyfacts { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .verification-order-keyfacts div { display: grid; gap: 4px; padding: 10px 11px; border: 1px solid var(--line); border-radius: 10px; background: #f8fafc; }
 .verification-order-keyfacts span { color: var(--muted); font-size: 10px; }
 .verification-order-keyfacts strong { font-size: 12px; overflow-wrap: anywhere; }
@@ -985,6 +986,9 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .verification-order-decision { display: grid; align-content: space-between; gap: 13px; }
 .verification-order-decision .panel-heading { margin-bottom: 0; }
 .verification-order-messages { align-content: start; }
+.verification-order-store-message { margin-top: 14px; padding: 17px; }
+.verification-order-store-message .verification-message-card { padding: 0; border: 0; background: transparent; }
+.verification-order-store-message .verification-message-text { min-height: 82px; max-height: 180px; margin: 0; }
 .verification-message-list { min-height: 0; display: grid; gap: 10px; }
 .verification-message-card { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fafcff; }
 .verification-message-card > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
@@ -1168,7 +1172,7 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 @media (max-width: 1150px) { .business-lookup-panel { grid-template-columns: 1fr; } .business-lookup-fields { grid-template-columns: 1fr 1fr auto; } }
 @media (max-width: 1150px) { .store-workflow-main > .panel, .store-business-full-panel { min-height: auto; } }
 @media (max-width: 1150px) { .review-filter-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } .review-code-panel { grid-template-columns: minmax(0, 1fr) auto; } .review-count { grid-column: auto; justify-self: stretch; } }
-@media (max-width: 980px) { .verification-order-grid { grid-template-columns: 1fr; } .verification-order-keyfacts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 980px) { .verification-order-grid { grid-template-columns: 1fr; } .verification-order-keyfacts, .verification-order-keyfacts.verification-order-five-keyfacts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 980px) { .verification-photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (min-width: 761px) and (max-width: 1100px) {
   body { padding-left: 80px; }
@@ -1375,7 +1379,7 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
   .verification-order-main { width: min(100% - 22px, 1260px); }
   .verification-order-hero { grid-template-columns: 1fr; }
   .verification-order-status { min-width: 0; }
-  .verification-order-keyfacts { grid-template-columns: 1fr; }
+  .verification-order-keyfacts, .verification-order-keyfacts.verification-order-five-keyfacts { grid-template-columns: 1fr; }
   .order-comment-grid { grid-template-columns: 1fr; }
   .communication-compose { grid-template-columns: 1fr; }
   .review-count { grid-column: auto; }

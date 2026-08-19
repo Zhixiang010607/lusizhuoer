@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.9";
+  const VERSION = "0.16.10";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -271,7 +271,9 @@
       value: elementText(element, "strong")
     }));
     const verificationFacts = facts.filter((item) => ["门店", "客户", "项目", "业务老师"].includes(item.label));
-    const submittedAt = details.find((item) => item.label === "提交时间")?.value || "—";
+    const submittedAt = details.find((item) => item.label === "提交时间")?.value
+      || facts.find((item) => item.label === "提交时间")?.value
+      || "—";
     const messages = recharge
       ? [
           { label: "门店原申请留言", value: clean($("rechargeStoreMessage")?.textContent) || "无", time: clean($("rechargeStoreMessageTime")?.textContent) },
@@ -663,13 +665,8 @@
 
   function renderVerificationMessages(record) {
     const storeMessage = combinedStoreMessage(record);
-    const hqMessage = first(record?.initialHqNote, record?.reviewNote, record?.hqReviewNote, record?.approvalNote, record?.rejectionNote);
-    $("reviewPanelTitle").textContent = "工单留言";
-    $("reviewPanelHint").textContent = "门店提交留言与总部审核留言集中显示；长留言可在各自区域内上下滚动。";
+    $("reviewPanelTitle").textContent = "门店留言";
     $("verificationStoreMessage").textContent = storeMessage || "无";
-    $("verificationHqMessage").textContent = hqMessage || "无";
-    $("verificationStoreMessageTime").textContent = formatTime(first(record?.createdAt, record?.submittedAt)) || "—";
-    $("verificationHqMessageTime").textContent = formatTime(first(record?.reviewedAt, record?.approvedAt, record?.rejectedAt)) || "—";
   }
 
   function photoSlotLabel(slot) {
@@ -2198,8 +2195,10 @@
     $("orderStatus").className = "rejected";
     $("orderStatus").textContent = "读取失败";
     $("orderStatusHint").textContent = "当前页面没有收到工单数据";
-    $("orderKeyfacts").innerHTML = ["门店", "客户", "项目", "业务老师"].map((label) => factCard(label, "", "")).join("");
-    $("orderInfo").innerHTML = infoCard(recharge ? "充值单编号" : "核销单编号", recordId);
+    const missingFacts = ["门店", "客户", "项目", "业务老师"];
+    if (!recharge) missingFacts.push("提交时间");
+    $("orderKeyfacts").innerHTML = missingFacts.map((label) => factCard(label, "", "")).join("");
+    if (recharge) $("orderInfo").innerHTML = infoCard("充值单编号", recordId);
     if (!recharge) {
       renderVerificationMessages(null);
       resetVerificationPhotoPanel("尚未读取到可关联的数据库核销单。");
@@ -2251,19 +2250,21 @@
     $("orderStatus").textContent = status.label;
     $("orderStatusHint").textContent = status.hint;
 
-    $("orderKeyfacts").innerHTML = [
+    const keyFacts = [
       factCard("门店", record.storeName, storeCode),
       factCard("客户", record.customerName, customerCode),
       factCard("项目", first(record.projectName, record.productName), projectCode),
       factCard("业务老师", record.teacherName, teacherCode, "未指定")
-    ].join("");
+    ];
+    if (!recharge) keyFacts.push(factCard("提交时间", submittedAt, ""));
+    $("orderKeyfacts").innerHTML = keyFacts.join("");
 
-    const items = refund
-      ? [["退费单编号", recordCode], ["申请类型", kind], ["客户", customerLabel], ["项目", projectLabel], ["业务老师", teacherLabel], ["申请时剩余次数", `${Number(record.balanceBeforeCount || 0)} 次`], ["退费次数", `${countNumber} 次`], ["审核后剩余次数", record.balanceAfterCount === "" || record.balanceAfterCount === null || record.balanceAfterCount === undefined ? "待审核" : `${Number(record.balanceAfterCount)} 次`], ["提交时间", submittedAt], ["审核时间", reviewedAt]]
-      : recharge
-      ? [["充值单编号", recordCode], ["申请类型", kind], ["客户", customerLabel], ["项目", projectLabel], ["业务老师", teacherLabel], ["充值次数", countLabel], ["提交时间", submittedAt], ["审核时间", reviewedAt]]
-      : [["核销单编号", recordCode], ["核销类型", kind], ["客户", customerLabel], ["项目", projectLabel], ["业务老师", teacherLabel], ["核销次数", countLabel], ["提交时间", submittedAt], ["审核时间", reviewedAt]];
-    $("orderInfo").innerHTML = items.map(([label, value]) => infoCard(label, value)).join("");
+    if (recharge) {
+      const items = refund
+        ? [["退费单编号", recordCode], ["申请类型", kind], ["客户", customerLabel], ["项目", projectLabel], ["业务老师", teacherLabel], ["申请时剩余次数", `${Number(record.balanceBeforeCount || 0)} 次`], ["退费次数", `${countNumber} 次`], ["审核后剩余次数", record.balanceAfterCount === "" || record.balanceAfterCount === null || record.balanceAfterCount === undefined ? "待审核" : `${Number(record.balanceAfterCount)} 次`], ["提交时间", submittedAt], ["审核时间", reviewedAt]]
+        : [["充值单编号", recordCode], ["申请类型", kind], ["客户", customerLabel], ["项目", projectLabel], ["业务老师", teacherLabel], ["充值次数", countLabel], ["提交时间", submittedAt], ["审核时间", reviewedAt]];
+      $("orderInfo").innerHTML = items.map(([label, value]) => infoCard(label, value)).join("");
+    }
 
     if (!recharge) {
       renderVerificationMessages(record);
