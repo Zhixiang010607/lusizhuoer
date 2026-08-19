@@ -592,7 +592,9 @@ dialog::backdrop { background: #0b142a88; backdrop-filter: blur(3px); }
 .customer-photo-panel .panel-heading { width: 100%; }
 .customer-photo-frame { width: min(100%, 204px); aspect-ratio: 1; min-height: 0; margin: 0 auto; overflow: hidden; border: 1px solid #dce5ef; border-radius: 14px; background: #f3f7fb; box-shadow: 0 8px 18px #163a6410; }
 .customer-photo-frame img { width: 100%; height: 100%; display: block; object-fit: cover; }
-.customer-notes-actions { display: flex; align-items: center; gap: 7px; }
+.customer-notes-title-row { min-width: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.customer-notes-title-row h2 { flex: 0 0 auto; }
+.customer-notes-actions { min-width: 0; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 .customer-notes-actions button { min-height: 30px; padding: 6px 11px; font-size: 11px; }
 .customer-notes-messages-grid { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; align-items: stretch; }
 .customer-notes-panel textarea { min-height: 56px; height: 56px; margin: 0; overflow-y: auto; resize: vertical; background: #fafcff; }
