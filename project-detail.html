@@ -1,11 +1,55 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>产品详情</title><link rel="stylesheet" href="styles.css?v=0.15.44"></head>
-<body>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>产品单据模板</title>
+  <link rel="stylesheet" href="styles.css?v=0.15.48">
+</head>
+<body data-product-template>
   <aside class="side-project-bar" aria-label="项目栏"><div class="side-brand"><span>HQ</span><div><strong>总部工作区</strong><small>项目栏</small></div></div><nav class="side-nav"></nav><div class="side-footer">总部权限</div></aside>
-  <header class="topbar"><div><p class="eyebrow">PRODUCT DETAIL</p><h1>产品详情</h1><p class="subtitle">按门店查看购买与核销，按老师查看核销汇总。</p></div><a class="button-link secondary-button" href="project-management.html">返回产品管理</a></header>
-  <main class="detail-page"><section id="projectHero" class="panel profile-hero"></section><section class="panel detail-section"><div class="panel-heading"><div><h2>产品基础资料</h2><p>仅展示已创建产品的真实资料。</p></div></div><div id="projectBasicGrid" class="detail-info-grid"></div></section>
-  <section class="panel detail-section table-card"><div class="panel-heading"><div><h2>按门店汇总</h2><p>各门店的有效购买次数和有效核销次数；门店名称可进入门店首页。</p></div><label>时间周期<select id="storePeriod"><option value="all">全部时间</option><option value="30">近30日</option><option value="ytd">本年至今</option></select></label></div><div class="table-scroll"><table><thead><tr><th>门店</th><th>购买次数</th><th>核销次数</th><th>剩余次数</th></tr></thead><tbody id="projectStoreBody"></tbody></table></div></section>
-  <section class="panel detail-section table-card"><div class="panel-heading"><div><h2>按老师汇总</h2><p>各老师在本产品下的有效核销次数汇总。</p></div><label>时间周期<select id="teacherPeriod"><option value="all">全部时间</option><option value="30">近30日</option><option value="ytd">本年至今</option></select></label></div><div class="table-scroll"><table><thead><tr><th>老师</th><th>核销次数</th></tr></thead><tbody id="projectTeacherBody"></tbody></table></div></section></main>
-  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.17.7"></script><script src="datetime.js?v=0.1.2"></script><script src="project-detail.js?v=0.1.1"></script><script src="auth-ui.js?v=0.18.9"></script>
-</body></html>
+  <header class="topbar"><div><p class="eyebrow">PRODUCT RECEIPT TEMPLATE</p><h1>产品单据模板</h1></div><a class="button-link secondary-button" href="project-management.html">返回产品管理</a></header>
+
+  <main class="product-template-page">
+    <section class="panel product-template-summary">
+      <div><span id="productTemplateType" class="profile-type">正在读取产品</span><h2 id="productTemplateName">产品单据模板</h2><p id="productTemplateMeta">请稍候…</p></div>
+      <div class="product-template-summary-actions"><span id="productTemplateState" class="badge">读取中</span><button id="toggleProductStatus" class="secondary" type="button" disabled>封存产品</button></div>
+    </section>
+
+    <div class="product-template-workspace">
+      <section class="panel product-template-editor">
+        <div class="panel-heading"><div><h2>模板内容</h2><p>LOGO 原图保存到腾讯云私有存储，不压缩、不裁切。</p></div></div>
+
+        <section class="product-logo-editor">
+          <div id="productLogoPreview" class="product-logo-square"><span>LOGO</span></div>
+          <div class="product-logo-controls">
+            <strong>共用产品 LOGO</strong>
+            <p id="productLogoMeta">尚未上传</p>
+            <input id="productLogoFile" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+            <div class="compact-actions"><button id="chooseProductLogo" type="button">选择原图</button><button id="uploadProductLogo" type="button" disabled>上传并保存</button><button id="removeProductLogo" class="secondary" type="button" disabled>移除</button></div>
+            <progress id="productLogoProgress" max="100" value="0" hidden></progress>
+          </div>
+        </section>
+
+        <label class="product-template-text">核销单说明 <small>正常核销与体验核销共用</small><textarea id="verificationReceiptInstructions" maxlength="3000" placeholder="填写核销单底部文字说明"></textarea><span><output id="verificationInstructionCount">0</output>/3000</span></label>
+        <label class="product-template-text">充值单说明 <small>充值与退费共用</small><textarea id="rechargeReceiptInstructions" maxlength="3000" placeholder="填写充值单、退费单底部文字说明"></textarea><span><output id="rechargeInstructionCount">0</output>/3000</span></label>
+        <div class="product-template-save-row"><p id="productTemplateMessage" role="status"></p><button id="saveProductTemplate" type="button" disabled>保存文字说明</button></div>
+      </section>
+
+      <section class="panel product-template-previews">
+        <div class="panel-heading"><div><h2>四种成品预览</h2><p>核销/体验共用一套，充值/退费共用一套；PDF 与图片分别预览。</p></div></div>
+        <div class="product-preview-tabs" role="tablist" aria-label="单据成品格式">
+          <button class="active" type="button" role="tab" data-preview-kind="verification-pdf">核销 PDF</button>
+          <button type="button" role="tab" data-preview-kind="verification-image">核销图片</button>
+          <button type="button" role="tab" data-preview-kind="recharge-pdf">充值 PDF</button>
+          <button type="button" role="tab" data-preview-kind="recharge-image">充值图片</button>
+        </div>
+        <div class="product-preview-toolbar"><div><strong id="productPreviewTitle">核销 PDF</strong><span id="productPreviewHint">正在生成预览…</span></div><div class="compact-actions"><button id="refreshProductPreview" class="secondary" type="button">刷新预览</button><button id="downloadProductPreview" type="button" disabled>下载样例</button></div></div>
+        <div id="productPreviewFrame" class="product-preview-frame" aria-live="polite"></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.17.8"></script><script src="datetime.js?v=0.1.2"></script><script src="order-export.js?v=0.1.5"></script><script src="project-detail.js?v=0.2.1"></script><script src="auth-ui.js?v=0.18.10"></script>
+</body>
+</html>

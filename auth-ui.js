@@ -16,7 +16,14 @@
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   const valid = session && access[session.role] && session.account && (session.role !== "store" || session.store);
-  if (!valid) { location.replace(`login.html?reason=${encodeURIComponent("请先选择身份并登录")}`); return; }
+  const localProductTemplatePreview = isLocalPreview && page === "project-detail.html"
+    && new URLSearchParams(location.search).get("preview") === "1";
+  if (!valid && localProductTemplatePreview) {
+    session = { role: "hq", account: "local-product-template-preview", name: "本地预览" };
+  } else if (!valid) {
+    location.replace(`login.html?reason=${encodeURIComponent("请先选择身份并登录")}`);
+    return;
+  }
   const legacyTeacherBusinessRoutes = {
     "teacher-recharge-create.html": "recharge-create.html",
     "teacher-refund-create.html": "refund-create.html",

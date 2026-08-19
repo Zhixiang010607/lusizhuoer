@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>核销工单详情</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.47">
+  <link rel="stylesheet" href="styles.css?v=0.15.48">
 </head>
 <body data-record-detail="verification">
   <aside class="side-project-bar" aria-label="项目栏">
@@ -33,6 +33,8 @@
       <div class="verification-order-status"><span>当前审核状态</span><strong id="orderStatus" class="pending">待审核</strong><small id="orderStatusHint">等待总部或运营处理</small></div>
       <div id="orderKeyfacts" class="verification-order-keyfacts verification-order-five-keyfacts"></div>
     </section>
+
+    <section id="productReceiptBrand" class="panel order-product-brand" hidden></section>
 
     <section class="panel verification-order-decision verification-order-messages verification-order-store-message" data-verification-messages>
       <div class="panel-heading"><div><h2 id="reviewPanelTitle">门店留言</h2></div></div>
@@ -100,10 +102,10 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
-  <script src="cloudbase-phone-auth.js?v=0.17.7"></script>
+  <script src="cloudbase-phone-auth.js?v=0.17.8"></script>
   <script src="datetime.js?v=0.1.2"></script>
-  <script src="order-export.js?v=0.1.3"></script>
-  <script src="business-detail.js?v=0.16.12"></script>
+  <script src="order-export.js?v=0.1.5"></script>
+  <script src="business-detail.js?v=0.16.14"></script>
   <script src="auth-ui.js?v=0.18.9"></script>
 </body>
 </html>

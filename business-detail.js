@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.12";
+  const VERSION = "0.16.14";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -34,6 +34,9 @@
   const verificationExportBlobCache = new Map();
   let verificationExportDirectFetchUnavailable = false;
   let orderExportBusy = false;
+  let currentProductTemplate = null;
+  let currentProductTemplateError = null;
+  let productTemplateLoadPromise = Promise.resolve();
 
   function loadSessionRows(key) {
     try {
@@ -287,6 +290,7 @@
     const messages = [];
     const customerName = first(record.customerName, record.customerCode, "客户");
     const projectName = first(record.projectName, record.productName, record.projectCode, record.productCode, "项目");
+    const template = currentProductTemplate || {};
     return {
       filename: `${customerName}+${projectName}+${refund ? "退费" : recharge ? "充值" : "核销"}`,
       kind: clean($("orderKindTag")?.textContent) || (recharge ? "充值" : "核销"),
@@ -294,18 +298,93 @@
       subtitle: recharge
         ? (clean($("orderDescription")?.textContent) || "业务工单完整导出")
         : `${clean($("orderDescription")?.textContent) || "门店详细地址：未填写"} · 提交时间：${submittedAt}`,
-      statusLabel: "当前审核状态",
-      status: clean($("orderStatus")?.textContent) || "—",
-      statusHint: clean($("orderStatusHint")?.textContent) || "—",
-      statusTone: $("orderStatus")?.classList.contains("rejected") ? "rejected" : $("orderStatus")?.classList.contains("pending") ? "pending" : "approved",
       facts: recharge ? facts : verificationFacts,
       customerFacing: true,
       compactVerification: !recharge,
       detailTitle: refund ? "退费信息" : recharge ? "充值信息" : "核销信息",
       detailSubtitle: refund ? "退费次数与办理时间" : recharge ? "充值次数与办理时间" : "该工单数据库中保存的完整业务内容",
       details: recharge ? details : [],
-      messages
+      messages,
+      productTemplate: {
+        productName: first(template.productName, record.projectName, record.productName, "产品"),
+        productType: first(template.productType, "未分类"),
+        instructions: recharge ? clean(template.rechargeInstructions) : clean(template.verificationInstructions),
+        logoRequired: Boolean(template.logo),
+        logoBlob: template.logoBlob instanceof Blob ? template.logoBlob : null
+      }
     };
+  }
+
+  function productReference(record) {
+    return first(record?.projectId, record?.productId, record?.projectCode, record?.productCode);
+  }
+
+  function base64ImageBlob(payload) {
+    const base64 = clean(payload?.base64);
+    const mimeType = clean(payload?.mimeType);
+    if (!base64 || !mimeType.startsWith("image/")) throw new Error("产品 LOGO 原图数据无效");
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    if (!bytes.length || (Number(payload?.bytes || bytes.length) !== bytes.length)) throw new Error("产品 LOGO 原图数据不完整");
+    return new Blob([bytes], { type: mimeType });
+  }
+
+  async function fetchProductLogoBlob(template, productRef) {
+    if (!template?.logo) return null;
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const timeout = window.setTimeout(() => controller?.abort(), 12000);
+    try {
+      const response = await fetch(template.logo.url, {
+        method: "GET", mode: "cors", credentials: "omit", cache: "force-cache",
+        referrerPolicy: "no-referrer", signal: controller?.signal
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      if (!blob.size || !String(blob.type || "").startsWith("image/")) throw new Error("返回内容不是图片");
+      if (Number(template.logo.bytes || 0) && blob.size !== Number(template.logo.bytes)) throw new Error("原图大小不一致");
+      return blob;
+    } catch (_) {
+      if (!window.CloudBasePhoneAuth?.getProductReceiptLogoData) throw new Error("产品 LOGO 原图读取失败");
+      return base64ImageBlob(await window.CloudBasePhoneAuth.getProductReceiptLogoData({ productRef }));
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+
+  function renderProductReceiptBrand(template, record) {
+    const panel = $("productReceiptBrand");
+    if (!panel) return;
+    const instructions = type === "recharge"
+      ? clean(template?.rechargeInstructions)
+      : clean(template?.verificationInstructions);
+    const logoUrl = clean(template?.logo?.url);
+    panel.hidden = false;
+    panel.innerHTML = `<div class="order-product-logo">${logoUrl
+      ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(first(template.productName, record.projectName, "产品"))} LOGO">`
+      : "<span>LOGO</span>"}</div><div class="order-product-copy"><span>产品单据</span><strong>${escapeHtml(first(template?.productName, record.projectName, record.productName, "产品"))}</strong><small>${escapeHtml(first(template?.productType, "未分类"))}</small><p>${escapeHtml(instructions || "暂无产品说明")}</p></div>`;
+  }
+
+  async function loadProductReceiptTemplate(record) {
+    const productRef = productReference(record);
+    currentProductTemplate = null;
+    currentProductTemplateError = null;
+    if (!productRef || !window.CloudBasePhoneAuth?.getProductReceiptTemplate) {
+      renderProductReceiptBrand({}, record);
+      return null;
+    }
+    try {
+      const template = await window.CloudBasePhoneAuth.getProductReceiptTemplate({ productRef });
+      if (!template) throw new Error("产品单据模板不存在");
+      if (template.logo) template.logoBlob = await fetchProductLogoBlob(template, productRef);
+      currentProductTemplate = template;
+      renderProductReceiptBrand(template, record);
+      return template;
+    } catch (error) {
+      currentProductTemplateError = error;
+      renderProductReceiptBrand({}, record);
+      throw error;
+    }
   }
 
   async function fetchVerificationPhotoUrlBlob(url, slot) {
@@ -538,6 +617,9 @@
     orderExportBusy = true;
     setExportControls(false, type === "verification" ? "正在准备工单与照片…" : "正在生成客户业务凭证…");
     try {
+      try { await productTemplateLoadPromise; }
+      catch (error) { throw new Error(`产品单据模板读取失败，本次没有生成文件。${clean(error?.message) || "请重试。"}`); }
+      if (currentProductTemplateError) throw currentProductTemplateError;
       const photoResult = type === "verification" ? await verificationExportPhotos(currentRecord) : { photos: [], warning: "" };
       setExportControls(false, format === "pdf" ? "正在分页生成 PDF…" : "正在生成高清图片…");
       const result = await window.OrderExporter.exportOrder({
@@ -2197,6 +2279,9 @@
   function renderMissing(recordId) {
     currentRecord = null;
     currentVerificationPhotoPayload = null;
+    currentProductTemplate = null;
+    currentProductTemplateError = null;
+    productTemplateLoadPromise = Promise.resolve();
     verificationPhotoLoadPromise = Promise.resolve();
     setExportControls(false, "工单读取完成后可以导出。");
     const recharge = type === "recharge";
@@ -2222,6 +2307,8 @@
 
   function renderRecord(record) {
     currentRecord = record;
+    productTemplateLoadPromise = loadProductReceiptTemplate(record);
+    productTemplateLoadPromise.catch(() => {});
     const recharge = type === "recharge";
     const recordCode = first(record.recordCode, record.rechargeCode, record.verificationCode, record.id);
     const normalKind = recharge

@@ -280,6 +280,47 @@
         "产品状态更新失败"
       );
     },
+    async getProductReceiptTemplate({ productRef }) {
+      const data = await callStaffAccount(
+        { action: "getProductReceiptTemplate", productRef },
+        "产品单据模板读取失败"
+      );
+      return data.template || null;
+    },
+    async beginProductLogoUpload({ productRef, originalName, mimeType, bytes, width, height }) {
+      return callStaffAccount(
+        { action: "beginProductLogoUpload", productRef, originalName, mimeType, bytes, width, height },
+        "产品 LOGO 上传准备失败"
+      );
+    },
+    async confirmProductLogoUpload({ productRef, reference, originalName, mimeType, bytes, width, height }) {
+      const data = await callStaffAccount(
+        { action: "confirmProductLogoUpload", productRef, reference, originalName, mimeType, bytes, width, height },
+        "产品 LOGO 保存确认失败"
+      );
+      return data.template || null;
+    },
+    async saveProductReceiptTemplate({ productRef, verificationInstructions, rechargeInstructions }) {
+      const data = await callStaffAccount(
+        { action: "saveProductReceiptTemplate", productRef, verificationInstructions, rechargeInstructions },
+        "产品单据模板保存失败"
+      );
+      return data.template || null;
+    },
+    async removeProductReceiptLogo({ productRef }) {
+      const data = await callStaffAccount(
+        { action: "removeProductReceiptLogo", productRef },
+        "产品 LOGO 移除失败"
+      );
+      return data.template || null;
+    },
+    async getProductReceiptLogoData({ productRef }) {
+      const data = await callStaffAccount(
+        { action: "getProductReceiptLogoData", productRef },
+        "产品 LOGO 原图读取失败"
+      );
+      return data.logo || null;
+    },
     async requestOrderVoid({ recordType, recordId, note }) {
       return callStaffAccount(
         { action: "requestOrderVoid", recordType, recordId, note },

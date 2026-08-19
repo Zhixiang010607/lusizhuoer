@@ -1,21 +1,30 @@
 "use strict";
 
+const crypto = require("node:crypto");
+
 /*
  * 员工账号云函数
  * CloudBase 身份认证只负责手机号、密码和验证码。
  * 业务身份只保存在 PostgreSQL 的 public.staff_accounts 表，绝不写入 user_desc JSON。
  */
 const ROLES = new Set(["hq", "operation", "store", "teacher"]);
-const OPERATION_ACTIONS = new Set(["listReviewOrders", "reviewOrder"]);
+const OPERATION_ACTIONS = new Set(["listReviewOrders", "reviewOrder", "getProductReceiptTemplate", "getProductReceiptLogoData"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v44";
+const FUNCTION_VERSION = "v45";
 const ORDER_VOID_APPLICATIONS_ENABLED = false;
+const PRODUCT_LOGO_MAX_BYTES = 8 * 1024 * 1024;
+const PRODUCT_LOGO_TYPES = new Map([
+  ["image/png", "png"],
+  ["image/jpeg", "jpg"],
+  ["image/webp", "webp"]
+]);
 let app = null;
 let auth = null;
 let managerClient = null;
 let storeBindingLayout = null;
 let storeCreationCapabilities = null;
+let productTemplateCapabilities = null;
 
 function getApp() {
   if (!app) {
@@ -36,6 +45,217 @@ function manager() {
     managerClient = CloudBaseManager.init({ envId: process.env.TCB_ENV });
   }
   return managerClient;
+}
+
+function productTemplateStorageSettings() {
+  const envId = String(process.env.CLOUDBASE_ENV_ID || process.env.TCB_ENV || "").trim();
+  const accessToken = String(process.env.CLOUDBASE_APIKEY || process.env.CLOUDBASE_SERVICE_ROLE_KEY || "").trim();
+  const bucketId = String(process.env.PRODUCT_TEMPLATE_BUCKET_ID || "product-templates").trim();
+  if (!envId) fail("产品模板存储缺少 CLOUDBASE_ENV_ID 或 TCB_ENV", "PRODUCT_STORAGE_NOT_CONFIGURED");
+  if (!accessToken) fail("产品模板存储缺少 CLOUDBASE_APIKEY", "PRODUCT_STORAGE_NOT_CONFIGURED");
+  if (!bucketId) fail("产品模板私有存储桶编号不能为空", "PRODUCT_STORAGE_NOT_CONFIGURED");
+  return { envId, accessToken, bucketId };
+}
+
+function nestedString(value, keyPattern, validator, depth = 0) {
+  if (depth > 5 || value === null || value === undefined) return "";
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = nestedString(item, keyPattern, validator, depth + 1);
+      if (found) return found;
+    }
+    return "";
+  }
+  if (typeof value !== "object") return "";
+  for (const [key, item] of Object.entries(value)) {
+    if (keyPattern.test(key) && validator(item)) return String(item).trim();
+  }
+  for (const item of Object.values(value)) {
+    const found = nestedString(item, keyPattern, validator, depth + 1);
+    if (found) return found;
+  }
+  return "";
+}
+
+function signedStorageUrl(value) {
+  return nestedString(value, /^(?:url|signedurl|fullsignedurl|uploadurl)$/i,
+    (item) => typeof item === "string" && /^https:\/\//i.test(item.trim()));
+}
+
+function signedStorageUpload(response, storage, objectName, contentType) {
+  let url = signedStorageUrl(response);
+  const token = nestedString(response, /^(?:token|uploadtoken|signaturetoken)$/i,
+    (item) => typeof item === "string" && item.trim().length > 0);
+  if (!url) fail("产品 LOGO 上传地址生成失败", "PRODUCT_LOGO_UPLOAD_SIGN_FAILED");
+  if (token) {
+    const target = new URL(url);
+    if (!target.searchParams.get("token")) target.searchParams.set("token", token);
+    url = target.toString();
+  }
+  return {
+    url,
+    bucketId: storage.bucketId,
+    objectName,
+    method: "PUT",
+    contentType,
+    headers: { "Content-Type": contentType }
+  };
+}
+
+function parseProductLogoReference(value) {
+  const reference = String(value || "").trim();
+  if (!reference.startsWith("pg://")) fail("产品 LOGO 存储引用无效", "PRODUCT_LOGO_REFERENCE_INVALID");
+  const path = reference.slice(5);
+  const slash = path.indexOf("/");
+  if (slash < 1 || slash === path.length - 1) fail("产品 LOGO 存储引用无效", "PRODUCT_LOGO_REFERENCE_INVALID");
+  return { bucketId: path.slice(0, slash), objectName: path.slice(slash + 1), reference };
+}
+
+function storageObjectInfo(value, depth = 0) {
+  if (depth > 5 || !value || typeof value !== "object") return null;
+  if (!Array.isArray(value) && (
+    Object.prototype.hasOwnProperty.call(value, "size")
+    || Object.prototype.hasOwnProperty.call(value, "content_type")
+    || Object.prototype.hasOwnProperty.call(value, "bucket_id")
+  )) return value;
+  for (const item of Array.isArray(value) ? value : Object.values(value)) {
+    const found = storageObjectInfo(item, depth + 1);
+    if (found) return found;
+  }
+  return null;
+}
+
+async function downloadProductLogo(referenceValue, maximumBytes = PRODUCT_LOGO_MAX_BYTES) {
+  const reference = parseProductLogoReference(referenceValue);
+  const storage = productTemplateStorageSettings();
+  if (reference.bucketId !== storage.bucketId || !/^products\/\d+\/receipt-logo\//.test(reference.objectName)) {
+    fail("产品 LOGO 不属于指定私有存储桶", "PRODUCT_LOGO_BUCKET_MISMATCH");
+  }
+  let response;
+  try {
+    response = await manager().storage.downloadAuthenticatedObject({
+      bucketId: reference.bucketId,
+      objectName: reference.objectName,
+      method: "GET",
+      accessToken: storage.accessToken,
+      envId: storage.envId
+    });
+  } catch (error) {
+    fail(`产品 LOGO 原图读取失败：${error?.message || "存储对象不存在"}`, "PRODUCT_LOGO_DOWNLOAD_FAILED");
+  }
+  const declaredBytes = Number(response?.headers?.["content-length"] || 0);
+  if (Number(response?.status || 0) !== 200 || !response?.body) {
+    fail("产品 LOGO 原图读取失败", "PRODUCT_LOGO_DOWNLOAD_FAILED");
+  }
+  if (declaredBytes > maximumBytes) fail("产品 LOGO 超过 8 MB", "PRODUCT_LOGO_TOO_LARGE");
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of response.body) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buffer.length;
+    if (total > maximumBytes) {
+      response.body.destroy?.();
+      fail("产品 LOGO 超过 8 MB", "PRODUCT_LOGO_TOO_LARGE");
+    }
+    chunks.push(buffer);
+  }
+  const output = Buffer.concat(chunks);
+  if (!output.length) fail("产品 LOGO 文件为空", "PRODUCT_LOGO_UPLOAD_INCOMPLETE");
+  return output;
+}
+
+function productLogoMagicMatches(buffer, mimeType) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 12) return false;
+  if (mimeType === "image/png") return buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  if (mimeType === "image/jpeg") return buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  if (mimeType === "image/webp") return buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WEBP";
+  return false;
+}
+
+async function inspectProductLogo(referenceValue, expected) {
+  const reference = parseProductLogoReference(referenceValue);
+  const storage = productTemplateStorageSettings();
+  let response;
+  try {
+    response = await manager().storage.getObjectInfoAuthenticated({
+      bucketId: reference.bucketId,
+      objectName: reference.objectName,
+      method: "GET",
+      accessToken: storage.accessToken,
+      envId: storage.envId
+    });
+  } catch (error) {
+    fail(`产品 LOGO 尚未上传完成：${error?.message || "存储对象不存在"}`, "PRODUCT_LOGO_UPLOAD_INCOMPLETE");
+  }
+  const info = storageObjectInfo(response);
+  if (!info) fail("无法确认产品 LOGO 上传结果", "PRODUCT_LOGO_INFO_INVALID");
+  const bytes = Number(info.size ?? response?.headers?.["content-length"]);
+  const contentType = String(info.content_type || response?.headers?.["content-type"] || "")
+    .split(";", 1)[0].trim().toLowerCase();
+  if (!Number.isSafeInteger(bytes) || bytes !== expected.bytes) {
+    fail("产品 LOGO 大小与上传前不一致", "PRODUCT_LOGO_SIZE_MISMATCH");
+  }
+  if (contentType && contentType !== expected.mimeType) {
+    fail("产品 LOGO 类型与上传前不一致", "PRODUCT_LOGO_TYPE_MISMATCH");
+  }
+  const buffer = await downloadProductLogo(reference.reference);
+  if (buffer.length !== bytes || !productLogoMagicMatches(buffer, expected.mimeType)) {
+    fail("上传文件不是有效的产品 LOGO 图片", "PRODUCT_LOGO_FORMAT_INVALID");
+  }
+  return { bytes, sha256: crypto.createHash("sha256").update(buffer).digest("hex") };
+}
+
+async function signProductLogo(referenceValue, expiresIn = 900) {
+  const reference = parseProductLogoReference(referenceValue);
+  const storage = productTemplateStorageSettings();
+  if (reference.bucketId !== storage.bucketId || !/^products\/\d+\/receipt-logo\//.test(reference.objectName)) {
+    fail("产品 LOGO 不属于指定私有存储桶", "PRODUCT_LOGO_BUCKET_MISMATCH");
+  }
+  let response = null;
+  let url = "";
+  try {
+    response = await manager().storage.signObject({
+      bucketId: reference.bucketId,
+      objectName: reference.objectName,
+      expiresIn,
+      accessToken: storage.accessToken,
+      envId: storage.envId
+    });
+    url = signedStorageUrl(response);
+  } catch (_) { /* try the batch signer below */ }
+  if (!url && typeof manager().storage.signObjects === "function") {
+    try {
+      response = await manager().storage.signObjects({
+        bucketId: reference.bucketId,
+        paths: [reference.objectName],
+        expiresIn,
+        accessToken: storage.accessToken,
+        envId: storage.envId
+      });
+      url = signedStorageUrl(response);
+    } catch (_) { /* handled by the common error below */ }
+  }
+  if (!url) fail("产品 LOGO 临时访问地址生成失败", "PRODUCT_LOGO_SIGN_FAILED");
+  return { url, expiresIn };
+}
+
+async function deleteProductLogo(referenceValue) {
+  if (!referenceValue) return true;
+  try {
+    const reference = parseProductLogoReference(referenceValue);
+    const storage = productTemplateStorageSettings();
+    if (reference.bucketId !== storage.bucketId) return false;
+    await manager().storage.deleteObject({
+      bucketId: reference.bucketId,
+      objectName: reference.objectName,
+      accessToken: storage.accessToken,
+      envId: storage.envId
+    });
+    return true;
+  } catch (error) {
+    console.warn("product logo cleanup failed", error?.message || error);
+    return false;
+  }
 }
 
 function sqlText(value) {
@@ -1088,6 +1308,231 @@ async function createProductRecord(event) {
   return { product, created: true };
 }
 
+async function requireProductTemplateSchema() {
+  if (productTemplateCapabilities) return productTemplateCapabilities;
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT COUNT(*)::integer AS column_count
+       FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'products'
+         AND column_name IN (
+           'receipt_logo_file_id', 'receipt_logo_mime_type', 'receipt_logo_original_name',
+           'receipt_logo_bytes', 'receipt_logo_width', 'receipt_logo_height',
+           'verification_receipt_instructions', 'recharge_receipt_instructions',
+           'receipt_template_updated_by', 'receipt_template_updated_at'
+         )`
+    );
+  } catch (error) {
+    asDatabaseError(error, "读取产品单据模板结构");
+  }
+  if (Number(rows?.[0]?.column_count || 0) !== 10) {
+    fail("产品模板数据库尚未升级，请先执行 045-01-product-receipt-templates.sql", "DATABASE_SCHEMA_MISSING");
+  }
+  productTemplateCapabilities = { ready: true };
+  return productTemplateCapabilities;
+}
+
+function productReferenceCondition(productRef, alias = "p") {
+  const value = String(productRef || "").trim();
+  if (!value) fail("缺少产品编号", "BAD_REQUEST");
+  const id = /^\d+$/.test(value) ? numericId(value, "产品编号") : null;
+  return `((${id ? `${alias}.id = ${id}` : "FALSE"}) OR ${alias}.product_code = ${sqlText(value)})`;
+}
+
+async function productTemplateRow(productRef) {
+  await requireProductTemplateSchema();
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT p.id, p.product_code, p.product_name, p.product_type, p.description,
+              p.product_status, p.receipt_logo_file_id, p.receipt_logo_mime_type,
+              p.receipt_logo_original_name, p.receipt_logo_bytes,
+              p.receipt_logo_width, p.receipt_logo_height,
+              p.verification_receipt_instructions, p.recharge_receipt_instructions,
+              p.receipt_template_updated_at, updater.staff_name AS receipt_template_updated_by_name,
+              p.created_at, p.updated_at
+       FROM public.products p
+       LEFT JOIN public.staff_accounts updater ON updater.id = p.receipt_template_updated_by
+       WHERE ${productReferenceCondition(productRef, "p")}
+       LIMIT 1`
+    );
+  } catch (error) {
+    asDatabaseError(error, "读取产品单据模板");
+  }
+  if (!rows?.[0]) fail("未找到该产品", "NOT_FOUND");
+  return rows[0];
+}
+
+async function productTemplatePayload(row) {
+  let logoUrl = "";
+  let logoExpiresIn = 0;
+  if (row.receipt_logo_file_id) {
+    const signed = await signProductLogo(row.receipt_logo_file_id, 900);
+    logoUrl = signed.url;
+    logoExpiresIn = signed.expiresIn;
+  }
+  return {
+    id: String(row.id),
+    productCode: String(row.product_code || ""),
+    productName: String(row.product_name || ""),
+    productType: String(row.product_type || ""),
+    description: String(row.description || ""),
+    productStatus: String(row.product_status || ""),
+    logo: row.receipt_logo_file_id ? {
+      reference: String(row.receipt_logo_file_id),
+      url: logoUrl,
+      expiresIn: logoExpiresIn,
+      mimeType: String(row.receipt_logo_mime_type || ""),
+      originalName: String(row.receipt_logo_original_name || ""),
+      bytes: Number(row.receipt_logo_bytes || 0),
+      width: Number(row.receipt_logo_width || 0),
+      height: Number(row.receipt_logo_height || 0)
+    } : null,
+    verificationInstructions: String(row.verification_receipt_instructions || ""),
+    rechargeInstructions: String(row.recharge_receipt_instructions || ""),
+    updatedAt: row.receipt_template_updated_at || null,
+    updatedByName: String(row.receipt_template_updated_by_name || "")
+  };
+}
+
+async function getProductReceiptTemplate(event) {
+  return productTemplatePayload(await productTemplateRow(event.productRef));
+}
+
+function productLogoUploadInput(event) {
+  const mimeType = String(event.mimeType || "").trim().toLowerCase();
+  const bytes = Number(event.bytes);
+  const width = Number(event.width);
+  const height = Number(event.height);
+  if (!PRODUCT_LOGO_TYPES.has(mimeType)) fail("产品 LOGO 仅支持 PNG、JPEG 或 WebP", "PRODUCT_LOGO_TYPE_INVALID");
+  if (!Number.isSafeInteger(bytes) || bytes < 8 || bytes > PRODUCT_LOGO_MAX_BYTES) {
+    fail("产品 LOGO 原图必须小于 8 MB", "PRODUCT_LOGO_TOO_LARGE");
+  }
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height)
+      || width < 1 || height < 1 || width > 12000 || height > 12000) {
+    fail("产品 LOGO 图片尺寸无效", "PRODUCT_LOGO_DIMENSIONS_INVALID");
+  }
+  const originalName = String(event.originalName || "logo").replace(/[\\/\u0000-\u001f<>:"|?*]/g, "_").trim().slice(0, 180) || "logo";
+  return { mimeType, bytes, width, height, originalName };
+}
+
+async function beginProductLogoUpload(event) {
+  const product = await productTemplateRow(event.productRef);
+  const input = productLogoUploadInput(event);
+  const storage = productTemplateStorageSettings();
+  const token = crypto.randomBytes(18).toString("base64url");
+  const objectName = `products/${Number(product.id)}/receipt-logo/${Date.now()}-${token}.${PRODUCT_LOGO_TYPES.get(input.mimeType)}`;
+  let response;
+  try {
+    response = await manager().storage.signUploadObject({
+      bucketId: storage.bucketId,
+      objectName,
+      upsert: false,
+      accessToken: storage.accessToken,
+      envId: storage.envId
+    });
+  } catch (error) {
+    fail(`产品 LOGO 上传地址生成失败：${error?.message || "请检查私有存储桶"}`, "PRODUCT_LOGO_UPLOAD_SIGN_FAILED");
+  }
+  return {
+    productId: String(product.id),
+    reference: `pg://${storage.bucketId}/${objectName}`,
+    upload: signedStorageUpload(response, storage, objectName, input.mimeType),
+    expected: input
+  };
+}
+
+async function confirmProductLogoUpload(caller, event) {
+  const product = await productTemplateRow(event.productRef);
+  const input = productLogoUploadInput(event);
+  const reference = parseProductLogoReference(event.reference);
+  const storage = productTemplateStorageSettings();
+  const requiredPrefix = `products/${Number(product.id)}/receipt-logo/`;
+  if (reference.bucketId !== storage.bucketId || !reference.objectName.startsWith(requiredPrefix)) {
+    fail("产品 LOGO 上传路径与当前产品不一致", "PRODUCT_LOGO_REFERENCE_INVALID");
+  }
+  await inspectProductLogo(reference.reference, input);
+  const previousReference = String(product.receipt_logo_file_id || "");
+  try {
+    await executeSql(
+      `UPDATE public.products
+       SET receipt_logo_file_id = ${sqlText(reference.reference)},
+           receipt_logo_mime_type = ${sqlText(input.mimeType)},
+           receipt_logo_original_name = ${sqlText(input.originalName)},
+           receipt_logo_bytes = ${input.bytes},
+           receipt_logo_width = ${input.width},
+           receipt_logo_height = ${input.height},
+           receipt_template_updated_by = ${numericId(caller.profile.staffId, "总部账号编号")},
+           receipt_template_updated_at = NOW(), updated_at = NOW()
+       WHERE id = ${Number(product.id)}`
+    );
+  } catch (error) {
+    await deleteProductLogo(reference.reference);
+    asDatabaseError(error, "保存产品 LOGO");
+  }
+  const persisted = await productTemplateRow(String(product.id));
+  if (String(persisted.receipt_logo_file_id || "") !== reference.reference) {
+    await deleteProductLogo(reference.reference);
+    fail("产品 LOGO 保存后未能从数据库确认", "DATABASE_ERROR");
+  }
+  if (previousReference && previousReference !== reference.reference) void deleteProductLogo(previousReference);
+  return getProductReceiptTemplate({ productRef: String(product.id) });
+}
+
+async function saveProductReceiptTemplate(caller, event) {
+  const product = await productTemplateRow(event.productRef);
+  const verificationInstructions = String(event.verificationInstructions || "").trim();
+  const rechargeInstructions = String(event.rechargeInstructions || "").trim();
+  if (verificationInstructions.length > 3000 || rechargeInstructions.length > 3000) {
+    fail("单据文字说明不能超过 3000 字", "BAD_REQUEST");
+  }
+  try {
+    await executeSql(
+      `UPDATE public.products
+       SET verification_receipt_instructions = ${sqlText(verificationInstructions)},
+           recharge_receipt_instructions = ${sqlText(rechargeInstructions)},
+           receipt_template_updated_by = ${numericId(caller.profile.staffId, "总部账号编号")},
+           receipt_template_updated_at = NOW(), updated_at = NOW()
+       WHERE id = ${Number(product.id)}`
+    );
+  } catch (error) {
+    asDatabaseError(error, "保存产品单据说明");
+  }
+  return getProductReceiptTemplate({ productRef: String(product.id) });
+}
+
+async function removeProductReceiptLogo(caller, event) {
+  const product = await productTemplateRow(event.productRef);
+  const reference = String(product.receipt_logo_file_id || "");
+  try {
+    await executeSql(
+      `UPDATE public.products
+       SET receipt_logo_file_id = NULL, receipt_logo_mime_type = NULL,
+           receipt_logo_original_name = NULL, receipt_logo_bytes = NULL,
+           receipt_logo_width = NULL, receipt_logo_height = NULL,
+           receipt_template_updated_by = ${numericId(caller.profile.staffId, "总部账号编号")},
+           receipt_template_updated_at = NOW(), updated_at = NOW()
+       WHERE id = ${Number(product.id)}`
+    );
+  } catch (error) {
+    asDatabaseError(error, "移除产品 LOGO");
+  }
+  if (reference) void deleteProductLogo(reference);
+  return getProductReceiptTemplate({ productRef: String(product.id) });
+}
+
+async function getProductReceiptLogoData(event) {
+  const row = await productTemplateRow(event.productRef);
+  if (!row.receipt_logo_file_id) fail("该产品尚未上传 LOGO", "PRODUCT_LOGO_MISSING");
+  const buffer = await downloadProductLogo(row.receipt_logo_file_id);
+  return {
+    mimeType: String(row.receipt_logo_mime_type || "application/octet-stream"),
+    bytes: buffer.length,
+    base64: buffer.toString("base64")
+  };
+}
+
 function reviewFilterSql(event, alias, recordCodeExpression, statusExpression, typeExpression) {
   const clauses = [];
   const recordId = String(event.recordId || "").trim();
@@ -1608,12 +2053,16 @@ async function main(event = {}) {
   if (action === "listProducts") {
     if (!caller.profile?.role) fail("当前登录账号没有有效业务身份", "UNASSIGNED_PHONE");
     await getProductCreationCapabilities();
+    await requireProductTemplateSchema();
     const statusFilter = caller.profile.role === "hq" ? "" : "WHERE product_status = 'ACTIVE'";
     let rows;
     try {
       rows = await executeSql(
         `SELECT id, product_code, product_name, product_type, description, product_status,
-                created_at, updated_at
+                (receipt_logo_file_id IS NOT NULL) AS receipt_logo_configured,
+                (BTRIM(verification_receipt_instructions) <> '') AS verification_instructions_configured,
+                (BTRIM(recharge_receipt_instructions) <> '') AS recharge_instructions_configured,
+                receipt_template_updated_at, created_at, updated_at
          FROM public.products
          ${statusFilter}
          ORDER BY id ASC`
@@ -1658,6 +2107,30 @@ async function main(event = {}) {
     }
     if (!rows?.[0]) fail("未找到该产品", "NOT_FOUND");
     return { ok: true, product: rows[0] };
+  }
+  if (action === "getProductReceiptTemplate") {
+    if (!caller.profile?.role) fail("当前登录账号没有有效业务身份", "UNASSIGNED_PHONE");
+    return { ok: true, template: await getProductReceiptTemplate(event) };
+  }
+  if (action === "getProductReceiptLogoData") {
+    if (!caller.profile?.role) fail("当前登录账号没有有效业务身份", "UNASSIGNED_PHONE");
+    return { ok: true, logo: await getProductReceiptLogoData(event) };
+  }
+  if (action === "beginProductLogoUpload") {
+    requireHq(caller);
+    return { ok: true, ...(await beginProductLogoUpload(event)) };
+  }
+  if (action === "confirmProductLogoUpload") {
+    requireHq(caller);
+    return { ok: true, template: await confirmProductLogoUpload(caller, event) };
+  }
+  if (action === "saveProductReceiptTemplate") {
+    requireHq(caller);
+    return { ok: true, template: await saveProductReceiptTemplate(caller, event) };
+  }
+  if (action === "removeProductReceiptLogo") {
+    requireHq(caller);
+    return { ok: true, template: await removeProductReceiptLogo(caller, event) };
   }
   if (action === "listReviewOrders") {
     const result = await listReviewOrders(caller, event);

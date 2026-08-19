@@ -27,8 +27,8 @@
     const productType = $("projectCreateType").value.trim();
     const description = $("projectCreateDescription").value.trim();
 
-    if (!productName || !productType || !description) {
-      message.textContent = "请完整填写产品名称、产品类别和产品介绍";
+    if (!productName || !productType) {
+      message.textContent = "请填写产品名称和产品类别";
       return;
     }
     if (!window.CloudBasePhoneAuth?.createProduct) {
@@ -48,7 +48,7 @@
       const productCode = String(result?.product?.product_code || "").trim();
       if (!productCode) throw new Error("产品已写入，但服务未返回产品编号");
       sessionStorage.removeItem(pendingRequestKey);
-      location.href = `project-management.html?created=${encodeURIComponent(productCode)}`;
+      location.href = `project-detail.html?projectId=${encodeURIComponent(productCode)}&created=1`;
     } catch (error) {
       if (error?.code === "IDEMPOTENCY_CONFLICT") {
         sessionStorage.removeItem(pendingRequestKey);

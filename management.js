@@ -1,7 +1,7 @@
 ﻿(() => {
   "use strict";
 
-  const VERSION = "0.14.23";
+  const VERSION = "0.14.24";
   const type = document.body.dataset.management;
   const $ = (id) => document.getElementById(id);
   const fmt = new Intl.NumberFormat("zh-CN");
@@ -179,12 +179,10 @@
       $("projectList").innerHTML = `<section class="panel query-empty">${escapeHtml(productListMessage || "暂无产品数据，请先新增产品。")}</section>`;
       return;
     }
-    $("projectList").innerHTML = projects.map((project) => `<button type="button" data-project-id="${project.id}"><strong>${escapeHtml(project.name)}</strong><span>${escapeHtml(project.productType || "未分类")} · ${escapeHtml(project.status)}</span></button>`).join("");
-    $("projectList").querySelectorAll("[data-project-id]").forEach((button) => button.addEventListener("click", () => {
-      $("entitySelect").value = button.dataset.projectId;
-      $("projectManagementContent").hidden = false;
-      render();
-    }));
+    $("projectList").innerHTML = projects.map((project) => {
+      const templateState = project.templateConfigured ? "模板已配置" : "模板待配置";
+      return `<a href="project-detail.html?projectId=${encodeURIComponent(project.id)}" data-project-id="${escapeHtml(project.id)}"><strong>${escapeHtml(project.name)}</strong><span>${escapeHtml(project.productType || "未分类")} · ${escapeHtml(project.status)}</span><em class="project-template-state ${project.templateConfigured ? "is-ready" : ""}">${templateState}</em></a>`;
+    }).join("");
   }
 
   function renderTeacherTable(teacher) {
@@ -426,6 +424,10 @@
         productType: String(product.product_type || "").trim(),
         extra: String(product.description || "").trim(),
         status: product.product_status === "ARCHIVED" ? "封存" : "活跃",
+        templateConfigured: [true, "true", "t", 1, "1"].includes(product.receipt_logo_configured)
+          && [true, "true", "t", 1, "1"].includes(product.verification_instructions_configured)
+          && [true, "true", "t", 1, "1"].includes(product.recharge_instructions_configured),
+        templateUpdatedAt: String(product.receipt_template_updated_at || "").trim(),
         createdAt: String(product.created_at || "").trim(),
         updatedAt: String(product.updated_at || "").trim()
       })).filter((product) => product.id && product.name);
@@ -433,9 +435,7 @@
       productListMessage = records.length ? "" : "暂无产品数据，请先新增产品。";
       refillSelect(String(selectedId || ""));
       renderProjectList();
-      const selected = projects.some((product) => product.id === String(selectedId || ""));
-      $("projectManagementContent").hidden = !selected;
-      if (selected) render();
+      $("projectManagementContent").hidden = true;
     } catch (error) {
       console.warn("产品列表读取失败", error);
       projects.splice(0, projects.length);

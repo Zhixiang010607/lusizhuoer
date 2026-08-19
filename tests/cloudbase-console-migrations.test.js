@@ -24,7 +24,8 @@ const parts = [
   "042-01-customer-messages.sql",
   "043-01-disable-recharge-void.sql",
   "044-01-refund-schema-and-balance.sql",
-  "044-02-refund-review-and-guards.sql"
+  "044-02-refund-review-and-guards.sql",
+  "045-01-product-receipt-templates.sql"
 ];
 
 function transactionBody(source) {
@@ -95,6 +96,16 @@ const reconstructed044 = parts
   .map((filename) => transactionBody(fs.readFileSync(path.join(consoleDir, filename), "utf8")))
   .join("\n\n");
 assert.equal(reconstructed044, canonical044, "CloudBase migration 044 must match the canonical refund workflow migration");
+
+const canonical045 = transactionBody(fs.readFileSync(
+  path.join(root, "database", "migrations", "045_product_receipt_templates.sql"),
+  "utf8"
+));
+const reconstructed045 = parts
+  .filter((filename) => filename.startsWith("045-"))
+  .map((filename) => transactionBody(fs.readFileSync(path.join(consoleDir, filename), "utf8")))
+  .join("\n\n");
+assert.equal(reconstructed045, canonical045, "CloudBase migration 045 must match the canonical product-template migration");
 
 const directParts = Object.fromEntries(
   parts.filter((filename) => filename.startsWith("039-")).map((filename) => [

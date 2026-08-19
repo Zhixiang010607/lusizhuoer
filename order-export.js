@@ -118,17 +118,14 @@
     return y + (subtitle ? 68 : 48);
   }
 
-  function drawDocumentHeader(context, documentData, draw) {
+  function drawDocumentHeader(context, documentData, productLogo, draw) {
     const top = 44;
     const gap = 28;
-    const statusWidth = 276;
-    const leftWidth = CONTENT_WIDTH - statusWidth - gap;
+    const logoSize = 132;
+    const leftWidth = CONTENT_WIDTH - logoSize - gap;
     const kind = text(documentData.kind, documentData.detailTitle || "业务工单");
     const title = text(documentData.title, "业务工单");
     const subtitle = text(documentData.subtitle, "业务工单完整导出");
-    const statusLabel = text(documentData.statusLabel, "当前审核状态");
-    const status = text(documentData.status);
-    const statusHint = text(documentData.statusHint, "—");
     setFont(context, 18, 800);
     const kindWidth = Math.min(leftWidth, Math.max(96, context.measureText(kind).width + 34));
     const titleY = top + 51;
@@ -144,14 +141,8 @@
       size: 18,
       lineHeight: 28
     });
-    const statusX = PAGE_MARGIN + leftWidth + gap;
-    const hintMetrics = drawWrappedText(context, statusHint, statusX + 20, top + 82, statusWidth - 40, {
-      draw: false,
-      size: 16,
-      lineHeight: 24
-    });
-    const statusHeight = Math.max(132, 102 + hintMetrics.height);
-    const bottom = Math.max(subtitleY + subtitleMetrics.height, top + statusHeight) + 30;
+    const logoX = PAGE_MARGIN + leftWidth + gap;
+    const bottom = Math.max(subtitleY + subtitleMetrics.height, top + logoSize) + 30;
     if (!draw) return bottom;
 
     context.fillStyle = "#10233f";
@@ -178,42 +169,41 @@
       color: "#667085"
     });
 
-    context.fillStyle = "#f8fafc";
+    context.fillStyle = "#f8fbff";
     context.strokeStyle = "#d9e2ee";
     context.lineWidth = 1;
-    roundedRect(context, statusX, top, statusWidth, statusHeight, 16);
+    roundedRect(context, logoX, top, logoSize, logoSize, 16);
     context.fill();
     context.stroke();
-    context.fillStyle = "#667085";
-    setFont(context, 15, 600);
+    context.save();
+    roundedRect(context, logoX + 8, top + 8, logoSize - 16, logoSize - 16, 12);
+    context.clip();
+    if (productLogo?.image) {
+      drawImageCover(context, productLogo.image, logoX + 8, top + 8, logoSize - 16, logoSize - 16);
+    } else {
+      context.fillStyle = "#d9e7f8";
+      context.fillRect(logoX + 8, top + 8, logoSize - 16, logoSize - 16);
+      context.fillStyle = "#315378";
+      setFont(context, 22, 900);
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillText("LOGO", logoX + logoSize / 2, top + logoSize / 2);
+    }
+    context.restore();
+    context.textAlign = "left";
     context.textBaseline = "top";
-    context.fillText(statusLabel, statusX + 20, top + 18);
-    const statusColor = documentData.statusTone === "rejected" ? "#b42318"
-      : documentData.statusTone === "pending" ? "#8a5b00" : "#067a5c";
-    context.fillStyle = statusColor;
-    setFont(context, 26, 900);
-    context.fillText(status, statusX + 20, top + 44);
-    drawWrappedText(context, statusHint, statusX + 20, top + 82, statusWidth - 40, {
-      draw: true,
-      size: 16,
-      lineHeight: 24,
-      color: "#667085"
-    });
     return bottom;
   }
 
-  function drawInfoGrid(context, items, y, draw, paginate) {
+  function drawInfoGrid(context, items, y, draw, paginate, columns = 2) {
     const gap = 14;
-    const width = (CONTENT_WIDTH - gap) / 2;
-    for (let index = 0; index < items.length; index += 2) {
-      const left = items[index];
-      const right = items[index + 1];
-      const leftHeight = drawLabelValueCard(context, left, PAGE_MARGIN, y, width, false);
-      const rightHeight = right ? drawLabelValueCard(context, right, PAGE_MARGIN + width + gap, y, width, false) : 0;
-      const rowHeight = Math.max(leftHeight, rightHeight);
+    const columnCount = Math.max(1, Math.min(3, Number(columns) || 2));
+    const width = (CONTENT_WIDTH - gap * (columnCount - 1)) / columnCount;
+    for (let index = 0; index < items.length; index += columnCount) {
+      const row = items.slice(index, index + columnCount);
+      const rowHeight = Math.max(...row.map((item) => drawLabelValueCard(context, item, PAGE_MARGIN, y, width, false)));
       y = ensureSpace(y, rowHeight + 14, paginate);
-      drawLabelValueCard(context, left, PAGE_MARGIN, y, width, draw);
-      if (right) drawLabelValueCard(context, right, PAGE_MARGIN + width + gap, y, width, draw);
+      row.forEach((item, column) => drawLabelValueCard(context, item, PAGE_MARGIN + column * (width + gap), y, width, draw));
       y += rowHeight + 14;
     }
     return y;
@@ -327,7 +317,17 @@
     return drawPhotoRow(context, photos.slice(2, 5), y, 3, { imageHeight: 176, cardHeight: 252 }, draw, paginate);
   }
 
-  function layoutDocument(context, documentData, photos, options = {}) {
+  function drawProductInstructions(context, documentData, y, draw, paginate) {
+    const template = documentData.productTemplate || {};
+    const instructions = String(template.instructions || "").trim();
+    if (!instructions) return y;
+    y += 10;
+    y = ensureSpace(y, 70, paginate);
+    y = drawSectionHeading(context, "产品说明", "由总部维护的当前产品单据说明", y, draw);
+    return drawMessageCard(context, { label: "说明", value: instructions }, y, draw, paginate);
+  }
+
+  function layoutDocument(context, documentData, photos, productLogo, options = {}) {
     const draw = options.draw === true;
     const paginate = options.paginate === true;
     const compactVerification = documentData.compactVerification === true;
@@ -335,13 +335,14 @@
       context.fillStyle = "#ffffff";
       context.fillRect(0, 0, context.canvas.width, context.canvas.height);
     }
-    let y = drawDocumentHeader(context, documentData, draw);
+    let y = drawDocumentHeader(context, documentData, productLogo, draw);
     y = drawInfoGrid(context, documentData.facts || [], y, draw, paginate);
     if (!compactVerification) {
       y += 12;
       y = ensureSpace(y, 70, paginate);
       y = drawSectionHeading(context, documentData.detailTitle || "工单信息", documentData.detailSubtitle, y, draw);
-      y = drawInfoGrid(context, documentData.details || [], y, draw, paginate);
+      const details = documentData.details || [];
+      y = drawInfoGrid(context, details, y, draw, paginate, details.length === 3 ? 3 : 2);
     }
 
     const messages = Array.isArray(documentData.messages) ? documentData.messages : [];
@@ -363,6 +364,8 @@
         : drawPhotos(context, photos, y, draw, paginate);
     }
 
+    y = drawProductInstructions(context, documentData, y, draw, paginate);
+
     y += 34;
     if (draw) {
       context.fillStyle = "#98a2b3";
@@ -381,16 +384,16 @@
     return y;
   }
 
-  function makeCanvas(documentData, photos, paginate) {
+  function makeCanvas(documentData, photos, productLogo, paginate) {
     const measureCanvas = document.createElement("canvas");
     const measureContext = measureCanvas.getContext("2d");
-    const usedHeight = layoutDocument(measureContext, documentData, photos, { draw: false, paginate });
+    const usedHeight = layoutDocument(measureContext, documentData, photos, productLogo, { draw: false, paginate });
     const height = paginate ? Math.max(PDF_PAGE_HEIGHT, Math.ceil(usedHeight / PDF_PAGE_HEIGHT) * PDF_PAGE_HEIGHT) : Math.max(500, Math.ceil(usedHeight));
     const canvas = document.createElement("canvas");
     canvas.width = CANVAS_WIDTH;
     canvas.height = height;
     const context = canvas.getContext("2d", { alpha: false });
-    layoutDocument(context, documentData, photos, { draw: true, paginate });
+    layoutDocument(context, documentData, photos, productLogo, { draw: true, paginate });
     if (paginate) {
       const pageCount = Math.ceil(height / PDF_PAGE_HEIGHT);
       for (let page = 0; page < pageCount; page += 1) {
@@ -462,6 +465,19 @@
     const embeddedCount = prepared.filter((item) => item.required && item.image).length;
     if (embeddedCount !== requiredCount) throw new Error("核销照片完整性检查未通过，本次没有生成文件。请重试。");
     return prepared;
+  }
+
+  async function prepareProductLogo(template) {
+    if (!template || typeof template !== "object") return { image: null };
+    let image = null;
+    if (template.logoBlob instanceof Blob) {
+      try { image = await decodeBlobToCanvas(template.logoBlob); }
+      catch (_) { throw new Error("产品 LOGO 原图解码失败，本次没有生成文件。请重试。"); }
+    }
+    if (template.logoRequired === true && !image) {
+      throw new Error("产品 LOGO 原图尚未完整载入，本次没有生成文件。请重试。");
+    }
+    return { image };
   }
 
   function ascii(value) {
@@ -579,7 +595,24 @@
   async function renderOrderCanvas(options = {}) {
     const documentData = options?.documentData || {};
     const photos = await preparePhotos(options?.photos || []);
-    return makeCanvas(documentData, photos, Boolean(options?.paginate));
+    const productLogo = await prepareProductLogo(documentData.productTemplate);
+    return makeCanvas(documentData, photos, productLogo, Boolean(options?.paginate));
+  }
+
+  async function createOrderPdfBlob(options = {}) {
+    const canvas = await renderOrderCanvas({ documentData: options.documentData, photos: options.photos, paginate: true });
+    const blob = await canvasToPdfBlob(canvas);
+    canvas.width = 1;
+    canvas.height = 1;
+    return blob;
+  }
+
+  async function createOrderImageBlob(options = {}) {
+    const canvas = await renderOrderCanvas({ documentData: options.documentData, photos: options.photos, paginate: false });
+    const blob = await canvasBlob(canvas, "image/jpeg", 0.95);
+    canvas.width = 1;
+    canvas.height = 1;
+    return blob;
   }
 
   async function exportOrder(options) {
@@ -587,20 +620,17 @@
     const documentData = options?.documentData || {};
     const filename = safeFilename(documentData.filename);
     if (format === "pdf") {
-      const canvas = await renderOrderCanvas({ documentData, photos: options?.photos, paginate: true });
-      const blob = await canvasToPdfBlob(canvas);
+      const blob = await createOrderPdfBlob({ documentData, photos: options?.photos });
       downloadBlob(blob, `${filename}.pdf`);
-      canvas.width = 1;
-      canvas.height = 1;
       return { filename: `${filename}.pdf`, bytes: blob.size };
     }
-    const canvas = await renderOrderCanvas({ documentData, photos: options?.photos, paginate: false });
-    const blob = await canvasBlob(canvas, "image/jpeg", 0.95);
+    const blob = await createOrderImageBlob({ documentData, photos: options?.photos });
     downloadBlob(blob, `${filename}.jpg`);
-    canvas.width = 1;
-    canvas.height = 1;
     return { filename: `${filename}.jpg`, bytes: blob.size };
   }
 
-  window.OrderExporter = Object.freeze({ exportOrder, renderOrderCanvas, exportCanvasPagesPdf, safeFilename });
+  window.OrderExporter = Object.freeze({
+    exportOrder, renderOrderCanvas, createOrderPdfBlob, createOrderImageBlob,
+    exportCanvasPagesPdf, downloadBlob, safeFilename
+  });
 })();

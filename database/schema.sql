@@ -70,8 +70,37 @@ CREATE TABLE IF NOT EXISTS public.products (
   product_type VARCHAR(32) NOT NULL,
   product_status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' CHECK (product_status IN ('ACTIVE', 'ARCHIVED')),
   description TEXT,
+  receipt_logo_file_id VARCHAR(768),
+  receipt_logo_mime_type VARCHAR(64),
+  receipt_logo_original_name VARCHAR(255),
+  receipt_logo_bytes BIGINT,
+  receipt_logo_width INTEGER,
+  receipt_logo_height INTEGER,
+  verification_receipt_instructions TEXT NOT NULL DEFAULT '',
+  recharge_receipt_instructions TEXT NOT NULL DEFAULT '',
+  receipt_template_updated_by BIGINT REFERENCES public.staff_accounts(id),
+  receipt_template_updated_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT products_receipt_logo_metadata_check CHECK (
+    (receipt_logo_file_id IS NULL
+      AND receipt_logo_mime_type IS NULL
+      AND receipt_logo_original_name IS NULL
+      AND receipt_logo_bytes IS NULL
+      AND receipt_logo_width IS NULL
+      AND receipt_logo_height IS NULL)
+    OR
+    (BTRIM(receipt_logo_file_id) <> ''
+      AND receipt_logo_mime_type IN ('image/png', 'image/jpeg', 'image/webp')
+      AND BTRIM(receipt_logo_original_name) <> ''
+      AND receipt_logo_bytes BETWEEN 8 AND 8388608
+      AND receipt_logo_width BETWEEN 1 AND 12000
+      AND receipt_logo_height BETWEEN 1 AND 12000)
+  ),
+  CONSTRAINT products_receipt_instruction_length_check CHECK (
+    CHAR_LENGTH(verification_receipt_instructions) <= 3000
+    AND CHAR_LENGTH(recharge_receipt_instructions) <= 3000
+  )
 );
 
 CREATE INDEX IF NOT EXISTS idx_product_status ON public.products (product_status);
