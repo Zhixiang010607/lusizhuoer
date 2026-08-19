@@ -10,14 +10,23 @@
   const canManageStatus = ["hq", "store"].includes(session?.role);
   const canEditNotes = ["hq", "store"].includes(session?.role);
   const canReadPhoto = ["hq", "store"].includes(session?.role);
+  const canUseCustomerMessages = ["hq", "store", "teacher"].includes(session?.role);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[char]));
   const emptyRow = (columns, text) => `<tr><td colspan="${columns}" class="query-empty">${escapeHtml(text)}</td></tr>`;
   const dateText = window.AppDateTime.formatDate || ((value) => window.AppDateTime.format(value).slice(0, 10));
+  const exactDateTimeText = (value) => {
+    const formatted = window.AppDateTime.format(value, "");
+    const match = String(formatted || "").match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
+    return match ? `${match[1]}年${match[2]}月${match[3]}日 ${match[4]}:${match[5]}:${match[6]}` : "—";
+  };
+  const customerMessageRoleText = (value) => ({ hq:"总部", store:"门店", teacher:"老师" }[String(value || "").toLowerCase()] || "账号");
   const birthdayText = (value) => { const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/); return match ? `${match[1]}年${match[2]}月${match[3]}日` : "—"; };
   const infoCard = (label, value) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || "—")}</strong></article>`;
   const verificationTypeText = (value) => ({ NORMAL:"正常核销", SUPPLEMENT:"补录核销", EXPERIENCE:"体验核销" }[value] || value || "正常核销");
   let profile = null, balances = [], recharges = [], verifications = [], experiences = [], requestPending = false;
   let notesEditing = false, notesPending = false, notesOriginal = "";
+  let customerMessages = [], customerMessageTotal = 0, customerMessageHasMore = false, customerMessageNextCursor = null;
+  let customerMessagesLoading = false, customerMessageSubmitting = false;
   let customerServiceApp = null;
   const historyState = {
     RECHARGE: { hasMore:false, nextCursor:null, loading:false },
@@ -30,7 +39,13 @@
   }
   function configureBackLink() {
     const link = document.querySelector(".back-link");
-    if (!link || pageSource !== "review" || !["hq", "operation"].includes(session?.role) || !hasReviewContext()) return;
+    if (!link) return;
+    if (session?.role === "teacher") {
+      link.href = "teacher-work-orders.html";
+      link.textContent = "← 返回我的工作台";
+      return;
+    }
+    if (pageSource !== "review" || !["hq", "operation"].includes(session?.role) || !hasReviewContext()) return;
     link.href = reviewRecordType === "RECHARGE" ? "recharge-review.html" : "verification-review.html";
     link.textContent = reviewRecordType === "RECHARGE" ? "← 返回充值审核" : "← 返回核销审核";
   }
@@ -43,7 +58,7 @@
       detailParams.set("reviewRecordType", reviewRecordType);
       detailParams.set("reviewRecordId", reviewRecordId);
     } else {
-      detailParams.set("source", "query");
+      detailParams.set("source", session?.role === "teacher" ? "teacher" : "query");
     }
     return `${page}?${detailParams.toString()}`;
   }
@@ -78,6 +93,95 @@
     const data = cloudFunctionData(result);
     if (!data.ok) throw new Error(data.message || "客户数据库没有返回有效结果。");
     return data;
+  }
+  function customerMessageLength(value) { return Array.from(String(value || "")).length; }
+  function setCustomerMessageStatus(message = "", isError = false) {
+    const status = $("customerMessageStatus");
+    if (!status) return;
+    status.textContent = message;
+    status.classList.toggle("error", isError);
+  }
+  function syncCustomerMessageCounter() {
+    const input = $("customerMessageInput"), counter = $("customerMessageCounter");
+    if (!input || !counter) return;
+    const length = customerMessageLength(input.value);
+    counter.textContent = `${length}/100`;
+    counter.classList.toggle("limit", length >= 100);
+  }
+  function renderCustomerMessages() {
+    const list = $("customerMessageList"), count = $("customerMessageCount"), loadMore = $("loadMoreCustomerMessages"), loadRow = $("customerMessageLoadRow");
+    if (!list || !count || !loadMore || !loadRow) return;
+    count.textContent = `${customerMessageTotal} 条`;
+    list.innerHTML = customerMessages.length ? customerMessages.map((message) => {
+      const author = String(message.authorName || "未命名账号");
+      const role = customerMessageRoleText(message.authorRole);
+      return `<article class="customer-message-item"><div class="customer-message-meta"><span class="customer-message-author">${escapeHtml(author)}<span class="customer-message-role">（${escapeHtml(role)}）</span></span><span class="customer-message-separator">：</span><time datetime="${escapeHtml(message.createdAt || "")}">${escapeHtml(exactDateTimeText(message.createdAt))}</time></div><p class="customer-message-content">${escapeHtml(message.content)}</p></article>`;
+    }).join("") : '<article class="customer-message-empty">暂无客户留言</article>';
+    loadMore.hidden = !customerMessageHasMore;
+    loadRow.hidden = !customerMessageHasMore;
+    loadMore.disabled = customerMessagesLoading;
+    loadMore.textContent = customerMessagesLoading ? "正在加载…" : "加载更早留言";
+  }
+  async function loadCustomerMessages({ reset = false } = {}) {
+    if (!canUseCustomerMessages || customerMessagesLoading || !customerCode) return;
+    if (!reset && (!customerMessageHasMore || !customerMessageNextCursor)) return;
+    customerMessagesLoading = true;
+    if (reset) {
+      customerMessages = [];
+      customerMessageTotal = 0;
+      customerMessageHasMore = false;
+      customerMessageNextCursor = null;
+      $("customerMessageList").innerHTML = '<article class="customer-message-empty">正在读取留言…</article>';
+    }
+    renderCustomerMessages();
+    setCustomerMessageStatus(reset ? "正在读取留言…" : "正在读取更早留言…");
+    try {
+      const payload = { action:"listCustomerMessages", customerCode, messageLimit:20 };
+      if (!reset && customerMessageNextCursor) {
+        payload.cursorCreatedAt = customerMessageNextCursor.createdAt;
+        payload.cursorMessageId = customerMessageNextCursor.id;
+      }
+      const data = await callCustomerService(payload);
+      const incoming = Array.isArray(data.messages) ? data.messages : [];
+      const known = new Set(customerMessages.map((message) => String(message.id)));
+      incoming.forEach((message) => { if (!known.has(String(message.id))) customerMessages.push(message); });
+      customerMessageTotal = Number(data.totalCount || 0);
+      customerMessageHasMore = data.page?.hasMore === true;
+      customerMessageNextCursor = data.page?.nextCursor || null;
+      setCustomerMessageStatus("");
+    } catch (error) {
+      setCustomerMessageStatus(error?.message || "客户留言读取失败，请重试。", true);
+    } finally {
+      customerMessagesLoading = false;
+      renderCustomerMessages();
+    }
+  }
+  async function submitCustomerMessage(event) {
+    event.preventDefault();
+    if (!canUseCustomerMessages || customerMessageSubmitting) return;
+    const input = $("customerMessageInput"), button = $("submitCustomerMessage");
+    const content = String(input.value || "").replace(/\r\n?/g, "\n").trim();
+    const length = customerMessageLength(content);
+    if (!length) { setCustomerMessageStatus("请输入留言内容。", true); input.focus(); return; }
+    if (length > 100) { setCustomerMessageStatus("单条留言不能超过 100 字。", true); input.focus(); return; }
+    customerMessageSubmitting = true;
+    button.disabled = true;
+    setCustomerMessageStatus("正在提交留言…");
+    try {
+      const data = await callCustomerService({ action:"addCustomerMessage", customerCode, content });
+      if (data.message && !customerMessages.some((message) => String(message.id) === String(data.message.id))) customerMessages.unshift(data.message);
+      customerMessageTotal = Number(data.totalCount || customerMessages.length);
+      input.value = "";
+      syncCustomerMessageCounter();
+      renderCustomerMessages();
+      $("customerMessageList").scrollTop = 0;
+      setCustomerMessageStatus("留言已保存");
+    } catch (error) {
+      setCustomerMessageStatus(error?.message || "客户留言提交失败，请重试。", true);
+    } finally {
+      customerMessageSubmitting = false;
+      button.disabled = false;
+    }
   }
   function orderStatus(row, recordType) {
     const status = String(row.recordStatus || "").toUpperCase();
@@ -257,6 +361,12 @@
     $("customerVerificationRecords").innerHTML = emptyRow(3, "核销记录读取失败");
     $("customerExperienceRecords").innerHTML = emptyRow(3, "体验记录读取失败");
     ["loadMoreRecharges", "loadMoreVerifications", "loadMoreExperiences"].forEach((id) => { if ($(id)) $(id).hidden = true; });
+    if (canUseCustomerMessages) {
+      $("customerMessageList").innerHTML = `<article class="customer-message-empty">${escapeHtml(message)}</article>`;
+      $("loadMoreCustomerMessages").hidden = true;
+      $("customerMessageLoadRow").hidden = true;
+      setCustomerMessageStatus(message, true);
+    }
     renderPhoto('<div class="customer-photo-placeholder">客户资料读取失败</div>', true);
   }
   async function loadProfile() {
@@ -275,14 +385,20 @@
       historyState.EXPERIENCE.hasMore = data.history?.experiences?.hasMore === true;
       historyState.EXPERIENCE.nextCursor = data.history?.experiences?.nextCursor || null;
       renderBasic(); renderRecent(); renderBalances(); renderRecords();
+      void loadCustomerMessages({ reset:true });
     } catch (error) { renderLoadError(error.message || "客户主页数据库读取失败，请刷新重试。"); }
   }
   configureBackLink();
+  if (!canUseCustomerMessages) $("customerMessagesPanel").hidden = true;
   $("loadMoreRecharges")?.addEventListener("click", () => loadMoreHistory("RECHARGE"));
   $("loadMoreVerifications")?.addEventListener("click", () => loadMoreHistory("VERIFICATION"));
   $("loadMoreExperiences")?.addEventListener("click", () => loadMoreHistory("EXPERIENCE"));
+  $("loadMoreCustomerMessages")?.addEventListener("click", () => loadCustomerMessages());
+  $("customerMessageForm")?.addEventListener("submit", submitCustomerMessage);
+  $("customerMessageInput")?.addEventListener("input", syncCustomerMessageCounter);
   $("editCustomerNotes")?.addEventListener("click", editCustomerNotes);
   $("saveCustomerNotes")?.addEventListener("click", saveCustomerNotes);
   $("cancelCustomerNotes")?.addEventListener("click", cancelCustomerNotes);
+  syncCustomerMessageCounter();
   void loadProfile();
 })();

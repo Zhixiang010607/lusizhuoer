@@ -18,7 +18,7 @@ assert.match(desktopBlock, /\.customer-profile-main \{[^}]*grid-auto-rows: auto;
 assert.doesNotMatch(desktopBlock, /grid-template-rows:\s*178px/, "customer header must not be compressed into the old fixed row");
 assert.match(desktopBlock, /\.customer-project-panel \.customer-record-scroll \{[^}]*height: 166px;[^}]*max-height: 166px;/, "project records should keep their own bounded scroll area");
 assert.match(desktopBlock, /\.customer-record-panel \.customer-record-scroll \{[^}]*height: 158px;[^}]*max-height: 158px;/, "order records should keep their own bounded scroll area");
-assert.match(html, /styles\.css\?v=0\.15\.39/, "customer page should bust the stylesheet cache");
+assert.match(html, /styles\.css\?v=0\.15\.40/, "customer page should bust the stylesheet cache");
 assert.match(html, /id="customerExperienceRecords"/, "customer profile must expose a separate experience record list");
 assert.match(html, /id="editCustomerNotes"[\s\S]*id="saveCustomerNotes"/, "customer notes must require explicit edit and save actions");
 assert.match(ui, /action:"updateCustomerNotes"/, "customer notes must save through the database service");

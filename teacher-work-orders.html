@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>老师工作台</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.39">
+  <link rel="stylesheet" href="styles.css?v=0.15.40">
 </head>
 <body data-teacher-workspace>
   <aside class="side-project-bar" aria-label="老师工作台"><div class="side-brand"><span>师</span><div><strong>老师工作台</strong><small>本人业务</small></div></div><nav class="side-nav"></nav><div class="side-footer">老师账号</div></aside>
@@ -15,7 +15,7 @@
       <div id="teacherProfileInfo" class="detail-info-grid"><article><span>读取状态</span><strong>正在读取数据库…</strong></article></div>
     </section>
     <section class="panel teacher-business-panel">
-      <div class="panel-heading"><div><h2>本人绑定工单</h2><p>客户仅作工单上下文展示，不提供客户主页入口</p></div><span id="teacherLoadedCount" class="badge">0 条</span></div>
+      <div class="panel-heading"><div><h2>本人绑定工单</h2><p>点击客户姓名可进入本人关联客户主页并留言</p></div><span id="teacherLoadedCount" class="badge">0 条</span></div>
       <div class="teacher-record-tabs" role="tablist" aria-label="工单类型"><button class="active" id="teacherVerificationTab" type="button" role="tab" aria-selected="true">我的核销</button><button id="teacherRechargeTab" type="button" role="tab" aria-selected="false">我的充值</button></div>
       <p id="teacherWorkspaceMessage" class="form-message" aria-live="polite"></p>
       <div class="table-scroll"><table><thead id="teacherRecordsHead"></thead><tbody id="teacherOrdersBody"><tr><td class="teacher-empty">正在读取数据库工单…</td></tr></tbody></table></div>
@@ -27,7 +27,7 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
   <script src="datetime.js?v=0.1.2"></script>
-  <script src="teacher-work-orders.js?v=0.15.3"></script>
-  <script src="auth-ui.js?v=0.18.5"></script>
+  <script src="teacher-work-orders.js?v=0.15.4"></script>
+  <script src="auth-ui.js?v=0.18.6"></script>
 </body>
 </html>

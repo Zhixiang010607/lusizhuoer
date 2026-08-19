@@ -600,6 +600,28 @@ dialog::backdrop { background: #0b142a88; backdrop-filter: blur(3px); }
 .customer-notes-message { min-height: 16px; margin: 6px 0 0; color: #08765f; font-size: 11px; }
 .customer-notes-message:empty { display: none; }
 .customer-notes-message.error { color: #bd2c2c; }
+.customer-messages-panel { padding: 15px; }
+.customer-message-list { min-height: 0; max-height: 360px; display: grid; align-content: start; gap: 7px; overflow-y: auto; overscroll-behavior: contain; padding: 2px 4px 2px 0; scrollbar-color: #b7c1cf transparent; scrollbar-width: thin; }
+.customer-message-item { min-width: 0; padding: 10px 12px; border: 1px solid #e1e8f0; border-radius: 10px; background: #fafcff; }
+.customer-message-meta { min-width: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 3px; color: #40536a; font-size: 11px; }
+.customer-message-author { min-width: 0; color: var(--ink); font-weight: 800; overflow-wrap: anywhere; }
+.customer-message-role { color: #315f9d; }
+.customer-message-separator { color: #8794a5; }
+.customer-message-meta time { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.customer-message-content { margin: 6px 0 0; color: #243b55; font-size: 12px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+.customer-message-empty { min-height: 66px; display: grid; place-items: center; padding: 12px; color: var(--muted); border: 1px dashed #cfd9e5; border-radius: 10px; background: #fafcff; font-size: 11px; text-align: center; }
+.customer-message-load-row { display: flex; justify-content: center; margin-top: 7px; }
+.customer-message-load-row button { min-height: 30px; padding: 5px 12px; font-size: 11px; }
+.customer-message-compose { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; margin-top: 9px; padding-top: 9px; border-top: 1px solid #e7ecf2; }
+.customer-message-input { min-width: 0; display: grid; }
+.customer-message-input textarea { min-height: 62px; max-height: 120px; margin: 0; resize: vertical; font-size: 12px; line-height: 1.5; }
+.customer-message-input span { justify-self: end; margin-top: 3px; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.customer-message-input span.limit { color: #bd2c2c; font-weight: 800; }
+.customer-message-compose button { min-width: 92px; min-height: 36px; padding: 7px 12px; }
+.customer-message-compose button:disabled { cursor: not-allowed; opacity: .55; }
+.customer-message-status { min-height: 16px; margin: 6px 0 0; color: #08765f; font-size: 11px; }
+.customer-message-status:empty { display: none; }
+.customer-message-status.error { color: #bd2c2c; }
 .customer-project-panel .customer-record-scroll { height: 166px; max-height: 166px; overflow-y: auto; }
 .customer-project-panel .customer-record-scroll thead th { position: sticky; top: 0; z-index: 1; }
 .customer-records-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
@@ -625,7 +647,7 @@ dialog::backdrop { background: #0b142a88; backdrop-filter: blur(3px); }
   body[data-customer-profile] .customer-profile-main { min-height: 0; display: grid; grid-template-rows: none; grid-auto-rows: auto; align-content: start; gap: 8px; margin-top: 7px; margin-bottom: 18px; overflow: visible; }
   body[data-customer-profile] .customer-profile-main > * { min-height: 0; overflow: visible; }
   body[data-customer-profile] .customer-profile-grid { grid-template-columns: minmax(0, 1fr) 236px; gap: 8px; }
-  body[data-customer-profile] .customer-basic-panel, body[data-customer-profile] .customer-photo-panel, body[data-customer-profile] .customer-notes-panel, body[data-customer-profile] .customer-project-panel, body[data-customer-profile] .customer-record-panel { padding: 11px; }
+  body[data-customer-profile] .customer-basic-panel, body[data-customer-profile] .customer-photo-panel, body[data-customer-profile] .customer-notes-panel, body[data-customer-profile] .customer-messages-panel, body[data-customer-profile] .customer-project-panel, body[data-customer-profile] .customer-record-panel { padding: 11px; }
   body[data-customer-profile] .customer-photo-frame { width: min(100%, 128px); }
   body[data-customer-profile] .customer-basic-info article { min-height: 62px; padding: 8px; }
   body[data-customer-profile] .customer-basic-recent { margin-top: 7px; }
@@ -1390,6 +1412,7 @@ body[data-operation-home] .operation-home-main { width: min(1180px, calc(100% - 
 
 @media (min-width: 761px) and (max-width: 1100px) {
   body.store-record-query .customer-query-filters { grid-template-columns: 1fr; }
+  body[data-customer-profile] .customer-message-list { max-height: min(42dvh, 380px); }
 }
 
 @media (max-width: 760px) {
@@ -1530,6 +1553,23 @@ body[data-operation-home] .operation-home-main { width: min(1180px, calc(100% - 
   body[data-customer-profile] .customer-notes-panel { display: block; }
   body[data-customer-profile] .customer-notes-panel .panel-heading { margin-bottom: 8px; }
   body[data-customer-profile] .customer-notes-message { grid-column: auto; }
+
+  body[data-customer-profile] .customer-messages-panel { padding: 11px; }
+  body[data-customer-profile] .customer-message-list {
+    max-height: min(46dvh, 340px);
+    padding-right: 2px;
+  }
+  body[data-customer-profile] .customer-message-item { padding: 9px 10px; }
+  body[data-customer-profile] .customer-message-meta time {
+    flex: 1 0 100%;
+    margin-left: 0;
+    font-size: 10px;
+  }
+  body[data-customer-profile] .customer-message-compose {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  body[data-customer-profile] .customer-message-compose button { width: 100%; }
 }
 
 /* Tablet and phone business workflows must grow with their customer card.

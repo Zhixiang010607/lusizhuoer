@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v58";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v59";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -1004,7 +1004,7 @@ async function activeStoreCaller() {
          ON sa.staff_account_id = a.id AND sa.assignment_status = 'ACTIVE'
        JOIN public.stores s ON s.id = sa.store_id`;
   const rows = await executeSql(
-    `SELECT a.id AS staff_id, a.role_code, a.account_status,
+    `SELECT a.id AS staff_id, a.staff_name, a.role_code, a.account_status,
             s.id AS store_id, s.store_code, s.store_name, s.store_status
        FROM public.staff_accounts a
        ${storeJoin}
@@ -1017,6 +1017,7 @@ async function activeStoreCaller() {
   return {
     uid: String(uid),
     staffId: Number(caller.staff_id),
+    staffName: String(caller.staff_name || ""),
     storeId: Number(caller.store_id),
     storeCode: String(caller.store_code || ""),
     storeName: String(caller.store_name || "")
@@ -1027,7 +1028,7 @@ async function activeTeacherCaller() {
   const { uid } = app().auth().getUserInfo();
   if (!uid) fail("请先登录老师账号后再办理业务。", "UNAUTHENTICATED");
   const rows = await executeSql(
-    `SELECT a.id AS staff_id, a.role_code, a.account_status,
+    `SELECT a.id AS staff_id, a.staff_name, a.role_code, a.account_status,
             t.id AS teacher_id, t.teacher_code, t.teacher_name, t.teacher_status
        FROM public.staff_accounts a
        JOIN public.teachers t ON t.staff_account_id = a.id
@@ -1043,6 +1044,7 @@ async function activeTeacherCaller() {
     uid: String(uid),
     role: "teacher",
     staffId: Number(caller.staff_id),
+    staffName: String(caller.staff_name || caller.teacher_name || ""),
     teacherId: String(caller.teacher_id),
     teacherCode: String(caller.teacher_code || ""),
     teacherName: String(caller.teacher_name || "")
@@ -1230,9 +1232,11 @@ async function activeCustomerProfileCaller() {
   const { uid } = app().auth().getUserInfo();
   if (!uid) fail("请先登录后再查看客户主页。", "UNAUTHENTICATED");
   const rows = await executeSql(
-    `SELECT id AS staff_id, role_code, account_status
-       FROM public.staff_accounts
-      WHERE auth_uid = ${sqlText(uid)}
+    `SELECT a.id AS staff_id, a.role_code, a.account_status, a.staff_name,
+            t.id AS teacher_id, t.teacher_name, t.teacher_status
+       FROM public.staff_accounts a
+  LEFT JOIN public.teachers t ON t.staff_account_id = a.id
+      WHERE a.auth_uid = ${sqlText(uid)}
       LIMIT 1`
   );
   const account = rows[0];
@@ -1240,10 +1244,18 @@ async function activeCustomerProfileCaller() {
   if (account.account_status !== "ACTIVE") fail("当前登录账号已封存。", "ARCHIVED");
   if (account.role_code === "store") {
     const store = await activeStoreCaller();
-    return { ...store, role: "store" };
+    return { ...store, role: "store", staffName: String(account.staff_name || store.staffName || "") };
   }
   if (account.role_code === "hq") {
-    return { uid: String(uid), staffId: Number(account.staff_id), role: "hq", storeId: null };
+    return { uid: String(uid), staffId: Number(account.staff_id), staffName: String(account.staff_name || ""), role: "hq", storeId: null, teacherId: "" };
+  }
+  if (account.role_code === "teacher") {
+    if (!account.teacher_id || account.teacher_status !== "ACTIVE") fail("老师资料已经封存。", "ARCHIVED");
+    return {
+      uid: String(uid), staffId: Number(account.staff_id),
+      staffName: String(account.staff_name || account.teacher_name || ""),
+      role: "teacher", storeId: null, teacherId: String(account.teacher_id)
+    };
   }
   fail("当前登录身份无权查看客户主页。", "FORBIDDEN");
 }
@@ -1322,6 +1334,18 @@ async function verificationPhotoContext(event, options = {}) {
 
 function customerProfileScope(caller, alias = "c") {
   if (caller.role === "store") return ` AND ${alias}.created_store_id = ${caller.storeId}`;
+  if (caller.role === "teacher") return ` AND (
+    EXISTS (
+      SELECT 1 FROM public.verification_records teacher_verification
+       WHERE teacher_verification.customer_id = ${alias}.id
+         AND teacher_verification.teacher_id = ${sqlText(caller.teacherId)}::bigint
+    )
+    OR EXISTS (
+      SELECT 1 FROM public.recharge_records teacher_recharge
+       WHERE teacher_recharge.customer_id = ${alias}.id
+         AND teacher_recharge.teacher_id = ${sqlText(caller.teacherId)}::bigint
+    )
+  )`;
   return "";
 }
 
@@ -1459,6 +1483,119 @@ async function updateCustomerNotes(event) {
     fail("客户备注已被其他人员修改，请刷新后重试。", "CUSTOMER_NOTES_CONFLICT");
   }
   return customerStatusResult(customer);
+}
+
+async function executeCustomerMessageSql(sql) {
+  try { return await executeSql(sql); }
+  catch (error) {
+    if (/customer_messages.*does not exist|relation .*customer_messages/i.test(String(error?.message || ""))) {
+      fail("客户留言数据库尚未升级，请先执行 042 客户留言迁移。", "DATABASE_SCHEMA_MISSING");
+    }
+    throw error;
+  }
+}
+
+function customerMessageOptions(event = {}) {
+  const requestedLimit = Number(event.messageLimit);
+  const limit = Number.isFinite(requestedLimit)
+    ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 50)
+    : 20;
+  const cursorCreatedAt = scopedQueryCursorTimestamp(event.cursorCreatedAt, "客户留言游标时间");
+  const cursorId = String(event.cursorMessageId || "").trim();
+  if (Boolean(cursorCreatedAt) !== Boolean(cursorId)) fail("客户留言游标不完整。", "BAD_REQUEST");
+  return {
+    limit,
+    cursorCreatedAt,
+    cursorId: cursorId ? businessQueryDatabaseId(cursorId, "客户留言游标编号") : ""
+  };
+}
+
+async function customerMessageCustomer(caller, customerCodeValue) {
+  const rows = await executeSql(
+    `SELECT c.id, c.customer_code
+       FROM public.customers c
+      WHERE c.customer_code = ${sqlText(customerCodeValue)}
+        ${customerProfileScope(caller, "c")}
+      LIMIT 1`
+  );
+  const customer = rows[0];
+  if (!customer) fail("未找到当前账号有权留言的客户档案。", "CUSTOMER_NOT_FOUND");
+  return customer;
+}
+
+function mapCustomerMessage(row) {
+  return {
+    id: String(row.id),
+    authorName: String(row.author_name_snapshot || ""),
+    authorRole: String(row.author_role || ""),
+    content: String(row.message_content || ""),
+    createdAt: row.created_at
+  };
+}
+
+async function listCustomerMessages(event) {
+  const caller = await activeCustomerProfileCaller();
+  const customerCodeValue = customerStatusCode(event);
+  const customer = await customerMessageCustomer(caller, customerCodeValue);
+  const options = customerMessageOptions(event);
+  const cursor = options.cursorCreatedAt
+    ? `AND (cm.created_at, cm.id) < (${sqlText(options.cursorCreatedAt)}::timestamptz, ${options.cursorId}::bigint)`
+    : "";
+  const rows = await executeCustomerMessageSql(
+    `SELECT cm.id, cm.author_role, cm.author_name_snapshot,
+            cm.message_content, cm.created_at,
+            TO_CHAR(cm.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_created_at,
+            (SELECT COUNT(*) FROM public.customer_messages total
+              WHERE total.customer_id = cm.customer_id) AS total_count
+       FROM public.customer_messages cm
+      WHERE cm.customer_id = ${sqlText(String(customer.id))}::bigint
+        ${cursor}
+      ORDER BY cm.created_at DESC, cm.id DESC
+      LIMIT ${options.limit + 1}`
+  );
+  const hasMore = rows.length > options.limit;
+  const visibleRows = rows.slice(0, options.limit);
+  const last = visibleRows[visibleRows.length - 1];
+  return {
+    ok: true,
+    messages: visibleRows.map(mapCustomerMessage),
+    totalCount: Number(rows[0]?.total_count || 0),
+    page: {
+      hasMore,
+      nextCursor: hasMore && last
+        ? { createdAt: last.cursor_created_at, id: String(last.id) }
+        : null
+    }
+  };
+}
+
+async function addCustomerMessage(event) {
+  const caller = await activeCustomerProfileCaller();
+  const customerCodeValue = customerStatusCode(event);
+  const customer = await customerMessageCustomer(caller, customerCodeValue);
+  const content = String(event.content ?? "").replace(/\r\n?/g, "\n").trim();
+  const contentLength = Array.from(content).length;
+  if (!contentLength) fail("请输入留言内容。", "CUSTOMER_MESSAGE_REQUIRED");
+  if (contentLength > 100) fail("单条客户留言不能超过 100 字。", "CUSTOMER_MESSAGE_TOO_LONG");
+  const rows = await executeCustomerMessageSql(
+    `INSERT INTO public.customer_messages
+       (customer_id, author_account_id, author_role, author_name_snapshot, message_content)
+     SELECT ${sqlText(String(customer.id))}::bigint, a.id, a.role_code,
+            BTRIM(a.staff_name), ${sqlText(content)}
+       FROM public.staff_accounts a
+      WHERE a.id = ${positiveDatabaseId(caller.staffId, "当前留言账号")}
+        AND a.account_status = 'ACTIVE'
+        AND a.role_code IN ('hq', 'store', 'teacher')
+     RETURNING id, author_role, author_name_snapshot, message_content, created_at`
+  );
+  const message = rows[0];
+  if (!message) fail("当前登录账号不能提交客户留言。", "FORBIDDEN");
+  const totals = await executeCustomerMessageSql(
+    `SELECT COUNT(*) AS total_count
+       FROM public.customer_messages
+      WHERE customer_id = ${sqlText(String(customer.id))}::bigint`
+  );
+  return { ok: true, message: mapCustomerMessage(message), totalCount: Number(totals[0]?.total_count || 1) };
 }
 
 function customerHistoryOptions(event = {}) {
@@ -4247,6 +4384,8 @@ exports.main = async (event = {}, context = {}) => {
     if (action === "getReviewCustomerProfile") return await getCustomerProfile(event, { operationReviewContext: true });
     if (action === "updateCustomerStatus") return await updateCustomerStatus(event);
     if (action === "updateCustomerNotes") return await updateCustomerNotes(event);
+    if (action === "listCustomerMessages") return await listCustomerMessages(event);
+    if (action === "addCustomerMessage") return await addCustomerMessage(event);
     if (action === "searchCustomer") return await searchCustomer(event);
     if (action === "verifyCustomerFace") return await verifyCustomerFace(event);
     if (action === "getVerificationPhotos") return await getVerificationPhotos(event);
