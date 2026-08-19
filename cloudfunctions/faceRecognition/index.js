@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v62";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v63";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -1106,8 +1106,8 @@ async function activeBusinessCaller(event = {}) {
 
 async function activeCustomerCreationCaller(event = {}) {
   const caller = await activeBusinessCaller(event);
-  if (!["store", "hq"].includes(caller.role)) {
-    fail("只有门店或总部账号可以建立客户档案。", "FORBIDDEN");
+  if (!["store", "teacher", "hq"].includes(caller.role)) {
+    fail("只有门店、老师或总部账号可以建立客户档案。", "FORBIDDEN");
   }
   return caller;
 }

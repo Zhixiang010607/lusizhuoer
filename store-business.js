@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.53", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.54", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   const formatBirthday = (value, fallback = "—") => {
     const raw = String(value ?? "").trim();
     if (!raw) return fallback;
@@ -9,12 +9,15 @@
   };
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
-  const teacherMode = session?.role === "teacher" && document.body.hasAttribute("data-teacher-business");
+  const businessPages = ["customer", "recharge", "refund", "verification", "verification-experience"];
+  const teacherMode = session?.role === "teacher" && businessPages.includes(page);
+  const legacyTeacherMode = teacherMode && document.body.hasAttribute("data-teacher-business");
+  const sharedTeacherMode = teacherMode && !legacyTeacherMode;
   const hqMode = session?.role === "hq"
     && !document.body.hasAttribute("data-teacher-business")
-    && ["customer", "recharge", "refund", "verification", "verification-experience"].includes(page);
+    && businessPages.includes(page);
   if (!session || (teacherMode
-    ? !["recharge", "refund", "verification", "verification-experience"].includes(page)
+    ? !businessPages.includes(page)
     : !hqMode && session.role !== "store")) return;
   let storeId = teacherMode || hqMode ? "" : String(session?.store || "");
   const storeNo = Number(storeId.replace(/\D/g, "")) || 1;
@@ -902,7 +905,7 @@
     });
   }
 
-  function installHqBusinessStorePanel() {
+  function installSharedBusinessStorePanel() {
     const workflow = document.querySelector("main.store-business-main");
     if (!workflow) return null;
     document.body.setAttribute("data-hq-business", "");
@@ -921,7 +924,8 @@
     });
     const panel = document.createElement("section");
     panel.className = "panel hq-business-store-panel";
-    panel.innerHTML = `<div class="panel-heading"><div><h2>选择本次办理门店</h2><p>总部每次只能为一个具体门店办理业务，不能选择全部门店</p></div><span id="hqBusinessStoreState" class="badge">尚未选择</span></div><div class="hq-business-store-row"><label>当前总部账号<strong id="hqBusinessIdentity"></strong></label><label>办理门店<select id="hqBusinessStore"><option value="">正在读取活跃门店…</option></select></label><button id="confirmHqBusinessStore" type="button" disabled>确认门店</button></div><p id="hqBusinessStoreMessage" class="form-message" role="status"></p>`;
+    const roleLabel = sharedTeacherMode ? "老师" : "总部";
+    panel.innerHTML = `<div class="panel-heading"><div><h2>选择本次办理门店</h2><p>${roleLabel}每次只能为一个具体门店办理业务，不能选择全部门店</p></div><span id="hqBusinessStoreState" class="badge">尚未选择</span></div><div class="hq-business-store-row"><label>当前${roleLabel}账号<strong id="hqBusinessIdentity"></strong></label><label>办理门店<select id="hqBusinessStore"><option value="">正在读取活跃门店…</option></select></label><button id="confirmHqBusinessStore" type="button" disabled>确认门店</button></div><p id="hqBusinessStoreMessage" class="form-message" role="status"></p>`;
     workflow.before(panel);
     return {
       workflow,
@@ -937,17 +941,20 @@
     };
   }
 
-  async function setupHqBusiness() {
-    const installed = installHqBusinessStorePanel();
+  async function setupSharedBusiness() {
+    const installed = installSharedBusinessStorePanel();
     if (!installed) return;
     const { workflow, unlock } = installed;
     const select = $("hqBusinessStore");
     const confirm = $("confirmHqBusinessStore");
     const message = $("hqBusinessStoreMessage");
-    $("hqBusinessIdentity").textContent = [session.staffName, session.account].filter(Boolean).join(" · ") || "当前总部账号";
+    $("hqBusinessIdentity").textContent = [session.staffName, session.account].filter(Boolean).join(" · ") || (sharedTeacherMode ? "当前老师账号" : "当前总部账号");
     let stores = [];
     try {
-      const result = await callCustomerEnrollment({ action: "getHqBusinessContext" });
+      const result = await callCustomerEnrollment({ action: sharedTeacherMode ? "getTeacherBusinessContext" : "getHqBusinessContext" });
+      if (sharedTeacherMode && result?.teacher) {
+        $("hqBusinessIdentity").textContent = [result.teacher.teacherName, result.teacher.teacherCode].filter(Boolean).join(" · ") || "当前老师账号";
+      }
       stores = (Array.isArray(result?.stores) ? result.stores : []).map((store) => ({
         id: String(store.storeId || ""),
         code: String(store.storeCode || ""),
@@ -959,7 +966,7 @@
     } catch (error) {
       select.innerHTML = `<option value="">门店读取失败</option>`;
       select.disabled = true;
-      message.textContent = error?.message || "无法读取总部可办理门店，请刷新后重试。";
+      message.textContent = error?.message || `无法读取${sharedTeacherMode ? "老师" : "总部"}可办理门店，请刷新后重试。`;
     }
     select.addEventListener("change", () => {
       confirm.disabled = !stores.some((store) => store.id === select.value);
@@ -992,12 +999,13 @@
   document.documentElement.dataset.prototypeVersion = VERSION;
   window.addEventListener("pageshow", (event) => {
     // A back-forward-cache restore retains every in-memory form, camera and
-    // evidence value. HQ must reconfirm a concrete store on a clean workflow.
-    if (hqMode && event.persisted) window.location.reload();
+    // evidence value. Shared HQ/teacher workflows must reconfirm a concrete
+    // store on a clean form before any further operation.
+    if ((hqMode || sharedTeacherMode) && event.persisted) window.location.reload();
   });
   setupWorkflowResize();
-  if (teacherMode) setupTeacherBusiness();
-  else if (hqMode) setupHqBusiness();
+  if (legacyTeacherMode) setupTeacherBusiness();
+  else if (hqMode || sharedTeacherMode) setupSharedBusiness();
   else if (page === "customer") setupCustomerCreate();
   else if (["recharge", "refund"].includes(page)) setupRecharge();
   else if (["verification", "verification-experience"].includes(page)) setupVerification();

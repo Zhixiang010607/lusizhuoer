@@ -38,7 +38,7 @@ function functionSource(source, name) {
   throw new Error(`function ${name} body is incomplete`);
 }
 
-includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v62"', "split cloud versions");
+includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v63"', "split cloud versions");
 includes(cloud, "const MAX_VERIFICATION_IMAGE_BYTES = 3 * 1024 * 1024", "original upload limit");
 includes(cloud, "const MAX_THUMBNAIL_BYTES = 384 * 1024", "thumbnail upload limit");
 includes(cloud, "if (action === \"getVerificationPhotos\")", "thumbnail list action");
@@ -234,7 +234,7 @@ assert.ok(
 includes(createUi, "verificationFaceEvidenceToken", "face evidence token state");
 includes(createUi, 'thumbnailBase64: verificationThumbnailDataUrl', "face thumbnail upload");
 includes(createUi, 'faceEvidenceToken: verificationFaceEvidenceToken', "atomic order binding payload");
-includes(createUi, 'const VERSION = "0.14.53"', "create UI cache version");
+includes(createUi, 'const VERSION = "0.14.54"', "create UI cache version");
 
 includes(detailUi, 'action: "getVerificationPhotos"', "detail thumbnail request");
 includes(detailUi, 'action: "getVerificationPhotoOriginalUrl"', "detail original request");
@@ -586,10 +586,10 @@ assert.deepEqual(
 );
 
 for (const page of ["customer-create.html", "recharge-create.html", "verification-create.html", "verification-experience.html"]) {
-  includes(read(page), "store-business.js?v=0.14.53", `${page} create script cache bust`);
+  includes(read(page), "store-business.js?v=0.14.54", `${page} create script cache bust`);
 }
 for (const page of ["teacher-recharge-create.html", "teacher-verification-create.html", "teacher-verification-experience.html"]) {
-  includes(read(page), "store-business.js?v=0.14.53", `${page} create script cache bust`);
+  includes(read(page), "store-business.js?v=0.14.54", `${page} create script cache bust`);
 }
 
 Promise.all([storageFallbackTestPromise, verificationSignTestPromise, localPreviewExportPromise])

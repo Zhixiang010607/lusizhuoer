@@ -24,7 +24,7 @@ for (const page of ["verification-experience.html", "teacher-verification-experi
 assert.ok(!fs.existsSync(path.join(root, "verification-supplemental.html")), "store supplemental creation page must be retired");
 assert.ok(!fs.existsSync(path.join(root, "teacher-verification-supplemental.html")), "teacher supplemental creation page must be retired");
 assert.ok(auth.includes('["verification-experience.html", "体验核销"]'), "store and HQ navigation must expose experience verification");
-assert.ok(auth.includes('["teacher-verification-experience.html", "体验核销"]'), "teacher navigation must expose experience verification");
+assert.ok(auth.includes('["verification-experience.html", "体验核销"]'), "teacher navigation must reuse the shared experience verification page");
 
 assert.ok(ui.includes('verificationType: experience ? "EXPERIENCE" : "NORMAL"'), "experience page must submit EXPERIENCE type");
 assert.ok(ui.includes('const expectedStatus = "APPROVED"'), "experience submission must complete immediately");

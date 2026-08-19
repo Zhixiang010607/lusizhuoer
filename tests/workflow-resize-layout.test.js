@@ -11,7 +11,7 @@ for (const page of workflowPages) {
   const html = fs.readFileSync(path.join(root, page), "utf8");
   assert.match(html, /id="workflowResizeHandle"[^>]*role="separator"/, `${page} should expose the workflow resize handle`);
   assert.match(html, /styles\.css\?v=0\.15\.44/, `${page} should load the current responsive stylesheet`);
-  assert.match(html, /store-business\.js\?v=0\.14\.53/, `${page} should load the current workflow script`);
+  assert.match(html, /store-business\.js\?v=0\.14\.54/, `${page} should load the current workflow script`);
 }
 
 const customerHtml = fs.readFileSync(path.join(root, "customer-create.html"), "utf8");
@@ -21,6 +21,6 @@ assert.match(css, /@media \(max-width: 980px\)[\s\S]*?body\[data-store-business\
 assert.match(script, /function setupWorkflowResize\(\)/, "workflow resize setup should exist");
 assert.match(script, /resizeHandle\.addEventListener\("pointerdown"/, "workflow resizing should support pointer input");
 assert.match(script, /\["ArrowLeft", "ArrowRight", "Home"\]/, "workflow resizing should support keyboard input");
-assert.match(script, /setupWorkflowResize\(\);\s*if \(teacherMode\)/, "workflow resizing should initialize before role-specific business setup");
+assert.match(script, /setupWorkflowResize\(\);\s*if \(legacyTeacherMode\)/, "workflow resizing should initialize before role-specific business setup");
 
 console.log("workflow resize layout contract: ok");
