@@ -9,7 +9,7 @@ const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 const OPERATION_ACTIONS = new Set(["listReviewOrders", "reviewOrder"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v43";
+const FUNCTION_VERSION = "v44";
 const ORDER_VOID_APPLICATIONS_ENABLED = false;
 let app = null;
 let auth = null;
@@ -1163,6 +1163,8 @@ async function listReviewOrders(caller, event) {
                   r.void_request_status, r.void_request_note, r.void_requested_at,
                   r.void_review_note, r.void_reviewed_at,
                   s.id AS store_id, s.store_code, s.store_name,
+                  s.province AS store_province, s.city AS store_city,
+                  s.district AS store_district, s.address_detail AS store_address_detail,
                   c.id AS customer_id, c.customer_code, c.customer_name,
                   p.id AS product_id, p.product_code, p.product_name,
                   t.id AS teacher_id, t.teacher_code, t.teacher_name
@@ -1195,6 +1197,8 @@ async function listReviewOrders(caller, event) {
                   v.void_request_status, v.void_request_note, v.void_requested_at,
                   v.void_review_note, v.void_reviewed_at,
                   s.id AS store_id, s.store_code, s.store_name,
+                  s.province AS store_province, s.city AS store_city,
+                  s.district AS store_district, s.address_detail AS store_address_detail,
                   c.id AS customer_id, c.customer_code, c.customer_name,
                   p.id AS product_id, p.product_code, p.product_name,
                   t.id AS teacher_id, t.teacher_code, t.teacher_name

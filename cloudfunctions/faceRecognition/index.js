@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v63";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v65";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -1398,6 +1398,20 @@ async function findCustomerStatus(caller, customerCodeValue) {
   return rows[0] || null;
 }
 
+async function findCustomerForNotes(caller, customerCodeValue) {
+  const rows = await executeSql(
+    `SELECT c.id, c.customer_code, c.customer_name, c.birth_date, c.notes,
+            c.created_store_id, c.customer_status, c.created_at, c.updated_at,
+            s.store_name, s.store_code
+       FROM public.customers c
+       JOIN public.stores s ON s.id = c.created_store_id
+      WHERE c.customer_code = ${sqlText(customerCodeValue)}
+        ${customerProfileScope(caller, "c")}
+      LIMIT 1`
+  );
+  return rows[0] || null;
+}
+
 function customerStatusResult(customer) {
   return {
     ok: true,
@@ -1454,7 +1468,7 @@ async function updateCustomerStatus(event) {
 }
 
 async function updateCustomerNotes(event) {
-  const caller = await activeCustomerStatusCaller();
+  const caller = await activeCustomerProfileCaller();
   const customerCodeValue = customerStatusCode(event);
   const notes = String(event.notes ?? "").replace(/\r\n?/g, "\n").trim();
   const hasExpectedNotes = Object.prototype.hasOwnProperty.call(event, "expectedNotes");
@@ -1462,7 +1476,7 @@ async function updateCustomerNotes(event) {
   if (notes.length > 5000) fail("客户备注不能超过 5000 个字符。", "CUSTOMER_NOTES_TOO_LONG");
   if (expectedNotes.length > 5000) fail("原客户备注无效，请刷新后重试。", "CUSTOMER_NOTES_INVALID");
 
-  const before = await findCustomerStatus(caller, customerCodeValue);
+  const before = await findCustomerForNotes(caller, customerCodeValue);
   if (!before) fail("未找到当前账号有权管理的客户档案。", "CUSTOMER_NOT_FOUND");
   const currentNotes = String(before.notes || "").replace(/\r\n?/g, "\n").trim();
   if (hasExpectedNotes && currentNotes !== expectedNotes) {
@@ -1473,11 +1487,11 @@ async function updateCustomerNotes(event) {
       `UPDATE public.customers
           SET notes = ${sqlText(notes)}, updated_at = NOW()
         WHERE customer_code = ${sqlText(customerCodeValue)}
-          ${customerStatusScope(caller)}
+          ${customerProfileScope(caller)}
           AND COALESCE(notes, '') = ${sqlText(String(before.notes || ""))}`
     );
   }
-  const customer = await findCustomerStatus(caller, customerCodeValue);
+  const customer = await findCustomerForNotes(caller, customerCodeValue);
   if (!customer) fail("客户备注更新后无法读取档案。", "DATABASE_ERROR");
   if (String(customer.notes || "").replace(/\r\n?/g, "\n").trim() !== notes) {
     fail("客户备注已被其他人员修改，请刷新后重试。", "CUSTOMER_NOTES_CONFLICT");
@@ -2242,6 +2256,8 @@ async function queryStoreBusinessRecords(event = {}) {
   const listSql = `SELECT ${recordSelect},
                           c.customer_code, c.customer_name, c.birth_date,
                           s.id AS store_id, s.store_code, s.store_name,
+                          s.province AS store_province, s.city AS store_city,
+                          s.district AS store_district, s.address_detail AS store_address_detail,
                           p.id AS product_id, p.product_code, p.product_name,
                           t.id AS teacher_id, t.teacher_code, t.teacher_name
                      FROM public.${table} ${alias}
@@ -2308,6 +2324,10 @@ async function queryStoreBusinessRecords(event = {}) {
       storeId: String(record.store_id),
       storeCode: record.store_code,
       storeName: record.store_name,
+      storeProvince: record.store_province,
+      storeCity: record.store_city,
+      storeDistrict: record.store_district,
+      storeAddressDetail: record.store_address_detail,
       productId: String(record.product_id),
       productCode: record.product_code,
       productName: record.product_name,
@@ -2939,6 +2959,10 @@ function teacherOrderRows(rows, recordType, teacher = {}) {
     storeId: String(row.store_id || ""),
     storeCode: String(row.store_code || ""),
     storeName: String(row.store_name || ""),
+    storeProvince: String(row.store_province || ""),
+    storeCity: String(row.store_city || ""),
+    storeDistrict: String(row.store_district || ""),
+    storeAddressDetail: String(row.store_address_detail || ""),
     customerCode: String(row.customer_code || ""),
     customerName: String(row.customer_name || ""),
     productCode: String(row.product_code || ""),
@@ -2992,6 +3016,8 @@ async function getTeacherWorkspace(event = {}) {
               ${recordType === "VERIFICATION" ? `${alias}.face_request_id` : "NULL::text AS face_request_id"},
               TO_CHAR(${alias}.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_submitted_at,
               s.id AS store_id, s.store_code, s.store_name,
+              s.province AS store_province, s.city AS store_city,
+              s.district AS store_district, s.address_detail AS store_address_detail,
               c.customer_code, c.customer_name,
               p.product_code, p.product_name
          FROM public.${table} ${alias}

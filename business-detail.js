@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.11";
+  const VERSION = "0.16.12";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -114,6 +114,11 @@
       storeId: field(row, "store_id", "storeId"),
       storeCode: field(row, "store_code", "storeCode"),
       storeName: field(row, "store_name", "storeName"),
+      storeProvince: field(row, "store_province", "storeProvince"),
+      storeCity: field(row, "store_city", "storeCity"),
+      storeDistrict: field(row, "store_district", "storeDistrict"),
+      storeAddressDetail: field(row, "store_address_detail", "storeAddressDetail"),
+      storeAddress: field(row, "store_address", "storeAddress"),
       customerId: field(row, "customer_id", "customerId"),
       customerCode: field(row, "customer_code", "customerCode"),
       customerName: field(row, "customer_name", "customerName"),
@@ -155,6 +160,11 @@
       storeId: clean(row.storeId),
       storeCode: clean(row.storeCode),
       storeName: clean(row.storeName),
+      storeProvince: clean(row.storeProvince),
+      storeCity: clean(row.storeCity),
+      storeDistrict: clean(row.storeDistrict),
+      storeAddressDetail: clean(row.storeAddressDetail),
+      storeAddress: clean(row.storeAddress),
       customerCode: clean(row.customerCode),
       customerName: clean(row.customerName),
       projectCode: clean(row.productCode),
@@ -281,7 +291,9 @@
       filename: `${customerName}+${projectName}+${refund ? "退费" : recharge ? "充值" : "核销"}`,
       kind: clean($("orderKindTag")?.textContent) || (recharge ? "充值" : "核销"),
       title: clean($("orderTitle")?.textContent) || `${recharge ? "充值" : "核销"}工单`,
-      subtitle: recharge ? (clean($("orderDescription")?.textContent) || "业务工单完整导出") : `提交时间：${submittedAt}`,
+      subtitle: recharge
+        ? (clean($("orderDescription")?.textContent) || "业务工单完整导出")
+        : `${clean($("orderDescription")?.textContent) || "门店详细地址：未填写"} · 提交时间：${submittedAt}`,
       statusLabel: "当前审核状态",
       status: clean($("orderStatus")?.textContent) || "—",
       statusHint: clean($("orderStatusHint")?.textContent) || "—",
@@ -586,6 +598,15 @@
   function factCard(label, name, code, emptyLabel = "—") {
     const parts = labelParts(name, code, emptyLabel);
     return `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(parts.name)}${parts.code ? ` <em>· ${escapeHtml(parts.code)}</em>` : ""}</strong></div>`;
+  }
+
+  function fullStoreAddress(record) {
+    const explicit = first(record?.storeAddress, record?.storeFullAddress);
+    if (explicit) return explicit;
+    return [record?.storeProvince, record?.storeCity, record?.storeDistrict, record?.storeAddressDetail]
+      .map(clean)
+      .filter(Boolean)
+      .join("");
   }
 
   function infoCard(label, value, className = "") {
@@ -2156,6 +2177,7 @@
       status: first(params.get("status"), "PENDING"),
       storeId: params.get("storeId"),
       storeName: params.get("storeName"),
+      storeAddress: params.get("storeAddress"),
       customerId: params.get("customerId"),
       customerName: params.get("customerName"),
       projectId: params.get("projectId"),
@@ -2222,10 +2244,7 @@
     const reviewedAt = formatTime(first(record.reviewedAt, record.approvedAt, record.rejectedAt));
     const countNumber = Number(first(record.count, record.unitCount, recharge ? "0" : "1"));
     const rechargeCountLabel = Number.isFinite(countNumber) && countNumber > 0 ? `${countNumber} 次` : "—";
-    const session = readSession();
-    const description = session?.role === "store"
-      ? `${first(record.storeName, "该门店")}自己的${refund ? "退费" : recharge ? "充值" : "核销"}工单。`
-      : "该工单展示本次实际提交的业务内容。";
+    const description = `门店详细地址：${fullStoreAddress(record) || "未填写"}`;
 
     $("orderKindTag").textContent = kind;
     $("orderTitle").textContent = `${refund ? "退费单" : recharge ? "充值单" : "核销单"} ${recordCode || "—"}`;

@@ -8,7 +8,7 @@
   const reviewRecordId = String(params.get("reviewRecordId") || "").trim();
   const session = (() => { try { return JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { return null; } })();
   const canManageStatus = ["hq", "store"].includes(session?.role);
-  const canEditNotes = ["hq", "store"].includes(session?.role);
+  const canEditNotes = ["hq", "store", "teacher"].includes(session?.role);
   const canReadPhoto = ["hq", "store"].includes(session?.role);
   const canUseCustomerMessages = ["hq", "store", "teacher"].includes(session?.role);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[char]));

@@ -940,8 +940,8 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .verification-order-status strong.pending { color: #9a5b00; }
 .verification-order-status strong.approved { color: #08765f; }
 .verification-order-status strong.rejected { color: #b42c2c; }
-.verification-order-keyfacts { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding-top: 4px; }
-.verification-order-keyfacts.verification-order-five-keyfacts { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.verification-order-keyfacts { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; padding-top: 4px; }
+.verification-order-keyfacts.verification-order-five-keyfacts { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 .verification-order-keyfacts div { display: grid; gap: 4px; padding: 10px 11px; border: 1px solid var(--line); border-radius: 10px; background: #f8fafc; }
 .verification-order-keyfacts span { color: var(--muted); font-size: 10px; }
 .verification-order-keyfacts strong { font-size: 12px; overflow-wrap: anywhere; }

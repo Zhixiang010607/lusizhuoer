@@ -74,13 +74,15 @@ assert.ok(twoPagePdf.includes("xref\n0 9"), "multi-page PDF xref count");
 for (const html of [rechargeHtml, verificationHtml]) {
   includes(html, 'id="exportOrderPdf"', "PDF export button");
   includes(html, 'id="exportOrderImage"', "image export button");
-  assert.ok(html.indexOf("order-export.js?v=0.1.3") < html.indexOf("business-detail.js?v=0.16.11"), "exporter must load before detail controller");
+  assert.ok(html.indexOf("order-export.js?v=0.1.3") < html.indexOf("business-detail.js?v=0.16.12"), "exporter must load before detail controller");
 }
 
 includes(verificationHtml, 'class="verification-order-keyfacts verification-order-five-keyfacts"', "verification detail uses a five-fact header");
 assert.doesNotMatch(verificationHtml, /id="orderInfo"|<h2>核销信息<\/h2>|verificationHqMessage|总部留言/, "verification detail removes the duplicated information section and HQ message");
 includes(verificationHtml, '<h2 id="reviewPanelTitle">门店留言</h2>', "verification detail keeps one store message panel");
-includes(detailSource, 'keyFacts.push(factCard("提交时间", submittedAt, ""))', "verification detail adds submission time beside the four key facts");
+includes(detailSource, 'keyFacts.push(factCard("提交时间", submittedAt, ""))', "verification detail adds submission time beside the business facts");
+includes(detailSource, 'const description = `门店详细地址：${fullStoreAddress(record) || "未填写"}`', "all order types replace the generic subtitle with the full store address");
+includes(detailSource, '`${clean($("orderDescription")?.textContent) || "门店详细地址：未填写"} · 提交时间：${submittedAt}`', "verification customer export includes both store address and submission time");
 includes(detailSource, 'if (recharge) $("orderInfo").innerHTML', "the shared controller only renders the detail grid for recharge and refund orders");
 
 includes(detailSource, 'filename: `${customerName}+${projectName}+${refund ? "退费" : recharge ? "充值" : "核销"}`', "required filename contract");
@@ -105,9 +107,9 @@ includes(detailSource, "customerFacing: true", "all downloaded orders use the cu
 includes(detailSource, "const messages = [];", "all downloaded orders omit internal messages");
 includes(detailSource, '[["充值次数", rechargeCountLabel], ["提交时间", submittedAt], ["审核时间", reviewedAt]]', "recharge screen and export keep only count and two timestamps");
 includes(detailSource, '[["退费次数", rechargeCountLabel], ["提交时间", submittedAt], ["审核时间", reviewedAt]]', "refund screen and export keep only count and two timestamps");
-includes(detailSource, "facts: recharge ? facts : verificationFacts", "verification PDF keeps only the four header facts");
+includes(detailSource, "facts: recharge ? facts : verificationFacts", "verification PDF keeps only the customer-facing business facts including address");
 includes(detailSource, "details: recharge ? details : []", "verification PDF removes repeated detail grid and unit count");
-includes(detailSource, "`提交时间：${submittedAt}`", "verification PDF keeps submission time in the header");
+includes(detailSource, "· 提交时间：${submittedAt}`", "verification PDF keeps submission time after the store address");
 includes(detailSource, 'facts.find((item) => item.label === "提交时间")?.value', "verification PDF reads submission time from the compact screen header");
 const exportDataSource = detailSource.slice(detailSource.indexOf("function exportDocumentData"), detailSource.indexOf("async function fetchVerificationPhotoUrlBlob"));
 assert.ok(!/verification(Store|Hq)Message|recharge(Store|Hq)Message/.test(exportDataSource), "customer PDFs never read any internal message");
