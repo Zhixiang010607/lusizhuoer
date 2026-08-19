@@ -323,7 +323,7 @@
     if (!instructions) return y;
     y += 10;
     y = ensureSpace(y, 70, paginate);
-    y = drawSectionHeading(context, "产品说明", "由总部维护的当前产品单据说明", y, draw);
+    y = drawSectionHeading(context, "产品说明", "", y, draw);
     return drawMessageCard(context, { label: "说明", value: instructions }, y, draw, paginate);
   }
 
@@ -366,21 +366,7 @@
 
     y = drawProductInstructions(context, documentData, y, draw, paginate);
 
-    y += 34;
-    if (draw) {
-      context.fillStyle = "#98a2b3";
-      setFont(context, 14, 400);
-      context.textBaseline = "top";
-      context.fillText(`导出时间：${new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "medium", hour12: false }).format(new Date())}`, PAGE_MARGIN, y);
-      context.textAlign = "right";
-      context.fillText(
-        photos.length ? "系统工单导出 · 私有照片仅写入当前下载文件" : documentData.customerFacing ? "露思卓儿客户业务凭证" : "系统工单导出",
-        CANVAS_WIDTH - PAGE_MARGIN,
-        y
-      );
-      context.textAlign = "left";
-    }
-    y += 42;
+    y += 24;
     return y;
   }
 

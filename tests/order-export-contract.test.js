@@ -75,7 +75,7 @@ assert.ok(twoPagePdf.includes("xref\n0 9"), "multi-page PDF xref count");
 for (const html of [rechargeHtml, verificationHtml]) {
   includes(html, 'id="exportOrderPdf"', "PDF export button");
   includes(html, 'id="exportOrderImage"', "image export button");
-  assert.ok(html.indexOf("order-export.js?v=0.1.5") < html.indexOf("business-detail.js?v=0.16.15"), "exporter must load before detail controller");
+  assert.ok(html.indexOf("order-export.js?v=0.1.6") < html.indexOf("business-detail.js?v=0.16.15"), "exporter must load before detail controller");
 }
 
 includes(verificationHtml, 'class="verification-order-keyfacts verification-order-five-keyfacts"', "verification detail uses a five-fact header");
@@ -117,7 +117,9 @@ const exportCurrentOrderSource = detailSource.slice(detailSource.indexOf("async 
 includes(exportCurrentOrderSource, 'type === "verification" ? await verificationExportPhotos(currentRecord) : { photos: [], warning: "" }', "verification exports keep photos while recharge and refund exports use an empty photo list");
 includes(exportCurrentOrderSource, "productTemplateLoadPromise = loadProductReceiptTemplate(currentRecord)", "every export reloads the latest template for its own product");
 includes(exportCurrentOrderSource, "photos: photoResult.photos", "verification photos are passed to the exporter");
-includes(exporterSource, 'documentData.customerFacing ? "露思卓儿客户业务凭证"', "customer PDF footer omits private-photo wording");
+for (const removedCopy of ["由总部维护的当前产品单据说明", "导出时间：", "系统工单导出", "露思卓儿客户业务凭证"]) {
+  assert.ok(!exporterSource.includes(removedCopy), `customer receipt removes internal/footer copy: ${removedCopy}`);
+}
 assert.ok(!/html2canvas|jspdf|unpkg|cdnjs/i.test(exporterSource), "export must not load a third-party DOM service");
 
 const headerTexts = [];
@@ -177,6 +179,7 @@ exporter.__layoutDocument(headerContext, {
   productTemplate: { instructions: "5、疗程后保持清洁。\n7、疗程后坚持护理。\n7、三个月内注意饮食。" }
 }, [], { draw: true, paginate: false });
 const multilineInstructionTexts = headerTexts.slice(multilineInstructionStart);
+assert.ok(multilineInstructionTexts.includes("产品说明"), "product instructions keep the customer-facing section title");
 for (const line of ["5、疗程后保持清洁。", "7、疗程后坚持护理。", "7、三个月内注意饮食。"]) {
   assert.ok(multilineInstructionTexts.includes(line), `product instructions preserve manual line break: ${line}`);
 }
