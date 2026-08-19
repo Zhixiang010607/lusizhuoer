@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.6";
+  const VERSION = "0.15.7";
   const type = document.body.dataset.query;
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
@@ -34,10 +34,10 @@
 
     const recordType = type === "verification" ? "VERIFICATION" : "RECHARGE";
     const noun = recordType === "RECHARGE" ? "充值" : "核销";
-    const columnCount = recordType === "RECHARGE" ? 10 : 11;
+    const columnCount = recordType === "RECHARGE" ? 9 : 11;
     let mode = "browse";
     let rows = [];
-    let summary = { total: 0, pending: 0, approved: 0, closed: 0, voidPending: 0 };
+    let summary = { total: 0, pending: 0, approved: 0, rejected: 0 };
     let cursors = [null];
     let pageIndex = 0;
     let nextCursor = null;
@@ -190,21 +190,11 @@
     function statusTag(code) {
       const states = {
         PENDING: ["待审核", "status-审核中"],
-        APPROVED: ["已通过", "status-正常"],
+        APPROVED: ["审核通过", "status-正常"],
         REJECTED: ["已驳回", "status-已驳回"],
-        VOIDED: ["已作废", "status-已作废"]
+        VOIDED: ["已驳回", "status-已驳回"]
       };
       const [label, className] = states[String(code || "").toUpperCase()] || ["未记录", ""];
-      return `<span class="record-status ${className}">${label}</span>`;
-    }
-    function voidStatusTag(code) {
-      const states = {
-        NONE: ["未申请", ""],
-        PENDING: ["作废待审核", "status-审核中"],
-        REJECTED: ["作废已驳回", "status-已驳回"],
-        APPROVED: ["作废已通过", "status-已作废"]
-      };
-      const [label, className] = states[String(code || "NONE").toUpperCase()] || ["未记录", ""];
       return `<span class="record-status ${className}">${label}</span>`;
     }
     function verificationTypeTag(code) {
@@ -218,7 +208,7 @@
     }
     function selectedRecordTotal() {
       return mode === "browse"
-        ? ({ ALL: summary.total, PENDING: summary.pending, APPROVED: summary.approved, CLOSED: summary.closed }[statusCategoryValue()] ?? summary.total)
+        ? ({ ALL: summary.total, PENDING: summary.pending, APPROVED: summary.approved, REJECTED: summary.rejected }[statusCategoryValue()] ?? summary.total)
         : summary.total;
     }
     function renderRows() {
@@ -231,7 +221,7 @@
         const commonStart = `<tr><td><a class="record-link" href="${detailLink}">${escapeHtml(record.recordCode)}</a></td><td><a class="record-link" href="${customerLink}">${escapeHtml(record.customerCode)}</a></td><td>${escapeHtml(record.customerName)}</td><td>${escapeHtml(formatBirthday(record.birthDate))}</td><td>${escapeHtml(store)}</td><td>${escapeHtml(product)}</td>`;
         if (recordType === "RECHARGE") {
           const signedUnits = String(record.originalType || "").toUpperCase() === "VOID" ? `−${Number(record.unitCount || 0)}` : `+${Number(record.unitCount || 0)}`;
-          return `${commonStart}<td>${signedUnits}</td><td>${escapeHtml(formatDateTime(record.submittedAt))}</td><td>${statusTag(record.recordStatus)}</td><td>${voidStatusTag(record.voidRequestStatus)}</td></tr>`;
+          return `${commonStart}<td>${signedUnits}</td><td>${escapeHtml(formatDateTime(record.submittedAt))}</td><td>${statusTag(record.recordStatus)}</td></tr>`;
         }
         const teacher = [record.teacherName, record.teacherCode].filter(Boolean).join(" · ") || "未记录";
         const face = record.hasFaceRequest
@@ -257,10 +247,10 @@
       const labels = {
         ALL: `全部${noun}单`,
         PENDING: "待审核",
-        APPROVED: "已通过",
-        CLOSED: "已驳回／已作废"
+        APPROVED: "审核通过",
+        REJECTED: "已驳回"
       };
-      const counts = { ALL: summary.total, PENDING: summary.pending, APPROVED: summary.approved, CLOSED: summary.closed };
+      const counts = { ALL: summary.total, PENDING: summary.pending, APPROVED: summary.approved, REJECTED: summary.rejected };
       const selected = mode === "browse" ? statusCategoryValue() : "";
       $("recordCategoryGrid").innerHTML = Object.entries(labels).map(([key, label]) => `<button class="customer-category-card ${selected === key ? "selected" : ""}" data-record-category="${key}"><span>${label}</span><strong>${Number(counts[key] || 0)}</strong><small>数据库汇总</small></button>`).join("");
       document.querySelectorAll("[data-record-category]").forEach((button) => {
@@ -287,23 +277,25 @@
         const data = await call(queryPayload());
         if (sequence !== requestSequence) return false;
         rows = Array.isArray(data.records) ? data.records : [];
-        summary = { total: 0, pending: 0, approved: 0, closed: 0, voidPending: 0, ...(data.summary || {}) };
+        const receivedSummary = data.summary || {};
+        summary = {
+          total: Number(receivedSummary.total || 0),
+          pending: Number(receivedSummary.pending || 0),
+          approved: Number(receivedSummary.approved || 0),
+          rejected: Number(receivedSummary.rejected ?? receivedSummary.closed ?? 0)
+        };
         hasMore = data.hasMore === true;
         nextCursor = data.nextCursor || null;
         fillProducts(data.products);
         if (!isHq) $("recordStoreName").textContent = [data.storeName || "当前门店", data.storeCode || ""].filter(Boolean).join(" · ");
         renderCategories();
         renderRows();
-        const canIncludeVoidSummary = recordType === "RECHARGE" && (mode !== "browse" || ["ALL", "APPROVED"].includes(statusCategoryValue()));
-        const voidNotice = canIncludeVoidSummary && Number(summary.voidPending || 0) > 0
-          ? `，其中 ${Number(summary.voidPending)} 条正在等待作废审核`
-          : "";
-        notice(`${currentScope}数据库查询完成，共 ${Number(selectedRecordTotal() || 0)} 条${noun}记录${voidNotice}。`);
+        notice(`${currentScope}数据库查询完成，共 ${Number(selectedRecordTotal() || 0)} 条${noun}记录。`);
         return true;
       } catch (error) {
         if (sequence !== requestSequence) return false;
         rows = [];
-        summary = { total: 0, pending: 0, approved: 0, closed: 0, voidPending: 0 };
+        summary = { total: 0, pending: 0, approved: 0, rejected: 0 };
         hasMore = false;
         nextCursor = null;
         $("recordSummary").textContent = "数据库读取失败";

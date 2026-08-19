@@ -21,7 +21,8 @@ const parts = [
   "040-01-fix-verification-photo-commit-ambiguity.sql",
   "041-01-experience-device-port.sql",
   "041-02-experience-create-function.sql",
-  "042-01-customer-messages.sql"
+  "042-01-customer-messages.sql",
+  "043-01-disable-recharge-void.sql"
 ];
 
 function transactionBody(source) {
@@ -72,6 +73,16 @@ const reconstructed042 = parts
   .map((filename) => transactionBody(fs.readFileSync(path.join(consoleDir, filename), "utf8")))
   .join("\n\n");
 assert.equal(reconstructed042, canonical042, "CloudBase migration 042 must match the canonical customer-message migration");
+
+const canonical043 = transactionBody(fs.readFileSync(
+  path.join(root, "database", "migrations", "043_disable_recharge_void_workflow.sql"),
+  "utf8"
+));
+const reconstructed043 = parts
+  .filter((filename) => filename.startsWith("043-"))
+  .map((filename) => transactionBody(fs.readFileSync(path.join(consoleDir, filename), "utf8")))
+  .join("\n\n");
+assert.equal(reconstructed043, canonical043, "CloudBase migration 043 must match the canonical recharge-void retirement migration");
 
 const directParts = Object.fromEntries(
   parts.filter((filename) => filename.startsWith("039-")).map((filename) => [

@@ -29,10 +29,10 @@
         <p id="recordQueryNotice" class="customer-query-notice" aria-live="polite"></p>
         <div class="customer-query-methods" aria-label="充值查询方式">
           <section class="customer-query-method active" data-record-query-panel="browse">
-            <button class="customer-query-method-heading" type="button" data-record-query-mode="browse"><span>方式一</span><strong id="recordBrowseTitle">筛选本门店全部充值记录</strong><small>按项目、原单状态及提交时间筛选</small></button>
+            <button class="customer-query-method-heading" type="button" data-record-query-mode="browse"><span>方式一</span><strong id="recordBrowseTitle">筛选本门店全部充值记录</strong><small>按项目、审核状态及提交时间筛选</small></button>
             <div class="customer-query-row record-query-primary-row">
               <label>项目<select id="recordProduct"><option value="ALL">全部项目</option></select></label>
-              <label>原单状态<select id="recordStatusCategory"><option value="ALL">全部充值单</option><option value="PENDING">待审核</option><option value="APPROVED">已通过</option><option value="CLOSED">已驳回／已作废</option></select></label>
+              <label>审核状态<select id="recordStatusCategory"><option value="ALL">全部充值单</option><option value="PENDING">待审核</option><option value="APPROVED">审核通过</option><option value="REJECTED">已驳回</option></select></label>
             </div>
             <div class="customer-query-row customer-query-time-row">
               <label>时间范围<select id="recordTimeRange"><option value="all" selected>全部时间</option><option value="sevenDays">近 7 天</option><option value="month">近 1 个月</option><option value="quarter">本季度</option><option value="year">本年度</option><option value="custom">自定义日期</option></select></label>
@@ -50,11 +50,11 @@
         </div>
       </div>
     </section>
-    <section id="recordCategoryGrid" class="customer-category-grid four-cards" aria-label="充值原单状态统计"></section>
+    <section id="recordCategoryGrid" class="customer-category-grid four-cards" aria-label="充值审核状态统计"></section>
     <section class="panel customer-permission-banner"><strong id="recordPermissionTitle">门店范围</strong><span id="recordPermissionText">只读取当前登录门店的数据库充值单；封存客户的历史记录仍会保留。</span></section>
     <section class="panel table-card query-results store-record-results">
       <div class="panel-heading"><div><h2>充值结果</h2></div><div class="record-query-pager"><button id="recordPreviousPage" type="button">上一页</button><span id="recordPageLabel">第 1 页</span><button id="recordNextPage" type="button">下一页</button></div></div>
-      <div class="table-scroll"><table class="record-query-results-table recharge-record-results-table"><colgroup><col class="record-col-order"><col class="record-col-customer-code"><col class="record-col-customer-name"><col class="record-col-birthday"><col class="record-col-store"><col class="record-col-product"><col class="record-col-units"><col class="record-col-time"><col class="record-col-status"><col class="record-col-void-status"></colgroup><thead><tr><th>充值单号</th><th>客户编号</th><th>客户姓名</th><th>生日</th><th>门店</th><th>项目</th><th>充值次数</th><th>提交时间</th><th>原单状态</th><th>作废状态</th></tr></thead><tbody id="recordQueryBody"></tbody></table></div>
+      <div class="table-scroll"><table class="record-query-results-table recharge-record-results-table"><colgroup><col class="record-col-order"><col class="record-col-customer-code"><col class="record-col-customer-name"><col class="record-col-birthday"><col class="record-col-store"><col class="record-col-product"><col class="record-col-units"><col class="record-col-time"><col class="record-col-status"></colgroup><thead><tr><th>充值单号</th><th>客户编号</th><th>客户姓名</th><th>生日</th><th>门店</th><th>项目</th><th>充值次数</th><th>提交时间</th><th>审核状态</th></tr></thead><tbody id="recordQueryBody"></tbody></table></div>
     </section>
   </main>
 
@@ -63,6 +63,6 @@
     <section class="panel table-card query-results"><div class="panel-heading"><div><h2>充值记录</h2></div><span class="badge">充值</span></div><div class="table-scroll"><table><thead><tr><th>充值编号（可查看）</th><th>客户编号</th><th>客户姓名</th><th>生日</th><th>门店</th><th>项目</th><th>充值次数</th><th>提交时间</th><th>状态</th><th>审核进度</th></tr></thead><tbody id="queryBody"></tbody></table></div></section>
   </main>
 
-  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.17.7"></script><script src="datetime.js?v=0.1.2"></script><script src="query.js?v=0.15.6"></script><script src="auth-ui.js?v=0.18.6"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.17.7"></script><script src="datetime.js?v=0.1.2"></script><script src="query.js?v=0.15.7"></script><script src="auth-ui.js?v=0.18.6"></script>
 </body>
 </html>

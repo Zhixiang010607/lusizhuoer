@@ -1,11 +1,11 @@
 (() => {
   "use strict";
-  const VERSION = "0.17.7";
+  const VERSION = "0.17.8";
   const pageType = document.body.dataset.review;
   const recordType = pageType === "recharge" ? "RECHARGE" : "VERIFICATION";
   const columnCount = 10;
   const $ = (id) => document.getElementById(id);
-  const statusText = { PENDING: "待审核", APPROVED: "已通过", REJECTED: "已驳回" };
+  const statusText = { PENDING: "待审核", APPROVED: "审核通过", REJECTED: "已驳回" };
   let rows = [], pendingAction = null, loadingSequence = 0, session = null, queryMode = "filters";
   let nextCursor = null, hasMore = false, listLoading = false;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
@@ -44,10 +44,10 @@
     };
   }
   function applicationTypeFilter() {
-    const value = $("reviewType").value;
+    if (pageType === "recharge") return "NEW";
+    const value = $("reviewType")?.value || "all";
     if (value === "all") return "";
-    if (pageType === "recharge" && value === "作废充值") return "VOID";
-    return pageType === "recharge" ? "NEW" : "SUPPLEMENT";
+    return "SUPPLEMENT";
   }
   function setLoading(message) {
     $("reviewBody").innerHTML = `<tr><td colspan="${columnCount}" class="query-empty">${escapeHtml(message)}</td></tr>`;
@@ -195,7 +195,7 @@
   }
   function renderReviewCommunications(item) {
     const communicationRows = [{
-      title: pageType === "recharge" && item.isVoid ? "门店作废申请留言" : "门店申请留言",
+      title: pageType === "recharge" ? "门店原申请留言" : "门店申请留言",
       message: item.applicantNote,
       time: item.time
     }];
@@ -231,11 +231,11 @@
     $("reviewModeCode").classList.toggle("active", codeMode);
     $("reviewModeFilters").setAttribute("aria-selected", String(!codeMode));
     $("reviewModeCode").setAttribute("aria-selected", String(codeMode));
-    [$("reviewStore"), $("reviewType"), $("reviewStatus"), $("reviewFilterSearch")].forEach((field) => { field.disabled = codeMode; });
+    [$("reviewStore"), $("reviewType"), $("reviewStatus"), $("reviewFilterSearch")].filter(Boolean).forEach((field) => { field.disabled = codeMode; });
     [$("reviewCode"), $("reviewCodeSearch")].forEach((field) => { field.disabled = !codeMode; });
     if (codeMode) {
       $("reviewStore").value = "all";
-      $("reviewType").value = "all";
+      if ($("reviewType")) $("reviewType").value = "all";
       $("reviewStatus").value = "all";
     } else {
       $("reviewCode").value = "";

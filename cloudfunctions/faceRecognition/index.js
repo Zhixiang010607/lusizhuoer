@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v60";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v61";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -2163,7 +2163,7 @@ async function queryStoreBusinessRecords(event = {}) {
   const mode = String(event.mode || "browse").trim().toLowerCase();
   if (!["browse", "manual"].includes(mode)) fail("工单查询方式无效。", "BAD_REQUEST");
   const statusCategory = String(event.statusCategory || "ALL").trim().toUpperCase();
-  if (!["ALL", "PENDING", "APPROVED", "CLOSED"].includes(statusCategory)) {
+  if (!["ALL", "PENDING", "APPROVED", "REJECTED", "CLOSED"].includes(statusCategory)) {
     fail("工单状态筛选无效。", "BAD_REQUEST");
   }
   const verificationType = String(event.verificationType || "ALL").trim().toUpperCase();
@@ -2207,7 +2207,7 @@ async function queryStoreBusinessRecords(event = {}) {
   const listClauses = [...baseClauses];
   if (statusCategory === "PENDING") listClauses.push(`${alias}.record_status = 'PENDING'`);
   else if (statusCategory === "APPROVED") listClauses.push(`${alias}.record_status = 'APPROVED'`);
-  else if (statusCategory === "CLOSED") listClauses.push(`${alias}.record_status IN ('REJECTED', 'VOIDED')`);
+  else if (["REJECTED", "CLOSED"].includes(statusCategory)) listClauses.push(`${alias}.record_status IN ('REJECTED', 'VOIDED')`);
   if (cursorSubmittedAt) {
     listClauses.push(`(${alias}.submitted_at, ${alias}.id) < (${sqlText(cursorSubmittedAt)}::timestamptz, ${cursorId}::bigint)`);
   }
@@ -2231,10 +2231,7 @@ async function queryStoreBusinessRecords(event = {}) {
   const summarySql = `SELECT COUNT(*) AS total,
                              COUNT(*) FILTER (WHERE ${alias}.record_status = 'PENDING') AS pending,
                              COUNT(*) FILTER (WHERE ${alias}.record_status = 'APPROVED') AS approved,
-                             COUNT(*) FILTER (WHERE ${alias}.record_status IN ('REJECTED', 'VOIDED')) AS closed,
-                             ${recordType === "RECHARGE"
-                               ? `COUNT(*) FILTER (WHERE ${alias}.void_request_status = 'PENDING')`
-                               : "0::bigint"} AS void_pending
+                             COUNT(*) FILTER (WHERE ${alias}.record_status IN ('REJECTED', 'VOIDED')) AS rejected
                         FROM public.${table} ${alias}
                         ${baseJoin}
                        WHERE ${baseClauses.join(" AND ")}`;
@@ -2281,8 +2278,8 @@ async function queryStoreBusinessRecords(event = {}) {
       total: Number(summary.total || 0),
       pending: Number(summary.pending || 0),
       approved: Number(summary.approved || 0),
-      closed: Number(summary.closed || 0),
-      voidPending: Number(summary.void_pending || 0)
+      rejected: Number(summary.rejected || 0),
+      closed: Number(summary.rejected || 0)
     },
     products: productRows.map((product) => ({
       productId: String(product.product_id),

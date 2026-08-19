@@ -9,7 +9,8 @@ const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 const OPERATION_ACTIONS = new Set(["listReviewOrders", "reviewOrder"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v41";
+const FUNCTION_VERSION = "v42";
+const ORDER_VOID_APPLICATIONS_ENABLED = false;
 let app = null;
 let auth = null;
 let managerClient = null;
@@ -1118,6 +1119,9 @@ async function listReviewOrders(caller, event) {
   const recordType = String(event.recordType || "").trim().toUpperCase();
   if (!["RECHARGE", "VERIFICATION"].includes(recordType)) fail("不支持的审核工单类型", "BAD_REQUEST");
   const scopedEvent = storeReader ? { ...event, storeId: caller.profile.storeId } : event;
+  const reviewListEvent = recordType === "RECHARGE" && !exactLookup
+    ? { ...scopedEvent, applicationType: "NEW" }
+    : scopedEvent;
   const paged = event.paged === true && !exactLookup && !storeReader;
   const requestedLimit = Number(event.limit);
   const limit = storeReader ? 1 : paged
@@ -1169,7 +1173,7 @@ async function listReviewOrders(caller, event) {
              JOIN public.products p ON p.id = r.product_id
         LEFT JOIN public.teachers t ON t.id = r.teacher_id
             WHERE TRUE
-              ${reviewFilterSql(scopedEvent, "r", "r.recharge_code", statusExpression, typeExpression)}
+              ${reviewFilterSql(reviewListEvent, "r", "r.recharge_code", statusExpression, typeExpression)}
               ${cursorClause}
          ORDER BY (${statusExpression} = 'PENDING') DESC, ${timeExpression} DESC, r.id DESC
             LIMIT ${sqlLimit}`;
@@ -1232,6 +1236,9 @@ async function listReviewOrders(caller, event) {
 
 async function requestOrderVoid(caller, event) {
   requireStore(caller);
+  if (!ORDER_VOID_APPLICATIONS_ENABLED) {
+    fail("充值单不再提供作废申请；历史记录仍保留只读", "ORDER_VOID_DISABLED");
+  }
   const recordType = String(event.recordType || "").trim().toUpperCase();
   if (recordType !== "RECHARGE") {
     fail("核销工单不再支持作废；如需补回次数，请提交充值工单", "VERIFICATION_VOID_DISABLED");
