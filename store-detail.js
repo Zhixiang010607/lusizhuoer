@@ -1,12 +1,12 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.4";
+  const VERSION = "0.15.5";
   const TEACHER_PAGE_SIZE = 5;
   const CUSTOMER_PAGE_SIZE = 10;
   const params = new URLSearchParams(location.search);
   const storeRef = String(params.get("authUid") || params.get("storeId") || "").trim();
-  const formatDateTime = window.AppDateTime.format;
+  const formatDateTime = window.AppDateTime.formatDate;
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"]/g, (char) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"
@@ -92,10 +92,8 @@
     }
     target.innerHTML = rows.map((row) => {
       const name = firstValue(row, ["product_name", "project_name", "name"]);
-      const code = firstValue(row, ["product_code", "project_code", "code"], "");
-      const label = code ? `${name} · ${code}` : name;
       const status = firstValue(row, ["product_status", "project_status", "status"]) === "ARCHIVED" ? "封存" : "活跃";
-      return `<tr><td>${escapeHtml(label)}</td><td>${escapeHtml(firstValue(row, ["recharge_count", "total_recharge_count", "purchased_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["verification_count", "total_verification_count", "used_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["remaining_count", "balance"], 0))}</td><td>${escapeHtml(status)}</td></tr>`;
+      return `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(firstValue(row, ["recharge_count", "total_recharge_count", "purchased_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["verification_count", "total_verification_count", "used_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["remaining_count", "balance"], 0))}</td><td>${escapeHtml(status)}</td></tr>`;
     }).join("");
   }
 

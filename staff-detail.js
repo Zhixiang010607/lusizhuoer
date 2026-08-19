@@ -10,7 +10,7 @@
   let staff = null;
 
   function formatTime(value) {
-    return window.AppDateTime.format(value, "尚未记录");
+    return window.AppDateTime.formatDate(value, "尚未记录");
   }
 
   function credentialStatus() {

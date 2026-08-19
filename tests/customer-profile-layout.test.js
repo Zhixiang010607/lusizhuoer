@@ -5,6 +5,8 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const css = fs.readFileSync(path.join(root, "styles.css"), "utf8");
 const html = fs.readFileSync(path.join(root, "customer-detail.html"), "utf8");
+const ui = fs.readFileSync(path.join(root, "customer-profile.js"), "utf8");
+const cloud = fs.readFileSync(path.join(root, "cloudfunctions", "faceRecognition", "index.js"), "utf8");
 
 const desktopBlock = css.match(/@media \(min-width: 900px\) and \(min-height: 760px\) \{([\s\S]*?)\n\}/)?.[1] || "";
 const desktopBodyRule = desktopBlock.match(/body\[data-customer-profile\] \{([^}]*)\}/)?.[1] || "";
@@ -16,6 +18,18 @@ assert.match(desktopBlock, /\.customer-profile-main \{[^}]*grid-auto-rows: auto;
 assert.doesNotMatch(desktopBlock, /grid-template-rows:\s*178px/, "customer header must not be compressed into the old fixed row");
 assert.match(desktopBlock, /\.customer-project-panel \.customer-record-scroll \{[^}]*height: 166px;[^}]*max-height: 166px;/, "project records should keep their own bounded scroll area");
 assert.match(desktopBlock, /\.customer-record-panel \.customer-record-scroll \{[^}]*height: 158px;[^}]*max-height: 158px;/, "order records should keep their own bounded scroll area");
-assert.match(html, /styles\.css\?v=0\.15\.35/, "customer page should bust the stylesheet cache");
+assert.match(html, /styles\.css\?v=0\.15\.36/, "customer page should bust the stylesheet cache");
+assert.match(html, /id="customerExperienceRecords"/, "customer profile must expose a separate experience record list");
+assert.match(html, /id="editCustomerNotes"[\s\S]*id="saveCustomerNotes"/, "customer notes must require explicit edit and save actions");
+assert.match(ui, /action:"updateCustomerNotes"/, "customer notes must save through the database service");
+assert.match(ui, /EXPERIENCE:\s*\{ hasMore:false/, "experience records must paginate independently");
+assert.match(cloud, /async function updateCustomerNotes\(event\)/, "cloud function must persist customer notes");
+assert.match(cloud, /\["RECHARGE", "VERIFICATION", "EXPERIENCE"\]/, "customer history API must accept experience history");
+
+const phoneBlock = css.slice(css.lastIndexOf("/* On phones the document owns vertical scrolling."));
+assert.match(phoneBlock, /customer-basic-recent \.customer-recent-info \{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/, "phone customer timestamps and status must use a two-column layout");
+assert.match(phoneBlock, /customer-record-panel \.customer-record-scroll table \{[\s\S]*min-width: 650px/, "phone order tables must scroll horizontally without wrapping cells");
+assert.match(phoneBlock, /customer-notes-panel textarea \{[\s\S]*min-height: 150px[\s\S]*overflow-y: auto/, "phone customer notes must provide a large vertical reading area");
+assert.match(phoneBlock, /customer-photo-frame \{[\s\S]*max-width: 100%[\s\S]*margin: 3px auto 9px/, "phone customer photo must remain inside its card with lower spacing");
 
 console.log("customer profile layout contract: ok");

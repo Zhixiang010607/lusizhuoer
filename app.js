@@ -99,8 +99,8 @@
         projectId,
         project: entityLabel(
           pick(row, "project", "product", "productName", "product_name"),
-          pick(row, "projectCode", "productCode", "product_code"),
-          projectId ? `项目 ${projectId}` : "未指定项目"
+          "",
+          projectId ? "未命名项目" : "未指定项目"
         ),
         teacherId,
         teacher: teacherContext ? entityLabel(

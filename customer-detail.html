@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>客户主页</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.35">
+  <link rel="stylesheet" href="styles.css?v=0.15.36">
 </head>
 <body data-customer-profile>
   <aside class="side-project-bar" aria-label="项目栏"><div class="side-brand"><span>HQ</span><div><strong>总部工作台</strong><small>项目栏</small></div></div><p class="side-section-title">数据看板</p><nav class="side-nav"><a href="index.html"><span class="nav-icon">全</span><span>全局视图</span></a></nav><details class="side-menu-group"><summary><span class="nav-icon">管</span><span>管理</span></summary><nav><a href="project-management.html">产品管理</a><a href="store-management.html">门店管理</a><a href="teacher-management.html">老师管理</a></nav></details><details class="side-menu-group" open><summary><span class="nav-icon">查</span><span>查询</span></summary><nav><a class="active" href="customer-query.html">客户查询</a><a href="recharge-query.html">充值查询</a><a href="verification-query.html">核销查询</a></nav></details><details class="side-menu-group" data-menu="review"><summary><span class="nav-icon">审</span><span>审核</span></summary><nav><a href="recharge-review.html">充值审核</a><a href="verification-review.html">核销审核</a></nav></details><div class="side-footer">静态原型</div></aside>
@@ -17,21 +17,22 @@
       <article class="panel customer-photo-panel"><div class="panel-heading"><div><h2>客户照片</h2></div></div><figure id="customerProfilePhoto" class="customer-photo-frame"></figure></article>
     </section>
 
-    <section class="panel customer-notes-panel"><div class="panel-heading"><div><h2>备注区</h2><p>没有备注时保持空白。</p></div></div><textarea id="customerNotes" rows="1" readonly aria-label="客户备注"></textarea></section>
+    <section class="panel customer-notes-panel"><div class="panel-heading"><div><h2>客户备注</h2></div><div class="customer-notes-actions"><button id="editCustomerNotes" type="button">编辑</button><button id="saveCustomerNotes" type="button" hidden>保存</button><button id="cancelCustomerNotes" type="button" class="secondary-button" hidden>取消</button></div></div><textarea id="customerNotes" rows="5" readonly aria-label="客户备注"></textarea><p id="customerNotesMessage" class="customer-notes-message" role="status" aria-live="polite"></p></section>
 
     <section class="panel customer-project-panel"><div class="panel-heading"><div><h2>项目次数汇总</h2><p>按每个已充值项目汇总总充值次数、核销次数和剩余次数。</p></div></div><div class="table-scroll customer-record-scroll"><table><thead><tr><th>项目</th><th>总充值次数</th><th>核销次数</th><th>剩余次数</th></tr></thead><tbody id="customerProjectSummary"></tbody></table></div></section>
 
     <section class="customer-records-grid">
       <article class="panel customer-record-panel"><div class="panel-heading"><div><h2>充值记录</h2><p>先加载最近 50 条，可继续分批读取。</p></div><button id="loadMoreRecharges" type="button" hidden>加载更多</button></div><div class="table-scroll customer-record-scroll"><table><thead><tr><th>充值单号</th><th>项目</th><th>充值次数</th><th>提交时间</th><th>审核结果</th></tr></thead><tbody id="customerRechargeRecords"></tbody></table></div></article>
       <article class="panel customer-record-panel"><div class="panel-heading"><div><h2>核销记录</h2><p>先加载最近 50 条，可继续分批读取。</p></div><button id="loadMoreVerifications" type="button" hidden>加载更多</button></div><div class="table-scroll customer-record-scroll"><table><thead><tr><th>核销单号</th><th>项目</th><th>核销类型</th><th>提交时间</th><th>审核结果</th></tr></thead><tbody id="customerVerificationRecords"></tbody></table></div></article>
+      <article class="panel customer-record-panel"><div class="panel-heading"><div><h2>体验记录</h2><p>先加载最近 50 条，可继续分批读取。</p></div><button id="loadMoreExperiences" type="button" hidden>加载更多</button></div><div class="table-scroll customer-record-scroll"><table><thead><tr><th>体验单号</th><th>项目</th><th>核销类型</th><th>提交时间</th><th>审核结果</th></tr></thead><tbody id="customerExperienceRecords"></tbody></table></div></article>
     </section>
   </main>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
-  <script src="datetime.js?v=0.1.1"></script>
-  <script src="customer-profile.js?v=0.15.6"></script>
-  <script src="auth-ui.js?v=0.18.4"></script>
+  <script src="datetime.js?v=0.1.2"></script>
+  <script src="customer-profile.js?v=0.15.7"></script>
+  <script src="auth-ui.js?v=0.18.5"></script>
 </body>
 </html>

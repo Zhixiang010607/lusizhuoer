@@ -128,10 +128,37 @@
   if (sidebar) {
     const mobileAccountMenu = document.createElement("details");
     mobileAccountMenu.className = "mobile-account-menu";
-    mobileAccountMenu.innerHTML = `<summary aria-label="账户与退出登录"><span class="nav-icon">退</span><span>账户</span></summary><div class="mobile-account-popover"><strong></strong><button id="logoutWorkspaceMobile" type="button">退出登录</button></div>`;
-    mobileAccountMenu.querySelector("strong").textContent = `${session.account}${session.store ? ` · ${session.store}` : ""}`;
+    mobileAccountMenu.innerHTML = `<summary aria-label="账户与退出登录" aria-controls="mobileAccountPopover" aria-expanded="false"><span class="nav-icon">退</span><span>账户</span></summary>`;
+    const mobileAccountPopover = document.createElement("div");
+    mobileAccountPopover.id = "mobileAccountPopover";
+    mobileAccountPopover.className = "mobile-account-popover";
+    mobileAccountPopover.hidden = true;
+    mobileAccountPopover.innerHTML = `<strong></strong><button id="logoutWorkspaceMobile" type="button">退出登录</button>`;
+    mobileAccountPopover.querySelector("strong").textContent = `${session.account}${session.store ? ` · ${session.store}` : ""}`;
+    document.body.append(mobileAccountPopover);
+    const accountSummary = mobileAccountMenu.querySelector("summary");
+    const closeMobileAccount = () => { mobileAccountMenu.removeAttribute("open"); };
+    mobileAccountMenu.addEventListener("toggle", () => {
+      const open = mobileAccountMenu.open;
+      mobileAccountPopover.hidden = !open;
+      accountSummary.setAttribute("aria-expanded", String(open));
+      if (open && window.matchMedia("(max-width: 760px)").matches) {
+        document.querySelectorAll(".side-menu-group[open]").forEach((group) => group.removeAttribute("open"));
+      }
+    });
+    document.querySelectorAll(".side-menu-group").forEach((group) => group.addEventListener("toggle", () => {
+      if (!group.open || !window.matchMedia("(max-width: 760px)").matches) return;
+      document.querySelectorAll(".side-menu-group[open]").forEach((other) => { if (other !== group) other.removeAttribute("open"); });
+      closeMobileAccount();
+    }));
+    document.addEventListener("click", (event) => {
+      if (!mobileAccountMenu.open || mobileAccountMenu.contains(event.target) || mobileAccountPopover.contains(event.target)) return;
+      closeMobileAccount();
+    });
+    document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeMobileAccount(); });
     if (footer) footer.before(mobileAccountMenu);
     else sidebar.append(mobileAccountMenu);
+
   }
   let message = "";
   try { message = sessionStorage.getItem("prototypeAccessMessage") || ""; if (message) sessionStorage.removeItem("prototypeAccessMessage"); } catch (_) { message = ""; }

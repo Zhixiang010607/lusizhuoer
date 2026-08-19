@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const VERSION = "0.17.6";
+  const VERSION = "0.17.7";
   const pageType = document.body.dataset.review;
   const recordType = pageType === "recharge" ? "RECHARGE" : "VERIFICATION";
   const columnCount = 10;
@@ -21,7 +21,7 @@
     return `${prefix}${id.padStart(3, "0")}`;
   }
   function formatTime(value) {
-    return window.AppDateTime.format(value);
+    return window.AppDateTime.formatDate(value);
   }
   function normalizeRow(row) {
     const applicationType = clean(pick(row, "application_type", "applicationType")).toUpperCase();
@@ -140,7 +140,7 @@
       const customer = customerHref && canOpenSupportingPages
         ? `<a class="record-link" href="${escapeHtml(customerHref)}" title="查看客户主页 ${escapeHtml(item.customerName)}">${escapeHtml(customerText)}</a>`
         : escapeHtml(customerText);
-      return `<tr><td>${orderCode}</td><td>${escapeHtml(item.kind)}</td><td>${escapeHtml(item.store.name)}${item.store.code ? `（${escapeHtml(item.store.code)}）` : ""}</td><td>${customer}</td><td>${escapeHtml(item.project)}${item.projectId ? `（${escapeHtml(item.projectId)}）` : ""}</td><td>${escapeHtml(teacher)}</td><td>${escapeHtml(impactText(item))}</td><td>${escapeHtml(formatTime(item.time))}</td><td>${actions}</td><td>${escapeHtml(item.status === "PENDING" ? "—" : formatTime(item.reviewedAt))}</td></tr>`;
+      return `<tr><td>${orderCode}</td><td>${escapeHtml(item.kind)}</td><td>${escapeHtml(item.store.name)}${item.store.code ? `（${escapeHtml(item.store.code)}）` : ""}</td><td>${customer}</td><td>${escapeHtml(item.project)}</td><td>${escapeHtml(teacher)}</td><td>${escapeHtml(impactText(item))}</td><td>${escapeHtml(formatTime(item.time))}</td><td>${actions}</td><td>${escapeHtml(item.status === "PENDING" ? "—" : formatTime(item.reviewedAt))}</td></tr>`;
     }).join("") || `<tr><td colspan="${columnCount}" class="query-empty">当前条件下没有审核记录</td></tr>`;
     document.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", () => openReview(button.dataset.id, button.dataset.action)));
     const loadMore = $("reviewLoadMore");

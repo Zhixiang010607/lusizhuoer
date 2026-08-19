@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.50", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.51", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   const formatBirthday = (value, fallback = "—") => {
     const raw = String(value ?? "").trim();
     if (!raw) return fallback;
@@ -211,7 +211,7 @@
         name: String(product.productName || "")
       })).filter((product) => product.id && product.name);
       select.innerHTML = databaseProducts.length
-        ? `<option value="">请选择项目</option>${databaseProducts.map((product) => `<option value="${escapeHtml(product.id)}">${escapeHtml(product.name)}（${escapeHtml(product.code)}）</option>`).join("")}`
+        ? `<option value="">请选择项目</option>${databaseProducts.map((product) => `<option value="${escapeHtml(product.id)}">${escapeHtml(product.name)}</option>`).join("")}`
         : `<option value="">数据库中暂无活跃项目</option>`;
       select.disabled = databaseProducts.length === 0;
     } catch (error) {
@@ -586,13 +586,13 @@
         .map((item) => ({
           id: String(item.productId),
           code: String(item.productCode || ""),
-          name: String(item.productName || item.productCode || "未命名产品"),
+          name: String(item.productName || "未命名产品"),
           purchased: Number(item.purchasedCount || 0),
           verified: Number(item.effectiveVerificationCount || 0),
           remaining: Number(item.remainingCount || 0)
         }));
       select.innerHTML = verificationBalanceProjects.length
-        ? `<option value="">请选择有剩余次数的项目</option>${verificationBalanceProjects.map((project) => `<option value="${escapeHtml(project.id)}">${escapeHtml(project.name)}（${escapeHtml(project.code)} · 剩余 ${project.remaining} 次）</option>`).join("")}`
+        ? `<option value="">请选择有剩余次数的项目</option>${verificationBalanceProjects.map((project) => `<option value="${escapeHtml(project.id)}">${escapeHtml(project.name)}（剩余 ${project.remaining} 次）</option>`).join("")}`
         : `<option value="">该客户没有可核销的剩余项目</option>`;
       select.disabled = verificationBalanceProjects.length === 0;
     } catch (error) {

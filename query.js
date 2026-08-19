@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.5";
+  const VERSION = "0.15.6";
   const type = document.body.dataset.query;
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
@@ -13,7 +13,7 @@
     const match = raw.match(/^(\d{4})[-年](\d{1,2})[-月](\d{1,2})(?:日|[T\s].*)?$/);
     return match ? `${match[1]}年${match[2].padStart(2, "0")}月${match[3].padStart(2, "0")}日` : fallback;
   };
-  const formatDateTime = (value) => window.AppDateTime?.format(value, "—") || "—";
+  const formatDateTime = (value) => window.AppDateTime?.formatDate(value, "—") || "—";
   let loginSession = null;
   try { loginSession = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { loginSession = null; }
 
@@ -183,7 +183,7 @@
       const selected = target.value || "ALL";
       target.innerHTML = `<option value="ALL">全部项目</option>${(Array.isArray(products) ? products : []).map((product) => {
         const archived = String(product.productStatus || "").toUpperCase() === "ARCHIVED" ? "（已封存）" : "";
-        return `<option value="${escapeHtml(product.productId)}">${escapeHtml([product.productName, product.productCode].filter(Boolean).join(" · ") + archived)}</option>`;
+        return `<option value="${escapeHtml(product.productId)}">${escapeHtml((product.productName || "未命名项目") + archived)}</option>`;
       }).join("")}`;
       target.value = Array.from(target.options).some((option) => option.value === selected) ? selected : "ALL";
     }
@@ -227,7 +227,7 @@
         const detailLink = `${detailPage}?recordId=${encodeURIComponent(record.id)}&recordCode=${encodeURIComponent(record.recordCode)}&source=query&storeId=${encodeURIComponent(record.storeId)}`;
         const customerLink = `customer-detail.html?customerId=${encodeURIComponent(record.customerCode)}&customerName=${encodeURIComponent(record.customerName)}&storeId=${encodeURIComponent(record.storeId)}`;
         const store = [record.storeName, record.storeCode].filter(Boolean).join(" · ") || "—";
-        const product = [record.productName, record.productCode].filter(Boolean).join(" · ") || "—";
+        const product = record.productName || "—";
         const commonStart = `<tr><td><a class="record-link" href="${detailLink}">${escapeHtml(record.recordCode)}</a></td><td><a class="record-link" href="${customerLink}">${escapeHtml(record.customerCode)}</a></td><td>${escapeHtml(record.customerName)}</td><td>${escapeHtml(formatBirthday(record.birthDate))}</td><td>${escapeHtml(store)}</td><td>${escapeHtml(product)}</td>`;
         if (recordType === "RECHARGE") {
           const signedUnits = String(record.originalType || "").toUpperCase() === "VOID" ? `−${Number(record.unitCount || 0)}` : `+${Number(record.unitCount || 0)}`;

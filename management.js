@@ -1,12 +1,12 @@
 ﻿(() => {
   "use strict";
 
-  const VERSION = "0.14.22";
+  const VERSION = "0.14.23";
   const type = document.body.dataset.management;
   const $ = (id) => document.getElementById(id);
   const fmt = new Intl.NumberFormat("zh-CN");
   const escapeHtml = (value) => String(value).replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char]);
-  const formatDateTime = window.AppDateTime.format;
+  const formatDateTime = window.AppDateTime.formatDate;
   const formatBirthday = (value, fallback = "—") => {
     const raw = String(value ?? "").trim();
     if (!raw) return fallback;
@@ -137,8 +137,8 @@
       $("entityInfo").innerHTML = values.map((value, i) => `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
       return;
     }
-    const captions = ["产品编号", "产品名称", "产品类别", "产品介绍", "状态", "创建时间", "最后更新时间"];
-    const values = [entity.id, entity.name, entity.productType || "未填写", entity.extra || "未填写", entity.status, formatDateTime(entity.createdAt, "未记录"), formatDateTime(entity.updatedAt, "未记录")];
+    const captions = ["产品名称", "产品类别", "产品介绍", "状态", "创建日期", "最后更新日期"];
+    const values = [entity.name, entity.productType || "未填写", entity.extra || "未填写", entity.status, formatDateTime(entity.createdAt, "未记录"), formatDateTime(entity.updatedAt, "未记录")];
     $("entityInfo").innerHTML = values.map((value, i) => `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
   }
 
@@ -150,10 +150,10 @@
       return `<tr><td><a class="record-link" href="teacher-detail.html?teacherId=${encodeURIComponent(teacher.id)}">${teacher.displayName || teacher.name}（${teacher.id}）</a></td><td><strong>${fmt.format(values.reduce((a, b) => a + b, 0))}</strong></td>${values.map((value) => `<td>${fmt.format(value)}</td>`).join("")}</tr>`;
     }).join("");
 
-    $("projectVerificationHead").innerHTML = `<tr><th>项目（编号）</th><th>总核销</th>${storeTeachers.map((teacher) => `<th>${teacher.displayName || teacher.name}</th>`).join("")}</tr>`;
+    $("projectVerificationHead").innerHTML = `<tr><th>项目</th><th>总核销</th>${storeTeachers.map((teacher) => `<th>${teacher.displayName || teacher.name}</th>`).join("")}</tr>`;
     $("projectVerificationBody").innerHTML = projects.map((project) => {
       const values = storeTeachers.map((teacher) => verification(store, teacher, project));
-      return `<tr><td><a class="record-link" href="project-detail.html?projectId=${encodeURIComponent(project.id)}">${project.name}（${project.id}）</a></td><td><strong>${fmt.format(values.reduce((a, b) => a + b, 0))}</strong></td>${values.map((value) => `<td>${fmt.format(value)}</td>`).join("")}</tr>`;
+      return `<tr><td><a class="record-link" href="project-detail.html?projectId=${encodeURIComponent(project.id)}">${project.name}</a></td><td><strong>${fmt.format(values.reduce((a, b) => a + b, 0))}</strong></td>${values.map((value) => `<td>${fmt.format(value)}</td>`).join("")}</tr>`;
     }).join("");
 
     const customers = Array.from({ length: 18 }, (_, i) => ({ id: `C${store.id.slice(1)}${String(i + 1).padStart(3, "0")}`, name: `客户 ${String(i + 1).padStart(2, "0")}`, birthday: `${1985 + i % 18}-${String(i % 12 + 1).padStart(2, "0")}-${String(i % 27 + 1).padStart(2, "0")}` }));
@@ -179,7 +179,7 @@
       $("projectList").innerHTML = `<section class="panel query-empty">${escapeHtml(productListMessage || "暂无产品数据，请先新增产品。")}</section>`;
       return;
     }
-    $("projectList").innerHTML = projects.map((project) => `<button type="button" data-project-id="${project.id}"><strong>${escapeHtml(project.name)}</strong><span>${escapeHtml(project.id)} · ${escapeHtml(project.productType || "未分类")} · ${escapeHtml(project.status)}</span></button>`).join("");
+    $("projectList").innerHTML = projects.map((project) => `<button type="button" data-project-id="${project.id}"><strong>${escapeHtml(project.name)}</strong><span>${escapeHtml(project.productType || "未分类")} · ${escapeHtml(project.status)}</span></button>`).join("");
     $("projectList").querySelectorAll("[data-project-id]").forEach((button) => button.addEventListener("click", () => {
       $("entitySelect").value = button.dataset.projectId;
       $("projectManagementContent").hidden = false;

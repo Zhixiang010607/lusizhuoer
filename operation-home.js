@@ -31,7 +31,7 @@
     setText("operationPhone", phone);
     setText("operationRole", "运营");
     setText("operationAccountStatus", status);
-    setText("operationLoginAt", window.AppDateTime?.format(loginAt, "—") || "—");
+    setText("operationLoginAt", window.AppDateTime?.formatDate(loginAt, "—") || "—");
   }
 
   function constrainOperationNavigation() {

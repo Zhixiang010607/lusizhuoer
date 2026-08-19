@@ -45,5 +45,10 @@
     return parts ? (fromParts(parts) || fallback) : fallback;
   }
 
-  window.AppDateTime = Object.freeze({ format });
+  function formatDate(value, fallback = "—") {
+    const formatted = format(value, "");
+    return formatted ? formatted.slice(0, 10) : fallback;
+  }
+
+  window.AppDateTime = Object.freeze({ format, formatDate });
 })();

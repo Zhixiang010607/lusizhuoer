@@ -8,7 +8,10 @@ const css = fs.readFileSync(path.join(root, "styles.css"), "utf8");
 
 assert.match(auth, /className = "mobile-account-menu"/, "authenticated pages must create a compact account menu");
 assert.match(auth, /id="logoutWorkspaceMobile"[^>]*>退出登录</, "mobile account menu must expose a visible logout action");
-assert.match(auth, /mobileAccountMenu\.querySelector\("strong"\)\.textContent/, "mobile account menu must show the current account safely");
+assert.match(auth, /mobileAccountPopover\.querySelector\("strong"\)\.textContent/, "detached mobile account card must show the current account safely");
+assert.match(auth, /document\.body\.append\(mobileAccountPopover\)/, "logout card must live outside the horizontally scrolling rail so phone browsers cannot clip it");
+assert.match(auth, /document\.querySelectorAll\("\.side-menu-group\[open\]"\)/, "opening one phone menu must close other expanded menus");
+assert.match(auth, /if \(other !== group\) other\.removeAttribute\("open"\)/, "phone menu groups must be mutually exclusive");
 assert.match(auth, /const logoutButtons = \[\$\("logoutWorkspace"\), \$\("logoutWorkspaceMobile"\)\]/, "desktop and mobile logout buttons must share one handler");
 assert.match(auth, /logoutButtons\.forEach\(\(button\) => button\.addEventListener\("click", logoutWorkspace\)\)/, "both logout controls must invoke sign-out");
 
@@ -28,7 +31,7 @@ assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.mobile-account-popover \
 for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
   if (!html.includes("auth-ui.js?v=")) continue;
-  assert.ok(html.includes("auth-ui.js?v=0.18.4"), `${file} must load the mobile-logout auth UI`);
+  assert.ok(html.includes("auth-ui.js?v=0.18.5"), `${file} must load the mobile-logout auth UI`);
 }
 
 console.log("mobile logout contract: PASS");

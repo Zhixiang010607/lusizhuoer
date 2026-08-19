@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v57";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v58";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -1429,13 +1429,45 @@ async function updateCustomerStatus(event) {
   return customerStatusResult(customer);
 }
 
+async function updateCustomerNotes(event) {
+  const caller = await activeCustomerStatusCaller();
+  const customerCodeValue = customerStatusCode(event);
+  const notes = String(event.notes ?? "").replace(/\r\n?/g, "\n").trim();
+  const hasExpectedNotes = Object.prototype.hasOwnProperty.call(event, "expectedNotes");
+  const expectedNotes = String(event.expectedNotes ?? "").replace(/\r\n?/g, "\n").trim();
+  if (notes.length > 5000) fail("客户备注不能超过 5000 个字符。", "CUSTOMER_NOTES_TOO_LONG");
+  if (expectedNotes.length > 5000) fail("原客户备注无效，请刷新后重试。", "CUSTOMER_NOTES_INVALID");
+
+  const before = await findCustomerStatus(caller, customerCodeValue);
+  if (!before) fail("未找到当前账号有权管理的客户档案。", "CUSTOMER_NOT_FOUND");
+  const currentNotes = String(before.notes || "").replace(/\r\n?/g, "\n").trim();
+  if (hasExpectedNotes && currentNotes !== expectedNotes) {
+    fail("客户备注已被其他人员修改，请刷新后重试。", "CUSTOMER_NOTES_CONFLICT");
+  }
+  if (currentNotes !== notes) {
+    await executeSql(
+      `UPDATE public.customers
+          SET notes = ${sqlText(notes)}, updated_at = NOW()
+        WHERE customer_code = ${sqlText(customerCodeValue)}
+          ${customerStatusScope(caller)}
+          AND COALESCE(notes, '') = ${sqlText(String(before.notes || ""))}`
+    );
+  }
+  const customer = await findCustomerStatus(caller, customerCodeValue);
+  if (!customer) fail("客户备注更新后无法读取档案。", "DATABASE_ERROR");
+  if (String(customer.notes || "").replace(/\r\n?/g, "\n").trim() !== notes) {
+    fail("客户备注已被其他人员修改，请刷新后重试。", "CUSTOMER_NOTES_CONFLICT");
+  }
+  return customerStatusResult(customer);
+}
+
 function customerHistoryOptions(event = {}) {
   const requestedLimit = Number(event.historyLimit);
   const limit = Number.isFinite(requestedLimit)
     ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100)
     : 50;
   const type = String(event.historyType || "").trim().toUpperCase();
-  if (type && !["RECHARGE", "VERIFICATION"].includes(type)) fail("客户历史类型无效。", "BAD_REQUEST");
+  if (type && !["RECHARGE", "VERIFICATION", "EXPERIENCE"].includes(type)) fail("客户历史类型无效。", "BAD_REQUEST");
   const cursorSubmittedAt = scopedQueryCursorTimestamp(event.cursorSubmittedAt, "客户历史游标时间");
   const cursorId = String(event.cursorId || "").trim();
   if ((cursorSubmittedAt || cursorId) && !type) fail("客户历史游标必须指定记录类型。", "BAD_REQUEST");
@@ -1520,28 +1552,33 @@ async function getCustomerProfile(event, options = {}) {
            ${historyOptions.type === "RECHARGE" ? cursorSql("r") : ""}
          ORDER BY r.submitted_at DESC, r.id DESC
          LIMIT ${historyOptions.limit + 1}`;
-  const verificationSql = `SELECT v.id, v.verification_code, v.verification_type, v.unit_count,
+  const verificationSql = (experienceOnly = false) => `SELECT v.id, v.verification_code, v.verification_type, v.unit_count,
                v.record_status, v.void_request_status, v.submitted_at, v.reviewed_at,
                TO_CHAR(v.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_submitted_at,
                p.id AS product_id, p.product_code, p.product_name,
                t.id AS teacher_id, t.teacher_code, t.teacher_name
           FROM public.verification_records v
           JOIN public.products p ON p.id = v.product_id
-          LEFT JOIN public.teachers t ON t.id = v.teacher_id
+         LEFT JOIN public.teachers t ON t.id = v.teacher_id
          WHERE v.customer_id = ${sqlText(customerId)}::bigint
-           ${historyOptions.type === "VERIFICATION" ? cursorSql("v") : ""}
+           AND v.verification_type ${experienceOnly ? "=" : "<>"} 'EXPERIENCE'
+           ${historyOptions.type === (experienceOnly ? "EXPERIENCE" : "VERIFICATION") ? cursorSql("v") : ""}
          ORDER BY v.submitted_at DESC, v.id DESC
          LIMIT ${historyOptions.limit + 1}`;
 
   if (historyOptions.type) {
-    const historyRows = await executeSql(historyOptions.type === "RECHARGE" ? rechargeSql : verificationSql);
+    const historyRows = await executeSql(historyOptions.type === "RECHARGE"
+      ? rechargeSql
+      : verificationSql(historyOptions.type === "EXPERIENCE"));
     const historyPage = customerHistoryPage(historyRows, historyOptions.limit);
-    return historyOptions.type === "RECHARGE"
-      ? { ok: true, recharges: mapCustomerRecharges(historyPage.rows), history: { recharges: historyPage.page } }
-      : { ok: true, verifications: mapCustomerVerifications(historyPage.rows), history: { verifications: historyPage.page } };
+    if (historyOptions.type === "RECHARGE") {
+      return { ok: true, recharges: mapCustomerRecharges(historyPage.rows), history: { recharges: historyPage.page } };
+    }
+    const field = historyOptions.type === "EXPERIENCE" ? "experiences" : "verifications";
+    return { ok: true, [field]: mapCustomerVerifications(historyPage.rows), history: { [field]: historyPage.page } };
   }
 
-  const [balances, rechargeRows, verificationRows] = await Promise.all([
+  const [balances, rechargeRows, verificationRows, experienceRows] = await Promise.all([
     executeSql(
       `SELECT p.id AS product_id, p.product_code, p.product_name, p.product_status,
               b.total_recharge_count, b.total_verification_count, b.remaining_count, b.updated_at
@@ -1551,10 +1588,12 @@ async function getCustomerProfile(event, options = {}) {
         ORDER BY p.product_name, p.product_code`
     ),
     executeSql(rechargeSql),
-    executeSql(verificationSql)
+    executeSql(verificationSql(false)),
+    executeSql(verificationSql(true))
   ]);
   const rechargePage = customerHistoryPage(rechargeRows, historyOptions.limit);
   const verificationPage = customerHistoryPage(verificationRows, historyOptions.limit);
+  const experiencePage = customerHistoryPage(experienceRows, historyOptions.limit);
   return {
     ok: true,
     customer: {
@@ -1579,7 +1618,8 @@ async function getCustomerProfile(event, options = {}) {
     })),
     recharges: mapCustomerRecharges(rechargePage.rows),
     verifications: mapCustomerVerifications(verificationPage.rows),
-    history: { recharges: rechargePage.page, verifications: verificationPage.page }
+    experiences: mapCustomerVerifications(experiencePage.rows),
+    history: { recharges: rechargePage.page, verifications: verificationPage.page, experiences: experiencePage.page }
   };
 }
 
@@ -4206,6 +4246,7 @@ exports.main = async (event = {}, context = {}) => {
     if (action === "getCustomerProfile") return await getCustomerProfile(event);
     if (action === "getReviewCustomerProfile") return await getCustomerProfile(event, { operationReviewContext: true });
     if (action === "updateCustomerStatus") return await updateCustomerStatus(event);
+    if (action === "updateCustomerNotes") return await updateCustomerNotes(event);
     if (action === "searchCustomer") return await searchCustomer(event);
     if (action === "verifyCustomerFace") return await verifyCustomerFace(event);
     if (action === "getVerificationPhotos") return await getVerificationPhotos(event);

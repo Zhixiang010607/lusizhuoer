@@ -8,18 +8,21 @@
   const reviewRecordId = String(params.get("reviewRecordId") || "").trim();
   const session = (() => { try { return JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { return null; } })();
   const canManageStatus = ["hq", "store"].includes(session?.role);
+  const canEditNotes = ["hq", "store"].includes(session?.role);
   const canReadPhoto = ["hq", "store"].includes(session?.role);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[char]));
   const emptyRow = (columns, text) => `<tr><td colspan="${columns}" class="query-empty">${escapeHtml(text)}</td></tr>`;
-  const dateText = window.AppDateTime.format;
+  const dateText = window.AppDateTime.formatDate || ((value) => window.AppDateTime.format(value).slice(0, 10));
   const birthdayText = (value) => { const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/); return match ? `${match[1]}年${match[2]}月${match[3]}日` : "—"; };
   const infoCard = (label, value) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || "—")}</strong></article>`;
   const verificationTypeText = (value) => ({ NORMAL:"正常核销", SUPPLEMENT:"补录核销", EXPERIENCE:"体验核销" }[value] || value || "正常核销");
-  let profile = null, balances = [], recharges = [], verifications = [], requestPending = false;
+  let profile = null, balances = [], recharges = [], verifications = [], experiences = [], requestPending = false;
+  let notesEditing = false, notesPending = false, notesOriginal = "";
   let customerServiceApp = null;
   const historyState = {
     RECHARGE: { hasMore:false, nextCursor:null, loading:false },
-    VERIFICATION: { hasMore:false, nextCursor:null, loading:false }
+    VERIFICATION: { hasMore:false, nextCursor:null, loading:false },
+    EXPERIENCE: { hasMore:false, nextCursor:null, loading:false }
   };
 
   function hasReviewContext() {
@@ -96,7 +99,53 @@
       infoCard("生日", birthdayText(profile.birthDate)), infoCard("所属门店", store)
     ].join("");
     $("customerNotes").value = profile.notes || "";
+    notesOriginal = profile.notes || "";
+    renderNotesControls();
     document.title = profile.customerName ? `${profile.customerName} · 客户主页` : "客户主页";
+  }
+  function renderNotesControls(message = "", isError = false) {
+    const textarea = $("customerNotes");
+    textarea.readOnly = !notesEditing || notesPending;
+    $("editCustomerNotes").hidden = !canEditNotes || notesEditing;
+    $("saveCustomerNotes").hidden = !canEditNotes || !notesEditing;
+    $("cancelCustomerNotes").hidden = !canEditNotes || !notesEditing;
+    $("saveCustomerNotes").disabled = notesPending;
+    $("cancelCustomerNotes").disabled = notesPending;
+    const status = $("customerNotesMessage");
+    status.textContent = message;
+    status.classList.toggle("error", isError);
+  }
+  function editCustomerNotes() {
+    if (!canEditNotes || !profile || notesPending) return;
+    notesOriginal = profile.notes || "";
+    notesEditing = true;
+    renderNotesControls();
+    $("customerNotes").focus();
+  }
+  function cancelCustomerNotes() {
+    if (notesPending) return;
+    $("customerNotes").value = notesOriginal;
+    notesEditing = false;
+    renderNotesControls();
+  }
+  async function saveCustomerNotes() {
+    if (!canEditNotes || !profile || notesPending) return;
+    const notes = $("customerNotes").value.replace(/\r\n?/g, "\n").trim();
+    if (notes.length > 5000) { renderNotesControls("客户备注不能超过 5000 个字符。", true); return; }
+    notesPending = true;
+    renderNotesControls("正在保存…");
+    try {
+      const data = await callCustomerService({ action:"updateCustomerNotes", customerCode, expectedNotes:notesOriginal, notes });
+      profile.notes = data.customer?.notes ?? notes;
+      notesOriginal = profile.notes;
+      $("customerNotes").value = profile.notes;
+      notesEditing = false;
+      notesPending = false;
+      renderNotesControls("已保存");
+    } catch (error) {
+      notesPending = false;
+      renderNotesControls(error.message || "客户备注保存失败。", true);
+    }
   }
   function renderRecent(message = "", isError = false) {
     const archived = profile.customerStatus === "ARCHIVED";
@@ -106,7 +155,7 @@
     $("customerStatusToggle")?.addEventListener("click", toggleCustomerStatus);
   }
   function renderBalances() {
-    $("customerProjectSummary").innerHTML = balances.length ? balances.map((row) => `<tr><td>${escapeHtml(row.productName)}${row.productCode ? ` · ${escapeHtml(row.productCode)}` : ""}</td><td>${Number(row.totalRechargeCount || 0)}</td><td>${Number(row.totalVerificationCount || 0)}</td><td><strong>${Number(row.remainingCount || 0)}</strong></td></tr>`).join("") : emptyRow(4, "暂无已充值项目");
+    $("customerProjectSummary").innerHTML = balances.length ? balances.map((row) => `<tr><td>${escapeHtml(row.productName)}</td><td>${Number(row.totalRechargeCount || 0)}</td><td>${Number(row.totalVerificationCount || 0)}</td><td><strong>${Number(row.remainingCount || 0)}</strong></td></tr>`).join("") : emptyRow(4, "暂无已充值项目");
   }
   function renderRecords() {
     $("customerRechargeRecords").innerHTML = recharges.length ? recharges.map((row) => {
@@ -114,7 +163,7 @@
       const code = row.rechargeCode || row.id;
       const detail = detailHref("recharge-detail.html", row.id, code);
       const codeCell = detail ? `<a class="record-link" href="${escapeHtml(detail)}">${escapeHtml(code)}</a>` : escapeHtml(code);
-      return `<tr><td>${codeCell}</td><td>${escapeHtml([row.productName, row.productCode].filter(Boolean).join(" · "))}</td><td>${prefix}${units}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row, "RECHARGE"))}</td></tr>`;
+      return `<tr><td>${codeCell}</td><td>${escapeHtml(row.productName)}</td><td>${prefix}${units}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row, "RECHARGE"))}</td></tr>`;
     }).join("") : emptyRow(5, "暂无充值记录");
     $("customerVerificationRecords").innerHTML = verifications.length ? verifications.map((row) => {
       const code = row.verificationCode || row.id;
@@ -122,14 +171,21 @@
         || String(row.verificationType || "").toUpperCase() === "SUPPLEMENT";
       const detail = operationCanOpen ? detailHref("verification-detail.html", row.id, code) : "";
       const codeCell = detail ? `<a class="record-link" href="${escapeHtml(detail)}">${escapeHtml(code)}</a>` : escapeHtml(code);
-      return `<tr><td>${codeCell}</td><td>${escapeHtml([row.productName, row.productCode].filter(Boolean).join(" · "))}</td><td>${escapeHtml(verificationTypeText(row.verificationType))}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row, "VERIFICATION"))}</td></tr>`;
+      return `<tr><td>${codeCell}</td><td>${escapeHtml(row.productName)}</td><td>${escapeHtml(verificationTypeText(row.verificationType))}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row, "VERIFICATION"))}</td></tr>`;
     }).join("") : emptyRow(5, "暂无核销记录");
+    $("customerExperienceRecords").innerHTML = experiences.length ? experiences.map((row) => {
+      const code = row.verificationCode || row.id;
+      const detail = session?.role === "operation" ? "" : detailHref("verification-detail.html", row.id, code);
+      const codeCell = detail ? `<a class="record-link" href="${escapeHtml(detail)}">${escapeHtml(code)}</a>` : escapeHtml(code);
+      return `<tr><td>${codeCell}</td><td>${escapeHtml(row.productName)}</td><td>体验核销</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row, "VERIFICATION"))}</td></tr>`;
+    }).join("") : emptyRow(5, "暂无体验记录");
     syncHistoryButton("RECHARGE");
     syncHistoryButton("VERIFICATION");
+    syncHistoryButton("EXPERIENCE");
   }
   function historyKey(row) { return String(row?.id || ""); }
   function syncHistoryButton(type) {
-    const button = $(type === "RECHARGE" ? "loadMoreRecharges" : "loadMoreVerifications");
+    const button = $({ RECHARGE:"loadMoreRecharges", VERIFICATION:"loadMoreVerifications", EXPERIENCE:"loadMoreExperiences" }[type]);
     if (!button) return;
     const state = historyState[type];
     button.hidden = !state.hasMore;
@@ -152,10 +208,10 @@
         cursorSubmittedAt:state.nextCursor.submittedAt,
         cursorId:state.nextCursor.id
       }));
-      const field = type === "RECHARGE" ? "recharges" : "verifications";
+      const field = { RECHARGE:"recharges", VERIFICATION:"verifications", EXPERIENCE:"experiences" }[type];
       const page = data.history?.[field] || {};
       const incoming = Array.isArray(data[field]) ? data[field] : [];
-      const target = type === "RECHARGE" ? recharges : verifications;
+      const target = { RECHARGE:recharges, VERIFICATION:verifications, EXPERIENCE:experiences }[type];
       const known = new Set(target.map(historyKey));
       incoming.forEach((row) => { if (!known.has(historyKey(row))) target.push(row); });
       state.hasMore = page.hasMore === true;
@@ -199,7 +255,8 @@
     $("customerProjectSummary").innerHTML = emptyRow(4, "客户项目数据读取失败");
     $("customerRechargeRecords").innerHTML = emptyRow(5, "充值记录读取失败");
     $("customerVerificationRecords").innerHTML = emptyRow(5, "核销记录读取失败");
-    ["loadMoreRecharges", "loadMoreVerifications"].forEach((id) => { if ($(id)) $(id).hidden = true; });
+    $("customerExperienceRecords").innerHTML = emptyRow(5, "体验记录读取失败");
+    ["loadMoreRecharges", "loadMoreVerifications", "loadMoreExperiences"].forEach((id) => { if ($(id)) $(id).hidden = true; });
     renderPhoto('<div class="customer-photo-placeholder">客户资料读取失败</div>', true);
   }
   async function loadProfile() {
@@ -210,16 +267,22 @@
     try {
       const data = await callCustomerService(profilePayload({ historyLimit:50 }));
       profile = data.customer; balances = Array.isArray(data.balances) ? data.balances : [];
-      recharges = Array.isArray(data.recharges) ? data.recharges : []; verifications = Array.isArray(data.verifications) ? data.verifications : [];
+      recharges = Array.isArray(data.recharges) ? data.recharges : []; verifications = Array.isArray(data.verifications) ? data.verifications : []; experiences = Array.isArray(data.experiences) ? data.experiences : [];
       historyState.RECHARGE.hasMore = data.history?.recharges?.hasMore === true;
       historyState.RECHARGE.nextCursor = data.history?.recharges?.nextCursor || null;
       historyState.VERIFICATION.hasMore = data.history?.verifications?.hasMore === true;
       historyState.VERIFICATION.nextCursor = data.history?.verifications?.nextCursor || null;
+      historyState.EXPERIENCE.hasMore = data.history?.experiences?.hasMore === true;
+      historyState.EXPERIENCE.nextCursor = data.history?.experiences?.nextCursor || null;
       renderBasic(); renderRecent(); renderBalances(); renderRecords();
     } catch (error) { renderLoadError(error.message || "客户主页数据库读取失败，请刷新重试。"); }
   }
   configureBackLink();
   $("loadMoreRecharges")?.addEventListener("click", () => loadMoreHistory("RECHARGE"));
   $("loadMoreVerifications")?.addEventListener("click", () => loadMoreHistory("VERIFICATION"));
+  $("loadMoreExperiences")?.addEventListener("click", () => loadMoreHistory("EXPERIENCE"));
+  $("editCustomerNotes")?.addEventListener("click", editCustomerNotes);
+  $("saveCustomerNotes")?.addEventListener("click", saveCustomerNotes);
+  $("cancelCustomerNotes")?.addEventListener("click", cancelCustomerNotes);
   void loadProfile();
 })();

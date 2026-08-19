@@ -1,9 +1,9 @@
 (() => {
   "use strict";
-  const VERSION = "0.15.2";
+  const VERSION = "0.15.3";
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
-  const formatDateTime = (value) => window.AppDateTime?.format?.(value, "—") || "—";
+  const formatDateTime = (value) => window.AppDateTime?.formatDate?.(value, "—") || "—";
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   if (!session || session.role !== "teacher") return;
@@ -41,7 +41,7 @@
       const amount = verification ? `${escapeHtml(typeLabel(row))}${row.hasFaceRequest ? " · 已核验" : " · 无人脸记录"}` : `${row.originalType === "VOID" ? "−" : "+"}${escapeHtml(row.unitCount)} 次`;
       const detailParams = new URLSearchParams({ recordId: String(row.id), recordCode: String(row.recordCode || ""), source: "teacher" });
       const detail = `${verification ? "verification" : "recharge"}-detail.html?${detailParams.toString()}`;
-      return `<tr><td><a class="teacher-order-link" href="${detail}">${escapeHtml(row.recordCode)}</a></td><td>${escapeHtml(row.storeName)} · ${escapeHtml(row.storeCode)}</td><td>${escapeHtml(row.customerName)} · ${escapeHtml(row.customerCode)}</td><td>${escapeHtml(row.productName)} · ${escapeHtml(row.productCode)}</td><td>${amount}</td><td>${escapeHtml(formatDateTime(row.submittedAt))}</td><td><span class="teacher-order-status ${statusClass}">${escapeHtml(status)}</span></td></tr>`;
+      return `<tr><td><a class="teacher-order-link" href="${detail}">${escapeHtml(row.recordCode)}</a></td><td>${escapeHtml(row.storeName)} · ${escapeHtml(row.storeCode)}</td><td>${escapeHtml(row.customerName)} · ${escapeHtml(row.customerCode)}</td><td>${escapeHtml(row.productName)}</td><td>${amount}</td><td>${escapeHtml(formatDateTime(row.submittedAt))}</td><td><span class="teacher-order-status ${statusClass}">${escapeHtml(status)}</span></td></tr>`;
     }).join("") : `<tr><td colspan="7" class="teacher-empty">暂无本人绑定的${verification ? "核销" : "充值"}工单</td></tr>`;
     $("teacherLoadedCount").textContent = `${rows.length} 条`; $("teacherLoadMore").hidden = !state.hasMore[type]; $("teacherLoadMore").disabled = state.loading;
   }

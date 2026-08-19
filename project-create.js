@@ -61,6 +61,5 @@
     }
   }
 
-  $("generatedProjectCode").textContent = "产品编号由数据库自动生成";
   $("projectCreateForm").addEventListener("submit", submitProject);
 })();

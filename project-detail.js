@@ -10,7 +10,7 @@
   }
 
   function formatTimestamp(value) {
-    return window.AppDateTime.format(value, "未记录");
+    return window.AppDateTime.formatDate(value, "未记录");
   }
 
   function renderMissing(message) {
