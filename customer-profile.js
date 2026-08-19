@@ -171,14 +171,14 @@
         || String(row.verificationType || "").toUpperCase() === "SUPPLEMENT";
       const detail = operationCanOpen ? detailHref("verification-detail.html", row.id, code) : "";
       const codeCell = detail ? `<a class="record-link" href="${escapeHtml(detail)}">${escapeHtml(code)}</a>` : escapeHtml(code);
-      return `<tr><td>${codeCell}</td><td>${escapeHtml(row.productName)}</td><td>${escapeHtml(verificationTypeText(row.verificationType))}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row, "VERIFICATION"))}</td></tr>`;
-    }).join("") : emptyRow(5, "暂无核销记录");
+      return `<tr><td>${codeCell}</td><td>${escapeHtml(row.productName)}</td><td>${escapeHtml(dateText(row.submittedAt))}</td></tr>`;
+    }).join("") : emptyRow(3, "暂无核销记录");
     $("customerExperienceRecords").innerHTML = experiences.length ? experiences.map((row) => {
       const code = row.verificationCode || row.id;
       const detail = session?.role === "operation" ? "" : detailHref("verification-detail.html", row.id, code);
       const codeCell = detail ? `<a class="record-link" href="${escapeHtml(detail)}">${escapeHtml(code)}</a>` : escapeHtml(code);
-      return `<tr><td>${codeCell}</td><td>${escapeHtml(row.productName)}</td><td>体验核销</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row, "VERIFICATION"))}</td></tr>`;
-    }).join("") : emptyRow(5, "暂无体验记录");
+      return `<tr><td>${codeCell}</td><td>${escapeHtml(row.productName)}</td><td>${escapeHtml(dateText(row.submittedAt))}</td></tr>`;
+    }).join("") : emptyRow(3, "暂无体验记录");
     syncHistoryButton("RECHARGE");
     syncHistoryButton("VERIFICATION");
     syncHistoryButton("EXPERIENCE");
@@ -254,8 +254,8 @@
     $("customerStatusMessage").textContent = message; $("customerStatusMessage").classList.add("error");
     $("customerProjectSummary").innerHTML = emptyRow(4, "客户项目数据读取失败");
     $("customerRechargeRecords").innerHTML = emptyRow(5, "充值记录读取失败");
-    $("customerVerificationRecords").innerHTML = emptyRow(5, "核销记录读取失败");
-    $("customerExperienceRecords").innerHTML = emptyRow(5, "体验记录读取失败");
+    $("customerVerificationRecords").innerHTML = emptyRow(3, "核销记录读取失败");
+    $("customerExperienceRecords").innerHTML = emptyRow(3, "体验记录读取失败");
     ["loadMoreRecharges", "loadMoreVerifications", "loadMoreExperiences"].forEach((id) => { if ($(id)) $(id).hidden = true; });
     renderPhoto('<div class="customer-photo-placeholder">客户资料读取失败</div>', true);
   }

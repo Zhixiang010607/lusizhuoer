@@ -613,6 +613,9 @@ dialog::backdrop { background: #0b142a88; backdrop-filter: blur(3px); }
 .customer-record-panel .customer-record-scroll th:nth-child(3) { width: 16%; }
 .customer-record-panel .customer-record-scroll th:nth-child(4) { width: 23%; }
 .customer-record-panel .customer-record-scroll th:nth-child(5) { width: 19%; }
+.customer-record-panel .customer-simple-records-table th:nth-child(1) { width: 36%; }
+.customer-record-panel .customer-simple-records-table th:nth-child(2) { width: 34%; }
+.customer-record-panel .customer-simple-records-table th:nth-child(3) { width: 30%; }
 .customer-record-panel .customer-record-scroll thead th { position: sticky; top: 0; z-index: 1; }
 
 @media (min-width: 900px) and (min-height: 760px) {
@@ -1394,7 +1397,8 @@ body[data-operation-home] .operation-home-main { width: min(1180px, calc(100% - 
   body.store-record-query .record-query-primary-row,
   body.store-record-query .verification-query-primary-row,
   body.store-record-query .customer-query-method .customer-query-time-row,
-  body.store-record-query .customer-query-method-fields { grid-template-columns: 1fr; }
+  body.store-record-query .customer-query-method-fields,
+  body[data-customer-query] .customer-query-method-fields { grid-template-columns: 1fr; }
   body.store-record-query .customer-category-grid.four-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
@@ -1492,11 +1496,16 @@ body[data-operation-home] .operation-home-main { width: min(1180px, calc(100% - 
   body[data-customer-profile] .customer-project-panel .customer-record-scroll td { padding: 7px 8px; white-space: nowrap; }
   body[data-customer-profile] .customer-project-panel .customer-record-scroll th:first-child { width: 135px; }
 
-  body[data-customer-profile] .customer-record-panel .customer-record-scroll table {
-    width: 650px;
-    min-width: 650px;
-    table-layout: auto;
-  }
+  body[data-customer-profile] .customer-record-panel .customer-recharge-records-table { width: 520px; min-width: 520px; table-layout: fixed; }
+  body[data-customer-profile] .customer-record-panel .customer-recharge-records-table th:nth-child(1) { width: 145px; }
+  body[data-customer-profile] .customer-record-panel .customer-recharge-records-table th:nth-child(2) { width: 105px; }
+  body[data-customer-profile] .customer-record-panel .customer-recharge-records-table th:nth-child(3) { width: 78px; }
+  body[data-customer-profile] .customer-record-panel .customer-recharge-records-table th:nth-child(4) { width: 105px; }
+  body[data-customer-profile] .customer-record-panel .customer-recharge-records-table th:nth-child(5) { width: 87px; }
+  body[data-customer-profile] .customer-record-panel .customer-simple-records-table { width: 410px; min-width: 410px; table-layout: fixed; }
+  body[data-customer-profile] .customer-record-panel .customer-simple-records-table th:nth-child(1) { width: 165px; }
+  body[data-customer-profile] .customer-record-panel .customer-simple-records-table th:nth-child(2) { width: 130px; }
+  body[data-customer-profile] .customer-record-panel .customer-simple-records-table th:nth-child(3) { width: 115px; }
   body[data-customer-profile] .customer-record-panel .customer-record-scroll th,
   body[data-customer-profile] .customer-record-panel .customer-record-scroll td {
     padding: 7px 9px;
