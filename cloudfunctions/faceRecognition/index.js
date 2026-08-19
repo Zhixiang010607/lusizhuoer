@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v59";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v60";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -1578,15 +1578,20 @@ async function addCustomerMessage(event) {
   if (!contentLength) fail("请输入留言内容。", "CUSTOMER_MESSAGE_REQUIRED");
   if (contentLength > 100) fail("单条客户留言不能超过 100 字。", "CUSTOMER_MESSAGE_TOO_LONG");
   const rows = await executeCustomerMessageSql(
-    `INSERT INTO public.customer_messages
-       (customer_id, author_account_id, author_role, author_name_snapshot, message_content)
-     SELECT ${sqlText(String(customer.id))}::bigint, a.id, a.role_code,
-            BTRIM(a.staff_name), ${sqlText(content)}
-       FROM public.staff_accounts a
-      WHERE a.id = ${positiveDatabaseId(caller.staffId, "当前留言账号")}
-        AND a.account_status = 'ACTIVE'
-        AND a.role_code IN ('hq', 'store', 'teacher')
-     RETURNING id, author_role, author_name_snapshot, message_content, created_at`
+    `WITH inserted_message AS (
+       INSERT INTO public.customer_messages
+         (customer_id, author_account_id, author_role, author_name_snapshot, message_content)
+       SELECT ${sqlText(String(customer.id))}::bigint, a.id, a.role_code,
+              BTRIM(a.staff_name), ${sqlText(content)}
+         FROM public.staff_accounts a
+        WHERE a.id = ${positiveDatabaseId(caller.staffId, "当前留言账号")}::bigint
+          AND a.account_status = 'ACTIVE'
+          AND a.role_code IN ('hq', 'store', 'teacher')
+       RETURNING id, author_role, author_name_snapshot, message_content, created_at
+     )
+     SELECT id, author_role, author_name_snapshot, message_content, created_at
+       FROM inserted_message
+      LIMIT 1`
   );
   const message = rows[0];
   if (!message) fail("当前登录账号不能提交客户留言。", "FORBIDDEN");

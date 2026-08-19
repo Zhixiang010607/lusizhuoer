@@ -27,14 +27,14 @@ for (const source of [migration, consoleMigration]) {
   assert.match(source, /REVOKE ALL ON TABLE public\.customer_messages FROM PUBLIC/);
 }
 
-assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v3" : "v59"/);
+assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v3" : "v60"/);
 assert.match(cloud, /async function listCustomerMessages\(event\)/);
 assert.match(cloud, /async function addCustomerMessage\(event\)/);
 assert.match(cloud, /const limit = Number\.isFinite\(requestedLimit\)[\s\S]*?: 20;/);
 assert.match(cloud, /Math\.min\(Math\.max\(Math\.trunc\(requestedLimit\), 1\), 50\)/);
 assert.match(cloud, /ORDER BY cm\.created_at DESC, cm\.id DESC/);
 assert.match(cloud, /Array\.from\(content\)\.length/);
-assert.match(cloud, /INSERT INTO public\.customer_messages[\s\S]*SELECT[\s\S]*a\.id, a\.role_code,[\s\S]*BTRIM\(a\.staff_name\)/);
+assert.match(cloud, /WITH inserted_message AS \([\s\S]*INSERT INTO public\.customer_messages[\s\S]*SELECT[\s\S]*a\.id, a\.role_code,[\s\S]*BTRIM\(a\.staff_name\)[\s\S]*RETURNING[\s\S]*FROM inserted_message/, "CloudBase must receive message rows through a SELECT around the writable CTE");
 assert.doesNotMatch(cloud, /event\.(?:authorName|authorRole)/, "author identity must never be accepted from the browser");
 assert.match(cloud, /account\.role_code === "teacher"/);
 assert.match(cloud, /teacher_verification\.teacher_id = \$\{sqlText\(caller\.teacherId\)\}::bigint/);
