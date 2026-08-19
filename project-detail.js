@@ -17,6 +17,8 @@
   let previewObjectUrl = "";
   let previewBusy = false;
   let previewQueued = false;
+  let logoReadBusy = false;
+  let logoReadRetryTimer = 0;
   const localPreviewMode = ["127.0.0.1", "localhost"].includes(location.hostname)
     && new URLSearchParams(location.search).get("preview") === "1";
 
@@ -94,27 +96,124 @@
     return value ? window.AppDateTime.format(value, "未记录") : "未保存";
   }
 
-  function base64Blob(payload) {
-    const binary = atob(String(payload?.base64 || ""));
+  function base64Blob(payload, expectedLogo = {}) {
+    const base64 = String(payload?.base64 || "");
+    if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(base64)) {
+      throw new Error("LOGO 原图数据格式无效");
+    }
+    const returnedReference = String(payload?.reference || "").trim();
+    const expectedReference = String(expectedLogo?.reference || "").trim();
+    const mimeType = String(payload?.mimeType || "").trim().toLowerCase();
+    const expectedMimeType = String(expectedLogo?.mimeType || "").trim().toLowerCase();
+    if ((expectedReference && returnedReference !== expectedReference)
+        || !mimeType.startsWith("image/")
+        || (expectedMimeType && mimeType !== expectedMimeType)) {
+      throw new Error("LOGO 原图与当前产品模板不一致");
+    }
+    const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);
     for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-    if (!bytes.length || bytes.length !== Number(payload?.bytes || bytes.length)) throw new Error("LOGO 原图读取不完整");
-    return new Blob([bytes], { type: payload?.mimeType || "application/octet-stream" });
+    const expectedBytes = Number(expectedLogo?.bytes || 0);
+    if (!bytes.length || bytes.length !== Number(payload?.bytes || 0)
+        || (expectedBytes && bytes.length !== expectedBytes)) throw new Error("LOGO 原图读取不完整");
+    return new Blob([bytes], { type: mimeType });
+  }
+
+  function transientLogoFetchError(error) {
+    const status = Number(error?.status || 0);
+    const text = String(error?.message || "").toUpperCase();
+    return status === 429 || status >= 500
+      || /TIMEOUT|ABORT|NETWORK|FETCH|ECONNRESET|ETIMEDOUT/.test(text);
+  }
+
+  function logoFetchRetryDelay() {
+    return new Promise((resolve) => window.setTimeout(resolve, 100 + Math.floor(Math.random() * 40)));
+  }
+
+  async function fetchSignedLogoBlob(logo) {
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const timeout = window.setTimeout(() => controller?.abort(), 12000);
+    try {
+      const response = await fetch(logo.url, {
+        method: "GET", mode: "cors", credentials: "omit", cache: "force-cache",
+        referrerPolicy: "no-referrer", signal: controller?.signal
+      });
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
+      const blob = await response.blob();
+      if (!blob.size || !String(blob.type || "").startsWith("image/")) throw new Error("返回内容不是图片");
+      if (Number(logo.bytes || 0) && blob.size !== Number(logo.bytes)) throw new Error("原图大小不一致");
+      if (logo.mimeType && blob.type && String(blob.type).toLowerCase() !== String(logo.mimeType).toLowerCase()) {
+        throw new Error("原图类型不一致");
+      }
+      return blob;
+    } finally {
+      window.clearTimeout(timeout);
+    }
   }
 
   async function fetchLogoBlob(current) {
     if (!current?.logo) return null;
     if (current.logo.url) {
       try {
-        const response = await fetch(current.logo.url, { mode: "cors", credentials: "omit", cache: "no-store", referrerPolicy: "no-referrer" });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const blob = await response.blob();
-        if (!blob.size || !String(blob.type || "").startsWith("image/")) throw new Error("返回内容不是图片");
-        if (Number(current.logo.bytes || 0) && blob.size !== Number(current.logo.bytes)) throw new Error("原图大小不一致");
-        return blob;
-      } catch (_) { /* use the authenticated original-byte fallback below */ }
+        return await fetchSignedLogoBlob(current.logo);
+      } catch (error) {
+        if (transientLogoFetchError(error)) {
+          try {
+            await logoFetchRetryDelay();
+            return await fetchSignedLogoBlob(current.logo);
+          } catch (_) { /* use the authenticated original-byte fallback below */ }
+        }
+      }
     }
-    return base64Blob(await window.CloudBasePhoneAuth.getProductReceiptLogoData({ productRef: projectRef }));
+    const payload = await window.CloudBasePhoneAuth.getProductReceiptLogoData({
+      productRef: projectRef,
+      expectedReference: current.logo.reference
+    });
+    return base64Blob(payload, current.logo);
+  }
+
+  async function reloadTemplateLogo({ automatic = false } = {}) {
+    if (logoReadBusy || !template) return false;
+    logoReadBusy = true;
+    if (logoReadRetryTimer) {
+      window.clearTimeout(logoReadRetryTimer);
+      logoReadRetryTimer = 0;
+    }
+    try {
+      try {
+        logoBlob = await fetchLogoBlob(template);
+      } catch (error) {
+        if (error?.code !== "PRODUCT_LOGO_CHANGED") throw error;
+        template = assertUrlProduct(await window.CloudBasePhoneAuth.getProductReceiptTemplate({
+          productRef: projectRef,
+          forceRefresh: true
+        }));
+        renderTemplate();
+        logoBlob = await fetchLogoBlob(template);
+      }
+      renderTemplate();
+      setMessage(template.logo ? "模板与 LOGO 原图读取完成。" : "模板读取完成。", "success");
+      await renderPreview();
+      return true;
+    } catch (error) {
+      logoBlob = null;
+      renderTemplate();
+      setMessage(`模板文字已读取；LOGO 原图暂时不可用：${error?.message || "请稍后重试"}`, "error");
+      await renderPreview();
+      if (!automatic) {
+        logoReadRetryTimer = window.setTimeout(() => {
+          logoReadRetryTimer = 0;
+          void reloadTemplateLogo({ automatic: true });
+        }, 1800 + Math.floor(Math.random() * 500));
+      }
+      return false;
+    } finally {
+      logoReadBusy = false;
+    }
   }
 
   function renderLogo() {
@@ -406,7 +505,7 @@
         rechargeInstructions
       });
       assertTemplateRoundTrip(saved, expected, verificationInstructions, rechargeInstructions);
-      const reread = await window.CloudBasePhoneAuth.getProductReceiptTemplate({ productRef });
+      const reread = await window.CloudBasePhoneAuth.getProductReceiptTemplate({ productRef, forceRefresh: true });
       template = assertTemplateRoundTrip(reread, expected, verificationInstructions, rechargeInstructions);
       renderTemplate();
       setMessage(`${expected.productName}${expected.productCode ? `（${expected.productCode}）` : ""}的两组文字说明已保存并从数据库复核。`, "success");
@@ -483,10 +582,13 @@
     if (!window.CloudBasePhoneAuth?.getProductReceiptTemplate) throw new Error("产品模板服务尚未加载");
     template = assertUrlProduct(await window.CloudBasePhoneAuth.getProductReceiptTemplate({ productRef: projectRef }));
     if (!template) throw new Error("未找到该产品");
-    logoBlob = await fetchLogoBlob(template);
     renderTemplate();
-    setMessage(new URLSearchParams(location.search).get("created") === "1" ? "产品已创建，请继续配置 LOGO 和两组单据说明。" : "模板读取完成。", "success");
-    await renderPreview();
+    if (new URLSearchParams(location.search).get("created") === "1") {
+      setMessage("产品已创建，请继续配置 LOGO 和两组单据说明。", "success");
+    } else {
+      setMessage("模板文字已读取，正在读取 LOGO 原图…");
+    }
+    await reloadTemplateLogo();
   }
 
   document.querySelectorAll("[data-preview-kind]").forEach((button) => button.addEventListener("click", () => {
@@ -500,10 +602,16 @@
   $("removeProductLogo").addEventListener("click", removeLogo);
   $("saveProductTemplate").addEventListener("click", saveInstructions);
   $("toggleProductStatus").addEventListener("click", toggleStatus);
-  $("refreshProductPreview").addEventListener("click", renderPreview);
+  $("refreshProductPreview").addEventListener("click", () => {
+    if (template?.logo && !(logoBlob instanceof Blob)) void reloadTemplateLogo();
+    else void renderPreview();
+  });
   $("downloadProductPreview").addEventListener("click", downloadPreview);
   ["verificationReceiptInstructions", "rechargeReceiptInstructions"].forEach((id) => $(id).addEventListener("input", updateCounts));
-  window.addEventListener("beforeunload", clearPreviewUrl);
+  window.addEventListener("beforeunload", () => {
+    clearPreviewUrl();
+    if (logoReadRetryTimer) window.clearTimeout(logoReadRetryTimer);
+  });
 
   loadTemplate().catch((error) => {
     setTemplateControlsReady(false);

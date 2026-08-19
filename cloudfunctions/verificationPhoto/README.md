@@ -1,6 +1,6 @@
 # verificationPhoto 云函数
 
-当前版本：`v3`
+当前版本：`v4`（共享业务实现 `v3`）
 
 该函数专门处理核销单的五个照片位：列表与缩略图、按需读取高清原图、导出原图，以及三个补充照片位的开始、提交、状态恢复和取消。它不执行质量检测、活体检测、客户建档或人脸比对，也不暴露这些动作。
 
@@ -23,16 +23,19 @@
 - 超时：`60 秒`
 - 并发／实例：先使用平台默认值；如果监控确认主要延迟来自冷启动，可为生产版本配置 `1` 个预置并发实例。预置实例持续计费，不要在没有监控证据时盲目增加。
 
-最终 `verificationPhoto-v3.zip` 的根目录必须是：
+最终 `verificationPhoto-v4.zip` 的根目录必须是：
 
 ```text
 index.js      # 由本目录 deploy-index.js 复制并改名
 service.js    # 由 ../faceRecognition/index.js 复制
+read-reliability.js # 私有照片签名重试、并发去重与安全读取回退
 package.json
 README.md
 ```
 
-不要把源码树中的 `index.js` 单独放进 ZIP；它使用 `../faceRecognition/index.js`，只用于本地源码与测试。不要把整个 `faceRecognition` 目录或它的 `node_modules` 复制进包；部署时让 CloudBase 按本函数的 `package.json` 安装依赖。
+不要把源码树中的 `index.js` 单独放进 ZIP；它使用 `../faceRecognition/index.js`，只用于本地源码与测试。必须把本目录的 `read-reliability.js` 原样放在 ZIP 根目录。不要把整个 `faceRecognition` 目录或它的 `node_modules` 复制进包；部署时让 CloudBase 按本函数的 `package.json` 安装依赖。
+
+读取适配层不会自行查询账号或绕过权限。列表、原图和导出仍先进入共享服务完成登录、工单范围校验与原图查看审计；适配层只对底层签名的瞬时 `InternalError` 做最多三次带抖动的有界重试，并把同一对象正在进行的并发签名合并为一次。适配层不再二次缓存已完成的签名，避免把短效地址重新包装成长有效期；共享服务只按地址实际剩余时间复用。缩略图无法签名时会再次通过共享的原图动作校验后临时使用原图地址；原图地址也不可用时，只在整份清单的安全响应预算内嵌入已经核对 JPEG 魔数和数据库记录字节数的数据，超出预算的照片逐项返回 `thumbnailRetryable` 和 `getVerificationPhotoThumbnailData`，不会让整单失败。原图签名不可用或已过期时也会再次通过共享的授权导出动作返回内联 JPEG。因此这些回退不依赖照片桶的浏览器读取 CORS，也不会向未授权请求返回 URL 或 Base64。
 
 ## 必需环境变量
 
@@ -102,6 +105,7 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 - `getVerificationPhotos`
 - `getVerificationPhotoOriginalUrl`
 - `getVerificationPhotoExportData`
+- `getVerificationPhotoThumbnailData`（签名地址和原图地址均不可用时，单张按需安全字节回退）
 - `beginVerificationPhotoUpload`
 - `getVerificationPhotoUploadStatus`
 - `cancelVerificationPhotoUpload`
@@ -126,7 +130,7 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 }
 ```
 
-该七段 Cron 在每小时第 10 分钟运行，与 `faceRecognition` 的整点清理错峰。v3 同时验证 SCF 保留变量 `TRIGGER_SRC=timer`、平台函数名、事件类型、精确触发器名、时间格式和“无终端用户 UID”，普通客户端伪造 `Type: Timer` 或触发器名不能进入清理。它只清理迁移 039 中已经取消或过期、且超过安全等待期的补充照片上传对象；已绑定工单的照片不会删除。原 `faceRecognition` 的人脸草稿触发器使用另一个固定名称，两个配置不要互换。
+该七段 Cron 在每小时第 10 分钟运行，与 `faceRecognition` 的整点清理错峰。v4 继续由共享业务实现验证 SCF 保留变量 `TRIGGER_SRC=timer`、平台函数名、事件类型、精确触发器名、时间格式和“无终端用户 UID”，普通客户端伪造 `Type: Timer` 或触发器名不能进入清理。它只清理迁移 039 中已经取消或过期、且超过安全等待期的补充照片上传对象；已绑定工单的照片不会删除。原 `faceRecognition` 的人脸草稿触发器使用另一个固定名称，两个配置不要互换。
 
 控制台需要手工补跑时才使用以下测试事件，并确保调用没有终端用户 UID：
 
@@ -141,8 +145,8 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 
 1. 确认迁移 039 表和真实桶均存在。
 2. 部署 `faceRecognition-v55.zip`，调用 `health` 确认 `version: "v55"`，并先验证原有建档、活体、1:1 核销人脸和总部四个共享办理入口。
-3. 新建或更新函数 `verificationPhoto`，上传 `verificationPhoto-v3.zip`，配置上述环境变量、512 MB 内存和 60 秒超时。
-4. 对 `verificationPhoto` 调用 `{ "action": "health" }`，确认 `version: "v3"` 与全部就绪字段，再保存本节的 triggers-only 配置。
+3. 新建或更新函数 `verificationPhoto`，上传 `verificationPhoto-v4.zip`，配置上述环境变量、512 MB 内存和 60 秒超时。
+4. 对 `verificationPhoto` 调用 `{ "action": "health" }`，确认 `version: "v4"`、`sharedVersion: "v3"` 与全部就绪字段，再保存本节的 triggers-only 配置。
 5. 只有两个函数均验证成功后，才发布当前静态前端并强制刷新浏览器；不要先发前端。
 
 `verificationPhoto` 应返回类似：
@@ -151,7 +155,8 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 {
   "ok": true,
   "ready": true,
-  "version": "v3",
+  "version": "v4",
+  "sharedVersion": "v3",
   "service": "verificationPhoto",
   "uploadMode": "FUNCTION",
   "photoBucketId": "customer-photos",
@@ -164,7 +169,14 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
   "verificationPhotoServiceRoleKeyConfigured": true,
   "verificationPhotoUploadSchemaReady": true,
   "verificationPhotoBucketMetadataReady": true,
-  "verificationPhotoServiceRoleStorageReady": true
+  "verificationPhotoServiceRoleStorageReady": true,
+  "verificationPhotoReadReliability": {
+    "signedUrlExpiryAware": true,
+    "sameObjectFlightDeduplication": true,
+    "maxSigningAttempts": 3,
+    "maxSigningConcurrency": 6,
+    "thumbnailDataFallback": true
+  }
 }
 ```
 

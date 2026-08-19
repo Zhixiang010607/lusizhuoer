@@ -11,7 +11,7 @@ const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 const OPERATION_ACTIONS = new Set(["listReviewOrders", "reviewOrder", "getProductReceiptTemplate", "getProductReceiptLogoData"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v46";
+const FUNCTION_VERSION = "v47";
 const ORDER_VOID_APPLICATIONS_ENABLED = false;
 const PRODUCT_LOGO_MAX_BYTES = 8 * 1024 * 1024;
 // Base64 expands bytes by roughly one third and synchronous cloud-function
@@ -19,6 +19,12 @@ const PRODUCT_LOGO_MAX_BYTES = 8 * 1024 * 1024;
 // Keep the normal 8 MB direct-upload contract, but bound the authenticated
 // function fallback so the complete request remains below that ceiling.
 const PRODUCT_LOGO_FUNCTION_MAX_BYTES = 3 * 1024 * 1024;
+const PRODUCT_LOGO_DOWNLOAD_CACHE_TTL_MS = 5 * 60 * 1000;
+const PRODUCT_LOGO_DOWNLOAD_CACHE_MAX_ENTRIES = 8;
+const PRODUCT_LOGO_CHUNK_BYTES = 1536 * 1024;
+const PRODUCT_LOGO_DOWNLOAD_RETRY_DELAYS_MS = Object.freeze([80, 240]);
+const PRODUCT_LOGO_SIGN_SAFETY_MS = 30 * 1000;
+const PRODUCT_LOGO_STORAGE_MAX_CONCURRENCY = 6;
 const PRODUCT_LOGO_TYPES = new Map([
   ["image/png", "png"],
   ["image/jpeg", "jpg"],
@@ -30,6 +36,13 @@ let managerClient = null;
 let storeBindingLayout = null;
 let storeCreationCapabilities = null;
 let productTemplateCapabilities = null;
+const productLogoDownloadCache = new Map();
+const productLogoDownloadFlights = new Map();
+const productLogoSignCache = new Map();
+const productLogoSignFlights = new Map();
+let productLogoDownloadCacheBytes = 0;
+let productLogoStorageActive = 0;
+const productLogoStorageQueue = [];
 
 function getApp() {
   if (!app) {
@@ -196,43 +209,286 @@ function productLogoStorageError(message, code, cause, context = {}) {
   return error;
 }
 
-async function downloadProductLogo(referenceValue, maximumBytes = PRODUCT_LOGO_MAX_BYTES) {
+function productLogoTransientStorageError(error) {
+  const details = cloudErrorDetails(error);
+  const code = String(details.code || "").trim().toUpperCase();
+  const message = String(details.message || error?.message || "").trim().toUpperCase();
+  const status = Number(error?.status || error?.statusCode || error?.response?.status || 0);
+  return code === "PRODUCT_LOGO_DOWNLOAD_TRUNCATED" || status === 429 || status >= 500
+    || /(?:^|[^A-Z])(INTERNALERROR|INTERNAL_ERROR|HTTP_429|HTTP_5\d\d|TOOMANYREQUESTS|TOO_MANY_REQUESTS|THROTTL|TIMEOUT|TIMEDOUT|ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|UND_ERR|FETCH FAILED|NETWORK)(?:[^A-Z]|$)/.test(`${code} ${message}`);
+}
+
+function productLogoReadDelay(milliseconds) {
+  const jitter = Math.floor(Math.random() * Math.max(1, Math.floor(milliseconds / 4)));
+  return new Promise((resolve) => setTimeout(resolve, milliseconds + jitter));
+}
+
+async function withProductLogoStorageSlot(task) {
+  if (productLogoStorageActive >= PRODUCT_LOGO_STORAGE_MAX_CONCURRENCY) {
+    await new Promise((resolve) => productLogoStorageQueue.push(resolve));
+  }
+  productLogoStorageActive += 1;
+  try {
+    return await task();
+  } finally {
+    productLogoStorageActive -= 1;
+    productLogoStorageQueue.shift()?.();
+  }
+}
+
+async function retryProductLogoStorage(operation, task) {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await withProductLogoStorageSlot(() => task(attempt + 1));
+    } catch (error) {
+      const retryable = productLogoTransientStorageError(error);
+      if (!retryable || attempt >= PRODUCT_LOGO_DOWNLOAD_RETRY_DELAYS_MS.length) throw error;
+      const cause = cloudErrorDetails(error);
+      console.warn("CloudBase product-logo transient storage read will retry", {
+        operation,
+        attempt: attempt + 1,
+        code: cause.code || undefined,
+        requestId: requestIdFrom(error) || undefined
+      });
+      await productLogoReadDelay(PRODUCT_LOGO_DOWNLOAD_RETRY_DELAYS_MS[attempt]);
+      attempt += 1;
+    }
+  }
+}
+
+async function productLogoResponseBuffer(response, maximumBytes, expectedRange = null) {
+  const status = Number(response?.status || 0);
+  const declaredBytes = Number(response?.headers?.["content-length"] || 0);
+  const validStatus = expectedRange ? status === 206 : status === 200;
+  if (!validStatus || !response?.body) {
+    const error = new Error(`产品 LOGO 存储响应无效（HTTP ${status || "未知"}）`);
+    error.code = status ? `HTTP_${status}` : "PRODUCT_LOGO_DOWNLOAD_RESPONSE_INVALID";
+    error.status = status || undefined;
+    throw error;
+  }
+  if (expectedRange) {
+    const expectedLength = expectedRange.end - expectedRange.start + 1;
+    const contentRange = String(response?.headers?.["content-range"] || "").trim();
+    const match = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(contentRange);
+    if (!match || Number(match[1]) !== expectedRange.start
+        || Number(match[2]) !== expectedRange.end || Number(match[3]) !== expectedRange.total
+        || (declaredBytes > 0 && declaredBytes !== expectedLength)) {
+      response.body.destroy?.();
+      const error = new Error("产品 LOGO 分块响应范围无效");
+      error.code = "PRODUCT_LOGO_RANGE_MISMATCH";
+      throw error;
+    }
+  }
+  if (Number.isFinite(declaredBytes) && declaredBytes > maximumBytes) {
+    response.body.destroy?.();
+    fail("产品 LOGO 超过允许的读取大小", "PRODUCT_LOGO_TOO_LARGE");
+  }
+  const chunks = [];
+  let total = 0;
+  try {
+    const source = Buffer.isBuffer(response.body) ? [response.body] : response.body;
+    for await (const chunk of source) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      total += buffer.length;
+      if (total > maximumBytes) {
+        response.body.destroy?.();
+        fail("产品 LOGO 超过允许的读取大小", "PRODUCT_LOGO_TOO_LARGE");
+      }
+      chunks.push(buffer);
+    }
+  } catch (error) {
+    response.body.destroy?.();
+    throw error;
+  }
+  const output = Buffer.concat(chunks);
+  if (!output.length) fail("产品 LOGO 文件为空", "PRODUCT_LOGO_UPLOAD_INCOMPLETE");
+  if (declaredBytes > 0 && output.length !== declaredBytes) {
+    const error = new Error("产品 LOGO 下载流长度与响应头不一致");
+    error.code = "PRODUCT_LOGO_DOWNLOAD_TRUNCATED";
+    throw error;
+  }
+  if (expectedRange && output.length !== expectedRange.end - expectedRange.start + 1) {
+    const error = new Error("产品 LOGO 分块下载长度不完整");
+    error.code = "PRODUCT_LOGO_DOWNLOAD_TRUNCATED";
+    throw error;
+  }
+  return output;
+}
+
+function productLogoSignedToken(urlValue, storage) {
+  try {
+    const url = new URL(String(urlValue || ""));
+    if (url.protocol !== "https:" || url.hostname !== `${storage.envId}.api.tcloudbasegateway.com`) return "";
+    const token = String(url.searchParams.get("token") || "");
+    return token && token.length <= 8192 ? token : "";
+  } catch (_) {
+    return "";
+  }
+}
+
+async function fetchSignedProductLogoRange(url, range, maximumBytes, expectedRange) {
+  if (typeof fetch !== "function") {
+    const error = new Error("当前运行时不支持安全分块读取");
+    error.code = "PRODUCT_LOGO_RANGE_UNSUPPORTED";
+    throw error;
+  }
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  const timeout = setTimeout(() => controller?.abort(), 15000);
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { Range: range },
+      redirect: "error",
+      signal: controller?.signal
+    });
+    const headers = {};
+    response.headers?.forEach?.((value, key) => { headers[String(key).toLowerCase()] = value; });
+    return await productLogoResponseBuffer(
+      { status: response.status, headers, body: response.body },
+      maximumBytes,
+      expectedRange
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function downloadProductLogoUncached(reference, storage, maximumBytes, options = {}) {
+  const range = String(options.range || "").trim();
+  const expectedRange = options.expectedRange || null;
+  let authenticatedError = null;
+  try {
+    return await retryProductLogoStorage("downloadAuthenticatedObject", async () => {
+      const response = await manager().storage.downloadAuthenticatedObject({
+        bucketId: reference.bucketId,
+        objectName: reference.objectName,
+        method: "GET",
+        range: range || undefined,
+        accessToken: storage.accessToken,
+        envId: storage.envId
+      });
+      return productLogoResponseBuffer(response, maximumBytes, expectedRange);
+    });
+  } catch (error) {
+    if (["PRODUCT_LOGO_TOO_LARGE", "PRODUCT_LOGO_UPLOAD_INCOMPLETE"].includes(error?.code)) throw error;
+    authenticatedError = error;
+    const cause = cloudErrorDetails(error);
+    console.warn("CloudBase product-logo authenticated read unavailable; trying signed read", {
+      bucketId: reference.bucketId,
+      objectName: reference.objectName,
+      code: cause.code || undefined,
+      requestId: requestIdFrom(error) || undefined
+    });
+  }
+
+  try {
+    const signed = await signProductLogo(reference.reference, 900);
+    const token = productLogoSignedToken(signed.url, storage);
+    if (!token) fail("产品 LOGO 签名读取令牌无效", "PRODUCT_LOGO_SIGN_FAILED");
+    return await retryProductLogoStorage(range ? "downloadSignedRange" : "downloadObjectBySign", async () => {
+      if (range) return fetchSignedProductLogoRange(signed.url, range, maximumBytes, expectedRange);
+      const response = await manager().storage.downloadObjectBySign({
+        bucketId: reference.bucketId,
+        objectName: reference.objectName,
+        token,
+        method: "GET",
+        envId: storage.envId
+      });
+      return productLogoResponseBuffer(response, maximumBytes, expectedRange);
+    });
+  } catch (signedError) {
+    const primary = cloudErrorDetails(authenticatedError);
+    const secondary = cloudErrorDetails(signedError);
+    console.error("CloudBase product-logo read channels exhausted", {
+      bucketId: reference.bucketId,
+      objectName: reference.objectName,
+      authenticatedCode: primary.code || undefined,
+      authenticatedRequestId: requestIdFrom(authenticatedError) || undefined,
+      signedCode: secondary.code || undefined,
+      signedRequestId: requestIdFrom(signedError) || undefined
+    });
+    throw productLogoStorageError(
+      "产品 LOGO 原图读取失败，请稍后重试",
+      "PRODUCT_LOGO_DOWNLOAD_FAILED",
+      signedError,
+      { operation: "downloadProductLogo", bucketId: reference.bucketId, objectName: reference.objectName }
+    );
+  }
+}
+
+function cachedProductLogo(referenceValue, maximumBytes) {
+  const entry = productLogoDownloadCache.get(referenceValue);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    productLogoDownloadCache.delete(referenceValue);
+    productLogoDownloadCacheBytes -= entry.buffer.length;
+    return null;
+  }
+  if (entry.buffer.length > maximumBytes) fail("产品 LOGO 超过允许的读取大小", "PRODUCT_LOGO_TOO_LARGE");
+  productLogoDownloadCache.delete(referenceValue);
+  productLogoDownloadCache.set(referenceValue, entry);
+  return entry.buffer;
+}
+
+function cacheProductLogo(referenceValue, buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length > PRODUCT_LOGO_FUNCTION_MAX_BYTES) return;
+  const previous = productLogoDownloadCache.get(referenceValue);
+  if (previous) productLogoDownloadCacheBytes -= previous.buffer.length;
+  productLogoDownloadCache.delete(referenceValue);
+  productLogoDownloadCache.set(referenceValue, {
+    buffer,
+    expiresAt: Date.now() + PRODUCT_LOGO_DOWNLOAD_CACHE_TTL_MS
+  });
+  productLogoDownloadCacheBytes += buffer.length;
+  while (productLogoDownloadCache.size > PRODUCT_LOGO_DOWNLOAD_CACHE_MAX_ENTRIES
+      || productLogoDownloadCacheBytes > PRODUCT_LOGO_FUNCTION_MAX_BYTES * PRODUCT_LOGO_DOWNLOAD_CACHE_MAX_ENTRIES) {
+    const oldestKey = productLogoDownloadCache.keys().next().value;
+    const oldest = productLogoDownloadCache.get(oldestKey);
+    productLogoDownloadCache.delete(oldestKey);
+    productLogoDownloadCacheBytes -= oldest?.buffer?.length || 0;
+  }
+}
+
+function evictCachedProductLogo(referenceValue) {
+  const reference = String(referenceValue || "").trim();
+  const entry = productLogoDownloadCache.get(reference);
+  if (!entry) return;
+  productLogoDownloadCache.delete(reference);
+  productLogoDownloadCacheBytes -= entry.buffer.length;
+}
+
+function evictProductLogoServerCaches(referenceValue) {
+  const reference = String(referenceValue || "").trim();
+  evictCachedProductLogo(reference);
+  for (const key of productLogoSignCache.keys()) {
+    if (key.endsWith(`\n${reference}`)) productLogoSignCache.delete(key);
+  }
+}
+
+async function downloadProductLogo(referenceValue, maximumBytes = PRODUCT_LOGO_MAX_BYTES, options = {}) {
   const reference = parseProductLogoReference(referenceValue);
   const storage = productTemplateStorageSettings();
   if (reference.bucketId !== storage.bucketId || !/^products\/\d+\/receipt-logo\//.test(reference.objectName)) {
     fail("产品 LOGO 不属于指定私有存储桶", "PRODUCT_LOGO_BUCKET_MISMATCH");
   }
-  let response;
-  try {
-    response = await manager().storage.downloadAuthenticatedObject({
-      bucketId: reference.bucketId,
-      objectName: reference.objectName,
-      method: "GET",
-      accessToken: storage.accessToken,
-      envId: storage.envId
-    });
-  } catch (error) {
-    fail(`产品 LOGO 原图读取失败：${error?.message || "存储对象不存在"}`, "PRODUCT_LOGO_DOWNLOAD_FAILED");
+  const useCache = options.cache === true;
+  if (useCache) {
+    const cached = cachedProductLogo(reference.reference, maximumBytes);
+    if (cached) return cached;
   }
-  const declaredBytes = Number(response?.headers?.["content-length"] || 0);
-  if (Number(response?.status || 0) !== 200 || !response?.body) {
-    fail("产品 LOGO 原图读取失败", "PRODUCT_LOGO_DOWNLOAD_FAILED");
-  }
-  if (declaredBytes > maximumBytes) fail("产品 LOGO 超过 8 MB", "PRODUCT_LOGO_TOO_LARGE");
-  const chunks = [];
-  let total = 0;
-  for await (const chunk of response.body) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    total += buffer.length;
-    if (total > maximumBytes) {
-      response.body.destroy?.();
-      fail("产品 LOGO 超过 8 MB", "PRODUCT_LOGO_TOO_LARGE");
-    }
-    chunks.push(buffer);
-  }
-  const output = Buffer.concat(chunks);
-  if (!output.length) fail("产品 LOGO 文件为空", "PRODUCT_LOGO_UPLOAD_INCOMPLETE");
-  return output;
+  const range = String(options.range || "").trim();
+  const flightKey = `${reference.reference}\n${maximumBytes}\n${range}`;
+  const existing = productLogoDownloadFlights.get(flightKey);
+  if (existing) return existing;
+  const flight = downloadProductLogoUncached(reference, storage, maximumBytes, options)
+    .then((buffer) => {
+      if (useCache) cacheProductLogo(reference.reference, buffer);
+      return buffer;
+    })
+    .finally(() => productLogoDownloadFlights.delete(flightKey));
+  productLogoDownloadFlights.set(flightKey, flight);
+  return flight;
 }
 
 function productLogoMagicMatches(buffer, mimeType) {
@@ -362,42 +618,115 @@ async function inspectProductLogo(referenceValue, expected) {
   return { bytes, sha256: crypto.createHash("sha256").update(buffer).digest("hex") };
 }
 
+function validatedProductLogoSignedUrl(value, storage, reference) {
+  const candidate = signedStorageUrl(value);
+  if (!candidate) return "";
+  try {
+    const target = new URL(candidate);
+    const expectedPath = `/v1/storages/object/sign/${reference.bucketId}/${reference.objectName}`;
+    if (target.protocol !== "https:"
+        || target.hostname !== `${storage.envId}.api.tcloudbasegateway.com`
+        || target.port || target.username || target.password
+        || decodeURIComponent(target.pathname) !== expectedPath
+        || !target.searchParams.get("token")) return "";
+    // Keep the exact SDK response bytes. Re-serializing a signed query can
+    // alter escaping or parameter order and invalidate the provider token.
+    return candidate;
+  } catch (_) {
+    return "";
+  }
+}
+
+async function signProductLogoUncached(reference, storage, expiresIn) {
+  let firstError = null;
+  try {
+    const response = await retryProductLogoStorage("signObject", () => manager().storage.signObject({
+      bucketId: reference.bucketId,
+      objectName: reference.objectName,
+      expiresIn,
+      accessToken: storage.accessToken,
+      envId: storage.envId
+    }));
+    const signedUrl = validatedProductLogoSignedUrl(response, storage, reference);
+    if (signedUrl) return signedUrl;
+    const error = new Error("产品 LOGO 单对象签名响应缺少可信 signedURL");
+    error.code = "PRODUCT_LOGO_SIGN_RESPONSE_INVALID";
+    throw error;
+  } catch (error) {
+    firstError = error;
+  }
+  if (typeof manager().storage.signObjects === "function") {
+    try {
+      const response = await retryProductLogoStorage("signObjects", () => manager().storage.signObjects({
+        bucketId: reference.bucketId,
+        paths: [reference.objectName],
+        expiresIn,
+        accessToken: storage.accessToken,
+        envId: storage.envId
+      }));
+      const signedUrl = validatedProductLogoSignedUrl(response, storage, reference);
+      if (signedUrl) return signedUrl;
+      const error = new Error("产品 LOGO 批量签名响应缺少可信 signedURL");
+      error.code = "PRODUCT_LOGO_SIGN_RESPONSE_INVALID";
+      throw error;
+    } catch (error) {
+      const first = cloudErrorDetails(firstError);
+      const second = cloudErrorDetails(error);
+      console.error("CloudBase product-logo sign channels exhausted", {
+        bucketId: reference.bucketId,
+        objectName: reference.objectName,
+        singleCode: first.code || undefined,
+        singleRequestId: requestIdFrom(firstError) || undefined,
+        batchCode: second.code || undefined,
+        batchRequestId: requestIdFrom(error) || undefined
+      });
+      throw productLogoStorageError(
+        "产品 LOGO 临时访问地址生成失败",
+        "PRODUCT_LOGO_SIGN_FAILED",
+        error,
+        { operation: "signProductLogo", bucketId: reference.bucketId, objectName: reference.objectName }
+      );
+    }
+  }
+  throw productLogoStorageError(
+    "产品 LOGO 临时访问地址生成失败",
+    "PRODUCT_LOGO_SIGN_FAILED",
+    firstError,
+    { operation: "signProductLogo", bucketId: reference.bucketId, objectName: reference.objectName }
+  );
+}
+
 async function signProductLogo(referenceValue, expiresIn = 900) {
   const reference = parseProductLogoReference(referenceValue);
   const storage = productTemplateStorageSettings();
   if (reference.bucketId !== storage.bucketId || !/^products\/\d+\/receipt-logo\//.test(reference.objectName)) {
     fail("产品 LOGO 不属于指定私有存储桶", "PRODUCT_LOGO_BUCKET_MISMATCH");
   }
-  let response = null;
-  let url = "";
-  try {
-    response = await manager().storage.signObject({
-      bucketId: reference.bucketId,
-      objectName: reference.objectName,
-      expiresIn,
-      accessToken: storage.accessToken,
-      envId: storage.envId
-    });
-    url = signedStorageUrl(response);
-  } catch (_) { /* try the batch signer below */ }
-  if (!url && typeof manager().storage.signObjects === "function") {
-    try {
-      response = await manager().storage.signObjects({
-        bucketId: reference.bucketId,
-        paths: [reference.objectName],
-        expiresIn,
-        accessToken: storage.accessToken,
-        envId: storage.envId
-      });
-      url = signedStorageUrl(response);
-    } catch (_) { /* handled by the common error below */ }
+  const cacheKey = `${storage.envId}\n${reference.reference}`;
+  const cached = productLogoSignCache.get(cacheKey);
+  if (cached && cached.expiresAt - Date.now() > PRODUCT_LOGO_SIGN_SAFETY_MS) {
+    productLogoSignCache.delete(cacheKey);
+    productLogoSignCache.set(cacheKey, cached);
+    return { url: cached.url, expiresIn: Math.max(1, Math.floor((cached.expiresAt - Date.now()) / 1000)) };
   }
-  if (!url) fail("产品 LOGO 临时访问地址生成失败", "PRODUCT_LOGO_SIGN_FAILED");
-  return { url, expiresIn };
+  if (cached) productLogoSignCache.delete(cacheKey);
+  const existing = productLogoSignFlights.get(cacheKey);
+  if (existing) return existing;
+  const flight = signProductLogoUncached(reference, storage, expiresIn)
+    .then((url) => {
+      const expiresAt = Date.now() + expiresIn * 1000;
+      productLogoSignCache.set(cacheKey, { url, expiresAt });
+      while (productLogoSignCache.size > 64) productLogoSignCache.delete(productLogoSignCache.keys().next().value);
+      return { url, expiresIn };
+    })
+    .finally(() => productLogoSignFlights.delete(cacheKey));
+  productLogoSignFlights.set(cacheKey, flight);
+  return flight;
 }
 
 async function deleteProductLogo(referenceValue) {
   if (!referenceValue) return true;
+  evictProductLogoServerCaches(referenceValue);
   try {
     const reference = parseProductLogoReference(referenceValue);
     const storage = productTemplateStorageSettings();
@@ -1778,12 +2107,69 @@ async function removeProductReceiptLogo(caller, event) {
 async function getProductReceiptLogoData(event) {
   const row = await productTemplateRow(event.productRef);
   if (!row.receipt_logo_file_id) fail("该产品尚未上传 LOGO", "PRODUCT_LOGO_MISSING");
-  if (Number(row.receipt_logo_bytes || 0) > PRODUCT_LOGO_FUNCTION_MAX_BYTES) {
-    fail("该 LOGO 超过 3 MB，请检查私有存储临时访问地址配置", "PRODUCT_LOGO_FUNCTION_TOO_LARGE");
+  const reference = String(row.receipt_logo_file_id || "").trim();
+  const expectedReference = String(event.expectedReference || "").trim();
+  if (expectedReference && expectedReference !== reference) {
+    fail("产品 LOGO 已更新，请重新读取产品模板", "PRODUCT_LOGO_CHANGED");
   }
-  const buffer = await downloadProductLogo(row.receipt_logo_file_id, PRODUCT_LOGO_FUNCTION_MAX_BYTES);
+  const mimeType = String(row.receipt_logo_mime_type || "").trim().toLowerCase();
+  if (!PRODUCT_LOGO_TYPES.has(mimeType)) fail("产品 LOGO 保存类型无效", "PRODUCT_LOGO_TYPE_INVALID");
+  const expectedBytes = Number(row.receipt_logo_bytes || 0);
+  if (!Number.isSafeInteger(expectedBytes) || expectedBytes < 8 || expectedBytes > PRODUCT_LOGO_MAX_BYTES) {
+    fail("产品 LOGO 原图大小记录无效", "PRODUCT_LOGO_SIZE_MISMATCH");
+  }
+  const hasChunkRequest = Object.prototype.hasOwnProperty.call(event, "chunkOffset")
+    || Object.prototype.hasOwnProperty.call(event, "chunkLength");
+  if (expectedBytes > PRODUCT_LOGO_FUNCTION_MAX_BYTES && !hasChunkRequest) {
+    return {
+      reference,
+      mimeType,
+      bytes: expectedBytes,
+      chunked: true,
+      chunkSize: PRODUCT_LOGO_CHUNK_BYTES
+    };
+  }
+  if (hasChunkRequest) {
+    if (!expectedReference) fail("分块读取必须绑定当前 LOGO 引用", "PRODUCT_LOGO_REFERENCE_REQUIRED");
+    const chunkOffset = Number(event.chunkOffset);
+    const chunkLength = Number(event.chunkLength);
+    const requiredLength = Math.min(PRODUCT_LOGO_CHUNK_BYTES, expectedBytes - chunkOffset);
+    if (!Number.isSafeInteger(chunkOffset) || chunkOffset < 0 || chunkOffset >= expectedBytes
+        || chunkOffset % PRODUCT_LOGO_CHUNK_BYTES !== 0
+        || !Number.isSafeInteger(chunkLength) || chunkLength !== requiredLength) {
+      fail("产品 LOGO 分块范围无效", "PRODUCT_LOGO_RANGE_INVALID");
+    }
+    const chunkEnd = chunkOffset + chunkLength - 1;
+    const buffer = await downloadProductLogo(reference, chunkLength, {
+      range: `bytes=${chunkOffset}-${chunkEnd}`,
+      expectedRange: { start: chunkOffset, end: chunkEnd, total: expectedBytes }
+    });
+    return {
+      reference,
+      mimeType,
+      bytes: expectedBytes,
+      chunked: true,
+      chunkSize: PRODUCT_LOGO_CHUNK_BYTES,
+      chunkOffset,
+      chunkBytes: buffer.length,
+      base64: buffer.toString("base64")
+    };
+  }
+  const buffer = await downloadProductLogo(reference, PRODUCT_LOGO_FUNCTION_MAX_BYTES, { cache: true });
+  if (buffer.length !== expectedBytes) {
+    fail("产品 LOGO 原图大小与数据库记录不一致", "PRODUCT_LOGO_SIZE_MISMATCH");
+  }
+  if (!productLogoMagicMatches(buffer, mimeType)) {
+    fail("产品 LOGO 原图格式与数据库记录不一致", "PRODUCT_LOGO_FORMAT_INVALID");
+  }
+  const dimensions = productLogoDimensions(buffer, mimeType);
+  if (dimensions.width !== Number(row.receipt_logo_width || 0)
+      || dimensions.height !== Number(row.receipt_logo_height || 0)) {
+    fail("产品 LOGO 原图尺寸与数据库记录不一致", "PRODUCT_LOGO_DIMENSIONS_MISMATCH");
+  }
   return {
-    mimeType: String(row.receipt_logo_mime_type || "application/octet-stream"),
+    reference,
+    mimeType,
     bytes: buffer.length,
     base64: buffer.toString("base64")
   };

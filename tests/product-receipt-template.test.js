@@ -55,18 +55,26 @@ for (const action of [
   "getProductReceiptTemplate", "beginProductLogoUpload", "uploadProductLogoByFunction", "confirmProductLogoUpload", "discardProductLogoUpload",
   "saveProductReceiptTemplate", "removeProductReceiptLogo", "getProductReceiptLogoData"
 ]) assert.ok(cloud.includes(`action === "${action}"`), `cloud action ${action}`);
-assert.ok(cloud.includes('const FUNCTION_VERSION = "v46"'), "staffAccount exposes the corrected v46 contract");
+assert.ok(cloud.includes('const FUNCTION_VERSION = "v47"'), "staffAccount exposes the resilient v47 logo-read contract");
 assert.ok(cloud.includes("envId: process.env.CLOUDBASE_ENV_ID || process.env.TCB_ENV"), "manager and storage calls select the same environment");
 assert.ok(cloud.includes("signUploadObject"), "original logo uses direct signed upload");
 assert.ok(cloud.includes("canonicalProductLogoUploadUrl"), "signed upload uses a canonical HTTPS gateway target");
 assert.ok(cloud.includes("getObjectInfoAuthenticated"), "server verifies the uploaded object");
 assert.ok(cloud.includes("downloadAuthenticatedObject"), "server verifies and can return original logo bytes");
+assert.ok(cloud.includes("downloadObjectBySign"), "authenticated byte failures fall back to the independent signed-download path");
+assert.ok(cloud.includes("validatedProductLogoSignedUrl"), "SDK signed URLs are accepted only after exact HTTPS env/bucket/object validation");
+assert.ok(cloud.includes("productLogoDownloadFlights"), "same immutable logo downloads share one in-flight promise");
+assert.ok(cloud.includes("PRODUCT_LOGO_STORAGE_MAX_CONCURRENCY = 6"), "different private-logo reads have a bounded provider concurrency");
+assert.ok(cloud.includes("PRODUCT_LOGO_DOWNLOAD_TRUNCATED"), "truncated storage streams are classified for a safe retry");
+assert.ok(cloud.includes("PRODUCT_LOGO_CHUNK_BYTES = 1536 * 1024"), "3-8 MB originals use bounded function chunks");
 assert.ok(cloud.includes("productLogoMagicMatches"), "server rejects spoofed image content");
 assert.ok(cloud.includes("const dimensions = productLogoDimensions(buffer, expected.mimeType)"), "signed uploads are checked against dimensions decoded from the stored bytes");
 assert.ok(cloud.includes("PRODUCT_LOGO_FUNCTION_MAX_BYTES = 3 * 1024 * 1024"), "function fallback stays below the synchronous invocation payload ceiling");
 assert.ok(cloud.includes("manager().storage.uploadObject"), "function fallback writes validated bytes through authenticated PG storage");
 assert.ok(cloud.includes("storageUploadResponseMismatch(error)"), "known successful-upload metadata mismatch remains compatible");
 assert.ok(phoneAuth.includes("async uploadProductLogoByFunction"), "browser service exposes the authenticated function fallback");
+assert.ok(phoneAuth.includes("completeChunkedProductLogo"), "browser service reassembles bounded authenticated chunks for large originals");
+assert.ok(phoneAuth.includes("productLogoDataFlights"), "browser logo reads deduplicate concurrent requests");
 assert.ok(cloud.includes("signed read unavailable; using authenticated fallback"), "a temporary read signer failure cannot hide an already persisted template");
 assert.ok(cloud.includes("receipt_template_updated_by"), "template changes retain the HQ actor");
 
@@ -84,8 +92,9 @@ vm.runInContext([
   functionSource(cloud, "safeResponseShape"),
   functionSource(cloud, "signedStorageUrlScheme"),
   functionSource(cloud, "canonicalProductLogoUploadUrl"),
+  functionSource(cloud, "validatedProductLogoSignedUrl"),
   functionSource(cloud, "signedStorageUpload"),
-  "module.exports = { signedStorageUpload };"
+  "module.exports = { signedStorageUpload, validatedProductLogoSignedUrl };"
 ].join("\n"), signingHarness, { filename: "product-logo-signing-contract.js" });
 
 const canonicalUpload = signingHarness.module.exports.signedStorageUpload(
@@ -100,6 +109,29 @@ assert.equal(canonicalTarget.hostname, "env-test.api.tcloudbasegateway.com", "ca
 assert.equal(decodeURIComponent(canonicalTarget.pathname), "/v1/storages/object/upload/sign/product templates/products/9/receipt logo/品牌.png", "canonical target is bound to the configured bucket and object");
 assert.equal(canonicalTarget.searchParams.get("token"), "short lived + token", "short-lived upload token is normalized into the URL");
 assert.ok(!canonicalUpload.url.includes("internal.invalid"), "an internal SDK URL is never forwarded to the browser");
+
+const downloadStorage = { envId: "env-test", bucketId: "product-templates" };
+const downloadReference = {
+  bucketId: "product-templates",
+  objectName: "products/9/receipt-logo/品牌.png",
+  reference: "pg://product-templates/products/9/receipt-logo/品牌.png"
+};
+const officialSignedUrl = "https://env-test.api.tcloudbasegateway.com/v1/storages/object/sign/product-templates/products/9/receipt-logo/%E5%93%81%E7%89%8C.png?token=download%20token";
+assert.equal(
+  signingHarness.module.exports.validatedProductLogoSignedUrl({ signedURL: officialSignedUrl }, downloadStorage, downloadReference),
+  officialSignedUrl,
+  "the exact SDK HTTPS signed URL is retained after env/bucket/object/token validation"
+);
+assert.equal(
+  signingHarness.module.exports.validatedProductLogoSignedUrl({ signedURL: officialSignedUrl.replace("products/9/", "products/10/") }, downloadStorage, downloadReference),
+  "",
+  "a signed URL for another immutable object is rejected"
+);
+assert.equal(
+  signingHarness.module.exports.validatedProductLogoSignedUrl({ token: "download token" }, downloadStorage, downloadReference),
+  "",
+  "a token-only signer response is never reconstructed into a browser download URL"
+);
 
 assert.throws(
   () => signingHarness.module.exports.signedStorageUpload(
@@ -168,6 +200,174 @@ assert.throws(
   "function fallback rejects metadata above 3 MB before decoding"
 );
 
+const concurrencyHarness = {
+  module: { exports: {} },
+  Buffer,
+  URL,
+  Date,
+  Math,
+  setImmediate,
+  console: { warn() {}, error() {} },
+  fail(message, code) { throw Object.assign(new Error(message), { code }); }
+};
+vm.createContext(concurrencyHarness);
+vm.runInContext([
+  "const PRODUCT_LOGO_FUNCTION_MAX_BYTES = 3 * 1024 * 1024;",
+  "const PRODUCT_LOGO_DOWNLOAD_CACHE_TTL_MS = 5 * 60 * 1000;",
+  "const PRODUCT_LOGO_DOWNLOAD_CACHE_MAX_ENTRIES = 8;",
+  "const PRODUCT_LOGO_DOWNLOAD_RETRY_DELAYS_MS = Object.freeze([80, 240]);",
+  "const PRODUCT_LOGO_STORAGE_MAX_CONCURRENCY = 6;",
+  "const productLogoDownloadCache = new Map();",
+  "const productLogoDownloadFlights = new Map();",
+  "let productLogoDownloadCacheBytes = 0;",
+  "let productLogoStorageActive = 0;",
+  "const productLogoStorageQueue = [];",
+  "const injectedAttempts = new Map();",
+  "let injectedActive = 0;",
+  "let injectedPeak = 0;",
+  "function cloudErrorDetails(error) { return { code: String(error?.code || ''), message: String(error?.message || '') }; }",
+  "function requestIdFrom() { return ''; }",
+  "function productLogoReadDelay() { return Promise.resolve(); }",
+  "function parseProductLogoReference(value) { const reference = String(value); const path = reference.slice(5); const slash = path.indexOf('/'); return { bucketId: path.slice(0, slash), objectName: path.slice(slash + 1), reference }; }",
+  "function productTemplateStorageSettings() { return { envId: 'env-test', bucketId: 'product-templates', accessToken: 'server-only' }; }",
+  functionSource(cloud, "productLogoTransientStorageError"),
+  functionSource(cloud, "withProductLogoStorageSlot"),
+  functionSource(cloud, "retryProductLogoStorage"),
+  functionSource(cloud, "productLogoResponseBuffer"),
+  "async function downloadProductLogoUncached(reference) { return retryProductLogoStorage('fault-injection', async () => { const attempts = (injectedAttempts.get(reference.reference) || 0) + 1; injectedAttempts.set(reference.reference, attempts); injectedActive += 1; injectedPeak = Math.max(injectedPeak, injectedActive); try { await new Promise((resolve) => setImmediate(resolve)); if (attempts === 1) { const error = new Error('InternalError: injected'); error.code = 'InternalError'; throw error; } return Buffer.from(reference.reference); } finally { injectedActive -= 1; } }); }",
+  functionSource(cloud, "cachedProductLogo"),
+  functionSource(cloud, "cacheProductLogo"),
+  functionSource(cloud, "downloadProductLogo"),
+  "module.exports = { downloadProductLogo, retryProductLogoStorage, productLogoResponseBuffer, injectedAttempts, injectedPeak: () => injectedPeak };"
+].join("\n"), concurrencyHarness, { filename: "product-logo-download-concurrency-contract.js" });
+
+(async () => {
+  const backend = concurrencyHarness.module.exports;
+  const sameReference = "pg://product-templates/products/501/receipt-logo/same.png";
+  const sameResults = await Promise.all(Array.from({ length: 30 }, () =>
+    backend.downloadProductLogo(sameReference, 3 * 1024 * 1024, { cache: true })
+  ));
+  assert.equal(backend.injectedAttempts.get(sameReference), 2, "30 concurrent reads share one failing attempt and one safe retry");
+  assert.ok(sameResults.every((value) => Buffer.from(value).equals(Buffer.from(sameReference))), "all same-logo waiters receive the exact shared bytes");
+
+  const differentReferences = Array.from({ length: 30 }, (_, index) =>
+    `pg://product-templates/products/${600 + index}/receipt-logo/different-${index}.png`
+  );
+  await Promise.all(differentReferences.map((reference) =>
+    backend.downloadProductLogo(reference, 3 * 1024 * 1024, { cache: true })
+  ));
+  assert.ok(differentReferences.every((reference) => backend.injectedAttempts.get(reference) === 2), "30 different logos retry independently without cross-object promise sharing");
+  assert.ok(backend.injectedPeak() > 1 && backend.injectedPeak() <= 6,
+    `30 different logos keep provider concurrency between 2 and 6, saw ${backend.injectedPeak()}`);
+
+  let permanentAttempts = 0;
+  await assert.rejects(
+    backend.retryProductLogoStorage("permanent", async () => {
+      permanentAttempts += 1;
+      throw Object.assign(new Error("NotFound"), { code: "NotFound" });
+    }),
+    (error) => error?.code === "NotFound"
+  );
+  assert.equal(permanentAttempts, 1, "permanent storage failures are never retried");
+
+  let truncatedAttempts = 0;
+  const recovered = await backend.retryProductLogoStorage("truncated", async () => {
+    truncatedAttempts += 1;
+    if (truncatedAttempts === 1) throw Object.assign(new Error("truncated"), { code: "PRODUCT_LOGO_DOWNLOAD_TRUNCATED" });
+    return "recovered";
+  });
+  assert.equal(recovered, "recovered");
+  assert.equal(truncatedAttempts, 2, "a truncated immutable-object stream is retried once");
+
+  const rangeBytes = Buffer.from("ABCD");
+  assert.deepEqual(
+    Buffer.from(await backend.productLogoResponseBuffer({
+      status: 206,
+      headers: { "content-length": "4", "content-range": "bytes 4-7/12" },
+      body: [rangeBytes]
+    }, 4, { start: 4, end: 7, total: 12 })),
+    rangeBytes,
+    "range fallback accepts only the exact requested content interval"
+  );
+  await assert.rejects(
+    backend.productLogoResponseBuffer({
+      status: 206,
+      headers: { "content-length": "4", "content-range": "bytes 5-8/12" },
+      body: [rangeBytes]
+    }, 4, { start: 4, end: 7, total: 12 }),
+    (error) => error?.code === "PRODUCT_LOGO_RANGE_MISMATCH",
+    "range fallback rejects shifted or substituted chunks"
+  );
+
+  const phoneAttempts = new Map();
+  const logoBytes = Buffer.from("0123456789", "ascii");
+  let phoneCallHandler = async ({ data }) => {
+    const reference = String(data.expectedReference || `pg://product-templates/products/${data.productRef}/receipt-logo/logo.png`);
+    const key = `${data.productRef}\n${reference}`;
+    const attempts = (phoneAttempts.get(key) || 0) + 1;
+    phoneAttempts.set(key, attempts);
+    if (attempts === 1) throw Object.assign(new Error("InternalError: injected client failure"), { code: "InternalError" });
+    return { result: { ok: true, logo: { reference, mimeType: "image/png", bytes: logoBytes.length, base64: logoBytes.toString("base64") } } };
+  };
+  const phoneHarness = {
+    window: {
+      cloudbase: {
+        init() {
+          return {
+            callFunction(request) { return phoneCallHandler(request); }
+          };
+        }
+      },
+      registerAuth() {}, registerFunctions() {}, CloudBaseAuthConfig: {},
+      setTimeout, clearTimeout
+    },
+    console: { warn() {}, error() {} },
+    localStorage: { getItem() { return null; }, setItem() {}, removeItem() {} },
+    setTimeout(callback) { callback(); return 1; },
+    clearTimeout() {},
+    Math, Date, Map, Set, Promise, Error, Object, String, Number, RegExp, JSON
+  };
+  vm.createContext(phoneHarness);
+  vm.runInContext(phoneAuth, phoneHarness, { filename: "cloudbase-phone-auth-logo-concurrency.js" });
+  const phoneApi = phoneHarness.window.CloudBasePhoneAuth;
+  const phoneSameReference = "pg://product-templates/products/801/receipt-logo/same.png";
+  const phoneSame = await Promise.all(Array.from({ length: 30 }, () =>
+    phoneApi.getProductReceiptLogoData({ productRef: "801", expectedReference: phoneSameReference })
+  ));
+  assert.equal(phoneAttempts.get(`801\n${phoneSameReference}`), 2, "browser 30-way same-logo concurrency shares one transient retry sequence");
+  assert.ok(phoneSame.every((value) => value.reference === phoneSameReference), "all browser same-logo waiters receive the bound reference");
+
+  const phoneDifferent = Array.from({ length: 30 }, (_, index) => ({
+    productRef: String(900 + index),
+    expectedReference: `pg://product-templates/products/${900 + index}/receipt-logo/different-${index}.png`
+  }));
+  await Promise.all(phoneDifferent.map((input) => phoneApi.getProductReceiptLogoData(input)));
+  assert.ok(phoneDifferent.every((input) => phoneAttempts.get(`${input.productRef}\n${input.expectedReference}`) === 2), "browser keeps 30 different-logo retries isolated by immutable reference");
+
+  const largeBytes = Buffer.alloc(3 * 1024 * 1024 + 9, 0x5a);
+  const largeReference = "pg://product-templates/products/999/receipt-logo/large.png";
+  const largeChunkSize = 1536 * 1024;
+  const observedOffsets = [];
+  phoneCallHandler = async ({ data }) => {
+    if (!Object.prototype.hasOwnProperty.call(data, "chunkOffset")) {
+      return { result: { ok: true, logo: {
+        reference: largeReference, mimeType: "image/png", bytes: largeBytes.length,
+        chunked: true, chunkSize: largeChunkSize
+      } } };
+    }
+    observedOffsets.push(data.chunkOffset);
+    const chunk = largeBytes.subarray(data.chunkOffset, data.chunkOffset + data.chunkLength);
+    return { result: { ok: true, logo: {
+      reference: largeReference, mimeType: "image/png", bytes: largeBytes.length,
+      chunked: true, chunkSize: largeChunkSize, chunkOffset: data.chunkOffset,
+      chunkBytes: chunk.length, base64: chunk.toString("base64")
+    } } };
+  };
+  const assembled = await phoneApi.getProductReceiptLogoData({ productRef: "999", expectedReference: largeReference });
+  assert.deepEqual(Buffer.from(assembled.base64, "base64"), largeBytes, "browser exactly reassembles a 3-8 MB logo from authenticated bounded chunks");
+  assert.deepEqual(observedOffsets, [0, largeChunkSize, largeChunkSize * 2], "large logo chunks are requested sequentially without overlap or gaps");
+})().then(() => {
+
 assert.ok(!createHtml.includes('id="projectCreateDescription" required'), "product description is optional");
 assert.ok(createUi.includes("if (!productName || !productType)"), "only product name and category are mandatory");
 assert.ok(createUi.includes("project-detail.html?projectId="), "new product continues directly to template setup");
@@ -200,7 +400,11 @@ assert.ok(detailUi.includes("const reread = await window.CloudBasePhoneAuth.getP
 assert.ok(detailUi.includes("已保存并从数据库复核"), "success message states that persistence was verified");
 assert.ok(detailUi.includes('`${template.productCode || "未编号"} ·'), "the editor always identifies which product owns the template");
 assert.ok(detailUi.includes("if (previewQueued) void renderPreview()"), "a save cannot lose its preview refresh behind an older render");
-assert.ok(detailHtml.includes('project-detail.js?v=0.2.3'), "template page busts the stale-save script cache");
+assert.ok(detailUi.includes("模板文字已读取；LOGO 原图暂时不可用"), "a logo outage keeps persisted template text visible and editable");
+assert.ok(detailUi.includes("void reloadTemplateLogo({ automatic: true })"), "a failed logo read schedules one bounded background retry");
+assert.ok(detailUi.includes("template?.logo && !(logoBlob instanceof Blob)"), "the existing refresh control retries a missing logo instead of only rerendering the placeholder");
+assert.ok(detailHtml.includes('cloudbase-phone-auth.js?v=0.17.10'), "template page busts the private-logo API cache");
+assert.ok(detailHtml.includes('project-detail.js?v=0.2.4'), "template page busts the stale-logo script cache");
 
 assert.ok(exporter.includes("drawDocumentHeader(context, documentData, productLogo"), "receipts place the square product logo in the header");
 assert.ok(!exporter.includes("drawProductBranding"), "receipts remove the duplicated large logo section");
@@ -208,10 +412,17 @@ assert.ok(exporter.includes("drawProductInstructions"), "receipts render product
 assert.ok(exporter.includes("logoRequired === true"), "configured logo failure blocks incomplete output");
 assert.ok(businessDetail.includes("getProductReceiptTemplate"), "real receipts load the latest product template");
 assert.ok(businessDetail.includes("产品单据模板读取失败，本次没有生成文件"), "real exports fail closed when branding cannot be loaded");
-assert.ok(businessDetail.includes("productTemplateLoadPromise = loadProductReceiptTemplate(currentRecord)"), "every real export reloads the latest product template");
+assert.ok(businessDetail.includes("productTemplateLoadPromise = loadProductReceiptTemplate(currentRecord, { forceLogoRefresh: true })"), "every real export forces a live logo read");
 assert.ok(businessDetail.includes("尚未配置${receiptKind}单据说明"), "an unconfigured product cannot silently generate an empty receipt");
 assert.ok(businessDetail.includes("const request = ++productTemplateRequest"), "older template requests cannot overwrite a newer export-time read");
 assert.ok(businessDetail.includes("exportDocumentData(currentRecord, exportTemplate)"), "an export uses its own verified template rather than mutable page state");
+assert.ok(businessDetail.includes("URL.createObjectURL(logoBlob)"), "order details render the already verified logo Blob rather than an expiring signed URL");
+assert.ok(businessDetail.includes("PRODUCT_LOGO_DETAIL_RETRY_DELAYS_MS"), "order details retry a transient private-logo read with bounded backoff");
+assert.ok(businessDetail.includes("currentProductTemplate = template;\n      currentProductTemplateError = lastLogoError"), "a logo outage keeps authorized template metadata visible");
 assert.ok(detailUi.includes('$("verificationReceiptInstructions").disabled = true'), "text cannot change while its save is being verified");
 
-console.log("product receipt template contract: PASS");
+  console.log("product receipt template contract: PASS");
+}).catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

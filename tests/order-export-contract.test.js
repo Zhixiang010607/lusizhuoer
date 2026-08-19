@@ -75,7 +75,7 @@ assert.ok(twoPagePdf.includes("xref\n0 9"), "multi-page PDF xref count");
 for (const html of [rechargeHtml, verificationHtml]) {
   includes(html, 'id="exportOrderPdf"', "PDF export button");
   includes(html, 'id="exportOrderImage"', "image export button");
-  assert.ok(html.indexOf("order-export.js?v=0.1.6") < html.indexOf("business-detail.js?v=0.16.15"), "exporter must load before detail controller");
+  assert.ok(html.indexOf("order-export.js?v=0.1.6") < html.indexOf("business-detail.js?v=0.16.17"), "exporter must load before detail controller");
 }
 
 includes(verificationHtml, 'class="verification-order-keyfacts verification-order-five-keyfacts"', "verification detail uses a five-fact header");
@@ -91,7 +91,7 @@ includes(detailSource, 'kind: clean($("orderKindTag")?.textContent)', "header or
 assert.ok(!detailSource.includes('statusLabel: "当前审核状态"'), "customer export does not carry a duplicated approval status card");
 includes(detailSource, 'action: "getVerificationPhotoOriginalUrl"', "existing authorized original-photo action");
 includes(detailSource, 'action: "getVerificationPhotoExportData"', "CORS-safe authorized export fallback");
-includes(detailSource, 'cache: "force-cache"', "reuse already loaded original-photo response");
+includes(detailSource, 'cache: "no-store"', "private signed original is not persisted in the browser HTTP cache");
 includes(detailSource, 'mode: "cors"', "private photo CORS fetch");
 includes(detailSource, "Math.min(2, queue.length)", "bounded original-photo concurrency");
 includes(detailSource, "核销照片清单暂时无法确认，本次没有生成文件", "photo-list failure blocks incomplete export");
@@ -115,7 +115,7 @@ const exportDataSource = detailSource.slice(detailSource.indexOf("function expor
 assert.ok(!/verification(Store|Hq)Message|recharge(Store|Hq)Message/.test(exportDataSource), "customer PDFs never read any internal message");
 const exportCurrentOrderSource = detailSource.slice(detailSource.indexOf("async function exportCurrentOrder"), detailSource.indexOf("function isVoidableOriginalType"));
 includes(exportCurrentOrderSource, 'type === "verification" ? await verificationExportPhotos(currentRecord) : { photos: [], warning: "" }', "verification exports keep photos while recharge and refund exports use an empty photo list");
-includes(exportCurrentOrderSource, "productTemplateLoadPromise = loadProductReceiptTemplate(currentRecord)", "every export reloads the latest template for its own product");
+includes(exportCurrentOrderSource, "productTemplateLoadPromise = loadProductReceiptTemplate(currentRecord, { forceLogoRefresh: true })", "every export forces a live logo read for its own product");
 includes(exportCurrentOrderSource, "photos: photoResult.photos", "verification photos are passed to the exporter");
 for (const removedCopy of ["由总部维护的当前产品单据说明", "导出时间：", "系统工单导出", "露思卓儿客户业务凭证"]) {
   assert.ok(!exporterSource.includes(removedCopy), `customer receipt removes internal/footer copy: ${removedCopy}`);

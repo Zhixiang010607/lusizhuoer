@@ -285,7 +285,7 @@ assert.ok(
     < functionSource(cloud, "getVerificationPhotos").indexOf("signVerificationPhoto("),
   "thumbnail URLs must be signed only after the verification-order permission check"
 );
-includes(detailUi, 'const VERSION = "0.16.15"', "detail UI cache version");
+includes(detailUi, 'const VERSION = "0.16.17"', "detail UI cache version");
 includes(functionSource(detailUi, "callVerificationPhoto"), 'callFunction({ name: "verificationPhoto", data })', "all photo operations use the dedicated photo cloud function");
 includes(functionSource(detailUi, "callVerificationPhotoLifecycle"), "callVerificationPhoto(data)", "bounded photo lifecycle calls use the dedicated photo helper");
 includes(functionSource(detailUi, "loadTeacherOrder"), 'name: "faceRecognition"', "teacher workspace remains on the business and face cloud function");
@@ -339,19 +339,29 @@ includes(detailUi, "connection?.saveData === true", "data-saver preload guard");
 includes(detailUi, "originalUrlExpiresAt", "short-lived original URL expiry guard");
 includes(detailUi, 'image.fetchPriority = "high"', "clicked original receives high network priority");
 includes(detailUi, 'action: "getVerificationPhotoExportData"', "PDF/image export authorized binary fallback");
-includes(detailUi, 'cache: "force-cache"', "export reuses cached signed original when available");
+includes(detailUi, 'cache: "no-store"', "private signed responses are never persisted in the browser HTTP cache");
 includes(detailUi, "Math.min(2, queue.length)", "at most two private originals export concurrently");
 includes(detailUi, "verificationExportBlobCache", "consecutive PDF/JPG exports reuse downloaded originals");
+includes(detailUi, "verificationPhotoReadFlights", "same authorized photo-read request is coalesced in flight");
+includes(detailUi, "verificationPhotoBlobFlights", "same original-photo download is coalesced in flight");
+includes(functionSource(detailUi, "callVerificationPhoto"), "wrapped.code = clean(error?.code)", "cloud SDK error codes survive client wrapping");
+includes(functionSource(detailUi, "verificationPhotoReadCanRetry"), '"UNAUTHENTICATED"', "authentication failures are terminal and never retried");
+includes(functionSource(detailUi, "verificationPhotoReadCanRetry"), '"PHOTO_NOT_FOUND"', "missing photos are terminal and never retried");
+assert.ok(!functionSource(detailUi, "callVerificationPhotoReadAttempt").includes("Promise.race"), "read retry never overlaps an uncancelable cloudFunction request");
+includes(functionSource(detailUi, "callVerificationPhotoRead"), "Math.random() * 91", "transient retries carry jitter to avoid synchronized retry storms");
+includes(functionSource(detailUi, "fetchVerificationPhotoBlob"), "refreshVerificationPhotoOriginalUrl(recordId, slot, photo)", "a rejected cached URL is refreshed once before binary fallback");
+includes(functionSource(detailUi, "fetchVerificationPhotoUrlBlob"), "verificationPhotoDataBlob(url, slot)", "authorized inline JPEG fallback avoids CORS fetch");
+includes(functionSource(detailUi, "refreshVerificationPhotoOriginalUrl"), "verificationPhotoUrlNeverExpires(payload.photoUrl)", "authorized data/blob URLs remain valid for the current page lifetime");
 includes(detailUi, "photo?.originalUrlExpiresIn ?? payload?.expiresIn", "client honors each cached URL's real remaining lifetime");
 includes(detailUi, "while (verificationPhotoPreloads.size > 2)", "decoded original preload cache is bounded to two images");
 const originalViewerSource = functionSource(detailUi, "openVerificationPhoto");
 assert.ok(
   originalViewerSource.indexOf("showVerificationPhotoOriginal(cachedOriginalUrl")
-    < originalViewerSource.indexOf('callVerificationPhoto({ action: "getVerificationPhotoOriginalUrl"'),
+    < originalViewerSource.indexOf("refreshVerificationPhotoOriginalUrl(recordId, slot, listPhoto)"),
   "cached private originals begin decoding before the background audit request"
 );
 assert.ok(
-  originalViewerSource.indexOf('callVerificationPhoto({ action: "getVerificationPhotoOriginalUrl"')
+  originalViewerSource.indexOf("refreshVerificationPhotoOriginalUrl(recordId, slot, listPhoto)")
     < originalViewerSource.indexOf("fetchVerificationPhotoExportFallback(recordId, slot)"),
   "viewer uses the authenticated binary fallback only after the temporary original URL path fails"
 );
@@ -388,7 +398,7 @@ includes(detailHtml, 'id="verificationPhotoCameraVideo" autoplay playsinline mut
 includes(detailHtml, 'id="switchVerificationPhotoCamera"', "front/rear camera switch action");
 includes(detailHtml, 'aria-label="切换前后摄像头"', "camera switch accessible name");
 includes(detailHtml, 'order-export.js?v=0.1.6', "export renderer cache bust");
-includes(detailHtml, 'business-detail.js?v=0.16.15', "detail script cache bust");
+includes(detailHtml, 'business-detail.js?v=0.16.17', "detail script cache bust");
 includes(detailHtml, 'styles.css?v=0.15.48', "detail styles cache bust");
 includes(styles, ".verification-order-keyfacts.verification-order-five-keyfacts", "desktop verification header keeps five flexible facts in one row");
 includes(styles, ".verification-order-store-message", "single full-width store message layout");
@@ -399,6 +409,12 @@ includes(functionSource(detailUi, "refreshVerificationPhotosSilently"), "mergeVe
 includes(functionSource(detailUi, "refreshVerificationPhotosSilently"), "promoteUsableVerificationPhotoPreviews(payload, recordId, request)", "remote photo replaces local preview only after probing");
 includes(functionSource(detailUi, "promoteUsableVerificationPhotoPreviews"), "probe.onload", "remote thumbnail must load before local Blob release");
 includes(functionSource(detailUi, "promoteUsableVerificationPhotoPreviews"), "revokeVerificationPhotoLocalPreview(slot)", "remote promotion releases only its own slot");
+includes(functionSource(detailUi, "renderVerificationPhotos"), 'image.addEventListener("error", recover, { once: true })', "gallery thumbnail failures trigger automatic authorized recovery");
+includes(functionSource(detailUi, "recoverVerificationPhotoThumbnail"), "request === verificationPhotoRequest && target.isConnected", "late thumbnail recovery cannot overwrite a newer render");
+includes(functionSource(detailUi, "recoverVerificationPhotoThumbnail"), "fetchVerificationPhotoManifest(recordId)", "thumbnail recovery refreshes its signed manifest first");
+includes(functionSource(detailUi, "fetchVerificationPhotoThumbnailFallback"), 'action: "getVerificationPhotoThumbnailData"', "deferred thumbnail bytes use the dedicated authorized action");
+includes(functionSource(detailUi, "recoverVerificationPhotoThumbnail"), "fetchVerificationPhotoBlob(recordId, photo", "thumbnail recovery falls back to the authorized original/base64 pipeline");
+includes(functionSource(detailUi, "renderVerificationPhotos"), "photo && !clean(photo.thumbnailUrl)", "a missing signed thumbnail starts recovery without waiting for a click");
 includes(styles, "object-fit: contain", "gallery shows the complete photo without visual cropping");
 includes(styles, "grid-template-columns: repeat(5, minmax(0, 1fr))", "all five desktop evidence photos stay in one visible row");
 includes(styles, ".verification-photo-actions", "separate camera and upload action layout");

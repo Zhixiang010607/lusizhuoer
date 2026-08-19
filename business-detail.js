@@ -1,7 +1,8 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.15";
+  const VERSION = "0.16.17";
+  const PRODUCT_LOGO_DETAIL_RETRY_DELAYS_MS = Object.freeze([0, 360, 1080]);
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -32,12 +33,16 @@
   const verificationPhotoViewerPointers = new Map();
   const verificationPhotoOriginalAuditCache = new Set();
   const verificationExportBlobCache = new Map();
+  const verificationPhotoReadFlights = new Map();
+  const verificationPhotoBlobFlights = new Map();
+  const verificationPhotoThumbnailFallbacks = new Map();
   let verificationExportDirectFetchUnavailable = false;
   let orderExportBusy = false;
   let currentProductTemplate = null;
   let currentProductTemplateError = null;
   let productTemplateLoadPromise = Promise.resolve();
   let productTemplateRequest = 0;
+  let productReceiptLogoObjectUrl = "";
 
   function loadSessionRows(key) {
     try {
@@ -221,7 +226,11 @@
       raw = await photoServiceApp.callFunction({ name: "verificationPhoto", data });
     } catch (error) {
       const diagnostic = [error?.code, error?.requestId || error?.RequestId].filter(Boolean).join(" · ");
-      throw new Error(`${error?.message || "核销照片云函数调用失败"}${diagnostic ? `（${diagnostic}）` : ""}`);
+      const wrapped = new Error(`${error?.message || "核销照片云函数调用失败"}${diagnostic ? `（${diagnostic}）` : ""}`);
+      wrapped.code = clean(error?.code) || "PHOTO_SERVICE_CALL_FAILED";
+      wrapped.requestId = clean(error?.requestId || error?.RequestId);
+      wrapped.cause = error;
+      throw wrapped;
     }
     const payload = cloudFunctionPayload(raw);
     if (!payload?.ok) {
@@ -231,6 +240,58 @@
       throw error;
     }
     return payload;
+  }
+
+  function verificationPhotoReadFlightKey(data) {
+    return [clean(data?.action), clean(data?.recordId), Number(data?.slot ?? -1)].join(":");
+  }
+
+  function coalesceVerificationPhotoTask(store, key, createTask) {
+    const existing = store.get(key);
+    if (existing) return existing;
+    let task = null;
+    task = Promise.resolve().then(createTask).finally(() => {
+      if (store.get(key) === task) store.delete(key);
+    });
+    store.set(key, task);
+    return task;
+  }
+
+  function verificationPhotoReadCanRetry(error) {
+    const code = clean(error?.code).toUpperCase();
+    const terminalCodes = new Set([
+      "PHOTO_NOT_FOUND", "PHOTO_SLOT_INVALID", "PHOTO_EXPORT_TOO_LARGE",
+      "FORBIDDEN", "UNAUTHORIZED", "UNAUTHENTICATED", "ARCHIVED", "BAD_REQUEST",
+      "PHOTO_STORAGE_MISCONFIGURED", "PHOTO_BUCKET_CONFIG_INVALID", "VERIFICATION_PHOTO_FUNCTION_DISABLED"
+    ]);
+    if (terminalCodes.has(code)) return false;
+    const status = Number(error?.httpStatus || error?.status || 0);
+    if (status >= 400 && status < 500 && ![408, 409, 425, 429].includes(status)) return false;
+    return true;
+  }
+
+  function callVerificationPhotoReadAttempt(data) {
+    // callFunction already owns the provider timeout. A second client-side race cannot cancel
+    // the underlying request and would amplify one slow read into overlapping retries.
+    return callVerificationPhoto(data);
+  }
+
+  function callVerificationPhotoRead(data, attempts = 3) {
+    const key = verificationPhotoReadFlightKey(data);
+    return coalesceVerificationPhotoTask(verificationPhotoReadFlights, key, async () => {
+      let lastError = null;
+      const limit = Math.max(1, Number(attempts) || 1);
+      for (let attempt = 1; attempt <= limit; attempt += 1) {
+        try {
+          return await callVerificationPhotoReadAttempt(data);
+        } catch (error) {
+          lastError = error;
+          if (attempt >= limit || !verificationPhotoReadCanRetry(error)) break;
+          await waitForVerificationPhotoRetry(180 * attempt + Math.floor(Math.random() * 91));
+        }
+      }
+      throw lastError || new Error("核销照片读取失败");
+    });
   }
 
   function callVerificationPhotoLifecycle(data, timeoutMs = 8000) {
@@ -365,9 +426,9 @@
     return new Blob([bytes], { type: mimeType });
   }
 
-  async function fetchProductLogoBlob(template, productRef) {
+  async function fetchProductLogoBlob(template, productRef, { forceRefresh = false } = {}) {
     if (!template?.logo) return null;
-    if (template.logo.url) {
+    if (template.logo.url && !forceRefresh) {
       const controller = typeof AbortController === "function" ? new AbortController() : null;
       const timeout = window.setTimeout(() => controller?.abort(), 12000);
       try {
@@ -384,7 +445,22 @@
       finally { window.clearTimeout(timeout); }
     }
     if (!window.CloudBasePhoneAuth?.getProductReceiptLogoData) throw new Error("产品 LOGO 原图读取失败");
-    return base64ImageBlob(await window.CloudBasePhoneAuth.getProductReceiptLogoData({ productRef }));
+    return base64ImageBlob(await window.CloudBasePhoneAuth.getProductReceiptLogoData({
+      productRef,
+      expectedReference: clean(template.logo.reference),
+      forceRefresh
+    }));
+  }
+
+  function waitForProductLogoRetry(milliseconds) {
+    const jitter = Math.floor(Math.random() * Math.max(1, Math.floor(milliseconds / 4)));
+    return new Promise((resolve) => window.setTimeout(resolve, milliseconds + jitter));
+  }
+
+  function clearProductReceiptLogoObjectUrl() {
+    if (!productReceiptLogoObjectUrl) return;
+    URL.revokeObjectURL(productReceiptLogoObjectUrl);
+    productReceiptLogoObjectUrl = "";
   }
 
   function renderProductReceiptBrand(template, record) {
@@ -393,33 +469,40 @@
     const instructions = type === "recharge"
       ? clean(template?.rechargeInstructions)
       : clean(template?.verificationInstructions);
-    const logoUrl = clean(template?.logo?.url);
+    clearProductReceiptLogoObjectUrl();
+    const logoBlob = template?.logoBlob instanceof Blob && template.logoBlob.size
+      ? template.logoBlob
+      : null;
+    if (logoBlob) productReceiptLogoObjectUrl = URL.createObjectURL(logoBlob);
+    // The private signed URL has already been downloaded and verified above.
+    // Render the in-memory Blob so an expiring URL cannot break the visible
+    // LOGO after the rest of the order detail has finished loading.
+    const logoUrl = productReceiptLogoObjectUrl;
     panel.hidden = false;
     panel.innerHTML = `<div class="order-product-logo">${logoUrl
       ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(first(template.productName, record.projectName, "产品"))} LOGO">`
       : "<span>LOGO</span>"}</div><div class="order-product-copy"><span>产品单据</span><strong>${escapeHtml(first(template?.productName, record.projectName, record.productName, "产品"))}</strong><small>${escapeHtml(first(template?.productType, "未分类"))}</small><p>${escapeHtml(instructions || "暂无产品说明")}</p></div>`;
   }
 
-  async function loadProductReceiptTemplate(record) {
+  async function loadProductReceiptTemplate(record, { forceLogoRefresh = false } = {}) {
     const request = ++productTemplateRequest;
     const productRef = productReference(record);
+    let template = null;
     try {
       if (!productRef) throw new Error("当前工单缺少产品编号，不能生成产品单据");
       if (!window.CloudBasePhoneAuth?.getProductReceiptTemplate) {
         throw new Error("产品单据模板服务尚未加载，请刷新页面重试");
       }
-      const template = assertProductReceiptTemplate(
-        await window.CloudBasePhoneAuth.getProductReceiptTemplate({ productRef }),
+      template = assertProductReceiptTemplate(
+        await window.CloudBasePhoneAuth.getProductReceiptTemplate({ productRef, forceRefresh: forceLogoRefresh }),
         record,
         productRef
       );
-      if (template.logo) template.logoBlob = await fetchProductLogoBlob(template, productRef);
       if (request === productTemplateRequest) {
         currentProductTemplate = template;
         currentProductTemplateError = null;
         renderProductReceiptBrand(template, record);
       }
-      return template;
     } catch (error) {
       if (request === productTemplateRequest) {
         currentProductTemplate = null;
@@ -428,9 +511,55 @@
       }
       throw error;
     }
+
+    if (!template.logo || request !== productTemplateRequest) return template;
+    let lastLogoError = null;
+    for (let attempt = 0; attempt < PRODUCT_LOGO_DETAIL_RETRY_DELAYS_MS.length; attempt += 1) {
+      if (request !== productTemplateRequest) return template;
+      const delay = PRODUCT_LOGO_DETAIL_RETRY_DELAYS_MS[attempt];
+      if (delay) await waitForProductLogoRetry(delay);
+      if (request !== productTemplateRequest) return template;
+      try {
+        template.logoBlob = await fetchProductLogoBlob(template, productRef, {
+          forceRefresh: forceLogoRefresh || attempt > 0
+        });
+        if (request === productTemplateRequest) {
+          currentProductTemplate = template;
+          currentProductTemplateError = null;
+          renderProductReceiptBrand(template, record);
+        }
+        return template;
+      } catch (error) {
+        lastLogoError = error;
+        if (clean(error?.code).toUpperCase() === "PRODUCT_LOGO_CHANGED") {
+          template = assertProductReceiptTemplate(
+            await window.CloudBasePhoneAuth.getProductReceiptTemplate({ productRef, forceRefresh: true }),
+            record,
+            productRef
+          );
+          if (!template.logo) {
+            if (request === productTemplateRequest) {
+              currentProductTemplate = template;
+              currentProductTemplateError = null;
+              renderProductReceiptBrand(template, record);
+            }
+            return template;
+          }
+        }
+      }
+    }
+    if (request === productTemplateRequest) {
+      // Keep the already-authorized template text visible. Only the private
+      // LOGO remains unavailable, and the next export forces another live read.
+      currentProductTemplate = template;
+      currentProductTemplateError = lastLogoError;
+      renderProductReceiptBrand(template, record);
+    }
+    throw lastLogoError || new Error("产品 LOGO 原图读取失败");
   }
 
   async function fetchVerificationPhotoUrlBlob(url, slot) {
+    if (/^data:image\/jpeg;base64,/i.test(clean(url))) return verificationPhotoDataBlob(url, slot);
     const controller = typeof AbortController === "function" ? new AbortController() : null;
     const timeout = window.setTimeout(() => controller?.abort(), 12000);
     try {
@@ -438,7 +567,7 @@
         method: "GET",
         mode: "cors",
         credentials: "omit",
-        cache: "force-cache",
+        cache: "no-store",
         referrerPolicy: "no-referrer",
         signal: controller?.signal
       });
@@ -476,64 +605,68 @@
     return [clean(recordId), Number(photo?.slot), Number(photo?.originalBytes || 0), clean(photo?.uploadedAt)].join(":");
   }
 
+  function verificationPhotoUrlNeverExpires(url) {
+    return clean(url).startsWith("blob:") || /^data:image\/jpeg;base64,/i.test(clean(url));
+  }
+
   function waitForVerificationPhotoRetry(milliseconds) {
     return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
   }
 
-  function verificationPhotoExportCanRetry(error) {
-    return !new Set([
-      "PHOTO_NOT_FOUND", "PHOTO_SLOT_INVALID", "PHOTO_EXPORT_TOO_LARGE", "PHOTO_EXPORT_INVALID",
-      "FORBIDDEN", "UNAUTHORIZED", "ARCHIVED", "BAD_REQUEST"
-    ]).has(clean(error?.code).toUpperCase());
-  }
-
   async function fetchVerificationPhotoExportFallback(recordId, slot) {
-    let lastError = null;
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
-      try {
-        const payload = await callVerificationPhoto({ action: "getVerificationPhotoExportData", recordId, slot });
-        return verificationPhotoDataBlob(payload.imageBase64, slot);
-      } catch (error) {
-        lastError = error;
-        if (!verificationPhotoExportCanRetry(error) || attempt >= 2) break;
-        await waitForVerificationPhotoRetry(350 * attempt);
-      }
-    }
-    throw lastError || new Error(`${photoSlotLabel(slot)}高清原图读取失败`);
+    const payload = await callVerificationPhotoRead({ action: "getVerificationPhotoExportData", recordId, slot });
+    return verificationPhotoDataBlob(payload.imageBase64, slot);
   }
 
-  async function fetchVerificationPhotoBlob(recordId, photo) {
+  async function refreshVerificationPhotoOriginalUrl(recordId, slot, photo) {
+    const payload = await callVerificationPhotoRead({ action: "getVerificationPhotoOriginalUrl", recordId, slot });
+    if (!clean(payload?.photoUrl)) {
+      const error = new Error(`${photoSlotLabel(slot)}临时访问地址无效`);
+      error.code = "PHOTO_SIGN_FAILED";
+      throw error;
+    }
+    if (photo && typeof photo === "object") {
+      photo.originalUrl = payload.photoUrl;
+      photo.originalUrlExpiresAt = verificationPhotoUrlNeverExpires(payload.photoUrl)
+        ? Number.MAX_SAFE_INTEGER
+        : Date.now() + Math.max(0, Number(payload.expiresIn || 0) * 1000);
+    }
+    return payload;
+  }
+
+  function fetchVerificationPhotoBlob(recordId, photo) {
     const slot = Number(photo.slot);
     const cacheKey = verificationExportCacheKey(recordId, photo);
     const cachedBlob = verificationExportBlobCache.get(cacheKey);
     if (cachedBlob instanceof Blob && cachedBlob.size) return cachedBlob;
-    const cachedUrl = clean(photo?.originalUrl);
-    const cachedUrlValid = cachedUrl && Number(photo?.originalUrlExpiresAt || 0) > Date.now() + 10000;
-    if (cachedUrlValid && !verificationExportDirectFetchUnavailable) {
-      try {
-        const blob = await fetchVerificationPhotoUrlBlob(cachedUrl, slot);
-        verificationExportBlobCache.set(cacheKey, blob);
-        return blob;
-      } catch (error) {
-        if (error instanceof TypeError) verificationExportDirectFetchUnavailable = true;
-        // CORS, expiry and transient download failures use the authorized server fallback below.
+    return coalesceVerificationPhotoTask(verificationPhotoBlobFlights, cacheKey, async () => {
+      const cachedUrl = clean(photo?.originalUrl);
+      const cachedUrlValid = cachedUrl && Number(photo?.originalUrlExpiresAt || 0) > Date.now() + 10000;
+      if (cachedUrlValid && !verificationExportDirectFetchUnavailable) {
+        try {
+          const blob = await fetchVerificationPhotoUrlBlob(cachedUrl, slot);
+          verificationExportBlobCache.set(cacheKey, blob);
+          return blob;
+        } catch (error) {
+          if (error instanceof TypeError) verificationExportDirectFetchUnavailable = true;
+          // A rejected or expired cached URL gets one newly authorized URL before binary fallback.
+        }
       }
-    } else if (!cachedUrlValid && !verificationExportDirectFetchUnavailable) {
-      try {
-        const payload = await callVerificationPhoto({ action: "getVerificationPhotoOriginalUrl", recordId, slot });
-        photo.originalUrl = payload.photoUrl;
-        photo.originalUrlExpiresAt = Date.now() + Math.max(0, Number(payload.expiresIn || 0) * 1000);
-        const blob = await fetchVerificationPhotoUrlBlob(payload.photoUrl, slot);
-        verificationExportBlobCache.set(cacheKey, blob);
-        return blob;
-      } catch (error) {
-        if (error instanceof TypeError) verificationExportDirectFetchUnavailable = true;
-        // Use the server-scoped binary fallback below.
+      if (!verificationExportDirectFetchUnavailable) {
+        try {
+          const payload = await refreshVerificationPhotoOriginalUrl(recordId, slot, photo);
+          const blob = await fetchVerificationPhotoUrlBlob(payload.photoUrl, slot);
+          verificationExportBlobCache.set(cacheKey, blob);
+          return blob;
+        } catch (error) {
+          if (error instanceof TypeError) verificationExportDirectFetchUnavailable = true;
+          // CORS and signed-download failures use the authenticated server-scoped fallback below.
+        }
       }
-    }
-    const blob = await fetchVerificationPhotoExportFallback(recordId, slot);
-    verificationExportBlobCache.set(cacheKey, blob);
-    return blob;
+      const blob = await fetchVerificationPhotoExportFallback(recordId, slot);
+      verificationExportBlobCache.set(cacheKey, blob);
+      return blob;
+    });
   }
 
   function exportPhotoFailureMeta(error) {
@@ -553,7 +686,7 @@
   }
 
   async function fetchVerificationPhotoManifest(recordId) {
-    const payload = await callVerificationPhoto({ action: "getVerificationPhotos", recordId });
+    const payload = await callVerificationPhotoRead({ action: "getVerificationPhotos", recordId });
     if (payload?.ok !== true || !Array.isArray(payload?.photos)) {
       throw new Error("核销照片清单返回格式无效");
     }
@@ -663,7 +796,7 @@
       // A product template can be edited in another tab after this detail page
       // opened. Always re-read it at the action boundary so the downloaded
       // customer file never contains a stale or silently empty template.
-      productTemplateLoadPromise = loadProductReceiptTemplate(currentRecord);
+      productTemplateLoadPromise = loadProductReceiptTemplate(currentRecord, { forceLogoRefresh: true });
       let exportTemplate;
       try { exportTemplate = await productTemplateLoadPromise; }
       catch (error) { throw new Error(`产品单据模板读取失败，本次没有生成文件。${clean(error?.message) || "请重试。"}`); }
@@ -1112,6 +1245,127 @@
     });
   }
 
+  function revokeVerificationPhotoThumbnailFallback(key) {
+    const url = verificationPhotoThumbnailFallbacks.get(key);
+    if (!url) return;
+    verificationPhotoThumbnailFallbacks.delete(key);
+    if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+  }
+
+  function clearVerificationPhotoThumbnailFallbacks() {
+    Array.from(verificationPhotoThumbnailFallbacks.keys()).forEach(revokeVerificationPhotoThumbnailFallback);
+  }
+
+  function probeVerificationPhotoImage(url, timeoutMs = 10000) {
+    return new Promise((resolve, reject) => {
+      const probe = new Image();
+      let settled = false;
+      const finish = (error) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        probe.onload = null;
+        probe.onerror = null;
+        if (error) reject(error);
+        else resolve(probe);
+      };
+      const timer = window.setTimeout(() => finish(new Error("缩略图读取超时")), timeoutMs);
+      probe.decoding = "async";
+      probe.referrerPolicy = "no-referrer";
+      probe.onload = () => finish(probe.naturalWidth ? null : new Error("缩略图解码失败"));
+      probe.onerror = () => finish(new Error("缩略图载入失败"));
+      probe.src = url;
+    });
+  }
+
+  function renderVerificationPhotoThumbnailFailure(target, slot) {
+    if (!target?.isConnected) return;
+    const fallback = document.createElement("span");
+    fallback.textContent = "预览读取失败\n点击重新读取原图";
+    fallback.style.whiteSpace = "pre-line";
+    fallback.setAttribute("role", "status");
+    fallback.setAttribute("aria-label", `${photoSlotLabel(slot)}预览读取失败`);
+    if (target.matches?.("img")) target.replaceWith(fallback);
+    else target.replaceChildren(fallback);
+  }
+
+  function displayRecoveredVerificationPhotoThumbnail(target, url, slot) {
+    let image = target.matches?.("img") ? target : target.querySelector?.("img");
+    if (!image) {
+      image = document.createElement("img");
+      target.replaceChildren(image);
+    }
+    image.dataset.photoRecovery = "recovered";
+    image.dataset.verificationThumbnailSlot = String(slot);
+    image.alt = `${photoSlotLabel(slot)}缩略图`;
+    image.loading = "eager";
+    image.decoding = "async";
+    image.referrerPolicy = "no-referrer";
+    image.src = url;
+    return image;
+  }
+
+  async function fetchVerificationPhotoThumbnailFallback(recordId, slot) {
+    const payload = await callVerificationPhotoRead({ action: "getVerificationPhotoThumbnailData", recordId, slot });
+    return verificationPhotoDataBlob(payload.imageBase64, slot);
+  }
+
+  async function recoverVerificationPhotoThumbnail(recordId, slot, target, listedPhoto, request) {
+    if (!target?.isConnected || target.dataset.photoRecovery === "running") return;
+    target.dataset.photoRecovery = "running";
+    const existingImage = target.matches?.("img") ? target : target.querySelector?.("img");
+    const failedUrl = clean(existingImage?.getAttribute("src"));
+    let photo = listedPhoto;
+    const isCurrent = () => request === verificationPhotoRequest && target.isConnected;
+    try {
+      try {
+        const payload = await fetchVerificationPhotoManifest(recordId);
+        if (!isCurrent()) return;
+        const refreshed = payload.photos.find((candidate) => Number(candidate?.slot) === Number(slot));
+        if (refreshed) {
+          if (clean(refreshed.uploadedAt) && clean(refreshed.uploadedAt) !== clean(photo?.uploadedAt)) {
+            if (photo?.localPreview) revokeVerificationPhotoLocalPreview(slot);
+            renderVerificationPhotos(mergeVerificationPhotoLocalPreviews(payload, recordId), recordId);
+            return;
+          }
+          const refreshedAt = Date.now();
+          refreshed.originalUrlExpiresAt = refreshed.localPreview === true || verificationPhotoUrlNeverExpires(refreshed.originalUrl)
+            ? Number.MAX_SAFE_INTEGER
+            : refreshedAt + Math.max(0, Number(refreshed?.originalUrlExpiresIn ?? payload?.expiresIn ?? 0) * 1000);
+          if (photo && typeof photo === "object") Object.assign(photo, refreshed);
+          photo = photo || refreshed;
+          const refreshedThumbnail = clean(refreshed.thumbnailUrl);
+          if (refreshedThumbnail && refreshedThumbnail !== failedUrl) {
+            await probeVerificationPhotoImage(refreshedThumbnail);
+            if (!isCurrent()) return;
+            displayRecoveredVerificationPhotoThumbnail(target, refreshedThumbnail, slot);
+            return;
+          }
+        }
+      } catch (_) {
+        // The authorized original/base64 path below remains available when manifest refresh fails.
+      }
+      let blob = null;
+      try {
+        blob = await fetchVerificationPhotoThumbnailFallback(recordId, slot);
+      } catch (_) {
+        blob = await fetchVerificationPhotoBlob(recordId, photo || { slot });
+      }
+      if (!isCurrent()) return;
+      const fallbackUrl = URL.createObjectURL(blob);
+      if (!isCurrent()) {
+        URL.revokeObjectURL(fallbackUrl);
+        return;
+      }
+      const fallbackKey = `${clean(recordId)}:${Number(slot)}`;
+      revokeVerificationPhotoThumbnailFallback(fallbackKey);
+      verificationPhotoThumbnailFallbacks.set(fallbackKey, fallbackUrl);
+      displayRecoveredVerificationPhotoThumbnail(target, fallbackUrl, slot);
+    } catch (_) {
+      if (isCurrent()) renderVerificationPhotoThumbnailFailure(target, slot);
+    }
+  }
+
   function verificationPhotoCard(photo, slot, payload) {
     const label = photoSlotLabel(slot);
     const canUpload = slot >= 2 && payload.canEdit === true;
@@ -1120,7 +1374,7 @@
       ? "存储文件未找到"
       : "预览地址暂不可用";
     const preview = photo
-      ? `<button class="verification-photo-preview has-photo" type="button" data-view-verification-photo="${slot}" aria-label="查看${escapeHtml(label)}原图">${photo.thumbnailUrl ? `<img src="${escapeHtml(photo.thumbnailUrl)}" alt="${escapeHtml(label)}缩略图" loading="${localPreview ? "eager" : "lazy"}" ${localPreview ? 'fetchpriority="high"' : ""} decoding="async" referrerpolicy="no-referrer">` : `<span>${escapeHtml(previewFailure)}<br>点击重新读取原图</span>`}</button>`
+      ? `<button class="verification-photo-preview has-photo" type="button" data-view-verification-photo="${slot}" aria-label="查看${escapeHtml(label)}原图">${photo.thumbnailUrl ? `<img src="${escapeHtml(photo.thumbnailUrl)}" data-verification-thumbnail-slot="${slot}" alt="${escapeHtml(label)}缩略图" loading="${localPreview ? "eager" : "lazy"}" ${localPreview ? 'fetchpriority="high"' : ""} decoding="async" referrerpolicy="no-referrer">` : `<span>${escapeHtml(previewFailure)}<br>点击重新读取原图</span>`}</button>`
       : `<div class="verification-photo-preview"><span>${slot === 0 ? "未保存客户留存照" : slot === 1 ? "未保存本次人脸凭证" : "尚未上传"}</span></div>`;
     const size = photoSizeLabel(photo?.originalBytes);
     const meta = photo ? [size, formatTime(photo.uploadedAt) || "已绑定"].filter(Boolean).join(" · ") : "空照片位";
@@ -1136,7 +1390,7 @@
     const photos = Array.isArray(payload?.photos) ? payload.photos.map((photo) => ({ ...photo })) : [];
     const loadedAt = Date.now();
     photos.forEach((photo) => {
-      photo.originalUrlExpiresAt = photo.localPreview === true || clean(photo.originalUrl).startsWith("blob:")
+      photo.originalUrlExpiresAt = photo.localPreview === true || verificationPhotoUrlNeverExpires(photo.originalUrl)
         ? Number.MAX_SAFE_INTEGER
         : loadedAt + Math.max(0, Number(photo?.originalUrlExpiresIn ?? payload?.expiresIn ?? 0) * 1000);
     });
@@ -1149,14 +1403,29 @@
       : payload?.isSubmitter
       ? `照片修改窗口已于 ${deadline || "提交后 24 小时"} 结束；现有照片永久只读。`
       : "照片仅供有权查看本核销单的账号浏览；只有本单提交人可在 24 小时内上传或替换补充照片。";
+    clearVerificationPhotoThumbnailFallbacks();
     $("verificationPhotoGrid").innerHTML = Array.from({ length: 5 }, (_, slot) => verificationPhotoCard(bySlot.get(slot), slot, payload)).join("");
+    const renderRequest = verificationPhotoRequest;
+    $("verificationPhotoGrid").querySelectorAll("[data-verification-thumbnail-slot]").forEach((image) => {
+      const slot = Number(image.dataset.verificationThumbnailSlot);
+      const recover = () => void recoverVerificationPhotoThumbnail(recordId, slot, image, bySlot.get(slot), renderRequest);
+      image.addEventListener("error", recover, { once: true });
+      if (image.complete && !image.naturalWidth) {
+        if (typeof queueMicrotask === "function") queueMicrotask(recover);
+        else Promise.resolve().then(recover);
+      }
+    });
     $("verificationPhotoGrid").querySelectorAll("[data-view-verification-photo]").forEach((button) => {
       const slot = Number(button.dataset.viewVerificationPhoto);
-      const warmOriginal = () => preloadVerificationPhotoOriginal(bySlot.get(slot), true);
+      const photo = bySlot.get(slot);
+      const warmOriginal = () => preloadVerificationPhotoOriginal(photo, true);
       button.addEventListener("pointerenter", warmOriginal, { once: true });
       button.addEventListener("focus", warmOriginal, { once: true });
       button.addEventListener("touchstart", warmOriginal, { once: true, passive: true });
       button.addEventListener("click", () => openVerificationPhoto(recordId, slot));
+      if (photo && !clean(photo.thumbnailUrl)) {
+        void recoverVerificationPhotoThumbnail(recordId, slot, button, photo, renderRequest);
+      }
     });
     $("verificationPhotoGrid").querySelectorAll("[data-capture-verification-photo]").forEach((button) => {
       button.addEventListener("click", () => openVerificationPhotoCamera(recordId, Number(button.dataset.captureVerificationPhoto)));
@@ -1177,7 +1446,7 @@
       return;
     }
     try {
-      const payload = await callVerificationPhoto({ action: "getVerificationPhotos", recordId });
+      const payload = await callVerificationPhotoRead({ action: "getVerificationPhotos", recordId });
       if (request !== verificationPhotoRequest) return;
       renderVerificationPhotos(payload, recordId);
       return payload;
@@ -1633,7 +1902,7 @@
     if (!/^\d+$/.test(clean(recordId)) || !$("verificationPhotoPanel")) return null;
     const request = ++verificationPhotoRequest;
     try {
-      const payload = await callVerificationPhoto({ action: "getVerificationPhotos", recordId });
+      const payload = await callVerificationPhotoRead({ action: "getVerificationPhotos", recordId });
       if (request !== verificationPhotoRequest) return null;
       renderVerificationPhotos(mergeVerificationPhotoLocalPreviews(payload, recordId), recordId);
       setVerificationPhotoButtonsDisabled(verificationPhotoUploadBusy);
@@ -2257,15 +2526,12 @@
       : Promise.resolve(false);
     if (cachedUrlValid && verificationPhotoOriginalAuditCache.has(auditKey) && await cachedLoadPromise) return;
     try {
-      const payload = await callVerificationPhoto({ action: "getVerificationPhotoOriginalUrl", recordId, slot });
+      const payload = await refreshVerificationPhotoOriginalUrl(recordId, slot, listPhoto);
       if (request !== verificationPhotoViewerRequest || !dialog.open) return;
-      verificationPhotoOriginalAuditCache.add(auditKey);
-      if (listPhoto) {
-        listPhoto.originalUrl = payload.photoUrl;
-        listPhoto.originalUrlExpiresAt = Date.now() + Math.max(0, Number(payload.expiresIn || 0) * 1000);
-      }
       const cachedDisplayed = await cachedLoadPromise;
       if (!cachedDisplayed || payload.photoUrl !== cachedOriginalUrl) await showVerificationPhotoOriginal(payload.photoUrl, listPhoto, request);
+      if (request !== verificationPhotoViewerRequest || !dialog.open) return;
+      verificationPhotoOriginalAuditCache.add(auditKey);
       $("verificationPhotoViewerTitle").textContent = `${photoSlotLabel(slot)} · ${payload.width || "—"} × ${payload.height || "—"}`;
     } catch (error) {
       if (request !== verificationPhotoViewerRequest || !dialog.open) return;
@@ -2329,6 +2595,7 @@
     currentProductTemplate = null;
     currentProductTemplateError = null;
     productTemplateLoadPromise = Promise.resolve();
+    clearProductReceiptLogoObjectUrl();
     verificationPhotoLoadPromise = Promise.resolve();
     setExportControls(false, "工单读取完成后可以导出。");
     const recharge = type === "recharge";
@@ -2602,8 +2869,12 @@
     verificationPhotoUploadTask?.xhrs?.forEach((xhr) => { try { xhr.abort(); } catch (_) { /* 页面正在退出 */ } });
     verificationPhotoPreloads.clear();
     verificationPhotoOriginalAuditCache.clear();
+    verificationPhotoReadFlights.clear();
+    verificationPhotoBlobFlights.clear();
+    clearVerificationPhotoThumbnailFallbacks();
     revokeVerificationPhotoViewerFallback();
     clearVerificationPhotoLocalPreviews();
+    clearProductReceiptLogoObjectUrl();
   });
   $("exportOrderPdf")?.addEventListener("click", () => exportCurrentOrder("pdf"));
   $("exportOrderImage")?.addEventListener("click", () => exportCurrentOrder("image"));

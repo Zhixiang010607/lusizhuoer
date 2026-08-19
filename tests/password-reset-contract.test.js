@@ -31,11 +31,13 @@ assert.ok(loginHtml.includes("login.js?v=0.17.2"), "login must load the mobile p
 for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
   if (!html.includes("cloudbase-phone-auth.js?v=")) continue;
-  const productTemplatePages = new Set([
-    "project-create.html", "project-detail.html", "project-management.html",
-    "recharge-detail.html", "verification-detail.html"
+  const reliablePrivateImagePages = new Set([
+    "project-detail.html", "recharge-detail.html", "verification-detail.html"
   ]);
-  const expectedVersion = productTemplatePages.has(file) ? "0.17.9" : "0.17.7";
+  const productTemplatePages = new Set(["project-create.html", "project-management.html"]);
+  const expectedVersion = reliablePrivateImagePages.has(file)
+    ? "0.17.10"
+    : productTemplatePages.has(file) ? "0.17.9" : "0.17.7";
   assert.ok(html.includes(`cloudbase-phone-auth.js?v=${expectedVersion}`), `${file} must load the guarded phone-auth client`);
 }
 

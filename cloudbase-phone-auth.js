@@ -6,6 +6,14 @@
   const SMS_COOLDOWN_MS = 60 * 1000;
   const AUTH_CHANNEL_NAME = "lusizhuoer-auth-session-v1";
   const AUTH_STATE_KEY = "lusizhuoerActiveAuth";
+  const PRODUCT_TEMPLATE_CACHE_TTL_MS = 15 * 1000;
+  const PRODUCT_LOGO_DATA_CACHE_TTL_MS = 2 * 60 * 1000;
+  const productTemplateCache = new Map();
+  const productTemplateFlights = new Map();
+  const productLogoDataCache = new Map();
+  const productLogoDataFlights = new Map();
+  let productReceiptCacheGeneration = 0;
+  let productLogoDataCacheBytes = 0;
 
   function registerCloudBaseComponent(register, componentName) {
     try {
@@ -84,7 +92,15 @@
     try {
       result = await getApp().callFunction({ name: "staffAccount", data });
     } catch (error) {
-      throw new Error(error?.message || fallback);
+      const wrapped = new Error(error?.message || fallback);
+      Object.assign(wrapped, {
+        code: error?.code,
+        stage: error?.stage,
+        requestId: error?.requestId,
+        causeCode: error?.causeCode,
+        causeMessage: error?.causeMessage
+      });
+      throw wrapped;
     }
     const payload = functionPayload(result);
     if (!payload?.ok) {
@@ -104,6 +120,178 @@
     return payload;
   }
 
+  function productReceiptRefKey(value) {
+    const text = String(value || "").trim();
+    return /^\d+$/.test(text) ? text : text.toUpperCase();
+  }
+
+  function cloneProductTemplate(value) {
+    if (!value || typeof value !== "object") return value;
+    return { ...value, logo: value.logo && typeof value.logo === "object" ? { ...value.logo } : null };
+  }
+
+  function cloneProductLogoData(value) {
+    return value && typeof value === "object" ? { ...value } : value;
+  }
+
+  function trimReceiptCache(cache, maximumEntries) {
+    while (cache.size > maximumEntries) cache.delete(cache.keys().next().value);
+  }
+
+  function cachedProductTemplate(productRef) {
+    const key = productReceiptRefKey(productRef);
+    const entry = productTemplateCache.get(key);
+    if (!entry) return null;
+    if (entry.expiresAt <= Date.now()) {
+      productTemplateCache.delete(key);
+      return null;
+    }
+    productTemplateCache.delete(key);
+    productTemplateCache.set(key, entry);
+    return cloneProductTemplate(entry.value);
+  }
+
+  function rememberProductTemplate(productRef, template) {
+    if (!template || typeof template !== "object") return;
+    const entry = {
+      value: cloneProductTemplate(template),
+      expiresAt: Date.now() + PRODUCT_TEMPLATE_CACHE_TTL_MS
+    };
+    const keys = new Set([
+      productReceiptRefKey(productRef),
+      productReceiptRefKey(template.id),
+      productReceiptRefKey(template.productCode)
+    ]);
+    for (const key of keys) {
+      if (!key) continue;
+      productTemplateCache.delete(key);
+      productTemplateCache.set(key, entry);
+    }
+    trimReceiptCache(productTemplateCache, 48);
+  }
+
+  function expectedProductLogoReference(productRef, explicitReference) {
+    const explicit = String(explicitReference || "").trim();
+    if (explicit) return explicit;
+    const cached = cachedProductTemplate(productRef);
+    return String(cached?.logo?.reference || "").trim();
+  }
+
+  function clearProductReceiptCaches() {
+    productReceiptCacheGeneration += 1;
+    productTemplateCache.clear();
+    productTemplateFlights.clear();
+    productLogoDataCache.clear();
+    productLogoDataFlights.clear();
+    productLogoDataCacheBytes = 0;
+  }
+
+  function productLogoReadTransient(error) {
+    const text = [error?.code, error?.causeCode, error?.message, error?.causeMessage]
+      .filter(Boolean).join(" ").toUpperCase();
+    return /(?:^|[^A-Z])(INTERNALERROR|INTERNAL_ERROR|HTTP_429|HTTP_5\d\d|TOOMANYREQUESTS|TOO_MANY_REQUESTS|THROTTL|TIMEOUT|TIMEDOUT|ETIMEDOUT|ECONNRESET|EAI_AGAIN|FETCH FAILED|NETWORK)(?:[^A-Z]|$)/.test(text);
+  }
+
+  function productLogoRetryDelay(milliseconds) {
+    const jitter = Math.floor(Math.random() * Math.max(1, Math.floor(milliseconds / 4)));
+    return new Promise((resolve) => setTimeout(resolve, milliseconds + jitter));
+  }
+
+  async function callProductReceiptRead(data, fallback) {
+    try {
+      return await callStaffAccount(data, fallback);
+    } catch (error) {
+      if (!productLogoReadTransient(error)) throw error;
+      await productLogoRetryDelay(120);
+      return callStaffAccount(data, fallback);
+    }
+  }
+
+  function canonicalBase64ByteLength(value) {
+    const text = String(value || "");
+    if (!text || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(text)) return -1;
+    const padding = text.endsWith("==") ? 2 : text.endsWith("=") ? 1 : 0;
+    return text.length / 4 * 3 - padding;
+  }
+
+  function validateProductLogoData(value, expectedReference = "") {
+    if (!value || typeof value !== "object") throw new Error("产品 LOGO 原图服务返回了无效数据");
+    const reference = String(value.reference || "").trim();
+    const mimeType = String(value.mimeType || "").trim().toLowerCase();
+    const bytes = Number(value.bytes);
+    const base64Bytes = canonicalBase64ByteLength(value.base64);
+    if (!reference || !["image/png", "image/jpeg", "image/webp"].includes(mimeType)
+        || !Number.isSafeInteger(bytes) || bytes < 8 || bytes > 8 * 1024 * 1024
+        || base64Bytes !== bytes) {
+      throw new Error("产品 LOGO 原图服务返回了无效数据");
+    }
+    if (expectedReference && reference !== expectedReference) {
+      const error = new Error("产品 LOGO 已更新，请重新读取产品模板");
+      error.code = "PRODUCT_LOGO_CHANGED";
+      throw error;
+    }
+    return { ...value, reference, mimeType, bytes };
+  }
+
+  async function completeChunkedProductLogo(productRef, expectedReference, manifest) {
+    const reference = String(manifest?.reference || "").trim();
+    const mimeType = String(manifest?.mimeType || "").trim().toLowerCase();
+    const bytes = Number(manifest?.bytes);
+    const chunkSize = Number(manifest?.chunkSize);
+    if (!reference || (expectedReference && reference !== expectedReference)
+        || !["image/png", "image/jpeg", "image/webp"].includes(mimeType)
+        || !Number.isSafeInteger(bytes) || bytes <= 3 * 1024 * 1024 || bytes > 8 * 1024 * 1024
+        || !Number.isSafeInteger(chunkSize) || chunkSize < 256 * 1024 || chunkSize > 2 * 1024 * 1024
+        || chunkSize % 3 !== 0) {
+      const error = new Error(expectedReference && reference !== expectedReference
+        ? "产品 LOGO 已更新，请重新读取产品模板"
+        : "产品 LOGO 分块读取清单无效");
+      error.code = expectedReference && reference !== expectedReference ? "PRODUCT_LOGO_CHANGED" : "PRODUCT_LOGO_CHUNK_INVALID";
+      throw error;
+    }
+    const parts = [];
+    for (let offset = 0; offset < bytes; offset += chunkSize) {
+      const chunkLength = Math.min(chunkSize, bytes - offset);
+      const data = await callProductReceiptRead({
+        action: "getProductReceiptLogoData",
+        productRef,
+        expectedReference: reference,
+        chunkOffset: offset,
+        chunkLength
+      }, "产品 LOGO 分块读取失败");
+      const chunk = data.logo;
+      if (!chunk || String(chunk.reference || "").trim() !== reference
+          || Number(chunk.bytes) !== bytes || Number(chunk.chunkOffset) !== offset
+          || Number(chunk.chunkBytes) !== chunkLength
+          || canonicalBase64ByteLength(chunk.base64) !== chunkLength) {
+        throw new Error("产品 LOGO 分块读取不完整");
+      }
+      parts.push(String(chunk.base64));
+    }
+    return validateProductLogoData({ reference, mimeType, bytes, base64: parts.join("") }, reference);
+  }
+
+  function rememberProductLogoData(cacheKeys, value) {
+    const entry = {
+      value: cloneProductLogoData(value),
+      expiresAt: Date.now() + PRODUCT_LOGO_DATA_CACHE_TTL_MS,
+      bytes: Number(value?.bytes || 0)
+    };
+    for (const key of new Set(cacheKeys.filter(Boolean))) {
+      const previous = productLogoDataCache.get(key);
+      if (previous) productLogoDataCacheBytes -= previous.bytes || 0;
+      productLogoDataCache.delete(key);
+      productLogoDataCache.set(key, entry);
+      productLogoDataCacheBytes += entry.bytes;
+    }
+    while (productLogoDataCache.size > 4 || productLogoDataCacheBytes > 16 * 1024 * 1024) {
+      const oldestKey = productLogoDataCache.keys().next().value;
+      const oldest = productLogoDataCache.get(oldestKey);
+      productLogoDataCache.delete(oldestKey);
+      productLogoDataCacheBytes -= oldest?.bytes || 0;
+    }
+  }
+
   function smsStateKey(phone) { return `lusizhuoerSmsState:${phone}`; }
   function readSmsState(phone) {
     try { return JSON.parse(localStorage.getItem(smsStateKey(phone)) || "{}"); } catch (_) { return {}; }
@@ -117,6 +305,9 @@
   }
 
   function announceAuthEvent(type, session = null) {
+    // Content may be reused only inside the current in-memory session. Never
+    // retain a template or private-logo byte result across an auth transition.
+    clearProductReceiptCaches();
     const state = {
       type,
       uid: String(session?.cloudbaseUserId || ""),
@@ -275,17 +466,39 @@
       return data.products || [];
     },
     async setProductStatus({ productRef, status }) {
-      return callStaffAccount(
+      const data = await callStaffAccount(
         { action: "setProductStatus", productRef, status },
         "产品状态更新失败"
       );
+      clearProductReceiptCaches();
+      return data;
     },
-    async getProductReceiptTemplate({ productRef }) {
-      const data = await callStaffAccount(
+    async getProductReceiptTemplate({ productRef, forceRefresh = false, allowCached = false }) {
+      const key = productReceiptRefKey(productRef);
+      if (!key) throw new Error("缺少产品编号");
+      // Receipt exports require the latest database instructions. Persistent
+      // template entries are therefore metadata for logo-keying unless a
+      // caller explicitly opts into a short-lived cached template.
+      if (allowCached && !forceRefresh) {
+        const cached = cachedProductTemplate(productRef);
+        if (cached) return cached;
+      }
+      const flightKey = `${key}\n${forceRefresh ? "refresh" : "normal"}`;
+      const existing = productTemplateFlights.get(flightKey);
+      if (existing) return existing;
+      const generation = productReceiptCacheGeneration;
+      const flight = callProductReceiptRead(
         { action: "getProductReceiptTemplate", productRef },
         "产品单据模板读取失败"
-      );
-      return data.template || null;
+      ).then((data) => {
+        const value = data.template || null;
+        if (generation === productReceiptCacheGeneration) rememberProductTemplate(productRef, value);
+        return cloneProductTemplate(value);
+      }).finally(() => {
+        if (productTemplateFlights.get(flightKey) === flight) productTemplateFlights.delete(flightKey);
+      });
+      productTemplateFlights.set(flightKey, flight);
+      return flight;
     },
     async beginProductLogoUpload({ productRef, originalName, mimeType, bytes, width, height }) {
       return callStaffAccount(
@@ -298,14 +511,18 @@
         { action: "uploadProductLogoByFunction", productRef, originalName, mimeType, bytes, width, height, imageBase64 },
         "产品 LOGO 安全备用上传失败"
       );
-      return data.template || null;
+      clearProductReceiptCaches();
+      rememberProductTemplate(productRef, data.template);
+      return cloneProductTemplate(data.template || null);
     },
     async confirmProductLogoUpload({ productRef, reference, originalName, mimeType, bytes, width, height }) {
       const data = await callStaffAccount(
         { action: "confirmProductLogoUpload", productRef, reference, originalName, mimeType, bytes, width, height },
         "产品 LOGO 保存确认失败"
       );
-      return data.template || null;
+      clearProductReceiptCaches();
+      rememberProductTemplate(productRef, data.template);
+      return cloneProductTemplate(data.template || null);
     },
     async discardProductLogoUpload({ productRef, reference }) {
       return callStaffAccount(
@@ -318,21 +535,61 @@
         { action: "saveProductReceiptTemplate", productRef, verificationInstructions, rechargeInstructions },
         "产品单据模板保存失败"
       );
-      return data.template || null;
+      clearProductReceiptCaches();
+      rememberProductTemplate(productRef, data.template);
+      return cloneProductTemplate(data.template || null);
     },
     async removeProductReceiptLogo({ productRef }) {
       const data = await callStaffAccount(
         { action: "removeProductReceiptLogo", productRef },
         "产品 LOGO 移除失败"
       );
-      return data.template || null;
+      clearProductReceiptCaches();
+      rememberProductTemplate(productRef, data.template);
+      return cloneProductTemplate(data.template || null);
     },
-    async getProductReceiptLogoData({ productRef }) {
-      const data = await callStaffAccount(
-        { action: "getProductReceiptLogoData", productRef },
+    async getProductReceiptLogoData({ productRef, expectedReference = "", forceRefresh = false }) {
+      const productKey = productReceiptRefKey(productRef);
+      if (!productKey) throw new Error("缺少产品编号");
+      const reference = expectedProductLogoReference(productRef, expectedReference);
+      const cacheKey = `${productKey}\n${reference}`;
+      if (!forceRefresh) {
+        const cached = productLogoDataCache.get(cacheKey);
+        if (cached && cached.expiresAt > Date.now()) {
+          productLogoDataCache.delete(cacheKey);
+          productLogoDataCache.set(cacheKey, cached);
+          return cloneProductLogoData(cached.value);
+        }
+        if (cached) {
+          productLogoDataCache.delete(cacheKey);
+          productLogoDataCacheBytes -= cached.bytes || 0;
+        }
+      }
+      const flightKey = `${cacheKey}\n${forceRefresh ? "refresh" : "normal"}`;
+      const existing = productLogoDataFlights.get(flightKey);
+      if (existing) return existing;
+      const generation = productReceiptCacheGeneration;
+      const flight = callProductReceiptRead(
+        { action: "getProductReceiptLogoData", productRef, expectedReference: reference },
         "产品 LOGO 原图读取失败"
-      );
-      return data.logo || null;
+      ).then(async (data) => {
+        const initial = data.logo || null;
+        const value = initial?.chunked && !initial?.base64
+          ? await completeChunkedProductLogo(productRef, reference, initial)
+          : validateProductLogoData(initial, reference);
+        const returnedReference = String(value.reference || "").trim();
+        if (generation === productReceiptCacheGeneration) {
+          rememberProductLogoData([
+            cacheKey,
+            returnedReference ? `${productKey}\n${returnedReference}` : ""
+          ], value);
+        }
+        return cloneProductLogoData(value);
+      }).finally(() => {
+        if (productLogoDataFlights.get(flightKey) === flight) productLogoDataFlights.delete(flightKey);
+      });
+      productLogoDataFlights.set(flightKey, flight);
+      return flight;
     },
     async requestOrderVoid({ recordType, recordId, note }) {
       return callStaffAccount(

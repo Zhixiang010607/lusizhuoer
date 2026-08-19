@@ -4,4 +4,12 @@
 // copied to service.js. Set the mode before loading it so no face action is
 // exposed and the Tencent Face SDK is not required by this function package.
 process.env.VERIFICATION_PHOTO_ONLY_FUNCTION = "1";
-module.exports = require("./service.js");
+const CloudBaseManager = require("@cloudbase/manager-node");
+const {
+  createVerificationPhotoMain,
+  installManagerSigningReliability
+} = require("./read-reliability.js");
+
+installManagerSigningReliability(CloudBaseManager);
+const sharedService = require("./service.js");
+module.exports = { main: createVerificationPhotoMain(sharedService.main) };
