@@ -16,6 +16,7 @@
   let activePreview = "verification-pdf";
   let previewObjectUrl = "";
   let previewBusy = false;
+  let previewQueued = false;
   const localPreviewMode = ["127.0.0.1", "localhost"].includes(location.hostname)
     && new URLSearchParams(location.search).get("preview") === "1";
 
@@ -26,9 +27,49 @@
   }
 
   function currentProductRef() {
-    const value = template?.id || template?.productCode;
-    if (!value) throw new Error("产品模板尚未读取完成，请刷新页面重试");
-    return value;
+    if (!template || !projectRef) throw new Error("产品模板尚未读取完成，请刷新页面重试");
+    return projectRef;
+  }
+
+  function assertUrlProduct(candidate) {
+    if (!candidate || typeof candidate !== "object") throw new Error("服务器没有返回产品模板");
+    const requested = String(projectRef || "").trim();
+    const candidateId = String(candidate.id || "").trim();
+    const candidateCode = String(candidate.productCode || "").trim();
+    const matches = /^\d+$/.test(requested)
+      ? candidateId === requested
+      : candidateCode.toUpperCase() === requested.toUpperCase();
+    if (!requested || !matches) {
+      throw new Error(`页面产品与读取结果不一致（请求 ${requested || "—"}，返回 ${candidateCode || candidateId || "无编号"}）`);
+    }
+    return candidate;
+  }
+
+  function normalizedInstructions(value) {
+    return String(value ?? "").replace(/\r\n?/g, "\n").trim();
+  }
+
+  function expectedTemplateIdentity() {
+    return {
+      id: String(template?.id || "").trim(),
+      productCode: String(template?.productCode || "").trim(),
+      productName: String(template?.productName || "产品").trim() || "产品"
+    };
+  }
+
+  function assertTemplateRoundTrip(candidate, expected, verificationInstructions, rechargeInstructions) {
+    if (!candidate || typeof candidate !== "object") throw new Error("服务器没有返回保存后的产品模板");
+    const candidateId = String(candidate.id || "").trim();
+    const candidateCode = String(candidate.productCode || "").trim();
+    if ((expected.id && candidateId !== expected.id)
+        || (expected.productCode && candidateCode !== expected.productCode)) {
+      throw new Error("保存后的模板与当前产品不一致，已停止显示成功状态");
+    }
+    if (normalizedInstructions(candidate.verificationInstructions) !== verificationInstructions
+        || normalizedInstructions(candidate.rechargeInstructions) !== rechargeInstructions) {
+      throw new Error("文字说明写入后回读不一致，请重新保存");
+    }
+    return candidate;
   }
 
   function setTemplateControlsReady(ready) {
@@ -63,16 +104,17 @@
 
   async function fetchLogoBlob(current) {
     if (!current?.logo) return null;
-    try {
-      const response = await fetch(current.logo.url, { mode: "cors", credentials: "omit", cache: "no-store", referrerPolicy: "no-referrer" });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const blob = await response.blob();
-      if (!blob.size || !String(blob.type || "").startsWith("image/")) throw new Error("返回内容不是图片");
-      if (Number(current.logo.bytes || 0) && blob.size !== Number(current.logo.bytes)) throw new Error("原图大小不一致");
-      return blob;
-    } catch (_) {
-      return base64Blob(await window.CloudBasePhoneAuth.getProductReceiptLogoData({ productRef: current.id || projectRef }));
+    if (current.logo.url) {
+      try {
+        const response = await fetch(current.logo.url, { mode: "cors", credentials: "omit", cache: "no-store", referrerPolicy: "no-referrer" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const blob = await response.blob();
+        if (!blob.size || !String(blob.type || "").startsWith("image/")) throw new Error("返回内容不是图片");
+        if (Number(current.logo.bytes || 0) && blob.size !== Number(current.logo.bytes)) throw new Error("原图大小不一致");
+        return blob;
+      } catch (_) { /* use the authenticated original-byte fallback below */ }
     }
+    return base64Blob(await window.CloudBasePhoneAuth.getProductReceiptLogoData({ productRef: projectRef }));
   }
 
   function renderLogo() {
@@ -105,7 +147,7 @@
   function renderTemplate() {
     $("productTemplateType").textContent = template.productType || "未分类";
     $("productTemplateName").textContent = template.productName || "产品单据模板";
-    $("productTemplateMeta").textContent = `${template.productStatus === "ARCHIVED" ? "封存" : "活跃"} · 模板更新：${formatTime(template.updatedAt)}${template.updatedByName ? ` · ${template.updatedByName}` : ""}`;
+    $("productTemplateMeta").textContent = `${template.productCode || "未编号"} · ${template.productStatus === "ARCHIVED" ? "封存" : "活跃"} · 模板更新：${formatTime(template.updatedAt)}${template.updatedByName ? ` · ${template.updatedByName}` : ""}`;
     const ready = Boolean(template.logo && template.verificationInstructions && template.rechargeInstructions);
     $("productTemplateState").textContent = ready ? "模板已配置" : "模板待配置";
     $("productTemplateState").classList.toggle("is-ready", ready);
@@ -163,17 +205,23 @@
   }
 
   async function renderPreview() {
-    if (previewBusy || !template || !window.OrderExporter) return;
+    if (!template || !window.OrderExporter) return;
+    if (previewBusy) {
+      previewQueued = true;
+      return;
+    }
     previewBusy = true;
+    previewQueued = false;
+    const previewKind = activePreview;
     $("downloadProductPreview").disabled = true;
-    const [title, hint] = previewLabels[activePreview];
+    const [title, hint] = previewLabels[previewKind];
     $("productPreviewTitle").textContent = title;
     $("productPreviewHint").textContent = "正在生成高清预览…";
     $("productPreviewFrame").innerHTML = '<div class="product-preview-loading">正在生成…</div>';
     clearPreviewUrl();
     try {
-      const options = { documentData: sampleDocument(activePreview), photos: samplePhotos(activePreview) };
-      if (activePreview.endsWith("pdf")) {
+      const options = { documentData: sampleDocument(previewKind), photos: samplePhotos(previewKind) };
+      if (previewKind.endsWith("pdf")) {
         const blob = await window.OrderExporter.createOrderPdfBlob(options);
         previewObjectUrl = URL.createObjectURL(blob);
         const frame = document.createElement("iframe");
@@ -192,6 +240,7 @@
       $("productPreviewFrame").innerHTML = '<div class="product-preview-loading is-error">预览生成失败</div>';
     } finally {
       previewBusy = false;
+      if (previewQueued) void renderPreview();
     }
   }
 
@@ -251,6 +300,37 @@
     });
   }
 
+  function originalFileDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.addEventListener("load", () => {
+        const value = String(reader.result || "");
+        if (!value.startsWith(`data:${file.type};base64,`)) reject(new Error("无法读取 LOGO 原图字节"));
+        else resolve(value);
+      }, { once: true });
+      reader.addEventListener("error", () => reject(new Error("无法读取 LOGO 原图字节")), { once: true });
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function uploadLogoByFunction(input, file, reason) {
+    if (file.size > 3 * 1024 * 1024) {
+      throw new Error(`${reason?.message || "签名直传不可用"}；当前安全备用通道支持不超过 3 MB 的原图`);
+    }
+    if (!window.CloudBasePhoneAuth?.uploadProductLogoByFunction) {
+      throw reason || new Error("产品 LOGO 安全备用上传服务尚未加载");
+    }
+    setMessage("签名直传不可用，正在通过安全备用通道上传原图…");
+    const imageBase64 = await originalFileDataUrl(file);
+    return window.CloudBasePhoneAuth.uploadProductLogoByFunction({ ...input, imageBase64 });
+  }
+
+  async function discardUnboundLogo(productRef, reference) {
+    if (!reference || !window.CloudBasePhoneAuth?.discardProductLogoUpload) return;
+    try { await window.CloudBasePhoneAuth.discardProductLogoUpload({ productRef, reference }); }
+    catch (_) { /* cleanup is best-effort; preserve the original upload error */ }
+  }
+
   async function uploadLogo() {
     if (localPreviewMode) {
       setMessage("本地预览模式不会上传或修改腾讯云数据。", "success");
@@ -262,21 +342,42 @@
     $("productLogoProgress").hidden = false;
     $("productLogoProgress").value = 0;
     setMessage("正在取得私有存储上传地址…");
+    let unboundReference = "";
+    let unboundProductRef = "";
     try {
       const input = { productRef: currentProductRef(), ...selectedLogoMeta };
-      const pending = await window.CloudBasePhoneAuth.beginProductLogoUpload(input);
-      setMessage("正在上传 LOGO 原图，请勿关闭页面…");
-      await uploadToSignedUrl(pending.upload, selectedLogo);
-      setMessage("上传完成，正在由服务器核对原图…");
-      template = await window.CloudBasePhoneAuth.confirmProductLogoUpload({ ...input, reference: pending.reference });
+      let uploadMode = "SIGNED";
+      let signedStage = "BEGIN";
+      try {
+        const pending = await window.CloudBasePhoneAuth.beginProductLogoUpload(input);
+        unboundReference = pending.reference;
+        unboundProductRef = input.productRef;
+        signedStage = "UPLOAD";
+        setMessage("正在上传 LOGO 原图，请勿关闭页面…");
+        await uploadToSignedUrl(pending.upload, selectedLogo);
+        signedStage = "CONFIRM";
+        setMessage("上传完成，正在由服务器核对原图…");
+        template = await window.CloudBasePhoneAuth.confirmProductLogoUpload({ ...input, reference: pending.reference });
+        unboundReference = "";
+      } catch (error) {
+        const canUseFunctionFallback = error?.code === "PRODUCT_LOGO_UPLOAD_SIGN_FAILED" || signedStage === "UPLOAD";
+        if (!canUseFunctionFallback) throw error;
+        await discardUnboundLogo(unboundProductRef, unboundReference);
+        unboundReference = "";
+        uploadMode = "FUNCTION";
+        template = await uploadLogoByFunction(input, selectedLogo, error);
+      }
       selectedLogo = null;
       selectedLogoMeta = null;
       logoBlob = await fetchLogoBlob(template);
       if (!(logoBlob instanceof Blob) || logoBlob.size !== Number(template.logo?.bytes || 0)) throw new Error("LOGO 已保存，但回读校验失败");
       renderTemplate();
-      setMessage("LOGO 原图已上传、核对并保存。", "success");
+      setMessage(uploadMode === "FUNCTION"
+        ? "LOGO 原图已通过安全备用通道上传、回读核对并保存。"
+        : "LOGO 原图已上传、回读核对并保存。", "success");
       void renderPreview();
     } catch (error) {
+      await discardUnboundLogo(unboundProductRef, unboundReference);
       setMessage(error?.message || "LOGO 上传失败", "error");
       renderLogo();
     } finally {
@@ -291,20 +392,31 @@
       return;
     }
     $("saveProductTemplate").disabled = true;
+    $("verificationReceiptInstructions").disabled = true;
+    $("rechargeReceiptInstructions").disabled = true;
     setMessage("正在保存两组文字说明…");
     try {
-      template = await window.CloudBasePhoneAuth.saveProductReceiptTemplate({
-        productRef: currentProductRef(),
-        verificationInstructions: $("verificationReceiptInstructions").value.trim(),
-        rechargeInstructions: $("rechargeReceiptInstructions").value.trim()
+      const expected = expectedTemplateIdentity();
+      const productRef = currentProductRef();
+      const verificationInstructions = normalizedInstructions($("verificationReceiptInstructions").value);
+      const rechargeInstructions = normalizedInstructions($("rechargeReceiptInstructions").value);
+      const saved = await window.CloudBasePhoneAuth.saveProductReceiptTemplate({
+        productRef,
+        verificationInstructions,
+        rechargeInstructions
       });
+      assertTemplateRoundTrip(saved, expected, verificationInstructions, rechargeInstructions);
+      const reread = await window.CloudBasePhoneAuth.getProductReceiptTemplate({ productRef });
+      template = assertTemplateRoundTrip(reread, expected, verificationInstructions, rechargeInstructions);
       renderTemplate();
-      setMessage("两组文字说明已保存。", "success");
+      setMessage(`${expected.productName}${expected.productCode ? `（${expected.productCode}）` : ""}的两组文字说明已保存并从数据库复核。`, "success");
       void renderPreview();
     } catch (error) {
       setMessage(error?.message || "文字说明保存失败", "error");
     } finally {
       $("saveProductTemplate").disabled = localPreviewMode;
+      $("verificationReceiptInstructions").disabled = false;
+      $("rechargeReceiptInstructions").disabled = false;
     }
   }
 
@@ -369,7 +481,7 @@
       return;
     }
     if (!window.CloudBasePhoneAuth?.getProductReceiptTemplate) throw new Error("产品模板服务尚未加载");
-    template = await window.CloudBasePhoneAuth.getProductReceiptTemplate({ productRef: projectRef });
+    template = assertUrlProduct(await window.CloudBasePhoneAuth.getProductReceiptTemplate({ productRef: projectRef }));
     if (!template) throw new Error("未找到该产品");
     logoBlob = await fetchLogoBlob(template);
     renderTemplate();

@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.14";
+  const VERSION = "0.16.15";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -37,6 +37,7 @@
   let currentProductTemplate = null;
   let currentProductTemplateError = null;
   let productTemplateLoadPromise = Promise.resolve();
+  let productTemplateRequest = 0;
 
   function loadSessionRows(key) {
     try {
@@ -272,7 +273,7 @@
     return clean(element?.querySelector(selector)?.textContent);
   }
 
-  function exportDocumentData(record) {
+  function exportDocumentData(record, loadedTemplate = currentProductTemplate) {
     const recharge = type === "recharge";
     const refund = recharge && first(record.originalType, record.rechargeType).toUpperCase() === "REFUND";
     const facts = Array.from($("orderKeyfacts")?.children || []).map((element) => ({
@@ -290,7 +291,7 @@
     const messages = [];
     const customerName = first(record.customerName, record.customerCode, "客户");
     const projectName = first(record.projectName, record.productName, record.projectCode, record.productCode, "项目");
-    const template = currentProductTemplate || {};
+    const template = loadedTemplate || {};
     return {
       filename: `${customerName}+${projectName}+${refund ? "退费" : recharge ? "充值" : "核销"}`,
       kind: clean($("orderKindTag")?.textContent) || (recharge ? "充值" : "核销"),
@@ -316,7 +317,41 @@
   }
 
   function productReference(record) {
-    return first(record?.projectId, record?.productId, record?.projectCode, record?.productCode);
+    return first(
+      record?.projectId, record?.productId, record?.projectCode, record?.productCode,
+      record?.project?.id, record?.product?.id, record?.project?.code, record?.product?.code
+    );
+  }
+
+  function assertProductReceiptTemplate(template, record, requestedRef) {
+    if (!template || typeof template !== "object") throw new Error("产品单据模板不存在");
+    const recordIdOrCode = first(record?.projectId, record?.productId, record?.project?.id, record?.product?.id);
+    const expectedId = /^\d+$/.test(recordIdOrCode) ? recordIdOrCode : "";
+    const expectedCode = first(
+      record?.projectCode, record?.productCode, record?.project?.code, record?.product?.code,
+      expectedId ? "" : recordIdOrCode
+    ).toUpperCase();
+    const actualId = clean(template?.id);
+    const actualCode = clean(template?.productCode).toUpperCase();
+    const requested = clean(requestedRef);
+    const requestedMatches = /^\d+$/.test(requested)
+      ? Boolean(actualId && requested === actualId)
+      : Boolean(actualCode && requested.toUpperCase() === actualCode);
+    if (!requestedMatches
+        || (expectedId && (!actualId || expectedId !== actualId))
+        || (expectedCode && (!actualCode || expectedCode !== actualCode))) {
+      throw new Error(`工单产品模板不一致（请求 ${requested || "—"}，返回 ${actualCode || actualId || "无编号"}）`);
+    }
+    const instructions = type === "recharge"
+      ? clean(template?.rechargeInstructions)
+      : clean(template?.verificationInstructions);
+    if (!instructions) {
+      const productName = first(record?.projectName, record?.productName, template?.productName, "该产品");
+      const productCode = first(record?.projectCode, record?.productCode, template?.productCode);
+      const receiptKind = type === "recharge" ? "充值／退费" : "核销／体验核销";
+      throw new Error(`${productName}${productCode ? `（${productCode}）` : ""}尚未配置${receiptKind}单据说明，请总部先打开该产品模板保存说明`);
+    }
+    return template;
   }
 
   function base64ImageBlob(payload) {
@@ -332,24 +367,24 @@
 
   async function fetchProductLogoBlob(template, productRef) {
     if (!template?.logo) return null;
-    const controller = typeof AbortController === "function" ? new AbortController() : null;
-    const timeout = window.setTimeout(() => controller?.abort(), 12000);
-    try {
-      const response = await fetch(template.logo.url, {
-        method: "GET", mode: "cors", credentials: "omit", cache: "force-cache",
-        referrerPolicy: "no-referrer", signal: controller?.signal
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const blob = await response.blob();
-      if (!blob.size || !String(blob.type || "").startsWith("image/")) throw new Error("返回内容不是图片");
-      if (Number(template.logo.bytes || 0) && blob.size !== Number(template.logo.bytes)) throw new Error("原图大小不一致");
-      return blob;
-    } catch (_) {
-      if (!window.CloudBasePhoneAuth?.getProductReceiptLogoData) throw new Error("产品 LOGO 原图读取失败");
-      return base64ImageBlob(await window.CloudBasePhoneAuth.getProductReceiptLogoData({ productRef }));
-    } finally {
-      window.clearTimeout(timeout);
+    if (template.logo.url) {
+      const controller = typeof AbortController === "function" ? new AbortController() : null;
+      const timeout = window.setTimeout(() => controller?.abort(), 12000);
+      try {
+        const response = await fetch(template.logo.url, {
+          method: "GET", mode: "cors", credentials: "omit", cache: "force-cache",
+          referrerPolicy: "no-referrer", signal: controller?.signal
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const blob = await response.blob();
+        if (!blob.size || !String(blob.type || "").startsWith("image/")) throw new Error("返回内容不是图片");
+        if (Number(template.logo.bytes || 0) && blob.size !== Number(template.logo.bytes)) throw new Error("原图大小不一致");
+        return blob;
+      } catch (_) { /* use the authenticated original-byte fallback below */ }
+      finally { window.clearTimeout(timeout); }
     }
+    if (!window.CloudBasePhoneAuth?.getProductReceiptLogoData) throw new Error("产品 LOGO 原图读取失败");
+    return base64ImageBlob(await window.CloudBasePhoneAuth.getProductReceiptLogoData({ productRef }));
   }
 
   function renderProductReceiptBrand(template, record) {
@@ -366,23 +401,31 @@
   }
 
   async function loadProductReceiptTemplate(record) {
+    const request = ++productTemplateRequest;
     const productRef = productReference(record);
-    currentProductTemplate = null;
-    currentProductTemplateError = null;
-    if (!productRef || !window.CloudBasePhoneAuth?.getProductReceiptTemplate) {
-      renderProductReceiptBrand({}, record);
-      return null;
-    }
     try {
-      const template = await window.CloudBasePhoneAuth.getProductReceiptTemplate({ productRef });
-      if (!template) throw new Error("产品单据模板不存在");
+      if (!productRef) throw new Error("当前工单缺少产品编号，不能生成产品单据");
+      if (!window.CloudBasePhoneAuth?.getProductReceiptTemplate) {
+        throw new Error("产品单据模板服务尚未加载，请刷新页面重试");
+      }
+      const template = assertProductReceiptTemplate(
+        await window.CloudBasePhoneAuth.getProductReceiptTemplate({ productRef }),
+        record,
+        productRef
+      );
       if (template.logo) template.logoBlob = await fetchProductLogoBlob(template, productRef);
-      currentProductTemplate = template;
-      renderProductReceiptBrand(template, record);
+      if (request === productTemplateRequest) {
+        currentProductTemplate = template;
+        currentProductTemplateError = null;
+        renderProductReceiptBrand(template, record);
+      }
       return template;
     } catch (error) {
-      currentProductTemplateError = error;
-      renderProductReceiptBrand({}, record);
+      if (request === productTemplateRequest) {
+        currentProductTemplate = null;
+        currentProductTemplateError = error;
+        renderProductReceiptBrand({}, record);
+      }
       throw error;
     }
   }
@@ -617,14 +660,18 @@
     orderExportBusy = true;
     setExportControls(false, type === "verification" ? "正在准备工单与照片…" : "正在生成客户业务凭证…");
     try {
-      try { await productTemplateLoadPromise; }
+      // A product template can be edited in another tab after this detail page
+      // opened. Always re-read it at the action boundary so the downloaded
+      // customer file never contains a stale or silently empty template.
+      productTemplateLoadPromise = loadProductReceiptTemplate(currentRecord);
+      let exportTemplate;
+      try { exportTemplate = await productTemplateLoadPromise; }
       catch (error) { throw new Error(`产品单据模板读取失败，本次没有生成文件。${clean(error?.message) || "请重试。"}`); }
-      if (currentProductTemplateError) throw currentProductTemplateError;
       const photoResult = type === "verification" ? await verificationExportPhotos(currentRecord) : { photos: [], warning: "" };
       setExportControls(false, format === "pdf" ? "正在分页生成 PDF…" : "正在生成高清图片…");
       const result = await window.OrderExporter.exportOrder({
         format,
-        documentData: exportDocumentData(currentRecord),
+        documentData: exportDocumentData(currentRecord, exportTemplate),
         photos: photoResult.photos
       });
       setExportControls(false, `已生成：${result.filename}${photoResult.warning ? `（${photoResult.warning}）` : ""}`);

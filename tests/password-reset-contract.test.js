@@ -35,7 +35,7 @@ for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))
     "project-create.html", "project-detail.html", "project-management.html",
     "recharge-detail.html", "verification-detail.html"
   ]);
-  const expectedVersion = productTemplatePages.has(file) ? "0.17.8" : "0.17.7";
+  const expectedVersion = productTemplatePages.has(file) ? "0.17.9" : "0.17.7";
   assert.ok(html.includes(`cloudbase-phone-auth.js?v=${expectedVersion}`), `${file} must load the guarded phone-auth client`);
 }
 

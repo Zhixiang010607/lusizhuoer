@@ -11,9 +11,14 @@ const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 const OPERATION_ACTIONS = new Set(["listReviewOrders", "reviewOrder", "getProductReceiptTemplate", "getProductReceiptLogoData"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v45";
+const FUNCTION_VERSION = "v46";
 const ORDER_VOID_APPLICATIONS_ENABLED = false;
 const PRODUCT_LOGO_MAX_BYTES = 8 * 1024 * 1024;
+// Base64 expands bytes by roughly one third and synchronous cloud-function
+// events have a much smaller payload ceiling than the signed PUT channel.
+// Keep the normal 8 MB direct-upload contract, but bound the authenticated
+// function fallback so the complete request remains below that ceiling.
+const PRODUCT_LOGO_FUNCTION_MAX_BYTES = 3 * 1024 * 1024;
 const PRODUCT_LOGO_TYPES = new Map([
   ["image/png", "png"],
   ["image/jpeg", "jpg"],
@@ -42,7 +47,9 @@ function getAuth() {
 function manager() {
   if (!managerClient) {
     const CloudBaseManager = require("@cloudbase/manager-node");
-    managerClient = CloudBaseManager.init({ envId: process.env.TCB_ENV });
+    managerClient = CloudBaseManager.init({
+      envId: process.env.CLOUDBASE_ENV_ID || process.env.TCB_ENV
+    });
   }
   return managerClient;
 }
@@ -82,14 +89,52 @@ function signedStorageUrl(value) {
     (item) => typeof item === "string" && /^https:\/\//i.test(item.trim()));
 }
 
+function safeResponseShape(value, depth = 0) {
+  if (depth > 2 || value === null || value === undefined) return typeof value;
+  if (Array.isArray(value)) return value.slice(0, 2).map((item) => safeResponseShape(item, depth + 1));
+  if (typeof value !== "object") return typeof value;
+  return Object.fromEntries(Object.entries(value).slice(0, 24)
+    .map(([key, item]) => [key, safeResponseShape(item, depth + 1)]));
+}
+
+function signedStorageUrlScheme(value) {
+  const candidate = nestedString(value, /^(?:url|signedurl|fullsignedurl|uploadurl)$/i,
+    (item) => typeof item === "string" && item.trim().length > 0);
+  if (!candidate) return "missing";
+  try { return new URL(candidate).protocol.replace(/:$/, "").toLowerCase() || "missing"; }
+  catch (_) { return candidate.startsWith("/") ? "relative" : "invalid"; }
+}
+
+function canonicalProductLogoUploadUrl(storage, objectName, token) {
+  if (!token) return "";
+  const bucket = encodeURIComponent(storage.bucketId);
+  const objectPath = String(objectName).split("/").map((part) => encodeURIComponent(part)).join("/");
+  const target = new URL(`https://${storage.envId}.api.tcloudbasegateway.com/v1/storages/object/upload/sign/${bucket}/${objectPath}`);
+  target.searchParams.set("token", token);
+  return target.toString();
+}
+
 function signedStorageUpload(response, storage, objectName, contentType) {
-  let url = signedStorageUrl(response);
   const token = nestedString(response, /^(?:token|uploadtoken|signaturetoken)$/i,
     (item) => typeof item === "string" && item.trim().length > 0);
-  if (!url) fail("产品 LOGO 上传地址生成失败", "PRODUCT_LOGO_UPLOAD_SIGN_FAILED");
-  if (token) {
+  // manager-node's own uploadObjectBySign implementation rebuilds this same
+  // public gateway URL from env/bucket/object/token. Prefer that canonical
+  // HTTPS target so an internal or relative URL returned by the signing
+  // endpoint is never handed to the browser.
+  let url = canonicalProductLogoUploadUrl(storage, objectName, token) || signedStorageUrl(response);
+  if (!url) {
+    console.error("CloudBase product-logo signed upload response is unusable", {
+      bucketId: storage.bucketId,
+      objectName,
+      responseShape: safeResponseShape(response),
+      urlScheme: signedStorageUrlScheme(response),
+      tokenPresent: Boolean(token)
+    });
+    fail("产品 LOGO 上传地址生成失败", "PRODUCT_LOGO_UPLOAD_SIGN_FAILED");
+  }
+  if (token && !new URL(url).searchParams.get("token")) {
     const target = new URL(url);
-    if (!target.searchParams.get("token")) target.searchParams.set("token", token);
+    target.searchParams.set("token", token);
     url = target.toString();
   }
   return {
@@ -123,6 +168,32 @@ function storageObjectInfo(value, depth = 0) {
     if (found) return found;
   }
   return null;
+}
+
+function storageUploadResponseMismatch(error) {
+  const detail = String(error?.message || "");
+  return detail.includes("上传成功但响应格式异常")
+    && detail.includes("Id")
+    && detail.includes("Key");
+}
+
+function productLogoStorageError(message, code, cause, context = {}) {
+  const causeDetails = cloudErrorDetails(cause);
+  const requestId = requestIdFrom(cause);
+  console.error("CloudBase product-logo storage operation failed", {
+    operation: context.operation,
+    bucketId: context.bucketId,
+    objectName: context.objectName,
+    code: causeDetails.code || undefined,
+    requestId: requestId || undefined,
+    message: causeDetails.message || undefined
+  });
+  const error = new Error(message);
+  error.code = code;
+  error.requestId = requestId || undefined;
+  error.causeCode = causeDetails.code || undefined;
+  error.causeMessage = causeDetails.message || undefined;
+  return error;
 }
 
 async function downloadProductLogo(referenceValue, maximumBytes = PRODUCT_LOGO_MAX_BYTES) {
@@ -172,6 +243,88 @@ function productLogoMagicMatches(buffer, mimeType) {
   return false;
 }
 
+function productLogoDimensions(buffer, mimeType) {
+  let width = 0;
+  let height = 0;
+  if (mimeType === "image/png" && buffer.length >= 24
+      && buffer.toString("ascii", 12, 16) === "IHDR") {
+    width = buffer.readUInt32BE(16);
+    height = buffer.readUInt32BE(20);
+  } else if (mimeType === "image/jpeg") {
+    const startOfFrame = new Set([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf]);
+    let offset = 2;
+    while (offset + 3 < buffer.length) {
+      while (offset < buffer.length && buffer[offset] === 0xff) offset += 1;
+      if (offset >= buffer.length) break;
+      const marker = buffer[offset];
+      offset += 1;
+      if (marker === 0xd9 || marker === 0xda) break;
+      if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+      if (offset + 2 > buffer.length) break;
+      const segmentLength = buffer.readUInt16BE(offset);
+      if (segmentLength < 2 || offset + segmentLength > buffer.length) break;
+      if (startOfFrame.has(marker) && segmentLength >= 7) {
+        height = buffer.readUInt16BE(offset + 3);
+        width = buffer.readUInt16BE(offset + 5);
+        break;
+      }
+      offset += segmentLength;
+    }
+  } else if (mimeType === "image/webp" && buffer.length >= 30) {
+    const kind = buffer.toString("ascii", 12, 16);
+    if (kind === "VP8X") {
+      width = 1 + buffer.readUIntLE(24, 3);
+      height = 1 + buffer.readUIntLE(27, 3);
+    } else if (kind === "VP8L" && buffer[20] === 0x2f) {
+      const packed = buffer.readUInt32LE(21);
+      width = 1 + (packed & 0x3fff);
+      height = 1 + ((packed >>> 14) & 0x3fff);
+    } else if (kind === "VP8 "
+        && buffer[23] === 0x9d && buffer[24] === 0x01 && buffer[25] === 0x2a) {
+      width = buffer.readUInt16LE(26) & 0x3fff;
+      height = buffer.readUInt16LE(28) & 0x3fff;
+    }
+  }
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height)
+      || width < 1 || height < 1 || width > 12000 || height > 12000) {
+    fail("无法从产品 LOGO 原图确认图片尺寸", "PRODUCT_LOGO_DIMENSIONS_INVALID");
+  }
+  return { width, height };
+}
+
+function productLogoFunctionBuffer(event, input) {
+  if (input.bytes > PRODUCT_LOGO_FUNCTION_MAX_BYTES) {
+    fail("产品 LOGO 安全备用上传仅支持不超过 3 MB 的原图，请使用签名直传", "PRODUCT_LOGO_FUNCTION_TOO_LARGE");
+  }
+  const text = String(event.imageBase64 || "").trim();
+  const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]*={0,2})$/i.exec(text);
+  const base64 = match?.[2] || "";
+  const canonicalBase64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+  if (!match || String(match[1]).toLowerCase() !== input.mimeType
+      || !base64 || !canonicalBase64.test(base64)
+      || base64.length > Math.ceil(PRODUCT_LOGO_FUNCTION_MAX_BYTES / 3) * 4 + 4) {
+    fail("产品 LOGO 备用上传内容格式无效", "PRODUCT_LOGO_BASE64_INVALID");
+  }
+  const buffer = Buffer.from(base64, "base64");
+  if (buffer.toString("base64") !== base64) {
+    fail("产品 LOGO 备用上传内容格式无效", "PRODUCT_LOGO_BASE64_INVALID");
+  }
+  if (buffer.length !== input.bytes) {
+    fail("产品 LOGO 大小与上传前不一致", "PRODUCT_LOGO_SIZE_MISMATCH");
+  }
+  if (!buffer.length || buffer.length > PRODUCT_LOGO_FUNCTION_MAX_BYTES) {
+    fail("产品 LOGO 安全备用上传仅支持不超过 3 MB 的原图", "PRODUCT_LOGO_FUNCTION_TOO_LARGE");
+  }
+  if (!productLogoMagicMatches(buffer, input.mimeType)) {
+    fail("上传文件不是有效的产品 LOGO 图片", "PRODUCT_LOGO_FORMAT_INVALID");
+  }
+  const dimensions = productLogoDimensions(buffer, input.mimeType);
+  if (dimensions.width !== input.width || dimensions.height !== input.height) {
+    fail("产品 LOGO 尺寸与上传前不一致", "PRODUCT_LOGO_DIMENSIONS_MISMATCH");
+  }
+  return buffer;
+}
+
 async function inspectProductLogo(referenceValue, expected) {
   const reference = parseProductLogoReference(referenceValue);
   const storage = productTemplateStorageSettings();
@@ -201,6 +354,10 @@ async function inspectProductLogo(referenceValue, expected) {
   const buffer = await downloadProductLogo(reference.reference);
   if (buffer.length !== bytes || !productLogoMagicMatches(buffer, expected.mimeType)) {
     fail("上传文件不是有效的产品 LOGO 图片", "PRODUCT_LOGO_FORMAT_INVALID");
+  }
+  const dimensions = productLogoDimensions(buffer, expected.mimeType);
+  if (dimensions.width !== expected.width || dimensions.height !== expected.height) {
+    fail("产品 LOGO 尺寸与上传前不一致", "PRODUCT_LOGO_DIMENSIONS_MISMATCH");
   }
   return { bytes, sha256: crypto.createHash("sha256").update(buffer).digest("hex") };
 }
@@ -1368,9 +1525,19 @@ async function productTemplatePayload(row) {
   let logoUrl = "";
   let logoExpiresIn = 0;
   if (row.receipt_logo_file_id) {
-    const signed = await signProductLogo(row.receipt_logo_file_id, 900);
-    logoUrl = signed.url;
-    logoExpiresIn = signed.expiresIn;
+    try {
+      const signed = await signProductLogo(row.receipt_logo_file_id, 900);
+      logoUrl = signed.url;
+      logoExpiresIn = signed.expiresIn;
+    } catch (error) {
+      // Keep the persisted template readable when only the temporary public
+      // URL signer is unavailable. Authenticated clients will use the guarded
+      // getProductReceiptLogoData action and still verify the original bytes.
+      console.warn("CloudBase product-logo signed read unavailable; using authenticated fallback", {
+        code: error?.code,
+        requestId: error?.requestId || requestIdFrom(error) || undefined
+      });
+    }
   }
   return {
     id: String(row.id),
@@ -1424,6 +1591,7 @@ async function beginProductLogoUpload(event) {
   const token = crypto.randomBytes(18).toString("base64url");
   const objectName = `products/${Number(product.id)}/receipt-logo/${Date.now()}-${token}.${PRODUCT_LOGO_TYPES.get(input.mimeType)}`;
   let response;
+  let upload;
   try {
     response = await manager().storage.signUploadObject({
       bucketId: storage.bucketId,
@@ -1432,27 +1600,25 @@ async function beginProductLogoUpload(event) {
       accessToken: storage.accessToken,
       envId: storage.envId
     });
+    upload = signedStorageUpload(response, storage, objectName, input.mimeType);
   } catch (error) {
-    fail(`产品 LOGO 上传地址生成失败：${error?.message || "请检查私有存储桶"}`, "PRODUCT_LOGO_UPLOAD_SIGN_FAILED");
+    if (error?.code === "PRODUCT_LOGO_UPLOAD_SIGN_FAILED") throw error;
+    throw productLogoStorageError(
+      `产品 LOGO 上传地址生成失败：${error?.message || "请检查私有存储桶"}`,
+      "PRODUCT_LOGO_UPLOAD_SIGN_FAILED",
+      error,
+      { operation: "signUploadObject", bucketId: storage.bucketId, objectName }
+    );
   }
   return {
     productId: String(product.id),
     reference: `pg://${storage.bucketId}/${objectName}`,
-    upload: signedStorageUpload(response, storage, objectName, input.mimeType),
+    upload,
     expected: input
   };
 }
 
-async function confirmProductLogoUpload(caller, event) {
-  const product = await productTemplateRow(event.productRef);
-  const input = productLogoUploadInput(event);
-  const reference = parseProductLogoReference(event.reference);
-  const storage = productTemplateStorageSettings();
-  const requiredPrefix = `products/${Number(product.id)}/receipt-logo/`;
-  if (reference.bucketId !== storage.bucketId || !reference.objectName.startsWith(requiredPrefix)) {
-    fail("产品 LOGO 上传路径与当前产品不一致", "PRODUCT_LOGO_REFERENCE_INVALID");
-  }
-  await inspectProductLogo(reference.reference, input);
+async function persistProductLogo(caller, product, input, reference) {
   const previousReference = String(product.receipt_logo_file_id || "");
   try {
     await executeSql(
@@ -1477,7 +1643,94 @@ async function confirmProductLogoUpload(caller, event) {
     fail("产品 LOGO 保存后未能从数据库确认", "DATABASE_ERROR");
   }
   if (previousReference && previousReference !== reference.reference) void deleteProductLogo(previousReference);
-  return getProductReceiptTemplate({ productRef: String(product.id) });
+  return productTemplatePayload(persisted);
+}
+
+async function deleteUnboundProductLogo(product, referenceValue) {
+  const reference = String(referenceValue || "").trim();
+  if (!reference || reference === String(product?.receipt_logo_file_id || "").trim()) return false;
+  return deleteProductLogo(reference);
+}
+
+async function confirmProductLogoUpload(caller, event) {
+  const product = await productTemplateRow(event.productRef);
+  const input = productLogoUploadInput(event);
+  const reference = parseProductLogoReference(event.reference);
+  const storage = productTemplateStorageSettings();
+  const requiredPrefix = `products/${Number(product.id)}/receipt-logo/`;
+  if (reference.bucketId !== storage.bucketId || !reference.objectName.startsWith(requiredPrefix)) {
+    fail("产品 LOGO 上传路径与当前产品不一致", "PRODUCT_LOGO_REFERENCE_INVALID");
+  }
+  try {
+    await inspectProductLogo(reference.reference, input);
+  } catch (error) {
+    await deleteUnboundProductLogo(product, reference.reference);
+    throw error;
+  }
+  return persistProductLogo(caller, product, input, reference);
+}
+
+async function uploadProductLogoByFunction(caller, event) {
+  const product = await productTemplateRow(event.productRef);
+  const input = productLogoUploadInput(event);
+  const buffer = productLogoFunctionBuffer(event, input);
+  const storage = productTemplateStorageSettings();
+  const token = crypto.randomBytes(18).toString("base64url");
+  const objectName = `products/${Number(product.id)}/receipt-logo/${Date.now()}-${token}.${PRODUCT_LOGO_TYPES.get(input.mimeType)}`;
+  const referenceValue = `pg://${storage.bucketId}/${objectName}`;
+  try {
+    await manager().storage.uploadObject({
+      bucketId: storage.bucketId,
+      objectName,
+      body: buffer,
+      contentType: input.mimeType,
+      contentLength: buffer.length,
+      cacheControl: "private, max-age=31536000, immutable",
+      upsert: false,
+      accessToken: storage.accessToken,
+      envId: storage.envId
+    });
+  } catch (error) {
+    // manager-node 5.6.4 can throw after the storage gateway has already
+    // committed the exact body when the successful response omits Id/Key.
+    // The immutable object path and bytes were both chosen and validated by
+    // this function, so that one known post-commit response mismatch is safe.
+    if (storageUploadResponseMismatch(error)) {
+      console.warn("CloudBase product-logo fallback upload succeeded without Id/Key response metadata", {
+        bucketId: storage.bucketId,
+        objectName
+      });
+    } else {
+      await deleteUnboundProductLogo(product, referenceValue);
+      throw productLogoStorageError(
+        `产品 LOGO 安全备用上传失败：${error?.message || "请检查私有存储桶"}`,
+        "PRODUCT_LOGO_FUNCTION_UPLOAD_FAILED",
+        error,
+        { operation: "uploadObject", bucketId: storage.bucketId, objectName }
+      );
+    }
+  }
+  const reference = parseProductLogoReference(referenceValue);
+  try {
+    await inspectProductLogo(reference.reference, input);
+  } catch (error) {
+    await deleteUnboundProductLogo(product, reference.reference);
+    throw error;
+  }
+  return persistProductLogo(caller, product, input, reference);
+}
+
+async function discardProductLogoUpload(caller, event) {
+  const product = await productTemplateRow(event.productRef);
+  const reference = parseProductLogoReference(event.reference);
+  const storage = productTemplateStorageSettings();
+  const requiredPrefix = `products/${Number(product.id)}/receipt-logo/`;
+  if (reference.bucketId !== storage.bucketId || !reference.objectName.startsWith(requiredPrefix)) {
+    fail("产品 LOGO 上传路径与当前产品不一致", "PRODUCT_LOGO_REFERENCE_INVALID");
+  }
+  const currentlyBound = reference.reference === String(product.receipt_logo_file_id || "");
+  const discarded = currentlyBound ? false : await deleteProductLogo(reference.reference);
+  return { discarded, currentlyBound };
 }
 
 async function saveProductReceiptTemplate(caller, event) {
@@ -1525,7 +1778,10 @@ async function removeProductReceiptLogo(caller, event) {
 async function getProductReceiptLogoData(event) {
   const row = await productTemplateRow(event.productRef);
   if (!row.receipt_logo_file_id) fail("该产品尚未上传 LOGO", "PRODUCT_LOGO_MISSING");
-  const buffer = await downloadProductLogo(row.receipt_logo_file_id);
+  if (Number(row.receipt_logo_bytes || 0) > PRODUCT_LOGO_FUNCTION_MAX_BYTES) {
+    fail("该 LOGO 超过 3 MB，请检查私有存储临时访问地址配置", "PRODUCT_LOGO_FUNCTION_TOO_LARGE");
+  }
+  const buffer = await downloadProductLogo(row.receipt_logo_file_id, PRODUCT_LOGO_FUNCTION_MAX_BYTES);
   return {
     mimeType: String(row.receipt_logo_mime_type || "application/octet-stream"),
     bytes: buffer.length,
@@ -2120,9 +2376,21 @@ async function main(event = {}) {
     requireHq(caller);
     return { ok: true, ...(await beginProductLogoUpload(event)) };
   }
+  if (action === "uploadProductLogoByFunction") {
+    requireHq(caller);
+    return {
+      ok: true,
+      uploadMode: "FUNCTION",
+      template: await uploadProductLogoByFunction(caller, event)
+    };
+  }
   if (action === "confirmProductLogoUpload") {
     requireHq(caller);
     return { ok: true, template: await confirmProductLogoUpload(caller, event) };
+  }
+  if (action === "discardProductLogoUpload") {
+    requireHq(caller);
+    return { ok: true, ...(await discardProductLogoUpload(caller, event)) };
   }
   if (action === "saveProductReceiptTemplate") {
     requireHq(caller);

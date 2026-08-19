@@ -75,7 +75,7 @@ assert.ok(twoPagePdf.includes("xref\n0 9"), "multi-page PDF xref count");
 for (const html of [rechargeHtml, verificationHtml]) {
   includes(html, 'id="exportOrderPdf"', "PDF export button");
   includes(html, 'id="exportOrderImage"', "image export button");
-  assert.ok(html.indexOf("order-export.js?v=0.1.5") < html.indexOf("business-detail.js?v=0.16.14"), "exporter must load before detail controller");
+  assert.ok(html.indexOf("order-export.js?v=0.1.5") < html.indexOf("business-detail.js?v=0.16.15"), "exporter must load before detail controller");
 }
 
 includes(verificationHtml, 'class="verification-order-keyfacts verification-order-five-keyfacts"', "verification detail uses a five-fact header");
@@ -115,6 +115,7 @@ const exportDataSource = detailSource.slice(detailSource.indexOf("function expor
 assert.ok(!/verification(Store|Hq)Message|recharge(Store|Hq)Message/.test(exportDataSource), "customer PDFs never read any internal message");
 const exportCurrentOrderSource = detailSource.slice(detailSource.indexOf("async function exportCurrentOrder"), detailSource.indexOf("function isVoidableOriginalType"));
 includes(exportCurrentOrderSource, 'type === "verification" ? await verificationExportPhotos(currentRecord) : { photos: [], warning: "" }', "verification exports keep photos while recharge and refund exports use an empty photo list");
+includes(exportCurrentOrderSource, "productTemplateLoadPromise = loadProductReceiptTemplate(currentRecord)", "every export reloads the latest template for its own product");
 includes(exportCurrentOrderSource, "photos: photoResult.photos", "verification photos are passed to the exporter");
 includes(exporterSource, 'documentData.customerFacing ? "露思卓儿客户业务凭证"', "customer PDF footer omits private-photo wording");
 assert.ok(!/html2canvas|jspdf|unpkg|cdnjs/i.test(exporterSource), "export must not load a third-party DOM service");

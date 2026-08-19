@@ -293,12 +293,25 @@
         "产品 LOGO 上传准备失败"
       );
     },
+    async uploadProductLogoByFunction({ productRef, originalName, mimeType, bytes, width, height, imageBase64 }) {
+      const data = await callStaffAccount(
+        { action: "uploadProductLogoByFunction", productRef, originalName, mimeType, bytes, width, height, imageBase64 },
+        "产品 LOGO 安全备用上传失败"
+      );
+      return data.template || null;
+    },
     async confirmProductLogoUpload({ productRef, reference, originalName, mimeType, bytes, width, height }) {
       const data = await callStaffAccount(
         { action: "confirmProductLogoUpload", productRef, reference, originalName, mimeType, bytes, width, height },
         "产品 LOGO 保存确认失败"
       );
       return data.template || null;
+    },
+    async discardProductLogoUpload({ productRef, reference }) {
+      return callStaffAccount(
+        { action: "discardProductLogoUpload", productRef, reference },
+        "产品 LOGO 未绑定文件清理失败"
+      );
     },
     async saveProductReceiptTemplate({ productRef, verificationInstructions, rechargeInstructions }) {
       const data = await callStaffAccount(
