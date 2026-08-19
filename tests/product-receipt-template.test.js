@@ -56,6 +56,12 @@ assert.ok(detailUi.includes("xhr.send(file)"), "the exact browser File is upload
 assert.ok(detailUi.includes("logoBlob.size !== Number(template.logo?.bytes || 0)"), "saved original is read back and byte checked");
 assert.ok(detailUi.includes("createOrderPdfBlob"), "PDF previews use the production renderer");
 assert.ok(detailUi.includes("createOrderImageBlob"), "image downloads use the production renderer");
+assert.ok(detailUi.includes("getProductReceiptTemplate({ productRef: projectRef })"), "template loading sends the URL product reference");
+assert.ok(!detailUi.includes("getProductReceiptTemplate({ productRef });"), "template loading cannot reference an undeclared productRef variable");
+assert.ok(detailUi.includes("function currentProductRef()"), "template mutations guard against a missing product object");
+assert.ok(detailUi.includes("function setTemplateControlsReady(ready)"), "template editing remains locked until the product loads");
+assert.ok(detailUi.includes('setTemplateControlsReady(false);'), "load failure keeps all mutation controls locked");
+assert.ok(detailHtml.includes('project-detail.js?v=0.2.2'), "template page busts the broken script cache");
 
 assert.ok(exporter.includes("drawDocumentHeader(context, documentData, productLogo"), "receipts place the square product logo in the header");
 assert.ok(!exporter.includes("drawProductBranding"), "receipts remove the duplicated large logo section");

@@ -26,30 +26,30 @@
             <strong>共用产品 LOGO</strong>
             <p id="productLogoMeta">尚未上传</p>
             <input id="productLogoFile" type="file" accept="image/png,image/jpeg,image/webp" hidden>
-            <div class="compact-actions"><button id="chooseProductLogo" type="button">选择原图</button><button id="uploadProductLogo" type="button" disabled>上传并保存</button><button id="removeProductLogo" class="secondary" type="button" disabled>移除</button></div>
+            <div class="compact-actions"><button id="chooseProductLogo" type="button" disabled>选择原图</button><button id="uploadProductLogo" type="button" disabled>上传并保存</button><button id="removeProductLogo" class="secondary" type="button" disabled>移除</button></div>
             <progress id="productLogoProgress" max="100" value="0" hidden></progress>
           </div>
         </section>
 
-        <label class="product-template-text">核销单说明 <small>正常核销与体验核销共用</small><textarea id="verificationReceiptInstructions" maxlength="3000" placeholder="填写核销单底部文字说明"></textarea><span><output id="verificationInstructionCount">0</output>/3000</span></label>
-        <label class="product-template-text">充值单说明 <small>充值与退费共用</small><textarea id="rechargeReceiptInstructions" maxlength="3000" placeholder="填写充值单、退费单底部文字说明"></textarea><span><output id="rechargeInstructionCount">0</output>/3000</span></label>
+        <label class="product-template-text">核销单说明 <small>正常核销与体验核销共用</small><textarea id="verificationReceiptInstructions" maxlength="3000" placeholder="填写核销单底部文字说明" disabled></textarea><span><output id="verificationInstructionCount">0</output>/3000</span></label>
+        <label class="product-template-text">充值单说明 <small>充值与退费共用</small><textarea id="rechargeReceiptInstructions" maxlength="3000" placeholder="填写充值单、退费单底部文字说明" disabled></textarea><span><output id="rechargeInstructionCount">0</output>/3000</span></label>
         <div class="product-template-save-row"><p id="productTemplateMessage" role="status"></p><button id="saveProductTemplate" type="button" disabled>保存文字说明</button></div>
       </section>
 
       <section class="panel product-template-previews">
         <div class="panel-heading"><div><h2>四种成品预览</h2><p>核销/体验共用一套，充值/退费共用一套；PDF 与图片分别预览。</p></div></div>
         <div class="product-preview-tabs" role="tablist" aria-label="单据成品格式">
-          <button class="active" type="button" role="tab" data-preview-kind="verification-pdf">核销 PDF</button>
-          <button type="button" role="tab" data-preview-kind="verification-image">核销图片</button>
-          <button type="button" role="tab" data-preview-kind="recharge-pdf">充值 PDF</button>
-          <button type="button" role="tab" data-preview-kind="recharge-image">充值图片</button>
+          <button class="active" type="button" role="tab" data-preview-kind="verification-pdf" disabled>核销 PDF</button>
+          <button type="button" role="tab" data-preview-kind="verification-image" disabled>核销图片</button>
+          <button type="button" role="tab" data-preview-kind="recharge-pdf" disabled>充值 PDF</button>
+          <button type="button" role="tab" data-preview-kind="recharge-image" disabled>充值图片</button>
         </div>
-        <div class="product-preview-toolbar"><div><strong id="productPreviewTitle">核销 PDF</strong><span id="productPreviewHint">正在生成预览…</span></div><div class="compact-actions"><button id="refreshProductPreview" class="secondary" type="button">刷新预览</button><button id="downloadProductPreview" type="button" disabled>下载样例</button></div></div>
+        <div class="product-preview-toolbar"><div><strong id="productPreviewTitle">核销 PDF</strong><span id="productPreviewHint">正在生成预览…</span></div><div class="compact-actions"><button id="refreshProductPreview" class="secondary" type="button" disabled>刷新预览</button><button id="downloadProductPreview" type="button" disabled>下载样例</button></div></div>
         <div id="productPreviewFrame" class="product-preview-frame" aria-live="polite"></div>
       </section>
     </div>
   </main>
 
-  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.17.8"></script><script src="datetime.js?v=0.1.2"></script><script src="order-export.js?v=0.1.5"></script><script src="project-detail.js?v=0.2.1"></script><script src="auth-ui.js?v=0.18.10"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.17.8"></script><script src="datetime.js?v=0.1.2"></script><script src="order-export.js?v=0.1.5"></script><script src="project-detail.js?v=0.2.2"></script><script src="auth-ui.js?v=0.18.10"></script>
 </body>
 </html>

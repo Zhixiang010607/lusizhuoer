@@ -25,6 +25,22 @@
     target.dataset.tone = tone;
   }
 
+  function currentProductRef() {
+    const value = template?.id || template?.productCode;
+    if (!value) throw new Error("产品模板尚未读取完成，请刷新页面重试");
+    return value;
+  }
+
+  function setTemplateControlsReady(ready) {
+    $("chooseProductLogo").disabled = !ready;
+    $("verificationReceiptInstructions").disabled = !ready;
+    $("rechargeReceiptInstructions").disabled = !ready;
+    $("saveProductTemplate").disabled = !ready || localPreviewMode;
+    $("toggleProductStatus").disabled = !ready || localPreviewMode;
+    $("refreshProductPreview").disabled = !ready;
+    document.querySelectorAll("[data-preview-kind]").forEach((button) => { button.disabled = !ready; });
+  }
+
   function formatBytes(value) {
     const bytes = Number(value || 0);
     if (!bytes) return "0 B";
@@ -93,11 +109,10 @@
     const ready = Boolean(template.logo && template.verificationInstructions && template.rechargeInstructions);
     $("productTemplateState").textContent = ready ? "模板已配置" : "模板待配置";
     $("productTemplateState").classList.toggle("is-ready", ready);
-    $("toggleProductStatus").disabled = localPreviewMode;
     $("toggleProductStatus").textContent = template.productStatus === "ARCHIVED" ? "激活产品" : "封存产品";
     $("verificationReceiptInstructions").value = template.verificationInstructions || "";
     $("rechargeReceiptInstructions").value = template.rechargeInstructions || "";
-    $("saveProductTemplate").disabled = localPreviewMode;
+    setTemplateControlsReady(true);
     updateCounts();
     renderLogo();
   }
@@ -248,7 +263,7 @@
     $("productLogoProgress").value = 0;
     setMessage("正在取得私有存储上传地址…");
     try {
-      const input = { productRef: template.id, ...selectedLogoMeta };
+      const input = { productRef: currentProductRef(), ...selectedLogoMeta };
       const pending = await window.CloudBasePhoneAuth.beginProductLogoUpload(input);
       setMessage("正在上传 LOGO 原图，请勿关闭页面…");
       await uploadToSignedUrl(pending.upload, selectedLogo);
@@ -279,7 +294,7 @@
     setMessage("正在保存两组文字说明…");
     try {
       template = await window.CloudBasePhoneAuth.saveProductReceiptTemplate({
-        productRef: template.id,
+        productRef: currentProductRef(),
         verificationInstructions: $("verificationReceiptInstructions").value.trim(),
         rechargeInstructions: $("rechargeReceiptInstructions").value.trim()
       });
@@ -302,7 +317,7 @@
     $("removeProductLogo").disabled = true;
     setMessage("正在移除产品 LOGO…");
     try {
-      template = await window.CloudBasePhoneAuth.removeProductReceiptLogo({ productRef: template.id });
+      template = await window.CloudBasePhoneAuth.removeProductReceiptLogo({ productRef: currentProductRef() });
       logoBlob = null;
       selectedLogo = null;
       selectedLogoMeta = null;
@@ -319,10 +334,14 @@
       setMessage("本地预览模式不会上传或修改腾讯云数据。", "success");
       return;
     }
+    if (!template) {
+      setMessage("产品模板尚未读取完成，请刷新页面重试", "error");
+      return;
+    }
     const next = template.productStatus === "ARCHIVED" ? "ACTIVE" : "ARCHIVED";
     $("toggleProductStatus").disabled = true;
     try {
-      await window.CloudBasePhoneAuth.setProductStatus({ productRef: template.id, status: next });
+      await window.CloudBasePhoneAuth.setProductStatus({ productRef: currentProductRef(), status: next });
       template.productStatus = next;
       renderTemplate();
       setMessage(next === "ARCHIVED" ? "产品已封存，历史单据和模板继续保留。" : "产品已激活。", "success");
@@ -350,7 +369,7 @@
       return;
     }
     if (!window.CloudBasePhoneAuth?.getProductReceiptTemplate) throw new Error("产品模板服务尚未加载");
-    template = await window.CloudBasePhoneAuth.getProductReceiptTemplate({ productRef });
+    template = await window.CloudBasePhoneAuth.getProductReceiptTemplate({ productRef: projectRef });
     if (!template) throw new Error("未找到该产品");
     logoBlob = await fetchLogoBlob(template);
     renderTemplate();
@@ -375,8 +394,12 @@
   window.addEventListener("beforeunload", clearPreviewUrl);
 
   loadTemplate().catch((error) => {
+    setTemplateControlsReady(false);
     $("productTemplateName").textContent = "模板读取失败";
     $("productTemplateMeta").textContent = error?.message || "请刷新页面重试";
+    $("productTemplateState").textContent = "读取失败";
+    $("productPreviewHint").textContent = "产品模板读取失败";
+    $("productPreviewFrame").innerHTML = '<div class="product-preview-loading is-error">请刷新页面重试</div>';
     setMessage(error?.message || "模板读取失败", "error");
   });
 })();

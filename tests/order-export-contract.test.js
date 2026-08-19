@@ -167,6 +167,19 @@ const compactTexts = headerTexts.slice(compactTextStart);
 assert.ok(!compactTexts.includes("核销次数"), "compact verification PDF does not repeat the fixed one-unit count");
 assert.ok(!compactTexts.includes("不应重复"), "compact verification PDF does not repeat the order number");
 
+const multilineInstructionStart = headerTexts.length;
+exporter.__layoutDocument(headerContext, {
+  kind: "充值",
+  title: "充值单 RC202608200001",
+  subtitle: "门店详细地址：测试地址",
+  facts: [], details: [], messages: [],
+  productTemplate: { instructions: "5、疗程后保持清洁。\n7、疗程后坚持护理。\n7、三个月内注意饮食。" }
+}, [], { draw: true, paginate: false });
+const multilineInstructionTexts = headerTexts.slice(multilineInstructionStart);
+for (const line of ["5、疗程后保持清洁。", "7、疗程后坚持护理。", "7、三个月内注意饮食。"]) {
+  assert.ok(multilineInstructionTexts.includes(line), `product instructions preserve manual line break: ${line}`);
+}
+
 (async () => {
   const fivePhotos = Array.from({ length: 5 }, (_, slot) => ({
     slot,
