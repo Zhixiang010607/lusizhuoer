@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>充值查询</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.44">
+  <link rel="stylesheet" href="styles.css?v=0.15.47">
 </head>
 <body data-query="recharge">
   <aside class="side-project-bar" aria-label="项目栏">
@@ -54,15 +54,15 @@
     <section class="panel customer-permission-banner"><strong id="recordPermissionTitle">门店范围</strong><span id="recordPermissionText">只读取当前登录门店的数据库充值单；封存客户的历史记录仍会保留。</span></section>
     <section class="panel table-card query-results store-record-results">
       <div class="panel-heading"><div><h2>充值结果</h2></div><div class="record-query-pager"><button id="recordPreviousPage" type="button">上一页</button><span id="recordPageLabel">第 1 页</span><button id="recordNextPage" type="button">下一页</button></div></div>
-      <div class="table-scroll"><table class="record-query-results-table recharge-record-results-table"><colgroup><col class="record-col-order"><col class="record-col-customer-code"><col class="record-col-customer-name"><col class="record-col-birthday"><col class="record-col-store"><col class="record-col-product"><col class="record-col-type"><col class="record-col-units"><col class="record-col-time"><col class="record-col-status"></colgroup><thead><tr><th>工单号</th><th>客户编号</th><th>客户姓名</th><th>生日</th><th>门店</th><th>项目</th><th>申请类型</th><th>次数</th><th>提交时间</th><th>审核状态</th></tr></thead><tbody id="recordQueryBody"></tbody></table></div>
+      <div class="table-scroll"><table class="record-query-results-table recharge-record-results-table"><thead><tr><th>工单号</th><th>客户编号</th><th>客户姓名</th><th>生日</th><th>门店</th><th>项目</th><th>申请类型</th><th>次数</th><th>提交时间</th><th>审核状态</th></tr></thead><tbody id="recordQueryBody"></tbody></table></div>
     </section>
   </main>
 
   <main id="legacyRecordQueryMain">
     <section class="panel query-filter-panel"><div class="record-query-grid"><label>门店<select id="queryStore"></select></label><div class="record-customer-filter"><span class="field-label">客户查找方式</span><div class="lookup-mode-switch query-lookup-switch"><button class="active" type="button" data-query-mode="select">选择现有客户</button><button type="button" data-query-mode="manual">手动输入姓名＋生日</button></div></div><label id="querySelectCustomerField">现有客户<select id="queryCustomerSelect"></select></label><label id="querySelectBirthdayField">生日<input id="querySelectBirthday" readonly placeholder="选择客户后显示"></label><label id="queryManualCustomerField" hidden>客户姓名<input id="queryCustomerManual" placeholder="输入姓名；同名客户全部显示"></label><label id="queryManualBirthdayField" hidden>生日<input id="queryCustomerBirthday" type="date"></label><label>项目名称<select id="queryProject"></select></label><label>时间范围<select id="queryTimeRange"><option value="sevenDays">近 7 天</option><option value="month">近 1 个月</option><option value="quarter">本季度</option><option value="year">本年度</option><option value="custom" selected>自定义：过去一年</option></select></label><label>开始日期<input id="queryDateStart" type="date"></label><label>结束日期<input id="queryDateEnd" type="date"></label></div><div id="queryCustomerMatches" class="query-customer-matches">选择具体客户可按客户编号精确查询。</div><div class="query-filter-actions"><span id="querySummary">0条记录</span><button id="resetQuery">重置条件</button></div></section>
-    <section class="panel table-card query-results"><div class="panel-heading"><div><h2>充值记录</h2></div><span class="badge">充值</span></div><div class="table-scroll"><table><thead><tr><th>充值编号（可查看）</th><th>客户编号</th><th>客户姓名</th><th>生日</th><th>门店</th><th>项目</th><th>充值次数</th><th>提交时间</th><th>状态</th><th>审核进度</th></tr></thead><tbody id="queryBody"></tbody></table></div></section>
+    <section class="panel table-card query-results"><div class="panel-heading"><div><h2>充值记录</h2></div><span class="badge">充值</span></div><div class="table-scroll"><table class="record-query-results-table legacy-record-results-table"><thead><tr><th>充值编号（可查看）</th><th>客户编号</th><th>客户姓名</th><th>生日</th><th>门店</th><th>项目</th><th>充值次数</th><th>提交时间</th><th>审核进度</th></tr></thead><tbody id="queryBody"></tbody></table></div></section>
   </main>
 
-  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.17.7"></script><script src="datetime.js?v=0.1.2"></script><script src="query.js?v=0.15.8"></script><script src="auth-ui.js?v=0.18.8"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.17.7"></script><script src="datetime.js?v=0.1.2"></script><script src="query.js?v=0.15.9"></script><script src="auth-ui.js?v=0.18.8"></script>
 </body>
 </html>

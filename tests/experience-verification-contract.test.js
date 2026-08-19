@@ -33,6 +33,8 @@ assert.ok(!query.includes('<option value="SUPPLEMENT">'), "query UI must remove 
 assert.ok(query.includes('<option value="EXPERIENCE">体验核销</option>'), "query UI must retain experience filter");
 assert.ok(!query.includes('id="recordStatusCategory"'), "verification query must not expose a redundant order-status filter");
 assert.ok(query.includes('id="recordCategoryGrid"') && query.includes('aria-label="核销原单状态统计" hidden'), "verification status summary cards must stay hidden");
+assert.ok(!/<th>人脸核验<\/th>|<th>审核状态<\/th>|<th>照片<\/th>|<th>审核进度<\/th>/.test(query), "verification results must omit redundant face and review columns in every login shell");
+assert.ok(!queryUi.includes("const face = record.hasFaceRequest"), "verification result rendering must not generate the removed face column");
 assert.ok(queryUi.includes('const statusCategoryValue = () => $("recordStatusCategory")?.value || "ALL"'), "shared query code must tolerate the intentionally absent verification status filter");
 
 assert.ok(cloud.includes('if (!["NORMAL", "EXPERIENCE"].includes(verificationType))'), "API must reject new supplemental submissions");

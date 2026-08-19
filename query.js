@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.8";
+  const VERSION = "0.15.9";
   const type = document.body.dataset.query;
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
@@ -34,7 +34,7 @@
 
     const recordType = type === "verification" ? "VERIFICATION" : "RECHARGE";
     const noun = recordType === "RECHARGE" ? "充值" : "核销";
-    const columnCount = recordType === "RECHARGE" ? 10 : 11;
+    const columnCount = recordType === "RECHARGE" ? 10 : 9;
     let mode = "browse";
     let rows = [];
     let summary = { total: 0, pending: 0, approved: 0, rejected: 0 };
@@ -230,10 +230,7 @@
           return `${commonStart}<td>${rechargeTypeTag(record.originalType)}</td><td>${signedUnits}</td><td>${escapeHtml(formatDateTime(record.submittedAt))}</td><td>${statusTag(record.recordStatus)}</td></tr>`;
         }
         const teacher = [record.teacherName, record.teacherCode].filter(Boolean).join(" · ") || "未记录";
-        const face = record.hasFaceRequest
-          ? '<span class="photo-required-status">已核验</span>'
-          : '<span class="record-status">未记录</span>';
-        return `${commonStart}<td>${escapeHtml(teacher)}</td><td>${verificationTypeTag(record.originalType)}</td><td>${escapeHtml(formatDateTime(record.submittedAt))}</td><td>${face}</td><td>${statusTag(record.recordStatus)}</td></tr>`;
+        return `${commonStart}<td>${escapeHtml(teacher)}</td><td>${verificationTypeTag(record.originalType)}</td><td>${escapeHtml(formatDateTime(record.submittedAt))}</td></tr>`;
       }).join("") || `<tr><td colspan="${columnCount}" class="query-empty">没有符合条件的${noun}记录</td></tr>`;
 
       const selectedCount = selectedRecordTotal();
@@ -467,8 +464,8 @@
         const teacherLink = canOpenAggregates ? `<a class="record-link" href="teacher-detail.html?teacherId=${encodeURIComponent(record.teacher.id)}">${record.teacher.name}（${record.teacher.id}）</a>` : `${record.teacher.name}（${record.teacher.id}）`;
         const storeLink = canOpenAggregates ? `<a class="record-link" href="store-detail.html?storeId=${encodeURIComponent(record.store.id)}">${record.store.name}</a>` : record.store.name;
         const projectLink = canOpenAggregates ? `<a class="record-link" href="project-detail.html?projectId=${encodeURIComponent(record.project.id)}">${record.project.name}</a>` : record.project.name;
-        return type === "recharge" ? `<tr><td>${recordLink}</td><td>${customerLink}</td><td>${record.customer.displayName}</td><td>${formatBirthday(record.customer.birthday)}</td><td>${storeLink}</td><td>${projectLink}</td><td>+${record.amount}</td><td>${date}</td><td>${statusTag(record.status)}</td><td>${statusTag(record.reviewProgress)}</td></tr>` : `<tr><td>${recordLink}</td><td>${customerLink}</td><td>${record.customer.displayName}</td><td>${formatBirthday(record.customer.birthday)}</td><td>${storeLink}</td><td>${projectLink}</td><td>${teacherLink}</td><td>${date}</td><td><span class="photo-required-status">已拍摄</span></td><td>${statusTag(record.status)}</td><td>${statusTag(record.reviewProgress)}</td></tr>`;
-      }).join("") || `<tr><td colspan="${type === "recharge" ? 10 : 11}" class="query-empty">当前组合条件下没有记录</td></tr>`;
+        return type === "recharge" ? `<tr><td>${recordLink}</td><td>${customerLink}</td><td>${record.customer.displayName}</td><td>${formatBirthday(record.customer.birthday)}</td><td>${storeLink}</td><td>${projectLink}</td><td>+${record.amount}</td><td>${date}</td><td>${statusTag(record.reviewProgress)}</td></tr>` : `<tr><td>${recordLink}</td><td>${customerLink}</td><td>${record.customer.displayName}</td><td>${formatBirthday(record.customer.birthday)}</td><td>${storeLink}</td><td>${projectLink}</td><td>${teacherLink}</td><td>${date}</td><td>${statusTag(record.status)}</td></tr>`;
+      }).join("") || '<tr><td colspan="9" class="query-empty">当前组合条件下没有记录</td></tr>';
     }
     function setLookupMode(next) {
       lookupMode = next;

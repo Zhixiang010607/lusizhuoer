@@ -226,15 +226,7 @@ body[data-query] .query-results, body[data-customer-query] main > .table-card { 
 body[data-query] .query-results .table-scroll, body[data-customer-query] main > .table-card .table-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
 body[data-query] .query-results table, body[data-customer-query] main > .table-card table { font-size: 11px; }
 body[data-query] .query-results th, body[data-query] .query-results td, body[data-customer-query] main > .table-card th, body[data-customer-query] main > .table-card td { padding: 5px 7px; white-space: nowrap; }
-body[data-customer-query] .customer-results-table { width: 100%; min-width: 1120px; table-layout: fixed; }
-body[data-customer-query] .customer-results-table .customer-col-code { width: 17%; }
-body[data-customer-query] .customer-results-table .customer-col-name { width: 9%; }
-body[data-customer-query] .customer-results-table .customer-col-birthday { width: 10%; }
-body[data-customer-query] .customer-results-table .customer-col-store { width: 21%; }
-body[data-customer-query] .customer-results-table .customer-col-stage { width: 15%; }
-body[data-customer-query] .customer-results-table .customer-col-count { width: 8%; }
-body[data-customer-query] .customer-results-table .customer-col-status { width: 7%; }
-body[data-customer-query] .customer-results-table .customer-col-action { width: 5%; }
+body[data-customer-query] .customer-results-table { width: max-content; min-width: 100%; table-layout: auto; }
 body[data-query] .query-results button, body[data-customer-query] main > .table-card button { padding: 5px 8px; font-size: 10px; }
 body[data-query] .query-results .panel-heading, body[data-customer-query] main > .table-card .panel-heading { margin-bottom: 4px; }
 body[data-query] .query-results h2, body[data-customer-query] main > .table-card h2 { font-size: 14px; }
@@ -298,25 +290,7 @@ body.store-record-query .customer-query-method .customer-query-time-row { grid-t
 body.store-record-query #resetRecordQuery { color: #35516f; background: #edf2f7; }
 body.store-record-query .customer-permission-banner { margin-top: 0; }
 body.store-record-query .store-record-results { margin-top: 0; }
-body.store-record-query .record-query-results-table { width: 100%; min-width: 1380px; table-layout: auto; }
-body.store-record-query .verification-record-results-table { min-width: 1500px; }
-body.store-record-query .record-col-order { width: 135px; }
-body.store-record-query .record-col-customer-code { width: 215px; }
-body.store-record-query .record-col-customer-name { width: 125px; }
-body.store-record-query .record-col-birthday { width: 115px; }
-body.store-record-query .record-col-store { width: 150px; }
-body.store-record-query .record-col-product { width: 150px; }
-body.store-record-query .record-col-teacher { width: 140px; }
-body.store-record-query .record-col-type { width: 100px; }
-body.store-record-query .record-col-units { width: 90px; }
-body.store-record-query .record-col-time { width: 155px; }
-body.store-record-query .record-col-face { width: 90px; }
-body.store-record-query .record-col-status { width: 95px; }
-body.store-record-query .record-col-void-status { width: 110px; }
-body.store-record-query .record-query-results-table th:nth-child(2),
-body.store-record-query .record-query-results-table td:nth-child(2) { padding-right: 20px; }
-body.store-record-query .record-query-results-table th:nth-child(3),
-body.store-record-query .record-query-results-table td:nth-child(3) { padding-left: 16px; }
+body[data-query] .record-query-results-table { width: max-content; min-width: 100%; table-layout: auto; }
 body.store-record-query .record-query-pager { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
 body.store-record-query .record-query-pager button { min-height: 28px; padding: 4px 8px; font-size: 10px; }
 body.store-record-query .record-query-pager button:disabled { cursor: not-allowed; opacity: .45; }
@@ -1169,6 +1143,12 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 @media (max-width: 1150px) { .filter-grid { grid-template-columns: repeat(4, 1fr); } .analysis-grid { grid-template-columns: 1fr; } }
 @media (max-width: 1150px) { .query-filter-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 1150px) { .record-query-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 1150px) {
+  body[data-query] .customer-query-methods,
+  body[data-customer-query] .customer-query-methods { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body[data-query] .chinese-birthday-input,
+  body[data-customer-query] .chinese-birthday-input { grid-template-columns: minmax(68px, 1.3fr) auto minmax(50px, 1fr) auto minmax(50px, 1fr) auto; gap: 3px; }
+}
 @media (max-width: 1150px) { .business-lookup-panel { grid-template-columns: 1fr; } .business-lookup-fields { grid-template-columns: 1fr 1fr auto; } }
 @media (max-width: 1150px) { .store-workflow-main > .panel, .store-business-full-panel { min-height: auto; } }
 @media (max-width: 1150px) { .review-filter-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } .review-code-panel { grid-template-columns: minmax(0, 1fr) auto; } .review-count { grid-column: auto; justify-self: stretch; } }
