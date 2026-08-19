@@ -108,6 +108,20 @@
     counter.textContent = `${length}/100`;
     counter.classList.toggle("limit", length >= 100);
   }
+  function syncCustomerMessageListHeight() {
+    const list = $("customerMessageList");
+    if (!list) return;
+    list.style.removeProperty("max-height");
+    if (!window.matchMedia("(min-width: 1101px)").matches) return;
+    const items = Array.from(list.querySelectorAll(".customer-message-item"));
+    if (items.length <= 5) return;
+    const style = window.getComputedStyle(list);
+    const gap = Number.parseFloat(style.rowGap || style.gap) || 0;
+    const padding = (Number.parseFloat(style.paddingTop) || 0) + (Number.parseFloat(style.paddingBottom) || 0);
+    const visibleHeight = items.slice(0, 5).reduce((total, item) => total + item.getBoundingClientRect().height, 0)
+      + gap * 4 + padding;
+    list.style.maxHeight = `${Math.ceil(visibleHeight)}px`;
+  }
   function renderCustomerMessages() {
     const list = $("customerMessageList"), count = $("customerMessageCount"), loadMore = $("loadMoreCustomerMessages"), loadRow = $("customerMessageLoadRow");
     if (!list || !count || !loadMore || !loadRow) return;
@@ -121,6 +135,7 @@
     loadRow.hidden = !customerMessageHasMore;
     loadMore.disabled = customerMessagesLoading;
     loadMore.textContent = customerMessagesLoading ? "正在加载…" : "加载更早留言";
+    syncCustomerMessageListHeight();
   }
   async function loadCustomerMessages({ reset = false } = {}) {
     if (!canUseCustomerMessages || customerMessagesLoading || !customerCode) return;
@@ -396,6 +411,7 @@
   $("loadMoreCustomerMessages")?.addEventListener("click", () => loadCustomerMessages());
   $("customerMessageForm")?.addEventListener("submit", submitCustomerMessage);
   $("customerMessageInput")?.addEventListener("input", syncCustomerMessageCounter);
+  window.addEventListener("resize", syncCustomerMessageListHeight);
   $("editCustomerNotes")?.addEventListener("click", editCustomerNotes);
   $("saveCustomerNotes")?.addEventListener("click", saveCustomerNotes);
   $("cancelCustomerNotes")?.addEventListener("click", cancelCustomerNotes);

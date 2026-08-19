@@ -594,6 +594,7 @@ dialog::backdrop { background: #0b142a88; backdrop-filter: blur(3px); }
 .customer-photo-frame img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .customer-notes-actions { display: flex; align-items: center; gap: 7px; }
 .customer-notes-actions button { min-height: 30px; padding: 6px 11px; font-size: 11px; }
+.customer-notes-messages-grid { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; align-items: stretch; }
 .customer-notes-panel textarea { min-height: 56px; height: 56px; margin: 0; overflow-y: auto; resize: vertical; background: #fafcff; }
 .customer-notes-panel textarea[readonly] { color: var(--ink); cursor: default; }
 .customer-notes-panel textarea:focus { border-color: #8db1ec; outline: 0; box-shadow: 0 0 0 3px #1f5eff14; }
@@ -660,6 +661,39 @@ dialog::backdrop { background: #0b142a88; backdrop-filter: blur(3px); }
   body[data-customer-profile] .customer-project-panel .customer-record-scroll { height: 166px; max-height: 166px; min-height: 0; }
   body[data-customer-profile] .customer-records-grid { gap: 8px; }
   body[data-customer-profile] .customer-record-panel .customer-record-scroll { height: 158px; max-height: 158px; min-height: 0; }
+}
+
+@media (min-width: 1101px) {
+  body[data-customer-profile] .customer-notes-messages-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  body[data-customer-profile] .customer-notes-panel,
+  body[data-customer-profile] .customer-messages-panel {
+    min-width: 0;
+    height: 100%;
+  }
+  body[data-customer-profile] .customer-notes-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
+  body[data-customer-profile] .customer-notes-panel .panel-heading { margin-bottom: 8px; }
+  body[data-customer-profile] .customer-notes-panel textarea {
+    flex: 1 1 auto;
+    min-height: 180px;
+    height: auto;
+    resize: none;
+  }
+  body[data-customer-profile] .customer-notes-message { grid-column: auto; }
+  body[data-customer-profile] .customer-messages-panel {
+    display: flex;
+    flex-direction: column;
+  }
+  body[data-customer-profile] .customer-message-list {
+    flex: 0 1 auto;
+    max-height: none;
+  }
 }
 .profile-metrics { display: flex; gap: 12px; margin-left: auto; }
 .profile-metrics span { min-width: 110px; padding: 13px; border-radius: 12px; color: var(--muted); background: #f4f7fa; font-size: 11px; text-align: center; }

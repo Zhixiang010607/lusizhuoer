@@ -46,9 +46,10 @@ const notesIndex = html.indexOf('class="panel customer-notes-panel"');
 const messagesIndex = html.indexOf('id="customerMessagesPanel"');
 const projectsIndex = html.indexOf('class="panel customer-project-panel"');
 assert.ok(notesIndex >= 0 && notesIndex < messagesIndex && messagesIndex < projectsIndex, "customer messages must sit directly below notes and before project totals");
+assert.match(html, /class="customer-notes-messages-grid"[\s\S]*class="panel customer-notes-panel"[\s\S]*id="customerMessagesPanel"/, "notes and messages must share one responsive grid");
 assert.match(html, /id="customerMessageInput"[^>]*maxlength="100"/);
 assert.match(html, /id="customerMessageList"[^>]*tabindex="0"/);
-assert.match(html, /customer-profile\.js\?v=0\.15\.9/);
+assert.match(html, /customer-profile\.js\?v=0\.15\.10/);
 assert.match(html, /auth-ui\.js\?v=0\.18\.6/);
 
 assert.match(ui, /hq:"总部", store:"门店", teacher:"老师"/);
@@ -58,10 +59,15 @@ assert.match(ui, /messageLimit:20/);
 assert.match(ui, /cursorCreatedAt = customerMessageNextCursor\.createdAt/);
 assert.match(ui, /action:"addCustomerMessage"/);
 assert.match(ui, /customerMessages\.unshift\(data\.message\)/);
+assert.match(ui, /items\.slice\(0, 5\)\.reduce/, "desktop message height must be calculated from the first five complete messages");
+assert.match(ui, /list\.style\.maxHeight = `\$\{Math\.ceil\(visibleHeight\)\}px`/, "the sixth message must overflow inside the message list");
 assert.match(ui, /session\?\.role === "teacher"[\s\S]*teacher-work-orders\.html/);
 
 assert.match(css, /\.customer-message-list \{[^}]*max-height: 360px;[^}]*overflow-y: auto;/);
 assert.match(css, /\.customer-message-content \{[^}]*white-space: pre-wrap;[^}]*overflow-wrap: anywhere;/);
+assert.match(css, /@media \(min-width: 1101px\)[\s\S]*customer-notes-messages-grid \{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/, "desktop notes and messages must use equal-width columns");
+assert.match(css, /@media \(min-width: 1101px\)[\s\S]*customer-notes-panel,[\s\S]*customer-messages-panel \{[\s\S]*height: 100%/, "desktop notes and messages must be equal height");
+assert.match(css, /@media \(min-width: 1101px\)[\s\S]*customer-message-list \{[\s\S]*max-height: none;/, "desktop JS must own the exact five-message height cap");
 assert.match(css, /@media \(min-width: 761px\) and \(max-width: 1100px\)[\s\S]*customer-message-list \{ max-height: min\(42dvh, 380px\); \}/);
 assert.match(css, /@media \(max-width: 760px\)[\s\S]*customer-message-list \{[\s\S]*max-height: min\(46dvh, 340px\)/);
 assert.match(css, /customer-message-compose \{[\s\S]*grid-template-columns: 1fr;[\s\S]*customer-message-compose button \{ width: 100%; \}/);
