@@ -66,7 +66,7 @@ assert(/@media \(min-width:\s*981px\)[\s\S]*?store-business-main[\s\S]*?min-heig
 for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
   if (!html.includes("styles.css")) continue;
-  const expectedStyleVersion = file === "verification-detail.html" ? "0.15.45" : "0.15.44";
+  const expectedStyleVersion = file === "verification-detail.html" ? "0.15.45" : file === "recharge-detail.html" ? "0.15.46" : "0.15.44";
   assert(html.includes(`styles.css?v=${expectedStyleVersion}`), `${file} must use the desktop-scroll stylesheet cache key`);
 }
 

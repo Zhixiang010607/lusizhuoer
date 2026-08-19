@@ -74,7 +74,7 @@ assert.ok(twoPagePdf.includes("xref\n0 9"), "multi-page PDF xref count");
 for (const html of [rechargeHtml, verificationHtml]) {
   includes(html, 'id="exportOrderPdf"', "PDF export button");
   includes(html, 'id="exportOrderImage"', "image export button");
-  assert.ok(html.indexOf("order-export.js?v=0.1.2") < html.indexOf("business-detail.js?v=0.16.10"), "exporter must load before detail controller");
+  assert.ok(html.indexOf("order-export.js?v=0.1.3") < html.indexOf("business-detail.js?v=0.16.11"), "exporter must load before detail controller");
 }
 
 includes(verificationHtml, 'class="verification-order-keyfacts verification-order-five-keyfacts"', "verification detail uses a five-fact header");
@@ -101,12 +101,20 @@ assert.ok(!detailSource.includes("已用占位信息完成导出"), "known photo
 includes(detailSource, 'exportCurrentOrder("pdf")', "PDF button wiring");
 includes(detailSource, 'exportCurrentOrder("image")', "image button wiring");
 includes(detailSource, "compactVerification: !recharge", "verification PDF uses compact one-page layout");
+includes(detailSource, "customerFacing: true", "all downloaded orders use the customer-facing PDF mode");
+includes(detailSource, "const messages = [];", "all downloaded orders omit internal messages");
+includes(detailSource, '[["充值次数", rechargeCountLabel], ["提交时间", submittedAt], ["审核时间", reviewedAt]]', "recharge screen and export keep only count and two timestamps");
+includes(detailSource, '[["退费次数", rechargeCountLabel], ["提交时间", submittedAt], ["审核时间", reviewedAt]]', "refund screen and export keep only count and two timestamps");
 includes(detailSource, "facts: recharge ? facts : verificationFacts", "verification PDF keeps only the four header facts");
 includes(detailSource, "details: recharge ? details : []", "verification PDF removes repeated detail grid and unit count");
 includes(detailSource, "`提交时间：${submittedAt}`", "verification PDF keeps submission time in the header");
 includes(detailSource, 'facts.find((item) => item.label === "提交时间")?.value', "verification PDF reads submission time from the compact screen header");
 const exportDataSource = detailSource.slice(detailSource.indexOf("function exportDocumentData"), detailSource.indexOf("async function fetchVerificationPhotoUrlBlob"));
-assert.ok(!exportDataSource.includes("verificationHqMessage"), "verification PDF keeps only the store message");
+assert.ok(!/verification(Store|Hq)Message|recharge(Store|Hq)Message/.test(exportDataSource), "customer PDFs never read any internal message");
+const exportCurrentOrderSource = detailSource.slice(detailSource.indexOf("async function exportCurrentOrder"), detailSource.indexOf("function isVoidableOriginalType"));
+includes(exportCurrentOrderSource, 'type === "verification" ? await verificationExportPhotos(currentRecord) : { photos: [], warning: "" }', "verification exports keep photos while recharge and refund exports use an empty photo list");
+includes(exportCurrentOrderSource, "photos: photoResult.photos", "verification photos are passed to the exporter");
+includes(exporterSource, 'documentData.customerFacing ? "露思卓儿客户业务凭证"', "customer PDF footer omits private-photo wording");
 assert.ok(!/html2canvas|jspdf|unpkg|cdnjs/i.test(exporterSource), "export must not load a third-party DOM service");
 
 const headerTexts = [];

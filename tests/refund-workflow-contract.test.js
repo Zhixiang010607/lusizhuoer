@@ -38,8 +38,8 @@ includes(face, "balance_before_count", "cloud function stores submission snapsho
 includes(face, 'refund ? "退费次数超过该项目尚未退费的总购买次数', "cloud function rejects invalid refund");
 includes(staff, "r.recharge_type IN ('NEW', 'REFUND')", "review queue contains recharge and refund only");
 includes(review, 'isRefund ? "退费申请"', "review labels refund orders");
-includes(detail, '["申请时剩余次数"', "refund detail includes before balance");
-includes(detail, '["审核后剩余次数"', "refund detail includes after balance");
+includes(detail, '[["退费次数", rechargeCountLabel], ["提交时间", submittedAt], ["审核时间", reviewedAt]]', "customer refund detail keeps only count and timestamps");
+assert.ok(!detail.includes('["申请时剩余次数"') && !detail.includes('["审核后剩余次数"'), "customer refund detail removes duplicated balance snapshots");
 
 for (const contract of [
   "CHECK (remaining_count = GREATEST(total_recharge_count - total_verification_count, 0))",

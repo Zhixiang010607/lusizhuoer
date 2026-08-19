@@ -370,7 +370,11 @@
       context.textBaseline = "top";
       context.fillText(`导出时间：${new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "medium", hour12: false }).format(new Date())}`, PAGE_MARGIN, y);
       context.textAlign = "right";
-      context.fillText("系统工单导出 · 私有照片仅写入当前下载文件", CANVAS_WIDTH - PAGE_MARGIN, y);
+      context.fillText(
+        photos.length ? "系统工单导出 · 私有照片仅写入当前下载文件" : documentData.customerFacing ? "露思卓儿客户业务凭证" : "系统工单导出",
+        CANVAS_WIDTH - PAGE_MARGIN,
+        y
+      );
       context.textAlign = "left";
     }
     y += 42;

@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.10";
+  const VERSION = "0.16.11";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -274,14 +274,7 @@
     const submittedAt = details.find((item) => item.label === "提交时间")?.value
       || facts.find((item) => item.label === "提交时间")?.value
       || "—";
-    const messages = recharge
-      ? [
-          { label: "门店原申请留言", value: clean($("rechargeStoreMessage")?.textContent) || "无", time: clean($("rechargeStoreMessageTime")?.textContent) },
-          { label: "总部回复", value: clean($("rechargeHqMessage")?.textContent) || "无", time: clean($("rechargeHqMessageTime")?.textContent) }
-        ]
-      : [
-          { label: "门店留言", value: clean($("verificationStoreMessage")?.textContent) || "无", time: clean($("verificationStoreMessageTime")?.textContent) }
-        ];
+    const messages = [];
     const customerName = first(record.customerName, record.customerCode, "客户");
     const projectName = first(record.projectName, record.productName, record.projectCode, record.productCode, "项目");
     return {
@@ -294,9 +287,10 @@
       statusHint: clean($("orderStatusHint")?.textContent) || "—",
       statusTone: $("orderStatus")?.classList.contains("rejected") ? "rejected" : $("orderStatus")?.classList.contains("pending") ? "pending" : "approved",
       facts: recharge ? facts : verificationFacts,
+      customerFacing: true,
       compactVerification: !recharge,
       detailTitle: refund ? "退费信息" : recharge ? "充值信息" : "核销信息",
-      detailSubtitle: "该工单数据库中保存的完整业务内容",
+      detailSubtitle: refund ? "退费次数与办理时间" : recharge ? "充值次数与办理时间" : "该工单数据库中保存的完整业务内容",
       details: recharge ? details : [],
       messages
     };
@@ -521,7 +515,7 @@
 
   async function exportCurrentOrder(format) {
     if (orderExportBusy || !currentRecord) return;
-    if (verificationPhotoUploadBusy) {
+    if (type === "verification" && verificationPhotoUploadBusy) {
       setExportControls(false, "照片正在上传，请等待保存完成后再导出。");
       return;
     }
@@ -530,7 +524,7 @@
       return;
     }
     orderExportBusy = true;
-    setExportControls(false, type === "verification" ? "正在准备工单与照片…" : "正在生成完整工单…");
+    setExportControls(false, type === "verification" ? "正在准备工单与照片…" : "正在生成客户业务凭证…");
     try {
       const photoResult = type === "verification" ? await verificationExportPhotos(currentRecord) : { photos: [], warning: "" };
       setExportControls(false, format === "pdf" ? "正在分页生成 PDF…" : "正在生成高清图片…");
@@ -587,11 +581,6 @@
     const safeCode = clean(code);
     if (!safeName && !safeCode) return { name: emptyLabel, code: "" };
     return { name: safeName || safeCode, code: safeName && safeCode && safeName !== safeCode ? safeCode : "" };
-  }
-
-  function inlineLabel(name, code, emptyLabel = "—") {
-    const parts = labelParts(name, code, emptyLabel);
-    return parts.code ? `${parts.name} · ${parts.code}` : parts.name;
   }
 
   function factCard(label, name, code, emptyLabel = "—") {
@@ -2229,15 +2218,10 @@
     const customerCode = first(record.customerCode, record.customerId);
     const projectCode = first(record.projectCode, record.productCode, record.projectId, record.productId);
     const teacherCode = first(record.teacherCode, record.teacherId);
-    const customerLabel = inlineLabel(record.customerName, customerCode);
-    const projectLabel = inlineLabel(first(record.projectName, record.productName), projectCode);
-    const teacherLabel = inlineLabel(record.teacherName, teacherCode, "未指定");
     const submittedAt = formatTime(first(record.createdAt, record.submittedAt));
     const reviewedAt = formatTime(first(record.reviewedAt, record.approvedAt, record.rejectedAt));
     const countNumber = Number(first(record.count, record.unitCount, recharge ? "0" : "1"));
-    const countLabel = recharge
-      ? (Number.isFinite(countNumber) && countNumber > 0 ? `${["VOID", "REFUND"].includes(String(record.originalType || record.rechargeType || "").toUpperCase()) ? "−" : "+"}${countNumber}` : "—")
-      : (Number.isFinite(countNumber) && countNumber > 0 ? String(countNumber) : "1");
+    const rechargeCountLabel = Number.isFinite(countNumber) && countNumber > 0 ? `${countNumber} 次` : "—";
     const session = readSession();
     const description = session?.role === "store"
       ? `${first(record.storeName, "该门店")}自己的${refund ? "退费" : recharge ? "充值" : "核销"}工单。`
@@ -2261,8 +2245,8 @@
 
     if (recharge) {
       const items = refund
-        ? [["退费单编号", recordCode], ["申请类型", kind], ["客户", customerLabel], ["项目", projectLabel], ["业务老师", teacherLabel], ["申请时剩余次数", `${Number(record.balanceBeforeCount || 0)} 次`], ["退费次数", `${countNumber} 次`], ["审核后剩余次数", record.balanceAfterCount === "" || record.balanceAfterCount === null || record.balanceAfterCount === undefined ? "待审核" : `${Number(record.balanceAfterCount)} 次`], ["提交时间", submittedAt], ["审核时间", reviewedAt]]
-        : [["充值单编号", recordCode], ["申请类型", kind], ["客户", customerLabel], ["项目", projectLabel], ["业务老师", teacherLabel], ["充值次数", countLabel], ["提交时间", submittedAt], ["审核时间", reviewedAt]];
+        ? [["退费次数", rechargeCountLabel], ["提交时间", submittedAt], ["审核时间", reviewedAt]]
+        : [["充值次数", rechargeCountLabel], ["提交时间", submittedAt], ["审核时间", reviewedAt]];
       $("orderInfo").innerHTML = items.map(([label, value]) => infoCard(label, value)).join("");
     }
 
