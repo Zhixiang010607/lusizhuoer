@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v61";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v62";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -1641,6 +1641,8 @@ function mapCustomerRecharges(rows) {
   return rows.map((row) => ({
     id: String(row.id), rechargeCode: row.recharge_code, rechargeType: row.recharge_type,
     unitCount: Number(row.unit_count || 0), recordStatus: row.record_status,
+    balanceBeforeCount: row.balance_before_count === null || row.balance_before_count === undefined ? null : Number(row.balance_before_count),
+    balanceAfterCount: row.balance_after_count === null || row.balance_after_count === undefined ? null : Number(row.balance_after_count),
     voidRequestStatus: row.void_request_status, submittedAt: row.submitted_at, reviewedAt: row.reviewed_at,
     productId: String(row.product_id), productCode: row.product_code, productName: row.product_name
   }));
@@ -1685,6 +1687,7 @@ async function getCustomerProfile(event, options = {}) {
     ? (alias) => `AND (${alias}.submitted_at, ${alias}.id) < (${sqlText(historyOptions.cursorSubmittedAt)}::timestamptz, ${historyOptions.cursorId}::bigint)`
     : () => "";
   const rechargeSql = `SELECT r.id, r.recharge_code, r.recharge_type, r.unit_count,
+               r.balance_before_count, r.balance_after_count,
                r.record_status, r.void_request_status, r.submitted_at, r.reviewed_at,
                TO_CHAR(r.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_submitted_at,
                p.id AS product_id, p.product_code, p.product_name
@@ -2214,7 +2217,8 @@ async function queryStoreBusinessRecords(event = {}) {
 
   const recordSelect = recordType === "RECHARGE"
     ? `r.id, r.recharge_code AS record_code, r.recharge_type AS original_type,
-       r.unit_count, r.record_status, r.void_request_status, r.submitted_at, r.reviewed_at,
+       r.unit_count, r.balance_before_count, r.balance_after_count,
+       r.record_status, r.void_request_status, r.submitted_at, r.reviewed_at,
        TO_CHAR(r.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_submitted_at,
        FALSE AS has_face_request`
     : `v.id, v.verification_code AS record_code, v.verification_type AS original_type,
@@ -2292,6 +2296,8 @@ async function queryStoreBusinessRecords(event = {}) {
       recordCode: record.record_code,
       originalType: record.original_type,
       unitCount: Number(record.unit_count || 0),
+      balanceBeforeCount: record.balance_before_count === null || record.balance_before_count === undefined ? null : Number(record.balance_before_count),
+      balanceAfterCount: record.balance_after_count === null || record.balance_after_count === undefined ? null : Number(record.balance_after_count),
       recordStatus: record.record_status,
       voidRequestStatus: record.void_request_status,
       submittedAt: record.submitted_at,
@@ -2499,7 +2505,7 @@ function rechargeSubmissionKey(value) {
   return text;
 }
 
-async function requireRechargeSubmissionSchema() {
+async function requireRechargeSubmissionSchema({ refund = false } = {}) {
   const rows = await executeSql(
     `SELECT EXISTS (
        SELECT 1
@@ -2515,7 +2521,20 @@ async function requireRechargeSubmissionSchema() {
           AND table_name = 'recharge_records'
           AND column_name = 'teacher_id'
           AND is_nullable = 'YES'
-     ) AS teacher_is_optional`
+     ) AS teacher_is_optional,
+     EXISTS (
+       SELECT 1
+         FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'recharge_records'
+          AND column_name = 'balance_before_count'
+     ) AND EXISTS (
+       SELECT 1
+         FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'recharge_records'
+          AND column_name = 'balance_after_count'
+     ) AS has_refund_snapshots`
   );
   if (!databaseBoolean(rows?.[0]?.has_idempotency_key)) {
     fail("充值单数据库缺少防重复提交字段，请先执行迁移 023。", "DATABASE_SCHEMA_MISSING");
@@ -2523,29 +2542,35 @@ async function requireRechargeSubmissionSchema() {
   if (!databaseBoolean(rows?.[0]?.teacher_is_optional)) {
     fail("充值单数据库尚未允许业务老师为空，请先执行迁移 024。", "DATABASE_SCHEMA_MISSING");
   }
+  if (refund && !databaseBoolean(rows?.[0]?.has_refund_snapshots)) {
+    fail("退费单数据库结构尚未启用，请先执行迁移 044。", "DATABASE_SCHEMA_MISSING");
+  }
 }
 
 async function createRechargeApplication(event) {
   const caller = await activeBusinessCaller(event);
+  const applicationType = String(event.applicationType || "NEW").trim().toUpperCase();
+  if (!["NEW", "REFUND"].includes(applicationType)) fail("申请类型只能是充值或退费。", "BAD_REQUEST");
+  const refund = applicationType === "REFUND";
   const customerCode = String(event.customerCode || "").trim();
   if (!customerCode || customerCode.length > 96) fail("必须先确认本门店的活跃客户。", "CUSTOMER_REQUIRED");
   const productId = positiveDatabaseId(event.productId, "项目");
   const teacherIdText = String(event.teacherId ?? "").trim();
   if (caller.role === "teacher" && teacherIdText && teacherIdText !== String(caller.teacherId)) {
-    fail("老师账号只能把充值绑定到本人。", "FORBIDDEN");
+    fail(`老师账号只能把${refund ? "退费" : "充值"}申请绑定到本人。`, "FORBIDDEN");
   }
   const teacherId = caller.role === "teacher"
     ? positiveDatabaseId(caller.teacherId, "老师")
     : (teacherIdText ? positiveDatabaseId(teacherIdText, "老师") : null);
   const unitCount = Number(event.unitCount);
   if (!Number.isInteger(unitCount) || unitCount < 1 || unitCount > 999) {
-    fail("充值次数必须是 1 至 999 的整数。", "INVALID_UNIT_COUNT");
+    fail(`${refund ? "退费" : "充值"}次数必须是 1 至 999 的整数。`, "INVALID_UNIT_COUNT");
   }
   const message = String(event.message || "").trim();
   if (message.length > 500) fail("门店留言不能超过 500 个字符。", "MESSAGE_TOO_LONG");
   const idempotencyKey = rechargeSubmissionKey(event.clientRequestId);
 
-  await requireRechargeSubmissionSchema();
+  await requireRechargeSubmissionSchema({ refund });
   const customers = await executeSql(
     `SELECT id, customer_code, customer_name
        FROM public.customers
@@ -2585,34 +2610,45 @@ async function createRechargeApplication(event) {
   const teacherIdSql = teacherId ? `${sqlText(teacherId)}::bigint` : "NULL";
 
   const rows = await executeSql(
-    `WITH inserted AS (
+    `WITH current_balance AS (
+       SELECT b.total_recharge_count, GREATEST(b.remaining_count, 0) AS remaining_count
+         FROM public.customer_product_balances b
+        WHERE b.customer_id = ${sqlText(customer.id)}::bigint
+          AND b.product_id = ${sqlText(productId)}::bigint
+        LIMIT 1
+     ), inserted AS (
        INSERT INTO public.recharge_records
          (recharge_type, store_id, teacher_id, customer_id, product_id,
-          unit_count, record_status, submitted_by_account_id, message, idempotency_key)
-       VALUES
-         ('NEW', ${caller.storeId}, ${teacherIdSql},
-          ${sqlText(customer.id)}::bigint, ${sqlText(productId)}::bigint,
-          ${unitCount}, 'PENDING', ${caller.staffId}, ${sqlText(message)}, ${sqlText(idempotencyKey)})
+          unit_count, record_status, submitted_by_account_id, message, idempotency_key,
+          balance_before_count)
+       SELECT ${sqlText(applicationType)}, ${caller.storeId}, ${teacherIdSql},
+              ${sqlText(customer.id)}::bigint, ${sqlText(productId)}::bigint,
+              ${unitCount}, 'PENDING', ${caller.staffId}, ${sqlText(message)}, ${sqlText(idempotencyKey)},
+              CASE WHEN ${sqlText(applicationType)} = 'REFUND'
+                   THEN COALESCE((SELECT remaining_count FROM current_balance), 0)
+                   ELSE NULL END
+        WHERE ${sqlText(applicationType)} = 'NEW'
+           OR COALESCE((SELECT total_recharge_count FROM current_balance), 0) >= ${unitCount}
        ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
        RETURNING id, recharge_code, recharge_type, store_id, teacher_id, customer_id,
                  product_id, unit_count, record_status, submitted_by_account_id,
-                 submitted_at, message, idempotency_key
+                 submitted_at, message, idempotency_key, balance_before_count, balance_after_count
      )
      SELECT *, TRUE AS created_now FROM inserted
      UNION ALL
      SELECT r.id, r.recharge_code, r.recharge_type, r.store_id, r.teacher_id,
             r.customer_id, r.product_id, r.unit_count, r.record_status,
             r.submitted_by_account_id, r.submitted_at, r.message,
-            r.idempotency_key, FALSE AS created_now
+            r.idempotency_key, r.balance_before_count, r.balance_after_count, FALSE AS created_now
        FROM public.recharge_records r
       WHERE r.idempotency_key = ${sqlText(idempotencyKey)}
         AND NOT EXISTS (SELECT 1 FROM inserted)
      LIMIT 1`
   );
   const record = rows[0];
-  if (!record) fail("充值申请未能写入数据库，请稍后重试。", "RECHARGE_CREATE_FAILED");
+  if (!record) fail(refund ? "退费次数超过该项目尚未退费的总购买次数，请重新填写。" : "充值申请未能写入数据库，请稍后重试。", refund ? "REFUND_COUNT_EXCEEDS_PURCHASED" : "RECHARGE_CREATE_FAILED");
 
-  const sameRequest = record.recharge_type === "NEW"
+  const sameRequest = record.recharge_type === applicationType
     && String(record.store_id) === String(caller.storeId)
     && String(record.submitted_by_account_id) === String(caller.staffId)
     && String(record.teacher_id || "") === String(teacherId || "")
@@ -2621,7 +2657,7 @@ async function createRechargeApplication(event) {
     && Number(record.unit_count) === unitCount
     && String(record.message || "") === message;
   if (!sameRequest) {
-    fail("该防重复提交编号已经用于另一张充值单，请刷新页面后重新提交。", "IDEMPOTENCY_CONFLICT");
+    fail(`该防重复提交编号已经用于另一张${refund ? "退费" : "充值"}单，请刷新页面后重新提交。`, "IDEMPOTENCY_CONFLICT");
   }
 
   return {
@@ -2633,6 +2669,8 @@ async function createRechargeApplication(event) {
     recordStatus: record.record_status,
     submittedAt: record.submitted_at,
     unitCount: Number(record.unit_count),
+    balanceBeforeCount: record.balance_before_count === null || record.balance_before_count === undefined ? null : Number(record.balance_before_count),
+    balanceAfterCount: record.balance_after_count === null || record.balance_after_count === undefined ? null : Number(record.balance_after_count),
     customer: { customerCode: customer.customer_code, customerName: customer.customer_name },
     product: { productId: String(product.id), productCode: product.product_code, productName: product.product_name },
     teacher: teacher ? { teacherId: String(teacher.id), teacherCode: teacher.teacher_code, teacherName: teacher.teacher_name } : null
@@ -2886,6 +2924,8 @@ function teacherOrderRows(rows, recordType, teacher = {}) {
     recordCode: String(row.record_code || ""),
     originalType: String(row.original_type || ""),
     unitCount: Number(row.unit_count || (recordType === "VERIFICATION" ? 1 : 0)),
+    balanceBeforeCount: row.balance_before_count === null || row.balance_before_count === undefined ? null : Number(row.balance_before_count),
+    balanceAfterCount: row.balance_after_count === null || row.balance_after_count === undefined ? null : Number(row.balance_after_count),
     recordStatus: String(row.record_status || ""),
     voidRequestStatus: String(row.void_request_status || "NONE"),
     submittedAt: row.submitted_at,
@@ -2943,6 +2983,7 @@ async function getTeacherWorkspace(event = {}) {
     return executeSql(
       `SELECT ${alias}.id, ${alias}.${codeColumn} AS record_code,
               ${alias}.${typeColumn} AS original_type, ${alias}.unit_count,
+              ${recordType === "RECHARGE" ? `${alias}.balance_before_count, ${alias}.balance_after_count` : "NULL::integer AS balance_before_count, NULL::integer AS balance_after_count"},
               ${alias}.record_status, ${alias}.void_request_status,
               ${alias}.submitted_at, ${alias}.reviewed_at,
               ${alias}.message,

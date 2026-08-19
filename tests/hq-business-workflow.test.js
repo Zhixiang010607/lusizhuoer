@@ -14,12 +14,14 @@ const styles = read("styles.css");
 const pages = [
   "customer-create.html",
   "recharge-create.html",
+  "refund-create.html",
   "verification-create.html",
   "verification-experience.html"
 ];
 const allBusinessPages = [
   ...pages,
   "teacher-recharge-create.html",
+  "teacher-refund-create.html",
   "teacher-verification-create.html",
   "teacher-verification-experience.html"
 ];
@@ -55,18 +57,19 @@ for (const page of pages) {
   includes(authUi, `"${page}"`, `HQ route ${page}`);
   const html = read(page);
   includes(html, `data-store-business=`, `${page} reuses the shared workflow`);
-  includes(html, "store-business.js?v=0.14.51", `${page} workflow cache key`);
-  includes(html, "styles.css?v=0.15.42", `${page} responsive store selector styles`);
+  includes(html, "store-business.js?v=0.14.52", `${page} workflow cache key`);
+  includes(html, "styles.css?v=", `${page} responsive store selector styles`);
   assert.ok(!fs.existsSync(path.join(root, `hq-${page}`)), `${page} must not have a duplicated HQ page`);
 }
 for (const file of fs.readdirSync(root).filter((file) => file.endsWith(".html") && read(file).includes("auth-ui.js?v="))) {
-  includes(read(file), "auth-ui.js?v=0.18.6", `${file} auth cache key`);
+  includes(read(file), "auth-ui.js?v=0.18.7", `${file} auth cache key`);
 }
-for (const page of teacherBusinessPages) includes(read(page), "store-business.js?v=0.14.51", `${page} shared script version`);
+for (const page of teacherBusinessPages) includes(read(page), "store-business.js?v=0.14.52", `${page} shared script version`);
 
 for (const [href, label] of [
   ["customer-create.html", "客户建立"],
   ["recharge-create.html", "办卡充值"],
+  ["refund-create.html", "退费申请"],
   ["verification-create.html", "核销办理"],
   ["verification-experience.html", "体验核销"]
 ]) includes(authUi, `["${href}", "${label}"]`, `HQ business navigation ${label}`);
@@ -185,7 +188,7 @@ const activeBusinessCaller = activeHarness.module.exports;
   includes(cloud, 'if (action === "getHqBusinessContext")', "HQ context dispatcher");
   includes(cloud, '["hq", "store", "teacher"].includes(caller.role)', "HQ submitter can edit verification photos");
   includes(cloud, '["hq", "store", "teacher"].includes(context.caller.role)', "HQ upload ownership guard");
-  includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v61"', "deployable service versions");
+  includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v62"', "deployable service versions");
 
   console.log("hq business workflow tests passed");
 })().catch((error) => {

@@ -192,20 +192,22 @@ CREATE TABLE public.operation_store_scopes (
   UNIQUE (operation_account_id, store_id)
 );
 
--- Each recharge is one order. VOID reverses an already approved recharge and
--- therefore points at its original order; no price or money field exists.
+-- Each recharge workflow row is either a purchase, historical void, or a
+-- reviewed refund. Refund rows preserve before/after available-unit snapshots.
 CREATE TABLE public.recharge_records (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   recharge_code VARCHAR(32) NOT NULL UNIQUE
     DEFAULT ('RC' || TO_CHAR(CURRENT_DATE, 'YYYYMMDD') || LPAD(nextval('public.recharge_code_seq')::TEXT, 4, '0')),
   recharge_type VARCHAR(16) NOT NULL DEFAULT 'NEW'
-    CHECK (recharge_type IN ('NEW', 'VOID')),
+    CHECK (recharge_type IN ('NEW', 'VOID', 'REFUND')),
   original_recharge_id BIGINT REFERENCES public.recharge_records(id),
   store_id BIGINT NOT NULL REFERENCES public.stores(id),
   teacher_id BIGINT REFERENCES public.teachers(id),
   customer_id BIGINT NOT NULL REFERENCES public.customers(id),
   product_id BIGINT NOT NULL REFERENCES public.products(id),
   unit_count INTEGER NOT NULL CHECK (unit_count > 0),
+  balance_before_count INTEGER,
+  balance_after_count INTEGER,
   record_status VARCHAR(16) NOT NULL DEFAULT 'PENDING'
     CHECK (record_status IN ('PENDING', 'APPROVED', 'REJECTED')),
   submitted_by_account_id BIGINT NOT NULL REFERENCES public.staff_accounts(id),
@@ -218,9 +220,14 @@ CREATE TABLE public.recharge_records (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CHECK (
-    (recharge_type = 'NEW' AND original_recharge_id IS NULL)
+    (recharge_type IN ('NEW', 'REFUND') AND original_recharge_id IS NULL)
     OR (recharge_type = 'VOID' AND original_recharge_id IS NOT NULL)
-  )
+  ),
+  CHECK (
+    (recharge_type = 'REFUND' AND balance_before_count IS NOT NULL AND balance_before_count >= 0)
+    OR (recharge_type <> 'REFUND' AND balance_before_count IS NULL AND balance_after_count IS NULL)
+  ),
+  CHECK (balance_after_count IS NULL OR (recharge_type = 'REFUND' AND record_status = 'APPROVED' AND balance_after_count >= 0))
 );
 
 -- Each verification is one order with a workflow status and a business tag.
@@ -268,7 +275,7 @@ CREATE TABLE public.customer_product_balances (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (customer_id, product_id),
   CONSTRAINT customer_product_balances_count_equation
-    CHECK (remaining_count = total_recharge_count - total_verification_count)
+    CHECK (remaining_count = GREATEST(total_recharge_count - total_verification_count, 0))
 );
 
 -- The audit trail belongs to the original order; no extra approval document is created.
@@ -538,7 +545,7 @@ BEGIN
     (customer_id, product_id, total_recharge_count, total_verification_count, remaining_count, updated_at)
   WITH recharge_totals AS (
     SELECT customer_id, product_id,
-      SUM(CASE recharge_type WHEN 'NEW' THEN unit_count ELSE -unit_count END)::INTEGER AS recharge_count
+      GREATEST(SUM(CASE recharge_type WHEN 'NEW' THEN unit_count ELSE -unit_count END), 0)::INTEGER AS recharge_count
     FROM public.recharge_records
     WHERE customer_id = p_customer_id AND record_status = 'APPROVED'
     GROUP BY customer_id, product_id
@@ -557,25 +564,18 @@ BEGIN
     COALESCE(r.product_id, v.product_id),
     COALESCE(r.recharge_count, 0),
     COALESCE(v.verification_count, 0),
-    COALESCE(r.recharge_count, 0) - COALESCE(v.verification_count, 0),
+    GREATEST(COALESCE(r.recharge_count, 0) - COALESCE(v.verification_count, 0), 0),
     NOW()
   FROM recharge_totals r
   FULL OUTER JOIN verification_totals v
     ON r.customer_id = v.customer_id AND r.product_id = v.product_id;
-
-  IF EXISTS (
-    SELECT 1 FROM public.customer_product_balances
-    WHERE customer_id = p_customer_id AND remaining_count < 0
-  ) THEN
-    RAISE EXCEPTION 'customer product balance cannot be negative';
-  END IF;
 
   UPDATE public.customers c
   SET
     total_recharge_count = COALESCE((SELECT SUM(b.total_recharge_count) FROM public.customer_product_balances b WHERE b.customer_id = c.id), 0),
     total_verification_count = COALESCE((SELECT SUM(v.unit_count) FROM public.verification_records v WHERE v.customer_id = c.id AND v.record_status = 'APPROVED' AND v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')), 0),
     total_experience_count = COALESCE((SELECT SUM(v.unit_count) FROM public.verification_records v WHERE v.customer_id = c.id AND v.record_status = 'APPROVED' AND v.verification_type = 'EXPERIENCE'), 0),
-    latest_recharge_at = (SELECT MAX(submitted_at) FROM public.recharge_records r WHERE r.customer_id = c.id AND r.record_status = 'APPROVED'),
+    latest_recharge_at = (SELECT MAX(submitted_at) FROM public.recharge_records r WHERE r.customer_id = c.id AND r.record_status = 'APPROVED' AND r.recharge_type = 'NEW'),
     latest_verification_at = (SELECT MAX(submitted_at) FROM public.verification_records v WHERE v.customer_id = c.id AND v.record_status = 'APPROVED' AND v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')),
     customer_process_status = CASE
       WHEN COALESCE((SELECT SUM(b.total_recharge_count) FROM public.customer_product_balances b WHERE b.customer_id = c.id), 0) = 0 THEN 'INFORMATION_ONLY'

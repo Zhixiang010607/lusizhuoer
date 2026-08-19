@@ -9,7 +9,7 @@ const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 const OPERATION_ACTIONS = new Set(["listReviewOrders", "reviewOrder"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v42";
+const FUNCTION_VERSION = "v43";
 const ORDER_VOID_APPLICATIONS_ENABLED = false;
 let app = null;
 let auth = null;
@@ -1119,9 +1119,7 @@ async function listReviewOrders(caller, event) {
   const recordType = String(event.recordType || "").trim().toUpperCase();
   if (!["RECHARGE", "VERIFICATION"].includes(recordType)) fail("不支持的审核工单类型", "BAD_REQUEST");
   const scopedEvent = storeReader ? { ...event, storeId: caller.profile.storeId } : event;
-  const reviewListEvent = recordType === "RECHARGE" && !exactLookup
-    ? { ...scopedEvent, applicationType: "NEW" }
-    : scopedEvent;
+  const reviewListEvent = scopedEvent;
   const paged = event.paged === true && !exactLookup && !storeReader;
   const requestedLimit = Number(event.limit);
   const limit = storeReader ? 1 : paged
@@ -1147,9 +1145,9 @@ async function listReviewOrders(caller, event) {
   const sqlLimit = paged ? limit + 1 : limit;
   let sql;
   if (recordType === "RECHARGE") {
-    const statusExpression = "CASE WHEN r.void_request_status <> 'NONE' THEN r.void_request_status ELSE r.record_status END";
-    const typeExpression = "CASE WHEN r.void_request_status <> 'NONE' THEN 'VOID' ELSE 'NEW' END";
-    const timeExpression = "CASE WHEN r.void_request_status <> 'NONE' THEN r.void_requested_at ELSE r.submitted_at END";
+    const statusExpression = exactLookup ? "CASE WHEN r.void_request_status <> 'NONE' THEN r.void_request_status ELSE r.record_status END" : "r.record_status";
+    const typeExpression = exactLookup ? "CASE WHEN r.void_request_status <> 'NONE' THEN 'VOID' ELSE r.recharge_type END" : "r.recharge_type";
+    const timeExpression = exactLookup ? "CASE WHEN r.void_request_status <> 'NONE' THEN r.void_requested_at ELSE r.submitted_at END" : "r.submitted_at";
     const cursorClause = hasCursor
       ? `AND ((${statusExpression} = 'PENDING')::int, ${timeExpression}, r.id) < (${event.cursorPending ? 1 : 0}, ${sqlText(cursorApplicationTime)}::timestamptz, ${cursorId}::bigint)`
       : "";
@@ -1159,7 +1157,8 @@ async function listReviewOrders(caller, event) {
                   ${timeExpression} AS application_time,
                   TO_CHAR(${timeExpression} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_application_time,
                   r.record_status AS original_status, r.recharge_type AS original_type,
-                  r.unit_count, r.message AS initial_store_note, r.review_note AS initial_review_note,
+                  r.unit_count, r.balance_before_count, r.balance_after_count,
+                  r.message AS initial_store_note, r.review_note AS initial_review_note,
                   r.submitted_at AS original_submitted_at, r.reviewed_at AS original_reviewed_at,
                   r.void_request_status, r.void_request_note, r.void_requested_at,
                   r.void_review_note, r.void_reviewed_at,
@@ -1172,7 +1171,7 @@ async function listReviewOrders(caller, event) {
              JOIN public.customers c ON c.id = r.customer_id
              JOIN public.products p ON p.id = r.product_id
         LEFT JOIN public.teachers t ON t.id = r.teacher_id
-            WHERE TRUE
+            WHERE ${exactLookup ? "TRUE" : "r.recharge_type IN ('NEW', 'REFUND')"}
               ${reviewFilterSql(reviewListEvent, "r", "r.recharge_code", statusExpression, typeExpression)}
               ${cursorClause}
          ORDER BY (${statusExpression} = 'PENDING') DESC, ${timeExpression} DESC, r.id DESC
@@ -1317,9 +1316,9 @@ async function reviewOrder(caller, event) {
     if (
       recordType === "RECHARGE" &&
       decision === "APPROVED" &&
-      /cannot approve recharge void|insufficient purchased units/i.test(databaseMessage)
+      /refund units exceed unrefunded purchased units/i.test(databaseMessage)
     ) {
-      fail("该项目剩余次数不足，批准充值作废会导致剩余次数小于 0。", "INSUFFICIENT_PRODUCT_BALANCE");
+      fail("该项目可退费总购买次数已经发生变化，当前退费次数过大，请驳回后由门店重新提交。", "REFUND_COUNT_EXCEEDS_PURCHASED");
     }
     asDatabaseError(error, "审核业务工单");
   }
@@ -1351,9 +1350,9 @@ async function getHqDashboard(event) {
        ), recharge_by_store_product AS (
          SELECT r.store_id,
                 r.product_id,
-                SUM(CASE WHEN r.recharge_type = 'VOID'
-                         THEN -r.unit_count::bigint
-                         ELSE r.unit_count::bigint END)::bigint AS recharge_count
+                SUM(CASE WHEN r.recharge_type = 'NEW'
+                         THEN r.unit_count::bigint
+                         ELSE -r.unit_count::bigint END)::bigint AS recharge_count
            FROM public.recharge_records r
           CROSS JOIN bounds b
           WHERE r.record_status = 'APPROVED'

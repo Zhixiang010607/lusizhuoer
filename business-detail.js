@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.7";
+  const VERSION = "0.16.8";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -97,7 +97,7 @@
     const originalType = clean(field(row, "original_type", "originalType")).toUpperCase();
     const voidStatusValue = clean(field(row, "void_request_status", "voidRequestStatus")).toUpperCase();
     const originalKind = type === "recharge"
-      ? ({ NEW: "新充值" }[originalType] || originalType || "充值")
+      ? ({ NEW: "充值申请", REFUND: "退费申请", VOID: "历史作废" }[originalType] || originalType || "充值")
       : ({ NORMAL: "正常核销", SUPPLEMENT: "补录核销", EXPERIENCE: "体验核销" }[originalType] || originalType || "核销");
     return {
       id: clean(row.id),
@@ -124,6 +124,8 @@
       teacherCode: field(row, "teacher_code", "teacherCode"),
       teacherName: field(row, "teacher_name", "teacherName"),
       count: field(row, "unit_count", "unitCount"),
+      balanceBeforeCount: field(row, "balance_before_count", "balanceBeforeCount"),
+      balanceAfterCount: field(row, "balance_after_count", "balanceAfterCount"),
       createdAt: field(row, "original_submitted_at", "originalSubmittedAt"),
       reviewedAt: field(row, "original_reviewed_at", "originalReviewedAt"),
       initialStoreNote: field(row, "initial_store_note", "initialStoreNote"),
@@ -139,7 +141,7 @@
     const originalType = clean(row.originalType).toUpperCase();
     const voidRequestStatus = clean(row.voidRequestStatus).toUpperCase() || "NONE";
     const originalKind = type === "recharge"
-      ? ({ NEW: "新充值", VOID: "历史冲销" }[originalType] || originalType || "充值")
+      ? ({ NEW: "充值申请", REFUND: "退费申请", VOID: "历史作废" }[originalType] || originalType || "充值")
       : ({ NORMAL: "正常核销", SUPPLEMENT: "补录核销", EXPERIENCE: "体验核销" }[originalType] || originalType || "核销");
     return {
       id: clean(row.id),
@@ -160,6 +162,8 @@
       teacherCode: clean(row.teacherCode),
       teacherName: clean(row.teacherName),
       count: row.unitCount,
+      balanceBeforeCount: row.balanceBeforeCount,
+      balanceAfterCount: row.balanceAfterCount,
       createdAt: row.submittedAt,
       reviewedAt: row.reviewedAt,
       initialStoreNote: clean(row.message),
@@ -257,6 +261,7 @@
 
   function exportDocumentData(record) {
     const recharge = type === "recharge";
+    const refund = recharge && first(record.originalType, record.rechargeType).toUpperCase() === "REFUND";
     const facts = Array.from($("orderKeyfacts")?.children || []).map((element) => ({
       label: elementText(element, "span"),
       value: elementText(element, "strong")
@@ -277,7 +282,7 @@
     const customerName = first(record.customerName, record.customerCode, "客户");
     const projectName = first(record.projectName, record.productName, record.projectCode, record.productCode, "项目");
     return {
-      filename: `${customerName}+${projectName}+${recharge ? "充值" : "核销"}`,
+      filename: `${customerName}+${projectName}+${refund ? "退费" : recharge ? "充值" : "核销"}`,
       kind: clean($("orderKindTag")?.textContent) || (recharge ? "充值" : "核销"),
       title: clean($("orderTitle")?.textContent) || `${recharge ? "充值" : "核销"}工单`,
       subtitle: clean($("orderDescription")?.textContent) || "业务工单完整导出",
@@ -286,7 +291,7 @@
       statusHint: clean($("orderStatusHint")?.textContent) || "—",
       statusTone: $("orderStatus")?.classList.contains("rejected") ? "rejected" : $("orderStatus")?.classList.contains("pending") ? "pending" : "approved",
       facts,
-      detailTitle: recharge ? "充值信息" : "核销信息",
+      detailTitle: refund ? "退费信息" : recharge ? "充值信息" : "核销信息",
       detailSubtitle: "该工单数据库中保存的完整业务内容",
       details,
       messages
@@ -2211,6 +2216,7 @@
       ? first(record.originalKind, record.applicationType, record.rechargeType, "新充值")
       : first(record.originalKind, record.verificationType, record.applicationType, "正常核销");
     const kind = normalKind;
+    const refund = recharge && first(record.originalType, record.rechargeType).toUpperCase() === "REFUND";
     const originalStatusCode = String(record.status || record.recordStatus || "").toUpperCase();
     const status = statusView(originalStatusCode);
     if (recharge && originalStatusCode === "VOIDED") {
@@ -2229,15 +2235,15 @@
     const reviewedAt = formatTime(first(record.reviewedAt, record.approvedAt, record.rejectedAt));
     const countNumber = Number(first(record.count, record.unitCount, recharge ? "0" : "1"));
     const countLabel = recharge
-      ? (Number.isFinite(countNumber) && countNumber > 0 ? `${String(record.originalType || "").toUpperCase() === "VOID" ? "−" : "+"}${countNumber}` : "—")
+      ? (Number.isFinite(countNumber) && countNumber > 0 ? `${["VOID", "REFUND"].includes(String(record.originalType || record.rechargeType || "").toUpperCase()) ? "−" : "+"}${countNumber}` : "—")
       : (Number.isFinite(countNumber) && countNumber > 0 ? String(countNumber) : "1");
     const session = readSession();
     const description = session?.role === "store"
-      ? `${first(record.storeName, "该门店")}自己的${recharge ? "充值" : "核销"}工单。`
+      ? `${first(record.storeName, "该门店")}自己的${refund ? "退费" : recharge ? "充值" : "核销"}工单。`
       : "该工单展示本次实际提交的业务内容。";
 
     $("orderKindTag").textContent = kind;
-    $("orderTitle").textContent = `${recharge ? "充值单" : "核销单"} ${recordCode || "—"}`;
+    $("orderTitle").textContent = `${refund ? "退费单" : recharge ? "充值单" : "核销单"} ${recordCode || "—"}`;
     $("orderDescription").textContent = description;
     $("orderStatus").className = status.className;
     $("orderStatus").textContent = status.label;
@@ -2250,7 +2256,9 @@
       factCard("业务老师", record.teacherName, teacherCode, "未指定")
     ].join("");
 
-    const items = recharge
+    const items = refund
+      ? [["退费单编号", recordCode], ["申请类型", kind], ["客户", customerLabel], ["项目", projectLabel], ["业务老师", teacherLabel], ["申请时剩余次数", `${Number(record.balanceBeforeCount || 0)} 次`], ["退费次数", `${countNumber} 次`], ["审核后剩余次数", record.balanceAfterCount === "" || record.balanceAfterCount === null || record.balanceAfterCount === undefined ? "待审核" : `${Number(record.balanceAfterCount)} 次`], ["提交时间", submittedAt], ["审核时间", reviewedAt]]
+      : recharge
       ? [["充值单编号", recordCode], ["申请类型", kind], ["客户", customerLabel], ["项目", projectLabel], ["业务老师", teacherLabel], ["充值次数", countLabel], ["提交时间", submittedAt], ["审核时间", reviewedAt]]
       : [["核销单编号", recordCode], ["核销类型", kind], ["客户", customerLabel], ["项目", projectLabel], ["业务老师", teacherLabel], ["核销次数", countLabel], ["提交时间", submittedAt], ["审核时间", reviewedAt]];
     $("orderInfo").innerHTML = items.map(([label, value]) => infoCard(label, value)).join("");
@@ -2262,10 +2270,18 @@
       return;
     }
 
+    const detailPanel = document.querySelector(".verification-order-details");
+    if (detailPanel) {
+      const heading = detailPanel.querySelector("h2");
+      const badge = detailPanel.querySelector(".badge");
+      if (heading) heading.textContent = refund ? "退费信息" : "充值信息";
+      if (badge) badge.textContent = refund ? "退费" : "充值";
+    }
+
     $("reviewStatus").textContent = status.label;
     $("reviewStatusRow").hidden = false;
     renderRechargeReviewMessages(record);
-    setExportControls(true, "可导出完整充值工单。");
+    setExportControls(true, `可导出完整${refund ? "退费" : "充值"}工单。`);
   }
 
   function voidActionUnavailableReason(record, voidStarted) {

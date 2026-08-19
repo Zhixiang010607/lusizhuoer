@@ -22,7 +22,9 @@ const parts = [
   "041-01-experience-device-port.sql",
   "041-02-experience-create-function.sql",
   "042-01-customer-messages.sql",
-  "043-01-disable-recharge-void.sql"
+  "043-01-disable-recharge-void.sql",
+  "044-01-refund-schema-and-balance.sql",
+  "044-02-refund-review-and-guards.sql"
 ];
 
 function transactionBody(source) {
@@ -83,6 +85,16 @@ const reconstructed043 = parts
   .map((filename) => transactionBody(fs.readFileSync(path.join(consoleDir, filename), "utf8")))
   .join("\n\n");
 assert.equal(reconstructed043, canonical043, "CloudBase migration 043 must match the canonical recharge-void retirement migration");
+
+const canonical044 = transactionBody(fs.readFileSync(
+  path.join(root, "database", "migrations", "044_refund_application_workflow.sql"),
+  "utf8"
+));
+const reconstructed044 = parts
+  .filter((filename) => filename.startsWith("044-"))
+  .map((filename) => transactionBody(fs.readFileSync(path.join(consoleDir, filename), "utf8")))
+  .join("\n\n");
+assert.equal(reconstructed044, canonical044, "CloudBase migration 044 must match the canonical refund workflow migration");
 
 const directParts = Object.fromEntries(
   parts.filter((filename) => filename.startsWith("039-")).map((filename) => [

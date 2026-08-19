@@ -18,7 +18,7 @@
     const raw = await window.cloudbase.init(window.CloudBaseAuthConfig).callFunction({ name: "faceRecognition", data: { action: "getTeacherWorkspace", ...data } });
     const result = responseData(raw); if (!result.ok) throw new Error(result.message || "无法读取老师工作台。"); return result;
   }
-  const typeLabel = (row) => row.recordType === "RECHARGE" ? (row.originalType === "VOID" ? "历史冲销" : "充值") : ({ NORMAL: "正常核销", SUPPLEMENT: "补录核销", EXPERIENCE: "体验核销" }[row.originalType] || "核销");
+  const typeLabel = (row) => row.recordType === "RECHARGE" ? ({ NEW: "充值", REFUND: "退费", VOID: "历史作废" }[row.originalType] || "充值") : ({ NORMAL: "正常核销", SUPPLEMENT: "补录核销", EXPERIENCE: "体验核销" }[row.originalType] || "核销");
   function statusLabel(row) {
     if (row.recordType === "VERIFICATION") {
       if (row.recordStatus === "VOIDED") return ["历史已作废", "void"];
@@ -38,7 +38,7 @@
     $("teacherRecordsHead").innerHTML = `<tr><th>${verification ? "核销单号" : "充值单号"}</th><th>门店</th><th>客户</th><th>项目</th><th>${verification ? "核销类型／人脸" : "充值次数"}</th><th>提交时间</th><th>状态</th></tr>`;
     $("teacherOrdersBody").innerHTML = rows.length ? rows.map((row) => {
       const [status, statusClass] = statusLabel(row);
-      const amount = verification ? `${escapeHtml(typeLabel(row))}${row.hasFaceRequest ? " · 已核验" : " · 无人脸记录"}` : `${row.originalType === "VOID" ? "−" : "+"}${escapeHtml(row.unitCount)} 次`;
+      const amount = verification ? `${escapeHtml(typeLabel(row))}${row.hasFaceRequest ? " · 已核验" : " · 无人脸记录"}` : `${["VOID", "REFUND"].includes(row.originalType) ? "−" : "+"}${escapeHtml(row.unitCount)} 次`;
       const detailParams = new URLSearchParams({ recordId: String(row.id), recordCode: String(row.recordCode || ""), source: "teacher" });
       const detail = `${verification ? "verification" : "recharge"}-detail.html?${detailParams.toString()}`;
       const customerParams = new URLSearchParams({ customerId: String(row.customerCode || ""), source: "teacher" });

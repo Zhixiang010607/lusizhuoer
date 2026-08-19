@@ -921,6 +921,7 @@ body[data-store-business] .form-submit-row button:disabled {
 .status-已作废 { color: #a33131; background: #fdecec; }
 .status-作废 { color: #a33131; background: #fdecec; }
 .status-补录 { color: #5b3ca8; background: #f0eaff; }
+.status-退费 { color: #7b3f00; background: #fff2dd; }
 .status-已修改 { color: #4e50a8; background: #eeeeff; }
 .status-已驳回 { color: #687283; background: #edf0f4; }
 .query-empty { padding: 40px; color: var(--muted); text-align: center; }
@@ -1108,6 +1109,8 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .communication-compose textarea { margin: 0; }
 .communication-compose button { min-height: 42px; }
 .form-message { min-height: 18px; margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+.refund-balance-summary { padding: 10px 12px; border: 1px solid #cdd9e8; border-radius: 10px; background: #f4f8fd; color: #435a74; font-size: 13px; line-height: 1.55; }
+.refund-balance-summary strong { color: #102c4f; font-size: 15px; }
 .void-application-panel { border-left: 4px solid #d28722; }
 .compact-info-grid { grid-template-columns: repeat(2, 1fr); }
 .login-page { min-height: 100vh; padding: 0; background: #eaf0f6; }

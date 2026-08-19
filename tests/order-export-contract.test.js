@@ -74,10 +74,10 @@ assert.ok(twoPagePdf.includes("xref\n0 9"), "multi-page PDF xref count");
 for (const html of [rechargeHtml, verificationHtml]) {
   includes(html, 'id="exportOrderPdf"', "PDF export button");
   includes(html, 'id="exportOrderImage"', "image export button");
-  assert.ok(html.indexOf("order-export.js?v=0.1.1") < html.indexOf("business-detail.js?v=0.16.7"), "exporter must load before detail controller");
+  assert.ok(html.indexOf("order-export.js?v=0.1.1") < html.indexOf("business-detail.js?v=0.16.8"), "exporter must load before detail controller");
 }
 
-includes(detailSource, 'filename: `${customerName}+${projectName}+${recharge ? "充值" : "核销"}`', "required filename contract");
+includes(detailSource, 'filename: `${customerName}+${projectName}+${refund ? "退费" : recharge ? "充值" : "核销"}`', "required filename contract");
 includes(detailSource, 'kind: clean($("orderKindTag")?.textContent)', "header order-kind export");
 includes(detailSource, 'statusLabel: "当前审核状态"', "header status label export");
 includes(detailSource, 'statusHint: clean($("orderStatusHint")?.textContent)', "header status hint export");

@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.51", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.52", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   const formatBirthday = (value, fallback = "—") => {
     const raw = String(value ?? "").trim();
     if (!raw) return fallback;
@@ -12,9 +12,9 @@
   const teacherMode = session?.role === "teacher" && document.body.hasAttribute("data-teacher-business");
   const hqMode = session?.role === "hq"
     && !document.body.hasAttribute("data-teacher-business")
-    && ["customer", "recharge", "verification", "verification-experience"].includes(page);
+    && ["customer", "recharge", "refund", "verification", "verification-experience"].includes(page);
   if (!session || (teacherMode
-    ? !["recharge", "verification", "verification-experience"].includes(page)
+    ? !["recharge", "refund", "verification", "verification-experience"].includes(page)
     : !hqMode && session.role !== "store")) return;
   let storeId = teacherMode || hqMode ? "" : String(session?.store || "");
   const storeNo = Number(storeId.replace(/\D/g, "")) || 1;
@@ -499,6 +499,12 @@
     selectedCustomer = null;
     previewCustomerCode = "";
     verificationBalanceProjects = [];
+    if (page === "refund" && $("rechargeProject")) {
+      databaseProducts = [];
+      $("rechargeProject").disabled = true;
+      $("rechargeProject").innerHTML = `<option value="">确认客户后加载可退费项目</option>`;
+      if ($("refundBalanceSummary")) $("refundBalanceSummary").textContent = "确认客户并选择项目后显示剩余次数。";
+    }
     if (["verification", "verification-experience"].includes(page)) resetVerificationCapture();
     $("confirmCustomerSelection").disabled = true;
     $("serviceCustomerResults").innerHTML = `<div class="lookup-placeholder"><strong>等待查询客户</strong><span>查询成功后，此处显示客户建档照片、姓名、生日和客户编号。</span></div>`;
@@ -603,34 +609,84 @@
       if (message) message.textContent = error?.message || "项目余额读取失败，请刷新后重试";
     }
   }
+  async function loadRefundBalances(customer) {
+    const select = $("rechargeProject");
+    const summary = $("refundBalanceSummary");
+    if (!select) return;
+    const request = ++balanceRequest;
+    databaseProducts = [];
+    select.disabled = true;
+    select.innerHTML = `<option value="">正在读取该客户的可退费项目…</option>`;
+    if (summary) summary.textContent = "正在读取项目次数…";
+    try {
+      const result = await callCustomerEnrollment({ action: "getCustomerProductBalances", customerCode: customer.id });
+      if (request !== balanceRequest || selectedCustomer?.id !== customer.id) return;
+      databaseProducts = (Array.isArray(result?.balances) ? result.balances : [])
+        .filter((item) => Number(item.purchasedCount) > 0)
+        .map((item) => ({
+          id: String(item.productId), code: String(item.productCode || ""), name: String(item.productName || "未命名项目"),
+          purchased: Number(item.purchasedCount || 0), verified: Number(item.effectiveVerificationCount || 0), remaining: Math.max(0, Number(item.remainingCount || 0))
+        }));
+      select.innerHTML = databaseProducts.length
+        ? `<option value="">请选择需要退费的项目</option>${databaseProducts.map((project) => `<option value="${escapeHtml(project.id)}">${escapeHtml(project.name)}（剩余 ${project.remaining} 次，可退 ${project.purchased} 次）</option>`).join("")}`
+        : `<option value="">该客户没有可退费的已购项目</option>`;
+      select.disabled = databaseProducts.length === 0;
+      if (summary) summary.textContent = databaseProducts.length ? "选择项目后显示本单退费影响。" : "该客户目前没有可提交退费的项目。";
+    } catch (error) {
+      if (request !== balanceRequest || selectedCustomer?.id !== customer.id) return;
+      select.innerHTML = `<option value="">项目次数读取失败，禁止提交退费</option>`;
+      select.disabled = true;
+      if (summary) summary.textContent = error?.message || "项目次数读取失败，请刷新后重试。";
+    }
+  }
+  function renderRefundImpact() {
+    if (page !== "refund") return;
+    const project = databaseProducts.find((item) => item.id === $("rechargeProject")?.value);
+    const count = Number($("rechargeCount")?.value || 0);
+    const summary = $("refundBalanceSummary");
+    if (!summary) return;
+    if (!project) { summary.textContent = "选择项目后显示本单退费影响。"; return; }
+    const after = Number.isInteger(count) && count > 0 ? Math.max(project.remaining - count, 0) : project.remaining;
+    summary.innerHTML = `申请前剩余 <strong>${project.remaining}</strong> 次；本次退费 <strong>${Number.isInteger(count) && count > 0 ? count : 0}</strong> 次；审核通过后剩余 <strong>${after}</strong> 次。${count > project.remaining ? "退费次数超过剩余次数，剩余次数将归 0。" : ""}`;
+  }
   async function confirmCustomer(id) {
     selectedCustomer = allCustomers().find((customer) => customer.id === id);
     $("selectedCustomerText").textContent = `已确认：${selectedCustomer.name}（${selectedCustomer.id}）· ${formatBirthday(selectedCustomer.birthday)} · ${storeName}`; document.querySelector("form.store-business-form").classList.remove("business-step-disabled");
     if (["verification", "verification-experience"].includes(page)) { resetVerificationCapture(); await loadVerificationBalances(selectedCustomer); }
+    if (page === "refund") await loadRefundBalances(selectedCustomer);
     $("confirmCustomerSelection").textContent = `已确认 ${selectedCustomer.name}（${selectedCustomer.id}）`;
   }
   function setupRecharge() {
-    setupLookup(); loadActiveProducts("rechargeProject", "rechargeCreateMessage"); loadActiveTeachers("rechargeTeacher", "rechargeCreateMessage", { optional: true });
+    const refundPage = page === "refund";
+    setupLookup();
+    if (!refundPage) loadActiveProducts("rechargeProject", "rechargeCreateMessage");
+    loadActiveTeachers("rechargeTeacher", "rechargeCreateMessage", { optional: true });
+    if (refundPage) {
+      $("rechargeProject").addEventListener("change", renderRefundImpact);
+      $("rechargeCount").addEventListener("input", renderRefundImpact);
+    }
     $("rechargeCreateForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = event.currentTarget, submit = form.querySelector('[type="submit"]');
       const projectId = $("rechargeProject").value, teacherId = $("rechargeTeacher").value, count = Number($("rechargeCount").value), note = $("rechargeNote").value.trim();
-      if (!selectedCustomer || !projectId || !Number.isInteger(count) || count < 1 || count > 999) { $("rechargeCreateMessage").textContent = "必须确认客户、选择项目，并填写 1 至 999 的整数充值次数"; return; }
+      if (!selectedCustomer || !projectId || !Number.isInteger(count) || count < 1 || count > 999) { $("rechargeCreateMessage").textContent = `必须确认客户、选择项目，并填写 1 至 999 的整数${refundPage ? "退费" : "充值"}次数`; return; }
       const project = databaseProducts.find((item) => item.id === projectId), teacher = teacherId ? databaseTeachers.find((item) => item.id === teacherId) : null;
       if (!project || (teacherId && !teacher)) { $("rechargeCreateMessage").textContent = "项目或老师数据已经失效，请刷新页面后重新选择"; return; }
-      const payload = { customerCode: selectedCustomer.id, productId: project.id, teacherId: teacher?.id || "", unitCount: count, message: note };
+      if (refundPage && count > Number(project.purchased || 0)) { $("rechargeCreateMessage").textContent = `最多可退 ${project.purchased} 次；可以超过剩余 ${project.remaining} 次，但不能超过尚未退费的总购买次数`; return; }
+      const payload = { applicationType: refundPage ? "REFUND" : "NEW", customerCode: selectedCustomer.id, productId: project.id, teacherId: teacher?.id || "", unitCount: count, message: note };
       const clientRequestId = nextRechargeRequestId({ storeId, ...payload });
       submit.disabled = true;
-      $("rechargeCreateMessage").textContent = "正在向数据库提交待审核充值单…";
+      $("rechargeCreateMessage").textContent = `正在向数据库提交待审核${refundPage ? "退费" : "充值"}单…`;
       try {
         const result = await callCustomerEnrollment({ action: "createRechargeApplication", ...payload, clientRequestId });
-        if (String(result.recordStatus || "") !== "PENDING") throw new Error("数据库返回的充值单状态不是待审核，已停止后续操作");
+        if (String(result.recordStatus || "") !== "PENDING") throw new Error(`数据库返回的${refundPage ? "退费" : "充值"}单状态不是待审核，已停止后续操作`);
         if (!result.rechargeId || !result.rechargeCode) throw new Error("数据库已响应，但没有返回充值单编号，已停止跳转");
         const record = {
           id: String(result.rechargeId),
           recordCode: String(result.rechargeCode),
           recordType: "recharge",
-          applicationType: "新充值",
+          applicationType: refundPage ? "退费申请" : "充值申请",
+          originalType: refundPage ? "REFUND" : "NEW",
           customerId: String(result.customer?.customerCode || selectedCustomer.id),
           customerName: String(result.customer?.customerName || selectedCustomer.name),
           customerBirthday: String(selectedCustomer.birthday || ""),
@@ -643,6 +699,8 @@
           teacherCode: String(result.teacher?.teacherCode || teacher?.code || ""),
           teacherName: String(result.teacher?.teacherName || teacher?.name || ""),
           count: Number(result.unitCount || count),
+          balanceBeforeCount: Number(result.balanceBeforeCount ?? project.remaining ?? 0),
+          balanceAfterCount: result.balanceAfterCount === null || result.balanceAfterCount === undefined ? "" : Number(result.balanceAfterCount),
           status: String(result.recordStatus),
           note,
           account: String(session?.account || ""),
@@ -653,7 +711,7 @@
         addCommunication("recharge", record.id, note);
         openGeneratedOrder("recharge", record);
       } catch (error) {
-        $("rechargeCreateMessage").textContent = error?.message || "充值申请提交失败，请核对数据库与云函数";
+        $("rechargeCreateMessage").textContent = error?.message || `${refundPage ? "退费" : "充值"}申请提交失败，请核对数据库与云函数`;
       } finally {
         submit.disabled = false;
       }
@@ -799,7 +857,7 @@
     $("teacherBusinessStoreState").textContent = "已选择";
     $("teacherBusinessStoreMessage").textContent = `当前办理门店：${storeName}。如选择有误，可返回重新选择。`;
     $("teacherCustomerWorkflow")?.classList.remove("teacher-step-disabled");
-    if (page === "recharge") setupRecharge();
+    if (["recharge", "refund"].includes(page)) setupRecharge();
     else setupVerification();
   }
 
@@ -926,7 +984,7 @@
       const scopeBadge = workflow.querySelector(".workflow-lookup-panel .badge");
       if (scopeBadge) scopeBadge.textContent = storeName;
       if (page === "customer") setupCustomerCreate();
-      else if (page === "recharge") setupRecharge();
+      else if (["recharge", "refund"].includes(page)) setupRecharge();
       else setupVerification();
     });
   }
@@ -941,6 +999,6 @@
   if (teacherMode) setupTeacherBusiness();
   else if (hqMode) setupHqBusiness();
   else if (page === "customer") setupCustomerCreate();
-  else if (page === "recharge") setupRecharge();
+  else if (["recharge", "refund"].includes(page)) setupRecharge();
   else if (["verification", "verification-experience"].includes(page)) setupVerification();
 })();

@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.7";
+  const VERSION = "0.15.8";
   const type = document.body.dataset.query;
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
@@ -34,7 +34,7 @@
 
     const recordType = type === "verification" ? "VERIFICATION" : "RECHARGE";
     const noun = recordType === "RECHARGE" ? "充值" : "核销";
-    const columnCount = recordType === "RECHARGE" ? 9 : 11;
+    const columnCount = recordType === "RECHARGE" ? 10 : 11;
     let mode = "browse";
     let rows = [];
     let summary = { total: 0, pending: 0, approved: 0, rejected: 0 };
@@ -206,6 +206,11 @@
       const [label, className] = states[String(code || "").toUpperCase()] || ["未记录", ""];
       return `<span class="record-status ${className}">${label}</span>`;
     }
+    function rechargeTypeTag(code) {
+      return String(code || "").toUpperCase() === "REFUND"
+        ? '<span class="record-status status-退费">退费申请</span>'
+        : '<span class="record-status status-正常">充值申请</span>';
+    }
     function selectedRecordTotal() {
       return mode === "browse"
         ? ({ ALL: summary.total, PENDING: summary.pending, APPROVED: summary.approved, REJECTED: summary.rejected }[statusCategoryValue()] ?? summary.total)
@@ -220,8 +225,9 @@
         const product = record.productName || "—";
         const commonStart = `<tr><td><a class="record-link" href="${detailLink}">${escapeHtml(record.recordCode)}</a></td><td><a class="record-link" href="${customerLink}">${escapeHtml(record.customerCode)}</a></td><td>${escapeHtml(record.customerName)}</td><td>${escapeHtml(formatBirthday(record.birthDate))}</td><td>${escapeHtml(store)}</td><td>${escapeHtml(product)}</td>`;
         if (recordType === "RECHARGE") {
-          const signedUnits = String(record.originalType || "").toUpperCase() === "VOID" ? `−${Number(record.unitCount || 0)}` : `+${Number(record.unitCount || 0)}`;
-          return `${commonStart}<td>${signedUnits}</td><td>${escapeHtml(formatDateTime(record.submittedAt))}</td><td>${statusTag(record.recordStatus)}</td></tr>`;
+          const refund = ["VOID", "REFUND"].includes(String(record.originalType || "").toUpperCase());
+          const signedUnits = `${refund ? "−" : "+"}${Number(record.unitCount || 0)}`;
+          return `${commonStart}<td>${rechargeTypeTag(record.originalType)}</td><td>${signedUnits}</td><td>${escapeHtml(formatDateTime(record.submittedAt))}</td><td>${statusTag(record.recordStatus)}</td></tr>`;
         }
         const teacher = [record.teacherName, record.teacherCode].filter(Boolean).join(" · ") || "未记录";
         const face = record.hasFaceRequest

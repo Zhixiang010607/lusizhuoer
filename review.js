@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const VERSION = "0.17.8";
+  const VERSION = "0.17.9";
   const pageType = document.body.dataset.review;
   const recordType = pageType === "recharge" ? "RECHARGE" : "VERIFICATION";
   const columnCount = 10;
@@ -27,10 +27,11 @@
     const applicationType = clean(pick(row, "application_type", "applicationType")).toUpperCase();
     const status = clean(pick(row, "application_status", "applicationStatus")).toUpperCase() || "PENDING";
     const isVoid = applicationType === "VOID";
+    const isRefund = applicationType === "REFUND";
     const customerCode = clean(pick(row, "customer_code", "customerCode"));
     return {
-      raw: row, id: clean(row.id), recordCode: clean(pick(row, "record_code", "recordCode")), isVoid, status,
-      kind: pageType === "recharge" ? (isVoid ? "作废充值" : "新充值") : "补录核销",
+      raw: row, id: clean(row.id), recordCode: clean(pick(row, "record_code", "recordCode")), isVoid, isRefund, status,
+      kind: pageType === "recharge" ? (isRefund ? "退费申请" : isVoid ? "历史作废" : "充值申请") : "补录核销",
       time: pick(row, "application_time", "applicationTime"),
       reviewedAt: isVoid ? pick(row, "void_reviewed_at", "voidReviewedAt") : pick(row, "original_reviewed_at", "originalReviewedAt"),
       originalCreatedAt: pick(row, "original_submitted_at", "originalSubmittedAt"), originalReviewedAt: pick(row, "original_reviewed_at", "originalReviewedAt"),
@@ -40,11 +41,16 @@
       store: { id: clean(pick(row, "store_id", "storeId")), code: clean(pick(row, "store_code", "storeCode")), name: clean(pick(row, "store_name", "storeName")) || "未命名门店" },
       customerCode, customerId: customerCode || clean(pick(row, "customer_id", "customerId")), customerName: clean(pick(row, "customer_name", "customerName")) || "未命名客户",
       projectId: clean(pick(row, "product_code", "productCode")) || clean(pick(row, "product_id", "productId")), project: clean(pick(row, "product_name", "productName")) || "未命名项目",
-      teacherId: clean(pick(row, "teacher_code", "teacherCode")), teacherName: clean(pick(row, "teacher_name", "teacherName")), amount: Number(pick(row, "unit_count", "unitCount")) || 0
+      teacherId: clean(pick(row, "teacher_code", "teacherCode")), teacherName: clean(pick(row, "teacher_name", "teacherName")), amount: Number(pick(row, "unit_count", "unitCount")) || 0,
+      balanceBeforeCount: Number(pick(row, "balance_before_count", "balanceBeforeCount")),
+      balanceAfterCount: pick(row, "balance_after_count", "balanceAfterCount") === "" ? null : Number(pick(row, "balance_after_count", "balanceAfterCount"))
     };
   }
   function applicationTypeFilter() {
-    if (pageType === "recharge") return "NEW";
+    if (pageType === "recharge") {
+      const value = $("reviewType")?.value || "all";
+      return value === "all" ? "" : value;
+    }
     const value = $("reviewType")?.value || "all";
     if (value === "all") return "";
     return "SUPPLEMENT";
@@ -120,7 +126,7 @@
     if ([...$("reviewStore").options].some((option) => option.value === selected)) $("reviewStore").value = selected;
   }
   function impactText(item) {
-    if (pageType === "recharge") return `${item.isVoid ? "-" : "+"}${item.amount}次`;
+    if (pageType === "recharge") return `${item.isRefund || item.isVoid ? "−" : "+"}${item.amount}次`;
     return `核销 +${item.amount || 1}`;
   }
   function render() {
@@ -207,7 +213,8 @@
     $("reviewDialogTitle").textContent = action === "APPROVED" ? "确认通过" : "确认驳回";
     const reviewerName = clean(session?.staffName) || reviewerRole;
     const reviewerCode = clean(session?.staffCode) || staffCodeFor(clean(session?.role).toLowerCase(), session?.staffId);
-    $("reviewDialogSummary").innerHTML = `<strong>${escapeHtml(item.recordCode)} · ${escapeHtml(item.kind)}</strong><span>${escapeHtml(item.store.name)} · ${escapeHtml(item.customerName)}（${escapeHtml(item.customerId)}） · ${escapeHtml(item.project)}</span><span>审核人员：${escapeHtml(reviewerName)}${reviewerCode ? ` · ${escapeHtml(reviewerCode)}` : ""}</span>`;
+    const refundImpact = item.isRefund ? `<span>申请时剩余：${item.balanceBeforeCount} 次 · 本次退费：${item.amount} 次 · 审核通过后：${Math.max(item.balanceBeforeCount - item.amount, 0)} 次</span>` : "";
+    $("reviewDialogSummary").innerHTML = `<strong>${escapeHtml(item.recordCode)} · ${escapeHtml(item.kind)}</strong><span>${escapeHtml(item.store.name)} · ${escapeHtml(item.customerName)}（${escapeHtml(item.customerId)}） · ${escapeHtml(item.project)}</span>${refundImpact}<span>审核人员：${escapeHtml(reviewerName)}${reviewerCode ? ` · ${escapeHtml(reviewerCode)}` : ""}</span>`;
     $("reviewNote").value = ""; $("confirmReview").classList.toggle("danger-button", action === "REJECTED"); renderReviewCommunications(item); $("reviewDialog").showModal();
   }
   function closeDialog() { pendingAction = null; $("reviewDialog").close(); }

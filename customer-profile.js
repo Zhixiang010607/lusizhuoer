@@ -278,7 +278,7 @@
   }
   function renderRecords() {
     $("customerRechargeRecords").innerHTML = recharges.length ? recharges.map((row) => {
-      const units = Number(row.unitCount || 0), prefix = row.rechargeType === "VOID" ? "−" : "+";
+      const units = Number(row.unitCount || 0), prefix = ["VOID", "REFUND"].includes(String(row.rechargeType || "").toUpperCase()) ? "−" : "+";
       const code = row.rechargeCode || row.id;
       const detail = detailHref("recharge-detail.html", row.id, code);
       const codeCell = detail ? `<a class="record-link" href="${escapeHtml(detail)}">${escapeHtml(code)}</a>` : escapeHtml(code);
