@@ -22,6 +22,8 @@
   </header>
   <main class="detail-page store-dashboard-page">
     <section id="storeHero" class="panel profile-hero"></section>
+    <section id="storeBasic" class="panel detail-section"><div class="panel-heading"><div><h2>基础资料</h2><p>门店身份、地址、账号和状态</p></div><span class="badge">门店档案</span></div><div id="storeBasicGrid" class="detail-info-grid"></div></section>
+    <nav class="detail-anchor-nav"><a href="#storeBusinessOverview">业务汇总</a><a href="#storeProjects">项目统计</a><a href="#storeCustomers">客户</a></nav>
     <section id="storeBusinessOverview" class="panel detail-section store-business-overview">
       <div class="panel-heading store-overview-heading">
         <div><h2>业务汇总</h2><p id="storeAnalyticsScope">默认统计今日</p></div>
@@ -33,24 +35,18 @@
         <label><span>结束日期</span><input id="storeAnalyticsEnd" type="date"></label>
         <button id="applyStoreAnalytics" class="primary-action" type="button">查询</button>
       </div>
-      <nav id="storeAnalyticsLinks" class="store-analytics-links" aria-label="业务分类统计页"></nav>
       <div class="store-analytics-summary-scroll">
         <table class="store-analytics-summary"><thead id="storeAnalyticsHead"></thead><tbody id="storeAnalyticsBody"><tr><td class="query-empty">正在读取业务数据…</td></tr></tbody></table>
       </div>
       <p id="storeAnalyticsMessage" class="form-message" aria-live="polite"></p>
     </section>
-    <nav class="detail-anchor-nav"><a href="#storeBasic">基础资料</a><a href="#storeProjects">项目统计</a><a href="#storeTeachers">老师统计</a><a href="#storeCustomers">客户</a></nav>
-    <section id="storeBasic" class="panel detail-section"><div class="panel-heading"><div><h2>基础资料</h2><p>门店身份、地址、账号和状态</p></div><span class="badge">门店档案</span></div><div id="storeBasicGrid" class="detail-info-grid"></div></section>
-    <div class="management-grid">
-      <section id="storeProjects" class="panel detail-section table-card"><div class="panel-heading"><div><h2>各项目业务数据</h2><p>数据库有效累计与剩余次数</p></div></div><div class="table-scroll store-detail-table"><table><thead><tr><th>项目</th><th>有效充值</th><th>有效核销</th><th>剩余次数</th><th>状态</th></tr></thead><tbody id="storeProjectBody"></tbody></table></div></section>
-      <section id="storeTeachers" class="panel detail-section table-card"><div class="panel-heading"><div><h2>各老师核销数据</h2><p>每页显示 5 条</p></div></div><div class="table-scroll store-detail-table"><table><thead><tr><th>老师</th><th>项目</th><th>有效核销</th><th>老师状态</th></tr></thead><tbody id="storeTeacherBody"></tbody></table></div><div id="storeTeacherPagination" class="table-pagination" aria-label="老师核销数据分页"></div></section>
-    </div>
-    <section id="storeCustomers" class="panel detail-section table-card"><div class="panel-heading"><div><h2>门店客户</h2><p>姓名与编号可以进入客户详情，每页显示 10 条</p></div><span id="storeCustomerCount" class="badge"></span></div><div class="table-scroll store-detail-table"><table><thead><tr><th>客户（姓名 · 编号）</th><th>生日</th><th>持有项目</th><th>总购买</th><th>总核销</th><th>剩余次数</th><th>最近业务</th><th>状态</th></tr></thead><tbody id="storeCustomerBody"></tbody></table></div><div id="storeCustomerPagination" class="table-pagination" aria-label="门店客户分页"></div></section>
+    <section id="storeProjects" class="panel detail-section table-card"><div class="panel-heading"><div><h2>各项目业务数据</h2><p>门店全部业务累计与当前剩余次数</p></div></div><div class="table-scroll store-detail-table"><table><thead><tr><th>项目</th><th>充值</th><th>核销</th><th>体验</th><th>退费</th><th>剩余</th></tr></thead><tbody id="storeProjectBody"></tbody></table></div></section>
+    <section id="storeCustomers" class="panel detail-section table-card"><div class="panel-heading"><div><h2>门店客户</h2><p>全部活跃客户；姓名与编号可以进入客户详情，每页显示 10 条</p></div><span id="storeCustomerCount" class="badge"></span></div><div class="table-scroll store-detail-table"><table><thead><tr><th>客户（姓名 · 编号）</th><th>生日</th><th>持有项目</th><th>总购买</th><th>总核销</th><th>剩余次数</th></tr></thead><tbody id="storeCustomerBody"></tbody></table></div><div id="storeCustomerPagination" class="table-pagination" aria-label="门店客户分页"></div></section>
   </main>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.17.7"></script><script src="datetime.js?v=0.1.2"></script>
-  <script src="store-analytics-data.js?v=0.1.0"></script><script src="order-export.js?v=0.1.6"></script><script src="store-dashboard-export.js?v=0.1.0"></script><script src="store-detail.js?v=0.16.0"></script><script src="auth-ui.js?v=0.18.10"></script>
+  <script src="store-analytics-data.js?v=0.1.0"></script><script src="order-export.js?v=0.1.6"></script><script src="store-dashboard-export.js?v=0.1.0"></script><script src="store-detail.js?v=0.16.1"></script><script src="auth-ui.js?v=0.18.10"></script>
 </body>
 </html>

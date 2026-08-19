@@ -16,18 +16,54 @@ const orderExporter = read("order-export.js");
 const cloud = read("cloudfunctions/faceRecognition/index.js");
 const auth = read("auth-ui.js");
 const css = read("styles.css");
+const customerSection = html.slice(html.indexOf('id="storeCustomers"'), html.indexOf('</section>', html.indexOf('id="storeCustomers"')));
 
 const includes = (source, expected, label) => assert.ok(source.includes(expected), `${label}: missing ${JSON.stringify(expected)}`);
 
 includes(html, '<option value="today" selected>今日</option>', "overview defaults to today");
 includes(html, 'id="storeAnalyticsHead"', "overview has dynamic project columns");
 includes(html, 'id="storeAnalyticsBody"', "overview has four business rows");
+assert.ok(html.indexOf('id="storeBasic"') < html.indexOf('id="storeBusinessOverview"'), "store basic profile appears before business analytics");
+assert.doesNotMatch(html, /id="storeAnalyticsLinks"|class="store-analytics-links"/, "overview removes the four duplicate metric shortcut buttons");
+assert.doesNotMatch(html, /id="storeTeachers"|id="storeTeacherBody"|老师统计|各老师核销数据/, "store detail removes the teacher summary section");
+assert.doesNotMatch(customerSection, /<th>最近业务<\/th>|<th>状态<\/th>/, "active customer table removes time and status columns");
+includes(html, '<th>剩余次数</th></tr></thead><tbody id="storeCustomerBody"', "customer table ends with remaining count");
+includes(html, 'store-detail.js?v=0.16.1', "store detail script cache bust");
+includes(html, '<th>项目</th><th>充值</th><th>核销</th><th>体验</th><th>退费</th><th>剩余</th>', "project lifetime table uses the exact six business columns");
+const projectSection = html.slice(html.indexOf('id="storeProjects"'), html.indexOf('</section>', html.indexOf('id="storeProjects"')));
+assert.doesNotMatch(projectSection, /<th>状态<\/th>|有效充值|有效核销/, "project table removes entity status and period-style wording");
 includes(detail, '{ key: "recharge", label: "充值" }', "recharge row");
 includes(detail, '{ key: "verification", label: "核销" }', "verification row");
 includes(detail, '{ key: "experience", label: "体验" }', "experience row");
 includes(detail, '{ key: "refund", label: "退费" }', "refund row");
 includes(detail, 'store-analysis.html?${analyticsQuery(metric.key)}', "rows open dedicated metric pages");
 includes(detail, '<th>汇总</th>', "summary final column");
+assert.doesNotMatch(detail, /storeAnalyticsLinks|renderTeachers|teacherRows|teacherPage/, "removed shortcut and teacher UI has no renderer state");
+includes(detail, 'toUpperCase() === "ACTIVE"', "customer rows are restricted to active customers");
+assert.doesNotMatch(detail, /last_business_at|last_recharge_at|formatDateTime/, "customer list is independent of business timestamps");
+includes(detail, 'colspan="6" class="query-empty"', "customer loading and empty states match the six visible columns");
+includes(detail, '["total_experience_count", "experience_count"]', "project rows render lifetime experience totals");
+includes(detail, '["total_refund_count", "refund_count"]', "project rows render lifetime refund totals");
+assert.doesNotMatch(detail.slice(detail.indexOf("function renderProjects"), detail.indexOf("function renderCustomers")), /product_status|project_status/, "project renderer is independent of product status");
+
+const dashboardSource = cloud.slice(cloud.indexOf("async function getStoreDashboard"), cloud.indexOf("const STORE_ANALYTICS_METRICS"));
+const dashboardProjectSource = dashboardSource.slice(
+  dashboardSource.indexOf("WITH store_business_events AS"),
+  dashboardSource.indexOf("SELECT COUNT(*) AS customer_total")
+);
+assert.match(dashboardProjectSource, /FROM public\.recharge_records r[\s\S]*?WHERE r\.store_id = \$\{storeId\}::bigint[\s\S]*?r\.record_status = 'APPROVED'/, "lifetime recharge totals are scoped to the selected store and approved records");
+assert.match(dashboardProjectSource, /FROM public\.verification_records v[\s\S]*?WHERE v\.store_id = \$\{storeId\}::bigint[\s\S]*?v\.record_status = 'APPROVED'/, "lifetime verification totals are scoped to the selected store and approved records");
+assert.doesNotMatch(dashboardProjectSource, /customer_product_balances|JOIN public\.customers|submitted_at\s*[<>=]/, "lifetime project totals do not depend on customer ownership, customer status, balances, or a date range");
+includes(dashboardProjectSource, "CASE WHEN r.recharge_type = 'NEW' THEN r.unit_count ELSE 0 END", "gross recharge column counts NEW orders only");
+includes(dashboardProjectSource, "CASE WHEN r.recharge_type = 'REFUND' THEN r.unit_count ELSE 0 END", "refund column counts REFUND orders only");
+includes(dashboardProjectSource, "CASE WHEN r.recharge_type = 'VOID' THEN r.unit_count ELSE 0 END", "legacy void affects only the remaining calculation");
+includes(dashboardProjectSource, "v.verification_type IN ('NORMAL', 'SUPPLEMENT')", "normal and historical supplemental consumption share the verification total");
+includes(dashboardProjectSource, "v.verification_type = 'EXPERIENCE'", "experience is reported separately");
+assert.match(dashboardProjectSource, /GROUP BY event\.customer_id, event\.product_id[\s\S]*?GREATEST|GREATEST\([\s\S]*?GROUP BY event\.customer_id, event\.product_id/, "remaining units are floored at customer-product level before project aggregation");
+assert.match(dashboardProjectSource, /WHERE p\.product_status = 'ACTIVE'[\s\S]*?UNION[\s\S]*?SELECT event\.product_id/, "active zero products and historical store products remain visible");
+assert.equal((dashboardSource.match(/(?:c\.)?created_store_id = \$\{storeId\}::bigint\s+AND (?:c\.)?customer_status = 'ACTIVE'/g) || []).length, 2, "customer count and page queries both return only this store's active customers");
+includes(dashboardSource, "teachers: []", "removed teacher table no longer requires a dashboard query");
+assert.doesNotMatch(dashboardSource, /JOIN public\.teachers/, "store dashboard does not fetch teacher aggregates");
 
 includes(analysisHtml, 'id="storeAnalysisChart"', "store chart");
 includes(analysisHtml, 'id="teacherAnalysisChart"', "teacher chart");
@@ -47,7 +83,8 @@ includes(cloud, "SELECT event.product_id", "historical products with period even
 includes(cloud, "WHERE t.teacher_status = 'ACTIVE'", "active teachers included with zero");
 includes(cloud, "AND account.account_status = 'ACTIVE'", "active teacher accounts required for zero inclusion");
 includes(cloud, "SELECT event.teacher_id", "historical teachers with period events included");
-assert.doesNotMatch(cloud.slice(cloud.indexOf("business_events AS"), cloud.indexOf("function storeAnalyticsCounts")), /product_status|teacher_status|store_status/, "event membership is independent of entity status");
+const analyticsEventSource = cloud.slice(cloud.indexOf("function storeAnalyticsEventCte"), cloud.indexOf("function storeAnalyticsCounts"));
+assert.doesNotMatch(analyticsEventSource.slice(analyticsEventSource.indexOf("business_events AS")), /product_status|teacher_status|store_status/, "period event membership is independent of entity status");
 
 includes(html, 'id="exportStoreAnalyticsPdf"', "overview PDF export");
 includes(analysisHtml, 'id="exportAnalysisPdf"', "metric PDF export");

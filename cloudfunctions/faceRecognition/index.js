@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v66";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v67";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -2358,7 +2358,13 @@ async function getStoreDashboard(event = {}) {
     : `LEFT JOIN public.staff_store_assignments assignment
          ON assignment.store_id = s.id AND assignment.assignment_status = 'ACTIVE'
        LEFT JOIN public.staff_accounts account ON account.id = assignment.staff_account_id`;
-  const [storeRows, projects, teachers, customerCountRows, customers] = await Promise.all([
+  // Project totals are derived only from approved orders handled by this
+  // store. Customer status and customer.created_store_id must not remove
+  // historical business. SUPPLEMENT is a consumptive verification; legacy
+  // VOID reduces remaining units but is not reported as a refund. Remaining
+  // is floored per customer/product ledger before the project-level sum, and
+  // EXPERIENCE never consumes purchased units.
+  const [storeRows, projects, customerCountRows, customers] = await Promise.all([
     executeSql(
     `SELECT s.id, s.store_code, s.store_name, s.province, s.city, s.district,
             s.address_detail, s.store_status,
@@ -2377,52 +2383,76 @@ async function getStoreDashboard(event = {}) {
       LIMIT 1`
     ),
     executeSql(
-    `WITH balance_totals AS (
-       SELECT b.product_id,
-              SUM(b.total_recharge_count) AS total_recharge_count,
-              SUM(b.remaining_count) AS remaining_count
-         FROM public.customer_product_balances b
-         JOIN public.customers c ON c.id = b.customer_id
-        WHERE c.created_store_id = ${storeId}::bigint
-        GROUP BY b.product_id
-     ), verification_totals AS (
-       SELECT v.product_id, SUM(v.unit_count) AS total_verification_count
+    `WITH store_business_events AS (
+       SELECT r.customer_id, r.product_id,
+              CASE WHEN r.recharge_type = 'NEW' THEN r.unit_count ELSE 0 END::bigint AS recharge_count,
+              CASE WHEN r.recharge_type = 'REFUND' THEN r.unit_count ELSE 0 END::bigint AS refund_count,
+              CASE WHEN r.recharge_type = 'VOID' THEN r.unit_count ELSE 0 END::bigint AS legacy_void_count,
+              0::bigint AS verification_count,
+              0::bigint AS experience_count
+         FROM public.recharge_records r
+        WHERE r.store_id = ${storeId}::bigint
+          AND r.record_status = 'APPROVED'
+          AND r.recharge_type IN ('NEW', 'REFUND', 'VOID')
+       UNION ALL
+       SELECT v.customer_id, v.product_id,
+              0::bigint AS recharge_count,
+              0::bigint AS refund_count,
+              0::bigint AS legacy_void_count,
+              CASE WHEN v.verification_type IN ('NORMAL', 'SUPPLEMENT') THEN v.unit_count ELSE 0 END::bigint AS verification_count,
+              CASE WHEN v.verification_type = 'EXPERIENCE' THEN v.unit_count ELSE 0 END::bigint AS experience_count
          FROM public.verification_records v
         WHERE v.store_id = ${storeId}::bigint
           AND v.record_status = 'APPROVED'
-        GROUP BY v.product_id
-     ), used_products AS (
-       SELECT product_id FROM balance_totals
+          AND v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')
+     ), customer_product_totals AS (
+       SELECT event.customer_id, event.product_id,
+              SUM(event.recharge_count) AS total_recharge_count,
+              SUM(event.verification_count) AS total_verification_count,
+              SUM(event.experience_count) AS total_experience_count,
+              SUM(event.refund_count) AS total_refund_count,
+              GREATEST(
+                SUM(event.recharge_count)
+                  - SUM(event.refund_count)
+                  - SUM(event.legacy_void_count)
+                  - SUM(event.verification_count),
+                0
+              ) AS remaining_count
+         FROM store_business_events event
+        GROUP BY event.customer_id, event.product_id
+     ), project_totals AS (
+       SELECT customer_product.product_id,
+              SUM(customer_product.total_recharge_count) AS total_recharge_count,
+              SUM(customer_product.total_verification_count) AS total_verification_count,
+              SUM(customer_product.total_experience_count) AS total_experience_count,
+              SUM(customer_product.total_refund_count) AS total_refund_count,
+              SUM(customer_product.remaining_count) AS remaining_count
+         FROM customer_product_totals customer_product
+        GROUP BY customer_product.product_id
+     ), project_members AS (
+       SELECT p.id AS product_id
+         FROM public.products p
+        WHERE p.product_status = 'ACTIVE'
        UNION
-       SELECT product_id FROM verification_totals
+       SELECT event.product_id
+         FROM store_business_events event
      )
      SELECT p.id AS product_id, p.product_code, p.product_name, p.product_status,
-            COALESCE(b.total_recharge_count, 0) AS total_recharge_count,
-            COALESCE(v.total_verification_count, 0) AS total_verification_count,
-            COALESCE(b.remaining_count, 0) AS remaining_count
-       FROM used_products u
-       JOIN public.products p ON p.id = u.product_id
-       LEFT JOIN balance_totals b ON b.product_id = p.id
-       LEFT JOIN verification_totals v ON v.product_id = p.id
+            COALESCE(totals.total_recharge_count, 0) AS total_recharge_count,
+            COALESCE(totals.total_verification_count, 0) AS total_verification_count,
+            COALESCE(totals.total_experience_count, 0) AS total_experience_count,
+            COALESCE(totals.total_refund_count, 0) AS total_refund_count,
+            COALESCE(totals.remaining_count, 0) AS remaining_count
+       FROM project_members member
+       JOIN public.products p ON p.id = member.product_id
+       LEFT JOIN project_totals totals ON totals.product_id = p.id
       ORDER BY p.product_name, p.product_code`
-    ),
-    executeSql(
-    `SELECT t.id AS teacher_id, t.teacher_code, t.teacher_name, t.teacher_status,
-            p.id AS product_id, p.product_code, p.product_name,
-            COALESCE(SUM(v.unit_count), 0) AS valid_verification_count
-       FROM public.verification_records v
-       JOIN public.teachers t ON t.id = v.teacher_id
-       JOIN public.products p ON p.id = v.product_id
-      WHERE v.store_id = ${storeId}::bigint
-        AND v.record_status = 'APPROVED'
-      GROUP BY t.id, t.teacher_code, t.teacher_name, t.teacher_status,
-               p.id, p.product_code, p.product_name
-      ORDER BY valid_verification_count DESC, t.teacher_name, p.product_name`
     ),
     executeSql(
       `SELECT COUNT(*) AS customer_total
          FROM public.customers
-        WHERE created_store_id = ${storeId}::bigint`
+        WHERE created_store_id = ${storeId}::bigint
+          AND customer_status = 'ACTIVE'`
     ),
     executeSql(
     `SELECT c.id AS customer_id, c.customer_code, c.customer_name, c.birth_date,
@@ -2435,6 +2465,7 @@ async function getStoreDashboard(event = {}) {
        FROM public.customers c
        LEFT JOIN public.customer_product_balances b ON b.customer_id = c.id
       WHERE c.created_store_id = ${storeId}::bigint
+        AND c.customer_status = 'ACTIVE'
       GROUP BY c.id, c.customer_code, c.customer_name, c.birth_date,
                c.customer_status, c.total_recharge_count, c.total_verification_count,
                c.latest_recharge_at, c.latest_verification_at
@@ -2454,7 +2485,7 @@ async function getStoreDashboard(event = {}) {
       ...store,
       auth_uid: String(store.auth_uid || ""),
       projects,
-      teachers,
+      teachers: [],
       customers,
       customer_total: customerTotal,
       customer_page: customerPage,

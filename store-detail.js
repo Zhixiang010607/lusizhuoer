@@ -1,12 +1,10 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.0";
-  const TEACHER_PAGE_SIZE = 5;
+  const VERSION = "0.16.1";
   const CUSTOMER_PAGE_SIZE = 10;
   const params = new URLSearchParams(location.search);
   const storeRef = String(params.get("authUid") || params.get("storeId") || "").trim();
-  const formatDateTime = window.AppDateTime.formatDate;
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"]/g, (char) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"
@@ -21,7 +19,7 @@
     { key: "refund", label: "退费" }
   ]);
   const state = {
-    teacherRows: [], customerRows: [], teacherPage: 1, customerPage: 1, customerTotal: 0,
+    customerRows: [], customerPage: 1, customerTotal: 0,
     dashboardStoreId: "", analytics: null, analyticsLoading: false
   };
 
@@ -96,39 +94,13 @@
     const target = $("storeProjectBody");
     if (!target) return;
     if (!rows.length) {
-      target.innerHTML = '<tr><td colspan="5" class="query-empty">暂无项目业务数据</td></tr>';
+      target.innerHTML = '<tr><td colspan="6" class="query-empty">暂无项目业务数据</td></tr>';
       return;
     }
     target.innerHTML = rows.map((row) => {
       const name = firstValue(row, ["product_name", "project_name", "name"]);
-      const status = firstValue(row, ["product_status", "project_status", "status"]) === "ARCHIVED" ? "封存" : "活跃";
-      return `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(firstValue(row, ["recharge_count", "total_recharge_count", "purchased_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["verification_count", "total_verification_count", "used_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["remaining_count", "balance"], 0))}</td><td>${escapeHtml(status)}</td></tr>`;
+      return `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(firstValue(row, ["total_recharge_count", "recharge_count", "purchased_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["total_verification_count", "verification_count", "used_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["total_experience_count", "experience_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["total_refund_count", "refund_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["remaining_count", "balance"], 0))}</td></tr>`;
     }).join("");
-  }
-
-  function renderTeachers() {
-    const target = $("storeTeacherBody");
-    if (!target) return;
-    const total = state.teacherRows.length;
-    const pages = Math.max(1, Math.ceil(total / TEACHER_PAGE_SIZE));
-    state.teacherPage = Math.min(Math.max(1, state.teacherPage), pages);
-    const rows = state.teacherRows.slice((state.teacherPage - 1) * TEACHER_PAGE_SIZE, state.teacherPage * TEACHER_PAGE_SIZE);
-    if (!rows.length) {
-      target.innerHTML = '<tr><td colspan="4" class="query-empty">暂无老师核销数据</td></tr>';
-    } else {
-      target.innerHTML = rows.map((row) => {
-        const name = firstValue(row, ["teacher_name", "staff_name", "name"]);
-        const code = firstValue(row, ["teacher_code", "staff_code", "code"], "");
-        const id = firstValue(row, ["teacher_id", "staff_id", "id"], "");
-        const ref = id || code;
-        const label = code ? `${name} · ${code}` : name;
-        const teacher = ref ? `<a class="record-link" href="teacher-detail.html?teacherId=${encodeURIComponent(ref)}">${escapeHtml(label)}</a>` : escapeHtml(label);
-        const project = firstValue(row, ["product_name", "project_name", "product", "project"]);
-        const status = firstValue(row, ["teacher_status", "staff_status", "status"]) === "ARCHIVED" ? "封存" : "活跃";
-        return `<tr><td>${teacher}</td><td>${escapeHtml(project)}</td><td>${escapeHtml(firstValue(row, ["valid_verification_count", "verification_count", "total_verification_count"], 0))}</td><td>${escapeHtml(status)}</td></tr>`;
-      }).join("");
-    }
-    renderPager("storeTeacherPagination", total, state.teacherPage, TEACHER_PAGE_SIZE, "teacher");
   }
 
   function renderCustomers() {
@@ -139,7 +111,7 @@
     state.customerPage = Math.min(Math.max(1, state.customerPage), pages);
     const rows = state.customerRows;
     if (!rows.length) {
-      target.innerHTML = '<tr><td colspan="8" class="query-empty">暂无门店客户</td></tr>';
+      target.innerHTML = '<tr><td colspan="6" class="query-empty">暂无活跃客户</td></tr>';
     } else {
       target.innerHTML = rows.map((row) => {
         const id = firstValue(row, ["customer_id", "id"], "");
@@ -148,8 +120,7 @@
         const reference = code || id;
         const label = code ? `${name} · ${code}` : name;
         const customer = reference ? `<a class="record-link" href="customer-detail.html?customerId=${encodeURIComponent(reference)}">${escapeHtml(label)}</a>` : escapeHtml(label);
-        const status = firstValue(row, ["customer_status", "status"]) === "ARCHIVED" ? "封存" : "活跃";
-        return `<tr><td>${customer}</td><td>${escapeHtml(formatBirthday(firstValue(row, ["birthday", "birth_date"], "")))}</td><td>${escapeHtml(firstValue(row, ["product_count", "held_product_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["total_recharge_count", "purchase_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["total_verification_count", "verification_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["remaining_count", "balance"], 0))}</td><td>${escapeHtml(formatDateTime(firstValue(row, ["last_business_at", "last_recharge_at", "updated_at"])))}</td><td>${escapeHtml(status)}</td></tr>`;
+        return `<tr><td>${customer}</td><td>${escapeHtml(formatBirthday(firstValue(row, ["birthday", "birth_date"], "")))}</td><td>${escapeHtml(firstValue(row, ["product_count", "held_product_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["total_recharge_count", "purchase_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["total_verification_count", "verification_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["remaining_count", "balance"], 0))}</td></tr>`;
       }).join("");
     }
     if ($("storeCustomerCount")) $("storeCustomerCount").textContent = `${total}位客户`;
@@ -157,11 +128,9 @@
   }
 
   function renderEmptyRows(message = "暂无业务数据") {
-    if ($("storeProjectBody")) $("storeProjectBody").innerHTML = `<tr><td colspan="5" class="query-empty">${escapeHtml(message)}</td></tr>`;
-    state.teacherRows = [];
+    if ($("storeProjectBody")) $("storeProjectBody").innerHTML = `<tr><td colspan="6" class="query-empty">${escapeHtml(message)}</td></tr>`;
     state.customerRows = [];
     state.customerTotal = 0;
-    renderTeachers();
     renderCustomers();
   }
 
@@ -192,12 +161,11 @@
       ["联系电话", store.contact_phone || "未填写"]
     ]);
     renderProjects(Array.isArray(store.projects) ? store.projects : (Array.isArray(store.project_stats) ? store.project_stats : []));
-    state.teacherRows = Array.isArray(store.teachers) ? store.teachers : (Array.isArray(store.teacher_stats) ? store.teacher_stats : []);
-    state.customerRows = Array.isArray(store.customers) ? store.customers : [];
-    state.teacherPage = 1;
+    state.customerRows = (Array.isArray(store.customers) ? store.customers : []).filter((row) =>
+      String(firstValue(row, ["customer_status", "status"], "")).trim().toUpperCase() === "ACTIVE"
+    );
     state.customerTotal = Number(store.customer_total ?? state.customerRows.length);
     state.customerPage = Number(store.customer_page || 1);
-    renderTeachers();
     renderCustomers();
   }
 
@@ -228,9 +196,6 @@
       const href = `store-analysis.html?${analyticsQuery(metric.key)}`;
       return `<tr><th><a class="record-link" href="${escapeHtml(href)}">${metric.label}</a></th>${cells}<td><strong>${Number(data.totals?.[metric.key] || 0)}</strong></td></tr>`;
     }).join("") || `<tr><td colspan="${totalColumns}" class="query-empty">暂无业务数据</td></tr>`;
-    $("storeAnalyticsLinks").innerHTML = analyticsMetrics.map((metric) =>
-      `<a href="store-analysis.html?${analyticsQuery(metric.key)}">${metric.label}统计</a>`
-    ).join("");
     $("storeAnalyticsScope").textContent = `${data.range?.startDate || "—"} 至 ${data.range?.endDate || "—"} · 项目按本期业务量排序`;
     $("exportStoreAnalyticsPdf").disabled = false;
   }
@@ -283,11 +248,11 @@
 
   async function loadCustomerPage(page) {
     const target = $("storeCustomerBody");
-    if (target) target.innerHTML = '<tr><td colspan="8" class="query-empty">正在读取客户数据…</td></tr>';
+    if (target) target.innerHTML = '<tr><td colspan="6" class="query-empty">正在读取客户数据…</td></tr>';
     try {
       renderStore(await loadCurrentStoreDashboard(page, state.dashboardStoreId));
     } catch (error) {
-      if (target) target.innerHTML = `<tr><td colspan="8" class="query-empty">${escapeHtml(error?.message || "客户数据读取失败")}</td></tr>`;
+      if (target) target.innerHTML = `<tr><td colspan="6" class="query-empty">${escapeHtml(error?.message || "客户数据读取失败")}</td></tr>`;
     }
   }
 
@@ -295,12 +260,7 @@
     const button = event.target.closest("button[data-page-target]");
     if (!button || button.disabled) return;
     const page = Number(button.dataset.page);
-    if (button.dataset.pageTarget === "teacher") {
-      state.teacherPage = page;
-      renderTeachers();
-    } else {
-      void loadCustomerPage(page);
-    }
+    if (button.dataset.pageTarget === "customer") void loadCustomerPage(page);
   });
 
   $("storeAnalyticsPeriod")?.addEventListener("change", (event) => setAnalyticsPeriod(event.target.value));
