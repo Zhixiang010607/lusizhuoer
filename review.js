@@ -1,8 +1,10 @@
 (() => {
   "use strict";
-  const VERSION = "0.17.9";
+  const VERSION = "0.18.0";
   const pageType = document.body.dataset.review;
-  const recordType = pageType === "recharge" ? "RECHARGE" : "VERIFICATION";
+  const rechargeWorkflow = ["recharge", "refund"].includes(pageType);
+  const recordType = rechargeWorkflow ? "RECHARGE" : "VERIFICATION";
+  const pageNoun = pageType === "refund" ? "退费" : pageType === "recharge" ? "充值" : "核销";
   const columnCount = 10;
   const $ = (id) => document.getElementById(id);
   const statusText = { PENDING: "待审核", APPROVED: "审核通过", REJECTED: "已驳回" };
@@ -31,7 +33,7 @@
     const customerCode = clean(pick(row, "customer_code", "customerCode"));
     return {
       raw: row, id: clean(row.id), recordCode: clean(pick(row, "record_code", "recordCode")), isVoid, isRefund, status,
-      kind: pageType === "recharge" ? (isRefund ? "退费申请" : isVoid ? "历史作废" : "充值申请") : "补录核销",
+      kind: rechargeWorkflow ? (isRefund ? "退费申请" : isVoid ? "历史作废" : "充值申请") : "补录核销",
       time: pick(row, "application_time", "applicationTime"),
       reviewedAt: isVoid ? pick(row, "void_reviewed_at", "voidReviewedAt") : pick(row, "original_reviewed_at", "originalReviewedAt"),
       originalCreatedAt: pick(row, "original_submitted_at", "originalSubmittedAt"), originalReviewedAt: pick(row, "original_reviewed_at", "originalReviewedAt"),
@@ -47,10 +49,8 @@
     };
   }
   function applicationTypeFilter() {
-    if (pageType === "recharge") {
-      const value = $("reviewType")?.value || "all";
-      return value === "all" ? "" : value;
-    }
+    if (pageType === "recharge") return "NEW";
+    if (pageType === "refund") return "REFUND";
     const value = $("reviewType")?.value || "all";
     if (value === "all") return "";
     return "SUPPLEMENT";
@@ -126,7 +126,7 @@
     if ([...$("reviewStore").options].some((option) => option.value === selected)) $("reviewStore").value = selected;
   }
   function impactText(item) {
-    if (pageType === "recharge") return `${item.isRefund || item.isVoid ? "−" : "+"}${item.amount}次`;
+    if (rechargeWorkflow) return `${item.isRefund || item.isVoid ? "−" : "+"}${item.amount}次`;
     return `核销 +${item.amount || 1}`;
   }
   function render() {
@@ -134,10 +134,10 @@
     $("reviewBody").innerHTML = rows.map((item) => {
       const actions = item.status === "PENDING" && canDecide ? `<div class="review-actions"><button data-id="${escapeHtml(item.id)}" data-action="APPROVED">通过</button><button class="reject" data-id="${escapeHtml(item.id)}" data-action="REJECTED">驳回</button></div>` : `<span class="record-status status-${escapeHtml(statusText[item.status] || item.status)}">${escapeHtml(statusText[item.status] || item.status)}</span>`;
       const teacher = item.teacherName ? `${item.teacherName}${item.teacherId ? `（${item.teacherId}）` : ""}` : "—";
-      const detailPage = pageType === "recharge" ? "recharge-detail.html" : "verification-detail.html";
+      const detailPage = rechargeWorkflow ? "recharge-detail.html" : "verification-detail.html";
       const canOpenSupportingPages = ["hq", "operation"].includes(session?.role);
       const orderCode = item.id && canOpenSupportingPages
-        ? `<a class="record-link" href="${detailPage}?recordId=${encodeURIComponent(item.id)}&recordCode=${encodeURIComponent(item.recordCode)}&source=review" title="查看${pageType === "recharge" ? "充值" : "核销"}工单 ${escapeHtml(item.recordCode)}">${escapeHtml(item.recordCode)}</a>`
+        ? `<a class="record-link" href="${detailPage}?recordId=${encodeURIComponent(item.id)}&recordCode=${encodeURIComponent(item.recordCode)}&source=review" title="查看${pageNoun}工单 ${escapeHtml(item.recordCode)}">${escapeHtml(item.recordCode)}</a>`
         : escapeHtml(item.recordCode);
       const customerText = `${item.customerName}${item.customerId ? `（${item.customerId}）` : ""}`;
       const customerHref = item.customerCode && item.id
@@ -168,14 +168,14 @@
       const recordCode = queryMode === "code" ? clean($("reviewCode").value).toUpperCase() : "";
       if (queryMode === "code" && !recordCode) {
         rows = [];
-        setLoading(`请输入完整${pageType === "recharge" ? "充值" : "核销"}工单编号`);
+        setLoading(`请输入完整${pageNoun}工单编号`);
         return;
       }
       const result = await window.CloudBasePhoneAuth.listReviewOrders({
         recordType,
         recordCode,
         storeId: queryMode === "filters" && $("reviewStore").value !== "all" ? $("reviewStore").value : "",
-        applicationType: queryMode === "filters" ? applicationTypeFilter() : "",
+        applicationType: applicationTypeFilter(),
         status: queryMode === "filters" && $("reviewStatus").value !== "all" ? $("reviewStatus").value.toUpperCase() : "",
         limit: queryMode === "code" ? 1 : 100,
         paged: queryMode === "filters",
@@ -201,7 +201,7 @@
   }
   function renderReviewCommunications(item) {
     const communicationRows = [{
-      title: pageType === "recharge" ? "门店原申请留言" : "门店申请留言",
+      title: pageType === "refund" ? "门店退费申请留言" : pageType === "recharge" ? "门店充值申请留言" : "门店申请留言",
       message: item.applicantNote,
       time: item.time
     }];

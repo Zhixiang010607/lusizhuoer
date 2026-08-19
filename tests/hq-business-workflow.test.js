@@ -57,14 +57,14 @@ for (const page of pages) {
   includes(authUi, `"${page}"`, `HQ route ${page}`);
   const html = read(page);
   includes(html, `data-store-business=`, `${page} reuses the shared workflow`);
-  includes(html, "store-business.js?v=0.14.52", `${page} workflow cache key`);
+  includes(html, "store-business.js?v=0.14.53", `${page} workflow cache key`);
   includes(html, "styles.css?v=", `${page} responsive store selector styles`);
   assert.ok(!fs.existsSync(path.join(root, `hq-${page}`)), `${page} must not have a duplicated HQ page`);
 }
 for (const file of fs.readdirSync(root).filter((file) => file.endsWith(".html") && read(file).includes("auth-ui.js?v="))) {
-  includes(read(file), "auth-ui.js?v=0.18.7", `${file} auth cache key`);
+  includes(read(file), "auth-ui.js?v=0.18.8", `${file} auth cache key`);
 }
-for (const page of teacherBusinessPages) includes(read(page), "store-business.js?v=0.14.52", `${page} shared script version`);
+for (const page of teacherBusinessPages) includes(read(page), "store-business.js?v=0.14.53", `${page} shared script version`);
 
 for (const [href, label] of [
   ["customer-create.html", "客户建立"],
@@ -102,10 +102,14 @@ includes(businessUi, '["getTeacherBusinessContext", "getHqBusinessContext"].incl
 includes(businessUi, 'nextCustomerEnrollmentRequestId({ storeId,', "customer idempotency is store-bound");
 includes(businessUi, 'nextRechargeRequestId({ storeId, ...payload })', "recharge idempotency is store-bound");
 includes(businessUi, 'nextVerificationRequestId({ storeId, ...payload })', "verification idempotency is store-bound");
+includes(businessUi, '${escapeHtml(customer.name)} · ${escapeHtml(formatBirthday(customer.birthday))}', "shared customer dropdown shows birthday instead of customer number");
+assert.ok(!businessUi.includes('${escapeHtml(customer.name)}（${escapeHtml(customer.id)}）</option>'), "shared customer dropdown must not expose the customer number");
 includes(styles, ".hq-business-store-row", "HQ store selector layout");
 includes(styles, ".business-store-unconfirmed", "HQ workflow lock fallback styling");
 includes(styles, "pointer-events: none", "legacy browsers cannot click pre-confirm controls");
 includes(styles, "body[data-store-business] .hq-business-store-panel", "mobile HQ store selector layout");
+includes(styles, "grid-template-columns: minmax(160px, 1.35fr) minmax(130px, .85fr) minmax(88px, auto)", "customer lookup columns resize with the available width");
+includes(styles, "gap: clamp(8px, 1vw, 12px)", "customer lookup column spacing adapts to the viewport");
 includes(authUi, 'window.matchMedia("(max-width: 1100px)")', "phone and tablet navigation groups start collapsed");
 includes(authUi, 'document.querySelectorAll(".side-menu-group[open]")', "compact navigation removes every default-open group");
 

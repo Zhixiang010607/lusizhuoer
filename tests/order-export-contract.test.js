@@ -74,7 +74,7 @@ assert.ok(twoPagePdf.includes("xref\n0 9"), "multi-page PDF xref count");
 for (const html of [rechargeHtml, verificationHtml]) {
   includes(html, 'id="exportOrderPdf"', "PDF export button");
   includes(html, 'id="exportOrderImage"', "image export button");
-  assert.ok(html.indexOf("order-export.js?v=0.1.1") < html.indexOf("business-detail.js?v=0.16.8"), "exporter must load before detail controller");
+  assert.ok(html.indexOf("order-export.js?v=0.1.2") < html.indexOf("business-detail.js?v=0.16.9"), "exporter must load before detail controller");
 }
 
 includes(detailSource, 'filename: `${customerName}+${projectName}+${refund ? "退费" : recharge ? "充值" : "核销"}`', "required filename contract");
@@ -94,6 +94,12 @@ includes(exporterSource, "catch (_) { image = null; }", "imageBitmap decode fall
 assert.ok(!detailSource.includes("已用占位信息完成导出"), "known photo failures may not be reported as a successful placeholder export");
 includes(detailSource, 'exportCurrentOrder("pdf")', "PDF button wiring");
 includes(detailSource, 'exportCurrentOrder("image")', "image button wiring");
+includes(detailSource, "compactVerification: !recharge", "verification PDF uses compact one-page layout");
+includes(detailSource, "facts: recharge ? facts : verificationFacts", "verification PDF keeps only the four header facts");
+includes(detailSource, "details: recharge ? details : []", "verification PDF removes repeated detail grid and unit count");
+includes(detailSource, "`提交时间：${submittedAt}`", "verification PDF keeps submission time in the header");
+const exportDataSource = detailSource.slice(detailSource.indexOf("function exportDocumentData"), detailSource.indexOf("async function fetchVerificationPhotoUrlBlob"));
+assert.ok(!exportDataSource.includes("verificationHqMessage"), "verification PDF keeps only the store message");
 assert.ok(!/html2canvas|jspdf|unpkg|cdnjs/i.test(exporterSource), "export must not load a third-party DOM service");
 
 const headerTexts = [];
@@ -122,6 +128,32 @@ for (const expected of ["补录核销", "核销单 VX202608180001", "数据库�
   assert.ok(headerTexts.includes(expected), `JPG/PDF header includes ${expected}`);
 }
 assert.ok(headerRects.some(([x, y, width, height]) => x === 0 && y === 0 && width === 1240 && height === 18), "export keeps the top accent stripe");
+
+const compactDocument = {
+  compactVerification: true,
+  kind: "体验核销",
+  title: "核销单 VX202608190024",
+  subtitle: "提交时间：2026-08-19 09:11:57",
+  statusLabel: "当前审核状态",
+  status: "已通过",
+  statusHint: "审核已完成",
+  facts: [
+    { label: "门店", value: "测试门店" },
+    { label: "客户", value: "李四" },
+    { label: "项目", value: "魔法柔肤" },
+    { label: "业务老师", value: "李道良" }
+  ],
+  details: [{ label: "核销次数", value: "1" }, { label: "核销单编号", value: "不应重复" }],
+  messages: [{ label: "门店留言", value: "无", time: "2026-08-19 09:11:57" }]
+};
+const compactPhotos = Array.from({ length: 5 }, (_, index) => ({ label: `照片 ${index + 1}`, meta: "已留存" }));
+const compactHeight = exporter.__layoutDocument(headerContext, compactDocument, compactPhotos, { draw: false, paginate: true });
+assert.ok(compactHeight < 1754, `five-photo verification PDF fits one A4 page, got ${compactHeight}px`);
+const compactTextStart = headerTexts.length;
+exporter.__layoutDocument(headerContext, compactDocument, compactPhotos, { draw: true, paginate: true });
+const compactTexts = headerTexts.slice(compactTextStart);
+assert.ok(!compactTexts.includes("核销次数"), "compact verification PDF does not repeat the fixed one-unit count");
+assert.ok(!compactTexts.includes("不应重复"), "compact verification PDF does not repeat the order number");
 
 (async () => {
   const fivePhotos = Array.from({ length: 5 }, (_, slot) => ({

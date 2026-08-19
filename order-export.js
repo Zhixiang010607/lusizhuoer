@@ -261,9 +261,9 @@
     context.drawImage(image, x + (width - drawWidth) / 2, y + (height - drawHeight) / 2, drawWidth, drawHeight);
   }
 
-  function drawPhotoCard(context, photo, x, y, width, draw) {
-    const imageHeight = 330;
-    const cardHeight = 420;
+  function drawPhotoCard(context, photo, x, y, width, draw, options = {}) {
+    const imageHeight = options.imageHeight || 330;
+    const cardHeight = options.cardHeight || 420;
     if (draw) {
       context.fillStyle = "#f6f8fb";
       context.strokeStyle = "#d9e2ee";
@@ -290,10 +290,10 @@
       context.fillStyle = "#10233f";
       setFont(context, 20, 800);
       context.textBaseline = "top";
-      context.fillText(text(photo.label), x + 18, y + 356);
+      context.fillText(text(photo.label), x + 18, y + imageHeight + 26);
       context.fillStyle = "#667085";
       setFont(context, 15, 400);
-      context.fillText(text(photo.meta, photo.image ? "已载入原图" : "空照片位"), x + 18, y + 388);
+      context.fillText(text(photo.meta, photo.image ? "已载入原图" : "空照片位"), x + 18, y + imageHeight + 58);
     }
     return cardHeight;
   }
@@ -310,33 +310,57 @@
     return y;
   }
 
+  function drawPhotoRow(context, photos, y, columns, options, draw, paginate) {
+    if (!photos.length) return y;
+    const gap = 14;
+    const width = (CONTENT_WIDTH - gap * (columns - 1)) / columns;
+    const cardHeight = options.cardHeight;
+    y = ensureSpace(y, cardHeight + 14, paginate);
+    photos.forEach((photo, index) => {
+      drawPhotoCard(context, photo, PAGE_MARGIN + index * (width + gap), y, width, draw, options);
+    });
+    return y + cardHeight + 14;
+  }
+
+  function drawCompactVerificationPhotos(context, photos, y, draw, paginate) {
+    y = drawPhotoRow(context, photos.slice(0, 2), y, 2, { imageHeight: 238, cardHeight: 314 }, draw, paginate);
+    return drawPhotoRow(context, photos.slice(2, 5), y, 3, { imageHeight: 176, cardHeight: 252 }, draw, paginate);
+  }
+
   function layoutDocument(context, documentData, photos, options = {}) {
     const draw = options.draw === true;
     const paginate = options.paginate === true;
+    const compactVerification = documentData.compactVerification === true;
     if (draw) {
       context.fillStyle = "#ffffff";
       context.fillRect(0, 0, context.canvas.width, context.canvas.height);
     }
     let y = drawDocumentHeader(context, documentData, draw);
     y = drawInfoGrid(context, documentData.facts || [], y, draw, paginate);
-    y += 12;
-    y = ensureSpace(y, 70, paginate);
-    y = drawSectionHeading(context, documentData.detailTitle || "工单信息", documentData.detailSubtitle, y, draw);
-    y = drawInfoGrid(context, documentData.details || [], y, draw, paginate);
+    if (!compactVerification) {
+      y += 12;
+      y = ensureSpace(y, 70, paginate);
+      y = drawSectionHeading(context, documentData.detailTitle || "工单信息", documentData.detailSubtitle, y, draw);
+      y = drawInfoGrid(context, documentData.details || [], y, draw, paginate);
+    }
 
     const messages = Array.isArray(documentData.messages) ? documentData.messages : [];
     if (messages.length) {
-      y += 16;
-      y = ensureSpace(y, 70, paginate);
-      y = drawSectionHeading(context, "留言与审核记录", "按工单数据库内容完整导出", y, draw);
+      y += compactVerification ? 8 : 16;
+      if (!compactVerification) {
+        y = ensureSpace(y, 70, paginate);
+        y = drawSectionHeading(context, "留言与审核记录", "按工单数据库内容完整导出", y, draw);
+      }
       messages.forEach((message) => { y = drawMessageCard(context, message, y, draw, paginate); });
     }
 
     if (photos.length) {
-      y += 16;
+      y += compactVerification ? 8 : 16;
       y = ensureSpace(y, 70, paginate);
-      y = drawSectionHeading(context, "核销照片凭证", "客户留存照、本次核销人脸照与三个补充照片位", y, draw);
-      y = drawPhotos(context, photos, y, draw, paginate);
+      y = drawSectionHeading(context, "核销照片凭证", compactVerification ? "客户留存照、本次核销人脸照与补充照片" : "客户留存照、本次核销人脸照与三个补充照片位", y, draw);
+      y = compactVerification
+        ? drawCompactVerificationPhotos(context, photos, y, draw, paginate)
+        : drawPhotos(context, photos, y, draw, paginate);
     }
 
     y += 34;

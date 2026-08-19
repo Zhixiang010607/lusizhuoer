@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.8";
+  const VERSION = "0.16.9";
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
@@ -270,14 +270,15 @@
       label: elementText(element, "span"),
       value: elementText(element, "strong")
     }));
+    const verificationFacts = facts.filter((item) => ["门店", "客户", "项目", "业务老师"].includes(item.label));
+    const submittedAt = details.find((item) => item.label === "提交时间")?.value || "—";
     const messages = recharge
       ? [
           { label: "门店原申请留言", value: clean($("rechargeStoreMessage")?.textContent) || "无", time: clean($("rechargeStoreMessageTime")?.textContent) },
           { label: "总部回复", value: clean($("rechargeHqMessage")?.textContent) || "无", time: clean($("rechargeHqMessageTime")?.textContent) }
         ]
       : [
-          { label: "门店留言", value: clean($("verificationStoreMessage")?.textContent) || "无", time: clean($("verificationStoreMessageTime")?.textContent) },
-          { label: "总部留言", value: clean($("verificationHqMessage")?.textContent) || "无", time: clean($("verificationHqMessageTime")?.textContent) }
+          { label: "门店留言", value: clean($("verificationStoreMessage")?.textContent) || "无", time: clean($("verificationStoreMessageTime")?.textContent) }
         ];
     const customerName = first(record.customerName, record.customerCode, "客户");
     const projectName = first(record.projectName, record.productName, record.projectCode, record.productCode, "项目");
@@ -285,15 +286,16 @@
       filename: `${customerName}+${projectName}+${refund ? "退费" : recharge ? "充值" : "核销"}`,
       kind: clean($("orderKindTag")?.textContent) || (recharge ? "充值" : "核销"),
       title: clean($("orderTitle")?.textContent) || `${recharge ? "充值" : "核销"}工单`,
-      subtitle: clean($("orderDescription")?.textContent) || "业务工单完整导出",
+      subtitle: recharge ? (clean($("orderDescription")?.textContent) || "业务工单完整导出") : `提交时间：${submittedAt}`,
       statusLabel: "当前审核状态",
       status: clean($("orderStatus")?.textContent) || "—",
       statusHint: clean($("orderStatusHint")?.textContent) || "—",
       statusTone: $("orderStatus")?.classList.contains("rejected") ? "rejected" : $("orderStatus")?.classList.contains("pending") ? "pending" : "approved",
-      facts,
+      facts: recharge ? facts : verificationFacts,
+      compactVerification: !recharge,
       detailTitle: refund ? "退费信息" : recharge ? "充值信息" : "核销信息",
       detailSubtitle: "该工单数据库中保存的完整业务内容",
-      details,
+      details: recharge ? details : [],
       messages
     };
   }

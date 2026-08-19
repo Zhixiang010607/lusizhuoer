@@ -3,33 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>充值审核</title>
+  <title>退费审核</title>
   <link rel="stylesheet" href="styles.css?v=0.15.44">
 </head>
-<body data-review="recharge">
+<body data-review="refund">
   <aside class="side-project-bar" aria-label="项目栏">
     <div class="side-brand"><span>HQ</span><div><strong>总部工作台</strong><small>项目栏</small></div></div>
     <p class="side-section-title">数据看板</p>
-    <nav class="side-nav">
-      <a href="index.html"><span class="nav-icon">全</span><span>全局视图</span></a>
-    </nav>
-    <details class="side-menu-group">
-      <summary><span class="nav-icon">管</span><span>管理</span></summary>
-      <nav><a href="project-management.html">产品管理</a><a href="store-management.html">门店管理</a><a href="teacher-management.html">老师管理</a></nav>
-    </details>
-    <details class="side-menu-group">
-      <summary><span class="nav-icon">查</span><span>查询</span></summary>
-      <nav><a href="customer-query.html">客户查询</a><a href="recharge-query.html">充值查询</a><a href="verification-query.html">核销查询</a></nav>
-    </details>
+    <nav class="side-nav"><a href="index.html"><span class="nav-icon">全</span><span>全局视图</span></a></nav>
     <details class="side-menu-group" open data-menu="review">
       <summary><span class="nav-icon">审</span><span>审核</span></summary>
-      <nav><a class="active" href="recharge-review.html">充值审核</a><a href="refund-review.html">退费审核</a></nav>
+      <nav><a href="recharge-review.html">充值审核</a><a class="active" href="refund-review.html">退费审核</a></nav>
     </details>
     <div class="side-footer">总部工作台</div>
   </aside>
 
   <header class="topbar">
-    <div><p class="eyebrow">RECHARGE REVIEW</p><h1>充值审核</h1><p class="subtitle">审核门店提交的充值申请</p></div>
+    <div><p class="eyebrow">REFUND REVIEW</p><h1>退费审核</h1><p class="subtitle">审核门店或老师提交的退费申请</p></div>
     <div class="status"><span></span>总部/运营权限</div>
   </header>
 
@@ -45,17 +35,17 @@
         <button id="reviewFilterSearch" class="primary-action" type="button">按条件查询</button>
       </div>
       <div id="reviewCodePanel" class="review-code-panel review-query-panel" hidden>
-        <label>工单编号<input id="reviewCode" type="search" maxlength="40" autocomplete="off" placeholder="输入完整充值单号，例如 RC202608170009"></label>
+        <label>退费单编号<input id="reviewCode" type="search" maxlength="40" autocomplete="off" placeholder="输入完整退费单号"></label>
         <button id="reviewCodeSearch" class="primary-action" type="button">查询</button>
       </div>
       <div class="review-count" id="reviewCount"></div>
     </section>
 
     <section class="panel table-card review-table">
-      <div class="panel-heading"><div><h2>充值审核记录</h2><p>这里只显示充值申请</p></div><span class="badge">充值</span></div>
+      <div class="panel-heading"><div><h2>退费审核记录</h2><p>这里只显示退费申请</p></div><span class="badge">退费</span></div>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>工单号</th><th>类型</th><th>门店</th><th>客户</th><th>项目</th><th>老师</th><th>次数影响</th><th>提交时间</th><th>审核操作/结果</th><th>审核时间</th></tr></thead>
+          <thead><tr><th>退费单号</th><th>类型</th><th>门店</th><th>客户</th><th>项目</th><th>老师</th><th>退费次数</th><th>提交时间</th><th>审核操作/结果</th><th>审核时间</th></tr></thead>
           <tbody id="reviewBody"></tbody>
         </table>
       </div>

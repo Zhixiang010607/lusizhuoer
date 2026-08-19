@@ -8,8 +8,8 @@
   const homes = { hq: "index.html", operation: "local.html", store: "store-detail.html", teacher: "teacher-work-orders.html" };
   const labels = { hq: "总部工作区", operation: "运营工作区", store: "门店工作区", teacher: "老师工作区" };
   const access = {
-    hq: new Set(["index.html", "change-password.html", "store-create.html", "project-create.html", "teacher-create.html", "operation-account-create.html", "hq-account-create.html", "hq-management.html", "store-management.html", "project-management.html", "teacher-management.html", "operation-account-management.html", "staff-detail.html", "store-detail.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "customer-create.html", "recharge-create.html", "refund-create.html", "verification-create.html", "verification-experience.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "verification-review.html"]),
-    operation: new Set(["local.html", "recharge-review.html", "verification-review.html", "customer-detail.html", "recharge-detail.html", "verification-detail.html"]),
+    hq: new Set(["index.html", "change-password.html", "store-create.html", "project-create.html", "teacher-create.html", "operation-account-create.html", "hq-account-create.html", "hq-management.html", "store-management.html", "project-management.html", "teacher-management.html", "operation-account-management.html", "staff-detail.html", "store-detail.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "customer-create.html", "recharge-create.html", "refund-create.html", "verification-create.html", "verification-experience.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "refund-review.html", "verification-review.html"]),
+    operation: new Set(["local.html", "recharge-review.html", "refund-review.html", "verification-review.html", "customer-detail.html", "recharge-detail.html", "verification-detail.html"]),
     store: new Set(["store-detail.html", "change-password.html", "customer-detail.html", "customer-query.html", "customer-create.html", "recharge-create.html", "refund-create.html", "verification-create.html", "verification-experience.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html"]),
     teacher: new Set(["teacher-work-orders.html", "change-password.html", "teacher-work-order-detail.html", "customer-detail.html", "recharge-detail.html", "verification-detail.html", "teacher-verification-create.html", "teacher-verification-experience.html", "teacher-recharge-create.html", "teacher-refund-create.html"])
   };
@@ -103,10 +103,14 @@
     let reviewMenu = document.querySelector('[data-menu="review"]');
     if (!reviewMenu) {
       const anchor = (session.role === "hq" ? document.querySelector('[data-menu="hq-management"]') : null) || document.querySelector('[data-menu="shared-query"]') || primaryNav;
-      anchor?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="review"><summary><span class="nav-icon">审</span><span>审核</span></summary><nav><a class="${page === "recharge-review.html" ? "active" : ""}" href="recharge-review.html">充值审核</a></nav></details>`);
+      anchor?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="review"><summary><span class="nav-icon">审</span><span>审核</span></summary><nav></nav></details>`);
       reviewMenu = document.querySelector('[data-menu="review"]');
     }
-    if (reviewMenu) { reviewMenu.hidden = false; reviewMenu.open = true; }
+    if (reviewMenu) {
+      reviewMenu.querySelector("nav").innerHTML = `<a class="${page === "recharge-review.html" ? "active" : ""}" href="recharge-review.html">充值审核</a><a class="${page === "refund-review.html" ? "active" : ""}" href="refund-review.html">退费审核</a>`;
+      reviewMenu.hidden = false;
+      reviewMenu.open = true;
+    }
   }
 
   // Supplemental verification creation is retired, so there is no current

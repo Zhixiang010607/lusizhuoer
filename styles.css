@@ -367,7 +367,7 @@ body.store-record-query .record-query-pager button:disabled { cursor: not-allowe
   body[data-store-business] .customer-core-facts div { padding: 7px 9px; }
   body[data-store-business] .customer-core-facts span { margin-bottom: 2px; }
   body[data-store-business] .customer-core-facts strong { font-size: 12px; }
-  body[data-store-business] .store-business-grid { gap: 10px; }
+  body[data-store-business] .store-business-grid { gap: clamp(8px, 1vw, 10px); }
   body[data-store-business] .capture-panel { gap: 10px; padding: 12px; }
   body[data-store-business] .form-submit-row { padding-top: 12px; }
   body[data-store-business][data-teacher-business] { height: auto; min-height: 100dvh; overflow-x: hidden; overflow-y: auto; }
@@ -762,7 +762,7 @@ dialog::backdrop { background: #0b142a88; backdrop-filter: blur(3px); }
 .workflow-action-panel .capture-panel::before { min-height: 130px; align-self: stretch; }
 .store-business-full-panel > .capture-panel { flex: 1 1 180px; min-height: 150px; align-content: stretch; }
 .store-business-full-panel > .capture-panel::before { min-height: 130px; align-self: stretch; }
-.store-business-grid { display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: 14px; }
+.store-business-grid { display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: clamp(8px, 1vw, 14px); }
 .store-business-grid .full-field { grid-column: 1 / -1; }
 .customer-create-layout { --customer-fields-width: 42%; flex: 1 1 auto; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, var(--customer-fields-width)) 10px minmax(0, 1fr); gap: 0; }
 .customer-create-fields { container-type: inline-size; min-width: 0; display: flex; flex-direction: column; gap: 9px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: #f8fafc; }
@@ -867,7 +867,7 @@ body[data-store-business] .form-submit-row button:disabled {
   box-shadow: none;
   opacity: 1;
 }
-.customer-lookup-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 12px; align-items: end; }
+.customer-lookup-grid { display: grid; grid-template-columns: minmax(160px, 1.35fr) minmax(130px, .85fr) minmax(88px, auto); gap: clamp(8px, 1vw, 12px); align-items: end; }
 .customer-lookup-grid > * { min-width: 0; }
 .customer-lookup-grid button { height: 40px; }
 .lookup-mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 5px; border-radius: 11px; background: #edf2f7; }
@@ -1203,7 +1203,7 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
   .store-workflow-main > .panel { min-height: 0; height: auto; padding: 16px; }
   .store-workflow-main .panel-heading { margin-bottom: 10px; }
   .store-workflow-main .lookup-mode-switch { margin-bottom: 10px; }
-  .store-workflow-main .customer-lookup-grid, .store-workflow-main .store-business-grid { gap: 9px; }
+  .store-workflow-main .customer-lookup-grid, .store-workflow-main .store-business-grid { gap: clamp(7px, 1vw, 9px); }
   .store-workflow-main .capture-panel { margin-top: 12px; padding: 12px; }
   .metric-grid { grid-template-columns: repeat(2, 1fr); }
   .filter-grid, .query-filter-grid { grid-template-columns: repeat(2, 1fr); }

@@ -234,7 +234,7 @@ assert.ok(
 includes(createUi, "verificationFaceEvidenceToken", "face evidence token state");
 includes(createUi, 'thumbnailBase64: verificationThumbnailDataUrl', "face thumbnail upload");
 includes(createUi, 'faceEvidenceToken: verificationFaceEvidenceToken', "atomic order binding payload");
-includes(createUi, 'const VERSION = "0.14.52"', "create UI cache version");
+includes(createUi, 'const VERSION = "0.14.53"', "create UI cache version");
 
 includes(detailUi, 'action: "getVerificationPhotos"', "detail thumbnail request");
 includes(detailUi, 'action: "getVerificationPhotoOriginalUrl"', "detail original request");
@@ -285,7 +285,7 @@ assert.ok(
     < functionSource(cloud, "getVerificationPhotos").indexOf("signVerificationPhoto("),
   "thumbnail URLs must be signed only after the verification-order permission check"
 );
-includes(detailUi, 'const VERSION = "0.16.8"', "detail UI cache version");
+includes(detailUi, 'const VERSION = "0.16.9"', "detail UI cache version");
 includes(functionSource(detailUi, "callVerificationPhoto"), 'callFunction({ name: "verificationPhoto", data })', "all photo operations use the dedicated photo cloud function");
 includes(functionSource(detailUi, "callVerificationPhotoLifecycle"), "callVerificationPhoto(data)", "bounded photo lifecycle calls use the dedicated photo helper");
 includes(functionSource(detailUi, "loadTeacherOrder"), 'name: "faceRecognition"', "teacher workspace remains on the business and face cloud function");
@@ -387,9 +387,9 @@ includes(detailHtml, 'id="verificationPhotoCameraDialog"', "camera preview dialo
 includes(detailHtml, 'id="verificationPhotoCameraVideo" autoplay playsinline muted', "mobile inline camera preview");
 includes(detailHtml, 'id="switchVerificationPhotoCamera"', "front/rear camera switch action");
 includes(detailHtml, 'aria-label="切换前后摄像头"', "camera switch accessible name");
-includes(detailHtml, 'order-export.js?v=0.1.1', "export renderer cache bust");
-includes(detailHtml, 'business-detail.js?v=0.16.8', "detail script cache bust");
-includes(detailHtml, 'styles.css?v=0.15.43', "detail styles cache bust");
+includes(detailHtml, 'order-export.js?v=0.1.2', "export renderer cache bust");
+includes(detailHtml, 'business-detail.js?v=0.16.9', "detail script cache bust");
+includes(detailHtml, 'styles.css?v=0.15.44', "detail styles cache bust");
 includes(detailUi, "const verificationPhotoLocalPreviews = new Map()", "local photo previews are owned per slot");
 includes(functionSource(detailUi, "verificationPhotoCard"), 'loading="${localPreview ? "eager" : "lazy"}"', "just-committed local preview loads eagerly");
 includes(functionSource(detailUi, "verificationPhotoCard"), 'fetchpriority="high"', "just-committed local preview receives high fetch priority");
@@ -584,10 +584,10 @@ assert.deepEqual(
 );
 
 for (const page of ["customer-create.html", "recharge-create.html", "verification-create.html", "verification-experience.html"]) {
-  includes(read(page), "store-business.js?v=0.14.52", `${page} create script cache bust`);
+  includes(read(page), "store-business.js?v=0.14.53", `${page} create script cache bust`);
 }
 for (const page of ["teacher-recharge-create.html", "teacher-verification-create.html", "teacher-verification-experience.html"]) {
-  includes(read(page), "store-business.js?v=0.14.52", `${page} create script cache bust`);
+  includes(read(page), "store-business.js?v=0.14.53", `${page} create script cache bust`);
 }
 
 Promise.all([storageFallbackTestPromise, verificationSignTestPromise, localPreviewExportPromise])

@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.52", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.53", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   const formatBirthday = (value, fallback = "—") => {
     const raw = String(value ?? "").trim();
     if (!raw) return fallback;
@@ -436,7 +436,7 @@
         })).filter((customer) => customer.id && customer.name && customer.birthday);
         databaseCustomers = activeCustomers;
         customerSelect.innerHTML = activeCustomers.length
-          ? `<option value="">${result?.hasMore ? "请选择现有客户（先显示前 100 位，其他客户请用姓名＋生日查询）" : "请选择现有客户"}</option>${activeCustomers.map((customer) => `<option value="${escapeHtml(customer.id)}">${escapeHtml(customer.name)}（${escapeHtml(customer.id)}）</option>`).join("")}`
+          ? `<option value="">${result?.hasMore ? "请选择现有客户（先显示前 100 位，其他客户请用姓名＋生日查询）" : "请选择现有客户"}</option>${activeCustomers.map((customer) => `<option value="${escapeHtml(customer.id)}">${escapeHtml(customer.name)} · ${escapeHtml(formatBirthday(customer.birthday))}</option>`).join("")}`
           : `<option value="">本门店暂无活跃客户</option>`;
         customerSelect.disabled = activeCustomers.length === 0;
       } catch (error) {
