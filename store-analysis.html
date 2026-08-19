@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>门店业务统计</title>
+  <link rel="stylesheet" href="styles.css?v=0.15.48">
+</head>
+<body data-store-analysis>
+  <aside class="side-project-bar" aria-label="项目栏">
+    <div class="side-brand"><span>HQ</span><div><strong>门店工作区</strong><small>项目栏</small></div></div>
+    <p class="side-section-title">数据看板</p><nav class="side-nav"><a class="active" id="analysisBackSide" href="store-detail.html"><span class="nav-icon">全</span><span>门店全局视图</span></a></nav>
+    <details class="side-menu-group"><summary><span class="nav-icon">查</span><span>查询</span></summary><nav><a href="customer-query.html">客户查询</a><a href="recharge-query.html">充值查询</a><a href="verification-query.html">核销查询</a></nav></details>
+    <div class="side-footer">业务统计</div>
+  </aside>
+  <header class="topbar"><div><p class="eyebrow">STORE ANALYSIS</p><h1 id="analysisTitle">业务统计</h1><p id="analysisSubtitle" class="subtitle">按门店、老师、项目统计</p></div><div class="header-actions"><a id="analysisBack" class="back-link" href="store-detail.html">← 返回门店全局视图</a><div id="analysisStatus" class="status"><span></span>正在统计</div></div></header>
+  <main class="detail-page store-analysis-main">
+    <section class="panel detail-section store-analysis-control">
+      <div class="panel-heading"><div><h2 id="analysisStoreName">门店业务</h2><p id="analysisRangeText">默认统计今日</p></div><button id="exportAnalysisPdf" class="secondary-action" type="button" disabled>导出 PDF</button></div>
+      <nav id="analysisMetricTabs" class="store-analysis-tabs" aria-label="业务类型"></nav>
+      <div class="store-analytics-toolbar">
+        <label><span>时间周期</span><select id="analysisPeriod"><option value="today" selected>今日</option><option value="last7">近 7 天</option><option value="month">本月</option><option value="custom">自定义</option></select></label>
+        <label><span>开始日期</span><input id="analysisStart" type="date"></label>
+        <label><span>结束日期</span><input id="analysisEnd" type="date"></label>
+        <button id="applyAnalysis" class="primary-action" type="button">查询</button>
+      </div>
+      <p id="analysisMessage" class="form-message" aria-live="polite"></p>
+    </section>
+    <section class="store-analysis-chart-grid">
+      <article class="panel store-analysis-chart-card"><div class="panel-heading"><div><h2>按门店</h2><p>从高到低</p></div></div><div id="storeAnalysisChart" class="store-chart-scroll"></div></article>
+      <article class="panel store-analysis-chart-card"><div class="panel-heading"><div><h2>按老师</h2><p>从高到低 · 可左右滑动</p></div></div><div id="teacherAnalysisChart" class="store-chart-scroll"></div></article>
+      <article class="panel store-analysis-chart-card"><div class="panel-heading"><div><h2>按项目</h2><p>从高到低 · 可左右滑动</p></div></div><div id="productAnalysisChart" class="store-chart-scroll"></div></article>
+    </section>
+  </main>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.17.7"></script>
+  <script src="store-analytics-data.js?v=0.1.0"></script><script src="order-export.js?v=0.1.4"></script><script src="store-dashboard-export.js?v=0.1.0"></script><script src="store-analysis.js?v=0.1.0"></script><script src="auth-ui.js?v=0.18.10"></script>
+</body>
+</html>

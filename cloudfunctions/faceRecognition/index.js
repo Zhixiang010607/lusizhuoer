@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v65";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v66";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -2463,6 +2463,204 @@ async function getStoreDashboard(event = {}) {
   };
 }
 
+const STORE_ANALYTICS_METRICS = Object.freeze(["recharge", "verification", "experience", "refund"]);
+
+function storeAnalyticsRange(event = {}) {
+  const startDate = optionalBusinessQueryDate(event.startDate, "开始日期");
+  const endDate = optionalBusinessQueryDate(event.endDate, "结束日期");
+  if (Boolean(startDate) !== Boolean(endDate)) fail("开始日期和结束日期必须同时提供。", "BAD_REQUEST");
+  if (startDate && startDate > endDate) fail("开始日期不能晚于结束日期。", "BAD_REQUEST");
+  if (startDate) {
+    const days = Math.floor((Date.parse(`${endDate}T00:00:00.000Z`) - Date.parse(`${startDate}T00:00:00.000Z`)) / 86400000) + 1;
+    if (days > 366) fail("单次统计范围不能超过 366 天。", "BAD_REQUEST");
+  }
+  return {
+    startSql: startDate ? `${sqlText(startDate)}::date` : "(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai')::date",
+    endSql: endDate ? `${sqlText(endDate)}::date` : "(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai')::date"
+  };
+}
+
+function storeAnalyticsEventCte(storeId, range) {
+  return `date_bounds AS (
+      SELECT ${range.startSql} AS start_date, ${range.endSql} AS end_date
+    ), time_bounds AS (
+      SELECT start_date, end_date,
+             start_date::timestamp AT TIME ZONE 'Asia/Shanghai' AS start_at,
+             (end_date + 1)::timestamp AT TIME ZONE 'Asia/Shanghai' AS end_at
+        FROM date_bounds
+    ), business_events AS (
+      SELECT CASE WHEN r.recharge_type = 'REFUND' THEN 'refund' ELSE 'recharge' END AS metric,
+             r.store_id, r.product_id, r.teacher_id, r.unit_count::bigint AS amount
+        FROM public.recharge_records r
+        CROSS JOIN time_bounds bounds
+       WHERE r.store_id = ${storeId}::bigint
+         AND r.record_status = 'APPROVED'
+         AND r.recharge_type IN ('NEW', 'REFUND')
+         AND r.submitted_at >= bounds.start_at
+         AND r.submitted_at < bounds.end_at
+      UNION ALL
+      SELECT CASE WHEN v.verification_type = 'EXPERIENCE' THEN 'experience' ELSE 'verification' END AS metric,
+             v.store_id, v.product_id, v.teacher_id, v.unit_count::bigint AS amount
+        FROM public.verification_records v
+        CROSS JOIN time_bounds bounds
+       WHERE v.store_id = ${storeId}::bigint
+         AND v.record_status = 'APPROVED'
+         AND v.verification_type IN ('NORMAL', 'EXPERIENCE')
+         AND v.submitted_at >= bounds.start_at
+         AND v.submitted_at < bounds.end_at
+    )`;
+}
+
+function storeAnalyticsCounts(row) {
+  return {
+    recharge: Number(row.recharge_count || 0),
+    verification: Number(row.verification_count || 0),
+    experience: Number(row.experience_count || 0),
+    refund: Number(row.refund_count || 0)
+  };
+}
+
+function storeAnalyticsDateText(value) {
+  if (value instanceof Date && !Number.isNaN(value.valueOf())) return value.toISOString().slice(0, 10);
+  const text = String(value || "");
+  return text.match(/\d{4}-\d{2}-\d{2}/)?.[0] || text;
+}
+
+function storeAnalyticsMetricColumns(alias = "event") {
+  return STORE_ANALYTICS_METRICS.map((metric) =>
+    `COALESCE(SUM(${alias}.amount) FILTER (WHERE ${alias}.metric = '${metric}'), 0) AS ${metric}_count`
+  ).join(",\n             ");
+}
+
+async function getStoreBusinessAnalytics(event = {}) {
+  const caller = await activeScopedQueryCaller(event);
+  if (!caller.storeId) fail("门店全局视图必须选择具体门店。", "STORE_REQUIRED");
+  const storeId = businessQueryDatabaseId(caller.storeId, "门店");
+  const range = storeAnalyticsRange(event);
+  const eventCte = storeAnalyticsEventCte(storeId, range);
+  const metricColumns = storeAnalyticsMetricColumns();
+
+  const [storeRows, productRows, teacherRows] = await Promise.all([
+    executeSql(
+      `WITH ${eventCte}
+       SELECT s.id AS store_id, s.store_code, s.store_name, s.store_status,
+              COALESCE(contact.contact_phone, '') AS phone,
+              bounds.start_date, bounds.end_date,
+              ${metricColumns}
+         FROM public.stores s
+         CROSS JOIN date_bounds bounds
+         LEFT JOIN business_events event ON event.store_id = s.id
+         LEFT JOIN LATERAL (
+           SELECT sc.contact_phone
+             FROM public.store_contacts sc
+            WHERE sc.store_id = s.id
+              AND sc.contact_status = 'ACTIVE'
+            ORDER BY sc.is_primary DESC, sc.id ASC
+            LIMIT 1
+         ) contact ON TRUE
+        WHERE s.id = ${storeId}::bigint
+        GROUP BY s.id, s.store_code, s.store_name, s.store_status,
+                 contact.contact_phone, bounds.start_date, bounds.end_date`
+    ),
+    executeSql(
+      `WITH ${eventCte}, product_members AS (
+         SELECT p.id AS product_id
+           FROM public.products p
+          WHERE p.product_status = 'ACTIVE'
+         UNION
+         SELECT event.product_id
+           FROM business_events event
+       )
+       SELECT p.id AS product_id, p.product_code, p.product_name, p.product_status,
+              ${metricColumns}
+         FROM product_members member
+         JOIN public.products p ON p.id = member.product_id
+         LEFT JOIN business_events event ON event.product_id = p.id
+        GROUP BY p.id, p.product_code, p.product_name, p.product_status`
+    ),
+    executeSql(
+      `WITH ${eventCte}, teacher_members AS (
+         SELECT t.id AS teacher_id
+           FROM public.teachers t
+           JOIN public.staff_accounts account ON account.id = t.staff_account_id
+          WHERE t.teacher_status = 'ACTIVE'
+            AND account.account_status = 'ACTIVE'
+         UNION
+         SELECT event.teacher_id
+           FROM business_events event
+          WHERE event.teacher_id IS NOT NULL
+       ), teacher_counts AS (
+         SELECT t.id AS teacher_id, t.teacher_code, t.teacher_name, t.teacher_status,
+                COALESCE(account.phone, '') AS phone,
+                ${metricColumns}
+           FROM teacher_members member
+           JOIN public.teachers t ON t.id = member.teacher_id
+           LEFT JOIN public.staff_accounts account ON account.id = t.staff_account_id
+           LEFT JOIN business_events event ON event.teacher_id = t.id
+          GROUP BY t.id, t.teacher_code, t.teacher_name, t.teacher_status, account.phone
+       ), unassigned_counts AS (
+         SELECT NULL::bigint AS teacher_id, ''::text AS teacher_code,
+                '未指定老师'::text AS teacher_name, 'HISTORICAL'::text AS teacher_status,
+                ''::text AS phone,
+                ${metricColumns}
+           FROM business_events event
+          WHERE event.teacher_id IS NULL
+         HAVING COALESCE(SUM(event.amount), 0) > 0
+       )
+       SELECT * FROM teacher_counts
+       UNION ALL
+       SELECT * FROM unassigned_counts`
+    )
+  ]);
+
+  const store = storeRows[0];
+  if (!store) fail("未找到门店统计资料。", "STORE_NOT_FOUND");
+  const products = productRows.map((row) => ({
+    productId: String(row.product_id),
+    productCode: String(row.product_code || ""),
+    productName: String(row.product_name || ""),
+    status: String(row.product_status || ""),
+    ...storeAnalyticsCounts(row)
+  }));
+  const teachers = teacherRows.map((row) => ({
+    teacherId: row.teacher_id === null || row.teacher_id === undefined ? "" : String(row.teacher_id),
+    teacherCode: String(row.teacher_code || ""),
+    teacherName: String(row.teacher_name || ""),
+    phone: String(row.phone || ""),
+    status: String(row.teacher_status || ""),
+    ...storeAnalyticsCounts(row)
+  }));
+  const storeSummary = {
+    storeId: String(store.store_id),
+    storeCode: String(store.store_code || ""),
+    storeName: String(store.store_name || ""),
+    phone: String(store.phone || ""),
+    status: String(store.store_status || ""),
+    ...storeAnalyticsCounts(store)
+  };
+  const dimensions = {};
+  STORE_ANALYTICS_METRICS.forEach((metric) => {
+    const descending = (a, b) => Number(b.value || 0) - Number(a.value || 0) || String(a.name || "").localeCompare(String(b.name || ""), "zh-CN");
+    dimensions[metric] = {
+      stores: [{ id: storeSummary.storeId, name: storeSummary.storeName, phone: storeSummary.phone, value: storeSummary[metric] }],
+      teachers: teachers.map((teacher) => ({ id: teacher.teacherId, name: teacher.teacherName, phone: teacher.phone, value: teacher[metric] })).sort(descending),
+      products: products.map((product) => ({ id: product.productId, name: product.productName, phone: "", value: product[metric] })).sort(descending)
+    };
+  });
+  return {
+    ok: true,
+    range: { startDate: storeAnalyticsDateText(store.start_date), endDate: storeAnalyticsDateText(store.end_date) },
+    store: storeSummary,
+    products: products.sort((a, b) => {
+      const aTotal = STORE_ANALYTICS_METRICS.reduce((sum, metric) => sum + a[metric], 0);
+      const bTotal = STORE_ANALYTICS_METRICS.reduce((sum, metric) => sum + b[metric], 0);
+      return bTotal - aTotal || a.productName.localeCompare(b.productName, "zh-CN");
+    }),
+    totals: storeAnalyticsCounts(store),
+    dimensions
+  };
+}
+
 async function listActiveTeachers(event = {}) {
   // Teachers are not permanently assigned to one store in the canonical
   // schema. A real active store caller may choose only teachers whose profile
@@ -4438,6 +4636,7 @@ exports.main = async (event = {}, context = {}) => {
     if (action === "queryStoreCustomers") return await queryStoreCustomers(event);
     if (action === "queryStoreBusinessRecords") return await queryStoreBusinessRecords(event);
     if (action === "getStoreDashboard") return await getStoreDashboard(event);
+    if (action === "getStoreBusinessAnalytics") return await getStoreBusinessAnalytics(event);
     if (action === "getHqBusinessContext") return await getHqBusinessContext();
     if (action === "getTeacherBusinessContext") return await getTeacherBusinessContext();
     if (action === "getTeacherWorkspace") return await getTeacherWorkspace(event);

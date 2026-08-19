@@ -31,7 +31,8 @@ assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.mobile-account-popover \
 for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
   if (!html.includes("auth-ui.js?v=")) continue;
-  assert.ok(html.includes("auth-ui.js?v=0.18.9"), `${file} must load the mobile-logout auth UI`);
+  const expectedAuthVersion = ["store-detail.html", "store-analysis.html"].includes(file) ? "0.18.10" : "0.18.9";
+  assert.ok(html.includes(`auth-ui.js?v=${expectedAuthVersion}`), `${file} must load the mobile-logout auth UI`);
 }
 
 console.log("mobile logout contract: PASS");

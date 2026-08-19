@@ -538,6 +538,32 @@
     return new Blob([createPdfBytes(pages)], { type: "application/pdf" });
   }
 
+  async function exportCanvasPagesPdf(canvases, filename) {
+    const pages = [];
+    for (const source of canvases || []) {
+      if (!(source instanceof HTMLCanvasElement) || !source.width || !source.height) continue;
+      const pageCanvas = document.createElement("canvas");
+      pageCanvas.width = CANVAS_WIDTH;
+      pageCanvas.height = PDF_PAGE_HEIGHT;
+      const context = pageCanvas.getContext("2d", { alpha: false });
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+      const scale = Math.min(CANVAS_WIDTH / source.width, PDF_PAGE_HEIGHT / source.height);
+      const width = Math.round(source.width * scale);
+      const height = Math.round(source.height * scale);
+      context.drawImage(source, Math.round((CANVAS_WIDTH - width) / 2), 0, width, height);
+      const jpeg = await canvasBlob(pageCanvas, "image/jpeg", 0.94);
+      pages.push({ width: pageCanvas.width, height: pageCanvas.height, bytes: new Uint8Array(await jpeg.arrayBuffer()) });
+      pageCanvas.width = 1;
+      pageCanvas.height = 1;
+    }
+    if (!pages.length) throw new Error("没有可导出的统计表格页面");
+    const blob = new Blob([createPdfBytes(pages)], { type: "application/pdf" });
+    const outputName = `${safeFilename(filename || "门店业务统计")}.pdf`;
+    downloadBlob(blob, outputName);
+    return { filename: outputName, bytes: blob.size, pages: pages.length };
+  }
+
   function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -576,5 +602,5 @@
     return { filename: `${filename}.jpg`, bytes: blob.size };
   }
 
-  window.OrderExporter = Object.freeze({ exportOrder, renderOrderCanvas, safeFilename });
+  window.OrderExporter = Object.freeze({ exportOrder, renderOrderCanvas, exportCanvasPagesPdf, safeFilename });
 })();

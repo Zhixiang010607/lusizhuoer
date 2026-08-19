@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>统计页响应式检查</title><link rel="stylesheet" href="../styles.css?v=0.15.48"></head>
+<body data-store-analysis>
+  <header class="topbar"><div><p class="eyebrow">STORE ANALYSIS</p><h1>充值统计</h1><p class="subtitle">按门店、老师、项目统计</p></div></header>
+  <main class="detail-page store-analysis-main">
+    <section class="panel detail-section store-analysis-control"><div class="panel-heading"><div><h2>悉尼中心门店</h2><p>2026-08-19 至 2026-08-19</p></div><button class="secondary-action">导出 PDF</button></div><nav class="store-analysis-tabs"><a class="active">充值</a><a>核销</a><a>体验</a><a>退费</a></nav><div class="store-analytics-toolbar"><label><span>时间周期</span><select><option>今日</option></select></label><label><span>开始日期</span><input type="date" value="2026-08-19"></label><label><span>结束日期</span><input type="date" value="2026-08-19"></label><button class="primary-action">查询</button></div></section>
+    <section class="store-analysis-chart-grid">
+      <article class="panel store-analysis-chart-card"><div class="panel-heading"><div><h2>按老师</h2><p>从高到低 · 可左右滑动</p></div></div><div class="store-chart-scroll"><div class="store-chart-bars" style="--bar-count:20"></div></div></article>
+      <article class="panel store-analysis-chart-card"><div class="panel-heading"><div><h2>按项目</h2><p>从高到低 · 可左右滑动</p></div></div><div class="store-chart-scroll"><div class="store-chart-bars" style="--bar-count:12"></div></div></article>
+    </section>
+  </main>
+  <script>
+    document.querySelectorAll(".store-chart-bars").forEach((chart, chartIndex) => {
+      const count = Number(getComputedStyle(chart).getPropertyValue("--bar-count"));
+      chart.innerHTML = Array.from({length:count}, (_, index) => `<article class="store-chart-item"><strong class="store-chart-value">${count-index}</strong><div class="store-chart-column" style="height:${Math.max(8,100-index*4)}%"></div><span class="store-chart-name">${chartIndex ? "项目" : "老师"}${index+1}</span><small>${chartIndex ? "" : "13800000000"}</small></article>`).join("");
+    });
+  </script>
+</body>
+</html>

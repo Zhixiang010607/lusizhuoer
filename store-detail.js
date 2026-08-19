@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.5";
+  const VERSION = "0.16.0";
   const TEACHER_PAGE_SIZE = 5;
   const CUSTOMER_PAGE_SIZE = 10;
   const params = new URLSearchParams(location.search);
@@ -14,7 +14,16 @@
   const info = (items) => items.map(([label, value]) =>
     `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`
   ).join("");
-  const state = { teacherRows: [], customerRows: [], teacherPage: 1, customerPage: 1, customerTotal: 0, dashboardStoreId: "" };
+  const analyticsMetrics = Object.freeze([
+    { key: "recharge", label: "充值" },
+    { key: "verification", label: "核销" },
+    { key: "experience", label: "体验" },
+    { key: "refund", label: "退费" }
+  ]);
+  const state = {
+    teacherRows: [], customerRows: [], teacherPage: 1, customerPage: 1, customerTotal: 0,
+    dashboardStoreId: "", analytics: null, analyticsLoading: false
+  };
 
   function parsedObject(value) {
     if (value && typeof value === "object") return value;
@@ -164,6 +173,7 @@
   }
 
   function renderStore(store) {
+    state.dashboardStoreId = String(store.id || state.dashboardStoreId || "").trim();
     const authUid = String(store.auth_uid || "").trim();
     const storeCode = String(store.store_code || "").trim();
     const status = store.store_status === "ARCHIVED" ? "封存" : "活跃";
@@ -191,6 +201,86 @@
     renderCustomers();
   }
 
+  function analyticsQuery(metric = "") {
+    const startDate = $("storeAnalyticsStart")?.value || "";
+    const endDate = $("storeAnalyticsEnd")?.value || "";
+    const query = new URLSearchParams({ storeId: state.dashboardStoreId, startDate, endDate });
+    if (metric) query.set("metric", metric);
+    return query.toString();
+  }
+
+  function setAnalyticsPeriod(period) {
+    const range = window.StoreAnalyticsData.periodRange(period);
+    if (range && $("storeAnalyticsStart")) $("storeAnalyticsStart").value = range.startDate;
+    if (range && $("storeAnalyticsEnd")) $("storeAnalyticsEnd").value = range.endDate;
+    const custom = period === "custom";
+    if ($("storeAnalyticsStart")) $("storeAnalyticsStart").disabled = !custom;
+    if ($("storeAnalyticsEnd")) $("storeAnalyticsEnd").disabled = !custom;
+  }
+
+  function renderAnalytics(data) {
+    const products = Array.isArray(data.products) ? data.products : [];
+    const totalColumns = products.length + 2;
+    const productHeaders = products.map((product) => `<th>${escapeHtml(product.productName || "未命名项目")}</th>`).join("");
+    $("storeAnalyticsHead").innerHTML = `<tr><th>业务类型</th>${productHeaders}<th>汇总</th></tr>`;
+    $("storeAnalyticsBody").innerHTML = analyticsMetrics.map((metric) => {
+      const cells = products.map((product) => `<td>${Number(product[metric.key] || 0)}</td>`).join("");
+      const href = `store-analysis.html?${analyticsQuery(metric.key)}`;
+      return `<tr><th><a class="record-link" href="${escapeHtml(href)}">${metric.label}</a></th>${cells}<td><strong>${Number(data.totals?.[metric.key] || 0)}</strong></td></tr>`;
+    }).join("") || `<tr><td colspan="${totalColumns}" class="query-empty">暂无业务数据</td></tr>`;
+    $("storeAnalyticsLinks").innerHTML = analyticsMetrics.map((metric) =>
+      `<a href="store-analysis.html?${analyticsQuery(metric.key)}">${metric.label}统计</a>`
+    ).join("");
+    $("storeAnalyticsScope").textContent = `${data.range?.startDate || "—"} 至 ${data.range?.endDate || "—"} · 项目按本期业务量排序`;
+    $("exportStoreAnalyticsPdf").disabled = false;
+  }
+
+  function validateAnalyticsRange() {
+    const startDate = $("storeAnalyticsStart").value;
+    const endDate = $("storeAnalyticsEnd").value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) throw new Error("请选择完整的开始和结束日期。");
+    if (startDate > endDate) throw new Error("开始日期不能晚于结束日期。");
+    const days = Math.floor((Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86400000) + 1;
+    if (days > 366) throw new Error("单次最多统计 366 天。");
+    return { startDate, endDate };
+  }
+
+  async function loadAnalytics() {
+    if (state.analyticsLoading || !state.dashboardStoreId) return;
+    state.analyticsLoading = true;
+    $("storeAnalyticsMessage").textContent = "正在统计…";
+    $("exportStoreAnalyticsPdf").disabled = true;
+    try {
+      const range = validateAnalyticsRange();
+      const data = await window.StoreAnalyticsData.load({ storeId: state.dashboardStoreId, ...range });
+      state.analytics = data;
+      renderAnalytics(data);
+      $("storeAnalyticsMessage").textContent = "";
+    } catch (error) {
+      state.analytics = null;
+      $("storeAnalyticsHead").innerHTML = "";
+      $("storeAnalyticsBody").innerHTML = `<tr><td class="query-empty">${escapeHtml(error?.message || "业务统计读取失败")}</td></tr>`;
+      $("storeAnalyticsMessage").textContent = error?.message || "业务统计读取失败";
+    } finally {
+      state.analyticsLoading = false;
+    }
+  }
+
+  async function exportAnalyticsPdf() {
+    if (!state.analytics) return;
+    const button = $("exportStoreAnalyticsPdf");
+    button.disabled = true;
+    $("storeAnalyticsMessage").textContent = "正在生成表格版 PDF…";
+    try {
+      const result = await window.StoreDashboardExport.exportReport({ data: state.analytics });
+      $("storeAnalyticsMessage").textContent = `已导出 ${result.pages} 页 PDF`;
+    } catch (error) {
+      $("storeAnalyticsMessage").textContent = error?.message || "PDF 导出失败";
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   async function loadCustomerPage(page) {
     const target = $("storeCustomerBody");
     if (target) target.innerHTML = '<tr><td colspan="8" class="query-empty">正在读取客户数据…</td></tr>';
@@ -213,8 +303,13 @@
     }
   });
 
+  $("storeAnalyticsPeriod")?.addEventListener("change", (event) => setAnalyticsPeriod(event.target.value));
+  $("applyStoreAnalytics")?.addEventListener("click", () => void loadAnalytics());
+  $("exportStoreAnalyticsPdf")?.addEventListener("click", () => void exportAnalyticsPdf());
+
   async function load() {
     document.documentElement.dataset.prototypeVersion = VERSION;
+    setAnalyticsPeriod("today");
     if (!storeRef) {
       renderError("缺少门店唯一身份 ID。");
       return;
@@ -225,6 +320,7 @@
       if (session?.role === "store") {
         state.dashboardStoreId = "";
         renderStore(await loadCurrentStoreDashboard());
+        await loadAnalytics();
         return;
       }
       if (!window.CloudBasePhoneAuth?.listStores) {
@@ -245,6 +341,7 @@
       }
       state.dashboardStoreId = targetStoreId;
       renderStore(await loadCurrentStoreDashboard(1, targetStoreId));
+      await loadAnalytics();
     } catch (error) {
       renderError(error?.message || "门店资料读取失败，请稍后重试。");
     }

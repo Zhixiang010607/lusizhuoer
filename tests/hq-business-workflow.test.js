@@ -61,7 +61,8 @@ for (const page of pages) {
   assert.ok(!fs.existsSync(path.join(root, `hq-${page}`)), `${page} must not have a duplicated HQ page`);
 }
 for (const file of fs.readdirSync(root).filter((file) => file.endsWith(".html") && read(file).includes("auth-ui.js?v="))) {
-  includes(read(file), "auth-ui.js?v=0.18.9", `${file} auth cache key`);
+  const expectedAuthVersion = ["store-detail.html", "store-analysis.html"].includes(file) ? "0.18.10" : "0.18.9";
+  includes(read(file), `auth-ui.js?v=${expectedAuthVersion}`, `${file} auth cache key`);
 }
 for (const page of teacherBusinessPages) includes(read(page), "store-business.js?v=0.14.54", `${page} shared script version`);
 includes(authUi, '"teacher-recharge-create.html": "recharge-create.html"', "legacy teacher recharge route redirects to the shared page");
@@ -206,7 +207,7 @@ const activeBusinessCaller = activeHarness.module.exports;
   includes(cloud, 'if (action === "getHqBusinessContext")', "HQ context dispatcher");
   includes(cloud, '["hq", "store", "teacher"].includes(caller.role)', "HQ submitter can edit verification photos");
   includes(cloud, '["hq", "store", "teacher"].includes(context.caller.role)', "HQ upload ownership guard");
-  includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v65"', "deployable service versions");
+  includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v66"', "deployable service versions");
 
   console.log("hq business workflow tests passed");
 })().catch((error) => {

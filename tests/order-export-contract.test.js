@@ -17,8 +17,8 @@ function includes(source, expected, label) {
 }
 
 const instrumented = exporterSource.replace(
-  "window.OrderExporter = Object.freeze({ exportOrder, renderOrderCanvas, safeFilename });",
-  "window.OrderExporter = Object.freeze({ exportOrder, renderOrderCanvas, safeFilename, __createPdfBytes: createPdfBytes, __preparePhotos: preparePhotos, __layoutDocument: layoutDocument, __drawPhotos: drawPhotos });"
+  "window.OrderExporter = Object.freeze({ exportOrder, renderOrderCanvas, exportCanvasPagesPdf, safeFilename });",
+  "window.OrderExporter = Object.freeze({ exportOrder, renderOrderCanvas, exportCanvasPagesPdf, safeFilename, __createPdfBytes: createPdfBytes, __preparePhotos: preparePhotos, __layoutDocument: layoutDocument, __drawPhotos: drawPhotos });"
 );
 const decodedImages = [];
 const context = {
@@ -47,6 +47,7 @@ vm.createContext(context);
 vm.runInContext(instrumented, context, { filename: "order-export.js" });
 const exporter = context.window.OrderExporter;
 assert.equal(typeof exporter.renderOrderCanvas, "function", "preview renderer is available for browser QA");
+assert.equal(typeof exporter.exportCanvasPagesPdf, "function", "multi-page table export renderer is available");
 
 assert.equal(exporter.safeFilename("李四+海洋护理+核销"), "李四+海洋护理+核销");
 assert.equal(exporter.safeFilename('李四/护理:*?"<>|'), "李四_护理_______");
