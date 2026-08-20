@@ -554,27 +554,27 @@ function newPersonReadbackRuntime(delegated) {
   // produce a success message: it also needs the backend's explicit success,
   // retained-photo proof, and final active teacher/account states.
   {
-    const proofStart = teacherCreateSource.indexOf("function teacherProvisionProof");
-    const proofEnd = teacherCreateSource.indexOf("function showTeacherProvisionProgress", proofStart);
+    const proofStart = teacherCreateSource.indexOf("function completedTeacherCreation");
+    const proofEnd = teacherCreateSource.indexOf("async function openCamera", proofStart);
     const proofGuard = teacherCreateSource.slice(proofStart, proofEnd);
-    const provisionCall = teacherCreateSource.indexOf("provisionTeacherWithBackgroundPolling(Object.freeze(provisionInput), metadata)");
+    const provisionCall = teacherCreateSource.indexOf("await window.CloudBasePhoneAuth.createTeacherWithFace({");
     const successMessage = teacherCreateSource.indexOf("setMessage(`创建成功", provisionCall);
     assert.ok(proofStart >= 0 && proofEnd > proofStart && provisionCall >= 0 && successMessage > provisionCall,
       "teacher-create success boundary must remain auditable");
     assert.match(proofGuard, /result\?\.ok|result\.ok/,
       "teacher-create must require the backend's explicit ok=true proof");
-    assert.match(proofGuard, /result\?\.resultReadOnly === true/,
-      "teacher-create must require proof from the non-mutating result endpoint");
-    assert.match(proofGuard, /readbackConfirmed === true[\s\S]*verification\.complete === true/,
-      "teacher-create must require the server's complete authoritative readback");
-    assert.match(proofGuard, /facePhotoReady|face_photo_ready/,
-      "teacher-create must require the retained private-photo proof");
-    assert.match(proofGuard, /teacherStatus|teacher_status/,
+    assert.match(proofGuard, /result\.completed !== true[\s\S]*result\.proof\?\.complete !== true/,
+      "teacher-create must require the dedicated service's complete authoritative proof");
+    assert.match(proofGuard, /faceId[\s\S]*photoRef/,
+      "teacher-create must require both the retained face and original private-photo references");
+    assert.match(proofGuard, /personId[\s\S]*photoSha256[\s\S]*photoBytes/,
+      "teacher-create must require exact Person and original-photo content proofs");
+    assert.match(proofGuard, /teacherStatus/,
       "teacher-create must require the final ACTIVE teacher master state");
-    assert.match(proofGuard, /accountStatus|account_status|credentialStatus/,
+    assert.match(proofGuard, /accountStatus[\s\S]*authStatus/,
       "teacher-create must require the final ACTIVE business/login account state");
     const successGuard = teacherCreateSource.slice(provisionCall, successMessage);
-    assert.match(successGuard, /const proof = teacherProvisionProof\(result\)[\s\S]*if \(!proof\)[\s\S]*不能视为创建成功/,
+    assert.match(successGuard, /const completed = completedTeacherCreation\(result\)[\s\S]*if \(!completed\)[\s\S]*不能视为创建成功/,
       "the visible success message must remain after the strict proof predicate");
   }
 

@@ -20,7 +20,7 @@ v75 与 `verificationPhoto v4` 共享同一份经过权限校验的照片服务�
 
 ## 老师人脸与体验额度（v75）
 
-新建老师必须在同一次建号流程中拍摄并通过人脸检查；创建页用 `validateTeacherFaceEnrollmentCapture({ imageBase64 })` 预检，再调用 `staffAccount/provisionTeacherWithFace`。只有人脸人员、私有登记照和老师主档全部保存后账号才激活。已有历史老师仍可在没有照片时保持原激活／封存状态，并通过 `staffAccount/upsertTeacherFace` 后续补充或替换。两条写入路径都以服务端 HMAC 命令委托给本函数的非公开 `upsertDelegatedTeacherFace` 动作，普通网页没有签名不能进入。
+新建老师必须在同一次建号流程中拍摄并通过人脸检查；当前创建页只调用独立的 `teacherCreate/createTeacher`，由该小函数直接完成照片检测、人脸人员、私有原图、老师主档、账号激活及最终回读，不再先调用本函数预检，也不再调用 `staffAccount/provisionTeacherWithFace`。已有历史老师仍可在没有照片时保持原激活／封存状态，并通过 `staffAccount/upsertTeacherFace` 后续补充或替换；这条受控修复路径仍以服务端 HMAC 命令委托给本函数的非公开 `upsertDelegatedTeacherFace` 动作，普通网页没有签名不能进入。
 
 委托使用 `teacher-face-v3` 签名协议，绑定两分钟时间窗、随机 nonce、动作、老师／账号／总部编号、人员 ID、姓名、JPEG SHA-256／字节数、创建时的腾讯人员库 ID、创建时的私有照片桶 ID、完整旧人脸元数据快照，以及迁移 051 的 `operationId + ownerToken + leaseGeneration`。人员 ID 由本函数独立复算的 `teacherId + staffId + 照片 SHA-256` 派生，因此同一真人或同一张照片可以用于不同老师账号，但绝不会复用同一个 Tencent Person。人员库与照片桶会写进 051 操作行；后续 `READBACK`、`ROLLBACK`、`FINALIZE` 和崩溃恢复只使用这些持久原值，不会因日后修改 `FACE_GROUP_ID` 或 `CUSTOMER_PHOTO_BUCKET_ID` 而读错、删错。每次 CreatePerson、上传、数据库切换、最终照片读回、回滚和删除前都必须重新读回持久租约；数据库指针切换和恢复的同一条 `UPDATE` 还带精确租约 `EXISTS` 条件，已取消、过期或失去 generation 的迟到调用不能再提交。
 
@@ -114,11 +114,11 @@ v75 与 `verificationPhoto v4` 共享同一份经过权限校验的照片服务�
 2. 执行 `database/migrations/040_fix_verification_photo_commit_ambiguity.sql`；腾讯云 SQL 编辑器只需执行一次 `040-01-fix-verification-photo-commit-ambiguity.sql`。已经完成 039 的生产库不要重跑 039。
 3. 完成 046、总部封锁旧运营凭据、047 和 048 后，依次执行 `049-01` 至 `049-13`，再运行 `049-readonly-verify.sql`，全部必须为 `READY`。049 是向前迁移，不要修改或重跑生产已执行的 048。
 4. 执行迁移 050 的 7 段控制台 SQL并确认只读验收全部 `READY`；随后在腾讯云 SQL 编辑器依次执行 `database/cloudbase-console/051-01` 至 `051-10` 和 `052-01-auth-create-receipt.sql`，最后分别执行 051／052 只读验收，每一项都必须为 `READY`。051／052 必须先于当前老师创建云函数发布。
-5. 将 `faceRecognition` 执行超时精确设为 **90 秒且不得更高**，将 `staffAccount` 执行超时设为 **600 秒**；部署 `faceRecognition-v75.zip` 和 `staffAccount v64`，分别调用 `health` 确认版本；再新建或更新名称精确为 `verificationPhoto` 的函数并部署 `verificationPhoto-v4.zip`。三个函数必须属于同一环境并使用一致的私有照片桶配置。
-6. 在 `staffAccount` 配置名称精确为 `reconcile-teacher-face-operations` 的每 1 分钟 Timer；它负责接管 051 中真正过期的 `RUNNING`／`CANCELLED`／`CLEANUP_PENDING` 操作，并兼容 v59—v62 已存在的认证专用 90 秒历史墓碑。v64 新建老师采用快速受理、后台工作和只读轮询，前台不再同步等待完整建档链。触发器 JSON 与可信 Timer 校验要求见 `../staffAccount/README.md`，不要把它配置在本函数上。
+5. 将 `faceRecognition` 执行超时精确设为 **90 秒且不得更高**，将 `staffAccount` 执行超时设为 **600 秒**，将独立 `teacherCreate` 设为 **120 秒、至少 512 MB**；部署 `faceRecognition-v75.zip`、`staffAccount v64`、`verificationPhoto-v4.zip` 和 `teacherCreate-v1.zip`，分别调用 `health` 确认版本与配置。四个函数必须属于同一环境并使用一致的私有照片桶配置；`teacherCreate` 还需要自己的腾讯人脸密钥和 `FACE_GROUP_ID`，但不需要 Timer。
+6. 继续在 `staffAccount` 保留名称精确为 `reconcile-teacher-face-operations` 的每 1 分钟 Timer；它只负责接管 051 中旧兼容 Saga 真正过期的 `RUNNING`／`CANCELLED`／`CLEANUP_PENDING` 操作，并兼容 v59—v64 历史记录。当前独立 `teacherCreate` 不读写这些操作行，也不需要 Timer。触发器 JSON 与可信 Timer 校验要求见 `../staffAccount/README.md`，不要把它配置在本函数或 `teacherCreate` 上。
 7. 调用 `verificationPhoto` 的 `health`，确认版本与全部就绪字段后，再发布当前静态前端并结束停写窗口；发布后强制刷新浏览器。
 
-当前老师体验人脸上线顺序简化为“确认 048 已完成 → 049 → 050 → 051-01..10 → 051 只读验收 → 052-01 → 052 只读验收 → 函数超时 90／600 秒 → `faceRecognition v75`／`staffAccount v64`／`verificationPhoto v4` → 老师人脸每 1 分钟恢复 Timer → 三个 `health` → 当前静态前端 → 强制刷新浏览器”。不要先发布依赖 049／050／051／052 的云函数或前端，也不要混用旧版委托。
+当前老师体验人脸上线顺序为“确认 048 已完成 → 049 → 050 → 051-01..10 → 051 只读验收 → 052-01 → 052 只读验收 → 函数超时 90／600／120 秒 → `faceRecognition v75`／`staffAccount v64`／`verificationPhoto v4`／`teacherCreate v1` → 保留旧兼容老师人脸恢复 Timer → 四个 `health` → 当前静态前端 → 强制刷新浏览器”。不要先发布依赖 049／050／051／052 的兼容云函数或前端，也不要混用旧版委托；本次 `teacherCreate` 没有新增 SQL。
 
 部署后测试：
 

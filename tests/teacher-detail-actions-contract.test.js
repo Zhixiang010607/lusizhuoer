@@ -29,10 +29,12 @@ assert.match(staffDetail, /不用于登录[\s\S]{0,120}普通核销不要求老�
   "teacher home must explain the exact limited purpose of the creation-time face");
 assert.match(teacherCreateScript, /outputHeight = Math\.round\(Math\.min\(sourceHeight, 1024\)\)/,
   "required creation-time enrollment must use the customer enrollment crop size");
-assert.match(teacherCreateScript, /qualityThreshold[\s\S]{0,220}liveness\.threshold/,
-  "required creation-time enrollment must show the preflight thresholds");
-assert.match(teacherCreateScript, /LIVENESS_FAILED[\s\S]{0,250}FACE_NOT_FOUND/,
-  "required creation-time enrollment must distinguish liveness and capture-quality failures");
+assert.match(teacherCreateScript, /待服务端检测/,
+  "captured photographs must remain explicitly pending until the formal request");
+assert.match(teacherCreateScript, /创建时由服务端检测质量，并按配置检测活体/,
+  "required creation-time enrollment must explain that quality and configured liveness are checked by the formal server call");
+assert.doesNotMatch(teacherCreateScript, /callFaceValidation|validateTeacherFaceEnrollmentCapture|LIVENESS_FAILED/,
+  "the browser must not duplicate or partially interpret the service's quality/liveness decision");
 
 assert.match(staffDetail, /Promise\.allSettled\(\[/,
   "quota read and product catalog read must not fail together");
@@ -64,7 +66,7 @@ assert.match(staffDetailHtml, /cloudbase-phone-auth\.js\?v=0\.18\.1/,
   "teacher home must refresh the shared cloud-function client");
 assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.5/,
   "teacher home must refresh its action handlers");
-assert.match(teacherCreateHtml, /teacher-create\.js\?v=0\.2\.9/,
+assert.match(teacherCreateHtml, /teacher-create\.js\?v=0\.3\.1/,
   "teacher creation must refresh the mandatory-face UI");
 assert.match(teacherManagementHtml, /teacher-management\.js\?v=0\.14\.28/,
   "teacher directory must refresh links into the current home");

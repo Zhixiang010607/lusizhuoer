@@ -2,8 +2,11 @@
 
 当前版本：`v64`
 
-用于总部自动创建总部、门店和老师账号；云函数使用当前登录总部账号进行授权。
-新建老师先调用元数据入口 `beginTeacherProvisionWithFace(...)` 取得持久 `operationId`，再以相同请求编号把原始照片交给 `provisionTeacherWithFace(...)` 后台 worker；正常路径只发送一次，只有服务端明确返回 `READY/retrySameRequest` 的 Auth 不确定恢复才允许用同一冻结负载重启。只有人脸质量／活体检查、腾讯人员建档、私有登记照和老师主档全部保存后才会激活账号。通用的
+用于总部账号、门店账号以及现有员工管理能力；云函数使用当前登录总部账号进行授权。
+
+> 当前 `teacher-create.html` 已不再调用本函数的老师 Saga。新建老师改用独立 `teacherCreate v1`，像客户／门店建档一样只提交一个同步请求，不使用 begin、worker、status、result、operationId、051／052 租约或创建 Timer。下面的 v64 老师 Saga 接口仅为旧发布兼容和受控恢复保留，不能再作为当前创建页的部署合同。
+
+旧兼容老师创建会先调用元数据入口 `beginTeacherProvisionWithFace(...)` 取得持久 `operationId`，再以相同请求编号把原始照片交给 `provisionTeacherWithFace(...)` 后台 worker；正常路径只发送一次，只有服务端明确返回 `READY/retrySameRequest` 的 Auth 不确定恢复才允许用同一冻结负载重启。只有人脸质量／活体检查、腾讯人员建档、私有登记照和老师主档全部保存后才会激活账号。通用的
 `provisionStaff({ role: "teacher", ... })` 与无脸 `provisionTeacher(...)` 会在任何认证或数据库写入前返回 `TEACHER_FACE_REQUIRED`。老师人脸在新建时一次完成，老师主页不再暴露补拍或更换入口；历史异常资料的 `upsertTeacherFace({ teacherId, faceImageBase64, clientRequestId, consent: true })` 仅保留为受控后台修复能力。历史无脸老师的激活、登录、老师选择、额度配置和普通业务不以照片为门槛，只有体验核销要求已有可用人脸登记照。v64 不再保存腾讯人脸密钥，
 而是用现有 CloudBase 服务端密钥签发两分钟、绑定完整负载的内部命令，由已配置的 `faceRecognition v75`
 完成质量检测、人脸建档、私有照片留存和数据库切换。新腾讯人脸和新照片均成功后才切换，旧人脸绝不会先删除。

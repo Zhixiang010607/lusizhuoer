@@ -8,18 +8,17 @@
   const AUTH_STATE_KEY = "lusizhuoerActiveAuth";
   const PRODUCT_TEMPLATE_CACHE_TTL_MS = 15 * 1000;
   const PRODUCT_LOGO_DATA_CACHE_TTL_MS = 2 * 60 * 1000;
-  // Teacher provisioning uses a durable, polled operation. These watchdogs
-  // only stop the browser waiting for the short begin/status requests; they do
-  // not cancel or replay the server-side operation.
-  const TEACHER_PROVISION_BEGIN_WATCHDOG_MS = 12 * 1000;
-  const TEACHER_PROVISION_STATUS_WATCHDOG_MS = 8 * 1000;
-  const TEACHER_PROVISION_RESULT_WATCHDOG_MS = 12 * 1000;
+  // The dedicated teacherCreate function is one synchronous request. This
+  // browser guard only releases the form if transport never settles; it never
+  // starts a second request or polls another endpoint.
+  // The CloudBase function is configured for 120 seconds. Observe for longer
+  // than that so this browser guard cannot unlock a second submission while
+  // the first server invocation may still be running.
+  const TEACHER_CREATE_WATCHDOG_MS = 135 * 1000;
   const productTemplateCache = new Map();
   const productTemplateFlights = new Map();
   const productLogoDataCache = new Map();
   const productLogoDataFlights = new Map();
-  const teacherProvisionStatusFlights = new Map();
-  const teacherProvisionResultFlights = new Map();
   let productReceiptCacheGeneration = 0;
   let productLogoDataCacheBytes = 0;
 
@@ -106,10 +105,7 @@
         stage: error?.stage,
         requestId: error?.requestId,
         causeCode: error?.causeCode,
-        causeMessage: error?.causeMessage,
-        operationId: error?.operationId,
-        retryAfterSeconds: error?.retryAfterSeconds,
-        retrySameRequest: error?.retrySameRequest === true
+        causeMessage: error?.causeMessage
       });
       throw wrapped;
     }
@@ -124,11 +120,46 @@
         storeCode: payload?.storeCode || result?.storeCode,
         storeRolledBack: payload?.storeRolledBack || result?.storeRolledBack,
         causeCode: payload?.causeCode || result?.causeCode,
+        causeMessage: payload?.causeMessage || result?.causeMessage
+      });
+      throw error;
+    }
+    return payload;
+  }
+
+  async function callTeacherCreate(data, fallback) {
+    let result;
+    try {
+      result = await getApp().callFunction({ name: "teacherCreate", data });
+    } catch (error) {
+      const wrapped = new Error(error?.message || fallback);
+      Object.assign(wrapped, {
+        code: error?.code,
+        stage: error?.stage,
+        requestId: error?.requestId,
+        causeCode: error?.causeCode,
+        causeMessage: error?.causeMessage,
+        // No function payload means the browser cannot know whether the
+        // server accepted and is still running this write request.
+        transportUncertain: true
+      });
+      throw wrapped;
+    }
+    const payload = functionPayload(result);
+    if (!payload?.ok) {
+      const code = payload?.code || result?.code;
+      const authoritativeFunctionFailure = payload?.ok === false;
+      const error = new Error(functionFailureMessage(result, payload, fallback));
+      Object.assign(error, {
+        code,
+        stage: payload?.stage || result?.stage,
+        requestId: payload?.requestId || result?.requestId,
+        causeCode: payload?.causeCode || result?.causeCode,
         causeMessage: payload?.causeMessage || result?.causeMessage,
-        operationId: payload?.operationId || result?.operationId,
-        retryAfterSeconds: payload?.retryAfterSeconds ?? result?.retryAfterSeconds,
-        retrySameRequest: payload?.retrySameRequest === true || result?.retrySameRequest === true,
-        cleanupComplete: payload?.cleanupComplete === true || result?.cleanupComplete === true
+        // Only the function's own explicit ok:false response proves that the
+        // write invocation has ended. Gateway/SDK envelopes remain unknown.
+        transportUncertain: !authoritativeFunctionFailure
+          || code === "TEACHER_CREATE_CLEANUP_INCOMPLETE"
       });
       throw error;
     }
@@ -139,7 +170,7 @@
     let timer = null;
     const watchdog = new Promise((_, reject) => {
       timer = window.setTimeout(() => {
-        const error = new Error(`${fallback}，浏览器等待超时；后台操作不会因此重复执行`);
+        const error = new Error(`${fallback}，浏览器等待超时；前端没有自动重发`);
         error.code = "CLIENT_REQUEST_TIMEOUT";
         error.transportUncertain = true;
         reject(error);
@@ -147,10 +178,6 @@
     });
     return Promise.race([request, watchdog])
       .finally(() => window.clearTimeout(timer));
-  }
-
-  function callStaffAccountWithWatchdog(data, fallback, timeoutMs) {
-    return promiseWithWatchdog(callStaffAccount(data, fallback), fallback, timeoutMs);
   }
 
   function productReceiptRefKey(value) {
@@ -448,103 +475,20 @@
         "员工账号创建失败"
       );
     },
-    // New teachers use provisionTeacherWithFace. This legacy method remains
-    // only so the server can reject old clients before any write is attempted.
-    async provisionTeacher({ staffName, phone, initialPassword }) {
-      return callStaffAccount(
-        { action: "provisionStaff", staffName, phone: normalizePhone(phone), role: "teacher", initialPassword, storeId: "" },
-        "老师账号创建失败"
-      );
-    },
-    async provisionTeacherWithFace({ staffName, phone, initialPassword, faceImageBase64, clientRequestId, consent = false }) {
-      return callStaffAccount(
+    async createTeacherWithFace({ staffName, phone, initialPassword, faceImageBase64, clientRequestId, consent = false }) {
+      const request = callTeacherCreate(
         {
-          action: "provisionTeacherWithFace",
+          action: "createTeacher",
           staffName,
           phone: normalizePhone(phone),
           initialPassword,
-          faceImageBase64,
+          imageBase64: faceImageBase64,
           clientRequestId,
           consent: consent === true
         },
-        "老师账号与人脸绑定创建失败"
+        "老师账号与人脸创建失败"
       );
-    },
-    async beginTeacherProvisionWithFace({ staffName, phone, initialPassword, faceImageSha256,
-      faceImageBytes, clientRequestId, consent = false }) {
-      return callStaffAccountWithWatchdog(
-        {
-          action: "beginTeacherProvisionWithFace",
-          staffName,
-          phone: normalizePhone(phone),
-          initialPassword,
-          faceImageSha256,
-          faceImageBytes,
-          clientRequestId,
-          consent: consent === true
-        },
-        "老师创建请求启动失败",
-        TEACHER_PROVISION_BEGIN_WATCHDOG_MS
-      );
-    },
-    async getTeacherFaceOperationStatus({ operationId, readOnly = true }) {
-      const key = String(operationId || "").trim();
-      let flight = teacherProvisionStatusFlights.get(key);
-      if (!flight) {
-        flight = callStaffAccount(
-          { action: "getTeacherFaceOperationStatus", operationId: key, readOnly: readOnly === true },
-          "老师创建状态查询失败"
-        ).finally(() => {
-          if (teacherProvisionStatusFlights.get(key) === flight) teacherProvisionStatusFlights.delete(key);
-        });
-        teacherProvisionStatusFlights.set(key, flight);
-      }
-      try {
-        return await promiseWithWatchdog(flight, "老师创建状态查询失败", TEACHER_PROVISION_STATUS_WATCHDOG_MS);
-      } catch (error) {
-        // A transport Promise may never settle. Release only this exact stale
-        // read after the browser watchdog so the next serial tick can retry;
-        // its late finally cannot delete a newer flight.
-        if (error?.code === "CLIENT_REQUEST_TIMEOUT" && teacherProvisionStatusFlights.get(key) === flight) {
-          teacherProvisionStatusFlights.delete(key);
-        }
-        throw error;
-      }
-    },
-    async readTeacherProvisionResult({ operationId, staffName, phone, initialPassword,
-      faceImageBase64, clientRequestId, consent = false, readOnly = true }) {
-      const key = String(operationId || "").trim();
-      let flight = teacherProvisionResultFlights.get(key);
-      if (!flight) {
-        flight = callStaffAccount(
-          {
-            action: "readTeacherProvisionResult",
-            operationId: key,
-            staffName,
-            phone: normalizePhone(phone),
-            initialPassword,
-            faceImageBase64,
-            clientRequestId,
-            consent: consent === true,
-            readOnly: readOnly === true
-          },
-          "老师创建最终证明读取失败"
-        ).finally(() => {
-          if (teacherProvisionResultFlights.get(key) === flight) teacherProvisionResultFlights.delete(key);
-        });
-        teacherProvisionResultFlights.set(key, flight);
-      }
-      try {
-        return await promiseWithWatchdog(flight, "老师创建最终证明读取失败", TEACHER_PROVISION_RESULT_WATCHDOG_MS);
-      } catch (error) {
-        // This endpoint is read-only. If its transport Promise hangs forever,
-        // release only the matching flight so a later tick can recover. The
-        // identity guard also prevents an old finally from deleting a retry.
-        if (error?.code === "CLIENT_REQUEST_TIMEOUT" && teacherProvisionResultFlights.get(key) === flight) {
-          teacherProvisionResultFlights.delete(key);
-        }
-        throw error;
-      }
+      return promiseWithWatchdog(request, "老师账号与人脸创建失败", TEACHER_CREATE_WATCHDOG_MS);
     },
     async upsertTeacherFace({ teacherId, faceImageBase64, clientRequestId, consent = false }) {
       return callStaffAccount(

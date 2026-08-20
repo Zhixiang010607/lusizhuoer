@@ -193,20 +193,20 @@ assert.match(read("teacher-create.html"), /老师人脸（必填）/,
   "new-teacher page must label face enrollment as mandatory");
 assert.doesNotMatch(read("teacher-create.html"), /老师人脸（可选）|不会阻止账号创建或激活|可后续补录/,
   "new-teacher copy must not promise a no-face create path");
-assert.match(createUi, /Boolean\(capturedFaceImage\)[\s\S]{0,300}Boolean\(\$\("teacherFaceConsent"\)\.checked\)[\s\S]{0,160}faceValidated/,
-  "submit enablement must require a captured face, consent and completed quality/liveness validation");
+assert.match(createUi, /Boolean\(capturedFaceImage\)[\s\S]{0,300}Boolean\(\$\("teacherFaceConsent"\)\.checked\)/,
+  "submit enablement must require a captured face and consent before the one formal server validation");
 assert.doesNotMatch(createUi, /window\.CloudBasePhoneAuth\.provisionTeacher\(\{ staffName: name, phone, initialPassword \}\)/,
   "new-teacher UI must never call the generic no-face provisioning API");
-assert.match(createUi, /const provisionInput = \{[\s\S]{0,400}consent: true[\s\S]{0,220}teacherFaceImageMetadata\(capturedFaceImage\)[\s\S]{0,180}provisionTeacherWithBackgroundPolling\(Object\.freeze\(provisionInput\), metadata\)/,
-  "new-teacher UI must use the v64 metadata begin plus immutable background worker/status/result protocol");
-assert.match(phoneAuth, /async provisionTeacherWithFace\(\{ staffName, phone, initialPassword, faceImageBase64, clientRequestId, consent = false \}\)/,
-  "shared auth client must retain the dedicated face-bound teacher provisioning API");
-assert.match(phoneAuth, /async beginTeacherProvisionWithFace\(\{ staffName, phone, initialPassword, faceImageSha256,[\s\S]{0,140}faceImageBytes, clientRequestId, consent = false \}\)/,
-  "the short v64 begin wrapper must carry only photo metadata");
-assert.match(phoneAuth, /async getTeacherFaceOperationStatus\(\{ operationId, readOnly = true \}\)[\s\S]{0,900}teacherProvisionStatusFlights/,
-  "status polling must be read-only and deduplicated per operation");
-assert.match(phoneAuth, /async readTeacherProvisionResult\(\{ operationId, staffName, phone, initialPassword,[\s\S]{0,180}faceImageBase64[\s\S]{0,900}action: "readTeacherProvisionResult"/,
-  "terminal proof must replay the exact frozen payload through the dedicated pure-read action");
+assert.match(createUi,
+  /await window\.CloudBasePhoneAuth\.createTeacherWithFace\(\{[\s\S]{0,420}faceImageBase64: capturedFaceImage[\s\S]{0,220}consent: true/,
+  "new-teacher UI must await one dedicated create request with the original photo");
+assert.match(phoneAuth,
+  /async createTeacherWithFace\(\{ staffName, phone, initialPassword, faceImageBase64, clientRequestId, consent = false \}\)[\s\S]{0,700}action: "createTeacher"/,
+  "shared auth client must expose the dedicated one-call teacher creation API");
+for (const legacy of ["beginTeacherProvisionWithFace", "getTeacherFaceOperationStatus", "readTeacherProvisionResult"]) {
+  assert.equal(createUi.includes(legacy) || phoneAuth.includes(legacy), false,
+    `active teacher create clients must not retain ${legacy}`);
+}
 
 // Creation/replacement never claims success until profile-photo persistence is
 // confirmed.  The two Cloud Functions have deliberately separated duties:

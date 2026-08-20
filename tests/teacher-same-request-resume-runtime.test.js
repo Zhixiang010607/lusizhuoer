@@ -8,16 +8,15 @@ const vm = require("node:vm");
 const root = path.resolve(__dirname, "..");
 const source = fs.readFileSync(path.join(root, "teacher-create.js"), "utf8");
 
-function namedFunctionSource(name, asyncRequired = false) {
-  const match = new RegExp(`${asyncRequired ? "async\\s+" : "(?:async\\s+)?"}function\\s+${name}\\s*\\(`)
-    .exec(source);
+function functionSource(name) {
+  const match = new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\(`).exec(source);
   assert.ok(match, `missing function ${name}`);
   const parametersOpen = source.indexOf("(", match.index);
-  let parameters = 0;
+  let parameterDepth = 0;
   let parametersClose = -1;
   for (let index = parametersOpen; index < source.length; index += 1) {
-    if (source[index] === "(") parameters += 1;
-    if (source[index] === ")" && --parameters === 0) { parametersClose = index; break; }
+    if (source[index] === "(") parameterDepth += 1;
+    if (source[index] === ")" && --parameterDepth === 0) { parametersClose = index; break; }
   }
   const open = source.indexOf("{", parametersClose);
   let depth = 0;
@@ -38,133 +37,81 @@ function namedFunctionSource(name, asyncRequired = false) {
   throw new Error(`unterminated function ${name}`);
 }
 
-const safeSeconds = namedFunctionSource("safeProvisionRecoverySeconds");
-const transient = namedFunctionSource("transientTeacherProvisionTransport");
-const proof = namedFunctionSource("teacherProvisionProof");
-const begin = namedFunctionSource("beginTeacherProvision", true);
-const background = namedFunctionSource("provisionTeacherWithBackgroundPolling", true);
+const statusValue = functionSource("statusValue");
+const textValue = functionSource("textValue");
+const completed = functionSource("completedTeacherCreation");
 
-assert.match(begin, /faceImageBase64:\s*_omittedFaceImage/,
-  "begin must send metadata without the raw photo");
-assert.match(background, /provisionTeacherWithFace\(input\)/,
-  "READY must launch the full immutable worker request");
-assert.match(background, /getTeacherFaceOperationStatus\(\{ operationId, readOnly: true \}\)/,
-  "resume authorization must come from read-only status");
-assert.match(background, /readTeacherProvisionResult\(\{[\s\S]{0,120}\.\.\.input,[\s\S]{0,120}operationId,[\s\S]{0,120}readOnly: true/,
-  "SUCCEEDED must read proof with the same full payload and operation id");
+for (const legacy of [
+  "beginTeacherProvisionWithFace", "provisionTeacherWithFace", "getTeacherFaceOperationStatus",
+  "readTeacherProvisionResult", "teacherProvisionWorkerDeliveryStates", "activeProvisionOperationId"
+]) {
+  assert.equal(source.includes(legacy), false, `one-call page must not retain ${legacy}`);
+}
+assert.doesNotMatch(source, /\bwhile\s*\(|setInterval\s*\(/,
+  "teacher creation must not contain a polling loop");
 
-function finalProof() {
+const sandbox = { module: { exports: {} } };
+vm.createContext(sandbox);
+vm.runInContext(`${statusValue}\n${textValue}\n${completed}\nmodule.exports = completedTeacherCreation;`, sandbox);
+const prove = sandbox.module.exports;
+
+function validProof() {
   return {
     ok: true,
-    resultReadOnly: true,
-    readbackConfirmed: true,
-    uid: "teacher-resume-proof",
-    verification: {
-      personConfirmed: true,
-      privatePhotoConfirmed: true,
-      delegatedDatabaseConfirmed: true,
-      finalDatabaseConfirmed: true,
-      facePhotoReady: true,
-      teacherActive: true,
-      accountActive: true,
-      credentialActive: true,
-      complete: true
-    },
-    teacher: {
-      teacherId: "77",
-      faceEnrollmentStatus: "ENROLLED",
-      facePhotoReady: true,
+    completed: true,
+    uid: "teacher-auth-13900000007",
+    teacherId: "77",
+    proof: {
+      complete: true,
       teacherStatus: "ACTIVE",
       accountStatus: "ACTIVE",
-      credentialStatus: "ACTIVE"
+      authStatus: "ACTIVE",
+      faceStatus: "ENROLLED",
+      faceId: "face-77",
+      personId: "T-777777777777777777777777777777777777777777777777",
+      photoRef: "pg://private/teachers/77/profile/original.jpg",
+      photoSha256: "ab".repeat(32),
+      photoBytes: 6
     }
   };
 }
 
-(async () => {
-  const workerCalls = [];
-  const statusCalls = [];
-  const resultCalls = [];
-  const statuses = [
-    { ok: true, operationId: "77", status: "RUNNING", stage: "READY",
-      workerReady: true, retrySameRequest: true, retryAfterSeconds: 0 },
-    { ok: true, operationId: "77", status: "SUCCEEDED", stage: "SUCCEEDED",
-      workerReady: false, retrySameRequest: false, retryAfterSeconds: 0 }
-  ];
-  const input = Object.freeze({
-    staffName: "恢复老师",
-    phone: "13900000007",
-    initialPassword: "Aa1!aaaa",
-    clientRequestId: "same_request_runtime_01",
-    consent: true,
-    faceImageBase64: "data:image/jpeg;base64,/9j/2Q=="
-  });
-  let now = 1_000_000;
-  const sandbox = {
-    module: { exports: {} },
-    Date: { now: () => now },
-    wait: async (milliseconds) => {
-      now += Math.max(2000, Number(milliseconds) || 0);
-      await Promise.resolve();
-    },
-    setMessage: () => {},
-    setProvisionPayloadLocked: () => {},
-    syncSubmit: () => {},
-    showTeacherProvisionProgress: () => {},
-    window: { CloudBasePhoneAuth: {
-      beginTeacherProvisionWithFace: async (value) => {
-        assert.equal(Object.hasOwn(value, "faceImageBase64"), false);
-        return { ok: true, accepted: true, operationId: "77", status: "RUNNING",
-          stage: "WORKER_RUNNING", workerReady: false, retrySameRequest: false,
-          retryAfterSeconds: 1 };
-      },
-      provisionTeacherWithFace: (value) => {
-        workerCalls.push(value);
-        return new Promise(() => {});
-      },
-      getTeacherFaceOperationStatus: async (value) => {
-        statusCalls.push(value);
-        return statuses.shift();
-      },
-      readTeacherProvisionResult: async (value) => {
-        resultCalls.push(value);
-        return finalProof();
-      }
-    } }
-  };
-  vm.createContext(sandbox);
-  vm.runInContext(`
-    let provisionRecoveryGeneration = 0;
-    let provisionRecoveryPending = false;
-    let activeProvisionOperationId = "";
-    const teacherProvisionWorkerDeliveryStates = new Map();
-    ${safeSeconds}
-    ${transient}
-    ${proof}
-    ${begin}
-    ${background}
-    module.exports = provisionTeacherWithBackgroundPolling;
-  `, sandbox);
+const valid = prove(validProof());
+assert.equal(valid.uid, "teacher-auth-13900000007");
+assert.equal(valid.teacherId, "77");
+assert.equal(valid.faceId, "face-77");
+assert.equal(valid.personId, "T-777777777777777777777777777777777777777777777777");
+assert.equal(valid.photoSha256, "ab".repeat(32));
+assert.equal(valid.photoBytes, 6);
 
-  const result = await sandbox.module.exports(input, {
-    faceImageSha256: "ef".repeat(32), faceImageBytes: 4
-  });
-  assert.equal(result.uid, "teacher-resume-proof");
-  assert.equal(workerCalls.length, 1,
-    "ACTIVE must wait; the later durable READY observation authorizes exactly one worker");
-  assert.equal(workerCalls[0], input,
-    "the authorized worker must reuse the identical frozen request object");
-  assert.equal(statusCalls.length, 2);
-  assert.ok(statusCalls.every((value) => value.operationId === "77" && value.readOnly === true));
-  assert.equal(resultCalls.length, 1);
-  for (const key of Object.keys(input)) {
-    assert.equal(resultCalls[0][key], input[key], `proof replay must preserve ${key}`);
-  }
-  assert.equal(resultCalls[0].operationId, "77");
-  assert.equal(resultCalls[0].readOnly, true);
+for (const mutation of [
+  (value) => { value.ok = false; },
+  (value) => { value.completed = false; },
+  (value) => { value.proof.complete = false; },
+  (value) => { value.proof.teacherStatus = "ARCHIVED"; },
+  (value) => { value.proof.accountStatus = "ARCHIVED"; },
+  (value) => { value.proof.authStatus = "BLOCKED"; },
+  (value) => { value.proof.faceStatus = "PENDING"; },
+  (value) => { value.proof.faceId = ""; },
+  (value) => { value.proof.personId = ""; },
+  (value) => { value.proof.photoRef = ""; },
+  (value) => { value.proof.photoSha256 = ""; },
+  (value) => { value.proof.photoSha256 = "abc"; },
+  (value) => { value.proof.photoBytes = 0; },
+  (value) => { value.uid = ""; },
+  (value) => { value.teacherId = ""; }
+]) {
+  const incomplete = validProof();
+  mutation(incomplete);
+  assert.equal(prove(incomplete), null, "every omitted or inactive proof component must fail closed");
+}
 
-  console.log("teacher same-request resume runtime contract: PASS");
-})().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+assert.match(source,
+  /CLIENT_REQUEST_TIMEOUT[\s\S]{0,160}outcomeUncertain = true[\s\S]{0,420}不会允许当前页面再次提交[\s\S]{0,220}返回老师管理确认/,
+  "a lost browser response must freeze the page and require an authoritative directory check");
+assert.match(source, /const ready = !submitting && !creationCompleted && !outcomeUncertain/,
+  "an uncertain outcome must remain outside the submit-ready state");
+assert.match(source, /if \(!succeeded\) setFormLocked\(outcomeUncertain\)/,
+  "finally must keep every identity/photo control locked after transport uncertainty");
+
+console.log("teacher one-call proof runtime contract: PASS");

@@ -233,10 +233,8 @@ assert.match(verificationCreate, /TEACHER_EXPERIENCE_QUOTA_EXHAUSTED/,
 assert.match(teacherCreate, /face|人脸/i, "teacher creation UI must require face enrollment");
 assert.match(teacherCreateScript, /teacher[a-zA-Z]*(?:Face|face)|face[a-zA-Z]*teacher/i,
   "teacher creation submitter must pass face enrollment evidence to the server");
-assert.match(teacherCreateScript, /action:\s*[\"']validateTeacherFaceEnrollmentCapture[\"']/,
-  "teacher face preflight must use the dedicated HQ-only validation action");
-assert.doesNotMatch(teacherCreateScript, /action:\s*[\"']validateCapture[\"']/,
-  "teacher face preflight must not reuse the store-scoped validation action");
+assert.doesNotMatch(teacherCreateScript, /validateTeacherFaceEnrollmentCapture|action:\s*[\"']validateCapture[\"']/,
+  "new-teacher capture must be validated only once inside the formal dedicated create request");
 assert.match(staffCloud, /teacher[a-zA-Z]*(?:Face|face)|face[a-zA-Z]*teacher/i,
   "staff service must validate teacher face enrollment before provisioning succeeds");
 assert.match(staffCloud, /if \(role === "teacher"\)[\s\S]{0,180}fail\(/,
@@ -279,12 +277,12 @@ assert.doesNotMatch(teacherCreate, /老师人脸（可选）|不会阻止账号�
   "new-teacher UI must not advertise a no-face creation path");
 assert.doesNotMatch(teacherCreateScript, /CloudBasePhoneAuth\.provisionTeacher\(/,
   "new-teacher UI must not call the generic no-face provisioning path");
-assert.match(teacherCreateScript, /CloudBasePhoneAuth\.provisionTeacherWithFace\(/,
-  "new-teacher UI must use the atomic consented face-enrollment path");
-assert.match(teacherCreateScript, /Boolean\(capturedFaceImage\)[\s\S]{0,300}Boolean\(\$\("teacherFaceConsent"\)\.checked\)[\s\S]{0,160}faceValidated/,
-  "new-teacher submit enablement must require capture, consent and validation");
-assert.match(phoneAuth, /async provisionTeacher\(\{ staffName, phone, initialPassword \}\)/,
-  "the generic shared-client method may remain available for non-UI compatibility");
+assert.match(teacherCreateScript, /CloudBasePhoneAuth\.createTeacherWithFace\(/,
+  "new-teacher UI must use the dedicated one-call face-enrollment path");
+assert.match(teacherCreateScript, /Boolean\(capturedFaceImage\)[\s\S]{0,300}Boolean\(\$\("teacherFaceConsent"\)\.checked\)/,
+  "new-teacher submit enablement must require capture and consent");
+assert.doesNotMatch(phoneAuth, /async provisionTeacher\(\{ staffName, phone, initialPassword \}\)/,
+  "the shared browser client must not retain a no-face teacher creation shortcut");
 assert.match(phoneAuth, /async upsertTeacherFace\(/,
   "shared client must expose later teacher-face enrollment/replacement");
 assert.match(staffCloud, /if \(role === "teacher"\) \{[\s\S]{0,160}TEACHER_FACE_REQUIRED/,
