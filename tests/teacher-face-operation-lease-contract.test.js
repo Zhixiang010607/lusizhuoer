@@ -108,6 +108,12 @@ assert.ok(fs.existsSync(path.join(consoleDir, "051-readonly-verify.sql")));
   assert.equal(api.teacherAuthCreateDefinitelyRejected({
     code: "INVALID_PARAMETER", response: { statusCode: 503 }
   }), false, "nested HTTP status shapes must retain the uncertainty fence");
+  assert.equal(api.teacherAuthCreateDefinitelyRejected({
+    code: "INVALID_PARAMETER", status: 0, response: { statusCode: 503 }
+  }), false, "a zero outer status must not hide a valid nested 5xx status");
+  assert.equal(api.teacherAuthCreateDefinitelyRejected({
+    code: "INVALID_PARAMETER", status: "", response: { statusCode: 503 }
+  }), false, "an empty outer status must not hide a valid nested 5xx status");
   assert.equal(api.teacherAuthCreateDefinitelyRejected({ code: "EXCEED_AUTHORITY", status: 429 }), false,
     "a rate-limit result must never unlock the operation early");
   assert.equal(api.isDuplicateAuthError({ code: "FailedOperation.DuplicatedData" }), true);

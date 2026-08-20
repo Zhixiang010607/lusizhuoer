@@ -1293,11 +1293,16 @@ function stageFail(stage, message, code, cause) {
 }
 
 function authErrorHttpStatus(error) {
-  return Number(
-    error?.status ?? error?.statusCode ?? error?.status_code
-    ?? error?.response?.status ?? error?.response?.statusCode ?? error?.response?.StatusCode
-    ?? error?.response?.data?.status ?? 0
-  );
+  const candidates = [
+    error?.status, error?.statusCode, error?.status_code,
+    error?.response?.status, error?.response?.statusCode, error?.response?.StatusCode,
+    error?.response?.data?.status
+  ];
+  for (const candidate of candidates) {
+    const status = Number(candidate);
+    if (Number.isInteger(status) && status >= 100 && status <= 599) return status;
+  }
+  return 0;
 }
 
 function isDuplicateAuthError(error) {
