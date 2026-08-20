@@ -46,12 +46,20 @@ assert.match(staff, /TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS = 90/,
 assert.match(staff, /makeTeacherAuthOwnershipUncertaintyCleanupEligible\(operationId\)[\s\S]*takeoverTeacherFaceOperationCleanup\(operationId\)/,
   "the trusted reconciler must safely release legacy Auth-only tombstones after the short fence");
 assert.match(staff,
-  /const eligible = await makeTeacherAuthOwnershipUncertaintyCleanupEligible\(operationId\);[\s\S]{0,420}eligible\?\.lease_expires_at[\s\S]{0,180}continue;[\s\S]{0,180}takeoverTeacherFaceOperationCleanup\(operationId\)/,
+  /const eligible = await makeTeacherAuthOwnershipUncertaintyCleanupEligible\(operationId\);[\s\S]{0,420}teacherOperationLeaseRetryAfterSeconds\(eligible\) > 0[\s\S]{0,180}continue;[\s\S]{0,180}takeoverTeacherFaceOperationCleanup\(operationId\)/,
   "a legacy scan match that fails the strict Auth-only predicate must retain its original lease");
+assert.match(staff, /EXTRACT\(EPOCH FROM \([\s\S]{0,220}lease_retry_after_seconds[\s\S]{0,420}auth_uncertainty_retry_after_seconds/,
+  "retry countdowns must be calculated by PostgreSQL instead of parsing timezone-dependent timestamps in JavaScript");
 assert.match(staff, /if \(action === "getTeacherFaceOperationStatus"\)[\s\S]{0,180}getTeacherFaceOperationStatus\(caller, event\)/,
   "HQ must be able to poll the durable operation without replaying creation");
+assert.match(staff, /retryAllowed: cleanupComplete && status !== "SUCCEEDED"/,
+  "a successful operation must never tell the client to submit the same teacher again");
 assert.match(staff, /operationId: error\?\.operationId[\s\S]{0,180}retryAfterSeconds/,
   "the safe pending response must expose only the operation id and bounded retry delay");
+assert.match(staff, /teacherAuthCreateDefinitelyRejected\(createError\)[\s\S]{0,360}AUTH_CREATE_REJECTED/,
+  "a definite Auth validation or authority rejection must not enter the ambiguous 90-second fence");
+assert.match(staff, /String\(created\?\.Data\?\.Uid \|\| ""\)\.trim\(\)[\s\S]{0,260}AUTH_CREATE_RESPONSE_INVALID/,
+  "a malformed createUser success response must not silently assume the requested UID");
 assert.match(staff,
   /delegated = await finalDelegatedTeacherFaceReadback\(delegationInput, faceOperation\);[\s\S]*finalState = await authoritativeTeacherProvisioningState\([\s\S]*transitionTeacherFaceOperation\(faceOperation, "RUNNING", "SUCCEEDED"\)/,
   "success requires final remote proof followed by final DB/Auth proof before SUCCEEDED");
@@ -75,6 +83,26 @@ for (let part = 1; part <= 10; part += 1) {
   assert.match(contents, /BEGIN;[\s\S]*COMMIT;/);
 }
 assert.ok(fs.existsSync(path.join(consoleDir, "051-readonly-verify.sql")));
+
+{
+  const sandbox = {
+    module: { exports: {} },
+    isDuplicateAuthError: () => false,
+    cloudErrorDetails: (error) => ({ code: error?.code || "", message: error?.message || "" })
+  };
+  vm.createContext(sandbox);
+  const classifier = between(
+    staff, "function teacherAuthCreateDefinitelyRejected", "\n\nfunction managerDependencyInstalled"
+  );
+  vm.runInContext(`${classifier}\nmodule.exports = teacherAuthCreateDefinitelyRejected;`, sandbox);
+  assert.equal(sandbox.module.exports({ code: "EXCEED_AUTHORITY", status: 403 }), true);
+  assert.equal(sandbox.module.exports({ code: "INVALID_PASSWORD", status: 400 }), true);
+  assert.equal(sandbox.module.exports({ code: "ETIMEDOUT" }), false);
+  assert.equal(sandbox.module.exports({ code: "HTTP_503", status: 503 }), false);
+  assert.equal(sandbox.module.exports({ code: "HTTP_429", status: 429 }), false);
+  assert.equal(sandbox.module.exports({ code: "CLIENT_CLOSED", status: 499 }), false,
+    "a disconnected caller does not prove that the upstream create was rejected");
+}
 
 function sqlText(value) {
   return `'${String(value ?? "").replace(/'/g, "''")}'`;
@@ -126,7 +154,7 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
     assert.deepEqual(delays, [250, 500, 1000]);
   }
 
-  // v60 must also recognize and accelerate the v59 Auth-only tombstone that
+  // v61 must also recognize and accelerate the v59 Auth-only tombstone that
   // is already present in production, without classifying a face-stage row as
   // eligible for the short fence.
   {
@@ -142,7 +170,8 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
       "\n\nasync function shortenTeacherAuthOwnershipUncertaintyLease"
     );
     vm.runInContext(`${predicateSource}\nmodule.exports = {
-      teacherAuthOwnershipUncertaintyOperation, teacherAuthOwnershipUncertaintyReadyAt
+      teacherAuthOwnershipUncertaintyOperation, teacherAuthOwnershipUncertaintyReadyAt,
+      teacherOperationLeaseRetryAfterSeconds, teacherAuthOwnershipUncertaintyRetryAfterSeconds
     };`, sandbox);
     const legacy = {
       operation_type: "PROVISION", operation_status: "CLEANUP_PENDING",
@@ -150,13 +179,18 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
       person_id: null, candidate_face_id: null, phone: "13900000007",
       auth_uid: "uid:13900000007", error_code: "TEACHER_PROVISION_COMPENSATION_PENDING",
       error_message: "老师认证账号创建结果不确定，且精确 UID 未返回本请求租约。",
-      cancelled_at: "2026-08-20T13:00:00.000Z"
+      cancelled_at: "2026-08-20T13:00:00.000Z",
+      lease_retry_after_seconds: "50457", auth_uncertainty_retry_after_seconds: "37"
     };
     assert.equal(sandbox.module.exports.teacherAuthOwnershipUncertaintyOperation(legacy), true);
     assert.equal(
       sandbox.module.exports.teacherAuthOwnershipUncertaintyReadyAt(legacy),
       Date.parse(legacy.cancelled_at) + 90000
     );
+    assert.equal(sandbox.module.exports.teacherAuthOwnershipUncertaintyRetryAfterSeconds(legacy), 37,
+      "a provider/raw lease value must not leak into the Auth-only UI countdown");
+    assert.equal(sandbox.module.exports.teacherOperationLeaseRetryAfterSeconds(legacy), 50457,
+      "the durable lease and short Auth fence remain separate server-side values");
     assert.equal(sandbox.module.exports.teacherAuthOwnershipUncertaintyOperation({
       ...legacy, person_id: "T-BOUND"
     }), false);
@@ -201,6 +235,9 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
       }),
       findAuthUserByExactPhoneReadOnly: async () => null,
       teacherSagaOwnsAuthentication: () => false,
+      isDuplicateAuthError: () => false,
+      teacherAuthCreateDefinitelyRejected: () => false,
+      cloudErrorDetails: (error) => ({ code: error?.code || "", message: error?.message || "" }),
       teacherProvisioningDelay: async () => {},
       manager: () => ({ user: {
         createUser: async () => { throw Object.assign(new Error("response lost"), { code: "TIMEOUT" }); }

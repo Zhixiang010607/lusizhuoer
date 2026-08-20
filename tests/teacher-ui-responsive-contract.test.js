@@ -19,7 +19,11 @@ for (const html of [managementHtml, createHtml, detailHtml, read("teacher-detail
   assert.match(html, /<meta\s+name="viewport"/, "teacher pages must declare a mobile viewport");
 }
 assert.match(managementHtml, /teacher-management\.js\?v=0\.14\.28/, "teacher directory behavior must be cache-busted");
-assert.match(createHtml, /teacher-create\.js\?v=0\.2\.6/, "teacher creation behavior must be cache-busted");
+assert.match(createHtml, /teacher-create\.js\?v=0\.2\.7/, "teacher creation behavior must be cache-busted");
+assert.match(create, /function safeProvisionRecoverySeconds[\s\S]{0,260}Math\.min\(90/,
+  "the recovery UI must never display an unbounded provider or timestamp-derived countdown");
+assert.match(create, /error\?\.cleanupComplete === true\) teacherProvisionRequestId = ""/,
+  "a definitively failed and fully cleaned request must not poison the next submit attempt");
 assert.match(createHtml, /cloudbase-phone-auth\.js\?v=0\.18\.2/,
   "teacher creation must refresh the operation-status API wrapper");
 assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.4/, "teacher home behavior must be cache-busted");

@@ -23,7 +23,7 @@
 如当前查询已进入 aborted transaction，先在另一查询单独执行 `ROLLBACK;`，再重跑失败段。
 只读验收必须全部显示 `READY`，尤其是 `expired owner cannot transition`。
 
-验收通过后才部署 `faceRecognition v75` 和 `staffAccount v60`。CloudBase 函数超时必须分别设为
+验收通过后才部署 `faceRecognition v75` 和 `staffAccount v61`。CloudBase 函数超时必须分别设为
 90 秒（不可更高）和 600 秒，并在 `staffAccount` 创建两个无业务参数 Timer：
 
 ```json

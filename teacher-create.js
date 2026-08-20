@@ -31,6 +31,13 @@
     return new Promise((resolve) => window.setTimeout(resolve, Math.max(0, Number(milliseconds) || 0)));
   }
 
+  function safeProvisionRecoverySeconds(value, fallback = 90) {
+    const seconds = Number(value);
+    return Math.min(90, Math.max(1,
+      Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : fallback
+    ));
+  }
+
   function dataUrlBytes(value) {
     const base64 = String(value || "").split(",")[1] || "";
     return Math.floor(base64.length * 3 / 4);
@@ -142,7 +149,7 @@
     $("retakeTeacherFace").disabled = true;
     syncSubmit();
     const deadline = Date.now() + 3 * 60 * 1000;
-    let remaining = Math.max(1, Number(error?.retryAfterSeconds) || 90);
+    let remaining = safeProvisionRecoverySeconds(error?.retryAfterSeconds);
     while (generation === provisionRecoveryGeneration && Date.now() < deadline) {
       setMessage(`登录账号正在后台安全确认，预计 ${remaining} 秒内完成；当前页面会自动恢复，请勿重复提交。`);
       await wait(Math.min(5000, Math.max(1000, remaining * 1000)));
@@ -162,7 +169,7 @@
           syncSubmit();
           return true;
         }
-        remaining = Math.max(1, Number(status?.retryAfterSeconds) || 5);
+        remaining = safeProvisionRecoverySeconds(status?.retryAfterSeconds, 5);
       } catch (_) {
         remaining = Math.max(1, remaining - 5);
       }
@@ -386,6 +393,7 @@
           && error?.operationId) {
         void monitorTeacherProvisionRecovery(error);
       } else {
+        if (error?.cleanupComplete === true) teacherProvisionRequestId = "";
         setMessage(error?.message || "老师账号与人脸绑定创建失败；未确认成功前请勿重复提交。");
       }
     } finally {

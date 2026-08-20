@@ -88,7 +88,7 @@ ROLLBACK;
 完成 049、050 后，按 [`051-README.md`](051-README.md) 的顺序独立执行
 `051-01` 至 `051-10`，最后运行只读 `051-readonly-verify.sql` 并确认全部 `READY`。
 这些分片在 Windows CRLF 下均小于 3,500 字节。051 必须先于
-`faceRecognition v75`／`staffAccount v60` 部署；部署时同时把函数超时分别固定为 90 秒／600 秒，
+`faceRecognition v75`／`staffAccount v61` 部署；部署时同时把函数超时分别固定为 90 秒／600 秒，
 并创建每 1 分钟一次的 `reconcile-teacher-face-operations` 平台 Timer。
 
 ### 048 在当前控制台报 `unterminated dollar-quoted string`

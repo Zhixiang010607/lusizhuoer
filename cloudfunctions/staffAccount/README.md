@@ -1,11 +1,11 @@
 # staffAccount 云函数
 
-当前版本：`v60`
+当前版本：`v61`
 
 用于总部自动创建总部、门店和老师账号；云函数使用当前登录总部账号进行授权。
 新建老师必须调用 `provisionTeacherWithFace(...)`，并且只有人脸质量／活体检查、腾讯人员建档、私有登记照和老师主档全部保存后才会激活账号。通用的
 `provisionStaff({ role: "teacher", ... })` 与无脸 `provisionTeacher(...)` 会在任何认证或数据库写入前返回 `TEACHER_FACE_REQUIRED`。已有历史老师的人脸允许后续补充或替换；历史无脸老师的激活、登录、老师选择、额度配置和普通业务不以照片为门槛，只有体验核销要求已有可用人脸登记照。后续使用
-`upsertTeacherFace({ teacherId, faceImageBase64, clientRequestId, consent: true })` 保存人脸。v60 不再保存腾讯人脸密钥，
+`upsertTeacherFace({ teacherId, faceImageBase64, clientRequestId, consent: true })` 保存人脸。v61 不再保存腾讯人脸密钥，
 而是用现有 CloudBase 服务端密钥签发两分钟、绑定完整负载的内部命令，由已配置的 `faceRecognition v75`
 完成质量检测、人脸建档、私有照片留存和数据库切换。新腾讯人脸和新照片均成功后才切换，旧人脸绝不会先删除。
 人员 ID 同时绑定具体 `teacherId`、`staffId` 和 JPEG SHA-256，所以同一真人、
@@ -15,7 +15,7 @@
 不同编号可以替换人脸。数据库只保存人员 ID、授权、时间和私有不可变登记照引用，绝不保存 Base64 人脸图片或公开地址。
 `provisionTeacherWithFace(...)` 一次性建号并登记人脸；它是新建老师的唯一入口。
 
-v60 延续全有或全无的老师 Saga，并以迁移 051 的持久操作租约隔离并发、迟到提交和云函数硬终止。创建 CloudBase Auth 账号后不再用一次 350ms 即时查询决定成败，而是在约 14 秒的有界窗口内按 0／250／500／1000／2000／4000／6000ms 回读确定性 UID。只有整个窗口仍不可见才进入 90 秒的认证专用短栅栏；该阶段尚未调用人脸、照片或业务主档，所以不再错误复用 12 分钟的跨服务栅栏。成功前仍必须分别权威回读腾讯 Person、私有桶登记照的
+v61 延续全有或全无的老师 Saga，并以迁移 051 的持久操作租约隔离并发、迟到提交和云函数硬终止。创建 CloudBase Auth 账号后不再用一次 350ms 即时查询决定成败，而是在约 14 秒的有界窗口内按 0／250／500／1000／2000／4000／6000ms 回读确定性 UID。明确的参数、密码、凭证或权限拒绝在这次精确读回后结束，不再进入额外 90 秒；只有超时、断网、限流、5xx、成功响应丢失等真正无法判断是否提交的结果，才进入 90 秒认证专用短栅栏。该阶段尚未调用人脸、照片或业务主档，所以不再错误复用 12 分钟的跨服务栅栏。v61 的剩余秒数直接由 PostgreSQL `CLOCK_TIMESTAMP()` 计算并限制在 90 秒内，不再让原始长租约或时区解析结果显示成数万秒。成功前仍必须分别权威回读腾讯 Person、私有桶登记照的
 精确字节／SHA-256、faceRecognition 数据库引用、staffAccount 最终老师／账号 `ACTIVE` 状态及
 CloudBase Auth 同 UID／手机号的 `ACTIVE` 状态；响应只会在全部成立时返回
 `readbackConfirmed: true`。任何阶段失败都会用同一签名和图片摘要撤销本次 Person／照片，删除本次
@@ -46,7 +46,7 @@ CloudBase Auth 用户；同手机号但不同 UID、不同租约或不同老师�
 6. 依次执行 `database/cloudbase-console/049-01` 至 `049-13`，再执行只读的 `049-readonly-verify.sql`；
 7. 依次执行 `database/cloudbase-console/050-01` 至 `050-07`，再执行 `050-readonly-verify.sql`，7 项必须全部 `READY`；
 8. 依次执行 `database/cloudbase-console/051-01` 至 `051-10`，再执行 `051-readonly-verify.sql`，所有项目必须全部 `READY`；
-9. 部署 `faceRecognition v75`、本函数 `staffAccount v60` 和 `verificationPhoto v4`，分别调用 `health` 确认版本；
+9. 部署 `faceRecognition v75`、本函数 `staffAccount v61` 和 `verificationPhoto v4`，分别调用 `health` 确认版本；
 10. 为 `staffAccount` 创建月度额度 Timer 和每 1 分钟人脸补偿 Timer；
 11. 最后部署当前静态前端并强制刷新浏览器。
 
@@ -76,7 +76,7 @@ staffAccount 复制腾讯人脸密钥。`FACE_GROUP_ID` 和 `CUSTOMER_PHOTO_BUCK
 同步调用都与 6 MB 事件上限保持安全余量。
 staffAccount 调用 faceRecognition 的单次 SDK 超时固定为 60 秒；CloudBase 控制台必须把
 `faceRecognition` 函数超时设为 90 秒（不得高于该值），并把可能顺序清理 5 条过期操作的 `staffAccount` 函数超时设为
-600 秒。v60 会记录每次子调用的开始时间；若 60 秒客户端超时，但 faceRecognition 仍可能在
+600 秒。v61 会记录每次子调用的开始时间；若 60 秒客户端超时，但 faceRecognition 仍可能在
 90 秒平台生命周期内迟到提交，最终回滚会等待至最后一个子调用的 90 秒截止点再加 5 秒安全余量，
 然后重新删除并读回确认。两端超时不足或把 faceRecognition 平台超时擅自调高都会破坏该完成栅栏；
 如需调高 faceRecognition 超时，必须同步提高代码中的最大存活期、staffAccount 超时和相关测试。
@@ -104,7 +104,7 @@ staffAccount 调用 faceRecognition 的单次 SDK 超时固定为 60 秒；Cloud
 
 第一个七段 Cron 在每月 1 日 00:00:00（上海时间）运行；第二个每 1 分钟扫描一次迁移 051 中
 已过期且尚未完成清理的 `RUNNING`／`CANCELLED`／`CLEANUP_PENDING`，并会让已等待 90 秒、尚未进入人脸／照片／业务写入的历史认证不确定操作提前进入安全核对，按最早顺序最多处理 5 条。
-单条失败会保留 `cleanupPending` 供下一轮重试，不会阻止后续条目。v60 仅接受平台 Timer 事件，
+单条失败会保留 `cleanupPending` 供下一轮重试，不会阻止后续条目。v61 仅接受平台 Timer 事件，
 并校验保留运行时变量 `TRIGGER_SRC=timer`、函数名、精确触发器名、时间和无终端用户 UID；普通客户端
 伪造 `Type: Timer` 不能执行重置或补偿。不要将 action、token、operationId 或密钥写进 Timer JSON。
 
@@ -142,8 +142,8 @@ Top 10；`{ mode: "ranking", dimension, pageNumber, pageSize }` 返回
 总部首页部署前还需单独执行迁移
 `035_hq_dashboard_approved_covering_indexes.sql`，为两张工单表的已通过日期范围聚合提供覆盖索引。
 
-部署 `v60` 前必须确认已按编号执行既有迁移，并完成至 `051`；本次优化不新增 SQL。
-其中 046 是老师人脸、体验额度、封存写入防线及原子体验核销的前置条件，048 让历史老师状态不再受人脸字段约束并增加额度删除／重配生命周期，049 把新体验核销的人脸主体切换为老师，050 补齐遗留主档并修复额度单独充值歧义，051 提供老师人脸跨服务 Saga 的持久 owner/generation 栅栏。必须按本节的“既有 046—048 → 049-01..13 → 049 只读验收 → 050-01..07 → 050 只读验收 → 051-01..10 → 051 只读验收 → v75/v60/v4 → 两个 Timer → 静态前端”顺序发布。
-部署后调用 `{ "action": "health" }`，返回版本必须为 `v60`，并确认
+部署 `v61` 前必须确认已按编号执行既有迁移，并完成至 `051`；本次优化不新增 SQL。
+其中 046 是老师人脸、体验额度、封存写入防线及原子体验核销的前置条件，048 让历史老师状态不再受人脸字段约束并增加额度删除／重配生命周期，049 把新体验核销的人脸主体切换为老师，050 补齐遗留主档并修复额度单独充值歧义，051 提供老师人脸跨服务 Saga 的持久 owner/generation 栅栏。必须按本节的“既有 046—048 → 049-01..13 → 049 只读验收 → 050-01..07 → 050 只读验收 → 051-01..10 → 051 只读验收 → v75/v61/v4 → 两个 Timer → 静态前端”顺序发布。
+部署后调用 `{ "action": "health" }`，返回版本必须为 `v61`，并确认
 `teacherExperienceResetTimerTriggerName` 为 `reset-teacher-experience-quotas-monthly`，且
 `teacherFaceReconcileTimerTriggerName` 为 `reconcile-teacher-face-operations`、`teacherAuthCreateReadbackWindowMs` 为 `13750`、`teacherAuthUncertaintyFenceSeconds` 为 `90`。
