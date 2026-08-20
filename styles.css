@@ -508,10 +508,8 @@ button.metric-card:hover { transform: translateY(-2px); box-shadow: 0 14px 32px 
 .info-card span { display: block; margin-bottom: 8px; color: var(--muted); font-size: 12px; }
 .info-card strong { display: block; overflow-wrap: anywhere; font-size: 14px; }
 body[data-management="teacher"] #entityInfo .info-card,
-body[data-management="operation"] #entityInfo .info-card,
 body[data-management="hq"] #entityInfo .info-card { grid-column: span 2; }
 body[data-management="teacher"] #entityInfo .info-card strong,
-body[data-management="operation"] #entityInfo .info-card strong,
 body[data-management="hq"] #entityInfo .info-card strong { white-space: nowrap; }
 .management-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .management-grid .table-card { min-width: 0; }
@@ -1328,7 +1326,6 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
   .management-summary, .detail-info-grid { grid-template-columns: repeat(2, 1fr); }
   .query-filter-grid { grid-template-columns: repeat(2, 1fr); }
   body[data-management="teacher"] #entityInfo .info-card strong,
-  body[data-management="operation"] #entityInfo .info-card strong,
   body[data-management="hq"] #entityInfo .info-card strong { white-space: normal; }
   body[data-customer-query] .customer-query-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   body[data-customer-query] .customer-query-methods { grid-template-columns: 1fr; }
@@ -1421,34 +1418,6 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 }
 @media (max-width: 450px) { .filter-grid, .metric-grid, .management-summary, .detail-info-grid, .query-filter-grid { grid-template-columns: 1fr; } .table-card .panel-heading, .ranking-actions { width: 100%; flex-wrap: wrap; } .ranking-actions > * { flex: 1; } .ranking-dimension select { width: 100%; } }
 @media (max-width: 600px) { .login-shell { width: 100%; min-height: 100vh; margin: 0; border-radius: 0; } .login-brand-panel { min-height: 270px; padding: 28px 22px; } .login-brand-copy { margin: 34px 0 0; } .login-brand-copy h1 { font-size: 34px; } .login-feature-list, .login-security-note { display: none; } .login-form-panel { padding: 34px 20px; } .role-switch button small { display: none; } }
-
-body[data-operation-home] .operation-home-main { width: min(1180px, calc(100% - clamp(20px, 3vw, 40px))); display: grid; gap: 16px; }
-.operation-profile-panel,
-.operation-review-panel { padding: 18px; }
-.operation-profile-status { min-height: 20px; margin: 2px 0 12px; color: #315378; font-size: 12px; }
-.operation-profile-status.error { color: #b42318; }
-.operation-profile-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--line); }
-.operation-profile-grid article { min-height: 88px; display: grid; align-content: center; gap: 8px; padding: 14px; background: #fff; }
-.operation-profile-grid span { color: var(--muted); font-size: 11px; }
-.operation-profile-grid strong { overflow-wrap: anywhere; font-size: 14px; }
-.operation-review-shortcuts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-.operation-review-card { min-height: 116px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 18px; border: 1px solid var(--line); border-radius: 13px; color: var(--ink); background: #fafcff; text-decoration: none; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
-.operation-review-card:hover { transform: translateY(-2px); border-color: #a8c1ec; box-shadow: 0 12px 26px #17345b14; }
-.operation-review-card:focus-visible { outline: 3px solid #1f5eff33; outline-offset: 2px; }
-.operation-review-icon { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 12px; color: #fff; background: #1f5eff; font-size: 15px; font-weight: 900; }
-.operation-review-card.verification .operation-review-icon { background: #08765f; }
-.operation-review-card strong,
-.operation-review-card small { display: block; }
-.operation-review-card strong { margin-bottom: 5px; font-size: 16px; }
-.operation-review-card small { color: var(--muted); font-size: 11px; }
-.operation-review-card b { color: #315378; font-size: 21px; }
-@media (max-width: 760px) {
-  .operation-profile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .operation-review-shortcuts { grid-template-columns: 1fr; }
-}
-@media (max-width: 450px) {
-  .operation-profile-grid { grid-template-columns: 1fr; }
-}
 
 @media (min-width: 761px) and (max-width: 1100px) {
   body.store-record-query .customer-query-filters { grid-template-columns: 1fr; }

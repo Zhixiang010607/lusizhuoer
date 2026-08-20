@@ -1,6 +1,9 @@
 # Database rebuild preview
 
-This document is a review-only preview for `schema.rebuild.sql`.
+This document is a review-only preview for `schema.rebuild.sql`. The rebuild is
+a base schema: a current deployment must still run the ordered migrations
+through 047. In particular, migration 047 retires the former operation role
+after its legacy audit tables are available.
 
 It shows what every table stores, where the data comes from, and representative
 rows. It intentionally contains no customer phone number, product price, or
@@ -13,7 +16,7 @@ staff_accounts
   |- credential_events
   |- teachers
   |- stores
-  |- operation_store_scopes -> stores
+  |- operation_store_scopes -> stores (legacy archived audit only)
   |- recharge_records
   |- verification_records
   `- record_status_history
@@ -25,13 +28,15 @@ customers + stores + teachers + products -> recharge_records
 customers + stores + teachers + products -> verification_records
 ```
 
-## 1. `staff_accounts` - login accounts for HQ, operation, store, and teacher
+## 1. `staff_accounts` - login accounts for HQ, store, and teacher
 
 This is the only table containing login phone numbers. One phone can occur only
 once, so one phone cannot receive two business identities. A user with
 `ARCHIVED` status cannot sign in. `auth_uid` is required and is the universal
-login identity used by HQ, operation, store, and teacher accounts. Business
-codes remain display codes and are not authentication identities.
+login identity used by HQ, store, and teacher accounts. Business codes remain
+display codes and are not authentication identities. An old `operation` row
+from a historical incremental database is preserved only as `ARCHIVED` audit
+data by migration 047; it is not a current login role.
 
 | Field | Meaning | Example |
 |---|---|---|
@@ -40,7 +45,7 @@ codes remain display codes and are not authentication identities.
 | `auth_uid` | Required, globally unique CloudBase authentication identity | `2085744699220090881` |
 | `phone` | Login phone only, unique | `139****2329` |
 | `staff_name` | Account holder name | `乐玉米` |
-| `role_code` | `hq`, `operation`, `store`, or `teacher` | `hq` |
+| `role_code` | `hq`, `store`, or `teacher` for current accounts | `hq` |
 | `account_status` | `ACTIVE` or `ARCHIVED` | `ACTIVE` |
 | `password_initialized_at` | Initial temporary-password creation time | `2026-08-16 09:00` |
 | `password_changed_at` | Last reset or self-change time | `2026-08-16 09:30` |
@@ -51,9 +56,13 @@ codes remain display codes and are not authentication identities.
 | id | staff_code | staff_name | role_code | account_status |
 |---:|---|---|---|---|
 | 1 | HQ001 | 乐玉米 | hq | ACTIVE |
-| 2 | OP001 | 王运营 | operation | ACTIVE |
-| 3 | TCH001 | 李老师 | teacher | ACTIVE |
-| 4 | STA001 | 上海静安旗舰店账号 | store | ACTIVE |
+| 2 | TCH001 | 李老师 | teacher | ACTIVE |
+| 3 | STA001 | 上海静安旗舰店账号 | store | ACTIVE |
+
+If a historical database contains `OP001` or another operation account,
+migration 047 retains its ID and audit references while setting the account and
+related identity/permission rows to `ARCHIVED`; no new operation account can be
+created or reactivated.
 
 ## 1a. `credential_events` - HQ-only password administration audit
 
@@ -184,22 +193,23 @@ Business-stage values:
 |---:|---|---|---:|---|---|
 | 1 | CUS202608160001 | 陈晓 | 1 | RECHARGED_WITH_CONSUMPTION | 16 / 5 / 1 |
 
-## 7. `operation_store_scopes` - operation access scope
+## 7. `operation_store_scopes` - legacy operation audit scope
 
-An operation account sees only stores assigned here. Headquarters does not need
-rows in this table because headquarters can see all stores.
+This legacy table remains only to preserve historic account-to-store audit
+references. Migration 047 archives every remaining row and blocks a new active
+scope; it grants no current account any access.
 
 | Field | Meaning | Example |
 |---|---|---|
 | `id` | Internal scope ID | `1` |
-| `operation_account_id` | Operation account ID | `2` |
+| `operation_account_id` | Historical operation account ID | `2` |
 | `store_id` | Permitted store ID | `1` |
-| `scope_status` | `ACTIVE` or `ARCHIVED` | `ACTIVE` |
+| `scope_status` | Historical row status; `ARCHIVED` after 047 | `ARCHIVED` |
 | `created_at` / `updated_at` | System timestamps | `2026-08-16 09:40` |
 
 | operation_account_id | store_id | scope_status |
 |---:|---:|---|
-| 2 | 1 | ACTIVE |
+| 2 | 1 | ARCHIVED |
 
 ## 8. `recharge_records` - recharge work orders
 

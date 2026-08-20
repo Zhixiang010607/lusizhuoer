@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS public.staff_accounts (
   auth_uid VARCHAR(64) NOT NULL UNIQUE,
   phone CHAR(11) NOT NULL UNIQUE,
   staff_name VARCHAR(64) NOT NULL,
-  role_code VARCHAR(16) NOT NULL CHECK (role_code IN ('hq', 'operation', 'store', 'teacher')),
+  role_code VARCHAR(16) NOT NULL CHECK (role_code IN ('hq', 'store', 'teacher')),
   account_status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' CHECK (account_status IN ('ACTIVE', 'ARCHIVED')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

@@ -25,19 +25,13 @@ assert.match(phoneAuth, /function authResponseData\(result, fallback\)/, "authen
 assert.match(phoneAuth, /if \(!result \|\| typeof result !== "object"\)/, "null SDK responses must become readable errors");
 assert.match(phoneAuth, /return authResponseData\(result, "验证码无效或已过期"\);/, "OTP verification must reject an empty SDK response");
 
-assert.ok(loginHtml.includes("cloudbase-phone-auth.js?v=0.17.7"), "login must load the guarded phone-auth client");
-assert.ok(loginHtml.includes("login.js?v=0.17.2"), "login must load the mobile password-reset fix");
+assert.ok(loginHtml.includes("cloudbase-phone-auth.js?v=0.18.0"), "login must load the guarded phone-auth client");
+assert.ok(loginHtml.includes("login.js?v=0.17.3"), "login must load the mobile password-reset fix");
 
 for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
   if (!html.includes("cloudbase-phone-auth.js?v=")) continue;
-  const reliablePrivateImagePages = new Set([
-    "project-detail.html", "recharge-detail.html", "verification-detail.html"
-  ]);
-  const productTemplatePages = new Set(["project-create.html", "project-management.html"]);
-  const expectedVersion = reliablePrivateImagePages.has(file)
-    ? "0.17.10"
-    : productTemplatePages.has(file) ? "0.17.9" : "0.17.7";
+  const expectedVersion = "0.18.0";
   assert.ok(html.includes(`cloudbase-phone-auth.js?v=${expectedVersion}`), `${file} must load the guarded phone-auth client`);
 }
 

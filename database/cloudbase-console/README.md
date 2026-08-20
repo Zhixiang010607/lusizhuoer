@@ -1,6 +1,6 @@
 # 腾讯云 CloudBase SQL 编辑器执行说明
 
-`ExecutePGSql` SQL 编辑器不适合一次提交包含多个 PL/pgSQL 函数的长迁移。完整的 `037`、`038`、`039`、`040` 文件保留给正式 migration 工具；在腾讯云控制台中请改用本目录的短文件。
+`ExecutePGSql` SQL 编辑器不适合一次提交包含多个 PL/pgSQL 函数的长迁移。完整的 `037`--`047` 文件保留给正式 migration 工具；在腾讯云控制台中请改用本目录的短文件。
 
 如果控制台此前已经出现红色事务错误，先新建一次独立查询，仅执行：
 
@@ -49,3 +49,27 @@ ROLLBACK;
 12. `040-01-fix-verification-photo-commit-ambiguity.sql`
 
 旧版 `037-02` 的状态判断缺少 `CASE` 表达式括号，会报 `syntax error at end of input (SQLSTATE 42601)`；旧版 `037-03` 随后提示 `create_verification_with_face_photo ... does not exist` 是同一问题造成的连锁错误。当前文件已在真实 PostgreSQL 引擎中按上述顺序完整执行通过。
+
+## 046、函数升级与 047 运营身份下线
+
+对当前版本，先按编号完成所有尚未执行的迁移，并将 `046-01` 至
+`046-08` 各自作为独立事务执行。**不要在此时先执行 047。** 正确的
+切换顺序是：
+
+1. 执行 `046-01-teacher-face-schema.sql` 至
+   `046-08-permissions-and-comments.sql`，每个文件确认 `COMMIT` 成功；
+2. 部署 `faceRecognition v69` 与 `staffAccount v50`，分别调用 `health`
+   确认新版本；
+3. 在仅限总部使用、已加载当前 `cloudbase-phone-auth.js` 的临时维护页面中，
+   以已登录总部身份在浏览器控制台运行
+   `await CloudBasePhoneAuth.retireOperationAccounts()`。必须等到返回成功、
+   旧运营账号的 CloudBase 凭据已被封锁；该维护页不是最终静态发布；如有失败，先修复并安全重试；
+4. 只有第 3 步成功后，依次完整执行
+   `047-01-retire-operation-accounts.sql` 和
+   `047-02-hq-reviewer-guard.sql`；
+5. 最后才部署当前静态前端并强制刷新浏览器。
+
+047 不删除旧运营账号、审核人或业务记录：它封存相关账号、身份、角色、
+权限和范围以保留历史外键与审计，并禁止重新创建、激活或复用运营身份。
+第二段还把充值和补录核销审核限定为总部。不要把两个 047 文件与
+`ROLLBACK;` 或其他文件粘在同一次执行中。

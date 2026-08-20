@@ -45,14 +45,14 @@
       link.textContent = "← 返回我的工作台";
       return;
     }
-    if (pageSource !== "review" || !["hq", "operation"].includes(session?.role) || !hasReviewContext()) return;
+    if (pageSource !== "review" || session?.role !== "hq" || !hasReviewContext()) return;
     link.href = reviewRecordType === "RECHARGE" ? "recharge-review.html" : "verification-review.html";
     link.textContent = reviewRecordType === "RECHARGE" ? "← 返回充值审核" : "← 返回核销审核";
   }
   function detailHref(page, rowId, code) {
     if (!rowId || !code) return "";
     const detailParams = new URLSearchParams({ recordId:String(rowId), recordCode:String(code) });
-    if (["hq", "operation"].includes(session?.role) && pageSource === "review" && hasReviewContext()) {
+    if (session?.role === "hq" && pageSource === "review" && hasReviewContext()) {
       detailParams.set("source", "customer");
       detailParams.set("customerId", customerCode);
       detailParams.set("reviewRecordType", reviewRecordType);
@@ -286,15 +286,13 @@
     }).join("") : emptyRow(5, "暂无充值记录");
     $("customerVerificationRecords").innerHTML = verifications.length ? verifications.map((row) => {
       const code = row.verificationCode || row.id;
-      const operationCanOpen = session?.role !== "operation"
-        || String(row.verificationType || "").toUpperCase() === "SUPPLEMENT";
-      const detail = operationCanOpen ? detailHref("verification-detail.html", row.id, code) : "";
+      const detail = detailHref("verification-detail.html", row.id, code);
       const codeCell = detail ? `<a class="record-link" href="${escapeHtml(detail)}">${escapeHtml(code)}</a>` : escapeHtml(code);
       return `<tr><td>${codeCell}</td><td>${escapeHtml(row.productName)}</td><td>${escapeHtml(dateText(row.submittedAt))}</td></tr>`;
     }).join("") : emptyRow(3, "暂无核销记录");
     $("customerExperienceRecords").innerHTML = experiences.length ? experiences.map((row) => {
       const code = row.verificationCode || row.id;
-      const detail = session?.role === "operation" ? "" : detailHref("verification-detail.html", row.id, code);
+      const detail = detailHref("verification-detail.html", row.id, code);
       const codeCell = detail ? `<a class="record-link" href="${escapeHtml(detail)}">${escapeHtml(code)}</a>` : escapeHtml(code);
       return `<tr><td>${codeCell}</td><td>${escapeHtml(row.productName)}</td><td>${escapeHtml(dateText(row.submittedAt))}</td></tr>`;
     }).join("") : emptyRow(3, "暂无体验记录");
@@ -311,11 +309,7 @@
     button.disabled = state.loading;
     button.textContent = state.loading ? "正在加载…" : "加载更多";
   }
-  function profilePayload(extra = {}) {
-    return session?.role === "operation"
-      ? { action:"getReviewCustomerProfile", customerCode, reviewRecordType, reviewRecordId, ...extra }
-      : { action:"getCustomerProfile", customerCode, ...extra };
-  }
+  function profilePayload(extra = {}) { return { action:"getCustomerProfile", customerCode, ...extra }; }
   async function loadMoreHistory(type) {
     const state = historyState[type];
     if (!state?.hasMore || state.loading || !state.nextCursor) return;
@@ -386,7 +380,6 @@
   }
   async function loadProfile() {
     if (!customerCode) { renderLoadError("缺少客户编号，请返回客户查询重新进入。"); return; }
-    if (session?.role === "operation" && !hasReviewContext()) { renderLoadError("运营账号必须从审核记录进入客户主页。"); return; }
     $("customerBasicInfo").innerHTML = infoCard("数据库状态", "正在读取客户主页…");
     void loadPhoto();
     try {

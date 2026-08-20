@@ -16,7 +16,7 @@
     <details class="side-menu-group" open data-menu="review"><summary><span class="nav-icon">审</span><span>审核</span></summary><nav><a href="recharge-review.html">充值审核</a><a class="active" href="verification-review.html">核销审核</a></nav></details>
     <div class="side-footer">总部工作台</div>
   </aside>
-  <header class="topbar"><div><p class="eyebrow">VERIFICATION REVIEW</p><h1>核销审核</h1><p class="subtitle">仅补录核销需要总部或运营审核</p></div><div class="status"><span></span>运营审批权限</div></header>
+  <header class="topbar"><div><p class="eyebrow">VERIFICATION REVIEW</p><h1>核销审核</h1><p class="subtitle">仅补录核销需要总部审核</p></div><div class="status"><span></span>总部审核权限</div></header>
   <main>
     <section class="panel review-toolbar">
       <div class="review-query-mode" role="tablist" aria-label="审核查询方式">
@@ -45,16 +45,16 @@
     <div class="dialog-heading"><h2 id="reviewDialogTitle">审核确认</h2><button id="closeReviewDialog" aria-label="关闭">×</button></div>
     <div id="reviewDialogSummary" class="reviewDialogSummary"></div>
     <div><strong>沟通记录</strong><div id="reviewCommunicationLog" class="communication-log compact-communication-log"></div></div>
-    <label>运营留言／审核备注<textarea id="reviewNote" rows="3" maxlength="500" placeholder="可选：填写本次批准或拒绝说明"></textarea></label>
+    <label>审核备注<textarea id="reviewNote" rows="3" maxlength="500" placeholder="可选：填写本次批准或拒绝说明"></textarea></label>
     <div class="dialog-actions"><button id="cancelReview" type="button">取消</button><button id="confirmReview" type="button">确认</button></div>
   </dialog>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
-  <script src="cloudbase-phone-auth.js?v=0.17.7"></script>
+  <script src="cloudbase-phone-auth.js?v=0.18.0"></script>
   <script src="datetime.js?v=0.1.2"></script>
-  <script src="review.js?v=0.17.8"></script>
-  <script src="auth-ui.js?v=0.18.9"></script>
+  <script src="review.js?v=0.18.1"></script>
+  <script src="auth-ui.js?v=0.19.0"></script>
 </body>
 </html>

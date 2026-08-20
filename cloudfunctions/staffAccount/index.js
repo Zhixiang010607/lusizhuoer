@@ -7,11 +7,10 @@ const crypto = require("node:crypto");
  * CloudBase 身份认证只负责手机号、密码和验证码。
  * 业务身份只保存在 PostgreSQL 的 public.staff_accounts 表，绝不写入 user_desc JSON。
  */
-const ROLES = new Set(["hq", "operation", "store", "teacher"]);
-const OPERATION_ACTIONS = new Set(["listReviewOrders", "reviewOrder", "getProductReceiptTemplate", "getProductReceiptLogoData"]);
+const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v49";
+const FUNCTION_VERSION = "v50";
 const ORDER_VOID_APPLICATIONS_ENABLED = false;
 const TEACHER_EXPERIENCE_RESET_TIMER_TRIGGER_NAME = "reset-teacher-experience-quotas-monthly";
 const TEACHER_FACE_MAX_BYTES = 4 * 1024 * 1024;
@@ -1221,7 +1220,11 @@ async function findStaffProfile(uid) {
     asDatabaseError(error, "读取员工身份");
   }
   const staff = rows?.[0];
-  if (!staff || !ROLES.has(staff.role_code)) return null;
+  if (!staff) return null;
+  if (staff.role_code === "operation") {
+    fail("运营账号已下线，无法再登录或使用业务功能。", "OPERATION_ROLE_RETIRED");
+  }
+  if (!ROLES.has(staff.role_code)) return null;
   if (staff.account_status !== "ACTIVE") fail("该人员账号已封存，无法登录", "ARCHIVED_ACCOUNT");
 
   let storeId = "";
@@ -1238,7 +1241,7 @@ async function findStaffProfile(uid) {
   }
   return {
     staffId: staff.id,
-    staffCode: `${staff.role_code === "hq" ? "HQ" : staff.role_code === "operation" ? "OP" : staff.role_code === "teacher" ? "TCH" : "S"}${String(staff.id).padStart(3, "0")}`,
+    staffCode: `${staff.role_code === "hq" ? "HQ" : staff.role_code === "teacher" ? "TCH" : "S"}${String(staff.id).padStart(3, "0")}`,
     role: staff.role_code,
     staffName: staff.staff_name,
     phone: staff.phone || "",
@@ -1267,13 +1270,16 @@ async function recoverStaffProfileByVerifiedPhone(uid, phone) {
   let rows;
   try {
     rows = await executeSql(
-      `SELECT id, account_status FROM public.staff_accounts WHERE phone = ${sqlText(normalizedPhone)} LIMIT 1`
+      `SELECT id, role_code, account_status FROM public.staff_accounts WHERE phone = ${sqlText(normalizedPhone)} LIMIT 1`
     );
   } catch (error) {
     asDatabaseError(error, "Read staff account by verified phone");
   }
   const staff = rows?.[0];
   if (!staff) return null;
+  if (staff.role_code === "operation") {
+    fail("运营账号已下线，无法恢复登录绑定。", "OPERATION_ROLE_RETIRED");
+  }
   if (staff.account_status !== "ACTIVE") fail("This staff account is archived and cannot sign in", "ARCHIVED_ACCOUNT");
 
   try {
@@ -1317,8 +1323,8 @@ function requireHq(caller) {
 }
 
 function requireReviewer(caller) {
-  if (!["hq", "operation"].includes(caller.profile?.role)) {
-    fail("仅总部或运营账号可以审核业务工单", "FORBIDDEN");
+  if (caller.profile?.role !== "hq") {
+    fail("仅总部账号可以审核业务工单", "FORBIDDEN");
   }
 }
 
@@ -1380,6 +1386,7 @@ async function ensureTeacherDatabaseProfile(staffId) {
 }
 
 async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId, initialAccountStatus = "ACTIVE" }) {
+  if (role === "operation") fail("运营账号已下线，不能再创建或恢复。", "OPERATION_ROLE_RETIRED");
   const accountStatus = String(initialAccountStatus || "").toUpperCase();
   if (!['ACTIVE', 'ARCHIVED'].includes(accountStatus)) fail("员工初始状态无效", "BAD_REQUEST");
   let existingRows;
@@ -2372,7 +2379,6 @@ function reviewFilterSql(event, alias, recordCodeExpression, statusExpression, t
 async function listReviewOrders(caller, event) {
   const exactLookup = Boolean(String(event.recordId || "").trim() || String(event.recordCode || "").trim());
   const storeReader = caller.profile?.role === "store";
-  const operationReviewer = caller.profile?.role === "operation";
   if (storeReader) {
     requireStore(caller);
     if (!exactLookup) fail("门店只能按精确工单编号读取本门店工单", "FORBIDDEN");
@@ -2470,7 +2476,7 @@ async function listReviewOrders(caller, event) {
              JOIN public.customers c ON c.id = v.customer_id
              JOIN public.products p ON p.id = v.product_id
              JOIN public.teachers t ON t.id = v.teacher_id
-            WHERE ${exactLookup && !operationReviewer && event.detailRead === true ? "TRUE" : "v.verification_type = 'SUPPLEMENT' AND v.void_request_status = 'NONE'"}
+            WHERE ${exactLookup && event.detailRead === true ? "TRUE" : "v.verification_type = 'SUPPLEMENT' AND v.void_request_status = 'NONE'"}
               ${reviewFilterSql(scopedEvent, "v", "v.verification_code", statusExpression, typeExpression)}
               ${cursorClause}
          ORDER BY (${statusExpression} = 'PENDING') DESC, ${timeExpression} DESC, v.id DESC
@@ -2553,22 +2559,6 @@ async function reviewOrder(caller, event) {
       String(verification.void_request_status || "NONE").toUpperCase() !== "NONE"
     ) {
       fail("核销审核只处理补录核销；核销作废流程已停用", "VERIFICATION_REVIEW_NOT_ALLOWED");
-    }
-  }
-  if (caller.profile?.role === "operation") {
-    const visibleRows = await listReviewOrders(caller, {
-      recordType,
-      recordId,
-      status: "PENDING",
-      limit: 1
-    });
-    const visibleRecord = visibleRows?.[0];
-    if (
-      !visibleRecord ||
-      String(visibleRecord.id) !== String(recordId) ||
-      String(visibleRecord.application_status || "").toUpperCase() !== "PENDING"
-    ) {
-      fail("运营账号只能审核当前审核列表中的待处理工单", "FORBIDDEN");
     }
   }
   let rows;
@@ -3516,6 +3506,70 @@ async function handleTrustedTeacherExperienceResetTimer(event = {}, context = {}
   };
 }
 
+// This is intentionally a one-way, HQ-only maintenance action. PostgreSQL
+// migration 047 preserves every historic operation row for audit, while this
+// function also blocks the corresponding CloudBase password credentials.
+// Do not expose it in the normal UI: it is safe to retry until it reports no
+// active accounts, but must be called by headquarters during the retirement.
+async function retireOperationAccounts() {
+  let accounts;
+  try {
+    accounts = await executeSql(
+      `SELECT id, auth_uid
+         FROM public.staff_accounts
+        WHERE role_code = 'operation'
+        ORDER BY id ASC`
+    );
+  } catch (error) {
+    asDatabaseError(error, "读取待下线运营账号");
+  }
+
+  const failedStaffIds = [];
+  let blockedCredentialCount = 0;
+  for (const account of accounts || []) {
+    const uid = String(account.auth_uid || "").trim();
+    if (!uid) continue;
+    try {
+      // Repeating BLOCKED is supported by the same CloudBase path used when
+      // an individual staff account is archived, so a failed batch is safe to
+      // retry without restoring an earlier credential.
+      await manager().user.modifyUser({ uid, userStatus: "BLOCKED" });
+      blockedCredentialCount += 1;
+    } catch (error) {
+      console.error("operation credential retirement failed", {
+        staffId: Number(account.id),
+        requestId: requestIdFrom(error) || undefined,
+        cause: cloudErrorDetails(error).code || undefined
+      });
+      failedStaffIds.push(Number(account.id));
+    }
+  }
+  if (failedStaffIds.length) {
+    const error = new Error("部分运营登录账号未能封存；数据库账号尚未归档。请检查云函数用户管理权限后重试。");
+    error.code = "OPERATION_AUTH_RETIRE_INCOMPLETE";
+    error.pendingStaffIds = failedStaffIds;
+    throw error;
+  }
+
+  let retired;
+  try {
+    retired = await executeSql(
+      `UPDATE public.staff_accounts
+          SET account_status = 'ARCHIVED', updated_at = NOW()
+        WHERE role_code = 'operation'
+          AND account_status IS DISTINCT FROM 'ARCHIVED'
+      RETURNING id`
+    );
+  } catch (error) {
+    asDatabaseError(error, "归档运营业务账号");
+  }
+  return {
+    ok: true,
+    blockedCredentialCount,
+    retiredDatabaseAccountCount: (retired || []).length
+  };
+}
+
 async function main(event = {}, context = {}) {
   const scheduledReset = await handleTrustedTeacherExperienceResetTimer(event, context);
   if (scheduledReset) return scheduledReset;
@@ -3543,9 +3597,6 @@ async function main(event = {}, context = {}) {
     }
     return { ok: true, version: FUNCTION_VERSION, uid: caller.uid, profile: caller.profile };
   }
-  if (caller.profile?.role === "operation" && !OPERATION_ACTIONS.has(action)) {
-    fail("运营账号仅可查看本人资料并审核业务工单", "FORBIDDEN");
-  }
   if (action === "getHqDashboard") {
     requireHq(caller);
     return await getHqDashboard(event);
@@ -3570,6 +3621,10 @@ async function main(event = {}, context = {}) {
     requireHq(caller);
     return await setMasterStatus(caller, event);
   }
+  if (action === "retireOperationAccounts") {
+    requireHq(caller);
+    return await retireOperationAccounts();
+  }
   if (action === "bootstrapHq") {
     return { ok: true, profile: await ensureBootstrapHq(caller) };
   }
@@ -3577,7 +3632,7 @@ async function main(event = {}, context = {}) {
     requireHq(caller);
     const role = String(event.role || "");
     if (!ROLES.has(role)) fail("Unsupported staff role");
-    const codePrefix = role === "teacher" ? "T" : role === "operation" ? "OP" : role === "hq" ? "HQ" : "S";
+    const codePrefix = role === "teacher" ? "T" : role === "hq" ? "HQ" : "S";
     const rows = await executeSql(
       `SELECT a.id, a.auth_uid, a.phone, a.staff_name, a.role_code, a.account_status,
               a.password_initialized_at, a.password_changed_at, a.password_change_required,
@@ -3739,7 +3794,8 @@ async function main(event = {}, context = {}) {
     const storeId = String(event.storeId || "").trim();
     const password = validatePassword(event.initialPassword);
     if (!staffName) fail("请填写员工姓名");
-    if (!ROLES.has(role)) fail("员工角色必须是总部、运营、门店或老师");
+    if (role === "operation") fail("运营账号已下线，不能再创建。", "OPERATION_ROLE_RETIRED");
+    if (!ROLES.has(role)) fail("员工角色必须是总部、门店或老师");
     if (role === "teacher") fail("老师账号必须使用 provisionTeacherWithFace 完成人脸授权和绑定。", "TEACHER_FACE_REQUIRED");
     if (role === "store" && !/^\d+$/.test(storeId)) fail("门店员工必须绑定已创建门店的数字编号");
 
@@ -3916,10 +3972,11 @@ async function main(event = {}, context = {}) {
     if (!uid) fail("缺少员工 UID");
     const newPassword = validatePassword(event.newPassword);
     const rows = await executeSql(
-      `SELECT id, auth_uid FROM public.staff_accounts WHERE auth_uid = ${sqlText(uid)} LIMIT 1`
+      `SELECT id, auth_uid, role_code FROM public.staff_accounts WHERE auth_uid = ${sqlText(uid)} LIMIT 1`
     );
     const target = rows?.[0];
     if (!target) fail("Target staff account was not found", "NOT_FOUND");
+    if (target.role_code === "operation") fail("运营账号已下线，不能修改密码。", "OPERATION_ROLE_RETIRED");
     await manager().user.modifyUser({ uid, password: newPassword });
     await writeCredentialEvent({
       targetStaffId: target.id,
@@ -3964,6 +4021,9 @@ async function main(event = {}, context = {}) {
     }
     const staff = rows?.[0];
     if (!staff) fail("未找到该人员账号", "NOT_FOUND");
+    if (staff.role_code === "operation") {
+      fail("运营账号已下线，不能恢复、封存或修改。请使用 retireOperationAccounts 完成统一下线。", "OPERATION_ROLE_RETIRED");
+    }
     if (staff.role_code === "teacher" && status === "ACTIVE"
         && (staff.face_enrollment_status !== "ENROLLED" || !String(staff.face_person_id || "").trim())) {
       fail("老师必须完成总部人脸绑定后才能恢复活跃状态。", "TEACHER_FACE_REQUIRED");

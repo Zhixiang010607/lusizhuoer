@@ -455,6 +455,16 @@
     async setStaffStatus({ uid = "", phone = "", status }) {
       return callStaffAccount({ action: "setStaffStatus", uid, phone, status }, "人员状态更新失败");
     },
+    // Deliberately not linked from the product UI. An HQ administrator runs
+    // this once from an authenticated browser session while retiring the
+    // legacy operation role; retries are safe if CloudBase blocks only part
+    // of the credential batch.
+    async retireOperationAccounts() {
+      return callStaffAccount(
+        { action: "retireOperationAccounts" },
+        "运营账号下线失败"
+      );
+    },
     async setMasterStatus({ teacherId = "", storeId = "", status }) {
       return callStaffAccount(
         { action: "setMasterStatus", teacherId, storeId, status },

@@ -6,16 +6,21 @@ This document defines the final business model. SQL identifiers remain ASCII-onl
 
 `staff_accounts` is the only login account table. It stores CloudBase UID, one unique phone number, password-auth identity, and account status.
 
-Each account has exactly one active business identity through `account_identity_links`:
+Each current account has exactly one active business identity through
+`account_identity_links`:
 
 | Account role | Linked business entity | Global view scope |
 | --- | --- | --- |
 | `hq` | `hq_profiles` | All business data |
-| `operation` | `operation_profiles` | Own profile, the shared HQ review queue, and review-bound read-only supporting context |
 | `store` | `stores` | Its own store only |
 | `teacher` | `teachers` | Its own records only |
 
 `account_role_assignments` and `role_permissions` hold the permissions. A phone number occurs once in `staff_accounts`, so it can never receive two active identities.
+
+Migration 047 retires the former `operation` identity. It preserves the old
+account, identity-link, role-assignment, profile, scope and review foreign-key
+rows as archive/audit data, but no active operation account, permission or
+business identity remains.
 
 Account and master-person status use only:
 
@@ -31,13 +36,15 @@ An archived account cannot sign in. Archiving does not delete historical records
 | Entity | Main table | Required relationships |
 | --- | --- | --- |
 | Headquarters person | `hq_profiles` | One login account |
-| Operation person | `operation_profiles` | One login account; no store business-data scope |
 | Teacher | `teachers` | One login account; identity-card hash and encrypted value are HQ-only |
 | Store | `stores` | Province, city, district, address; multiple `store_contacts`; one active store login binding |
 | Product | `products` | Product status and product details |
 | Customer | `customers` | Created store, face-library person ID and consent time; no customer phone is stored |
 
-`operation_store_scopes` is retained only as archived audit history. Migration 034 archives every active operation/store scope and prevents a scope from becoming active again. Operation accounts do not receive store, product, management or query scopes. They may open read-only order/customer context from the shared review queue; customer access is bound server-side to one exact review record and does not include photos or status changes.
+`operation_profiles` and `operation_store_scopes` are retained only as archived
+audit history. Migration 047 archives any remaining operation identity, scope
+and permission rows and blocks their reactivation or reuse. They grant no
+login, review, customer, photo, query, management or business-operation scope.
 
 ## 3. Recharge record
 
@@ -137,7 +144,6 @@ The database views provide global summaries without replacing detail records:
 | `v_account_access` | Resolve logged-in account, identity ID, role, permissions |
 | `v_store_global_view` | One store global view |
 | `v_teacher_global_view` | One teacher global view |
-| `v_operation_global_view` | Current operation account's own profile only (HQ may manage all profiles) |
 | `v_hq_global_view` | Headquarters-wide global view |
 | `v_product_store_summary` | Product statistics by store and period |
 | `v_product_teacher_summary` | Product verification statistics by teacher and period |
@@ -147,15 +153,23 @@ The database views provide global summaries without replacing detail records:
 | Role | Can read |
 | --- | --- |
 | Headquarters | All master data, all records, all global views |
-| Operation | Its own account profile, the shared recharge/verification review queue, and exact review-bound read-only order/customer context; no independent query or master-data access |
 | Store | Its own store, customers, recharge records, verification records |
 | Teacher | Only its own recharge and verification records; no other teacher or store global view |
 
-The access restriction is implemented in PostgreSQL RLS and must also be checked by cloud functions. `staffAccount` allows operation accounts only `session`, `listReviewOrders` and `reviewOrder`; exact verification details are limited to reviewable supplemental records. `faceRecognition` exposes only `getReviewCustomerProfile` to operation accounts, requiring an exact recharge or supplemental-verification review record that belongs to the requested customer; ordinary customer profile, photo, status, and business-query actions remain forbidden. Frontend navigation alone is never treated as permission control. Verification orders cannot start or change a void lifecycle after migration 036; corrections use a separate recharge order.
+The access restriction is implemented in PostgreSQL RLS and must also be checked
+by cloud functions. Review actions are headquarters-only. `staffAccount`
+rejects a retired operation identity even if an old CloudBase credential is
+present, and `faceRecognition` has no operation-only customer-context action.
+Migration 047 also prevents a non-HQ reviewer from being written to either
+order table. Frontend navigation alone is never treated as permission control.
+Verification orders cannot start or change a void lifecycle after migration 036;
+corrections use a separate recharge order.
 
 ## 7. Run order for the current deployment
 
-For a database already upgraded through migration 029, execute the current additive files separately and in this order:
+For a database already upgraded through migration 029, execute the current
+additive files separately through migration 046, then complete the controlled
+047 retirement cutover below:
 
 ```text
 030_store_customer_query_indexes.sql
@@ -167,6 +181,38 @@ For a database already upgraded through migration 029, execute the current addit
 036_disable_verification_void_workflow.sql
 037_verification_photo_evidence.sql
 038_verification_profile_photo_snapshot.sql
+039_direct_verification_photo_upload.sql
+040_fix_verification_photo_commit_ambiguity.sql
+041_experience_verification_device_signal.sql
+042_customer_messages.sql
+043_disable_recharge_void_workflow.sql
+044_refund_application_workflow.sql
+045_product_receipt_templates.sql
+046_teacher_face_and_experience_quotas.sql
 ```
 
-Migration 032 deliberately stops and rolls back when migration 026 is missing. In that case, do not deploy the new cloud functions yet; first complete the missing earlier migrations in numeric order. Migration 034 keeps operation scope rows as archived audit history and does not change the recharge/verification review functions. Migration 035 adds only the two covering indexes used by the headquarters dashboard's date-bounded approved-order aggregation. Migration 036 closes any legacy pending verification void as rejected without changing the original verification or balance, retires the old direct SQL function, and blocks every future verification void transition. Migration 037 adds private verification photo metadata, the atomic order-plus-face-photo insertion function, and the submitter/24-hour database guard. Migration 038 adds the immutable customer enrollment-photo snapshot and shifts the face/extras into slots 1 and 2--4. Neither migration creates the CloudBase Storage buckets, which must be created separately as private infrastructure.
+After 046 has committed, deploy `faceRecognition v69` and `staffAccount v50`
+and verify both health responses. From an authenticated headquarters session on
+a restricted maintenance page that loads the current `cloudbase-phone-auth.js`,
+run `CloudBasePhoneAuth.retireOperationAccounts()` and wait for a successful
+result that blocks the old CloudBase credentials. Only then execute
+`047_retire_operation_accounts.sql` (in the CloudBase SQL editor,
+`047-01-retire-operation-accounts.sql` followed by
+`047-02-hq-reviewer-guard.sql`), then deploy/refresh the current static
+frontend.
+
+Migration 032 deliberately stops and rolls back when migration 026 is missing.
+In that case, do not deploy the new cloud functions yet; first complete the
+missing earlier migrations in numeric order. Migration 034 retains operation
+scope rows as archived audit history. Migration 035 adds only the two covering
+indexes used by the headquarters dashboard's date-bounded approved-order
+aggregation. Migration 036 closes any legacy pending verification void as
+rejected without changing the original verification or balance, retires the old
+direct SQL function, and blocks every future verification void transition.
+Migration 037 adds private verification photo metadata, the atomic
+order-plus-face-photo insertion function, and the submitter/24-hour database
+guard. Migration 038 adds the immutable customer enrollment-photo snapshot and
+shifts the face/extras into slots 1 and 2--4. Migration 047 preserves history
+while permanently retiring the former operation role and making reviews
+headquarters-only. Neither photo migration creates the CloudBase Storage
+buckets, which must be created separately as private infrastructure.

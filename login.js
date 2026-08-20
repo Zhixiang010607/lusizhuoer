@@ -1,18 +1,16 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.17.2";
+  const VERSION = "0.17.3";
   const SMS_BRAND = "露思卓儿";
   const $ = (id) => document.getElementById(id);
   const roles = {
     hq: { name: "总部", target: "index.html" },
-    operation: { name: "运营", target: "local.html" },
     store: { name: "门店", target: "store-detail.html" },
     teacher: { name: "老师", target: "teacher-work-orders.html" }
   };
   const localDemoAccounts = {
     "13900000001": { password: "Demo@HQ2026", role: "hq", staffName: "本地总部演示", uid: "local-demo-hq" },
-    "13900000002": { password: "Demo@OP2026", role: "operation", staffName: "本地运营演示", uid: "local-demo-operation" },
     "13900000003": { password: "Demo@ST2026", role: "store", storeId: "S001", staffName: "本地门店演示", uid: "local-demo-store" },
     "13900000004": { password: "Demo@TC2026", role: "teacher", staffName: "本地老师演示", uid: "local-demo-teacher" }
   };
@@ -68,7 +66,7 @@
   }
   function createSession(identity, staff) {
     const profile = staff.profile;
-    const staffCodePrefix = profile.role === "hq" ? "HQ" : profile.role === "operation" ? "OP" : profile.role === "teacher" ? "TCH" : "S";
+    const staffCodePrefix = profile.role === "hq" ? "HQ" : profile.role === "teacher" ? "TCH" : "S";
     const session = {
       role: profile.role,
       phone: $("loginPhone").value.trim(),
@@ -186,6 +184,7 @@
         : await window.CloudBasePhoneAuth.signInWithCode(code);
       if (bootstrapMode) await window.CloudBasePhoneAuth.bootstrapHq();
       const staff = await window.CloudBasePhoneAuth.getStaffSession(phone);
+      if (!roles[staff?.profile?.role]) throw new Error("该账号角色已下线，无法进入系统。请联系总部。");
       activeSession = createSession(identity, staff);
       window.CloudBasePhoneAuth.announceWorkspaceSession?.(activeSession);
       enterWorkspace(activeSession);
@@ -195,7 +194,7 @@
   });
   document.documentElement.dataset.prototypeVersion = VERSION;
   if (isLocalPreview) {
-    $("demoHint").innerHTML = "<b>仅本地演示：</b>总部 13900000001 / Demo@HQ2026；运营 13900000002 / Demo@OP2026；门店 13900000003 / Demo@ST2026；老师 13900000004 / Demo@TC2026。请使用密码登录。";
+    $("demoHint").innerHTML = "<b>仅本地演示：</b>总部 13900000001 / Demo@HQ2026；门店 13900000003 / Demo@ST2026；老师 13900000004 / Demo@TC2026。请使用密码登录。";
   }
   selectLoginMode("password");
   window.setInterval(() => { refreshSmsButton(); refreshResetSmsButton(); }, 1000);

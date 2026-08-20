@@ -3,9 +3,10 @@
 -- It does not store customer phone numbers, product prices, or recharge amounts.
 -- All identifiers and SQL comments are ASCII-only.
 -- This is a base rebuild, not a release-complete snapshot: after it commits,
--- execute the ordered migrations through 046_teacher_face_and_experience_quotas.sql
+-- execute the ordered migrations through 047_retire_operation_accounts.sql
 -- before deploying current CloudBase functions. Migration 046 deliberately
--- normalizes this legacy teachers layout and installs face/quota structures.
+-- normalizes this legacy teachers layout and installs face/quota structures;
+-- migration 047 retires legacy operation identities after their audit tables exist.
 
 BEGIN;
 
@@ -79,7 +80,7 @@ CREATE TABLE public.staff_accounts (
   auth_uid VARCHAR(64) NOT NULL UNIQUE CHECK (BTRIM(auth_uid) <> ''),
   phone CHAR(11) NOT NULL UNIQUE,
   staff_name VARCHAR(64) NOT NULL,
-  role_code VARCHAR(16) NOT NULL CHECK (role_code IN ('hq', 'operation', 'store', 'teacher')),
+  role_code VARCHAR(16) NOT NULL CHECK (role_code IN ('hq', 'store', 'teacher')),
   account_status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE'
     CHECK (account_status IN ('ACTIVE', 'ARCHIVED')),
   password_initialized_at TIMESTAMPTZ,

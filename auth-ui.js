@@ -5,11 +5,10 @@
   const AUTH_STATE_KEY = "lusizhuoerActiveAuth";
   const SESSION_KEYS = ["prototypeSession", "prototypeRole", "prototypeAccount", "prototypeStore", "prototypeAccessMessage"];
   const isLocalPreview = ["127.0.0.1", "localhost"].includes(location.hostname);
-  const homes = { hq: "index.html", operation: "local.html", store: "store-detail.html", teacher: "teacher-work-orders.html" };
-  const labels = { hq: "总部工作区", operation: "运营工作区", store: "门店工作区", teacher: "老师工作区" };
+  const homes = { hq: "index.html", store: "store-detail.html", teacher: "teacher-work-orders.html" };
+  const labels = { hq: "总部工作区", store: "门店工作区", teacher: "老师工作区" };
   const access = {
-    hq: new Set(["index.html", "change-password.html", "store-create.html", "project-create.html", "teacher-create.html", "operation-account-create.html", "hq-account-create.html", "hq-management.html", "store-management.html", "project-management.html", "teacher-management.html", "operation-account-management.html", "staff-detail.html", "store-detail.html", "store-analysis.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "customer-create.html", "recharge-create.html", "refund-create.html", "verification-create.html", "verification-experience.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "refund-review.html", "verification-review.html"]),
-    operation: new Set(["local.html", "recharge-review.html", "refund-review.html", "verification-review.html", "customer-detail.html", "recharge-detail.html", "verification-detail.html"]),
+    hq: new Set(["index.html", "change-password.html", "store-create.html", "project-create.html", "teacher-create.html", "hq-account-create.html", "hq-management.html", "store-management.html", "project-management.html", "teacher-management.html", "staff-detail.html", "store-detail.html", "store-analysis.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "customer-create.html", "recharge-create.html", "refund-create.html", "verification-create.html", "verification-experience.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "refund-review.html", "verification-review.html"]),
     store: new Set(["store-detail.html", "store-analysis.html", "change-password.html", "customer-detail.html", "customer-query.html", "customer-create.html", "recharge-create.html", "refund-create.html", "verification-create.html", "verification-experience.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html"]),
     teacher: new Set(["teacher-work-orders.html", "change-password.html", "teacher-work-order-detail.html", "customer-detail.html", "recharge-detail.html", "verification-detail.html", "customer-create.html", "recharge-create.html", "refund-create.html", "verification-create.html", "verification-experience.html", "teacher-verification-create.html", "teacher-verification-experience.html", "teacher-recharge-create.html", "teacher-refund-create.html"])
   };
@@ -85,9 +84,9 @@
       primarySectionTitle.className = "side-section-title";
       primaryNav.before(primarySectionTitle);
     }
-    primarySectionTitle.textContent = session.role === "hq" ? "数据看板" : session.role === "operation" ? "运营账号" : "工作台";
-    const navLabel = ["hq", "operation"].includes(session.role) ? "全局视图" : session.role === "teacher" ? "我的工作台" : "门店首页";
-    const navIcon = session.role === "hq" ? "总" : session.role === "operation" ? "运" : session.role === "teacher" ? "师" : "店";
+    primarySectionTitle.textContent = session.role === "hq" ? "数据看板" : "工作台";
+    const navLabel = session.role === "hq" ? "全局视图" : session.role === "teacher" ? "我的工作台" : "门店首页";
+    const navIcon = session.role === "hq" ? "总" : session.role === "teacher" ? "师" : "店";
     primaryNav.innerHTML = `<a class="active" href="${homeUrl}"><span class="nav-icon">${navIcon}</span><span>${navLabel}</span></a>`;
     if (session.role === "store") {
       document.querySelectorAll(".side-project-bar > .side-menu-group").forEach((group) => { group.hidden = true; });
@@ -98,8 +97,6 @@
     } else if (session.role === "teacher") {
       const businessLinks = [["customer-create.html", "客户建立"], ["recharge-create.html", "办卡充值"], ["refund-create.html", "退费申请"], ["verification-create.html", "核销办理"], ["verification-experience.html", "体验核销"]];
       primaryNav.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="teacher-business"><summary><span class="nav-icon">办</span><span>业务办理</span></summary><nav>${businessLinks.map(([href, text]) => `<a class="${page === href ? "active" : ""}" href="${href}">${text}</a>`).join("")}</nav></details>`);
-    } else if (session.role === "operation") {
-      document.querySelectorAll(".side-project-bar > .side-menu-group").forEach((group) => { group.hidden = true; });
     } else {
       const businessLinks = [["customer-create.html", "客户建立"], ["recharge-create.html", "办卡充值"], ["refund-create.html", "退费申请"], ["verification-create.html", "核销办理"], ["verification-experience.html", "体验核销"]];
       const queryLinks = [["customer-query.html", "客户查询"], ["recharge-query.html", "充值查询"], ["verification-query.html", "核销查询"]];
@@ -111,15 +108,15 @@
       document.querySelectorAll(".side-project-bar > .side-menu-group").forEach((group) => {
         if (group.querySelector("summary")?.textContent.includes("管理")) group.hidden = true;
       });
-      const managementLinks = [["project-management.html", "产品管理"], ["store-management.html", "门店管理"], ["teacher-management.html", "老师管理"], ["operation-account-management.html", "运营管理"], ["hq-management.html", "总部管理"]];
+      const managementLinks = [["project-management.html", "产品管理"], ["store-management.html", "门店管理"], ["teacher-management.html", "老师管理"], ["hq-management.html", "总部管理"]];
       document.querySelector('[data-menu="shared-query"]')?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="hq-management"><summary><span class="nav-icon">管</span><span>管理</span></summary><nav>${managementLinks.map(([href, text]) => `<a class="${page === href ? "active" : ""}" href="${href}">${text}</a>`).join("")}</nav></details>`);
     }
   }
 
-  if (["hq", "operation"].includes(session.role)) {
+  if (session.role === "hq") {
     let reviewMenu = document.querySelector('[data-menu="review"]');
     if (!reviewMenu) {
-      const anchor = (session.role === "hq" ? document.querySelector('[data-menu="hq-management"]') : null) || document.querySelector('[data-menu="shared-query"]') || primaryNav;
+      const anchor = document.querySelector('[data-menu="hq-management"]') || document.querySelector('[data-menu="shared-query"]') || primaryNav;
       anchor?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="review"><summary><span class="nav-icon">审</span><span>审核</span></summary><nav></nav></details>`);
       reviewMenu = document.querySelector('[data-menu="review"]');
     }

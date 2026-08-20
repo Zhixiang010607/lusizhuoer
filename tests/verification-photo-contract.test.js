@@ -38,7 +38,7 @@ function functionSource(source, name) {
   throw new Error(`function ${name} body is incomplete`);
 }
 
-includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v68"', "split cloud versions");
+includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v69"', "split cloud versions");
 includes(cloud, "const MAX_VERIFICATION_IMAGE_BYTES = 3 * 1024 * 1024", "original upload limit");
 includes(cloud, "const MAX_THUMBNAIL_BYTES = 384 * 1024", "thumbnail upload limit");
 includes(cloud, "if (action === \"getVerificationPhotos\")", "thumbnail list action");
@@ -50,7 +50,7 @@ includes(cloud, "String(record.submitted_by_account_id) === String(caller.staffI
 includes(cloud, "CLOCK_TIMESTAMP() < v.submitted_at + INTERVAL '24 hours'", "server edit window");
 includes(cloud, "v.teacher_id = ${sqlText(caller.teacherId)}::bigint", "teacher view scope");
 includes(cloud, "v.store_id = ${Number(caller.storeId)}::bigint", "store view scope");
-includes(cloud, "v.verification_type = 'SUPPLEMENT' AND v.void_request_status = 'NONE'", "operation review scope");
+assert.doesNotMatch(cloud, /v\.verification_type = 'SUPPLEMENT' AND v\.void_request_status = 'NONE'/, "face service has no retired operation review scope");
 includes(cloud, "Promise.allSettled", "parallel and partial-upload handling");
 includes(cloud, "verificationPhotoStorageCandidates", "dedicated and existing private bucket candidates");
 includes(cloud, "storageBucketMissing", "missing dedicated bucket detection");
@@ -285,7 +285,7 @@ assert.ok(
     < functionSource(cloud, "getVerificationPhotos").indexOf("signVerificationPhoto("),
   "thumbnail URLs must be signed only after the verification-order permission check"
 );
-includes(detailUi, 'const VERSION = "0.16.17"', "detail UI cache version");
+includes(detailUi, 'const VERSION = "0.16.18"', "detail UI cache version");
 includes(functionSource(detailUi, "callVerificationPhoto"), 'callFunction({ name: "verificationPhoto", data })', "all photo operations use the dedicated photo cloud function");
 includes(functionSource(detailUi, "callVerificationPhotoLifecycle"), "callVerificationPhoto(data)", "bounded photo lifecycle calls use the dedicated photo helper");
 includes(functionSource(detailUi, "loadTeacherOrder"), 'name: "faceRecognition"', "teacher workspace remains on the business and face cloud function");
@@ -398,7 +398,7 @@ includes(detailHtml, 'id="verificationPhotoCameraVideo" autoplay playsinline mut
 includes(detailHtml, 'id="switchVerificationPhotoCamera"', "front/rear camera switch action");
 includes(detailHtml, 'aria-label="切换前后摄像头"', "camera switch accessible name");
 includes(detailHtml, 'order-export.js?v=0.1.6', "export renderer cache bust");
-includes(detailHtml, 'business-detail.js?v=0.16.17', "detail script cache bust");
+includes(detailHtml, 'business-detail.js?v=0.16.18', "detail script cache bust");
 includes(detailHtml, 'styles.css?v=0.15.48', "detail styles cache bust");
 includes(styles, ".verification-order-keyfacts.verification-order-five-keyfacts", "desktop verification header keeps five flexible facts in one row");
 includes(styles, ".verification-order-store-message", "single full-width store message layout");

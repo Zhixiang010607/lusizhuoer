@@ -2,8 +2,9 @@
 -- Safe for an empty database and additive for the current database.
 -- All SQL text is ASCII-only.
 -- This base schema is followed by the ordered migration chain; execute through
--- 046_teacher_face_and_experience_quotas.sql before deploying current functions.
--- Migration 046 adds the face-bound teacher and experience-quota release layer.
+-- 047_retire_operation_accounts.sql before deploying current functions.
+-- Migrations 046 and 047 add the face-bound teacher release layer and retire
+-- the legacy operation role while preserving its audit history.
 
 BEGIN;
 
@@ -12,7 +13,7 @@ CREATE TABLE IF NOT EXISTS public.staff_accounts (
   auth_uid VARCHAR(64) NOT NULL UNIQUE,
   phone CHAR(11) NOT NULL UNIQUE,
   staff_name VARCHAR(64) NOT NULL,
-  role_code VARCHAR(16) NOT NULL CHECK (role_code IN ('hq', 'operation', 'store', 'teacher')),
+  role_code VARCHAR(16) NOT NULL CHECK (role_code IN ('hq', 'store', 'teacher')),
   account_status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' CHECK (account_status IN ('ACTIVE', 'ARCHIVED')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -303,10 +304,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_recharge_idempotency_key ON public.recharge
 CREATE UNIQUE INDEX IF NOT EXISTS uq_verification_idempotency_key ON public.verification_records (idempotency_key) WHERE idempotency_key IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_customer_product_balance_lookup ON public.customer_product_balances (customer_id, store_id, product_id);
 
-INSERT INTO public.access_roles (role_code) VALUES ('hq'), ('operation'), ('store'), ('teacher') ON CONFLICT (role_code) DO NOTHING;
+INSERT INTO public.access_roles (role_code) VALUES ('hq'), ('store'), ('teacher') ON CONFLICT (role_code) DO NOTHING;
 INSERT INTO public.role_permissions (role_code, permission_code) VALUES
   ('hq', 'global.read.all'), ('hq', 'master.write.all'), ('hq', 'account.manage'), ('hq', 'record.approve'),
-  ('operation', 'global.read.assigned_store'), ('operation', 'record.read.assigned_store'),
   ('store', 'global.read.own_store'), ('store', 'record.write.own_store'),
   ('teacher', 'global.read.own'), ('teacher', 'record.write.own')
 ON CONFLICT (role_code, permission_code) DO NOTHING;

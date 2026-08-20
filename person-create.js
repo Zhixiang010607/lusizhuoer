@@ -2,11 +2,11 @@
   "use strict";
   const type = document.body.dataset.personCreate;
   const $ = (id) => document.getElementById(id);
-  const config = type === "teacher"
-    ? { prefix: "T", baseCount: 32, key: "prototypeCreatedTeachers", baseNames: Array.from({ length: 32 }, (_, index) => `业务老师 ${String(index + 1).padStart(2, "0")}`) }
-    : type === "hq"
-      ? { prefix: "HQ", baseCount: 1, key: "prototypeCreatedHeadquarters", baseNames: ["总部管理员"] }
-      : { prefix: "OP", baseCount: 8, key: "prototypeCreatedOperations", baseNames: Array.from({ length: 8 }, (_, index) => `运营人员${index + 1}`) };
+  if (type !== "hq") {
+    location.replace("hq-management.html");
+    return;
+  }
+  const config = { prefix: "HQ", baseCount: 1, key: "prototypeCreatedHeadquarters", baseNames: ["总部管理员"] };
 
   function stored(key) {
     try { return JSON.parse(sessionStorage.getItem(key) || "[]"); } catch (_) { return []; }
@@ -44,7 +44,7 @@
       provisioned = await window.CloudBasePhoneAuth.provisionStaff({
         staffName: name,
         phone,
-        role: type === "teacher" ? "teacher" : type === "hq" ? "hq" : "operation",
+        role: "hq",
         initialPassword
       });
     } catch (error) {

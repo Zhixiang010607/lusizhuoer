@@ -27,7 +27,7 @@ for (const source of [migration, consoleMigration]) {
   assert.match(source, /REVOKE ALL ON TABLE public\.customer_messages FROM PUBLIC/);
 }
 
-assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v3" : "v68"/);
+assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v3" : "v69"/);
 assert.match(cloud, /async function listCustomerMessages\(event\)/);
 assert.match(cloud, /async function addCustomerMessage\(event\)/);
 assert.match(cloud, /const limit = Number\.isFinite\(requestedLimit\)[\s\S]*?: 20;/);
@@ -50,7 +50,7 @@ assert.match(html, /class="customer-notes-messages-grid"[\s\S]*class="panel cust
 assert.match(html, /id="customerMessageInput"[^>]*maxlength="100"/);
 assert.match(html, /id="customerMessageList"[^>]*tabindex="0"/);
 assert.match(html, /customer-profile\.js\?v=0\.15\.11/);
-assert.match(html, /auth-ui\.js\?v=0\.18\.9/);
+assert.match(html, /auth-ui\.js\?v=0\.19\.0/);
 
 assert.match(ui, /hq:"总部", store:"门店", teacher:"老师"/);
 assert.match(ui, /年\$\{match\[2\]\}月\$\{match\[3\]\}日 \$\{match\[4\]\}:\$\{match\[5\]\}:\$\{match\[6\]\}/);

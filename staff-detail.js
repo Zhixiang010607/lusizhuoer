@@ -5,8 +5,8 @@
   const params = new URLSearchParams(location.search);
   const role = params.get("role");
   const personId = params.get("id");
-  const labels = { teacher: "老师", operation: "运营", hq: "总部人员" };
-  const pages = { teacher: "teacher-management.html", operation: "operation-account-management.html", hq: "hq-management.html" };
+  const labels = { teacher: "老师", hq: "总部人员" };
+  const pages = { teacher: "teacher-management.html", hq: "hq-management.html" };
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>\"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char]);
   const truthy = (value) => [true, "true", "t", 1, "1"].includes(value);
   let staff = null;
@@ -344,12 +344,6 @@
             </dl>
           </div>
         </section>`;
-    const scopePanel = document.querySelector(".staff-global-panel");
-    if (role === "operation") {
-      scopePanel?.removeAttribute("hidden");
-      $("staffScopeHint").textContent = "仅显示该运营账号被授权范围内的数据。";
-      $("staffScopeContent").textContent = "暂无该账号范围内的业务数据";
-    } else scopePanel?.setAttribute("hidden", "");
     const statusAction = $("staffStatusAction");
     statusAction.hidden = false;
     statusAction.textContent = status === "活跃" ? `封存${labels[role]}` : `激活${labels[role]}`;

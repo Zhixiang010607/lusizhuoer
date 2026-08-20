@@ -1,7 +1,7 @@
 ﻿(() => {
   "use strict";
 
-  const VERSION = "0.14.24";
+  const VERSION = "0.14.25";
   const type = document.body.dataset.management;
   const $ = (id) => document.getElementById(id);
   const fmt = new Intl.NumberFormat("zh-CN");
@@ -21,11 +21,10 @@
   const stores = [];
   // People management only renders records returned by the backend. No sample staff data is shown.
   const teachers = [];
-  const operations = [];
   const headquarters = [];
-  const entitySets = { store: stores, project: projects, teacher: teachers, operation: operations, hq: headquarters };
-  const labels = { store: "门店", project: "项目", teacher: "老师", operation: "运营", hq: "总部" };
-  const searchListTypes = new Set(["store", "teacher", "operation", "hq"]);
+  const entitySets = { store: stores, project: projects, teacher: teachers, hq: headquarters };
+  const labels = { store: "门店", project: "项目", teacher: "老师", hq: "总部" };
+  const searchListTypes = new Set(["store", "teacher", "hq"]);
   let peopleSearchApplied = false;
   let peopleSearch = { name: "", phone: "", selectedId: "" };
   let peopleDataLoadPromise = Promise.resolve();
@@ -122,12 +121,6 @@
     if (type === "teacher") {
       const captions = ["老师编号", "老师姓名", "显示名称", "联系电话", "状态", "创建人员", "最后修改人员"];
       const values = [entity.id, entity.name, entity.displayName || entity.name, entity.phone || "未填写", entity.status, entity.createdBy ? `${entity.createdBy.account} · ${entity.createdBy.name}` : "未记录", "未记录"];
-      $("entityInfo").innerHTML = values.map((value, i) => `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
-      return;
-    }
-    if (type === "operation") {
-      const captions = ["运营编号", "姓名", "显示名称", "联系电话", "状态", "创建人员", "最后修改人员"];
-      const values = [entity.account || entity.id, entity.name, entity.displayName || entity.name, entity.phone || "未填写", entity.status, entity.createdBy ? `${entity.createdBy.account} · ${entity.createdBy.name}` : "未记录", "未记录"];
       $("entityInfo").innerHTML = values.map((value, i) => `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
       return;
     }
@@ -316,7 +309,7 @@
         return;
       }
     }
-    if (["teacher", "operation", "hq", "store"].includes(type) && entity.authUid) {
+    if (["teacher", "hq", "store"].includes(type) && entity.authUid) {
       try {
         await window.CloudBasePhoneAuth?.setStaffStatus({ uid: entity.authUid || "", phone: entity.phone || "", status: "ARCHIVED" });
       } catch (error) {
@@ -330,7 +323,7 @@
   }
 
   async function syncRemotePeople() {
-    if (!["teacher", "operation", "hq"].includes(type)) return;
+    if (!["teacher", "hq"].includes(type)) return;
     if (!window.CloudBasePhoneAuth?.listStaff) {
       peopleDataLoadError = "人员数据库服务尚未加载，请刷新页面后重试。";
       return;
@@ -475,7 +468,7 @@
       void searchPeopleByFields();
     }));
     $("managePeriod")?.addEventListener("change", render);
-    $("addEntity").addEventListener("click", () => { if (type === "store") location.href = "store-create.html"; else if (type === "project") location.href = "project-create.html"; else if (type === "teacher") location.href = "teacher-create.html"; else if (type === "operation") location.href = "operation-account-create.html"; else if (type === "hq") location.href = "hq-account-create.html"; else $("entityDialog").showModal(); });
+    $("addEntity").addEventListener("click", () => { if (type === "store") location.href = "store-create.html"; else if (type === "project") location.href = "project-create.html"; else if (type === "teacher") location.href = "teacher-create.html"; else if (type === "hq") location.href = "hq-account-create.html"; else $("entityDialog").showModal(); });
     $("deleteEntity")?.addEventListener("click", deactivateEntity);
     $("confirmStore")?.addEventListener("click", () => {
       if (!activeEntity()) { window.alert("请先选择门店"); return; }
@@ -493,7 +486,6 @@
       if (type === "store") location.replace("store-create.html");
       else if (type === "project") location.replace("project-create.html");
       else if (type === "teacher") location.replace("teacher-create.html");
-      else if (type === "operation") location.replace("operation-account-create.html");
       else if (type === "hq") location.replace("hq-account-create.html");
       else window.setTimeout(() => $("entityDialog").showModal(), 0);
     }

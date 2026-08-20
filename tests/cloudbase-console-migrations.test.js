@@ -130,6 +130,33 @@ const reconstructed046 = parts046
   .join("\n\n");
 assert.equal(reconstructed046, canonical046, "CloudBase parts must reconstruct migration 046 exactly");
 
+// 047 retires the legacy operation role without deleting its historical audit
+// rows. It is split because the CloudBase SQL console has a per-paste size
+// limit; preserve the exact canonical body and deployment order.
+const canonical047 = transactionBody(fs.readFileSync(
+  path.join(root, "database", "migrations", "047_retire_operation_accounts.sql"),
+  "utf8"
+));
+const parts047 = fs.readdirSync(consoleDir)
+  .filter((filename) => /^047-\d{2}-.+\.sql$/.test(filename))
+  .sort();
+assert.deepEqual(
+  parts047,
+  ["047-01-retire-operation-accounts.sql", "047-02-hq-reviewer-guard.sql"],
+  "047 must have exactly two ordered CloudBase SQL-editor transactions"
+);
+for (const filename of parts047) {
+  const source = fs.readFileSync(path.join(consoleDir, filename), "utf8");
+  assert.ok(Buffer.byteLength(source, "utf8") < 9000, `${filename} must stay below the SQL editor-safe size`);
+  assert.match(source, /BEGIN;[\s\S]*COMMIT;\s*$/, `${filename} must be a complete transaction`);
+  assert.ok(!/^ROLLBACK;/m.test(source), `${filename} must not mix recovery with migration SQL`);
+  assert.equal((source.match(/\$\$/g) || []).length % 2, 0, `${filename} has an unclosed dollar-quoted block`);
+}
+const reconstructed047 = parts047
+  .map((filename) => transactionBody(fs.readFileSync(path.join(consoleDir, filename), "utf8")))
+  .join("\n\n");
+assert.equal(reconstructed047, canonical047, "CloudBase parts must reconstruct migration 047 exactly");
+
 const directParts = Object.fromEntries(
   parts.filter((filename) => filename.startsWith("039-")).map((filename) => [
     filename,

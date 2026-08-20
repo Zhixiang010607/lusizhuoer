@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const VERSION = "0.18.0";
+  const VERSION = "0.18.1";
   const pageType = document.body.dataset.review;
   const rechargeWorkflow = ["recharge", "refund"].includes(pageType);
   const recordType = rechargeWorkflow ? "RECHARGE" : "VERIFICATION";
@@ -19,7 +19,7 @@
   function staffCodeFor(role, staffId) {
     const id = clean(staffId);
     if (!id) return "";
-    const prefix = role === "hq" ? "HQ" : role === "operation" ? "OP" : role === "teacher" ? "TCH" : "S";
+    const prefix = role === "hq" ? "HQ" : role === "teacher" ? "TCH" : "S";
     return `${prefix}${id.padStart(3, "0")}`;
   }
   function formatTime(value) {
@@ -76,8 +76,8 @@
       error.code = "AUTH_SESSION_CHANGED";
       throw error;
     }
-    if (!["hq", "operation"].includes(role)) {
-      throw new Error(`当前云端业务身份为“${role || "未绑定"}”，仅总部或运营账号可以审核工单。请退出后重新登录正确账号。`);
+    if (role !== "hq") {
+      throw new Error(`当前云端业务身份为“${role || "未绑定"}”，仅总部账号可以审核工单。请退出后重新登录总部账号。`);
     }
     session = {
       ...(session || {}),
@@ -91,7 +91,7 @@
       cloudbaseUserId: data?.uid || session?.cloudbaseUserId || ""
     };
     canDecide = true;
-    reviewerRole = role === "hq" ? "总部" : "运营";
+    reviewerRole = "总部";
     sessionStorage.setItem("prototypeSession", JSON.stringify(session));
     sessionStorage.setItem("prototypeRole", role);
     sessionStorage.setItem("prototypeAccount", session.account);
@@ -103,9 +103,9 @@
     const isLocalDemo = ["127.0.0.1", "localhost"].includes(location.hostname) && clean(session?.cloudbaseUserId).startsWith("local-demo-");
     if (isLocalDemo) {
       const role = clean(session?.role).toLowerCase();
-      if (!["hq", "operation"].includes(role)) throw new Error("本地演示账号没有审核权限");
+      if (role !== "hq") throw new Error("本地演示仅总部账号有审核权限");
       canDecide = true;
-      reviewerRole = role === "hq" ? "总部" : "运营";
+      reviewerRole = "总部";
       return;
     }
     if (typeof window.CloudBasePhoneAuth?.validateWorkspaceSession !== "function") throw new Error("云端身份服务未加载，请刷新页面重试");
@@ -135,7 +135,7 @@
       const actions = item.status === "PENDING" && canDecide ? `<div class="review-actions"><button data-id="${escapeHtml(item.id)}" data-action="APPROVED">通过</button><button class="reject" data-id="${escapeHtml(item.id)}" data-action="REJECTED">驳回</button></div>` : `<span class="record-status status-${escapeHtml(statusText[item.status] || item.status)}">${escapeHtml(statusText[item.status] || item.status)}</span>`;
       const teacher = item.teacherName ? `${item.teacherName}${item.teacherId ? `（${item.teacherId}）` : ""}` : "—";
       const detailPage = rechargeWorkflow ? "recharge-detail.html" : "verification-detail.html";
-      const canOpenSupportingPages = ["hq", "operation"].includes(session?.role);
+      const canOpenSupportingPages = session?.role === "hq";
       const orderCode = item.id && canOpenSupportingPages
         ? `<a class="record-link" href="${detailPage}?recordId=${encodeURIComponent(item.id)}&recordCode=${encodeURIComponent(item.recordCode)}&source=review" title="查看${pageNoun}工单 ${escapeHtml(item.recordCode)}">${escapeHtml(item.recordCode)}</a>`
         : escapeHtml(item.recordCode);

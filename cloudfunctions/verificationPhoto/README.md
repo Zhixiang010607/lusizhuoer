@@ -4,7 +4,7 @@
 
 该函数专门处理核销单的五个照片位：列表与缩略图、按需读取高清原图、导出原图，以及三个补充照片位的开始、提交、状态恢复和取消。它不执行质量检测、活体检测、客户建档或人脸比对，也不暴露这些动作。
 
-补充照片复用迁移 039 的单任务锁、提交人权限和 24 小时截止规则，但照片内容固定通过 CloudBase `callFunction` 传给本函数，由服务端写入数据库任务已经锁定的随机对象。总部、门店或老师只有在当前登录账号就是工单原提交账号、且服务器时间仍早于 `submitted_at + 24 hours` 时才能上传或替换；不同总部账号也不能互相代传，运营始终无写权限。浏览器不再请求 PG 云存储 PUT 签名，因此不依赖照片桶的浏览器 PUT CORS，也不会再次遇到签名端点的 `STORAGE_INVALID_REQUEST`。照片仍保持私有；列表、原图、导出和写入均先校验当前登录账号与工单权限。
+补充照片复用迁移 039 的单任务锁、提交人权限和 24 小时截止规则，但照片内容固定通过 CloudBase `callFunction` 传给本函数，由服务端写入数据库任务已经锁定的随机对象。总部、门店或老师只有在当前登录账号就是工单原提交账号、且服务器时间仍早于 `submitted_at + 24 hours` 时才能上传或替换；不同总部账号也不能互相代传。已下线的历史运营身份不能登录、查看或写入。浏览器不再请求 PG 云存储 PUT 签名，因此不依赖照片桶的浏览器 PUT CORS，也不会再次遇到签名端点的 `STORAGE_INVALID_REQUEST`。照片仍保持私有；列表、原图、导出和写入均先校验当前登录账号与工单权限。
 
 ## 为什么拆成独立函数
 
@@ -143,11 +143,12 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 
 ## 部署顺序与健康检查
 
-1. 确认迁移 039 表和真实桶均存在。
-2. 部署 `faceRecognition-v55.zip`，调用 `health` 确认 `version: "v55"`，并先验证原有建档、活体、1:1 核销人脸和总部四个共享办理入口。
-3. 新建或更新函数 `verificationPhoto`，上传 `verificationPhoto-v4.zip`，配置上述环境变量、512 MB 内存和 60 秒超时。
-4. 对 `verificationPhoto` 调用 `{ "action": "health" }`，确认 `version: "v4"`、`sharedVersion: "v3"` 与全部就绪字段，再保存本节的 triggers-only 配置。
-5. 只有两个函数均验证成功后，才发布当前静态前端并强制刷新浏览器；不要先发前端。
+1. 确认迁移 039 表和真实桶均存在，并已执行完整的 `046_teacher_face_and_experience_quotas.sql`（CloudBase SQL 编辑器为 `046-01` 至 `046-08`）。
+2. 部署 `faceRecognition-v69.zip` 与 `staffAccount-v50.zip`，分别调用 `health` 确认 `v69`、`v50`。在仅限总部使用、已加载当前 `cloudbase-phone-auth.js` 的临时维护页面中，以已登录总部身份执行 `await CloudBasePhoneAuth.retireOperationAccounts()`；必须等待成功封锁旧运营账号的 CloudBase 凭据。该维护页不是最终静态发布。
+3. 只有该总部维护动作成功后，才在 CloudBase SQL 编辑器依次执行 `047-01-retire-operation-accounts.sql`、`047-02-hq-reviewer-guard.sql`。它保留历史业务和审核外键，但永久封存旧运营身份并将审核收紧为总部独占。
+4. 新建或更新函数 `verificationPhoto`，上传 `verificationPhoto-v4.zip`，配置上述环境变量、512 MB 内存和 60 秒超时。
+5. 对 `verificationPhoto` 调用 `{ "action": "health" }`，确认 `version: "v4"`、`sharedVersion: "v3"` 与全部就绪字段，再保存本节的 triggers-only 配置。
+6. 只有三个函数均验证成功后，才发布当前静态前端并强制刷新浏览器；不要先发前端。
 
 `verificationPhoto` 应返回类似：
 
@@ -182,4 +183,4 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 
 若 `ready`、任一 `Ready` 字段、`verificationPhotoCleanupConfigured` 或 `verificationPhotoServiceRoleKeyConfigured` 为 `false`，先修复环境 ID、服务端 Key、清理凭证、迁移 039 或桶配置，保存同一响应中的错误码和请求 ID，不要用公开桶或整桶 Policy 绕过错误。
 
-部署后至少用真实总部、运营、门店和老师账号验证：总部四个办理入口必须先确认唯一 `ACTIVE` 门店且没有“全部门店”，运营没有办理入口，老师没有客户建立且工单老师锁定为本人；有权账号可查看核销照片；只有总部／门店／老师中的真实原提交账号且在 `submitted_at + 24 hours` 内可写；其他总部账号、其他角色账号和超时请求被拒绝；取消后可重新选择；一张成功后才可开始下一张；刷新后已提交照片仍可见；五张齐全时 PDF／图片导出不缺图。
+部署后至少用真实总部、门店和老师账号验证：总部四个办理入口必须先确认唯一 `ACTIVE` 门店且没有“全部门店”，老师没有客户建立且工单老师锁定为本人；有权账号可查看核销照片；只有总部／门店／老师中的真实原提交账号且在 `submitted_at + 24 hours` 内可写；其他总部账号、其他角色账号和超时请求被拒绝；历史运营账号必须无法登录或读取任何照片／客户／审核上下文；取消后可重新选择；一张成功后才可开始下一张；刷新后已提交照片仍可见；五张齐全时 PDF／图片导出不缺图。

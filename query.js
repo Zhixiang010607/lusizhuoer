@@ -376,7 +376,7 @@
     }
   }
 
-  // Operation keeps its existing shell. The database query contract above is
+  // The legacy shell remains for older routes. The database query contract is
   // deliberately limited to HQ and store identities on both client and server.
   function initializeLegacyRecordQuery() {
     $("storeRecordQueryMain").hidden = true;

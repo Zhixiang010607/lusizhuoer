@@ -35,7 +35,7 @@
       window.setTimeout(() => {
         let session = null;
         try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
-        const homes = { hq: "index.html", operation: "local.html", store: "store-detail.html", teacher: "teacher-work-orders.html" };
+        const homes = { hq: "index.html", store: "store-detail.html", teacher: "teacher-work-orders.html" };
         const target = homes[session?.role] || "login.html";
         const suffix = session?.role === "store" && session.store ? `?storeId=${encodeURIComponent(session.store)}` : "";
         location.replace(target + suffix);

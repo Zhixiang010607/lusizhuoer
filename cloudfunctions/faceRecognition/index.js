@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v68";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v69";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -1208,7 +1208,7 @@ async function activeCustomerStatusCaller() {
 // Customer and business-record query pages are shared by headquarters and
 // stores.  The authenticated CloudBase UID is always the source of authority:
 // stores are pinned to their active binding, while HQ may optionally narrow an
-// otherwise global query to one real store.  Operations are deliberately not
+// otherwise global query to one real store. Retired roles are deliberately not
 // included in this contract.
 async function activeScopedQueryCaller(event = {}) {
   const caller = await activeCustomerStatusCaller();
@@ -1286,22 +1286,6 @@ async function activeCustomerProfileCaller() {
   fail("当前登录身份无权查看客户主页。", "FORBIDDEN");
 }
 
-async function activeOperationReviewCaller() {
-  const { uid } = app().auth().getUserInfo();
-  if (!uid) fail("请先登录后再查看审核客户资料。", "UNAUTHENTICATED");
-  const rows = await executeSql(
-    `SELECT id AS staff_id, role_code, account_status
-       FROM public.staff_accounts
-      WHERE auth_uid = ${sqlText(uid)}
-      LIMIT 1`
-  );
-  const account = rows[0];
-  if (!account) fail("当前登录账号尚未绑定业务身份。", "STAFF_PROFILE_MISSING");
-  if (account.account_status !== "ACTIVE") fail("当前登录账号已封存。", "ARCHIVED");
-  if (account.role_code !== "operation") fail("只有运营审核账号可以使用审核客户资料入口。", "FORBIDDEN");
-  return { uid: String(uid), staffId: Number(account.staff_id), role: "operation", storeId: null };
-}
-
 async function activeVerificationPhotoCaller() {
   const { uid } = app().auth().getUserInfo();
   if (!uid) fail("请先登录后再查看核销照片。", "UNAUTHENTICATED");
@@ -1316,7 +1300,7 @@ async function activeVerificationPhotoCaller() {
   const account = rows[0];
   if (!account) fail("当前登录账号尚未绑定业务身份。", "STAFF_PROFILE_MISSING");
   if (account.account_status !== "ACTIVE") fail("当前登录账号已封存。", "ARCHIVED");
-  if (!['hq', 'operation', 'store', 'teacher'].includes(account.role_code)) {
+  if (!['hq', 'store', 'teacher'].includes(account.role_code)) {
     fail("当前登录身份无权查看核销照片。", "FORBIDDEN");
   }
   if (account.role_code === "store") {
@@ -1339,7 +1323,6 @@ async function verificationPhotoContext(event, options = {}) {
   let scope = "TRUE";
   if (caller.role === "store") scope = `v.store_id = ${Number(caller.storeId)}::bigint`;
   else if (caller.role === "teacher") scope = `v.teacher_id = ${sqlText(caller.teacherId)}::bigint`;
-  else if (caller.role === "operation") scope = "v.verification_type = 'SUPPLEMENT' AND v.void_request_status = 'NONE'";
   const rows = await executeSql(
     `SELECT v.id, v.verification_code, v.verification_type, v.store_id,
             v.teacher_id, v.submitted_by_account_id, v.submitted_at,
@@ -1373,30 +1356,6 @@ function customerProfileScope(caller, alias = "c") {
     )
   )`;
   return "";
-}
-
-function operationReviewCustomerScope(event, alias = "c") {
-  const recordType = String(event.reviewRecordType || "").trim().toUpperCase();
-  if (!["RECHARGE", "VERIFICATION"].includes(recordType)) {
-    fail("运营客户主页缺少有效审核工单类型。", "REVIEW_CONTEXT_REQUIRED");
-  }
-  const recordId = businessQueryDatabaseId(event.reviewRecordId, "审核工单");
-  if (recordType === "RECHARGE") {
-    return ` AND EXISTS (
-      SELECT 1
-        FROM public.recharge_records review_record
-       WHERE review_record.id = ${recordId}::bigint
-         AND review_record.customer_id = ${alias}.id
-    )`;
-  }
-  return ` AND EXISTS (
-    SELECT 1
-      FROM public.verification_records review_record
-     WHERE review_record.id = ${recordId}::bigint
-       AND review_record.customer_id = ${alias}.id
-       AND review_record.verification_type = 'SUPPLEMENT'
-       AND review_record.void_request_status = 'NONE'
-  )`;
 }
 
 function customerStatusCode(event) {
@@ -1698,15 +1657,10 @@ function mapCustomerVerifications(rows) {
   }));
 }
 
-async function getCustomerProfile(event, options = {}) {
-  const operationReviewContext = options.operationReviewContext === true;
-  const caller = operationReviewContext
-    ? await activeOperationReviewCaller()
-    : await activeCustomerProfileCaller();
+async function getCustomerProfile(event) {
+  const caller = await activeCustomerProfileCaller();
   const customerCodeValue = customerStatusCode(event);
-  const profileScope = operationReviewContext
-    ? operationReviewCustomerScope(event, "c")
-    : customerProfileScope(caller, "c");
+  const profileScope = customerProfileScope(caller, "c");
   const customerRows = await executeSql(
     `SELECT c.id, c.customer_code, c.customer_name, c.birth_date, c.notes,
             c.customer_status, c.customer_process_status,
@@ -4822,7 +4776,6 @@ exports.main = async (event = {}, context = {}) => {
     if (action === "getCustomerProductBalances") return await getCustomerProductBalances(event);
     if (action === "getCustomerStatus") return await getCustomerStatus(event);
     if (action === "getCustomerProfile") return await getCustomerProfile(event);
-    if (action === "getReviewCustomerProfile") return await getCustomerProfile(event, { operationReviewContext: true });
     if (action === "updateCustomerStatus") return await updateCustomerStatus(event);
     if (action === "updateCustomerNotes") return await updateCustomerNotes(event);
     if (action === "listCustomerMessages") return await listCustomerMessages(event);

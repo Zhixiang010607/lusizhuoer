@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.17";
+  const VERSION = "0.16.18";
   const PRODUCT_LOGO_DETAIL_RETRY_DELAYS_MS = Object.freeze([0, 360, 1080]);
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
@@ -77,7 +77,7 @@
       link.textContent = "← 返回我的工作台";
       return;
     }
-    if (source === "review" && ["hq", "operation"].includes(session?.role)) {
+    if (source === "review" && session?.role === "hq") {
       link.href = type === "recharge" ? "recharge-review.html" : "verification-review.html";
       link.textContent = type === "recharge" ? "← 返回充值审核" : "← 返回核销审核";
       return;
@@ -847,7 +847,7 @@
     if (["APPROVED", "ACTIVE", "COMPLETED"].includes(code)) return { label: "审核通过", className: "approved", hint: "审核已完成" };
     if (code === "VOIDED") return { label: "已作废", className: "rejected", hint: "历史工单状态为已作废" };
     if (["REJECTED", "ARCHIVED", "CANCELLED"].includes(code)) return { label: "已驳回", className: "rejected", hint: "该工单已被驳回" };
-    return { label: "待审核", className: "pending", hint: "等待总部或运营处理" };
+    return { label: "待审核", className: "pending", hint: "等待总部审核处理" };
   }
 
   function labelParts(name, code, emptyLabel = "—") {
