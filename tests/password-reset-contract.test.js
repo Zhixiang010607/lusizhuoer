@@ -31,9 +31,11 @@ assert.ok(loginHtml.includes("login.js?v=0.17.3"), "login must load the mobile p
 for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
   if (!html.includes("cloudbase-phone-auth.js?v=")) continue;
-  const expectedVersion = [
+  const expectedVersion = file === "teacher-create.html"
+    ? "0.18.2"
+    : [
     "index.html", "recharge-review.html", "refund-review.html", "verification-review.html",
-    "staff-detail.html", "teacher-create.html", "teacher-management.html"
+    "staff-detail.html", "teacher-management.html"
   ].includes(file)
     ? "0.18.1"
     : "0.18.0";

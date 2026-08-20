@@ -9,6 +9,8 @@
   // after a lost response is idempotent at the account service.
   let teacherProvisionRequestId = "";
   let submitting = false;
+  let provisionRecoveryPending = false;
+  let provisionRecoveryGeneration = 0;
   let faceServiceApp = null;
 
   function setMessage(message = "") {
@@ -23,6 +25,10 @@
   function requestId() {
     const token = window.crypto?.randomUUID?.().replace(/-/g, "") || `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
     return `teacher_face_${token}`.slice(0, 64);
+  }
+
+  function wait(milliseconds) {
+    return new Promise((resolve) => window.setTimeout(resolve, Math.max(0, Number(milliseconds) || 0)));
   }
 
   function dataUrlBytes(value) {
@@ -91,7 +97,7 @@
   }
 
   function syncSubmit() {
-    const ready = !submitting
+    const ready = !submitting && !provisionRecoveryPending
       && Boolean($("personCreateName").value.trim())
       && Boolean($("personPhone").value.trim())
       && passwordIsValid($("personInitialPassword").value)
@@ -104,6 +110,8 @@
   }
 
   function resetFaceCapture() {
+    provisionRecoveryGeneration += 1;
+    provisionRecoveryPending = false;
     stopCamera();
     capturedFaceImage = "";
     faceValidated = false;
@@ -124,6 +132,45 @@
     $("teacherFaceLivenessResult").textContent = "未采集";
     $("teacherFaceEnrollmentState").textContent = "创建前必填";
     syncSubmit();
+  }
+
+  async function monitorTeacherProvisionRecovery(error) {
+    const operationId = String(error?.operationId || "").trim();
+    if (!operationId || !window.CloudBasePhoneAuth?.getTeacherFaceOperationStatus) return false;
+    provisionRecoveryPending = true;
+    const generation = ++provisionRecoveryGeneration;
+    $("retakeTeacherFace").disabled = true;
+    syncSubmit();
+    const deadline = Date.now() + 3 * 60 * 1000;
+    let remaining = Math.max(1, Number(error?.retryAfterSeconds) || 90);
+    while (generation === provisionRecoveryGeneration && Date.now() < deadline) {
+      setMessage(`登录账号正在后台安全确认，预计 ${remaining} 秒内完成；当前页面会自动恢复，请勿重复提交。`);
+      await wait(Math.min(5000, Math.max(1000, remaining * 1000)));
+      if (generation !== provisionRecoveryGeneration) return true;
+      try {
+        const status = await window.CloudBasePhoneAuth.getTeacherFaceOperationStatus({ operationId });
+        const state = String(status?.status || "");
+        if (state === "SUCCEEDED") {
+          setMessage("老师创建操作已由后台确认成功，请返回老师管理查看；不要再次创建。");
+          return true;
+        }
+        if (status?.cleanupComplete === true || (state === "CANCELLED" && status?.retryAllowed === true)) {
+          teacherProvisionRequestId = "";
+          provisionRecoveryPending = false;
+          $("retakeTeacherFace").disabled = false;
+          setMessage("先前不确定的登录账号操作已安全核对并清理。无需重新拍照，现在可以再次点击创建。");
+          syncSubmit();
+          return true;
+        }
+        remaining = Math.max(1, Number(status?.retryAfterSeconds) || 5);
+      } catch (_) {
+        remaining = Math.max(1, remaining - 5);
+      }
+    }
+    if (generation === provisionRecoveryGeneration) {
+      setMessage("后台确认尚未完成，已继续保持创建锁以避免重复账号。请稍后刷新页面，或在老师管理中确认结果。");
+    }
+    return true;
   }
 
   async function openCamera() {
@@ -334,7 +381,13 @@
       $("personCreateForm").reset();
       resetFaceCapture();
     } catch (error) {
-      setMessage(error?.message || "老师账号与人脸绑定创建失败；未确认成功前请勿重复提交。");
+      if (error?.code === "TEACHER_PROVISION_COMPENSATION_PENDING"
+          && error?.stage === "AUTH_CREATE_OWNERSHIP"
+          && error?.operationId) {
+        void monitorTeacherProvisionRecovery(error);
+      } else {
+        setMessage(error?.message || "老师账号与人脸绑定创建失败；未确认成功前请勿重复提交。");
+      }
     } finally {
       submitting = false;
       submitButton.textContent = submitIdleLabel;
@@ -351,6 +404,7 @@
   $("retakeTeacherFace").addEventListener("click", () => void openCamera());
   $("personCreateForm").addEventListener("submit", submit);
   window.addEventListener("pagehide", () => {
+    provisionRecoveryGeneration += 1;
     capturedFaceImage = "";
     teacherProvisionRequestId = "";
     $("teacherFaceCanvas").width = 0;

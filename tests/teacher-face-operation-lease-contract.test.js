@@ -39,6 +39,19 @@ assert.match(staff, /const ownerToken = crypto\.randomBytes\(32\)\.toString\("he
   "each invocation needs an unpredictable, non-idempotency-derived owner token");
 assert.match(staff, /error\?\.authCreationUncertain[\s\S]*"RUNNING", "CLEANUP_PENDING"/,
   "a lost createUser response must remain an open cleanup tombstone");
+assert.match(staff, /TEACHER_AUTH_CREATE_READBACK_DELAYS_MS = Object\.freeze\(\[[\s\S]*6000/,
+  "Auth ownership must use bounded delayed readback rather than one immediate probe");
+assert.match(staff, /TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS = 90/,
+  "Auth-only uncertainty must not inherit the 12-minute face-service fence");
+assert.match(staff, /makeTeacherAuthOwnershipUncertaintyCleanupEligible\(operationId\)[\s\S]*takeoverTeacherFaceOperationCleanup\(operationId\)/,
+  "the trusted reconciler must safely release legacy Auth-only tombstones after the short fence");
+assert.match(staff,
+  /const eligible = await makeTeacherAuthOwnershipUncertaintyCleanupEligible\(operationId\);[\s\S]{0,420}eligible\?\.lease_expires_at[\s\S]{0,180}continue;[\s\S]{0,180}takeoverTeacherFaceOperationCleanup\(operationId\)/,
+  "a legacy scan match that fails the strict Auth-only predicate must retain its original lease");
+assert.match(staff, /if \(action === "getTeacherFaceOperationStatus"\)[\s\S]{0,180}getTeacherFaceOperationStatus\(caller, event\)/,
+  "HQ must be able to poll the durable operation without replaying creation");
+assert.match(staff, /operationId: error\?\.operationId[\s\S]{0,180}retryAfterSeconds/,
+  "the safe pending response must expose only the operation id and bounded retry delay");
 assert.match(staff,
   /delegated = await finalDelegatedTeacherFaceReadback\(delegationInput, faceOperation\);[\s\S]*finalState = await authoritativeTeacherProvisioningState\([\s\S]*transitionTeacherFaceOperation\(faceOperation, "RUNNING", "SUCCEEDED"\)/,
   "success requires final remote proof followed by final DB/Auth proof before SUCCEEDED");
@@ -80,6 +93,75 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
 }
 
 (async () => {
+  // Auth can be committed but remain absent from the first read replica. The
+  // bounded production poll must recover the exact owned UID without replaying
+  // createUser or entering the long face-operation tombstone.
+  {
+    const delays = [];
+    let reads = 0;
+    const owned = { Uid: "teacher-auth-owned" };
+    const sandbox = {
+      module: { exports: {} },
+      TEACHER_AUTH_CREATE_READBACK_DELAYS_MS: [0, 250, 500, 1000, 2000, 4000, 6000],
+      teacherProvisioningDelay: async (value) => { delays.push(value); },
+      exactAuthenticationUserByUid: async () => {
+        reads += 1;
+        return reads < 4 ? null : owned;
+      },
+      teacherSagaOwnsAuthentication: (user) => user === owned
+    };
+    vm.createContext(sandbox);
+    const readbackSource = between(
+      staff,
+      "async function readTeacherProvisionAuthenticationWithRetry",
+      "\n\nfunction teacherOperationOwnsAuthentication"
+    );
+    vm.runInContext(
+      `${readbackSource}\nmodule.exports = readTeacherProvisionAuthenticationWithRetry;`, sandbox
+    );
+    const result = await sandbox.module.exports("teacher-auth-owned", "13900000007", { id: "51" });
+    assert.equal(result.user, owned);
+    assert.equal(result.owned, true);
+    assert.equal(reads, 4);
+    assert.deepEqual(delays, [250, 500, 1000]);
+  }
+
+  // v60 must also recognize and accelerate the v59 Auth-only tombstone that
+  // is already present in production, without classifying a face-stage row as
+  // eligible for the short fence.
+  {
+    const sandbox = {
+      module: { exports: {} },
+      TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS: 90,
+      teacherProvisionAuthenticationUid: (phone) => `uid:${phone}`
+    };
+    vm.createContext(sandbox);
+    const predicateSource = between(
+      staff,
+      "function teacherAuthOwnershipUncertaintyOperation",
+      "\n\nasync function shortenTeacherAuthOwnershipUncertaintyLease"
+    );
+    vm.runInContext(`${predicateSource}\nmodule.exports = {
+      teacherAuthOwnershipUncertaintyOperation, teacherAuthOwnershipUncertaintyReadyAt
+    };`, sandbox);
+    const legacy = {
+      operation_type: "PROVISION", operation_status: "CLEANUP_PENDING",
+      cleanup_completed_at: null, staff_id: null, teacher_id: null,
+      person_id: null, candidate_face_id: null, phone: "13900000007",
+      auth_uid: "uid:13900000007", error_code: "TEACHER_PROVISION_COMPENSATION_PENDING",
+      error_message: "老师认证账号创建结果不确定，且精确 UID 未返回本请求租约。",
+      cancelled_at: "2026-08-20T13:00:00.000Z"
+    };
+    assert.equal(sandbox.module.exports.teacherAuthOwnershipUncertaintyOperation(legacy), true);
+    assert.equal(
+      sandbox.module.exports.teacherAuthOwnershipUncertaintyReadyAt(legacy),
+      Date.parse(legacy.cancelled_at) + 90000
+    );
+    assert.equal(sandbox.module.exports.teacherAuthOwnershipUncertaintyOperation({
+      ...legacy, person_id: "T-BOUND"
+    }), false);
+  }
+
   // createUser may commit after its SDK response is lost and remain invisible
   // to the immediate read replica. The production creation flow must leave an
   // open cleanup tombstone; it may not mark the operation cleanup-complete.
@@ -92,6 +174,7 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
     };
     const sandbox = {
       module: { exports: {} }, Buffer, TEACHER_FACE_COMPENSATION_SETTLE_MS: 0,
+      TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS: 90,
       requireTeacherFaceSchema: async () => {},
       requireTeacherExperienceFaceSubjectSchema: async () => {},
       requireTeacherFaceOperationSchema: async () => {},
@@ -112,6 +195,10 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
       },
       bindTeacherFaceOperation: async () => {},
       exactAuthenticationUserByUid: async () => null,
+      readTeacherProvisionAuthenticationWithRetry: async () => ({
+        user: null, owned: false,
+        lastError: Object.assign(new Error("response lost"), { code: "TIMEOUT" })
+      }),
       findAuthUserByExactPhoneReadOnly: async () => null,
       teacherSagaOwnsAuthentication: () => false,
       teacherProvisioningDelay: async () => {},
@@ -122,6 +209,7 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
         transitions.push({ expected, next, cleanupComplete: options.cleanupComplete === true });
         target.status = next;
       },
+      shortenTeacherAuthOwnershipUncertaintyLease: async () => {},
       deleteTeacherProvisioningAuthentication: async () => { authDeleteCalls += 1; },
       fail(message, code) { const error = new Error(message); error.code = code; throw error; }
     };
@@ -140,6 +228,8 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
       ),
       (error) => error.code === "TEACHER_PROVISION_COMPENSATION_PENDING"
         && error.authCreationUncertain === true
+        && error.operationId === "51"
+        && error.retryAfterSeconds === 90
     );
     assert.deepEqual(transitions, [
       { expected: "RUNNING", next: "CLEANUP_PENDING", cleanupComplete: false }

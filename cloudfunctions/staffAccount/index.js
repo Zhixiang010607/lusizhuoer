@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v59";
+const FUNCTION_VERSION = "v60";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -32,6 +32,16 @@ const TEACHER_FACE_MAX_BYTES = 3 * 1024 * 1024;
 // Keep the platform timeout for both functions above this value as well.
 const TEACHER_FACE_DELEGATION_TIMEOUT_MS = 60 * 1000;
 const TEACHER_FACE_COMPENSATION_SETTLE_MS = 350;
+// CloudBase Auth createUser may commit before describeUserList can observe the
+// deterministic UID.  Poll that exact UID instead of treating a single
+// sub-second read miss as an ambiguous account creation.
+const TEACHER_AUTH_CREATE_READBACK_DELAYS_MS = Object.freeze([
+  0, 250, 500, 1000, 2000, 4000, 6000
+]);
+// No face, private-photo or business-profile mutation has started while Auth
+// ownership is unresolved.  Keep a short fence for a genuinely late Auth
+// commit, rather than reusing the 12-minute cross-service face-operation lease.
+const TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS = 90;
 // faceRecognition is deployed with a 90-second platform timeout. A timed-out
 // SDK invocation can therefore keep running after this function receives its
 // 60-second transport error. Final cleanup must not run until every possible
@@ -3362,7 +3372,9 @@ async function readTeacherFaceOperation(operationId) {
             COALESCE(TO_CHAR(operation.previous_face_enrolled_at AT TIME ZONE 'UTC',
               'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'), '') AS previous_face_enrolled_at,
             operation.previous_face_enrolled_by_account_id,
-            operation.cleanup_completed_at
+            operation.error_code, operation.error_message,
+            operation.created_at, operation.updated_at,
+            operation.cancelled_at, operation.cleanup_completed_at
        FROM public.teacher_face_operations AS operation
       WHERE operation.id = ${numericId(operationId, "老师人脸操作")}::bigint
       LIMIT 1`
@@ -3607,6 +3619,27 @@ function teacherSagaOwnsAuthentication(user, phone, operation) {
       === teacherProvisionAuthenticationLease(operation?.id, operation?.ownerToken);
 }
 
+async function readTeacherProvisionAuthenticationWithRetry(uid, phone, operation) {
+  let lastError = null;
+  for (const delayMs of TEACHER_AUTH_CREATE_READBACK_DELAYS_MS) {
+    if (delayMs > 0) await teacherProvisioningDelay(delayMs);
+    let user = null;
+    try {
+      user = await exactAuthenticationUserByUid(uid);
+    } catch (error) {
+      lastError = error;
+      continue;
+    }
+    if (!user) continue;
+    return {
+      user,
+      owned: teacherSagaOwnsAuthentication(user, phone, operation),
+      lastError
+    };
+  }
+  return { user: null, owned: false, lastError };
+}
+
 function teacherOperationOwnsAuthentication(user, phone, operationRow) {
   const description = teacherAuthenticationDescription(user);
   const matched = description.match(/^teacher-face-saga:([1-9][0-9]*):([a-f0-9]{64})$/);
@@ -3616,6 +3649,81 @@ function teacherOperationOwnsAuthentication(user, phone, operationRow) {
     && matched
     && matched[1] === String(operationRow?.operation_id || "")
     && teacherFaceOwnerTokenHash(matched[2]) === String(operationRow?.auth_owner_token_sha256 || "");
+}
+
+function teacherAuthOwnershipUncertaintyOperation(row) {
+  const message = String(row?.error_message || "");
+  return String(row?.operation_type || "") === "PROVISION"
+    && String(row?.operation_status || "") === "CLEANUP_PENDING"
+    && !row?.cleanup_completed_at
+    && !row?.staff_id && !row?.teacher_id && !row?.person_id && !row?.candidate_face_id
+    && String(row?.auth_uid || "") === teacherProvisionAuthenticationUid(String(row?.phone || ""))
+    && String(row?.error_code || "") === "TEACHER_PROVISION_COMPENSATION_PENDING"
+    && (message.startsWith("老师认证账号创建结果不确定")
+      || message.startsWith("老师认证账号仍在后台确认中"));
+}
+
+function teacherAuthOwnershipUncertaintyReadyAt(row) {
+  const cancelledAt = Date.parse(String(row?.cancelled_at || row?.updated_at || ""));
+  return Number.isFinite(cancelledAt)
+    ? cancelledAt + TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS * 1000
+    : Number.POSITIVE_INFINITY;
+}
+
+async function shortenTeacherAuthOwnershipUncertaintyLease(operation) {
+  await executeSql(
+    `UPDATE public.teacher_face_operations AS target
+        SET lease_expires_at = LEAST(
+              target.lease_expires_at,
+              COALESCE(target.cancelled_at, CLOCK_TIMESTAMP())
+                + make_interval(secs => ${TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS})
+            ),
+            updated_at = CLOCK_TIMESTAMP()
+      WHERE target.id = ${numericId(operation.id, "老师人脸操作")}::bigint
+        AND target.owner_token_sha256 = ${sqlText(operation.ownerTokenHash)}
+        AND target.lease_generation = ${numericId(operation.leaseGeneration, "老师人脸租约版本")}::bigint
+        AND target.operation_type = 'PROVISION'
+        AND target.operation_status = 'CLEANUP_PENDING'
+        AND target.cleanup_completed_at IS NULL
+        AND target.staff_id IS NULL AND target.teacher_id IS NULL
+        AND target.person_id IS NULL AND target.candidate_face_id IS NULL
+        AND target.auth_uid = ${sqlText(teacherProvisionAuthenticationUid(String(operation.row?.phone || "")))}
+        AND target.error_code = 'TEACHER_PROVISION_COMPENSATION_PENDING'
+        AND (target.error_message LIKE '老师认证账号创建结果不确定%'
+             OR target.error_message LIKE '老师认证账号仍在后台确认中%')`
+  );
+  const row = await readTeacherFaceOperation(operation.id);
+  if (!teacherAuthOwnershipUncertaintyOperation(row)) {
+    fail("老师认证不确定操作的短期安全栅栏未通过读回。", "TEACHER_AUTH_UNCERTAINTY_FENCE_FAILED");
+  }
+  operation.row = row;
+  return row;
+}
+
+async function makeTeacherAuthOwnershipUncertaintyCleanupEligible(operationId) {
+  const before = await readTeacherFaceOperation(operationId);
+  if (!teacherAuthOwnershipUncertaintyOperation(before)
+      || teacherAuthOwnershipUncertaintyReadyAt(before) > Date.now()) {
+    return before;
+  }
+  await executeSql(
+    `UPDATE public.teacher_face_operations AS target
+        SET lease_expires_at = LEAST(target.lease_expires_at, CLOCK_TIMESTAMP()),
+            updated_at = CLOCK_TIMESTAMP()
+      WHERE target.id = ${numericId(operationId, "老师人脸操作")}::bigint
+        AND target.operation_type = 'PROVISION'
+        AND target.operation_status = 'CLEANUP_PENDING'
+        AND target.cleanup_completed_at IS NULL
+        AND target.staff_id IS NULL AND target.teacher_id IS NULL
+        AND target.person_id IS NULL AND target.candidate_face_id IS NULL
+        AND target.auth_uid = ${sqlText(teacherProvisionAuthenticationUid(String(before.phone || "")))}
+        AND target.error_code = 'TEACHER_PROVISION_COMPENSATION_PENDING'
+        AND (target.error_message LIKE '老师认证账号创建结果不确定%'
+             OR target.error_message LIKE '老师认证账号仍在后台确认中%')
+        AND COALESCE(target.cancelled_at, target.updated_at)
+              <= CLOCK_TIMESTAMP() - make_interval(secs => ${TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS})`
+  );
+  return readTeacherFaceOperation(operationId);
 }
 
 async function authoritativeTeacherProvisioningState({ staffId, teacherId, uid, phone,
@@ -4063,11 +4171,15 @@ async function reconcileTeacherFaceOperation(caller, event = {}) {
   requireHq(caller);
   await requireTeacherFaceOperationSchema();
   const operationId = numericId(event.operationId, "老师人脸操作");
-  const before = await readTeacherFaceOperation(operationId);
+  let before = await readTeacherFaceOperation(operationId);
   if (!before) fail("未找到老师人脸操作。", "NOT_FOUND");
   if (before.cleanup_completed_at || String(before.operation_status) === "SUCCEEDED") {
     return { operationId: String(operationId), cleanupComplete: Boolean(before.cleanup_completed_at),
       status: String(before.operation_status) };
+  }
+  if (teacherAuthOwnershipUncertaintyOperation(before)
+      && teacherAuthOwnershipUncertaintyReadyAt(before) <= Date.now()) {
+    before = await makeTeacherAuthOwnershipUncertaintyCleanupEligible(operationId);
   }
   if (new Date(before.lease_expires_at).getTime() > Date.now()) {
     fail("老师人脸操作仍在有效租约内，不能提前接管清理。", "TEACHER_FACE_OPERATION_IN_PROGRESS");
@@ -4080,6 +4192,41 @@ async function reconcileTeacherFaceOperation(caller, event = {}) {
       Number(operation.row.actor_staff_account_id)
     )
     : reconcileExpiredTeacherUpsertOperation(operation);
+}
+
+async function getTeacherFaceOperationStatus(caller, event = {}) {
+  requireHq(caller);
+  await requireTeacherFaceOperationSchema();
+  const operationId = numericId(event.operationId, "老师人脸操作");
+  let row = await readTeacherFaceOperation(operationId);
+  if (!row) fail("未找到老师人脸操作。", "NOT_FOUND");
+  if (!row.cleanup_completed_at && String(row.operation_status) !== "SUCCEEDED"
+      && teacherAuthOwnershipUncertaintyOperation(row)
+      && teacherAuthOwnershipUncertaintyReadyAt(row) <= Date.now()) {
+    try {
+      return {
+        operationId: String(operationId),
+        ...(await reconcileTeacherFaceOperation(caller, { operationId }))
+      };
+    } catch (error) {
+      if (!["TEACHER_FACE_OPERATION_IN_PROGRESS", "TEACHER_FACE_OPERATION_LEASE_LOST"]
+        .includes(String(error?.code || ""))) throw error;
+      row = await readTeacherFaceOperation(operationId);
+    }
+  }
+  const cleanupComplete = Boolean(row.cleanup_completed_at);
+  const status = String(row.operation_status || "");
+  const readyAt = teacherAuthOwnershipUncertaintyOperation(row)
+    ? teacherAuthOwnershipUncertaintyReadyAt(row)
+    : new Date(row.lease_expires_at).getTime();
+  return {
+    operationId: String(operationId),
+    status,
+    cleanupComplete,
+    retryAllowed: cleanupComplete || status === "SUCCEEDED",
+    retryAfterSeconds: cleanupComplete || status === "SUCCEEDED"
+      ? 0 : Math.max(1, Math.ceil((readyAt - Date.now()) / 1000))
+  };
 }
 
 async function provisionTeacherWithFace(caller, event = {}) {
@@ -4275,6 +4422,7 @@ async function provisionTeacherWithFace(caller, event = {}) {
     if (existing) {
       fail("已登记老师缺少可权威读回的认证账号，请先修复账号，创建页不会生成第二个账号。", "TEACHER_FACE_RECOVERY_REQUIRED");
     }
+    let createError = null;
     try {
       const created = await manager().user.createUser({
         uid: requestedAuthUid,
@@ -4285,40 +4433,58 @@ async function provisionTeacherWithFace(caller, event = {}) {
       if (returnedUid !== requestedAuthUid) {
         fail("认证账号返回了非预期 UID，已停止老师新建。", "AUTH_CREATE_UID_MISMATCH");
       }
-      authUser = await exactAuthenticationUserByUid(requestedAuthUid);
-      if (!authUser
-          || normalizedMainlandPhone(authUser.Phone) !== phone
-          || String(authUser.Name || "") !== `staff_${phone}`
-          || String(authUser.UserStatus || "").toUpperCase() !== "BLOCKED"
-          || !teacherSagaOwnsAuthentication(authUser, phone, faceOperation)) {
-        fail("认证账号创建后未通过 UID、手机号、租约和封禁状态读回。", "AUTH_CREATE_INCOMPLETE");
-      }
-      authCreated = true;
-      authOwned = true;
     } catch (error) {
-      authUser = null;
-      await teacherProvisioningDelay(TEACHER_FACE_COMPENSATION_SETTLE_MS);
-      const exactCreated = await exactAuthenticationUserByUid(requestedAuthUid).catch(() => null);
-      if (teacherSagaOwnsAuthentication(exactCreated, phone, faceOperation)) {
-        authUser = exactCreated;
-        authOwned = true;
-      }
-      if (!authUser?.Uid) {
-        const pending = new Error("老师认证账号创建结果不确定，且精确 UID 未返回本请求租约；未认领、未修改、未删除该认证用户。");
-        pending.code = "TEACHER_PROVISION_COMPENSATION_PENDING";
-        pending.stage = "AUTH_CREATE_OWNERSHIP";
-        // createUser may have committed while its response/read replica is
-        // delayed. This must remain an open tombstone until the long lease
-        // fence expires and a reconciler can inspect the pre-bound exact UID.
-        pending.authCreationUncertain = true;
-        pending.causeCode = error?.code || undefined;
-        pending.causeMessage = String(error?.message || "").slice(0, 300) || undefined;
-        pending.cleanupPending = [{
-          stage: "AUTH_OWNERSHIP_READBACK", code: "AUTH_LEASE_UNCONFIRMED",
-          message: `认证 UID ${requestedAuthUid} 的请求租约未确认，禁止自动覆盖或删除。`
-        }];
-        throw pending;
-      }
+      createError = error;
+    }
+    const readback = await readTeacherProvisionAuthenticationWithRetry(
+      requestedAuthUid, phone, faceOperation
+    );
+    authUser = readback.user;
+    authOwned = readback.owned === true;
+    uid = String(authUser?.Uid || "");
+    if (authUser && !authOwned) {
+      const conflict = new Error("确定性老师认证 UID 已存在，但不属于本次创建租约；未修改其密码或资料。");
+      conflict.code = "AUTH_ACCOUNT_ALREADY_EXISTS";
+      conflict.causeCode = createError?.code || readback.lastError?.code || undefined;
+      conflict.causeMessage = String(
+        createError?.message || readback.lastError?.message || ""
+      ).slice(0, 300) || undefined;
+      throw conflict;
+    }
+    if (authUser && (
+      normalizedMainlandPhone(authUser.Phone) !== phone
+      || String(authUser.Name || "") !== `staff_${phone}`
+      || String(authUser.UserStatus || "").toUpperCase() !== "BLOCKED"
+    )) {
+      const incomplete = new Error("认证账号创建后未通过 UID、手机号、租约和封禁状态读回。");
+      incomplete.code = "AUTH_CREATE_INCOMPLETE";
+      incomplete.causeCode = createError?.code || readback.lastError?.code || undefined;
+      incomplete.causeMessage = String(
+        createError?.message || readback.lastError?.message || ""
+      ).slice(0, 300) || undefined;
+      throw incomplete;
+    }
+    if (authUser?.Uid && authOwned) {
+      authCreated = true;
+    } else {
+      const pending = new Error("老师认证账号仍在后台确认中；系统将在约 2 分钟内自动核对并解除本次操作锁，请勿重复提交。");
+      pending.code = "TEACHER_PROVISION_COMPENSATION_PENDING";
+      pending.stage = "AUTH_CREATE_OWNERSHIP";
+      pending.operationId = String(faceOperation.id);
+      pending.retryAfterSeconds = TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS;
+      // createUser may have committed while its response/read replica is
+      // delayed.  Preserve a short Auth-only tombstone; the long face-service
+      // fence is unnecessary because no face, photo or profile call has begun.
+      pending.authCreationUncertain = true;
+      pending.causeCode = createError?.code || readback.lastError?.code || undefined;
+      pending.causeMessage = String(
+        createError?.message || readback.lastError?.message || ""
+      ).slice(0, 300) || undefined;
+      pending.cleanupPending = [{
+        stage: "AUTH_OWNERSHIP_READBACK", code: "AUTH_LEASE_UNCONFIRMED",
+        message: `认证 UID ${requestedAuthUid} 的请求租约尚未确认；短期安全栅栏期间禁止覆盖或删除。`
+      }];
+      throw pending;
     }
   }
   uid = String(authUser?.Uid || "");
@@ -4336,6 +4502,18 @@ async function provisionTeacherWithFace(caller, event = {}) {
     try {
       if (error?.authCreationUncertain) {
         await transitionTeacherFaceOperation(faceOperation, "RUNNING", "CLEANUP_PENDING", { error });
+        try {
+          await shortenTeacherAuthOwnershipUncertaintyLease(faceOperation);
+        } catch (fenceError) {
+          // Falling back to the original 12-minute lease is safe.  Preserve
+          // the primary uncertainty result and let the scheduled reconciler
+          // retry after the conservative fence if this optimization fails.
+          console.error("teacher Auth uncertainty fence could not be shortened", {
+            operationId: String(faceOperation.id),
+            code: fenceError?.code || undefined,
+            message: fenceError?.message || undefined
+          });
+        }
         throw error;
       }
       if (faceOperation.status === "RUNNING") {
@@ -5631,7 +5809,23 @@ async function handleTrustedTeacherFaceReconcileTimer(event = {}, context = {}) 
        FROM public.teacher_face_operations AS operation
       WHERE operation.operation_status IN ('RUNNING','CANCELLED','CLEANUP_PENDING')
         AND operation.cleanup_completed_at IS NULL
-        AND operation.lease_expires_at <= CLOCK_TIMESTAMP()
+        AND (
+          operation.lease_expires_at <= CLOCK_TIMESTAMP()
+          OR (
+            operation.operation_type = 'PROVISION'
+            AND operation.operation_status = 'CLEANUP_PENDING'
+            AND operation.staff_id IS NULL AND operation.teacher_id IS NULL
+            AND operation.person_id IS NULL AND operation.candidate_face_id IS NULL
+            AND operation.auth_uid IS NOT NULL
+            AND operation.error_code = 'TEACHER_PROVISION_COMPENSATION_PENDING'
+            AND (operation.error_message LIKE '老师认证账号创建结果不确定%'
+                 OR operation.error_message LIKE '老师认证账号仍在后台确认中%')
+            AND COALESCE(operation.cancelled_at, operation.updated_at)
+                  <= CLOCK_TIMESTAMP() - make_interval(
+                    secs => ${TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS}
+                  )
+          )
+        )
       ORDER BY operation.lease_expires_at ASC, operation.id ASC
       LIMIT ${TEACHER_FACE_RECONCILE_BATCH_SIZE}`
   );
@@ -5640,6 +5834,11 @@ async function handleTrustedTeacherFaceReconcileTimer(event = {}, context = {}) 
   for (const candidate of candidates || []) {
     const operationId = String(candidate.id || "");
     try {
+      const eligible = await makeTeacherAuthOwnershipUncertaintyCleanupEligible(operationId);
+      // The optimized OR branch intentionally scans legacy rows as well.  If
+      // the strict Auth-only predicate did not shorten this particular row,
+      // preserve its original lease instead of taking it over early.
+      if (new Date(eligible?.lease_expires_at).getTime() > Date.now()) continue;
       const operation = await takeoverTeacherFaceOperationCleanup(operationId);
       const result = String(operation.row.operation_type) === "PROVISION"
         ? await reconcileExpiredTeacherProvisionOperation(
@@ -5746,7 +5945,10 @@ async function main(event = {}, context = {}) {
       version: FUNCTION_VERSION,
       managerNodeInstalled: managerDependencyInstalled(),
       teacherExperienceResetTimerTriggerName: TEACHER_EXPERIENCE_RESET_TIMER_TRIGGER_NAME,
-      teacherFaceReconcileTimerTriggerName: TEACHER_FACE_RECONCILE_TIMER_TRIGGER_NAME
+      teacherFaceReconcileTimerTriggerName: TEACHER_FACE_RECONCILE_TIMER_TRIGGER_NAME,
+      teacherAuthCreateReadbackWindowMs: TEACHER_AUTH_CREATE_READBACK_DELAYS_MS
+        .reduce((sum, value) => sum + value, 0),
+      teacherAuthUncertaintyFenceSeconds: TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS
     };
   }
   const caller = await currentUser(false);
@@ -5963,6 +6165,10 @@ async function main(event = {}, context = {}) {
   if (action === "reconcileTeacherFaceOperation") {
     requireHq(caller);
     return { ok: true, ...(await reconcileTeacherFaceOperation(caller, event)) };
+  }
+  if (action === "getTeacherFaceOperationStatus") {
+    requireHq(caller);
+    return { ok: true, ...(await getTeacherFaceOperationStatus(caller, event)) };
   }
   if (action === "provisionStaff") {
     requireHq(caller);
@@ -6453,6 +6659,9 @@ exports.main = async (event = {}, context = {}) => {
       causeMessage: error?.causeMessage || undefined,
       cleanupComplete: error?.cleanupComplete === true || undefined,
       cleanupPending: Array.isArray(error?.cleanupPending) ? error.cleanupPending : undefined,
+      operationId: error?.operationId || undefined,
+      retryAfterSeconds: Number.isFinite(Number(error?.retryAfterSeconds))
+        ? Number(error.retryAfterSeconds) : undefined,
       message: error?.message || "员工账号服务暂不可用，请稍后重试"
     };
   }

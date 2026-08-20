@@ -98,7 +98,9 @@
         stage: error?.stage,
         requestId: error?.requestId,
         causeCode: error?.causeCode,
-        causeMessage: error?.causeMessage
+        causeMessage: error?.causeMessage,
+        operationId: error?.operationId,
+        retryAfterSeconds: error?.retryAfterSeconds
       });
       throw wrapped;
     }
@@ -113,7 +115,10 @@
         storeCode: payload?.storeCode || result?.storeCode,
         storeRolledBack: payload?.storeRolledBack || result?.storeRolledBack,
         causeCode: payload?.causeCode || result?.causeCode,
-        causeMessage: payload?.causeMessage || result?.causeMessage
+        causeMessage: payload?.causeMessage || result?.causeMessage,
+        operationId: payload?.operationId || result?.operationId,
+        retryAfterSeconds: payload?.retryAfterSeconds ?? result?.retryAfterSeconds,
+        cleanupComplete: payload?.cleanupComplete === true || result?.cleanupComplete === true
       });
       throw error;
     }
@@ -435,6 +440,12 @@
           consent: consent === true
         },
         "老师账号与人脸绑定创建失败"
+      );
+    },
+    async getTeacherFaceOperationStatus({ operationId }) {
+      return callStaffAccount(
+        { action: "getTeacherFaceOperationStatus", operationId },
+        "老师创建状态查询失败"
       );
     },
     async upsertTeacherFace({ teacherId, faceImageBase64, clientRequestId, consent = false }) {

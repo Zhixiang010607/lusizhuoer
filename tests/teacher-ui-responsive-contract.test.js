@@ -19,7 +19,9 @@ for (const html of [managementHtml, createHtml, detailHtml, read("teacher-detail
   assert.match(html, /<meta\s+name="viewport"/, "teacher pages must declare a mobile viewport");
 }
 assert.match(managementHtml, /teacher-management\.js\?v=0\.14\.28/, "teacher directory behavior must be cache-busted");
-assert.match(createHtml, /teacher-create\.js\?v=0\.2\.5/, "teacher creation behavior must be cache-busted");
+assert.match(createHtml, /teacher-create\.js\?v=0\.2\.6/, "teacher creation behavior must be cache-busted");
+assert.match(createHtml, /cloudbase-phone-auth\.js\?v=0\.18\.2/,
+  "teacher creation must refresh the operation-status API wrapper");
 assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.4/, "teacher home behavior must be cache-busted");
 
 for (const label of ["老师姓名", "老师编号", "联系电话", "状态", "体验额度", "账号操作"]) {
@@ -39,6 +41,10 @@ assert.match(create, /Boolean\(capturedFaceImage\)[\s\S]{0,300}Boolean\(\$\("tea
 assert.match(create, /if \(!liveness\.checked\)[\s\S]{0,300}LIVENESS_REQUIRED/, "teacher creation must fail closed when liveness is not checked");
 assert.doesNotMatch(create, /CloudBasePhoneAuth\.provisionTeacher\(/, "teacher creation must not keep a generic no-face submit path");
 assert.match(create, /setAttribute\("aria-busy", "true"\)[\s\S]{0,180}正在创建并绑定人脸…/, "teacher creation must show a pending state while face binding is committed");
+assert.match(create, /monitorTeacherProvisionRecovery\(error\)[\s\S]*getTeacherFaceOperationStatus\(\{ operationId \}\)/,
+  "Auth ownership uncertainty must automatically poll the durable operation instead of inviting repeat clicks");
+assert.match(create, /cleanupComplete === true[\s\S]*teacherProvisionRequestId = ""[\s\S]*现在可以再次点击创建/,
+  "the UI may enable a new request only after authoritative cleanup completes");
 assert.match(detail, /function setButtonPending[\s\S]{0,480}aria-busy/, "teacher home writes must share a semantic pending-state helper");
 assert.match(detail, /savingConfig[\s\S]{0,120}savingRecharge/, "quota controls must remain disabled for the whole write operation");
 assert.match(detail, /const authoritative = \[staff\?\.account_status, staff\?\.teacher_status\][\s\S]{0,260}if \(authoritative\.length\) return authoritative\.includes\("ARCHIVED"\)/, "teacher home status must ignore a stale generic status when authoritative fields exist");

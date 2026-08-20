@@ -23,7 +23,7 @@
 如当前查询已进入 aborted transaction，先在另一查询单独执行 `ROLLBACK;`，再重跑失败段。
 只读验收必须全部显示 `READY`，尤其是 `expired owner cannot transition`。
 
-验收通过后才部署 `faceRecognition v75` 和 `staffAccount v59`。CloudBase 函数超时必须分别设为
+验收通过后才部署 `faceRecognition v75` 和 `staffAccount v60`。CloudBase 函数超时必须分别设为
 90 秒（不可更高）和 600 秒，并在 `staffAccount` 创建两个无业务参数 Timer：
 
 ```json
@@ -38,14 +38,14 @@
     {
       "name": "reconcile-teacher-face-operations",
       "type": "timer",
-      "config": "0 */5 * * * * *",
+      "config": "0 * * * * * *",
       "enable": true
     }
   ]
 }
 ```
 
-控制台时区选择 `Asia/Shanghai`。第二个 Timer 每 5 分钟最多接管 5 条已过期且未清理完成的操作；
+控制台时区选择 `Asia/Shanghai`。第二个 Timer 每 1 分钟最多接管 5 条已过期且未清理完成的操作；
 单条失败仍保留 `CLEANUP_PENDING`，下一轮继续。不要在 Timer JSON 中写 `action`、token、
 operationId 或任何密钥。总部也可用
 `reconcileTeacherFaceOperation({ operationId })` 手工处理一条已过期操作，但不能提前接管有效租约。
