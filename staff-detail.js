@@ -10,7 +10,8 @@
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>\"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char]);
   const truthy = (value) => [true, "true", "t", 1, "1"].includes(value);
   let staff = null;
-  const experience = { rows: [], history: [], activeProducts: [], loading: false, rechargeRequestId: "" };
+  let hasHonoredExperienceHash = false;
+  const experience = { rows: [], history: [], activeProducts: [], loading: false, rechargeRequestId: "", historyExpanded: false };
 
   function formatTime(value) {
     if (!value) return "未记录";
@@ -112,38 +113,81 @@
     const target = $("teacherExperienceRows");
     if (!target) return;
     if (!experience.rows.length) {
-      target.innerHTML = '<tr><td colspan="7" class="teacher-experience-empty">尚未配置任何产品体验次数。</td></tr>';
+      target.innerHTML = '<div class="teacher-experience-empty"><strong>尚未配置体验产品</strong><span>从右侧选择一个活跃产品，设置该老师每月可体验的基础次数。</span></div>';
       return;
     }
     target.innerHTML = experience.rows.map((row) => {
       const archived = row.productStatus === "ARCHIVED";
-      const action = archived || isStaffArchived()
+      const unavailable = archived || isStaffArchived();
+      const action = unavailable
         ? `<span class="teacher-experience-status archived">${archived ? "产品已封存" : "老师已封存"}</span>`
-        : `<button type="button" class="secondary-button teacher-experience-recharge-button" data-experience-product-id="${escapeHtml(row.productId)}">单独充值</button>`;
-      return `<tr><td><strong>${escapeHtml(row.productName)}</strong>${row.productCode ? `<small>${escapeHtml(row.productCode)}</small>` : ""}</td><td>${row.monthlyAllowance} 次</td><td>${row.usedCount} 次</td><td>${row.manualRechargeCount} 次</td><td><strong>${row.availableCount} 次</strong></td><td>${escapeHtml(formatTime(row.monthlyResetAt))}</td><td>${action}</td></tr>`;
+        : `<button type="button" class="teacher-experience-recharge-button" data-experience-product-id="${escapeHtml(row.productId)}" aria-label="为${escapeHtml(row.productName)}充值体验次数">单独充值</button>`;
+      return `<article class="teacher-experience-quota-card${unavailable ? " is-readonly" : ""}">
+        <header>
+          <div><h4>${escapeHtml(row.productName)}</h4>${row.productCode ? `<p>${escapeHtml(row.productCode)}</p>` : ""}</div>
+          ${action}
+        </header>
+        <div class="teacher-experience-balance"><span>当前可用</span><strong>${row.availableCount}<small>次</small></strong></div>
+        <dl class="teacher-experience-quota-facts">
+          <div><dt>每月基础</dt><dd>${row.monthlyAllowance} 次</dd></div>
+          <div><dt>本月已体验</dt><dd>${row.usedCount} 次</dd></div>
+          <div><dt>单独充值</dt><dd>${row.manualRechargeCount} 次</dd></div>
+          <div><dt>最近更新</dt><dd>${escapeHtml(formatTime(row.monthlyResetAt))}</dd></div>
+        </dl>
+      </article>`;
     }).join("");
     target.querySelectorAll("[data-experience-product-id]").forEach((button) => {
       button.addEventListener("click", () => openRecharge(button.dataset.experienceProductId));
     });
   }
 
+  function experienceEventKind(type) {
+    const value = String(type || "").toUpperCase();
+    if (value.includes("TOP_UP")) return "top-up";
+    if (value.includes("CONSUMED")) return "consumed";
+    if (value.includes("RESET")) return "reset";
+    return "configuration";
+  }
+
   function renderExperienceHistory() {
     const target = $("teacherExperienceHistoryRows");
+    if (!target) return;
+    const visibleHistory = experience.history.slice(0, experience.historyExpanded ? experience.history.length : 10);
     target.innerHTML = experience.history.length
-      ? experience.history.map((row) => `<tr><td>${escapeHtml(formatTime(row.at))}</td><td>${escapeHtml(row.type)}</td><td>${escapeHtml(row.productName)}${row.productCode ? ` · ${escapeHtml(row.productCode)}` : ""}</td><td>${row.count > 0 ? "+" : ""}${row.count} 次</td><td>${escapeHtml(row.note || "—")}</td><td>${escapeHtml(row.actorName)}</td></tr>`).join("")
-      : '<tr><td colspan="6" class="teacher-experience-empty">暂无体验额度变更记录。</td></tr>';
+      ? `${visibleHistory.map((row) => {
+        const kind = experienceEventKind(row.type);
+        const sign = row.count > 0 ? "+" : "";
+        return `<article class="teacher-experience-history-item ${kind}">
+          <span class="teacher-experience-history-dot" aria-hidden="true"></span>
+          <div class="teacher-experience-history-main">
+            <strong>${escapeHtml(row.type)}</strong>
+            <span>${escapeHtml(row.productName)}${row.productCode ? ` · ${escapeHtml(row.productCode)}` : ""}</span>
+            ${row.note ? `<small>${escapeHtml(row.note)}</small>` : ""}
+          </div>
+          <div class="teacher-experience-history-meta"><strong>${sign}${row.count} 次</strong><span>${escapeHtml(formatTime(row.at))}</span><small>${escapeHtml(row.actorName)}</small></div>
+        </article>`;
+      }).join("")}${experience.history.length > 10 ? `<button type="button" class="teacher-experience-history-toggle" data-experience-history-toggle="true">${experience.historyExpanded ? "收起记录" : `查看全部 ${experience.history.length} 条记录`}</button>` : ""}`
+      : '<div class="teacher-experience-empty"><strong>暂无额度变更记录</strong><span>设置体验产品、月初更新、体验消耗和单独充值都会在这里保留记录。</span></div>';
+    target.querySelector("[data-experience-history-toggle]")?.addEventListener("click", () => {
+      experience.historyExpanded = !experience.historyExpanded;
+      renderExperienceHistory();
+    });
   }
 
   function renderExperienceOverview(data = {}) {
     const total = numberValue(data, ["totalAvailableCount", "totalAvailable"], experience.rows.reduce((sum, row) => sum + row.availableCount, 0));
     const activeConfigured = experience.rows.filter((row) => row.productStatus === "ACTIVE").length;
+    const usedTotal = experience.rows.reduce((sum, row) => sum + row.usedCount, 0);
+    const rechargeTotal = experience.rows.reduce((sum, row) => sum + row.manualRechargeCount, 0);
+    const overview = $("teacherExperienceOverview");
     $("teacherExperienceState").textContent = isStaffArchived() ? "老师已封存 · 仅可查询" : `${activeConfigured} 个活跃产品`;
-    $("teacherExperienceOverview").innerHTML = [
-      ["可用体验次数", `${total} 次`],
-      ["已配置产品", `${experience.rows.length} 个`],
-      ["月初自动更新", "每月 1 日"],
-      ["体验核销", "不扣客户余额"]
-    ].map(([label, value]) => `<article><span>${label}</span><strong>${value}</strong></article>`).join("");
+    overview.setAttribute("aria-busy", "false");
+    overview.innerHTML = [
+      ["当前可用", `${total}`, "次", "余额会在体验核销时扣减", "primary"],
+      ["本月已体验", `${usedTotal}`, "次", "已完成的体验服务", ""],
+      ["单独充值", `${rechargeTotal}`, "次", "总部额外补充的次数", ""],
+      ["月初自动更新", "每月 1 日", "", "恢复每月基础体验次数", "muted"]
+    ].map(([label, value, unit, note, tone]) => `<article class="${tone}"><span>${label}</span><strong>${value}${unit ? `<small>${unit}</small>` : ""}</strong><p>${note}</p></article>`).join("");
   }
 
   function renderExperience(data = {}) {
@@ -154,22 +198,44 @@
     syncExperienceRechargeControls();
   }
 
+  function renderExperienceProblem(title, detail) {
+    const message = escapeHtml(detail || "请稍后重试。");
+    const overview = $("teacherExperienceOverview");
+    overview.setAttribute("aria-busy", "false");
+    overview.innerHTML = `<article class="teacher-experience-problem"><strong>${escapeHtml(title)}</strong><p>${message}</p></article>`;
+    $("teacherExperienceRows").innerHTML = `<div class="teacher-experience-empty is-error"><strong>${escapeHtml(title)}</strong><span>${message}</span></div>`;
+    $("teacherExperienceHistoryRows").innerHTML = '<div class="teacher-experience-empty"><strong>暂无可显示的额度记录</strong><span>服务恢复后会显示该老师的配置、充值和体验历史。</span></div>';
+    experience.rows = [];
+    experience.history = [];
+    experience.activeProducts = [];
+    renderExperienceProductSelect();
+    syncExperienceRechargeControls();
+  }
+
   async function loadTeacherExperience({ preserveMessage = false } = {}) {
     if (role !== "teacher" || !staff) return;
-    $("teacherExperiencePanel").hidden = false;
+    const panel = $("teacherExperiencePanel");
+    panel.hidden = false;
+    if (!hasHonoredExperienceHash && location.hash === "#teacherExperiencePanel") {
+      hasHonoredExperienceHash = true;
+      requestAnimationFrame(() => panel.scrollIntoView({ block: "start" }));
+    }
     const id = teacherId();
     if (!id) {
       $("teacherExperienceState").textContent = "资料不完整";
+      renderExperienceProblem("无法读取体验额度", "老师资料缺少数据库编号，请完善老师档案后重试。");
       setExperienceMessage("teacherExperienceConfigMessage", "老师资料缺少数据库编号，无法读取体验额度。", "error");
       return;
     }
     if (!window.CloudBasePhoneAuth?.getTeacherExperienceEntitlements) {
       $("teacherExperienceState").textContent = "服务未部署";
+      renderExperienceProblem("体验额度服务尚未加载", "请部署最新后台服务后刷新本页；在服务可用前无法配置或充值。");
       setExperienceMessage("teacherExperienceConfigMessage", "体验额度服务尚未加载，请部署最新后台后重试。", "error");
       return;
     }
     experience.loading = true;
     $("teacherExperienceState").textContent = "正在读取";
+    $("teacherExperienceOverview").setAttribute("aria-busy", "true");
     renderExperienceProductSelect();
     syncExperienceRechargeControls();
     try {
@@ -191,7 +257,7 @@
       else if (!preserveMessage) setExperienceMessage("teacherExperienceConfigMessage", "");
     } catch (error) {
       $("teacherExperienceState").textContent = "读取失败";
-      $("teacherExperienceRows").innerHTML = `<tr><td colspan="7" class="teacher-experience-empty error-text">${escapeHtml(error?.message || "体验额度读取失败")}</td></tr>`;
+      renderExperienceProblem("体验额度读取失败", error?.message || "请刷新页面后重试。");
       setExperienceMessage("teacherExperienceConfigMessage", error?.message || "体验额度读取失败，请稍后重试。", "error");
     } finally {
       experience.loading = false;
@@ -214,8 +280,12 @@
     $("teacherExperienceRechargeNote").value = "";
     experience.rechargeRequestId = "";
     setExperienceMessage("teacherExperienceRechargeMessage", "");
-    $("teacherExperienceRechargePanel").hidden = false;
-    $("teacherExperienceRechargeCount").focus({ preventScroll: true });
+    const panel = $("teacherExperienceRechargePanel");
+    panel.hidden = false;
+    requestAnimationFrame(() => {
+      panel.scrollIntoView({ behavior: "smooth", block: "center" });
+      $("teacherExperienceRechargeCount").focus({ preventScroll: true });
+    });
   }
 
   function closeRecharge() {
@@ -226,40 +296,70 @@
   }
 
   function renderError(message) {
-    $("staffDetailContent").innerHTML = `<article class="panel info-card"><span>人员详情</span><strong>${escapeHtml(message)}</strong></article>`;
+    $("staffDetailContent").innerHTML = `<div class="staff-profile-error"><strong>无法打开人员主页</strong><span>${escapeHtml(message)}</span></div>`;
     $("staffStatusHint").textContent = "未读取到可操作的账号。";
+    document.querySelector(".staff-status-panel")?.setAttribute("hidden", "");
+    document.querySelector(".staff-global-panel")?.setAttribute("hidden", "");
   }
 
   function render() {
     const status = isStaffArchived() ? "封存" : "活跃";
-    $("staffDetailTitle").textContent = `${labels[role]}全局视图`;
+    const isTeacher = role === "teacher";
+    const staffName = stringValue(staff, ["staff_name", "teacher_name"], labels[role]);
+    const teacherCode = stringValue(staff, ["person_code", "teacher_code"], "未分配");
+    const enrollment = String(staff.face_enrollment_status || staff.faceEnrollmentStatus || "").toUpperCase();
+    const faceStatus = enrollment === "ENROLLED" ? "人脸已绑定" : "待绑定人脸";
+    const initials = Array.from(staffName.trim() || labels[role]).slice(0, 1).join("");
+    $("staffDetailEyebrow").textContent = isTeacher ? "TEACHER WORKSPACE" : "ACCOUNT PROFILE";
+    $("staffDetailTitle").textContent = isTeacher ? `${staffName} · 老师主页` : `${staffName} · ${labels[role]}主页`;
+    $("staffDetailSubtitle").textContent = isTeacher
+      ? "总部在这里配置该老师的体验次数、单独充值与账号安全。"
+      : "总部查看该账号自身范围的数据与账号安全。";
     $("backToManagement").href = pages[role];
-    const cards = [
-      ["唯一身份 ID", staff.auth_uid], ["业务编号", staff.person_code], ["姓名", staff.staff_name],
-      ["联系电话", staff.phone || "未填写"], ["身份", labels[role]], ["状态", status],
-      ["密码状态", credentialStatus()], ["初始密码设置", formatTime(staff.password_initialized_at)],
-      ["最后密码变更", formatTime(staff.password_changed_at)]
-    ];
-    if (role === "teacher") {
-      const enrollment = String(staff.face_enrollment_status || staff.faceEnrollmentStatus || "").toUpperCase();
-      cards.splice(6, 0, ["人脸绑定", enrollment === "ENROLLED" ? "已绑定" : "未完成"]);
-    }
-    $("staffDetailContent").innerHTML = cards.map(([label, value]) => `<article class="panel info-card"><span>${label}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
+    $("staffDetailContent").innerHTML = isTeacher
+      ? `<section class="teacher-profile-hero">
+          <div class="teacher-profile-avatar" aria-hidden="true">${escapeHtml(initials)}</div>
+          <div class="teacher-profile-copy">
+            <p class="teacher-profile-kicker">老师档案</p>
+            <div class="teacher-profile-name-row"><h2>${escapeHtml(staffName)}</h2><span class="teacher-profile-status ${status === "活跃" ? "active" : "archived"}">${status}</span></div>
+            <p class="teacher-profile-description">体验核销将记入该老师名下的体验额度，不会扣减客户购买次数。</p>
+            <dl class="teacher-profile-meta">
+              <div><dt>老师编号</dt><dd>${escapeHtml(teacherCode)}</dd></div>
+              <div><dt>联系电话</dt><dd>${escapeHtml(staff.phone || "未填写")}</dd></div>
+              <div><dt>人脸绑定</dt><dd>${escapeHtml(faceStatus)}</dd></div>
+              <div><dt>密码状态</dt><dd>${escapeHtml(credentialStatus())}</dd></div>
+            </dl>
+          </div>
+        </section>`
+      : `<section class="teacher-profile-hero staff-profile-generic">
+          <div class="teacher-profile-avatar" aria-hidden="true">${escapeHtml(initials)}</div>
+          <div class="teacher-profile-copy">
+            <p class="teacher-profile-kicker">${escapeHtml(labels[role])}账号</p>
+            <div class="teacher-profile-name-row"><h2>${escapeHtml(staffName)}</h2><span class="teacher-profile-status ${status === "活跃" ? "active" : "archived"}">${status}</span></div>
+            <dl class="teacher-profile-meta">
+              <div><dt>业务编号</dt><dd>${escapeHtml(stringValue(staff, ["person_code"], "未分配"))}</dd></div>
+              <div><dt>联系电话</dt><dd>${escapeHtml(staff.phone || "未填写")}</dd></div>
+              <div><dt>密码状态</dt><dd>${escapeHtml(credentialStatus())}</dd></div>
+              <div><dt>账号编号</dt><dd>${escapeHtml(staff.auth_uid || "未记录")}</dd></div>
+            </dl>
+          </div>
+        </section>`;
     const scopePanel = document.querySelector(".staff-global-panel");
-    if (role === "hq") scopePanel?.remove();
-    else {
-      $("staffScopeHint").textContent = role === "teacher" ? "仅显示该老师本人绑定的核销、充值与审核记录。" : "仅显示该运营账号被授权范围内的数据。";
+    if (role === "operation") {
+      scopePanel?.removeAttribute("hidden");
+      $("staffScopeHint").textContent = "仅显示该运营账号被授权范围内的数据。";
       $("staffScopeContent").textContent = "暂无该账号范围内的业务数据";
-    }
+    } else scopePanel?.setAttribute("hidden", "");
     const statusAction = $("staffStatusAction");
     statusAction.hidden = false;
     statusAction.textContent = status === "活跃" ? `封存${labels[role]}` : `激活${labels[role]}`;
     statusAction.classList.toggle("danger-button", status === "活跃");
+    statusAction.classList.toggle("secondary-button", status !== "活跃");
     $("staffStatusHint").textContent = status === "活跃"
       ? "封存后该人员无法登录，历史业务记录和体验额度记录都会保留。"
       : "激活后该人员可再次登录；历史业务记录保持不变。";
     const credentialAction = $("staffCredentialAction");
-    credentialAction.hidden = false;
+    credentialAction.hidden = !staff.auth_uid;
     credentialAction.textContent = "重置临时密码";
   }
 
