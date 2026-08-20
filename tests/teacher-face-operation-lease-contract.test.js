@@ -10,6 +10,9 @@ const staff = fs.readFileSync(path.join(root, "cloudfunctions", "staffAccount", 
 const migration = fs.readFileSync(
   path.join(root, "database", "migrations", "051_teacher_face_operation_lease.sql"), "utf8"
 );
+const authCreateReceiptMigration = fs.readFileSync(
+  path.join(root, "database", "migrations", "052_teacher_auth_create_receipt.sql"), "utf8"
+);
 const consoleDir = path.join(root, "database", "cloudbase-console");
 
 function between(source, first, last) {
@@ -34,6 +37,17 @@ assert.match(migration,
 assert.match(migration,
   /operation_status = 'CLEANUP_PENDING'[\s\S]*lease_generation = target\.lease_generation \+ 1|lease_generation=x\.lease_generation\+1[\s\S]*operation_status='CLEANUP_PENDING'/,
   "expired acquisition must rotate generation and become cleanup-only");
+assert.match(authCreateReceiptMigration,
+  /ADD COLUMN IF NOT EXISTS auth_create_returned_uid VARCHAR\(128\)/,
+  "a fulfilled createUser receipt must durably retain the UID actually returned by Auth");
+assert.match(authCreateReceiptMigration,
+  /ADD COLUMN IF NOT EXISTS auth_create_confirmed_at TIMESTAMPTZ/,
+  "a fulfilled createUser receipt needs a durable confirmation timestamp");
+assert.match(authCreateReceiptMigration,
+  /auth_create_confirmed_at IS NULL[\s\S]*auth_create_returned_uid IS NOT NULL/,
+  "the receipt timestamp may never exist without its returned UID");
+assert.ok(fs.existsSync(path.join(consoleDir, "052-01-auth-create-receipt.sql")));
+assert.ok(fs.existsSync(path.join(consoleDir, "052-readonly-verify.sql")));
 
 assert.match(staff, /const ownerToken = crypto\.randomBytes\(32\)\.toString\("hex"\)/,
   "each invocation needs an unpredictable, non-idempotency-derived owner token");
@@ -43,6 +57,8 @@ assert.match(staff, /TEACHER_AUTH_CREATE_READBACK_DELAYS_MS = Object\.freeze\(\[
   "Auth ownership must use bounded delayed readback rather than one immediate probe");
 assert.match(staff, /TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS = 90/,
   "Auth-only uncertainty must not inherit the 12-minute face-service fence");
+assert.match(staff, /teacherAuthCreateReceiptFastPath: true/,
+  "health must distinguish the v62 exact createUser receipt fast path in production");
 assert.match(staff, /makeTeacherAuthOwnershipUncertaintyCleanupEligible\(operationId\)[\s\S]*takeoverTeacherFaceOperationCleanup\(operationId\)/,
   "the trusted reconciler must safely release legacy Auth-only tombstones after the short fence");
 assert.match(staff,
@@ -58,8 +74,28 @@ assert.match(staff, /operationId: error\?\.operationId[\s\S]{0,180}retryAfterSec
   "the safe pending response must expose only the operation id and bounded retry delay");
 assert.match(staff, /teacherAuthCreateDefinitelyRejected\(createError\)[\s\S]{0,360}AUTH_CREATE_REJECTED/,
   "a definite Auth validation or authority rejection must not enter the ambiguous 90-second fence");
-assert.match(staff, /String\(created\?\.Data\?\.Uid \|\| ""\)\.trim\(\)[\s\S]{0,260}AUTH_CREATE_RESPONSE_INVALID/,
-  "a malformed createUser success response must not silently assume the requested UID");
+const provisionAuthSource = between(
+  staff, "async function provisionTeacherWithFace", "\n\n// Face enrollment is deliberately independent"
+);
+const receiptUidPosition = provisionAuthSource.indexOf("const returnedUid =");
+const persistReceiptPosition = provisionAuthSource.indexOf(
+  "confirmTeacherAuthenticationCreateReceipt(", receiptUidPosition
+);
+const validateReceiptPosition = provisionAuthSource.indexOf(
+  "teacherAuthenticationFromCreateReceipt(", persistReceiptPosition
+);
+const uncertainReadbackPosition = provisionAuthSource.indexOf(
+  "readTeacherProvisionAuthenticationWithRetry(", validateReceiptPosition
+);
+assert.ok(receiptUidPosition >= 0
+  && persistReceiptPosition > receiptUidPosition
+  && validateReceiptPosition > persistReceiptPosition
+  && uncertainReadbackPosition > validateReceiptPosition,
+  "a fulfilled create receipt must be persisted and validated before only the uncertain branch polls Auth");
+assert.match(provisionAuthSource.slice(receiptUidPosition, uncertainReadbackPosition), /authCreated = true/,
+  "an exact createUser receipt must bypass discovery polling; only an uncertain response may poll Auth");
+assert.match(staff, /if \(!completedBefore && !authCreated\)[\s\S]{0,180}blockTeacherAuthentication/,
+  "an account atomically created BLOCKED must not be redundantly queried, blocked and queried again");
 assert.match(staff,
   /delegated = await finalDelegatedTeacherFaceReadback\(delegationInput, faceOperation\);[\s\S]*finalState = await authoritativeTeacherProvisioningState\([\s\S]*transitionTeacherFaceOperation\(faceOperation, "RUNNING", "SUCCEEDED"\)/,
   "success requires final remote proof followed by final DB/Auth proof before SUCCEEDED");
@@ -138,6 +174,563 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
 }
 
 (async () => {
+  // A fulfilled createUser response containing the exact requested custom UID
+  // is the authoritative write receipt. It must provide the known BLOCKED
+  // identity immediately instead of waiting for a list/read replica.
+  {
+    const sandbox = {
+      module: { exports: {} },
+      fail(message, code) { const error = new Error(message); error.code = code; throw error; }
+    };
+    vm.createContext(sandbox);
+    const receiptSource = between(
+      staff,
+      "function teacherAuthenticationFromCreateReceipt",
+      "\n\nasync function readTeacherProvisionAuthenticationWithRetry"
+    );
+    vm.runInContext(
+      `${receiptSource}\nmodule.exports = teacherAuthenticationFromCreateReceipt;`, sandbox
+    );
+    const receipt = sandbox.module.exports(
+      { Data: { Uid: "teacher-auth-owned" } },
+      "teacher-auth-owned", "13900000007", "teacher-face-saga:51:owner"
+    );
+    assert.deepEqual(JSON.parse(JSON.stringify(receipt)), {
+      Uid: "teacher-auth-owned",
+      Name: "staff_13900000007",
+      Phone: "13900000007",
+      UserStatus: "BLOCKED",
+      Description: "teacher-face-saga:51:owner"
+    });
+    assert.equal(sandbox.module.exports({ Data: {} }, "teacher-auth-owned", "13900000007", "lease"), null);
+    assert.throws(
+      () => sandbox.module.exports(
+        { Data: { Uid: "unexpected-auth" } },
+        "teacher-auth-owned", "13900000007", "lease"
+      ),
+      (error) => error.code === "AUTH_CREATE_UID_MISMATCH"
+    );
+  }
+
+  // Exercise the real teacher provisioning branch through the first local
+  // profile write. An exact createUser receipt must be persisted and then
+  // continue immediately: it must not enter the delayed Auth discovery helper
+  // or issue a redundant BLOCK request for an account created BLOCKED.
+  {
+    const requestedUid = "teacher-auth-fast";
+    const ownerToken = "ab".repeat(32);
+    const ownerTokenHash = "cd".repeat(32);
+    const operation = {
+      id: "54", ownerToken, ownerTokenHash, leaseGeneration: 1,
+      status: "RUNNING", imageDigest: "ef".repeat(32), imageBytes: 4
+    };
+    const markerUids = [];
+    let createCalls = 0;
+    let delayedDiscoveryCalls = 0;
+    let blockCalls = 0;
+    let compensationArgs = null;
+    const profileFailure = Object.assign(new Error("stop after fast Auth path"), {
+      code: "PROFILE_TEST_STOP"
+    });
+    const sandbox = {
+      module: { exports: {} }, Buffer,
+      requireTeacherFaceSchema: async () => {},
+      requireTeacherExperienceFaceSubjectSchema: async () => {},
+      requireTeacherFaceOperationSchema: async () => {},
+      validatePhone: (value) => String(value),
+      validatePassword: (value) => String(value),
+      teacherFaceProvisionRequestId: (value) => String(value),
+      teacherProvisionAuthenticationUid: () => requestedUid,
+      teacherProvisionAuthenticationLease: () => `teacher-face-saga:54:${ownerToken}`,
+      teacherFaceImage: () => ({
+        buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]), base64: "/9j/2Q=="
+      }),
+      numericId,
+      sqlText,
+      acquireTeacherFaceOperation: async () => operation,
+      executeSql: async (sql) => {
+        if (sql.includes("FROM public.staff_accounts a")) return [];
+        throw new Error(`unexpected SQL in fast Auth path: ${sql.slice(0, 80)}`);
+      },
+      bindTeacherFaceOperation: async () => {},
+      exactAuthenticationUserByUid: async () => null,
+      findAuthUserByExactPhoneReadOnly: async () => null,
+      teacherSagaOwnsAuthentication: (user) => String(user?.Uid || "") === requestedUid,
+      manager: () => ({ user: {
+        createUser: async () => {
+          createCalls += 1;
+          return { Data: { Uid: requestedUid } };
+        }
+      } }),
+      confirmTeacherAuthenticationCreateReceipt: async (_operation, requested, returned) => {
+        assert.equal(requested, requestedUid);
+        markerUids.push(returned);
+      },
+      readTeacherProvisionAuthenticationWithRetry: async () => {
+        delayedDiscoveryCalls += 1;
+        throw new Error("exact receipt must not poll Auth discovery");
+      },
+      isDuplicateAuthError: () => false,
+      teacherAuthCreateDefinitelyRejected: () => false,
+      cloudErrorDetails: (error) => ({ code: error?.code || "", message: error?.message || "" }),
+      transitionTeacherFaceOperation: async (target, _expected, next) => { target.status = next; },
+      createStaffDatabaseProfile: async () => { throw profileFailure; },
+      blockTeacherAuthentication: async () => { blockCalls += 1; },
+      compensateFailedTeacherProvision: async (input) => { compensationArgs = input; },
+      fail(message, code) { const error = new Error(message); error.code = code; throw error; },
+      console: { error() {} }
+    };
+    vm.createContext(sandbox);
+    const receiptSource = between(
+      staff,
+      "function teacherAuthenticationFromCreateReceipt",
+      "\n\nasync function readTeacherProvisionAuthenticationWithRetry"
+    );
+    const provisionSource = between(
+      staff, "async function provisionTeacherWithFace", "\n\n// Face enrollment is deliberately independent"
+    );
+    vm.runInContext(
+      `${receiptSource}\n${provisionSource}\nmodule.exports = provisionTeacherWithFace;`, sandbox
+    );
+    await assert.rejects(
+      sandbox.module.exports(
+        { profile: { staffId: "900" } },
+        {
+          staffName: "快速老师", phone: "13900000007", initialPassword: "Aa1!aaaa",
+          clientRequestId: "fast_auth_0001", consent: true, faceImageBase64: "unused"
+        }
+      ),
+      (error) => error.code === "PROFILE_TEST_STOP"
+    );
+    assert.equal(createCalls, 1);
+    assert.deepEqual(markerUids, [requestedUid],
+      "the fulfilled receipt must be durable before teacher/profile work begins");
+    assert.equal(delayedDiscoveryCalls, 0,
+      "an exact fulfilled createUser receipt must skip the 13.75-second discovery loop");
+    assert.equal(blockCalls, 0,
+      "the exact receipt path must not issue a redundant BLOCK/readback round trip");
+    assert.equal(compensationArgs?.authCreateReceiptConfirmed, true);
+    assert.equal(compensationArgs?.uid, requestedUid);
+  }
+
+  // Even if CloudBase unexpectedly returns a different custom UID, persist
+  // that exact receipt before rejecting the provision. If deleting that
+  // returned UID cannot be confirmed, the auth-stage catch must remain
+  // CLEANUP_PENDING and must never close the operation as cleanupComplete.
+  {
+    const requestedUid = "teacher-auth-requested";
+    const returnedUid = "teacher-auth-unexpected";
+    const ownerToken = "11".repeat(32);
+    const operation = {
+      id: "55", ownerToken, ownerTokenHash: "22".repeat(32),
+      leaseGeneration: 1, status: "RUNNING", imageDigest: "33".repeat(32), imageBytes: 4
+    };
+    const transitions = [];
+    const receiptArguments = [];
+    let delayedDiscoveryCalls = 0;
+    let deleteCalls = 0;
+    const sandbox = {
+      module: { exports: {} }, Buffer,
+      requireTeacherFaceSchema: async () => {},
+      requireTeacherExperienceFaceSubjectSchema: async () => {},
+      requireTeacherFaceOperationSchema: async () => {},
+      validatePhone: (value) => String(value),
+      validatePassword: (value) => String(value),
+      teacherFaceProvisionRequestId: (value) => String(value),
+      teacherProvisionAuthenticationUid: () => requestedUid,
+      teacherProvisionAuthenticationLease: () => `teacher-face-saga:55:${ownerToken}`,
+      teacherFaceImage: () => ({
+        buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]), base64: "/9j/2Q=="
+      }),
+      numericId,
+      sqlText,
+      acquireTeacherFaceOperation: async () => operation,
+      executeSql: async (sql) => {
+        if (sql.includes("FROM public.staff_accounts a")) return [];
+        throw new Error(`unexpected SQL in mismatch Auth path: ${sql.slice(0, 80)}`);
+      },
+      bindTeacherFaceOperation: async () => {},
+      exactAuthenticationUserByUid: async () => null,
+      findAuthUserByExactPhoneReadOnly: async () => null,
+      teacherSagaOwnsAuthentication: () => false,
+      manager: () => ({ user: {
+        createUser: async () => ({ Data: { Uid: returnedUid } })
+      } }),
+      confirmTeacherAuthenticationCreateReceipt: async (_operation, requested, returned) => {
+        receiptArguments.push({ requested, returned });
+      },
+      readTeacherProvisionAuthenticationWithRetry: async () => {
+        delayedDiscoveryCalls += 1;
+        throw new Error("fulfilled UID mismatch must not enter generic discovery");
+      },
+      transitionTeacherFaceOperation: async (target, expected, next, options = {}) => {
+        transitions.push({ expected, next, cleanupComplete: options.cleanupComplete === true });
+        target.status = next;
+      },
+      deleteTeacherProvisioningAuthentication: async (uid, options) => {
+        deleteCalls += 1;
+        assert.equal(uid, returnedUid);
+        assert.equal(options.createReceiptConfirmed, true);
+        throw Object.assign(new Error("delete receipt unavailable"), { code: "AUTH_DELETE_UNAVAILABLE" });
+      },
+      isDuplicateAuthError: () => false,
+      teacherAuthCreateDefinitelyRejected: () => false,
+      cloudErrorDetails: (error) => ({ code: error?.code || "", message: error?.message || "" }),
+      fail(message, code) { const error = new Error(message); error.code = code; throw error; },
+      console: { error() {} }
+    };
+    vm.createContext(sandbox);
+    const receiptSource = between(
+      staff,
+      "function teacherAuthenticationFromCreateReceipt",
+      "\n\nasync function readTeacherProvisionAuthenticationWithRetry"
+    );
+    const provisionSource = between(
+      staff, "async function provisionTeacherWithFace", "\n\n// Face enrollment is deliberately independent"
+    );
+    vm.runInContext(
+      `${receiptSource}\n${provisionSource}\nmodule.exports = provisionTeacherWithFace;`, sandbox
+    );
+    await assert.rejects(
+      sandbox.module.exports(
+        { profile: { staffId: "900" } },
+        {
+          staffName: "错 UID 老师", phone: "13900000007", initialPassword: "Aa1!aaaa",
+          clientRequestId: "mismatch_auth_0001", consent: true, faceImageBase64: "unused"
+        }
+      ),
+      (error) => error.code === "TEACHER_PROVISION_COMPENSATION_PENDING"
+        && error.causeCode === "AUTH_CREATE_UID_MISMATCH"
+    );
+    assert.deepEqual(receiptArguments, [{ requested: requestedUid, returned: returnedUid }],
+      "the actual returned UID must be durable before mismatch validation fails");
+    assert.equal(delayedDiscoveryCalls, 0);
+    assert.equal(deleteCalls, 1);
+    assert.deepEqual(transitions, [
+      { expected: "RUNNING", next: "CANCELLED", cleanupComplete: false },
+      { expected: "CANCELLED", next: "CLEANUP_PENDING", cleanupComplete: false }
+    ]);
+  }
+
+  // A durable fulfilled createUser receipt is stronger than a temporarily
+  // empty list/read replica only when Auth returned the exact custom UID that
+  // was requested. It permits an exact BLOCK/delete attempt, but BLOCK still
+  // needs its own BLOCKED readback and DELETE needs a successful count receipt.
+  {
+    const requestedUid = "teacher-auth-exact";
+    const returnedUid = requestedUid;
+    const ownerHash = "12".repeat(32);
+    const operationRow = {
+      auth_uid: requestedUid,
+      auth_create_returned_uid: returnedUid,
+      auth_create_confirmed_at: "2026-08-21T00:00:00.000Z",
+      auth_owner_token_sha256: ownerHash
+    };
+    const modified = [];
+    const deleted = [];
+    let exactReads = 0;
+    const sandbox = {
+      module: { exports: {} },
+      assertTeacherFaceOperationLease: async () => operationRow,
+      exactAuthenticationUserByUid: async () => { exactReads += 1; return null; },
+      teacherOperationOwnsAuthentication: () => false,
+      teacherProvisionAuthenticationUid: () => requestedUid,
+      manager: () => ({ user: {
+        modifyUser: async (input) => { modified.push(input); },
+        deleteUsers: async (input) => {
+          deleted.push(input);
+          return { Data: { SuccessCount: 1, FailedCount: 0 } };
+        }
+      } }),
+      fail(message, code) { const error = new Error(message); error.code = code; throw error; },
+      stageFail(stage, message, code, cause) {
+        const error = new Error(message);
+        error.stage = stage;
+        error.code = code;
+        error.cause = cause;
+        throw error;
+      },
+      cloudErrorDetails: (error) => ({ code: error?.code || "", message: error?.message || "" }),
+      requestIdFrom: () => "",
+      console: { error() {} }
+    };
+    vm.createContext(sandbox);
+    const receiptPredicateSource = between(
+      staff,
+      "function teacherOperationHasAuthenticationCreateReceipt",
+      "\n\nfunction teacherSagaOwnsAuthentication"
+    );
+    const blockSource = between(
+      staff, "async function blockTeacherAuthentication", "\n\nasync function archiveTeacherProvisioning"
+    );
+    const deleteSource = between(
+      staff,
+      "async function deleteTeacherProvisioningAuthentication",
+      "\n\nasync function resolveTeacherProvisioningRows"
+    );
+    const deletionReceiptSource = between(
+      staff,
+      "function teacherAuthenticationDeletionReceiptConfirmed",
+      "\n\nasync function deleteTeacherProvisioningAuthentication"
+    );
+    vm.runInContext(`${receiptPredicateSource}\n${blockSource}\n${deletionReceiptSource}\n${deleteSource}\nmodule.exports = {
+      blockTeacherAuthentication, deleteTeacherProvisioningAuthentication
+    };`, sandbox);
+
+    const faceOperation = { ownerTokenHash: ownerHash };
+    await assert.rejects(
+      sandbox.module.exports.blockTeacherAuthentication(returnedUid, {
+        required: true, phone: "13900000007", faceOperation,
+        createReceiptConfirmed: true, allowedStatuses: ["CANCELLED"]
+      }),
+      (error) => error.code === "AUTH_ARCHIVE_FAILED",
+      "a fulfilled modify response without BLOCKED readback must remain pending"
+    );
+    assert.deepEqual(JSON.parse(JSON.stringify(modified)), [
+      { uid: returnedUid, userStatus: "BLOCKED" }
+    ], "the persisted returned UID may be blocked even while the read replica is empty");
+
+    await sandbox.module.exports.deleteTeacherProvisioningAuthentication(returnedUid, {
+      phone: "13900000007", faceOperation,
+      createReceiptConfirmed: true, allowedStatuses: ["CANCELLED"]
+    });
+    assert.deepEqual(JSON.parse(JSON.stringify(deleted)), [{ uids: [returnedUid] }],
+      "a fulfilled deleteUsers response is the authoritative deletion receipt for the persisted UID");
+    assert.ok(exactReads >= 3,
+      "BLOCK/delete still perform bounded exact checks even though an empty read is not absence proof");
+  }
+
+  // A persisted create receipt for a UID different from the requested custom
+  // UID is evidence of an anomaly, not proof that the returned UID belongs to
+  // this operation. A null read replica therefore cannot authorize blind Auth
+  // mutation, and the durable operation must remain cleanup-pending.
+  {
+    const requestedUid = "teacher-auth-requested";
+    const returnedUid = "teacher-auth-unexpected";
+    const ownerHash = "34".repeat(32);
+    const operationRow = {
+      operation_status: "CLEANUP_PENDING",
+      auth_uid: requestedUid,
+      auth_create_returned_uid: returnedUid,
+      auth_create_confirmed_at: "2026-08-21T00:00:00.000Z",
+      auth_owner_token_sha256: ownerHash
+    };
+    const modified = [];
+    const deleted = [];
+    const sandbox = {
+      module: { exports: {} },
+      assertTeacherFaceOperationLease: async () => operationRow,
+      exactAuthenticationUserByUid: async () => null,
+      teacherOperationOwnsAuthentication: () => false,
+      teacherProvisionAuthenticationUid: () => requestedUid,
+      manager: () => ({ user: {
+        modifyUser: async (input) => { modified.push(input); },
+        deleteUsers: async (input) => {
+          deleted.push(input);
+          return { Data: { SuccessCount: 1, FailedCount: 0 } };
+        }
+      } }),
+      fail(message, code) { const error = new Error(message); error.code = code; throw error; },
+      stageFail(stage, message, code, cause) {
+        const error = new Error(message);
+        error.stage = stage;
+        error.code = code;
+        error.cause = cause;
+        throw error;
+      },
+      cloudErrorDetails: (error) => ({ code: error?.code || "", message: error?.message || "" }),
+      requestIdFrom: () => "",
+      console: { error() {} }
+    };
+    vm.createContext(sandbox);
+    const receiptPredicateSource = between(
+      staff,
+      "function teacherOperationHasAuthenticationCreateReceipt",
+      "\n\nfunction teacherSagaOwnsAuthentication"
+    );
+    const blockSource = between(
+      staff, "async function blockTeacherAuthentication", "\n\nasync function archiveTeacherProvisioning"
+    );
+    const deletionReceiptSource = between(
+      staff,
+      "function teacherAuthenticationDeletionReceiptConfirmed",
+      "\n\nasync function deleteTeacherProvisioningAuthentication"
+    );
+    const deleteSource = between(
+      staff,
+      "async function deleteTeacherProvisioningAuthentication",
+      "\n\nasync function resolveTeacherProvisioningRows"
+    );
+    vm.runInContext(`${receiptPredicateSource}\n${blockSource}\n${deletionReceiptSource}\n${deleteSource}\nmodule.exports = {
+      blockTeacherAuthentication, deleteTeacherProvisioningAuthentication
+    };`, sandbox);
+
+    const faceOperation = { ownerTokenHash: ownerHash };
+    await assert.rejects(
+      sandbox.module.exports.blockTeacherAuthentication(returnedUid, {
+        required: true, phone: "13900000007", faceOperation,
+        createReceiptConfirmed: true, allowedStatuses: ["CLEANUP_PENDING"]
+      }),
+      (error) => error.code === "AUTH_ARCHIVE_FAILED"
+        && error.cause?.code === "TEACHER_AUTH_READBACK_PENDING"
+    );
+    await assert.rejects(
+      sandbox.module.exports.deleteTeacherProvisioningAuthentication(returnedUid, {
+        phone: "13900000007", faceOperation,
+        createReceiptConfirmed: true, allowedStatuses: ["CLEANUP_PENDING"]
+      }),
+      (error) => error.code === "TEACHER_AUTH_READBACK_PENDING"
+    );
+    assert.deepEqual(modified, [], "a mismatched receipt must not authorize blind BLOCK");
+    assert.deepEqual(deleted, [], "a mismatched receipt must not authorize blind DELETE");
+    assert.equal(operationRow.operation_status, "CLEANUP_PENDING",
+      "an unreadable mismatched UID must keep its durable cleanup tombstone open");
+  }
+
+  // A fulfilled deleteUsers request can still report per-user failure. Even
+  // if the account was visible before the request and the read replica is empty
+  // afterward, FailedCount=1 is authoritative failure and must keep cleanup open.
+  {
+    const uid = "teacher-auth-delete-failed";
+    const ownerHash = "45".repeat(32);
+    const ownedUser = { Uid: uid };
+    const operationRow = {
+      operation_status: "CLEANUP_PENDING",
+      auth_uid: uid,
+      auth_create_returned_uid: uid,
+      auth_create_confirmed_at: "2026-08-21T00:00:00.000Z",
+      auth_owner_token_sha256: ownerHash
+    };
+    let exactReads = 0;
+    let deleteCalls = 0;
+    const sandbox = {
+      module: { exports: {} },
+      assertTeacherFaceOperationLease: async () => operationRow,
+      exactAuthenticationUserByUid: async () => {
+        exactReads += 1;
+        return exactReads === 1 ? ownedUser : null;
+      },
+      teacherOperationOwnsAuthentication: (user) => user === ownedUser,
+      manager: () => ({ user: {
+        deleteUsers: async () => {
+          deleteCalls += 1;
+          return { Data: { SuccessCount: 0, FailedCount: 1 } };
+        }
+      } }),
+      fail(message, code) { const error = new Error(message); error.code = code; throw error; }
+    };
+    vm.createContext(sandbox);
+    const receiptPredicateSource = between(
+      staff,
+      "function teacherOperationHasAuthenticationCreateReceipt",
+      "\n\nfunction teacherSagaOwnsAuthentication"
+    );
+    const deletionReceiptSource = between(
+      staff,
+      "function teacherAuthenticationDeletionReceiptConfirmed",
+      "\n\nasync function deleteTeacherProvisioningAuthentication"
+    );
+    const deleteSource = between(
+      staff,
+      "async function deleteTeacherProvisioningAuthentication",
+      "\n\nasync function resolveTeacherProvisioningRows"
+    );
+    vm.runInContext(
+      `${receiptPredicateSource}\n${deletionReceiptSource}\n${deleteSource}\nmodule.exports = deleteTeacherProvisioningAuthentication;`,
+      sandbox
+    );
+    await assert.rejects(
+      sandbox.module.exports(uid, {
+        phone: "13900000007", faceOperation: { ownerTokenHash: ownerHash },
+        createReceiptConfirmed: true, allowedStatuses: ["CLEANUP_PENDING"]
+      }),
+      (error) => error.code === "TEACHER_AUTH_DELETE_RECEIPT_INVALID"
+    );
+    assert.equal(deleteCalls, 1);
+    assert.equal(exactReads, 2, "delete cleanup must still perform its bounded post-read");
+    assert.equal(operationRow.operation_status, "CLEANUP_PENDING",
+      "a failed deletion receipt may not close the cleanup tombstone");
+  }
+
+  // If a fulfilled Auth create receipt contains a mismatched UID and Auth stays
+  // unreadable, compensation cannot prove ownership for any blind mutation.
+  // It must preserve an open tombstone and may never transition cleanupComplete.
+  {
+    const transitions = [];
+    let deleteAttempts = 0;
+    const returnedUid = "teacher-auth-unexpected";
+    const operation = {
+      id: "53", ownerToken: "ef".repeat(32), ownerTokenHash: "78".repeat(32),
+      leaseGeneration: 3, status: "CANCELLED",
+      row: {
+        operation_id: "53", auth_uid: "teacher-auth-requested",
+        auth_create_returned_uid: returnedUid,
+        auth_create_confirmed_at: "2026-08-21T00:00:00.000Z",
+        auth_owner_token_sha256: "78".repeat(32), operation_status: "CANCELLED"
+      }
+    };
+    const sandbox = {
+      module: { exports: {} },
+      TEACHER_FACE_COMPENSATION_SETTLE_MS: 0,
+      exactAuthenticationUserByUid: async () => null,
+      blockTeacherAuthentication: async () => {
+        throw Object.assign(new Error("BLOCKED readback pending"), { code: "AUTH_ARCHIVE_FAILED" });
+      },
+      resolveTeacherProvisioningRows: async () => null,
+      teacherProvisioningDelay: async () => {},
+      delegateTeacherFace: async () => { throw new Error("unexpected face rollback"); },
+      deleteTeacherProvisioningDatabaseRows: async () => {},
+      readTeacherFaceOperation: async () => operation.row,
+      teacherOperationHasAuthenticationCreateReceipt: (row, uid) => Boolean(
+        row?.auth_create_confirmed_at && row?.auth_create_returned_uid === uid
+      ),
+      teacherOperationHasBlindAuthenticationCreateReceipt: (row, uid) => Boolean(
+        row?.auth_create_confirmed_at
+          && row?.auth_create_returned_uid === uid
+          && row?.auth_uid === uid
+      ),
+      teacherOperationOwnsAuthentication: () => false,
+      deleteTeacherProvisioningAuthentication: async (uid, options) => {
+        deleteAttempts += 1;
+        assert.equal(uid, returnedUid);
+        assert.equal(options.createReceiptConfirmed, true);
+        throw Object.assign(new Error("delete response unavailable"), { code: "AUTH_DELETE_UNAVAILABLE" });
+      },
+      transitionTeacherFaceOperation: async (target, expected, next, options = {}) => {
+        transitions.push({ expected, next, cleanupComplete: options.cleanupComplete === true });
+        target.status = next;
+      },
+      archiveTeacherProvisioning: async () => {},
+      cloudErrorDetails: (error) => ({ code: error?.code || "", message: error?.message || "" }),
+      requestIdFrom: () => "",
+      console: { error() {} }
+    };
+    vm.createContext(sandbox);
+    const compensationSource = between(
+      staff, "async function compensateFailedTeacherProvision", "\n\nasync function archiveStoreProvisioning"
+    );
+    vm.runInContext(`${compensationSource}\nmodule.exports = compensateFailedTeacherProvision;`, sandbox);
+    await assert.rejects(
+      sandbox.module.exports({
+        uid: returnedUid, phone: "13900000007", authUser: null, authCreated: true,
+        authCreateReceiptConfirmed: true, faceOperation: operation,
+        staffId: "", teacherId: "", actorStaffId: 900, personId: "",
+        teacherName: "回执错 UID 老师", image: null,
+        originalError: Object.assign(new Error("UID mismatch"), { code: "AUTH_CREATE_UID_MISMATCH" })
+      }),
+      (error) => error.code === "TEACHER_PROVISION_COMPENSATION_PENDING"
+        && Array.isArray(error.cleanupPending)
+        && error.cleanupPending.length > 0
+    );
+    assert.equal(deleteAttempts, 0,
+      "a UID mismatch receipt cannot authorize blind cleanup while Auth is unreadable");
+    assert.equal(transitions.some((item) => item.cleanupComplete), false,
+      "a mismatched create receipt plus unreadable Auth can never be declared cleaned");
+    assert.deepEqual(transitions, [
+      { expected: "CANCELLED", next: "CLEANUP_PENDING", cleanupComplete: false }
+    ]);
+  }
+
   // Auth can be committed but remain absent from the first read replica. The
   // bounded production poll must recover the exact owned UID without replaying
   // createUser or entering the long face-operation tombstone.

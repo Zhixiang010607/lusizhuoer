@@ -88,8 +88,17 @@ ROLLBACK;
 完成 049、050 后，按 [`051-README.md`](051-README.md) 的顺序独立执行
 `051-01` 至 `051-10`，最后运行只读 `051-readonly-verify.sql` 并确认全部 `READY`。
 这些分片在 Windows CRLF 下均小于 3,500 字节。051 必须先于
-`faceRecognition v75`／`staffAccount v61` 部署；部署时同时把函数超时分别固定为 90 秒／600 秒，
+`faceRecognition v75`／`staffAccount v62` 部署；部署时同时把函数超时分别固定为 90 秒／600 秒，
 并创建每 1 分钟一次的 `reconcile-teacher-face-operations` 平台 Timer。
+
+## 052 老师 Auth 创建回执
+
+完成 051 后，按 [`052-README.md`](052-README.md) 先单独执行
+`052-01-auth-create-receipt.sql`，再运行只读 `052-readonly-verify.sql`，确认 5 行
+全部为 `READY`。052 只在 051 操作租约上增加预绑定 UID 对应的实际
+`createUser` 回执 UID 和持久化时间，不改写历史业务数据。052 必须先于
+`staffAccount v62` 部署。两个回执列只能成对出现在已绑定 Auth UID 和所有权
+摘要的 `PROVISION` 操作上。
 
 ### 048 在当前控制台报 `unterminated dollar-quoted string`
 

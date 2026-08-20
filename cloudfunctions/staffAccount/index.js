@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v61";
+const FUNCTION_VERSION = "v62";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -1450,9 +1450,10 @@ async function findAuthUserByExactPhone(phone) {
 // the legacy name fallback above: that fallback may repair (mutate) an
 // unrelated pre-existing Auth user before this Saga has proved ownership.
 async function findAuthUserByExactPhoneReadOnly(phone) {
-  const responses = [await describeAuthUsersByPhone(phone)];
-  const prefixed = await describeAuthUsersByPhone(`+86${phone}`);
-  responses.push(prefixed);
+  const responses = await Promise.all([
+    describeAuthUsersByPhone(phone),
+    describeAuthUsersByPhone(`+86${phone}`)
+  ]);
   const users = responses.flatMap((response) => response?.Data?.UserList || []);
   const uniqueUsers = Array.from(new Map(
     users.map((user) => [String(user?.Uid || ""), user])
@@ -3205,8 +3206,18 @@ async function requireTeacherFaceOperationSchema() {
             EXISTS (
               SELECT 1 FROM information_schema.columns
                WHERE table_schema = 'public' AND table_name = 'teacher_face_operations'
-                 AND column_name = 'photo_bucket_id'
+                  AND column_name = 'photo_bucket_id'
             ) AS photo_bucket_id_column,
+            EXISTS (
+              SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public' AND table_name = 'teacher_face_operations'
+                  AND column_name = 'auth_create_confirmed_at'
+            ) AS auth_create_confirmed_column,
+            EXISTS (
+              SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public' AND table_name = 'teacher_face_operations'
+                  AND column_name = 'auth_create_returned_uid'
+            ) AS auth_create_returned_uid_column,
             TO_REGPROCEDURE(
               'public.acquire_teacher_face_operation(character varying,character varying,character varying,character varying,character varying,integer,character varying,character varying,bigint,character varying,integer)'
             ) IS NOT NULL AS acquire_function,
@@ -3228,12 +3239,14 @@ async function requireTeacherFaceOperationSchema() {
       || !databaseBoolean(schema.candidate_face_id_column)
       || !databaseBoolean(schema.face_group_id_column)
       || !databaseBoolean(schema.photo_bucket_id_column)
+      || !databaseBoolean(schema.auth_create_confirmed_column)
+      || !databaseBoolean(schema.auth_create_returned_uid_column)
       || !databaseBoolean(schema.acquire_function)
       || !databaseBoolean(schema.bind_function)
       || !databaseBoolean(schema.transition_function)
       || !databaseBoolean(schema.face_id_function)
       || !databaseBoolean(schema.takeover_function)) {
-    fail("老师人脸持久操作租约尚未启用，请先执行迁移 051。", "DATABASE_SCHEMA_MISSING");
+    fail("老师人脸持久操作租约尚未完成，请先执行迁移 051 和 052。", "DATABASE_SCHEMA_MISSING");
   }
 }
 
@@ -3314,7 +3327,8 @@ async function requireTeacherOptionalFaceActivationSchema() {
 }
 
 async function blockTeacherAuthentication(uid, { required = false, phone = "",
-  faceOperation = null, allowedStatuses = ["RUNNING", "CANCELLED", "CLEANUP_PENDING"] } = {}) {
+  faceOperation = null, createReceiptConfirmed = false,
+  allowedStatuses = ["RUNNING", "CANCELLED", "CLEANUP_PENDING"] } = {}) {
   if (!uid) {
     if (required) fail("老师认证账号缺少 UID，无法确认封存。", "AUTH_ARCHIVE_FAILED");
     return false;
@@ -3324,8 +3338,15 @@ async function blockTeacherAuthentication(uid, { required = false, phone = "",
     if (faceOperation) {
       operationRow = await assertTeacherFaceOperationLease(faceOperation, allowedStatuses);
       const before = await exactAuthenticationUserByUid(uid);
-      if (!before) return false;
-      if (!teacherOperationOwnsAuthentication(before, phone, operationRow)) {
+      const receiptBindingConfirmed = createReceiptConfirmed === true
+        && teacherOperationHasBlindAuthenticationCreateReceipt(operationRow, uid);
+      if (!before && !receiptBindingConfirmed) {
+        if (required || createReceiptConfirmed) {
+          fail("老师认证账号当前尚不可权威读回，不能把暂时不可见当作已封禁。", "TEACHER_AUTH_READBACK_PENDING");
+        }
+        return false;
+      }
+      if (before && !teacherOperationOwnsAuthentication(before, phone, operationRow)) {
         fail("认证账号不属于本次老师人脸操作，禁止自动封禁。", "TEACHER_AUTH_OWNERSHIP_UNCONFIRMED");
       }
     }
@@ -3399,6 +3420,7 @@ async function readTeacherFaceOperation(operationId) {
             operation.image_sha256, operation.image_bytes, operation.actor_staff_account_id,
             operation.face_group_id, operation.photo_bucket_id,
             operation.auth_uid, operation.auth_owner_token_sha256,
+            operation.auth_create_returned_uid, operation.auth_create_confirmed_at,
             operation.owner_token_sha256, operation.lease_generation,
             operation.lease_expires_at,
             GREATEST(0, CEIL(EXTRACT(EPOCH FROM (
@@ -3600,6 +3622,46 @@ async function bindTeacherFaceOperation(operation, binding = {}) {
   return row;
 }
 
+async function confirmTeacherAuthenticationCreateReceipt(operation, requestedUid, returnedUid) {
+  const normalizedRequestedUid = String(requestedUid || "").trim();
+  const normalizedReturnedUid = String(returnedUid || "").trim();
+  if (!normalizedRequestedUid || !normalizedReturnedUid) {
+    fail("认证账号创建回执缺少 UID。", "AUTH_CREATE_RECEIPT_INVALID");
+  }
+  let writeError = null;
+  try {
+    await executeSql(
+      `UPDATE public.teacher_face_operations AS target
+          SET auth_create_returned_uid = COALESCE(target.auth_create_returned_uid, ${sqlText(normalizedReturnedUid)}),
+              auth_create_confirmed_at = COALESCE(target.auth_create_confirmed_at, CLOCK_TIMESTAMP()),
+              updated_at = CLOCK_TIMESTAMP()
+        WHERE target.id = ${numericId(operation.id, "老师人脸操作")}::bigint
+          AND target.owner_token_sha256 = ${sqlText(operation.ownerTokenHash)}
+          AND target.lease_generation = ${numericId(operation.leaseGeneration, "老师人脸租约版本")}::bigint
+          AND target.operation_status = 'RUNNING'
+          AND target.lease_expires_at > CLOCK_TIMESTAMP()
+          AND target.auth_uid = ${sqlText(normalizedRequestedUid)}
+          AND target.auth_owner_token_sha256 = ${sqlText(operation.ownerTokenHash)}
+          AND (target.auth_create_returned_uid IS NULL
+            OR target.auth_create_returned_uid = ${sqlText(normalizedReturnedUid)})`
+    );
+  } catch (error) { writeError = error; }
+  let row;
+  try { row = await assertTeacherFaceOperationLease(operation, ["RUNNING"]); }
+  catch (readError) {
+    if (writeError) throw writeError;
+    throw readError;
+  }
+  if (String(row.auth_uid || "") !== normalizedRequestedUid
+      || String(row.auth_create_returned_uid || "") !== normalizedReturnedUid
+      || !row.auth_create_confirmed_at) {
+    if (writeError) throw writeError;
+    fail("认证账号创建回执未能写入持久操作。", "AUTH_CREATE_RECEIPT_PERSIST_FAILED");
+  }
+  operation.row = row;
+  return row;
+}
+
 async function transitionTeacherFaceOperation(operation, expectedStatus, newStatus,
   { error = null, cleanupComplete = false } = {}) {
   let writeError = null;
@@ -3656,12 +3718,55 @@ function teacherAuthenticationDescription(user) {
   return String(user?.Description ?? user?.description ?? "").trim();
 }
 
+function teacherOperationHasAuthenticationCreateReceipt(operationRow, uid) {
+  const normalizedUid = String(uid || "").trim();
+  return Boolean(normalizedUid)
+    && Boolean(operationRow?.auth_create_confirmed_at)
+    && String(operationRow?.auth_create_returned_uid || "") === normalizedUid
+    && /^[a-f0-9]{64}$/.test(String(operationRow?.auth_owner_token_sha256 || ""));
+}
+
+function teacherOperationHasBlindAuthenticationCreateReceipt(operationRow, uid) {
+  return teacherOperationHasAuthenticationCreateReceipt(operationRow, uid)
+    && String(operationRow?.auth_create_returned_uid || "")
+      === String(operationRow?.auth_uid || "");
+}
+
+function teacherOperationHasMismatchedAuthenticationCreateReceipt(operationRow) {
+  return Boolean(operationRow?.auth_create_confirmed_at)
+    && Boolean(String(operationRow?.auth_create_returned_uid || ""))
+    && Boolean(String(operationRow?.auth_uid || ""))
+    && String(operationRow.auth_create_returned_uid) !== String(operationRow.auth_uid);
+}
+
 function teacherSagaOwnsAuthentication(user, phone, operation) {
   return String(user?.Uid || "") === teacherProvisionAuthenticationUid(phone)
     && String(user?.Name || "") === `staff_${phone}`
     && normalizedMainlandPhone(user?.Phone) === phone
     && teacherAuthenticationDescription(user)
       === teacherProvisionAuthenticationLease(operation?.id, operation?.ownerToken);
+}
+
+function teacherAuthenticationFromCreateReceipt(created, requestedAuthUid, phone, authLease) {
+  const returnedUid = String(created?.Data?.Uid || "").trim();
+  if (!returnedUid) return null;
+  if (returnedUid !== requestedAuthUid) {
+    const mismatch = new Error("认证账号返回了非预期 UID，已停止老师新建。");
+    mismatch.code = "AUTH_CREATE_UID_MISMATCH";
+    mismatch.returnedAuthUid = returnedUid;
+    throw mismatch;
+  }
+  // createUser's fulfilled response is the authoritative write receipt.  The
+  // account was requested with this deterministic UID and BLOCKED status, so
+  // waiting for describeUserList's read replica adds latency but no ownership
+  // proof.  Final success still requires an independent ACTIVE Auth readback.
+  return {
+    Uid: returnedUid,
+    Name: `staff_${phone}`,
+    Phone: phone,
+    UserStatus: "BLOCKED",
+    Description: authLease
+  };
 }
 
 async function readTeacherProvisionAuthenticationWithRetry(uid, phone, operation) {
@@ -3688,7 +3793,10 @@ async function readTeacherProvisionAuthenticationWithRetry(uid, phone, operation
 function teacherOperationOwnsAuthentication(user, phone, operationRow) {
   const description = teacherAuthenticationDescription(user);
   const matched = description.match(/^teacher-face-saga:([1-9][0-9]*):([a-f0-9]{64})$/);
-  return String(user?.Uid || "") === String(operationRow?.auth_uid || "")
+  const uid = String(user?.Uid || "");
+  const uidMatches = uid === String(operationRow?.auth_uid || "")
+    || teacherOperationHasAuthenticationCreateReceipt(operationRow, uid);
+  return uidMatches
     && String(user?.Name || "") === `staff_${phone}`
     && normalizedMainlandPhone(user?.Phone) === phone
     && matched
@@ -3900,21 +4008,41 @@ async function deleteTeacherProvisioningDatabaseRows({ staffId, teacherId, uid, 
   }
 }
 
+function teacherAuthenticationDeletionReceiptConfirmed(response) {
+  const successCount = Number(response?.Data?.SuccessCount);
+  const failedCount = Number(response?.Data?.FailedCount);
+  return Number.isInteger(successCount) && successCount === 1
+    && Number.isInteger(failedCount) && failedCount === 0;
+}
+
 async function deleteTeacherProvisioningAuthentication(uid, { phone = "", faceOperation = null,
+  createReceiptConfirmed = false,
   allowedStatuses = ["CANCELLED", "CLEANUP_PENDING"] } = {}) {
   const normalizedUid = String(uid || "").trim();
   if (!normalizedUid) return;
+  let receiptBindingConfirmed = false;
+  let receiptUidMismatch = false;
   if (faceOperation) {
     const operationRow = await assertTeacherFaceOperationLease(faceOperation, allowedStatuses);
     const before = await exactAuthenticationUserByUid(normalizedUid);
-    if (!before) return;
-    if (!teacherOperationOwnsAuthentication(before, phone, operationRow)) {
+    receiptUidMismatch = createReceiptConfirmed === true
+      && teacherOperationHasMismatchedAuthenticationCreateReceipt(operationRow);
+    receiptBindingConfirmed = createReceiptConfirmed === true
+      && teacherOperationHasBlindAuthenticationCreateReceipt(operationRow, normalizedUid);
+    if (!before && !receiptBindingConfirmed) {
+      if (createReceiptConfirmed) {
+        fail("认证账号创建回执尚未持久确认，不能把空查询当作删除完成。", "TEACHER_AUTH_READBACK_PENDING");
+      }
+      return;
+    }
+    if (before && !teacherOperationOwnsAuthentication(before, phone, operationRow)) {
       fail("认证账号不属于本次老师人脸操作，禁止自动删除。", "TEACHER_AUTH_OWNERSHIP_UNCONFIRMED");
     }
   }
   let deletionError = null;
+  let deletionResponse = null;
   try {
-    await manager().user.deleteUsers({ uids: [normalizedUid] });
+    deletionResponse = await manager().user.deleteUsers({ uids: [normalizedUid] });
   } catch (error) {
     deletionError = error;
   }
@@ -3925,9 +4053,17 @@ async function deleteTeacherProvisioningAuthentication(uid, { phone = "", faceOp
     if (deletionError) throw deletionError;
     throw readError;
   }
+  const deletionReceiptConfirmed = teacherAuthenticationDeletionReceiptConfirmed(deletionResponse);
   if (remaining) {
     if (deletionError) throw deletionError;
     fail("老师新建失败后的认证账号尚未清除。", "TEACHER_AUTH_COMPENSATION_INCOMPLETE");
+  }
+  if (deletionError) throw deletionError;
+  if (!deletionReceiptConfirmed) {
+    fail("认证账号删除响应未确认单条成功，不能把暂时空读当作删除回执。", "TEACHER_AUTH_DELETE_RECEIPT_INVALID");
+  }
+  if (receiptUidMismatch) {
+    fail("认证账号创建回执 UID 与请求 UID 不一致，已停止自动闭环并等待人工核对两个 UID。", "AUTH_CREATE_UID_MISMATCH_CLEANUP_PENDING");
   }
 }
 
@@ -3952,6 +4088,7 @@ async function resolveTeacherProvisioningRows({ uid, phone, staffId = "", teache
 }
 
 async function compensateFailedTeacherProvision({ uid, phone, authUser, authCreated,
+  authCreateReceiptConfirmed = false,
   faceOperation, staffId, teacherId, actorStaffId, personId, teacherName, image, originalError }) {
   const failures = [];
   const remember = (stage, error) => {
@@ -3970,14 +4107,16 @@ async function compensateFailedTeacherProvision({ uid, phone, authUser, authCrea
     }
   };
 
+  const authenticationWasKnown = Boolean(authUser) || authCreateReceiptConfirmed === true;
   if (uid && !authUser) {
     try { authUser = await exactAuthenticationUserByUid(uid); }
     catch (error) { remember("AUTH_READBACK", error); }
   }
-  if (uid && authUser) {
+  if (uid && (authUser || authCreateReceiptConfirmed)) {
     try {
       await blockTeacherAuthentication(uid, {
         required: true, phone, faceOperation,
+        createReceiptConfirmed: authCreateReceiptConfirmed,
         allowedStatuses: ["CANCELLED", "CLEANUP_PENDING"]
       });
     }
@@ -4053,21 +4192,35 @@ async function compensateFailedTeacherProvision({ uid, phone, authUser, authCrea
       authUser = await exactAuthenticationUserByUid(uid);
       finalAuthReadSucceeded = true;
       forget("AUTH_READBACK", "AUTH_FINAL_READBACK");
+      if (!authUser && authenticationWasKnown) {
+        remember("AUTH_FINAL_READBACK", Object.assign(
+          new Error("认证账号已经确认创建，但当前读副本暂不可见；不能据此宣告账号已删除。"),
+          { code: "TEACHER_AUTH_READBACK_PENDING" }
+        ));
+      }
     } catch (error) {
       remember("AUTH_FINAL_READBACK", error);
     }
   }
   faceOperation.row = await readTeacherFaceOperation(faceOperation.id).catch(() => faceOperation.row);
-  const authenticationAlreadyAbsent = Boolean(uid && finalAuthReadSucceeded && !authUser);
+  const hasCreateReceipt = authCreateReceiptConfirmed === true
+    && teacherOperationHasBlindAuthenticationCreateReceipt(faceOperation.row, uid);
+  const authenticationAlreadyAbsent = Boolean(
+    uid && finalAuthReadSucceeded && !authUser && !authenticationWasKnown
+  );
   const ownsAuthentication = teacherOperationOwnsAuthentication(authUser, phone, faceOperation.row);
   if (uid && authenticationAlreadyAbsent) {
     forget("AUTH_BLOCK");
-  } else if (uid && ownsAuthentication && databaseDeleted) {
+  } else if (uid && (ownsAuthentication || hasCreateReceipt) && databaseDeleted) {
     try {
       await deleteTeacherProvisioningAuthentication(uid, {
-        phone, faceOperation, allowedStatuses: ["CANCELLED", "CLEANUP_PENDING"]
+        phone, faceOperation, createReceiptConfirmed: authCreateReceiptConfirmed,
+        allowedStatuses: ["CANCELLED", "CLEANUP_PENDING"]
       });
-      forget("AUTH_BLOCK");
+      // A fulfilled deleteUsers call for the exact persisted receipt UID is
+      // the authoritative deletion receipt.  It resolves earlier replica-null
+      // observations as well as a failed BLOCKED readback.
+      forget("AUTH_BLOCK", "AUTH_READBACK", "AUTH_FINAL_READBACK");
     }
     catch (error) { remember("AUTH_DELETE", error); }
   } else if (uid && !ownsAuthentication) {
@@ -4101,7 +4254,7 @@ async function compensateFailedTeacherProvision({ uid, phone, authUser, authCrea
   return {
     ok: true,
     databaseDeleted,
-    authenticationDeleted: !uid || authenticationAlreadyAbsent || ownsAuthentication,
+    authenticationDeleted: !uid || authenticationAlreadyAbsent || ownsAuthentication || hasCreateReceipt,
     remoteRollbackComplete: finalRemoteRollbackComplete
   };
 }
@@ -4182,7 +4335,10 @@ async function activatePersistedTeacherFaceProfile({ staffId, teacherId, personI
 
 async function reconcileExpiredTeacherProvisionOperation(faceOperation, phone, actorStaffId) {
   const row = await assertTeacherFaceOperationLease(faceOperation, ["CLEANUP_PENDING"]);
-  const uid = String(row.auth_uid || teacherProvisionAuthenticationUid(phone));
+  const uid = String(
+    row.auth_create_returned_uid || row.auth_uid || teacherProvisionAuthenticationUid(phone)
+  );
+  const authCreateReceiptConfirmed = teacherOperationHasAuthenticationCreateReceipt(row, uid);
   const authUser = uid ? await exactAuthenticationUserByUid(uid).catch(() => null) : null;
   const staleError = Object.assign(
     new Error("先前老师新建执行已超时，当前调用只执行持久清理，不会继续创建。"),
@@ -4193,6 +4349,7 @@ async function reconcileExpiredTeacherProvisionOperation(faceOperation, phone, a
     phone,
     authUser,
     authCreated: false,
+    authCreateReceiptConfirmed,
     faceOperation,
     staffId: String(row.staff_id || ""),
     teacherId: String(row.teacher_id || ""),
@@ -4476,6 +4633,7 @@ async function provisionTeacherWithFace(caller, event = {}) {
   // has been read back from the exact deterministic UID.
   let authUser = null;
   let authCreated = false;
+  let authCreateReceiptConfirmed = false;
   let authOwned = false;
   let uid = "";
   try {
@@ -4487,10 +4645,13 @@ async function provisionTeacherWithFace(caller, event = {}) {
       authOwnerTokenHash: faceOperation.ownerTokenHash,
       previous: { faceEnrollmentStatus: "PENDING" }
     });
-    authUser = existing?.auth_uid
-      ? await exactAuthenticationUserByUid(String(existing.auth_uid))
-      : await exactAuthenticationUserByUid(requestedAuthUid);
-    const phoneAuthUser = await findAuthUserByExactPhoneReadOnly(phone);
+    const [resolvedAuthUser, phoneAuthUser] = await Promise.all([
+      existing?.auth_uid
+        ? exactAuthenticationUserByUid(String(existing.auth_uid))
+        : exactAuthenticationUserByUid(requestedAuthUid),
+      findAuthUserByExactPhoneReadOnly(phone)
+    ]);
+    authUser = resolvedAuthUser;
   if (authUser && phoneAuthUser && String(authUser.Uid || "") !== String(phoneAuthUser.Uid || "")) {
     fail("该手机号与确定性老师账号分别指向不同认证用户，请先清理认证冲突。", "AUTH_PHONE_AMBIGUOUS");
   }
@@ -4501,87 +4662,107 @@ async function provisionTeacherWithFace(caller, event = {}) {
       fail("已登记老师缺少可权威读回的认证账号，请先修复账号，创建页不会生成第二个账号。", "TEACHER_FACE_RECOVERY_REQUIRED");
     }
     let createError = null;
+    let created = null;
     try {
-      const created = await manager().user.createUser({
+      created = await manager().user.createUser({
         uid: requestedAuthUid,
         name: `staff_${phone}`, password, type: "externalUser", userStatus: "BLOCKED",
         nickName: staffName, phone, description: authLease
       });
-      const returnedUid = String(created?.Data?.Uid || "").trim();
-      if (!returnedUid) {
-        const invalidResponse = new Error("认证账号创建响应缺少精确 UID，必须通过后续权威查询确认结果。");
-        invalidResponse.code = "AUTH_CREATE_RESPONSE_INVALID";
-        throw invalidResponse;
-      }
-      if (returnedUid !== requestedAuthUid) {
-        fail("认证账号返回了非预期 UID，已停止老师新建。", "AUTH_CREATE_UID_MISMATCH");
-      }
     } catch (error) {
       createError = error;
     }
-    const readback = await readTeacherProvisionAuthenticationWithRetry(
-      requestedAuthUid, phone, faceOperation
-    );
-    authUser = readback.user;
-    authOwned = readback.owned === true;
-    uid = String(authUser?.Uid || "");
-    if (authUser && !authOwned) {
-      const conflict = new Error("确定性老师认证 UID 已存在，但不属于本次创建租约；未修改其密码或资料。");
-      conflict.code = "AUTH_ACCOUNT_ALREADY_EXISTS";
-      conflict.causeCode = createError?.code || readback.lastError?.code || undefined;
-      conflict.causeMessage = String(
-        createError?.message || readback.lastError?.message || ""
-      ).slice(0, 300) || undefined;
-      throw conflict;
+    if (!createError) {
+      const returnedUid = String(created?.Data?.Uid || "").trim();
+      if (returnedUid) {
+        // Persist the fulfilled createUser receipt before trusting it.  This
+        // lets compensation target the exact returned UID even if Auth list
+        // read replicas remain temporarily stale or violate the UID contract.
+        uid = returnedUid;
+        authOwned = true;
+        authCreated = true;
+        authCreateReceiptConfirmed = true;
+        await confirmTeacherAuthenticationCreateReceipt(
+          faceOperation, requestedAuthUid, returnedUid
+        );
+        authUser = teacherAuthenticationFromCreateReceipt(
+          created, requestedAuthUid, phone, authLease
+        );
+      } else {
+        createError = new Error("认证账号创建响应缺少精确 UID，必须通过后续权威查询确认结果。");
+        createError.code = "AUTH_CREATE_RESPONSE_INVALID";
+      }
     }
-    if (authUser && (
-      normalizedMainlandPhone(authUser.Phone) !== phone
-      || String(authUser.Name || "") !== `staff_${phone}`
-      || String(authUser.UserStatus || "").toUpperCase() !== "BLOCKED"
-    )) {
-      const incomplete = new Error("认证账号创建后未通过 UID、手机号、租约和封禁状态读回。");
-      incomplete.code = "AUTH_CREATE_INCOMPLETE";
-      incomplete.causeCode = createError?.code || readback.lastError?.code || undefined;
-      incomplete.causeMessage = String(
-        createError?.message || readback.lastError?.message || ""
-      ).slice(0, 300) || undefined;
-      throw incomplete;
-    }
-    if (!authUser && createError && isDuplicateAuthError(createError)) {
-      const duplicate = new Error("认证系统明确报告该确定性账号已经存在，但当前账号不可权威读回；请先核对认证用户，系统不会重复创建。");
-      duplicate.code = "AUTH_ACCOUNT_ALREADY_EXISTS";
-      duplicate.causeCode = cloudErrorDetails(createError).code || undefined;
-      duplicate.causeMessage = cloudErrorDetails(createError).message || undefined;
-      throw duplicate;
-    }
-    if (!authUser && createError && teacherAuthCreateDefinitelyRejected(createError)) {
-      const rejected = new Error("认证账号创建被服务端明确拒绝，未进入后台不确定等待；请按错误原因修正配置或输入后重试。");
-      rejected.code = "AUTH_CREATE_REJECTED";
-      rejected.causeCode = cloudErrorDetails(createError).code || undefined;
-      rejected.causeMessage = cloudErrorDetails(createError).message || undefined;
-      throw rejected;
-    }
-    if (authUser?.Uid && authOwned) {
-      authCreated = true;
-    } else {
-      const pending = new Error("老师认证账号仍在后台确认中；系统将在约 2 分钟内自动核对并解除本次操作锁，请勿重复提交。");
-      pending.code = "TEACHER_PROVISION_COMPENSATION_PENDING";
-      pending.stage = "AUTH_CREATE_OWNERSHIP";
-      pending.operationId = String(faceOperation.id);
-      pending.retryAfterSeconds = TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS;
-      // createUser may have committed while its response/read replica is
-      // delayed.  Preserve a short Auth-only tombstone; the long face-service
-      // fence is unnecessary because no face, photo or profile call has begun.
-      pending.authCreationUncertain = true;
-      pending.causeCode = createError?.code || readback.lastError?.code || undefined;
-      pending.causeMessage = String(
-        createError?.message || readback.lastError?.message || ""
-      ).slice(0, 300) || undefined;
-      pending.cleanupPending = [{
-        stage: "AUTH_OWNERSHIP_READBACK", code: "AUTH_LEASE_UNCONFIRMED",
-        message: `认证 UID ${requestedAuthUid} 的请求租约尚未确认；短期安全栅栏期间禁止覆盖或删除。`
-      }];
-      throw pending;
+    if (!authCreated) {
+      const readback = await readTeacherProvisionAuthenticationWithRetry(
+        requestedAuthUid, phone, faceOperation
+      );
+      authUser = readback.user;
+      authOwned = readback.owned === true;
+      uid = String(authUser?.Uid || "");
+      if (authUser && !authOwned) {
+        const conflict = new Error("确定性老师认证 UID 已存在，但不属于本次创建租约；未修改其密码或资料。");
+        conflict.code = "AUTH_ACCOUNT_ALREADY_EXISTS";
+        conflict.causeCode = createError?.code || readback.lastError?.code || undefined;
+        conflict.causeMessage = String(
+          createError?.message || readback.lastError?.message || ""
+        ).slice(0, 300) || undefined;
+        throw conflict;
+      }
+      if (authUser && (
+        normalizedMainlandPhone(authUser.Phone) !== phone
+        || String(authUser.Name || "") !== `staff_${phone}`
+        || String(authUser.UserStatus || "").toUpperCase() !== "BLOCKED"
+      )) {
+        const incomplete = new Error("认证账号创建后未通过 UID、手机号、租约和封禁状态读回。");
+        incomplete.code = "AUTH_CREATE_INCOMPLETE";
+        incomplete.causeCode = createError?.code || readback.lastError?.code || undefined;
+        incomplete.causeMessage = String(
+          createError?.message || readback.lastError?.message || ""
+        ).slice(0, 300) || undefined;
+        throw incomplete;
+      }
+      if (!authUser && createError && isDuplicateAuthError(createError)) {
+        const duplicate = new Error("认证系统明确报告该确定性账号已经存在，但当前账号不可权威读回；请先核对认证用户，系统不会重复创建。");
+        duplicate.code = "AUTH_ACCOUNT_ALREADY_EXISTS";
+        duplicate.causeCode = cloudErrorDetails(createError).code || undefined;
+        duplicate.causeMessage = cloudErrorDetails(createError).message || undefined;
+        throw duplicate;
+      }
+      if (!authUser && createError && teacherAuthCreateDefinitelyRejected(createError)) {
+        const rejected = new Error("认证账号创建被服务端明确拒绝，未进入后台不确定等待；请按错误原因修正配置或输入后重试。");
+        rejected.code = "AUTH_CREATE_REJECTED";
+        rejected.causeCode = cloudErrorDetails(createError).code || undefined;
+        rejected.causeMessage = cloudErrorDetails(createError).message || undefined;
+        throw rejected;
+      }
+      if (authUser?.Uid && authOwned) {
+        uid = String(authUser.Uid);
+        authCreated = true;
+        authCreateReceiptConfirmed = true;
+        await confirmTeacherAuthenticationCreateReceipt(
+          faceOperation, requestedAuthUid, uid
+        );
+      } else {
+        const pending = new Error("老师认证账号仍在后台确认中；系统将在约 2 分钟内自动核对并解除本次操作锁，请勿重复提交。");
+        pending.code = "TEACHER_PROVISION_COMPENSATION_PENDING";
+        pending.stage = "AUTH_CREATE_OWNERSHIP";
+        pending.operationId = String(faceOperation.id);
+        pending.retryAfterSeconds = TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS;
+        // createUser may have committed while its response/read replica is
+        // delayed.  Preserve a short Auth-only tombstone; the long face-service
+        // fence is unnecessary because no face, photo or profile call has begun.
+        pending.authCreationUncertain = true;
+        pending.causeCode = createError?.code || readback.lastError?.code || undefined;
+        pending.causeMessage = String(
+          createError?.message || readback.lastError?.message || ""
+        ).slice(0, 300) || undefined;
+        pending.cleanupPending = [{
+          stage: "AUTH_OWNERSHIP_READBACK", code: "AUTH_LEASE_UNCONFIRMED",
+          message: `认证 UID ${requestedAuthUid} 的请求租约尚未确认；短期安全栅栏期间禁止覆盖或删除。`
+        }];
+        throw pending;
+      }
     }
   }
   uid = String(authUser?.Uid || "");
@@ -4618,7 +4799,8 @@ async function provisionTeacherWithFace(caller, event = {}) {
       }
       if (uid && authOwned) {
         await deleteTeacherProvisioningAuthentication(uid, {
-          phone, faceOperation, allowedStatuses: ["CANCELLED"]
+          phone, faceOperation, createReceiptConfirmed: authCreateReceiptConfirmed,
+          allowedStatuses: ["CANCELLED"]
         });
       }
       await transitionTeacherFaceOperation(faceOperation, "CANCELLED", "CANCELLED", {
@@ -4668,7 +4850,7 @@ async function provisionTeacherWithFace(caller, event = {}) {
   let facePhotoReady = false;
   let primaryError = null;
   try {
-    if (!completedBefore) {
+    if (!completedBefore && !authCreated) {
       await blockTeacherAuthentication(uid, {
         required: true, phone, faceOperation, allowedStatuses: ["RUNNING"]
       });
@@ -4794,7 +4976,7 @@ async function provisionTeacherWithFace(caller, event = {}) {
         throw pending;
       }
       await compensateFailedTeacherProvision({
-        uid, phone, authUser, authCreated, faceOperation,
+        uid, phone, authUser, authCreated, authCreateReceiptConfirmed, faceOperation,
         staffId: profile?.staffId || existing?.staff_id || "",
         teacherId: profile?.teacherId || existing?.teacher_id || "",
         actorStaffId, personId: facePersonId, teacherName: staffName, image,
@@ -6043,6 +6225,7 @@ async function main(event = {}, context = {}) {
       managerNodeInstalled: managerDependencyInstalled(),
       teacherExperienceResetTimerTriggerName: TEACHER_EXPERIENCE_RESET_TIMER_TRIGGER_NAME,
       teacherFaceReconcileTimerTriggerName: TEACHER_FACE_RECONCILE_TIMER_TRIGGER_NAME,
+      teacherAuthCreateReceiptFastPath: true,
       teacherAuthCreateReadbackWindowMs: TEACHER_AUTH_CREATE_READBACK_DELAYS_MS
         .reduce((sum, value) => sum + value, 0),
       teacherAuthUncertaintyFenceSeconds: TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS
