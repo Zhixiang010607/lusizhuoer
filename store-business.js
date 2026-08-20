@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.54", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.55", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   const formatBirthday = (value, fallback = "—") => {
     const raw = String(value ?? "").trim();
     if (!raw) return fallback;
@@ -19,7 +19,8 @@
   if (!session || (teacherMode
     ? !businessPages.includes(page)
     : !hqMode && session.role !== "store")) return;
-  let storeId = teacherMode || hqMode ? "" : String(session?.store || "");
+  const accountStoreId = session?.role === "store" ? String(session?.store || "") : "";
+  let storeId = teacherMode || hqMode ? "" : accountStoreId;
   const storeNo = Number(storeId.replace(/\D/g, "")) || 1;
   let storeName = teacherMode || hqMode ? "尚未选择门店" : `门店 ${storeNo}`;
   let databaseCustomers = [], databaseTeachers = [], databaseProducts = [], candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", verificationThumbnailDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, verificationBalanceProjects = [], rechargeRequest = null, verificationRequest = null, verificationFaceRequestId = "", verificationFaceEvidenceToken = "", customerEnrollmentRequest = null, previewCustomerCode = "", customerSubmissionBusy = false;
@@ -59,6 +60,53 @@
     rows.push({ recordType, recordId, role: actorRole, account: session.account, name: actorName, message: message.trim(), time: new Date().toISOString() }); saveList("prototypeCommunications", rows);
   };
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
+
+  function normalizedTeacherProfile(value = {}) {
+    const faceStatus = String(value.faceEnrollmentStatus || value.face_enrollment_status || "").trim().toUpperCase();
+    const explicitReadiness = typeof value.facePhotoReady === "boolean" ? value.facePhotoReady
+      : typeof value.face_photo_ready === "boolean" ? value.face_photo_ready
+      : typeof value.hasFace === "boolean" ? value.hasFace
+      : typeof value.has_face === "boolean" ? value.has_face
+      : null;
+    return {
+      id: String(value.teacherId || value.teacher_id || value.id || ""),
+      code: String(value.teacherCode || value.teacher_code || value.code || ""),
+      name: String(value.teacherName || value.teacher_name || value.name || ""),
+      faceEnrollmentStatus: faceStatus,
+      hasFace: explicitReadiness === null ? faceStatus === "ENROLLED" : explicitReadiness,
+      faceReadinessKnown: explicitReadiness !== null || Boolean(faceStatus)
+    };
+  }
+
+  function teacherFaceUnavailable(teacher) {
+    return teacher?.faceReadinessKnown === true && teacher?.hasFace !== true;
+  }
+
+  function teacherBindingError() {
+    const bound = normalizedTeacherProfile(teacherBusinessProfile || {});
+    if (!teacherMode) return "";
+    if (!bound.id) return "当前登录账号没有可用的老师档案，请联系总部检查账号绑定。";
+    return "";
+  }
+
+  function renderBoundTeacher(select, teacher) {
+    const label = select?.closest("label");
+    if (!label) return;
+    label.classList.add("role-bound-field");
+    const labelText = Array.from(label.childNodes).find((node) => node.nodeType === Node.TEXT_NODE && String(node.nodeValue || "").trim());
+    if (labelText) labelText.nodeValue = "当前老师（自动绑定）";
+    let value = label.querySelector("[data-bound-teacher]");
+    if (!value) {
+      value = document.createElement("span");
+      value.dataset.boundTeacher = "";
+      value.className = "role-bound-value";
+      select.before(value);
+    }
+    value.textContent = `${teacher.name || "当前老师"}${teacher.code ? `（${teacher.code}）` : ""}· 已自动绑定`;
+    value.setAttribute("role", "status");
+    select.hidden = true;
+    select.setAttribute("aria-hidden", "true");
+  }
 
   function stopFaceCamera() {
     if (cameraStream) cameraStream.getTracks().forEach((track) => track.stop());
@@ -146,6 +194,12 @@
   }
   async function callCustomerEnrollment(payload) {
     if (!window.cloudbase || !window.CloudBaseAuthConfig || !window.registerFunctions) throw new Error("CloudBase 客户建档组件未加载，请刷新后重试");
+    if (session.role === "store") {
+      if (!accountStoreId) throw new Error("当前门店账号未绑定门店，不能办理业务。");
+      // Store scope comes only from the authenticated session. No page field
+      // can replace it with another store before an application is submitted.
+      storeId = accountStoreId;
+    }
     registerCloudBaseComponent(window.registerAuth, "auth");
     registerCloudBaseComponent(window.registerFunctions, "functions");
     customerServiceApp ||= window.cloudbase.init(window.CloudBaseAuthConfig);
@@ -172,25 +226,32 @@
   async function loadActiveTeachers(selectId, messageId, options = {}) {
     const select = $(selectId);
     if (!select) return;
+    if (teacherMode) {
+      const teacher = normalizedTeacherProfile(teacherBusinessProfile || {});
+      databaseTeachers = teacher.id ? [teacher] : [];
+      select.innerHTML = teacher.id
+        ? `<option value="${escapeHtml(teacher.id)}">${escapeHtml(teacher.name || "当前老师")}</option>`
+        : `<option value="">当前账号未绑定老师档案</option>`;
+      select.value = teacher.id;
+      select.disabled = true;
+      if (teacher.id) renderBoundTeacher(select, teacher);
+      const message = $(messageId);
+      if (!teacher.id && message) message.textContent = teacherBindingError();
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+      return;
+    }
     const optional = teacherMode ? false : options.optional === true;
     select.disabled = true;
     select.innerHTML = `<option value="">正在从数据库读取活跃老师…</option>`;
     try {
       const result = await callCustomerEnrollment({ action: "listActiveTeachers" });
-      databaseTeachers = (Array.isArray(result?.teachers) ? result.teachers : []).map((teacher) => ({
-        id: String(teacher.teacherId || ""),
-        code: String(teacher.teacherCode || ""),
-        name: String(teacher.teacherName || "")
-      })).filter((teacher) => teacher.id && teacher.name);
+      databaseTeachers = (Array.isArray(result?.teachers) ? result.teachers : [])
+        .map(normalizedTeacherProfile)
+        .filter((teacher) => teacher.id && teacher.name);
       select.innerHTML = databaseTeachers.length
         ? `<option value="">${optional ? "不指定业务老师" : "请选择老师"}</option>${databaseTeachers.map((teacher) => `<option value="${escapeHtml(teacher.id)}">${escapeHtml(teacher.name)}（${escapeHtml(teacher.code)}）</option>`).join("")}`
         : `<option value="">${optional ? "不指定业务老师" : "数据库中暂无活跃老师"}</option>`;
       select.disabled = !optional && databaseTeachers.length === 0;
-      if (teacherMode && databaseTeachers.length === 1) {
-        select.value = databaseTeachers[0].id;
-        select.disabled = true;
-        select.dispatchEvent(new Event("change", { bubbles: true }));
-      }
     } catch (error) {
       databaseTeachers = [];
       select.innerHTML = `<option value="">${optional ? "不指定业务老师" : "老师数据读取失败，禁止提交"}</option>`;
@@ -636,13 +697,23 @@
       syncVerificationSubmit();
       return;
     }
+    const teacher = databaseTeachers.find((item) => item.id === teacherId);
+    if (teacherFaceUnavailable(teacher)) {
+      select.innerHTML = `<option value="">老师尚未补录人脸，暂时不能体验核销</option>`;
+      const hint = $("experienceQuotaHint");
+      if (hint) hint.textContent = "当前老师账号可正常激活和登录，但体验核销必须先由总部在老师档案中补录或替换人脸。";
+      const message = $("verificationCreateMessage");
+      if (message) message.textContent = "该老师未补录人脸：客户仍可作为业务归属，但不能完成老师本人的体验人脸比对。";
+      syncVerificationSubmit();
+      return;
+    }
     select.innerHTML = `<option value="">正在读取老师的可用体验次数…</option>`;
     const hint = $("experienceQuotaHint");
     if (hint) hint.textContent = "正在读取老师的体验额度…";
     try {
       // EXPERIENCE deliberately does not call getCustomerProductBalances.
-      // A customer is still selected and face-verified, but the product list
-      // and the balance consumed at submission belong solely to this teacher.
+      // The selected customer remains the business owner of the record, while
+      // both the face subject and the quota consumed belong to this teacher.
       const result = await callCustomerEnrollment({ action: "getTeacherExperienceEntitlements", teacherId });
       if (request !== balanceRequest || !selectedCustomer || String($("verificationTeacher")?.value || "") !== teacherId) return;
       verificationBalanceProjects = (Array.isArray(result?.entitlements) ? result.entitlements : [])
@@ -740,6 +811,7 @@
       if (!selectedCustomer || !projectId || !Number.isInteger(count) || count < 1 || count > 999) { $("rechargeCreateMessage").textContent = `必须确认客户、选择项目，并填写 1 至 999 的整数${refundPage ? "退费" : "充值"}次数`; return; }
       const project = databaseProducts.find((item) => item.id === projectId), teacher = teacherId ? databaseTeachers.find((item) => item.id === teacherId) : null;
       if (!project || (teacherId && !teacher)) { $("rechargeCreateMessage").textContent = "项目或老师数据已经失效，请刷新页面后重新选择"; return; }
+      if (teacherMode && teacher?.id !== normalizedTeacherProfile(teacherBusinessProfile || {}).id) { $("rechargeCreateMessage").textContent = "老师账号只能将业务绑定给本人，请刷新页面后重试"; return; }
       if (refundPage && count > Number(project.purchased || 0)) { $("rechargeCreateMessage").textContent = `最多可退 ${project.purchased} 次；可以超过剩余 ${project.remaining} 次，但不能超过尚未退费的总购买次数`; return; }
       const payload = { applicationType: refundPage ? "REFUND" : "NEW", customerCode: selectedCustomer.id, productId: project.id, teacherId: teacher?.id || "", unitCount: count, message: note };
       const clientRequestId = nextRechargeRequestId({ storeId, ...payload });
@@ -823,17 +895,32 @@
     open.addEventListener("click", async () => {
       try {
         if (!selectedCustomer) throw new Error("请先查询并确认需要核销的客户");
+        if (experiencePage) {
+          const teacher = databaseTeachers.find((item) => item.id === String($("verificationTeacher")?.value || ""));
+          if (!teacher) throw new Error("请先确认本次体验核销的老师。");
+          if (teacherFaceUnavailable(teacher)) throw new Error("该老师尚未补录人脸，请先由总部在老师档案中补录或替换人脸。");
+        }
         resetVerificationCapture(); open.hidden = true;
         if (!navigator.mediaDevices?.getUserMedia) throw new Error("当前浏览器不支持摄像头访问，请使用最新版 Chrome 或 Edge");
         cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1440 }, height: { ideal: 1920 } }, audio: false });
         video.srcObject = cameraStream; video.hidden = false; placeholder.hidden = true; await video.play(); capture.disabled = false;
-        status.className = "capture-status pending"; status.textContent = "摄像头已打开，请让所选客户正对镜头"; message.textContent = "";
+        status.className = "capture-status pending"; status.textContent = experiencePage
+          ? "摄像头已打开，请让所选老师本人正对镜头"
+          : "摄像头已打开，请让所选客户正对镜头"; message.textContent = "";
       } catch (error) {
         stopFaceCamera(); open.hidden = false; capture.disabled = true; status.className = "capture-status pending"; status.textContent = "无法开始验证"; message.textContent = error?.message || "请检查摄像头权限";
       }
     });
     capture.addEventListener("click", async () => {
       if (!selectedCustomer) { message.textContent = "请重新确认需要核销的客户"; return; }
+      const faceTeacherId = String($("verificationTeacher")?.value || "");
+      const faceTeacher = databaseTeachers.find((item) => item.id === faceTeacherId);
+      if (experiencePage && (!faceTeacher || teacherFaceUnavailable(faceTeacher))) {
+        message.textContent = !faceTeacher
+          ? "请先确认本次体验核销的老师"
+          : "该老师尚未补录人脸，请先由总部在老师档案中补录或替换人脸";
+        return;
+      }
       if (!cameraStream || !video.videoWidth || !video.videoHeight) { message.textContent = "摄像头画面尚未就绪，请稍后重试"; return; }
       const targetRatio = 3 / 4;
       let sourceWidth = video.videoWidth, sourceHeight = video.videoHeight;
@@ -858,26 +945,32 @@
       }
       verificationThumbnailDataUrl = resizedCanvasDataUrl(canvas, 480, 0.82);
       preview.src = capturedPhotoDataUrl; preview.hidden = false; video.hidden = true; stopFaceCamera(); open.hidden = true; capture.disabled = true; retake.hidden = false;
-      photoCaptured = false; syncVerificationSubmit(); status.className = "capture-status pending"; status.textContent = "正在与所选客户进行 1:1 人脸验证…"; message.textContent = "";
+      photoCaptured = false; syncVerificationSubmit(); status.className = "capture-status pending"; status.textContent = experiencePage
+        ? "正在与所选老师的登记人脸进行 1:1 验证…"
+        : "正在与所选客户进行 1:1 人脸验证…"; message.textContent = "";
       try {
         const result = await callCustomerEnrollment({
-          action: "verifyCustomerFace",
+          action: experiencePage ? "verifyTeacherExperienceFace" : "verifyCustomerFace",
           customerCode: selectedCustomer.id,
+          ...(experiencePage ? { teacherId: faceTeacher.id } : {}),
           imageBase64: capturedPhotoDataUrl,
           thumbnailBase64: verificationThumbnailDataUrl,
           imageWidth: evidenceWidth,
           imageHeight: evidenceHeight
         });
         if (!result.matched) throw new Error(`${result.message || "1:1 人脸验证未通过"}（相似度 ${result.score ?? 0}，要求 ${result.threshold ?? "-"}）`);
+        if (experiencePage && String(result.teacher?.teacherId || "") !== faceTeacher.id) throw new Error("人脸验证返回的老师身份与当前选择不一致，已停止提交。");
         photoCaptured = true;
         verificationFaceRequestId = String(result.requestId || "");
         if (!verificationFaceRequestId) throw new Error("人脸验证服务未返回验证请求编号，请重新拍照验证");
         verificationFaceEvidenceToken = String(result.faceEvidenceToken || "");
         if (!/^[0-9a-f]{48}$/.test(verificationFaceEvidenceToken)) throw new Error("现场人脸照片没有安全保存，请重新拍照验证");
         const livenessText = result?.liveness?.checked ? "、活体检测" : "";
-        status.className = "capture-status complete"; status.textContent = `所选客户 1:1 人脸验证${livenessText}通过（${result.score} 分）`;
+        status.className = "capture-status complete"; status.textContent = experiencePage
+          ? `所选老师本人 1:1 人脸验证${livenessText}通过（${result.score} 分）`
+          : `所选客户 1:1 人脸验证${livenessText}通过（${result.score} 分）`;
       } catch (error) {
-        photoCaptured = false; status.className = "capture-status pending"; status.textContent = "1:1 人脸验证未通过，请重新拍照"; message.textContent = error?.message || "现场人脸与所选客户不一致";
+        photoCaptured = false; status.className = "capture-status pending"; status.textContent = "1:1 人脸验证未通过，请重新拍照"; message.textContent = error?.message || (experiencePage ? "现场人脸与所选老师的登记人脸不一致" : "现场人脸与所选客户不一致");
       }
       syncVerificationSubmit();
     });
@@ -886,11 +979,15 @@
     $("verificationCreateForm").addEventListener("submit", async (event) => {
       event.preventDefault(); const form = event.currentTarget, submit = form.querySelector('[type="submit"]'), projectId = $("verificationProject").value, teacherId = $("verificationTeacher").value, note = $("verificationNote").value.trim(), experience = experiencePage;
       if (!selectedCustomer || !projectId || !teacherId) { $("verificationCreateMessage").textContent = "必须确认客户并选择项目和老师"; return; }
-      if (!photoCaptured) { $("verificationCreateMessage").textContent = "必须完成现场拍照并通过所选客户的 1:1 人脸验证，才能核销和发送设备信号"; return; }
+      if (!photoCaptured) { $("verificationCreateMessage").textContent = experience
+        ? "必须完成现场拍照并通过所选老师本人的 1:1 人脸验证，才能扣减老师体验次数并发送设备信号"
+        : "必须完成现场拍照并通过所选客户的 1:1 人脸验证，才能核销和发送设备信号"; return; }
       const project = verificationBalanceProjects.find((item) => item.id === projectId);
       if (!project) { $("verificationCreateMessage").textContent = experience ? "所选老师的体验次数已失效，请重新选择老师和项目后再试" : "所选项目余额已失效，请重新确认客户后再试"; return; }
       const teacher = databaseTeachers.find((item) => item.id === teacherId);
       if (!teacher) { $("verificationCreateMessage").textContent = "老师数据已经失效，请刷新页面后重新选择"; return; }
+      if (teacherMode && teacher.id !== normalizedTeacherProfile(teacherBusinessProfile || {}).id) { $("verificationCreateMessage").textContent = "老师账号只能将业务绑定给本人，请刷新页面后重试"; return; }
+      if (experience && teacherFaceUnavailable(teacher)) { $("verificationCreateMessage").textContent = "该老师尚未补录人脸，不能提交体验核销"; return; }
       const payload = { customerCode: selectedCustomer.id, productId: project.id, teacherId: teacher.id, verificationType: experience ? "EXPERIENCE" : "NORMAL", message: note, faceRequestId: verificationFaceRequestId, faceEvidenceToken: verificationFaceEvidenceToken };
       const clientRequestId = nextVerificationRequestId({ storeId, ...payload });
       submit.disabled = true;
@@ -907,6 +1004,8 @@
           projectId: String(result.product?.productId || project.id), projectCode: String(result.product?.productCode || project.code || ""), projectName: String(result.product?.productName || project.name),
           teacherId: String(result.teacher?.teacherId || teacher.id), teacherCode: String(result.teacher?.teacherCode || teacher.code || ""), teacherName: String(result.teacher?.teacherName || teacher.name),
           count: Number(result.unitCount || 1), faceVerification: "活体检测与人脸比对通过",
+          faceSubjectType: experience ? "TEACHER" : "CUSTOMER",
+          faceSubjectTeacherId: experience ? String(result.teacher?.teacherId || teacher.id) : "",
           verificationType: experience ? "体验核销" : "正常核销", status: String(result.recordStatus),
           experienceQuotaAvailableAfter: experience && result.experienceQuota
             ? Number(result.experienceQuota.availableAfterCount ?? result.experienceQuota.availableAfter)
@@ -948,7 +1047,7 @@
     select.innerHTML = `<option value="">正在读取可用门店…</option>`;
     try {
       const result = await callCustomerEnrollment({ action:"getTeacherBusinessContext" });
-      teacherBusinessProfile = result?.teacher || null;
+      teacherBusinessProfile = result?.teacher ? normalizedTeacherProfile(result.teacher) : null;
       teacherBusinessStores = (Array.isArray(result?.stores) ? result.stores : []).map((store) => ({
         id:String(store.storeId || ""), code:String(store.storeCode || ""), name:String(store.storeName || "")
       })).filter((store) => store.id && store.name);
@@ -1029,7 +1128,8 @@
     try {
       const result = await callCustomerEnrollment({ action: sharedTeacherMode ? "getTeacherBusinessContext" : "getHqBusinessContext" });
       if (sharedTeacherMode && result?.teacher) {
-        $("hqBusinessIdentity").textContent = [result.teacher.teacherName, result.teacher.teacherCode].filter(Boolean).join(" · ") || "当前老师账号";
+        teacherBusinessProfile = normalizedTeacherProfile(result.teacher);
+        $("hqBusinessIdentity").textContent = [teacherBusinessProfile.name, teacherBusinessProfile.code].filter(Boolean).join(" · ") || "当前老师账号";
       }
       stores = (Array.isArray(result?.stores) ? result.stores : []).map((store) => ({
         id: String(store.storeId || ""),

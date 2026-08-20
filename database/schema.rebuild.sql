@@ -4,11 +4,12 @@
 -- All identifiers and SQL comments are ASCII-only.
 -- This is a base rebuild, not a release-complete snapshot: after it commits,
 -- execute the ordered migrations through
--- 048_optional_teacher_face_and_experience_quota_lifecycle.sql
+-- 049_teacher_experience_face_subject_and_quota_fixes.sql
 -- before deploying current CloudBase functions. Migration 046 deliberately
 -- normalizes this legacy teachers layout and installs face/quota structures;
 -- migration 047 retires legacy operation identities after their audit tables exist,
--- and migration 048 makes teacher face enrollment optional and adds quota lifecycle.
+-- migration 048 makes teacher face enrollment optional and adds quota lifecycle,
+-- and migration 049 makes new EXPERIENCE evidence belong to the selected teacher.
 
 BEGIN;
 

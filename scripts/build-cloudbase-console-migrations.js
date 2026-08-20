@@ -116,4 +116,45 @@ const part048Names = [
 ];
 parts048.forEach((part, index) => writeCompactPart(part048Names[index], "048", `${index + 1} / ${parts048.length}`, part));
 
-console.log("CloudBase console migrations generated:", [...parts037, ...parts038, ...parts046, ...parts048].map((part) => Buffer.byteLength(part, "utf8")));
+// Migration 049 must use the stricter field-observed console ceiling. Keep
+// every complete transaction (including CRLF expansion) below 3.5 KB and never
+// split a dollar-quoted function body across files.
+const migration049 = bodyOf("049_teacher_experience_face_subject_and_quota_fixes.sql");
+const parts049 = splitAt(migration049, [
+  "DO $$\nBEGIN\n  IF TO_REGCLASS('public.teacher_product_experience_quotas')",
+  "DO $$\nBEGIN\n  IF NOT EXISTS (SELECT 1 FROM pg_constraint",
+  "CREATE OR REPLACE FUNCTION public.enforce_verification_face_subject",
+  "CREATE OR REPLACE FUNCTION public.assert_experience_verification_complete",
+  "CREATE OR REPLACE FUNCTION public.upsert_teacher_product_experience_quota",
+  "CREATE OR REPLACE FUNCTION public.delete_teacher_product_experience_quota",
+  "CREATE OR REPLACE FUNCTION public.lock_active_teacher_experience_subjects",
+  "CREATE OR REPLACE FUNCTION public.consume_teacher_experience_quota",
+  "CREATE OR REPLACE FUNCTION public.bind_teacher_experience_face_photos",
+  "CREATE OR REPLACE FUNCTION public.find_teacher_experience_verification_replay",
+  "CREATE OR REPLACE FUNCTION public.insert_teacher_experience_verification",
+  "CREATE OR REPLACE FUNCTION public.create_experience_verification_with_teacher_face_photo",
+  "REVOKE ALL ON FUNCTION public.enforce_verification_face_subject"
+]);
+const part049Names = [
+  "049-01-face-subject-schema.sql",
+  "049-02-face-subject-constraints.sql",
+  "049-03-face-subject-triggers.sql",
+  "049-04-experience-completeness-guard.sql",
+  "049-05-fix-quota-upsert.sql",
+  "049-06-fix-quota-delete.sql",
+  "049-07-lock-teacher-face.sql",
+  "049-08-consume-teacher-quota.sql",
+  "049-09-bind-teacher-photos.sql",
+  "049-10-idempotent-replay.sql",
+  "049-11-insert-experience.sql",
+  "049-12-create-experience.sql",
+  "049-13-permissions-and-comments.sql"
+];
+parts049.forEach((part, index) => {
+  const filename = part049Names[index];
+  writeCompactPart(filename, "049", `${index + 1} / ${parts049.length}`, part);
+  const windowsBytes = Buffer.byteLength(fs.readFileSync(path.join(output, filename), "utf8").replace(/\n/g, "\r\n"), "utf8");
+  if (windowsBytes > 3500) throw new Error(`${filename} exceeds the 3500-byte CRLF-safe console limit: ${windowsBytes}`);
+});
+
+console.log("CloudBase console migrations generated:", [...parts037, ...parts038, ...parts046, ...parts048, ...parts049].map((part) => Buffer.byteLength(part, "utf8")));

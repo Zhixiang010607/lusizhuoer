@@ -744,7 +744,7 @@ for (const securityCheck of [
 ]) includes(inspectObject, securityCheck, `server object verification ${securityCheck}`);
 assert.ok(!inspectObject.includes("signVerificationPhoto("), "commit inspection never depends on a short-lived public URL");
 assert.ok(!inspectObject.includes("downloadVerificationPhotoBytes("), "commit inspection never uses unauthenticated HTTPS download code");
-assert.ok(!inspectObject.includes("allowCustomerProfile"), "upload commit inspection cannot opt into arbitrary customer profile paths");
+assert.ok(!inspectObject.includes("allowRetainedProfile"), "upload commit inspection cannot opt into arbitrary retained profile paths");
 
 const authenticatedDownload = functionSource(cloud, "downloadVerificationPhotoAuthenticated");
 for (const securityCheck of [
@@ -753,7 +753,7 @@ for (const securityCheck of [
   "declaredBytes > maximumBytes", "totalBytes > maximumBytes", "Buffer.concat(chunks)",
   "storageObjectMissing(error)"
 ]) includes(authenticatedDownload, securityCheck, `authenticated object download ${securityCheck}`);
-includes(authenticatedDownload, "options.allowCustomerProfile === true", "customer profile path access requires an explicit option");
+includes(authenticatedDownload, "options.allowRetainedProfile === true", "retained customer or teacher profile path access requires an explicit option");
 includes(authenticatedDownload, "reference.bucketId === customerStorage.bucketId", "profile allowance remains bound to the configured customer bucket");
 includes(authenticatedDownload, "photoObjectCandidates(reference.bucketId, reference.objectName)", "profile download supports historical repeated-bucket paths");
 includes(authenticatedDownload, ": [reference.objectName]", "ordinary evidence downloads use only the exact stored object path");
@@ -811,7 +811,7 @@ const authenticatedProfileDownloadPromise = (async () => {
   const downloaded = await authenticatedProfileHarness.module.exports.downloadVerificationPhotoAuthenticated(
     "pg://customer-photos/customer-photos/customers/7/profile.jpg",
     1024,
-    { allowCustomerProfile: true }
+    { allowRetainedProfile: true }
   );
   assert.deepEqual(Buffer.from(downloaded), authenticatedProfileBytes, "explicit profile download returns the retained JPEG bytes");
   assert.deepEqual(
@@ -896,7 +896,7 @@ for (const securityCheck of [
 ]) includes(exactFallbackUpload, securityCheck, `exact server fallback upload ${securityCheck}`);
 includes(exactFallbackUpload, '"PHOTO_UPLOAD_CONTENT_CONFLICT"', "an existing fallback object with different bytes fails with an explicit conflict");
 assert.ok(!exactFallbackUpload.includes("verificationPhotoStorageCandidates()"), "fallback never drifts into a client-unbound or alternate bucket");
-assert.ok(!exactFallbackUpload.includes("allowCustomerProfile"), "fallback upload retry cannot opt into arbitrary customer profile paths");
+assert.ok(!exactFallbackUpload.includes("allowRetainedProfile"), "fallback upload retry cannot opt into arbitrary retained profile paths");
 
 let fallbackExistingBytes = Buffer.from([1, 2, 3, 4]);
 const fallbackObjectHarness = {

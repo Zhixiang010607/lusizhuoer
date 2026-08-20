@@ -31,7 +31,7 @@ const persistStoreStatus = functionSource(cloud, "persistStoreStatusById");
 const setStoreStatus = functionSource(cloud, "setStoreMasterStatus");
 const dispatcher = functionSource(cloud, "main");
 
-assert.match(cloud, /const FUNCTION_VERSION = "v55"/,
+assert.match(cloud, /const FUNCTION_VERSION = "v56"/,
   "the repaired store archive contract needs an independently verifiable deployment version");
 assert.match(dispatcher, /action === "setMasterStatus"[\s\S]{0,100}requireHq\(caller\)/,
   "the public master-status action must reject every non-HQ caller");

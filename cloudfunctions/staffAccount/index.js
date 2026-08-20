@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v55";
+const FUNCTION_VERSION = "v56";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -140,6 +140,68 @@ function teacherFaceImage(value) {
     fail("老师人脸照片必须是小于 4 MB 的有效 JPEG。", "TEACHER_FACE_IMAGE_INVALID");
   }
   return { base64, buffer };
+}
+
+function teacherFacePhotoStorageSettings() {
+  const envId = String(process.env.CLOUDBASE_ENV_ID || process.env.TCB_ENV || "").trim();
+  const accessToken = String(process.env.CLOUDBASE_APIKEY || process.env.CLOUDBASE_SERVICE_ROLE_KEY || "").trim();
+  const bucketId = String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim();
+  if (!envId || !accessToken || !bucketId) {
+    fail("老师登记照私有存储尚未配置完整。", "TEACHER_FACE_PHOTO_STORAGE_NOT_CONFIGURED");
+  }
+  return { envId, accessToken, bucketId };
+}
+
+async function uploadTeacherProfilePhoto(teacherId, personId, buffer) {
+  const storage = teacherFacePhotoStorageSettings();
+  const digest = crypto.createHash("sha256").update(buffer).digest("hex");
+  const objectName = `teachers/${Number(teacherId)}/profile-history/${Date.now()}-${String(personId)}-${digest.slice(0, 16)}.jpg`;
+  const reference = `pg://${storage.bucketId}/${objectName}`;
+  try {
+    await manager().storage.uploadObject({
+      bucketId: storage.bucketId,
+      objectName,
+      body: buffer,
+      contentType: "image/jpeg",
+      contentLength: buffer.length,
+      cacheControl: "private, max-age=31536000, immutable",
+      upsert: false,
+      accessToken: storage.accessToken,
+      envId: storage.envId
+    });
+  } catch (error) {
+    if (storageUploadResponseMismatch(error)) {
+      console.warn("CloudBase teacher profile photo upload committed without response metadata", {
+        teacherId: String(teacherId), bucketId: storage.bucketId, objectName
+      });
+    } else {
+      error.code = error.code || "TEACHER_FACE_PHOTO_UPLOAD_FAILED";
+      throw error;
+    }
+  }
+  return reference;
+}
+
+async function deleteUnboundTeacherProfilePhoto(referenceValue) {
+  const reference = String(referenceValue || "").trim();
+  const storage = teacherFacePhotoStorageSettings();
+  const prefix = `pg://${storage.bucketId}/teachers/`;
+  if (!reference.startsWith(prefix)) return false;
+  const objectName = reference.slice(`pg://${storage.bucketId}/`.length);
+  try {
+    await manager().storage.deleteObject({
+      bucketId: storage.bucketId,
+      objectName,
+      accessToken: storage.accessToken,
+      envId: storage.envId
+    });
+    return true;
+  } catch (error) {
+    console.warn("Unbound teacher profile photo cleanup failed", {
+      code: error?.code || undefined, objectName
+    });
+    return false;
+  }
 }
 
 function roundedFaceMetric(value) {
@@ -2799,6 +2861,23 @@ async function requireTeacherFaceSchema() {
   }
 }
 
+async function requireTeacherExperienceFaceSubjectSchema() {
+  const rows = await executeSql(
+    `SELECT EXISTS (
+              SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public' AND table_name = 'teachers'
+                 AND column_name = 'profile_photo_file_id'
+            ) AS retained_photo_column,
+            TO_REGPROCEDURE(
+              'public.create_experience_verification_with_teacher_face_photo(bigint,bigint,bigint,bigint,bigint,text,character varying,character varying,character varying)'
+            ) IS NOT NULL AS experience_face_function`
+  );
+  if (!databaseBoolean(rows?.[0]?.retained_photo_column)
+      || !databaseBoolean(rows?.[0]?.experience_face_function)) {
+    fail("老师人脸登记照结构尚未启用，请先执行迁移 049。", "DATABASE_SCHEMA_MISSING");
+  }
+}
+
 // Migration 048 makes face enrollment optional for an ACTIVE teacher.  Do not
 // use a quota-only marker here: CloudBase Console users can run 048 in pieces,
 // and 048-01 alone leaves the older 046 trigger in place. That trigger would
@@ -2964,15 +3043,17 @@ async function confirmExistingTeacherFacePerson(api, personId) {
   }
 }
 
-async function persistedTeacherFaceEnrollment(staffId, personId) {
+async function persistedTeacherFaceEnrollment(staffId, personId, profilePhotoFileId = "") {
   if (!staffId || !personId) return null;
   try {
     const rows = await executeSql(
-      `SELECT id, teacher_code, teacher_name, teacher_status, face_enrollment_status, face_enrolled_at
+      `SELECT id, teacher_code, teacher_name, teacher_status, face_enrollment_status,
+              face_enrolled_at, profile_photo_file_id
          FROM public.teachers
         WHERE staff_account_id = ${Number(staffId)}
           AND face_person_id = ${sqlText(personId)}
           AND face_enrollment_status = 'ENROLLED'
+          ${profilePhotoFileId ? `AND profile_photo_file_id = ${sqlText(profilePhotoFileId)}` : ""}
         LIMIT 1`
     );
     return rows?.[0] || null;
@@ -2983,6 +3064,7 @@ async function persistedTeacherFaceEnrollment(staffId, personId) {
 
 async function provisionTeacherWithFace(caller, event = {}) {
   await requireTeacherFaceSchema();
+  await requireTeacherExperienceFaceSubjectSchema();
   const staffName = String(event.staffName || "").trim();
   const phone = validatePhone(event.phone);
   const password = validatePassword(event.initialPassword);
@@ -2999,7 +3081,7 @@ async function provisionTeacherWithFace(caller, event = {}) {
   const existingRows = await executeSql(
     `SELECT a.id AS staff_id, a.auth_uid, a.role_code, a.account_status,
             t.id AS teacher_id, t.teacher_code, t.teacher_name, t.teacher_status,
-            t.face_person_id, t.face_enrollment_status
+            t.face_person_id, t.face_enrollment_status, t.profile_photo_file_id
        FROM public.staff_accounts a
        LEFT JOIN public.teachers t ON t.staff_account_id = a.id
       WHERE a.phone = ${sqlText(phone)}
@@ -3016,6 +3098,9 @@ async function provisionTeacherWithFace(caller, event = {}) {
     const enrolledUid = String(existing.auth_uid || "");
     if (!enrolledUid || !existing.teacher_id || !existing.staff_id) {
       fail("已登记的人脸老师缺少登录或资料关联，不能自动恢复。", "TEACHER_FACE_RECOVERY_REQUIRED");
+    }
+    if (!String(existing.profile_photo_file_id || "").trim()) {
+      fail("该老师的旧人脸档案没有保留登记照，请在老师主页重新拍照补齐。", "TEACHER_FACE_PHOTO_REENROLL_REQUIRED");
     }
     // A response can be lost after face/DB persistence but before the auth
     // account activation response.  The same request id is allowed to finish
@@ -3048,10 +3133,10 @@ async function provisionTeacherWithFace(caller, event = {}) {
       uid: enrolledUid, phone, authAccount: "recovered", passwordInitialized: false,
       profile: { staffId: String(existing.staff_id), role: "teacher", staffName: existing.teacher_name || staffName,
         teacherId: String(existing.teacher_id), teacherCode: String(existing.teacher_code || ""),
-        teacherStatus: "ACTIVE", faceEnrollmentStatus: "ENROLLED" },
+        teacherStatus: "ACTIVE", faceEnrollmentStatus: "ENROLLED", facePhotoReady: true },
       teacher: { teacherId: String(existing.teacher_id), teacherCode: String(existing.teacher_code || ""),
         teacherName: String(existing.teacher_name || staffName), teacherStatus: "ACTIVE",
-        faceEnrollmentStatus: "ENROLLED" }
+        faceEnrollmentStatus: "ENROLLED", facePhotoReady: true }
     };
   }
 
@@ -3097,6 +3182,7 @@ async function provisionTeacherWithFace(caller, event = {}) {
   let groupId = "";
   let facePersonCreated = false;
   let facePersonRecovered = false;
+  let teacherProfilePhotoRef = "";
   let teacher;
   try {
     api = teacherFaceClient();
@@ -3115,11 +3201,15 @@ async function provisionTeacherWithFace(caller, event = {}) {
       await confirmExistingTeacherFacePerson(api, facePersonId);
       facePersonRecovered = true;
     }
+    teacherProfilePhotoRef = await uploadTeacherProfilePhoto(
+      profile.teacherId, facePersonId, image.buffer
+    );
     const rows = await executeSql(
       `UPDATE public.teachers
           SET teacher_name = ${sqlText(staffName)}, teacher_status = 'ACTIVE',
               face_person_id = ${sqlText(facePersonId)}, face_consent_at = NOW(),
               face_enrollment_status = 'ENROLLED', face_enrolled_at = NOW(),
+              profile_photo_file_id = ${sqlText(teacherProfilePhotoRef)},
               face_enrolled_by_account_id = ${numericId(caller.profile.staffId, "总部账号")}::bigint,
               updated_at = NOW()
         WHERE id = ${numericId(profile.teacherId, "老师编号")}::bigint
@@ -3131,12 +3221,17 @@ async function provisionTeacherWithFace(caller, event = {}) {
       fail("老师人脸建档资料未能完整保存。", "TEACHER_FACE_ENROLLMENT_INCOMPLETE");
     }
   } catch (error) {
-    const persisted = await persistedTeacherFaceEnrollment(profile?.staffId, facePersonId);
+    const persisted = await persistedTeacherFaceEnrollment(
+      profile?.staffId, facePersonId, teacherProfilePhotoRef
+    );
     // Do not delete a person if the database call may have committed but its
     // response was lost.  The retry path sees the same deterministic id and
     // safely finishes activation; an unlinked newly-created person is cleaned.
     if (facePersonCreated && !facePersonRecovered && !persisted) {
       await deleteTeacherFacePerson(api, groupId, facePersonId);
+    }
+    if (teacherProfilePhotoRef && !persisted) {
+      await deleteUnboundTeacherProfilePhoto(teacherProfilePhotoRef);
     }
     await archiveTeacherProvisioning(profile?.staffId);
     await blockTeacherAuthentication(uid);
@@ -3166,10 +3261,12 @@ async function provisionTeacherWithFace(caller, event = {}) {
   }
   return {
     ok: true, uid, phone, authAccount: authCreated ? "created" : "recovered", passwordInitialized: authCreated,
-    profile: { ...profile, teacherStatus: String(teacher.teacher_status), faceEnrollmentStatus: String(teacher.face_enrollment_status) },
+    profile: { ...profile, teacherStatus: String(teacher.teacher_status),
+      faceEnrollmentStatus: String(teacher.face_enrollment_status), facePhotoReady: true },
     teacher: { teacherId: String(teacher.id), teacherCode: String(teacher.teacher_code || ""),
       teacherName: String(teacher.teacher_name || ""), teacherStatus: String(teacher.teacher_status),
-      faceEnrollmentStatus: String(teacher.face_enrollment_status), faceEnrolledAt: teacher.face_enrolled_at },
+      faceEnrollmentStatus: String(teacher.face_enrollment_status), faceEnrolledAt: teacher.face_enrolled_at,
+      facePhotoReady: true },
     warning: warning || undefined
   };
 }
@@ -3182,6 +3279,7 @@ async function provisionTeacherWithFace(caller, event = {}) {
 async function upsertTeacherFace(caller, event = {}) {
   await requireTeacherFaceSchema();
   await requireTeacherOptionalFaceActivationSchema();
+  await requireTeacherExperienceFaceSubjectSchema();
   const teacherId = numericId(event.teacherId || event.teacherRef, "老师编号");
   const clientRequestId = teacherFaceProvisionRequestId(event.clientRequestId);
   if (event.consent !== true) fail("必须取得老师明确的人脸建档授权。", "TEACHER_FACE_CONSENT_REQUIRED");
@@ -3191,7 +3289,7 @@ async function upsertTeacherFace(caller, event = {}) {
   const teacherRows = await executeSql(
     `SELECT t.id, t.staff_account_id, t.teacher_code, t.teacher_name,
             t.teacher_status, t.face_person_id, t.face_enrollment_status,
-            t.face_enrolled_at, a.role_code, a.account_status
+            t.face_enrolled_at, t.profile_photo_file_id, a.role_code, a.account_status
        FROM public.teachers t
        JOIN public.staff_accounts a ON a.id = t.staff_account_id
       WHERE t.id = ${teacherId}::bigint
@@ -3201,7 +3299,8 @@ async function upsertTeacherFace(caller, event = {}) {
   if (!current || current.role_code !== "teacher") fail("未找到老师资料。", "NOT_FOUND");
 
   const previousPersonId = String(current.face_person_id || "").trim();
-  if (current.face_enrollment_status === "ENROLLED" && previousPersonId === nextPersonId) {
+  if (current.face_enrollment_status === "ENROLLED" && previousPersonId === nextPersonId
+      && String(current.profile_photo_file_id || "").trim()) {
     return {
       ok: true,
       createdNow: false,
@@ -3210,7 +3309,7 @@ async function upsertTeacherFace(caller, event = {}) {
         teacherId: String(current.id), teacherCode: String(current.teacher_code || ""),
         teacherName: String(current.teacher_name || ""), teacherStatus: String(current.teacher_status || ""),
         accountStatus: String(current.account_status || ""), faceEnrollmentStatus: "ENROLLED",
-        faceEnrolledAt: current.face_enrolled_at || null
+        faceEnrolledAt: current.face_enrolled_at || null, facePhotoReady: true
       }
     };
   }
@@ -3222,6 +3321,7 @@ async function upsertTeacherFace(caller, event = {}) {
 
   let facePersonCreated = false;
   let facePersonRecovered = false;
+  let nextProfilePhotoRef = "";
   try {
     try {
       await api.CreatePerson({
@@ -3243,6 +3343,15 @@ async function upsertTeacherFace(caller, event = {}) {
     stageFail("FACE_ENROLLMENT", "老师人脸创建失败，请重新拍照后重试。", "TEACHER_FACE_ENROLLMENT_FAILED", error);
   }
 
+  try {
+    nextProfilePhotoRef = await uploadTeacherProfilePhoto(teacherId, nextPersonId, image.buffer);
+  } catch (error) {
+    if (facePersonCreated && !facePersonRecovered) {
+      await deleteTeacherFacePerson(api, groupId, nextPersonId);
+    }
+    stageFail("FACE_PHOTO_STORAGE", "老师登记照保存失败，原人脸保持不变。", "TEACHER_FACE_PHOTO_UPLOAD_FAILED", error);
+  }
+
   let teacher;
   try {
     const rows = await executeSql(
@@ -3251,12 +3360,13 @@ async function upsertTeacherFace(caller, event = {}) {
               face_consent_at = NOW(),
               face_enrollment_status = 'ENROLLED',
               face_enrolled_at = NOW(),
+              profile_photo_file_id = ${sqlText(nextProfilePhotoRef)},
               face_enrolled_by_account_id = ${numericId(caller.profile.staffId, "总部账号")}::bigint,
               updated_at = NOW()
         WHERE id = ${teacherId}::bigint
           AND staff_account_id = ${Number(current.staff_account_id)}::bigint
         RETURNING id, teacher_code, teacher_name, teacher_status,
-                  face_enrollment_status, face_enrolled_at`
+                  face_enrollment_status, face_enrolled_at, profile_photo_file_id`
     );
     teacher = rows?.[0] || null;
   } catch (error) {
@@ -3265,10 +3375,11 @@ async function upsertTeacherFace(caller, event = {}) {
     // be cleaned up; never delete it when persistence is ambiguous.
     const persistedRows = await executeSql(
       `SELECT id, teacher_code, teacher_name, teacher_status,
-              face_enrollment_status, face_enrolled_at
+              face_enrollment_status, face_enrolled_at, profile_photo_file_id
          FROM public.teachers
         WHERE id = ${teacherId}::bigint
           AND face_person_id = ${sqlText(nextPersonId)}
+          AND profile_photo_file_id = ${sqlText(nextProfilePhotoRef)}
           AND face_enrollment_status = 'ENROLLED'
         LIMIT 1`
     ).catch(() => []);
@@ -3277,6 +3388,7 @@ async function upsertTeacherFace(caller, event = {}) {
       if (facePersonCreated && !facePersonRecovered) {
         await deleteTeacherFacePerson(api, groupId, nextPersonId);
       }
+      await deleteUnboundTeacherProfilePhoto(nextProfilePhotoRef);
       stageFail("DB_FACE_ENROLLMENT", "老师人脸资料未能保存，原人脸保持不变。", "TEACHER_FACE_ENROLLMENT_FAILED", error);
     }
   }
@@ -3284,6 +3396,7 @@ async function upsertTeacherFace(caller, event = {}) {
     if (facePersonCreated && !facePersonRecovered) {
       await deleteTeacherFacePerson(api, groupId, nextPersonId);
     }
+    await deleteUnboundTeacherProfilePhoto(nextProfilePhotoRef);
     fail("老师人脸资料未能完整保存。", "TEACHER_FACE_ENROLLMENT_INCOMPLETE");
   }
 
@@ -3303,7 +3416,8 @@ async function upsertTeacherFace(caller, event = {}) {
       teacherName: String(teacher.teacher_name || ""), teacherStatus: String(teacher.teacher_status || ""),
       accountStatus: String(current.account_status || ""),
       faceEnrollmentStatus: String(teacher.face_enrollment_status || ""),
-      faceEnrolledAt: teacher.face_enrolled_at || null
+      faceEnrolledAt: teacher.face_enrolled_at || null,
+      facePhotoReady: Boolean(teacher.profile_photo_file_id)
     },
     warning: warning || undefined
   };
@@ -3311,13 +3425,7 @@ async function upsertTeacherFace(caller, event = {}) {
 
 async function requireTeacherExperienceQuotaSchema() {
   const rows = await executeSql(
-    `WITH function_definitions AS (
-       SELECT COALESCE(
-                pg_get_functiondef(TO_REGPROCEDURE('public.recharge_teacher_product_experience_quota(bigint,bigint,integer,text,character varying,bigint)')),
-                ''
-              ) AS recharge_definition
-     )
-     SELECT TO_REGCLASS('public.teacher_product_experience_quotas') IS NOT NULL AS quota_table,
+    `SELECT TO_REGCLASS('public.teacher_product_experience_quotas') IS NOT NULL AS quota_table,
             TO_REGCLASS('public.teacher_experience_quota_recharges') IS NOT NULL AS recharge_table,
             TO_REGCLASS('public.teacher_experience_quota_resets') IS NOT NULL AS reset_table,
             TO_REGCLASS('public.teacher_experience_quota_usages') IS NOT NULL AS usage_table,
@@ -3331,7 +3439,8 @@ async function requireTeacherExperienceQuotaSchema() {
             TO_REGPROCEDURE('public.upsert_teacher_product_experience_quota(bigint,bigint,integer,bigint)') IS NOT NULL AS upsert_function,
             TO_REGPROCEDURE('public.delete_teacher_product_experience_quota(bigint,bigint,bigint)') IS NOT NULL AS delete_function,
             TO_REGPROCEDURE('public.recharge_teacher_product_experience_quota(bigint,bigint,integer,text,character varying,bigint)') IS NOT NULL AS recharge_function,
-            recharge_definition ~* 'quota_status[[:space:]]*=[[:space:]]*''active'''
+            COALESCE(pg_get_functiondef(TO_REGPROCEDURE('public.recharge_teacher_product_experience_quota(bigint,bigint,integer,text,character varying,bigint)')), '')
+              ~* 'quota_status[[:space:]]*=[[:space:]]*''active'''
               AS has_active_recharge_function,
             TO_REGPROCEDURE('public.reset_teacher_experience_quotas(date,bigint)') IS NOT NULL AS reset_function`
   );

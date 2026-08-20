@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.18";
+  const VERSION = "0.16.19";
   const PRODUCT_LOGO_DETAIL_RETRY_DELAYS_MS = Object.freeze([0, 360, 1080]);
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
@@ -941,9 +941,17 @@
     $("verificationStoreMessage").textContent = storeMessage || "无";
   }
 
+  function verificationFaceSubjectType(record = currentRecord, payload = currentVerificationPhotoPayload) {
+    const explicit = clean(first(payload?.faceSubjectType, payload?.face_subject_type, record?.faceSubjectType, record?.face_subject_type)).toUpperCase();
+    if (["TEACHER", "CUSTOMER"].includes(explicit)) return explicit;
+    const kind = clean(first(record?.originalType, record?.verificationType, record?.applicationType, record?.originalKind)).toUpperCase();
+    return kind === "EXPERIENCE" || kind.includes("体验") ? "TEACHER" : "CUSTOMER";
+  }
+
   function photoSlotLabel(slot) {
-    if (slot === 0) return "客户原始留存照";
-    if (slot === 1) return "本次核销人脸照";
+    const teacherFace = verificationFaceSubjectType() === "TEACHER";
+    if (slot === 0) return teacherFace ? "老师登记照" : "客户原始留存照";
+    if (slot === 1) return teacherFace ? "老师本次体验核销照" : "本次核销人脸照";
     return `补充照片 ${slot - 1}`;
   }
 
@@ -1375,7 +1383,7 @@
       : "预览地址暂不可用";
     const preview = photo
       ? `<button class="verification-photo-preview has-photo" type="button" data-view-verification-photo="${slot}" aria-label="查看${escapeHtml(label)}原图">${photo.thumbnailUrl ? `<img src="${escapeHtml(photo.thumbnailUrl)}" data-verification-thumbnail-slot="${slot}" alt="${escapeHtml(label)}缩略图" loading="${localPreview ? "eager" : "lazy"}" ${localPreview ? 'fetchpriority="high"' : ""} decoding="async" referrerpolicy="no-referrer">` : `<span>${escapeHtml(previewFailure)}<br>点击重新读取原图</span>`}</button>`
-      : `<div class="verification-photo-preview"><span>${slot === 0 ? "未保存客户留存照" : slot === 1 ? "未保存本次人脸凭证" : "尚未上传"}</span></div>`;
+      : `<div class="verification-photo-preview"><span>${slot < 2 ? `未保存${escapeHtml(photoSlotLabel(slot))}` : "尚未上传"}</span></div>`;
     const size = photoSizeLabel(photo?.originalBytes);
     const meta = photo ? [size, formatTime(photo.uploadedAt) || "已绑定"].filter(Boolean).join(" · ") : "空照片位";
     const libraryLabel = usesMobilePhotoLibrary() ? (photo ? "从相册替换" : "从相册上传") : (photo ? "上传替换" : "上传文件");
@@ -1398,8 +1406,11 @@
     const bySlot = new Map(photos.map((photo) => [Number(photo.slot), photo]));
     $("verificationPhotoCount").textContent = `已绑定 ${photos.length} / 5`;
     const deadline = formatTime(payload?.editableUntil);
+    const immutableFacePhotos = verificationFaceSubjectType() === "TEACHER"
+      ? "老师登记照与老师本次体验核销照"
+      : "客户留存照与本次核销人脸照";
     $("verificationPhotoHint").textContent = payload?.canEdit
-      ? `你是本单提交人，可在 ${deadline || "提交后 24 小时内"} 前上传或替换 3 张补充照片。客户留存照与本次核销人脸照均不可修改。`
+      ? `你是本单提交人，可在 ${deadline || "提交后 24 小时内"} 前上传或替换 3 张补充照片。${immutableFacePhotos}均不可修改。`
       : payload?.isSubmitter
       ? `照片修改窗口已于 ${deadline || "提交后 24 小时"} 结束；现有照片永久只读。`
       : "照片仅供有权查看本核销单的账号浏览；只有本单提交人可在 24 小时内上传或替换补充照片。";

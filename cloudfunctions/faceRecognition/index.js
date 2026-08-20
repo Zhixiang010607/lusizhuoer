@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v71";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v4" : "v72";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -590,7 +590,7 @@ async function downloadVerificationPhotoAuthenticated(referenceValue, maximumByt
   const reference = verificationPhotoReference(referenceValue);
   const verificationStorage = verificationPhotoStorageForEvidence(reference);
   const customerStorage = photoStorageSettings();
-  const retainedProfile = options.allowCustomerProfile === true
+  const retainedProfile = options.allowRetainedProfile === true
     && reference.bucketId === customerStorage.bucketId;
   const storage = retainedProfile ? customerStorage : verificationStorage;
   if (!storage) fail("核销照片不属于允许的私有存储桶。", "PHOTO_BUCKET_MISMATCH");
@@ -796,7 +796,7 @@ async function signVerificationPhoto(referenceValue, expiresIn, options = {}) {
   const customerStorage = photoStorageSettings();
   const verificationStorage = verificationPhotoStorageForEvidence(reference);
   const isVerificationObject = Boolean(verificationStorage);
-  const isRetainedProfile = options.allowCustomerProfile === true && reference.bucketId === customerStorage.bucketId;
+  const isRetainedProfile = options.allowRetainedProfile === true && reference.bucketId === customerStorage.bucketId;
   if (!isVerificationObject && !isRetainedProfile) {
     fail("核销照片不属于允许的私有存储桶。", "PHOTO_BUCKET_MISMATCH");
   }
@@ -1030,7 +1030,7 @@ async function activeTeacherCaller() {
   const rows = await executeSql(
     `SELECT a.id AS staff_id, a.staff_name, a.role_code, a.account_status,
             t.id AS teacher_id, t.teacher_code, t.teacher_name, t.teacher_status,
-            t.face_person_id, t.face_enrollment_status
+            t.face_person_id, t.face_enrollment_status, t.profile_photo_file_id
        FROM public.staff_accounts a
        JOIN public.teachers t ON t.staff_account_id = a.id
       WHERE a.auth_uid = ${sqlText(uid)}
@@ -1048,7 +1048,9 @@ async function activeTeacherCaller() {
     staffName: String(caller.staff_name || caller.teacher_name || ""),
     teacherId: String(caller.teacher_id),
     teacherCode: String(caller.teacher_code || ""),
-    teacherName: String(caller.teacher_name || "")
+    teacherName: String(caller.teacher_name || ""),
+    faceEnrollmentStatus: String(caller.face_enrollment_status || ""),
+    facePhotoReady: Boolean(caller.face_person_id && caller.profile_photo_file_id)
   };
 }
 
@@ -1058,7 +1060,7 @@ async function activeBusinessCaller(event = {}) {
   const accounts = await executeSql(
     `SELECT a.id AS staff_id, a.role_code, a.account_status,
             t.id AS teacher_id, t.teacher_code, t.teacher_name, t.teacher_status,
-            t.face_person_id, t.face_enrollment_status
+            t.face_person_id, t.face_enrollment_status, t.profile_photo_file_id
        FROM public.staff_accounts a
        LEFT JOIN public.teachers t ON t.staff_account_id = a.id
       WHERE a.auth_uid = ${sqlText(uid)}
@@ -1100,6 +1102,10 @@ async function activeBusinessCaller(event = {}) {
     teacherId: account.role_code === "teacher" ? String(account.teacher_id) : "",
     teacherCode: account.role_code === "teacher" ? String(account.teacher_code || "") : "",
     teacherName: account.role_code === "teacher" ? String(account.teacher_name || "") : "",
+    faceEnrollmentStatus: account.role_code === "teacher" ? String(account.face_enrollment_status || "") : "",
+    facePhotoReady: account.role_code === "teacher"
+      ? Boolean(account.face_person_id && account.profile_photo_file_id)
+      : false,
     storeId: Number(store.id),
     storeCode: String(store.store_code || ""),
     storeName: String(store.store_name || "")
@@ -1167,7 +1173,9 @@ async function getTeacherBusinessContext() {
     teacher: {
       teacherId: teacher.teacherId,
       teacherCode: teacher.teacherCode,
-      teacherName: teacher.teacherName
+      teacherName: teacher.teacherName,
+      faceEnrollmentStatus: teacher.faceEnrollmentStatus,
+      facePhotoReady: teacher.facePhotoReady
     },
     stores: stores.map((store) => ({
       storeId: String(store.id),
@@ -1320,9 +1328,15 @@ async function verificationPhotoContext(event, options = {}) {
   const rows = await executeSql(
     `SELECT v.id, v.verification_code, v.verification_type, v.store_id,
             v.teacher_id, v.submitted_by_account_id, v.submitted_at,
+            v.customer_id, v.face_subject_type, v.face_subject_teacher_id,
+            customer.customer_code, customer.customer_name,
+            face_teacher.teacher_code AS face_subject_teacher_code,
+            face_teacher.teacher_name AS face_subject_teacher_name,
             v.submitted_at + INTERVAL '24 hours' AS editable_until,
             (CLOCK_TIMESTAMP() < v.submitted_at + INTERVAL '24 hours') AS within_edit_window
        FROM public.verification_records v
+       JOIN public.customers customer ON customer.id = v.customer_id
+  LEFT JOIN public.teachers face_teacher ON face_teacher.id = v.face_subject_teacher_id
       WHERE v.id = ${verificationId}::bigint
         AND ${scope}
       LIMIT 1`
@@ -2854,9 +2868,14 @@ async function listActiveTeachers(event = {}) {
   const rows = caller.role === "teacher" ? [{
     teacher_id: caller.teacherId,
     teacher_code: caller.teacherCode,
-    teacher_name: caller.teacherName
+    teacher_name: caller.teacherName,
+    face_enrollment_status: caller.faceEnrollmentStatus,
+    face_photo_ready: caller.facePhotoReady
   }] : await executeSql(
-    `SELECT t.id AS teacher_id, t.teacher_code, t.teacher_name
+    `SELECT t.id AS teacher_id, t.teacher_code, t.teacher_name,
+            t.face_enrollment_status,
+            (BTRIM(COALESCE(t.face_person_id, '')) <> ''
+             AND BTRIM(COALESCE(t.profile_photo_file_id, '')) <> '') AS face_photo_ready
        FROM public.teachers t
       JOIN public.staff_accounts a ON a.id = t.staff_account_id
       WHERE t.teacher_status = 'ACTIVE'
@@ -2870,7 +2889,9 @@ async function listActiveTeachers(event = {}) {
     teachers: rows.map((teacher) => ({
       teacherId: String(teacher.teacher_id),
       teacherCode: teacher.teacher_code,
-      teacherName: teacher.teacher_name
+      teacherName: teacher.teacher_name,
+      faceEnrollmentStatus: String(teacher.face_enrollment_status || ""),
+      facePhotoReady: databaseBoolean(teacher.face_photo_ready)
     }))
   };
 }
@@ -3113,6 +3134,36 @@ async function requireVerificationSubmissionSchema() {
   }
 }
 
+async function requireTeacherExperienceFaceSubjectSchema() {
+  const rows = await executeSql(
+    `SELECT EXISTS (
+              SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public' AND table_name = 'teachers'
+                 AND column_name = 'profile_photo_file_id'
+            ) AS teacher_photo_column,
+            EXISTS (
+              SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public' AND table_name = 'verification_photo_drafts'
+                 AND column_name = 'face_subject_type'
+            ) AS draft_subject_column,
+            EXISTS (
+              SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public' AND table_name = 'verification_records'
+                 AND column_name = 'face_subject_type'
+            ) AS record_subject_column,
+            TO_REGPROCEDURE(
+              'public.create_experience_verification_with_teacher_face_photo(bigint,bigint,bigint,bigint,bigint,text,character varying,character varying,character varying)'
+            ) IS NOT NULL AS create_function`
+  );
+  const schema = rows?.[0] || {};
+  if (!databaseBoolean(schema.teacher_photo_column)
+      || !databaseBoolean(schema.draft_subject_column)
+      || !databaseBoolean(schema.record_subject_column)
+      || !databaseBoolean(schema.create_function)) {
+    fail("老师体验人脸证据结构尚未启用，请先执行迁移 049。", "DATABASE_SCHEMA_MISSING");
+  }
+}
+
 async function createVerificationApplication(event) {
   const caller = await activeBusinessCaller(event);
   const customerCode = String(event.customerCode || "").trim();
@@ -3142,6 +3193,7 @@ async function createVerificationApplication(event) {
   await requireVerificationSubmissionSchema();
   if (experienceVerification) {
     await requireTeacherExperienceQuotaLifecycleSchema();
+    await requireTeacherExperienceFaceSubjectSchema();
   }
 
   const customers = await executeSql(
@@ -3166,7 +3218,8 @@ async function createVerificationApplication(event) {
   if (!product) fail("所选项目不存在或已经封存，请重新选择。", "PRODUCT_NOT_ACTIVE");
 
   const teachers = await executeSql(
-    `SELECT t.id, t.teacher_code, t.teacher_name
+    `SELECT t.id, t.teacher_code, t.teacher_name, t.face_person_id,
+            t.face_enrollment_status, t.profile_photo_file_id
        FROM public.teachers t
        JOIN public.staff_accounts a ON a.id = t.staff_account_id
       WHERE t.id = ${sqlText(teacherId)}::bigint
@@ -3177,28 +3230,35 @@ async function createVerificationApplication(event) {
   );
   const teacher = teachers[0];
   if (!teacher) fail("所选老师不存在或已经封存，请重新选择。", "TEACHER_NOT_ACTIVE");
+  if (experienceVerification && (
+    teacher.face_enrollment_status !== "ENROLLED"
+    || !String(teacher.face_person_id || "").trim()
+    || !String(teacher.profile_photo_file_id || "").trim()
+  )) {
+    fail("该老师尚未补齐可用的人脸登记照，不能办理体验核销。", "TEACHER_FACE_REQUIRED_FOR_EXPERIENCE");
+  }
 
   const initialStatus = "APPROVED";
   const supplementNote = "";
   let rows;
   try {
-    rows = await executeSql(
-      `SELECT *
-         FROM public.create_verification_with_face_photo(
-           ${sqlText(verificationType)}::varchar,
-           ${caller.storeId}::bigint,
-           ${sqlText(teacherId)}::bigint,
-           ${sqlText(customer.id)}::bigint,
-           ${sqlText(productId)}::bigint,
-           ${sqlText(initialStatus)}::varchar,
-           ${caller.staffId}::bigint,
-           ${sqlText(message)}::text,
-           ${sqlText(supplementNote)}::text,
-           ${sqlText(faceRequestId)}::varchar,
-           ${sqlText(faceEvidenceToken)}::varchar,
+    const createSql = experienceVerification
+      ? `SELECT * FROM public.create_experience_verification_with_teacher_face_photo(
+           ${caller.storeId}::bigint, ${sqlText(teacherId)}::bigint,
+           ${sqlText(customer.id)}::bigint, ${sqlText(productId)}::bigint,
+           ${caller.staffId}::bigint, ${sqlText(message)}::text,
+           ${sqlText(faceRequestId)}::varchar, ${sqlText(faceEvidenceToken)}::varchar,
            ${sqlText(idempotencyKey)}::varchar
          )`
-    );
+      : `SELECT * FROM public.create_verification_with_face_photo(
+           ${sqlText(verificationType)}::varchar, ${caller.storeId}::bigint,
+           ${sqlText(teacherId)}::bigint, ${sqlText(customer.id)}::bigint,
+           ${sqlText(productId)}::bigint, ${sqlText(initialStatus)}::varchar,
+           ${caller.staffId}::bigint, ${sqlText(message)}::text,
+           ${sqlText(supplementNote)}::text, ${sqlText(faceRequestId)}::varchar,
+           ${sqlText(faceEvidenceToken)}::varchar, ${sqlText(idempotencyKey)}::varchar
+         )`;
+    rows = await executeSql(createSql);
   } catch (error) {
     const detail = String(error?.message || "").toLowerCase();
     if (detail.includes("insufficient purchased units")) {
@@ -3212,6 +3272,10 @@ async function createVerificationApplication(event) {
     }
     if (detail.includes("face photo evidence")) {
       fail("现场人脸照片已过期、已使用或不属于当前提交，请重新拍照验证。", "FACE_PHOTO_EVIDENCE_INVALID");
+    }
+    if (detail.includes("teacher_face_required_for_experience")
+        || detail.includes("teacher retained face profile")) {
+      fail("该老师尚未补齐可用的人脸登记照，不能办理体验核销。", "TEACHER_FACE_REQUIRED_FOR_EXPERIENCE");
     }
     if (detail.includes("idempotency key belongs")) {
       fail("该防重复提交编号已经用于另一张核销单，请刷新页面后重新提交。", "IDEMPOTENCY_CONFLICT");
@@ -3726,6 +3790,7 @@ async function searchCustomer(event) {
 async function verifyCustomerFace(event) {
   const caller = await activeBusinessCaller(event);
   await requireVerificationSubmissionSchema();
+  await requireTeacherExperienceFaceSubjectSchema();
   const customerCode = String(event.customerCode || "").trim();
   if (!customerCode || customerCode.length > 96) fail("必须提供已选择客户的有效编号。", "CUSTOMER_REQUIRED");
 
@@ -3781,12 +3846,13 @@ async function verifyCustomerFace(event) {
       await executeSql(
         `INSERT INTO public.verification_photo_drafts
           (evidence_token, store_id, customer_id, submitted_by_account_id,
+           face_subject_type, face_subject_teacher_id,
            face_request_id, original_object_ref, thumbnail_object_ref,
            original_bytes, thumbnail_bytes, image_width, image_height,
            sha256, expires_at)
          VALUES
-          (${sqlText(faceEvidenceToken)}, ${caller.storeId}, ${sqlText(customer.id)}::bigint,
-           ${caller.staffId}, ${sqlText(result?.RequestId || "")},
+           (${sqlText(faceEvidenceToken)}, ${caller.storeId}, ${sqlText(customer.id)}::bigint,
+            ${caller.staffId}, 'CUSTOMER', NULL, ${sqlText(result?.RequestId || "")},
            ${sqlText(uploadedOriginal.reference)}, ${sqlText(uploadedThumbnail.reference)},
            ${original.buffer.length}, ${thumbnail.buffer.length},
            ${dimensions.width}, ${dimensions.height},
@@ -3819,10 +3885,136 @@ async function verifyCustomerFace(event) {
   };
 }
 
+async function verifyTeacherExperienceFace(event) {
+  const caller = await activeBusinessCaller(event);
+  await requireVerificationSubmissionSchema();
+  await requireTeacherExperienceFaceSubjectSchema();
+  const customerCode = String(event.customerCode || "").trim();
+  if (!customerCode || customerCode.length > 96) fail("必须提供已选择客户的有效编号。", "CUSTOMER_REQUIRED");
+  const requestedTeacherId = String(event.teacherId || "").trim();
+  if (caller.role === "teacher" && requestedTeacherId && requestedTeacherId !== String(caller.teacherId)) {
+    fail("老师账号只能使用本人人脸办理体验核销。", "FORBIDDEN");
+  }
+  const teacherId = positiveDatabaseId(
+    caller.role === "teacher" ? caller.teacherId : requestedTeacherId,
+    "老师"
+  );
+
+  const customerRows = await executeSql(
+    `SELECT id, customer_code, customer_name
+       FROM public.customers
+      WHERE customer_code = ${sqlText(customerCode)}
+        AND created_store_id = ${caller.storeId}
+        AND customer_status = 'ACTIVE'
+      LIMIT 1`
+  );
+  const customer = customerRows[0];
+  if (!customer) fail("未找到本门店已选择的活跃客户。", "CUSTOMER_NOT_FOUND");
+
+  const teacherRows = await executeSql(
+    `SELECT t.id, t.teacher_code, t.teacher_name, t.face_person_id,
+            t.face_enrollment_status, t.profile_photo_file_id
+       FROM public.teachers t
+       JOIN public.staff_accounts a ON a.id = t.staff_account_id
+      WHERE t.id = ${sqlText(teacherId)}::bigint
+        AND t.teacher_status = 'ACTIVE'
+        AND a.role_code = 'teacher'
+        AND a.account_status = 'ACTIVE'
+      LIMIT 1`
+  );
+  const teacher = teacherRows[0];
+  if (!teacher) fail("所选老师不存在或已经封存。", "TEACHER_NOT_ACTIVE");
+  if (teacher.face_enrollment_status !== "ENROLLED"
+      || !String(teacher.face_person_id || "").trim()
+      || !String(teacher.profile_photo_file_id || "").trim()) {
+    fail("该老师尚未补齐可用的人脸登记照，不能办理体验核销。", "TEACHER_FACE_REQUIRED_FOR_EXPERIENCE");
+  }
+
+  const original = cleanVerificationJpeg(event.imageBase64, "老师现场人脸照片", MAX_VERIFICATION_IMAGE_BYTES);
+  const thumbnail = cleanVerificationJpeg(event.thumbnailBase64, "老师现场人脸缩略图", MAX_THUMBNAIL_BYTES);
+  const dimensions = verificationPhotoDimensions(event);
+  const api = faceClient();
+  const quality = await inspectFaceImage(api, original.base64);
+  const liveness = await inspectLiveness(api, original.base64);
+  const settings = faceSettings();
+  const result = await api.VerifyFace({
+    PersonId: String(teacher.face_person_id),
+    Image: original.base64,
+    QualityControl: 3,
+    NeedRotateDetection: 0
+  });
+  const score = Number(result?.Score || 0);
+  const matched = result?.IsMatch === true && score >= settings.verifyThreshold;
+
+  let faceEvidenceToken = "";
+  if (matched) {
+    faceEvidenceToken = crypto.randomBytes(24).toString("hex");
+    const objectPrefix = `face-evidence/${caller.storeId}/${caller.staffId}/${faceEvidenceToken}`;
+    let uploadedOriginal = null;
+    let uploadedThumbnail = null;
+    try {
+      const uploadResults = await Promise.allSettled([
+        uploadVerificationPhotoObject(`${objectPrefix}/original.jpg`, original.buffer),
+        uploadVerificationPhotoObject(`${objectPrefix}/thumbnail.jpg`, thumbnail.buffer)
+      ]);
+      if (uploadResults[0].status === "fulfilled") uploadedOriginal = uploadResults[0].value;
+      if (uploadResults[1].status === "fulfilled") uploadedThumbnail = uploadResults[1].value;
+      const uploadFailure = uploadResults.find((item) => item.status === "rejected");
+      if (uploadFailure) throw uploadFailure.reason;
+      const evidenceTtlMinutes = Math.trunc(numberSetting("VERIFICATION_FACE_EVIDENCE_TTL_MINUTES", 30, 5, 120));
+      await executeSql(
+        `INSERT INTO public.verification_photo_drafts
+          (evidence_token, store_id, customer_id, submitted_by_account_id,
+           face_subject_type, face_subject_teacher_id, face_request_id,
+           original_object_ref, thumbnail_object_ref, original_bytes,
+           thumbnail_bytes, image_width, image_height, sha256, expires_at)
+         VALUES
+          (${sqlText(faceEvidenceToken)}, ${caller.storeId}, ${sqlText(customer.id)}::bigint,
+           ${caller.staffId}, 'TEACHER', ${sqlText(teacherId)}::bigint,
+           ${sqlText(result?.RequestId || "")}, ${sqlText(uploadedOriginal.reference)},
+           ${sqlText(uploadedThumbnail.reference)}, ${original.buffer.length},
+           ${thumbnail.buffer.length}, ${dimensions.width}, ${dimensions.height},
+           ${sqlText(crypto.createHash("sha256").update(original.buffer).digest("hex"))},
+           NOW() + (${evidenceTtlMinutes} * INTERVAL '1 minute'))`
+      );
+    } catch (error) {
+      await Promise.all([
+        deleteVerificationPhotoObject(uploadedOriginal?.reference),
+        deleteVerificationPhotoObject(uploadedThumbnail?.reference)
+      ]);
+      throw error;
+    }
+  }
+
+  return {
+    ok: true,
+    matched,
+    teacher: {
+      teacherId: String(teacher.id),
+      teacherCode: String(teacher.teacher_code || ""),
+      teacherName: String(teacher.teacher_name || "")
+    },
+    customer: {
+      customerCode: String(customer.customer_code || ""),
+      customerName: String(customer.customer_name || "")
+    },
+    score: rounded(score),
+    threshold: settings.verifyThreshold,
+    quality,
+    liveness,
+    requestId: result?.RequestId || "",
+    faceEvidenceToken,
+    message: matched
+      ? "老师本人的 1:1 人脸验证已通过。"
+      : "现场人脸与所选老师的登记人脸不一致，请核对老师或重新拍照。"
+  };
+}
+
 async function getVerificationPhotos(event) {
   const context = await verificationPhotoContext(event);
   const rows = await executeSql(
     `SELECT photo_slot, photo_kind, thumbnail_object_ref, original_object_ref,
+            face_subject_type, face_subject_teacher_id,
             original_bytes, thumbnail_bytes, image_width, image_height,
             created_at, updated_at
        FROM public.verification_photos
@@ -3843,7 +4035,7 @@ async function getVerificationPhotos(event) {
       && String(row.thumbnail_object_ref || "") === String(row.original_object_ref || "");
     const [thumbnailResult] = await Promise.allSettled([
       signVerificationPhoto(row.thumbnail_object_ref, expiresIn, {
-        allowCustomerProfile: retainedProfile,
+        allowRetainedProfile: retainedProfile,
         thumbnailTransform: retainedProfile || generatedExtraThumbnail
       })
     ]);
@@ -3855,6 +4047,10 @@ async function getVerificationPhotos(event) {
     return {
       slot: Number(row.photo_slot),
       kind: String(row.photo_kind || ""),
+      faceSubjectType: String(row.face_subject_type || context.record.face_subject_type || "CUSTOMER"),
+      faceSubjectTeacherId: row.face_subject_teacher_id
+        ? String(row.face_subject_teacher_id)
+        : "",
       thumbnailUrl,
       thumbnailUrlExpiresIn,
       thumbnailError,
@@ -3876,6 +4072,23 @@ async function getVerificationPhotos(event) {
     editableUntil: context.record.editable_until,
     isSubmitter: String(context.record.submitted_by_account_id) === String(context.caller.staffId),
     canEdit: context.canEdit,
+    faceSubjectType: String(context.record.face_subject_type || "CUSTOMER"),
+    faceSubjectTeacherId: context.record.face_subject_teacher_id
+      ? String(context.record.face_subject_teacher_id)
+      : "",
+    faceSubject: String(context.record.face_subject_type || "CUSTOMER") === "TEACHER"
+      ? {
+          type: "TEACHER",
+          teacherId: String(context.record.face_subject_teacher_id || ""),
+          teacherCode: String(context.record.face_subject_teacher_code || ""),
+          teacherName: String(context.record.face_subject_teacher_name || "")
+        }
+      : {
+          type: "CUSTOMER",
+          customerId: String(context.record.customer_id || ""),
+          customerCode: String(context.record.customer_code || ""),
+          customerName: String(context.record.customer_name || "")
+        },
     maxPhotos: 5,
     expiresIn,
     photos
@@ -3909,7 +4122,7 @@ async function getVerificationPhotoOriginalUrl(event) {
   const { slot, photo } = await verificationPhotoOriginalContext(event);
   const expiresIn = verificationPhotoUrlTtlSeconds();
   const signedPhoto = await signVerificationPhoto(photo.original_object_ref, expiresIn, {
-    allowCustomerProfile: String(photo.photo_kind || "") === "PROFILE"
+    allowRetainedProfile: String(photo.photo_kind || "") === "PROFILE"
   });
   return {
     ok: true,
@@ -3934,7 +4147,7 @@ async function getVerificationPhotoExportData(event) {
   let buffer;
   try {
     buffer = await downloadVerificationPhotoAuthenticated(photo.original_object_ref, MAX_IMAGE_BYTES, {
-      allowCustomerProfile: String(photo.photo_kind || "") === "PROFILE"
+      allowRetainedProfile: String(photo.photo_kind || "") === "PROFILE"
     });
   } catch (error) {
     if (String(error?.code || "") === "PHOTO_UPLOAD_INCOMPLETE") {
@@ -4889,6 +5102,7 @@ exports.main = async (event = {}, context = {}) => {
     if (action === "addCustomerMessage") return await addCustomerMessage(event);
     if (action === "searchCustomer") return await searchCustomer(event);
     if (action === "verifyCustomerFace") return await verifyCustomerFace(event);
+    if (action === "verifyTeacherExperienceFace") return await verifyTeacherExperienceFace(event);
     if (action === "getVerificationPhotos") return await getVerificationPhotos(event);
     if (action === "getVerificationPhotoOriginalUrl") return await getVerificationPhotoOriginalUrl(event);
     if (action === "getVerificationPhotoExportData") return await getVerificationPhotoExportData(event);

@@ -181,7 +181,7 @@ corrections use a separate recharge order.
 
 For a database already upgraded through migration 029, execute the current
 additive files separately through migration 046, complete the controlled 047
-retirement cutover, then execute migration 048:
+retirement cutover, then execute migrations 048 and 049:
 
 ```text
 030_store_customer_query_indexes.sql
@@ -203,6 +203,7 @@ retirement cutover, then execute migration 048:
 046_teacher_face_and_experience_quotas.sql
 047_retire_operation_accounts.sql
 048_optional_teacher_face_and_experience_quota_lifecycle.sql
+049_teacher_experience_face_subject_and_quota_fixes.sql
 ```
 
 After 046 has committed, deploy `faceRecognition v69` and `staffAccount v50`
@@ -214,9 +215,10 @@ result that blocks the old CloudBase credentials. Only then execute
 `047-01-retire-operation-accounts.sql` followed by
 `047-02-hq-reviewer-guard.sql`). Then execute
 `048_optional_teacher_face_and_experience_quota_lifecycle.sql` (or the seven
-ordered `048-01` through `048-07` CloudBase console parts), deploy
-`faceRecognition v71` and `staffAccount v55`, verify both health responses,
-then deploy/refresh the current static frontend.
+ordered `048-01` through `048-07` CloudBase console parts). Next execute the
+ordered `049-01` through `049-13` parts and `049-readonly-verify.sql`, deploy
+`faceRecognition v72`, `staffAccount v56`, and `verificationPhoto v4`, verify
+all health responses, then deploy/refresh the current static frontend.
 
 Migration 032 deliberately stops and rolls back when migration 026 is missing.
 In that case, do not deploy the new cloud functions yet; first complete the
@@ -235,5 +237,10 @@ headquarters-only. Migration 048 makes teacher face enrollment optional,
 archives rather than deletes removed experience configurations, makes a new
 configuration immediately replace the current balance, and resets only active
 teacher/product/configuration combinations at the Shanghai month boundary.
+Migration 049 fixes the 048 quota-function column ambiguity, records the face
+subject explicitly, and atomically binds a teacher enrollment-photo snapshot,
+teacher live photo, and teacher quota usage to every new EXPERIENCE record while
+retaining the selected customer as its business owner. Historical EXPERIENCE
+records remain CUSTOMER-subject evidence.
 Neither photo migration creates the CloudBase Storage
 buckets, which must be created separately as private infrastructure.

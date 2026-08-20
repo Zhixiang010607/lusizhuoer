@@ -1,16 +1,16 @@
 # staffAccount 云函数
 
-当前版本：`v55`
+当前版本：`v56`
 
 用于总部自动创建总部、门店和老师账号；云函数使用当前登录总部账号进行授权。
 执行迁移 048 后，`provisionStaff({ role: "teacher", ... })` 可以直接创建活跃老师账号，
-老师人脸允许后续补充或替换，不再阻止登录、老师选择、额度配置或体验核销。后续使用
+老师人脸允许后续补充或替换，不再阻止激活、登录、老师选择、额度配置或普通业务。只有体验核销要求老师已有可用人脸登记照。后续使用
 `upsertTeacherFace({ teacherId, faceImageBase64, clientRequestId, consent: true })` 保存人脸；新腾讯人脸
 人员先创建并验证、数据库原子切换到新人脸后，旧人员才会尽力清理。相同 `clientRequestId` 可安全重试，
-不同编号可以替换人脸。数据库只保存人员 ID、授权和时间，绝不保存 Base64 人脸图片。
+不同编号可以替换人脸。数据库只保存人员 ID、授权、时间和私有不可变登记照引用，绝不保存 Base64 人脸图片或公开地址。
 兼容入口 `provisionTeacherWithFace(...)` 仍可用于一次性建号并登记人脸，但不是创建老师的必经步骤。
 
-## 046 老师体验额度、047 运营身份下线与 048 生命周期
+## 046 老师体验额度、047 运营身份下线、048 生命周期与 049 老师体验人脸
 
 无论是历史增量库，还是刚由 `schema.rebuild.sql`／`schema.full.sql` 建出的新库，都必须先完成
 `046_teacher_face_and_experience_quotas.sql`。046 兼容旧增量 `teachers` 表：历史身份证密文／哈希／电话的非空约束会解除，但已有值保留；048 随后允许老师先以姓名和手机创建，已获授权的人脸可后续补充或替换。CloudBase SQL 编辑器不要粘贴完整大文件，应依次执行
@@ -22,8 +22,10 @@
 2. 在仅限总部使用、已加载当前 `cloudbase-phone-auth.js` 的临时维护页面中，以**已登录总部**身份在浏览器控制台执行 `await CloudBasePhoneAuth.retireOperationAccounts()`，等待 `ok: true`；它会逐个把旧运营账号的 CloudBase 登录凭据设为 `BLOCKED`。该维护页不是最终静态发布；失败时先修复原因并安全重试，不能继续下一步；
 3. 只有该动作成功后，才执行 `047_retire_operation_accounts.sql`（CloudBase SQL 编辑器依次执行 `047-01-retire-operation-accounts.sql`、`047-02-hq-reviewer-guard.sql`）；
 4. 依次执行 `048_optional_teacher_face_and_experience_quota_lifecycle.sql`（CloudBase SQL 编辑器则依次执行 `048-01` 至 `048-07`）；
-5. 部署 `faceRecognition v71` 和本函数 `staffAccount v55`，并分别调用 `health` 确认版本；
-6. 最后部署当前静态前端并强制刷新浏览器。
+5. 部署 `faceRecognition v71` 和本函数 `staffAccount v55`，完成 048 的兼容上线；
+6. 依次执行 `database/cloudbase-console/049-01` 至 `049-13`，再执行只读的 `049-readonly-verify.sql`；
+7. 部署 `faceRecognition v72`、本函数 `staffAccount v56` 和 `verificationPhoto v4`，分别调用 `health` 确认版本；
+8. 最后部署当前静态前端并强制刷新浏览器。
 
 047 保留历史审核人、账号 ID 和业务外键，但会将旧运营账号、身份、权限和范围统一封存，并在数据库层禁止重新创建、激活或复用运营身份。该维护动作没有日常页面入口。
 
@@ -36,7 +38,7 @@
 - `resetTeacherExperienceQuotas()`：总部手动补跑入口。每月上海时间 1 日 00:00 的 Timer 和惰性补跑只处理活跃老师、活跃产品及活跃额度配置。
 - `setMasterStatus({ teacherId, status })` 或 `setMasterStatus({ storeId, status })`：只允许总部按老师／门店主档编号封存或恢复。门店主档与关联 PostgreSQL 门店账号在同一 SQL 语句中同步；封存后即使 CloudBase 用户管理临时不可用，后端也会拒绝该账号的一切业务登录。历史或压力数据的 `auth_uid` 若在 CloudBase 中明确不存在，封存仍成功并返回提示；恢复时找不到真实认证账号则自动保持封存并返回明确错误。历史数据不删除。
 
-体验办理端由 `faceRecognition/getTeacherExperienceEntitlements({ teacherId, storeId? })` 读取仅活跃老师、活跃产品且可用次数大于零的项目；体验核销仍经 `faceRecognition/createVerificationApplication`，数据库在同一事务中锁定并扣减老师额度，不扣客户余额。
+体验办理端由 `faceRecognition/getTeacherExperienceEntitlements({ teacherId, storeId? })` 读取仅活跃老师、活跃产品且可用次数大于零的项目；体验核销先用 `verifyTeacherExperienceFace` 比对老师本人，随后经 `createVerificationApplication` 在同一数据库事务中固化老师登记照、老师现场照并扣减老师额度。工单仍保留所选客户的 `customer_id`，但不读取或扣减客户余额。普通核销继续比对客户人脸并扣减客户余额。
 
 ## 环境变量和月度 Timer
 
@@ -44,6 +46,7 @@
 
 - `FACE_SECRET_ID`、`FACE_SECRET_KEY`、`FACE_GROUP_ID`；`FACE_GROUP_ID` 必须与客户人脸库一致。
 - 可选阈值：`FACE_QUALITY_THRESHOLD`、`FACE_LIVENESS_ENABLED`、`FACE_LIVENESS_THRESHOLD`、`FACE_MAX_YAW`、`FACE_MAX_PITCH`、`FACE_MAX_ROLL`。
+- 私有登记照存储：`CLOUDBASE_ENV_ID`（或 `TCB_ENV`）、平台托管的 `CLOUDBASE_APIKEY`（兼容 `CLOUDBASE_SERVICE_ROLE_KEY`）和 `CUSTOMER_PHOTO_BUCKET_ID=customer-photos`。老师登记照只写入私有桶，并以 `pg://...` 引用进入数据库。
 
 在 staffAccount 的 CloudBase triggers 配置中创建下列**不含 action、token 或业务参数**的 Timer；控制台时区选择 `Asia/Shanghai`：
 
@@ -60,7 +63,7 @@
 }
 ```
 
-该七段 Cron 在每月 1 日 00:00:00（上海时间）运行。v55 仅接受平台 Timer 事件，并校验保留运行时变量 `TRIGGER_SRC=timer`、函数名、精确触发器名、时间和无终端用户 UID；普通客户端伪造 `Type: Timer` 不能执行重置。不要将密钥写进 Timer JSON。
+该七段 Cron 在每月 1 日 00:00:00（上海时间）运行。v56 仅接受平台 Timer 事件，并校验保留运行时变量 `TRIGGER_SRC=timer`、函数名、精确触发器名、时间和无终端用户 UID；普通客户端伪造 `Type: Timer` 不能执行重置。不要将密钥写进 Timer JSON。
 
 部署前：
 
@@ -96,7 +99,7 @@ Top 10；`{ mode: "ranking", dimension, pageNumber, pageSize }` 返回
 总部首页部署前还需单独执行迁移
 `035_hq_dashboard_approved_covering_indexes.sql`，为两张工单表的已通过日期范围聚合提供覆盖索引。
 
-部署 `v55` 前必须确认已按编号执行既有迁移，并至少完成至 `048`；
-其中 046 是老师人脸、体验额度、封存写入防线及原子体验核销的前置条件，048 将老师人脸改为可选资料并增加额度删除／重配生命周期。随后必须按本节的“v69/v55 → 总部封锁 CloudBase 凭据 → 047 → 048 → v71/v55 → 静态前端”顺序完成运营身份下线与新额度规则发布；047 会将审核权限收紧为总部独占。
-部署后调用 `{ "action": "health" }`，返回版本必须为 `v55`，并确认
+部署 `v56` 前必须确认已按编号执行既有迁移，并完成至 `049`；
+其中 046 是老师人脸、体验额度、封存写入防线及原子体验核销的前置条件，048 将老师人脸改为可选资料并增加额度删除／重配生命周期，049 修复额度函数歧义并把新体验核销的人脸主体切换为老师。必须按本节的“既有 046—048 → 049-01..13 → 只读验收 → v72/v56/v4 → 静态前端”顺序发布。
+部署后调用 `{ "action": "health" }`，返回版本必须为 `v56`，并确认
 `teacherExperienceResetTimerTriggerName` 为 `reset-teacher-experience-quotas-monthly`。

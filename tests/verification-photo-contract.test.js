@@ -38,7 +38,7 @@ function functionSource(source, name) {
   throw new Error(`function ${name} body is incomplete`);
 }
 
-includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v71"', "split cloud versions");
+includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v4" : "v72"', "split cloud versions");
 includes(cloud, "const MAX_VERIFICATION_IMAGE_BYTES = 3 * 1024 * 1024", "original upload limit");
 includes(cloud, "const MAX_THUMBNAIL_BYTES = 384 * 1024", "thumbnail upload limit");
 includes(cloud, "if (action === \"getVerificationPhotos\")", "thumbnail list action");
@@ -79,7 +79,7 @@ includes(functionSource(cloud, "verificationPhotoUrlTtlSeconds"), 'numberSetting
 const verificationSignSource = functionSource(cloud, "signVerificationPhoto");
 includes(verificationSignSource, 'typeof manager().storage.signObjects === "function"', "batch signing compatibility fallback");
 includes(verificationSignSource, "Verification photo signing returned no HTTPS URL", "safe verification signing diagnostics");
-includes(cloud, "allowCustomerProfile: retainedProfile", "profile bucket is allowed only for profile evidence");
+includes(cloud, "allowRetainedProfile: retainedProfile", "profile bucket is allowed only for retained customer or teacher profile evidence");
 includes(cloud, "maxPhotos: 5", "five-photo response contract");
 includes(cloud, "slot < 2 || slot > 4", "only three supplemental cloud slots are writable");
 
@@ -234,7 +234,7 @@ assert.ok(
 includes(createUi, "verificationFaceEvidenceToken", "face evidence token state");
 includes(createUi, 'thumbnailBase64: verificationThumbnailDataUrl', "face thumbnail upload");
 includes(createUi, 'faceEvidenceToken: verificationFaceEvidenceToken', "atomic order binding payload");
-includes(createUi, 'const VERSION = "0.14.54"', "create UI cache version");
+includes(createUi, 'const VERSION = "0.14.55"', "create UI cache version");
 
 includes(detailUi, 'action: "getVerificationPhotos"', "detail thumbnail request");
 includes(detailUi, 'action: "getVerificationPhotoOriginalUrl"', "detail original request");
@@ -275,8 +275,8 @@ assert.ok(!exportDataSource.includes("getVerificationPhotoOriginalUrl("), "serve
 assert.ok(!exportDataSource.includes("signVerificationPhoto("), "server export never signs a temporary public URL");
 assert.ok(!exportDataSource.includes("downloadVerificationPhotoBytes("), "server export never downloads through unauthenticated HTTPS");
 includes(exportDataSource, "MAX_IMAGE_BYTES", "authenticated export download is size bounded");
-includes(exportDataSource, 'allowCustomerProfile: String(photo.photo_kind || "") === "PROFILE"', "only retained PROFILE export explicitly allows the customer-photo bucket");
-assert.ok(!exportDataSource.includes("allowCustomerProfile: true"), "non-PROFILE export cannot unconditionally broaden private object access");
+includes(exportDataSource, 'allowRetainedProfile: String(photo.photo_kind || "") === "PROFILE"', "only retained PROFILE export explicitly allows the private profile-photo bucket");
+assert.ok(!exportDataSource.includes("allowRetainedProfile: true"), "non-PROFILE export cannot unconditionally broaden private object access");
 includes(exportDataSource, "buffer.length !== Number(photo.original_bytes)", "export bytes must match the database manifest");
 includes(exportDataSource, "jpegDimensions(buffer)", "export revalidates JPEG structure and dimensions");
 includes(exportDataSource, 'data:image/jpeg;base64,${buffer.toString("base64")}', "validated private JPEG is returned in the CORS-safe response");
@@ -285,13 +285,13 @@ assert.ok(
     < functionSource(cloud, "getVerificationPhotos").indexOf("signVerificationPhoto("),
   "thumbnail URLs must be signed only after the verification-order permission check"
 );
-includes(detailUi, 'const VERSION = "0.16.18"', "detail UI cache version");
+includes(detailUi, 'const VERSION = "0.16.19"', "detail UI cache version");
 includes(functionSource(detailUi, "callVerificationPhoto"), 'callFunction({ name: "verificationPhoto", data })', "all photo operations use the dedicated photo cloud function");
 includes(functionSource(detailUi, "callVerificationPhotoLifecycle"), "callVerificationPhoto(data)", "bounded photo lifecycle calls use the dedicated photo helper");
 includes(functionSource(detailUi, "loadTeacherOrder"), 'name: "faceRecognition"', "teacher workspace remains on the business and face cloud function");
 assert.ok(!detailUi.includes("callFaceRecognition("), "photo detail UI must not route photo actions through faceRecognition");
-includes(detailUi, 'return "客户原始留存照"', "retained profile label");
-includes(detailUi, 'return "本次核销人脸照"', "current face label");
+includes(detailUi, 'teacherFace ? "老师登记照" : "客户原始留存照"', "retained profile label follows the recorded face subject");
+includes(detailUi, 'teacherFace ? "老师本次体验核销照" : "本次核销人脸照"', "current face label follows the recorded face subject");
 includes(detailUi, "Array.from({ length: 5 }", "five-card gallery");
 includes(detailUi, "slot >= 2", "immutable profile and face UI positions");
 includes(detailUi, "data-capture-verification-photo", "separate camera action");
@@ -398,7 +398,7 @@ includes(detailHtml, 'id="verificationPhotoCameraVideo" autoplay playsinline mut
 includes(detailHtml, 'id="switchVerificationPhotoCamera"', "front/rear camera switch action");
 includes(detailHtml, 'aria-label="切换前后摄像头"', "camera switch accessible name");
 includes(detailHtml, 'order-export.js?v=0.1.6', "export renderer cache bust");
-includes(detailHtml, 'business-detail.js?v=0.16.18', "detail script cache bust");
+includes(detailHtml, 'business-detail.js?v=0.16.19', "detail script cache bust");
 includes(detailHtml, 'styles.css?v=0.15.48', "detail styles cache bust");
 includes(styles, ".verification-order-keyfacts.verification-order-five-keyfacts", "desktop verification header keeps five flexible facts in one row");
 includes(styles, ".verification-order-store-message", "single full-width store message layout");
@@ -602,10 +602,10 @@ assert.deepEqual(
 );
 
 for (const page of ["customer-create.html", "recharge-create.html", "verification-create.html", "verification-experience.html"]) {
-  includes(read(page), "store-business.js?v=0.14.54", `${page} create script cache bust`);
+  includes(read(page), "store-business.js?v=0.14.55", `${page} create script cache bust`);
 }
 for (const page of ["teacher-recharge-create.html", "teacher-verification-create.html", "teacher-verification-experience.html"]) {
-  includes(read(page), "store-business.js?v=0.14.54", `${page} create script cache bust`);
+  includes(read(page), "store-business.js?v=0.14.55", `${page} create script cache bust`);
 }
 
 Promise.all([storageFallbackTestPromise, verificationSignTestPromise, localPreviewExportPromise])
