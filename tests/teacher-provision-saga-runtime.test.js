@@ -27,7 +27,7 @@ function fail(message, code = "BAD_REQUEST") {
   throw error;
 }
 
-assert.match(source, /const FUNCTION_VERSION = "v62"/);
+assert.match(source, /const FUNCTION_VERSION = "v63"/);
 assert.match(source, /const TEACHER_FACE_DELEGATION_TIMEOUT_MS = 60 \* 1000/);
 assert.match(source, /const TEACHER_FACE_TARGET_MAX_RUNTIME_MS = 90 \* 1000/);
 assert.match(source, /finalRollbackNotBefore - Date\.now\(\)/,

@@ -88,8 +88,9 @@ ROLLBACK;
 完成 049、050 后，按 [`051-README.md`](051-README.md) 的顺序独立执行
 `051-01` 至 `051-10`，最后运行只读 `051-readonly-verify.sql` 并确认全部 `READY`。
 这些分片在 Windows CRLF 下均小于 3,500 字节。051 必须先于
-`faceRecognition v75`／`staffAccount v62` 部署；部署时同时把函数超时分别固定为 90 秒／600 秒，
-并创建每 1 分钟一次的 `reconcile-teacher-face-operations` 平台 Timer。
+`faceRecognition v75`／`staffAccount v63` 部署；部署时同时把函数超时分别固定为 90 秒／600 秒，
+并确认名称为 `reconcile-teacher-face-operations`、Cron 为 `0 * * * * * *` 的平台 Timer。
+已有该每分钟配置时不需要修改；只有旧 5 分钟 Cron `0 */5 * * * * *` 才需更新。
 
 ## 052 老师 Auth 创建回执
 
@@ -97,8 +98,10 @@ ROLLBACK;
 `052-01-auth-create-receipt.sql`，再运行只读 `052-readonly-verify.sql`，确认 5 行
 全部为 `READY`。052 只在 051 操作租约上增加预绑定 UID 对应的实际
 `createUser` 回执 UID 和持久化时间，不改写历史业务数据。052 必须先于
-`staffAccount v62` 部署。两个回执列只能成对出现在已绑定 Auth UID 和所有权
-摘要的 `PROVISION` 操作上。
+`staffAccount v63` 部署。v63 在 `createUser` 精确返回预绑定的 `Data.Uid` 后立即
+保存回执并继续；只有响应不确定时才短时读回并以同一 `clientRequestId` 自动恢复
+原请求，不增加前台 90 秒等待。90 秒栅栏仅兼容 v59—v62 历史 tombstone。两个
+回执列只能成对出现在已绑定 Auth UID 和所有权摘要的 `PROVISION` 操作上。
 
 ### 048 在当前控制台报 `unterminated dollar-quoted string`
 

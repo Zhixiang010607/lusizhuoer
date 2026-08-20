@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v62";
+const FUNCTION_VERSION = "v63";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -36,11 +36,16 @@ const TEACHER_FACE_COMPENSATION_SETTLE_MS = 350;
 // deterministic UID.  Poll that exact UID instead of treating a single
 // sub-second read miss as an ambiguous account creation.
 const TEACHER_AUTH_CREATE_READBACK_DELAYS_MS = Object.freeze([
-  0, 250, 500, 1000, 2000, 4000, 6000
+  0, 250, 500, 1000
 ]);
-// No face, private-photo or business-profile mutation has started while Auth
-// ownership is unresolved.  Keep a short fence for a genuinely late Auth
-// commit, rather than reusing the 12-minute cross-service face-operation lease.
+// A truly ambiguous createUser response no longer sends a new teacher request
+// through the legacy 90-second cleanup tombstone.  The browser replays the
+// exact same request after this short pause; the durable RUNNING lease and a
+// deterministic HMAC owner make that replay the same Saga, not a second one.
+const TEACHER_AUTH_SAME_REQUEST_RETRY_SECONDS = 2;
+// Legacy v59-v62 rows may already be in an Auth-only CLEANUP_PENDING state.
+// Retain their 90-second reconciliation fence until those deployed rows have
+// drained; v63 ambiguities stay RUNNING and use same-request resume instead.
 const TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS = 90;
 // faceRecognition is deployed with a 90-second platform timeout. A timed-out
 // SDK invocation can therefore keep running after this function receives its
@@ -151,6 +156,26 @@ function teacherProvisionAuthenticationLease(operationId, ownerToken) {
 
 function teacherFaceOwnerTokenHash(ownerToken) {
   return crypto.createHash("sha256").update(String(ownerToken), "utf8").digest("hex");
+}
+
+const TEACHER_FACE_SAME_REQUEST_OWNER_VERSION = "teacher-face-owner-v63";
+const TEACHER_PROVISION_INVOCATION_ACTIVE_PREFIX = "V63_INVOCATION_ACTIVE:";
+const TEACHER_PROVISION_AUTH_RETRY_READY = "V63_AUTH_RETRY_READY";
+
+function teacherFaceSameRequestOwnerToken({ operationType, clientRequestId, phone,
+  teacherName, imageDigest, imageBytes, faceGroupId, photoBucketId, actorStaffId,
+  payloadSecretDigest }) {
+  // The raw API key and initial password never enter PostgreSQL or logs.  The
+  // API-key-derived HMAC is stable only for the exact normalized request, so a
+  // changed password/photo/name/actor cannot inherit a live operation lease.
+  return crypto.createHmac("sha256", teacherFaceDelegationSigningKey())
+    .update(JSON.stringify([
+      TEACHER_FACE_SAME_REQUEST_OWNER_VERSION,
+      String(operationType), String(clientRequestId), String(phone), String(teacherName),
+      String(imageDigest), String(imageBytes), String(faceGroupId), String(photoBucketId),
+      String(actorStaffId), String(payloadSecretDigest || "")
+    ]), "utf8")
+    .digest("hex");
 }
 
 function teacherFaceGroupId() {
@@ -3470,11 +3495,17 @@ async function assertTeacherFaceOperationLease(operation, allowedStatuses) {
 }
 
 async function acquireTeacherFaceOperation({ operationType, clientRequestId, phone,
-  teacherName, image, actorStaffId }) {
+  teacherName, image, actorStaffId, sameRequestPayloadSecretDigest = "" }) {
   const imageDigest = crypto.createHash("sha256").update(image.buffer).digest("hex");
   const faceGroupId = teacherFaceGroupId();
   const photoBucketId = teacherFacePhotoBucketId();
-  const ownerToken = crypto.randomBytes(32).toString("hex");
+  const ownerToken = operationType === "PROVISION" && sameRequestPayloadSecretDigest
+    ? teacherFaceSameRequestOwnerToken({
+      operationType, clientRequestId, phone, teacherName,
+      imageDigest, imageBytes: image.buffer.length, faceGroupId, photoBucketId,
+      actorStaffId, payloadSecretDigest: sameRequestPayloadSecretDigest
+    })
+    : crypto.randomBytes(32).toString("hex");
   const ownerTokenHash = teacherFaceOwnerTokenHash(ownerToken);
   let rows;
   try {
@@ -3537,6 +3568,14 @@ async function acquireTeacherFaceOperation({ operationType, clientRequestId, pho
     imageDigest,
     imageBytes: image.buffer.length
   };
+  // A fresh PROVISION immediately performs the single-invocation CAS below.
+  // That CAS independently reads and verifies the same row before any Auth,
+  // profile or face write, so an extra pre-CAS read would only add latency.
+  if (operationType === "PROVISION" && operation.status === "RUNNING") {
+    operation.faceGroupId = faceGroupId;
+    operation.photoBucketId = photoBucketId;
+    return operation;
+  }
   operation.row = await assertTeacherFaceOperationLease(operation, [operation.status]);
   operation.faceGroupId = String(operation.row.face_group_id || "");
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(operation.faceGroupId)) {
@@ -3546,6 +3585,94 @@ async function acquireTeacherFaceOperation({ operationType, clientRequestId, pho
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(operation.photoBucketId)) {
     fail("老师人脸操作租约缺少有效的私有照片桶编号。", "TEACHER_FACE_OPERATION_LEASE_FAILED");
   }
+  return operation;
+}
+
+async function claimTeacherProvisionInvocation(operation) {
+  if (String(operation?.status || "") !== "RUNNING") return operation;
+  const previousGeneration = numericId(operation.leaseGeneration, "老师人脸租约版本");
+  const invocationCode = `${TEACHER_PROVISION_INVOCATION_ACTIVE_PREFIX}${crypto.randomBytes(32).toString("hex")}`;
+  let writeError = null;
+  try {
+    await executeSql(
+      `UPDATE public.teacher_face_operations AS target
+        SET error_code = ${sqlText(invocationCode)},
+            error_message = NULL,
+            lease_generation = target.lease_generation + 1,
+            lease_expires_at = CLOCK_TIMESTAMP() + make_interval(secs => ${TEACHER_FACE_OPERATION_LEASE_SECONDS}),
+            updated_at = CLOCK_TIMESTAMP()
+      WHERE target.id = ${numericId(operation.id, "老师人脸操作")}::bigint
+        AND target.operation_type = 'PROVISION'
+        AND target.operation_status = 'RUNNING'
+        AND target.owner_token_sha256 = ${sqlText(operation.ownerTokenHash)}
+        AND target.lease_generation = ${previousGeneration}::bigint
+        AND target.lease_expires_at > CLOCK_TIMESTAMP()
+        AND COALESCE(target.error_code, '') IN ('', ${sqlText(TEACHER_PROVISION_AUTH_RETRY_READY)})
+      RETURNING target.lease_generation`
+    );
+  } catch (error) {
+    writeError = error;
+  }
+  const current = await readTeacherFaceOperation(operation.id);
+  const claimed = current
+    && String(current.operation_status || "") === "RUNNING"
+    && String(current.owner_token_sha256 || "") === String(operation.ownerTokenHash)
+    && Number(current.lease_generation) === previousGeneration + 1
+    && String(current.error_code || "") === invocationCode
+    && String(current.face_group_id || "") === String(operation.faceGroupId || "")
+    && String(current.photo_bucket_id || "") === String(operation.photoBucketId || "")
+    && teacherOperationLeaseRetryAfterSeconds(current) > 0;
+  if (!claimed) {
+    const invocationInProgress = String(current?.operation_status || "") === "RUNNING"
+      && String(current?.owner_token_sha256 || "") === String(operation.ownerTokenHash)
+      && String(current?.error_code || "").startsWith(TEACHER_PROVISION_INVOCATION_ACTIVE_PREFIX);
+    const error = new Error(
+      invocationInProgress
+        ? "同一老师创建请求正在另一个云函数实例中处理；本次没有启动第二条创建流程。"
+        : "老师创建请求的单执行租约已变化；本次没有继续写入。"
+    );
+    error.code = invocationInProgress
+      ? "TEACHER_PROVISION_INVOCATION_IN_PROGRESS"
+      : "TEACHER_FACE_OPERATION_LEASE_LOST";
+    error.operationId = String(operation.id);
+    error.causeCode = writeError?.code || undefined;
+    throw error;
+  }
+  operation.leaseGeneration = Number(current.lease_generation);
+  operation.invocationCode = invocationCode;
+  operation.row = current;
+  return operation;
+}
+
+async function markTeacherProvisionAuthRetryReady(operation) {
+  if (!String(operation?.invocationCode || "").startsWith(TEACHER_PROVISION_INVOCATION_ACTIVE_PREFIX)) {
+    fail("老师创建请求缺少本次执行标记。", "TEACHER_FACE_OPERATION_LEASE_LOST");
+  }
+  let writeError = null;
+  try {
+    await executeSql(
+      `UPDATE public.teacher_face_operations AS target
+        SET error_code = ${sqlText(TEACHER_PROVISION_AUTH_RETRY_READY)},
+            error_message = 'Auth create result is ambiguous; same-request resume is ready.',
+            updated_at = CLOCK_TIMESTAMP()
+      WHERE target.id = ${numericId(operation.id, "老师人脸操作")}::bigint
+        AND target.operation_type = 'PROVISION'
+        AND target.operation_status = 'RUNNING'
+        AND target.owner_token_sha256 = ${sqlText(operation.ownerTokenHash)}
+        AND target.lease_generation = ${numericId(operation.leaseGeneration, "老师人脸租约版本")}::bigint
+        AND target.error_code = ${sqlText(operation.invocationCode)}
+        AND target.lease_expires_at > CLOCK_TIMESTAMP()
+      RETURNING target.lease_generation`
+    );
+  } catch (error) {
+    writeError = error;
+  }
+  operation.row = await assertTeacherFaceOperationLease(operation, ["RUNNING"]);
+  if (String(operation.row.error_code || "") !== TEACHER_PROVISION_AUTH_RETRY_READY) {
+    if (writeError) throw writeError;
+    fail("老师创建请求未能安全进入同请求续办状态。", "TEACHER_FACE_OPERATION_LEASE_LOST");
+  }
+  operation.invocationCode = "";
   return operation;
 }
 
@@ -4481,7 +4608,9 @@ async function provisionTeacherWithFace(caller, event = {}) {
   const actorStaffId = numericId(caller.profile.staffId, "总部账号");
   const faceOperation = await acquireTeacherFaceOperation({
     operationType: "PROVISION", clientRequestId, phone,
-    teacherName: staffName, image, actorStaffId
+    teacherName: staffName, image, actorStaffId,
+    sameRequestPayloadSecretDigest: crypto.createHash("sha256")
+      .update(password, "utf8").digest("hex")
   });
   if (faceOperation.status === "CLEANUP_PENDING") {
     await reconcileExpiredTeacherProvisionOperation(faceOperation, phone, actorStaffId);
@@ -4489,6 +4618,9 @@ async function provisionTeacherWithFace(caller, event = {}) {
     error.code = "TEACHER_FACE_STALE_OPERATION_CLEANED";
     error.cleanupComplete = true;
     throw error;
+  }
+  if (faceOperation.status === "RUNNING") {
+    await claimTeacherProvisionInvocation(faceOperation);
   }
 
   let existing = null;
@@ -4556,7 +4688,8 @@ async function provisionTeacherWithFace(caller, event = {}) {
   if (faceOperation.status === "SUCCEEDED") {
     const operationRow = await assertTeacherFaceOperationLease(faceOperation, ["SUCCEEDED"]);
     const replayUid = String(operationRow.auth_uid || existing?.auth_uid || "");
-    if (!existing || !replayUid
+    if (String(operationRow.auth_owner_token_sha256 || "") !== faceOperation.ownerTokenHash
+        || !existing || !replayUid
         || String(operationRow.staff_id || "") !== String(existing.staff_id || "")
         || String(operationRow.teacher_id || "") !== String(existing.teacher_id || "")
         || String(operationRow.person_id || "") !== facePersonId) {
@@ -4722,13 +4855,11 @@ async function provisionTeacherWithFace(caller, event = {}) {
         ).slice(0, 300) || undefined;
         throw incomplete;
       }
-      if (!authUser && createError && isDuplicateAuthError(createError)) {
-        const duplicate = new Error("认证系统明确报告该确定性账号已经存在，但当前账号不可权威读回；请先核对认证用户，系统不会重复创建。");
-        duplicate.code = "AUTH_ACCOUNT_ALREADY_EXISTS";
-        duplicate.causeCode = cloudErrorDetails(createError).code || undefined;
-        duplicate.causeMessage = cloudErrorDetails(createError).message || undefined;
-        throw duplicate;
-      }
+      // A duplicate response is not proof that an unrelated user owns this
+      // deterministic UID. The previous identical createUser attempt may have
+      // committed while the exact UID is still absent from the read replica.
+      // Keep RUNNING and replay the same request below; only a user that is
+      // actually read back with a mismatched lease becomes ALREADY_EXISTS.
       if (!authUser && createError && teacherAuthCreateDefinitelyRejected(createError)) {
         const rejected = new Error("认证账号创建被服务端明确拒绝，未进入后台不确定等待；请按错误原因修正配置或输入后重试。");
         rejected.code = "AUTH_CREATE_REJECTED";
@@ -4744,23 +4875,21 @@ async function provisionTeacherWithFace(caller, event = {}) {
           faceOperation, requestedAuthUid, uid
         );
       } else {
-        const pending = new Error("老师认证账号仍在后台确认中；系统将在约 2 分钟内自动核对并解除本次操作锁，请勿重复提交。");
-        pending.code = "TEACHER_PROVISION_COMPENSATION_PENDING";
+        const pending = new Error("认证账号创建响应暂未确认；系统将使用同一请求编号继续核对，请勿生成新请求。");
+        pending.code = "TEACHER_AUTH_CREATE_RETRY_SAME_REQUEST";
         pending.stage = "AUTH_CREATE_OWNERSHIP";
         pending.operationId = String(faceOperation.id);
-        pending.retryAfterSeconds = TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS;
+        pending.retryAfterSeconds = TEACHER_AUTH_SAME_REQUEST_RETRY_SECONDS;
+        pending.retrySameRequest = true;
         // createUser may have committed while its response/read replica is
-        // delayed.  Preserve a short Auth-only tombstone; the long face-service
-        // fence is unnecessary because no face, photo or profile call has begun.
+        // delayed. Keep the operation RUNNING: the deterministic owner token
+        // lets the exact request safely re-enter this generation and read the
+        // exact UID before deciding whether createUser needs another attempt.
         pending.authCreationUncertain = true;
         pending.causeCode = createError?.code || readback.lastError?.code || undefined;
         pending.causeMessage = String(
           createError?.message || readback.lastError?.message || ""
         ).slice(0, 300) || undefined;
-        pending.cleanupPending = [{
-          stage: "AUTH_OWNERSHIP_READBACK", code: "AUTH_LEASE_UNCONFIRMED",
-          message: `认证 UID ${requestedAuthUid} 的请求租约尚未确认；短期安全栅栏期间禁止覆盖或删除。`
-        }];
         throw pending;
       }
     }
@@ -4776,8 +4905,18 @@ async function provisionTeacherWithFace(caller, event = {}) {
     previous: { faceEnrollmentStatus: "PENDING" }
   });
   } catch (error) {
+    if (error?.authCreationUncertain && error?.retrySameRequest) {
+      // Unlike v59-v62, a fresh v63 ambiguity is not a cleanup request.  Prove
+      // that this invocation still owns the live generation, then return a
+      // retry instruction without cancelling, deleting or changing BLOCKED.
+      await markTeacherProvisionAuthRetryReady(faceOperation);
+      throw error;
+    }
     let cancellationError = null;
     try {
+      // Compatibility only: rows produced by v59-v62 already entered the
+      // 90-second CLEANUP_PENDING fence and remain safe for the old Timer/status
+      // reconciler. New v63 ambiguity never takes this branch.
       if (error?.authCreationUncertain) {
         await transitionTeacherFaceOperation(faceOperation, "RUNNING", "CLEANUP_PENDING", { error });
         try {
@@ -6228,7 +6367,11 @@ async function main(event = {}, context = {}) {
       teacherAuthCreateReceiptFastPath: true,
       teacherAuthCreateReadbackWindowMs: TEACHER_AUTH_CREATE_READBACK_DELAYS_MS
         .reduce((sum, value) => sum + value, 0),
-      teacherAuthUncertaintyFenceSeconds: TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS
+      teacherAuthUncertaintyFenceSeconds: TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS,
+      sameRequestResume: true,
+      teacherAuthSameRequestResume: true,
+      teacherAuthSameRequestRetrySeconds: TEACHER_AUTH_SAME_REQUEST_RETRY_SECONDS,
+      teacherProvisionSingleInvocationGuard: true
     };
   }
   const caller = await currentUser(false);
@@ -6940,6 +7083,7 @@ exports.main = async (event = {}, context = {}) => {
       cleanupComplete: error?.cleanupComplete === true || undefined,
       cleanupPending: Array.isArray(error?.cleanupPending) ? error.cleanupPending : undefined,
       operationId: error?.operationId || undefined,
+      retrySameRequest: error?.retrySameRequest === true || undefined,
       retryAfterSeconds: Number.isFinite(Number(error?.retryAfterSeconds))
         ? Number(error.retryAfterSeconds) : undefined,
       message: error?.message || "员工账号服务暂不可用，请稍后重试"

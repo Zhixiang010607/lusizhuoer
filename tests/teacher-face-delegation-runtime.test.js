@@ -473,6 +473,7 @@ function imageData(bytes) {
         id: "52", ownerToken: "cd".repeat(32), leaseGeneration: 1,
         imageDigest: "34".repeat(32), imageBytes: 4, status: "RUNNING"
       }),
+      claimTeacherProvisionInvocation: async (operation) => operation,
       transitionTeacherFaceOperation: async (operation, _expected, next) => {
         operation.status = next;
       },

@@ -14,49 +14,19 @@ const teacherManagementHtml = read("teacher-management.html");
 const teacherManagement = read("teacher-management.js");
 const legacyTeacherDetail = read("teacher-detail.html");
 
-function sourceBetween(name, nextName) {
-  const start = staffDetail.indexOf(`function ${name}`);
-  const end = nextName ? staffDetail.indexOf(`function ${nextName}`, start + 1) : staffDetail.length;
-  assert.ok(start >= 0 && end > start, `${name} must remain a distinct staff-detail handler`);
-  return staffDetail.slice(start, end);
-}
-
 assert.match(staffDetail, /params\.get\("id"\) \|\| params\.get\("teacherId"\) \|\| params\.get\("teacherCode"\)/,
   "new teacher home must accept compatibility deep links");
 assert.match(staffDetail, /item\.teacher_code, item\.person_code/,
   "teacher home must resolve legacy teacher-code links");
 
-const faceControlSync = sourceBetween("syncTeacherFaceUpdateControls", "clearTeacherFaceUpdate");
-const faceOpener = sourceBetween("openTeacherFaceUpdate", "closeTeacherFaceUpdate");
-assert.doesNotMatch(faceControlSync, /isStaffArchived\(\)/,
-  "archiving must not disable HQ face-profile maintenance");
-assert.doesNotMatch(faceOpener, /isStaffArchived\(\)\) return/,
-  "archiving must not silently block opening the face form");
-assert.match(staffDetail, /老师当前处于封存状态，补录不会恢复登录/,
-  "archived-face workflow must say that face changes do not reactivate login");
-assert.match(staffDetail, /faceAction\.disabled = !teacherId\(\)/,
-  "face action must depend only on a usable teacher identity");
-assert.doesNotMatch(staffDetail.slice(staffDetail.indexOf('$("teacherFaceUpdateForm")'), staffDetail.indexOf('$("teacherExperienceConfigForm")')),
-  /isStaffArchived\(\)/,
-  "face submission must remain available for an archived teacher");
-assert.match(staffDetailHtml, /teacherFaceUpdateCamera[\s\S]*?captureTeacherFaceUpdate/,
-  "teacher face replacement must use the same camera-first capture interaction as customer enrollment");
-assert.doesNotMatch(staffDetailHtml, /teacherFaceUpdateFile|type="file"/,
-  "teacher face replacement must not bypass capture validation through a file upload");
-assert.match(staffDetail, /navigator\.mediaDevices\?\.getUserMedia/,
-  "teacher face replacement must request a live camera capture");
-assert.match(staffDetail, /action:\s*["']validateTeacherFaceEnrollmentCapture["']/,
-  "teacher face replacement must use the dedicated HQ quality/liveness preflight");
-assert.match(staffDetail, /outputHeight = Math\.round\(Math\.min\(sourceHeight, 1024\)\)/,
-  "teacher face replacement must use the customer enrollment crop size");
-assert.match(staffDetail, /qualityThreshold[\s\S]{0,220}liveness\.threshold/,
-  "teacher face replacement must show quality and liveness thresholds returned by the preflight");
-assert.match(staffDetail, /LIVENESS_FAILED[\s\S]{0,250}FACE_NOT_FOUND/,
-  "teacher face replacement must distinguish liveness and capture-quality failures");
-assert.match(staffDetail, /teacherFaceUpdate\.validated/,
-  "teacher face replacement must require a locally validated capture before saving");
-assert.match(staffDetail, /teacherFaceUpdate\.requestId \|\|= requestId\("teacher_face_update"\)/,
-  "a validated teacher capture must retain one request id for retry-safe saving");
+assert.doesNotMatch(staffDetailHtml, /staffFaceAction|teacherFaceUpdatePanel|teacherFaceUpdateCamera|保存人脸/,
+  "the standard teacher home must not expose a second face capture or replacement workflow");
+assert.doesNotMatch(staffDetail, /teacherFaceUpdate|staffFaceAction|getUserMedia|upsertTeacherFace/,
+  "teacher-home JavaScript must not retain hidden camera or face-replacement handlers");
+assert.match(staffDetail, /已登记 · 用于体验核销/,
+  "teacher home may show the creation-time enrollment state as read-only information");
+assert.match(staffDetail, /不用于登录[\s\S]{0,120}普通核销不要求老师再次识别/,
+  "teacher home must explain the exact limited purpose of the creation-time face");
 assert.match(teacherCreateScript, /outputHeight = Math\.round\(Math\.min\(sourceHeight, 1024\)\)/,
   "required creation-time enrollment must use the customer enrollment crop size");
 assert.match(teacherCreateScript, /qualityThreshold[\s\S]{0,220}liveness\.threshold/,
@@ -92,9 +62,9 @@ for (const file of ["query.js", "management.js", "detail.js"]) {
 
 assert.match(staffDetailHtml, /cloudbase-phone-auth\.js\?v=0\.18\.1/,
   "teacher home must refresh the shared cloud-function client");
-assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.4/,
+assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.5/,
   "teacher home must refresh its action handlers");
-assert.match(teacherCreateHtml, /teacher-create\.js\?v=0\.2\.7/,
+assert.match(teacherCreateHtml, /teacher-create\.js\?v=0\.2\.8/,
   "teacher creation must refresh the mandatory-face UI");
 assert.match(teacherManagementHtml, /teacher-management\.js\?v=0\.14\.28/,
   "teacher directory must refresh links into the current home");

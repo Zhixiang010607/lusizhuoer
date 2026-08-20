@@ -136,20 +136,20 @@ assert.match(deleteQuota, /SET quota_status = 'ARCHIVED'/,
 assert.match(deleteQuota, /event_type[\s\S]{0,360}'REMOVED'/,
   "deleted configuration must retain its immutable removal event");
 
-// The HQ UI exposes all necessary actions, but with different gates: face
-// maintenance is allowed while archived; business quota writes are not.
+// The standard teacher home exposes account and quota actions, but never a
+// second face-capture workflow. Creation-time enrollment is read-only here.
 for (const id of [
-  "staffFaceAction", "staffCredentialAction", "staffStatusAction",
-  "openTeacherFaceUpdateCamera", "captureTeacherFaceUpdate", "saveTeacherFaceUpdate",
+  "staffCredentialAction", "staffStatusAction",
   "saveTeacherExperienceConfig", "saveTeacherExperienceRecharge"
 ]) {
   assert.ok(read("staff-detail.html").includes(`id=\"${id}\"`), `teacher detail must expose ${id}`);
 }
-const faceControls = jsBetween(detailUi, "function syncTeacherFaceUpdateControls", "function clearTeacherFaceUpdate");
-assert.doesNotMatch(faceControls, /isStaffArchived\(\)/,
-  "archiving must not prevent HQ from adding/replacing an optional teacher face");
-assert.match(detailUi, /faceAction\.disabled = !teacherId\(\)/,
-  "face action must only depend on a usable teacher master identity");
+assert.doesNotMatch(read("staff-detail.html"), /staffFaceAction|teacherFaceUpdatePanel|teacherFaceUpdateCamera/,
+  "teacher detail must not expose face add, retake or replacement controls");
+assert.doesNotMatch(detailUi, /teacherFaceUpdate|staffFaceAction|getUserMedia|upsertTeacherFace/,
+  "teacher detail scripts must not keep a hidden face maintenance route");
+assert.match(detailUi, /已登记 · 用于体验核销/,
+  "teacher detail must retain a read-only enrollment status for experience verification");
 const quotaGuard = jsBetween(detailUi, "function canManageTeacherExperience", "function teacherId");
 assert.match(quotaGuard, /isStaffArchived\(\)[\s\S]{0,260}不能配置、删除或充值/,
   "archived teachers must be explicitly read-only for configuration, deletion and top-up");
@@ -171,8 +171,9 @@ assert.match(detailUi, /teacher_experience_recharge|teacherExperienceRecharge/,
   "independent teacher top-up must keep its own idempotency request lifecycle");
 
 // New teachers must be face-bound.  This does not change legacy activation:
-// old PENDING/no-photo teachers can still be restored and then supplement a
-// face in the detail page, but no generic provisioning route may create one.
+// old PENDING/no-photo teachers can still be restored, while the exceptional
+// backend repair path remains out of the standard UI. No generic provisioning
+// route may create a new teacher without a face.
 const genericProvision = staff.slice(
   staff.indexOf('if (action === "provisionStaff")'),
   staff.indexOf('if (action === "createStoreWithAccount")', staff.indexOf('if (action === "provisionStaff")'))
@@ -196,8 +197,8 @@ assert.match(createUi, /Boolean\(capturedFaceImage\)[\s\S]{0,300}Boolean\(\$\("t
   "submit enablement must require a captured face, consent and completed quality/liveness validation");
 assert.doesNotMatch(createUi, /window\.CloudBasePhoneAuth\.provisionTeacher\(\{ staffName: name, phone, initialPassword \}\)/,
   "new-teacher UI must never call the generic no-face provisioning API");
-assert.match(createUi, /await window\.CloudBasePhoneAuth\.provisionTeacherWithFace\(\{[\s\S]{0,400}consent: true/,
-  "new-teacher UI must use the atomic face-bound provisioning API only");
+assert.match(createUi, /const provisionInput = \{[\s\S]{0,400}consent: true[\s\S]{0,120}provisionTeacherWithAutomaticResume\(provisionInput\)/,
+  "new-teacher UI must use the retry-safe atomic face-bound provisioning API only");
 assert.match(phoneAuth, /async provisionTeacherWithFace\(\{ staffName, phone, initialPassword, faceImageBase64, clientRequestId, consent = false \}\)/,
   "shared auth client must retain the dedicated face-bound teacher provisioning API");
 

@@ -113,12 +113,12 @@ v75 与 `verificationPhoto v4` 共享同一份经过权限校验的照片服务�
 1. 在完整 PostgreSQL migration 工具中执行 `database/migrations/039_direct_verification_photo_upload.sql`；腾讯云 SQL 编辑器则依次单独执行 `039-01`、`039-02`、`039-03`、`039-04`、`039-05`。
 2. 执行 `database/migrations/040_fix_verification_photo_commit_ambiguity.sql`；腾讯云 SQL 编辑器只需执行一次 `040-01-fix-verification-photo-commit-ambiguity.sql`。已经完成 039 的生产库不要重跑 039。
 3. 完成 046、总部封锁旧运营凭据、047 和 048 后，依次执行 `049-01` 至 `049-13`，再运行 `049-readonly-verify.sql`，全部必须为 `READY`。049 是向前迁移，不要修改或重跑生产已执行的 048。
-4. 执行迁移 050 的 7 段控制台 SQL并确认只读验收全部 `READY`；随后在腾讯云 SQL 编辑器依次执行 `database/cloudbase-console/051-01` 至 `051-10`，最后执行 `051-readonly-verify.sql`，每一项都必须为 `READY`。051 必须先于 `teacher-face-v3` 两个云函数发布。
-5. 将 `faceRecognition` 执行超时精确设为 **90 秒且不得更高**，将 `staffAccount` 执行超时设为 **600 秒**；部署 `faceRecognition-v75.zip` 和 `staffAccount v61`，分别调用 `health` 确认版本；再新建或更新名称精确为 `verificationPhoto` 的函数并部署 `verificationPhoto-v4.zip`。三个函数必须属于同一环境并使用一致的私有照片桶配置。
-6. 在 `staffAccount` 配置名称精确为 `reconcile-teacher-face-operations` 的每 1 分钟 Timer；它负责接管 051 中过期的 `RUNNING`／`CANCELLED`／`CLEANUP_PENDING` 操作，并在认证专用 90 秒短栅栏后处理尚未进入人脸服务的账号创建不确定操作。触发器 JSON 与可信 Timer 校验要求见 `../staffAccount/README.md`，不要把它配置在本函数上。
+4. 执行迁移 050 的 7 段控制台 SQL并确认只读验收全部 `READY`；随后在腾讯云 SQL 编辑器依次执行 `database/cloudbase-console/051-01` 至 `051-10` 和 `052-01-auth-create-receipt.sql`，最后分别执行 051／052 只读验收，每一项都必须为 `READY`。051／052 必须先于当前老师创建云函数发布。
+5. 将 `faceRecognition` 执行超时精确设为 **90 秒且不得更高**，将 `staffAccount` 执行超时设为 **600 秒**；部署 `faceRecognition-v75.zip` 和 `staffAccount v63`，分别调用 `health` 确认版本；再新建或更新名称精确为 `verificationPhoto` 的函数并部署 `verificationPhoto-v4.zip`。三个函数必须属于同一环境并使用一致的私有照片桶配置。
+6. 在 `staffAccount` 配置名称精确为 `reconcile-teacher-face-operations` 的每 1 分钟 Timer；它负责接管 051 中真正过期的 `RUNNING`／`CANCELLED`／`CLEANUP_PENDING` 操作，并兼容 v59—v62 已存在的认证专用 90 秒历史墓碑。v63 新建老师不再让前台等待该栅栏。触发器 JSON 与可信 Timer 校验要求见 `../staffAccount/README.md`，不要把它配置在本函数上。
 7. 调用 `verificationPhoto` 的 `health`，确认版本与全部就绪字段后，再发布当前静态前端并结束停写窗口；发布后强制刷新浏览器。
 
-当前老师体验人脸上线顺序简化为“确认 048 已完成 → 049 → 050 → 051-01..10 → 051 只读验收 → 函数超时 90／600 秒 → `faceRecognition v75`／`staffAccount v61`／`verificationPhoto v4` → 老师人脸每 1 分钟恢复 Timer → 三个 `health` → 当前静态前端 → 强制刷新浏览器”。不要先发布依赖 049／050／051 的云函数或前端，也不要混用 v1/v2 与 v3 委托。
+当前老师体验人脸上线顺序简化为“确认 048 已完成 → 049 → 050 → 051-01..10 → 051 只读验收 → 052-01 → 052 只读验收 → 函数超时 90／600 秒 → `faceRecognition v75`／`staffAccount v63`／`verificationPhoto v4` → 老师人脸每 1 分钟恢复 Timer → 三个 `health` → 当前静态前端 → 强制刷新浏览器”。不要先发布依赖 049／050／051／052 的云函数或前端，也不要混用旧版委托。
 
 部署后测试：
 

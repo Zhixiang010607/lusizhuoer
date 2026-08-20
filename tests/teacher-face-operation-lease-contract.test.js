@@ -1,6 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
@@ -49,16 +50,46 @@ assert.match(authCreateReceiptMigration,
 assert.ok(fs.existsSync(path.join(consoleDir, "052-01-auth-create-receipt.sql")));
 assert.ok(fs.existsSync(path.join(consoleDir, "052-readonly-verify.sql")));
 
-assert.match(staff, /const ownerToken = crypto\.randomBytes\(32\)\.toString\("hex"\)/,
-  "each invocation needs an unpredictable, non-idempotency-derived owner token");
-assert.match(staff, /error\?\.authCreationUncertain[\s\S]*"RUNNING", "CLEANUP_PENDING"/,
-  "a lost createUser response must remain an open cleanup tombstone");
-assert.match(staff, /TEACHER_AUTH_CREATE_READBACK_DELAYS_MS = Object\.freeze\(\[[\s\S]*6000/,
-  "Auth ownership must use bounded delayed readback rather than one immediate probe");
+assert.match(staff,
+  /const ownerToken = operationType === "PROVISION" && sameRequestPayloadSecretDigest[\s\S]{0,520}teacherFaceSameRequestOwnerToken\([\s\S]{0,420}: crypto\.randomBytes\(32\)\.toString\("hex"\)/,
+  "PROVISION must use a deterministic exact-request owner while UPSERT/takeover retains a random owner");
+assert.match(staff,
+  /function teacherFaceSameRequestOwnerToken[\s\S]{0,900}crypto\.createHmac\("sha256", teacherFaceDelegationSigningKey\(\)\)[\s\S]{0,700}payloadSecretDigest/,
+  "the same-request owner must be an API-key-backed HMAC over the normalized payload and password digest");
+assert.match(staff,
+  /sameRequestPayloadSecretDigest: crypto\.createHash\("sha256"\)[\s\S]{0,120}\.update\(password, "utf8"\)\.digest\("hex"\)/,
+  "the initial password must bind the deterministic owner without entering the durable operation row");
+const sameRequestCatch = between(
+  staff,
+  "if (error?.authCreationUncertain && error?.retrySameRequest)",
+  "\n    let cancellationError = null;"
+);
+assert.match(sameRequestCatch, /markTeacherProvisionAuthRetryReady\(faceOperation\)/,
+  "a lost createUser response must atomically release ACTIVE before authorizing same-request replay");
+assert.doesNotMatch(sameRequestCatch, /transitionTeacherFaceOperation|deleteTeacherProvisioningAuthentication/,
+  "v63 same-request resume must not cancel, tombstone or delete the account");
+assert.match(staff,
+  /TEACHER_PROVISION_INVOCATION_ACTIVE_PREFIX = "V63_INVOCATION_ACTIVE:"[\s\S]*async function claimTeacherProvisionInvocation[\s\S]{0,500}crypto\.randomBytes\(32\)\.toString\("hex"\)[\s\S]{0,900}lease_generation = target\.lease_generation \+ 1[\s\S]{0,900}COALESCE\(target\.error_code, ''\) IN \('', \$\{sqlText\(TEACHER_PROVISION_AUTH_RETRY_READY\)\}\)/,
+  "the single-invocation claim must be a generation CAS available only to fresh or explicitly READY work");
+assert.match(staff,
+  /async function claimTeacherProvisionInvocation[\s\S]{0,3200}String\(current\.error_code \|\| ""\) === invocationCode[\s\S]{0,1100}operation\.invocationCode = invocationCode/,
+  "a lost CAS response may be accepted only after an independent exact nonce readback");
+assert.match(staff,
+  /async function markTeacherProvisionAuthRetryReady[\s\S]{0,900}target\.error_code = \$\{sqlText\(operation\.invocationCode\)\}/,
+  "only the active invocation may publish the server-authorized retry state");
+assert.match(staff,
+  /TEACHER_AUTH_CREATE_READBACK_DELAYS_MS = Object\.freeze\(\[\s*0, 250, 500, 1000\s*\]\)/,
+  "Auth ownership readback must be bounded to the short 1.75-second window");
 assert.match(staff, /TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS = 90/,
   "Auth-only uncertainty must not inherit the 12-minute face-service fence");
 assert.match(staff, /teacherAuthCreateReceiptFastPath: true/,
-  "health must distinguish the v62 exact createUser receipt fast path in production");
+  "health must distinguish the exact createUser receipt fast path in production");
+assert.match(staff, /teacherAuthSameRequestResume: true/,
+  "v63 health must advertise exact-request automatic resume");
+assert.match(staff, /teacherAuthSameRequestRetrySeconds: TEACHER_AUTH_SAME_REQUEST_RETRY_SECONDS/,
+  "v63 health must expose the short same-request retry interval");
+assert.match(staff, /teacherProvisionSingleInvocationGuard: true/,
+  "health must advertise the v63 single-invocation CAS guard");
 assert.match(staff, /makeTeacherAuthOwnershipUncertaintyCleanupEligible\(operationId\)[\s\S]*takeoverTeacherFaceOperationCleanup\(operationId\)/,
   "the trusted reconciler must safely release legacy Auth-only tombstones after the short fence");
 assert.match(staff,
@@ -70,13 +101,16 @@ assert.match(staff, /if \(action === "getTeacherFaceOperationStatus"\)[\s\S]{0,1
   "HQ must be able to poll the durable operation without replaying creation");
 assert.match(staff, /retryAllowed: cleanupComplete && status !== "SUCCEEDED"/,
   "a successful operation must never tell the client to submit the same teacher again");
-assert.match(staff, /operationId: error\?\.operationId[\s\S]{0,180}retryAfterSeconds/,
-  "the safe pending response must expose only the operation id and bounded retry delay");
+assert.match(staff, /operationId: error\?\.operationId[\s\S]{0,180}retrySameRequest:[\s\S]{0,180}retryAfterSeconds/,
+  "the safe pending response must expose operation id, same-request instruction and bounded retry delay");
 assert.match(staff, /teacherAuthCreateDefinitelyRejected\(createError\)[\s\S]{0,360}AUTH_CREATE_REJECTED/,
   "a definite Auth validation or authority rejection must not enter the ambiguous 90-second fence");
 const provisionAuthSource = between(
   staff, "async function provisionTeacherWithFace", "\n\n// Face enrollment is deliberately independent"
 );
+assert.ok(provisionAuthSource.indexOf("await claimTeacherProvisionInvocation(faceOperation)")
+  < provisionAuthSource.indexOf("FROM public.staff_accounts a"),
+"the invocation CAS must complete before any teacher profile, Auth or face work starts");
 const receiptUidPosition = provisionAuthSource.indexOf("const returnedUid =");
 const persistReceiptPosition = provisionAuthSource.indexOf(
   "confirmTeacherAuthenticationCreateReceipt(", receiptUidPosition
@@ -94,6 +128,12 @@ assert.ok(receiptUidPosition >= 0
   "a fulfilled create receipt must be persisted and validated before only the uncertain branch polls Auth");
 assert.match(provisionAuthSource.slice(receiptUidPosition, uncertainReadbackPosition), /authCreated = true/,
   "an exact createUser receipt must bypass discovery polling; only an uncertain response may poll Auth");
+assert.doesNotMatch(provisionAuthSource,
+  /if \(!authUser && createError && isDuplicateAuthError\(createError\)\)[\s\S]{0,500}AUTH_ACCOUNT_ALREADY_EXISTS/,
+  "a duplicate response plus a stale exact-UID read is not proof of an unrelated account; it must resume the same request");
+assert.match(provisionAuthSource,
+  /faceOperation\.status === "SUCCEEDED"[\s\S]{0,300}operationRow\.auth_owner_token_sha256[\s\S]{0,100}faceOperation\.ownerTokenHash[\s\S]{0,500}TEACHER_FACE_OPERATION_REPLAY_MISMATCH/,
+  "SUCCEEDED replay must bind the stored Auth owner to the exact HMAC request payload");
 assert.match(staff, /if \(!completedBefore && !authCreated\)[\s\S]{0,180}blockTeacherAuthentication/,
   "an account atomically created BLOCKED must not be redundantly queried, blocked and queried again");
 assert.match(staff,
@@ -153,8 +193,51 @@ assert.ok(fs.existsSync(path.join(consoleDir, "051-readonly-verify.sql")));
   assert.equal(api.teacherAuthCreateDefinitelyRejected({ code: "EXCEED_AUTHORITY", status: 429 }), false,
     "a rate-limit result must never unlock the operation early");
   assert.equal(api.isDuplicateAuthError({ code: "FailedOperation.DuplicatedData" }), true);
+  assert.equal(api.teacherAuthCreateDefinitelyRejected({
+    code: "FailedOperation.DuplicatedData"
+  }), false, "a duplicate result may be a delayed receipt from this deterministic request");
   assert.equal(api.isDuplicateAuthError({ code: "HTTP_503", status: 503, message: "duplicate request" }), false,
     "free-form duplicate text in an uncertain transport wrapper is not ownership proof");
+}
+
+{
+  const sandbox = {
+    module: { exports: {} },
+    crypto,
+    teacherFaceDelegationSigningKey: () => Buffer.from("same-request-test-key", "utf8")
+  };
+  vm.createContext(sandbox);
+  const ownerSource = between(
+    staff,
+    "const TEACHER_FACE_SAME_REQUEST_OWNER_VERSION",
+    "\n\nfunction teacherFaceGroupId"
+  );
+  vm.runInContext(
+    `${ownerSource}\nmodule.exports = teacherFaceSameRequestOwnerToken;`, sandbox
+  );
+  const exactRequest = {
+    operationType: "PROVISION",
+    clientRequestId: "teacher_create_same_request_01",
+    phone: "13900000007",
+    teacherName: "相同请求老师",
+    imageDigest: "ab".repeat(32),
+    imageBytes: 123456,
+    faceGroupId: "lusizhuoerdatabase",
+    photoBucketId: "customer-photos",
+    actorStaffId: 900,
+    payloadSecretDigest: "cd".repeat(32)
+  };
+  const first = sandbox.module.exports(exactRequest);
+  const replay = sandbox.module.exports({ ...exactRequest });
+  assert.equal(first, replay,
+    "the exact same clientRequestId and normalized payload must reacquire the same owner");
+  assert.match(first, /^[a-f0-9]{64}$/);
+  assert.notEqual(first, sandbox.module.exports({
+    ...exactRequest, payloadSecretDigest: "ef".repeat(32)
+  }), "a changed password digest must not inherit the original live operation");
+  assert.notEqual(first, sandbox.module.exports({
+    ...exactRequest, clientRequestId: "teacher_create_changed_request_02"
+  }), "a new clientRequestId must not share the same owner");
 }
 
 function sqlText(value) {
@@ -174,6 +257,322 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
 }
 
 (async () => {
+  // The v63 ACTIVE/READY marker is a database CAS, not a browser convention.
+  // Two cloud-function instances holding the same owner and generation race
+  // here: exactly one may claim ACTIVE. Once that owner publishes READY, one
+  // later instance can claim the next generation.
+  {
+    const row = {
+      id: "71",
+      operation_type: "PROVISION",
+      operation_status: "RUNNING",
+      owner_token_sha256: "aa".repeat(32),
+      lease_generation: 7,
+      lease_expires_at: "2099-01-01T00:00:00.000Z",
+      error_code: null
+    };
+    let claimWrites = 0;
+    let readyWrites = 0;
+    let loseNextClaimResponse = false;
+    const executeSql = async (sql) => {
+      const generation = Number(
+        /target\.lease_generation = (\d+)::bigint/.exec(sql)?.[1]
+      );
+      const ownerHash = /target\.owner_token_sha256 = '([^']+)'/.exec(sql)?.[1] || "";
+      if (sql.includes("lease_generation = target.lease_generation + 1")) {
+        const eligible = row.operation_status === "RUNNING"
+          && row.owner_token_sha256 === ownerHash
+          && row.lease_generation === generation
+          && [null, "", "V63_AUTH_RETRY_READY"].includes(row.error_code);
+        if (!eligible) return [];
+        row.error_code = /SET error_code = '([^']+)'/.exec(sql)?.[1] || "";
+        row.lease_generation += 1;
+        claimWrites += 1;
+        if (loseNextClaimResponse) {
+          loseNextClaimResponse = false;
+          throw Object.assign(new Error("CAS response lost after commit"), { code: "TIMEOUT" });
+        }
+        return [{
+          lease_generation: row.lease_generation,
+          lease_expires_at: row.lease_expires_at
+        }];
+      }
+      if (sql.includes("SET error_code = 'V63_AUTH_RETRY_READY'")) {
+        const eligible = row.operation_status === "RUNNING"
+          && row.owner_token_sha256 === ownerHash
+          && row.lease_generation === generation
+          && row.error_code === /target\.error_code = '([^']+)'/.exec(sql)?.[1];
+        if (!eligible) return [];
+        row.error_code = "V63_AUTH_RETRY_READY";
+        readyWrites += 1;
+        return [{ lease_generation: row.lease_generation }];
+      }
+      throw new Error(`unexpected invocation-guard SQL: ${sql.slice(0, 120)}`);
+    };
+    const sandbox = {
+      module: { exports: {} },
+      crypto,
+      TEACHER_PROVISION_INVOCATION_ACTIVE_PREFIX: "V63_INVOCATION_ACTIVE:",
+      TEACHER_PROVISION_AUTH_RETRY_READY: "V63_AUTH_RETRY_READY",
+      TEACHER_FACE_OPERATION_LEASE_SECONDS: 720,
+      executeSql,
+      sqlText,
+      numericId,
+      readTeacherFaceOperation: async () => ({ ...row }),
+      teacherOperationLeaseRetryAfterSeconds: () => 720,
+      assertTeacherFaceOperationLease: async (operation, statuses) => {
+        assert.equal(operation.ownerTokenHash, row.owner_token_sha256);
+        assert.equal(operation.leaseGeneration, row.lease_generation);
+        assert.deepEqual(JSON.parse(JSON.stringify(statuses)), ["RUNNING"]);
+        return { ...row };
+      },
+      fail(message, code) { const error = new Error(message); error.code = code; throw error; }
+    };
+    vm.createContext(sandbox);
+    const guardSource = between(
+      staff,
+      "async function claimTeacherProvisionInvocation",
+      "\n\nasync function takeoverTeacherFaceOperationCleanup"
+    );
+    vm.runInContext(`${guardSource}\nmodule.exports = {
+      claimTeacherProvisionInvocation, markTeacherProvisionAuthRetryReady
+    };`, sandbox);
+    const base = {
+      id: row.id,
+      ownerTokenHash: row.owner_token_sha256,
+      leaseGeneration: row.lease_generation,
+      status: "RUNNING"
+    };
+    const raced = await Promise.allSettled([
+      sandbox.module.exports.claimTeacherProvisionInvocation({ ...base }),
+      sandbox.module.exports.claimTeacherProvisionInvocation({ ...base })
+    ]);
+    const winners = raced.filter((item) => item.status === "fulfilled");
+    const losers = raced.filter((item) => item.status === "rejected");
+    assert.equal(winners.length, 1, "only one same-generation invocation may become ACTIVE");
+    assert.equal(losers.length, 1);
+    assert.equal(losers[0].reason?.code, "TEACHER_PROVISION_INVOCATION_IN_PROGRESS");
+    assert.equal(claimWrites, 1);
+    assert.equal(row.lease_generation, 8);
+    assert.match(row.error_code, /^V63_INVOCATION_ACTIVE:[a-f0-9]{64}$/);
+
+    const winner = winners[0].value;
+    await sandbox.module.exports.markTeacherProvisionAuthRetryReady(winner);
+    assert.equal(readyWrites, 1);
+    assert.equal(row.error_code, "V63_AUTH_RETRY_READY");
+    const resumed = await sandbox.module.exports.claimTeacherProvisionInvocation({
+      ...base, leaseGeneration: row.lease_generation
+    });
+    assert.equal(resumed.leaseGeneration, 9,
+      "a server-published READY request may claim exactly one new generation");
+    assert.match(row.error_code, /^V63_INVOCATION_ACTIVE:[a-f0-9]{64}$/);
+    assert.equal(claimWrites, 2);
+
+    await sandbox.module.exports.markTeacherProvisionAuthRetryReady(resumed);
+    loseNextClaimResponse = true;
+    const recoveredAfterLostWriteReceipt = await sandbox.module.exports
+      .claimTeacherProvisionInvocation({
+        ...base, leaseGeneration: row.lease_generation
+      });
+    assert.equal(recoveredAfterLostWriteReceipt.leaseGeneration, 10);
+    assert.match(row.error_code, /^V63_INVOCATION_ACTIVE:[a-f0-9]{64}$/);
+    assert.equal(claimWrites, 3,
+      "a lost UPDATE response must be recovered only by the exact random ACTIVE nonce readback");
+  }
+
+  // An ACTIVE marker means an earlier function may still be alive after the
+  // caller lost its HTTP response. The second invocation must stop at claim,
+  // before teacher-profile SQL, Auth create or delegated face work.
+  {
+    let claimCalls = 0;
+    let downstreamDatabaseCalls = 0;
+    let authCalls = 0;
+    let faceCalls = 0;
+    const operation = {
+      id: "72", ownerToken: "bb".repeat(32), ownerTokenHash: "cc".repeat(32),
+      leaseGeneration: 11, status: "RUNNING", imageDigest: "dd".repeat(32), imageBytes: 4
+    };
+    const sandbox = {
+      module: { exports: {} }, Buffer, crypto,
+      requireTeacherFaceSchema: async () => {},
+      requireTeacherExperienceFaceSubjectSchema: async () => {},
+      requireTeacherFaceOperationSchema: async () => {},
+      validatePhone: (value) => String(value),
+      validatePassword: (value) => String(value),
+      teacherFaceProvisionRequestId: (value) => String(value),
+      teacherProvisionAuthenticationUid: () => "teacher-auth-active",
+      teacherFaceImage: () => ({
+        buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]), base64: "/9j/2Q=="
+      }),
+      numericId,
+      sqlText,
+      acquireTeacherFaceOperation: async () => operation,
+      claimTeacherProvisionInvocation: async () => {
+        claimCalls += 1;
+        const error = new Error("first invocation remains ACTIVE");
+        error.code = "TEACHER_PROVISION_INVOCATION_IN_PROGRESS";
+        throw error;
+      },
+      executeSql: async () => { downstreamDatabaseCalls += 1; return []; },
+      manager: () => { authCalls += 1; return { user: {} }; },
+      delegateTeacherFace: async () => { faceCalls += 1; },
+      fail(message, code) { const error = new Error(message); error.code = code; throw error; }
+    };
+    vm.createContext(sandbox);
+    const provisionSource = between(
+      staff, "async function provisionTeacherWithFace", "\n\n// Face enrollment is deliberately independent"
+    );
+    vm.runInContext(`${provisionSource}\nmodule.exports = provisionTeacherWithFace;`, sandbox);
+    await assert.rejects(
+      sandbox.module.exports(
+        { profile: { staffId: "900" } },
+        {
+          staffName: "单执行老师", phone: "13900000007", initialPassword: "Aa1!aaaa",
+          clientRequestId: "active_guard_0001", consent: true, faceImageBase64: "unused"
+        }
+      ),
+      (error) => error.code === "TEACHER_PROVISION_INVOCATION_IN_PROGRESS"
+    );
+    assert.equal(claimCalls, 1);
+    assert.equal(downstreamDatabaseCalls, 0);
+    assert.equal(authCalls, 0);
+    assert.equal(faceCalls, 0);
+  }
+
+  // A SUCCEEDED operation is replayable only by the identical HMAC-bound
+  // payload. Changing only the initial password changes the current owner
+  // hash and must fail before any mutation or delegated read/write. The exact
+  // payload may perform the final read-only verification and return success.
+  {
+    const storedOwnerHash = "10".repeat(32);
+    const changedOwnerHash = "20".repeat(32);
+    const originalPassword = "Aa1!original";
+    const originalDigest = crypto.createHash("sha256")
+      .update(originalPassword, "utf8").digest("hex");
+    async function runSucceededReplay(initialPassword) {
+      const counters = {
+        claims: 0, databaseWrites: 0, auth: 0, delegated: 0,
+        authoritative: 0, transitions: 0, deletes: 0, binds: 0
+      };
+      const existing = {
+        staff_id: "101", auth_uid: "teacher-auth-replay", role_code: "teacher",
+        account_status: "ACTIVE", teacher_id: "201", teacher_code: "TCH0201",
+        teacher_name: "回放老师", teacher_status: "ACTIVE",
+        face_person_id: "T-REPLAY", face_enrollment_status: "ENROLLED",
+        profile_photo_file_id: "private/photo/replay.jpg"
+      };
+      const operationRow = {
+        operation_status: "SUCCEEDED",
+        auth_uid: existing.auth_uid,
+        auth_owner_token_sha256: storedOwnerHash,
+        staff_id: existing.staff_id,
+        teacher_id: existing.teacher_id,
+        person_id: existing.face_person_id
+      };
+      const sandbox = {
+        module: { exports: {} }, Buffer, crypto,
+        requireTeacherFaceSchema: async () => {},
+        requireTeacherExperienceFaceSubjectSchema: async () => {},
+        requireTeacherFaceOperationSchema: async () => {},
+        validatePhone: (value) => String(value),
+        validatePassword: (value) => String(value),
+        teacherFaceProvisionRequestId: (value) => String(value),
+        teacherProvisionAuthenticationUid: () => existing.auth_uid,
+        teacherFaceImage: () => ({
+          buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]), base64: "/9j/2Q=="
+        }),
+        teacherFacePersonId: () => existing.face_person_id,
+        numericId,
+        sqlText,
+        acquireTeacherFaceOperation: async (input) => ({
+          id: "73",
+          ownerToken: "owner",
+          ownerTokenHash: input.sameRequestPayloadSecretDigest === originalDigest
+            ? storedOwnerHash : changedOwnerHash,
+          leaseGeneration: 4,
+          status: "SUCCEEDED",
+          imageDigest: "30".repeat(32),
+          imageBytes: 4
+        }),
+        claimTeacherProvisionInvocation: async () => { counters.claims += 1; },
+        executeSql: async (sql) => {
+          if (/\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)) counters.databaseWrites += 1;
+          if (sql.includes("FROM public.staff_accounts a")) return [existing];
+          throw new Error(`unexpected replay SQL: ${sql.slice(0, 120)}`);
+        },
+        assertTeacherFaceOperationLease: async () => operationRow,
+        teacherFaceDelegationLease: () => ({}),
+        finalDelegatedTeacherFaceReadback: async () => {
+          counters.delegated += 1;
+          return { verifiedReadback: {
+            person: { confirmed: true },
+            photo: { authenticated: true },
+            database: { confirmed: true },
+            photoReference: existing.profile_photo_file_id
+          } };
+        },
+        authoritativeTeacherProvisioningState: async () => {
+          counters.authoritative += 1;
+          return {
+            database: {
+              id: existing.teacher_id,
+              staff_account_id: existing.staff_id,
+              teacher_code: existing.teacher_code,
+              teacher_name: existing.teacher_name,
+              teacher_status: "ACTIVE",
+              account_status: "ACTIVE",
+              face_person_id: existing.face_person_id,
+              face_enrollment_status: "ENROLLED",
+              face_enrolled_at: "2026-08-21T00:00:00.000Z",
+              profile_photo_file_id: existing.profile_photo_file_id
+            },
+            identity: { UserStatus: "ACTIVE" }
+          };
+        },
+        manager: () => { counters.auth += 1; return { user: {} }; },
+        transitionTeacherFaceOperation: async () => { counters.transitions += 1; },
+        deleteTeacherProvisioningAuthentication: async () => { counters.deletes += 1; },
+        bindTeacherFaceOperation: async () => { counters.binds += 1; },
+        fail(message, code) { const error = new Error(message); error.code = code; throw error; }
+      };
+      vm.createContext(sandbox);
+      const provisionSource = between(
+        staff, "async function provisionTeacherWithFace", "\n\n// Face enrollment is deliberately independent"
+      );
+      vm.runInContext(`${provisionSource}\nmodule.exports = provisionTeacherWithFace;`, sandbox);
+      const promise = sandbox.module.exports(
+        { profile: { staffId: "900" } },
+        {
+          staffName: existing.teacher_name,
+          phone: "13900000007",
+          initialPassword,
+          clientRequestId: "succeeded_replay_0001",
+          consent: true,
+          faceImageBase64: "unused"
+        }
+      );
+      return { promise, counters };
+    }
+
+    const changed = await runSucceededReplay("Aa1!changed");
+    await assert.rejects(changed.promise,
+      (error) => error.code === "TEACHER_FACE_OPERATION_REPLAY_MISMATCH");
+    assert.deepEqual(changed.counters, {
+      claims: 0, databaseWrites: 0, auth: 0, delegated: 0,
+      authoritative: 0, transitions: 0, deletes: 0, binds: 0
+    }, "a password-changed replay must stop before every mutation/delegation boundary");
+
+    const exact = await runSucceededReplay(originalPassword);
+    const replay = await exact.promise;
+    assert.equal(replay.ok, true);
+    assert.equal(replay.replayed, true);
+    assert.equal(replay.passwordInitialized, false);
+    assert.deepEqual(exact.counters, {
+      claims: 0, databaseWrites: 0, auth: 0, delegated: 1,
+      authoritative: 1, transitions: 0, deletes: 0, binds: 0
+    }, "an exact SUCCEEDED payload may perform read-only final verification only");
+  }
+
   // A fulfilled createUser response containing the exact requested custom UID
   // is the authoritative write receipt. It must provide the known BLOCKED
   // identity immediately instead of waiting for a list/read replica.
@@ -229,11 +628,12 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
     let delayedDiscoveryCalls = 0;
     let blockCalls = 0;
     let compensationArgs = null;
+    let acquireInput = null;
     const profileFailure = Object.assign(new Error("stop after fast Auth path"), {
       code: "PROFILE_TEST_STOP"
     });
     const sandbox = {
-      module: { exports: {} }, Buffer,
+      module: { exports: {} }, Buffer, crypto,
       requireTeacherFaceSchema: async () => {},
       requireTeacherExperienceFaceSubjectSchema: async () => {},
       requireTeacherFaceOperationSchema: async () => {},
@@ -247,7 +647,8 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
       }),
       numericId,
       sqlText,
-      acquireTeacherFaceOperation: async () => operation,
+      acquireTeacherFaceOperation: async (input) => { acquireInput = input; return operation; },
+      claimTeacherProvisionInvocation: async (target) => target,
       executeSql: async (sql) => {
         if (sql.includes("FROM public.staff_accounts a")) return [];
         throw new Error(`unexpected SQL in fast Auth path: ${sql.slice(0, 80)}`);
@@ -306,9 +707,12 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
     assert.deepEqual(markerUids, [requestedUid],
       "the fulfilled receipt must be durable before teacher/profile work begins");
     assert.equal(delayedDiscoveryCalls, 0,
-      "an exact fulfilled createUser receipt must skip the 13.75-second discovery loop");
+      "an exact fulfilled createUser receipt must skip even the short discovery loop");
     assert.equal(blockCalls, 0,
       "the exact receipt path must not issue a redundant BLOCK/readback round trip");
+    assert.equal(acquireInput?.sameRequestPayloadSecretDigest,
+      crypto.createHash("sha256").update("Aa1!aaaa", "utf8").digest("hex"),
+      "the deterministic PROVISION owner must bind the exact initial password by digest");
     assert.equal(compensationArgs?.authCreateReceiptConfirmed, true);
     assert.equal(compensationArgs?.uid, requestedUid);
   }
@@ -330,7 +734,7 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
     let delayedDiscoveryCalls = 0;
     let deleteCalls = 0;
     const sandbox = {
-      module: { exports: {} }, Buffer,
+      module: { exports: {} }, Buffer, crypto,
       requireTeacherFaceSchema: async () => {},
       requireTeacherExperienceFaceSubjectSchema: async () => {},
       requireTeacherFaceOperationSchema: async () => {},
@@ -345,6 +749,7 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
       numericId,
       sqlText,
       acquireTeacherFaceOperation: async () => operation,
+      claimTeacherProvisionInvocation: async (target) => target,
       executeSql: async (sql) => {
         if (sql.includes("FROM public.staff_accounts a")) return [];
         throw new Error(`unexpected SQL in mismatch Auth path: ${sql.slice(0, 80)}`);
@@ -740,7 +1145,7 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
     const owned = { Uid: "teacher-auth-owned" };
     const sandbox = {
       module: { exports: {} },
-      TEACHER_AUTH_CREATE_READBACK_DELAYS_MS: [0, 250, 500, 1000, 2000, 4000, 6000],
+      TEACHER_AUTH_CREATE_READBACK_DELAYS_MS: [0, 250, 500, 1000],
       teacherProvisioningDelay: async (value) => { delays.push(value); },
       exactAuthenticationUserByUid: async () => {
         reads += 1;
@@ -764,9 +1169,9 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
     assert.deepEqual(delays, [250, 500, 1000]);
   }
 
-  // v61 must also recognize and accelerate the v59 Auth-only tombstone that
-  // is already present in production, without classifying a face-stage row as
-  // eligible for the short fence.
+  // v63 must retain reconciler compatibility for Auth-only tombstones already
+  // emitted by v59-v62, without classifying a face-stage row as eligible for
+  // the legacy 90-second fence.
   {
     const sandbox = {
       module: { exports: {} },
@@ -807,18 +1212,22 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
   }
 
   // createUser may commit after its SDK response is lost and remain invisible
-  // to the immediate read replica. The production creation flow must leave an
-  // open cleanup tombstone; it may not mark the operation cleanup-complete.
+  // to the short readback window. v63 must retain the exact RUNNING generation
+  // and tell the browser to replay the same request after two seconds. It may
+  // not enter legacy cleanup, delete an account or declare cleanup complete.
   {
     const transitions = [];
     let authDeleteCalls = 0;
+    let claimCalls = 0;
+    let readyMarks = 0;
     const operation = {
       id: "51", ownerToken: "ab".repeat(32), ownerTokenHash: "12".repeat(32),
       leaseGeneration: 1, status: "RUNNING", imageDigest: "34".repeat(32), imageBytes: 4
     };
     const sandbox = {
-      module: { exports: {} }, Buffer, TEACHER_FACE_COMPENSATION_SETTLE_MS: 0,
+      module: { exports: {} }, Buffer, crypto, TEACHER_FACE_COMPENSATION_SETTLE_MS: 0,
       TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS: 90,
+      TEACHER_AUTH_SAME_REQUEST_RETRY_SECONDS: 2,
       requireTeacherFaceSchema: async () => {},
       requireTeacherExperienceFaceSubjectSchema: async () => {},
       requireTeacherFaceOperationSchema: async () => {},
@@ -833,6 +1242,7 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
       numericId,
       sqlText,
       acquireTeacherFaceOperation: async () => operation,
+      claimTeacherProvisionInvocation: async (target) => { claimCalls += 1; return target; },
       executeSql: async (sql) => {
         if (sql.includes("FROM public.staff_accounts a")) return [];
         throw new Error(`unexpected SQL before Auth uncertainty: ${sql.slice(0, 80)}`);
@@ -856,6 +1266,11 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
         transitions.push({ expected, next, cleanupComplete: options.cleanupComplete === true });
         target.status = next;
       },
+      markTeacherProvisionAuthRetryReady: async (target) => {
+        assert.equal(target, operation);
+        readyMarks += 1;
+        return target;
+      },
       shortenTeacherAuthOwnershipUncertaintyLease: async () => {},
       deleteTeacherProvisioningAuthentication: async () => { authDeleteCalls += 1; },
       fail(message, code) { const error = new Error(message); error.code = code; throw error; }
@@ -873,14 +1288,18 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
           clientRequestId: "late_auth_0001", consent: true, faceImageBase64: "unused"
         }
       ),
-      (error) => error.code === "TEACHER_PROVISION_COMPENSATION_PENDING"
+      (error) => error.code === "TEACHER_AUTH_CREATE_RETRY_SAME_REQUEST"
         && error.authCreationUncertain === true
         && error.operationId === "51"
-        && error.retryAfterSeconds === 90
+        && error.retrySameRequest === true
+        && error.retryAfterSeconds === 2
     );
-    assert.deepEqual(transitions, [
-      { expected: "RUNNING", next: "CLEANUP_PENDING", cleanupComplete: false }
-    ]);
+    assert.deepEqual(transitions, [],
+      "a fresh v63 ambiguity must not transition RUNNING to cleanup");
+    assert.equal(claimCalls, 1);
+    assert.equal(readyMarks, 1,
+      "retrySameRequest may be returned only after ACTIVE atomically becomes READY");
+    assert.equal(operation.status, "RUNNING");
     assert.equal(authDeleteCalls, 0, "an unobserved late Auth commit cannot be guessed or marked deleted");
   }
 

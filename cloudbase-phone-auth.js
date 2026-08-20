@@ -100,7 +100,8 @@
         causeCode: error?.causeCode,
         causeMessage: error?.causeMessage,
         operationId: error?.operationId,
-        retryAfterSeconds: error?.retryAfterSeconds
+        retryAfterSeconds: error?.retryAfterSeconds,
+        retrySameRequest: error?.retrySameRequest === true
       });
       throw wrapped;
     }
@@ -118,6 +119,7 @@
         causeMessage: payload?.causeMessage || result?.causeMessage,
         operationId: payload?.operationId || result?.operationId,
         retryAfterSeconds: payload?.retryAfterSeconds ?? result?.retryAfterSeconds,
+        retrySameRequest: payload?.retrySameRequest === true || result?.retrySameRequest === true,
         cleanupComplete: payload?.cleanupComplete === true || result?.cleanupComplete === true
       });
       throw error;
@@ -420,8 +422,8 @@
         "员工账号创建失败"
       );
     },
-    // A teacher can now be activated without a face. Use upsertTeacherFace
-    // later when a consented JPEG is captured or needs replacement.
+    // New teachers use provisionTeacherWithFace. This legacy method remains
+    // only so the server can reject old clients before any write is attempted.
     async provisionTeacher({ staffName, phone, initialPassword }) {
       return callStaffAccount(
         { action: "provisionStaff", staffName, phone: normalizePhone(phone), role: "teacher", initialPassword, storeId: "" },

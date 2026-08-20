@@ -10,11 +10,19 @@
   let teacherProvisionRequestId = "";
   let submitting = false;
   let provisionRecoveryPending = false;
+  let provisionPayloadLocked = false;
   let provisionRecoveryGeneration = 0;
   let faceServiceApp = null;
 
   function setMessage(message = "") {
     $("personCreateMessage").textContent = message;
+  }
+
+  function setProvisionPayloadLocked(locked) {
+    provisionPayloadLocked = locked === true;
+    ["personCreateName", "personPhone", "personInitialPassword", "teacherFaceConsent"]
+      .forEach((id) => { $(id).disabled = provisionPayloadLocked; });
+    if ($("retakeTeacherFace")) $("retakeTeacherFace").disabled = provisionPayloadLocked;
   }
 
   function passwordIsValid(value) {
@@ -36,6 +44,48 @@
     return Math.min(90, Math.max(1,
       Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : fallback
     ));
+  }
+
+  function ambiguousTeacherProvisionTransport(error) {
+    const signature = `${error?.code || ""} ${error?.message || ""}`.toUpperCase();
+    return /TIMEOUT|TIMED OUT|NETWORK|CONNECTION|ECONNRESET|ETIMEDOUT|FUNCTIONS_(?:TIME_LIMIT|INVOCATION_FAILED|INTERNAL_ERROR|EXECUTE_FAIL)|HTTP[_ ]?5\d\d|BAD_GATEWAY|SERVICE_UNAVAILABLE/.test(signature);
+  }
+
+  async function provisionTeacherWithAutomaticResume(input) {
+    const deadline = Date.now() + 30 * 1000;
+    let attempt = 0;
+    while (true) {
+      attempt += 1;
+      try {
+        const result = await window.CloudBasePhoneAuth.provisionTeacherWithFace(input);
+        provisionRecoveryPending = false;
+        return result;
+      } catch (error) {
+        // Only the server can prove that the previous invocation has stopped
+        // at the RUNNING Auth boundary. A browser transport error can arrive
+        // while the original cloud function is still executing, so blindly
+        // replaying it here could create two concurrent Saga invocations.
+        if (error?.retrySameRequest !== true) {
+          if (ambiguousTeacherProvisionTransport(error)) {
+            setProvisionPayloadLocked(true);
+            error.sameRequestResumeDeferred = true;
+          }
+          throw error;
+        }
+        if (Date.now() >= deadline) {
+          error.sameRequestResumeDeferred = true;
+          throw error;
+        }
+        provisionRecoveryPending = true;
+        setProvisionPayloadLocked(true);
+        syncSubmit();
+        setMessage(attempt === 1
+          ? "账号服务响应中断，正在使用同一个请求编号自动恢复；不会创建第二个账号，也无需重新拍照。"
+          : "仍在恢复同一老师创建请求；页面可以保持打开，系统不会重复建号。");
+        await wait(Math.min(5000, Math.max(1500,
+          safeProvisionRecoverySeconds(error?.retryAfterSeconds, 2) * 1000)));
+      }
+    }
   }
 
   function dataUrlBytes(value) {
@@ -119,6 +169,7 @@
   function resetFaceCapture() {
     provisionRecoveryGeneration += 1;
     provisionRecoveryPending = false;
+    setProvisionPayloadLocked(false);
     stopCamera();
     capturedFaceImage = "";
     faceValidated = false;
@@ -146,12 +197,12 @@
     if (!operationId || !window.CloudBasePhoneAuth?.getTeacherFaceOperationStatus) return false;
     provisionRecoveryPending = true;
     const generation = ++provisionRecoveryGeneration;
-    $("retakeTeacherFace").disabled = true;
+    setProvisionPayloadLocked(true);
     syncSubmit();
     const deadline = Date.now() + 3 * 60 * 1000;
     let remaining = safeProvisionRecoverySeconds(error?.retryAfterSeconds);
     while (generation === provisionRecoveryGeneration && Date.now() < deadline) {
-      setMessage(`登录账号正在后台安全确认，预计 ${remaining} 秒内完成；当前页面会自动恢复，请勿重复提交。`);
+      setMessage("登录账号正在后台核对同一请求；无需重新拍照，也不会创建第二个账号。您可以返回老师管理，系统会继续安全恢复。");
       await wait(Math.min(5000, Math.max(1000, remaining * 1000)));
       if (generation !== provisionRecoveryGeneration) return true;
       try {
@@ -164,7 +215,7 @@
         if (status?.cleanupComplete === true || (state === "CANCELLED" && status?.retryAllowed === true)) {
           teacherProvisionRequestId = "";
           provisionRecoveryPending = false;
-          $("retakeTeacherFace").disabled = false;
+          setProvisionPayloadLocked(false);
           setMessage("先前不确定的登录账号操作已安全核对并清理。无需重新拍照，现在可以再次点击创建。");
           syncSubmit();
           return true;
@@ -332,14 +383,15 @@
     submitButton.textContent = "正在创建并绑定人脸…";
     setMessage("正在原子创建老师账号并安全绑定人脸，请勿关闭页面…");
     try {
-      const result = await window.CloudBasePhoneAuth.provisionTeacherWithFace({
+      const provisionInput = {
         staffName: name,
         phone,
         initialPassword,
         faceImageBase64: capturedFaceImage,
         clientRequestId: teacherProvisionRequestId || (teacherProvisionRequestId = requestId()),
         consent: true
-      });
+      };
+      const result = await provisionTeacherWithAutomaticResume(provisionInput);
       const enrollmentStatus = String(
         result?.teacher?.faceEnrollmentStatus
         || result?.teacher?.face_enrollment_status
@@ -388,12 +440,19 @@
       $("personCreateForm").reset();
       resetFaceCapture();
     } catch (error) {
-      if (error?.code === "TEACHER_PROVISION_COMPENSATION_PENDING"
+      if (error?.sameRequestResumeDeferred === true) {
+        provisionRecoveryPending = false;
+        setProvisionPayloadLocked(true);
+        setMessage("同一创建请求仍未收到明确结果。照片和请求编号已保留；稍后直接再次点击“创建老师账号并绑定人脸”即可继续，不会重复建号。请不要重新拍照或更换手机号。");
+      } else if (error?.code === "TEACHER_PROVISION_COMPENSATION_PENDING"
           && error?.stage === "AUTH_CREATE_OWNERSHIP"
           && error?.operationId) {
         void monitorTeacherProvisionRecovery(error);
       } else {
-        if (error?.cleanupComplete === true) teacherProvisionRequestId = "";
+        if (error?.cleanupComplete === true) {
+          teacherProvisionRequestId = "";
+          setProvisionPayloadLocked(false);
+        }
         setMessage(error?.message || "老师账号与人脸绑定创建失败；未确认成功前请勿重复提交。");
       }
     } finally {

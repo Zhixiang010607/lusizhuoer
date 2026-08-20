@@ -15,7 +15,7 @@
         <div class="panel-heading">
           <div>
             <h2>人员资料</h2>
-            <p>新建老师必须由本人授权并完成人脸采集；创建成功后账号即可激活和登录，之后可在老师主页安全更换人脸。一个手机号只能绑定一个业务身份。</p>
+            <p>新建老师必须由本人授权并完成人脸采集；创建成功后账号即可激活和登录。人脸仅用于老师体验核销时的现场身份核验，不用于登录。一个手机号只能绑定一个业务身份。</p>
           </div>
           <span id="generatedPersonCode" class="badge">创建后自动生成编号</span>
         </div>
@@ -36,7 +36,7 @@
         </div>
         <div class="teacher-face-enrollment-layout">
           <div class="teacher-face-consent">
-            <label class="consent-row"><input id="teacherFaceConsent" type="checkbox" required> 我已取得老师明确授权：采集和绑定其人脸信息，仅用于老师登录身份、权限核验和业务安全。</label>
+              <label class="consent-row"><input id="teacherFaceConsent" type="checkbox" required> 我已取得老师明确授权：采集和绑定其人脸信息，仅用于老师体验核销现场身份核验与业务安全，不用于登录。</label>
             <div id="teacherFaceChecks" class="capture-check-results" aria-live="polite">
               <div><span>照片质量</span><strong id="teacherFaceQualityResult">未采集</strong></div>
               <div><span>活体检测</span><strong id="teacherFaceLivenessResult">未采集</strong></div>
@@ -49,7 +49,7 @@
               <div id="teacherFacePlaceholder" class="camera-placeholder"><strong>必填：打开摄像头</strong><span>请让老师正对镜头，避免逆光、遮挡或多人入镜。</span></div>
               <canvas id="teacherFaceCanvas" hidden></canvas>
             </div>
-            <div class="teacher-face-capture-copy"><h3>老师人脸身份</h3><p>创建前必须拍照并通过质量与活体检测；创建成功后仍可在老师主页安全更换。</p></div>
+            <div class="teacher-face-capture-copy"><h3>老师体验核销身份</h3><p>创建前必须拍照并通过质量与活体检测；创建完成后，老师主页仅显示登记状态，不再重复采集。</p></div>
             <div id="teacherFaceCaptureStatus" class="capture-status pending">必填 · 尚未拍摄</div>
             <div class="camera-actions"><button id="openTeacherFaceCamera" type="button">打开摄像头</button><button id="captureTeacherFace" type="button" disabled>拍照并检测</button><button id="retakeTeacherFace" type="button" hidden>重新拍照</button></div>
           </section>
@@ -63,6 +63,6 @@
       </div>
     </form>
   </main>
-  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.18.2"></script><script src="teacher-create.js?v=0.2.7"></script><script src="auth-ui.js?v=0.19.0"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.18.3"></script><script src="teacher-create.js?v=0.2.8"></script><script src="auth-ui.js?v=0.19.0"></script>
 </body>
 </html>
