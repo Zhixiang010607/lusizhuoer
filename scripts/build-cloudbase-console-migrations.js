@@ -187,4 +187,45 @@ parts050.forEach((part, index) => {
   if (windowsBytes > 3500) throw new Error(`${filename} exceeds the 3500-byte CRLF-safe console limit: ${windowsBytes}`);
 });
 
-console.log("CloudBase console migrations generated:", [...parts037, ...parts038, ...parts046, ...parts048, ...parts049, ...parts050].map((part) => Buffer.byteLength(part, "utf8")));
+// Migration 051 is the durable cancellation/ownership fence for teacher-face
+// sagas. Keep the canonical functions intact, but place each statement in its
+// own CRLF-safe transaction for the CloudBase editor's observed paste limit.
+const migration051 = bodyOf("051_teacher_face_operation_lease.sql");
+const parts051 = splitAt(migration051, [
+  "DO $$\nBEGIN\n  IF TO_REGCLASS('public.staff_accounts')",
+  "CREATE TABLE IF NOT EXISTS public.teacher_face_operations",
+  "CREATE UNIQUE INDEX IF NOT EXISTS uq_teacher_face_operation_open_phone",
+  "CREATE OR REPLACE FUNCTION public.assert_teacher_face_operation_input(",
+  "CREATE OR REPLACE FUNCTION public.acquire_teacher_face_operation(",
+  "CREATE OR REPLACE FUNCTION public.bind_teacher_face_operation(",
+  "CREATE OR REPLACE FUNCTION public.transition_teacher_face_operation(",
+  "CREATE OR REPLACE FUNCTION public.bind_teacher_face_operation_face_id(",
+  "CREATE OR REPLACE FUNCTION public.takeover_teacher_face_operation_cleanup(",
+  "REVOKE ALL ON TABLE public.teacher_face_operations"
+]);
+const part051Names = [
+  "051-01-prerequisites.sql",
+  "051-02-operation-table.sql",
+  "051-03-operation-indexes.sql",
+  "051-04-input-guard.sql",
+  "051-05-acquire-operation.sql",
+  "051-06-bind-operation.sql",
+  "051-07-transition-operation.sql",
+  "051-08-bind-face-id.sql",
+  "051-09-takeover-cleanup.sql",
+  "051-10-permissions-comments.sql"
+];
+parts051.forEach((part, index) => {
+  const filename = part051Names[index];
+  writeCompactPart(filename, "051", `${index + 1} / ${parts051.length}`, part);
+  const windowsBytes = Buffer.byteLength(
+    fs.readFileSync(path.join(output, filename), "utf8").replace(/\n/g, "\r\n"), "utf8"
+  );
+  if (windowsBytes > 3500) {
+    throw new Error(`${filename} exceeds the 3500-byte CRLF-safe console limit: ${windowsBytes}`);
+  }
+});
+
+console.log("CloudBase console migrations generated:", [
+  ...parts037, ...parts038, ...parts046, ...parts048, ...parts049, ...parts050, ...parts051
+].map((part) => Buffer.byteLength(part, "utf8")));

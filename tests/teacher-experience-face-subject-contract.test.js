@@ -193,7 +193,9 @@ assert.doesNotMatch(staffStatusAction, /TEACHER_FACE_REQUIRED/i,
   "staff activation must not accidentally reuse the EXPERIENCE-only face gate");
 const teacherFaceUpsert = functionSource(staff, "upsertTeacherFace");
 const delegatedTeacherFaceUpsert = functionSource(face, "upsertDelegatedTeacherFace");
-assert.match(teacherFaceUpsert, /delegateTeacherFace\(\{[\s\S]{0,260}operation:\s*"UPSERT"/,
+assert.match(teacherFaceUpsert, /delegationInput\s*=\s*\{[\s\S]{0,260}operation:\s*"UPSERT"[\s\S]{0,520}personId:\s*nextPersonId/,
+  "later teacher face enrollment/replacement must bind its signed subject");
+assert.match(teacherFaceUpsert, /await bindTeacherFaceOperation\(faceOperation,[\s\S]{0,1200}delegateTeacherFaceWithReadbackRetry\(delegationInput\)/,
   "later teacher face enrollment/replacement must use the signed face service");
 assert.match(delegatedTeacherFaceUpsert, /uploadTeacherProfilePhoto\([\s\S]{0,1400}profile_photo_file_id = \$\{sqlText\(storedPhoto\.reference\)\}/,
   "the delegated replacement must persist a retained private profile photo");

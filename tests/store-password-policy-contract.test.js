@@ -137,6 +137,7 @@ function dispatcherHarness() {
     TEACHER_EXPERIENCE_RESET_TIMER_TRIGGER_NAME: "test",
     ROLES: new Set(["hq", "store", "teacher"]),
     handleTrustedTeacherExperienceResetTimer: async () => null,
+    handleTrustedTeacherFaceReconcileTimer: async () => null,
     currentUser: async () => ({ uid: "hq-auth", profile: { role: "hq", staffId: "1" } }),
     requireHq(caller) {
       if (caller?.profile?.role !== "hq") failed("FORBIDDEN", "FORBIDDEN");

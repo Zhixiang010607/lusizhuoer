@@ -83,6 +83,14 @@ ROLLBACK;
 也将老师人脸改为可后续补充／替换的资料，不再是老师账号活跃或业务选择的前置条件。
 每月上海时间 1 日 00:00 的重置只处理活跃老师、活跃产品和活跃额度配置。
 
+## 051 老师人脸持久 Saga 栅栏
+
+完成 049、050 后，按 [`051-README.md`](051-README.md) 的顺序独立执行
+`051-01` 至 `051-10`，最后运行只读 `051-readonly-verify.sql` 并确认全部 `READY`。
+这些分片在 Windows CRLF 下均小于 3,500 字节。051 必须先于
+`faceRecognition v75`／`staffAccount v59` 部署；部署时同时把函数超时分别固定为 90 秒／600 秒，
+并创建每 5 分钟一次的 `reconcile-teacher-face-operations` 平台 Timer。
+
 ### 048 在当前控制台报 `unterminated dollar-quoted string`
 
 部分 CloudBase SQL 编辑器会在约 4KB 时截断粘贴内容；这不是数据库函数语法

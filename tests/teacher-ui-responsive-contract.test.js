@@ -19,7 +19,7 @@ for (const html of [managementHtml, createHtml, detailHtml, read("teacher-detail
   assert.match(html, /<meta\s+name="viewport"/, "teacher pages must declare a mobile viewport");
 }
 assert.match(managementHtml, /teacher-management\.js\?v=0\.14\.28/, "teacher directory behavior must be cache-busted");
-assert.match(createHtml, /teacher-create\.js\?v=0\.2\.4/, "teacher creation behavior must be cache-busted");
+assert.match(createHtml, /teacher-create\.js\?v=0\.2\.5/, "teacher creation behavior must be cache-busted");
 assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.4/, "teacher home behavior must be cache-busted");
 
 for (const label of ["老师姓名", "老师编号", "联系电话", "状态", "体验额度", "账号操作"]) {

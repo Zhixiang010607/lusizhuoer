@@ -293,8 +293,41 @@
         || result?.profile?.face_enrollment_status
         || ""
       ).toUpperCase();
-      if (enrollmentStatus !== "ENROLLED") {
-        throw new Error("账号服务未确认老师人脸绑定，已停止显示创建成功。");
+      const facePhotoReady = result?.teacher?.facePhotoReady === true
+        || result?.teacher?.face_photo_ready === true
+        || result?.profile?.facePhotoReady === true
+        || result?.profile?.face_photo_ready === true;
+      const teacherStatus = String(
+        result?.teacher?.teacherStatus
+        || result?.teacher?.teacher_status
+        || result?.profile?.teacherStatus
+        || result?.profile?.teacher_status
+        || ""
+      ).toUpperCase();
+      const accountStatus = String(
+        result?.teacher?.accountStatus
+        || result?.teacher?.account_status
+        || result?.profile?.accountStatus
+        || result?.profile?.account_status
+        || ""
+      ).toUpperCase();
+      const credentialStatus = String(
+        result?.teacher?.credentialStatus
+        || result?.teacher?.credential_status
+        || result?.profile?.credentialStatus
+        || result?.profile?.credential_status
+        || result?.credentialStatus
+        || ""
+      ).toUpperCase();
+      const teacherId = String(result?.teacher?.teacherId || result?.profile?.teacherId || "").trim();
+      const uid = String(result?.uid || result?.profile?.uid || "").trim();
+      const readbackConfirmed = result?.readbackConfirmed === true
+        && result?.verification?.complete === true;
+      if (result?.ok !== true || enrollmentStatus !== "ENROLLED" || !facePhotoReady
+          || teacherStatus !== "ACTIVE" || accountStatus !== "ACTIVE"
+          || credentialStatus !== "ACTIVE"
+          || !teacherId || !uid || !readbackConfirmed) {
+        throw new Error("服务端尚未完整确认人脸库、原始照片、数据库引用及最终激活状态；本次不能视为创建成功。");
       }
       const code = String(result?.teacher?.teacherCode || result?.profile?.teacherCode || "");
       setMessage(`创建成功：${name}${code ? `（${code}）` : ""} 已创建并激活登录账号，人脸已绑定。请通过安全渠道单独告知初始密码。`);

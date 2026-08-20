@@ -211,18 +211,22 @@ assert.match(phoneAuth, /async provisionTeacherWithFace\(\{ staffName, phone, in
 const delegatedFace = jsBetween(staff, "async function delegateTeacherFace", "function productTemplateStorageSettings");
 assert.match(delegatedFace, /crypto\.createHmac\("sha256", teacherFaceDelegationSigningKey\(\)\)[\s\S]{0,260}teacherFaceDelegationCanonical\(fields\)/,
   "staffAccount must sign the complete teacher-face delegation command rather than trusting browser ids");
-assert.match(delegatedFace, /imageDigest[\s\S]{0,360}imageBase64: `data:image\/jpeg;base64,\$\{image\.base64\}`[\s\S]{0,160}signature/,
-  "the signed command must bind its exact JPEG payload, identity ids and face-service request");
-assert.match(delegatedFace, /name: "faceRecognition"[\s\S]{0,220}action: "upsertDelegatedTeacherFace"/,
+assert.match(delegatedFace, /imageDigest[\s\S]{0,900}imageBytes/,
+  "the signed command must bind its exact JPEG digest and byte length");
+assert.match(delegatedFace, /operationId[\s\S]{0,160}ownerToken[\s\S]{0,160}leaseGeneration/,
+  "the signed command must bind its durable operation lease");
+assert.match(delegatedFace, /name: "faceRecognition"[\s\S]{0,520}upsertDelegatedTeacherFace[\s\S]{0,220}readbackDelegatedTeacherFace[\s\S]{0,220}rollbackDelegatedTeacherFace[\s\S]{0,220}finalizeDelegatedTeacherFace/,
   "teacher enrollment must use the private cross-function face endpoint");
 assert.match(delegatedFace, /!result\.teacher\?\.facePhotoReady \|\| result\.teacher\?\.faceEnrollmentStatus !== "ENROLLED"/,
   "staffAccount must reject a delegated response that did not retain the teacher photo");
 
 const faceProvision = jsBetween(staff, "async function provisionTeacherWithFace", "// Face enrollment is deliberately independent");
 const faceActivationReadback = jsBetween(staff, "async function activatePersistedTeacherFaceProfile", "async function provisionTeacherWithFace");
-assert.match(faceProvision, /userStatus: "BLOCKED"[\s\S]{0,1400}initialAccountStatus: "ARCHIVED"/,
-  "face provisioning must keep the credential and teacher master unavailable until enrollment is complete");
-assert.match(faceProvision, /delegateTeacherFace\(\{[\s\S]{0,260}operation: "PROVISION"[\s\S]{0,520}personId: facePersonId[\s\S]{0,320}image/,
+assert.match(faceProvision, /userStatus: "BLOCKED"/,
+  "face provisioning must create the credential unavailable until enrollment is complete");
+assert.match(faceProvision, /initialAccountStatus: "ARCHIVED"/,
+  "face provisioning must create the teacher master unavailable until enrollment is complete");
+assert.match(faceProvision, /delegationInput = \{[\s\S]{0,260}operation: "PROVISION"[\s\S]{0,520}personId: facePersonId[\s\S]{0,320}image[\s\S]{0,220}delegateTeacherFaceWithReadbackRetry\(delegationInput\)/,
   "face provisioning must delegate the exact new face, teacher, actor and image rather than trusting client data");
 assert.match(faceProvision, /activatePersistedTeacherFaceProfile\(\{[\s\S]{0,220}personId: facePersonId/,
   "face provisioning must use the durable activation/readback boundary");
@@ -230,46 +234,69 @@ assert.match(faceActivationReadback, /face_person_id = \$\{sqlText\(personId\)\}
   "face provisioning may activate only after the delegated service persisted the exact face identity and private photo");
 assert.match(faceActivationReadback, /await executeSql\([\s\S]{0,900}const rows = await executeSql\(/,
   "teacher activation must read the durable row after a writable statement instead of trusting RETURNING rows");
-assert.match(faceProvision, /persistedTeacherFaceEnrollment\(profile\?\.staffId, facePersonId\)/,
-  "a lost face-enrollment response must first prove the exact committed enrollment before recovery");
-assert.match(faceProvision, /archiveTeacherProvisioning\(profile\?\.staffId\)[\s\S]{0,150}blockTeacherAuthentication\(uid\)/,
-  "an unproven failed face-enrollment response must leave the account archived and blocked");
+assert.match(faceProvision, /authoritativeTeacherProvisioningState\(\{[\s\S]{0,320}photoReference: remoteProof\.photoReference/,
+  "a teacher must pass final database and authentication readback before creation succeeds");
+assert.match(faceProvision, /if \(!existing\)[\s\S]{0,1400}compensateFailedTeacherProvision\(\{/,
+  "a failed new teacher must enter the all-or-none compensation saga");
+assert.match(faceProvision, /readbackConfirmed: true[\s\S]{0,160}verification: finalVerification/,
+  "the success response must explicitly expose the completed authoritative readback");
+assert.match(faceProvision, /facePhotoReady = Boolean\([\s\S]{0,320}face_person_id[\s\S]{0,220}profile_photo_file_id/,
+  "the new-teacher success response must derive photo readiness from exact database pointers");
 assert.match(faceProvision, /manager\(\)\.user\.modifyUser\(\{ uid, userStatus: "ACTIVE"/,
   "face provisioning may only activate the login after the enrolled profile is persisted");
 
 const faceReplace = jsBetween(staff, "async function upsertTeacherFace", "async function requireTeacherExperienceQuotaSchema");
-assert.match(faceReplace, /delegateTeacherFace\(\{[\s\S]{0,220}operation: "UPSERT"[\s\S]{0,480}personId: nextPersonId/,
-  "face replacement must route through the signed service transaction with a deterministic next person id");
-assert.match(faceReplace, /face_person_id = \$\{sqlText\(nextPersonId\)\}[\s\S]{0,220}profile_photo_file_id[\s\S]{0,180}face_enrollment_status = 'ENROLLED'/,
-  "a lost replacement response may be recovered only by proving the exact new retained photo and enrollment");
+assert.match(faceReplace, /delegationInput = \{[\s\S]{0,220}operation: "UPSERT"[\s\S]{0,480}personId: nextPersonId/,
+  "face replacement must bind a deterministic next PersonId into the signed service command");
+assert.match(faceReplace, /await bindTeacherFaceOperation\(faceOperation,[\s\S]{0,1200}await delegateTeacherFaceWithReadbackRetry\(delegationInput\)/,
+  "face replacement must bind its durable operation before invoking the signed service transaction");
+assert.doesNotMatch(faceReplace, /persistedRows|响应丢失后已自动恢复|face_person_id = \$\{sqlText\(nextPersonId\)\}/,
+  "a lost replacement response must never be declared successful from a local DB-only probe");
 assert.match(faceReplace, /老师人脸资料未能保存，原人脸保持不变/,
   "an unproven replacement must retain the previous teacher face");
 assert.doesNotMatch(faceReplace, /api\.CreatePerson|uploadTeacherProfilePhoto|deleteTeacherFacePerson/,
   "staffAccount must not split the delegated face transaction across two services");
 
 const verifyDelegation = jsBetween(faceService, "function verifyTeacherFaceDelegation", "function cleanVerificationJpeg");
-assert.match(verifyDelegation, /TEACHER_FACE_DELEGATION_MAX_AGE_MS[\s\S]{0,520}\["PROVISION", "UPSERT"\]/,
-  "the face endpoint must accept only short-lived provision/upsert service commands");
-assert.match(verifyDelegation, /imageDigest[\s\S]{0,320}crypto\.createHmac\("sha256", teacherFaceDelegationSigningKey\(\)\)[\s\S]{0,250}crypto\.timingSafeEqual/,
+assert.match(verifyDelegation, /issuedAt < now - TEACHER_FACE_DELEGATION_MAX_AGE_MS/,
+  "the face endpoint must reject expired v3 saga commands");
+assert.match(verifyDelegation, /\["PROVISION", "UPSERT", "READBACK", "ROLLBACK", "FINALIZE"\]\.includes\(operation\)/,
+  "the face endpoint must accept only the five signed v3 saga operations");
+assert.match(verifyDelegation, /imageDigest[\s\S]{0,180}imageBytes[\s\S]{0,1800}crypto\.createHmac\("sha256", teacherFaceDelegationSigningKey\(\)\)[\s\S]{0,250}crypto\.timingSafeEqual/,
   "the face endpoint must recompute a payload-bound HMAC in constant time before writing a face");
-assert.match(verifyDelegation, /cleanVerificationJpeg\(event\.imageBase64, "老师人脸照片", MAX_IMAGE_BYTES\)/,
-  "the delegated endpoint must revalidate the supplied image as JPEG rather than accepting a client data URL blindly");
+assert.match(verifyDelegation, /mutating[\s\S]{0,220}老师人脸写入委托必须携带 JPEG 原图/,
+  "PROVISION/UPSERT must require the original JPEG while readback/cleanup may reconcile from signed digest and length");
+assert.match(verifyDelegation, /if \(suppliedImage\) \{[\s\S]{0,180}cleanVerificationJpeg\(suppliedImage, "老师人脸照片", MAX_IMAGE_BYTES\)/,
+  "any supplied teacher image must be decoded and revalidated as JPEG bytes");
+assert.match(verifyDelegation, /faceGroupId !== required\("FACE_GROUP_ID"\)/,
+  "mutating delegations must be bound to the configured face group before creating remote state");
+assert.match(verifyDelegation, /photoBucketId !== photoStorageSettings\(\)\.bucketId/,
+  "mutating delegations must be bound to the configured private photo bucket before uploading state");
 
-const delegatedUpsert = jsBetween(faceService, "async function upsertDelegatedTeacherFace", "async function getCustomerPhotoUrl");
+const delegatedUpsert = jsBetween(faceService, "async function upsertDelegatedTeacherFace", "async function readbackDelegatedTeacherFace");
 assert.match(delegatedUpsert, /current\.actor_role !== "hq" \|\| current\.actor_status !== "ACTIVE"/,
   "the delegated endpoint must pin the signer actor to an active HQ account in PostgreSQL");
 assert.match(delegatedUpsert, /teacher\.id = \$\{command\.teacherId\}[\s\S]{0,180}teacher\.staff_account_id = \$\{command\.staffId\}/,
   "the delegated endpoint must bind the signed teacher and staff ids to the current database row");
 const createIndex = delegatedUpsert.indexOf("api.CreatePerson(");
+const bindFaceIndex = delegatedUpsert.indexOf("bindTeacherFaceOperationFaceId(", createIndex);
 const uploadIndex = delegatedUpsert.indexOf("uploadTeacherProfilePhoto(");
-const persistIndex = delegatedUpsert.indexOf("UPDATE public.teachers AS teacher");
-const oldDeleteIndex = delegatedUpsert.lastIndexOf("deleteTeacherFacePerson(api, groupId, previousPersonId)");
-assert.ok(createIndex >= 0 && uploadIndex > createIndex && persistIndex > uploadIndex && oldDeleteIndex > persistIndex,
-  "the face service must create/upload/switch the new identity before best-effort old-face cleanup");
+const persistIndex = delegatedUpsert.indexOf("UPDATE public.teachers AS teacher", uploadIndex);
+assert.ok(createIndex >= 0 && bindFaceIndex > createIndex
+  && uploadIndex > bindFaceIndex && persistIndex > uploadIndex,
+  "the face service must create, bind FaceId, upload and atomically switch the new identity in order");
+assert.doesNotMatch(delegatedUpsert, /deleteTeacherFacePerson(?:Exact)?\(api, groupId, previousPersonId/,
+  "UPSERT must retain the old Person until a later signed FINALIZE after caller confirmation");
 assert.match(delegatedUpsert, /face_person_id IS NOT DISTINCT FROM[\s\S]{0,260}profile_photo_file_id IS NOT DISTINCT FROM/,
   "the face pointer switch must be optimistic, so a concurrent replacement cannot overwrite another face");
-assert.match(delegatedUpsert, /if \(!committedRows\[0\]\) \{[\s\S]{0,220}deleteUploadedFile\(storedPhoto\)[\s\S]{0,280}deleteTeacherFacePerson\(api, groupId, command\.personId\)/,
-  "a failed new-face transaction must clean only its new photo/person and never delete the previous face");
+const pointerFenceIndex = delegatedUpsert.indexOf("AND ${runningLeaseSql}", persistIndex);
+const finalPhotoReadIndex = delegatedUpsert.indexOf("confirmTeacherProfilePhoto(", persistIndex);
+const finalLeaseReadIndex = delegatedUpsert.indexOf("await assertRunningLease();", finalPhotoReadIndex);
+assert.ok(pointerFenceIndex > persistIndex && finalPhotoReadIndex > pointerFenceIndex
+  && finalLeaseReadIndex > finalPhotoReadIndex,
+"the pointer UPDATE and final authenticated photo read must remain fenced by the durable RUNNING owner");
+assert.match(delegatedUpsert, /deleteTeacherProfilePhotoExact\([\s\S]{0,160}storedPhoto, assertCleanupLease, command\.operationId[\s\S]{0,1000}deleteTeacherFacePersonExact\([\s\S]{0,180}api, groupId, command\.personId, assertCleanupLease, command\.operationId/,
+  "a failed transaction may clean only its own lease-authorized candidate resources");
 
 // A mobile directory must not hide these same actions behind a fixed-height
 // pane; responsive specifics live in the UI-agent contract, while this check

@@ -56,6 +56,7 @@ function harnessFor(options = {}) {
     module: { exports: {} },
     console: { error() {}, warn() {} },
     handleTrustedTeacherExperienceResetTimer: async () => null,
+    handleTrustedTeacherFaceReconcileTimer: async () => null,
     currentUser: async () => ({ uid: "hq-auth", profile: { role: "hq", staffId: "900" } }),
     requireHq(caller) {
       if (caller?.profile?.role !== "hq") failed("FORBIDDEN", "FORBIDDEN");

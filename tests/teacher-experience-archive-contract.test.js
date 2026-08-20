@@ -196,6 +196,7 @@ const verificationCreate = functionSource(faceCloud, "createVerificationApplicat
 const teacherProvision = functionSource(staffCloud, "provisionTeacherWithFace");
 const teacherActivationReadback = functionSource(staffCloud, "activatePersistedTeacherFaceProfile");
 const delegatedTeacherFaceUpsert = functionSource(faceCloud, "upsertDelegatedTeacherFace");
+const delegatedTeacherFaceFinalize = functionSource(faceCloud, "finalizeDelegatedTeacherFace");
 const hqEntitlementRead = functionSource(staffCloud, "getHqTeacherExperienceEntitlements");
 const entitlementUpsert = functionSource(staffCloud, "upsertTeacherExperienceEntitlement");
 const entitlementDelete = functionSource(staffCloud, "deleteTeacherExperienceEntitlement");
@@ -250,7 +251,7 @@ assert.match(teacherProvision, /userStatus:\s*"BLOCKED"/,
   "a teacher authentication account must start blocked before face enrollment completes");
 assert.match(teacherProvision, /initialAccountStatus:\s*"ARCHIVED"/,
   "a teacher business account must start archived before face enrollment completes");
-assert.match(teacherProvision, /delegateTeacherFace\(\{[\s\S]{0,220}operation:\s*"PROVISION"/,
+assert.match(teacherProvision, /delegationInput\s*=\s*\{[\s\S]{0,220}operation:\s*"PROVISION"[\s\S]{0,700}delegateTeacherFaceWithReadbackRetry\(delegationInput\)/,
   "teacher provisioning must delegate face-library and private-photo work to the signed server workflow");
 assert.match(teacherProvision, /activatePersistedTeacherFaceProfile\(\{[\s\S]{0,220}personId:\s*facePersonId/,
   "teacher provisioning must activate through the durable face-profile verifier");
@@ -260,9 +261,13 @@ assert.match(teacherActivationReadback, /account\.account_status\s*=\s*'ACTIVE'/
   "teacher activation readback must also prove the linked business account is active");
 assert.match(teacherProvision, /manager\(\)\.user\.modifyUser\(\{ uid, userStatus: "ACTIVE"/,
   "teacher authentication may activate only after the enrolled database profile is persisted");
-assert.match(delegatedTeacherFaceUpsert, /api\.CreatePerson\([\s\S]*?uploadTeacherProfilePhoto\([\s\S]*?UPDATE public\.teachers AS teacher[\s\S]*?deleteTeacherFacePerson\(api, groupId, previousPersonId\)/,
-  "the delegated service must create, retain and switch the new face before old-person cleanup");
-assert.match(delegatedTeacherFaceUpsert, /deleteUploadedFile\(storedPhoto\)[\s\S]{0,420}deleteTeacherFacePerson\(api, groupId, command\.personId\)/,
+assert.match(delegatedTeacherFaceUpsert, /api\.CreatePerson\([\s\S]*?uploadTeacherProfilePhoto\([\s\S]*?UPDATE public\.teachers AS teacher/,
+  "the delegated service must create, retain and switch the new face before it can be finalized");
+assert.doesNotMatch(delegatedTeacherFaceUpsert, /deleteTeacherFacePersonExact\([\s\S]{0,160}previousPersonId/,
+  "the write phase must retain the old person until the caller finishes final readback and commits SUCCEEDED");
+assert.match(delegatedTeacherFaceFinalize, /assertTeacherFaceOperationLease\(command, \["SUCCEEDED"\]\)[\s\S]*?teacher\.face_person_id = \$\{sqlText\(command\.personId\)\}[\s\S]*?deleteTeacherFacePersonExact\([\s\S]*?command\.faceGroupId, previousPersonId/,
+  "old-person cleanup must be a separate SUCCEEDED-lease operation after exact current-face DB proof");
+assert.match(delegatedTeacherFaceUpsert, /deleteTeacherProfilePhotoExact\([\s\S]*?deleteTeacherFacePersonExact\(/,
   "a failed delegated database switch must clean the newly created photo and person");
 
 // New teacher creation is face-bound. This is deliberately narrower than
@@ -302,10 +307,12 @@ const genericProvision = staffCloud.slice(
 );
 assert.match(genericProvision, /TEACHER_FACE_REQUIRED/,
   "generic provisioning must fail closed when asked to create a new teacher without a face");
-assert.match(teacherFaceUpsert, /delegateTeacherFace\(\{[\s\S]{0,220}operation:\s*"UPSERT"/,
+assert.match(teacherFaceUpsert, /delegationInput\s*=\s*\{[\s\S]*?operation:\s*"UPSERT"[\s\S]*?delegateTeacherFaceWithReadbackRetry\(delegationInput\)/,
   "face replacement must use the signed delegated transaction");
-assert.match(teacherFaceUpsert, /current\.teacher_status/,
-  "later face enrollment must preserve the teacher's existing active/archive state");
+assert.match(teacherFaceUpsert, /t\.teacher_status[\s\S]*?a\.account_status/,
+  "later face enrollment must read the teacher's existing active/archive state");
+assert.doesNotMatch(teacherFaceUpsert, /SET\s+(?:teacher_status|account_status)\s*=/,
+  "later face enrollment must not rewrite the teacher's existing active/archive state");
 
 // The HQ page is deliberately a management/read path: it may show archived
 // teachers/products and their historic quota ledger, whereas configuration and
