@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v4" : "v73";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v4" : "v74";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -2029,6 +2029,22 @@ async function upsertDelegatedTeacherFace(event = {}) {
       command.teacherId, command.personId, command.image.buffer
     );
 
+    const readCommittedFaceSwitch = async () => {
+      const committedRows = await executeSql(
+        `SELECT teacher.id, teacher.teacher_code, teacher.teacher_name,
+                teacher.teacher_status, teacher.face_enrollment_status,
+                teacher.face_enrolled_at, teacher.profile_photo_file_id
+           FROM public.teachers AS teacher
+          WHERE teacher.id = ${command.teacherId}
+            AND teacher.staff_account_id = ${command.staffId}
+            AND teacher.face_person_id = ${sqlText(command.personId)}
+            AND teacher.profile_photo_file_id = ${sqlText(storedPhoto.reference)}
+            AND teacher.face_enrollment_status = 'ENROLLED'
+          LIMIT 1`
+      );
+      return committedRows[0] || null;
+    };
+
     let saved;
     try {
       const savedRows = await executeSql(
@@ -2048,21 +2064,13 @@ async function upsertDelegatedTeacherFace(event = {}) {
                     teacher.teacher_status, teacher.face_enrollment_status,
                     teacher.face_enrolled_at, teacher.profile_photo_file_id`
       );
-      saved = savedRows[0] || null;
+      // CloudBase may commit a writable statement while exposing no Rows for
+      // its top-level RETURNING clause.  Prove the exact person/photo switch
+      // with an authoritative read before treating an empty result as a
+      // concurrent-write failure.
+      saved = savedRows[0] || await readCommittedFaceSwitch();
     } catch (error) {
-      const committedRows = await executeSql(
-        `SELECT teacher.id, teacher.teacher_code, teacher.teacher_name,
-                teacher.teacher_status, teacher.face_enrollment_status,
-                teacher.face_enrolled_at, teacher.profile_photo_file_id
-           FROM public.teachers AS teacher
-          WHERE teacher.id = ${command.teacherId}
-            AND teacher.staff_account_id = ${command.staffId}
-            AND teacher.face_person_id = ${sqlText(command.personId)}
-            AND teacher.profile_photo_file_id = ${sqlText(storedPhoto.reference)}
-            AND teacher.face_enrollment_status = 'ENROLLED'
-          LIMIT 1`
-      ).catch(() => []);
-      saved = committedRows[0] || null;
+      saved = await readCommittedFaceSwitch().catch(() => null);
       if (!saved) throw error;
     }
     if (!saved || saved.face_enrollment_status !== "ENROLLED" || !saved.profile_photo_file_id) {

@@ -194,6 +194,7 @@ const analytics = functionSource(faceCloud, "storeAnalyticsEventCte");
 const hqDashboard = functionSource(staffCloud, "getHqDashboard");
 const verificationCreate = functionSource(faceCloud, "createVerificationApplication");
 const teacherProvision = functionSource(staffCloud, "provisionTeacherWithFace");
+const teacherActivationReadback = functionSource(staffCloud, "activatePersistedTeacherFaceProfile");
 const delegatedTeacherFaceUpsert = functionSource(faceCloud, "upsertDelegatedTeacherFace");
 const hqEntitlementRead = functionSource(staffCloud, "getHqTeacherExperienceEntitlements");
 const entitlementUpsert = functionSource(staffCloud, "upsertTeacherExperienceEntitlement");
@@ -251,8 +252,12 @@ assert.match(teacherProvision, /initialAccountStatus:\s*"ARCHIVED"/,
   "a teacher business account must start archived before face enrollment completes");
 assert.match(teacherProvision, /delegateTeacherFace\(\{[\s\S]{0,220}operation:\s*"PROVISION"/,
   "teacher provisioning must delegate face-library and private-photo work to the signed server workflow");
-assert.match(teacherProvision, /face_person_id\s*=\s*\$\{sqlText\(facePersonId\)\}[\s\S]{0,240}face_enrollment_status\s*=\s*'ENROLLED'[\s\S]{0,180}profile_photo_file_id/,
+assert.match(teacherProvision, /activatePersistedTeacherFaceProfile\(\{[\s\S]{0,220}personId:\s*facePersonId/,
+  "teacher provisioning must activate through the durable face-profile verifier");
+assert.match(teacherActivationReadback, /face_person_id\s*=\s*\$\{sqlText\(personId\)\}[\s\S]{0,260}face_enrollment_status\s*=\s*'ENROLLED'[\s\S]{0,220}profile_photo_file_id/,
   "teacher provisioning must prove the exact person, ENROLLED state and retained photo before activation");
+assert.match(teacherActivationReadback, /account\.account_status\s*=\s*'ACTIVE'/,
+  "teacher activation readback must also prove the linked business account is active");
 assert.match(teacherProvision, /manager\(\)\.user\.modifyUser\(\{ uid, userStatus: "ACTIVE"/,
   "teacher authentication may activate only after the enrolled database profile is persisted");
 assert.match(delegatedTeacherFaceUpsert, /api\.CreatePerson\([\s\S]*?uploadTeacherProfilePhoto\([\s\S]*?UPDATE public\.teachers AS teacher[\s\S]*?deleteTeacherFacePerson\(api, groupId, previousPersonId\)/,

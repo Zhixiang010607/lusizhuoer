@@ -219,12 +219,17 @@ assert.match(delegatedFace, /!result\.teacher\?\.facePhotoReady \|\| result\.tea
   "staffAccount must reject a delegated response that did not retain the teacher photo");
 
 const faceProvision = jsBetween(staff, "async function provisionTeacherWithFace", "// Face enrollment is deliberately independent");
+const faceActivationReadback = jsBetween(staff, "async function activatePersistedTeacherFaceProfile", "async function provisionTeacherWithFace");
 assert.match(faceProvision, /userStatus: "BLOCKED"[\s\S]{0,1400}initialAccountStatus: "ARCHIVED"/,
   "face provisioning must keep the credential and teacher master unavailable until enrollment is complete");
 assert.match(faceProvision, /delegateTeacherFace\(\{[\s\S]{0,260}operation: "PROVISION"[\s\S]{0,520}personId: facePersonId[\s\S]{0,320}image/,
   "face provisioning must delegate the exact new face, teacher, actor and image rather than trusting client data");
-assert.match(faceProvision, /face_person_id = \$\{sqlText\(facePersonId\)\}[\s\S]{0,300}face_enrollment_status = 'ENROLLED'[\s\S]{0,220}profile_photo_file_id/,
+assert.match(faceProvision, /activatePersistedTeacherFaceProfile\(\{[\s\S]{0,220}personId: facePersonId/,
+  "face provisioning must use the durable activation/readback boundary");
+assert.match(faceActivationReadback, /face_person_id = \$\{sqlText\(personId\)\}[\s\S]{0,300}face_enrollment_status = 'ENROLLED'[\s\S]{0,220}profile_photo_file_id/,
   "face provisioning may activate only after the delegated service persisted the exact face identity and private photo");
+assert.match(faceActivationReadback, /await executeSql\([\s\S]{0,900}const rows = await executeSql\(/,
+  "teacher activation must read the durable row after a writable statement instead of trusting RETURNING rows");
 assert.match(faceProvision, /persistedTeacherFaceEnrollment\(profile\?\.staffId, facePersonId\)/,
   "a lost face-enrollment response must first prove the exact committed enrollment before recovery");
 assert.match(faceProvision, /archiveTeacherProvisioning\(profile\?\.staffId\)[\s\S]{0,150}blockTeacherAuthentication\(uid\)/,

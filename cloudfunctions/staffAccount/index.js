@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v57";
+const FUNCTION_VERSION = "v58";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -1135,6 +1135,12 @@ function validatePhone(phone) {
 
 function validatePassword(password) {
   const value = String(password || "");
+  // CloudBase Identity rejects a password whose first character is special.
+  // Keep this server-side boundary before any role preflight, SQL write or
+  // external identity mutation so stale/crafted clients fail closed as well.
+  if (value && !/^[A-Za-z0-9]/.test(value)) {
+    fail("初始密码不能以特殊字符开头，请以英文字母或数字开头", "PASSWORD_START_INVALID");
+  }
   const groups = [/[A-Z]/, /[a-z]/, /\d/, /[^A-Za-z\d]/].filter((rule) => rule.test(value)).length;
   if (value.length < 8 || value.length > 32 || groups < 3) {
     fail("初始密码须为 8-32 位，并包含大写、小写、数字、特殊字符中的至少三类");
@@ -1497,24 +1503,43 @@ async function ensureBootstrapHq(caller) {
 }
 
 async function ensureTeacherDatabaseProfile(staffId) {
-  let rows;
+  const normalizedStaffId = numericId(staffId, "老师账号编号");
   try {
-    rows = await executeSql(
+    await executeSql(
       `INSERT INTO public.teachers
         (teacher_code, teacher_name, staff_account_id, teacher_status, face_enrollment_status)
        SELECT 'TCHF' || account.id::text, account.staff_name, account.id,
               CASE WHEN account.account_status = 'ACTIVE' THEN 'ACTIVE' ELSE 'ARCHIVED' END,
               'PENDING'
          FROM public.staff_accounts AS account
-        WHERE account.id = ${Number(staffId)}
+        WHERE account.id = ${normalizedStaffId}
        ON CONFLICT (staff_account_id) DO UPDATE
          SET teacher_name = EXCLUDED.teacher_name,
-             updated_at = NOW()
-       RETURNING id, teacher_code, teacher_name, teacher_status,
-                 face_person_id, face_enrollment_status, face_enrolled_at`
+             updated_at = NOW()`
     );
   } catch (error) {
     asDatabaseError(error, "创建老师资料");
+  }
+
+  // CloudBase executePGSql can commit a writable statement without exposing
+  // rows produced by RETURNING. Read the durable row back with a plain SELECT
+  // before deciding that profile creation failed. This also makes a retry of a
+  // previously half-reported teacher creation repair itself safely.
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT teacher.id, teacher.teacher_code, teacher.teacher_name,
+              teacher.teacher_status, teacher.face_person_id,
+              teacher.face_enrollment_status, teacher.face_enrolled_at
+         FROM public.teachers AS teacher
+         JOIN public.staff_accounts AS account
+           ON account.id = teacher.staff_account_id
+        WHERE teacher.staff_account_id = ${normalizedStaffId}
+          AND account.role_code = 'teacher'
+        LIMIT 1`
+    );
+  } catch (error) {
+    asDatabaseError(error, "确认老师资料");
   }
   const teacher = rows?.[0];
   if (!teacher) fail("老师账号已创建，但老师资料未能写入", "TEACHER_PROFILE_MISSING");
@@ -2972,6 +2997,42 @@ async function persistedTeacherFaceEnrollment(staffId, personId, profilePhotoFil
   }
 }
 
+async function activatePersistedTeacherFaceProfile({ staffId, teacherId, personId, teacherName = "" }) {
+  const normalizedStaffId = numericId(staffId, "老师账号");
+  const normalizedTeacherId = numericId(teacherId, "老师编号");
+  const nameAssignment = teacherName ? `teacher_name = ${sqlText(teacherName)}, ` : "";
+  await executeSql(
+    `UPDATE public.teachers
+        SET ${nameAssignment}teacher_status = 'ACTIVE', updated_at = NOW()
+      WHERE id = ${normalizedTeacherId}::bigint
+        AND staff_account_id = ${normalizedStaffId}::bigint
+        AND face_person_id = ${sqlText(personId)}
+        AND face_enrollment_status = 'ENROLLED'
+        AND BTRIM(COALESCE(profile_photo_file_id, '')) <> ''`
+  );
+  // Writable statements may commit without exposing RETURNING rows. Confirm
+  // every activation invariant through an independent read before the
+  // external authentication credential is enabled.
+  const rows = await executeSql(
+    `SELECT teacher.id, teacher.teacher_code, teacher.teacher_name,
+            teacher.teacher_status, teacher.face_enrollment_status,
+            teacher.face_enrolled_at, teacher.profile_photo_file_id
+       FROM public.teachers AS teacher
+       JOIN public.staff_accounts AS account
+         ON account.id = teacher.staff_account_id
+      WHERE teacher.id = ${normalizedTeacherId}::bigint
+        AND teacher.staff_account_id = ${normalizedStaffId}::bigint
+        AND teacher.face_person_id = ${sqlText(personId)}
+        AND teacher.face_enrollment_status = 'ENROLLED'
+        AND teacher.teacher_status = 'ACTIVE'
+        AND BTRIM(COALESCE(teacher.profile_photo_file_id, '')) <> ''
+        AND account.role_code = 'teacher'
+        AND account.account_status = 'ACTIVE'
+      LIMIT 1`
+  );
+  return rows?.[0] || null;
+}
+
 async function provisionTeacherWithFace(caller, event = {}) {
   await requireTeacherFaceSchema();
   await requireTeacherExperienceFaceSubjectSchema();
@@ -3016,22 +3077,13 @@ async function provisionTeacherWithFace(caller, event = {}) {
     // account activation response.  The same request id is allowed to finish
     // that exact activation; no different face or person id is accepted.
     try {
-      const recoveredRows = await executeSql(
-        `UPDATE public.teachers
-            SET teacher_status = 'ACTIVE', updated_at = NOW()
-          WHERE id = ${Number(existing.teacher_id)}
-            AND staff_account_id = ${Number(existing.staff_id)}
-            AND face_enrollment_status = 'ENROLLED'
-            AND face_person_id = ${sqlText(facePersonId)}
-          RETURNING id`
-      );
-      if (!recoveredRows?.[0]) fail("已登记老师资料无法恢复为活跃状态。", "TEACHER_FACE_RECOVERY_REQUIRED");
-      const recoveredAccountRows = await executeSql(
-        `SELECT account_status FROM public.staff_accounts WHERE id = ${Number(existing.staff_id)} LIMIT 1`
-      );
-      if (String(recoveredAccountRows?.[0]?.account_status || "") !== "ACTIVE") {
-        fail("已登记老师账号状态未能同步恢复，请确认迁移 046 已完整执行。", "TEACHER_FACE_RECOVERY_REQUIRED");
-      }
+      const recovered = await activatePersistedTeacherFaceProfile({
+        staffId: existing.staff_id,
+        teacherId: existing.teacher_id,
+        personId: facePersonId,
+        teacherName: staffName
+      });
+      if (!recovered) fail("已登记老师资料无法恢复为活跃状态。", "TEACHER_FACE_RECOVERY_REQUIRED");
       await manager().user.modifyUser({ uid: enrolledUid, userStatus: "ACTIVE", nickName: staffName });
     } catch (error) {
       await archiveTeacherProvisioning(existing.staff_id);
@@ -3084,6 +3136,16 @@ async function provisionTeacherWithFace(caller, event = {}) {
       uid, phone, staffName, role: "teacher", storeId: "", initialAccountStatus: "ARCHIVED"
     });
   } catch (error) {
+    // The database write and the CloudBase response are not atomic. If the
+    // staff/profile rows committed just before a response was lost, repair the
+    // externally visible state to ARCHIVED before reporting the retryable
+    // failure. The next request with this phone then resumes the same rows.
+    const partialRows = await executeSql(
+      `SELECT id FROM public.staff_accounts
+        WHERE auth_uid = ${sqlText(uid)} AND role_code = 'teacher'
+        LIMIT 1`
+    ).catch(() => []);
+    if (partialRows?.[0]?.id) await archiveTeacherProvisioning(partialRows[0].id);
     await blockTeacherAuthentication(uid, { required: true });
     stageFail("DB_PROFILE", error?.message || "老师业务资料创建失败。", error?.code || "TEACHER_PROFILE_SAVE_FAILED", error);
   }
@@ -3104,18 +3166,12 @@ async function provisionTeacherWithFace(caller, event = {}) {
     // The face service never activates a login/master row. This final local
     // update is deliberately after the signed service confirmed both Tencent
     // enrollment and immutable private-photo persistence.
-    const rows = await executeSql(
-      `UPDATE public.teachers
-          SET teacher_name = ${sqlText(staffName)}, teacher_status = 'ACTIVE', updated_at = NOW()
-        WHERE id = ${numericId(profile.teacherId, "老师编号")}::bigint
-          AND staff_account_id = ${numericId(profile.staffId, "老师账号")}::bigint
-          AND face_person_id = ${sqlText(facePersonId)}
-          AND face_enrollment_status = 'ENROLLED'
-          AND BTRIM(COALESCE(profile_photo_file_id, '')) <> ''
-        RETURNING id, teacher_code, teacher_name, teacher_status,
-                  face_enrollment_status, face_enrolled_at, profile_photo_file_id`
-    );
-    teacher = rows?.[0];
+    teacher = await activatePersistedTeacherFaceProfile({
+      staffId: profile.staffId,
+      teacherId: profile.teacherId,
+      personId: facePersonId,
+      teacherName: staffName
+    });
     if (!teacher || teacher.face_enrollment_status !== "ENROLLED"
         || teacher.teacher_status !== "ACTIVE" || !teacher.profile_photo_file_id) {
       fail("老师人脸建档资料未能完整保存。", "TEACHER_FACE_ENROLLMENT_INCOMPLETE");
@@ -3126,18 +3182,12 @@ async function provisionTeacherWithFace(caller, event = {}) {
     // delayed service invocation cannot activate this still-archived account.
     const persisted = await persistedTeacherFaceEnrollment(profile?.staffId, facePersonId);
     if (persisted?.profile_photo_file_id) {
-      const recoveredRows = await executeSql(
-        `UPDATE public.teachers
-            SET teacher_status = 'ACTIVE', updated_at = NOW()
-          WHERE id = ${numericId(profile.teacherId, "老师编号")}::bigint
-            AND staff_account_id = ${numericId(profile.staffId, "老师账号")}::bigint
-            AND face_person_id = ${sqlText(facePersonId)}
-            AND face_enrollment_status = 'ENROLLED'
-            AND BTRIM(COALESCE(profile_photo_file_id, '')) <> ''
-          RETURNING id, teacher_code, teacher_name, teacher_status,
-                    face_enrollment_status, face_enrolled_at, profile_photo_file_id`
-      ).catch(() => []);
-      teacher = recoveredRows?.[0] || null;
+      teacher = await activatePersistedTeacherFaceProfile({
+        staffId: profile.staffId,
+        teacherId: profile.teacherId,
+        personId: facePersonId,
+        teacherName: staffName
+      }).catch(() => null);
     }
     if (teacher) {
       faceWarning = "老师人脸已安全保存，本次请求在响应丢失后已自动恢复。";

@@ -137,7 +137,7 @@ function delegatedHarness(mode = "success") {
         state.personId = command.personId;
         state.photo = storedPhoto.reference;
         state.saved = true;
-        return [current()];
+        return mode === "empty-write-result" ? [] : [current()];
       }
       // The nested response-loss and outer compensation probes only accept an
       // exact new person/photo pair.  A failed switch returns no proof.
@@ -173,6 +173,26 @@ function imageData(bytes) {
     assert.equal(result.replaced, true);
     assert.equal(result.teacher.facePhotoReady, true);
     assert.equal(state.personId, command.personId);
+    assert.deepEqual(state.order, [
+      `create:${command.personId}`,
+      "upload:new",
+      "database:switch-new-face",
+      "delete-person:T-OLDOLDOLDOLDOLDOLDOLDOLDOLDOLDOLDOLDOLDOLDOLDOLDOLDOLD"
+    ]);
+  }
+
+  // CloudBase can commit UPDATE ... RETURNING without exposing any Rows.  The
+  // delegated service must read back the exact person/photo pair and return
+  // success instead of compensating a write that is already durable.
+  {
+    const { command, state, upsert } = delegatedHarness("empty-write-result");
+    const result = await upsert({});
+    assert.equal(result.ok, true);
+    assert.equal(result.createdNow, true);
+    assert.equal(result.replaced, true);
+    assert.equal(result.teacher.facePhotoReady, true);
+    assert.equal(state.personId, command.personId);
+    assert.equal(state.saved, true);
     assert.deepEqual(state.order, [
       `create:${command.personId}`,
       "upload:new",

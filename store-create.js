@@ -42,6 +42,9 @@
 
   function validateInitialPassword(value) {
     const password = String(value || "");
+    if (password && !/^[A-Za-z0-9]/.test(password)) {
+      throw new Error("初始密码不能以特殊字符开头，请以英文字母或数字开头");
+    }
     const groups = [/[A-Z]/, /[a-z]/, /\d/, /[^A-Za-z\d]/].filter((rule) => rule.test(password)).length;
     if (password.length < 8 || password.length > 32 || groups < 3) {
       throw new Error("初始密码需为 8–32 位，并包含大写、小写、数字、特殊字符中的至少三类");
