@@ -18,7 +18,7 @@
 
 046 完成后的上线顺序固定为：
 
-1. 部署 `faceRecognition v69` 和本函数 `staffAccount v50`，并分别调用 `health` 确认版本；
+1. 部署 `faceRecognition v69` 和本函数 `staffAccount v53`，并分别调用 `health` 确认版本；
 2. 在仅限总部使用、已加载当前 `cloudbase-phone-auth.js` 的临时维护页面中，以**已登录总部**身份在浏览器控制台执行 `await CloudBasePhoneAuth.retireOperationAccounts()`，等待 `ok: true`；它会逐个把旧运营账号的 CloudBase 登录凭据设为 `BLOCKED`。该维护页不是最终静态发布；失败时先修复原因并安全重试，不能继续下一步；
 3. 只有该动作成功后，才执行 `047_retire_operation_accounts.sql`（CloudBase SQL 编辑器依次执行 `047-01-retire-operation-accounts.sql`、`047-02-hq-reviewer-guard.sql`）；
 4. 依次执行 `048_optional_teacher_face_and_experience_quota_lifecycle.sql`（CloudBase SQL 编辑器则依次执行 `048-01` 至 `048-07`）；
@@ -97,6 +97,6 @@ Top 10；`{ mode: "ranking", dimension, pageNumber, pageSize }` 返回
 `035_hq_dashboard_approved_covering_indexes.sql`，为两张工单表的已通过日期范围聚合提供覆盖索引。
 
 部署 `v53` 前必须确认已按编号执行既有迁移，并至少完成至 `048`；
-其中 046 是老师人脸、体验额度、封存写入防线及原子体验核销的前置条件，048 将老师人脸改为可选资料并增加额度删除／重配生命周期。随后必须按本节的“v69/v50 → 总部封锁 CloudBase 凭据 → 047 → 048 → v70/v53 → 静态前端”顺序完成运营身份下线与新额度规则发布；047 会将审核权限收紧为总部独占。
+其中 046 是老师人脸、体验额度、封存写入防线及原子体验核销的前置条件，048 将老师人脸改为可选资料并增加额度删除／重配生命周期。随后必须按本节的“v69/v53 → 总部封锁 CloudBase 凭据 → 047 → 048 → v70/v53 → 静态前端”顺序完成运营身份下线与新额度规则发布；047 会将审核权限收紧为总部独占。
 部署后调用 `{ "action": "health" }`，返回版本必须为 `v53`，并确认
 `teacherExperienceResetTimerTriggerName` 为 `reset-teacher-experience-quotas-monthly`。
