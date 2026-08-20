@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>退费审核</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.44">
+  <link rel="stylesheet" href="styles.css?v=0.15.48">
 </head>
 <body data-review="refund">
   <aside class="side-project-bar" aria-label="项目栏">
@@ -49,7 +49,13 @@
           <tbody id="reviewBody"></tbody>
         </table>
       </div>
-      <div class="form-submit-row"><span></span><button id="reviewLoadMore" type="button" hidden>加载更多审核记录</button></div>
+      <nav id="reviewPagination" class="review-pagination" aria-label="退费审核记录分页" hidden>
+        <button id="reviewPreviousPage" type="button">上一页</button>
+        <span id="reviewPageLabel" aria-live="polite">第 1 / 1 页</span>
+        <label class="review-page-jump">跳至第 <input id="reviewPageInput" type="number" min="1" step="1" inputmode="numeric" aria-label="跳转到第几页"> 页</label>
+        <button id="reviewPageJump" type="button">跳转</button>
+        <button id="reviewNextPage" type="button">下一页</button>
+      </nav>
     </section>
   </main>
 
@@ -65,9 +71,9 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
-  <script src="cloudbase-phone-auth.js?v=0.18.0"></script>
+  <script src="cloudbase-phone-auth.js?v=0.18.1"></script>
   <script src="datetime.js?v=0.1.2"></script>
-  <script src="review.js?v=0.18.1"></script>
+  <script src="review.js?v=0.18.2"></script>
   <script src="auth-ui.js?v=0.19.0"></script>
 </body>
 </html>

@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v51";
+const FUNCTION_VERSION = "v52";
 const ORDER_VOID_APPLICATIONS_ENABLED = false;
 const TEACHER_EXPERIENCE_RESET_TIMER_TRIGGER_NAME = "reset-teacher-experience-quotas-monthly";
 const TEACHER_FACE_MAX_BYTES = 4 * 1024 * 1024;
@@ -2391,9 +2391,25 @@ async function listReviewOrders(caller, event) {
   const limit = storeReader ? 1 : paged
     ? Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 100, 1), 100)
     : Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 200, 1), 500);
+
+  // Cursor pagination remains available to existing callers. The review
+  // workbenches use pageNumber so an HQ reviewer can jump to any valid page
+  // without first loading every prior page in the browser.
+  const pageNumberValue = event.pageNumber;
+  const hasPageNumber = pageNumberValue !== undefined && pageNumberValue !== null && String(pageNumberValue).trim() !== "";
+  let requestedPageNumber = 1;
+  if (hasPageNumber) {
+    requestedPageNumber = Number(pageNumberValue);
+    if (!Number.isSafeInteger(requestedPageNumber) || requestedPageNumber < 1 || requestedPageNumber > 10000) {
+      fail("审核列表页码必须是 1 到 10000 之间的整数", "BAD_REQUEST");
+    }
+    if (!paged) fail("只有按条件读取的总部审核列表可以使用页码", "BAD_REQUEST");
+  }
+
   const cursorApplicationTime = String(event.cursorApplicationTime || "").trim();
   const cursorIdValue = String(event.cursorId || "").trim();
   const hasCursor = Boolean(cursorApplicationTime || cursorIdValue || event.cursorPending !== undefined);
+  if (hasCursor && hasPageNumber) fail("审核列表不能同时使用页码与游标", "BAD_REQUEST");
   if (hasCursor && (!paged || !cursorApplicationTime || !cursorIdValue || typeof event.cursorPending !== "boolean")) {
     fail("审核列表游标不完整", "BAD_REQUEST");
   }
@@ -2408,8 +2424,10 @@ async function listReviewOrders(caller, event) {
     }
   }
   const cursorId = cursorIdValue ? numericId(cursorIdValue, "审核列表游标编号") : "";
-  const sqlLimit = paged ? limit + 1 : limit;
+  const pageOffsetPagination = paged && hasPageNumber;
+  const sqlLimit = paged && !pageOffsetPagination ? limit + 1 : limit;
   let sql;
+  let countSql = "";
   if (recordType === "RECHARGE") {
     const statusExpression = exactLookup ? "CASE WHEN r.void_request_status <> 'NONE' THEN r.void_request_status ELSE r.record_status END" : "r.record_status";
     const typeExpression = exactLookup ? "CASE WHEN r.void_request_status <> 'NONE' THEN 'VOID' ELSE r.recharge_type END" : "r.recharge_type";
@@ -2417,6 +2435,14 @@ async function listReviewOrders(caller, event) {
     const cursorClause = hasCursor
       ? `AND ((${statusExpression} = 'PENDING')::int, ${timeExpression}, r.id) < (${event.cursorPending ? 1 : 0}, ${sqlText(cursorApplicationTime)}::timestamptz, ${cursorId}::bigint)`
       : "";
+    const fromSql = `FROM public.recharge_records r
+             JOIN public.stores s ON s.id = r.store_id
+             JOIN public.customers c ON c.id = r.customer_id
+             JOIN public.products p ON p.id = r.product_id
+        LEFT JOIN public.teachers t ON t.id = r.teacher_id`;
+    const whereSql = `WHERE ${exactLookup ? "TRUE" : "r.recharge_type IN ('NEW', 'REFUND')"}
+              ${reviewFilterSql(reviewListEvent, "r", "r.recharge_code", statusExpression, typeExpression)}
+              ${cursorClause}`;
     sql = `SELECT r.id, r.recharge_code AS record_code, 'RECHARGE'::text AS record_type,
                   ${typeExpression} AS application_type,
                   ${statusExpression} AS application_status,
@@ -2434,16 +2460,10 @@ async function listReviewOrders(caller, event) {
                   c.id AS customer_id, c.customer_code, c.customer_name,
                   p.id AS product_id, p.product_code, p.product_name,
                   t.id AS teacher_id, t.teacher_code, t.teacher_name
-             FROM public.recharge_records r
-             JOIN public.stores s ON s.id = r.store_id
-             JOIN public.customers c ON c.id = r.customer_id
-             JOIN public.products p ON p.id = r.product_id
-        LEFT JOIN public.teachers t ON t.id = r.teacher_id
-            WHERE ${exactLookup ? "TRUE" : "r.recharge_type IN ('NEW', 'REFUND')"}
-              ${reviewFilterSql(reviewListEvent, "r", "r.recharge_code", statusExpression, typeExpression)}
-              ${cursorClause}
-         ORDER BY (${statusExpression} = 'PENDING') DESC, ${timeExpression} DESC, r.id DESC
-            LIMIT ${sqlLimit}`;
+             ${fromSql}
+             ${whereSql}
+         ORDER BY (${statusExpression} = 'PENDING') DESC, ${timeExpression} DESC, r.id DESC`;
+    countSql = `SELECT COUNT(*) AS total ${fromSql} ${whereSql}`;
   } else {
     const statusExpression = "v.record_status";
     const typeExpression = "v.verification_type";
@@ -2451,6 +2471,14 @@ async function listReviewOrders(caller, event) {
     const cursorClause = hasCursor
       ? `AND ((${statusExpression} = 'PENDING')::int, ${timeExpression}, v.id) < (${event.cursorPending ? 1 : 0}, ${sqlText(cursorApplicationTime)}::timestamptz, ${cursorId}::bigint)`
       : "";
+    const fromSql = `FROM public.verification_records v
+             JOIN public.stores s ON s.id = v.store_id
+             JOIN public.customers c ON c.id = v.customer_id
+             JOIN public.products p ON p.id = v.product_id
+             JOIN public.teachers t ON t.id = v.teacher_id`;
+    const whereSql = `WHERE ${exactLookup && event.detailRead === true ? "TRUE" : "v.verification_type = 'SUPPLEMENT' AND v.void_request_status = 'NONE'"}
+              ${reviewFilterSql(scopedEvent, "v", "v.verification_code", statusExpression, typeExpression)}
+              ${cursorClause}`;
     sql = `SELECT v.id, v.verification_code AS record_code, 'VERIFICATION'::text AS record_type,
                   ${typeExpression} AS application_type,
                   ${statusExpression} AS application_status,
@@ -2468,19 +2496,38 @@ async function listReviewOrders(caller, event) {
                   c.id AS customer_id, c.customer_code, c.customer_name,
                   p.id AS product_id, p.product_code, p.product_name,
                   t.id AS teacher_id, t.teacher_code, t.teacher_name
-             FROM public.verification_records v
-             JOIN public.stores s ON s.id = v.store_id
-             JOIN public.customers c ON c.id = v.customer_id
-             JOIN public.products p ON p.id = v.product_id
-             JOIN public.teachers t ON t.id = v.teacher_id
-            WHERE ${exactLookup && event.detailRead === true ? "TRUE" : "v.verification_type = 'SUPPLEMENT' AND v.void_request_status = 'NONE'"}
-              ${reviewFilterSql(scopedEvent, "v", "v.verification_code", statusExpression, typeExpression)}
-              ${cursorClause}
-         ORDER BY (${statusExpression} = 'PENDING') DESC, ${timeExpression} DESC, v.id DESC
-            LIMIT ${sqlLimit}`;
+             ${fromSql}
+             ${whereSql}
+         ORDER BY (${statusExpression} = 'PENDING') DESC, ${timeExpression} DESC, v.id DESC`;
+    countSql = `SELECT COUNT(*) AS total ${fromSql} ${whereSql}`;
   }
   try {
-    const rows = await executeSql(sql);
+    if (pageOffsetPagination) {
+      const countRows = await executeSql(countSql);
+      const total = Number(countRows?.[0]?.total || 0);
+      if (!Number.isSafeInteger(total) || total < 0) fail("审核列表总数读取失败", "DATABASE_ERROR");
+      const totalPages = Math.max(1, Math.ceil(total / limit));
+      // The data can change between a page jump and this count. Clamp a stale
+      // page number to the final page instead of rendering an empty workbench.
+      const pageNumber = Math.min(requestedPageNumber, totalPages);
+      const pageOffset = (pageNumber - 1) * limit;
+      const orders = await executeSql(`${sql} LIMIT ${limit} OFFSET ${pageOffset}`);
+      const stores = pageNumber === 1
+        ? await executeSql(`SELECT id AS store_id, store_code, store_name FROM public.stores ORDER BY store_name, store_code, id`)
+        : [];
+      return {
+        orders,
+        total,
+        pageNumber,
+        pageSize: limit,
+        totalPages,
+        hasMore: pageNumber < totalPages,
+        nextCursor: null,
+        stores
+      };
+    }
+
+    const rows = await executeSql(`${sql} LIMIT ${sqlLimit}`);
     if (!paged) return rows;
     const hasMore = rows.length > limit;
     const orders = rows.slice(0, limit);

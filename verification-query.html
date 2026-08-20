@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>核销查询</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.47">
+  <link rel="stylesheet" href="styles.css?v=0.15.48">
 </head>
 <body data-query="verification">
   <aside class="side-project-bar" aria-label="项目栏">
@@ -53,7 +53,7 @@
     <section id="recordCategoryGrid" class="customer-category-grid four-cards" aria-label="核销原单状态统计" hidden></section>
     <section class="panel customer-permission-banner"><strong id="recordPermissionTitle">门店范围</strong><span id="recordPermissionText">只读取当前登录门店的数据库核销单；封存客户的历史记录仍会保留。</span></section>
     <section class="panel table-card query-results store-record-results">
-      <div class="panel-heading"><div><h2>核销结果</h2></div><div class="record-query-pager"><button id="recordPreviousPage" type="button">上一页</button><span id="recordPageLabel">第 1 页</span><button id="recordNextPage" type="button">下一页</button></div></div>
+      <div class="panel-heading"><div><h2>核销结果</h2></div><div class="record-query-pager" aria-label="核销结果分页"><button id="recordPreviousPage" type="button">上一页</button><span id="recordPageLabel" aria-live="polite">第 1 页</span><label class="record-page-jump">跳至第 <input id="recordPageJumpInput" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" aria-label="跳转到第几页"> 页</label><button id="recordPageJumpButton" type="button">跳转</button><button id="recordNextPage" type="button">下一页</button></div></div>
       <div class="table-scroll"><table class="record-query-results-table verification-record-results-table"><thead><tr><th>核销单号</th><th>客户编号</th><th>客户姓名</th><th>生日</th><th>门店</th><th>项目</th><th>老师</th><th>核销类型</th><th>提交时间</th></tr></thead><tbody id="recordQueryBody"></tbody></table></div>
     </section>
   </main>
@@ -63,6 +63,6 @@
     <section class="panel table-card query-results"><div class="panel-heading"><div><h2>核销记录</h2></div><span class="badge">核销</span></div><div class="table-scroll"><table class="record-query-results-table legacy-record-results-table"><thead><tr><th>核销编号（可查看）</th><th>客户编号</th><th>客户姓名</th><th>生日</th><th>门店</th><th>项目</th><th>老师</th><th>提交时间</th><th>状态</th></tr></thead><tbody id="queryBody"></tbody></table></div></section>
   </main>
 
-  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.18.0"></script><script src="datetime.js?v=0.1.2"></script><script src="query.js?v=0.15.9"></script><script src="auth-ui.js?v=0.19.0"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.18.0"></script><script src="datetime.js?v=0.1.2"></script><script src="query.js?v=0.15.10"></script><script src="auth-ui.js?v=0.19.0"></script>
 </body>
 </html>

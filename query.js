@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.9";
+  const VERSION = "0.15.10";
   const type = document.body.dataset.query;
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
@@ -43,7 +43,28 @@
     let nextCursor = null;
     let hasMore = false;
     let requestSequence = 0;
+    let isPageJumping = false;
+    let isPageLoading = false;
     const statusCategoryValue = () => $("recordStatusCategory")?.value || "ALL";
+
+    function setRecordPageJumpFiltersLocked(locked) {
+      const ids = [
+        "recordProduct", "recordStatusCategory", "recordVerificationType", "recordTimeRange",
+        "recordDateStart", "recordDateEnd", "recordCustomerName", "recordCustomerBirthday",
+        "recordStoreScope", "runRecordQuery", "resetRecordQuery"
+      ];
+      const nodes = ids.map($).filter(Boolean);
+      document.querySelectorAll("[data-record-query-mode], [data-record-category]").forEach((node) => nodes.push(node));
+      nodes.forEach((node) => {
+        if (locked) {
+          if (!("pageJumpLocked" in node.dataset)) node.dataset.pageJumpLocked = node.disabled ? "true" : "false";
+          node.disabled = true;
+        } else if ("pageJumpLocked" in node.dataset) {
+          node.disabled = node.dataset.pageJumpLocked === "true";
+          delete node.dataset.pageJumpLocked;
+        }
+      });
+    }
 
     if (isHq) {
       $("recordScopeBadge").textContent = "总部可选范围";
@@ -216,6 +237,96 @@
         ? ({ ALL: summary.total, PENDING: summary.pending, APPROVED: summary.approved, REJECTED: summary.rejected }[statusCategoryValue()] ?? summary.total)
         : summary.total;
     }
+    function recordPageCount() {
+      return Math.max(1, Math.ceil(Math.max(0, Number(selectedRecordTotal()) || 0) / 100));
+    }
+    function updateRecordPager() {
+      const totalPages = recordPageCount();
+      const busy = isPageJumping || isPageLoading;
+      $("recordPageLabel").textContent = `第 ${pageIndex + 1} / ${totalPages} 页`;
+      $("recordPreviousPage").disabled = busy || pageIndex === 0;
+      $("recordNextPage").disabled = busy || !hasMore;
+      const input = $("recordPageJumpInput");
+      if (input) {
+        input.min = "1";
+        input.max = String(totalPages);
+        input.value = String(pageIndex + 1);
+        input.disabled = busy;
+      }
+      const button = $("recordPageJumpButton");
+      if (button) button.disabled = busy;
+    }
+    function furthestKnownRecordPage() {
+      for (let index = cursors.length - 1; index >= 0; index -= 1) {
+        if (index === 0 || cursors[index]) return index;
+      }
+      return 0;
+    }
+    async function jumpToRecordPage() {
+      if (isPageJumping || isPageLoading) return;
+      const input = $("recordPageJumpInput");
+      if (!input) return;
+      const raw = input.value.trim();
+      if (!/^\d+$/.test(raw)) {
+        notice(`请输入 1 到 ${recordPageCount()} 的整数页码。`, true);
+        input.focus();
+        input.select();
+        return;
+      }
+      const requestedPage = Number(raw);
+      if (!Number.isSafeInteger(requestedPage)) {
+        notice(`请输入 1 到 ${recordPageCount()} 的整数页码。`, true);
+        input.focus();
+        input.select();
+        return;
+      }
+      const totalPages = recordPageCount();
+      const targetPage = Math.min(Math.max(requestedPage, 1), totalPages);
+      const clamped = targetPage !== requestedPage;
+      const targetIndex = targetPage - 1;
+      const clampMessage = clamped ? `页码已调整为第 ${targetPage} 页；` : "";
+      if (targetIndex === pageIndex) {
+        input.value = String(targetPage);
+        notice(`${clampMessage}当前已是第 ${targetPage} 页。`);
+        return;
+      }
+
+      isPageJumping = true;
+      updateRecordPager();
+      setRecordPageJumpFiltersLocked(true);
+      const currentIndex = pageIndex;
+      try {
+        if (targetIndex === 0 || cursors[targetIndex]) {
+          pageIndex = targetIndex;
+          const loaded = await load({ resetPage: false });
+          if (loaded) notice(`${clampMessage}已跳转至第 ${pageIndex + 1} 页。`);
+          return;
+        }
+
+        const knownIndex = furthestKnownRecordPage();
+        pageIndex = knownIndex;
+        if (knownIndex !== currentIndex) {
+          const loaded = await load({ resetPage: false });
+          if (!loaded) return;
+        }
+        while (pageIndex < targetIndex) {
+          if (!hasMore || !nextCursor) {
+            notice(`第 ${targetPage} 页暂不可用，已显示最后可用的第 ${pageIndex + 1} 页。`, true);
+            return;
+          }
+          cursors[pageIndex + 1] = nextCursor;
+          pageIndex += 1;
+          notice(`正在跳转到第 ${targetPage} 页（读取第 ${pageIndex + 1} 页）…`);
+          const loaded = await load({ resetPage: false });
+          if (!loaded) return;
+        }
+        notice(`${clampMessage}已跳转至第 ${pageIndex + 1} 页。`);
+      } finally {
+        isPageJumping = false;
+        setRecordPageJumpFiltersLocked(false);
+        updateRecordPager();
+      }
+    }
     function renderRows() {
       const detailPage = recordType === "RECHARGE" ? "recharge-detail.html" : "verification-detail.html";
       $("recordQueryBody").innerHTML = rows.map((record) => {
@@ -236,9 +347,7 @@
       const selectedCount = selectedRecordTotal();
       const customerCount = new Set(rows.map((record) => record.customerCode)).size;
       $("recordSummary").textContent = `当前条件 ${selectedCount} 条；本页 ${rows.length} 条，涉及 ${customerCount} 位客户`;
-      $("recordPageLabel").textContent = `第 ${pageIndex + 1} / ${Math.max(1, Math.ceil(selectedCount / 100))} 页`;
-      $("recordPreviousPage").disabled = pageIndex === 0;
-      $("recordNextPage").disabled = !hasMore;
+      updateRecordPager();
     }
     function renderCategories() {
       if (!$("recordStatusCategory")) {
@@ -263,6 +372,7 @@
           load({ resetPage: true });
         };
       });
+      if (isPageJumping) setRecordPageJumpFiltersLocked(true);
     }
     async function load({ resetPage = true } = {}) {
       if (resetPage) {
@@ -270,12 +380,12 @@
         pageIndex = 0;
       }
       const sequence = ++requestSequence;
+      isPageLoading = true;
       const currentScope = scopeLabel();
       notice(`正在从数据库读取${currentScope}${noun}记录…`);
       $("recordQueryBody").innerHTML = `<tr><td colspan="${columnCount}" class="query-empty">正在从数据库读取${escapeHtml(currentScope)}${noun}记录…</td></tr>`;
       $("runRecordQuery").disabled = true;
-      $("recordPreviousPage").disabled = true;
-      $("recordNextPage").disabled = true;
+      updateRecordPager();
       try {
         const data = await call(queryPayload());
         if (sequence !== requestSequence) return false;
@@ -304,12 +414,15 @@
         $("recordSummary").textContent = "数据库读取失败";
         $("recordQueryBody").innerHTML = `<tr><td colspan="${columnCount}" class="query-empty">${escapeHtml(error.message)}</td></tr>`;
         $("recordCategoryGrid").innerHTML = "";
-        $("recordPreviousPage").disabled = pageIndex === 0;
-        $("recordNextPage").disabled = true;
+        updateRecordPager();
         notice(error.message || "数据库读取失败", true);
         return false;
       } finally {
-        if (sequence === requestSequence) $("runRecordQuery").disabled = false;
+        if (sequence === requestSequence) {
+          isPageLoading = false;
+          $("runRecordQuery").disabled = isPageJumping;
+          updateRecordPager();
+        }
       }
     }
 
@@ -362,6 +475,12 @@
       cursors[pageIndex + 1] = nextCursor;
       pageIndex += 1;
       load({ resetPage: false });
+    };
+    $("recordPageJumpButton").onclick = () => jumpToRecordPage();
+    $("recordPageJumpInput").onkeydown = (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      jumpToRecordPage();
     };
     setMode("browse");
     if (isHq) {

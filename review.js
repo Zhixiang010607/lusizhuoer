@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const VERSION = "0.18.1";
+  const VERSION = "0.18.2";
   const pageType = document.body.dataset.review;
   const rechargeWorkflow = ["recharge", "refund"].includes(pageType);
   const recordType = rechargeWorkflow ? "RECHARGE" : "VERIFICATION";
@@ -8,8 +8,9 @@
   const columnCount = 10;
   const $ = (id) => document.getElementById(id);
   const statusText = { PENDING: "待审核", APPROVED: "审核通过", REJECTED: "已驳回" };
+  const PAGE_SIZE = 100;
   let rows = [], pendingAction = null, loadingSequence = 0, session = null, queryMode = "filters";
-  let nextCursor = null, hasMore = false, listLoading = false;
+  let pageNumber = 1, totalRows = 0, totalPages = 1, listLoading = false;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   let canDecide = false;
   let reviewerRole = "审核人员";
@@ -58,7 +59,7 @@
   function setLoading(message) {
     $("reviewBody").innerHTML = `<tr><td colspan="${columnCount}" class="query-empty">${escapeHtml(message)}</td></tr>`;
     $("reviewCount").innerHTML = `<strong>—</strong><span>${escapeHtml(message)}</span>`;
-    if ($("reviewLoadMore")) $("reviewLoadMore").hidden = true;
+    if ($("reviewPagination")) $("reviewPagination").hidden = true;
   }
   function saveAuthoritativeSession(data) {
     const profile = data?.profile || {};
@@ -129,8 +130,28 @@
     if (rechargeWorkflow) return `${item.isRefund || item.isVoid ? "−" : "+"}${item.amount}次`;
     return `核销 +${item.amount || 1}`;
   }
+  function renderPagination() {
+    const pagination = $("reviewPagination");
+    if (!pagination) return;
+    const showPager = queryMode === "filters";
+    pagination.hidden = !showPager;
+    if (!showPager) return;
+    const safeTotalPages = Math.max(1, totalPages);
+    const safePageNumber = Math.min(Math.max(1, pageNumber), safeTotalPages);
+    pageNumber = safePageNumber;
+    $("reviewPageLabel").textContent = `第 ${safePageNumber} / ${safeTotalPages} 页`;
+    $("reviewPreviousPage").disabled = listLoading || safePageNumber <= 1;
+    $("reviewNextPage").disabled = listLoading || safePageNumber >= safeTotalPages;
+    $("reviewPageInput").min = "1";
+    $("reviewPageInput").max = String(safeTotalPages);
+    $("reviewPageInput").value = String(safePageNumber);
+    $("reviewPageInput").disabled = listLoading || safeTotalPages <= 1;
+    $("reviewPageJump").disabled = listLoading || safeTotalPages <= 1;
+  }
   function render() {
-    $("reviewCount").innerHTML = `<strong>${rows.length}</strong><span>${hasMore ? "条已加载，可继续加载" : "条符合条件"}</span>`;
+    $("reviewCount").innerHTML = queryMode === "filters"
+      ? `<strong>${totalRows}</strong><span>条符合条件 · 第 ${pageNumber} / ${Math.max(1, totalPages)} 页</span>`
+      : `<strong>${rows.length}</strong><span>条符合条件</span>`;
     $("reviewBody").innerHTML = rows.map((item) => {
       const actions = item.status === "PENDING" && canDecide ? `<div class="review-actions"><button data-id="${escapeHtml(item.id)}" data-action="APPROVED">通过</button><button class="reject" data-id="${escapeHtml(item.id)}" data-action="REJECTED">驳回</button></div>` : `<span class="record-status status-${escapeHtml(statusText[item.status] || item.status)}">${escapeHtml(statusText[item.status] || item.status)}</span>`;
       const teacher = item.teacherName ? `${item.teacherName}${item.teacherId ? `（${item.teacherId}）` : ""}` : "—";
@@ -149,21 +170,18 @@
       return `<tr><td>${orderCode}</td><td>${escapeHtml(item.kind)}</td><td>${escapeHtml(item.store.name)}${item.store.code ? `（${escapeHtml(item.store.code)}）` : ""}</td><td>${customer}</td><td>${escapeHtml(item.project)}</td><td>${escapeHtml(teacher)}</td><td>${escapeHtml(impactText(item))}</td><td>${escapeHtml(formatTime(item.time))}</td><td>${actions}</td><td>${escapeHtml(item.status === "PENDING" ? "—" : formatTime(item.reviewedAt))}</td></tr>`;
     }).join("") || `<tr><td colspan="${columnCount}" class="query-empty">当前条件下没有审核记录</td></tr>`;
     document.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", () => openReview(button.dataset.id, button.dataset.action)));
-    const loadMore = $("reviewLoadMore");
-    if (loadMore) {
-      loadMore.hidden = queryMode !== "filters" || !hasMore;
-      loadMore.disabled = listLoading;
-      loadMore.textContent = listLoading ? "正在加载…" : "加载更多审核记录";
-    }
+    renderPagination();
   }
-  async function refresh({ preserveStores = true, append = false } = {}) {
+  async function refresh({ preserveStores = true, resetPage = false, requestedPage = null } = {}) {
     if (typeof window.CloudBasePhoneAuth?.listReviewOrders !== "function") { setLoading("审核数据服务未加载，请刷新页面重试"); return; }
     if (listLoading) return;
-    if (append && (!hasMore || !nextCursor)) return;
+    if (resetPage) pageNumber = 1;
+    const targetPage = queryMode === "filters"
+      ? (requestedPage === null ? pageNumber : requestedPage)
+      : 1;
     listLoading = true;
     const sequence = ++loadingSequence;
-    if (!append) setLoading("正在读取审核工单…");
-    else render();
+    setLoading("正在读取审核工单…");
     try {
       const recordCode = queryMode === "code" ? clean($("reviewCode").value).toUpperCase() : "";
       if (queryMode === "code" && !recordCode) {
@@ -177,26 +195,37 @@
         storeId: queryMode === "filters" && $("reviewStore").value !== "all" ? $("reviewStore").value : "",
         applicationType: applicationTypeFilter(),
         status: queryMode === "filters" && $("reviewStatus").value !== "all" ? $("reviewStatus").value.toUpperCase() : "",
-        limit: queryMode === "code" ? 1 : 100,
+        limit: queryMode === "code" ? 1 : PAGE_SIZE,
         paged: queryMode === "filters",
-        cursor: append ? nextCursor : null
+        pageNumber: queryMode === "filters" ? targetPage : null
       });
       if (sequence !== loadingSequence) return;
       const sourceRows = Array.isArray(result) ? result : Array.isArray(result?.orders) ? result.orders : [];
-      const incoming = sourceRows.map(normalizeRow);
-      if (append) {
-        const known = new Set(rows.map((row) => row.id));
-        incoming.forEach((row) => { if (!known.has(row.id)) rows.push(row); });
-      } else rows = incoming;
-      hasMore = queryMode === "filters" && result?.hasMore === true;
-      nextCursor = hasMore ? result.nextCursor : null;
+      rows = sourceRows.map(normalizeRow);
+      if (queryMode === "filters") {
+        const nextTotal = Number(result?.total);
+        const nextPage = Number(result?.pageNumber);
+        const nextTotalPages = Number(result?.totalPages);
+        if (!Number.isSafeInteger(nextTotal) || nextTotal < 0
+          || !Number.isSafeInteger(nextPage) || nextPage < 1
+          || !Number.isSafeInteger(nextTotalPages) || nextTotalPages < 1) {
+          throw new Error("审核分页服务尚未更新，请部署 staffAccount v52 后刷新页面");
+        }
+        totalRows = nextTotal;
+        totalPages = nextTotalPages;
+        pageNumber = nextPage;
+      } else {
+        totalRows = rows.length;
+        totalPages = 1;
+        pageNumber = 1;
+      }
       const storeRows = Array.isArray(result?.stores) && result.stores.length ? result.stores : rows;
-      if (!append && (!preserveStores || $("reviewStore").options.length <= 1)) populateStoreFilter(storeRows);
+      if ((!preserveStores || $("reviewStore").options.length <= 1) && storeRows.length) populateStoreFilter(storeRows);
       render();
     } catch (error) {
       if (sequence !== loadingSequence) return;
-      if (!append) { rows = []; hasMore = false; nextCursor = null; setLoading(error?.message || "审核工单读取失败"); }
-      else window.alert(error?.message || "更多审核工单读取失败");
+      rows = []; totalRows = 0; totalPages = 1; pageNumber = 1;
+      setLoading(error?.message || "审核工单读取失败");
     } finally { listLoading = false; if (sequence === loadingSequence && rows.length) render(); }
   }
   function renderReviewCommunications(item) {
@@ -249,17 +278,38 @@
     }
     if (!initial) {
       rows = [];
-      hasMore = false; nextCursor = null;
+      pageNumber = 1; totalRows = 0; totalPages = 1;
       setLoading(codeMode ? "请输入完整工单编号后查询" : "选择条件后点击“按条件查询”");
       if (codeMode) $("reviewCode").focus();
     }
+  }
+  function jumpToPage(value) {
+    if (queryMode !== "filters" || listLoading) return;
+    const targetPage = Number(value);
+    const safeTotalPages = Math.max(1, totalPages);
+    if (!Number.isSafeInteger(targetPage) || targetPage < 1 || targetPage > safeTotalPages) {
+      window.alert(`请输入 1 到 ${safeTotalPages} 之间的页码`);
+      $("reviewPageInput").value = String(pageNumber);
+      $("reviewPageInput").focus();
+      return;
+    }
+    if (targetPage === pageNumber) return;
+    void refresh({ requestedPage: targetPage });
   }
   $("reviewStore").innerHTML = `<option value="all">全部门店</option>`;
   setQueryMode("filters", { initial: true });
   $("reviewModeFilters").addEventListener("click", () => setQueryMode("filters"));
   $("reviewModeCode").addEventListener("click", () => setQueryMode("code"));
-  $("reviewFilterSearch").addEventListener("click", () => refresh());
-  $("reviewLoadMore")?.addEventListener("click", () => refresh({ append:true }));
+  $("reviewFilterSearch").addEventListener("click", () => refresh({ resetPage: true }));
+  $("reviewPreviousPage")?.addEventListener("click", () => jumpToPage(pageNumber - 1));
+  $("reviewNextPage")?.addEventListener("click", () => jumpToPage(pageNumber + 1));
+  $("reviewPageJump")?.addEventListener("click", () => jumpToPage($("reviewPageInput").value));
+  $("reviewPageInput")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      jumpToPage(event.currentTarget.value);
+    }
+  });
   $("reviewCodeSearch").addEventListener("click", () => refresh());
   $("reviewCode").addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); refresh(); } });
   $("closeReviewDialog").addEventListener("click", closeDialog); $("cancelReview").addEventListener("click", closeDialog); $("confirmReview").addEventListener("click", confirmReview);
@@ -268,7 +318,7 @@
     setLoading("正在确认审核账号身份…");
     try {
       await confirmReviewerIdentity();
-      await refresh({ preserveStores: false });
+      await refresh({ preserveStores: false, resetPage: true });
     } catch (error) {
       if (error?.code === "AUTH_SESSION_CHANGED") {
         ["prototypeSession", "prototypeRole", "prototypeAccount", "prototypeStore", "prototypeAccessMessage"].forEach((key) => sessionStorage.removeItem(key));

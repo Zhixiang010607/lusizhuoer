@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.3";
+  const VERSION = "0.15.4";
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -33,8 +33,28 @@
   let nextCursor = null;
   let hasMore = false;
   let requestSequence = 0;
+  let isPageJumping = false;
+  let isPageLoading = false;
 
   document.documentElement.dataset.prototypeVersion = VERSION;
+
+  function setCustomerPageJumpFiltersLocked(locked) {
+    const ids = [
+      "customerCategory", "customerArchive", "customerTimeRange", "customerDateStart", "customerDateEnd",
+      "customerName", "customerBirthday", "customerStoreScope", "runCustomerQuery", "resetCustomerQuery"
+    ];
+    const nodes = ids.map($).filter(Boolean);
+    document.querySelectorAll("[data-customer-query-mode], [data-category]").forEach((node) => nodes.push(node));
+    nodes.forEach((node) => {
+      if (locked) {
+        if (!("pageJumpLocked" in node.dataset)) node.dataset.pageJumpLocked = node.disabled ? "true" : "false";
+        node.disabled = true;
+      } else if ("pageJumpLocked" in node.dataset) {
+        node.disabled = node.dataset.pageJumpLocked === "true";
+        delete node.dataset.pageJumpLocked;
+      }
+    });
+  }
 
   function emptySummary() {
     return {
@@ -148,6 +168,100 @@
     }[$("customerCategory").value] || 0;
   }
 
+  function customerPageCount() {
+    return Math.max(1, Math.ceil(Math.max(0, Number(selectedTotal()) || 0) / 100));
+  }
+
+  function updateCustomerPager() {
+    const totalPages = customerPageCount();
+    const busy = isPageJumping || isPageLoading;
+    $("customerPageLabel").textContent = `第 ${pageIndex + 1} / ${totalPages} 页`;
+    $("customerPreviousPage").disabled = busy || pageIndex === 0;
+    $("customerNextPage").disabled = busy || !hasMore;
+    const input = $("customerPageJumpInput");
+    if (input) {
+      input.min = "1";
+      input.max = String(totalPages);
+      input.value = String(pageIndex + 1);
+      input.disabled = busy;
+    }
+    const button = $("customerPageJumpButton");
+    if (button) button.disabled = busy;
+  }
+
+  function furthestKnownCustomerPage() {
+    for (let index = cursors.length - 1; index >= 0; index -= 1) {
+      if (index === 0 || cursors[index]) return index;
+    }
+    return 0;
+  }
+
+  async function jumpToCustomerPage() {
+    if (isPageJumping || isPageLoading) return;
+    const input = $("customerPageJumpInput");
+    if (!input) return;
+    const raw = input.value.trim();
+    if (!/^\d+$/.test(raw)) {
+      notice(`请输入 1 到 ${customerPageCount()} 的整数页码。`, true);
+      input.focus();
+      input.select();
+      return;
+    }
+    const requestedPage = Number(raw);
+    if (!Number.isSafeInteger(requestedPage)) {
+      notice(`请输入 1 到 ${customerPageCount()} 的整数页码。`, true);
+      input.focus();
+      input.select();
+      return;
+    }
+    const totalPages = customerPageCount();
+    const targetPage = Math.min(Math.max(requestedPage, 1), totalPages);
+    const clamped = targetPage !== requestedPage;
+    const targetIndex = targetPage - 1;
+    const clampMessage = clamped ? `页码已调整为第 ${targetPage} 页；` : "";
+    if (targetIndex === pageIndex) {
+      input.value = String(targetPage);
+      notice(`${clampMessage}当前已是第 ${targetPage} 页。`);
+      return;
+    }
+
+    isPageJumping = true;
+    updateCustomerPager();
+    setCustomerPageJumpFiltersLocked(true);
+    const currentIndex = pageIndex;
+    try {
+      if (targetIndex === 0 || cursors[targetIndex]) {
+        pageIndex = targetIndex;
+        const loaded = await load({ resetPage: false });
+        if (loaded) notice(`${clampMessage}已跳转至第 ${pageIndex + 1} 页。`);
+        return;
+      }
+
+      const knownIndex = furthestKnownCustomerPage();
+      pageIndex = knownIndex;
+      if (knownIndex !== currentIndex) {
+        const loaded = await load({ resetPage: false });
+        if (!loaded) return;
+      }
+      while (pageIndex < targetIndex) {
+        if (!hasMore || !nextCursor) {
+          notice(`第 ${targetPage} 页暂不可用，已显示最后可用的第 ${pageIndex + 1} 页。`, true);
+          return;
+        }
+        cursors[pageIndex + 1] = nextCursor;
+        pageIndex += 1;
+        notice(`正在跳转到第 ${targetPage} 页（读取第 ${pageIndex + 1} 页）…`);
+        const loaded = await load({ resetPage: false });
+        if (!loaded) return;
+      }
+      notice(`${clampMessage}已跳转至第 ${pageIndex + 1} 页。`);
+    } finally {
+      isPageJumping = false;
+      setCustomerPageJumpFiltersLocked(false);
+      updateCustomerPager();
+    }
+  }
+
   function renderRows() {
     $("customerQueryBody").innerHTML = rows.map((customer) => {
       const archived = customer.customerStatus === "ARCHIVED";
@@ -161,9 +275,7 @@
 
     const total = selectedTotal();
     $("customerSummary").textContent = `当前条件 ${total} 位；本页 ${rows.length} 位；活跃 ${Number(summary.active || 0)} 位，封存 ${Number(summary.archived || 0)} 位`;
-    $("customerPageLabel").textContent = `第 ${pageIndex + 1} / ${Math.max(1, Math.ceil(total / 100))} 页`;
-    $("customerPreviousPage").disabled = pageIndex === 0;
-    $("customerNextPage").disabled = !hasMore;
+    updateCustomerPager();
   }
 
   function renderCategories() {
@@ -187,6 +299,7 @@
         load({ resetPage: true });
       };
     });
+    if (isPageJumping) setCustomerPageJumpFiltersLocked(true);
   }
 
   async function load({ resetPage = true } = {}) {
@@ -195,12 +308,12 @@
       pageIndex = 0;
     }
     const sequence = ++requestSequence;
+    isPageLoading = true;
     const currentScope = scopeLabel();
     notice(`正在从数据库读取${currentScope}客户…`);
     $("customerQueryBody").innerHTML = `<tr><td colspan="9" class="query-empty">正在从数据库读取${escapeHtml(currentScope)}客户…</td></tr>`;
     $("runCustomerQuery").disabled = true;
-    $("customerPreviousPage").disabled = true;
-    $("customerNextPage").disabled = true;
+    updateCustomerPager();
     try {
       const data = await call(queryPayload());
       if (sequence !== requestSequence) return false;
@@ -222,12 +335,15 @@
       $("customerSummary").textContent = "数据库读取失败";
       $("customerQueryBody").innerHTML = `<tr><td colspan="9" class="query-empty">${escapeHtml(error.message)}</td></tr>`;
       $("customerCategoryGrid").innerHTML = "";
-      $("customerPreviousPage").disabled = pageIndex === 0;
-      $("customerNextPage").disabled = true;
+      updateCustomerPager();
       notice(error.message || "数据库读取失败", true);
       return false;
     } finally {
-      if (sequence === requestSequence) $("runCustomerQuery").disabled = false;
+      if (sequence === requestSequence) {
+        isPageLoading = false;
+        $("runCustomerQuery").disabled = isPageJumping;
+        updateCustomerPager();
+      }
     }
   }
 
@@ -348,6 +464,12 @@
       pageIndex += 1;
       load({ resetPage: false });
     };
+    $("customerPageJumpButton").onclick = () => jumpToCustomerPage();
+    $("customerPageJumpInput").onkeydown = (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      jumpToCustomerPage();
+    };
     $("closeCustomerAction").onclick = $("cancelCustomerAction").onclick = () => $("customerActionDialog").close();
     $("confirmCustomerAction").onclick = confirmStatus;
   }
@@ -361,8 +483,9 @@
       notice("当前身份未开放总部或门店客户查询。", true);
       $("customerQueryBody").innerHTML = '<tr><td colspan="9" class="query-empty">当前身份无权查询客户</td></tr>';
       $("runCustomerQuery").disabled = true;
-      $("customerPreviousPage").disabled = true;
-      $("customerNextPage").disabled = true;
+      ["customerPreviousPage", "customerNextPage", "customerPageJumpInput", "customerPageJumpButton"].forEach((id) => {
+        $(id).disabled = true;
+      });
       return;
     }
     let storeOptionsError = "";

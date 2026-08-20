@@ -671,8 +671,9 @@
         "作废申请提交失败"
       );
     },
-    async listReviewOrders({ recordType, recordId = "", recordCode = "", storeId = "", applicationType = "", status = "", limit = 200, paged = false, detailRead = false, cursor = null } = {}) {
+    async listReviewOrders({ recordType, recordId = "", recordCode = "", storeId = "", applicationType = "", status = "", limit = 200, paged = false, detailRead = false, cursor = null, pageNumber = null } = {}) {
       const payload = { action: "listReviewOrders", recordType, recordId, recordCode, storeId, applicationType, status, limit, paged, detailRead };
+      if (pageNumber !== null && pageNumber !== undefined && String(pageNumber).trim() !== "") payload.pageNumber = pageNumber;
       if (cursor) {
         payload.cursorPending = cursor.pending;
         payload.cursorApplicationTime = cursor.applicationTime || "";
@@ -683,7 +684,16 @@
         "审核工单读取失败"
       );
       return paged
-        ? { orders: data.orders || [], hasMore: data.hasMore === true, nextCursor: data.nextCursor || null, stores: data.stores || [] }
+        ? {
+          orders: data.orders || [],
+          hasMore: data.hasMore === true,
+          nextCursor: data.nextCursor || null,
+          stores: data.stores || [],
+          total: Number(data.total || 0),
+          pageNumber: Number(data.pageNumber || 0),
+          pageSize: Number(data.pageSize || 0),
+          totalPages: Number(data.totalPages || 0)
+        }
         : data.orders || [];
     },
     async reviewOrder({ recordType, recordId, decision, note }) {

@@ -33,7 +33,7 @@ assert.match(queryHtml, /value="PENDING">待审核<\/option><option value="APPRO
 assert.doesNotMatch(queryHtml, /value="CLOSED"|作废状态|record-col-void-status/);
 assert.match(queryHtml, /<th>审核状态<\/th>/);
 assert.doesNotMatch(queryHtml, /<th>状态<\/th>/);
-assert.match(queryHtml, /query\.js\?v=0\.15\.9/);
+assert.match(queryHtml, /query\.js\?v=0\.15\.10/);
 assert.match(queryUi, /REJECTED: "已驳回"/);
 assert.match(queryUi, /APPROVED: "审核通过"/);
 assert.doesNotMatch(queryUi, /function voidStatusTag|voidPending|作废待审核/);
@@ -46,8 +46,8 @@ assert.match(refundReviewHtml, /data-review="refund"[\s\S]*<h1>退费审核<\/h1
 assert.doesNotMatch(refundReviewHtml, /id="reviewType"|充值与退费审核记录/);
 assert.doesNotMatch(reviewHtml, /作废充值/);
 assert.match(reviewHtml, /value="approved">审核通过<\/option>/);
-assert.match(reviewHtml, /review\.js\?v=0\.18\.1/);
-assert.match(refundReviewHtml, /review\.js\?v=0\.18\.1/);
+assert.match(reviewHtml, /review\.js\?v=0\.18\.2/);
+assert.match(refundReviewHtml, /review\.js\?v=0\.18\.2/);
 assert.match(reviewUi, /if \(pageType === "recharge"\) return "NEW";/);
 assert.match(reviewUi, /if \(pageType === "refund"\) return "REFUND";/);
 assert.match(reviewUi, /applicationType: applicationTypeFilter\(\)/);
@@ -58,7 +58,7 @@ assert.match(authUi, /href="refund-review\.html">退费审核/);
 assert.match(queryCloud, /\["ALL", "PENDING", "APPROVED", "REJECTED", "CLOSED"\]/);
 assert.match(queryCloud, /\["REJECTED", "CLOSED"\]\.includes\(statusCategory\)/);
 assert.match(queryCloud, /rejected: Number\(summary\.rejected \|\| 0\)/);
-assert.match(accountCloud, /const FUNCTION_VERSION = "v51"/);
+assert.match(accountCloud, /const FUNCTION_VERSION = "v52"/);
 assert.match(accountCloud, /const ORDER_VOID_APPLICATIONS_ENABLED = false/);
 assert.doesNotMatch(accountCloud, /applicationType: "NEW"/);
 assert.match(accountCloud, /"ORDER_VOID_DISABLED"/);
