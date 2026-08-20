@@ -18,7 +18,7 @@ for (const page of ["recharge-review.html", "refund-review.html", "verification-
   assert.match(html, /id="reviewPageInput"[^>]*type="number"/, `${page} accepts a direct page number`);
   assert.match(html, /id="reviewPageJump"/, `${page} can jump directly`);
   assert.doesNotMatch(html, /reviewLoadMore/, `${page} must not append an endless review list`);
-  assert.match(html, /review\.js\?v=0\.18\.2/, `${page} loads the page-pager UI`);
+  assert.match(html, /review\.js\?v=0\.18\.3/, `${page} loads the page-pager UI`);
 }
 
 assert.match(review, /const PAGE_SIZE = 100;/);

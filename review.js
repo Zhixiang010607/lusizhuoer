@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const VERSION = "0.18.2";
+  const VERSION = "0.18.3";
   const pageType = document.body.dataset.review;
   const rechargeWorkflow = ["recharge", "refund"].includes(pageType);
   const recordType = rechargeWorkflow ? "RECHARGE" : "VERIFICATION";
@@ -250,7 +250,6 @@
   async function confirmReview() {
     if (!pendingAction || !canDecide) return;
     const note = $("reviewNote").value.trim();
-    if (!window.confirm(`确认${pendingAction.action === "APPROVED" ? "通过" : "驳回"}该${pendingAction.item.kind}申请？`)) return;
     const button = $("confirmReview"); button.disabled = true; button.textContent = "正在提交…";
     try {
       await window.CloudBasePhoneAuth.reviewOrder({ recordType, recordId: pendingAction.item.id, decision: pendingAction.action, note });

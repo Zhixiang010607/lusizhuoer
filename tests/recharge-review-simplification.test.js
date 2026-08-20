@@ -46,12 +46,21 @@ assert.match(refundReviewHtml, /data-review="refund"[\s\S]*<h1>退费审核<\/h1
 assert.doesNotMatch(refundReviewHtml, /id="reviewType"|充值与退费审核记录/);
 assert.doesNotMatch(reviewHtml, /作废充值/);
 assert.match(reviewHtml, /value="approved">审核通过<\/option>/);
-assert.match(reviewHtml, /review\.js\?v=0\.18\.2/);
-assert.match(refundReviewHtml, /review\.js\?v=0\.18\.2/);
+assert.match(reviewHtml, /review\.js\?v=0\.18\.3/);
+assert.match(refundReviewHtml, /review\.js\?v=0\.18\.3/);
+for (const html of [reviewHtml, refundReviewHtml]) {
+  assert.match(html, /<dialog id="reviewDialog"/);
+  assert.match(html, /<button id="confirmReview" type="button">确认<\/button>/);
+}
+assert.match(reviewUi, /const VERSION = "0\.18\.3"/);
 assert.match(reviewUi, /if \(pageType === "recharge"\) return "NEW";/);
 assert.match(reviewUi, /if \(pageType === "refund"\) return "REFUND";/);
 assert.match(reviewUi, /applicationType: applicationTypeFilter\(\)/);
 assert.match(reviewUi, /APPROVED: "审核通过"/);
+assert.match(reviewUi, /\$\("reviewDialog"\)\.showModal\(\)/, "the review summary dialog remains the single explicit confirmation");
+assert.match(reviewUi, /button\.disabled = true; button\.textContent = "正在提交…"/, "the confirm button remains protected against duplicate submissions");
+assert.match(reviewUi, /CloudBasePhoneAuth\.reviewOrder\(\{ recordType, recordId: pendingAction\.item\.id, decision: pendingAction\.action, note \}\)/, "the confirmed decision and note still use the guarded backend action");
+assert.doesNotMatch(reviewUi, /\b(?:window\.)?confirm\s*\(/, "confirming the review dialog must not open a second browser confirmation");
 assert.match(authUi, /"recharge-review\.html", "refund-review\.html"/);
 assert.match(authUi, /href="refund-review\.html">退费审核/);
 
