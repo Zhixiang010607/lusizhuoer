@@ -2,8 +2,12 @@
   "use strict";
 
   // 文档同步约束：每次业务或界面变更都必须同步更新 main.tex 与 README.md。
-  const PROTOTYPE_VERSION = "0.15.3";
+  const PROTOTYPE_VERSION = "0.15.5";
   const BUSINESS_TIME_ZONE = "Asia/Shanghai";
+  const RANKING_PAGE_SIZE = 100;
+  const RANKING_MAX_PAGE_NUMBER = 10000;
+  const CSV_EXPORT_PAGE_SIZE = 500;
+  const CSV_EXPORT_MAX_ROWS = 10000;
   const EMPTY_DATA = Object.freeze({
     stores: [],
     teachers: [],
@@ -11,6 +15,17 @@
     rows: [],
     teacherRows: [],
     totals: { recharge: 0, verification: 0, experience: 0, refund: 0, stores: 0, teachers: 0 }
+  });
+  const EMPTY_RANKING = Object.freeze({
+    dimension: "store",
+    pageNumber: 1,
+    pageSize: RANKING_PAGE_SIZE,
+    total: 0,
+    totalPages: 1,
+    accessibleTotalPages: 1,
+    businessTotal: 0,
+    rows: [],
+    error: ""
   });
 
   const $ = (id) => document.getElementById(id);
@@ -24,7 +39,11 @@
     requestError: "",
     retryable: false,
     loadedAt: null,
-    range: null
+    range: null,
+    ranking: EMPTY_RANKING,
+    rankingLoading: false,
+    rankingRequestSequence: 0,
+    exporting: false
   };
   const dimensionLabels = { store: "门店", project: "项目", teacher: "老师" };
   const dateFilters = ["period", "dateFrom", "dateTo"];
@@ -116,12 +135,70 @@
     });
   }
 
+  function normalizeChartRows(rows, dimension) {
+    if (!Array.isArray(rows)) return [];
+    const source = rows.map((row) => {
+      const entityId = pick(row, "entityId", "entity_id");
+      const entityCode = pick(row, "entityCode", "entity_code");
+      const entityName = pick(row, "entityName", "entity_name");
+      if (dimension === "store") {
+        return { ...row, storeId: entityId, storeCode: entityCode, storeName: entityName };
+      }
+      if (dimension === "project") {
+        return { ...row, productId: entityId, productCode: entityCode, productName: entityName };
+      }
+      return { ...row, teacherId: entityId, teacherCode: entityCode, teacherName: entityName };
+    });
+    return normalizeRows(source, dimension === "teacher");
+  }
+
+  function normalizeRanking(payload, fallbackDimension = "store") {
+    const source = payload?.ranking && typeof payload.ranking === "object" ? payload.ranking : payload;
+    if (!source || typeof source !== "object") throw new Error("总部排名返回的数据格式不正确");
+    const dimension = ["store", "project", "teacher"].includes(String(source.dimension || ""))
+      ? String(source.dimension)
+      : fallbackDimension;
+    const rows = Array.isArray(source.rows) ? source.rows.map((row) => {
+      const entityId = String(pick(row, "entityId", "entity_id"));
+      const entityCode = String(pick(row, "entityCode", "entity_code"));
+      const entityName = String(pick(row, "entityName", "entity_name"));
+      return {
+        entityId,
+        entityCode,
+        entityName,
+        name: entityLabel(entityName, entityCode, entityId ? `${dimensionLabels[dimension]} ${entityId}` : "未指定对象"),
+        recharge: finiteNumber(pick(row, "recharge", "rechargeCount", "recharge_count")),
+        verification: finiteCount(pick(row, "verification", "verificationCount", "verification_count")),
+        experience: finiteCount(pick(row, "experience", "experienceCount", "experience_count")),
+        refund: finiteCount(pick(row, "refund", "refundCount", "refund_count"))
+      };
+    }) : [];
+    const pageSize = Math.max(1, finiteCount(pick(source, "pageSize", "page_size"), RANKING_PAGE_SIZE));
+    const total = finiteCount(pick(source, "total", "totalRows", "total_rows"), rows.length);
+    const totalPages = Math.max(1, finiteCount(pick(source, "totalPages", "total_pages"), Math.ceil(total / pageSize)));
+    const accessibleTotalPages = Math.min(totalPages, RANKING_MAX_PAGE_NUMBER);
+    return {
+      dimension,
+      pageNumber: Math.min(accessibleTotalPages, Math.max(1, finiteCount(pick(source, "pageNumber", "page_number"), 1))),
+      pageSize,
+      total,
+      totalPages,
+      accessibleTotalPages,
+      businessTotal: finiteCount(pick(source, "businessTotal", "business_total"), 0),
+      rows,
+      error: ""
+    };
+  }
+
   function normalizeDashboard(payload, requestedRange) {
     const source = payload?.dashboard && typeof payload.dashboard === "object" ? payload.dashboard : payload;
     if (!source || typeof source !== "object") throw new Error("数据库返回的数据格式不正确");
-    const stores = normalizeRows(source.stores);
-    const rows = normalizeRows(source.rows);
-    const teacherRows = normalizeRows(source.teacherRows || source.teacher_rows, true);
+    const charts = source.charts && typeof source.charts === "object" ? source.charts : null;
+    const stores = charts ? normalizeChartRows(charts.store || charts.stores, "store") : normalizeRows(source.stores);
+    const rows = charts ? normalizeChartRows(charts.project || charts.projects, "project") : normalizeRows(source.rows);
+    const teacherRows = charts
+      ? normalizeChartRows(charts.teacher || charts.teachers, "teacher")
+      : normalizeRows(source.teacherRows || source.teacher_rows, true);
     const totals = source.totals || {};
     const derivedRecharge = rows.reduce((sum, row) => sum + row.recharge, 0);
     const derivedVerification = rows.reduce((sum, row) => sum + row.verification, 0);
@@ -417,20 +494,51 @@
     return selected.length ? ([...state.breakdowns][0] || selected[0]) : "store";
   }
 
-  function renderRanking(rows, teacherRows) {
-    const dimension = rankingDimension();
-    const selected = selectedDimensions();
-    const teacherContext = dimension === "teacher" || selected.includes("teacher");
-    const source = dimension === "store" && !selected.length && state.data.stores.length
-      ? state.data.stores
-      : teacherContext ? teacherRows : rows;
-    const items = aggregate(source, dimension);
-    const total = items.reduce((s, x) => s + x.recharge + x.verification + x.experience + x.refund, 0) || 1;
-    $("rankingBody").innerHTML = items.map((x, i) => {
-      const safeName = escapeHtml(x.name);
-      const businessCount = x.recharge + x.verification + x.experience + x.refund;
-      return `<tr data-name="${safeName}"><td>${i + 1}</td><td>${safeName}</td><td>按${dimensionLabels[dimension]}</td><td>${fmt.format(x.recharge)}</td><td>${fmt.format(x.verification)}</td><td>${fmt.format(x.experience)}</td><td>${fmt.format(x.refund)}</td><td>${(businessCount / total * 100).toFixed(1)}%</td></tr>`;
+  function renderRankingPager() {
+    const previous = $("rankingPreviousPage");
+    const next = $("rankingNextPage");
+    const input = $("rankingPageInput");
+    const jump = $("rankingPageJump");
+    const label = $("rankingPageLabel");
+    const retry = $("rankingRetry");
+    if (!previous || !next || !input || !jump || !label || !retry) return;
+    const ranking = state.ranking || EMPTY_RANKING;
+    const totalPages = Math.max(1, Number(ranking.accessibleTotalPages || ranking.totalPages || 1));
+    const pageNumber = Math.min(totalPages, Math.max(1, Number(ranking.pageNumber || 1)));
+    const pageLimitReached = Number(ranking.totalPages || 1) > totalPages;
+    const disabled = state.requestState !== "ready" || state.rankingLoading || state.exporting || Boolean(ranking.error);
+    previous.disabled = disabled || pageNumber <= 1;
+    next.disabled = disabled || pageNumber >= totalPages;
+    input.disabled = disabled;
+    input.min = "1";
+    input.max = String(totalPages);
+    input.value = String(pageNumber);
+    jump.disabled = disabled;
+    retry.hidden = !ranking.error;
+    retry.disabled = state.requestState !== "ready" || state.rankingLoading || state.exporting;
+    label.textContent = ranking.error
+      ? "排名读取失败"
+      : pageLimitReached
+        ? `第 ${fmt.format(pageNumber)} / ${fmt.format(totalPages)} 页 · 共 ${fmt.format(ranking.total || 0)} 条（最多浏览前 ${fmt.format(totalPages * Math.max(1, Number(ranking.pageSize || RANKING_PAGE_SIZE)))} 条）`
+        : `第 ${fmt.format(pageNumber)} / ${fmt.format(totalPages)} 页 · 共 ${fmt.format(ranking.total || 0)} 条`;
+  }
+
+  function renderRanking() {
+    const ranking = state.ranking || EMPTY_RANKING;
+    const dimension = ranking.dimension || rankingDimension();
+    if (ranking.error) {
+      $("rankingBody").innerHTML = `<tr><td colspan="8">${escapeHtml(ranking.error)}</td></tr>`;
+      renderRankingPager();
+      return;
+    }
+    const total = Math.max(1, Number(ranking.businessTotal || 0));
+    const pageOffset = (Math.max(1, Number(ranking.pageNumber || 1)) - 1) * Math.max(1, Number(ranking.pageSize || RANKING_PAGE_SIZE));
+    $("rankingBody").innerHTML = ranking.rows.map((row, index) => {
+      const safeName = escapeHtml(row.name);
+      const businessCount = row.recharge + row.verification + row.experience + row.refund;
+      return `<tr data-name="${safeName}"><td>${fmt.format(pageOffset + index + 1)}</td><td>${safeName}</td><td>按${dimensionLabels[dimension]}</td><td>${fmt.format(row.recharge)}</td><td>${fmt.format(row.verification)}</td><td>${fmt.format(row.experience)}</td><td>${fmt.format(row.refund)}</td><td>${(businessCount / total * 100).toFixed(1)}%</td></tr>`;
     }).join("") || `<tr><td colspan="8">当前日期范围暂无有效数据</td></tr>`;
+    renderRankingPager();
   }
 
   function renderScope() {
@@ -453,19 +561,72 @@
     $("detailDialog").showModal();
   }
 
-  function exportCsv() {
-    if (state.requestState !== "ready") return;
-    const { rows, teacherRows } = currentData();
-    const teacherContext = rankingDimension() === "teacher" || selectedDimensions().includes("teacher");
-    const values = teacherContext
-      ? [["门店编号", "门店", "老师编号", "老师", "项目", "有效充值次数", "有效核销次数", "有效体验次数", "有效退费次数"], ...teacherRows.map((row) => [row.storeId, row.store, row.teacherId, row.teacher, row.project, row.recharge, row.verification, row.experience, row.refund])]
-      : [["门店编号", "门店", "项目", "有效充值次数", "有效核销次数", "有效体验次数", "有效退费次数"], ...rows.map((row) => [row.storeId, row.store, row.project, row.recharge, row.verification, row.experience, row.refund])];
-    const csv = values.map((row) => row.map(csvCell).join(",")).join("\r\n");
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }));
-    link.download = "总部看板当前筛选数据.csv";
-    link.click();
-    window.setTimeout(() => URL.revokeObjectURL(link.href), 0);
+  function rankingCsvHeader(dimension) {
+    const label = dimensionLabels[dimension] || "分类对象";
+    return [`${label}编号`, label, "有效充值次数", "有效核销次数", "有效体验次数", "有效退费次数"];
+  }
+
+  function rankingCsvRow(row) {
+    return [row.entityId, row.name, row.recharge, row.verification, row.experience, row.refund];
+  }
+
+  async function exportCsv() {
+    if (state.requestState !== "ready" || state.exporting) return;
+    const range = selectedRange();
+    if (!range.valid) return;
+    const dimension = rankingDimension();
+    const currentRanking = state.ranking || EMPTY_RANKING;
+    if (currentRanking.error) {
+      window.alert("排名尚未读取成功，暂时不能导出。请先重试排名读取。");
+      return;
+    }
+    if (Number(currentRanking.total || 0) > CSV_EXPORT_MAX_ROWS) {
+      window.alert(`当前${dimensionLabels[dimension] || "分类"}排名共有 ${fmt.format(currentRanking.total)} 条。为避免浏览器内存占用，单次 CSV 最多导出 ${fmt.format(CSV_EXPORT_MAX_ROWS)} 条；请缩小统计日期范围后重试。`);
+      return;
+    }
+    const exportButton = $("exportBtn");
+    const originalLabel = exportButton.textContent;
+    state.exporting = true;
+    setControlsLoading(true);
+    try {
+      const values = [rankingCsvHeader(dimension)];
+      let pageNumber = 1;
+      let totalPages = 1;
+      do {
+        exportButton.textContent = `正在导出第 ${pageNumber} / ${totalPages} 页…`;
+        const payload = await window.CloudBasePhoneAuth.getHqDashboard({
+          startDate: range.startDate,
+          endDate: range.endDate,
+          mode: "ranking",
+          dimension,
+          pageNumber,
+          pageSize: CSV_EXPORT_PAGE_SIZE
+        });
+        const page = normalizeRanking(payload, dimension);
+        if (page.dimension !== dimension) throw new Error("总部排名导出维度与当前选择不一致");
+        if (page.total > CSV_EXPORT_MAX_ROWS) {
+          throw new Error(`当前${dimensionLabels[dimension] || "分类"}排名共有 ${fmt.format(page.total)} 条。为避免浏览器内存占用，单次 CSV 最多导出 ${fmt.format(CSV_EXPORT_MAX_ROWS)} 条；请缩小统计日期范围后重试。`);
+        }
+        if (values.length - 1 + page.rows.length > CSV_EXPORT_MAX_ROWS) {
+          throw new Error(`单次 CSV 最多导出 ${fmt.format(CSV_EXPORT_MAX_ROWS)} 条，已停止继续读取。请缩小统计日期范围后重试。`);
+        }
+        totalPages = page.totalPages;
+        values.push(...page.rows.map(rankingCsvRow));
+        pageNumber += 1;
+      } while (pageNumber <= totalPages);
+      const csv = values.map((row) => row.map(csvCell).join(",")).join("\r\n");
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }));
+      link.download = `总部看板${dimensionLabels[dimension] || "分类"}排名.csv`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(link.href), 0);
+    } catch (error) {
+      window.alert(error?.message || "总部排名导出失败，请稍后重试");
+    } finally {
+      state.exporting = false;
+      exportButton.textContent = originalLabel;
+      setControlsLoading(false);
+    }
   }
 
   function setControlsLoading(loading) {
@@ -474,12 +635,13 @@
       $(id).syncChineseDate?.();
     });
     $("reset").disabled = loading;
-    $("exportBtn").disabled = loading || state.requestState !== "ready";
-    $("rankingDimension").disabled = loading || state.requestState !== "ready";
+    $("exportBtn").disabled = loading || state.requestState !== "ready" || state.exporting || Boolean(state.ranking?.error);
+    $("rankingDimension").disabled = loading || state.requestState !== "ready" || state.rankingLoading || state.exporting;
     document.querySelectorAll("[data-drill]").forEach((button) => {
       button.disabled = loading || state.requestState !== "ready";
     });
     $("dashboardMain").setAttribute("aria-busy", loading ? "true" : "false");
+    renderRankingPager();
   }
 
   function renderRequestState(message, kind) {
@@ -501,6 +663,8 @@
     state.retryable = false;
     state.loadedAt = null;
     state.data = EMPTY_DATA;
+    state.ranking = { ...EMPTY_RANKING, dimension: rankingDimension() };
+    state.rankingLoading = true;
     setControlsLoading(true);
     renderRequestState("正在从数据库读取总部统计数据…", "loading");
   }
@@ -511,8 +675,70 @@
     state.retryable = retryable;
     state.loadedAt = null;
     state.data = EMPTY_DATA;
+    state.ranking = { ...EMPTY_RANKING, dimension: rankingDimension() };
+    state.rankingLoading = false;
     setControlsLoading(false);
     renderRequestState(message, "error");
+  }
+
+  async function fetchRankingPage(range, dimension, pageNumber, pageSize = RANKING_PAGE_SIZE) {
+    if (typeof window.CloudBasePhoneAuth?.getHqDashboard !== "function") {
+      throw new Error("总部数据库服务未加载，请刷新页面后重试");
+    }
+    const payload = await window.CloudBasePhoneAuth.getHqDashboard({
+      startDate: range.startDate,
+      endDate: range.endDate,
+      mode: "ranking",
+      dimension,
+      pageNumber,
+      pageSize
+    });
+    return normalizeRanking(payload, dimension);
+  }
+
+  async function loadRankingPage(requestedPage) {
+    if (state.requestState !== "ready" || state.rankingLoading || state.exporting) return;
+    const range = selectedRange();
+    if (!range.valid) return;
+    const dimension = rankingDimension();
+    const maximum = Math.max(1, Number(state.ranking?.accessibleTotalPages || state.ranking?.totalPages || 1));
+    const pageNumber = Math.min(maximum, Math.max(1, Number(requestedPage) || 1));
+    const sequence = ++state.rankingRequestSequence;
+    state.rankingLoading = true;
+    $("rankingDimension").disabled = true;
+    $("exportBtn").disabled = true;
+    renderRankingPager();
+    try {
+      const ranking = await fetchRankingPage(range, dimension, pageNumber);
+      if (sequence !== state.rankingRequestSequence || state.requestState !== "ready") return;
+      state.ranking = ranking;
+    } catch (error) {
+      if (sequence !== state.rankingRequestSequence || state.requestState !== "ready") return;
+      state.ranking = {
+        ...state.ranking,
+        dimension,
+        error: error?.message || "总部排名读取失败，请稍后重试"
+      };
+    } finally {
+      if (sequence !== state.rankingRequestSequence) return;
+      state.rankingLoading = false;
+      $("rankingDimension").disabled = state.requestState !== "ready" || state.exporting;
+      $("exportBtn").disabled = state.requestState !== "ready" || state.exporting || Boolean(state.ranking?.error);
+      renderRanking();
+    }
+  }
+
+  function jumpToRankingPage() {
+    const input = $("rankingPageInput");
+    const raw = String(input?.value || "").trim();
+    if (!/^\d+$/.test(raw) || Number(raw) < 1 || !Number.isSafeInteger(Number(raw))) {
+      input.setCustomValidity("请输入有效的正整数页码");
+      input.reportValidity();
+      return;
+    }
+    input.setCustomValidity("");
+    const maximum = Math.max(1, Number(state.ranking?.accessibleTotalPages || state.ranking?.totalPages || 1));
+    void loadRankingPage(Math.min(Number(raw), maximum));
   }
 
   async function loadDashboard() {
@@ -524,18 +750,50 @@
     }
 
     const sequence = ++state.requestSequence;
+    state.rankingRequestSequence += 1;
     beginRequest();
     try {
       if (typeof window.CloudBasePhoneAuth?.getHqDashboard !== "function") {
         throw new Error("总部数据库服务未加载，请刷新页面后重试");
       }
-      const payload = await window.CloudBasePhoneAuth.getHqDashboard({
-        startDate: range.startDate,
-        endDate: range.endDate
-      });
+      const dimension = rankingDimension();
+      const [overviewResult, rankingResult] = await Promise.allSettled([
+        window.CloudBasePhoneAuth.getHqDashboard({
+          startDate: range.startDate,
+          endDate: range.endDate,
+          mode: "overview"
+        }),
+        window.CloudBasePhoneAuth.getHqDashboard({
+          startDate: range.startDate,
+          endDate: range.endDate,
+          mode: "ranking",
+          dimension,
+          pageNumber: 1,
+          pageSize: RANKING_PAGE_SIZE
+        })
+      ]);
       if (sequence !== state.requestSequence) return;
-      const data = normalizeDashboard(payload, range);
+      if (overviewResult.status !== "fulfilled") throw overviewResult.reason;
+      const data = normalizeDashboard(overviewResult.value, range);
       state.data = data;
+      if (rankingResult.status === "fulfilled") {
+        try {
+          state.ranking = normalizeRanking(rankingResult.value, dimension);
+        } catch (rankingError) {
+          state.ranking = {
+            ...EMPTY_RANKING,
+            dimension,
+            error: rankingError?.message || "总部排名返回格式无效，请单独重试"
+          };
+        }
+      } else {
+        state.ranking = {
+          ...EMPTY_RANKING,
+          dimension,
+          error: rankingResult.reason?.message || "总部排名读取失败，请单独重试"
+        };
+      }
+      state.rankingLoading = false;
       state.range = data.range;
       state.loadedAt = new Date();
       state.requestState = "ready";
@@ -574,8 +832,26 @@
     $("exportBtn").addEventListener("click", exportCsv);
     if ($("rankingDimension")) $("rankingDimension").addEventListener("change", () => {
       if (state.requestState !== "ready") return;
-      const { rows, teacherRows } = currentData();
-      renderRanking(rows, teacherRows);
+      void loadRankingPage(1);
+    });
+    $("rankingPreviousPage")?.addEventListener("click", () => {
+      void loadRankingPage(Math.max(1, Number(state.ranking?.pageNumber || 1) - 1));
+    });
+    $("rankingNextPage")?.addEventListener("click", () => {
+      void loadRankingPage(Math.min(
+        Math.max(1, Number(state.ranking?.accessibleTotalPages || state.ranking?.totalPages || 1)),
+        Number(state.ranking?.pageNumber || 1) + 1
+      ));
+    });
+    $("rankingPageJump")?.addEventListener("click", jumpToRankingPage);
+    $("rankingRetry")?.addEventListener("click", () => {
+      void loadRankingPage(Math.max(1, Number(state.ranking?.pageNumber || 1)));
+    });
+    $("rankingPageInput")?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        jumpToRankingPage();
+      }
     });
     $("closeDialog").addEventListener("click", () => $("detailDialog").close());
     document.addEventListener("click", (event) => {

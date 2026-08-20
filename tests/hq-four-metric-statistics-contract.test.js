@@ -33,35 +33,40 @@ function functionSource(source, name) {
 const staffAccount = read("cloudfunctions/staffAccount/index.js");
 const app = read("app.js");
 const page = read("index.html");
+const eventCte = functionSource(staffAccount, "hqBusinessEventsCte");
+const rankingProjection = functionSource(staffAccount, "hqDashboardRankingProjection");
+const overview = functionSource(staffAccount, "getHqDashboardOverview");
 const dashboard = functionSource(staffAccount, "getHqDashboard");
 
-assert.match(dashboard, /business_events\s+AS\s*\(/i,
+assert.match(eventCte, /business_events\s+AS\s*\(/i,
   "dashboard must aggregate a common event stream before presentation joins");
-assert.match(dashboard, /r\.recharge_type\s+IN\s*\('NEW',\s*'REFUND'\)/i,
+assert.match(eventCte, /r\.recharge_type\s+IN\s*\('NEW',\s*'REFUND'\)/i,
   "approved NEW and REFUND records must be represented independently");
-assert.match(dashboard, /CASE\s+WHEN\s+r\.recharge_type\s*=\s*'NEW'[\s\S]{0,160}recharge_count/i,
+assert.match(eventCte, /CASE\s+WHEN\s+r\.recharge_type\s*=\s*'NEW'[\s\S]{0,160}recharge_count/i,
   "NEW records must populate recharge only");
-assert.match(dashboard, /CASE\s+WHEN\s+r\.recharge_type\s*=\s*'REFUND'[\s\S]{0,160}refund_count/i,
+assert.match(eventCte, /CASE\s+WHEN\s+r\.recharge_type\s*=\s*'REFUND'[\s\S]{0,160}refund_count/i,
   "REFUND records must populate refund only");
-assert.match(dashboard, /v\.verification_type\s+IN\s*\('NORMAL',\s*'SUPPLEMENT',\s*'EXPERIENCE'\)/i,
+assert.match(eventCte, /v\.verification_type\s+IN\s*\('NORMAL',\s*'SUPPLEMENT',\s*'EXPERIENCE'\)/i,
   "approved verification records must retain historical normal, supplement, and experience events");
-assert.match(dashboard, /v\.verification_type\s+IN\s*\('NORMAL',\s*'SUPPLEMENT'\)[\s\S]{0,160}verification_count/i,
+assert.match(eventCte, /v\.verification_type\s+IN\s*\('NORMAL',\s*'SUPPLEMENT'\)[\s\S]{0,160}verification_count/i,
   "normal/supplement verification must not absorb experience");
-assert.match(dashboard, /v\.verification_type\s*=\s*'EXPERIENCE'[\s\S]{0,160}experience_count/i,
+assert.match(eventCte, /v\.verification_type\s*=\s*'EXPERIENCE'[\s\S]{0,160}experience_count/i,
   "experience verification must have its own metric");
-assert.match(dashboard, /experience:\s*Number\(totalRow\.experience_count/i,
+assert.match(overview, /experience:\s*Number\(totalRow\.experience_count/i,
   "dashboard totals must return experience to clients");
-assert.match(dashboard, /refund:\s*Number\(totalRow\.refund_count/i,
+assert.match(overview, /refund:\s*Number\(totalRow\.refund_count/i,
   "dashboard totals must return refund to clients");
-assert.match(dashboard, /teacher_row\.experience_count/i,
-  "teacher historical rows must retain experience detail");
-assert.match(dashboard, /teacher_row\.refund_count/i,
-  "teacher historical rows must retain refund detail");
+assert.match(rankingProjection, /dimension === "teacher"[\s\S]*?experience_count/i,
+  "teacher historical rankings must retain experience detail");
+assert.match(rankingProjection, /dimension === "teacher"[\s\S]*?refund_count/i,
+  "teacher historical rankings must retain refund detail");
+assert.match(dashboard, /mode === "ranking"[\s\S]*getHqDashboardRanking/i,
+  "dashboard dispatcher must expose a separate bounded ranking mode");
 
 // Archive changes prevent new selections but do not erase past approved
 // events.  Joining master data after event aggregation preserves archived
 // records in date-range reporting.
-assert.doesNotMatch(dashboard, /(?:store_status|teacher_status|product_status|customer_status)\s*=\s*'ACTIVE'/i,
+assert.doesNotMatch(`${eventCte}\n${rankingProjection}\n${overview}`, /(?:store_status|teacher_status|product_status|customer_status)\s*=\s*'ACTIVE'/i,
   "HQ historical analytics must not filter approved events by current archive state");
 
 for (const metric of ["experience", "refund"]) {

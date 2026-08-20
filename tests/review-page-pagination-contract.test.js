@@ -33,7 +33,7 @@ assert.match(phoneAuth, /pageNumber = null/);
 assert.match(phoneAuth, /payload\.pageNumber = pageNumber/);
 assert.match(phoneAuth, /totalPages: Number\(data\.totalPages \|\| 0\)/);
 
-assert.match(staffAccount, /const FUNCTION_VERSION = "v52"/);
+assert.match(staffAccount, /const FUNCTION_VERSION = "v53"/);
 assert.match(staffAccount, /const pageNumberValue = event\.pageNumber;/);
 assert.match(staffAccount, /requestedPageNumber > 10000/);
 assert.match(staffAccount, /if \(hasCursor && hasPageNumber\) fail\("审核列表不能同时使用页码与游标", "BAD_REQUEST"\);/);

@@ -4,14 +4,17 @@
   const $ = (id) => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const role = params.get("role");
-  const personId = params.get("id");
+  // Accept the current staff-detail deep link as well as the former
+  // teacher-detail links.  A teacher code is useful here because older query
+  // and detail pages used it rather than the internal numeric master id.
+  const personId = params.get("id") || params.get("teacherId") || params.get("teacherCode");
   const labels = { teacher: "老师", hq: "总部人员" };
   const pages = { teacher: "teacher-management.html", hq: "hq-management.html" };
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>\"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char]);
   const truthy = (value) => [true, "true", "t", 1, "1"].includes(value);
   let staff = null;
   let hasHonoredExperienceHash = false;
-  const experience = { rows: [], totals: [], history: [], activeProducts: [], loading: false, rechargeRequestId: "", historyExpanded: false, deletingProductId: "" };
+  const experience = { rows: [], totals: [], history: [], activeProducts: [], loading: false, rechargeRequestId: "", historyExpanded: false, deletingProductId: "", productCatalogError: "" };
   const teacherFaceUpdate = { imageData: "", requestId: "" };
 
   function formatTime(value) {
@@ -72,7 +75,10 @@
   function syncTeacherFaceUpdateControls() {
     const panel = $("teacherFaceUpdatePanel");
     if (!panel || role !== "teacher") return;
-    const canWrite = !isStaffArchived();
+    // Face enrollment is profile maintenance, not a business operation.  HQ
+    // can prepare or replace a consented face while the account is archived;
+    // doing so never changes the archive/login state.
+    const canWrite = Boolean(staff && teacherId());
     const consent = Boolean($("teacherFaceUpdateConsent")?.checked);
     $("teacherFaceUpdateConsent").disabled = !canWrite;
     $("teacherFaceUpdateFile").disabled = !canWrite;
@@ -91,11 +97,17 @@
   }
 
   function openTeacherFaceUpdate() {
-    if (role !== "teacher" || isStaffArchived()) return;
+    if (role !== "teacher" || !staff || !teacherId()) {
+      setTeacherFaceUpdateMessage("老师资料缺少可用编号，暂时无法补录人脸。", "error");
+      return;
+    }
     const panel = $("teacherFaceUpdatePanel");
     panel.hidden = false;
     $("teacherFaceUpdateTitle").textContent = hasEnrolledTeacherFace() ? "更换老师人脸" : "添加老师人脸";
-    setTeacherFaceUpdateMessage(hasEnrolledTeacherFace() ? "请选择一张新的老师正面照片；保存成功后，新照片会替换当前登录身份人脸。" : "老师当前尚未绑定人脸。补录后会用于登录身份核验，但不会改变账号的活跃状态。", "");
+    const archiveNote = isStaffArchived() ? "老师当前处于封存状态，补录不会恢复登录；需由总部另行激活。" : "保存不会改变老师账号的活跃状态。";
+    setTeacherFaceUpdateMessage(hasEnrolledTeacherFace()
+      ? `请选择一张新的老师正面照片；保存成功后，新照片会替换当前登录身份人脸。${archiveNote}`
+      : `老师当前尚未绑定人脸。补录后会用于登录身份核验。${archiveNote}`, "");
     requestAnimationFrame(() => {
       panel.scrollIntoView({ behavior: "smooth", block: "center" });
       $("teacherFaceUpdateFile").focus({ preventScroll: true });
@@ -198,9 +210,14 @@
     const configured = new Set(experience.rows.map((row) => row.productId).filter(Boolean));
     const eligible = experience.activeProducts.filter((product) => !configured.has(product.id));
     const disabled = experience.loading || isStaffArchived() || !eligible.length;
+    const unavailableMessage = experience.productCatalogError
+      ? "活跃产品目录暂不可用"
+      : isStaffArchived()
+        ? "老师已封存，不能新增配置"
+        : "没有可新增的活跃产品";
     select.innerHTML = eligible.length
       ? `<option value="">请选择尚未配置的活跃产品</option>${eligible.map((product) => `<option value="${escapeHtml(product.id)}">${escapeHtml(product.name)}${product.code ? `（${escapeHtml(product.code)}）` : ""}</option>`).join("")}`
-      : `<option value="">${isStaffArchived() ? "老师已封存，不能新增配置" : "没有可新增的活跃产品"}</option>`;
+      : `<option value="">${unavailableMessage}</option>`;
     select.disabled = disabled;
     $("teacherExperienceMonthlyCount").disabled = disabled;
     $("saveTeacherExperienceConfig").disabled = disabled;
@@ -405,6 +422,7 @@
     experience.totals = [];
     experience.history = [];
     experience.activeProducts = [];
+    experience.productCatalogError = "";
     renderExperienceProductSelect();
     renderExperienceRechargeProductSelect();
     syncExperienceRechargeControls();
@@ -438,14 +456,20 @@
     renderExperienceRechargeProductSelect();
     syncExperienceRechargeControls();
     try {
-      const [data, products] = await Promise.all([
+      const [entitlementResult, productResult] = await Promise.allSettled([
         window.CloudBasePhoneAuth.getTeacherExperienceEntitlements({ teacherId: id }),
         window.CloudBasePhoneAuth.listProducts()
       ]);
+      if (entitlementResult.status !== "fulfilled") throw entitlementResult.reason;
+      const data = entitlementResult.value;
+      const products = productResult.status === "fulfilled" ? productResult.value : [];
       experience.rows = (Array.isArray(data?.entitlements) ? data.entitlements : []).map(normalizeExperienceRow).filter((row) => row.productId);
       experience.totals = (Array.isArray(data?.experienceTotals) ? data.experienceTotals : []).map(normalizeExperienceTotal).filter((row) => row.productId);
       const history = [data?.history, data?.ledger, data?.events, data?.records].find(Array.isArray) || [];
       experience.history = history.map(normalizeExperienceHistory);
+      experience.productCatalogError = productResult.status === "rejected"
+        ? String(productResult.reason?.message || "活跃产品目录读取失败")
+        : "";
       experience.activeProducts = (Array.isArray(products) ? products : []).map((product) => ({
         id: stringValue(product, ["id", "product_id"]),
         code: stringValue(product, ["product_code", "productCode"]),
@@ -453,7 +477,9 @@
         status: stringValue(product, ["product_status", "productStatus"], "ACTIVE").toUpperCase()
       })).filter((product) => product.id && product.name && product.status === "ACTIVE");
       renderExperience(data);
-      if (isStaffArchived()) setExperienceMessage("teacherExperienceConfigMessage", "老师已封存，体验额度与历史仍可查询，但不能新增配置或充值。", "");
+      if (experience.productCatalogError) {
+        setExperienceMessage("teacherExperienceConfigMessage", "体验额度与历史已读取，但活跃产品目录暂不可用；已有产品仍可单独充值。请稍后刷新或部署最新后台。", "error");
+      } else if (isStaffArchived()) setExperienceMessage("teacherExperienceConfigMessage", "老师已封存，体验额度与历史仍可查询，但不能新增配置或充值。", "");
       else if (!preserveMessage) setExperienceMessage("teacherExperienceConfigMessage", "");
     } catch (error) {
       $("teacherExperienceState").textContent = "读取失败";
@@ -576,9 +602,12 @@
     statusAction.textContent = status === "活跃" ? `封存${labels[role]}` : `激活${labels[role]}`;
     statusAction.classList.toggle("danger-button", status === "活跃");
     statusAction.classList.toggle("secondary-button", status !== "活跃");
-    $("staffStatusHint").textContent = status === "活跃"
+    const baseStatusHint = status === "活跃"
       ? "封存后该人员无法登录，历史业务记录和体验额度记录都会保留。"
       : "激活后该人员可再次登录；历史业务记录保持不变。";
+    $("staffStatusHint").textContent = staff.auth_uid
+      ? baseStatusHint
+      : `${baseStatusHint} 该历史老师尚未关联登录账号，因此暂不能重置密码。`;
     const credentialAction = $("staffCredentialAction");
     credentialAction.hidden = !staff.auth_uid;
     credentialAction.textContent = "重置临时密码";
@@ -586,8 +615,10 @@
     faceAction.hidden = !isTeacher;
     if (isTeacher) {
       faceAction.textContent = hasEnrolledTeacherFace() ? "更换人脸" : "添加人脸";
-      faceAction.disabled = isStaffArchived();
-      faceAction.title = isStaffArchived() ? "老师已封存，不能补录或更换人脸。" : "可在账号创建后补录或更换人脸。";
+      faceAction.disabled = !teacherId();
+      faceAction.title = isStaffArchived()
+        ? "老师已封存，不能登录或办理业务；总部仍可补录或更换人脸，且不会改变封存状态。"
+        : "可在账号创建后补录或更换人脸。";
     }
     syncTeacherFaceUpdateControls();
   }
@@ -596,7 +627,7 @@
     if (!labels[role] || !personId) return renderError("缺少人员身份或编号。");
     try {
       const records = await window.CloudBasePhoneAuth.listStaff(role);
-      staff = records.find((item) => [item.auth_uid, item.id, item.staff_id, item.teacher_id]
+      staff = records.find((item) => [item.auth_uid, item.id, item.staff_id, item.teacher_id, item.teacher_code, item.person_code]
         .map((value) => String(value || "").trim())
         .includes(personId));
       if (!staff) return renderError("未找到该人员，可能已被删除或无权查看。");
@@ -637,10 +668,15 @@
     button.disabled = true;
     try {
       const masterId = role === "teacher" ? teacherId() : "";
-      if (masterId && window.CloudBasePhoneAuth?.setMasterStatus) {
+      // A login-bound teacher is updated through the dedicated account path,
+      // which atomically mirrors the teacher master status and the CloudBase
+      // credential.  No face-enrollment condition exists in that path.
+      if (staff.auth_uid && window.CloudBasePhoneAuth?.setStaffStatus) {
+        await window.CloudBasePhoneAuth.setStaffStatus({ uid: staff.auth_uid, phone: staff.phone, status: next });
+      } else if (masterId && window.CloudBasePhoneAuth?.setMasterStatus) {
         await window.CloudBasePhoneAuth.setMasterStatus({ teacherId: masterId, status: next });
       } else {
-        await window.CloudBasePhoneAuth.setStaffStatus({ uid: staff.auth_uid, phone: staff.phone, status: next });
+        throw new Error("老师状态服务未加载，请刷新页面后重试。");
       }
       staff.account_status = next;
       staff.teacher_status = next;
@@ -662,7 +698,7 @@
   $("teacherFaceUpdateFile")?.addEventListener("change", () => void selectTeacherFaceUpdateFile());
   $("teacherFaceUpdateForm")?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!staff || role !== "teacher" || isStaffArchived()) return;
+    if (!staff || role !== "teacher" || !teacherId()) return;
     if (!$("teacherFaceUpdateConsent").checked || !teacherFaceUpdate.imageData) {
       setTeacherFaceUpdateMessage("请选择照片并确认已取得老师明确授权。", "error");
       syncTeacherFaceUpdateControls();

@@ -200,6 +200,7 @@ const entitlementDelete = functionSource(staffCloud, "deleteTeacherExperienceEnt
 const entitlementRecharge = functionSource(staffCloud, "rechargeTeacherExperienceEntitlement");
 const monthlyResetTimer = functionSource(staffCloud, "handleTrustedTeacherExperienceResetTimer");
 const teacherFaceUpsert = functionSource(staffCloud, "upsertTeacherFace");
+const optionalFaceActivationSchema = functionSource(staffCloud, "requireTeacherOptionalFaceActivationSchema");
 
 includes(verificationCreate, 'verificationType === "EXPERIENCE"',
   "verification API must branch explicitly for teacher-owned experience allowance");
@@ -274,6 +275,18 @@ assert.match(phoneAuth, /async upsertTeacherFace\(/,
   "shared client must expose later teacher-face enrollment/replacement");
 assert.match(staffCloud, /if \(role === "teacher"\) await requireTeacherOptionalFaceActivationSchema\(\);/,
   "generic teacher provisioning must require the optional-face schema rather than a face capture");
+assert.match(optionalFaceActivationSchema, /pg_get_functiondef\(TO_REGPROCEDURE\('public\.sync_teacher_profile\(\)'\)\)/,
+  "optional-face provisioning must inspect the installed profile trigger definition, not only a quota column");
+assert.match(optionalFaceActivationSchema, /pg_get_functiondef\(TO_REGPROCEDURE\('public\.sync_teacher_account_status\(\)'\)\)/,
+  "optional-face provisioning must inspect the installed account-status trigger definition");
+assert.match(optionalFaceActivationSchema, /has_optional_profile_trigger_definition[\s\S]*has_optional_account_trigger_definition/,
+  "optional-face provisioning must require both 048-02 trigger replacements");
+assert.match(optionalFaceActivationSchema, /has_profile_trigger_binding[\s\S]*has_account_trigger_binding/,
+  "optional-face provisioning must verify the replacement functions are bound to their triggers");
+assert.match(optionalFaceActivationSchema, /迁移 048-02/,
+  "a partially run migration must return an actionable 048-02 repair instruction");
+assert.match(staffCloud, /if \(status === "ACTIVE" && staff\.role_code === "teacher"\)\s*\{\s*await requireTeacherOptionalFaceActivationSchema\(\);/,
+  "activating an existing no-face teacher must verify the optional-face trigger replacement first");
 const genericProvision = staffCloud.slice(
   staffCloud.indexOf('if (action === "provisionStaff")'),
   staffCloud.indexOf('if (action === "resetPassword")')

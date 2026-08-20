@@ -527,6 +527,11 @@ body[data-management="hq"] #entityInfo .info-card strong { white-space: nowrap; 
 .table-pagination button { min-width: 68px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); cursor: pointer; }
 .table-pagination button:disabled { cursor: default; opacity: .45; }
 .table-pagination span { color: var(--muted); font-size: 12px; }
+.dashboard-ranking-pagination { flex-wrap: wrap; }
+.dashboard-ranking-pagination > span { min-width: 128px; text-align: center; font-variant-numeric: tabular-nums; }
+.ranking-page-jump { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.ranking-page-jump input { width: 64px; min-height: 34px; margin: 0; padding: 4px 7px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: #fff; text-align: center; font: inherit; font-variant-numeric: tabular-nums; }
+.ranking-page-jump input:focus { outline: 2px solid #8db9ff; outline-offset: 1px; border-color: #3f7bd6; }
 .customer-management-table { margin-top: 16px; }
 .customer-management-table .table-scroll { max-height: 560px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 18px; }
@@ -1186,6 +1191,10 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
   .review-pagination button { flex: 1 1 calc(50% - 6px); min-width: 0; }
   .review-pagination > span, .review-page-jump { flex: 1 1 100%; justify-content: center; }
   .review-page-jump input { width: 78px; }
+  .dashboard-ranking-pagination { justify-content: stretch; }
+  .dashboard-ranking-pagination button { flex: 1 1 calc(50% - 6px); min-width: 0; }
+  .dashboard-ranking-pagination > span, .ranking-page-jump { flex: 1 1 100%; justify-content: center; }
+  .ranking-page-jump input { width: 78px; }
 }
 @media (max-width: 980px) { .verification-order-grid { grid-template-columns: 1fr; } .verification-order-keyfacts, .verification-order-keyfacts.verification-order-five-keyfacts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 980px) { .verification-photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

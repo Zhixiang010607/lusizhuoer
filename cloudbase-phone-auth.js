@@ -523,9 +523,9 @@
       const data = await callStaffAccount({ action: "listStores" }, "门店列表读取失败");
       return data.stores || [];
     },
-    async getHqDashboard({ startDate, endDate } = {}) {
+    async getHqDashboard({ startDate, endDate, mode = "overview", dimension, pageNumber, pageSize } = {}) {
       return callStaffAccount(
-        { action: "getHqDashboard", startDate, endDate },
+        { action: "getHqDashboard", startDate, endDate, mode, dimension, pageNumber, pageSize },
         "总部首页数据库统计读取失败"
       );
     },

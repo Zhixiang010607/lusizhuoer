@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>总部数据看板</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.44">
+  <link rel="stylesheet" href="styles.css?v=0.15.45">
 </head>
 <body data-view="global">
   <aside class="side-project-bar" aria-label="项目栏">
@@ -94,7 +94,7 @@
 
       <article class="panel table-card wide">
         <div class="panel-heading">
-          <div><h2>完整排名</h2><p>独立滚动窗口，完整结果不受图表视窗限制</p></div>
+          <div><h2>完整排名</h2><p>每页 100 条；图表仅显示 Top 10，完整排名按页读取（最多浏览前 100 万条；CSV 单次最多 1 万条）</p></div>
           <div class="ranking-actions">
             <label class="ranking-dimension">分类维度
               <select id="rankingDimension" aria-label="选择排名分类维度">
@@ -112,6 +112,14 @@
             <tbody id="rankingBody"></tbody>
           </table>
         </div>
+        <div class="table-pagination dashboard-ranking-pagination" aria-label="总部排名分页">
+          <button id="rankingPreviousPage" type="button">上一页</button>
+          <span id="rankingPageLabel" aria-live="polite">正在读取排名…</span>
+          <label class="ranking-page-jump">跳至第 <input id="rankingPageInput" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" aria-label="跳转到第几页"> 页</label>
+          <button id="rankingPageJump" type="button">跳转</button>
+          <button id="rankingRetry" type="button" hidden>重试排名</button>
+          <button id="rankingNextPage" type="button">下一页</button>
+        </div>
       </article>
     </section>
   </main>
@@ -126,8 +134,8 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
-  <script src="cloudbase-phone-auth.js?v=0.18.0"></script>
-  <script src="app.js?v=0.15.3"></script>
+  <script src="cloudbase-phone-auth.js?v=0.18.1"></script>
+  <script src="app.js?v=0.15.5"></script>
   <script src="auth-ui.js?v=0.19.0"></script>
 </body>
 </html>

@@ -209,7 +209,7 @@
         if (!Number.isSafeInteger(nextTotal) || nextTotal < 0
           || !Number.isSafeInteger(nextPage) || nextPage < 1
           || !Number.isSafeInteger(nextTotalPages) || nextTotalPages < 1) {
-          throw new Error("审核分页服务尚未更新，请部署 staffAccount v52 后刷新页面");
+          throw new Error("审核分页服务尚未更新，请部署 staffAccount v53 后刷新页面");
         }
         totalRows = nextTotal;
         totalPages = nextTotalPages;

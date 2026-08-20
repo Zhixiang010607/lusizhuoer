@@ -1,6 +1,6 @@
 # staffAccount 云函数
 
-当前版本：`v52`
+当前版本：`v53`
 
 用于总部自动创建总部、门店和老师账号；云函数使用当前登录总部账号进行授权。
 执行迁移 048 后，`provisionStaff({ role: "teacher", ... })` 可以直接创建活跃老师账号，
@@ -22,7 +22,7 @@
 2. 在仅限总部使用、已加载当前 `cloudbase-phone-auth.js` 的临时维护页面中，以**已登录总部**身份在浏览器控制台执行 `await CloudBasePhoneAuth.retireOperationAccounts()`，等待 `ok: true`；它会逐个把旧运营账号的 CloudBase 登录凭据设为 `BLOCKED`。该维护页不是最终静态发布；失败时先修复原因并安全重试，不能继续下一步；
 3. 只有该动作成功后，才执行 `047_retire_operation_accounts.sql`（CloudBase SQL 编辑器依次执行 `047-01-retire-operation-accounts.sql`、`047-02-hq-reviewer-guard.sql`）；
 4. 依次执行 `048_optional_teacher_face_and_experience_quota_lifecycle.sql`（CloudBase SQL 编辑器则依次执行 `048-01` 至 `048-07`）；
-5. 部署 `faceRecognition v70` 和本函数 `staffAccount v52`，并分别调用 `health` 确认版本；
+5. 部署 `faceRecognition v70` 和本函数 `staffAccount v53`，并分别调用 `health` 确认版本；
 6. 最后部署当前静态前端并强制刷新浏览器。
 
 047 保留历史审核人、账号 ID 和业务外键，但会将旧运营账号、身份、权限和范围统一封存，并在数据库层禁止重新创建、激活或复用运营身份。该维护动作没有日常页面入口。
@@ -60,7 +60,7 @@
 }
 ```
 
-该七段 Cron 在每月 1 日 00:00:00（上海时间）运行。v52 仅接受平台 Timer 事件，并校验保留运行时变量 `TRIGGER_SRC=timer`、函数名、精确触发器名、时间和无终端用户 UID；普通客户端伪造 `Type: Timer` 不能执行重置。不要将密钥写进 Timer JSON。
+该七段 Cron 在每月 1 日 00:00:00（上海时间）运行。v53 仅接受平台 Timer 事件，并校验保留运行时变量 `TRIGGER_SRC=timer`、函数名、精确触发器名、时间和无终端用户 UID；普通客户端伪造 `Type: Timer` 不能执行重置。不要将密钥写进 Timer JSON。
 
 部署前：
 
@@ -81,19 +81,22 @@
 核销审核队列只包含补录核销（`SUPPLEMENT`）；正常和体验核销不进入审核队列，历史核销
 作废生命周期只保留为审计数据。只有总部负责审核；`listReviewOrders` 和 `reviewOrder` 都会拒绝门店、老师和已下线运营身份。审核列表按页最多返回 100 条，并只在第一页返回轻量门店筛选项；审核工作台调用
 `listReviewOrders({ paged: true, pageNumber, limit })` 时，服务端返回筛选总数、总页数和指定页，支持直接跳转到任意有效页码（1–10000）。旧的 cursor 读取契约仍保留给既有调用方；按完整工单编号读取详情仍严格限制为 1 条。
-`getHqDashboard` 仅允许总部账号调用，为总部全局首页返回真实数据库汇总：
-`{ ok, version, range, totals, stores, rows, teacherRows }`。`stores` 始终从
-门店主表返回全部门店；所选日期内没有有效业务的门店仍返回，并将充值、核销显示为 0。
-不传 `startDate` 和
-`endDate` 时，服务端按 `Asia/Shanghai` 当前日期返回包含当天的近 30 个自然日；
-自定义日期必须以 `YYYY-MM-DD` 同时传入，开始日期不得晚于结束日期，范围最多
-366 日。统计只包含当前仍为 `APPROVED` 的工单，充值按 `unit_count` 汇总并兼容
-历史 `VOID` 反向记录，核销包含 `NORMAL`、`SUPPLEMENT` 和 `EXPERIENCE`；
-已封存的门店、项目和老师历史数据仍保留。
+`getHqDashboard` 仅允许总部账号调用，并拆成严格有界的两种读取，避免大数据时超过
+CloudBase 6 MB 同步响应限制：默认 `{ mode: "overview" }` 返回
+`{ ok, version, mode, range, totals, charts }`，其中 `charts` 只含门店／项目／老师各
+Top 10；`{ mode: "ranking", dimension, pageNumber, pageSize }` 返回
+`{ ok, version, mode, ranking }`，排名每页默认100条、最多500条，并包含总条数、总页数和
+四类业务总和。浏览器据此分页、跳转页码（最多浏览前100万条），并在导出 CSV 时以500条为批次顺序读取；
+单次导出最多10,000条，超出时前端会要求缩小统计范围，绝不要求服务端返回全量门店×项目或老师×项目聚合行。
+门店排名仍从门店主表出发，因此无业务门店会以0显示。
+不传 `startDate` 和 `endDate` 时，服务端按 `Asia/Shanghai` 当前日期返回包含当天的近30个自然日；
+自定义日期必须以 `YYYY-MM-DD` 同时传入，开始日期不得晚于结束日期，范围最多366日。统计只包含当前
+仍为 `APPROVED` 的工单，充值按 `unit_count` 汇总，核销包含 `NORMAL`、`SUPPLEMENT` 和
+`EXPERIENCE`；已封存的门店、项目和老师历史数据仍保留。
 总部首页部署前还需单独执行迁移
 `035_hq_dashboard_approved_covering_indexes.sql`，为两张工单表的已通过日期范围聚合提供覆盖索引。
 
-部署 `v52` 前必须确认已按编号执行既有迁移，并至少完成至 `048`；
-其中 046 是老师人脸、体验额度、封存写入防线及原子体验核销的前置条件，048 将老师人脸改为可选资料并增加额度删除／重配生命周期。随后必须按本节的“v69/v50 → 总部封锁 CloudBase 凭据 → 047 → 048 → v70/v52 → 静态前端”顺序完成运营身份下线与新额度规则发布；047 会将审核权限收紧为总部独占。
-部署后调用 `{ "action": "health" }`，返回版本必须为 `v52`，并确认
+部署 `v53` 前必须确认已按编号执行既有迁移，并至少完成至 `048`；
+其中 046 是老师人脸、体验额度、封存写入防线及原子体验核销的前置条件，048 将老师人脸改为可选资料并增加额度删除／重配生命周期。随后必须按本节的“v69/v50 → 总部封锁 CloudBase 凭据 → 047 → 048 → v70/v53 → 静态前端”顺序完成运营身份下线与新额度规则发布；047 会将审核权限收紧为总部独占。
+部署后调用 `{ "action": "health" }`，返回版本必须为 `v53`，并确认
 `teacherExperienceResetTimerTriggerName` 为 `reset-teacher-experience-quotas-monthly`。

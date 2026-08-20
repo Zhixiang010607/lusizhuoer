@@ -80,10 +80,12 @@ for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))
     ? "0.15.48"
     : file === "recharge-detail.html"
       ? "0.15.48"
-      : ["staff-detail.html", "teacher-create.html"].includes(file)
+      : ["staff-detail.html", "teacher-create.html", "teacher-detail.html"].includes(file)
         ? "0.15.46"
-      : ["customer-query.html", "recharge-query.html", "verification-query.html", "recharge-review.html", "refund-review.html", "verification-review.html"].includes(file)
+    : ["customer-query.html", "recharge-query.html", "verification-query.html", "recharge-review.html", "refund-review.html", "verification-review.html"].includes(file)
         ? "0.15.48"
+        : file === "index.html"
+          ? "0.15.45"
         : "0.15.44";
   assert(html.includes(`styles.css?v=${expectedStyleVersion}`), `${file} must use the desktop-scroll stylesheet cache key`);
 }

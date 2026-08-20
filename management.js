@@ -140,7 +140,7 @@
     $("teacherVerificationHead").innerHTML = `<tr><th>老师（编号）</th><th>总核销</th>${projects.map((project) => `<th>${project.name}</th>`).join("")}</tr>`;
     $("teacherVerificationBody").innerHTML = storeTeachers.map((teacher) => {
       const values = projects.map((project) => verification(store, teacher, project));
-      return `<tr><td><a class="record-link" href="teacher-detail.html?teacherId=${encodeURIComponent(teacher.id)}">${teacher.displayName || teacher.name}（${teacher.id}）</a></td><td><strong>${fmt.format(values.reduce((a, b) => a + b, 0))}</strong></td>${values.map((value) => `<td>${fmt.format(value)}</td>`).join("")}</tr>`;
+      return `<tr><td><a class="record-link" href="staff-detail.html?role=teacher&id=${encodeURIComponent(teacher.id)}">${teacher.displayName || teacher.name}（${teacher.id}）</a></td><td><strong>${fmt.format(values.reduce((a, b) => a + b, 0))}</strong></td>${values.map((value) => `<td>${fmt.format(value)}</td>`).join("")}</tr>`;
     }).join("");
 
     $("projectVerificationHead").innerHTML = `<tr><th>项目</th><th>总核销</th>${storeTeachers.map((teacher) => `<th>${teacher.displayName || teacher.name}</th>`).join("")}</tr>`;

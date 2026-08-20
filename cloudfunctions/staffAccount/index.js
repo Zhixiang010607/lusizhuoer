@@ -10,7 +10,14 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v52";
+const FUNCTION_VERSION = "v53";
+// Keep every synchronous dashboard response well below CloudBase's 6 MB
+// response-body limit.  The overview returns summary metrics and these small
+// chart samples; the ranking endpoint returns one bounded page at a time.
+const HQ_DASHBOARD_CHART_LIMIT = 10;
+const HQ_DASHBOARD_DEFAULT_PAGE_SIZE = 100;
+const HQ_DASHBOARD_MAX_PAGE_SIZE = 500;
+const HQ_DASHBOARD_MAX_PAGE_NUMBER = 10000;
 const ORDER_VOID_APPLICATIONS_ENABLED = false;
 const TEACHER_EXPERIENCE_RESET_TIMER_TRIGGER_NAME = "reset-teacher-experience-quotas-monthly";
 const TEACHER_FACE_MAX_BYTES = 4 * 1024 * 1024;
@@ -1192,6 +1199,141 @@ function dashboardDateRange(event) {
   const days = Math.floor((endTime - startTime) / 86400000) + 1;
   if (days > 366) fail("统计日期范围最多为 366 天", "BAD_REQUEST");
   return { startDate, endDate, days };
+}
+
+function dashboardReadMode(event = {}) {
+  const mode = String(event.mode || "overview").trim().toLowerCase();
+  if (mode === "overview" || mode === "ranking") return mode;
+  fail("总部看板读取类型无效", "BAD_REQUEST");
+}
+
+function strictDashboardPositiveInteger(value, label, fallback, maximum) {
+  if (value === undefined || value === null || String(value).trim() === "") return fallback;
+  const text = String(value).trim();
+  if (!/^\d+$/.test(text)) fail(`${label}必须是正整数`, "BAD_REQUEST");
+  const parsed = Number(text);
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > maximum) {
+    fail(`${label}必须在 1 到 ${maximum} 之间`, "BAD_REQUEST");
+  }
+  return parsed;
+}
+
+function dashboardRankingRequest(event = {}) {
+  const dimension = String(event.dimension || "store").trim().toLowerCase();
+  if (!new Set(["store", "project", "teacher"]).has(dimension)) {
+    fail("总部看板排名维度无效", "BAD_REQUEST");
+  }
+  return {
+    dimension,
+    pageNumber: strictDashboardPositiveInteger(
+      event.pageNumber,
+      "排名页码",
+      1,
+      HQ_DASHBOARD_MAX_PAGE_NUMBER
+    ),
+    pageSize: strictDashboardPositiveInteger(
+      event.pageSize,
+      "每页数量",
+      HQ_DASHBOARD_DEFAULT_PAGE_SIZE,
+      HQ_DASHBOARD_MAX_PAGE_SIZE
+    )
+  };
+}
+
+function hqDashboardDateSql(requestedRange) {
+  return {
+    startDateSql: requestedRange
+      ? `${sqlText(requestedRange.startDate)}::date`
+      : "((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai')::date - 29)",
+    endDateSql: requestedRange
+      ? `${sqlText(requestedRange.endDate)}::date`
+      : "(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai')::date"
+  };
+}
+
+// This CTE deliberately contains only approved business facts.  Master tables
+// are joined after aggregation, so archive status never removes historical
+// approved records from the headquarters dashboard.
+function hqBusinessEventsCte(startDateSql, endDateSql) {
+  return `WITH date_bounds AS (
+    SELECT ${startDateSql} AS start_date,
+           ${endDateSql} AS end_date
+  ), bounds AS (
+    SELECT start_date,
+           end_date,
+           start_date::timestamp AT TIME ZONE 'Asia/Shanghai' AS start_at,
+           (end_date + 1)::timestamp AT TIME ZONE 'Asia/Shanghai' AS end_at
+      FROM date_bounds
+  ), business_events AS (
+    SELECT r.store_id,
+           r.product_id,
+           r.teacher_id,
+           CASE WHEN r.recharge_type = 'NEW' THEN r.unit_count::bigint ELSE 0::bigint END AS recharge_count,
+           0::bigint AS verification_count,
+           0::bigint AS experience_count,
+           CASE WHEN r.recharge_type = 'REFUND' THEN r.unit_count::bigint ELSE 0::bigint END AS refund_count
+      FROM public.recharge_records r
+     CROSS JOIN bounds b
+     WHERE r.record_status = 'APPROVED'
+       AND r.recharge_type IN ('NEW', 'REFUND')
+       AND r.submitted_at >= b.start_at
+       AND r.submitted_at < b.end_at
+    UNION ALL
+    SELECT v.store_id,
+           v.product_id,
+           v.teacher_id,
+           0::bigint AS recharge_count,
+           CASE WHEN v.verification_type IN ('NORMAL', 'SUPPLEMENT') THEN v.unit_count::bigint ELSE 0::bigint END AS verification_count,
+           CASE WHEN v.verification_type = 'EXPERIENCE' THEN v.unit_count::bigint ELSE 0::bigint END AS experience_count,
+           0::bigint AS refund_count
+      FROM public.verification_records v
+     CROSS JOIN bounds b
+     WHERE v.record_status = 'APPROVED'
+       AND v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')
+       AND v.submitted_at >= b.start_at
+       AND v.submitted_at < b.end_at
+  )`;
+}
+
+function hqDashboardRankingProjection(dimension) {
+  if (dimension === "store") {
+    return `SELECT s.id AS entity_id,
+                   COALESCE(s.store_code::text, '') AS entity_code,
+                   COALESCE(s.store_name::text, '') AS entity_name,
+                   COALESCE(SUM(event.recharge_count), 0)::bigint AS recharge_count,
+                   COALESCE(SUM(event.verification_count), 0)::bigint AS verification_count,
+                   COALESCE(SUM(event.experience_count), 0)::bigint AS experience_count,
+                   COALESCE(SUM(event.refund_count), 0)::bigint AS refund_count
+              FROM public.stores s
+         LEFT JOIN business_events event ON event.store_id = s.id
+             GROUP BY s.id, s.store_code, s.store_name`;
+  }
+  if (dimension === "project") {
+    return `SELECT event.product_id AS entity_id,
+                   COALESCE(product.product_code::text, '') AS entity_code,
+                   COALESCE(product.product_name::text, '') AS entity_name,
+                   COALESCE(SUM(event.recharge_count), 0)::bigint AS recharge_count,
+                   COALESCE(SUM(event.verification_count), 0)::bigint AS verification_count,
+                   COALESCE(SUM(event.experience_count), 0)::bigint AS experience_count,
+                   COALESCE(SUM(event.refund_count), 0)::bigint AS refund_count
+              FROM business_events event
+         LEFT JOIN public.products product ON product.id = event.product_id
+             GROUP BY event.product_id, product.product_code, product.product_name`;
+  }
+  if (dimension === "teacher") {
+    return `SELECT event.teacher_id AS entity_id,
+                   COALESCE(teacher.teacher_code::text, '') AS entity_code,
+                   COALESCE(teacher.teacher_name::text, '') AS entity_name,
+                   COALESCE(SUM(event.recharge_count), 0)::bigint AS recharge_count,
+                   COALESCE(SUM(event.verification_count), 0)::bigint AS verification_count,
+                   COALESCE(SUM(event.experience_count), 0)::bigint AS experience_count,
+                   COALESCE(SUM(event.refund_count), 0)::bigint AS refund_count
+              FROM business_events event
+         LEFT JOIN public.teachers teacher ON teacher.id = event.teacher_id
+             WHERE event.teacher_id IS NOT NULL
+             GROUP BY event.teacher_id, teacher.teacher_code, teacher.teacher_name`;
+  }
+  fail("总部看板排名维度无效", "BAD_REQUEST");
 }
 
 function asDatabaseError(error, action) {
@@ -2657,24 +2799,62 @@ async function requireTeacherFaceSchema() {
   }
 }
 
-// Migration 048 makes face enrollment optional for an ACTIVE teacher.  The
-// quota-status column is a durable schema marker for the paired trigger
-// replacement; do not create a no-face teacher against the older 046 trigger
-// because that trigger would immediately archive the new account again.
+// Migration 048 makes face enrollment optional for an ACTIVE teacher.  Do not
+// use a quota-only marker here: CloudBase Console users can run 048 in pieces,
+// and 048-01 alone leaves the older 046 trigger in place. That trigger would
+// immediately archive a newly provisioned no-face teacher. Verify both the
+// quota lifecycle and the actual 048-02 trigger-function definitions/bindings.
 async function requireTeacherOptionalFaceActivationSchema() {
   const rows = await executeSql(
-    `SELECT EXISTS (
+    `WITH trigger_definitions AS (
+       SELECT COALESCE(
+                pg_get_functiondef(TO_REGPROCEDURE('public.sync_teacher_profile()')),
+                ''
+              ) AS profile_definition,
+              COALESCE(
+                pg_get_functiondef(TO_REGPROCEDURE('public.sync_teacher_account_status()')),
+                ''
+              ) AS account_definition
+     )
+     SELECT EXISTS (
               SELECT 1 FROM information_schema.columns
                WHERE table_schema = 'public'
-                 AND table_name = 'teacher_product_experience_quotas'
-                 AND column_name = 'quota_status'
-            ) AS has_quota_status,
-            TO_REGPROCEDURE('public.delete_teacher_product_experience_quota(bigint,bigint,bigint)') IS NOT NULL
-              AS has_delete_function`
+                  AND table_name = 'teacher_product_experience_quotas'
+                  AND column_name = 'quota_status'
+             ) AS has_quota_status,
+             TO_REGPROCEDURE('public.delete_teacher_product_experience_quota(bigint,bigint,bigint)') IS NOT NULL
+               AS has_delete_function,
+             profile_definition ~* 'teacher_status[[:space:]]*=[[:space:]]*excluded[.]teacher_status'
+               AS has_optional_profile_trigger_definition,
+             account_definition ~* 'desired_status[[:space:]]*:=[[:space:]]*case[[:space:]]+when[[:space:]]+new[.]teacher_status[[:space:]]*=[[:space:]]*''active''[[:space:]]+then[[:space:]]+''active''[[:space:]]+else[[:space:]]+''archived''[[:space:]]+end'
+               AS has_optional_account_trigger_definition,
+             EXISTS (
+               SELECT 1 FROM pg_trigger trg
+                WHERE trg.tgrelid = TO_REGCLASS('public.staff_accounts')
+                  AND trg.tgname = 'trg_sync_teacher_profile'
+                  AND NOT trg.tgisinternal
+                  AND trg.tgfoid = TO_REGPROCEDURE('public.sync_teacher_profile()')
+             ) AS has_profile_trigger_binding,
+             EXISTS (
+               SELECT 1 FROM pg_trigger trg
+                WHERE trg.tgrelid = TO_REGCLASS('public.teachers')
+                  AND trg.tgname = 'trg_sync_teacher_account_status'
+                  AND NOT trg.tgisinternal
+                  AND trg.tgfoid = TO_REGPROCEDURE('public.sync_teacher_account_status()')
+             ) AS has_account_trigger_binding
+       FROM trigger_definitions`
   );
   const schema = rows?.[0] || {};
   if (!databaseBoolean(schema.has_quota_status) || !databaseBoolean(schema.has_delete_function)) {
     fail("老师可选人脸及体验额度生命周期尚未启用，请先执行迁移 048。", "DATABASE_SCHEMA_MISSING");
+  }
+  if (
+    !databaseBoolean(schema.has_optional_profile_trigger_definition) ||
+    !databaseBoolean(schema.has_optional_account_trigger_definition) ||
+    !databaseBoolean(schema.has_profile_trigger_binding) ||
+    !databaseBoolean(schema.has_account_trigger_binding)
+  ) {
+    fail("老师可选人脸激活触发器尚未替换，请先执行迁移 048-02 后重试。", "DATABASE_SCHEMA_MISSING");
   }
 }
 
@@ -3444,6 +3624,11 @@ async function setMasterStatus(caller, event = {}) {
     );
     const teacher = rows?.[0];
     if (!teacher) fail("未找到该老师。", "NOT_FOUND");
+    // An ACTIVE teacher is allowed to have no face, but only after 048-02 has
+    // replaced the old face-gated status triggers.  Fail closed with a clear
+    // repair instruction rather than accepting the request and letting an old
+    // trigger silently archive the teacher again.
+    if (status === "ACTIVE") await requireTeacherOptionalFaceActivationSchema();
     if (teacher.auth_uid) {
       const result = await main({ action: "setStaffStatus", uid: String(teacher.auth_uid), status });
       return { ...result, entity: "teacher", teacherId: String(teacherId) };
@@ -3496,264 +3681,249 @@ async function setMasterStatus(caller, event = {}) {
   return { ok: true, entity: "store", storeId: String(storeId), status, noAuthAccount: true };
 }
 
-async function getHqDashboard(event) {
-  const requestedRange = dashboardDateRange(event);
-  const startDateSql = requestedRange
-    ? `${sqlText(requestedRange.startDate)}::date`
-    : "((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai')::date - 29)";
-  const endDateSql = requestedRange
-    ? `${sqlText(requestedRange.endDate)}::date`
-    : "(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai')::date";
+function hqDashboardRow(row) {
+  return {
+    entityId: row.entity_id === null || row.entity_id === undefined ? "" : String(row.entity_id),
+    entityCode: String(row.entity_code || ""),
+    entityName: String(row.entity_name || ""),
+    recharge: Number(row.recharge_count || 0),
+    verification: Number(row.verification_count || 0),
+    experience: Number(row.experience_count || 0),
+    refund: Number(row.refund_count || 0)
+  };
+}
 
+function hqDashboardRangeFromTotal(totalRow) {
+  return {
+    startDate: String(totalRow.start_date),
+    endDate: String(totalRow.end_date),
+    days: Number(totalRow.range_days),
+    timeZone: "Asia/Shanghai"
+  };
+}
+
+async function getHqDashboardOverview(requestedRange) {
+  const { startDateSql, endDateSql } = hqDashboardDateSql(requestedRange);
+  const storeProjection = hqDashboardRankingProjection("store");
+  const projectProjection = hqDashboardRankingProjection("project");
+  const teacherProjection = hqDashboardRankingProjection("teacher");
   let dashboardRows;
   try {
     dashboardRows = await executeSql(
-      `WITH date_bounds AS (
-         SELECT ${startDateSql} AS start_date,
-                ${endDateSql} AS end_date
-       ), bounds AS (
-         SELECT start_date,
-                end_date,
-                start_date::timestamp AT TIME ZONE 'Asia/Shanghai' AS start_at,
-                (end_date + 1)::timestamp AT TIME ZONE 'Asia/Shanghai' AS end_at
-           FROM date_bounds
-       ), business_events AS (
-         SELECT r.store_id,
-                r.product_id,
-                r.teacher_id,
-                CASE WHEN r.recharge_type = 'NEW' THEN r.unit_count::bigint ELSE 0::bigint END AS recharge_count,
-                0::bigint AS verification_count,
-                0::bigint AS experience_count,
-                CASE WHEN r.recharge_type = 'REFUND' THEN r.unit_count::bigint ELSE 0::bigint END AS refund_count
-           FROM public.recharge_records r
-          CROSS JOIN bounds b
-          WHERE r.record_status = 'APPROVED'
-            AND r.recharge_type IN ('NEW', 'REFUND')
-            AND r.submitted_at >= b.start_at
-            AND r.submitted_at < b.end_at
-         UNION ALL
-         SELECT v.store_id,
-                v.product_id,
-                v.teacher_id,
-                0::bigint AS recharge_count,
-                CASE WHEN v.verification_type IN ('NORMAL', 'SUPPLEMENT') THEN v.unit_count::bigint ELSE 0::bigint END AS verification_count,
-                CASE WHEN v.verification_type = 'EXPERIENCE' THEN v.unit_count::bigint ELSE 0::bigint END AS experience_count,
-                0::bigint AS refund_count
-           FROM public.verification_records v
-          CROSS JOIN bounds b
-          WHERE v.record_status = 'APPROVED'
-            AND v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')
-            AND v.submitted_at >= b.start_at
-            AND v.submitted_at < b.end_at
-       ), event_groups AS (
-         SELECT store_id,
-                product_id,
-                teacher_id,
-                GROUPING(teacher_id)::integer AS teacher_rollup,
-                COALESCE(SUM(recharge_count), 0)::bigint AS recharge_count,
-                COALESCE(SUM(verification_count), 0)::bigint AS verification_count,
-                COALESCE(SUM(experience_count), 0)::bigint AS experience_count,
-                COALESCE(SUM(refund_count), 0)::bigint AS refund_count
-           FROM business_events
-          GROUP BY GROUPING SETS (
-            (store_id, product_id),
-            (store_id, product_id, teacher_id)
-          )
-       ), store_product_rows AS (
-         SELECT store_id,
-                product_id,
-                recharge_count,
-                verification_count,
-                experience_count,
-                refund_count
-           FROM event_groups
-          WHERE teacher_rollup = 1
-       ), teacher_product_rows AS (
-         SELECT store_id,
-                product_id,
-                teacher_id,
-                recharge_count,
-                verification_count,
-                experience_count,
-                refund_count
-           FROM event_groups
-          WHERE teacher_rollup = 0
-            AND teacher_id IS NOT NULL
-       ), all_store_rows AS (
-         SELECT s.id AS store_id,
-                s.store_code::text AS store_code,
-                s.store_name::text AS store_name,
-                COALESCE(SUM(sp.recharge_count), 0)::bigint AS recharge_count,
-                COALESCE(SUM(sp.verification_count), 0)::bigint AS verification_count,
-                COALESCE(SUM(sp.experience_count), 0)::bigint AS experience_count,
-                COALESCE(SUM(sp.refund_count), 0)::bigint AS refund_count
-           FROM public.stores s
-      LEFT JOIN store_product_rows sp ON sp.store_id = s.id
-          GROUP BY s.id, s.store_code, s.store_name
-       ), totals AS (
+      `${hqBusinessEventsCte(startDateSql, endDateSql)},
+       totals AS (
          SELECT COALESCE(SUM(recharge_count), 0)::bigint AS recharge_count,
                 COALESCE(SUM(verification_count), 0)::bigint AS verification_count,
                 COALESCE(SUM(experience_count), 0)::bigint AS experience_count,
                 COALESCE(SUM(refund_count), 0)::bigint AS refund_count
-           FROM store_product_rows
+           FROM business_events
+       ), teacher_population AS (
+         SELECT COUNT(DISTINCT teacher_id)::bigint AS teacher_count
+           FROM business_events
+          WHERE teacher_id IS NOT NULL
+       ), store_chart AS (
+          SELECT 'store'::text AS dimension,
+                 ranked.*
+           FROM (${storeProjection}) ranked
+          ORDER BY (ranked.recharge_count + ranked.verification_count + ranked.experience_count + ranked.refund_count) DESC,
+                   ranked.entity_name ASC NULLS LAST,
+                   ranked.entity_id ASC
+          LIMIT ${HQ_DASHBOARD_CHART_LIMIT}
+       ), project_chart AS (
+          SELECT 'project'::text AS dimension,
+                 ranked.*
+           FROM (${projectProjection}) ranked
+          ORDER BY (ranked.recharge_count + ranked.verification_count + ranked.experience_count + ranked.refund_count) DESC,
+                   ranked.entity_name ASC NULLS LAST,
+                   ranked.entity_id ASC
+          LIMIT ${HQ_DASHBOARD_CHART_LIMIT}
+       ), teacher_chart AS (
+          SELECT 'teacher'::text AS dimension,
+                 ranked.*
+           FROM (${teacherProjection}) ranked
+          ORDER BY (ranked.recharge_count + ranked.verification_count + ranked.experience_count + ranked.refund_count) DESC,
+                   ranked.entity_name ASC NULLS LAST,
+                   ranked.entity_id ASC
+          LIMIT ${HQ_DASHBOARD_CHART_LIMIT}
+       ), chart_rows AS (
+         SELECT * FROM store_chart
+         UNION ALL
+         SELECT * FROM project_chart
+         UNION ALL
+         SELECT * FROM teacher_chart
        ), result_rows AS (
-         SELECT 'TOTAL'::text AS row_type,
-                TO_CHAR(b.start_date, 'YYYY-MM-DD') AS start_date,
-                TO_CHAR(b.end_date, 'YYYY-MM-DD') AS end_date,
-                (b.end_date - b.start_date + 1)::integer AS range_days,
-                NULL::bigint AS store_id,
-                NULL::text AS store_code,
-                NULL::text AS store_name,
-                NULL::bigint AS product_id,
-                NULL::text AS product_code,
-                NULL::text AS product_name,
-                NULL::bigint AS teacher_id,
-                NULL::text AS teacher_code,
-                NULL::text AS teacher_name,
-                t.recharge_count,
-                t.verification_count,
-                t.experience_count,
-                t.refund_count
-           FROM bounds b
-          CROSS JOIN totals t
-         UNION ALL
-         SELECT 'STORE'::text,
-                TO_CHAR(b.start_date, 'YYYY-MM-DD'),
-                TO_CHAR(b.end_date, 'YYYY-MM-DD'),
-                (b.end_date - b.start_date + 1)::integer,
-                store_row.store_id,
-                store_row.store_code,
-                store_row.store_name,
-                NULL::bigint,
-                NULL::text,
-                NULL::text,
-                NULL::bigint,
-                NULL::text,
-                NULL::text,
-                store_row.recharge_count,
-                store_row.verification_count,
-                store_row.experience_count,
-                store_row.refund_count
-           FROM all_store_rows store_row
-          CROSS JOIN bounds b
-         UNION ALL
-         SELECT 'ROW'::text,
-                TO_CHAR(b.start_date, 'YYYY-MM-DD'),
-                TO_CHAR(b.end_date, 'YYYY-MM-DD'),
-                (b.end_date - b.start_date + 1)::integer,
-                sp.store_id,
-                s.store_code::text,
-                s.store_name::text,
-                sp.product_id,
-                p.product_code::text,
-                p.product_name::text,
-                NULL::bigint,
-                NULL::text,
-                NULL::text,
-                sp.recharge_count,
-                sp.verification_count,
-                sp.experience_count,
-                sp.refund_count
-           FROM store_product_rows sp
-          CROSS JOIN bounds b
-      LEFT JOIN public.stores s ON s.id = sp.store_id
-      LEFT JOIN public.products p ON p.id = sp.product_id
-         UNION ALL
-         SELECT 'TEACHER'::text,
-                TO_CHAR(b.start_date, 'YYYY-MM-DD'),
-                TO_CHAR(b.end_date, 'YYYY-MM-DD'),
-                (b.end_date - b.start_date + 1)::integer,
-                teacher_row.store_id,
-                s.store_code::text,
-                s.store_name::text,
-                teacher_row.product_id,
-                p.product_code::text,
-                p.product_name::text,
-                teacher_row.teacher_id,
-                teacher.teacher_code::text,
-                teacher.teacher_name::text,
-                teacher_row.recharge_count,
-                teacher_row.verification_count,
-                teacher_row.experience_count,
-                teacher_row.refund_count
-           FROM teacher_product_rows teacher_row
-          CROSS JOIN bounds b
-      LEFT JOIN public.stores s ON s.id = teacher_row.store_id
-      LEFT JOIN public.products p ON p.id = teacher_row.product_id
-      LEFT JOIN public.teachers teacher ON teacher.id = teacher_row.teacher_id
+       SELECT 'TOTAL'::text AS row_type,
+              TO_CHAR(date_range.start_date, 'YYYY-MM-DD') AS start_date,
+              TO_CHAR(date_range.end_date, 'YYYY-MM-DD') AS end_date,
+              (date_range.end_date - date_range.start_date + 1)::integer AS range_days,
+              NULL::text AS dimension,
+              NULL::bigint AS entity_id,
+              NULL::text AS entity_code,
+              NULL::text AS entity_name,
+              totals.recharge_count,
+              totals.verification_count,
+              totals.experience_count,
+              totals.refund_count,
+              (SELECT COUNT(*) FROM public.stores)::bigint AS store_count,
+              teacher_population.teacher_count
+         FROM date_bounds date_range
+        CROSS JOIN totals
+        CROSS JOIN teacher_population
+       UNION ALL
+       SELECT 'CHART'::text AS row_type,
+              NULL::text AS start_date,
+              NULL::text AS end_date,
+              NULL::integer AS range_days,
+              chart_rows.dimension,
+              chart_rows.entity_id,
+              chart_rows.entity_code,
+              chart_rows.entity_name,
+              chart_rows.recharge_count,
+              chart_rows.verification_count,
+              chart_rows.experience_count,
+              chart_rows.refund_count,
+              NULL::bigint AS store_count,
+              NULL::bigint AS teacher_count
+          FROM chart_rows
        )
        SELECT *
          FROM result_rows
-        ORDER BY CASE row_type WHEN 'TOTAL' THEN 0 WHEN 'STORE' THEN 1 WHEN 'ROW' THEN 2 ELSE 3 END,
-                 store_name NULLS LAST, store_id NULLS LAST,
-                 product_name NULLS LAST, product_id NULLS LAST,
-                 teacher_name NULLS LAST, teacher_id NULLS LAST`
+        ORDER BY CASE row_type WHEN 'TOTAL' THEN 0 ELSE 1 END,
+                 CASE dimension WHEN 'store' THEN 0 WHEN 'project' THEN 1 ELSE 2 END,
+                 (recharge_count + verification_count + experience_count + refund_count) DESC,
+                 entity_name ASC NULLS LAST,
+                 entity_id ASC`
     );
   } catch (error) {
-    asDatabaseError(error, "读取总部首页数据");
+    asDatabaseError(error, "读取总部首页汇总");
   }
 
   const totalRow = dashboardRows?.find((row) => row.row_type === "TOTAL");
   if (!totalRow) fail("总部首页统计未返回日期范围", "DATABASE_ERROR");
-
-  const stores = (dashboardRows || []).filter((row) => row.row_type === "STORE").map((row) => ({
-    storeId: String(row.store_id),
-    storeCode: String(row.store_code || ""),
-    storeName: String(row.store_name || ""),
-    recharge: Number(row.recharge_count || 0),
-    verification: Number(row.verification_count || 0),
-    experience: Number(row.experience_count || 0),
-    refund: Number(row.refund_count || 0)
-  }));
-  const rows = (dashboardRows || []).filter((row) => row.row_type === "ROW").map((row) => ({
-    storeId: String(row.store_id),
-    storeCode: String(row.store_code || ""),
-    storeName: String(row.store_name || ""),
-    productId: String(row.product_id),
-    productCode: String(row.product_code || ""),
-    productName: String(row.product_name || ""),
-    recharge: Number(row.recharge_count || 0),
-    verification: Number(row.verification_count || 0),
-    experience: Number(row.experience_count || 0),
-    refund: Number(row.refund_count || 0)
-  }));
-  const teacherRows = (dashboardRows || []).filter((row) => row.row_type === "TEACHER").map((row) => ({
-    storeId: String(row.store_id),
-    storeCode: String(row.store_code || ""),
-    storeName: String(row.store_name || ""),
-    productId: String(row.product_id),
-    productCode: String(row.product_code || ""),
-    productName: String(row.product_name || ""),
-    teacherId: row.teacher_id === null || row.teacher_id === undefined ? "" : String(row.teacher_id),
-    teacherCode: String(row.teacher_code || ""),
-    teacherName: String(row.teacher_name || ""),
-    recharge: Number(row.recharge_count || 0),
-    verification: Number(row.verification_count || 0),
-    experience: Number(row.experience_count || 0),
-    refund: Number(row.refund_count || 0)
-  }));
-
+  const charts = { store: [], project: [], teacher: [] };
+  (dashboardRows || []).forEach((row) => {
+    if (row.row_type === "CHART" && Object.prototype.hasOwnProperty.call(charts, row.dimension)) {
+      charts[row.dimension].push(hqDashboardRow(row));
+    }
+  });
   return {
-    ok: true,
-    version: FUNCTION_VERSION,
-    range: {
-      startDate: String(totalRow.start_date),
-      endDate: String(totalRow.end_date),
-      days: Number(totalRow.range_days),
-      timeZone: "Asia/Shanghai"
-    },
+    range: hqDashboardRangeFromTotal(totalRow),
     totals: {
       recharge: Number(totalRow.recharge_count || 0),
       verification: Number(totalRow.verification_count || 0),
       experience: Number(totalRow.experience_count || 0),
       refund: Number(totalRow.refund_count || 0),
-      stores: stores.length,
-      teachers: new Set(teacherRows.map((row) => row.teacherId).filter(Boolean)).size
+      stores: Number(totalRow.store_count || 0),
+      teachers: Number(totalRow.teacher_count || 0)
     },
-    stores,
-    rows,
-    teacherRows
+    charts
   };
+}
+
+function hqDashboardRankingSql(startDateSql, endDateSql, dimension, pageSize, pageOffset) {
+  const projection = hqDashboardRankingProjection(dimension);
+  return `${hqBusinessEventsCte(startDateSql, endDateSql)},
+    ranked AS (
+      ${projection}
+    ), ranked_with_totals AS (
+      SELECT ranked.*,
+             COUNT(*) OVER () AS total_rows,
+             COALESCE(SUM(
+               ranked.recharge_count + ranked.verification_count + ranked.experience_count + ranked.refund_count
+             ) OVER (), 0)::bigint AS business_total
+        FROM ranked
+    )
+    SELECT entity_id, entity_code, entity_name,
+           recharge_count, verification_count, experience_count, refund_count,
+           total_rows, business_total
+      FROM ranked_with_totals
+     ORDER BY (recharge_count + verification_count + experience_count + refund_count) DESC,
+              entity_name ASC NULLS LAST,
+              entity_id ASC
+     LIMIT ${pageSize} OFFSET ${pageOffset}`;
+}
+
+async function getHqDashboardRanking(requestedRange, event) {
+  const request = dashboardRankingRequest(event);
+  const { startDateSql, endDateSql } = hqDashboardDateSql(requestedRange);
+  let rows;
+  try {
+    rows = await executeSql(
+      hqDashboardRankingSql(
+        startDateSql,
+        endDateSql,
+        request.dimension,
+        request.pageSize,
+        (request.pageNumber - 1) * request.pageSize
+      )
+    );
+  } catch (error) {
+    asDatabaseError(error, "读取总部首页排名");
+  }
+
+  // A normal browser request always knows the total from page 1.  If a stale
+  // tab asks for a now-nonexistent page, calculate the count once, clamp to
+  // the final page, and read that bounded page instead of returning a false
+  // empty result.
+  let pageNumber = request.pageNumber;
+  let total = Number(rows?.[0]?.total_rows || 0);
+  let businessTotal = Number(rows?.[0]?.business_total || 0);
+  if (!rows?.length && request.pageNumber > 1) {
+    let totalRows;
+    try {
+      totalRows = await executeSql(
+        `${hqBusinessEventsCte(startDateSql, endDateSql)},
+         ranked AS (
+           ${hqDashboardRankingProjection(request.dimension)}
+         )
+         SELECT COUNT(*)::bigint AS total_rows,
+                COALESCE(SUM(recharge_count + verification_count + experience_count + refund_count), 0)::bigint AS business_total
+           FROM ranked`
+      );
+    } catch (error) {
+      asDatabaseError(error, "校正总部首页排名页码");
+    }
+    total = Number(totalRows?.[0]?.total_rows || 0);
+    businessTotal = Number(totalRows?.[0]?.business_total || 0);
+    const totalPages = Math.max(1, Math.ceil(total / request.pageSize));
+    pageNumber = Math.min(request.pageNumber, totalPages);
+    if (total > 0 && pageNumber !== request.pageNumber) {
+      try {
+        rows = await executeSql(
+          hqDashboardRankingSql(
+            startDateSql,
+            endDateSql,
+            request.dimension,
+            request.pageSize,
+            (pageNumber - 1) * request.pageSize
+          )
+        );
+      } catch (error) {
+        asDatabaseError(error, "读取校正后的总部首页排名");
+      }
+    }
+  }
+  const totalPages = Math.max(1, Math.ceil(total / request.pageSize));
+  return {
+    ranking: {
+      dimension: request.dimension,
+      pageNumber,
+      pageSize: request.pageSize,
+      total,
+      totalPages,
+      businessTotal,
+      rows: (rows || []).map(hqDashboardRow)
+    }
+  };
+}
+
+async function getHqDashboard(event = {}) {
+  const requestedRange = dashboardDateRange(event);
+  const mode = dashboardReadMode(event);
+  const payload = mode === "ranking"
+    ? await getHqDashboardRanking(requestedRange, event)
+    : await getHqDashboardOverview(requestedRange);
+  return { ok: true, version: FUNCTION_VERSION, mode, ...payload };
 }
 
 function requireTeacherExperienceTimerControlPlaneCaller() {
@@ -4314,6 +4484,12 @@ async function main(event = {}, context = {}) {
     if (!staff) fail("未找到该人员账号", "NOT_FOUND");
     if (staff.role_code === "operation") {
       fail("运营账号已下线，不能恢复、封存或修改。请使用 retireOperationAccounts 完成统一下线。", "OPERATION_ROLE_RETIRED");
+    }
+    // No face is required for activation.  This only verifies that the
+    // database has the 048-02 optional-face triggers, so an old deployment
+    // cannot immediately undo an otherwise successful activation.
+    if (status === "ACTIVE" && staff.role_code === "teacher") {
+      await requireTeacherOptionalFaceActivationSchema();
     }
     // Archive the CloudBase credential first. If that platform operation
     // fails, leave business master data untouched instead of reporting an
