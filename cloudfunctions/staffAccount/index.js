@@ -11,8 +11,11 @@ const ROLES = new Set(["hq", "operation", "store", "teacher"]);
 const OPERATION_ACTIONS = new Set(["listReviewOrders", "reviewOrder", "getProductReceiptTemplate", "getProductReceiptLogoData"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v47";
+const FUNCTION_VERSION = "v49";
 const ORDER_VOID_APPLICATIONS_ENABLED = false;
+const TEACHER_EXPERIENCE_RESET_TIMER_TRIGGER_NAME = "reset-teacher-experience-quotas-monthly";
+const TEACHER_FACE_MAX_BYTES = 4 * 1024 * 1024;
+const TEACHER_FACE_MODEL_VERSION = "3.0";
 const PRODUCT_LOGO_MAX_BYTES = 8 * 1024 * 1024;
 // Base64 expands bytes by roughly one third and synchronous cloud-function
 // events have a much smaller payload ceiling than the signed PUT channel.
@@ -36,6 +39,7 @@ let managerClient = null;
 let storeBindingLayout = null;
 let storeCreationCapabilities = null;
 let productTemplateCapabilities = null;
+let teacherFaceClientClass = null;
 const productLogoDownloadCache = new Map();
 const productLogoDownloadFlights = new Map();
 const productLogoSignCache = new Map();
@@ -65,6 +69,138 @@ function manager() {
     });
   }
   return managerClient;
+}
+
+function requiredEnvironment(name) {
+  const value = String(process.env[name] || "").trim();
+  if (!value) fail(`Missing cloud function environment variable: ${name}`, "TEACHER_FACE_NOT_CONFIGURED");
+  return value;
+}
+
+function numberEnvironment(name, fallback, minimum, maximum) {
+  const value = process.env[name];
+  if (value === undefined || value === "") return fallback;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < minimum || parsed > maximum) {
+    fail(`${name} must be a number between ${minimum} and ${maximum}.`, "TEACHER_FACE_NOT_CONFIGURED");
+  }
+  return parsed;
+}
+
+function booleanEnvironment(name, fallback = false) {
+  const value = process.env[name];
+  if (value === undefined || value === "") return fallback;
+  return ["1", "true", "yes", "on"].includes(String(value).trim().toLowerCase());
+}
+
+function teacherFaceSettings() {
+  return {
+    qualityThreshold: numberEnvironment("FACE_QUALITY_THRESHOLD", 70, 0, 100),
+    livenessEnabled: booleanEnvironment("FACE_LIVENESS_ENABLED", false),
+    livenessThreshold: numberEnvironment("FACE_LIVENESS_THRESHOLD", 40, 0, 100),
+    maxYaw: numberEnvironment("FACE_MAX_YAW", 20, 0, 90),
+    maxPitch: numberEnvironment("FACE_MAX_PITCH", 20, 0, 90),
+    maxRoll: numberEnvironment("FACE_MAX_ROLL", 15, 0, 90)
+  };
+}
+
+function teacherFaceClient() {
+  if (!teacherFaceClientClass) {
+    teacherFaceClientClass = require("tencentcloud-sdk-nodejs").iai.v20200303.Client;
+  }
+  return new teacherFaceClientClass({
+    credential: {
+      secretId: requiredEnvironment("FACE_SECRET_ID"),
+      secretKey: requiredEnvironment("FACE_SECRET_KEY")
+    },
+    region: "ap-guangzhou",
+    profile: { httpProfile: { endpoint: "iai.tencentcloudapi.com" } }
+  });
+}
+
+function teacherFaceImage(value) {
+  const text = String(value || "").trim();
+  if (!/^data:image\/jpeg;base64,/i.test(text)) {
+    fail("老师人脸必须使用现场采集的 JPEG 照片。", "TEACHER_FACE_IMAGE_INVALID");
+  }
+  const base64 = text.replace(/^data:image\/jpeg;base64,/i, "").trim();
+  const canonicalBase64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+  if (!base64 || !canonicalBase64.test(base64)) {
+    fail("老师人脸照片格式无效。", "TEACHER_FACE_IMAGE_INVALID");
+  }
+  const buffer = Buffer.from(base64, "base64");
+  if (buffer.toString("base64") !== base64 || !buffer.length || buffer.length > TEACHER_FACE_MAX_BYTES
+      || buffer.length < 4 || buffer[0] !== 0xff || buffer[1] !== 0xd8 || buffer[2] !== 0xff) {
+    fail("老师人脸照片必须是小于 4 MB 的有效 JPEG。", "TEACHER_FACE_IMAGE_INVALID");
+  }
+  return { base64, buffer };
+}
+
+function roundedFaceMetric(value) {
+  return Math.round(Number(value || 0) * 10) / 10;
+}
+
+async function inspectTeacherFaceImage(api, base64) {
+  let result;
+  try {
+    result = await api.DetectFace({
+      Image: base64,
+      MaxFaceNum: 2,
+      MinFaceSize: 34,
+      NeedFaceAttributes: 1,
+      NeedQualityDetection: 1,
+      FaceModelVersion: TEACHER_FACE_MODEL_VERSION,
+      NeedRotateDetection: 0
+    });
+  } catch (error) {
+    if (String(error?.code || "").includes("NoFaceInPhoto")) {
+      fail("没有检测到清晰老师人脸，请重新拍摄。", "TEACHER_FACE_NOT_FOUND");
+    }
+    throw error;
+  }
+  const faces = Array.isArray(result?.FaceInfos) ? result.FaceInfos : [];
+  if (!faces.length) fail("没有检测到清晰老师人脸，请重新拍摄。", "TEACHER_FACE_NOT_FOUND");
+  if (faces.length !== 1) fail("老师人脸照片中只能有一位人员。", "TEACHER_FACE_MULTIPLE_FACES");
+  const face = faces[0] || {};
+  if (Number(face.Width || 0) < 100 || Number(face.Height || 0) < 100) {
+    fail("老师人脸距离镜头过远，请靠近后重新拍摄。", "TEACHER_FACE_TOO_SMALL");
+  }
+  const quality = face.FaceQualityInfo || {};
+  const attributes = face.FaceAttributesInfo || {};
+  const settings = teacherFaceSettings();
+  const score = Number(quality.Score || 0);
+  if (score < settings.qualityThreshold) {
+    fail("老师人脸照片质量不足，请保证光线均匀、镜头清晰。", "TEACHER_FACE_QUALITY_LOW");
+  }
+  if (attributes.Mask === true) fail("老师人脸建档不能佩戴口罩。", "TEACHER_FACE_MASKED");
+  if (attributes.EyeOpen === false) fail("老师人脸建档检测到闭眼。", "TEACHER_FACE_EYES_CLOSED");
+  if (Math.abs(Number(attributes.Yaw || 0)) > settings.maxYaw
+      || Math.abs(Number(attributes.Pitch || 0)) > settings.maxPitch
+      || Math.abs(Number(attributes.Roll || 0)) > settings.maxRoll) {
+    fail("老师人脸角度过大，请正对镜头后重新拍摄。", "TEACHER_FACE_POSE_INVALID");
+  }
+  return {
+    requestId: String(result?.RequestId || ""),
+    qualityScore: roundedFaceMetric(score),
+    faceWidth: Number(face.Width || 0),
+    faceHeight: Number(face.Height || 0)
+  };
+}
+
+async function inspectTeacherFaceLiveness(api, base64) {
+  const settings = teacherFaceSettings();
+  if (!settings.livenessEnabled) return { enabled: false, checked: false, score: null };
+  const result = await api.DetectLiveFaceAccurate({ Image: base64, FaceModelVersion: TEACHER_FACE_MODEL_VERSION });
+  const score = Number(result?.Score || 0);
+  if (score < settings.livenessThreshold) {
+    fail("老师人脸活体检测未通过，请确认现场真人拍摄。", "TEACHER_FACE_LIVENESS_FAILED");
+  }
+  return { enabled: true, checked: true, score: roundedFaceMetric(score), requestId: String(result?.RequestId || "") };
+}
+
+function teacherFacePersonId(clientRequestId) {
+  const token = crypto.createHash("sha256").update(`teacher-face:${clientRequestId}`).digest("hex").slice(0, 48).toUpperCase();
+  return `T-${token}`;
 }
 
 function productTemplateStorageSettings() {
@@ -1073,7 +1209,8 @@ async function findStaffProfile(uid) {
     rows = await executeSql(
       `SELECT a.id, a.phone, a.staff_name, a.role_code, a.account_status,
         a.password_initialized_at, a.password_changed_at, a.password_change_required,
-        s.id AS store_id, s.store_code, s.store_name, s.store_status, t.id AS teacher_id, t.teacher_status
+        s.id AS store_id, s.store_code, s.store_name, s.store_status,
+        t.id AS teacher_id, t.teacher_status, t.face_person_id, t.face_enrollment_status
        FROM public.staff_accounts a
        ${storeJoin}
        LEFT JOIN public.teachers t ON t.staff_account_id = a.id
@@ -1094,6 +1231,9 @@ async function findStaffProfile(uid) {
     if (staff.store_status !== "ACTIVE") fail("关联门店已封存，无法登录", "ARCHIVED_STORE");
   }
   if (staff.role_code === "teacher") {
+    if (staff.face_enrollment_status !== "ENROLLED" || !String(staff.face_person_id || "").trim()) {
+      fail("该老师尚未完成总部人脸绑定，无法登录", "TEACHER_FACE_REQUIRED");
+    }
     if (staff.teacher_status === "ARCHIVED") fail("该老师资料已封存，无法登录", "ARCHIVED_TEACHER");
   }
   return {
@@ -1214,7 +1354,34 @@ async function ensureBootstrapHq(caller) {
   return findStaffProfile(caller.uid);
 }
 
-async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId }) {
+async function ensureTeacherDatabaseProfile(staffId) {
+  let rows;
+  try {
+    rows = await executeSql(
+      `INSERT INTO public.teachers
+        (teacher_code, teacher_name, staff_account_id, teacher_status, face_enrollment_status)
+       SELECT 'TCHF' || account.id::text, account.staff_name, account.id,
+              CASE WHEN account.account_status = 'ACTIVE' THEN 'ACTIVE' ELSE 'ARCHIVED' END,
+              'PENDING'
+         FROM public.staff_accounts AS account
+        WHERE account.id = ${Number(staffId)}
+       ON CONFLICT (staff_account_id) DO UPDATE
+         SET teacher_name = EXCLUDED.teacher_name,
+             updated_at = NOW()
+       RETURNING id, teacher_code, teacher_name, teacher_status,
+                 face_person_id, face_enrollment_status, face_enrolled_at`
+    );
+  } catch (error) {
+    asDatabaseError(error, "创建老师资料");
+  }
+  const teacher = rows?.[0];
+  if (!teacher) fail("老师账号已创建，但老师资料未能写入", "TEACHER_PROFILE_MISSING");
+  return teacher;
+}
+
+async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId, initialAccountStatus = "ACTIVE" }) {
+  const accountStatus = String(initialAccountStatus || "").toUpperCase();
+  if (!['ACTIVE', 'ARCHIVED'].includes(accountStatus)) fail("员工初始状态无效", "BAD_REQUEST");
   let existingRows;
   try {
     existingRows = await executeSql(
@@ -1238,7 +1405,7 @@ async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId
       ? await executeSql(
         `WITH updated_account AS (
            UPDATE public.staff_accounts
-           SET auth_uid = ${sqlText(uid)}, staff_name = ${sqlText(staffName)}, account_status = 'ACTIVE', updated_at = NOW()
+           SET auth_uid = ${sqlText(uid)}, staff_name = ${sqlText(staffName)}, account_status = ${sqlText(accountStatus)}, updated_at = NOW()
            WHERE id = ${Number(existing.id)}
            RETURNING id
          )
@@ -1247,7 +1414,7 @@ async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId
       : await executeSql(
         `WITH created_account AS (
            INSERT INTO public.staff_accounts (auth_uid, phone, staff_name, role_code, account_status)
-           VALUES (${sqlText(uid)}, ${sqlText(phone)}, ${sqlText(staffName)}, ${sqlText(role)}, 'ACTIVE')
+           VALUES (${sqlText(uid)}, ${sqlText(phone)}, ${sqlText(staffName)}, ${sqlText(role)}, ${sqlText(accountStatus)})
            RETURNING id
          )
          SELECT id FROM created_account`
@@ -1256,6 +1423,15 @@ async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId
     asDatabaseError(error, "保存员工业务身份");
   }
   const profile = { staffId: rows?.[0]?.id || null, role, staffName, storeId: "" };
+  if (role === "teacher") {
+    if (!profile.staffId) fail("员工身份保存后未返回账号编号", "DATABASE_ERROR");
+    const teacher = await ensureTeacherDatabaseProfile(profile.staffId);
+    profile.teacherId = String(teacher.id);
+    profile.teacherCode = String(teacher.teacher_code || "");
+    profile.teacherStatus = String(teacher.teacher_status || "");
+    profile.faceEnrollmentStatus = String(teacher.face_enrollment_status || "");
+    return profile;
+  }
   if (role !== "store") return profile;
   const staffId = rows?.[0]?.id;
   if (!staffId) fail("员工身份保存后未返回账号编号", "DATABASE_ERROR");
@@ -2417,6 +2593,636 @@ async function reviewOrder(caller, event) {
   return rows[0];
 }
 
+function teacherFaceProvisionRequestId(value) {
+  const requestId = String(value || "").trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{7,63}$/.test(requestId)) {
+    fail("老师建档缺少有效的防重复提交编号。", "IDEMPOTENCY_KEY_REQUIRED");
+  }
+  return requestId;
+}
+
+async function requireTeacherFaceSchema() {
+  const rows = await executeSql(
+    `SELECT EXISTS (
+              SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public' AND table_name = 'teachers' AND column_name = 'face_person_id'
+            ) AS has_face_person_id,
+            EXISTS (
+              SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public' AND table_name = 'teachers' AND column_name = 'face_enrollment_status'
+            ) AS has_face_status,
+            EXISTS (
+              SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public' AND table_name = 'teachers' AND column_name = 'face_consent_at'
+            ) AS has_face_consent`
+  );
+  const schema = rows?.[0] || {};
+  if (!databaseBoolean(schema.has_face_person_id) || !databaseBoolean(schema.has_face_status)
+      || !databaseBoolean(schema.has_face_consent)) {
+    fail("老师人脸建档结构尚未启用，请先执行迁移 046。", "DATABASE_SCHEMA_MISSING");
+  }
+}
+
+async function blockTeacherAuthentication(uid, { required = false } = {}) {
+  if (!uid) {
+    if (required) fail("老师认证账号缺少 UID，无法确认封存。", "AUTH_ARCHIVE_FAILED");
+    return false;
+  }
+  try {
+    await manager().user.modifyUser({ uid: String(uid), userStatus: "BLOCKED" });
+    return true;
+  } catch (error) {
+    console.error("teacher provisioning could not block CloudBase authentication", {
+      code: cloudErrorDetails(error).code || undefined, requestId: requestIdFrom(error) || undefined
+    });
+    if (required) {
+      stageFail("AUTH_ARCHIVE", "无法确认老师 CloudBase 登录账号已封存，未继续建档。", "AUTH_ARCHIVE_FAILED", error);
+    }
+    return false;
+  }
+}
+
+async function archiveTeacherProvisioning(staffId) {
+  if (!staffId) return;
+  try {
+    // Migration 046's teacher-status trigger updates the linked account in
+    // this same SQL command. Keep the explicit account write separate: a
+    // data-modifying CTE must never update the row that the trigger updates.
+    await executeSql(
+      `UPDATE public.teachers
+          SET teacher_status = 'ARCHIVED', updated_at = NOW()
+        WHERE staff_account_id = ${Number(staffId)}`
+    );
+    await executeSql(
+      `UPDATE public.staff_accounts
+          SET account_status = 'ARCHIVED', updated_at = NOW()
+        WHERE id = ${Number(staffId)}
+          AND role_code = 'teacher'`
+    );
+  } catch (error) {
+    console.error("teacher provisioning could not archive database profile", {
+      staffId: Number(staffId), code: error?.code || undefined, message: error?.message || undefined
+    });
+  }
+}
+
+async function archiveStoreProvisioning(staffId) {
+  if (!staffId) return;
+  try {
+    const layout = await getStoreBindingLayout();
+    if (layout === "stores") {
+      await executeSql(
+        `WITH archived_store AS (
+           UPDATE public.stores
+              SET store_status = 'ARCHIVED', updated_at = NOW()
+            WHERE store_account_id = ${Number(staffId)}
+            RETURNING id
+         )
+         UPDATE public.staff_accounts
+            SET account_status = 'ARCHIVED', updated_at = NOW()
+          WHERE id = ${Number(staffId)}`
+      );
+    } else {
+      await executeSql(
+        `WITH archived_store AS (
+           UPDATE public.stores store
+              SET store_status = 'ARCHIVED', updated_at = NOW()
+             FROM public.staff_store_assignments assignment
+            WHERE assignment.store_id = store.id
+              AND assignment.staff_account_id = ${Number(staffId)}
+            RETURNING store.id
+         )
+         UPDATE public.staff_accounts
+            SET account_status = 'ARCHIVED', updated_at = NOW()
+          WHERE id = ${Number(staffId)}`
+      );
+    }
+  } catch (error) {
+    console.error("staff status compensation could not archive store profile", {
+      staffId: Number(staffId), code: error?.code || undefined, message: error?.message || undefined
+    });
+  }
+}
+
+async function deleteTeacherFacePerson(api, groupId, personId) {
+  if (!api || !groupId || !personId) return;
+  try {
+    await api.DeletePerson({ GroupId: groupId, PersonId: personId });
+  } catch (error) {
+    console.warn("teacher face cleanup failed", { code: cloudErrorDetails(error).code || undefined, requestId: requestIdFrom(error) || undefined });
+  }
+}
+
+function duplicateTeacherFacePersonError(error) {
+  const detail = `${error?.code || ""} ${error?.Code || ""} ${error?.message || ""}`.toLowerCase();
+  return detail.includes("persondup") || detail.includes("person already") || detail.includes("duplicate") || detail.includes("已存在");
+}
+
+async function confirmExistingTeacherFacePerson(api, personId) {
+  // GetPersonBaseInfo is the least-privileged read that confirms the exact
+  // deterministic ID.  We never accept a duplicate merely on its error text.
+  const person = await api.GetPersonBaseInfo({ PersonId: personId });
+  if (!person || (person.PersonId && String(person.PersonId) !== String(personId))) {
+    fail("同一建档编号的人脸资料无法安全确认。", "TEACHER_FACE_PERSON_CONFLICT");
+  }
+}
+
+async function persistedTeacherFaceEnrollment(staffId, personId) {
+  if (!staffId || !personId) return null;
+  try {
+    const rows = await executeSql(
+      `SELECT id, teacher_code, teacher_name, teacher_status, face_enrollment_status, face_enrolled_at
+         FROM public.teachers
+        WHERE staff_account_id = ${Number(staffId)}
+          AND face_person_id = ${sqlText(personId)}
+          AND face_enrollment_status = 'ENROLLED'
+        LIMIT 1`
+    );
+    return rows?.[0] || null;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function provisionTeacherWithFace(caller, event = {}) {
+  await requireTeacherFaceSchema();
+  const staffName = String(event.staffName || "").trim();
+  const phone = validatePhone(event.phone);
+  const password = validatePassword(event.initialPassword);
+  const clientRequestId = teacherFaceProvisionRequestId(event.clientRequestId);
+  const consent = event.consent === true;
+  if (!staffName || staffName.length > 100) fail("请填写不超过 100 个字符的老师姓名。", "BAD_REQUEST");
+  if (!consent) fail("必须取得老师明确的人脸建档授权。", "TEACHER_FACE_CONSENT_REQUIRED");
+  const image = teacherFaceImage(event.faceImageBase64);
+  const facePersonId = teacherFacePersonId(clientRequestId);
+
+  // A completed retry is safe: only the same deterministic person id may
+  // replay this request.  A different request id for an enrolled phone is a
+  // conflict, never an opportunity to replace an enrolled face silently.
+  const existingRows = await executeSql(
+    `SELECT a.id AS staff_id, a.auth_uid, a.role_code, a.account_status,
+            t.id AS teacher_id, t.teacher_code, t.teacher_name, t.teacher_status,
+            t.face_person_id, t.face_enrollment_status
+       FROM public.staff_accounts a
+       LEFT JOIN public.teachers t ON t.staff_account_id = a.id
+      WHERE a.phone = ${sqlText(phone)}
+      LIMIT 1`
+  );
+  const existing = existingRows?.[0];
+  if (existing && existing.role_code !== "teacher") {
+    fail("该手机号已经绑定其他业务身份；一个手机号只能有一个身份。", "PHONE_ROLE_CONFLICT");
+  }
+  if (existing?.face_enrollment_status === "ENROLLED") {
+    if (String(existing.face_person_id || "") !== facePersonId) {
+      fail("该手机号的老师账号已经完成另一份人脸建档，不能覆盖。", "TEACHER_FACE_ALREADY_ENROLLED");
+    }
+    const enrolledUid = String(existing.auth_uid || "");
+    if (!enrolledUid || !existing.teacher_id || !existing.staff_id) {
+      fail("已登记的人脸老师缺少登录或资料关联，不能自动恢复。", "TEACHER_FACE_RECOVERY_REQUIRED");
+    }
+    // A response can be lost after face/DB persistence but before the auth
+    // account activation response.  The same request id is allowed to finish
+    // that exact activation; no different face or person id is accepted.
+    try {
+      const recoveredRows = await executeSql(
+        `UPDATE public.teachers
+            SET teacher_status = 'ACTIVE', updated_at = NOW()
+          WHERE id = ${Number(existing.teacher_id)}
+            AND staff_account_id = ${Number(existing.staff_id)}
+            AND face_enrollment_status = 'ENROLLED'
+            AND face_person_id = ${sqlText(facePersonId)}
+          RETURNING id`
+      );
+      if (!recoveredRows?.[0]) fail("已登记老师资料无法恢复为活跃状态。", "TEACHER_FACE_RECOVERY_REQUIRED");
+      const recoveredAccountRows = await executeSql(
+        `SELECT account_status FROM public.staff_accounts WHERE id = ${Number(existing.staff_id)} LIMIT 1`
+      );
+      if (String(recoveredAccountRows?.[0]?.account_status || "") !== "ACTIVE") {
+        fail("已登记老师账号状态未能同步恢复，请确认迁移 046 已完整执行。", "TEACHER_FACE_RECOVERY_REQUIRED");
+      }
+      await manager().user.modifyUser({ uid: enrolledUid, userStatus: "ACTIVE", nickName: staffName });
+    } catch (error) {
+      await archiveTeacherProvisioning(existing.staff_id);
+      await blockTeacherAuthentication(enrolledUid, { required: true });
+      stageFail("AUTH_ACTIVATE", "已登记老师的人脸账号恢复失败；账号保持封存，请由总部重试。", "AUTH_ACTIVATION_FAILED", error);
+    }
+    return {
+      ok: true,
+      uid: enrolledUid, phone, authAccount: "recovered", passwordInitialized: false,
+      profile: { staffId: String(existing.staff_id), role: "teacher", staffName: existing.teacher_name || staffName,
+        teacherId: String(existing.teacher_id), teacherCode: String(existing.teacher_code || ""),
+        teacherStatus: "ACTIVE", faceEnrollmentStatus: "ENROLLED" },
+      teacher: { teacherId: String(existing.teacher_id), teacherCode: String(existing.teacher_code || ""),
+        teacherName: String(existing.teacher_name || staffName), teacherStatus: "ACTIVE",
+        faceEnrollmentStatus: "ENROLLED" }
+    };
+  }
+
+  let authUser = await findAuthUserByExactPhone(phone);
+  let authCreated = false;
+  if (!authUser) {
+    try {
+      const created = await manager().user.createUser({
+        name: `staff_${phone}`, password, type: "externalUser", userStatus: "BLOCKED",
+        nickName: staffName, phone, description: "待完成人脸建档的老师登录账号"
+      });
+      const uid = String(created?.Data?.Uid || "");
+      if (!uid) {
+        const error = new Error("CreateUser did not return a UID");
+        error.RequestId = created?.RequestId;
+        stageFail("AUTH_CREATE", "认证账号创建后未返回 UID。", "AUTH_CREATE_INCOMPLETE", error);
+      }
+      authUser = { Uid: uid };
+      authCreated = true;
+    } catch (error) {
+      if (!isDuplicateAuthError(error)) {
+        stageFail("AUTH_CREATE", "老师认证账号创建失败，请检查云函数用户管理权限。", "AUTH_CREATE_FAILED", error);
+      }
+      authUser = await findAuthUserByExactPhone(phone);
+      if (!authUser?.Uid) stageFail("AUTH_CREATE", "认证账号创建冲突且无法恢复。", "AUTH_CREATE_CONFLICT", error);
+    }
+  }
+  const uid = String(authUser?.Uid || "");
+  if (!uid) fail("认证账号无有效 UID，请勿重复提交。", "AUTH_CREATE_INCOMPLETE");
+  await blockTeacherAuthentication(uid, { required: true });
+
+  let profile;
+  try {
+    profile = await createStaffDatabaseProfile({
+      uid, phone, staffName, role: "teacher", storeId: "", initialAccountStatus: "ARCHIVED"
+    });
+  } catch (error) {
+    await blockTeacherAuthentication(uid, { required: true });
+    stageFail("DB_PROFILE", error?.message || "老师业务资料创建失败。", error?.code || "TEACHER_PROFILE_SAVE_FAILED", error);
+  }
+
+  let api = null;
+  let groupId = "";
+  let facePersonCreated = false;
+  let facePersonRecovered = false;
+  let teacher;
+  try {
+    api = teacherFaceClient();
+    groupId = requiredEnvironment("FACE_GROUP_ID");
+    await inspectTeacherFaceImage(api, image.base64);
+    await inspectTeacherFaceLiveness(api, image.base64);
+    try {
+      await api.CreatePerson({
+        GroupId: groupId, PersonId: facePersonId, PersonName: staffName,
+        Image: image.base64, UniquePersonControl: 0, QualityControl: 3,
+        FaceModelVersion: TEACHER_FACE_MODEL_VERSION
+      });
+      facePersonCreated = true;
+    } catch (error) {
+      if (!duplicateTeacherFacePersonError(error)) throw error;
+      await confirmExistingTeacherFacePerson(api, facePersonId);
+      facePersonRecovered = true;
+    }
+    const rows = await executeSql(
+      `UPDATE public.teachers
+          SET teacher_name = ${sqlText(staffName)}, teacher_status = 'ACTIVE',
+              face_person_id = ${sqlText(facePersonId)}, face_consent_at = NOW(),
+              face_enrollment_status = 'ENROLLED', face_enrolled_at = NOW(),
+              face_enrolled_by_account_id = ${numericId(caller.profile.staffId, "总部账号")}::bigint,
+              updated_at = NOW()
+        WHERE id = ${numericId(profile.teacherId, "老师编号")}::bigint
+          AND staff_account_id = ${numericId(profile.staffId, "老师账号")}::bigint
+        RETURNING id, teacher_code, teacher_name, teacher_status, face_enrollment_status, face_enrolled_at`
+    );
+    teacher = rows?.[0];
+    if (!teacher || teacher.face_enrollment_status !== "ENROLLED" || teacher.teacher_status !== "ACTIVE") {
+      fail("老师人脸建档资料未能完整保存。", "TEACHER_FACE_ENROLLMENT_INCOMPLETE");
+    }
+  } catch (error) {
+    const persisted = await persistedTeacherFaceEnrollment(profile?.staffId, facePersonId);
+    // Do not delete a person if the database call may have committed but its
+    // response was lost.  The retry path sees the same deterministic id and
+    // safely finishes activation; an unlinked newly-created person is cleaned.
+    if (facePersonCreated && !facePersonRecovered && !persisted) {
+      await deleteTeacherFacePerson(api, groupId, facePersonId);
+    }
+    await archiveTeacherProvisioning(profile?.staffId);
+    await blockTeacherAuthentication(uid);
+    if (String(error?.code || "").startsWith("TEACHER_FACE_")) throw error;
+    stageFail("FACE_ENROLLMENT", "老师人脸绑定失败；账号保持封存，重新拍照后可使用同一手机号继续建档。", "TEACHER_FACE_ENROLLMENT_FAILED", error);
+  }
+
+  try {
+    await manager().user.modifyUser({ uid, userStatus: "ACTIVE", nickName: staffName });
+  } catch (error) {
+    await archiveTeacherProvisioning(profile.staffId);
+    // An activation error can be an ambiguous network response. Do not claim
+    // the account is archived unless the compensating BLOCKED call succeeds.
+    await blockTeacherAuthentication(uid, { required: true });
+    stageFail("AUTH_ACTIVATE", "老师人脸已登记但登录账号激活失败；账号已保持封存，请联系总部重试。", "AUTH_ACTIVATION_FAILED", error);
+  }
+
+  let warning = "";
+  if (authCreated) {
+    try {
+      await writeCredentialEvent({ targetStaffId: profile.staffId, actorStaffId: caller.profile.staffId,
+        eventType: "ACCOUNT_CREATED", passwordChangeRequired: true });
+    } catch (error) {
+      console.error("teacher credential audit write failed", { code: error?.code || undefined, requestId: requestIdFrom(error) || undefined });
+      warning = "老师账号已创建并绑定人脸，但密码审计记录未写入；请检查数据库迁移。";
+    }
+  }
+  return {
+    ok: true, uid, phone, authAccount: authCreated ? "created" : "recovered", passwordInitialized: authCreated,
+    profile: { ...profile, teacherStatus: String(teacher.teacher_status), faceEnrollmentStatus: String(teacher.face_enrollment_status) },
+    teacher: { teacherId: String(teacher.id), teacherCode: String(teacher.teacher_code || ""),
+      teacherName: String(teacher.teacher_name || ""), teacherStatus: String(teacher.teacher_status),
+      faceEnrollmentStatus: String(teacher.face_enrollment_status), faceEnrolledAt: teacher.face_enrolled_at },
+    warning: warning || undefined
+  };
+}
+
+async function requireTeacherExperienceQuotaSchema() {
+  const rows = await executeSql(
+    `SELECT TO_REGCLASS('public.teacher_product_experience_quotas') IS NOT NULL AS quota_table,
+            TO_REGCLASS('public.teacher_experience_quota_recharges') IS NOT NULL AS recharge_table,
+            TO_REGCLASS('public.teacher_experience_quota_resets') IS NOT NULL AS reset_table,
+            TO_REGCLASS('public.teacher_experience_quota_usages') IS NOT NULL AS usage_table,
+            TO_REGPROCEDURE('public.upsert_teacher_product_experience_quota(bigint,bigint,integer,bigint)') IS NOT NULL AS upsert_function,
+            TO_REGPROCEDURE('public.recharge_teacher_product_experience_quota(bigint,bigint,integer,text,character varying,bigint)') IS NOT NULL AS recharge_function,
+            TO_REGPROCEDURE('public.reset_teacher_experience_quotas(date,bigint)') IS NOT NULL AS reset_function`
+  );
+  const schema = rows?.[0] || {};
+  if (!databaseBoolean(schema.quota_table) || !databaseBoolean(schema.recharge_table)
+      || !databaseBoolean(schema.reset_table) || !databaseBoolean(schema.usage_table)
+      || !databaseBoolean(schema.upsert_function) || !databaseBoolean(schema.recharge_function)
+      || !databaseBoolean(schema.reset_function)) {
+    fail("老师体验额度结构尚未启用，请先执行迁移 046。", "DATABASE_SCHEMA_MISSING");
+  }
+}
+
+function teacherExperienceIdempotencyKey(value) {
+  const key = String(value || "").trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{7,63}$/.test(key)) {
+    fail("体验次数充值缺少有效的防重复提交编号。", "IDEMPOTENCY_KEY_REQUIRED");
+  }
+  return key;
+}
+
+function teacherExperienceEntitlement(row) {
+  return {
+    id: String(row.id || row.quota_id || ""),
+    teacherId: String(row.teacher_id || ""),
+    productId: String(row.product_id || ""),
+    productCode: String(row.product_code || ""),
+    productName: String(row.product_name || ""),
+    productStatus: String(row.product_status || ""),
+    monthlyAllowance: Number(row.monthly_allowance || 0),
+    quotaMonth: row.quota_month,
+    availableCount: Number(row.available_count || row.available_after_count || 0),
+    usedCount: Number(row.used_count || 0),
+    manualRechargeCount: Number(row.manual_recharge_count || 0),
+    monthlyResetAt: row.monthly_reset_at
+  };
+}
+
+async function getHqTeacherExperienceEntitlements(caller, event = {}) {
+  await requireTeacherExperienceQuotaSchema();
+  const teacherId = numericId(event.teacherId || event.teacherRef, "老师编号");
+  // This also makes the configuration page correct when the monthly timer was
+  // delayed.  The database function locks each row and writes an immutable
+  // reset event only once per quota/month.
+  await executeSql(
+    `SELECT public.reset_teacher_experience_quota(
+              q.id, public.teacher_experience_quota_month(),
+              ${numericId(caller.profile.staffId, "总部账号")}::bigint
+            )
+       FROM public.teacher_product_experience_quotas q
+      WHERE q.teacher_id = ${teacherId}::bigint
+        AND q.quota_month < public.teacher_experience_quota_month()`
+  );
+  const teacherRows = await executeSql(
+    `SELECT t.id, t.teacher_code, t.teacher_name, t.teacher_status,
+            t.face_enrollment_status, a.account_status
+       FROM public.teachers t
+       LEFT JOIN public.staff_accounts a ON a.id = t.staff_account_id
+      WHERE t.id = ${teacherId}::bigint
+      LIMIT 1`
+  );
+  const teacher = teacherRows[0];
+  if (!teacher) fail("未找到该老师资料。", "NOT_FOUND");
+  const entitlementRows = await executeSql(
+    `SELECT q.id, q.teacher_id, q.product_id, q.monthly_allowance, q.quota_month,
+            q.available_count, q.used_count, q.manual_recharge_count, q.monthly_reset_at,
+            p.product_code, p.product_name, p.product_status
+       FROM public.teacher_product_experience_quotas q
+       JOIN public.products p ON p.id = q.product_id
+      WHERE q.teacher_id = ${teacherId}::bigint
+      ORDER BY p.product_name, p.product_code, q.id`
+  );
+  const historyRows = await executeSql(
+    `WITH history AS (
+       SELECT q.created_at AS occurred_at, 'CONFIGURATION'::text AS event_type,
+              q.product_id, q.monthly_allowance::integer AS unit_count,
+              q.monthly_allowance::integer AS available_after_count,
+              ''::text AS note, q.created_by_account_id AS actor_account_id
+         FROM public.teacher_product_experience_quotas q
+        WHERE q.teacher_id = ${teacherId}::bigint
+       UNION ALL
+       SELECT r.created_at, 'TOP_UP'::text, r.product_id, r.unit_count,
+              r.available_after_count, r.note, r.recharged_by_account_id
+         FROM public.teacher_experience_quota_recharges r
+        WHERE r.teacher_id = ${teacherId}::bigint
+       UNION ALL
+       SELECT r.reset_at, 'MONTHLY_RESET'::text, q.product_id, r.monthly_allowance,
+              r.monthly_allowance, ''::text, r.reset_by_account_id
+         FROM public.teacher_experience_quota_resets r
+         JOIN public.teacher_product_experience_quotas q ON q.id = r.quota_id
+        WHERE q.teacher_id = ${teacherId}::bigint
+       UNION ALL
+       SELECT u.consumed_at, 'EXPERIENCE_CONSUMED'::text, u.product_id, -u.unit_count,
+              u.available_after_count, ''::text, NULL::bigint
+         FROM public.teacher_experience_quota_usages u
+        WHERE u.teacher_id = ${teacherId}::bigint
+     )
+     SELECT h.occurred_at, h.event_type, h.unit_count, h.available_after_count, h.note,
+            p.product_code, p.product_name, a.staff_name AS actor_name
+       FROM history h
+       LEFT JOIN public.products p ON p.id = h.product_id
+       LEFT JOIN public.staff_accounts a ON a.id = h.actor_account_id
+      ORDER BY h.occurred_at DESC
+      LIMIT 200`
+  );
+  const entitlements = entitlementRows.map(teacherExperienceEntitlement);
+  return {
+    ok: true,
+    teacher: {
+      id: String(teacher.id), teacherId: String(teacher.id), teacherCode: String(teacher.teacher_code || ""),
+      teacherName: String(teacher.teacher_name || ""), teacherStatus: String(teacher.teacher_status || ""),
+      accountStatus: String(teacher.account_status || ""), faceEnrollmentStatus: String(teacher.face_enrollment_status || "")
+    },
+    entitlements,
+    history: historyRows.map((row) => ({
+      at: row.occurred_at, type: String(row.event_type || ""), productCode: String(row.product_code || ""),
+      productName: String(row.product_name || ""), count: Number(row.unit_count || 0),
+      availableAfterCount: Number(row.available_after_count || 0), note: String(row.note || ""), actorName: String(row.actor_name || "")
+    })),
+    totalAvailableCount: entitlements.reduce((total, item) => total + item.availableCount, 0)
+  };
+}
+
+async function upsertTeacherExperienceEntitlement(caller, event = {}) {
+  await requireTeacherExperienceQuotaSchema();
+  const teacherId = numericId(event.teacherId || event.teacherRef, "老师编号");
+  const productId = numericId(event.productId, "产品编号");
+  const monthlyAllowance = Number(event.monthlyAllowance);
+  if (!Number.isInteger(monthlyAllowance) || monthlyAllowance < 0 || monthlyAllowance > 1000000) {
+    fail("每月体验次数必须是 0 至 1000000 的整数。", "BAD_REQUEST");
+  }
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT * FROM public.upsert_teacher_product_experience_quota(
+         ${teacherId}::bigint, ${productId}::bigint, ${monthlyAllowance}::integer,
+         ${numericId(caller.profile.staffId, "总部账号")}::bigint
+       )`
+    );
+  } catch (error) {
+    const detail = String(error?.message || "").toLowerCase();
+    if (detail.includes("archived") || detail.includes("face enrollment") || detail.includes("product is missing")) {
+      fail("封存、未绑定人脸的老师或封存产品不能配置体验次数。", "MASTER_DATA_NOT_ACTIVE");
+    }
+    throw error;
+  }
+  const result = rows?.[0];
+  if (!result) fail("体验额度配置未保存。", "TEACHER_EXPERIENCE_QUOTA_SAVE_FAILED");
+  const page = await getHqTeacherExperienceEntitlements(caller, { teacherId });
+  return { ok: true, created: databaseBoolean(result.created_now), entitlement: page.entitlements.find((item) => item.productId === String(productId)) || null };
+}
+
+async function rechargeTeacherExperienceEntitlement(caller, event = {}) {
+  await requireTeacherExperienceQuotaSchema();
+  const teacherId = numericId(event.teacherId || event.teacherRef, "老师编号");
+  const productId = numericId(event.productId, "产品编号");
+  const unitCount = Number(event.unitCount);
+  if (!Number.isInteger(unitCount) || unitCount < 1 || unitCount > 1000000) {
+    fail("体验次数充值必须是 1 至 1000000 的整数。", "BAD_REQUEST");
+  }
+  const note = String(event.note || "").trim();
+  if (note.length > 500) fail("充值说明不能超过 500 个字符。", "BAD_REQUEST");
+  const clientRequestId = teacherExperienceIdempotencyKey(event.clientRequestId);
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT * FROM public.recharge_teacher_product_experience_quota(
+         ${teacherId}::bigint, ${productId}::bigint, ${unitCount}::integer,
+         ${sqlText(note)}::text, ${sqlText(clientRequestId)}::varchar,
+         ${numericId(caller.profile.staffId, "总部账号")}::bigint
+       )`
+    );
+  } catch (error) {
+    const detail = String(error?.message || "").toLowerCase();
+    if (detail.includes("no configured experience quota")) fail("请先配置该老师该产品的月度体验次数。", "TEACHER_EXPERIENCE_QUOTA_NOT_CONFIGURED");
+    if (detail.includes("idempotency key belongs")) fail("该充值请求编号已用于另一笔体验充值。", "IDEMPOTENCY_CONFLICT");
+    if (detail.includes("archived") || detail.includes("face enrollment") || detail.includes("product is missing")) {
+      fail("封存、未绑定人脸的老师或封存产品不能充值体验次数。", "MASTER_DATA_NOT_ACTIVE");
+    }
+    throw error;
+  }
+  const recharge = rows?.[0];
+  if (!recharge) fail("体验次数充值未保存。", "TEACHER_EXPERIENCE_RECHARGE_FAILED");
+  const page = await getHqTeacherExperienceEntitlements(caller, { teacherId });
+  return {
+    ok: true,
+    createdNow: databaseBoolean(recharge.created_now),
+    recharge: {
+      id: String(recharge.recharge_id), quotaId: String(recharge.quota_id), quotaMonth: recharge.quota_month,
+      unitCount, availableBeforeCount: Number(recharge.available_before_count || 0),
+      availableAfterCount: Number(recharge.available_after_count || 0), createdAt: recharge.created_at
+    },
+    entitlement: page.entitlements.find((item) => item.productId === String(productId)) || null
+  };
+}
+
+async function resetTeacherExperienceQuotas(caller = null) {
+  await requireTeacherExperienceQuotaSchema();
+  const actorId = caller?.profile?.staffId ? numericId(caller.profile.staffId, "总部账号") : "NULL";
+  const rows = await executeSql(
+    `SELECT public.reset_teacher_experience_quotas(
+       public.teacher_experience_quota_month(), ${actorId === "NULL" ? "NULL" : `${actorId}::bigint`}
+     ) AS reset_count`
+  );
+  return { ok: true, resetCount: Number(rows?.[0]?.reset_count || 0), quotaMonth: null };
+}
+
+async function setMasterStatus(caller, event = {}) {
+  const teacherIdText = String(event.teacherId || "").trim();
+  const storeIdText = String(event.storeId || "").trim();
+  const status = String(event.status || "").toUpperCase();
+  if (Boolean(teacherIdText) === Boolean(storeIdText) || !["ACTIVE", "ARCHIVED"].includes(status)) {
+    fail("必须只指定一个老师或门店编号，并提供 ACTIVE 或 ARCHIVED 状态。", "BAD_REQUEST");
+  }
+  if (teacherIdText) {
+    const teacherId = numericId(teacherIdText, "老师编号");
+    const rows = await executeSql(
+      `SELECT t.id, t.staff_account_id, t.face_enrollment_status, t.face_person_id, a.auth_uid
+         FROM public.teachers t
+         LEFT JOIN public.staff_accounts a ON a.id = t.staff_account_id
+        WHERE t.id = ${teacherId}::bigint
+        LIMIT 1`
+    );
+    const teacher = rows?.[0];
+    if (!teacher) fail("未找到该老师。", "NOT_FOUND");
+    if (status === "ACTIVE" && (teacher.face_enrollment_status !== "ENROLLED" || !String(teacher.face_person_id || "").trim())) {
+      fail("老师必须完成人脸绑定后才能恢复活跃状态。", "TEACHER_FACE_REQUIRED");
+    }
+    if (teacher.auth_uid) {
+      const result = await main({ action: "setStaffStatus", uid: String(teacher.auth_uid), status });
+      return { ...result, entity: "teacher", teacherId: String(teacherId) };
+    }
+    // The 046 trigger updates the linked staff account as part of this
+    // statement. Avoid a second same-statement account write, which is not
+    // deterministic when a PostgreSQL trigger already changed that row.
+    const changedRows = await executeSql(
+      `UPDATE public.teachers
+          SET teacher_status = ${sqlText(status)}, updated_at = NOW()
+        WHERE id = ${teacherId}::bigint
+        RETURNING staff_account_id`
+    );
+    if (!changedRows?.[0]) fail("老师状态未能保存。", "DATABASE_ERROR");
+    const accountRows = await executeSql(
+      `SELECT account_status FROM public.staff_accounts
+        WHERE id = ${Number(changedRows[0].staff_account_id)}
+        LIMIT 1`
+    );
+    if (String(accountRows?.[0]?.account_status || "") !== status) {
+      fail("老师主档状态未能同步到账号，请确认迁移 046 已完整执行。", "STATUS_SYNC_FAILED");
+    }
+    return { ok: true, entity: "teacher", teacherId: String(teacherId), status, noAuthAccount: true };
+  }
+
+  const storeId = numericId(storeIdText, "门店编号");
+  const layout = await getStoreBindingLayout();
+  const rows = await executeSql(layout === "stores"
+    ? `SELECT s.id, a.auth_uid
+         FROM public.stores s LEFT JOIN public.staff_accounts a ON a.id = s.store_account_id
+        WHERE s.id = ${storeId}::bigint LIMIT 1`
+    : `SELECT s.id, a.auth_uid
+         FROM public.stores s
+         LEFT JOIN public.staff_store_assignments assignment
+           ON assignment.store_id = s.id AND assignment.assignment_status = 'ACTIVE'
+         LEFT JOIN public.staff_accounts a ON a.id = assignment.staff_account_id
+        WHERE s.id = ${storeId}::bigint
+        ORDER BY a.id NULLS LAST
+        LIMIT 1`
+  );
+  const store = rows?.[0];
+  if (!store) fail("未找到该门店。", "NOT_FOUND");
+  if (store.auth_uid) {
+    const result = await main({ action: "setStaffStatus", uid: String(store.auth_uid), status });
+    return { ...result, entity: "store", storeId: String(storeId) };
+  }
+  await executeSql(
+    `UPDATE public.stores SET store_status = ${sqlText(status)}, updated_at = NOW() WHERE id = ${storeId}::bigint`
+  );
+  return { ok: true, entity: "store", storeId: String(storeId), status, noAuthAccount: true };
+}
+
 async function getHqDashboard(event) {
   const requestedRange = dashboardDateRange(event);
   const startDateSql = requestedRange
@@ -2438,68 +3244,85 @@ async function getHqDashboard(event) {
                 start_date::timestamp AT TIME ZONE 'Asia/Shanghai' AS start_at,
                 (end_date + 1)::timestamp AT TIME ZONE 'Asia/Shanghai' AS end_at
            FROM date_bounds
-       ), recharge_by_store_product AS (
+       ), business_events AS (
          SELECT r.store_id,
                 r.product_id,
-                SUM(CASE WHEN r.recharge_type = 'NEW'
-                         THEN r.unit_count::bigint
-                         ELSE -r.unit_count::bigint END)::bigint AS recharge_count
+                r.teacher_id,
+                CASE WHEN r.recharge_type = 'NEW' THEN r.unit_count::bigint ELSE 0::bigint END AS recharge_count,
+                0::bigint AS verification_count,
+                0::bigint AS experience_count,
+                CASE WHEN r.recharge_type = 'REFUND' THEN r.unit_count::bigint ELSE 0::bigint END AS refund_count
            FROM public.recharge_records r
           CROSS JOIN bounds b
           WHERE r.record_status = 'APPROVED'
+            AND r.recharge_type IN ('NEW', 'REFUND')
             AND r.submitted_at >= b.start_at
             AND r.submitted_at < b.end_at
-          GROUP BY r.store_id, r.product_id
-       ), verification_groups AS (
+         UNION ALL
          SELECT v.store_id,
                 v.product_id,
                 v.teacher_id,
-                GROUPING(v.teacher_id)::integer AS teacher_rollup,
-                SUM(v.unit_count::bigint)::bigint AS verification_count
+                0::bigint AS recharge_count,
+                CASE WHEN v.verification_type IN ('NORMAL', 'SUPPLEMENT') THEN v.unit_count::bigint ELSE 0::bigint END AS verification_count,
+                CASE WHEN v.verification_type = 'EXPERIENCE' THEN v.unit_count::bigint ELSE 0::bigint END AS experience_count,
+                0::bigint AS refund_count
            FROM public.verification_records v
           CROSS JOIN bounds b
           WHERE v.record_status = 'APPROVED'
             AND v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')
             AND v.submitted_at >= b.start_at
             AND v.submitted_at < b.end_at
-          GROUP BY GROUPING SETS (
-            (v.store_id, v.product_id),
-            (v.store_id, v.product_id, v.teacher_id)
-          )
-       ), verification_by_store_product AS (
-         SELECT store_id,
-                product_id,
-                verification_count
-           FROM verification_groups
-          WHERE teacher_rollup = 1
-       ), verification_by_teacher AS (
+       ), event_groups AS (
          SELECT store_id,
                 product_id,
                 teacher_id,
-                verification_count
-           FROM verification_groups
-          WHERE teacher_rollup = 0
+                GROUPING(teacher_id)::integer AS teacher_rollup,
+                COALESCE(SUM(recharge_count), 0)::bigint AS recharge_count,
+                COALESCE(SUM(verification_count), 0)::bigint AS verification_count,
+                COALESCE(SUM(experience_count), 0)::bigint AS experience_count,
+                COALESCE(SUM(refund_count), 0)::bigint AS refund_count
+           FROM business_events
+          GROUP BY GROUPING SETS (
+            (store_id, product_id),
+            (store_id, product_id, teacher_id)
+          )
        ), store_product_rows AS (
-         SELECT COALESCE(r.store_id, v.store_id) AS store_id,
-                COALESCE(r.product_id, v.product_id) AS product_id,
-                COALESCE(r.recharge_count, 0)::bigint AS recharge_count,
-                COALESCE(v.verification_count, 0)::bigint AS verification_count
-           FROM recharge_by_store_product r
-           FULL OUTER JOIN verification_by_store_product v
-             ON v.store_id = r.store_id
-            AND v.product_id = r.product_id
+         SELECT store_id,
+                product_id,
+                recharge_count,
+                verification_count,
+                experience_count,
+                refund_count
+           FROM event_groups
+          WHERE teacher_rollup = 1
+       ), teacher_product_rows AS (
+         SELECT store_id,
+                product_id,
+                teacher_id,
+                recharge_count,
+                verification_count,
+                experience_count,
+                refund_count
+           FROM event_groups
+          WHERE teacher_rollup = 0
+            AND teacher_id IS NOT NULL
        ), all_store_rows AS (
          SELECT s.id AS store_id,
                 s.store_code::text AS store_code,
                 s.store_name::text AS store_name,
                 COALESCE(SUM(sp.recharge_count), 0)::bigint AS recharge_count,
-                COALESCE(SUM(sp.verification_count), 0)::bigint AS verification_count
+                COALESCE(SUM(sp.verification_count), 0)::bigint AS verification_count,
+                COALESCE(SUM(sp.experience_count), 0)::bigint AS experience_count,
+                COALESCE(SUM(sp.refund_count), 0)::bigint AS refund_count
            FROM public.stores s
       LEFT JOIN store_product_rows sp ON sp.store_id = s.id
           GROUP BY s.id, s.store_code, s.store_name
        ), totals AS (
-         SELECT COALESCE((SELECT SUM(recharge_count) FROM recharge_by_store_product), 0)::bigint AS recharge_count,
-                COALESCE((SELECT SUM(verification_count) FROM verification_by_store_product), 0)::bigint AS verification_count
+         SELECT COALESCE(SUM(recharge_count), 0)::bigint AS recharge_count,
+                COALESCE(SUM(verification_count), 0)::bigint AS verification_count,
+                COALESCE(SUM(experience_count), 0)::bigint AS experience_count,
+                COALESCE(SUM(refund_count), 0)::bigint AS refund_count
+           FROM store_product_rows
        ), result_rows AS (
          SELECT 'TOTAL'::text AS row_type,
                 TO_CHAR(b.start_date, 'YYYY-MM-DD') AS start_date,
@@ -2515,7 +3338,9 @@ async function getHqDashboard(event) {
                 NULL::text AS teacher_code,
                 NULL::text AS teacher_name,
                 t.recharge_count,
-                t.verification_count
+                t.verification_count,
+                t.experience_count,
+                t.refund_count
            FROM bounds b
           CROSS JOIN totals t
          UNION ALL
@@ -2533,7 +3358,9 @@ async function getHqDashboard(event) {
                 NULL::text,
                 NULL::text,
                 store_row.recharge_count,
-                store_row.verification_count
+                store_row.verification_count,
+                store_row.experience_count,
+                store_row.refund_count
            FROM all_store_rows store_row
           CROSS JOIN bounds b
          UNION ALL
@@ -2551,7 +3378,9 @@ async function getHqDashboard(event) {
                 NULL::text,
                 NULL::text,
                 sp.recharge_count,
-                sp.verification_count
+                sp.verification_count,
+                sp.experience_count,
+                sp.refund_count
            FROM store_product_rows sp
           CROSS JOIN bounds b
       LEFT JOIN public.stores s ON s.id = sp.store_id
@@ -2561,22 +3390,24 @@ async function getHqDashboard(event) {
                 TO_CHAR(b.start_date, 'YYYY-MM-DD'),
                 TO_CHAR(b.end_date, 'YYYY-MM-DD'),
                 (b.end_date - b.start_date + 1)::integer,
-                vt.store_id,
+                teacher_row.store_id,
                 s.store_code::text,
                 s.store_name::text,
-                vt.product_id,
+                teacher_row.product_id,
                 p.product_code::text,
                 p.product_name::text,
-                vt.teacher_id,
+                teacher_row.teacher_id,
                 teacher.teacher_code::text,
                 teacher.teacher_name::text,
-                0::bigint,
-                vt.verification_count
-           FROM verification_by_teacher vt
+                teacher_row.recharge_count,
+                teacher_row.verification_count,
+                teacher_row.experience_count,
+                teacher_row.refund_count
+           FROM teacher_product_rows teacher_row
           CROSS JOIN bounds b
-      LEFT JOIN public.stores s ON s.id = vt.store_id
-      LEFT JOIN public.products p ON p.id = vt.product_id
-      LEFT JOIN public.teachers teacher ON teacher.id = vt.teacher_id
+      LEFT JOIN public.stores s ON s.id = teacher_row.store_id
+      LEFT JOIN public.products p ON p.id = teacher_row.product_id
+      LEFT JOIN public.teachers teacher ON teacher.id = teacher_row.teacher_id
        )
        SELECT *
          FROM result_rows
@@ -2597,7 +3428,9 @@ async function getHqDashboard(event) {
     storeCode: String(row.store_code || ""),
     storeName: String(row.store_name || ""),
     recharge: Number(row.recharge_count || 0),
-    verification: Number(row.verification_count || 0)
+    verification: Number(row.verification_count || 0),
+    experience: Number(row.experience_count || 0),
+    refund: Number(row.refund_count || 0)
   }));
   const rows = (dashboardRows || []).filter((row) => row.row_type === "ROW").map((row) => ({
     storeId: String(row.store_id),
@@ -2607,7 +3440,9 @@ async function getHqDashboard(event) {
     productCode: String(row.product_code || ""),
     productName: String(row.product_name || ""),
     recharge: Number(row.recharge_count || 0),
-    verification: Number(row.verification_count || 0)
+    verification: Number(row.verification_count || 0),
+    experience: Number(row.experience_count || 0),
+    refund: Number(row.refund_count || 0)
   }));
   const teacherRows = (dashboardRows || []).filter((row) => row.row_type === "TEACHER").map((row) => ({
     storeId: String(row.store_id),
@@ -2619,8 +3454,10 @@ async function getHqDashboard(event) {
     teacherId: row.teacher_id === null || row.teacher_id === undefined ? "" : String(row.teacher_id),
     teacherCode: String(row.teacher_code || ""),
     teacherName: String(row.teacher_name || ""),
-    recharge: 0,
-    verification: Number(row.verification_count || 0)
+    recharge: Number(row.recharge_count || 0),
+    verification: Number(row.verification_count || 0),
+    experience: Number(row.experience_count || 0),
+    refund: Number(row.refund_count || 0)
   }));
 
   return {
@@ -2635,6 +3472,8 @@ async function getHqDashboard(event) {
     totals: {
       recharge: Number(totalRow.recharge_count || 0),
       verification: Number(totalRow.verification_count || 0),
+      experience: Number(totalRow.experience_count || 0),
+      refund: Number(totalRow.refund_count || 0),
       stores: stores.length,
       teachers: new Set(teacherRows.map((row) => row.teacherId).filter(Boolean)).size
     },
@@ -2644,14 +3483,50 @@ async function getHqDashboard(event) {
   };
 }
 
-async function main(event = {}) {
+function requireTeacherExperienceTimerControlPlaneCaller() {
+  let identity;
+  try {
+    identity = getAuth().getUserInfo();
+  } catch (_) {
+    fail("无法验证体验额度定时任务来源。", "UNTRUSTED_TIMER_EVENT");
+  }
+  if (String(identity?.uid || "").trim()) {
+    fail("普通客户端不能执行体验额度月度重置。", "FORBIDDEN");
+  }
+}
+
+async function handleTrustedTeacherExperienceResetTimer(event = {}, context = {}) {
+  if (String(event?.Type || "").trim() !== "Timer") return null;
+  // These are SCF-reserved runtime values, unlike event payload fields.  A
+  // callFunction client cannot forge the timer source or function identity.
+  if (String(process.env.TRIGGER_SRC || "").trim() !== "timer"
+      || String(event?.TriggerName || "").trim() !== TEACHER_EXPERIENCE_RESET_TIMER_TRIGGER_NAME
+      || String(process.env.SCF_FUNCTIONNAME || "").trim() !== "staffAccount"
+      || (String(context?.function_name || "").trim() && String(context.function_name) !== "staffAccount")
+      || !Number.isFinite(Date.parse(String(event?.Time || "")))) {
+    fail("体验额度月度重置定时任务来源无效。", "UNTRUSTED_TIMER_EVENT");
+  }
+  requireTeacherExperienceTimerControlPlaneCaller();
+  const result = await resetTeacherExperienceQuotas(null);
+  return {
+    ...result,
+    timer: true,
+    triggerName: TEACHER_EXPERIENCE_RESET_TIMER_TRIGGER_NAME,
+    timeZone: "Asia/Shanghai"
+  };
+}
+
+async function main(event = {}, context = {}) {
+  const scheduledReset = await handleTrustedTeacherExperienceResetTimer(event, context);
+  if (scheduledReset) return scheduledReset;
   const action = event.action || "session";
   if (action === "health") {
     return {
       ok: true,
       message: "员工账号云函数已就绪",
       version: FUNCTION_VERSION,
-      managerNodeInstalled: managerDependencyInstalled()
+      managerNodeInstalled: managerDependencyInstalled(),
+      teacherExperienceResetTimerTriggerName: TEACHER_EXPERIENCE_RESET_TIMER_TRIGGER_NAME
     };
   }
   const caller = await currentUser(false);
@@ -2675,6 +3550,26 @@ async function main(event = {}) {
     requireHq(caller);
     return await getHqDashboard(event);
   }
+  if (action === "getTeacherExperienceEntitlements") {
+    requireHq(caller);
+    return await getHqTeacherExperienceEntitlements(caller, event);
+  }
+  if (action === "upsertTeacherExperienceEntitlement") {
+    requireHq(caller);
+    return await upsertTeacherExperienceEntitlement(caller, event);
+  }
+  if (action === "rechargeTeacherExperienceEntitlement") {
+    requireHq(caller);
+    return await rechargeTeacherExperienceEntitlement(caller, event);
+  }
+  if (action === "resetTeacherExperienceQuotas") {
+    requireHq(caller);
+    return await resetTeacherExperienceQuotas(caller);
+  }
+  if (action === "setMasterStatus") {
+    requireHq(caller);
+    return await setMasterStatus(caller, event);
+  }
   if (action === "bootstrapHq") {
     return { ok: true, profile: await ensureBootstrapHq(caller) };
   }
@@ -2684,11 +3579,14 @@ async function main(event = {}) {
     if (!ROLES.has(role)) fail("Unsupported staff role");
     const codePrefix = role === "teacher" ? "T" : role === "operation" ? "OP" : role === "hq" ? "HQ" : "S";
     const rows = await executeSql(
-      `SELECT id, auth_uid, phone, staff_name, role_code, account_status,
-              password_initialized_at, password_changed_at, password_change_required,
-              ${sqlText(codePrefix)} || LPAD(id::text, 3, '0') AS person_code
-       FROM public.staff_accounts
-       WHERE role_code = ${sqlText(role)} ORDER BY id ASC`
+      `SELECT a.id, a.auth_uid, a.phone, a.staff_name, a.role_code, a.account_status,
+              a.password_initialized_at, a.password_changed_at, a.password_change_required,
+              t.id AS teacher_id, t.teacher_code, t.teacher_status,
+              t.face_enrollment_status, t.face_person_id,
+              ${sqlText(codePrefix)} || LPAD(a.id::text, 3, '0') AS person_code
+       FROM public.staff_accounts a
+       LEFT JOIN public.teachers t ON t.staff_account_id = a.id
+       WHERE a.role_code = ${sqlText(role)} ORDER BY a.id ASC`
     );
     return { ok: true, staff: rows };
   }
@@ -2829,6 +3727,10 @@ async function main(event = {}) {
     );
     return { ok: true, stores: rows };
   }
+  if (action === "provisionTeacherWithFace") {
+    requireHq(caller);
+    return await provisionTeacherWithFace(caller, event);
+  }
   if (action === "provisionStaff") {
     requireHq(caller);
     const staffName = String(event.staffName || "").trim();
@@ -2838,6 +3740,7 @@ async function main(event = {}) {
     const password = validatePassword(event.initialPassword);
     if (!staffName) fail("请填写员工姓名");
     if (!ROLES.has(role)) fail("员工角色必须是总部、运营、门店或老师");
+    if (role === "teacher") fail("老师账号必须使用 provisionTeacherWithFace 完成人脸授权和绑定。", "TEACHER_FACE_REQUIRED");
     if (role === "store" && !/^\d+$/.test(storeId)) fail("门店员工必须绑定已创建门店的数字编号");
 
     let authUser = await findAuthUserByExactPhone(phone);
@@ -3049,59 +3952,156 @@ async function main(event = {}) {
       const column = uid ? "auth_uid" : "phone";
       const value = uid || phone;
       rows = await executeSql(
-        `SELECT id, auth_uid, role_code FROM public.staff_accounts WHERE ${column} = ${sqlText(value)} LIMIT 1`
+        `SELECT a.id, a.auth_uid, a.role_code, t.id AS teacher_id,
+                t.face_enrollment_status, t.face_person_id
+           FROM public.staff_accounts a
+           LEFT JOIN public.teachers t ON t.staff_account_id = a.id
+          WHERE a.${column} = ${sqlText(value)}
+          LIMIT 1`
       );
     } catch (error) {
       asDatabaseError(error, "查找人员账号");
     }
     const staff = rows?.[0];
     if (!staff) fail("未找到该人员账号", "NOT_FOUND");
+    if (staff.role_code === "teacher" && status === "ACTIVE"
+        && (staff.face_enrollment_status !== "ENROLLED" || !String(staff.face_person_id || "").trim())) {
+      fail("老师必须完成总部人脸绑定后才能恢复活跃状态。", "TEACHER_FACE_REQUIRED");
+    }
+    // Archive the CloudBase credential first. If that platform operation
+    // fails, leave business master data untouched instead of reporting an
+    // archive that still permits password login.
+    if (status === "ARCHIVED" && staff.auth_uid) {
+      try {
+        await manager().user.modifyUser({ uid: staff.auth_uid, userStatus: "BLOCKED" });
+      } catch (error) {
+        stageFail("AUTH_ARCHIVE", "无法封存 CloudBase 登录账号，未修改业务主档。", "AUTH_ARCHIVE_FAILED", error);
+      }
+    }
     try {
-      await executeSql(
-        `UPDATE public.staff_accounts SET account_status = ${sqlText(status)}, updated_at = NOW() WHERE id = ${Number(staff.id)}`
-      );
+      await persistStaffStatusAndMaster(staff, status);
     } catch (error) {
-      asDatabaseError(error, "更新人员状态");
-    }
-    if (staff.role_code === "teacher") {
-      try {
-        await executeSql(
-          `UPDATE public.teachers SET teacher_status = ${sqlText(status)}, updated_at = NOW() WHERE staff_account_id = ${Number(staff.id)}`
-        );
-      } catch (error) {
-        asDatabaseError(error, "同步老师资料状态");
-      }
-    }
-    if (staff.role_code === "store") {
-      try {
-        const layout = await getStoreBindingLayout();
-        if (layout === "stores") {
-          await executeSql(
-            `UPDATE public.stores SET store_status = ${sqlText(status)}, updated_at = NOW() WHERE store_account_id = ${Number(staff.id)}`
-          );
-        } else {
-          await executeSql(
-            `UPDATE public.stores s
-             SET store_status = ${sqlText(status)}, updated_at = NOW()
-             FROM public.staff_store_assignments sa
-             WHERE sa.store_id = s.id AND sa.staff_account_id = ${Number(staff.id)}`
-          );
-        }
-      } catch (error) {
-        asDatabaseError(error, "同步门店资料状态");
-      }
+      if (["TEACHER_PROFILE_MISSING", "STORE_PROFILE_MISSING", "STATUS_SYNC_FAILED"].includes(error?.code)) throw error;
+      asDatabaseError(error, "同步人员与业务主档状态");
     }
     if (staff.auth_uid) {
-      await manager().user.modifyUser({ uid: staff.auth_uid, userStatus: status === "ACTIVE" ? "ACTIVE" : "BLOCKED" });
+      try {
+        // Keep the explicit ternary here so the final platform state always
+        // matches the persisted status. ARCHIVED was already blocked before
+        // database writes; repeating BLOCKED is idempotent.
+        await manager().user.modifyUser({ uid: staff.auth_uid, userStatus: status === "ACTIVE" ? "ACTIVE" : "BLOCKED" });
+      } catch (error) {
+        if (status === "ACTIVE") {
+          // Never leave an account selectable/active in PostgreSQL when its
+          // corresponding CloudBase login could not be restored consistently.
+          if (staff.role_code === "teacher") await archiveTeacherProvisioning(staff.id);
+          else if (staff.role_code === "store") await archiveStoreProvisioning(staff.id);
+          else {
+            try {
+              await executeSql(
+                `UPDATE public.staff_accounts SET account_status = 'ARCHIVED', updated_at = NOW() WHERE id = ${Number(staff.id)}`
+              );
+            } catch (compensationError) {
+              console.error("staff activation compensation failed", compensationError?.message || compensationError);
+            }
+          }
+        }
+        stageFail(
+          status === "ACTIVE" ? "AUTH_ACTIVATE" : "AUTH_ARCHIVE",
+          status === "ACTIVE"
+            ? "CloudBase 登录账号激活失败，业务资料已重新封存。"
+            : "CloudBase 登录账号封存失败。",
+          status === "ACTIVE" ? "AUTH_ACTIVATION_FAILED" : "AUTH_ARCHIVE_FAILED",
+          error
+        );
+      }
     }
     return { ok: true, uid: staff.auth_uid, status };
   }
   fail("不支持的操作");
 }
 
-exports.main = async (event = {}) => {
+// Keep master-data status and the linked credential status in one database
+// statement wherever the schema has no status-synchronizing trigger. For a
+// teacher, migration 046's teacher trigger performs the account update inside
+// the same UPDATE statement; doing a second CTE update of the same account
+// row would conflict with that trigger's write.
+async function persistStaffStatusAndMaster(staff, status) {
+  const staffId = Number(staff.id);
+  if (!Number.isSafeInteger(staffId) || staffId < 1) fail("人员账号编号无效。", "BAD_REQUEST");
+
+  if (staff.role_code === "teacher") {
+    if (!staff.teacher_id) fail("老师账号缺少老师主档，请先完成迁移 046。", "TEACHER_PROFILE_MISSING");
+    const rows = await executeSql(
+      `UPDATE public.teachers
+          SET teacher_status = ${sqlText(status)}, updated_at = NOW()
+        WHERE staff_account_id = ${staffId}
+        RETURNING id, teacher_status`
+    );
+    if (!rows?.[0]) fail("老师账号缺少老师主档，请先完成迁移 046。", "TEACHER_PROFILE_MISSING");
+    // trg_sync_teacher_account_status makes this status update atomic with
+    // the master-row update. Verify the invariant instead of issuing a later
+    // independent account update that could reopen a partial state.
+    const accountRows = await executeSql(
+      `SELECT account_status FROM public.staff_accounts WHERE id = ${staffId} LIMIT 1`
+    );
+    if (String(accountRows?.[0]?.account_status || "") !== status) {
+      fail("老师主档状态未能同步到登录账号，请确认迁移 046 已完整执行。", "STATUS_SYNC_FAILED");
+    }
+    return;
+  }
+
+  if (staff.role_code === "store") {
+    const layout = await getStoreBindingLayout();
+    const statement = layout === "stores"
+      ? `WITH changed_store AS (
+           UPDATE public.stores
+              SET store_status = ${sqlText(status)}, updated_at = NOW()
+            WHERE store_account_id = ${staffId}
+            RETURNING id
+         ), changed_account AS (
+           UPDATE public.staff_accounts
+              SET account_status = ${sqlText(status)}, updated_at = NOW()
+            WHERE id = ${staffId}
+              AND EXISTS (SELECT 1 FROM changed_store)
+            RETURNING id
+         )
+         SELECT (SELECT COUNT(*) FROM changed_store) AS store_count,
+                (SELECT COUNT(*) FROM changed_account) AS account_count`
+      : `WITH changed_store AS (
+           UPDATE public.stores AS store
+              SET store_status = ${sqlText(status)}, updated_at = NOW()
+             FROM public.staff_store_assignments AS assignment
+            WHERE assignment.store_id = store.id
+              AND assignment.staff_account_id = ${staffId}
+            RETURNING store.id
+         ), changed_account AS (
+           UPDATE public.staff_accounts
+              SET account_status = ${sqlText(status)}, updated_at = NOW()
+            WHERE id = ${staffId}
+              AND EXISTS (SELECT 1 FROM changed_store)
+            RETURNING id
+         )
+         SELECT (SELECT COUNT(*) FROM changed_store) AS store_count,
+                (SELECT COUNT(*) FROM changed_account) AS account_count`;
+    const rows = await executeSql(statement);
+    const result = rows?.[0] || {};
+    if (Number(result.store_count || 0) < 1 || Number(result.account_count || 0) !== 1) {
+      fail("门店账号缺少可同步的门店主档，未修改业务状态。", "STORE_PROFILE_MISSING");
+    }
+    return;
+  }
+
+  await executeSql(
+    `UPDATE public.staff_accounts
+        SET account_status = ${sqlText(status)}, updated_at = NOW()
+      WHERE id = ${staffId}`
+  );
+}
+
+exports.main = async (event = {}, context = {}) => {
   try {
-    return await main(event);
+    return await main(event, context);
   } catch (error) {
     console.error("staffAccount failed", {
       action: event?.action || "session",

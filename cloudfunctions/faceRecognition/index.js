@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v67";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v68";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -1029,7 +1029,8 @@ async function activeTeacherCaller() {
   if (!uid) fail("请先登录老师账号后再办理业务。", "UNAUTHENTICATED");
   const rows = await executeSql(
     `SELECT a.id AS staff_id, a.staff_name, a.role_code, a.account_status,
-            t.id AS teacher_id, t.teacher_code, t.teacher_name, t.teacher_status
+            t.id AS teacher_id, t.teacher_code, t.teacher_name, t.teacher_status,
+            t.face_person_id, t.face_enrollment_status
        FROM public.staff_accounts a
        JOIN public.teachers t ON t.staff_account_id = a.id
       WHERE a.auth_uid = ${sqlText(uid)}
@@ -1039,6 +1040,9 @@ async function activeTeacherCaller() {
   if (!caller || caller.role_code !== "teacher") fail("只有老师账号可以使用老师办理入口。", "FORBIDDEN");
   if (caller.account_status !== "ACTIVE" || caller.teacher_status !== "ACTIVE") {
     fail("老师账号或老师资料已经封存。", "ARCHIVED");
+  }
+  if (caller.face_enrollment_status !== "ENROLLED" || !String(caller.face_person_id || "").trim()) {
+    fail("老师尚未完成总部人脸绑定，不能办理业务。", "TEACHER_FACE_REQUIRED");
   }
   return {
     uid: String(uid),
@@ -1056,7 +1060,8 @@ async function activeBusinessCaller(event = {}) {
   if (!uid) fail("请先登录后再办理业务。", "UNAUTHENTICATED");
   const accounts = await executeSql(
     `SELECT a.id AS staff_id, a.role_code, a.account_status,
-            t.id AS teacher_id, t.teacher_code, t.teacher_name, t.teacher_status
+            t.id AS teacher_id, t.teacher_code, t.teacher_name, t.teacher_status,
+            t.face_person_id, t.face_enrollment_status
        FROM public.staff_accounts a
        LEFT JOIN public.teachers t ON t.staff_account_id = a.id
       WHERE a.auth_uid = ${sqlText(uid)}
@@ -1080,6 +1085,9 @@ async function activeBusinessCaller(event = {}) {
   if (account.role_code === "teacher") {
     if (!account.teacher_id) fail("当前老师账号尚未绑定老师资料。", "TEACHER_PROFILE_MISSING");
     if (account.teacher_status !== "ACTIVE") fail("老师资料已经封存。", "ARCHIVED");
+    if (account.face_enrollment_status !== "ENROLLED" || !String(account.face_person_id || "").trim()) {
+      fail("老师尚未完成总部人脸绑定，不能办理业务。", "TEACHER_FACE_REQUIRED");
+    }
   }
   const storeId = positiveDatabaseId(event.storeId, "门店");
   const stores = await executeSql(
@@ -1102,6 +1110,24 @@ async function activeBusinessCaller(event = {}) {
     storeCode: String(store.store_code || ""),
     storeName: String(store.store_name || "")
   };
+}
+
+// Teacher creation is a headquarters-only workflow and intentionally has no
+// store scope.  Keep it separate from customer capture validation so the
+// browser never has to invent a store ID simply to validate a teacher photo.
+async function activeHqTeacherFaceEnrollmentCaller() {
+  const { uid } = app().auth().getUserInfo();
+  if (!uid) fail("请先登录总部账号后再创建老师。", "UNAUTHENTICATED");
+  const rows = await executeSql(
+    `SELECT id AS staff_id, role_code, account_status
+       FROM public.staff_accounts
+      WHERE auth_uid = ${sqlText(uid)}
+      LIMIT 1`
+  );
+  const caller = rows[0];
+  if (!caller || caller.role_code !== "hq") fail("只有总部账号可以验证老师建档人脸。", "FORBIDDEN");
+  if (caller.account_status !== "ACTIVE") fail("总部账号已经封存。", "ARCHIVED");
+  return { uid: String(uid), staffId: Number(caller.staff_id), role: "hq" };
 }
 
 async function activeCustomerCreationCaller(event = {}) {
@@ -2692,6 +2718,61 @@ async function getStoreBusinessAnalytics(event = {}) {
   };
 }
 
+async function getTeacherExperienceEntitlements(event = {}) {
+  const caller = await activeBusinessCaller(event);
+  const requestedTeacherId = String(event.teacherId || "").trim();
+  if (caller.role === "teacher" && requestedTeacherId && requestedTeacherId !== String(caller.teacherId)) {
+    fail("老师账号只能读取自己的体验额度。", "FORBIDDEN");
+  }
+  const teacherId = positiveDatabaseId(caller.role === "teacher" ? caller.teacherId : requestedTeacherId, "老师");
+
+  // The timer performs the month-boundary reset proactively.  This targeted
+  // call is a race-safe fallback for a delayed timer or a newly read quota.
+  await executeSql(
+    `SELECT public.reset_teacher_experience_quota(q.id)
+       FROM public.teacher_product_experience_quotas q
+      WHERE q.teacher_id = ${sqlText(teacherId)}::bigint
+        AND q.quota_month < public.teacher_experience_quota_month()`
+  );
+
+  const rows = await executeSql(
+    `SELECT q.id, q.teacher_id, q.product_id, q.monthly_allowance, q.quota_month,
+            q.available_count, q.used_count, q.manual_recharge_count, q.monthly_reset_at,
+            p.product_code, p.product_name, p.product_status
+       FROM public.teacher_product_experience_quotas q
+       JOIN public.teachers t ON t.id = q.teacher_id
+       JOIN public.staff_accounts a ON a.id = t.staff_account_id
+       JOIN public.products p ON p.id = q.product_id
+      WHERE q.teacher_id = ${sqlText(teacherId)}::bigint
+        AND t.teacher_status = 'ACTIVE'
+        AND t.face_enrollment_status = 'ENROLLED'
+        AND BTRIM(COALESCE(t.face_person_id, '')) <> ''
+        AND a.role_code = 'teacher'
+        AND a.account_status = 'ACTIVE'
+        AND p.product_status = 'ACTIVE'
+        AND q.available_count > 0
+      ORDER BY p.product_name, p.product_code, q.id`
+  );
+  return {
+    ok: true,
+    teacherId: String(teacherId),
+    entitlements: rows.map((row) => ({
+      id: String(row.id),
+      teacherId: String(row.teacher_id),
+      productId: String(row.product_id),
+      productCode: String(row.product_code || ""),
+      productName: String(row.product_name || ""),
+      productStatus: String(row.product_status || ""),
+      monthlyAllowance: Number(row.monthly_allowance || 0),
+      quotaMonth: row.quota_month,
+      availableCount: Number(row.available_count || 0),
+      usedCount: Number(row.used_count || 0),
+      manualRechargeCount: Number(row.manual_recharge_count || 0),
+      monthlyResetAt: row.monthly_reset_at
+    }))
+  };
+}
+
 async function listActiveTeachers(event = {}) {
   // Teachers are not permanently assigned to one store in the canonical
   // schema. A real active store caller may choose only teachers whose profile
@@ -2706,6 +2787,8 @@ async function listActiveTeachers(event = {}) {
        FROM public.teachers t
        JOIN public.staff_accounts a ON a.id = t.staff_account_id
       WHERE t.teacher_status = 'ACTIVE'
+        AND t.face_enrollment_status = 'ENROLLED'
+        AND BTRIM(COALESCE(t.face_person_id, '')) <> ''
         AND a.role_code = 'teacher'
         AND a.account_status = 'ACTIVE'
       ORDER BY t.teacher_name, t.teacher_code
@@ -2849,6 +2932,8 @@ async function createRechargeApplication(event) {
          JOIN public.staff_accounts a ON a.id = t.staff_account_id
         WHERE t.id = ${sqlText(teacherId)}::bigint
           AND t.teacher_status = 'ACTIVE'
+          AND t.face_enrollment_status = 'ENROLLED'
+          AND BTRIM(COALESCE(t.face_person_id, '')) <> ''
           AND a.role_code = 'teacher'
           AND a.account_status = 'ACTIVE'
         LIMIT 1`
@@ -2973,6 +3058,7 @@ async function createVerificationApplication(event) {
   if (!["NORMAL", "EXPERIENCE"].includes(verificationType)) {
     fail("仅支持正常核销或体验核销。", "INVALID_VERIFICATION_TYPE");
   }
+  const experienceVerification = verificationType === "EXPERIENCE";
   const message = String(event.message || "").trim();
   if (message.length > 500) fail("门店留言不能超过 500 个字符。", "MESSAGE_TOO_LONG");
   const faceRequestId = String(event.faceRequestId || "").trim();
@@ -2985,6 +3071,15 @@ async function createVerificationApplication(event) {
   }
   const idempotencyKey = rechargeSubmissionKey(event.clientRequestId);
   await requireVerificationSubmissionSchema();
+  if (experienceVerification) {
+    const quotaSchema = await executeSql(
+      `SELECT TO_REGCLASS('public.teacher_product_experience_quotas') IS NOT NULL AS has_quota_table,
+              TO_REGCLASS('public.teacher_experience_quota_usages') IS NOT NULL AS has_quota_usage_table`
+    );
+    if (!databaseBoolean(quotaSchema?.[0]?.has_quota_table) || !databaseBoolean(quotaSchema?.[0]?.has_quota_usage_table)) {
+      fail("体验核销额度结构尚未启用，请先执行迁移 046。", "DATABASE_SCHEMA_MISSING");
+    }
+  }
 
   const customers = await executeSql(
     `SELECT id, customer_code, customer_name
@@ -3013,6 +3108,8 @@ async function createVerificationApplication(event) {
        JOIN public.staff_accounts a ON a.id = t.staff_account_id
       WHERE t.id = ${sqlText(teacherId)}::bigint
         AND t.teacher_status = 'ACTIVE'
+        AND t.face_enrollment_status = 'ENROLLED'
+        AND BTRIM(COALESCE(t.face_person_id, '')) <> ''
         AND a.role_code = 'teacher'
         AND a.account_status = 'ACTIVE'
       LIMIT 1`
@@ -3045,6 +3142,12 @@ async function createVerificationApplication(event) {
     const detail = String(error?.message || "").toLowerCase();
     if (detail.includes("insufficient purchased units")) {
       fail("该客户所选项目的剩余次数不足，不能提交正常核销。", "INSUFFICIENT_BALANCE");
+    }
+    if (detail.includes("insufficient teacher experience quota")) {
+      fail("该老师该项目的体验次数不足，不能提交体验核销。", "TEACHER_EXPERIENCE_QUOTA_EXHAUSTED");
+    }
+    if (detail.includes("no configured experience quota")) {
+      fail("该老师尚未配置这个项目的体验次数，不能提交体验核销。", "TEACHER_EXPERIENCE_QUOTA_NOT_CONFIGURED");
     }
     if (detail.includes("face photo evidence")) {
       fail("现场人脸照片已过期、已使用或不属于当前提交，请重新拍照验证。", "FACE_PHOTO_EVIDENCE_INVALID");
@@ -3079,6 +3182,33 @@ async function createVerificationApplication(event) {
     fail("核销单已创建，但设备开启信号没有进入虚拟端口队列，请立即联系管理员。", "DEVICE_SIGNAL_NOT_QUEUED");
   }
 
+  let experienceQuota = null;
+  if (experienceVerification) {
+    const quotaRows = await executeSql(
+      `SELECT q.id AS quota_id, q.monthly_allowance, q.quota_month,
+              q.available_count, q.used_count, q.manual_recharge_count, q.monthly_reset_at,
+              u.available_before_count, u.available_after_count, u.consumed_at
+         FROM public.teacher_experience_quota_usages u
+         JOIN public.teacher_product_experience_quotas q ON q.id = u.quota_id
+        WHERE u.verification_id = ${sqlText(record.id)}::bigint
+        LIMIT 1`
+    );
+    const quota = quotaRows[0];
+    if (!quota) fail("体验核销缺少老师体验额度扣减记录，请立即联系管理员。", "TEACHER_EXPERIENCE_QUOTA_AUDIT_MISSING");
+    experienceQuota = {
+      quotaId: String(quota.quota_id),
+      monthlyAllowance: Number(quota.monthly_allowance || 0),
+      quotaMonth: quota.quota_month,
+      availableCount: Number(quota.available_count || 0),
+      usedCount: Number(quota.used_count || 0),
+      manualRechargeCount: Number(quota.manual_recharge_count || 0),
+      monthlyResetAt: quota.monthly_reset_at,
+      availableBeforeCount: Number(quota.available_before_count || 0),
+      availableAfterCount: Number(quota.available_after_count || 0),
+      consumedAt: quota.consumed_at
+    };
+  }
+
   return {
     ok: true,
     createdNow: databaseBoolean(record.created_now),
@@ -3091,6 +3221,7 @@ async function createVerificationApplication(event) {
     customer: { customerCode: customer.customer_code, customerName: customer.customer_name },
     product: { productId: String(product.id), productCode: product.product_code, productName: product.product_name },
     teacher: { teacherId: String(teacher.id), teacherCode: teacher.teacher_code, teacherName: teacher.teacher_name },
+    experienceQuota,
     deviceSignal: {
       id: String(signal.id),
       port: "VIRTUAL_DEVICE_START",
@@ -3447,6 +3578,15 @@ async function registerCustomer(event) {
 
 async function validateCapture(event) {
   await activeCustomerCreationCaller(event);
+  const { base64 } = cleanImage(event.imageBase64);
+  const api = faceClient();
+  const quality = await inspectFaceImage(api, base64);
+  const liveness = await inspectLiveness(api, base64);
+  return { ok: true, accepted: true, quality, liveness };
+}
+
+async function validateTeacherFaceEnrollmentCapture(event) {
+  await activeHqTeacherFaceEnrollmentCaller();
   const { base64 } = cleanImage(event.imageBase64);
   const api = faceClient();
   const quality = await inspectFaceImage(api, base64);
@@ -4662,6 +4802,7 @@ exports.main = async (event = {}, context = {}) => {
       fail("Unsupported verification photo action.", "ACTION_NOT_FOUND");
     }
     if (action === "validateCapture") return await validateCapture(event);
+    if (action === "validateTeacherFaceEnrollmentCapture") return await validateTeacherFaceEnrollmentCapture(event);
     if (action === "registerCustomer") return await registerCustomer(event);
     if (action === "listActiveStoreCustomers") return await listActiveStoreCustomers(event);
     if (action === "queryStoreCustomers") return await queryStoreCustomers(event);
@@ -4673,6 +4814,7 @@ exports.main = async (event = {}, context = {}) => {
     if (action === "getTeacherWorkspace") return await getTeacherWorkspace(event);
     if (action === "listActiveTeachers") return await listActiveTeachers(event);
     if (action === "listActiveProducts") return await listActiveProducts(event);
+    if (action === "getTeacherExperienceEntitlements") return await getTeacherExperienceEntitlements(event);
     if (action === "createRechargeApplication") return await createRechargeApplication(event);
     if (action === "createVerificationApplication") return await createVerificationApplication(event);
     if (action === "getActiveStoreCustomerDetail") return await getActiveStoreCustomerDetail(event);

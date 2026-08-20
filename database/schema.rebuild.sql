@@ -2,6 +2,10 @@
 -- WARNING: this script permanently deletes the existing business tables.
 -- It does not store customer phone numbers, product prices, or recharge amounts.
 -- All identifiers and SQL comments are ASCII-only.
+-- This is a base rebuild, not a release-complete snapshot: after it commits,
+-- execute the ordered migrations through 046_teacher_face_and_experience_quotas.sql
+-- before deploying current CloudBase functions. Migration 046 deliberately
+-- normalizes this legacy teachers layout and installs face/quota structures.
 
 BEGIN;
 

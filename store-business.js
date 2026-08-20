@@ -508,7 +508,17 @@
       $("rechargeProject").innerHTML = `<option value="">确认客户后加载可退费项目</option>`;
       if ($("refundBalanceSummary")) $("refundBalanceSummary").textContent = "确认客户并选择项目后显示剩余次数。";
     }
-    if (["verification", "verification-experience"].includes(page)) resetVerificationCapture();
+    if (["verification", "verification-experience"].includes(page)) {
+      resetVerificationCapture();
+      const project = $("verificationProject");
+      if (project) {
+        project.disabled = true;
+        project.innerHTML = `<option value="">${page === "verification-experience" ? "确认客户并选择老师后读取体验次数" : "确认客户后从数据库加载可核销项目"}</option>`;
+      }
+      if (page === "verification-experience" && $("experienceQuotaHint")) {
+        $("experienceQuotaHint").textContent = "体验项目取决于老师体验额度，客户余额不会被读取或扣减。";
+      }
+    }
     $("confirmCustomerSelection").disabled = true;
     $("serviceCustomerResults").innerHTML = `<div class="lookup-placeholder"><strong>等待查询客户</strong><span>查询成功后，此处显示客户建档照片、姓名、生日和客户编号。</span></div>`;
     disableBusinessStep();
@@ -612,6 +622,60 @@
       if (message) message.textContent = error?.message || "项目余额读取失败，请刷新后重试";
     }
   }
+  async function loadTeacherExperienceEntitlements() {
+    const select = $("verificationProject");
+    if (!select) return;
+    const teacherId = String($("verificationTeacher")?.value || "");
+    const request = ++balanceRequest;
+    verificationBalanceProjects = [];
+    select.disabled = true;
+    if (!teacherId) {
+      select.innerHTML = `<option value="">请先选择有可用体验次数的老师</option>`;
+      const hint = $("experienceQuotaHint");
+      if (hint) hint.textContent = "体验项目取决于所选老师的可用体验次数，不会读取或扣减客户余额。";
+      syncVerificationSubmit();
+      return;
+    }
+    select.innerHTML = `<option value="">正在读取老师的可用体验次数…</option>`;
+    const hint = $("experienceQuotaHint");
+    if (hint) hint.textContent = "正在读取老师的体验额度…";
+    try {
+      // EXPERIENCE deliberately does not call getCustomerProductBalances.
+      // A customer is still selected and face-verified, but the product list
+      // and the balance consumed at submission belong solely to this teacher.
+      const result = await callCustomerEnrollment({ action: "getTeacherExperienceEntitlements", teacherId });
+      if (request !== balanceRequest || !selectedCustomer || String($("verificationTeacher")?.value || "") !== teacherId) return;
+      verificationBalanceProjects = (Array.isArray(result?.entitlements) ? result.entitlements : [])
+        .filter((item) => String(item.productStatus || item.product_status || "ACTIVE").toUpperCase() === "ACTIVE")
+        .filter((item) => Number(item.availableCount ?? item.available_count ?? 0) > 0)
+        .map((item) => ({
+          id: String(item.productId || item.product_id || ""),
+          code: String(item.productCode || item.product_code || ""),
+          name: String(item.productName || item.product_name || "未命名产品"),
+          remaining: Number(item.availableCount ?? item.available_count ?? 0),
+          monthlyAllowance: Number(item.monthlyAllowance ?? item.monthly_allowance ?? 0),
+          used: Number(item.usedCount ?? item.used_count ?? 0),
+          manualRecharge: Number(item.manualRechargeCount ?? item.manual_recharge_count ?? 0)
+        }))
+        .filter((item) => item.id && item.remaining > 0);
+      select.innerHTML = verificationBalanceProjects.length
+        ? `<option value="">请选择老师有可用体验次数的项目</option>${verificationBalanceProjects.map((project) => `<option value="${escapeHtml(project.id)}">${escapeHtml(project.name)}（老师可用 ${project.remaining} 次）</option>`).join("")}`
+        : `<option value="">该老师没有可用的活跃产品体验次数</option>`;
+      select.disabled = verificationBalanceProjects.length === 0;
+      if (hint) hint.textContent = verificationBalanceProjects.length
+        ? "体验核销将扣减所选老师的体验次数；客户余额不会减少。"
+        : "该老师目前没有可体验的活跃产品；可由总部在老师档案中配置或单独充值。";
+    } catch (error) {
+      if (request !== balanceRequest || !selectedCustomer || String($("verificationTeacher")?.value || "") !== teacherId) return;
+      select.innerHTML = `<option value="">老师体验额度读取失败，禁止提交</option>`;
+      select.disabled = true;
+      if (hint) hint.textContent = error?.message || "无法读取老师体验额度，请刷新后重试。";
+      const message = $("verificationCreateMessage");
+      if (message) message.textContent = error?.message || "老师体验额度读取失败，请刷新后重试。";
+    } finally {
+      syncVerificationSubmit();
+    }
+  }
   async function loadRefundBalances(customer) {
     const select = $("rechargeProject");
     const summary = $("refundBalanceSummary");
@@ -655,7 +719,8 @@
   async function confirmCustomer(id) {
     selectedCustomer = allCustomers().find((customer) => customer.id === id);
     $("selectedCustomerText").textContent = `已确认：${selectedCustomer.name}（${selectedCustomer.id}）· ${formatBirthday(selectedCustomer.birthday)} · ${storeName}`; document.querySelector("form.store-business-form").classList.remove("business-step-disabled");
-    if (["verification", "verification-experience"].includes(page)) { resetVerificationCapture(); await loadVerificationBalances(selectedCustomer); }
+    if (page === "verification") { resetVerificationCapture(); await loadVerificationBalances(selectedCustomer); }
+    if (page === "verification-experience") { resetVerificationCapture(); await loadTeacherExperienceEntitlements(); }
     if (page === "refund") await loadRefundBalances(selectedCustomer);
     $("confirmCustomerSelection").textContent = `已确认 ${selectedCustomer.name}（${selectedCustomer.id}）`;
   }
@@ -741,10 +806,18 @@
   }
   function setupVerification() {
     const experiencePage = page === "verification-experience";
-    setupLookup(); $("verificationProject").innerHTML = `<option value="">确认客户后从数据库加载可核销项目</option>`; loadActiveTeachers("verificationTeacher", "verificationCreateMessage");
+    setupLookup(); $("verificationProject").innerHTML = `<option value="">${experiencePage ? "确认客户并选择老师后读取体验次数" : "确认客户后从数据库加载可核销项目"}</option>`; loadActiveTeachers("verificationTeacher", "verificationCreateMessage");
     const video = $("verificationCamera"), preview = $("verificationPhotoPreview"), placeholder = $("verificationCameraPlaceholder"), canvas = $("verificationCaptureCanvas"), open = $("openVerificationCamera"), capture = $("captureVerificationPhoto"), retake = $("retakeVerificationPhoto"), status = $("verificationPhotoStatus"), message = $("verificationCreateMessage");
     $("verificationProject").addEventListener("change", syncVerificationSubmit);
-    $("verificationTeacher").addEventListener("change", syncVerificationSubmit);
+    $("verificationTeacher").addEventListener("change", async () => {
+      if (experiencePage) {
+        // Selection changes must invalidate the previously loaded quota and
+        // any capture that was about to be committed against another teacher.
+        resetVerificationCapture();
+        if (selectedCustomer) await loadTeacherExperienceEntitlements();
+      }
+      syncVerificationSubmit();
+    });
     $("verificationNote").addEventListener("input", syncVerificationSubmit);
     resetVerificationCapture();
     open.addEventListener("click", async () => {
@@ -815,7 +888,7 @@
       if (!selectedCustomer || !projectId || !teacherId) { $("verificationCreateMessage").textContent = "必须确认客户并选择项目和老师"; return; }
       if (!photoCaptured) { $("verificationCreateMessage").textContent = "必须完成现场拍照并通过所选客户的 1:1 人脸验证，才能核销和发送设备信号"; return; }
       const project = verificationBalanceProjects.find((item) => item.id === projectId);
-      if (!project) { $("verificationCreateMessage").textContent = "所选项目余额已失效，请重新确认客户后再试"; return; }
+      if (!project) { $("verificationCreateMessage").textContent = experience ? "所选老师的体验次数已失效，请重新选择老师和项目后再试" : "所选项目余额已失效，请重新确认客户后再试"; return; }
       const teacher = databaseTeachers.find((item) => item.id === teacherId);
       if (!teacher) { $("verificationCreateMessage").textContent = "老师数据已经失效，请刷新页面后重新选择"; return; }
       const payload = { customerCode: selectedCustomer.id, productId: project.id, teacherId: teacher.id, verificationType: experience ? "EXPERIENCE" : "NORMAL", message: note, faceRequestId: verificationFaceRequestId, faceEvidenceToken: verificationFaceEvidenceToken };
@@ -835,6 +908,9 @@
           teacherId: String(result.teacher?.teacherId || teacher.id), teacherCode: String(result.teacher?.teacherCode || teacher.code || ""), teacherName: String(result.teacher?.teacherName || teacher.name),
           count: Number(result.unitCount || 1), faceVerification: "活体检测与人脸比对通过",
           verificationType: experience ? "体验核销" : "正常核销", status: String(result.recordStatus),
+          experienceQuotaAvailableAfter: experience && result.experienceQuota
+            ? Number(result.experienceQuota.availableAfterCount ?? result.experienceQuota.availableAfter)
+            : null,
           deviceSignal: result.deviceSignal?.status === "PENDING" ? "已发送至虚拟设备端口" : "设备信号已登记", account: session.account, note,
           createdAt: result.submittedAt || new Date().toISOString(), databaseBacked: true
         };

@@ -2,7 +2,7 @@
   "use strict";
 
   // 文档同步约束：每次业务或界面变更都必须同步更新 main.tex 与 README.md。
-  const PROTOTYPE_VERSION = "0.15.2";
+  const PROTOTYPE_VERSION = "0.15.3";
   const BUSINESS_TIME_ZONE = "Asia/Shanghai";
   const EMPTY_DATA = Object.freeze({
     stores: [],
@@ -10,7 +10,7 @@
     projects: [],
     rows: [],
     teacherRows: [],
-    totals: { recharge: 0, verification: 0, stores: 0, teachers: 0 }
+    totals: { recharge: 0, verification: 0, experience: 0, refund: 0, stores: 0, teachers: 0 }
   });
 
   const $ = (id) => document.getElementById(id);
@@ -109,7 +109,9 @@
           teacherId ? `老师 ${teacherId}` : "未指定老师"
         ) : "",
         recharge: finiteNumber(pick(row, "recharge", "rechargeCount", "recharge_count")),
-        verification: finiteCount(pick(row, "verification", "verificationCount", "verification_count"))
+        verification: finiteCount(pick(row, "verification", "verificationCount", "verification_count")),
+        experience: finiteCount(pick(row, "experience", "experienceCount", "experience_count")),
+        refund: finiteCount(pick(row, "refund", "refundCount", "refund_count"))
       };
     });
   }
@@ -123,6 +125,8 @@
     const totals = source.totals || {};
     const derivedRecharge = rows.reduce((sum, row) => sum + row.recharge, 0);
     const derivedVerification = rows.reduce((sum, row) => sum + row.verification, 0);
+    const derivedExperience = rows.reduce((sum, row) => sum + row.experience, 0);
+    const derivedRefund = rows.reduce((sum, row) => sum + row.refund, 0);
     const derivedStores = stores.length || new Set(rows.map((row) => row.storeId).filter(Boolean)).size;
     const derivedTeachers = new Set(teacherRows.map((row) => row.teacherId).filter(Boolean)).size;
     return {
@@ -134,6 +138,8 @@
       totals: {
         recharge: finiteNumber(pick(totals, "recharge", "rechargeCount", "recharge_count"), derivedRecharge),
         verification: finiteCount(pick(totals, "verification", "verificationCount", "verification_count"), derivedVerification),
+        experience: finiteCount(pick(totals, "experience", "experienceCount", "experience_count"), derivedExperience),
+        refund: finiteCount(pick(totals, "refund", "refundCount", "refund_count"), derivedRefund),
         stores: finiteCount(pick(totals, "stores", "storeCount", "store_count"), derivedStores),
         teachers: finiteCount(pick(totals, "teachers", "teacherCount", "teacher_count"), derivedTeachers)
       },
@@ -247,12 +253,16 @@
     const map = new Map();
     rows.forEach((r) => {
       const name = r[key];
-      const item = map.get(name) || { name, recharge: 0, verification: 0 };
+      const item = map.get(name) || { name, recharge: 0, verification: 0, experience: 0, refund: 0 };
       item.recharge += r.recharge || 0;
       item.verification += r.verification || 0;
+      item.experience += r.experience || 0;
+      item.refund += r.refund || 0;
       map.set(name, item);
     });
-    return [...map.values()].sort((a, b) => b.verification - a.verification);
+    return [...map.values()].sort((a, b) =>
+      (b.recharge + b.verification + b.experience + b.refund) - (a.recharge + a.verification + a.experience + a.refund)
+    );
   }
 
   function selectedDimensions() {
@@ -298,14 +308,22 @@
     const totals = state.data.totals || {};
     const derivedRecharge = rows.reduce((sum, row) => sum + row.recharge, 0);
     const derivedVerification = rows.reduce((sum, row) => sum + row.verification, 0);
+    const derivedExperience = rows.reduce((sum, row) => sum + row.experience, 0);
+    const derivedRefund = rows.reduce((sum, row) => sum + row.refund, 0);
     const recharge = finiteNumber(totals.recharge, derivedRecharge);
     const verification = finiteCount(totals.verification, derivedVerification);
+    const experience = finiteCount(totals.experience, derivedExperience);
+    const refund = finiteCount(totals.refund, derivedRefund);
     const stores = finiteCount(totals.stores, new Set(rows.map((row) => row.storeId).filter(Boolean)).size);
     const teachers = finiteCount(totals.teachers, new Set(teacherRows.map((row) => row.teacherId).filter(Boolean)).size);
     $("rechargeTotal").textContent = fmt.format(recharge);
     $("verificationTotal").textContent = fmt.format(verification);
+    $("experienceTotal").textContent = fmt.format(experience);
+    $("refundTotal").textContent = fmt.format(refund);
     $("rechargeDelta").textContent = "数据库有效记录";
     $("verificationDelta").textContent = "数据库有效记录";
+    $("experienceDelta").textContent = "数据库有效记录";
+    $("refundDelta").textContent = "数据库有效记录";
     $("storeTotal").textContent = fmt.format(stores);
     $("teacherTotal").textContent = fmt.format(teachers);
   }
@@ -341,10 +359,10 @@
     return { min: -positive.max, max: positive.max, step: positive.step, ticks };
   }
 
-  function barChartMarkup(sourceRows, dimension, verificationOnly = false) {
+  function barChartMarkup(sourceRows, dimension) {
     const items = limited(aggregate(sourceRows, dimension));
     if (!items.length) return `<div class="empty-state">当前筛选与分类范围内暂无有效数据</div>`;
-    const series = verificationOnly ? ["verification"] : ["recharge", "verification"];
+    const series = ["recharge", "verification", "experience", "refund"];
     const values = items.flatMap((x) => series.map((key) => x[key]));
     const axis = signedAxis(values);
     const axisRange = axis.max - axis.min;
@@ -358,8 +376,8 @@
     }).join("");
     const barsMarkup = items.map((x) => {
       const safeName = escapeHtml(x.name);
-      const safeTitle = escapeHtml(`${x.name}：${verificationOnly ? `有效核销 ${fmt.format(x.verification)} 次` : `有效充值 ${fmt.format(x.recharge)} 次，有效核销 ${fmt.format(x.verification)} 次`}；打开明细`);
-      return `<button class="bar-group" type="button" data-name="${safeName}" title="${safeTitle}" aria-label="${safeTitle}"><span class="bars ${verificationOnly ? "single" : ""}">${series.map((key, index) => {
+      const safeTitle = escapeHtml(`${x.name}：有效充值 ${fmt.format(x.recharge)} 次，有效核销 ${fmt.format(x.verification)} 次，有效体验 ${fmt.format(x.experience)} 次，有效退费 ${fmt.format(x.refund)} 次；打开明细`);
+      return `<button class="bar-group" type="button" data-name="${safeName}" title="${safeTitle}" aria-label="${safeTitle}"><span class="bars">${series.map((key, index) => {
         const value = x[key];
         const top = (axis.max - Math.max(value, 0)) / axisRange * 100;
         const height = Math.abs(value) / axisRange * 100;
@@ -369,7 +387,7 @@
       }).join("")}</span><span class="bar-label" aria-hidden="true">${chartEntityLabelMarkup(x.name)}</span></button>`;
     }).join("");
     const hasNegative = values.some((value) => value < 0);
-    const legend = verificationOnly ? `<span><i class="legend-dot" style="background:#00a884"></i>有效核销</span>` : `<span><i class="legend-dot" style="background:#1f5eff"></i>有效充值</span><span><i class="legend-dot" style="background:#00a884"></i>有效核销</span>${hasNegative ? `<span><i class="legend-dot" style="background:#b42318"></i>历史冲销（负值）</span>` : ""}`;
+    const legend = `<span><i class="legend-dot" style="background:#1f5eff"></i>有效充值</span><span><i class="legend-dot" style="background:#00a884"></i>有效核销</span><span><i class="legend-dot" style="background:#7c3aed"></i>有效体验</span><span><i class="legend-dot" style="background:#d97706"></i>有效退费</span>${hasNegative ? `<span><i class="legend-dot" style="background:#b42318"></i>历史冲销（负值）</span>` : ""}`;
     return `<div class="bar-scroll"><div class="chart-legend">${legend}<span>纵轴：次数 · 间隔 ${fmt.format(axis.step)}</span></div><div class="bar-chart-body"><div class="bar-y-axis"><strong>次数</strong>${tickMarkup}</div><div class="bar-plot-scroll"><div class="bar-canvas" aria-label="纵轴从${axis.min}到${axis.max}次，每${axis.step}次一个刻度">${gridMarkup}${barsMarkup}</div></div></div></div>`;
   }
 
@@ -388,7 +406,7 @@
       const source = dimension === "store" && !selected.length && state.data.stores.length
         ? state.data.stores
         : teacherContext ? teacherRows : rows;
-      return `<article class="panel chart-card"><div class="panel-heading"><div><h2>${scopeName} · 按${dimensionLabels[dimension]}统计</h2><p>${teacherContext ? "有效核销次数" : "有效充值与有效核销次数"} · 图内横向滚动</p></div><span class="badge">${dimensionLabels[dimension]}</span></div>${barChartMarkup(source, dimension, teacherContext)}</article>`;
+      return `<article class="panel chart-card"><div class="panel-heading"><div><h2>${scopeName} · 按${dimensionLabels[dimension]}统计</h2><p>有效充值、核销、体验与退费次数 · 图内横向滚动</p></div><span class="badge">${dimensionLabels[dimension]}</span></div>${barChartMarkup(source, dimension)}</article>`;
     }).join("");
   }
 
@@ -407,11 +425,12 @@
       ? state.data.stores
       : teacherContext ? teacherRows : rows;
     const items = aggregate(source, dimension);
-    const total = items.reduce((s, x) => s + x.verification, 0) || 1;
+    const total = items.reduce((s, x) => s + x.recharge + x.verification + x.experience + x.refund, 0) || 1;
     $("rankingBody").innerHTML = items.map((x, i) => {
       const safeName = escapeHtml(x.name);
-      return `<tr data-name="${safeName}"><td>${i + 1}</td><td>${safeName}</td><td>按${dimensionLabels[dimension]}</td><td>${teacherContext ? "—" : fmt.format(x.recharge)}</td><td>${fmt.format(x.verification)}</td><td>${(x.verification / total * 100).toFixed(1)}%</td></tr>`;
-    }).join("") || `<tr><td colspan="6">当前日期范围暂无有效数据</td></tr>`;
+      const businessCount = x.recharge + x.verification + x.experience + x.refund;
+      return `<tr data-name="${safeName}"><td>${i + 1}</td><td>${safeName}</td><td>按${dimensionLabels[dimension]}</td><td>${fmt.format(x.recharge)}</td><td>${fmt.format(x.verification)}</td><td>${fmt.format(x.experience)}</td><td>${fmt.format(x.refund)}</td><td>${(businessCount / total * 100).toFixed(1)}%</td></tr>`;
+    }).join("") || `<tr><td colspan="8">当前日期范围暂无有效数据</td></tr>`;
   }
 
   function renderScope() {
@@ -439,8 +458,8 @@
     const { rows, teacherRows } = currentData();
     const teacherContext = rankingDimension() === "teacher" || selectedDimensions().includes("teacher");
     const values = teacherContext
-      ? [["门店编号", "门店", "老师编号", "老师", "项目", "有效充值次数", "有效核销次数"], ...teacherRows.map((row) => [row.storeId, row.store, row.teacherId, row.teacher, row.project, row.recharge, row.verification])]
-      : [["门店编号", "门店", "项目", "有效充值次数", "有效核销次数"], ...rows.map((row) => [row.storeId, row.store, row.project, row.recharge, row.verification])];
+      ? [["门店编号", "门店", "老师编号", "老师", "项目", "有效充值次数", "有效核销次数", "有效体验次数", "有效退费次数"], ...teacherRows.map((row) => [row.storeId, row.store, row.teacherId, row.teacher, row.project, row.recharge, row.verification, row.experience, row.refund])]
+      : [["门店编号", "门店", "项目", "有效充值次数", "有效核销次数", "有效体验次数", "有效退费次数"], ...rows.map((row) => [row.storeId, row.store, row.project, row.recharge, row.verification, row.experience, row.refund])];
     const csv = values.map((row) => row.map(csvCell).join(",")).join("\r\n");
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }));
@@ -465,11 +484,13 @@
 
   function renderRequestState(message, kind) {
     const safeMessage = escapeHtml(message);
-    ["rechargeTotal", "verificationTotal", "storeTotal", "teacherTotal"].forEach((id) => { $(id).textContent = "—"; });
+    ["rechargeTotal", "verificationTotal", "experienceTotal", "refundTotal", "storeTotal", "teacherTotal"].forEach((id) => { $(id).textContent = "—"; });
     $("rechargeDelta").textContent = kind === "loading" ? "正在读取数据库" : "数据库读取失败";
     $("verificationDelta").textContent = kind === "loading" ? "正在读取数据库" : "数据库读取失败";
+    $("experienceDelta").textContent = kind === "loading" ? "正在读取数据库" : "数据库读取失败";
+    $("refundDelta").textContent = kind === "loading" ? "正在读取数据库" : "数据库读取失败";
     $("analysisGrid").innerHTML = `<article class="panel chart-card dashboard-request-state ${kind}"><div class="empty-state">${safeMessage}</div></article>`;
-    $("rankingBody").innerHTML = `<tr><td colspan="6">${safeMessage}</td></tr>`;
+    $("rankingBody").innerHTML = `<tr><td colspan="8">${safeMessage}</td></tr>`;
     $("scopeText").textContent = message;
     $("dashboardRetry").hidden = !(kind === "error" && state.retryable);
   }
@@ -561,7 +582,15 @@
       const card = event.target.closest("[data-drill]");
       const point = event.target.closest("[data-name]");
       if (state.requestState !== "ready") return;
-      if (card) showDetail(card.dataset.drill === "recharge" ? "有效充值明细" : "有效核销明细");
+      if (card) {
+        const labels = {
+          recharge: "有效充值明细",
+          verification: "有效核销明细",
+          experience: "有效体验明细",
+          refund: "有效退费明细"
+        };
+        showDetail(labels[card.dataset.drill] || "有效业务明细");
+      }
       else if (point) showDetail(`${point.dataset.name} 的有效明细`);
     });
     resetBreakdowns();

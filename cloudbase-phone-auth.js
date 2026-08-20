@@ -415,6 +415,20 @@
         "员工账号创建失败"
       );
     },
+    async provisionTeacherWithFace({ staffName, phone, initialPassword, faceImageBase64, clientRequestId, consent = false }) {
+      return callStaffAccount(
+        {
+          action: "provisionTeacherWithFace",
+          staffName,
+          phone: normalizePhone(phone),
+          initialPassword,
+          faceImageBase64,
+          clientRequestId,
+          consent: consent === true
+        },
+        "老师账号与人脸绑定创建失败"
+      );
+    },
     async createStoreWithAccount({ storeName, province, city, district, addressDetail, contactName, contactPhone, initialPassword, existingStoreId = "" }) {
       return callStaffAccount(
         {
@@ -441,9 +455,33 @@
     async setStaffStatus({ uid = "", phone = "", status }) {
       return callStaffAccount({ action: "setStaffStatus", uid, phone, status }, "人员状态更新失败");
     },
+    async setMasterStatus({ teacherId = "", storeId = "", status }) {
+      return callStaffAccount(
+        { action: "setMasterStatus", teacherId, storeId, status },
+        "老师或门店状态更新失败"
+      );
+    },
     async listStaff(role) {
       const data = await callStaffAccount({ action: "listStaff", role }, "人员列表读取失败");
       return data.staff || [];
+    },
+    async getTeacherExperienceEntitlements({ teacherId }) {
+      return callStaffAccount(
+        { action: "getTeacherExperienceEntitlements", teacherId },
+        "老师体验额度读取失败"
+      );
+    },
+    async upsertTeacherExperienceEntitlement({ teacherId, productId, monthlyAllowance }) {
+      return callStaffAccount(
+        { action: "upsertTeacherExperienceEntitlement", teacherId, productId, monthlyAllowance },
+        "老师体验额度配置失败"
+      );
+    },
+    async rechargeTeacherExperienceEntitlement({ teacherId, productId, unitCount, note = "", clientRequestId }) {
+      return callStaffAccount(
+        { action: "rechargeTeacherExperienceEntitlement", teacherId, productId, unitCount, note, clientRequestId },
+        "老师体验次数充值失败"
+      );
     },
     async listStores() {
       const data = await callStaffAccount({ action: "listStores" }, "门店列表读取失败");

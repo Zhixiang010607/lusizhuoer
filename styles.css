@@ -428,6 +428,8 @@ button.metric-card:hover { transform: translateY(-2px); box-shadow: 0 14px 32px 
 .metric-card strong { display: block; margin: 4px 0 2px; font-size: 25px; font-variant-numeric: tabular-nums; }
 .metric-card:nth-child(1) { border-top: 4px solid var(--blue); }
 .metric-card:nth-child(2) { border-top: 4px solid var(--green); }
+.metric-card:nth-child(3) { border-top: 4px solid #7c3aed; }
+.metric-card:nth-child(4) { border-top: 4px solid #d97706; }
 .metric-card.neutral { border-top: 4px solid #a7b0be; }
 .dashboard-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .analysis-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
@@ -461,18 +463,20 @@ button.metric-card:hover { transform: translateY(-2px); box-shadow: 0 14px 32px 
 .bar-canvas { position: relative; display: flex; align-items: flex-start; gap: 16px; min-width: max-content; min-height: 340px; padding: 20px 10px 0; box-sizing: border-box; }
 .bar-grid-line { position: absolute; right: 0; left: 0; z-index: 0; border-top: 1px dashed #dfe5ed; pointer-events: none; }
 .bar-grid-line.zero { border-top-style: solid; border-top-color: #9ba7b7; }
-.bar-group { position: relative; z-index: 1; display: grid; grid-template-rows: 240px auto; align-content: start; width: 136px; min-height: 320px; flex: 0 0 136px; padding: 0; border-radius: 6px; text-align: center; color: inherit; background: transparent; }
+.bar-group { position: relative; z-index: 1; display: grid; grid-template-rows: 240px auto; align-content: start; width: 216px; min-height: 320px; flex: 0 0 216px; padding: 0; border-radius: 6px; text-align: center; color: inherit; background: transparent; }
 .bar-group:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
 .bars { position: relative; height: 240px; display: block; }
-.bar { position: absolute; left: calc(20px + var(--bar-index) * 60px); width: 36px; min-height: 3px; border-radius: 5px 5px 0 0; }
-.bars.single .bar { left: 50px; width: 36px; }
+.bar { position: absolute; left: calc(10px + var(--bar-index) * 52px); width: 32px; min-height: 3px; border-radius: 5px 5px 0 0; }
 .bar.recharge { background: var(--blue); }
 .bar.verification { background: var(--green); }
+.bar.experience { background: #7c3aed; }
+.bar.refund { background: #d97706; }
 .bar.negative { border-radius: 0 0 5px 5px; background: #b42318; }
 .bar.zero-value { display: none; }
-.bar-value { position: absolute; z-index: 2; left: calc(38px + var(--bar-index) * 60px); transform: translate(-50%, calc(-100% - 4px)); padding: 1px 3px; border-radius: 3px; color: #173f8f; background: rgba(255, 255, 255, .9); font-size: 10px; font-style: normal; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.2; white-space: nowrap; pointer-events: none; }
-.bars.single .bar-value { left: 68px; }
+.bar-value { position: absolute; z-index: 2; left: calc(26px + var(--bar-index) * 52px); transform: translate(-50%, calc(-100% - 4px)); padding: 1px 3px; border-radius: 3px; color: #173f8f; background: rgba(255, 255, 255, .9); font-size: 10px; font-style: normal; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.2; white-space: nowrap; pointer-events: none; }
 .bar-value.verification { color: #08715f; }
+.bar-value.experience { color: #6d28d9; }
+.bar-value.refund { color: #b45309; }
 .bar-value.negative { transform: translate(-50%, 4px); color: #9b1c14; }
 .bar-label { display: grid; gap: 2px; margin-top: 26px; color: var(--muted); font-size: 11px; line-height: 1.35; white-space: normal; overflow-wrap: anywhere; }
 .bar-label-name { color: #455468; }
@@ -1234,11 +1238,12 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .store-directory-panel .panel-heading { margin-bottom: 10px; }
 .store-directory-window { height: 260px; min-height: 260px; max-height: 260px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
 .store-directory-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-.store-directory-table .store-name-column { width: 22%; }
-.store-directory-table .store-contact-column { width: 13%; }
-.store-directory-table .store-phone-column { width: 17%; }
-.store-directory-table .store-address-column { width: 38%; }
+.store-directory-table .store-name-column { width: 20%; }
+.store-directory-table .store-contact-column { width: 12%; }
+.store-directory-table .store-phone-column { width: 15%; }
+.store-directory-table .store-address-column { width: 30%; }
 .store-directory-table .store-status-column { width: 10%; }
+.store-directory-table .store-action-column { width: 13%; }
 .store-directory-table th,
 .store-directory-table td { height: 40px; padding: 0 12px; overflow: hidden; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; text-overflow: ellipsis; white-space: nowrap; }
 .store-directory-table th { position: sticky; top: 0; z-index: 1; background: #f3f6fa; color: var(--muted); font-size: 12px; }
@@ -1315,7 +1320,7 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
   .store-directory-window { height: 260px; min-height: 260px; max-height: 260px; }
   .store-directory-table { min-width: 780px; }
   .teacher-directory-window { height: 260px; min-height: 260px; max-height: 260px; }
-  .teacher-directory-table { min-width: 620px; }
+  .teacher-directory-table { min-width: 760px; }
   .store-directory-table td.store-directory-empty,
   .teacher-directory-table td.teacher-directory-empty { padding-left: 16px; text-align: left !important; }
   .toolbar-actions { justify-content: stretch; }
@@ -2026,6 +2031,71 @@ body[data-store-analysis] {
 .product-preview-frame canvas { display: block; width: min(100%, 860px); height: auto; margin: 0 auto; background: #fff; box-shadow: 0 8px 28px #10233f21; }
 .product-preview-loading { min-height: 100%; display: grid; place-items: center; color: var(--muted); }
 .product-preview-loading.is-error { color: #b42318; }
+
+/* Teacher experience allowances are separate from customer-product balances.
+   These controls live in the HQ teacher detail, so archived records remain
+   readable while all write actions become unavailable. */
+.teacher-experience-panel { display: grid; gap: 14px; margin-top: 18px; padding: 16px; }
+.teacher-experience-overview { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; overflow: hidden; border: 1px solid var(--line); border-radius: 11px; background: var(--line); }
+.teacher-experience-overview article { min-height: 70px; padding: 12px; background: #fff; }
+.teacher-experience-overview span, .teacher-experience-overview strong { display: block; }
+.teacher-experience-overview span { color: var(--muted); font-size: 11px; }
+.teacher-experience-overview strong { margin-top: 6px; color: var(--ink); font-size: 16px; }
+.teacher-experience-config, .teacher-experience-recharge { display: grid; grid-template-columns: minmax(210px, .85fr) minmax(0, 1.6fr); gap: 14px; align-items: start; padding: 14px; border: 1px solid #cbd8e9; border-radius: 12px; background: #f7faff; }
+.teacher-experience-config h3, .teacher-experience-recharge h3, .teacher-experience-table-card h3 { margin: 0 0 5px; color: var(--navy); font-size: 15px; }
+.teacher-experience-config p, .teacher-experience-recharge p, .teacher-experience-table-card .panel-heading p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.teacher-experience-form { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(130px, .65fr) auto; gap: 10px; align-items: end; }
+.teacher-experience-form label { min-width: 0; display: grid; gap: 6px; color: #40536a; font-size: 12px; font-weight: 750; }
+.teacher-experience-form input, .teacher-experience-form select, .teacher-experience-form textarea { width: 100%; min-width: 0; }
+.teacher-experience-recharge .teacher-experience-form { grid-template-columns: minmax(140px, .45fr) minmax(220px, 1fr) auto auto; }
+.teacher-experience-recharge .teacher-experience-form textarea { min-height: 40px; resize: vertical; }
+.teacher-experience-table-card { display: grid; gap: 9px; }
+.teacher-experience-table-card .panel-heading { margin: 0; }
+.teacher-experience-table-card td small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+.teacher-experience-empty { min-height: 84px; color: var(--muted); text-align: center !important; }
+.teacher-experience-status { display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 999px; color: #7a4b00; background: #fff3d6; font-size: 11px; font-weight: 800; white-space: nowrap; }
+.teacher-experience-recharge-button, .teacher-experience-link { min-height: 30px; padding: 5px 9px; font-size: 11px; white-space: nowrap; }
+.teacher-experience-panel .form-message[data-tone="success"] { color: #067a5c; }
+.teacher-experience-panel .form-message[data-tone="error"] { color: #b42318; }
+.teacher-directory-table .teacher-name-column { width: 24%; }
+.teacher-directory-table .teacher-code-column { width: 18%; }
+.teacher-directory-table .teacher-phone-column { width: 18%; }
+.teacher-directory-table .teacher-status-column { width: 10%; }
+.teacher-directory-table .teacher-experience-column { width: 17%; }
+.teacher-directory-table .teacher-action-column { width: 13%; }
+
+/* Teacher creation has the same controlled capture properties as customer
+   enrollment, but the face is bound to the teacher account instead. */
+.teacher-face-enrollment-layout { display: grid; grid-template-columns: minmax(240px, .7fr) minmax(0, 1.3fr); gap: 14px; align-items: stretch; }
+.teacher-face-consent { display: grid; align-content: start; gap: 10px; padding: 13px; border: 1px solid var(--line); border-radius: 11px; background: #f8fafc; }
+.teacher-face-consent .consent-row { align-items: flex-start; line-height: 1.6; }
+.teacher-face-capture { grid-template-columns: minmax(180px, .92fr) minmax(160px, .82fr); grid-template-rows: auto auto auto; min-height: 235px; align-items: center; }
+.teacher-face-capture::before { display: none; }
+.teacher-face-capture .customer-camera-stage { grid-column: 1; grid-row: 1 / 4; width: min(100%, 280px); align-self: stretch; justify-self: center; }
+.teacher-face-capture .teacher-face-capture-copy { grid-column: 2; grid-row: 1; min-width: 0; align-self: end; }
+.teacher-face-capture .teacher-face-capture-copy h3 { margin: 0 0 5px; }
+.teacher-face-capture #teacherFaceCaptureStatus { grid-column: 2; grid-row: 2; }
+.teacher-face-capture .camera-actions { grid-column: 2; grid-row: 3; display: grid; gap: 7px; }
+.teacher-face-capture .camera-actions button { width: 100%; }
+.experience-quota-hint { margin: 0; padding: 9px 11px; border-left: 3px solid #3b82f6; border-radius: 7px; color: #315378; background: #eff6ff; font-size: 12px; line-height: 1.55; }
+
+@media (max-width: 900px) {
+  .teacher-experience-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .teacher-experience-config, .teacher-experience-recharge, .teacher-face-enrollment-layout { grid-template-columns: 1fr; }
+  .teacher-experience-form, .teacher-experience-recharge .teacher-experience-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .teacher-experience-form button { min-height: 40px; }
+}
+
+@media (max-width: 640px) {
+  .teacher-experience-panel { margin-top: 10px; padding: 12px; }
+  .teacher-experience-form, .teacher-experience-recharge .teacher-experience-form { grid-template-columns: 1fr; }
+  .teacher-face-capture { grid-template-columns: 1fr; grid-template-rows: minmax(220px, auto) auto auto auto; }
+  .teacher-face-capture .customer-camera-stage { grid-column: 1; grid-row: 1; width: min(100%, 300px); min-height: 220px; justify-self: center; }
+  .teacher-face-capture .teacher-face-capture-copy { grid-column: 1; grid-row: 2; align-self: auto; }
+  .teacher-face-capture #teacherFaceCaptureStatus { grid-column: 1; grid-row: 3; }
+  .teacher-face-capture .camera-actions { grid-column: 1; grid-row: 4; }
+  .teacher-directory-table .teacher-experience-column { width: 17%; }
+}
 
 @media (max-width: 1180px) {
   .product-template-workspace { grid-template-columns: 1fr; }

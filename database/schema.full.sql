@@ -1,6 +1,9 @@
 -- Complete CloudBase PostgreSQL business schema.
 -- Safe for an empty database and additive for the current database.
 -- All SQL text is ASCII-only.
+-- This base schema is followed by the ordered migration chain; execute through
+-- 046_teacher_face_and_experience_quotas.sql before deploying current functions.
+-- Migration 046 adds the face-bound teacher and experience-quota release layer.
 
 BEGIN;
 

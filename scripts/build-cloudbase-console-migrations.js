@@ -38,6 +38,14 @@ function writePart(filename, migration, part, description, body) {
   fs.writeFileSync(path.join(output, filename), `${header}${body}\n\nCOMMIT;\n`, "utf8");
 }
 
+// The CloudBase console size ceiling applies to a complete pasted request.
+// Migration 046 contains one deliberately large but editor-safe atomic
+// function, so its headers stay compact and leave room for that statement.
+function writeCompactPart(filename, migration, part, body) {
+  const header = `-- CloudBase migration ${migration}, part ${part}. Run this file by itself.\nBEGIN;\n`;
+  fs.writeFileSync(path.join(output, filename), `${header}${body}\n\nCOMMIT;\n`, "utf8");
+}
+
 fs.mkdirSync(output, { recursive: true });
 
 const migration037 = bodyOf("037_verification_photo_evidence.sql");
@@ -60,4 +68,27 @@ writePart("038-01-five-slot-schema-upgrade.sql", "038", "1 / 3", "Upgrade to fiv
 writePart("038-02-create-verification-function.sql", "038", "2 / 3", "Replace the atomic function with retained-profile and face-photo binding.", parts038[1]);
 writePart("038-03-extra-photo-function.sql", "038", "3 / 3", "Replace the supplemental-photo function, revoke public access and add comments.", parts038[2]);
 
-console.log("CloudBase console migrations generated:", [...parts037, ...parts038].map((part) => Buffer.byteLength(part, "utf8")));
+const migration046 = bodyOf("046_teacher_face_and_experience_quotas.sql");
+const parts046 = splitAt(migration046, [
+  "DO $$\nBEGIN\n  IF TO_REGCLASS('public.staff_accounts')",
+  "-- Ensure every teacher login account owns one actual teacher master row",
+  "CREATE TABLE IF NOT EXISTS public.teacher_product_experience_quotas",
+  "CREATE OR REPLACE FUNCTION public.teacher_experience_quota_month",
+  "CREATE OR REPLACE FUNCTION public.recharge_teacher_product_experience_quota",
+  "-- Final order-state authority.",
+  "CREATE OR REPLACE FUNCTION public.create_verification_with_face_photo",
+  "REVOKE ALL ON FUNCTION public.teacher_experience_quota_month"
+]);
+const part046Names = [
+  "046-01-teacher-face-schema.sql",
+  "046-02-teacher-profile-bridge.sql",
+  "046-03-experience-quota-tables.sql",
+  "046-04-experience-reset-and-config.sql",
+  "046-05-experience-recharge.sql",
+  "046-06-order-guards-and-helpers.sql",
+  "046-07-experience-verification-function.sql",
+  "046-08-permissions-and-comments.sql"
+];
+parts046.forEach((part, index) => writeCompactPart(part046Names[index], "046", `${index + 1} / ${parts046.length}`, part));
+
+console.log("CloudBase console migrations generated:", [...parts037, ...parts038, ...parts046].map((part) => Buffer.byteLength(part, "utf8")));

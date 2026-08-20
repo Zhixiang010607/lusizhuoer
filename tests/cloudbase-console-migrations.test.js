@@ -107,6 +107,29 @@ const reconstructed045 = parts
   .join("\n\n");
 assert.equal(reconstructed045, canonical045, "CloudBase migration 045 must match the canonical product-template migration");
 
+// 046 is deliberately large because it includes the face-bound teacher
+// profile bridge, quota ledgers, atomic EXPERIENCE debit, and archive guards.
+// It therefore deploys as numbered SQL-editor-safe transactions; their bodies
+// must still reproduce the canonical migration exactly and in order.
+const canonical046 = transactionBody(fs.readFileSync(
+  path.join(root, "database", "migrations", "046_teacher_face_and_experience_quotas.sql"),
+  "utf8"
+));
+const parts046 = fs.readdirSync(consoleDir)
+  .filter((filename) => /^046-\d{2}-.+\.sql$/.test(filename))
+  .sort();
+assert.ok(parts046.length >= 2, "046 must be split into numbered CloudBase SQL-editor transactions");
+for (const filename of parts046) {
+  const source = fs.readFileSync(path.join(consoleDir, filename), "utf8");
+  assert.ok(Buffer.byteLength(source, "utf8") < 9000, `${filename} must stay below the SQL editor-safe size`);
+  assert.match(source, /BEGIN;[\s\S]*COMMIT;\s*$/, `${filename} must be a complete transaction`);
+  assert.equal((source.match(/\$\$/g) || []).length % 2, 0, `${filename} has an unclosed dollar-quoted block`);
+}
+const reconstructed046 = parts046
+  .map((filename) => transactionBody(fs.readFileSync(path.join(consoleDir, filename), "utf8")))
+  .join("\n\n");
+assert.equal(reconstructed046, canonical046, "CloudBase parts must reconstruct migration 046 exactly");
+
 const directParts = Object.fromEntries(
   parts.filter((filename) => filename.startsWith("039-")).map((filename) => [
     filename,
