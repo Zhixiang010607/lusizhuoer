@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.2";
+  const VERSION = "0.16.3";
   const CUSTOMER_PAGE_SIZE = 10;
   const params = new URLSearchParams(location.search);
   const storeRef = String(params.get("authUid") || params.get("storeId") || "").trim();
@@ -20,7 +20,7 @@
   ]);
   const state = {
     customerRows: [], customerPage: 1, customerTotal: 0,
-    dashboardStoreId: "", analytics: null, analyticsLoading: false,
+    dashboardStoreId: "", analyticsLoading: false, statusLoading: false,
     storeAccount: null, currentStore: null, sessionRole: ""
   };
 
@@ -204,7 +204,10 @@
 
   function renderError(message) {
     $("storeHero").innerHTML = `<div><span class="profile-type">门店详情</span><h2>无法读取门店</h2><p>${escapeHtml(message)}</p></div>`;
-    if ($("storeHeaderStatus")) $("storeHeaderStatus").textContent = "读取失败";
+    if ($("storeHeaderStatus")) {
+      $("storeHeaderStatus").textContent = "读取失败";
+      $("storeHeaderStatus").classList.remove("store-status-active", "store-status-archived");
+    }
     $("storeBasicGrid").innerHTML = "";
     renderEmptyRows("暂无数据");
   }
@@ -214,8 +217,28 @@
       .some((value) => String(value || "").toUpperCase() === "ARCHIVED");
   }
 
-  function storeAccountPhone(store) {
-    return String(store?.phone || store?.contact_phone || "").trim();
+  function setStoreStatusMessage(message = "", tone = "") {
+    const target = $("storeStatusMessage");
+    if (!target) return;
+    target.textContent = String(message || "");
+    if (tone) target.dataset.tone = tone;
+    else delete target.dataset.tone;
+  }
+
+  function storeStatusFailureMessage(error, action) {
+    const fallback = `${action}门店失败，门店状态没有改变。`;
+    const message = String(error?.message || fallback).trim();
+    const diagnostic = [error?.code, error?.stage, error?.requestId].filter(Boolean).join(" · ");
+    const unsupported = /不支持的操作|unsupported action/i.test(message);
+    const permission = String(error?.code || "").toUpperCase() === "AUTH_ARCHIVE_FAILED"
+      || String(error?.stage || "").toUpperCase() === "AUTH_ARCHIVE";
+    const guidance = unsupported
+      ? "当前 staffAccount 云函数版本不支持门店主页状态操作，请先发布最新版后重试。"
+      : permission
+        ? "CloudBase 登录账号未能同步封存，业务主档没有修改；请检查 staffAccount 的用户管理权限后重试。"
+        : "请保留页面上的错误编号后重试。";
+    const detail = diagnostic && !message.includes(diagnostic) ? `${message}（${diagnostic}）` : message;
+    return `${detail || fallback} ${guidance}`;
   }
 
   function renderStoreStatusAction(store) {
@@ -223,16 +246,20 @@
     if (!button) return;
     const account = state.storeAccount || {};
     const master = store || state.currentStore || {};
-    const manageable = state.sessionRole === "hq" && Boolean(String(master.id || state.dashboardStoreId || "").trim());
+    const manageable = state.sessionRole === "hq"
+      && /^\d+$/.test(String(master.id || state.dashboardStoreId || "").trim());
     if (!manageable) {
       button.hidden = true;
       return;
     }
     const archived = archivedStore(master) || archivedStore(account);
     button.hidden = false;
-    button.disabled = false;
-    button.textContent = archived ? "激活门店账号" : "封存门店账号";
+    button.disabled = state.statusLoading;
+    button.textContent = state.statusLoading
+      ? `正在${archived ? "激活" : "封存"}…`
+      : (archived ? "激活门店" : "封存门店");
     button.classList.toggle("danger-button", !archived);
+    button.classList.toggle("status-activate-button", archived);
   }
 
   function renderStore(store) {
@@ -244,8 +271,12 @@
     const status = effectiveStatus === "ARCHIVED" ? "封存" : "活跃";
     const locationText = [store.province, store.city, store.district].filter(Boolean).join(" · ") || "未填写";
 
-    $("storeHero").innerHTML = `<div class="profile-avatar store-profile-avatar">店</div><div><span class="profile-type">门店账号</span><h2>${escapeHtml(store.store_name)}</h2><p>${escapeHtml(authUid)} · ${escapeHtml(status)}</p></div>`;
-    if ($("storeHeaderStatus")) $("storeHeaderStatus").innerHTML = `<span></span>${status === "封存" ? "已封存" : "正常营业"}`;
+    $("storeHero").innerHTML = `<div class="profile-avatar store-profile-avatar">店</div><div><span class="profile-type">门店账号</span><div class="store-profile-title"><h2>${escapeHtml(store.store_name)}</h2><span class="store-status-badge ${effectiveStatus === "ARCHIVED" ? "archived" : "active"}">${escapeHtml(status)}</span></div><p>${escapeHtml(authUid || storeCode || "未绑定登录账号")}</p></div>`;
+    if ($("storeHeaderStatus")) {
+      $("storeHeaderStatus").innerHTML = `<span></span>${status === "封存" ? "已封存" : "正常营业"}`;
+      $("storeHeaderStatus").classList.toggle("store-status-archived", effectiveStatus === "ARCHIVED");
+      $("storeHeaderStatus").classList.toggle("store-status-active", effectiveStatus !== "ARCHIVED");
+    }
     renderStoreStatusAction({ ...store, store_status: effectiveStatus });
     $("storeBasicGrid").innerHTML = info([
       ["唯一身份 ID", authUid],
@@ -294,7 +325,6 @@
       return `<tr><th><a class="record-link" href="${escapeHtml(href)}">${metric.label}</a></th>${cells}<td><strong>${Number(data.totals?.[metric.key] || 0)}</strong></td></tr>`;
     }).join("") || `<tr><td colspan="${totalColumns}" class="query-empty">暂无业务数据</td></tr>`;
     $("storeAnalyticsScope").textContent = `${data.range?.startDate || "—"} 至 ${data.range?.endDate || "—"} · 项目按本期业务量排序`;
-    $("exportStoreAnalyticsPdf").disabled = false;
   }
 
   function validateAnalyticsRange() {
@@ -311,35 +341,17 @@
     if (state.analyticsLoading || !state.dashboardStoreId) return;
     state.analyticsLoading = true;
     $("storeAnalyticsMessage").textContent = "正在统计…";
-    $("exportStoreAnalyticsPdf").disabled = true;
     try {
       const range = validateAnalyticsRange();
       const data = await window.StoreAnalyticsData.load({ storeId: state.dashboardStoreId, ...range });
-      state.analytics = data;
       renderAnalytics(data);
       $("storeAnalyticsMessage").textContent = "";
     } catch (error) {
-      state.analytics = null;
       $("storeAnalyticsHead").innerHTML = "";
       $("storeAnalyticsBody").innerHTML = `<tr><td class="query-empty">${escapeHtml(error?.message || "业务统计读取失败")}</td></tr>`;
       $("storeAnalyticsMessage").textContent = error?.message || "业务统计读取失败";
     } finally {
       state.analyticsLoading = false;
-    }
-  }
-
-  async function exportAnalyticsPdf() {
-    if (!state.analytics) return;
-    const button = $("exportStoreAnalyticsPdf");
-    button.disabled = true;
-    $("storeAnalyticsMessage").textContent = "正在生成表格版 PDF…";
-    try {
-      const result = await window.StoreDashboardExport.exportReport({ data: state.analytics });
-      $("storeAnalyticsMessage").textContent = `已导出 ${result.pages} 页 PDF`;
-    } catch (error) {
-      $("storeAnalyticsMessage").textContent = error?.message || "PDF 导出失败";
-    } finally {
-      button.disabled = false;
     }
   }
 
@@ -362,7 +374,6 @@
 
   $("storeAnalyticsPeriod")?.addEventListener("change", (event) => setAnalyticsPeriod(event.target.value));
   $("applyStoreAnalytics")?.addEventListener("click", () => void loadAnalytics());
-  $("exportStoreAnalyticsPdf")?.addEventListener("click", () => void exportAnalyticsPdf());
   $("storeStatusAction")?.addEventListener("click", async () => {
     const account = state.storeAccount || {};
     const store = state.currentStore;
@@ -376,22 +387,31 @@
       : `确认封存门店“${name}”？门店账号将无法登录，充值、退费、核销、体验均不能再选择该门店；历史业务和统计会完整保留。`;
     if (!window.confirm(message)) return;
     if (!window.CloudBasePhoneAuth?.setMasterStatus) {
-      window.alert("门店状态服务尚未加载，请刷新页面后重试。");
+      setStoreStatusMessage("门店状态服务尚未加载，请刷新页面后重试。", "error");
       return;
     }
-    const button = $("storeStatusAction");
-    button.disabled = true;
+    state.statusLoading = true;
+    setStoreStatusMessage(`正在${action}门店并同步登录账号…`, "pending");
+    renderStoreStatusAction(store);
     try {
-      const storeId = String(store.id || state.dashboardStoreId || "").trim();
-      if (!storeId) throw new Error("门店资料缺少数据库编号，无法更新状态。");
-      await window.CloudBasePhoneAuth.setMasterStatus({ storeId, status: next });
+      const storeId = String(store.id || account.id || state.dashboardStoreId || "").trim();
+      if (!/^\d+$/.test(storeId)) throw new Error("门店资料缺少有效数据库编号，无法更新状态。");
+      const result = await window.CloudBasePhoneAuth.setMasterStatus({ storeId, status: next });
+      if (String(result?.status || "").toUpperCase() !== next) {
+        throw new Error("门店状态服务未确认保存结果，请刷新页面核对后重试。");
+      }
       state.storeAccount = { ...account, store_status: next, account_status: next };
       renderStore({ ...store, store_status: next });
+      const successMessage = next === "ARCHIVED"
+        ? "门店已封存，关联账号已停止业务登录；历史业务与统计继续保留。"
+        : "门店已激活，关联账号可以重新登录。";
+      setStoreStatusMessage(result?.warning ? `${successMessage} ${result.warning}` : successMessage,
+        result?.warning ? "warning" : "success");
     } catch (error) {
-      window.alert(error?.message || `${action}门店失败，请稍后重试。`);
+      setStoreStatusMessage(storeStatusFailureMessage(error, action), "error");
     } finally {
-      const currentButton = $("storeStatusAction");
-      if (currentButton && !currentButton.hidden) currentButton.disabled = false;
+      state.statusLoading = false;
+      renderStoreStatusAction(state.currentStore);
     }
   });
 

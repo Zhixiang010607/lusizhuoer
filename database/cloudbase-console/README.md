@@ -58,7 +58,7 @@ ROLLBACK;
 
 1. 执行 `046-01-teacher-face-schema.sql` 至
    `046-08-permissions-and-comments.sql`，每个文件确认 `COMMIT` 成功；
-2. 部署 `faceRecognition v69` 与 `staffAccount v54`，分别调用 `health`
+2. 部署 `faceRecognition v69` 与 `staffAccount v55`，分别调用 `health`
    确认新版本；
 3. 在仅限总部使用、已加载当前 `cloudbase-phone-auth.js` 的临时维护页面中，
    以已登录总部身份在浏览器控制台运行
@@ -69,7 +69,7 @@ ROLLBACK;
    `047-02-hq-reviewer-guard.sql`；
 5. 依次完整执行 `048-01-quota-lifecycle-schema.sql` 至
    `048-07-comments.sql`，每个文件确认 `COMMIT` 成功；
-6. 部署 `faceRecognition v71` 与 `staffAccount v54`，分别调用 `health`
+6. 部署 `faceRecognition v71` 与 `staffAccount v55`，分别调用 `health`
    确认新版本；
 7. 最后才部署当前静态前端并强制刷新浏览器。
 

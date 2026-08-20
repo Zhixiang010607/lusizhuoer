@@ -52,8 +52,8 @@
     const nameMarkup = reference
       ? `<a class="record-link store-global-link" href="store-detail.html?storeId=${encodeURIComponent(reference)}">${escapeHtml(name)}</a>`
       : escapeHtml(name);
-    const statusAction = reference
-      ? `<button class="secondary-button store-status-action ${archived ? "" : "danger-button"}" type="button" data-store-status-ref="${escapeHtml(reference)}">${archived ? "激活门店" : "封存门店"}</button>`
+    const homepageLink = reference
+      ? `<a class="button-link secondary-button store-open-link" href="store-detail.html?storeId=${encodeURIComponent(reference)}">进入主页</a>`
       : "—";
     return `<tr>
       <td>${nameMarkup}</td>
@@ -61,7 +61,7 @@
       <td class="store-phone-cell">${escapeHtml(storePhone(store) || "—")}</td>
       <td>${escapeHtml(storeAddress(store) || "—")}</td>
       <td><span class="store-status-badge ${archived ? "archived" : "active"}">${archived ? "封存" : "活跃"}</span></td>
-      <td>${statusAction}</td>
+      <td>${homepageLink}</td>
     </tr>`;
   }
 
@@ -75,26 +75,17 @@
   function renderDirectories() {
     renderRows("activeStoreRows", "activeStoreCount", state.stores.filter((store) => !isArchived(store)), "暂无活跃门店");
     renderRows("archivedStoreRows", "archivedStoreCount", state.stores.filter(isArchived), "暂无封存门店");
-    bindStatusActions();
-  }
-
-  function bindStatusActions() {
-    document.querySelectorAll("[data-store-status-ref]").forEach((button) => {
-      button.addEventListener("click", () => { void toggleStoreStatus(button.dataset.storeStatusRef); });
-    });
   }
 
   function renderSearchResults() {
     if (!state.searched) {
       renderRows("searchStoreRows", "searchStoreCount", [], "尚未查询");
-      bindStatusActions();
       return;
     }
     const name = state.name.toLocaleLowerCase("zh-CN");
     const phone = normalizedPhone(state.phone);
     if (!name && !phone) {
       renderRows("searchStoreRows", "searchStoreCount", [], "请输入门店名称或联系人电话后查询");
-      bindStatusActions();
       return;
     }
     const matches = state.stores.filter((store) => {
@@ -103,7 +94,6 @@
       return matchesName && matchesPhone;
     });
     renderRows("searchStoreRows", "searchStoreCount", matches, "没有符合条件的门店");
-    bindStatusActions();
   }
 
   function renderLoadError(error) {
@@ -135,41 +125,6 @@
     state.phone = $("entityPhoneSearch").value.trim();
     state.searched = true;
     renderSearchResults();
-  }
-
-  async function toggleStoreStatus(reference) {
-    const store = state.stores.find((item) => storeReference(item) === String(reference || ""));
-    if (!store) return;
-    const archived = isArchived(store);
-    const next = archived ? "ACTIVE" : "ARCHIVED";
-    const action = archived ? "激活" : "封存";
-    const name = storeName(store) || "该门店";
-    const prompt = archived
-      ? `确认激活门店“${name}”？激活后关联门店账号可以再次登录。`
-      : `确认封存门店“${name}”？门店账号将无法登录，充值、退费、核销、体验均不能再选择该门店；历史业务和统计会完整保留。`;
-    if (!window.confirm(prompt)) return;
-    if (!window.CloudBasePhoneAuth?.setMasterStatus && !window.CloudBasePhoneAuth?.setStaffStatus) {
-      window.alert("门店状态服务尚未加载，请刷新页面后重试。");
-      return;
-    }
-    const buttons = [...document.querySelectorAll("[data-store-status-ref]")]
-      .filter((button) => button.dataset.storeStatusRef === String(reference));
-    buttons.forEach((button) => { button.disabled = true; });
-    try {
-      const storeId = String(store.id || "").trim();
-      if (storeId && window.CloudBasePhoneAuth.setMasterStatus) {
-        await window.CloudBasePhoneAuth.setMasterStatus({ storeId, status: next });
-      } else {
-        await window.CloudBasePhoneAuth.setStaffStatus({
-          uid: String(store.auth_uid || ""), phone: storePhone(store), status: next
-        });
-      }
-      await loadStores();
-    } catch (error) {
-      window.alert(error?.message || `${action}门店失败，请稍后重试。`);
-    } finally {
-      buttons.forEach((button) => { button.disabled = false; });
-    }
   }
 
   $("searchPeople").addEventListener("click", search);

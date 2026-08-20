@@ -104,11 +104,11 @@ v71 与 `verificationPhoto v3` 共享同一份经过权限校验的照片服务�
 
 1. 在完整 PostgreSQL migration 工具中执行 `database/migrations/039_direct_verification_photo_upload.sql`；腾讯云 SQL 编辑器则依次单独执行 `039-01`、`039-02`、`039-03`、`039-04`、`039-05`。
 2. 执行 `database/migrations/040_fix_verification_photo_commit_ambiguity.sql`；腾讯云 SQL 编辑器只需执行一次 `040-01-fix-verification-photo-commit-ambiguity.sql`。已经完成 039 的生产库不要重跑 039。
-3. 先执行迁移至 `046_teacher_face_and_experience_quotas.sql`，部署 `faceRecognition-v69.zip` 和 `staffAccount v54` 并确认 `health`；随后按既有顺序完成总部 `retireOperationAccounts()` 与 `047-01`、`047-02`。再依次执行 `048-01` 至 `048-07`，部署 `faceRecognition-v71.zip` 和 `staffAccount v54`，并分别调用 `health` 确认版本。最后验证无老师人脸的活跃登录、老师人脸补充／替换、体验额度配置、删除重配、独立充值、客户余额与退费拆分以及客户 1:1 人脸核验。总部办理必须先确认唯一 `ACTIVE` 门店，且不能提交“全部门店”。
+3. 先执行迁移至 `046_teacher_face_and_experience_quotas.sql`，部署 `faceRecognition-v69.zip` 和 `staffAccount v55` 并确认 `health`；随后按既有顺序完成总部 `retireOperationAccounts()` 与 `047-01`、`047-02`。再依次执行 `048-01` 至 `048-07`，部署 `faceRecognition-v71.zip` 和 `staffAccount v55`，并分别调用 `health` 确认版本。最后验证无老师人脸的活跃登录、老师人脸补充／替换、体验额度配置、删除重配、独立充值、客户余额与退费拆分以及客户 1:1 人脸核验。总部办理必须先确认唯一 `ACTIVE` 门店，且不能提交“全部门店”。
 4. 新建或更新名称精确为 `verificationPhoto` 的函数并部署 `verificationPhoto-v3.zip`；配置同环境服务端 Key、两个照片桶、核销照片读取／上传 TTL 和清理凭证，内存 512 MB、超时 60 秒。该函数不配置 `CUSTOMER_PHOTO_URL_TTL_SECONDS`、`VERIFICATION_FACE_EVIDENCE_TTL_MINUTES` 或任何 `FACE_*`。
 5. 调用 `verificationPhoto` 的 `health`，确认版本与全部就绪字段后，再发布当前静态前端并结束停写窗口；发布后强制刷新浏览器。
 
-如果生产库已经成功执行 039、但尚未执行 040，只需额外执行一次 040，不要重跑 037、038 或 039；本次老师功能仍必须继续执行 046、047 与 048。完成后，部署顺序简化为“046 → `faceRecognition v69`／`staffAccount v54` → 两个 `health` → 总部调用 `retireOperationAccounts` 并确认成功 → 047-01、047-02 → 048-01 至 048-07 → `faceRecognition v71`／`staffAccount v54` → 配置三个 Timer → `verificationPhoto` → 当前静态前端 → 强制刷新浏览器”。不要先创建 triggers-only Timer 后继续运行旧版本：旧函数会把 Timer 当成 `health`，不会清理或重置。
+如果生产库已经成功执行 039、但尚未执行 040，只需额外执行一次 040，不要重跑 037、038 或 039；本次老师功能仍必须继续执行 046、047 与 048。完成后，部署顺序简化为“046 → `faceRecognition v69`／`staffAccount v55` → 两个 `health` → 总部调用 `retireOperationAccounts` 并确认成功 → 047-01、047-02 → 048-01 至 048-07 → `faceRecognition v71`／`staffAccount v55` → 配置三个 Timer → `verificationPhoto` → 当前静态前端 → 强制刷新浏览器”。不要先创建 triggers-only Timer 后继续运行旧版本：旧函数会把 Timer 当成 `health`，不会清理或重置。
 
 部署后测试：
 

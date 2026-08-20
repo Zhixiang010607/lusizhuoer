@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v54";
+const FUNCTION_VERSION = "v55";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -3616,6 +3616,10 @@ async function resetTeacherExperienceQuotas(caller = null) {
 }
 
 async function setMasterStatus(caller, event = {}) {
+  // Keep this guard inside the service function as well as at the router.
+  // Store/teacher pages may expose the wrapper, but only an authenticated HQ
+  // identity is ever allowed to change a master-data status.
+  requireHq(caller);
   const teacherIdText = String(event.teacherId || "").trim();
   const storeIdText = String(event.storeId || "").trim();
   const status = String(event.status || "").toUpperCase();
@@ -3663,31 +3667,166 @@ async function setMasterStatus(caller, event = {}) {
     return { ok: true, entity: "teacher", teacherId: String(teacherId), status, noAuthAccount: true };
   }
 
-  const storeId = numericId(storeIdText, "门店编号");
+  return await setStoreMasterStatus(numericId(storeIdText, "门店编号"), status);
+}
+
+function missingCloudBaseCredential(error) {
+  const detail = cloudErrorDetails(error);
+  const text = `${detail.code} ${detail.message}`.toLowerCase();
+  return /(?:resource|user|account)[._ -]*not[._ -]*found/.test(text) ||
+    /(?:user|account).*(?:does not exist|doesn't exist|not exist)/.test(text) ||
+    /(?:invalid|illegal).*(?:uid|user.?id)/.test(text) ||
+    /(?:uid|user.?id).*(?:invalid|illegal)/.test(text) ||
+    /用户.*(?:不存在|未找到|无效)/.test(text) ||
+    /(?:不存在|未找到|无效).*用户/.test(text);
+}
+
+async function persistStoreStatusById(storeId, status) {
   const layout = await getStoreBindingLayout();
-  const rows = await executeSql(layout === "stores"
-    ? `SELECT s.id, a.auth_uid
-         FROM public.stores s LEFT JOIN public.staff_accounts a ON a.id = s.store_account_id
-        WHERE s.id = ${storeId}::bigint LIMIT 1`
-    : `SELECT s.id, a.auth_uid
-         FROM public.stores s
+  const targetStore = layout === "stores"
+    ? `SELECT store.id, store.store_account_id AS staff_account_id,
+              CASE WHEN store.store_account_id IS NULL THEN 0 ELSE 1 END AS expected_account_count,
+              (store.store_account_id IS NULL OR EXISTS (
+                SELECT 1 FROM public.staff_accounts account
+                 WHERE account.id = store.store_account_id AND account.role_code = 'store'
+              )) AS binding_valid
+         FROM public.stores store
+        WHERE store.id = ${storeId}::bigint`
+    : `SELECT store.id, MIN(assignment.staff_account_id) AS staff_account_id,
+              COUNT(assignment.staff_account_id)::integer AS expected_account_count,
+              (COUNT(assignment.staff_account_id) <= 1 AND
+               COUNT(*) FILTER (
+                 WHERE assignment.staff_account_id IS NOT NULL
+                   AND (linked_account.id IS NULL OR linked_account.role_code <> 'store')
+               ) = 0) AS binding_valid
+         FROM public.stores store
          LEFT JOIN public.staff_store_assignments assignment
-           ON assignment.store_id = s.id AND assignment.assignment_status = 'ACTIVE'
-         LEFT JOIN public.staff_accounts a ON a.id = assignment.staff_account_id
-        WHERE s.id = ${storeId}::bigint
-        ORDER BY a.id NULLS LAST
-        LIMIT 1`
+           ON assignment.store_id = store.id AND assignment.assignment_status = 'ACTIVE'
+         LEFT JOIN public.staff_accounts linked_account ON linked_account.id = assignment.staff_account_id
+        WHERE store.id = ${storeId}::bigint
+        GROUP BY store.id`;
+  const rows = await executeSql(
+    `WITH target_store AS (
+       ${targetStore}
+     ), changed_store AS (
+       UPDATE public.stores store
+          SET store_status = ${sqlText(status)}, updated_at = NOW()
+         FROM target_store target
+        WHERE store.id = target.id
+          AND target.binding_valid
+       RETURNING store.id
+     ), changed_account AS (
+       UPDATE public.staff_accounts account
+          SET account_status = ${sqlText(status)}, updated_at = NOW()
+         FROM target_store target
+        WHERE account.id = target.staff_account_id
+          AND account.role_code = 'store'
+          AND EXISTS (SELECT 1 FROM changed_store)
+       RETURNING account.id, account.auth_uid, account.phone
+     )
+     SELECT (SELECT COUNT(*) FROM target_store)::integer AS store_exists,
+            (SELECT COUNT(*) FROM changed_store)::integer AS store_count,
+            COALESCE((SELECT expected_account_count FROM target_store LIMIT 1), 0)::integer AS expected_account_count,
+            (SELECT COUNT(*) FROM changed_account)::integer AS account_count,
+            COALESCE((SELECT id::text FROM changed_account LIMIT 1), '') AS staff_account_id,
+            COALESCE((SELECT auth_uid FROM changed_account LIMIT 1), '') AS auth_uid,
+            COALESCE((SELECT phone FROM changed_account LIMIT 1), '') AS phone`
   );
-  const store = rows?.[0];
-  if (!store) fail("未找到该门店。", "NOT_FOUND");
-  if (store.auth_uid) {
-    const result = await main({ action: "setStaffStatus", uid: String(store.auth_uid), status });
-    return { ...result, entity: "store", storeId: String(storeId) };
+  const result = rows?.[0] || {};
+  if (Number(result.store_exists || 0) !== 1) fail("未找到该门店。", "NOT_FOUND");
+  if (Number(result.store_count || 0) !== 1) {
+    fail("门店绑定了无效的登录账号，状态未修改。请先核对门店与门店账号的绑定关系。", "STORE_ACCOUNT_BINDING_INVALID");
   }
-  await executeSql(
-    `UPDATE public.stores SET store_status = ${sqlText(status)}, updated_at = NOW() WHERE id = ${storeId}::bigint`
-  );
-  return { ok: true, entity: "store", storeId: String(storeId), status, noAuthAccount: true };
+  if (Number(result.account_count || 0) !== Number(result.expected_account_count || 0)) {
+    fail("门店主档与登录账号状态未能同步，状态未修改。", "STATUS_SYNC_FAILED");
+  }
+  return {
+    staffAccountId: String(result.staff_account_id || ""),
+    authUid: String(result.auth_uid || "").trim(),
+    phone: String(result.phone || "").trim()
+  };
+}
+
+async function setStoreMasterStatus(storeId, status) {
+  let persisted;
+  try {
+    // The store master and its linked PostgreSQL account change in one SQL
+    // statement. Archiving this database identity immediately removes all
+    // business authorization even if Tencent identity management is degraded.
+    persisted = await persistStoreStatusById(storeId, status);
+  } catch (error) {
+    if (["NOT_FOUND", "STORE_ACCOUNT_BINDING_INVALID", "STATUS_SYNC_FAILED"].includes(error?.code)) throw error;
+    asDatabaseError(error, "同步门店主档与登录账号状态");
+  }
+
+  const response = {
+    ok: true,
+    entity: "store",
+    storeId: String(storeId),
+    status,
+    staffAccountId: persisted.staffAccountId || undefined,
+    noAuthAccount: !persisted.authUid
+  };
+  if (!persisted.authUid) {
+    if (status === "ACTIVE") {
+      await persistStoreStatusById(storeId, "ARCHIVED");
+      fail("门店没有可恢复的 CloudBase 认证账号，业务状态已保持封存。", "STORE_AUTH_ACCOUNT_MISSING");
+    }
+    return {
+      ...response,
+      credentialStatus: "NOT_LINKED",
+      warning: undefined
+    };
+  }
+
+  try {
+    await manager().user.modifyUser({
+      uid: persisted.authUid,
+      userStatus: status === "ACTIVE" ? "ACTIVE" : "BLOCKED"
+    });
+    return { ...response, credentialStatus: status === "ACTIVE" ? "ACTIVE" : "BLOCKED" };
+  } catch (error) {
+    const missingCredential = missingCloudBaseCredential(error);
+    const cause = cloudErrorDetails(error);
+    if (status === "ARCHIVED") {
+      // PostgreSQL is the application authorization source. Do not turn a
+      // successful archive into a false UI failure merely because a legacy or
+      // stress-test auth_uid has no corresponding CloudBase user.
+      return {
+        ...response,
+        credentialStatus: missingCredential ? "MISSING" : "BLOCK_FAILED",
+        warning: missingCredential
+          ? "门店及其业务账号已封存；原认证账号不存在，无需额外禁用。"
+          : "门店及其业务账号已封存，业务登录已被后端拒绝；CloudBase 认证层禁用失败，请总部检查云函数用户管理权限。",
+        warningCode: missingCredential ? "AUTH_CREDENTIAL_MISSING" : "AUTH_BLOCK_FAILED",
+        requestId: requestIdFrom(error) || undefined,
+        causeCode: cause.code || undefined
+      };
+    }
+    try {
+      await persistStoreStatusById(storeId, "ARCHIVED");
+    } catch (compensationError) {
+      console.error("store activation compensation failed", {
+        storeId,
+        code: compensationError?.code || undefined,
+        message: compensationError?.message || undefined
+      });
+      stageFail(
+        "AUTH_ACTIVATE_COMPENSATION",
+        "CloudBase 登录账号激活失败，且门店业务状态无法自动重新封存。请总部立即人工检查。",
+        "AUTH_ACTIVATION_COMPENSATION_FAILED",
+        error
+      );
+    }
+    stageFail(
+      "AUTH_ACTIVATE",
+      missingCredential
+        ? "原 CloudBase 认证账号不存在，门店业务状态已重新封存。"
+        : "CloudBase 登录账号激活失败，门店业务状态已重新封存。",
+      missingCredential ? "AUTH_CREDENTIAL_MISSING" : "AUTH_ACTIVATION_FAILED",
+      error
+    );
+  }
 }
 
 function hqDashboardRow(row) {

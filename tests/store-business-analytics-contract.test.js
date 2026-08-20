@@ -13,6 +13,8 @@ const analysis = read("store-analysis.js");
 const analyticsData = read("store-analytics-data.js");
 const exporter = read("store-dashboard-export.js");
 const orderExporter = read("order-export.js");
+const storeManagementHtml = read("store-management.html");
+const storeManagement = read("store-management.js");
 const cloud = read("cloudfunctions/faceRecognition/index.js");
 const auth = read("auth-ui.js");
 const css = read("styles.css");
@@ -28,7 +30,8 @@ assert.doesNotMatch(html, /id="storeAnalyticsLinks"|class="store-analytics-links
 assert.doesNotMatch(html, /id="storeTeachers"|id="storeTeacherBody"|老师统计|各老师核销数据/, "store detail removes the teacher summary section");
 assert.doesNotMatch(customerSection, /<th>最近业务<\/th>|<th>状态<\/th>/, "active customer table removes time and status columns");
 includes(html, '<th>剩余次数</th></tr></thead><tbody id="storeCustomerBody"', "customer table ends with remaining count");
-includes(html, 'store-detail.js?v=0.16.2', "store detail script cache bust");
+includes(html, 'store-detail.js?v=0.16.3', "store detail script cache bust");
+includes(html, 'styles.css?v=0.15.49', "store detail stylesheet cache bust");
 includes(html, '<th>项目</th><th>充值</th><th>付费核销</th><th>体验</th><th>退费拆分</th><th>余额核对</th><th>当前可用余额</th>', "project lifetime table exposes the reconciled balance columns");
 const projectSection = html.slice(html.indexOf('id="storeProjects"'), html.indexOf('</section>', html.indexOf('id="storeProjects"')));
 assert.doesNotMatch(projectSection, /<th>状态<\/th>|有效充值|有效核销/, "project table removes entity status and period-style wording");
@@ -157,7 +160,7 @@ includes(cloud, "SELECT event.teacher_id", "historical teachers with period even
 const analyticsEventSource = cloud.slice(cloud.indexOf("function storeAnalyticsEventCte"), cloud.indexOf("function storeAnalyticsCounts"));
 assert.doesNotMatch(analyticsEventSource.slice(analyticsEventSource.indexOf("business_events AS")), /product_status|teacher_status|store_status/, "period event membership is independent of entity status");
 
-includes(html, 'id="exportStoreAnalyticsPdf"', "overview PDF export");
+assert.doesNotMatch(html, /exportStoreAnalyticsPdf|store-dashboard-export\.js|order-export\.js/, "store overview does not offer or load PDF export");
 includes(analysisHtml, 'id="exportAnalysisPdf"', "metric PDF export");
 includes(exporter, "for (let index = 0; index < Math.max(products.length, 1); index += 4)", "summary table limits projects per page");
 includes(exporter, "const pageSize = 24", "long tables paginate vertically");
@@ -171,5 +174,23 @@ includes(orderExporter, "exportCanvasPagesPdf", "PDF encoder accepts generated t
 includes(auth, '"store-analysis.html"', "store analysis route is authorized");
 includes(analysisHtml, 'auth-ui.js?v=0.19.0', "analysis route loads current auth isolation");
 includes(cloud, 'if (action === "getStoreBusinessAnalytics")', "cloud action dispatched");
+
+includes(html, 'id="storeStatusAction"', "store homepage owns the status action");
+includes(html, 'id="storeStatusMessage"', "store status operation has inline feedback");
+includes(detail, 'state.sessionRole === "hq"', "store status action is visible and callable only for HQ");
+includes(detail, 'setMasterStatus({ storeId, status: next })', "store homepage uses the master status endpoint");
+includes(detail, 'String(result?.status || "").toUpperCase() !== next', "store homepage requires an acknowledged persisted status");
+includes(detail, 'AUTH_ARCHIVE_FAILED', "store archive failure explains CloudBase credential permission failures");
+includes(detail, 'result?.warning ? "warning" : "success"', "store archive keeps a successful database archive visible while surfacing credential warnings");
+includes(css, '.status.store-status-archived', "archived store header gets a dedicated state");
+assert.match(css, /\.store-status-badge\.archived\s*\{\s*color:\s*#a33131;\s*background:\s*#fdecec;/, "store archive badges use the customer archive palette");
+assert.match(css, /\.teacher-status-badge\.archived,[\s\S]{0,80}\.store-status-badge\.archived\s*\{\s*color:\s*#a33131;\s*background:\s*#fdecec;/, "teacher and store directory archive badges share the customer archive palette");
+
+includes(storeManagementHtml, 'store-management.js?v=0.14.26', "store directory script cache bust");
+includes(storeManagementHtml, 'styles.css?v=0.15.49', "store directory stylesheet cache bust");
+includes(storeManagement, 'href="store-detail.html?storeId=${encodeURIComponent(reference)}"', "store directory opens the selected store homepage");
+includes(storeManagement, '>进入主页</a>', "store directory action only opens the selected store homepage");
+assert.doesNotMatch(storeManagement, /data-store-status-ref|setMasterStatus|setStaffStatus|toggleStoreStatus/, "store directory cannot change store status directly");
+assert.doesNotMatch(storeManagementHtml, /封存门店账号|激活门店账号/, "store directory contains no direct archive action");
 
 console.log("store business analytics contract: ok");

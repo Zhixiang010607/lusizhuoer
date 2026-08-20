@@ -74,13 +74,15 @@ assert(/@media \(min-width:\s*981px\)[\s\S]*?store-business-main[\s\S]*?min-heig
 for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
   if (!html.includes("styles.css")) continue;
-  const expectedStyleVersion = ["store-detail.html", "store-analysis.html", "project-detail.html", "project-management.html", "project-create.html"].includes(file)
+  const expectedStyleVersion = ["store-detail.html", "store-management.html", "teacher-management.html", "staff-detail.html", "teacher-detail.html"].includes(file)
+    ? "0.15.49"
+    : ["store-analysis.html", "project-detail.html", "project-management.html", "project-create.html"].includes(file)
     ? "0.15.48"
     : file === "verification-detail.html"
     ? "0.15.48"
     : file === "recharge-detail.html"
       ? "0.15.48"
-      : ["staff-detail.html", "teacher-create.html", "teacher-detail.html"].includes(file)
+      : ["teacher-create.html"].includes(file)
         ? "0.15.47"
     : ["customer-query.html", "recharge-query.html", "verification-query.html", "recharge-review.html", "refund-review.html", "verification-review.html"].includes(file)
         ? "0.15.48"

@@ -488,7 +488,7 @@
     async setMasterStatus({ teacherId = "", storeId = "", status }) {
       return callStaffAccount(
         { action: "setMasterStatus", teacherId, storeId, status },
-        "老师或门店状态更新失败"
+        storeId ? "门店状态更新失败" : "老师状态更新失败"
       );
     },
     async listStaff(role) {

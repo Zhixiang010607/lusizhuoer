@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>门店全局视图</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.48">
+  <link rel="stylesheet" href="styles.css?v=0.15.49">
 </head>
 <body data-store-dashboard>
   <aside class="side-project-bar" aria-label="项目栏">
@@ -18,17 +18,14 @@
   </aside>
   <header class="topbar">
     <div><p class="eyebrow">STORE DASHBOARD</p><h1>门店全局视图</h1><p class="subtitle">业务汇总与门店资料</p></div>
-    <div class="header-actions"><a class="back-link" href="store-management.html">← 返回门店管理</a><button id="storeStatusAction" class="danger-button" type="button" hidden></button><div id="storeHeaderStatus" class="status"><span></span>正在读取状态</div></div>
+    <div class="header-actions"><a class="back-link" href="store-management.html">← 返回门店管理</a><div class="store-status-control"><button id="storeStatusAction" class="danger-button" type="button" hidden>封存门店</button><p id="storeStatusMessage" class="store-status-message" aria-live="polite"></p></div><div id="storeHeaderStatus" class="status"><span></span>正在读取状态</div></div>
   </header>
   <main class="detail-page store-dashboard-page">
     <section id="storeHero" class="panel profile-hero"></section>
     <section id="storeBasic" class="panel detail-section"><div class="panel-heading"><div><h2>基础资料</h2><p>门店身份、地址、账号和状态</p></div><span class="badge">门店档案</span></div><div id="storeBasicGrid" class="detail-info-grid"></div></section>
     <nav class="detail-anchor-nav"><a href="#storeBusinessOverview">业务汇总</a><a href="#storeProjects">项目统计</a><a href="#storeCustomers">客户</a></nav>
     <section id="storeBusinessOverview" class="panel detail-section store-business-overview">
-      <div class="panel-heading store-overview-heading">
-        <div><h2>业务汇总</h2><p id="storeAnalyticsScope">默认统计今日</p></div>
-        <button id="exportStoreAnalyticsPdf" class="secondary-action" type="button" disabled>导出 PDF</button>
-      </div>
+      <div class="panel-heading store-overview-heading"><div><h2>业务汇总</h2><p id="storeAnalyticsScope">默认统计今日</p></div></div>
       <div class="store-analytics-toolbar">
         <label><span>时间周期</span><select id="storeAnalyticsPeriod"><option value="today" selected>今日</option><option value="last7">近 7 天</option><option value="month">本月</option><option value="custom">自定义</option></select></label>
         <label><span>开始日期</span><input id="storeAnalyticsStart" type="date"></label>
@@ -47,6 +44,6 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.18.0"></script><script src="datetime.js?v=0.1.2"></script>
-  <script src="store-analytics-data.js?v=0.1.0"></script><script src="order-export.js?v=0.1.6"></script><script src="store-dashboard-export.js?v=0.1.0"></script><script src="store-detail.js?v=0.16.2"></script><script src="auth-ui.js?v=0.19.0"></script>
+  <script src="store-analytics-data.js?v=0.1.0"></script><script src="store-detail.js?v=0.16.3"></script><script src="auth-ui.js?v=0.19.0"></script>
 </body>
 </html>

@@ -83,6 +83,16 @@ h2 { margin-bottom: 4px; font-size: 16px; }
 .subtitle { margin-bottom: 0; color: #c8d8ea; font-size: 11px; }
 .status { display: flex; align-items: center; gap: 8px; padding: 9px 14px; border: 1px solid #ffffff38; border-radius: 999px; background: #ffffff12; }
 .status span { width: 8px; height: 8px; border-radius: 50%; background: #54e4b8; box-shadow: 0 0 0 5px #54e42c1f; }
+.status.store-status-archived { color: #a33131; border-color: #f3b9bd; background: #fdecec; }
+.status.store-status-archived span { background: #bd2c2c; box-shadow: 0 0 0 5px #bd2c2c20; }
+.store-status-control { display: grid; justify-items: end; gap: 5px; }
+.store-status-control > button { min-width: 92px; }
+.store-status-message { max-width: 390px; margin: 0; color: #dbeafe; font-size: 10px; line-height: 1.4; text-align: right; }
+.store-status-message:empty { display: none; }
+.store-status-message[data-tone="success"] { color: #a7f3d0; }
+.store-status-message[data-tone="error"] { padding: 5px 8px; border-radius: 7px; color: #7f1d1d; background: #fee2e2; }
+.store-status-message[data-tone="warning"] { padding: 5px 8px; border-radius: 7px; color: #713f12; background: #fef3c7; }
+.store-status-message[data-tone="pending"] { color: #dbeafe; }
 main { width: min(1480px, calc(100% - clamp(20px, 3vw, 40px))); margin: clamp(16px, 2vw, 24px) auto clamp(34px, 5vw, 50px); }
 .panel, .chart-card, .table-card { min-width: 0; }
 .table-scroll { max-width: 100%; -webkit-overflow-scrolling: touch; }
@@ -510,6 +520,7 @@ button.metric-card:hover { transform: translateY(-2px); box-shadow: 0 14px 32px 
 .store-manual-lookup .toolbar-actions button { min-width: 86px; }
 .toolbar-actions { display: flex; gap: 9px; justify-content: flex-end; }
 .danger-button { background: #bd2c2c; }
+.status-activate-button { background: #08765f; }
 .management-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 16px 0; }
 .info-card { padding: 11px; }
 .info-card span { display: block; margin-bottom: 8px; color: var(--muted); font-size: 12px; }
@@ -554,6 +565,8 @@ dialog::backdrop { background: #0b142a88; backdrop-filter: blur(3px); }
 .profile-type { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .08em; }
 .profile-hero h2 { margin: 2px 0; font-size: 19px; }
 .profile-hero p { margin: 0; color: var(--muted); }
+.store-profile-title { display: flex; align-items: center; gap: 8px; }
+.store-profile-title h2 { min-width: 0; }
 .customer-profile-main { display: grid; gap: 16px; }
 .customer-profile-hero { display: flex; align-items: center; gap: 12px; padding: 14px; }
 .customer-profile-hero h2 { margin: 2px 0; font-size: 20px; }
@@ -1266,10 +1279,10 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .store-directory-panel .panel-heading { margin-bottom: 10px; }
 .store-directory-window { height: 260px; min-height: 260px; max-height: 260px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
 .store-directory-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-.store-directory-table .store-name-column { width: 20%; }
+.store-directory-table .store-name-column { width: 19%; }
 .store-directory-table .store-contact-column { width: 12%; }
 .store-directory-table .store-phone-column { width: 15%; }
-.store-directory-table .store-address-column { width: 30%; }
+.store-directory-table .store-address-column { width: 31%; }
 .store-directory-table .store-status-column { width: 10%; }
 .store-directory-table .store-action-column { width: 13%; }
 .store-directory-table th,
@@ -1278,6 +1291,7 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .store-directory-table tbody tr:last-child td { border-bottom: 0; }
 .store-directory-table tbody tr:hover td { background: #f8fbff; }
 .store-global-link { font-weight: 750; }
+.store-open-link { min-height: 28px; padding: 5px 9px; white-space: nowrap; }
 .store-phone-cell { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .store-directory-table td.store-directory-empty { height: 200px; color: var(--muted); text-align: center !important; }
 .store-directory-table td.store-directory-empty.error-text { color: var(--danger); }
@@ -1302,7 +1316,7 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .teacher-status-badge.active,
 .store-status-badge.active { color: #067a5c; background: #e7f8f2; }
 .teacher-status-badge.archived,
-.store-status-badge.archived { color: #7a4b00; background: #fff3d6; }
+.store-status-badge.archived { color: #a33131; background: #fdecec; }
 .teacher-directory-table td.teacher-directory-empty { height: 200px; color: var(--muted); text-align: center !important; }
 .teacher-directory-table td.teacher-directory-empty.error-text { color: var(--danger); }
 @media (max-width: 1000px) and (min-width: 761px) {
@@ -2056,7 +2070,7 @@ body[data-store-analysis] {
 .teacher-experience-table-card .panel-heading { margin: 0; }
 .teacher-experience-table-card td small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
 .teacher-experience-empty { min-height: 84px; color: var(--muted); text-align: center !important; }
-.teacher-experience-status { display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 999px; color: #7a4b00; background: #fff3d6; font-size: 11px; font-weight: 800; white-space: nowrap; }
+.teacher-experience-status { display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 999px; color: #a33131; background: #fdecec; font-size: 11px; font-weight: 800; white-space: nowrap; }
 .teacher-experience-recharge-button, .teacher-experience-link { min-height: 30px; padding: 5px 9px; font-size: 11px; white-space: nowrap; }
 .teacher-experience-panel .form-message[data-tone="success"] { color: #067a5c; }
 .teacher-experience-panel .form-message[data-tone="error"] { color: #b42318; }
@@ -2154,7 +2168,7 @@ body[data-staff-detail] .teacher-profile-name-row { display: flex; align-items: 
 body[data-staff-detail] .teacher-profile-name-row h2 { margin: 0; color: #132642; font-size: 23px; letter-spacing: -.025em; }
 body[data-staff-detail] .teacher-profile-status { display: inline-flex; align-items: center; min-height: 25px; padding: 4px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; }
 body[data-staff-detail] .teacher-profile-status.active { color: #08745b; background: #dcf8ee; }
-body[data-staff-detail] .teacher-profile-status.archived { color: #8b4f00; background: #fff0d3; }
+body[data-staff-detail] .teacher-profile-status.archived { color: #a33131; background: #fdecec; }
 body[data-staff-detail] .teacher-profile-description { margin: 7px 0 13px; color: #50647d; font-size: 12px; line-height: 1.55; }
 body[data-staff-detail] .teacher-profile-meta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0; }
 body[data-staff-detail] .teacher-profile-meta > div { min-width: 0; padding: 9px 10px; border: 1px solid #e1e9f3; border-radius: 10px; background: #ffffffbd; }
@@ -2245,7 +2259,7 @@ body[data-staff-detail] .teacher-experience-recharge-button:hover { background: 
 body[data-staff-detail] .teacher-experience-delete-button { min-height: 38px; padding: 8px 10px; border: 1px solid #e4c5bd; border-radius: 8px; color: #9c3c31; background: #fff8f7; font-size: 11px; font-weight: 800; white-space: nowrap; }
 body[data-staff-detail] .teacher-experience-delete-button:hover:not(:disabled) { border-color: #d8978d; color: #7f291f; background: #ffefed; }
 body[data-staff-detail] .teacher-experience-delete-button:disabled { cursor: wait; opacity: .66; }
-body[data-staff-detail] .teacher-experience-status { min-height: 30px; padding: 6px 9px; color: #855300; background: #fff1d7; font-size: 10px; }
+body[data-staff-detail] .teacher-experience-status { min-height: 30px; padding: 6px 9px; color: #a33131; background: #fdecec; font-size: 10px; }
 body[data-staff-detail] .teacher-experience-action-stack { display: grid; gap: 14px; }
 body[data-staff-detail] .teacher-experience-config,
 body[data-staff-detail] .teacher-experience-recharge { display: grid; grid-template-columns: 1fr; gap: 16px; padding: 20px; border: 1px solid #cfe0f5; border-radius: 15px; background: linear-gradient(145deg, #f3f8ff, #fff); }
