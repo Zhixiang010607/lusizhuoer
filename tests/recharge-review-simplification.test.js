@@ -67,7 +67,7 @@ assert.match(authUi, /href="refund-review\.html">退费审核/);
 assert.match(queryCloud, /\["ALL", "PENDING", "APPROVED", "REJECTED", "CLOSED"\]/);
 assert.match(queryCloud, /\["REJECTED", "CLOSED"\]\.includes\(statusCategory\)/);
 assert.match(queryCloud, /rejected: Number\(summary\.rejected \|\| 0\)/);
-assert.match(accountCloud, /const FUNCTION_VERSION = "v63"/);
+assert.match(accountCloud, /const FUNCTION_VERSION = "v64"/);
 assert.match(accountCloud, /const ORDER_VOID_APPLICATIONS_ENABLED = false/);
 assert.doesNotMatch(accountCloud, /applicationType: "NEW"/);
 assert.match(accountCloud, /"ORDER_VOID_DISABLED"/);

@@ -554,19 +554,28 @@ function newPersonReadbackRuntime(delegated) {
   // produce a success message: it also needs the backend's explicit success,
   // retained-photo proof, and final active teacher/account states.
   {
-    const provisionCall = teacherCreateSource.indexOf("CloudBasePhoneAuth.provisionTeacherWithFace");
+    const proofStart = teacherCreateSource.indexOf("function teacherProvisionProof");
+    const proofEnd = teacherCreateSource.indexOf("function showTeacherProvisionProgress", proofStart);
+    const proofGuard = teacherCreateSource.slice(proofStart, proofEnd);
+    const provisionCall = teacherCreateSource.indexOf("provisionTeacherWithBackgroundPolling(Object.freeze(provisionInput), metadata)");
     const successMessage = teacherCreateSource.indexOf("setMessage(`创建成功", provisionCall);
-    assert.ok(provisionCall >= 0 && successMessage > provisionCall,
+    assert.ok(proofStart >= 0 && proofEnd > proofStart && provisionCall >= 0 && successMessage > provisionCall,
       "teacher-create success boundary must remain auditable");
-    const guard = teacherCreateSource.slice(provisionCall, successMessage);
-    assert.match(guard, /result\?\.ok|result\.ok/,
+    assert.match(proofGuard, /result\?\.ok|result\.ok/,
       "teacher-create must require the backend's explicit ok=true proof");
-    assert.match(guard, /facePhotoReady|face_photo_ready/,
+    assert.match(proofGuard, /result\?\.resultReadOnly === true/,
+      "teacher-create must require proof from the non-mutating result endpoint");
+    assert.match(proofGuard, /readbackConfirmed === true[\s\S]*verification\.complete === true/,
+      "teacher-create must require the server's complete authoritative readback");
+    assert.match(proofGuard, /facePhotoReady|face_photo_ready/,
       "teacher-create must require the retained private-photo proof");
-    assert.match(guard, /teacherStatus|teacher_status/,
+    assert.match(proofGuard, /teacherStatus|teacher_status/,
       "teacher-create must require the final ACTIVE teacher master state");
-    assert.match(guard, /accountStatus|account_status|credentialStatus/,
+    assert.match(proofGuard, /accountStatus|account_status|credentialStatus/,
       "teacher-create must require the final ACTIVE business/login account state");
+    const successGuard = teacherCreateSource.slice(provisionCall, successMessage);
+    assert.match(successGuard, /const proof = teacherProvisionProof\(result\)[\s\S]*if \(!proof\)[\s\S]*不能视为创建成功/,
+      "the visible success message must remain after the strict proof predicate");
   }
 
   console.log("teacher face remote readback contract: PASS");

@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v63";
+const FUNCTION_VERSION = "v64";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -45,7 +45,7 @@ const TEACHER_AUTH_CREATE_READBACK_DELAYS_MS = Object.freeze([
 const TEACHER_AUTH_SAME_REQUEST_RETRY_SECONDS = 2;
 // Legacy v59-v62 rows may already be in an Auth-only CLEANUP_PENDING state.
 // Retain their 90-second reconciliation fence until those deployed rows have
-// drained; v63 ambiguities stay RUNNING and use same-request resume instead.
+// drained; v64 ambiguities stay RUNNING and use same-request resume instead.
 const TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS = 90;
 // faceRecognition is deployed with a 90-second platform timeout. A timed-out
 // SDK invocation can therefore keep running after this function receives its
@@ -158,9 +158,19 @@ function teacherFaceOwnerTokenHash(ownerToken) {
   return crypto.createHash("sha256").update(String(ownerToken), "utf8").digest("hex");
 }
 
+function teacherProvisionPayloadSecretDigest(password) {
+  return crypto.createHash("sha256").update(String(password), "utf8").digest("hex");
+}
+
+// Keep the owner-token version stable across v63 -> v64.  Existing v63 rows
+// must remain resumable by the exact same request after the UI switches to the
+// v64 begin/worker/status protocol.
 const TEACHER_FACE_SAME_REQUEST_OWNER_VERSION = "teacher-face-owner-v63";
-const TEACHER_PROVISION_INVOCATION_ACTIVE_PREFIX = "V63_INVOCATION_ACTIVE:";
-const TEACHER_PROVISION_AUTH_RETRY_READY = "V63_AUTH_RETRY_READY";
+const TEACHER_PROVISION_V63_INVOCATION_ACTIVE_PREFIX = "V63_INVOCATION_ACTIVE:";
+const TEACHER_PROVISION_INVOCATION_ACTIVE_PREFIX = "V64_INVOCATION_ACTIVE:";
+const TEACHER_PROVISION_V63_AUTH_RETRY_READY = "V63_AUTH_RETRY_READY";
+const TEACHER_PROVISION_WORKER_READY = "V64_WORKER_READY";
+const TEACHER_PROVISION_AUTH_RETRY_READY = TEACHER_PROVISION_WORKER_READY;
 
 function teacherFaceSameRequestOwnerToken({ operationType, clientRequestId, phone,
   teacherName, imageDigest, imageBytes, faceGroupId, photoBucketId, actorStaffId,
@@ -3494,15 +3504,47 @@ async function assertTeacherFaceOperationLease(operation, allowedStatuses) {
   return row;
 }
 
+function teacherFaceOperationImageMetadata(image, suppliedDigest = "", suppliedBytes = 0) {
+  if (image?.buffer) {
+    return {
+      imageDigest: crypto.createHash("sha256").update(image.buffer).digest("hex"),
+      imageBytes: image.buffer.length
+    };
+  }
+  const imageDigest = String(suppliedDigest || "").trim().toLowerCase();
+  const imageBytes = Number(suppliedBytes);
+  if (!/^[a-f0-9]{64}$/.test(imageDigest)
+      || !Number.isSafeInteger(imageBytes) || imageBytes < 4
+      || imageBytes > TEACHER_FACE_MAX_BYTES) {
+    fail("老师人脸照片摘要或字节数无效。", "TEACHER_FACE_IMAGE_METADATA_INVALID");
+  }
+  return { imageDigest, imageBytes };
+}
+
+function teacherProvisionInvocationActive(errorCode) {
+  const code = String(errorCode || "");
+  return code.startsWith(TEACHER_PROVISION_INVOCATION_ACTIVE_PREFIX)
+    || code.startsWith(TEACHER_PROVISION_V63_INVOCATION_ACTIVE_PREFIX);
+}
+
+function teacherProvisionWorkerReady(errorCode) {
+  return [TEACHER_PROVISION_WORKER_READY, TEACHER_PROVISION_V63_AUTH_RETRY_READY]
+    .includes(String(errorCode || ""));
+}
+
 async function acquireTeacherFaceOperation({ operationType, clientRequestId, phone,
-  teacherName, image, actorStaffId, sameRequestPayloadSecretDigest = "" }) {
-  const imageDigest = crypto.createHash("sha256").update(image.buffer).digest("hex");
+  teacherName, image = null, imageDigest: suppliedImageDigest = "",
+  imageBytes: suppliedImageBytes = 0, actorStaffId,
+  sameRequestPayloadSecretDigest = "", allowCleanTerminal = false }) {
+  const { imageDigest, imageBytes } = teacherFaceOperationImageMetadata(
+    image, suppliedImageDigest, suppliedImageBytes
+  );
   const faceGroupId = teacherFaceGroupId();
   const photoBucketId = teacherFacePhotoBucketId();
   const ownerToken = operationType === "PROVISION" && sameRequestPayloadSecretDigest
     ? teacherFaceSameRequestOwnerToken({
       operationType, clientRequestId, phone, teacherName,
-      imageDigest, imageBytes: image.buffer.length, faceGroupId, photoBucketId,
+      imageDigest, imageBytes, faceGroupId, photoBucketId,
       actorStaffId, payloadSecretDigest: sameRequestPayloadSecretDigest
     })
     : crypto.randomBytes(32).toString("hex");
@@ -3512,7 +3554,7 @@ async function acquireTeacherFaceOperation({ operationType, clientRequestId, pho
     rows = await executeSql(
       `SELECT * FROM public.acquire_teacher_face_operation(
         ${sqlText(operationType)}, ${sqlText(clientRequestId)}, ${sqlText(phone)},
-        ${sqlText(teacherName)}, ${sqlText(imageDigest)}, ${image.buffer.length},
+        ${sqlText(teacherName)}, ${sqlText(imageDigest)}, ${imageBytes},
         ${sqlText(faceGroupId)}, ${sqlText(photoBucketId)},
         ${numericId(actorStaffId, "总部账号")}::bigint,
         ${sqlText(ownerTokenHash)}, ${TEACHER_FACE_OPERATION_LEASE_SECONDS})`
@@ -3528,7 +3570,7 @@ async function acquireTeacherFaceOperation({ operationType, clientRequestId, pho
           AND operation.phone = ${sqlText(phone)}
           AND operation.teacher_name = ${sqlText(teacherName)}
            AND operation.image_sha256 = ${sqlText(imageDigest)}
-           AND operation.image_bytes = ${image.buffer.length}
+            AND operation.image_bytes = ${imageBytes}
            AND (operation.operation_status = 'SUCCEEDED' OR (
              operation.face_group_id = ${sqlText(faceGroupId)}
              AND operation.photo_bucket_id = ${sqlText(photoBucketId)}
@@ -3550,6 +3592,14 @@ async function acquireTeacherFaceOperation({ operationType, clientRequestId, pho
   if (!acquired) fail("老师人脸操作租约未返回结果。", "TEACHER_FACE_OPERATION_LEASE_FAILED");
   if (!databaseBoolean(acquired.acquired)) {
     const status = String(acquired.operation_status || "");
+    if (allowCleanTerminal && status === "CANCELLED" && acquired.cleanup_completed_at) {
+      return {
+        id: String(acquired.operation_id), ownerToken, ownerTokenHash,
+        leaseGeneration: Number(acquired.lease_generation), status,
+        imageDigest, imageBytes, cleanupComplete: true,
+        faceGroupId, photoBucketId
+      };
+    }
     fail(status === "RUNNING"
       ? "相同请求仍在处理中，请勿重复提交。"
       : status === "SUCCEEDED"
@@ -3566,7 +3616,7 @@ async function acquireTeacherFaceOperation({ operationType, clientRequestId, pho
     leaseGeneration: Number(acquired.lease_generation),
     status: String(acquired.operation_status || ""),
     imageDigest,
-    imageBytes: image.buffer.length
+    imageBytes
   };
   // A fresh PROVISION immediately performs the single-invocation CAS below.
   // That CAS independently reads and verifies the same row before any Auth,
@@ -3607,7 +3657,10 @@ async function claimTeacherProvisionInvocation(operation) {
         AND target.owner_token_sha256 = ${sqlText(operation.ownerTokenHash)}
         AND target.lease_generation = ${previousGeneration}::bigint
         AND target.lease_expires_at > CLOCK_TIMESTAMP()
-        AND COALESCE(target.error_code, '') IN ('', ${sqlText(TEACHER_PROVISION_AUTH_RETRY_READY)})
+        AND COALESCE(target.error_code, '') IN (
+          '', ${sqlText(TEACHER_PROVISION_AUTH_RETRY_READY)},
+          ${sqlText(TEACHER_PROVISION_V63_AUTH_RETRY_READY)}
+        )
       RETURNING target.lease_generation`
     );
   } catch (error) {
@@ -3625,7 +3678,7 @@ async function claimTeacherProvisionInvocation(operation) {
   if (!claimed) {
     const invocationInProgress = String(current?.operation_status || "") === "RUNNING"
       && String(current?.owner_token_sha256 || "") === String(operation.ownerTokenHash)
-      && String(current?.error_code || "").startsWith(TEACHER_PROVISION_INVOCATION_ACTIVE_PREFIX);
+      && teacherProvisionInvocationActive(current?.error_code);
     const error = new Error(
       invocationInProgress
         ? "同一老师创建请求正在另一个云函数实例中处理；本次没有启动第二条创建流程。"
@@ -3674,6 +3727,94 @@ async function markTeacherProvisionAuthRetryReady(operation) {
   }
   operation.invocationCode = "";
   return operation;
+}
+
+async function markTeacherProvisionWorkerReady(operation) {
+  if (String(operation?.status || "") !== "RUNNING") {
+    return operation?.row || null;
+  }
+  let writeError = null;
+  try {
+    await executeSql(
+      `UPDATE public.teacher_face_operations AS target
+          SET error_code = ${sqlText(TEACHER_PROVISION_WORKER_READY)},
+              error_message = 'Teacher provisioning worker is ready to start.',
+              updated_at = CLOCK_TIMESTAMP()
+        WHERE target.id = ${numericId(operation.id, "老师人脸操作")}::bigint
+          AND target.operation_type = 'PROVISION'
+          AND target.operation_status = 'RUNNING'
+          AND target.owner_token_sha256 = ${sqlText(operation.ownerTokenHash)}
+          AND target.lease_generation = ${numericId(operation.leaseGeneration, "老师人脸租约版本")}::bigint
+          AND target.lease_expires_at > CLOCK_TIMESTAMP()
+          AND COALESCE(target.error_code, '') IN (
+            '', ${sqlText(TEACHER_PROVISION_WORKER_READY)},
+            ${sqlText(TEACHER_PROVISION_V63_AUTH_RETRY_READY)}
+          )`
+    );
+  } catch (error) {
+    writeError = error;
+  }
+  const row = await readTeacherFaceOperation(operation.id);
+  const sameOperation = row
+    && String(row.operation_status || "") === "RUNNING"
+    && String(row.owner_token_sha256 || "") === String(operation.ownerTokenHash)
+    && String(row.face_group_id || "") === String(operation.faceGroupId || "")
+    && String(row.photo_bucket_id || "") === String(operation.photoBucketId || "");
+  if (!sameOperation) {
+    if (writeError) throw writeError;
+    fail("老师创建后台任务未能进入可启动状态。", "TEACHER_FACE_OPERATION_LEASE_LOST");
+  }
+  operation.leaseGeneration = Number(row.lease_generation);
+  operation.status = String(row.operation_status || "");
+  operation.row = row;
+  return row;
+}
+
+async function releaseTeacherProvisionCleanupLease(operation) {
+  if (String(operation?.status || "") !== "CLEANUP_PENDING") return operation?.row || null;
+  await executeSql(
+    `UPDATE public.teacher_face_operations AS target
+        SET lease_expires_at = LEAST(target.lease_expires_at, CLOCK_TIMESTAMP()),
+            updated_at = CLOCK_TIMESTAMP()
+      WHERE target.id = ${numericId(operation.id, "老师人脸操作")}::bigint
+        AND target.operation_type = 'PROVISION'
+        AND target.operation_status = 'CLEANUP_PENDING'
+        AND target.owner_token_sha256 = ${sqlText(operation.ownerTokenHash)}
+        AND target.lease_generation = ${numericId(operation.leaseGeneration, "老师人脸租约版本")}::bigint`
+  );
+  const row = await readTeacherFaceOperation(operation.id);
+  operation.row = row;
+  return row;
+}
+
+function teacherProvisionOperationStatusPayload(row) {
+  const status = String(row?.operation_status || "");
+  const errorCode = String(row?.error_code || "");
+  const cleanupComplete = Boolean(row?.cleanup_completed_at);
+  const active = status === "RUNNING" && teacherProvisionInvocationActive(errorCode);
+  const ready = status === "RUNNING"
+    && (!errorCode || teacherProvisionWorkerReady(errorCode));
+  let stage = status || "UNKNOWN";
+  if (status === "SUCCEEDED") stage = "SUCCEEDED";
+  else if (status === "CANCELLED") stage = cleanupComplete ? "CANCELLED" : "CLEANUP";
+  else if (status === "CLEANUP_PENDING") stage = "CLEANUP";
+  else if (active) stage = "WORKER_RUNNING";
+  else if (ready) stage = "READY";
+  else if (status === "RUNNING") stage = "WORKER_RUNNING";
+  const terminal = status === "SUCCEEDED" || (status === "CANCELLED" && cleanupComplete);
+  return {
+    operationId: String(row?.operation_id || row?.id || ""),
+    clientRequestId: String(row?.client_request_id || ""),
+    status,
+    stage,
+    workerReady: ready,
+    retrySameRequest: ready,
+    cleanupComplete,
+    retryAllowed: status === "CANCELLED" && cleanupComplete,
+    retryAfterSeconds: ready || terminal
+      ? 0
+      : Math.max(1, teacherOperationLeaseRetryAfterSeconds(row))
+  };
 }
 
 async function takeoverTeacherFaceOperationCleanup(operationId) {
@@ -4556,38 +4697,244 @@ async function getTeacherFaceOperationStatus(caller, event = {}) {
   requireHq(caller);
   await requireTeacherFaceOperationSchema();
   const operationId = numericId(event.operationId, "老师人脸操作");
-  let row = await readTeacherFaceOperation(operationId);
+  const row = await readTeacherFaceOperation(operationId);
   if (!row) fail("未找到老师人脸操作。", "NOT_FOUND");
-  if (!row.cleanup_completed_at && String(row.operation_status) !== "SUCCEEDED"
-      && teacherAuthOwnershipUncertaintyOperation(row)) {
-    row = await makeTeacherAuthOwnershipUncertaintyCleanupEligible(operationId);
+  // v64 status is always a strict read, including callers that omit the
+  // explicit readOnly flag. Polling must never shorten a lease, run a worker,
+  // take over cleanup or call any remote service. Long work belongs to the
+  // fire-and-forget worker; compensation belongs to the trusted Timer or the
+  // explicit reconcileTeacherFaceOperation action.
+  return teacherProvisionOperationStatusPayload(row);
+}
+
+async function beginTeacherProvisionWithFace(caller, event = {}) {
+  await requireTeacherFaceSchema();
+  await requireTeacherExperienceFaceSubjectSchema();
+  await requireTeacherFaceOperationSchema();
+  const staffName = String(event.staffName || "").trim();
+  const phone = validatePhone(event.phone);
+  const password = validatePassword(event.initialPassword);
+  const clientRequestId = teacherFaceProvisionRequestId(event.clientRequestId);
+  if (!staffName || staffName.length > 100) {
+    fail("请填写不超过 100 个字符的老师姓名。", "BAD_REQUEST");
   }
-  if (!row.cleanup_completed_at && String(row.operation_status) !== "SUCCEEDED"
-      && teacherAuthOwnershipUncertaintyOperation(row)
-      && teacherOperationLeaseRetryAfterSeconds(row) <= 0) {
-    try {
-      return {
-        operationId: String(operationId),
-        ...(await reconcileTeacherFaceOperation(caller, { operationId }))
-      };
-    } catch (error) {
-      if (!["TEACHER_FACE_OPERATION_IN_PROGRESS", "TEACHER_FACE_OPERATION_LEASE_LOST"]
-        .includes(String(error?.code || ""))) throw error;
-      row = await readTeacherFaceOperation(operationId);
-    }
+  if (event.consent !== true) {
+    fail("必须取得老师明确的人脸建档授权。", "TEACHER_FACE_CONSENT_REQUIRED");
   }
-  const cleanupComplete = Boolean(row.cleanup_completed_at);
-  const status = String(row.operation_status || "");
-  const retryAfterSeconds = teacherAuthOwnershipUncertaintyOperation(row)
-    ? teacherAuthOwnershipUncertaintyRetryAfterSeconds(row)
-    : teacherOperationLeaseRetryAfterSeconds(row);
+  if (String(event.faceImageBase64 || "").trim()) {
+    fail("老师创建预登记不能传输原始照片。", "TEACHER_FACE_BEGIN_IMAGE_FORBIDDEN");
+  }
+  const suppliedImageDigest = String(event.faceImageSha256 || "").trim();
+  if (!/^[a-f0-9]{64}$/.test(suppliedImageDigest)) {
+    fail("老师人脸照片摘要必须是 64 位小写 SHA-256。", "TEACHER_FACE_IMAGE_METADATA_INVALID");
+  }
+  const suppliedImageBytes = Number(event.faceImageBytes);
+  const imageMetadata = teacherFaceOperationImageMetadata(
+    null, suppliedImageDigest, suppliedImageBytes
+  );
+  const actorStaffId = numericId(caller.profile.staffId, "总部账号");
+  const operation = await acquireTeacherFaceOperation({
+    operationType: "PROVISION", clientRequestId, phone,
+    teacherName: staffName,
+    imageDigest: imageMetadata.imageDigest,
+    imageBytes: imageMetadata.imageBytes,
+    actorStaffId,
+    sameRequestPayloadSecretDigest: crypto.createHash("sha256")
+      .update(password, "utf8").digest("hex"),
+    allowCleanTerminal: true
+  });
+
+  if (operation.cleanupComplete && operation.status === "CANCELLED") {
+    return {
+      ok: true,
+      version: FUNCTION_VERSION,
+      accepted: false,
+      operationId: operation.id,
+      clientRequestId,
+      status: "CANCELLED",
+      stage: "CANCELLED",
+      workerReady: false,
+      retrySameRequest: false,
+      retryAfterSeconds: 0,
+      cleanupComplete: true,
+      retryAllowed: true,
+      requiresNewRequestId: true
+    };
+  }
+
+  let row = operation.row || null;
+  if (operation.status === "RUNNING") {
+    row = await markTeacherProvisionWorkerReady(operation);
+  } else if (operation.status === "CLEANUP_PENDING") {
+    // begin is deliberately not a cleanup worker. Release the takeover lease
+    // immediately so the trusted reconciliation Timer can finish it without a
+    // new browser request waiting behind another twelve-minute lease.
+    row = await releaseTeacherProvisionCleanupLease(operation);
+  } else if (!row) {
+    row = await readTeacherFaceOperation(operation.id);
+  }
+  if (!row) fail("老师创建预登记未能权威读回。", "TEACHER_FACE_OPERATION_LEASE_FAILED");
+  const progress = teacherProvisionOperationStatusPayload(row);
   return {
-    operationId: String(operationId),
-    status,
-    cleanupComplete,
-    retryAllowed: cleanupComplete && status !== "SUCCEEDED",
-    retryAfterSeconds: cleanupComplete || status === "SUCCEEDED"
-      ? 0 : Math.max(1, retryAfterSeconds)
+    ok: true,
+    version: FUNCTION_VERSION,
+    accepted: !progress.cleanupComplete && progress.status !== "CANCELLED",
+    ...progress,
+    requiresNewRequestId: progress.retryAllowed || undefined
+  };
+}
+
+async function readTeacherProvisionResult(caller, event = {}) {
+  await requireTeacherFaceSchema();
+  await requireTeacherExperienceFaceSubjectSchema();
+  await requireTeacherFaceOperationSchema();
+  const operationId = numericId(event.operationId, "老师人脸操作");
+  const staffName = String(event.staffName || "").trim();
+  const phone = validatePhone(event.phone);
+  const password = validatePassword(event.initialPassword);
+  const clientRequestId = teacherFaceProvisionRequestId(event.clientRequestId);
+  if (!staffName || staffName.length > 100) {
+    fail("请填写不超过 100 个字符的老师姓名。", "BAD_REQUEST");
+  }
+  if (event.consent !== true) {
+    fail("必须取得老师明确的人脸建档授权。", "TEACHER_FACE_CONSENT_REQUIRED");
+  }
+  const image = teacherFaceImage(event.faceImageBase64);
+  const { imageDigest, imageBytes } = teacherFaceOperationImageMetadata(image);
+  const actorStaffId = numericId(caller.profile.staffId, "总部账号");
+  const row = await readTeacherFaceOperation(operationId);
+  if (!row) fail("未找到老师人脸操作。", "NOT_FOUND");
+
+  const faceGroupId = String(row.face_group_id || "");
+  const photoBucketId = String(row.photo_bucket_id || "");
+  const payloadSecretDigest = teacherProvisionPayloadSecretDigest(password);
+  const ownerToken = teacherFaceSameRequestOwnerToken({
+    operationType: "PROVISION", clientRequestId, phone, teacherName: staffName,
+    imageDigest, imageBytes, faceGroupId, photoBucketId, actorStaffId,
+    payloadSecretDigest
+  });
+  const ownerTokenHash = teacherFaceOwnerTokenHash(ownerToken);
+  const exactRequest = String(row.operation_type || "") === "PROVISION"
+    && String(row.client_request_id || "") === clientRequestId
+    && String(row.phone || "") === phone
+    && String(row.teacher_name || "") === staffName
+    && String(row.image_sha256 || "").toLowerCase() === imageDigest
+    && Number(row.image_bytes) === imageBytes
+    && String(row.actor_staff_account_id || "") === String(actorStaffId)
+    && String(row.owner_token_sha256 || "").toLowerCase() === ownerTokenHash
+    && /^[A-Za-z0-9_-]{1,64}$/.test(faceGroupId)
+    && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(photoBucketId);
+  if (!exactRequest) {
+    fail("老师创建结果与原始请求不一致。", "TEACHER_FACE_OPERATION_REPLAY_MISMATCH");
+  }
+  if (String(row.operation_status || "") !== "SUCCEEDED") {
+    const error = new Error("老师创建尚未完成，不能读取最终结果。");
+    error.code = "TEACHER_PROVISION_RESULT_NOT_READY";
+    error.operationId = String(operationId);
+    error.status = String(row.operation_status || "");
+    error.stage = teacherProvisionOperationStatusPayload(row).stage;
+    throw error;
+  }
+  if (teacherOperationLeaseRetryAfterSeconds(row) <= 0) {
+    const error = new Error("老师创建成功记录的最终读回租约已过期，未返回未经复核的成功结果。");
+    error.code = "TEACHER_PROVISION_RESULT_LEASE_EXPIRED";
+    error.operationId = String(operationId);
+    throw error;
+  }
+
+  const staffId = numericId(row.staff_id, "老师账号");
+  const teacherId = numericId(row.teacher_id, "老师编号");
+  const personId = teacherFacePersonId(image.buffer, teacherId, staffId);
+  const replayUid = String(row.auth_uid || "");
+  if (!replayUid || String(row.auth_owner_token_sha256 || "") !== ownerTokenHash
+      || String(row.person_id || "") !== personId) {
+    fail("老师创建结果缺少精确的账号或人脸绑定。", "TEACHER_FACE_OPERATION_REPLAY_MISMATCH");
+  }
+  const existingRows = await executeSql(
+    `SELECT account.id AS staff_id, account.auth_uid, account.role_code,
+            account.account_status, teacher.id AS teacher_id, teacher.teacher_code,
+            teacher.teacher_name, teacher.teacher_status, teacher.face_person_id,
+            teacher.face_enrollment_status, teacher.profile_photo_file_id
+       FROM public.staff_accounts AS account
+       JOIN public.teachers AS teacher ON teacher.staff_account_id = account.id
+      WHERE account.id = ${staffId}::bigint
+        AND teacher.id = ${teacherId}::bigint
+        AND account.phone = ${sqlText(phone)}
+        AND account.role_code = 'teacher'
+      LIMIT 1`
+  );
+  const existing = existingRows?.[0] || null;
+  if (!existing || String(existing.auth_uid || "") !== replayUid
+      || String(existing.teacher_name || "") !== staffName
+      || String(existing.face_person_id || "") !== personId) {
+    fail("老师创建结果与当前老师资料不一致。", "TEACHER_FACE_OPERATION_REPLAY_MISMATCH");
+  }
+
+  // This object is reconstructed exclusively from the immutable request and
+  // the SUCCEEDED row. Result readers never write the operation lease, so they
+  // cannot change generation or invalidate one another.
+  const faceOperation = {
+    id: String(operationId), ownerToken, ownerTokenHash,
+    leaseGeneration: Number(row.lease_generation), status: "SUCCEEDED",
+    imageDigest, imageBytes, faceGroupId, photoBucketId, row
+  };
+  const replayInput = {
+    operation: "READBACK", teacherId, staffId, actorStaffId, personId,
+    teacherName: staffName, previousFaceEnrollmentStatus: "PENDING",
+    ...teacherFaceDelegationLease(faceOperation)
+  };
+  const delegated = await finalDelegatedTeacherFaceReadback(
+    replayInput, faceOperation, ["SUCCEEDED"]
+  );
+  const finalState = await authoritativeTeacherProvisioningState({
+    staffId, teacherId, uid: replayUid, phone, personId,
+    photoReference: delegated.verifiedReadback.photoReference,
+    faceOperation, allowedOperationStatuses: ["SUCCEEDED"]
+  });
+  const final = finalState.database;
+  const identity = finalState.identity;
+  const facePhotoReady = Boolean(
+    String(final.face_person_id || "") === personId
+    && String(final.profile_photo_file_id || "") === delegated.verifiedReadback.photoReference
+  );
+  const verification = {
+    personConfirmed: delegated.verifiedReadback.person.confirmed === true,
+    privatePhotoConfirmed: delegated.verifiedReadback.photo.authenticated === true,
+    delegatedDatabaseConfirmed: delegated.verifiedReadback.database.confirmed === true,
+    finalDatabaseConfirmed: Boolean(final),
+    facePhotoReady,
+    teacherActive: String(final.teacher_status || "") === "ACTIVE",
+    accountActive: String(final.account_status || "") === "ACTIVE",
+    credentialActive: String(identity.UserStatus || "").toUpperCase() === "ACTIVE"
+  };
+  verification.complete = Object.values(verification).every((value) => value === true);
+  if (!verification.complete) {
+    fail("已成功老师请求的最终资料不再完整。", "TEACHER_FINAL_READBACK_INCOMPLETE");
+  }
+  return {
+    ok: true,
+    readbackConfirmed: true,
+    resultReadOnly: true,
+    replayed: true,
+    verification,
+    uid: replayUid,
+    phone,
+    authAccount: "replayed",
+    passwordInitialized: false,
+    profile: {
+      staffId: String(final.staff_account_id), role: "teacher", staffName,
+      storeId: "", teacherId: String(final.id), teacherCode: String(final.teacher_code || ""),
+      teacherStatus: String(final.teacher_status), accountStatus: String(final.account_status),
+      credentialStatus: String(identity.UserStatus || ""),
+      faceEnrollmentStatus: String(final.face_enrollment_status), facePhotoReady
+    },
+    teacher: {
+      teacherId: String(final.id), teacherCode: String(final.teacher_code || ""),
+      teacherName: String(final.teacher_name || ""), teacherStatus: String(final.teacher_status),
+      accountStatus: String(final.account_status), credentialStatus: String(identity.UserStatus || ""),
+      faceEnrollmentStatus: String(final.face_enrollment_status), faceEnrolledAt: final.face_enrolled_at,
+      facePhotoReady, profilePhotoFileId: String(final.profile_photo_file_id || "")
+    }
   };
 }
 
@@ -4906,7 +5253,7 @@ async function provisionTeacherWithFace(caller, event = {}) {
   });
   } catch (error) {
     if (error?.authCreationUncertain && error?.retrySameRequest) {
-      // Unlike v59-v62, a fresh v63 ambiguity is not a cleanup request.  Prove
+      // Unlike v59-v62, a fresh v64 ambiguity is not a cleanup request.  Prove
       // that this invocation still owns the live generation, then return a
       // retry instruction without cancelling, deleting or changing BLOCKED.
       await markTeacherProvisionAuthRetryReady(faceOperation);
@@ -4916,7 +5263,7 @@ async function provisionTeacherWithFace(caller, event = {}) {
     try {
       // Compatibility only: rows produced by v59-v62 already entered the
       // 90-second CLEANUP_PENDING fence and remain safe for the old Timer/status
-      // reconciler. New v63 ambiguity never takes this branch.
+      // reconciler. New v64 ambiguity never takes this branch.
       if (error?.authCreationUncertain) {
         await transitionTeacherFaceOperation(faceOperation, "RUNNING", "CLEANUP_PENDING", { error });
         try {
@@ -6371,7 +6718,11 @@ async function main(event = {}, context = {}) {
       sameRequestResume: true,
       teacherAuthSameRequestResume: true,
       teacherAuthSameRequestRetrySeconds: TEACHER_AUTH_SAME_REQUEST_RETRY_SECONDS,
-      teacherProvisionSingleInvocationGuard: true
+      teacherProvisionSingleInvocationGuard: true,
+      teacherProvisionBeginWorkerStatus: true,
+      teacherProvisionReadOnlyStatus: true,
+      teacherProvisionBeginAcceptsOriginalImage: false,
+      teacherProvisionReadOnlyResult: true
     };
   }
   const caller = await currentUser(false);
@@ -6577,9 +6928,17 @@ async function main(event = {}, context = {}) {
     );
     return { ok: true, stores: rows };
   }
+  if (action === "beginTeacherProvisionWithFace") {
+    requireHq(caller);
+    return await beginTeacherProvisionWithFace(caller, event);
+  }
   if (action === "provisionTeacherWithFace") {
     requireHq(caller);
     return await provisionTeacherWithFace(caller, event);
+  }
+  if (action === "readTeacherProvisionResult") {
+    requireHq(caller);
+    return await readTeacherProvisionResult(caller, event);
   }
   if (action === "upsertTeacherFace") {
     requireHq(caller);

@@ -8,10 +8,18 @@
   const AUTH_STATE_KEY = "lusizhuoerActiveAuth";
   const PRODUCT_TEMPLATE_CACHE_TTL_MS = 15 * 1000;
   const PRODUCT_LOGO_DATA_CACHE_TTL_MS = 2 * 60 * 1000;
+  // Teacher provisioning uses a durable, polled operation. These watchdogs
+  // only stop the browser waiting for the short begin/status requests; they do
+  // not cancel or replay the server-side operation.
+  const TEACHER_PROVISION_BEGIN_WATCHDOG_MS = 12 * 1000;
+  const TEACHER_PROVISION_STATUS_WATCHDOG_MS = 8 * 1000;
+  const TEACHER_PROVISION_RESULT_WATCHDOG_MS = 12 * 1000;
   const productTemplateCache = new Map();
   const productTemplateFlights = new Map();
   const productLogoDataCache = new Map();
   const productLogoDataFlights = new Map();
+  const teacherProvisionStatusFlights = new Map();
+  const teacherProvisionResultFlights = new Map();
   let productReceiptCacheGeneration = 0;
   let productLogoDataCacheBytes = 0;
 
@@ -125,6 +133,24 @@
       throw error;
     }
     return payload;
+  }
+
+  function promiseWithWatchdog(request, fallback, timeoutMs) {
+    let timer = null;
+    const watchdog = new Promise((_, reject) => {
+      timer = window.setTimeout(() => {
+        const error = new Error(`${fallback}，浏览器等待超时；后台操作不会因此重复执行`);
+        error.code = "CLIENT_REQUEST_TIMEOUT";
+        error.transportUncertain = true;
+        reject(error);
+      }, timeoutMs);
+    });
+    return Promise.race([request, watchdog])
+      .finally(() => window.clearTimeout(timer));
+  }
+
+  function callStaffAccountWithWatchdog(data, fallback, timeoutMs) {
+    return promiseWithWatchdog(callStaffAccount(data, fallback), fallback, timeoutMs);
   }
 
   function productReceiptRefKey(value) {
@@ -444,11 +470,81 @@
         "老师账号与人脸绑定创建失败"
       );
     },
-    async getTeacherFaceOperationStatus({ operationId }) {
-      return callStaffAccount(
-        { action: "getTeacherFaceOperationStatus", operationId },
-        "老师创建状态查询失败"
+    async beginTeacherProvisionWithFace({ staffName, phone, initialPassword, faceImageSha256,
+      faceImageBytes, clientRequestId, consent = false }) {
+      return callStaffAccountWithWatchdog(
+        {
+          action: "beginTeacherProvisionWithFace",
+          staffName,
+          phone: normalizePhone(phone),
+          initialPassword,
+          faceImageSha256,
+          faceImageBytes,
+          clientRequestId,
+          consent: consent === true
+        },
+        "老师创建请求启动失败",
+        TEACHER_PROVISION_BEGIN_WATCHDOG_MS
       );
+    },
+    async getTeacherFaceOperationStatus({ operationId, readOnly = true }) {
+      const key = String(operationId || "").trim();
+      let flight = teacherProvisionStatusFlights.get(key);
+      if (!flight) {
+        flight = callStaffAccount(
+          { action: "getTeacherFaceOperationStatus", operationId: key, readOnly: readOnly === true },
+          "老师创建状态查询失败"
+        ).finally(() => {
+          if (teacherProvisionStatusFlights.get(key) === flight) teacherProvisionStatusFlights.delete(key);
+        });
+        teacherProvisionStatusFlights.set(key, flight);
+      }
+      try {
+        return await promiseWithWatchdog(flight, "老师创建状态查询失败", TEACHER_PROVISION_STATUS_WATCHDOG_MS);
+      } catch (error) {
+        // A transport Promise may never settle. Release only this exact stale
+        // read after the browser watchdog so the next serial tick can retry;
+        // its late finally cannot delete a newer flight.
+        if (error?.code === "CLIENT_REQUEST_TIMEOUT" && teacherProvisionStatusFlights.get(key) === flight) {
+          teacherProvisionStatusFlights.delete(key);
+        }
+        throw error;
+      }
+    },
+    async readTeacherProvisionResult({ operationId, staffName, phone, initialPassword,
+      faceImageBase64, clientRequestId, consent = false, readOnly = true }) {
+      const key = String(operationId || "").trim();
+      let flight = teacherProvisionResultFlights.get(key);
+      if (!flight) {
+        flight = callStaffAccount(
+          {
+            action: "readTeacherProvisionResult",
+            operationId: key,
+            staffName,
+            phone: normalizePhone(phone),
+            initialPassword,
+            faceImageBase64,
+            clientRequestId,
+            consent: consent === true,
+            readOnly: readOnly === true
+          },
+          "老师创建最终证明读取失败"
+        ).finally(() => {
+          if (teacherProvisionResultFlights.get(key) === flight) teacherProvisionResultFlights.delete(key);
+        });
+        teacherProvisionResultFlights.set(key, flight);
+      }
+      try {
+        return await promiseWithWatchdog(flight, "老师创建最终证明读取失败", TEACHER_PROVISION_RESULT_WATCHDOG_MS);
+      } catch (error) {
+        // This endpoint is read-only. If its transport Promise hangs forever,
+        // release only the matching flight so a later tick can recover. The
+        // identity guard also prevents an old finally from deleting a retry.
+        if (error?.code === "CLIENT_REQUEST_TIMEOUT" && teacherProvisionResultFlights.get(key) === flight) {
+          teacherProvisionResultFlights.delete(key);
+        }
+        throw error;
+      }
     },
     async upsertTeacherFace({ teacherId, faceImageBase64, clientRequestId, consent = false }) {
       return callStaffAccount(

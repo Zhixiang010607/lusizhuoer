@@ -197,10 +197,16 @@ assert.match(createUi, /Boolean\(capturedFaceImage\)[\s\S]{0,300}Boolean\(\$\("t
   "submit enablement must require a captured face, consent and completed quality/liveness validation");
 assert.doesNotMatch(createUi, /window\.CloudBasePhoneAuth\.provisionTeacher\(\{ staffName: name, phone, initialPassword \}\)/,
   "new-teacher UI must never call the generic no-face provisioning API");
-assert.match(createUi, /const provisionInput = \{[\s\S]{0,400}consent: true[\s\S]{0,120}provisionTeacherWithAutomaticResume\(provisionInput\)/,
-  "new-teacher UI must use the retry-safe atomic face-bound provisioning API only");
+assert.match(createUi, /const provisionInput = \{[\s\S]{0,400}consent: true[\s\S]{0,220}teacherFaceImageMetadata\(capturedFaceImage\)[\s\S]{0,180}provisionTeacherWithBackgroundPolling\(Object\.freeze\(provisionInput\), metadata\)/,
+  "new-teacher UI must use the v64 metadata begin plus immutable background worker/status/result protocol");
 assert.match(phoneAuth, /async provisionTeacherWithFace\(\{ staffName, phone, initialPassword, faceImageBase64, clientRequestId, consent = false \}\)/,
   "shared auth client must retain the dedicated face-bound teacher provisioning API");
+assert.match(phoneAuth, /async beginTeacherProvisionWithFace\(\{ staffName, phone, initialPassword, faceImageSha256,[\s\S]{0,140}faceImageBytes, clientRequestId, consent = false \}\)/,
+  "the short v64 begin wrapper must carry only photo metadata");
+assert.match(phoneAuth, /async getTeacherFaceOperationStatus\(\{ operationId, readOnly = true \}\)[\s\S]{0,900}teacherProvisionStatusFlights/,
+  "status polling must be read-only and deduplicated per operation");
+assert.match(phoneAuth, /async readTeacherProvisionResult\(\{ operationId, staffName, phone, initialPassword,[\s\S]{0,180}faceImageBase64[\s\S]{0,900}action: "readTeacherProvisionResult"/,
+  "terminal proof must replay the exact frozen payload through the dedicated pure-read action");
 
 // Creation/replacement never claims success until profile-photo persistence is
 // confirmed.  The two Cloud Functions have deliberately separated duties:

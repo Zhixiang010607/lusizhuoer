@@ -67,9 +67,9 @@ const sameRequestCatch = between(
 assert.match(sameRequestCatch, /markTeacherProvisionAuthRetryReady\(faceOperation\)/,
   "a lost createUser response must atomically release ACTIVE before authorizing same-request replay");
 assert.doesNotMatch(sameRequestCatch, /transitionTeacherFaceOperation|deleteTeacherProvisioningAuthentication/,
-  "v63 same-request resume must not cancel, tombstone or delete the account");
+  "v64 same-request resume must not cancel, tombstone or delete the account");
 assert.match(staff,
-  /TEACHER_PROVISION_INVOCATION_ACTIVE_PREFIX = "V63_INVOCATION_ACTIVE:"[\s\S]*async function claimTeacherProvisionInvocation[\s\S]{0,500}crypto\.randomBytes\(32\)\.toString\("hex"\)[\s\S]{0,900}lease_generation = target\.lease_generation \+ 1[\s\S]{0,900}COALESCE\(target\.error_code, ''\) IN \('', \$\{sqlText\(TEACHER_PROVISION_AUTH_RETRY_READY\)\}\)/,
+  /TEACHER_PROVISION_INVOCATION_ACTIVE_PREFIX = "V64_INVOCATION_ACTIVE:"[\s\S]*async function claimTeacherProvisionInvocation[\s\S]{0,500}crypto\.randomBytes\(32\)\.toString\("hex"\)[\s\S]{0,900}lease_generation = target\.lease_generation \+ 1[\s\S]{0,1100}COALESCE\(target\.error_code, ''\) IN \([\s\S]{0,260}TEACHER_PROVISION_AUTH_RETRY_READY[\s\S]{0,260}TEACHER_PROVISION_V63_AUTH_RETRY_READY/,
   "the single-invocation claim must be a generation CAS available only to fresh or explicitly READY work");
 assert.match(staff,
   /async function claimTeacherProvisionInvocation[\s\S]{0,3200}String\(current\.error_code \|\| ""\) === invocationCode[\s\S]{0,1100}operation\.invocationCode = invocationCode/,
@@ -85,11 +85,13 @@ assert.match(staff, /TEACHER_AUTH_CREATE_UNCERTAINTY_FENCE_SECONDS = 90/,
 assert.match(staff, /teacherAuthCreateReceiptFastPath: true/,
   "health must distinguish the exact createUser receipt fast path in production");
 assert.match(staff, /teacherAuthSameRequestResume: true/,
-  "v63 health must advertise exact-request automatic resume");
+  "v64 health must advertise exact-request automatic resume");
 assert.match(staff, /teacherAuthSameRequestRetrySeconds: TEACHER_AUTH_SAME_REQUEST_RETRY_SECONDS/,
-  "v63 health must expose the short same-request retry interval");
+  "v64 health must expose the short same-request retry interval");
 assert.match(staff, /teacherProvisionSingleInvocationGuard: true/,
-  "health must advertise the v63 single-invocation CAS guard");
+  "health must advertise the v64 single-invocation CAS guard");
+assert.match(staff, /teacherProvisionBeginWorkerStatus: true[\s\S]{0,180}teacherProvisionReadOnlyStatus: true[\s\S]{0,180}teacherProvisionReadOnlyResult: true/,
+  "v64 health must advertise the begin/worker/read-only status/result protocol");
 assert.match(staff, /makeTeacherAuthOwnershipUncertaintyCleanupEligible\(operationId\)[\s\S]*takeoverTeacherFaceOperationCleanup\(operationId\)/,
   "the trusted reconciler must safely release legacy Auth-only tombstones after the short fence");
 assert.match(staff,
@@ -99,7 +101,7 @@ assert.match(staff, /EXTRACT\(EPOCH FROM \([\s\S]{0,220}lease_retry_after_second
   "retry countdowns must be calculated by PostgreSQL instead of parsing timezone-dependent timestamps in JavaScript");
 assert.match(staff, /if \(action === "getTeacherFaceOperationStatus"\)[\s\S]{0,180}getTeacherFaceOperationStatus\(caller, event\)/,
   "HQ must be able to poll the durable operation without replaying creation");
-assert.match(staff, /retryAllowed: cleanupComplete && status !== "SUCCEEDED"/,
+assert.match(staff, /retryAllowed: status === "CANCELLED" && cleanupComplete/,
   "a successful operation must never tell the client to submit the same teacher again");
 assert.match(staff, /operationId: error\?\.operationId[\s\S]{0,180}retrySameRequest:[\s\S]{0,180}retryAfterSeconds/,
   "the safe pending response must expose operation id, same-request instruction and bounded retry delay");
@@ -257,7 +259,7 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
 }
 
 (async () => {
-  // The v63 ACTIVE/READY marker is a database CAS, not a browser convention.
+  // The v64 ACTIVE/READY marker is a database CAS, not a browser convention.
   // Two cloud-function instances holding the same owner and generation race
   // here: exactly one may claim ACTIVE. Once that owner publishes READY, one
   // later instance can claim the next generation.
@@ -283,7 +285,7 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
         const eligible = row.operation_status === "RUNNING"
           && row.owner_token_sha256 === ownerHash
           && row.lease_generation === generation
-          && [null, "", "V63_AUTH_RETRY_READY"].includes(row.error_code);
+          && [null, "", "V64_WORKER_READY", "V63_AUTH_RETRY_READY"].includes(row.error_code);
         if (!eligible) return [];
         row.error_code = /SET error_code = '([^']+)'/.exec(sql)?.[1] || "";
         row.lease_generation += 1;
@@ -297,13 +299,13 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
           lease_expires_at: row.lease_expires_at
         }];
       }
-      if (sql.includes("SET error_code = 'V63_AUTH_RETRY_READY'")) {
+      if (sql.includes("SET error_code = 'V64_WORKER_READY'")) {
         const eligible = row.operation_status === "RUNNING"
           && row.owner_token_sha256 === ownerHash
           && row.lease_generation === generation
           && row.error_code === /target\.error_code = '([^']+)'/.exec(sql)?.[1];
         if (!eligible) return [];
-        row.error_code = "V63_AUTH_RETRY_READY";
+        row.error_code = "V64_WORKER_READY";
         readyWrites += 1;
         return [{ lease_generation: row.lease_generation }];
       }
@@ -312,14 +314,16 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
     const sandbox = {
       module: { exports: {} },
       crypto,
-      TEACHER_PROVISION_INVOCATION_ACTIVE_PREFIX: "V63_INVOCATION_ACTIVE:",
-      TEACHER_PROVISION_AUTH_RETRY_READY: "V63_AUTH_RETRY_READY",
+      TEACHER_PROVISION_INVOCATION_ACTIVE_PREFIX: "V64_INVOCATION_ACTIVE:",
+      TEACHER_PROVISION_AUTH_RETRY_READY: "V64_WORKER_READY",
+      TEACHER_PROVISION_V63_AUTH_RETRY_READY: "V63_AUTH_RETRY_READY",
       TEACHER_FACE_OPERATION_LEASE_SECONDS: 720,
       executeSql,
       sqlText,
       numericId,
       readTeacherFaceOperation: async () => ({ ...row }),
       teacherOperationLeaseRetryAfterSeconds: () => 720,
+      teacherProvisionInvocationActive: (code) => /^V6[34]_INVOCATION_ACTIVE:/.test(String(code || "")),
       assertTeacherFaceOperationLease: async (operation, statuses) => {
         assert.equal(operation.ownerTokenHash, row.owner_token_sha256);
         assert.equal(operation.leaseGeneration, row.lease_generation);
@@ -354,18 +358,18 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
     assert.equal(losers[0].reason?.code, "TEACHER_PROVISION_INVOCATION_IN_PROGRESS");
     assert.equal(claimWrites, 1);
     assert.equal(row.lease_generation, 8);
-    assert.match(row.error_code, /^V63_INVOCATION_ACTIVE:[a-f0-9]{64}$/);
+    assert.match(row.error_code, /^V64_INVOCATION_ACTIVE:[a-f0-9]{64}$/);
 
     const winner = winners[0].value;
     await sandbox.module.exports.markTeacherProvisionAuthRetryReady(winner);
     assert.equal(readyWrites, 1);
-    assert.equal(row.error_code, "V63_AUTH_RETRY_READY");
+    assert.equal(row.error_code, "V64_WORKER_READY");
     const resumed = await sandbox.module.exports.claimTeacherProvisionInvocation({
       ...base, leaseGeneration: row.lease_generation
     });
     assert.equal(resumed.leaseGeneration, 9,
       "a server-published READY request may claim exactly one new generation");
-    assert.match(row.error_code, /^V63_INVOCATION_ACTIVE:[a-f0-9]{64}$/);
+    assert.match(row.error_code, /^V64_INVOCATION_ACTIVE:[a-f0-9]{64}$/);
     assert.equal(claimWrites, 2);
 
     await sandbox.module.exports.markTeacherProvisionAuthRetryReady(resumed);
@@ -375,7 +379,7 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
         ...base, leaseGeneration: row.lease_generation
       });
     assert.equal(recoveredAfterLostWriteReceipt.leaseGeneration, 10);
-    assert.match(row.error_code, /^V63_INVOCATION_ACTIVE:[a-f0-9]{64}$/);
+    assert.match(row.error_code, /^V64_INVOCATION_ACTIVE:[a-f0-9]{64}$/);
     assert.equal(claimWrites, 3,
       "a lost UPDATE response must be recovered only by the exact random ACTIVE nonce readback");
   }
@@ -1295,7 +1299,7 @@ function runtimeFunction(sourceRegion, exportName, executeSql) {
         && error.retryAfterSeconds === 2
     );
     assert.deepEqual(transitions, [],
-      "a fresh v63 ambiguity must not transition RUNNING to cleanup");
+      "a fresh v64 ambiguity must not transition RUNNING to cleanup");
     assert.equal(claimCalls, 1);
     assert.equal(readyMarks, 1,
       "retrySameRequest may be returned only after ACTIVE atomically becomes READY");

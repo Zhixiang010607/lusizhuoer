@@ -64,7 +64,7 @@ assert.match(staffDetailHtml, /cloudbase-phone-auth\.js\?v=0\.18\.1/,
   "teacher home must refresh the shared cloud-function client");
 assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.5/,
   "teacher home must refresh its action handlers");
-assert.match(teacherCreateHtml, /teacher-create\.js\?v=0\.2\.8/,
+assert.match(teacherCreateHtml, /teacher-create\.js\?v=0\.2\.9/,
   "teacher creation must refresh the mandatory-face UI");
 assert.match(teacherManagementHtml, /teacher-management\.js\?v=0\.14\.28/,
   "teacher directory must refresh links into the current home");

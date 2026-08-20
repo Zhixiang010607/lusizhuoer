@@ -19,12 +19,12 @@ for (const html of [managementHtml, createHtml, detailHtml, read("teacher-detail
   assert.match(html, /<meta\s+name="viewport"/, "teacher pages must declare a mobile viewport");
 }
 assert.match(managementHtml, /teacher-management\.js\?v=0\.14\.28/, "teacher directory behavior must be cache-busted");
-assert.match(createHtml, /teacher-create\.js\?v=0\.2\.8/, "teacher creation behavior must be cache-busted");
-assert.match(create, /function safeProvisionRecoverySeconds[\s\S]{0,260}Math\.min\(90/,
+assert.match(createHtml, /teacher-create\.js\?v=0\.2\.9/, "teacher creation behavior must be cache-busted");
+assert.match(create, /function safeProvisionRecoverySeconds[\s\S]{0,260}Math\.min\(5/,
   "the recovery UI must never display an unbounded provider or timestamp-derived countdown");
-assert.match(create, /error\?\.cleanupComplete === true\)[\s\S]{0,100}teacherProvisionRequestId = ""/,
+assert.match(create, /error\?\.cleanupComplete === true\)[\s\S]{0,260}teacherProvisionRequestId = ""/,
   "a definitively failed and fully cleaned request must not poison the next submit attempt");
-assert.match(createHtml, /cloudbase-phone-auth\.js\?v=0\.18\.3/,
+assert.match(createHtml, /cloudbase-phone-auth\.js\?v=0\.18\.4/,
   "teacher creation must refresh the operation-status API wrapper");
 assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.5/, "teacher home behavior must be cache-busted");
 
@@ -44,32 +44,40 @@ assert.match(createHtml, /id="teacherFaceConsent"[^>]*required/, "mandatory face
 assert.match(create, /Boolean\(capturedFaceImage\)[\s\S]{0,300}Boolean\(\$\("teacherFaceConsent"\)\.checked\)[\s\S]{0,160}faceValidated/, "teacher submit must require capture, consent and completed preflight");
 assert.match(create, /if \(!liveness\.checked\)[\s\S]{0,300}LIVENESS_REQUIRED/, "teacher creation must fail closed when liveness is not checked");
 assert.doesNotMatch(create, /CloudBasePhoneAuth\.provisionTeacher\(/, "teacher creation must not keep a generic no-face submit path");
-assert.match(create, /setAttribute\("aria-busy", "true"\)[\s\S]{0,180}正在创建并绑定人脸…/, "teacher creation must show a pending state while face binding is committed");
-assert.match(create, /monitorTeacherProvisionRecovery\(error\)[\s\S]*getTeacherFaceOperationStatus\(\{ operationId \}\)/,
-  "legacy Auth ownership uncertainty must still poll its durable operation");
-assert.match(create, /function ambiguousTeacherProvisionTransport\(error\)[\s\S]{0,260}TIMEOUT[\s\S]{0,260}FUNCTIONS_/,
-  "the UI must recognize a hard-kill/transport ambiguity without treating it as replay authority");
+assert.match(create, /setAttribute\("aria-busy", "true"\)[\s\S]{0,220}正在安全受理…/, "teacher creation must show a pending state while the operation is durably accepted");
+assert.match(create, /function transientTeacherProvisionTransport\(error\)[\s\S]{0,360}TIMEOUT[\s\S]{0,260}FUNCTIONS_/,
+  "the UI must recognize a hard-kill/transport ambiguity without treating it as worker authority");
 assert.match(create,
-  /function provisionTeacherWithAutomaticResume\(input\)[\s\S]{0,180}Date\.now\(\) \+ 30 \* 1000[\s\S]{0,420}CloudBasePhoneAuth\.provisionTeacherWithFace\(input\)/,
-  "server-authorized same-request recovery must use the exact payload and a short 30-second window");
+  /function beginTeacherProvision\(input, metadata\)[\s\S]{0,220}faceImageBase64: _omittedFaceImage[\s\S]{0,420}beginTeacherProvisionWithFace\(beginInput\)/,
+  "the short begin request must send digest/byte metadata without the original photo");
 assert.match(create,
-  /if \(error\?\.retrySameRequest !== true\)[\s\S]{0,180}ambiguousTeacherProvisionTransport\(error\)[\s\S]{0,120}setProvisionPayloadLocked\(true\)[\s\S]{0,120}error\.sameRequestResumeDeferred = true;[\s\S]{0,100}throw error/,
-  "a browser timeout or hard-killed ACTIVE invocation must be deferred, never automatically replayed");
+  /function provisionTeacherWithBackgroundPolling\(input, metadata\)[\s\S]{0,2600}Promise\.resolve\(\)[\s\S]{0,180}provisionTeacherWithFace\(input\)/,
+  "the long full-payload worker must be launched without blocking status polling");
 assert.match(create,
-  /if \(Date\.now\(\) >= deadline\)[\s\S]{0,100}sameRequestResumeDeferred = true[\s\S]{0,100}throw error/,
-  "even server-authorized automatic replay must stop after the bounded window");
+  /getTeacherFaceOperationStatus\(\{ operationId, readOnly: true \}\)/,
+  "every operation poll must use the server's pure-read status action");
+assert.match(create,
+  /readTeacherProvisionResult\(\{[\s\S]{0,120}\.\.\.input,[\s\S]{0,120}operationId,[\s\S]{0,120}readOnly: true/,
+  "SUCCEEDED must obtain final proof through the full exact-payload pure-read action");
+assert.match(create,
+  /const deadline = Date\.now\(\) \+ 15 \* 60 \* 1000[\s\S]*TEACHER_PROVISION_STATUS_TIMEOUT/,
+  "background verification must fail closed after its bounded observation window");
+assert.match(create, /请保持本页打开/,
+  "the page must honestly tell the operator to keep the current page open");
+assert.doesNotMatch(create, /刷新(?:页面)?后[^。\n]*(?:恢复|继续|查询)[^。\n]*创建/,
+  "the in-memory background worker must not promise refresh recovery");
 assert.match(create,
   /function setProvisionPayloadLocked\(locked\)[\s\S]{0,260}personCreateName[\s\S]{0,160}personPhone[\s\S]{0,160}personInitialPassword[\s\S]{0,160}teacherFaceConsent[\s\S]{0,180}retakeTeacherFace/,
   "an ambiguous request must freeze every HMAC-bound input and the captured photo");
 assert.match(create,
-  /error\?\.sameRequestResumeDeferred === true[\s\S]{0,160}setProvisionPayloadLocked\(true\)[\s\S]{0,260}照片和请求编号已保留/,
+  /error\?\.sameRequestResumeDeferred === true[\s\S]{0,160}setProvisionPayloadLocked\(true\)[\s\S]{0,260}照片、资料和请求编号均已保留/,
   "a transport ambiguity must preserve and visibly lock the request id, photo and payload");
 assert.match(create,
-  /error\?\.cleanupComplete === true[\s\S]{0,160}teacherProvisionRequestId = ""[\s\S]{0,120}setProvisionPayloadLocked\(false\)/,
+  /error\?\.cleanupComplete === true[\s\S]{0,300}teacherProvisionRequestId = ""[\s\S]{0,160}setProvisionPayloadLocked\(false\)/,
   "only authoritative cleanup may release a deferred payload for a new request");
 assert.doesNotMatch(create, /预计 \$\{remaining\} 秒内完成/,
   "the teacher page must not present the internal cleanup fence as a user countdown");
-assert.match(create, /cleanupComplete === true[\s\S]*teacherProvisionRequestId = ""[\s\S]*现在可以再次点击创建/,
+assert.match(create, /cleanupComplete === true[\s\S]*teacherProvisionRequestId = ""[\s\S]*可以使用当前照片重新提交/,
   "the UI may enable a new request only after authoritative cleanup completes");
 assert.match(detail, /function setButtonPending[\s\S]{0,480}aria-busy/, "teacher home writes must share a semantic pending-state helper");
 assert.match(detail, /savingConfig[\s\S]{0,120}savingRecharge/, "quota controls must remain disabled for the whole write operation");

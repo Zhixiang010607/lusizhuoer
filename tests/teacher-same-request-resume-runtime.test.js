@@ -8,100 +8,160 @@ const vm = require("node:vm");
 const root = path.resolve(__dirname, "..");
 const source = fs.readFileSync(path.join(root, "teacher-create.js"), "utf8");
 
-function between(text, first, last) {
-  const start = text.indexOf(first);
-  const end = text.indexOf(last, start + first.length);
-  assert.ok(start >= 0 && end > start, `missing source region ${first}`);
-  return text.slice(start, end);
+function namedFunctionSource(name, asyncRequired = false) {
+  const match = new RegExp(`${asyncRequired ? "async\\s+" : "(?:async\\s+)?"}function\\s+${name}\\s*\\(`)
+    .exec(source);
+  assert.ok(match, `missing function ${name}`);
+  const parametersOpen = source.indexOf("(", match.index);
+  let parameters = 0;
+  let parametersClose = -1;
+  for (let index = parametersOpen; index < source.length; index += 1) {
+    if (source[index] === "(") parameters += 1;
+    if (source[index] === ")" && --parameters === 0) { parametersClose = index; break; }
+  }
+  const open = source.indexOf("{", parametersClose);
+  let depth = 0;
+  let quote = "";
+  let escaped = false;
+  for (let index = open; index < source.length; index += 1) {
+    const character = source[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === quote) quote = "";
+      continue;
+    }
+    if (character === "'" || character === '"' || character === "`") { quote = character; continue; }
+    if (character === "{") depth += 1;
+    if (character === "}" && --depth === 0) return source.slice(match.index, index + 1);
+  }
+  throw new Error(`unterminated function ${name}`);
+}
+
+const safeSeconds = namedFunctionSource("safeProvisionRecoverySeconds");
+const transient = namedFunctionSource("transientTeacherProvisionTransport");
+const proof = namedFunctionSource("teacherProvisionProof");
+const begin = namedFunctionSource("beginTeacherProvision", true);
+const background = namedFunctionSource("provisionTeacherWithBackgroundPolling", true);
+
+assert.match(begin, /faceImageBase64:\s*_omittedFaceImage/,
+  "begin must send metadata without the raw photo");
+assert.match(background, /provisionTeacherWithFace\(input\)/,
+  "READY must launch the full immutable worker request");
+assert.match(background, /getTeacherFaceOperationStatus\(\{ operationId, readOnly: true \}\)/,
+  "resume authorization must come from read-only status");
+assert.match(background, /readTeacherProvisionResult\(\{[\s\S]{0,120}\.\.\.input,[\s\S]{0,120}operationId,[\s\S]{0,120}readOnly: true/,
+  "SUCCEEDED must read proof with the same full payload and operation id");
+
+function finalProof() {
+  return {
+    ok: true,
+    resultReadOnly: true,
+    readbackConfirmed: true,
+    uid: "teacher-resume-proof",
+    verification: {
+      personConfirmed: true,
+      privatePhotoConfirmed: true,
+      delegatedDatabaseConfirmed: true,
+      finalDatabaseConfirmed: true,
+      facePhotoReady: true,
+      teacherActive: true,
+      accountActive: true,
+      credentialActive: true,
+      complete: true
+    },
+    teacher: {
+      teacherId: "77",
+      faceEnrollmentStatus: "ENROLLED",
+      facePhotoReady: true,
+      teacherStatus: "ACTIVE",
+      accountStatus: "ACTIVE",
+      credentialStatus: "ACTIVE"
+    }
+  };
 }
 
 (async () => {
-  const waits = [];
-  const messages = [];
-  const payloadLocks = [];
-  const retake = { disabled: false };
-  const calls = [];
-  let behavior = null;
-  const sandbox = {
-    module: { exports: {} },
-    window: {
-      CloudBasePhoneAuth: {
-        provisionTeacherWithFace: async (input) => {
-          calls.push(input);
-          return behavior(input);
-        }
-      }
-    },
-    $: (id) => {
-      assert.equal(id, "retakeTeacherFace");
-      return retake;
-    },
-    syncSubmit: () => {},
-    setProvisionPayloadLocked: (locked) => { payloadLocks.push(locked === true); },
-    setMessage: (message) => { messages.push(message); },
-    wait: async (milliseconds) => { waits.push(milliseconds); },
-    console
-  };
-  vm.createContext(sandbox);
-  const recoverySource = between(
-    source,
-    "function safeProvisionRecoverySeconds",
-    "\n\n  function dataUrlBytes"
-  );
-  vm.runInContext(`let provisionRecoveryPending = false;
-    ${recoverySource}
-    module.exports = {
-      ambiguousTeacherProvisionTransport,
-      provisionTeacherWithAutomaticResume
-    };`, sandbox);
-
+  const workerCalls = [];
+  const statusCalls = [];
+  const resultCalls = [];
+  const statuses = [
+    { ok: true, operationId: "77", status: "RUNNING", stage: "READY",
+      workerReady: true, retrySameRequest: true, retryAfterSeconds: 0 },
+    { ok: true, operationId: "77", status: "SUCCEEDED", stage: "SUCCEEDED",
+      workerReady: false, retrySameRequest: false, retryAfterSeconds: 0 }
+  ];
   const input = Object.freeze({
-    clientRequestId: "same_request_runtime_01",
+    staffName: "恢复老师",
     phone: "13900000007",
+    initialPassword: "Aa1!aaaa",
+    clientRequestId: "same_request_runtime_01",
+    consent: true,
     faceImageBase64: "data:image/jpeg;base64,/9j/2Q=="
   });
-  const hardKill = Object.assign(new Error("cloud function exceeded its time limit"), {
-    code: "FUNCTIONS_TIME_LIMIT"
-  });
-  behavior = async () => { throw hardKill; };
-  await assert.rejects(
-    sandbox.module.exports.provisionTeacherWithAutomaticResume(input),
-    (error) => error === hardKill && error.sameRequestResumeDeferred === true
-  );
-  assert.equal(calls.length, 1,
-    "an ambiguous hard kill must not automatically start a second cloud-function invocation");
-  assert.equal(waits.length, 0,
-    "the client must return control immediately while the ACTIVE invocation may still be alive");
-  assert.deepEqual(payloadLocks, [true],
-    "a hard-kill ambiguity must lock the retained request, photo and HMAC-bound fields");
-
-  calls.length = 0;
-  waits.length = 0;
-  messages.length = 0;
-  payloadLocks.length = 0;
-  let attempt = 0;
-  behavior = async () => {
-    attempt += 1;
-    if (attempt === 1) {
-      const ready = new Error("server stopped at the Auth boundary");
-      ready.code = "TEACHER_AUTH_CREATE_RETRY_SAME_REQUEST";
-      ready.retrySameRequest = true;
-      ready.retryAfterSeconds = 2;
-      throw ready;
-    }
-    return { ok: true, resumed: true };
+  let now = 1_000_000;
+  const sandbox = {
+    module: { exports: {} },
+    Date: { now: () => now },
+    wait: async (milliseconds) => {
+      now += Math.max(2000, Number(milliseconds) || 0);
+      await Promise.resolve();
+    },
+    setMessage: () => {},
+    setProvisionPayloadLocked: () => {},
+    syncSubmit: () => {},
+    showTeacherProvisionProgress: () => {},
+    window: { CloudBasePhoneAuth: {
+      beginTeacherProvisionWithFace: async (value) => {
+        assert.equal(Object.hasOwn(value, "faceImageBase64"), false);
+        return { ok: true, accepted: true, operationId: "77", status: "RUNNING",
+          stage: "WORKER_RUNNING", workerReady: false, retrySameRequest: false,
+          retryAfterSeconds: 1 };
+      },
+      provisionTeacherWithFace: (value) => {
+        workerCalls.push(value);
+        return new Promise(() => {});
+      },
+      getTeacherFaceOperationStatus: async (value) => {
+        statusCalls.push(value);
+        return statuses.shift();
+      },
+      readTeacherProvisionResult: async (value) => {
+        resultCalls.push(value);
+        return finalProof();
+      }
+    } }
   };
-  const result = await sandbox.module.exports.provisionTeacherWithAutomaticResume(input);
-  assert.deepEqual(JSON.parse(JSON.stringify(result)), { ok: true, resumed: true });
-  assert.equal(calls.length, 2,
-    "a server-published READY response may authorize exactly one automatic resume attempt here");
-  assert.equal(calls[0], input);
-  assert.equal(calls[1], input,
-    "the authorized resume must reuse the identical request object and clientRequestId");
-  assert.deepEqual(waits, [2000]);
-  assert.deepEqual(payloadLocks, [true],
-    "a READY retry must keep the payload locked while making the authorized second call");
-  assert.ok(messages.some((message) => message.includes("同一个请求编号")));
+  vm.createContext(sandbox);
+  vm.runInContext(`
+    let provisionRecoveryGeneration = 0;
+    let provisionRecoveryPending = false;
+    let activeProvisionOperationId = "";
+    const teacherProvisionWorkerDeliveryStates = new Map();
+    ${safeSeconds}
+    ${transient}
+    ${proof}
+    ${begin}
+    ${background}
+    module.exports = provisionTeacherWithBackgroundPolling;
+  `, sandbox);
+
+  const result = await sandbox.module.exports(input, {
+    faceImageSha256: "ef".repeat(32), faceImageBytes: 4
+  });
+  assert.equal(result.uid, "teacher-resume-proof");
+  assert.equal(workerCalls.length, 1,
+    "ACTIVE must wait; the later durable READY observation authorizes exactly one worker");
+  assert.equal(workerCalls[0], input,
+    "the authorized worker must reuse the identical frozen request object");
+  assert.equal(statusCalls.length, 2);
+  assert.ok(statusCalls.every((value) => value.operationId === "77" && value.readOnly === true));
+  assert.equal(resultCalls.length, 1);
+  for (const key of Object.keys(input)) {
+    assert.equal(resultCalls[0][key], input[key], `proof replay must preserve ${key}`);
+  }
+  assert.equal(resultCalls[0].operationId, "77");
+  assert.equal(resultCalls[0].readOnly, true);
 
   console.log("teacher same-request resume runtime contract: PASS");
 })().catch((error) => {
