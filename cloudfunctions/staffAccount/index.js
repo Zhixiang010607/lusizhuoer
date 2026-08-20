@@ -1292,30 +1292,46 @@ function stageFail(stage, message, code, cause) {
   throw error;
 }
 
+function authErrorHttpStatus(error) {
+  return Number(
+    error?.status ?? error?.statusCode ?? error?.status_code
+    ?? error?.response?.status ?? error?.response?.statusCode ?? error?.response?.StatusCode
+    ?? error?.response?.data?.status ?? 0
+  );
+}
+
 function isDuplicateAuthError(error) {
-  const text = `${error?.code || ""} ${error?.message || ""} ${error?.response?.Code || ""} ${error?.response?.Message || ""}`.toLowerCase();
-  return text.includes("duplicatedata") ||
-    text.includes("duplicate") ||
-    text.includes("duplicated") ||
-    text.includes("already exist") ||
-    text.includes("already registered") ||
-    text.includes("已存在") ||
-    text.includes("已注册");
+  if (!error) return false;
+  const status = authErrorHttpStatus(error);
+  if ([408, 425, 429, 499].includes(status) || status >= 500) return false;
+  const details = cloudErrorDetails(error);
+  const code = String(details.code || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (/^(?:FAILEDOPERATION)?DUPLICATE(?:D)?DATA$/.test(code)
+      || /^(?:USER|ACCOUNT|PHONE|EMAIL)ALREADY(?:EXISTS|REGISTERED)$/.test(code)) {
+    return true;
+  }
+  // A real HTTP conflict is a definite non-write result.  Only here may the
+  // bounded provider message disambiguate the kind of conflict; free-form
+  // text from a timeout/5xx wrapper is never accepted as ownership proof.
+  const message = String(details.message || "").toLowerCase();
+  return status === 409 && /duplicate|already exist|already registered|已存在|已注册/.test(message);
 }
 
 function teacherAuthCreateDefinitelyRejected(error) {
-  if (!error || isDuplicateAuthError(error)) return false;
+  if (!error) return false;
   const details = cloudErrorDetails(error);
-  const code = String(details.code || "").trim().toUpperCase();
-  const message = String(details.message || "").trim().toUpperCase();
-  const status = Number(error?.status || error?.statusCode || error?.response?.status || 0);
-  // 408/425/429 are explicitly retryable.  Non-standard 499 means the
-  // caller disconnected and does not prove whether the upstream write
-  // committed, so it must remain on the ownership-readback path as well.
-  if (status >= 400 && status < 500 && ![408, 409, 425, 429, 499].includes(status)) return true;
-  return /(?:^|[^A-Z])(INVALID[_-]?(?:PARAM|ARGUMENT|CREDENTIAL|PASSWORD)|BAD[_-]?REQUEST|EXCEED[_-]?AUTHORITY|ACTION[_-]?FORBIDDEN|UNAUTHORIZED|PERMISSION[_-]?DENIED|PASSWORD[_-]?(?:POLICY|FORMAT|WEAK)|PHONE[_-]?(?:INVALID|FORMAT))/.test(
-    `${code} ${message}`
-  );
+  const code = String(details.code || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const status = authErrorHttpStatus(error);
+  // Transport uncertainty wins over every nested provider word.  A 503
+  // wrapper may itself contain "InvalidParameter" from a downstream attempt,
+  // but that does not prove whether the original create committed.
+  if ([408, 425, 429, 499].includes(status) || status >= 500
+      || /(?:TIMEOUT|ETIMEDOUT|ECONNRESET|ECONNABORTED|EPIPE|ENETUNREACH|EHOSTUNREACH|FETCHFAILED|NETWORKERROR|REQUESTTIMEOUT|INTERNALERROR|SERVICEUNAVAILABLE|TOOMANYREQUESTS|THROTTL|LIMITEXCEEDED|EXCEEDRATELIMIT|HTTP5\d\d)/.test(code)) {
+    return false;
+  }
+  if (isDuplicateAuthError(error)) return false;
+  if (status >= 400 && status < 500 && status !== 409) return true;
+  return /^(?:INVALID(?:PARAMETER|PARAM|ARGUMENT|CREDENTIAL|PASSWORD)|BADREQUEST|EXCEEDAUTHORITY|ACTIONFORBIDDEN|UNAUTHORIZED|UNAUTHORIZEDOPERATION|PERMISSIONDENIED|AUTHFAILURE|PASSWORD(?:POLICY|FORMAT|WEAK)|PHONE(?:INVALID|FORMAT))/.test(code);
 }
 
 function managerDependencyInstalled() {

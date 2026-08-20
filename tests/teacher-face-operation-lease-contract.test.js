@@ -87,21 +87,32 @@ assert.ok(fs.existsSync(path.join(consoleDir, "051-readonly-verify.sql")));
 {
   const sandbox = {
     module: { exports: {} },
-    isDuplicateAuthError: () => false,
     cloudErrorDetails: (error) => ({ code: error?.code || "", message: error?.message || "" })
   };
   vm.createContext(sandbox);
   const classifier = between(
-    staff, "function teacherAuthCreateDefinitelyRejected", "\n\nfunction managerDependencyInstalled"
+    staff, "function authErrorHttpStatus", "\n\nfunction managerDependencyInstalled"
   );
-  vm.runInContext(`${classifier}\nmodule.exports = teacherAuthCreateDefinitelyRejected;`, sandbox);
-  assert.equal(sandbox.module.exports({ code: "EXCEED_AUTHORITY", status: 403 }), true);
-  assert.equal(sandbox.module.exports({ code: "INVALID_PASSWORD", status: 400 }), true);
-  assert.equal(sandbox.module.exports({ code: "ETIMEDOUT" }), false);
-  assert.equal(sandbox.module.exports({ code: "HTTP_503", status: 503 }), false);
-  assert.equal(sandbox.module.exports({ code: "HTTP_429", status: 429 }), false);
-  assert.equal(sandbox.module.exports({ code: "CLIENT_CLOSED", status: 499 }), false,
+  vm.runInContext(`${classifier}\nmodule.exports = { isDuplicateAuthError, teacherAuthCreateDefinitelyRejected };`, sandbox);
+  const api = sandbox.module.exports;
+  assert.equal(api.teacherAuthCreateDefinitelyRejected({ code: "EXCEED_AUTHORITY", status: 403 }), true);
+  assert.equal(api.teacherAuthCreateDefinitelyRejected({ code: "InvalidPassword", status: 400 }), true);
+  assert.equal(api.teacherAuthCreateDefinitelyRejected({ code: "AuthFailure.SecretIdNotFound" }), true);
+  assert.equal(api.teacherAuthCreateDefinitelyRejected({ code: "ETIMEDOUT" }), false);
+  assert.equal(api.teacherAuthCreateDefinitelyRejected({ code: "HTTP_503", status: 503 }), false);
+  assert.equal(api.teacherAuthCreateDefinitelyRejected({ code: "HTTP_429", status: 429 }), false);
+  assert.equal(api.teacherAuthCreateDefinitelyRejected({ code: "CLIENT_CLOSED", status: 499 }), false,
     "a disconnected caller does not prove that the upstream create was rejected");
+  assert.equal(api.teacherAuthCreateDefinitelyRejected({ code: "INVALID_PARAMETER", status: 503 }), false,
+    "a 5xx transport result must win over nested rejection wording");
+  assert.equal(api.teacherAuthCreateDefinitelyRejected({
+    code: "INVALID_PARAMETER", response: { statusCode: 503 }
+  }), false, "nested HTTP status shapes must retain the uncertainty fence");
+  assert.equal(api.teacherAuthCreateDefinitelyRejected({ code: "EXCEED_AUTHORITY", status: 429 }), false,
+    "a rate-limit result must never unlock the operation early");
+  assert.equal(api.isDuplicateAuthError({ code: "FailedOperation.DuplicatedData" }), true);
+  assert.equal(api.isDuplicateAuthError({ code: "HTTP_503", status: 503, message: "duplicate request" }), false,
+    "free-form duplicate text in an uncertain transport wrapper is not ownership proof");
 }
 
 function sqlText(value) {
