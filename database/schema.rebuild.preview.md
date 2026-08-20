@@ -2,8 +2,9 @@
 
 This document is a review-only preview for `schema.rebuild.sql`. The rebuild is
 a base schema: a current deployment must still run the ordered migrations
-through 047. In particular, migration 047 retires the former operation role
-after its legacy audit tables are available.
+through 048. Migration 047 retires the former operation role after its legacy
+audit tables are available; migration 048 makes teacher face enrollment
+optional and adds the teacher experience quota lifecycle.
 
 It shows what every table stores, where the data comes from, and representative
 rows. It intentionally contains no customer phone number, product price, or

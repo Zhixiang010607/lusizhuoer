@@ -157,6 +157,40 @@ const reconstructed047 = parts047
   .join("\n\n");
 assert.equal(reconstructed047, canonical047, "CloudBase parts must reconstruct migration 047 exactly");
 
+// 048 makes teacher face enrollment optional and adds the durable experience
+// quota lifecycle. It has to remain safely pasteable one transaction at a
+// time, while preserving the exact canonical deployment body.
+const canonical048 = transactionBody(fs.readFileSync(
+  path.join(root, "database", "migrations", "048_optional_teacher_face_and_experience_quota_lifecycle.sql"), "utf8"
+));
+const parts048 = fs.readdirSync(consoleDir)
+  .filter((filename) => /^048-\d{2}-.+\.sql$/.test(filename))
+  .sort();
+assert.deepEqual(
+  parts048,
+  [
+    "048-01-quota-lifecycle-schema.sql",
+    "048-02-optional-teacher-face-and-resets.sql",
+    "048-03-configure-and-remove-entitlements.sql",
+    "048-04-recharge-active-entitlements.sql",
+    "048-05-active-order-master-data.sql",
+    "048-06-experience-usage-guard-and-permissions.sql",
+    "048-07-comments.sql"
+  ],
+  "048 must have exactly seven ordered CloudBase SQL-editor transactions"
+);
+for (const filename of parts048) {
+  const source = fs.readFileSync(path.join(consoleDir, filename), "utf8");
+  assert.ok(Buffer.byteLength(source, "utf8") < 9000, `${filename} must stay below the SQL editor-safe size`);
+  assert.match(source, /BEGIN;[\s\S]*COMMIT;\s*$/, `${filename} must be a complete transaction`);
+  assert.ok(!/^ROLLBACK;/m.test(source), `${filename} must not mix recovery with migration SQL`);
+  assert.equal((source.match(/\$\$/g) || []).length % 2, 0, `${filename} has an unclosed dollar-quoted block`);
+}
+const reconstructed048 = parts048
+  .map((filename) => transactionBody(fs.readFileSync(path.join(consoleDir, filename), "utf8")))
+  .join("\n\n");
+assert.equal(reconstructed048, canonical048, "CloudBase parts must reconstruct migration 048 exactly");
+
 const directParts = Object.fromEntries(
   parts.filter((filename) => filename.startsWith("039-")).map((filename) => [
     filename,

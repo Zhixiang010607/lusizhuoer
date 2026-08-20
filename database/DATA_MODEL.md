@@ -41,6 +41,18 @@ An archived account cannot sign in. Archiving does not delete historical records
 | Product | `products` | Product status and product details |
 | Customer | `customers` | Created store, face-library person ID and consent time; no customer phone is stored |
 
+Teacher face enrollment is optional profile data after migration 048. An active
+teacher account can sign in and be selected without a face; a consented face
+may be added or replaced later. Customer 1:1 verification remains required for
+new verification orders.
+
+Teacher experience allowances use `teacher_product_experience_quotas` plus
+immutable configuration, recharge, reset and usage ledgers. A live quota is
+`ACTIVE`; deleting a configuration archives it rather than deleting its audit
+lineage. Reconfiguration immediately replaces the current available count with
+the selected monthly allowance. All-time per-product experience totals are
+derived from the immutable usage ledger, not the mutable current-month count.
+
 `operation_profiles` and `operation_store_scopes` are retained only as archived
 audit history. Migration 047 archives any remaining operation identity, scope
 and permission rows and blocks their reactivation or reuse. They grant no
@@ -168,8 +180,8 @@ corrections use a separate recharge order.
 ## 7. Run order for the current deployment
 
 For a database already upgraded through migration 029, execute the current
-additive files separately through migration 046, then complete the controlled
-047 retirement cutover below:
+additive files separately through migration 046, complete the controlled 047
+retirement cutover, then execute migration 048:
 
 ```text
 030_store_customer_query_indexes.sql
@@ -189,6 +201,8 @@ additive files separately through migration 046, then complete the controlled
 044_refund_application_workflow.sql
 045_product_receipt_templates.sql
 046_teacher_face_and_experience_quotas.sql
+047_retire_operation_accounts.sql
+048_optional_teacher_face_and_experience_quota_lifecycle.sql
 ```
 
 After 046 has committed, deploy `faceRecognition v69` and `staffAccount v50`
@@ -198,8 +212,11 @@ run `CloudBasePhoneAuth.retireOperationAccounts()` and wait for a successful
 result that blocks the old CloudBase credentials. Only then execute
 `047_retire_operation_accounts.sql` (in the CloudBase SQL editor,
 `047-01-retire-operation-accounts.sql` followed by
-`047-02-hq-reviewer-guard.sql`), then deploy/refresh the current static
-frontend.
+`047-02-hq-reviewer-guard.sql`). Then execute
+`048_optional_teacher_face_and_experience_quota_lifecycle.sql` (or the seven
+ordered `048-01` through `048-07` CloudBase console parts), deploy
+`faceRecognition v70` and `staffAccount v51`, verify both health responses,
+then deploy/refresh the current static frontend.
 
 Migration 032 deliberately stops and rolls back when migration 026 is missing.
 In that case, do not deploy the new cloud functions yet; first complete the
@@ -214,5 +231,9 @@ order-plus-face-photo insertion function, and the submitter/24-hour database
 guard. Migration 038 adds the immutable customer enrollment-photo snapshot and
 shifts the face/extras into slots 1 and 2--4. Migration 047 preserves history
 while permanently retiring the former operation role and making reviews
-headquarters-only. Neither photo migration creates the CloudBase Storage
+headquarters-only. Migration 048 makes teacher face enrollment optional,
+archives rather than deletes removed experience configurations, makes a new
+configuration immediately replace the current balance, and resets only active
+teacher/product/configuration combinations at the Shanghai month boundary.
+Neither photo migration creates the CloudBase Storage
 buckets, which must be created separately as private infrastructure.

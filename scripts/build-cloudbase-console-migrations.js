@@ -91,4 +91,29 @@ const part046Names = [
 ];
 parts046.forEach((part, index) => writeCompactPart(part046Names[index], "046", `${index + 1} / ${parts046.length}`, part));
 
-console.log("CloudBase console migrations generated:", [...parts037, ...parts038, ...parts046].map((part) => Buffer.byteLength(part, "utf8")));
+// Migration 048 changes teacher face enrollment to optional and adds the
+// archive/reconfigure lifecycle for experience entitlements.  Keep each
+// CloudBase paste well below the console request ceiling while preserving the
+// canonical migration body exactly in numbered deployment order.
+const migration048 = bodyOf("048_optional_teacher_face_and_experience_quota_lifecycle.sql");
+const parts048 = splitAt(migration048, [
+  "DO $$\nBEGIN\n  IF TO_REGCLASS('public.staff_accounts')",
+  "-- A face is an optional identity profile attribute.",
+  "-- Every configuration is an immediate replacement",
+  "CREATE OR REPLACE FUNCTION public.recharge_teacher_product_experience_quota",
+  "-- These order-level predicates",
+  "-- create_verification_with_face_photo locks",
+  "REVOKE ALL ON FUNCTION public.sync_teacher_profile"
+]);
+const part048Names = [
+  "048-01-quota-lifecycle-schema.sql",
+  "048-02-optional-teacher-face-and-resets.sql",
+  "048-03-configure-and-remove-entitlements.sql",
+  "048-04-recharge-active-entitlements.sql",
+  "048-05-active-order-master-data.sql",
+  "048-06-experience-usage-guard-and-permissions.sql",
+  "048-07-comments.sql"
+];
+parts048.forEach((part, index) => writeCompactPart(part048Names[index], "048", `${index + 1} / ${parts048.length}`, part));
+
+console.log("CloudBase console migrations generated:", [...parts037, ...parts038, ...parts046, ...parts048].map((part) => Buffer.byteLength(part, "utf8")));

@@ -415,6 +415,14 @@
         "员工账号创建失败"
       );
     },
+    // A teacher can now be activated without a face. Use upsertTeacherFace
+    // later when a consented JPEG is captured or needs replacement.
+    async provisionTeacher({ staffName, phone, initialPassword }) {
+      return callStaffAccount(
+        { action: "provisionStaff", staffName, phone: normalizePhone(phone), role: "teacher", initialPassword, storeId: "" },
+        "老师账号创建失败"
+      );
+    },
     async provisionTeacherWithFace({ staffName, phone, initialPassword, faceImageBase64, clientRequestId, consent = false }) {
       return callStaffAccount(
         {
@@ -427,6 +435,18 @@
           consent: consent === true
         },
         "老师账号与人脸绑定创建失败"
+      );
+    },
+    async upsertTeacherFace({ teacherId, faceImageBase64, clientRequestId, consent = false }) {
+      return callStaffAccount(
+        {
+          action: "upsertTeacherFace",
+          teacherId,
+          faceImageBase64,
+          clientRequestId,
+          consent: consent === true
+        },
+        "老师人脸保存失败"
       );
     },
     async createStoreWithAccount({ storeName, province, city, district, addressDetail, contactName, contactPhone, initialPassword, existingStoreId = "" }) {
@@ -485,6 +505,12 @@
       return callStaffAccount(
         { action: "upsertTeacherExperienceEntitlement", teacherId, productId, monthlyAllowance },
         "老师体验额度配置失败"
+      );
+    },
+    async deleteTeacherExperienceEntitlement({ teacherId, productId }) {
+      return callStaffAccount(
+        { action: "deleteTeacherExperienceEntitlement", teacherId, productId },
+        "老师体验额度删除失败"
       );
     },
     async rechargeTeacherExperienceEntitlement({ teacherId, productId, unitCount, note = "", clientRequestId }) {

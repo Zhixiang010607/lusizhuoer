@@ -3,10 +3,12 @@
 -- It does not store customer phone numbers, product prices, or recharge amounts.
 -- All identifiers and SQL comments are ASCII-only.
 -- This is a base rebuild, not a release-complete snapshot: after it commits,
--- execute the ordered migrations through 047_retire_operation_accounts.sql
+-- execute the ordered migrations through
+-- 048_optional_teacher_face_and_experience_quota_lifecycle.sql
 -- before deploying current CloudBase functions. Migration 046 deliberately
 -- normalizes this legacy teachers layout and installs face/quota structures;
--- migration 047 retires legacy operation identities after their audit tables exist.
+-- migration 047 retires legacy operation identities after their audit tables exist,
+-- and migration 048 makes teacher face enrollment optional and adds quota lifecycle.
 
 BEGIN;
 

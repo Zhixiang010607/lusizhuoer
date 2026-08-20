@@ -2,9 +2,9 @@
 -- Safe for an empty database and additive for the current database.
 -- All SQL text is ASCII-only.
 -- This base schema is followed by the ordered migration chain; execute through
--- 047_retire_operation_accounts.sql before deploying current functions.
--- Migrations 046 and 047 add the face-bound teacher release layer and retire
--- the legacy operation role while preserving its audit history.
+-- 048_optional_teacher_face_and_experience_quota_lifecycle.sql before
+-- deploying current functions. Migrations 046--048 add teacher quota
+-- controls, retire the legacy operation role, and make teacher face optional.
 
 BEGIN;
 

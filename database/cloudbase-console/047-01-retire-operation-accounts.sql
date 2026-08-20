@@ -6,32 +6,19 @@ BEGIN;
 DO $$
 BEGIN
   IF to_regclass('public.staff_accounts') IS NULL
-     OR to_regclass('public.operation_profiles') IS NULL
-     OR to_regclass('public.operation_store_scopes') IS NULL
-     OR to_regclass('public.account_role_assignments') IS NULL
-     OR to_regclass('public.account_identity_links') IS NULL
-     OR to_regclass('public.access_roles') IS NULL
-     OR to_regclass('public.role_permissions') IS NULL
      OR to_regclass('public.recharge_records') IS NULL
      OR to_regclass('public.verification_records') IS NULL
      OR to_regprocedure('public.review_order_application(character varying,bigint,bigint,character varying,text)') IS NULL THEN
     RAISE EXCEPTION
-      'operation retirement prerequisites are missing; execute migrations through 046 first';
+      'operation retirement core prerequisites are missing; execute migrations through 046 first';
   END IF;
 END;
 $$;
 
--- Keep the archive and its irreversible guards serial with any account or
--- identity write. Historic rows stay in place because business records hold
--- their staff-account IDs as audit foreign keys.
-LOCK TABLE public.staff_accounts,
-           public.operation_profiles,
-           public.operation_store_scopes,
-           public.account_role_assignments,
-           public.account_identity_links,
-           public.access_roles,
-           public.role_permissions
-  IN SHARE ROW EXCLUSIVE MODE;
+-- Current installations can predate the optional operation-profile/role
+-- tables. Those tables are archived when present; only the account and review
+-- records are core prerequisites. Historic staff IDs always remain in place.
+LOCK TABLE public.staff_accounts IN SHARE ROW EXCLUSIVE MODE;
 
 CREATE OR REPLACE FUNCTION public.reject_retired_operation_account()
 RETURNS TRIGGER
@@ -79,55 +66,68 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_reject_active_operation_profile ON public.operation_profiles;
-CREATE TRIGGER trg_reject_active_operation_profile
-BEFORE INSERT OR UPDATE OF profile_status ON public.operation_profiles
-FOR EACH ROW EXECUTE FUNCTION public.reject_active_operation_profile();
+DO $$
+BEGIN
+  IF to_regclass('public.operation_profiles') IS NOT NULL THEN
+    EXECUTE 'DROP TRIGGER IF EXISTS trg_reject_active_operation_profile ON public.operation_profiles';
+    EXECUTE 'CREATE TRIGGER trg_reject_active_operation_profile
+      BEFORE INSERT OR UPDATE OF profile_status ON public.operation_profiles
+      FOR EACH ROW EXECUTE FUNCTION public.reject_active_operation_profile()';
+  END IF;
+END;
+$$;
 
 UPDATE public.staff_accounts
    SET account_status = 'ARCHIVED', updated_at = NOW()
  WHERE role_code = 'operation'
    AND account_status IS DISTINCT FROM 'ARCHIVED';
 
-UPDATE public.operation_profiles
-   SET profile_status = 'ARCHIVED', updated_at = NOW()
- WHERE profile_status IS DISTINCT FROM 'ARCHIVED';
-
-UPDATE public.account_role_assignments
-   SET grant_status = 'ARCHIVED', archived_at = COALESCE(archived_at, NOW())
- WHERE role_code = 'operation'
-   AND grant_status IS DISTINCT FROM 'ARCHIVED';
-
-UPDATE public.account_identity_links
-   SET link_status = 'ARCHIVED', archived_at = COALESCE(archived_at, NOW())
- WHERE subject_type = 'operation'
-   AND link_status IS DISTINCT FROM 'ARCHIVED';
-
 DO $$
 BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-     WHERE table_schema = 'public'
-       AND table_name = 'operation_store_scopes'
-       AND column_name = 'archived_at'
-  ) THEN
-    EXECUTE 'UPDATE public.operation_store_scopes
-                SET scope_status = ''ARCHIVED'',
-                    archived_at = COALESCE(archived_at, NOW())
-              WHERE scope_status IS DISTINCT FROM ''ARCHIVED''';
-  ELSE
-    EXECUTE 'UPDATE public.operation_store_scopes
-                SET scope_status = ''ARCHIVED'', updated_at = NOW()
-              WHERE scope_status IS DISTINCT FROM ''ARCHIVED''';
+  IF to_regclass('public.operation_profiles') IS NOT NULL THEN
+    EXECUTE 'UPDATE public.operation_profiles
+                SET profile_status = ''ARCHIVED'', updated_at = NOW()
+              WHERE profile_status IS DISTINCT FROM ''ARCHIVED''';
+  END IF;
+  IF to_regclass('public.account_role_assignments') IS NOT NULL THEN
+    EXECUTE 'UPDATE public.account_role_assignments
+                SET grant_status = ''ARCHIVED'', archived_at = COALESCE(archived_at, NOW())
+              WHERE role_code = ''operation''
+                AND grant_status IS DISTINCT FROM ''ARCHIVED''';
+  END IF;
+  IF to_regclass('public.account_identity_links') IS NOT NULL THEN
+    EXECUTE 'UPDATE public.account_identity_links
+                SET link_status = ''ARCHIVED'', archived_at = COALESCE(archived_at, NOW())
+              WHERE subject_type = ''operation''
+                AND link_status IS DISTINCT FROM ''ARCHIVED''';
+  END IF;
+  IF to_regclass('public.operation_store_scopes') IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'operation_store_scopes'
+         AND column_name = 'archived_at'
+    ) THEN
+      EXECUTE 'UPDATE public.operation_store_scopes
+                  SET scope_status = ''ARCHIVED'',
+                      archived_at = COALESCE(archived_at, NOW())
+                WHERE scope_status IS DISTINCT FROM ''ARCHIVED''';
+    ELSE
+      EXECUTE 'UPDATE public.operation_store_scopes
+                  SET scope_status = ''ARCHIVED'', updated_at = NOW()
+                WHERE scope_status IS DISTINCT FROM ''ARCHIVED''';
+    END IF;
+  END IF;
+  IF to_regclass('public.access_roles') IS NOT NULL THEN
+    EXECUTE 'UPDATE public.access_roles
+                SET role_status = ''ARCHIVED''
+              WHERE role_code = ''operation''
+                AND role_status IS DISTINCT FROM ''ARCHIVED''';
+  END IF;
+  IF to_regclass('public.role_permissions') IS NOT NULL THEN
+    EXECUTE 'DELETE FROM public.role_permissions WHERE role_code = ''operation''';
   END IF;
 END;
 $$;
-
-UPDATE public.access_roles
-   SET role_status = 'ARCHIVED'
- WHERE role_code = 'operation'
-   AND role_status IS DISTINCT FROM 'ARCHIVED';
-
-DELETE FROM public.role_permissions WHERE role_code = 'operation';
 
 COMMIT;

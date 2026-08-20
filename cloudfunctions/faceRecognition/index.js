@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v69";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v70";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -1041,9 +1041,6 @@ async function activeTeacherCaller() {
   if (caller.account_status !== "ACTIVE" || caller.teacher_status !== "ACTIVE") {
     fail("老师账号或老师资料已经封存。", "ARCHIVED");
   }
-  if (caller.face_enrollment_status !== "ENROLLED" || !String(caller.face_person_id || "").trim()) {
-    fail("老师尚未完成总部人脸绑定，不能办理业务。", "TEACHER_FACE_REQUIRED");
-  }
   return {
     uid: String(uid),
     role: "teacher",
@@ -1085,9 +1082,6 @@ async function activeBusinessCaller(event = {}) {
   if (account.role_code === "teacher") {
     if (!account.teacher_id) fail("当前老师账号尚未绑定老师资料。", "TEACHER_PROFILE_MISSING");
     if (account.teacher_status !== "ACTIVE") fail("老师资料已经封存。", "ARCHIVED");
-    if (account.face_enrollment_status !== "ENROLLED" || !String(account.face_person_id || "").trim()) {
-      fail("老师尚未完成总部人脸绑定，不能办理业务。", "TEACHER_FACE_REQUIRED");
-    }
   }
   const storeId = positiveDatabaseId(event.storeId, "门店");
   const stores = await executeSql(
@@ -2672,8 +2666,27 @@ async function getStoreBusinessAnalytics(event = {}) {
   };
 }
 
+async function requireTeacherExperienceQuotaLifecycleSchema() {
+  const rows = await executeSql(
+    `SELECT TO_REGCLASS('public.teacher_product_experience_quotas') IS NOT NULL AS has_quota_table,
+            TO_REGCLASS('public.teacher_experience_quota_usages') IS NOT NULL AS has_quota_usage_table,
+            EXISTS (
+              SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public'
+                 AND table_name = 'teacher_product_experience_quotas'
+                 AND column_name = 'quota_status'
+            ) AS has_quota_status`
+  );
+  const schema = rows?.[0] || {};
+  if (!databaseBoolean(schema.has_quota_table) || !databaseBoolean(schema.has_quota_usage_table)
+      || !databaseBoolean(schema.has_quota_status)) {
+    fail("体验额度生命周期尚未启用，请先执行迁移 048。", "DATABASE_SCHEMA_MISSING");
+  }
+}
+
 async function getTeacherExperienceEntitlements(event = {}) {
   const caller = await activeBusinessCaller(event);
+  await requireTeacherExperienceQuotaLifecycleSchema();
   const requestedTeacherId = String(event.teacherId || "").trim();
   if (caller.role === "teacher" && requestedTeacherId && requestedTeacherId !== String(caller.teacherId)) {
     fail("老师账号只能读取自己的体验额度。", "FORBIDDEN");
@@ -2686,24 +2699,30 @@ async function getTeacherExperienceEntitlements(event = {}) {
     `SELECT public.reset_teacher_experience_quota(q.id)
        FROM public.teacher_product_experience_quotas q
       WHERE q.teacher_id = ${sqlText(teacherId)}::bigint
+        AND q.quota_status = 'ACTIVE'
         AND q.quota_month < public.teacher_experience_quota_month()`
   );
 
   const rows = await executeSql(
     `SELECT q.id, q.teacher_id, q.product_id, q.monthly_allowance, q.quota_month,
             q.available_count, q.used_count, q.manual_recharge_count, q.monthly_reset_at,
-            p.product_code, p.product_name, p.product_status
+            p.product_code, p.product_name, p.product_status,
+            COALESCE((
+              SELECT SUM(u.unit_count)::bigint
+                FROM public.teacher_experience_quota_usages u
+               WHERE u.teacher_id = q.teacher_id
+                 AND u.product_id = q.product_id
+            ), 0)::bigint AS total_experience_count
        FROM public.teacher_product_experience_quotas q
        JOIN public.teachers t ON t.id = q.teacher_id
        JOIN public.staff_accounts a ON a.id = t.staff_account_id
        JOIN public.products p ON p.id = q.product_id
       WHERE q.teacher_id = ${sqlText(teacherId)}::bigint
         AND t.teacher_status = 'ACTIVE'
-        AND t.face_enrollment_status = 'ENROLLED'
-        AND BTRIM(COALESCE(t.face_person_id, '')) <> ''
         AND a.role_code = 'teacher'
         AND a.account_status = 'ACTIVE'
         AND p.product_status = 'ACTIVE'
+        AND q.quota_status = 'ACTIVE'
         AND q.available_count > 0
       ORDER BY p.product_name, p.product_code, q.id`
   );
@@ -2721,6 +2740,8 @@ async function getTeacherExperienceEntitlements(event = {}) {
       quotaMonth: row.quota_month,
       availableCount: Number(row.available_count || 0),
       usedCount: Number(row.used_count || 0),
+      totalExperienceCount: Number(row.total_experience_count || 0),
+      totalUsedCount: Number(row.total_experience_count || 0),
       manualRechargeCount: Number(row.manual_recharge_count || 0),
       monthlyResetAt: row.monthly_reset_at
     }))
@@ -2739,10 +2760,8 @@ async function listActiveTeachers(event = {}) {
   }] : await executeSql(
     `SELECT t.id AS teacher_id, t.teacher_code, t.teacher_name
        FROM public.teachers t
-       JOIN public.staff_accounts a ON a.id = t.staff_account_id
+      JOIN public.staff_accounts a ON a.id = t.staff_account_id
       WHERE t.teacher_status = 'ACTIVE'
-        AND t.face_enrollment_status = 'ENROLLED'
-        AND BTRIM(COALESCE(t.face_person_id, '')) <> ''
         AND a.role_code = 'teacher'
         AND a.account_status = 'ACTIVE'
       ORDER BY t.teacher_name, t.teacher_code
@@ -2886,8 +2905,6 @@ async function createRechargeApplication(event) {
          JOIN public.staff_accounts a ON a.id = t.staff_account_id
         WHERE t.id = ${sqlText(teacherId)}::bigint
           AND t.teacher_status = 'ACTIVE'
-          AND t.face_enrollment_status = 'ENROLLED'
-          AND BTRIM(COALESCE(t.face_person_id, '')) <> ''
           AND a.role_code = 'teacher'
           AND a.account_status = 'ACTIVE'
         LIMIT 1`
@@ -3026,13 +3043,7 @@ async function createVerificationApplication(event) {
   const idempotencyKey = rechargeSubmissionKey(event.clientRequestId);
   await requireVerificationSubmissionSchema();
   if (experienceVerification) {
-    const quotaSchema = await executeSql(
-      `SELECT TO_REGCLASS('public.teacher_product_experience_quotas') IS NOT NULL AS has_quota_table,
-              TO_REGCLASS('public.teacher_experience_quota_usages') IS NOT NULL AS has_quota_usage_table`
-    );
-    if (!databaseBoolean(quotaSchema?.[0]?.has_quota_table) || !databaseBoolean(quotaSchema?.[0]?.has_quota_usage_table)) {
-      fail("体验核销额度结构尚未启用，请先执行迁移 046。", "DATABASE_SCHEMA_MISSING");
-    }
+    await requireTeacherExperienceQuotaLifecycleSchema();
   }
 
   const customers = await executeSql(
@@ -3062,8 +3073,6 @@ async function createVerificationApplication(event) {
        JOIN public.staff_accounts a ON a.id = t.staff_account_id
       WHERE t.id = ${sqlText(teacherId)}::bigint
         AND t.teacher_status = 'ACTIVE'
-        AND t.face_enrollment_status = 'ENROLLED'
-        AND BTRIM(COALESCE(t.face_person_id, '')) <> ''
         AND a.role_code = 'teacher'
         AND a.account_status = 'ACTIVE'
       LIMIT 1`
@@ -3100,7 +3109,7 @@ async function createVerificationApplication(event) {
     if (detail.includes("insufficient teacher experience quota")) {
       fail("该老师该项目的体验次数不足，不能提交体验核销。", "TEACHER_EXPERIENCE_QUOTA_EXHAUSTED");
     }
-    if (detail.includes("no configured experience quota")) {
+    if (detail.includes("no configured experience quota") || detail.includes("no active configured experience quota")) {
       fail("该老师尚未配置这个项目的体验次数，不能提交体验核销。", "TEACHER_EXPERIENCE_QUOTA_NOT_CONFIGURED");
     }
     if (detail.includes("face photo evidence")) {

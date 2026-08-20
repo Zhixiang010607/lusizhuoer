@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v50";
+const FUNCTION_VERSION = "v51";
 const ORDER_VOID_APPLICATIONS_ENABLED = false;
 const TEACHER_EXPERIENCE_RESET_TIMER_TRIGGER_NAME = "reset-teacher-experience-quotas-monthly";
 const TEACHER_FACE_MAX_BYTES = 4 * 1024 * 1024;
@@ -1234,9 +1234,6 @@ async function findStaffProfile(uid) {
     if (staff.store_status !== "ACTIVE") fail("关联门店已封存，无法登录", "ARCHIVED_STORE");
   }
   if (staff.role_code === "teacher") {
-    if (staff.face_enrollment_status !== "ENROLLED" || !String(staff.face_person_id || "").trim()) {
-      fail("该老师尚未完成总部人脸绑定，无法登录", "TEACHER_FACE_REQUIRED");
-    }
     if (staff.teacher_status === "ARCHIVED") fail("该老师资料已封存，无法登录", "ARCHIVED_TEACHER");
   }
   return {
@@ -2613,6 +2610,27 @@ async function requireTeacherFaceSchema() {
   }
 }
 
+// Migration 048 makes face enrollment optional for an ACTIVE teacher.  The
+// quota-status column is a durable schema marker for the paired trigger
+// replacement; do not create a no-face teacher against the older 046 trigger
+// because that trigger would immediately archive the new account again.
+async function requireTeacherOptionalFaceActivationSchema() {
+  const rows = await executeSql(
+    `SELECT EXISTS (
+              SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public'
+                 AND table_name = 'teacher_product_experience_quotas'
+                 AND column_name = 'quota_status'
+            ) AS has_quota_status,
+            TO_REGPROCEDURE('public.delete_teacher_product_experience_quota(bigint,bigint,bigint)') IS NOT NULL
+              AS has_delete_function`
+  );
+  const schema = rows?.[0] || {};
+  if (!databaseBoolean(schema.has_quota_status) || !databaseBoolean(schema.has_delete_function)) {
+    fail("老师可选人脸及体验额度生命周期尚未启用，请先执行迁移 048。", "DATABASE_SCHEMA_MISSING");
+  }
+}
+
 async function blockTeacherAuthentication(uid, { required = false } = {}) {
   if (!uid) {
     if (required) fail("老师认证账号缺少 UID，无法确认封存。", "AUTH_ARCHIVE_FAILED");
@@ -2695,11 +2713,13 @@ async function archiveStoreProvisioning(staffId) {
 }
 
 async function deleteTeacherFacePerson(api, groupId, personId) {
-  if (!api || !groupId || !personId) return;
+  if (!api || !groupId || !personId) return false;
   try {
     await api.DeletePerson({ GroupId: groupId, PersonId: personId });
+    return true;
   } catch (error) {
     console.warn("teacher face cleanup failed", { code: cloudErrorDetails(error).code || undefined, requestId: requestIdFrom(error) || undefined });
+    return false;
   }
 }
 
@@ -2927,22 +2947,167 @@ async function provisionTeacherWithFace(caller, event = {}) {
   };
 }
 
+// Face enrollment is deliberately independent from account activation as of
+// migration 048. A headquarters user may attach a first face later or replace
+// an existing one. The replacement order matters: create/validate the new
+// Tencent person, atomically point PostgreSQL at it, then only best-effort
+// clean up the old person. An old enrolled face is never deleted first.
+async function upsertTeacherFace(caller, event = {}) {
+  await requireTeacherFaceSchema();
+  await requireTeacherOptionalFaceActivationSchema();
+  const teacherId = numericId(event.teacherId || event.teacherRef, "老师编号");
+  const clientRequestId = teacherFaceProvisionRequestId(event.clientRequestId);
+  if (event.consent !== true) fail("必须取得老师明确的人脸建档授权。", "TEACHER_FACE_CONSENT_REQUIRED");
+  const image = teacherFaceImage(event.faceImageBase64);
+  const nextPersonId = teacherFacePersonId(clientRequestId);
+
+  const teacherRows = await executeSql(
+    `SELECT t.id, t.staff_account_id, t.teacher_code, t.teacher_name,
+            t.teacher_status, t.face_person_id, t.face_enrollment_status,
+            t.face_enrolled_at, a.role_code, a.account_status
+       FROM public.teachers t
+       JOIN public.staff_accounts a ON a.id = t.staff_account_id
+      WHERE t.id = ${teacherId}::bigint
+      LIMIT 1`
+  );
+  const current = teacherRows?.[0];
+  if (!current || current.role_code !== "teacher") fail("未找到老师资料。", "NOT_FOUND");
+
+  const previousPersonId = String(current.face_person_id || "").trim();
+  if (current.face_enrollment_status === "ENROLLED" && previousPersonId === nextPersonId) {
+    return {
+      ok: true,
+      createdNow: false,
+      replaced: false,
+      teacher: {
+        teacherId: String(current.id), teacherCode: String(current.teacher_code || ""),
+        teacherName: String(current.teacher_name || ""), teacherStatus: String(current.teacher_status || ""),
+        accountStatus: String(current.account_status || ""), faceEnrollmentStatus: "ENROLLED",
+        faceEnrolledAt: current.face_enrolled_at || null
+      }
+    };
+  }
+
+  const api = teacherFaceClient();
+  const groupId = requiredEnvironment("FACE_GROUP_ID");
+  await inspectTeacherFaceImage(api, image.base64);
+  await inspectTeacherFaceLiveness(api, image.base64);
+
+  let facePersonCreated = false;
+  let facePersonRecovered = false;
+  try {
+    try {
+      await api.CreatePerson({
+        GroupId: groupId,
+        PersonId: nextPersonId,
+        PersonName: String(current.teacher_name || "老师"),
+        Image: image.base64,
+        UniquePersonControl: 0,
+        QualityControl: 3,
+        FaceModelVersion: TEACHER_FACE_MODEL_VERSION
+      });
+      facePersonCreated = true;
+    } catch (error) {
+      if (!duplicateTeacherFacePersonError(error)) throw error;
+      await confirmExistingTeacherFacePerson(api, nextPersonId);
+      facePersonRecovered = true;
+    }
+  } catch (error) {
+    stageFail("FACE_ENROLLMENT", "老师人脸创建失败，请重新拍照后重试。", "TEACHER_FACE_ENROLLMENT_FAILED", error);
+  }
+
+  let teacher;
+  try {
+    const rows = await executeSql(
+      `UPDATE public.teachers
+          SET face_person_id = ${sqlText(nextPersonId)},
+              face_consent_at = NOW(),
+              face_enrollment_status = 'ENROLLED',
+              face_enrolled_at = NOW(),
+              face_enrolled_by_account_id = ${numericId(caller.profile.staffId, "总部账号")}::bigint,
+              updated_at = NOW()
+        WHERE id = ${teacherId}::bigint
+          AND staff_account_id = ${Number(current.staff_account_id)}::bigint
+        RETURNING id, teacher_code, teacher_name, teacher_status,
+                  face_enrollment_status, face_enrolled_at`
+    );
+    teacher = rows?.[0] || null;
+  } catch (error) {
+    // A response can be lost after PostgreSQL committed. Verify the exact new
+    // person ID before deciding whether the newly created Tencent record can
+    // be cleaned up; never delete it when persistence is ambiguous.
+    const persistedRows = await executeSql(
+      `SELECT id, teacher_code, teacher_name, teacher_status,
+              face_enrollment_status, face_enrolled_at
+         FROM public.teachers
+        WHERE id = ${teacherId}::bigint
+          AND face_person_id = ${sqlText(nextPersonId)}
+          AND face_enrollment_status = 'ENROLLED'
+        LIMIT 1`
+    ).catch(() => []);
+    teacher = persistedRows?.[0] || null;
+    if (!teacher) {
+      if (facePersonCreated && !facePersonRecovered) {
+        await deleteTeacherFacePerson(api, groupId, nextPersonId);
+      }
+      stageFail("DB_FACE_ENROLLMENT", "老师人脸资料未能保存，原人脸保持不变。", "TEACHER_FACE_ENROLLMENT_FAILED", error);
+    }
+  }
+  if (!teacher || teacher.face_enrollment_status !== "ENROLLED") {
+    if (facePersonCreated && !facePersonRecovered) {
+      await deleteTeacherFacePerson(api, groupId, nextPersonId);
+    }
+    fail("老师人脸资料未能完整保存。", "TEACHER_FACE_ENROLLMENT_INCOMPLETE");
+  }
+
+  let warning = "";
+  if (previousPersonId && previousPersonId !== nextPersonId) {
+    const oldDeleted = await deleteTeacherFacePerson(api, groupId, previousPersonId);
+    if (!oldDeleted) {
+      warning = "新老师人脸已生效，但旧人脸库记录暂未删除；请由总部稍后清理。";
+    }
+  }
+  return {
+    ok: true,
+    createdNow: facePersonCreated,
+    replaced: Boolean(previousPersonId && previousPersonId !== nextPersonId),
+    teacher: {
+      teacherId: String(teacher.id), teacherCode: String(teacher.teacher_code || ""),
+      teacherName: String(teacher.teacher_name || ""), teacherStatus: String(teacher.teacher_status || ""),
+      accountStatus: String(current.account_status || ""),
+      faceEnrollmentStatus: String(teacher.face_enrollment_status || ""),
+      faceEnrolledAt: teacher.face_enrolled_at || null
+    },
+    warning: warning || undefined
+  };
+}
+
 async function requireTeacherExperienceQuotaSchema() {
   const rows = await executeSql(
     `SELECT TO_REGCLASS('public.teacher_product_experience_quotas') IS NOT NULL AS quota_table,
             TO_REGCLASS('public.teacher_experience_quota_recharges') IS NOT NULL AS recharge_table,
             TO_REGCLASS('public.teacher_experience_quota_resets') IS NOT NULL AS reset_table,
             TO_REGCLASS('public.teacher_experience_quota_usages') IS NOT NULL AS usage_table,
+            TO_REGCLASS('public.teacher_experience_quota_configuration_events') IS NOT NULL AS configuration_event_table,
+            EXISTS (
+              SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public'
+                 AND table_name = 'teacher_product_experience_quotas'
+                 AND column_name = 'quota_status'
+            ) AS quota_status_column,
             TO_REGPROCEDURE('public.upsert_teacher_product_experience_quota(bigint,bigint,integer,bigint)') IS NOT NULL AS upsert_function,
+            TO_REGPROCEDURE('public.delete_teacher_product_experience_quota(bigint,bigint,bigint)') IS NOT NULL AS delete_function,
             TO_REGPROCEDURE('public.recharge_teacher_product_experience_quota(bigint,bigint,integer,text,character varying,bigint)') IS NOT NULL AS recharge_function,
             TO_REGPROCEDURE('public.reset_teacher_experience_quotas(date,bigint)') IS NOT NULL AS reset_function`
   );
   const schema = rows?.[0] || {};
   if (!databaseBoolean(schema.quota_table) || !databaseBoolean(schema.recharge_table)
       || !databaseBoolean(schema.reset_table) || !databaseBoolean(schema.usage_table)
-      || !databaseBoolean(schema.upsert_function) || !databaseBoolean(schema.recharge_function)
+      || !databaseBoolean(schema.configuration_event_table) || !databaseBoolean(schema.quota_status_column)
+      || !databaseBoolean(schema.upsert_function) || !databaseBoolean(schema.delete_function)
+      || !databaseBoolean(schema.recharge_function)
       || !databaseBoolean(schema.reset_function)) {
-    fail("老师体验额度结构尚未启用，请先执行迁移 046。", "DATABASE_SCHEMA_MISSING");
+    fail("老师体验额度生命周期尚未启用，请先执行迁移 048。", "DATABASE_SCHEMA_MISSING");
   }
 }
 
@@ -2966,6 +3131,8 @@ function teacherExperienceEntitlement(row) {
     quotaMonth: row.quota_month,
     availableCount: Number(row.available_count || row.available_after_count || 0),
     usedCount: Number(row.used_count || 0),
+    totalExperienceCount: Number(row.total_experience_count || row.total_used_count || 0),
+    totalUsedCount: Number(row.total_used_count || row.total_experience_count || 0),
     manualRechargeCount: Number(row.manual_recharge_count || 0),
     monthlyResetAt: row.monthly_reset_at
   };
@@ -2984,6 +3151,7 @@ async function getHqTeacherExperienceEntitlements(caller, event = {}) {
             )
        FROM public.teacher_product_experience_quotas q
       WHERE q.teacher_id = ${teacherId}::bigint
+        AND q.quota_status = 'ACTIVE'
         AND q.quota_month < public.teacher_experience_quota_month()`
   );
   const teacherRows = await executeSql(
@@ -2999,20 +3167,47 @@ async function getHqTeacherExperienceEntitlements(caller, event = {}) {
   const entitlementRows = await executeSql(
     `SELECT q.id, q.teacher_id, q.product_id, q.monthly_allowance, q.quota_month,
             q.available_count, q.used_count, q.manual_recharge_count, q.monthly_reset_at,
-            p.product_code, p.product_name, p.product_status
+            p.product_code, p.product_name, p.product_status,
+            COALESCE((
+              SELECT SUM(u.unit_count)::bigint
+                FROM public.teacher_experience_quota_usages u
+               WHERE u.teacher_id = q.teacher_id
+                 AND u.product_id = q.product_id
+            ), 0)::bigint AS total_experience_count
        FROM public.teacher_product_experience_quotas q
        JOIN public.products p ON p.id = q.product_id
       WHERE q.teacher_id = ${teacherId}::bigint
+        AND q.quota_status = 'ACTIVE'
       ORDER BY p.product_name, p.product_code, q.id`
+  );
+  // Keep the all-time per-product summary independent from whether a current
+  // configuration is live. A deleted configuration deliberately disappears
+  // from the recharge/selectable list, but its completed experiences remain
+  // visible to headquarters as historical business data.
+  const experienceTotalRows = await executeSql(
+    `SELECT u.product_id, p.product_code, p.product_name, p.product_status,
+            COALESCE(SUM(u.unit_count), 0)::bigint AS total_experience_count
+       FROM public.teacher_experience_quota_usages u
+       LEFT JOIN public.products p ON p.id = u.product_id
+      WHERE u.teacher_id = ${teacherId}::bigint
+      GROUP BY u.product_id, p.product_code, p.product_name, p.product_status
+      ORDER BY p.product_name NULLS LAST, p.product_code NULLS LAST, u.product_id`
   );
   const historyRows = await executeSql(
     `WITH history AS (
-       SELECT q.created_at AS occurred_at, 'CONFIGURATION'::text AS event_type,
-              q.product_id, q.monthly_allowance::integer AS unit_count,
-              q.monthly_allowance::integer AS available_after_count,
-              ''::text AS note, q.created_by_account_id AS actor_account_id
-         FROM public.teacher_product_experience_quotas q
-        WHERE q.teacher_id = ${teacherId}::bigint
+       SELECT event.occurred_at,
+              CASE event.event_type
+                WHEN 'CONFIGURED' THEN 'CONFIGURATION'
+                WHEN 'REMOVED' THEN 'REMOVED'
+                ELSE event.event_type
+              END AS event_type,
+              event.product_id,
+              (CASE WHEN event.event_type = 'REMOVED' THEN 0 ELSE event.monthly_allowance END)::integer AS unit_count,
+              event.available_after_count,
+              ''::text AS note,
+              event.occurred_by_account_id AS actor_account_id
+         FROM public.teacher_experience_quota_configuration_events event
+        WHERE event.teacher_id = ${teacherId}::bigint
        UNION ALL
        SELECT r.created_at, 'TOP_UP'::text, r.product_id, r.unit_count,
               r.available_after_count, r.note, r.recharged_by_account_id
@@ -3039,6 +3234,13 @@ async function getHqTeacherExperienceEntitlements(caller, event = {}) {
       LIMIT 200`
   );
   const entitlements = entitlementRows.map(teacherExperienceEntitlement);
+  const experienceTotals = experienceTotalRows.map((row) => ({
+    productId: String(row.product_id || ""),
+    productCode: String(row.product_code || ""),
+    productName: String(row.product_name || "未命名产品"),
+    productStatus: String(row.product_status || "ARCHIVED"),
+    totalExperienceCount: Number(row.total_experience_count || 0)
+  }));
   return {
     ok: true,
     teacher: {
@@ -3052,7 +3254,9 @@ async function getHqTeacherExperienceEntitlements(caller, event = {}) {
       productName: String(row.product_name || ""), count: Number(row.unit_count || 0),
       availableAfterCount: Number(row.available_after_count || 0), note: String(row.note || ""), actorName: String(row.actor_name || "")
     })),
-    totalAvailableCount: entitlements.reduce((total, item) => total + item.availableCount, 0)
+    experienceTotals,
+    totalAvailableCount: entitlements.reduce((total, item) => total + item.availableCount, 0),
+    totalExperienceCount: experienceTotals.reduce((total, item) => total + item.totalExperienceCount, 0)
   };
 }
 
@@ -3074,8 +3278,8 @@ async function upsertTeacherExperienceEntitlement(caller, event = {}) {
     );
   } catch (error) {
     const detail = String(error?.message || "").toLowerCase();
-    if (detail.includes("archived") || detail.includes("face enrollment") || detail.includes("product is missing")) {
-      fail("封存、未绑定人脸的老师或封存产品不能配置体验次数。", "MASTER_DATA_NOT_ACTIVE");
+    if (detail.includes("archived") || detail.includes("product is missing")) {
+      fail("封存老师或封存产品不能配置体验次数。", "MASTER_DATA_NOT_ACTIVE");
     }
     throw error;
   }
@@ -3083,6 +3287,39 @@ async function upsertTeacherExperienceEntitlement(caller, event = {}) {
   if (!result) fail("体验额度配置未保存。", "TEACHER_EXPERIENCE_QUOTA_SAVE_FAILED");
   const page = await getHqTeacherExperienceEntitlements(caller, { teacherId });
   return { ok: true, created: databaseBoolean(result.created_now), entitlement: page.entitlements.find((item) => item.productId === String(productId)) || null };
+}
+
+async function deleteTeacherExperienceEntitlement(caller, event = {}) {
+  await requireTeacherExperienceQuotaSchema();
+  const teacherId = numericId(event.teacherId || event.teacherRef, "老师编号");
+  const productId = numericId(event.productId, "产品编号");
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT * FROM public.delete_teacher_product_experience_quota(
+         ${teacherId}::bigint, ${productId}::bigint,
+         ${numericId(caller.profile.staffId, "总部账号")}::bigint
+       )`
+    );
+  } catch (error) {
+    const detail = String(error?.message || "").toLowerCase();
+    if (detail.includes("no active experience quota")) {
+      fail("该老师该产品当前没有可删除的体验额度配置。", "TEACHER_EXPERIENCE_QUOTA_NOT_CONFIGURED");
+    }
+    throw error;
+  }
+  const removed = rows?.[0];
+  if (!removed) fail("体验额度配置未能删除。", "TEACHER_EXPERIENCE_QUOTA_DELETE_FAILED");
+  return {
+    ok: true,
+    removed: {
+      quotaId: String(removed.quota_id || ""),
+      teacherId: String(removed.teacher_id || teacherId),
+      productId: String(removed.product_id || productId),
+      availableCount: Number(removed.available_count || 0),
+      removedAt: removed.removed_at || null
+    }
+  };
 }
 
 async function rechargeTeacherExperienceEntitlement(caller, event = {}) {
@@ -3107,10 +3344,12 @@ async function rechargeTeacherExperienceEntitlement(caller, event = {}) {
     );
   } catch (error) {
     const detail = String(error?.message || "").toLowerCase();
-    if (detail.includes("no configured experience quota")) fail("请先配置该老师该产品的月度体验次数。", "TEACHER_EXPERIENCE_QUOTA_NOT_CONFIGURED");
+    if (detail.includes("no configured experience quota") || detail.includes("no active configured experience quota")) {
+      fail("请先配置该老师该产品的月度体验次数。", "TEACHER_EXPERIENCE_QUOTA_NOT_CONFIGURED");
+    }
     if (detail.includes("idempotency key belongs")) fail("该充值请求编号已用于另一笔体验充值。", "IDEMPOTENCY_CONFLICT");
-    if (detail.includes("archived") || detail.includes("face enrollment") || detail.includes("product is missing")) {
-      fail("封存、未绑定人脸的老师或封存产品不能充值体验次数。", "MASTER_DATA_NOT_ACTIVE");
+    if (detail.includes("archived") || detail.includes("product is missing")) {
+      fail("封存老师或封存产品不能充值体验次数。", "MASTER_DATA_NOT_ACTIVE");
     }
     throw error;
   }
@@ -3158,9 +3397,6 @@ async function setMasterStatus(caller, event = {}) {
     );
     const teacher = rows?.[0];
     if (!teacher) fail("未找到该老师。", "NOT_FOUND");
-    if (status === "ACTIVE" && (teacher.face_enrollment_status !== "ENROLLED" || !String(teacher.face_person_id || "").trim())) {
-      fail("老师必须完成人脸绑定后才能恢复活跃状态。", "TEACHER_FACE_REQUIRED");
-    }
     if (teacher.auth_uid) {
       const result = await main({ action: "setStaffStatus", uid: String(teacher.auth_uid), status });
       return { ...result, entity: "teacher", teacherId: String(teacherId) };
@@ -3609,6 +3845,10 @@ async function main(event = {}, context = {}) {
     requireHq(caller);
     return await upsertTeacherExperienceEntitlement(caller, event);
   }
+  if (action === "deleteTeacherExperienceEntitlement") {
+    requireHq(caller);
+    return await deleteTeacherExperienceEntitlement(caller, event);
+  }
   if (action === "rechargeTeacherExperienceEntitlement") {
     requireHq(caller);
     return await rechargeTeacherExperienceEntitlement(caller, event);
@@ -3786,6 +4026,10 @@ async function main(event = {}, context = {}) {
     requireHq(caller);
     return await provisionTeacherWithFace(caller, event);
   }
+  if (action === "upsertTeacherFace") {
+    requireHq(caller);
+    return await upsertTeacherFace(caller, event);
+  }
   if (action === "provisionStaff") {
     requireHq(caller);
     const staffName = String(event.staffName || "").trim();
@@ -3796,7 +4040,7 @@ async function main(event = {}, context = {}) {
     if (!staffName) fail("请填写员工姓名");
     if (role === "operation") fail("运营账号已下线，不能再创建。", "OPERATION_ROLE_RETIRED");
     if (!ROLES.has(role)) fail("员工角色必须是总部、门店或老师");
-    if (role === "teacher") fail("老师账号必须使用 provisionTeacherWithFace 完成人脸授权和绑定。", "TEACHER_FACE_REQUIRED");
+    if (role === "teacher") await requireTeacherOptionalFaceActivationSchema();
     if (role === "store" && !/^\d+$/.test(storeId)) fail("门店员工必须绑定已创建门店的数字编号");
 
     let authUser = await findAuthUserByExactPhone(phone);
@@ -3814,7 +4058,7 @@ async function main(event = {}, context = {}) {
           userStatus: "ACTIVE",
           nickName: staffName,
           phone,
-          description: "业务员工登录账号"
+          description: role === "teacher" ? "老师登录账号（人脸可后续补充）" : "业务员工登录账号"
         });
         const uid = String(created?.Data?.Uid || "");
         if (!uid) {
@@ -4023,10 +4267,6 @@ async function main(event = {}, context = {}) {
     if (!staff) fail("未找到该人员账号", "NOT_FOUND");
     if (staff.role_code === "operation") {
       fail("运营账号已下线，不能恢复、封存或修改。请使用 retireOperationAccounts 完成统一下线。", "OPERATION_ROLE_RETIRED");
-    }
-    if (staff.role_code === "teacher" && status === "ACTIVE"
-        && (staff.face_enrollment_status !== "ENROLLED" || !String(staff.face_person_id || "").trim())) {
-      fail("老师必须完成总部人脸绑定后才能恢复活跃状态。", "TEACHER_FACE_REQUIRED");
     }
     // Archive the CloudBase credential first. If that platform operation
     // fails, leave business master data untouched instead of reporting an

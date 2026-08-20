@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>老师主页</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.45">
+  <link rel="stylesheet" href="styles.css?v=0.15.46">
 </head>
 <body data-staff-detail>
   <aside class="side-project-bar" aria-label="项目栏">
@@ -34,10 +34,29 @@
           <p id="staffStatusHint">正在读取人员信息。</p>
         </div>
         <div class="staff-admin-actions">
+          <button id="staffFaceAction" class="secondary-button" type="button" hidden>添加人脸</button>
           <button id="staffCredentialAction" class="secondary-button" type="button" hidden>重置临时密码</button>
           <button id="staffStatusAction" class="danger-button" type="button" hidden>封存老师</button>
         </div>
       </aside>
+    </section>
+
+    <section id="teacherFaceUpdatePanel" class="panel teacher-face-update-panel" hidden aria-labelledby="teacherFaceUpdateTitle">
+      <header class="teacher-face-update-heading">
+        <div>
+          <p class="teacher-experience-kicker">老师身份资料</p>
+          <h2 id="teacherFaceUpdateTitle">添加 / 更换老师人脸</h2>
+          <p>人脸不是账号激活条件。可在老师创建后补录，也可在取得老师明确授权后安全更换。</p>
+        </div>
+        <button id="closeTeacherFaceUpdate" class="secondary-button" type="button">收起</button>
+      </header>
+      <form id="teacherFaceUpdateForm" class="teacher-face-update-form">
+        <label class="teacher-face-update-consent"><input id="teacherFaceUpdateConsent" type="checkbox" required> 我已取得老师明确授权，仅为该老师补录或更换登录身份人脸。</label>
+        <label class="teacher-face-update-upload">选择照片或拍照<input id="teacherFaceUpdateFile" type="file" accept="image/jpeg" capture="user" required><span>支持 JPG；上传后会在提交前显示预览。</span></label>
+        <div id="teacherFaceUpdatePreviewWrap" class="teacher-face-update-preview" hidden><img id="teacherFaceUpdatePreview" alt="待保存的老师人脸预览"><span>新照片将在服务端完成质量和身份检查后生效。</span></div>
+        <div class="teacher-face-update-actions"><button id="saveTeacherFaceUpdate" type="submit" disabled>保存人脸</button><button id="clearTeacherFaceUpdate" class="secondary-button" type="button">清空照片</button></div>
+        <p id="teacherFaceUpdateMessage" class="form-message" aria-live="polite"></p>
+      </form>
     </section>
 
     <section id="teacherExperiencePanel" class="panel teacher-experience-panel" hidden aria-labelledby="teacherExperienceTitle">
@@ -45,7 +64,7 @@
         <div>
           <p class="teacher-experience-kicker">总部专用 · 老师体验次数</p>
           <h2 id="teacherExperienceTitle">体验额度工作台</h2>
-          <p>核销只扣减老师的体验次数，不会影响客户购买次数；每月 1 日自动恢复月度基础额度。</p>
+          <p>体验核销只扣减老师的体验次数，不会影响客户购买次数；活跃老师的活跃产品会在每月 1 日 00:00 恢复当月基础额度。</p>
         </div>
         <span id="teacherExperienceState" class="teacher-experience-state">正在读取</span>
       </header>
@@ -54,10 +73,22 @@
 
       <div class="teacher-experience-workspace">
         <section class="teacher-experience-list-card" aria-labelledby="teacherExperienceListTitle">
-          <header class="teacher-experience-section-heading">
+          <header class="teacher-experience-section-heading teacher-experience-summary-heading">
             <div>
-              <h3 id="teacherExperienceListTitle">已配置的体验产品</h3>
-              <p>选择某个产品即可单独充值；封存产品与老师的历史额度会继续保留。</p>
+              <p class="teacher-experience-action-eyebrow">累计数据</p>
+              <h3 id="teacherExperienceListTitle">项目体验汇总</h3>
+              <p>按产品汇总该老师累计完成的体验次数；封存后的历史数据仍保留在统计中。</p>
+            </div>
+          </header>
+          <div id="teacherExperienceSummaryRows" class="teacher-experience-summary-grid" aria-live="polite">
+            <div class="teacher-experience-empty">正在汇总各项目体验次数…</div>
+          </div>
+
+          <header class="teacher-experience-section-heading teacher-experience-configured-heading">
+            <div>
+              <p class="teacher-experience-action-eyebrow">当前设置</p>
+              <h3>已配置的体验产品</h3>
+              <p>可删除某项配置后重新设置；删除不会抹去此前的体验、充值或月度更新记录。</p>
             </div>
           </header>
           <div id="teacherExperienceRows" class="teacher-experience-quota-grid" aria-live="polite">
@@ -68,31 +99,31 @@
         <aside class="teacher-experience-action-stack">
           <section class="teacher-experience-config" aria-labelledby="teacherExperienceConfigTitle">
             <div class="teacher-experience-action-copy">
-              <p class="teacher-experience-action-eyebrow">首次设置</p>
-              <h3 id="teacherExperienceConfigTitle">添加产品额度</h3>
-              <p>每种产品只能配置一次。设置的是每月自动恢复的基础次数，不是客户余额。</p>
+              <p class="teacher-experience-action-eyebrow">基础额度设置</p>
+              <h3 id="teacherExperienceConfigTitle">新增 / 重新配置产品</h3>
+              <p>每种产品只能配置一次。保存后立即把该产品当前可用次数改为所填数值，不累加、不保留旧余额；此数值也会成为每月自动更新的基础额度。</p>
             </div>
             <form id="teacherExperienceConfigForm" class="teacher-experience-form">
               <label>活跃产品<select id="teacherExperienceProduct" required disabled><option value="">正在读取可配置产品…</option></select></label>
-              <label>每月体验次数<input id="teacherExperienceMonthlyCount" type="number" min="0" max="99999" step="1" required inputmode="numeric" placeholder="例如 10"></label>
-              <button id="saveTeacherExperienceConfig" type="submit">添加产品额度</button>
+              <label>立即生效次数<input id="teacherExperienceMonthlyCount" type="number" min="0" max="99999" step="1" required inputmode="numeric" placeholder="例如 30"></label>
+              <button id="saveTeacherExperienceConfig" type="submit">保存并立即生效</button>
             </form>
             <p id="teacherExperienceConfigMessage" class="form-message" aria-live="polite"></p>
           </section>
 
-          <section id="teacherExperienceRechargePanel" class="teacher-experience-recharge" hidden aria-labelledby="teacherExperienceRechargeTitle">
+          <section id="teacherExperienceRechargePanel" class="teacher-experience-recharge" aria-labelledby="teacherExperienceRechargeTitle">
             <div class="teacher-experience-action-copy">
               <p class="teacher-experience-action-eyebrow">总部单独充值</p>
               <h3 id="teacherExperienceRechargeTitle">为老师补充体验次数</h3>
-              <p id="teacherExperienceRechargeTarget">请选择一条活跃产品额度后充值。</p>
+              <p id="teacherExperienceRechargeTarget">选择已配置的活跃产品和次数后，额度立即增加；不会影响客户购买或剩余次数。</p>
             </div>
             <form id="teacherExperienceRechargeForm" class="teacher-experience-form">
-              <input id="teacherExperienceRechargeProductId" type="hidden">
+              <label>已配置产品<select id="teacherExperienceRechargeProduct" required disabled><option value="">正在读取可充值产品…</option></select></label>
               <label>充值次数<input id="teacherExperienceRechargeCount" type="number" min="1" max="99999" step="1" required inputmode="numeric" placeholder="例如 5"></label>
               <label>充值备注<textarea id="teacherExperienceRechargeNote" rows="3" maxlength="300" placeholder="可选，记录本次单独充值原因"></textarea></label>
               <div class="teacher-experience-form-actions">
                 <button id="saveTeacherExperienceRecharge" type="submit">确认充值</button>
-                <button id="cancelTeacherExperienceRecharge" class="secondary-button" type="button">取消</button>
+                <button id="cancelTeacherExperienceRecharge" class="secondary-button" type="button">清空</button>
               </div>
             </form>
             <p id="teacherExperienceRechargeMessage" class="form-message" aria-live="polite"></p>
@@ -120,7 +151,7 @@
   <script src="cloudbase-auth-config.js"></script>
   <script src="cloudbase-phone-auth.js?v=0.18.0"></script>
   <script src="datetime.js?v=0.1.2"></script>
-  <script src="staff-detail.js?v=0.14.26"></script>
+  <script src="staff-detail.js?v=0.15.0"></script>
   <script src="auth-ui.js?v=0.19.0"></script>
 </body>
 </html>

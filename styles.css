@@ -2035,6 +2035,14 @@ body[data-store-analysis] {
 
 /* Teacher creation has the same controlled capture properties as customer
    enrollment, but the face is bound to the teacher account instead. */
+.teacher-face-optional { margin-top: 2px; border: 1px solid #dce7f3; border-radius: 12px; background: #fbfdff; }
+.teacher-face-optional > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 0 14px; cursor: pointer; color: #214666; font-size: 13px; font-weight: 800; list-style: none; }
+.teacher-face-optional > summary::-webkit-details-marker { display: none; }
+.teacher-face-optional > summary::after { width: 8px; height: 8px; flex: 0 0 auto; margin-left: 2px; border-right: 2px solid #527293; border-bottom: 2px solid #527293; content: ""; transform: rotate(45deg) translateY(-2px); transition: transform .18s ease; }
+.teacher-face-optional[open] > summary { border-bottom: 1px solid #e4edf6; background: #f5f9fe; }
+.teacher-face-optional[open] > summary::after { transform: rotate(225deg) translate(-2px, -1px); }
+.teacher-face-optional > summary small { margin-left: auto; color: #718197; font-size: 11px; font-weight: 600; }
+.teacher-face-optional .teacher-face-enrollment-layout { padding: 14px; }
 .teacher-face-enrollment-layout { display: grid; grid-template-columns: minmax(240px, .7fr) minmax(0, 1.3fr); gap: 14px; align-items: stretch; }
 .teacher-face-consent { display: grid; align-content: start; gap: 10px; padding: 13px; border: 1px solid var(--line); border-radius: 11px; background: #f8fafc; }
 .teacher-face-consent .consent-row { align-items: flex-start; line-height: 1.6; }
@@ -2094,13 +2102,13 @@ body[data-staff-detail] .staff-detail-topbar { min-height: 124px; padding-top: 2
 body[data-staff-detail] .staff-page-kicker { display: block !important; margin: 0 0 7px; color: #9cc7ff; font-size: 10px; font-weight: 900; letter-spacing: .14em; }
 body[data-staff-detail] .staff-page-description { display: block !important; max-width: 660px; margin: 0; color: #cfdeee; font-size: 13px; line-height: 1.55; }
 body[data-staff-detail] .staff-detail-main { width: min(1340px, calc(100% - clamp(20px, 3vw, 40px))); margin-top: 22px; }
-body[data-staff-detail] .staff-profile-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(250px, 290px); gap: 16px; align-items: stretch; margin-bottom: 20px; }
-body[data-staff-detail] .staff-profile-shell { min-width: 0; }
+body[data-staff-detail] .staff-profile-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(250px, 290px); grid-auto-rows: minmax(196px, auto); gap: 16px; align-items: stretch; margin-bottom: 20px; }
+body[data-staff-detail] .staff-profile-shell { min-width: 0; min-height: 196px; display: flex; }
 body[data-staff-detail] .staff-profile-loading,
 body[data-staff-detail] .staff-profile-error { min-height: 174px; display: grid; align-content: center; gap: 8px; padding: 24px 28px; border: 1px solid var(--line); border-radius: 18px; color: var(--muted); background: white; box-shadow: var(--shadow); }
 body[data-staff-detail] .staff-profile-error { color: #9f291f; border-color: #f1c2bd; background: #fff9f8; }
 body[data-staff-detail] .staff-profile-error strong { color: #7d2119; font-size: 16px; }
-body[data-staff-detail] .teacher-profile-hero { position: relative; min-height: 174px; display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 20px; align-items: center; overflow: hidden; padding: 24px 28px; border: 1px solid #d7e2f0; border-radius: 18px; background: radial-gradient(circle at right top, #e8f2ff 0, #f9fbfe 34%, #fff 68%); box-shadow: var(--shadow); }
+body[data-staff-detail] .teacher-profile-hero { position: relative; flex: 1 1 auto; min-height: 196px; box-sizing: border-box; display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 20px; align-items: center; overflow: hidden; padding: 24px 28px; border: 1px solid #d7e2f0; border-radius: 18px; background: radial-gradient(circle at right top, #e8f2ff 0, #f9fbfe 34%, #fff 68%); box-shadow: var(--shadow); }
 body[data-staff-detail] .teacher-profile-hero::before { position: absolute; top: 0; right: 0; left: 0; height: 4px; content: ""; background: linear-gradient(90deg, #2367df, #37b48c); }
 body[data-staff-detail] .teacher-profile-avatar { width: 78px; height: 78px; display: grid; place-items: center; border: 5px solid #e6effd; border-radius: 23px; color: #fff; background: linear-gradient(145deg, #174a9c, #307cf2); box-shadow: 0 10px 22px #165dc02e; font-size: 29px; font-weight: 900; }
 body[data-staff-detail] .teacher-profile-copy { min-width: 0; }
@@ -2119,12 +2127,33 @@ body[data-staff-detail] .teacher-profile-meta > div { min-width: 0; padding: 9px
 body[data-staff-detail] .teacher-profile-meta dt { margin: 0 0 4px; color: #6a7d93; font-size: 10px; font-weight: 700; }
 body[data-staff-detail] .teacher-profile-meta dd { margin: 0; overflow: hidden; color: #253a55; font-size: 12px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
 body[data-staff-detail] .staff-profile-generic .teacher-profile-meta { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-body[data-staff-detail] .staff-profile-workspace .staff-status-panel { min-height: 174px; display: flex; flex-direction: column; justify-content: space-between; gap: 18px; margin: 0; padding: 22px; border-color: #d7e2f0; border-radius: 18px; background: linear-gradient(180deg, #fff, #f7faff); box-shadow: var(--shadow); }
+body[data-staff-detail] .staff-profile-workspace .staff-status-panel { min-height: 196px; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; justify-content: flex-start; gap: 16px; margin: 0; padding: 22px; border-color: #d7e2f0; border-radius: 18px; background: linear-gradient(180deg, #fff, #f7faff); box-shadow: var(--shadow); }
 body[data-staff-detail] .staff-status-panel h2 { margin: 0 0 7px; color: #162d4d; font-size: 17px; }
 body[data-staff-detail] .staff-status-panel p:not(.staff-panel-kicker) { max-width: 240px; color: #60738a; font-size: 12px; line-height: 1.55; }
-body[data-staff-detail] .staff-admin-actions { display: grid; grid-template-columns: 1fr; gap: 8px; }
+body[data-staff-detail] .staff-admin-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 2px; }
 body[data-staff-detail] .staff-admin-actions button { min-height: 39px; font-weight: 800; }
+body[data-staff-detail] .staff-admin-actions #staffStatusAction { grid-column: 1 / -1; }
 body[data-staff-detail] .staff-global-panel { margin-bottom: 20px; padding: 20px; }
+body[data-staff-detail] .teacher-face-status-fact dd { color: #285f9f; }
+body[data-staff-detail] .teacher-face-update-panel { display: grid; gap: 18px; margin: 0 0 20px; padding: 22px 28px; border-color: #d7e2f0; border-radius: 18px; background: linear-gradient(130deg, #f9fcff, #fff 62%); }
+body[data-staff-detail] .teacher-face-update-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid #e5edf5; }
+body[data-staff-detail] .teacher-face-update-heading h2 { margin: 0 0 6px; color: #173252; font-size: 18px; }
+body[data-staff-detail] .teacher-face-update-heading > div > p:last-child { max-width: 720px; margin: 0; color: #63778f; font-size: 12px; line-height: 1.6; }
+body[data-staff-detail] .teacher-face-update-form { display: grid; grid-template-columns: minmax(250px, .85fr) minmax(260px, 1fr) minmax(200px, .65fr); gap: 14px; align-items: start; }
+body[data-staff-detail] .teacher-face-update-consent,
+body[data-staff-detail] .teacher-face-update-upload { display: grid; gap: 8px; min-height: 112px; padding: 14px; border: 1px solid #dce7f3; border-radius: 12px; color: #405872; background: #fff; font-size: 12px; font-weight: 700; line-height: 1.55; }
+body[data-staff-detail] .teacher-face-update-consent { align-content: start; }
+body[data-staff-detail] .teacher-face-update-consent input { margin: 3px 7px 0 0; vertical-align: top; }
+body[data-staff-detail] .teacher-face-update-upload { align-content: start; }
+body[data-staff-detail] .teacher-face-update-upload input { width: 100%; min-width: 0; color: #28496d; font: inherit; font-weight: 600; }
+body[data-staff-detail] .teacher-face-update-upload span { color: #718197; font-size: 11px; font-weight: 500; }
+body[data-staff-detail] .teacher-face-update-preview { min-height: 112px; display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; align-items: center; padding: 10px; border: 1px solid #cde1d8; border-radius: 12px; color: #397460; background: #f5fcf8; font-size: 11px; line-height: 1.55; }
+body[data-staff-detail] .teacher-face-update-preview img { width: 76px; height: 92px; object-fit: cover; border-radius: 8px; background: #e8eef4; }
+body[data-staff-detail] .teacher-face-update-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+body[data-staff-detail] .teacher-face-update-actions button { min-height: 40px; font-weight: 800; }
+body[data-staff-detail] .teacher-face-update-form .form-message { grid-column: 1 / -1; min-height: 18px; margin: -4px 0 0; color: #61748b; font-size: 12px; line-height: 1.5; }
+body[data-staff-detail] .teacher-face-update-form .form-message[data-tone="success"] { color: #08785e; }
+body[data-staff-detail] .teacher-face-update-form .form-message[data-tone="error"] { padding: 8px 10px; border-radius: 8px; color: #a8352a; background: #fff0ee; }
 
 body[data-staff-detail] .teacher-experience-panel { display: grid; gap: 0; margin-top: 0; overflow: hidden; padding: 0; border-color: #d7e2f0; border-radius: 18px; background: #fff; box-shadow: var(--shadow); }
 body[data-staff-detail] .teacher-experience-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 24px 28px 21px; border-bottom: 1px solid #e5edf5; background: linear-gradient(120deg, #f7fbff, #ffffff 65%); }
@@ -2142,7 +2171,7 @@ body[data-staff-detail] .teacher-experience-overview .primary span,
 body[data-staff-detail] .teacher-experience-overview .primary strong,
 body[data-staff-detail] .teacher-experience-overview .primary p { color: #fff; }
 body[data-staff-detail] .teacher-experience-overview .primary p { color: #dceaff; }
-body[data-staff-detail] .teacher-experience-overview .muted strong { font-size: 21px; letter-spacing: -.02em; }
+body[data-staff-detail] .teacher-experience-overview .muted strong { font-size: 18px; letter-spacing: -.025em; white-space: nowrap; }
 body[data-staff-detail] .teacher-experience-problem { grid-column: 1 / -1; min-height: 0 !important; display: grid; gap: 6px; padding: 18px 22px !important; color: #8e291f; background: #fff9f8 !important; }
 body[data-staff-detail] .teacher-experience-problem strong { margin: 0; color: #8e291f; font-size: 15px; letter-spacing: 0; }
 body[data-staff-detail] .teacher-experience-problem p { margin: 0; color: #a54b42; }
@@ -2152,13 +2181,27 @@ body[data-staff-detail] .teacher-experience-history-card { min-width: 0; padding
 body[data-staff-detail] .teacher-experience-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 15px; }
 body[data-staff-detail] .teacher-experience-section-heading h3 { margin: 0 0 4px; color: #183252; font-size: 15px; }
 body[data-staff-detail] .teacher-experience-section-heading p { margin: 0; color: #718197; font-size: 11px; line-height: 1.55; }
-body[data-staff-detail] .teacher-experience-quota-grid { display: grid; gap: 11px; }
-body[data-staff-detail] .teacher-experience-quota-card { display: grid; gap: 14px; padding: 17px; border: 1px solid #dce7f3; border-radius: 13px; background: linear-gradient(135deg, #fff, #f8fbff); transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease; }
+body[data-staff-detail] .teacher-experience-summary-heading { margin-bottom: 12px; }
+body[data-staff-detail] .teacher-experience-summary-heading .teacher-experience-action-eyebrow,
+body[data-staff-detail] .teacher-experience-configured-heading .teacher-experience-action-eyebrow { margin-bottom: 4px; }
+body[data-staff-detail] .teacher-experience-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+body[data-staff-detail] .teacher-experience-summary-item { min-height: 114px; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 1fr auto; gap: 5px 10px; padding: 14px; border: 1px solid #dce7f3; border-radius: 12px; background: linear-gradient(145deg, #fff, #f5f9ff); }
+body[data-staff-detail] .teacher-experience-summary-item > div { min-width: 0; display: grid; gap: 3px; }
+body[data-staff-detail] .teacher-experience-summary-item strong { overflow: hidden; color: #203a5a; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+body[data-staff-detail] .teacher-experience-summary-item span { overflow: hidden; color: #7990aa; font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+body[data-staff-detail] .teacher-experience-summary-item b { align-self: start; color: #1559bd; font-size: 23px; line-height: 1; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+body[data-staff-detail] .teacher-experience-summary-item b small { margin-left: 3px; font-size: 11px; letter-spacing: 0; }
+body[data-staff-detail] .teacher-experience-summary-item p { grid-column: 1 / -1; align-self: end; margin: 0; color: #718197; font-size: 10px; }
+body[data-staff-detail] .teacher-experience-summary-item.is-archived { filter: saturate(.55); background: #fafbfc; }
+body[data-staff-detail] .teacher-experience-configured-heading { margin-top: 22px; padding-top: 19px; border-top: 1px solid #e5edf5; }
+body[data-staff-detail] .teacher-experience-quota-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(255px, 1fr)); gap: 11px; }
+body[data-staff-detail] .teacher-experience-quota-card { min-height: 244px; display: grid; grid-template-rows: auto auto 1fr; gap: 14px; padding: 17px; border: 1px solid #dce7f3; border-radius: 13px; background: linear-gradient(135deg, #fff, #f8fbff); transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease; }
 body[data-staff-detail] .teacher-experience-quota-card:hover { border-color: #afc8e6; box-shadow: 0 9px 20px #163f7610; transform: translateY(-1px); }
 body[data-staff-detail] .teacher-experience-quota-card.is-readonly { background: #fafbfc; filter: saturate(.65); }
 body[data-staff-detail] .teacher-experience-quota-card header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
 body[data-staff-detail] .teacher-experience-quota-card h4 { margin: 0; color: #1d3655; font-size: 15px; }
 body[data-staff-detail] .teacher-experience-quota-card header p { margin: 4px 0 0; color: #74849a; font-size: 10px; font-weight: 700; }
+body[data-staff-detail] .teacher-experience-card-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 7px; }
 body[data-staff-detail] .teacher-experience-balance { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 11px 13px; border-radius: 10px; background: #edf5ff; }
 body[data-staff-detail] .teacher-experience-balance span { color: #416585; font-size: 11px; font-weight: 800; }
 body[data-staff-detail] .teacher-experience-balance strong { color: #1559bd; font-size: 27px; line-height: 1; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
@@ -2169,6 +2212,9 @@ body[data-staff-detail] .teacher-experience-quota-facts dt { margin: 0 0 3px; co
 body[data-staff-detail] .teacher-experience-quota-facts dd { margin: 0; overflow: hidden; color: #42566e; font-size: 11px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
 body[data-staff-detail] .teacher-experience-recharge-button { min-height: 38px; padding: 8px 12px; border: 1px solid #1f65d0; color: #fff; background: #2168d5; font-size: 12px; font-weight: 800; white-space: nowrap; }
 body[data-staff-detail] .teacher-experience-recharge-button:hover { background: #1255b7; }
+body[data-staff-detail] .teacher-experience-delete-button { min-height: 38px; padding: 8px 10px; border: 1px solid #e4c5bd; border-radius: 8px; color: #9c3c31; background: #fff8f7; font-size: 11px; font-weight: 800; white-space: nowrap; }
+body[data-staff-detail] .teacher-experience-delete-button:hover:not(:disabled) { border-color: #d8978d; color: #7f291f; background: #ffefed; }
+body[data-staff-detail] .teacher-experience-delete-button:disabled { cursor: wait; opacity: .66; }
 body[data-staff-detail] .teacher-experience-status { min-height: 30px; padding: 6px 9px; color: #855300; background: #fff1d7; font-size: 10px; }
 body[data-staff-detail] .teacher-experience-action-stack { display: grid; gap: 14px; }
 body[data-staff-detail] .teacher-experience-config,
@@ -2210,11 +2256,14 @@ body[data-staff-detail] .teacher-experience-empty span { max-width: 390px; font-
 body[data-staff-detail] .teacher-experience-empty.is-error { color: #9c3329; background: #fff9f8; }
 
 @media (max-width: 1080px) {
-  body[data-staff-detail] .staff-profile-workspace { grid-template-columns: 1fr; }
-  body[data-staff-detail] .staff-profile-workspace .staff-status-panel { min-height: 0; display: grid; grid-template-columns: 1fr auto; align-items: center; }
+  body[data-staff-detail] .staff-profile-workspace { grid-template-columns: 1fr; grid-auto-rows: auto; }
+  body[data-staff-detail] .staff-profile-shell { min-height: 0; }
+  body[data-staff-detail] .staff-profile-workspace .staff-status-panel { min-height: 0; height: auto; display: grid; grid-template-columns: 1fr auto; align-items: center; }
   body[data-staff-detail] .staff-admin-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   body[data-staff-detail] .teacher-experience-workspace { grid-template-columns: 1fr; }
   body[data-staff-detail] .teacher-experience-action-stack { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body[data-staff-detail] .teacher-face-update-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body[data-staff-detail] .teacher-face-update-preview { grid-column: 1 / -1; }
 }
 
 @media (max-width: 760px) {
@@ -2228,6 +2277,10 @@ body[data-staff-detail] .teacher-experience-empty.is-error { color: #9c3329; bac
   body[data-staff-detail] .teacher-profile-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 12px; }
   body[data-staff-detail] .staff-profile-workspace .staff-status-panel { display: grid; grid-template-columns: 1fr; }
   body[data-staff-detail] .staff-admin-actions { grid-template-columns: 1fr; }
+  body[data-staff-detail] .teacher-face-update-panel { margin-bottom: 14px; padding: 18px; }
+  body[data-staff-detail] .teacher-face-update-heading { padding-bottom: 13px; }
+  body[data-staff-detail] .teacher-face-update-form { grid-template-columns: 1fr; }
+  body[data-staff-detail] .teacher-face-update-preview { grid-column: auto; }
   body[data-staff-detail] .teacher-experience-heading { align-items: flex-start; padding: 18px; }
   body[data-staff-detail] .teacher-experience-heading h2 { font-size: 19px; }
   body[data-staff-detail] .teacher-experience-state { max-width: 118px; white-space: normal; }
@@ -2240,7 +2293,7 @@ body[data-staff-detail] .teacher-experience-empty.is-error { color: #9c3329; bac
   body[data-staff-detail] .teacher-experience-recharge,
   body[data-staff-detail] .teacher-experience-history-card { padding: 16px; border-radius: 13px; }
   body[data-staff-detail] .teacher-experience-action-stack { grid-template-columns: 1fr; }
-  body[data-staff-detail] .teacher-experience-quota-card { padding: 14px; }
+  body[data-staff-detail] .teacher-experience-quota-card { min-height: 0; padding: 14px; }
   body[data-staff-detail] .teacher-experience-quota-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   body[data-staff-detail] .teacher-experience-history-card { margin: 0 14px 14px; }
   body[data-staff-detail] .teacher-experience-history-item { grid-template-columns: 8px minmax(0, 1fr); align-items: start; }
@@ -2253,5 +2306,8 @@ body[data-staff-detail] .teacher-experience-empty.is-error { color: #9c3329; bac
   body[data-staff-detail] .teacher-experience-heading { flex-direction: column; }
   body[data-staff-detail] .teacher-experience-state { max-width: none; }
   body[data-staff-detail] .teacher-experience-quota-card header { flex-direction: column; }
-  body[data-staff-detail] .teacher-experience-recharge-button { width: 100%; }
+  body[data-staff-detail] .teacher-experience-card-actions { width: 100%; justify-content: stretch; }
+  body[data-staff-detail] .teacher-experience-recharge-button,
+  body[data-staff-detail] .teacher-experience-delete-button { flex: 1 1 0; }
+  body[data-staff-detail] .teacher-experience-summary-grid { grid-template-columns: 1fr; }
 }

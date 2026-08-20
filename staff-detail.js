@@ -11,7 +11,8 @@
   const truthy = (value) => [true, "true", "t", 1, "1"].includes(value);
   let staff = null;
   let hasHonoredExperienceHash = false;
-  const experience = { rows: [], history: [], activeProducts: [], loading: false, rechargeRequestId: "", historyExpanded: false };
+  const experience = { rows: [], totals: [], history: [], activeProducts: [], loading: false, rechargeRequestId: "", historyExpanded: false, deletingProductId: "" };
+  const teacherFaceUpdate = { imageData: "", requestId: "" };
 
   function formatTime(value) {
     if (!value) return "未记录";
@@ -24,6 +25,16 @@
       if (Number.isFinite(value)) return value;
     }
     return fallback;
+  }
+
+  function optionalNumberValue(row, names) {
+    for (const name of names) {
+      const raw = row?.[name];
+      if (raw === null || raw === undefined || raw === "") continue;
+      const value = Number(raw);
+      if (Number.isFinite(value)) return value;
+    }
+    return null;
   }
 
   function stringValue(row, names, fallback = "") {
@@ -47,6 +58,90 @@
     return stringValue(staff, ["teacher_id", "teacherId"]);
   }
 
+  function hasEnrolledTeacherFace() {
+    return String(staff?.face_enrollment_status || staff?.faceEnrollmentStatus || "").toUpperCase() === "ENROLLED";
+  }
+
+  function setTeacherFaceUpdateMessage(message = "", tone = "") {
+    const target = $("teacherFaceUpdateMessage");
+    if (!target) return;
+    target.textContent = message;
+    target.dataset.tone = tone;
+  }
+
+  function syncTeacherFaceUpdateControls() {
+    const panel = $("teacherFaceUpdatePanel");
+    if (!panel || role !== "teacher") return;
+    const canWrite = !isStaffArchived();
+    const consent = Boolean($("teacherFaceUpdateConsent")?.checked);
+    $("teacherFaceUpdateConsent").disabled = !canWrite;
+    $("teacherFaceUpdateFile").disabled = !canWrite;
+    $("clearTeacherFaceUpdate").disabled = !canWrite || !teacherFaceUpdate.imageData;
+    $("saveTeacherFaceUpdate").disabled = !canWrite || !consent || !teacherFaceUpdate.imageData;
+  }
+
+  function clearTeacherFaceUpdate({ preserveMessage = false } = {}) {
+    teacherFaceUpdate.imageData = "";
+    teacherFaceUpdate.requestId = "";
+    $("teacherFaceUpdateFile").value = "";
+    $("teacherFaceUpdatePreview").removeAttribute("src");
+    $("teacherFaceUpdatePreviewWrap").hidden = true;
+    if (!preserveMessage) setTeacherFaceUpdateMessage("");
+    syncTeacherFaceUpdateControls();
+  }
+
+  function openTeacherFaceUpdate() {
+    if (role !== "teacher" || isStaffArchived()) return;
+    const panel = $("teacherFaceUpdatePanel");
+    panel.hidden = false;
+    $("teacherFaceUpdateTitle").textContent = hasEnrolledTeacherFace() ? "更换老师人脸" : "添加老师人脸";
+    setTeacherFaceUpdateMessage(hasEnrolledTeacherFace() ? "请选择一张新的老师正面照片；保存成功后，新照片会替换当前登录身份人脸。" : "老师当前尚未绑定人脸。补录后会用于登录身份核验，但不会改变账号的活跃状态。", "");
+    requestAnimationFrame(() => {
+      panel.scrollIntoView({ behavior: "smooth", block: "center" });
+      $("teacherFaceUpdateFile").focus({ preventScroll: true });
+    });
+  }
+
+  function closeTeacherFaceUpdate() {
+    $("teacherFaceUpdatePanel").hidden = true;
+    clearTeacherFaceUpdate();
+  }
+
+  function readTeacherFaceFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("无法读取所选照片，请重新选择。"));
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function selectTeacherFaceUpdateFile() {
+    const file = $("teacherFaceUpdateFile").files?.[0];
+    if (!file) return clearTeacherFaceUpdate();
+    if (file.type !== "image/jpeg") {
+      $("teacherFaceUpdateFile").value = "";
+      return setTeacherFaceUpdateMessage("请使用 JPG 格式的老师正面照片。", "error");
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      $("teacherFaceUpdateFile").value = "";
+      return setTeacherFaceUpdateMessage("照片不能超过 3 MB，请压缩后重新选择。", "error");
+    }
+    try {
+      const imageData = await readTeacherFaceFile(file);
+      if (!/^data:image\/jpeg;base64,/i.test(imageData)) throw new Error("照片格式无效，请重新选择 JPG 文件。");
+      teacherFaceUpdate.imageData = imageData;
+      teacherFaceUpdate.requestId = "";
+      $("teacherFaceUpdatePreview").src = imageData;
+      $("teacherFaceUpdatePreviewWrap").hidden = false;
+      setTeacherFaceUpdateMessage("照片已就绪。勾选授权后可保存；服务端会再次检查照片质量和身份。", "");
+    } catch (error) {
+      clearTeacherFaceUpdate({ preserveMessage: true });
+      setTeacherFaceUpdateMessage(error?.message || "读取照片失败，请重新选择。", "error");
+    }
+    syncTeacherFaceUpdateControls();
+  }
+
   function setExperienceMessage(id, message = "", tone = "") {
     const target = $(id);
     if (!target) return;
@@ -65,8 +160,19 @@
       usedCount: numberValue(row, ["usedCount", "used_count"]),
       manualRechargeCount: numberValue(row, ["manualRechargeCount", "manual_recharge_count"]),
       availableCount: numberValue(row, ["availableCount", "available_count"]),
+      totalExperienceCount: optionalNumberValue(row, ["totalExperienceCount", "total_experience_count", "totalUsedCount", "total_used_count", "lifetimeUsedCount", "lifetime_used_count"]),
       quotaMonth: stringValue(row, ["quotaMonth", "quota_month"]),
       monthlyResetAt: stringValue(row, ["monthlyResetAt", "monthly_reset_at"])
+    };
+  }
+
+  function normalizeExperienceTotal(row = {}) {
+    return {
+      productId: stringValue(row, ["productId", "product_id"]),
+      productCode: stringValue(row, ["productCode", "product_code"]),
+      productName: stringValue(row, ["productName", "product_name"], "未命名产品"),
+      productStatus: stringValue(row, ["productStatus", "product_status"], "ARCHIVED").toUpperCase(),
+      totalExperienceCount: numberValue(row, ["totalExperienceCount", "total_experience_count", "totalUsedCount", "total_used_count"])
     };
   }
 
@@ -100,20 +206,53 @@
     $("saveTeacherExperienceConfig").disabled = disabled;
   }
 
+  function activeRechargeRows() {
+    return experience.rows.filter((row) => row.productStatus === "ACTIVE");
+  }
+
+  function setRechargeTarget(row = null) {
+    const target = $("teacherExperienceRechargeTarget");
+    if (!target) return;
+    if (isStaffArchived()) {
+      target.textContent = "老师已封存，体验额度与充值历史仍可查询，但不能再充值。";
+      return;
+    }
+    if (!row) {
+      target.textContent = activeRechargeRows().length
+        ? "选择已配置的活跃产品和次数后，额度立即增加；不会影响客户购买或剩余次数。"
+        : "请先配置至少一个活跃产品，才能为老师单独充值。";
+      return;
+    }
+    target.textContent = `正在为 ${rowProductLabel(row)} 单独充值；提交后会立即增加该产品的体验次数，不会影响客户余额。`;
+  }
+
+  function renderExperienceRechargeProductSelect() {
+    const select = $("teacherExperienceRechargeProduct");
+    if (!select) return;
+    const rows = activeRechargeRows();
+    const previous = select.value;
+    const disabled = experience.loading || isStaffArchived() || !rows.length;
+    select.innerHTML = rows.length
+      ? `<option value="">请选择已配置的活跃产品</option>${rows.map((row) => `<option value="${escapeHtml(row.productId)}">${escapeHtml(rowProductLabel(row))}</option>`).join("")}`
+      : `<option value="">${isStaffArchived() ? "老师已封存，不能充值" : "尚无可充值的活跃产品"}</option>`;
+    select.value = rows.some((row) => row.productId === previous) ? previous : "";
+    select.disabled = disabled;
+    setRechargeTarget(rows.find((row) => row.productId === select.value) || null);
+  }
+
   function syncExperienceRechargeControls() {
-    const disabled = experience.loading || isStaffArchived();
-    ["teacherExperienceRechargeCount", "teacherExperienceRechargeNote", "saveTeacherExperienceRecharge"]
+    const disabled = experience.loading || isStaffArchived() || !activeRechargeRows().length;
+    ["teacherExperienceRechargeProduct", "teacherExperienceRechargeCount", "teacherExperienceRechargeNote", "saveTeacherExperienceRecharge"]
       .map($)
       .filter(Boolean)
       .forEach((element) => { element.disabled = disabled; });
-    if (disabled && $("teacherExperienceRechargePanel")) $("teacherExperienceRechargePanel").hidden = true;
   }
 
   function renderExperienceRows() {
     const target = $("teacherExperienceRows");
     if (!target) return;
     if (!experience.rows.length) {
-      target.innerHTML = '<div class="teacher-experience-empty"><strong>尚未配置体验产品</strong><span>从右侧选择一个活跃产品，设置该老师每月可体验的基础次数。</span></div>';
+      target.innerHTML = '<div class="teacher-experience-empty"><strong>尚未配置体验产品</strong><span>从右侧选择一个活跃产品，保存后会立即设为该产品当前可用的体验次数。</span></div>';
       return;
     }
     target.innerHTML = experience.rows.map((row) => {
@@ -121,7 +260,10 @@
       const unavailable = archived || isStaffArchived();
       const action = unavailable
         ? `<span class="teacher-experience-status archived">${archived ? "产品已封存" : "老师已封存"}</span>`
-        : `<button type="button" class="teacher-experience-recharge-button" data-experience-product-id="${escapeHtml(row.productId)}" aria-label="为${escapeHtml(row.productName)}充值体验次数">单独充值</button>`;
+        : `<div class="teacher-experience-card-actions">
+            <button type="button" class="teacher-experience-recharge-button" data-experience-product-id="${escapeHtml(row.productId)}" aria-label="为${escapeHtml(row.productName)}充值体验次数">充值</button>
+            <button type="button" class="teacher-experience-delete-button" data-experience-delete-product-id="${escapeHtml(row.productId)}" aria-label="删除${escapeHtml(row.productName)}的体验额度配置"${experience.deletingProductId === row.productId ? " disabled" : ""}>${experience.deletingProductId === row.productId ? "正在删除" : "删除配置"}</button>
+          </div>`;
       return `<article class="teacher-experience-quota-card${unavailable ? " is-readonly" : ""}">
         <header>
           <div><h4>${escapeHtml(row.productName)}</h4>${row.productCode ? `<p>${escapeHtml(row.productCode)}</p>` : ""}</div>
@@ -139,6 +281,53 @@
     target.querySelectorAll("[data-experience-product-id]").forEach((button) => {
       button.addEventListener("click", () => openRecharge(button.dataset.experienceProductId));
     });
+    target.querySelectorAll("[data-experience-delete-product-id]").forEach((button) => {
+      button.addEventListener("click", () => void deleteExperienceConfiguration(button.dataset.experienceDeleteProductId));
+    });
+  }
+
+  function totalExperienceFor(row) {
+    return row.totalExperienceCount === null ? row.usedCount : row.totalExperienceCount;
+  }
+
+  function experienceSummaryRows() {
+    const byProductId = new Map(experience.rows.map((row) => [row.productId, { ...row }]));
+    experience.totals.forEach((total) => {
+      if (!total.productId) return;
+      const existing = byProductId.get(total.productId);
+      if (existing) {
+        existing.totalExperienceCount = total.totalExperienceCount;
+        return;
+      }
+      byProductId.set(total.productId, {
+        ...total,
+        usedCount: 0,
+        monthlyAllowance: 0,
+        manualRechargeCount: 0,
+        availableCount: 0,
+        quotaMonth: "",
+        monthlyResetAt: ""
+      });
+    });
+    return [...byProductId.values()].sort((left, right) => left.productName.localeCompare(right.productName, "zh-CN"));
+  }
+
+  function renderExperienceSummary() {
+    const target = $("teacherExperienceSummaryRows");
+    if (!target) return;
+    const rows = experienceSummaryRows();
+    if (!rows.length) {
+      target.innerHTML = '<div class="teacher-experience-empty"><strong>暂无项目体验数据</strong><span>配置产品并完成体验核销后，这里会按产品显示累计体验次数。</span></div>';
+      return;
+    }
+    target.innerHTML = rows.map((row) => {
+      const isAllTime = row.totalExperienceCount !== null;
+      return `<article class="teacher-experience-summary-item${row.productStatus === "ARCHIVED" ? " is-archived" : ""}">
+        <div><strong>${escapeHtml(row.productName)}</strong>${row.productCode ? `<span>${escapeHtml(row.productCode)}</span>` : ""}</div>
+        <b>${totalExperienceFor(row)}<small>次</small></b>
+        <p>${isAllTime ? "累计完成体验" : "本月体验次数"}</p>
+      </article>`;
+    }).join("");
   }
 
   function experienceEventKind(type) {
@@ -177,24 +366,30 @@
   function renderExperienceOverview(data = {}) {
     const total = numberValue(data, ["totalAvailableCount", "totalAvailable"], experience.rows.reduce((sum, row) => sum + row.availableCount, 0));
     const activeConfigured = experience.rows.filter((row) => row.productStatus === "ACTIVE").length;
-    const usedTotal = experience.rows.reduce((sum, row) => sum + row.usedCount, 0);
-    const rechargeTotal = experience.rows.reduce((sum, row) => sum + row.manualRechargeCount, 0);
+    const monthlyUsedTotal = experience.rows.reduce((sum, row) => sum + row.usedCount, 0);
+    const totalExperience = numberValue(
+      data,
+      ["totalExperienceCount", "total_experience_count"],
+      experienceSummaryRows().reduce((sum, row) => sum + totalExperienceFor(row), 0)
+    );
     const overview = $("teacherExperienceOverview");
     $("teacherExperienceState").textContent = isStaffArchived() ? "老师已封存 · 仅可查询" : `${activeConfigured} 个活跃产品`;
     overview.setAttribute("aria-busy", "false");
     overview.innerHTML = [
       ["当前可用", `${total}`, "次", "余额会在体验核销时扣减", "primary"],
-      ["本月已体验", `${usedTotal}`, "次", "已完成的体验服务", ""],
-      ["单独充值", `${rechargeTotal}`, "次", "总部额外补充的次数", ""],
-      ["月初自动更新", "每月 1 日", "", "恢复每月基础体验次数", "muted"]
+      ["本月已体验", `${monthlyUsedTotal}`, "次", "本月已完成的体验服务", ""],
+      ["累计体验", `${totalExperience}`, "次", "各项目累计完成次数", ""],
+      ["月初自动更新", "每月 1 日 00:00", "", "仅更新活跃老师的活跃产品", "muted"]
     ].map(([label, value, unit, note, tone]) => `<article class="${tone}"><span>${label}</span><strong>${value}${unit ? `<small>${unit}</small>` : ""}</strong><p>${note}</p></article>`).join("");
   }
 
   function renderExperience(data = {}) {
     renderExperienceOverview(data);
+    renderExperienceSummary();
     renderExperienceRows();
     renderExperienceHistory();
     renderExperienceProductSelect();
+    renderExperienceRechargeProductSelect();
     syncExperienceRechargeControls();
   }
 
@@ -204,11 +399,14 @@
     overview.setAttribute("aria-busy", "false");
     overview.innerHTML = `<article class="teacher-experience-problem"><strong>${escapeHtml(title)}</strong><p>${message}</p></article>`;
     $("teacherExperienceRows").innerHTML = `<div class="teacher-experience-empty is-error"><strong>${escapeHtml(title)}</strong><span>${message}</span></div>`;
+    $("teacherExperienceSummaryRows").innerHTML = '<div class="teacher-experience-empty"><strong>暂无可汇总的体验数据</strong><span>服务恢复后会按产品显示累计体验次数。</span></div>';
     $("teacherExperienceHistoryRows").innerHTML = '<div class="teacher-experience-empty"><strong>暂无可显示的额度记录</strong><span>服务恢复后会显示该老师的配置、充值和体验历史。</span></div>';
     experience.rows = [];
+    experience.totals = [];
     experience.history = [];
     experience.activeProducts = [];
     renderExperienceProductSelect();
+    renderExperienceRechargeProductSelect();
     syncExperienceRechargeControls();
   }
 
@@ -237,6 +435,7 @@
     $("teacherExperienceState").textContent = "正在读取";
     $("teacherExperienceOverview").setAttribute("aria-busy", "true");
     renderExperienceProductSelect();
+    renderExperienceRechargeProductSelect();
     syncExperienceRechargeControls();
     try {
       const [data, products] = await Promise.all([
@@ -244,6 +443,7 @@
         window.CloudBasePhoneAuth.listProducts()
       ]);
       experience.rows = (Array.isArray(data?.entitlements) ? data.entitlements : []).map(normalizeExperienceRow).filter((row) => row.productId);
+      experience.totals = (Array.isArray(data?.experienceTotals) ? data.experienceTotals : []).map(normalizeExperienceTotal).filter((row) => row.productId);
       const history = [data?.history, data?.ledger, data?.events, data?.records].find(Array.isArray) || [];
       experience.history = history.map(normalizeExperienceHistory);
       experience.activeProducts = (Array.isArray(products) ? products : []).map((product) => ({
@@ -262,6 +462,7 @@
     } finally {
       experience.loading = false;
       renderExperienceProductSelect();
+      renderExperienceRechargeProductSelect();
       syncExperienceRechargeControls();
     }
   }
@@ -274,14 +475,14 @@
   function openRecharge(productId) {
     const row = experience.rows.find((item) => item.productId === String(productId));
     if (!row || row.productStatus === "ARCHIVED" || isStaffArchived()) return;
-    $("teacherExperienceRechargeProductId").value = row.productId;
-    $("teacherExperienceRechargeTarget").textContent = `正在为 ${rowProductLabel(row)} 单独充值体验次数；这不会影响任何客户的购买或剩余次数。`;
+    const select = $("teacherExperienceRechargeProduct");
+    select.value = row.productId;
     $("teacherExperienceRechargeCount").value = "";
     $("teacherExperienceRechargeNote").value = "";
     experience.rechargeRequestId = "";
     setExperienceMessage("teacherExperienceRechargeMessage", "");
+    setRechargeTarget(row);
     const panel = $("teacherExperienceRechargePanel");
-    panel.hidden = false;
     requestAnimationFrame(() => {
       panel.scrollIntoView({ behavior: "smooth", block: "center" });
       $("teacherExperienceRechargeCount").focus({ preventScroll: true });
@@ -289,10 +490,36 @@
   }
 
   function closeRecharge() {
-    $("teacherExperienceRechargePanel").hidden = true;
-    $("teacherExperienceRechargeProductId").value = "";
+    $("teacherExperienceRechargeProduct").value = "";
+    $("teacherExperienceRechargeCount").value = "";
+    $("teacherExperienceRechargeNote").value = "";
     experience.rechargeRequestId = "";
     setExperienceMessage("teacherExperienceRechargeMessage", "");
+    setRechargeTarget();
+  }
+
+  async function deleteExperienceConfiguration(productId) {
+    const row = experience.rows.find((item) => item.productId === String(productId));
+    if (!row || row.productStatus !== "ACTIVE" || isStaffArchived() || experience.deletingProductId) return;
+    if (!window.confirm(`确认删除“${rowProductLabel(row)}”的体验额度配置？\n\n将停止该产品的后续体验和月初更新；此前的体验、充值和变更历史会完整保留。删除后可重新配置。`)) return;
+    if (!window.CloudBasePhoneAuth?.deleteTeacherExperienceEntitlement) {
+      setExperienceMessage("teacherExperienceConfigMessage", "删除体验额度服务尚未加载，请部署最新后台后重试。", "error");
+      return;
+    }
+    experience.deletingProductId = row.productId;
+    renderExperienceRows();
+    setExperienceMessage("teacherExperienceConfigMessage", `正在删除“${rowProductLabel(row)}”的体验额度配置…`);
+    try {
+      await window.CloudBasePhoneAuth.deleteTeacherExperienceEntitlement({ teacherId: teacherId(), productId: row.productId });
+      if ($("teacherExperienceRechargeProduct").value === row.productId) closeRecharge();
+      setExperienceMessage("teacherExperienceConfigMessage", `已删除“${rowProductLabel(row)}”的体验额度配置；现在可重新配置该产品。历史体验和充值记录仍会保留。`, "success");
+      await loadTeacherExperience({ preserveMessage: true });
+    } catch (error) {
+      setExperienceMessage("teacherExperienceConfigMessage", error?.message || "体验额度配置删除失败。", "error");
+    } finally {
+      experience.deletingProductId = "";
+      renderExperienceRows();
+    }
   }
 
   function renderError(message) {
@@ -308,7 +535,7 @@
     const staffName = stringValue(staff, ["staff_name", "teacher_name"], labels[role]);
     const teacherCode = stringValue(staff, ["person_code", "teacher_code"], "未分配");
     const enrollment = String(staff.face_enrollment_status || staff.faceEnrollmentStatus || "").toUpperCase();
-    const faceStatus = enrollment === "ENROLLED" ? "人脸已绑定" : "待绑定人脸";
+    const faceStatus = enrollment === "ENROLLED" ? "已绑定 · 可随时更换" : "待补录 · 不影响激活";
     const initials = Array.from(staffName.trim() || labels[role]).slice(0, 1).join("");
     $("staffDetailEyebrow").textContent = isTeacher ? "TEACHER WORKSPACE" : "ACCOUNT PROFILE";
     $("staffDetailTitle").textContent = isTeacher ? `${staffName} · 老师主页` : `${staffName} · ${labels[role]}主页`;
@@ -322,11 +549,11 @@
           <div class="teacher-profile-copy">
             <p class="teacher-profile-kicker">老师档案</p>
             <div class="teacher-profile-name-row"><h2>${escapeHtml(staffName)}</h2><span class="teacher-profile-status ${status === "活跃" ? "active" : "archived"}">${status}</span></div>
-            <p class="teacher-profile-description">体验核销将记入该老师名下的体验额度，不会扣减客户购买次数。</p>
+            <p class="teacher-profile-description">老师账号可先激活；人脸可在后续补录或更换。体验核销将记入该老师名下的体验额度，不会扣减客户购买次数。</p>
             <dl class="teacher-profile-meta">
               <div><dt>老师编号</dt><dd>${escapeHtml(teacherCode)}</dd></div>
               <div><dt>联系电话</dt><dd>${escapeHtml(staff.phone || "未填写")}</dd></div>
-              <div><dt>人脸绑定</dt><dd>${escapeHtml(faceStatus)}</dd></div>
+              <div class="teacher-face-status-fact"><dt>人脸绑定</dt><dd>${escapeHtml(faceStatus)}</dd></div>
               <div><dt>密码状态</dt><dd>${escapeHtml(credentialStatus())}</dd></div>
             </dl>
           </div>
@@ -355,6 +582,14 @@
     const credentialAction = $("staffCredentialAction");
     credentialAction.hidden = !staff.auth_uid;
     credentialAction.textContent = "重置临时密码";
+    const faceAction = $("staffFaceAction");
+    faceAction.hidden = !isTeacher;
+    if (isTeacher) {
+      faceAction.textContent = hasEnrolledTeacherFace() ? "更换人脸" : "添加人脸";
+      faceAction.disabled = isStaffArchived();
+      faceAction.title = isStaffArchived() ? "老师已封存，不能补录或更换人脸。" : "可在账号创建后补录或更换人脸。";
+    }
+    syncTeacherFaceUpdateControls();
   }
 
   async function load() {
@@ -420,6 +655,48 @@
     } finally { button.disabled = false; }
   });
 
+  $("staffFaceAction")?.addEventListener("click", openTeacherFaceUpdate);
+  $("closeTeacherFaceUpdate")?.addEventListener("click", closeTeacherFaceUpdate);
+  $("clearTeacherFaceUpdate")?.addEventListener("click", () => clearTeacherFaceUpdate());
+  $("teacherFaceUpdateConsent")?.addEventListener("change", syncTeacherFaceUpdateControls);
+  $("teacherFaceUpdateFile")?.addEventListener("change", () => void selectTeacherFaceUpdateFile());
+  $("teacherFaceUpdateForm")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!staff || role !== "teacher" || isStaffArchived()) return;
+    if (!$("teacherFaceUpdateConsent").checked || !teacherFaceUpdate.imageData) {
+      setTeacherFaceUpdateMessage("请选择照片并确认已取得老师明确授权。", "error");
+      syncTeacherFaceUpdateControls();
+      return;
+    }
+    if (!window.CloudBasePhoneAuth?.upsertTeacherFace) {
+      setTeacherFaceUpdateMessage("人脸补录服务尚未加载，请部署最新后台后刷新本页。", "error");
+      return;
+    }
+    const button = $("saveTeacherFaceUpdate");
+    button.disabled = true;
+    setTeacherFaceUpdateMessage("正在安全保存老师人脸，请勿关闭页面…");
+    try {
+      const result = await window.CloudBasePhoneAuth.upsertTeacherFace({
+        teacherId: teacherId(),
+        faceImageBase64: teacherFaceUpdate.imageData,
+        clientRequestId: teacherFaceUpdate.requestId || (teacherFaceUpdate.requestId = requestId("teacher_face_update")),
+        consent: true
+      });
+      const updated = result?.teacher || result?.profile || {};
+      Object.assign(staff, updated);
+      staff.face_enrollment_status = stringValue(updated, ["faceEnrollmentStatus", "face_enrollment_status"], "ENROLLED");
+      staff.faceEnrollmentStatus = staff.face_enrollment_status;
+      clearTeacherFaceUpdate({ preserveMessage: true });
+      render();
+      $("teacherFaceUpdateTitle").textContent = "更换老师人脸";
+      setTeacherFaceUpdateMessage("老师人脸已保存。账号活跃状态未改变，之后仍可按授权再次更换。", "success");
+    } catch (error) {
+      setTeacherFaceUpdateMessage(error?.message || "老师人脸保存失败，请稍后重试。", "error");
+    } finally {
+      syncTeacherFaceUpdateControls();
+    }
+  });
+
   $("teacherExperienceConfigForm")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!staff || isStaffArchived()) return;
@@ -434,7 +711,7 @@
     try {
       await window.CloudBasePhoneAuth.upsertTeacherExperienceEntitlement({ teacherId: teacherId(), productId, monthlyAllowance });
       $("teacherExperienceMonthlyCount").value = "";
-      setExperienceMessage("teacherExperienceConfigMessage", "体验额度配置已保存；该产品每月 1 日会按此次数自动更新。", "success");
+      setExperienceMessage("teacherExperienceConfigMessage", `体验额度已保存并立即生效：该产品当前可用次数现为 ${monthlyAllowance} 次；之后会在每月 1 日 00:00 按此基础额度更新。`, "success");
       await loadTeacherExperience({ preserveMessage: true });
     } catch (error) {
       setExperienceMessage("teacherExperienceConfigMessage", error?.message || "体验额度配置保存失败。", "error");
@@ -444,7 +721,7 @@
   $("teacherExperienceRechargeForm")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!staff || isStaffArchived()) return;
-    const productId = $("teacherExperienceRechargeProductId").value;
+    const productId = $("teacherExperienceRechargeProduct").value;
     const unitCount = Number($("teacherExperienceRechargeCount").value);
     const note = $("teacherExperienceRechargeNote").value.trim();
     if (!productId || !Number.isInteger(unitCount) || unitCount < 1 || unitCount > 99999) {
@@ -467,8 +744,13 @@
   });
 
   $("cancelTeacherExperienceRecharge")?.addEventListener("click", closeRecharge);
-  ["teacherExperienceRechargeCount", "teacherExperienceRechargeNote"].forEach((id) => {
+  ["teacherExperienceRechargeProduct", "teacherExperienceRechargeCount", "teacherExperienceRechargeNote"].forEach((id) => {
     $(id)?.addEventListener("input", () => { experience.rechargeRequestId = ""; });
+  });
+  $("teacherExperienceRechargeProduct")?.addEventListener("change", () => {
+    experience.rechargeRequestId = "";
+    const row = activeRechargeRows().find((item) => item.productId === $("teacherExperienceRechargeProduct").value) || null;
+    setRechargeTarget(row);
   });
   void load();
 })();

@@ -90,8 +90,10 @@ assert.match(migration, /CREATE OR REPLACE FUNCTION public\.reject_retired_opera
 assert.match(migration, /TG_OP = 'INSERT' AND NEW\.role_code = 'operation'/);
 assert.match(migration, /operation accounts may only remain archived historic rows/);
 assert.match(migration, /UPDATE public\.staff_accounts[\s\S]*?SET account_status = 'ARCHIVED'[\s\S]*?WHERE role_code = 'operation'/);
-assert.match(migration, /UPDATE public\.operation_profiles[\s\S]*?SET profile_status = 'ARCHIVED'/);
-assert.match(migration, /DELETE FROM public\.role_permissions WHERE role_code = 'operation';/);
+assert.match(migration, /to_regclass\('public\.operation_profiles'\) IS NOT NULL/);
+assert.match(migration, /UPDATE public\.operation_profiles[\s\S]*?SET profile_status = ''ARCHIVED''/);
+assert.match(migration, /to_regclass\('public\.role_permissions'\) IS NOT NULL/);
+assert.match(migration, /DELETE FROM public\.role_permissions WHERE role_code = ''operation''/);
 assert.match(migration, /IF actor_role IS DISTINCT FROM 'hq' THEN[\s\S]*?only headquarters can review orders/);
 assert.match(migration, /CREATE OR REPLACE FUNCTION public\.enforce_hq_order_reviewer\(\)/);
 assert.match(migration, /IF reviewer_role IS DISTINCT FROM 'hq' THEN/);

@@ -18,8 +18,8 @@
 ## 总部基础资料创建规则
 
 - 门店创建为独立页面；填写门店名称、完整地址，并可添加多组联系人姓名与电话。提交后自动生成门店编号、门店账号与12位数字初始密码。
-- 新建老师账号须填写姓名和联系电话，并先完成现场人脸采集、活体检查和服务端人脸绑定；人脸绑定失败时不得启用老师账号或允许该老师参与核销。旧教师档案中既有的身份证密文／哈希仍保留，但新建老师不再伪造未采集的身份证字段。老师管理支持按姓名或联系电话查询；两个管理页只支持封存，不提供删除操作。
-- 老师体验额度与客户项目余额完全独立：总部在每位老师的详情内按活跃产品设置唯一的月度基础额度，并可为该老师的指定产品单独充值。每月1日重置为基础额度；配置、重置、充值和体验消耗均保留流水。体验核销只会原子扣减老师项目的可用体验次数，绝不扣减客户剩余次数。
+- 新建老师账号只需姓名和联系电话即可直接活跃；老师人脸可在创建时或后续补充／替换，且不阻止登录、选择老师或办理业务。旧教师档案中既有的身份证密文／哈希仍保留，但新建老师不再伪造未采集的身份证字段。老师管理支持按姓名或联系电话查询；两个管理页只支持封存，不提供删除操作。
+- 老师体验额度与客户项目余额完全独立：总部在每位老师的详情内按活跃产品设置唯一的月度基础额度，并可为该老师的指定产品单独充值。每次配置立即以新次数覆盖当前可用额度；删除配置只封存当前额度，随后可重新配置，历史配置、重置、充值和体验消耗均保留。每月上海时间 1 日 00:00 仅重置活跃老师、活跃产品和活跃配置。体验核销只会原子扣减老师项目的可用体验次数，绝不扣减客户剩余次数，并显示各产品全历史体验总数。
 - 总部侧栏不再设置“创建”菜单；门店、产品与老师均只能从各自管理页的“新增”按钮进入创建页。
 - 门店管理首次进入仅提供“门店名称＋省/州＋城市＋区”选择和新增门店；确认选择前不显示门店资料。确认后展示门店信息、统计和“查看门店页面”入口；同名门店自动以 `1`、`2`、`3` 区分。
 - 示例门店统一使用中国省、市、区；新建门店时省、市、区为联动下拉选择。完整三级行政区划数据保存在本地 `china-regions.js`，离线打开原型时同样可用。
@@ -140,7 +140,7 @@
 全局“完整排名”表右上角提供分类维度下拉框，可以在门店、老师和项目之间切换并立即重新计算排名与占比；
 老师维度同样按有效充值、核销、体验和退费四类事件显示；无归属老师的历史记录仍保留在门店和项目汇总中。
 
-运营管理、运营创建页和运营首页均已移除。迁移 `047_retire_operation_accounts.sql` 会保留旧运营账号和审核人的历史外键，但将账号、身份链接、权限和范围统一封存。完成 `046` 并部署 `staffAccount v50` 后，先在仅限总部使用、已加载当前 `cloudbase-phone-auth.js` 的临时维护页面浏览器控制台执行 `await CloudBasePhoneAuth.retireOperationAccounts()`，将对应 CloudBase 登录凭据逐个设为 `BLOCKED`；确认成功后才执行 047。该维护页不是最终静态发布，该操作可安全重试且没有日常页面入口。
+运营管理、运营创建页和运营首页均已移除。迁移 `047_retire_operation_accounts.sql` 会保留旧运营账号和审核人的历史外键，但将账号、身份链接、权限和范围统一封存。完成 `046` 并部署 `staffAccount v50` 后，先在仅限总部使用、已加载当前 `cloudbase-phone-auth.js` 的临时维护页面浏览器控制台执行 `await CloudBasePhoneAuth.retireOperationAccounts()`，将对应 CloudBase 登录凭据逐个设为 `BLOCKED`；确认成功后才执行 047。随后执行 048 的七段 SQL，并部署 `staffAccount v51` 与 `faceRecognition v70`。该维护页不是最终静态发布，该操作可安全重试且没有日常页面入口。
 
 老师账号的首页是 `teacher-work-orders.html`。页面只从数据库读取当前登录老师的基础信息，以及 `teacher_id` 确实绑定到本人的充值、退款和核销工单；客户姓名与编号只显示为工单上下文，不生成客户主页链接。老师没有客户建立、客户查询、客户主页、客户照片管理、总部审核或任何管理页面权限。老师办理业务前必须先选择本次唯一的活跃门店，所有客户、老师和产品选择均只返回活跃主档；服务端始终把工单老师锁定为当前登录老师，浏览器不能替换为其他老师。体验核销仍须完成客户 1:1 人脸核验和现场照片证据，但只显示该老师已配置且当月仍有可用体验额度的活跃产品，并在同一事务中扣减老师额度，不读取或扣减客户项目余额。老师被封存后，账号不能登录且不能再被选为新业务的老师；既有工单、额度流水和统计仍可在授权的历史查询中查看。
 
@@ -149,7 +149,7 @@
 1. 按编号依次执行尚未运行的数据库迁移；正式 migration 工具使用完整的 `037_verification_photo_evidence.sql` 与 `038_verification_profile_photo_snapshot.sql`，腾讯云 `ExecutePGSql` 控制台必须改用 `database/cloudbase-console/` 下的七个短文件并严格按 `037-01` 至 `037-03`、`038-01` 至 `038-04` 执行；若 `037-01` 已成功而旧版 `037-02` 报 `SQLSTATE 42601`，不要重跑 `037-01`，先单独执行 `ROLLBACK;`，再从当前 `037-02` 继续；
 2. 执行迁移 `039_direct_verification_photo_upload.sql`（CloudBase SQL 编辑器应依次执行独立的 `039-01` 至 `039-05`），建立短时上传任务、每单唯一进行中任务和原子提交函数；随后执行 `040_fix_verification_photo_commit_ambiguity.sql`（控制台使用 `040-01`），消除提交函数返回字段与冲突键 `photo_slot` 的 PL/pgSQL 歧义；
 3. 可选在 CloudBase PG 云存储中新建私有桶 `verification-photos`；也可以把 `VERIFICATION_PHOTO_BUCKET_ID` 和 `CUSTOMER_PHOTO_BUCKET_ID` 都设为现有私有桶 `customer-photos`。两个云函数会对候选桶去重并查询当前 PostgreSQL 环境的真实 `storage.buckets.id`，候选桶都不存在时直接拒绝。`faceRecognition` 与 `verificationPhoto` 的环境变量必须在各自函数中分开配置，并在 CloudBase 控制台“一项变量一行／一个输入框”；不能把整段 `KEY=value` 文本粘到任意单个变量值中。两边优先使用平台托管的 `CLOUDBASE_APIKEY`，仍兼容旧 `CLOUDBASE_SERVICE_ROLE_KEY`，并配置同一个至少 32 位安全随机 `VERIFICATION_PHOTO_CLEANUP_TOKEN`。清理凭证只用于无终端用户 UID 的控制台手工补跑，绝不能写入 Timer JSON。`CUSTOMER_PHOTO_URL_TTL_SECONDS`、`VERIFICATION_FACE_EVIDENCE_TTL_MINUTES` 及全部 `FACE_*` 只配置在 `faceRecognition`。在现有云函数安全规则中合并 `verificationPhoto.invoke = auth.loginType != 'ANONYMOUS' && auth != null`，同时保留必需的顶层 `*` 和所有其他函数条目；客户端出现 `EXCEED_AUTHORITY` 时检查该项、登录类型和会话。平台 Timer 不走普通客户端 `invoke` 授权。两个函数分别保存 triggers-only 定时配置：`faceRecognition` 使用 `cleanup-verification-photo-drafts-hourly`，`verificationPhoto` 使用 `cleanup-verification-photo-uploads-hourly`；触发器不携带业务 `action` 或凭证。静态站点域名须加入 Web 安全域名；当前补充照片通过云函数传输，不要求桶开放浏览器 `PUT` CORS；
-4. 无论数据库是历史增量库，还是刚由 `schema.rebuild.sql`／`schema.full.sql` 新建，都先按编号执行完整的 `046_teacher_face_and_experience_quotas.sql`；CloudBase SQL 编辑器按 `database/cloudbase-console/046-01` 至 `046-08` 单独提交。随后部署 `staffAccount-v50.zip` 与 `faceRecognition-v69.zip`，调用各自 `health` 核对版本。以仅限总部使用、已加载当前 `cloudbase-phone-auth.js` 的临时维护页面会话运行一次 `await CloudBasePhoneAuth.retireOperationAccounts()`，必须确认返回成功并已封锁旧运营账号的 CloudBase 凭据；失败时先修复并安全重试。只有成功后才在 SQL 编辑器依次执行 `047-01-retire-operation-accounts.sql`、`047-02-hq-reviewer-guard.sql`，再验证老师人脸建档、额度配置／充值、体验不扣客户余额、封存拒绝新业务和总部必须选择唯一 `ACTIVE` 门店的共享办理入口；
+4. 无论数据库是历史增量库，还是刚由 `schema.rebuild.sql`／`schema.full.sql` 新建，都先按编号执行完整的 `046_teacher_face_and_experience_quotas.sql`；CloudBase SQL 编辑器按 `database/cloudbase-console/046-01` 至 `046-08` 单独提交。随后部署 `staffAccount-v50.zip` 与 `faceRecognition-v69.zip`，调用各自 `health` 核对版本。以仅限总部使用、已加载当前 `cloudbase-phone-auth.js` 的临时维护页面会话运行一次 `await CloudBasePhoneAuth.retireOperationAccounts()`，必须确认返回成功并已封锁旧运营账号的 CloudBase 凭据；失败时先修复并安全重试。只有成功后才在 SQL 编辑器依次执行 `047-01-retire-operation-accounts.sql`、`047-02-hq-reviewer-guard.sql`。再依次执行 `048-01-quota-lifecycle-schema.sql` 至 `048-07-comments.sql`，部署 `staffAccount-v51.zip` 与 `faceRecognition-v70.zip` 并核对 `health`，再验证无照片老师可登录／办理、老师人脸补录或替换、额度配置立即覆盖、删除重配、独立充值、体验不扣客户余额、封存拒绝新业务和总部必须选择唯一 `ACTIVE` 门店的共享办理入口；
 5. 新建或更新名称精确为 `verificationPhoto` 的云函数，部署 `verificationPhoto-v3.zip`，配置同环境的服务端 Key 和照片桶、512 MB 内存、60 秒超时，再调用 `health` 确认 `version: "v3"`、`ready: true`、`verificationPhotoUploadSchemaReady: true`、桶和服务端存储均就绪。该函数固定通过 `FUNCTION` 模式接收补充照片，同时重新核验真实对象大小、MIME、JPEG 内容、尺寸和 SHA-256；原图与导出继续按同一账号、工单和照片位权限通过鉴权存储通道读取；
 6. 部署当前静态文件到 CloudBase 静态网站托管并强制刷新浏览器；
 7. 通过总部、门店和老师真实账号完成角色边界回归，并确认历史运营账号无法获取业务会话或通过审核；验证总部四个办理入口只能选一个活跃门店、无“全部门店”，同时完成核销照片查看、总部／门店／老师原提交人上传或替换、取消后重试、非提交人拒绝和 24 小时截止测试。

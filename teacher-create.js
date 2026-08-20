@@ -91,13 +91,12 @@
   }
 
   function syncSubmit() {
+    const faceIsBeingAdded = Boolean(capturedFaceImage);
     const ready = !submitting
       && Boolean($("personCreateName").value.trim())
       && Boolean($("personPhone").value.trim())
       && passwordIsValid($("personInitialPassword").value)
-      && Boolean($("teacherFaceConsent").checked)
-      && faceValidated
-      && Boolean(capturedFaceImage);
+      && (!faceIsBeingAdded || (Boolean($("teacherFaceConsent").checked) && faceValidated));
     const submit = $("createTeacherSubmit");
     submit.disabled = !ready;
     submit.setAttribute("aria-disabled", String(!ready));
@@ -119,15 +118,18 @@
     $("captureTeacherFace").disabled = true;
     $("retakeTeacherFace").hidden = true;
     $("teacherFaceCaptureStatus").className = "capture-status pending";
-    $("teacherFaceCaptureStatus").textContent = "尚未拍摄";
-    $("teacherFaceQualityResult").textContent = "待检测";
-    $("teacherFaceLivenessResult").textContent = "待检测";
-    $("teacherFaceEnrollmentState").textContent = "必须完成";
+    $("teacherFaceCaptureStatus").textContent = "可选 · 尚未拍摄";
+    $("teacherFaceQualityResult").textContent = "未采集";
+    $("teacherFaceLivenessResult").textContent = "未采集";
+    $("teacherFaceEnrollmentState").textContent = "可后续补录";
     syncSubmit();
   }
 
   async function openCamera() {
     try {
+      if (!$("teacherFaceConsent").checked) {
+        throw new Error("请先确认已取得老师明确的人脸采集授权。未采集人脸也可以直接创建并激活老师账号。");
+      }
       resetFaceCapture();
       if (!navigator.mediaDevices?.getUserMedia) throw new Error("当前浏览器不支持摄像头访问，请使用最新版 Chrome 或 Edge。");
       $("openTeacherFaceCamera").hidden = true;
@@ -152,6 +154,10 @@
   }
 
   async function captureFace() {
+    if (!$("teacherFaceConsent").checked) {
+      setMessage("请先确认已取得老师明确的人脸采集授权。未采集人脸也可以直接创建并激活老师账号。");
+      return;
+    }
     const video = $("teacherFaceCamera");
     if (!cameraStream || !video.videoWidth || !video.videoHeight) {
       setMessage("摄像头画面尚未就绪，请稍后重新拍照。");
@@ -200,7 +206,7 @@
       $("teacherFaceQualityResult").textContent = Number.isFinite(score) ? `通过 · ${score} 分` : "通过";
       $("teacherFaceLivenessResult").textContent = liveness.checked ? `通过 · ${liveness.score} 分` : "未启用";
       $("teacherFaceCaptureStatus").className = "capture-status complete";
-      $("teacherFaceCaptureStatus").textContent = `${liveness.checked ? "照片质量与活体检测" : "照片质量检查"}通过；可以创建老师账号。`;
+      $("teacherFaceCaptureStatus").textContent = `${liveness.checked ? "照片质量与活体检测" : "照片质量检查"}通过；创建时可以一并绑定人脸。`;
       $("teacherFaceEnrollmentState").textContent = "待提交绑定";
     } catch (error) {
       if (capturedFaceImage !== validatingImage) return;
@@ -228,38 +234,52 @@
     const name = $("personCreateName").value.trim();
     const phone = $("personPhone").value.trim();
     const initialPassword = $("personInitialPassword").value;
-    if (!name || !phone || !passwordIsValid(initialPassword) || !$("teacherFaceConsent").checked || !faceValidated || !capturedFaceImage) {
-      setMessage("必须填写老师资料、取得明确授权并完成通过检测的人脸绑定照片。");
+    const includeFace = Boolean(capturedFaceImage);
+    if (!name || !phone || !passwordIsValid(initialPassword)) {
+      setMessage("请填写老师资料，并使用符合要求的初始密码。");
       syncSubmit();
       return;
     }
-    if (!window.CloudBasePhoneAuth?.provisionTeacherWithFace) {
+    if (includeFace && (!$("teacherFaceConsent").checked || !faceValidated)) {
+      setMessage("如需现在绑定人脸，请先取得明确授权并完成通过检测的照片；也可重新拍照后再创建。");
+      syncSubmit();
+      return;
+    }
+    if (includeFace && !window.CloudBasePhoneAuth?.provisionTeacherWithFace) {
       setMessage("老师人脸建档服务尚未加载，请部署最新后台后重试。");
+      return;
+    }
+    if (!includeFace && !window.CloudBasePhoneAuth?.provisionTeacher) {
+      setMessage("老师账号创建服务尚未加载，请部署最新后台后重试。");
       return;
     }
     submitting = true;
     const submitButton = $("createTeacherSubmit");
     submitButton.disabled = true;
-    setMessage("正在原子创建老师账号并安全绑定人脸，请勿关闭页面…");
+    setMessage(includeFace ? "正在创建老师账号并安全绑定人脸，请勿关闭页面…" : "正在创建并激活老师账号，请勿关闭页面…");
     try {
-      const result = await window.CloudBasePhoneAuth.provisionTeacherWithFace({
-        staffName: name,
-        phone,
-        initialPassword,
-        faceImageBase64: capturedFaceImage,
-        clientRequestId: teacherProvisionRequestId || (teacherProvisionRequestId = requestId()),
-        consent: true
-      });
-      if (String(result?.teacher?.faceEnrollmentStatus || "").toUpperCase() !== "ENROLLED") {
+      const result = includeFace
+        ? await window.CloudBasePhoneAuth.provisionTeacherWithFace({
+          staffName: name,
+          phone,
+          initialPassword,
+          faceImageBase64: capturedFaceImage,
+          clientRequestId: teacherProvisionRequestId || (teacherProvisionRequestId = requestId()),
+          consent: true
+        })
+        : await window.CloudBasePhoneAuth.provisionTeacher({ staffName: name, phone, initialPassword });
+      if (includeFace && String(result?.teacher?.faceEnrollmentStatus || "").toUpperCase() !== "ENROLLED") {
         throw new Error("账号服务未确认老师人脸绑定，已停止显示创建成功。");
       }
       const code = String(result?.teacher?.teacherCode || result?.profile?.teacherCode || "");
-      setMessage(`创建成功：${name}${code ? `（${code}）` : ""} 已创建登录账号并绑定人脸。请通过安全渠道单独告知初始密码。`);
+      setMessage(includeFace
+        ? `创建成功：${name}${code ? `（${code}）` : ""} 已创建并激活登录账号，人脸已绑定。请通过安全渠道单独告知初始密码。`
+        : `创建成功：${name}${code ? `（${code}）` : ""} 已创建并激活登录账号；人脸可在老师主页中后续补录或更换。请通过安全渠道单独告知初始密码。`);
       $("personCreateForm").reset();
       resetFaceCapture();
-      $("teacherFaceEnrollmentState").textContent = "已绑定";
+      $("teacherFaceEnrollmentState").textContent = includeFace ? "已绑定" : "可后续补录";
     } catch (error) {
-      setMessage(error?.message || "老师账号与人脸绑定创建失败；未确认成功前请勿重复提交。");
+      setMessage(error?.message || (includeFace ? "老师账号与人脸绑定创建失败；未确认成功前请勿重复提交。" : "老师账号创建失败；未确认成功前请勿重复提交。"));
     } finally {
       submitting = false;
       syncSubmit();
