@@ -215,7 +215,7 @@ result that blocks the old CloudBase credentials. Only then execute
 `047-02-hq-reviewer-guard.sql`). Then execute
 `048_optional_teacher_face_and_experience_quota_lifecycle.sql` (or the seven
 ordered `048-01` through `048-07` CloudBase console parts), deploy
-`faceRecognition v70` and `staffAccount v51`, verify both health responses,
+`faceRecognition v71` and `staffAccount v54`, verify both health responses,
 then deploy/refresh the current static frontend.
 
 Migration 032 deliberately stops and rolls back when migration 026 is missing.

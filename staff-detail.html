@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>老师主页</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.46">
+  <link rel="stylesheet" href="styles.css?v=0.15.47">
 </head>
 <body data-staff-detail>
   <aside class="side-project-bar" aria-label="项目栏">
@@ -51,10 +51,27 @@
         <button id="closeTeacherFaceUpdate" class="secondary-button" type="button">收起</button>
       </header>
       <form id="teacherFaceUpdateForm" class="teacher-face-update-form">
-        <label class="teacher-face-update-consent"><input id="teacherFaceUpdateConsent" type="checkbox" required> 我已取得老师明确授权，仅为该老师补录或更换登录身份人脸。</label>
-        <label class="teacher-face-update-upload">选择照片或拍照<input id="teacherFaceUpdateFile" type="file" accept="image/jpeg" capture="user" required><span>支持 JPG；上传后会在提交前显示预览。</span></label>
-        <div id="teacherFaceUpdatePreviewWrap" class="teacher-face-update-preview" hidden><img id="teacherFaceUpdatePreview" alt="待保存的老师人脸预览"><span>新照片将在服务端完成质量和身份检查后生效。</span></div>
-        <div class="teacher-face-update-actions"><button id="saveTeacherFaceUpdate" type="submit" disabled>保存人脸</button><button id="clearTeacherFaceUpdate" class="secondary-button" type="button">清空照片</button></div>
+        <div class="teacher-face-enrollment-layout teacher-face-update-layout">
+          <section class="teacher-face-consent teacher-face-update-consent">
+            <label class="consent-row"><input id="teacherFaceUpdateConsent" type="checkbox" required> 我已取得老师明确授权，仅为该老师补录或更换登录身份人脸。</label>
+            <div class="capture-check-results" aria-live="polite">
+              <div><span>照片质量</span><strong id="teacherFaceUpdateQualityResult">待检测</strong></div>
+              <div><span>活体检测</span><strong id="teacherFaceUpdateLivenessResult">待检测</strong></div>
+            </div>
+          </section>
+          <section class="capture-panel teacher-face-capture teacher-face-update-capture">
+            <div class="customer-camera-stage">
+              <video id="teacherFaceUpdateCamera" autoplay muted playsinline hidden></video>
+              <img id="teacherFaceUpdatePreview" alt="待保存的老师人脸预览" hidden>
+              <div id="teacherFaceUpdatePlaceholder" class="camera-placeholder"><strong>等待打开摄像头</strong><span>请让老师正对镜头，避免逆光、遮挡或多人入镜。</span></div>
+              <canvas id="teacherFaceUpdateCanvas" hidden></canvas>
+            </div>
+            <div class="teacher-face-capture-copy"><h3>拍照与质量检测</h3><p>拍照后会先完成与客户建档相同的照片质量和活体检查；通过后才可以保存新的人脸。</p></div>
+            <div id="teacherFaceUpdateCaptureStatus" class="capture-status pending">尚未拍摄</div>
+            <div class="camera-actions"><button id="openTeacherFaceUpdateCamera" type="button">打开摄像头</button><button id="captureTeacherFaceUpdate" type="button" disabled>拍照并检测</button><button id="retakeTeacherFaceUpdate" type="button" hidden>重新拍照</button></div>
+          </section>
+        </div>
+        <div class="teacher-face-update-actions"><button id="saveTeacherFaceUpdate" type="submit" disabled>保存人脸</button><button id="clearTeacherFaceUpdate" class="secondary-button" type="button">清空本次照片</button></div>
         <p id="teacherFaceUpdateMessage" class="form-message" aria-live="polite"></p>
       </form>
     </section>
@@ -151,7 +168,7 @@
   <script src="cloudbase-auth-config.js"></script>
   <script src="cloudbase-phone-auth.js?v=0.18.1"></script>
   <script src="datetime.js?v=0.1.2"></script>
-  <script src="staff-detail.js?v=0.15.1"></script>
+  <script src="staff-detail.js?v=0.15.3"></script>
   <script src="auth-ui.js?v=0.19.0"></script>
 </body>
 </html>

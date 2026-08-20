@@ -144,7 +144,7 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 ## 部署顺序与健康检查
 
 1. 确认迁移 039 表和真实桶均存在，并已执行完整的 `046_teacher_face_and_experience_quotas.sql`（CloudBase SQL 编辑器为 `046-01` 至 `046-08`）。
-2. 部署 `faceRecognition-v69.zip` 与 `staffAccount v53`，分别调用 `health` 确认 `v69`、`v53`。在仅限总部使用、已加载当前 `cloudbase-phone-auth.js` 的临时维护页面中，以已登录总部身份执行 `await CloudBasePhoneAuth.retireOperationAccounts()`；必须等待成功封锁旧运营账号的 CloudBase 凭据。该维护页不是最终静态发布。
+2. 部署 `faceRecognition-v69.zip` 与 `staffAccount v54`，分别调用 `health` 确认 `v69`、`v54`。在仅限总部使用、已加载当前 `cloudbase-phone-auth.js` 的临时维护页面中，以已登录总部身份执行 `await CloudBasePhoneAuth.retireOperationAccounts()`；必须等待成功封锁旧运营账号的 CloudBase 凭据。该维护页不是最终静态发布。
 3. 只有该总部维护动作成功后，才在 CloudBase SQL 编辑器依次执行 `047-01-retire-operation-accounts.sql`、`047-02-hq-reviewer-guard.sql`。它保留历史业务和审核外键，但永久封存旧运营身份并将审核收紧为总部独占。
 4. 新建或更新函数 `verificationPhoto`，上传 `verificationPhoto-v4.zip`，配置上述环境变量、512 MB 内存和 60 秒超时。
 5. 对 `verificationPhoto` 调用 `{ "action": "health" }`，确认 `version: "v4"`、`sharedVersion: "v3"` 与全部就绪字段，再保存本节的 triggers-only 配置。

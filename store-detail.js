@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.1";
+  const VERSION = "0.16.2";
   const CUSTOMER_PAGE_SIZE = 10;
   const params = new URLSearchParams(location.search);
   const storeRef = String(params.get("authUid") || params.get("storeId") || "").trim();
@@ -91,16 +91,83 @@
     target.innerHTML = `<button type="button" data-page-target="${dataPage}" data-page="${page - 1}" ${page <= 1 ? "disabled" : ""}>上一页</button><span>第 ${page} / ${pages} 页</span><button type="button" data-page-target="${dataPage}" data-page="${page + 1}" ${page >= pages ? "disabled" : ""}>下一页</button>`;
   }
 
+  function projectCount(row, field, fallback = 0) {
+    const value = row?.[field];
+    const count = Number(value);
+    return Number.isFinite(count) ? Math.trunc(count) : fallback;
+  }
+
+  function projectHasField(row, field) {
+    return Object.prototype.hasOwnProperty.call(row || {}, field)
+      && row[field] !== null
+      && row[field] !== undefined;
+  }
+
+  function formatProjectCount(value, { signed = false } = {}) {
+    const count = Number(value);
+    if (!Number.isFinite(count)) return "—";
+    const normalized = Math.trunc(count);
+    return `${signed && normalized > 0 ? "+" : ""}${normalized.toLocaleString("zh-CN")}`;
+  }
+
+  function projectBreakdownAvailable(row) {
+    return [
+      "refund_before_consumption_count",
+      "refund_after_consumption_count",
+      "refund_before_consumption_customer_count",
+      "refund_after_consumption_customer_count",
+      "refund_from_remaining_count",
+      "refund_after_consumption_balance_count",
+      "refund_breakdown_unknown_count"
+    ].every((field) => projectHasField(row, field));
+  }
+
+  function projectBalanceExplanationAvailable(row) {
+    return ["total_legacy_void_count", "raw_remaining_count", "balance_floor_adjustment"]
+      .every((field) => projectHasField(row, field));
+  }
+
+  function renderProjectRefundBreakdown(row, totalRefund) {
+    if (!projectBreakdownAvailable(row)) {
+      return totalRefund === 0
+        ? '<span class="record-status">无退费</span>'
+        : '<div class="refund-balance-summary"><strong>退费分类待加载</strong><br><small>部署新版统计服务后，会显示退费前有无付费核销以及余额实际扣减情况。</small></div>';
+    }
+    const beforeConsumption = projectCount(row, "refund_before_consumption_count");
+    const afterConsumption = projectCount(row, "refund_after_consumption_count");
+    const beforeConsumptionCustomers = projectCount(row, "refund_before_consumption_customer_count");
+    const afterConsumptionCustomers = projectCount(row, "refund_after_consumption_customer_count");
+    const deductedFromRemaining = projectCount(row, "refund_from_remaining_count");
+    const insufficientBalance = projectCount(row, "refund_after_consumption_balance_count");
+    const unknown = projectCount(row, "refund_breakdown_unknown_count");
+    return `<div class="refund-balance-summary"><strong>退费合计：${formatProjectCount(totalRefund)}</strong><br><span>退费前无付费核销：${formatProjectCount(beforeConsumption)}（${formatProjectCount(beforeConsumptionCustomers)}位客户）</span><br><span>已有付费核销后退费：${formatProjectCount(afterConsumption)}（${formatProjectCount(afterConsumptionCustomers)}位客户）</span><br><small>实际扣余：${formatProjectCount(deductedFromRemaining)}；余额不足未扣余：${formatProjectCount(insufficientBalance)}${unknown ? `；待判定：${formatProjectCount(unknown)}` : ""}</small></div>`;
+  }
+
+  function renderProjectBalanceExplanation(row) {
+    if (!projectBalanceExplanationAvailable(row)) {
+      return '<span>新版统计服务会返回：充值 − 付费核销 − 退费 − 历史冲销，再加客户级归零调整。</span>';
+    }
+    const rawRemaining = projectCount(row, "raw_remaining_count");
+    const legacyVoid = projectCount(row, "total_legacy_void_count");
+    const floorAdjustment = projectCount(row, "balance_floor_adjustment");
+    return `<strong>应计余额：${formatProjectCount(rawRemaining)}</strong><br><small>公式：充值 − 付费核销 − 退费 − 历史冲销${legacyVoid ? `（${formatProjectCount(legacyVoid)}）` : ""}</small><br><small>客户级归零调整：${formatProjectCount(floorAdjustment, { signed: true })}</small>`;
+  }
+
   function renderProjects(rows) {
     const target = $("storeProjectBody");
     if (!target) return;
     if (!rows.length) {
-      target.innerHTML = '<tr><td colspan="6" class="query-empty">暂无项目业务数据</td></tr>';
+      target.innerHTML = '<tr><td colspan="7" class="query-empty">暂无项目业务数据</td></tr>';
       return;
     }
     target.innerHTML = rows.map((row) => {
       const name = firstValue(row, ["product_name", "project_name", "name"]);
-      return `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(firstValue(row, ["total_recharge_count", "recharge_count", "purchased_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["total_verification_count", "verification_count", "used_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["total_experience_count", "experience_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["total_refund_count", "refund_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["remaining_count", "balance"], 0))}</td></tr>`;
+      const recharge = projectCount(row, "total_recharge_count", projectCount(row, "recharge_count", projectCount(row, "purchased_count")));
+      const verification = projectCount(row, "total_verification_count", projectCount(row, "verification_count", projectCount(row, "used_count")));
+      const experience = projectCount(row, "total_experience_count", projectCount(row, "experience_count"));
+      const refund = projectCount(row, "total_refund_count", projectCount(row, "refund_count"));
+      const remaining = projectCount(row, "remaining_count", projectCount(row, "balance"));
+      return `<tr><td>${escapeHtml(name)}</td><td>${formatProjectCount(recharge)}</td><td>${formatProjectCount(verification)}</td><td><strong>${formatProjectCount(experience)}</strong><br><small>不扣客户余额</small></td><td>${renderProjectRefundBreakdown(row, refund)}</td><td>${renderProjectBalanceExplanation(row)}</td><td><strong>${formatProjectCount(remaining)}</strong><br><small>客户余额不可跨人抵扣</small></td></tr>`;
     }).join("");
   }
 
@@ -129,7 +196,7 @@
   }
 
   function renderEmptyRows(message = "暂无业务数据") {
-    if ($("storeProjectBody")) $("storeProjectBody").innerHTML = `<tr><td colspan="6" class="query-empty">${escapeHtml(message)}</td></tr>`;
+    if ($("storeProjectBody")) $("storeProjectBody").innerHTML = `<tr><td colspan="7" class="query-empty">${escapeHtml(message)}</td></tr>`;
     state.customerRows = [];
     state.customerTotal = 0;
     renderCustomers();

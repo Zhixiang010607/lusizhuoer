@@ -2173,17 +2173,13 @@ body[data-staff-detail] .teacher-face-update-panel { display: grid; gap: 18px; m
 body[data-staff-detail] .teacher-face-update-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid #e5edf5; }
 body[data-staff-detail] .teacher-face-update-heading h2 { margin: 0 0 6px; color: #173252; font-size: 18px; }
 body[data-staff-detail] .teacher-face-update-heading > div > p:last-child { max-width: 720px; margin: 0; color: #63778f; font-size: 12px; line-height: 1.6; }
-body[data-staff-detail] .teacher-face-update-form { display: grid; grid-template-columns: minmax(250px, .85fr) minmax(260px, 1fr) minmax(200px, .65fr); gap: 14px; align-items: start; }
-body[data-staff-detail] .teacher-face-update-consent,
-body[data-staff-detail] .teacher-face-update-upload { display: grid; gap: 8px; min-height: 112px; padding: 14px; border: 1px solid #dce7f3; border-radius: 12px; color: #405872; background: #fff; font-size: 12px; font-weight: 700; line-height: 1.55; }
-body[data-staff-detail] .teacher-face-update-consent { align-content: start; }
+body[data-staff-detail] .teacher-face-update-form { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: start; }
+body[data-staff-detail] .teacher-face-update-layout { grid-column: 1 / -1; }
+body[data-staff-detail] .teacher-face-update-consent { min-height: 235px; border-color: #dce7f3; color: #405872; background: #fff; font-size: 12px; font-weight: 700; }
 body[data-staff-detail] .teacher-face-update-consent input { margin: 3px 7px 0 0; vertical-align: top; }
-body[data-staff-detail] .teacher-face-update-upload { align-content: start; }
-body[data-staff-detail] .teacher-face-update-upload input { width: 100%; min-width: 0; color: #28496d; font: inherit; font-weight: 600; }
-body[data-staff-detail] .teacher-face-update-upload span { color: #718197; font-size: 11px; font-weight: 500; }
-body[data-staff-detail] .teacher-face-update-preview { min-height: 112px; display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; align-items: center; padding: 10px; border: 1px solid #cde1d8; border-radius: 12px; color: #397460; background: #f5fcf8; font-size: 11px; line-height: 1.55; }
-body[data-staff-detail] .teacher-face-update-preview img { width: 76px; height: 92px; object-fit: cover; border-radius: 8px; background: #e8eef4; }
-body[data-staff-detail] .teacher-face-update-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+body[data-staff-detail] .teacher-face-update-capture { min-height: 235px; }
+body[data-staff-detail] .teacher-face-update-capture #teacherFaceUpdateCaptureStatus { grid-column: 2; grid-row: 2; }
+body[data-staff-detail] .teacher-face-update-actions { width: min(100%, 360px); display: grid; grid-template-columns: 1fr 1fr; gap: 8px; justify-self: end; }
 body[data-staff-detail] .teacher-face-update-actions button { min-height: 40px; font-weight: 800; }
 body[data-staff-detail] .teacher-face-update-form .form-message { grid-column: 1 / -1; min-height: 18px; margin: -4px 0 0; color: #61748b; font-size: 12px; line-height: 1.5; }
 body[data-staff-detail] .teacher-face-update-form .form-message[data-tone="success"] { color: #08785e; }
@@ -2296,8 +2292,8 @@ body[data-staff-detail] .teacher-experience-empty.is-error { color: #9c3329; bac
   body[data-staff-detail] .staff-admin-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   body[data-staff-detail] .teacher-experience-workspace { grid-template-columns: 1fr; }
   body[data-staff-detail] .teacher-experience-action-stack { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  body[data-staff-detail] .teacher-face-update-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  body[data-staff-detail] .teacher-face-update-preview { grid-column: 1 / -1; }
+  body[data-staff-detail] .teacher-face-update-form { grid-template-columns: 1fr; }
+  body[data-staff-detail] .teacher-face-update-actions { width: 100%; justify-self: stretch; }
 }
 
 @media (max-width: 760px) {
@@ -2314,7 +2310,7 @@ body[data-staff-detail] .teacher-experience-empty.is-error { color: #9c3329; bac
   body[data-staff-detail] .teacher-face-update-panel { margin-bottom: 14px; padding: 18px; }
   body[data-staff-detail] .teacher-face-update-heading { padding-bottom: 13px; }
   body[data-staff-detail] .teacher-face-update-form { grid-template-columns: 1fr; }
-  body[data-staff-detail] .teacher-face-update-preview { grid-column: auto; }
+  body[data-staff-detail] .teacher-face-update-actions { grid-template-columns: 1fr; }
   body[data-staff-detail] .teacher-experience-heading { align-items: flex-start; padding: 18px; }
   body[data-staff-detail] .teacher-experience-heading h2 { font-size: 19px; }
   body[data-staff-detail] .teacher-experience-state { max-width: 118px; white-space: normal; }
@@ -2332,6 +2328,10 @@ body[data-staff-detail] .teacher-experience-empty.is-error { color: #9c3329; bac
   body[data-staff-detail] .teacher-experience-history-card { margin: 0 14px 14px; }
   body[data-staff-detail] .teacher-experience-history-item { grid-template-columns: 8px minmax(0, 1fr); align-items: start; }
   body[data-staff-detail] .teacher-experience-history-meta { grid-column: 2; justify-items: start; text-align: left; }
+}
+
+@media (max-width: 640px) {
+  body[data-staff-detail] .teacher-face-update-capture #teacherFaceUpdateCaptureStatus { grid-column: 1; grid-row: 3; }
 }
 
 @media (max-width: 480px) {

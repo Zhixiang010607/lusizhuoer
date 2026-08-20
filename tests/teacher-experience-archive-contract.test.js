@@ -318,6 +318,16 @@ assert.match(entitlementRecharge, /public\.recharge_teacher_product_experience_q
   "HQ quota recharge must use the database atomic recharge function");
 assert.match(entitlementRecharge, /teacherExperienceIdempotencyKey\(event\.clientRequestId\)/,
   "HQ quota recharge must carry a server-validated idempotency key");
+const quotaSchemaGuard = staffCloud.slice(
+  staffCloud.indexOf("async function requireTeacherExperienceQuotaSchema"),
+  staffCloud.indexOf("function teacherExperienceIdempotencyKey")
+);
+assert.match(quotaSchemaGuard, /pg_get_functiondef\(TO_REGPROCEDURE\('public\.recharge_teacher_product_experience_quota\(bigint,bigint,integer,text,character varying,bigint\)'\)\)/,
+  "quota actions must inspect the installed recharge function, not merely its name");
+assert.match(quotaSchemaGuard, /has_active_recharge_function/,
+  "a partially executed 048-04 recharge replacement must be detected before quota actions run");
+assert.match(quotaSchemaGuard, /quota_status\[\[:space:\]\]\*=\[\[:space:\]\]\*''active''/,
+  "the readiness guard must require the 048 active-quota recharge behavior");
 for (const action of ["getTeacherExperienceEntitlements", "upsertTeacherExperienceEntitlement", "deleteTeacherExperienceEntitlement", "rechargeTeacherExperienceEntitlement"]) {
   assert.match(staffCloud, new RegExp(`if \\(action === "${action}"\\)[\\s\\S]{0,120}requireHq\\(caller\\)`),
     `${action} must remain HQ-only in the staff service`);

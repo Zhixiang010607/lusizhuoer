@@ -170,12 +170,14 @@
     else sourceHeight = sourceWidth / targetRatio;
     const sourceX = Math.round((video.videoWidth - sourceWidth) / 2);
     const sourceY = Math.round((video.videoHeight - sourceHeight) / 2);
-    const outputHeight = Math.round(Math.min(sourceHeight, 1280));
+    // Keep the captured crop and JPEG settings aligned with customer
+    // enrollment so the same quality/liveness thresholds see the same input.
+    const outputHeight = Math.round(Math.min(sourceHeight, 1024));
     const canvas = $("teacherFaceCanvas");
     canvas.height = outputHeight;
     canvas.width = Math.round(outputHeight * targetRatio);
     canvas.getContext("2d", { alpha: false }).drawImage(video, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
-    capturedFaceImage = canvas.toDataURL("image/jpeg", 0.9);
+    capturedFaceImage = canvas.toDataURL("image/jpeg", 0.85);
     if (dataUrlBytes(capturedFaceImage) > 3 * 1024 * 1024) capturedFaceImage = resizeCanvasDataUrl(canvas, 1024, 0.86);
     if (dataUrlBytes(capturedFaceImage) > 3 * 1024 * 1024) capturedFaceImage = resizeCanvasDataUrl(canvas, 880, 0.8);
     const validatingImage = capturedFaceImage;
@@ -203,8 +205,13 @@
       const quality = validation.quality || {};
       const liveness = validation.liveness || {};
       const score = Number(quality.qualityScore);
-      $("teacherFaceQualityResult").textContent = Number.isFinite(score) ? `通过 · ${score} 分` : "通过";
-      $("teacherFaceLivenessResult").textContent = liveness.checked ? `通过 · ${liveness.score} 分` : "未启用";
+      const qualityThreshold = quality.qualityThreshold;
+      $("teacherFaceQualityResult").textContent = Number.isFinite(score)
+        ? `通过 · ${score} 分${qualityThreshold != null ? `（要求 ${qualityThreshold}）` : ""}`
+        : "通过";
+      $("teacherFaceLivenessResult").textContent = liveness.checked
+        ? `通过 · ${liveness.score} 分${liveness.threshold != null ? `（要求 ${liveness.threshold}）` : ""}`
+        : "未启用";
       $("teacherFaceCaptureStatus").className = "capture-status complete";
       $("teacherFaceCaptureStatus").textContent = `${liveness.checked ? "照片质量与活体检测" : "照片质量检查"}通过；创建时可以一并绑定人脸。`;
       $("teacherFaceEnrollmentState").textContent = "待提交绑定";
@@ -220,9 +227,14 @@
       $("teacherFacePlaceholder").hidden = false;
       $("openTeacherFaceCamera").hidden = false;
       $("retakeTeacherFace").hidden = true;
-      $("teacherFaceCaptureStatus").textContent = "照片质量或人脸检测未通过，请重新拍照。";
-      $("teacherFaceQualityResult").textContent = "未通过";
-      $("teacherFaceLivenessResult").textContent = error?.code === "LIVENESS_FAILED" ? "未通过" : "未执行";
+      const livenessFailed = error?.code === "LIVENESS_FAILED";
+      const captureRejected = ["FACE_NOT_FOUND", "MULTIPLE_FACES", "FACE_TOO_SMALL", "FACE_QUALITY_LOW", "FACE_MASKED", "EYES_CLOSED", "FACE_POSE_INVALID"].includes(error?.code);
+      $("teacherFaceCaptureStatus").className = "capture-status pending";
+      $("teacherFaceCaptureStatus").textContent = livenessFailed
+        ? "活体检测未通过，请重新拍照"
+        : captureRejected ? "照片质量未通过，请重新拍照" : "检测服务调用失败，请查看下方错误";
+      $("teacherFaceQualityResult").textContent = livenessFailed ? "通过" : captureRejected ? "未通过" : "检测失败";
+      $("teacherFaceLivenessResult").textContent = livenessFailed ? "未通过" : captureRejected ? "未执行" : "检测失败";
       setMessage(error?.message || "老师人脸照片检测失败，请重新拍摄。");
     }
     syncSubmit();

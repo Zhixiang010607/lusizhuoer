@@ -18,7 +18,7 @@
   }
 
   function teacherName(teacher) {
-    return String(teacher.staff_name || teacher.name || "").trim();
+    return String(teacher.staff_name || teacher.teacher_name || teacher.name || "").trim();
   }
 
   function teacherPhone(teacher) {
@@ -26,7 +26,7 @@
   }
 
   function teacherCode(teacher) {
-    return String(teacher.person_code || teacher.staff_code || "").trim();
+    return String(teacher.person_code || teacher.teacher_code || teacher.staff_code || "").trim();
   }
 
   function isArchived(teacher) {
@@ -35,7 +35,10 @@
   }
 
   function teacherReference(teacher) {
-    return String(teacher.auth_uid || teacher.id || "").trim();
+    // A few historical records predate a bound login account.  Their master
+    // id/code still opens the same detail page, so do not turn a valid row
+    // into an unclickable one merely because auth_uid is absent.
+    return String(teacher.auth_uid || teacher.id || teacher.teacher_id || teacher.teacherId || teacher.teacher_code || teacher.person_code || "").trim();
   }
 
   function teacherMasterId(teacher) {

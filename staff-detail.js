@@ -15,7 +15,13 @@
   let staff = null;
   let hasHonoredExperienceHash = false;
   const experience = { rows: [], totals: [], history: [], activeProducts: [], loading: false, rechargeRequestId: "", historyExpanded: false, deletingProductId: "", productCatalogError: "" };
-  const teacherFaceUpdate = { imageData: "", requestId: "" };
+  // This is intentionally in-memory only. A teacher face is optional for
+  // activation, but whenever HQ adds or replaces one it must complete the
+  // same controlled quality/liveness capture used for customer enrollment.
+  const teacherFaceUpdate = {
+    imageData: "", requestId: "", validated: false,
+    cameraStream: null, validationSequence: 0, faceServiceApp: null
+  };
 
   function formatTime(value) {
     if (!value) return "未记录";
@@ -57,6 +63,33 @@
       .some((value) => String(value || "").toUpperCase() === "ARCHIVED");
   }
 
+  function staffDisplayName() {
+    return stringValue(staff, ["staff_name", "teacher_name"], labels[role] || "该人员");
+  }
+
+  function hasPhoneAuthMethod(method) {
+    return typeof window.CloudBasePhoneAuth?.[method] === "function";
+  }
+
+  // Configuration, recharge and deletion are business actions.  The controls
+  // are normally disabled for an archived teacher, but this guard also covers
+  // stale pages and an archive that happens while the detail view is open.
+  function canManageTeacherExperience(method, messageId, actionName) {
+    if (!staff || !teacherId()) {
+      setExperienceMessage(messageId, "老师资料缺少可用编号，无法办理体验额度操作。", "error");
+      return false;
+    }
+    if (isStaffArchived()) {
+      setExperienceMessage(messageId, "老师已封存，体验额度和历史仍可查询，但不能配置、删除或充值。", "error");
+      return false;
+    }
+    if (!hasPhoneAuthMethod(method)) {
+      setExperienceMessage(messageId, `${actionName}服务尚未加载，请部署最新后台后刷新本页。`, "error");
+      return false;
+    }
+    return true;
+  }
+
   function teacherId() {
     return stringValue(staff, ["teacher_id", "teacherId"]);
   }
@@ -72,6 +105,80 @@
     target.dataset.tone = tone;
   }
 
+  function dataUrlBytes(value) {
+    const base64 = String(value || "").split(",")[1] || "";
+    return Math.floor(base64.length * 3 / 4);
+  }
+
+  function resizeTeacherFaceCanvas(source, maximumLongSide, quality) {
+    const scale = Math.min(1, maximumLongSide / Math.max(source.width, source.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(source.width * scale));
+    canvas.height = Math.max(1, Math.round(source.height * scale));
+    canvas.getContext("2d", { alpha: false }).drawImage(source, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", quality);
+  }
+
+  function registerTeacherFaceComponent(register, name) {
+    if (typeof register !== "function") return;
+    try { register(window.cloudbase); }
+    catch (error) {
+      const message = String(error?.message || error || "").toLowerCase();
+      if (!(message.includes("duplicate component") && message.includes(name))) throw error;
+    }
+  }
+
+  function teacherFaceResponseData(result) {
+    const candidates = [result?.result, result?.data?.result, result?.data, result];
+    for (const candidate of candidates) {
+      if (candidate && typeof candidate === "object" && (
+        Object.prototype.hasOwnProperty.call(candidate, "ok") ||
+        Object.prototype.hasOwnProperty.call(candidate, "code")
+      )) return candidate;
+      if (typeof candidate === "string") {
+        try {
+          const parsed = JSON.parse(candidate);
+          if (parsed && typeof parsed === "object") return parsed;
+        } catch (_) { /* Ignore an unrelated response wrapper. */ }
+      }
+    }
+    return {};
+  }
+
+  async function validateTeacherFaceUpdateCapture(imageBase64) {
+    if (!window.cloudbase || !window.CloudBaseAuthConfig || !window.registerFunctions) {
+      throw new Error("人脸服务组件尚未加载，请刷新页面后重试。");
+    }
+    registerTeacherFaceComponent(window.registerAuth, "auth");
+    registerTeacherFaceComponent(window.registerFunctions, "functions");
+    teacherFaceUpdate.faceServiceApp ||= window.cloudbase.init(window.CloudBaseAuthConfig);
+    const raw = await teacherFaceUpdate.faceServiceApp.callFunction({
+      name: "faceRecognition",
+      data: { action: "validateTeacherFaceEnrollmentCapture", imageBase64 }
+    });
+    const result = teacherFaceResponseData(raw);
+    if (!result.ok) {
+      const error = new Error(result.message || "老师人脸照片检测失败。");
+      error.code = result.code || "FACE_CAPTURE_FAILED";
+      throw error;
+    }
+    return result;
+  }
+
+  function stopTeacherFaceUpdateCamera() {
+    teacherFaceUpdate.cameraStream?.getTracks().forEach((track) => track.stop());
+    teacherFaceUpdate.cameraStream = null;
+    const video = $("teacherFaceUpdateCamera");
+    if (video) video.srcObject = null;
+  }
+
+  function setTeacherFaceUpdateCaptureStatus(message, tone = "pending") {
+    const status = $("teacherFaceUpdateCaptureStatus");
+    if (!status) return;
+    status.className = `capture-status ${tone}`;
+    status.textContent = message;
+  }
+
   function syncTeacherFaceUpdateControls() {
     const panel = $("teacherFaceUpdatePanel");
     if (!panel || role !== "teacher") return;
@@ -80,18 +187,33 @@
     // doing so never changes the archive/login state.
     const canWrite = Boolean(staff && teacherId());
     const consent = Boolean($("teacherFaceUpdateConsent")?.checked);
+    const cameraOpen = Boolean(teacherFaceUpdate.cameraStream);
+    const validatedCapture = Boolean(teacherFaceUpdate.imageData && teacherFaceUpdate.validated);
     $("teacherFaceUpdateConsent").disabled = !canWrite;
-    $("teacherFaceUpdateFile").disabled = !canWrite;
+    $("openTeacherFaceUpdateCamera").disabled = !canWrite || !consent || cameraOpen;
+    $("captureTeacherFaceUpdate").disabled = !canWrite || !consent || !cameraOpen;
+    $("retakeTeacherFaceUpdate").disabled = !canWrite || !consent;
     $("clearTeacherFaceUpdate").disabled = !canWrite || !teacherFaceUpdate.imageData;
-    $("saveTeacherFaceUpdate").disabled = !canWrite || !consent || !teacherFaceUpdate.imageData;
+    $("saveTeacherFaceUpdate").disabled = !canWrite || !consent || !validatedCapture;
   }
 
   function clearTeacherFaceUpdate({ preserveMessage = false } = {}) {
+    teacherFaceUpdate.validationSequence += 1;
+    stopTeacherFaceUpdateCamera();
     teacherFaceUpdate.imageData = "";
     teacherFaceUpdate.requestId = "";
-    $("teacherFaceUpdateFile").value = "";
+    teacherFaceUpdate.validated = false;
+    $("teacherFaceUpdateCanvas").width = 0;
+    $("teacherFaceUpdateCanvas").height = 0;
     $("teacherFaceUpdatePreview").removeAttribute("src");
-    $("teacherFaceUpdatePreviewWrap").hidden = true;
+    $("teacherFaceUpdatePreview").hidden = true;
+    $("teacherFaceUpdateCamera").hidden = true;
+    $("teacherFaceUpdatePlaceholder").hidden = false;
+    $("openTeacherFaceUpdateCamera").hidden = false;
+    $("retakeTeacherFaceUpdate").hidden = true;
+    setTeacherFaceUpdateCaptureStatus("尚未拍摄");
+    $("teacherFaceUpdateQualityResult").textContent = "待检测";
+    $("teacherFaceUpdateLivenessResult").textContent = "待检测";
     if (!preserveMessage) setTeacherFaceUpdateMessage("");
     syncTeacherFaceUpdateControls();
   }
@@ -106,11 +228,12 @@
     $("teacherFaceUpdateTitle").textContent = hasEnrolledTeacherFace() ? "更换老师人脸" : "添加老师人脸";
     const archiveNote = isStaffArchived() ? "老师当前处于封存状态，补录不会恢复登录；需由总部另行激活。" : "保存不会改变老师账号的活跃状态。";
     setTeacherFaceUpdateMessage(hasEnrolledTeacherFace()
-      ? `请选择一张新的老师正面照片；保存成功后，新照片会替换当前登录身份人脸。${archiveNote}`
-      : `老师当前尚未绑定人脸。补录后会用于登录身份核验。${archiveNote}`, "");
+      ? `请在取得授权后打开摄像头拍摄新的老师正面照片；通过质量与活体检测后，保存会替换当前登录身份人脸。${archiveNote}`
+      : `老师当前尚未绑定人脸。请在取得授权后拍摄并通过质量与活体检测；补录后会用于登录身份核验。${archiveNote}`, "");
+    syncTeacherFaceUpdateControls();
     requestAnimationFrame(() => {
       panel.scrollIntoView({ behavior: "smooth", block: "center" });
-      $("teacherFaceUpdateFile").focus({ preventScroll: true });
+      $("openTeacherFaceUpdateCamera").focus({ preventScroll: true });
     });
   }
 
@@ -119,37 +242,106 @@
     clearTeacherFaceUpdate();
   }
 
-  function readTeacherFaceFile(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = () => reject(new Error("无法读取所选照片，请重新选择。"));
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.readAsDataURL(file);
-    });
-  }
-
-  async function selectTeacherFaceUpdateFile() {
-    const file = $("teacherFaceUpdateFile").files?.[0];
-    if (!file) return clearTeacherFaceUpdate();
-    if (file.type !== "image/jpeg") {
-      $("teacherFaceUpdateFile").value = "";
-      return setTeacherFaceUpdateMessage("请使用 JPG 格式的老师正面照片。", "error");
-    }
-    if (file.size > 3 * 1024 * 1024) {
-      $("teacherFaceUpdateFile").value = "";
-      return setTeacherFaceUpdateMessage("照片不能超过 3 MB，请压缩后重新选择。", "error");
+  async function openTeacherFaceUpdateCamera() {
+    if (!$("teacherFaceUpdateConsent").checked) {
+      setTeacherFaceUpdateMessage("请先确认已取得老师明确的人脸采集授权。", "error");
+      syncTeacherFaceUpdateControls();
+      return;
     }
     try {
-      const imageData = await readTeacherFaceFile(file);
-      if (!/^data:image\/jpeg;base64,/i.test(imageData)) throw new Error("照片格式无效，请重新选择 JPG 文件。");
-      teacherFaceUpdate.imageData = imageData;
-      teacherFaceUpdate.requestId = "";
-      $("teacherFaceUpdatePreview").src = imageData;
-      $("teacherFaceUpdatePreviewWrap").hidden = false;
-      setTeacherFaceUpdateMessage("照片已就绪。勾选授权后可保存；服务端会再次检查照片质量和身份。", "");
-    } catch (error) {
       clearTeacherFaceUpdate({ preserveMessage: true });
-      setTeacherFaceUpdateMessage(error?.message || "读取照片失败，请重新选择。", "error");
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error("当前浏览器不支持摄像头访问，请使用最新版 Chrome 或 Edge。");
+      $("openTeacherFaceUpdateCamera").hidden = true;
+      teacherFaceUpdate.cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 960 }, height: { ideal: 1280 } },
+        audio: false
+      });
+      const video = $("teacherFaceUpdateCamera");
+      video.srcObject = teacherFaceUpdate.cameraStream;
+      video.hidden = false;
+      $("teacherFaceUpdatePlaceholder").hidden = true;
+      await video.play();
+      setTeacherFaceUpdateCaptureStatus("摄像头已打开，请确认老师正对镜头后拍照");
+    } catch (error) {
+      stopTeacherFaceUpdateCamera();
+      $("openTeacherFaceUpdateCamera").hidden = false;
+      $("teacherFaceUpdateCamera").hidden = true;
+      $("teacherFaceUpdatePlaceholder").hidden = false;
+      setTeacherFaceUpdateCaptureStatus("无法打开摄像头");
+      setTeacherFaceUpdateMessage(error?.message || "请检查浏览器的摄像头权限。", "error");
+    }
+    syncTeacherFaceUpdateControls();
+  }
+
+  async function captureTeacherFaceUpdate() {
+    if (!$("teacherFaceUpdateConsent").checked) {
+      setTeacherFaceUpdateMessage("请先确认已取得老师明确的人脸采集授权。", "error");
+      return;
+    }
+    const video = $("teacherFaceUpdateCamera");
+    if (!teacherFaceUpdate.cameraStream || !video.videoWidth || !video.videoHeight) {
+      setTeacherFaceUpdateMessage("摄像头画面尚未就绪，请稍后重新拍照。", "error");
+      return;
+    }
+    const targetRatio = 3 / 4;
+    let sourceWidth = video.videoWidth;
+    let sourceHeight = video.videoHeight;
+    if (sourceWidth / sourceHeight > targetRatio) sourceWidth = sourceHeight * targetRatio;
+    else sourceHeight = sourceWidth / targetRatio;
+    const sourceX = Math.round((video.videoWidth - sourceWidth) / 2);
+    const sourceY = Math.round((video.videoHeight - sourceHeight) / 2);
+    const outputHeight = Math.round(Math.min(sourceHeight, 1024));
+    const canvas = $("teacherFaceUpdateCanvas");
+    canvas.height = outputHeight;
+    canvas.width = Math.round(outputHeight * targetRatio);
+    canvas.getContext("2d", { alpha: false }).drawImage(video, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
+    let imageData = canvas.toDataURL("image/jpeg", 0.85);
+    if (dataUrlBytes(imageData) > 3 * 1024 * 1024) imageData = resizeTeacherFaceCanvas(canvas, 1024, 0.85);
+    if (dataUrlBytes(imageData) > 3 * 1024 * 1024) imageData = resizeTeacherFaceCanvas(canvas, 880, 0.8);
+    teacherFaceUpdate.imageData = imageData;
+    teacherFaceUpdate.requestId = "";
+    teacherFaceUpdate.validated = false;
+    const validationSequence = ++teacherFaceUpdate.validationSequence;
+    const preview = $("teacherFaceUpdatePreview");
+    preview.src = imageData;
+    preview.hidden = false;
+    video.hidden = true;
+    stopTeacherFaceUpdateCamera();
+    $("openTeacherFaceUpdateCamera").hidden = true;
+    $("retakeTeacherFaceUpdate").hidden = false;
+    setTeacherFaceUpdateCaptureStatus("正在检查人脸、清晰度、遮挡和拍摄角度…");
+    $("teacherFaceUpdateQualityResult").textContent = "检测中…";
+    $("teacherFaceUpdateLivenessResult").textContent = "等待质量检测";
+    setTeacherFaceUpdateMessage("");
+    syncTeacherFaceUpdateControls();
+    try {
+      const validation = await validateTeacherFaceUpdateCapture(imageData);
+      if (validationSequence !== teacherFaceUpdate.validationSequence || imageData !== teacherFaceUpdate.imageData) return;
+      teacherFaceUpdate.validated = true;
+      teacherFaceUpdate.requestId ||= requestId("teacher_face_update");
+      const quality = validation.quality || {};
+      const liveness = validation.liveness || {};
+      const score = Number(quality.qualityScore);
+      const qualityThreshold = quality.qualityThreshold;
+      $("teacherFaceUpdateQualityResult").textContent = Number.isFinite(score)
+        ? `通过 · ${score} 分${qualityThreshold != null ? `（要求 ${qualityThreshold}）` : ""}`
+        : "通过";
+      $("teacherFaceUpdateLivenessResult").textContent = liveness.checked
+        ? `通过 · ${liveness.score} 分${liveness.threshold != null ? `（要求 ${liveness.threshold}）` : ""}`
+        : "未启用";
+      setTeacherFaceUpdateCaptureStatus(`${liveness.checked ? "照片质量与活体检测" : "照片质量检查"}通过；可以保存老师人脸。`, "complete");
+    } catch (error) {
+      if (validationSequence !== teacherFaceUpdate.validationSequence || imageData !== teacherFaceUpdate.imageData) return;
+      teacherFaceUpdate.validated = false;
+      teacherFaceUpdate.requestId = "";
+      const livenessFailed = error?.code === "LIVENESS_FAILED";
+      const captureRejected = ["FACE_NOT_FOUND", "MULTIPLE_FACES", "FACE_TOO_SMALL", "FACE_QUALITY_LOW", "FACE_MASKED", "EYES_CLOSED", "FACE_POSE_INVALID"].includes(error?.code);
+      setTeacherFaceUpdateCaptureStatus(livenessFailed
+        ? "活体检测未通过，请重新拍照"
+        : captureRejected ? "照片质量未通过，请重新拍照" : "检测服务调用失败，请查看下方错误");
+      $("teacherFaceUpdateQualityResult").textContent = livenessFailed ? "通过" : captureRejected ? "未通过" : "检测失败";
+      $("teacherFaceUpdateLivenessResult").textContent = livenessFailed ? "未通过" : captureRejected ? "未执行" : "检测失败";
+      setTeacherFaceUpdateMessage(error?.message || "照片不符合建档要求，请重新拍摄。", "error");
     }
     syncTeacherFaceUpdateControls();
   }
@@ -500,7 +692,15 @@
 
   function openRecharge(productId) {
     const row = experience.rows.find((item) => item.productId === String(productId));
-    if (!row || row.productStatus === "ARCHIVED" || isStaffArchived()) return;
+    if (!row) {
+      setExperienceMessage("teacherExperienceRechargeMessage", "未找到该产品的体验额度配置，请刷新页面后重试。", "error");
+      return;
+    }
+    if (row.productStatus === "ARCHIVED") {
+      setExperienceMessage("teacherExperienceRechargeMessage", "该产品已封存，不能再充值体验次数。", "error");
+      return;
+    }
+    if (!canManageTeacherExperience("rechargeTeacherExperienceEntitlement", "teacherExperienceRechargeMessage", "体验次数充值")) return;
     const select = $("teacherExperienceRechargeProduct");
     select.value = row.productId;
     $("teacherExperienceRechargeCount").value = "";
@@ -526,7 +726,16 @@
 
   async function deleteExperienceConfiguration(productId) {
     const row = experience.rows.find((item) => item.productId === String(productId));
-    if (!row || row.productStatus !== "ACTIVE" || isStaffArchived() || experience.deletingProductId) return;
+    if (!row) {
+      setExperienceMessage("teacherExperienceConfigMessage", "未找到该产品的体验额度配置，请刷新页面后重试。", "error");
+      return;
+    }
+    if (row.productStatus !== "ACTIVE") {
+      setExperienceMessage("teacherExperienceConfigMessage", "该产品已封存，当前配置仅保留作历史查询。", "error");
+      return;
+    }
+    if (experience.deletingProductId) return;
+    if (!canManageTeacherExperience("deleteTeacherExperienceEntitlement", "teacherExperienceConfigMessage", "体验额度删除")) return;
     if (!window.confirm(`确认删除“${rowProductLabel(row)}”的体验额度配置？\n\n将停止该产品的后续体验和月初更新；此前的体验、充值和变更历史会完整保留。删除后可重新配置。`)) return;
     if (!window.CloudBasePhoneAuth?.deleteTeacherExperienceEntitlement) {
       setExperienceMessage("teacherExperienceConfigMessage", "删除体验额度服务尚未加载，请部署最新后台后重试。", "error");
@@ -640,11 +849,15 @@
 
   $("staffCredentialAction").addEventListener("click", async () => {
     if (!staff?.auth_uid) return;
+    if (!hasPhoneAuthMethod("resetStaffPassword")) {
+      window.alert("密码重置服务尚未加载，请部署最新后台后刷新本页。");
+      return;
+    }
     const newPassword = window.prompt("输入新的临时密码（8–32 位，至少包含大写、小写、数字、特殊字符中的三类）：");
     if (newPassword === null) return;
     const groups = [/[A-Z]/, /[a-z]/, /\d/, /[^A-Za-z\d]/].filter((rule) => rule.test(newPassword)).length;
     if (newPassword.length < 8 || newPassword.length > 32 || groups < 3) return window.alert("密码格式不符合要求。");
-    if (!window.confirm(`确认重置“${staff.staff_name}”的密码？旧密码不会显示或保留。`)) return;
+    if (!window.confirm(`确认重置“${staffDisplayName()}”的密码？旧密码不会显示或保留。`)) return;
     const button = $("staffCredentialAction");
     button.disabled = true;
     try {
@@ -660,20 +873,26 @@
 
   $("staffStatusAction").addEventListener("click", async () => {
     if (!staff) return;
+    const masterId = role === "teacher" ? teacherId() : "";
+    const canUpdateByAccount = Boolean(staff.auth_uid && hasPhoneAuthMethod("setStaffStatus"));
+    const canUpdateByMaster = Boolean(masterId && hasPhoneAuthMethod("setMasterStatus"));
+    if (!canUpdateByAccount && !canUpdateByMaster) {
+      window.alert("账号状态服务尚未加载，或该老师缺少可用编号。请部署最新后台后刷新本页。");
+      return;
+    }
     const archived = isStaffArchived();
     const next = archived ? "ACTIVE" : "ARCHIVED";
     const text = archived ? "激活" : "封存";
-    if (!window.confirm(`确认${text}${labels[role]}“${staff.staff_name}”？`)) return;
+    if (!window.confirm(`确认${text}${labels[role]}“${staffDisplayName()}”？`)) return;
     const button = $("staffStatusAction");
     button.disabled = true;
     try {
-      const masterId = role === "teacher" ? teacherId() : "";
       // A login-bound teacher is updated through the dedicated account path,
       // which atomically mirrors the teacher master status and the CloudBase
       // credential.  No face-enrollment condition exists in that path.
-      if (staff.auth_uid && window.CloudBasePhoneAuth?.setStaffStatus) {
+      if (canUpdateByAccount) {
         await window.CloudBasePhoneAuth.setStaffStatus({ uid: staff.auth_uid, phone: staff.phone, status: next });
-      } else if (masterId && window.CloudBasePhoneAuth?.setMasterStatus) {
+      } else if (canUpdateByMaster) {
         await window.CloudBasePhoneAuth.setMasterStatus({ teacherId: masterId, status: next });
       } else {
         throw new Error("老师状态服务未加载，请刷新页面后重试。");
@@ -694,13 +913,21 @@
   $("staffFaceAction")?.addEventListener("click", openTeacherFaceUpdate);
   $("closeTeacherFaceUpdate")?.addEventListener("click", closeTeacherFaceUpdate);
   $("clearTeacherFaceUpdate")?.addEventListener("click", () => clearTeacherFaceUpdate());
-  $("teacherFaceUpdateConsent")?.addEventListener("change", syncTeacherFaceUpdateControls);
-  $("teacherFaceUpdateFile")?.addEventListener("change", () => void selectTeacherFaceUpdateFile());
+  $("teacherFaceUpdateConsent")?.addEventListener("change", () => {
+    if (!$("teacherFaceUpdateConsent").checked && (teacherFaceUpdate.imageData || teacherFaceUpdate.cameraStream)) {
+      clearTeacherFaceUpdate({ preserveMessage: true });
+      setTeacherFaceUpdateMessage("已取消人脸采集授权确认，当前照片已清空。", "");
+    }
+    syncTeacherFaceUpdateControls();
+  });
+  $("openTeacherFaceUpdateCamera")?.addEventListener("click", () => void openTeacherFaceUpdateCamera());
+  $("captureTeacherFaceUpdate")?.addEventListener("click", () => void captureTeacherFaceUpdate());
+  $("retakeTeacherFaceUpdate")?.addEventListener("click", () => void openTeacherFaceUpdateCamera());
   $("teacherFaceUpdateForm")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!staff || role !== "teacher" || !teacherId()) return;
-    if (!$("teacherFaceUpdateConsent").checked || !teacherFaceUpdate.imageData) {
-      setTeacherFaceUpdateMessage("请选择照片并确认已取得老师明确授权。", "error");
+    if (!$("teacherFaceUpdateConsent").checked || !teacherFaceUpdate.imageData || !teacherFaceUpdate.validated) {
+      setTeacherFaceUpdateMessage("请先确认授权、拍照并通过照片质量与活体检测。", "error");
       syncTeacherFaceUpdateControls();
       return;
     }
@@ -715,7 +942,7 @@
       const result = await window.CloudBasePhoneAuth.upsertTeacherFace({
         teacherId: teacherId(),
         faceImageBase64: teacherFaceUpdate.imageData,
-        clientRequestId: teacherFaceUpdate.requestId || (teacherFaceUpdate.requestId = requestId("teacher_face_update")),
+        clientRequestId: teacherFaceUpdate.requestId,
         consent: true
       });
       const updated = result?.teacher || result?.profile || {};
@@ -732,10 +959,19 @@
       syncTeacherFaceUpdateControls();
     }
   });
+  window.addEventListener("pagehide", () => {
+    teacherFaceUpdate.validationSequence += 1;
+    teacherFaceUpdate.imageData = "";
+    teacherFaceUpdate.requestId = "";
+    teacherFaceUpdate.validated = false;
+    const canvas = $("teacherFaceUpdateCanvas");
+    if (canvas) { canvas.width = 0; canvas.height = 0; }
+    stopTeacherFaceUpdateCamera();
+  }, { once: true });
 
   $("teacherExperienceConfigForm")?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!staff || isStaffArchived()) return;
+    if (!canManageTeacherExperience("upsertTeacherExperienceEntitlement", "teacherExperienceConfigMessage", "体验额度配置")) return;
     const productId = $("teacherExperienceProduct").value;
     const monthlyAllowance = Number($("teacherExperienceMonthlyCount").value);
     if (!productId || !Number.isInteger(monthlyAllowance) || monthlyAllowance < 0 || monthlyAllowance > 99999) {
@@ -756,7 +992,7 @@
 
   $("teacherExperienceRechargeForm")?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!staff || isStaffArchived()) return;
+    if (!canManageTeacherExperience("rechargeTeacherExperienceEntitlement", "teacherExperienceRechargeMessage", "体验次数充值")) return;
     const productId = $("teacherExperienceRechargeProduct").value;
     const unitCount = Number($("teacherExperienceRechargeCount").value);
     const note = $("teacherExperienceRechargeNote").value.trim();

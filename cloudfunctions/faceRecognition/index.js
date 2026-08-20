@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v70";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v3" : "v71";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -2338,6 +2338,14 @@ async function getStoreDashboard(event = {}) {
   // VOID reduces remaining units but is not reported as a refund. Remaining
   // is floored per customer/product ledger before the project-level sum, and
   // EXPERIENCE never consumes purchased units.
+  //
+  // A project-wide subtraction is deliberately not used for the displayed
+  // balance: one customer's negative raw balance must never cancel another
+  // customer's available units. The response therefore also returns the raw
+  // aggregate and its customer-level zero-floor adjustment. Refunds are
+  // reported along two independent axes: whether a paid verification had
+  // already taken effect when the refund took effect, and how much of the
+  // final customer-by-product balance the refund actually consumes.
   const [storeRows, projects, customerCountRows, customers] = await Promise.all([
     executeSql(
     `SELECT s.id, s.store_code, s.store_name, s.province, s.city, s.district,
@@ -2359,6 +2367,7 @@ async function getStoreDashboard(event = {}) {
     executeSql(
     `WITH store_business_events AS (
        SELECT r.customer_id, r.product_id,
+              COALESCE(r.reviewed_at, r.submitted_at) AS effective_at,
               CASE WHEN r.recharge_type = 'NEW' THEN r.unit_count ELSE 0 END::bigint AS recharge_count,
               CASE WHEN r.recharge_type = 'REFUND' THEN r.unit_count ELSE 0 END::bigint AS refund_count,
               CASE WHEN r.recharge_type = 'VOID' THEN r.unit_count ELSE 0 END::bigint AS legacy_void_count,
@@ -2370,6 +2379,7 @@ async function getStoreDashboard(event = {}) {
           AND r.recharge_type IN ('NEW', 'REFUND', 'VOID')
        UNION ALL
        SELECT v.customer_id, v.product_id,
+              COALESCE(v.reviewed_at, v.submitted_at) AS effective_at,
               0::bigint AS recharge_count,
               0::bigint AS refund_count,
               0::bigint AS legacy_void_count,
@@ -2385,24 +2395,101 @@ async function getStoreDashboard(event = {}) {
               SUM(event.verification_count) AS total_verification_count,
               SUM(event.experience_count) AS total_experience_count,
               SUM(event.refund_count) AS total_refund_count,
+              SUM(event.legacy_void_count) AS total_legacy_void_count,
+              GREATEST(
+                SUM(event.recharge_count)
+                  - SUM(event.legacy_void_count)
+                  - SUM(event.verification_count),
+                0
+              ) AS balance_before_refund_count,
+              LEAST(
+                SUM(event.refund_count),
+                GREATEST(
+                  SUM(event.recharge_count)
+                    - SUM(event.legacy_void_count)
+                    - SUM(event.verification_count),
+                  0
+                )
+              ) AS refund_from_remaining_count,
+              GREATEST(
+                SUM(event.refund_count)
+                  - GREATEST(
+                    SUM(event.recharge_count)
+                      - SUM(event.legacy_void_count)
+                      - SUM(event.verification_count),
+                    0
+                  ),
+                0
+              ) AS refund_excess_over_remaining_count,
+              SUM(event.recharge_count)
+                - SUM(event.refund_count)
+                - SUM(event.legacy_void_count)
+                - SUM(event.verification_count) AS raw_remaining_count,
               GREATEST(
                 SUM(event.recharge_count)
                   - SUM(event.refund_count)
                   - SUM(event.legacy_void_count)
                   - SUM(event.verification_count),
                 0
-              ) AS remaining_count
+              ) AS remaining_count,
+              GREATEST(
+                SUM(event.recharge_count)
+                  - SUM(event.refund_count)
+                  - SUM(event.legacy_void_count)
+                  - SUM(event.verification_count),
+                0
+              ) - (
+                SUM(event.recharge_count)
+                  - SUM(event.refund_count)
+                  - SUM(event.legacy_void_count)
+                  - SUM(event.verification_count)
+              ) AS balance_floor_adjustment
          FROM store_business_events event
         GROUP BY event.customer_id, event.product_id
-     ), project_totals AS (
+     ), first_paid_verification AS (
+       SELECT event.customer_id, event.product_id,
+              MIN(event.effective_at) AS first_paid_verification_at
+         FROM store_business_events event
+        WHERE event.verification_count > 0
+        GROUP BY event.customer_id, event.product_id
+     ), project_balance_totals AS (
        SELECT customer_product.product_id,
               SUM(customer_product.total_recharge_count) AS total_recharge_count,
               SUM(customer_product.total_verification_count) AS total_verification_count,
               SUM(customer_product.total_experience_count) AS total_experience_count,
               SUM(customer_product.total_refund_count) AS total_refund_count,
+              SUM(customer_product.total_legacy_void_count) AS total_legacy_void_count,
+              SUM(customer_product.refund_from_remaining_count) AS refund_from_remaining_count,
+              SUM(customer_product.refund_excess_over_remaining_count) AS refund_excess_over_remaining_count,
+              SUM(customer_product.raw_remaining_count) AS raw_remaining_count,
+              SUM(customer_product.balance_floor_adjustment) AS balance_floor_adjustment,
               SUM(customer_product.remaining_count) AS remaining_count
          FROM customer_product_totals customer_product
         GROUP BY customer_product.product_id
+     ), project_refund_relationships AS (
+       SELECT event.product_id,
+              SUM(CASE
+                WHEN paid.first_paid_verification_at IS NULL
+                  OR paid.first_paid_verification_at > event.effective_at
+                THEN event.refund_count ELSE 0 END) AS refund_before_consumption_count,
+              SUM(CASE
+                WHEN paid.first_paid_verification_at IS NOT NULL
+                  AND paid.first_paid_verification_at <= event.effective_at
+                THEN event.refund_count ELSE 0 END) AS refund_after_consumption_count,
+              COUNT(DISTINCT CASE
+                WHEN paid.first_paid_verification_at IS NULL
+                  OR paid.first_paid_verification_at > event.effective_at
+                THEN event.customer_id END) AS refund_before_consumption_customer_count,
+              COUNT(DISTINCT CASE
+                WHEN paid.first_paid_verification_at IS NOT NULL
+                  AND paid.first_paid_verification_at <= event.effective_at
+                THEN event.customer_id END) AS refund_after_consumption_customer_count
+         FROM store_business_events event
+         LEFT JOIN first_paid_verification paid
+           ON paid.customer_id = event.customer_id
+          AND paid.product_id = event.product_id
+        WHERE event.refund_count > 0
+        GROUP BY event.product_id
      ), project_members AS (
        SELECT p.id AS product_id
          FROM public.products p
@@ -2416,10 +2503,21 @@ async function getStoreDashboard(event = {}) {
             COALESCE(totals.total_verification_count, 0) AS total_verification_count,
             COALESCE(totals.total_experience_count, 0) AS total_experience_count,
             COALESCE(totals.total_refund_count, 0) AS total_refund_count,
+            COALESCE(totals.total_legacy_void_count, 0) AS total_legacy_void_count,
+            COALESCE(totals.refund_from_remaining_count, 0) AS refund_from_remaining_count,
+            COALESCE(totals.refund_excess_over_remaining_count, 0) AS refund_after_consumption_balance_count,
+            COALESCE(relationships.refund_before_consumption_count, 0) AS refund_before_consumption_count,
+            COALESCE(relationships.refund_after_consumption_count, 0) AS refund_after_consumption_count,
+            COALESCE(relationships.refund_before_consumption_customer_count, 0) AS refund_before_consumption_customer_count,
+            COALESCE(relationships.refund_after_consumption_customer_count, 0) AS refund_after_consumption_customer_count,
+            0::bigint AS refund_breakdown_unknown_count,
+            COALESCE(totals.raw_remaining_count, 0) AS raw_remaining_count,
+            COALESCE(totals.balance_floor_adjustment, 0) AS balance_floor_adjustment,
             COALESCE(totals.remaining_count, 0) AS remaining_count
        FROM project_members member
        JOIN public.products p ON p.id = member.product_id
-       LEFT JOIN project_totals totals ON totals.product_id = p.id
+       LEFT JOIN project_balance_totals totals ON totals.product_id = p.id
+       LEFT JOIN project_refund_relationships relationships ON relationships.product_id = p.id
       ORDER BY p.product_name, p.product_code`
     ),
     executeSql(

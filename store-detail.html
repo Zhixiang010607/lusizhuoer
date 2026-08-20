@@ -40,13 +40,13 @@
       </div>
       <p id="storeAnalyticsMessage" class="form-message" aria-live="polite"></p>
     </section>
-    <section id="storeProjects" class="panel detail-section table-card"><div class="panel-heading"><div><h2>各项目业务数据</h2><p>门店全部业务累计与当前剩余次数</p></div></div><div class="table-scroll store-detail-table"><table><thead><tr><th>项目</th><th>充值</th><th>核销</th><th>体验</th><th>退费</th><th>剩余</th></tr></thead><tbody id="storeProjectBody"></tbody></table></div></section>
+    <section id="storeProjects" class="panel detail-section table-card"><div class="panel-heading"><div><h2>各项目业务数据</h2><p>门店全部业务累计与当前可用余额。体验只扣老师体验额度，不扣客户余额；余额按客户和项目分别归零后汇总，不能跨客户抵扣。</p></div></div><div class="table-scroll store-detail-table"><table><thead><tr><th>项目</th><th>充值</th><th>付费核销</th><th>体验</th><th>退费拆分</th><th>余额核对</th><th>当前可用余额</th></tr></thead><tbody id="storeProjectBody"></tbody></table></div></section>
     <section id="storeCustomers" class="panel detail-section table-card"><div class="panel-heading"><div><h2>门店客户</h2><p>全部活跃客户；姓名与编号可以进入客户详情，每页显示 10 条</p></div><span id="storeCustomerCount" class="badge"></span></div><div class="table-scroll store-detail-table"><table><thead><tr><th>客户（姓名 · 编号）</th><th>生日</th><th>持有项目</th><th>总购买</th><th>总核销</th><th>剩余次数</th></tr></thead><tbody id="storeCustomerBody"></tbody></table></div><div id="storeCustomerPagination" class="table-pagination" aria-label="门店客户分页"></div></section>
   </main>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.18.0"></script><script src="datetime.js?v=0.1.2"></script>
-  <script src="store-analytics-data.js?v=0.1.0"></script><script src="order-export.js?v=0.1.6"></script><script src="store-dashboard-export.js?v=0.1.0"></script><script src="store-detail.js?v=0.16.1"></script><script src="auth-ui.js?v=0.19.0"></script>
+  <script src="store-analytics-data.js?v=0.1.0"></script><script src="order-export.js?v=0.1.6"></script><script src="store-dashboard-export.js?v=0.1.0"></script><script src="store-detail.js?v=0.16.2"></script><script src="auth-ui.js?v=0.19.0"></script>
 </body>
 </html>

@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v53";
+const FUNCTION_VERSION = "v54";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -3311,7 +3311,13 @@ async function upsertTeacherFace(caller, event = {}) {
 
 async function requireTeacherExperienceQuotaSchema() {
   const rows = await executeSql(
-    `SELECT TO_REGCLASS('public.teacher_product_experience_quotas') IS NOT NULL AS quota_table,
+    `WITH function_definitions AS (
+       SELECT COALESCE(
+                pg_get_functiondef(TO_REGPROCEDURE('public.recharge_teacher_product_experience_quota(bigint,bigint,integer,text,character varying,bigint)')),
+                ''
+              ) AS recharge_definition
+     )
+     SELECT TO_REGCLASS('public.teacher_product_experience_quotas') IS NOT NULL AS quota_table,
             TO_REGCLASS('public.teacher_experience_quota_recharges') IS NOT NULL AS recharge_table,
             TO_REGCLASS('public.teacher_experience_quota_resets') IS NOT NULL AS reset_table,
             TO_REGCLASS('public.teacher_experience_quota_usages') IS NOT NULL AS usage_table,
@@ -3325,6 +3331,8 @@ async function requireTeacherExperienceQuotaSchema() {
             TO_REGPROCEDURE('public.upsert_teacher_product_experience_quota(bigint,bigint,integer,bigint)') IS NOT NULL AS upsert_function,
             TO_REGPROCEDURE('public.delete_teacher_product_experience_quota(bigint,bigint,bigint)') IS NOT NULL AS delete_function,
             TO_REGPROCEDURE('public.recharge_teacher_product_experience_quota(bigint,bigint,integer,text,character varying,bigint)') IS NOT NULL AS recharge_function,
+            recharge_definition ~* 'quota_status[[:space:]]*=[[:space:]]*''active'''
+              AS has_active_recharge_function,
             TO_REGPROCEDURE('public.reset_teacher_experience_quotas(date,bigint)') IS NOT NULL AS reset_function`
   );
   const schema = rows?.[0] || {};
@@ -3333,8 +3341,9 @@ async function requireTeacherExperienceQuotaSchema() {
       || !databaseBoolean(schema.configuration_event_table) || !databaseBoolean(schema.quota_status_column)
       || !databaseBoolean(schema.upsert_function) || !databaseBoolean(schema.delete_function)
       || !databaseBoolean(schema.recharge_function)
+      || !databaseBoolean(schema.has_active_recharge_function)
       || !databaseBoolean(schema.reset_function)) {
-    fail("老师体验额度生命周期尚未启用，请先执行迁移 048。", "DATABASE_SCHEMA_MISSING");
+    fail("老师体验额度生命周期尚未完整启用，请先执行迁移 048；若 048-04 曾报错，请补执行额度充值函数。", "DATABASE_SCHEMA_MISSING");
   }
 }
 

@@ -58,7 +58,7 @@ ROLLBACK;
 
 1. 执行 `046-01-teacher-face-schema.sql` 至
    `046-08-permissions-and-comments.sql`，每个文件确认 `COMMIT` 成功；
-2. 部署 `faceRecognition v69` 与 `staffAccount v53`，分别调用 `health`
+2. 部署 `faceRecognition v69` 与 `staffAccount v54`，分别调用 `health`
    确认新版本；
 3. 在仅限总部使用、已加载当前 `cloudbase-phone-auth.js` 的临时维护页面中，
    以已登录总部身份在浏览器控制台运行
@@ -69,7 +69,7 @@ ROLLBACK;
    `047-02-hq-reviewer-guard.sql`；
 5. 依次完整执行 `048-01-quota-lifecycle-schema.sql` 至
    `048-07-comments.sql`，每个文件确认 `COMMIT` 成功；
-6. 部署 `faceRecognition v70` 与 `staffAccount v53`，分别调用 `health`
+6. 部署 `faceRecognition v71` 与 `staffAccount v54`，分别调用 `health`
    确认新版本；
 7. 最后才部署当前静态前端并强制刷新浏览器。
 
@@ -82,3 +82,15 @@ ROLLBACK;
 月度重置和体验核销历史仍保留；重新配置会立即把当前可用次数改为新值。它
 也将老师人脸改为可后续补充／替换的资料，不再是老师账号活跃或业务选择的前置条件。
 每月上海时间 1 日 00:00 的重置只处理活跃老师、活跃产品和活跃额度配置。
+
+### 048 在当前控制台报 `unterminated dollar-quoted string`
+
+部分 CloudBase SQL 编辑器会在约 4KB 时截断粘贴内容；这不是数据库函数语法
+错误。不要反复执行被截断的原 `048-03`／`048-04` 文件。改用
+[`048-4kb/README.md`](048-4kb/README.md) 的独立事务包，每个文件在 Windows
+换行符下也不超过 3.5KB。
+
+如果已经确认 `048-02` 和 `048-03` 成功、但 `048-04` 报此错误，先在新查询中
+单独执行 `ROLLBACK;`，然后只按该 README 的现场恢复顺序执行 `09-01`、`09-02`、
+`10`、`11`、`12`、`13` 和只读的 `14`。其中 `09-02` 会安全替换体验额度独立
+充值函数；不会删除老师、客户、产品、额度或历史流水。

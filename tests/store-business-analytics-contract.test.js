@@ -28,10 +28,12 @@ assert.doesNotMatch(html, /id="storeAnalyticsLinks"|class="store-analytics-links
 assert.doesNotMatch(html, /id="storeTeachers"|id="storeTeacherBody"|老师统计|各老师核销数据/, "store detail removes the teacher summary section");
 assert.doesNotMatch(customerSection, /<th>最近业务<\/th>|<th>状态<\/th>/, "active customer table removes time and status columns");
 includes(html, '<th>剩余次数</th></tr></thead><tbody id="storeCustomerBody"', "customer table ends with remaining count");
-includes(html, 'store-detail.js?v=0.16.1', "store detail script cache bust");
-includes(html, '<th>项目</th><th>充值</th><th>核销</th><th>体验</th><th>退费</th><th>剩余</th>', "project lifetime table uses the exact six business columns");
+includes(html, 'store-detail.js?v=0.16.2', "store detail script cache bust");
+includes(html, '<th>项目</th><th>充值</th><th>付费核销</th><th>体验</th><th>退费拆分</th><th>余额核对</th><th>当前可用余额</th>', "project lifetime table exposes the reconciled balance columns");
 const projectSection = html.slice(html.indexOf('id="storeProjects"'), html.indexOf('</section>', html.indexOf('id="storeProjects"')));
 assert.doesNotMatch(projectSection, /<th>状态<\/th>|有效充值|有效核销/, "project table removes entity status and period-style wording");
+includes(projectSection, "体验只扣老师体验额度，不扣客户余额", "project lifetime table explains that experience is not customer balance consumption");
+includes(projectSection, "不能跨客户抵扣", "project lifetime table explains customer-level balance isolation");
 includes(detail, '{ key: "recharge", label: "充值" }', "recharge row");
 includes(detail, '{ key: "verification", label: "核销" }', "verification row");
 includes(detail, '{ key: "experience", label: "体验" }', "experience row");
@@ -42,8 +44,32 @@ assert.doesNotMatch(detail, /storeAnalyticsLinks|renderTeachers|teacherRows|teac
 includes(detail, 'toUpperCase() === "ACTIVE"', "customer rows are restricted to active customers");
 assert.doesNotMatch(detail, /last_business_at|last_recharge_at|formatDateTime/, "customer list is independent of business timestamps");
 includes(detail, 'colspan="6" class="query-empty"', "customer loading and empty states match the six visible columns");
-includes(detail, '["total_experience_count", "experience_count"]', "project rows render lifetime experience totals");
-includes(detail, '["total_refund_count", "refund_count"]', "project rows render lifetime refund totals");
+includes(detail, 'function renderProjectRefundBreakdown', "project rows render refund classifications instead of a single opaque refund total");
+includes(detail, 'function renderProjectBalanceExplanation', "project rows render the customer-level balance reconciliation");
+for (const field of [
+  "total_recharge_count",
+  "total_verification_count",
+  "total_experience_count",
+  "total_refund_count",
+  "refund_before_consumption_count",
+  "refund_after_consumption_count",
+  "refund_before_consumption_customer_count",
+  "refund_after_consumption_customer_count",
+  "refund_from_remaining_count",
+  "refund_after_consumption_balance_count",
+  "refund_breakdown_unknown_count",
+  "total_legacy_void_count",
+  "raw_remaining_count",
+  "balance_floor_adjustment",
+  "remaining_count"
+]) includes(detail, field, `project renderer keeps the ${field} contract`);
+includes(detail, "退费前无付费核销", "project rows label refunds with no prior paid service");
+includes(detail, "已有付费核销后退费", "project rows label refunds after paid service");
+includes(detail, "实际扣余", "project rows distinguish refunds that deducted customer remaining balance");
+includes(detail, "余额不足未扣余", "project rows distinguish refunds that were floor-clamped");
+includes(detail, "不扣客户余额", "experience copy remains explicit at row level");
+includes(detail, "客户级归零调整", "project rows explain why the summed available balance differs from a global subtraction");
+includes(detail, 'colspan="7" class="query-empty"', "project loading and empty states match the seven visible columns");
 assert.doesNotMatch(detail.slice(detail.indexOf("function renderProjects"), detail.indexOf("function renderCustomers")), /product_status|project_status/, "project renderer is independent of product status");
 
 const dashboardSource = cloud.slice(cloud.indexOf("async function getStoreDashboard"), cloud.indexOf("const STORE_ANALYTICS_METRICS"));
@@ -60,6 +86,51 @@ includes(dashboardProjectSource, "CASE WHEN r.recharge_type = 'VOID' THEN r.unit
 includes(dashboardProjectSource, "v.verification_type IN ('NORMAL', 'SUPPLEMENT')", "normal and historical supplemental consumption share the verification total");
 includes(dashboardProjectSource, "v.verification_type = 'EXPERIENCE'", "experience is reported separately");
 assert.match(dashboardProjectSource, /GROUP BY event\.customer_id, event\.product_id[\s\S]*?GREATEST|GREATEST\([\s\S]*?GROUP BY event\.customer_id, event\.product_id/, "remaining units are floored at customer-product level before project aggregation");
+for (const field of [
+  "refund_before_consumption_count",
+  "refund_after_consumption_count",
+  "refund_before_consumption_customer_count",
+  "refund_after_consumption_customer_count",
+  "refund_from_remaining_count",
+  "refund_after_consumption_balance_count",
+  "refund_breakdown_unknown_count",
+  "total_legacy_void_count",
+  "raw_remaining_count",
+  "balance_floor_adjustment"
+]) includes(dashboardProjectSource, `AS ${field}`, `project dashboard returns ${field}`);
+assert.match(dashboardProjectSource, /first_paid_verification[\s\S]*?event\.verification_count > 0/, "refund timing is compared only with paid normal or supplemental verification events");
+assert.match(dashboardProjectSource, /refund_before_consumption_count[\s\S]*?refund_after_consumption_count/, "refund timing breakdown retains both pre-consumption and post-consumption categories");
+
+// The stress dataset intentionally contains 90 customers with 5 available
+// units and 10 customers that have already consumed 45 units before a refund
+// of 10. Balances floor at each customer/product ledger: the 50 excess refund
+// units cannot reduce the other 90 customers' 450 available units.
+const stressBalanceRows = Array.from({ length: 100 }, (_, index) => ({
+  recharge: 50,
+  paidVerification: 45,
+  refund: index % 10 === 9 ? 10 : 0
+}));
+const stressProject = stressBalanceRows.reduce((totals, row) => {
+  const beforeRefund = Math.max(row.recharge - row.paidVerification, 0);
+  const raw = row.recharge - row.paidVerification - row.refund;
+  totals.recharge += row.recharge;
+  totals.paidVerification += row.paidVerification;
+  totals.refund += row.refund;
+  totals.rawRemaining += raw;
+  totals.remaining += Math.max(raw, 0);
+  totals.refundFromRemaining += Math.min(row.refund, beforeRefund);
+  totals.refundOverRemaining += Math.max(row.refund - beforeRefund, 0);
+  return totals;
+}, { recharge: 0, paidVerification: 0, refund: 0, rawRemaining: 0, remaining: 0, refundFromRemaining: 0, refundOverRemaining: 0 });
+assert.deepEqual(stressProject, {
+  recharge: 5000,
+  paidVerification: 4500,
+  refund: 100,
+  rawRemaining: 400,
+  remaining: 450,
+  refundFromRemaining: 50,
+  refundOverRemaining: 50
+}, "customer-level zero floors explain why 5000 - 4500 - 100 does not reduce the project balance below 450");
 assert.match(dashboardProjectSource, /WHERE p\.product_status = 'ACTIVE'[\s\S]*?UNION[\s\S]*?SELECT event\.product_id/, "active zero products and historical store products remain visible");
 assert.equal((dashboardSource.match(/(?:c\.)?created_store_id = \$\{storeId\}::bigint\s+AND (?:c\.)?customer_status = 'ACTIVE'/g) || []).length, 2, "customer count and page queries both return only this store's active customers");
 includes(dashboardSource, "teachers: []", "removed teacher table no longer requires a dashboard query");
