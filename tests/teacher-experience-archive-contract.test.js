@@ -194,6 +194,7 @@ const analytics = functionSource(faceCloud, "storeAnalyticsEventCte");
 const hqDashboard = functionSource(staffCloud, "getHqDashboard");
 const verificationCreate = functionSource(faceCloud, "createVerificationApplication");
 const teacherProvision = functionSource(staffCloud, "provisionTeacherWithFace");
+const delegatedTeacherFaceUpsert = functionSource(faceCloud, "upsertDelegatedTeacherFace");
 const hqEntitlementRead = functionSource(staffCloud, "getHqTeacherExperienceEntitlements");
 const entitlementUpsert = functionSource(staffCloud, "upsertTeacherExperienceEntitlement");
 const entitlementDelete = functionSource(staffCloud, "deleteTeacherExperienceEntitlement");
@@ -248,33 +249,36 @@ assert.match(teacherProvision, /userStatus:\s*"BLOCKED"/,
   "a teacher authentication account must start blocked before face enrollment completes");
 assert.match(teacherProvision, /initialAccountStatus:\s*"ARCHIVED"/,
   "a teacher business account must start archived before face enrollment completes");
-assert.match(teacherProvision, /api\.CreatePerson\(/,
-  "teacher provisioning must create the face-library person only in the server-side workflow");
-assert.match(teacherProvision, /face_person_id[\s\S]{0,200}face_enrollment_status\s*=\s*'ENROLLED'/,
-  "teacher provisioning must persist the bound person id and ENROLLED state together");
+assert.match(teacherProvision, /delegateTeacherFace\(\{[\s\S]{0,220}operation:\s*"PROVISION"/,
+  "teacher provisioning must delegate face-library and private-photo work to the signed server workflow");
+assert.match(teacherProvision, /face_person_id\s*=\s*\$\{sqlText\(facePersonId\)\}[\s\S]{0,240}face_enrollment_status\s*=\s*'ENROLLED'[\s\S]{0,180}profile_photo_file_id/,
+  "teacher provisioning must prove the exact person, ENROLLED state and retained photo before activation");
 assert.match(teacherProvision, /manager\(\)\.user\.modifyUser\(\{ uid, userStatus: "ACTIVE"/,
   "teacher authentication may activate only after the enrolled database profile is persisted");
-assert.match(teacherProvision, /deleteTeacherFacePerson\(/,
-  "a failed database enrollment must compensate by removing a newly created face-library person");
+assert.match(delegatedTeacherFaceUpsert, /api\.CreatePerson\([\s\S]*?uploadTeacherProfilePhoto\([\s\S]*?UPDATE public\.teachers AS teacher[\s\S]*?deleteTeacherFacePerson\(api, groupId, previousPersonId\)/,
+  "the delegated service must create, retain and switch the new face before old-person cleanup");
+assert.match(delegatedTeacherFaceUpsert, /deleteUploadedFile\(storedPhoto\)[\s\S]{0,420}deleteTeacherFacePerson\(api, groupId, command\.personId\)/,
+  "a failed delegated database switch must clean the newly created photo and person");
 
-// 048 changes the default creation route: face enrollment remains available
-// with the legacy atomic flow, but it is no longer required for activation.
-assert.match(teacherCreate, /老师人脸（可选）|人脸（可选）/,
-  "teacher creation UI must describe face enrollment as optional");
-assert.match(teacherCreate, /创建后老师账号即可激活和登录/,
-  "teacher creation UI must make no-face activation explicit");
-assert.match(teacherCreateScript, /CloudBasePhoneAuth\.provisionTeacher\(/,
-  "teacher creation must offer an active no-face provisioning path");
+// New teacher creation is face-bound. This is deliberately narrower than
+// account activation: an existing teacher may still be activated without a
+// photo, and headquarters can supplement or replace that face on the detail page.
+assert.match(teacherCreate, /老师人脸（必填）/,
+  "new-teacher UI must describe face enrollment as mandatory");
+assert.doesNotMatch(teacherCreate, /老师人脸（可选）|不会阻止账号创建或激活|可后续补录/,
+  "new-teacher UI must not advertise a no-face creation path");
+assert.doesNotMatch(teacherCreateScript, /CloudBasePhoneAuth\.provisionTeacher\(/,
+  "new-teacher UI must not call the generic no-face provisioning path");
 assert.match(teacherCreateScript, /CloudBasePhoneAuth\.provisionTeacherWithFace\(/,
-  "teacher creation may still offer immediate consented face enrollment");
-assert.match(teacherCreateScript, /人脸可在老师主页中后续补录或更换/,
-  "no-face creation result must direct headquarters to later face enrollment");
+  "new-teacher UI must use the atomic consented face-enrollment path");
+assert.match(teacherCreateScript, /Boolean\(capturedFaceImage\)[\s\S]{0,300}Boolean\(\$\("teacherFaceConsent"\)\.checked\)[\s\S]{0,160}faceValidated/,
+  "new-teacher submit enablement must require capture, consent and validation");
 assert.match(phoneAuth, /async provisionTeacher\(\{ staffName, phone, initialPassword \}\)/,
-  "shared client must expose no-face teacher provisioning");
+  "the generic shared-client method may remain available for non-UI compatibility");
 assert.match(phoneAuth, /async upsertTeacherFace\(/,
   "shared client must expose later teacher-face enrollment/replacement");
-assert.match(staffCloud, /if \(role === "teacher"\) await requireTeacherOptionalFaceActivationSchema\(\);/,
-  "generic teacher provisioning must require the optional-face schema rather than a face capture");
+assert.match(staffCloud, /if \(role === "teacher"\) \{[\s\S]{0,160}TEACHER_FACE_REQUIRED/,
+  "generic teacher provisioning must reject before its otherwise shared staff workflow");
 assert.match(optionalFaceActivationSchema, /pg_get_functiondef\(TO_REGPROCEDURE\('public\.sync_teacher_profile\(\)'\)\)/,
   "optional-face provisioning must inspect the installed profile trigger definition, not only a quota column");
 assert.match(optionalFaceActivationSchema, /pg_get_functiondef\(TO_REGPROCEDURE\('public\.sync_teacher_account_status\(\)'\)\)/,
@@ -285,16 +289,16 @@ assert.match(optionalFaceActivationSchema, /has_profile_trigger_binding[\s\S]*ha
   "optional-face provisioning must verify the replacement functions are bound to their triggers");
 assert.match(optionalFaceActivationSchema, /迁移 048-02/,
   "a partially run migration must return an actionable 048-02 repair instruction");
-assert.match(staffCloud, /if \(status === "ACTIVE" && staff\.role_code === "teacher"\)\s*\{\s*await requireTeacherOptionalFaceActivationSchema\(\);/,
+assert.match(staffCloud, /if \(staff\.role_code === "teacher"\)\s*\{[\s\S]{0,320}await requireTeacherOptionalFaceActivationSchema\(\);/,
   "activating an existing no-face teacher must verify the optional-face trigger replacement first");
 const genericProvision = staffCloud.slice(
   staffCloud.indexOf('if (action === "provisionStaff")'),
   staffCloud.indexOf('if (action === "resetPassword")')
 );
-assert.doesNotMatch(genericProvision, /TEACHER_FACE_REQUIRED/,
-  "generic teacher provisioning must not reject a teacher merely for lacking a face");
-assert.match(teacherFaceUpsert, /await api\.CreatePerson\([\s\S]*?UPDATE public\.teachers[\s\S]*?deleteTeacherFacePerson\(api, groupId, previousPersonId\)/,
-  "face replacement must persist the new person before it best-effort deletes the old one");
+assert.match(genericProvision, /TEACHER_FACE_REQUIRED/,
+  "generic provisioning must fail closed when asked to create a new teacher without a face");
+assert.match(teacherFaceUpsert, /delegateTeacherFace\(\{[\s\S]{0,220}operation:\s*"UPSERT"/,
+  "face replacement must use the signed delegated transaction");
 assert.match(teacherFaceUpsert, /current\.teacher_status/,
   "later face enrollment must preserve the teacher's existing active/archive state");
 
@@ -378,7 +382,7 @@ assert.match(staffCloud, /if \(action === "setStaffStatus"\)[\s\S]*UPDATE public
 assert.match(staffCloud, /userStatus:\s*status === "ACTIVE" \? "ACTIVE" : "BLOCKED"/,
   "archive action must also block the CloudBase login account");
 const staffProfile = functionSource(staffCloud, "findStaffProfile");
-assert.match(staffProfile, /if \(staff\.role_code === "teacher"\) \{[\s\S]{0,120}teacher_status === "ARCHIVED"/,
+assert.match(staffProfile, /if \(staff\.role_code === "teacher"\) \{[\s\S]{0,900}teacher_status === "ARCHIVED"/,
   "teacher login must remain blocked only by archived master status");
 assert.doesNotMatch(staffProfile, /TEACHER_FACE_REQUIRED|face_enrollment_status === "ENROLLED"/,
   "an active teacher without a face must be able to log in");

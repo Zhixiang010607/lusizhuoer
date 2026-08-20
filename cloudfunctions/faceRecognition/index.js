@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v4" : "v72";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v4" : "v73";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -18,6 +18,8 @@ const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const MAX_VERIFICATION_IMAGE_BYTES = 3 * 1024 * 1024;
 const MAX_THUMBNAIL_BYTES = 384 * 1024;
 const FACE_MODEL_VERSION = "3.0";
+const TEACHER_FACE_DELEGATION_VERSION = "teacher-face-v1";
+const TEACHER_FACE_DELEGATION_MAX_AGE_MS = 2 * 60 * 1000;
 let cloudApp = null;
 let managerClient = null;
 let storeBindingLayout = null;
@@ -348,6 +350,68 @@ function cleanImage(value) {
   const buffer = Buffer.from(base64, "base64");
   if (!buffer.length || buffer.length > MAX_IMAGE_BYTES) fail("The camera photo must be between 1 byte and 4 MB.");
   return { base64, buffer };
+}
+
+function teacherFaceDelegationCanonical(fields) {
+  return JSON.stringify([
+    TEACHER_FACE_DELEGATION_VERSION,
+    String(fields.issuedAt),
+    String(fields.nonce),
+    String(fields.operation),
+    String(fields.teacherId),
+    String(fields.staffId),
+    String(fields.actorStaffId),
+    String(fields.personId),
+    String(fields.teacherName),
+    String(fields.imageDigest)
+  ]);
+}
+
+function teacherFaceDelegationSigningKey() {
+  return crypto.createHash("sha256")
+    .update("cloudbase:teacher-face-delegation:\0", "utf8")
+    .update(cloudbaseServiceRoleKey(), "utf8")
+    .digest();
+}
+
+function verifyTeacherFaceDelegation(event = {}) {
+  const issuedAt = Number(event.issuedAt);
+  const now = Date.now();
+  if (!Number.isSafeInteger(issuedAt)
+      || issuedAt < now - TEACHER_FACE_DELEGATION_MAX_AGE_MS
+      || issuedAt > now + 30 * 1000) {
+    fail("老师人脸内部授权已过期。", "TEACHER_FACE_DELEGATION_EXPIRED");
+  }
+  const nonce = String(event.nonce || "").trim();
+  const operation = String(event.operation || "").trim().toUpperCase();
+  const personId = String(event.personId || "").trim();
+  const teacherName = String(event.teacherName || "").trim();
+  const signature = String(event.signature || "").trim().toLowerCase();
+  if (!/^[a-f0-9]{32}$/.test(nonce)
+      || !["PROVISION", "UPSERT"].includes(operation)
+      || !/^T-[A-F0-9]{48}$/.test(personId)
+      || !teacherName || teacherName.length > 100
+      || !/^[a-f0-9]{64}$/.test(signature)) {
+    fail("老师人脸内部授权格式无效。", "TEACHER_FACE_DELEGATION_INVALID");
+  }
+  const ids = Object.fromEntries(["teacherId", "staffId", "actorStaffId"].map((name) => {
+    const value = Number(event[name]);
+    if (!Number.isSafeInteger(value) || value < 1) {
+      fail("老师人脸内部授权编号无效。", "TEACHER_FACE_DELEGATION_INVALID");
+    }
+    return [name, value];
+  }));
+  const image = cleanVerificationJpeg(event.imageBase64, "老师人脸照片", MAX_IMAGE_BYTES);
+  const imageDigest = crypto.createHash("sha256").update(image.buffer).digest("hex");
+  const fields = { issuedAt, nonce, operation, ...ids, personId, teacherName, imageDigest };
+  const expected = crypto.createHmac("sha256", teacherFaceDelegationSigningKey())
+    .update(teacherFaceDelegationCanonical(fields), "utf8")
+    .digest();
+  const supplied = Buffer.from(signature, "hex");
+  if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
+    fail("老师人脸内部授权签名无效。", "TEACHER_FACE_DELEGATION_FORBIDDEN");
+  }
+  return { ...fields, image };
 }
 
 function cleanVerificationJpeg(value, label, maximumBytes) {
@@ -1823,6 +1887,215 @@ async function deleteUploadedFile(storedPhoto) {
     }
   } catch (error) {
     console.warn("Photo cleanup failed", error?.message || error);
+  }
+}
+
+async function uploadTeacherProfilePhoto(teacherId, personId, buffer) {
+  const { bucketId, accessToken, envId } = photoStorageSettings();
+  const digest = crypto.createHash("sha256").update(buffer).digest("hex");
+  const objectName = `teachers/${teacherId}/profile-history/${Date.now()}-${personId}-${digest.slice(0, 16)}.jpg`;
+  try {
+    await manager().storage.uploadObject({
+      bucketId,
+      objectName,
+      body: buffer,
+      contentType: "image/jpeg",
+      contentLength: buffer.length,
+      cacheControl: "private, max-age=31536000, immutable",
+      upsert: false,
+      accessToken,
+      envId
+    });
+  } catch (error) {
+    if (!storageUploadResponseMismatch(error)) throw error;
+    console.warn("CloudBase teacher photo upload succeeded without Id/Key response metadata", {
+      bucketId, objectName, teacherId
+    });
+  }
+  return { bucketId, objectName, reference: `pg://${bucketId}/${objectName}` };
+}
+
+function duplicateTeacherFacePersonError(error) {
+  const detail = `${error?.code || ""} ${error?.Code || ""} ${error?.message || ""}`.toLowerCase();
+  return detail.includes("persondup") || detail.includes("person already")
+    || detail.includes("duplicate") || detail.includes("已存在");
+}
+
+async function confirmTeacherFacePerson(api, personId) {
+  const person = await api.GetPersonBaseInfo({ PersonId: personId });
+  if (!person || (person.PersonId && String(person.PersonId) !== String(personId))) {
+    fail("同一建档编号的人脸资料无法安全确认。", "TEACHER_FACE_PERSON_CONFLICT");
+  }
+}
+
+async function deleteTeacherFacePerson(api, groupId, personId) {
+  if (!api || !groupId || !personId) return false;
+  try {
+    await api.DeletePerson({ GroupId: groupId, PersonId: personId });
+    return true;
+  } catch (error) {
+    console.warn("Teacher face person cleanup failed", {
+      personId, code: error?.code || error?.Code || undefined,
+      requestId: error?.RequestId || error?.requestId || undefined
+    });
+    return false;
+  }
+}
+
+function teacherFaceResult(row, accountStatus, createdNow, replaced, warning = "") {
+  return {
+    ok: true,
+    createdNow,
+    replaced,
+    teacher: {
+      teacherId: String(row.id),
+      teacherCode: String(row.teacher_code || ""),
+      teacherName: String(row.teacher_name || ""),
+      teacherStatus: String(row.teacher_status || ""),
+      accountStatus: String(accountStatus || ""),
+      faceEnrollmentStatus: String(row.face_enrollment_status || ""),
+      faceEnrolledAt: row.face_enrolled_at || null,
+      facePhotoReady: Boolean(row.profile_photo_file_id),
+      profilePhotoFileId: String(row.profile_photo_file_id || "")
+    },
+    warning: warning || undefined
+  };
+}
+
+// This endpoint is intentionally unreachable with an ordinary browser call.
+// staffAccount signs a two-minute, payload-bound command with the service-role
+// key already present in both functions. Tencent IAI credentials therefore
+// remain only in faceRecognition. The new person and immutable photo are
+// created first; one optimistic PostgreSQL UPDATE switches the current face;
+// only then is the old Tencent person deleted on a best-effort basis.
+async function upsertDelegatedTeacherFace(event = {}) {
+  const command = verifyTeacherFaceDelegation(event);
+  const rows = await executeSql(
+    `SELECT teacher.id, teacher.staff_account_id, teacher.teacher_code,
+            teacher.teacher_name, teacher.teacher_status, teacher.face_person_id,
+            teacher.face_enrollment_status, teacher.face_enrolled_at,
+            teacher.profile_photo_file_id, account.role_code, account.account_status,
+            actor.role_code AS actor_role, actor.account_status AS actor_status
+       FROM public.teachers AS teacher
+       JOIN public.staff_accounts AS account ON account.id = teacher.staff_account_id
+       JOIN public.staff_accounts AS actor ON actor.id = ${command.actorStaffId}
+      WHERE teacher.id = ${command.teacherId}
+        AND teacher.staff_account_id = ${command.staffId}
+      LIMIT 1`
+  );
+  const current = rows[0];
+  if (!current || current.role_code !== "teacher") fail("未找到老师资料。", "NOT_FOUND");
+  if (current.actor_role !== "hq" || current.actor_status !== "ACTIVE") {
+    fail("只有活跃总部账号可以写入老师人脸。", "TEACHER_FACE_DELEGATION_FORBIDDEN");
+  }
+  if (String(current.teacher_name || "") !== command.teacherName) {
+    fail("老师姓名已变更，请刷新后重新拍照。", "TEACHER_FACE_PROFILE_CHANGED");
+  }
+
+  const previousPersonId = String(current.face_person_id || "").trim();
+  const previousPhotoRef = String(current.profile_photo_file_id || "").trim();
+  if (current.face_enrollment_status === "ENROLLED"
+      && previousPersonId === command.personId && previousPhotoRef) {
+    return teacherFaceResult(current, current.account_status, false, false);
+  }
+
+  const api = faceClient();
+  const groupId = required("FACE_GROUP_ID");
+  const quality = await inspectFaceImage(api, command.image.base64);
+  const liveness = await inspectLiveness(api, command.image.base64);
+  let createdPerson = false;
+  let recoveredPerson = false;
+  let storedPhoto = null;
+  try {
+    try {
+      const face = await api.CreatePerson({
+        GroupId: groupId,
+        PersonId: command.personId,
+        PersonName: command.teacherName,
+        Image: command.image.base64,
+        UniquePersonControl: 0,
+        QualityControl: 3,
+        FaceModelVersion: FACE_MODEL_VERSION,
+        NeedRotateDetection: 0
+      });
+      createdPerson = true;
+      if (!face?.FaceId) fail("人脸服务未返回有效 FaceId。", "TEACHER_FACE_ENROLLMENT_INCOMPLETE");
+    } catch (error) {
+      if (!duplicateTeacherFacePersonError(error)) throw error;
+      await confirmTeacherFacePerson(api, command.personId);
+      recoveredPerson = true;
+    }
+    storedPhoto = await uploadTeacherProfilePhoto(
+      command.teacherId, command.personId, command.image.buffer
+    );
+
+    let saved;
+    try {
+      const savedRows = await executeSql(
+        `UPDATE public.teachers AS teacher
+            SET face_person_id = ${sqlText(command.personId)},
+                face_consent_at = NOW(),
+                face_enrollment_status = 'ENROLLED',
+                face_enrolled_at = NOW(),
+                profile_photo_file_id = ${sqlText(storedPhoto.reference)},
+                face_enrolled_by_account_id = ${command.actorStaffId},
+                updated_at = NOW()
+          WHERE teacher.id = ${command.teacherId}
+            AND teacher.staff_account_id = ${command.staffId}
+            AND teacher.face_person_id IS NOT DISTINCT FROM ${previousPersonId ? sqlText(previousPersonId) : "NULL"}
+            AND teacher.profile_photo_file_id IS NOT DISTINCT FROM ${previousPhotoRef ? sqlText(previousPhotoRef) : "NULL"}
+          RETURNING teacher.id, teacher.teacher_code, teacher.teacher_name,
+                    teacher.teacher_status, teacher.face_enrollment_status,
+                    teacher.face_enrolled_at, teacher.profile_photo_file_id`
+      );
+      saved = savedRows[0] || null;
+    } catch (error) {
+      const committedRows = await executeSql(
+        `SELECT teacher.id, teacher.teacher_code, teacher.teacher_name,
+                teacher.teacher_status, teacher.face_enrollment_status,
+                teacher.face_enrolled_at, teacher.profile_photo_file_id
+           FROM public.teachers AS teacher
+          WHERE teacher.id = ${command.teacherId}
+            AND teacher.staff_account_id = ${command.staffId}
+            AND teacher.face_person_id = ${sqlText(command.personId)}
+            AND teacher.profile_photo_file_id = ${sqlText(storedPhoto.reference)}
+            AND teacher.face_enrollment_status = 'ENROLLED'
+          LIMIT 1`
+      ).catch(() => []);
+      saved = committedRows[0] || null;
+      if (!saved) throw error;
+    }
+    if (!saved || saved.face_enrollment_status !== "ENROLLED" || !saved.profile_photo_file_id) {
+      fail("老师人脸资料已发生并发修改，原人脸保持不变。", "TEACHER_FACE_CONCURRENT_UPDATE");
+    }
+
+    let warning = "";
+    if (previousPersonId && previousPersonId !== command.personId) {
+      const removed = await deleteTeacherFacePerson(api, groupId, previousPersonId);
+      if (!removed) warning = "新老师人脸已生效，但旧人脸库记录暂未删除；请由总部稍后清理。";
+    }
+    return {
+      ...teacherFaceResult(saved, current.account_status, createdPerson,
+        Boolean(previousPersonId && previousPersonId !== command.personId), warning),
+      quality,
+      liveness
+    };
+  } catch (error) {
+    const committedRows = storedPhoto ? await executeSql(
+      `SELECT id FROM public.teachers
+        WHERE id = ${command.teacherId}
+          AND face_person_id = ${sqlText(command.personId)}
+          AND profile_photo_file_id = ${sqlText(storedPhoto.reference)}
+          AND face_enrollment_status = 'ENROLLED'
+        LIMIT 1`
+    ).catch(() => []) : [];
+    if (!committedRows[0]) {
+      await deleteUploadedFile(storedPhoto);
+      if (createdPerson && !recoveredPerson) {
+        await deleteTeacherFacePerson(api, groupId, command.personId);
+      }
+    }
+    throw error;
   }
 }
 
@@ -5077,6 +5350,7 @@ exports.main = async (event = {}, context = {}) => {
     }
     if (action === "validateCapture") return await validateCapture(event);
     if (action === "validateTeacherFaceEnrollmentCapture") return await validateTeacherFaceEnrollmentCapture(event);
+    if (action === "upsertDelegatedTeacherFace") return await upsertDelegatedTeacherFace(event);
     if (action === "registerCustomer") return await registerCustomer(event);
     if (action === "listActiveStoreCustomers") return await listActiveStoreCustomers(event);
     if (action === "queryStoreCustomers") return await queryStoreCustomers(event);

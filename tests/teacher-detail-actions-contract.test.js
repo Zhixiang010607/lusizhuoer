@@ -58,11 +58,11 @@ assert.match(staffDetail, /teacherFaceUpdate\.validated/,
 assert.match(staffDetail, /teacherFaceUpdate\.requestId \|\|= requestId\("teacher_face_update"\)/,
   "a validated teacher capture must retain one request id for retry-safe saving");
 assert.match(teacherCreateScript, /outputHeight = Math\.round\(Math\.min\(sourceHeight, 1024\)\)/,
-  "optional creation-time enrollment must use the customer enrollment crop size");
+  "required creation-time enrollment must use the customer enrollment crop size");
 assert.match(teacherCreateScript, /qualityThreshold[\s\S]{0,220}liveness\.threshold/,
-  "optional creation-time enrollment must show the preflight thresholds");
+  "required creation-time enrollment must show the preflight thresholds");
 assert.match(teacherCreateScript, /LIVENESS_FAILED[\s\S]{0,250}FACE_NOT_FOUND/,
-  "optional creation-time enrollment must distinguish liveness and capture-quality failures");
+  "required creation-time enrollment must distinguish liveness and capture-quality failures");
 
 assert.match(staffDetail, /Promise\.allSettled\(\[/,
   "quota read and product catalog read must not fail together");
@@ -92,11 +92,11 @@ for (const file of ["query.js", "management.js", "detail.js"]) {
 
 assert.match(staffDetailHtml, /cloudbase-phone-auth\.js\?v=0\.18\.1/,
   "teacher home must refresh the shared cloud-function client");
-assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.3/,
+assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.4/,
   "teacher home must refresh its action handlers");
-assert.match(teacherCreateHtml, /teacher-create\.js\?v=0\.2\.2/,
-  "teacher creation must refresh the optional-face UI");
-assert.match(teacherManagementHtml, /teacher-management\.js\?v=0\.14\.27/,
+assert.match(teacherCreateHtml, /teacher-create\.js\?v=0\.2\.4/,
+  "teacher creation must refresh the mandatory-face UI");
+assert.match(teacherManagementHtml, /teacher-management\.js\?v=0\.14\.28/,
   "teacher directory must refresh links into the current home");
 assert.match(teacherManagement, /teacher\.teacher_id \|\| teacher\.teacherId \|\| teacher\.teacher_code/,
   "teacher directory must keep legacy no-login teacher rows navigable");

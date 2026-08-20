@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>老师管理</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.49">
+  <link rel="stylesheet" href="styles.css?v=0.15.50">
 </head>
 <body data-management="teacher">
   <aside class="side-project-bar" aria-label="项目栏">
@@ -28,6 +28,7 @@
         <button id="searchPeople" type="button">查询</button>
         <button id="addEntity" type="button">新增老师</button>
       </div>
+      <p id="teacherDirectoryMessage" class="teacher-directory-message" aria-live="polite"></p>
     </section>
     <section id="teacherDirectory" class="teacher-directory-grid" aria-live="polite">
       <section class="panel teacher-directory-panel teacher-search-results-panel">
@@ -67,7 +68,7 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
   <script src="cloudbase-phone-auth.js?v=0.18.1"></script>
-  <script src="teacher-management.js?v=0.14.27"></script>
+  <script src="teacher-management.js?v=0.14.28"></script>
   <script src="auth-ui.js?v=0.19.0"></script>
 </body>
 </html>

@@ -187,13 +187,16 @@ const staffProfile = functionSource(staff, "findStaffProfile");
 const staffStatusAction = staff.slice(staff.indexOf('if (action === "setStaffStatus")'), staff.indexOf('fail("不支持的操作")'));
 assert.doesNotMatch(staffProfile, /face_enrollment_status === "ENROLLED"|TEACHER_FACE_REQUIRED/i,
   "a teacher without a face must still be able to have an active login profile");
-assert.match(staffStatusAction, /status === "ACTIVE" && staff\.role_code === "teacher"[\s\S]{0,240}requireTeacherOptionalFaceActivationSchema\(\);/,
+assert.match(staffStatusAction, /if \(staff\.role_code === "teacher"\)[\s\S]{0,360}requireTeacherOptionalFaceActivationSchema\(\);/,
   "activating a teacher must retain the no-face activation policy");
 assert.doesNotMatch(staffStatusAction, /TEACHER_FACE_REQUIRED/i,
   "staff activation must not accidentally reuse the EXPERIENCE-only face gate");
 const teacherFaceUpsert = functionSource(staff, "upsertTeacherFace");
-assert.match(teacherFaceUpsert, /uploadTeacherProfilePhoto\([\s\S]{0,1100}profile_photo_file_id = \$\{sqlText\(nextProfilePhotoRef\)\}/,
-  "later teacher face enrollment/replacement must persist a retained private profile photo");
+const delegatedTeacherFaceUpsert = functionSource(face, "upsertDelegatedTeacherFace");
+assert.match(teacherFaceUpsert, /delegateTeacherFace\(\{[\s\S]{0,260}operation:\s*"UPSERT"/,
+  "later teacher face enrollment/replacement must use the signed face service");
+assert.match(delegatedTeacherFaceUpsert, /uploadTeacherProfilePhoto\([\s\S]{0,1400}profile_photo_file_id = \$\{sqlText\(storedPhoto\.reference\)\}/,
+  "the delegated replacement must persist a retained private profile photo");
 assert.match(teacherSubjectLock, /teacher\.face_enrollment_status = 'ENROLLED'[\s\S]{0,220}teacher\.face_person_id/i,
   "EXPERIENCE requires an enrolled selected teacher face without changing account activation");
 assert.match(teacherSubjectLock, /TEACHER_FACE_REQUIRED_FOR_EXPERIENCE/,

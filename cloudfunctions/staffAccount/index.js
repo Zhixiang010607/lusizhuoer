@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v56";
+const FUNCTION_VERSION = "v57";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -20,8 +20,10 @@ const HQ_DASHBOARD_MAX_PAGE_SIZE = 500;
 const HQ_DASHBOARD_MAX_PAGE_NUMBER = 10000;
 const ORDER_VOID_APPLICATIONS_ENABLED = false;
 const TEACHER_EXPERIENCE_RESET_TIMER_TRIGGER_NAME = "reset-teacher-experience-quotas-monthly";
-const TEACHER_FACE_MAX_BYTES = 4 * 1024 * 1024;
-const TEACHER_FACE_MODEL_VERSION = "3.0";
+// A 3 MiB JPEG expands to roughly 4 MiB in Base64, leaving headroom in both
+// the browser -> staffAccount and staffAccount -> faceRecognition 6 MiB
+// synchronous envelopes. Reject larger input before either network hop.
+const TEACHER_FACE_MAX_BYTES = 3 * 1024 * 1024;
 const PRODUCT_LOGO_MAX_BYTES = 8 * 1024 * 1024;
 // Base64 expands bytes by roughly one third and synchronous cloud-function
 // events have a much smaller payload ceiling than the signed PUT channel.
@@ -45,7 +47,6 @@ let managerClient = null;
 let storeBindingLayout = null;
 let storeCreationCapabilities = null;
 let productTemplateCapabilities = null;
-let teacherFaceClientClass = null;
 const productLogoDownloadCache = new Map();
 const productLogoDownloadFlights = new Map();
 const productLogoSignCache = new Map();
@@ -77,53 +78,6 @@ function manager() {
   return managerClient;
 }
 
-function requiredEnvironment(name) {
-  const value = String(process.env[name] || "").trim();
-  if (!value) fail(`Missing cloud function environment variable: ${name}`, "TEACHER_FACE_NOT_CONFIGURED");
-  return value;
-}
-
-function numberEnvironment(name, fallback, minimum, maximum) {
-  const value = process.env[name];
-  if (value === undefined || value === "") return fallback;
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < minimum || parsed > maximum) {
-    fail(`${name} must be a number between ${minimum} and ${maximum}.`, "TEACHER_FACE_NOT_CONFIGURED");
-  }
-  return parsed;
-}
-
-function booleanEnvironment(name, fallback = false) {
-  const value = process.env[name];
-  if (value === undefined || value === "") return fallback;
-  return ["1", "true", "yes", "on"].includes(String(value).trim().toLowerCase());
-}
-
-function teacherFaceSettings() {
-  return {
-    qualityThreshold: numberEnvironment("FACE_QUALITY_THRESHOLD", 70, 0, 100),
-    livenessEnabled: booleanEnvironment("FACE_LIVENESS_ENABLED", false),
-    livenessThreshold: numberEnvironment("FACE_LIVENESS_THRESHOLD", 40, 0, 100),
-    maxYaw: numberEnvironment("FACE_MAX_YAW", 20, 0, 90),
-    maxPitch: numberEnvironment("FACE_MAX_PITCH", 20, 0, 90),
-    maxRoll: numberEnvironment("FACE_MAX_ROLL", 15, 0, 90)
-  };
-}
-
-function teacherFaceClient() {
-  if (!teacherFaceClientClass) {
-    teacherFaceClientClass = require("tencentcloud-sdk-nodejs").iai.v20200303.Client;
-  }
-  return new teacherFaceClientClass({
-    credential: {
-      secretId: requiredEnvironment("FACE_SECRET_ID"),
-      secretKey: requiredEnvironment("FACE_SECRET_KEY")
-    },
-    region: "ap-guangzhou",
-    profile: { httpProfile: { endpoint: "iai.tencentcloudapi.com" } }
-  });
-}
-
 function teacherFaceImage(value) {
   const text = String(value || "").trim();
   if (!/^data:image\/jpeg;base64,/i.test(text)) {
@@ -137,138 +91,105 @@ function teacherFaceImage(value) {
   const buffer = Buffer.from(base64, "base64");
   if (buffer.toString("base64") !== base64 || !buffer.length || buffer.length > TEACHER_FACE_MAX_BYTES
       || buffer.length < 4 || buffer[0] !== 0xff || buffer[1] !== 0xd8 || buffer[2] !== 0xff) {
-    fail("老师人脸照片必须是小于 4 MB 的有效 JPEG。", "TEACHER_FACE_IMAGE_INVALID");
+    fail("老师人脸照片必须是小于 3 MB 的有效 JPEG。", "TEACHER_FACE_IMAGE_INVALID");
   }
   return { base64, buffer };
 }
 
-function teacherFacePhotoStorageSettings() {
-  const envId = String(process.env.CLOUDBASE_ENV_ID || process.env.TCB_ENV || "").trim();
-  const accessToken = String(process.env.CLOUDBASE_APIKEY || process.env.CLOUDBASE_SERVICE_ROLE_KEY || "").trim();
-  const bucketId = String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim();
-  if (!envId || !accessToken || !bucketId) {
-    fail("老师登记照私有存储尚未配置完整。", "TEACHER_FACE_PHOTO_STORAGE_NOT_CONFIGURED");
+function teacherFacePersonId(clientRequestId, imageBuffer) {
+  const imageDigest = crypto.createHash("sha256").update(imageBuffer).digest("hex");
+  const token = crypto.createHash("sha256")
+    .update(`teacher-face:${clientRequestId}:${imageDigest}`)
+    .digest("hex").slice(0, 48).toUpperCase();
+  return `T-${token}`;
+}
+
+const TEACHER_FACE_DELEGATION_VERSION = "teacher-face-v1";
+
+function teacherFaceDelegationCanonical(fields) {
+  return JSON.stringify([
+    TEACHER_FACE_DELEGATION_VERSION,
+    String(fields.issuedAt),
+    String(fields.nonce),
+    String(fields.operation),
+    String(fields.teacherId),
+    String(fields.staffId),
+    String(fields.actorStaffId),
+    String(fields.personId),
+    String(fields.teacherName),
+    String(fields.imageDigest)
+  ]);
+}
+
+function teacherFaceDelegationSigningKey() {
+  const serviceRoleKey = String(
+    process.env.CLOUDBASE_APIKEY || process.env.CLOUDBASE_SERVICE_ROLE_KEY || ""
+  ).trim();
+  if (!serviceRoleKey) {
+    fail("老师人脸内部委托缺少 CloudBase 服务端密钥。", "TEACHER_FACE_DELEGATION_NOT_CONFIGURED");
   }
-  return { envId, accessToken, bucketId };
+  return crypto.createHash("sha256")
+    .update("cloudbase:teacher-face-delegation:\0", "utf8")
+    .update(serviceRoleKey, "utf8")
+    .digest();
 }
 
-async function uploadTeacherProfilePhoto(teacherId, personId, buffer) {
-  const storage = teacherFacePhotoStorageSettings();
-  const digest = crypto.createHash("sha256").update(buffer).digest("hex");
-  const objectName = `teachers/${Number(teacherId)}/profile-history/${Date.now()}-${String(personId)}-${digest.slice(0, 16)}.jpg`;
-  const reference = `pg://${storage.bucketId}/${objectName}`;
-  try {
-    await manager().storage.uploadObject({
-      bucketId: storage.bucketId,
-      objectName,
-      body: buffer,
-      contentType: "image/jpeg",
-      contentLength: buffer.length,
-      cacheControl: "private, max-age=31536000, immutable",
-      upsert: false,
-      accessToken: storage.accessToken,
-      envId: storage.envId
-    });
-  } catch (error) {
-    if (storageUploadResponseMismatch(error)) {
-      console.warn("CloudBase teacher profile photo upload committed without response metadata", {
-        teacherId: String(teacherId), bucketId: storage.bucketId, objectName
-      });
-    } else {
-      error.code = error.code || "TEACHER_FACE_PHOTO_UPLOAD_FAILED";
-      throw error;
-    }
+function delegatedFaceResult(value) {
+  let result = value?.result ?? value?.Result ?? value;
+  if (typeof result === "string") {
+    try { result = JSON.parse(result); } catch (_) { /* handled below */ }
   }
-  return reference;
+  return result && typeof result === "object" ? result : null;
 }
 
-async function deleteUnboundTeacherProfilePhoto(referenceValue) {
-  const reference = String(referenceValue || "").trim();
-  const storage = teacherFacePhotoStorageSettings();
-  const prefix = `pg://${storage.bucketId}/teachers/`;
-  if (!reference.startsWith(prefix)) return false;
-  const objectName = reference.slice(`pg://${storage.bucketId}/`.length);
+async function delegateTeacherFace({ operation, teacherId, staffId, actorStaffId,
+  personId, teacherName, image }) {
+  const issuedAt = Date.now();
+  const nonce = crypto.randomBytes(16).toString("hex");
+  const imageDigest = crypto.createHash("sha256").update(image.buffer).digest("hex");
+  const fields = {
+    issuedAt,
+    nonce,
+    operation: String(operation || "").toUpperCase(),
+    teacherId: Number(teacherId),
+    staffId: Number(staffId),
+    actorStaffId: Number(actorStaffId),
+    personId: String(personId),
+    teacherName: String(teacherName),
+    imageDigest
+  };
+  const signature = crypto.createHmac("sha256", teacherFaceDelegationSigningKey())
+    .update(teacherFaceDelegationCanonical(fields), "utf8")
+    .digest("hex");
+  let response;
   try {
-    await manager().storage.deleteObject({
-      bucketId: storage.bucketId,
-      objectName,
-      accessToken: storage.accessToken,
-      envId: storage.envId
+    response = await getApp().callFunction({
+      name: "faceRecognition",
+      data: {
+        action: "upsertDelegatedTeacherFace",
+        ...fields,
+        imageBase64: `data:image/jpeg;base64,${image.base64}`,
+        signature
+      }
     });
-    return true;
-  } catch (error) {
-    console.warn("Unbound teacher profile photo cleanup failed", {
-      code: error?.code || undefined, objectName
-    });
-    return false;
-  }
-}
-
-function roundedFaceMetric(value) {
-  return Math.round(Number(value || 0) * 10) / 10;
-}
-
-async function inspectTeacherFaceImage(api, base64) {
-  let result;
-  try {
-    result = await api.DetectFace({
-      Image: base64,
-      MaxFaceNum: 2,
-      MinFaceSize: 34,
-      NeedFaceAttributes: 1,
-      NeedQualityDetection: 1,
-      FaceModelVersion: TEACHER_FACE_MODEL_VERSION,
-      NeedRotateDetection: 0
-    });
-  } catch (error) {
-    if (String(error?.code || "").includes("NoFaceInPhoto")) {
-      fail("没有检测到清晰老师人脸，请重新拍摄。", "TEACHER_FACE_NOT_FOUND");
-    }
+  } catch (cause) {
+    const error = new Error("人脸识别服务暂时无法完成老师建档，原资料保持不变。");
+    error.code = "TEACHER_FACE_DELEGATION_FAILED";
+    error.requestId = requestIdFrom(cause) || undefined;
+    error.cause = cause;
     throw error;
   }
-  const faces = Array.isArray(result?.FaceInfos) ? result.FaceInfos : [];
-  if (!faces.length) fail("没有检测到清晰老师人脸，请重新拍摄。", "TEACHER_FACE_NOT_FOUND");
-  if (faces.length !== 1) fail("老师人脸照片中只能有一位人员。", "TEACHER_FACE_MULTIPLE_FACES");
-  const face = faces[0] || {};
-  if (Number(face.Width || 0) < 100 || Number(face.Height || 0) < 100) {
-    fail("老师人脸距离镜头过远，请靠近后重新拍摄。", "TEACHER_FACE_TOO_SMALL");
+  const result = delegatedFaceResult(response);
+  if (!result?.ok) {
+    const error = new Error(String(result?.message || "人脸识别服务未能完成老师建档。"));
+    error.code = String(result?.code || "TEACHER_FACE_DELEGATION_FAILED");
+    error.requestId = String(result?.requestId || "") || undefined;
+    throw error;
   }
-  const quality = face.FaceQualityInfo || {};
-  const attributes = face.FaceAttributesInfo || {};
-  const settings = teacherFaceSettings();
-  const score = Number(quality.Score || 0);
-  if (score < settings.qualityThreshold) {
-    fail("老师人脸照片质量不足，请保证光线均匀、镜头清晰。", "TEACHER_FACE_QUALITY_LOW");
+  if (!result.teacher?.facePhotoReady || result.teacher?.faceEnrollmentStatus !== "ENROLLED") {
+    fail("人脸识别服务未返回完整的老师人脸资料。", "TEACHER_FACE_ENROLLMENT_INCOMPLETE");
   }
-  if (attributes.Mask === true) fail("老师人脸建档不能佩戴口罩。", "TEACHER_FACE_MASKED");
-  if (attributes.EyeOpen === false) fail("老师人脸建档检测到闭眼。", "TEACHER_FACE_EYES_CLOSED");
-  if (Math.abs(Number(attributes.Yaw || 0)) > settings.maxYaw
-      || Math.abs(Number(attributes.Pitch || 0)) > settings.maxPitch
-      || Math.abs(Number(attributes.Roll || 0)) > settings.maxRoll) {
-    fail("老师人脸角度过大，请正对镜头后重新拍摄。", "TEACHER_FACE_POSE_INVALID");
-  }
-  return {
-    requestId: String(result?.RequestId || ""),
-    qualityScore: roundedFaceMetric(score),
-    faceWidth: Number(face.Width || 0),
-    faceHeight: Number(face.Height || 0)
-  };
-}
-
-async function inspectTeacherFaceLiveness(api, base64) {
-  const settings = teacherFaceSettings();
-  if (!settings.livenessEnabled) return { enabled: false, checked: false, score: null };
-  const result = await api.DetectLiveFaceAccurate({ Image: base64, FaceModelVersion: TEACHER_FACE_MODEL_VERSION });
-  const score = Number(result?.Score || 0);
-  if (score < settings.livenessThreshold) {
-    fail("老师人脸活体检测未通过，请确认现场真人拍摄。", "TEACHER_FACE_LIVENESS_FAILED");
-  }
-  return { enabled: true, checked: true, score: roundedFaceMetric(score), requestId: String(result?.RequestId || "") };
-}
-
-function teacherFacePersonId(clientRequestId) {
-  const token = crypto.createHash("sha256").update(`teacher-face:${clientRequestId}`).digest("hex").slice(0, 48).toUpperCase();
-  return `T-${token}`;
+  return result;
 }
 
 function productTemplateStorageSettings() {
@@ -1438,6 +1359,17 @@ async function findStaffProfile(uid) {
     if (staff.store_status !== "ACTIVE") fail("关联门店已封存，无法登录", "ARCHIVED_STORE");
   }
   if (staff.role_code === "teacher") {
+    if (!staff.teacher_id) {
+      // Migration 050 backfills this invariant. Keep a runtime repair for
+      // legacy/stress rows created concurrently with deployment, but verify
+      // the optional-face trigger contract before any write can affect login.
+      await requireTeacherOptionalFaceActivationSchema();
+      const teacher = await ensureTeacherDatabaseProfile(staff.id);
+      staff.teacher_id = teacher.id;
+      staff.teacher_status = teacher.teacher_status;
+      staff.face_person_id = teacher.face_person_id;
+      staff.face_enrollment_status = teacher.face_enrollment_status;
+    }
     if (staff.teacher_status === "ARCHIVED") fail("该老师资料已封存，无法登录", "ARCHIVED_TEACHER");
   }
   return {
@@ -1452,7 +1384,10 @@ async function findStaffProfile(uid) {
     storeName: staff.store_name || "",
     passwordChangeRequired: [true, "true", "t", 1, "1"].includes(staff.password_change_required),
     passwordInitializedAt: staff.password_initialized_at || null,
-    passwordChangedAt: staff.password_changed_at || null
+    passwordChangedAt: staff.password_changed_at || null,
+    teacherId: staff.teacher_id ? String(staff.teacher_id) : "",
+    teacherStatus: staff.teacher_status || "",
+    faceEnrollmentStatus: staff.face_enrollment_status || ""
   };
 }
 
@@ -3018,31 +2953,6 @@ async function archiveStoreProvisioning(staffId) {
   }
 }
 
-async function deleteTeacherFacePerson(api, groupId, personId) {
-  if (!api || !groupId || !personId) return false;
-  try {
-    await api.DeletePerson({ GroupId: groupId, PersonId: personId });
-    return true;
-  } catch (error) {
-    console.warn("teacher face cleanup failed", { code: cloudErrorDetails(error).code || undefined, requestId: requestIdFrom(error) || undefined });
-    return false;
-  }
-}
-
-function duplicateTeacherFacePersonError(error) {
-  const detail = `${error?.code || ""} ${error?.Code || ""} ${error?.message || ""}`.toLowerCase();
-  return detail.includes("persondup") || detail.includes("person already") || detail.includes("duplicate") || detail.includes("已存在");
-}
-
-async function confirmExistingTeacherFacePerson(api, personId) {
-  // GetPersonBaseInfo is the least-privileged read that confirms the exact
-  // deterministic ID.  We never accept a duplicate merely on its error text.
-  const person = await api.GetPersonBaseInfo({ PersonId: personId });
-  if (!person || (person.PersonId && String(person.PersonId) !== String(personId))) {
-    fail("同一建档编号的人脸资料无法安全确认。", "TEACHER_FACE_PERSON_CONFLICT");
-  }
-}
-
 async function persistedTeacherFaceEnrollment(staffId, personId, profilePhotoFileId = "") {
   if (!staffId || !personId) return null;
   try {
@@ -3073,7 +2983,7 @@ async function provisionTeacherWithFace(caller, event = {}) {
   if (!staffName || staffName.length > 100) fail("请填写不超过 100 个字符的老师姓名。", "BAD_REQUEST");
   if (!consent) fail("必须取得老师明确的人脸建档授权。", "TEACHER_FACE_CONSENT_REQUIRED");
   const image = teacherFaceImage(event.faceImageBase64);
-  const facePersonId = teacherFacePersonId(clientRequestId);
+  const facePersonId = teacherFacePersonId(clientRequestId, image.buffer);
 
   // A completed retry is safe: only the same deterministic person id may
   // replay this request.  A different request id for an enrolled phone is a
@@ -3178,65 +3088,65 @@ async function provisionTeacherWithFace(caller, event = {}) {
     stageFail("DB_PROFILE", error?.message || "老师业务资料创建失败。", error?.code || "TEACHER_PROFILE_SAVE_FAILED", error);
   }
 
-  let api = null;
-  let groupId = "";
-  let facePersonCreated = false;
-  let facePersonRecovered = false;
-  let teacherProfilePhotoRef = "";
+  let faceWarning = "";
   let teacher;
   try {
-    api = teacherFaceClient();
-    groupId = requiredEnvironment("FACE_GROUP_ID");
-    await inspectTeacherFaceImage(api, image.base64);
-    await inspectTeacherFaceLiveness(api, image.base64);
-    try {
-      await api.CreatePerson({
-        GroupId: groupId, PersonId: facePersonId, PersonName: staffName,
-        Image: image.base64, UniquePersonControl: 0, QualityControl: 3,
-        FaceModelVersion: TEACHER_FACE_MODEL_VERSION
-      });
-      facePersonCreated = true;
-    } catch (error) {
-      if (!duplicateTeacherFacePersonError(error)) throw error;
-      await confirmExistingTeacherFacePerson(api, facePersonId);
-      facePersonRecovered = true;
-    }
-    teacherProfilePhotoRef = await uploadTeacherProfilePhoto(
-      profile.teacherId, facePersonId, image.buffer
-    );
+    const delegated = await delegateTeacherFace({
+      operation: "PROVISION",
+      teacherId: profile.teacherId,
+      staffId: profile.staffId,
+      actorStaffId: numericId(caller.profile.staffId, "总部账号"),
+      personId: facePersonId,
+      teacherName: staffName,
+      image
+    });
+    faceWarning = String(delegated.warning || "");
+    // The face service never activates a login/master row. This final local
+    // update is deliberately after the signed service confirmed both Tencent
+    // enrollment and immutable private-photo persistence.
     const rows = await executeSql(
       `UPDATE public.teachers
-          SET teacher_name = ${sqlText(staffName)}, teacher_status = 'ACTIVE',
-              face_person_id = ${sqlText(facePersonId)}, face_consent_at = NOW(),
-              face_enrollment_status = 'ENROLLED', face_enrolled_at = NOW(),
-              profile_photo_file_id = ${sqlText(teacherProfilePhotoRef)},
-              face_enrolled_by_account_id = ${numericId(caller.profile.staffId, "总部账号")}::bigint,
-              updated_at = NOW()
+          SET teacher_name = ${sqlText(staffName)}, teacher_status = 'ACTIVE', updated_at = NOW()
         WHERE id = ${numericId(profile.teacherId, "老师编号")}::bigint
           AND staff_account_id = ${numericId(profile.staffId, "老师账号")}::bigint
-        RETURNING id, teacher_code, teacher_name, teacher_status, face_enrollment_status, face_enrolled_at`
+          AND face_person_id = ${sqlText(facePersonId)}
+          AND face_enrollment_status = 'ENROLLED'
+          AND BTRIM(COALESCE(profile_photo_file_id, '')) <> ''
+        RETURNING id, teacher_code, teacher_name, teacher_status,
+                  face_enrollment_status, face_enrolled_at, profile_photo_file_id`
     );
     teacher = rows?.[0];
-    if (!teacher || teacher.face_enrollment_status !== "ENROLLED" || teacher.teacher_status !== "ACTIVE") {
+    if (!teacher || teacher.face_enrollment_status !== "ENROLLED"
+        || teacher.teacher_status !== "ACTIVE" || !teacher.profile_photo_file_id) {
       fail("老师人脸建档资料未能完整保存。", "TEACHER_FACE_ENROLLMENT_INCOMPLETE");
     }
   } catch (error) {
-    const persisted = await persistedTeacherFaceEnrollment(
-      profile?.staffId, facePersonId, teacherProfilePhotoRef
-    );
-    // Do not delete a person if the database call may have committed but its
-    // response was lost.  The retry path sees the same deterministic id and
-    // safely finishes activation; an unlinked newly-created person is cleaned.
-    if (facePersonCreated && !facePersonRecovered && !persisted) {
-      await deleteTeacherFacePerson(api, groupId, facePersonId);
+    // A delegated response can be lost after its database switch committed.
+    // Accept only the exact deterministic person with a retained photo. A
+    // delayed service invocation cannot activate this still-archived account.
+    const persisted = await persistedTeacherFaceEnrollment(profile?.staffId, facePersonId);
+    if (persisted?.profile_photo_file_id) {
+      const recoveredRows = await executeSql(
+        `UPDATE public.teachers
+            SET teacher_status = 'ACTIVE', updated_at = NOW()
+          WHERE id = ${numericId(profile.teacherId, "老师编号")}::bigint
+            AND staff_account_id = ${numericId(profile.staffId, "老师账号")}::bigint
+            AND face_person_id = ${sqlText(facePersonId)}
+            AND face_enrollment_status = 'ENROLLED'
+            AND BTRIM(COALESCE(profile_photo_file_id, '')) <> ''
+          RETURNING id, teacher_code, teacher_name, teacher_status,
+                    face_enrollment_status, face_enrolled_at, profile_photo_file_id`
+      ).catch(() => []);
+      teacher = recoveredRows?.[0] || null;
     }
-    if (teacherProfilePhotoRef && !persisted) {
-      await deleteUnboundTeacherProfilePhoto(teacherProfilePhotoRef);
+    if (teacher) {
+      faceWarning = "老师人脸已安全保存，本次请求在响应丢失后已自动恢复。";
+    } else {
+      await archiveTeacherProvisioning(profile?.staffId);
+      await blockTeacherAuthentication(uid);
+      if (String(error?.code || "").startsWith("TEACHER_FACE_")) throw error;
+      stageFail("FACE_ENROLLMENT", "老师人脸绑定失败；账号保持封存，重新拍照后可使用同一手机号继续建档。", "TEACHER_FACE_ENROLLMENT_FAILED", error);
     }
-    await archiveTeacherProvisioning(profile?.staffId);
-    await blockTeacherAuthentication(uid);
-    if (String(error?.code || "").startsWith("TEACHER_FACE_")) throw error;
-    stageFail("FACE_ENROLLMENT", "老师人脸绑定失败；账号保持封存，重新拍照后可使用同一手机号继续建档。", "TEACHER_FACE_ENROLLMENT_FAILED", error);
   }
 
   try {
@@ -3249,14 +3159,15 @@ async function provisionTeacherWithFace(caller, event = {}) {
     stageFail("AUTH_ACTIVATE", "老师人脸已登记但登录账号激活失败；账号已保持封存，请联系总部重试。", "AUTH_ACTIVATION_FAILED", error);
   }
 
-  let warning = "";
+  let warning = faceWarning;
   if (authCreated) {
     try {
       await writeCredentialEvent({ targetStaffId: profile.staffId, actorStaffId: caller.profile.staffId,
         eventType: "ACCOUNT_CREATED", passwordChangeRequired: true });
     } catch (error) {
       console.error("teacher credential audit write failed", { code: error?.code || undefined, requestId: requestIdFrom(error) || undefined });
-      warning = "老师账号已创建并绑定人脸，但密码审计记录未写入；请检查数据库迁移。";
+      warning = [warning, "老师账号已创建并绑定人脸，但密码审计记录未写入；请检查数据库迁移。"]
+        .filter(Boolean).join(" ");
     }
   }
   return {
@@ -3284,7 +3195,7 @@ async function upsertTeacherFace(caller, event = {}) {
   const clientRequestId = teacherFaceProvisionRequestId(event.clientRequestId);
   if (event.consent !== true) fail("必须取得老师明确的人脸建档授权。", "TEACHER_FACE_CONSENT_REQUIRED");
   const image = teacherFaceImage(event.faceImageBase64);
-  const nextPersonId = teacherFacePersonId(clientRequestId);
+  const nextPersonId = teacherFacePersonId(clientRequestId, image.buffer);
 
   const teacherRows = await executeSql(
     `SELECT t.id, t.staff_account_id, t.teacher_code, t.teacher_name,
@@ -3313,114 +3224,48 @@ async function upsertTeacherFace(caller, event = {}) {
       }
     };
   }
-
-  const api = teacherFaceClient();
-  const groupId = requiredEnvironment("FACE_GROUP_ID");
-  await inspectTeacherFaceImage(api, image.base64);
-  await inspectTeacherFaceLiveness(api, image.base64);
-
-  let facePersonCreated = false;
-  let facePersonRecovered = false;
-  let nextProfilePhotoRef = "";
   try {
-    try {
-      await api.CreatePerson({
-        GroupId: groupId,
-        PersonId: nextPersonId,
-        PersonName: String(current.teacher_name || "老师"),
-        Image: image.base64,
-        UniquePersonControl: 0,
-        QualityControl: 3,
-        FaceModelVersion: TEACHER_FACE_MODEL_VERSION
-      });
-      facePersonCreated = true;
-    } catch (error) {
-      if (!duplicateTeacherFacePersonError(error)) throw error;
-      await confirmExistingTeacherFacePerson(api, nextPersonId);
-      facePersonRecovered = true;
-    }
+    return await delegateTeacherFace({
+      operation: "UPSERT",
+      teacherId,
+      staffId: current.staff_account_id,
+      actorStaffId: numericId(caller.profile.staffId, "总部账号"),
+      personId: nextPersonId,
+      teacherName: String(current.teacher_name || "老师"),
+      image
+    });
   } catch (error) {
-    stageFail("FACE_ENROLLMENT", "老师人脸创建失败，请重新拍照后重试。", "TEACHER_FACE_ENROLLMENT_FAILED", error);
-  }
-
-  try {
-    nextProfilePhotoRef = await uploadTeacherProfilePhoto(teacherId, nextPersonId, image.buffer);
-  } catch (error) {
-    if (facePersonCreated && !facePersonRecovered) {
-      await deleteTeacherFacePerson(api, groupId, nextPersonId);
-    }
-    stageFail("FACE_PHOTO_STORAGE", "老师登记照保存失败，原人脸保持不变。", "TEACHER_FACE_PHOTO_UPLOAD_FAILED", error);
-  }
-
-  let teacher;
-  try {
-    const rows = await executeSql(
-      `UPDATE public.teachers
-          SET face_person_id = ${sqlText(nextPersonId)},
-              face_consent_at = NOW(),
-              face_enrollment_status = 'ENROLLED',
-              face_enrolled_at = NOW(),
-              profile_photo_file_id = ${sqlText(nextProfilePhotoRef)},
-              face_enrolled_by_account_id = ${numericId(caller.profile.staffId, "总部账号")}::bigint,
-              updated_at = NOW()
-        WHERE id = ${teacherId}::bigint
-          AND staff_account_id = ${Number(current.staff_account_id)}::bigint
-        RETURNING id, teacher_code, teacher_name, teacher_status,
-                  face_enrollment_status, face_enrolled_at, profile_photo_file_id`
-    );
-    teacher = rows?.[0] || null;
-  } catch (error) {
-    // A response can be lost after PostgreSQL committed. Verify the exact new
-    // person ID before deciding whether the newly created Tencent record can
-    // be cleaned up; never delete it when persistence is ambiguous.
+    // The delegated service can commit immediately before its synchronous
+    // response is lost. Accept only the exact image-bound person id with a
+    // retained photo; otherwise the previous face remains current.
     const persistedRows = await executeSql(
       `SELECT id, teacher_code, teacher_name, teacher_status,
               face_enrollment_status, face_enrolled_at, profile_photo_file_id
          FROM public.teachers
         WHERE id = ${teacherId}::bigint
           AND face_person_id = ${sqlText(nextPersonId)}
-          AND profile_photo_file_id = ${sqlText(nextProfilePhotoRef)}
+          AND BTRIM(COALESCE(profile_photo_file_id, '')) <> ''
           AND face_enrollment_status = 'ENROLLED'
         LIMIT 1`
     ).catch(() => []);
-    teacher = persistedRows?.[0] || null;
-    if (!teacher) {
-      if (facePersonCreated && !facePersonRecovered) {
-        await deleteTeacherFacePerson(api, groupId, nextPersonId);
-      }
-      await deleteUnboundTeacherProfilePhoto(nextProfilePhotoRef);
-      stageFail("DB_FACE_ENROLLMENT", "老师人脸资料未能保存，原人脸保持不变。", "TEACHER_FACE_ENROLLMENT_FAILED", error);
+    const teacher = persistedRows?.[0] || null;
+    if (teacher) {
+      return {
+        ok: true,
+        createdNow: false,
+        replaced: Boolean(previousPersonId && previousPersonId !== nextPersonId),
+        teacher: {
+          teacherId: String(teacher.id), teacherCode: String(teacher.teacher_code || ""),
+          teacherName: String(teacher.teacher_name || ""), teacherStatus: String(teacher.teacher_status || ""),
+          accountStatus: String(current.account_status || ""), faceEnrollmentStatus: "ENROLLED",
+          faceEnrolledAt: teacher.face_enrolled_at || null, facePhotoReady: true
+        },
+        warning: "老师人脸已安全保存，本次请求在响应丢失后已自动恢复。"
+      };
     }
+    if (String(error?.code || "").startsWith("TEACHER_FACE_")) throw error;
+    stageFail("FACE_ENROLLMENT", "老师人脸资料未能保存，原人脸保持不变。", "TEACHER_FACE_ENROLLMENT_FAILED", error);
   }
-  if (!teacher || teacher.face_enrollment_status !== "ENROLLED") {
-    if (facePersonCreated && !facePersonRecovered) {
-      await deleteTeacherFacePerson(api, groupId, nextPersonId);
-    }
-    await deleteUnboundTeacherProfilePhoto(nextProfilePhotoRef);
-    fail("老师人脸资料未能完整保存。", "TEACHER_FACE_ENROLLMENT_INCOMPLETE");
-  }
-
-  let warning = "";
-  if (previousPersonId && previousPersonId !== nextPersonId) {
-    const oldDeleted = await deleteTeacherFacePerson(api, groupId, previousPersonId);
-    if (!oldDeleted) {
-      warning = "新老师人脸已生效，但旧人脸库记录暂未删除；请由总部稍后清理。";
-    }
-  }
-  return {
-    ok: true,
-    createdNow: facePersonCreated,
-    replaced: Boolean(previousPersonId && previousPersonId !== nextPersonId),
-    teacher: {
-      teacherId: String(teacher.id), teacherCode: String(teacher.teacher_code || ""),
-      teacherName: String(teacher.teacher_name || ""), teacherStatus: String(teacher.teacher_status || ""),
-      accountStatus: String(current.account_status || ""),
-      faceEnrollmentStatus: String(teacher.face_enrollment_status || ""),
-      faceEnrolledAt: teacher.face_enrolled_at || null,
-      facePhotoReady: Boolean(teacher.profile_photo_file_id)
-    },
-    warning: warning || undefined
-  };
 }
 
 async function requireTeacherExperienceQuotaSchema() {
@@ -3442,6 +3287,13 @@ async function requireTeacherExperienceQuotaSchema() {
             COALESCE(pg_get_functiondef(TO_REGPROCEDURE('public.recharge_teacher_product_experience_quota(bigint,bigint,integer,text,character varying,bigint)')), '')
               ~* 'quota_status[[:space:]]*=[[:space:]]*''active'''
               AS has_active_recharge_function,
+            COALESCE(pg_get_functiondef(TO_REGPROCEDURE('public.recharge_teacher_product_experience_quota(bigint,bigint,integer,text,character varying,bigint)')), '')
+              ~* '[a-z_]+[.]manual_recharge_count[[:space:]]*[+][[:space:]]*p_unit_count'
+              AS has_qualified_recharge_function,
+            POSITION(
+              'assert_active_teacher_experience_subjects' IN
+              COALESCE(pg_get_functiondef(TO_REGPROCEDURE('public.delete_teacher_product_experience_quota(bigint,bigint,bigint)')), '')
+            ) > 0 AS has_active_delete_function,
             TO_REGPROCEDURE('public.reset_teacher_experience_quotas(date,bigint)') IS NOT NULL AS reset_function`
   );
   const schema = rows?.[0] || {};
@@ -3451,8 +3303,10 @@ async function requireTeacherExperienceQuotaSchema() {
       || !databaseBoolean(schema.upsert_function) || !databaseBoolean(schema.delete_function)
       || !databaseBoolean(schema.recharge_function)
       || !databaseBoolean(schema.has_active_recharge_function)
+      || !databaseBoolean(schema.has_qualified_recharge_function)
+      || !databaseBoolean(schema.has_active_delete_function)
       || !databaseBoolean(schema.reset_function)) {
-    fail("老师体验额度生命周期尚未完整启用，请先执行迁移 048；若 048-04 曾报错，请补执行额度充值函数。", "DATABASE_SCHEMA_MISSING");
+    fail("老师体验额度修复尚未完整启用，请按顺序完成迁移 048—050。", "DATABASE_SCHEMA_MISSING");
   }
 }
 
@@ -4514,8 +4368,21 @@ async function main(event = {}, context = {}) {
     if (!staffName) fail("请填写员工姓名");
     if (role === "operation") fail("运营账号已下线，不能再创建。", "OPERATION_ROLE_RETIRED");
     if (!ROLES.has(role)) fail("员工角色必须是总部、门店或老师");
+    // Final creation policy: every new teacher must use the all-or-nothing
+    // provisionTeacherWithFace workflow. This guard is deliberately before
+    // schema checks, identity lookup, CloudBase user creation or any SQL write.
+    // Existing legacy no-face teachers remain activatable and can enroll later.
+    if (role === "teacher") {
+      fail("新建老师必须先拍摄并通过人脸检测。", "TEACHER_FACE_REQUIRED");
+    }
     if (role === "teacher") await requireTeacherOptionalFaceActivationSchema();
     if (role === "store" && !/^\d+$/.test(storeId)) fail("门店员工必须绑定已创建门店的数字编号");
+
+    const existingBusiness = await assertPhoneCanUseRole(phone, role);
+    if (role === "teacher" && existingBusiness?.id) {
+      // Repair/preflight the teacher master before touching CloudBase Identity.
+      await ensureTeacherDatabaseProfile(existingBusiness.id);
+    }
 
     let authUser = await findAuthUserByExactPhone(phone);
     let authCreated = false;
@@ -4529,7 +4396,10 @@ async function main(event = {}, context = {}) {
           // Creating these as external users avoids consuming the CloudBase
           // package's limited internal/organization-member quota.
           type: "externalUser",
-          userStatus: "ACTIVE",
+          // A teacher is never externally login-capable before both the staff
+          // row and teacher master row have been confirmed. Face is optional;
+          // the master-data write is not.
+          userStatus: role === "teacher" ? "BLOCKED" : "ACTIVE",
           nickName: staffName,
           phone,
           description: role === "teacher" ? "老师登录账号（人脸可后续补充）" : "业务员工登录账号"
@@ -4574,11 +4444,28 @@ async function main(event = {}, context = {}) {
 
     const uid = String(authUser?.Uid || "");
     if (!uid) fail("认证账号无有效 UID，请勿重复提交", "AUTH_CREATE_INCOMPLETE");
+    const teacherAuthHeldForBinding = role === "teacher" && !existingBusiness;
+    if (teacherAuthHeldForBinding) {
+      // This includes recovery of an old dangling identity user. It stays
+      // BLOCKED until both PostgreSQL rows are proven complete below.
+      await blockTeacherAuthentication(uid, { required: true });
+    }
 
     let profile;
     try {
       profile = await createStaffDatabaseProfile({ uid, phone, staffName, role, storeId });
     } catch (error) {
+      if (role === "teacher" && teacherAuthHeldForBinding) {
+        const partialRows = await executeSql(
+          `SELECT id FROM public.staff_accounts
+            WHERE auth_uid = ${sqlText(uid)} AND role_code = 'teacher'
+            LIMIT 1`
+        ).catch(() => []);
+        if (partialRows?.[0]?.id) await archiveTeacherProvisioning(partialRows[0].id);
+        // Repeat BLOCKED and require success so an ambiguous identity response
+        // cannot leave a half-account able to log in.
+        await blockTeacherAuthentication(uid, { required: true });
+      }
       stageFail(
         "DB_PROFILE",
         error?.code === "PHONE_ROLE_CONFLICT" || error?.code === "PHONE_ALREADY_PROVISIONED" || error?.code === "STORE_BINDING_FAILED"
@@ -4587,6 +4474,21 @@ async function main(event = {}, context = {}) {
         error?.code || "STAFF_PROFILE_SAVE_FAILED",
         error
       );
+    }
+
+    if (role === "teacher") {
+      try {
+        await manager().user.modifyUser({ uid, userStatus: "ACTIVE", nickName: staffName });
+      } catch (error) {
+        await archiveTeacherProvisioning(profile.staffId);
+        await blockTeacherAuthentication(uid, { required: true });
+        stageFail(
+          "AUTH_ACTIVATE",
+          "老师主档已保存，但登录账号激活失败；业务资料已重新封存，请使用同一手机号安全重试。",
+          "AUTH_ACTIVATION_FAILED",
+          error
+        );
+      }
     }
 
     let warning = "";
@@ -4727,7 +4629,8 @@ async function main(event = {}, context = {}) {
       const column = uid ? "auth_uid" : "phone";
       const value = uid || phone;
       rows = await executeSql(
-        `SELECT a.id, a.auth_uid, a.role_code, t.id AS teacher_id,
+        `SELECT a.id, a.auth_uid, a.phone, a.role_code, a.account_status,
+                t.id AS teacher_id, t.teacher_status,
                 t.face_enrollment_status, t.face_person_id
            FROM public.staff_accounts a
            LEFT JOIN public.teachers t ON t.staff_account_id = a.id
@@ -4742,34 +4645,37 @@ async function main(event = {}, context = {}) {
     if (staff.role_code === "operation") {
       fail("运营账号已下线，不能恢复、封存或修改。请使用 retireOperationAccounts 完成统一下线。", "OPERATION_ROLE_RETIRED");
     }
+    if (staff.role_code === "teacher") {
+      // Preflight/repair the master-data invariant before any external
+      // credential write. This prevents a legacy missing profile from turning
+      // an archive click into "CloudBase BLOCKED but PostgreSQL ACTIVE".
+      await requireTeacherOptionalFaceActivationSchema();
+      if (!staff.teacher_id) {
+        const teacher = await ensureTeacherDatabaseProfile(staff.id);
+        staff.teacher_id = teacher.id;
+        staff.teacher_status = teacher.teacher_status;
+      }
+    }
     // No face is required for activation.  This only verifies that the
     // database has the 048-02 optional-face triggers, so an old deployment
     // cannot immediately undo an otherwise successful activation.
-    if (status === "ACTIVE" && staff.role_code === "teacher") {
-      await requireTeacherOptionalFaceActivationSchema();
-    }
-    // Archive the CloudBase credential first. If that platform operation
-    // fails, leave business master data untouched instead of reporting an
-    // archive that still permits password login.
-    if (status === "ARCHIVED" && staff.auth_uid) {
-      try {
-        await manager().user.modifyUser({ uid: staff.auth_uid, userStatus: "BLOCKED" });
-      } catch (error) {
-        stageFail("AUTH_ARCHIVE", "无法封存 CloudBase 登录账号，未修改业务主档。", "AUTH_ARCHIVE_FAILED", error);
-      }
-    }
     try {
       await persistStaffStatusAndMaster(staff, status);
     } catch (error) {
       if (["TEACHER_PROFILE_MISSING", "STORE_PROFILE_MISSING", "STATUS_SYNC_FAILED"].includes(error?.code)) throw error;
       asDatabaseError(error, "同步人员与业务主档状态");
     }
+    let credentialStatus = staff.auth_uid ? "UNCHANGED" : "NOT_LINKED";
+    let warning = "";
+    let warningCode = "";
+    if (!staff.auth_uid && status === "ACTIVE") {
+      if (staff.role_code === "teacher") await archiveTeacherProvisioning(staff.id);
+      fail("该人员没有可恢复的 CloudBase 认证账号，业务状态已保持封存。", "AUTH_CREDENTIAL_MISSING");
+    }
     if (staff.auth_uid) {
       try {
-        // Keep the explicit ternary here so the final platform state always
-        // matches the persisted status. ARCHIVED was already blocked before
-        // database writes; repeating BLOCKED is idempotent.
         await manager().user.modifyUser({ uid: staff.auth_uid, userStatus: status === "ACTIVE" ? "ACTIVE" : "BLOCKED" });
+        credentialStatus = status === "ACTIVE" ? "ACTIVE" : "BLOCKED";
       } catch (error) {
         if (status === "ACTIVE") {
           // Never leave an account selectable/active in PostgreSQL when its
@@ -4785,18 +4691,53 @@ async function main(event = {}, context = {}) {
               console.error("staff activation compensation failed", compensationError?.message || compensationError);
             }
           }
+          const missingCredential = missingCloudBaseCredential(error);
+          stageFail(
+            "AUTH_ACTIVATE",
+            missingCredential
+              ? "该历史／压力账号没有真实 CloudBase 认证凭据，不能激活登录；业务资料已保持封存。"
+              : "CloudBase 登录账号激活失败，业务资料已重新封存。",
+            missingCredential ? "AUTH_CREDENTIAL_MISSING" : "AUTH_ACTIVATION_FAILED",
+            error
+          );
+        } else {
+          // PostgreSQL is the application authorization source. Once
+          // archived, even a legacy/fake credential cannot enter a business
+          // function. Report the secondary identity-layer outcome without
+          // reverting the successful archive or showing a false UI failure.
+          const missingCredential = missingCloudBaseCredential(error);
+          credentialStatus = missingCredential ? "MISSING" : "BLOCK_FAILED";
+          warningCode = missingCredential ? "AUTH_CREDENTIAL_MISSING" : "AUTH_BLOCK_FAILED";
+          warning = missingCredential
+            ? "人员及业务主档已封存；历史认证账号不存在，无需额外禁用。"
+            : "人员及业务主档已封存，业务登录已被后端拒绝；CloudBase 认证层禁用失败，请总部检查函数权限。";
         }
-        stageFail(
-          status === "ACTIVE" ? "AUTH_ACTIVATE" : "AUTH_ARCHIVE",
-          status === "ACTIVE"
-            ? "CloudBase 登录账号激活失败，业务资料已重新封存。"
-            : "CloudBase 登录账号封存失败。",
-          status === "ACTIVE" ? "AUTH_ACTIVATION_FAILED" : "AUTH_ARCHIVE_FAILED",
-          error
-        );
       }
     }
-    return { ok: true, uid: staff.auth_uid, status };
+    const finalRows = await executeSql(
+      `SELECT account.account_status, teacher.teacher_status
+         FROM public.staff_accounts AS account
+         LEFT JOIN public.teachers AS teacher ON teacher.staff_account_id = account.id
+        WHERE account.id = ${Number(staff.id)}
+        LIMIT 1`
+    );
+    const finalState = finalRows?.[0] || {};
+    if (String(finalState.account_status || "") !== status
+        || (staff.role_code === "teacher" && String(finalState.teacher_status || "") !== status)) {
+      fail("人员主档与账号最终状态不一致。", "STATUS_SYNC_FAILED");
+    }
+    return {
+      ok: true,
+      uid: staff.auth_uid,
+      staffId: String(staff.id),
+      teacherId: staff.teacher_id ? String(staff.teacher_id) : undefined,
+      status,
+      accountStatus: String(finalState.account_status || ""),
+      teacherStatus: String(finalState.teacher_status || "") || undefined,
+      credentialStatus,
+      warning: warning || undefined,
+      warningCode: warningCode || undefined
+    };
   }
   fail("不支持的操作");
 }
@@ -4811,14 +4752,17 @@ async function persistStaffStatusAndMaster(staff, status) {
   if (!Number.isSafeInteger(staffId) || staffId < 1) fail("人员账号编号无效。", "BAD_REQUEST");
 
   if (staff.role_code === "teacher") {
-    if (!staff.teacher_id) fail("老师账号缺少老师主档，请先完成迁移 046。", "TEACHER_PROFILE_MISSING");
+    if (!staff.teacher_id) {
+      const repaired = await ensureTeacherDatabaseProfile(staffId);
+      staff.teacher_id = repaired.id;
+    }
     const rows = await executeSql(
       `UPDATE public.teachers
           SET teacher_status = ${sqlText(status)}, updated_at = NOW()
         WHERE staff_account_id = ${staffId}
         RETURNING id, teacher_status`
     );
-    if (!rows?.[0]) fail("老师账号缺少老师主档，请先完成迁移 046。", "TEACHER_PROFILE_MISSING");
+    if (!rows?.[0]) fail("老师主档自动修复后仍无法保存状态。", "TEACHER_PROFILE_MISSING");
     // trg_sync_teacher_account_status makes this status update atomic with
     // the master-row update. Verify the invariant instead of issuing a later
     // independent account update that could reopen a partial state.
@@ -4826,7 +4770,7 @@ async function persistStaffStatusAndMaster(staff, status) {
       `SELECT account_status FROM public.staff_accounts WHERE id = ${staffId} LIMIT 1`
     );
     if (String(accountRows?.[0]?.account_status || "") !== status) {
-      fail("老师主档状态未能同步到登录账号，请确认迁移 046 已完整执行。", "STATUS_SYNC_FAILED");
+      fail("老师主档状态未能同步到登录账号，请确认迁移 050 已完整执行。", "STATUS_SYNC_FAILED");
     }
     return;
   }

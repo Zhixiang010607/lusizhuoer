@@ -157,4 +157,34 @@ parts049.forEach((part, index) => {
   if (windowsBytes > 3500) throw new Error(`${filename} exceeds the 3500-byte CRLF-safe console limit: ${windowsBytes}`);
 });
 
-console.log("CloudBase console migrations generated:", [...parts037, ...parts038, ...parts046, ...parts048, ...parts049].map((part) => Buffer.byteLength(part, "utf8")));
+// Migration 050 repairs legacy teacher-master gaps and replaces the two quota
+// functions that remained vulnerable to stale/ambiguous writes.  Its numbered
+// CloudBase pastes are generated from the canonical transaction body exactly;
+// there is intentionally no separately maintained compact implementation.
+const migration050 = bodyOf("050_teacher_profile_repair_and_quota_ambiguity.sql");
+const parts050 = splitAt(migration050, [
+  "DO $$\nBEGIN\n  IF TO_REGCLASS('public.staff_accounts')",
+  "-- Face state never participates in account/profile activation.",
+  "CREATE OR REPLACE FUNCTION public.sync_teacher_account_status()",
+  "-- One idempotent statement repairs both a missing row",
+  "-- Removing a live configuration is a current business action",
+  "CREATE OR REPLACE FUNCTION public.recharge_teacher_product_experience_quota(",
+  "REVOKE ALL ON FUNCTION public.sync_teacher_profile()"
+]);
+const part050Names = [
+  "050-01-prerequisites.sql",
+  "050-02-sync-teacher-profile.sql",
+  "050-03-sync-teacher-account-status.sql",
+  "050-04-backfill-teacher-profiles.sql",
+  "050-05-delete-active-quota.sql",
+  "050-06-recharge-qualified.sql",
+  "050-07-permissions-comments.sql"
+];
+parts050.forEach((part, index) => {
+  const filename = part050Names[index];
+  writeCompactPart(filename, "050", `${index + 1} / ${parts050.length}`, part);
+  const windowsBytes = Buffer.byteLength(fs.readFileSync(path.join(output, filename), "utf8").replace(/\n/g, "\r\n"), "utf8");
+  if (windowsBytes > 3500) throw new Error(`${filename} exceeds the 3500-byte CRLF-safe console limit: ${windowsBytes}`);
+});
+
+console.log("CloudBase console migrations generated:", [...parts037, ...parts038, ...parts046, ...parts048, ...parts049, ...parts050].map((part) => Buffer.byteLength(part, "utf8")));

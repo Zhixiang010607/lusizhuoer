@@ -14,14 +14,32 @@
   const truthy = (value) => [true, "true", "t", 1, "1"].includes(value);
   let staff = null;
   let hasHonoredExperienceHash = false;
-  const experience = { rows: [], totals: [], history: [], activeProducts: [], loading: false, rechargeRequestId: "", historyExpanded: false, deletingProductId: "", productCatalogError: "" };
+  const experience = { rows: [], totals: [], history: [], activeProducts: [], loading: false, savingConfig: false, savingRecharge: false, rechargeRequestId: "", historyExpanded: false, deletingProductId: "", productCatalogError: "" };
   // This is intentionally in-memory only. A teacher face is optional for
   // activation, but whenever HQ adds or replaces one it must complete the
   // same controlled quality/liveness capture used for customer enrollment.
   const teacherFaceUpdate = {
     imageData: "", requestId: "", validated: false,
-    cameraStream: null, validationSequence: 0, faceServiceApp: null
+    cameraStream: null, validationSequence: 0, faceServiceApp: null, saving: false
   };
+
+  function setButtonPending(button, pending, pendingLabel = "处理中…") {
+    if (!button) return;
+    if (pending) {
+      button.dataset.pendingIdleLabel ||= button.textContent;
+      button.dataset.pendingLabel = pendingLabel;
+      button.textContent = pendingLabel;
+      button.disabled = true;
+      button.setAttribute("aria-busy", "true");
+      return;
+    }
+    if (button.textContent === button.dataset.pendingLabel) {
+      button.textContent = button.dataset.pendingIdleLabel || button.textContent;
+    }
+    button.removeAttribute("aria-busy");
+    delete button.dataset.pendingIdleLabel;
+    delete button.dataset.pendingLabel;
+  }
 
   function formatTime(value) {
     if (!value) return "未记录";
@@ -59,8 +77,31 @@
   }
 
   function isStaffArchived() {
-    return [staff?.account_status, staff?.teacher_status, staff?.status]
-      .some((value) => String(value || "").toUpperCase() === "ARCHIVED");
+    const normalized = (value) => String(value || "").toUpperCase();
+    const authoritative = [staff?.account_status, staff?.teacher_status]
+      .map(normalized)
+      .filter((value) => ["ACTIVE", "ARCHIVED"].includes(value));
+    if (authoritative.length) return authoritative.includes("ARCHIVED");
+    return [staff?.status, staff?.profile_status].map(normalized).includes("ARCHIVED");
+  }
+
+  function setStaffStatusFeedback(message, tone = "") {
+    const target = $("staffStatusHint");
+    if (!target) return;
+    target.textContent = message;
+    target.dataset.tone = tone;
+  }
+
+  function actionableStaffStatusError(error, action, refreshed, actualArchived) {
+    const signature = `${error?.code || ""} ${error?.message || ""}`.toUpperCase();
+    if (signature.includes("AUTH_CREDENTIAL_MISSING") || signature.includes("AUTH_ACCOUNT_MISSING")) {
+      return "该记录没有可恢复的 CloudBase 登录凭据，属于压力测试或历史占位账号，只保留查询数据。激活未生效，账号已安全保持封存；如需登录，请通过“新增老师”创建正式账号。";
+    }
+    if (signature.includes("TEACHER_PROFILE_MISSING")) {
+      return `老师主档同步尚未完成，${action}未生效。本页已重新读取当前状态；请先执行最新的老师资料修复迁移，再刷新后重试。`;
+    }
+    if (!refreshed) return `${action}结果暂时无法确认，且重新读取状态失败。请刷新页面确认后再操作，避免重复提交。`;
+    return `${action}未确认生效。重新读取数据库后当前仍为“${actualArchived ? "封存" : "活跃"}”；请刷新后重试，如持续失败请检查老师主档与账号绑定。`;
   }
 
   function staffDisplayName() {
@@ -185,7 +226,7 @@
     // Face enrollment is profile maintenance, not a business operation.  HQ
     // can prepare or replace a consented face while the account is archived;
     // doing so never changes the archive/login state.
-    const canWrite = Boolean(staff && teacherId());
+    const canWrite = Boolean(staff && teacherId()) && !teacherFaceUpdate.saving;
     const consent = Boolean($("teacherFaceUpdateConsent")?.checked);
     const cameraOpen = Boolean(teacherFaceUpdate.cameraStream);
     const validatedCapture = Boolean(teacherFaceUpdate.imageData && teacherFaceUpdate.validated);
@@ -401,7 +442,7 @@
     if (!select) return;
     const configured = new Set(experience.rows.map((row) => row.productId).filter(Boolean));
     const eligible = experience.activeProducts.filter((product) => !configured.has(product.id));
-    const disabled = experience.loading || isStaffArchived() || !eligible.length;
+    const disabled = experience.loading || experience.savingConfig || isStaffArchived() || !eligible.length;
     const unavailableMessage = experience.productCatalogError
       ? "活跃产品目录暂不可用"
       : isStaffArchived()
@@ -440,7 +481,7 @@
     if (!select) return;
     const rows = activeRechargeRows();
     const previous = select.value;
-    const disabled = experience.loading || isStaffArchived() || !rows.length;
+    const disabled = experience.loading || experience.savingRecharge || isStaffArchived() || !rows.length;
     select.innerHTML = rows.length
       ? `<option value="">请选择已配置的活跃产品</option>${rows.map((row) => `<option value="${escapeHtml(row.productId)}">${escapeHtml(rowProductLabel(row))}</option>`).join("")}`
       : `<option value="">${isStaffArchived() ? "老师已封存，不能充值" : "尚无可充值的活跃产品"}</option>`;
@@ -450,7 +491,7 @@
   }
 
   function syncExperienceRechargeControls() {
-    const disabled = experience.loading || isStaffArchived() || !activeRechargeRows().length;
+    const disabled = experience.loading || experience.savingRecharge || isStaffArchived() || !activeRechargeRows().length;
     ["teacherExperienceRechargeProduct", "teacherExperienceRechargeCount", "teacherExperienceRechargeNote", "saveTeacherExperienceRecharge"]
       .map($)
       .filter(Boolean)
@@ -471,7 +512,7 @@
         ? `<span class="teacher-experience-status archived">${archived ? "产品已封存" : "老师已封存"}</span>`
         : `<div class="teacher-experience-card-actions">
             <button type="button" class="teacher-experience-recharge-button" data-experience-product-id="${escapeHtml(row.productId)}" aria-label="为${escapeHtml(row.productName)}充值体验次数">充值</button>
-            <button type="button" class="teacher-experience-delete-button" data-experience-delete-product-id="${escapeHtml(row.productId)}" aria-label="删除${escapeHtml(row.productName)}的体验额度配置"${experience.deletingProductId === row.productId ? " disabled" : ""}>${experience.deletingProductId === row.productId ? "正在删除" : "删除配置"}</button>
+            <button type="button" class="teacher-experience-delete-button" data-experience-delete-product-id="${escapeHtml(row.productId)}" aria-label="删除${escapeHtml(row.productName)}的体验额度配置"${experience.deletingProductId === row.productId ? ' disabled aria-busy="true"' : ""}>${experience.deletingProductId === row.productId ? "正在删除" : "删除配置"}</button>
           </div>`;
       return `<article class="teacher-experience-quota-card${unavailable ? " is-readonly" : ""}">
         <header>
@@ -765,6 +806,7 @@
   }
 
   function render() {
+    document.querySelector(".staff-status-panel")?.removeAttribute("hidden");
     const status = isStaffArchived() ? "封存" : "活跃";
     const isTeacher = role === "teacher";
     const staffName = stringValue(staff, ["staff_name", "teacher_name"], labels[role]);
@@ -814,6 +856,7 @@
     const baseStatusHint = status === "活跃"
       ? "封存后该人员无法登录，历史业务记录和体验额度记录都会保留。"
       : "激活后该人员可再次登录；历史业务记录保持不变。";
+    delete $("staffStatusHint").dataset.tone;
     $("staffStatusHint").textContent = staff.auth_uid
       ? baseStatusHint
       : `${baseStatusHint} 该历史老师尚未关联登录账号，因此暂不能重置密码。`;
@@ -833,17 +876,26 @@
   }
 
   async function load() {
-    if (!labels[role] || !personId) return renderError("缺少人员身份或编号。");
+    if (!labels[role] || !personId) {
+      renderError("缺少人员身份或编号。");
+      return false;
+    }
     try {
       const records = await window.CloudBasePhoneAuth.listStaff(role);
       staff = records.find((item) => [item.auth_uid, item.id, item.staff_id, item.teacher_id, item.teacher_code, item.person_code]
         .map((value) => String(value || "").trim())
         .includes(personId));
-      if (!staff) return renderError("未找到该人员，可能已被删除或无权查看。");
+      if (!staff) {
+        renderError("未找到该人员，可能已被删除或无权查看。");
+        return false;
+      }
       render();
       if (role === "teacher") await loadTeacherExperience();
+      return true;
     } catch (error) {
-      renderError(error?.message || "人员资料读取失败。");
+      console.warn("人员资料读取失败", error);
+      renderError("人员资料读取失败，请刷新页面后重试；如刚执行过状态操作，请先确认数据库当前状态，避免重复提交。");
+      return false;
     }
   }
 
@@ -859,7 +911,7 @@
     if (newPassword.length < 8 || newPassword.length > 32 || groups < 3) return window.alert("密码格式不符合要求。");
     if (!window.confirm(`确认重置“${staffDisplayName()}”的密码？旧密码不会显示或保留。`)) return;
     const button = $("staffCredentialAction");
-    button.disabled = true;
+    setButtonPending(button, true, "正在重置…");
     try {
       await window.CloudBasePhoneAuth.resetStaffPassword({ uid: staff.auth_uid, newPassword });
       staff.password_change_required = true;
@@ -868,7 +920,10 @@
       window.alert("已重置临时密码。请通过安全渠道单独告知本人。该人员下次应立即修改密码。");
     } catch (error) {
       window.alert(error?.message || "密码重置失败，请稍后重试。");
-    } finally { button.disabled = false; }
+    } finally {
+      setButtonPending(button, false);
+      button.disabled = false;
+    }
   });
 
   $("staffStatusAction").addEventListener("click", async () => {
@@ -885,7 +940,9 @@
     const text = archived ? "激活" : "封存";
     if (!window.confirm(`确认${text}${labels[role]}“${staffDisplayName()}”？`)) return;
     const button = $("staffStatusAction");
-    button.disabled = true;
+    setButtonPending(button, true, `${text}中…`);
+    setStaffStatusFeedback(`正在${text}${labels[role]}“${staffDisplayName()}”…`, "pending");
+    let requestError = null;
     try {
       // A login-bound teacher is updated through the dedicated account path,
       // which atomically mirrors the teacher master status and the CloudBase
@@ -897,17 +954,23 @@
       } else {
         throw new Error("老师状态服务未加载，请刷新页面后重试。");
       }
-      staff.account_status = next;
-      staff.teacher_status = next;
-      staff.status = next;
-      render();
-      if (role === "teacher") {
-        closeRecharge();
-        await loadTeacherExperience({ preserveMessage: true });
-      }
     } catch (error) {
-      window.alert(error?.message || `${text}失败，请稍后重试。`);
-    } finally { button.disabled = false; }
+      requestError = error;
+      console.warn(`${text}${labels[role]}请求未确认`, error);
+    }
+    const refreshed = await load();
+    const actualArchived = staff ? isStaffArchived() : archived;
+    const expectedArchived = next === "ARCHIVED";
+    if (refreshed && actualArchived === expectedArchived) {
+      closeRecharge();
+      setStaffStatusFeedback(requestError
+        ? `${text}已生效。刚才的接口响应中断，但重新读取数据库后已确认状态为“${expectedArchived ? "封存" : "活跃"}”。`
+        : `${text}成功，数据库当前状态为“${expectedArchived ? "封存" : "活跃"}”。`, "success");
+    } else {
+      setStaffStatusFeedback(actionableStaffStatusError(requestError, text, refreshed, actualArchived), "error");
+    }
+    setButtonPending(button, false);
+    button.disabled = false;
   });
 
   $("staffFaceAction")?.addEventListener("click", openTeacherFaceUpdate);
@@ -936,7 +999,9 @@
       return;
     }
     const button = $("saveTeacherFaceUpdate");
-    button.disabled = true;
+    teacherFaceUpdate.saving = true;
+    setButtonPending(button, true, hasEnrolledTeacherFace() ? "正在安全更换…" : "正在安全保存…");
+    syncTeacherFaceUpdateControls();
     setTeacherFaceUpdateMessage("正在安全保存老师人脸，请勿关闭页面…");
     try {
       const result = await window.CloudBasePhoneAuth.upsertTeacherFace({
@@ -956,6 +1021,8 @@
     } catch (error) {
       setTeacherFaceUpdateMessage(error?.message || "老师人脸保存失败，请稍后重试。", "error");
     } finally {
+      teacherFaceUpdate.saving = false;
+      setButtonPending(button, false);
       syncTeacherFaceUpdateControls();
     }
   });
@@ -978,7 +1045,9 @@
       return setExperienceMessage("teacherExperienceConfigMessage", "请选择产品，并填写 0 至 99,999 的整数体验次数。", "error");
     }
     const button = $("saveTeacherExperienceConfig");
-    button.disabled = true;
+    experience.savingConfig = true;
+    setButtonPending(button, true, "正在保存…");
+    renderExperienceProductSelect();
     setExperienceMessage("teacherExperienceConfigMessage", "正在保存体验额度配置…");
     try {
       await window.CloudBasePhoneAuth.upsertTeacherExperienceEntitlement({ teacherId: teacherId(), productId, monthlyAllowance });
@@ -987,7 +1056,11 @@
       await loadTeacherExperience({ preserveMessage: true });
     } catch (error) {
       setExperienceMessage("teacherExperienceConfigMessage", error?.message || "体验额度配置保存失败。", "error");
-    } finally { button.disabled = false; }
+    } finally {
+      experience.savingConfig = false;
+      setButtonPending(button, false);
+      renderExperienceProductSelect();
+    }
   });
 
   $("teacherExperienceRechargeForm")?.addEventListener("submit", async (event) => {
@@ -1000,7 +1073,10 @@
       return setExperienceMessage("teacherExperienceRechargeMessage", "请填写 1 至 99,999 的整数充值次数。", "error");
     }
     const button = $("saveTeacherExperienceRecharge");
-    button.disabled = true;
+    experience.savingRecharge = true;
+    setButtonPending(button, true, "正在充值…");
+    renderExperienceRechargeProductSelect();
+    syncExperienceRechargeControls();
     setExperienceMessage("teacherExperienceRechargeMessage", "正在为老师充值体验次数…");
     try {
       await window.CloudBasePhoneAuth.rechargeTeacherExperienceEntitlement({
@@ -1012,7 +1088,12 @@
       await loadTeacherExperience({ preserveMessage: true });
     } catch (error) {
       setExperienceMessage("teacherExperienceRechargeMessage", error?.message || "体验次数充值失败。", "error");
-    } finally { button.disabled = false; }
+    } finally {
+      experience.savingRecharge = false;
+      setButtonPending(button, false);
+      renderExperienceRechargeProductSelect();
+      syncExperienceRechargeControls();
+    }
   });
 
   $("cancelTeacherExperienceRecharge")?.addEventListener("click", closeRecharge);

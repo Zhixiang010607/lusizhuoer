@@ -1487,7 +1487,9 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 @media (max-width: 760px) {
   body[data-customer-profile],
   body[data-query],
-  body[data-customer-query] {
+  body[data-customer-query],
+  body[data-management="teacher"],
+  body[data-staff-detail] {
     height: auto;
     min-height: 100dvh;
     overflow-x: hidden;
@@ -1497,6 +1499,9 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 
   body[data-query],
   body[data-customer-query] { display: block; }
+
+  body[data-management="teacher"] main,
+  body[data-staff-detail] main { min-height: 0; overflow: visible; }
 
   body[data-query] main,
   body[data-customer-query] main {
@@ -2178,6 +2183,9 @@ body[data-staff-detail] .staff-profile-generic .teacher-profile-meta { grid-temp
 body[data-staff-detail] .staff-profile-workspace .staff-status-panel { min-height: 196px; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; justify-content: flex-start; gap: 16px; margin: 0; padding: 22px; border-color: #d7e2f0; border-radius: 18px; background: linear-gradient(180deg, #fff, #f7faff); box-shadow: var(--shadow); }
 body[data-staff-detail] .staff-status-panel h2 { margin: 0 0 7px; color: #162d4d; font-size: 17px; }
 body[data-staff-detail] .staff-status-panel p:not(.staff-panel-kicker) { max-width: 240px; color: #60738a; font-size: 12px; line-height: 1.55; }
+body[data-staff-detail] #staffStatusHint[data-tone="pending"] { color: #315b88; }
+body[data-staff-detail] #staffStatusHint[data-tone="success"] { padding: 8px 10px; border-radius: 8px; color: #116a55; background: #eef9f5; }
+body[data-staff-detail] #staffStatusHint[data-tone="error"] { padding: 8px 10px; border-radius: 8px; color: #8e332c; background: #fff3f1; }
 body[data-staff-detail] .staff-admin-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 2px; }
 body[data-staff-detail] .staff-admin-actions button { min-height: 39px; font-weight: 800; }
 body[data-staff-detail] .staff-admin-actions #staffStatusAction { grid-column: 1 / -1; }
@@ -2358,4 +2366,360 @@ body[data-staff-detail] .teacher-experience-empty.is-error { color: #9c3329; bac
   body[data-staff-detail] .teacher-experience-recharge-button,
   body[data-staff-detail] .teacher-experience-delete-button { flex: 1 1 0; }
   body[data-staff-detail] .teacher-experience-summary-grid { grid-template-columns: 1fr; }
+}
+
+/* Teacher-facing HQ controls use one restrained, accessible action palette.
+   Destructive actions deliberately use the same soft red family as archived
+   customer/status treatments instead of a high-saturation solid fill. */
+body[data-management="teacher"],
+body[data-hq-create="teacher"],
+body[data-staff-detail] {
+  --teacher-action: #173a66;
+  --teacher-action-hover: #102d50;
+  --teacher-brand: #225fb8;
+  --teacher-brand-hover: #194d98;
+  --teacher-secondary: #ffffff;
+  --teacher-secondary-hover: #f4f7fb;
+  --teacher-secondary-border: #cbd8e6;
+  --teacher-secondary-ink: #29445f;
+  --teacher-danger-bg: #fff6f5;
+  --teacher-danger-hover: #fdecea;
+  --teacher-danger-border: #e8c4c0;
+  --teacher-danger-ink: #96342d;
+  --teacher-success-bg: #eef9f5;
+  --teacher-success-hover: #e1f4ed;
+  --teacher-success-border: #b9ddcf;
+  --teacher-success-ink: #116a55;
+}
+
+body[data-management="teacher"] button,
+body[data-management="teacher"] .button-link,
+body[data-hq-create="teacher"] button,
+body[data-hq-create="teacher"] .button-link,
+body[data-staff-detail] button,
+body[data-staff-detail] .button-link {
+  box-shadow: none;
+  font-weight: 800;
+  transition: color .16s ease, background-color .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+body[data-management="teacher"] button:focus-visible,
+body[data-management="teacher"] .button-link:focus-visible,
+body[data-hq-create="teacher"] button:focus-visible,
+body[data-hq-create="teacher"] .button-link:focus-visible,
+body[data-staff-detail] button:focus-visible,
+body[data-staff-detail] .button-link:focus-visible,
+body[data-hq-create="teacher"] .teacher-face-optional > summary:focus-visible {
+  outline: 3px solid #93b9ee;
+  outline-offset: 2px;
+}
+
+body[data-management="teacher"] button:active:not(:disabled),
+body[data-hq-create="teacher"] button:active:not(:disabled),
+body[data-staff-detail] button:active:not(:disabled) { transform: translateY(1px); }
+
+body[data-management="teacher"] button:disabled,
+body[data-hq-create="teacher"] button:disabled,
+body[data-staff-detail] button:disabled {
+  cursor: not-allowed;
+  color: #7d8998 !important;
+  border-color: #d9e0e8 !important;
+  background: #edf1f5 !important;
+  box-shadow: none !important;
+  opacity: 1;
+  transform: none;
+}
+
+body[data-management="teacher"] button[aria-busy="true"],
+body[data-hq-create="teacher"] button[aria-busy="true"],
+body[data-staff-detail] button[aria-busy="true"] { cursor: wait; }
+
+body[data-management="teacher"] button[aria-busy="true"]::after,
+body[data-hq-create="teacher"] button[aria-busy="true"]::after,
+body[data-staff-detail] button[aria-busy="true"]::after {
+  width: 12px;
+  height: 12px;
+  display: inline-block;
+  margin-left: 7px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  content: "";
+  vertical-align: -2px;
+  animation: teacher-button-spin .7s linear infinite;
+}
+
+@keyframes teacher-button-spin { to { transform: rotate(360deg); } }
+
+body[data-management="teacher"] .teacher-directory-toolbar .toolbar-actions button,
+body[data-hq-create="teacher"] #createTeacherSubmit,
+body[data-hq-create="teacher"] #captureTeacherFace,
+body[data-staff-detail] #captureTeacherFaceUpdate,
+body[data-staff-detail] #saveTeacherFaceUpdate,
+body[data-staff-detail] #saveTeacherExperienceConfig,
+body[data-staff-detail] #saveTeacherExperienceRecharge {
+  color: #fff;
+  border: 1px solid var(--teacher-action);
+  background: var(--teacher-action);
+}
+
+body[data-management="teacher"] .teacher-directory-toolbar .toolbar-actions button:hover:not(:disabled),
+body[data-hq-create="teacher"] #createTeacherSubmit:hover:not(:disabled),
+body[data-hq-create="teacher"] #captureTeacherFace:hover:not(:disabled),
+body[data-staff-detail] #captureTeacherFaceUpdate:hover:not(:disabled),
+body[data-staff-detail] #saveTeacherFaceUpdate:hover:not(:disabled),
+body[data-staff-detail] #saveTeacherExperienceConfig:hover:not(:disabled),
+body[data-staff-detail] #saveTeacherExperienceRecharge:hover:not(:disabled) {
+  border-color: var(--teacher-action-hover);
+  background: var(--teacher-action-hover);
+}
+
+body[data-management="teacher"] #addEntity,
+body[data-hq-create="teacher"] #openTeacherFaceCamera,
+body[data-staff-detail] #openTeacherFaceUpdateCamera,
+body[data-staff-detail] #staffFaceAction {
+  color: #fff;
+  border-color: var(--teacher-brand);
+  background: var(--teacher-brand);
+}
+
+body[data-management="teacher"] #addEntity:hover:not(:disabled),
+body[data-hq-create="teacher"] #openTeacherFaceCamera:hover:not(:disabled),
+body[data-staff-detail] #openTeacherFaceUpdateCamera:hover:not(:disabled),
+body[data-staff-detail] #staffFaceAction:hover:not(:disabled) {
+  border-color: var(--teacher-brand-hover);
+  background: var(--teacher-brand-hover);
+}
+
+body[data-management="teacher"] .teacher-experience-link,
+body[data-staff-detail] .teacher-experience-recharge-button {
+  color: var(--teacher-brand);
+  border: 1px solid #b8cce5;
+  background: #f6f9fd;
+}
+
+body[data-management="teacher"] .teacher-experience-link:hover,
+body[data-staff-detail] .teacher-experience-recharge-button:hover:not(:disabled) {
+  color: var(--teacher-brand-hover);
+  border-color: #91afd3;
+  background: #edf4fc;
+}
+
+body[data-management="teacher"] .teacher-archive-button,
+body[data-staff-detail] #staffStatusAction.danger-button,
+body[data-staff-detail] .teacher-experience-delete-button {
+  color: var(--teacher-danger-ink);
+  border: 1px solid var(--teacher-danger-border);
+  background: var(--teacher-danger-bg);
+}
+
+body[data-management="teacher"] .teacher-archive-button:hover:not(:disabled),
+body[data-staff-detail] #staffStatusAction.danger-button:hover:not(:disabled),
+body[data-staff-detail] .teacher-experience-delete-button:hover:not(:disabled) {
+  color: #7e2923;
+  border-color: #d99d97;
+  background: var(--teacher-danger-hover);
+}
+
+body[data-management="teacher"] .teacher-activate-button,
+body[data-staff-detail] #staffStatusAction.secondary-button {
+  color: var(--teacher-success-ink);
+  border: 1px solid var(--teacher-success-border);
+  background: var(--teacher-success-bg);
+}
+
+body[data-management="teacher"] .teacher-activate-button:hover:not(:disabled),
+body[data-staff-detail] #staffStatusAction.secondary-button:hover:not(:disabled) {
+  color: #0e5948;
+  border-color: #91c5b3;
+  background: var(--teacher-success-hover);
+}
+
+body[data-hq-create="teacher"] .secondary-button,
+body[data-hq-create="teacher"] #retakeTeacherFace,
+body[data-staff-detail] .secondary-button,
+body[data-staff-detail] #retakeTeacherFaceUpdate,
+body[data-staff-detail] #cancelTeacherExperienceRecharge {
+  color: var(--teacher-secondary-ink);
+  border: 1px solid var(--teacher-secondary-border);
+  background: var(--teacher-secondary);
+}
+
+body[data-hq-create="teacher"] .secondary-button:hover,
+body[data-hq-create="teacher"] #retakeTeacherFace:hover:not(:disabled),
+body[data-staff-detail] .secondary-button:hover:not(:disabled),
+body[data-staff-detail] #retakeTeacherFaceUpdate:hover:not(:disabled),
+body[data-staff-detail] #cancelTeacherExperienceRecharge:hover:not(:disabled) {
+  color: #203a55;
+  border-color: #aebfd1;
+  background: var(--teacher-secondary-hover);
+}
+
+body[data-management="teacher"] .teacher-directory-table th,
+body[data-management="teacher"] .teacher-directory-table td {
+  padding-inline: clamp(8px, 1vw, 14px);
+}
+
+body[data-management="teacher"] .teacher-directory-table .teacher-name-column { width: 22%; }
+body[data-management="teacher"] .teacher-directory-table .teacher-code-column { width: 15%; }
+body[data-management="teacher"] .teacher-directory-table .teacher-phone-column { width: 18%; }
+body[data-management="teacher"] .teacher-directory-table .teacher-status-column { width: 10%; }
+body[data-management="teacher"] .teacher-directory-table .teacher-experience-column { width: 17%; }
+body[data-management="teacher"] .teacher-directory-table .teacher-action-column { width: 18%; }
+body[data-management="teacher"] .teacher-directory-table .teacher-experience-link,
+body[data-management="teacher"] .teacher-directory-table .teacher-status-action { min-height: 34px; padding: 7px 10px; white-space: nowrap; }
+body[data-management="teacher"] .teacher-directory-message { grid-column: 1 / -1; min-height: 0; margin: 0; padding: 0; color: #667b93; font-size: 12px; line-height: 1.5; }
+body[data-management="teacher"] .teacher-directory-message:empty { display: none; }
+body[data-management="teacher"] .teacher-directory-message[data-tone="pending"] { color: #315b88; }
+body[data-management="teacher"] .teacher-directory-message[data-tone="success"],
+body[data-management="teacher"] .teacher-directory-message[data-tone="error"] { padding: 9px 11px; border-radius: 9px; }
+body[data-management="teacher"] .teacher-directory-message[data-tone="success"] { color: #116a55; background: #eef9f5; }
+body[data-management="teacher"] .teacher-directory-message[data-tone="error"] { color: #8e332c; background: #fff3f1; }
+
+body[data-hq-create="teacher"] .teacher-face-enrollment-section { background: linear-gradient(145deg, #f7faff, #fff); }
+body[data-hq-create="teacher"] .teacher-face-optional > summary { border-radius: 11px; }
+body[data-hq-create="teacher"] .teacher-face-capture .camera-actions button,
+body[data-staff-detail] .teacher-face-capture .camera-actions button { min-height: 40px; }
+
+body[data-staff-detail] .staff-admin-actions .secondary-button:not(#staffStatusAction),
+body[data-staff-detail] #closeTeacherFaceUpdate,
+body[data-staff-detail] #clearTeacherFaceUpdate { color: var(--teacher-secondary-ink); }
+
+@media (max-width: 760px) {
+  body[data-management="teacher"] .teacher-directory-toolbar input,
+  body[data-management="teacher"] .teacher-directory-toolbar .toolbar-actions button,
+  body[data-hq-create="teacher"] button,
+  body[data-hq-create="teacher"] .button-link,
+  body[data-staff-detail] button,
+  body[data-staff-detail] .button-link { min-height: 44px; }
+
+  body[data-management="teacher"] .teacher-directory-window {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  body[data-management="teacher"] .teacher-directory-table {
+    min-width: 0;
+    display: block;
+    table-layout: auto;
+  }
+
+  body[data-management="teacher"] .teacher-directory-table colgroup,
+  body[data-management="teacher"] .teacher-directory-table thead { display: none; }
+  body[data-management="teacher"] .teacher-directory-table tbody { display: grid; gap: 10px; }
+  body[data-management="teacher"] .teacher-directory-table tr {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: hidden;
+    border: 1px solid #dce5ef;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 5px 15px rgba(32, 56, 84, .05);
+  }
+
+  body[data-management="teacher"] .teacher-directory-table td {
+    min-width: 0;
+    height: auto;
+    min-height: 48px;
+    display: grid;
+    grid-template-columns: minmax(76px, .42fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    padding: 8px 11px;
+    overflow: visible;
+    border-right: 1px solid #edf1f5;
+    border-bottom: 1px solid #edf1f5;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  body[data-management="teacher"] .teacher-directory-table td::before {
+    color: #748399;
+    content: attr(data-label);
+    font-size: 10px;
+    font-weight: 800;
+  }
+
+  body[data-management="teacher"] .teacher-directory-table td:nth-child(1),
+  body[data-management="teacher"] .teacher-directory-table td:nth-child(4),
+  body[data-management="teacher"] .teacher-directory-table td:nth-child(5),
+  body[data-management="teacher"] .teacher-directory-table td:nth-child(6) { grid-column: 1 / -1; }
+  body[data-management="teacher"] .teacher-directory-table td { border-right: 0; }
+  body[data-management="teacher"] .teacher-directory-table td:nth-child(2) { border-right: 1px solid #edf1f5; }
+  body[data-management="teacher"] .teacher-directory-table td:last-child { border-bottom: 0; }
+  body[data-management="teacher"] .teacher-directory-table td.teacher-directory-empty {
+    grid-column: 1 / -1;
+    min-height: 112px;
+    display: grid;
+    place-items: center;
+    padding: 18px !important;
+    border: 0;
+    text-align: center !important;
+  }
+  body[data-management="teacher"] .teacher-directory-table td.teacher-directory-empty::before { display: none; }
+  body[data-management="teacher"] .teacher-directory-table .teacher-experience-link,
+  body[data-management="teacher"] .teacher-directory-table .teacher-status-action { width: 100%; min-height: 44px; }
+
+  body[data-hq-create="teacher"] .hq-create-main,
+  body[data-staff-detail] .staff-detail-main { width: calc(100% - 16px); }
+  body[data-hq-create="teacher"] .hq-create-form { gap: 10px; padding: 10px; }
+  body[data-hq-create="teacher"] .hq-create-section { padding: 14px; }
+  body[data-hq-create="teacher"] .panel-heading { flex-direction: column; }
+  body[data-hq-create="teacher"] .panel-heading .badge { align-self: flex-start; }
+  body[data-hq-create="teacher"] .teacher-face-optional > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; padding: 12px; }
+  body[data-hq-create="teacher"] .teacher-face-optional > summary small { grid-column: 1; width: auto; margin-left: 0; }
+  body[data-hq-create="teacher"] .teacher-face-optional > summary::after { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+  body[data-hq-create="teacher"] .teacher-face-optional .teacher-face-enrollment-layout { padding: 10px; }
+  body[data-hq-create="teacher"] .teacher-face-consent { padding: 11px; }
+  body[data-hq-create="teacher"] .teacher-face-capture .camera-actions button,
+  body[data-staff-detail] .teacher-face-capture .camera-actions button { min-height: 44px; }
+  body[data-hq-create="teacher"] .hq-create-actions .button-link,
+  body[data-hq-create="teacher"] .hq-create-actions button { width: 100%; }
+
+  body[data-staff-detail] .staff-profile-workspace,
+  body[data-staff-detail] .teacher-face-update-panel,
+  body[data-staff-detail] .teacher-experience-panel { min-width: 0; }
+  body[data-staff-detail] .teacher-profile-meta dd { white-space: normal; overflow-wrap: anywhere; }
+  body[data-staff-detail] .staff-admin-actions button,
+  body[data-staff-detail] .teacher-face-update-actions button,
+  body[data-staff-detail] .teacher-experience-form button { width: 100%; min-height: 44px; }
+  body[data-staff-detail] .teacher-experience-form input,
+  body[data-staff-detail] .teacher-experience-form select,
+  body[data-staff-detail] .teacher-experience-form textarea { min-width: 0; font-size: 16px; }
+  body[data-staff-detail] .teacher-experience-history-main span,
+  body[data-staff-detail] .teacher-experience-history-main small { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
+}
+
+@media (max-width: 480px) {
+  body[data-management="teacher"] .teacher-directory-panel { padding: 11px; }
+  body[data-management="teacher"] .teacher-directory-table tr { grid-template-columns: minmax(0, 1fr); }
+  body[data-management="teacher"] .teacher-directory-table td,
+  body[data-management="teacher"] .teacher-directory-table td:nth-child(1),
+  body[data-management="teacher"] .teacher-directory-table td:nth-child(4),
+  body[data-management="teacher"] .teacher-directory-table td:nth-child(5),
+  body[data-management="teacher"] .teacher-directory-table td:nth-child(6) { grid-column: 1; border-right: 0; }
+  body[data-management="teacher"] .teacher-directory-table td:not(:last-child) { border-bottom: 1px solid #edf1f5; }
+  body[data-management="teacher"] .teacher-directory-table td:last-child { border-bottom: 0; }
+
+  body[data-hq-create="teacher"] .teacher-face-capture .customer-camera-stage,
+  body[data-staff-detail] .teacher-face-capture .customer-camera-stage { width: min(100%, 300px); aspect-ratio: 3 / 4; min-height: 0; }
+  body[data-staff-detail] .teacher-profile-hero { grid-template-columns: 50px minmax(0, 1fr); gap: 10px; padding: 15px; }
+  body[data-staff-detail] .teacher-profile-avatar { width: 50px; height: 50px; border-radius: 15px; font-size: 19px; }
+  body[data-staff-detail] .teacher-profile-meta { grid-template-columns: minmax(0, 1fr); }
+  body[data-staff-detail] .teacher-experience-overview { grid-template-columns: minmax(0, 1fr); }
+  body[data-staff-detail] .teacher-experience-workspace { padding: 10px; }
+  body[data-staff-detail] .teacher-experience-list-card,
+  body[data-staff-detail] .teacher-experience-config,
+  body[data-staff-detail] .teacher-experience-recharge,
+  body[data-staff-detail] .teacher-experience-history-card { padding: 13px; }
+  body[data-staff-detail] .teacher-experience-history-card { margin: 0 10px 10px; }
+  body[data-staff-detail] .teacher-experience-card-actions { display: grid; grid-template-columns: minmax(0, 1fr); }
+  body[data-staff-detail] .teacher-experience-recharge-button,
+  body[data-staff-detail] .teacher-experience-delete-button { width: 100%; min-height: 44px; }
 }

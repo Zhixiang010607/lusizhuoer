@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>老师创建</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.47">
+  <link rel="stylesheet" href="styles.css?v=0.15.50">
 </head>
 <body data-hq-create="teacher" data-person-create="teacher" data-teacher-face-create>
   <aside class="side-project-bar" aria-label="项目栏"><div class="side-brand"><span>HQ</span><div><strong>总部工作台</strong><small>项目栏</small></div></div><p class="side-section-title">数据看板</p><nav class="side-nav"><a href="index.html"><span class="nav-icon">全</span><span>全局视图</span></a></nav><div class="side-footer">静态原型</div></aside>
@@ -15,7 +15,7 @@
         <div class="panel-heading">
           <div>
             <h2>人员资料</h2>
-            <p>创建后老师账号即可激活和登录。人脸可现在绑定，也可在老师主页中后续补录或更换；一个手机号只能绑定一个业务身份。</p>
+            <p>新建老师必须由本人授权并完成人脸采集；创建成功后账号即可激活和登录，之后可在老师主页安全更换人脸。一个手机号只能绑定一个业务身份。</p>
           </div>
           <span id="generatedPersonCode" class="badge">创建后自动生成编号</span>
         </div>
@@ -29,16 +29,14 @@
       <section class="hq-create-section teacher-face-enrollment-section">
         <div class="panel-heading">
           <div>
-            <h2>老师人脸（可选）</h2>
-            <p>仅在老师本人知情并明确授权后采集。现在不拍照不会阻止账号创建或激活，之后可在老师主页补录或安全更换。</p>
+            <h2>老师人脸（必填）</h2>
+            <p>仅在老师本人知情并明确授权后采集。必须完成拍照并通过照片质量与活体检测，才能创建老师账号。</p>
           </div>
-          <span id="teacherFaceEnrollmentState" class="badge">可后续补录</span>
+          <span id="teacherFaceEnrollmentState" class="badge">创建前必填</span>
         </div>
-        <details class="teacher-face-optional">
-          <summary><span>现在绑定人脸（可选）</span><small>账号创建与激活不受影响</small></summary>
-          <div class="teacher-face-enrollment-layout">
+        <div class="teacher-face-enrollment-layout">
           <div class="teacher-face-consent">
-            <label class="consent-row"><input id="teacherFaceConsent" type="checkbox"> 我已取得老师明确授权：采集和绑定其人脸信息，仅用于老师登录身份、权限核验和业务安全。</label>
+            <label class="consent-row"><input id="teacherFaceConsent" type="checkbox" required> 我已取得老师明确授权：采集和绑定其人脸信息，仅用于老师登录身份、权限核验和业务安全。</label>
             <div id="teacherFaceChecks" class="capture-check-results" aria-live="polite">
               <div><span>照片质量</span><strong id="teacherFaceQualityResult">未采集</strong></div>
               <div><span>活体检测</span><strong id="teacherFaceLivenessResult">未采集</strong></div>
@@ -48,24 +46,23 @@
             <div class="customer-camera-stage">
               <video id="teacherFaceCamera" autoplay muted playsinline hidden></video>
               <img id="teacherFacePreview" alt="老师人脸绑定照片预览" hidden>
-              <div id="teacherFacePlaceholder" class="camera-placeholder"><strong>可选：打开摄像头</strong><span>如现在采集，请让老师正对镜头，避免逆光、遮挡或多人入镜。</span></div>
+              <div id="teacherFacePlaceholder" class="camera-placeholder"><strong>必填：打开摄像头</strong><span>请让老师正对镜头，避免逆光、遮挡或多人入镜。</span></div>
               <canvas id="teacherFaceCanvas" hidden></canvas>
             </div>
-            <div class="teacher-face-capture-copy"><h3>老师人脸身份</h3><p>可先创建账号，之后再补录。若现在采集，照片会先通过质量和活体检查后再绑定。</p></div>
-            <div id="teacherFaceCaptureStatus" class="capture-status pending">可选 · 尚未拍摄</div>
+            <div class="teacher-face-capture-copy"><h3>老师人脸身份</h3><p>创建前必须拍照并通过质量与活体检测；创建成功后仍可在老师主页安全更换。</p></div>
+            <div id="teacherFaceCaptureStatus" class="capture-status pending">必填 · 尚未拍摄</div>
             <div class="camera-actions"><button id="openTeacherFaceCamera" type="button">打开摄像头</button><button id="captureTeacherFace" type="button" disabled>拍照并检测</button><button id="retakeTeacherFace" type="button" hidden>重新拍照</button></div>
           </section>
-          </div>
-        </details>
+        </div>
       </section>
 
       <div class="hq-create-actions">
         <span id="personCreateMessage" aria-live="polite"></span>
         <a class="button-link secondary-button" href="teacher-management.html">返回老师管理</a>
-        <button id="createTeacherSubmit" type="submit" disabled aria-disabled="true">创建并激活老师账号</button>
+        <button id="createTeacherSubmit" type="submit" disabled aria-disabled="true">创建老师账号并绑定人脸</button>
       </div>
     </form>
   </main>
-  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.18.1"></script><script src="teacher-create.js?v=0.2.2"></script><script src="auth-ui.js?v=0.19.0"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.18.1"></script><script src="teacher-create.js?v=0.2.4"></script><script src="auth-ui.js?v=0.19.0"></script>
 </body>
 </html>

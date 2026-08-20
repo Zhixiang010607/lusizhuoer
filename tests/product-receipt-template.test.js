@@ -55,7 +55,7 @@ for (const action of [
   "getProductReceiptTemplate", "beginProductLogoUpload", "uploadProductLogoByFunction", "confirmProductLogoUpload", "discardProductLogoUpload",
   "saveProductReceiptTemplate", "removeProductReceiptLogo", "getProductReceiptLogoData"
 ]) assert.ok(cloud.includes(`action === "${action}"`), `cloud action ${action}`);
-assert.ok(cloud.includes('const FUNCTION_VERSION = "v56"'), "staffAccount retains the resilient logo-read contract in v56");
+assert.ok(cloud.includes('const FUNCTION_VERSION = "v57"'), "staffAccount retains the resilient logo-read contract in v57");
 assert.ok(cloud.includes("envId: process.env.CLOUDBASE_ENV_ID || process.env.TCB_ENV"), "manager and storage calls select the same environment");
 assert.ok(cloud.includes("signUploadObject"), "original logo uses direct signed upload");
 assert.ok(cloud.includes("canonicalProductLogoUploadUrl"), "signed upload uses a canonical HTTPS gateway target");
