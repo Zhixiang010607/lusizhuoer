@@ -14,7 +14,7 @@ const createSource = source.slice(
   source.indexOf("function health", source.indexOf("async function createTeacher"))
 );
 
-assert.match(source, /const FUNCTION_VERSION = "teacher-create-v1"/);
+assert.match(source, /const FUNCTION_VERSION = "teacher-create-v2"/);
 assert.match(source, /if \(action === "createTeacher"\) return await createTeacher\(event\)/);
 assert.doesNotMatch(source, /\.callFunction\s*\(|\boperationId\b|\bworker\b|\bpoll(?:ing)?\b|setInterval\s*\(|setTimeout\s*\(|\bTimer\b|\b051\b/i,
   "the dedicated create service must not nest functions or retain the old operation/worker/timer protocol");
@@ -499,13 +499,15 @@ const eventFor = (phone, clientRequestId) => ({
     const phone = suffix === "face" ? "13900000013" : "13900000018";
     const result = await subject.main(eventFor(phone, `simple_uncertain_${suffix}_01`));
     assert.equal(result.ok, false);
-    assert.equal(subject.calls.deletePerson, 1,
-      "exact Person/Group/FaceId readback turns a lost receipt into a precisely cleanable candidate");
-    assert.equal(subject.calls.deletePhoto, 1,
-      "exact JPEG byte/hash readback turns a lost upload receipt into a precisely cleanable candidate");
+    assert.equal(subject.calls.deletePerson, suffix === "photo" ? 1 : 0,
+      "cleanup may delete the Person only when this request received its successful create receipt");
+    assert.equal(subject.calls.deletePhoto, suffix === "face" ? 1 : 0,
+      "cleanup may delete the photo only when this request received its successful upload receipt");
     assert.equal(subject.state.business.size, 0);
-    assert.equal(subject.state.persons.size, 0);
-    assert.equal(subject.state.objects.size, 0);
+    assert.equal(subject.state.persons.size, suffix === "face" ? 1 : 0,
+      "a response-lost Person is retained because exact readback proves existence, not exclusive ownership");
+    assert.equal(subject.state.objects.size, suffix === "photo" ? 1 : 0,
+      "a response-lost photo is retained because exact readback proves existence, not exclusive ownership");
     assert.equal(subject.state.auth.size, 0,
       `the independently known-created Auth identity is still cleaned precisely: ${JSON.stringify({ result, calls: subject.calls })}`);
   }

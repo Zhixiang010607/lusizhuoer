@@ -56,7 +56,6 @@ function harnessFor(options = {}) {
     module: { exports: {} },
     console: { error() {}, warn() {} },
     handleTrustedTeacherExperienceResetTimer: async () => null,
-    handleTrustedTeacherFaceReconcileTimer: async () => null,
     currentUser: async () => ({ uid: "hq-auth", profile: { role: "hq", staffId: "900" } }),
     requireHq(caller) {
       if (caller?.profile?.role !== "hq") failed("FORBIDDEN", "FORBIDDEN");
@@ -298,7 +297,7 @@ async function readLegacyTeacherProfile({ repairFails = false } = {}) {
   // The generic staff endpoint is a hard server-side boundary as well as a
   // UI rule.  A crafted request for role=teacher is rejected before phone
   // lookup, CloudBase identity creation, or any SQL write; the only allowed
-  // new-teacher route is provisionTeacherWithFace.
+  // new-teacher route is the independent teacherCreate service.
   {
     const { state, main } = harnessFor();
     await assert.rejects(
@@ -306,7 +305,7 @@ async function readLegacyTeacherProfile({ repairFails = false } = {}) {
         action: "provisionStaff", staffName: "必须人脸", phone: "13900000051",
         role: "teacher", initialPassword: "Abc!12345"
       }),
-      (error) => error.code === "TEACHER_FACE_REQUIRED"
+      (error) => error.code === "TEACHER_CREATE_SERVICE_REQUIRED"
     );
     assert.equal(state.genericProvisionPreflights, 0);
     assert.equal(state.genericProvisionCreates, 0);

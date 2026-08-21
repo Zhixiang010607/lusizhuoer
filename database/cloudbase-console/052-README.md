@@ -1,5 +1,7 @@
 # Migration 052 部署顺序
 
+> **已退役：** 该文件只保留历史追溯。当前版本不再执行 052；已执行的库请执行 053。
+
 052 在 051 的老师人脸操作租约中增加 CloudBase Auth `createUser` 成功回执。
 `auth_uid` 仍是创建前预绑定的确定性 UID；新增的 `auth_create_returned_uid`
 记录平台实际返回的 UID，`auth_create_confirmed_at` 记录该回执被当前

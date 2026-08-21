@@ -491,16 +491,17 @@
       return promiseWithWatchdog(request, "老师账号与人脸创建失败", TEACHER_CREATE_WATCHDOG_MS);
     },
     async upsertTeacherFace({ teacherId, faceImageBase64, clientRequestId, consent = false }) {
-      return callStaffAccount(
+      const request = callTeacherCreate(
         {
           action: "upsertTeacherFace",
           teacherId,
-          faceImageBase64,
+          imageBase64: faceImageBase64,
           clientRequestId,
           consent: consent === true
         },
         "老师人脸保存失败"
       );
+      return promiseWithWatchdog(request, "老师人脸保存失败", TEACHER_CREATE_WATCHDOG_MS);
     },
     async createStoreWithAccount({ storeName, province, city, district, addressDetail, contactName, contactPhone, initialPassword, existingStoreId = "" }) {
       return callStaffAccount(

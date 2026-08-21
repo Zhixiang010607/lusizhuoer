@@ -2592,6 +2592,7 @@ body[data-staff-detail] #clearTeacherFaceUpdate { color: var(--teacher-secondary
   body[data-hq-create="teacher"] .button-link,
   body[data-staff-detail] button,
   body[data-staff-detail] .button-link { min-height: 44px; }
+  body[data-staff-detail] #closeTeacherFaceUpdate { min-width: 44px; }
 
   body[data-management="teacher"] .teacher-directory-window {
     height: auto;

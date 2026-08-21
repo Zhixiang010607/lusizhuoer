@@ -13,6 +13,7 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 const migration = read("database/migrations/049_teacher_experience_face_subject_and_quota_fixes.sql");
 const staff = read("cloudfunctions/staffAccount/index.js");
 const face = read("cloudfunctions/faceRecognition/index.js");
+const teacherCreate = read("cloudfunctions/teacherCreate/index.js");
 const balanceMigration = read("database/migrations/044_refund_application_workflow.sql");
 const operationRetirement = read("database/migrations/047_retire_operation_accounts.sql");
 const consoleDir = path.join(root, "database", "cloudbase-console");
@@ -191,14 +192,13 @@ assert.match(staffStatusAction, /if \(staff\.role_code === "teacher"\)[\s\S]{0,3
   "activating a teacher must retain the no-face activation policy");
 assert.doesNotMatch(staffStatusAction, /TEACHER_FACE_REQUIRED/i,
   "staff activation must not accidentally reuse the EXPERIENCE-only face gate");
-const teacherFaceUpsert = functionSource(staff, "upsertTeacherFace");
-const delegatedTeacherFaceUpsert = functionSource(face, "upsertDelegatedTeacherFace");
-assert.match(teacherFaceUpsert, /delegationInput\s*=\s*\{[\s\S]{0,260}operation:\s*"UPSERT"[\s\S]{0,520}personId:\s*nextPersonId/,
-  "later teacher face enrollment/replacement must bind its signed subject");
-assert.match(teacherFaceUpsert, /await bindTeacherFaceOperation\(faceOperation,[\s\S]{0,1200}delegateTeacherFaceWithReadbackRetry\(delegationInput\)/,
-  "later teacher face enrollment/replacement must use the signed face service");
-assert.match(delegatedTeacherFaceUpsert, /uploadTeacherProfilePhoto\([\s\S]{0,1400}profile_photo_file_id = \$\{sqlText\(storedPhoto\.reference\)\}/,
-  "the delegated replacement must persist a retained private profile photo");
+const teacherFaceUpsert = functionSource(teacherCreate, "upsertTeacherFace");
+assert.match(teacherFaceUpsert, /const actor = await requireHq\(\)[\s\S]{0,320}readTeacherById\(event\.teacherId\)/,
+  "later teacher face enrollment/replacement must bind an HQ actor to the selected teacher");
+assert.match(teacherFaceUpsert, /createAndProveRemote\([\s\S]{0,260}switchTeacherFace\([\s\S]{0,700}confirmPhoto\([\s\S]{0,220}readTeacherById\(/,
+  "direct replacement must create and prove the remote face/photo, switch, and authoritatively read it back");
+assert.doesNotMatch(`${staff}\n${face}`, /upsertDelegatedTeacherFace|delegateTeacherFace|teacher_face_operations/,
+  "staffAccount and faceRecognition must not retain the retired cross-function Saga");
 assert.match(teacherSubjectLock, /teacher\.face_enrollment_status = 'ENROLLED'[\s\S]{0,220}teacher\.face_person_id/i,
   "EXPERIENCE requires an enrolled selected teacher face without changing account activation");
 assert.match(teacherSubjectLock, /TEACHER_FACE_REQUIRED_FOR_EXPERIENCE/,

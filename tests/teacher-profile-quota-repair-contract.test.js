@@ -17,6 +17,7 @@ const migrationName = "050_teacher_profile_repair_and_quota_ambiguity.sql";
 const migration = read(path.join("database", "migrations", migrationName));
 const staff = read("cloudfunctions/staffAccount/index.js");
 const faceService = read("cloudfunctions/faceRecognition/index.js");
+const teacherCreateService = read("cloudfunctions/teacherCreate/index.js");
 const createUi = read("teacher-create.js");
 const detailUi = read("staff-detail.js");
 const managementUi = read("teacher-management.js");
@@ -136,18 +137,21 @@ assert.match(deleteQuota, /SET quota_status = 'ARCHIVED'/,
 assert.match(deleteQuota, /event_type[\s\S]{0,360}'REMOVED'/,
   "deleted configuration must retain its immutable removal event");
 
-// The standard teacher home exposes account and quota actions, but never a
-// second face-capture workflow. Creation-time enrollment is read-only here.
+// The standard teacher home exposes account/quota actions and the independent
+// direct face maintenance flow. Saving a face must not change account status.
 for (const id of [
   "staffCredentialAction", "staffStatusAction",
-  "saveTeacherExperienceConfig", "saveTeacherExperienceRecharge"
+  "saveTeacherExperienceConfig", "saveTeacherExperienceRecharge",
+  "staffFaceAction", "teacherFaceUpdatePanel", "teacherFaceUpdateCamera"
 ]) {
   assert.ok(read("staff-detail.html").includes(`id=\"${id}\"`), `teacher detail must expose ${id}`);
 }
-assert.doesNotMatch(read("staff-detail.html"), /staffFaceAction|teacherFaceUpdatePanel|teacherFaceUpdateCamera/,
-  "teacher detail must not expose face add, retake or replacement controls");
-assert.doesNotMatch(detailUi, /teacherFaceUpdate|staffFaceAction|getUserMedia|upsertTeacherFace/,
-  "teacher detail scripts must not keep a hidden face maintenance route");
+assert.match(detailUi, /navigator\.mediaDevices\?\.getUserMedia/,
+  "teacher detail must capture a real photograph for add/replacement");
+assert.match(detailUi, /CloudBasePhoneAuth\.upsertTeacherFace\(\{[\s\S]{0,300}teacherId:[\s\S]{0,160}faceImageBase64:/,
+  "teacher detail must submit face maintenance to the dedicated direct service");
+assert.match(detailUi, /保存人脸不会改变老师账号状态|保存人脸不会恢复登录或改变封存状态/,
+  "teacher face maintenance must remain independent from activation");
 assert.match(detailUi, /已登记 · 用于体验核销/,
   "teacher detail must retain a read-only enrollment status for experience verification");
 const quotaGuard = jsBetween(detailUi, "function canManageTeacherExperience", "function teacherId");
@@ -179,15 +183,15 @@ const genericProvision = staff.slice(
   staff.indexOf('if (action === "createStoreWithAccount")', staff.indexOf('if (action === "provisionStaff")'))
 );
 assert.ok(genericProvision.length > 0, "generic staff provision dispatcher must remain separately auditable");
-const teacherCreationReject = genericProvision.indexOf('if (role === "teacher") {\n      fail("新建老师必须先拍摄并通过人脸检测。", "TEACHER_FACE_REQUIRED")');
-assert.ok(teacherCreationReject >= 0, "generic teacher provisioning must fail closed with a stable mandatory-face code");
+const teacherCreationReject = genericProvision.indexOf('if (role === "teacher") {\n      fail("新建老师必须使用独立 teacherCreate 服务。", "TEACHER_CREATE_SERVICE_REQUIRED")');
+assert.ok(teacherCreationReject >= 0, "generic teacher provisioning must fail closed and redirect callers to teacherCreate");
 for (const laterWrite of [
   "assertPhoneCanUseRole(phone, role)", "findAuthUserByExactPhone(phone)",
   "manager().user.createUser", "createStaffDatabaseProfile"
 ]) {
   const index = genericProvision.indexOf(laterWrite);
   assert.ok(index > teacherCreationReject,
-    `TEACHER_FACE_REQUIRED must be raised before ${laterWrite} can touch identity or PostgreSQL`);
+    `TEACHER_CREATE_SERVICE_REQUIRED must be raised before ${laterWrite} can touch identity or PostgreSQL`);
 }
 assert.match(read("teacher-create.html"), /老师人脸（必填）/,
   "new-teacher page must label face enrollment as mandatory");
@@ -208,102 +212,26 @@ for (const legacy of ["beginTeacherProvisionWithFace", "getTeacherFaceOperationS
     `active teacher create clients must not retain ${legacy}`);
 }
 
-// Creation/replacement never claims success until profile-photo persistence is
-// confirmed.  The two Cloud Functions have deliberately separated duties:
-// staffAccount owns the login/master activation and signs an internal command;
-// faceRecognition owns Tencent IAI, private-photo storage and the atomic
-// face-pointer switch.  Keep both halves under test so a future refactor does
-// not accidentally turn this back into a browser-callable or half-completed
-// workflow.
-const delegatedFace = jsBetween(staff, "async function delegateTeacherFace", "function productTemplateStorageSettings");
-assert.match(delegatedFace, /crypto\.createHmac\("sha256", teacherFaceDelegationSigningKey\(\)\)[\s\S]{0,260}teacherFaceDelegationCanonical\(fields\)/,
-  "staffAccount must sign the complete teacher-face delegation command rather than trusting browser ids");
-assert.match(delegatedFace, /imageDigest[\s\S]{0,900}imageBytes/,
-  "the signed command must bind its exact JPEG digest and byte length");
-assert.match(delegatedFace, /operationId[\s\S]{0,160}ownerToken[\s\S]{0,160}leaseGeneration/,
-  "the signed command must bind its durable operation lease");
-assert.match(delegatedFace, /name: "faceRecognition"[\s\S]{0,520}upsertDelegatedTeacherFace[\s\S]{0,220}readbackDelegatedTeacherFace[\s\S]{0,220}rollbackDelegatedTeacherFace[\s\S]{0,220}finalizeDelegatedTeacherFace/,
-  "teacher enrollment must use the private cross-function face endpoint");
-assert.match(delegatedFace, /!result\.teacher\?\.facePhotoReady \|\| result\.teacher\?\.faceEnrollmentStatus !== "ENROLLED"/,
-  "staffAccount must reject a delegated response that did not retain the teacher photo");
-
-const faceProvision = jsBetween(staff, "async function provisionTeacherWithFace", "// Face enrollment is deliberately independent");
-const faceActivationReadback = jsBetween(staff, "async function activatePersistedTeacherFaceProfile", "async function provisionTeacherWithFace");
-assert.match(faceProvision, /userStatus: "BLOCKED"/,
-  "face provisioning must create the credential unavailable until enrollment is complete");
-assert.match(faceProvision, /initialAccountStatus: "ARCHIVED"/,
-  "face provisioning must create the teacher master unavailable until enrollment is complete");
-assert.match(faceProvision, /delegationInput = \{[\s\S]{0,260}operation: "PROVISION"[\s\S]{0,520}personId: facePersonId[\s\S]{0,320}image[\s\S]{0,220}delegateTeacherFaceWithReadbackRetry\(delegationInput\)/,
-  "face provisioning must delegate the exact new face, teacher, actor and image rather than trusting client data");
-assert.match(faceProvision, /activatePersistedTeacherFaceProfile\(\{[\s\S]{0,220}personId: facePersonId/,
-  "face provisioning must use the durable activation/readback boundary");
-assert.match(faceActivationReadback, /face_person_id = \$\{sqlText\(personId\)\}[\s\S]{0,300}face_enrollment_status = 'ENROLLED'[\s\S]{0,220}profile_photo_file_id/,
-  "face provisioning may activate only after the delegated service persisted the exact face identity and private photo");
-assert.match(faceActivationReadback, /await executeSql\([\s\S]{0,900}const rows = await executeSql\(/,
-  "teacher activation must read the durable row after a writable statement instead of trusting RETURNING rows");
-assert.match(faceProvision, /authoritativeTeacherProvisioningState\(\{[\s\S]{0,320}photoReference: remoteProof\.photoReference/,
-  "a teacher must pass final database and authentication readback before creation succeeds");
-assert.match(faceProvision, /if \(!existing\)[\s\S]{0,1400}compensateFailedTeacherProvision\(\{/,
-  "a failed new teacher must enter the all-or-none compensation saga");
-assert.match(faceProvision, /readbackConfirmed: true[\s\S]{0,160}verification: finalVerification/,
-  "the success response must explicitly expose the completed authoritative readback");
-assert.match(faceProvision, /facePhotoReady = Boolean\([\s\S]{0,320}face_person_id[\s\S]{0,220}profile_photo_file_id/,
-  "the new-teacher success response must derive photo readiness from exact database pointers");
-assert.match(faceProvision, /manager\(\)\.user\.modifyUser\(\{ uid, userStatus: "ACTIVE"/,
-  "face provisioning may only activate the login after the enrolled profile is persisted");
-
-const faceReplace = jsBetween(staff, "async function upsertTeacherFace", "async function requireTeacherExperienceQuotaSchema");
-assert.match(faceReplace, /delegationInput = \{[\s\S]{0,220}operation: "UPSERT"[\s\S]{0,480}personId: nextPersonId/,
-  "face replacement must bind a deterministic next PersonId into the signed service command");
-assert.match(faceReplace, /await bindTeacherFaceOperation\(faceOperation,[\s\S]{0,1200}await delegateTeacherFaceWithReadbackRetry\(delegationInput\)/,
-  "face replacement must bind its durable operation before invoking the signed service transaction");
-assert.doesNotMatch(faceReplace, /persistedRows|响应丢失后已自动恢复|face_person_id = \$\{sqlText\(nextPersonId\)\}/,
-  "a lost replacement response must never be declared successful from a local DB-only probe");
-assert.match(faceReplace, /老师人脸资料未能保存，原人脸保持不变/,
-  "an unproven replacement must retain the previous teacher face");
-assert.doesNotMatch(faceReplace, /api\.CreatePerson|uploadTeacherProfilePhoto|deleteTeacherFacePerson/,
-  "staffAccount must not split the delegated face transaction across two services");
-
-const verifyDelegation = jsBetween(faceService, "function verifyTeacherFaceDelegation", "function cleanVerificationJpeg");
-assert.match(verifyDelegation, /issuedAt < now - TEACHER_FACE_DELEGATION_MAX_AGE_MS/,
-  "the face endpoint must reject expired v3 saga commands");
-assert.match(verifyDelegation, /\["PROVISION", "UPSERT", "READBACK", "ROLLBACK", "FINALIZE"\]\.includes\(operation\)/,
-  "the face endpoint must accept only the five signed v3 saga operations");
-assert.match(verifyDelegation, /imageDigest[\s\S]{0,180}imageBytes[\s\S]{0,1800}crypto\.createHmac\("sha256", teacherFaceDelegationSigningKey\(\)\)[\s\S]{0,250}crypto\.timingSafeEqual/,
-  "the face endpoint must recompute a payload-bound HMAC in constant time before writing a face");
-assert.match(verifyDelegation, /mutating[\s\S]{0,220}老师人脸写入委托必须携带 JPEG 原图/,
-  "PROVISION/UPSERT must require the original JPEG while readback/cleanup may reconcile from signed digest and length");
-assert.match(verifyDelegation, /if \(suppliedImage\) \{[\s\S]{0,180}cleanVerificationJpeg\(suppliedImage, "老师人脸照片", MAX_IMAGE_BYTES\)/,
-  "any supplied teacher image must be decoded and revalidated as JPEG bytes");
-assert.match(verifyDelegation, /faceGroupId !== required\("FACE_GROUP_ID"\)/,
-  "mutating delegations must be bound to the configured face group before creating remote state");
-assert.match(verifyDelegation, /photoBucketId !== photoStorageSettings\(\)\.bucketId/,
-  "mutating delegations must be bound to the configured private photo bucket before uploading state");
-
-const delegatedUpsert = jsBetween(faceService, "async function upsertDelegatedTeacherFace", "async function readbackDelegatedTeacherFace");
-assert.match(delegatedUpsert, /current\.actor_role !== "hq" \|\| current\.actor_status !== "ACTIVE"/,
-  "the delegated endpoint must pin the signer actor to an active HQ account in PostgreSQL");
-assert.match(delegatedUpsert, /teacher\.id = \$\{command\.teacherId\}[\s\S]{0,180}teacher\.staff_account_id = \$\{command\.staffId\}/,
-  "the delegated endpoint must bind the signed teacher and staff ids to the current database row");
-const createIndex = delegatedUpsert.indexOf("api.CreatePerson(");
-const bindFaceIndex = delegatedUpsert.indexOf("bindTeacherFaceOperationFaceId(", createIndex);
-const uploadIndex = delegatedUpsert.indexOf("uploadTeacherProfilePhoto(");
-const persistIndex = delegatedUpsert.indexOf("UPDATE public.teachers AS teacher", uploadIndex);
-assert.ok(createIndex >= 0 && bindFaceIndex > createIndex
-  && uploadIndex > bindFaceIndex && persistIndex > uploadIndex,
-  "the face service must create, bind FaceId, upload and atomically switch the new identity in order");
-assert.doesNotMatch(delegatedUpsert, /deleteTeacherFacePerson(?:Exact)?\(api, groupId, previousPersonId/,
-  "UPSERT must retain the old Person until a later signed FINALIZE after caller confirmation");
-assert.match(delegatedUpsert, /face_person_id IS NOT DISTINCT FROM[\s\S]{0,260}profile_photo_file_id IS NOT DISTINCT FROM/,
-  "the face pointer switch must be optimistic, so a concurrent replacement cannot overwrite another face");
-const pointerFenceIndex = delegatedUpsert.indexOf("AND ${runningLeaseSql}", persistIndex);
-const finalPhotoReadIndex = delegatedUpsert.indexOf("confirmTeacherProfilePhoto(", persistIndex);
-const finalLeaseReadIndex = delegatedUpsert.indexOf("await assertRunningLease();", finalPhotoReadIndex);
-assert.ok(pointerFenceIndex > persistIndex && finalPhotoReadIndex > pointerFenceIndex
-  && finalLeaseReadIndex > finalPhotoReadIndex,
-"the pointer UPDATE and final authenticated photo read must remain fenced by the durable RUNNING owner");
-assert.match(delegatedUpsert, /deleteTeacherProfilePhotoExact\([\s\S]{0,160}storedPhoto, assertCleanupLease, command\.operationId[\s\S]{0,1000}deleteTeacherFacePersonExact\([\s\S]{0,180}api, groupId, command\.personId, assertCleanupLease, command\.operationId/,
-  "a failed transaction may clean only its own lease-authorized candidate resources");
+// Creation and replacement are now owned wholly by teacherCreate. There is no
+// compatibility call into staffAccount/faceRecognition and no durable Saga.
+const createTeacher = jsBetween(teacherCreateService, "async function createTeacher", "function health");
+const replaceTeacherFace = jsBetween(teacherCreateService, "async function upsertTeacherFace", "async function createTeacher");
+assert.match(createTeacher, /const actor = await requireHq\(\)[\s\S]{0,300}event\.consent !== true/,
+  "direct teacher creation must be HQ-only and require explicit consent");
+assert.match(createTeacher, /await inspectFace\(api, image\.base64\)[\s\S]{0,120}await inspectLiveness\(api, image\.base64\)/,
+  "the one direct creation call must perform the server-side quality and liveness checks");
+assert.match(createTeacher, /confirmPerson\([\s\S]{0,260}confirmPhoto\([\s\S]{0,700}finalReadback\(/,
+  "creation must read back remote Person, retained original and the database row before success");
+assert.match(createTeacher, /manager\(\)\.user\.modifyUser\(\{ uid: authentication\.uid, userStatus: "ACTIVE"/,
+  "the login may activate only inside the final direct creation boundary");
+assert.match(replaceTeacherFace, /const actor = await requireHq\(\)[\s\S]{0,240}event\.consent !== true/,
+  "face replacement must be HQ-only and require fresh consent");
+assert.match(replaceTeacherFace, /await switchTeacherFace\([\s\S]{0,800}confirmPerson\([\s\S]{0,240}confirmPhoto\([\s\S]{0,220}readTeacherById\(/,
+  "replacement must switch and then re-read the same Person, original photo and database pointers");
+assert.match(replaceTeacherFace, /if \(switched\)[\s\S]{0,320}restoreTeacherFace\([\s\S]{0,1600}TEACHER_FACE_UPDATE_CLEANUP_INCOMPLETE/,
+  "an unproven replacement must restore the prior pointers or return an explicit cleanup failure");
+assert.doesNotMatch(`${staff}\n${faceService || ""}`, /teacher_face_operations|upsertDelegatedTeacherFace|delegateTeacherFace/,
+  "retired staff/face services must not retain the Saga implementation");
 
 // A mobile directory must not hide these same actions behind a fixed-height
 // pane; responsive specifics live in the UI-agent contract, while this check

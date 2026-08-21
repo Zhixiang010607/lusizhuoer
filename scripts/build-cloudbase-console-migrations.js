@@ -226,6 +226,19 @@ parts051.forEach((part, index) => {
   }
 });
 
+// Migration 053 is the final retirement boundary for the former teacher-face
+// Saga. Keep 051/052 files available as immutable historical migrations, but
+// current deployments must finish with this single transaction, which removes
+// only the obsolete operation table and its six private helper functions.
+const migration053 = bodyOf("053_retire_legacy_teacher_face_saga.sql");
+writeCompactPart(
+  "053-01-retire-legacy-teacher-face-saga.sql",
+  "053",
+  "1 / 1",
+  migration053
+);
+
 console.log("CloudBase console migrations generated:", [
-  ...parts037, ...parts038, ...parts046, ...parts048, ...parts049, ...parts050, ...parts051
+  ...parts037, ...parts038, ...parts046, ...parts048, ...parts049, ...parts050, ...parts051,
+  migration053
 ].map((part) => Buffer.byteLength(part, "utf8")));

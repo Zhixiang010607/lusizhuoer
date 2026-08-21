@@ -2,10 +2,10 @@
 -- Safe for an empty database and additive for the current database.
 -- All SQL text is ASCII-only.
 -- This base schema is followed by the ordered migration chain; execute through
--- 049_teacher_experience_face_subject_and_quota_fixes.sql before deploying
--- current functions. Migrations 046--049 add teacher quota controls, retire the
--- legacy operation role, make teacher face optional for login, and use teacher
--- face evidence for new EXPERIENCE verifications.
+-- 053_retire_legacy_teacher_face_saga.sql before deploying current functions.
+-- Migrations 046--050 install and repair teacher quota/face business data;
+-- 051--052 are immutable historical orchestration migrations, and 053 removes
+-- that retired operation state without deleting teachers or business history.
 
 BEGIN;
 
