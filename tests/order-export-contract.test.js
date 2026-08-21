@@ -75,7 +75,7 @@ assert.ok(twoPagePdf.includes("xref\n0 9"), "multi-page PDF xref count");
 for (const html of [rechargeHtml, verificationHtml]) {
   includes(html, 'id="exportOrderPdf"', "PDF export button");
   includes(html, 'id="exportOrderImage"', "image export button");
-  assert.ok(html.indexOf("order-export.js?v=0.1.6") < html.indexOf("business-detail.js?v=0.16.19"), "exporter must load before detail controller");
+  assert.ok(html.indexOf("order-export.js?v=0.1.6") < html.indexOf("business-detail.js?v=0.16.21"), "exporter must load before detail controller");
 }
 
 includes(verificationHtml, 'class="verification-order-keyfacts verification-order-five-keyfacts"', "verification detail uses a five-fact header");
@@ -94,9 +94,16 @@ includes(detailSource, 'action: "getVerificationPhotoExportData"', "CORS-safe au
 includes(detailSource, 'cache: "no-store"', "private signed original is not persisted in the browser HTTP cache");
 includes(detailSource, 'mode: "cors"', "private photo CORS fetch");
 includes(detailSource, "Math.min(2, queue.length)", "bounded original-photo concurrency");
+includes(detailSource, "fetchVerificationPhotoForExport(recordId, photo", "each export photo owns an isolated retry and fallback path");
+includes(detailSource, "fetchVerificationPhotoThumbnailFallback(recordId, slot)", "export falls back to the authenticated thumbnail when the original address is unavailable");
+includes(detailSource, "核销照片成功读取 ${succeeded} / ${queue.length}", "export progress counts successful photo reads rather than merely completed attempts");
+includes(detailSource, "已自动使用安全缩略图完成导出", "successful thumbnail fallback remains visible to the operator");
 includes(detailSource, "核销照片清单暂时无法确认，本次没有生成文件", "photo-list failure blocks incomplete export");
 includes(detailSource, "if (failures.length)", "known-photo fetch failure blocks incomplete export");
 includes(detailSource, "loadedCount !== requiredCount", "known-photo download completeness assertion");
+includes(detailSource, 'loading="eager" fetchpriority="high"', "all five short-lived thumbnails start loading before their signed addresses expire");
+includes(detailSource, 'button.dataset.photoPreviewState === "failed"', "a failed photo card retries only that photo when clicked");
+includes(detailSource, 'delete button.dataset.photoRecovery', "a failed retry never leaves the photo permanently locked");
 includes(exporterSource, "if (item.required && !image)", "known-photo decode completeness assertion");
 includes(exporterSource, "catch (_) { image = null; }", "imageBitmap decode fallback");
 assert.ok(!detailSource.includes("已用占位信息完成导出"), "known photo failures may not be reported as a successful placeholder export");

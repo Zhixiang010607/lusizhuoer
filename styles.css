@@ -1110,6 +1110,9 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .verification-photo-upload:hover { background: #e1efff; }
 .verification-photo-upload:disabled { color: #94a3b8; background: #eef2f6; cursor: not-allowed; }
 .verification-photo-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.verification-photo-download { grid-column: 1 / -1; color: #0f4c3a; border-color: #9acdbb; background: #ecf9f4; }
+.verification-photo-download:hover { background: #dff4eb; }
+.verification-photo-download:disabled { color: #64748b; border-color: #cbd5e1; background: #eef2f6; }
 .verification-photo-camera { color: #fff; border-color: #174f86; background: #174f86; }
 .verification-photo-camera:hover { background: #0f3f70; }
 .verification-photo-camera:disabled { color: #94a3b8; border-color: #d5dde7; background: #eef2f6; }

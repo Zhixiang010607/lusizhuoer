@@ -242,7 +242,8 @@ includes(detailUi, 'action: "beginVerificationPhotoUpload"', "detail direct-uplo
 includes(detailUi, 'action: "commitVerificationPhotoUpload"', "detail direct-upload commit request");
 includes(detailUi, 'action: "cancelVerificationPhotoUpload"', "detail direct-upload cancel request");
 assert.ok(!detailUi.includes('action: "uploadVerificationExtraPhoto"'), "detail page no longer transports Base64 photos through the cloud function");
-includes(detailUi, 'localPreview ? "eager" : "lazy"', "remote thumbnails remain lazy while an optimistic local preview is eager");
+includes(detailUi, 'loading="eager" fetchpriority="high"', "all five remote thumbnails load immediately before their short-lived addresses expire");
+includes(detailUi, 'button.dataset.photoPreviewState === "failed"', "a failed thumbnail can be clicked to retry only that photo");
 const photoListSource = functionSource(cloud, "getVerificationPhotos");
 includes(photoListSource, "mapWithConcurrency(rows, 2", "thumbnail signing has bounded concurrency");
 includes(photoListSource, "signVerificationPhoto(row.thumbnail_object_ref", "the gallery signs thumbnails only");
@@ -285,7 +286,7 @@ assert.ok(
     < functionSource(cloud, "getVerificationPhotos").indexOf("signVerificationPhoto("),
   "thumbnail URLs must be signed only after the verification-order permission check"
 );
-includes(detailUi, 'const VERSION = "0.16.19"', "detail UI cache version");
+includes(detailUi, 'const VERSION = "0.16.21"', "detail UI cache version");
 includes(functionSource(detailUi, "callVerificationPhoto"), 'callFunction({ name: "verificationPhoto", data })', "all photo operations use the dedicated photo cloud function");
 includes(functionSource(detailUi, "callVerificationPhotoLifecycle"), "callVerificationPhoto(data)", "bounded photo lifecycle calls use the dedicated photo helper");
 includes(functionSource(detailUi, "loadTeacherOrder"), 'name: "faceRecognition"', "teacher workspace remains on the business and face cloud function");
@@ -398,19 +399,20 @@ includes(detailHtml, 'id="verificationPhotoCameraVideo" autoplay playsinline mut
 includes(detailHtml, 'id="switchVerificationPhotoCamera"', "front/rear camera switch action");
 includes(detailHtml, 'aria-label="切换前后摄像头"', "camera switch accessible name");
 includes(detailHtml, 'order-export.js?v=0.1.6', "export renderer cache bust");
-includes(detailHtml, 'business-detail.js?v=0.16.19', "detail script cache bust");
-includes(detailHtml, 'styles.css?v=0.15.48', "detail styles cache bust");
+includes(detailHtml, 'business-detail.js?v=0.16.21', "detail script cache bust");
+includes(detailHtml, 'styles.css?v=0.15.49', "detail styles cache bust");
 includes(styles, ".verification-order-keyfacts.verification-order-five-keyfacts", "desktop verification header keeps five flexible facts in one row");
 includes(styles, ".verification-order-store-message", "single full-width store message layout");
 includes(detailUi, "const verificationPhotoLocalPreviews = new Map()", "local photo previews are owned per slot");
-includes(functionSource(detailUi, "verificationPhotoCard"), 'loading="${localPreview ? "eager" : "lazy"}"', "just-committed local preview loads eagerly");
-includes(functionSource(detailUi, "verificationPhotoCard"), 'fetchpriority="high"', "just-committed local preview receives high fetch priority");
+includes(functionSource(detailUi, "verificationPhotoCard"), 'loading="eager"', "all private thumbnails start before their short-lived signed URLs expire");
+includes(functionSource(detailUi, "verificationPhotoCard"), 'fetchpriority="high"', "all five evidence thumbnails receive high fetch priority");
 includes(functionSource(detailUi, "refreshVerificationPhotosSilently"), "mergeVerificationPhotoLocalPreviews(payload, recordId)", "empty or unsigned refresh keeps the committed local preview visible");
 includes(functionSource(detailUi, "refreshVerificationPhotosSilently"), "promoteUsableVerificationPhotoPreviews(payload, recordId, request)", "remote photo replaces local preview only after probing");
 includes(functionSource(detailUi, "promoteUsableVerificationPhotoPreviews"), "probe.onload", "remote thumbnail must load before local Blob release");
 includes(functionSource(detailUi, "promoteUsableVerificationPhotoPreviews"), "revokeVerificationPhotoLocalPreview(slot)", "remote promotion releases only its own slot");
 includes(functionSource(detailUi, "renderVerificationPhotos"), 'image.addEventListener("error", recover, { once: true })', "gallery thumbnail failures trigger automatic authorized recovery");
-includes(functionSource(detailUi, "recoverVerificationPhotoThumbnail"), "request === verificationPhotoRequest && target.isConnected", "late thumbnail recovery cannot overwrite a newer render");
+includes(functionSource(detailUi, "recoverVerificationPhotoThumbnail"), "request === verificationPhotoRequest && button.isConnected", "late thumbnail recovery cannot overwrite a newer render");
+includes(functionSource(detailUi, "recoverVerificationPhotoThumbnail"), "delete button.dataset.photoRecovery", "a failed automatic read never permanently locks individual retry");
 includes(functionSource(detailUi, "recoverVerificationPhotoThumbnail"), "fetchVerificationPhotoManifest(recordId)", "thumbnail recovery refreshes its signed manifest first");
 includes(functionSource(detailUi, "fetchVerificationPhotoThumbnailFallback"), 'action: "getVerificationPhotoThumbnailData"', "deferred thumbnail bytes use the dedicated authorized action");
 includes(functionSource(detailUi, "recoverVerificationPhotoThumbnail"), "fetchVerificationPhotoBlob(recordId, photo", "thumbnail recovery falls back to the authorized original/base64 pipeline");
@@ -418,6 +420,13 @@ includes(functionSource(detailUi, "renderVerificationPhotos"), "photo && !clean(
 includes(styles, "object-fit: contain", "gallery shows the complete photo without visual cropping");
 includes(styles, "grid-template-columns: repeat(5, minmax(0, 1fr))", "all five desktop evidence photos stay in one visible row");
 includes(styles, ".verification-photo-actions", "separate camera and upload action layout");
+includes(functionSource(detailUi, "verificationPhotoCard"), 'data-download-verification-photo', "every stored evidence photo has an individual original download action");
+includes(functionSource(detailUi, "fetchVerificationPhotoOriginalForDownload"), "fetchVerificationPhotoExportFallback", "individual downloads use the authenticated original-byte channel");
+assert.ok(!functionSource(detailUi, "fetchVerificationPhotoOriginalForDownload").includes("fetchVerificationPhotoThumbnailFallback"), "individual original downloads never substitute a thumbnail");
+includes(functionSource(detailUi, "assertVerificationPhotoOriginalBlob"), "blob.size !== expectedBytes", "download verifies exact stored byte length");
+includes(functionSource(detailUi, "assertVerificationPhotoOriginalBlob"), "signature[0] !== 0xff", "download verifies the stored JPEG signature");
+includes(functionSource(detailUi, "downloadVerificationPhotoOriginal"), "window.OrderExporter.downloadBlob(blob", "download saves the authorized blob directly without canvas conversion");
+includes(styles, ".verification-photo-download", "original download action has a distinct responsive style");
 includes(styles, ".verification-photo-camera-stage", "camera preview stage styles");
 includes(styles, ".verification-photo-camera-stage video.is-user-facing", "front camera mirrored preview");
 includes(styles, "grid-template-columns: minmax(0, 1fr) auto auto", "three camera dialog actions");
@@ -529,6 +538,10 @@ vm.runInContext(`
     if (photo.originalUrl !== "blob:just-committed-original") throw new Error("local original Blob URL was not merged into export manifest");
     return globalThis.__blob;
   };
+  const fetchVerificationPhotoForExport = async (recordId, photo) => ({
+    blob: await fetchVerificationPhotoBlob(recordId, photo),
+    usedThumbnail: false
+  });
   const exportPhotoFailureMeta = (error) => String(error?.message || error);
   ${functionSource(detailUi, "verificationPhotoManifestSignature")}
   ${functionSource(detailUi, "mergeVerificationPhotoLocalPreviews")}

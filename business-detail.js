@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.19";
+  const VERSION = "0.16.21";
   const PRODUCT_LOGO_DETAIL_RETRY_DELAYS_MS = Object.freeze([0, 360, 1080]);
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
@@ -669,6 +669,126 @@
     });
   }
 
+  async function assertVerificationPhotoOriginalBlob(blob, photo) {
+    const slot = Number(photo?.slot);
+    const expectedBytes = Number(photo?.originalBytes || 0);
+    if (!(blob instanceof Blob) || !blob.size) throw new Error(`${photoSlotLabel(slot)}高清原图为空`);
+    const signature = new Uint8Array(await blob.slice(0, 3).arrayBuffer());
+    if (signature.length < 3 || signature[0] !== 0xff || signature[1] !== 0xd8 || signature[2] !== 0xff) {
+      throw new Error(`${photoSlotLabel(slot)}高清原图不是有效 JPEG`);
+    }
+    if (expectedBytes > 0 && blob.size !== expectedBytes) {
+      const error = new Error(`${photoSlotLabel(slot)}高清原图字节数不一致`);
+      error.code = "PHOTO_ORIGINAL_BYTES_MISMATCH";
+      throw error;
+    }
+    return blob;
+  }
+
+  async function fetchVerificationPhotoOriginalForDownload(recordId, photo) {
+    const cacheKey = verificationExportCacheKey(recordId, photo);
+    try {
+      return await assertVerificationPhotoOriginalBlob(await fetchVerificationPhotoBlob(recordId, photo), photo);
+    } catch (firstError) {
+      verificationExportBlobCache.delete(cacheKey);
+      verificationPhotoBlobFlights.delete(cacheKey);
+      try {
+        // Direct local downloads must never fall back to a thumbnail. This
+        // authenticated response returns the exact stored original JPEG bytes.
+        return await assertVerificationPhotoOriginalBlob(
+          await fetchVerificationPhotoExportFallback(recordId, Number(photo?.slot)),
+          photo
+        );
+      } catch (fallbackError) {
+        const error = new Error(`${photoSlotLabel(Number(photo?.slot))}高清原图下载失败；未使用缩略图代替。${clean(fallbackError?.message || firstError?.message)}`);
+        error.code = fallbackError?.code || firstError?.code || "PHOTO_ORIGINAL_DOWNLOAD_FAILED";
+        throw error;
+      }
+    }
+  }
+
+  function verificationPhotoOriginalFilename(recordId, slot) {
+    const recordCode = first(currentRecord?.recordCode, currentRecord?.code, recordId, "核销单");
+    const raw = `${recordCode}-${photoSlotLabel(slot)}-高清原图`;
+    const safe = typeof window.OrderExporter?.safeFilename === "function"
+      ? window.OrderExporter.safeFilename(raw)
+      : raw.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").slice(0, 120);
+    return `${safe || "核销照片高清原图"}.jpg`;
+  }
+
+  async function downloadVerificationPhotoOriginal(recordId, photo, button) {
+    if (!photo || button?.dataset.photoDownload === "running") return;
+    const slot = Number(photo.slot);
+    const previousLabel = button?.textContent || "下载高清原图";
+    if (button) {
+      button.dataset.photoDownload = "running";
+      button.disabled = true;
+      button.textContent = "原图读取中…";
+    }
+    const message = $("verificationPhotoMessage");
+    if (message) {
+      message.className = "verification-photo-message";
+      message.textContent = `正在读取${photoSlotLabel(slot)}高清原图；不会转码或压缩…`;
+    }
+    try {
+      const blob = await fetchVerificationPhotoOriginalForDownload(recordId, photo);
+      if (typeof window.OrderExporter?.downloadBlob !== "function") throw new Error("本地下载组件未加载，请刷新页面重试");
+      window.OrderExporter.downloadBlob(blob, verificationPhotoOriginalFilename(recordId, slot));
+      if (message) message.textContent = `${photoSlotLabel(slot)}高清原图已下载（${photoSizeLabel(blob.size)}，原始字节，无压缩）。`;
+    } catch (error) {
+      if (message) {
+        message.className = "verification-photo-message error";
+        message.textContent = error?.message || `${photoSlotLabel(slot)}高清原图下载失败，请重试。`;
+      }
+    } finally {
+      if (button) {
+        delete button.dataset.photoDownload;
+        button.disabled = false;
+        button.textContent = previousLabel;
+      }
+    }
+  }
+
+  async function fetchVerificationPhotoForExport(recordId, photo, onStatus = () => {}) {
+    const slot = Number(photo?.slot);
+    const firstCacheKey = verificationExportCacheKey(recordId, photo);
+    let originalError = null;
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        const blob = await fetchVerificationPhotoBlob(recordId, photo);
+        return { blob, usedThumbnail: false };
+      } catch (error) {
+        originalError = error;
+        if (attempt >= 2 || !verificationPhotoReadCanRetry(error)) break;
+        onStatus(`${photoSlotLabel(slot)}原图读取不稳定，正在单独重试…`);
+        verificationExportBlobCache.delete(firstCacheKey);
+        verificationPhotoBlobFlights.delete(firstCacheKey);
+        try {
+          const manifest = await fetchVerificationPhotoManifest(recordId);
+          const refreshed = manifest.photos.find((candidate) => Number(candidate?.slot) === slot);
+          if (refreshed) {
+            Object.assign(photo, refreshed);
+            photo.originalUrlExpiresAt = verificationPhotoUrlNeverExpires(photo.originalUrl)
+              ? Number.MAX_SAFE_INTEGER
+              : Date.now() + Math.max(0, Number(photo?.originalUrlExpiresIn ?? manifest?.expiresIn ?? 0) * 1000);
+          }
+        } catch (_) { /* 下一次读取仍会走服务端安全通道 */ }
+        verificationExportBlobCache.delete(verificationExportCacheKey(recordId, photo));
+        verificationPhotoBlobFlights.delete(verificationExportCacheKey(recordId, photo));
+        await waitForVerificationPhotoRetry(240);
+      }
+    }
+    onStatus(`${photoSlotLabel(slot)}高清原图暂不可用，正在读取安全缩略图备份…`);
+    try {
+      const blob = await fetchVerificationPhotoThumbnailFallback(recordId, slot);
+      return { blob, usedThumbnail: true };
+    } catch (thumbnailError) {
+      const error = new Error(`${photoSlotLabel(slot)}原图和预览图都无法读取。${clean(originalError?.message || thumbnailError?.message)}`);
+      error.code = originalError?.code || thumbnailError?.code || "PHOTO_EXPORT_UNAVAILABLE";
+      throw error;
+    }
+  }
+
   function exportPhotoFailureMeta(error) {
     const code = clean(error?.code).toUpperCase();
     const message = clean(error?.message);
@@ -729,8 +849,9 @@
     }));
     const queue = Array.from(available.values()).filter((photo) => Number.isInteger(Number(photo.slot)) && Number(photo.slot) >= 0 && Number(photo.slot) <= 4);
     let cursor = 0;
-    let completed = 0;
+    let succeeded = 0;
     const failures = [];
+    const thumbnailFallbacks = [];
     const workers = Array.from({ length: Math.min(2, queue.length) }, async () => {
       while (cursor < queue.length) {
         const index = cursor;
@@ -738,20 +859,22 @@
         const photo = queue[index];
         const slot = Number(photo.slot);
         try {
-          const blob = await fetchVerificationPhotoBlob(recordId, photo);
+          const fetched = await fetchVerificationPhotoForExport(recordId, photo, (message) => setExportControls(false, message));
+          const blob = fetched.blob;
           output[slot] = {
             slot,
             label: photoSlotLabel(slot),
             required: true,
-            meta: [photoSizeLabel(blob.size), formatTime(photo.uploadedAt) || "已保存"].filter(Boolean).join(" · "),
+            meta: [fetched.usedThumbnail ? "安全缩略图备份" : "高清原图", photoSizeLabel(blob.size), formatTime(photo.uploadedAt) || "已保存"].filter(Boolean).join(" · "),
             placeholder: "照片读取失败",
             blob
           };
+          if (fetched.usedThumbnail) thumbnailFallbacks.push(slot);
+          succeeded += 1;
         } catch (error) {
           failures.push({ slot, message: exportPhotoFailureMeta(error) });
         } finally {
-          completed += 1;
-          setExportControls(false, `正在读取核销高清照片 ${completed} / ${queue.length}…`);
+          setExportControls(false, `核销照片成功读取 ${succeeded} / ${queue.length}…`);
         }
       }
     });
@@ -777,7 +900,10 @@
         throw new Error("核销照片在导出期间发生了变化，本次没有生成文件。请重新导出以包含最新照片。");
       }
     }
-    return { photos: output, warning: "" };
+    const warning = thumbnailFallbacks.length
+      ? `${thumbnailFallbacks.sort((left, right) => left - right).map(photoSlotLabel).join("、")}的高清原图地址暂不可用，已自动使用安全缩略图完成导出`
+      : "";
+    return { photos: output, warning };
   }
 
   async function exportCurrentOrder(format) {
@@ -1286,29 +1412,41 @@
     });
   }
 
+  function verificationPhotoPreviewButton(target) {
+    if (target?.matches?.("[data-view-verification-photo]")) return target;
+    return target?.closest?.("[data-view-verification-photo]") || null;
+  }
+
   function renderVerificationPhotoThumbnailFailure(target, slot) {
-    if (!target?.isConnected) return;
+    const button = verificationPhotoPreviewButton(target) || target;
+    if (!button?.isConnected) return;
     const fallback = document.createElement("span");
-    fallback.textContent = "预览读取失败\n点击重新读取原图";
+    fallback.textContent = "预览读取失败\n点击重新读取这一张";
     fallback.style.whiteSpace = "pre-line";
     fallback.setAttribute("role", "status");
     fallback.setAttribute("aria-label", `${photoSlotLabel(slot)}预览读取失败`);
-    if (target.matches?.("img")) target.replaceWith(fallback);
-    else target.replaceChildren(fallback);
+    button.dataset.photoPreviewState = "failed";
+    button.setAttribute("aria-label", `${photoSlotLabel(slot)}预览读取失败，点击重新读取这一张`);
+    button.replaceChildren(fallback);
   }
 
   function displayRecoveredVerificationPhotoThumbnail(target, url, slot) {
-    let image = target.matches?.("img") ? target : target.querySelector?.("img");
+    const button = verificationPhotoPreviewButton(target) || target;
+    let image = button.matches?.("img") ? button : button.querySelector?.("img");
     if (!image) {
       image = document.createElement("img");
-      target.replaceChildren(image);
+      button.replaceChildren(image);
     }
+    button.dataset.photoPreviewState = "ready";
+    button.setAttribute("aria-label", `查看${photoSlotLabel(slot)}原图`);
     image.dataset.photoRecovery = "recovered";
     image.dataset.verificationThumbnailSlot = String(slot);
     image.alt = `${photoSlotLabel(slot)}缩略图`;
     image.loading = "eager";
     image.decoding = "async";
     image.referrerPolicy = "no-referrer";
+    image.fetchPriority = "high";
+    image.addEventListener("error", () => renderVerificationPhotoThumbnailFailure(button, slot), { once: true });
     image.src = url;
     return image;
   }
@@ -1319,12 +1457,18 @@
   }
 
   async function recoverVerificationPhotoThumbnail(recordId, slot, target, listedPhoto, request) {
-    if (!target?.isConnected || target.dataset.photoRecovery === "running") return;
-    target.dataset.photoRecovery = "running";
-    const existingImage = target.matches?.("img") ? target : target.querySelector?.("img");
+    const button = verificationPhotoPreviewButton(target) || target;
+    if (!button?.isConnected || button.dataset.photoRecovery === "running") return;
+    button.dataset.photoRecovery = "running";
+    button.dataset.photoPreviewState = "loading";
+    const existingImage = button.matches?.("img") ? button : button.querySelector?.("img");
     const failedUrl = clean(existingImage?.getAttribute("src"));
+    const loading = document.createElement("span");
+    loading.textContent = "正在重新读取这一张…";
+    loading.setAttribute("role", "status");
+    button.replaceChildren(loading);
     let photo = listedPhoto;
-    const isCurrent = () => request === verificationPhotoRequest && target.isConnected;
+    const isCurrent = () => request === verificationPhotoRequest && button.isConnected;
     try {
       try {
         const payload = await fetchVerificationPhotoManifest(recordId);
@@ -1346,7 +1490,7 @@
           if (refreshedThumbnail && refreshedThumbnail !== failedUrl) {
             await probeVerificationPhotoImage(refreshedThumbnail);
             if (!isCurrent()) return;
-            displayRecoveredVerificationPhotoThumbnail(target, refreshedThumbnail, slot);
+            displayRecoveredVerificationPhotoThumbnail(button, refreshedThumbnail, slot);
             return;
           }
         }
@@ -1368,29 +1512,35 @@
       const fallbackKey = `${clean(recordId)}:${Number(slot)}`;
       revokeVerificationPhotoThumbnailFallback(fallbackKey);
       verificationPhotoThumbnailFallbacks.set(fallbackKey, fallbackUrl);
-      displayRecoveredVerificationPhotoThumbnail(target, fallbackUrl, slot);
+      displayRecoveredVerificationPhotoThumbnail(button, fallbackUrl, slot);
     } catch (_) {
-      if (isCurrent()) renderVerificationPhotoThumbnailFailure(target, slot);
+      if (isCurrent()) renderVerificationPhotoThumbnailFailure(button, slot);
+    } finally {
+      if (button?.dataset) delete button.dataset.photoRecovery;
     }
   }
 
   function verificationPhotoCard(photo, slot, payload) {
     const label = photoSlotLabel(slot);
     const canUpload = slot >= 2 && payload.canEdit === true;
-    const localPreview = photo?.localPreview === true || clean(photo?.thumbnailUrl).startsWith("blob:");
     const previewFailure = clean(photo?.thumbnailError).toUpperCase() === "PHOTO_NOT_FOUND"
       ? "存储文件未找到"
       : "预览地址暂不可用";
     const preview = photo
-      ? `<button class="verification-photo-preview has-photo" type="button" data-view-verification-photo="${slot}" aria-label="查看${escapeHtml(label)}原图">${photo.thumbnailUrl ? `<img src="${escapeHtml(photo.thumbnailUrl)}" data-verification-thumbnail-slot="${slot}" alt="${escapeHtml(label)}缩略图" loading="${localPreview ? "eager" : "lazy"}" ${localPreview ? 'fetchpriority="high"' : ""} decoding="async" referrerpolicy="no-referrer">` : `<span>${escapeHtml(previewFailure)}<br>点击重新读取原图</span>`}</button>`
+      ? `<button class="verification-photo-preview has-photo" type="button" data-view-verification-photo="${slot}" data-photo-preview-state="${photo.thumbnailUrl ? "loading" : "failed"}" aria-label="查看${escapeHtml(label)}原图">${photo.thumbnailUrl ? `<img src="${escapeHtml(photo.thumbnailUrl)}" data-verification-thumbnail-slot="${slot}" alt="${escapeHtml(label)}缩略图" loading="eager" fetchpriority="high" decoding="async" referrerpolicy="no-referrer">` : `<span>${escapeHtml(previewFailure)}<br>点击重新读取这一张</span>`}</button>`
       : `<div class="verification-photo-preview"><span>${slot < 2 ? `未保存${escapeHtml(photoSlotLabel(slot))}` : "尚未上传"}</span></div>`;
     const size = photoSizeLabel(photo?.originalBytes);
     const meta = photo ? [size, formatTime(photo.uploadedAt) || "已绑定"].filter(Boolean).join(" · ") : "空照片位";
     const libraryLabel = usesMobilePhotoLibrary() ? (photo ? "从相册替换" : "从相册上传") : (photo ? "上传替换" : "上传文件");
-    const actions = slot < 2 ? "" : `<div class="verification-photo-actions">
+    const download = photo
+      ? `<button class="verification-photo-upload verification-photo-download" type="button" data-download-verification-photo="${slot}">下载高清原图</button>`
+      : "";
+    const editActions = slot < 2 ? "" : `
       <button class="verification-photo-upload verification-photo-camera" type="button" data-capture-verification-photo="${slot}" ${canUpload ? "" : "disabled"}>${photo ? "重新拍照" : "拍照"}</button>
-      <button class="verification-photo-upload" type="button" data-upload-verification-photo="${slot}" ${canUpload ? "" : "disabled"}>${libraryLabel}</button>
-    </div>`;
+      <button class="verification-photo-upload" type="button" data-upload-verification-photo="${slot}" ${canUpload ? "" : "disabled"}>${libraryLabel}</button>`;
+    const actions = download || editActions
+      ? `<div class="verification-photo-actions">${download}${editActions}</div>`
+      : "";
     return `<article class="verification-photo-card">${preview}<div class="verification-photo-card-body"><div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(meta)}</span></div>${actions}</div></article>`;
   }
 
@@ -1419,7 +1569,9 @@
     const renderRequest = verificationPhotoRequest;
     $("verificationPhotoGrid").querySelectorAll("[data-verification-thumbnail-slot]").forEach((image) => {
       const slot = Number(image.dataset.verificationThumbnailSlot);
+      const button = verificationPhotoPreviewButton(image);
       const recover = () => void recoverVerificationPhotoThumbnail(recordId, slot, image, bySlot.get(slot), renderRequest);
+      image.addEventListener("load", () => { if (button) button.dataset.photoPreviewState = "ready"; }, { once: true });
       image.addEventListener("error", recover, { once: true });
       if (image.complete && !image.naturalWidth) {
         if (typeof queueMicrotask === "function") queueMicrotask(recover);
@@ -1433,10 +1585,20 @@
       button.addEventListener("pointerenter", warmOriginal, { once: true });
       button.addEventListener("focus", warmOriginal, { once: true });
       button.addEventListener("touchstart", warmOriginal, { once: true, passive: true });
-      button.addEventListener("click", () => openVerificationPhoto(recordId, slot));
+      button.addEventListener("click", () => {
+        if (button.dataset.photoPreviewState === "failed") {
+          void recoverVerificationPhotoThumbnail(recordId, slot, button, photo, renderRequest);
+          return;
+        }
+        openVerificationPhoto(recordId, slot);
+      });
       if (photo && !clean(photo.thumbnailUrl)) {
         void recoverVerificationPhotoThumbnail(recordId, slot, button, photo, renderRequest);
       }
+    });
+    $("verificationPhotoGrid").querySelectorAll("[data-download-verification-photo]").forEach((button) => {
+      const slot = Number(button.dataset.downloadVerificationPhoto);
+      button.addEventListener("click", () => void downloadVerificationPhotoOriginal(recordId, bySlot.get(slot), button));
     });
     $("verificationPhotoGrid").querySelectorAll("[data-capture-verification-photo]").forEach((button) => {
       button.addEventListener("click", () => openVerificationPhotoCamera(recordId, Number(button.dataset.captureVerificationPhoto)));
