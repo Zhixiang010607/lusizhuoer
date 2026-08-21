@@ -2705,74 +2705,49 @@ body[data-staff-detail] .staff-admin-actions .secondary-button:not(#staffStatusA
     height: auto;
     min-height: 0;
     max-height: none;
-    overflow: visible;
-    border: 0;
-    background: transparent;
+    overflow-x: auto;
+    overflow-y: visible;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid var(--line);
+    background: #fff;
   }
 
   body[data-management="teacher"] .teacher-directory-table {
-    min-width: 0;
-    display: block;
-    table-layout: auto;
+    width: 860px;
+    min-width: 860px;
+    display: table;
+    table-layout: fixed;
   }
 
-  body[data-management="teacher"] .teacher-directory-table colgroup,
-  body[data-management="teacher"] .teacher-directory-table thead { display: none; }
-  body[data-management="teacher"] .teacher-directory-table tbody { display: grid; gap: 10px; }
+  body[data-management="teacher"] .teacher-directory-table colgroup { display: table-column-group; }
+  body[data-management="teacher"] .teacher-directory-table thead { display: table-header-group; }
+  body[data-management="teacher"] .teacher-directory-table tbody { display: table-row-group; }
   body[data-management="teacher"] .teacher-directory-table tr {
-    min-width: 0;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    overflow: hidden;
-    border: 1px solid #dce5ef;
-    border-radius: 12px;
-    background: #fff;
-    box-shadow: 0 5px 15px rgba(32, 56, 84, .05);
+    display: table-row;
   }
 
   body[data-management="teacher"] .teacher-directory-table td {
+    width: auto;
     min-width: 0;
-    height: auto;
-    min-height: 48px;
-    display: grid;
-    grid-template-columns: minmax(76px, .42fr) minmax(0, 1fr);
-    align-items: center;
-    gap: 8px;
-    padding: 8px 11px;
-    overflow: visible;
-    border-right: 1px solid #edf1f5;
+    height: 52px;
+    display: table-cell;
+    padding: 7px 10px;
     border-bottom: 1px solid #edf1f5;
-    text-overflow: clip;
-    white-space: normal;
-    overflow-wrap: anywhere;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
   }
 
-  body[data-management="teacher"] .teacher-directory-table td::before {
-    color: #748399;
-    content: attr(data-label);
-    font-size: 10px;
-    font-weight: 800;
-  }
-
-  body[data-management="teacher"] .teacher-directory-table td:nth-child(1),
-  body[data-management="teacher"] .teacher-directory-table td:nth-child(4),
-  body[data-management="teacher"] .teacher-directory-table td:nth-child(5),
-  body[data-management="teacher"] .teacher-directory-table td:nth-child(6) { grid-column: 1 / -1; }
-  body[data-management="teacher"] .teacher-directory-table td { border-right: 0; }
-  body[data-management="teacher"] .teacher-directory-table td:nth-child(2) { border-right: 1px solid #edf1f5; }
-  body[data-management="teacher"] .teacher-directory-table td:last-child { border-bottom: 0; }
+  body[data-management="teacher"] .teacher-directory-table td::before { display: none; content: none; }
   body[data-management="teacher"] .teacher-directory-table td.teacher-directory-empty {
-    grid-column: 1 / -1;
-    min-height: 112px;
-    display: grid;
-    place-items: center;
+    height: 150px;
     padding: 18px !important;
-    border: 0;
     text-align: center !important;
   }
   body[data-management="teacher"] .teacher-directory-table td.teacher-directory-empty::before { display: none; }
   body[data-management="teacher"] .teacher-directory-table .teacher-experience-link,
-  body[data-management="teacher"] .teacher-directory-table .teacher-status-action { width: 100%; min-height: 44px; }
+  body[data-management="teacher"] .teacher-directory-table .teacher-status-action { width: auto; min-height: 44px; }
 
   body[data-hq-create="teacher"] .hq-create-main,
   body[data-staff-detail] .staff-detail-main { width: calc(100% - 16px); }
@@ -2797,14 +2772,6 @@ body[data-staff-detail] .staff-admin-actions .secondary-button:not(#staffStatusA
 
 @media (max-width: 480px) {
   body[data-management="teacher"] .teacher-directory-panel { padding: 11px; }
-  body[data-management="teacher"] .teacher-directory-table tr { grid-template-columns: minmax(0, 1fr); }
-  body[data-management="teacher"] .teacher-directory-table td,
-  body[data-management="teacher"] .teacher-directory-table td:nth-child(1),
-  body[data-management="teacher"] .teacher-directory-table td:nth-child(4),
-  body[data-management="teacher"] .teacher-directory-table td:nth-child(5),
-  body[data-management="teacher"] .teacher-directory-table td:nth-child(6) { grid-column: 1; border-right: 0; }
-  body[data-management="teacher"] .teacher-directory-table td:not(:last-child) { border-bottom: 1px solid #edf1f5; }
-  body[data-management="teacher"] .teacher-directory-table td:last-child { border-bottom: 0; }
 
   body[data-staff-detail] .teacher-profile-hero { grid-template-columns: 50px minmax(0, 1fr); gap: 10px; padding: 15px; }
   body[data-staff-detail] .teacher-profile-avatar { width: 50px; height: 50px; border-radius: 15px; font-size: 19px; }

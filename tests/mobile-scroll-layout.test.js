@@ -78,7 +78,9 @@ for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))
     ? "0.15.53"
     : file === "teacher-work-orders.html"
     ? "0.15.57"
-    : ["teacher-management.html", "teacher-detail.html"].includes(file)
+    : file === "teacher-management.html"
+    ? "0.15.58"
+    : file === "teacher-detail.html"
     ? "0.15.50"
     : file === "store-detail.html"
     ? "0.15.57"

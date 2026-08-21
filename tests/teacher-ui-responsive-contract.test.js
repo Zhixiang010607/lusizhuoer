@@ -14,10 +14,12 @@ const createHtml = read("teacher-create.html");
 const detail = read("staff-detail.js");
 const detailHtml = read("staff-detail.html");
 
-for (const html of [managementHtml, createHtml, detailHtml, read("teacher-detail.html")]) {
+for (const html of [createHtml, detailHtml, read("teacher-detail.html")]) {
   assert.match(html, /styles\.css\?v=0\.15\.5[0-3]/, "every teacher management surface must refresh the shared visual system");
   assert.match(html, /<meta\s+name="viewport"/, "teacher pages must declare a mobile viewport");
 }
+assert.match(managementHtml, /styles\.css\?v=0\.15\.58/, "teacher directory must refresh the horizontal phone table layout");
+assert.match(managementHtml, /<meta\s+name="viewport"/, "teacher directory must declare a mobile viewport");
 assert.match(managementHtml, /teacher-management\.js\?v=0\.14\.28/, "teacher directory behavior must be cache-busted");
 assert.match(createHtml, /teacher-create\.js\?v=0\.5\.0/, "teacher creation behavior must be cache-busted");
 assert.match(createHtml, /cloudbase-phone-auth\.js\?v=0\.19\.4/,
@@ -83,11 +85,12 @@ assert.match(css, /body\[data-management="teacher"\] button:disabled[\s\S]{0,520
 assert.match(css, /button\[aria-busy="true"\]::after[\s\S]{0,420}teacher-button-spin/, "pending teacher actions must show a progress indicator");
 
 const mobile = css.slice(css.lastIndexOf("@media (max-width: 760px)"));
-assert.match(mobile, /body\[data-management="teacher"\] \.teacher-directory-window\s*\{[\s\S]{0,240}height:\s*auto[\s\S]{0,240}max-height:\s*none[\s\S]{0,240}overflow:\s*visible/, "phone teacher results must use document scrolling instead of a clipped inner pane");
-assert.match(mobile, /teacher-directory-table\s*\{[\s\S]{0,180}min-width:\s*0[\s\S]{0,180}display:\s*block/, "phone teacher results must not retain the 760px desktop table width");
-assert.match(mobile, /teacher-directory-table tbody\s*\{\s*display:\s*grid/, "phone teacher rows must become readable cards");
-assert.match(mobile, /content:\s*attr\(data-label\)/, "phone teacher cards must show field labels");
-assert.match(mobile, /teacher-directory-table \.teacher-status-action\s*\{\s*width:\s*100%;\s*min-height:\s*44px/, "phone teacher account actions must meet the 44px touch target");
+assert.match(mobile, /body\[data-management="teacher"\] \.teacher-directory-window\s*\{[\s\S]{0,260}height:\s*auto[\s\S]{0,260}max-height:\s*none[\s\S]{0,260}overflow-x:\s*auto/, "phone teacher results must scroll horizontally inside each directory panel");
+assert.match(mobile, /teacher-directory-table\s*\{[\s\S]{0,180}width:\s*860px[\s\S]{0,180}min-width:\s*860px[\s\S]{0,180}display:\s*table/, "phone teacher results must retain a readable horizontal table width");
+assert.match(mobile, /teacher-directory-table colgroup\s*\{\s*display:\s*table-column-group/, "phone teacher table must retain its declared responsive column widths");
+assert.match(mobile, /teacher-directory-table tbody\s*\{\s*display:\s*table-row-group/, "phone teacher records must stay one teacher per horizontal table row");
+assert.match(mobile, /teacher-directory-table td::before\s*\{\s*display:\s*none;\s*content:\s*none/, "phone horizontal rows must not inject stacked card field labels");
+assert.match(mobile, /teacher-directory-table \.teacher-status-action\s*\{\s*width:\s*auto;\s*min-height:\s*44px/, "phone teacher account actions must stay inline while meeting the 44px touch target");
 assert.match(mobile, /body\[data-hq-create="teacher"\] \.hq-create-main,[\s\S]{0,180}width:\s*calc\(100% - 16px\)/, "teacher create and detail pages must use the phone width without horizontal overflow");
 assert.doesNotMatch(createHtml, /teacher-face-enrollment-layout/,
   "the teacher creation page must not retain the obsolete face-enrollment layout");
