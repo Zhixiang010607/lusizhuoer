@@ -1,4 +1,4 @@
-# teacherCreate v3
+# teacherCreate v4
 
 老师创建的独立同步云函数。上传 ZIP 的根目录直接包含 `index.js`、`package.json`
 和 `README.md`，在 CloudBase 控制台选择“本地上传并安装依赖”。
@@ -14,7 +14,7 @@
 人脸库与原图残留，再从老师创建页重新创建。
 
 创建流程没有后台 worker、轮询、operationId、Timer、嵌套云函数或 051/052 兼容路径。
-`staffAccount v66` 和 `faceRecognition v76` 不处理老师人脸写入。053 迁移物理删除旧
+`staffAccount v66` 和 `faceRecognition v77` 不处理老师人脸写入。053 迁移物理删除旧
 操作表和六个私有函数。
 
 运行时也不识别或自动删除 `teacher-face-saga:*` 认证账号。遇到旧流程留下的 BLOCKED
@@ -25,6 +25,8 @@
 返回 `AUTH_ACCOUNT_MISSING`，不会借旧主档自动续建。
 
 手机号是老师账号的唯一外部身份；同一自然人可用不同手机号建立独立老师账号。
+创建时不会按人脸搜索或判断自然人是否重复；系统没有老师 1:N 查人流程。体验核销先按
+老师账号定位数据库中绑定的 `PersonId`，再调用 `VerifyFace` 只与该老师做 1:1 比对。
 函数建议配置 **120 秒**、至少 **512 MB**，不要配置 Timer。
 
 ## 网页调用权限

@@ -225,7 +225,7 @@ result that blocks the old CloudBase credentials. Only then execute
 ordered `048-01` through `048-07` CloudBase console parts). Next execute the
 ordered `049-01` through `049-13` parts and `049-readonly-verify.sql`, then 050.
 For a database that already ran historical 051/052, deploy `staffAccount v66`,
-`faceRecognition v76`, and `teacherCreate v3` before executing 053. Run the 053
+`faceRecognition v77`, and `teacherCreate v4` before executing 053. Run the 053
 read-only verification and require all seven rows to be `RETIRED`, remove the
 old teacher-face reconciliation Timer, then deploy `verificationPhoto v4` and
 the current static frontend. A fresh database still follows numeric order; 053
@@ -259,7 +259,7 @@ only as immutable migration history. Migration 053 deletes only that design's
 `teacher_face_operations` table and six private helpers; it does not delete
 teachers, staff accounts, face references, quota ledgers, work orders, or
 business history. Current teacher creation requires a consented face and uses
-the independent, single-call `teacherCreate v3` service. The service reports
+the independent, single-call `teacherCreate v4` service. The service reports
 success only after the face person, private original photo, database reference,
 exact readback, and final account activation are all confirmed. Teacher detail
 and account services expose no later enrollment, replacement, or modification

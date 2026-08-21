@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v4" : "v76";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v4" : "v77";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -171,9 +171,7 @@ function faceSettings() {
     qualityThreshold: numberSetting("FACE_QUALITY_THRESHOLD", 70, 0, 100),
     livenessEnabled: booleanSetting("FACE_LIVENESS_ENABLED", false),
     livenessThreshold: numberSetting("FACE_LIVENESS_THRESHOLD", 40, 0, 100),
-    matchThreshold: numberSetting("FACE_MATCH_THRESHOLD", 85, 0, 99.99),
     verifyThreshold: numberSetting("FACE_VERIFY_THRESHOLD", 60, 0, 99.99),
-    matchMargin: numberSetting("FACE_MATCH_MARGIN", 10, 0, 100),
     maxYaw: numberSetting("FACE_MAX_YAW", 20, 0, 90),
     maxPitch: numberSetting("FACE_MAX_PITCH", 20, 0, 90),
     maxRoll: numberSetting("FACE_MAX_ROLL", 15, 0, 90)
@@ -3719,74 +3717,6 @@ async function validateTeacherFaceEnrollmentCapture(event) {
   return { ok: true, accepted: true, quality, liveness };
 }
 
-async function searchCustomer(event) {
-  const caller = await activeStoreCaller();
-  const { base64 } = cleanImage(event.imageBase64);
-  const api = faceClient();
-  const quality = await inspectFaceImage(api, base64);
-  const liveness = await inspectLiveness(api, base64);
-  const settings = faceSettings();
-  const result = await api.SearchPersons({
-    Image: base64,
-    GroupIds: [required("FACE_GROUP_ID")],
-    MaxFaceNum: 1,
-    MinFaceSize: 80,
-    MaxPersonNum: 10,
-    QualityControl: 3,
-    FaceMatchThreshold: 0,
-    NeedPersonInfo: 0,
-    NeedRotateDetection: 0
-  });
-  const searchResult = result?.Results?.[0];
-  if (Number(searchResult?.RetCode || 0) === -1601) fail("当前照片不符合人脸搜索质量要求，请重新拍照。", "FACE_QUALITY_LOW");
-
-  const storePrefix = `C${caller.storeId}-`;
-  const candidates = (searchResult?.Candidates || [])
-    .filter((candidate) => String(candidate?.PersonId || "").startsWith(storePrefix))
-    .sort((left, right) => Number(right?.Score || 0) - Number(left?.Score || 0));
-  const best = candidates[0];
-  const second = candidates[1];
-  const bestScore = Number(best?.Score || 0);
-  const secondScore = Number(second?.Score || 0);
-  if (!best || bestScore < settings.matchThreshold) {
-    return { ok: true, matched: false, reason: "NO_MATCH", message: "未匹配到本门店已建档客户，请核对客户资料或重新拍照。", quality, liveness };
-  }
-  if (second && bestScore - secondScore < settings.matchMargin) {
-    return { ok: true, matched: false, reason: "AMBIGUOUS", message: "识别结果过于接近，不能自动确认客户，请人工核对后重新拍照。", quality, liveness };
-  }
-
-  const rows = await executeSql(
-    `SELECT id, customer_code, customer_name, birth_date, notes, customer_status, customer_process_status,
-            total_recharge_count, total_verification_count, total_experience_count, created_store_id
-       FROM public.customers
-      WHERE face_person_id = ${sqlText(best.PersonId)}
-        AND created_store_id = ${caller.storeId}
-        AND customer_status = 'ACTIVE'
-      LIMIT 1`
-  );
-  const customer = rows[0];
-  if (!customer) return { ok: true, matched: false, reason: "PROFILE_UNAVAILABLE", message: "人脸已识别，但对应客户档案不存在或已封存。", quality, liveness };
-  return {
-    ok: true,
-    matched: true,
-    customerId: String(customer.id),
-    customerCode: customer.customer_code,
-    customerName: customer.customer_name,
-    birthDate: customer.birth_date,
-    notes: customer.notes || "",
-    customerStatus: customer.customer_status,
-    customerProcessStatus: customer.customer_process_status,
-    totalRechargeCount: Number(customer.total_recharge_count || 0),
-    totalVerificationCount: Number(customer.total_verification_count || 0),
-    totalExperienceCount: Number(customer.total_experience_count || 0),
-    storeId: String(customer.created_store_id),
-    score: rounded(bestScore),
-    runnerUpScore: second ? rounded(secondScore) : null,
-    quality,
-    liveness
-  };
-}
-
 async function verifyCustomerFace(event) {
   const caller = await activeBusinessCaller(event);
   await requireVerificationSubmissionSchema();
@@ -5100,7 +5030,6 @@ exports.main = async (event = {}, context = {}) => {
     if (action === "updateCustomerNotes") return await updateCustomerNotes(event);
     if (action === "listCustomerMessages") return await listCustomerMessages(event);
     if (action === "addCustomerMessage") return await addCustomerMessage(event);
-    if (action === "searchCustomer") return await searchCustomer(event);
     if (action === "verifyCustomerFace") return await verifyCustomerFace(event);
     if (action === "verifyTeacherExperienceFace") return await verifyTeacherExperienceFace(event);
     if (action === "getVerificationPhotos") return await getVerificationPhotos(event);

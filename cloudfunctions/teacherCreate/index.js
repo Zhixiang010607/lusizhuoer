@@ -505,7 +505,11 @@ async function confirmPerson(api, groupId, personId, name, expectedFaceId = "") 
     ? person.FaceIds.map((value) => String(value || "").trim()).filter(Boolean) : [];
   const groupIds = Array.isArray(groups?.PersonGroupInfos)
     ? groups.PersonGroupInfos.map((item) => String(item?.GroupId || "").trim()).filter(Boolean) : [];
-  if (String(person?.PersonId || "") !== personId || String(person?.PersonName || "") !== name
+  // GetPersonBaseInfo is queried by the exact PersonId but Tencent's response
+  // does not echo PersonId. Prove the requested identity through its exact
+  // PersonName/FaceId and its group membership instead of requiring a field
+  // that the real API never returns.
+  if (String(person?.PersonName || "") !== name
       || faceIds.length !== 1 || !groupIds.includes(groupId)
       || (expectedFaceId && !faceIds.includes(expectedFaceId))) {
     fail("人脸库 Person、Group 或 FaceId 精确回读不一致。", "FACE_READBACK_MISMATCH");

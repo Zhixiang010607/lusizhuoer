@@ -150,6 +150,8 @@ assert.match(verificationCreate, /const createSql = experienceVerification[\s\S]
 // by the browser.  This is deliberately separate from the new EXPERIENCE
 // teacher-face subject below.
 const customerFace = functionSource(face, "verifyCustomerFace");
+assert.doesNotMatch(face, /\bSearchPersons\s*\(|function\s+searchCustomer\s*\(|action === "searchCustomer"/,
+  "the deployed face service must not expose any 1:N person-search path");
 assert.match(customerFace, /SELECT id, customer_code, customer_name, face_person_id, profile_photo_file_id[\s\S]{0,380}created_store_id = \$\{caller\.storeId\}/,
   "normal customer face verification must resolve the customer inside the caller store");
 assert.match(customerFace, /PersonId: String\(customer\.face_person_id\)/,

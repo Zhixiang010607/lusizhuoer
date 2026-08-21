@@ -288,7 +288,9 @@ function harness(options = {}) {
     async GetPersonBaseInfo({ PersonId }) {
       const person = state.persons.get(PersonId);
       if (!person) throw Object.assign(new Error("person not found"), { code: "ResourceNotFound" });
-      return { PersonId, PersonName: person.PersonName, FaceIds: [...person.FaceIds] };
+      // Tencent GetPersonBaseInfo is queried by PersonId but does not echo it
+      // in the response. Keep the mock aligned with the real API contract.
+      return { PersonName: person.PersonName, FaceIds: [...person.FaceIds] };
     }
     async GetPersonGroupInfo({ PersonId }) {
       calls.getPersonGroupInfo += 1;
