@@ -90,7 +90,7 @@ ROLLBACK;
 
 ## 053 删除旧老师人脸 Saga
 
-先部署 `staffAccount v65`、`faceRecognition v76` 和 `teacherCreate v2`，再按
+先部署 `staffAccount v66`、`faceRecognition v76` 和 `teacherCreate v3`，再按
 [`053-README.md`](053-README.md) 执行 `053-01-retire-legacy-teacher-face-saga.sql`，最后运行
 `053-readonly-verify.sql`，7 行必须全部为 `RETIRED`。
 

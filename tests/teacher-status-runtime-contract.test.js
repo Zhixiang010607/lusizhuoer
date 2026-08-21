@@ -40,6 +40,7 @@ function stageFailed(stage, message, code, cause) {
 }
 
 function harnessFor(options = {}) {
+  const completeFace = options.completeFace !== false;
   const state = {
     accountStatus: options.accountStatus || "ACTIVE",
     teacherStatus: options.teacherStatus || options.accountStatus || "ACTIVE",
@@ -67,7 +68,15 @@ function harnessFor(options = {}) {
       state.genericProvisionPreflights += 1;
       return null;
     },
-    requireTeacherOptionalFaceActivationSchema: async () => { state.order.push("schema:optional-face"); },
+    requireTeacherStatusSchema: async () => { state.order.push("schema:teacher-status"); },
+    requireCompleteTeacherFaceForActivation: (teacher, status) => {
+      if (String(status || "").toUpperCase() !== "ACTIVE") return;
+      if (teacher?.face_enrollment_status !== "ENROLLED"
+          || !teacher?.face_person_id
+          || !/^pg:\/\/[^/]+\/.+/.test(String(teacher?.profile_photo_file_id || ""))) {
+        failed("老师人脸资料不完整", "TEACHER_FACE_REQUIRED");
+      }
+    },
     ensureTeacherDatabaseProfile: async () => {
       state.order.push("repair:teacher-profile");
       if (state.profileRepairFails) failed("老师资料无法补全", "TEACHER_PROFILE_MISSING");
@@ -75,8 +84,9 @@ function harnessFor(options = {}) {
       return {
         id: 7,
         teacher_status: state.teacherStatus,
-        face_person_id: null,
-        face_enrollment_status: "PENDING"
+        face_person_id: completeFace ? "teacher-person-7" : null,
+        face_enrollment_status: completeFace ? "ENROLLED" : "PENDING",
+        profile_photo_file_id: completeFace ? "pg://customer-photos/teachers/7/profile.jpg" : null
       };
     },
     persistStaffStatusAndMaster: async (staff, status) => {
@@ -125,8 +135,9 @@ function harnessFor(options = {}) {
           account_status: state.accountStatus,
           teacher_id: state.hasTeacherProfile ? 7 : null,
           teacher_status: state.hasTeacherProfile ? state.teacherStatus : null,
-          face_enrollment_status: "PENDING",
-          face_person_id: null
+          face_enrollment_status: completeFace ? "ENROLLED" : "PENDING",
+          face_person_id: completeFace ? "teacher-person-7" : null,
+          profile_photo_file_id: completeFace ? "pg://customer-photos/teachers/7/profile.jpg" : null
         }];
       }
       if (sql.includes("SELECT account.account_status, teacher.teacher_status")) {
@@ -150,24 +161,39 @@ async function setTeacherStatus(main, status, noAuthUid = false) {
   });
 }
 
-async function readLegacyTeacherProfile({ repairFails = false } = {}) {
+async function readLegacyTeacherProfile({ repairFails = false, completeFace = true } = {}) {
   const state = { schemaChecks: 0, repairCalls: 0 };
   const harness = {
     module: { exports: {} },
     ROLES: new Set(["hq", "store", "teacher"]),
     getStoreBindingLayout: async () => "stores",
-    requireTeacherOptionalFaceActivationSchema: async () => { state.schemaChecks += 1; },
+    requireTeacherStatusSchema: async () => { state.schemaChecks += 1; },
+    requireCompleteTeacherFaceForActivation: (teacher, status) => {
+      if (String(status || "").toUpperCase() !== "ACTIVE") return;
+      if (teacher?.face_enrollment_status !== "ENROLLED"
+          || !teacher?.face_person_id
+          || !/^pg:\/\/[^/]+\/.+/.test(String(teacher?.profile_photo_file_id || ""))) {
+        failed("老师人脸资料不完整", "TEACHER_FACE_REQUIRED");
+      }
+    },
     ensureTeacherDatabaseProfile: async () => {
       state.repairCalls += 1;
       if (repairFails) failed("老师主档仍缺失", "TEACHER_PROFILE_MISSING");
-      return { id: 7, teacher_status: "ACTIVE", face_person_id: null, face_enrollment_status: "PENDING" };
+      return {
+        id: 7,
+        teacher_status: "ACTIVE",
+        face_person_id: completeFace ? "teacher-person-7" : null,
+        face_enrollment_status: completeFace ? "ENROLLED" : "PENDING",
+        profile_photo_file_id: completeFace ? "pg://customer-photos/teachers/7/profile.jpg" : null
+      };
     },
     sqlText: (value) => `'${String(value)}'`,
     executeSql: async () => [{
       id: 41, phone: "13900000041", staff_name: "历史老师", role_code: "teacher", account_status: "ACTIVE",
       password_initialized_at: null, password_changed_at: null, password_change_required: false,
       store_id: null, store_code: null, store_name: null, store_status: null,
-      teacher_id: null, teacher_status: null, face_person_id: null, face_enrollment_status: null
+      teacher_id: null, teacher_status: null, face_person_id: null,
+      face_enrollment_status: null, profile_photo_file_id: null
     }],
     fail: failed,
     asDatabaseError: (error, action) => failed(`${action}:${error?.message || "database"}`, "DATABASE_ERROR")
@@ -180,21 +206,23 @@ async function readLegacyTeacherProfile({ repairFails = false } = {}) {
 }
 
 (async () => {
-  // Login reads can safely repair legacy stress rows that have a teacher
-  // account but no master record.  PENDING/no-face remains active; only a
-  // failed repair reports TEACHER_PROFILE_MISSING.
+  // Login reads may repair a missing teacher master only when the repaired
+  // profile also proves the complete creation-time face invariant.
   {
     const { state, profile } = await readLegacyTeacherProfile();
     assert.equal(profile.role, "teacher");
     assert.equal(profile.teacherId, "7");
     assert.equal(profile.teacherStatus, "ACTIVE");
-    assert.equal(profile.faceEnrollmentStatus, "PENDING");
+    assert.equal(profile.faceEnrollmentStatus, "ENROLLED");
     assert.deepEqual(state, { schemaChecks: 1, repairCalls: 1 });
   }
+  await assert.rejects(readLegacyTeacherProfile({ completeFace: false }),
+    (error) => error.code === "TEACHER_FACE_REQUIRED");
   await assert.rejects(readLegacyTeacherProfile({ repairFails: true }),
     (error) => error.code === "TEACHER_PROFILE_MISSING");
 
-  // ACTIVE succeeds without a face and flips PostgreSQL before CloudBase.
+  // ACTIVE succeeds only with the complete creation-time face proof and flips
+  // PostgreSQL before CloudBase.
   {
     const { state, main } = harnessFor({ accountStatus: "ARCHIVED", teacherStatus: "ARCHIVED" });
     const result = await setTeacherStatus(main, "ACTIVE");
@@ -202,9 +230,22 @@ async function readLegacyTeacherProfile({ repairFails = false } = {}) {
     assert.equal(result.accountStatus, "ACTIVE");
     assert.equal(result.teacherStatus, "ACTIVE");
     assert.equal(result.credentialStatus, "ACTIVE");
-    assert.deepEqual(state.order, ["schema:optional-face", "database:ACTIVE", "identity:ACTIVE"],
-      "no-face activation updates the business master before enabling the credential");
+    assert.deepEqual(state.order, ["schema:teacher-status", "database:ACTIVE", "identity:ACTIVE"],
+      "complete-face activation updates the business master before enabling the credential");
     assert.equal(state.authCalls[0].userStatus, "ACTIVE");
+  }
+
+  // Incomplete legacy rows can only be archived/cleaned; activation is denied
+  // before PostgreSQL or CloudBase is changed.
+  {
+    const { state, main } = harnessFor({
+      accountStatus: "ARCHIVED", teacherStatus: "ARCHIVED", completeFace: false
+    });
+    await assert.rejects(setTeacherStatus(main, "ACTIVE"),
+      (error) => error.code === "TEACHER_FACE_REQUIRED");
+    assert.deepEqual(state.order, ["schema:teacher-status"]);
+    assert.equal(state.authCalls.length, 0);
+    assert.equal(state.accountStatus, "ARCHIVED");
   }
 
   // ARCHIVED succeeds and makes both database identities unavailable before
@@ -217,7 +258,7 @@ async function readLegacyTeacherProfile({ repairFails = false } = {}) {
     assert.equal(result.teacherStatus, "ARCHIVED");
     assert.equal(result.credentialStatus, "BLOCKED");
     assert.equal(result.warning, undefined);
-    assert.deepEqual(state.order, ["schema:optional-face", "database:ARCHIVED", "identity:BLOCKED"]);
+    assert.deepEqual(state.order, ["database:ARCHIVED", "identity:BLOCKED"]);
   }
 
   // A missing historical CloudBase user does not undo a confirmed archive or
@@ -231,7 +272,7 @@ async function readLegacyTeacherProfile({ repairFails = false } = {}) {
     assert.equal(result.credentialStatus, "MISSING");
     assert.equal(result.warningCode, "AUTH_CREDENTIAL_MISSING");
     assert.match(result.warning, /已封存/);
-    assert.deepEqual(state.order, ["schema:optional-face", "database:ARCHIVED", "identity:BLOCKED"]);
+    assert.deepEqual(state.order, ["database:ARCHIVED", "identity:BLOCKED"]);
   }
 
   // A generic CloudBase BLOCKED error is similarly only a warning: database
@@ -246,7 +287,7 @@ async function readLegacyTeacherProfile({ repairFails = false } = {}) {
     assert.equal(result.credentialStatus, "BLOCK_FAILED");
     assert.equal(result.warningCode, "AUTH_BLOCK_FAILED");
     assert.match(result.warning, /CloudBase/);
-    assert.deepEqual(state.order, ["schema:optional-face", "database:ARCHIVED", "identity:BLOCKED"]);
+    assert.deepEqual(state.order, ["database:ARCHIVED", "identity:BLOCKED"]);
   }
 
   // The inverse direction is fail-closed.  If CloudBase activation fails, the
@@ -258,7 +299,7 @@ async function readLegacyTeacherProfile({ repairFails = false } = {}) {
     assert.equal(state.accountStatus, "ARCHIVED");
     assert.equal(state.teacherStatus, "ARCHIVED");
     assert.deepEqual(state.order, [
-      "schema:optional-face", "database:ACTIVE", "identity:ACTIVE", "compensate:database-archived"
+      "schema:teacher-status", "database:ACTIVE", "identity:ACTIVE", "compensate:database-archived"
     ]);
   }
 
@@ -270,13 +311,13 @@ async function readLegacyTeacherProfile({ repairFails = false } = {}) {
     const result = await setTeacherStatus(main, "ARCHIVED");
     assert.equal(result.ok, true);
     assert.deepEqual(state.order, [
-      "schema:optional-face", "repair:teacher-profile", "database:ARCHIVED", "identity:BLOCKED"
+      "repair:teacher-profile", "database:ARCHIVED", "identity:BLOCKED"
     ]);
   }
   {
     const { state, main } = harnessFor({ hasTeacherProfile: false, profileRepairFails: true });
     await assert.rejects(setTeacherStatus(main, "ARCHIVED"), (error) => error.code === "TEACHER_PROFILE_MISSING");
-    assert.deepEqual(state.order, ["schema:optional-face", "repair:teacher-profile"],
+    assert.deepEqual(state.order, ["repair:teacher-profile"],
       "a missing teacher master must never block the credential before profile repair succeeds");
     assert.equal(state.authCalls.length, 0);
     assert.equal(state.accountStatus, "ACTIVE");
@@ -291,7 +332,7 @@ async function readLegacyTeacherProfile({ repairFails = false } = {}) {
     await assert.rejects(setTeacherStatus(main, "ACTIVE", true), (error) => error.code === "AUTH_CREDENTIAL_MISSING");
     assert.equal(state.accountStatus, "ARCHIVED");
     assert.equal(state.teacherStatus, "ARCHIVED");
-    assert.deepEqual(state.order, ["schema:optional-face", "database:ACTIVE", "compensate:database-archived"]);
+    assert.deepEqual(state.order, ["schema:teacher-status", "database:ACTIVE", "compensate:database-archived"]);
   }
 
   // The generic staff endpoint is a hard server-side boundary as well as a

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>老师主页</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.51">
+  <link rel="stylesheet" href="styles.css?v=0.15.52">
 </head>
 <body data-staff-detail>
   <aside class="side-project-bar" aria-label="项目栏">
@@ -34,46 +34,10 @@
           <p id="staffStatusHint">正在读取人员信息。</p>
         </div>
         <div class="staff-admin-actions">
-          <button id="staffFaceAction" class="secondary-button" type="button" hidden>更换人脸</button>
           <button id="staffCredentialAction" class="secondary-button" type="button" hidden>重置临时密码</button>
           <button id="staffStatusAction" class="danger-button" type="button" hidden>封存老师</button>
         </div>
       </aside>
-    </section>
-
-    <section id="teacherFaceUpdatePanel" class="panel teacher-face-update-panel" hidden aria-labelledby="teacherFaceUpdateTitle">
-      <header class="teacher-face-update-heading">
-        <div>
-          <p class="teacher-experience-kicker">老师身份资料</p>
-          <h2 id="teacherFaceUpdateTitle">补录 / 更换老师人脸</h2>
-          <p>仅用于老师体验核销现场身份比对，不用于登录；保存不会改变老师的激活或封存状态。</p>
-        </div>
-        <button id="closeTeacherFaceUpdate" class="secondary-button" type="button">收起</button>
-      </header>
-      <form id="teacherFaceUpdateForm" class="teacher-face-update-form">
-        <div class="teacher-face-enrollment-layout teacher-face-update-layout">
-          <section class="teacher-face-consent teacher-face-update-consent">
-            <label class="consent-row"><input id="teacherFaceUpdateConsent" type="checkbox" required> 我已取得老师明确授权，仅为该老师补录或更换体验核销人脸。</label>
-            <div class="capture-check-results" aria-live="polite">
-              <div><span>照片质量</span><strong id="teacherFaceUpdateQualityResult">保存时检测</strong></div>
-              <div><span>活体检测</span><strong id="teacherFaceUpdateLivenessResult">按服务端配置</strong></div>
-            </div>
-          </section>
-          <section class="capture-panel teacher-face-capture teacher-face-update-capture">
-            <div class="customer-camera-stage">
-              <video id="teacherFaceUpdateCamera" autoplay muted playsinline hidden></video>
-              <img id="teacherFaceUpdatePreview" alt="待保存的老师人脸预览" hidden>
-              <div id="teacherFaceUpdatePlaceholder" class="camera-placeholder"><strong>等待打开摄像头</strong><span>请让老师正对镜头，避免逆光、遮挡或多人入镜。</span></div>
-              <canvas id="teacherFaceUpdateCanvas" hidden></canvas>
-            </div>
-            <div class="teacher-face-capture-copy"><h3>现场拍照</h3><p>保存时由独立 teacherCreate 服务一次性检查质量与活体，确认人脸库、私有原图和数据库引用后才算成功。</p></div>
-            <div id="teacherFaceUpdateCaptureStatus" class="capture-status pending">尚未拍摄</div>
-            <div class="camera-actions"><button id="openTeacherFaceUpdateCamera" type="button">打开摄像头</button><button id="captureTeacherFaceUpdate" type="button" disabled>拍照</button><button id="retakeTeacherFaceUpdate" type="button" hidden>重新拍照</button></div>
-          </section>
-        </div>
-        <div class="teacher-face-update-actions"><button id="saveTeacherFaceUpdate" type="submit" disabled>保存人脸</button><button id="clearTeacherFaceUpdate" class="secondary-button" type="button">清空本次照片</button></div>
-        <p id="teacherFaceUpdateMessage" class="form-message" aria-live="polite"></p>
-      </form>
     </section>
 
     <section id="teacherExperiencePanel" class="panel teacher-experience-panel" hidden aria-labelledby="teacherExperienceTitle">
@@ -166,9 +130,9 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
-  <script src="cloudbase-phone-auth.js?v=0.19.1"></script>
+  <script src="cloudbase-phone-auth.js?v=0.19.2"></script>
   <script src="datetime.js?v=0.1.2"></script>
-  <script src="staff-detail.js?v=0.15.6"></script>
+  <script src="staff-detail.js?v=0.15.7"></script>
   <script src="auth-ui.js?v=0.19.0"></script>
 </body>
 </html>

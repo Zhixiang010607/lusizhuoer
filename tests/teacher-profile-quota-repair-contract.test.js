@@ -137,21 +137,17 @@ assert.match(deleteQuota, /SET quota_status = 'ARCHIVED'/,
 assert.match(deleteQuota, /event_type[\s\S]{0,360}'REMOVED'/,
   "deleted configuration must retain its immutable removal event");
 
-// The standard teacher home exposes account/quota actions and the independent
-// direct face maintenance flow. Saving a face must not change account status.
+// The standard teacher home exposes only account/quota actions. Face enrollment
+// exists exclusively inside the mandatory creation page.
 for (const id of [
   "staffCredentialAction", "staffStatusAction",
-  "saveTeacherExperienceConfig", "saveTeacherExperienceRecharge",
-  "staffFaceAction", "teacherFaceUpdatePanel", "teacherFaceUpdateCamera"
+  "saveTeacherExperienceConfig", "saveTeacherExperienceRecharge"
 ]) {
   assert.ok(read("staff-detail.html").includes(`id=\"${id}\"`), `teacher detail must expose ${id}`);
 }
-assert.match(detailUi, /navigator\.mediaDevices\?\.getUserMedia/,
-  "teacher detail must capture a real photograph for add/replacement");
-assert.match(detailUi, /CloudBasePhoneAuth\.upsertTeacherFace\(\{[\s\S]{0,300}teacherId:[\s\S]{0,160}faceImageBase64:/,
-  "teacher detail must submit face maintenance to the dedicated direct service");
-assert.match(detailUi, /保存人脸不会改变老师账号状态|保存人脸不会恢复登录或改变封存状态/,
-  "teacher face maintenance must remain independent from activation");
+assert.doesNotMatch(`${read("staff-detail.html")}\n${detailUi}`,
+  /staffFaceAction|teacherFaceUpdate|upsertTeacherFace|补录老师人脸|更换老师人脸/,
+  "teacher detail must expose no face maintenance surface");
 assert.match(detailUi, /已登记 · 用于体验核销/,
   "teacher detail must retain a read-only enrollment status for experience verification");
 const quotaGuard = jsBetween(detailUi, "function canManageTeacherExperience", "function teacherId");
@@ -212,10 +208,9 @@ for (const legacy of ["beginTeacherProvisionWithFace", "getTeacherFaceOperationS
     `active teacher create clients must not retain ${legacy}`);
 }
 
-// Creation and replacement are now owned wholly by teacherCreate. There is no
-// compatibility call into staffAccount/faceRecognition and no durable Saga.
+// Creation is owned wholly by teacherCreate. There is no replacement API,
+// compatibility call into staffAccount/faceRecognition, or durable Saga.
 const createTeacher = jsBetween(teacherCreateService, "async function createTeacher", "function health");
-const replaceTeacherFace = jsBetween(teacherCreateService, "async function upsertTeacherFace", "async function createTeacher");
 assert.match(createTeacher, /const actor = await requireHq\(\)[\s\S]{0,300}event\.consent !== true/,
   "direct teacher creation must be HQ-only and require explicit consent");
 assert.match(createTeacher, /await inspectFace\(api, image\.base64\)[\s\S]{0,120}await inspectLiveness\(api, image\.base64\)/,
@@ -224,12 +219,9 @@ assert.match(createTeacher, /confirmPerson\([\s\S]{0,260}confirmPhoto\([\s\S]{0,
   "creation must read back remote Person, retained original and the database row before success");
 assert.match(createTeacher, /manager\(\)\.user\.modifyUser\(\{ uid: authentication\.uid, userStatus: "ACTIVE"/,
   "the login may activate only inside the final direct creation boundary");
-assert.match(replaceTeacherFace, /const actor = await requireHq\(\)[\s\S]{0,240}event\.consent !== true/,
-  "face replacement must be HQ-only and require fresh consent");
-assert.match(replaceTeacherFace, /await switchTeacherFace\([\s\S]{0,800}confirmPerson\([\s\S]{0,240}confirmPhoto\([\s\S]{0,220}readTeacherById\(/,
-  "replacement must switch and then re-read the same Person, original photo and database pointers");
-assert.match(replaceTeacherFace, /if \(switched\)[\s\S]{0,320}restoreTeacherFace\([\s\S]{0,1600}TEACHER_FACE_UPDATE_CLEANUP_INCOMPLETE/,
-  "an unproven replacement must restore the prior pointers or return an explicit cleanup failure");
+assert.doesNotMatch(teacherCreateService,
+  /upsertTeacherFace|replaceTeacherFace|switchTeacherFace|restoreTeacherFace|TEACHER_FACE_UPDATE_CLEANUP_INCOMPLETE/,
+  "teacherCreate must expose no post-creation face write path");
 assert.doesNotMatch(`${staff}\n${faceService || ""}`, /teacher_face_operations|upsertDelegatedTeacherFace|delegateTeacherFace/,
   "retired staff/face services must not retain the Saga implementation");
 

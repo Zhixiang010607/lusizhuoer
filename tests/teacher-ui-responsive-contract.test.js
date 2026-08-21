@@ -15,14 +15,14 @@ const detail = read("staff-detail.js");
 const detailHtml = read("staff-detail.html");
 
 for (const html of [managementHtml, createHtml, detailHtml, read("teacher-detail.html")]) {
-  assert.match(html, /styles\.css\?v=0\.15\.5[01]/, "every teacher management surface must refresh the shared visual system");
+  assert.match(html, /styles\.css\?v=0\.15\.5[012]/, "every teacher management surface must refresh the shared visual system");
   assert.match(html, /<meta\s+name="viewport"/, "teacher pages must declare a mobile viewport");
 }
 assert.match(managementHtml, /teacher-management\.js\?v=0\.14\.28/, "teacher directory behavior must be cache-busted");
 assert.match(createHtml, /teacher-create\.js\?v=0\.3\.1/, "teacher creation behavior must be cache-busted");
 assert.match(createHtml, /cloudbase-phone-auth\.js\?v=0\.19\.0/,
   "teacher creation must refresh the dedicated one-call API wrapper");
-assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.6/, "teacher home behavior must be cache-busted");
+assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.7/, "teacher home behavior must be cache-busted");
 
 for (const label of ["老师姓名", "老师编号", "联系电话", "状态", "体验额度", "账号操作"]) {
   assert.ok(management.includes(`data-label="${label}"`), `mobile teacher cards must expose the ${label} field label`);
@@ -72,14 +72,11 @@ assert.match(detail, /savingConfig[\s\S]{0,120}savingRecharge/, "quota controls 
 assert.match(detail, /const authoritative = \[staff\?\.account_status, staff\?\.teacher_status\][\s\S]{0,260}if \(authoritative\.length\) return authoritative\.includes\("ARCHIVED"\)/, "teacher home status must ignore a stale generic status when authoritative fields exist");
 assert.match(detail, /const refreshed = await load\(\)[\s\S]{0,300}actualArchived/, "teacher home must reconcile the status from the server before reporting success or failure");
 assert.match(detail, /AUTH_CREDENTIAL_MISSING[\s\S]{0,120}AUTH_ACCOUNT_MISSING[\s\S]{0,320}压力测试或历史占位账号[\s\S]{0,180}安全保持封存/, "teacher home must keep a credential-less placeholder archived with an actionable explanation");
-assert.match(detailHtml, /id="staffFaceAction"[\s\S]{0,900}id="teacherFaceUpdatePanel"[\s\S]{0,3000}id="teacherFaceUpdateCamera"/,
-  "teacher home must expose an explicit face add/replacement workflow");
-assert.match(detail, /navigator\.mediaDevices\?\.getUserMedia/,
-  "teacher-home face maintenance must capture locally");
-assert.match(detail, /CloudBasePhoneAuth\.upsertTeacherFace\(/,
-  "teacher-home face maintenance must call the dedicated direct service");
-assert.match(detail, /保存人脸不会改变老师账号状态|保存人脸不会恢复登录或改变封存状态/,
-  "face maintenance must remain independent from account activation");
+assert.doesNotMatch(`${detailHtml}\n${detail}`,
+  /staffFaceAction|teacherFaceUpdate|upsertTeacherFace|补录老师人脸|更换老师人脸/,
+  "teacher home must expose no face add, replacement or modification workflow");
+assert.match(detail, /不能在本页补录或更换/,
+  "teacher home must explain that an incomplete legacy record must be recreated");
 
 assert.match(css, /--teacher-action:\s*#173a66/, "teacher primary actions must use the restrained navy palette");
 assert.match(css, /--teacher-danger-bg:\s*#fff6f5[\s\S]{0,160}--teacher-danger-ink:\s*#96342d/, "teacher destructive actions must use a soft archived-status red palette");

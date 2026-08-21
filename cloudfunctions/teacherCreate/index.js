@@ -4,7 +4,7 @@ const crypto = require("node:crypto");
 const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 
-const FUNCTION_VERSION = "teacher-create-v2";
+const FUNCTION_VERSION = "teacher-create-v3";
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -83,16 +83,6 @@ function errorResponse(error) {
 
 function sqlText(value) {
   return `'${String(value ?? "").replace(/'/g, "''")}'`;
-}
-
-function sqlNullableText(value, cast = "text") {
-  if (value === null || value === undefined || String(value).trim() === "") return `NULL::${cast}`;
-  return `${sqlText(value)}::${cast}`;
-}
-
-function sqlNullableBigint(value) {
-  const number = Number(value);
-  return Number.isInteger(number) && number > 0 ? `${number}::bigint` : "NULL::bigint";
 }
 
 function parseRows(result) {
@@ -339,25 +329,6 @@ async function readBusinessByPhone(phone) {
   return rows[0] || null;
 }
 
-async function readTeacherById(teacherId) {
-  const id = Number(teacherId);
-  if (!Number.isSafeInteger(id) || id < 1) fail("老师编号无效。", "BAD_REQUEST");
-  const rows = await executeSql(
-    `SELECT account.id AS staff_id, account.auth_uid, account.phone,
-            account.staff_name, account.role_code, account.account_status,
-            teacher.id AS teacher_id, teacher.teacher_code, teacher.teacher_name,
-            teacher.teacher_status, teacher.face_person_id,
-            teacher.face_enrollment_status, teacher.profile_photo_file_id,
-            teacher.face_consent_at, teacher.face_enrolled_at,
-            teacher.face_enrolled_by_account_id
-       FROM public.teachers AS teacher
-       JOIN public.staff_accounts AS account ON account.id = teacher.staff_account_id
-      WHERE teacher.id = ${id}::bigint AND account.role_code = 'teacher' LIMIT 1`
-  );
-  if (!rows[0]) fail("未找到老师主档。", "TEACHER_NOT_FOUND");
-  return rows[0];
-}
-
 function assertBusinessIdentity(row, name) {
   if (!row) return;
   if (String(row.role_code || "") !== "teacher") {
@@ -590,11 +561,33 @@ async function confirmPhoto(photo, image) {
   return { reference: photo.reference, bytes: downloaded.length, sha256: digest, contentType };
 }
 
+function personReadNotVisible(error) {
+  const code = String(error?.code || "").trim();
+  return code === "InvalidParameterValue.PersonIdNotExist"
+    || code === "FailedOperation.GroupPersonMapNotExist"
+    || code === "ResourceNotFound";
+}
+
 async function confirmPerson(api, groupId, personId, name, expectedFaceId = "") {
-  const [person, groups] = await Promise.all([
-    api.GetPersonBaseInfo({ PersonId: personId }),
-    api.GetPersonGroupInfo({ PersonId: personId, Offset: 0, Limit: 100 })
-  ]);
+  let person;
+  let groups;
+  let initialVisibilityError = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      [person, groups] = await Promise.all([
+        api.GetPersonBaseInfo({ PersonId: personId }),
+        api.GetPersonGroupInfo({ PersonId: personId, Offset: 0, Limit: 100 })
+      ]);
+      break;
+    } catch (error) {
+      if (!personReadNotVisible(error)) throw error;
+      if (attempt === 1) throw initialVisibilityError || error;
+      initialVisibilityError = error;
+      // Tencent IAI may briefly lag immediately after CreatePerson. Retry the
+      // exact read only; never issue a second write.
+      await Promise.resolve();
+    }
+  }
   const faceIds = Array.isArray(person?.FaceIds)
     ? person.FaceIds.map((value) => String(value || "").trim()).filter(Boolean) : [];
   const groupIds = Array.isArray(groups?.PersonGroupInfos)
@@ -639,8 +632,16 @@ async function createAndProveRemote({ api, groupId, personId, name, photo, image
     throw error;
   }
   if (proofs[0].status !== "fulfilled" || proofs[1].status !== "fulfilled") {
-    const error = proofs.find((item) => item.status === "rejected")?.reason
-      || personWrite.reason || photoWrite.reason || new Error("远端资料回读失败。");
+    // If a write and its proof both failed, surface the write failure. A
+    // follow-up PersonIdNotExist is only a consequence and must not hide the
+    // real CreatePerson/configuration/permission error.
+    const error = (personWrite.status === "rejected" && proofs[0].status === "rejected"
+      ? personWrite.reason : null)
+      || (photoWrite.status === "rejected" && proofs[1].status === "rejected"
+        ? photoWrite.reason : null)
+      || (proofs[0].status === "rejected" ? proofs[0].reason : null)
+      || (proofs[1].status === "rejected" ? proofs[1].reason : null)
+      || new Error("远端资料回读失败。");
     error.remoteCreated = {
       person: personWrite.status === "fulfilled",
       photo: photoWrite.status === "fulfilled"
@@ -745,129 +746,11 @@ async function deletePerson(api, groupId, personId) {
   try {
     await api.DeletePersonFromGroup({ GroupId: groupId, PersonId: personId });
   } catch (error) {
-    const text = `${error?.code || ""} ${error?.message || ""}`.toLowerCase();
-    if (!text.includes("notfound") && !text.includes("not exist") && !text.includes("不存在")) throw error;
+    const code = String(error?.code || "").trim();
+    const alreadyAbsent = code === "InvalidParameterValue.PersonIdNotExist"
+      || code === "FailedOperation.GroupPersonMapNotExist";
+    if (!alreadyAbsent) throw error;
   }
-}
-
-function photoFromReference(reference) {
-  const match = /^pg:\/\/([^/]+)\/(.+)$/.exec(String(reference || "").trim());
-  if (!match) return null;
-  return { bucketId: match[1], objectName: match[2], reference: String(reference).trim() };
-}
-
-async function faceReferenceCount(personId, photoRef) {
-  const rows = await executeSql(
-    `SELECT COUNT(*)::bigint AS reference_count
-       FROM public.teachers
-      WHERE face_person_id = ${sqlText(personId)}
-         OR profile_photo_file_id = ${sqlText(photoRef)}`
-  );
-  return Number(rows[0]?.reference_count || 0);
-}
-
-function sameFaceSnapshot(row, snapshot) {
-  const normalize = (value) => value === null || value === undefined ? "" : String(value);
-  return normalize(row?.face_person_id) === normalize(snapshot.facePersonId)
-    && normalize(row?.profile_photo_file_id) === normalize(snapshot.photoRef)
-    && normalize(row?.face_enrollment_status) === normalize(snapshot.enrollmentStatus)
-    && normalize(row?.face_consent_at) === normalize(snapshot.consentAt)
-    && normalize(row?.face_enrolled_at) === normalize(snapshot.enrolledAt)
-    && normalize(row?.face_enrolled_by_account_id) === normalize(snapshot.enrolledBy);
-}
-
-function faceSnapshot(row) {
-  return {
-    facePersonId: row?.face_person_id || null,
-    photoRef: row?.profile_photo_file_id || null,
-    enrollmentStatus: String(row?.face_enrollment_status || "PENDING"),
-    consentAt: row?.face_consent_at || null,
-    enrolledAt: row?.face_enrolled_at || null,
-    enrolledBy: row?.face_enrolled_by_account_id || null
-  };
-}
-
-async function switchTeacherFace({ teacher, actor, personId, photoRef, previous }) {
-  const updated = await executeSql(
-    `WITH switched AS (
-       UPDATE public.teachers AS target
-          SET face_person_id = ${sqlText(personId)},
-              profile_photo_file_id = ${sqlText(photoRef)},
-              face_enrollment_status = 'ENROLLED',
-              face_consent_at = CLOCK_TIMESTAMP(),
-              face_enrolled_at = CLOCK_TIMESTAMP(),
-              face_enrolled_by_account_id = ${Number(actor.staffId)}::bigint,
-              updated_at = CLOCK_TIMESTAMP()
-        WHERE target.id = ${Number(teacher.teacher_id)}::bigint
-          AND target.staff_account_id = ${Number(teacher.staff_id)}::bigint
-          AND target.face_person_id IS NOT DISTINCT FROM ${sqlNullableText(previous.facePersonId)}
-          AND target.profile_photo_file_id IS NOT DISTINCT FROM ${sqlNullableText(previous.photoRef)}
-          AND target.face_enrollment_status IS NOT DISTINCT FROM ${sqlNullableText(previous.enrollmentStatus, "varchar")}
-          AND target.face_consent_at IS NOT DISTINCT FROM ${sqlNullableText(previous.consentAt, "timestamptz")}
-          AND target.face_enrolled_at IS NOT DISTINCT FROM ${sqlNullableText(previous.enrolledAt, "timestamptz")}
-          AND target.face_enrolled_by_account_id IS NOT DISTINCT FROM ${sqlNullableBigint(previous.enrolledBy)}
-        RETURNING target.id
-     )
-     SELECT switched.id FROM switched`
-  );
-  const saved = await readTeacherById(teacher.teacher_id);
-  if (String(saved.face_person_id || "") !== personId
-      || String(saved.profile_photo_file_id || "") !== photoRef
-      || String(saved.face_enrollment_status || "") !== "ENROLLED") {
-    fail("老师人脸已被其他请求更新，本次不会覆盖。", "TEACHER_FACE_CONFLICT");
-  }
-  if (updated.length > 1) fail("老师人脸更新行数异常。", "TEACHER_FACE_CONFLICT");
-  return { saved, didSwitch: updated.length === 1 };
-}
-
-async function restoreTeacherFace({ teacher, personId, photoRef, previous }) {
-  await executeSql(
-    `UPDATE public.teachers AS target
-        SET face_person_id = ${sqlNullableText(previous.facePersonId)},
-            profile_photo_file_id = ${sqlNullableText(previous.photoRef)},
-            face_enrollment_status = ${sqlNullableText(previous.enrollmentStatus, "varchar")},
-            face_consent_at = ${sqlNullableText(previous.consentAt, "timestamptz")},
-            face_enrolled_at = ${sqlNullableText(previous.enrolledAt, "timestamptz")},
-            face_enrolled_by_account_id = ${sqlNullableBigint(previous.enrolledBy)},
-            updated_at = CLOCK_TIMESTAMP()
-      WHERE target.id = ${Number(teacher.teacher_id)}::bigint
-        AND target.staff_account_id = ${Number(teacher.staff_id)}::bigint
-        AND target.face_person_id = ${sqlText(personId)}
-        AND target.profile_photo_file_id = ${sqlText(photoRef)}`
-  );
-  const restored = await readTeacherById(teacher.teacher_id);
-  if (String(restored.face_person_id || "") === personId
-      && String(restored.profile_photo_file_id || "") === photoRef) {
-    fail("失败后未能恢复老师原人脸资料。", "TEACHER_FACE_RESTORE_FAILED");
-  }
-  if (!sameFaceSnapshot(restored, previous)) {
-    // A different successful request won the race. Never overwrite it and
-    // never report this request as successful.
-    const changedByAnother = String(restored.face_person_id || "") !== String(previous.facePersonId || "")
-      || String(restored.profile_photo_file_id || "") !== String(previous.photoRef || "");
-    if (!changedByAnother) {
-      fail("失败后老师原人脸元数据未完整恢复。", "TEACHER_FACE_RESTORE_FAILED");
-    }
-  }
-  return restored;
-}
-
-async function deleteUnreferencedFace(api, groupId, personId, photoRef, options = {}) {
-  if (!personId && !photoRef) return [];
-  if (await faceReferenceCount(personId || "", photoRef || "")) return [];
-  const deletePersonResource = options.deletePersonResource !== false;
-  const deletePhotoResource = options.deletePhotoResource !== false;
-  const warnings = [];
-  const photo = photoFromReference(photoRef);
-  if (photo && deletePhotoResource) {
-    try { await deletePhoto(photo); }
-    catch (error) { warnings.push({ stage: "PHOTO_DELETE", code: error?.code || "DELETE_FAILED" }); }
-  }
-  if (personId && deletePersonResource) {
-    try { await deletePerson(api, groupId, personId); }
-    catch (error) { warnings.push({ stage: "FACE_DELETE", code: error?.code || "DELETE_FAILED" }); }
-  }
-  return warnings;
 }
 
 async function rollbackDatabase({ shell, uid, phone, personId, photoRef, created, preserveFace }) {
@@ -880,12 +763,15 @@ async function rollbackDatabase({ shell, uid, phone, personId, photoRef, created
             AND staff_account_id = ${Number(shell.staff_id)}::bigint
             AND (face_person_id IS NULL OR face_person_id = ${sqlText(personId)})
             AND (profile_photo_file_id IS NULL OR profile_photo_file_id = ${sqlText(photoRef)})
+         RETURNING staff_account_id
        )
-       DELETE FROM public.staff_accounts
-       WHERE id = ${Number(shell.staff_id)}::bigint
-          AND auth_uid = ${sqlText(uid)} AND phone = ${sqlText(phone)}
-          AND role_code = 'teacher'
-          AND NOT EXISTS (SELECT 1 FROM public.teachers WHERE staff_account_id = ${Number(shell.staff_id)}::bigint)`
+       DELETE FROM public.staff_accounts AS account
+       USING deleted_teacher
+       WHERE account.id = deleted_teacher.staff_account_id
+         AND account.id = ${Number(shell.staff_id)}::bigint
+         AND account.auth_uid = ${sqlText(uid)}
+         AND account.phone = ${sqlText(phone)}
+         AND account.role_code = 'teacher'`
     );
     const remaining = await readBusinessByPhone(phone);
     if (remaining && String(remaining.auth_uid || "") === uid) {
@@ -1019,146 +905,6 @@ async function validateCapture(event) {
   const quality = await inspectFace(api, image.base64);
   const liveness = await inspectLiveness(api, image.base64);
   return { ok: true, accepted: true, quality, liveness };
-}
-
-function faceUpdateResponse({ teacher, person, photo, quality, liveness, idempotent, warnings = [] }) {
-  return {
-    ok: true,
-    completed: true,
-    readbackConfirmed: true,
-    facePhotoReady: true,
-    idempotent: idempotent === true,
-    teacher: {
-      id: String(teacher.teacher_id),
-      teacherId: String(teacher.teacher_id),
-      teacher_id: String(teacher.teacher_id),
-      teacherCode: String(teacher.teacher_code || ""),
-      teacher_code: String(teacher.teacher_code || ""),
-      teacherStatus: String(teacher.teacher_status || ""),
-      teacher_status: String(teacher.teacher_status || ""),
-      accountStatus: String(teacher.account_status || ""),
-      account_status: String(teacher.account_status || ""),
-      faceEnrollmentStatus: "ENROLLED",
-      face_enrollment_status: "ENROLLED",
-      facePersonId: person.personId,
-      face_person_id: person.personId,
-      profilePhotoFileId: photo.reference,
-      profile_photo_file_id: photo.reference
-    },
-    proof: {
-      complete: true,
-      personId: person.personId,
-      faceId: person.faceId,
-      photoRef: photo.reference,
-      photoSha256: photo.sha256,
-      photoBytes: photo.bytes,
-      faceStatus: "ENROLLED",
-      teacherStatus: String(teacher.teacher_status || ""),
-      accountStatus: String(teacher.account_status || "")
-    },
-    quality,
-    liveness,
-    warnings
-  };
-}
-
-async function upsertTeacherFace(event) {
-  const actor = await requireHq();
-  if (event.consent !== true) fail("必须取得老师人脸采集授权。", "CONSENT_REQUIRED");
-  requestKey(event.clientRequestId);
-  const image = jpegImage(event.imageBase64 || event.faceImageBase64);
-  const teacher = await readTeacherById(event.teacherId);
-  const name = teacherName(teacher.teacher_name || teacher.staff_name);
-  const api = faceClient();
-  const groupId = required("FACE_GROUP_ID");
-  const quality = await inspectFace(api, image.base64);
-  const liveness = await inspectLiveness(api, image.base64);
-  const personId = personIdFor(image, teacher.teacher_id, teacher.staff_id);
-  const photo = photoFor(teacher.teacher_id, personId, image);
-  const previous = faceSnapshot(teacher);
-
-  if (String(previous.facePersonId || "") === personId
-      && String(previous.photoRef || "") === photo.reference
-      && previous.enrollmentStatus === "ENROLLED") {
-    const [personProof, photoProof, database] = await Promise.all([
-      confirmPerson(api, groupId, personId, name),
-      confirmPhoto(photo, image),
-      readTeacherById(teacher.teacher_id)
-    ]);
-    if (String(database.face_person_id || "") !== personId
-        || String(database.profile_photo_file_id || "") !== photo.reference
-        || String(database.face_enrollment_status || "") !== "ENROLLED") {
-      fail("老师人脸数据库引用与远端资料不一致。", "FACE_DATABASE_READBACK_FAILED");
-    }
-    return faceUpdateResponse({
-      teacher: database, person: personProof, photo: photoProof,
-      quality, liveness, idempotent: true
-    });
-  }
-
-  let remote = null;
-  let switched = false;
-  try {
-    remote = await createAndProveRemote({ api, groupId, personId, name, photo, image });
-    const switchResult = await switchTeacherFace({
-      teacher, actor, personId, photoRef: photo.reference, previous
-    });
-    switched = switchResult.didSwitch;
-    const [personProof, photoProof, database] = await Promise.all([
-      confirmPerson(api, groupId, personId, name, remote.person.faceId),
-      confirmPhoto(photo, image),
-      readTeacherById(teacher.teacher_id)
-    ]);
-    if (String(database.face_person_id || "") !== personId
-        || String(database.profile_photo_file_id || "") !== photo.reference
-        || String(database.face_enrollment_status || "") !== "ENROLLED"
-        || personProof.faceId !== remote.person.faceId
-        || photoProof.sha256 !== image.sha256 || photoProof.bytes !== image.bytes) {
-      fail("老师新人脸最终回读不完整。", "TEACHER_FACE_FINAL_READBACK_FAILED");
-    }
-    let warnings = [];
-    if (switched && ((previous.facePersonId && previous.facePersonId !== personId)
-        || (previous.photoRef && previous.photoRef !== photo.reference))) {
-      warnings = await deleteUnreferencedFace(
-        api, groupId, String(previous.facePersonId || ""), String(previous.photoRef || "")
-      );
-    }
-    return faceUpdateResponse({
-      teacher: database, person: personProof, photo: photoProof,
-      quality, liveness, idempotent: !switched, warnings
-    });
-  } catch (error) {
-    const cleanupFailures = [];
-    if (switched) {
-      try { await restoreTeacherFace({ teacher, personId, photoRef: photo.reference, previous }); }
-      catch (restoreError) {
-        cleanupFailures.push({ stage: "DATABASE_RESTORE", code: restoreError?.code || "RESTORE_FAILED" });
-      }
-    }
-    const ownedCandidate = remote?.created || error?.remoteCreated || {};
-    if ((ownedCandidate.person || ownedCandidate.photo) && cleanupFailures.length === 0) {
-      try {
-        const warnings = await deleteUnreferencedFace(api, groupId, personId, photo.reference, {
-          deletePersonResource: ownedCandidate.person === true,
-          deletePhotoResource: ownedCandidate.photo === true
-        });
-        cleanupFailures.push(...warnings);
-      } catch (cleanupFailure) {
-        cleanupFailures.push({
-          stage: "CANDIDATE_CLEANUP",
-          code: cleanupFailure?.code || "CLEANUP_FAILED"
-        });
-      }
-    }
-    if (cleanupFailures.length) {
-      const cleanupError = new Error(`${error.message} 本次候选资料未全部清理，请查看云函数日志。`);
-      cleanupError.code = "TEACHER_FACE_UPDATE_CLEANUP_INCOMPLETE";
-      cleanupError.cause = error;
-      cleanupError.cleanup = cleanupFailures;
-      throw cleanupError;
-    }
-    throw error;
-  }
 }
 
 async function createTeacher(event) {
@@ -1308,7 +1054,7 @@ function health() {
   return {
     ok: true,
     version: FUNCTION_VERSION,
-    actions: ["health", "validateCapture", "createTeacher", "upsertTeacherFace"],
+    actions: ["health", "validateCapture", "createTeacher"],
     configured: {
       cloudbaseEnv: hasEnv("CLOUDBASE_ENV_ID") || hasEnv("TCB_ENV"),
       serviceKey: hasEnv("CLOUDBASE_APIKEY") || hasEnv("CLOUDBASE_SERVICE_ROLE_KEY"),
@@ -1325,7 +1071,6 @@ exports.main = async (event = {}) => {
     if (action === "health") return health();
     if (action === "validateCapture") return await validateCapture(event);
     if (action === "createTeacher") return await createTeacher(event);
-    if (action === "upsertTeacherFace") return await upsertTeacherFace(event);
     fail("不支持的 teacherCreate 动作。", "UNKNOWN_ACTION");
   } catch (error) {
     return errorResponse(error);

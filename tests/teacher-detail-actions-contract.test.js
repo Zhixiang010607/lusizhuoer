@@ -19,18 +19,13 @@ assert.match(staffDetail, /params\.get\("id"\) \|\| params\.get\("teacherId"\) \
 assert.match(staffDetail, /item\.teacher_code, item\.person_code/,
   "teacher home must resolve legacy teacher-code links");
 
-for (const id of [
+for (const retired of [
   "staffFaceAction", "teacherFaceUpdatePanel", "teacherFaceUpdateCamera",
-  "teacherFaceUpdateConsent", "saveTeacherFaceUpdate"
+  "teacherFaceUpdateConsent", "saveTeacherFaceUpdate", "upsertTeacherFace"
 ]) {
-  assert.ok(staffDetailHtml.includes(`id="${id}"`), `teacher detail must expose ${id}`);
+  assert.equal(staffDetailHtml.includes(retired) || staffDetail.includes(retired), false,
+    `teacher detail must expose no post-creation face write surface: ${retired}`);
 }
-assert.match(staffDetail, /navigator\.mediaDevices\?\.getUserMedia/,
-  "teacher-home face maintenance must use a real camera capture");
-assert.match(staffDetail, /CloudBasePhoneAuth\.upsertTeacherFace\(\{[\s\S]{0,300}teacherId:[\s\S]{0,160}faceImageBase64:[\s\S]{0,160}consent: true/,
-  "teacher-home face maintenance must submit the original JPEG through the dedicated direct service");
-assert.match(staffDetail, /function completedTeacherFaceUpdate\(result\)[\s\S]{0,1800}readbackConfirmed[\s\S]{0,500}facePhotoReady[\s\S]{0,300}proof\.complete/,
-  "the UI must not report replacement success without authoritative face, photo and database readback proof");
 assert.match(staffDetail, /已登记 · 用于体验核销/,
   "teacher home may show the creation-time enrollment state as read-only information");
 assert.match(staffDetail, /不用于登录[\s\S]{0,120}普通核销不要求老师再次识别/,
@@ -70,9 +65,9 @@ for (const file of ["query.js", "management.js", "detail.js"]) {
     `${file} must no longer point users to the retired mock teacher page`);
 }
 
-assert.match(staffDetailHtml, /cloudbase-phone-auth\.js\?v=0\.19\.1/,
+assert.match(staffDetailHtml, /cloudbase-phone-auth\.js\?v=0\.19\.2/,
   "teacher home must refresh the shared cloud-function client");
-assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.6/,
+assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.7/,
   "teacher home must refresh its action handlers");
 assert.match(teacherCreateHtml, /teacher-create\.js\?v=0\.3\.1/,
   "teacher creation must refresh the mandatory-face UI");

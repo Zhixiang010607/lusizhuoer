@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v65";
+const FUNCTION_VERSION = "v66";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -1288,7 +1288,8 @@ async function findStaffProfile(uid) {
       `SELECT a.id, a.phone, a.staff_name, a.role_code, a.account_status,
         a.password_initialized_at, a.password_changed_at, a.password_change_required,
         s.id AS store_id, s.store_code, s.store_name, s.store_status,
-        t.id AS teacher_id, t.teacher_status, t.face_person_id, t.face_enrollment_status
+        t.id AS teacher_id, t.teacher_status, t.face_person_id,
+        t.face_enrollment_status, t.profile_photo_file_id
        FROM public.staff_accounts a
        ${storeJoin}
        LEFT JOIN public.teachers t ON t.staff_account_id = a.id
@@ -1316,15 +1317,17 @@ async function findStaffProfile(uid) {
     if (!staff.teacher_id) {
       // Migration 050 backfills this invariant. Keep a runtime repair for
       // legacy/stress rows created concurrently with deployment, but verify
-      // the optional-face trigger contract before any write can affect login.
-      await requireTeacherOptionalFaceActivationSchema();
+      // the status-synchronization contract before any write can affect login.
+      await requireTeacherStatusSchema();
       const teacher = await ensureTeacherDatabaseProfile(staff.id);
       staff.teacher_id = teacher.id;
       staff.teacher_status = teacher.teacher_status;
       staff.face_person_id = teacher.face_person_id;
       staff.face_enrollment_status = teacher.face_enrollment_status;
+      staff.profile_photo_file_id = teacher.profile_photo_file_id;
     }
     if (staff.teacher_status === "ARCHIVED") fail("该老师资料已封存，无法登录", "ARCHIVED_TEACHER");
+    requireCompleteTeacherFaceForActivation(staff, "ACTIVE");
   }
   return {
     staffId: staff.id,
@@ -1476,9 +1479,10 @@ async function ensureTeacherDatabaseProfile(staffId) {
   let rows;
   try {
     rows = await executeSql(
-      `SELECT teacher.id, teacher.teacher_code, teacher.teacher_name,
-              teacher.teacher_status, teacher.face_person_id,
-              teacher.face_enrollment_status, teacher.face_enrolled_at
+       `SELECT teacher.id, teacher.teacher_code, teacher.teacher_name,
+               teacher.teacher_status, teacher.face_person_id,
+               teacher.face_enrollment_status, teacher.face_enrolled_at,
+               teacher.profile_photo_file_id
          FROM public.teachers AS teacher
          JOIN public.staff_accounts AS account
            ON account.id = teacher.staff_account_id
@@ -1492,6 +1496,19 @@ async function ensureTeacherDatabaseProfile(staffId) {
   const teacher = rows?.[0];
   if (!teacher) fail("老师账号已创建，但老师资料未能写入", "TEACHER_PROFILE_MISSING");
   return teacher;
+}
+
+function requireCompleteTeacherFaceForActivation(teacher, status) {
+  if (String(status || "").toUpperCase() !== "ACTIVE") return;
+  const enrollment = String(teacher?.face_enrollment_status || "").toUpperCase();
+  const personId = String(teacher?.face_person_id || "").trim();
+  const photoReference = String(teacher?.profile_photo_file_id || "").trim();
+  if (enrollment !== "ENROLLED" || !personId || !/^pg:\/\/[^/]+\/.+/.test(photoReference)) {
+    fail(
+      "老师人脸资料不完整，不能激活。老师主页不提供补录或更换；请清理该旧／异常记录后重新创建老师。",
+      "TEACHER_FACE_REQUIRED"
+    );
+  }
 }
 
 async function createStaffDatabaseProfile({ uid, phone, staffName, role, storeId, initialAccountStatus = "ACTIVE" }) {
@@ -2763,7 +2780,7 @@ async function reviewOrder(caller, event) {
   return rows[0];
 }
 
-async function requireTeacherOptionalFaceActivationSchema() {
+async function requireTeacherStatusSchema() {
   const rows = await executeSql(
     `WITH trigger_definitions AS (
        SELECT COALESCE(
@@ -2805,7 +2822,7 @@ async function requireTeacherOptionalFaceActivationSchema() {
   );
   const schema = rows?.[0] || {};
   if (!databaseBoolean(schema.has_quota_status) || !databaseBoolean(schema.has_delete_function)) {
-    fail("老师可选人脸及体验额度生命周期尚未启用，请先执行迁移 048。", "DATABASE_SCHEMA_MISSING");
+    fail("老师状态及体验额度生命周期尚未启用，请先执行迁移 048。", "DATABASE_SCHEMA_MISSING");
   }
   if (
     !databaseBoolean(schema.has_optional_profile_trigger_definition) ||
@@ -2813,7 +2830,7 @@ async function requireTeacherOptionalFaceActivationSchema() {
     !databaseBoolean(schema.has_profile_trigger_binding) ||
     !databaseBoolean(schema.has_account_trigger_binding)
   ) {
-    fail("老师可选人脸激活触发器尚未替换，请先执行迁移 048-02 后重试。", "DATABASE_SCHEMA_MISSING");
+    fail("老师状态同步触发器尚未就绪，请先执行迁移 048-02 后重试。", "DATABASE_SCHEMA_MISSING");
   }
 }
 
@@ -3173,7 +3190,8 @@ async function setMasterStatus(caller, event = {}) {
   if (teacherIdText) {
     const teacherId = numericId(teacherIdText, "老师编号");
     const rows = await executeSql(
-      `SELECT t.id, t.staff_account_id, t.face_enrollment_status, t.face_person_id, a.auth_uid
+      `SELECT t.id, t.staff_account_id, t.face_enrollment_status, t.face_person_id,
+              t.profile_photo_file_id, a.auth_uid
          FROM public.teachers t
          LEFT JOIN public.staff_accounts a ON a.id = t.staff_account_id
         WHERE t.id = ${teacherId}::bigint
@@ -3181,11 +3199,10 @@ async function setMasterStatus(caller, event = {}) {
     );
     const teacher = rows?.[0];
     if (!teacher) fail("未找到该老师。", "NOT_FOUND");
-    // An ACTIVE teacher is allowed to have no face, but only after 048-02 has
-    // replaced the old face-gated status triggers.  Fail closed with a clear
-    // repair instruction rather than accepting the request and letting an old
-    // trigger silently archive the teacher again.
-    if (status === "ACTIVE") await requireTeacherOptionalFaceActivationSchema();
+    // Creation is the only supported face-enrollment path. Legacy or malformed
+    // rows must never be reactivated without all three durable face fields.
+    requireCompleteTeacherFaceForActivation(teacher, status);
+    if (status === "ACTIVE") await requireTeacherStatusSchema();
     if (teacher.auth_uid) {
       const result = await main({ action: "setStaffStatus", uid: String(teacher.auth_uid), status });
       return { ...result, entity: "teacher", teacherId: String(teacherId) };
@@ -3785,7 +3802,7 @@ async function main(event = {}, context = {}) {
       `SELECT a.id, a.auth_uid, a.phone, a.staff_name, a.role_code, a.account_status,
               a.password_initialized_at, a.password_changed_at, a.password_change_required,
               t.id AS teacher_id, t.teacher_code, t.teacher_status,
-              t.face_enrollment_status, t.face_person_id,
+               t.face_enrollment_status, t.face_person_id, t.profile_photo_file_id,
               ${sqlText(codePrefix)} || LPAD(a.id::text, 3, '0') AS person_code
        FROM public.staff_accounts a
        LEFT JOIN public.teachers t ON t.staff_account_id = a.id
@@ -4161,7 +4178,7 @@ async function main(event = {}, context = {}) {
       rows = await executeSql(
         `SELECT a.id, a.auth_uid, a.phone, a.role_code, a.account_status,
                 t.id AS teacher_id, t.teacher_status,
-                t.face_enrollment_status, t.face_person_id
+                t.face_enrollment_status, t.face_person_id, t.profile_photo_file_id
            FROM public.staff_accounts a
            LEFT JOIN public.teachers t ON t.staff_account_id = a.id
           WHERE a.${column} = ${sqlText(value)}
@@ -4179,16 +4196,19 @@ async function main(event = {}, context = {}) {
       // Preflight/repair the master-data invariant before any external
       // credential write. This prevents a legacy missing profile from turning
       // an archive click into "CloudBase BLOCKED but PostgreSQL ACTIVE".
-      await requireTeacherOptionalFaceActivationSchema();
+      if (status === "ACTIVE") await requireTeacherStatusSchema();
       if (!staff.teacher_id) {
         const teacher = await ensureTeacherDatabaseProfile(staff.id);
         staff.teacher_id = teacher.id;
         staff.teacher_status = teacher.teacher_status;
+        staff.face_enrollment_status = teacher.face_enrollment_status;
+        staff.face_person_id = teacher.face_person_id;
+        staff.profile_photo_file_id = teacher.profile_photo_file_id;
       }
+      requireCompleteTeacherFaceForActivation(staff, status);
     }
-    // No face is required for activation.  This only verifies that the
-    // database has the 048-02 optional-face triggers, so an old deployment
-    // cannot immediately undo an otherwise successful activation.
+    // The activation gate above runs before any database or CloudBase account
+    // write. Archiving remains available even for incomplete legacy records.
     try {
       await persistStaffStatusAndMaster(staff, status);
     } catch (error) {

@@ -195,14 +195,13 @@ const analytics = functionSource(faceCloud, "storeAnalyticsEventCte");
 const hqDashboard = functionSource(staffCloud, "getHqDashboard");
 const verificationCreate = functionSource(faceCloud, "createVerificationApplication");
 const teacherProvision = functionSource(teacherCreateCloud, "createTeacher");
-const teacherFaceUpsert = functionSource(teacherCreateCloud, "upsertTeacherFace");
 const teacherAuthentication = functionSource(teacherCreateCloud, "resolveAuthentication");
 const hqEntitlementRead = functionSource(staffCloud, "getHqTeacherExperienceEntitlements");
 const entitlementUpsert = functionSource(staffCloud, "upsertTeacherExperienceEntitlement");
 const entitlementDelete = functionSource(staffCloud, "deleteTeacherExperienceEntitlement");
 const entitlementRecharge = functionSource(staffCloud, "rechargeTeacherExperienceEntitlement");
 const monthlyResetTimer = functionSource(staffCloud, "handleTrustedTeacherExperienceResetTimer");
-const optionalFaceActivationSchema = functionSource(staffCloud, "requireTeacherOptionalFaceActivationSchema");
+const teacherStatusSchema = functionSource(staffCloud, "requireTeacherStatusSchema");
 
 includes(verificationCreate, 'verificationType === "EXPERIENCE"',
   "verification API must branch explicitly for teacher-owned experience allowance");
@@ -255,9 +254,7 @@ assert.match(teacherCreateCloud, /function successResponse\([\s\S]{0,500}complet
 assert.doesNotMatch(`${staffCloud}\n${faceCloud}`, /delegateTeacherFace|upsertDelegatedTeacherFace|teacher_face_operations/,
   "retired staff and face services must contain no cross-function teacher Saga");
 
-// New teacher creation is face-bound. This is deliberately narrower than
-// account activation: an existing teacher may still be activated without a
-// photo, and headquarters can supplement or replace that face on the detail page.
+// Teacher face enrollment exists only in the mandatory creation boundary.
 assert.match(teacherCreate, /老师人脸（必填）/,
   "new-teacher UI must describe face enrollment as mandatory");
 assert.doesNotMatch(teacherCreate, /老师人脸（可选）|不会阻止账号创建或激活|可后续补录/,
@@ -270,32 +267,25 @@ assert.match(teacherCreateScript, /Boolean\(capturedFaceImage\)[\s\S]{0,300}Bool
   "new-teacher submit enablement must require capture and consent");
 assert.doesNotMatch(phoneAuth, /async provisionTeacher\(\{ staffName, phone, initialPassword \}\)/,
   "the shared browser client must not retain a no-face teacher creation shortcut");
-assert.match(phoneAuth, /async upsertTeacherFace\(/,
-  "shared client must expose later teacher-face enrollment/replacement");
+assert.doesNotMatch(phoneAuth, /upsertTeacherFace|replaceTeacherFace/,
+  "shared client must expose no later teacher-face write path");
 assert.match(staffCloud, /if \(role === "teacher"\) \{[\s\S]{0,200}TEACHER_CREATE_SERVICE_REQUIRED/,
   "generic teacher provisioning must reject before its otherwise shared staff workflow");
-assert.match(optionalFaceActivationSchema, /pg_get_functiondef\(TO_REGPROCEDURE\('public\.sync_teacher_profile\(\)'\)\)/,
-  "optional-face provisioning must inspect the installed profile trigger definition, not only a quota column");
-assert.match(optionalFaceActivationSchema, /pg_get_functiondef\(TO_REGPROCEDURE\('public\.sync_teacher_account_status\(\)'\)\)/,
-  "optional-face provisioning must inspect the installed account-status trigger definition");
-assert.match(optionalFaceActivationSchema, /has_optional_profile_trigger_definition[\s\S]*has_optional_account_trigger_definition/,
-  "optional-face provisioning must require both 048-02 trigger replacements");
-assert.match(optionalFaceActivationSchema, /has_profile_trigger_binding[\s\S]*has_account_trigger_binding/,
-  "optional-face provisioning must verify the replacement functions are bound to their triggers");
-assert.match(optionalFaceActivationSchema, /迁移 048-02/,
-  "a partially run migration must return an actionable 048-02 repair instruction");
-assert.match(staffCloud, /if \(staff\.role_code === "teacher"\)\s*\{[\s\S]{0,320}await requireTeacherOptionalFaceActivationSchema\(\);/,
-  "activating an existing no-face teacher must verify the optional-face trigger replacement first");
+assert.match(teacherStatusSchema, /pg_get_functiondef\(TO_REGPROCEDURE\('public\.sync_teacher_profile\(\)'\)\)/,
+  "teacher status handling must inspect the installed profile trigger definition");
+assert.match(teacherStatusSchema, /has_profile_trigger_binding[\s\S]*has_account_trigger_binding/,
+  "teacher status handling must verify both trigger bindings");
+assert.match(staffCloud, /function requireCompleteTeacherFaceForActivation[\s\S]{0,700}TEACHER_FACE_REQUIRED/,
+  "teacher activation must fail closed unless enrollment, PersonId and private photo are complete");
 const genericProvision = staffCloud.slice(
   staffCloud.indexOf('if (action === "provisionStaff")'),
   staffCloud.indexOf('if (action === "resetPassword")')
 );
 assert.match(genericProvision, /TEACHER_CREATE_SERVICE_REQUIRED/,
   "generic provisioning must fail closed when asked to create a new teacher without a face");
-assert.match(teacherFaceUpsert, /readTeacherById\(event\.teacherId\)[\s\S]{0,1000}faceSnapshot\(teacher\)/,
-  "later face enrollment must read the teacher's existing active/archive state");
-assert.match(teacherFaceUpsert, /switchTeacherFace\([\s\S]{0,1000}readTeacherById\(teacher\.teacher_id\)/,
-  "later face enrollment must switch and then read back the exact durable pointers");
+assert.doesNotMatch(teacherCreateCloud,
+  /upsertTeacherFace|replaceTeacherFace|switchTeacherFace|restoreTeacherFace/,
+  "teacherCreate must expose no post-creation face modification path");
 
 // The HQ page is deliberately a management/read path: it may show archived
 // teachers/products and their historic quota ledger, whereas configuration and

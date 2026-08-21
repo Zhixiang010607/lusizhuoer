@@ -186,17 +186,15 @@ assert.match(migration, /ALTER TABLE public\.teachers\s+ADD COLUMN IF NOT EXISTS
   "teacher face enrollment must retain a private profile-photo reference for later EXPERIENCE snapshots");
 const staffProfile = functionSource(staff, "findStaffProfile");
 const staffStatusAction = staff.slice(staff.indexOf('if (action === "setStaffStatus")'), staff.indexOf('fail("不支持的操作")'));
-assert.doesNotMatch(staffProfile, /face_enrollment_status === "ENROLLED"|TEACHER_FACE_REQUIRED/i,
-  "a teacher without a face must still be able to have an active login profile");
-assert.match(staffStatusAction, /if \(staff\.role_code === "teacher"\)[\s\S]{0,360}requireTeacherOptionalFaceActivationSchema\(\);/,
-  "activating a teacher must retain the no-face activation policy");
-assert.doesNotMatch(staffStatusAction, /TEACHER_FACE_REQUIRED/i,
-  "staff activation must not accidentally reuse the EXPERIENCE-only face gate");
-const teacherFaceUpsert = functionSource(teacherCreate, "upsertTeacherFace");
-assert.match(teacherFaceUpsert, /const actor = await requireHq\(\)[\s\S]{0,320}readTeacherById\(event\.teacherId\)/,
-  "later teacher face enrollment/replacement must bind an HQ actor to the selected teacher");
-assert.match(teacherFaceUpsert, /createAndProveRemote\([\s\S]{0,260}switchTeacherFace\([\s\S]{0,700}confirmPhoto\([\s\S]{0,220}readTeacherById\(/,
-  "direct replacement must create and prove the remote face/photo, switch, and authoritatively read it back");
+assert.match(staffProfile, /requireCompleteTeacherFaceForActivation\(staff, "ACTIVE"\)/,
+  "a teacher login profile must fail closed without complete creation-time face evidence");
+assert.match(staffStatusAction, /requireCompleteTeacherFaceForActivation\(staff, status\)/,
+  "activating a teacher must require the same complete face evidence");
+assert.match(staff, /function requireCompleteTeacherFaceForActivation[\s\S]{0,700}TEACHER_FACE_REQUIRED/i,
+  "the activation gate must expose a stable error for incomplete legacy records");
+assert.doesNotMatch(teacherCreate,
+  /upsertTeacherFace|replaceTeacherFace|switchTeacherFace|restoreTeacherFace/,
+  "teacherCreate must expose no post-creation face modification path");
 assert.doesNotMatch(`${staff}\n${face}`, /upsertDelegatedTeacherFace|delegateTeacherFace|teacher_face_operations/,
   "staffAccount and faceRecognition must not retain the retired cross-function Saga");
 assert.match(teacherSubjectLock, /teacher\.face_enrollment_status = 'ENROLLED'[\s\S]{0,220}teacher\.face_person_id/i,

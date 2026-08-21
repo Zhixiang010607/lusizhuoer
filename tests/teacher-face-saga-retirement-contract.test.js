@@ -19,9 +19,9 @@ const canonical053 = read("database/migrations/053_retire_legacy_teacher_face_sa
 const console053 = read("database/cloudbase-console/053-01-retire-legacy-teacher-face-saga.sql");
 const verify053 = read("database/cloudbase-console/053-readonly-verify.sql");
 
-assert.match(staff, /const FUNCTION_VERSION = "v65"/);
+assert.match(staff, /const FUNCTION_VERSION = "v66"/);
 assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v4" : "v76"/);
-assert.match(teacher, /const FUNCTION_VERSION = "teacher-create-v2"/);
+assert.match(teacher, /const FUNCTION_VERSION = "teacher-create-v3"/);
 
 const retiredImplementationNames = [
   "teacher_face_operations",
@@ -62,22 +62,19 @@ assert.doesNotMatch(face, /if \(action === "(?:upsertDelegatedTeacherFace|readba
 assert.match(staff, /if \(role === "teacher"\) \{[\s\S]{0,220}TEACHER_CREATE_SERVICE_REQUIRED/,
   "generic staff creation must fail before attempting compatibility behavior");
 assert.match(teacher, /if \(action === "createTeacher"\) return await createTeacher\(event\)/,
-  "teacherCreate v2 must own direct teacher creation");
-assert.match(teacher, /if \(action === "upsertTeacherFace"\) return await upsertTeacherFace\(event\)/,
-  "teacherCreate v2 must own direct face add/replacement");
+  "teacherCreate v3 must own direct teacher creation");
+assert.doesNotMatch(teacher, /upsertTeacherFace|replaceTeacherFace|switchTeacherFace|restoreTeacherFace/,
+  "teacherCreate v3 must expose no post-creation face write path");
 assert.match(browser, /async createTeacherWithFace\([\s\S]{0,700}callTeacherCreate\(\s*\{[\s\S]{0,120}action: "createTeacher"/,
   "the browser must call teacherCreate directly for creation");
-assert.match(browser, /async upsertTeacherFace\([\s\S]{0,600}callTeacherCreate\(\s*\{[\s\S]{0,120}action: "upsertTeacherFace"/,
-  "the browser must call teacherCreate directly for face maintenance");
+assert.doesNotMatch(browser, /upsertTeacherFace|replaceTeacherFace/,
+  "the browser must expose no post-creation face maintenance client");
 
 const createStart = teacher.indexOf("async function createTeacher");
 const createEnd = teacher.indexOf("function health", createStart);
-const upsertStart = teacher.indexOf("async function upsertTeacherFace");
-const upsertEnd = createStart;
-assert.ok(createStart >= 0 && createEnd > createStart && upsertStart >= 0 && upsertEnd > upsertStart,
-  "the two direct teacher operations must have distinct implementations");
+assert.ok(createStart >= 0 && createEnd > createStart,
+  "direct teacher creation must have one auditable implementation");
 const create = teacher.slice(createStart, createEnd);
-const upsert = teacher.slice(upsertStart, upsertEnd);
 assert.equal((create.match(/await inspectFace\(/g) || []).length, 1,
   "one creation request performs exactly one quality pass");
 assert.equal((create.match(/await inspectLiveness\(/g) || []).length, 1,
@@ -86,13 +83,6 @@ assert.match(create, /confirmPerson\([\s\S]{0,260}confirmPhoto\([\s\S]{0,800}fin
   "creation must prove the same remote identity, retained original and database record");
 assert.match(create, /manager\(\)\.user\.modifyUser\(\{ uid: authentication\.uid, userStatus: "ACTIVE"[\s\S]{0,500}finalReadback\(/,
   "creation activates only before a final authoritative readback");
-assert.match(upsert, /switchTeacherFace\([\s\S]{0,1000}confirmPerson\([\s\S]{0,260}confirmPhoto\([\s\S]{0,260}readTeacherById\(/,
-  "replacement must switch and then prove all three stores directly");
-assert.match(teacher,
-  /async function switchTeacherFace[\s\S]{0,1800}WITH switched AS \([\s\S]{0,1200}UPDATE public\.teachers AS target[\s\S]{0,1200}RETURNING target\.id[\s\S]{0,120}SELECT switched\.id FROM switched/,
-  "the face switch must use a top-level SELECT so CloudBase cannot hide a committed DML RETURNING row");
-assert.match(upsert, /if \(switched\)[\s\S]{0,320}restoreTeacherFace\([\s\S]{0,1600}TEACHER_FACE_UPDATE_CLEANUP_INCOMPLETE/,
-  "failed replacement must restore old pointers or fail explicitly as cleanup-incomplete");
 
 function body(source) {
   const begin = source.indexOf("BEGIN;");

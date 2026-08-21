@@ -13,8 +13,12 @@ const createSource = source.slice(
   source.indexOf("async function createTeacher"),
   source.indexOf("function health", source.indexOf("async function createTeacher"))
 );
+const rollbackSource = source.slice(
+  source.indexOf("async function rollbackDatabase"),
+  source.indexOf("async function deleteCreatedAuth", source.indexOf("async function rollbackDatabase"))
+);
 
-assert.match(source, /const FUNCTION_VERSION = "teacher-create-v2"/);
+assert.match(source, /const FUNCTION_VERSION = "teacher-create-v3"/);
 assert.match(source, /if \(action === "createTeacher"\) return await createTeacher\(event\)/);
 assert.doesNotMatch(source, /\.callFunction\s*\(|\boperationId\b|\bworker\b|\bpoll(?:ing)?\b|setInterval\s*\(|setTimeout\s*\(|\bTimer\b|\b051\b/i,
   "the dedicated create service must not nest functions or retain the old operation/worker/timer protocol");
@@ -32,6 +36,12 @@ assert.match(source, /context\.remoteCreated\?\.photo[\s\S]{0,260}context\.remot
   "compensation may delete only resources this request knows it created");
 assert.doesNotMatch(createSource, /password\s*:/,
   "an existing Auth identity must never have its password overwritten during recovery");
+assert.match(rollbackSource,
+  /WITH\s+deleted_teacher\s+AS\s*\([\s\S]*?DELETE\s+FROM\s+public\.teachers[\s\S]*?\)\s*DELETE\s+FROM\s+public\.staff_accounts(?:\s+AS\s+\w+)?\s+USING\s+deleted_teacher\b/i,
+  "created-shell rollback must delete the staff account from the rows actually deleted by the same CTE statement");
+assert.doesNotMatch(rollbackSource,
+  /NOT\s+EXISTS\s*\(\s*SELECT[\s\S]{0,600}?FROM\s+public\.teachers\b/i,
+  "rollback must not observe its data-changing CTE through a same-statement NOT EXISTS snapshot");
 
 function deterministicUid(phone) {
   return `teacher-${crypto.createHash("sha256").update(`teacher-auth:${phone}`, "utf8").digest("hex").slice(0, 48)}`;
@@ -51,7 +61,8 @@ function normalizePhone(value) {
 function harness(options = {}) {
   const calls = {
     sql: [], detectFace: 0, liveness: 0, createPerson: 0, deletePerson: 0,
-    upload: 0, download: 0, deletePhoto: 0, createUser: 0, modifyUser: [], deleteUsers: 0
+    getPersonGroupInfo: 0, upload: 0, download: 0, deletePhoto: 0,
+    createUser: 0, modifyUser: [], deleteUsers: 0
   };
   const state = {
     nextStaffId: 100,
@@ -271,12 +282,39 @@ function harness(options = {}) {
       return { PersonId, PersonName: person.PersonName, FaceIds: [...person.FaceIds] };
     }
     async GetPersonGroupInfo({ PersonId }) {
+      calls.getPersonGroupInfo += 1;
+      if (options.groupReadTransientMissingOnce && calls.getPersonGroupInfo === 1) {
+        throw Object.assign(new Error("人员ID暂时不存在"), {
+          code: "InvalidParameterValue.PersonIdNotExist"
+        });
+      }
+      if (options.groupReadPersonMissing) {
+        // Tencent IAI can report that the Person disappeared between the
+        // successful CreatePerson receipt and the exact group readback. Model
+        // the remote truth as already absent so cleanup must be idempotent.
+        state.persons.delete(PersonId);
+        throw Object.assign(new Error("人员ID不存在"), {
+          code: "InvalidParameterValue.PersonIdNotExist"
+        });
+      }
       const person = state.persons.get(PersonId);
       if (!person) throw Object.assign(new Error("person not found"), { code: "ResourceNotFound" });
       return { PersonGroupInfos: [{ GroupId: person.GroupId }] };
     }
     async DeletePersonFromGroup({ PersonId }) {
       calls.deletePerson += 1;
+      if (options.deletePersonNotFound) {
+        state.persons.delete(PersonId);
+        throw Object.assign(new Error("人员ID不存在"), {
+          code: "InvalidParameterValue.PersonIdNotExist"
+        });
+      }
+      if (options.deletePersonFailure) {
+        if (options.deletePersonFailure.remoteAbsent) state.persons.delete(PersonId);
+        throw Object.assign(new Error(options.deletePersonFailure.message), {
+          code: options.deletePersonFailure.code
+        });
+      }
       state.persons.delete(PersonId);
       return { RequestId: "delete-person" };
     }
@@ -343,6 +381,20 @@ const eventFor = (phone, clientRequestId) => ({
     assert.equal(subject.calls.createPerson, 1);
     assert.equal(subject.calls.upload, 1);
     assert.equal(subject.calls.deleteUsers, 0);
+  }
+
+  {
+    const subject = harness({ groupReadTransientMissingOnce: true });
+    const result = await subject.main(eventFor("13900000022", "simple_transient_person_read_01"));
+    assert.equal(result.ok, true,
+      "one transient PersonIdNotExist during exact readback must receive one short retry");
+    assert.equal(result.completed, true);
+    assert.equal(result.proof.complete, true);
+    assert.equal(subject.calls.getPersonGroupInfo, 3,
+      "creation performs the failed read, its one retry, and the final post-activation proof");
+    assert.equal(subject.calls.createPerson, 1,
+      "readback retry must never create a second Person");
+    assert.equal(subject.calls.deletePerson, 0);
   }
 
   {
@@ -510,6 +562,81 @@ const eventFor = (phone, clientRequestId) => ({
       "a response-lost photo is retained because exact readback proves existence, not exclusive ownership");
     assert.equal(subject.state.auth.size, 0,
       `the independently known-created Auth identity is still cleaned precisely: ${JSON.stringify({ result, calls: subject.calls })}`);
+  }
+
+  {
+    const subject = harness({
+      groupReadPersonMissing: true,
+      deletePersonNotFound: true
+    });
+    const result = await subject.main(eventFor("13900000019", "simple_missing_person_cleanup_01"));
+    assert.equal(result.ok, false);
+    assert.equal(result.code, "InvalidParameterValue.PersonIdNotExist",
+      "a Person missing during exact group readback remains the original failure, not cleanup-incomplete");
+    assert.notEqual(result.code, "TEACHER_CREATE_CLEANUP_INCOMPLETE");
+    assert.equal(subject.calls.getPersonGroupInfo, 2,
+      "a persistent PersonIdNotExist receives only the single bounded readback retry");
+    assert.equal(subject.calls.deletePerson, 1,
+      "cleanup still attempts the precisely owned Person after the failed group readback");
+    assert.equal(subject.state.business.size, 0);
+    assert.equal(subject.state.auth.size, 0);
+    assert.equal(subject.state.persons.size, 0,
+      "DeletePersonFromGroup reporting PersonIdNotExist proves the remote Person is already clean");
+    assert.equal(subject.state.objects.size, 0);
+  }
+
+  for (const [suffix, deletePersonFailure] of [
+    ["permission", { code: "AuthFailure.UnauthorizedOperation", message: "permission denied" }],
+    ["timeout", { code: "FUNCTION_TIMEOUT", message: "delete request timed out" }],
+    ["group-id-missing", {
+      code: "InvalidParameterValue.GroupIdNotExist", message: "group id not exist"
+    }],
+    ["resource-unavailable", {
+      code: "ResourceUnavailable.NotExist", message: "remote resource does not exist"
+    }]
+  ]) {
+    const subject = harness({ failAuthActivation: true, deletePersonFailure });
+    const result = await subject.main(eventFor(
+      ({
+        permission: "13900000020",
+        timeout: "13900000021",
+        "group-id-missing": "13900000023",
+        "resource-unavailable": "13900000024"
+      })[suffix],
+      `simple_unknown_face_cleanup_${suffix}_01`
+    ));
+    assert.equal(result.ok, false);
+    assert.equal(result.code, "TEACHER_CREATE_CLEANUP_INCOMPLETE",
+      `${suffix} while deleting a Person is unknown, so creation must remain fail-closed`);
+    assert.equal(subject.calls.deletePerson, 1);
+    assert.equal(subject.state.business.size, 0);
+    assert.equal(subject.state.auth.size, 0);
+    assert.equal(subject.state.objects.size, 0);
+    assert.equal(subject.state.persons.size, 1,
+      `${suffix} does not prove deletion and must not be treated as already clean`);
+  }
+
+  for (const [suffix, code] of [
+    ["person-id-missing", "InvalidParameterValue.PersonIdNotExist"],
+    ["group-person-map-missing", "FailedOperation.GroupPersonMapNotExist"]
+  ]) {
+    const subject = harness({
+      failAuthActivation: true,
+      deletePersonFailure: { code, message: "precisely owned Person mapping does not exist", remoteAbsent: true }
+    });
+    const result = await subject.main(eventFor(
+      suffix === "person-id-missing" ? "13900000025" : "13900000026",
+      `simple_idempotent_face_cleanup_${suffix}_01`
+    ));
+    assert.equal(result.ok, false);
+    assert.equal(result.code, "AUTH_ACTIVATION_FAILED",
+      `${code} is an exact idempotent-delete result and must preserve the original creation failure`);
+    assert.notEqual(result.code, "TEACHER_CREATE_CLEANUP_INCOMPLETE");
+    assert.equal(subject.calls.deletePerson, 1);
+    assert.equal(subject.state.business.size, 0);
+    assert.equal(subject.state.auth.size, 0);
+    assert.equal(subject.state.objects.size, 0);
+    assert.equal(subject.state.persons.size, 0);
   }
 
   console.log("teacherCreate simple synchronous runtime contract: PASS");

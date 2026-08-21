@@ -699,11 +699,11 @@
     }
     const teacher = databaseTeachers.find((item) => item.id === teacherId);
     if (teacherFaceUnavailable(teacher)) {
-      select.innerHTML = `<option value="">老师尚未补录人脸，暂时不能体验核销</option>`;
+      select.innerHTML = `<option value="">老师资料不完整，不能体验核销</option>`;
       const hint = $("experienceQuotaHint");
-      if (hint) hint.textContent = "当前老师账号可正常激活和登录，但体验核销必须先由总部在老师档案中补录或替换人脸。";
+      if (hint) hint.textContent = "老师人脸只能在创建时完成；该异常记录需要清理后重新创建，不能在详情页补录或更换。";
       const message = $("verificationCreateMessage");
-      if (message) message.textContent = "该老师未补录人脸：客户仍可作为业务归属，但不能完成老师本人的体验人脸比对。";
+      if (message) message.textContent = "该老师的人脸资料不完整，不能激活、登录或完成体验核销；请清理后重新创建。";
       syncVerificationSubmit();
       return;
     }
@@ -898,7 +898,7 @@
         if (experiencePage) {
           const teacher = databaseTeachers.find((item) => item.id === String($("verificationTeacher")?.value || ""));
           if (!teacher) throw new Error("请先确认本次体验核销的老师。");
-          if (teacherFaceUnavailable(teacher)) throw new Error("该老师尚未补录人脸，请先由总部在老师档案中补录或替换人脸。");
+          if (teacherFaceUnavailable(teacher)) throw new Error("该老师人脸资料不完整，请清理后重新创建老师。");
         }
         resetVerificationCapture(); open.hidden = true;
         if (!navigator.mediaDevices?.getUserMedia) throw new Error("当前浏览器不支持摄像头访问，请使用最新版 Chrome 或 Edge");
@@ -918,7 +918,7 @@
       if (experiencePage && (!faceTeacher || teacherFaceUnavailable(faceTeacher))) {
         message.textContent = !faceTeacher
           ? "请先确认本次体验核销的老师"
-          : "该老师尚未补录人脸，请先由总部在老师档案中补录或替换人脸";
+          : "该老师人脸资料不完整，请清理后重新创建老师";
         return;
       }
       if (!cameraStream || !video.videoWidth || !video.videoHeight) { message.textContent = "摄像头画面尚未就绪，请稍后重试"; return; }
@@ -987,7 +987,7 @@
       const teacher = databaseTeachers.find((item) => item.id === teacherId);
       if (!teacher) { $("verificationCreateMessage").textContent = "老师数据已经失效，请刷新页面后重新选择"; return; }
       if (teacherMode && teacher.id !== normalizedTeacherProfile(teacherBusinessProfile || {}).id) { $("verificationCreateMessage").textContent = "老师账号只能将业务绑定给本人，请刷新页面后重试"; return; }
-      if (experience && teacherFaceUnavailable(teacher)) { $("verificationCreateMessage").textContent = "该老师尚未补录人脸，不能提交体验核销"; return; }
+      if (experience && teacherFaceUnavailable(teacher)) { $("verificationCreateMessage").textContent = "该老师人脸资料不完整，不能提交体验核销；请清理后重新创建"; return; }
       const payload = { customerCode: selectedCustomer.id, productId: project.id, teacherId: teacher.id, verificationType: experience ? "EXPERIENCE" : "NORMAL", message: note, faceRequestId: verificationFaceRequestId, faceEvidenceToken: verificationFaceEvidenceToken };
       const clientRequestId = nextVerificationRequestId({ storeId, ...payload });
       submit.disabled = true;

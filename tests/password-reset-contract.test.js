@@ -32,7 +32,7 @@ for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))
   const html = fs.readFileSync(path.join(root, file), "utf8");
   if (!html.includes("cloudbase-phone-auth.js?v=")) continue;
   const expectedVersion = file === "staff-detail.html"
-    ? "0.19.1"
+    ? "0.19.2"
     : file === "teacher-create.html"
     ? "0.19.0"
     : [

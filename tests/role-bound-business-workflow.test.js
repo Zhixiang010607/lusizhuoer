@@ -72,8 +72,8 @@ includes(business, 'customerCode: selectedCustomer.id', "experience remains boun
 includes(business, '...(experiencePage ? { teacherId: faceTeacher.id } : {})', "experience face request identifies the quota teacher");
 includes(business, 'faceSubjectType: experience ? "TEACHER" : "CUSTOMER"', "newly created local detail state keeps the verified face subject");
 includes(business, "所选老师本人 1:1 人脸验证", "experience success names the teacher as face subject");
-includes(business, "该老师尚未补录人脸", "no-face teacher receives a clear experience-only blocker");
-includes(business, "客户仍可作为业务归属", "missing teacher face does not change customer attribution");
+includes(business, "老师人脸只能在创建时完成", "no-face legacy teacher is never sent to a detail-page repair flow");
+includes(business, "不能激活、登录或完成体验核销", "incomplete teacher face blocks the whole account rather than only experience");
 includes(experience, "客户作为业务归属", "experience page explains customer attribution");
 includes(experience, "老师本人 1:1 人脸验证", "experience page explains teacher face matching");
 includes(experience, "不扣客户项目余额", "experience page explains teacher quota isolation");
