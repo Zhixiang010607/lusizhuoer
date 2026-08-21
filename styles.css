@@ -1028,6 +1028,7 @@ body[data-store-business] .form-submit-row button:disabled {
 .review-count strong { color: var(--ink); font-size: 22px; }
 .review-table { margin-top: 9px; }
 .review-table .table-scroll { max-height: 650px; }
+body[data-review="recharge"] .review-table table { min-width: 960px; }
 .review-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 14px; padding-top: 13px; border-top: 1px solid var(--line); }
 .review-pagination button { min-width: 68px; min-height: 34px; padding: 6px 11px; border: 1px solid var(--line); color: var(--ink); background: #fff; font-size: 11px; font-weight: 800; }
 .review-pagination button:hover:not(:disabled) { border-color: #9db9e7; color: #174f9b; background: #f5f9ff; }
@@ -1487,6 +1488,32 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
   body[data-store-business] .customer-profile-details .profile-photo-note { display: block; padding: 6px 8px; font-size: 9px; line-height: 1.35; }
   .form-submit-row, .service-customer-option { align-items: stretch; flex-direction: column; }
   .review-toolbar, .review-filter-row, .review-code-panel { grid-template-columns: 1fr; }
+  body[data-review="recharge"] .review-table { min-width: 0; overflow: hidden; }
+  body[data-review="recharge"] .review-table .table-scroll {
+    width: 100%;
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: visible;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  body[data-review="recharge"] .review-table table {
+    width: max-content;
+    min-width: 1040px;
+    table-layout: auto;
+  }
+  body[data-review="recharge"] .review-table thead { display: table-header-group; }
+  body[data-review="recharge"] .review-table tbody { display: table-row-group; }
+  body[data-review="recharge"] .review-table tr { display: table-row; }
+  body[data-review="recharge"] .review-table th,
+  body[data-review="recharge"] .review-table td {
+    width: auto;
+    min-width: 0;
+    display: table-cell;
+    padding: 8px 10px;
+    white-space: nowrap;
+  }
+  body[data-review="recharge"] .review-table td::before { display: none; content: none; }
   .review-query-mode { width: 100%; }
   .verification-order-main { width: min(100% - 22px, 1260px); }
   .verification-order-hero { grid-template-columns: 1fr; }
