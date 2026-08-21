@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.21";
+  const VERSION = "0.16.22";
   const PRODUCT_LOGO_DETAIL_RETRY_DELAYS_MS = Object.freeze([0, 360, 1080]);
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
@@ -716,6 +716,43 @@
     return `${safe || "核销照片高清原图"}.jpg`;
   }
 
+  async function saveVerificationPhotoOriginal(blob, filename) {
+    let shareError = null;
+    if (usesMobilePhotoLibrary()
+      && typeof File === "function"
+      && typeof navigator.share === "function"
+      && typeof navigator.canShare === "function") {
+      const originalFile = new File([blob], filename, {
+        type: "image/jpeg",
+        lastModified: Date.now()
+      });
+      const shareFiles = { files: [originalFile] };
+      if (navigator.canShare(shareFiles)) {
+        try {
+          await navigator.share({
+            ...shareFiles,
+            title: "保存高清原图到相册"
+          });
+          return { mode: "album" };
+        } catch (error) {
+          if (error?.name === "AbortError" || error?.code === "ABORT_ERR") {
+            const cancelled = new Error("已取消保存到相册。");
+            cancelled.code = "PHOTO_ALBUM_SAVE_CANCELLED";
+            throw cancelled;
+          }
+          shareError = error;
+        }
+      }
+    }
+    if (typeof window.OrderExporter?.downloadBlob !== "function") {
+      throw shareError || new Error("本地下载组件未加载，请刷新页面重试");
+    }
+    // File sharing and the fallback download both receive the exact validated
+    // original Blob. Never draw through canvas or replace it with a thumbnail.
+    window.OrderExporter.downloadBlob(blob, filename);
+    return { mode: "download", shareError };
+  }
+
   async function downloadVerificationPhotoOriginal(recordId, photo, button) {
     if (!photo || button?.dataset.photoDownload === "running") return;
     const slot = Number(photo.slot);
@@ -732,12 +769,17 @@
     }
     try {
       const blob = await fetchVerificationPhotoOriginalForDownload(recordId, photo);
-      if (typeof window.OrderExporter?.downloadBlob !== "function") throw new Error("本地下载组件未加载，请刷新页面重试");
-      window.OrderExporter.downloadBlob(blob, verificationPhotoOriginalFilename(recordId, slot));
-      if (message) message.textContent = `${photoSlotLabel(slot)}高清原图已下载（${photoSizeLabel(blob.size)}，原始字节，无压缩）。`;
+      const saved = await saveVerificationPhotoOriginal(blob, verificationPhotoOriginalFilename(recordId, slot));
+      if (message) {
+        message.textContent = saved.mode === "album"
+          ? `${photoSlotLabel(slot)}高清原图已交给手机系统处理（${photoSizeLabel(blob.size)}，原始字节，无压缩）。`
+          : `当前浏览器不能直接打开相册保存面板，已下载${photoSlotLabel(slot)}高清原图（${photoSizeLabel(blob.size)}，原始字节，无压缩）；请从“下载”中存入相册。`;
+      }
     } catch (error) {
       if (message) {
-        message.className = "verification-photo-message error";
+        message.className = error?.code === "PHOTO_ALBUM_SAVE_CANCELLED"
+          ? "verification-photo-message"
+          : "verification-photo-message error";
         message.textContent = error?.message || `${photoSlotLabel(slot)}高清原图下载失败，请重试。`;
       }
     } finally {
@@ -1532,8 +1574,9 @@
     const size = photoSizeLabel(photo?.originalBytes);
     const meta = photo ? [size, formatTime(photo.uploadedAt) || "已绑定"].filter(Boolean).join(" · ") : "空照片位";
     const libraryLabel = usesMobilePhotoLibrary() ? (photo ? "从相册替换" : "从相册上传") : (photo ? "上传替换" : "上传文件");
+    const downloadLabel = usesMobilePhotoLibrary() ? "保存高清原图到相册" : "下载高清原图";
     const download = photo
-      ? `<button class="verification-photo-upload verification-photo-download" type="button" data-download-verification-photo="${slot}">下载高清原图</button>`
+      ? `<button class="verification-photo-upload verification-photo-download" type="button" data-download-verification-photo="${slot}">${downloadLabel}</button>`
       : "";
     const editActions = slot < 2 ? "" : `
       <button class="verification-photo-upload verification-photo-camera" type="button" data-capture-verification-photo="${slot}" ${canUpload ? "" : "disabled"}>${photo ? "重新拍照" : "拍照"}</button>

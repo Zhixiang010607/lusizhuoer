@@ -286,7 +286,7 @@ assert.ok(
     < functionSource(cloud, "getVerificationPhotos").indexOf("signVerificationPhoto("),
   "thumbnail URLs must be signed only after the verification-order permission check"
 );
-includes(detailUi, 'const VERSION = "0.16.21"', "detail UI cache version");
+includes(detailUi, 'const VERSION = "0.16.22"', "detail UI cache version");
 includes(functionSource(detailUi, "callVerificationPhoto"), 'callFunction({ name: "verificationPhoto", data })', "all photo operations use the dedicated photo cloud function");
 includes(functionSource(detailUi, "callVerificationPhotoLifecycle"), "callVerificationPhoto(data)", "bounded photo lifecycle calls use the dedicated photo helper");
 includes(functionSource(detailUi, "loadTeacherOrder"), 'name: "faceRecognition"', "teacher workspace remains on the business and face cloud function");
@@ -399,7 +399,7 @@ includes(detailHtml, 'id="verificationPhotoCameraVideo" autoplay playsinline mut
 includes(detailHtml, 'id="switchVerificationPhotoCamera"', "front/rear camera switch action");
 includes(detailHtml, 'aria-label="切换前后摄像头"', "camera switch accessible name");
 includes(detailHtml, 'order-export.js?v=0.1.6', "export renderer cache bust");
-includes(detailHtml, 'business-detail.js?v=0.16.21', "detail script cache bust");
+includes(detailHtml, 'business-detail.js?v=0.16.22', "detail script cache bust");
 includes(detailHtml, 'styles.css?v=0.15.49', "detail styles cache bust");
 includes(styles, ".verification-order-keyfacts.verification-order-five-keyfacts", "desktop verification header keeps five flexible facts in one row");
 includes(styles, ".verification-order-store-message", "single full-width store message layout");
@@ -421,11 +421,16 @@ includes(styles, "object-fit: contain", "gallery shows the complete photo withou
 includes(styles, "grid-template-columns: repeat(5, minmax(0, 1fr))", "all five desktop evidence photos stay in one visible row");
 includes(styles, ".verification-photo-actions", "separate camera and upload action layout");
 includes(functionSource(detailUi, "verificationPhotoCard"), 'data-download-verification-photo', "every stored evidence photo has an individual original download action");
+includes(functionSource(detailUi, "verificationPhotoCard"), '保存高清原图到相册', "mobile evidence photo action opens the phone save flow");
+includes(functionSource(detailUi, "saveVerificationPhotoOriginal"), "new File([blob]", "mobile save wraps the exact original bytes as a shareable JPEG file");
+includes(functionSource(detailUi, "saveVerificationPhotoOriginal"), "navigator.canShare", "mobile save confirms that file sharing is supported");
+includes(functionSource(detailUi, "saveVerificationPhotoOriginal"), "navigator.share", "mobile save opens the native system panel");
+includes(functionSource(detailUi, "saveVerificationPhotoOriginal"), "window.OrderExporter.downloadBlob(blob", "unsupported mobile browsers fall back to an exact original download");
 includes(functionSource(detailUi, "fetchVerificationPhotoOriginalForDownload"), "fetchVerificationPhotoExportFallback", "individual downloads use the authenticated original-byte channel");
 assert.ok(!functionSource(detailUi, "fetchVerificationPhotoOriginalForDownload").includes("fetchVerificationPhotoThumbnailFallback"), "individual original downloads never substitute a thumbnail");
 includes(functionSource(detailUi, "assertVerificationPhotoOriginalBlob"), "blob.size !== expectedBytes", "download verifies exact stored byte length");
 includes(functionSource(detailUi, "assertVerificationPhotoOriginalBlob"), "signature[0] !== 0xff", "download verifies the stored JPEG signature");
-includes(functionSource(detailUi, "downloadVerificationPhotoOriginal"), "window.OrderExporter.downloadBlob(blob", "download saves the authorized blob directly without canvas conversion");
+includes(functionSource(detailUi, "downloadVerificationPhotoOriginal"), "saveVerificationPhotoOriginal(blob", "download hands the validated original blob to the native-or-download saver");
 includes(styles, ".verification-photo-download", "original download action has a distinct responsive style");
 includes(styles, ".verification-photo-camera-stage", "camera preview stage styles");
 includes(styles, ".verification-photo-camera-stage video.is-user-facing", "front camera mirrored preview");

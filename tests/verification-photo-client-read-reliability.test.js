@@ -231,12 +231,75 @@ async function localOriginalDownloadPreservesExactBytes() {
   assert.equal(harness.__authenticatedReads, 1, "a mismatched direct response is replaced by one authenticated original-byte read");
 }
 
+async function mobileAlbumSavePreservesExactBytes() {
+  const exact = new Blob([new Uint8Array([255, 216, 255, 41, 42, 43, 255, 217])], { type: "image/jpeg" });
+  const harness = {
+    module: { exports: {} }, Blob, Uint8Array, Date,
+    __canShare: true, __shareMode: "success", __shared: null, __downloaded: null
+  };
+  vm.createContext(harness);
+  vm.runInContext(`
+    const usesMobilePhotoLibrary = () => true;
+    class File extends Blob {
+      constructor(parts, name, options = {}) {
+        super(parts, options);
+        this.name = name;
+        this.lastModified = options.lastModified || 0;
+      }
+    }
+    const navigator = {
+      canShare: () => globalThis.__canShare,
+      share: async (payload) => {
+        if (globalThis.__shareMode === "cancel") {
+          const error = new Error("cancelled"); error.name = "AbortError"; throw error;
+        }
+        globalThis.__shared = payload.files[0];
+      }
+    };
+    const window = {
+      OrderExporter: {
+        downloadBlob: (blob, filename) => { globalThis.__downloaded = { blob, filename }; }
+      }
+    };
+    ${functionSource("saveVerificationPhotoOriginal")}
+    module.exports = saveVerificationPhotoOriginal;
+  `, harness, { filename: "verification-photo-mobile-album-save.js" });
+
+  const shared = await harness.module.exports(exact, "核销照片高清原图.jpg");
+  assert.equal(shared.mode, "album", "supported phones open the native save/share sheet");
+  assert.equal(harness.__downloaded, null, "native share does not create a duplicate browser download");
+  assert.equal(harness.__shared.name, "核销照片高清原图.jpg");
+  assert.equal(harness.__shared.type, "image/jpeg");
+  assert.equal(harness.__shared.size, exact.size, "native file keeps the exact original byte count");
+  assert.deepEqual(
+    Array.from(new Uint8Array(await harness.__shared.arrayBuffer())),
+    Array.from(new Uint8Array(await exact.arrayBuffer())),
+    "native file keeps every original JPEG byte without canvas conversion"
+  );
+
+  harness.__canShare = false;
+  harness.__shared = null;
+  const fallback = await harness.module.exports(exact, "fallback.jpg");
+  assert.equal(fallback.mode, "download", "unsupported phones receive an original-file download fallback");
+  assert.equal(harness.__downloaded.blob, exact, "fallback also receives the exact original Blob");
+
+  harness.__canShare = true;
+  harness.__shareMode = "cancel";
+  harness.__downloaded = null;
+  await assert.rejects(
+    harness.module.exports(exact, "cancel.jpg"),
+    (error) => error?.code === "PHOTO_ALBUM_SAVE_CANCELLED"
+  );
+  assert.equal(harness.__downloaded, null, "cancelling the native panel never starts an unexpected download");
+}
+
 (async () => {
   await clientReadFlights();
   await clientBlobFlights();
   await inlineDataUrlIsPageLifetimeOnly();
   await exportFallsBackToSafeThumbnail();
   await localOriginalDownloadPreservesExactBytes();
+  await mobileAlbumSavePreservesExactBytes();
   console.log("verification photo client read reliability: PASS (30 same + 30 different)");
 })().catch((error) => {
   console.error(error);
