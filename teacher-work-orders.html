@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>老师工作台</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.56">
+  <link rel="stylesheet" href="styles.css?v=0.15.57">
 </head>
 <body data-teacher-workspace>
   <aside class="side-project-bar" aria-label="老师工作台"><div class="side-brand"><span>师</span><div><strong>老师工作台</strong><small>本人业务</small></div></div><nav class="side-nav"></nav><div class="side-footer">老师账号</div></aside>
@@ -44,20 +44,8 @@
       </div>
     </section>
 
-    <section class="panel teacher-customer-panel" aria-labelledby="teacherActiveCustomersTitle">
-      <div class="panel-heading"><div><h2 id="teacherActiveCustomersTitle">活跃用户</h2><p>只显示本老师核销过的活跃客户；点击用户可进入客户主页</p></div><span id="teacherActiveCustomerCount" class="badge">读取中</span></div>
-      <div class="table-scroll teacher-customer-scroll"><table><thead><tr><th>客户（姓名 · 编号）</th><th>生日</th><th>核销项目</th><th>正常核销</th><th>体验核销</th><th>合计</th></tr></thead><tbody id="teacherActiveCustomerBody"><tr><td colspan="6" class="teacher-empty">正在读取活跃客户…</td></tr></tbody></table></div>
-      <div id="teacherActiveCustomerPagination" class="table-pagination" aria-label="老师活跃客户分页"></div>
-    </section>
-
-    <section class="panel teacher-customer-panel archived-customer-section" aria-labelledby="teacherArchivedCustomersTitle">
-      <div class="panel-heading"><div><h2 id="teacherArchivedCustomersTitle">封存用户</h2><p>本老师核销过的封存客户仍保留历史关联；点击用户可进入客户主页</p></div><span id="teacherArchivedCustomerCount" class="badge archived-customer-badge">读取中</span></div>
-      <div class="table-scroll teacher-customer-scroll"><table><thead><tr><th>客户（姓名 · 编号）</th><th>生日</th><th>核销项目</th><th>正常核销</th><th>体验核销</th><th>合计</th></tr></thead><tbody id="teacherArchivedCustomerBody"><tr><td colspan="6" class="teacher-empty">正在读取封存客户…</td></tr></tbody></table></div>
-      <div id="teacherArchivedCustomerPagination" class="table-pagination" aria-label="老师封存客户分页"></div>
-    </section>
-
-    <section class="panel teacher-business-panel">
-      <div class="panel-heading"><div><h2>本人业务明细</h2><p>点击单号查看凭证；点击客户姓名可进入本人关联客户主页并留言</p></div><span id="teacherLoadedCount" class="badge">0 条</span></div>
+    <section id="teacherBusinessDetails" class="panel teacher-business-panel" aria-labelledby="teacherBusinessDetailsTitle">
+      <div class="panel-heading"><div><h2 id="teacherBusinessDetailsTitle">本人业务明细</h2><p>与上方业务汇总使用同一时间范围；点击单号查看凭证，点击客户可进入关联客户主页</p></div><span id="teacherLoadedCount" class="badge">共 0 条</span></div>
       <div class="teacher-record-tabs" role="tablist" aria-label="业务类型">
         <button class="active" id="teacherVerificationTab" data-record-type="VERIFICATION" type="button" role="tab" aria-selected="true"><span>核销</span><small id="teacherVerificationTotal">0 次</small></button>
         <button id="teacherRechargeTab" data-record-type="RECHARGE" type="button" role="tab" aria-selected="false"><span>充值</span><small id="teacherRechargeTotal">0 次</small></button>
@@ -65,16 +53,29 @@
         <button id="teacherRefundTab" data-record-type="REFUND" type="button" role="tab" aria-selected="false"><span>退费</span><small id="teacherRefundTotal">0 次</small></button>
       </div>
       <p id="teacherWorkspaceMessage" class="form-message" aria-live="polite"></p>
-      <div class="table-scroll"><table><thead id="teacherRecordsHead"></thead><tbody id="teacherOrdersBody"><tr><td class="teacher-empty">正在读取数据库工单…</td></tr></tbody></table></div>
-      <div class="teacher-load-more-row"><button id="teacherLoadMore" type="button" hidden>继续加载</button></div>
+      <div class="table-scroll teacher-record-scroll" tabindex="0" aria-label="本人业务明细表格，可横向滑动"><table><thead id="teacherRecordsHead"></thead><tbody id="teacherOrdersBody"><tr><td class="teacher-empty">正在读取数据库工单…</td></tr></tbody></table></div>
+      <div id="teacherBusinessPagination" class="table-pagination business-record-pagination dashboard-ranking-pagination" aria-label="本人业务明细分页"></div>
     </section>
+
+    <section class="panel teacher-customer-panel" aria-labelledby="teacherActiveCustomersTitle">
+      <div class="panel-heading"><div><h2 id="teacherActiveCustomersTitle">活跃用户</h2><p>只显示本老师核销过的活跃客户；点击用户可进入客户主页</p></div><span id="teacherActiveCustomerCount" class="badge">读取中</span></div>
+      <div class="table-scroll teacher-customer-scroll" tabindex="0" aria-label="活跃用户表格，可横向滑动"><table><thead><tr><th>姓名</th><th>门店</th><th>生日</th><th>充值次数</th><th>核销次数</th></tr></thead><tbody id="teacherActiveCustomerBody"><tr><td colspan="5" class="teacher-empty">正在读取活跃客户…</td></tr></tbody></table></div>
+      <div id="teacherActiveCustomerPagination" class="table-pagination" aria-label="老师活跃客户分页"></div>
+    </section>
+
+    <section class="panel teacher-customer-panel archived-customer-section" aria-labelledby="teacherArchivedCustomersTitle">
+      <div class="panel-heading"><div><h2 id="teacherArchivedCustomersTitle">封存用户</h2><p>本老师核销过的封存客户仍保留历史关联；点击用户可进入客户主页</p></div><span id="teacherArchivedCustomerCount" class="badge archived-customer-badge">读取中</span></div>
+      <div class="table-scroll teacher-customer-scroll" tabindex="0" aria-label="封存用户表格，可横向滑动"><table><thead><tr><th>姓名</th><th>门店</th><th>生日</th><th>充值次数</th><th>核销次数</th></tr></thead><tbody id="teacherArchivedCustomerBody"><tr><td colspan="5" class="teacher-empty">正在读取封存客户…</td></tr></tbody></table></div>
+      <div id="teacherArchivedCustomerPagination" class="table-pagination" aria-label="老师封存客户分页"></div>
+    </section>
+
   </main>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
   <script src="datetime.js?v=0.1.2"></script>
-  <script src="teacher-work-orders.js?v=0.16.1"></script>
+  <script src="teacher-work-orders.js?v=0.16.2"></script>
   <script src="auth-ui.js?v=0.19.1"></script>
 </body>
 </html>

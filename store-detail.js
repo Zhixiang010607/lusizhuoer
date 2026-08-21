@@ -1,8 +1,9 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.5";
+  const VERSION = "0.16.6";
   const CUSTOMER_PAGE_SIZE = 10;
+  const BUSINESS_PAGE_SIZE = 10;
   const params = new URLSearchParams(location.search);
   const storeRef = String(params.get("authUid") || params.get("storeId") || "").trim();
   const $ = (id) => document.getElementById(id);
@@ -27,8 +28,10 @@
     dashboardStoreId: "", analyticsLoading: false, analyticsPreset: "MONTH", statusLoading: false,
     businessActiveType: "VERIFICATION", businessRangeEpoch: 0,
     businessRecords: emptyBusinessTypeMap(() => []),
-    businessCursors: emptyBusinessTypeMap(() => null),
-    businessHasMore: emptyBusinessTypeMap(() => false),
+    businessPages: emptyBusinessTypeMap(() => 1),
+    businessTotals: emptyBusinessTypeMap(() => 0),
+    businessPageSizes: emptyBusinessTypeMap(() => BUSINESS_PAGE_SIZE),
+    businessTotalPages: emptyBusinessTypeMap(() => 1),
     businessLoaded: emptyBusinessTypeMap(() => false),
     businessLoading: emptyBusinessTypeMap(() => false),
     businessRequestIds: emptyBusinessTypeMap(() => 0),
@@ -130,16 +133,16 @@
     else state.activeCustomerPage = page;
     const rows = archived ? state.archivedCustomerRows : state.activeCustomerRows;
     if (!rows.length) {
-      target.innerHTML = `<tr><td colspan="6" class="query-empty">暂无${archived ? "封存" : "活跃"}客户</td></tr>`;
+      target.innerHTML = `<tr><td colspan="5" class="query-empty">暂无${archived ? "封存" : "活跃"}客户</td></tr>`;
     } else {
       target.innerHTML = rows.map((row) => {
         const id = firstValue(row, ["customer_id", "id"], "");
         const code = firstValue(row, ["customer_code", "code"], "");
         const name = firstValue(row, ["customer_name", "name"]);
         const reference = code || id;
-        const label = code ? `${name} · ${code}` : name;
-        const customer = reference ? `<a class="record-link" href="customer-detail.html?customerId=${encodeURIComponent(reference)}">${escapeHtml(label)}</a>` : escapeHtml(label);
-        return `<tr><td data-label="客户">${customer}</td><td data-label="生日">${escapeHtml(formatBirthday(firstValue(row, ["birthday", "birth_date"], "")))}</td><td data-label="持有项目">${escapeHtml(firstValue(row, ["product_count", "held_product_count"], 0))}</td><td data-label="总购买">${escapeHtml(firstValue(row, ["total_recharge_count", "purchase_count"], 0))}</td><td data-label="总核销">${escapeHtml(firstValue(row, ["total_verification_count", "verification_count"], 0))}</td><td data-label="剩余次数">${escapeHtml(firstValue(row, ["remaining_count", "balance"], 0))}</td></tr>`;
+        const customer = reference ? `<a class="record-link" href="customer-detail.html?customerId=${encodeURIComponent(reference)}">${escapeHtml(name)}</a>` : escapeHtml(name);
+        const storeName = firstValue(state.currentStore, ["store_name"], "—");
+        return `<tr><td data-label="姓名">${customer}</td><td data-label="门店">${escapeHtml(storeName)}</td><td data-label="生日">${escapeHtml(formatBirthday(firstValue(row, ["birthday", "birth_date"], "")))}</td><td data-label="充值次数">${escapeHtml(firstValue(row, ["total_recharge_count", "purchase_count"], 0))} 次</td><td data-label="核销次数"><strong>${escapeHtml(firstValue(row, ["total_verification_count", "verification_count"], 0))} 次</strong></td></tr>`;
       }).join("");
     }
     if ($(`store${prefix}CustomerCount`)) $(`store${prefix}CustomerCount`).textContent = `${total} 位用户`;
@@ -304,6 +307,16 @@
     return window.AppDateTime?.formatDateTime?.(value, "—") || window.AppDateTime?.formatDate?.(value, "—") || "—";
   }
 
+  function renderBusinessPager(type) {
+    const target = $("storeBusinessPagination");
+    const total = Number(state.businessTotals[type] || 0);
+    const pageSize = Number(state.businessPageSizes[type] || BUSINESS_PAGE_SIZE);
+    const totalPages = Math.max(1, Number(state.businessTotalPages[type] || Math.ceil(total / pageSize)));
+    const page = Math.min(Math.max(1, Number(state.businessPages[type] || 1)), totalPages);
+    if (total <= pageSize) { target.innerHTML = ""; return; }
+    target.innerHTML = `<button type="button" data-store-business-page="${page - 1}" ${page <= 1 ? "disabled" : ""}>上一页</button><span>第 ${page} / ${totalPages} 页 · 共 ${total.toLocaleString("zh-CN")} 条</span><button type="button" data-store-business-page="${page + 1}" ${page >= totalPages ? "disabled" : ""}>下一页</button><label class="ranking-page-jump">跳转到第 <input id="storeBusinessPageInput" type="number" min="1" max="${totalPages}" value="${page}" inputmode="numeric" aria-label="门店业务明细页码"> 页 <button type="button" data-store-business-jump>跳转</button></label>`;
+  }
+
   function renderBusinessDetails() {
     const type = state.businessActiveType;
     const rows = state.businessRecords[type];
@@ -330,33 +343,21 @@
         </tr>`;
       }).join("") : `<tr><td colspan="6" class="teacher-empty">所选时间内暂无本门店有效${meta.label}记录</td></tr>`;
     }
-    $("storeBusinessLoadedCount").textContent = `已加载 ${rows.length} 条`;
-    $("storeBusinessLoadMore").hidden = !state.businessHasMore[type];
-    $("storeBusinessLoadMore").disabled = state.businessLoading[type];
+    $("storeBusinessLoadedCount").textContent = `共 ${Number(state.businessTotals[type] || 0).toLocaleString("zh-CN")} 条`;
+    renderBusinessPager(type);
   }
 
-  function mergeBusinessPage(type, result, append) {
-    if (!append) state.businessRecords[type] = [];
-    const known = new Set(state.businessRecords[type].map((row) => String(row.id)));
-    for (const row of Array.isArray(result?.records) ? result.records : []) {
-      if (!known.has(String(row.id))) state.businessRecords[type].push(row);
-    }
-    state.businessCursors[type] = result?.nextCursor || null;
-    state.businessHasMore[type] = Boolean(result?.hasMore && result?.nextCursor);
-    state.businessLoaded[type] = true;
-  }
-
-  async function loadBusinessType(type, { append = false } = {}) {
+  async function loadBusinessType(type, { page = state.businessPages[type] } = {}) {
     if (!businessTypes.includes(type) || state.businessLoading[type] || !state.dashboardStoreId) return;
-    const cursor = append ? state.businessCursors[type] : null;
-    if (append && !cursor) return;
+    const targetPage = Math.max(1, Math.trunc(Number(page) || 1));
     const epoch = state.businessRangeEpoch;
     const requestId = ++state.businessRequestIds[type];
     const meta = businessTypeMeta[type];
     state.businessLoading[type] = true;
-    if (!append) { state.businessRecords[type] = []; state.businessLoaded[type] = false; }
+    state.businessRecords[type] = [];
+    state.businessLoaded[type] = false;
     renderBusinessDetails();
-    $("storeBusinessDetailMessage").textContent = append ? "正在继续读取…" : "";
+    $("storeBusinessDetailMessage").textContent = `正在读取第 ${targetPage} 页…`;
     try {
       const range = validateAnalyticsRange();
       const result = await callFaceRecognition("queryStoreBusinessRecords", {
@@ -367,15 +368,20 @@
         ...(meta.verificationType ? { verificationType: meta.verificationType } : {}),
         ...(meta.rechargeType ? { rechargeType: meta.rechargeType } : {}),
         ...range,
-        limit: 50,
-        ...(cursor ? { cursorSubmittedAt: cursor.submittedAt, cursorId: cursor.id } : {})
+        page: targetPage,
+        pageSize: BUSINESS_PAGE_SIZE
       });
       if (epoch !== state.businessRangeEpoch || requestId !== state.businessRequestIds[type]) return;
-      mergeBusinessPage(type, result, append);
+      state.businessRecords[type] = Array.isArray(result.records) ? result.records : [];
+      state.businessTotals[type] = Number(result.total || 0);
+      state.businessPages[type] = Number(result.page || targetPage);
+      state.businessPageSizes[type] = Number(result.pageSize || BUSINESS_PAGE_SIZE);
+      state.businessTotalPages[type] = Math.max(1, Number(result.totalPages || Math.ceil(state.businessTotals[type] / state.businessPageSizes[type])));
+      state.businessLoaded[type] = true;
       $("storeBusinessDetailMessage").textContent = "";
     } catch (error) {
       if (epoch !== state.businessRangeEpoch || requestId !== state.businessRequestIds[type]) return;
-      if (!append) state.businessLoaded[type] = true;
+      state.businessLoaded[type] = true;
       $("storeBusinessDetailMessage").textContent = error?.message || "门店业务明细读取失败。";
     } finally {
       if (epoch === state.businessRangeEpoch && requestId === state.businessRequestIds[type]) {
@@ -389,8 +395,10 @@
     state.businessRangeEpoch += 1;
     for (const type of businessTypes) {
       state.businessRecords[type] = [];
-      state.businessCursors[type] = null;
-      state.businessHasMore[type] = false;
+      state.businessPages[type] = 1;
+      state.businessTotals[type] = 0;
+      state.businessPageSizes[type] = BUSINESS_PAGE_SIZE;
+      state.businessTotalPages[type] = 1;
       state.businessLoaded[type] = false;
       state.businessLoading[type] = false;
       state.businessRequestIds[type] += 1;
@@ -404,6 +412,15 @@
     renderBusinessTabs();
     renderBusinessDetails();
     if (!state.businessLoaded[type]) void loadBusinessType(type);
+  }
+
+  function jumpBusinessPage(value) {
+    const type = state.businessActiveType;
+    const totalPages = Math.max(1, Number(state.businessTotalPages[type] || 1));
+    const requested = Math.trunc(Number(value));
+    if (!Number.isFinite(requested)) return;
+    const page = Math.min(Math.max(requested, 1), totalPages);
+    void loadBusinessType(type, { page });
   }
 
   function validateAnalyticsRange() {
@@ -439,17 +456,27 @@
   async function loadCustomerPage(kind, page) {
     const archived = kind === "archivedCustomer";
     const target = $(archived ? "storeArchivedCustomerBody" : "storeActiveCustomerBody");
-    if (target) target.innerHTML = '<tr><td colspan="6" class="query-empty">正在读取客户数据…</td></tr>';
+    if (target) target.innerHTML = '<tr><td colspan="5" class="query-empty">正在读取客户数据…</td></tr>';
     try {
       const activePage = archived ? state.activeCustomerPage : page;
       const archivedPage = archived ? page : state.archivedCustomerPage;
       renderStore(await loadCurrentStoreDashboard(activePage, state.dashboardStoreId, archivedPage));
     } catch (error) {
-      if (target) target.innerHTML = `<tr><td colspan="6" class="query-empty">${escapeHtml(error?.message || "客户数据读取失败")}</td></tr>`;
+      if (target) target.innerHTML = `<tr><td colspan="5" class="query-empty">${escapeHtml(error?.message || "客户数据读取失败")}</td></tr>`;
     }
   }
 
   document.addEventListener("click", (event) => {
+    const businessPage = event.target.closest("button[data-store-business-page]");
+    if (businessPage && !businessPage.disabled) {
+      jumpBusinessPage(businessPage.dataset.storeBusinessPage);
+      return;
+    }
+    const businessJump = event.target.closest("button[data-store-business-jump]");
+    if (businessJump) {
+      jumpBusinessPage($("storeBusinessPageInput")?.value);
+      return;
+    }
     const button = event.target.closest("button[data-page-target]");
     if (!button || button.disabled) return;
     const page = Number(button.dataset.page);
@@ -461,7 +488,11 @@
   document.querySelectorAll("[data-store-range-preset]").forEach((button) => button.addEventListener("click", () => setAnalyticsPeriod(button.dataset.storeRangePreset, { load: true })));
   $("applyStoreAnalytics")?.addEventListener("click", () => void loadAnalytics());
   document.querySelectorAll("[data-store-record-type]").forEach((button) => button.addEventListener("click", () => setBusinessType(button.dataset.storeRecordType)));
-  $("storeBusinessLoadMore")?.addEventListener("click", () => void loadBusinessType(state.businessActiveType, { append: true }));
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.target.id !== "storeBusinessPageInput") return;
+    event.preventDefault();
+    jumpBusinessPage(event.target.value);
+  });
   $("storeStatusAction")?.addEventListener("click", async () => {
     const account = state.storeAccount || {};
     const store = state.currentStore;

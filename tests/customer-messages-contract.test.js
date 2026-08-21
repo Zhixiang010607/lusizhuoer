@@ -27,7 +27,7 @@ for (const source of [migration, consoleMigration]) {
   assert.match(source, /REVOKE ALL ON TABLE public\.customer_messages FROM PUBLIC/);
 }
 
-assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v5" : "v82"/);
+assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v5" : "v83"/);
 assert.match(cloud, /async function listCustomerMessages\(event\)/);
 assert.match(cloud, /async function addCustomerMessage\(event\)/);
 assert.match(cloud, /const limit = Number\.isFinite\(requestedLimit\)[\s\S]*?: 20;/);
@@ -76,7 +76,7 @@ assert.match(css, /customer-message-compose \{[\s\S]*grid-template-columns: 1fr;
 
 assert.match(auth, /teacher: new Set\(\[[^\]]*"customer-detail\.html"/);
 assert.match(teacherUi, /customer-detail\.html\?\$\{customerParams\.toString\(\)\}/);
-assert.match(teacherHtml, /点击客户姓名可进入本人关联客户主页并留言/);
-assert.match(teacherHtml, /teacher-work-orders\.js\?v=0\.16\.1/);
+assert.match(teacherHtml, /点击单号查看凭证，点击客户可进入关联客户主页/);
+assert.match(teacherHtml, /teacher-work-orders\.js\?v=0\.16\.2/);
 
 console.log("customer messages contract: PASS");

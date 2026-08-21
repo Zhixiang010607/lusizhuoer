@@ -34,24 +34,25 @@ assert.ok(html.indexOf('id="storeBasic"') < html.indexOf('id="storeBusinessOverv
 assert.doesNotMatch(html, /id="storeAnalyticsLinks"|class="store-analytics-links"/, "overview removes the four duplicate metric shortcut buttons");
 assert.doesNotMatch(html, /id="storeTeachers"|id="storeTeacherBody"|老师统计|各老师核销数据/, "store detail removes the teacher summary section");
 assert.doesNotMatch(html, /id="storeProjects"|id="storeProjectBody"|体验项目剩余次数/, "store homepage has no legacy project panel or teacher quota panel");
-assert.ok(html.indexOf('id="storeBusinessOverview"') < html.indexOf('id="storeActiveCustomers"'), "summary precedes active users");
+assert.ok(html.indexOf('id="storeBusinessOverview"') < html.indexOf('id="storeBusinessDetails"'), "summary precedes business details");
+assert.ok(html.indexOf('id="storeBusinessDetails"') < html.indexOf('id="storeActiveCustomers"'), "business details immediately precede customer lists");
 assert.ok(html.indexOf('id="storeActiveCustomers"') < html.indexOf('id="storeArchivedCustomers"'), "active users precede archived users");
-assert.ok(html.indexOf('id="storeArchivedCustomers"') < html.indexOf('id="storeBusinessDetails"'), "business details follow both user sections like the teacher homepage");
 for (const [section, status] of [[activeCustomerSection, "active"], [archivedCustomerSection, "archived"]]) {
   assert.doesNotMatch(section, /<th>最近业务<\/th>|<th>状态<\/th>/, `${status} customer table removes time and status columns`);
-  includes(section, '<th>剩余次数</th>', `${status} customer table ends with remaining count`);
+  includes(section, '<th>姓名</th><th>门店</th><th>生日</th><th>充值次数</th><th>核销次数</th>', `${status} customer table uses the shared five columns`);
 }
 includes(activeCustomerSection, 'id="storeActiveCustomerBody"', "active bound customers have a dedicated table");
 includes(archivedCustomerSection, 'id="storeArchivedCustomerBody"', "archived bound customers have a dedicated table");
 includes(activeCustomerSection, '<h2 id="storeActiveCustomersTitle">活跃用户</h2>', "active customer heading matches teacher terminology");
 includes(archivedCustomerSection, '<h2 id="storeArchivedCustomersTitle">封存用户</h2>', "archived customer heading matches teacher terminology");
-includes(html, 'store-detail.js?v=0.16.5', "store detail script cache bust");
+includes(html, 'store-detail.js?v=0.16.6', "store detail script cache bust");
 includes(html, 'store-analytics-data.js?v=0.2.0', "store analytics helper cache bust");
-includes(html, 'styles.css?v=0.15.56', "store detail stylesheet cache bust");
+includes(html, 'styles.css?v=0.15.57', "store detail stylesheet cache bust");
 for (const [type, label] of [["VERIFICATION", "核销"], ["RECHARGE", "充值"], ["EXPERIENCE", "体验"], ["REFUND", "退费"]]) {
   assert.match(html, new RegExp(`data-store-record-type="${type}"[\\s\\S]{0,120}<span>${label}</span>`), `${label} must be a dedicated store detail button`);
 }
 includes(html, 'id="storeBusinessDetails"', "store homepage includes the teacher-style business detail panel");
+includes(html, 'id="storeBusinessPagination"', "store business details own numbered pagination");
 includes(detail, 'analyticsPreset: "MONTH"', "store summary defaults to this month");
 includes(detail, 'if (state.analyticsPreset === "ALL") return {}', "all-time selection omits date bounds");
 includes(detail, 'class="teacher-summary-total"', "store summary renders the same total row as teacher summary");
@@ -61,7 +62,7 @@ includes(detail, 'toUpperCase() === "ACTIVE"', "active customer rows are restric
 includes(detail, 'toUpperCase() === "ARCHIVED"', "archived customer rows are restricted to archived customers");
 const customerRenderer = detail.slice(detail.indexOf("function renderCustomers"), detail.indexOf("function renderEmptyRows"));
 assert.doesNotMatch(customerRenderer, /last_business_at|last_recharge_at|formatDateTime/, "customer list is independent of business timestamps");
-includes(detail, 'colspan="6" class="query-empty"', "customer loading and empty states match the six visible columns");
+includes(detail, 'colspan="5" class="query-empty"', "customer loading and empty states match the five visible columns");
 includes(detail, 'action, ...data', "store detail uses the shared cloud function caller");
 includes(detail, 'statusCategory: "APPROVED"', "store business details contain effective records only");
 includes(detail, 'rechargeType: "NEW"', "recharge detail excludes refunds");
@@ -69,6 +70,9 @@ includes(detail, 'rechargeType: "REFUND"', "refund detail excludes new recharges
 includes(detail, 'verificationType: "NORMAL"', "normal verification detail excludes experience");
 includes(detail, 'verificationType: "EXPERIENCE"', "experience detail is isolated");
 includes(detail, 'customer-detail.html?${customerParams.toString()}', "store business customer names link to customer profiles");
+includes(detail, 'data-store-business-page', "store business records include previous and next page controls");
+includes(detail, 'data-store-business-jump', "store business records preserve direct page jump");
+assert.doesNotMatch(detail, /storeBusinessLoadMore|继续加载|businessCursors|businessHasMore/, "store details do not use endless cursor loading");
 assert.doesNotMatch(detail, /renderProjects|renderProjectRefundBreakdown|storeProjectBody/, "store detail removes the legacy lifetime-project renderer");
 includes(analyticsData, 'if (period === "WEEK")', "store supports the same weekly range as teacher");
 includes(analyticsData, 'if (period === "QUARTER")', "store supports the same quarterly range as teacher");
@@ -180,6 +184,9 @@ includes(analysisHtml, 'auth-ui.js?v=0.19.1', "analysis route loads current auth
 includes(cloud, 'if (action === "getStoreBusinessAnalytics")', "cloud action dispatched");
 includes(cloud, 'if (action === "queryStoreBusinessRecords")', "store detail query action dispatched");
 includes(cloud, 'r.recharge_type = ${sqlText(rechargeType)}', "store detail backend separates recharge and refund record types");
+const storeRecordQuery = cloud.slice(cloud.indexOf("async function queryStoreBusinessRecords"), cloud.indexOf("async function getStoreDashboard"));
+assert.match(storeRecordQuery, /numberedPage[\s\S]*pageSize[\s\S]*OFFSET/, "store detail backend supports numbered server pagination");
+assert.match(storeRecordQuery, /total:\s*filteredTotal[\s\S]*totalPages/, "store detail backend returns total rows and total pages");
 
 includes(html, 'id="storeStatusAction"', "store homepage owns the status action");
 includes(html, 'id="storeStatusMessage"', "store status operation has inline feedback");

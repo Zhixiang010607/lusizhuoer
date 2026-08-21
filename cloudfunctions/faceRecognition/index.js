@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v5" : "v82";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v5" : "v83";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -2163,9 +2163,20 @@ async function queryStoreBusinessRecords(event = {}) {
     : "";
   const requestedLimit = Number(event.limit);
   const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 100, 1), 100);
+  const numberedPage = Object.prototype.hasOwnProperty.call(event, "page")
+    || Object.prototype.hasOwnProperty.call(event, "pageSize");
+  const requestedPage = Number(event.page || 1);
+  const requestedPageSize = Number(event.pageSize || 10);
+  if (numberedPage && (!Number.isInteger(requestedPage) || requestedPage < 1)) fail("业务明细页码必须是正整数。", "BAD_REQUEST");
+  if (numberedPage && (!Number.isInteger(requestedPageSize) || requestedPageSize < 1 || requestedPageSize > 100)) {
+    fail("业务明细每页数量必须是 1 至 100。", "BAD_REQUEST");
+  }
+  const page = numberedPage ? requestedPage : 1;
+  const pageSize = numberedPage ? requestedPageSize : limit;
   const cursorSubmittedAt = scopedQueryCursorTimestamp(event.cursorSubmittedAt, "分页时间游标");
   const cursorIdText = String(event.cursorId || "").trim();
   if (Boolean(cursorSubmittedAt) !== Boolean(cursorIdText)) fail("分页游标不完整。", "BAD_REQUEST");
+  if (numberedPage && cursorSubmittedAt) fail("页码分页不能同时提交游标。", "BAD_REQUEST");
   const cursorId = cursorIdText ? businessQueryDatabaseId(cursorIdText, "分页工单") : "";
 
   const alias = recordType === "RECHARGE" ? "r" : "v";
@@ -2226,10 +2237,11 @@ async function queryStoreBusinessRecords(event = {}) {
                           p.id AS product_id, p.product_code, p.product_name,
                           t.id AS teacher_id, t.teacher_code, t.teacher_name
                      FROM public.${table} ${alias}
-                     ${baseJoin}
-                    WHERE ${listClauses.join(" AND ")}
-                    ORDER BY ${alias}.submitted_at DESC, ${alias}.id DESC
-                    LIMIT ${limit + 1}`;
+                    ${baseJoin}
+                   WHERE ${listClauses.join(" AND ")}
+                   ORDER BY ${alias}.submitted_at DESC, ${alias}.id DESC
+                    LIMIT ${numberedPage ? pageSize : limit + 1}
+                    ${numberedPage ? `OFFSET ${(page - 1) * pageSize}` : ""}`;
   const productsSql = `SELECT p.id AS product_id, p.product_code, p.product_name, p.product_status
                           FROM public.products p
                          WHERE p.product_status = 'ACTIVE'
@@ -2247,10 +2259,19 @@ async function queryStoreBusinessRecords(event = {}) {
     executeSql(summarySql),
     executeSql(productsSql)
   ]);
-  const hasMore = rawRecords.length > limit;
-  const pageRows = rawRecords.slice(0, limit);
-  const last = pageRows[pageRows.length - 1];
   const summary = summaryRows[0] || {};
+  const filteredTotal = Number(
+    statusCategory === "PENDING" ? summary.pending
+      : statusCategory === "APPROVED" ? summary.approved
+        : ["REJECTED", "CLOSED"].includes(statusCategory) ? summary.rejected
+          : summary.total
+    || 0
+  );
+  const totalPages = Math.max(1, Math.ceil(filteredTotal / pageSize));
+  if (numberedPage && filteredTotal > 0 && page > totalPages) fail("业务明细页码超出有效范围。", "PAGE_OUT_OF_RANGE");
+  const hasMore = numberedPage ? page < totalPages : rawRecords.length > limit;
+  const pageRows = numberedPage ? rawRecords : rawRecords.slice(0, limit);
+  const last = pageRows[pageRows.length - 1];
   return {
     ok: true,
     scopeMode: caller.scopeMode,
@@ -2301,8 +2322,12 @@ async function queryStoreBusinessRecords(event = {}) {
       teacherName: record.teacher_name || "",
       hasFaceRequest: databaseBoolean(record.has_face_request)
     })),
+    total: filteredTotal,
+    page,
+    pageSize,
+    totalPages,
     hasMore,
-    nextCursor: hasMore && last ? { submittedAt: last.cursor_submitted_at, id: String(last.id) } : null
+    nextCursor: !numberedPage && hasMore && last ? { submittedAt: last.cursor_submitted_at, id: String(last.id) } : null
   };
 }
 
@@ -3435,10 +3460,19 @@ function teacherWorkspaceOptions(event = {}) {
   const limit = Number.isFinite(requestedLimit)
     ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100)
     : 50;
+  const numberedPage = Object.prototype.hasOwnProperty.call(event, "page")
+    || Object.prototype.hasOwnProperty.call(event, "pageSize");
+  const requestedPage = Number(event.page || 1);
+  const requestedPageSize = Number(event.pageSize || 10);
+  if (numberedPage && (!Number.isInteger(requestedPage) || requestedPage < 1)) fail("老师业务明细页码必须是正整数。", "BAD_REQUEST");
+  if (numberedPage && (!Number.isInteger(requestedPageSize) || requestedPageSize < 1 || requestedPageSize > 100)) {
+    fail("老师业务明细每页数量必须是 1 至 100。", "BAD_REQUEST");
+  }
   const cursorSubmittedAt = scopedQueryCursorTimestamp(event.cursorSubmittedAt, "老师工单游标时间");
   const cursorIdText = String(event.cursorId || "").trim();
   if (Boolean(cursorSubmittedAt) !== Boolean(cursorIdText)) fail("老师工单游标不完整。", "BAD_REQUEST");
   if (cursorSubmittedAt && !recordType) fail("老师工单游标必须指定记录类型。", "BAD_REQUEST");
+  if (numberedPage && cursorSubmittedAt) fail("老师业务明细页码不能同时提交游标。", "BAD_REQUEST");
   const recordIdText = String(event.recordId || "").trim();
   const startDate = optionalBusinessQueryDate(event.startDate, "开始日期");
   const endDate = optionalBusinessQueryDate(event.endDate, "结束日期");
@@ -3447,6 +3481,9 @@ function teacherWorkspaceOptions(event = {}) {
   return {
     recordType,
     limit,
+    numberedPage,
+    page: numberedPage ? requestedPage : 1,
+    pageSize: numberedPage ? requestedPageSize : limit,
     cursorSubmittedAt,
     cursorId: cursorIdText ? businessQueryDatabaseId(cursorIdText, "老师工单游标编号") : "",
     recordId: recordIdText ? businessQueryDatabaseId(recordIdText, "老师工单编号") : "",
@@ -3513,6 +3550,22 @@ function teacherOrderPage(rows, recordType, limit, teacher) {
   };
 }
 
+function teacherNumberedOrderPage(rows, recordType, total, page, pageSize, teacher) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  if (total > 0 && page > totalPages) fail("老师业务明细页码超出有效范围。", "PAGE_OUT_OF_RANGE");
+  return {
+    records: teacherOrderRows(rows, recordType, teacher),
+    page: {
+      total,
+      page,
+      pageSize,
+      totalPages,
+      hasMore: page < totalPages,
+      nextCursor: null
+    }
+  };
+}
+
 function teacherBusinessCustomerPage(value, label) {
   const requested = Number(value || 1);
   if (!Number.isInteger(requested) || requested < 1) fail(`${label}分页必须是正整数。`, "BAD_REQUEST");
@@ -3526,13 +3579,25 @@ async function getTeacherBusinessCustomers(event = {}) {
   const activePage = teacherBusinessCustomerPage(event.activePage, "活跃客户");
   const archivedPage = teacherBusinessCustomerPage(event.archivedPage, "封存客户");
   const eventCte = `teacher_verification_events AS (
-    SELECT v.customer_id, v.product_id, v.verification_type,
+    SELECT v.customer_id, v.product_id, v.store_id, v.verification_type,
            v.unit_count::bigint AS unit_count,
            COALESCE(v.reviewed_at, v.submitted_at) AS effective_at
       FROM public.verification_records v
      WHERE v.teacher_id = ${sqlText(teacherId)}::bigint
        AND v.record_status = 'APPROVED'
        AND v.verification_type IN ('NORMAL', 'EXPERIENCE')
+  ), teacher_customer_store AS (
+    SELECT DISTINCT ON (event.customer_id)
+           event.customer_id, event.store_id
+      FROM teacher_verification_events event
+     ORDER BY event.customer_id, event.effective_at DESC, event.store_id DESC
+  ), teacher_recharge_totals AS (
+    SELECT r.customer_id, COALESCE(SUM(r.unit_count), 0)::bigint AS recharge_count
+      FROM public.recharge_records r
+     WHERE r.teacher_id = ${sqlText(teacherId)}::bigint
+       AND r.record_status = 'APPROVED'
+       AND r.recharge_type = 'NEW'
+     GROUP BY r.customer_id
   ), teacher_customer_totals AS (
     SELECT event.customer_id,
            COUNT(DISTINCT event.product_id)::bigint AS product_count,
@@ -3547,9 +3612,14 @@ async function getTeacherBusinessCustomers(event = {}) {
     `WITH ${eventCte}
      SELECT c.id AS customer_id, c.customer_code, c.customer_name, c.birth_date,
             c.customer_status, totals.product_count, totals.verification_count,
-            totals.experience_count, totals.total_count, totals.last_verification_at
+            totals.experience_count, totals.total_count, totals.last_verification_at,
+            COALESCE(recharge.recharge_count, 0)::bigint AS recharge_count,
+            s.store_code, s.store_name
        FROM teacher_customer_totals totals
        JOIN public.customers c ON c.id = totals.customer_id
+       JOIN teacher_customer_store customer_store ON customer_store.customer_id = totals.customer_id
+       JOIN public.stores s ON s.id = customer_store.store_id
+       LEFT JOIN teacher_recharge_totals recharge ON recharge.customer_id = totals.customer_id
       WHERE c.customer_status = ${sqlText(status)}
       ORDER BY totals.last_verification_at DESC, c.id DESC
       LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`
@@ -3578,7 +3648,10 @@ async function getTeacherBusinessCustomers(event = {}) {
     productCount: Number(row.product_count || 0),
     verificationCount: Number(row.verification_count || 0),
     experienceCount: Number(row.experience_count || 0),
+    rechargeCount: Number(row.recharge_count || 0),
     totalCount: Number(row.total_count || 0),
+    storeCode: String(row.store_code || ""),
+    storeName: String(row.store_name || ""),
     lastVerificationAt: row.last_verification_at
   }));
   return {
@@ -3609,8 +3682,13 @@ async function getTeacherWorkspace(event = {}) {
         clauses.push(`(${alias}.submitted_at, ${alias}.id) < (${sqlText(options.cursorSubmittedAt)}::timestamptz, ${options.cursorId}::bigint)`);
       }
     }
-    return executeSql(
-      `SELECT ${alias}.id, ${alias}.${codeColumn} AS record_code,
+    const listLimit = detailMode ? 1
+      : legacyCombined ? options.limit + 1
+        : options.numberedPage ? options.pageSize : options.limit + 1;
+    const listOffset = !detailMode && !legacyCombined && options.numberedPage
+      ? `OFFSET ${(options.page - 1) * options.pageSize}`
+      : "";
+    const listSql = `SELECT ${alias}.id, ${alias}.${codeColumn} AS record_code,
               ${alias}.${typeColumn} AS original_type, ${alias}.unit_count,
               ${baseRecordType === "RECHARGE" ? `${alias}.balance_before_count, ${alias}.balance_after_count` : "NULL::integer AS balance_before_count, NULL::integer AS balance_after_count"},
               ${alias}.record_status, ${alias}.void_request_status,
@@ -3631,8 +3709,15 @@ async function getTeacherWorkspace(event = {}) {
          JOIN public.products p ON p.id = ${alias}.product_id
         WHERE ${clauses.join(" AND ")}
         ORDER BY ${alias}.submitted_at DESC, ${alias}.id DESC
-        LIMIT ${detailMode ? 1 : options.limit + 1}`
-    );
+        LIMIT ${listLimit}
+        ${listOffset}`;
+    if (detailMode || legacyCombined || !options.numberedPage) return executeSql(listSql);
+    const countClauses = clauses.filter((clause) => !clause.startsWith(`(${alias}.submitted_at, ${alias}.id) <`));
+    const [rows, countRows] = await Promise.all([
+      executeSql(listSql),
+      executeSql(`SELECT COUNT(*) AS total FROM public.${table} ${alias} WHERE ${countClauses.join(" AND ")}`)
+    ]);
+    return { rows, total: Number(countRows?.[0]?.total || 0) };
   };
 
   const loadOverview = async () => {
@@ -3736,7 +3821,10 @@ async function getTeacherWorkspace(event = {}) {
     return { ok: true, profile, record: order };
   }
   if (options.recordType) {
-    const page = teacherOrderPage(await query(options.recordType), options.recordType, options.limit, profile);
+    const queryResult = await query(options.recordType);
+    const page = options.numberedPage
+      ? teacherNumberedOrderPage(queryResult.rows, options.recordType, queryResult.total, options.page, options.pageSize, profile)
+      : teacherOrderPage(queryResult, options.recordType, options.limit, profile);
     const overview = options.includeOverview ? await loadOverview() : {};
     return { ok: true, profile, page: { records: page.records, ...page.page }, ...overview };
   }

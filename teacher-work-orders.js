@@ -1,7 +1,8 @@
 (() => {
   "use strict";
-  const VERSION = "0.16.1";
+  const VERSION = "0.16.2";
   const CUSTOMER_PAGE_SIZE = 10;
+  const RECORD_PAGE_SIZE = 10;
   const TYPES = Object.freeze(["VERIFICATION", "RECHARGE", "EXPERIENCE", "REFUND"]);
   const TYPE_META = Object.freeze({
     VERIFICATION: Object.freeze({ label: "核销", totalId: "teacherVerificationTotal", empty: "核销" }),
@@ -25,8 +26,10 @@
     range: { startDate: "", endDate: "" },
     rangeEpoch: 0,
     records: emptyTypeMap(() => []),
-    cursors: emptyTypeMap(() => null),
-    hasMore: emptyTypeMap(() => false),
+    recordPages: emptyTypeMap(() => 1),
+    recordTotals: emptyTypeMap(() => 0),
+    recordPageSizes: emptyTypeMap(() => RECORD_PAGE_SIZE),
+    recordTotalPages: emptyTypeMap(() => 1),
     loaded: emptyTypeMap(() => false),
     loading: emptyTypeMap(() => false),
     requestIds: emptyTypeMap(() => 0),
@@ -179,16 +182,14 @@
     target.innerHTML = group.records.length ? group.records.map((row) => {
       const customerParams = new URLSearchParams({ customerId: String(row.customerCode || ""), source: "teacher" });
       const href = `customer-detail.html?${customerParams.toString()}`;
-      const label = `${row.customerName || "未命名客户"} · ${row.customerCode || "—"}`;
       return `<tr>
-        <td data-label="客户"><a class="teacher-order-link" href="${escapeHtml(href)}">${escapeHtml(label)}</a></td>
+        <td data-label="姓名"><a class="teacher-order-link" href="${escapeHtml(href)}">${escapeHtml(row.customerName || "未命名客户")}</a></td>
+        <td data-label="门店">${escapeHtml(row.storeName || "—")}</td>
         <td data-label="生日">${escapeHtml(formatBirthday(row.birthDate))}</td>
-        <td data-label="核销项目">${formatCount(row.productCount)} 个</td>
-        <td data-label="正常核销">${formatCount(row.verificationCount)} 次</td>
-        <td data-label="体验核销">${formatCount(row.experienceCount)} 次</td>
-        <td data-label="合计"><strong>${formatCount(row.totalCount)} 次</strong></td>
+        <td data-label="充值次数">${formatCount(row.rechargeCount)} 次</td>
+        <td data-label="核销次数"><strong>${formatCount(row.verificationCount)} 次</strong></td>
       </tr>`;
-    }).join("") : `<tr><td colspan="6" class="teacher-empty">暂无核销过的${archived ? "封存" : "活跃"}客户</td></tr>`;
+    }).join("") : `<tr><td colspan="5" class="teacher-empty">暂无核销过的${archived ? "封存" : "活跃"}客户</td></tr>`;
     renderCustomerPager(status);
   }
 
@@ -210,12 +211,22 @@
     } catch (error) {
       for (const [status, prefix] of [["ACTIVE", "Active"], ["ARCHIVED", "Archived"]]) {
         if (!state.customers[status].records.length) {
-          $(`teacher${prefix}CustomerBody`).innerHTML = `<tr><td colspan="6" class="teacher-empty">${escapeHtml(error?.message || "客户数据读取失败")}</td></tr>`;
+          $(`teacher${prefix}CustomerBody`).innerHTML = `<tr><td colspan="5" class="teacher-empty">${escapeHtml(error?.message || "客户数据读取失败")}</td></tr>`;
         }
       }
     } finally {
       state.customerLoading = false;
     }
+  }
+
+  function renderRecordPager(type) {
+    const target = $("teacherBusinessPagination");
+    const total = Number(state.recordTotals[type] || 0);
+    const pageSize = Number(state.recordPageSizes[type] || RECORD_PAGE_SIZE);
+    const totalPages = Math.max(1, Number(state.recordTotalPages[type] || Math.ceil(total / pageSize)));
+    const page = Math.min(Math.max(1, Number(state.recordPages[type] || 1)), totalPages);
+    if (total <= pageSize) { target.innerHTML = ""; return; }
+    target.innerHTML = `<button type="button" data-teacher-record-page="${page - 1}" ${page <= 1 ? "disabled" : ""}>上一页</button><span>第 ${page} / ${totalPages} 页 · 共 ${formatCount(total)} 条</span><button type="button" data-teacher-record-page="${page + 1}" ${page >= totalPages ? "disabled" : ""}>下一页</button><label class="ranking-page-jump">跳转到第 <input id="teacherBusinessPageInput" type="number" min="1" max="${totalPages}" value="${page}" inputmode="numeric" aria-label="业务明细页码"> 页 <button type="button" data-teacher-record-jump>跳转</button></label>`;
   }
 
   function renderRecords() {
@@ -243,43 +254,37 @@
         </tr>`;
       }).join("") : `<tr><td colspan="6" class="teacher-empty">所选时间内暂无本人有效${meta.empty}记录</td></tr>`;
     }
-    $("teacherLoadedCount").textContent = `已加载 ${rows.length} 条`;
-    $("teacherLoadMore").hidden = !state.hasMore[type];
-    $("teacherLoadMore").disabled = state.loading[type];
+    $("teacherLoadedCount").textContent = `共 ${formatCount(state.recordTotals[type])} 条`;
+    renderRecordPager(type);
   }
 
-  function mergePage(type, page, append) {
-    if (!append) state.records[type] = [];
-    const known = new Set(state.records[type].map((row) => String(row.id)));
-    for (const row of Array.isArray(page?.records) ? page.records : []) {
-      if (!known.has(String(row.id))) state.records[type].push(row);
-    }
-    state.cursors[type] = page?.nextCursor || null;
-    state.hasMore[type] = Boolean(page?.hasMore && page?.nextCursor);
-    state.loaded[type] = true;
-  }
-
-  async function loadType(type, { append = false, includeOverview = false } = {}) {
+  async function loadType(type, { page = state.recordPages[type], includeOverview = false } = {}) {
     if (state.loading[type]) return;
-    const cursor = append ? state.cursors[type] : null;
-    if (append && !cursor) return;
+    const targetPage = Math.max(1, Math.trunc(Number(page) || 1));
     const epoch = state.rangeEpoch;
     const requestId = ++state.requestIds[type];
     state.loading[type] = true;
-    if (!append) { state.records[type] = []; state.loaded[type] = false; }
+    state.records[type] = [];
+    state.loaded[type] = false;
     renderRecords();
-    $("teacherWorkspaceMessage").textContent = append ? "正在继续读取…" : "";
+    $("teacherWorkspaceMessage").textContent = `正在读取第 ${targetPage} 页…`;
     try {
       const result = await callWorkspace({
         recordType: type,
-        limit: 50,
+        page: targetPage,
+        pageSize: RECORD_PAGE_SIZE,
         includeOverview,
-        ...rangePayload(),
-        ...(cursor ? { cursorSubmittedAt: cursor.submittedAt, cursorId: cursor.id } : {})
+        ...rangePayload()
       });
       if (epoch !== state.rangeEpoch || requestId !== state.requestIds[type]) return;
       renderProfile(result.profile || {});
-      mergePage(type, result.page, append);
+      const resultPage = result.page || {};
+      state.records[type] = Array.isArray(resultPage.records) ? resultPage.records : [];
+      state.recordTotals[type] = Number(resultPage.total || 0);
+      state.recordPages[type] = Number(resultPage.page || targetPage);
+      state.recordPageSizes[type] = Number(resultPage.pageSize || RECORD_PAGE_SIZE);
+      state.recordTotalPages[type] = Math.max(1, Number(resultPage.totalPages || Math.ceil(state.recordTotals[type] / state.recordPageSizes[type])));
+      state.loaded[type] = true;
       if (includeOverview) {
         renderExperienceBalances(result.experienceBalances);
         renderSummary(result.summary);
@@ -287,7 +292,7 @@
       $("teacherWorkspaceMessage").textContent = "";
     } catch (error) {
       if (epoch !== state.rangeEpoch || requestId !== state.requestIds[type]) return;
-      if (!append) state.loaded[type] = true;
+      state.loaded[type] = true;
       $("teacherWorkspaceMessage").textContent = error?.message || "老师工作台读取失败。";
     } finally {
       if (epoch === state.rangeEpoch && requestId === state.requestIds[type]) {
@@ -301,8 +306,10 @@
     state.rangeEpoch += 1;
     for (const type of TYPES) {
       state.records[type] = [];
-      state.cursors[type] = null;
-      state.hasMore[type] = false;
+      state.recordPages[type] = 1;
+      state.recordTotals[type] = 0;
+      state.recordPageSizes[type] = RECORD_PAGE_SIZE;
+      state.recordTotalPages[type] = 1;
       state.loaded[type] = false;
       state.loading[type] = false;
       state.requestIds[type] += 1;
@@ -325,6 +332,15 @@
     renderTabs();
     renderRecords();
     if (!state.loaded[type]) loadType(type);
+  }
+
+  function jumpRecordPage(value) {
+    const type = state.activeType;
+    const totalPages = Math.max(1, Number(state.recordTotalPages[type] || 1));
+    const requested = Math.trunc(Number(value));
+    if (!Number.isFinite(requested)) return;
+    const page = Math.min(Math.max(requested, 1), totalPages);
+    void loadType(type, { page });
   }
 
   function bindEvents() {
@@ -350,8 +366,17 @@
       $("teacherWorkspaceMessage").textContent = "";
       applyRange("CUSTOM", { startDate, endDate });
     });
-    $("teacherLoadMore").addEventListener("click", () => loadType(state.activeType, { append: true }));
     document.addEventListener("click", (event) => {
+      const recordPage = event.target.closest("button[data-teacher-record-page]");
+      if (recordPage && !recordPage.disabled) {
+        jumpRecordPage(recordPage.dataset.teacherRecordPage);
+        return;
+      }
+      const recordJump = event.target.closest("button[data-teacher-record-jump]");
+      if (recordJump) {
+        jumpRecordPage($("teacherBusinessPageInput")?.value);
+        return;
+      }
       const button = event.target.closest("button[data-teacher-customer-status]");
       if (!button || button.disabled) return;
       const status = button.dataset.teacherCustomerStatus;
@@ -360,6 +385,11 @@
       const activePage = status === "ACTIVE" ? page : state.customers.ACTIVE.page;
       const archivedPage = status === "ARCHIVED" ? page : state.customers.ARCHIVED.page;
       void loadBusinessCustomers(activePage, archivedPage);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.target.id !== "teacherBusinessPageInput") return;
+      event.preventDefault();
+      jumpRecordPage(event.target.value);
     });
   }
 

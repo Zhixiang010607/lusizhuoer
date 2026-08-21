@@ -50,7 +50,13 @@ for (const html of [teacherHtml, storeHtml]) {
     "teacher and store use the same project-by-business matrix");
   assert.match(html, />活跃用户<\/h2>/);
   assert.match(html, />封存用户<\/h2>/);
+  assert.match(html, /<th>姓名<\/th><th>门店<\/th><th>生日<\/th><th>充值次数<\/th><th>核销次数<\/th>/,
+    "teacher and store customer lists use identical columns");
 }
+assert.ok(teacherHtml.indexOf('id="teacherBusinessDetails"') < teacherHtml.indexOf('id="teacherActiveCustomersTitle"'),
+  "teacher detail page follows its summary and precedes customer lists");
+assert.ok(storeHtml.indexOf('id="storeBusinessDetails"') < storeHtml.indexOf('id="storeActiveCustomersTitle"'),
+  "store detail page follows its summary and precedes customer lists");
 assert.doesNotMatch(storeHtml, /体验项目剩余次数|teacherQuota|storeProjects/,
   "store layout excludes the teacher-specific quota panel and the superseded project table");
 assert.match(storeUi, /analyticsPreset: "MONTH"/);
