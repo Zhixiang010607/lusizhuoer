@@ -14,7 +14,7 @@
 人脸库与原图残留，再从老师创建页重新创建。
 
 创建流程没有后台 worker、轮询、operationId、Timer、嵌套云函数或 051/052 兼容路径。
-`staffAccount v66` 和 `faceRecognition v77` 不处理老师人脸写入。053 迁移物理删除旧
+`staffAccount v66` 和 `faceRecognition v78` 不处理老师人脸写入。053 迁移物理删除旧
 操作表和六个私有函数。
 
 运行时不识别或自动续建旧 `teacher-face-saga:*` 认证账号。遇到旧流程留下的 BLOCKED

@@ -150,14 +150,15 @@ assert.match(verificationCreate, /const createSql = experienceVerification[\s\S]
 // by the browser.  This is deliberately separate from the new EXPERIENCE
 // teacher-face subject below.
 const customerFace = functionSource(face, "verifyCustomerFace");
+const sharedFaceEvidence = functionSource(face, "persistVerifiedFaceEvidence");
 assert.doesNotMatch(face, /\bSearchPersons\s*\(|function\s+searchCustomer\s*\(|action === "searchCustomer"/,
   "the deployed face service must not expose any 1:N person-search path");
 assert.match(customerFace, /SELECT id, customer_code, customer_name, face_person_id, profile_photo_file_id[\s\S]{0,380}created_store_id = \$\{caller\.storeId\}/,
   "normal customer face verification must resolve the customer inside the caller store");
 assert.match(customerFace, /PersonId: String\(customer\.face_person_id\)/,
   "normal verification must never trust a browser-provided customer PersonId");
-assert.match(customerFace, /INSERT INTO public\.verification_photo_drafts[\s\S]{0,500}\(evidence_token, store_id, customer_id, submitted_by_account_id,[\s\S]{0,700}\$\{caller\.staffId\}/,
-  "normal live-face evidence must be bound to token, store, customer, and submitting account");
+assert.match(customerFace, /persistVerifiedFaceEvidence\(\{[\s\S]{0,260}customerId: customer\.id[\s\S]{0,260}faceSubjectType: "CUSTOMER"/,
+  "normal live-face evidence must use the shared photo writer with a customer subject");
 
 const teacherExperienceFace = functionSource(face, "verifyTeacherExperienceFace");
 assert.match(teacherExperienceFace, /caller\.role === "teacher"[\s\S]{0,260}老师账号只能使用本人人脸办理体验核销[\s\S]{0,160}FORBIDDEN/,
@@ -168,8 +169,14 @@ assert.match(teacherExperienceFace, /teacher\.face_enrollment_status !== "ENROLL
   "an active no-face teacher may log in but cannot create EXPERIENCE face evidence");
 assert.match(teacherExperienceFace, /PersonId: String\(teacher\.face_person_id\)/,
   "EXPERIENCE must never trust a browser-provided teacher PersonId");
-assert.match(teacherExperienceFace, /INSERT INTO public\.verification_photo_drafts[\s\S]{0,650}face_subject_type, face_subject_teacher_id[\s\S]{0,900}'TEACHER', \$\{sqlText\(teacherId\)\}::bigint/,
-  "teacher live-face evidence must be scoped to the selected teacher as well as store/customer/submitter/request");
+assert.match(teacherExperienceFace, /persistVerifiedFaceEvidence\(\{[\s\S]{0,300}customerId: customer\.id[\s\S]{0,300}faceSubjectType: "TEACHER"[\s\S]{0,120}faceSubjectTeacherId: teacherId/,
+  "teacher live-face evidence must use the same photo writer while scoping the subject to the selected teacher");
+assert.match(sharedFaceEvidence, /Promise\.allSettled\(\[[\s\S]{0,300}uploadVerificationPhotoObject\([\s\S]{0,300}original\.jpg[\s\S]{0,300}thumbnail\.jpg/,
+  "normal and teacher experience verification must share one original/thumbnail upload implementation");
+assert.match(sharedFaceEvidence, /INSERT INTO public\.verification_photo_drafts[\s\S]{0,700}\(evidence_token, store_id, customer_id, submitted_by_account_id,[\s\S]{0,900}\$\{caller\.staffId\}/,
+  "the shared writer must bind token, store, customer and submitting account exactly once");
+assert.doesNotMatch(`${customerFace}\n${teacherExperienceFace}`, /uploadVerificationPhotoObject|INSERT INTO public\.verification_photo_drafts/,
+  "neither face-subject branch may keep a copied photo upload or draft-write path");
 assert.match(face, /if \(action === "verifyTeacherExperienceFace"\) return await verifyTeacherExperienceFace\(event\);/,
   "teacher-face capture must be exposed through an explicit server action, not a client-side face-ID swap");
 

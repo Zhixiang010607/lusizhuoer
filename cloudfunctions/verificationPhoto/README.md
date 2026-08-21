@@ -1,6 +1,6 @@
 # verificationPhoto 云函数
 
-当前版本：`v4`（共享照片服务实现 `v4`）
+当前版本：`v5`（共享照片服务实现 `v5`）
 
 该函数专门处理核销单的五个照片位：列表与缩略图、按需读取高清原图、导出原图，以及三个补充照片位的开始、提交、状态恢复和取消。它不执行质量检测、活体检测、客户建档或人脸比对，也不暴露这些动作。
 
@@ -23,7 +23,7 @@
 - 超时：`60 秒`
 - 并发／实例：先使用平台默认值；如果监控确认主要延迟来自冷启动，可为生产版本配置 `1` 个预置并发实例。预置实例持续计费，不要在没有监控证据时盲目增加。
 
-最终 `verificationPhoto-v4.zip` 的根目录必须是：
+最终 `verificationPhoto-v5.zip` 的根目录必须是：
 
 ```text
 index.js      # 由本目录 deploy-index.js 复制并改名
@@ -130,7 +130,7 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 }
 ```
 
-该七段 Cron 在每小时第 10 分钟运行，与 `faceRecognition` 的整点清理错峰。v4 继续由共享业务实现验证 SCF 保留变量 `TRIGGER_SRC=timer`、平台函数名、事件类型、精确触发器名、时间格式和“无终端用户 UID”，普通客户端伪造 `Type: Timer` 或触发器名不能进入清理。它只清理迁移 039 中已经取消或过期、且超过安全等待期的补充照片上传对象；已绑定工单的照片不会删除。原 `faceRecognition` 的人脸草稿触发器使用另一个固定名称，两个配置不要互换。
+该七段 Cron 在每小时第 10 分钟运行，与 `faceRecognition` 的整点清理错峰。v5 继续由共享业务实现验证 SCF 保留变量 `TRIGGER_SRC=timer`、平台函数名、事件类型、精确触发器名、时间格式和“无终端用户 UID”，普通客户端伪造 `Type: Timer` 或触发器名不能进入清理。它只清理迁移 039 中已经取消或过期、且超过安全等待期的补充照片上传对象；已绑定工单的照片不会删除。原 `faceRecognition` 的人脸草稿触发器使用另一个固定名称，两个配置不要互换。
 
 控制台需要手工补跑时才使用以下测试事件，并确保调用没有终端用户 UID：
 
@@ -146,9 +146,9 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 1. 确认迁移 039 表和真实桶均存在，并已执行完整的 `046_teacher_face_and_experience_quotas.sql`（CloudBase SQL 编辑器为 `046-01` 至 `046-08`）。
 2. 部署 `faceRecognition-v69.zip` 与 `staffAccount v55`，分别调用 `health` 确认 `v69`、`v55`。在仅限总部使用、已加载当前 `cloudbase-phone-auth.js` 的临时维护页面中，以已登录总部身份执行 `await CloudBasePhoneAuth.retireOperationAccounts()`；必须等待成功封锁旧运营账号的 CloudBase 凭据。该维护页不是最终静态发布。
 3. 只有该总部维护动作成功后，才在 CloudBase SQL 编辑器依次执行 `047-01-retire-operation-accounts.sql`、`047-02-hq-reviewer-guard.sql`。它保留历史业务和审核外键，但永久封存旧运营身份并将审核收紧为总部独占。
-4. 依次执行并验收 049、050；部署 `faceRecognition v77`、`staffAccount v66` 和 `teacherCreate v5` 后执行 053 并确认 7 行全部 `RETIRED`。删除旧 `reconcile-teacher-face-operations` Timer，保留老师额度月初 Timer。
-5. 新建或更新函数 `verificationPhoto`，上传 `verificationPhoto-v4.zip`，配置上述环境变量、512 MB 内存和 60 秒超时。
-6. 对 `verificationPhoto` 调用 `{ "action": "health" }`，确认 `version: "v4"`、`sharedVersion: "v4"` 与全部就绪字段，再保存本节的 triggers-only 配置。
+4. 依次执行并验收 049、050；部署 `faceRecognition v78`、`staffAccount v66` 和 `teacherCreate v5` 后执行 053 并确认 7 行全部 `RETIRED`。删除旧 `reconcile-teacher-face-operations` Timer，保留老师额度月初 Timer。
+5. 新建或更新函数 `verificationPhoto`，上传 `verificationPhoto-v5.zip`，配置上述环境变量、512 MB 内存和 60 秒超时。
+6. 对 `verificationPhoto` 调用 `{ "action": "health" }`，确认 `version: "v5"`、`sharedVersion: "v5"` 与全部就绪字段，再保存本节的 triggers-only 配置。
 7. 只有三个函数均验证成功后，才发布当前静态前端并强制刷新浏览器；不要先发前端。
 
 `verificationPhoto` 应返回类似：
@@ -157,8 +157,8 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 {
   "ok": true,
   "ready": true,
-  "version": "v4",
-  "sharedVersion": "v4",
+  "version": "v5",
+  "sharedVersion": "v5",
   "service": "verificationPhoto",
   "uploadMode": "FUNCTION",
   "photoBucketId": "customer-photos",

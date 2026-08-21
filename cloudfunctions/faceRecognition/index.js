@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v4" : "v77";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v5" : "v78";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -3717,6 +3717,68 @@ async function validateTeacherFaceEnrollmentCapture(event) {
   return { ok: true, accepted: true, quality, liveness };
 }
 
+// Normal and teacher-experience verification deliberately share this exact
+// evidence writer.  Their only difference is which already-verified 1:1 face
+// subject is recorded on the draft; storage, cleanup, metadata and expiry are
+// otherwise one implementation.
+async function persistVerifiedFaceEvidence({
+  caller,
+  customerId,
+  faceRequestId,
+  original,
+  thumbnail,
+  dimensions,
+  faceSubjectType = "CUSTOMER",
+  faceSubjectTeacherId = ""
+}) {
+  const subjectType = String(faceSubjectType || "").trim().toUpperCase();
+  if (!["CUSTOMER", "TEACHER"].includes(subjectType)) {
+    fail("核销人脸主体无效。", "FACE_SUBJECT_INVALID");
+  }
+  const teacherId = subjectType === "TEACHER"
+    ? positiveDatabaseId(faceSubjectTeacherId, "老师")
+    : "";
+  const faceEvidenceToken = crypto.randomBytes(24).toString("hex");
+  const objectPrefix = `face-evidence/${caller.storeId}/${caller.staffId}/${faceEvidenceToken}`;
+  let uploadedOriginal = null;
+  let uploadedThumbnail = null;
+  try {
+    const uploadResults = await Promise.allSettled([
+      uploadVerificationPhotoObject(`${objectPrefix}/original.jpg`, original.buffer),
+      uploadVerificationPhotoObject(`${objectPrefix}/thumbnail.jpg`, thumbnail.buffer)
+    ]);
+    if (uploadResults[0].status === "fulfilled") uploadedOriginal = uploadResults[0].value;
+    if (uploadResults[1].status === "fulfilled") uploadedThumbnail = uploadResults[1].value;
+    const uploadFailure = uploadResults.find((item) => item.status === "rejected");
+    if (uploadFailure) throw uploadFailure.reason;
+    const evidenceTtlMinutes = Math.trunc(numberSetting("VERIFICATION_FACE_EVIDENCE_TTL_MINUTES", 30, 5, 120));
+    const teacherIdSql = subjectType === "TEACHER" ? `${sqlText(teacherId)}::bigint` : "NULL";
+    await executeSql(
+      `INSERT INTO public.verification_photo_drafts
+        (evidence_token, store_id, customer_id, submitted_by_account_id,
+         face_subject_type, face_subject_teacher_id,
+         face_request_id, original_object_ref, thumbnail_object_ref,
+         original_bytes, thumbnail_bytes, image_width, image_height,
+         sha256, expires_at)
+       VALUES
+        (${sqlText(faceEvidenceToken)}, ${caller.storeId}, ${sqlText(customerId)}::bigint,
+         ${caller.staffId}, ${sqlText(subjectType)}, ${teacherIdSql}, ${sqlText(faceRequestId)},
+         ${sqlText(uploadedOriginal.reference)}, ${sqlText(uploadedThumbnail.reference)},
+         ${original.buffer.length}, ${thumbnail.buffer.length},
+         ${dimensions.width}, ${dimensions.height},
+         ${sqlText(crypto.createHash("sha256").update(original.buffer).digest("hex"))},
+         NOW() + (${evidenceTtlMinutes} * INTERVAL '1 minute'))`
+    );
+    return faceEvidenceToken;
+  } catch (error) {
+    await Promise.all([
+      deleteVerificationPhotoObject(uploadedOriginal?.reference),
+      deleteVerificationPhotoObject(uploadedThumbnail?.reference)
+    ]);
+    throw error;
+  }
+}
+
 async function verifyCustomerFace(event) {
   const caller = await activeBusinessCaller(event);
   await requireVerificationSubmissionSchema();
@@ -3759,43 +3821,15 @@ async function verifyCustomerFace(event) {
 
   let faceEvidenceToken = "";
   if (matched) {
-    faceEvidenceToken = crypto.randomBytes(24).toString("hex");
-    const objectPrefix = `face-evidence/${caller.storeId}/${caller.staffId}/${faceEvidenceToken}`;
-    let uploadedOriginal = null;
-    let uploadedThumbnail = null;
-    try {
-      const uploadResults = await Promise.allSettled([
-        uploadVerificationPhotoObject(`${objectPrefix}/original.jpg`, original.buffer),
-        uploadVerificationPhotoObject(`${objectPrefix}/thumbnail.jpg`, thumbnail.buffer)
-      ]);
-      if (uploadResults[0].status === "fulfilled") uploadedOriginal = uploadResults[0].value;
-      if (uploadResults[1].status === "fulfilled") uploadedThumbnail = uploadResults[1].value;
-      const uploadFailure = uploadResults.find((item) => item.status === "rejected");
-      if (uploadFailure) throw uploadFailure.reason;
-      const evidenceTtlMinutes = Math.trunc(numberSetting("VERIFICATION_FACE_EVIDENCE_TTL_MINUTES", 30, 5, 120));
-      await executeSql(
-        `INSERT INTO public.verification_photo_drafts
-          (evidence_token, store_id, customer_id, submitted_by_account_id,
-           face_subject_type, face_subject_teacher_id,
-           face_request_id, original_object_ref, thumbnail_object_ref,
-           original_bytes, thumbnail_bytes, image_width, image_height,
-           sha256, expires_at)
-         VALUES
-           (${sqlText(faceEvidenceToken)}, ${caller.storeId}, ${sqlText(customer.id)}::bigint,
-            ${caller.staffId}, 'CUSTOMER', NULL, ${sqlText(result?.RequestId || "")},
-           ${sqlText(uploadedOriginal.reference)}, ${sqlText(uploadedThumbnail.reference)},
-           ${original.buffer.length}, ${thumbnail.buffer.length},
-           ${dimensions.width}, ${dimensions.height},
-           ${sqlText(crypto.createHash("sha256").update(original.buffer).digest("hex"))},
-           NOW() + (${evidenceTtlMinutes} * INTERVAL '1 minute'))`
-      );
-    } catch (error) {
-      await Promise.all([
-        deleteVerificationPhotoObject(uploadedOriginal?.reference),
-        deleteVerificationPhotoObject(uploadedThumbnail?.reference)
-      ]);
-      throw error;
-    }
+    faceEvidenceToken = await persistVerifiedFaceEvidence({
+      caller,
+      customerId: customer.id,
+      faceRequestId: result?.RequestId || "",
+      original,
+      thumbnail,
+      dimensions,
+      faceSubjectType: "CUSTOMER"
+    });
   }
 
   return {
@@ -3878,42 +3912,16 @@ async function verifyTeacherExperienceFace(event) {
 
   let faceEvidenceToken = "";
   if (matched) {
-    faceEvidenceToken = crypto.randomBytes(24).toString("hex");
-    const objectPrefix = `face-evidence/${caller.storeId}/${caller.staffId}/${faceEvidenceToken}`;
-    let uploadedOriginal = null;
-    let uploadedThumbnail = null;
-    try {
-      const uploadResults = await Promise.allSettled([
-        uploadVerificationPhotoObject(`${objectPrefix}/original.jpg`, original.buffer),
-        uploadVerificationPhotoObject(`${objectPrefix}/thumbnail.jpg`, thumbnail.buffer)
-      ]);
-      if (uploadResults[0].status === "fulfilled") uploadedOriginal = uploadResults[0].value;
-      if (uploadResults[1].status === "fulfilled") uploadedThumbnail = uploadResults[1].value;
-      const uploadFailure = uploadResults.find((item) => item.status === "rejected");
-      if (uploadFailure) throw uploadFailure.reason;
-      const evidenceTtlMinutes = Math.trunc(numberSetting("VERIFICATION_FACE_EVIDENCE_TTL_MINUTES", 30, 5, 120));
-      await executeSql(
-        `INSERT INTO public.verification_photo_drafts
-          (evidence_token, store_id, customer_id, submitted_by_account_id,
-           face_subject_type, face_subject_teacher_id, face_request_id,
-           original_object_ref, thumbnail_object_ref, original_bytes,
-           thumbnail_bytes, image_width, image_height, sha256, expires_at)
-         VALUES
-          (${sqlText(faceEvidenceToken)}, ${caller.storeId}, ${sqlText(customer.id)}::bigint,
-           ${caller.staffId}, 'TEACHER', ${sqlText(teacherId)}::bigint,
-           ${sqlText(result?.RequestId || "")}, ${sqlText(uploadedOriginal.reference)},
-           ${sqlText(uploadedThumbnail.reference)}, ${original.buffer.length},
-           ${thumbnail.buffer.length}, ${dimensions.width}, ${dimensions.height},
-           ${sqlText(crypto.createHash("sha256").update(original.buffer).digest("hex"))},
-           NOW() + (${evidenceTtlMinutes} * INTERVAL '1 minute'))`
-      );
-    } catch (error) {
-      await Promise.all([
-        deleteVerificationPhotoObject(uploadedOriginal?.reference),
-        deleteVerificationPhotoObject(uploadedThumbnail?.reference)
-      ]);
-      throw error;
-    }
+    faceEvidenceToken = await persistVerifiedFaceEvidence({
+      caller,
+      customerId: customer.id,
+      faceRequestId: result?.RequestId || "",
+      original,
+      thumbnail,
+      dimensions,
+      faceSubjectType: "TEACHER",
+      faceSubjectTeacherId: teacherId
+    });
   }
 
   return {
