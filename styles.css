@@ -1298,7 +1298,6 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
   .side-menu-group nav { position: absolute; top: 0; left: 60px; z-index: 35; min-width: 176px; margin: 0; padding: 8px; border: 1px solid #ffffff20; border-radius: 9px; background: #0d1d31; box-shadow: var(--shadow); }
   .side-menu-group[data-menu="store-business"] nav { min-height: 156px; overflow: visible; }
   .side-menu-group:not([open]) nav { display: none; }
-  .side-menu-group[open]:not(:focus-within) nav { display: none; }
   .side-footer { min-height: 0; padding: 8px 0 0; }
   .mobile-account-menu { position: relative; display: block; margin-top: auto; }
   .mobile-account-menu summary { display: flex; justify-content: center; padding: 9px; border-radius: 8px; color: #d8e5f2; cursor: pointer; }

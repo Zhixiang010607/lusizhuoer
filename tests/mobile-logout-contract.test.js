@@ -12,11 +12,14 @@ assert.match(auth, /mobileAccountPopover\.querySelector\("strong"\)\.textContent
 assert.match(auth, /document\.body\.append\(mobileAccountPopover\)/, "logout card must live outside the horizontally scrolling rail so phone browsers cannot clip it");
 assert.match(auth, /document\.querySelectorAll\("\.side-menu-group\[open\]"\)/, "opening one phone menu must close other expanded menus");
 assert.match(auth, /if \(other !== group\) other\.removeAttribute\("open"\)/, "phone menu groups must be mutually exclusive");
+assert.match(auth, /summary\?\.addEventListener\("click", \(event\) => \{[\s\S]*event\.preventDefault\(\);[\s\S]*const shouldOpen = !group\.open;[\s\S]*group\.setAttribute\("open", ""\)/, "phone navigation must explicitly open the tapped business menu");
+assert.match(auth, /if \(!group\.contains\(event\.target\)\) group\.removeAttribute\("open"\)/, "tapping outside a compact navigation menu must close it");
 assert.match(auth, /const logoutButtons = \[\$\("logoutWorkspace"\), \$\("logoutWorkspaceMobile"\)\]/, "desktop and mobile logout buttons must share one handler");
 assert.match(auth, /logoutButtons\.forEach\(\(button\) => button\.addEventListener\("click", logoutWorkspace\)\)/, "both logout controls must invoke sign-out");
 
 assert.match(css, /\.mobile-account-menu \{ display: none; \}/, "account menu must stay hidden on wide desktop layouts");
 assert.match(css, /@media \(min-width: 761px\) and \(max-width: 1100px\)[\s\S]*?\.mobile-account-menu \{[^}]*display: block;/, "collapsed tablet sidebar must expose the account menu");
+assert.doesNotMatch(css, /\.side-menu-group\[open\]:not\(:focus-within\) nav/, "an open touch menu must not disappear merely because the summary lost focus");
 assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.mobile-account-menu \{[^}]*display: block;/, "phone project bar must expose the account menu");
 assert.match(css, /\.mobile-account-popover button \{[^}]*width: 100%/, "logout action must fill the account popover width");
 assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.side-project-bar \{[^}]*max-width: 100vw;/, "phone project bar must stay inside the viewport");
@@ -31,7 +34,7 @@ assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.mobile-account-popover \
 for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
   if (!html.includes("auth-ui.js?v=")) continue;
-  const expectedAuthVersion = "0.19.2";
+  const expectedAuthVersion = "0.19.3";
   assert.ok(html.includes(`auth-ui.js?v=${expectedAuthVersion}`), `${file} must load the mobile-logout auth UI`);
 }
 

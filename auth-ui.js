@@ -162,11 +162,32 @@
         document.querySelectorAll(".side-menu-group[open]").forEach((group) => group.removeAttribute("open"));
       }
     });
-    document.querySelectorAll(".side-menu-group").forEach((group) => group.addEventListener("toggle", () => {
-      if (!group.open || !window.matchMedia("(max-width: 760px)").matches) return;
-      document.querySelectorAll(".side-menu-group[open]").forEach((other) => { if (other !== group) other.removeAttribute("open"); });
-      closeMobileAccount();
-    }));
+    const compactNavigation = window.matchMedia("(max-width: 1100px)");
+    document.querySelectorAll(".side-menu-group").forEach((group) => {
+      const summary = group.querySelector(":scope > summary");
+      summary?.addEventListener("click", (event) => {
+        if (!compactNavigation.matches) return;
+        // Mobile WebKit does not always keep a native <details> open when its
+        // summary sits inside the horizontally scrolling top rail. Own the
+        // toggle explicitly so the business menu remains visible and usable.
+        event.preventDefault();
+        const shouldOpen = !group.open;
+        document.querySelectorAll(".side-menu-group[open]").forEach((other) => other.removeAttribute("open"));
+        closeMobileAccount();
+        if (shouldOpen) group.setAttribute("open", "");
+      });
+      group.addEventListener("toggle", () => {
+        if (!group.open || !compactNavigation.matches) return;
+        document.querySelectorAll(".side-menu-group[open]").forEach((other) => { if (other !== group) other.removeAttribute("open"); });
+        closeMobileAccount();
+      });
+    });
+    document.addEventListener("click", (event) => {
+      if (!compactNavigation.matches) return;
+      document.querySelectorAll(".side-menu-group[open]").forEach((group) => {
+        if (!group.contains(event.target)) group.removeAttribute("open");
+      });
+    });
     document.addEventListener("click", (event) => {
       if (!mobileAccountMenu.open || mobileAccountMenu.contains(event.target) || mobileAccountPopover.contains(event.target)) return;
       closeMobileAccount();
