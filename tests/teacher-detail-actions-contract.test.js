@@ -55,6 +55,10 @@ assert.match(staffDetail, /hasPhoneAuthMethod\("resetStaffPassword"\)/,
   "password reset must fail with an actionable message when its client method is unavailable");
 assert.match(staffDetail, /canUpdateByAccount[\s\S]{0,260}canUpdateByMaster/,
   "status action must accept either a login-bound account or a legacy teacher master record");
+assert.match(staffDetail, /refreshed && actualArchived === expectedArchived[\s\S]{0,500}setStaffStatusFeedback\(`\$\{labels\[role\]\}已\$\{expectedArchived \? "封存" : "激活"\}。`, "success"\)/,
+  "status feedback must be based on the authoritative database refresh");
+assert.doesNotMatch(staffDetail, /接口响应中断|数据库当前状态为/,
+  "confirmed status actions must not expose transport or database diagnostics in the UI");
 
 assert.match(legacyTeacherDetail, /location\.replace\(destination\)/,
   "legacy teacher detail must redirect rather than show mock data");
@@ -67,7 +71,7 @@ for (const file of ["query.js", "management.js", "detail.js"]) {
 
 assert.match(staffDetailHtml, /cloudbase-phone-auth\.js\?v=0\.19\.2/,
   "teacher home must refresh the shared cloud-function client");
-assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.7/,
+assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.8/,
   "teacher home must refresh its action handlers");
 assert.match(teacherCreateHtml, /teacher-create\.js\?v=0\.4\.0/,
   "teacher creation must refresh the mandatory-face UI");

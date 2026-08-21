@@ -712,9 +712,9 @@
     const expectedArchived = next === "ARCHIVED";
     if (refreshed && actualArchived === expectedArchived) {
       closeRecharge();
-      setStaffStatusFeedback(requestError
-        ? `${text}已生效。刚才的接口响应中断，但重新读取数据库后已确认状态为“${expectedArchived ? "封存" : "活跃"}”。`
-        : `${text}成功，数据库当前状态为“${expectedArchived ? "封存" : "活跃"}”。`, "success");
+      // The database refresh above is authoritative. Keep transport failures in
+      // the console for diagnostics, but show users only the confirmed result.
+      setStaffStatusFeedback(`${labels[role]}已${expectedArchived ? "封存" : "激活"}。`, "success");
     } else {
       setStaffStatusFeedback(actionableStaffStatusError(requestError, text, refreshed, actualArchived), "error");
     }
