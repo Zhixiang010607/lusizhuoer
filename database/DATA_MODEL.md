@@ -225,7 +225,7 @@ result that blocks the old CloudBase credentials. Only then execute
 ordered `048-01` through `048-07` CloudBase console parts). Next execute the
 ordered `049-01` through `049-13` parts and `049-readonly-verify.sql`, then 050.
 For a database that already ran historical 051/052, deploy `staffAccount v67`,
-`faceRecognition v79`, and `teacherCreate v6` before executing 053. Run the 053
+`faceRecognition v80`, and `teacherCreate v6` before executing 053. Run the 053
 read-only verification and require all seven rows to be `RETIRED`, remove the
 old teacher-face reconciliation Timer, then deploy `verificationPhoto v5` and
 the current static frontend. A fresh database still follows numeric order; 053
@@ -253,6 +253,10 @@ supersedes its teacher-face EXPERIENCE path: only the logged-in teacher can
 create a new EXPERIENCE record, the teacher quota is consumed atomically, and
 both immutable receipt photos belong to the selected customer. Historical rows
 retain their original face-subject metadata.
+Migration 055 replaces the two remaining legacy order-boundary functions so an
+active teacher and active teacher account can receive recharge, refund, normal
+verification, and experience orders without teacher face enrollment. Customer
+retained-photo and live 1:1 customer-face requirements remain unchanged.
 Migration 050 repairs legacy teacher master rows and quota write ambiguity.
 Migrations 051/052 describe a retired orchestration design and are retained
 only as immutable migration history. Migration 053 deletes only that design's

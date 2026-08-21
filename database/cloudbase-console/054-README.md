@@ -3,9 +3,10 @@
 1. 确认迁移 049、050 和 053 已完成。
 2. 在 CloudBase PostgreSQL SQL 编辑器中完整执行
    `054-01-teacher-only-customer-face-experience.sql`，看到 `COMMIT` 后停止。
-3. 部署 `faceRecognition v79` 并调用 `{ "action":"health" }`，确认返回
-   `version=v79`。
-4. 最后发布静态前端并强制刷新浏览器。
+3. 完整执行迁移 055，确认最后 3 行全部为 `READY`。
+4. 部署 `faceRecognition v80` 并调用 `{ "action":"health" }`，确认返回
+   `version=v80`。
+5. 最后发布静态前端并强制刷新浏览器。
 
 054 不改写历史工单。历史老师人脸体验单继续按真实主体显示老师照片；054
 之后的新体验单只能由老师账号发起，额度绑定当前登录老师，现场验证客户人脸，

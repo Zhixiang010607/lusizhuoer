@@ -1,71 +1,293 @@
 (() => {
   "use strict";
-  const VERSION = "0.15.4";
+  const VERSION = "0.16.0";
+  const TYPES = Object.freeze(["VERIFICATION", "RECHARGE", "EXPERIENCE", "REFUND"]);
+  const TYPE_META = Object.freeze({
+    VERIFICATION: Object.freeze({ label: "核销", totalId: "teacherVerificationTotal", empty: "核销" }),
+    RECHARGE: Object.freeze({ label: "充值", totalId: "teacherRechargeTotal", empty: "充值" }),
+    EXPERIENCE: Object.freeze({ label: "体验", totalId: "teacherExperienceTotal", empty: "体验" }),
+    REFUND: Object.freeze({ label: "退费", totalId: "teacherRefundTotal", empty: "退费" })
+  });
+  const PRESET_LABELS = Object.freeze({ TODAY: "今天", WEEK: "本周", MONTH: "本月", QUARTER: "本季度", YEAR: "本年", ALL: "全部", CUSTOM: "自定义" });
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
-  const formatDateTime = (value) => window.AppDateTime?.formatDate?.(value, "—") || "—";
+  const formatDateTime = (value) => window.AppDateTime?.formatDateTime?.(value, "—") || window.AppDateTime?.formatDate?.(value, "—") || "—";
+  const formatCount = (value) => Number(value || 0).toLocaleString("zh-CN");
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
   if (!session || session.role !== "teacher") return;
 
-  const state = { activeType: "VERIFICATION", loading: false, records: { RECHARGE: [], VERIFICATION: [] }, cursors: { RECHARGE: null, VERIFICATION: null }, hasMore: { RECHARGE: false, VERIFICATION: false } };
-  function parsedObject(value) { if (value && typeof value === "object") return value; if (typeof value !== "string") return null; try { const parsed = JSON.parse(value); return parsed && typeof parsed === "object" ? parsed : null; } catch (_) { return null; } }
-  function responseData(result) { return [result?.result, result?.data?.result, result?.data, result].map(parsedObject).find((candidate) => candidate && (Object.prototype.hasOwnProperty.call(candidate, "ok") || Object.prototype.hasOwnProperty.call(candidate, "code"))) || {}; }
-  function register(registerFn, name) { if (typeof registerFn !== "function") return; try { registerFn(window.cloudbase); } catch (error) { const message = String(error?.message || error || "").toLowerCase(); if (!(message.includes("duplicate component") && message.includes(name))) throw error; } }
+  const emptyTypeMap = (factory) => Object.fromEntries(TYPES.map((type) => [type, factory(type)]));
+  const state = {
+    activeType: "VERIFICATION",
+    preset: "MONTH",
+    range: { startDate: "", endDate: "" },
+    rangeEpoch: 0,
+    records: emptyTypeMap(() => []),
+    cursors: emptyTypeMap(() => null),
+    hasMore: emptyTypeMap(() => false),
+    loaded: emptyTypeMap(() => false),
+    loading: emptyTypeMap(() => false),
+    requestIds: emptyTypeMap(() => 0),
+    totals: { verification: 0, recharge: 0, experience: 0, refund: 0 }
+  };
+
+  function parsedObject(value) {
+    if (value && typeof value === "object") return value;
+    if (typeof value !== "string") return null;
+    try { const parsed = JSON.parse(value); return parsed && typeof parsed === "object" ? parsed : null; } catch (_) { return null; }
+  }
+  function responseData(result) {
+    return [result?.result, result?.data?.result, result?.data, result]
+      .map(parsedObject)
+      .find((candidate) => candidate && (Object.prototype.hasOwnProperty.call(candidate, "ok") || Object.prototype.hasOwnProperty.call(candidate, "code"))) || {};
+  }
+  function register(registerFn, name) {
+    if (typeof registerFn !== "function") return;
+    try { registerFn(window.cloudbase); } catch (error) {
+      const message = String(error?.message || error || "").toLowerCase();
+      if (!(message.includes("duplicate component") && message.includes(name))) throw error;
+    }
+  }
   async function callWorkspace(data) {
     if (!window.cloudbase || !window.CloudBaseAuthConfig || !window.registerFunctions) throw new Error("数据库组件尚未加载，请刷新重试。");
-    register(window.registerAuth, "auth"); register(window.registerFunctions, "functions");
+    register(window.registerAuth, "auth");
+    register(window.registerFunctions, "functions");
     const raw = await window.cloudbase.init(window.CloudBaseAuthConfig).callFunction({ name: "faceRecognition", data: { action: "getTeacherWorkspace", ...data } });
-    const result = responseData(raw); if (!result.ok) throw new Error(result.message || "无法读取老师工作台。"); return result;
+    const result = responseData(raw);
+    if (!result.ok) throw new Error(result.message || "无法读取老师工作台。");
+    return result;
   }
-  const typeLabel = (row) => row.recordType === "RECHARGE" ? ({ NEW: "充值", REFUND: "退费", VOID: "历史作废" }[row.originalType] || "充值") : ({ NORMAL: "正常核销", SUPPLEMENT: "补录核销", EXPERIENCE: "体验核销" }[row.originalType] || "核销");
-  function statusLabel(row) {
-    if (row.recordType === "VERIFICATION") {
-      if (row.recordStatus === "VOIDED") return ["历史已作废", "void"];
-      return ({ PENDING: ["待审核", "review"], APPROVED: ["已通过", "normal"], REJECTED: ["已驳回", "void"] }[row.recordStatus] || ["未知状态", "review"]);
+
+  function businessToday() {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit"
+    }).formatToParts(new Date());
+    const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    return `${value.year}-${value.month}-${value.day}`;
+  }
+  function calendarDate(text) {
+    const [year, month, day] = text.split("-").map(Number);
+    return new Date(Date.UTC(year, month - 1, day));
+  }
+  function dateText(date) { return date.toISOString().slice(0, 10); }
+  function addDays(text, days) { const date = calendarDate(text); date.setUTCDate(date.getUTCDate() + days); return dateText(date); }
+  function presetRange(preset) {
+    const today = businessToday();
+    const date = calendarDate(today);
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth();
+    if (preset === "ALL") return { startDate: "", endDate: "" };
+    if (preset === "TODAY") return { startDate: today, endDate: today };
+    if (preset === "WEEK") {
+      const weekday = date.getUTCDay() || 7;
+      return { startDate: addDays(today, 1 - weekday), endDate: today };
     }
-    if (row.recordStatus === "VOIDED" || row.voidRequestStatus === "APPROVED") return ["已作废", "void"];
-    if (row.recordStatus === "APPROVED" && row.voidRequestStatus === "PENDING") return ["已通过 · 作废待审", "review"];
-    if (row.recordStatus === "APPROVED" && row.voidRequestStatus === "REJECTED") return ["已通过 · 作废驳回", "normal"];
-    return ({ PENDING: ["待审核", "review"], APPROVED: ["已通过", "normal"], REJECTED: ["已驳回", "void"] }[row.recordStatus] || ["未知状态", "review"]);
+    if (preset === "MONTH") return { startDate: dateText(new Date(Date.UTC(year, month, 1))), endDate: today };
+    if (preset === "QUARTER") return { startDate: dateText(new Date(Date.UTC(year, Math.floor(month / 3) * 3, 1))), endDate: today };
+    if (preset === "YEAR") return { startDate: `${year}-01-01`, endDate: today };
+    return { ...state.range };
   }
+  function validDate(value) { return /^\d{4}-\d{2}-\d{2}$/.test(String(value || "")); }
+  function rangeLabel() {
+    if (state.preset === "ALL") return "全部时间";
+    const dates = state.range.startDate === state.range.endDate ? state.range.startDate : `${state.range.startDate} 至 ${state.range.endDate}`;
+    return `${PRESET_LABELS[state.preset] || "自定义"} · ${dates}`;
+  }
+  function rangePayload() {
+    return state.range.startDate ? { startDate: state.range.startDate, endDate: state.range.endDate } : {};
+  }
+
   function renderProfile(profile = {}) {
-    const values = [["老师姓名", profile.teacherName || session.staffName || "—"], ["老师短编号", profile.teacherCode || session.staffCode || "—"], ["登录手机号", session.phone || session.account || "—"], ["账号状态", "活跃"]];
+    const values = [
+      ["老师姓名", profile.teacherName || session.staffName || "—"],
+      ["老师短编号", profile.teacherCode || session.staffCode || "—"],
+      ["登录手机号", session.phone || session.account || "—"]
+    ];
     $("teacherProfileInfo").innerHTML = values.map(([label, value]) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
   }
+
+  function renderExperienceBalances(items = []) {
+    const balances = Array.isArray(items) ? items : [];
+    $("teacherQuotaCount").textContent = `${balances.length} 个项目`;
+    $("teacherExperienceBalances").innerHTML = balances.length ? balances.map((item) => `
+      <article class="teacher-quota-card">
+        <div><strong>${escapeHtml(item.productName || "未命名项目")}</strong><small>${escapeHtml(item.productCode || "—")}</small></div>
+        <p><b>${formatCount(item.availableCount)}</b><span>次可用</span></p>
+        <dl><div><dt>每月基础</dt><dd>${formatCount(item.monthlyAllowance)} 次</dd></div><div><dt>本月已用</dt><dd>${formatCount(item.usedCount)} 次</dd></div></dl>
+      </article>`).join("") : '<article class="teacher-quota-empty">暂未配置体验项目</article>';
+  }
+
+  function renderSummary(summary = {}) {
+    const products = Array.isArray(summary.products) ? summary.products : [];
+    state.totals = { verification: 0, recharge: 0, experience: 0, refund: 0, ...(summary.totals || {}) };
+    const metricCell = (value) => `<td><strong>${formatCount(value)}</strong><span>次</span></td>`;
+    const rows = products.map((product) => `<tr>
+      <th scope="row"><strong>${escapeHtml(product.productName || "未命名项目")}</strong><small>${escapeHtml(product.productCode || "—")}</small></th>
+      ${metricCell(product.verification)}${metricCell(product.recharge)}${metricCell(product.experience)}${metricCell(product.refund)}
+    </tr>`).join("");
+    const total = state.totals;
+    $("teacherSummaryBody").innerHTML = products.length ? `${rows}<tr class="teacher-summary-total"><th scope="row">合计</th>${metricCell(total.verification)}${metricCell(total.recharge)}${metricCell(total.experience)}${metricCell(total.refund)}</tr>` : '<tr><td colspan="5" class="teacher-empty">所选时间内暂无有效业务</td></tr>';
+    for (const [type, metric] of [["VERIFICATION", "verification"], ["RECHARGE", "recharge"], ["EXPERIENCE", "experience"], ["REFUND", "refund"]]) {
+      $(TYPE_META[type].totalId).textContent = `${formatCount(total[metric])} 次`;
+    }
+  }
+
+  function renderRangeControls() {
+    document.querySelectorAll("[data-range-preset]").forEach((button) => button.classList.toggle("active", button.dataset.rangePreset === state.preset));
+    $("teacherCustomRange").hidden = state.preset !== "CUSTOM";
+    $("teacherRangeLabel").textContent = rangeLabel();
+  }
+
+  function renderTabs() {
+    document.querySelectorAll("[data-record-type]").forEach((button) => {
+      const active = button.dataset.recordType === state.activeType;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-selected", String(active));
+    });
+  }
+
   function renderRecords() {
-    const type = state.activeType, verification = type === "VERIFICATION", rows = state.records[type];
-    $("teacherRecordsHead").innerHTML = `<tr><th>${verification ? "核销单号" : "充值单号"}</th><th>门店</th><th>客户</th><th>项目</th><th>${verification ? "核销类型／人脸" : "充值次数"}</th><th>提交时间</th><th>状态</th></tr>`;
-    $("teacherOrdersBody").innerHTML = rows.length ? rows.map((row) => {
-      const [status, statusClass] = statusLabel(row);
-      const amount = verification ? `${escapeHtml(typeLabel(row))}${row.hasFaceRequest ? " · 已核验" : " · 无人脸记录"}` : `${["VOID", "REFUND"].includes(row.originalType) ? "−" : "+"}${escapeHtml(row.unitCount)} 次`;
-      const detailParams = new URLSearchParams({ recordId: String(row.id), recordCode: String(row.recordCode || ""), source: "teacher" });
-      const detail = `${verification ? "verification" : "recharge"}-detail.html?${detailParams.toString()}`;
-      const customerParams = new URLSearchParams({ customerId: String(row.customerCode || ""), source: "teacher" });
-      const customerDetail = `customer-detail.html?${customerParams.toString()}`;
-      return `<tr><td><a class="teacher-order-link" href="${detail}">${escapeHtml(row.recordCode)}</a></td><td>${escapeHtml(row.storeName)} · ${escapeHtml(row.storeCode)}</td><td><a class="teacher-order-link" href="${customerDetail}">${escapeHtml(row.customerName)} · ${escapeHtml(row.customerCode)}</a></td><td>${escapeHtml(row.productName)}</td><td>${amount}</td><td>${escapeHtml(formatDateTime(row.submittedAt))}</td><td><span class="teacher-order-status ${statusClass}">${escapeHtml(status)}</span></td></tr>`;
-    }).join("") : `<tr><td colspan="7" class="teacher-empty">暂无本人绑定的${verification ? "核销" : "充值"}工单</td></tr>`;
-    $("teacherLoadedCount").textContent = `${rows.length} 条`; $("teacherLoadMore").hidden = !state.hasMore[type]; $("teacherLoadMore").disabled = state.loading;
+    const type = state.activeType;
+    const rows = state.records[type];
+    const meta = TYPE_META[type];
+    $("teacherRecordsHead").innerHTML = "<tr><th>单号</th><th>门店</th><th>客户</th><th>项目</th><th>次数</th><th>提交时间</th></tr>";
+    if (state.loading[type] && !rows.length) {
+      $("teacherOrdersBody").innerHTML = `<tr><td colspan="6" class="teacher-empty">正在读取${meta.label}明细…</td></tr>`;
+    } else {
+      $("teacherOrdersBody").innerHTML = rows.length ? rows.map((row) => {
+        const verification = type === "VERIFICATION" || type === "EXPERIENCE";
+        const detailParams = new URLSearchParams({ recordId: String(row.id), recordCode: String(row.recordCode || ""), source: "teacher" });
+        const detail = `${verification ? "verification" : "recharge"}-detail.html?${detailParams.toString()}`;
+        const customerParams = new URLSearchParams({ customerId: String(row.customerCode || ""), source: "teacher" });
+        const customerDetail = `customer-detail.html?${customerParams.toString()}`;
+        const amount = type === "REFUND" ? `−${formatCount(row.unitCount)} 次` : type === "RECHARGE" ? `+${formatCount(row.unitCount)} 次` : `${formatCount(row.unitCount)} 次`;
+        return `<tr>
+          <td data-label="单号"><a class="teacher-order-link" href="${detail}">${escapeHtml(row.recordCode || "—")}</a></td>
+          <td data-label="门店">${escapeHtml(row.storeName || "—")} · ${escapeHtml(row.storeCode || "—")}</td>
+          <td data-label="客户"><a class="teacher-order-link" href="${customerDetail}">${escapeHtml(row.customerName || "—")} · ${escapeHtml(row.customerCode || "—")}</a></td>
+          <td data-label="项目">${escapeHtml(row.productName || "—")}</td>
+          <td data-label="次数"><strong>${amount}</strong></td>
+          <td data-label="提交时间">${escapeHtml(formatDateTime(row.submittedAt))}</td>
+        </tr>`;
+      }).join("") : `<tr><td colspan="6" class="teacher-empty">所选时间内暂无本人有效${meta.empty}记录</td></tr>`;
+    }
+    $("teacherLoadedCount").textContent = `已加载 ${rows.length} 条`;
+    $("teacherLoadMore").hidden = !state.hasMore[type];
+    $("teacherLoadMore").disabled = state.loading[type];
   }
-  function mergePage(type, page) {
+
+  function mergePage(type, page, append) {
+    if (!append) state.records[type] = [];
     const known = new Set(state.records[type].map((row) => String(row.id)));
-    for (const row of Array.isArray(page?.records) ? page.records : []) if (!known.has(String(row.id))) state.records[type].push(row);
-    state.cursors[type] = page?.nextCursor || null; state.hasMore[type] = Boolean(page?.hasMore && page?.nextCursor);
+    for (const row of Array.isArray(page?.records) ? page.records : []) {
+      if (!known.has(String(row.id))) state.records[type].push(row);
+    }
+    state.cursors[type] = page?.nextCursor || null;
+    state.hasMore[type] = Boolean(page?.hasMore && page?.nextCursor);
+    state.loaded[type] = true;
   }
-  async function loadMore() {
-    const type = state.activeType; if (state.loading || !state.hasMore[type] || !state.cursors[type]) return;
-    state.loading = true; renderRecords(); $("teacherWorkspaceMessage").textContent = "正在继续读取…";
-    try { const result = await callWorkspace({ recordType: type, cursorSubmittedAt: state.cursors[type].submittedAt, cursorId: state.cursors[type].id, limit: 50 }); mergePage(type, result.page); $("teacherWorkspaceMessage").textContent = ""; }
-    catch (error) { $("teacherWorkspaceMessage").textContent = error?.message || "继续加载失败。"; }
-    finally { state.loading = false; renderRecords(); }
+
+  async function loadType(type, { append = false, includeOverview = false } = {}) {
+    if (state.loading[type]) return;
+    const cursor = append ? state.cursors[type] : null;
+    if (append && !cursor) return;
+    const epoch = state.rangeEpoch;
+    const requestId = ++state.requestIds[type];
+    state.loading[type] = true;
+    if (!append) { state.records[type] = []; state.loaded[type] = false; }
+    renderRecords();
+    $("teacherWorkspaceMessage").textContent = append ? "正在继续读取…" : "";
+    try {
+      const result = await callWorkspace({
+        recordType: type,
+        limit: 50,
+        includeOverview,
+        ...rangePayload(),
+        ...(cursor ? { cursorSubmittedAt: cursor.submittedAt, cursorId: cursor.id } : {})
+      });
+      if (epoch !== state.rangeEpoch || requestId !== state.requestIds[type]) return;
+      renderProfile(result.profile || {});
+      mergePage(type, result.page, append);
+      if (includeOverview) {
+        renderExperienceBalances(result.experienceBalances);
+        renderSummary(result.summary);
+      }
+      $("teacherWorkspaceMessage").textContent = "";
+    } catch (error) {
+      if (epoch !== state.rangeEpoch || requestId !== state.requestIds[type]) return;
+      if (!append) state.loaded[type] = true;
+      $("teacherWorkspaceMessage").textContent = error?.message || "老师工作台读取失败。";
+    } finally {
+      if (epoch === state.rangeEpoch && requestId === state.requestIds[type]) {
+        state.loading[type] = false;
+        renderRecords();
+      }
+    }
   }
+
+  function resetRangeData() {
+    state.rangeEpoch += 1;
+    for (const type of TYPES) {
+      state.records[type] = [];
+      state.cursors[type] = null;
+      state.hasMore[type] = false;
+      state.loaded[type] = false;
+      state.loading[type] = false;
+      state.requestIds[type] += 1;
+    }
+    $("teacherSummaryBody").innerHTML = '<tr><td colspan="5" class="teacher-empty">正在计算业务汇总…</td></tr>';
+    renderRecords();
+  }
+
+  function applyRange(preset, customRange = null) {
+    state.preset = preset;
+    state.range = customRange || presetRange(preset);
+    renderRangeControls();
+    resetRangeData();
+    loadType(state.activeType, { includeOverview: true });
+  }
+
   function setType(type) {
-    state.activeType = type; $("teacherVerificationTab").classList.toggle("active", type === "VERIFICATION"); $("teacherRechargeTab").classList.toggle("active", type === "RECHARGE");
-    $("teacherVerificationTab").setAttribute("aria-selected", String(type === "VERIFICATION")); $("teacherRechargeTab").setAttribute("aria-selected", String(type === "RECHARGE")); renderRecords();
+    if (!TYPES.includes(type)) return;
+    state.activeType = type;
+    renderTabs();
+    renderRecords();
+    if (!state.loaded[type]) loadType(type);
   }
-  async function init() {
-    try { const result = await callWorkspace({ limit: 50 }); renderProfile(result.profile); mergePage("RECHARGE", result.recharges); mergePage("VERIFICATION", result.verifications); renderRecords(); }
-    catch (error) { renderProfile({}); $("teacherWorkspaceMessage").textContent = error?.message || "老师工作台读取失败。"; $("teacherOrdersBody").innerHTML = '<tr><td colspan="7" class="teacher-empty">无法读取数据库工单，请刷新重试</td></tr>'; }
+
+  function bindEvents() {
+    document.querySelectorAll("[data-record-type]").forEach((button) => button.addEventListener("click", () => setType(button.dataset.recordType)));
+    document.querySelectorAll("[data-range-preset]").forEach((button) => button.addEventListener("click", () => {
+      const preset = button.dataset.rangePreset;
+      if (preset === "CUSTOM") {
+        state.preset = "CUSTOM";
+        const fallback = presetRange("MONTH");
+        $("teacherRangeStart").value = state.range.startDate || fallback.startDate;
+        $("teacherRangeEnd").value = state.range.endDate || fallback.endDate;
+        renderRangeControls();
+        $("teacherRangeStart").focus();
+        return;
+      }
+      applyRange(preset);
+    }));
+    $("teacherApplyCustomRange").addEventListener("click", () => {
+      const startDate = $("teacherRangeStart").value;
+      const endDate = $("teacherRangeEnd").value;
+      if (!validDate(startDate) || !validDate(endDate)) { $("teacherWorkspaceMessage").textContent = "请选择完整的自定义开始日期和结束日期。"; return; }
+      if (startDate > endDate) { $("teacherWorkspaceMessage").textContent = "开始日期不能晚于结束日期。"; return; }
+      $("teacherWorkspaceMessage").textContent = "";
+      applyRange("CUSTOM", { startDate, endDate });
+    });
+    $("teacherLoadMore").addEventListener("click", () => loadType(state.activeType, { append: true }));
   }
-  $("teacherVerificationTab").addEventListener("click", () => setType("VERIFICATION")); $("teacherRechargeTab").addEventListener("click", () => setType("RECHARGE")); $("teacherLoadMore").addEventListener("click", loadMore); init();
+
+  function init() {
+    renderProfile({});
+    renderTabs();
+    bindEvents();
+    applyRange("MONTH");
+    document.documentElement.dataset.prototypeVersion = VERSION;
+  }
+  init();
 })();

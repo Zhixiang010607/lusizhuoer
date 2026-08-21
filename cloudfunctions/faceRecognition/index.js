@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v5" : "v79";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v5" : "v80";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -3360,10 +3360,34 @@ async function getCustomerProductBalances(event) {
   };
 }
 
+const TEACHER_WORKSPACE_TYPES = Object.freeze(["VERIFICATION", "RECHARGE", "EXPERIENCE", "REFUND"]);
+const TEACHER_WORKSPACE_TYPE_CONFIG = Object.freeze({
+  VERIFICATION: Object.freeze({
+    baseRecordType: "VERIFICATION", table: "verification_records", alias: "v",
+    codeColumn: "verification_code", typeColumn: "verification_type",
+    categoryClause: "v.verification_type IN ('NORMAL', 'SUPPLEMENT')"
+  }),
+  RECHARGE: Object.freeze({
+    baseRecordType: "RECHARGE", table: "recharge_records", alias: "r",
+    codeColumn: "recharge_code", typeColumn: "recharge_type",
+    categoryClause: "r.recharge_type = 'NEW'"
+  }),
+  EXPERIENCE: Object.freeze({
+    baseRecordType: "VERIFICATION", table: "verification_records", alias: "v",
+    codeColumn: "verification_code", typeColumn: "verification_type",
+    categoryClause: "v.verification_type = 'EXPERIENCE'"
+  }),
+  REFUND: Object.freeze({
+    baseRecordType: "RECHARGE", table: "recharge_records", alias: "r",
+    codeColumn: "recharge_code", typeColumn: "recharge_type",
+    categoryClause: "r.recharge_type = 'REFUND'"
+  })
+});
+
 function teacherWorkspaceOptions(event = {}) {
   const recordType = String(event.recordType || "").trim().toUpperCase();
-  if (recordType && !["RECHARGE", "VERIFICATION"].includes(recordType)) {
-    fail("老师工单类型无效。", "BAD_REQUEST");
+  if (recordType && !TEACHER_WORKSPACE_TYPES.includes(recordType)) {
+    fail("老师业务类型无效。", "BAD_REQUEST");
   }
   const requestedLimit = Number(event.limit);
   const limit = Number.isFinite(requestedLimit)
@@ -3374,13 +3398,29 @@ function teacherWorkspaceOptions(event = {}) {
   if (Boolean(cursorSubmittedAt) !== Boolean(cursorIdText)) fail("老师工单游标不完整。", "BAD_REQUEST");
   if (cursorSubmittedAt && !recordType) fail("老师工单游标必须指定记录类型。", "BAD_REQUEST");
   const recordIdText = String(event.recordId || "").trim();
+  const startDate = optionalBusinessQueryDate(event.startDate, "开始日期");
+  const endDate = optionalBusinessQueryDate(event.endDate, "结束日期");
+  if (Boolean(startDate) !== Boolean(endDate)) fail("开始日期和结束日期必须同时提供。", "BAD_REQUEST");
+  if (startDate && startDate > endDate) fail("开始日期不能晚于结束日期。", "BAD_REQUEST");
   return {
     recordType,
     limit,
     cursorSubmittedAt,
     cursorId: cursorIdText ? businessQueryDatabaseId(cursorIdText, "老师工单游标编号") : "",
-    recordId: recordIdText ? businessQueryDatabaseId(recordIdText, "老师工单编号") : ""
+    recordId: recordIdText ? businessQueryDatabaseId(recordIdText, "老师工单编号") : "",
+    startDate,
+    endDate,
+    includeOverview: event.includeOverview === true || String(event.includeOverview || "").toLowerCase() === "true"
   };
+}
+
+function teacherWorkspaceDateClauses(alias, options) {
+  const clauses = [];
+  if (options.startDate) {
+    clauses.push(`${alias}.submitted_at >= (${sqlText(options.startDate)}::date::timestamp AT TIME ZONE 'Asia/Shanghai')`);
+    clauses.push(`${alias}.submitted_at < ((${sqlText(options.endDate)}::date + 1)::timestamp AT TIME ZONE 'Asia/Shanghai')`);
+  }
+  return clauses;
 }
 
 function teacherOrderRows(rows, recordType, teacher = {}) {
@@ -3439,27 +3479,29 @@ async function getTeacherWorkspace(event = {}) {
     teacherCode: caller.teacherCode,
     teacherName: caller.teacherName
   };
-  const query = async (recordType) => {
-    const alias = recordType === "RECHARGE" ? "r" : "v";
-    const table = recordType === "RECHARGE" ? "recharge_records" : "verification_records";
-    const codeColumn = recordType === "RECHARGE" ? "recharge_code" : "verification_code";
-    const typeColumn = recordType === "RECHARGE" ? "recharge_type" : "verification_type";
-    const cursorClause = options.cursorSubmittedAt && options.recordType === recordType
-      ? `AND (${alias}.submitted_at, ${alias}.id) < (${sqlText(options.cursorSubmittedAt)}::timestamptz, ${options.cursorId}::bigint)`
-      : "";
-    const recordClause = options.recordId && options.recordType === recordType
-      ? `AND ${alias}.id = ${options.recordId}::bigint`
-      : "";
+  const query = async (recordType, { detailMode = false, legacyCombined = false } = {}) => {
+    const config = TEACHER_WORKSPACE_TYPE_CONFIG[recordType];
+    const { alias, table, codeColumn, typeColumn } = config;
+    const baseRecordType = config.baseRecordType;
+    const clauses = [`${alias}.teacher_id = ${sqlText(caller.teacherId)}::bigint`];
+    if (detailMode) clauses.push(`${alias}.id = ${options.recordId}::bigint`);
+    else if (!legacyCombined) {
+      clauses.push(`${alias}.record_status = 'APPROVED'`, config.categoryClause);
+      clauses.push(...teacherWorkspaceDateClauses(alias, options));
+      if (options.cursorSubmittedAt && options.recordType === recordType) {
+        clauses.push(`(${alias}.submitted_at, ${alias}.id) < (${sqlText(options.cursorSubmittedAt)}::timestamptz, ${options.cursorId}::bigint)`);
+      }
+    }
     return executeSql(
       `SELECT ${alias}.id, ${alias}.${codeColumn} AS record_code,
               ${alias}.${typeColumn} AS original_type, ${alias}.unit_count,
-              ${recordType === "RECHARGE" ? `${alias}.balance_before_count, ${alias}.balance_after_count` : "NULL::integer AS balance_before_count, NULL::integer AS balance_after_count"},
+              ${baseRecordType === "RECHARGE" ? `${alias}.balance_before_count, ${alias}.balance_after_count` : "NULL::integer AS balance_before_count, NULL::integer AS balance_after_count"},
               ${alias}.record_status, ${alias}.void_request_status,
               ${alias}.submitted_at, ${alias}.reviewed_at,
               ${alias}.message,
-              ${recordType === "VERIFICATION" ? `${alias}.supplement_note` : "NULL::text AS supplement_note"},
+              ${baseRecordType === "VERIFICATION" ? `${alias}.supplement_note` : "NULL::text AS supplement_note"},
               ${alias}.review_note,
-              ${recordType === "VERIFICATION" ? `${alias}.face_request_id` : "NULL::text AS face_request_id"},
+              ${baseRecordType === "VERIFICATION" ? `${alias}.face_request_id` : "NULL::text AS face_request_id"},
               TO_CHAR(${alias}.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_submitted_at,
               s.id AS store_id, s.store_code, s.store_name,
               s.province AS store_province, s.city AS store_city,
@@ -3470,26 +3512,123 @@ async function getTeacherWorkspace(event = {}) {
          JOIN public.stores s ON s.id = ${alias}.store_id
          JOIN public.customers c ON c.id = ${alias}.customer_id
          JOIN public.products p ON p.id = ${alias}.product_id
-        WHERE ${alias}.teacher_id = ${sqlText(caller.teacherId)}::bigint
-          ${recordClause}
-          ${cursorClause}
+        WHERE ${clauses.join(" AND ")}
         ORDER BY ${alias}.submitted_at DESC, ${alias}.id DESC
-        LIMIT ${options.recordId ? 1 : options.limit + 1}`
+        LIMIT ${detailMode ? 1 : options.limit + 1}`
     );
+  };
+
+  const loadOverview = async () => {
+    await requireTeacherExperienceQuotaLifecycleSchema();
+    const teacherId = positiveDatabaseId(caller.teacherId, "老师");
+    await executeSql(
+      `SELECT public.reset_teacher_experience_quota(q.id)
+         FROM public.teacher_product_experience_quotas q
+        WHERE q.teacher_id = ${sqlText(teacherId)}::bigint
+          AND q.quota_status = 'ACTIVE'
+          AND q.quota_month < public.teacher_experience_quota_month()`
+    );
+    const rechargeDateClauses = teacherWorkspaceDateClauses("r", options);
+    const verificationDateClauses = teacherWorkspaceDateClauses("v", options);
+    const eventCte = `business_events AS (
+      SELECT CASE WHEN r.recharge_type = 'REFUND' THEN 'refund' ELSE 'recharge' END AS metric,
+             r.product_id, r.unit_count::bigint AS amount
+        FROM public.recharge_records r
+       WHERE r.teacher_id = ${sqlText(teacherId)}::bigint
+         AND r.record_status = 'APPROVED'
+         AND r.recharge_type IN ('NEW', 'REFUND')
+         ${rechargeDateClauses.length ? `AND ${rechargeDateClauses.join(" AND ")}` : ""}
+      UNION ALL
+      SELECT CASE WHEN v.verification_type = 'EXPERIENCE' THEN 'experience' ELSE 'verification' END AS metric,
+             v.product_id, v.unit_count::bigint AS amount
+        FROM public.verification_records v
+       WHERE v.teacher_id = ${sqlText(teacherId)}::bigint
+         AND v.record_status = 'APPROVED'
+         AND v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')
+         ${verificationDateClauses.length ? `AND ${verificationDateClauses.join(" AND ")}` : ""}
+    )`;
+    const [summaryRows, balanceRows] = await Promise.all([
+      executeSql(
+        `WITH ${eventCte}, product_members AS (
+           SELECT event.product_id FROM business_events event
+           UNION
+           SELECT quota.product_id
+             FROM public.teacher_product_experience_quotas quota
+            WHERE quota.teacher_id = ${sqlText(teacherId)}::bigint
+              AND quota.quota_status = 'ACTIVE'
+         )
+         SELECT p.id AS product_id, p.product_code, p.product_name,
+                COALESCE(SUM(event.amount) FILTER (WHERE event.metric = 'verification'), 0) AS verification_count,
+                COALESCE(SUM(event.amount) FILTER (WHERE event.metric = 'recharge'), 0) AS recharge_count,
+                COALESCE(SUM(event.amount) FILTER (WHERE event.metric = 'experience'), 0) AS experience_count,
+                COALESCE(SUM(event.amount) FILTER (WHERE event.metric = 'refund'), 0) AS refund_count
+           FROM product_members member
+           JOIN public.products p ON p.id = member.product_id
+           LEFT JOIN business_events event ON event.product_id = p.id
+          GROUP BY p.id, p.product_code, p.product_name
+          ORDER BY p.product_name, p.product_code`
+      ),
+      executeSql(
+        `SELECT q.id, q.product_id, q.monthly_allowance, q.quota_month,
+                q.available_count, q.used_count, q.manual_recharge_count, q.monthly_reset_at,
+                p.product_code, p.product_name
+           FROM public.teacher_product_experience_quotas q
+           JOIN public.products p ON p.id = q.product_id
+          WHERE q.teacher_id = ${sqlText(teacherId)}::bigint
+            AND q.quota_status = 'ACTIVE'
+            AND p.product_status = 'ACTIVE'
+          ORDER BY p.product_name, p.product_code, q.id`
+      )
+    ]);
+    const products = summaryRows.map((row) => ({
+      productId: String(row.product_id),
+      productCode: String(row.product_code || ""),
+      productName: String(row.product_name || ""),
+      verification: Number(row.verification_count || 0),
+      recharge: Number(row.recharge_count || 0),
+      experience: Number(row.experience_count || 0),
+      refund: Number(row.refund_count || 0)
+    }));
+    const totals = products.reduce((result, product) => {
+      for (const metric of ["verification", "recharge", "experience", "refund"]) result[metric] += product[metric];
+      return result;
+    }, { verification: 0, recharge: 0, experience: 0, refund: 0 });
+    return {
+      range: { startDate: options.startDate, endDate: options.endDate },
+      summary: { products, totals },
+      experienceBalances: balanceRows.map((row) => ({
+        id: String(row.id),
+        productId: String(row.product_id),
+        productCode: String(row.product_code || ""),
+        productName: String(row.product_name || ""),
+        monthlyAllowance: Number(row.monthly_allowance || 0),
+        availableCount: Number(row.available_count || 0),
+        usedCount: Number(row.used_count || 0),
+        manualRechargeCount: Number(row.manual_recharge_count || 0),
+        quotaMonth: row.quota_month,
+        monthlyResetAt: row.monthly_reset_at
+      }))
+    };
   };
 
   if (options.recordId) {
     if (!options.recordType) fail("读取老师工单详情时必须指定工单类型。", "BAD_REQUEST");
-    const rows = await query(options.recordType);
-    const order = teacherOrderRows(rows, options.recordType, profile)[0];
+    const rows = await query(options.recordType, { detailMode: true });
+    const order = teacherOrderRows(rows, TEACHER_WORKSPACE_TYPE_CONFIG[options.recordType].baseRecordType, profile)[0];
     if (!order) fail("未找到当前老师本人绑定的工单。", "ORDER_NOT_FOUND");
     return { ok: true, profile, record: order };
   }
   if (options.recordType) {
     const page = teacherOrderPage(await query(options.recordType), options.recordType, options.limit, profile);
-    return { ok: true, profile, page: { records: page.records, ...page.page } };
+    const overview = options.includeOverview ? await loadOverview() : {};
+    return { ok: true, profile, page: { records: page.records, ...page.page }, ...overview };
   }
-  const [rechargeRows, verificationRows] = await Promise.all([query("RECHARGE"), query("VERIFICATION")]);
+  // Compatibility for the previous two-tab static page during a rolling
+  // deployment. The new page always requests one of the four explicit types.
+  const [rechargeRows, verificationRows] = await Promise.all([
+    query("RECHARGE", { legacyCombined: true }),
+    query("VERIFICATION", { legacyCombined: true })
+  ]);
   const rechargePage = teacherOrderPage(rechargeRows, "RECHARGE", options.limit, profile);
   const verificationPage = teacherOrderPage(verificationRows, "VERIFICATION", options.limit, profile);
   return {

@@ -4,19 +4,54 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>老师工作台</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.44">
+  <link rel="stylesheet" href="styles.css?v=0.15.54">
 </head>
 <body data-teacher-workspace>
   <aside class="side-project-bar" aria-label="老师工作台"><div class="side-brand"><span>师</span><div><strong>老师工作台</strong><small>本人业务</small></div></div><nav class="side-nav"></nav><div class="side-footer">老师账号</div></aside>
-  <header class="topbar"><div><p class="eyebrow">MY WORKSPACE</p><h1>我的工作台</h1><p class="subtitle">只显示本人资料与本人绑定的充值、核销工单</p></div><div class="status"><span></span>仅本人数据</div></header>
+  <header class="topbar"><div><p class="eyebrow">MY WORKSPACE</p><h1>我的工作台</h1><p class="subtitle">查看本人有效业务、项目汇总与体验项目剩余次数</p></div><div class="status"><span></span>仅本人数据</div></header>
   <main class="teacher-workspace-main">
     <section class="panel detail-section">
       <div class="panel-heading"><div><h2>我的基础信息</h2><p>身份由当前登录账号在数据库中确认</p></div><span class="badge">老师本人</span></div>
       <div id="teacherProfileInfo" class="detail-info-grid"><article><span>读取状态</span><strong>正在读取数据库…</strong></article></div>
     </section>
+
+    <section class="panel teacher-quota-panel" aria-labelledby="teacherQuotaTitle">
+      <div class="panel-heading"><div><h2 id="teacherQuotaTitle">体验项目剩余次数</h2><p>按已配置项目自动排列；项目数量变化时页面会自动调整</p></div><span id="teacherQuotaCount" class="badge">读取中</span></div>
+      <div id="teacherExperienceBalances" class="teacher-quota-grid"><article class="teacher-quota-empty">正在读取体验项目…</article></div>
+    </section>
+
+    <section class="panel teacher-overview-panel" aria-labelledby="teacherOverviewTitle">
+      <div class="panel-heading"><div><h2 id="teacherOverviewTitle">时间范围与业务汇总</h2><p>汇总仅统计当前老师在所选周期内已经生效的业务次数</p></div><span id="teacherRangeLabel" class="badge">本月</span></div>
+      <div class="teacher-range-presets" role="group" aria-label="选择统计时间">
+        <button type="button" data-range-preset="TODAY">今天</button>
+        <button type="button" data-range-preset="WEEK">本周</button>
+        <button class="active" type="button" data-range-preset="MONTH">本月</button>
+        <button type="button" data-range-preset="QUARTER">本季度</button>
+        <button type="button" data-range-preset="YEAR">本年</button>
+        <button type="button" data-range-preset="ALL">全部</button>
+        <button type="button" data-range-preset="CUSTOM">自定义</button>
+      </div>
+      <div id="teacherCustomRange" class="teacher-custom-range" hidden>
+        <label>开始日期<input id="teacherRangeStart" type="date"></label>
+        <label>结束日期<input id="teacherRangeEnd" type="date"></label>
+        <button id="teacherApplyCustomRange" type="button">应用时间</button>
+      </div>
+      <div class="table-scroll teacher-summary-scroll" tabindex="0" aria-label="按项目汇总的业务次数">
+        <table class="teacher-summary-matrix">
+          <thead><tr><th scope="col">产品</th><th scope="col">核销</th><th scope="col">充值</th><th scope="col">体验</th><th scope="col">退费</th></tr></thead>
+          <tbody id="teacherSummaryBody"><tr><td colspan="5" class="teacher-empty">正在计算本月汇总…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
     <section class="panel teacher-business-panel">
-      <div class="panel-heading"><div><h2>本人绑定工单</h2><p>点击客户姓名可进入本人关联客户主页并留言</p></div><span id="teacherLoadedCount" class="badge">0 条</span></div>
-      <div class="teacher-record-tabs" role="tablist" aria-label="工单类型"><button class="active" id="teacherVerificationTab" type="button" role="tab" aria-selected="true">我的核销</button><button id="teacherRechargeTab" type="button" role="tab" aria-selected="false">我的充值</button></div>
+      <div class="panel-heading"><div><h2>本人业务明细</h2><p>点击单号查看凭证；点击客户姓名可进入本人关联客户主页并留言</p></div><span id="teacherLoadedCount" class="badge">0 条</span></div>
+      <div class="teacher-record-tabs" role="tablist" aria-label="业务类型">
+        <button class="active" id="teacherVerificationTab" data-record-type="VERIFICATION" type="button" role="tab" aria-selected="true"><span>核销</span><small id="teacherVerificationTotal">0 次</small></button>
+        <button id="teacherRechargeTab" data-record-type="RECHARGE" type="button" role="tab" aria-selected="false"><span>充值</span><small id="teacherRechargeTotal">0 次</small></button>
+        <button id="teacherExperienceTab" data-record-type="EXPERIENCE" type="button" role="tab" aria-selected="false"><span>体验</span><small id="teacherExperienceTotal">0 次</small></button>
+        <button id="teacherRefundTab" data-record-type="REFUND" type="button" role="tab" aria-selected="false"><span>退费</span><small id="teacherRefundTotal">0 次</small></button>
+      </div>
       <p id="teacherWorkspaceMessage" class="form-message" aria-live="polite"></p>
       <div class="table-scroll"><table><thead id="teacherRecordsHead"></thead><tbody id="teacherOrdersBody"><tr><td class="teacher-empty">正在读取数据库工单…</td></tr></tbody></table></div>
       <div class="teacher-load-more-row"><button id="teacherLoadMore" type="button" hidden>继续加载</button></div>
@@ -27,7 +62,7 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
   <script src="datetime.js?v=0.1.2"></script>
-  <script src="teacher-work-orders.js?v=0.15.4"></script>
+  <script src="teacher-work-orders.js?v=0.16.0"></script>
   <script src="auth-ui.js?v=0.19.1"></script>
 </body>
 </html>
