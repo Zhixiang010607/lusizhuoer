@@ -195,7 +195,7 @@ const analytics = functionSource(faceCloud, "storeAnalyticsEventCte");
 const hqDashboard = functionSource(staffCloud, "getHqDashboard");
 const verificationCreate = functionSource(faceCloud, "createVerificationApplication");
 const teacherProvision = functionSource(teacherCreateCloud, "createTeacher");
-const teacherAuthentication = functionSource(teacherCreateCloud, "createBlockedAuthentication");
+const teacherAuthentication = functionSource(teacherCreateCloud, "createActiveAuthentication");
 const hqEntitlementRead = functionSource(staffCloud, "getHqTeacherExperienceEntitlements");
 const entitlementUpsert = functionSource(staffCloud, "upsertTeacherExperienceEntitlement");
 const entitlementDelete = functionSource(staffCloud, "deleteTeacherExperienceEntitlement");
@@ -243,16 +243,16 @@ assert.match(teacherProvision, /event\.consent\s*!==\s*true/,
   "teacher provisioning must require explicit consent server-side");
 assert.match(teacherProvision, /jpegImage\(event\.imageBase64\)/,
   "teacher provisioning must validate the submitted face image server-side");
-assert.match(teacherAuthentication, /userStatus:\s*"BLOCKED"/,
-  "a teacher authentication account must start blocked before face enrollment completes");
-assert.match(teacherCreateCloud, /async function insertTeacherRecord[\s\S]{0,1500}'ARCHIVED'[\s\S]{0,600}'ENROLLED'/,
-  "the direct database write must keep the new account archived while storing the already-proven face");
-assert.match(teacherProvision, /createAndProveRemote\([\s\S]{0,800}createBlockedAuthentication\([\s\S]{0,500}insertTeacherRecord\(/,
-  "teacher provisioning must follow customer face/photo creation before adding the login and teacher records");
-assert.match(teacherProvision, /manager\(\)\.user\.modifyUser\(\{ uid: authentication\.uid, userStatus: "ACTIVE"/,
-  "teacher authentication may activate only after the enrolled database profile is persisted");
+assert.match(teacherAuthentication, /userStatus:\s*"ACTIVE"/,
+  "teacher authentication must be created active after face and photo writes succeed");
+assert.match(teacherCreateCloud, /async function insertTeacherRecord[\s\S]{0,900}'teacher', 'ACTIVE'[\s\S]{0,450}'ACTIVE'[\s\S]{0,180}'ENROLLED'/,
+  "the direct database write must persist active staff and teacher rows with the enrolled face");
+assert.match(teacherProvision, /createRemoteAssets\([\s\S]{0,500}createActiveAuthentication\([\s\S]{0,500}insertTeacherRecord\(/,
+  "teacher provisioning must create face/photo assets before adding the active login and teacher records");
+assert.doesNotMatch(teacherCreateCloud, /user\.modifyUser\(|createBlockedAuthentication|finalReadback/,
+  "teacher creation must not use the retired blocked-account activation or final-readback flow");
 assert.match(teacherCreateCloud, /function successResponse\([\s\S]{0,500}complete:\s*true[\s\S]{0,600}ok:\s*true, completed:\s*true/,
-  "creation may return success only after the authoritative final proof");
+  "creation may return success only after every direct write reports success");
 assert.doesNotMatch(`${staffCloud}\n${faceCloud}`, /delegateTeacherFace|upsertDelegatedTeacherFace|teacher_face_operations/,
   "retired staff and face services must contain no cross-function teacher Saga");
 

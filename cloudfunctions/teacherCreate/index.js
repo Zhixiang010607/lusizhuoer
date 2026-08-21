@@ -4,7 +4,7 @@ const crypto = require("node:crypto");
 const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 
-const FUNCTION_VERSION = "teacher-create-v4";
+const FUNCTION_VERSION = "teacher-create-v5";
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -186,10 +186,6 @@ function normalizedPhone(value) {
   return digits.length === 13 && digits.startsWith("86") ? digits.slice(2) : digits;
 }
 
-function deterministicUid(phone) {
-  return `teacher-${crypto.createHash("sha256").update(`teacher-auth:${phone}`, "utf8").digest("hex").slice(0, 48)}`;
-}
-
 function personIdFor(image, phone, clientRequestId) {
   const token = crypto.createHash("sha256")
     .update(`teacher-face:${phone}:${clientRequestId}:${image.sha256}`, "utf8")
@@ -286,13 +282,6 @@ async function requireHq() {
   return { uid: String(uid), staffId: String(caller.id) };
 }
 
-async function exactAuthByUid(uid) {
-  const response = await manager().user.describeUserList({ uidList: [uid], pageNo: 1, pageSize: 20 });
-  const matches = (response?.Data?.UserList || []).filter((user) => String(user?.Uid || "") === uid);
-  if (matches.length > 1) fail("认证系统返回多个同 UID 账号。", "AUTH_UID_AMBIGUOUS");
-  return matches[0] || null;
-}
-
 async function exactAuthByPhone(phone) {
   const responses = await Promise.all([
     manager().user.describeUserList({ phone, pageNo: 1, pageSize: 20 }),
@@ -303,15 +292,6 @@ async function exactAuthByPhone(phone) {
   const matches = unique.filter((user) => normalizedPhone(user?.Phone) === phone);
   if (matches.length > 1) fail("认证系统返回多个同手机号账号。", "AUTH_PHONE_AMBIGUOUS");
   return matches[0] || null;
-}
-
-function assertAuthIdentity(user, uid, phone) {
-  if (!user || String(user.Uid || "") !== uid
-      || normalizedPhone(user.Phone) !== phone
-      || String(user.Name || "") !== `staff_${phone}`) {
-    fail("认证账号的 UID、手机号或登录名不匹配。", "AUTH_IDENTITY_CONFLICT");
-  }
-  return user;
 }
 
 async function readBusinessByPhone(phone) {
@@ -330,30 +310,26 @@ async function readBusinessByPhone(phone) {
   return rows[0] || null;
 }
 
-function authStatus(user) {
-  return String(user?.UserStatus || "").trim().toUpperCase();
-}
-
-async function createBlockedAuthentication({ phone, name, password, clientRequestId, lifecycle }) {
-  const uid = deterministicUid(phone);
-  const [byUid, byPhone] = await Promise.all([exactAuthByUid(uid), exactAuthByPhone(phone)]);
-  if (byUid || byPhone) fail("该手机号已存在登录账号，不能重复创建老师。", "PHONE_ALREADY_PROVISIONED");
+async function createActiveAuthentication({ phone, name, password, clientRequestId, lifecycle }) {
+  const byPhone = await exactAuthByPhone(phone);
+  if (byPhone) fail("该手机号已存在登录账号，不能重复创建老师。", "PHONE_ALREADY_PROVISIONED");
   const description = `teacher-create:${clientRequestId}`;
-  lifecycle.uid = uid;
   lifecycle.authAttempted = true;
+  let created;
   try {
-    await manager().user.createUser({
-      uid, name: `staff_${phone}`, password, type: "externalUser",
-      userStatus: "BLOCKED", nickName: name, phone, description
+    created = await manager().user.createUser({
+      name: `staff_${phone}`, password, type: "externalUser",
+      userStatus: "ACTIVE", nickName: name, phone, description
     });
   } catch (createError) {
     createError.code ||= "AUTH_CREATE_FAILED";
     throw createError;
   }
+  const uid = String(created?.Data?.Uid || "").trim();
+  if (!uid) fail("认证账号创建后未返回 UID，请检查认证用户后再重试。", "AUTH_CREATE_INCOMPLETE");
+  lifecycle.uid = uid;
   lifecycle.authCreated = true;
-  const user = assertAuthIdentity(await exactAuthByUid(uid), uid, phone);
-  if (authStatus(user) !== "BLOCKED") fail("新老师认证账号未保持 BLOCKED。", "AUTH_CREATE_INCOMPLETE");
-  return { uid, user };
+  return { uid };
 }
 
 async function insertTeacherRecord({ uid, phone, name, actor, personId, photoRef }) {
@@ -361,41 +337,21 @@ async function insertTeacherRecord({ uid, phone, name, actor, personId, photoRef
     `WITH account AS (
        INSERT INTO public.staff_accounts
          (auth_uid, phone, staff_name, role_code, account_status)
-       VALUES (${sqlText(uid)}, ${sqlText(phone)}, ${sqlText(name)}, 'teacher', 'ARCHIVED')
+        VALUES (${sqlText(uid)}, ${sqlText(phone)}, ${sqlText(name)}, 'teacher', 'ACTIVE')
        RETURNING id
      )
      INSERT INTO public.teachers
        (teacher_code, teacher_name, staff_account_id, teacher_status,
         face_person_id, face_consent_at, face_enrollment_status,
         face_enrolled_at, face_enrolled_by_account_id, profile_photo_file_id)
-     SELECT 'TCHF' || account.id::text, ${sqlText(name)}, account.id, 'ARCHIVED',
+      SELECT 'TCHF' || account.id::text, ${sqlText(name)}, account.id, 'ACTIVE',
             ${sqlText(personId)}, NOW(), 'ENROLLED', NOW(),
             ${Number(actor.staffId)}::bigint, ${sqlText(photoRef)}
        FROM account`
   );
   const row = await readBusinessByPhone(phone);
-  if (!row?.staff_id || !row?.teacher_id || String(row.auth_uid || "") !== uid
-      || String(row.role_code || "") !== "teacher"
-      || String(row.account_status || "") !== "ARCHIVED"
-      || String(row.teacher_status || "") !== "ARCHIVED"
-      || String(row.face_enrollment_status || "") !== "ENROLLED"
-      || String(row.face_person_id || "") !== personId
-      || String(row.profile_photo_file_id || "") !== photoRef) {
-    fail("老师资料与人脸引用写入后未能精确读回。", "FACE_DATABASE_READBACK_FAILED");
-  }
+  if (!row?.staff_id || !row?.teacher_id) fail("老师资料写入后未返回有效编号。", "DATABASE_ERROR");
   return row;
-}
-
-function objectInfo(value, depth = 0) {
-  if (!value || typeof value !== "object" || depth > 5) return null;
-  if (!Array.isArray(value) && (Object.prototype.hasOwnProperty.call(value, "size")
-      || Object.prototype.hasOwnProperty.call(value, "content_type")
-      || Object.prototype.hasOwnProperty.call(value, "bucket_id"))) return value;
-  for (const item of Array.isArray(value) ? value : Object.values(value)) {
-    const found = objectInfo(item, depth + 1);
-    if (found) return found;
-  }
-  return null;
 }
 
 function storageMissing(error) {
@@ -414,110 +370,7 @@ async function uploadPhoto(photo, image) {
   return photo;
 }
 
-async function downloadPhoto(photo, expectedBytes) {
-  const settings = storageSettings();
-  let response;
-  try {
-    response = await manager().storage.downloadAuthenticatedObject({
-      bucketId: photo.bucketId, objectName: photo.objectName, method: "GET",
-      accessToken: settings.accessToken, envId: settings.envId
-    });
-  } catch (error) {
-    if (storageMissing(error)) fail("老师原始照片未上传完成。", "PHOTO_UPLOAD_INCOMPLETE");
-    throw error;
-  }
-  if (Number(response?.status || 0) !== 200 || !response?.body) {
-    fail("无法从私有存储读取老师原图。", "PHOTO_READBACK_FAILED");
-  }
-  const chunks = [];
-  let bytes = 0;
-  for await (const chunk of response.body) {
-    const part = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    bytes += part.length;
-    if (bytes > expectedBytes) {
-      response.body.destroy?.();
-      fail("老师原图大小与提交内容不一致。", "PHOTO_SIZE_MISMATCH");
-    }
-    chunks.push(part);
-  }
-  return Buffer.concat(chunks);
-}
-
-async function confirmPhoto(photo, image) {
-  const settings = storageSettings();
-  let response;
-  try {
-    response = await manager().storage.getObjectInfoAuthenticated({
-      bucketId: photo.bucketId, objectName: photo.objectName, method: "GET",
-      accessToken: settings.accessToken, envId: settings.envId
-    });
-  } catch (error) {
-    if (storageMissing(error)) fail("老师原始照片未上传完成。", "PHOTO_UPLOAD_INCOMPLETE");
-    throw error;
-  }
-  const info = objectInfo(response);
-  if (!info) fail("无法读取老师原图信息。", "PHOTO_INFO_INVALID");
-  const bytes = Number(info.size ?? response?.headers?.["content-length"]);
-  const contentType = String(info.content_type || response?.headers?.["content-type"] || "")
-    .split(";", 1)[0].trim().toLowerCase();
-  if (bytes !== image.bytes || contentType !== "image/jpeg") {
-    fail("老师原图的大小或类型不一致。", "PHOTO_METADATA_MISMATCH");
-  }
-  const downloaded = await downloadPhoto(photo, image.bytes);
-  if (downloaded.length !== image.bytes || downloaded[0] !== 0xff || downloaded[1] !== 0xd8
-      || downloaded[2] !== 0xff || downloaded[downloaded.length - 2] !== 0xff
-      || downloaded[downloaded.length - 1] !== 0xd9) {
-    fail("读回的老师原图不是同一张完整 JPEG。", "PHOTO_CONTENT_MISMATCH");
-  }
-  const digest = crypto.createHash("sha256").update(downloaded).digest("hex");
-  if (digest !== image.sha256) fail("读回的老师原图摘要不一致。", "PHOTO_CONTENT_MISMATCH");
-  return { reference: photo.reference, bytes: downloaded.length, sha256: digest, contentType };
-}
-
-function personReadNotVisible(error) {
-  const code = String(error?.code || "").trim();
-  return code === "InvalidParameterValue.PersonIdNotExist"
-    || code === "FailedOperation.GroupPersonMapNotExist"
-    || code === "ResourceNotFound";
-}
-
-async function confirmPerson(api, groupId, personId, name, expectedFaceId = "") {
-  let person;
-  let groups;
-  let initialVisibilityError = null;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      [person, groups] = await Promise.all([
-        api.GetPersonBaseInfo({ PersonId: personId }),
-        api.GetPersonGroupInfo({ PersonId: personId, Offset: 0, Limit: 100 })
-      ]);
-      break;
-    } catch (error) {
-      if (!personReadNotVisible(error)) throw error;
-      if (attempt === 1) throw initialVisibilityError || error;
-      initialVisibilityError = error;
-      // Tencent IAI may briefly lag immediately after CreatePerson. Retry the
-      // exact read only; never issue a second write.
-      await Promise.resolve();
-    }
-  }
-  const faceIds = Array.isArray(person?.FaceIds)
-    ? person.FaceIds.map((value) => String(value || "").trim()).filter(Boolean) : [];
-  const groupIds = Array.isArray(groups?.PersonGroupInfos)
-    ? groups.PersonGroupInfos.map((item) => String(item?.GroupId || "").trim()).filter(Boolean) : [];
-  // GetPersonBaseInfo is queried by the exact PersonId but Tencent's response
-  // does not echo PersonId. Prove the requested identity through its exact
-  // PersonName/FaceId and its group membership instead of requiring a field
-  // that the real API never returns.
-  if (String(person?.PersonName || "") !== name
-      || faceIds.length !== 1 || !groupIds.includes(groupId)
-      || (expectedFaceId && !faceIds.includes(expectedFaceId))) {
-    fail("人脸库 Person、Group 或 FaceId 精确回读不一致。", "FACE_READBACK_MISMATCH");
-  }
-  return { personId, groupId, faceId: expectedFaceId || faceIds[0], faceIds };
-}
-
-async function createAndProveRemote({ api, groupId, personId, name, photo, image, lifecycle }) {
+async function createRemoteAssets({ api, groupId, personId, name, photo, image, lifecycle }) {
   lifecycle.personAttempted = true;
   const faceResult = await api.CreatePerson({
     GroupId: groupId,
@@ -531,51 +384,13 @@ async function createAndProveRemote({ api, groupId, personId, name, photo, image
   lifecycle.personCreated = true;
   const faceId = String(faceResult?.FaceId || "").trim();
   if (!faceId) fail("人脸服务创建响应缺少 FaceId。", "FACE_ENROLLMENT_INCOMPLETE");
-  const person = await confirmPerson(api, groupId, personId, name, faceId);
-
   lifecycle.photoAttempted = true;
   await uploadPhoto(photo, image);
   lifecycle.photoCreated = true;
-  const retainedPhoto = await confirmPhoto(photo, image);
-  return { person, photo: retainedPhoto };
-}
-
-async function activateDatabase(shell, personId, photoRef) {
-  await executeSql(
-    `UPDATE public.teachers SET teacher_status = 'ACTIVE', updated_at = NOW()
-      WHERE id = ${Number(shell.teacher_id)}::bigint
-        AND staff_account_id = ${Number(shell.staff_id)}::bigint
-        AND face_person_id = ${sqlText(personId)}
-        AND profile_photo_file_id = ${sqlText(photoRef)}
-        AND face_enrollment_status = 'ENROLLED';
-     UPDATE public.staff_accounts SET account_status = 'ACTIVE', updated_at = NOW()
-      WHERE id = ${Number(shell.staff_id)}::bigint
-        AND auth_uid = ${sqlText(shell.auth_uid)} AND role_code = 'teacher'`
-  );
-}
-
-async function finalReadback({ phone, uid, teacherId, staffId, personId, photoRef }) {
-  const rows = await executeSql(
-    `SELECT account.id AS staff_id, account.auth_uid, account.phone,
-            account.account_status, teacher.id AS teacher_id, teacher.teacher_code,
-            teacher.teacher_status, teacher.face_person_id,
-            teacher.face_enrollment_status, teacher.profile_photo_file_id
-       FROM public.staff_accounts AS account
-       JOIN public.teachers AS teacher ON teacher.staff_account_id = account.id
-      WHERE account.id = ${Number(staffId)}::bigint
-        AND account.auth_uid = ${sqlText(uid)} AND account.phone = ${sqlText(phone)}
-        AND account.role_code = 'teacher' AND account.account_status = 'ACTIVE'
-        AND teacher.id = ${Number(teacherId)}::bigint AND teacher.teacher_status = 'ACTIVE'
-        AND teacher.face_person_id = ${sqlText(personId)}
-        AND teacher.face_enrollment_status = 'ENROLLED'
-        AND teacher.profile_photo_file_id = ${sqlText(photoRef)} LIMIT 1`
-  );
-  const database = rows[0] || null;
-  const identity = assertAuthIdentity(await exactAuthByUid(uid), uid, phone);
-  if (!database || authStatus(identity) !== "ACTIVE") {
-    fail("老师最终激活状态未能精确读回。", "TEACHER_FINAL_READBACK_FAILED");
-  }
-  return { database, identity };
+  return {
+    person: { personId, groupId, faceId },
+    photo: { reference: photo.reference, bytes: image.bytes, sha256: image.sha256 }
+  };
 }
 
 async function deletePhoto(photo) {
@@ -668,12 +483,12 @@ async function cleanupFailure(context, originalError) {
   if (databaseDetached && context.personAttempted && context.api && context.personId) {
     await attempt("FACE_DELETE", () => deletePerson(context.api, context.groupId, context.personId));
   }
-  if (databaseDetached && context.authAttempted && context.uid) {
-    const createdAuth = await exactAuthByUid(context.uid).catch(() => null);
+  if (databaseDetached && context.authAttempted && context.phone) {
+    const createdAuth = await exactAuthByPhone(context.phone).catch(() => null);
     const description = String(createdAuth?.Description ?? createdAuth?.description ?? "").trim();
     if (createdAuth && normalizedPhone(createdAuth.Phone) === context.phone
         && (context.authCreated || description === `teacher-create:${context.clientRequestId}`)) {
-      await attempt("AUTH_DELETE", () => deleteCreatedAuth(context.uid));
+      await attempt("AUTH_DELETE", () => deleteCreatedAuth(String(createdAuth.Uid || context.uid || "")));
     }
   }
   if (failures.length) {
@@ -726,7 +541,7 @@ async function createTeacher(event) {
 
   const context = {
     api, groupId: required("FACE_GROUP_ID"), phone,
-    uid: deterministicUid(phone), authAttempted: false, authCreated: false,
+    uid: "", authAttempted: false, authCreated: false,
     databaseAttempted: false, databaseCreated: false,
     clientRequestId,
     shell: null, personId: "", photo: null,
@@ -745,11 +560,11 @@ async function createTeacher(event) {
     const photo = photoFor(phone, personId, image);
     context.personId = personId;
     context.photo = photo;
-    const remote = await createAndProveRemote({
+    const remote = await createRemoteAssets({
       api, groupId: context.groupId, personId, name, photo, image, lifecycle: context
     });
 
-    const authentication = await createBlockedAuthentication({
+    const authentication = await createActiveAuthentication({
       phone, name, password, clientRequestId, lifecycle: context
     });
     context.databaseAttempted = true;
@@ -758,28 +573,9 @@ async function createTeacher(event) {
     });
     context.shell = shell;
     context.databaseCreated = true;
-    // Read the same face ID and original photo a second time before either
-    // business or login status is activated.
-    const [finalPerson, finalPhoto] = await Promise.all([
-      confirmPerson(api, context.groupId, personId, name, remote.person.faceId),
-      confirmPhoto(photo, image)
-    ]);
-    await activateDatabase(shell, personId, photo.reference);
-    await manager().user.modifyUser({ uid: authentication.uid, userStatus: "ACTIVE", nickName: name });
-
-    // Final success needs the same proof as customer creation plus the new
-    // phone/password identity and teacher-account activation.
-    const finalDatabase = await finalReadback({
-      phone, uid: authentication.uid, teacherId: shell.teacher_id,
-      staffId: shell.staff_id, personId, photoRef: photo.reference
-    });
-    if (!finalDatabase.database || finalPerson.faceId !== remote.person.faceId
-        || finalPhoto.sha256 !== image.sha256 || finalPhoto.bytes !== image.bytes) {
-      fail("老师建档最终证明不完整。", "TEACHER_FINAL_READBACK_FAILED");
-    }
     return successResponse({
-      uid: authentication.uid, shell: finalDatabase.database,
-      person: finalPerson, photo: finalPhoto, quality, liveness, idempotent: false
+      uid: authentication.uid, shell,
+      person: remote.person, photo: remote.photo, quality, liveness, idempotent: false
     });
   } catch (error) {
     try { await cleanupFailure(context, error); }
@@ -818,7 +614,6 @@ exports.main = async (event = {}) => {
 
 exports._test = {
   jpegImage,
-  deterministicUid,
   personIdFor,
   photoFor,
   successResponse,

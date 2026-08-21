@@ -21,7 +21,7 @@ const verify053 = read("database/cloudbase-console/053-readonly-verify.sql");
 
 assert.match(staff, /const FUNCTION_VERSION = "v66"/);
 assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v4" : "v77"/);
-assert.match(teacher, /const FUNCTION_VERSION = "teacher-create-v4"/);
+assert.match(teacher, /const FUNCTION_VERSION = "teacher-create-v5"/);
 
 const retiredImplementationNames = [
   "teacher_face_operations",
@@ -62,9 +62,9 @@ assert.doesNotMatch(face, /if \(action === "(?:upsertDelegatedTeacherFace|readba
 assert.match(staff, /if \(role === "teacher"\) \{[\s\S]{0,220}TEACHER_CREATE_SERVICE_REQUIRED/,
   "generic staff creation must fail before attempting compatibility behavior");
 assert.match(teacher, /if \(action === "createTeacher"\) return await createTeacher\(event\)/,
-  "teacherCreate v4 must own direct teacher creation");
+  "teacherCreate v5 must own direct teacher creation");
 assert.doesNotMatch(teacher, /upsertTeacherFace|replaceTeacherFace|switchTeacherFace|restoreTeacherFace/,
-  "teacherCreate v4 must expose no post-creation face write path");
+  "teacherCreate v5 must expose no post-creation face write path");
 assert.match(browser, /async createTeacherWithFace\([\s\S]{0,700}callTeacherCreate\(\s*\{[\s\S]{0,120}action: "createTeacher"/,
   "the browser must call teacherCreate directly for creation");
 assert.doesNotMatch(browser, /upsertTeacherFace|replaceTeacherFace/,
@@ -79,10 +79,10 @@ assert.equal((create.match(/await inspectFace\(/g) || []).length, 1,
   "one creation request performs exactly one quality pass");
 assert.equal((create.match(/await inspectLiveness\(/g) || []).length, 1,
   "one creation request performs exactly one liveness pass");
-assert.match(create, /confirmPerson\([\s\S]{0,260}confirmPhoto\([\s\S]{0,800}finalReadback\(/,
-  "creation must prove the same remote identity, retained original and database record");
-assert.match(create, /manager\(\)\.user\.modifyUser\(\{ uid: authentication\.uid, userStatus: "ACTIVE"[\s\S]{0,500}finalReadback\(/,
-  "creation activates only before a final authoritative readback");
+assert.match(create, /createRemoteAssets\([\s\S]{0,500}createActiveAuthentication\([\s\S]{0,500}insertTeacherRecord\(/,
+  "creation must write face/photo assets before the active authentication and database records");
+assert.doesNotMatch(create, /confirmPerson|confirmPhoto|finalReadback|user\.modifyUser\(|createBlockedAuthentication/,
+  "creation must not retain post-write remote readbacks or blocked-account activation");
 
 function body(source) {
   const begin = source.indexOf("BEGIN;");

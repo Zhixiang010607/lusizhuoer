@@ -1,4 +1,4 @@
-# teacherCreate v4
+# teacherCreate v5
 
 老师创建的独立同步云函数。上传 ZIP 的根目录直接包含 `index.js`、`package.json`
 和 `README.md`，在 CloudBase 控制台选择“本地上传并安装依赖”。
@@ -7,7 +7,7 @@
 
 - `health`：返回版本、动作与环境配置状态，不返回密钥。
 - `validateCapture`：仅供活跃总部账号检查 JPEG 质量与活体。
-- `createTeacher`：单次完成 Auth、老师主档、人脸库、私有原图、精确回读和最终激活。
+- `createTeacher`：单次完成人脸库、私有原图、ACTIVE 登录账号和 ACTIVE 老师主档。
 
 本服务没有老师创建后的补录、替换或修改人脸 action。老师主页也不提供这些入口。
 旧记录或异常记录如缺少完整人脸资料，不能激活；必须先核对并清理 Auth、数据库、
@@ -17,12 +17,11 @@
 `staffAccount v66` 和 `faceRecognition v77` 不处理老师人脸写入。053 迁移物理删除旧
 操作表和六个私有函数。
 
-运行时也不识别或自动删除 `teacher-face-saga:*` 认证账号。遇到旧流程留下的 BLOCKED
+运行时不识别或自动续建旧 `teacher-face-saga:*` 认证账号。遇到旧流程留下的 BLOCKED
 孤儿账号时会直接返回 `PHONE_ALREADY_PROVISIONED`；必须由管理员在控制台核对 UID、
-手机号、状态和 Description 后手工清理，新函数不会替管理员猜测归属。只有同一
-`teacher-create:<clientRequestId>` 且完整已建档、所有精确回读都一致的老师才可幂等
-回读；新请求不会把未应用的新密码误报为创建成功。已有老师主档但 Auth 缺失时同样
-返回 `AUTH_ACCOUNT_MISSING`，不会借旧主档自动续建。
+手机号、状态和 Description 后手工清理。新流程不再创建临时 BLOCKED 账号，也不再
+执行创建后的 Person、Group、照片内容或 Auth 状态二次回读；各官方写入接口成功并
+返回必要编号后直接进入下一步，与门店账号和客户建档的处理方式一致。
 
 手机号是老师账号的唯一外部身份；同一自然人可用不同手机号建立独立老师账号。
 创建时不会按人脸搜索或判断自然人是否重复；系统没有老师 1:N 查人流程。体验核销先按
@@ -65,7 +64,7 @@
 
 ## 成功边界
 
-新建老师只有 Tencent IAI Person/Group/FaceId、私有原图字节与 SHA-256、PostgreSQL
-人脸引用、老师／员工主档及 Auth `ACTIVE` 全部独立回读通过，才返回
-`ok: true, completed: true, proof.complete: true`。任一步失败都不能返回创建成功；
-可确认归属的本次残留会按创建流程回滚，清理结果不确定时必须由管理员核对后再重试。
+新建老师依次要求 Tencent IAI `CreatePerson` 返回 FaceId、私有原图上传调用成功、
+CloudBase `CreateUser` 返回 UID，以及 PostgreSQL 写入返回老师编号。全部写入成功后
+返回 `ok: true, completed: true, proof.complete: true`；不再用可能存在同步延迟的
+二次读取阻止创建。任一步明确失败都不能返回成功，并清理本次请求已创建的资源。

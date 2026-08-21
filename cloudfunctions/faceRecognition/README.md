@@ -107,10 +107,10 @@ v77 与 `verificationPhoto v4` 共享同一份经过权限校验的照片服务�
 2. 执行 `database/migrations/040_fix_verification_photo_commit_ambiguity.sql`；腾讯云 SQL 编辑器只需执行一次 `040-01-fix-verification-photo-commit-ambiguity.sql`。已经完成 039 的生产库不要重跑 039。
 3. 完成 046、总部封锁旧运营凭据、047 和 048 后，依次执行 `049-01` 至 `049-13`，再运行 `049-readonly-verify.sql`，全部必须为 `READY`。049 是向前迁移，不要修改或重跑生产已执行的 048。
 4. 执行迁移 050 的 7 段控制台 SQL并确认只读验收全部 `READY`。`faceRecognition v77` 不依赖迁移 051／052，也不需要老师人脸操作恢复 Timer。
-5. 将 `faceRecognition` 执行超时设为 **90 秒**，将独立 `teacherCreate` 设为 **120 秒、至少 512 MB**；部署 `faceRecognition-v77.zip`、`verificationPhoto-v4.zip` 和 `teacherCreate-v4.zip`，分别调用 `health` 确认版本与配置。三个函数必须属于同一环境并使用一致的私有照片桶配置；`teacherCreate` 需要自己的腾讯人脸密钥和 `FACE_GROUP_ID`，但不需要 Timer。
+5. 将 `faceRecognition` 执行超时设为 **90 秒**，将独立 `teacherCreate` 设为 **120 秒、至少 512 MB**；部署 `faceRecognition-v77.zip`、`verificationPhoto-v4.zip` 和 `teacherCreate-v5.zip`，分别调用 `health` 确认版本与配置。三个函数必须属于同一环境并使用一致的私有照片桶配置；`teacherCreate` 需要自己的腾讯人脸密钥和 `FACE_GROUP_ID`，但不需要 Timer。
 6. 调用 `verificationPhoto` 的 `health`，确认版本与全部就绪字段后，再发布当前静态前端并结束停写窗口；发布后强制刷新浏览器。
 
-当前老师体验人脸上线顺序为“确认 048 已完成 → 049 → 050 → `faceRecognition v77`／`staffAccount v66`／`teacherCreate v4` → 053 退役验收 → `verificationPhoto v4` → 四个 `health` → 当前静态前端”。不要再向 `faceRecognition` 发送旧版老师人脸委托，也不要提供创建后的老师人脸写入口。
+当前老师体验人脸上线顺序为“确认 048 已完成 → 049 → 050 → `faceRecognition v77`／`staffAccount v66`／`teacherCreate v5` → 053 退役验收 → `verificationPhoto v4` → 四个 `health` → 当前静态前端”。不要再向 `faceRecognition` 发送旧版老师人脸委托，也不要提供创建后的老师人脸写入口。
 
 部署后测试：
 

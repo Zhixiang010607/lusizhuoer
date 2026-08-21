@@ -215,12 +215,10 @@ assert.match(createTeacher, /const actor = await requireHq\(\)[\s\S]{0,300}event
   "direct teacher creation must be HQ-only and require explicit consent");
 assert.match(createTeacher, /await inspectFace\(api, image\.base64\)[\s\S]{0,120}await inspectLiveness\(api, image\.base64\)/,
   "the direct creation call must re-run server-side quality and liveness checks");
-assert.match(createTeacher, /createAndProveRemote\([\s\S]{0,800}createBlockedAuthentication\([\s\S]{0,500}insertTeacherRecord\(/,
-  "teacher creation must reuse the customer face/photo order before adding the phone account");
-assert.match(createTeacher, /confirmPerson\([\s\S]{0,260}confirmPhoto\([\s\S]{0,700}finalReadback\(/,
-  "creation must read back remote Person, retained original and the database row before success");
-assert.match(createTeacher, /manager\(\)\.user\.modifyUser\(\{ uid: authentication\.uid, userStatus: "ACTIVE"/,
-  "the login may activate only inside the final direct creation boundary");
+assert.match(createTeacher, /createRemoteAssets\([\s\S]{0,500}createActiveAuthentication\([\s\S]{0,500}insertTeacherRecord\(/,
+  "teacher creation must keep the customer-style face/photo-first order before adding the phone account");
+assert.doesNotMatch(createTeacher, /confirmPerson|confirmPhoto|finalReadback|user\.modifyUser\(|createBlockedAuthentication/,
+  "teacher creation must not add post-write remote readbacks or temporary blocked authentication");
 assert.doesNotMatch(teacherCreateService,
   /upsertTeacherFace|replaceTeacherFace|switchTeacherFace|restoreTeacherFace|TEACHER_FACE_UPDATE_CLEANUP_INCOMPLETE/,
   "teacherCreate must expose no post-creation face write path");
