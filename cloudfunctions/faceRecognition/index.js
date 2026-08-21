@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v5" : "v83";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v5" : "v84";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -1322,6 +1322,8 @@ async function verificationPhotoContext(event, options = {}) {
 function customerProfileScope(caller, alias = "c") {
   if (caller.role === "store") return ` AND ${alias}.created_store_id = ${caller.storeId}`;
   if (caller.role === "teacher") return ` AND (
+    ${alias}.created_by_account_id = ${sqlText(caller.staffId)}::bigint
+    OR
     EXISTS (
       SELECT 1 FROM public.verification_records teacher_verification
        WHERE teacher_verification.customer_id = ${alias}.id
@@ -3852,7 +3854,7 @@ async function deleteFacePerson(api, groupId, personId) {
 async function findCustomerByFacePerson(storeId, personId) {
   const rows = await executeSql(
     `SELECT id, customer_code, profile_photo_file_id, face_person_id,
-            customer_status, customer_process_status,
+            customer_status, customer_process_status, created_by_account_id,
             total_recharge_count, total_verification_count, total_experience_count, created_at
        FROM public.customers
       WHERE created_store_id = ${storeId}
@@ -3865,7 +3867,7 @@ async function findCustomerByFacePerson(storeId, personId) {
 async function findCustomerByCode(customerCodeValue) {
   const rows = await executeSql(
     `SELECT id, customer_code, customer_name, birth_date, notes,
-            profile_photo_file_id, face_person_id, created_store_id,
+            profile_photo_file_id, face_person_id, created_store_id, created_by_account_id,
             customer_status, customer_process_status,
             total_recharge_count, total_verification_count, total_experience_count, created_at
        FROM public.customers
@@ -3904,6 +3906,7 @@ async function registerCustomer(event) {
     const existing = await findCustomerByCode(personId);
     if (existing) {
       const sameRequestData = String(existing.created_store_id) === String(caller.storeId)
+        && String(existing.created_by_account_id) === String(caller.staffId)
         && String(existing.customer_name) === name
         && String(existing.birth_date || "").slice(0, 10) === birthDate
         && String(existing.notes || "") === notes;
@@ -3963,12 +3966,14 @@ async function registerCustomer(event) {
       `INSERT INTO public.customers
         (customer_code, customer_name, birth_date, notes, profile_photo_file_id,
          face_person_id, customer_status, customer_process_status,
-         total_recharge_count, total_verification_count, total_experience_count, created_store_id)
+         total_recharge_count, total_verification_count, total_experience_count,
+         created_store_id, created_by_account_id)
        VALUES
         (${sqlText(personId)}, ${sqlText(name)}, ${sqlText(birthDate)}::date, ${sqlText(notes)}, ${sqlText(fileID)},
-         ${sqlText(personId)}, 'ACTIVE', 'INFORMATION_ONLY', 0, 0, 0, ${caller.storeId})
+         ${sqlText(personId)}, 'ACTIVE', 'INFORMATION_ONLY', 0, 0, 0,
+         ${caller.storeId}, ${caller.staffId})
        RETURNING id, customer_code, profile_photo_file_id, face_person_id,
-                 customer_status, customer_process_status,
+                 customer_status, customer_process_status, created_by_account_id,
                  total_recharge_count, total_verification_count, total_experience_count, created_at`
     );
     // CloudBase can successfully execute a writable statement without exposing
