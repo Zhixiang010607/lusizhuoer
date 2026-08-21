@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v6" : "v85";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v7" : "v86";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -1295,7 +1295,7 @@ async function verificationPhotoContext(event, options = {}) {
   let scope = "TRUE";
   if (caller.role === "store") scope = `v.store_id = ${Number(caller.storeId)}::bigint`;
   else if (caller.role === "teacher") scope = `(
-    v.teacher_id = ${sqlText(caller.teacherId)}::bigint
+    ${teacherBusinessOwnershipCondition(caller, "v")}
     OR EXISTS (
       SELECT 1
         FROM public.customers permitted_customer
@@ -1327,20 +1327,27 @@ async function verificationPhotoContext(event, options = {}) {
   return { caller, record, verificationId, canEdit };
 }
 
+function teacherBusinessOwnershipCondition(caller, alias) {
+  return `(
+    ${alias}.teacher_id = ${sqlText(caller.teacherId)}::bigint
+    OR ${alias}.submitted_by_account_id = ${sqlText(caller.staffId)}::bigint
+  )`;
+}
+
 function teacherCustomerAccessCondition(caller, alias = "c") {
   return `(
     ${alias}.created_by_account_id = ${sqlText(caller.staffId)}::bigint
     OR EXISTS (
       SELECT 1 FROM public.verification_records teacher_verification
        WHERE teacher_verification.customer_id = ${alias}.id
-         AND teacher_verification.teacher_id = ${sqlText(caller.teacherId)}::bigint
+         AND ${teacherBusinessOwnershipCondition(caller, "teacher_verification")}
          AND teacher_verification.record_status = 'APPROVED'
          AND teacher_verification.verification_type IN ('NORMAL', 'EXPERIENCE')
     )
     OR EXISTS (
       SELECT 1 FROM public.recharge_records teacher_recharge
        WHERE teacher_recharge.customer_id = ${alias}.id
-         AND teacher_recharge.teacher_id = ${sqlText(caller.teacherId)}::bigint
+         AND ${teacherBusinessOwnershipCondition(caller, "teacher_recharge")}
          AND teacher_recharge.record_status = 'APPROVED'
          AND teacher_recharge.recharge_type IN ('NEW', 'REFUND')
     )
@@ -3611,7 +3618,7 @@ async function getTeacherBusinessCustomers(event = {}) {
            v.unit_count::bigint AS unit_count,
            COALESCE(v.reviewed_at, v.submitted_at) AS effective_at
       FROM public.verification_records v
-     WHERE v.teacher_id = ${sqlText(teacherId)}::bigint
+     WHERE ${teacherBusinessOwnershipCondition(caller, "v")}
        AND v.record_status = 'APPROVED'
        AND v.verification_type IN ('NORMAL', 'EXPERIENCE')
     UNION ALL
@@ -3620,7 +3627,7 @@ async function getTeacherBusinessCustomers(event = {}) {
            r.unit_count::bigint AS unit_count,
            COALESCE(r.reviewed_at, r.submitted_at) AS effective_at
       FROM public.recharge_records r
-     WHERE r.teacher_id = ${sqlText(teacherId)}::bigint
+     WHERE ${teacherBusinessOwnershipCondition(caller, "r")}
        AND r.record_status = 'APPROVED'
        AND r.recharge_type IN ('NEW', 'REFUND')
   ), teacher_customer_store AS (
@@ -3707,7 +3714,7 @@ async function getTeacherWorkspace(event = {}) {
     if (detailMode) {
       clauses.push(`${alias}.id = ${options.recordId}::bigint`);
       clauses.push(`(
-        ${alias}.teacher_id = ${sqlText(caller.teacherId)}::bigint
+        ${teacherBusinessOwnershipCondition(caller, alias)}
         OR EXISTS (
           SELECT 1
             FROM public.customers permitted_customer
@@ -3716,7 +3723,7 @@ async function getTeacherWorkspace(event = {}) {
         )
       )`);
     } else {
-      clauses.push(`${alias}.teacher_id = ${sqlText(caller.teacherId)}::bigint`);
+      clauses.push(teacherBusinessOwnershipCondition(caller, alias));
     }
     if (!detailMode && !legacyCombined) {
       clauses.push(`${alias}.record_status = 'APPROVED'`, config.categoryClause);
@@ -3781,7 +3788,7 @@ async function getTeacherWorkspace(event = {}) {
       SELECT CASE WHEN r.recharge_type = 'REFUND' THEN 'refund' ELSE 'recharge' END AS metric,
              r.product_id, r.unit_count::bigint AS amount
         FROM public.recharge_records r
-       WHERE r.teacher_id = ${sqlText(teacherId)}::bigint
+       WHERE ${teacherBusinessOwnershipCondition(caller, "r")}
          AND r.record_status = 'APPROVED'
          AND r.recharge_type IN ('NEW', 'REFUND')
          ${rechargeDateClauses.length ? `AND ${rechargeDateClauses.join(" AND ")}` : ""}
@@ -3789,7 +3796,7 @@ async function getTeacherWorkspace(event = {}) {
       SELECT CASE WHEN v.verification_type = 'EXPERIENCE' THEN 'experience' ELSE 'verification' END AS metric,
              v.product_id, v.unit_count::bigint AS amount
         FROM public.verification_records v
-       WHERE v.teacher_id = ${sqlText(teacherId)}::bigint
+       WHERE ${teacherBusinessOwnershipCondition(caller, "v")}
          AND v.record_status = 'APPROVED'
          AND v.verification_type IN ('NORMAL', 'EXPERIENCE')
          ${verificationDateClauses.length ? `AND ${verificationDateClauses.join(" AND ")}` : ""}

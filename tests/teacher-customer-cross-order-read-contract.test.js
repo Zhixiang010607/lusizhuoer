@@ -7,12 +7,18 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const cloud = fs.readFileSync(path.join(root, "cloudfunctions", "faceRecognition", "index.js"), "utf8");
 
-assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v6" : "v85"/);
+assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v7" : "v86"/);
 
 const access = cloud.slice(
   cloud.indexOf("function teacherCustomerAccessCondition"),
   cloud.indexOf("function customerStatusCode")
 );
+const ownership = cloud.slice(
+  cloud.indexOf("function teacherBusinessOwnershipCondition"),
+  cloud.indexOf("function teacherCustomerAccessCondition")
+);
+assert.match(ownership, /\$\{alias\}\.teacher_id = \$\{sqlText\(caller\.teacherId\)\}::bigint[\s\S]*\$\{alias\}\.submitted_by_account_id = \$\{sqlText\(caller\.staffId\)\}::bigint/,
+  "business ownership must recognize both the bound teacher and exact submitting login account");
 assert.match(access, /created_by_account_id = \$\{sqlText\(caller\.staffId\)\}::bigint/,
   "same-account creation grants teacher customer access");
 assert.match(access, /teacher_verification[\s\S]*record_status = 'APPROVED'[\s\S]*verification_type IN \('NORMAL', 'EXPERIENCE'\)/,
@@ -26,7 +32,7 @@ const workspace = cloud.slice(
 );
 assert.match(workspace, /if \(detailMode\)[\s\S]*permitted_customer\.id = \$\{alias\}\.customer_id[\s\S]*teacherCustomerAccessCondition\(caller, "permitted_customer"\)/,
   "teacher order detail reads must authorize at the customer relationship boundary");
-assert.match(workspace, /else \{[\s\S]*clauses\.push\(`\$\{alias\}\.teacher_id = \$\{sqlText\(caller\.teacherId\)\}::bigint`\)/,
+assert.match(workspace, /else \{[\s\S]*clauses\.push\(teacherBusinessOwnershipCondition\(caller, alias\)\)/,
   "teacher workspace lists must remain restricted to the current teacher's own records");
 assert.match(workspace, /LEFT JOIN public\.teachers business_teacher ON business_teacher\.id = \$\{alias\}\.teacher_id/,
   "cross-teacher detail reads must load the actual business teacher");
@@ -37,7 +43,7 @@ const photoContext = cloud.slice(
   cloud.indexOf("async function verificationPhotoContext"),
   cloud.indexOf("function teacherCustomerAccessCondition")
 );
-assert.match(photoContext, /v\.teacher_id = \$\{sqlText\(caller\.teacherId\)\}::bigint[\s\S]*OR EXISTS[\s\S]*permitted_customer\.id = v\.customer_id[\s\S]*teacherCustomerAccessCondition\(caller, "permitted_customer"\)/,
+assert.match(photoContext, /teacherBusinessOwnershipCondition\(caller, "v"\)[\s\S]*OR EXISTS[\s\S]*permitted_customer\.id = v\.customer_id[\s\S]*teacherCustomerAccessCondition\(caller, "permitted_customer"\)/,
   "authorized teachers may read another teacher's verification photos for the same customer");
 assert.match(photoContext, /String\(record\.submitted_by_account_id\) === String\(caller\.staffId\)[\s\S]*databaseBoolean\(record\.within_edit_window\)/,
   "cross-teacher photo access must remain read-only unless the viewer is the original submitter within the edit window");

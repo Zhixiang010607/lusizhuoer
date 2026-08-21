@@ -36,7 +36,7 @@ function throwsCode(fn, code, label) {
   assert.throws(fn, (error) => error?.code === code, label);
 }
 
-includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v6" : "v85"', "timer-compatible versions");
+includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v7" : "v86"', "timer-compatible versions");
 includes(cloud, '"cleanup-verification-photo-uploads-hourly"', "photo-only timer name");
 includes(cloud, '"cleanup-verification-photo-drafts-hourly"', "face timer name");
 
@@ -80,7 +80,7 @@ function createTimerHarness(photoOnly) {
   vm.runInContext(
     `${timerFunctions}\nmodule.exports = { trustedCleanupTimerKind, handleTrustedCleanupTimer };`,
     harness,
-    { filename: photoOnly ? "verification-photo-v6-timer.js" : "face-recognition-v85-timer.js" }
+    { filename: photoOnly ? "verification-photo-v7-timer.js" : "face-recognition-v86-timer.js" }
   );
   return {
     classify: harness.module.exports.trustedCleanupTimerKind,
