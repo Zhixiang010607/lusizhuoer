@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v8" : "v87";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v8" : "v88";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -1623,7 +1623,8 @@ function mapCustomerRecharges(rows) {
     balanceBeforeCount: row.balance_before_count === null || row.balance_before_count === undefined ? null : Number(row.balance_before_count),
     balanceAfterCount: row.balance_after_count === null || row.balance_after_count === undefined ? null : Number(row.balance_after_count),
     voidRequestStatus: row.void_request_status, submittedAt: row.submitted_at, reviewedAt: row.reviewed_at,
-    productId: String(row.product_id), productCode: row.product_code, productName: row.product_name
+    productId: String(row.product_id), productCode: row.product_code, productName: row.product_name,
+    teacherId: row.teacher_id ? String(row.teacher_id) : "", teacherCode: row.teacher_code || "", teacherName: row.teacher_name || ""
   }));
 }
 
@@ -1664,9 +1665,15 @@ async function getCustomerProfile(event) {
                r.balance_before_count, r.balance_after_count,
                r.record_status, r.void_request_status, r.submitted_at, r.reviewed_at,
                TO_CHAR(r.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_submitted_at,
-               p.id AS product_id, p.product_code, p.product_name
+               p.id AS product_id, p.product_code, p.product_name,
+               business_teacher.id AS teacher_id,
+               business_teacher.teacher_code,
+               business_teacher.teacher_name
           FROM public.recharge_records r
           JOIN public.products p ON p.id = r.product_id
+     LEFT JOIN public.teachers business_teacher
+            ON business_teacher.id = r.teacher_id
+           AND business_teacher.staff_account_id = r.submitted_by_account_id
          WHERE r.customer_id = ${sqlText(customerId)}::bigint
            ${historyOptions.type === "RECHARGE" ? cursorSql("r") : ""}
          ORDER BY r.submitted_at DESC, r.id DESC
@@ -1675,10 +1682,14 @@ async function getCustomerProfile(event) {
                v.record_status, v.void_request_status, v.submitted_at, v.reviewed_at,
                TO_CHAR(v.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_submitted_at,
                p.id AS product_id, p.product_code, p.product_name,
-               t.id AS teacher_id, t.teacher_code, t.teacher_name
+               business_teacher.id AS teacher_id,
+               business_teacher.teacher_code,
+               business_teacher.teacher_name
           FROM public.verification_records v
           JOIN public.products p ON p.id = v.product_id
-         LEFT JOIN public.teachers t ON t.id = v.teacher_id
+     LEFT JOIN public.teachers business_teacher
+            ON business_teacher.id = v.teacher_id
+           AND business_teacher.staff_account_id = v.submitted_by_account_id
          WHERE v.customer_id = ${sqlText(customerId)}::bigint
            AND v.verification_type ${experienceOnly ? "=" : "<>"} 'EXPERIENCE'
            ${historyOptions.type === (experienceOnly ? "EXPERIENCE" : "VERIFICATION") ? cursorSql("v") : ""}

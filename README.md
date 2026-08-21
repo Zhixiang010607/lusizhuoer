@@ -139,7 +139,7 @@
 全局“完整排名”表右上角提供分类维度下拉框，可以在门店、老师和项目之间切换；结果每页100条，支持页码跳转，服务端只返回当前页并据完整维度总和计算占比；
 老师维度同样按有效充值、核销、体验和退费四类事件显示；无归属老师的历史记录仍保留在门店和项目汇总中。
 
-运营管理、运营创建页和运营首页均已移除。迁移 `047_retire_operation_accounts.sql` 保留旧审核外键并封存运营身份。老师账号由 `teacherCreate v6` 只按姓名、手机号和密码创建，不采集或维护老师人脸。`staffAccount v67` 与 `faceRecognition v87` 已物理删除旧 Saga、老师人脸委托动作和兼容入口。迁移 053 删除旧 `teacher_face_operations` 表与六个私有函数，不删除老师、额度、工单或历史业务。
+运营管理、运营创建页和运营首页均已移除。迁移 `047_retire_operation_accounts.sql` 保留旧审核外键并封存运营身份。老师账号由 `teacherCreate v6` 只按姓名、手机号和密码创建，不采集或维护老师人脸。`staffAccount v67` 与 `faceRecognition v88` 已物理删除旧 Saga、老师人脸委托动作和兼容入口。迁移 053 删除旧 `teacher_face_operations` 表与六个私有函数，不删除老师、额度、工单或历史业务。
 
 老师账号的首页是 `teacher-work-orders.html`。基础资料下按当前老师所有活跃额度配置自适应显示各体验项目剩余次数；业务区支持今天、本周、本月、本季度、本年、全部和自定义日期，默认本月。所选周期生成“产品为行、四类业务为列”的有效次数汇总矩阵，并同时控制紧随其后的核销、充值、体验和退费明细；明细由服务端按页返回，保留上一页、下一页、页码和直接跳页。本人业务只以工单真实 `submitted_by_account_id` 与当前老师登录账号一致为准；总部或门店提交的单据即使带有 `teacher_id` 也不会计入老师。工单详情只有在 `teacher_id` 所属老师账号就是原提交账号时才显示该老师；总部或门店提交以及未绑定老师的历史单统一显示“未指定”。老师的活跃／封存客户列表与客户主页权限使用同一个服务端关系口径：当前老师账号亲自创建，或当前老师已经完成有效正常核销、体验核销、充值、退费任一业务；两组用户统一显示姓名、最近关系门店、生日、该老师有效充值次数和正常核销次数，不单列体验或退费次数，客户姓名可以进入关联客户主页。获得客户主页权限后，老师可以只读查看该客户由所有老师提交的全部充值、退费、正常核销和体验核销详情与核销照片；修改、补照片、作废或撤销等写操作仍严格限制为原提交账号。门店账号创建的客户只归创建门店，不会直接绑定老师；迁移 057 以前的历史客户不猜测补绑。老师仍不能访问其他无关客户，也没有客户查询、客户状态管理、总部审核或任何管理页面权限。老师办理业务前必须先选择本次唯一的活跃门店，充值、退费、普通核销和体验核销的老师字段均由服务端锁定为当前登录老师，浏览器不能替换为其他老师；门店账号的门店字段同样由登录 UID 锁定。体验核销入口只对老师开放：额度绑定当前登录老师，现场与普通核销一样只验证所选客户的 1:1 人脸，凭证固定保存客户建档照与客户现场照，并在同一事务中扣减老师体验额度；不读取或扣减客户购买余额。门店和总部既没有入口，服务端也拒绝绕过页面调用。老师创建采用与门店账号相同的单请求直线流程，只创建 Auth、账号和老师主档，不处理任何照片或人脸。迁移 055 覆盖历史数据库中仍要求老师人脸的两个订单门禁函数，只保留老师主档与账号活跃校验；迁移 056 修复体验额度列名歧义；客户档案照和客户现场 1:1 人脸仍为核销必要条件。
 
@@ -150,15 +150,15 @@
 1. 按编号依次执行尚未运行的数据库迁移；正式 migration 工具使用完整的 `037_verification_photo_evidence.sql` 与 `038_verification_profile_photo_snapshot.sql`，腾讯云 `ExecutePGSql` 控制台必须改用 `database/cloudbase-console/` 下的七个短文件并严格按 `037-01` 至 `037-03`、`038-01` 至 `038-04` 执行；若 `037-01` 已成功而旧版 `037-02` 报 `SQLSTATE 42601`，不要重跑 `037-01`，先单独执行 `ROLLBACK;`，再从当前 `037-02` 继续；
 2. 执行迁移 `039_direct_verification_photo_upload.sql`（CloudBase SQL 编辑器应依次执行独立的 `039-01` 至 `039-05`），建立短时上传任务、每单唯一进行中任务和原子提交函数；随后执行 `040_fix_verification_photo_commit_ambiguity.sql`（控制台使用 `040-01`），消除提交函数返回字段与冲突键 `photo_slot` 的 PL/pgSQL 歧义；
 3. 可选在 CloudBase PG 云存储中新建私有桶 `verification-photos`；也可把核销照片放在现有私有桶 `customer-photos`。`teacherCreate v6` 只需 `CLOUDBASE_ENV_ID`／`TCB_ENV`，不再配置任何人脸或照片桶变量。所有环境变量在控制台一项一行，不要把整段 `KEY=value` 粘贴进单个值。在现有安全规则中合并 `verificationPhoto` 与 `teacherCreate` 的非匿名登录调用权限，保留顶层 `*` 和其他函数条目；
-4. 先完成历史库必需的 046—050。部署不再读写旧 Saga 的 `staffAccount v67`、`faceRecognition v87` 和 `teacherCreate v6` 后，完整执行 `053-01-retire-legacy-teacher-face-saga.sql`，再运行 `053-readonly-verify.sql`，7 行必须全部为 `RETIRED`。已经执行过的 051/052 不需回滚；053 会只删除它们的旧操作表与私有函数；
-5. 完成 054 后执行 `055-01-remove-teacher-face-order-guards.sql`，确认最后 3 行全部为 `READY`；再执行 `056-01-experience-quota-column-ambiguity.sql` 并确认返回 `READY`；最后执行 `057-01-teacher-created-customer-access.sql` 并确认列、外键和索引 3 行均为 `READY`。将 `teacherCreate` 设为 60 秒、至少 256 MB；部署 `staffAccount v67`、`faceRecognition v87`、`verificationPhoto v8` 与 `teacherCreate v6`，分别调用 `health` 核对版本与配置；
+4. 先完成历史库必需的 046—050。部署不再读写旧 Saga 的 `staffAccount v67`、`faceRecognition v88` 和 `teacherCreate v6` 后，完整执行 `053-01-retire-legacy-teacher-face-saga.sql`，再运行 `053-readonly-verify.sql`，7 行必须全部为 `RETIRED`。已经执行过的 051/052 不需回滚；053 会只删除它们的旧操作表与私有函数；
+5. 完成 054 后执行 `055-01-remove-teacher-face-order-guards.sql`，确认最后 3 行全部为 `READY`；再执行 `056-01-experience-quota-column-ambiguity.sql` 并确认返回 `READY`；最后执行 `057-01-teacher-created-customer-access.sql` 并确认列、外键和索引 3 行均为 `READY`。将 `teacherCreate` 设为 60 秒、至少 256 MB；部署 `staffAccount v67`、`faceRecognition v88`、`verificationPhoto v8` 与 `teacherCreate v6`，分别调用 `health` 核对版本与配置；
 6. `staffAccount` 只保留老师体验额度的月初 Timer。从触发器配置中删除 `reconcile-teacher-face-operations`，`teacherCreate` 不配置 Timer；
 7. 部署当前静态文件到 CloudBase 静态网站托管并强制刷新浏览器；
 8. 通过总部、门店和老师真实账号完成角色边界回归，并确认历史运营账号无法获取业务会话或通过审核；验证总部没有任何办理入口且直接调用被拒绝，门店／老师可以在各自权限内办理，同时完成核销照片查看、历史总部单或当前门店／老师单的真实原提交人上传或替换、取消后重试、非提交人拒绝和 24 小时截止测试。
 
 生产库已经执行 039、但补充照片上传出现 `column reference "photo_slot" is ambiguous (SQLSTATE 42702)` 时，只需完整执行一次 040；不要重跑 037--039。040 只替换原子提交函数，不改表、不删除或重写已有照片数据。
 
-生产更新顺序固定为“确认 039、046—050 与 053 已完成 → 执行 054 → 执行 055 并确认 3 行 `READY` → 执行 056 并确认 `READY` → 执行 057 并确认 3 行 `READY` → 部署 `staffAccount v67`、`faceRecognition v87`、`verificationPhoto v8`、`teacherCreate v6` 与当前静态前端 → 四个云函数分别执行 `health` → 强制刷新浏览器”。
+生产更新顺序固定为“确认 039、046—050 与 053 已完成 → 执行 054 → 执行 055 并确认 3 行 `READY` → 执行 056 并确认 `READY` → 执行 057 并确认 3 行 `READY` → 部署 `staffAccount v67`、`faceRecognition v88`、`verificationPhoto v8`、`teacherCreate v6` 与当前静态前端 → 四个云函数分别执行 `health` → 强制刷新浏览器”。
 
 核销详情的高清原图查看器支持按钮、鼠标滚轮、键盘、拖动和手机／iPad 双指缩放。页面先显示缩略图，高清图解码完成后再替换；临时签名地址不可用时，查看器会在相同工单权限和查看审计下改用 `verificationPhoto` 的鉴权读取通道取回原图，并且只创建当前页面内存 Blob，不持久化照片。最多只保留两张已解码原图，减少连续查看照片造成的内存占用。
 

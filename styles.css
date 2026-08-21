@@ -710,14 +710,16 @@ dialog::backdrop { background: #0b142a88; backdrop-filter: blur(3px); }
 .customer-record-panel .customer-record-scroll { height: 158px; max-height: 158px; overflow-x: hidden; overflow-y: auto; }
 .customer-record-panel .customer-record-scroll table { width: 100%; min-width: 0; table-layout: fixed; }
 .customer-record-panel .customer-record-scroll th, .customer-record-panel .customer-record-scroll td { padding: 8px 6px; white-space: normal; overflow-wrap: anywhere; word-break: break-word; font-size: 11px; line-height: 1.3; }
-.customer-record-panel .customer-record-scroll th:nth-child(1) { width: 17%; }
-.customer-record-panel .customer-record-scroll th:nth-child(2) { width: 25%; }
-.customer-record-panel .customer-record-scroll th:nth-child(3) { width: 16%; }
-.customer-record-panel .customer-record-scroll th:nth-child(4) { width: 23%; }
-.customer-record-panel .customer-record-scroll th:nth-child(5) { width: 19%; }
-.customer-record-panel .customer-simple-records-table th:nth-child(1) { width: 36%; }
-.customer-record-panel .customer-simple-records-table th:nth-child(2) { width: 34%; }
-.customer-record-panel .customer-simple-records-table th:nth-child(3) { width: 30%; }
+.customer-record-panel .customer-recharge-records-table th:nth-child(1) { width: 18%; }
+.customer-record-panel .customer-recharge-records-table th:nth-child(2) { width: 20%; }
+.customer-record-panel .customer-recharge-records-table th:nth-child(3) { width: 13%; }
+.customer-record-panel .customer-recharge-records-table th:nth-child(4) { width: 17%; }
+.customer-record-panel .customer-recharge-records-table th:nth-child(5) { width: 16%; }
+.customer-record-panel .customer-recharge-records-table th:nth-child(6) { width: 16%; }
+.customer-record-panel .customer-simple-records-table th:nth-child(1) { width: 28%; }
+.customer-record-panel .customer-simple-records-table th:nth-child(2) { width: 26%; }
+.customer-record-panel .customer-simple-records-table th:nth-child(3) { width: 22%; }
+.customer-record-panel .customer-simple-records-table th:nth-child(4) { width: 24%; }
 .customer-record-panel .customer-record-scroll thead th { position: sticky; top: 0; z-index: 1; }
 
 @media (min-width: 900px) and (min-height: 760px) {

@@ -276,26 +276,32 @@
   function renderBalances() {
     $("customerProjectSummary").innerHTML = balances.length ? balances.map((row) => `<tr><td>${escapeHtml(row.productName)}</td><td>${Number(row.totalRechargeCount || 0)}</td><td>${Number(row.totalVerificationCount || 0)}</td><td><strong>${Number(row.remainingCount || 0)}</strong></td></tr>`).join("") : emptyRow(4, "暂无已充值项目");
   }
+  function businessTeacher(row) {
+    const name = String(row?.teacherName || "").trim();
+    if (!name) return "";
+    const code = String(row?.teacherCode || "").trim();
+    return code ? `${name} · ${code}` : name;
+  }
   function renderRecords() {
     $("customerRechargeRecords").innerHTML = recharges.length ? recharges.map((row) => {
       const units = Number(row.unitCount || 0), prefix = ["VOID", "REFUND"].includes(String(row.rechargeType || "").toUpperCase()) ? "−" : "+";
       const code = row.rechargeCode || row.id;
       const detail = detailHref("recharge-detail.html", row.id, code);
       const codeCell = detail ? `<a class="record-link" href="${escapeHtml(detail)}">${escapeHtml(code)}</a>` : escapeHtml(code);
-      return `<tr><td>${codeCell}</td><td>${escapeHtml(row.productName)}</td><td>${prefix}${units}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row, "RECHARGE"))}</td></tr>`;
-    }).join("") : emptyRow(5, "暂无充值记录");
+      return `<tr><td>${codeCell}</td><td>${escapeHtml(row.productName)}</td><td>${prefix}${units}</td><td>${escapeHtml(businessTeacher(row))}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row, "RECHARGE"))}</td></tr>`;
+    }).join("") : emptyRow(6, "暂无充值记录");
     $("customerVerificationRecords").innerHTML = verifications.length ? verifications.map((row) => {
       const code = row.verificationCode || row.id;
       const detail = detailHref("verification-detail.html", row.id, code);
       const codeCell = detail ? `<a class="record-link" href="${escapeHtml(detail)}">${escapeHtml(code)}</a>` : escapeHtml(code);
-      return `<tr><td>${codeCell}</td><td>${escapeHtml(row.productName)}</td><td>${escapeHtml(dateText(row.submittedAt))}</td></tr>`;
-    }).join("") : emptyRow(3, "暂无核销记录");
+      return `<tr><td>${codeCell}</td><td>${escapeHtml(row.productName)}</td><td>${escapeHtml(businessTeacher(row))}</td><td>${escapeHtml(dateText(row.submittedAt))}</td></tr>`;
+    }).join("") : emptyRow(4, "暂无核销记录");
     $("customerExperienceRecords").innerHTML = experiences.length ? experiences.map((row) => {
       const code = row.verificationCode || row.id;
       const detail = detailHref("verification-detail.html", row.id, code);
       const codeCell = detail ? `<a class="record-link" href="${escapeHtml(detail)}">${escapeHtml(code)}</a>` : escapeHtml(code);
-      return `<tr><td>${codeCell}</td><td>${escapeHtml(row.productName)}</td><td>${escapeHtml(dateText(row.submittedAt))}</td></tr>`;
-    }).join("") : emptyRow(3, "暂无体验记录");
+      return `<tr><td>${codeCell}</td><td>${escapeHtml(row.productName)}</td><td>${escapeHtml(businessTeacher(row))}</td><td>${escapeHtml(dateText(row.submittedAt))}</td></tr>`;
+    }).join("") : emptyRow(4, "暂无体验记录");
     syncHistoryButton("RECHARGE");
     syncHistoryButton("VERIFICATION");
     syncHistoryButton("EXPERIENCE");
@@ -366,9 +372,9 @@
     $("customerRecentInfo").innerHTML = ""; $("customerNotes").value = "";
     $("customerStatusMessage").textContent = message; $("customerStatusMessage").classList.add("error");
     $("customerProjectSummary").innerHTML = emptyRow(4, "客户项目数据读取失败");
-    $("customerRechargeRecords").innerHTML = emptyRow(5, "充值记录读取失败");
-    $("customerVerificationRecords").innerHTML = emptyRow(3, "核销记录读取失败");
-    $("customerExperienceRecords").innerHTML = emptyRow(3, "体验记录读取失败");
+    $("customerRechargeRecords").innerHTML = emptyRow(6, "充值记录读取失败");
+    $("customerVerificationRecords").innerHTML = emptyRow(4, "核销记录读取失败");
+    $("customerExperienceRecords").innerHTML = emptyRow(4, "体验记录读取失败");
     ["loadMoreRecharges", "loadMoreVerifications", "loadMoreExperiences"].forEach((id) => { if ($(id)) $(id).hidden = true; });
     if (canUseCustomerMessages) {
       $("customerMessageList").innerHTML = `<article class="customer-message-empty">${escapeHtml(message)}</article>`;
