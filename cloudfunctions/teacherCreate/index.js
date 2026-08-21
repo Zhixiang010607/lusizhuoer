@@ -4,7 +4,7 @@ const crypto = require("node:crypto");
 const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 
-const FUNCTION_VERSION = "teacher-create-v3";
+const FUNCTION_VERSION = "teacher-create-v4";
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -190,9 +190,9 @@ function deterministicUid(phone) {
   return `teacher-${crypto.createHash("sha256").update(`teacher-auth:${phone}`, "utf8").digest("hex").slice(0, 48)}`;
 }
 
-function personIdFor(image, teacherId, staffId) {
+function personIdFor(image, phone, clientRequestId) {
   const token = crypto.createHash("sha256")
-    .update(`teacher-face:${teacherId}:${staffId}:${image.sha256}`, "utf8")
+    .update(`teacher-face:${phone}:${clientRequestId}:${image.sha256}`, "utf8")
     .digest("hex").slice(0, 48).toUpperCase();
   return `T-${token}`;
 }
@@ -205,9 +205,10 @@ function storageSettings() {
   return { bucketId, accessToken: serviceKey(), envId: envId() };
 }
 
-function photoFor(teacherId, personId, image) {
+function photoFor(phone, personId, image) {
   const { bucketId } = storageSettings();
-  const objectName = `teachers/${teacherId}/profile/${personId}-${image.sha256.slice(0, 32)}.jpg`;
+  const owner = crypto.createHash("sha256").update(`teacher-photo:${phone}`, "utf8").digest("hex").slice(0, 32);
+  const objectName = `teachers/${owner}/profile/${personId}-${image.sha256.slice(0, 32)}.jpg`;
   return { bucketId, objectName, reference: `pg://${bucketId}/${objectName}` };
 }
 
@@ -329,148 +330,60 @@ async function readBusinessByPhone(phone) {
   return rows[0] || null;
 }
 
-function assertBusinessIdentity(row, name) {
-  if (!row) return;
-  if (String(row.role_code || "") !== "teacher") {
-    fail("该手机号已绑定其他业务身份。", "PHONE_ROLE_CONFLICT");
-  }
-  if (String(row.staff_name || "").trim() !== name
-      || (row.teacher_name && String(row.teacher_name).trim() !== name)) {
-    fail("该手机号已绑定其他老师资料。", "PHONE_ALREADY_PROVISIONED");
-  }
-}
-
-async function ensureTeacherShell({ existing, uid, phone, name }) {
-  if (!existing) {
-    await executeSql(
-      `WITH account AS (
-         INSERT INTO public.staff_accounts
-           (auth_uid, phone, staff_name, role_code, account_status)
-         VALUES (${sqlText(uid)}, ${sqlText(phone)}, ${sqlText(name)}, 'teacher', 'ARCHIVED')
-         RETURNING id
-       )
-       INSERT INTO public.teachers
-         (teacher_code, teacher_name, staff_account_id, teacher_status, face_enrollment_status)
-       SELECT 'TCHF' || account.id::text, ${sqlText(name)}, account.id, 'ARCHIVED', 'PENDING'
-         FROM account
-       ON CONFLICT (staff_account_id) DO UPDATE
-         SET teacher_name = EXCLUDED.teacher_name, teacher_status = 'ARCHIVED', updated_at = NOW()`
-    );
-  } else {
-    if (String(existing.auth_uid || "") !== uid) {
-      fail("老师主档与认证 UID 不一致。", "AUTH_UID_CONFLICT");
-    }
-    if (!existing.teacher_id) {
-      await executeSql(
-        `INSERT INTO public.teachers
-          (teacher_code, teacher_name, staff_account_id, teacher_status, face_enrollment_status)
-         VALUES ('TCHF' || ${Number(existing.staff_id)}::text, ${sqlText(name)},
-                 ${Number(existing.staff_id)}::bigint, 'ARCHIVED', 'PENDING')
-         ON CONFLICT (staff_account_id) DO UPDATE
-           SET teacher_name = EXCLUDED.teacher_name, updated_at = NOW()`
-      );
-    }
-    if (String(existing.face_enrollment_status || "PENDING") !== "ENROLLED") {
-      await executeSql(
-        `UPDATE public.teachers SET teacher_status = 'ARCHIVED', updated_at = NOW()
-          WHERE staff_account_id = ${Number(existing.staff_id)}::bigint;
-         UPDATE public.staff_accounts SET account_status = 'ARCHIVED', updated_at = NOW()
-          WHERE id = ${Number(existing.staff_id)}::bigint AND auth_uid = ${sqlText(uid)}`
-      );
-    }
-  }
-  const durable = await readBusinessByPhone(phone);
-  assertBusinessIdentity(durable, name);
-  if (!durable?.staff_id || !durable?.teacher_id || String(durable.auth_uid || "") !== uid) {
-    fail("老师临时主档写入后未能精确读回。", "TEACHER_PROFILE_MISSING");
-  }
-  return durable;
-}
-
 function authStatus(user) {
   return String(user?.UserStatus || "").trim().toUpperCase();
 }
 
-async function blockAuth(uid, requiredResult = true) {
-  await manager().user.modifyUser({ uid, userStatus: "BLOCKED" });
-  if (!requiredResult) return;
-  const readback = await exactAuthByUid(uid);
-  if (!readback || authStatus(readback) !== "BLOCKED") {
-    fail("认证账号未能确认为 BLOCKED。", "AUTH_BLOCK_FAILED");
-  }
-}
-
-async function resolveAuthentication({ existing, phone, name, password, clientRequestId, lifecycle }) {
-  const uid = existing?.auth_uid ? String(existing.auth_uid) : deterministicUid(phone);
+async function createBlockedAuthentication({ phone, name, password, clientRequestId, lifecycle }) {
+  const uid = deterministicUid(phone);
   const [byUid, byPhone] = await Promise.all([exactAuthByUid(uid), exactAuthByPhone(phone)]);
-  if (byUid && byPhone && String(byUid.Uid || "") !== String(byPhone.Uid || "")) {
-    fail("该手机号与老师主档指向不同认证账号。", "AUTH_PHONE_AMBIGUOUS");
-  }
-  let user = byUid || byPhone;
-  let created = false;
-  if (user) {
-    assertAuthIdentity(user, uid, phone);
-    const expectedDescription = `teacher-create:${clientRequestId}`;
-    const actualDescription = String(user.Description ?? user.description ?? "").trim();
-    const completedTeacher = Boolean(existing
-      && String(existing.face_enrollment_status || "") === "ENROLLED");
-    if (completedTeacher) return { uid, user, created: false };
-    if (actualDescription === expectedDescription) {
-      if (authStatus(user) !== "BLOCKED") await blockAuth(uid);
-      user = assertAuthIdentity(await exactAuthByUid(uid), uid, phone);
-      if (lifecycle) lifecycle.authCreated = true;
-      return { uid, user, created: true };
-    }
-    // Fail closed. The direct service never recognizes, resumes, mutates or
-    // deletes credentials created by the retired Saga (or by another direct
-    // request). Any such orphan must be inspected and removed manually.
-    fail("该手机号已存在不属于当前请求的认证账号。", "PHONE_ALREADY_PROVISIONED");
-  }
-  if (existing) {
-    fail("已有老师主档缺少可精确回读的认证账号。", "AUTH_ACCOUNT_MISSING");
-  }
+  if (byUid || byPhone) fail("该手机号已存在登录账号，不能重复创建老师。", "PHONE_ALREADY_PROVISIONED");
   const description = `teacher-create:${clientRequestId}`;
-  let response;
+  lifecycle.uid = uid;
+  lifecycle.authAttempted = true;
   try {
-    response = await manager().user.createUser({
+    await manager().user.createUser({
       uid, name: `staff_${phone}`, password, type: "externalUser",
       userStatus: "BLOCKED", nickName: name, phone, description
     });
   } catch (createError) {
-    if (lifecycle) lifecycle.uid = uid;
-    let recovered = null;
-    try { recovered = await exactAuthByUid(uid); }
-    catch (readError) { createError.cause ||= readError; }
-    if (recovered) {
-      assertAuthIdentity(recovered, uid, phone);
-      if (authStatus(recovered) !== "BLOCKED") {
-        fail("新老师认证账号未保持 BLOCKED。", "AUTH_CREATE_INCOMPLETE");
-      }
-      const ownedByThisRequest = String(
-        recovered.Description ?? recovered.description ?? ""
-      ).trim() === description;
-      if (!ownedByThisRequest) {
-        fail("认证账号由另一个创建请求写入，当前请求不会修改或删除它。", "PHONE_ALREADY_PROVISIONED");
-      }
-      if (lifecycle) lifecycle.authCreated = true;
-      return { uid, user: recovered, created: true };
-    }
     createError.code ||= "AUTH_CREATE_FAILED";
     throw createError;
   }
-  const returnedUid = String(response?.Data?.Uid || "").trim();
-  if (lifecycle) {
-    lifecycle.uid = returnedUid || uid;
-    lifecycle.authCreated = true;
-  }
-  // CloudBase Manager may commit createUser while omitting Data.Uid. The
-  // authoritative exact UID/phone/name readback below decides success.
-  created = true;
-  user = assertAuthIdentity(await exactAuthByUid(uid), uid, phone);
-  if (authStatus(user) !== "BLOCKED") await blockAuth(uid);
-  user = assertAuthIdentity(await exactAuthByUid(uid), uid, phone);
+  lifecycle.authCreated = true;
+  const user = assertAuthIdentity(await exactAuthByUid(uid), uid, phone);
   if (authStatus(user) !== "BLOCKED") fail("新老师认证账号未保持 BLOCKED。", "AUTH_CREATE_INCOMPLETE");
-  return { uid, user, created };
+  return { uid, user };
+}
+
+async function insertTeacherRecord({ uid, phone, name, actor, personId, photoRef }) {
+  await executeSql(
+    `WITH account AS (
+       INSERT INTO public.staff_accounts
+         (auth_uid, phone, staff_name, role_code, account_status)
+       VALUES (${sqlText(uid)}, ${sqlText(phone)}, ${sqlText(name)}, 'teacher', 'ARCHIVED')
+       RETURNING id
+     )
+     INSERT INTO public.teachers
+       (teacher_code, teacher_name, staff_account_id, teacher_status,
+        face_person_id, face_consent_at, face_enrollment_status,
+        face_enrolled_at, face_enrolled_by_account_id, profile_photo_file_id)
+     SELECT 'TCHF' || account.id::text, ${sqlText(name)}, account.id, 'ARCHIVED',
+            ${sqlText(personId)}, NOW(), 'ENROLLED', NOW(),
+            ${Number(actor.staffId)}::bigint, ${sqlText(photoRef)}
+       FROM account`
+  );
+  const row = await readBusinessByPhone(phone);
+  if (!row?.staff_id || !row?.teacher_id || String(row.auth_uid || "") !== uid
+      || String(row.role_code || "") !== "teacher"
+      || String(row.account_status || "") !== "ARCHIVED"
+      || String(row.teacher_status || "") !== "ARCHIVED"
+      || String(row.face_enrollment_status || "") !== "ENROLLED"
+      || String(row.face_person_id || "") !== personId
+      || String(row.profile_photo_file_id || "") !== photoRef) {
+    fail("老师资料与人脸引用写入后未能精确读回。", "FACE_DATABASE_READBACK_FAILED");
+  }
+  return row;
 }
 
 function objectInfo(value, depth = 0) {
@@ -600,96 +513,27 @@ async function confirmPerson(api, groupId, personId, name, expectedFaceId = "") 
   return { personId, groupId, faceId: expectedFaceId || faceIds[0], faceIds };
 }
 
-async function createAndProveRemote({ api, groupId, personId, name, photo, image }) {
-  const writes = await Promise.allSettled([
-    api.CreatePerson({
-      GroupId: groupId, PersonId: personId, PersonName: name, Image: image.base64,
-      UniquePersonControl: 0, QualityControl: 3,
-      FaceModelVersion: FACE_MODEL_VERSION, NeedRotateDetection: 0
-    }),
-    uploadPhoto(photo, image)
-  ]);
-  const personWrite = writes[0];
-  const photoWrite = writes[1];
-  const returnedFaceId = personWrite.status === "fulfilled"
-    ? String(personWrite.value?.FaceId || "").trim() : "";
-  const proofs = await Promise.allSettled([
-    confirmPerson(api, groupId, personId, name, returnedFaceId),
-    confirmPhoto(photo, image)
-  ]);
-  if (personWrite.status === "fulfilled" && !returnedFaceId) {
-    const error = new Error("人脸服务创建响应缺少 FaceId。");
-    error.code = "FACE_ENROLLMENT_INCOMPLETE";
-    error.RequestId = personWrite.value?.RequestId;
-    error.remoteCreated = {
-      person: true,
-      photo: photoWrite.status === "fulfilled"
-    };
-    error.remoteRecovered = {
-      person: false,
-      photo: photoWrite.status === "rejected" && proofs[1].status === "fulfilled"
-    };
-    throw error;
-  }
-  if (proofs[0].status !== "fulfilled" || proofs[1].status !== "fulfilled") {
-    // If a write and its proof both failed, surface the write failure. A
-    // follow-up PersonIdNotExist is only a consequence and must not hide the
-    // real CreatePerson/configuration/permission error.
-    const error = (personWrite.status === "rejected" && proofs[0].status === "rejected"
-      ? personWrite.reason : null)
-      || (photoWrite.status === "rejected" && proofs[1].status === "rejected"
-        ? photoWrite.reason : null)
-      || (proofs[0].status === "rejected" ? proofs[0].reason : null)
-      || (proofs[1].status === "rejected" ? proofs[1].reason : null)
-      || new Error("远端资料回读失败。");
-    error.remoteCreated = {
-      person: personWrite.status === "fulfilled",
-      photo: photoWrite.status === "fulfilled"
-    };
-    error.remoteRecovered = {
-      person: personWrite.status === "rejected" && proofs[0].status === "fulfilled",
-      photo: photoWrite.status === "rejected" && proofs[1].status === "fulfilled"
-    };
-    throw error;
-  }
-  return {
-    person: proofs[0].value, photo: proofs[1].value,
-    created: {
-      // A rejected response followed by exact readback proves durability, but
-      // cannot prove ownership: another concurrent request may have created
-      // the deterministic candidate. Only fulfilled writes are safe to delete
-      // during a later rollback.
-      person: personWrite.status === "fulfilled",
-      photo: photoWrite.status === "fulfilled"
-    },
-    recovered: {
-      person: personWrite.status === "rejected",
-      photo: photoWrite.status === "rejected"
-    }
-  };
-}
+async function createAndProveRemote({ api, groupId, personId, name, photo, image, lifecycle }) {
+  lifecycle.personAttempted = true;
+  const faceResult = await api.CreatePerson({
+    GroupId: groupId,
+    PersonId: personId,
+    PersonName: name,
+    Image: image.base64,
+    UniquePersonControl: 0,
+    QualityControl: 3,
+    NeedRotateDetection: 0
+  });
+  lifecycle.personCreated = true;
+  const faceId = String(faceResult?.FaceId || "").trim();
+  if (!faceId) fail("人脸服务创建响应缺少 FaceId。", "FACE_ENROLLMENT_INCOMPLETE");
+  const person = await confirmPerson(api, groupId, personId, name, faceId);
 
-async function writeFaceReference(shell, actor, personId, photoRef) {
-  await executeSql(
-    `UPDATE public.teachers
-        SET teacher_status = 'ARCHIVED', face_person_id = ${sqlText(personId)},
-            face_consent_at = NOW(), face_enrollment_status = 'ENROLLED',
-            face_enrolled_at = NOW(), face_enrolled_by_account_id = ${Number(actor.staffId)}::bigint,
-            profile_photo_file_id = ${sqlText(photoRef)}, updated_at = NOW()
-      WHERE id = ${Number(shell.teacher_id)}::bigint
-        AND staff_account_id = ${Number(shell.staff_id)}::bigint
-        AND (face_enrollment_status = 'PENDING'
-             OR (face_enrollment_status = 'ENROLLED'
-                 AND face_person_id = ${sqlText(personId)}
-                 AND profile_photo_file_id = ${sqlText(photoRef)}))`
-  );
-  const row = await readBusinessByPhone(String(shell.phone || ""));
-  if (!row || String(row.face_person_id || "") !== personId
-      || String(row.profile_photo_file_id || "") !== photoRef
-      || String(row.face_enrollment_status || "") !== "ENROLLED") {
-    fail("老师人脸数据库引用未能精确读回。", "FACE_DATABASE_READBACK_FAILED");
-  }
-  return row;
+  lifecycle.photoAttempted = true;
+  await uploadPhoto(photo, image);
+  lifecycle.photoCreated = true;
+  const retainedPhoto = await confirmPhoto(photo, image);
+  return { person, photo: retainedPhoto };
 }
 
 async function activateDatabase(shell, personId, photoRef) {
@@ -753,72 +597,28 @@ async function deletePerson(api, groupId, personId) {
   }
 }
 
-async function rollbackDatabase({ shell, uid, phone, personId, photoRef, created, preserveFace }) {
+async function rollbackDatabase({ shell, uid, phone, personId, photoRef }) {
   if (!shell?.staff_id) return;
-  if (created) {
-    await executeSql(
-      `WITH deleted_teacher AS (
-         DELETE FROM public.teachers
-          WHERE id = ${Number(shell.teacher_id)}::bigint
-            AND staff_account_id = ${Number(shell.staff_id)}::bigint
-            AND (face_person_id IS NULL OR face_person_id = ${sqlText(personId)})
-            AND (profile_photo_file_id IS NULL OR profile_photo_file_id = ${sqlText(photoRef)})
-         RETURNING staff_account_id
-       )
-       DELETE FROM public.staff_accounts AS account
-       USING deleted_teacher
-       WHERE account.id = deleted_teacher.staff_account_id
-         AND account.id = ${Number(shell.staff_id)}::bigint
-         AND account.auth_uid = ${sqlText(uid)}
-         AND account.phone = ${sqlText(phone)}
-         AND account.role_code = 'teacher'`
-    );
-    const remaining = await readBusinessByPhone(phone);
-    if (remaining && String(remaining.auth_uid || "") === uid) {
-      fail("本次新建的老师临时主档未清理完成。", "DATABASE_CLEANUP_INCOMPLETE");
-    }
-    return;
-  }
-  if (preserveFace) {
-    await executeSql(
-      `UPDATE public.teachers SET teacher_status = 'ARCHIVED', updated_at = NOW()
+  await executeSql(
+    `WITH deleted_teacher AS (
+       DELETE FROM public.teachers
         WHERE id = ${Number(shell.teacher_id)}::bigint
           AND staff_account_id = ${Number(shell.staff_id)}::bigint
-          AND face_person_id = ${sqlText(personId)}
-          AND profile_photo_file_id = ${sqlText(photoRef)}
-          AND face_enrollment_status = 'ENROLLED';
-       UPDATE public.staff_accounts SET account_status = 'ARCHIVED', updated_at = NOW()
-        WHERE id = ${Number(shell.staff_id)}::bigint AND auth_uid = ${sqlText(uid)}`
-    );
-    const retained = await readBusinessByPhone(phone);
-    if (!retained || String(retained.teacher_status || "") !== "ARCHIVED"
-        || String(retained.account_status || "") !== "ARCHIVED"
-        || String(retained.face_enrollment_status || "") !== "ENROLLED"
-        || String(retained.face_person_id || "") !== personId
-        || String(retained.profile_photo_file_id || "") !== photoRef) {
-      fail("已有老师人脸在失败后未保持封存。", "DATABASE_CLEANUP_INCOMPLETE");
-    }
-    return;
-  }
-  await executeSql(
-    `UPDATE public.teachers
-        SET teacher_status = 'ARCHIVED', face_person_id = NULL, face_consent_at = NULL,
-            face_enrollment_status = 'PENDING', face_enrolled_at = NULL,
-            face_enrolled_by_account_id = NULL, profile_photo_file_id = NULL, updated_at = NOW()
-      WHERE id = ${Number(shell.teacher_id)}::bigint
-        AND staff_account_id = ${Number(shell.staff_id)}::bigint
-        AND face_person_id = ${sqlText(personId)}
-        AND profile_photo_file_id = ${sqlText(photoRef)};
-     UPDATE public.staff_accounts SET account_status = 'ARCHIVED', updated_at = NOW()
-     WHERE id = ${Number(shell.staff_id)}::bigint AND auth_uid = ${sqlText(uid)}`
+          AND (face_person_id IS NULL OR face_person_id = ${sqlText(personId)})
+          AND (profile_photo_file_id IS NULL OR profile_photo_file_id = ${sqlText(photoRef)})
+       RETURNING staff_account_id
+     )
+     DELETE FROM public.staff_accounts AS account
+     USING deleted_teacher
+     WHERE account.id = deleted_teacher.staff_account_id
+       AND account.id = ${Number(shell.staff_id)}::bigint
+       AND account.auth_uid = ${sqlText(uid)}
+       AND account.phone = ${sqlText(phone)}
+       AND account.role_code = 'teacher'`
   );
-  const reset = await readBusinessByPhone(phone);
-  if (!reset || String(reset.teacher_status || "") !== "ARCHIVED"
-      || String(reset.account_status || "") !== "ARCHIVED"
-      || String(reset.face_enrollment_status || "") !== "PENDING"
-      || String(reset.face_person_id || "").trim()
-      || String(reset.profile_photo_file_id || "").trim()) {
-    fail("旧的不完整老师主档未恢复为封存待建档状态。", "DATABASE_CLEANUP_INCOMPLETE");
+  const remaining = await readBusinessByPhone(phone);
+  if (remaining && String(remaining.auth_uid || "") === uid) {
+    fail("本次新建的老师资料未清理完成。", "DATABASE_CLEANUP_INCOMPLETE");
   }
 }
 
@@ -837,22 +637,16 @@ async function cleanupFailure(context, originalError) {
       failures.push({ stage, code: error?.code || "CLEANUP_FAILED", message: String(error?.message || "") });
     }
   };
-  if (context.uid && (context.authCreated || context.authTouched
-      || context.databaseCreated || context.faceWritten || context.databaseActivated)) {
-    await attempt("AUTH_BLOCK", () => blockAuth(context.uid, false));
-  }
-  if (!context.shell && context.databaseCreated && context.phone && context.uid) {
+  if (!context.shell && context.databaseAttempted && context.phone && context.uid) {
     context.shell = await readBusinessByPhone(context.phone).catch(() => null);
     if (context.shell && String(context.shell.auth_uid || "") !== context.uid) context.shell = null;
   }
   let databaseDetached = true;
-  if (context.shell && (context.databaseCreated || context.faceWritten || context.databaseActivated)) {
+  if (context.shell && context.databaseAttempted) {
     try {
       await rollbackDatabase({
         shell: context.shell, uid: context.uid, phone: context.phone,
-        personId: context.personId, photoRef: context.photo?.reference || "",
-        created: context.databaseCreated,
-        preserveFace: context.originalEnrolled === true
+        personId: context.personId, photoRef: context.photo?.reference || ""
       });
     } catch (error) {
       databaseDetached = false;
@@ -864,14 +658,19 @@ async function cleanupFailure(context, originalError) {
   }
   // Do not remove retained external evidence while PostgreSQL may still point
   // at it. A cleanup-incomplete error is safer than a dangling database row.
-  if (databaseDetached && context.remoteCreated?.photo && context.photo) {
+  if (databaseDetached && context.photoAttempted && context.photo) {
     await attempt("PHOTO_DELETE", () => deletePhoto(context.photo));
   }
-  if (databaseDetached && context.remoteCreated?.person && context.api && context.personId) {
+  if (databaseDetached && context.personAttempted && context.api && context.personId) {
     await attempt("FACE_DELETE", () => deletePerson(context.api, context.groupId, context.personId));
   }
-  if (databaseDetached && context.authCreated && context.uid) {
-    await attempt("AUTH_DELETE", () => deleteCreatedAuth(context.uid));
+  if (databaseDetached && context.authAttempted && context.uid) {
+    const createdAuth = await exactAuthByUid(context.uid).catch(() => null);
+    const description = String(createdAuth?.Description ?? createdAuth?.description ?? "").trim();
+    if (createdAuth && normalizedPhone(createdAuth.Phone) === context.phone
+        && (context.authCreated || description === `teacher-create:${context.clientRequestId}`)) {
+      await attempt("AUTH_DELETE", () => deleteCreatedAuth(context.uid));
+    }
   }
   if (failures.length) {
     const error = new Error(`${originalError.message} 失败资料尚未全部清理，请查看云函数日志。`);
@@ -916,115 +715,56 @@ async function createTeacher(event) {
   const clientRequestId = requestKey(event.clientRequestId);
   const image = jpegImage(event.imageBase64);
   const api = faceClient();
-  // This is the single authoritative quality/liveness pass for this create call.
+  // Browser prevalidation is only a UX gate. Re-run both checks here so the
+  // write request never trusts a stale or forged browser result.
   const quality = await inspectFace(api, image.base64);
   const liveness = await inspectLiveness(api, image.base64);
 
   const context = {
     api, groupId: required("FACE_GROUP_ID"), phone,
-    uid: "", authCreated: false, authTouched: false, databaseCreated: false,
+    uid: deterministicUid(phone), authAttempted: false, authCreated: false,
+    databaseAttempted: false, databaseCreated: false,
+    clientRequestId,
     shell: null, personId: "", photo: null,
-    remoteCreated: { person: false, photo: false },
-    remoteRecovered: { person: false, photo: false },
-    faceWritten: false, databaseActivated: false, originalEnrolled: false
+    personAttempted: false, personCreated: false,
+    photoAttempted: false, photoCreated: false
   };
   try {
-    let existing = await readBusinessByPhone(phone);
-    assertBusinessIdentity(existing, name);
-    // Reject a creation-page face replacement before looking up or mutating
-    // Auth. Replacement belongs to the teacher detail workflow.
-    if (existing && String(existing.face_enrollment_status || "") === "ENROLLED") {
-      const expectedPersonId = personIdFor(image, existing.teacher_id, existing.staff_id);
-      const expectedPhoto = photoFor(existing.teacher_id, expectedPersonId, image);
-      if (String(existing.face_person_id || "") !== expectedPersonId
-          || String(existing.profile_photo_file_id || "") !== expectedPhoto.reference) {
-        fail("该手机号已完成其他人脸建档，不能在创建页替换。", "PHONE_ALREADY_PROVISIONED");
-      }
+    const [existingBusiness, existingAuth] = await Promise.all([
+      readBusinessByPhone(phone), exactAuthByPhone(phone)
+    ]);
+    if (existingBusiness || existingAuth) {
+      fail("该手机号已存在老师或登录账号，不能重复创建。", "PHONE_ALREADY_PROVISIONED");
     }
-    context.uid = existing?.auth_uid ? String(existing.auth_uid) : deterministicUid(phone);
-    const authentication = await resolveAuthentication({
-      existing, phone, name, password, clientRequestId, lifecycle: context
-    });
-    context.uid = authentication.uid;
-    context.authCreated = authentication.created;
-    const existingFullyActive = Boolean(existing
-      && String(existing.face_enrollment_status || "") === "ENROLLED"
-      && String(existing.teacher_status || "") === "ACTIVE"
-      && String(existing.account_status || "") === "ACTIVE"
-      && authStatus(authentication.user) === "ACTIVE");
-    if (existing) {
-      const expectedDescription = `teacher-create:${clientRequestId}`;
-      const actualDescription = String(
-        authentication.user?.Description ?? authentication.user?.description ?? ""
-      ).trim();
-      if (actualDescription !== expectedDescription) {
-        fail("该手机号的老师账号不属于当前创建请求，不会把旧密码账号当作本次创建成功。", "PHONE_ALREADY_PROVISIONED");
-      }
-    }
-    if (existing && String(existing.face_enrollment_status || "") === "ENROLLED"
-        && !existingFullyActive) {
-      fail("该老师已建档但当前处于封存或禁用状态，不能通过创建页重新激活。", "PHONE_ALREADY_PROVISIONED");
-    }
-    if (existing && authStatus(authentication.user) === "ACTIVE" && !existingFullyActive) {
-      await blockAuth(authentication.uid);
-      context.authTouched = true;
-    }
-    context.databaseCreated = !existing;
-    const shell = await ensureTeacherShell({ existing, uid: authentication.uid, phone, name });
-    context.shell = shell;
-    existing = shell;
-    const personId = personIdFor(image, shell.teacher_id, shell.staff_id);
-    const photo = photoFor(shell.teacher_id, personId, image);
+
+    const personId = personIdFor(image, phone, clientRequestId);
+    const photo = photoFor(phone, personId, image);
     context.personId = personId;
     context.photo = photo;
-
-    const alreadyEnrolled = String(shell.face_enrollment_status || "") === "ENROLLED";
-    context.originalEnrolled = alreadyEnrolled;
-    if (alreadyEnrolled && (String(shell.face_person_id || "") !== personId
-        || String(shell.profile_photo_file_id || "") !== photo.reference)) {
-      fail("该手机号已完成其他人脸建档，不能在创建页替换。", "PHONE_ALREADY_PROVISIONED");
-    }
-
-    let remote;
-    if (alreadyEnrolled) {
-      const [person, retainedPhoto] = await Promise.all([
-        confirmPerson(api, context.groupId, personId, name),
-        confirmPhoto(photo, image)
-      ]);
-      remote = { person, photo: retainedPhoto, created: { person: false, photo: false } };
-      if (existingFullyActive) {
-        const final = await finalReadback({
-          phone, uid: authentication.uid, teacherId: shell.teacher_id,
-          staffId: shell.staff_id, personId, photoRef: photo.reference
-        });
-        return successResponse({
-          uid: authentication.uid, shell: final.database,
-          person, photo: retainedPhoto, quality, liveness, idempotent: true
-        });
-      }
-    } else {
-      remote = await createAndProveRemote({
-        api, groupId: context.groupId, personId, name, photo, image
-      });
-      context.remoteCreated = remote.created;
-      context.remoteRecovered = remote.recovered;
-      await writeFaceReference(shell, actor, personId, photo.reference);
-      context.faceWritten = true;
-    }
-
-    await activateDatabase(shell, personId, photo.reference);
-    context.databaseActivated = true;
-    context.authTouched = true;
-    await manager().user.modifyUser({ uid: authentication.uid, userStatus: "ACTIVE", nickName: name });
-    await finalReadback({
-      phone, uid: authentication.uid, teacherId: shell.teacher_id,
-      staffId: shell.staff_id, personId, photoRef: photo.reference
+    const remote = await createAndProveRemote({
+      api, groupId: context.groupId, personId, name, photo, image, lifecycle: context
     });
-    // Prove the external retained data again after both activation writes.
+
+    const authentication = await createBlockedAuthentication({
+      phone, name, password, clientRequestId, lifecycle: context
+    });
+    context.databaseAttempted = true;
+    const shell = await insertTeacherRecord({
+      uid: authentication.uid, phone, name, actor, personId, photoRef: photo.reference
+    });
+    context.shell = shell;
+    context.databaseCreated = true;
+    // Read the same face ID and original photo a second time before either
+    // business or login status is activated.
     const [finalPerson, finalPhoto] = await Promise.all([
       confirmPerson(api, context.groupId, personId, name, remote.person.faceId),
       confirmPhoto(photo, image)
     ]);
+    await activateDatabase(shell, personId, photo.reference);
+    await manager().user.modifyUser({ uid: authentication.uid, userStatus: "ACTIVE", nickName: name });
+
+    // Final success needs the same proof as customer creation plus the new
+    // phone/password identity and teacher-account activation.
     const finalDatabase = await finalReadback({
       phone, uid: authentication.uid, teacherId: shell.teacher_id,
       staffId: shell.staff_id, personId, photoRef: photo.reference
@@ -1035,14 +775,9 @@ async function createTeacher(event) {
     }
     return successResponse({
       uid: authentication.uid, shell: finalDatabase.database,
-      person: finalPerson, photo: finalPhoto, quality, liveness,
-      idempotent: alreadyEnrolled
+      person: finalPerson, photo: finalPhoto, quality, liveness, idempotent: false
     });
   } catch (error) {
-    if (error?.remoteCreated) context.remoteCreated = error.remoteCreated;
-    if (error?.remoteRecovered) {
-      context.remoteRecovered = error.remoteRecovered;
-    }
     try { await cleanupFailure(context, error); }
     catch (cleanupError) { throw cleanupError; }
     throw error;

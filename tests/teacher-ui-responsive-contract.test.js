@@ -19,9 +19,9 @@ for (const html of [managementHtml, createHtml, detailHtml, read("teacher-detail
   assert.match(html, /<meta\s+name="viewport"/, "teacher pages must declare a mobile viewport");
 }
 assert.match(managementHtml, /teacher-management\.js\?v=0\.14\.28/, "teacher directory behavior must be cache-busted");
-assert.match(createHtml, /teacher-create\.js\?v=0\.3\.1/, "teacher creation behavior must be cache-busted");
-assert.match(createHtml, /cloudbase-phone-auth\.js\?v=0\.19\.0/,
-  "teacher creation must refresh the dedicated one-call API wrapper");
+assert.match(createHtml, /teacher-create\.js\?v=0\.4\.0/, "teacher creation behavior must be cache-busted");
+assert.match(createHtml, /cloudbase-phone-auth\.js\?v=0\.19\.3/,
+  "teacher creation must refresh the prevalidation and creation API wrapper");
 assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.7/, "teacher home behavior must be cache-busted");
 
 for (const label of ["老师姓名", "老师编号", "联系电话", "状态", "体验额度", "账号操作"]) {
@@ -37,13 +37,15 @@ assert.match(management, /TEACHER_PROFILE_MISSING[\s\S]{0,260}老师资料修复
 assert.match(createHtml, /老师人脸（必填）/, "new teachers must show face capture as mandatory");
 assert.doesNotMatch(createHtml, /teacher-face-optional|老师人脸（可选）|可后续补录/, "new-teacher UI must not retain the optional disclosure or copy");
 assert.match(createHtml, /id="teacherFaceConsent"[^>]*required/, "mandatory face consent must use native form semantics");
-assert.match(create, /Boolean\(capturedFaceImage\)[\s\S]{0,300}Boolean\(\$\("teacherFaceConsent"\)\.checked\)/,
-  "teacher submit must require capture and consent before the single formal request");
-assert.doesNotMatch(create, /callFaceValidation|validateTeacherFaceEnrollmentCapture|validateCapture/,
-  "the browser must not upload and validate the same photograph once before the formal create request");
+assert.match(create, /Boolean\(capturedFaceImage\)[\s\S]{0,120}faceValidated[\s\S]{0,220}Boolean\(\$\("teacherFaceConsent"\)\.checked\)/,
+  "teacher submit must require capture, prevalidation and consent before the formal request");
+assert.match(create, /await window\.CloudBasePhoneAuth\.validateTeacherCreateCapture\(\{[\s\S]{0,220}faceImageBase64: imageUnderValidation/,
+  "the page must prevalidate the exact captured JPEG before enabling creation");
+assert.match(create, /validation\?\.accepted !== true[\s\S]{0,180}faceValidated = true/,
+  "only an explicit accepted service response may mark the photograph as validated");
 assert.doesNotMatch(create, /CloudBasePhoneAuth\.provisionTeacher\(/, "teacher creation must not keep a generic no-face submit path");
-assert.match(create, /setAttribute\("aria-busy", "true"\)[\s\S]{0,220}正在检测并创建…/,
-  "teacher creation must show one clear pending state while the formal request is running");
+assert.match(create, /setAttribute\("aria-busy", "true"\)[\s\S]{0,220}正在复检并创建…/,
+  "teacher creation must show a clear recheck state while the formal request is running");
 assert.match(create,
   /await window\.CloudBasePhoneAuth\.createTeacherWithFace\(\{[\s\S]{0,420}faceImageBase64: capturedFaceImage[\s\S]{0,220}consent: true/,
   "the page must await one dedicated teacher creation call carrying the original photograph");

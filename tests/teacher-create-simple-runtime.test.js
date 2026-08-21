@@ -17,8 +17,12 @@ const rollbackSource = source.slice(
   source.indexOf("async function rollbackDatabase"),
   source.indexOf("async function deleteCreatedAuth", source.indexOf("async function rollbackDatabase"))
 );
+const remoteCreateSource = source.slice(
+  source.indexOf("async function createAndProveRemote"),
+  source.indexOf("async function activateDatabase", source.indexOf("async function createAndProveRemote"))
+);
 
-assert.match(source, /const FUNCTION_VERSION = "teacher-create-v3"/);
+assert.match(source, /const FUNCTION_VERSION = "teacher-create-v4"/);
 assert.match(source, /if \(action === "createTeacher"\) return await createTeacher\(event\)/);
 assert.doesNotMatch(source, /\.callFunction\s*\(|\boperationId\b|\bworker\b|\bpoll(?:ing)?\b|setInterval\s*\(|setTimeout\s*\(|\bTimer\b|\b051\b/i,
   "the dedicated create service must not nest functions or retain the old operation/worker/timer protocol");
@@ -28,12 +32,14 @@ assert.equal((createSource.match(/await inspectLiveness\(/g) || []).length, 1,
   "one formal create request must perform liveness detection exactly once");
 assert.match(source, /UniquePersonControl:\s*0/,
   "the same physical face must be allowed for independently identified phone accounts");
+assert.doesNotMatch(remoteCreateSource, /FaceModelVersion/,
+  "CreatePerson must use the proven customer request shape without the unsupported FaceModelVersion input");
 assert.match(source, /confirmPerson\([\s\S]{0,240}confirmPhoto\(/,
   "success must prove Person, Group, FaceId and the private original photo");
 assert.match(source, /downloaded\.length !== image\.bytes[\s\S]{0,500}digest !== image\.sha256/,
   "the retained original must be downloaded and matched by JPEG bytes and SHA-256");
-assert.match(source, /context\.remoteCreated\?\.photo[\s\S]{0,260}context\.remoteCreated\?\.person[\s\S]{0,260}context\.authCreated/,
-  "compensation may delete only resources this request knows it created");
+assert.match(source, /context\.photoAttempted[\s\S]{0,300}context\.personAttempted[\s\S]{0,500}context\.authAttempted/,
+  "compensation must clean only deterministic resources attempted by this request");
 assert.doesNotMatch(createSource, /password\s*:/,
   "an existing Auth identity must never have its password overwritten during recovery");
 assert.match(rollbackSource,
@@ -98,6 +104,8 @@ function harness(options = {}) {
           const values = /VALUES \('([^']*)', '([^']*)', '([^']*)', 'teacher', 'ARCHIVED'\)/.exec(sql);
           assert.ok(values, `unparsed teacher-shell insert: ${sql}`);
           const [, uid, phone, name] = values;
+          const faceValues = /account\.id, 'ARCHIVED',\s*'([^']+)', NOW\(\), 'ENROLLED', NOW\(\),[\s\S]*?'([^']+)'\s*FROM account/.exec(sql);
+          assert.ok(faceValues, `unparsed teacher face insert: ${sql}`);
           const staffId = String(state.nextStaffId++);
           const teacherId = String(state.nextTeacherId++);
           state.business.set(phone, {
@@ -105,8 +113,9 @@ function harness(options = {}) {
             role_code: "teacher", account_status: "ARCHIVED",
             teacher_id: teacherId, teacher_code: `TCHF${staffId}`,
             teacher_name: name, teacher_status: "ARCHIVED",
-            face_person_id: null, face_enrollment_status: "PENDING",
-            profile_photo_file_id: null
+            face_person_id: options.failFaceDatabaseWrite ? null : faceValues[1],
+            face_enrollment_status: options.failFaceDatabaseWrite ? "PENDING" : "ENROLLED",
+            profile_photo_file_id: options.failFaceDatabaseWrite ? null : faceValues[2]
           });
           return resultRows([]);
         }
@@ -364,6 +373,17 @@ const eventFor = (phone, clientRequestId) => ({
 (async () => {
   {
     const subject = harness();
+    const result = await subject.main({ action: "validateCapture", imageBase64: jpeg });
+    assert.equal(result.ok, true);
+    assert.equal(result.accepted, true);
+    assert.equal(subject.calls.detectFace, 1);
+    assert.equal(subject.calls.liveness, 1);
+    assert.equal(subject.calls.createPerson + subject.calls.upload + subject.calls.createUser, 0,
+      "prevalidation must perform no persistent write");
+  }
+
+  {
+    const subject = harness();
     const result = await subject.main(eventFor("13900000007", "simple_success_0001"));
     assert.equal(result.ok, true);
     assert.equal(result.completed, true);
@@ -409,10 +429,10 @@ const eventFor = (phone, clientRequestId) => ({
   }
 
   for (const scenario of [
-    { name: "missing FaceId", options: { missingFaceId: true }, code: "FACE_ENROLLMENT_INCOMPLETE" },
-    { name: "photo digest mismatch", options: { photoContentMismatch: true }, code: "PHOTO_CONTENT_MISMATCH" },
-    { name: "database face reference missing", options: { failFaceDatabaseWrite: true }, code: "FACE_DATABASE_READBACK_FAILED" },
-    { name: "Auth activation failure", options: { failAuthActivation: true }, code: "AUTH_ACTIVATION_FAILED" }
+    { name: "missing FaceId", options: { missingFaceId: true }, code: "FACE_ENROLLMENT_INCOMPLETE", authDeleted: 0 },
+    { name: "photo digest mismatch", options: { photoContentMismatch: true }, code: "PHOTO_CONTENT_MISMATCH", authDeleted: 0 },
+    { name: "database face reference missing", options: { failFaceDatabaseWrite: true }, code: "FACE_DATABASE_READBACK_FAILED", authDeleted: 1 },
+    { name: "Auth activation failure", options: { failAuthActivation: true }, code: "AUTH_ACTIVATION_FAILED", authDeleted: 1 }
   ]) {
     const subject = harness(scenario.options);
     const result = await subject.main(eventFor("13900000009", `simple_fail_${scenario.name.replace(/\W/g, "_")}_01`));
@@ -422,7 +442,7 @@ const eventFor = (phone, clientRequestId) => ({
     assert.equal(subject.state.auth.size, 0, `${scenario.name} must remove this request's new Auth identity`);
     assert.equal(subject.state.persons.size, 0, `${scenario.name} must remove this request's known-created Person`);
     assert.equal(subject.state.objects.size, 0, `${scenario.name} must remove this request's known-created photo`);
-    assert.equal(subject.calls.deleteUsers, 1);
+    assert.equal(subject.calls.deleteUsers, scenario.authDeleted);
   }
 
   {
@@ -446,12 +466,13 @@ const eventFor = (phone, clientRequestId) => ({
     const requestId = "simple_owned_auth_01";
     const uid = subject.seedBlockedAuth(phone, "same-request-password", `teacher-create:${requestId}`);
     const result = await subject.main(eventFor(phone, requestId));
-    assert.equal(result.ok, true, "an exact BLOCKED Auth remnant owned by this same request may resume");
+    assert.equal(result.ok, false, "the direct creator must not resume any earlier Auth remnant");
+    assert.equal(result.code, "PHONE_ALREADY_PROVISIONED");
     assert.equal(subject.calls.createUser, 0);
     assert.equal(subject.calls.deleteUsers, 0);
     assert.equal(subject.state.auth.get(uid)?.PasswordSentinel, "same-request-password",
-      "same-request recovery must not rewrite the stored password");
-    assert.equal(subject.state.auth.get(uid)?.UserStatus, "ACTIVE");
+      "the direct creator must not rewrite the stored password");
+    assert.equal(subject.state.auth.get(uid)?.UserStatus, "BLOCKED");
   }
 
   {
@@ -460,7 +481,7 @@ const eventFor = (phone, clientRequestId) => ({
     const uid = deterministicUid(phone);
     const result = await subject.main(eventFor(phone, "simple_concurrent_auth_01"));
     assert.equal(result.ok, false);
-    assert.equal(result.code, "PHONE_ALREADY_PROVISIONED");
+    assert.equal(result.code, "AUTH_CREATE_FAILED");
     assert.equal(subject.calls.deleteUsers, 0,
       "a foreign Auth identity discovered after an ambiguous create response must not be deleted");
     assert.equal(subject.calls.modifyUser.length, 0,
@@ -492,12 +513,13 @@ const eventFor = (phone, clientRequestId) => ({
     const createPersons = subject.calls.createPerson;
     const uploads = subject.calls.upload;
     const second = await subject.main(input);
-    assert.equal(second.ok, true);
-    assert.equal(second.idempotent, true);
+    assert.equal(second.ok, false);
+    assert.equal(second.code, "PHONE_ALREADY_PROVISIONED",
+      "the new direct flow does not resume or reinterpret a completed teacher");
     assert.equal(subject.calls.createUser, createUsers);
     assert.equal(subject.calls.createPerson, createPersons);
     assert.equal(subject.calls.upload, uploads,
-      "a complete same-request retry must be pure readback, not another write");
+      "a rejected duplicate must not issue another write");
 
     const modifiesBeforeForeignRequest = subject.calls.modifyUser.length;
     const differentRequest = await subject.main({ ...input, clientRequestId: "simple_idempotent_other_01" });
@@ -551,15 +573,13 @@ const eventFor = (phone, clientRequestId) => ({
     const phone = suffix === "face" ? "13900000013" : "13900000018";
     const result = await subject.main(eventFor(phone, `simple_uncertain_${suffix}_01`));
     assert.equal(result.ok, false);
-    assert.equal(subject.calls.deletePerson, suffix === "photo" ? 1 : 0,
-      "cleanup may delete the Person only when this request received its successful create receipt");
-    assert.equal(subject.calls.deletePhoto, suffix === "face" ? 1 : 0,
-      "cleanup may delete the photo only when this request received its successful upload receipt");
+    assert.equal(subject.calls.deletePerson, 1,
+      "the request-specific PersonId makes an ambiguous face response safe to clean directly");
+    assert.equal(subject.calls.deletePhoto, suffix === "photo" ? 1 : 0,
+      "an attempted request-specific photo upload must be cleaned even when its response is lost");
     assert.equal(subject.state.business.size, 0);
-    assert.equal(subject.state.persons.size, suffix === "face" ? 1 : 0,
-      "a response-lost Person is retained because exact readback proves existence, not exclusive ownership");
-    assert.equal(subject.state.objects.size, suffix === "photo" ? 1 : 0,
-      "a response-lost photo is retained because exact readback proves existence, not exclusive ownership");
+    assert.equal(subject.state.persons.size, 0);
+    assert.equal(subject.state.objects.size, 0);
     assert.equal(subject.state.auth.size, 0,
       `the independently known-created Auth identity is still cleaned precisely: ${JSON.stringify({ result, calls: subject.calls })}`);
   }

@@ -490,6 +490,12 @@
       );
       return promiseWithWatchdog(request, "老师账号与人脸创建失败", TEACHER_CREATE_WATCHDOG_MS);
     },
+    async validateTeacherCreateCapture({ faceImageBase64 }) {
+      return callTeacherCreate(
+        { action: "validateCapture", imageBase64: faceImageBase64 },
+        "老师照片检测失败"
+      );
+    },
     async createStoreWithAccount({ storeName, province, city, district, addressDetail, contactName, contactPhone, initialPassword, existingStoreId = "" }) {
       return callStaffAccount(
         {

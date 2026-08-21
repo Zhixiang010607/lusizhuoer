@@ -4,6 +4,8 @@
   const $ = (id) => document.getElementById(id);
   let cameraStream = null;
   let capturedFaceImage = "";
+  let faceValidated = false;
+  let faceValidationSequence = 0;
   let teacherCreateRequestId = "";
   let submitting = false;
   let creationCompleted = false;
@@ -59,6 +61,7 @@
       && Boolean($("personPhone").value.trim())
       && passwordIsValid($("personInitialPassword").value)
       && Boolean(capturedFaceImage)
+      && faceValidated
       && Boolean($("teacherFaceConsent").checked);
     const submit = $("createTeacherSubmit");
     submit.disabled = !ready;
@@ -76,8 +79,10 @@
   }
 
   function resetFaceCapture() {
+    faceValidationSequence += 1;
     stopCamera();
     capturedFaceImage = "";
+    faceValidated = false;
     teacherCreateRequestId = "";
     const preview = $("teacherFacePreview");
     preview.hidden = true;
@@ -91,8 +96,8 @@
     $("retakeTeacherFace").hidden = true;
     $("teacherFaceCaptureStatus").className = "capture-status pending";
     $("teacherFaceCaptureStatus").textContent = "必填 · 尚未拍摄";
-    $("teacherFaceQualityResult").textContent = "待创建时检测";
-    $("teacherFaceLivenessResult").textContent = "创建时按服务端配置检测";
+    $("teacherFaceQualityResult").textContent = "待拍照检测";
+    $("teacherFaceLivenessResult").textContent = "待拍照检测";
     $("teacherFaceEnrollmentState").textContent = "创建前必填";
     hideCreateProgress();
     syncSubmit();
@@ -174,7 +179,7 @@
     }
   }
 
-  function captureFace() {
+  async function captureFace() {
     if (!$("teacherFaceConsent").checked) {
       setMessage("请先确认已取得老师明确的人脸采集授权，再完成必填的人脸采集。");
       return;
@@ -200,7 +205,10 @@
     capturedFaceImage = canvas.toDataURL("image/jpeg", 0.85);
     if (dataUrlBytes(capturedFaceImage) > 3 * 1024 * 1024) capturedFaceImage = resizeCanvasDataUrl(canvas, 1024, 0.86);
     if (dataUrlBytes(capturedFaceImage) > 3 * 1024 * 1024) capturedFaceImage = resizeCanvasDataUrl(canvas, 880, 0.8);
+    faceValidated = false;
     teacherCreateRequestId = requestId();
+    const validationSequence = ++faceValidationSequence;
+    const imageUnderValidation = capturedFaceImage;
 
     const preview = $("teacherFacePreview");
     preview.src = capturedFaceImage;
@@ -209,13 +217,57 @@
     stopCamera();
     $("captureTeacherFace").disabled = true;
     $("retakeTeacherFace").hidden = false;
-    $("teacherFaceCaptureStatus").className = "capture-status complete";
-    $("teacherFaceCaptureStatus").textContent = "照片已拍摄；创建时由服务端检测质量，并按配置检测活体。";
-    $("teacherFaceQualityResult").textContent = "待服务端检测";
-    $("teacherFaceLivenessResult").textContent = "待服务端检测";
-    $("teacherFaceEnrollmentState").textContent = "待创建并检测";
-    setMessage("");
+    $("teacherFaceCaptureStatus").className = "capture-status pending";
+    $("teacherFaceCaptureStatus").textContent = "照片已拍摄，正在由服务端检测质量与活体…";
+    $("teacherFaceQualityResult").textContent = "检测中";
+    $("teacherFaceLivenessResult").textContent = "检测中";
+    $("teacherFaceEnrollmentState").textContent = "正在检测";
+    setMessage("正在检测老师照片；通过前不能创建账号。");
     syncSubmit();
+
+    if (!window.CloudBasePhoneAuth?.validateTeacherCreateCapture) {
+      $("teacherFaceCaptureStatus").textContent = "照片检测服务尚未加载，请部署最新前端和 teacherCreate 云函数。";
+      $("teacherFaceQualityResult").textContent = "未检测";
+      $("teacherFaceLivenessResult").textContent = "未检测";
+      $("teacherFaceEnrollmentState").textContent = "检测失败 · 请重试";
+      setMessage("老师照片检测服务尚未加载；本次照片不能用于创建账号。");
+      return;
+    }
+
+    try {
+      const validation = await window.CloudBasePhoneAuth.validateTeacherCreateCapture({
+        faceImageBase64: imageUnderValidation
+      });
+      if (validationSequence !== faceValidationSequence || imageUnderValidation !== capturedFaceImage) return;
+      if (validation?.accepted !== true) throw new Error("服务端没有确认老师照片检测通过。");
+      faceValidated = true;
+      const qualityScore = Number(validation?.quality?.qualityScore);
+      const qualityThreshold = Number(validation?.quality?.qualityThreshold);
+      $("teacherFaceQualityResult").textContent = Number.isFinite(qualityScore)
+        ? `通过 · ${qualityScore} 分${Number.isFinite(qualityThreshold) ? `（要求 ${qualityThreshold}）` : ""}`
+        : "通过";
+      const livenessChecked = validation?.liveness?.checked === true;
+      const livenessScore = Number(validation?.liveness?.score);
+      const livenessThreshold = Number(validation?.liveness?.threshold);
+      $("teacherFaceLivenessResult").textContent = livenessChecked
+        ? `通过${Number.isFinite(livenessScore) ? ` · ${livenessScore} 分` : ""}${Number.isFinite(livenessThreshold) ? `（要求 ${livenessThreshold}）` : ""}`
+        : "本环境未启用";
+      $("teacherFaceCaptureStatus").className = "capture-status complete";
+      $("teacherFaceCaptureStatus").textContent = "照片质量与活体检测已通过；填写完整资料后可以创建老师。";
+      $("teacherFaceEnrollmentState").textContent = "检测通过 · 可以创建";
+      setMessage("照片检测通过。正式创建时服务端会再次检测，并在全部资料保存、回读一致后才返回成功。");
+    } catch (error) {
+      if (validationSequence !== faceValidationSequence || imageUnderValidation !== capturedFaceImage) return;
+      faceValidated = false;
+      $("teacherFaceQualityResult").textContent = "未通过";
+      $("teacherFaceLivenessResult").textContent = error?.code === "LIVENESS_FAILED" ? "未通过" : "未完成";
+      $("teacherFaceCaptureStatus").className = "capture-status pending";
+      $("teacherFaceCaptureStatus").textContent = "照片检测未通过，请重新拍照。";
+      $("teacherFaceEnrollmentState").textContent = "检测失败 · 请重新拍照";
+      setMessage(error?.message || "老师照片质量或活体检测未通过，请重新拍照。");
+    } finally {
+      if (validationSequence === faceValidationSequence) syncSubmit();
+    }
   }
 
   async function submit(event) {
@@ -229,8 +281,8 @@
       syncSubmit();
       return;
     }
-    if (!capturedFaceImage || !$("teacherFaceConsent").checked) {
-      setMessage("创建老师账号前，必须取得本人明确授权并完成拍照。照片质量由服务端检测，活体按服务端配置执行。");
+    if (!capturedFaceImage || !faceValidated || !$("teacherFaceConsent").checked) {
+      setMessage("创建老师账号前，必须取得本人明确授权，并先让本次照片通过服务端质量与活体检测。");
       syncSubmit();
       return;
     }
@@ -245,9 +297,9 @@
     const submitIdleLabel = submitButton.textContent;
     submitButton.disabled = true;
     submitButton.setAttribute("aria-busy", "true");
-    submitButton.textContent = "正在检测并创建…";
-    $("teacherFaceEnrollmentState").textContent = "服务端检测与创建中";
-    showCreateProgress("正在一次性完成照片检测、账号创建、人脸和原始照片保存，请稍候…");
+    submitButton.textContent = "正在复检并创建…";
+    $("teacherFaceEnrollmentState").textContent = "服务端复检与创建中";
+    showCreateProgress("正在再次检测照片，并完成账号、人脸和原始照片保存及精确回读，请稍候…");
     setMessage("本页只提交一次创建请求，浏览器不会自动重发。");
 
     let succeeded = false;
@@ -308,11 +360,13 @@
     else syncSubmit();
   });
   $("openTeacherFaceCamera").addEventListener("click", () => void openCamera());
-  $("captureTeacherFace").addEventListener("click", captureFace);
+  $("captureTeacherFace").addEventListener("click", () => void captureFace());
   $("retakeTeacherFace").addEventListener("click", () => void openCamera());
   $("personCreateForm").addEventListener("submit", submit);
   window.addEventListener("pagehide", () => {
     capturedFaceImage = "";
+    faceValidated = false;
+    faceValidationSequence += 1;
     teacherCreateRequestId = "";
     $("teacherFaceCanvas").width = 0;
     $("teacherFaceCanvas").height = 0;

@@ -34,7 +34,7 @@ for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))
   const expectedVersion = file === "staff-detail.html"
     ? "0.19.2"
     : file === "teacher-create.html"
-    ? "0.19.0"
+    ? "0.19.3"
     : [
     "index.html", "recharge-review.html", "refund-review.html", "verification-review.html",
     "teacher-management.html"

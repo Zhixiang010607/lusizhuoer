@@ -195,7 +195,7 @@ const analytics = functionSource(faceCloud, "storeAnalyticsEventCte");
 const hqDashboard = functionSource(staffCloud, "getHqDashboard");
 const verificationCreate = functionSource(faceCloud, "createVerificationApplication");
 const teacherProvision = functionSource(teacherCreateCloud, "createTeacher");
-const teacherAuthentication = functionSource(teacherCreateCloud, "resolveAuthentication");
+const teacherAuthentication = functionSource(teacherCreateCloud, "createBlockedAuthentication");
 const hqEntitlementRead = functionSource(staffCloud, "getHqTeacherExperienceEntitlements");
 const entitlementUpsert = functionSource(staffCloud, "upsertTeacherExperienceEntitlement");
 const entitlementDelete = functionSource(staffCloud, "deleteTeacherExperienceEntitlement");
@@ -231,8 +231,10 @@ assert.match(verificationCreate, /TEACHER_EXPERIENCE_QUOTA_EXHAUSTED/,
 assert.match(teacherCreate, /face|人脸/i, "teacher creation UI must require face enrollment");
 assert.match(teacherCreateScript, /teacher[a-zA-Z]*(?:Face|face)|face[a-zA-Z]*teacher/i,
   "teacher creation submitter must pass face enrollment evidence to the server");
-assert.doesNotMatch(teacherCreateScript, /validateTeacherFaceEnrollmentCapture|action:\s*[\"']validateCapture[\"']/,
-  "new-teacher capture must be validated only once inside the formal dedicated create request");
+assert.match(teacherCreateScript, /CloudBasePhoneAuth\.validateTeacherCreateCapture\(/,
+  "new-teacher capture must pass service prevalidation before the formal create request");
+assert.match(phoneAuth, /async validateTeacherCreateCapture[\s\S]{0,260}action:\s*"validateCapture"/,
+  "the browser client must send teacher prevalidation to teacherCreate");
 assert.match(staffCloud, /if \(role === "teacher"\)[\s\S]{0,180}fail\(/,
   "generic staff provisioning must reject teacher creation so face binding cannot be bypassed");
 assert.match(teacherCreateCloud, /async function createTeacher\(event\)[\s\S]{0,100}const actor = await requireHq\(\)/,
@@ -243,10 +245,10 @@ assert.match(teacherProvision, /jpegImage\(event\.imageBase64\)/,
   "teacher provisioning must validate the submitted face image server-side");
 assert.match(teacherAuthentication, /userStatus:\s*"BLOCKED"/,
   "a teacher authentication account must start blocked before face enrollment completes");
-assert.match(teacherCreateCloud, /async function ensureTeacherShell[\s\S]{0,2200}'ARCHIVED'/,
-  "a teacher business account must start archived before face enrollment completes");
-assert.match(teacherProvision, /createAndProveRemote\([\s\S]{0,600}writeFaceReference\([\s\S]{0,1200}confirmPerson\([\s\S]{0,220}confirmPhoto\(/,
-  "teacher provisioning must directly create, retain and prove the same face and original photo");
+assert.match(teacherCreateCloud, /async function insertTeacherRecord[\s\S]{0,1500}'ARCHIVED'[\s\S]{0,600}'ENROLLED'/,
+  "the direct database write must keep the new account archived while storing the already-proven face");
+assert.match(teacherProvision, /createAndProveRemote\([\s\S]{0,800}createBlockedAuthentication\([\s\S]{0,500}insertTeacherRecord\(/,
+  "teacher provisioning must follow customer face/photo creation before adding the login and teacher records");
 assert.match(teacherProvision, /manager\(\)\.user\.modifyUser\(\{ uid: authentication\.uid, userStatus: "ACTIVE"/,
   "teacher authentication may activate only after the enrolled database profile is persisted");
 assert.match(teacherCreateCloud, /function successResponse\([\s\S]{0,500}complete:\s*true[\s\S]{0,600}ok:\s*true, completed:\s*true/,
@@ -262,9 +264,9 @@ assert.doesNotMatch(teacherCreate, /老师人脸（可选）|不会阻止账号�
 assert.doesNotMatch(teacherCreateScript, /CloudBasePhoneAuth\.provisionTeacher\(/,
   "new-teacher UI must not call the generic no-face provisioning path");
 assert.match(teacherCreateScript, /CloudBasePhoneAuth\.createTeacherWithFace\(/,
-  "new-teacher UI must use the dedicated one-call face-enrollment path");
-assert.match(teacherCreateScript, /Boolean\(capturedFaceImage\)[\s\S]{0,300}Boolean\(\$\("teacherFaceConsent"\)\.checked\)/,
-  "new-teacher submit enablement must require capture and consent");
+  "new-teacher UI must use the dedicated authoritative creation path after prevalidation");
+assert.match(teacherCreateScript, /Boolean\(capturedFaceImage\)[\s\S]{0,120}faceValidated[\s\S]{0,220}Boolean\(\$\("teacherFaceConsent"\)\.checked\)/,
+  "new-teacher submit enablement must require capture, accepted validation and consent");
 assert.doesNotMatch(phoneAuth, /async provisionTeacher\(\{ staffName, phone, initialPassword \}\)/,
   "the shared browser client must not retain a no-face teacher creation shortcut");
 assert.doesNotMatch(phoneAuth, /upsertTeacherFace|replaceTeacherFace/,

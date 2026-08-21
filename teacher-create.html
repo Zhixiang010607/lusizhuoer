@@ -15,7 +15,7 @@
         <div class="panel-heading">
           <div>
             <h2>人员资料</h2>
-            <p>新建老师必须由本人授权并完成人脸采集；服务端会在同一次创建中检测照片质量，并按当前环境配置执行活体检测。全部资料保存并回读确认后才会激活账号。人脸仅用于老师体验核销时的现场身份核验，不用于登录。</p>
+            <p>新建老师必须由本人授权并完成人脸采集。拍照后先由服务端检测照片质量并按配置执行活体检测；全部通过才允许提交创建。创建时服务端会再次检测，全部资料保存并回读确认后才会激活账号。人脸仅用于老师体验核销时的现场身份核验，不用于登录。</p>
           </div>
           <span id="generatedPersonCode" class="badge">创建后自动生成编号</span>
         </div>
@@ -30,7 +30,7 @@
         <div class="panel-heading">
           <div>
             <h2>老师人脸（必填）</h2>
-            <p>仅在老师本人知情并明确授权后采集。拍照后点击创建，服务端会一次性完成质量检测、按配置执行活体检测，并保存和回读原图。</p>
+            <p>仅在老师本人知情并明确授权后采集。拍照后先检测质量与活体，检测通过才开放创建按钮；正式创建时服务端仍会复检，并保存、回读原图和人脸 ID。</p>
           </div>
           <span id="teacherFaceEnrollmentState" class="badge">创建前必填</span>
         </div>
@@ -38,8 +38,8 @@
           <div class="teacher-face-consent">
               <label class="consent-row"><input id="teacherFaceConsent" type="checkbox" required> 我已取得老师明确授权：采集和绑定其人脸信息，仅用于老师体验核销现场身份核验与业务安全，不用于登录。</label>
             <div id="teacherFaceChecks" class="capture-check-results" aria-live="polite">
-              <div><span>照片质量</span><strong id="teacherFaceQualityResult">待创建时检测</strong></div>
-              <div><span>活体检测</span><strong id="teacherFaceLivenessResult">创建时按服务端配置检测</strong></div>
+              <div><span>照片质量</span><strong id="teacherFaceQualityResult">待拍照检测</strong></div>
+              <div><span>活体检测</span><strong id="teacherFaceLivenessResult">待拍照检测</strong></div>
             </div>
           </div>
           <section class="capture-panel teacher-face-capture">
@@ -49,7 +49,7 @@
               <div id="teacherFacePlaceholder" class="camera-placeholder"><strong>必填：打开摄像头</strong><span>请让老师正对镜头，避免逆光、遮挡或多人入镜。</span></div>
               <canvas id="teacherFaceCanvas" hidden></canvas>
             </div>
-            <div class="teacher-face-capture-copy"><h3>老师体验核销身份</h3><p>拍照只生成本次 JPEG；点击创建后由服务端检测一次，创建完成后老师主页仅显示登记状态。</p></div>
+            <div class="teacher-face-capture-copy"><h3>老师体验核销身份</h3><p>拍照后先检测；通过后才可创建。创建请求会再次检测，完成后老师主页仅显示登记状态。</p></div>
             <div id="teacherFaceCaptureStatus" class="capture-status pending">必填 · 尚未拍摄</div>
             <div class="camera-actions"><button id="openTeacherFaceCamera" type="button">打开摄像头</button><button id="captureTeacherFace" type="button" disabled>拍照</button><button id="retakeTeacherFace" type="button" hidden>重新拍照</button></div>
           </section>
@@ -66,6 +66,6 @@
       </div>
     </form>
   </main>
-  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.19.0"></script><script src="teacher-create.js?v=0.3.1"></script><script src="auth-ui.js?v=0.19.0"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.19.3"></script><script src="teacher-create.js?v=0.4.0"></script><script src="auth-ui.js?v=0.19.0"></script>
 </body>
 </html>

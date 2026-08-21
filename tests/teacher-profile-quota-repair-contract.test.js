@@ -193,8 +193,8 @@ assert.match(read("teacher-create.html"), /老师人脸（必填）/,
   "new-teacher page must label face enrollment as mandatory");
 assert.doesNotMatch(read("teacher-create.html"), /老师人脸（可选）|不会阻止账号创建或激活|可后续补录/,
   "new-teacher copy must not promise a no-face create path");
-assert.match(createUi, /Boolean\(capturedFaceImage\)[\s\S]{0,300}Boolean\(\$\("teacherFaceConsent"\)\.checked\)/,
-  "submit enablement must require a captured face and consent before the one formal server validation");
+assert.match(createUi, /Boolean\(capturedFaceImage\)[\s\S]{0,120}faceValidated[\s\S]{0,220}Boolean\(\$\("teacherFaceConsent"\)\.checked\)/,
+  "submit enablement must require a captured face, accepted prevalidation and consent");
 assert.doesNotMatch(createUi, /window\.CloudBasePhoneAuth\.provisionTeacher\(\{ staffName: name, phone, initialPassword \}\)/,
   "new-teacher UI must never call the generic no-face provisioning API");
 assert.match(createUi,
@@ -214,7 +214,9 @@ const createTeacher = jsBetween(teacherCreateService, "async function createTeac
 assert.match(createTeacher, /const actor = await requireHq\(\)[\s\S]{0,300}event\.consent !== true/,
   "direct teacher creation must be HQ-only and require explicit consent");
 assert.match(createTeacher, /await inspectFace\(api, image\.base64\)[\s\S]{0,120}await inspectLiveness\(api, image\.base64\)/,
-  "the one direct creation call must perform the server-side quality and liveness checks");
+  "the direct creation call must re-run server-side quality and liveness checks");
+assert.match(createTeacher, /createAndProveRemote\([\s\S]{0,800}createBlockedAuthentication\([\s\S]{0,500}insertTeacherRecord\(/,
+  "teacher creation must reuse the customer face/photo order before adding the phone account");
 assert.match(createTeacher, /confirmPerson\([\s\S]{0,260}confirmPhoto\([\s\S]{0,700}finalReadback\(/,
   "creation must read back remote Person, retained original and the database row before success");
 assert.match(createTeacher, /manager\(\)\.user\.modifyUser\(\{ uid: authentication\.uid, userStatus: "ACTIVE"/,
