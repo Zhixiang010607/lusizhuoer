@@ -17,7 +17,7 @@ const photoFunctionDirectory = path.resolve(__dirname, "../cloudfunctions/verifi
 const photoPackage = JSON.parse(fs.readFileSync(path.join(photoFunctionDirectory, "package.json"), "utf8"));
 const sourceWrapper = fs.readFileSync(path.join(photoFunctionDirectory, "index.js"), "utf8");
 const deployWrapper = fs.readFileSync(path.join(photoFunctionDirectory, "deploy-index.js"), "utf8");
-assert.equal(photoPackage.version, "7.0.0", "reliable read layer has a distinguishable deployment package version");
+assert.equal(photoPackage.version, "8.0.0", "reliable read layer has a distinguishable deployment package version");
 for (const [label, wrapper] of [["source", sourceWrapper], ["deployment", deployWrapper]]) {
   assert.match(wrapper, /installManagerSigningReliability\(CloudBaseManager\)/, `${label} wrapper installs signing reliability before use`);
   assert.match(wrapper, /createVerificationPhotoMain\(sharedService\.main\)/, `${label} wrapper installs authorized read fallbacks`);

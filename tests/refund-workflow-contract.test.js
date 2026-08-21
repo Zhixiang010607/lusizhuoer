@@ -19,7 +19,7 @@ const refundPage = read("refund-create.html");
 const teacherRefundPage = read("teacher-refund-create.html");
 
 for (const file of ["refund-create.html", "teacher-refund-create.html"]) assert.ok(fs.existsSync(path.join(root, file)), `${file} exists`);
-includes(auth, '["refund-create.html", "退费申请"]', "store/HQ sidebar exposes refund");
+includes(auth, '["refund-create.html", "退费申请"]', "store sidebar exposes refund");
 includes(auth, '["refund-create.html", "退费申请"]', "teacher sidebar reuses the shared refund page");
 includes(refundPage, 'data-store-business="refund"', "refund page uses refund workflow");
 includes(teacherRefundPage, 'data-store-business="refund" data-teacher-business', "teacher refund is store-bound");

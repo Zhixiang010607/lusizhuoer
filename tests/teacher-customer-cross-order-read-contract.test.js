@@ -7,7 +7,7 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const cloud = fs.readFileSync(path.join(root, "cloudfunctions", "faceRecognition", "index.js"), "utf8");
 
-assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v7" : "v86"/);
+assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v8" : "v87"/);
 
 const access = cloud.slice(
   cloud.indexOf("function teacherCustomerAccessCondition"),
@@ -17,8 +17,10 @@ const ownership = cloud.slice(
   cloud.indexOf("function teacherBusinessOwnershipCondition"),
   cloud.indexOf("function teacherCustomerAccessCondition")
 );
-assert.match(ownership, /\$\{alias\}\.teacher_id = \$\{sqlText\(caller\.teacherId\)\}::bigint[\s\S]*\$\{alias\}\.submitted_by_account_id = \$\{sqlText\(caller\.staffId\)\}::bigint/,
-  "business ownership must recognize both the bound teacher and exact submitting login account");
+assert.match(ownership, /\$\{alias\}\.submitted_by_account_id = \$\{sqlText\(caller\.staffId\)\}::bigint/,
+  "business ownership must recognize only the exact submitting login account");
+assert.doesNotMatch(ownership, /teacher_id|caller\.teacherId/,
+  "HQ-submitted records must not be attributed to a teacher from a nullable business-teacher field");
 assert.match(access, /created_by_account_id = \$\{sqlText\(caller\.staffId\)\}::bigint/,
   "same-account creation grants teacher customer access");
 assert.match(access, /teacher_verification[\s\S]*record_status = 'APPROVED'[\s\S]*verification_type IN \('NORMAL', 'EXPERIENCE'\)/,
@@ -34,10 +36,12 @@ assert.match(workspace, /if \(detailMode\)[\s\S]*permitted_customer\.id = \$\{al
   "teacher order detail reads must authorize at the customer relationship boundary");
 assert.match(workspace, /else \{[\s\S]*clauses\.push\(teacherBusinessOwnershipCondition\(caller, alias\)\)/,
   "teacher workspace lists must remain restricted to the current teacher's own records");
-assert.match(workspace, /LEFT JOIN public\.teachers business_teacher ON business_teacher\.id = \$\{alias\}\.teacher_id/,
-  "cross-teacher detail reads must load the actual business teacher");
-assert.match(cloud, /teacherId: String\(row\.teacher_id \|\| teacher\.teacherId \|\| ""\)[\s\S]*teacherCode: String\(row\.teacher_code \|\| teacher\.teacherCode \|\| ""\)[\s\S]*teacherName: String\(row\.teacher_name \|\| teacher\.teacherName \|\| ""\)/,
-  "detail responses must never relabel another teacher's order as the viewer's order");
+assert.match(workspace, /business_teacher\.id AS teacher_id[\s\S]*LEFT JOIN public\.teachers business_teacher[\s\S]*business_teacher\.id = \$\{alias\}\.teacher_id[\s\S]*business_teacher\.staff_account_id = \$\{alias\}\.submitted_by_account_id/,
+  "detail reads may expose a business teacher only when that teacher account actually submitted the order");
+assert.match(cloud, /teacherId: String\(row\.teacher_id \|\| ""\)[\s\S]*teacherCode: String\(row\.teacher_code \|\| ""\)[\s\S]*teacherName: String\(row\.teacher_name \|\| ""\)/,
+  "detail responses must expose only the teacher stored on the order");
+assert.doesNotMatch(cloud, /row\.teacher_id \|\| teacher\.teacherId|row\.teacher_code \|\| teacher\.teacherCode|row\.teacher_name \|\| teacher\.teacherName/,
+  "an unbound HQ order must never be relabelled as the teacher viewing the customer");
 
 const photoContext = cloud.slice(
   cloud.indexOf("async function verificationPhotoContext"),

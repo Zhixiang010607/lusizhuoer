@@ -50,10 +50,10 @@ function functionSource(source, name) {
   throw new Error(`function ${name} body is incomplete`);
 }
 
-// Headquarters and teachers use the exact same five shared documents. No
-// role-specific copy can drift away from the common fields or layout.
+// Stores and teachers use the shared business documents. Headquarters keeps
+// query, review and management access, but has no creation route or menu.
 for (const page of pages) {
-  includes(authUi, `"${page}"`, `HQ route ${page}`);
+  includes(authUi, `"${page}"`, `store/teacher route ${page}`);
   const html = read(page);
   includes(html, `data-store-business=`, `${page} reuses the shared workflow`);
   includes(html, "store-business.js?v=0.14.56", `${page} workflow cache key`);
@@ -61,7 +61,7 @@ for (const page of pages) {
   assert.ok(!fs.existsSync(path.join(root, `hq-${page}`)), `${page} must not have a duplicated HQ page`);
 }
 for (const file of fs.readdirSync(root).filter((file) => file.endsWith(".html") && read(file).includes("auth-ui.js?v="))) {
-  const expectedAuthVersion = "0.19.1";
+  const expectedAuthVersion = "0.19.2";
   includes(read(file), `auth-ui.js?v=${expectedAuthVersion}`, `${file} auth cache key`);
 }
 for (const page of teacherBusinessPages) includes(read(page), "store-business.js?v=0.14.56", `${page} shared script version`);
@@ -76,7 +76,7 @@ for (const [href, label] of [
   ["refund-create.html", "退费申请"],
   ["verification-create.html", "核销办理"],
   ["verification-experience.html", "体验核销"]
-]) includes(authUi, `["${href}", "${label}"]`, `HQ business navigation ${label}`);
+]) includes(authUi, `["${href}", "${label}"]`, `store/teacher business navigation ${label}`);
 includes(authUi, 'teacher: new Set(["teacher-work-orders.html"', "teacher route allowlist");
 for (const [href, label] of [
   ["customer-create.html", "客户建立"],
@@ -87,7 +87,9 @@ for (const [href, label] of [
 ]) includes(authUi, `["${href}", "${label}"]`, `teacher shared business navigation ${label}`);
 assert.ok(!authUi.includes("verification-supplemental.html"), "retired supplemental route must not remain in access or navigation");
 assert.ok(!authUi.includes("teacher-verification-supplemental.html"), "retired teacher supplemental route must not remain in access or navigation");
-includes(authUi, 'data-menu="hq-business"', "dedicated HQ business navigation group");
+const hqAccess = authUi.slice(authUi.indexOf("hq: new Set"), authUi.indexOf("store: new Set"));
+for (const page of pages) assert.ok(!hqAccess.includes(`"${page}"`), `HQ must not access ${page}`);
+assert.ok(!authUi.includes('data-menu="hq-business"'), "HQ business navigation group must be removed");
 includes(authUi, 'a[href^="verification-review.html"]', "verification-review entry is hidden without deleting its route");
 includes(authUi, 'link.hidden = true', "retired verification-review entry is not displayed");
 assert.ok(authUi.includes('"verification-review.html"'), "historical verification-review access route must remain available");
@@ -128,10 +130,11 @@ includes(styles, "gap: clamp(8px, 1vw, 12px)", "customer lookup column spacing a
 includes(authUi, 'window.matchMedia("(max-width: 1100px)")', "phone and tablet navigation groups start collapsed");
 includes(authUi, 'document.querySelectorAll(".side-menu-group[open]")', "compact navigation removes every default-open group");
 
-// Server-side scope is authoritative on every action. HQ and teachers require
-// one positive ACTIVE store; stores remain pinned to their account binding.
+// Server-side scope is authoritative on every action. Teachers require one
+// positive ACTIVE store; stores remain pinned to their account binding; HQ is rejected.
 const activeBusinessSource = functionSource(cloud, "activeBusinessCaller");
-includes(activeBusinessSource, '["teacher", "hq"].includes(account.role_code)', "HQ allowed by business caller");
+includes(activeBusinessSource, 'account.role_code !== "teacher"', "non-store callers are limited to teachers");
+includes(activeBusinessSource, '只有门店或老师账号可以办理业务', "HQ receives an explicit business denial");
 includes(activeBusinessSource, 'positiveDatabaseId(event.storeId, "门店")', "concrete positive store ID");
 includes(activeBusinessSource, "store_status = 'ACTIVE'", "business store must stay active");
 includes(activeBusinessSource, 'requestedStore !== String(store.storeId)', "store event tampering rejected");
@@ -171,10 +174,12 @@ const activeBusinessCaller = activeHarness.module.exports;
 (async () => {
   state.accountRole = "hq";
   state.storeExists = true;
-  const hq = await activeBusinessCaller({ storeId: "7" });
-  assert.equal(hq.role, "hq");
-  assert.equal(hq.storeId, 7);
-  assert.equal(hq.storeCode, "STR007");
+  await assert.rejects(activeBusinessCaller({ storeId: "7" }), (error) => error.code === "FORBIDDEN");
+  state.accountRole = "teacher";
+  const teacher = await activeBusinessCaller({ storeId: "7" });
+  assert.equal(teacher.role, "teacher");
+  assert.equal(teacher.storeId, 7);
+  assert.equal(teacher.storeCode, "STR007");
   await assert.rejects(activeBusinessCaller({}), (error) => error.code === "BAD_REQUEST");
   await assert.rejects(activeBusinessCaller({ storeId: "ALL" }), (error) => error.code === "BAD_REQUEST");
   state.storeExists = false;
@@ -194,7 +199,7 @@ const activeBusinessCaller = activeHarness.module.exports;
   vm.createContext(creationHarness);
   vm.runInContext(`${functionSource(cloud, "activeCustomerCreationCaller")}\nmodule.exports = activeCustomerCreationCaller;`, creationHarness);
   const creationCaller = creationHarness.module.exports;
-  assert.equal((await creationCaller({ storeId: "7" })).role, "hq");
+  await assert.rejects(creationCaller({ storeId: "7" }), (error) => error.code === "FORBIDDEN");
   creationHarness.currentRole = "store";
   assert.equal((await creationCaller({})).role, "store");
   creationHarness.currentRole = "teacher";
@@ -202,12 +207,12 @@ const activeBusinessCaller = activeHarness.module.exports;
 
   includes(functionSource(cloud, "registerCustomer"), "activeCustomerCreationCaller(event)", "shared customer enrollment authority");
   includes(functionSource(cloud, "validateCapture"), "activeCustomerCreationCaller(event)", "shared capture validation authority");
-  includes(functionSource(cloud, "getHqBusinessContext"), "store_status = 'ACTIVE'", "HQ context returns only active stores");
+  includes(functionSource(cloud, "getHqBusinessContext"), "总部账号不能办理业务", "legacy HQ context is denied server-side");
   includes(functionSource(cloud, "createRechargeApplication"), 'String(record.submitted_by_account_id) === String(caller.staffId)', "recharge idempotency replay stays bound to its original submitter");
   includes(cloud, 'if (action === "getHqBusinessContext")', "HQ context dispatcher");
   includes(cloud, '["hq", "store", "teacher"].includes(caller.role)', "HQ submitter can edit verification photos");
   includes(cloud, '["hq", "store", "teacher"].includes(context.caller.role)', "HQ upload ownership guard");
-  includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v7" : "v86"', "deployable service versions");
+  includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v8" : "v87"', "deployable service versions");
 
   console.log("hq business workflow tests passed");
 })().catch((error) => {

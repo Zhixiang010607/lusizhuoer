@@ -11,7 +11,7 @@ const migration = read("database", "migrations", "057_teacher_created_customer_a
 const consoleMigration = read("database", "cloudbase-console", "057-01-teacher-created-customer-access.sql");
 const reference = read("database", "customer-fields-reference.md");
 
-assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v7" : "v86"/);
+assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v8" : "v87"/);
 
 for (const sql of [migration, consoleMigration]) {
   assert.match(sql, /ADD COLUMN IF NOT EXISTS created_by_account_id BIGINT;/,
@@ -28,8 +28,10 @@ const scope = cloud.slice(cloud.indexOf("function teacherCustomerAccessCondition
 const ownership = cloud.slice(cloud.indexOf("function teacherBusinessOwnershipCondition"), cloud.indexOf("function teacherCustomerAccessCondition"));
 assert.match(scope, /caller\.role === "store"[^\n]*created_store_id = \$\{caller\.storeId\}/,
   "store access remains based on the owning store, not teacher ownership");
-assert.match(ownership, /\$\{alias\}\.teacher_id = \$\{sqlText\(caller\.teacherId\)\}::bigint[\s\S]*\$\{alias\}\.submitted_by_account_id = \$\{sqlText\(caller\.staffId\)\}::bigint/,
-  "teacher business ownership must survive either teacher-master or actual submitter-account matching");
+assert.match(ownership, /\$\{alias\}\.submitted_by_account_id = \$\{sqlText\(caller\.staffId\)\}::bigint/,
+  "teacher business ownership must use the exact submitting login account");
+assert.doesNotMatch(ownership, /teacher_id|caller\.teacherId/,
+  "an HQ or store submission must not count for a teacher merely because a teacher id was attached");
 assert.match(scope, /created_by_account_id = \$\{sqlText\(caller\.staffId\)\}::bigint[\s\S]*teacherBusinessOwnershipCondition\(caller, "teacher_verification"\)/,
   "teacher access must accept same-account creation and approved verification relationships");
 assert.match(scope, /teacher_verification\.record_status = 'APPROVED'[\s\S]*verification_type IN \('NORMAL', 'EXPERIENCE'\)/,
@@ -49,7 +51,7 @@ assert.match(teacherCustomers, /c\.created_by_account_id = \$\{sqlText\(caller\.
 assert.match(teacherCustomers, /r\.record_status = 'APPROVED'[\s\S]*r\.recharge_type IN \('NEW', 'REFUND'\)/,
   "teacher homepage customer lists must include approved recharge and refund relationships");
 assert.match(teacherCustomers, /teacherBusinessOwnershipCondition\(caller, "v"\)[\s\S]*teacherBusinessOwnershipCondition\(caller, "r"\)/,
-  "teacher homepage customer lists must accept the bound teacher or exact submitting account");
+  "teacher homepage customer lists must use the exact submitting account");
 
 assert.match(reference, /门店账号建立时该字段保存门店账号，不会直接绑定任何老师/);
 assert.match(reference, /历史客户[\s\S]*保持 `NULL`[\s\S]*不能[\s\S]*猜测老师归属/);

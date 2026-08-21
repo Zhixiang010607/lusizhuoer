@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v7" : "v86";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v8" : "v87";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -1071,14 +1071,12 @@ async function activeBusinessCaller(event = {}) {
     }
     return { ...store, role: "store", teacherId: "" };
   }
-  if (!["teacher", "hq"].includes(account.role_code)) {
-    fail("只有门店、老师或总部账号可以办理业务。", "FORBIDDEN");
+  if (account.role_code !== "teacher") {
+    fail("只有门店或老师账号可以办理业务。", "FORBIDDEN");
   }
 
-  if (account.role_code === "teacher") {
-    if (!account.teacher_id) fail("当前老师账号尚未绑定老师资料。", "TEACHER_PROFILE_MISSING");
-    if (account.teacher_status !== "ACTIVE") fail("老师资料已经封存。", "ARCHIVED");
-  }
+  if (!account.teacher_id) fail("当前老师账号尚未绑定老师资料。", "TEACHER_PROFILE_MISSING");
+  if (account.teacher_status !== "ACTIVE") fail("老师资料已经封存。", "ARCHIVED");
   const storeId = positiveDatabaseId(event.storeId, "门店");
   const stores = await executeSql(
     `SELECT id, store_code, store_name, store_status
@@ -1093,9 +1091,9 @@ async function activeBusinessCaller(event = {}) {
     uid: String(uid),
     role: String(account.role_code),
     staffId: Number(account.staff_id),
-    teacherId: account.role_code === "teacher" ? String(account.teacher_id) : "",
-    teacherCode: account.role_code === "teacher" ? String(account.teacher_code || "") : "",
-    teacherName: account.role_code === "teacher" ? String(account.teacher_name || "") : "",
+    teacherId: String(account.teacher_id),
+    teacherCode: String(account.teacher_code || ""),
+    teacherName: String(account.teacher_name || ""),
     storeId: Number(store.id),
     storeCode: String(store.store_code || ""),
     storeName: String(store.store_name || "")
@@ -1104,31 +1102,14 @@ async function activeBusinessCaller(event = {}) {
 
 async function activeCustomerCreationCaller(event = {}) {
   const caller = await activeBusinessCaller(event);
-  if (!["store", "teacher", "hq"].includes(caller.role)) {
-    fail("只有门店、老师或总部账号可以建立客户档案。", "FORBIDDEN");
+  if (!["store", "teacher"].includes(caller.role)) {
+    fail("只有门店或老师账号可以建立客户档案。", "FORBIDDEN");
   }
   return caller;
 }
 
 async function getHqBusinessContext() {
-  const caller = await activeCustomerStatusCaller();
-  if (caller.role !== "hq") fail("只有总部账号可以使用总部业务办理入口。", "FORBIDDEN");
-  const stores = await executeSql(
-    `SELECT id, store_code, store_name
-       FROM public.stores
-      WHERE store_status = 'ACTIVE'
-      ORDER BY store_name, store_code, id
-      LIMIT 1000`
-  );
-  return {
-    ok: true,
-    headquarters: { staffId: String(caller.staffId) },
-    stores: stores.map((store) => ({
-      storeId: String(store.id),
-      storeCode: String(store.store_code || ""),
-      storeName: String(store.store_name || "")
-    }))
-  };
+  fail("总部账号不能办理业务，请使用门店或老师账号。", "FORBIDDEN");
 }
 
 async function getTeacherBusinessContext() {
@@ -1328,10 +1309,7 @@ async function verificationPhotoContext(event, options = {}) {
 }
 
 function teacherBusinessOwnershipCondition(caller, alias) {
-  return `(
-    ${alias}.teacher_id = ${sqlText(caller.teacherId)}::bigint
-    OR ${alias}.submitted_by_account_id = ${sqlText(caller.staffId)}::bigint
-  )`;
+  return `${alias}.submitted_by_account_id = ${sqlText(caller.staffId)}::bigint`;
 }
 
 function teacherCustomerAccessCondition(caller, alias = "c") {
@@ -3529,7 +3507,7 @@ function teacherWorkspaceDateClauses(alias, options) {
   return clauses;
 }
 
-function teacherOrderRows(rows, recordType, teacher = {}) {
+function teacherOrderRows(rows, recordType) {
   return rows.map((row) => ({
     id: String(row.id),
     recordType,
@@ -3546,9 +3524,9 @@ function teacherOrderRows(rows, recordType, teacher = {}) {
     supplementNote: String(row.supplement_note || ""),
     reviewNote: String(row.review_note || ""),
     hasFaceRequest: Boolean(row.face_request_id),
-    teacherId: String(row.teacher_id || teacher.teacherId || ""),
-    teacherCode: String(row.teacher_code || teacher.teacherCode || ""),
-    teacherName: String(row.teacher_name || teacher.teacherName || ""),
+    teacherId: String(row.teacher_id || ""),
+    teacherCode: String(row.teacher_code || ""),
+    teacherName: String(row.teacher_name || ""),
     storeId: String(row.store_id || ""),
     storeCode: String(row.store_code || ""),
     storeName: String(row.store_name || ""),
@@ -3563,12 +3541,12 @@ function teacherOrderRows(rows, recordType, teacher = {}) {
   }));
 }
 
-function teacherOrderPage(rows, recordType, limit, teacher) {
+function teacherOrderPage(rows, recordType, limit) {
   const hasMore = rows.length > limit;
   const visible = rows.slice(0, limit);
   const last = visible[visible.length - 1];
   return {
-    records: teacherOrderRows(visible, recordType, teacher),
+    records: teacherOrderRows(visible, recordType),
     page: {
       hasMore,
       nextCursor: hasMore && last
@@ -3578,11 +3556,11 @@ function teacherOrderPage(rows, recordType, limit, teacher) {
   };
 }
 
-function teacherNumberedOrderPage(rows, recordType, total, page, pageSize, teacher) {
+function teacherNumberedOrderPage(rows, recordType, total, page, pageSize) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   if (total > 0 && page > totalPages) fail("老师业务明细页码超出有效范围。", "PAGE_OUT_OF_RANGE");
   return {
-    records: teacherOrderRows(rows, recordType, teacher),
+    records: teacherOrderRows(rows, recordType),
     page: {
       total,
       page,
@@ -3753,12 +3731,15 @@ async function getTeacherWorkspace(event = {}) {
               s.district AS store_district, s.address_detail AS store_address_detail,
               c.customer_code, c.customer_name,
               p.product_code, p.product_name,
-              ${alias}.teacher_id, business_teacher.teacher_code, business_teacher.teacher_name
+              business_teacher.id AS teacher_id,
+              business_teacher.teacher_code, business_teacher.teacher_name
          FROM public.${table} ${alias}
          JOIN public.stores s ON s.id = ${alias}.store_id
          JOIN public.customers c ON c.id = ${alias}.customer_id
          JOIN public.products p ON p.id = ${alias}.product_id
-    LEFT JOIN public.teachers business_teacher ON business_teacher.id = ${alias}.teacher_id
+    LEFT JOIN public.teachers business_teacher
+           ON business_teacher.id = ${alias}.teacher_id
+          AND business_teacher.staff_account_id = ${alias}.submitted_by_account_id
         WHERE ${clauses.join(" AND ")}
         ORDER BY ${alias}.submitted_at DESC, ${alias}.id DESC
         LIMIT ${listLimit}
@@ -3868,15 +3849,15 @@ async function getTeacherWorkspace(event = {}) {
   if (options.recordId) {
     if (!options.recordType) fail("读取老师工单详情时必须指定工单类型。", "BAD_REQUEST");
     const rows = await query(options.recordType, { detailMode: true });
-    const order = teacherOrderRows(rows, TEACHER_WORKSPACE_TYPE_CONFIG[options.recordType].baseRecordType, profile)[0];
+    const order = teacherOrderRows(rows, TEACHER_WORKSPACE_TYPE_CONFIG[options.recordType].baseRecordType)[0];
     if (!order) fail("未找到当前老师有权查看的工单。", "ORDER_NOT_FOUND");
     return { ok: true, profile, record: order };
   }
   if (options.recordType) {
     const queryResult = await query(options.recordType);
     const page = options.numberedPage
-      ? teacherNumberedOrderPage(queryResult.rows, options.recordType, queryResult.total, options.page, options.pageSize, profile)
-      : teacherOrderPage(queryResult, options.recordType, options.limit, profile);
+      ? teacherNumberedOrderPage(queryResult.rows, options.recordType, queryResult.total, options.page, options.pageSize)
+      : teacherOrderPage(queryResult, options.recordType, options.limit);
     const overview = options.includeOverview ? await loadOverview() : {};
     return { ok: true, profile, page: { records: page.records, ...page.page }, ...overview };
   }
@@ -3886,8 +3867,8 @@ async function getTeacherWorkspace(event = {}) {
     query("RECHARGE", { legacyCombined: true }),
     query("VERIFICATION", { legacyCombined: true })
   ]);
-  const rechargePage = teacherOrderPage(rechargeRows, "RECHARGE", options.limit, profile);
-  const verificationPage = teacherOrderPage(verificationRows, "VERIFICATION", options.limit, profile);
+  const rechargePage = teacherOrderPage(rechargeRows, "RECHARGE", options.limit);
+  const verificationPage = teacherOrderPage(verificationRows, "VERIFICATION", options.limit);
   return {
     ok: true,
     profile,
