@@ -69,14 +69,6 @@ function harnessFor(options = {}) {
       return null;
     },
     requireTeacherStatusSchema: async () => { state.order.push("schema:teacher-status"); },
-    requireCompleteTeacherFaceForActivation: (teacher, status) => {
-      if (String(status || "").toUpperCase() !== "ACTIVE") return;
-      if (teacher?.face_enrollment_status !== "ENROLLED"
-          || !teacher?.face_person_id
-          || !/^pg:\/\/[^/]+\/.+/.test(String(teacher?.profile_photo_file_id || ""))) {
-        failed("老师人脸资料不完整", "TEACHER_FACE_REQUIRED");
-      }
-    },
     ensureTeacherDatabaseProfile: async () => {
       state.order.push("repair:teacher-profile");
       if (state.profileRepairFails) failed("老师资料无法补全", "TEACHER_PROFILE_MISSING");
@@ -168,14 +160,6 @@ async function readLegacyTeacherProfile({ repairFails = false, completeFace = tr
     ROLES: new Set(["hq", "store", "teacher"]),
     getStoreBindingLayout: async () => "stores",
     requireTeacherStatusSchema: async () => { state.schemaChecks += 1; },
-    requireCompleteTeacherFaceForActivation: (teacher, status) => {
-      if (String(status || "").toUpperCase() !== "ACTIVE") return;
-      if (teacher?.face_enrollment_status !== "ENROLLED"
-          || !teacher?.face_person_id
-          || !/^pg:\/\/[^/]+\/.+/.test(String(teacher?.profile_photo_file_id || ""))) {
-        failed("老师人脸资料不完整", "TEACHER_FACE_REQUIRED");
-      }
-    },
     ensureTeacherDatabaseProfile: async () => {
       state.repairCalls += 1;
       if (repairFails) failed("老师主档仍缺失", "TEACHER_PROFILE_MISSING");
@@ -206,46 +190,46 @@ async function readLegacyTeacherProfile({ repairFails = false, completeFace = tr
 }
 
 (async () => {
-  // Login reads may repair a missing teacher master only when the repaired
-  // profile also proves the complete creation-time face invariant.
+  // Login reads may repair a missing teacher master without requiring legacy
+  // teacher face fields; phone/account identity is authoritative.
   {
-    const { state, profile } = await readLegacyTeacherProfile();
+    const { state, profile } = await readLegacyTeacherProfile({ completeFace: false });
     assert.equal(profile.role, "teacher");
     assert.equal(profile.teacherId, "7");
     assert.equal(profile.teacherStatus, "ACTIVE");
-    assert.equal(profile.faceEnrollmentStatus, "ENROLLED");
+    assert.equal(profile.faceEnrollmentStatus, undefined,
+      "login profile must not expose a retired teacher-face state");
     assert.deepEqual(state, { schemaChecks: 1, repairCalls: 1 });
   }
-  await assert.rejects(readLegacyTeacherProfile({ completeFace: false }),
-    (error) => error.code === "TEACHER_FACE_REQUIRED");
   await assert.rejects(readLegacyTeacherProfile({ repairFails: true }),
     (error) => error.code === "TEACHER_PROFILE_MISSING");
 
-  // ACTIVE succeeds only with the complete creation-time face proof and flips
-  // PostgreSQL before CloudBase.
+  // ACTIVE is independent of teacher face state and flips PostgreSQL before
+  // CloudBase.
   {
-    const { state, main } = harnessFor({ accountStatus: "ARCHIVED", teacherStatus: "ARCHIVED" });
+    const { state, main } = harnessFor({
+      accountStatus: "ARCHIVED", teacherStatus: "ARCHIVED", completeFace: false
+    });
     const result = await setTeacherStatus(main, "ACTIVE");
     assert.equal(result.ok, true);
     assert.equal(result.accountStatus, "ACTIVE");
     assert.equal(result.teacherStatus, "ACTIVE");
     assert.equal(result.credentialStatus, "ACTIVE");
     assert.deepEqual(state.order, ["schema:teacher-status", "database:ACTIVE", "identity:ACTIVE"],
-      "complete-face activation updates the business master before enabling the credential");
+      "activation updates the business master before enabling the credential");
     assert.equal(state.authCalls[0].userStatus, "ACTIVE");
   }
 
-  // Incomplete legacy rows can only be archived/cleaned; activation is denied
-  // before PostgreSQL or CloudBase is changed.
+  // A legacy no-photo row is activated normally; face state is not consulted.
   {
     const { state, main } = harnessFor({
       accountStatus: "ARCHIVED", teacherStatus: "ARCHIVED", completeFace: false
     });
-    await assert.rejects(setTeacherStatus(main, "ACTIVE"),
-      (error) => error.code === "TEACHER_FACE_REQUIRED");
-    assert.deepEqual(state.order, ["schema:teacher-status"]);
-    assert.equal(state.authCalls.length, 0);
-    assert.equal(state.accountStatus, "ARCHIVED");
+    const result = await setTeacherStatus(main, "ACTIVE");
+    assert.equal(result.ok, true);
+    assert.deepEqual(state.order, ["schema:teacher-status", "database:ACTIVE", "identity:ACTIVE"]);
+    assert.equal(state.authCalls.length, 1);
+    assert.equal(state.accountStatus, "ACTIVE");
   }
 
   // ARCHIVED succeeds and makes both database identities unavailable before
@@ -343,7 +327,7 @@ async function readLegacyTeacherProfile({ repairFails = false, completeFace = tr
     const { state, main } = harnessFor();
     await assert.rejects(
       main({
-        action: "provisionStaff", staffName: "必须人脸", phone: "13900000051",
+        action: "provisionStaff", staffName: "专用服务", phone: "13900000051",
         role: "teacher", initialPassword: "Abc!12345"
       }),
       (error) => error.code === "TEACHER_CREATE_SERVICE_REQUIRED"

@@ -224,8 +224,8 @@ result that blocks the old CloudBase credentials. Only then execute
 `048_optional_teacher_face_and_experience_quota_lifecycle.sql` (or the seven
 ordered `048-01` through `048-07` CloudBase console parts). Next execute the
 ordered `049-01` through `049-13` parts and `049-readonly-verify.sql`, then 050.
-For a database that already ran historical 051/052, deploy `staffAccount v66`,
-`faceRecognition v78`, and `teacherCreate v5` before executing 053. Run the 053
+For a database that already ran historical 051/052, deploy `staffAccount v67`,
+`faceRecognition v79`, and `teacherCreate v6` before executing 053. Run the 053
 read-only verification and require all seven rows to be `RETIRED`, remove the
 old teacher-face reconciliation Timer, then deploy `verificationPhoto v5` and
 the current static frontend. A fresh database still follows numeric order; 053
@@ -248,22 +248,20 @@ headquarters-only. Migration 048 leaves historical teacher face columns nullable
 archives rather than deletes removed experience configurations, makes a new
 configuration immediately replace the current balance, and resets only active
 teacher/product/configuration combinations at the Shanghai month boundary.
-Migration 049 fixes the 048 quota-function column ambiguity, records the face
-subject explicitly, and atomically binds a teacher enrollment-photo snapshot,
-teacher live photo, and teacher quota usage to every new EXPERIENCE record while
-retaining the selected customer as its business owner. Historical EXPERIENCE
-records remain CUSTOMER-subject evidence.
+Migration 049 is retained as historical deployment order. Migration 054
+supersedes its teacher-face EXPERIENCE path: only the logged-in teacher can
+create a new EXPERIENCE record, the teacher quota is consumed atomically, and
+both immutable receipt photos belong to the selected customer. Historical rows
+retain their original face-subject metadata.
 Migration 050 repairs legacy teacher master rows and quota write ambiguity.
 Migrations 051/052 describe a retired orchestration design and are retained
 only as immutable migration history. Migration 053 deletes only that design's
 `teacher_face_operations` table and six private helpers; it does not delete
 teachers, staff accounts, face references, quota ledgers, work orders, or
-business history. Current teacher creation requires a consented face and uses
-the independent, single-call `teacherCreate v5` service. The service reports
-success only after the face person, private original photo, database reference,
-exact readback, and final account activation are all confirmed. Teacher detail
-and account services expose no later enrollment, replacement, or modification
-path. An incomplete legacy teacher cannot be activated or logged in and must be
-cleaned before being recreated through the creation page.
+business history. Current teacher creation uses the independent, single-call
+`teacherCreate v6` service and requires only name, unique phone, and password.
+It creates no teacher face person or photo. Success requires the Auth account,
+`staff_accounts` row, and `teachers` row to be read back as ACTIVE. Teacher
+activation and login are face-independent.
 Neither photo migration creates the CloudBase Storage
 buckets, which must be created separately as private infrastructure.

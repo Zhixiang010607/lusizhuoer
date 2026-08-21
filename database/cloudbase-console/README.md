@@ -80,7 +80,7 @@ ROLLBACK;
 
 048 不删除老师产品额度的历史流水：`delete` 只封存当前可用配置，充值、
 月度重置和体验核销历史仍保留；重新配置会立即把当前可用次数改为新值。它
-也将老师人脸改为可后续补充／替换的资料，不再是老师账号活跃或业务选择的前置条件。
+也确认老师人脸不是老师账号活跃或业务选择的前置条件；当前版本已完全取消老师人脸采集。
 每月上海时间 1 日 00:00 的重置只处理活跃老师、活跃产品和活跃额度配置。
 
 ## 051 / 052 已退役
@@ -90,9 +90,17 @@ ROLLBACK;
 
 ## 053 删除旧老师人脸 Saga
 
-先部署 `staffAccount v66`、`faceRecognition v78` 和 `teacherCreate v5`，再按
+先部署 `staffAccount v67`、`faceRecognition v79` 和 `teacherCreate v6`，再按
 [`053-README.md`](053-README.md) 执行 `053-01-retire-legacy-teacher-face-saga.sql`，最后运行
 `053-readonly-verify.sql`，7 行必须全部为 `RETIRED`。
+
+## 054 老师赠送体验使用客户人脸
+
+完成 053 后，按 [`054-README.md`](054-README.md) 完整执行
+`054-01-teacher-only-customer-face-experience.sql`，然后部署
+`faceRecognition v79`、`staffAccount v67`、`teacherCreate v6` 和当前静态前端。
+054 会在数据库层把体验创建限定为额度所属的当前老师账号，并把新体验凭证切换为
+客户登记照与客户现场照；历史照片不改写。
 
 ### 048 在当前控制台报 `unterminated dollar-quoted string`
 

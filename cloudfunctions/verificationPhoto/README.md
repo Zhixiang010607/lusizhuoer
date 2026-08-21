@@ -146,10 +146,10 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 1. 确认迁移 039 表和真实桶均存在，并已执行完整的 `046_teacher_face_and_experience_quotas.sql`（CloudBase SQL 编辑器为 `046-01` 至 `046-08`）。
 2. 部署 `faceRecognition-v69.zip` 与 `staffAccount v55`，分别调用 `health` 确认 `v69`、`v55`。在仅限总部使用、已加载当前 `cloudbase-phone-auth.js` 的临时维护页面中，以已登录总部身份执行 `await CloudBasePhoneAuth.retireOperationAccounts()`；必须等待成功封锁旧运营账号的 CloudBase 凭据。该维护页不是最终静态发布。
 3. 只有该总部维护动作成功后，才在 CloudBase SQL 编辑器依次执行 `047-01-retire-operation-accounts.sql`、`047-02-hq-reviewer-guard.sql`。它保留历史业务和审核外键，但永久封存旧运营身份并将审核收紧为总部独占。
-4. 依次执行并验收 049、050；部署 `faceRecognition v78`、`staffAccount v66` 和 `teacherCreate v5` 后执行 053 并确认 7 行全部 `RETIRED`。删除旧 `reconcile-teacher-face-operations` Timer，保留老师额度月初 Timer。
+4. 依次执行并验收 049、050；部署 `faceRecognition v79`、`staffAccount v67` 和 `teacherCreate v6` 后执行 053 并确认 7 行全部 `RETIRED`。删除旧 `reconcile-teacher-face-operations` Timer，保留老师额度月初 Timer。
 5. 新建或更新函数 `verificationPhoto`，上传 `verificationPhoto-v5.zip`，配置上述环境变量、512 MB 内存和 60 秒超时。
 6. 对 `verificationPhoto` 调用 `{ "action": "health" }`，确认 `version: "v5"`、`sharedVersion: "v5"` 与全部就绪字段，再保存本节的 triggers-only 配置。
-7. 只有三个函数均验证成功后，才发布当前静态前端并强制刷新浏览器；不要先发前端。
+7. 只有相关函数均验证成功后，才发布当前静态前端并强制刷新浏览器；不要先发前端。
 
 `verificationPhoto` 应返回类似：
 

@@ -15,14 +15,14 @@ const detail = read("staff-detail.js");
 const detailHtml = read("staff-detail.html");
 
 for (const html of [managementHtml, createHtml, detailHtml, read("teacher-detail.html")]) {
-  assert.match(html, /styles\.css\?v=0\.15\.5[012]/, "every teacher management surface must refresh the shared visual system");
+  assert.match(html, /styles\.css\?v=0\.15\.5[0-3]/, "every teacher management surface must refresh the shared visual system");
   assert.match(html, /<meta\s+name="viewport"/, "teacher pages must declare a mobile viewport");
 }
 assert.match(managementHtml, /teacher-management\.js\?v=0\.14\.28/, "teacher directory behavior must be cache-busted");
-assert.match(createHtml, /teacher-create\.js\?v=0\.4\.0/, "teacher creation behavior must be cache-busted");
-assert.match(createHtml, /cloudbase-phone-auth\.js\?v=0\.19\.3/,
-  "teacher creation must refresh the prevalidation and creation API wrapper");
-assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.8/, "teacher home behavior must be cache-busted");
+assert.match(createHtml, /teacher-create\.js\?v=0\.5\.0/, "teacher creation behavior must be cache-busted");
+assert.match(createHtml, /cloudbase-phone-auth\.js\?v=0\.19\.4/,
+  "teacher creation must refresh the no-photo creation API wrapper");
+assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.9/, "teacher home behavior must be cache-busted");
 
 for (const label of ["老师姓名", "老师编号", "联系电话", "状态", "体验额度", "账号操作"]) {
   assert.ok(management.includes(`data-label="${label}"`), `mobile teacher cards must expose the ${label} field label`);
@@ -34,32 +34,28 @@ assert.match(management, /textContent = `\$\{action\}中…`[\s\S]{0,220}aria-bu
 assert.match(management, /finally \{[\s\S]{0,160}await loadTeachers\(\)/, "teacher list must reconcile from the server even after a status request error");
 assert.match(management, /AUTH_CREDENTIAL_MISSING[\s\S]{0,120}AUTH_ACCOUNT_MISSING[\s\S]{0,320}压力测试或历史占位账号[\s\S]{0,180}安全保持封存/, "teacher list must explain that a credential-less placeholder cannot be activated");
 assert.match(management, /TEACHER_PROFILE_MISSING[\s\S]{0,260}老师资料修复迁移/, "teacher status errors must turn a missing profile code into an actionable recovery message");
-assert.match(createHtml, /老师人脸（必填）/, "new teachers must show face capture as mandatory");
-assert.doesNotMatch(createHtml, /teacher-face-optional|老师人脸（可选）|可后续补录/, "new-teacher UI must not retain the optional disclosure or copy");
-assert.match(createHtml, /id="teacherFaceConsent"[^>]*required/, "mandatory face consent must use native form semantics");
-assert.match(create, /Boolean\(capturedFaceImage\)[\s\S]{0,120}faceValidated[\s\S]{0,220}Boolean\(\$\("teacherFaceConsent"\)\.checked\)/,
-  "teacher submit must require capture, prevalidation and consent before the formal request");
-assert.match(create, /await window\.CloudBasePhoneAuth\.validateTeacherCreateCapture\(\{[\s\S]{0,220}faceImageBase64: imageUnderValidation/,
-  "the page must prevalidate the exact captured JPEG before enabling creation");
-assert.match(create, /validation\?\.accepted !== true[\s\S]{0,180}faceValidated = true/,
-  "only an explicit accepted service response may mark the photograph as validated");
-assert.doesNotMatch(create, /CloudBasePhoneAuth\.provisionTeacher\(/, "teacher creation must not keep a generic no-face submit path");
-assert.match(create, /setAttribute\("aria-busy", "true"\)[\s\S]{0,220}正在复检并创建…/,
-  "teacher creation must show a clear recheck state while the formal request is running");
+assert.match(createHtml, /老师不采集照片、不建立人脸/,
+  "new-teacher UI must state that creation has no teacher photograph or face identity");
+assert.match(createHtml, /无需照片[\s\S]{0,600}体验核销自动绑定老师，现场只核验客户人脸/,
+  "the visible account rules must make the no-photo customer-verification policy explicit");
+assert.doesNotMatch(`${createHtml}\n${create}`,
+  /teacherFaceConsent|teacherFaceCamera|capturedFaceImage|faceImageBase64|validateTeacherCreateCapture|createTeacherWithFace/,
+  "teacher creation must expose no camera, consent, face payload or face API");
 assert.match(create,
-  /await window\.CloudBasePhoneAuth\.createTeacherWithFace\(\{[\s\S]{0,420}faceImageBase64: capturedFaceImage[\s\S]{0,220}consent: true/,
-  "the page must await one dedicated teacher creation call carrying the original photograph");
+  /Boolean\(\$\("personCreateName"\)\.value\.trim\(\)\)[\s\S]{0,180}Boolean\(\$\("personPhone"\)\.value\.trim\(\)\)[\s\S]{0,180}passwordIsValid/,
+  "teacher submit readiness must depend only on name, phone and password");
+assert.match(create, /await window\.CloudBasePhoneAuth\.createTeacher\(\{[\s\S]{0,260}staffName,[\s\S]{0,120}phone,[\s\S]{0,120}initialPassword/,
+  "the page must await one lightweight teacher creation request");
 assert.match(create,
-  /function completedTeacherCreation\(result\)[\s\S]{0,1000}proof\?\.complete[\s\S]{0,1000}ACTIVE[\s\S]{0,900}ENROLLED/,
-  "visible success must require the server's complete proof and all final active/enrolled states");
+  /function completedTeacherCreation\(result\)[\s\S]{0,1200}proof\?\.complete[\s\S]{0,1000}teacherStatus !== "ACTIVE"[\s\S]{0,240}accountStatus !== "ACTIVE"[\s\S]{0,240}authStatus !== "ACTIVE"/,
+  "visible success must require the server's complete proof and all three active states");
+assert.doesNotMatch(create, /ENROLLED|personId|photoSha256|photoBytes/,
+  "visible success must not require or report any teacher face artifact");
 assert.match(create,
-  /personId[\s\S]{0,900}\^\[a-f0-9\]\{64\}\$[\s\S]{0,240}Number\.isSafeInteger\(photoBytes\)[\s\S]{0,160}photoBytes <= 0/,
-  "visible success must require the exact PersonId, 64-hex photo digest and positive byte count");
+  /function setFormLocked\(locked\)[\s\S]{0,300}personCreateName[\s\S]{0,160}personPhone[\s\S]{0,160}personInitialPassword/,
+  "the single in-flight request must lock all three identity fields");
 assert.match(create,
-  /function setFormLocked\(locked\)[\s\S]{0,260}personCreateName[\s\S]{0,160}personPhone[\s\S]{0,160}personInitialPassword[\s\S]{0,160}teacherFaceConsent[\s\S]{0,180}retakeTeacherFace/,
-  "the single in-flight request must lock every identity field and the captured photograph");
-assert.match(create,
-  /CLIENT_REQUEST_TIMEOUT[\s\S]{0,160}outcomeUncertain = true[\s\S]{0,700}setFormLocked\(outcomeUncertain\)/,
+  /signature\.includes\("CLIENT_REQUEST_TIMEOUT"\)[\s\S]{0,500}禁止在本页重复提交[\s\S]{0,700}!outcomeUncertain\) setFormLocked\(false\)/,
   "a timeout must keep the current page permanently locked instead of enabling a concurrent retry");
 for (const legacy of [
   "beginTeacherProvisionWithFace", "provisionTeacherWithFace", "getTeacherFaceOperationStatus",
@@ -77,8 +73,8 @@ assert.match(detail, /AUTH_CREDENTIAL_MISSING[\s\S]{0,120}AUTH_ACCOUNT_MISSING[\
 assert.doesNotMatch(`${detailHtml}\n${detail}`,
   /staffFaceAction|teacherFaceUpdate|upsertTeacherFace|补录老师人脸|更换老师人脸/,
   "teacher home must expose no face add, replacement or modification workflow");
-assert.match(detail, /不能在本页补录或更换/,
-  "teacher home must explain that an incomplete legacy record must be recreated");
+assert.match(detail, /现场只核验客户人脸/,
+  "teacher home must explain that experience verification scans only the customer");
 
 assert.match(css, /--teacher-action:\s*#173a66/, "teacher primary actions must use the restrained navy palette");
 assert.match(css, /--teacher-danger-bg:\s*#fff6f5[\s\S]{0,160}--teacher-danger-ink:\s*#96342d/, "teacher destructive actions must use a soft archived-status red palette");
@@ -93,7 +89,12 @@ assert.match(mobile, /teacher-directory-table tbody\s*\{\s*display:\s*grid/, "ph
 assert.match(mobile, /content:\s*attr\(data-label\)/, "phone teacher cards must show field labels");
 assert.match(mobile, /teacher-directory-table \.teacher-status-action\s*\{\s*width:\s*100%;\s*min-height:\s*44px/, "phone teacher account actions must meet the 44px touch target");
 assert.match(mobile, /body\[data-hq-create="teacher"\] \.hq-create-main,[\s\S]{0,180}width:\s*calc\(100% - 16px\)/, "teacher create and detail pages must use the phone width without horizontal overflow");
-assert.match(css, /@media \(max-width: 900px\)[\s\S]{0,800}teacher-face-enrollment-layout\s*\{\s*grid-template-columns:\s*1fr/, "mandatory face enrollment must stack into one readable column on phones");
+assert.doesNotMatch(createHtml, /teacher-face-enrollment-layout/,
+  "the teacher creation page must not retain the obsolete face-enrollment layout");
+assert.match(css, /teacher-create-rule-grid\s*\{[^}]*repeat\(3,/,
+  "teacher creation rules must use three desktop columns");
+assert.match(css, /@media \(max-width: 640px\)[\s\S]*teacher-create-rule-grid\s*\{\s*grid-template-columns:\s*1fr/,
+  "teacher creation rules must stack into one mobile column");
 assert.match(mobile, /teacher-experience-form (input|select|textarea)[\s\S]{0,220}min-width:\s*0[\s\S]{0,220}font-size:\s*16px/, "quota inputs must fit narrow screens without mobile zoom");
 
 console.log("teacher UI responsive contract: PASS");

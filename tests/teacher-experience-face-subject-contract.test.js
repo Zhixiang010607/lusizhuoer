@@ -1,22 +1,21 @@
 "use strict";
 
-// Regression contract for the post-048 teacher-face EXPERIENCE path.  It is
-// deliberately source-level: these assertions exercise the authorization and
-// transactional shape that CloudBase PostgreSQL cannot be run in locally.
-
+// Migration 054 contract: EXPERIENCE is gifted by the logged-in teacher,
+// consumes that teacher's quota, and verifies/stores the selected customer.
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
-const migration = read("database/migrations/049_teacher_experience_face_subject_and_quota_fixes.sql");
-const staff = read("cloudfunctions/staffAccount/index.js");
 const face = read("cloudfunctions/faceRecognition/index.js");
-const teacherCreate = read("cloudfunctions/teacherCreate/index.js");
+const business = read("store-business.js");
+const auth = read("auth-ui.js");
+const experiencePage = read("verification-experience.html");
+const detail = read("business-detail.js");
+const migration = read("database/migrations/054_teacher_only_customer_face_experience.sql");
+const consoleMigration = read("database/cloudbase-console/054-01-teacher-only-customer-face-experience.sql");
 const balanceMigration = read("database/migrations/044_refund_application_workflow.sql");
-const operationRetirement = read("database/migrations/047_retire_operation_accounts.sql");
-const consoleDir = path.join(root, "database", "cloudbase-console");
 
 function functionSource(source, name) {
   const marker = new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\(`);
@@ -47,202 +46,84 @@ function sqlFunction(source, name) {
 function transactionBody(source) {
   const begin = source.indexOf("BEGIN;");
   const commit = source.lastIndexOf("\nCOMMIT;");
-  assert.ok(begin >= 0 && commit > begin, "console part must be a complete transaction");
+  assert.ok(begin >= 0 && commit > begin, "migration must be a complete transaction");
   return source.slice(begin + "BEGIN;".length, commit).trim().replace(/\r\n/g, "\n");
 }
 
-// Migration 049 is deployable one CloudBase paste at a time.  The console
-// sequence is not merely documentation: it must reproduce the canonical
-// migration exactly so the live database gets the same security boundary.
-const consoleParts = fs.readdirSync(consoleDir)
-  .filter((filename) => /^049-\d{2}-.+\.sql$/.test(filename) && !filename.includes("readonly-verify"))
-  .sort();
-assert.ok(consoleParts.length >= 2, "049 must ship as numbered CloudBase SQL-editor parts");
-for (const filename of consoleParts) {
-  const source = read(path.join("database", "cloudbase-console", filename));
-  assert.ok(Buffer.byteLength(source, "utf8") < 9000, `${filename} must stay SQL-editor safe`);
-  assert.match(source, /BEGIN;[\s\S]*COMMIT;\s*$/, `${filename} must be a standalone transaction`);
-  assert.equal((source.match(/\$\$/g) || []).length % 2, 0, `${filename} must close every SQL function`);
-}
-assert.equal(
-  consoleParts.map((filename) => transactionBody(read(path.join("database", "cloudbase-console", filename)))).join("\n\n"),
-  transactionBody(migration),
-  "049 console parts must reconstruct the canonical migration exactly"
-);
-const readonlyFilename = fs.existsSync(path.join(consoleDir, "049-readonly-verify.sql"))
-  ? "049-readonly-verify.sql"
-  : "049-14-readonly-verify.sql";
-const readonlyVerification = read(path.join("database", "cloudbase-console", readonlyFilename));
-assert.match(readonlyVerification, /^\s*(?:--[^\n]*\n)*SELECT\s+/i,
-  "049 must include a separately runnable read-only acceptance query");
-assert.doesNotMatch(readonlyVerification, /\b(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP|BEGIN|COMMIT)\b/i,
-  "049 acceptance query must not mutate production data");
+const accessBlock = auth.slice(auth.indexOf("const access ="), auth.indexOf("let session ="));
+const teacherAccess = /teacher:\s*new Set\(\[([^\]]+)\]/.exec(accessBlock)?.[1] || "";
+const storeAccess = /store:\s*new Set\(\[([^\]]+)\]/.exec(accessBlock)?.[1] || "";
+const hqAccess = /hq:\s*new Set\(\[([^\]]+)\]/.exec(accessBlock)?.[1] || "";
+assert.match(teacherAccess, /verification-experience\.html/, "teacher access retains EXPERIENCE");
+assert.doesNotMatch(storeAccess, /verification-experience\.html/, "store access removes EXPERIENCE");
+assert.doesNotMatch(hqAccess, /verification-experience\.html/, "HQ access removes EXPERIENCE");
+assert.match(business, /page === "verification-experience" && session\?\.role !== "teacher"\) return/,
+  "stale non-teacher EXPERIENCE pages stop before loading business data");
 
-// Fix both observed SQL-state regressions.  RETURNS TABLE output names are
-// PL/pgSQL variables, so quota-table columns must always be qualified; the
-// readiness CTE must also be in scope where its function definition is read.
-const quotaUpsert = sqlFunction(migration, "upsert_teacher_product_experience_quota");
-const quotaDelete = sqlFunction(migration, "delete_teacher_product_experience_quota");
-for (const [name, source] of [["upsert", quotaUpsert], ["delete", quotaDelete]]) {
-  assert.match(source, /FROM public\.teacher_product_experience_quotas AS quota[\s\S]{0,180}WHERE quota\.teacher_id = p_teacher_id[\s\S]{0,100}quota\.product_id = p_product_id/i,
-    `${name} must qualify teacher/product fields and avoid SQLSTATE 42702`);
-  assert.doesNotMatch(source, /WHERE\s+teacher_id\s*=\s*p_teacher_id/i,
-    `${name} must not use the ambiguous unqualified teacher_id output variable`);
-}
-assert.match(quotaUpsert, /ON CONFLICT ON CONSTRAINT uq_teacher_product_experience_quota DO NOTHING/i,
-  "quota upsert must use the named unique constraint rather than another ambiguous output-column conflict target");
+assert.match(experiencePage, /赠送老师（当前账号）/, "teacher giver is account-bound");
+assert.match(experiencePage, /客户本人 1:1 人脸验证/, "selected customer is the face subject");
+assert.match(experiencePage, /客户建档照和客户本次现场照/, "receipt copy promises customer photos");
+assert.doesNotMatch(experiencePage, /老师本人 1:1|验证老师|老师现场体验核销人脸/,
+  "EXPERIENCE exposes no teacher-face capture copy");
+const setupVerification = functionSource(business, "setupVerification");
+assert.match(setupVerification, /action: "verifyCustomerFace"/,
+  "normal and EXPERIENCE use the same customer 1:1 action");
+assert.doesNotMatch(setupVerification, /verifyTeacherExperienceFace|teacherFaceUnavailable/,
+  "EXPERIENCE does not inspect or capture the teacher face");
+assert.match(setupVerification, /faceSubjectType: "CUSTOMER"[\s\S]{0,100}faceSubjectTeacherId: ""/,
+  "new EXPERIENCE handoff state is customer evidence");
 
-const quotaSchema = functionSource(staff, "requireTeacherExperienceQuotaSchema");
-const readinessDefinitionInScope = /WITH function_definitions AS \([\s\S]*?AS recharge_definition[\s\S]*?\)[\s\S]*?SELECT[\s\S]*?(?:FROM|CROSS JOIN) function_definitions/i.test(quotaSchema)
-  || /COALESCE\(\s*PG_GET_FUNCTIONDEF\(TO_REGPROCEDURE\([\s\S]*?\)\),\s*''\s*\)\s*~\*/i.test(quotaSchema);
-assert.ok(readinessDefinitionInScope,
-  "quota readiness SQL must keep its function definition in scope and avoid SQLSTATE 42703");
-assert.doesNotMatch(quotaSchema, /recharge_definition\s*~\*/i,
-  "quota readiness SQL must not reference the old unjoined recharge_definition alias");
-for (const [name, expected] of [
-  ["getHqTeacherExperienceEntitlements", "FROM public.teacher_product_experience_quotas"],
-  ["upsertTeacherExperienceEntitlement", "public.upsert_teacher_product_experience_quota("],
-  ["rechargeTeacherExperienceEntitlement", "public.recharge_teacher_product_experience_quota("]
-]) {
-  const source = functionSource(staff, name);
-  assert.match(source, /await requireTeacherExperienceQuotaSchema\(\);/,
-    `${name} must use the valid schema guard before its database path`);
-  assert.ok(source.includes(expected), `${name} must retain its read/configure/recharge database operation`);
-}
+const entitlements = functionSource(face, "getTeacherExperienceEntitlements");
+assert.match(entitlements, /caller\.role !== "teacher"[\s\S]{0,160}FORBIDDEN/,
+  "store and HQ cannot read the EXPERIENCE creation entitlement path");
+assert.match(entitlements, /positiveDatabaseId\(caller\.teacherId, "老师"\)/,
+  "entitlements use the authenticated teacher ID");
+const create = functionSource(face, "createVerificationApplication");
+assert.match(create, /experienceVerification && caller\.role !== "teacher"[\s\S]{0,180}FORBIDDEN/,
+  "store and HQ are rejected server-side for EXPERIENCE creation");
+assert.match(create, /caller\.role === "teacher" \? caller\.teacherId : requestedTeacherId/,
+  "teacher identity comes from the authenticated account");
+assert.match(create, /create_experience_verification_with_customer_face_photo/,
+  "EXPERIENCE calls the customer-photo atomic entry point");
+assert.doesNotMatch(create, /TEACHER_FACE_REQUIRED_FOR_EXPERIENCE|face_enrollment_status|face_person_id/,
+  "teacher face does not gate EXPERIENCE creation");
 
-// Identity comes from CloudBase auth UID, never from an event-provided staff,
-// store, or teacher identity.  Store users are pinned to their store; teacher
-// users are pinned to themselves; HQ is intentionally allowed to select a
-// live store/teacher for centralized management.
-const activeBusiness = functionSource(face, "activeBusinessCaller");
-assert.match(activeBusiness, /WHERE a\.auth_uid = \$\{sqlText\(uid\)\}/,
-  "business caller must resolve the actor from the authenticated UID");
-assert.match(activeBusiness, /requestedStore && requestedStore !== String\(store\.storeId\)[\s\S]{0,180}FORBIDDEN/,
-  "a store account must not submit work for another store");
-assert.match(activeBusiness, /if \(account\.role_code === "teacher"\)[\s\S]{0,280}account\.teacher_id/,
-  "a teacher caller must have a server-resolved teacher profile");
-assert.match(activeBusiness, /teacherId: account\.role_code === "teacher" \? String\(account\.teacher_id\)/,
-  "a teacher caller must get its canonical teacher ID from the server profile");
-
-const rechargeCreate = functionSource(face, "createRechargeApplication");
-const verificationCreate = functionSource(face, "createVerificationApplication");
-for (const [name, source, mismatch] of [
-  ["recharge/refund", rechargeCreate, "老师账号只能把"],
-  ["verification", verificationCreate, "老师账号只能把核销绑定到本人"]
-]) {
-  assert.match(source, /caller\.role === "teacher"[\s\S]{0,260}FORBIDDEN/,
-    `${name} must reject a teacherId supplied for a different teacher`);
-  assert.ok(source.includes(mismatch), `${name} must return an actionable identity-mismatch message`);
-}
-assert.match(rechargeCreate, /SELECT \$\{sqlText\(applicationType\)\}, \$\{caller\.storeId\}[\s\S]{0,420}\$\{caller\.staffId\}/,
-  "recharge/refund record store and submitter must come from the caller");
-assert.match(verificationCreate, /\$\{caller\.storeId\}::bigint,[\s\S]{0,420}\$\{caller\.staffId\}::bigint/,
-  "verification record store and submitter must come from the caller");
-assert.match(verificationCreate, /if \(experienceVerification\) \{[\s\S]{0,180}requireTeacherExperienceQuotaLifecycleSchema\(\);[\s\S]{0,180}requireTeacherExperienceFaceSubjectSchema\(\);/,
-  "only EXPERIENCE must require the teacher-face subject schema");
-assert.match(verificationCreate, /if \(experienceVerification && \([\s\S]{0,420}TEACHER_FACE_REQUIRED_FOR_EXPERIENCE/,
-  "the API must reject a selected teacher missing enrolled face, PersonId, or retained profile before EXPERIENCE creation");
-assert.match(verificationCreate, /const createSql = experienceVerification[\s\S]{0,900}create_experience_verification_with_teacher_face_photo[\s\S]{0,900}: `SELECT \* FROM public\.create_verification_with_face_photo\(/,
-  "EXPERIENCE must use the new teacher-face atomic function while NORMAL keeps the original customer-face function");
-
-// NORMAL remains customer-face verification.  Its customer PersonId and its
-// two evidence photos must be server-derived and cannot be supplied/replayed
-// by the browser.  This is deliberately separate from the new EXPERIENCE
-// teacher-face subject below.
 const customerFace = functionSource(face, "verifyCustomerFace");
-const sharedFaceEvidence = functionSource(face, "persistVerifiedFaceEvidence");
-assert.doesNotMatch(face, /\bSearchPersons\s*\(|function\s+searchCustomer\s*\(|action === "searchCustomer"/,
-  "the deployed face service must not expose any 1:N person-search path");
-assert.match(customerFace, /SELECT id, customer_code, customer_name, face_person_id, profile_photo_file_id[\s\S]{0,380}created_store_id = \$\{caller\.storeId\}/,
-  "normal customer face verification must resolve the customer inside the caller store");
+const evidence = functionSource(face, "persistVerifiedFaceEvidence");
 assert.match(customerFace, /PersonId: String\(customer\.face_person_id\)/,
-  "normal verification must never trust a browser-provided customer PersonId");
-assert.match(customerFace, /persistVerifiedFaceEvidence\(\{[\s\S]{0,260}customerId: customer\.id[\s\S]{0,260}faceSubjectType: "CUSTOMER"/,
-  "normal live-face evidence must use the shared photo writer with a customer subject");
+  "customer validation uses the selected customer's server-side PersonId");
+assert.match(evidence, /'CUSTOMER', NULL, \$\{sqlText\(faceRequestId\)\}/,
+  "all new verification drafts are customer-scoped");
+assert.doesNotMatch(face, /function\s+verifyTeacherExperienceFace|action === "verifyTeacherExperienceFace"/,
+  "retired teacher-face EXPERIENCE action is not callable");
+assert.doesNotMatch(face, /\bSearchPersons\s*\(|function\s+searchCustomer\s*\(/,
+  "face matching remains selected-person 1:1, never 1:N");
 
-const teacherExperienceFace = functionSource(face, "verifyTeacherExperienceFace");
-assert.match(teacherExperienceFace, /caller\.role === "teacher"[\s\S]{0,260}老师账号只能使用本人人脸办理体验核销[\s\S]{0,160}FORBIDDEN/,
-  "a teacher account must not capture another teacher's EXPERIENCE face evidence");
-assert.match(teacherExperienceFace, /SELECT t\.id, t\.teacher_code, t\.teacher_name, t\.face_person_id,[\s\S]{0,500}t\.teacher_status = 'ACTIVE'[\s\S]{0,260}a\.account_status = 'ACTIVE'/,
-  "EXPERIENCE face verification must server-resolve an active selected teacher");
-assert.match(teacherExperienceFace, /teacher\.face_enrollment_status !== "ENROLLED"[\s\S]{0,360}TEACHER_FACE_REQUIRED_FOR_EXPERIENCE/,
-  "an active no-face teacher may log in but cannot create EXPERIENCE face evidence");
-assert.match(teacherExperienceFace, /PersonId: String\(teacher\.face_person_id\)/,
-  "EXPERIENCE must never trust a browser-provided teacher PersonId");
-assert.match(teacherExperienceFace, /persistVerifiedFaceEvidence\(\{[\s\S]{0,300}customerId: customer\.id[\s\S]{0,300}faceSubjectType: "TEACHER"[\s\S]{0,120}faceSubjectTeacherId: teacherId/,
-  "teacher live-face evidence must use the same photo writer while scoping the subject to the selected teacher");
-assert.match(sharedFaceEvidence, /Promise\.allSettled\(\[[\s\S]{0,300}uploadVerificationPhotoObject\([\s\S]{0,300}original\.jpg[\s\S]{0,300}thumbnail\.jpg/,
-  "normal and teacher experience verification must share one original/thumbnail upload implementation");
-assert.match(sharedFaceEvidence, /INSERT INTO public\.verification_photo_drafts[\s\S]{0,700}\(evidence_token, store_id, customer_id, submitted_by_account_id,[\s\S]{0,900}\$\{caller\.staffId\}/,
-  "the shared writer must bind token, store, customer and submitting account exactly once");
-assert.doesNotMatch(`${customerFace}\n${teacherExperienceFace}`, /uploadVerificationPhotoObject|INSERT INTO public\.verification_photo_drafts/,
-  "neither face-subject branch may keep a copied photo upload or draft-write path");
-assert.match(face, /if \(action === "verifyTeacherExperienceFace"\) return await verifyTeacherExperienceFace\(event\);/,
-  "teacher-face capture must be exposed through an explicit server action, not a client-side face-ID swap");
+assert.ok(Buffer.byteLength(consoleMigration, "utf8") < 9000,
+  "054 CloudBase SQL stays below the editor-safe size");
+assert.equal(transactionBody(consoleMigration), transactionBody(migration),
+  "054 console SQL exactly mirrors the canonical migration");
+const authority = sqlFunction(migration, "create_experience_verification_with_customer_face_photo");
+assert.match(authority, /account\.role_code = 'teacher'[\s\S]{0,220}teacher\.id = p_teacher_id/,
+  "database binds the submitter account to the consumed teacher quota");
+assert.match(authority, /quota\.quota_status = 'ACTIVE'[\s\S]{0,80}FOR UPDATE/,
+  "database locks an active teacher/product quota before consumption");
+assert.match(authority, /draft\.face_subject_type = 'CUSTOMER'[\s\S]{0,120}draft\.face_subject_teacher_id IS NULL/,
+  "database accepts only selected-customer face evidence");
+assert.match(authority, /create_verification_with_face_photo\([\s\S]{0,100}'EXPERIENCE'::VARCHAR/,
+  "database reuses the proven customer profile/live-photo atomic writer");
+assert.match(migration, /DROP FUNCTION IF EXISTS public\.create_experience_verification_with_teacher_face_photo/,
+  "migration retires the old teacher-photo write entry point");
+const complete = sqlFunction(migration, "assert_experience_verification_complete");
+assert.match(complete, /teacher_experience_quota_usages[\s\S]{0,900}photo_slot = 0[\s\S]{0,280}face_subject_type = 'CUSTOMER'[\s\S]{0,900}photo_slot = 1[\s\S]{0,280}face_subject_type = 'CUSTOMER'/,
+  "integrity guard requires quota usage and both customer photos");
+assert.doesNotMatch(`${authority}\n${complete}`, /customer_product_balances/i,
+  "EXPERIENCE does not consume customer purchased-unit balances");
 
-const normalAtomic = sqlFunction(read("database/migrations/046_teacher_face_and_experience_quotas.sql"), "create_verification_with_face_photo");
-assert.match(normalAtomic, /photo_slot, photo_kind[\s\S]{0,900}\(created_record\.id, 0, 'PROFILE'[\s\S]{0,500}\(created_record\.id, 1, 'FACE'/,
-  "the legacy normal atomic path must retain customer PROFILE + live FACE evidence");
-assert.match(normalAtomic, /normalized_type = 'EXPERIENCE'[\s\S]{0,1500}teacher_experience_quota_usages/i,
-  "legacy compatibility keeps existing EXPERIENCE quota audit rows readable");
-
-// New EXPERIENCE rows remain customer-linked business records, but their two
-// photos are the selected teacher's retained profile and live teacher capture.
-// Both paths are atomically locked and the quota debit has its own immutable
-// usage link; EXPERIENCE must not debit customer purchased units.
-const teacherSubjectLock = sqlFunction(migration, "lock_active_teacher_experience_subjects");
-assert.match(migration, /ALTER TABLE public\.teachers\s+ADD COLUMN IF NOT EXISTS profile_photo_file_id/i,
-  "teacher face enrollment must retain a private profile-photo reference for later EXPERIENCE snapshots");
-const staffProfile = functionSource(staff, "findStaffProfile");
-const staffStatusAction = staff.slice(staff.indexOf('if (action === "setStaffStatus")'), staff.indexOf('fail("不支持的操作")'));
-assert.match(staffProfile, /requireCompleteTeacherFaceForActivation\(staff, "ACTIVE"\)/,
-  "a teacher login profile must fail closed without complete creation-time face evidence");
-assert.match(staffStatusAction, /requireCompleteTeacherFaceForActivation\(staff, status\)/,
-  "activating a teacher must require the same complete face evidence");
-assert.match(staff, /function requireCompleteTeacherFaceForActivation[\s\S]{0,700}TEACHER_FACE_REQUIRED/i,
-  "the activation gate must expose a stable error for incomplete legacy records");
-assert.doesNotMatch(teacherCreate,
-  /upsertTeacherFace|replaceTeacherFace|switchTeacherFace|restoreTeacherFace/,
-  "teacherCreate must expose no post-creation face modification path");
-assert.doesNotMatch(`${staff}\n${face}`, /upsertDelegatedTeacherFace|delegateTeacherFace|teacher_face_operations/,
-  "staffAccount and faceRecognition must not retain the retired cross-function Saga");
-assert.match(teacherSubjectLock, /teacher\.face_enrollment_status = 'ENROLLED'[\s\S]{0,220}teacher\.face_person_id/i,
-  "EXPERIENCE requires an enrolled selected teacher face without changing account activation");
-assert.match(teacherSubjectLock, /TEACHER_FACE_REQUIRED_FOR_EXPERIENCE/,
-  "missing teacher face must have a stable, actionable server error");
-const experienceAtomic = sqlFunction(migration, "create_experience_verification_with_teacher_face_photo");
-const experienceInsert = sqlFunction(migration, "insert_teacher_experience_verification");
-assert.match(experienceAtomic, /PERFORM pg_advisory_xact_lock\(hashtext\(p_idempotency_key\)\)[\s\S]{0,280}find_teacher_experience_verification_replay\(/,
-  "EXPERIENCE public entry point must serialize its idempotent replay lookup");
-assert.match(experienceAtomic, /created_record := public\.insert_teacher_experience_verification\(/,
-  "EXPERIENCE public entry point must use its same-transaction insert helper after a non-replay lookup");
-assert.match(experienceInsert, /VALUES \('EXPERIENCE', p_store_id, p_teacher_id, p_customer_id, p_product_id, 1,[\s\S]{0,480}'TEACHER', p_teacher_id\)/,
-  "EXPERIENCE must keep customer_id as the business subject while recording teacher as face subject");
-assert.match(experienceInsert, /lock_active_teacher_experience_subjects\([\s\S]{0,1500}consume_teacher_experience_quota\([\s\S]{0,500}bind_teacher_experience_face_photos\(/,
-  "EXPERIENCE must lock teacher face subject, debit quota, and bind evidence in one atomic function");
-assert.doesNotMatch(`${experienceAtomic}\n${experienceInsert}`, /customer_product_balances/i,
-  "EXPERIENCE must never deduct customer purchased-unit balances");
-const teacherPhotoBinding = sqlFunction(migration, "bind_teacher_experience_face_photos");
-assert.match(teacherPhotoBinding, /face_subject_type = 'TEACHER'[\s\S]{0,260}face_subject_teacher_id = p_teacher_id/,
-  "teacher live-face draft must be scoped to the selected teacher");
-assert.match(teacherPhotoBinding, /0, 'PROFILE'[\s\S]{0,420}'TEACHER', p_teacher_id[\s\S]{0,420}1, 'FACE'/,
-  "EXPERIENCE photo slots must be teacher retained PROFILE then teacher live FACE");
-assert.match(migration, /EXPERIENCE verification requires its teacher as the face subject/,
-  "a trigger must reject direct legacy customer-face EXPERIENCE inserts");
-assert.match(migration, /non-EXPERIENCE verification requires its customer as the face subject/,
-  "the new guard must preserve customer face evidence for NORMAL rows");
-
-// Historical compatibility: existing NORMAL/SUPPLEMENT balances still count
-// as paid consumption, EXPERIENCE stays outside that customer ledger, legacy
-// VOID stays visible, and only active HQ accounts may review approvals.
+assert.match(detail, /\["TEACHER", "CUSTOMER"\]\.includes\(explicit\)/,
+  "detail view retains truthful historical subject rendering");
 const balanceRefresh = sqlFunction(balanceMigration, "refresh_customer_balance");
 assert.match(balanceRefresh, /verification_type IN \('NORMAL', 'SUPPLEMENT'\)/,
-  "customer balance refresh must keep historical SUPPLEMENT while excluding EXPERIENCE");
-assert.doesNotMatch(balanceRefresh, /verification_totals AS \([\s\S]{0,600}EXPERIENCE/i,
-  "the customer balance-ledger consumption CTE must not start charging EXPERIENCE to customers");
-assert.match(balanceMigration, /recharge_type IN \('NEW', 'VOID', 'REFUND'\)/,
-  "legacy VOID recharge rows must remain schema-compatible historical data");
-assert.match(operationRetirement, /reviewer_role IS DISTINCT FROM 'hq'/,
-  "only active HQ accounts may review recharge/refund/verification records");
+  "customer purchased balance continues excluding EXPERIENCE");
 
-console.log("teacher experience face-subject contract: PASS");
+console.log("teacher-only customer-face experience contract: PASS");

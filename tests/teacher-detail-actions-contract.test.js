@@ -26,18 +26,13 @@ for (const retired of [
   assert.equal(staffDetailHtml.includes(retired) || staffDetail.includes(retired), false,
     `teacher detail must expose no post-creation face write surface: ${retired}`);
 }
-assert.match(staffDetail, /已登记 · 用于体验核销/,
-  "teacher home may show the creation-time enrollment state as read-only information");
-assert.match(staffDetail, /不用于登录[\s\S]{0,120}普通核销不要求老师再次识别/,
-  "teacher home must explain the exact limited purpose of the creation-time face");
-assert.match(teacherCreateScript, /outputHeight = Math\.round\(Math\.min\(sourceHeight, 1024\)\)/,
-  "required creation-time enrollment must use the customer enrollment crop size");
-assert.match(teacherCreateScript, /validateTeacherCreateCapture/,
-  "captured photographs must pass the dedicated service validation before creation");
-assert.match(teacherCreateScript, /faceValidated = true[\s\S]{0,2600}检测通过 · 可以创建/,
-  "the create action may unlock only after an accepted validation response");
-assert.match(teacherCreateScript, /!capturedFaceImage \|\| !faceValidated/,
-  "submission must fail closed when the photograph has not passed validation");
+assert.match(staffDetail, /老师身份由登录手机号和账号主档绑定[\s\S]{0,160}现场只核验客户人脸/,
+  "teacher home must explain account binding and customer-only experience verification");
+assert.doesNotMatch(`${teacherCreateHtml}\n${teacherCreateScript}`,
+  /camera|capturedFace|faceImage|validateTeacherCreateCapture|createTeacherWithFace|老师人脸|拍照|活体/i,
+  "teacher creation must contain no photograph or teacher-face workflow");
+assert.match(teacherCreateScript, /CloudBasePhoneAuth\.createTeacher\(\{/,
+  "teacher creation must use the lightweight account-and-profile service");
 
 assert.match(staffDetail, /Promise\.allSettled\(\[/,
   "quota read and product catalog read must not fail together");
@@ -71,10 +66,10 @@ for (const file of ["query.js", "management.js", "detail.js"]) {
 
 assert.match(staffDetailHtml, /cloudbase-phone-auth\.js\?v=0\.19\.2/,
   "teacher home must refresh the shared cloud-function client");
-assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.8/,
+assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.9/,
   "teacher home must refresh its action handlers");
-assert.match(teacherCreateHtml, /teacher-create\.js\?v=0\.4\.0/,
-  "teacher creation must refresh the mandatory-face UI");
+assert.match(teacherCreateHtml, /teacher-create\.js\?v=0\.5\.0/,
+  "teacher creation must refresh the no-photo UI");
 assert.match(teacherManagementHtml, /teacher-management\.js\?v=0\.14\.28/,
   "teacher directory must refresh links into the current home");
 assert.match(teacherManagement, /teacher\.teacher_id \|\| teacher\.teacherId \|\| teacher\.teacher_code/,

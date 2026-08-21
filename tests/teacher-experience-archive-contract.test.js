@@ -228,47 +228,39 @@ assert.doesNotMatch(functionSource(faceCloud, "getTeacherExperienceEntitlements"
 assert.match(verificationCreate, /TEACHER_EXPERIENCE_QUOTA_EXHAUSTED/,
   "the verification endpoint must surface an exhausted teacher quota distinctly from customer balance exhaustion");
 
-assert.match(teacherCreate, /face|人脸/i, "teacher creation UI must require face enrollment");
-assert.match(teacherCreateScript, /teacher[a-zA-Z]*(?:Face|face)|face[a-zA-Z]*teacher/i,
-  "teacher creation submitter must pass face enrollment evidence to the server");
-assert.match(teacherCreateScript, /CloudBasePhoneAuth\.validateTeacherCreateCapture\(/,
-  "new-teacher capture must pass service prevalidation before the formal create request");
-assert.match(phoneAuth, /async validateTeacherCreateCapture[\s\S]{0,260}action:\s*"validateCapture"/,
-  "the browser client must send teacher prevalidation to teacherCreate");
+assert.match(teacherCreate, /老师不采集照片、不建立人脸/,
+  "teacher creation UI must state that no teacher face is collected");
+assert.doesNotMatch(teacherCreateScript,
+  /teacherFace|capturedFace|faceImage|validateTeacherCreateCapture|createTeacherWithFace/i,
+  "teacher creation submitter must pass no face evidence to the server");
+assert.doesNotMatch(phoneAuth, /validateTeacherCreateCapture|createTeacherWithFace/,
+  "the browser client must expose no teacher-face creation API");
 assert.match(staffCloud, /if \(role === "teacher"\)[\s\S]{0,180}fail\(/,
   "generic staff provisioning must reject teacher creation so face binding cannot be bypassed");
-assert.match(teacherCreateCloud, /async function createTeacher\(event\)[\s\S]{0,100}const actor = await requireHq\(\)/,
+assert.match(teacherCreateCloud, /async function createTeacher\(event\)[\s\S]{0,100}await requireHq\(\)/,
   "dedicated teacher provisioning must be headquarters-only");
-assert.match(teacherProvision, /event\.consent\s*!==\s*true/,
-  "teacher provisioning must require explicit consent server-side");
-assert.match(teacherProvision, /jpegImage\(event\.imageBase64\)/,
-  "teacher provisioning must validate the submitted face image server-side");
+assert.doesNotMatch(teacherProvision, /consent|imageBase64|jpegImage|inspectFace|inspectLiveness/i,
+  "teacher provisioning must not receive or validate a teacher photograph");
 assert.match(teacherAuthentication, /userStatus:\s*"ACTIVE"/,
   "teacher authentication must be created active after face and photo writes succeed");
-assert.match(teacherCreateCloud, /async function insertTeacherRecord[\s\S]{0,900}'teacher', 'ACTIVE'[\s\S]{0,450}'ACTIVE'[\s\S]{0,180}'ENROLLED'/,
-  "the direct database write must persist active staff and teacher rows with the enrolled face");
-assert.match(teacherProvision, /createRemoteAssets\([\s\S]{0,500}createActiveAuthentication\([\s\S]{0,500}insertTeacherRecord\(/,
-  "teacher provisioning must create face/photo assets before adding the active login and teacher records");
+assert.match(teacherCreateCloud, /async function insertTeacherRecord[\s\S]{0,900}'teacher', 'ACTIVE'[\s\S]{0,450}account\.id, 'ACTIVE'\s*\n\s*FROM account/,
+  "the direct database write must persist active staff and teacher rows without requiring a face");
+assert.match(teacherProvision, /createActiveAuthentication\([\s\S]{0,700}insertTeacherRecord\(/,
+  "teacher provisioning must add the active login and atomic teacher records directly");
+assert.doesNotMatch(teacherCreateCloud, /createRemoteAssets|tencentcloud|FaceClient|imageBase64|photo_file_id/i,
+  "teacherCreate must have no face/photo dependency");
 assert.doesNotMatch(teacherCreateCloud, /user\.modifyUser\(|createBlockedAuthentication|finalReadback/,
   "teacher creation must not use the retired blocked-account activation or final-readback flow");
-assert.match(teacherCreateCloud, /function successResponse\([\s\S]{0,500}complete:\s*true[\s\S]{0,600}ok:\s*true, completed:\s*true/,
+assert.match(teacherCreateCloud, /function successResponse\([\s\S]{0,500}ok:\s*true,[\s\S]{0,80}completed:\s*true[\s\S]{0,500}complete:\s*true/,
   "creation may return success only after every direct write reports success");
 assert.doesNotMatch(`${staffCloud}\n${faceCloud}`, /delegateTeacherFace|upsertDelegatedTeacherFace|teacher_face_operations/,
   "retired staff and face services must contain no cross-function teacher Saga");
 
-// Teacher face enrollment exists only in the mandatory creation boundary.
-assert.match(teacherCreate, /老师人脸（必填）/,
-  "new-teacher UI must describe face enrollment as mandatory");
-assert.doesNotMatch(teacherCreate, /老师人脸（可选）|不会阻止账号创建或激活|可后续补录/,
-  "new-teacher UI must not advertise a no-face creation path");
-assert.doesNotMatch(teacherCreateScript, /CloudBasePhoneAuth\.provisionTeacher\(/,
-  "new-teacher UI must not call the generic no-face provisioning path");
-assert.match(teacherCreateScript, /CloudBasePhoneAuth\.createTeacherWithFace\(/,
-  "new-teacher UI must use the dedicated authoritative creation path after prevalidation");
-assert.match(teacherCreateScript, /Boolean\(capturedFaceImage\)[\s\S]{0,120}faceValidated[\s\S]{0,220}Boolean\(\$\("teacherFaceConsent"\)\.checked\)/,
-  "new-teacher submit enablement must require capture, accepted validation and consent");
-assert.doesNotMatch(phoneAuth, /async provisionTeacher\(\{ staffName, phone, initialPassword \}\)/,
-  "the shared browser client must not retain a no-face teacher creation shortcut");
+// Teacher creation is a lightweight dedicated account-and-profile boundary.
+assert.match(teacherCreateScript, /CloudBasePhoneAuth\.createTeacher\(/,
+  "new-teacher UI must use the dedicated authoritative no-photo creation path");
+assert.match(teacherCreateScript, /personCreateName[\s\S]{0,260}personPhone[\s\S]{0,260}personInitialPassword/,
+  "new-teacher submit enablement must require only name, phone and password");
 assert.doesNotMatch(phoneAuth, /upsertTeacherFace|replaceTeacherFace/,
   "shared client must expose no later teacher-face write path");
 assert.match(staffCloud, /if \(role === "teacher"\) \{[\s\S]{0,200}TEACHER_CREATE_SERVICE_REQUIRED/,
@@ -277,8 +269,8 @@ assert.match(teacherStatusSchema, /pg_get_functiondef\(TO_REGPROCEDURE\('public\
   "teacher status handling must inspect the installed profile trigger definition");
 assert.match(teacherStatusSchema, /has_profile_trigger_binding[\s\S]*has_account_trigger_binding/,
   "teacher status handling must verify both trigger bindings");
-assert.match(staffCloud, /function requireCompleteTeacherFaceForActivation[\s\S]{0,700}TEACHER_FACE_REQUIRED/,
-  "teacher activation must fail closed unless enrollment, PersonId and private photo are complete");
+assert.doesNotMatch(staffCloud, /requireCompleteTeacherFaceForActivation|TEACHER_FACE_REQUIRED/,
+  "teacher activation must not depend on a teacher face or photo");
 const genericProvision = staffCloud.slice(
   staffCloud.indexOf('if (action === "provisionStaff")'),
   staffCloud.indexOf('if (action === "resetPassword")')

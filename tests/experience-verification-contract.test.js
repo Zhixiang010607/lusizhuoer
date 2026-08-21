@@ -23,10 +23,16 @@ for (const page of ["verification-experience.html", "teacher-verification-experi
 
 assert.ok(!fs.existsSync(path.join(root, "verification-supplemental.html")), "store supplemental creation page must be retired");
 assert.ok(!fs.existsSync(path.join(root, "teacher-verification-supplemental.html")), "teacher supplemental creation page must be retired");
-assert.ok(auth.includes('["verification-experience.html", "体验核销"]'), "store and HQ navigation must expose experience verification");
-assert.ok(auth.includes('["verification-experience.html", "体验核销"]'), "teacher navigation must reuse the shared experience verification page");
+assert.equal((auth.match(/\["verification-experience\.html", "体验核销"\]/g) || []).length, 1,
+  "only teacher navigation may expose experience verification");
+const accessBlock = auth.slice(auth.indexOf("const access ="), auth.indexOf("let session ="));
+assert.doesNotMatch(/store:\s*new Set\(\[([^\]]+)\]/.exec(accessBlock)?.[1] || "", /verification-experience\.html/,
+  "store route access must remove experience verification");
+assert.doesNotMatch(/hq:\s*new Set\(\[([^\]]+)\]/.exec(accessBlock)?.[1] || "", /verification-experience\.html/,
+  "HQ route access must remove experience verification");
 
 assert.ok(ui.includes('verificationType: experience ? "EXPERIENCE" : "NORMAL"'), "experience page must submit EXPERIENCE type");
+assert.ok(ui.includes('action: "verifyCustomerFace"'), "experience page must verify the selected customer");
 assert.ok(ui.includes('const expectedStatus = "APPROVED"'), "experience submission must complete immediately");
 assert.ok(ui.includes("自动完成体验核销并发送设备开启信号"), "experience submission must request device start");
 assert.ok(!query.includes('<option value="SUPPLEMENT">'), "query UI must remove supplemental filter");

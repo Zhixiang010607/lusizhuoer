@@ -8,13 +8,10 @@
   const AUTH_STATE_KEY = "lusizhuoerActiveAuth";
   const PRODUCT_TEMPLATE_CACHE_TTL_MS = 15 * 1000;
   const PRODUCT_LOGO_DATA_CACHE_TTL_MS = 2 * 60 * 1000;
-  // The dedicated teacherCreate function is one synchronous request. This
-  // browser guard only releases the form if transport never settles; it never
-  // starts a second request or polls another endpoint.
-  // The CloudBase function is configured for 120 seconds. Observe for longer
-  // than that so this browser guard cannot unlock a second submission while
-  // the first server invocation may still be running.
-  const TEACHER_CREATE_WATCHDOG_MS = 135 * 1000;
+  // The lightweight teacherCreate function makes one synchronous account and
+  // master-data request. This guard never retries or polls after an uncertain
+  // transport result.
+  const TEACHER_CREATE_WATCHDOG_MS = 75 * 1000;
   const productTemplateCache = new Map();
   const productTemplateFlights = new Map();
   const productLogoDataCache = new Map();
@@ -475,26 +472,18 @@
         "员工账号创建失败"
       );
     },
-    async createTeacherWithFace({ staffName, phone, initialPassword, faceImageBase64, clientRequestId, consent = false }) {
+    async createTeacher({ staffName, phone, initialPassword, clientRequestId }) {
       const request = callTeacherCreate(
         {
           action: "createTeacher",
           staffName,
           phone: normalizePhone(phone),
           initialPassword,
-          imageBase64: faceImageBase64,
-          clientRequestId,
-          consent: consent === true
+          clientRequestId
         },
-        "老师账号与人脸创建失败"
+        "老师账号创建失败"
       );
-      return promiseWithWatchdog(request, "老师账号与人脸创建失败", TEACHER_CREATE_WATCHDOG_MS);
-    },
-    async validateTeacherCreateCapture({ faceImageBase64 }) {
-      return callTeacherCreate(
-        { action: "validateCapture", imageBase64: faceImageBase64 },
-        "老师照片检测失败"
-      );
+      return promiseWithWatchdog(request, "老师账号创建失败", TEACHER_CREATE_WATCHDOG_MS);
     },
     async createStoreWithAccount({ storeName, province, city, district, addressDetail, contactName, contactPhone, initialPassword, existingStoreId = "" }) {
       return callStaffAccount(

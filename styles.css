@@ -2085,33 +2085,16 @@ body[data-store-analysis] {
 .teacher-directory-table .teacher-status-column { width: 10%; }
 .teacher-directory-table .teacher-experience-column { width: 17%; }
 .teacher-directory-table .teacher-action-column { width: 13%; }
+.teacher-create-rule-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.teacher-create-rule-grid article { display: grid; gap: 3px; min-width: 0; padding: 11px 12px; border: 1px solid #dce6f1; border-radius: 10px; background: #fff; }
+.teacher-create-rule-grid strong { color: #183758; font-size: 12px; }
+.teacher-create-rule-grid span { color: #60738a; font-size: 11px; line-height: 1.5; }
 
-/* Teacher creation has the same controlled capture properties as customer
-   enrollment, but the face is bound to the teacher account instead. */
-.teacher-face-optional { margin-top: 2px; border: 1px solid #dce7f3; border-radius: 12px; background: #fbfdff; }
-.teacher-face-optional > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 0 14px; cursor: pointer; color: #214666; font-size: 13px; font-weight: 800; list-style: none; }
-.teacher-face-optional > summary::-webkit-details-marker { display: none; }
-.teacher-face-optional > summary::after { width: 8px; height: 8px; flex: 0 0 auto; margin-left: 2px; border-right: 2px solid #527293; border-bottom: 2px solid #527293; content: ""; transform: rotate(45deg) translateY(-2px); transition: transform .18s ease; }
-.teacher-face-optional[open] > summary { border-bottom: 1px solid #e4edf6; background: #f5f9fe; }
-.teacher-face-optional[open] > summary::after { transform: rotate(225deg) translate(-2px, -1px); }
-.teacher-face-optional > summary small { margin-left: auto; color: #718197; font-size: 11px; font-weight: 600; }
-.teacher-face-optional .teacher-face-enrollment-layout { padding: 14px; }
-.teacher-face-enrollment-layout { display: grid; grid-template-columns: minmax(240px, .7fr) minmax(0, 1.3fr); gap: 14px; align-items: stretch; }
-.teacher-face-consent { display: grid; align-content: start; gap: 10px; padding: 13px; border: 1px solid var(--line); border-radius: 11px; background: #f8fafc; }
-.teacher-face-consent .consent-row { align-items: flex-start; line-height: 1.6; }
-.teacher-face-capture { grid-template-columns: minmax(180px, .92fr) minmax(160px, .82fr); grid-template-rows: auto auto auto; min-height: 235px; align-items: center; }
-.teacher-face-capture::before { display: none; }
-.teacher-face-capture .customer-camera-stage { grid-column: 1; grid-row: 1 / 4; width: min(100%, 280px); align-self: stretch; justify-self: center; }
-.teacher-face-capture .teacher-face-capture-copy { grid-column: 2; grid-row: 1; min-width: 0; align-self: end; }
-.teacher-face-capture .teacher-face-capture-copy h3 { margin: 0 0 5px; }
-.teacher-face-capture #teacherFaceCaptureStatus { grid-column: 2; grid-row: 2; }
-.teacher-face-capture .camera-actions { grid-column: 2; grid-row: 3; display: grid; gap: 7px; }
-.teacher-face-capture .camera-actions button { width: 100%; }
 .experience-quota-hint { margin: 0; padding: 9px 11px; border-left: 3px solid #3b82f6; border-radius: 7px; color: #315378; background: #eff6ff; font-size: 12px; line-height: 1.55; }
 
 @media (max-width: 900px) {
   .teacher-experience-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .teacher-experience-config, .teacher-experience-recharge, .teacher-face-enrollment-layout { grid-template-columns: 1fr; }
+  .teacher-experience-config, .teacher-experience-recharge { grid-template-columns: 1fr; }
   .teacher-experience-form, .teacher-experience-recharge .teacher-experience-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .teacher-experience-form button { min-height: 40px; }
 }
@@ -2119,12 +2102,8 @@ body[data-store-analysis] {
 @media (max-width: 640px) {
   .teacher-experience-panel { margin-top: 10px; padding: 12px; }
   .teacher-experience-form, .teacher-experience-recharge .teacher-experience-form { grid-template-columns: 1fr; }
-  .teacher-face-capture { grid-template-columns: 1fr; grid-template-rows: minmax(220px, auto) auto auto auto; }
-  .teacher-face-capture .customer-camera-stage { grid-column: 1; grid-row: 1; width: min(100%, 300px); min-height: 220px; justify-self: center; }
-  .teacher-face-capture .teacher-face-capture-copy { grid-column: 1; grid-row: 2; align-self: auto; }
-  .teacher-face-capture #teacherFaceCaptureStatus { grid-column: 1; grid-row: 3; }
-  .teacher-face-capture .camera-actions { grid-column: 1; grid-row: 4; }
   .teacher-directory-table .teacher-experience-column { width: 17%; }
+  .teacher-create-rule-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 1180px) {
@@ -2190,7 +2169,6 @@ body[data-staff-detail] .staff-admin-actions { display: grid; grid-template-colu
 body[data-staff-detail] .staff-admin-actions button { min-height: 39px; font-weight: 800; }
 body[data-staff-detail] .staff-admin-actions #staffStatusAction { grid-column: 1 / -1; }
 body[data-staff-detail] .staff-global-panel { margin-bottom: 20px; padding: 20px; }
-body[data-staff-detail] .teacher-face-status-fact dd { color: #285f9f; }
 body[data-staff-detail] .teacher-experience-panel { display: grid; gap: 0; margin-top: 0; overflow: hidden; padding: 0; border-color: #d7e2f0; border-radius: 18px; background: #fff; box-shadow: var(--shadow); }
 body[data-staff-detail] .teacher-experience-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 24px 28px 21px; border-bottom: 1px solid #e5edf5; background: linear-gradient(120deg, #f7fbff, #ffffff 65%); }
 body[data-staff-detail] .teacher-experience-heading h2 { margin: 0 0 7px; color: #152d4c; font-size: 21px; letter-spacing: -.02em; }
@@ -2382,8 +2360,7 @@ body[data-management="teacher"] .button-link:focus-visible,
 body[data-hq-create="teacher"] button:focus-visible,
 body[data-hq-create="teacher"] .button-link:focus-visible,
 body[data-staff-detail] button:focus-visible,
-body[data-staff-detail] .button-link:focus-visible,
-body[data-hq-create="teacher"] .teacher-face-optional > summary:focus-visible {
+body[data-staff-detail] .button-link:focus-visible {
   outline: 3px solid #93b9ee;
   outline-offset: 2px;
 }
@@ -2544,10 +2521,6 @@ body[data-management="teacher"] .teacher-directory-message[data-tone="error"] { 
 body[data-management="teacher"] .teacher-directory-message[data-tone="success"] { color: #116a55; background: #eef9f5; }
 body[data-management="teacher"] .teacher-directory-message[data-tone="error"] { color: #8e332c; background: #fff3f1; }
 
-body[data-hq-create="teacher"] .teacher-face-enrollment-section { background: linear-gradient(145deg, #f7faff, #fff); }
-body[data-hq-create="teacher"] .teacher-face-optional > summary { border-radius: 11px; }
-body[data-hq-create="teacher"] .teacher-face-capture .camera-actions button { min-height: 40px; }
-
 body[data-staff-detail] .staff-admin-actions .secondary-button:not(#staffStatusAction) { color: var(--teacher-secondary-ink); }
 
 @media (max-width: 760px) {
@@ -2637,12 +2610,6 @@ body[data-staff-detail] .staff-admin-actions .secondary-button:not(#staffStatusA
   body[data-hq-create="teacher"] .hq-create-section { padding: 14px; }
   body[data-hq-create="teacher"] .panel-heading { flex-direction: column; }
   body[data-hq-create="teacher"] .panel-heading .badge { align-self: flex-start; }
-  body[data-hq-create="teacher"] .teacher-face-optional > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; padding: 12px; }
-  body[data-hq-create="teacher"] .teacher-face-optional > summary small { grid-column: 1; width: auto; margin-left: 0; }
-  body[data-hq-create="teacher"] .teacher-face-optional > summary::after { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
-  body[data-hq-create="teacher"] .teacher-face-optional .teacher-face-enrollment-layout { padding: 10px; }
-  body[data-hq-create="teacher"] .teacher-face-consent { padding: 11px; }
-  body[data-hq-create="teacher"] .teacher-face-capture .camera-actions button { min-height: 44px; }
   body[data-hq-create="teacher"] .hq-create-actions .button-link,
   body[data-hq-create="teacher"] .hq-create-actions button { width: 100%; }
 
@@ -2669,8 +2636,6 @@ body[data-staff-detail] .staff-admin-actions .secondary-button:not(#staffStatusA
   body[data-management="teacher"] .teacher-directory-table td:not(:last-child) { border-bottom: 1px solid #edf1f5; }
   body[data-management="teacher"] .teacher-directory-table td:last-child { border-bottom: 0; }
 
-  body[data-hq-create="teacher"] .teacher-face-capture .customer-camera-stage,
-  body[data-staff-detail] .teacher-face-capture .customer-camera-stage { width: min(100%, 300px); aspect-ratio: 3 / 4; min-height: 0; }
   body[data-staff-detail] .teacher-profile-hero { grid-template-columns: 50px minmax(0, 1fr); gap: 10px; padding: 15px; }
   body[data-staff-detail] .teacher-profile-avatar { width: 50px; height: 50px; border-radius: 15px; font-size: 19px; }
   body[data-staff-detail] .teacher-profile-meta { grid-template-columns: minmax(0, 1fr); }

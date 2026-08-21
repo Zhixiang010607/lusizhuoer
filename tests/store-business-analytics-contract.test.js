@@ -172,7 +172,7 @@ assert.doesNotMatch(exporter, /store-chart|bar-chart|drawBar/i, "PDF export uses
 includes(orderExporter, "exportCanvasPagesPdf", "PDF encoder accepts generated table pages");
 
 includes(auth, '"store-analysis.html"', "store analysis route is authorized");
-includes(analysisHtml, 'auth-ui.js?v=0.19.0', "analysis route loads current auth isolation");
+includes(analysisHtml, 'auth-ui.js?v=0.19.1', "analysis route loads current auth isolation");
 includes(cloud, 'if (action === "getStoreBusinessAnalytics")', "cloud action dispatched");
 
 includes(html, 'id="storeStatusAction"', "store homepage owns the status action");

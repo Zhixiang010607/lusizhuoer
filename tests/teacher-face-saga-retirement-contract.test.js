@@ -19,9 +19,9 @@ const canonical053 = read("database/migrations/053_retire_legacy_teacher_face_sa
 const console053 = read("database/cloudbase-console/053-01-retire-legacy-teacher-face-saga.sql");
 const verify053 = read("database/cloudbase-console/053-readonly-verify.sql");
 
-assert.match(staff, /const FUNCTION_VERSION = "v66"/);
-assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v5" : "v78"/);
-assert.match(teacher, /const FUNCTION_VERSION = "teacher-create-v5"/);
+assert.match(staff, /const FUNCTION_VERSION = "v67"/);
+assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v5" : "v79"/);
+assert.match(teacher, /const FUNCTION_VERSION = "teacher-create-v6"/);
 
 const retiredImplementationNames = [
   "teacher_face_operations",
@@ -62,10 +62,10 @@ assert.doesNotMatch(face, /if \(action === "(?:upsertDelegatedTeacherFace|readba
 assert.match(staff, /if \(role === "teacher"\) \{[\s\S]{0,220}TEACHER_CREATE_SERVICE_REQUIRED/,
   "generic staff creation must fail before attempting compatibility behavior");
 assert.match(teacher, /if \(action === "createTeacher"\) return await createTeacher\(event\)/,
-  "teacherCreate v5 must own direct teacher creation");
+  "teacherCreate v6 must own direct teacher creation");
 assert.doesNotMatch(teacher, /upsertTeacherFace|replaceTeacherFace|switchTeacherFace|restoreTeacherFace/,
-  "teacherCreate v5 must expose no post-creation face write path");
-assert.match(browser, /async createTeacherWithFace\([\s\S]{0,700}callTeacherCreate\(\s*\{[\s\S]{0,120}action: "createTeacher"/,
+  "teacherCreate v6 must expose no post-creation face write path");
+assert.match(browser, /async createTeacher\([\s\S]{0,700}callTeacherCreate\(\s*\{[\s\S]{0,120}action: "createTeacher"/,
   "the browser must call teacherCreate directly for creation");
 assert.doesNotMatch(browser, /upsertTeacherFace|replaceTeacherFace/,
   "the browser must expose no post-creation face maintenance client");
@@ -75,12 +75,10 @@ const createEnd = teacher.indexOf("function health", createStart);
 assert.ok(createStart >= 0 && createEnd > createStart,
   "direct teacher creation must have one auditable implementation");
 const create = teacher.slice(createStart, createEnd);
-assert.equal((create.match(/await inspectFace\(/g) || []).length, 1,
-  "one creation request performs exactly one quality pass");
-assert.equal((create.match(/await inspectLiveness\(/g) || []).length, 1,
-  "one creation request performs exactly one liveness pass");
-assert.match(create, /createRemoteAssets\([\s\S]{0,500}createActiveAuthentication\([\s\S]{0,500}insertTeacherRecord\(/,
-  "creation must write face/photo assets before the active authentication and database records");
+assert.doesNotMatch(create, /inspectFace|inspectLiveness|createRemoteAssets|imageBase64|photo|personId|faceId/i,
+  "teacher creation must not inspect, upload or store a teacher photograph or face identity");
+assert.match(create, /createActiveAuthentication\([\s\S]{0,700}insertTeacherRecord\(/,
+  "creation must write the active authentication before the atomic account and teacher master records");
 assert.doesNotMatch(create, /confirmPerson|confirmPhoto|finalReadback|user\.modifyUser\(|createBlockedAuthentication/,
   "creation must not retain post-write remote readbacks or blocked-account activation");
 

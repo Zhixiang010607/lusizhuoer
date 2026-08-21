@@ -137,8 +137,8 @@ assert.match(deleteQuota, /SET quota_status = 'ARCHIVED'/,
 assert.match(deleteQuota, /event_type[\s\S]{0,360}'REMOVED'/,
   "deleted configuration must retain its immutable removal event");
 
-// The standard teacher home exposes only account/quota actions. Face enrollment
-// exists exclusively inside the mandatory creation page.
+// The standard teacher home exposes only account/quota actions. Teacher photos
+// and teacher-face enrollment are not part of creation or later maintenance.
 for (const id of [
   "staffCredentialAction", "staffStatusAction",
   "saveTeacherExperienceConfig", "saveTeacherExperienceRecharge"
@@ -148,8 +148,8 @@ for (const id of [
 assert.doesNotMatch(`${read("staff-detail.html")}\n${detailUi}`,
   /staffFaceAction|teacherFaceUpdate|upsertTeacherFace|补录老师人脸|更换老师人脸/,
   "teacher detail must expose no face maintenance surface");
-assert.match(detailUi, /已登记 · 用于体验核销/,
-  "teacher detail must retain a read-only enrollment status for experience verification");
+assert.match(detailUi, /现场只核验客户人脸/,
+  "teacher detail must explain that experience verification scans the customer");
 const quotaGuard = jsBetween(detailUi, "function canManageTeacherExperience", "function teacherId");
 assert.match(quotaGuard, /isStaffArchived\(\)[\s\S]{0,260}不能配置、删除或充值/,
   "archived teachers must be explicitly read-only for configuration, deletion and top-up");
@@ -170,10 +170,8 @@ assert.match(detailUi, /体验额度已保存并立即生效[\s\S]{0,220}当前�
 assert.match(detailUi, /teacher_experience_recharge|teacherExperienceRecharge/,
   "independent teacher top-up must keep its own idempotency request lifecycle");
 
-// New teachers must be face-bound.  This does not change legacy activation:
-// old PENDING/no-photo teachers can still be restored, while the exceptional
-// backend repair path remains out of the standard UI. No generic provisioning
-// route may create a new teacher without a face.
+// New teachers use the independent teacherCreate service, but that service
+// only creates the phone Auth identity plus active account/teacher records.
 const genericProvision = staff.slice(
   staff.indexOf('if (action === "provisionStaff")'),
   staff.indexOf('if (action === "createStoreWithAccount")', staff.indexOf('if (action === "provisionStaff")'))
@@ -189,20 +187,17 @@ for (const laterWrite of [
   assert.ok(index > teacherCreationReject,
     `TEACHER_CREATE_SERVICE_REQUIRED must be raised before ${laterWrite} can touch identity or PostgreSQL`);
 }
-assert.match(read("teacher-create.html"), /老师人脸（必填）/,
-  "new-teacher page must label face enrollment as mandatory");
-assert.doesNotMatch(read("teacher-create.html"), /老师人脸（可选）|不会阻止账号创建或激活|可后续补录/,
-  "new-teacher copy must not promise a no-face create path");
-assert.match(createUi, /Boolean\(capturedFaceImage\)[\s\S]{0,120}faceValidated[\s\S]{0,220}Boolean\(\$\("teacherFaceConsent"\)\.checked\)/,
-  "submit enablement must require a captured face, accepted prevalidation and consent");
-assert.doesNotMatch(createUi, /window\.CloudBasePhoneAuth\.provisionTeacher\(\{ staffName: name, phone, initialPassword \}\)/,
-  "new-teacher UI must never call the generic no-face provisioning API");
+assert.match(read("teacher-create.html"), /老师不采集照片、不建立人脸/,
+  "new-teacher page must state that no teacher photograph or face is created");
+assert.doesNotMatch(`${read("teacher-create.html")}\n${createUi}`,
+  /teacherFaceConsent|teacherFaceCamera|capturedFaceImage|validateTeacherCreateCapture|createTeacherWithFace/,
+  "new-teacher UI must not retain any face capture path");
 assert.match(createUi,
-  /await window\.CloudBasePhoneAuth\.createTeacherWithFace\(\{[\s\S]{0,420}faceImageBase64: capturedFaceImage[\s\S]{0,220}consent: true/,
-  "new-teacher UI must await one dedicated create request with the original photo");
+  /await window\.CloudBasePhoneAuth\.createTeacher\(\{[\s\S]{0,300}staffName,[\s\S]{0,120}phone,[\s\S]{0,120}initialPassword/,
+  "new-teacher UI must await one dedicated account-and-profile request");
 assert.match(phoneAuth,
-  /async createTeacherWithFace\(\{ staffName, phone, initialPassword, faceImageBase64, clientRequestId, consent = false \}\)[\s\S]{0,700}action: "createTeacher"/,
-  "shared auth client must expose the dedicated one-call teacher creation API");
+  /async createTeacher\(\{ staffName, phone, initialPassword, clientRequestId \}\)[\s\S]{0,700}action: "createTeacher"/,
+  "shared auth client must expose the dedicated one-call no-photo creation API");
 for (const legacy of ["beginTeacherProvisionWithFace", "getTeacherFaceOperationStatus", "readTeacherProvisionResult"]) {
   assert.equal(createUi.includes(legacy) || phoneAuth.includes(legacy), false,
     `active teacher create clients must not retain ${legacy}`);
@@ -211,12 +206,12 @@ for (const legacy of ["beginTeacherProvisionWithFace", "getTeacherFaceOperationS
 // Creation is owned wholly by teacherCreate. There is no replacement API,
 // compatibility call into staffAccount/faceRecognition, or durable Saga.
 const createTeacher = jsBetween(teacherCreateService, "async function createTeacher", "function health");
-assert.match(createTeacher, /const actor = await requireHq\(\)[\s\S]{0,300}event\.consent !== true/,
-  "direct teacher creation must be HQ-only and require explicit consent");
-assert.match(createTeacher, /await inspectFace\(api, image\.base64\)[\s\S]{0,120}await inspectLiveness\(api, image\.base64\)/,
-  "the direct creation call must re-run server-side quality and liveness checks");
-assert.match(createTeacher, /createRemoteAssets\([\s\S]{0,500}createActiveAuthentication\([\s\S]{0,500}insertTeacherRecord\(/,
-  "teacher creation must keep the customer-style face/photo-first order before adding the phone account");
+assert.match(createTeacher, /await requireHq\(\)/,
+  "direct teacher creation must remain HQ-only");
+assert.doesNotMatch(createTeacher, /consent|imageBase64|inspectFace|inspectLiveness|createRemoteAssets/i,
+  "direct teacher creation must not inspect, upload or bind a teacher face");
+assert.match(createTeacher, /createActiveAuthentication\([\s\S]{0,700}insertTeacherRecord\(/,
+  "teacher creation must add the phone account before the atomic business records");
 assert.doesNotMatch(createTeacher, /confirmPerson|confirmPhoto|finalReadback|user\.modifyUser\(|createBlockedAuthentication/,
   "teacher creation must not add post-write remote readbacks or temporary blocked authentication");
 assert.doesNotMatch(teacherCreateService,

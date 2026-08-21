@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.55", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.56", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   const formatBirthday = (value, fallback = "—") => {
     const raw = String(value ?? "").trim();
     if (!raw) return fallback;
@@ -16,6 +16,9 @@
   const hqMode = session?.role === "hq"
     && !document.body.hasAttribute("data-teacher-business")
     && businessPages.includes(page);
+  // EXPERIENCE is a teacher-only gift. Store and HQ shells are redirected by
+  // auth-ui; stop this script before they can load customer or quota data.
+  if (page === "verification-experience" && session?.role !== "teacher") return;
   if (!session || (teacherMode
     ? !businessPages.includes(page)
     : !hqMode && session.role !== "store")) return;
@@ -62,24 +65,11 @@
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
 
   function normalizedTeacherProfile(value = {}) {
-    const faceStatus = String(value.faceEnrollmentStatus || value.face_enrollment_status || "").trim().toUpperCase();
-    const explicitReadiness = typeof value.facePhotoReady === "boolean" ? value.facePhotoReady
-      : typeof value.face_photo_ready === "boolean" ? value.face_photo_ready
-      : typeof value.hasFace === "boolean" ? value.hasFace
-      : typeof value.has_face === "boolean" ? value.has_face
-      : null;
     return {
       id: String(value.teacherId || value.teacher_id || value.id || ""),
       code: String(value.teacherCode || value.teacher_code || value.code || ""),
-      name: String(value.teacherName || value.teacher_name || value.name || ""),
-      faceEnrollmentStatus: faceStatus,
-      hasFace: explicitReadiness === null ? faceStatus === "ENROLLED" : explicitReadiness,
-      faceReadinessKnown: explicitReadiness !== null || Boolean(faceStatus)
+      name: String(value.teacherName || value.teacher_name || value.name || "")
     };
-  }
-
-  function teacherFaceUnavailable(teacher) {
-    return teacher?.faceReadinessKnown === true && teacher?.hasFace !== true;
   }
 
   function teacherBindingError() {
@@ -574,7 +564,7 @@
       const project = $("verificationProject");
       if (project) {
         project.disabled = true;
-        project.innerHTML = `<option value="">${page === "verification-experience" ? "确认客户并选择老师后读取体验次数" : "确认客户后从数据库加载可核销项目"}</option>`;
+        project.innerHTML = `<option value="">${page === "verification-experience" ? "确认客户后读取当前老师的体验次数" : "确认客户后从数据库加载可核销项目"}</option>`;
       }
       if (page === "verification-experience" && $("experienceQuotaHint")) {
         $("experienceQuotaHint").textContent = "体验项目取决于老师体验额度，客户余额不会被读取或扣减。";
@@ -697,23 +687,13 @@
       syncVerificationSubmit();
       return;
     }
-    const teacher = databaseTeachers.find((item) => item.id === teacherId);
-    if (teacherFaceUnavailable(teacher)) {
-      select.innerHTML = `<option value="">老师资料不完整，不能体验核销</option>`;
-      const hint = $("experienceQuotaHint");
-      if (hint) hint.textContent = "老师人脸只能在创建时完成；该异常记录需要清理后重新创建，不能在详情页补录或更换。";
-      const message = $("verificationCreateMessage");
-      if (message) message.textContent = "该老师的人脸资料不完整，不能激活、登录或完成体验核销；请清理后重新创建。";
-      syncVerificationSubmit();
-      return;
-    }
     select.innerHTML = `<option value="">正在读取老师的可用体验次数…</option>`;
     const hint = $("experienceQuotaHint");
     if (hint) hint.textContent = "正在读取老师的体验额度…";
     try {
       // EXPERIENCE deliberately does not call getCustomerProductBalances.
-      // The selected customer remains the business owner of the record, while
-      // both the face subject and the quota consumed belong to this teacher.
+      // The logged-in teacher owns the quota. The selected customer owns the
+      // face evidence and remains the business subject of the record.
       const result = await callCustomerEnrollment({ action: "getTeacherExperienceEntitlements", teacherId });
       if (request !== balanceRequest || !selectedCustomer || String($("verificationTeacher")?.value || "") !== teacherId) return;
       verificationBalanceProjects = (Array.isArray(result?.entitlements) ? result.entitlements : [])
@@ -734,7 +714,7 @@
         : `<option value="">该老师没有可用的活跃产品体验次数</option>`;
       select.disabled = verificationBalanceProjects.length === 0;
       if (hint) hint.textContent = verificationBalanceProjects.length
-        ? "体验核销将扣减所选老师的体验次数；客户余额不会减少。"
+        ? "体验核销将扣减当前老师的体验次数；现场只核验客户人脸，客户购买余额不会减少。"
         : "该老师目前没有可体验的活跃产品；可由总部在老师档案中配置或单独充值。";
     } catch (error) {
       if (request !== balanceRequest || !selectedCustomer || String($("verificationTeacher")?.value || "") !== teacherId) return;
@@ -878,13 +858,13 @@
   }
   function setupVerification() {
     const experiencePage = page === "verification-experience";
-    setupLookup(); $("verificationProject").innerHTML = `<option value="">${experiencePage ? "确认客户并选择老师后读取体验次数" : "确认客户后从数据库加载可核销项目"}</option>`; loadActiveTeachers("verificationTeacher", "verificationCreateMessage");
+    setupLookup(); $("verificationProject").innerHTML = `<option value="">${experiencePage ? "确认客户后读取当前老师的体验次数" : "确认客户后从数据库加载可核销项目"}</option>`; loadActiveTeachers("verificationTeacher", "verificationCreateMessage");
     const video = $("verificationCamera"), preview = $("verificationPhotoPreview"), placeholder = $("verificationCameraPlaceholder"), canvas = $("verificationCaptureCanvas"), open = $("openVerificationCamera"), capture = $("captureVerificationPhoto"), retake = $("retakeVerificationPhoto"), status = $("verificationPhotoStatus"), message = $("verificationCreateMessage");
     $("verificationProject").addEventListener("change", syncVerificationSubmit);
     $("verificationTeacher").addEventListener("change", async () => {
       if (experiencePage) {
-        // Selection changes must invalidate the previously loaded quota and
-        // any capture that was about to be committed against another teacher.
+        // Rebinding the authenticated teacher context invalidates any quota
+        // response or customer capture produced for the previous context.
         resetVerificationCapture();
         if (selectedCustomer) await loadTeacherExperienceEntitlements();
       }
@@ -895,32 +875,20 @@
     open.addEventListener("click", async () => {
       try {
         if (!selectedCustomer) throw new Error("请先查询并确认需要核销的客户");
-        if (experiencePage) {
-          const teacher = databaseTeachers.find((item) => item.id === String($("verificationTeacher")?.value || ""));
-          if (!teacher) throw new Error("请先确认本次体验核销的老师。");
-          if (teacherFaceUnavailable(teacher)) throw new Error("该老师人脸资料不完整，请清理后重新创建老师。");
+        if (experiencePage && !databaseTeachers.some((item) => item.id === String($("verificationTeacher")?.value || ""))) {
+          throw new Error("当前账号没有可用的老师档案，不能赠送体验核销。");
         }
         resetVerificationCapture(); open.hidden = true;
         if (!navigator.mediaDevices?.getUserMedia) throw new Error("当前浏览器不支持摄像头访问，请使用最新版 Chrome 或 Edge");
         cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1440 }, height: { ideal: 1920 } }, audio: false });
         video.srcObject = cameraStream; video.hidden = false; placeholder.hidden = true; await video.play(); capture.disabled = false;
-        status.className = "capture-status pending"; status.textContent = experiencePage
-          ? "摄像头已打开，请让所选老师本人正对镜头"
-          : "摄像头已打开，请让所选客户正对镜头"; message.textContent = "";
+        status.className = "capture-status pending"; status.textContent = "摄像头已打开，请让所选客户正对镜头"; message.textContent = "";
       } catch (error) {
         stopFaceCamera(); open.hidden = false; capture.disabled = true; status.className = "capture-status pending"; status.textContent = "无法开始验证"; message.textContent = error?.message || "请检查摄像头权限";
       }
     });
     capture.addEventListener("click", async () => {
       if (!selectedCustomer) { message.textContent = "请重新确认需要核销的客户"; return; }
-      const faceTeacherId = String($("verificationTeacher")?.value || "");
-      const faceTeacher = databaseTeachers.find((item) => item.id === faceTeacherId);
-      if (experiencePage && (!faceTeacher || teacherFaceUnavailable(faceTeacher))) {
-        message.textContent = !faceTeacher
-          ? "请先确认本次体验核销的老师"
-          : "该老师人脸资料不完整，请清理后重新创建老师";
-        return;
-      }
       if (!cameraStream || !video.videoWidth || !video.videoHeight) { message.textContent = "摄像头画面尚未就绪，请稍后重试"; return; }
       const targetRatio = 3 / 4;
       let sourceWidth = video.videoWidth, sourceHeight = video.videoHeight;
@@ -945,32 +913,26 @@
       }
       verificationThumbnailDataUrl = resizedCanvasDataUrl(canvas, 480, 0.82);
       preview.src = capturedPhotoDataUrl; preview.hidden = false; video.hidden = true; stopFaceCamera(); open.hidden = true; capture.disabled = true; retake.hidden = false;
-      photoCaptured = false; syncVerificationSubmit(); status.className = "capture-status pending"; status.textContent = experiencePage
-        ? "正在与所选老师的登记人脸进行 1:1 验证…"
-        : "正在与所选客户进行 1:1 人脸验证…"; message.textContent = "";
+      photoCaptured = false; syncVerificationSubmit(); status.className = "capture-status pending"; status.textContent = "正在与所选客户进行 1:1 人脸验证…"; message.textContent = "";
       try {
         const result = await callCustomerEnrollment({
-          action: experiencePage ? "verifyTeacherExperienceFace" : "verifyCustomerFace",
+          action: "verifyCustomerFace",
           customerCode: selectedCustomer.id,
-          ...(experiencePage ? { teacherId: faceTeacher.id } : {}),
           imageBase64: capturedPhotoDataUrl,
           thumbnailBase64: verificationThumbnailDataUrl,
           imageWidth: evidenceWidth,
           imageHeight: evidenceHeight
         });
         if (!result.matched) throw new Error(`${result.message || "1:1 人脸验证未通过"}（相似度 ${result.score ?? 0}，要求 ${result.threshold ?? "-"}）`);
-        if (experiencePage && String(result.teacher?.teacherId || "") !== faceTeacher.id) throw new Error("人脸验证返回的老师身份与当前选择不一致，已停止提交。");
         photoCaptured = true;
         verificationFaceRequestId = String(result.requestId || "");
         if (!verificationFaceRequestId) throw new Error("人脸验证服务未返回验证请求编号，请重新拍照验证");
         verificationFaceEvidenceToken = String(result.faceEvidenceToken || "");
         if (!/^[0-9a-f]{48}$/.test(verificationFaceEvidenceToken)) throw new Error("现场人脸照片没有安全保存，请重新拍照验证");
         const livenessText = result?.liveness?.checked ? "、活体检测" : "";
-        status.className = "capture-status complete"; status.textContent = experiencePage
-          ? `所选老师本人 1:1 人脸验证${livenessText}通过（${result.score} 分）`
-          : `所选客户 1:1 人脸验证${livenessText}通过（${result.score} 分）`;
+        status.className = "capture-status complete"; status.textContent = `所选客户 1:1 人脸验证${livenessText}通过（${result.score} 分）`;
       } catch (error) {
-        photoCaptured = false; status.className = "capture-status pending"; status.textContent = "1:1 人脸验证未通过，请重新拍照"; message.textContent = error?.message || (experiencePage ? "现场人脸与所选老师的登记人脸不一致" : "现场人脸与所选客户不一致");
+        photoCaptured = false; status.className = "capture-status pending"; status.textContent = "1:1 人脸验证未通过，请重新拍照"; message.textContent = error?.message || "现场人脸与所选客户不一致";
       }
       syncVerificationSubmit();
     });
@@ -979,15 +941,12 @@
     $("verificationCreateForm").addEventListener("submit", async (event) => {
       event.preventDefault(); const form = event.currentTarget, submit = form.querySelector('[type="submit"]'), projectId = $("verificationProject").value, teacherId = $("verificationTeacher").value, note = $("verificationNote").value.trim(), experience = experiencePage;
       if (!selectedCustomer || !projectId || !teacherId) { $("verificationCreateMessage").textContent = "必须确认客户并选择项目和老师"; return; }
-      if (!photoCaptured) { $("verificationCreateMessage").textContent = experience
-        ? "必须完成现场拍照并通过所选老师本人的 1:1 人脸验证，才能扣减老师体验次数并发送设备信号"
-        : "必须完成现场拍照并通过所选客户的 1:1 人脸验证，才能核销和发送设备信号"; return; }
+      if (!photoCaptured) { $("verificationCreateMessage").textContent = "必须完成现场拍照并通过所选客户的 1:1 人脸验证，才能核销和发送设备信号"; return; }
       const project = verificationBalanceProjects.find((item) => item.id === projectId);
       if (!project) { $("verificationCreateMessage").textContent = experience ? "所选老师的体验次数已失效，请重新选择老师和项目后再试" : "所选项目余额已失效，请重新确认客户后再试"; return; }
       const teacher = databaseTeachers.find((item) => item.id === teacherId);
       if (!teacher) { $("verificationCreateMessage").textContent = "老师数据已经失效，请刷新页面后重新选择"; return; }
       if (teacherMode && teacher.id !== normalizedTeacherProfile(teacherBusinessProfile || {}).id) { $("verificationCreateMessage").textContent = "老师账号只能将业务绑定给本人，请刷新页面后重试"; return; }
-      if (experience && teacherFaceUnavailable(teacher)) { $("verificationCreateMessage").textContent = "该老师人脸资料不完整，不能提交体验核销；请清理后重新创建"; return; }
       const payload = { customerCode: selectedCustomer.id, productId: project.id, teacherId: teacher.id, verificationType: experience ? "EXPERIENCE" : "NORMAL", message: note, faceRequestId: verificationFaceRequestId, faceEvidenceToken: verificationFaceEvidenceToken };
       const clientRequestId = nextVerificationRequestId({ storeId, ...payload });
       submit.disabled = true;
@@ -1004,8 +963,8 @@
           projectId: String(result.product?.productId || project.id), projectCode: String(result.product?.productCode || project.code || ""), projectName: String(result.product?.productName || project.name),
           teacherId: String(result.teacher?.teacherId || teacher.id), teacherCode: String(result.teacher?.teacherCode || teacher.code || ""), teacherName: String(result.teacher?.teacherName || teacher.name),
           count: Number(result.unitCount || 1), faceVerification: "活体检测与人脸比对通过",
-          faceSubjectType: experience ? "TEACHER" : "CUSTOMER",
-          faceSubjectTeacherId: experience ? String(result.teacher?.teacherId || teacher.id) : "",
+          faceSubjectType: "CUSTOMER",
+          faceSubjectTeacherId: "",
           verificationType: experience ? "体验核销" : "正常核销", status: String(result.recordStatus),
           experienceQuotaAvailableAfter: experience && result.experienceQuota
             ? Number(result.experienceQuota.availableAfterCount ?? result.experienceQuota.availableAfter)

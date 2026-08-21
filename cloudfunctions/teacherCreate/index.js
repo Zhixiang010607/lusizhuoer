@@ -4,12 +4,9 @@ const crypto = require("node:crypto");
 const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 
-const FUNCTION_VERSION = "teacher-create-v5";
-const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
-const FACE_MODEL_VERSION = "3.0";
+const FUNCTION_VERSION = "teacher-create-v6";
 let cloudApp = null;
 let managerClient = null;
-let iaiClientClass = null;
 
 function app() {
   if (!cloudApp) cloudApp = cloudbase.init({});
@@ -22,32 +19,9 @@ function envId() {
   return value;
 }
 
-function serviceKey() {
-  const value = String(
-    process.env.CLOUDBASE_APIKEY || process.env.CLOUDBASE_SERVICE_ROLE_KEY || ""
-  ).trim();
-  if (!value) fail("缺少 CloudBase 服务端密钥。", "CONFIG_MISSING");
-  return value;
-}
-
 function manager() {
   if (!managerClient) managerClient = CloudBaseManager.init({ envId: envId() });
   return managerClient;
-}
-
-function required(name) {
-  const value = String(process.env[name] || "").trim();
-  if (!value) fail(`缺少云函数环境变量 ${name}。`, "CONFIG_MISSING");
-  return value;
-}
-
-function faceClient() {
-  if (!iaiClientClass) iaiClientClass = require("tencentcloud-sdk-nodejs").iai.v20200303.Client;
-  return new iaiClientClass({
-    credential: { secretId: required("FACE_SECRET_ID"), secretKey: required("FACE_SECRET_KEY") },
-    region: "ap-guangzhou",
-    profile: { httpProfile: { endpoint: "iai.tencentcloudapi.com" } }
-  });
 }
 
 function fail(message, code = "BAD_REQUEST") {
@@ -57,8 +31,7 @@ function fail(message, code = "BAD_REQUEST") {
 }
 
 function requestIdFrom(value, depth = 0) {
-  if (!value || depth > 4) return "";
-  if (typeof value !== "object") return "";
+  if (!value || depth > 4 || typeof value !== "object") return "";
   for (const key of ["requestId", "RequestId", "request_id"]) {
     const found = String(value[key] || "").trim();
     if (found) return found;
@@ -97,60 +70,6 @@ async function executeSql(sql) {
   return parseRows(await manager().database.executePGSql({ Sql: sql }));
 }
 
-function boolSetting(name, fallback = false) {
-  if (process.env[name] === undefined || process.env[name] === "") return fallback;
-  return ["1", "true", "yes", "on"].includes(String(process.env[name]).trim().toLowerCase());
-}
-
-function numberSetting(name, fallback, minimum, maximum) {
-  if (process.env[name] === undefined || process.env[name] === "") return fallback;
-  const value = Number(process.env[name]);
-  if (!Number.isFinite(value) || value < minimum || value > maximum) {
-    fail(`${name} 必须在 ${minimum} 到 ${maximum} 之间。`, "CONFIG_INVALID");
-  }
-  return value;
-}
-
-function faceSettings() {
-  return {
-    qualityThreshold: numberSetting("FACE_QUALITY_THRESHOLD", 70, 0, 100),
-    livenessEnabled: boolSetting("FACE_LIVENESS_ENABLED", false),
-    livenessThreshold: numberSetting("FACE_LIVENESS_THRESHOLD", 40, 0, 100),
-    maxYaw: numberSetting("FACE_MAX_YAW", 20, 0, 90),
-    maxPitch: numberSetting("FACE_MAX_PITCH", 20, 0, 90),
-    maxRoll: numberSetting("FACE_MAX_ROLL", 15, 0, 90)
-  };
-}
-
-function rounded(value) {
-  return Math.round(Number(value || 0) * 10) / 10;
-}
-
-function jpegImage(value) {
-  const text = String(value || "").trim();
-  if (!/^data:image\/jpeg;base64,/i.test(text)) {
-    fail("老师人脸必须使用现场采集的 JPEG 照片。", "TEACHER_FACE_IMAGE_INVALID");
-  }
-  const base64 = text.replace(/^data:image\/jpeg;base64,/i, "").trim();
-  const canonical = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
-  if (!base64 || !canonical.test(base64)) {
-    fail("老师人脸照片格式无效。", "TEACHER_FACE_IMAGE_INVALID");
-  }
-  const buffer = Buffer.from(base64, "base64");
-  if (buffer.toString("base64") !== base64 || buffer.length < 4
-      || buffer.length > MAX_IMAGE_BYTES
-      || buffer[0] !== 0xff || buffer[1] !== 0xd8 || buffer[2] !== 0xff
-      || buffer[buffer.length - 2] !== 0xff || buffer[buffer.length - 1] !== 0xd9) {
-    fail("老师人脸照片必须是小于 3 MB 的完整 JPEG。", "TEACHER_FACE_IMAGE_INVALID");
-  }
-  return {
-    base64,
-    buffer,
-    bytes: buffer.length,
-    sha256: crypto.createHash("sha256").update(buffer).digest("hex")
-  };
-}
-
 function teacherName(value) {
   const text = String(value || "").trim();
   if (!text || text.length > 64) fail("请填写 1-64 个字符的老师姓名。", "BAD_REQUEST");
@@ -165,9 +84,7 @@ function phoneNumber(value) {
 
 function passwordValue(value) {
   const text = String(value || "");
-  if (!/^[A-Za-z0-9]/.test(text)) {
-    fail("初始密码不能以特殊字符开头。", "PASSWORD_START_INVALID");
-  }
+  if (!/^[A-Za-z0-9]/.test(text)) fail("初始密码不能以特殊字符开头。", "PASSWORD_START_INVALID");
   const groups = [/[A-Z]/, /[a-z]/, /\d/, /[^A-Za-z\d]/].filter((rule) => rule.test(text)).length;
   if (text.length < 8 || text.length > 32 || groups < 3) {
     fail("初始密码须为 8-32 位，并包含大写、小写、数字、特殊字符中的至少三类。", "BAD_REQUEST");
@@ -184,89 +101,6 @@ function requestKey(value) {
 function normalizedPhone(value) {
   const digits = String(value || "").replace(/\D/g, "");
   return digits.length === 13 && digits.startsWith("86") ? digits.slice(2) : digits;
-}
-
-function personIdFor(image, phone, clientRequestId) {
-  const token = crypto.createHash("sha256")
-    .update(`teacher-face:${phone}:${clientRequestId}:${image.sha256}`, "utf8")
-    .digest("hex").slice(0, 48).toUpperCase();
-  return `T-${token}`;
-}
-
-function storageSettings() {
-  const bucketId = String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim();
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(bucketId)) {
-    fail("私有照片存储桶 ID 无效。", "CONFIG_INVALID");
-  }
-  return { bucketId, accessToken: serviceKey(), envId: envId() };
-}
-
-function photoFor(phone, personId, image) {
-  const { bucketId } = storageSettings();
-  const owner = crypto.createHash("sha256").update(`teacher-photo:${phone}`, "utf8").digest("hex").slice(0, 32);
-  const objectName = `teachers/${owner}/profile/${personId}-${image.sha256.slice(0, 32)}.jpg`;
-  return { bucketId, objectName, reference: `pg://${bucketId}/${objectName}` };
-}
-
-async function inspectFace(api, base64) {
-  let result;
-  try {
-    result = await api.DetectFace({
-      Image: base64, MaxFaceNum: 2, MinFaceSize: 34,
-      NeedFaceAttributes: 1, NeedQualityDetection: 1,
-      FaceModelVersion: FACE_MODEL_VERSION, NeedRotateDetection: 0
-    });
-  } catch (error) {
-    if (String(error?.code || "").includes("NoFaceInPhoto")) {
-      fail("没有检测到清晰人脸，请正对镜头后重新拍照。", "FACE_NOT_FOUND");
-    }
-    throw error;
-  }
-  const faces = Array.isArray(result?.FaceInfos) ? result.FaceInfos : [];
-  if (!faces.length) fail("没有检测到清晰人脸。", "FACE_NOT_FOUND");
-  if (faces.length !== 1) fail("照片中只能有一位人员。", "MULTIPLE_FACES");
-  const face = faces[0] || {};
-  if (Number(face.Width || 0) < 100 || Number(face.Height || 0) < 100) {
-    fail("人脸距离镜头太远，请靠近后重新拍照。", "FACE_TOO_SMALL");
-  }
-  const quality = face.FaceQualityInfo || {};
-  const attributes = face.FaceAttributesInfo || {};
-  const settings = faceSettings();
-  const score = Number(quality.Score || 0);
-  if (score < settings.qualityThreshold) {
-    fail(`照片质量不足（${rounded(score)} 分），请重新拍照。`, "FACE_QUALITY_LOW");
-  }
-  if (attributes.Mask === true) fail("建档照片不能佩戴口罩。", "FACE_MASKED");
-  if (attributes.EyeOpen === false) fail("检测到闭眼，请重新拍照。", "EYES_CLOSED");
-  const yaw = Number(attributes.Yaw || 0);
-  const pitch = Number(attributes.Pitch || 0);
-  const roll = Number(attributes.Roll || 0);
-  if (Math.abs(yaw) > settings.maxYaw || Math.abs(pitch) > settings.maxPitch
-      || Math.abs(roll) > settings.maxRoll) {
-    fail("脸部角度过大，请正对镜头。", "FACE_POSE_INVALID");
-  }
-  return {
-    requestId: result?.RequestId || "",
-    qualityScore: rounded(score), qualityThreshold: settings.qualityThreshold,
-    faceWidth: Number(face.Width || 0), faceHeight: Number(face.Height || 0),
-    yaw: rounded(yaw), pitch: rounded(pitch), roll: rounded(roll)
-  };
-}
-
-async function inspectLiveness(api, base64) {
-  const settings = faceSettings();
-  if (!settings.livenessEnabled) {
-    return { enabled: false, checked: false, score: null, threshold: settings.livenessThreshold };
-  }
-  const result = await api.DetectLiveFaceAccurate({ Image: base64, FaceModelVersion: FACE_MODEL_VERSION });
-  const score = Number(result?.Score || 0);
-  if (score < settings.livenessThreshold) {
-    fail(`活体检测未通过（${rounded(score)} 分）。`, "LIVENESS_FAILED");
-  }
-  return {
-    enabled: true, checked: true, score: rounded(score),
-    threshold: settings.livenessThreshold, requestId: result?.RequestId || ""
-  };
 }
 
 async function requireHq() {
@@ -298,9 +132,8 @@ async function readBusinessByPhone(phone) {
   const rows = await executeSql(
     `SELECT account.id AS staff_id, account.auth_uid, account.phone,
             account.staff_name, account.role_code, account.account_status,
-            teacher.id AS teacher_id, teacher.teacher_code, teacher.teacher_name,
-            teacher.teacher_status, teacher.face_person_id,
-            teacher.face_enrollment_status, teacher.profile_photo_file_id
+            teacher.id AS teacher_id, teacher.teacher_code,
+            teacher.teacher_name, teacher.teacher_status
        FROM public.staff_accounts AS account
        LEFT JOIN public.teachers AS teacher ON teacher.staff_account_id = account.id
       WHERE account.phone = ${sqlText(phone)}
@@ -311,19 +144,25 @@ async function readBusinessByPhone(phone) {
 }
 
 async function createActiveAuthentication({ phone, name, password, clientRequestId, lifecycle }) {
-  const byPhone = await exactAuthByPhone(phone);
-  if (byPhone) fail("该手机号已存在登录账号，不能重复创建老师。", "PHONE_ALREADY_PROVISIONED");
+  if (await exactAuthByPhone(phone)) {
+    fail("该手机号已存在登录账号，不能重复创建老师。", "PHONE_ALREADY_PROVISIONED");
+  }
   const description = `teacher-create:${clientRequestId}`;
   lifecycle.authAttempted = true;
   let created;
   try {
     created = await manager().user.createUser({
-      name: `staff_${phone}`, password, type: "externalUser",
-      userStatus: "ACTIVE", nickName: name, phone, description
+      name: `staff_${phone}`,
+      password,
+      type: "externalUser",
+      userStatus: "ACTIVE",
+      nickName: name,
+      phone,
+      description
     });
-  } catch (createError) {
-    createError.code ||= "AUTH_CREATE_FAILED";
-    throw createError;
+  } catch (error) {
+    error.code ||= "AUTH_CREATE_FAILED";
+    throw error;
   }
   const uid = String(created?.Data?.Uid || "").trim();
   if (!uid) fail("认证账号创建后未返回 UID，请检查认证用户后再重试。", "AUTH_CREATE_INCOMPLETE");
@@ -332,99 +171,41 @@ async function createActiveAuthentication({ phone, name, password, clientRequest
   return { uid };
 }
 
-async function insertTeacherRecord({ uid, phone, name, actor, personId, photoRef }) {
+async function insertTeacherRecord({ uid, phone, name }) {
   await executeSql(
     `WITH account AS (
        INSERT INTO public.staff_accounts
          (auth_uid, phone, staff_name, role_code, account_status)
-        VALUES (${sqlText(uid)}, ${sqlText(phone)}, ${sqlText(name)}, 'teacher', 'ACTIVE')
+       VALUES (${sqlText(uid)}, ${sqlText(phone)}, ${sqlText(name)}, 'teacher', 'ACTIVE')
        RETURNING id
      )
      INSERT INTO public.teachers
-       (teacher_code, teacher_name, staff_account_id, teacher_status,
-        face_person_id, face_consent_at, face_enrollment_status,
-        face_enrolled_at, face_enrolled_by_account_id, profile_photo_file_id)
-      SELECT 'TCHF' || account.id::text, ${sqlText(name)}, account.id, 'ACTIVE',
-            ${sqlText(personId)}, NOW(), 'ENROLLED', NOW(),
-            ${Number(actor.staffId)}::bigint, ${sqlText(photoRef)}
-       FROM account`
+       (teacher_code, teacher_name, staff_account_id, teacher_status)
+     SELECT 'TCHF' || account.id::text, ${sqlText(name)}, account.id, 'ACTIVE'
+       FROM account
+     ON CONFLICT (staff_account_id) DO UPDATE
+       SET teacher_name = EXCLUDED.teacher_name,
+           teacher_status = 'ACTIVE',
+           updated_at = NOW()`
   );
   const row = await readBusinessByPhone(phone);
-  if (!row?.staff_id || !row?.teacher_id) fail("老师资料写入后未返回有效编号。", "DATABASE_ERROR");
+  if (!row?.staff_id || !row?.teacher_id
+      || String(row.auth_uid || "") !== uid
+      || String(row.role_code || "") !== "teacher"
+      || String(row.account_status || "") !== "ACTIVE"
+      || String(row.teacher_status || "") !== "ACTIVE") {
+    fail("老师资料写入后未读取到完整的活跃账号和老师主档。", "DATABASE_ERROR");
+  }
   return row;
 }
 
-function storageMissing(error) {
-  const text = `${error?.code || ""} ${error?.message || ""}`.toUpperCase();
-  return text.includes("STORAGE_OBJECT_NOT_FOUND") || text.includes("OBJECT NOT FOUND");
-}
-
-async function uploadPhoto(photo, image) {
-  const settings = storageSettings();
-  await manager().storage.uploadObject({
-    bucketId: photo.bucketId, objectName: photo.objectName, body: image.buffer,
-    contentType: "image/jpeg", contentLength: image.bytes,
-    cacheControl: "private, max-age=31536000, immutable", upsert: false,
-    accessToken: settings.accessToken, envId: settings.envId
-  });
-  return photo;
-}
-
-async function createRemoteAssets({ api, groupId, personId, name, photo, image, lifecycle }) {
-  lifecycle.personAttempted = true;
-  const faceResult = await api.CreatePerson({
-    GroupId: groupId,
-    PersonId: personId,
-    PersonName: name,
-    Image: image.base64,
-    UniquePersonControl: 0,
-    QualityControl: 3,
-    NeedRotateDetection: 0
-  });
-  lifecycle.personCreated = true;
-  const faceId = String(faceResult?.FaceId || "").trim();
-  if (!faceId) fail("人脸服务创建响应缺少 FaceId。", "FACE_ENROLLMENT_INCOMPLETE");
-  lifecycle.photoAttempted = true;
-  await uploadPhoto(photo, image);
-  lifecycle.photoCreated = true;
-  return {
-    person: { personId, groupId, faceId },
-    photo: { reference: photo.reference, bytes: image.bytes, sha256: image.sha256 }
-  };
-}
-
-async function deletePhoto(photo) {
-  const settings = storageSettings();
-  try {
-    await manager().storage.deleteObject({
-      bucketId: photo.bucketId, objectName: photo.objectName,
-      accessToken: settings.accessToken, envId: settings.envId
-    });
-  } catch (error) {
-    if (!storageMissing(error)) throw error;
-  }
-}
-
-async function deletePerson(api, groupId, personId) {
-  try {
-    await api.DeletePersonFromGroup({ GroupId: groupId, PersonId: personId });
-  } catch (error) {
-    const code = String(error?.code || "").trim();
-    const alreadyAbsent = code === "InvalidParameterValue.PersonIdNotExist"
-      || code === "FailedOperation.GroupPersonMapNotExist";
-    if (!alreadyAbsent) throw error;
-  }
-}
-
-async function rollbackDatabase({ shell, uid, phone, personId, photoRef }) {
+async function rollbackDatabase({ shell, uid, phone }) {
   if (!shell?.staff_id) return;
   await executeSql(
     `WITH deleted_teacher AS (
        DELETE FROM public.teachers
         WHERE id = ${Number(shell.teacher_id)}::bigint
           AND staff_account_id = ${Number(shell.staff_id)}::bigint
-          AND (face_person_id IS NULL OR face_person_id = ${sqlText(personId)})
-          AND (profile_photo_file_id IS NULL OR profile_photo_file_id = ${sqlText(photoRef)})
        RETURNING staff_account_id
      )
      DELETE FROM public.staff_accounts AS account
@@ -460,30 +241,10 @@ async function cleanupFailure(context, originalError) {
     context.shell = await readBusinessByPhone(context.phone).catch(() => null);
     if (context.shell && String(context.shell.auth_uid || "") !== context.uid) context.shell = null;
   }
-  let databaseDetached = true;
   if (context.shell && context.databaseAttempted) {
-    try {
-      await rollbackDatabase({
-        shell: context.shell, uid: context.uid, phone: context.phone,
-        personId: context.personId, photoRef: context.photo?.reference || ""
-      });
-    } catch (error) {
-      databaseDetached = false;
-      failures.push({
-        stage: "DATABASE_ROLLBACK", code: error?.code || "CLEANUP_FAILED",
-        message: String(error?.message || "")
-      });
-    }
+    await attempt("DATABASE_ROLLBACK", () => rollbackDatabase(context));
   }
-  // Do not remove retained external evidence while PostgreSQL may still point
-  // at it. A cleanup-incomplete error is safer than a dangling database row.
-  if (databaseDetached && context.photoAttempted && context.photo) {
-    await attempt("PHOTO_DELETE", () => deletePhoto(context.photo));
-  }
-  if (databaseDetached && context.personAttempted && context.api && context.personId) {
-    await attempt("FACE_DELETE", () => deletePerson(context.api, context.groupId, context.personId));
-  }
-  if (databaseDetached && context.authAttempted && context.phone) {
+  if (context.authAttempted && context.phone) {
     const createdAuth = await exactAuthByPhone(context.phone).catch(() => null);
     const description = String(createdAuth?.Description ?? createdAuth?.description ?? "").trim();
     if (createdAuth && normalizedPhone(createdAuth.Phone) === context.phone
@@ -500,86 +261,53 @@ async function cleanupFailure(context, originalError) {
   }
 }
 
-function successResponse({ uid, shell, person, photo, quality, liveness, idempotent }) {
-  const proof = {
-    complete: true,
-    teacherStatus: "ACTIVE", accountStatus: "ACTIVE", authStatus: "ACTIVE",
-    faceStatus: "ENROLLED", faceId: person.faceId,
-    photoRef: photo.reference, personId: person.personId,
-    photoSha256: photo.sha256, photoBytes: photo.bytes
-  };
+function successResponse({ uid, shell }) {
   return {
-    ok: true, completed: true, uid,
-    teacherId: String(shell.teacher_id), teacherCode: String(shell.teacher_code || ""),
-    idempotent: idempotent === true,
-    proof, quality, liveness
+    ok: true,
+    completed: true,
+    uid,
+    teacherId: String(shell.teacher_id),
+    teacherCode: String(shell.teacher_code || ""),
+    proof: {
+      complete: true,
+      teacherStatus: "ACTIVE",
+      accountStatus: "ACTIVE",
+      authStatus: "ACTIVE"
+    }
   };
-}
-
-async function validateCapture(event) {
-  await requireHq();
-  const image = jpegImage(event.imageBase64);
-  const api = faceClient();
-  const quality = await inspectFace(api, image.base64);
-  const liveness = await inspectLiveness(api, image.base64);
-  return { ok: true, accepted: true, quality, liveness };
 }
 
 async function createTeacher(event) {
-  const actor = await requireHq();
+  await requireHq();
   const name = teacherName(event.staffName || event.teacherName);
   const phone = phoneNumber(event.phone);
   const password = passwordValue(event.initialPassword);
-  if (event.consent !== true) fail("必须取得老师人脸采集授权。", "CONSENT_REQUIRED");
   const clientRequestId = requestKey(event.clientRequestId);
-  const image = jpegImage(event.imageBase64);
-  const api = faceClient();
-  // Browser prevalidation is only a UX gate. Re-run both checks here so the
-  // write request never trusts a stale or forged browser result.
-  const quality = await inspectFace(api, image.base64);
-  const liveness = await inspectLiveness(api, image.base64);
-
   const context = {
-    api, groupId: required("FACE_GROUP_ID"), phone,
-    uid: "", authAttempted: false, authCreated: false,
-    databaseAttempted: false, databaseCreated: false,
+    phone,
+    uid: "",
     clientRequestId,
-    shell: null, personId: "", photo: null,
-    personAttempted: false, personCreated: false,
-    photoAttempted: false, photoCreated: false
+    authAttempted: false,
+    authCreated: false,
+    databaseAttempted: false,
+    shell: null
   };
   try {
     const [existingBusiness, existingAuth] = await Promise.all([
-      readBusinessByPhone(phone), exactAuthByPhone(phone)
+      readBusinessByPhone(phone),
+      exactAuthByPhone(phone)
     ]);
     if (existingBusiness || existingAuth) {
-      fail("该手机号已存在老师或登录账号，不能重复创建。", "PHONE_ALREADY_PROVISIONED");
+      fail("该手机号已存在人员或登录账号，不能重复创建老师。", "PHONE_ALREADY_PROVISIONED");
     }
-
-    const personId = personIdFor(image, phone, clientRequestId);
-    const photo = photoFor(phone, personId, image);
-    context.personId = personId;
-    context.photo = photo;
-    const remote = await createRemoteAssets({
-      api, groupId: context.groupId, personId, name, photo, image, lifecycle: context
-    });
-
     const authentication = await createActiveAuthentication({
       phone, name, password, clientRequestId, lifecycle: context
     });
     context.databaseAttempted = true;
-    const shell = await insertTeacherRecord({
-      uid: authentication.uid, phone, name, actor, personId, photoRef: photo.reference
-    });
-    context.shell = shell;
-    context.databaseCreated = true;
-    return successResponse({
-      uid: authentication.uid, shell,
-      person: remote.person, photo: remote.photo, quality, liveness, idempotent: false
-    });
+    context.shell = await insertTeacherRecord({ uid: authentication.uid, phone, name });
+    return successResponse({ uid: authentication.uid, shell: context.shell });
   } catch (error) {
-    try { await cleanupFailure(context, error); }
-    catch (cleanupError) { throw cleanupError; }
+    await cleanupFailure(context, error);
     throw error;
   }
 }
@@ -589,13 +317,9 @@ function health() {
   return {
     ok: true,
     version: FUNCTION_VERSION,
-    actions: ["health", "validateCapture", "createTeacher"],
+    actions: ["health", "createTeacher"],
     configured: {
-      cloudbaseEnv: hasEnv("CLOUDBASE_ENV_ID") || hasEnv("TCB_ENV"),
-      serviceKey: hasEnv("CLOUDBASE_APIKEY") || hasEnv("CLOUDBASE_SERVICE_ROLE_KEY"),
-      faceCredentials: hasEnv("FACE_SECRET_ID") && hasEnv("FACE_SECRET_KEY"),
-      faceGroup: hasEnv("FACE_GROUP_ID"),
-      photoBucket: Boolean(String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim())
+      cloudbaseEnv: hasEnv("CLOUDBASE_ENV_ID") || hasEnv("TCB_ENV")
     }
   };
 }
@@ -604,7 +328,6 @@ exports.main = async (event = {}) => {
   try {
     const action = String(event.action || "health").trim();
     if (action === "health") return health();
-    if (action === "validateCapture") return await validateCapture(event);
     if (action === "createTeacher") return await createTeacher(event);
     fail("不支持的 teacherCreate 动作。", "UNKNOWN_ACTION");
   } catch (error) {
@@ -613,9 +336,9 @@ exports.main = async (event = {}) => {
 };
 
 exports._test = {
-  jpegImage,
-  personIdFor,
-  photoFor,
   successResponse,
-  errorResponse
+  errorResponse,
+  teacherName,
+  phoneNumber,
+  passwordValue
 };

@@ -87,9 +87,6 @@
 
   function actionableStaffStatusError(error, action, refreshed, actualArchived) {
     const signature = `${error?.code || ""} ${error?.message || ""}`.toUpperCase();
-    if (signature.includes("TEACHER_FACE_REQUIRED")) {
-      return "该老师的人脸资料不完整，不能激活。老师主页不提供补录或更换入口；请清理这条旧／异常记录后，从老师创建页重新创建。";
-    }
     if (signature.includes("AUTH_CREDENTIAL_MISSING") || signature.includes("AUTH_ACCOUNT_MISSING")) {
       return "该记录没有可恢复的 CloudBase 登录凭据，属于压力测试或历史占位账号，只保留查询数据。激活未生效，账号已安全保持封存；如需登录，请通过“新增老师”创建正式账号。";
     }
@@ -129,13 +126,6 @@
 
   function teacherId() {
     return stringValue(staff, ["teacher_id", "teacherId"]);
-  }
-
-  function hasCompleteTeacherFace() {
-    const enrollment = String(staff?.face_enrollment_status || staff?.faceEnrollmentStatus || "").toUpperCase();
-    const person = stringValue(staff, ["face_person_id", "facePersonId"]);
-    const photo = stringValue(staff, ["profile_photo_file_id", "profilePhotoFileId"]);
-    return enrollment === "ENROLLED" && Boolean(person) && /^pg:\/\/[^/]+\/.+/.test(photo);
   }
 
   function setExperienceMessage(id, message = "", tone = "") {
@@ -562,8 +552,6 @@
     const isTeacher = role === "teacher";
     const staffName = stringValue(staff, ["staff_name", "teacher_name"], labels[role]);
     const teacherCode = stringValue(staff, ["person_code", "teacher_code"], "未分配");
-    const completeFace = isTeacher && hasCompleteTeacherFace();
-    const faceStatus = completeFace ? "已登记 · 用于体验核销" : "资料不完整 · 请清理后重新创建";
     const initials = Array.from(staffName.trim() || labels[role]).slice(0, 1).join("");
     $("staffDetailEyebrow").textContent = isTeacher ? "TEACHER WORKSPACE" : "ACCOUNT PROFILE";
     $("staffDetailTitle").textContent = isTeacher ? `${staffName} · 老师主页` : `${staffName} · ${labels[role]}主页`;
@@ -577,11 +565,10 @@
           <div class="teacher-profile-copy">
             <p class="teacher-profile-kicker">老师档案</p>
             <div class="teacher-profile-name-row"><h2>${escapeHtml(staffName)}</h2><span class="teacher-profile-status ${status === "活跃" ? "active" : "archived"}">${status}</span></div>
-            <p class="teacher-profile-description">老师人脸只能在新建老师时登记，仅用于体验核销现场身份核验，不用于登录；普通核销不要求老师再次识别。旧记录如缺少完整人脸资料，不能在本页补录或更换，必须清理后重新创建。</p>
+            <p class="teacher-profile-description">老师身份由登录手机号和账号主档绑定。体验核销自动使用当前老师的体验额度，现场只核验客户人脸。</p>
             <dl class="teacher-profile-meta">
               <div><dt>老师编号</dt><dd>${escapeHtml(teacherCode)}</dd></div>
               <div><dt>联系电话</dt><dd>${escapeHtml(staff.phone || "未填写")}</dd></div>
-              <div class="teacher-face-status-fact"><dt>人脸绑定</dt><dd>${escapeHtml(faceStatus)}</dd></div>
               <div><dt>密码状态</dt><dd>${escapeHtml(credentialStatus())}</dd></div>
             </dl>
           </div>
@@ -604,14 +591,9 @@
     statusAction.textContent = status === "活跃" ? `封存${labels[role]}` : `激活${labels[role]}`;
     statusAction.classList.toggle("danger-button", status === "活跃");
     statusAction.classList.toggle("secondary-button", status !== "活跃");
-    const faceBlocksActivation = isTeacher && status !== "活跃" && !completeFace;
-    statusAction.disabled = faceBlocksActivation;
-    statusAction.title = faceBlocksActivation
-      ? "人脸资料不完整，不能激活；请清理该旧／异常记录后重新创建老师。"
-      : "";
-    const baseStatusHint = faceBlocksActivation
-      ? "该老师的人脸资料不完整，不能激活。老师主页不提供人脸补录或更换，请清理旧／异常记录后重新创建。"
-      : status === "活跃"
+    statusAction.disabled = false;
+    statusAction.title = "";
+    const baseStatusHint = status === "活跃"
       ? "封存后该人员无法登录，历史业务记录和体验额度记录都会保留。"
       : "激活后该人员可再次登录；历史业务记录保持不变。";
     delete $("staffStatusHint").dataset.tone;
@@ -693,9 +675,7 @@
     let requestError = null;
     try {
       // A login-bound teacher is updated through the dedicated account path,
-      // which atomically mirrors the teacher master status and the CloudBase
-      // credential.  The service rejects activation unless all persisted face
-      // references are complete; archiving remains available for cleanup.
+      // which mirrors the teacher master status and CloudBase credential.
       if (canUpdateByAccount) {
         await window.CloudBasePhoneAuth.setStaffStatus({ uid: staff.auth_uid, phone: staff.phone, status: next });
       } else if (canUpdateByMaster) {
@@ -719,7 +699,7 @@
       setStaffStatusFeedback(actionableStaffStatusError(requestError, text, refreshed, actualArchived), "error");
     }
     setButtonPending(button, false);
-    button.disabled = role === "teacher" && isStaffArchived() && !hasCompleteTeacherFace();
+    button.disabled = false;
   });
 
   $("teacherExperienceConfigForm")?.addEventListener("submit", async (event) => {
