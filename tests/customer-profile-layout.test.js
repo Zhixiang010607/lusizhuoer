@@ -26,11 +26,11 @@ assert.match(css, /\.customer-notes-title-row \{[^}]*display: flex;[^}]*align-it
 assert.match(html, /class="customer-notes-messages-grid"[\s\S]*customer-notes-panel[\s\S]*customer-messages-panel/, "customer notes and messages must share the same layout row");
 assert.match(ui, /action:"updateCustomerNotes"/, "customer notes must save through the database service");
 assert.match(ui, /const canEditNotes = \["hq", "store", "teacher"\]/, "HQ, store and teacher may edit customer notes");
-assert.match(html, /customer-profile\.js\?v=0\.15\.11/, "customer note permission change must bust the profile script cache");
+assert.match(html, /customer-profile\.js\?v=0\.15\.12/, "customer note and photo permission change must bust the profile script cache");
 assert.match(ui, /EXPERIENCE:\s*\{ hasMore:false/, "experience records must paginate independently");
 assert.match(cloud, /async function updateCustomerNotes\(event\)/, "cloud function must persist customer notes");
 assert.match(cloud, /async function updateCustomerNotes\(event\) \{[\s\S]*await activeCustomerProfileCaller\(\)[\s\S]*findCustomerForNotes/, "note writes must use the teacher-aware customer profile scope");
-assert.match(cloud, /UPDATE public\.customers[\s\S]*\$\{customerProfileScope\(caller\)\}[\s\S]*COALESCE\(notes, ''\)/, "teacher note writes remain limited to linked customers");
+assert.match(cloud, /UPDATE public\.customers AS c[\s\S]*\$\{customerProfileScope\(caller, "c"\)\}[\s\S]*COALESCE\(c\.notes, ''\)/, "teacher note writes remain limited to linked customers through a valid SQL alias");
 assert.match(cloud, /\["RECHARGE", "VERIFICATION", "EXPERIENCE"\]/, "customer history API must accept experience history");
 
 const phoneBlock = css.slice(css.lastIndexOf("/* On phones the document owns vertical scrolling."));

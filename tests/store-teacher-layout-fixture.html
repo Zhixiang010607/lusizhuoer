@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN" data-auth-ready>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>门店与老师主页统一布局检查</title>
+  <link rel="stylesheet" href="../styles.css?v=0.15.56">
+</head>
+<body data-store-dashboard style="padding-left:0">
+  <main class="detail-page store-dashboard-page">
+    <section class="panel detail-section">
+      <div class="panel-heading"><div><h2>门店基础信息</h2><p>视觉回归测试数据</p></div><span class="badge">门店本人</span></div>
+      <div class="detail-info-grid"><article><span>门店名称</span><strong>示例门店</strong></article><article><span>业务编号</span><strong>STORE001</strong></article><article><span>联系电话</span><strong>13900000000</strong></article></div>
+    </section>
+    <section class="panel teacher-overview-panel">
+      <div class="panel-heading teacher-overview-heading"><div><h2>时间范围与业务汇总</h2><p>汇总仅统计本门店在所选周期内已经生效的业务次数</p></div><span class="badge">本月 · 2026-08-01 至 2026-08-21</span></div>
+      <div class="teacher-range-presets"><button>今天</button><button>本周</button><button class="active">本月</button><button>本季度</button><button>本年</button><button>全部</button><button>自定义</button></div>
+      <div class="table-scroll teacher-summary-scroll" tabindex="0"><table class="teacher-summary-matrix"><thead><tr><th>产品</th><th>核销</th><th>充值</th><th>体验</th><th>退费</th></tr></thead><tbody><tr><th><strong>海洋之蕴</strong><small>PRD001</small></th><td><strong>18</strong><span>次</span></td><td><strong>12</strong><span>次</span></td><td><strong>3</strong><span>次</span></td><td><strong>1</strong><span>次</span></td></tr><tr><th><strong>露思康辰</strong><small>PRD002</small></th><td><strong>7</strong><span>次</span></td><td><strong>9</strong><span>次</span></td><td><strong>2</strong><span>次</span></td><td><strong>0</strong><span>次</span></td></tr><tr class="teacher-summary-total"><th>合计</th><td><strong>25</strong><span>次</span></td><td><strong>21</strong><span>次</span></td><td><strong>5</strong><span>次</span></td><td><strong>1</strong><span>次</span></td></tr></tbody></table></div>
+    </section>
+    <section class="panel teacher-customer-panel"><div class="panel-heading"><div><h2>活跃用户</h2><p>只显示绑定本门店的活跃客户；点击用户可进入客户主页</p></div><span class="badge">2 位用户</span></div><div class="table-scroll teacher-customer-scroll"><table><thead><tr><th>客户（姓名 · 编号）</th><th>生日</th><th>持有项目</th><th>总购买</th><th>总核销</th><th>剩余次数</th></tr></thead><tbody><tr><td><a class="record-link">李志翔 · C001</a></td><td>2001年06月07日</td><td>3</td><td>30</td><td>12</td><td>18</td></tr><tr><td><a class="record-link">乐玉米 · C002</a></td><td>2002年03月08日</td><td>2</td><td>20</td><td>8</td><td>12</td></tr></tbody></table></div></section>
+    <section class="panel teacher-customer-panel archived-customer-section"><div class="panel-heading"><div><h2>封存用户</h2><p>封存用户仍保留与本门店的历史绑定</p></div><span class="badge archived-customer-badge">1 位用户</span></div><div class="table-scroll teacher-customer-scroll"><table><tbody><tr><td>历史用户 · C003</td><td>历史资料仍可查看</td></tr></tbody></table></div></section>
+    <section class="panel teacher-business-panel"><div class="panel-heading"><div><h2>本门店业务明细</h2><p>与上方业务汇总使用同一时间范围</p></div><span class="badge">已加载 2 条</span></div><div class="teacher-record-tabs"><button class="active"><span>核销</span><small>25 次</small></button><button><span>充值</span><small>21 次</small></button><button><span>体验</span><small>5 次</small></button><button><span>退费</span><small>1 次</small></button></div><div class="table-scroll teacher-record-scroll"><table><thead><tr><th>单号</th><th>门店</th><th>客户</th><th>项目</th><th>次数</th><th>提交时间</th></tr></thead><tbody><tr><td>VX001</td><td>示例门店</td><td>李志翔</td><td>海洋之蕴</td><td>1 次</td><td>2026-08-21 12:30</td></tr><tr><td>VX002</td><td>示例门店</td><td>乐玉米</td><td>露思康辰</td><td>1 次</td><td>2026-08-21 13:30</td></tr></tbody></table></div></section>
+  </main>
+</body>
+</html>

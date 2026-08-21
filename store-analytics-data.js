@@ -38,9 +38,18 @@
 
   function periodRange(period) {
     const today = businessToday();
-    if (period === "today") return { startDate: today, endDate: today };
-    if (period === "last7") return { startDate: addDays(today, -6), endDate: today };
-    if (period === "month") return { startDate: `${today.slice(0, 8)}01`, endDate: today };
+    const date = new Date(`${today}T00:00:00.000Z`);
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth();
+    if (period === "ALL") return { startDate: "", endDate: "" };
+    if (period === "TODAY") return { startDate: today, endDate: today };
+    if (period === "WEEK") {
+      const weekday = date.getUTCDay() || 7;
+      return { startDate: addDays(today, 1 - weekday), endDate: today };
+    }
+    if (period === "MONTH") return { startDate: `${today.slice(0, 8)}01`, endDate: today };
+    if (period === "QUARTER") return { startDate: new Date(Date.UTC(year, Math.floor(month / 3) * 3, 1)).toISOString().slice(0, 10), endDate: today };
+    if (period === "YEAR") return { startDate: `${year}-01-01`, endDate: today };
     return null;
   }
 
@@ -51,7 +60,7 @@
     register(window.registerAuth, "auth");
     register(window.registerFunctions, "functions");
     app ||= window.cloudbase.init(window.CloudBaseAuthConfig);
-    const request = { action: "getStoreBusinessAnalytics", startDate, endDate };
+    const request = { action: "getStoreBusinessAnalytics", startDate, endDate, allTime: !startDate && !endDate };
     if (storeId) request.storeId = String(storeId);
     const raw = await app.callFunction({ name: "faceRecognition", data: request });
     const data = payload(raw);

@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.4";
+  const VERSION = "0.16.5";
   const CUSTOMER_PAGE_SIZE = 10;
   const params = new URLSearchParams(location.search);
   const storeRef = String(params.get("authUid") || params.get("storeId") || "").trim();
@@ -12,12 +12,7 @@
   const info = (items) => items.map(([label, value]) =>
     `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`
   ).join("");
-  const analyticsMetrics = Object.freeze([
-    { key: "recharge", label: "充值" },
-    { key: "verification", label: "核销" },
-    { key: "experience", label: "体验" },
-    { key: "refund", label: "退费" }
-  ]);
+  const PRESET_LABELS = Object.freeze({ TODAY: "今天", WEEK: "本周", MONTH: "本月", QUARTER: "本季度", YEAR: "本年", ALL: "全部", CUSTOM: "自定义" });
   const businessTypes = Object.freeze(["VERIFICATION", "RECHARGE", "EXPERIENCE", "REFUND"]);
   const businessTypeMeta = Object.freeze({
     VERIFICATION: Object.freeze({ label: "核销", totalId: "storeVerificationTotal", recordType: "VERIFICATION", verificationType: "NORMAL" }),
@@ -29,7 +24,7 @@
   const state = {
     activeCustomerRows: [], activeCustomerPage: 1, activeCustomerTotal: 0,
     archivedCustomerRows: [], archivedCustomerPage: 1, archivedCustomerTotal: 0,
-    dashboardStoreId: "", analyticsLoading: false, statusLoading: false,
+    dashboardStoreId: "", analyticsLoading: false, analyticsPreset: "MONTH", statusLoading: false,
     businessActiveType: "VERIFICATION", businessRangeEpoch: 0,
     businessRecords: emptyBusinessTypeMap(() => []),
     businessCursors: emptyBusinessTypeMap(() => null),
@@ -122,86 +117,6 @@
     target.innerHTML = `<button type="button" data-page-target="${dataPage}" data-page="${page - 1}" ${page <= 1 ? "disabled" : ""}>上一页</button><span>第 ${page} / ${pages} 页</span><button type="button" data-page-target="${dataPage}" data-page="${page + 1}" ${page >= pages ? "disabled" : ""}>下一页</button>`;
   }
 
-  function projectCount(row, field, fallback = 0) {
-    const value = row?.[field];
-    const count = Number(value);
-    return Number.isFinite(count) ? Math.trunc(count) : fallback;
-  }
-
-  function projectHasField(row, field) {
-    return Object.prototype.hasOwnProperty.call(row || {}, field)
-      && row[field] !== null
-      && row[field] !== undefined;
-  }
-
-  function formatProjectCount(value, { signed = false } = {}) {
-    const count = Number(value);
-    if (!Number.isFinite(count)) return "—";
-    const normalized = Math.trunc(count);
-    return `${signed && normalized > 0 ? "+" : ""}${normalized.toLocaleString("zh-CN")}`;
-  }
-
-  function projectBreakdownAvailable(row) {
-    return [
-      "refund_before_consumption_count",
-      "refund_after_consumption_count",
-      "refund_before_consumption_customer_count",
-      "refund_after_consumption_customer_count",
-      "refund_from_remaining_count",
-      "refund_after_consumption_balance_count",
-      "refund_breakdown_unknown_count"
-    ].every((field) => projectHasField(row, field));
-  }
-
-  function projectBalanceExplanationAvailable(row) {
-    return ["total_legacy_void_count", "raw_remaining_count", "balance_floor_adjustment"]
-      .every((field) => projectHasField(row, field));
-  }
-
-  function renderProjectRefundBreakdown(row, totalRefund) {
-    if (!projectBreakdownAvailable(row)) {
-      return totalRefund === 0
-        ? '<span class="record-status">无退费</span>'
-        : '<div class="refund-balance-summary"><strong>退费分类待加载</strong><br><small>部署新版统计服务后，会显示退费前有无付费核销以及余额实际扣减情况。</small></div>';
-    }
-    const beforeConsumption = projectCount(row, "refund_before_consumption_count");
-    const afterConsumption = projectCount(row, "refund_after_consumption_count");
-    const beforeConsumptionCustomers = projectCount(row, "refund_before_consumption_customer_count");
-    const afterConsumptionCustomers = projectCount(row, "refund_after_consumption_customer_count");
-    const deductedFromRemaining = projectCount(row, "refund_from_remaining_count");
-    const insufficientBalance = projectCount(row, "refund_after_consumption_balance_count");
-    const unknown = projectCount(row, "refund_breakdown_unknown_count");
-    return `<div class="refund-balance-summary"><strong>退费合计：${formatProjectCount(totalRefund)}</strong><br><span>退费前无付费核销：${formatProjectCount(beforeConsumption)}（${formatProjectCount(beforeConsumptionCustomers)}位客户）</span><br><span>已有付费核销后退费：${formatProjectCount(afterConsumption)}（${formatProjectCount(afterConsumptionCustomers)}位客户）</span><br><small>实际扣余：${formatProjectCount(deductedFromRemaining)}；余额不足未扣余：${formatProjectCount(insufficientBalance)}${unknown ? `；待判定：${formatProjectCount(unknown)}` : ""}</small></div>`;
-  }
-
-  function renderProjectBalanceExplanation(row) {
-    if (!projectBalanceExplanationAvailable(row)) {
-      return '<span>新版统计服务会返回：充值 − 付费核销 − 退费 − 历史冲销，再加客户级归零调整。</span>';
-    }
-    const rawRemaining = projectCount(row, "raw_remaining_count");
-    const legacyVoid = projectCount(row, "total_legacy_void_count");
-    const floorAdjustment = projectCount(row, "balance_floor_adjustment");
-    return `<strong>应计余额：${formatProjectCount(rawRemaining)}</strong><br><small>公式：充值 − 付费核销 − 退费 − 历史冲销${legacyVoid ? `（${formatProjectCount(legacyVoid)}）` : ""}</small><br><small>客户级归零调整：${formatProjectCount(floorAdjustment, { signed: true })}</small>`;
-  }
-
-  function renderProjects(rows) {
-    const target = $("storeProjectBody");
-    if (!target) return;
-    if (!rows.length) {
-      target.innerHTML = '<tr><td colspan="7" class="query-empty">暂无项目业务数据</td></tr>';
-      return;
-    }
-    target.innerHTML = rows.map((row) => {
-      const name = firstValue(row, ["product_name", "project_name", "name"]);
-      const recharge = projectCount(row, "total_recharge_count", projectCount(row, "recharge_count", projectCount(row, "purchased_count")));
-      const verification = projectCount(row, "total_verification_count", projectCount(row, "verification_count", projectCount(row, "used_count")));
-      const experience = projectCount(row, "total_experience_count", projectCount(row, "experience_count"));
-      const refund = projectCount(row, "total_refund_count", projectCount(row, "refund_count"));
-      const remaining = projectCount(row, "remaining_count", projectCount(row, "balance"));
-      return `<tr><td>${escapeHtml(name)}</td><td>${formatProjectCount(recharge)}</td><td>${formatProjectCount(verification)}</td><td><strong>${formatProjectCount(experience)}</strong><br><small>不扣客户余额</small></td><td>${renderProjectRefundBreakdown(row, refund)}</td><td>${renderProjectBalanceExplanation(row)}</td><td><strong>${formatProjectCount(remaining)}</strong><br><small>客户余额不可跨人抵扣</small></td></tr>`;
-    }).join("");
-  }
-
   function renderCustomers(status) {
     const archived = status === "ARCHIVED";
     const prefix = archived ? "Archived" : "Active";
@@ -227,12 +142,11 @@
         return `<tr><td data-label="客户">${customer}</td><td data-label="生日">${escapeHtml(formatBirthday(firstValue(row, ["birthday", "birth_date"], "")))}</td><td data-label="持有项目">${escapeHtml(firstValue(row, ["product_count", "held_product_count"], 0))}</td><td data-label="总购买">${escapeHtml(firstValue(row, ["total_recharge_count", "purchase_count"], 0))}</td><td data-label="总核销">${escapeHtml(firstValue(row, ["total_verification_count", "verification_count"], 0))}</td><td data-label="剩余次数">${escapeHtml(firstValue(row, ["remaining_count", "balance"], 0))}</td></tr>`;
       }).join("");
     }
-    if ($(`store${prefix}CustomerCount`)) $(`store${prefix}CustomerCount`).textContent = `${total}位客户`;
+    if ($(`store${prefix}CustomerCount`)) $(`store${prefix}CustomerCount`).textContent = `${total} 位用户`;
     renderPager(`store${prefix}CustomerPagination`, total, page, CUSTOMER_PAGE_SIZE, archived ? "archivedCustomer" : "activeCustomer");
   }
 
   function renderEmptyRows(message = "暂无业务数据") {
-    if ($("storeProjectBody")) $("storeProjectBody").innerHTML = `<tr><td colspan="7" class="query-empty">${escapeHtml(message)}</td></tr>`;
     state.activeCustomerRows = [];
     state.activeCustomerTotal = 0;
     state.archivedCustomerRows = [];
@@ -327,7 +241,6 @@
       ["联系人", store.contact_name || "未填写"],
       ["联系电话", store.contact_phone || "未填写"]
     ]);
-    renderProjects(Array.isArray(store.projects) ? store.projects : (Array.isArray(store.project_stats) ? store.project_stats : []));
     state.activeCustomerRows = (Array.isArray(store.customers) ? store.customers : []).filter((row) =>
       String(firstValue(row, ["customer_status", "status"], "")).trim().toUpperCase() === "ACTIVE"
     );
@@ -342,34 +255,37 @@
     renderCustomers("ARCHIVED");
   }
 
-  function analyticsQuery(metric = "") {
+  function analyticsRangeLabel() {
+    if (state.analyticsPreset === "ALL") return "全部时间";
     const startDate = $("storeAnalyticsStart")?.value || "";
     const endDate = $("storeAnalyticsEnd")?.value || "";
-    const query = new URLSearchParams({ storeId: state.dashboardStoreId, startDate, endDate });
-    if (metric) query.set("metric", metric);
-    return query.toString();
+    const dates = startDate === endDate ? startDate : `${startDate} 至 ${endDate}`;
+    return `${PRESET_LABELS[state.analyticsPreset] || "自定义"} · ${dates}`;
   }
 
-  function setAnalyticsPeriod(period) {
-    const range = window.StoreAnalyticsData.periodRange(period);
+  function setAnalyticsPeriod(period, { load = false } = {}) {
+    state.analyticsPreset = PRESET_LABELS[period] ? period : "MONTH";
+    const range = window.StoreAnalyticsData.periodRange(state.analyticsPreset);
     if (range && $("storeAnalyticsStart")) $("storeAnalyticsStart").value = range.startDate;
     if (range && $("storeAnalyticsEnd")) $("storeAnalyticsEnd").value = range.endDate;
-    const custom = period === "custom";
-    if ($("storeAnalyticsStart")) $("storeAnalyticsStart").disabled = !custom;
-    if ($("storeAnalyticsEnd")) $("storeAnalyticsEnd").disabled = !custom;
+    document.querySelectorAll("[data-store-range-preset]").forEach((button) => button.classList.toggle("active", button.dataset.storeRangePreset === state.analyticsPreset));
+    if ($("storeCustomRange")) $("storeCustomRange").hidden = state.analyticsPreset !== "CUSTOM";
+    if ($("storeAnalyticsScope")) $("storeAnalyticsScope").textContent = analyticsRangeLabel();
+    if (load && state.analyticsPreset !== "CUSTOM") void loadAnalytics();
   }
 
   function renderAnalytics(data) {
     const products = Array.isArray(data.products) ? data.products : [];
-    const totalColumns = products.length + 2;
-    const productHeaders = products.map((product) => `<th>${escapeHtml(product.productName || "未命名项目")}</th>`).join("");
-    $("storeAnalyticsHead").innerHTML = `<tr><th>业务类型</th>${productHeaders}<th>汇总</th></tr>`;
-    $("storeAnalyticsBody").innerHTML = analyticsMetrics.map((metric) => {
-      const cells = products.map((product) => `<td>${Number(product[metric.key] || 0)}</td>`).join("");
-      const href = `store-analysis.html?${analyticsQuery(metric.key)}`;
-      return `<tr><th><a class="record-link" href="${escapeHtml(href)}">${metric.label}</a></th>${cells}<td><strong>${Number(data.totals?.[metric.key] || 0)}</strong></td></tr>`;
-    }).join("") || `<tr><td colspan="${totalColumns}" class="query-empty">暂无业务数据</td></tr>`;
-    $("storeAnalyticsScope").textContent = `${data.range?.startDate || "—"} 至 ${data.range?.endDate || "—"} · 项目按本期业务量排序`;
+    const metricCell = (value) => `<td><strong>${Number(value || 0).toLocaleString("zh-CN")}</strong><span>次</span></td>`;
+    const rows = products.map((product) => `<tr>
+      <th scope="row"><strong>${escapeHtml(product.productName || "未命名项目")}</strong><small>${escapeHtml(product.productCode || "—")}</small></th>
+      ${metricCell(product.verification)}${metricCell(product.recharge)}${metricCell(product.experience)}${metricCell(product.refund)}
+    </tr>`).join("");
+    const totals = data.totals || {};
+    $("storeAnalyticsBody").innerHTML = products.length
+      ? `${rows}<tr class="teacher-summary-total"><th scope="row">合计</th>${metricCell(totals.verification)}${metricCell(totals.recharge)}${metricCell(totals.experience)}${metricCell(totals.refund)}</tr>`
+      : '<tr><td colspan="5" class="teacher-empty">所选时间内暂无有效业务</td></tr>';
+    $("storeAnalyticsScope").textContent = analyticsRangeLabel();
     for (const [type, metric] of [["VERIFICATION", "verification"], ["RECHARGE", "recharge"], ["EXPERIENCE", "experience"], ["REFUND", "refund"]]) {
       const target = $(businessTypeMeta[type].totalId);
       if (target) target.textContent = `${Number(data.totals?.[metric] || 0).toLocaleString("zh-CN")} 次`;
@@ -491,6 +407,7 @@
   }
 
   function validateAnalyticsRange() {
+    if (state.analyticsPreset === "ALL") return {};
     const startDate = $("storeAnalyticsStart").value;
     const endDate = $("storeAnalyticsEnd").value;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) throw new Error("请选择完整的开始和结束日期。");
@@ -512,8 +429,7 @@
       $("storeAnalyticsMessage").textContent = "";
       void loadBusinessType(state.businessActiveType);
     } catch (error) {
-      $("storeAnalyticsHead").innerHTML = "";
-      $("storeAnalyticsBody").innerHTML = `<tr><td class="query-empty">${escapeHtml(error?.message || "业务统计读取失败")}</td></tr>`;
+      $("storeAnalyticsBody").innerHTML = `<tr><td colspan="5" class="teacher-empty">${escapeHtml(error?.message || "业务统计读取失败")}</td></tr>`;
       $("storeAnalyticsMessage").textContent = error?.message || "业务统计读取失败";
     } finally {
       state.analyticsLoading = false;
@@ -542,7 +458,7 @@
     }
   });
 
-  $("storeAnalyticsPeriod")?.addEventListener("change", (event) => setAnalyticsPeriod(event.target.value));
+  document.querySelectorAll("[data-store-range-preset]").forEach((button) => button.addEventListener("click", () => setAnalyticsPeriod(button.dataset.storeRangePreset, { load: true })));
   $("applyStoreAnalytics")?.addEventListener("click", () => void loadAnalytics());
   document.querySelectorAll("[data-store-record-type]").forEach((button) => button.addEventListener("click", () => setBusinessType(button.dataset.storeRecordType)));
   $("storeBusinessLoadMore")?.addEventListener("click", () => void loadBusinessType(state.businessActiveType, { append: true }));
@@ -589,7 +505,7 @@
 
   async function load() {
     document.documentElement.dataset.prototypeVersion = VERSION;
-    setAnalyticsPeriod("today");
+    setAnalyticsPeriod("MONTH");
     renderBusinessTabs();
     if (!storeRef) {
       renderError("缺少门店唯一身份 ID。");

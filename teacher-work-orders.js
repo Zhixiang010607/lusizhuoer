@@ -174,7 +174,7 @@
     const archived = status === "ARCHIVED";
     const prefix = archived ? "Archived" : "Active";
     const group = state.customers[status];
-    $(`teacher${prefix}CustomerCount`).textContent = `${formatCount(group.total)} 位客户`;
+    $(`teacher${prefix}CustomerCount`).textContent = `${formatCount(group.total)} 位用户`;
     const target = $(`teacher${prefix}CustomerBody`);
     target.innerHTML = group.records.length ? group.records.map((row) => {
       const customerParams = new URLSearchParams({ customerId: String(row.customerCode || ""), source: "teacher" });

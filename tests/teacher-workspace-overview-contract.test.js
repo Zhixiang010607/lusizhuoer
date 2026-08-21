@@ -23,7 +23,7 @@ assert.match(html, /data-range-preset="MONTH"[^>]*class="active"|class="active"[
 assert.match(html, /id="teacherExperienceBalances"[^>]*teacher-quota-grid/, "experience balances must have a dynamic project grid");
 assert.match(html, /<th scope="col">产品<\/th><th scope="col">核销<\/th><th scope="col">充值<\/th><th scope="col">体验<\/th><th scope="col">退费<\/th>/, "summary matrix axes must match the product and four business metrics");
 assert.doesNotMatch(html, /<th[^>]*>[^<]*(?:人脸|状态)[^<]*<\/th>/, "teacher workspace tables must not show face or status columns");
-assert.match(html, /styles\.css\?v=0\.15\.55/);
+assert.match(html, /styles\.css\?v=0\.15\.56/);
 assert.match(html, /teacher-work-orders\.js\?v=0\.16\.1/);
 for (const [status, label] of [["Active", "活跃"], ["Archived", "封存"]]) {
   assert.match(html, new RegExp(`id="teacher${status}CustomerBody"`), `${label}客户必须有独立列表`);
@@ -58,8 +58,8 @@ assert.match(customerAction, /v\.verification_type IN \('NORMAL', 'EXPERIENCE'\)
 assert.match(customerAction, /c\.customer_status = \$\{sqlText\(status\)\}/, "teacher customer lists must separate active and archived status");
 
 assert.match(css, /teacher-quota-grid\s*\{[^}]*repeat\(auto-fit, minmax\(210px, 1fr\)\)/, "desktop quota cards must adapt to any project count");
-assert.match(css, /body\[data-teacher-workspace\] \.teacher-record-tabs\s*\{[^}]*repeat\(4, minmax\(0, 1fr\)\)/, "desktop must show four equal business buttons");
-assert.match(css, /@media \(max-width: 760px\)[\s\S]*body\[data-teacher-workspace\] \.teacher-record-tabs\s*\{\s*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/, "phone tabs must form a two-column touch grid");
+assert.match(css, /body\[data-teacher-workspace\] \.teacher-record-tabs,[\s\S]{0,100}\{[^}]*repeat\(4, minmax\(0, 1fr\)\)/, "desktop must show four equal business buttons");
+assert.match(css, /@media \(max-width: 760px\)[\s\S]*body\[data-teacher-workspace\] \.teacher-record-tabs,[\s\S]{0,100}\{\s*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/, "phone tabs must form a two-column touch grid");
 assert.match(css, /@media \(max-width: 760px\)[\s\S]*teacher-business-panel \.table-scroll \{[^}]*overflow-x:\s*auto/, "phone detail records must remain one row per record and scroll only when needed");
 assert.match(css, /teacher-business-panel table \{[^}]*width:\s*max-content;[^}]*min-width:\s*680px/, "phone detail rows must keep a readable horizontal table width");
 assert.match(css, /teacher-customer-panel \.table-scroll,[\s\S]{0,220}overflow-x:\s*auto/, "phone customer records must remain horizontal rows with overflow fallback");

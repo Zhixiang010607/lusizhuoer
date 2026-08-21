@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>门店全局视图</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.55">
+  <link rel="stylesheet" href="styles.css?v=0.15.56">
 </head>
 <body data-store-dashboard>
   <aside class="side-project-bar" aria-label="项目栏">
@@ -23,40 +23,47 @@
   <main class="detail-page store-dashboard-page">
     <section id="storeHero" class="panel profile-hero"></section>
     <section id="storeBasic" class="panel detail-section"><div class="panel-heading"><div><h2>基础资料</h2><p>门店身份、地址、账号和状态</p></div><span class="badge">门店档案</span></div><div id="storeBasicGrid" class="detail-info-grid"></div></section>
-    <nav class="detail-anchor-nav"><a href="#storeBusinessOverview">业务汇总</a><a href="#storeBusinessDetails">业务明细</a><a href="#storeProjects">项目统计</a><a href="#storeActiveCustomers">活跃客户</a><a href="#storeArchivedCustomers">封存客户</a></nav>
-    <section id="storeBusinessOverview" class="panel detail-section store-business-overview">
-      <div class="panel-heading store-overview-heading"><div><h2>业务汇总</h2><p id="storeAnalyticsScope">默认统计今日</p></div></div>
-      <div class="store-analytics-toolbar">
-        <label><span>时间周期</span><select id="storeAnalyticsPeriod"><option value="today" selected>今日</option><option value="last7">近 7 天</option><option value="month">本月</option><option value="custom">自定义</option></select></label>
-        <label><span>开始日期</span><input id="storeAnalyticsStart" type="date"></label>
-        <label><span>结束日期</span><input id="storeAnalyticsEnd" type="date"></label>
-        <button id="applyStoreAnalytics" class="primary-action" type="button">查询</button>
+    <nav class="detail-anchor-nav"><a href="#storeBusinessOverview">业务汇总</a><a href="#storeActiveCustomers">活跃用户</a><a href="#storeArchivedCustomers">封存用户</a><a href="#storeBusinessDetails">业务明细</a></nav>
+    <section id="storeBusinessOverview" class="panel teacher-overview-panel store-business-overview" aria-labelledby="storeOverviewTitle">
+      <div class="panel-heading teacher-overview-heading"><div><h2 id="storeOverviewTitle">时间范围与业务汇总</h2><p>汇总仅统计本门店在所选周期内已经生效的业务次数</p></div><span id="storeAnalyticsScope" class="badge">本月</span></div>
+      <div class="teacher-range-presets" role="group" aria-label="选择门店统计时间">
+        <button type="button" data-store-range-preset="TODAY">今天</button>
+        <button type="button" data-store-range-preset="WEEK">本周</button>
+        <button class="active" type="button" data-store-range-preset="MONTH">本月</button>
+        <button type="button" data-store-range-preset="QUARTER">本季度</button>
+        <button type="button" data-store-range-preset="YEAR">本年</button>
+        <button type="button" data-store-range-preset="ALL">全部</button>
+        <button type="button" data-store-range-preset="CUSTOM">自定义</button>
       </div>
-      <div class="store-analytics-summary-scroll">
-        <table class="store-analytics-summary"><thead id="storeAnalyticsHead"></thead><tbody id="storeAnalyticsBody"><tr><td class="query-empty">正在读取业务数据…</td></tr></tbody></table>
+      <div id="storeCustomRange" class="teacher-custom-range" hidden>
+        <label>开始日期<input id="storeAnalyticsStart" type="date"></label>
+        <label>结束日期<input id="storeAnalyticsEnd" type="date"></label>
+        <button id="applyStoreAnalytics" class="primary-action" type="button">应用时间</button>
+      </div>
+      <div class="table-scroll teacher-summary-scroll" tabindex="0" aria-label="按项目汇总的门店业务次数">
+        <table class="teacher-summary-matrix"><thead id="storeAnalyticsHead"><tr><th scope="col">产品</th><th scope="col">核销</th><th scope="col">充值</th><th scope="col">体验</th><th scope="col">退费</th></tr></thead><tbody id="storeAnalyticsBody"><tr><td colspan="5" class="teacher-empty">正在计算本月汇总…</td></tr></tbody></table>
       </div>
       <p id="storeAnalyticsMessage" class="form-message" aria-live="polite"></p>
     </section>
-    <section id="storeBusinessDetails" class="panel detail-section teacher-business-panel store-business-detail-panel" aria-labelledby="storeBusinessDetailsTitle">
+    <section id="storeActiveCustomers" class="panel teacher-customer-panel store-customer-section" aria-labelledby="storeActiveCustomersTitle"><div class="panel-heading"><div><h2 id="storeActiveCustomersTitle">活跃用户</h2><p>只显示绑定本门店的活跃客户；点击用户可进入客户主页</p></div><span id="storeActiveCustomerCount" class="badge">读取中</span></div><div class="table-scroll teacher-customer-scroll"><table><thead><tr><th>客户（姓名 · 编号）</th><th>生日</th><th>持有项目</th><th>总购买</th><th>总核销</th><th>剩余次数</th></tr></thead><tbody id="storeActiveCustomerBody"></tbody></table></div><div id="storeActiveCustomerPagination" class="table-pagination" aria-label="门店活跃用户分页"></div></section>
+    <section id="storeArchivedCustomers" class="panel teacher-customer-panel store-customer-section archived-customer-section" aria-labelledby="storeArchivedCustomersTitle"><div class="panel-heading"><div><h2 id="storeArchivedCustomersTitle">封存用户</h2><p>封存用户仍保留与本门店的历史绑定；点击用户可进入客户主页</p></div><span id="storeArchivedCustomerCount" class="badge archived-customer-badge">读取中</span></div><div class="table-scroll teacher-customer-scroll"><table><thead><tr><th>客户（姓名 · 编号）</th><th>生日</th><th>持有项目</th><th>总购买</th><th>总核销</th><th>剩余次数</th></tr></thead><tbody id="storeArchivedCustomerBody"></tbody></table></div><div id="storeArchivedCustomerPagination" class="table-pagination" aria-label="门店封存用户分页"></div></section>
+    <section id="storeBusinessDetails" class="panel teacher-business-panel store-business-detail-panel" aria-labelledby="storeBusinessDetailsTitle">
       <div class="panel-heading"><div><h2 id="storeBusinessDetailsTitle">本门店业务明细</h2><p>与上方业务汇总使用同一时间范围；单号和客户均可进入详情页</p></div><span id="storeBusinessLoadedCount" class="badge">已加载 0 条</span></div>
       <div class="teacher-record-tabs" role="tablist" aria-label="门店业务类型">
-        <button type="button" class="active" data-store-record-type="VERIFICATION" role="tab" aria-selected="true"><strong>核销</strong><span id="storeVerificationTotal">0 次</span></button>
-        <button type="button" data-store-record-type="RECHARGE" role="tab" aria-selected="false"><strong>充值</strong><span id="storeRechargeTotal">0 次</span></button>
-        <button type="button" data-store-record-type="EXPERIENCE" role="tab" aria-selected="false"><strong>体验</strong><span id="storeExperienceTotal">0 次</span></button>
-        <button type="button" data-store-record-type="REFUND" role="tab" aria-selected="false"><strong>退费</strong><span id="storeRefundTotal">0 次</span></button>
+        <button type="button" class="active" data-store-record-type="VERIFICATION" role="tab" aria-selected="true"><span>核销</span><small id="storeVerificationTotal">0 次</small></button>
+        <button type="button" data-store-record-type="RECHARGE" role="tab" aria-selected="false"><span>充值</span><small id="storeRechargeTotal">0 次</small></button>
+        <button type="button" data-store-record-type="EXPERIENCE" role="tab" aria-selected="false"><span>体验</span><small id="storeExperienceTotal">0 次</small></button>
+        <button type="button" data-store-record-type="REFUND" role="tab" aria-selected="false"><span>退费</span><small id="storeRefundTotal">0 次</small></button>
       </div>
       <p id="storeBusinessDetailMessage" class="form-message" aria-live="polite"></p>
       <div class="table-scroll teacher-record-scroll"><table><thead id="storeBusinessDetailHead"><tr><th>单号</th><th>门店</th><th>客户</th><th>项目</th><th>次数</th><th>提交时间</th></tr></thead><tbody id="storeBusinessDetailBody"><tr><td colspan="6" class="teacher-empty">正在读取核销明细…</td></tr></tbody></table></div>
       <div class="teacher-load-more-wrap"><button id="storeBusinessLoadMore" class="secondary-button" type="button" hidden>继续加载</button></div>
     </section>
-    <section id="storeProjects" class="panel detail-section table-card"><div class="panel-heading"><div><h2>各项目业务数据</h2><p>门店全部业务累计与当前可用余额。体验只扣老师体验额度，不扣客户余额；余额按客户和项目分别归零后汇总，不能跨客户抵扣。</p></div></div><div class="table-scroll store-detail-table"><table><thead><tr><th>项目</th><th>充值</th><th>付费核销</th><th>体验</th><th>退费拆分</th><th>余额核对</th><th>当前可用余额</th></tr></thead><tbody id="storeProjectBody"></tbody></table></div></section>
-    <section id="storeActiveCustomers" class="panel detail-section table-card store-customer-section"><div class="panel-heading"><div><h2>门店绑定的活跃客户</h2><p>按客户绑定门店统计；姓名与编号可以进入客户主页，每页显示 10 条</p></div><span id="storeActiveCustomerCount" class="badge"></span></div><div class="table-scroll store-detail-table"><table><thead><tr><th>客户（姓名 · 编号）</th><th>生日</th><th>持有项目</th><th>总购买</th><th>总核销</th><th>剩余次数</th></tr></thead><tbody id="storeActiveCustomerBody"></tbody></table></div><div id="storeActiveCustomerPagination" class="table-pagination" aria-label="门店活跃客户分页"></div></section>
-    <section id="storeArchivedCustomers" class="panel detail-section table-card store-customer-section archived-customer-section"><div class="panel-heading"><div><h2>门店绑定的封存客户</h2><p>封存不会删除历史资料；姓名与编号仍可进入客户主页，每页显示 10 条</p></div><span id="storeArchivedCustomerCount" class="badge archived-customer-badge"></span></div><div class="table-scroll store-detail-table"><table><thead><tr><th>客户（姓名 · 编号）</th><th>生日</th><th>持有项目</th><th>总购买</th><th>总核销</th><th>剩余次数</th></tr></thead><tbody id="storeArchivedCustomerBody"></tbody></table></div><div id="storeArchivedCustomerPagination" class="table-pagination" aria-label="门店封存客户分页"></div></section>
   </main>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.18.0"></script><script src="datetime.js?v=0.1.2"></script>
-  <script src="store-analytics-data.js?v=0.1.0"></script><script src="store-detail.js?v=0.16.4"></script><script src="auth-ui.js?v=0.19.1"></script>
+  <script src="store-analytics-data.js?v=0.2.0"></script><script src="store-detail.js?v=0.16.5"></script><script src="auth-ui.js?v=0.19.1"></script>
 </body>
 </html>

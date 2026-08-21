@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v5" : "v81";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v5" : "v82";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -1444,11 +1444,11 @@ async function updateCustomerNotes(event) {
   }
   if (currentNotes !== notes) {
     await executeSql(
-      `UPDATE public.customers
+      `UPDATE public.customers AS c
           SET notes = ${sqlText(notes)}, updated_at = NOW()
-        WHERE customer_code = ${sqlText(customerCodeValue)}
-          ${customerProfileScope(caller)}
-          AND COALESCE(notes, '') = ${sqlText(String(before.notes || ""))}`
+        WHERE c.customer_code = ${sqlText(customerCodeValue)}
+          ${customerProfileScope(caller, "c")}
+          AND COALESCE(c.notes, '') = ${sqlText(String(before.notes || ""))}`
     );
   }
   const customer = await findCustomerForNotes(caller, customerCodeValue);
@@ -1797,7 +1797,10 @@ async function getCustomerPhotoUrl(event, options = {}) {
   const requireActiveStoreCustomer = options.requireActiveStoreCustomer === true;
   const caller = options.caller || (requireActiveStoreCustomer
     ? await activeStoreCaller()
-    : await activeCustomerStatusCaller());
+    : await activeCustomerProfileCaller());
+  const customerScope = requireActiveStoreCustomer
+    ? customerStatusScope(caller, "c")
+    : customerProfileScope(caller, "c");
   const customerCode = String(event.customerCode || "").trim();
   if (!customerCode || customerCode.length > 96) fail("必须提供已选择客户的有效编号。", "CUSTOMER_REQUIRED");
 
@@ -1806,9 +1809,9 @@ async function getCustomerPhotoUrl(event, options = {}) {
             c.customer_status, c.customer_process_status,
             c.total_recharge_count, c.total_verification_count, c.total_experience_count,
             c.created_store_id, c.created_at, c.profile_photo_file_id
-       FROM public.customers c
+      FROM public.customers c
       WHERE c.customer_code = ${sqlText(customerCode)}
-        ${customerStatusScope(caller, "c")}
+        ${customerScope}
         ${requireActiveStoreCustomer ? "AND c.customer_status = 'ACTIVE'" : ""}
       LIMIT 1`
   );
@@ -1914,12 +1917,12 @@ async function getCustomerPhotoUrl(event, options = {}) {
   if (resolvedReference !== String(customer.profile_photo_file_id).trim()) {
     try {
       await executeSql(
-        `UPDATE public.customers
+        `UPDATE public.customers AS c
             SET profile_photo_file_id = ${sqlText(resolvedReference)}, updated_at = NOW()
-          WHERE customer_code = ${sqlText(customer.customer_code)}
-            ${customerStatusScope(caller)}
-            ${requireActiveStoreCustomer ? "AND customer_status = 'ACTIVE'" : ""}
-            AND profile_photo_file_id = ${sqlText(String(customer.profile_photo_file_id).trim())}`
+          WHERE c.customer_code = ${sqlText(customer.customer_code)}
+            ${customerScope}
+            ${requireActiveStoreCustomer ? "AND c.customer_status = 'ACTIVE'" : ""}
+            AND c.profile_photo_file_id = ${sqlText(String(customer.profile_photo_file_id).trim())}`
       );
     } catch (error) {
       console.warn("Customer photo reference normalization failed", {
@@ -2595,12 +2598,13 @@ function storeAnalyticsRange(event = {}) {
   const endDate = optionalBusinessQueryDate(event.endDate, "结束日期");
   if (Boolean(startDate) !== Boolean(endDate)) fail("开始日期和结束日期必须同时提供。", "BAD_REQUEST");
   if (startDate && startDate > endDate) fail("开始日期不能晚于结束日期。", "BAD_REQUEST");
+  const allTime = event.allTime === true && !startDate && !endDate;
   if (startDate) {
     const days = Math.floor((Date.parse(`${endDate}T00:00:00.000Z`) - Date.parse(`${startDate}T00:00:00.000Z`)) / 86400000) + 1;
     if (days > 366) fail("单次统计范围不能超过 366 天。", "BAD_REQUEST");
   }
   return {
-    startSql: startDate ? `${sqlText(startDate)}::date` : "(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai')::date",
+    startSql: startDate ? `${sqlText(startDate)}::date` : allTime ? "'2000-01-01'::date" : "(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai')::date",
     endSql: endDate ? `${sqlText(endDate)}::date` : "(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai')::date"
   };
 }

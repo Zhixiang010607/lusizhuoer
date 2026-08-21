@@ -23,35 +23,39 @@ const archivedCustomerSection = html.slice(html.indexOf('id="storeArchivedCustom
 
 const includes = (source, expected, label) => assert.ok(source.includes(expected), `${label}: missing ${JSON.stringify(expected)}`);
 
-includes(html, '<option value="today" selected>今日</option>', "overview defaults to today");
-includes(html, 'id="storeAnalyticsHead"', "overview has dynamic project columns");
-includes(html, 'id="storeAnalyticsBody"', "overview has four business rows");
+includes(html, 'data-store-range-preset="MONTH"', "overview exposes the monthly preset");
+assert.match(html, /class="active" type="button" data-store-range-preset="MONTH"/, "overview defaults to this month");
+for (const preset of ["TODAY", "WEEK", "MONTH", "QUARTER", "YEAR", "ALL", "CUSTOM"]) {
+  includes(html, `data-store-range-preset="${preset}"`, `${preset} range preset`);
+}
+includes(html, '<th scope="col">产品</th><th scope="col">核销</th><th scope="col">充值</th><th scope="col">体验</th><th scope="col">退费</th>', "store overview uses the same matrix orientation as the teacher overview");
+includes(html, 'id="storeAnalyticsBody"', "overview has project summary rows");
 assert.ok(html.indexOf('id="storeBasic"') < html.indexOf('id="storeBusinessOverview"'), "store basic profile appears before business analytics");
 assert.doesNotMatch(html, /id="storeAnalyticsLinks"|class="store-analytics-links"/, "overview removes the four duplicate metric shortcut buttons");
 assert.doesNotMatch(html, /id="storeTeachers"|id="storeTeacherBody"|老师统计|各老师核销数据/, "store detail removes the teacher summary section");
+assert.doesNotMatch(html, /id="storeProjects"|id="storeProjectBody"|体验项目剩余次数/, "store homepage has no legacy project panel or teacher quota panel");
+assert.ok(html.indexOf('id="storeBusinessOverview"') < html.indexOf('id="storeActiveCustomers"'), "summary precedes active users");
+assert.ok(html.indexOf('id="storeActiveCustomers"') < html.indexOf('id="storeArchivedCustomers"'), "active users precede archived users");
+assert.ok(html.indexOf('id="storeArchivedCustomers"') < html.indexOf('id="storeBusinessDetails"'), "business details follow both user sections like the teacher homepage");
 for (const [section, status] of [[activeCustomerSection, "active"], [archivedCustomerSection, "archived"]]) {
   assert.doesNotMatch(section, /<th>最近业务<\/th>|<th>状态<\/th>/, `${status} customer table removes time and status columns`);
   includes(section, '<th>剩余次数</th>', `${status} customer table ends with remaining count`);
 }
 includes(activeCustomerSection, 'id="storeActiveCustomerBody"', "active bound customers have a dedicated table");
 includes(archivedCustomerSection, 'id="storeArchivedCustomerBody"', "archived bound customers have a dedicated table");
-includes(html, 'store-detail.js?v=0.16.4', "store detail script cache bust");
-includes(html, 'styles.css?v=0.15.55', "store detail stylesheet cache bust");
+includes(activeCustomerSection, '<h2 id="storeActiveCustomersTitle">活跃用户</h2>', "active customer heading matches teacher terminology");
+includes(archivedCustomerSection, '<h2 id="storeArchivedCustomersTitle">封存用户</h2>', "archived customer heading matches teacher terminology");
+includes(html, 'store-detail.js?v=0.16.5', "store detail script cache bust");
+includes(html, 'store-analytics-data.js?v=0.2.0', "store analytics helper cache bust");
+includes(html, 'styles.css?v=0.15.56', "store detail stylesheet cache bust");
 for (const [type, label] of [["VERIFICATION", "核销"], ["RECHARGE", "充值"], ["EXPERIENCE", "体验"], ["REFUND", "退费"]]) {
-  assert.match(html, new RegExp(`data-store-record-type="${type}"[\\s\\S]{0,120}<strong>${label}</strong>`), `${label} must be a dedicated store detail button`);
+  assert.match(html, new RegExp(`data-store-record-type="${type}"[\\s\\S]{0,120}<span>${label}</span>`), `${label} must be a dedicated store detail button`);
 }
 includes(html, 'id="storeBusinessDetails"', "store homepage includes the teacher-style business detail panel");
-includes(html, '<th>项目</th><th>充值</th><th>付费核销</th><th>体验</th><th>退费拆分</th><th>余额核对</th><th>当前可用余额</th>', "project lifetime table exposes the reconciled balance columns");
-const projectSection = html.slice(html.indexOf('id="storeProjects"'), html.indexOf('</section>', html.indexOf('id="storeProjects"')));
-assert.doesNotMatch(projectSection, /<th>状态<\/th>|有效充值|有效核销/, "project table removes entity status and period-style wording");
-includes(projectSection, "体验只扣老师体验额度，不扣客户余额", "project lifetime table explains that experience is not customer balance consumption");
-includes(projectSection, "不能跨客户抵扣", "project lifetime table explains customer-level balance isolation");
-includes(detail, '{ key: "recharge", label: "充值" }', "recharge row");
-includes(detail, '{ key: "verification", label: "核销" }', "verification row");
-includes(detail, '{ key: "experience", label: "体验" }', "experience row");
-includes(detail, '{ key: "refund", label: "退费" }', "refund row");
-includes(detail, 'store-analysis.html?${analyticsQuery(metric.key)}', "rows open dedicated metric pages");
-includes(detail, '<th>汇总</th>', "summary final column");
+includes(detail, 'analyticsPreset: "MONTH"', "store summary defaults to this month");
+includes(detail, 'if (state.analyticsPreset === "ALL") return {}', "all-time selection omits date bounds");
+includes(detail, 'class="teacher-summary-total"', "store summary renders the same total row as teacher summary");
+includes(detail, 'metricCell(product.verification)}${metricCell(product.recharge)}${metricCell(product.experience)}${metricCell(product.refund)}', "each project uses teacher metric order");
 assert.doesNotMatch(detail, /storeAnalyticsLinks|renderTeachers|teacherRows|teacherPage/, "removed shortcut and teacher UI has no renderer state");
 includes(detail, 'toUpperCase() === "ACTIVE"', "active customer rows are restricted to active customers");
 includes(detail, 'toUpperCase() === "ARCHIVED"', "archived customer rows are restricted to archived customers");
@@ -65,33 +69,12 @@ includes(detail, 'rechargeType: "REFUND"', "refund detail excludes new recharges
 includes(detail, 'verificationType: "NORMAL"', "normal verification detail excludes experience");
 includes(detail, 'verificationType: "EXPERIENCE"', "experience detail is isolated");
 includes(detail, 'customer-detail.html?${customerParams.toString()}', "store business customer names link to customer profiles");
-includes(detail, 'function renderProjectRefundBreakdown', "project rows render refund classifications instead of a single opaque refund total");
-includes(detail, 'function renderProjectBalanceExplanation', "project rows render the customer-level balance reconciliation");
-for (const field of [
-  "total_recharge_count",
-  "total_verification_count",
-  "total_experience_count",
-  "total_refund_count",
-  "refund_before_consumption_count",
-  "refund_after_consumption_count",
-  "refund_before_consumption_customer_count",
-  "refund_after_consumption_customer_count",
-  "refund_from_remaining_count",
-  "refund_after_consumption_balance_count",
-  "refund_breakdown_unknown_count",
-  "total_legacy_void_count",
-  "raw_remaining_count",
-  "balance_floor_adjustment",
-  "remaining_count"
-]) includes(detail, field, `project renderer keeps the ${field} contract`);
-includes(detail, "退费前无付费核销", "project rows label refunds with no prior paid service");
-includes(detail, "已有付费核销后退费", "project rows label refunds after paid service");
-includes(detail, "实际扣余", "project rows distinguish refunds that deducted customer remaining balance");
-includes(detail, "余额不足未扣余", "project rows distinguish refunds that were floor-clamped");
-includes(detail, "不扣客户余额", "experience copy remains explicit at row level");
-includes(detail, "客户级归零调整", "project rows explain why the summed available balance differs from a global subtraction");
-includes(detail, 'colspan="7" class="query-empty"', "project loading and empty states match the seven visible columns");
-assert.doesNotMatch(detail.slice(detail.indexOf("function renderProjects"), detail.indexOf("function renderCustomers")), /product_status|project_status/, "project renderer is independent of product status");
+assert.doesNotMatch(detail, /renderProjects|renderProjectRefundBreakdown|storeProjectBody/, "store detail removes the legacy lifetime-project renderer");
+includes(analyticsData, 'if (period === "WEEK")', "store supports the same weekly range as teacher");
+includes(analyticsData, 'if (period === "QUARTER")', "store supports the same quarterly range as teacher");
+includes(analyticsData, 'if (period === "YEAR")', "store supports the same yearly range as teacher");
+includes(analyticsData, 'if (period === "ALL")', "store supports all-time range");
+includes(analyticsData, 'allTime: !startDate && !endDate', "all-time request is explicit rather than accidentally defaulting to today");
 
 const dashboardSource = cloud.slice(cloud.indexOf("async function getStoreDashboard"), cloud.indexOf("const STORE_ANALYTICS_METRICS"));
 const dashboardProjectSource = dashboardSource.slice(

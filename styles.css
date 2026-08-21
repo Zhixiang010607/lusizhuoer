@@ -156,7 +156,10 @@ body[data-teacher-workspace] .detail-section,
 body[data-teacher-workspace] .teacher-quota-panel,
 body[data-teacher-workspace] .teacher-overview-panel,
 body[data-teacher-workspace] .teacher-business-panel,
-body[data-teacher-workspace] .teacher-customer-panel { margin-bottom: 14px; padding: clamp(14px, 2vw, 20px); }
+body[data-teacher-workspace] .teacher-customer-panel,
+body[data-store-dashboard] .teacher-overview-panel,
+body[data-store-dashboard] .teacher-business-panel,
+body[data-store-dashboard] .teacher-customer-panel { margin-bottom: 14px; padding: clamp(14px, 2vw, 20px); }
 body[data-teacher-workspace] #teacherProfileInfo { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .teacher-customer-panel .teacher-customer-scroll { border: 1px solid #dce5ef; border-radius: 12px; }
 .teacher-customer-panel table { width: 100%; border-collapse: collapse; }
@@ -187,7 +190,7 @@ body[data-teacher-workspace] #teacherProfileInfo { grid-template-columns: repeat
 .teacher-custom-range[hidden] { display: none; }
 .teacher-custom-range label { display: grid; gap: 6px; color: #485b72; font-size: 11px; font-weight: 800; }
 .teacher-custom-range input, .teacher-custom-range button { min-height: 40px; margin: 0; }
-.teacher-summary-scroll { border: 1px solid #dce5ef; border-radius: 12px; }
+.teacher-summary-scroll { max-width: 100%; overflow-x: auto; overflow-y: hidden; border: 1px solid #dce5ef; border-radius: 12px; overscroll-behavior-x: contain; isolation: isolate; }
 .teacher-summary-matrix { width: 100%; min-width: 650px; border-collapse: separate; border-spacing: 0; }
 .teacher-summary-matrix th, .teacher-summary-matrix td { min-width: 98px; padding: 12px 14px; border-bottom: 1px solid #e2e8f0; text-align: center; }
 .teacher-summary-matrix thead th { color: #52657e; background: #f2f6fa; font-size: 11px; }
@@ -202,11 +205,16 @@ body[data-teacher-workspace] #teacherProfileInfo { grid-template-columns: repeat
 .teacher-summary-matrix tr:last-child th, .teacher-summary-matrix tr:last-child td { border-bottom: 0; }
 .teacher-summary-matrix .teacher-summary-total th,
 .teacher-summary-matrix .teacher-summary-total td { background: #edf5fc; font-weight: 900; }
-body[data-teacher-workspace] .teacher-record-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 7px; }
-body[data-teacher-workspace] .teacher-record-tabs button { min-width: 0; min-height: 58px; display: grid; place-items: center; align-content: center; gap: 3px; padding: 8px; }
-body[data-teacher-workspace] .teacher-record-tabs button span { font-size: 13px; }
-body[data-teacher-workspace] .teacher-record-tabs button small { color: #7a899c; font-size: 10px; font-weight: 700; }
-body[data-teacher-workspace] .teacher-record-tabs button.active small { color: #43658f; }
+body[data-teacher-workspace] .teacher-record-tabs,
+body[data-store-dashboard] .teacher-record-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 7px; }
+body[data-teacher-workspace] .teacher-record-tabs button,
+body[data-store-dashboard] .teacher-record-tabs button { min-width: 0; min-height: 58px; display: grid; place-items: center; align-content: center; gap: 3px; padding: 8px; }
+body[data-teacher-workspace] .teacher-record-tabs button span,
+body[data-store-dashboard] .teacher-record-tabs button span { font-size: 13px; }
+body[data-teacher-workspace] .teacher-record-tabs button small,
+body[data-store-dashboard] .teacher-record-tabs button small { color: #7a899c; font-size: 10px; font-weight: 700; }
+body[data-teacher-workspace] .teacher-record-tabs button.active small,
+body[data-store-dashboard] .teacher-record-tabs button.active small { color: #43658f; }
 body[data-teacher-workspace] .teacher-business-panel td:nth-child(5) strong { color: #173f72; }
 body[data-store-dashboard] .store-business-detail-panel .teacher-record-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 7px; }
 body[data-store-dashboard] .store-business-detail-panel .teacher-record-tabs button { min-width: 0; min-height: 58px; display: grid; place-items: center; align-content: center; gap: 3px; padding: 8px; }
@@ -2393,15 +2401,25 @@ body[data-staff-detail] .teacher-experience-empty.is-error { color: #9c3329; bac
   .teacher-range-presets button { min-height: 44px; padding-inline: 5px; }
   .teacher-custom-range { grid-template-columns: minmax(0, 1fr); }
   .teacher-custom-range input, .teacher-custom-range button { width: 100%; min-height: 44px; font-size: 16px; }
-  .teacher-summary-scroll { margin-inline: -2px; }
+  body[data-teacher-workspace] .teacher-overview-heading,
+  body[data-store-dashboard] .teacher-overview-heading { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 8px; }
+  body[data-teacher-workspace] .teacher-overview-heading h2,
+  body[data-store-dashboard] .teacher-overview-heading h2 { overflow: hidden; font-size: clamp(16px, 5vw, 20px); text-overflow: ellipsis; white-space: nowrap; }
+  body[data-teacher-workspace] .teacher-overview-heading .badge,
+  body[data-store-dashboard] .teacher-overview-heading .badge { grid-row: 2; justify-self: start; }
+  .teacher-summary-scroll { margin-inline: -2px; overflow-x: auto; overflow-y: hidden; clip-path: inset(0 round 11px); }
   .teacher-summary-matrix { width: max-content; min-width: 100%; }
   .teacher-summary-matrix th, .teacher-summary-matrix td { min-width: 70px; padding: 10px 8px; }
   .teacher-summary-matrix thead th:first-child,
-  .teacher-summary-matrix tbody th { min-width: 126px; }
-  body[data-teacher-workspace] .teacher-record-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  body[data-teacher-workspace] .teacher-record-tabs button { min-height: 54px; }
-  body[data-teacher-workspace] .teacher-business-panel .table-scroll { overflow-x: auto; overflow-y: hidden; }
-  body[data-teacher-workspace] .teacher-business-panel table { width: max-content; min-width: 680px; }
+  .teacher-summary-matrix tbody th { position: static; min-width: 126px; box-shadow: none; }
+  body[data-teacher-workspace] .teacher-record-tabs,
+  body[data-store-dashboard] .teacher-record-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body[data-teacher-workspace] .teacher-record-tabs button,
+  body[data-store-dashboard] .teacher-record-tabs button { min-height: 54px; }
+  body[data-teacher-workspace] .teacher-business-panel .table-scroll,
+  body[data-store-dashboard] .teacher-business-panel .table-scroll { overflow-x: auto; overflow-y: hidden; }
+  body[data-teacher-workspace] .teacher-business-panel table,
+  body[data-store-dashboard] .teacher-business-panel table { width: max-content; min-width: 680px; }
   body[data-teacher-workspace] .teacher-business-panel th,
   body[data-teacher-workspace] .teacher-business-panel td { padding: 10px 9px; white-space: nowrap; }
   body[data-teacher-workspace] .teacher-order-link { white-space: nowrap; }
@@ -2430,8 +2448,10 @@ body[data-staff-detail] .teacher-experience-empty.is-error { color: #9c3329; bac
 @media (max-width: 420px) {
   .teacher-range-presets { grid-template-columns: repeat(auto-fit, minmax(68px, 1fr)); }
   .teacher-quota-card dl { grid-template-columns: minmax(0, 1fr); }
-  body[data-teacher-workspace] .panel-heading { align-items: flex-start; }
-  body[data-teacher-workspace] .panel-heading .badge { flex: 0 0 auto; }
+  body[data-teacher-workspace] .panel-heading,
+  body[data-store-dashboard] .panel-heading { align-items: flex-start; }
+  body[data-teacher-workspace] .panel-heading .badge,
+  body[data-store-dashboard] .panel-heading .badge { flex: 0 0 auto; }
 }
 
 /* Teacher-facing HQ controls use one restrained, accessible action palette.

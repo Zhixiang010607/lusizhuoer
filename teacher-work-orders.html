@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>老师工作台</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.55">
+  <link rel="stylesheet" href="styles.css?v=0.15.56">
 </head>
 <body data-teacher-workspace>
   <aside class="side-project-bar" aria-label="老师工作台"><div class="side-brand"><span>师</span><div><strong>老师工作台</strong><small>本人业务</small></div></div><nav class="side-nav"></nav><div class="side-footer">老师账号</div></aside>
@@ -21,7 +21,7 @@
     </section>
 
     <section class="panel teacher-overview-panel" aria-labelledby="teacherOverviewTitle">
-      <div class="panel-heading"><div><h2 id="teacherOverviewTitle">时间范围与业务汇总</h2><p>汇总仅统计当前老师在所选周期内已经生效的业务次数</p></div><span id="teacherRangeLabel" class="badge">本月</span></div>
+      <div class="panel-heading teacher-overview-heading"><div><h2 id="teacherOverviewTitle">时间范围与业务汇总</h2><p>汇总仅统计当前老师在所选周期内已经生效的业务次数</p></div><span id="teacherRangeLabel" class="badge">本月</span></div>
       <div class="teacher-range-presets" role="group" aria-label="选择统计时间">
         <button type="button" data-range-preset="TODAY">今天</button>
         <button type="button" data-range-preset="WEEK">本周</button>
@@ -45,13 +45,13 @@
     </section>
 
     <section class="panel teacher-customer-panel" aria-labelledby="teacherActiveCustomersTitle">
-      <div class="panel-heading"><div><h2 id="teacherActiveCustomersTitle">核销过的活跃客户</h2><p>只按本老师已经通过的正常核销与体验核销建立关联；点击客户可进入客户主页</p></div><span id="teacherActiveCustomerCount" class="badge">读取中</span></div>
+      <div class="panel-heading"><div><h2 id="teacherActiveCustomersTitle">活跃用户</h2><p>只显示本老师核销过的活跃客户；点击用户可进入客户主页</p></div><span id="teacherActiveCustomerCount" class="badge">读取中</span></div>
       <div class="table-scroll teacher-customer-scroll"><table><thead><tr><th>客户（姓名 · 编号）</th><th>生日</th><th>核销项目</th><th>正常核销</th><th>体验核销</th><th>合计</th></tr></thead><tbody id="teacherActiveCustomerBody"><tr><td colspan="6" class="teacher-empty">正在读取活跃客户…</td></tr></tbody></table></div>
       <div id="teacherActiveCustomerPagination" class="table-pagination" aria-label="老师活跃客户分页"></div>
     </section>
 
     <section class="panel teacher-customer-panel archived-customer-section" aria-labelledby="teacherArchivedCustomersTitle">
-      <div class="panel-heading"><div><h2 id="teacherArchivedCustomersTitle">核销过的封存客户</h2><p>封存客户的历史关联继续保留；点击客户仍可进入客户主页</p></div><span id="teacherArchivedCustomerCount" class="badge archived-customer-badge">读取中</span></div>
+      <div class="panel-heading"><div><h2 id="teacherArchivedCustomersTitle">封存用户</h2><p>本老师核销过的封存客户仍保留历史关联；点击用户可进入客户主页</p></div><span id="teacherArchivedCustomerCount" class="badge archived-customer-badge">读取中</span></div>
       <div class="table-scroll teacher-customer-scroll"><table><thead><tr><th>客户（姓名 · 编号）</th><th>生日</th><th>核销项目</th><th>正常核销</th><th>体验核销</th><th>合计</th></tr></thead><tbody id="teacherArchivedCustomerBody"><tr><td colspan="6" class="teacher-empty">正在读取封存客户…</td></tr></tbody></table></div>
       <div id="teacherArchivedCustomerPagination" class="table-pagination" aria-label="老师封存客户分页"></div>
     </section>
