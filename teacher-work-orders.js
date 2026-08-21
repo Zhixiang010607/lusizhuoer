@@ -1,6 +1,7 @@
 (() => {
   "use strict";
-  const VERSION = "0.16.0";
+  const VERSION = "0.16.1";
+  const CUSTOMER_PAGE_SIZE = 10;
   const TYPES = Object.freeze(["VERIFICATION", "RECHARGE", "EXPERIENCE", "REFUND"]);
   const TYPE_META = Object.freeze({
     VERIFICATION: Object.freeze({ label: "核销", totalId: "teacherVerificationTotal", empty: "核销" }),
@@ -29,7 +30,12 @@
     loaded: emptyTypeMap(() => false),
     loading: emptyTypeMap(() => false),
     requestIds: emptyTypeMap(() => 0),
-    totals: { verification: 0, recharge: 0, experience: 0, refund: 0 }
+    totals: { verification: 0, recharge: 0, experience: 0, refund: 0 },
+    customerLoading: false,
+    customers: {
+      ACTIVE: { records: [], total: 0, page: 1, pageSize: CUSTOMER_PAGE_SIZE },
+      ARCHIVED: { records: [], total: 0, page: 1, pageSize: CUSTOMER_PAGE_SIZE }
+    }
   };
 
   function parsedObject(value) {
@@ -49,15 +55,16 @@
       if (!(message.includes("duplicate component") && message.includes(name))) throw error;
     }
   }
-  async function callWorkspace(data) {
+  async function callFaceFunction(action, data) {
     if (!window.cloudbase || !window.CloudBaseAuthConfig || !window.registerFunctions) throw new Error("数据库组件尚未加载，请刷新重试。");
     register(window.registerAuth, "auth");
     register(window.registerFunctions, "functions");
-    const raw = await window.cloudbase.init(window.CloudBaseAuthConfig).callFunction({ name: "faceRecognition", data: { action: "getTeacherWorkspace", ...data } });
+    const raw = await window.cloudbase.init(window.CloudBaseAuthConfig).callFunction({ name: "faceRecognition", data: { action, ...data } });
     const result = responseData(raw);
     if (!result.ok) throw new Error(result.message || "无法读取老师工作台。");
     return result;
   }
+  const callWorkspace = (data) => callFaceFunction("getTeacherWorkspace", data);
 
   function businessToday() {
     const parts = new Intl.DateTimeFormat("en-CA", {
@@ -145,6 +152,70 @@
       button.classList.toggle("active", active);
       button.setAttribute("aria-selected", String(active));
     });
+  }
+
+  function formatBirthday(value) {
+    const text = String(value || "").slice(0, 10);
+    const match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return match ? `${match[1]}年${match[2]}月${match[3]}日` : (text || "—");
+  }
+
+  function renderCustomerPager(status) {
+    const archived = status === "ARCHIVED";
+    const prefix = archived ? "Archived" : "Active";
+    const group = state.customers[status];
+    const target = $(`teacher${prefix}CustomerPagination`);
+    const pages = Math.max(1, Math.ceil(group.total / group.pageSize));
+    if (group.total <= group.pageSize) { target.innerHTML = ""; return; }
+    target.innerHTML = `<button type="button" data-teacher-customer-status="${status}" data-page="${group.page - 1}" ${group.page <= 1 ? "disabled" : ""}>上一页</button><span>第 ${group.page} / ${pages} 页</span><button type="button" data-teacher-customer-status="${status}" data-page="${group.page + 1}" ${group.page >= pages ? "disabled" : ""}>下一页</button>`;
+  }
+
+  function renderBusinessCustomers(status) {
+    const archived = status === "ARCHIVED";
+    const prefix = archived ? "Archived" : "Active";
+    const group = state.customers[status];
+    $(`teacher${prefix}CustomerCount`).textContent = `${formatCount(group.total)} 位客户`;
+    const target = $(`teacher${prefix}CustomerBody`);
+    target.innerHTML = group.records.length ? group.records.map((row) => {
+      const customerParams = new URLSearchParams({ customerId: String(row.customerCode || ""), source: "teacher" });
+      const href = `customer-detail.html?${customerParams.toString()}`;
+      const label = `${row.customerName || "未命名客户"} · ${row.customerCode || "—"}`;
+      return `<tr>
+        <td data-label="客户"><a class="teacher-order-link" href="${escapeHtml(href)}">${escapeHtml(label)}</a></td>
+        <td data-label="生日">${escapeHtml(formatBirthday(row.birthDate))}</td>
+        <td data-label="核销项目">${formatCount(row.productCount)} 个</td>
+        <td data-label="正常核销">${formatCount(row.verificationCount)} 次</td>
+        <td data-label="体验核销">${formatCount(row.experienceCount)} 次</td>
+        <td data-label="合计"><strong>${formatCount(row.totalCount)} 次</strong></td>
+      </tr>`;
+    }).join("") : `<tr><td colspan="6" class="teacher-empty">暂无核销过的${archived ? "封存" : "活跃"}客户</td></tr>`;
+    renderCustomerPager(status);
+  }
+
+  async function loadBusinessCustomers(activePage = state.customers.ACTIVE.page, archivedPage = state.customers.ARCHIVED.page) {
+    if (state.customerLoading) return;
+    state.customerLoading = true;
+    try {
+      const result = await callFaceFunction("getTeacherBusinessCustomers", { activePage, archivedPage });
+      for (const [status, key] of [["ACTIVE", "active"], ["ARCHIVED", "archived"]]) {
+        const group = result[key] || {};
+        state.customers[status] = {
+          records: Array.isArray(group.records) ? group.records : [],
+          total: Number(group.total || 0),
+          page: Number(group.page || 1),
+          pageSize: Number(group.pageSize || CUSTOMER_PAGE_SIZE)
+        };
+        renderBusinessCustomers(status);
+      }
+    } catch (error) {
+      for (const [status, prefix] of [["ACTIVE", "Active"], ["ARCHIVED", "Archived"]]) {
+        if (!state.customers[status].records.length) {
+          $(`teacher${prefix}CustomerBody`).innerHTML = `<tr><td colspan="6" class="teacher-empty">${escapeHtml(error?.message || "客户数据读取失败")}</td></tr>`;
+        }
+      }
+    } finally {
+      state.customerLoading = false;
+    }
   }
 
   function renderRecords() {
@@ -280,6 +351,16 @@
       applyRange("CUSTOM", { startDate, endDate });
     });
     $("teacherLoadMore").addEventListener("click", () => loadType(state.activeType, { append: true }));
+    document.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-teacher-customer-status]");
+      if (!button || button.disabled) return;
+      const status = button.dataset.teacherCustomerStatus;
+      const page = Number(button.dataset.page);
+      if (!["ACTIVE", "ARCHIVED"].includes(status) || !Number.isInteger(page) || page < 1) return;
+      const activePage = status === "ACTIVE" ? page : state.customers.ACTIVE.page;
+      const archivedPage = status === "ARCHIVED" ? page : state.customers.ARCHIVED.page;
+      void loadBusinessCustomers(activePage, archivedPage);
+    });
   }
 
   function init() {
@@ -287,6 +368,7 @@
     renderTabs();
     bindEvents();
     applyRange("MONTH");
+    void loadBusinessCustomers();
     document.documentElement.dataset.prototypeVersion = VERSION;
   }
   init();

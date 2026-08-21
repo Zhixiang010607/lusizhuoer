@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.3";
+  const VERSION = "0.16.4";
   const CUSTOMER_PAGE_SIZE = 10;
   const params = new URLSearchParams(location.search);
   const storeRef = String(params.get("authUid") || params.get("storeId") || "").trim();
@@ -18,9 +18,25 @@
     { key: "experience", label: "体验" },
     { key: "refund", label: "退费" }
   ]);
+  const businessTypes = Object.freeze(["VERIFICATION", "RECHARGE", "EXPERIENCE", "REFUND"]);
+  const businessTypeMeta = Object.freeze({
+    VERIFICATION: Object.freeze({ label: "核销", totalId: "storeVerificationTotal", recordType: "VERIFICATION", verificationType: "NORMAL" }),
+    RECHARGE: Object.freeze({ label: "充值", totalId: "storeRechargeTotal", recordType: "RECHARGE", rechargeType: "NEW" }),
+    EXPERIENCE: Object.freeze({ label: "体验", totalId: "storeExperienceTotal", recordType: "VERIFICATION", verificationType: "EXPERIENCE" }),
+    REFUND: Object.freeze({ label: "退费", totalId: "storeRefundTotal", recordType: "RECHARGE", rechargeType: "REFUND" })
+  });
+  const emptyBusinessTypeMap = (factory) => Object.fromEntries(businessTypes.map((type) => [type, factory(type)]));
   const state = {
-    customerRows: [], customerPage: 1, customerTotal: 0,
+    activeCustomerRows: [], activeCustomerPage: 1, activeCustomerTotal: 0,
+    archivedCustomerRows: [], archivedCustomerPage: 1, archivedCustomerTotal: 0,
     dashboardStoreId: "", analyticsLoading: false, statusLoading: false,
+    businessActiveType: "VERIFICATION", businessRangeEpoch: 0,
+    businessRecords: emptyBusinessTypeMap(() => []),
+    businessCursors: emptyBusinessTypeMap(() => null),
+    businessHasMore: emptyBusinessTypeMap(() => false),
+    businessLoaded: emptyBusinessTypeMap(() => false),
+    businessLoading: emptyBusinessTypeMap(() => false),
+    businessRequestIds: emptyBusinessTypeMap(() => 0),
     storeAccount: null, currentStore: null, sessionRole: ""
   };
 
@@ -49,13 +65,13 @@
     }
   }
 
-  async function loadCurrentStoreDashboard(customerPage = 1, storeId = "") {
+  async function loadCurrentStoreDashboard(activeCustomerPage = 1, storeId = "", archivedCustomerPage = 1) {
     if (!window.cloudbase || !window.CloudBaseAuthConfig || !window.registerFunctions) {
       throw new Error("门店首页数据库组件尚未加载，请刷新页面后重试。");
     }
     registerCloudBaseComponent(window.registerAuth, "auth");
     registerCloudBaseComponent(window.registerFunctions, "functions");
-    const request = { action: "getStoreDashboard", customerPage };
+    const request = { action: "getStoreDashboard", activeCustomerPage, archivedCustomerPage };
     if (storeId) request.storeId = String(storeId);
     const result = await window.cloudbase.init(window.CloudBaseAuthConfig).callFunction({
       name: "faceRecognition",
@@ -64,6 +80,21 @@
     const data = cloudFunctionData(result);
     if (!data.ok || !data.store) throw new Error(data.message || "门店首页数据库没有返回有效数据。");
     return data.store;
+  }
+
+  async function callFaceRecognition(action, data = {}) {
+    if (!window.cloudbase || !window.CloudBaseAuthConfig || !window.registerFunctions) {
+      throw new Error("门店业务数据库组件尚未加载，请刷新页面后重试。");
+    }
+    registerCloudBaseComponent(window.registerAuth, "auth");
+    registerCloudBaseComponent(window.registerFunctions, "functions");
+    const result = await window.cloudbase.init(window.CloudBaseAuthConfig).callFunction({
+      name: "faceRecognition",
+      data: { action, ...data }
+    });
+    const response = cloudFunctionData(result);
+    if (!response.ok) throw new Error(response.message || "门店业务明细读取失败。");
+    return response;
   }
 
   function firstValue(object, keys, fallback = "—") {
@@ -171,15 +202,20 @@
     }).join("");
   }
 
-  function renderCustomers() {
-    const target = $("storeCustomerBody");
+  function renderCustomers(status) {
+    const archived = status === "ARCHIVED";
+    const prefix = archived ? "Archived" : "Active";
+    const target = $(`store${prefix}CustomerBody`);
     if (!target) return;
-    const total = state.customerTotal;
+    const total = archived ? state.archivedCustomerTotal : state.activeCustomerTotal;
+    const currentPage = archived ? state.archivedCustomerPage : state.activeCustomerPage;
     const pages = Math.max(1, Math.ceil(total / CUSTOMER_PAGE_SIZE));
-    state.customerPage = Math.min(Math.max(1, state.customerPage), pages);
-    const rows = state.customerRows;
+    const page = Math.min(Math.max(1, currentPage), pages);
+    if (archived) state.archivedCustomerPage = page;
+    else state.activeCustomerPage = page;
+    const rows = archived ? state.archivedCustomerRows : state.activeCustomerRows;
     if (!rows.length) {
-      target.innerHTML = '<tr><td colspan="6" class="query-empty">暂无活跃客户</td></tr>';
+      target.innerHTML = `<tr><td colspan="6" class="query-empty">暂无${archived ? "封存" : "活跃"}客户</td></tr>`;
     } else {
       target.innerHTML = rows.map((row) => {
         const id = firstValue(row, ["customer_id", "id"], "");
@@ -188,18 +224,21 @@
         const reference = code || id;
         const label = code ? `${name} · ${code}` : name;
         const customer = reference ? `<a class="record-link" href="customer-detail.html?customerId=${encodeURIComponent(reference)}">${escapeHtml(label)}</a>` : escapeHtml(label);
-        return `<tr><td>${customer}</td><td>${escapeHtml(formatBirthday(firstValue(row, ["birthday", "birth_date"], "")))}</td><td>${escapeHtml(firstValue(row, ["product_count", "held_product_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["total_recharge_count", "purchase_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["total_verification_count", "verification_count"], 0))}</td><td>${escapeHtml(firstValue(row, ["remaining_count", "balance"], 0))}</td></tr>`;
+        return `<tr><td data-label="客户">${customer}</td><td data-label="生日">${escapeHtml(formatBirthday(firstValue(row, ["birthday", "birth_date"], "")))}</td><td data-label="持有项目">${escapeHtml(firstValue(row, ["product_count", "held_product_count"], 0))}</td><td data-label="总购买">${escapeHtml(firstValue(row, ["total_recharge_count", "purchase_count"], 0))}</td><td data-label="总核销">${escapeHtml(firstValue(row, ["total_verification_count", "verification_count"], 0))}</td><td data-label="剩余次数">${escapeHtml(firstValue(row, ["remaining_count", "balance"], 0))}</td></tr>`;
       }).join("");
     }
-    if ($("storeCustomerCount")) $("storeCustomerCount").textContent = `${total}位客户`;
-    renderPager("storeCustomerPagination", total, state.customerPage, CUSTOMER_PAGE_SIZE, "customer");
+    if ($(`store${prefix}CustomerCount`)) $(`store${prefix}CustomerCount`).textContent = `${total}位客户`;
+    renderPager(`store${prefix}CustomerPagination`, total, page, CUSTOMER_PAGE_SIZE, archived ? "archivedCustomer" : "activeCustomer");
   }
 
   function renderEmptyRows(message = "暂无业务数据") {
     if ($("storeProjectBody")) $("storeProjectBody").innerHTML = `<tr><td colspan="7" class="query-empty">${escapeHtml(message)}</td></tr>`;
-    state.customerRows = [];
-    state.customerTotal = 0;
-    renderCustomers();
+    state.activeCustomerRows = [];
+    state.activeCustomerTotal = 0;
+    state.archivedCustomerRows = [];
+    state.archivedCustomerTotal = 0;
+    renderCustomers("ACTIVE");
+    renderCustomers("ARCHIVED");
   }
 
   function renderError(message) {
@@ -289,12 +328,18 @@
       ["联系电话", store.contact_phone || "未填写"]
     ]);
     renderProjects(Array.isArray(store.projects) ? store.projects : (Array.isArray(store.project_stats) ? store.project_stats : []));
-    state.customerRows = (Array.isArray(store.customers) ? store.customers : []).filter((row) =>
+    state.activeCustomerRows = (Array.isArray(store.customers) ? store.customers : []).filter((row) =>
       String(firstValue(row, ["customer_status", "status"], "")).trim().toUpperCase() === "ACTIVE"
     );
-    state.customerTotal = Number(store.customer_total ?? state.customerRows.length);
-    state.customerPage = Number(store.customer_page || 1);
-    renderCustomers();
+    state.activeCustomerTotal = Number(store.customer_total ?? state.activeCustomerRows.length);
+    state.activeCustomerPage = Number(store.customer_page || 1);
+    state.archivedCustomerRows = (Array.isArray(store.archived_customers) ? store.archived_customers : []).filter((row) =>
+      String(firstValue(row, ["customer_status", "status"], "")).trim().toUpperCase() === "ARCHIVED"
+    );
+    state.archivedCustomerTotal = Number(store.archived_customer_total ?? state.archivedCustomerRows.length);
+    state.archivedCustomerPage = Number(store.archived_customer_page || 1);
+    renderCustomers("ACTIVE");
+    renderCustomers("ARCHIVED");
   }
 
   function analyticsQuery(metric = "") {
@@ -325,6 +370,124 @@
       return `<tr><th><a class="record-link" href="${escapeHtml(href)}">${metric.label}</a></th>${cells}<td><strong>${Number(data.totals?.[metric.key] || 0)}</strong></td></tr>`;
     }).join("") || `<tr><td colspan="${totalColumns}" class="query-empty">暂无业务数据</td></tr>`;
     $("storeAnalyticsScope").textContent = `${data.range?.startDate || "—"} 至 ${data.range?.endDate || "—"} · 项目按本期业务量排序`;
+    for (const [type, metric] of [["VERIFICATION", "verification"], ["RECHARGE", "recharge"], ["EXPERIENCE", "experience"], ["REFUND", "refund"]]) {
+      const target = $(businessTypeMeta[type].totalId);
+      if (target) target.textContent = `${Number(data.totals?.[metric] || 0).toLocaleString("zh-CN")} 次`;
+    }
+  }
+
+  function renderBusinessTabs() {
+    document.querySelectorAll("[data-store-record-type]").forEach((button) => {
+      const active = button.dataset.storeRecordType === state.businessActiveType;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-selected", String(active));
+    });
+  }
+
+  function formatBusinessDateTime(value) {
+    return window.AppDateTime?.formatDateTime?.(value, "—") || window.AppDateTime?.formatDate?.(value, "—") || "—";
+  }
+
+  function renderBusinessDetails() {
+    const type = state.businessActiveType;
+    const rows = state.businessRecords[type];
+    const meta = businessTypeMeta[type];
+    if ($("storeBusinessDetailHead")) $("storeBusinessDetailHead").innerHTML = "<tr><th>单号</th><th>门店</th><th>客户</th><th>项目</th><th>次数</th><th>提交时间</th></tr>";
+    if (state.businessLoading[type] && !rows.length) {
+      $("storeBusinessDetailBody").innerHTML = `<tr><td colspan="6" class="teacher-empty">正在读取${meta.label}明细…</td></tr>`;
+    } else {
+      $("storeBusinessDetailBody").innerHTML = rows.length ? rows.map((row) => {
+        const verification = type === "VERIFICATION" || type === "EXPERIENCE";
+        const detailParams = new URLSearchParams({ recordId: String(row.id || ""), recordCode: String(row.recordCode || ""), source: "store" });
+        const detailHref = `${verification ? "verification" : "recharge"}-detail.html?${detailParams.toString()}`;
+        const customerParams = new URLSearchParams({ customerId: String(row.customerCode || ""), source: "store" });
+        const customerHref = `customer-detail.html?${customerParams.toString()}`;
+        const count = Number(row.unitCount || 0).toLocaleString("zh-CN");
+        const amount = type === "REFUND" ? `−${count} 次` : type === "RECHARGE" ? `+${count} 次` : `${count} 次`;
+        return `<tr>
+          <td data-label="单号"><a class="teacher-order-link" href="${escapeHtml(detailHref)}">${escapeHtml(row.recordCode || "—")}</a></td>
+          <td data-label="门店">${escapeHtml(row.storeName || "—")} · ${escapeHtml(row.storeCode || "—")}</td>
+          <td data-label="客户"><a class="teacher-order-link" href="${escapeHtml(customerHref)}">${escapeHtml(row.customerName || "—")} · ${escapeHtml(row.customerCode || "—")}</a></td>
+          <td data-label="项目">${escapeHtml(row.productName || "—")}</td>
+          <td data-label="次数"><strong>${amount}</strong></td>
+          <td data-label="提交时间">${escapeHtml(formatBusinessDateTime(row.submittedAt))}</td>
+        </tr>`;
+      }).join("") : `<tr><td colspan="6" class="teacher-empty">所选时间内暂无本门店有效${meta.label}记录</td></tr>`;
+    }
+    $("storeBusinessLoadedCount").textContent = `已加载 ${rows.length} 条`;
+    $("storeBusinessLoadMore").hidden = !state.businessHasMore[type];
+    $("storeBusinessLoadMore").disabled = state.businessLoading[type];
+  }
+
+  function mergeBusinessPage(type, result, append) {
+    if (!append) state.businessRecords[type] = [];
+    const known = new Set(state.businessRecords[type].map((row) => String(row.id)));
+    for (const row of Array.isArray(result?.records) ? result.records : []) {
+      if (!known.has(String(row.id))) state.businessRecords[type].push(row);
+    }
+    state.businessCursors[type] = result?.nextCursor || null;
+    state.businessHasMore[type] = Boolean(result?.hasMore && result?.nextCursor);
+    state.businessLoaded[type] = true;
+  }
+
+  async function loadBusinessType(type, { append = false } = {}) {
+    if (!businessTypes.includes(type) || state.businessLoading[type] || !state.dashboardStoreId) return;
+    const cursor = append ? state.businessCursors[type] : null;
+    if (append && !cursor) return;
+    const epoch = state.businessRangeEpoch;
+    const requestId = ++state.businessRequestIds[type];
+    const meta = businessTypeMeta[type];
+    state.businessLoading[type] = true;
+    if (!append) { state.businessRecords[type] = []; state.businessLoaded[type] = false; }
+    renderBusinessDetails();
+    $("storeBusinessDetailMessage").textContent = append ? "正在继续读取…" : "";
+    try {
+      const range = validateAnalyticsRange();
+      const result = await callFaceRecognition("queryStoreBusinessRecords", {
+        storeId: state.dashboardStoreId,
+        mode: "browse",
+        statusCategory: "APPROVED",
+        recordType: meta.recordType,
+        ...(meta.verificationType ? { verificationType: meta.verificationType } : {}),
+        ...(meta.rechargeType ? { rechargeType: meta.rechargeType } : {}),
+        ...range,
+        limit: 50,
+        ...(cursor ? { cursorSubmittedAt: cursor.submittedAt, cursorId: cursor.id } : {})
+      });
+      if (epoch !== state.businessRangeEpoch || requestId !== state.businessRequestIds[type]) return;
+      mergeBusinessPage(type, result, append);
+      $("storeBusinessDetailMessage").textContent = "";
+    } catch (error) {
+      if (epoch !== state.businessRangeEpoch || requestId !== state.businessRequestIds[type]) return;
+      if (!append) state.businessLoaded[type] = true;
+      $("storeBusinessDetailMessage").textContent = error?.message || "门店业务明细读取失败。";
+    } finally {
+      if (epoch === state.businessRangeEpoch && requestId === state.businessRequestIds[type]) {
+        state.businessLoading[type] = false;
+        renderBusinessDetails();
+      }
+    }
+  }
+
+  function resetBusinessDetails() {
+    state.businessRangeEpoch += 1;
+    for (const type of businessTypes) {
+      state.businessRecords[type] = [];
+      state.businessCursors[type] = null;
+      state.businessHasMore[type] = false;
+      state.businessLoaded[type] = false;
+      state.businessLoading[type] = false;
+      state.businessRequestIds[type] += 1;
+    }
+    renderBusinessDetails();
+  }
+
+  function setBusinessType(type) {
+    if (!businessTypes.includes(type)) return;
+    state.businessActiveType = type;
+    renderBusinessTabs();
+    renderBusinessDetails();
+    if (!state.businessLoaded[type]) void loadBusinessType(type);
   }
 
   function validateAnalyticsRange() {
@@ -345,7 +508,9 @@
       const range = validateAnalyticsRange();
       const data = await window.StoreAnalyticsData.load({ storeId: state.dashboardStoreId, ...range });
       renderAnalytics(data);
+      resetBusinessDetails();
       $("storeAnalyticsMessage").textContent = "";
+      void loadBusinessType(state.businessActiveType);
     } catch (error) {
       $("storeAnalyticsHead").innerHTML = "";
       $("storeAnalyticsBody").innerHTML = `<tr><td class="query-empty">${escapeHtml(error?.message || "业务统计读取失败")}</td></tr>`;
@@ -355,11 +520,14 @@
     }
   }
 
-  async function loadCustomerPage(page) {
-    const target = $("storeCustomerBody");
+  async function loadCustomerPage(kind, page) {
+    const archived = kind === "archivedCustomer";
+    const target = $(archived ? "storeArchivedCustomerBody" : "storeActiveCustomerBody");
     if (target) target.innerHTML = '<tr><td colspan="6" class="query-empty">正在读取客户数据…</td></tr>';
     try {
-      renderStore(await loadCurrentStoreDashboard(page, state.dashboardStoreId));
+      const activePage = archived ? state.activeCustomerPage : page;
+      const archivedPage = archived ? page : state.archivedCustomerPage;
+      renderStore(await loadCurrentStoreDashboard(activePage, state.dashboardStoreId, archivedPage));
     } catch (error) {
       if (target) target.innerHTML = `<tr><td colspan="6" class="query-empty">${escapeHtml(error?.message || "客户数据读取失败")}</td></tr>`;
     }
@@ -369,11 +537,15 @@
     const button = event.target.closest("button[data-page-target]");
     if (!button || button.disabled) return;
     const page = Number(button.dataset.page);
-    if (button.dataset.pageTarget === "customer") void loadCustomerPage(page);
+    if (["activeCustomer", "archivedCustomer"].includes(button.dataset.pageTarget)) {
+      void loadCustomerPage(button.dataset.pageTarget, page);
+    }
   });
 
   $("storeAnalyticsPeriod")?.addEventListener("change", (event) => setAnalyticsPeriod(event.target.value));
   $("applyStoreAnalytics")?.addEventListener("click", () => void loadAnalytics());
+  document.querySelectorAll("[data-store-record-type]").forEach((button) => button.addEventListener("click", () => setBusinessType(button.dataset.storeRecordType)));
+  $("storeBusinessLoadMore")?.addEventListener("click", () => void loadBusinessType(state.businessActiveType, { append: true }));
   $("storeStatusAction")?.addEventListener("click", async () => {
     const account = state.storeAccount || {};
     const store = state.currentStore;
@@ -418,6 +590,7 @@
   async function load() {
     document.documentElement.dataset.prototypeVersion = VERSION;
     setAnalyticsPeriod("today");
+    renderBusinessTabs();
     if (!storeRef) {
       renderError("缺少门店唯一身份 ID。");
       return;

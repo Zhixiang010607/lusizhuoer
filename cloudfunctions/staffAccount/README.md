@@ -21,7 +21,7 @@ Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_oper
 调用这些旧 action 会统一进入“不支持的操作”。`provisionStaff({ role: "teacher" })` 也会在 Auth 查询、用户创建和 SQL 写入之前返回 `TEACHER_CREATE_SERVICE_REQUIRED`。新建老师只能调用 `teacherCreate`。
 
 迁移 051／052 的旧表、函数和历史记录不再是本函数的运行依赖。部署
-`staffAccount v67`／`faceRecognition v80`／`teacherCreate v6` 后执行前向
+`staffAccount v67`／`faceRecognition v81`／`teacherCreate v6` 后执行前向
 迁移 053，会物理删除旧操作表与六个私有函数，不影响老师及业务历史。
 
 ## 保留能力

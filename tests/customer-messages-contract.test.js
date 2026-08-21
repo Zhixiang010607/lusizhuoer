@@ -27,7 +27,7 @@ for (const source of [migration, consoleMigration]) {
   assert.match(source, /REVOKE ALL ON TABLE public\.customer_messages FROM PUBLIC/);
 }
 
-assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v5" : "v80"/);
+assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v5" : "v81"/);
 assert.match(cloud, /async function listCustomerMessages\(event\)/);
 assert.match(cloud, /async function addCustomerMessage\(event\)/);
 assert.match(cloud, /const limit = Number\.isFinite\(requestedLimit\)[\s\S]*?: 20;/);
@@ -38,7 +38,9 @@ assert.match(cloud, /WITH inserted_message AS \([\s\S]*INSERT INTO public\.custo
 assert.doesNotMatch(cloud, /event\.(?:authorName|authorRole)/, "author identity must never be accepted from the browser");
 assert.match(cloud, /account\.role_code === "teacher"/);
 assert.match(cloud, /teacher_verification\.teacher_id = \$\{sqlText\(caller\.teacherId\)\}::bigint/);
-assert.match(cloud, /teacher_recharge\.teacher_id = \$\{sqlText\(caller\.teacherId\)\}::bigint/);
+const teacherCustomerScope = cloud.slice(cloud.indexOf("function customerProfileScope"), cloud.indexOf("function customerStatusCode"));
+assert.doesNotMatch(teacherCustomerScope, /teacher_recharge|recharge_records/, "teacher profile access must not be granted by recharge or refund");
+assert.match(teacherCustomerScope, /verification_type IN \('NORMAL', 'EXPERIENCE'\)/, "teacher profile access must follow approved normal or experience verification only");
 assert.match(cloud, /if \(action === "listCustomerMessages"\)/);
 assert.match(cloud, /if \(action === "addCustomerMessage"\)/);
 
@@ -75,6 +77,6 @@ assert.match(css, /customer-message-compose \{[\s\S]*grid-template-columns: 1fr;
 assert.match(auth, /teacher: new Set\(\[[^\]]*"customer-detail\.html"/);
 assert.match(teacherUi, /customer-detail\.html\?\$\{customerParams\.toString\(\)\}/);
 assert.match(teacherHtml, /点击客户姓名可进入本人关联客户主页并留言/);
-assert.match(teacherHtml, /teacher-work-orders\.js\?v=0\.16\.0/);
+assert.match(teacherHtml, /teacher-work-orders\.js\?v=0\.16\.1/);
 
 console.log("customer messages contract: PASS");

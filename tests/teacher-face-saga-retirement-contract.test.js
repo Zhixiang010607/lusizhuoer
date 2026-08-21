@@ -20,7 +20,7 @@ const console053 = read("database/cloudbase-console/053-01-retire-legacy-teacher
 const verify053 = read("database/cloudbase-console/053-readonly-verify.sql");
 
 assert.match(staff, /const FUNCTION_VERSION = "v67"/);
-assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v5" : "v80"/);
+assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v5" : "v81"/);
 assert.match(teacher, /const FUNCTION_VERSION = "teacher-create-v6"/);
 
 const retiredImplementationNames = [

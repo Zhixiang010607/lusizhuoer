@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v5" : "v80";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v5" : "v81";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -1326,11 +1326,8 @@ function customerProfileScope(caller, alias = "c") {
       SELECT 1 FROM public.verification_records teacher_verification
        WHERE teacher_verification.customer_id = ${alias}.id
          AND teacher_verification.teacher_id = ${sqlText(caller.teacherId)}::bigint
-    )
-    OR EXISTS (
-      SELECT 1 FROM public.recharge_records teacher_recharge
-       WHERE teacher_recharge.customer_id = ${alias}.id
-         AND teacher_recharge.teacher_id = ${sqlText(caller.teacherId)}::bigint
+         AND teacher_verification.record_status = 'APPROVED'
+         AND teacher_verification.verification_type IN ('NORMAL', 'EXPERIENCE')
     )
   )`;
   return "";
@@ -2145,6 +2142,10 @@ async function queryStoreBusinessRecords(event = {}) {
   if (!["ALL", "NORMAL", "SUPPLEMENT", "EXPERIENCE"].includes(verificationType)) {
     fail("核销类型筛选无效。", "BAD_REQUEST");
   }
+  const rechargeType = String(event.rechargeType || "ALL").trim().toUpperCase();
+  if (!["ALL", "NEW", "REFUND", "VOID"].includes(rechargeType)) {
+    fail("充值类型筛选无效。", "BAD_REQUEST");
+  }
 
   const customerName = String(event.customerName || "").trim();
   if (customerName.length > 100) fail("客户姓名查询不能超过 100 个字符。", "BAD_REQUEST");
@@ -2167,6 +2168,9 @@ async function queryStoreBusinessRecords(event = {}) {
   const alias = recordType === "RECHARGE" ? "r" : "v";
   const table = recordType === "RECHARGE" ? "recharge_records" : "verification_records";
   const baseClauses = [scopedStoreClause(caller, `${alias}.store_id`)];
+  if (recordType === "RECHARGE" && rechargeType !== "ALL") {
+    baseClauses.push(`r.recharge_type = ${sqlText(rechargeType)}`);
+  }
   if (mode === "manual") {
     if (customerName) baseClauses.push(`c.customer_name ILIKE '%' || ${sqlText(customerName)} || '%'`);
     if (birthDate) baseClauses.push(`c.birth_date = ${sqlText(birthDate)}::date`);
@@ -2303,13 +2307,16 @@ async function getStoreDashboard(event = {}) {
   const caller = await activeScopedQueryCaller(event);
   if (!caller.storeId) fail("总部查看门店主页时必须选择具体门店。", "STORE_REQUIRED");
   const storeId = businessQueryDatabaseId(caller.storeId, "门店");
-  const requestedCustomerPage = Number(event.customerPage || 1);
-  if (!Number.isInteger(requestedCustomerPage) || requestedCustomerPage < 1) {
-    fail("客户分页必须是正整数。", "BAD_REQUEST");
-  }
-  const customerPage = Math.min(requestedCustomerPage, 100000);
+  const dashboardCustomerPage = (value, label) => {
+    const requested = Number(value || 1);
+    if (!Number.isInteger(requested) || requested < 1) fail(`${label}分页必须是正整数。`, "BAD_REQUEST");
+    return Math.min(requested, 100000);
+  };
+  const customerPage = dashboardCustomerPage(event.activeCustomerPage || event.customerPage, "活跃客户");
+  const archivedCustomerPage = dashboardCustomerPage(event.archivedCustomerPage, "封存客户");
   const customerPageSize = 10;
   const customerOffset = (customerPage - 1) * customerPageSize;
+  const archivedCustomerOffset = (archivedCustomerPage - 1) * customerPageSize;
   const layout = await getStoreBindingLayout();
   const accountJoin = layout === "stores"
     ? "LEFT JOIN public.staff_accounts account ON account.id = s.store_account_id"
@@ -2318,8 +2325,8 @@ async function getStoreDashboard(event = {}) {
        LEFT JOIN public.staff_accounts account ON account.id = assignment.staff_account_id`;
   // Project totals are derived only from approved orders handled by this
   // store. Customer status and customer.created_store_id must not remove
-  // historical business. SUPPLEMENT is a consumptive verification; legacy
-  // VOID reduces remaining units but is not reported as a refund. Remaining
+  // historical business. Only NORMAL and EXPERIENCE remain in the current
+  // verification model; legacy VOID reduces remaining units but is not reported as a refund. Remaining
   // is floored per customer/product ledger before the project-level sum, and
   // EXPERIENCE never consumes purchased units.
   //
@@ -2330,7 +2337,7 @@ async function getStoreDashboard(event = {}) {
   // reported along two independent axes: whether a paid verification had
   // already taken effect when the refund took effect, and how much of the
   // final customer-by-product balance the refund actually consumes.
-  const [storeRows, projects, customerCountRows, customers] = await Promise.all([
+  const [storeRows, projects, customerCountRows, customers, archivedCustomerCountRows, archivedCustomers] = await Promise.all([
     executeSql(
     `SELECT s.id, s.store_code, s.store_name, s.province, s.city, s.district,
             s.address_detail, s.store_status,
@@ -2367,12 +2374,12 @@ async function getStoreDashboard(event = {}) {
               0::bigint AS recharge_count,
               0::bigint AS refund_count,
               0::bigint AS legacy_void_count,
-              CASE WHEN v.verification_type IN ('NORMAL', 'SUPPLEMENT') THEN v.unit_count ELSE 0 END::bigint AS verification_count,
+              CASE WHEN v.verification_type = 'NORMAL' THEN v.unit_count ELSE 0 END::bigint AS verification_count,
               CASE WHEN v.verification_type = 'EXPERIENCE' THEN v.unit_count ELSE 0 END::bigint AS experience_count
          FROM public.verification_records v
         WHERE v.store_id = ${storeId}::bigint
           AND v.record_status = 'APPROVED'
-          AND v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')
+          AND v.verification_type IN ('NORMAL', 'EXPERIENCE')
      ), customer_product_totals AS (
        SELECT event.customer_id, event.product_id,
               SUM(event.recharge_count) AS total_recharge_count,
@@ -2527,6 +2534,30 @@ async function getStoreDashboard(event = {}) {
                c.latest_recharge_at, c.latest_verification_at
       ORDER BY c.created_at DESC, c.id DESC
       LIMIT ${customerPageSize} OFFSET ${customerOffset}`
+    ),
+    executeSql(
+      `SELECT COUNT(*) AS customer_total
+         FROM public.customers
+        WHERE created_store_id = ${storeId}::bigint
+          AND customer_status = 'ARCHIVED'`
+    ),
+    executeSql(
+    `SELECT c.id AS customer_id, c.customer_code, c.customer_name, c.birth_date,
+            c.customer_status, c.total_recharge_count, c.total_verification_count,
+            COALESCE(COUNT(b.product_id) FILTER (
+              WHERE b.total_recharge_count > 0 OR b.total_verification_count > 0
+            ), 0) AS product_count,
+            COALESCE(SUM(b.remaining_count), 0) AS remaining_count,
+            GREATEST(c.latest_recharge_at, c.latest_verification_at) AS last_business_at
+       FROM public.customers c
+       LEFT JOIN public.customer_product_balances b ON b.customer_id = c.id
+      WHERE c.created_store_id = ${storeId}::bigint
+        AND c.customer_status = 'ARCHIVED'
+      GROUP BY c.id, c.customer_code, c.customer_name, c.birth_date,
+               c.customer_status, c.total_recharge_count, c.total_verification_count,
+               c.latest_recharge_at, c.latest_verification_at
+      ORDER BY c.created_at DESC, c.id DESC
+      LIMIT ${customerPageSize} OFFSET ${archivedCustomerOffset}`
     )
   ]);
   const store = storeRows[0];
@@ -2534,6 +2565,9 @@ async function getStoreDashboard(event = {}) {
   const customerTotal = Number(customerCountRows?.[0]?.customer_total || 0);
   const customerPages = Math.max(1, Math.ceil(customerTotal / customerPageSize));
   if (customerTotal && customerPage > customerPages) fail("客户分页超出有效范围。", "PAGE_OUT_OF_RANGE");
+  const archivedCustomerTotal = Number(archivedCustomerCountRows?.[0]?.customer_total || 0);
+  const archivedCustomerPages = Math.max(1, Math.ceil(archivedCustomerTotal / customerPageSize));
+  if (archivedCustomerTotal && archivedCustomerPage > archivedCustomerPages) fail("封存客户分页超出有效范围。", "PAGE_OUT_OF_RANGE");
 
   return {
     ok: true,
@@ -2545,7 +2579,11 @@ async function getStoreDashboard(event = {}) {
       customers,
       customer_total: customerTotal,
       customer_page: customerPage,
-      customer_page_size: customerPageSize
+      customer_page_size: customerPageSize,
+      archived_customers: archivedCustomers,
+      archived_customer_total: archivedCustomerTotal,
+      archived_customer_page: archivedCustomerPage,
+      archived_customer_page_size: customerPageSize
     }
   };
 }
@@ -3365,7 +3403,7 @@ const TEACHER_WORKSPACE_TYPE_CONFIG = Object.freeze({
   VERIFICATION: Object.freeze({
     baseRecordType: "VERIFICATION", table: "verification_records", alias: "v",
     codeColumn: "verification_code", typeColumn: "verification_type",
-    categoryClause: "v.verification_type IN ('NORMAL', 'SUPPLEMENT')"
+    categoryClause: "v.verification_type = 'NORMAL'"
   }),
   RECHARGE: Object.freeze({
     baseRecordType: "RECHARGE", table: "recharge_records", alias: "r",
@@ -3471,6 +3509,81 @@ function teacherOrderPage(rows, recordType, limit, teacher) {
   };
 }
 
+function teacherBusinessCustomerPage(value, label) {
+  const requested = Number(value || 1);
+  if (!Number.isInteger(requested) || requested < 1) fail(`${label}分页必须是正整数。`, "BAD_REQUEST");
+  return Math.min(requested, 100000);
+}
+
+async function getTeacherBusinessCustomers(event = {}) {
+  const caller = await activeTeacherCaller();
+  const teacherId = positiveDatabaseId(caller.teacherId, "老师");
+  const pageSize = 10;
+  const activePage = teacherBusinessCustomerPage(event.activePage, "活跃客户");
+  const archivedPage = teacherBusinessCustomerPage(event.archivedPage, "封存客户");
+  const eventCte = `teacher_verification_events AS (
+    SELECT v.customer_id, v.product_id, v.verification_type,
+           v.unit_count::bigint AS unit_count,
+           COALESCE(v.reviewed_at, v.submitted_at) AS effective_at
+      FROM public.verification_records v
+     WHERE v.teacher_id = ${sqlText(teacherId)}::bigint
+       AND v.record_status = 'APPROVED'
+       AND v.verification_type IN ('NORMAL', 'EXPERIENCE')
+  ), teacher_customer_totals AS (
+    SELECT event.customer_id,
+           COUNT(DISTINCT event.product_id)::bigint AS product_count,
+           COALESCE(SUM(event.unit_count) FILTER (WHERE event.verification_type = 'NORMAL'), 0)::bigint AS verification_count,
+           COALESCE(SUM(event.unit_count) FILTER (WHERE event.verification_type = 'EXPERIENCE'), 0)::bigint AS experience_count,
+           COALESCE(SUM(event.unit_count), 0)::bigint AS total_count,
+           MAX(event.effective_at) AS last_verification_at
+      FROM teacher_verification_events event
+     GROUP BY event.customer_id
+  )`;
+  const rowsForStatus = (status, page) => executeSql(
+    `WITH ${eventCte}
+     SELECT c.id AS customer_id, c.customer_code, c.customer_name, c.birth_date,
+            c.customer_status, totals.product_count, totals.verification_count,
+            totals.experience_count, totals.total_count, totals.last_verification_at
+       FROM teacher_customer_totals totals
+       JOIN public.customers c ON c.id = totals.customer_id
+      WHERE c.customer_status = ${sqlText(status)}
+      ORDER BY totals.last_verification_at DESC, c.id DESC
+      LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`
+  );
+  const [countRows, activeRows, archivedRows] = await Promise.all([
+    executeSql(
+      `WITH ${eventCte}
+       SELECT COUNT(*) FILTER (WHERE c.customer_status = 'ACTIVE') AS active_total,
+              COUNT(*) FILTER (WHERE c.customer_status = 'ARCHIVED') AS archived_total
+         FROM teacher_customer_totals totals
+         JOIN public.customers c ON c.id = totals.customer_id`
+    ),
+    rowsForStatus("ACTIVE", activePage),
+    rowsForStatus("ARCHIVED", archivedPage)
+  ]);
+  const activeTotal = Number(countRows?.[0]?.active_total || 0);
+  const archivedTotal = Number(countRows?.[0]?.archived_total || 0);
+  if (activeTotal && activePage > Math.ceil(activeTotal / pageSize)) fail("活跃客户分页超出有效范围。", "PAGE_OUT_OF_RANGE");
+  if (archivedTotal && archivedPage > Math.ceil(archivedTotal / pageSize)) fail("封存客户分页超出有效范围。", "PAGE_OUT_OF_RANGE");
+  const mapRows = (rows) => rows.map((row) => ({
+    customerId: String(row.customer_id || ""),
+    customerCode: String(row.customer_code || ""),
+    customerName: String(row.customer_name || ""),
+    birthDate: row.birth_date,
+    customerStatus: String(row.customer_status || ""),
+    productCount: Number(row.product_count || 0),
+    verificationCount: Number(row.verification_count || 0),
+    experienceCount: Number(row.experience_count || 0),
+    totalCount: Number(row.total_count || 0),
+    lastVerificationAt: row.last_verification_at
+  }));
+  return {
+    ok: true,
+    active: { records: mapRows(activeRows), total: activeTotal, page: activePage, pageSize },
+    archived: { records: mapRows(archivedRows), total: archivedTotal, page: archivedPage, pageSize }
+  };
+}
+
 async function getTeacherWorkspace(event = {}) {
   const caller = await activeTeacherCaller();
   const options = teacherWorkspaceOptions(event);
@@ -3544,7 +3657,7 @@ async function getTeacherWorkspace(event = {}) {
         FROM public.verification_records v
        WHERE v.teacher_id = ${sqlText(teacherId)}::bigint
          AND v.record_status = 'APPROVED'
-         AND v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')
+         AND v.verification_type IN ('NORMAL', 'EXPERIENCE')
          ${verificationDateClauses.length ? `AND ${verificationDateClauses.join(" AND ")}` : ""}
     )`;
     const [summaryRows, balanceRows] = await Promise.all([
@@ -5005,6 +5118,7 @@ exports.main = async (event = {}, context = {}) => {
     if (action === "getHqBusinessContext") return await getHqBusinessContext();
     if (action === "getTeacherBusinessContext") return await getTeacherBusinessContext();
     if (action === "getTeacherWorkspace") return await getTeacherWorkspace(event);
+    if (action === "getTeacherBusinessCustomers") return await getTeacherBusinessCustomers(event);
     if (action === "listActiveTeachers") return await listActiveTeachers(event);
     if (action === "listActiveProducts") return await listActiveProducts(event);
     if (action === "getTeacherExperienceEntitlements") return await getTeacherExperienceEntitlements(event);

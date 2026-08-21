@@ -18,7 +18,8 @@ const storeManagement = read("store-management.js");
 const cloud = read("cloudfunctions/faceRecognition/index.js");
 const auth = read("auth-ui.js");
 const css = read("styles.css");
-const customerSection = html.slice(html.indexOf('id="storeCustomers"'), html.indexOf('</section>', html.indexOf('id="storeCustomers"')));
+const activeCustomerSection = html.slice(html.indexOf('id="storeActiveCustomers"'), html.indexOf('</section>', html.indexOf('id="storeActiveCustomers"')));
+const archivedCustomerSection = html.slice(html.indexOf('id="storeArchivedCustomers"'), html.indexOf('</section>', html.indexOf('id="storeArchivedCustomers"')));
 
 const includes = (source, expected, label) => assert.ok(source.includes(expected), `${label}: missing ${JSON.stringify(expected)}`);
 
@@ -28,10 +29,18 @@ includes(html, 'id="storeAnalyticsBody"', "overview has four business rows");
 assert.ok(html.indexOf('id="storeBasic"') < html.indexOf('id="storeBusinessOverview"'), "store basic profile appears before business analytics");
 assert.doesNotMatch(html, /id="storeAnalyticsLinks"|class="store-analytics-links"/, "overview removes the four duplicate metric shortcut buttons");
 assert.doesNotMatch(html, /id="storeTeachers"|id="storeTeacherBody"|老师统计|各老师核销数据/, "store detail removes the teacher summary section");
-assert.doesNotMatch(customerSection, /<th>最近业务<\/th>|<th>状态<\/th>/, "active customer table removes time and status columns");
-includes(html, '<th>剩余次数</th></tr></thead><tbody id="storeCustomerBody"', "customer table ends with remaining count");
-includes(html, 'store-detail.js?v=0.16.3', "store detail script cache bust");
-includes(html, 'styles.css?v=0.15.49', "store detail stylesheet cache bust");
+for (const [section, status] of [[activeCustomerSection, "active"], [archivedCustomerSection, "archived"]]) {
+  assert.doesNotMatch(section, /<th>最近业务<\/th>|<th>状态<\/th>/, `${status} customer table removes time and status columns`);
+  includes(section, '<th>剩余次数</th>', `${status} customer table ends with remaining count`);
+}
+includes(activeCustomerSection, 'id="storeActiveCustomerBody"', "active bound customers have a dedicated table");
+includes(archivedCustomerSection, 'id="storeArchivedCustomerBody"', "archived bound customers have a dedicated table");
+includes(html, 'store-detail.js?v=0.16.4', "store detail script cache bust");
+includes(html, 'styles.css?v=0.15.55', "store detail stylesheet cache bust");
+for (const [type, label] of [["VERIFICATION", "核销"], ["RECHARGE", "充值"], ["EXPERIENCE", "体验"], ["REFUND", "退费"]]) {
+  assert.match(html, new RegExp(`data-store-record-type="${type}"[\\s\\S]{0,120}<strong>${label}</strong>`), `${label} must be a dedicated store detail button`);
+}
+includes(html, 'id="storeBusinessDetails"', "store homepage includes the teacher-style business detail panel");
 includes(html, '<th>项目</th><th>充值</th><th>付费核销</th><th>体验</th><th>退费拆分</th><th>余额核对</th><th>当前可用余额</th>', "project lifetime table exposes the reconciled balance columns");
 const projectSection = html.slice(html.indexOf('id="storeProjects"'), html.indexOf('</section>', html.indexOf('id="storeProjects"')));
 assert.doesNotMatch(projectSection, /<th>状态<\/th>|有效充值|有效核销/, "project table removes entity status and period-style wording");
@@ -44,9 +53,18 @@ includes(detail, '{ key: "refund", label: "退费" }', "refund row");
 includes(detail, 'store-analysis.html?${analyticsQuery(metric.key)}', "rows open dedicated metric pages");
 includes(detail, '<th>汇总</th>', "summary final column");
 assert.doesNotMatch(detail, /storeAnalyticsLinks|renderTeachers|teacherRows|teacherPage/, "removed shortcut and teacher UI has no renderer state");
-includes(detail, 'toUpperCase() === "ACTIVE"', "customer rows are restricted to active customers");
-assert.doesNotMatch(detail, /last_business_at|last_recharge_at|formatDateTime/, "customer list is independent of business timestamps");
+includes(detail, 'toUpperCase() === "ACTIVE"', "active customer rows are restricted to active customers");
+includes(detail, 'toUpperCase() === "ARCHIVED"', "archived customer rows are restricted to archived customers");
+const customerRenderer = detail.slice(detail.indexOf("function renderCustomers"), detail.indexOf("function renderEmptyRows"));
+assert.doesNotMatch(customerRenderer, /last_business_at|last_recharge_at|formatDateTime/, "customer list is independent of business timestamps");
 includes(detail, 'colspan="6" class="query-empty"', "customer loading and empty states match the six visible columns");
+includes(detail, 'action, ...data', "store detail uses the shared cloud function caller");
+includes(detail, 'statusCategory: "APPROVED"', "store business details contain effective records only");
+includes(detail, 'rechargeType: "NEW"', "recharge detail excludes refunds");
+includes(detail, 'rechargeType: "REFUND"', "refund detail excludes new recharges");
+includes(detail, 'verificationType: "NORMAL"', "normal verification detail excludes experience");
+includes(detail, 'verificationType: "EXPERIENCE"', "experience detail is isolated");
+includes(detail, 'customer-detail.html?${customerParams.toString()}', "store business customer names link to customer profiles");
 includes(detail, 'function renderProjectRefundBreakdown', "project rows render refund classifications instead of a single opaque refund total");
 includes(detail, 'function renderProjectBalanceExplanation', "project rows render the customer-level balance reconciliation");
 for (const field of [
@@ -86,7 +104,8 @@ assert.doesNotMatch(dashboardProjectSource, /customer_product_balances|JOIN publ
 includes(dashboardProjectSource, "CASE WHEN r.recharge_type = 'NEW' THEN r.unit_count ELSE 0 END", "gross recharge column counts NEW orders only");
 includes(dashboardProjectSource, "CASE WHEN r.recharge_type = 'REFUND' THEN r.unit_count ELSE 0 END", "refund column counts REFUND orders only");
 includes(dashboardProjectSource, "CASE WHEN r.recharge_type = 'VOID' THEN r.unit_count ELSE 0 END", "legacy void affects only the remaining calculation");
-includes(dashboardProjectSource, "v.verification_type IN ('NORMAL', 'SUPPLEMENT')", "normal and historical supplemental consumption share the verification total");
+includes(dashboardProjectSource, "v.verification_type = 'NORMAL'", "only normal verification contributes to paid verification totals");
+assert.doesNotMatch(dashboardProjectSource, /SUPPLEMENT/, "supplemental verification is absent from the current store totals");
 includes(dashboardProjectSource, "v.verification_type = 'EXPERIENCE'", "experience is reported separately");
 assert.match(dashboardProjectSource, /GROUP BY event\.customer_id, event\.product_id[\s\S]*?GREATEST|GREATEST\([\s\S]*?GROUP BY event\.customer_id, event\.product_id/, "remaining units are floored at customer-product level before project aggregation");
 for (const field of [
@@ -101,7 +120,7 @@ for (const field of [
   "raw_remaining_count",
   "balance_floor_adjustment"
 ]) includes(dashboardProjectSource, `AS ${field}`, `project dashboard returns ${field}`);
-assert.match(dashboardProjectSource, /first_paid_verification[\s\S]*?event\.verification_count > 0/, "refund timing is compared only with paid normal or supplemental verification events");
+assert.match(dashboardProjectSource, /first_paid_verification[\s\S]*?event\.verification_count > 0/, "refund timing is compared only with paid normal verification events");
 assert.match(dashboardProjectSource, /refund_before_consumption_count[\s\S]*?refund_after_consumption_count/, "refund timing breakdown retains both pre-consumption and post-consumption categories");
 
 // The stress dataset intentionally contains 90 customers with 5 available
@@ -135,7 +154,9 @@ assert.deepEqual(stressProject, {
   refundOverRemaining: 50
 }, "customer-level zero floors explain why 5000 - 4500 - 100 does not reduce the project balance below 450");
 assert.match(dashboardProjectSource, /WHERE p\.product_status = 'ACTIVE'[\s\S]*?UNION[\s\S]*?SELECT event\.product_id/, "active zero products and historical store products remain visible");
-assert.equal((dashboardSource.match(/(?:c\.)?created_store_id = \$\{storeId\}::bigint\s+AND (?:c\.)?customer_status = 'ACTIVE'/g) || []).length, 2, "customer count and page queries both return only this store's active customers");
+assert.equal((dashboardSource.match(/(?:c\.)?created_store_id = \$\{storeId\}::bigint\s+AND (?:c\.)?customer_status = 'ACTIVE'/g) || []).length, 2, "customer count and page queries both return this store's active bound customers");
+assert.equal((dashboardSource.match(/(?:c\.)?created_store_id = \$\{storeId\}::bigint\s+AND (?:c\.)?customer_status = 'ARCHIVED'/g) || []).length, 2, "customer count and page queries both return this store's archived bound customers");
+includes(dashboardSource, "archived_customers: archivedCustomers", "store dashboard returns a separate archived customer page");
 includes(dashboardSource, "teachers: []", "removed teacher table no longer requires a dashboard query");
 assert.doesNotMatch(dashboardSource, /JOIN public\.teachers/, "store dashboard does not fetch teacher aggregates");
 
@@ -174,6 +195,8 @@ includes(orderExporter, "exportCanvasPagesPdf", "PDF encoder accepts generated t
 includes(auth, '"store-analysis.html"', "store analysis route is authorized");
 includes(analysisHtml, 'auth-ui.js?v=0.19.1', "analysis route loads current auth isolation");
 includes(cloud, 'if (action === "getStoreBusinessAnalytics")', "cloud action dispatched");
+includes(cloud, 'if (action === "queryStoreBusinessRecords")', "store detail query action dispatched");
+includes(cloud, 'r.recharge_type = ${sqlText(rechargeType)}', "store detail backend separates recharge and refund record types");
 
 includes(html, 'id="storeStatusAction"', "store homepage owns the status action");
 includes(html, 'id="storeStatusMessage"', "store status operation has inline feedback");

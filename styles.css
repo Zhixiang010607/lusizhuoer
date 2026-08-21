@@ -155,8 +155,18 @@ body[data-teacher-workspace] .teacher-workspace-main { width: min(1240px, calc(1
 body[data-teacher-workspace] .detail-section,
 body[data-teacher-workspace] .teacher-quota-panel,
 body[data-teacher-workspace] .teacher-overview-panel,
-body[data-teacher-workspace] .teacher-business-panel { margin-bottom: 14px; padding: clamp(14px, 2vw, 20px); }
+body[data-teacher-workspace] .teacher-business-panel,
+body[data-teacher-workspace] .teacher-customer-panel { margin-bottom: 14px; padding: clamp(14px, 2vw, 20px); }
 body[data-teacher-workspace] #teacherProfileInfo { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.teacher-customer-panel .teacher-customer-scroll { border: 1px solid #dce5ef; border-radius: 12px; }
+.teacher-customer-panel table { width: 100%; border-collapse: collapse; }
+.teacher-customer-panel th, .teacher-customer-panel td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; text-align: left; white-space: nowrap; }
+.teacher-customer-panel th { color: #52657e; background: #f2f6fa; font-size: 11px; }
+.teacher-customer-panel tr:last-child td { border-bottom: 0; }
+.archived-customer-section { border-color: #ecd2cf; background: linear-gradient(180deg, #fff, #fffafa); }
+.archived-customer-badge { color: #8f3a34; background: #fff0ee; }
+.teacher-load-more-wrap { display: flex; justify-content: center; margin-top: 12px; }
+.teacher-load-more-wrap button { min-width: 150px; min-height: 40px; }
 .teacher-quota-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
 .teacher-quota-card { min-width: 0; display: grid; gap: 15px; padding: 16px; border: 1px solid #d8e4f1; border-radius: 14px; background: linear-gradient(145deg, #fbfdff, #f3f8fd); }
 .teacher-quota-card > div { min-width: 0; display: grid; gap: 3px; }
@@ -198,6 +208,10 @@ body[data-teacher-workspace] .teacher-record-tabs button span { font-size: 13px;
 body[data-teacher-workspace] .teacher-record-tabs button small { color: #7a899c; font-size: 10px; font-weight: 700; }
 body[data-teacher-workspace] .teacher-record-tabs button.active small { color: #43658f; }
 body[data-teacher-workspace] .teacher-business-panel td:nth-child(5) strong { color: #173f72; }
+body[data-store-dashboard] .store-business-detail-panel .teacher-record-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 7px; }
+body[data-store-dashboard] .store-business-detail-panel .teacher-record-tabs button { min-width: 0; min-height: 58px; display: grid; place-items: center; align-content: center; gap: 3px; padding: 8px; }
+body[data-store-dashboard] .store-business-detail-panel .teacher-record-tabs button span { font-size: 13px; }
+body[data-store-dashboard] .store-business-detail-panel td:nth-child(5) strong { color: #173f72; }
 .teacher-load-more-row button { min-height: 40px; }
 .teacher-review-section { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
 .teacher-review-card { padding: 16px; }
@@ -2375,33 +2389,46 @@ body[data-staff-detail] .teacher-experience-empty.is-error { color: #9c3329; bac
   body[data-teacher-workspace] .detail-info-grid article { min-height: 70px; }
   .teacher-quota-grid { grid-template-columns: minmax(0, 1fr); }
   .teacher-quota-card > div strong { white-space: normal; overflow-wrap: anywhere; }
-  .teacher-range-presets { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .teacher-range-presets { grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); }
   .teacher-range-presets button { min-height: 44px; padding-inline: 5px; }
   .teacher-custom-range { grid-template-columns: minmax(0, 1fr); }
   .teacher-custom-range input, .teacher-custom-range button { width: 100%; min-height: 44px; font-size: 16px; }
   .teacher-summary-scroll { margin-inline: -2px; }
-  .teacher-summary-matrix { min-width: 590px; }
-  .teacher-summary-matrix th, .teacher-summary-matrix td { min-width: 82px; padding: 11px 9px; }
+  .teacher-summary-matrix { width: max-content; min-width: 100%; }
+  .teacher-summary-matrix th, .teacher-summary-matrix td { min-width: 70px; padding: 10px 8px; }
   .teacher-summary-matrix thead th:first-child,
-  .teacher-summary-matrix tbody th { min-width: 150px; }
+  .teacher-summary-matrix tbody th { min-width: 126px; }
   body[data-teacher-workspace] .teacher-record-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   body[data-teacher-workspace] .teacher-record-tabs button { min-height: 54px; }
-  body[data-teacher-workspace] .teacher-business-panel .table-scroll { overflow: visible; }
-  body[data-teacher-workspace] .teacher-business-panel table { min-width: 0; display: block; }
-  body[data-teacher-workspace] .teacher-business-panel thead { display: none; }
-  body[data-teacher-workspace] .teacher-business-panel tbody { display: grid; gap: 10px; }
-  body[data-teacher-workspace] .teacher-business-panel tbody tr { min-width: 0; display: grid; overflow: hidden; border: 1px solid #dce5ef; border-radius: 12px; background: #fff; }
-  body[data-teacher-workspace] .teacher-business-panel tbody td { min-width: 0; min-height: 44px; display: grid; grid-template-columns: 82px minmax(0, 1fr); align-items: center; gap: 8px; padding: 9px 11px; overflow: visible; border-bottom: 1px solid #edf1f5; white-space: normal; overflow-wrap: anywhere; }
-  body[data-teacher-workspace] .teacher-business-panel tbody td::before { content: attr(data-label); color: #75849a; font-size: 10px; font-weight: 800; }
-  body[data-teacher-workspace] .teacher-business-panel tbody td:last-child { border-bottom: 0; }
-  body[data-teacher-workspace] .teacher-business-panel tbody td.teacher-empty { min-height: 100px; display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; text-align: center; }
-  body[data-teacher-workspace] .teacher-business-panel tbody td.teacher-empty::before { display: none; }
-  body[data-teacher-workspace] .teacher-order-link { white-space: normal; overflow-wrap: anywhere; }
+  body[data-teacher-workspace] .teacher-business-panel .table-scroll { overflow-x: auto; overflow-y: hidden; }
+  body[data-teacher-workspace] .teacher-business-panel table { width: max-content; min-width: 680px; }
+  body[data-teacher-workspace] .teacher-business-panel th,
+  body[data-teacher-workspace] .teacher-business-panel td { padding: 10px 9px; white-space: nowrap; }
+  body[data-teacher-workspace] .teacher-order-link { white-space: nowrap; }
   .teacher-load-more-row button { width: 100%; min-height: 44px; }
+  body[data-teacher-workspace] .teacher-customer-panel .table-scroll,
+  body[data-store-dashboard] .store-business-detail-panel .table-scroll,
+  body[data-store-dashboard] .store-customer-section .table-scroll { overflow-x: auto; overflow-y: hidden; }
+  body[data-teacher-workspace] .teacher-customer-panel table,
+  body[data-store-dashboard] .store-customer-section table { width: max-content; min-width: 620px; }
+  body[data-store-dashboard] .store-business-detail-panel table { width: max-content; min-width: 680px; }
+  body[data-teacher-workspace] .teacher-customer-panel th,
+  body[data-teacher-workspace] .teacher-customer-panel td,
+  body[data-store-dashboard] .store-business-detail-panel th,
+  body[data-store-dashboard] .store-business-detail-panel td,
+  body[data-store-dashboard] .store-customer-section th,
+  body[data-store-dashboard] .store-customer-section td { padding: 10px 9px; white-space: nowrap; }
+  body[data-store-dashboard] .store-business-detail-panel .teacher-record-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body[data-store-dashboard] .store-business-detail-panel .teacher-record-tabs button { min-height: 54px; }
+  body[data-store-dashboard] .teacher-order-link,
+  body[data-store-dashboard] .store-customer-section .record-link { white-space: normal; overflow-wrap: anywhere; }
+  body[data-store-dashboard] .table-pagination,
+  body[data-teacher-workspace] .teacher-customer-panel .table-pagination { justify-content: center; }
+  .teacher-load-more-wrap button { width: 100%; min-height: 44px; }
 }
 
 @media (max-width: 420px) {
-  .teacher-range-presets { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .teacher-range-presets { grid-template-columns: repeat(auto-fit, minmax(68px, 1fr)); }
   .teacher-quota-card dl { grid-template-columns: minmax(0, 1fr); }
   body[data-teacher-workspace] .panel-heading { align-items: flex-start; }
   body[data-teacher-workspace] .panel-heading .badge { flex: 0 0 auto; }
