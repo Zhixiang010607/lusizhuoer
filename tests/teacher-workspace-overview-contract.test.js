@@ -60,15 +60,18 @@ assert.match(cloud, /teacherNumberedOrderPage[\s\S]{0,420}totalPages[\s\S]{0,220
 assert.match(cloud, /event\.metric = 'verification'[\s\S]{0,500}event\.metric = 'recharge'[\s\S]{0,500}event\.metric = 'experience'[\s\S]{0,500}event\.metric = 'refund'/, "product summary must aggregate all four metrics");
 assert.match(cloud, /FROM public\.teacher_product_experience_quotas q[\s\S]{0,420}q\.quota_status = 'ACTIVE'[\s\S]{0,180}p\.product_status = 'ACTIVE'/, "all active configured experience projects must be returned dynamically");
 assert.doesNotMatch(cloud.slice(cloud.indexOf("async function getTeacherWorkspace"), cloud.indexOf("async function deleteFacePerson")), /SearchPersons|face_enrollment_status|face_person_id/, "workspace reads must have no teacher face dependency");
-const customerScope = cloud.slice(cloud.indexOf("function customerProfileScope"), cloud.indexOf("function customerStatusCode"));
-assert.match(customerScope, /verification_type IN \('NORMAL', 'EXPERIENCE'\)/, "teacher profile access must be created only by normal or experience verification");
-assert.doesNotMatch(customerScope, /recharge_records|SUPPLEMENT/, "recharge and removed supplemental verification must not create a teacher-customer relationship");
+const customerScope = cloud.slice(cloud.indexOf("function teacherCustomerAccessCondition"), cloud.indexOf("function customerStatusCode"));
+assert.match(customerScope, /verification_type IN \('NORMAL', 'EXPERIENCE'\)/, "teacher profile access must include approved normal and experience verification");
+assert.match(customerScope, /recharge_records[\s\S]*recharge_type IN \('NEW', 'REFUND'\)/, "approved recharge and refund must create a teacher-customer relationship");
+assert.doesNotMatch(customerScope, /SUPPLEMENT/, "removed supplemental verification must not create a teacher-customer relationship");
 const customerAction = cloud.slice(cloud.indexOf("async function getTeacherBusinessCustomers"), cloud.indexOf("async function getTeacherWorkspace"));
 assert.match(customerAction, /v\.record_status = 'APPROVED'/, "teacher customer association must use effective verification only");
 assert.match(customerAction, /v\.verification_type IN \('NORMAL', 'EXPERIENCE'\)/, "teacher customer association must include normal and experience verification only");
+assert.match(customerAction, /c\.created_by_account_id = \$\{sqlText\(caller\.staffId\)\}::bigint/, "teacher customer lists must include same-account creation");
+assert.match(customerAction, /r\.record_status = 'APPROVED'[\s\S]*r\.recharge_type IN \('NEW', 'REFUND'\)/, "teacher customer lists must include approved recharge and refund");
 assert.match(customerAction, /c\.customer_status = \$\{sqlText\(status\)\}/, "teacher customer lists must separate active and archived status");
-assert.match(customerAction, /teacher_recharge_totals[\s\S]*r\.recharge_type = 'NEW'/, "teacher customer rows show only effective new recharge units");
-assert.match(customerAction, /teacher_customer_store[\s\S]*JOIN public\.stores s/, "teacher customer rows include their most recent verification store");
+assert.match(customerAction, /event\.event_type = 'NEW'/, "teacher customer rows show only effective new recharge units");
+assert.match(customerAction, /teacher_customer_store[\s\S]*JOIN public\.stores s/, "teacher customer rows include their most recent relationship store");
 
 assert.match(css, /teacher-quota-grid\s*\{[^}]*repeat\(auto-fit, minmax\(210px, 1fr\)\)/, "desktop quota cards must adapt to any project count");
 assert.match(css, /body\[data-teacher-workspace\] \.teacher-record-tabs,[\s\S]{0,100}\{[^}]*repeat\(4, minmax\(0, 1fr\)\)/, "desktop must show four equal business buttons");

@@ -38,7 +38,7 @@ function functionSource(source, name) {
   throw new Error(`function ${name} body is incomplete`);
 }
 
-includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v5" : "v84"', "split cloud versions");
+includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v6" : "v85"', "split cloud versions");
 includes(cloud, "const MAX_VERIFICATION_IMAGE_BYTES = 3 * 1024 * 1024", "original upload limit");
 includes(cloud, "const MAX_THUMBNAIL_BYTES = 384 * 1024", "thumbnail upload limit");
 includes(cloud, "if (action === \"getVerificationPhotos\")", "thumbnail list action");
@@ -48,7 +48,7 @@ includes(cloud, "if (action === \"uploadVerificationExtraPhoto\")", "supplementa
 includes(cloud, "if (action === \"cleanupVerificationPhotoDrafts\")", "draft cleanup action");
 includes(cloud, "String(record.submitted_by_account_id) === String(caller.staffId)", "exact submitter check");
 includes(cloud, "CLOCK_TIMESTAMP() < v.submitted_at + INTERVAL '24 hours'", "server edit window");
-includes(cloud, "v.teacher_id = ${sqlText(caller.teacherId)}::bigint", "teacher view scope");
+includes(cloud, "teacherCustomerAccessCondition(caller, \"permitted_customer\")", "teacher customer-level read scope");
 includes(cloud, "v.store_id = ${Number(caller.storeId)}::bigint", "store view scope");
 assert.doesNotMatch(cloud, /v\.verification_type = 'SUPPLEMENT' AND v\.void_request_status = 'NONE'/, "face service has no retired operation review scope");
 includes(cloud, "Promise.allSettled", "parallel and partial-upload handling");

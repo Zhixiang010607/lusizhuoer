@@ -27,7 +27,7 @@ for (const source of [migration, consoleMigration]) {
   assert.match(source, /REVOKE ALL ON TABLE public\.customer_messages FROM PUBLIC/);
 }
 
-assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v5" : "v84"/);
+assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v6" : "v85"/);
 assert.match(cloud, /async function listCustomerMessages\(event\)/);
 assert.match(cloud, /async function addCustomerMessage\(event\)/);
 assert.match(cloud, /const limit = Number\.isFinite\(requestedLimit\)[\s\S]*?: 20;/);
@@ -38,9 +38,9 @@ assert.match(cloud, /WITH inserted_message AS \([\s\S]*INSERT INTO public\.custo
 assert.doesNotMatch(cloud, /event\.(?:authorName|authorRole)/, "author identity must never be accepted from the browser");
 assert.match(cloud, /account\.role_code === "teacher"/);
 assert.match(cloud, /teacher_verification\.teacher_id = \$\{sqlText\(caller\.teacherId\)\}::bigint/);
-const teacherCustomerScope = cloud.slice(cloud.indexOf("function customerProfileScope"), cloud.indexOf("function customerStatusCode"));
-assert.doesNotMatch(teacherCustomerScope, /teacher_recharge|recharge_records/, "teacher profile access must not be granted by recharge or refund");
-assert.match(teacherCustomerScope, /verification_type IN \('NORMAL', 'EXPERIENCE'\)/, "teacher profile access must follow approved normal or experience verification only");
+const teacherCustomerScope = cloud.slice(cloud.indexOf("function teacherCustomerAccessCondition"), cloud.indexOf("function customerStatusCode"));
+assert.match(teacherCustomerScope, /verification_type IN \('NORMAL', 'EXPERIENCE'\)/, "teacher profile access must include approved normal or experience verification");
+assert.match(teacherCustomerScope, /teacher_recharge[\s\S]*record_status = 'APPROVED'[\s\S]*recharge_type IN \('NEW', 'REFUND'\)/, "teacher profile access must include approved recharge or refund");
 assert.match(cloud, /if \(action === "listCustomerMessages"\)/);
 assert.match(cloud, /if \(action === "addCustomerMessage"\)/);
 

@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v5" : "v84";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v6" : "v85";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -1294,7 +1294,15 @@ async function verificationPhotoContext(event, options = {}) {
   const verificationId = businessQueryDatabaseId(event.recordId, "核销工单");
   let scope = "TRUE";
   if (caller.role === "store") scope = `v.store_id = ${Number(caller.storeId)}::bigint`;
-  else if (caller.role === "teacher") scope = `v.teacher_id = ${sqlText(caller.teacherId)}::bigint`;
+  else if (caller.role === "teacher") scope = `(
+    v.teacher_id = ${sqlText(caller.teacherId)}::bigint
+    OR EXISTS (
+      SELECT 1
+        FROM public.customers permitted_customer
+       WHERE permitted_customer.id = v.customer_id
+         AND ${teacherCustomerAccessCondition(caller, "permitted_customer")}
+    )
+  )`;
   const rows = await executeSql(
     `SELECT v.id, v.verification_code, v.verification_type, v.store_id,
             v.teacher_id, v.submitted_by_account_id, v.submitted_at,
@@ -1319,19 +1327,29 @@ async function verificationPhotoContext(event, options = {}) {
   return { caller, record, verificationId, canEdit };
 }
 
-function customerProfileScope(caller, alias = "c") {
-  if (caller.role === "store") return ` AND ${alias}.created_store_id = ${caller.storeId}`;
-  if (caller.role === "teacher") return ` AND (
+function teacherCustomerAccessCondition(caller, alias = "c") {
+  return `(
     ${alias}.created_by_account_id = ${sqlText(caller.staffId)}::bigint
-    OR
-    EXISTS (
+    OR EXISTS (
       SELECT 1 FROM public.verification_records teacher_verification
        WHERE teacher_verification.customer_id = ${alias}.id
          AND teacher_verification.teacher_id = ${sqlText(caller.teacherId)}::bigint
          AND teacher_verification.record_status = 'APPROVED'
          AND teacher_verification.verification_type IN ('NORMAL', 'EXPERIENCE')
     )
+    OR EXISTS (
+      SELECT 1 FROM public.recharge_records teacher_recharge
+       WHERE teacher_recharge.customer_id = ${alias}.id
+         AND teacher_recharge.teacher_id = ${sqlText(caller.teacherId)}::bigint
+         AND teacher_recharge.record_status = 'APPROVED'
+         AND teacher_recharge.recharge_type IN ('NEW', 'REFUND')
+    )
   )`;
+}
+
+function customerProfileScope(caller, alias = "c") {
+  if (caller.role === "store") return ` AND ${alias}.created_store_id = ${caller.storeId}`;
+  if (caller.role === "teacher") return ` AND ${teacherCustomerAccessCondition(caller, alias)}`;
   return "";
 }
 
@@ -3521,8 +3539,9 @@ function teacherOrderRows(rows, recordType, teacher = {}) {
     supplementNote: String(row.supplement_note || ""),
     reviewNote: String(row.review_note || ""),
     hasFaceRequest: Boolean(row.face_request_id),
-    teacherCode: String(teacher.teacherCode || ""),
-    teacherName: String(teacher.teacherName || ""),
+    teacherId: String(row.teacher_id || teacher.teacherId || ""),
+    teacherCode: String(row.teacher_code || teacher.teacherCode || ""),
+    teacherName: String(row.teacher_name || teacher.teacherName || ""),
     storeId: String(row.store_id || ""),
     storeCode: String(row.store_code || ""),
     storeName: String(row.store_name || ""),
@@ -3580,34 +3599,44 @@ async function getTeacherBusinessCustomers(event = {}) {
   const pageSize = 10;
   const activePage = teacherBusinessCustomerPage(event.activePage, "活跃客户");
   const archivedPage = teacherBusinessCustomerPage(event.archivedPage, "封存客户");
-  const eventCte = `teacher_verification_events AS (
-    SELECT v.customer_id, v.product_id, v.store_id, v.verification_type,
+  const eventCte = `teacher_customer_events AS (
+    SELECT c.id AS customer_id, NULL::bigint AS product_id,
+           c.created_store_id AS store_id, 'CREATED'::text AS event_type,
+           0::bigint AS unit_count, c.created_at AS effective_at
+      FROM public.customers c
+     WHERE c.created_by_account_id = ${sqlText(caller.staffId)}::bigint
+    UNION ALL
+    SELECT v.customer_id, v.product_id, v.store_id,
+           v.verification_type::text AS event_type,
            v.unit_count::bigint AS unit_count,
            COALESCE(v.reviewed_at, v.submitted_at) AS effective_at
       FROM public.verification_records v
      WHERE v.teacher_id = ${sqlText(teacherId)}::bigint
        AND v.record_status = 'APPROVED'
        AND v.verification_type IN ('NORMAL', 'EXPERIENCE')
-  ), teacher_customer_store AS (
-    SELECT DISTINCT ON (event.customer_id)
-           event.customer_id, event.store_id
-      FROM teacher_verification_events event
-     ORDER BY event.customer_id, event.effective_at DESC, event.store_id DESC
-  ), teacher_recharge_totals AS (
-    SELECT r.customer_id, COALESCE(SUM(r.unit_count), 0)::bigint AS recharge_count
+    UNION ALL
+    SELECT r.customer_id, r.product_id, r.store_id,
+           r.recharge_type::text AS event_type,
+           r.unit_count::bigint AS unit_count,
+           COALESCE(r.reviewed_at, r.submitted_at) AS effective_at
       FROM public.recharge_records r
      WHERE r.teacher_id = ${sqlText(teacherId)}::bigint
        AND r.record_status = 'APPROVED'
-       AND r.recharge_type = 'NEW'
-     GROUP BY r.customer_id
+       AND r.recharge_type IN ('NEW', 'REFUND')
+  ), teacher_customer_store AS (
+    SELECT DISTINCT ON (event.customer_id)
+           event.customer_id, event.store_id
+      FROM teacher_customer_events event
+     ORDER BY event.customer_id, event.effective_at DESC, event.store_id DESC
   ), teacher_customer_totals AS (
     SELECT event.customer_id,
            COUNT(DISTINCT event.product_id)::bigint AS product_count,
-           COALESCE(SUM(event.unit_count) FILTER (WHERE event.verification_type = 'NORMAL'), 0)::bigint AS verification_count,
-           COALESCE(SUM(event.unit_count) FILTER (WHERE event.verification_type = 'EXPERIENCE'), 0)::bigint AS experience_count,
+           COALESCE(SUM(event.unit_count) FILTER (WHERE event.event_type = 'NORMAL'), 0)::bigint AS verification_count,
+           COALESCE(SUM(event.unit_count) FILTER (WHERE event.event_type = 'EXPERIENCE'), 0)::bigint AS experience_count,
+           COALESCE(SUM(event.unit_count) FILTER (WHERE event.event_type = 'NEW'), 0)::bigint AS recharge_count,
            COALESCE(SUM(event.unit_count), 0)::bigint AS total_count,
            MAX(event.effective_at) AS last_verification_at
-      FROM teacher_verification_events event
+      FROM teacher_customer_events event
      GROUP BY event.customer_id
   )`;
   const rowsForStatus = (status, page) => executeSql(
@@ -3615,13 +3644,12 @@ async function getTeacherBusinessCustomers(event = {}) {
      SELECT c.id AS customer_id, c.customer_code, c.customer_name, c.birth_date,
             c.customer_status, totals.product_count, totals.verification_count,
             totals.experience_count, totals.total_count, totals.last_verification_at,
-            COALESCE(recharge.recharge_count, 0)::bigint AS recharge_count,
+            totals.recharge_count,
             s.store_code, s.store_name
        FROM teacher_customer_totals totals
        JOIN public.customers c ON c.id = totals.customer_id
        JOIN teacher_customer_store customer_store ON customer_store.customer_id = totals.customer_id
        JOIN public.stores s ON s.id = customer_store.store_id
-       LEFT JOIN teacher_recharge_totals recharge ON recharge.customer_id = totals.customer_id
       WHERE c.customer_status = ${sqlText(status)}
       ORDER BY totals.last_verification_at DESC, c.id DESC
       LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`
@@ -3675,9 +3703,22 @@ async function getTeacherWorkspace(event = {}) {
     const config = TEACHER_WORKSPACE_TYPE_CONFIG[recordType];
     const { alias, table, codeColumn, typeColumn } = config;
     const baseRecordType = config.baseRecordType;
-    const clauses = [`${alias}.teacher_id = ${sqlText(caller.teacherId)}::bigint`];
-    if (detailMode) clauses.push(`${alias}.id = ${options.recordId}::bigint`);
-    else if (!legacyCombined) {
+    const clauses = [];
+    if (detailMode) {
+      clauses.push(`${alias}.id = ${options.recordId}::bigint`);
+      clauses.push(`(
+        ${alias}.teacher_id = ${sqlText(caller.teacherId)}::bigint
+        OR EXISTS (
+          SELECT 1
+            FROM public.customers permitted_customer
+           WHERE permitted_customer.id = ${alias}.customer_id
+             AND ${teacherCustomerAccessCondition(caller, "permitted_customer")}
+        )
+      )`);
+    } else {
+      clauses.push(`${alias}.teacher_id = ${sqlText(caller.teacherId)}::bigint`);
+    }
+    if (!detailMode && !legacyCombined) {
       clauses.push(`${alias}.record_status = 'APPROVED'`, config.categoryClause);
       clauses.push(...teacherWorkspaceDateClauses(alias, options));
       if (options.cursorSubmittedAt && options.recordType === recordType) {
@@ -3704,11 +3745,13 @@ async function getTeacherWorkspace(event = {}) {
               s.province AS store_province, s.city AS store_city,
               s.district AS store_district, s.address_detail AS store_address_detail,
               c.customer_code, c.customer_name,
-              p.product_code, p.product_name
+              p.product_code, p.product_name,
+              ${alias}.teacher_id, business_teacher.teacher_code, business_teacher.teacher_name
          FROM public.${table} ${alias}
          JOIN public.stores s ON s.id = ${alias}.store_id
          JOIN public.customers c ON c.id = ${alias}.customer_id
          JOIN public.products p ON p.id = ${alias}.product_id
+    LEFT JOIN public.teachers business_teacher ON business_teacher.id = ${alias}.teacher_id
         WHERE ${clauses.join(" AND ")}
         ORDER BY ${alias}.submitted_at DESC, ${alias}.id DESC
         LIMIT ${listLimit}
@@ -3819,7 +3862,7 @@ async function getTeacherWorkspace(event = {}) {
     if (!options.recordType) fail("读取老师工单详情时必须指定工单类型。", "BAD_REQUEST");
     const rows = await query(options.recordType, { detailMode: true });
     const order = teacherOrderRows(rows, TEACHER_WORKSPACE_TYPE_CONFIG[options.recordType].baseRecordType, profile)[0];
-    if (!order) fail("未找到当前老师本人绑定的工单。", "ORDER_NOT_FOUND");
+    if (!order) fail("未找到当前老师有权查看的工单。", "ORDER_NOT_FOUND");
     return { ok: true, profile, record: order };
   }
   if (options.recordType) {

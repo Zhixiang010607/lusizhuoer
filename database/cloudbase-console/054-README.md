@@ -4,7 +4,7 @@
 2. 在 CloudBase PostgreSQL SQL 编辑器中完整执行
    `054-01-teacher-only-customer-face-experience.sql`，看到 `COMMIT` 后停止。
 3. 完整执行迁移 055，确认最后 3 行全部为 `READY`。
-4. 部署 `faceRecognition v81` 并调用 `{ "action":"health" }`，确认返回
+4. 部署 `faceRecognition v85` 并调用 `{ "action":"health" }`，确认返回
    `version=v81`。
 5. 最后发布静态前端并强制刷新浏览器。
 

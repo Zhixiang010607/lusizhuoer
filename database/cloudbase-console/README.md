@@ -90,7 +90,7 @@ ROLLBACK;
 
 ## 053 删除旧老师人脸 Saga
 
-先部署 `staffAccount v67`、`faceRecognition v81` 和 `teacherCreate v6`，再按
+先部署 `staffAccount v67`、`faceRecognition v85` 和 `teacherCreate v6`，再按
 [`053-README.md`](053-README.md) 执行 `053-01-retire-legacy-teacher-face-saga.sql`，最后运行
 `053-readonly-verify.sql`，7 行必须全部为 `RETIRED`。
 
@@ -98,7 +98,7 @@ ROLLBACK;
 
 完成 053 后，按 [`054-README.md`](054-README.md) 完整执行
 `054-01-teacher-only-customer-face-experience.sql`，然后部署
-`faceRecognition v81`、`staffAccount v67`、`teacherCreate v6` 和当前静态前端。
+`faceRecognition v85`、`staffAccount v67`、`teacherCreate v6` 和当前静态前端。
 054 会在数据库层把体验创建限定为额度所属的当前老师账号，并把新体验凭证切换为
 客户登记照与客户现场照；历史照片不改写。
 
