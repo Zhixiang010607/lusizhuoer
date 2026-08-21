@@ -154,15 +154,93 @@
     document.body.append(mobileAccountPopover);
     const accountSummary = mobileAccountMenu.querySelector("summary");
     const closeMobileAccount = () => { mobileAccountMenu.removeAttribute("open"); };
+    const compactNavigation = window.matchMedia("(max-width: 1100px)");
+    const compactNavigationPopover = document.createElement("nav");
+    compactNavigationPopover.id = "compactNavigationPopover";
+    compactNavigationPopover.setAttribute("aria-label", "导航菜单");
+    compactNavigationPopover.hidden = true;
+    document.body.append(compactNavigationPopover);
+    let compactNavigationSource = null;
+    const closeCompactNavigation = () => {
+      if (compactNavigationSource) compactNavigationSource.hidden = false;
+      compactNavigationSource = null;
+      compactNavigationPopover.hidden = true;
+      compactNavigationPopover.replaceChildren();
+      delete compactNavigationPopover.dataset.sourceMenu;
+      document.querySelectorAll(".side-menu-group[open]").forEach((group) => {
+        group.removeAttribute("open");
+        group.querySelector(":scope > summary")?.setAttribute("aria-expanded", "false");
+      });
+    };
+    const openCompactNavigation = (group, summary) => {
+      const sourceNav = group.querySelector(":scope > nav");
+      if (!sourceNav) return;
+      const sourceMenu = group.dataset.menu || String(Array.from(sidebar.querySelectorAll(".side-menu-group")).indexOf(group));
+      const summaryRect = summary.getBoundingClientRect();
+      closeCompactNavigation();
+      closeMobileAccount();
+      group.setAttribute("open", "");
+      summary.setAttribute("aria-expanded", "true");
+      sourceNav.hidden = true;
+      compactNavigationSource = sourceNav;
+      compactNavigationPopover.dataset.sourceMenu = sourceMenu;
+      compactNavigationPopover.innerHTML = sourceNav.innerHTML;
+      Object.assign(compactNavigationPopover.style, {
+        position: "fixed",
+        zIndex: "110",
+        display: "grid",
+        gap: "3px",
+        boxSizing: "border-box",
+        maxHeight: "calc(100dvh - 62px - env(safe-area-inset-top))",
+        padding: "8px",
+        overflowY: "auto",
+        border: "1px solid #ffffff20",
+        borderRadius: "9px",
+        color: "#d9e5f2",
+        background: "#0d1d31",
+        boxShadow: "0 14px 36px #06122666"
+      });
+      if (window.matchMedia("(max-width: 760px)").matches) {
+        Object.assign(compactNavigationPopover.style, {
+          top: "calc(52px + env(safe-area-inset-top))",
+          right: "max(8px, env(safe-area-inset-right))",
+          left: "max(8px, env(safe-area-inset-left))",
+          width: "auto",
+          maxWidth: "280px",
+          marginLeft: "auto"
+        });
+      } else {
+        Object.assign(compactNavigationPopover.style, {
+          top: `${Math.max(8, summaryRect.top)}px`,
+          right: "auto",
+          left: "88px",
+          width: "190px",
+          maxWidth: "calc(100vw - 104px)",
+          marginLeft: "0"
+        });
+      }
+      compactNavigationPopover.querySelectorAll("a").forEach((link) => {
+        Object.assign(link.style, {
+          display: link.hidden ? "none" : "block",
+          padding: "8px 10px",
+          borderRadius: "7px",
+          color: link.classList.contains("active") ? "#ffffff" : "#b9c9da",
+          background: link.classList.contains("active") ? "#1f5eff" : "transparent",
+          textDecoration: "none",
+          fontSize: "12px",
+          fontWeight: "700"
+        });
+      });
+      compactNavigationPopover.hidden = false;
+    };
     mobileAccountMenu.addEventListener("toggle", () => {
       const open = mobileAccountMenu.open;
       mobileAccountPopover.hidden = !open;
       accountSummary.setAttribute("aria-expanded", String(open));
       if (open && window.matchMedia("(max-width: 760px)").matches) {
-        document.querySelectorAll(".side-menu-group[open]").forEach((group) => group.removeAttribute("open"));
+        closeCompactNavigation();
       }
     });
-    const compactNavigation = window.matchMedia("(max-width: 1100px)");
     document.querySelectorAll(".side-menu-group").forEach((group) => {
       const summary = group.querySelector(":scope > summary");
       summary?.addEventListener("click", (event) => {
@@ -171,10 +249,10 @@
         // summary sits inside the horizontally scrolling top rail. Own the
         // toggle explicitly so the business menu remains visible and usable.
         event.preventDefault();
-        const shouldOpen = !group.open;
-        document.querySelectorAll(".side-menu-group[open]").forEach((other) => other.removeAttribute("open"));
-        closeMobileAccount();
-        if (shouldOpen) group.setAttribute("open", "");
+        const sourceMenu = group.dataset.menu || String(Array.from(sidebar.querySelectorAll(".side-menu-group")).indexOf(group));
+        const shouldOpen = compactNavigationPopover.hidden || compactNavigationPopover.dataset.sourceMenu !== sourceMenu;
+        if (shouldOpen) openCompactNavigation(group, summary);
+        else closeCompactNavigation();
       });
       group.addEventListener("toggle", () => {
         if (!group.open || !compactNavigation.matches) return;
@@ -184,15 +262,15 @@
     });
     document.addEventListener("click", (event) => {
       if (!compactNavigation.matches) return;
-      document.querySelectorAll(".side-menu-group[open]").forEach((group) => {
-        if (!group.contains(event.target)) group.removeAttribute("open");
-      });
+      const activeGroup = document.querySelector(".side-menu-group[open]");
+      if (activeGroup && !activeGroup.contains(event.target) && !compactNavigationPopover.contains(event.target)) closeCompactNavigation();
     });
     document.addEventListener("click", (event) => {
       if (!mobileAccountMenu.open || mobileAccountMenu.contains(event.target) || mobileAccountPopover.contains(event.target)) return;
       closeMobileAccount();
     });
-    document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeMobileAccount(); });
+    document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closeCompactNavigation(); closeMobileAccount(); } });
+    compactNavigation.addEventListener?.("change", () => { if (!compactNavigation.matches) closeCompactNavigation(); });
     if (footer) footer.before(mobileAccountMenu);
     else sidebar.append(mobileAccountMenu);
 

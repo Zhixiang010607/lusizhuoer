@@ -12,8 +12,11 @@ assert.match(auth, /mobileAccountPopover\.querySelector\("strong"\)\.textContent
 assert.match(auth, /document\.body\.append\(mobileAccountPopover\)/, "logout card must live outside the horizontally scrolling rail so phone browsers cannot clip it");
 assert.match(auth, /document\.querySelectorAll\("\.side-menu-group\[open\]"\)/, "opening one phone menu must close other expanded menus");
 assert.match(auth, /if \(other !== group\) other\.removeAttribute\("open"\)/, "phone menu groups must be mutually exclusive");
-assert.match(auth, /summary\?\.addEventListener\("click", \(event\) => \{[\s\S]*event\.preventDefault\(\);[\s\S]*const shouldOpen = !group\.open;[\s\S]*group\.setAttribute\("open", ""\)/, "phone navigation must explicitly open the tapped business menu");
-assert.match(auth, /if \(!group\.contains\(event\.target\)\) group\.removeAttribute\("open"\)/, "tapping outside a compact navigation menu must close it");
+assert.match(auth, /const openCompactNavigation = \(group, summary\) => \{[\s\S]*group\.setAttribute\("open", ""\)[\s\S]*summary\.setAttribute\("aria-expanded", "true"\)/, "phone navigation must explicitly open the tapped business menu");
+assert.match(auth, /compactNavigationPopover\.id = "compactNavigationPopover"[\s\S]*document\.body\.append\(compactNavigationPopover\)/, "phone submenus must be detached from the clipping horizontal rail");
+assert.match(auth, /sourceNav\.hidden = true;[\s\S]*compactNavigationPopover\.innerHTML = sourceNav\.innerHTML/, "the detached phone popover must mirror the selected menu and hide the clipped original");
+assert.match(auth, /top: "calc\(52px \+ env\(safe-area-inset-top\)\)"[\s\S]*right: "max\(8px, env\(safe-area-inset-right\)\)"[\s\S]*left: "max\(8px, env\(safe-area-inset-left\)\)"/, "phone navigation popovers must stay within both safe-area edges");
+assert.match(auth, /!activeGroup\.contains\(event\.target\) && !compactNavigationPopover\.contains\(event\.target\)/, "tapping outside both the trigger and detached popover must close the menu");
 assert.match(auth, /const logoutButtons = \[\$\("logoutWorkspace"\), \$\("logoutWorkspaceMobile"\)\]/, "desktop and mobile logout buttons must share one handler");
 assert.match(auth, /logoutButtons\.forEach\(\(button\) => button\.addEventListener\("click", logoutWorkspace\)\)/, "both logout controls must invoke sign-out");
 
@@ -34,7 +37,7 @@ assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.mobile-account-popover \
 for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
   if (!html.includes("auth-ui.js?v=")) continue;
-  const expectedAuthVersion = "0.19.3";
+  const expectedAuthVersion = "0.19.4";
   assert.ok(html.includes(`auth-ui.js?v=${expectedAuthVersion}`), `${file} must load the mobile-logout auth UI`);
 }
 

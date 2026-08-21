@@ -180,7 +180,7 @@ assert.doesNotMatch(exporter, /store-chart|bar-chart|drawBar/i, "PDF export uses
 includes(orderExporter, "exportCanvasPagesPdf", "PDF encoder accepts generated table pages");
 
 includes(auth, '"store-analysis.html"', "store analysis route is authorized");
-includes(analysisHtml, 'auth-ui.js?v=0.19.3', "analysis route loads current auth isolation");
+includes(analysisHtml, 'auth-ui.js?v=0.19.4', "analysis route loads current auth isolation");
 includes(cloud, 'if (action === "getStoreBusinessAnalytics")', "cloud action dispatched");
 includes(cloud, 'if (action === "queryStoreBusinessRecords")', "store detail query action dispatched");
 includes(cloud, 'r.recharge_type = ${sqlText(rechargeType)}', "store detail backend separates recharge and refund record types");
