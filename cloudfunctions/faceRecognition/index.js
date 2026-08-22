@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v8" : "v88";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v8" : "v89";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -3401,6 +3401,122 @@ async function createVerificationApplication(event) {
   };
 }
 
+async function recoverBusinessSubmission(event) {
+  const caller = await activeBusinessCaller(event);
+  const recordType = String(event.recordType || "").trim().toUpperCase();
+  if (!['RECHARGE', 'VERIFICATION'].includes(recordType)) {
+    fail("必须指定需要恢复的充值或核销提交。", "BAD_REQUEST");
+  }
+  const idempotencyKey = rechargeSubmissionKey(event.clientRequestId);
+
+  if (recordType === "RECHARGE") {
+    const rows = await executeSql(
+      `SELECT r.id, r.recharge_code, r.recharge_type, r.store_id, r.teacher_id,
+              r.customer_id, r.product_id, r.unit_count, r.record_status,
+              r.submitted_by_account_id, r.submitted_at, r.balance_before_count,
+              r.balance_after_count, c.customer_code, c.customer_name,
+              p.product_code, p.product_name,
+              t.teacher_code, t.teacher_name
+         FROM public.recharge_records r
+         JOIN public.customers c ON c.id = r.customer_id
+         JOIN public.products p ON p.id = r.product_id
+         LEFT JOIN public.teachers t ON t.id = r.teacher_id
+        WHERE r.idempotency_key = ${sqlText(idempotencyKey)}
+        LIMIT 1`
+    );
+    const record = rows[0];
+    if (!record) return { ok: true, found: false, complete: false, recordType: "RECHARGE" };
+    if (String(record.store_id) !== String(caller.storeId)
+        || String(record.submitted_by_account_id) !== String(caller.staffId)) {
+      fail("该防重复提交编号不属于当前账号和门店。", "FORBIDDEN");
+    }
+    return {
+      ok: true,
+      found: true,
+      complete: true,
+      recovered: true,
+      recordType: "RECHARGE",
+      rechargeId: String(record.id),
+      rechargeCode: record.recharge_code,
+      rechargeType: record.recharge_type,
+      recordStatus: record.record_status,
+      submittedAt: record.submitted_at,
+      unitCount: Number(record.unit_count),
+      balanceBeforeCount: record.balance_before_count === null || record.balance_before_count === undefined ? null : Number(record.balance_before_count),
+      balanceAfterCount: record.balance_after_count === null || record.balance_after_count === undefined ? null : Number(record.balance_after_count),
+      customer: { customerCode: record.customer_code, customerName: record.customer_name },
+      product: { productId: String(record.product_id), productCode: record.product_code, productName: record.product_name },
+      teacher: record.teacher_id ? {
+        teacherId: String(record.teacher_id),
+        teacherCode: record.teacher_code,
+        teacherName: record.teacher_name
+      } : null
+    };
+  }
+
+  const rows = await executeSql(
+    `SELECT v.id, v.verification_code, v.verification_type, v.store_id,
+            v.teacher_id, v.customer_id, v.product_id, v.unit_count,
+            v.record_status, v.submitted_by_account_id, v.submitted_at,
+            c.customer_code, c.customer_name, p.product_code, p.product_name,
+            t.teacher_code, t.teacher_name,
+            signal.id AS signal_id, signal.signal_type, signal.signal_status,
+            signal.created_at AS signal_created_at,
+            usage.id AS quota_usage_id, usage.available_before_count,
+            usage.available_after_count
+       FROM public.verification_records v
+       JOIN public.customers c ON c.id = v.customer_id
+       JOIN public.products p ON p.id = v.product_id
+       JOIN public.teachers t ON t.id = v.teacher_id
+       LEFT JOIN LATERAL (
+         SELECT d.id, d.signal_type, d.signal_status, d.created_at
+           FROM public.device_signal_outbox d
+          WHERE d.verification_id = v.id
+          ORDER BY d.id
+          LIMIT 1
+       ) signal ON TRUE
+       LEFT JOIN public.teacher_experience_quota_usages usage
+         ON usage.verification_id = v.id
+      WHERE v.idempotency_key = ${sqlText(idempotencyKey)}
+      LIMIT 1`
+  );
+  const record = rows[0];
+  if (!record) return { ok: true, found: false, complete: false, recordType: "VERIFICATION" };
+  if (String(record.store_id) !== String(caller.storeId)
+      || String(record.submitted_by_account_id) !== String(caller.staffId)) {
+    fail("该防重复提交编号不属于当前账号和门店。", "FORBIDDEN");
+  }
+  const experience = record.verification_type === "EXPERIENCE";
+  const complete = Boolean(record.signal_id) && (!experience || Boolean(record.quota_usage_id));
+  return {
+    ok: true,
+    found: true,
+    complete,
+    recovered: true,
+    recordType: "VERIFICATION",
+    verificationId: String(record.id),
+    verificationCode: record.verification_code,
+    verificationType: record.verification_type,
+    recordStatus: record.record_status,
+    submittedAt: record.submitted_at,
+    unitCount: Number(record.unit_count || 1),
+    customer: { customerCode: record.customer_code, customerName: record.customer_name },
+    product: { productId: String(record.product_id), productCode: record.product_code, productName: record.product_name },
+    teacher: { teacherId: String(record.teacher_id), teacherCode: record.teacher_code, teacherName: record.teacher_name },
+    experienceQuota: experience && record.quota_usage_id ? {
+      availableBeforeCount: Number(record.available_before_count || 0),
+      availableAfterCount: Number(record.available_after_count || 0)
+    } : null,
+    deviceSignal: record.signal_id ? {
+      id: String(record.signal_id),
+      port: "VIRTUAL_DEVICE_START",
+      type: record.signal_type,
+      status: record.signal_status,
+      queuedAt: record.signal_created_at
+    } : null
+  };
+}
+
 async function getCustomerProductBalances(event) {
   const caller = await activeBusinessCaller(event);
   const customerCode = String(event.customerCode || "").trim();
@@ -5263,6 +5379,7 @@ exports.main = async (event = {}, context = {}) => {
     if (action === "getTeacherExperienceEntitlements") return await getTeacherExperienceEntitlements(event);
     if (action === "createRechargeApplication") return await createRechargeApplication(event);
     if (action === "createVerificationApplication") return await createVerificationApplication(event);
+    if (action === "recoverBusinessSubmission") return await recoverBusinessSubmission(event);
     if (action === "getActiveStoreCustomerDetail") return await getActiveStoreCustomerDetail(event);
     if (action === "getCustomerPhotoUrl") return await getCustomerPhotoUrl(event);
     if (action === "getCustomerProductBalances") return await getCustomerProductBalances(event);

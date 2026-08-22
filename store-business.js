@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.56", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.57", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   const formatBirthday = (value, fallback = "—") => {
     const raw = String(value ?? "").trim();
     if (!raw) return fallback;
@@ -26,7 +26,7 @@
   let storeId = teacherMode || hqMode ? "" : accountStoreId;
   const storeNo = Number(storeId.replace(/\D/g, "")) || 1;
   let storeName = teacherMode || hqMode ? "尚未选择门店" : `门店 ${storeNo}`;
-  let databaseCustomers = [], databaseTeachers = [], databaseProducts = [], candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", verificationThumbnailDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, verificationBalanceProjects = [], rechargeRequest = null, verificationRequest = null, verificationFaceRequestId = "", verificationFaceEvidenceToken = "", customerEnrollmentRequest = null, previewCustomerCode = "", customerSubmissionBusy = false;
+  let databaseCustomers = [], databaseTeachers = [], databaseProducts = [], candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", verificationThumbnailDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, verificationBalanceProjects = [], verificationFaceRequestId = "", verificationFaceEvidenceToken = "", customerEnrollmentRequest = null, previewCustomerCode = "", customerSubmissionBusy = false, submissionRecoveryLocked = false, submissionRecoveryRunning = false;
   const customerDetailCache = new Map(), customerDetailRequests = new Map();
   let customerServiceApp = null;
   let teacherBusinessStores = [], teacherBusinessProfile = null, teacherWorkflowStarted = false;
@@ -50,9 +50,15 @@
     photoCaptured = false;
     faceCaptured = false;
     const target = teacherMode ? "teacher-work-order-detail.html" : (type === "recharge" ? "recharge-detail.html" : "verification-detail.html");
+    const submissionRecordType = type === "recharge" ? "RECHARGE" : "VERIFICATION";
+    const submissionIntent = readBusinessSubmission(submissionRecordType);
+    const submissionAck = submissionIntent && !submissionIntent.invalid ? {
+      submissionIntentKey: businessSubmissionStorageKey(submissionRecordType),
+      clientRequestId: submissionIntent.clientRequestId
+    } : {};
     const query = teacherMode
-      ? new URLSearchParams({ type, recordId: String(record.id) })
-      : new URLSearchParams({ recordId: String(record.id), source: "created", ...(hqMode ? { origin: "hq-business", businessPage: page } : {}) });
+      ? new URLSearchParams({ type, recordId: String(record.id), ...submissionAck })
+      : new URLSearchParams({ recordId: String(record.id), source: "created", ...submissionAck, ...(hqMode ? { origin: "hq-business", businessPage: page } : {}) });
     window.location.assign(`${target}?${query.toString()}`);
   }
   const addCommunication = (recordType, recordId, message) => {
@@ -201,7 +207,11 @@
       result = await customerServiceApp.callFunction({ name: "faceRecognition", data: scopedPayload });
     } catch (error) {
       const diagnostic = [error?.code, error?.requestId || error?.RequestId].filter(Boolean).join(" · ");
-      throw new Error(`${error?.message || "腾讯云函数调用失败"}${diagnostic ? `（${diagnostic}）` : ""}`);
+      const wrapped = new Error(`${error?.message || "腾讯云函数调用失败"}${diagnostic ? `（${diagnostic}）` : ""}`);
+      wrapped.code = error?.code || "FUNCTION_INVOCATION_FAILED";
+      wrapped.requestId = error?.requestId || error?.RequestId || "";
+      wrapped.submissionUncertain = true;
+      throw wrapped;
     }
     const data = cloudFunctionData(result);
     if (!data?.ok) {
@@ -277,21 +287,183 @@
     }
   }
 
-  function nextRechargeRequestId(payload) {
-    const fingerprint = JSON.stringify(payload);
-    if (!rechargeRequest || rechargeRequest.fingerprint !== fingerprint) {
-      const key = window.crypto?.randomUUID?.() || `recharge_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
-      rechargeRequest = { key, fingerprint };
-    }
-    return rechargeRequest.key;
+  function businessSubmissionStorageKey(recordType) {
+    const identity = businessSubmissionFingerprint([session?.role || "", session?.account || "", page || "", recordType]);
+    return `lusizhuoer:business-submission:v1:${identity}`;
   }
-  function nextVerificationRequestId(payload) {
-    const fingerprint = JSON.stringify(payload);
-    if (!verificationRequest || verificationRequest.fingerprint !== fingerprint) {
-      const key = window.crypto?.randomUUID?.() || `verification_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
-      verificationRequest = { key, fingerprint };
+  function businessRecordTypeForPage() {
+    if (["recharge", "refund"].includes(page)) return "RECHARGE";
+    if (["verification", "verification-experience"].includes(page)) return "VERIFICATION";
+    return "";
+  }
+  function businessSubmissionFingerprint(value) {
+    const source = JSON.stringify(value);
+    let left = 2166136261;
+    let right = 2246822507;
+    for (let index = 0; index < source.length; index += 1) {
+      const code = source.charCodeAt(index);
+      left = Math.imul(left ^ code, 16777619);
+      right = Math.imul(right ^ code, 3266489909);
     }
-    return verificationRequest.key;
+    return `fp_${(left >>> 0).toString(16).padStart(8, "0")}${(right >>> 0).toString(16).padStart(8, "0")}`;
+  }
+  function readBusinessSubmission(recordType) {
+    let raw;
+    try { raw = localStorage.getItem(businessSubmissionStorageKey(recordType)); }
+    catch (_) { return { invalid: true, recordType, reason: "当前浏览器无法读取防重复提交记录。" }; }
+    if (raw === null) return null;
+    try {
+      const value = JSON.parse(raw);
+      if (!value || value.version !== 1 || value.recordType !== recordType
+          || value.role !== String(session?.role || "") || value.account !== String(session?.account || "")
+          || value.page !== page || !/^fp_[0-9a-f]{16}$/.test(String(value.fingerprint || ""))
+          || !/^[A-Za-z0-9][A-Za-z0-9_-]{7,63}$/.test(String(value.clientRequestId || ""))) {
+        return { invalid: true, recordType, reason: "浏览器中的防重复提交记录已损坏。" };
+      }
+      return value;
+    } catch (_) { return { invalid: true, recordType, reason: "浏览器中的防重复提交记录无法解析。" }; }
+  }
+  function writeBusinessSubmission(intent) {
+    try {
+      const key = businessSubmissionStorageKey(intent.recordType);
+      localStorage.setItem(key, JSON.stringify(intent));
+      const saved = JSON.parse(localStorage.getItem(key) || "null");
+      if (!saved || saved.clientRequestId !== intent.clientRequestId || saved.fingerprint !== intent.fingerprint) throw new Error("readback mismatch");
+    } catch (_) {
+      const error = new Error("当前浏览器无法可靠保存防重复提交编号，已禁止提交；请检查隐私模式或存储权限后重试。");
+      error.code = "SUBMISSION_STORAGE_UNAVAILABLE";
+      throw error;
+    }
+  }
+  function clearBusinessSubmission(recordType) {
+    try {
+      const key = businessSubmissionStorageKey(recordType);
+      localStorage.removeItem(key);
+      return localStorage.getItem(key) === null;
+    } catch (_) { return false; }
+  }
+  function beginBusinessSubmission(recordType, identityPayload) {
+    const fingerprint = businessSubmissionFingerprint(identityPayload);
+    const existing = readBusinessSubmission(recordType);
+    if (existing) {
+      submissionRecoveryLocked = true;
+      const error = new Error(existing.invalid
+        ? `${existing.reason} 为防止重复业务，已禁止继续提交；请先由管理员核对数据库。`
+        : existing.fingerprint === fingerprint
+        ? "上一次提交结果尚未确认，必须先恢复原结果，不能再次提交。"
+        : "存在另一笔结果尚未确认的业务，必须先恢复原结果，不能更换资料重新提交。");
+      error.code = "SUBMISSION_RECOVERY_REQUIRED";
+      throw error;
+    }
+    const prefix = recordType === "RECHARGE" ? "recharge" : "verification";
+    const clientRequestId = window.crypto?.randomUUID?.() || `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
+    const intent = {
+      version: 1,
+      recordType,
+      page,
+      role: String(session?.role || ""),
+      account: String(session?.account || ""),
+      storeId: String(storeId || ""),
+      clientRequestId,
+      fingerprint,
+      state: "SUBMITTING",
+      createdAt: new Date().toISOString()
+    };
+    writeBusinessSubmission(intent);
+    return intent;
+  }
+  function markBusinessSubmissionUncertain(recordType) {
+    const intent = readBusinessSubmission(recordType);
+    if (!intent || intent.invalid) return;
+    try { writeBusinessSubmission({ ...intent, state: "UNKNOWN", lastCheckedAt: new Date().toISOString() }); }
+    catch (_) { submissionRecoveryLocked = true; }
+  }
+  function confirmBusinessSubmission(recordType, recordId) {
+    const intent = readBusinessSubmission(recordType);
+    if (!intent || intent.invalid) return false;
+    try {
+      writeBusinessSubmission({ ...intent, state: "CONFIRMED", recordId: String(recordId), confirmedAt: new Date().toISOString() });
+      submissionRecoveryLocked = true;
+      return true;
+    } catch (_) { return false; }
+  }
+  function businessSubmissionUi(recordType) {
+    const verification = recordType === "VERIFICATION";
+    return {
+      message: $(verification ? "verificationCreateMessage" : "rechargeCreateMessage"),
+      submit: verification ? $("verificationSubmit") : $("rechargeCreateForm")?.querySelector('[type="submit"]')
+    };
+  }
+  function renderBusinessSubmissionLock(recordType, text) {
+    submissionRecoveryLocked = true;
+    const { message, submit } = businessSubmissionUi(recordType);
+    if (submit) { submit.disabled = true; submit.setAttribute("aria-disabled", "true"); }
+    if (!message) return;
+    message.replaceChildren(document.createTextNode(text));
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "button-link";
+    retry.textContent = "检查上次提交结果";
+    retry.addEventListener("click", () => { void recoverPendingBusinessSubmission(recordType); });
+    message.append(" ", retry);
+  }
+  function openRecoveredBusinessSubmission(recordType, result) {
+    const recharge = recordType === "RECHARGE";
+    const id = recharge ? result.rechargeId : result.verificationId;
+    if (!id) return false;
+    if (!confirmBusinessSubmission(recordType, id)) {
+      renderBusinessSubmissionLock(recordType, "原业务已确认写入，但浏览器无法保存完成状态。已保持防重复提交锁，请先允许本站存储，再检查上次提交结果。");
+      return false;
+    }
+    openGeneratedOrder(recharge ? "recharge" : "verification", { id: String(id) });
+    return true;
+  }
+  async function recoverPendingBusinessSubmission(recordType, { missingIsDefinitive = false, originalError = null } = {}) {
+    const intent = readBusinessSubmission(recordType);
+    if (!intent || submissionRecoveryRunning) return false;
+    if (intent.invalid) {
+      renderBusinessSubmissionLock(recordType, `${intent.reason} 为防止重复充值或重复扣次，已禁止继续提交；请先由管理员核对数据库。`);
+      return false;
+    }
+    if (!storeId) return false;
+    if (String(intent.storeId) !== String(storeId)) {
+      renderBusinessSubmissionLock(recordType, "上一次未确认提交属于另一个门店，禁止在当前门店继续办理。请返回后选择原门店恢复结果。");
+      return false;
+    }
+    submissionRecoveryRunning = true;
+    renderBusinessSubmissionLock(recordType, "正在从数据库检查上一次提交结果，请勿重复操作…");
+    try {
+      const result = await callCustomerEnrollment({
+        action: "recoverBusinessSubmission",
+        recordType,
+        clientRequestId: intent.clientRequestId,
+        storeId: intent.storeId
+      });
+      if (result.found && result.complete) return openRecoveredBusinessSubmission(recordType, result);
+      if (result.found) {
+        renderBusinessSubmissionLock(recordType, "上一次业务已写入，但设备信号或体验额度审计不完整。已锁定再次提交，请立即联系管理员处理。");
+        return false;
+      }
+      if (missingIsDefinitive) {
+        if (!clearBusinessSubmission(recordType)) {
+          renderBusinessSubmissionLock(recordType, "数据库已确认原请求未写入，但浏览器无法清除防重复提交锁。请允许本站存储后再试。");
+          return false;
+        }
+        submissionRecoveryLocked = false;
+        const { message, submit } = businessSubmissionUi(recordType);
+        if (message) message.textContent = originalError?.message || "上一次提交已确认未写入，可以修正后重新提交。";
+        if (recordType === "VERIFICATION") syncVerificationSubmit();
+        else if (submit) { submit.disabled = false; submit.removeAttribute("aria-disabled"); }
+        return false;
+      }
+      renderBusinessSubmissionLock(recordType, "数据库暂未找到上一次结果，但原请求可能仍在执行。为防止重复充值或重复扣次，本页继续锁定；请稍后再次检查。");
+      return false;
+    } catch (error) {
+      renderBusinessSubmissionLock(recordType, `${error?.message || "暂时无法检查上一次结果"}。为防止重复业务，本页继续锁定。`);
+      return false;
+    } finally {
+      submissionRecoveryRunning = false;
+    }
   }
   function nextCustomerEnrollmentRequestId(payload) {
     const fingerprint = JSON.stringify(payload);
@@ -787,6 +959,10 @@
     $("rechargeCreateForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = event.currentTarget, submit = form.querySelector('[type="submit"]');
+      if (submissionRecoveryLocked || readBusinessSubmission("RECHARGE")) {
+        await recoverPendingBusinessSubmission("RECHARGE");
+        return;
+      }
       const projectId = $("rechargeProject").value, teacherId = $("rechargeTeacher").value, count = Number($("rechargeCount").value), note = $("rechargeNote").value.trim();
       if (!selectedCustomer || !projectId || !Number.isInteger(count) || count < 1 || count > 999) { $("rechargeCreateMessage").textContent = `必须确认客户、选择项目，并填写 1 至 999 的整数${refundPage ? "退费" : "充值"}次数`; return; }
       const project = databaseProducts.find((item) => item.id === projectId), teacher = teacherId ? databaseTeachers.find((item) => item.id === teacherId) : null;
@@ -794,11 +970,20 @@
       if (teacherMode && teacher?.id !== normalizedTeacherProfile(teacherBusinessProfile || {}).id) { $("rechargeCreateMessage").textContent = "老师账号只能将业务绑定给本人，请刷新页面后重试"; return; }
       if (refundPage && count > Number(project.purchased || 0)) { $("rechargeCreateMessage").textContent = `最多可退 ${project.purchased} 次；可以超过剩余 ${project.remaining} 次，但不能超过尚未退费的总购买次数`; return; }
       const payload = { applicationType: refundPage ? "REFUND" : "NEW", customerCode: selectedCustomer.id, productId: project.id, teacherId: teacher?.id || "", unitCount: count, message: note };
-      const clientRequestId = nextRechargeRequestId({ storeId, ...payload });
+      let intent;
+      try {
+        intent = beginBusinessSubmission("RECHARGE", { storeId, ...payload });
+      } catch (error) {
+        $("rechargeCreateMessage").textContent = error?.message || "无法保存防重复提交编号，已禁止提交。";
+        if (error?.code === "SUBMISSION_RECOVERY_REQUIRED") renderBusinessSubmissionLock("RECHARGE", error.message);
+        return;
+      }
+      const clientRequestId = intent.clientRequestId;
       submit.disabled = true;
       $("rechargeCreateMessage").textContent = `正在向数据库提交待审核${refundPage ? "退费" : "充值"}单…`;
+      let result = null;
       try {
-        const result = await callCustomerEnrollment({ action: "createRechargeApplication", ...payload, clientRequestId });
+        result = await callCustomerEnrollment({ action: "createRechargeApplication", ...payload, clientRequestId });
         if (String(result.recordStatus || "") !== "PENDING") throw new Error(`数据库返回的${refundPage ? "退费" : "充值"}单状态不是待审核，已停止后续操作`);
         if (!result.rechargeId || !result.rechargeCode) throw new Error("数据库已响应，但没有返回充值单编号，已停止跳转");
         const record = {
@@ -829,19 +1014,28 @@
         };
         saveGeneratedOrder("prototypeRechargeRecords", record);
         addCommunication("recharge", record.id, note);
+        if (!confirmBusinessSubmission("RECHARGE", record.id)) {
+          renderBusinessSubmissionLock("RECHARGE", "充值/退费单已写入，但浏览器无法保存完成状态。已保持防重复提交锁，请先允许本站存储，再检查上次提交结果。");
+          return;
+        }
         openGeneratedOrder("recharge", record);
       } catch (error) {
-        $("rechargeCreateMessage").textContent = error?.message || `${refundPage ? "退费" : "充值"}申请提交失败，请核对数据库与云函数`;
+        markBusinessSubmissionUncertain("RECHARGE");
+        await recoverPendingBusinessSubmission("RECHARGE", {
+          missingIsDefinitive: !error?.submissionUncertain && !result,
+          originalError: error
+        });
       } finally {
-        submit.disabled = false;
+        if (!submissionRecoveryLocked) submit.disabled = false;
       }
     });
+    void recoverPendingBusinessSubmission("RECHARGE");
   }
   function syncVerificationSubmit() {
     const submit = $("verificationSubmit");
     const projectReady = Boolean($("verificationProject")?.value);
     const teacherReady = Boolean($("verificationTeacher")?.value);
-    const ready = Boolean(selectedCustomer) && photoCaptured && projectReady && teacherReady;
+    const ready = !submissionRecoveryLocked && Boolean(selectedCustomer) && photoCaptured && projectReady && teacherReady;
     if (submit) {
       submit.disabled = !ready;
       submit.setAttribute("aria-disabled", String(!ready));
@@ -940,6 +1134,10 @@
     window.addEventListener("pagehide", stopFaceCamera, { once: true });
     $("verificationCreateForm").addEventListener("submit", async (event) => {
       event.preventDefault(); const form = event.currentTarget, submit = form.querySelector('[type="submit"]'), projectId = $("verificationProject").value, teacherId = $("verificationTeacher").value, note = $("verificationNote").value.trim(), experience = experiencePage;
+      if (submissionRecoveryLocked || readBusinessSubmission("VERIFICATION")) {
+        await recoverPendingBusinessSubmission("VERIFICATION");
+        return;
+      }
       if (!selectedCustomer || !projectId || !teacherId) { $("verificationCreateMessage").textContent = "必须确认客户并选择项目和老师"; return; }
       if (!photoCaptured) { $("verificationCreateMessage").textContent = "必须完成现场拍照并通过所选客户的 1:1 人脸验证，才能核销和发送设备信号"; return; }
       const project = verificationBalanceProjects.find((item) => item.id === projectId);
@@ -948,11 +1146,27 @@
       if (!teacher) { $("verificationCreateMessage").textContent = "老师数据已经失效，请刷新页面后重新选择"; return; }
       if (teacherMode && teacher.id !== normalizedTeacherProfile(teacherBusinessProfile || {}).id) { $("verificationCreateMessage").textContent = "老师账号只能将业务绑定给本人，请刷新页面后重试"; return; }
       const payload = { customerCode: selectedCustomer.id, productId: project.id, teacherId: teacher.id, verificationType: experience ? "EXPERIENCE" : "NORMAL", message: note, faceRequestId: verificationFaceRequestId, faceEvidenceToken: verificationFaceEvidenceToken };
-      const clientRequestId = nextVerificationRequestId({ storeId, ...payload });
+      let intent;
+      try {
+        intent = beginBusinessSubmission("VERIFICATION", {
+          storeId,
+          customerCode: selectedCustomer.id,
+          productId: project.id,
+          teacherId: teacher.id,
+          verificationType: experience ? "EXPERIENCE" : "NORMAL",
+          message: note
+        });
+      } catch (error) {
+        $("verificationCreateMessage").textContent = error?.message || "无法保存防重复提交编号，已禁止提交。";
+        if (error?.code === "SUBMISSION_RECOVERY_REQUIRED") renderBusinessSubmissionLock("VERIFICATION", error.message);
+        return;
+      }
+      const clientRequestId = intent.clientRequestId;
       submit.disabled = true;
       $("verificationCreateMessage").textContent = experience ? "正在自动完成体验核销并发送设备开启信号…" : "正在提交核销并发送设备开启信号…";
+      let result = null;
       try {
-        const result = await callCustomerEnrollment({ action: "createVerificationApplication", ...payload, clientRequestId });
+        result = await callCustomerEnrollment({ action: "createVerificationApplication", ...payload, clientRequestId });
         const expectedStatus = "APPROVED";
         if (String(result.recordStatus || "") !== expectedStatus) throw new Error("数据库返回的核销单状态与当前业务类型不一致，已停止跳转");
         if (!result.verificationId || !result.verificationCode) throw new Error("数据库已响应，但没有返回核销单编号，已停止跳转");
@@ -974,15 +1188,23 @@
         };
         saveGeneratedOrder("prototypeVerificationRecords", record);
         addCommunication("verification", record.id, note);
+        if (!confirmBusinessSubmission("VERIFICATION", record.id)) {
+          renderBusinessSubmissionLock("VERIFICATION", "核销单已写入，但浏览器无法保存完成状态。已保持防重复提交锁，请先允许本站存储，再检查上次提交结果。");
+          return;
+        }
         openGeneratedOrder("verification", record);
       } catch (error) {
-        $("verificationCreateMessage").textContent = error?.message || "核销申请提交失败，请核对数据库与云函数";
-        if (["FACE_PHOTO_EVIDENCE_REQUIRED", "FACE_PHOTO_EVIDENCE_INVALID"].includes(error?.code)) resetVerificationCapture();
+        markBusinessSubmissionUncertain("VERIFICATION");
+        await recoverPendingBusinessSubmission("VERIFICATION", {
+          missingIsDefinitive: !error?.submissionUncertain && !result,
+          originalError: error
+        });
+        if (!submissionRecoveryLocked && ["FACE_PHOTO_EVIDENCE_REQUIRED", "FACE_PHOTO_EVIDENCE_INVALID"].includes(error?.code)) resetVerificationCapture();
       } finally {
-        submit.disabled = false;
         syncVerificationSubmit();
       }
     });
+    void recoverPendingBusinessSubmission("VERIFICATION");
   }
 
   function startTeacherWorkflow() {
@@ -1037,6 +1259,15 @@
       storeName = [selected.name, selected.code].filter(Boolean).join(" · ");
       startTeacherWorkflow();
     });
+    const pendingRecordType = businessRecordTypeForPage();
+    const pendingIntent = pendingRecordType ? readBusinessSubmission(pendingRecordType) : null;
+    const pendingStore = pendingIntent ? teacherBusinessStores.find((store) => store.id === String(pendingIntent.storeId || "")) : null;
+    if (pendingStore) {
+      select.value = pendingStore.id;
+      storeId = pendingStore.id;
+      storeName = [pendingStore.name, pendingStore.code].filter(Boolean).join(" · ");
+      startTeacherWorkflow();
+    }
   }
 
   function installSharedBusinessStorePanel() {
@@ -1107,16 +1338,10 @@
       confirm.disabled = !stores.some((store) => store.id === select.value);
       message.textContent = "";
     });
-    confirm.addEventListener("click", () => {
-      if (!workflow.hasAttribute("inert")) {
-        stopFaceCamera();
-        window.location.reload();
-        return;
-      }
-      const selected = stores.find((store) => store.id === select.value);
-      if (!selected) { message.textContent = "必须先选择一个具体门店。"; return; }
+    const selectStoreAndStart = (selected) => {
       storeId = selected.id;
       storeName = [selected.name, selected.code].filter(Boolean).join(" · ");
+      select.value = selected.id;
       select.disabled = true;
       unlock();
       workflow.classList.remove("business-store-unconfirmed");
@@ -1128,7 +1353,21 @@
       if (page === "customer") setupCustomerCreate();
       else if (["recharge", "refund"].includes(page)) setupRecharge();
       else setupVerification();
+    };
+    confirm.addEventListener("click", () => {
+      if (!workflow.hasAttribute("inert")) {
+        stopFaceCamera();
+        window.location.reload();
+        return;
+      }
+      const selected = stores.find((store) => store.id === select.value);
+      if (!selected) { message.textContent = "必须先选择一个具体门店。"; return; }
+      selectStoreAndStart(selected);
     });
+    const pendingRecordType = businessRecordTypeForPage();
+    const pendingIntent = pendingRecordType ? readBusinessSubmission(pendingRecordType) : null;
+    const pendingStore = pendingIntent ? stores.find((store) => store.id === String(pendingIntent.storeId || "")) : null;
+    if (pendingStore) selectStoreAndStart(pendingStore);
   }
 
   document.documentElement.dataset.prototypeVersion = VERSION;

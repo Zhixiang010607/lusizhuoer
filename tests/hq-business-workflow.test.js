@@ -56,7 +56,7 @@ for (const page of pages) {
   includes(authUi, `"${page}"`, `store/teacher route ${page}`);
   const html = read(page);
   includes(html, `data-store-business=`, `${page} reuses the shared workflow`);
-  includes(html, "store-business.js?v=0.14.56", `${page} workflow cache key`);
+  includes(html, "store-business.js?v=0.14.57", `${page} workflow cache key`);
   includes(html, "styles.css?v=", `${page} responsive store selector styles`);
   assert.ok(!fs.existsSync(path.join(root, `hq-${page}`)), `${page} must not have a duplicated HQ page`);
 }
@@ -64,7 +64,7 @@ for (const file of fs.readdirSync(root).filter((file) => file.endsWith(".html") 
   const expectedAuthVersion = "0.19.4";
   includes(read(file), `auth-ui.js?v=${expectedAuthVersion}`, `${file} auth cache key`);
 }
-for (const page of teacherBusinessPages) includes(read(page), "store-business.js?v=0.14.56", `${page} shared script version`);
+for (const page of teacherBusinessPages) includes(read(page), "store-business.js?v=0.14.57", `${page} shared script version`);
 includes(authUi, '"teacher-recharge-create.html": "recharge-create.html"', "legacy teacher recharge route redirects to the shared page");
 includes(authUi, '"teacher-refund-create.html": "refund-create.html"', "legacy teacher refund route redirects to the shared page");
 includes(authUi, '"teacher-verification-create.html": "verification-create.html"', "legacy teacher verification route redirects to the shared page");
@@ -117,8 +117,8 @@ includes(businessUi, '{ ...payload, storeId }', "every scoped HQ action includes
 includes(businessUi, '["getTeacherBusinessContext", "getHqBusinessContext"].includes(payload.action)', "context requests do not send an unconfirmed store");
 includes(businessUi, 'sharedTeacherMode ? "getTeacherBusinessContext" : "getHqBusinessContext"', "shared selector loads the correct role context");
 includes(businessUi, 'nextCustomerEnrollmentRequestId({ storeId,', "customer idempotency is store-bound");
-includes(businessUi, 'nextRechargeRequestId({ storeId, ...payload })', "recharge idempotency is store-bound");
-includes(businessUi, 'nextVerificationRequestId({ storeId, ...payload })', "verification idempotency is store-bound");
+includes(businessUi, 'beginBusinessSubmission("RECHARGE", { storeId, ...payload })', "recharge idempotency is persisted before submission and store-bound");
+includes(businessUi, 'beginBusinessSubmission("VERIFICATION", {', "verification idempotency is persisted before submission");
 includes(businessUi, '${escapeHtml(customer.name)} · ${escapeHtml(formatBirthday(customer.birthday))}', "shared customer dropdown shows birthday instead of customer number");
 assert.ok(!businessUi.includes('${escapeHtml(customer.name)}（${escapeHtml(customer.id)}）</option>'), "shared customer dropdown must not expose the customer number");
 includes(styles, ".hq-business-store-row", "HQ store selector layout");
@@ -212,7 +212,7 @@ const activeBusinessCaller = activeHarness.module.exports;
   includes(cloud, 'if (action === "getHqBusinessContext")', "HQ context dispatcher");
   includes(cloud, '["hq", "store", "teacher"].includes(caller.role)', "HQ submitter can edit verification photos");
   includes(cloud, '["hq", "store", "teacher"].includes(context.caller.role)', "HQ upload ownership guard");
-  includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v8" : "v88"', "deployable service versions");
+  includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v8" : "v89"', "deployable service versions");
 
   console.log("hq business workflow tests passed");
 })().catch((error) => {

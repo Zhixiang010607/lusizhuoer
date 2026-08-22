@@ -90,7 +90,7 @@ ROLLBACK;
 
 ## 053 删除旧老师人脸 Saga
 
-先部署 `staffAccount v67`、`faceRecognition v85` 和 `teacherCreate v6`，再按
+先部署 `staffAccount v67`、`faceRecognition v89` 和 `teacherCreate v6`，再按
 [`053-README.md`](053-README.md) 执行 `053-01-retire-legacy-teacher-face-saga.sql`，最后运行
 `053-readonly-verify.sql`，7 行必须全部为 `RETIRED`。
 
@@ -98,7 +98,7 @@ ROLLBACK;
 
 完成 053 后，按 [`054-README.md`](054-README.md) 完整执行
 `054-01-teacher-only-customer-face-experience.sql`，然后部署
-`faceRecognition v85`、`staffAccount v67`、`teacherCreate v6` 和当前静态前端。
+`faceRecognition v89`、`staffAccount v67`、`teacherCreate v6` 和当前静态前端。
 054 会在数据库层把体验创建限定为额度所属的当前老师账号，并把新体验凭证切换为
 客户登记照与客户现场照；历史照片不改写。
 
@@ -108,6 +108,15 @@ ROLLBACK;
 `055-01-remove-teacher-face-order-guards.sql`，最后 3 行必须全部为 `READY`。
 055 修复历史 046 函数仍阻止无老师人脸账号办理充值、退费、普通核销和体验核销的问题；
 老师主档与账号仍必须活跃，客户档案照与客户现场 1:1 人脸仍然必须存在。
+
+## 056—058 当前工单完整性
+
+完成 055 后依次执行 056 与 057，并确认各自末尾只读检查全部为 `READY`。最后按
+[`058-README.md`](058-README.md) 分别执行 058 的两个函数、触发器事务和只读验收；
+最后两行必须全部为 `READY`。058 恢复当前充值／退费与正常／体验核销的数据库状态机，
+锁定提交人、门店、客户、产品、次数和防重复编号等审计字段。完成后再部署
+`faceRecognition v89` 与 `store-business.js v0.14.57`；前端超时只会按原请求编号查回
+既有工单，结果未确认时禁止生成新编号或再次扣次。
 
 ### 048 在当前控制台报 `unterminated dollar-quoted string`
 

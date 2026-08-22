@@ -18,8 +18,8 @@ const normal = read("verification-create.html");
 includes(business, 'const accountStoreId = session?.role === "store" ? String(session?.store || "") : ""', "store scope comes from the signed-in account");
 includes(business, 'if (session.role === "store")', "every business cloud call reasserts store scope");
 includes(business, "storeId = accountStoreId", "page state cannot replace the store account binding");
-includes(business, "nextRechargeRequestId({ storeId, ...payload })", "recharge idempotency remains store-bound");
-includes(business, "nextVerificationRequestId({ storeId, ...payload })", "verification idempotency remains store-bound");
+includes(business, 'beginBusinessSubmission("RECHARGE", { storeId, ...payload })', "recharge idempotency remains store-bound and persisted");
+includes(business, 'beginBusinessSubmission("VERIFICATION", {', "verification idempotency remains persisted");
 
 // A teacher account is represented by exactly the teacher profile returned for
 // the authenticated UID; the page does not load or expose the all-teacher list.
