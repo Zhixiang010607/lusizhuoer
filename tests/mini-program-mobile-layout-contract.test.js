@@ -28,14 +28,28 @@ test("mini-program login is concise and keeps both WeChat phone and password ent
   const wxss = read("miniprogram-app", "miniprogram", "pages", "login", "index.wxss");
 
   assert.equal(json.navigationStyle, "custom");
-  assert.match(wxml, />HQ<\/view>/);
+  assert.match(wxml, /id="login-brand-image"[^>]*src="\/images\/login\/brand-team\.jpg"[^>]*mode="widthFix"/);
+  assert.doesNotMatch(wxml, /login-system-mark|>露<\/view>/,
+    "the co-branded login image must not receive a second standalone 露 mark");
   assert.match(wxml, /open-type="getPhoneNumber"/);
   assert.match(wxml, /id="login-phone"/);
   assert.match(wxml, /id="login-password"/);
   assert.match(wxml, /passwordVisible\s*\?\s*'隐藏'\s*:\s*'显示'/);
   assert.doesNotMatch(wxml, /安全工作台|统一入口|登录说明|温馨提示/,
     "login page should not reintroduce explanatory filler");
-  assert.match(wxss, /linear-gradient\(135deg,\s*#2a68ff,\s*#06b28d\)/i);
+  assert.match(wxss, /\.login-hero\s*\{[^}]*width:\s*100%[^}]*border-radius:/s);
+});
+
+test("mini-program keeps the company brand visible after login", () => {
+  const json = JSON.parse(read("miniprogram-app", "miniprogram", "pages", "home", "index.json"));
+  const wxml = read("miniprogram-app", "miniprogram", "pages", "home", "index.wxml");
+  const context = read("PROJECT_CONTEXT.md");
+
+  assert.equal(json.navigationBarTitleText, "露思卓儿");
+  assert.match(wxml, /class="identity-brand">露思卓儿<\/text>/);
+  assert.match(wxml, /class="identity-name">\{\{roleName\}\}工作台/);
+  assert.match(context, /人物图只用于小程序登录页/);
+  assert.match(context, /登录后各角色工作台顶部必须明确显示文字品牌名“露思卓儿”/);
 });
 
 test("customer data views use deliberate horizontal tables on narrow screens", () => {

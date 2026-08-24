@@ -1,7 +1,8 @@
 <view class="login-page">
   <view class="login-shell">
     <view class="login-card">
-      <view class="login-heading"><view class="login-system-mark">HQ</view><text>登录</text></view>
+      <image id="login-brand-image" class="login-hero" src="/images/login/brand-team.jpg" mode="widthFix" />
+      <view class="login-heading"><text>登录</text></view>
       <button id="login-wechat-phone" class="wechat-login" open-type="getPhoneNumber" bindgetphonenumber="submitWechatPhone" loading="{{busy}}" disabled="{{busy}}">微信手机号快捷登录</button>
       <view class="login-divider"><view></view><text>或使用账号密码</text><view></view></view>
       <label class="field">

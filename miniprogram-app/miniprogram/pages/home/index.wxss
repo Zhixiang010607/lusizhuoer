@@ -1,9 +1,9 @@
 .profile-card { display: flex; align-items: center; gap: 20rpx; margin-bottom: 20rpx; padding: 28rpx; color: #fff; background: linear-gradient(125deg, #102947, #1d5a91); border-radius: 26rpx; box-shadow: 0 16rpx 38rpx rgba(16,41,71,.18); }
 .identity-icon { display: flex; width: 86rpx; height: 86rpx; flex: none; align-items: center; justify-content: center; background: rgba(255,255,255,.14); border: 1rpx solid rgba(255,255,255,.25); border-radius: 22rpx; font-size: 35rpx; font-weight: 900; }
 .identity-main { min-width: 0; flex: 1; }
-.identity-label, .identity-name, .identity-meta { display: block; }
-.identity-label { color: #bcd3e8; font-size: 21rpx; }
-.identity-name { margin-top: 5rpx; overflow: hidden; font-size: 34rpx; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
+.identity-brand, .identity-name, .identity-meta { display: block; }
+.identity-brand { overflow: hidden; font-size: 34rpx; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
+.identity-name { margin-top: 5rpx; overflow: hidden; color: #bcd3e8; font-size: 23rpx; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .identity-meta { margin-top: 5rpx; color: #d2dfec; font-size: 22rpx; }
 .logout { width: auto; min-height: 64rpx; margin: 0; padding: 0 18rpx; color: #fff; background: rgba(255,255,255,.1); border: 1rpx solid rgba(255,255,255,.24); border-radius: 14rpx; font-size: 22rpx; }
 .logout::after { border: 0; }
