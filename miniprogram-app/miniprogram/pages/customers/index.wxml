@@ -13,12 +13,21 @@
       <button class="{{status === 'ARCHIVED' ? 'active' : ''}}" data-status="ARCHIVED" bindtap="changeStatus">封存客户</button>
     </view>
     <view wx:if="{{loading}}" class="empty">正在读取客户…</view>
-    <view wx:elif="{{customers.length}}">
-      <view wx:for="{{customers}}" wx:key="customerCode" class="list-item" data-code="{{item.customerCode}}" bindtap="openCustomer">
-        <view class="list-main"><text class="name">{{item.customerName}}</text><text class="meta">{{item.storeName || '—'}} · {{item.birthDate || '生日未填写'}}</text><text class="meta">充值 {{item.rechargeCount || item.totalRechargeCount || 0}} 次 · 核销 {{item.verificationCount || item.totalVerificationCount || 0}} 次</text></view>
-        <text class="chevron">›</text>
+    <scroll-view wx:elif="{{customers.length}}" class="customer-table-scroll" scroll-x="true" enhanced="true" show-scrollbar="false">
+      <view class="customer-table">
+        <view class="customer-row customer-head">
+          <text>姓名</text><text>门店</text><text>生日</text><text>充值</text><text>核销</text><text>详情</text>
+        </view>
+        <view wx:for="{{customers}}" wx:key="customerCode" class="customer-row" data-code="{{item.customerCode}}" bindtap="openCustomer">
+          <text class="customer-name">{{item.customerName}}</text>
+          <text>{{item.storeName || '—'}}</text>
+          <text>{{item.birthDate || '未填写'}}</text>
+          <text>{{item.rechargeCount || item.totalRechargeCount || 0}} 次</text>
+          <text>{{item.verificationCount || item.totalVerificationCount || 0}} 次</text>
+          <text class="customer-link">查看</text>
+        </view>
       </view>
-    </view>
+    </scroll-view>
     <view wx:else class="empty">当前范围暂无{{status === 'ACTIVE' ? '活跃' : '封存'}}客户</view>
     <view class="pager">
       <button class="ghost" bindtap="previousPage" disabled="{{page <= 1 || loading}}">上一页</button>

@@ -40,6 +40,24 @@ const dashboard = functionSource(staffAccount, "getHqDashboard");
 
 assert.match(eventCte, /business_events\s+AS\s*\(/i,
   "dashboard must aggregate a common event stream before presentation joins");
+assert.match(eventCte, /WHEN submitter\.role_code = 'store'[\s\S]{0,100}r\.recharge_type IN \('NEW', 'REFUND'\) THEN r\.teacher_id/,
+  "store recharge and refund may retain their selected business teacher");
+assert.match(eventCte, /WHEN submitter\.role_code = 'store'[\s\S]{0,100}v\.verification_type = 'NORMAL' THEN v\.teacher_id/,
+  "store verification attribution must be limited to NORMAL");
+assert.match(eventCte, /WHEN submitter\.role_code = 'teacher'[\s\S]{0,140}submitting_teacher\.id = r\.teacher_id[\s\S]{0,100}r\.recharge_type IN \('NEW', 'REFUND'\) THEN r\.teacher_id/,
+  "teacher recharge and refund attribution must match the submitting teacher profile");
+assert.match(eventCte, /WHEN submitter\.role_code = 'teacher'[\s\S]{0,140}submitting_teacher\.id = v\.teacher_id[\s\S]{0,100}v\.verification_type IN \('NORMAL', 'EXPERIENCE'\) THEN v\.teacher_id/,
+  "teacher NORMAL and EXPERIENCE attribution must match the submitting teacher profile");
+assert.equal((eventCte.match(/ELSE NULL::bigint[\s\S]{0,40}END AS teacher_id/g) || []).length, 2,
+  "HQ, retired-role, missing-submittee, and mismatched historical facts must stay in totals without teacher attribution");
+assert.equal((eventCte.match(/submitter\.id = [rv]\.submitted_by_account_id/g) || []).length, 2,
+  "the source role must come from the immutable submitting account on each fact");
+assert.doesNotMatch(eventCte, /WHERE\s+submitter\.role_code/i,
+  "invalid teacher attribution must be nulled rather than deleting the event from store, product, or total metrics");
+assert.doesNotMatch(eventCte, /role_code = 'store'[\s\S]{0,100}v\.verification_type IN \('NORMAL', 'EXPERIENCE'\)/,
+  "historical store EXPERIENCE must remain in totals without teacher attribution");
+assert.doesNotMatch(eventCte, /role_code = 'teacher'[\s\S]{0,180}v\.verification_type IN \('NORMAL', 'SUPPLEMENT', 'EXPERIENCE'\)/,
+  "retired SUPPLEMENT events must remain in totals without teacher attribution");
 assert.match(eventCte, /r\.recharge_type\s+IN\s*\('NEW',\s*'REFUND'\)/i,
   "approved NEW and REFUND records must be represented independently");
 assert.match(eventCte, /CASE\s+WHEN\s+r\.recharge_type\s*=\s*'NEW'[\s\S]{0,160}recharge_count/i,

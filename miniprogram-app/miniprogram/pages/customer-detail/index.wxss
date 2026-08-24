@@ -12,13 +12,12 @@
 .balance-count { color: #145ca7; font-size: 31rpx; font-weight: 850; }
 .history-tabs { margin-bottom: 16rpx; }
 .history-tabs button { padding: 0 8rpx; }
-.record-row { display: flex; align-items: center; justify-content: space-between; gap: 18rpx; padding: 20rpx 0; border-top: 1rpx solid #e4ecf4; }
-.record-code, .record-meta { display: block; }
-.record-code { color: #1459aa; font-weight: 800; }
-.record-meta { margin-top: 6rpx; color: #687c91; font-size: 21rpx; }
-.record-right { flex: none; text-align: right; }
-.record-right text { display: block; }
-.record-right > text:first-child { font-weight: 800; }
-.record-right .record-status { margin-top: 5rpx; color: #657b91; font-size: 20rpx; }
+.record-scroll { width: 100%; overflow: hidden; border: 1rpx solid #e4e8ef; border-radius: 14rpx; }
+.record-table { width: 1300rpx; min-width: 1300rpx; background: #fff; }
+.record-row { min-height: 76rpx; display: grid; grid-template-columns: 310rpx 280rpx 260rpx 180rpx 270rpx; align-items: center; border-top: 1rpx solid #e4e8ef; }
+.record-row:first-child { border-top: 0; }
+.record-row text { min-width: 0; padding: 14rpx 16rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.record-head { min-height: 66rpx; color: #52647a; background: #f3f6f9; font-size: 22rpx; font-weight: 800; }
+.record-code { color: #1f5eff; font-weight: 800; }
 .photo-placeholder { display: flex; align-items: center; justify-content: center; padding: 10rpx; color: #587089; background: #edf3f9; font-size: 20rpx; line-height: 1.3; text-align: center; }
 .photo-actions { margin-top: 20rpx; }

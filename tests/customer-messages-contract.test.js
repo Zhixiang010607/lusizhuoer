@@ -27,7 +27,7 @@ for (const source of [migration, consoleMigration]) {
   assert.match(source, /REVOKE ALL ON TABLE public\.customer_messages FROM PUBLIC/);
 }
 
-assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v8" : "v89"/);
+assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v9" : "v90"/);
 assert.match(cloud, /async function listCustomerMessages\(event\)/);
 assert.match(cloud, /async function addCustomerMessage\(event\)/);
 assert.match(cloud, /const limit = Number\.isFinite\(requestedLimit\)[\s\S]*?: 20;/);
@@ -37,7 +37,7 @@ assert.match(cloud, /Array\.from\(content\)\.length/);
 assert.match(cloud, /WITH inserted_message AS \([\s\S]*INSERT INTO public\.customer_messages[\s\S]*SELECT[\s\S]*a\.id, a\.role_code,[\s\S]*BTRIM\(a\.staff_name\)[\s\S]*RETURNING[\s\S]*FROM inserted_message/, "CloudBase must receive message rows through a SELECT around the writable CTE");
 assert.doesNotMatch(cloud, /event\.(?:authorName|authorRole)/, "author identity must never be accepted from the browser");
 assert.match(cloud, /account\.role_code === "teacher"/);
-assert.match(cloud, /teacherBusinessOwnershipCondition\(caller, "teacher_verification"\)/);
+assert.match(cloud, /teacherBusinessAttributionCondition\(caller, "teacher_verification", "VERIFICATION"\)/);
 const teacherCustomerScope = cloud.slice(cloud.indexOf("function teacherCustomerAccessCondition"), cloud.indexOf("function customerStatusCode"));
 assert.match(teacherCustomerScope, /verification_type IN \('NORMAL', 'EXPERIENCE'\)/, "teacher profile access must include approved normal or experience verification");
 assert.match(teacherCustomerScope, /teacher_recharge[\s\S]*record_status = 'APPROVED'[\s\S]*recharge_type IN \('NEW', 'REFUND'\)/, "teacher profile access must include approved recharge or refund");

@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v8" : "v89";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v90";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -1277,6 +1277,10 @@ async function verificationPhotoContext(event, options = {}) {
   if (caller.role === "store") scope = `v.store_id = ${Number(caller.storeId)}::bigint`;
   else if (caller.role === "teacher") scope = `(
     ${teacherBusinessOwnershipCondition(caller, "v")}
+    OR (
+      v.record_status = 'APPROVED'
+      AND ${teacherBusinessAttributionCondition(caller, "v", "VERIFICATION")}
+    )
     OR EXISTS (
       SELECT 1
         FROM public.customers permitted_customer
@@ -1308,8 +1312,52 @@ async function verificationPhotoContext(event, options = {}) {
   return { caller, record, verificationId, canEdit };
 }
 
+function teacherBusinessAttributionSourceCondition(alias, recordFamily) {
+  const storeCategory = recordFamily === "RECHARGE"
+    ? `${alias}.recharge_type IN ('NEW', 'REFUND')`
+    : `${alias}.verification_type = 'NORMAL'`;
+  const teacherCategory = recordFamily === "RECHARGE"
+    ? `${alias}.recharge_type IN ('NEW', 'REFUND')`
+    : `${alias}.verification_type IN ('NORMAL', 'EXPERIENCE')`;
+  if (!["RECHARGE", "VERIFICATION"].includes(recordFamily)) {
+    throw new Error("Business teacher attribution requires a record family.");
+  }
+  return `EXISTS (
+    SELECT 1
+      FROM public.staff_accounts attribution_submitter
+ LEFT JOIN public.teachers attribution_submitter_teacher
+        ON attribution_submitter_teacher.staff_account_id = attribution_submitter.id
+     WHERE attribution_submitter.id = ${alias}.submitted_by_account_id
+       AND (
+         (
+           attribution_submitter.role_code = 'store'
+           AND ${storeCategory}
+         )
+         OR (
+           attribution_submitter.role_code = 'teacher'
+           AND attribution_submitter_teacher.id = ${alias}.teacher_id
+           AND ${teacherCategory}
+         )
+       )
+  )`;
+}
+
+function trustedBusinessTeacherIdSql(alias, recordFamily) {
+  return `CASE
+    WHEN ${teacherBusinessAttributionSourceCondition(alias, recordFamily)} THEN ${alias}.teacher_id
+    ELSE NULL::bigint
+  END`;
+}
+
 function teacherBusinessOwnershipCondition(caller, alias) {
   return `${alias}.submitted_by_account_id = ${sqlText(caller.staffId)}::bigint`;
+}
+
+function teacherBusinessAttributionCondition(caller, alias, recordFamily) {
+  return `(
+    ${alias}.teacher_id = ${sqlText(caller.teacherId)}::bigint
+    AND ${teacherBusinessAttributionSourceCondition(alias, recordFamily)}
+  )`;
 }
 
 function teacherCustomerAccessCondition(caller, alias = "c") {
@@ -1318,14 +1366,14 @@ function teacherCustomerAccessCondition(caller, alias = "c") {
     OR EXISTS (
       SELECT 1 FROM public.verification_records teacher_verification
        WHERE teacher_verification.customer_id = ${alias}.id
-         AND ${teacherBusinessOwnershipCondition(caller, "teacher_verification")}
+         AND ${teacherBusinessAttributionCondition(caller, "teacher_verification", "VERIFICATION")}
          AND teacher_verification.record_status = 'APPROVED'
          AND teacher_verification.verification_type IN ('NORMAL', 'EXPERIENCE')
     )
     OR EXISTS (
       SELECT 1 FROM public.recharge_records teacher_recharge
        WHERE teacher_recharge.customer_id = ${alias}.id
-         AND ${teacherBusinessOwnershipCondition(caller, "teacher_recharge")}
+         AND ${teacherBusinessAttributionCondition(caller, "teacher_recharge", "RECHARGE")}
          AND teacher_recharge.record_status = 'APPROVED'
          AND teacher_recharge.recharge_type IN ('NEW', 'REFUND')
     )
@@ -1673,7 +1721,7 @@ async function getCustomerProfile(event) {
           JOIN public.products p ON p.id = r.product_id
      LEFT JOIN public.teachers business_teacher
             ON business_teacher.id = r.teacher_id
-           AND business_teacher.staff_account_id = r.submitted_by_account_id
+           AND ${teacherBusinessAttributionSourceCondition("r", "RECHARGE")}
          WHERE r.customer_id = ${sqlText(customerId)}::bigint
            ${historyOptions.type === "RECHARGE" ? cursorSql("r") : ""}
          ORDER BY r.submitted_at DESC, r.id DESC
@@ -1689,7 +1737,7 @@ async function getCustomerProfile(event) {
           JOIN public.products p ON p.id = v.product_id
      LEFT JOIN public.teachers business_teacher
             ON business_teacher.id = v.teacher_id
-           AND business_teacher.staff_account_id = v.submitted_by_account_id
+           AND ${teacherBusinessAttributionSourceCondition("v", "VERIFICATION")}
          WHERE v.customer_id = ${sqlText(customerId)}::bigint
            AND v.verification_type ${experienceOnly ? "=" : "<>"} 'EXPERIENCE'
            ${historyOptions.type === (experienceOnly ? "EXPERIENCE" : "VERIFICATION") ? cursorSql("v") : ""}
@@ -2231,7 +2279,9 @@ async function queryStoreBusinessRecords(event = {}) {
        v.unit_count, v.record_status, v.void_request_status, v.submitted_at, v.reviewed_at,
        TO_CHAR(v.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_submitted_at,
        (NULLIF(BTRIM(v.face_request_id), '') IS NOT NULL) AS has_face_request`;
-  const teacherJoin = `LEFT JOIN public.teachers t ON t.id = ${alias}.teacher_id`;
+  const teacherJoin = `LEFT JOIN public.teachers t
+                         ON t.id = ${alias}.teacher_id
+                        AND ${teacherBusinessAttributionSourceCondition(alias, recordType)}`;
   const baseJoin = `JOIN public.customers c
                       ON c.id = ${alias}.customer_id
                      AND c.created_store_id = ${alias}.store_id
@@ -2660,7 +2710,8 @@ function storeAnalyticsEventCte(storeId, range) {
         FROM date_bounds
     ), business_events AS (
       SELECT CASE WHEN r.recharge_type = 'REFUND' THEN 'refund' ELSE 'recharge' END AS metric,
-             r.store_id, r.product_id, r.teacher_id, r.unit_count::bigint AS amount
+             r.store_id, r.product_id, ${trustedBusinessTeacherIdSql("r", "RECHARGE")} AS teacher_id,
+             r.unit_count::bigint AS amount
         FROM public.recharge_records r
         CROSS JOIN time_bounds bounds
        WHERE r.store_id = ${storeId}::bigint
@@ -2670,7 +2721,8 @@ function storeAnalyticsEventCte(storeId, range) {
          AND r.submitted_at < bounds.end_at
       UNION ALL
       SELECT CASE WHEN v.verification_type = 'EXPERIENCE' THEN 'experience' ELSE 'verification' END AS metric,
-             v.store_id, v.product_id, v.teacher_id, v.unit_count::bigint AS amount
+             v.store_id, v.product_id, ${trustedBusinessTeacherIdSql("v", "VERIFICATION")} AS teacher_id,
+             v.unit_count::bigint AS amount
         FROM public.verification_records v
         CROSS JOIN time_bounds bounds
        WHERE v.store_id = ${storeId}::bigint
@@ -2878,8 +2930,15 @@ async function getTeacherExperienceEntitlements(event = {}) {
             COALESCE((
               SELECT SUM(u.unit_count)::bigint
                 FROM public.teacher_experience_quota_usages u
+                JOIN public.verification_records usage_verification
+                  ON usage_verification.id = u.verification_id
                WHERE u.teacher_id = q.teacher_id
                  AND u.product_id = q.product_id
+                 AND usage_verification.teacher_id = u.teacher_id
+                 AND usage_verification.product_id = u.product_id
+                 AND usage_verification.record_status = 'APPROVED'
+                 AND usage_verification.verification_type = 'EXPERIENCE'
+                 AND ${teacherBusinessAttributionSourceCondition("usage_verification", "VERIFICATION")}
             ), 0)::bigint AS total_experience_count
        FROM public.teacher_product_experience_quotas q
        JOIN public.teachers t ON t.id = q.teacher_id
@@ -3221,11 +3280,6 @@ async function createVerificationApplication(event) {
   const customerCode = String(event.customerCode || "").trim();
   if (!customerCode || customerCode.length > 96) fail("必须先确认本门店的活跃客户。", "CUSTOMER_REQUIRED");
   const productId = positiveDatabaseId(event.productId, "项目");
-  const requestedTeacherId = String(event.teacherId || "").trim();
-  if (caller.role === "teacher" && requestedTeacherId && requestedTeacherId !== String(caller.teacherId)) {
-    fail("老师账号只能把核销绑定到本人。", "FORBIDDEN");
-  }
-  const teacherId = positiveDatabaseId(caller.role === "teacher" ? caller.teacherId : requestedTeacherId, "老师");
   const verificationType = String(event.verificationType || "").trim().toUpperCase();
   if (!["NORMAL", "EXPERIENCE"].includes(verificationType)) {
     fail("仅支持正常核销或体验核销。", "INVALID_VERIFICATION_TYPE");
@@ -3234,6 +3288,11 @@ async function createVerificationApplication(event) {
   if (experienceVerification && caller.role !== "teacher") {
     fail("体验核销只能由老师账号赠送，门店和总部账号不能发起。", "FORBIDDEN");
   }
+  const requestedTeacherId = String(event.teacherId || "").trim();
+  if (caller.role === "teacher" && requestedTeacherId && requestedTeacherId !== String(caller.teacherId)) {
+    fail("老师账号只能把核销绑定到本人。", "FORBIDDEN");
+  }
+  const teacherId = positiveDatabaseId(caller.role === "teacher" ? caller.teacherId : requestedTeacherId, "老师");
   const message = String(event.message || "").trim();
   if (message.length > 500) fail("门店留言不能超过 500 个字符。", "MESSAGE_TOO_LONG");
   const faceRequestId = String(event.faceRequestId || "").trim();
@@ -3411,7 +3470,7 @@ async function recoverBusinessSubmission(event) {
 
   if (recordType === "RECHARGE") {
     const rows = await executeSql(
-      `SELECT r.id, r.recharge_code, r.recharge_type, r.store_id, r.teacher_id,
+      `SELECT r.id, r.recharge_code, r.recharge_type, r.store_id, t.id AS teacher_id,
               r.customer_id, r.product_id, r.unit_count, r.record_status,
               r.submitted_by_account_id, r.submitted_at, r.balance_before_count,
               r.balance_after_count, c.customer_code, c.customer_name,
@@ -3420,7 +3479,9 @@ async function recoverBusinessSubmission(event) {
          FROM public.recharge_records r
          JOIN public.customers c ON c.id = r.customer_id
          JOIN public.products p ON p.id = r.product_id
-         LEFT JOIN public.teachers t ON t.id = r.teacher_id
+         LEFT JOIN public.teachers t
+           ON t.id = r.teacher_id
+          AND ${teacherBusinessAttributionSourceCondition("r", "RECHARGE")}
         WHERE r.idempotency_key = ${sqlText(idempotencyKey)}
         LIMIT 1`
     );
@@ -3456,7 +3517,7 @@ async function recoverBusinessSubmission(event) {
 
   const rows = await executeSql(
     `SELECT v.id, v.verification_code, v.verification_type, v.store_id,
-            v.teacher_id, v.customer_id, v.product_id, v.unit_count,
+            t.id AS teacher_id, v.customer_id, v.product_id, v.unit_count,
             v.record_status, v.submitted_by_account_id, v.submitted_at,
             c.customer_code, c.customer_name, p.product_code, p.product_name,
             t.teacher_code, t.teacher_name,
@@ -3467,7 +3528,9 @@ async function recoverBusinessSubmission(event) {
        FROM public.verification_records v
        JOIN public.customers c ON c.id = v.customer_id
        JOIN public.products p ON p.id = v.product_id
-       JOIN public.teachers t ON t.id = v.teacher_id
+       LEFT JOIN public.teachers t
+         ON t.id = v.teacher_id
+        AND ${teacherBusinessAttributionSourceCondition("v", "VERIFICATION")}
        LEFT JOIN LATERAL (
          SELECT d.id, d.signal_type, d.signal_status, d.created_at
            FROM public.device_signal_outbox d
@@ -3502,7 +3565,9 @@ async function recoverBusinessSubmission(event) {
     unitCount: Number(record.unit_count || 1),
     customer: { customerCode: record.customer_code, customerName: record.customer_name },
     product: { productId: String(record.product_id), productCode: record.product_code, productName: record.product_name },
-    teacher: { teacherId: String(record.teacher_id), teacherCode: record.teacher_code, teacherName: record.teacher_name },
+    teacher: record.teacher_id ? {
+      teacherId: String(record.teacher_id), teacherCode: record.teacher_code, teacherName: record.teacher_name
+    } : null,
     experienceQuota: experience && record.quota_usage_id ? {
       availableBeforeCount: Number(record.available_before_count || 0),
       availableAfterCount: Number(record.available_after_count || 0)
@@ -3723,7 +3788,7 @@ async function getTeacherBusinessCustomers(event = {}) {
            v.unit_count::bigint AS unit_count,
            COALESCE(v.reviewed_at, v.submitted_at) AS effective_at
       FROM public.verification_records v
-     WHERE ${teacherBusinessOwnershipCondition(caller, "v")}
+     WHERE ${teacherBusinessAttributionCondition(caller, "v", "VERIFICATION")}
        AND v.record_status = 'APPROVED'
        AND v.verification_type IN ('NORMAL', 'EXPERIENCE')
     UNION ALL
@@ -3732,7 +3797,7 @@ async function getTeacherBusinessCustomers(event = {}) {
            r.unit_count::bigint AS unit_count,
            COALESCE(r.reviewed_at, r.submitted_at) AS effective_at
       FROM public.recharge_records r
-     WHERE ${teacherBusinessOwnershipCondition(caller, "r")}
+     WHERE ${teacherBusinessAttributionCondition(caller, "r", "RECHARGE")}
        AND r.record_status = 'APPROVED'
        AND r.recharge_type IN ('NEW', 'REFUND')
   ), teacher_customer_store AS (
@@ -3820,6 +3885,10 @@ async function getTeacherWorkspace(event = {}) {
       clauses.push(`${alias}.id = ${options.recordId}::bigint`);
       clauses.push(`(
         ${teacherBusinessOwnershipCondition(caller, alias)}
+        OR (
+          ${alias}.record_status = 'APPROVED'
+          AND ${teacherBusinessAttributionCondition(caller, alias, baseRecordType)}
+        )
         OR EXISTS (
           SELECT 1
             FROM public.customers permitted_customer
@@ -3827,8 +3896,16 @@ async function getTeacherWorkspace(event = {}) {
              AND ${teacherCustomerAccessCondition(caller, "permitted_customer")}
         )
       )`);
+    } else if (legacyCombined) {
+      clauses.push(`(
+        ${teacherBusinessOwnershipCondition(caller, alias)}
+        OR (
+          ${alias}.record_status = 'APPROVED'
+          AND ${teacherBusinessAttributionCondition(caller, alias, baseRecordType)}
+        )
+      )`);
     } else {
-      clauses.push(teacherBusinessOwnershipCondition(caller, alias));
+      clauses.push(teacherBusinessAttributionCondition(caller, alias, baseRecordType));
     }
     if (!detailMode && !legacyCombined) {
       clauses.push(`${alias}.record_status = 'APPROVED'`, config.categoryClause);
@@ -3866,7 +3943,7 @@ async function getTeacherWorkspace(event = {}) {
          JOIN public.products p ON p.id = ${alias}.product_id
     LEFT JOIN public.teachers business_teacher
            ON business_teacher.id = ${alias}.teacher_id
-          AND business_teacher.staff_account_id = ${alias}.submitted_by_account_id
+          AND ${teacherBusinessAttributionSourceCondition(alias, baseRecordType)}
         WHERE ${clauses.join(" AND ")}
         ORDER BY ${alias}.submitted_at DESC, ${alias}.id DESC
         LIMIT ${listLimit}
@@ -3896,7 +3973,7 @@ async function getTeacherWorkspace(event = {}) {
       SELECT CASE WHEN r.recharge_type = 'REFUND' THEN 'refund' ELSE 'recharge' END AS metric,
              r.product_id, r.unit_count::bigint AS amount
         FROM public.recharge_records r
-       WHERE ${teacherBusinessOwnershipCondition(caller, "r")}
+       WHERE ${teacherBusinessAttributionCondition(caller, "r", "RECHARGE")}
          AND r.record_status = 'APPROVED'
          AND r.recharge_type IN ('NEW', 'REFUND')
          ${rechargeDateClauses.length ? `AND ${rechargeDateClauses.join(" AND ")}` : ""}
@@ -3904,7 +3981,7 @@ async function getTeacherWorkspace(event = {}) {
       SELECT CASE WHEN v.verification_type = 'EXPERIENCE' THEN 'experience' ELSE 'verification' END AS metric,
              v.product_id, v.unit_count::bigint AS amount
         FROM public.verification_records v
-       WHERE ${teacherBusinessOwnershipCondition(caller, "v")}
+       WHERE ${teacherBusinessAttributionCondition(caller, "v", "VERIFICATION")}
          AND v.record_status = 'APPROVED'
          AND v.verification_type IN ('NORMAL', 'EXPERIENCE')
          ${verificationDateClauses.length ? `AND ${verificationDateClauses.join(" AND ")}` : ""}

@@ -12,7 +12,7 @@
 
 BLE 开机尚未实现。当前核销成功后仍写入现有 `device_signal_outbox` 虚拟设备信号；下一阶段在服务端核销已确认后，再由小程序使用蓝牙 API 发送对应指令。
 
-> 交付边界：当前仓库代码与文档按 `staffAccount v68`、`faceRecognition v89`、`verificationPhoto v8`、`teacherCreate v6` 编排，但本轮代码尚未部署，CloudBase `WX_MICRO_APP` 身份源尚未配置，微信手机号能力与计费也尚未开通验收。完成上传、配置、`health` 版本核对和真机回归前，线上仍不能视为已支持微信手机号快捷登录。
+> 交付边界：当前仓库代码与文档按 `staffAccount v69`、`faceRecognition v90`、`verificationPhoto v9`、`teacherCreate v6` 编排，但本轮代码尚未部署，CloudBase `WX_MICRO_APP` 身份源尚未配置，微信手机号能力与计费也尚未开通验收。完成上传、配置、`health` 版本核对和真机回归前，线上仍不能视为已支持微信手机号快捷登录。
 
 ## 登录最终规则
 
@@ -39,7 +39,8 @@ BLE 开机尚未实现。当前核销成功后仍写入现有 `device_signal_out
 - Node.js 最低版本：`20.19.0`；当前已验证版本为 Node.js `24.19.0` LTS。
 - 包管理器：pnpm `9.15.9`，版本已写入 `miniprogram/package.json`。仓库只维护 `pnpm-lock.yaml`，不要另行生成 `package-lock.json`。
 - 微信开发者工具已验证版本：macOS Apple Silicon `2.02.2608040`。
-- 仓库目标服务端版本：`staffAccount v68`、`faceRecognition v89`、`verificationPhoto v8`、`teacherCreate v6`。
+- 仓库目标服务端版本：`staffAccount v69`、`faceRecognition v90`、`verificationPhoto v9`、`teacherCreate v6`。
+- 小程序在已实现页面中与网页版手机布局对齐：同一色板、紧凑卡片、两列快捷入口和容器内横向表格；但 WXML/WXSS 仍与网页 HTML/CSS 物理隔离。
 
 ## 首次安装、导入与运行
 

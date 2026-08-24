@@ -36,18 +36,16 @@ An archived account cannot sign in. Archiving does not delete historical records
 | Entity | Main table | Required relationships |
 | --- | --- | --- |
 | Headquarters person | `hq_profiles` | One login account |
-| Teacher | `teachers` | One login account; identity-card hash and encrypted value are HQ-only |
+| Teacher | `teachers` | One login account; current creation requires only name, unique phone and initial password |
 | Store | `stores` | Province, city, district, address; multiple `store_contacts`; one active store login binding |
 | Product | `products` | Product status and product details |
 | Customer | `customers` | Created store, face-library person ID and consent time; no customer phone is stored |
 
-Teacher face enrollment remains independent from account activation after
-migration 048: an existing active teacher without a face is not automatically
-archived, and an authorized face replacement never changes account status.
-Current new-teacher creation nevertheless requires one consented face and does
-not report success until that face, the private original, database references,
-teacher master, staff account, and Auth account are all read back. Customer 1:1
-verification remains required for ordinary verification orders.
+Teacher creation, activation and login do not collect or require a teacher
+photo or face-library person. Current creation succeeds only after the Auth
+account, `staff_accounts` row and `teachers` row are all read back as active.
+Customer 1:1 face verification remains required for normal verification and
+teacher-only experience verification orders.
 
 Teacher experience allowances use `teacher_product_experience_quotas` plus
 immutable configuration, recharge, reset and usage ledgers. A live quota is
@@ -65,11 +63,12 @@ login, review, customer, photo, query, management or business-operation scope.
 
 One recharge creates one row in `recharge_records`. No extra recharge or void document is created.
 
-Every recharge row must bind all four business entities:
+Every recharge or refund row binds store, customer and product. `teacher_id`
+is optional for a store submitter and required for a teacher submitter:
 
 ```text
 store_id
-teacher_id
+teacher_id  -- nullable only for store recharge/refund
 customer_id
 product_id
 ```
@@ -82,12 +81,11 @@ Recharge status has exactly three values:
 | `APPROVED` | 通过 | Approved recharge, usable balance |
 | `REJECTED` | 作废 | Rejected during review or voided later |
 
-Allowed changes are:
+Current applications allow these status changes:
 
 ```text
 PENDING  -> APPROVED
 PENDING  -> REJECTED
-APPROVED -> REJECTED
 ```
 
 Each change is recorded in `record_status_history` on the same recharge ID.
@@ -119,7 +117,7 @@ Verification also has one independent tag:
 | Value | UI label |
 | --- | --- |
 | `NORMAL` | 正常 |
-| `SUPPLEMENT` | 补录 |
+| `SUPPLEMENT` | 历史补录（新建入口已退役） |
 | `EXPERIENCE` | 体验 |
 
 And one independent technical face result:
@@ -169,7 +167,20 @@ The database views provide global summaries without replacing detail records:
 | --- | --- |
 | Headquarters | All master data, all records, all global views |
 | Store | Its own store, customers, recharge records, verification records |
-| Teacher | Only its own recharge and verification records; no other teacher or store global view |
+| Teacher | Customers and effective records attributed by validated `teacher_id`, plus full read-only history for a related customer; no unrelated teacher or store global view |
+
+Business statistics, teacher-customer relationships and historical teacher
+display use the validated work-order `teacher_id`, with attribution provenance
+and category limited to store-submitted NEW/REFUND/NORMAL or teacher-self
+NEW/REFUND/NORMAL/EXPERIENCE. Historical headquarters, retired-operation,
+mismatched-teacher, store-EXPERIENCE and SUPPLEMENT submissions remain in
+business totals and audit history but expose no teacher dimension. The immutable
+`submitted_by_account_id` remains the sole authority for recovery, edits,
+supplemental-photo writes and other mutations, so selecting a teacher never
+transfers the submitter's write rights. Store recharge/refund may omit a
+teacher; store normal verification requires one active teacher; stores cannot
+create EXPERIENCE records. Teacher-originated business is bound to the current
+teacher, and EXPERIENCE is teacher-only.
 
 The access restriction is implemented in PostgreSQL RLS and must also be checked
 by cloud functions. Review actions are headquarters-only. `staffAccount`
@@ -184,7 +195,7 @@ corrections use a separate recharge order.
 
 For a database already upgraded through migration 029, execute the current
 additive files separately through migration 046, complete the controlled 047
-retirement cutover, then execute the remaining migrations through 053:
+retirement cutover, then execute the remaining migrations through 059:
 
 ```text
 030_store_customer_query_indexes.sql
@@ -211,6 +222,12 @@ retirement cutover, then execute the remaining migrations through 053:
 051_teacher_face_operation_lease.sql                  (historical; retired by 053)
 052_teacher_auth_create_receipt.sql                   (historical; retired by 053)
 053_retire_legacy_teacher_face_saga.sql
+054_teacher_only_customer_face_experience.sql
+055_remove_teacher_face_order_guards.sql
+056_experience_quota_column_ambiguity.sql
+057_teacher_created_customer_access.sql
+058_order_integrity_and_submission_recovery.sql
+059_business_teacher_attribution.sql
 ```
 
 After 046 has committed, deploy `faceRecognition v69` and `staffAccount v50`
@@ -224,12 +241,14 @@ result that blocks the old CloudBase credentials. Only then execute
 `048_optional_teacher_face_and_experience_quota_lifecycle.sql` (or the seven
 ordered `048-01` through `048-07` CloudBase console parts). Next execute the
 ordered `049-01` through `049-13` parts and `049-readonly-verify.sql`, then 050.
-For a database that already ran historical 051/052, deploy `staffAccount v68`,
-`faceRecognition v89`, and `teacherCreate v6` before executing 053. Run the 053
+For a database that already ran historical 051/052, deploy `staffAccount v69`,
+`faceRecognition v90`, and `teacherCreate v6` before executing 053. Run the 053
 read-only verification and require all seven rows to be `RETIRED`, remove the
-old teacher-face reconciliation Timer, then deploy `verificationPhoto v8` and
-the current static frontend. A fresh database still follows numeric order; 053
-immediately removes the historical 051/052 orchestration objects.
+old teacher-face reconciliation Timer, then execute and verify 054 through 059.
+Deploy the final `faceRecognition v90`, `verificationPhoto v9`,
+`staffAccount v69` and `teacherCreate v6` matrix only after those migrations
+are ready. A fresh database still follows numeric order; 053 immediately
+removes the historical 051/052 orchestration objects.
 
 Migration 032 deliberately stops and rolls back when migration 026 is missing.
 In that case, do not deploy the new cloud functions yet; first complete the
@@ -257,6 +276,12 @@ Migration 055 replaces the two remaining legacy order-boundary functions so an
 active teacher and active teacher account can receive recharge, refund, normal
 verification, and experience orders without teacher face enrollment. Customer
 retained-photo and live 1:1 customer-face requirements remain unchanged.
+Migration 056 removes the experience-quota column ambiguity; migration 057
+records the real account that created each new customer; migration 058 restores
+the current order state machine and immutable business fields. Migration 059
+enforces the final actor/teacher matrix at INSERT time: store recharge/refund
+teacher optional, store normal verification teacher required, store EXPERIENCE
+denied, and every teacher submission bound to that teacher.
 Migration 050 repairs legacy teacher master rows and quota write ambiguity.
 Migrations 051/052 describe a retired orchestration design and are retained
 only as immutable migration history. Migration 053 deletes only that design's

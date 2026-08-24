@@ -141,7 +141,8 @@ assert.equal(Object.keys(browserStorage).length, 0, "the loaded detail page must
 // verification it is complete only after the device outbox row (and, for
 // experience, quota usage audit row) exists.
 const recoverySource = functionSource(cloud, "recoverBusinessSubmission");
-includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v8" : "v89"', "cloud function version");
+const attributionSource = functionSource(cloud, "teacherBusinessAttributionSourceCondition");
+includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v90"', "cloud function version");
 includes(cloud, 'if (action === "recoverBusinessSubmission")', "recovery dispatcher");
 includes(recoverySource, "r.idempotency_key", "recharge lookup by idempotency key");
 includes(recoverySource, "v.idempotency_key", "verification lookup by idempotency key");
@@ -161,7 +162,7 @@ const harness = {
   fail
 };
 vm.createContext(harness);
-vm.runInContext(`${recoverySource}\nmodule.exports = recoverBusinessSubmission;`, harness);
+vm.runInContext(`${attributionSource}\n${recoverySource}\nmodule.exports = recoverBusinessSubmission;`, harness);
 const recoverBusinessSubmission = harness.module.exports;
 
 (async () => {

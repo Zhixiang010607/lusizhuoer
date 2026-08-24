@@ -38,10 +38,18 @@
         <button class="{{historyType === 'VERIFICATION' ? 'active' : ''}}" data-type="VERIFICATION" bindtap="changeHistory">核销</button>
         <button class="{{historyType === 'EXPERIENCE' ? 'active' : ''}}" data-type="EXPERIENCE" bindtap="changeHistory">体验</button>
       </view>
-      <view wx:for="{{visibleHistory}}" wx:key="id" class="record-row">
-        <view><text class="record-code">{{item.rechargeCode || item.verificationCode}}</text><text class="record-meta">{{item.productName}} · {{item.teacherName || '无业务老师'}}</text></view>
-        <view class="record-right"><text>{{item.unitCount}} 次</text><text class="record-status">{{item.recordStatus}}</text></view>
-      </view>
+      <scroll-view wx:if="{{visibleHistory.length}}" class="record-scroll" scroll-x="true" enhanced="true" show-scrollbar="false">
+        <view class="record-table">
+          <view class="record-row record-head"><text>单号</text><text>项目</text><text>业务老师</text><text>次数</text><text>状态</text></view>
+          <view wx:for="{{visibleHistory}}" wx:key="id" class="record-row">
+            <text class="record-code">{{item.rechargeCode || item.verificationCode}}</text>
+            <text>{{item.productName}}</text>
+            <text>{{item.teacherName || '未指定'}}</text>
+            <text>{{item.unitCount}} 次</text>
+            <text>{{item.recordStatus}}</text>
+          </view>
+        </view>
+      </scroll-view>
       <view wx:if="{{!visibleHistory.length}}" class="empty">暂无相关记录</view>
     </view>
   </block>

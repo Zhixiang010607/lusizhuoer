@@ -52,12 +52,14 @@ function businessSession(staff, authenticatedUid, loginAt = new Date().toISOStri
     staffId: String(profile.staffId || ""),
     staffCode: String(profile.staffCode || ""),
     staffName: String(profile.staffName || ""),
+    teacherId: String(profile.teacherId || ""),
     storeId: String(profile.storeId || ""),
     storeCode: String(profile.storeCode || ""),
     storeName: String(profile.storeName || ""),
     loginAt
   };
   if (session.role === "store" && !session.storeId) throw new Error("门店账号未绑定有效门店");
+  if (session.role === "teacher" && !session.teacherId) throw new Error("老师账号未绑定有效老师身份");
   return writeSession(session);
 }
 
@@ -129,6 +131,9 @@ async function restoreAndValidateSession() {
     }
     if (stored.role === "store" && String(profile.storeId || "") !== stored.storeId) {
       throw new Error("门店绑定已经变化，请重新登录");
+    }
+    if (stored.role === "teacher" && String(profile.teacherId || "") !== stored.teacherId) {
+      throw new Error("老师绑定已经变化，请重新登录");
     }
     return businessSession(staff, stored.uid, stored.loginAt || new Date().toISOString());
   } catch (error) {

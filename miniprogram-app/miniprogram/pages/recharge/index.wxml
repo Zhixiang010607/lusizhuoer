@@ -27,7 +27,7 @@
       </label>
       <view wx:if="{{refund && selectedProduct}}" class="impact">已购未退 {{selectedProduct.purchasedCount}} 次，当前剩余 {{selectedProduct.remainingCount}} 次；本次最多可退 {{selectedProduct.purchasedCount}} 次。</view>
       <label class="field">
-        <text class="field-label">业务老师</text>
+        <text class="field-label">业务老师{{session.role === 'teacher' ? '（自动绑定）' : '（可选）'}}</text>
         <picker range="{{teacherLabels}}" value="{{teacherIndex}}" bindchange="selectTeacher" disabled="{{session.role === 'teacher' || loadingOptions}}">
           <view class="picker">{{selectedTeacher ? selectedTeacher.teacherName + ' · ' + selectedTeacher.teacherCode : '不指定业务老师'}}</view>
         </picker>

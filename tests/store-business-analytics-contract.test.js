@@ -166,6 +166,8 @@ includes(cloud, "WHERE t.teacher_status = 'ACTIVE'", "active teachers included w
 includes(cloud, "AND account.account_status = 'ACTIVE'", "active teacher accounts required for zero inclusion");
 includes(cloud, "SELECT event.teacher_id", "historical teachers with period events included");
 const analyticsEventSource = cloud.slice(cloud.indexOf("function storeAnalyticsEventCte"), cloud.indexOf("function storeAnalyticsCounts"));
+assert.equal((analyticsEventSource.match(/trustedBusinessTeacherIdSql\("r", "RECHARGE"\)|trustedBusinessTeacherIdSql\("v", "VERIFICATION"\)/g) || []).length, 2,
+  "teacher dimensions retain only store-selected or same-teacher attributed events");
 assert.doesNotMatch(analyticsEventSource.slice(analyticsEventSource.indexOf("business_events AS")), /product_status|teacher_status|store_status/, "period event membership is independent of entity status");
 
 assert.doesNotMatch(html, /exportStoreAnalyticsPdf|store-dashboard-export\.js|order-export\.js/, "store overview does not offer or load PDF export");

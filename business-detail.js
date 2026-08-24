@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.22";
+  const VERSION = "0.16.23";
   const PRODUCT_LOGO_DETAIL_RETRY_DELAYS_MS = Object.freeze([0, 360, 1080]);
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
@@ -1671,7 +1671,7 @@
       currentVerificationPhotoPayload = { photos: [], error };
       $("verificationPhotoHint").textContent = "核销照片读取失败";
       $("verificationPhotoMessage").className = "verification-photo-message error";
-      $("verificationPhotoMessage").textContent = error?.message || "请核对迁移 037—039、私有存储桶和 verificationPhoto v1 云函数";
+      $("verificationPhotoMessage").textContent = error?.message || "请核对迁移 037—059、私有存储桶和 verificationPhoto v9 云函数";
       $("verificationPhotoGrid").innerHTML = "";
       return null;
     }
@@ -2343,7 +2343,7 @@
         }
         if (directVerificationPhotoUploadUnavailable(error)) {
           task.beginDispatched = false;
-          throw verificationPhotoUploadError("新版照片上传服务尚未部署，请先执行迁移 039、部署 verificationPhoto v1，并将 faceRecognition 更新到 v53。", "PHOTO_UPLOAD_DIRECT_UNAVAILABLE");
+          throw verificationPhotoUploadError("新版照片上传服务尚未部署，请先执行迁移 039—059、部署 verificationPhoto v9，并将 faceRecognition 更新到 v90。", "PHOTO_UPLOAD_DIRECT_UNAVAILABLE");
         }
         throw error;
       } finally {

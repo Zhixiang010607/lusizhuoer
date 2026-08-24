@@ -30,10 +30,20 @@ assert.match(teacherReadme, new RegExp(`^# teacherCreate ${teacherVersion}$`, "m
 
 const photoPackage = JSON.parse(read("cloudfunctions/verificationPhoto/package.json"));
 const photoReadme = read("cloudfunctions/verificationPhoto/README.md");
+const photoReadReliability = read("cloudfunctions/verificationPhoto/read-reliability.js");
 const photoVersion = `v${String(photoPackage.version).split(".")[0]}`;
 assert.equal(photoVersion, faceVersions[1],
   "verificationPhoto package major must match the shared photo-only runtime version");
 assert.match(photoReadme, new RegExp(`当前版本：\`${photoVersion}\``),
   "verificationPhoto README must match its runtime version");
+const photoAdapterVersion = /action === "health"[\s\S]*?version: "(v\d+)"/.exec(photoReadReliability)?.[1];
+assert.equal(photoAdapterVersion, photoVersion,
+  "verificationPhoto public health adapter must match its package major");
+assert.match(faceReadme, new RegExp(`staffAccount ${staffVersion}`),
+  "faceRecognition deployment matrix must name the current staffAccount runtime");
+assert.match(photoReadme, new RegExp(`staffAccount(?:-| )${staffVersion}`),
+  "verificationPhoto deployment matrix must name the current staffAccount runtime and ZIP");
+assert.match(staffReadme, new RegExp(`faceRecognition ${faceVersions[2]}`),
+  "staffAccount deployment matrix must name the current faceRecognition runtime");
 
 console.log("cloud function README version contract: PASS");

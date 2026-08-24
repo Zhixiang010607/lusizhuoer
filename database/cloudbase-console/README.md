@@ -90,7 +90,7 @@ ROLLBACK;
 
 ## 053 删除旧老师人脸 Saga
 
-先部署 `staffAccount v68`、`faceRecognition v89` 和 `teacherCreate v6`，再按
+先部署 `staffAccount v69`、`faceRecognition v90` 和 `teacherCreate v6`，再按
 [`053-README.md`](053-README.md) 执行 `053-01-retire-legacy-teacher-face-saga.sql`，最后运行
 `053-readonly-verify.sql`，7 行必须全部为 `RETIRED`。
 
@@ -98,7 +98,7 @@ ROLLBACK;
 
 完成 053 后，按 [`054-README.md`](054-README.md) 完整执行
 `054-01-teacher-only-customer-face-experience.sql`，然后部署
-`faceRecognition v89`、`staffAccount v68`、`teacherCreate v6` 和当前静态前端。
+`faceRecognition v90`、`staffAccount v69`、`teacherCreate v6` 和当前静态前端。
 054 会在数据库层把体验创建限定为额度所属的当前老师账号，并把新体验凭证切换为
 客户登记照与客户现场照；历史照片不改写。
 
@@ -114,9 +114,23 @@ ROLLBACK;
 完成 055 后依次执行 056 与 057，并确认各自末尾只读检查全部为 `READY`。最后按
 [`058-README.md`](058-README.md) 分别执行 058 的两个函数、触发器事务和只读验收；
 最后两行必须全部为 `READY`。058 恢复当前充值／退费与正常／体验核销的数据库状态机，
-锁定提交人、门店、客户、产品、次数和防重复编号等审计字段。完成后再部署
-`faceRecognition v89` 与 `store-business.js v0.14.57`；前端超时只会按原请求编号查回
-既有工单，结果未确认时禁止生成新编号或再次扣次。
+锁定提交人、门店、客户、产品、次数和防重复编号等审计字段。前端超时只会按原请求编号查回既有工单，结果未确认时禁止生成新编号或再次扣次。
+
+## 059 业务老师矩阵与归属
+
+完成 058 后按 [`059-README.md`](059-README.md) 严格执行以下九步：
+
+1. 整文件执行只读 `059-preflight-store-binding-layout.sql`；
+2. 整文件执行只读 `059-preflight-business-teacher-attribution.sql`；
+3. 确认门店绑定布局为 `READY_CURRENT` 或 `READY_LEGACY`，并复核所有非 `READY`／`EMPTY` 的历史计数；
+4. 确认历史门店单据中的 `teacher_id` 确实代表当时选择的业务老师；
+5. 整文件执行 `059-00-store-binding-prerequisites.sql`；
+6. 整文件执行 `059-01-business-teacher-function.sql`；
+7. 整文件执行 `059-02-business-teacher-triggers.sql`；
+8. 整文件执行只读 `059-readonly-verify-store-binding.sql`；
+9. 整文件执行只读 `059-readonly-verify.sql`。
+
+最后两段验证的每一行都必须为 `READY`。059 固化门店充值／退费老师可选、门店正常核销老师必选、门店体验核销拒绝、老师账号自动绑定本人的写入边界。验收通过后再部署 `faceRecognition v90`、`verificationPhoto v9` 与当前 Web／小程序。
 
 ### 048 在当前控制台报 `unterminated dollar-quoted string`
 

@@ -75,7 +75,7 @@ assert.ok(twoPagePdf.includes("xref\n0 9"), "multi-page PDF xref count");
 for (const html of [rechargeHtml, verificationHtml]) {
   includes(html, 'id="exportOrderPdf"', "PDF export button");
   includes(html, 'id="exportOrderImage"', "image export button");
-  assert.ok(html.indexOf("order-export.js?v=0.1.6") < html.indexOf("business-detail.js?v=0.16.22"), "exporter must load before detail controller");
+  assert.ok(html.indexOf("order-export.js?v=0.1.6") < html.indexOf("business-detail.js?v=0.16.23"), "exporter must load before detail controller");
 }
 
 includes(verificationHtml, 'class="verification-order-keyfacts verification-order-five-keyfacts"', "verification detail uses a five-fact header");

@@ -40,11 +40,12 @@ Page({
   },
   async loadTeachers() {
     try {
-      const result = await callFace("listActiveTeachers");
+      const result = await callFace("listActiveTeachers", { storeId: this.data.store.id });
       const values = (result.teachers || []).map(teacher).filter((item) => item.teacherId);
       if (this.data.session.role === "teacher") {
-        const mine = values[0] || null;
-        this.setData({ teachers: values, teacherLabels: values.map((item) => `${item.teacherName} · ${item.teacherCode}`), selectedTeacher: mine, teacherIndex: 0 });
+        const mineIndex = values.findIndex((item) => item.teacherId === String(this.data.session.teacherId || ""));
+        const mine = mineIndex >= 0 ? values[mineIndex] : null;
+        this.setData({ teachers: values, teacherLabels: values.map((item) => `${item.teacherName} · ${item.teacherCode}`), selectedTeacher: mine, teacherIndex: Math.max(0, mineIndex) });
       } else {
         const options = [{ teacherId: "", teacherCode: "", teacherName: "不指定业务老师" }, ...values];
         this.setData({ teachers: options, teacherLabels: options.map((item) => item.teacherId ? `${item.teacherName} · ${item.teacherCode}` : item.teacherName), selectedTeacher: options[0], teacherIndex: 0 });
@@ -56,8 +57,8 @@ Page({
     this.setData({ loadingOptions: true, selectedProduct: null, productIndex: -1 });
     try {
       const result = this.data.refund
-        ? await callFace("getCustomerProductBalances", { customerCode: this.data.customer.customerCode })
-        : await callFace("listActiveProducts");
+        ? await callFace("getCustomerProductBalances", { storeId: this.data.store.id, customerCode: this.data.customer.customerCode })
+        : await callFace("listActiveProducts", { storeId: this.data.store.id });
       const values = (this.data.refund ? (result.balances || []) : (result.products || [])).map(product)
         .filter((item) => item.productId && (!this.data.refund || item.purchasedCount > 0));
       this.setData({

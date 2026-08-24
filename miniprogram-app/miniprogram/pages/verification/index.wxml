@@ -26,7 +26,7 @@
         </picker>
       </label>
       <label class="field">
-        <text class="field-label">业务老师</text>
+        <text class="field-label">业务老师{{session.role === 'teacher' ? '（自动绑定）' : '（必选）'}}</text>
         <picker range="{{teacherLabels}}" value="{{teacherIndex}}" bindchange="selectTeacher" disabled="{{session.role === 'teacher' || loadingOptions}}">
           <view class="picker">{{selectedTeacher ? selectedTeacher.teacherName + ' · ' + selectedTeacher.teacherCode : '请选择老师'}}</view>
         </picker>

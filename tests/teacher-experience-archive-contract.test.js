@@ -320,7 +320,7 @@ assert.match(hqEntitlementRead, /total_experience_count|total_used_count/i,
 assert.match(hqEntitlementRead, /experienceTotals[\s\S]{0,260}teacher_experience_quota_usages|teacher_experience_quota_usages[\s\S]{0,1200}experienceTotals/i,
   "HQ summary must retain completed per-product totals even after a configuration is removed");
 assert.match(functionSource(faceCloud, "getTeacherExperienceEntitlements"), /total_experience_count|total_used_count/i,
-  "store experience selector must expose all-time product experience totals");
+  "teacher experience selector must expose all-time product experience totals");
 
 // Lazy reset during a read/use closes race windows, but a trusted timer is
 // also required so the first day of every business month resets idle quotas.

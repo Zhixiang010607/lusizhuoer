@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v68";
+const FUNCTION_VERSION = "v69";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -1188,9 +1188,10 @@ function hqDashboardDateSql(requestedRange) {
   };
 }
 
-// This CTE deliberately contains only approved business facts.  Master tables
-// are joined after aggregation, so archive status never removes historical
-// approved records from the headquarters dashboard.
+// This CTE deliberately contains only approved business facts. Submitter joins
+// classify whether teacher_id has a valid store/teacher source; they never
+// filter an event. Presentation master tables are joined after aggregation, so
+// archive status never removes historical facts from the headquarters totals.
 function hqBusinessEventsCte(startDateSql, endDateSql) {
   return `WITH date_bounds AS (
     SELECT ${startDateSql} AS start_date,
@@ -1204,13 +1205,24 @@ function hqBusinessEventsCte(startDateSql, endDateSql) {
   ), business_events AS (
     SELECT r.store_id,
            r.product_id,
-           r.teacher_id,
+           CASE
+             WHEN submitter.role_code = 'store'
+              AND r.recharge_type IN ('NEW', 'REFUND') THEN r.teacher_id
+             WHEN submitter.role_code = 'teacher'
+              AND submitting_teacher.id = r.teacher_id
+              AND r.recharge_type IN ('NEW', 'REFUND') THEN r.teacher_id
+             ELSE NULL::bigint
+           END AS teacher_id,
            CASE WHEN r.recharge_type = 'NEW' THEN r.unit_count::bigint ELSE 0::bigint END AS recharge_count,
            0::bigint AS verification_count,
            0::bigint AS experience_count,
            CASE WHEN r.recharge_type = 'REFUND' THEN r.unit_count::bigint ELSE 0::bigint END AS refund_count
       FROM public.recharge_records r
      CROSS JOIN bounds b
+      LEFT JOIN public.staff_accounts submitter
+        ON submitter.id = r.submitted_by_account_id
+      LEFT JOIN public.teachers submitting_teacher
+        ON submitting_teacher.staff_account_id = submitter.id
      WHERE r.record_status = 'APPROVED'
        AND r.recharge_type IN ('NEW', 'REFUND')
        AND r.submitted_at >= b.start_at
@@ -1218,13 +1230,24 @@ function hqBusinessEventsCte(startDateSql, endDateSql) {
     UNION ALL
     SELECT v.store_id,
            v.product_id,
-           v.teacher_id,
+           CASE
+             WHEN submitter.role_code = 'store'
+              AND v.verification_type = 'NORMAL' THEN v.teacher_id
+             WHEN submitter.role_code = 'teacher'
+              AND submitting_teacher.id = v.teacher_id
+              AND v.verification_type IN ('NORMAL', 'EXPERIENCE') THEN v.teacher_id
+             ELSE NULL::bigint
+           END AS teacher_id,
            0::bigint AS recharge_count,
            CASE WHEN v.verification_type IN ('NORMAL', 'SUPPLEMENT') THEN v.unit_count::bigint ELSE 0::bigint END AS verification_count,
            CASE WHEN v.verification_type = 'EXPERIENCE' THEN v.unit_count::bigint ELSE 0::bigint END AS experience_count,
            0::bigint AS refund_count
       FROM public.verification_records v
      CROSS JOIN bounds b
+      LEFT JOIN public.staff_accounts submitter
+        ON submitter.id = v.submitted_by_account_id
+      LEFT JOIN public.teachers submitting_teacher
+        ON submitting_teacher.staff_account_id = submitter.id
      WHERE v.record_status = 'APPROVED'
        AND v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')
        AND v.submitted_at >= b.start_at
@@ -2466,6 +2489,31 @@ function reviewFilterSql(event, alias, recordCodeExpression, statusExpression, t
   return clauses.length ? `AND ${clauses.join(" AND ")}` : "";
 }
 
+function reviewOrderTeacherAttributionCondition(alias, recordType) {
+  const recharge = recordType === "RECHARGE";
+  const storeTypeCondition = recharge
+    ? `${alias}.recharge_type IN ('NEW', 'REFUND')`
+    : `${alias}.verification_type = 'NORMAL'`;
+  const teacherTypeCondition = recharge
+    ? `${alias}.recharge_type IN ('NEW', 'REFUND')`
+    : `${alias}.verification_type IN ('NORMAL', 'EXPERIENCE')`;
+  return `EXISTS (
+    SELECT 1
+      FROM public.staff_accounts attribution_submitter
+ LEFT JOIN public.teachers attribution_submitter_teacher
+        ON attribution_submitter_teacher.staff_account_id = attribution_submitter.id
+     WHERE attribution_submitter.id = ${alias}.submitted_by_account_id
+       AND (
+         (attribution_submitter.role_code = 'store' AND ${storeTypeCondition})
+         OR (
+           attribution_submitter.role_code = 'teacher'
+           AND attribution_submitter_teacher.id = ${alias}.teacher_id
+           AND ${teacherTypeCondition}
+         )
+       )
+  )`;
+}
+
 async function listReviewOrders(caller, event) {
   const exactLookup = Boolean(String(event.recordId || "").trim() || String(event.recordCode || "").trim());
   const storeReader = caller.profile?.role === "store";
@@ -2532,7 +2580,9 @@ async function listReviewOrders(caller, event) {
              JOIN public.stores s ON s.id = r.store_id
              JOIN public.customers c ON c.id = r.customer_id
              JOIN public.products p ON p.id = r.product_id
-        LEFT JOIN public.teachers t ON t.id = r.teacher_id`;
+        LEFT JOIN public.teachers t
+               ON t.id = r.teacher_id
+              AND ${reviewOrderTeacherAttributionCondition("r", "RECHARGE")}`;
     const whereSql = `WHERE ${exactLookup ? "TRUE" : "r.recharge_type IN ('NEW', 'REFUND')"}
               ${reviewFilterSql(reviewListEvent, "r", "r.recharge_code", statusExpression, typeExpression)}
               ${cursorClause}`;
@@ -2568,7 +2618,9 @@ async function listReviewOrders(caller, event) {
              JOIN public.stores s ON s.id = v.store_id
              JOIN public.customers c ON c.id = v.customer_id
              JOIN public.products p ON p.id = v.product_id
-             JOIN public.teachers t ON t.id = v.teacher_id`;
+        LEFT JOIN public.teachers t
+               ON t.id = v.teacher_id
+              AND ${reviewOrderTeacherAttributionCondition("v", "VERIFICATION")}`;
     const whereSql = `WHERE ${exactLookup && event.detailRead === true ? "TRUE" : "v.verification_type = 'SUPPLEMENT' AND v.void_request_status = 'NONE'"}
               ${reviewFilterSql(scopedEvent, "v", "v.verification_code", statusExpression, typeExpression)}
               ${cursorClause}`;
@@ -2908,8 +2960,15 @@ async function getHqTeacherExperienceEntitlements(caller, event = {}) {
             COALESCE((
               SELECT SUM(u.unit_count)::bigint
                 FROM public.teacher_experience_quota_usages u
+                JOIN public.verification_records usage_verification
+                  ON usage_verification.id = u.verification_id
                WHERE u.teacher_id = q.teacher_id
                  AND u.product_id = q.product_id
+                 AND usage_verification.teacher_id = u.teacher_id
+                 AND usage_verification.product_id = u.product_id
+                 AND usage_verification.record_status = 'APPROVED'
+                 AND usage_verification.verification_type = 'EXPERIENCE'
+                 AND ${reviewOrderTeacherAttributionCondition("usage_verification", "VERIFICATION")}
             ), 0)::bigint AS total_experience_count
        FROM public.teacher_product_experience_quotas q
        JOIN public.products p ON p.id = q.product_id
@@ -2925,8 +2984,15 @@ async function getHqTeacherExperienceEntitlements(caller, event = {}) {
     `SELECT u.product_id, p.product_code, p.product_name, p.product_status,
             COALESCE(SUM(u.unit_count), 0)::bigint AS total_experience_count
        FROM public.teacher_experience_quota_usages u
+       JOIN public.verification_records usage_verification
+         ON usage_verification.id = u.verification_id
        LEFT JOIN public.products p ON p.id = u.product_id
       WHERE u.teacher_id = ${teacherId}::bigint
+        AND usage_verification.teacher_id = u.teacher_id
+        AND usage_verification.product_id = u.product_id
+        AND usage_verification.record_status = 'APPROVED'
+        AND usage_verification.verification_type = 'EXPERIENCE'
+        AND ${reviewOrderTeacherAttributionCondition("usage_verification", "VERIFICATION")}
       GROUP BY u.product_id, p.product_code, p.product_name, p.product_status
       ORDER BY p.product_name NULLS LAST, p.product_code NULLS LAST, u.product_id`
   );

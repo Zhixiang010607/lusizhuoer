@@ -85,6 +85,7 @@ const activeStaff = {
     staffId: "41",
     staffCode: "TCH041",
     staffName: "测试老师",
+    teacherId: "17",
     phone: "13900000000",
     storeId: "",
     storeCode: "",
@@ -102,6 +103,8 @@ test("WeChat phone login exchanges only phoneCode and resolves staff session by 
   assert.deepEqual(state.callStaffArgs, [["session"]],
     "the public session action must not receive a client-supplied phone");
   assert.equal(session.uid, activeStaff.uid, "the staff service UID is the cached identity authority");
+  assert.equal(session.teacherId, activeStaff.profile.teacherId,
+    "teacher sessions must preserve the server-authoritative teacher binding");
   assert.equal(Object.hasOwn(session, "phone"), false, "the returned local session must omit phone");
 
   const cached = storage.get(sessionKey);
@@ -158,6 +161,7 @@ test("a phone-free cached session can be restored without sending phone to staff
     staffId: "41",
     staffCode: "TCH041",
     staffName: "测试老师",
+    teacherId: "17",
     storeId: "",
     storeCode: "",
     storeName: "",
@@ -170,4 +174,5 @@ test("a phone-free cached session can be restored without sending phone to staff
   assert.ok(restored, "a valid UID/role cache must restore without a phone field");
   assert.deepEqual(state.callStaffArgs, [["session"]]);
   assert.equal(Object.hasOwn(restored, "phone"), false);
+  assert.equal(restored.teacherId, activeStaff.profile.teacherId);
 });

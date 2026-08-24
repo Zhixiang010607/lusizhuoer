@@ -42,10 +42,13 @@ Page({
   },
   async loadTeachers() {
     try {
-      const result = await callFace("listActiveTeachers");
+      const result = await callFace("listActiveTeachers", { storeId: this.data.store.id });
       const values = (result.teachers || []).map(teacher).filter((item) => item.teacherId);
-      const mine = this.data.session.role === "teacher" ? values[0] || null : null;
-      this.setData({ teachers: values, teacherLabels: values.map((item) => `${item.teacherName} · ${item.teacherCode}`), selectedTeacher: mine, teacherIndex: mine ? 0 : -1 });
+      const mineIndex = this.data.session.role === "teacher"
+        ? values.findIndex((item) => item.teacherId === String(this.data.session.teacherId || ""))
+        : -1;
+      const mine = mineIndex >= 0 ? values[mineIndex] : null;
+      this.setData({ teachers: values, teacherLabels: values.map((item) => `${item.teacherName} · ${item.teacherCode}`), selectedTeacher: mine, teacherIndex: mineIndex });
       if (this.data.customer && this.data.experience) await this.loadProducts();
       this.syncReady();
     } catch (error) { this.setData({ message: error.message || "老师列表读取失败", error: true }); }
@@ -56,8 +59,8 @@ Page({
     this.resetFace();
     try {
       const result = this.data.experience
-        ? await callFace("getTeacherExperienceEntitlements", { teacherId: this.data.selectedTeacher.teacherId })
-        : await callFace("getCustomerProductBalances", { customerCode: this.data.customer.customerCode });
+        ? await callFace("getTeacherExperienceEntitlements", { storeId: this.data.store.id, teacherId: this.data.selectedTeacher.teacherId })
+        : await callFace("getCustomerProductBalances", { storeId: this.data.store.id, customerCode: this.data.customer.customerCode });
       const source = this.data.experience ? (result.entitlements || []) : (result.balances || []);
       const values = source.map(product).filter((item) => item.productId && (this.data.experience ? item.availableCount > 0 : item.remainingCount > 0));
       this.setData({

@@ -1,4 +1,11 @@
 .search-card .field:last-of-type { margin-bottom: 24rpx; }
+.customer-table-scroll { width: 100%; margin-top: 14rpx; overflow: hidden; border: 1rpx solid #e4e8ef; border-radius: 14rpx; }
+.customer-table { width: 1200rpx; min-width: 1200rpx; background: #fff; }
+.customer-row { min-height: 76rpx; display: grid; grid-template-columns: 190rpx 270rpx 190rpx 140rpx 140rpx 100rpx; align-items: center; border-top: 1rpx solid #e4e8ef; }
+.customer-row:first-child { border-top: 0; }
+.customer-row text { min-width: 0; padding: 14rpx 16rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.customer-head { min-height: 66rpx; color: #52647a; background: #f3f6f9; font-size: 22rpx; font-weight: 800; }
+.customer-name, .customer-link { color: #1f5eff; font-weight: 800; }
 .pager { display: flex; align-items: center; justify-content: space-between; gap: 14rpx; padding-top: 22rpx; border-top: 1rpx solid #e5edf5; }
 .pager button { width: 180rpx; min-height: 70rpx; margin: 0; font-size: 23rpx; }
 .pager text { color: #60758b; font-size: 23rpx; }

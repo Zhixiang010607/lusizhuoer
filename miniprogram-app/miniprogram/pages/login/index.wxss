@@ -1,15 +1,21 @@
-.login-page { min-height: 100vh; padding: 96rpx 34rpx 60rpx; background: linear-gradient(160deg, #102947 0, #173f6b 34%, #f3f7fb 34.2%); }
-.brand { display: flex; align-items: center; gap: 20rpx; margin: 0 10rpx 76rpx; color: #fff; }
-.brand-mark { display: flex; width: 88rpx; height: 88rpx; align-items: center; justify-content: center; background: linear-gradient(135deg, #2a6edf, #11a89e); border-radius: 24rpx; font-size: 44rpx; font-weight: 900; }
-.brand-name { display: block; }
-.brand-name { font-size: 38rpx; font-weight: 850; }
-.login-card { padding: 38rpx 30rpx; background: #fff; border: 1rpx solid #dce5ee; border-radius: 28rpx; box-shadow: 0 22rpx 56rpx rgba(10, 34, 62, .15); }
-.welcome { display: block; font-size: 40rpx; font-weight: 850; }
-.wechat-login { display: flex; width: 100%; min-height: 88rpx; margin: 24rpx 0 0; align-items: center; justify-content: center; color: #fff; background: #07a95b; border-radius: 16rpx; font-size: 28rpx; font-weight: 800; line-height: 1.2; }
+.login-page { min-height: 100vh; padding: calc(32rpx + env(safe-area-inset-top)) 0 calc(32rpx + env(safe-area-inset-bottom)); background: #eaf0f6; }
+.login-shell { min-height: calc(100vh - 64rpx - env(safe-area-inset-top) - env(safe-area-inset-bottom)); display: flex; align-items: center; margin: 0 24rpx; overflow: hidden; background: #fff; border-radius: 20rpx; box-shadow: 0 28rpx 80rpx rgba(20, 36, 59, .15); }
+.login-card { width: 100%; padding: 42rpx 40rpx; }
+.login-heading { display: flex; align-items: center; gap: 20rpx; margin-bottom: 30rpx; }
+.login-heading text { font-size: 40rpx; font-weight: 850; }
+.login-system-mark { display: flex; width: 92rpx; height: 92rpx; align-items: center; justify-content: center; color: #fff; background: linear-gradient(135deg, #2a68ff, #06b28d); border-radius: 26rpx; font-size: 25rpx; font-weight: 900; }
+.wechat-login { display: flex; width: 100%; min-height: 88rpx; margin: 0; align-items: center; justify-content: center; color: #fff; background: #07a95b; border-radius: 14rpx; font-size: 27rpx; font-weight: 800; line-height: 1.2; }
 .wechat-login[disabled] { color: #789487; background: #d9e7df; }
-.login-divider { display: flex; margin: 28rpx 0 24rpx; align-items: center; gap: 18rpx; color: #7b8da1; font-size: 22rpx; }
+.login-divider { display: flex; margin: 26rpx 0 22rpx; align-items: center; gap: 18rpx; color: #7b8da1; font-size: 21rpx; }
 .login-divider view { height: 1rpx; flex: 1; background: #dce5ee; }
 .login-divider text { flex: none; }
-.password-toggle { width: auto; min-height: auto; margin: -8rpx 0 26rpx auto; padding: 8rpx; color: #235caa; background: transparent; font-size: 23rpx; line-height: 1.2; }
+.password-field { position: relative; }
+.password-field .input { padding-right: 120rpx; }
+.password-toggle { position: absolute; top: 8rpx; right: 8rpx; width: auto; min-height: 68rpx; margin: 0; padding: 0 16rpx; color: #1f5eff; background: transparent; font-size: 22rpx; line-height: 1.2; }
 .password-toggle::after { border: 0; }
-.login-button { width: 100%; margin: 0; }
+.login-button { width: 100%; height: 92rpx; margin: 6rpx 0 0; background: linear-gradient(100deg, #174fd6, #1f6dca); box-shadow: 0 9rpx 22rpx rgba(31, 94, 255, .18); }
+@media (max-width: 600px) {
+  .login-page { padding: 0; background: #fff; }
+  .login-shell { min-height: 100vh; margin: 0; border-radius: 0; box-shadow: none; }
+  .login-card { padding: calc(48rpx + env(safe-area-inset-top)) 40rpx calc(40rpx + env(safe-area-inset-bottom)); }
+}
