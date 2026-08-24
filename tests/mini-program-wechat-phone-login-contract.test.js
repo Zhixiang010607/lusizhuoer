@@ -142,6 +142,22 @@ test("an authentication error signs out, clears local state, and skips the staff
   assert.equal(state.app.globalData.session, null, "an authentication error must clear the in-memory session");
 });
 
+test("a blank CloudBase UNKNOWN error reports mini-program authorization instead of bad credentials", async () => {
+  const authResult = {
+    data: {},
+    error: { category: "UNKNOWN", message: "", requestId: "request-id-is-diagnostic-only" }
+  };
+  const { api, state } = loadSession({ authResult });
+
+  await assert.rejects(
+    api.wechatPhoneLogin("blocked-before-authentication"),
+    /CloudBase 授权.*小程序认证.*开通云开发/
+  );
+
+  assert.deepEqual(state.callStaffArgs, [], "a blocked Auth request must not reach staffAccount");
+  assert.equal(state.signOutCalls, 1, "a blocked Auth request must clear the SDK login state");
+});
+
 test("a rejected authentication promise also signs out and clears local state", async () => {
   const staleSession = { uid: "stale-uid", role: "teacher", staffName: "旧会话" };
   const { api, state, storage } = loadSession({ authError: new Error("网络认证失败"), storedSession: staleSession });

@@ -451,6 +451,7 @@ CloudBase 和微信发布前置：
 - 在与现有 Auth 用户、云函数和 PostgreSQL 相同的 CloudBase 环境中启用 `WX_MICRO_APP` 身份源，配置当前小程序 AppID 和 AppSecret。
 - 身份源必须显式配置 `On=TRUE`、`AutoSignInWhenPhoneNumberMatch=TRUE`、`AutoSignUpWithProviderUser=FALSE`、`TransparentMode=FALSE`、`ReuseUserId=FALSE`；手机号＋密码登录继续保留，不得依赖控制台默认值。
 - 小程序主体必须是已完成微信认证的非个人主体；发布前完成手机号用途的用户隐私保护指引、对应接口声明和明确授权文案。
+- 非个人主体小程序未通过微信认证、未开通云开发或未完成 CloudBase 小程序授权时，密码与微信手机号两种小程序登录均不得宣称验收通过；SDK 返回空白 `UNKNOWN` 认证错误时，客户端必须提示检查小程序认证和云开发授权，不得误报“手机号或密码错误”。
 - 按微信和 CloudBase 当期规则开通小程序手机号验证能力、套餐或计费，并在真机完成授权成功、拒绝授权、未绑定员工和封存员工回归；开发者工具模拟不代表发布验收。
 
 BLE 后续实现顺序：

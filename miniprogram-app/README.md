@@ -12,7 +12,7 @@
 
 BLE 开机尚未实现。当前核销成功后仍写入现有 `device_signal_outbox` 虚拟设备信号；下一阶段在服务端核销已确认后，再由小程序使用蓝牙 API 发送对应指令。
 
-> 交付边界：当前仓库代码与文档按 `staffAccount v69`、`faceRecognition v90`、`verificationPhoto v9`、`teacherCreate v6` 编排，但本轮代码尚未部署，CloudBase `WX_MICRO_APP` 身份源尚未配置，微信手机号能力与计费也尚未开通验收。完成上传、配置、`health` 版本核对和真机回归前，线上仍不能视为已支持微信手机号快捷登录。
+> 交付边界：当前仓库代码与文档按 `staffAccount v69`、`faceRecognition v90`、`verificationPhoto v9`、`teacherCreate v6` 编排，但本轮代码尚未部署，CloudBase `WX_MICRO_APP` 身份源尚未配置，微信手机号能力与计费也尚未开通验收。非个人主体小程序未通过微信认证、未开通云开发或未完成 CloudBase 小程序授权时，密码和微信手机号两种小程序登录都不能作为线上验收通过。完成认证、账号绑定、云开发开通、上传、身份源配置、`health` 版本核对和真机回归前，线上仍不能视为已支持小程序登录。
 
 ## 登录最终规则
 
@@ -70,7 +70,7 @@ BLE 开机尚未实现。当前核销成功后仍写入现有 `device_signal_out
    ```
 
 5. 在 CloudBase 中保持现有“用户名/手机号＋密码”登录方式可用，并按控制台提示把 CloudBase 请求域名配入当前 AppID 的小程序合法域名。
-6. 按“CloudBase 与微信前置配置”启用 `WX_MICRO_APP`，并完成微信主体、认证、隐私和计费前置。尚未完成时只验收密码登录，不得将快捷登录标记为可发布。
+6. 按“CloudBase 与微信前置配置”启用 `WX_MICRO_APP`，并完成微信主体、认证、隐私和计费前置。小程序认证、云开发开通和 CloudBase 小程序授权尚未完成时，密码登录也只能认定为被平台前置阻断，不能误判为账号密码错误，更不得将快捷登录标记为可发布。
 7. 分别验收密码和微信授权登录。服务端 `session` 回读的 UID、角色和门店必须与既有员工身份一致，两种方式的 UID 必须完全相同，否则不进入工作台。
 
 当前 SDK 依赖在微信开发者工具构建 npm 时可能提示 `bson/lib/bson.cjs.js: Npm package entry file not found`。在上述已验证版本中，npm 构建、登录页编译和模拟器启动均成功，控制台没有运行错误；如果以后升级 SDK 后出现实际的 `module not found`，应统一升级或修正 CloudBase SDK 依赖，不能手工复制一个伪造的 `bson.cjs.js` 掩盖问题。

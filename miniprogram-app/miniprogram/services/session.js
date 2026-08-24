@@ -35,8 +35,14 @@ function identityUid(result) {
 
 function loginError(result, fallback) {
   if (!result || !result.error) return null;
-  const error = new Error(result.error.message || fallback);
-  error.code = result.error.code || result.error.status || "AUTH_FAILED";
+  const source = result.error;
+  const message = String(source.message || source.error_description || "").trim();
+  const category = String(source.category || source.code || source.status || "").toUpperCase();
+  const configurationMessage = category === "UNKNOWN" && !message
+    ? "当前小程序尚未通过 CloudBase 授权，请先完成小程序认证并开通云开发"
+    : "";
+  const error = new Error(message || configurationMessage || fallback);
+  error.code = source.code || source.status || source.category || "AUTH_FAILED";
   return error;
 }
 
