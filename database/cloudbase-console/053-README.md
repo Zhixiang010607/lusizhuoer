@@ -1,6 +1,6 @@
 # 053 退役旧老师人脸 Saga
 
-1. 先部署不再读写 051/052 的 `staffAccount v67`、`faceRecognition v85` 和
+1. 先部署不再读写 051/052 的 `staffAccount v68`、`faceRecognition v89` 和
    `teacherCreate v6`。
 2. 在 CloudBase PostgreSQL SQL 编辑器中完整执行
    `053-01-retire-legacy-teacher-face-saga.sql`。

@@ -64,7 +64,7 @@ for (const file of ["query.js", "management.js", "detail.js"]) {
     `${file} must no longer point users to the retired mock teacher page`);
 }
 
-assert.match(staffDetailHtml, /cloudbase-phone-auth\.js\?v=0\.19\.2/,
+assert.match(staffDetailHtml, /cloudbase-phone-auth\.js\?v=0\.20\.0/,
   "teacher home must refresh the shared cloud-function client");
 assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.9/,
   "teacher home must refresh its action handlers");

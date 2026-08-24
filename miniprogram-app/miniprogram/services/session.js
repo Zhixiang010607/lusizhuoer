@@ -27,28 +27,27 @@ function getAppSafe() {
   try { return getApp(); } catch (_) { return null; }
 }
 
-async function passwordLogin(phoneValue, password) {
-  const phone = normalizePhone(phoneValue);
-  if (!password) throw new Error("请输入登录密码");
-  const auth = getAuth();
-  let identity;
-  if (typeof auth.signInWithPassword === "function") {
-    const result = await auth.signInWithPassword({ phone, password });
-    if (result && result.error) throw new Error(result.error.message || "手机号或密码错误");
-    identity = result && result.data ? result.data : result;
-  } else if (typeof auth.signIn === "function") {
-    identity = await auth.signIn({ username: phone, password });
-  } else {
-    throw new Error("当前 CloudBase SDK 不支持账号密码登录，请检查 npm 依赖版本");
-  }
-  const staff = await callStaff("session", { phone });
+function identityUid(result) {
+  const identity = result && result.data ? result.data : result || {};
+  const user = identity.user || identity.session && identity.session.user || {};
+  return String(user.uid || user.id || user.sub || "");
+}
+
+function loginError(result, fallback) {
+  if (!result || !result.error) return null;
+  const error = new Error(result.error.message || fallback);
+  error.code = result.error.code || result.error.status || "AUTH_FAILED";
+  return error;
+}
+
+function businessSession(staff, authenticatedUid, loginAt = new Date().toISOString()) {
   const profile = staff.profile || {};
-  if (!ROLES.has(String(profile.role || ""))) throw new Error("该手机号尚未绑定可用业务身份");
-  const uid = String(staff.uid || identity && identity.user && (identity.user.uid || identity.user.id) || "");
-  if (!uid) throw new Error("登录成功但没有取得 CloudBase UID，已禁止进入工作台");
+  if (!ROLES.has(String(profile.role || ""))) throw new Error("当前登录身份尚未绑定可用业务身份");
+  const uid = String(staff.uid || "");
+  if (!uid || !authenticatedUid) throw new Error("登录成功但没有取得完整 CloudBase UID，已禁止进入工作台");
+  if (uid !== String(authenticatedUid)) throw new Error("CloudBase 登录身份与业务身份不一致，已禁止进入工作台");
   const session = {
     uid,
-    phone,
     role: String(profile.role),
     staffId: String(profile.staffId || ""),
     staffCode: String(profile.staffCode || ""),
@@ -56,26 +55,86 @@ async function passwordLogin(phoneValue, password) {
     storeId: String(profile.storeId || ""),
     storeCode: String(profile.storeCode || ""),
     storeName: String(profile.storeName || ""),
-    loginAt: new Date().toISOString()
+    loginAt
   };
   if (session.role === "store" && !session.storeId) throw new Error("门店账号未绑定有效门店");
   return writeSession(session);
 }
 
+async function clearFailedLogin(auth) {
+  try {
+    if (auth && typeof auth.signOut === "function") await auth.signOut();
+  } catch (_) {}
+  clearSession();
+}
+
+async function finishAuthenticatedLogin(auth, result, fallback) {
+  const resultError = loginError(result, fallback);
+  if (resultError) {
+    await clearFailedLogin(auth);
+    throw resultError;
+  }
+  const authenticatedUid = identityUid(result);
+  try {
+    const staff = await callStaff("session");
+    return businessSession(staff, authenticatedUid);
+  } catch (error) {
+    await clearFailedLogin(auth);
+    throw error;
+  }
+}
+
+async function signInAndFinish(auth, authenticate, fallback) {
+  let result;
+  try {
+    result = await authenticate();
+  } catch (error) {
+    await clearFailedLogin(auth);
+    throw error;
+  }
+  return finishAuthenticatedLogin(auth, result, fallback);
+}
+
+async function passwordLogin(phoneValue, password) {
+  const phone = normalizePhone(phoneValue);
+  if (!password) throw new Error("请输入登录密码");
+  const auth = getAuth();
+  if (typeof auth.signInWithPassword === "function") {
+    return signInAndFinish(auth, () => auth.signInWithPassword({ phone, password }), "手机号或密码错误");
+  } else if (typeof auth.signIn === "function") {
+    return signInAndFinish(auth, () => auth.signIn({ username: phone, password }), "手机号或密码错误");
+  } else {
+    throw new Error("当前 CloudBase SDK 不支持账号密码登录，请检查 npm 依赖版本");
+  }
+}
+
+async function wechatPhoneLogin(phoneCodeValue) {
+  const phoneCode = String(phoneCodeValue || "").trim();
+  if (!phoneCode) throw new Error("请先同意使用微信绑定手机号");
+  const auth = getAuth();
+  if (typeof auth.signInWithPhoneAuth !== "function") {
+    throw new Error("当前 CloudBase SDK 不支持微信手机号登录，请检查 npm 依赖版本");
+  }
+  return signInAndFinish(auth, () => auth.signInWithPhoneAuth({ phoneCode }), "微信手机号登录失败");
+}
+
 async function restoreAndValidateSession() {
   const stored = readSession();
-  if (!stored || !stored.phone || !stored.uid || !ROLES.has(stored.role)) return null;
-  const staff = await callStaff("session", { phone: normalizePhone(stored.phone) });
-  const profile = staff.profile || {};
-  if (String(staff.uid || "") !== stored.uid || String(profile.role || "") !== stored.role) {
+  if (!stored || !stored.uid || !ROLES.has(stored.role)) return null;
+  try {
+    const staff = await callStaff("session");
+    const profile = staff.profile || {};
+    if (String(staff.uid || "") !== stored.uid || String(profile.role || "") !== stored.role) {
+      throw new Error("账号身份已经变化，请重新登录");
+    }
+    if (stored.role === "store" && String(profile.storeId || "") !== stored.storeId) {
+      throw new Error("门店绑定已经变化，请重新登录");
+    }
+    return businessSession(staff, stored.uid, stored.loginAt || new Date().toISOString());
+  } catch (error) {
     clearSession();
-    throw new Error("账号身份已经变化，请重新登录");
+    throw error;
   }
-  if (stored.role === "store" && String(profile.storeId || "") !== stored.storeId) {
-    clearSession();
-    throw new Error("门店绑定已经变化，请重新登录");
-  }
-  return writeSession({ ...stored, staffName: String(profile.staffName || stored.staffName || "") });
 }
 
 function requireSession(allowedRoles) {
@@ -120,6 +179,6 @@ async function signOut() {
 }
 
 module.exports = {
-  passwordLogin, restoreAndValidateSession, requireSession, readSession,
+  passwordLogin, wechatPhoneLogin, restoreAndValidateSession, requireSession, readSession,
   getSelectedStore, setSelectedStore, clearSession, signOut, normalizePhone
 };

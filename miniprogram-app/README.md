@@ -5,23 +5,92 @@
 ## 当前完成范围
 
 1. 小程序外壳、CloudBase 连接和移动端基础 UI。
-2. 现有手机号＋密码登录，服务端回读 UID 及总部／门店／老师角色。
+2. 现有手机号＋密码登录和用户点击授权的微信手机号快捷登录，服务端只按当前 UID 回读总部／门店／老师角色。
 3. 老师／门店工作台、老师办理门店选择、客户查询与客户主页。
 4. 客户现场建立、充值申请、退费申请。
 5. 正常核销和老师体验核销；两者都是已选客户的 1:1 人脸校验。
 
 BLE 开机尚未实现。当前核销成功后仍写入现有 `device_signal_outbox` 虚拟设备信号；下一阶段在服务端核销已确认后，再由小程序使用蓝牙 API 发送对应指令。
 
-## 导入与运行
+> 交付边界：当前仓库代码与文档按 `staffAccount v68`、`faceRecognition v89`、`verificationPhoto v8`、`teacherCreate v6` 编排，但本轮代码尚未部署，CloudBase `WX_MICRO_APP` 身份源尚未配置，微信手机号能力与计费也尚未开通验收。完成上传、配置、`health` 版本核对和真机回归前，线上仍不能视为已支持微信手机号快捷登录。
 
-1. 在微信公众平台创建小程序，把真实 AppID 写入 `project.config.json`（仓库里的 `touristappid` 只用于开发工具演示）。
-2. 在微信开发者工具导入本目录 `miniprogram-app`。
-3. 进入 `miniprogram-app/miniprogram`，执行 `npm install`。
-4. 在微信开发者工具中选择“工具 → 构建 npm”，确认生成 `miniprogram_npm`。
-5. 在 CloudBase 中保持现有“用户名/手机号＋密码”登录方式可用，并按控制台提示把 CloudBase 请求域名配入小程序合法域名。
-6. 用现有总部、门店或老师的手机号与密码登录。服务端 `session` 回读的 UID、角色和门店必须与登录身份一致，否则不进入工作台。
+## 登录最终规则
+
+- 手机号＋密码与微信手机号授权必须登录到同一既有 CloudBase Auth 用户和同一 UID；微信授权只是该账号的另一种认证方式，不创建第二业务身份。
+- 手机号授权只能由用户点击 `open-type="getPhoneNumber"` 按钮发起。小程序只把按钮返回的一次性 code 交给 CloudBase SDK，不解密、不记录、不持久化该 code。
+- CloudBase 验证微信手机号并关联既有 Auth 用户后，小程序调用无手机号参数的 `staffAccount.session`。服务端只按平台认证的当前 UID 回读员工、角色、账号状态和门店范围。
+- 客户端输入或传入的手机号不是身份证明。禁止用手机号自动创建或替换 `staff_accounts.auth_uid`；UID 未命中已有员工账号时必须登录失败、退出 CloudBase 会话并清理本地业务会话。
+- 陌生手机号不得自动注册 CloudBase Auth 用户、员工账号或业务角色。封存员工即使仍有未过期客户端令牌，每次服务端回读也必须拒绝。
+- 手机号＋密码继续作为应急和配置故障时的备用登录方式。
+
+## CloudBase 与微信前置配置
+
+1. 在与现有 Auth 用户、云函数和 PostgreSQL 相同的 CloudBase 环境中启用 `WX_MICRO_APP` 身份源，配置当前小程序 AppID 和 AppSecret。
+2. 显式配置 `On=TRUE`、`AutoSignInWhenPhoneNumberMatch=TRUE`、`AutoSignUpWithProviderUser=FALSE`、`TransparentMode=FALSE`、`ReuseUserId=FALSE`，并保持用户名／手机号＋密码登录开启。不得依赖控制台默认值。
+3. 将 `staffAccount`、`faceRecognition` 等业务云函数的安全规则继续限定为已登录且非匿名用户；微信登录成功不代表已获得总部、门店或老师权限。
+4. AppSecret 只能保存在 CloudBase 身份源的服务端密钥位。快捷登录不新增小程序端密钥，不需要自建微信解密云函数、Custom Login 私钥或自定义 ticket。
+5. 微信小程序必须是已完成认证的非个人主体。发布前在微信公众平台完成手机号用途的用户隐私保护指引、接口声明和页面明确授权文案。
+6. 按微信和 CloudBase 当期政策开通小程序手机号验证能力及相应套餐／计费；模拟器无法替代真实微信账号和真机验收。
+
+## 已验证开发基线
+
+- 当前开发 AppID：`wxb053c1bd6c684d8b`。AppID 是公开标识，不是密钥；若以后切换正式小程序，必须同时更新 `project.config.json`、微信公众平台合法域名和 CloudBase 环境授权。
+- CloudBase 测试环境：`rusizhuoer-d9gbcsgym07651694`，区域 `ap-shanghai`。
+- Node.js 最低版本：`20.19.0`；当前已验证版本为 Node.js `24.19.0` LTS。
+- 包管理器：pnpm `9.15.9`，版本已写入 `miniprogram/package.json`。仓库只维护 `pnpm-lock.yaml`，不要另行生成 `package-lock.json`。
+- 微信开发者工具已验证版本：macOS Apple Silicon `2.02.2608040`。
+- 仓库目标服务端版本：`staffAccount v68`、`faceRecognition v89`、`verificationPhoto v8`、`teacherCreate v6`。
+
+## 首次安装、导入与运行
+
+1. 安装 Node.js `>=20.19.0`，并启用仓库指定的 pnpm：
+
+   ```bash
+   corepack enable pnpm
+   corepack install --global pnpm@9.15.9
+   ```
+
+2. 从仓库根目录安装小程序依赖：
+
+   ```bash
+   cd miniprogram-app/miniprogram
+   pnpm install --frozen-lockfile
+   ```
+
+   `--frozen-lockfile` 防止依赖漂移；版本控制内的 `miniprogram/.npmrc` 固定使用 `node-linker=hoisted`，生成微信开发者工具更容易识别的扁平依赖布局。
+
+3. 在微信开发者工具中导入仓库内的 `miniprogram-app` 目录，不要误选下一层 `miniprogram`。
+4. 选择“工具 → 构建 npm”，确认生成 `miniprogram/miniprogram_npm`。macOS 开启“设置 → 安全设置 → 服务端口”后，也可从仓库根目录执行：
+
+   ```bash
+   /Applications/wechatwebdevtools.app/Contents/MacOS/cli build-npm \
+     --project "$(pwd)/miniprogram-app" \
+     --compile-type miniprogram
+   ```
+
+5. 在 CloudBase 中保持现有“用户名/手机号＋密码”登录方式可用，并按控制台提示把 CloudBase 请求域名配入当前 AppID 的小程序合法域名。
+6. 按“CloudBase 与微信前置配置”启用 `WX_MICRO_APP`，并完成微信主体、认证、隐私和计费前置。尚未完成时只验收密码登录，不得将快捷登录标记为可发布。
+7. 分别验收密码和微信授权登录。服务端 `session` 回读的 UID、角色和门店必须与既有员工身份一致，两种方式的 UID 必须完全相同，否则不进入工作台。
+
+当前 SDK 依赖在微信开发者工具构建 npm 时可能提示 `bson/lib/bson.cjs.js: Npm package entry file not found`。在上述已验证版本中，npm 构建、登录页编译和模拟器启动均成功，控制台没有运行错误；如果以后升级 SDK 后出现实际的 `module not found`，应统一升级或修正 CloudBase SDK 依赖，不能手工复制一个伪造的 `bson.cjs.js` 掩盖问题。
+
+拍照／相册组件使用 `wx.chooseMedia`，但它不是 `app.json.requiredPrivateInfos` 允许声明的定位类接口，不能把 `chooseMedia` 加回该数组。发布前应在微信公众平台按实际采集用途完成客户照片和员工手机号的用户隐私保护指引、对应接口声明与明确授权说明。
 
 `miniprogram/config/env.js` 只包含公开的环境 ID、区域和函数名。人脸 SecretId、SecretKey、CloudBase API Key、PostgreSQL 密码与 SQL 不得放进小程序。
+
+## 本地自动验收
+
+从仓库根目录执行：
+
+```bash
+node --test tests/*.test.js
+git ls-files -z '*.js' | xargs -0 -n 1 node --check
+cd miniprogram-app/miniprogram
+pnpm list --depth 0
+pnpm audit --prod
+```
+
+交付前还必须在微信开发者工具重新构建 npm、编译 `pages/login/index`，并检查模拟器控制台没有运行错误。`node_modules`、`miniprogram_npm` 和本机 `project.private.config.json` 均已被 Git 忽略。
 
 ## P0 防重要求
 
@@ -36,6 +105,10 @@ BLE 开机尚未实现。当前核销成功后仍写入现有 `device_signal_out
 
 ## 发布前手工验收
 
+- 同一员工分别使用密码和微信手机号授权登录，CloudBase UID 必须完全相同，角色、状态和门店范围必须一致。
+- 用户拒绝授权或授权事件没有 code 时不发起登录；一次性 code 不复用、不记录、不写入本地存储。
+- 授权手机号未绑定员工时，CloudBase 和 PostgreSQL 都不新增业务账号，且客户端退出 CloudBase 会话；不能通过伪造手机号修改 `auth_uid`。
+- 封存员工的密码与微信授权登录均被服务端拒绝；退出后更换微信用户不能继承上一个员工的本地会话或老师所选门店。
 - 分别用总部、门店、老师账号登录；总部只看到查询，门店无体验核销。
 - 老师未选门店时不能办理业务；选门店后所有客户和单据都由服务端校验该门店。
 - 客户建立必须拍照、服务端检测、人脸建立和客户编号返回均成功。

@@ -1,10 +1,10 @@
 <view class="page">
-  <view class="profile-card">
+  <view id="home-ready" class="profile-card">
     <view class="identity-icon">{{roleIcon}}</view>
     <view class="identity-main">
       <text class="identity-label">{{roleName}}工作台</text>
-      <text class="identity-name">{{session.staffName || session.phone}}</text>
-      <text class="identity-meta">{{session.staffCode || session.phone}}</text>
+      <text class="identity-name">{{session.staffName || '员工账号'}}</text>
+      <text class="identity-meta">{{session.staffCode || '已验证身份'}}</text>
     </view>
     <button class="logout" bindtap="logout">退出</button>
   </view>

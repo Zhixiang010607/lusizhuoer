@@ -25,12 +25,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .metric-card small,
 .breakdown-note,
 .privacy-placeholder p,
-.login-brand-copy > p,
-.login-feature-list span,
-.login-security-note,
-.login-heading p,
-.role-switch button small,
-.demo-accounts { display: none !important; }
+.role-switch button small { display: none !important; }
 .workflow-lookup-panel .panel-heading .badge { display: none !important; }
 html:not([data-auth-ready]) body:not(.login-page) { visibility: hidden; }
 body { margin: 0; padding-left: 190px; color: var(--ink); background: var(--page); font-size: 13px; line-height: 1.4; }
@@ -1218,27 +1213,11 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .compact-info-grid { grid-template-columns: repeat(2, 1fr); }
 .login-page { min-height: 100vh; padding: 0; background: #eaf0f6; }
 .login-shell { width: min(590px, calc(100% - 32px)); min-height: min(470px, calc(100vh - 48px)); display: grid; grid-template-columns: 1fr; margin: 24px auto; overflow: hidden; border-radius: 20px; background: white; box-shadow: 0 28px 80px #14243b26; }
-.login-brand-panel { display: none; }
-.login-brand-panel::after { content: ""; position: absolute; right: -120px; bottom: -150px; width: 380px; height: 380px; border: 1px solid #ffffff22; border-radius: 50%; box-shadow: 0 0 0 60px #ffffff08, 0 0 0 120px #ffffff05; }
-.login-brand { position: relative; z-index: 1; display: flex; align-items: center; gap: 13px; }
-.login-brand > span, .login-system-mark { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 13px; color: white; background: linear-gradient(135deg, #2a68ff, #06b28d); font-weight: 900; }
-.login-brand strong, .login-brand small { display: block; }
-.login-brand small { margin-top: 4px; color: #a9bed3; font-size: 11px; }
-.login-brand-copy { position: relative; z-index: 1; margin: auto 0 38px; }
-.login-brand-copy h1 { max-width: 440px; margin-bottom: 9px; font-size: clamp(30px, 3vw, 44px); line-height: 1.12; }
-.login-brand-copy > p:last-child { max-width: 470px; color: #bdd0e2; line-height: 1.9; }
-.login-feature-list { position: relative; z-index: 1; display: grid; gap: 11px; }
-.login-feature-list div { display: flex; align-items: center; gap: 13px; padding: 13px 15px; border: 1px solid #ffffff1c; border-radius: 12px; background: #ffffff0a; }
-.login-feature-list b { color: #6fc9ff; font-size: 11px; }
-.login-feature-list span, .login-feature-list strong { display: block; }
-.login-feature-list span { color: #b9cce0; font-size: 11px; }
-.login-feature-list strong { margin-bottom: 3px; color: white; font-size: 13px; }
-.login-security-note { position: relative; z-index: 1; margin: 24px 0 0; color: #8fa8bf; font-size: 10px; }
+.login-system-mark { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 13px; color: white; background: linear-gradient(135deg, #2a68ff, #06b28d); font-weight: 900; }
 .login-form-panel { display: grid; place-items: center; padding: 34px; }
 .login-form-wrap { width: min(100%, 470px); }
 .login-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-.login-heading h2 { margin-bottom: 3px; font-size: 22px; }
-.login-heading p { margin: 0; color: var(--muted); font-size: 12px; }
+.login-heading h2 { margin: 0; font-size: 22px; }
 .role-switch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-bottom: 14px; }
 .role-switch button { min-width: 0; display: grid; place-items: center; gap: 4px; padding: 14px 7px; border: 1px solid var(--line); color: var(--ink); background: #f8fafc; }
 .role-switch button > span { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px; color: #40536a; background: #e7edf4; font-size: 11px; font-weight: 900; }
@@ -1257,10 +1236,9 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 .login-options label { display: flex; align-items: center; gap: 7px; }
 .login-options input { width: 15px; height: 15px; margin: 0; accent-color: var(--blue); }
 .login-options a { color: var(--blue); font-size: 11px; text-decoration: none; }
+#backToLogin { margin-left: auto; }
 .login-error { min-height: 18px; margin: -4px 0; color: #bd2c2c; font-size: 11px; }
 .login-submit { height: 46px; background: linear-gradient(100deg, #174fd6, #1f6dca); font-weight: 800; box-shadow: 0 9px 22px #1f5eff2e; }
-.demo-accounts { display: grid; gap: 4px; padding: 11px 13px; border-radius: 9px; color: var(--muted); background: #f4f7fa; font-size: 10px; }
-.demo-accounts strong { color: #40536a; }
 #loginSuccess { text-align: center; }
 .login-success-icon { width: 54px; height: 54px; display: grid; place-items: center; margin: 0 auto 14px; border-radius: 50%; color: white; background: var(--green); font-size: 25px; font-weight: 900; }
 #loginSuccess p { color: var(--muted); line-height: 1.7; }
@@ -1403,7 +1381,6 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
   .store-directory-toolbar .toolbar-actions,
   .teacher-directory-toolbar .toolbar-actions { grid-column: 1 / -1; }
 }
-@media (max-width: 900px) { .login-shell { grid-template-columns: 1fr; } .login-brand-panel { min-height: 340px; } .login-brand-copy { margin: 45px 0 25px; } .login-feature-list { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 760px) {
   body { padding-left: 0; }
   .teacher-business-main { width: min(100% - 14px, 1680px); margin-top: 8px; }
@@ -1565,7 +1542,7 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
   .verification-photo-original-frame { height: 38dvh; min-height: 120px; }
 }
 @media (max-width: 450px) { .filter-grid, .metric-grid, .management-summary, .detail-info-grid, .query-filter-grid { grid-template-columns: 1fr; } .table-card .panel-heading, .ranking-actions { width: 100%; flex-wrap: wrap; } .ranking-actions > * { flex: 1; } .ranking-dimension select { width: 100%; } }
-@media (max-width: 600px) { .login-shell { width: 100%; min-height: 100vh; margin: 0; border-radius: 0; } .login-brand-panel { min-height: 270px; padding: 28px 22px; } .login-brand-copy { margin: 34px 0 0; } .login-brand-copy h1 { font-size: 34px; } .login-feature-list, .login-security-note { display: none; } .login-form-panel { padding: 34px 20px; } .role-switch button small { display: none; } }
+@media (max-width: 600px) { .login-shell { width: 100%; min-height: 100vh; margin: 0; border-radius: 0; } .login-form-panel { padding: 34px 20px; } .role-switch button small { display: none; } }
 
 @media (min-width: 761px) and (max-width: 1100px) {
   body.store-record-query .customer-query-filters { grid-template-columns: 1fr; }

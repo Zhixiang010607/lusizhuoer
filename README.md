@@ -9,9 +9,20 @@
 客户人脸、充值、退费、正常／体验核销、业务归属、照片、统计、P0 防重、移动端、
 小程序和部署规则，并明确列出已经废弃、不得恢复的旧设计。
 
+## 客户端边界与交付
+
+- 仓库根目录现有 HTML、CSS、JavaScript 是网页版兼容边界；微信小程序代码只在 `miniprogram-app/`；未来原生 App 代码只允许进入 `native-app/`。
+- 各客户端共享 `cloudfunctions/` 和 `database/` 的服务端契约，但不互相导入 UI、路由、会话存储、平台 API、依赖或构建产物。单端修改默认不碰其他端；共享接口变化必须分别回归每一端。
+- 云函数代码变化必须提供 `deployments/<函数名>-v<版本>.zip` 的可点击本机链接。需要在腾讯云执行的 SQL 必须是 `database/cloudbase-console/` 下可整文件复制粘贴的独立文件。
+- 验证完成的代码必须提交并推送；代码推送、SQL 执行、云函数上传、网站发布和小程序发布仍是五个独立状态，交付时分别说明。
+
 ## 微信小程序
 
-`miniprogram-app/` 是复用当前 CloudBase 后端与同一员工 UID 权限的原生微信小程序。已完成外壳、手机号密码登录、老师／门店工作台、客户查询与建立、充值／退费、正常／老师体验核销；BLE 是下一阶段。导入、构建、安全与断网防重验收见 [`miniprogram-app/README.md`](miniprogram-app/README.md)。
+`miniprogram-app/` 是复用当前 CloudBase 后端与同一员工 UID 权限的原生微信小程序。仓库范围包含外壳、手机号密码登录、用户点击授权的微信手机号快捷登录、老师／门店工作台、客户查询与建立、充值／退费、正常／老师体验核销；BLE 是下一阶段。导入、构建、安全与断网防重验收见 [`miniprogram-app/README.md`](miniprogram-app/README.md)。
+
+当前小程序开发基线为 Node.js `>=20.19.0`、pnpm `9.15.9` 和微信开发者工具；依赖必须按 `pnpm-lock.yaml` 冻结安装，不再使用会产生第二份锁文件的 `npm install`。当前开发 AppID 为 `wxb053c1bd6c684d8b`，仍需在微信公众平台和 CloudBase 为该 AppID 配置合法域名与环境访问权，AppID 可公开但任何密钥都不得写入仓库。
+
+> 当前交付边界：仓库代码与文档以 `staffAccount v68`、`faceRecognition v89`、`verificationPhoto v8`、`teacherCreate v6` 为版本矩阵，但本轮代码尚未部署，CloudBase `WX_MICRO_APP` 身份源也尚未配置。完成云函数上传、身份源配置、`health` 核对和真机验收前，线上仍不能视为已支持微信手机号快捷登录。
 
 ## 腾讯云客户人脸识别后端
 
@@ -23,8 +34,17 @@
 
 - 一个中国大陆手机号只能绑定一个业务身份；手机号码全局唯一，已绑定后不可再次注册或改绑给其他总部、门店或老师身份。
 - 账号创建仅由已授权总部在网页端发起；后端同时创建身份认证用户与业务档案绑定记录。未预先绑定的手机号不能通过短信自助注册进入系统。
-- 员工可使用“手机号 + 密码”或“手机号 + 短信验证码”登录；两种方式对应同一身份和同一权限，不产生第二个账号。
+- 员工可使用“手机号 + 密码”、“手机号 + 短信验证码”或微信小程序手机号授权登录；三种方式必须关联到同一既有 CloudBase Auth 用户和同一 UID，不产生第二个账号。
+- 微信手机号授权只能由用户点击按钮发起。授权后由 CloudBase 验证微信一次性 code 并匹配已有 Auth 用户；客户端输入或传入的手机号不是身份证明。
+- `session` 只按当前已验证 CloudBase UID 回读员工角色、状态和门店范围。禁止用手机号自动替换 `auth_uid`，禁止陌生手机号自动注册 Auth 或业务账号；UID 未命中时必须失败并退出会话。
 - 修改密码须由当前已登录用户完成短信二次验证；总部可发起重置，系统记录操作人、时间和原因。初始 12 位密码仅作首次/应急登录凭据。
+
+### 微信手机号快捷登录前置
+
+- 在同一 CloudBase 环境启用 `WX_MICRO_APP` 身份源，配置当前小程序 AppID 和只由 CloudBase 服务端保存的 AppSecret。
+- 显式配置 `On=TRUE`、`AutoSignInWhenPhoneNumberMatch=TRUE`、`AutoSignUpWithProviderUser=FALSE`、`TransparentMode=FALSE`、`ReuseUserId=FALSE`；保留手机号＋密码登录，不得依赖控制台默认值。
+- 微信小程序必须为已完成认证的非个人主体，并在发布前完成手机号用途的用户隐私保护指引、接口声明和页面授权文案。
+- 按微信和 CloudBase 当期政策开通小程序手机号验证能力及所需套餐／计费，并使用真机验证授权、拒绝、未绑定员工和封存员工场景。
 
 ## 总部基础资料创建规则
 
@@ -152,26 +172,28 @@
 全局“完整排名”表右上角提供分类维度下拉框，可以在门店、老师和项目之间切换；结果每页100条，支持页码跳转，服务端只返回当前页并据完整维度总和计算占比；
 老师维度同样按有效充值、核销、体验和退费四类事件显示；无归属老师的历史记录仍保留在门店和项目汇总中。
 
-运营管理、运营创建页和运营首页均已移除。迁移 `047_retire_operation_accounts.sql` 保留旧审核外键并封存运营身份。老师账号由 `teacherCreate v6` 只按姓名、手机号和密码创建，不采集或维护老师人脸。`staffAccount v67` 与 `faceRecognition v89` 已物理删除旧 Saga、老师人脸委托动作和兼容入口。迁移 053 删除旧 `teacher_face_operations` 表与六个私有函数，不删除老师、额度、工单或历史业务。
+运营管理、运营创建页和运营首页均已移除。迁移 `047_retire_operation_accounts.sql` 保留旧审核外键并封存运营身份。老师账号由 `teacherCreate v6` 只按姓名、手机号和密码创建，不采集或维护老师人脸。`staffAccount v68` 与 `faceRecognition v89` 已物理删除旧 Saga、老师人脸委托动作和兼容入口。迁移 053 删除旧 `teacher_face_operations` 表与六个私有函数，不删除老师、额度、工单或历史业务。
 
 老师账号的首页是 `teacher-work-orders.html`。基础资料下按当前老师所有活跃额度配置自适应显示各体验项目剩余次数；业务区支持今天、本周、本月、本季度、本年、全部和自定义日期，默认本月。所选周期生成“产品为行、四类业务为列”的有效次数汇总矩阵，并同时控制紧随其后的核销、充值、体验和退费明细；明细由服务端按页返回，保留上一页、下一页、页码和直接跳页。本人业务只以工单真实 `submitted_by_account_id` 与当前老师登录账号一致为准；总部或门店提交的单据即使带有 `teacher_id` 也不会计入老师。工单详情只有在 `teacher_id` 所属老师账号就是原提交账号时才显示该老师；总部或门店提交以及未绑定老师的历史单统一显示“未指定”。老师的活跃／封存客户列表与客户主页权限使用同一个服务端关系口径：当前老师账号亲自创建，或当前老师已经完成有效正常核销、体验核销、充值、退费任一业务；两组用户统一显示姓名、最近关系门店、生日、该老师有效充值次数和正常核销次数，不单列体验或退费次数，客户姓名可以进入关联客户主页。获得客户主页权限后，老师可以只读查看该客户由所有老师提交的全部充值、退费、正常核销和体验核销详情与核销照片；修改、补照片、作废或撤销等写操作仍严格限制为原提交账号。门店账号创建的客户只归创建门店，不会直接绑定老师；迁移 057 以前的历史客户不猜测补绑。老师仍不能访问其他无关客户，也没有客户查询、客户状态管理、总部审核或任何管理页面权限。老师办理业务前必须先选择本次唯一的活跃门店，充值、退费、普通核销和体验核销的老师字段均由服务端锁定为当前登录老师，浏览器不能替换为其他老师；门店账号的门店字段同样由登录 UID 锁定。体验核销入口只对老师开放：额度绑定当前登录老师，现场与普通核销一样只验证所选客户的 1:1 人脸，凭证固定保存客户建档照与客户现场照，并在同一事务中扣减老师体验额度；不读取或扣减客户购买余额。门店和总部既没有入口，服务端也拒绝绕过页面调用。老师创建采用与门店账号相同的单请求直线流程，只创建 Auth、账号和老师主档，不处理任何照片或人脸。迁移 055 覆盖历史数据库中仍要求老师人脸的两个订单门禁函数，只保留老师主档与账号活跃校验；迁移 056 修复体验额度列名歧义；客户档案照和客户现场 1:1 人脸仍为核销必要条件。
 
 门店主页的业务区域与老师主页使用完全相同的版式、字号和手机端滚动规则：默认本月，支持今天、本周、本月、本季度、本年、全部和自定义时间；按产品汇总核销、充值、体验、退费；四类业务明细紧接汇总并使用同一时间轴和同一套服务端页码分页，之后显示绑定本门店的活跃用户与封存用户。两组门店用户同样只显示姓名、门店、生日、充值次数和核销次数，姓名保留客户主页链接；即使门店值全部相同也不会省略。门店不显示老师专属的体验项目剩余额度。手机端每条记录保持一行，汇总、明细和用户表格仅在各自容器内横向滑动，不撑宽整页。门店统计仍按门店绑定与门店业务记录计算，和老师按 `teacher_id` 计算的内部口径相互独立；“全部”会显式请求全历史，自定义范围仍限制为最多 366 天。
 
-部署为网页时：
+部署网页与小程序时：
+
+小程序微信手机号登录另有控制台前置：先确认微信主体、认证、隐私声明和计费资格，再在相同 CloudBase 环境配置 `WX_MICRO_APP` 及上述关联／不自动注册策略。AppSecret 只能录入控制台密钥位，不能进入仓库或客户端。
 
 1. 按编号依次执行尚未运行的数据库迁移；正式 migration 工具使用完整的 `037_verification_photo_evidence.sql` 与 `038_verification_profile_photo_snapshot.sql`，腾讯云 `ExecutePGSql` 控制台必须改用 `database/cloudbase-console/` 下的七个短文件并严格按 `037-01` 至 `037-03`、`038-01` 至 `038-04` 执行；若 `037-01` 已成功而旧版 `037-02` 报 `SQLSTATE 42601`，不要重跑 `037-01`，先单独执行 `ROLLBACK;`，再从当前 `037-02` 继续；
 2. 执行迁移 `039_direct_verification_photo_upload.sql`（CloudBase SQL 编辑器应依次执行独立的 `039-01` 至 `039-05`），建立短时上传任务、每单唯一进行中任务和原子提交函数；随后执行 `040_fix_verification_photo_commit_ambiguity.sql`（控制台使用 `040-01`），消除提交函数返回字段与冲突键 `photo_slot` 的 PL/pgSQL 歧义；
 3. 可选在 CloudBase PG 云存储中新建私有桶 `verification-photos`；也可把核销照片放在现有私有桶 `customer-photos`。`teacherCreate v6` 只需 `CLOUDBASE_ENV_ID`／`TCB_ENV`，不再配置任何人脸或照片桶变量。所有环境变量在控制台一项一行，不要把整段 `KEY=value` 粘贴进单个值。在现有安全规则中合并 `verificationPhoto` 与 `teacherCreate` 的非匿名登录调用权限，保留顶层 `*` 和其他函数条目；
-4. 先完成历史库必需的 046—050。部署不再读写旧 Saga 的 `staffAccount v67`、`faceRecognition v89` 和 `teacherCreate v6` 后，完整执行 `053-01-retire-legacy-teacher-face-saga.sql`，再运行 `053-readonly-verify.sql`，7 行必须全部为 `RETIRED`。已经执行过的 051/052 不需回滚；053 会只删除它们的旧操作表与私有函数；
-5. 完成 054 后执行 `055-01-remove-teacher-face-order-guards.sql`，确认最后 3 行全部为 `READY`；再执行 `056-01-experience-quota-column-ambiguity.sql` 并确认返回 `READY`；执行 `057-01-teacher-created-customer-access.sql` 并确认列、外键和索引 3 行均为 `READY`；最后按 `database/cloudbase-console/058-README.md` 执行 058 三段 SQL，确认充值和核销完整性触发器都为 `READY`。将 `teacherCreate` 设为 60 秒、至少 256 MB；部署 `staffAccount v67`、`faceRecognition v89`、`verificationPhoto v8` 与 `teacherCreate v6`，分别调用 `health` 核对版本与配置；
+4. 先完成历史库必需的 046—050。部署不再读写旧 Saga 的 `staffAccount v68`、`faceRecognition v89` 和 `teacherCreate v6` 后，完整执行 `053-01-retire-legacy-teacher-face-saga.sql`，再运行 `053-readonly-verify.sql`，7 行必须全部为 `RETIRED`。已经执行过的 051/052 不需回滚；053 会只删除它们的旧操作表与私有函数；
+5. 完成 054 后执行 `055-01-remove-teacher-face-order-guards.sql`，确认最后 3 行全部为 `READY`；再执行 `056-01-experience-quota-column-ambiguity.sql` 并确认返回 `READY`；执行 `057-01-teacher-created-customer-access.sql` 并确认列、外键和索引 3 行均为 `READY`；最后按 `database/cloudbase-console/058-README.md` 执行 058 三段 SQL，确认充值和核销完整性触发器都为 `READY`。将 `teacherCreate` 设为 60 秒、至少 256 MB；部署 `staffAccount v68`、`faceRecognition v89`、`verificationPhoto v8` 与 `teacherCreate v6`，分别调用 `health` 核对版本与配置；
 6. `staffAccount` 只保留老师体验额度的月初 Timer。从触发器配置中删除 `reconcile-teacher-face-operations`，`teacherCreate` 不配置 Timer；
 7. 部署当前静态文件到 CloudBase 静态网站托管并强制刷新浏览器；
 8. 通过总部、门店和老师真实账号完成角色边界回归，并确认历史运营账号无法获取业务会话或通过审核；验证总部没有任何办理入口且直接调用被拒绝，门店／老师可以在各自权限内办理，同时完成核销照片查看、历史总部单或当前门店／老师单的真实原提交人上传或替换、取消后重试、非提交人拒绝和 24 小时截止测试。
 
 生产库已经执行 039、但补充照片上传出现 `column reference "photo_slot" is ambiguous (SQLSTATE 42702)` 时，只需完整执行一次 040；不要重跑 037--039。040 只替换原子提交函数，不改表、不删除或重写已有照片数据。
 
-生产更新顺序固定为“确认 039、046—050 与 053 已完成 → 执行 054 → 执行 055 并确认 3 行 `READY` → 执行 056 并确认 `READY` → 执行 057 并确认 3 行 `READY` → 执行 058 并确认 2 行 `READY` → 部署 `staffAccount v67`、`faceRecognition v89`、`verificationPhoto v8`、`teacherCreate v6` 与当前静态前端 → 四个云函数分别执行 `health` → 强制刷新浏览器”。
+生产更新顺序固定为“确认 039、046—050 与 053 已完成 → 执行 054 → 执行 055 并确认 3 行 `READY` → 执行 056 并确认 `READY` → 执行 057 并确认 3 行 `READY` → 执行 058 并确认 2 行 `READY` → 确认微信主体／隐私／计费前置并配置 CloudBase `WX_MICRO_APP` → 部署 `staffAccount v68`、`faceRecognition v89`、`verificationPhoto v8`、`teacherCreate v6` 与当前前端／小程序 → 四个云函数分别执行 `health` → 强制刷新并用真机验收小程序”。
 
 核销详情的高清原图查看器支持按钮、鼠标滚轮、键盘、拖动和手机／iPad 双指缩放。页面先显示缩略图，高清图解码完成后再替换；临时签名地址不可用时，查看器会在相同工单权限和查看审计下改用 `verificationPhoto` 的鉴权读取通道取回原图，并且只创建当前页面内存 Blob，不持久化照片。最多只保留两张已解码原图，减少连续查看照片造成的内存占用。
 

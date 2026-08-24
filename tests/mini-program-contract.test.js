@@ -7,7 +7,16 @@ const root = path.resolve(__dirname, "..");
 const mini = path.join(root, "miniprogram-app", "miniprogram");
 const read = (...parts) => fs.readFileSync(path.join(mini, ...parts), "utf8");
 
+const project = JSON.parse(fs.readFileSync(path.join(root, "miniprogram-app", "project.config.json"), "utf8"));
+assert.match(project.appid, /^wx[a-z0-9]{16}$/i, "a real mini-program AppID must replace touristappid");
+const packageManifest = JSON.parse(read("package.json"));
+assert.equal(packageManifest.packageManager, "pnpm@9.15.9");
+assert.equal(packageManifest.engines.node, ">=20.19.0");
+assert.equal(read(".npmrc").trim(), "node-linker=hoisted");
+assert.match(read("services", "cloudbase.js"), /pnpm install --frozen-lockfile/);
+
 const app = JSON.parse(read("app.json"));
+assert.ok(!(app.requiredPrivateInfos || []).includes("chooseMedia"), "chooseMedia is not a valid requiredPrivateInfos entry");
 for (const page of ["login", "home", "customers", "customer-detail", "customer-create", "recharge", "verification"]) {
   assert.ok(app.pages.includes(`pages/${page}/index`), `missing mini-program page ${page}`);
   for (const extension of ["js", "json", "wxml", "wxss"]) assert.ok(fs.existsSync(path.join(mini, "pages", page, `index.${extension}`)), `${page}.${extension} missing`);
@@ -21,10 +30,25 @@ for (const forbidden of ["FACE_SECRET_ID", "FACE_SECRET_KEY", "CLOUDBASE_APIKEY"
 for (const wxml of app.pages.map((page) => read(`${page}.wxml`))) assert.doesNotMatch(wxml, /<\/?(?:small|div|span|p)(?:\s|>)/, "WXML must use mini-program built-in elements");
 
 const session = read("services", "session.js");
-assert.match(session, /signInWithPassword\(\{ phone, password \}\)/);
-assert.match(session, /callStaff\("session", \{ phone \}\)/);
+assert.match(session, /signInWithPhoneAuth\(\{ phoneCode \}\)/);
+assert.match(session, /callStaff\("session"\)/,
+  "WeChat phone authorization must resolve the business identity from the authenticated UID");
+assert.doesNotMatch(session, /callStaff\("session"\s*,/,
+  "the mini-program must never send a phone to the public staff session action");
 assert.match(session, /String\(staff\.uid \|\|/);
 assert.match(session, /if \(session\.role === "store" && !session\.storeId\)/);
+
+const loginWxml = read("pages", "login", "index.wxml");
+for (const removedClass of ["brand-note", "description", "wechat-note", "security-note"]) {
+  assert.ok(!loginWxml.includes(`class="${removedClass}"`), `login must not restore explanatory ${removedClass} copy`);
+}
+const phoneAuthorizationButton = loginWxml.match(/<button\b[^>]*open-type="getPhoneNumber"[^>]*>/)?.[0] || "";
+assert.ok(phoneAuthorizationButton, "login must use the WeChat getPhoneNumber authorization button");
+assert.match(phoneAuthorizationButton, /bindgetphonenumber="submitWechatPhone"/);
+const loginPage = read("pages", "login", "index.js");
+assert.match(loginPage, /wechatPhoneLogin/);
+assert.match(loginPage, /submitWechatPhone\s*\(/);
+assert.match(loginPage, /event\.detail\.code/);
 
 const home = read("pages", "home", "index.wxml");
 assert.match(home, /wx:if="\{\{session\.role !== 'hq'\}\}" class="card"/);

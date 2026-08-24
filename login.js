@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.17.3";
+  const VERSION = "0.17.4";
   const SMS_BRAND = "露思卓儿";
   const $ = (id) => document.getElementById(id);
   const roles = {
@@ -183,7 +183,7 @@
         ? await window.CloudBasePhoneAuth.signInWithPassword(phone, password)
         : await window.CloudBasePhoneAuth.signInWithCode(code);
       if (bootstrapMode) await window.CloudBasePhoneAuth.bootstrapHq();
-      const staff = await window.CloudBasePhoneAuth.getStaffSession(phone);
+      const staff = await window.CloudBasePhoneAuth.getStaffSession();
       if (!roles[staff?.profile?.role]) throw new Error("该账号角色已下线，无法进入系统。请联系总部。");
       activeSession = createSession(identity, staff);
       window.CloudBasePhoneAuth.announceWorkspaceSession?.(activeSession);
@@ -193,9 +193,6 @@
     } finally { setBusy(submit, false, "登录系统"); }
   });
   document.documentElement.dataset.prototypeVersion = VERSION;
-  if (isLocalPreview) {
-    $("demoHint").innerHTML = "<b>仅本地演示：</b>总部 13900000001 / Demo@HQ2026；门店 13900000003 / Demo@ST2026；老师 13900000004 / Demo@TC2026。请使用密码登录。";
-  }
   selectLoginMode("password");
   window.setInterval(() => { refreshSmsButton(); refreshResetSmsButton(); }, 1000);
   showPasswordReset(new URLSearchParams(location.search).get("mode") === "reset");

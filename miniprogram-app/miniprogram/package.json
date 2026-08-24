@@ -2,6 +2,10 @@
   "name": "lusizhuoer-business-miniapp",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "description": "露思卓儿老师、门店与总部移动工作台",
   "dependencies": {
     "@cloudbase/adapter-wx_mp": "1.3.1",

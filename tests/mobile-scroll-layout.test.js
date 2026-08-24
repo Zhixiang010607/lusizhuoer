@@ -98,7 +98,9 @@ for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))
         ? "0.15.48"
         : file === "index.html"
           ? "0.15.45"
-        : "0.15.44";
+        : file === "login.html"
+          ? "0.15.59"
+          : "0.15.44";
   assert(html.includes(`styles.css?v=${expectedStyleVersion}`), `${file} must use the desktop-scroll stylesheet cache key`);
 }
 

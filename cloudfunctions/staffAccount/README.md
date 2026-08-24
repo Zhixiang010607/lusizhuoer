@@ -1,14 +1,33 @@
 # staffAccount 云函数
 
-当前版本：`v67`
+当前版本：`v68`
 
 `staffAccount` 负责员工会话、总部／门店账号、人员状态、老师体验额度、产品、审核与总部统计。它不再创建老师，也不再处理任何老师人脸写入。
+
+## 登录与会话边界
+
+`staffAccount v68` 同时支持现有手机号＋密码登录和微信小程序手机号快捷登录。两种方式必须在 CloudBase 身份源中关联到同一个已有 Auth 用户和同一 UID；业务角色、账号状态和门店范围仍只从该 UID 对应的 PostgreSQL `staff_accounts` 回读。
+
+小程序快捷登录流程为：
+
+1. 用户在 `open-type="getPhoneNumber"` 按钮上明确授权，小程序只把当次一次性 `phoneCode` 交给 CloudBase SDK 的 `auth.signInWithPhoneAuth({ phoneCode })`。
+2. CloudBase 校验微信身份和手机号，按已验证手机号关联现有 Auth 用户；小程序不自行解密手机号。
+3. 取得 CloudBase 会话后，客户端调用无手机号参数的 `{ "action": "session" }`。`staffAccount` 只信任平台认证上下文中的当前 UID，不使用客户端手机号查找账号。
+4. UID 未绑定业务账号，或账号／门店／老师已封存时直接拒绝。快捷登录不创建业务账号，不修改 `staff_accounts.auth_uid`，也不得把新 UID 自动改绑到旧员工。
+
+`session` 的公开请求固定为：
+
+```json
+{ "action": "session" }
+```
+
+不得再传入 `phone`、`role`、`storeId` 或其他身份范围参数。应用代码不记录或自行持久化 `phoneCode`、微信 session key、CloudBase access／refresh token 或密码；CloudBase 登录凭据仅由官方 SDK 管理。登录失败时必须退出 CloudBase 会话并清除本地业务会话。手机号＋密码继续作为应急入口。
 
 ## 老师创建与人脸边界
 
 老师只能通过独立 `teacherCreate v6` 创建。创建只需要姓名、手机号和初始密码，
 不上传照片、不建立老师人脸，也不把人脸作为创建、激活、登录或业务选择条件。
-老师主页没有补录、替换或修改人脸入口。`staffAccount v67` 已彻底移除旧的老师
+老师主页没有补录、替换或修改人脸入口。`staffAccount v68` 已彻底移除旧的老师
 Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_operations`：
 
 - `beginTeacherProvisionWithFace`
@@ -21,7 +40,7 @@ Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_oper
 调用这些旧 action 会统一进入“不支持的操作”。`provisionStaff({ role: "teacher" })` 也会在 Auth 查询、用户创建和 SQL 写入之前返回 `TEACHER_CREATE_SERVICE_REQUIRED`。新建老师只能调用 `teacherCreate`。
 
 迁移 051／052 的旧表、函数和历史记录不再是本函数的运行依赖。部署
-`staffAccount v67`／`faceRecognition v87`／`teacherCreate v6` 后执行前向
+`staffAccount v68`／`faceRecognition v89`／`teacherCreate v6` 后执行前向
 迁移 053，会物理删除旧操作表与六个私有函数，不影响老师及业务历史。
 
 ## 保留能力
@@ -52,6 +71,8 @@ Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_oper
 
 `staffAccount` 不需要 `FACE_SECRET_ID`、`FACE_SECRET_KEY`、`FACE_GROUP_ID` 或老师照片桶配置。
 
+微信小程序快捷登录也不为 `staffAccount` 新增 AppSecret 或自定义登录私钥环境变量。微信小程序 AppSecret 只配置在 CloudBase 身份源的服务端设置中，不得进入小程序、云函数环境变量、README、ZIP、日志或截图。
+
 ## 月度额度 Timer
 
 本函数只保留老师体验额度月度重置 Timer。旧的 `reconcile-teacher-face-operations` Timer 必须从 `staffAccount` 触发器配置中删除。
@@ -73,20 +94,33 @@ Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_oper
 
 ## 部署与验收
 
-1. 使用 Node.js 18 部署本目录的 `index.js`、`package.json` 和依赖。
-2. 配置上述环境变量，并将安全规则限制为已登录且非匿名用户。
+上传包文件名必须为 `staffAccount-v68.zip`。ZIP 根目录直接包含：
+
+```text
+index.js
+package.json
+README.md
+```
+
+不得在 ZIP 中再套 `staffAccount/` 目录。平台按根目录 `package.json` 安装依赖；交付前必须回读 ZIP 根目录的 `README.md`，确认其显示当前版本 `v68`，并确认 ZIP 内 `index.js` 的运行时版本同样为 `v68`。
+
+生产切换顺序：
+
+1. 在 CloudBase 身份源中配置类型 `WX_MICRO_APP` 并绑定正确小程序 AppID；设置 `AutoSignInWhenPhoneNumberMatch=TRUE`、`AutoSignUpWithProviderUser=FALSE`、`TransparentMode=FALSE`、`ReuseUserId=FALSE`，同时保留现有手机号＋密码登录方式。
+2. 打包并上传 `staffAccount-v68.zip`，使用 Node.js 18，配置上述环境变量，并将安全规则限制为已登录且非匿名用户。
 3. 删除 `staffAccount` 上的旧人脸补偿 Timer，只保留月度额度 Timer。
-4. 部署后调用 `{ "action": "health" }`。
+4. 部署后先调用 `{ "action": "health" }`，确认版本和配置就绪；再分别用现有已登录会话和微信手机号授权后的会话调用无参数 `{ "action": "session" }`，确认返回的 UID、角色和门店与旧密码账号完全一致。
+5. `staffAccount v68` 验收通过后才发布当前小程序；不得先发布依赖快捷登录和无参数 `session` 的客户端。
 
 健康检查必须返回：
 
 ```json
 {
   "ok": true,
-  "version": "v67",
+  "version": "v68",
+  "managerNodeInstalled": true,
   "teacherExperienceResetTimerTriggerName": "reset-teacher-experience-quotas-monthly",
-  "teacherCreationService": "teacherCreate",
-  "teacherFaceOperationsOwnedByStaffAccount": false
+  "teacherCreationService": "teacherCreate"
 }
 ```
 

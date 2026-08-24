@@ -416,21 +416,20 @@
       const result = await getAuth().signInWithPassword({ phone: normalizePhone(phone), password });
       return authResponseData(result, "手机号或密码错误");
     },
-    async getStaffSession(phone) {
+    async getStaffSession() {
       const data = await callStaffAccount(
-        { action: "session", phone: normalizePhone(phone) },
-        "该手机号尚未被总部绑定业务身份"
+        { action: "session" },
+        "当前登录身份尚未绑定业务账号"
       );
-      if (!data?.profile?.role) throw new Error("该手机号尚未被总部绑定业务身份");
+      if (!data?.profile?.role) throw new Error("当前登录身份尚未绑定业务账号");
       return data;
     },
     async validateWorkspaceSession(expectedSession) {
       const expected = expectedSession && typeof expectedSession === "object" ? expectedSession : {};
-      const account = expected.phone || expected.account;
-      if (!account || !expected.cloudbaseUserId || !expected.role) {
+      if (!expected.cloudbaseUserId || !expected.role) {
         throw sessionChanged("当前页面登录信息不完整，请重新登录");
       }
-      const data = await this.getStaffSession(account);
+      const data = await this.getStaffSession();
       const profile = data?.profile || {};
       const currentUid = String(data?.uid || "");
       const expectedUid = String(expected.cloudbaseUserId || "");

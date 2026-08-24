@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v67";
+const FUNCTION_VERSION = "v68";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -1342,43 +1342,6 @@ async function findStaffProfile(uid) {
   };
 }
 
-async function recoverStaffProfileByVerifiedPhone(uid, phone) {
-  const normalizedPhone = validatePhone(phone);
-  let identity;
-  try {
-    identity = await getAuth().queryUserInfo({ platform: "PHONE", platformId: normalizedPhone });
-  } catch (error) {
-    console.warn("Could not verify caller phone for staff recovery", error?.message || error);
-    return null;
-  }
-
-  if (String(identity?.userInfo?.uid || "") !== String(uid)) return null;
-
-  let rows;
-  try {
-    rows = await executeSql(
-      `SELECT id, role_code, account_status FROM public.staff_accounts WHERE phone = ${sqlText(normalizedPhone)} LIMIT 1`
-    );
-  } catch (error) {
-    asDatabaseError(error, "Read staff account by verified phone");
-  }
-  const staff = rows?.[0];
-  if (!staff) return null;
-  if (staff.role_code === "operation") {
-    fail("运营账号已下线，无法恢复登录绑定。", "OPERATION_ROLE_RETIRED");
-  }
-  if (staff.account_status !== "ACTIVE") fail("This staff account is archived and cannot sign in", "ARCHIVED_ACCOUNT");
-
-  try {
-    await executeSql(
-      `UPDATE public.staff_accounts SET auth_uid = ${sqlText(uid)}, updated_at = NOW() WHERE id = ${Number(staff.id)}`
-    );
-  } catch (error) {
-    asDatabaseError(error, "Restore staff account binding");
-  }
-  return findStaffProfile(uid);
-}
-
 function bootstrapHqProfile(uid, userInfo) {
   if (!process.env.BOOTSTRAP_HQ_UID || String(uid) !== String(process.env.BOOTSTRAP_HQ_UID)) return null;
   return {
@@ -1391,7 +1354,7 @@ function bootstrapHqProfile(uid, userInfo) {
 
 async function currentUser(includeUserInfo = false) {
   const { uid } = getAuth().getUserInfo();
-  if (!uid) fail("请先完成手机号登录", "UNAUTHENTICATED");
+  if (!uid) fail("请先登录", "UNAUTHENTICATED");
   let userInfo = {};
   if (includeUserInfo) {
     try {
@@ -3719,14 +3682,11 @@ async function main(event = {}, context = {}) {
   const caller = await currentUser(false);
 
   if (action === "session") {
-    if (!caller.profile && event.phone) {
-      caller.profile = await recoverStaffProfileByVerifiedPhone(caller.uid, event.phone);
-    }
     if (!caller.profile && String(caller.uid) === String(process.env.BOOTSTRAP_HQ_UID || "")) {
       caller.profile = await ensureBootstrapHq(caller);
     }
     if (!caller.profile) {
-      fail(`该手机号尚未被总部绑定业务身份。Current auth UID: ${caller.uid}`, "UNASSIGNED_PHONE");
+      fail("当前登录身份尚未绑定可用业务账号。", "UNASSIGNED_IDENTITY");
     }
     return { ok: true, version: FUNCTION_VERSION, uid: caller.uid, profile: caller.profile };
   }

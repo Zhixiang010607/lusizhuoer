@@ -1,17 +1,11 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>系统登录</title><link rel="stylesheet" href="styles.css?v=0.15.44"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>系统登录</title><link rel="stylesheet" href="styles.css?v=0.15.59"></head>
 <body class="login-page">
   <main class="login-shell">
-    <section class="login-brand-panel">
-      <div class="login-brand"><span>HQ</span><div><strong>门店业务管理系统</strong><small>充值 · 核销 · 客户 · 数据看板</small></div></div>
-      <div class="login-brand-copy"><p class="eyebrow">BUSINESS MANAGEMENT PLATFORM</p><h1>一个入口，三种身份</h1><p>系统根据登录账号确定总部、门店或老师权限。每次业务操作自动记录账号、人员名称和所属门店。</p></div>
-      <div class="login-feature-list"><div><b>01</b><span><strong>总部管理</strong>全局数据、审核和基础资料</span></div><div><b>02</b><span><strong>门店业务</strong>客户建档、充值和核销</span></div><div><b>03</b><span><strong>老师工作台</strong>个人工单与体验核销</span></div></div>
-      <p class="login-security-note">正式系统通过HTTPS和后端会话认证；前端不保存明文密码。</p>
-    </section>
     <section class="login-form-panel">
       <div class="login-form-wrap">
-        <div id="loginWelcomeHeading" class="login-heading"><span class="login-system-mark">HQ</span><div><h2>欢迎登录</h2><p>输入已由总部绑定身份的手机号</p></div></div>
+        <div id="loginWelcomeHeading" class="login-heading"><span class="login-system-mark">HQ</span><h2>登录</h2></div>
         <form id="loginForm" class="login-form" novalidate>
           <label>手机号<input id="loginPhone" autocomplete="tel" inputmode="numeric" maxlength="11" placeholder="请输入中国大陆手机号" required></label>
           <div class="login-method-switch" role="tablist" aria-label="登录方式"><button class="active" id="passwordLoginMode" type="button">密码登录</button><button id="smsLoginMode" type="button">验证码登录</button></div>
@@ -20,20 +14,19 @@
           <div class="login-options"><label><input id="rememberAccount" type="checkbox">记住账号</label><a href="#" id="forgotPassword">修改密码</a></div>
           <p id="loginError" class="login-error" role="alert"></p>
           <button class="login-submit" type="submit">登录系统</button>
-          <div class="demo-accounts"><strong>安全登录说明</strong><span id="demoHint">仅已由总部绑定身份的手机号可获取验证码或登录。</span></div>
         </form>
         <form id="passwordResetForm" class="login-form" novalidate hidden>
-          <div class="login-heading"><span class="login-system-mark">HQ</span><div><h2>修改登录密码</h2><p>验证已绑定手机号后即可设置新密码。</p></div></div>
+          <div class="login-heading"><span class="login-system-mark">HQ</span><h2>修改密码</h2></div>
           <label>手机号<input id="resetPhone" autocomplete="tel" inputmode="numeric" maxlength="11" placeholder="请输入中国大陆手机号" required></label>
           <label>短信验证码<span class="password-field"><input id="resetSmsCode" inputmode="numeric" maxlength="6" placeholder="请输入验证码" required><button id="sendResetSms" type="button">获取验证码</button></span></label>
           <label>新密码<input id="resetNewPassword" type="password" minlength="8" maxlength="32" autocomplete="new-password" placeholder="至少 8 位，含三类字符" required></label>
           <label>确认新密码<input id="resetConfirmPassword" type="password" minlength="8" maxlength="32" autocomplete="new-password" placeholder="请再次输入新密码" required></label>
           <p id="passwordResetMessage" class="login-error" role="alert"></p>
           <button class="login-submit" type="submit">验证并修改密码</button>
-          <div class="login-options"><span>验证码仅发送给已存在的账号。</span><a href="#" id="backToLogin">返回登录</a></div>
+          <div class="login-options"><a href="#" id="backToLogin">返回登录</a></div>
         </form>
       </div>
     </section>
   </main>
-  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.18.0"></script><script src="login.js?v=0.17.3"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.20.0"></script><script src="login.js?v=0.17.4"></script>
 </body></html>

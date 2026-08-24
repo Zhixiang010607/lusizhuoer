@@ -12,10 +12,26 @@ const vm = require("node:vm");
 
 const root = path.resolve(__dirname, "..");
 const staffSource = fs.readFileSync(path.join(root, "cloudfunctions", "staffAccount", "index.js"), "utf8");
-const findStaffProfileSource = staffSource.slice(
-  staffSource.indexOf("async function findStaffProfile"),
-  staffSource.indexOf("\nasync function recoverStaffProfileByVerifiedPhone", staffSource.indexOf("async function findStaffProfile"))
-);
+
+function functionSource(source, name) {
+  const marker = new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\(`);
+  const match = marker.exec(source);
+  assert.ok(match, `function ${name} must exist`);
+  const signatureEnd = source.indexOf(") {", match.index + match[0].length);
+  assert.ok(signatureEnd >= 0, `function ${name} signature must be complete`);
+  const bodyStart = signatureEnd + 2;
+  let depth = 0;
+  for (let index = bodyStart; index < source.length; index += 1) {
+    if (source[index] === "{") depth += 1;
+    else if (source[index] === "}") {
+      depth -= 1;
+      if (depth === 0) return source.slice(match.index, index + 1);
+    }
+  }
+  throw new Error(`function ${name} body is incomplete`);
+}
+
+const findStaffProfileSource = functionSource(staffSource, "findStaffProfile");
 assert.ok(findStaffProfileSource.startsWith("async function findStaffProfile"), "findStaffProfile must remain independently executable");
 
 function mainSource(source) {

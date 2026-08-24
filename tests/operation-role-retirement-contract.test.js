@@ -56,8 +56,13 @@ assert.match(staffAccount, /const ROLES = new Set\(\["hq", "store", "teacher"\]\
 assert.doesNotMatch(staffAccount, /const OPERATION_ACTIONS/);
 const findProfile = functionSource(staffAccount, "findStaffProfile");
 assert.match(findProfile, /staff\.role_code === "operation"[\s\S]*?OPERATION_ROLE_RETIRED/);
-const recovery = functionSource(staffAccount, "recoverStaffProfileByVerifiedPhone");
-assert.match(recovery, /staff\.role_code === "operation"[\s\S]*?OPERATION_ROLE_RETIRED/);
+const dispatcher = functionSource(staffAccount, "main");
+const sessionStart = dispatcher.indexOf('if (action === "session")');
+const sessionEnd = dispatcher.indexOf('\n  if (action === "', sessionStart + 1);
+assert.ok(sessionStart >= 0 && sessionEnd > sessionStart, "the public session branch must remain inspectable");
+const publicSession = dispatcher.slice(sessionStart, sessionEnd);
+assert.doesNotMatch(publicSession, /event\.phone|recoverStaffProfileByVerifiedPhone/,
+  "public session must not restore or rebind any role from a caller-supplied phone");
 const createProfile = functionSource(staffAccount, "createStaffDatabaseProfile");
 assert.match(createProfile, /role === "operation"[\s\S]*?OPERATION_ROLE_RETIRED/);
 const reviewerGuard = functionSource(staffAccount, "requireReviewer");
