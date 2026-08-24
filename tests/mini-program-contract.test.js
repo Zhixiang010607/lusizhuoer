@@ -51,7 +51,7 @@ assert.match(loginPage, /submitWechatPhone\s*\(/);
 assert.match(loginPage, /event\.detail\.code/);
 
 const home = read("pages", "home", "index.wxml");
-assert.match(home, /wx:if="\{\{session\.role !== 'hq'\}\}" class="card"/);
+assert.match(home, /wx:if="\{\{session\.role !== 'hq'\}\}">/);
 assert.match(home, /session\.role === 'teacher'.*EXPERIENCE/s);
 
 const customerCreate = read("pages", "customer-create", "index.js");

@@ -18,7 +18,7 @@
 
 ## 微信小程序
 
-`miniprogram-app/` 是复用当前 CloudBase 后端与同一员工 UID 权限的原生微信小程序。仓库范围包含外壳、手机号密码登录、用户点击授权的微信手机号快捷登录、老师／门店工作台、客户查询与建立、充值／退费、正常／老师体验核销；BLE 是下一阶段。导入、构建、安全与断网防重验收见 [`miniprogram-app/README.md`](miniprogram-app/README.md)。
+`miniprogram-app/` 是复用当前 CloudBase 后端与同一员工 UID 权限的原生微信小程序。仓库范围包含外壳、手机号密码登录、用户点击授权的微信手机号快捷登录、与网页版手机内容区逐项一致的总部／门店／老师首页、客户查询与建立、充值／退费、正常／老师体验核销；BLE 是下一阶段。网页和小程序只统一视觉与业务语义，客户端源码、路由、会话和平台能力仍物理隔离。导入、构建、安全与断网防重验收见 [`miniprogram-app/README.md`](miniprogram-app/README.md)。
 
 当前小程序开发基线为 Node.js `>=20.19.0`、pnpm `9.15.9` 和微信开发者工具；依赖必须按 `pnpm-lock.yaml` 冻结安装，不再使用会产生第二份锁文件的 `npm install`。当前开发 AppID 为 `wxb053c1bd6c684d8b`，仍需在微信公众平台和 CloudBase 为该 AppID 配置合法域名与环境访问权，AppID 可公开但任何密钥都不得写入仓库。
 

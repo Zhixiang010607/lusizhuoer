@@ -1,53 +1,158 @@
-<view class="page">
-  <view id="home-ready" class="profile-card">
-    <view class="identity-icon">{{roleIcon}}</view>
-    <view class="identity-main">
-      <text class="identity-brand">露思卓儿</text>
-      <text class="identity-name">{{roleName}}工作台</text>
-      <text class="identity-meta">{{session.staffName || '员工账号'}} · {{session.staffCode || '已验证身份'}}</text>
+<view class="workspace-page role-{{session.role}}">
+  <scroll-view id="home-ready" class="workspace-rail" scroll-x enhanced show-scrollbar="false">
+    <view class="rail-inner">
+      <view class="rail-current" aria-label="{{roleTitle}}"><text class="rail-icon">{{session.role === 'hq' ? '总' : (session.role === 'store' ? '店' : '师')}}</text></view>
+      <view wx:if="{{session.role !== 'hq'}}" class="rail-link {{businessMenuOpen ? 'active' : ''}}" bindtap="toggleBusinessMenu" aria-label="业务办理">办</view>
+      <view wx:if="{{session.role !== 'teacher'}}" class="rail-link" bindtap="openCustomers" aria-label="客户查询">查</view>
+      <view class="rail-link rail-logout" bindtap="logout" aria-label="退出登录">退</view>
     </view>
-    <button class="logout" bindtap="logout">退出</button>
-  </view>
-
-  <view wx:if="{{session.role === 'teacher'}}" class="card">
-    <view class="card-title"><text>本次办理门店</text><text class="badge">必选</text></view>
-    <picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="selectStore" disabled="{{loadingStores || !stores.length}}">
-      <view class="picker">{{loadingStores ? '正在读取活跃门店…' : (selectedStore ? selectedStore.name + ' · ' + (selectedStore.code || selectedStore.id) : '请选择办理门店')}}</view>
-    </picker>
-    <view wx:if="{{storeMessage}}" class="message {{storeError ? 'error' : ''}}">{{storeMessage}}</view>
-  </view>
-
-  <view wx:if="{{session.role !== 'hq'}}" class="card">
-    <view class="card-title"><text>业务办理</text><text class="badge">{{selectedStore ? selectedStore.name : '先选门店'}}</text></view>
-    <view class="action-grid">
-      <view class="action" bindtap="openCustomerCreate"><text class="action-title">客户建立</text><text class="action-note">现场拍照、活体检测并建档</text></view>
-      <view class="action" bindtap="openRecharge" data-mode="NEW"><text class="action-title">办卡充值</text><text class="action-note">提交待总部审核的充值单</text></view>
-      <view class="action" bindtap="openRecharge" data-mode="REFUND"><text class="action-title">退费申请</text><text class="action-note">按客户真实项目余额申请</text></view>
-      <view class="action" bindtap="openVerification" data-mode="NORMAL"><text class="action-title">正常核销</text><text class="action-note">客户 1:1 人脸验证后核销</text></view>
-      <view wx:if="{{session.role === 'teacher'}}" class="action experience" bindtap="openVerification" data-mode="EXPERIENCE"><text class="action-title">体验核销</text><text class="action-note">使用老师本人体验次数</text></view>
+  </scroll-view>
+  <view wx:if="{{businessMenuOpen && session.role !== 'hq'}}" class="business-popover">
+    <picker wx:if="{{session.role === 'teacher'}}" range="{{storeLabels}}" value="{{storeIndex}}" bindchange="selectStore" disabled="{{loadingStores || !stores.length}}"><view class="popover-store">{{selectedStore ? '本次门店 · ' + selectedStore.name : '选择本次办理门店'}}</view></picker>
+    <view class="popover-grid">
+      <view bindtap="openCustomerCreate">客户建立</view><view bindtap="openRecharge" data-mode="NEW">办卡充值</view><view bindtap="openRecharge" data-mode="REFUND">退费申请</view><view bindtap="openVerification" data-mode="NORMAL">核销办理</view><view wx:if="{{session.role === 'teacher'}}" bindtap="openVerification" data-mode="EXPERIENCE">体验核销</view>
     </view>
   </view>
 
-  <view wx:if="{{session.role === 'hq'}}" class="card">
-    <view class="card-title"><text>总部移动查询</text><text class="badge">只读</text></view>
-    <view class="message">总部不提供客户建立、充值、退费和核销入口；业务办理只允许门店和老师。</view>
+  <view class="workspace-topbar">
+    <view><text class="topbar-eyebrow">{{session.role === 'hq' ? 'HEADQUARTERS ANALYTICS' : (session.role === 'store' ? 'STORE DASHBOARD' : 'MY WORKSPACE')}}</text><text class="topbar-title">{{roleTitle}}</text><text class="topbar-subtitle">{{roleSubtitle}}</text></view>
   </view>
 
-  <view class="card">
-    <view class="card-title"><text>客户</text><text class="badge">私有资料</text></view>
-    <button class="secondary" bindtap="openCustomers">查看有权访问的客户</button>
-  </view>
+  <view class="workspace-main">
+    <view wx:if="{{message}}" class="form-message {{error ? 'error' : ''}}">{{message}}</view>
 
-  <view wx:if="{{session.role === 'teacher'}}" class="card">
-    <view class="card-title"><text>体验项目剩余</text><text class="badge">{{experienceBalances.length}} 个项目</text></view>
-    <view wx:if="{{experienceBalances.length}}" class="quota-list">
-      <view wx:for="{{experienceBalances}}" wx:key="productId" class="quota">
-        <view><text class="quota-name">{{item.productName}}</text><text class="quota-code">{{item.productCode}}</text></view>
-        <view class="quota-count"><text>{{item.availableCount}}</text><text class="quota-unit">次可用</text></view>
+    <block wx:if="{{session.role === 'teacher'}}">
+      <view class="web-panel detail-section">
+        <view class="panel-heading"><view><text class="panel-title">我的基础信息</text><text class="panel-note">身份由当前登录账号在数据库中确认</text></view><text class="web-badge">老师本人</text></view>
+        <view class="detail-info-grid">
+          <view wx:for="{{profileFacts}}" wx:key="label" class="detail-info-item"><text>{{item.label}}</text><text>{{item.value}}</text></view>
+        </view>
       </view>
-    </view>
-    <view wx:else class="empty">暂未配置体验项目</view>
+
+      <view class="web-panel teacher-quota-panel">
+        <view class="panel-heading"><view><text class="panel-title">体验项目剩余次数</text><text class="panel-note">按已配置项目自动排列；项目数量变化时页面会自动调整</text></view><text class="web-badge">{{experienceBalances.length}} 个项目</text></view>
+        <view wx:if="{{experienceBalances.length}}" class="teacher-quota-grid">
+          <view wx:for="{{experienceBalances}}" wx:key="productId" class="teacher-quota-card">
+            <view><text class="quota-name">{{item.productName}}</text><text class="quota-code">{{item.productCode || '—'}}</text></view>
+            <view class="quota-available"><text>{{item.availableCount}}</text><text>次可用</text></view>
+            <view class="quota-facts"><view><text>每月基础</text><text>{{item.monthlyAllowance}} 次</text></view><view><text>本月已用</text><text>{{item.usedCount}} 次</text></view></view>
+          </view>
+        </view>
+        <view wx:else class="table-empty">暂未配置体验项目</view>
+      </view>
+    </block>
+
+    <block wx:if="{{session.role === 'store'}}">
+      <view class="web-panel profile-hero">
+        <view class="profile-avatar">店</view><view class="profile-copy"><text class="profile-type">门店账号</text><view class="profile-title-row"><text>{{storeHero.name || session.storeName}}</text><text class="store-status-badge">{{storeHero.status}}</text></view><text>{{storeHero.account || storeHero.code || session.storeCode}}</text></view>
+      </view>
+      <view class="web-panel detail-section">
+        <view class="panel-heading"><view><text class="panel-title">基础资料</text><text class="panel-note">门店身份、地址、账号和状态</text></view><text class="web-badge">门店档案</text></view>
+        <view class="detail-info-grid">
+          <view wx:for="{{profileFacts}}" wx:key="label" class="detail-info-item"><text>{{item.label}}</text><text>{{item.value}}</text></view>
+        </view>
+      </view>
+      <scroll-view class="detail-anchor-nav" scroll-x enhanced show-scrollbar="false"><view class="anchor-inner"><text>业务汇总</text><text>业务明细</text><text>活跃用户</text><text>封存用户</text></view></scroll-view>
+    </block>
+
+    <block wx:if="{{session.role !== 'hq'}}">
+      <view class="web-panel overview-panel">
+        <view class="panel-heading"><view><text class="panel-title">时间范围与业务汇总</text><text class="panel-note">汇总仅统计{{session.role === 'teacher' ? '当前老师' : '本门店'}}在所选周期内已经生效的业务次数</text></view><text class="web-badge">{{rangeLabel}}</text></view>
+        <view class="range-presets">
+          <button wx:for="{{rangeOptions}}" wx:key="value" class="range-button {{item.active ? 'active' : ''}}" data-preset="{{item.value}}" bindtap="chooseRange">{{item.label}}</button>
+        </view>
+        <view wx:if="{{customRangeVisible}}" class="custom-range">
+          <label><text>开始日期</text><picker mode="date" value="{{rangeStart}}" bindchange="changeRangeStart"><view class="date-picker">{{rangeStart || '请选择'}}</view></picker></label>
+          <label><text>结束日期</text><picker mode="date" value="{{rangeEnd}}" bindchange="changeRangeEnd"><view class="date-picker">{{rangeEnd || '请选择'}}</view></picker></label>
+          <button bindtap="applyCustomRange">应用时间</button>
+        </view>
+        <scroll-view class="table-scroll summary-scroll" scroll-x enhanced show-scrollbar="false">
+          <view class="summary-table">
+            <view class="table-row table-head"><view class="summary-product">产品</view><view>核销</view><view>充值</view><view>体验</view><view>退费</view></view>
+            <view wx:for="{{summaryRows}}" wx:key="productId" class="table-row {{item.total ? 'summary-total' : ''}}">
+              <view class="summary-product"><text>{{item.productName}}</text><text wx:if="{{item.productCode}}">{{item.productCode}}</text></view>
+              <view><text class="metric-number">{{item.verification}}</text><text class="metric-unit">次</text></view>
+              <view><text class="metric-number">{{item.recharge}}</text><text class="metric-unit">次</text></view>
+              <view><text class="metric-number">{{item.experience}}</text><text class="metric-unit">次</text></view>
+              <view><text class="metric-number">{{item.refund}}</text><text class="metric-unit">次</text></view>
+            </view>
+            <view wx:if="{{!summaryRows.length}}" class="table-empty">{{loading ? '正在计算业务汇总…' : '所选时间内暂无有效业务'}}</view>
+          </view>
+        </scroll-view>
+      </view>
+
+      <view class="web-panel business-panel">
+        <view class="panel-heading"><view><text class="panel-title">{{session.role === 'teacher' ? '本人业务明细' : '本门店业务明细'}}</text><text class="panel-note">与上方业务汇总使用同一时间范围；客户可进入关联客户主页</text></view><text class="web-badge">共 {{businessPage.total}} 条</text></view>
+        <view class="record-tabs">
+          <button wx:for="{{businessTabs}}" wx:key="type" class="record-tab {{item.active ? 'active' : ''}}" data-type="{{item.type}}" bindtap="selectBusinessType"><text>{{item.label}}</text><text>{{item.total}} 次</text></button>
+        </view>
+        <scroll-view class="table-scroll record-scroll" scroll-x enhanced show-scrollbar="false">
+          <view class="record-table">
+            <view class="table-row table-head"><view>单号</view><view>门店</view><view>客户</view><view>项目</view><view>次数</view><view>提交时间</view></view>
+            <view wx:for="{{businessRecords}}" wx:key="id" class="table-row"><view>{{item.recordCode}}</view><view>{{item.storeName}}</view><view class="table-link" data-code="{{item.customerCode}}" bindtap="openCustomer">{{item.customerName}}</view><view>{{item.productName}}</view><view>{{item.unitCount}} 次</view><view>{{item.submittedAt}}</view></view>
+            <view wx:if="{{!businessRecords.length}}" class="table-empty">{{businessLoading || loading ? '正在读取业务明细…' : '当前分类暂无有效记录'}}</view>
+          </view>
+        </scroll-view>
+        <view class="table-pagination"><button disabled="{{businessPage.previousDisabled}}" bindtap="previousBusinessPage">上一页</button><text>第 {{businessPage.page}} / {{businessPage.totalPages}} 页</text><button disabled="{{businessPage.nextDisabled}}" bindtap="nextBusinessPage">下一页</button></view>
+      </view>
+
+      <view class="web-panel customer-panel">
+        <view class="panel-heading"><view><text class="panel-title">活跃用户</text><text class="panel-note">点击姓名可进入客户主页</text></view><text class="web-badge">{{activeCustomers.total}} 位用户</text></view>
+        <scroll-view class="table-scroll customer-scroll" scroll-x enhanced show-scrollbar="false">
+          <view class="customer-table">
+            <view class="table-row table-head"><view>姓名</view><view>门店</view><view>生日</view><view>充值次数</view><view>核销次数</view></view>
+            <view wx:for="{{activeCustomers.rows}}" wx:key="customerCode" class="table-row"><view class="table-link" data-code="{{item.customerCode}}" bindtap="openCustomer">{{item.customerName}}</view><view>{{item.storeName}}</view><view>{{item.birthDate}}</view><view>{{item.rechargeCount}} 次</view><view class="metric-number">{{item.verificationCount}} 次</view></view>
+            <view wx:if="{{!activeCustomers.rows.length}}" class="table-empty">暂无活跃客户</view>
+          </view>
+        </scroll-view>
+        <view class="table-pagination"><button disabled="{{activeCustomers.previousDisabled}}" data-status="ACTIVE" data-direction="-1" bindtap="customerPage">上一页</button><text>第 {{activeCustomers.page}} / {{activeCustomers.totalPages}} 页</text><button disabled="{{activeCustomers.nextDisabled}}" data-status="ACTIVE" data-direction="1" bindtap="customerPage">下一页</button></view>
+      </view>
+
+      <view class="web-panel customer-panel archived-section">
+        <view class="panel-heading"><view><text class="panel-title">封存用户</text><text class="panel-note">封存客户仍保留历史关联；点击姓名可进入客户主页</text></view><text class="web-badge archived-badge">{{archivedCustomers.total}} 位用户</text></view>
+        <scroll-view class="table-scroll customer-scroll" scroll-x enhanced show-scrollbar="false">
+          <view class="customer-table">
+            <view class="table-row table-head"><view>姓名</view><view>门店</view><view>生日</view><view>充值次数</view><view>核销次数</view></view>
+            <view wx:for="{{archivedCustomers.rows}}" wx:key="customerCode" class="table-row"><view class="table-link" data-code="{{item.customerCode}}" bindtap="openCustomer">{{item.customerName}}</view><view>{{item.storeName}}</view><view>{{item.birthDate}}</view><view>{{item.rechargeCount}} 次</view><view class="metric-number">{{item.verificationCount}} 次</view></view>
+            <view wx:if="{{!archivedCustomers.rows.length}}" class="table-empty">暂无封存客户</view>
+          </view>
+        </scroll-view>
+        <view class="table-pagination"><button disabled="{{archivedCustomers.previousDisabled}}" data-status="ARCHIVED" data-direction="-1" bindtap="customerPage">上一页</button><text>第 {{archivedCustomers.page}} / {{archivedCustomers.totalPages}} 页</text><button disabled="{{archivedCustomers.nextDisabled}}" data-status="ARCHIVED" data-direction="1" bindtap="customerPage">下一页</button></view>
+      </view>
+    </block>
+
+    <block wx:if="{{session.role === 'hq'}}">
+      <view class="web-panel hq-filters">
+        <view class="hq-filter-grid">
+          <label><text>时间周期</text><picker range="{{hqPeriodLabels}}" value="{{hqPeriodIndex}}" bindchange="chooseHqPeriod"><view class="filter-picker">{{hqPeriodLabels[hqPeriodIndex]}}</view></picker></label>
+          <label><text>开始日期</text><picker mode="date" value="{{hqStart}}" bindchange="changeHqStart"><view class="filter-picker">{{hqStart}}</view></picker></label>
+          <label><text>结束日期</text><picker mode="date" value="{{hqEnd}}" bindchange="changeHqEnd"><view class="filter-picker">{{hqEnd}}</view></picker></label>
+        </view>
+        <view class="hq-filter-actions"><text>当前统计范围：{{hqStart}} 至 {{hqEnd}}</text><button bindtap="resetHqRange">重置筛选</button></view>
+      </view>
+
+      <view class="metric-grid">
+        <view wx:for="{{hqMetrics}}" wx:key="label" class="metric-card {{item.neutral ? 'neutral' : ''}}"><text>{{item.label}}</text><text>{{item.value}}</text><text>{{item.note}}</text></view>
+      </view>
+
+      <view wx:for="{{hqCharts}}" wx:key="dimension" class="web-panel chart-card">
+        <view class="panel-heading"><view><text class="panel-title">{{item.title}}</text><text class="panel-note">有效充值、核销、体验与退费次数 · 图内横向滚动</text></view><text class="web-badge">{{item.badge}}</text></view>
+        <block wx:if="{{item.rows.length}}"><view class="chart-legend"><view class="legend-item"><view class="legend-dot recharge-dot"></view><text>有效充值</text></view><view class="legend-item"><view class="legend-dot verification-dot"></view><text>有效核销</text></view><view class="legend-item"><view class="legend-dot experience-dot"></view><text>有效体验</text></view><view class="legend-item"><view class="legend-dot refund-dot"></view><text>有效退费</text></view><text>纵轴：次数</text></view><scroll-view class="chart-scroll" scroll-x enhanced show-scrollbar="false"><view class="bar-chart"><view class="bar-y-axis"><text>次数</text></view><view class="bar-canvas"><view wx:for="{{item.rows}}" wx:for-item="row" wx:key="entityId" class="bar-group"><view class="bars"><view wx:for="{{row.bars}}" wx:for-item="bar" wx:key="metric" class="bar {{bar.metric}}" style="height: {{bar.height}};"><text>{{bar.value}}</text></view></view><text class="bar-group-label">{{row.name}}</text></view></view></view></scroll-view></block>
+        <view wx:else class="table-empty">当前日期范围暂无有效数据</view>
+      </view>
+
+      <view class="web-panel ranking-panel">
+        <view class="panel-heading ranking-heading"><view><text class="panel-title">完整排名</text><text class="panel-note">每页 100 条；图表仅显示 Top 10，完整排名按页读取</text></view><picker range="{{hqDimensionLabels}}" value="{{hqDimensionIndex}}" bindchange="chooseHqDimension"><view class="dimension-picker">分类维度 · {{hqDimensionLabels[hqDimensionIndex]}}</view></picker></view>
+        <scroll-view class="table-scroll ranking-scroll" scroll-x enhanced show-scrollbar="false">
+          <view class="ranking-table">
+            <view class="table-row table-head"><view>排名</view><view>分类对象</view><view>分类维度</view><view>有效充值</view><view>有效核销</view><view>有效体验</view><view>有效退费</view><view>业务总计占比</view></view>
+            <view wx:for="{{hqRanking}}" wx:key="entityId" class="table-row"><view>{{item.rank}}</view><view>{{item.name}}</view><view>按{{item.dimensionLabel}}</view><view>{{item.recharge}}</view><view>{{item.verification}}</view><view>{{item.experience}}</view><view>{{item.refund}}</view><view>{{item.share}}</view></view>
+            <view wx:if="{{!hqRanking.length}}" class="table-empty">{{loading ? '正在读取排名…' : '当前日期范围暂无有效数据'}}</view>
+          </view>
+        </scroll-view>
+        <view class="table-pagination"><button disabled="{{hqRankingPage.previousDisabled}}" bindtap="previousHqPage">上一页</button><text>第 {{hqRankingPage.page}} / {{hqRankingPage.totalPages}} 页 · 共 {{hqRankingPage.total}} 条</text><button disabled="{{hqRankingPage.nextDisabled}}" bindtap="nextHqPage">下一页</button></view>
+      </view>
+    </block>
+    <view class="safe-bottom"></view>
   </view>
-  <view wx:if="{{message}}" class="message {{error ? 'error' : ''}}">{{message}}</view>
-  <view class="safe-bottom"></view>
 </view>

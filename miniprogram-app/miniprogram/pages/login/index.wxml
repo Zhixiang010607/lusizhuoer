@@ -7,12 +7,12 @@
       <view class="login-divider"><view></view><text>或使用账号密码</text><view></view></view>
       <label class="field">
         <text class="field-label">手机号</text>
-        <input id="login-phone" class="input" type="number" maxlength="11" placeholder="请输入 11 位手机号" value="{{phone}}" bindinput="inputPhone" />
+        <input id="login-phone" class="input" type="number" maxlength="11" placeholder="请输入 11 位手机号" placeholder-class="login-placeholder" value="{{phone}}" bindinput="inputPhone" />
       </label>
       <view class="field">
         <text class="field-label">登录密码</text>
         <view class="password-field">
-          <input id="login-password" class="input" password="{{!passwordVisible}}" maxlength="32" placeholder="请输入登录密码" value="{{password}}" bindinput="inputPassword" />
+          <input id="login-password" class="input" password="{{!passwordVisible}}" maxlength="32" placeholder="请输入登录密码" placeholder-class="login-placeholder" value="{{password}}" bindinput="inputPassword" />
           <button class="password-toggle" bindtap="togglePassword">{{passwordVisible ? '隐藏' : '显示'}}</button>
         </view>
       </view>
