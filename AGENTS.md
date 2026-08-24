@@ -1,3 +1,13 @@
+# Project context rule
+
+Before changing business logic, permissions, database migrations, cloud
+functions, web pages, or the mini-program, read `PROJECT_CONTEXT.md` completely.
+It is the current cross-device business-rule baseline.  Its final rules and
+explicitly retired designs take precedence over historical migration names and
+older narrative documentation.  When a later user decision changes a rule,
+update `PROJECT_CONTEXT.md` in the same commit and remove or clearly retire the
+superseded wording.
+
 # Cloud function release rule
 
 Whenever deployable code under `cloudfunctions/<function>/` changes:
