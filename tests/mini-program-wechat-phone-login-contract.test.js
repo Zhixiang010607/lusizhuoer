@@ -142,7 +142,7 @@ test("an authentication error signs out, clears local state, and skips the staff
   assert.equal(state.app.globalData.session, null, "an authentication error must clear the in-memory session");
 });
 
-test("a blank CloudBase UNKNOWN error reports mini-program authorization instead of bad credentials", async () => {
+test("a blank CloudBase UNKNOWN error reports transport configuration instead of bad credentials", async () => {
   const authResult = {
     data: {},
     error: { category: "UNKNOWN", message: "", requestId: "request-id-is-diagnostic-only" }
@@ -151,7 +151,7 @@ test("a blank CloudBase UNKNOWN error reports mini-program authorization instead
 
   await assert.rejects(
     api.wechatPhoneLogin("blocked-before-authentication"),
-    /CloudBase 授权.*小程序认证.*开通云开发/
+    /登录服务暂不可用.*网络.*request 合法域名配置/
   );
 
   assert.deepEqual(state.callStaffArgs, [], "a blocked Auth request must not reach staffAccount");

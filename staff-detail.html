@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>老师主页</title>
+  <title>人员主页</title>
   <link rel="stylesheet" href="styles.css?v=0.15.53">
 </head>
 <body data-staff-detail>
@@ -15,27 +15,27 @@
 
   <header class="topbar staff-detail-topbar">
     <div>
-      <p id="staffDetailEyebrow" class="staff-page-kicker">TEACHER WORKSPACE</p>
-      <h1 id="staffDetailTitle">老师主页</h1>
-      <p id="staffDetailSubtitle" class="staff-page-description">总部可在这里查看老师档案、管理体验额度与账号安全。</p>
+      <p id="staffDetailEyebrow" class="staff-page-kicker">ACCOUNT PROFILE</p>
+      <h1 id="staffDetailTitle">人员主页</h1>
+      <p id="staffDetailSubtitle" class="staff-page-description">总部可在这里查看人员档案与账号安全。</p>
     </div>
-    <a class="button-link secondary-button" id="backToManagement" href="index.html">返回老师管理</a>
+    <a class="button-link secondary-button" id="backToManagement" href="index.html">返回账号管理</a>
   </header>
 
   <main class="staff-detail-main">
-    <section class="staff-profile-workspace" aria-label="老师档案与账号管理">
+    <section class="staff-profile-workspace" aria-label="人员档案与账号管理">
       <section id="staffDetailContent" class="staff-profile-shell" aria-live="polite">
-        <div class="staff-profile-loading">正在读取老师资料…</div>
+        <div class="staff-profile-loading">正在读取人员资料…</div>
       </section>
       <aside class="panel staff-status-panel" aria-labelledby="staffSecurityTitle">
         <div>
           <p class="staff-panel-kicker">账号与安全</p>
-          <h2 id="staffSecurityTitle">老师账号管理</h2>
+          <h2 id="staffSecurityTitle">人员账号管理</h2>
           <p id="staffStatusHint">正在读取人员信息。</p>
         </div>
         <div class="staff-admin-actions">
           <button id="staffCredentialAction" class="secondary-button" type="button" hidden>重置临时密码</button>
-          <button id="staffStatusAction" class="danger-button" type="button" hidden>封存老师</button>
+          <button id="staffStatusAction" class="danger-button" type="button" hidden>封存人员</button>
         </div>
       </aside>
     </section>
@@ -132,7 +132,7 @@
   <script src="cloudbase-auth-config.js"></script>
   <script src="cloudbase-phone-auth.js?v=0.20.0"></script>
   <script src="datetime.js?v=0.1.2"></script>
-  <script src="staff-detail.js?v=0.15.9"></script>
+  <script src="staff-detail.js?v=0.15.10"></script>
   <script src="auth-ui.js?v=0.19.4"></script>
 </body>
 </html>

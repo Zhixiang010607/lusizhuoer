@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 
 const root = path.resolve(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
@@ -46,7 +47,7 @@ includes(archivedCustomerSection, 'id="storeArchivedCustomerBody"', "archived bo
 includes(activeCustomerSection, '<h2 id="storeActiveCustomersTitle">活跃用户</h2>', "active customer heading matches teacher terminology");
 includes(archivedCustomerSection, '<h2 id="storeArchivedCustomersTitle">封存用户</h2>', "archived customer heading matches teacher terminology");
 includes(html, 'store-detail.js?v=0.16.6', "store detail script cache bust");
-includes(html, 'store-analytics-data.js?v=0.2.0', "store analytics helper cache bust");
+includes(html, 'store-analytics-data.js?v=0.2.1', "store analytics helper cache bust");
 includes(html, 'styles.css?v=0.15.57', "store detail stylesheet cache bust");
 for (const [type, label] of [["VERIFICATION", "核销"], ["RECHARGE", "充值"], ["EXPERIENCE", "体验"], ["REFUND", "退费"]]) {
   assert.match(html, new RegExp(`data-store-record-type="${type}"[\\s\\S]{0,120}<span>${label}</span>`), `${label} must be a dedicated store detail button`);
@@ -74,11 +75,25 @@ includes(detail, 'data-store-business-page', "store business records include pre
 includes(detail, 'data-store-business-jump', "store business records preserve direct page jump");
 assert.doesNotMatch(detail, /storeBusinessLoadMore|继续加载|businessCursors|businessHasMore/, "store details do not use endless cursor loading");
 assert.doesNotMatch(detail, /renderProjects|renderProjectRefundBreakdown|storeProjectBody/, "store detail removes the legacy lifetime-project renderer");
-includes(analyticsData, 'if (period === "WEEK")', "store supports the same weekly range as teacher");
-includes(analyticsData, 'if (period === "QUARTER")', "store supports the same quarterly range as teacher");
-includes(analyticsData, 'if (period === "YEAR")', "store supports the same yearly range as teacher");
-includes(analyticsData, 'if (period === "ALL")', "store supports all-time range");
+includes(analyticsData, 'if (normalized === "WEEK")', "store supports the same weekly range as teacher");
+includes(analyticsData, 'if (normalized === "QUARTER")', "store supports the same quarterly range as teacher");
+includes(analyticsData, 'if (normalized === "YEAR")', "store supports the same yearly range as teacher");
+includes(analyticsData, 'if (normalized === "ALL")', "store supports all-time range");
+includes(analyticsData, 'if (normalized === "LAST7")', "standalone store analysis supports its near-seven-day option");
 includes(analyticsData, 'allTime: !startDate && !endDate', "all-time request is explicit rather than accidentally defaulting to today");
+
+const analyticsSandbox = { window: {}, Intl, Date };
+vm.createContext(analyticsSandbox);
+vm.runInContext(analyticsData, analyticsSandbox, { filename: "store-analytics-data.js" });
+const lowercaseToday = analyticsSandbox.window.StoreAnalyticsData.periodRange("today");
+assert.match(lowercaseToday.startDate, /^\d{4}-\d{2}-\d{2}$/);
+assert.equal(lowercaseToday.endDate, lowercaseToday.startDate,
+  "standalone analysis lowercase today option must populate both date inputs");
+const lowercaseLast7 = analyticsSandbox.window.StoreAnalyticsData.periodRange("last7");
+assert.equal((Date.parse(lowercaseLast7.endDate) - Date.parse(lowercaseLast7.startDate)) / 86400000, 6,
+  "standalone analysis near-seven-day option must cover seven inclusive dates");
+assert.equal(analyticsSandbox.window.StoreAnalyticsData.periodRange("month").startDate.slice(-2), "01",
+  "standalone analysis lowercase month option must begin on the first day");
 
 const dashboardSource = cloud.slice(cloud.indexOf("async function getStoreDashboard"), cloud.indexOf("const STORE_ANALYTICS_METRICS"));
 const dashboardProjectSource = dashboardSource.slice(
@@ -150,6 +165,8 @@ assert.doesNotMatch(dashboardSource, /JOIN public\.teachers/, "store dashboard d
 includes(analysisHtml, 'id="storeAnalysisChart"', "store chart");
 includes(analysisHtml, 'id="teacherAnalysisChart"', "teacher chart");
 includes(analysisHtml, 'id="productAnalysisChart"', "product chart");
+includes(analysisHtml, 'store-analytics-data.js?v=0.2.1', "standalone analysis uses the fixed range helper");
+includes(analysisHtml, 'store-analysis.js?v=0.1.1', "standalone analysis cache busts the fixed client");
 includes(analysis, 'Number(b.value || 0) - Number(a.value || 0)', "charts sort descending");
 includes(analysis, '["today", "last7", "month"].find', "metric page preserves matching time presets");
 includes(css, ".store-chart-scroll", "chart scrolling class");

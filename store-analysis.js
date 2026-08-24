@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.1.0";
+  const VERSION = "0.1.1";
   const metrics = Object.freeze({ recharge: "充值", verification: "核销", experience: "体验", refund: "退费" });
   const params = new URLSearchParams(location.search);
   const metric = Object.prototype.hasOwnProperty.call(metrics, params.get("metric")) ? params.get("metric") : "recharge";

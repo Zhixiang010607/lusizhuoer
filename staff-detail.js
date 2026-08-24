@@ -559,6 +559,10 @@
       ? "总部在这里配置该老师的体验次数、单独充值与账号安全。"
       : "总部查看该账号自身范围的数据与账号安全。";
     $("backToManagement").href = pages[role];
+    $("backToManagement").textContent = `返回${isTeacher ? "老师管理" : "总部管理"}`;
+    document.title = isTeacher ? "老师主页" : `${labels[role]}主页`;
+    document.querySelector(".staff-profile-workspace")?.setAttribute("aria-label", `${labels[role]}档案与账号管理`);
+    $("staffSecurityTitle").textContent = `${labels[role]}账号管理`;
     $("staffDetailContent").innerHTML = isTeacher
       ? `<section class="teacher-profile-hero">
           <div class="teacher-profile-avatar" aria-hidden="true">${escapeHtml(initials)}</div>

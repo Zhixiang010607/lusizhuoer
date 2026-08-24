@@ -55,7 +55,10 @@ test("mini-program keeps the company brand visible after login", () => {
 
   assert.equal(json.navigationBarTitleText, "露思卓儿", "the native mini-program title keeps the brand visible above every role home");
   assert.match(wxml, /class="workspace-topbar"/);
-  assert.match(wxml, /\{\{roleTitle\}\}/);
+  assert.match(wxml, /class="topbar-title">露思卓儿<\/text>/,
+    "the in-content home title must keep the company brand visible");
+  assert.match(wxml, /class="topbar-role">\{\{roleTitle\}\}<\/text>/,
+    "the role-specific home title must remain a subtitle of the brand");
   assert.match(context, /人物图只用于小程序登录页/);
   assert.match(context, /登录后各角色工作台顶部必须明确显示文字品牌名“露思卓儿”/);
 });

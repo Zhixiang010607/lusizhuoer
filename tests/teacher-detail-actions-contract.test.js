@@ -28,6 +28,12 @@ for (const retired of [
 }
 assert.match(staffDetail, /老师身份由登录手机号和账号主档绑定[\s\S]{0,160}现场只核验客户人脸/,
   "teacher home must explain account binding and customer-only experience verification");
+assert.match(staffDetail, /document\.title = isTeacher \? "老师主页" : `\$\{labels\[role\]\}主页`/,
+  "shared staff detail must use a role-correct browser title");
+assert.match(staffDetail, /backToManagement[\s\S]{0,120}textContent = `返回\$\{isTeacher \? "老师管理" : "总部管理"\}`/,
+  "shared staff detail must use a role-correct management link");
+assert.match(staffDetail, /staffSecurityTitle[\s\S]{0,100}textContent = `\$\{labels\[role\]\}账号管理`/,
+  "shared staff detail must not label HQ account controls as teacher controls");
 assert.doesNotMatch(`${teacherCreateHtml}\n${teacherCreateScript}`,
   /camera|capturedFace|faceImage|validateTeacherCreateCapture|createTeacherWithFace|老师人脸|拍照|活体/i,
   "teacher creation must contain no photograph or teacher-face workflow");
@@ -66,7 +72,7 @@ for (const file of ["query.js", "management.js", "detail.js"]) {
 
 assert.match(staffDetailHtml, /cloudbase-phone-auth\.js\?v=0\.20\.0/,
   "teacher home must refresh the shared cloud-function client");
-assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.9/,
+assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.10/,
   "teacher home must refresh its action handlers");
 assert.match(teacherCreateHtml, /teacher-create\.js\?v=0\.5\.0/,
   "teacher creation must refresh the no-photo UI");

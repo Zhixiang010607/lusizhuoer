@@ -1,6 +1,6 @@
 # 露思卓儿业务系统：项目规则与跨设备交接基线
 
-> 最后整理：2026-08-24
+> 最后整理：2026-08-25
 >
 > 适用仓库：`https://github.com/Zhixiang010607/lusizhuoer`
 >
@@ -451,7 +451,7 @@ CloudBase 和微信发布前置：
 - 在与现有 Auth 用户、云函数和 PostgreSQL 相同的 CloudBase 环境中启用 `WX_MICRO_APP` 身份源，配置当前小程序 AppID 和 AppSecret。
 - 身份源必须显式配置 `On=TRUE`、`AutoSignInWhenPhoneNumberMatch=TRUE`、`AutoSignUpWithProviderUser=FALSE`、`TransparentMode=FALSE`、`ReuseUserId=FALSE`；手机号＋密码登录继续保留，不得依赖控制台默认值。
 - 小程序主体必须是已完成微信认证的非个人主体；发布前完成手机号用途的用户隐私保护指引、对应接口声明和明确授权文案。
-- 非个人主体小程序未通过微信认证、未开通云开发或未完成 CloudBase 小程序授权时，密码与微信手机号两种小程序登录均不得宣称验收通过；SDK 返回空白 `UNKNOWN` 认证错误时，客户端必须提示检查小程序认证和云开发授权，不得误报“手机号或密码错误”。
+- 非个人主体小程序未通过微信认证、未开通云开发或未完成 CloudBase 小程序授权时，密码与微信手机号两种小程序登录均不得宣称验收通过。SDK 返回空白 `UNKNOWN` 只能说明客户端没有取得可用错误详情，不能据此断定账号密码错误或认证状态；客户端应提示检查网络和 `request` 合法域名，并保留服务端返回的明确认证错误。
 - 按微信和 CloudBase 当期规则开通小程序手机号验证能力、套餐或计费，并在真机完成授权成功、拒绝授权、未绑定员工和封存员工回归；开发者工具模拟不代表发布验收。
 
 BLE 后续实现顺序：
@@ -507,7 +507,7 @@ BLE 后续实现顺序：
 - 任何再次清库必须由用户明确确认当前保留清单，并先输出只读预览；不能依据旧聊天中的历史名单自动执行。
 - 代码推送不代表云函数、SQL 或静态托管已经部署。交接时必须分别说明：GitHub 已推送、SQL 是否已执行、云函数是否已上传、静态网站是否已发布、health 是否已验证。
 - 代码和文档完成且验证通过后必须直接提交并推送当前分支到 `origin`，再核对本地 HEAD 与上游 HEAD 一致；不得 force-push。推送失败时不能宣称交付完成。
-- 本轮微信手机号快捷登录交付边界：仓库代码与文档按 `staffAccount v69` 编排，但云函数尚未部署、CloudBase `WX_MICRO_APP` 身份源尚未配置、微信手机号能力与计费尚未开通验收。在完成控制台配置、上传、`health` 版本核对和真机回归前，不得宣称线上已支持该登录方式。
+- 本轮小程序交付边界：CloudBase 环境已为开发 AppID 完成小程序授权；小程序使用独立 CloudBase JS SDK 连接原有 PostgreSQL 环境，不执行开发者工具的云环境转换，也不新建第二套数据库。手机号＋密码已在开发者工具中通过真实既有账号进入总部主页并完成 `staffAccount.session` 回读。`WX_MICRO_APP` 身份源仍未配置，微信手机号能力与计费尚未开通验收；正式预览／发布还必须在微信公众平台为当前 AppID 配置 CloudBase `request` 合法域名并完成真机回归。云函数、SQL、静态网站和小程序发布状态仍分别计算，不得因本地登录成功而宣称线上快捷登录已发布。
 
 ## 27. 另一台电脑接手步骤
 
@@ -527,7 +527,7 @@ cd miniprogram-app/miniprogram
 pnpm install --frozen-lockfile
 ```
 
-`miniprogram/.npmrc` 已固定 `node-linker=hoisted`，避免微信开发者工具遇到 pnpm 默认符号链接布局。微信开发者工具应导入 `miniprogram-app`，再执行“工具 → 构建 npm”。当前开发 AppID 为 `wxb053c1bd6c684d8b`；更换 AppID 时必须同步确认微信公众平台合法域名和 CloudBase 环境授权，不能只改本地 JSON。AppID 不是密钥，但 SecretId、SecretKey、CloudBase API Key、数据库密码和真实业务数据仍严禁进入仓库。
+`miniprogram/.npmrc` 已固定 `node-linker=hoisted`，避免微信开发者工具遇到 pnpm 默认符号链接布局。微信开发者工具应导入 `miniprogram-app`，再执行“工具 → 构建 npm”。现有环境是 CloudBase PostgreSQL 环境，开发者工具提示“不支持 PostgreSQL 环境”时不要执行“转换云环境”；小程序通过仓库内 CloudBase JS SDK 与微信适配器直连同一环境并调用现有云函数。当前开发 AppID 为 `wxb053c1bd6c684d8b`；更换 AppID 时必须同步确认微信公众平台合法域名和 CloudBase 环境授权，不能只改本地 JSON。AppID 不是密钥，但 SecretId、SecretKey、CloudBase API Key、数据库密码和真实业务数据仍严禁进入仓库。
 
 然后按以下顺序读取：
 

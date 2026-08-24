@@ -15,7 +15,7 @@
   </view>
 
   <view class="workspace-topbar">
-    <view><text class="topbar-eyebrow">{{session.role === 'hq' ? 'HEADQUARTERS ANALYTICS' : (session.role === 'store' ? 'STORE DASHBOARD' : 'MY WORKSPACE')}}</text><text class="topbar-title">{{roleTitle}}</text><text class="topbar-subtitle">{{roleSubtitle}}</text></view>
+    <view><text class="topbar-eyebrow">{{session.role === 'hq' ? 'HEADQUARTERS ANALYTICS' : (session.role === 'store' ? 'STORE DASHBOARD' : 'MY WORKSPACE')}}</text><text class="topbar-title">露思卓儿</text><text class="topbar-role">{{roleTitle}}</text><text class="topbar-subtitle">{{roleSubtitle}}</text></view>
   </view>
 
   <view class="workspace-main">

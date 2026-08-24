@@ -39,7 +39,7 @@ function loginError(result, fallback) {
   const message = String(source.message || source.error_description || "").trim();
   const category = String(source.category || source.code || source.status || "").toUpperCase();
   const configurationMessage = category === "UNKNOWN" && !message
-    ? "当前小程序尚未通过 CloudBase 授权，请先完成小程序认证并开通云开发"
+    ? "登录服务暂不可用，请检查网络和小程序 request 合法域名配置"
     : "";
   const error = new Error(message || configurationMessage || fallback);
   error.code = source.code || source.status || source.category || "AUTH_FAILED";

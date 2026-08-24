@@ -15,14 +15,15 @@
 - 各客户端共享 `cloudfunctions/` 和 `database/` 的服务端契约，但不互相导入 UI、路由、会话存储、平台 API、依赖或构建产物。单端修改默认不碰其他端；共享接口变化必须分别回归每一端。
 - 云函数代码变化必须提供 `deployments/<函数名>-v<版本>.zip` 的可点击本机链接。需要在腾讯云执行的 SQL 必须是 `database/cloudbase-console/` 下可整文件复制粘贴的独立文件。
 - 验证完成的代码必须提交并推送；代码推送、SQL 执行、云函数上传、网站发布和小程序发布仍是五个独立状态，交付时分别说明。
+- 页面、按钮、查询和三角色回归的当前覆盖与未提交边界见 [`QA_ACCEPTANCE.md`](QA_ACCEPTANCE.md)。
 
 ## 微信小程序
 
 `miniprogram-app/` 是复用当前 CloudBase 后端与同一员工 UID 权限的原生微信小程序。仓库范围包含外壳、手机号密码登录、用户点击授权的微信手机号快捷登录、与网页版手机内容区逐项一致的总部／门店／老师首页、客户查询与建立、充值／退费、正常／老师体验核销；BLE 是下一阶段。网页和小程序只统一视觉与业务语义，客户端源码、路由、会话和平台能力仍物理隔离。导入、构建、安全与断网防重验收见 [`miniprogram-app/README.md`](miniprogram-app/README.md)。
 
-当前小程序开发基线为 Node.js `>=20.19.0`、pnpm `9.15.9` 和微信开发者工具；依赖必须按 `pnpm-lock.yaml` 冻结安装，不再使用会产生第二份锁文件的 `npm install`。当前开发 AppID 为 `wxb053c1bd6c684d8b`，仍需在微信公众平台和 CloudBase 为该 AppID 配置合法域名与环境访问权，AppID 可公开但任何密钥都不得写入仓库。
+当前小程序开发基线为 Node.js `>=20.19.0`、pnpm `9.15.9`、CloudBase JS SDK `3.7.1` 和微信开发者工具；依赖必须按 `pnpm-lock.yaml` 冻结安装，不再使用会产生第二份锁文件的 `npm install`。当前开发 AppID 为 `wxb053c1bd6c684d8b`，CloudBase 环境授权已经成功，仍需在微信公众平台为该 AppID 配置 CloudBase `request` 合法域名。AppID 可公开但任何密钥都不得写入仓库。现有 CloudBase 是 PostgreSQL 环境，不走微信开发者工具的“云环境转换”；小程序通过 SDK 与微信适配器复用同一环境和云函数。
 
-> 当前交付边界：仓库代码与文档以 `staffAccount v69`、`faceRecognition v90`、`verificationPhoto v9`、`teacherCreate v6` 为版本矩阵，但本轮代码尚未部署，CloudBase `WX_MICRO_APP` 身份源也尚未配置。完成云函数上传、身份源配置、`health` 核对和真机验收前，线上仍不能视为已支持微信手机号快捷登录。
+> 当前交付边界：仓库代码与文档以 `staffAccount v69`、`faceRecognition v90`、`verificationPhoto v9`、`teacherCreate v6` 为版本矩阵；CloudBase 小程序授权已成功，手机号＋密码已在开发者工具用既有账号完成总部会话回读。CloudBase `WX_MICRO_APP` 身份源仍未配置，当前 AppID 的正式 `request` 合法域名和真机验收仍未完成。本轮没有修改或上传云函数，也没有发布小程序；线上仍不能视为已支持微信手机号快捷登录。
 
 ## 腾讯云客户人脸识别后端
 

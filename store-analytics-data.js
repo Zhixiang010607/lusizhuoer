@@ -37,19 +37,21 @@
   }
 
   function periodRange(period) {
+    const normalized = String(period || "").trim().toUpperCase();
     const today = businessToday();
     const date = new Date(`${today}T00:00:00.000Z`);
     const year = date.getUTCFullYear();
     const month = date.getUTCMonth();
-    if (period === "ALL") return { startDate: "", endDate: "" };
-    if (period === "TODAY") return { startDate: today, endDate: today };
-    if (period === "WEEK") {
+    if (normalized === "ALL") return { startDate: "", endDate: "" };
+    if (normalized === "TODAY") return { startDate: today, endDate: today };
+    if (normalized === "LAST7") return { startDate: addDays(today, -6), endDate: today };
+    if (normalized === "WEEK") {
       const weekday = date.getUTCDay() || 7;
       return { startDate: addDays(today, 1 - weekday), endDate: today };
     }
-    if (period === "MONTH") return { startDate: `${today.slice(0, 8)}01`, endDate: today };
-    if (period === "QUARTER") return { startDate: new Date(Date.UTC(year, Math.floor(month / 3) * 3, 1)).toISOString().slice(0, 10), endDate: today };
-    if (period === "YEAR") return { startDate: `${year}-01-01`, endDate: today };
+    if (normalized === "MONTH") return { startDate: `${today.slice(0, 8)}01`, endDate: today };
+    if (normalized === "QUARTER") return { startDate: new Date(Date.UTC(year, Math.floor(month / 3) * 3, 1)).toISOString().slice(0, 10), endDate: today };
+    if (normalized === "YEAR") return { startDate: `${year}-01-01`, endDate: today };
     return null;
   }
 
