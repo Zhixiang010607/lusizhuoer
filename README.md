@@ -2,6 +2,10 @@
 
 当前前端版本：`0.15.0`
 
+## 微信小程序
+
+`miniprogram-app/` 是复用当前 CloudBase 后端与同一员工 UID 权限的原生微信小程序。已完成外壳、手机号密码登录、老师／门店工作台、客户查询与建立、充值／退费、正常／老师体验核销；BLE 是下一阶段。导入、构建、安全与断网防重验收见 [`miniprogram-app/README.md`](miniprogram-app/README.md)。
+
 ## 腾讯云客户人脸识别后端
 
 `cloudfunctions/faceRecognition/` 是 CloudBase 人脸与业务云函数源码。它使用腾讯云人脸识别的人员库与 1:1 核验能力，人员库 ID 为 `lusizhuoerdatabase`；客户首次授权建档时录入人脸，后续核销只与已经选定客户的档案核验。`cloudfunctions/verificationPhoto/` 是独立核销照片云函数，不安装腾讯人脸 SDK，只处理照片查看、导出和三个补充照片位的上传／取消／恢复。函数密钥只能配置在 CloudBase 环境变量 `FACE_SECRET_ID`、`FACE_SECRET_KEY` 中，严禁出现在网页代码、GitHub 或文档中；照片函数不需要这两个变量。

@@ -1,0 +1,14 @@
+{
+  "appid": "touristappid",
+  "projectname": "lusizhuoer-business-miniapp",
+  "compileType": "miniprogram",
+  "miniprogramRoot": "miniprogram/",
+  "setting": {
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true,
+    "urlCheck": true,
+    "packNpmManually": false
+  }
+}

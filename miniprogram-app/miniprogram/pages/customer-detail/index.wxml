@@ -1,0 +1,49 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="card empty">正在读取客户主页…</view>
+  <block wx:else-if="{{profile}}">
+    <view class="card profile">
+      <view class="profile-top">
+        <image wx:if="{{photoUrl}}" class="photo-small" src="{{photoUrl}}" mode="aspectFill" bindtap="previewPhoto" binderror="photoFailed"></image>
+        <view wx:else class="photo-small photo-placeholder" bindtap="reloadPhoto">点击重读照片</view>
+        <view class="profile-name"><text>{{profile.customerName}}</text><text class="profile-sub">{{profile.customerCode}}</text><text class="profile-sub">{{profile.storeName}} · {{profile.birthDate}}</text></view>
+      </view>
+      <view class="button-row photo-actions">
+        <button class="secondary" bindtap="reloadPhoto" loading="{{photoLoading}}" disabled="{{photoLoading}}">重读原图</button>
+        <button class="secondary" bindtap="savePhoto" loading="{{photoSaving}}" disabled="{{photoSaving || !photoUrl}}">保存到相册</button>
+      </view>
+      <view class="facts">
+        <view class="fact"><text class="label">状态</text><text class="value">{{profile.customerStatus === 'ACTIVE' ? '活跃' : '已封存'}}</text></view>
+        <view class="fact"><text class="label">总充值</text><text class="value">{{profile.totalRechargeCount}} 次</text></view>
+        <view class="fact"><text class="label">总核销</text><text class="value">{{profile.totalVerificationCount}} 次</text></view>
+        <view class="fact"><text class="label">总体验</text><text class="value">{{profile.totalExperienceCount}} 次</text></view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="card-title"><text>客户备注</text><text class="badge">可编辑</text></view>
+      <textarea class="textarea" maxlength="1000" value="{{notes}}" bindinput="inputNotes" placeholder="填写客户备注"></textarea>
+      <button class="primary save-note" bindtap="saveNotes" loading="{{savingNotes}}" disabled="{{savingNotes || notes === originalNotes}}">保存备注</button>
+    </view>
+
+    <view class="card">
+      <view class="card-title"><text>项目余额</text><text class="badge">{{balances.length}} 个项目</text></view>
+      <view wx:for="{{balances}}" wx:key="productId" class="balance-row"><view><text class="balance-name">{{item.productName}}</text><text class="balance-code">{{item.productCode}}</text></view><text class="balance-count">{{item.remainingCount}} 次</text></view>
+      <view wx:if="{{!balances.length}}" class="empty">暂无项目余额</view>
+    </view>
+
+    <view class="card">
+      <view class="card-title"><text>业务记录</text><text class="badge">最近记录</text></view>
+      <view class="segmented history-tabs">
+        <button class="{{historyType === 'RECHARGE' ? 'active' : ''}}" data-type="RECHARGE" bindtap="changeHistory">充值/退费</button>
+        <button class="{{historyType === 'VERIFICATION' ? 'active' : ''}}" data-type="VERIFICATION" bindtap="changeHistory">核销</button>
+        <button class="{{historyType === 'EXPERIENCE' ? 'active' : ''}}" data-type="EXPERIENCE" bindtap="changeHistory">体验</button>
+      </view>
+      <view wx:for="{{visibleHistory}}" wx:key="id" class="record-row">
+        <view><text class="record-code">{{item.rechargeCode || item.verificationCode}}</text><text class="record-meta">{{item.productName}} · {{item.teacherName || '无业务老师'}}</text></view>
+        <view class="record-right"><text>{{item.unitCount}} 次</text><text class="record-status">{{item.recordStatus}}</text></view>
+      </view>
+      <view wx:if="{{!visibleHistory.length}}" class="empty">暂无相关记录</view>
+    </view>
+  </block>
+  <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
+</view>

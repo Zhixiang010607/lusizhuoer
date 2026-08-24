@@ -1,0 +1,53 @@
+<view class="page">
+  <view class="profile-card">
+    <view class="identity-icon">{{roleIcon}}</view>
+    <view class="identity-main">
+      <text class="identity-label">{{roleName}}工作台</text>
+      <text class="identity-name">{{session.staffName || session.phone}}</text>
+      <text class="identity-meta">{{session.staffCode || session.phone}}</text>
+    </view>
+    <button class="logout" bindtap="logout">退出</button>
+  </view>
+
+  <view wx:if="{{session.role === 'teacher'}}" class="card">
+    <view class="card-title"><text>本次办理门店</text><text class="badge">必选</text></view>
+    <picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="selectStore" disabled="{{loadingStores || !stores.length}}">
+      <view class="picker">{{loadingStores ? '正在读取活跃门店…' : (selectedStore ? selectedStore.name + ' · ' + (selectedStore.code || selectedStore.id) : '请选择办理门店')}}</view>
+    </picker>
+    <view wx:if="{{storeMessage}}" class="message {{storeError ? 'error' : ''}}">{{storeMessage}}</view>
+  </view>
+
+  <view wx:if="{{session.role !== 'hq'}}" class="card">
+    <view class="card-title"><text>业务办理</text><text class="badge">{{selectedStore ? selectedStore.name : '先选门店'}}</text></view>
+    <view class="action-grid">
+      <view class="action" bindtap="openCustomerCreate"><text class="action-title">客户建立</text><text class="action-note">现场拍照、活体检测并建档</text></view>
+      <view class="action" bindtap="openRecharge" data-mode="NEW"><text class="action-title">办卡充值</text><text class="action-note">提交待总部审核的充值单</text></view>
+      <view class="action" bindtap="openRecharge" data-mode="REFUND"><text class="action-title">退费申请</text><text class="action-note">按客户真实项目余额申请</text></view>
+      <view class="action" bindtap="openVerification" data-mode="NORMAL"><text class="action-title">正常核销</text><text class="action-note">客户 1:1 人脸验证后核销</text></view>
+      <view wx:if="{{session.role === 'teacher'}}" class="action experience" bindtap="openVerification" data-mode="EXPERIENCE"><text class="action-title">体验核销</text><text class="action-note">使用老师本人体验次数</text></view>
+    </view>
+  </view>
+
+  <view wx:if="{{session.role === 'hq'}}" class="card">
+    <view class="card-title"><text>总部移动查询</text><text class="badge">只读</text></view>
+    <view class="message">总部不提供客户建立、充值、退费和核销入口；业务办理只允许门店和老师。</view>
+  </view>
+
+  <view class="card">
+    <view class="card-title"><text>客户</text><text class="badge">私有资料</text></view>
+    <button class="secondary" bindtap="openCustomers">查看有权访问的客户</button>
+  </view>
+
+  <view wx:if="{{session.role === 'teacher'}}" class="card">
+    <view class="card-title"><text>体验项目剩余</text><text class="badge">{{experienceBalances.length}} 个项目</text></view>
+    <view wx:if="{{experienceBalances.length}}" class="quota-list">
+      <view wx:for="{{experienceBalances}}" wx:key="productId" class="quota">
+        <view><text class="quota-name">{{item.productName}}</text><text class="quota-code">{{item.productCode}}</text></view>
+        <view class="quota-count"><text>{{item.availableCount}}</text><text class="quota-unit">次可用</text></view>
+      </view>
+    </view>
+    <view wx:else class="empty">暂未配置体验项目</view>
+  </view>
+  <view wx:if="{{message}}" class="message {{error ? 'error' : ''}}">{{message}}</view>
+  <view class="safe-bottom"></view>
+</view>

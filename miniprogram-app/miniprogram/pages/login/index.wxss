@@ -1,0 +1,13 @@
+.login-page { min-height: 100vh; padding: 96rpx 34rpx 60rpx; background: linear-gradient(160deg, #102947 0, #173f6b 34%, #f3f7fb 34.2%); }
+.brand { display: flex; align-items: center; gap: 20rpx; margin: 0 10rpx 76rpx; color: #fff; }
+.brand-mark { display: flex; width: 88rpx; height: 88rpx; align-items: center; justify-content: center; background: linear-gradient(135deg, #2a6edf, #11a89e); border-radius: 24rpx; font-size: 44rpx; font-weight: 900; }
+.brand-name, .brand-note { display: block; }
+.brand-name { font-size: 38rpx; font-weight: 850; }
+.brand-note { margin-top: 5rpx; color: #c7d7e9; font-size: 23rpx; }
+.login-card { padding: 38rpx 30rpx; background: #fff; border: 1rpx solid #dce5ee; border-radius: 28rpx; box-shadow: 0 22rpx 56rpx rgba(10, 34, 62, .15); }
+.welcome { display: block; font-size: 40rpx; font-weight: 850; }
+.description { display: block; margin: 14rpx 0 32rpx; color: #62758a; line-height: 1.55; }
+.password-toggle { width: auto; min-height: auto; margin: -8rpx 0 26rpx auto; padding: 8rpx; color: #235caa; background: transparent; font-size: 23rpx; line-height: 1.2; }
+.password-toggle::after { border: 0; }
+.login-button { width: 100%; margin: 0; }
+.security-note { display: block; margin: 26rpx 18rpx 0; color: #64778b; font-size: 22rpx; line-height: 1.55; text-align: center; }

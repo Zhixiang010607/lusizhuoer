@@ -1,0 +1,4 @@
+{
+  "desc": "业务系统不允许被微信索引",
+  "rules": [{ "action": "disallow", "page": "*" }]
+}

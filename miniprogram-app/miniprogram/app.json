@@ -1,0 +1,24 @@
+{
+  "pages": [
+    "pages/login/index",
+    "pages/home/index",
+    "pages/customers/index",
+    "pages/customer-detail/index",
+    "pages/customer-create/index",
+    "pages/recharge/index",
+    "pages/verification/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "露思卓儿工作台",
+    "navigationBarBackgroundColor": "#102947",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f3f7fb",
+    "backgroundTextStyle": "dark"
+  },
+  "style": "v2",
+  "requiredPrivateInfos": [
+    "chooseMedia"
+  ],
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

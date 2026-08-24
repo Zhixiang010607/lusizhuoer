@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "充值与退费",
+  "enablePullDownRefresh": false,
+  "usingComponents": {
+    "customer-picker": "/components/customer-picker/index"
+  }
+}

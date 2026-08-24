@@ -1,0 +1,27 @@
+<view class="picker-card">
+  <view class="tabs">
+    <button class="{{mode === 'select' ? 'active' : ''}}" data-mode="select" bindtap="changeMode">现有客户</button>
+    <button class="{{mode === 'manual' ? 'active' : ''}}" data-mode="manual" bindtap="changeMode">姓名＋生日</button>
+  </view>
+  <view wx:if="{{mode === 'select'}}">
+    <picker disabled="{{loading || !customers.length}}" range="{{customerLabels}}" value="{{selectedIndex}}" bindchange="selectCustomer">
+      <view class="field-value">{{loading ? '正在读取客户…' : (selectedIndex >= 0 ? customerLabels[selectedIndex] : (customers.length ? '请选择客户' : '暂无活跃客户'))}}</view>
+    </picker>
+  </view>
+  <view wx:else class="manual-fields">
+    <input class="field-value" placeholder="客户姓名" value="{{manualName}}" bindinput="inputName" />
+    <picker mode="date" value="{{manualBirthday}}" end="{{today}}" bindchange="inputBirthday"><view class="field-value">{{manualBirthday || '选择生日'}}</view></picker>
+    <button class="search" bindtap="manualSearch" loading="{{loading}}" disabled="{{loading}}">精确查询</button>
+  </view>
+  <view wx:if="{{candidate}}" class="candidate">
+    <image class="customer-photo" src="{{photoUrl}}" mode="aspectFill" bindload="photoLoaded" binderror="photoFailed"></image>
+    <view class="candidate-info">
+      <text class="candidate-name">{{candidate.customerName}}</text>
+      <text>{{candidate.birthDate}}</text>
+      <text>{{candidate.customerCode}}</text>
+    </view>
+  </view>
+  <button wx:if="{{candidate}}" class="confirm" bindtap="confirm" disabled="{{!photoReady}}">{{photoReady ? '确认这位客户' : '正在读取客户照片…'}}</button>
+  <button wx:if="{{candidate && error}}" class="retry" bindtap="retryPhoto" loading="{{loading}}" disabled="{{loading}}">单独重读这张照片</button>
+  <text wx:if="{{message}}" class="picker-message {{error ? 'error' : ''}}">{{message}}</text>
+</view>

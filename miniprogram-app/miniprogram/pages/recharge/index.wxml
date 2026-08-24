@@ -1,0 +1,42 @@
+<view class="page">
+  <view class="page-heading">
+    <text class="eyebrow">{{refund ? '退费申请' : '办卡充值'}}</text>
+    <text class="title">{{refund ? '申请退回已购次数' : '为客户提交充值单'}}</text>
+    <text class="subtitle">{{store.name}} · 业务将严格绑定当前账号和门店。</text>
+  </view>
+
+  <view wx:if="{{locked}}" class="card recovery-card">
+    <view class="card-title"><text>上次提交结果待确认</text><text class="badge">禁止重复</text></view>
+    <text class="section-note">{{message || '正在从数据库核对上次请求。'}}</text>
+    <button class="primary" bindtap="recoverPending" loading="{{recovering}}" disabled="{{recovering}}">检查上次提交结果</button>
+  </view>
+
+  <block wx:else>
+    <view class="card">
+      <view class="card-title"><text>第一步：确认客户</text><text class="badge">必须看到照片</text></view>
+      <customer-picker store-id="{{store.id}}" bindconfirm="customerConfirmed" bindchange="customerChanged"></customer-picker>
+    </view>
+
+    <view class="card {{customer ? '' : 'disabled-card'}}">
+      <view class="card-title"><text>第二步：填写{{refund ? '退费' : '充值'}}信息</text><text class="badge">{{customer ? customer.customerName : '先确认客户'}}</text></view>
+      <label class="field">
+        <text class="field-label">项目</text>
+        <picker range="{{productLabels}}" value="{{productIndex}}" bindchange="selectProduct" disabled="{{!customer || loadingOptions || !products.length}}">
+          <view class="picker">{{loadingOptions ? '正在读取项目…' : (selectedProduct ? productLabels[productIndex] : (products.length ? '请选择项目' : '暂无可用项目'))}}</view>
+        </picker>
+      </label>
+      <view wx:if="{{refund && selectedProduct}}" class="impact">已购未退 {{selectedProduct.purchasedCount}} 次，当前剩余 {{selectedProduct.remainingCount}} 次；本次最多可退 {{selectedProduct.purchasedCount}} 次。</view>
+      <label class="field">
+        <text class="field-label">业务老师</text>
+        <picker range="{{teacherLabels}}" value="{{teacherIndex}}" bindchange="selectTeacher" disabled="{{session.role === 'teacher' || loadingOptions}}">
+          <view class="picker">{{selectedTeacher ? selectedTeacher.teacherName + ' · ' + selectedTeacher.teacherCode : '不指定业务老师'}}</view>
+        </picker>
+      </label>
+      <label class="field"><text class="field-label">{{refund ? '退费次数' : '充值次数'}}</text><input class="input" type="number" maxlength="3" value="{{unitCount}}" bindinput="inputCount" placeholder="1 至 999 的整数" /></label>
+      <label class="field"><text class="field-label">门店留言（可选）</text><textarea class="textarea" maxlength="500" value="{{note}}" bindinput="inputNote" placeholder="审核人员可在详情中看到" /></label>
+      <button class="primary" bindtap="submit" loading="{{busy}}" disabled="{{busy || !ready}}">提交{{refund ? '退费' : '充值'}}申请</button>
+    </view>
+  </block>
+  <view wx:if="{{message && !locked}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
+  <view class="safe-bottom"></view>
+</view>

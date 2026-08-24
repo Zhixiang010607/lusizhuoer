@@ -1,2 +1,6 @@
 /deployments/
 /tmp/
+/output/
+/miniprogram-app/miniprogram/node_modules/
+/miniprogram-app/miniprogram/miniprogram_npm/
+/miniprogram-app/project.private.config.json

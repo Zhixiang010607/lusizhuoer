@@ -1,0 +1,4 @@
+.search-card .field:last-of-type { margin-bottom: 24rpx; }
+.pager { display: flex; align-items: center; justify-content: space-between; gap: 14rpx; padding-top: 22rpx; border-top: 1rpx solid #e5edf5; }
+.pager button { width: 180rpx; min-height: 70rpx; margin: 0; font-size: 23rpx; }
+.pager text { color: #60758b; font-size: 23rpx; }

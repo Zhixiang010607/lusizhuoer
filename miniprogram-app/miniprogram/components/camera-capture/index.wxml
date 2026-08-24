@@ -1,0 +1,19 @@
+<view class="capture-card">
+  <view class="capture-heading">
+    <view>
+      <text class="title">{{title}}</text>
+      <text class="hint">仅允许现场调用前置摄像头拍摄</text>
+    </view>
+    <text class="state {{captureReady ? 'ready' : ''}}">{{captureReady ? '已拍摄' : '待拍摄'}}</text>
+  </view>
+  <image wx:if="{{previewPath}}" class="preview" src="{{previewPath}}" mode="aspectFill"></image>
+  <view wx:else class="placeholder">
+    <text class="placeholder-title">等待现场照片</text>
+    <text>请让本人正对镜头，避免逆光、遮挡或多人入镜</text>
+  </view>
+  <view class="buttons">
+    <button class="capture" type="primary" bindtap="takePhoto" loading="{{busy}}" disabled="{{busy}}">{{previewPath ? '重新拍照' : '打开摄像头'}}</button>
+    <button wx:if="{{previewPath}}" class="clear" bindtap="reset">清除</button>
+  </view>
+  <text wx:if="{{message}}" class="capture-message {{error ? 'error' : ''}}">{{message}}</text>
+</view>

@@ -1,0 +1,3 @@
+.recovery-card { border-color: #efc1bd; }
+.disabled-card { opacity: .68; }
+.impact { margin: -4rpx 0 22rpx; padding: 18rpx; color: #275277; background: #edf5fd; border-left: 6rpx solid #2f73d9; border-radius: 12rpx; line-height: 1.5; }
