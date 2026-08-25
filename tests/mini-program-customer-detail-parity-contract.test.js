@@ -57,6 +57,17 @@ test("notes, customer status, recent dates, and photo failures retain role bound
     "profile data and the separately authorized photo must load independently");
 });
 
+test("notes and messages keep symmetric in-card spacing and the warm internal palette", () => {
+  assert.match(wxss, /\.notes-card, \.messages-card \{[^}]*linear-gradient\(180deg, #fffaf3 0%, #fff6e8 100%\);[^}]*border-color: #dcc49c;/s);
+  assert.match(wxss, /\.notes-read \{[^}]*width: 100%;[^}]*box-sizing: border-box;[^}]*overflow: hidden;[^}]*background: #fff7eb;[^}]*border: 1rpx solid #d8bc8c;/s,
+    "the padded scroll view must remain inside the card instead of consuming the right inset");
+  assert.match(wxss, /\.notes-input \{[^}]*background: #fff7eb;[^}]*border-color: #d8bc8c;/s);
+  assert.match(wxss, /\.message-list \{[^}]*width: 100%;[^}]*box-sizing: border-box;/s);
+  assert.match(wxss, /\.message-item \{[^}]*background: #f9edda;[^}]*border: 1rpx solid #dfc69e;/s);
+  assert.match(wxss, /\.message-compose \{[^}]*padding: 16rpx;[^}]*background: #f5ead8;[^}]*border: 1rpx solid #dfc69e;[^}]*border-radius: 18rpx;/s);
+  assert.match(wxss, /\.message-input \{[^}]*background: #fffaf3;[^}]*border-color: #d8bc8c;/s);
+});
+
 test("balance and history tables have exact centered single-line column widths", () => {
   for (const label of ["累计充值", "累计核销", "剩余", "业务老师", "提交日期", "状态"]) {
     assert.match(wxml, new RegExp(label));
