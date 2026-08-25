@@ -1,119 +1,141 @@
 .login-page {
+  position: relative;
   min-height: 100vh;
   display: flex;
   align-items: center;
-  padding: calc(72rpx + env(safe-area-inset-top)) 48rpx calc(72rpx + env(safe-area-inset-bottom));
-  background: #f6f6f3;
+  overflow: hidden;
+  padding: calc(84rpx + env(safe-area-inset-top)) 42rpx calc(72rpx + env(safe-area-inset-bottom));
+  background: #f3ede2;
+}
+.login-background,
+.login-shade {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.login-background { z-index: 0; }
+.login-shade {
+  z-index: 1;
+  background: rgba(255, 252, 246, .04);
 }
 .login-shell {
+  position: relative;
+  z-index: 2;
   width: 100%;
-  max-width: 620rpx;
+  max-width: 630rpx;
   margin: 0 auto;
 }
 .login-card {
   width: 100%;
-  padding: 0;
-  background: transparent;
+  padding: 72rpx 48rpx 54rpx;
+  background: rgba(255, 252, 246, .9);
+  border: 1rpx solid rgba(174, 137, 75, .72);
+  border-radius: 104rpx 104rpx 38rpx 38rpx;
+  box-shadow: 0 30rpx 80rpx rgba(120, 91, 43, .18);
 }
 .login-brand {
-  margin-bottom: 112rpx;
+  margin-bottom: 62rpx;
   text-align: center;
 }
 .login-brand text {
   display: block;
-  color: #172033;
-  font-size: 56rpx;
-  font-weight: 500;
-  letter-spacing: 22rpx;
+  color: #87662f;
+  font-size: 52rpx;
+  font-weight: 600;
+  letter-spacing: 18rpx;
   line-height: 1;
-  text-indent: 22rpx;
+  text-indent: 18rpx;
 }
-.login-card .field { margin-bottom: 42rpx; }
+.login-card .field { margin-bottom: 30rpx; }
 .login-card .field-label {
-  margin-bottom: 12rpx;
-  color: #6d727b;
+  margin-bottom: 11rpx;
+  color: #675b4b;
   font-size: 21rpx;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 2rpx;
 }
 .login-card .input {
-  min-height: 72rpx;
-  padding: 0;
-  color: #172033;
-  background: transparent;
-  border: 0;
-  border-bottom: 1rpx solid #c8cbd0;
-  border-radius: 0;
+  min-height: 82rpx;
+  padding: 0 24rpx;
+  color: #302a22;
+  background: rgba(255, 255, 255, .74);
+  border: 1rpx solid rgba(174, 137, 75, .46);
+  border-radius: 28rpx;
   box-shadow: none;
-  font-size: 28rpx;
+  font-size: 27rpx;
 }
-.login-card .input:focus { border-color: #172033; }
-.login-placeholder { color: #aaadb2; }
+.login-card .input:focus { border-color: #9a7538; }
+.login-placeholder { color: #a49a8d; }
 .password-field { position: relative; }
-.password-field .input { padding-right: 100rpx; }
+.password-field .input { padding-right: 112rpx; }
 .password-toggle {
   position: absolute;
   top: 0;
-  right: 0;
-  width: 88rpx;
-  min-height: 72rpx;
+  right: 8rpx;
+  width: 96rpx;
+  min-height: 82rpx;
   margin: 0;
   padding: 0;
-  color: #686d76;
+  color: #87662f;
   background: transparent;
-  border-radius: 0;
+  border-radius: 24rpx;
   font-size: 20rpx;
-  font-weight: 500;
-  line-height: 72rpx;
+  font-weight: 600;
+  line-height: 82rpx;
 }
 .password-toggle::after { border: 0; }
 .login-button {
   width: 100%;
-  min-height: 94rpx;
-  margin: 26rpx 0 0;
-  color: #fff;
-  background: #172033;
-  border-radius: 4rpx;
+  min-height: 88rpx;
+  margin: 34rpx 0 0;
+  color: #fffdf8;
+  background: #a98243;
+  border-radius: 44rpx;
   box-shadow: none;
   font-size: 25rpx;
-  font-weight: 500;
+  font-weight: 700;
   letter-spacing: 8rpx;
   text-indent: 8rpx;
 }
 .login-button[disabled] {
-  color: #92959a;
-  background: #dcdedc;
+  color: #efe8da;
+  background: #b9a17a;
 }
 .wechat-login {
   width: 100%;
-  min-height: 92rpx;
-  margin: 22rpx 0 0;
-  color: #303640;
-  background: transparent;
-  border: 1rpx solid #bfc2c6;
-  border-radius: 4rpx;
+  min-height: 86rpx;
+  margin: 18rpx 0 0;
+  color: #74592d;
+  background: rgba(255, 255, 255, .42);
+  border: 1rpx solid rgba(154, 117, 56, .64);
+  border-radius: 43rpx;
   box-shadow: none;
   font-size: 24rpx;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.2;
 }
 .wechat-login::after { border: 0; }
 .wechat-login[disabled] {
-  color: #9a9da1;
-  border-color: #d6d7d5;
-  background: transparent;
+  color: #a2998c;
+  border-color: #cfc3ad;
+  background: rgba(255, 255, 255, .3);
 }
 .login-card .message {
-  margin-top: 26rpx;
-  color: #39414c;
-  background: #eceeec;
+  margin-top: 24rpx;
+  color: #5f513f;
+  background: rgba(174, 137, 75, .1);
+  border: 1rpx solid rgba(174, 137, 75, .24);
+  text-align: center;
 }
 .login-card .message.error {
-  color: #963b35;
-  background: #f4e9e7;
+  color: #913b31;
+  background: rgba(183, 87, 73, .11);
+  border-color: rgba(183, 87, 73, .24);
 }
 @media (max-width: 360px) {
-  .login-page { padding-right: 36rpx; padding-left: 36rpx; }
-  .login-brand { margin-bottom: 88rpx; }
-  .login-brand text { font-size: 50rpx; letter-spacing: 18rpx; text-indent: 18rpx; }
+  .login-page { padding-right: 30rpx; padding-left: 30rpx; }
+  .login-card { padding: 60rpx 38rpx 46rpx; border-radius: 88rpx 88rpx 34rpx 34rpx; }
+  .login-brand { margin-bottom: 52rpx; }
+  .login-brand text { font-size: 47rpx; letter-spacing: 15rpx; text-indent: 15rpx; }
 }

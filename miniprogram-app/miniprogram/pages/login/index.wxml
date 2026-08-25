@@ -1,4 +1,6 @@
 <view class="login-page">
+  <image class="login-background" src="/images/login/lusizhuoer-login-bg-v3.jpg" mode="aspectFill"></image>
+  <view class="login-shade"></view>
   <view class="login-shell">
     <view class="login-card">
       <view class="login-brand"><text>露思卓儿</text></view>

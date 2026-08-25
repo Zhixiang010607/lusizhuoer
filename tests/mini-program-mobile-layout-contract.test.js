@@ -28,12 +28,19 @@ test("mini-program login is concise and keeps both WeChat phone and password ent
   const wxml = read("miniprogram-app", "miniprogram", "pages", "login", "index.wxml");
   const wxss = read("miniprogram-app", "miniprogram", "pages", "login", "index.wxss");
   const context = read("PROJECT_CONTEXT.md");
+  const backgroundPath = path.join(root, "miniprogram-app", "miniprogram", "images", "login", "lusizhuoer-login-bg-v3.jpg");
 
   assert.equal(json.navigationStyle, "custom");
-  assert.doesNotMatch(wxml, /<image\b|login-brand-image|brand-team\.jpg/,
-    "the login page must not restore a portrait or combined brand image");
+  assert.equal((wxml.match(/<image\b/g) || []).length, 1, "login must use one background image and no portrait image");
+  assert.match(wxml, /class="login-background" src="\/images\/login\/lusizhuoer-login-bg-v3\.jpg" mode="aspectFill"/);
+  assert.doesNotMatch(wxml, /login-brand-image|brand-team\.jpg|海洋之韵|OCEAN\s+WONDER/i,
+    "the login page must not restore a portrait or the combined Ocean Wonder artwork");
+  assert.ok(fs.existsSync(backgroundPath), "generated Lusizhuoer login background is missing");
+  assert.ok(fs.statSync(backgroundPath).size < 250 * 1024, "login background must stay below 250 KB for the mini-program package");
   assert.match(wxml, /class="login-brand"><text>露思卓儿<\/text><\/view>/,
-    "the login header must contain only the four-character company wordmark");
+    "the exact four-character wordmark must remain native WXML text");
+  assert.match(wxml, /class="login-card">[\s\S]*id="login-phone"[\s\S]*id="login-password"[\s\S]*id="login-submit"[\s\S]*id="login-wechat-phone"[\s\S]*id="login-message"/,
+    "all login text and controls must remain inside the centered curved frame");
   assert.doesNotMatch(wxml, /brand-rule|login-divider|登录系统|快捷登录/,
     "the login must not restore decorative or explanatory template copy");
   assert.doesNotMatch(wxml, /login-system-mark|海洋之韵/);
@@ -43,17 +50,19 @@ test("mini-program login is concise and keeps both WeChat phone and password ent
   assert.match(wxml, /passwordVisible\s*\?\s*'隐藏'\s*:\s*'显示'/);
   assert.doesNotMatch(wxml, /安全工作台|统一入口|登录说明|温馨提示/,
     "login page should not reintroduce explanatory filler");
-  assert.match(wxss, /\.login-card\s*\{[^}]*background:\s*transparent[^}]*\}/s);
-  assert.match(wxss, /\.login-brand text\s*\{[^}]*color:\s*#172033[^}]*font-weight:\s*500[^}]*letter-spacing:\s*22rpx/s);
-  for (const color of ["#f6f6f3", "#172033", "#6d727b", "#c8cbd0", "#bfc2c6"]) {
+  assert.match(wxss, /\.login-page\s*\{[^}]*align-items:\s*center[^}]*background:\s*#f3ede2/s);
+  assert.match(wxss, /\.login-card\s*\{[^}]*background:\s*rgba\(255, 252, 246, \.9\)[^}]*border-radius:\s*104rpx 104rpx 38rpx 38rpx/s,
+    "the login form must be a centered warm curved frame");
+  assert.match(wxss, /\.login-brand text\s*\{[^}]*color:\s*#87662f[^}]*letter-spacing:\s*18rpx/s);
+  for (const color of ["#f3ede2", "#87662f", "#675b4b", "#302a22", "#a98243"]) {
     assert.match(wxss, new RegExp(color, "i"), `login palette is missing ${color}`);
   }
-  assert.match(wxss, /\.wechat-login\s*\{[^}]*background:\s*transparent[^}]*border:\s*1rpx solid #bfc2c6/s,
-    "WeChat phone authorization must stay a quiet neutral secondary action");
-  assert.doesNotMatch(wxss, /linear-gradient|box-shadow:\s*0\s+[1-9]|#b49a6a|#16845b/i,
-    "login must not use gradients, raised shadows, gold, or green accents");
-  assert.match(context, /不显示人物照、联合品牌图、图形头像、装饰线或额外宣传文案/);
-  assert.match(context, /无卡片容器、无投影、无渐变、无金色和绿色强调/);
+  assert.match(wxss, /\.wechat-login\s*\{[^}]*color:\s*#74592d[^}]*border:\s*1rpx solid rgba\(154, 117, 56, \.64\)/s,
+    "WeChat phone authorization must stay a restrained champagne outline action");
+  assert.doesNotMatch(wxss, /#16845b/i, "login must not reintroduce a saturated green button");
+  assert.match(context, /暖象牙白、浅香槟金竖屏品牌图/);
+  assert.match(context, /清晰可辨的标志轮廓/);
+  assert.match(context, /整体颜色不能压得过深/);
 });
 
 test("mini-program keeps the company brand visible after login", () => {
