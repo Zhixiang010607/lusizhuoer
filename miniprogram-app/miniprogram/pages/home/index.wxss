@@ -72,16 +72,17 @@
 .custom-range button { grid-column: 1 / -1; min-height: 78rpx; color: #fffdf8; background: #6f532e; border-radius: 12rpx; font-size: 23rpx; font-weight: 800; }
 .table-scroll { max-width: 100%; overflow-x: auto; overflow-y: hidden; border: 1rpx solid #dfcfb4; border-radius: 24rpx; }
 .summary-table { width: 100%; min-width: 620rpx; }
-.record-table { width: 100%; min-width: 1100rpx; }
-.customer-table { width: 100%; min-width: 860rpx; }
+.record-table { width: 100%; min-width: 1050rpx; }
+.customer-table { width: 100%; min-width: 700rpx; }
 .ranking-table { width: 1760rpx; }
 .table-row { display: grid; min-height: 82rpx; border-bottom: 1rpx solid #eadfce; }
 .table-row:last-child { border-bottom: 0; }
 .summary-table .table-row { grid-template-columns: minmax(180rpx, 1.6fr) repeat(4, minmax(100rpx, 1fr)); }
-.record-table .table-row { grid-template-columns: 210rpx 170rpx 180rpx 190rpx 110rpx 240rpx; }
-.customer-table .table-row { grid-template-columns: 170rpx 200rpx 150rpx 170rpx 170rpx; }
+.record-table .table-row { grid-template-columns: 210rpx 170rpx 150rpx 180rpx 100rpx 240rpx; }
+.customer-table .table-row { grid-template-columns: 110rpx 150rpx 135rpx 150rpx 155rpx; }
 .ranking-table .table-row { grid-template-columns: 120rpx 350rpx 190rpx repeat(4, 210rpx) 260rpx; }
-.table-row > view { min-width: 0; display: flex; align-items: center; padding: 20rpx 22rpx; color: #554a3c; font-size: 22rpx; overflow-wrap: anywhere; }
+.table-row > view { min-width: 0; display: flex; align-items: center; padding: 20rpx 22rpx; overflow: hidden; color: #554a3c; font-size: 22rpx; text-overflow: ellipsis; white-space: nowrap; }
+.customer-table .table-row > view { padding-right: 12rpx; padding-left: 12rpx; font-size: 20rpx; }
 .table-head { min-height: 72rpx; background: #f5ead8; }
 .table-head > view { color: #675b4b; font-size: 20rpx; font-weight: 800; }
 .summary-product { flex-direction: column; align-items: flex-start !important; justify-content: center; background: #fff7eb; }

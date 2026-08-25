@@ -97,6 +97,7 @@ test("HQ store and teacher workspaces reuse authoritative services without a gen
 test("HQ review workbenches match web filters, pagination, exact links, and guarded decisions", () => {
   const js = read("pages", "reviews", "index.js");
   const wxml = read("pages", "reviews", "index.wxml");
+  const wxss = read("pages", "reviews", "index.wxss");
 
   assert.match(js, /const PAGE_SIZE = 100/);
   assert.match(js, /callStaff\("listReviewOrders"/);
@@ -111,6 +112,12 @@ test("HQ review workbenches match web filters, pagination, exact links, and guar
   for (const label of ["充值审核", "退费审核", "按条件查询", "按工单编号", "门店范围", "审核状态", "工单类型", "上一页", "下一页", "跳至", "通过", "驳回", "审核留言（可选）"]) {
     assert.match(wxml, new RegExp(label), `HQ review UI is missing ${label}`);
   }
+  assert.match(wxss, /\.review-table\s*\{\s*width:\s*2080rpx;/,
+    "review table width must exactly equal the declared column total");
+  assert.match(wxss, /\.review-row > text, \.review-row > view\s*\{[^}]*align-items:\s*center[^}]*justify-content:\s*center[^}]*text-align:\s*center[^}]*white-space:\s*nowrap/s,
+    "review headers and values must stay centered on one line");
+  assert.match(wxss, /\.review-row > text:last-child, \.review-row > view:last-child\s*\{\s*border-right:\s*0;/,
+    "the final review column must not leave a trailing border sliver");
 });
 
 test("mini internal palette is isolated warm ivory, champagne gold, and espresso", () => {

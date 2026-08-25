@@ -101,6 +101,7 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
   const js = read("miniprogram-app", "miniprogram", "pages", "home", "index.js");
   const wxml = read("miniprogram-app", "miniprogram", "pages", "home", "index.wxml");
   const wxss = read("miniprogram-app", "miniprogram", "pages", "home", "index.wxss");
+  const storeDetailWxml = read("miniprogram-app", "miniprogram", "pages", "store-detail", "index.wxml");
   const context = read("PROJECT_CONTEXT.md");
 
   for (const action of ["getTeacherWorkspace", "getTeacherBusinessCustomers", "getStoreDashboard",
@@ -124,9 +125,12 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
   assert.match(wxss, /\.range-button\.active\s*\{[^}]*background:\s*#fffaf3[^}]*border-color:\s*#d9bd8c/s);
   assert.doesNotMatch(wxss, /\.range-presets\s*\{[^}]*background:\s*#edf2f8/s);
   assert.match(wxss, /\.summary-table\s*\{\s*width:\s*100%;\s*min-width:\s*620rpx;/);
-  assert.match(wxss, /\.record-table\s*\{\s*width:\s*100%;\s*min-width:\s*1100rpx;/);
-  assert.match(wxss, /\.customer-table\s*\{\s*width:\s*100%;\s*min-width:\s*860rpx;/);
+  assert.match(wxss, /\.record-table\s*\{\s*width:\s*100%;\s*min-width:\s*1050rpx;/);
+  assert.match(wxss, /\.customer-table\s*\{\s*width:\s*100%;\s*min-width:\s*700rpx;/);
   assert.match(wxss, /\.summary-table \.table-row\s*\{[^}]*minmax\(180rpx,\s*1\.6fr\)[^}]*repeat\(4,\s*minmax\(100rpx,\s*1fr\)\)/s);
+  assert.match(wxss, /\.table-row > view\s*\{[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
+  assert.match(storeDetailWxml, /data-code="\{\{item\.customerCode\}\}" bindtap="openCustomer">\{\{item\.customerName\}\}<\/view>/);
+  assert.doesNotMatch(storeDetailWxml, /\{\{item\.customerName\}\}\s*·\s*\{\{item\.customerCode\}\}/);
   assert.match(context, /模块顺序、文案、字号、间距、颜色、卡片边框与圆角、按钮排列、表格列宽/);
   assert.match(context, /微信原生状态栏、右上角胶囊、导航栏与浏览器自身地址栏属于平台边界/);
 });

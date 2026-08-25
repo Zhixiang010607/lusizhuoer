@@ -33,14 +33,15 @@ button::after { border: 0; }
 .card-title > view text:last-child { color: #7c7062; font-size: 19rpx; }
 .badge { padding: 8rpx 14rpx; color: #74592d; background: #f4e7d0; border-radius: 999rpx; font-size: 18rpx; font-weight: 800; white-space: nowrap; }
 .table-scroll { width: 100%; border: 1rpx solid #e0d2bd; border-radius: 16rpx; }
-.review-table { width: 2140rpx; }
+.review-table { width: 2080rpx; }
 .review-row { display: grid; grid-template-columns: 230rpx 150rpx 230rpx 220rpx 210rpx 180rpx 150rpx 230rpx 250rpx 230rpx; min-height: 84rpx; border-bottom: 1rpx solid #eadfce; }
 .review-row:last-child { border-bottom: 0; }
-.review-row > text, .review-row > view { min-width: 0; display: flex; align-items: center; padding: 12rpx 14rpx; border-right: 1rpx solid #eee4d4; box-sizing: border-box; font-size: 19rpx; }
+.review-row > text, .review-row > view { min-width: 0; display: flex; align-items: center; justify-content: center; padding: 12rpx 14rpx; overflow: hidden; border-right: 1rpx solid #eee4d4; box-sizing: border-box; font-size: 19rpx; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.review-row > text:last-child, .review-row > view:last-child { border-right: 0; }
 .review-row.head { min-height: 68rpx; color: #fffdf8; background: #4b4033; font-weight: 850; }
 .review-row:not(.head):nth-child(odd) { background: #fff; }
 .link { color: #8b642e; font-weight: 850; text-decoration: underline; }
-.review-action { display: flex !important; gap: 8rpx; }
+.review-action { display: flex !important; justify-content: center; gap: 8rpx; }
 .review-action button { width: auto; min-width: 82rpx; min-height: 54rpx; padding: 0 12rpx; color: #fff; background: #607c6a; font-size: 18rpx; }
 .review-action button.reject { background: #99574b; }
 .status { display: inline-flex; padding: 5rpx 10rpx; border-radius: 999rpx; font-size: 17rpx; font-weight: 800; }
