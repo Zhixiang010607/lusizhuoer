@@ -32,7 +32,7 @@
 | 人员详情 | `staff-detail.html` 老师与总部两种资料、返回入口、账号安全、老师额度与历史 | `PASS-LIVE`；发现总部页面残留老师标题，仓库已改成随角色显示，`FIXED-PENDING-DEPLOY` |
 | 总部人员 | `hq-management.html` 姓名／电话／直接选择查询、进入详情、新增入口；`hq-account-create.html` 创建表单 | 查询与详情 `PASS-LIVE`；创建、封存、重置密码 `CONFIRM-ONLY` |
 | 一线共享办理 | `customer-create.html`、`recharge-create.html`、`refund-create.html`、`verification-create.html`、`verification-experience.html` | 页面结构、按钮启用条件、门店范围、老师归属、照片、人脸、额度与防重均 `PASS-AUTO`；真实提交 `NEEDS-ROLE-LOGIN` |
-| 老师工作台 | `teacher-work-orders.html`、`teacher-work-order-detail.html`、`teacher-recharge-create.html`、`teacher-refund-create.html`、`teacher-verification-create.html`、`teacher-verification-experience.html` | 手机端基础信息三项同排、体验项目单行、暖金配色，以及进入具体业务页后先选门店的路由、时间查询、4 类明细、客户范围、本人自动归属、体验仅老师均 `PASS-AUTO`；真实老师会话 `NEEDS-ROLE-LOGIN` |
+| 老师工作台 | `teacher-work-orders.html`、`teacher-work-order-detail.html`、`teacher-recharge-create.html`、`teacher-refund-create.html`、`teacher-verification-create.html`、`teacher-verification-experience.html` | 手机端基础信息仅姓名与短编号两项同排、不重复登录身份，体验项目单行、暖金配色，以及进入具体业务页后先选门店的路由、时间查询、4 类明细、客户范围、本人自动归属、体验仅老师均 `PASS-AUTO`；真实老师会话 `NEEDS-ROLE-LOGIN` |
 | 兼容入口 | `teacher-detail.html` 旧详情链接 | 重定向到当前 `staff-detail.html`，`PASS-AUTO` |
 
 ## 微信小程序（19 个页面）
@@ -63,5 +63,5 @@
 
 1. 老师和门店没有专用测试账号，因此尚未做这两个角色的真实登录逐按钮提交验收。完成该项需要提供两个可随时重置的测试账号，或明确授权创建专用测试账号；不得动现有员工账号。
 2. CloudBase 小程序环境授权已成功，但 `WX_MICRO_APP`、微信公众平台 `request` 合法域名与真机微信手机号授权仍未完成。CloudBase 服务商域名入口本月修改额度已用完，不应继续重复提交；可直接在微信公众平台配置，或等额度恢复。
-3. 小程序 `0.2.5` 已于 2026-08-25 上传为体验版，结果为 `UPLOADED-EXPERIENCE`；总包 `1,722,708` 字节、主包 `1,486,251` 字节。客户备注已恢复左右对称留白，客户留言与输入区已统一暖象牙、浅香槟金配色。尚未提交微信审核或正式发布。本轮没有上传云函数、运行 SQL 或发布网站，代码推送与这些状态仍分别确认。
+3. 小程序 `0.2.7` 已于 2026-08-25 上传为体验版，结果为 `UPLOADED-EXPERIENCE`；总包 `1,723,434` 字节、主包 `1,486,977` 字节。老师本人主页基础资料只保留姓名和短编号同排展示；总部进入老师主页后使用其他内部页面同款暖象牙白卡片、浅象牙内层和细金灰边框；额度变更记录在固定高度卡片内纵向滑动查看全部。尚未提交微信审核或正式发布。本轮没有上传云函数、运行 SQL 或发布网站，代码推送与这些状态仍分别确认。
 4. 2026-08-25 已在保持真实总部会话的微信开发者工具中重新执行 `build-npm`，并自动打开总部首页、产品／门店／老师管理及充值／核销审核页面；各只读数据库请求成功且未捕获页面异常。分包后又重新编译登录、门店详情、老师创建、充值和工单详情代表页，控制台没有模块、路由或分包错误。没有提交创建、封存、激活、审核或其他真实数据写入；这些按钮仍按 `CONFIRM-ONLY` 处理。

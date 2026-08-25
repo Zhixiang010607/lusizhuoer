@@ -137,8 +137,7 @@ function storeFacts(store = {}) {
 function teacherFacts(profile = {}, session = {}) {
   return [
     { label: "老师姓名", value: String(profile.teacherName || session.staffName || "—") },
-    { label: "老师短编号", value: String(profile.teacherCode || session.staffCode || "—") },
-    { label: "登录身份", value: "老师本人" }
+    { label: "老师短编号", value: String(profile.teacherCode || session.staffCode || "—") }
   ];
 }
 function hqRows(items = [], dimension = "store") {

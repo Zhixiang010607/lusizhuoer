@@ -163,6 +163,23 @@ test("mobile management controls stay centered without breaking data into charac
   assert.match(teacher, /\.history-row text\s*\{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s);
   assert.match(teacher, /\.history-row > view:first-child text:nth-child\(3\)\s*\{[^}]*overflow-wrap:\s*anywhere;[^}]*white-space:\s*normal;/s,
     "only a free-form history note may wrap; dates, counts, names, and codes stay intact");
+  assert.match(teacher, /\.teacher-profile-hero, \.teacher-record-panel, \.security-panel, \.experience-panel\s*\{[^}]*border-color:\s*#e1cfaf;[^}]*background:\s*#fffaf3/s,
+    "HQ teacher profile, account, and quota panels must use the same card palette as other pages");
+  assert.match(teacher, /\.overview-card\s*\{[^}]*background:\s*#fff8ec;[^}]*border:\s*1rpx solid #dfcfb4/s);
+  assert.match(teacher, /\.overview-card\.primary-card\s*\{[^}]*background:\s*#f6ead7;[^}]*border-color:\s*#d9bd8c/s);
+  assert.doesNotMatch(teacher, /#f4dfba|#eef3e9|#f2ebf0|#f8ead7/,
+    "teacher detail must not mix several unrelated card background colors");
+  assert.doesNotMatch(teacher, /\.overview-card\s*\{[^}]*background:\s*#fff;/s);
+  assert.doesNotMatch(teacher, /\.summary-item\s*\{[^}]*background:\s*#fff;/s);
+  assert.doesNotMatch(teacher, /\.quota-card\s*\{[^}]*background:\s*#fff;/s);
+  const teacherWxml = read("miniprogram-app", "miniprogram", "pages", "teacher-detail", "index.wxml");
+  const teacherJs = read("miniprogram-app", "miniprogram", "pages", "teacher-detail", "index.js");
+  assert.match(teacherWxml, /class="history-list"[^>]*scroll-y[^>]*>[\s\S]*wx:for="\{\{history\}\}"/,
+    "quota ledger stays inside its own vertical scrolling region");
+  assert.match(teacher, /\.history-list\s*\{[^}]*max-height:\s*680rpx;[^}]*box-sizing:\s*border-box;[^}]*overflow-y:\s*auto;/s);
+  assert.doesNotMatch(teacherWxml, /查看全部|收起记录|bindtap="toggleHistory"/);
+  assert.doesNotMatch(teacherJs, /historyExpanded|visibleHistory|toggleHistory/,
+    "the page must not expand the entire quota ledger into the document");
 });
 
 test("home dashboard mapper preserves web metric and profile column semantics", () => {

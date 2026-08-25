@@ -2469,7 +2469,7 @@ body[data-staff-detail] .teacher-experience-empty.is-error { color: #9c3329; bac
   body[data-store-dashboard] .panel-heading .badge { flex: 0 0 auto; }
 }
 
-/* Teacher home keeps identity and every configured experience project in one
+/* Teacher home keeps its two useful profile facts and every configured experience project in one
    compact phone row.  This is intentionally scoped to the Web workspace: the
    Mini Program owns its own WXML/WXSS implementation. */
 @media (max-width: 760px) {
@@ -2485,6 +2485,11 @@ body[data-staff-detail] .teacher-experience-empty.is-error { color: #9c3329; bac
     box-shadow: 0 8px 24px rgba(92, 69, 38, .07);
   }
 
+  body[data-teacher-workspace] .teacher-profile-panel {
+    border-color: #d7ba85;
+    background: linear-gradient(180deg, #fffaf3 0%, #f9edd9 100%);
+  }
+
   body[data-teacher-workspace] .detail-section .panel-heading h2,
   body[data-teacher-workspace] .teacher-quota-panel .panel-heading h2 {
     color: #302a22;
@@ -2497,10 +2502,10 @@ body[data-staff-detail] .teacher-experience-empty.is-error { color: #9c3329; bac
   }
 
   body[data-teacher-workspace] #teacherProfileInfo {
-    grid-template-columns: minmax(0, 1fr) minmax(0, .86fr) minmax(0, 1.16fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1px;
-    border-color: #dfcfb4;
-    background: #dfcfb4;
+    border-color: #d7ba85;
+    background: #d7ba85;
   }
 
   body[data-teacher-workspace] #teacherProfileInfo article {
@@ -2508,7 +2513,7 @@ body[data-staff-detail] .teacher-experience-empty.is-error { color: #9c3329; bac
     min-height: 56px;
     padding: 9px 10px;
     overflow: hidden;
-    background: rgba(255, 252, 246, .96);
+    background: linear-gradient(180deg, #fff8ec 0%, #f5e4c6 100%);
   }
 
   body[data-teacher-workspace] #teacherProfileInfo span {

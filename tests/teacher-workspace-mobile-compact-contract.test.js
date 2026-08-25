@@ -13,14 +13,17 @@ const css = read("styles.css");
 const authUi = read("auth-ui.js");
 const businessUi = read("store-business.js");
 
-test("teacher phone identity and experience projects stay in compact horizontal rows", () => {
-  assert.match(html, /styles\.css\?v=0\.15\.58/, "teacher home loads the compact mobile stylesheet revision");
-  assert.match(ui, /\["老师姓名",[\s\S]{0,260}\["老师短编号",[\s\S]{0,360}\[loginPhone \? "登录手机号" : "登录账号", loginIdentity\]/,
-    "the identity strip contains only the three useful fields and labels phone/account appropriately");
-  assert.match(ui, /const loginIdentity = loginPhone \|\| String\(session\.account \|\| ""\)\.trim\(\) \|\| "—"/,
-    "the third identity cell falls back from a bound phone to the authenticated login account");
-  assert.match(css, /body\[data-teacher-workspace\] #teacherProfileInfo\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, \.86fr\) minmax\(0, 1\.16fr\)/,
-    "all three identity facts share one phone row");
+test("teacher profile and experience projects stay in compact warm horizontal rows", () => {
+  assert.match(html, /styles\.css\?v=0\.15\.59/, "teacher home loads the compact mobile stylesheet revision");
+  assert.match(ui, /\["老师姓名",[\s\S]{0,260}\["老师短编号",/,
+    "the profile strip contains only the two useful teacher facts");
+  assert.doesNotMatch(ui, /loginIdentity|登录手机号|登录账号/,
+    "the teacher home must not repeat authenticated login identity");
+  assert.doesNotMatch(html, /身份由当前登录账号|<span class="badge">老师本人<\/span>/);
+  assert.match(css, /body\[data-teacher-workspace\] #teacherProfileInfo\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/,
+    "the two profile facts share one equal-width phone row");
+  assert.match(css, /body\[data-teacher-workspace\] \.teacher-profile-panel\s*\{[^}]*#d7ba85[^}]*linear-gradient\(180deg, #fffaf3 0%, #f9edd9 100%\)/s,
+    "the teacher profile uses the visible warm ivory and champagne palette");
   assert.match(css, /body\[data-teacher-workspace\] #teacherProfileInfo strong\s*\{[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap/,
     "long identity values stay inside their own cells");
 
@@ -33,7 +36,7 @@ test("teacher phone identity and experience projects stay in compact horizontal 
   assert.doesNotMatch(css, /teacher-quota-card dl\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/,
     "narrow phones must not stack the two quota facts vertically again");
 
-  for (const color of ["#f4eee3", "#fffaf3", "#dfcfb4", "#302a22", "#80622f", "#f4e7d0"]) {
+  for (const color of ["#f4eee3", "#fffaf3", "#d7ba85", "#f5e4c6", "#302a22", "#80622f", "#f4e7d0"]) {
     assert.ok(css.includes(color), `teacher phone palette is missing ${color}`);
   }
 });

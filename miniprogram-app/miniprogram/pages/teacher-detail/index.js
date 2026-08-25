@@ -41,12 +41,12 @@ function current(page, key, epoch) { return !page._unloaded && page[key] === epo
 function productSnapshot(products) { return Object.freeze((products || []).map((item) => Object.freeze({ ...item }))); }
 function emptyExperienceState() {
   return {
-    entitlements: [], summaryRows: [], history: [], visibleHistory: [], configureProducts: [], configureLabels: [],
+    entitlements: [], summaryRows: [], history: [], configureProducts: [], configureLabels: [],
     configureIndex: 0, configureProductId: "", rechargeProducts: [], rechargeLabels: [], rechargeIndex: 0, rechargeProductId: "",
     overview: { available: 0, used: 0, lifetime: 0, activeProducts: 0 }
   };
 }
-function experienceState(data, productSource, selected, historyExpanded) {
+function experienceState(data, productSource, selected) {
   const rows = (data.entitlements || []).map(entitlement).filter((row) => row.productId);
   const totals = (data.experienceTotals || []).map(totalRow).filter((row) => row.productId);
   const history = (data.history || data.ledger || data.events || data.records || []).map(historyRow);
@@ -63,7 +63,7 @@ function experienceState(data, productSource, selected, historyExpanded) {
   const rechargeProductId = rechargeProducts.some((item) => item.productId === selected.rechargeProductId)
     ? selected.rechargeProductId : rechargeProducts[0] && rechargeProducts[0].productId || "";
   return {
-    entitlements: rows, summaryRows: summary, history, visibleHistory: history.slice(0, historyExpanded ? history.length : 10),
+    entitlements: rows, summaryRows: summary, history,
     configureProducts, configureLabels: configureProducts.map((item) => `${item.name}${item.code ? `（${item.code}）` : ""}`),
     configureIndex: Math.max(0, configureProducts.findIndex((item) => item.id === configureProductId)), configureProductId,
     rechargeProducts, rechargeLabels: rechargeProducts.map((item) => `${item.productName}${item.productCode ? `（${item.productCode}）` : ""}`),
@@ -101,7 +101,7 @@ function definitiveRechargeRejection(error) {
 Page({
   data: {
     teacherRef: "", staff: null, teacherId: "", profile: {}, loading: true, mutating: "", message: "", error: false,
-    entitlements: [], summaryRows: [], history: [], visibleHistory: [], historyExpanded: false,
+    entitlements: [], summaryRows: [], history: [],
     products: [], configureProducts: [], configureLabels: [], configureIndex: 0, configureProductId: "", monthlyAllowance: "",
     rechargeProducts: [], rechargeLabels: [], rechargeIndex: 0, rechargeProductId: "", rechargeCount: "", rechargeNote: "", rechargePending: false,
     overview: { available: 0, used: 0, lifetime: 0, activeProducts: 0 }, newPassword: ""
@@ -188,7 +188,7 @@ Page({
       const data = await callStaff("getTeacherExperienceEntitlements", Object.freeze({ teacherId: request.teacherId }));
       if (!current(this, "_experienceRequestEpoch", request.epoch)) return false;
       const selected = { configureProductId: this.data.configureProductId, rechargeProductId: this.data.rechargeProductId };
-      this.setData(experienceState(data, request.products, selected, this.data.historyExpanded));
+      this.setData(experienceState(data, request.products, selected));
       return true;
     } catch (error) {
       if (!current(this, "_experienceRequestEpoch", request.epoch)) return false;
@@ -277,7 +277,7 @@ Page({
       if (!this._unloaded && current(this, "_mutationRequestEpoch", request.epoch)) {
         if (text(this.data.teacherId) === request.teacherId) {
           const selected = { configureProductId: this.data.configureProductId, rechargeProductId: this.data.rechargeProductId };
-          this.setData(experienceState(readback, this.data.products, selected, this.data.historyExpanded));
+          this.setData(experienceState(readback, this.data.products, selected));
         }
         this.setData({
           rechargeCount: "", rechargeNote: "", rechargePending: false,
@@ -331,7 +331,6 @@ Page({
       if (current(this, "_mutationRequestEpoch", request.epoch)) this.setData({ mutating: "" });
     }
   },
-  toggleHistory() { const expanded = !this.data.historyExpanded; this.setData({ historyExpanded: expanded, visibleHistory: this.data.history.slice(0, expanded ? this.data.history.length : 10) }); },
   async resetPassword() {
     if (this.data.mutating || !this.data.profile.authUid) return;
     if (!validPassword(this.data.newPassword)) return this.setData({ message: "新临时密码需为 8–32 位，以字母或数字开头，并至少包含三类字符。", error: true });

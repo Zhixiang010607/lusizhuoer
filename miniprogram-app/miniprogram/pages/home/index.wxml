@@ -45,8 +45,8 @@
     <view wx:if="{{message}}" class="form-message {{error ? 'error' : ''}}">{{message}}</view>
 
     <block wx:if="{{session.role === 'teacher'}}">
-      <view class="web-panel detail-section">
-        <view class="panel-heading"><view><text class="panel-title">我的基础信息</text><text class="panel-note">身份由当前登录账号在数据库中确认</text></view><text class="web-badge">老师本人</text></view>
+      <view class="web-panel detail-section teacher-profile-panel">
+        <view class="panel-heading"><view><text class="panel-title">我的基础信息</text></view></view>
         <view class="detail-info-grid teacher-profile-row">
           <view wx:for="{{profileFacts}}" wx:key="label" class="detail-info-item"><text>{{item.label}}</text><text>{{item.value}}</text></view>
         </view>
