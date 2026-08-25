@@ -63,23 +63,23 @@
 .anchor-inner text { padding: 13rpx 20rpx; color: #40536a; border-radius: 14rpx; font-size: 21rpx; font-weight: 800; }
 .overview-panel .panel-heading { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16rpx; }
 .overview-panel .web-badge { justify-self: start; }
-.range-presets { display: grid; grid-template-columns: repeat(auto-fit, minmax(136rpx, 1fr)); gap: 14rpx; margin: 26rpx 0; padding: 10rpx; border-radius: 24rpx; background: #edf2f8; }
-.range-button { min-width: 0; min-height: 88rpx; margin: 0; padding: 0 8rpx; color: #5c6d82; background: transparent; border-radius: 16rpx; font-size: 22rpx; font-weight: 800; line-height: 1.2; }
-.range-button.active { color: #74592d; background: #fff; box-shadow: 0 6rpx 20rpx rgba(93,72,39,.11); }
-.custom-range { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14rpx; margin-bottom: 20rpx; padding: 26rpx; border: 1rpx solid #dbe5ef; border-radius: 24rpx; background: #f8fafc; }
+.range-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10rpx; margin: 26rpx 0; padding: 10rpx; overflow: hidden; border-radius: 24rpx; background: #eee3d2; }
+.range-button { width: 100% !important; max-width: 100%; min-width: 0; min-height: 82rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 4rpx; overflow: hidden; color: #6f6457; background: transparent; border: 1rpx solid transparent; border-radius: 16rpx; font-size: 20rpx; font-weight: 800; line-height: 1; white-space: nowrap; }
+.range-button.active { color: #74592d; background: #fffaf3; border-color: #d9bd8c; box-shadow: 0 6rpx 20rpx rgba(93,72,39,.11); }
+.custom-range { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14rpx; margin-bottom: 20rpx; padding: 26rpx; border: 1rpx solid #dfcfb4; border-radius: 24rpx; background: #fff8ec; }
 .custom-range label > text, .hq-filter-grid label > text { display: block; margin-bottom: 8rpx; color: #6f6457; font-size: 19rpx; font-weight: 700; }
 .date-picker, .filter-picker { min-height: 64rpx; display: flex; align-items: center; padding: 0 16rpx; color: #302a22; background: #fff; border: 1rpx solid #dcc8a6; border-radius: 14rpx; font-size: 21rpx; }
 .custom-range button { grid-column: 1 / -1; min-height: 78rpx; color: #fffdf8; background: #6f532e; border-radius: 12rpx; font-size: 23rpx; font-weight: 800; }
 .table-scroll { max-width: 100%; overflow-x: auto; overflow-y: hidden; border: 1rpx solid #dfcfb4; border-radius: 24rpx; }
-.summary-table { width: 1300rpx; }
-.record-table { width: 1360rpx; }
-.customer-table { width: 1240rpx; }
+.summary-table { width: 100%; min-width: 620rpx; }
+.record-table { width: 100%; min-width: 1100rpx; }
+.customer-table { width: 100%; min-width: 860rpx; }
 .ranking-table { width: 1760rpx; }
 .table-row { display: grid; min-height: 82rpx; border-bottom: 1rpx solid #eadfce; }
 .table-row:last-child { border-bottom: 0; }
-.summary-table .table-row { grid-template-columns: 252rpx repeat(4, 262rpx); }
-.record-table .table-row { grid-template-columns: 250rpx 210rpx 210rpx 250rpx 150rpx 290rpx; }
-.customer-table .table-row { grid-template-columns: 220rpx 270rpx 250rpx 250rpx 250rpx; }
+.summary-table .table-row { grid-template-columns: minmax(180rpx, 1.6fr) repeat(4, minmax(100rpx, 1fr)); }
+.record-table .table-row { grid-template-columns: 210rpx 170rpx 180rpx 190rpx 110rpx 240rpx; }
+.customer-table .table-row { grid-template-columns: 170rpx 200rpx 150rpx 170rpx 170rpx; }
 .ranking-table .table-row { grid-template-columns: 120rpx 350rpx 190rpx repeat(4, 210rpx) 260rpx; }
 .table-row > view { min-width: 0; display: flex; align-items: center; padding: 20rpx 22rpx; color: #554a3c; font-size: 22rpx; overflow-wrap: anywhere; }
 .table-head { min-height: 72rpx; background: #f5ead8; }

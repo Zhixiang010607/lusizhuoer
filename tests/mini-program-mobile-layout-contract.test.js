@@ -119,9 +119,14 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
   assert.match(wxss, /\.record-tabs\s*\{[^}]*grid-template-columns:\s*repeat\(2,/s);
   assert.match(wxss, /\.metric-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/s,
     "the 390px web breakpoint renders HQ metrics in one column");
-  assert.match(wxss, /\.summary-table\s*\{\s*width:\s*1300rpx;/);
-  assert.match(wxss, /\.record-table\s*\{\s*width:\s*1360rpx;/);
-  assert.match(wxss, /\.customer-table\s*\{\s*width:\s*1240rpx;/);
+  assert.match(wxss, /\.range-presets\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)[^}]*overflow:\s*hidden[^}]*background:\s*#eee3d2/s);
+  assert.match(wxss, /\.range-button\s*\{[^}]*width:\s*100%\s*!important[^}]*max-width:\s*100%[^}]*align-items:\s*center[^}]*justify-content:\s*center/s);
+  assert.match(wxss, /\.range-button\.active\s*\{[^}]*background:\s*#fffaf3[^}]*border-color:\s*#d9bd8c/s);
+  assert.doesNotMatch(wxss, /\.range-presets\s*\{[^}]*background:\s*#edf2f8/s);
+  assert.match(wxss, /\.summary-table\s*\{\s*width:\s*100%;\s*min-width:\s*620rpx;/);
+  assert.match(wxss, /\.record-table\s*\{\s*width:\s*100%;\s*min-width:\s*1100rpx;/);
+  assert.match(wxss, /\.customer-table\s*\{\s*width:\s*100%;\s*min-width:\s*860rpx;/);
+  assert.match(wxss, /\.summary-table \.table-row\s*\{[^}]*minmax\(180rpx,\s*1\.6fr\)[^}]*repeat\(4,\s*minmax\(100rpx,\s*1fr\)\)/s);
   assert.match(context, /模块顺序、文案、字号、间距、颜色、卡片边框与圆角、按钮排列、表格列宽/);
   assert.match(context, /微信原生状态栏、右上角胶囊、导航栏与浏览器自身地址栏属于平台边界/);
 });
