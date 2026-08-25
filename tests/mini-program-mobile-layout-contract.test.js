@@ -159,7 +159,14 @@ test("mobile management controls stay centered without breaking data into charac
     assert.match(reviews, new RegExp(`\\.${escaped}\\s*\\{[^}]*display:\\s*flex;[^}]*align-items:\\s*center;[^}]*justify-content:\\s*center;[^}]*white-space:\\s*nowrap;`, "s"),
       `${selector} must center its label in both axes`);
   }
-  assert.match(teacher, /\.quota-facts text:last-child\s*\{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s);
+  assert.match(teacher, /\.quota-facts\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);[^}]*gap:\s*12rpx;/s,
+    "each configured product must use a real two-by-two fact grid");
+  assert.match(teacher, /\.quota-facts view\s*\{[^}]*min-height:\s*104rpx;[^}]*display:\s*flex;[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*text-align:\s*center;/s,
+    "all four configured-product facts must be centered inside equal cells");
+  assert.match(teacher, /\.quota-facts text:first-child\s*\{[^}]*font-size:\s*19rpx;/s);
+  assert.match(teacher, /\.quota-facts text:last-child\s*\{[^}]*font-size:\s*24rpx;[^}]*white-space:\s*nowrap;/s);
+  assert.match(teacher, /\.quota-facts view:last-child text:last-child\s*\{[^}]*font-size:\s*19rpx;/s,
+    "the complete update timestamp stays on one line inside its half-width cell");
   assert.match(teacher, /\.history-row text\s*\{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s);
   assert.match(teacher, /\.history-row > view:first-child text:nth-child\(3\)\s*\{[^}]*overflow-wrap:\s*anywhere;[^}]*white-space:\s*normal;/s,
     "only a free-form history note may wrap; dates, counts, names, and codes stay intact");

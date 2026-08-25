@@ -34,11 +34,12 @@
 .quota-balance > text:first-child { color: #74695c; font-size: 19rpx; }
 .quota-balance > text:last-child { font-size: 42rpx; font-weight: 900; }
 .quota-balance .unit { margin-left: 6rpx; font-size: 18rpx; }
-.quota-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10rpx; }
-.quota-facts view { padding: 12rpx; background: #fffaf3; border: 1rpx solid #e5d6bd; border-radius: 12rpx; }
+.quota-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; }
+.quota-facts view { min-width: 0; min-height: 104rpx; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 14rpx 10rpx; background: #fffaf3; border: 1rpx solid #e5d6bd; border-radius: 12rpx; text-align: center; }
 .quota-facts text { display: block; }
-.quota-facts text:first-child { color: #7c7062; font-size: 17rpx; }
-.quota-facts text:last-child { min-width: 0; margin-top: 5rpx; overflow: hidden; font-size: 20rpx; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.quota-facts text:first-child { color: #7c7062; font-size: 19rpx; }
+.quota-facts text:last-child { width: 100%; min-width: 0; margin-top: 7rpx; font-size: 24rpx; font-weight: 850; white-space: nowrap; }
+.quota-facts view:last-child text:last-child { font-size: 19rpx; letter-spacing: -0.3rpx; }
 .forms-grid { display: grid; gap: 18rpx; margin-top: 26rpx; }
 .action-form { padding: 20rpx; background: #fff8ec; border: 1rpx solid #dfcfb4; border-radius: 20rpx; }
 .action-form button { margin: 0; }
