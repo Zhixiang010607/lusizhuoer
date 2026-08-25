@@ -1,0 +1,5 @@
+@import "../store-create/index.wxss";
+.rule-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10rpx; }
+.rule-panel > view { display: flex; flex-direction: column; gap: 5rpx; padding: 17rpx; background: #fff; border: 1rpx solid #eadcc6; border-radius: 14rpx; }
+.rule-panel > view text:first-child { font-size: 22rpx; font-weight: 850; }
+.rule-panel > view text:last-child { color: #7c7062; font-size: 18rpx; line-height: 1.45; }

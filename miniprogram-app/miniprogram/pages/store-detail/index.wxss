@@ -1,0 +1,7 @@
+@import "../home/index.wxss";
+.detail-topbar { justify-content: space-between; gap: 14rpx; }
+.topbar-actions { display: flex; gap: 8rpx; flex: none; }
+.topbar-actions button { width: auto; min-width: 122rpx; min-height: 60rpx; margin: 0; padding: 0 14rpx; border-radius: 11rpx; font-size: 18rpx; }
+.store-status-badge.archived { color: #8f3a34; background: #fff0ee; }
+.form-message { margin-top: 14rpx; }
+.workspace-main { padding-bottom: 40rpx; }

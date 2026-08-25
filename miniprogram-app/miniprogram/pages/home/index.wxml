@@ -152,7 +152,7 @@
           <label><text>开始日期</text><picker mode="date" value="{{hqStart}}" bindchange="changeHqStart"><view class="filter-picker">{{hqStart}}</view></picker></label>
           <label><text>结束日期</text><picker mode="date" value="{{hqEnd}}" bindchange="changeHqEnd"><view class="filter-picker">{{hqEnd}}</view></picker></label>
         </view>
-        <view class="hq-filter-actions"><text>{{hqScopeText}}</text><button bindtap="resetHqRange">重置筛选</button></view>
+        <view class="hq-filter-actions"><button bindtap="resetHqRange">重置筛选</button></view>
       </view>
 
       <view class="metric-grid" aria-label="核心指标">

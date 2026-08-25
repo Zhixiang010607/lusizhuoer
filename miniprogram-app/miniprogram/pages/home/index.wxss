@@ -106,9 +106,8 @@
 .archived-section { border-color: #ecd2cf; background: linear-gradient(180deg, #fff, #fffafa); }
 .archived-badge { color: #8f3a34; background: #fff0ee; }
 .hq-filter-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14rpx; }
-.hq-filter-actions { display: flex; align-items: stretch; justify-content: space-between; gap: 14rpx; margin-top: 18rpx; padding-top: 18rpx; border-top: 1rpx solid #e5d6bd; }
-.hq-filter-actions text { min-width: 0; display: flex; align-items: center; flex: 1; color: #74695c; font-size: 18rpx; line-height: 1.45; }
-.hq-filter-actions button { width: 74rpx !important; min-width: 0; min-height: 118rpx; margin: 0; padding: 8rpx; color: #fffdf8; background: #6f532e; border-radius: 14rpx; font-size: 20rpx; line-height: 1.35; }
+.hq-filter-actions { display: flex; align-items: center; justify-content: flex-end; margin-top: 18rpx; padding-top: 18rpx; border-top: 1rpx solid #e5d6bd; }
+.hq-filter-actions button { width: auto !important; min-width: 110rpx; min-height: 66rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 16rpx; color: #fffdf8; background: #6f532e; border-radius: 14rpx; font-size: 18rpx; line-height: 1; white-space: nowrap; }
 .metric-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16rpx; margin: 16rpx 0; }
 .metric-card { min-height: 160rpx; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding: 20rpx 24rpx; color: #302a22; background: #fffaf3; border: 1rpx solid #e1cfaf; border-top: 7rpx solid #b58a43; border-radius: 24rpx; box-shadow: 0 16rpx 44rpx rgba(120,91,43,.08); }
 .metric-card.interactive:active { transform: translateY(1rpx); background: #fff7e9; }

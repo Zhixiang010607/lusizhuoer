@@ -1,0 +1,23 @@
+<view class="rail">
+  <view class="rail-link {{active === 'home' ? 'active' : ''}}" bindtap="goHome" aria-label="总部首页">总</view>
+  <view class="rail-link {{active === 'query' || open === 'query' ? 'active' : ''}}" data-name="query" bindtap="toggle" aria-label="业务查询">查</view>
+  <view class="rail-link {{active === 'management' || open === 'management' ? 'active' : ''}}" data-name="management" bindtap="toggle" aria-label="管理">管</view>
+  <view class="rail-link {{active === 'review' || open === 'review' ? 'active' : ''}}" data-name="review" bindtap="toggle" aria-label="审核">审</view>
+  <view class="rail-link" bindtap="logout" aria-label="退出登录">退</view>
+</view>
+
+<view wx:if="{{open}}" class="rail-backdrop" bindtap="close"></view>
+<view wx:if="{{open === 'query'}}" class="rail-popover" catchtap="noop">
+  <view data-route="/pages/customers/index" bindtap="go">客户查询</view>
+  <view data-route="/pages/records/index?type=recharge" bindtap="go">充值查询</view>
+  <view data-route="/pages/records/index?type=verification" bindtap="go">核销查询</view>
+</view>
+<view wx:if="{{open === 'management'}}" class="rail-popover" catchtap="noop">
+  <view data-route="/pages/product-management/index" bindtap="go">产品管理</view>
+  <view data-route="/pages/hq-directory/index?type=store" bindtap="go">门店管理</view>
+  <view data-route="/pages/hq-directory/index?type=teacher" bindtap="go">老师管理</view>
+</view>
+<view wx:if="{{open === 'review'}}" class="rail-popover" catchtap="noop">
+  <view data-route="/pages/reviews/index?type=recharge" bindtap="go">充值审核</view>
+  <view data-route="/pages/reviews/index?type=verification" bindtap="go">核销审核</view>
+</view>

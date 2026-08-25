@@ -83,7 +83,7 @@ Page({
     hqMetrics: [], hqCharts: [], hqDimensions: DIMENSIONS,
     hqDimensionLabels: DIMENSIONS.map((item) => item.label), hqDimension: "store", hqDimensionIndex: 0,
     hqRanking: [], hqRankingPage: pageView({ pageSize: RANKING_PAGE_SIZE }), hqRankingInput: "1",
-    hqRankingLoading: false, hqRankingError: "", hqExporting: false, hqLoadedAt: "—", hqScopeText: "正在连接数据库…",
+    hqRankingLoading: false, hqRankingError: "", hqExporting: false, hqLoadedAt: "—", hqScopeDetailText: "正在连接数据库…",
     hqDetailOpen: false, hqDetailTitle: "数据库统计范围", hqDetailText: ""
   },
 
@@ -271,7 +271,7 @@ Page({
         hqChart(value.charts?.teacher, "teacher", "全局 · 按老师统计", "老师")
       ];
       changes.hqLoadedAt = clockText();
-      changes.hqScopeText = `当前统计范围：${range.startDate} 至 ${range.endDate} · 全部门店 · 全部项目 · 全部老师；客户范围：全部客户（含活跃及已存档）；数据库更新：${changes.hqLoadedAt}`;
+      changes.hqScopeDetailText = `统计日期：${range.startDate} 至 ${range.endDate}；门店、项目与老师均为全部范围；客户包含活跃及已存档记录；数据库更新：${changes.hqLoadedAt}`;
     }
     if (rankingResult.status === "fulfilled") {
       const ranking = rankingResult.value.ranking || {};
@@ -420,7 +420,7 @@ Page({
     const title = String(event.currentTarget.dataset.title || event.currentTarget.dataset.name || "有效业务明细");
     this.setData({
       hqDetailOpen: true, hqDetailTitle: "数据库统计范围",
-      hqDetailText: `${title}；${this.data.hqScopeText}`
+      hqDetailText: `${title}；${this.data.hqScopeDetailText}`
     });
   },
   closeHqDetail() { this.setData({ hqDetailOpen: false }); },
@@ -479,7 +479,8 @@ Page({
   openManagement(event) {
     const type = String(event.currentTarget.dataset.type || "product");
     this.closeMenus();
-    wx.navigateTo({ url: `/pages/hq-directory/index?type=${encodeURIComponent(type)}` });
+    if (type === "product") wx.navigateTo({ url: "/pages/product-management/index" });
+    else wx.navigateTo({ url: `/pages/hq-directory/index?type=${encodeURIComponent(type)}` });
   },
   openReview(event) {
     const type = String(event.currentTarget.dataset.type || "recharge");

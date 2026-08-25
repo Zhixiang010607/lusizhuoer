@@ -1,0 +1,14 @@
+<view class="page">
+  <hq-rail active="management" />
+  <view class="page-heading"><text>老师创建</text><text>总部专属</text></view>
+  <view class="panel">
+    <view class="section-heading"><view><text>老师账号资料</text><text>填写姓名、联系电话和初始密码即可创建</text></view><text>创建后自动生成编号</text></view>
+    <label class="field"><text>姓名</text><input maxlength="40" data-field="name" value="{{form.name}}" bindinput="input" placeholder="请输入老师姓名" disabled="{{submitting || locked}}" /></label>
+    <label class="field"><text>联系电话</text><input type="number" maxlength="11" data-field="phone" value="{{form.phone}}" bindinput="input" placeholder="请输入中国大陆手机号" disabled="{{submitting || locked}}" /></label>
+    <label class="field"><text>初始登录密码</text><input password maxlength="32" data-field="password" value="{{form.password}}" bindinput="input" placeholder="8–32 位，字母/数字开头，至少含三类字符" disabled="{{submitting || locked}}" /></label>
+  </view>
+  <view class="panel rule-panel"><view><text>唯一身份</text><text>一个手机号只对应一个业务身份</text></view><view><text>立即激活</text><text>账号和老师主档完整创建后立即可用</text></view><view><text>客户核验</text><text>体验核销自动绑定老师，只核验客户人脸</text></view></view>
+  <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
+  <view class="actions"><button class="ghost" bindtap="back" disabled="{{submitting}}">返回老师管理</button><button class="primary" bindtap="submit" loading="{{submitting}}" disabled="{{submitting || locked}}">创建老师账号</button></view>
+  <view class="safe-bottom"></view>
+</view>

@@ -1,0 +1,19 @@
+<view class="page">
+  <hq-rail active="management" />
+  <view class="page-heading"><text>门店创建</text><text>总部权限</text></view>
+  <view class="panel">
+    <view class="section-heading"><view><text>门店资料</text></view><text>编号将在创建成功后自动生成</text></view>
+    <label class="field"><text>门店名称</text><input maxlength="60" data-field="name" value="{{form.name}}" bindinput="input" placeholder="请输入门店名称" /></label>
+    <label class="field"><text>省 / 市 / 区</text><picker mode="region" value="{{form.region}}" bindchange="chooseRegion"><view class="picker">{{form.regionText || '请选择省、市、区'}}</view></picker></label>
+    <label class="field"><text>门店地址</text><input maxlength="160" data-field="address" value="{{form.address}}" bindinput="input" placeholder="请输入详细地址" /></label>
+  </view>
+  <view class="panel">
+    <view class="section-heading"><view><text>门店登录联系人</text><text>每个门店只允许一位联系人</text></view></view>
+    <label class="field"><text>联系人姓名</text><input maxlength="40" data-field="contactName" value="{{form.contactName}}" bindinput="input" placeholder="请输入联系人姓名" /></label>
+    <label class="field"><text>联系人手机号</text><input type="number" maxlength="11" data-field="phone" value="{{form.phone}}" bindinput="input" placeholder="请输入中国大陆手机号" /></label>
+    <label class="field"><text>初始登录密码</text><input password maxlength="32" data-field="password" value="{{form.password}}" bindinput="input" placeholder="8–32 位，首位为字母或数字，含三类字符" /></label>
+  </view>
+  <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
+  <view class="actions"><button class="ghost" bindtap="back" disabled="{{submitting}}">返回门店管理</button><button class="primary" bindtap="submit" loading="{{submitting}}" disabled="{{submitting}}">创建门店与登录账号</button></view>
+  <view class="safe-bottom"></view>
+</view>

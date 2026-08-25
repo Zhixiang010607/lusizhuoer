@@ -1,0 +1,47 @@
+<view class="page">
+  <hq-rail active="management" />
+  <view class="page-heading"><text class="title">产品单据模板</text><button class="ghost return-button" bindtap="back">返回产品管理</button></view>
+
+  <view wx:if="{{loading && !template}}" class="panel empty">正在读取产品模板…</view>
+  <block wx:if="{{template}}">
+    <view class="panel summary-card">
+      <view class="summary-copy"><text class="type-pill">{{template.productType}}</text><text class="product-name">{{template.productName}}</text><text class="meta">{{template.productCode || '未编号'}} · {{template.statusText}} · 模板更新：{{template.updatedText}}{{template.updatedByName ? ' · ' + template.updatedByName : ''}}</text></view>
+      <view class="summary-actions"><text class="template-badge {{template.ready ? 'ready' : ''}}">{{template.ready ? '模板已配置' : '模板待配置'}}</text><button class="ghost status-button" bindtap="toggleStatus" disabled="{{mutating}}">{{template.productStatus === 'ARCHIVED' ? '激活产品' : '封存产品'}}</button></view>
+    </view>
+
+    <view class="panel editor-card">
+      <view class="section-heading"><text>模板内容</text></view>
+      <view class="logo-editor">
+        <view class="logo-square"><image wx:if="{{logoPreview}}" src="{{logoPreview}}" mode="aspectFit" binderror="logoError" /><text wx:else>LOGO</text></view>
+        <view class="logo-controls">
+          <text>共用产品 LOGO</text>
+          <view class="compact-actions"><button class="primary" bindtap="chooseLogo" disabled="{{mutating}}">选择图片</button><button class="primary" bindtap="uploadLogo" loading="{{mutating && selectedLogo}}" disabled="{{mutating || !selectedLogo}}">上传并保存</button><button class="ghost" bindtap="removeLogo" disabled="{{mutating || !template.logo}}">移除</button></view>
+        </view>
+      </view>
+
+      <label class="instruction-field"><view><text>核销单说明</text><text>正常核销与体验核销共用</text></view><textarea maxlength="3000" data-field="verificationInstructions" value="{{verificationInstructions}}" bindinput="inputInstructions" placeholder="填写核销单底部文字说明" disabled="{{mutating}}" /><text class="count">{{verificationCount}}/3000</text></label>
+      <label class="instruction-field"><view><text>充值单说明</text><text>充值与退费共用</text></view><textarea maxlength="3000" data-field="rechargeInstructions" value="{{rechargeInstructions}}" bindinput="inputInstructions" placeholder="填写充值单、退费单底部文字说明" disabled="{{mutating}}" /><text class="count">{{rechargeCount}}/3000</text></label>
+      <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
+      <view class="save-row"><button class="primary save-button" bindtap="saveInstructions" loading="{{mutating && !selectedLogo}}" disabled="{{mutating}}">保存文字说明</button></view>
+    </view>
+
+    <view class="panel preview-card">
+      <view class="section-heading"><text>四种成品预览</text><text>核销/体验共用一套，充值/退费共用一套；PDF 与图片分别预览。</text></view>
+      <scroll-view class="preview-tabs" scroll-x enhanced show-scrollbar="false">
+        <view class="preview-tab-row"><view wx:for="{{previews}}" wx:key="value" class="preview-tab {{item.active ? 'active' : ''}}" data-value="{{item.value}}" bindtap="choosePreview">{{item.label}}</view></view>
+      </scroll-view>
+      <view class="preview-toolbar"><view><text>{{previewTitle}}</text><text>{{previewHint}}</text></view><view><button class="ghost" bindtap="refreshPreview">刷新预览</button><button class="primary" bindtap="downloadPreview" loading="{{exporting}}" disabled="{{exporting || logoLoading}}">下载样例</button></view></view>
+      <view class="receipt-preview">
+        <view class="receipt-header"><view><text>{{isVerification ? '正常核销 / 体验核销' : '充值 / 退费'}}</text><text>{{isVerification ? '核销单' : '充值单'}} SAMPLE001</text><text>门店详细地址：示例省示例市示例区示例路 1 号</text></view><view class="mini-logo"><image wx:if="{{logoPreview}}" src="{{logoPreview}}" mode="aspectFit" /><text wx:else>LOGO</text></view></view>
+        <view class="receipt-facts"><view><text>门店</text><text>示例门店</text></view><view><text>客户</text><text>示例客户</text></view><view><text>项目</text><text>{{template.productName}}</text></view><view><text>业务老师</text><text>示例老师</text></view><view><text>提交时间</text><text>2026-08-19 12:34:56</text></view></view>
+        <view wx:if="{{isVerification}}" class="receipt-section"><text>核销照片凭证</text><text>客户档案照、本次现场照与三个补充照片位</text><view class="photo-main"><view>客户建档照片</view><view>本次核销人脸照</view></view><view class="photo-supplement"><view>补充照片 1</view><view>补充照片 2</view><view>补充照片 3</view></view></view>
+        <view wx:else class="receipt-section recharge-sample"><text>充值信息</text><view><text>充值次数</text><text>10 次</text></view><view><text>提交时间</text><text>2026-08-19 12:34:56</text></view><view><text>审核时间</text><text>2026-08-19 12:36:10</text></view></view>
+        <view class="receipt-instructions"><text>产品说明</text><text>{{isVerification ? (verificationInstructions || '尚未填写单据说明') : (rechargeInstructions || '尚未填写单据说明')}}</text></view>
+      </view>
+    </view>
+  </block>
+  <view wx:elif="{{message}}" class="message error">{{message}}</view>
+
+  <canvas id="receiptCanvas" type="2d" class="export-canvas"></canvas>
+  <view class="safe-bottom"></view>
+</view>

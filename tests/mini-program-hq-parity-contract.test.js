@@ -18,7 +18,7 @@ test("HQ home exposes the complete web mobile rail and isolated ranking interact
   for (const label of ["客户查询", "充值查询", "核销查询", "产品管理", "门店管理", "老师管理", "充值审核", "核销审核"]) {
     assert.match(wxml, new RegExp(label), `HQ mobile rail is missing ${label}`);
   }
-  for (const route of ["pages/hq-directory/index", "pages/reviews/index"]) assert.match(js, new RegExp(route));
+  for (const route of ["pages/product-management/index", "pages/hq-directory/index", "pages/reviews/index"]) assert.match(js, new RegExp(route));
   assert.match(wxml, /class="rail-current" aria-label="\{\{roleTitle\}\}"/);
   assert.match(js, /hq:\s*\{\s*title:\s*"总部数据看板"/);
   assert.match(wxml, /aria-label="业务查询"/);
@@ -33,7 +33,9 @@ test("HQ home exposes the complete web mobile rail and isolated ranking interact
   assert.match(js, /retryHqRanking\(\)/);
   assert.match(js, /async exportHqRanking\(\)/);
   assert.match(js, /RANKING_EXPORT_MAX_ROWS = 10000/);
-  assert.match(js, /当前统计范围/);
+  assert.match(js, /hqScopeDetailText/);
+  assert.doesNotMatch(wxml, /\{\{hqScopeText\}\}/, "the filter card must not repeat an already visible scope sentence");
+  assert.match(wxml, /class="hq-filter-actions"><button bindtap="resetHqRange">重置筛选<\/button><\/view>/);
   assert.match(wxml, /导出当前数据/);
   assert.match(wxml, /跳至/);
   assert.match(wxml, /class="menu-backdrop" bindtap="closeMenus"/);
@@ -61,27 +63,31 @@ test("HQ chart mapper produces the same dynamic signed axis used by the web char
   assert.equal(chart.rows[0].bars[3].valueClass, "negative");
 });
 
-test("HQ directories reuse authoritative creation, search, status, and teacher quota services", () => {
-  const js = read("pages", "hq-directory", "index.js");
-  const wxml = read("pages", "hq-directory", "index.wxml");
+test("HQ store and teacher workspaces reuse authoritative services without a generic detail modal", () => {
+  const directoryJs = read("pages", "hq-directory", "index.js");
+  const directoryWxml = read("pages", "hq-directory", "index.wxml");
+  const storeCreate = read("pages", "store-create", "index.js");
+  const teacherCreate = read("pages", "teacher-create", "index.js");
+  const storeDetail = read("pages", "store-detail", "index.js");
+  const teacherDetail = read("pages", "teacher-detail", "index.js");
+  const teacherDetailWxml = read("pages", "teacher-detail", "index.wxml");
   const api = read("services", "api.js");
   const env = read("config", "env.js");
 
-  for (const action of ["listProducts", "listStores", "listStaff", "createProduct", "createStoreWithAccount",
-    "setProductStatus", "setMasterStatus", "setStaffStatus", "getTeacherExperienceEntitlements"]) {
-    assert.match(js, new RegExp(action), `HQ directory is missing ${action}`);
-  }
-  assert.match(js, /callTeacherCreate/);
+  for (const action of ["listStores", "listStaff", "setMasterStatus", "setStaffStatus"]) assert.match(directoryJs, new RegExp(action));
+  assert.match(storeCreate, /createStoreWithAccount/);
+  assert.match(teacherCreate, /callTeacherCreate/);
   assert.match(api, /config\.teacherCreateFunction/);
   assert.match(env, /teacherCreateFunction:\s*"teacherCreate"/);
-  assert.match(js, /result\.completed !== true \|\| result\.proof\?\.complete !== true/);
-  assert.match(js, /await this\.load\(\)[\s\S]*current\.archived !== \(next === "ARCHIVED"\)/,
+  assert.match(teacherCreate, /result && result\.ok === true && result\.completed === true && proof\.complete === true/);
+  assert.match(directoryJs, /await this\.load\(\)[\s\S]*current\.archived !== \(next === "ARCHIVED"\)/,
     "status changes must be confirmed by a fresh database read");
-  for (const label of ["查询结果", "活跃", "封存", "新增", "省 / 市 / 区", "初始密码", "体验项目额度"]) {
-    assert.match(wxml, new RegExp(label), `HQ directory UI is missing ${label}`);
-  }
-  assert.match(wxml, /picker mode="region"/);
-  assert.match(wxml, /bindtap="toggleStatus"/);
+  for (const label of ["查询结果", "活跃", "封存", "新增", "进入主页", "配置／充值"]) assert.match(directoryWxml, new RegExp(label));
+  assert.doesNotMatch(directoryWxml, /class="modal|detail-mask/, "directory must route to dedicated pages instead of opening a generic detail modal");
+  for (const action of ["getStoreDashboard", "getStoreBusinessAnalytics", "queryStoreBusinessRecords", "setMasterStatus"]) assert.match(storeDetail, new RegExp(action));
+  assert.match(storeDetail, /storeId[\s\S]*queryStoreBusinessRecords/);
+  for (const action of ["getTeacherExperienceEntitlements", "upsertTeacherExperienceEntitlement", "rechargeTeacherExperienceEntitlement", "deleteTeacherExperienceEntitlement", "resetPassword", "setStaffStatus"]) assert.match(teacherDetail, new RegExp(action));
+  for (const label of ["老师账号管理", "保存新临时密码", "体验项目额度", "项目体验汇总", "已配置产品", "配置新产品", "单独充值体验次数", "额度变更记录"]) assert.match(teacherDetailWxml, new RegExp(label));
 });
 
 test("HQ review workbenches match web filters, pagination, exact links, and guarded decisions", () => {
@@ -110,6 +116,10 @@ test("mini internal palette is isolated warm ivory, champagne gold, and espresso
   for (const color of ["#f3ede2", "#fffaf3", "#6f532e", "#a98243", "#302a22"]) assert.match(app, new RegExp(color, "i"));
   assert.equal(appJson.window.navigationBarBackgroundColor, "#2f2921");
   assert.ok(appJson.pages.includes("pages/hq-directory/index"));
+  assert.ok(appJson.pages.includes("pages/product-management/index"));
+  assert.ok(appJson.pages.includes("pages/product-create/index"));
+  assert.ok(appJson.pages.includes("pages/product-detail/index"));
+  for (const route of ["pages/store-create/index", "pages/store-detail/index", "pages/teacher-create/index", "pages/teacher-detail/index"]) assert.ok(appJson.pages.includes(route));
   assert.ok(appJson.pages.includes("pages/reviews/index"));
   assert.match(context, /不得恢复旧版高饱和蓝色工作台主题/);
   assert.match(context, /只修改小程序 WXML／WXSS，不反向覆盖网页版客户端样式/);

@@ -1,0 +1,29 @@
+<view class="page">
+  <hq-rail active="management" />
+
+  <view class="page-heading">
+    <text class="title">项目管理</text>
+  </view>
+
+  <view class="management-toolbar">
+    <view class="toolbar-copy">
+      <text>全部产品</text>
+      <text>点击产品进入单据模板设置</text>
+    </view>
+    <button class="primary add-button" bindtap="createProduct">新增产品</button>
+  </view>
+
+  <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
+  <view wx:if="{{loading}}" class="panel empty">正在读取产品数据…</view>
+  <view wx:elif="{{products.length}}" class="product-list">
+    <view wx:for="{{products}}" wx:key="ref" class="product-row" data-ref="{{item.ref}}" bindtap="openProduct">
+      <view class="product-copy">
+        <text>{{item.name}}</text>
+        <text>{{item.type}} · {{item.status}}</text>
+      </view>
+      <text class="template-state {{item.templateConfigured ? 'ready' : ''}}">{{item.templateConfigured ? '模板已配置' : '模板待配置'}}</text>
+    </view>
+  </view>
+  <view wx:else class="panel empty">暂无产品数据，请先新增产品。</view>
+  <view class="safe-bottom"></view>
+</view>

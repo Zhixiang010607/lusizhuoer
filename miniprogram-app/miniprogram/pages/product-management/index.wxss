@@ -1,0 +1,24 @@
+page { min-height: 100%; color: #302a22; background: #f3ede2; }
+.page { width: calc(100% - 28rpx); min-height: 100vh; margin: 0 auto; padding: 16rpx 0 40rpx; }
+.page-heading { margin: 8rpx 6rpx 20rpx; }
+.title { font-family: Georgia, "Times New Roman", serif; font-size: 40rpx; font-weight: 800; }
+.management-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 18rpx; margin-bottom: 16rpx; padding: 24rpx; background: #fffaf3; border: 1rpx solid #dfcfb4; border-radius: 24rpx; box-shadow: 0 12rpx 34rpx rgba(93,72,39,.08); }
+.toolbar-copy { min-width: 0; display: flex; flex-direction: column; gap: 7rpx; }
+.toolbar-copy text:first-child { font-size: 29rpx; font-weight: 850; }
+.toolbar-copy text:last-child { color: #7c7062; font-size: 20rpx; line-height: 1.45; }
+.add-button { width: auto; min-width: 154rpx; min-height: 74rpx; margin: 0; padding: 0 20rpx; border-radius: 15rpx; font-size: 22rpx; line-height: 1; }
+.product-list { overflow: hidden; background: #fffaf3; border: 1rpx solid #dfcfb4; border-radius: 24rpx; box-shadow: 0 12rpx 34rpx rgba(93,72,39,.08); }
+.product-row { min-height: 106rpx; display: flex; align-items: center; justify-content: space-between; gap: 16rpx; padding: 20rpx 24rpx; background: #fffaf3; border-top: 1rpx solid #eadfce; }
+.product-row:first-child { border-top: 0; }
+.product-row:active { background: #f8efdf; }
+.product-copy { min-width: 0; display: flex; flex: 1; flex-direction: column; gap: 7rpx; }
+.product-copy text:first-child { overflow: hidden; font-size: 27rpx; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
+.product-copy text:last-child { overflow: hidden; color: #7c7062; font-size: 20rpx; text-overflow: ellipsis; white-space: nowrap; }
+.template-state { flex: none; color: #9a6641; font-size: 19rpx; font-style: normal; font-weight: 800; white-space: nowrap; }
+.template-state.ready { color: #4f6f5d; }
+.panel { padding: 24rpx; background: #fffaf3; border: 1rpx solid #dfcfb4; border-radius: 24rpx; }
+.empty { color: #887c6d; font-size: 21rpx; text-align: center; }
+.message { margin-bottom: 16rpx; padding: 17rpx 20rpx; border-radius: 16rpx; font-size: 21rpx; line-height: 1.5; }
+.message.error { color: #8b3f35; background: #fff1ed; border: 1rpx solid #e4bdb4; }
+.message.success { color: #4f664f; background: #f0f6ec; border: 1rpx solid #c9dbc0; }
+.safe-bottom { height: calc(24rpx + env(safe-area-inset-bottom)); }

@@ -1,88 +1,62 @@
 <view class="page">
-  <view class="page-heading">
-    <text class="eyebrow">HEADQUARTERS MANAGEMENT</text>
-    <text class="title">{{title}}</text>
-    <text class="subtitle">与网页版共用总部权限、数据库状态和创建规则</text>
-  </view>
+  <hq-rail active="management" />
+  <view class="page-heading"><text class="title">{{title}}</text></view>
 
-  <view class="card search-card">
-    <view class="card-title"><view><text>查询{{noun}}</text><text class="note">支持名称、编号{{type === 'product' ? '' : '或手机号'}}</text></view><button class="primary compact" bindtap="openCreate">新增{{noun}}</button></view>
-    <label class="field"><text>名称或编号</text><input value="{{searchName}}" bindinput="inputSearchName" placeholder="输入名称或业务编号" confirm-type="search" bindconfirm="runSearch" /></label>
-    <label wx:if="{{type !== 'product'}}" class="field"><text>联系电话</text><input type="number" value="{{searchPhone}}" bindinput="inputSearchPhone" placeholder="输入完整或部分手机号" confirm-type="search" bindconfirm="runSearch" /></label>
-    <view class="button-row"><button class="primary" bindtap="runSearch">查询</button><button class="ghost" bindtap="resetSearch">重置</button></view>
-  </view>
-
-  <view wx:if="{{message}}" class="message {{error ? 'error' : ''}}">{{message}}</view>
-
-  <view wx:if="{{searched}}" class="card directory-card">
-    <view class="card-title"><view><text>查询结果</text><text class="note">{{searchRows.length}} 条</text></view><text class="badge">精确来自数据库</text></view>
-    <view wx:if="{{searchRows.length}}" class="entity-list">
-      <view wx:for="{{searchRows}}" wx:key="ref" class="entity-row">
-        <view class="entity-copy" data-ref="{{item.ref}}" bindtap="openDetail"><view><text class="entity-name">{{item.name}}</text><text class="status {{item.archived ? 'archived' : 'active'}}">{{item.archived ? '封存' : '活跃'}}</text></view><text>{{item.code || '—'}} · {{item.secondary}}</text><text>{{item.tertiary}}</text></view>
-        <button class="outline" data-ref="{{item.ref}}" bindtap="openDetail">查看</button>
-      </view>
+  <view class="search-panel">
+    <view class="search-fields">
+      <label><text>{{type === 'store' ? '按门店名称查询' : '按姓名查询'}}</text><input value="{{searchName}}" bindinput="inputSearchName" bindconfirm="runSearch" confirm-type="search" placeholder="{{type === 'store' ? '输入门店名称' : '输入老师姓名'}}" /></label>
+      <label><text>{{type === 'store' ? '按联系人电话查询' : '按联系电话查询'}}</text><input type="number" value="{{searchPhone}}" bindinput="inputSearchPhone" bindconfirm="runSearch" confirm-type="search" placeholder="输入联系电话" /></label>
     </view>
-    <view wx:else class="empty">{{searchName || searchPhone ? '没有符合条件的' + noun : '请输入查询条件'}}</view>
+    <view class="search-actions"><button class="primary" bindtap="runSearch">查询</button><button class="primary" bindtap="openCreate">新增{{noun}}</button></view>
   </view>
 
-  <view class="card directory-card">
-    <view class="card-title"><view><text>活跃{{noun}}</text><text class="note">当前可用于业务和登录的记录</text></view><text class="badge">{{activeRows.length}} {{type === 'store' ? '家' : (type === 'teacher' ? '人' : '项')}}</text></view>
-    <view wx:if="{{loading}}" class="empty">正在读取数据库…</view>
-    <view wx:elif="{{activeRows.length}}" class="entity-list">
-      <view wx:for="{{activeRows}}" wx:key="ref" class="entity-row">
-        <view class="entity-copy" data-ref="{{item.ref}}" bindtap="openDetail"><view><text class="entity-name">{{item.name}}</text><text class="status active">活跃</text></view><text>{{item.code || '—'}} · {{item.secondary}}</text><text>{{item.tertiary}}</text></view>
-        <button class="outline" data-ref="{{item.ref}}" bindtap="openDetail">查看</button>
+  <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
+
+  <view class="table-section">
+    <view class="section-heading"><text>查询结果</text><text>{{searched ? searchRows.length : 0}} {{unit}}</text></view>
+    <scroll-view class="table-scroll" scroll-x>
+      <view class="data-table {{type}}">
+        <view class="table-row table-head" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text><text>查看</text></view>
+        <view class="table-row table-head" wx:else><text>老师姓名</text><text>老师编号</text><text>联系电话</text><text>状态</text><text>体验额度</text><text>账号操作</text></view>
+        <block wx:if="{{searched && searchRows.length}}"><template is="directoryRows" data="{{rows: searchRows, type: type, mutatingRef: mutatingRef}}" /></block>
+        <view wx:else class="table-empty">{{searched ? '没有符合条件的' + noun : '尚未查询'}}</view>
       </view>
-    </view>
-    <view wx:else class="empty">暂无活跃{{noun}}</view>
-  </view>
-
-  <view class="card directory-card archived-card">
-    <view class="card-title"><view><text>封存{{noun}}</text><text class="note">资料和历史业务继续保留</text></view><text class="badge archived-badge">{{archivedRows.length}} {{type === 'store' ? '家' : (type === 'teacher' ? '人' : '项')}}</text></view>
-    <view wx:if="{{archivedRows.length}}" class="entity-list">
-      <view wx:for="{{archivedRows}}" wx:key="ref" class="entity-row">
-        <view class="entity-copy" data-ref="{{item.ref}}" bindtap="openDetail"><view><text class="entity-name">{{item.name}}</text><text class="status archived">封存</text></view><text>{{item.code || '—'}} · {{item.secondary}}</text><text>{{item.tertiary}}</text></view>
-        <button class="outline" data-ref="{{item.ref}}" bindtap="openDetail">查看</button>
-      </view>
-    </view>
-    <view wx:else class="empty">暂无封存{{noun}}</view>
-  </view>
-
-  <view wx:if="{{createOpen}}" class="mask" catchtouchmove="noop" bindtap="closeCreate">
-    <scroll-view class="dialog create-dialog" scroll-y catchtap="noop">
-      <view class="dialog-heading"><view><text>新增{{noun}}</text><text>保存后立即写入网页版共用数据库</text></view><view bindtap="closeCreate">×</view></view>
-      <label class="field"><text>{{noun}}名称</text><input data-field="name" value="{{form.name}}" bindinput="inputForm" placeholder="请输入{{noun}}名称" /></label>
-      <block wx:if="{{type === 'product'}}">
-        <label class="field"><text>产品类别</text><input data-field="category" value="{{form.category}}" bindinput="inputForm" placeholder="请输入产品类别" /></label>
-        <label class="field"><text>产品介绍</text><textarea data-field="description" value="{{form.description}}" bindinput="inputForm" placeholder="可选，最多 1000 字" maxlength="1000" /></label>
-      </block>
-      <block wx:elif="{{type === 'store'}}">
-        <label class="field"><text>省 / 市 / 区</text><picker mode="region" value="{{form.region}}" bindchange="chooseRegion"><view class="picker">{{form.regionText || '请选择地区'}}</view></picker></label>
-        <label class="field"><text>详细地址</text><input data-field="address" value="{{form.address}}" bindinput="inputForm" placeholder="请输入详细地址" /></label>
-        <label class="field"><text>唯一登录联系人</text><input data-field="contactName" value="{{form.contactName}}" bindinput="inputForm" placeholder="请输入联系人姓名" /></label>
-      </block>
-      <block wx:if="{{type !== 'product'}}">
-        <label class="field"><text>登录手机号</text><input type="number" maxlength="11" data-field="phone" value="{{form.phone}}" bindinput="inputForm" placeholder="中国大陆 11 位手机号" /></label>
-        <label class="field"><text>初始密码</text><input password maxlength="32" data-field="password" value="{{form.password}}" bindinput="inputForm" placeholder="8–32 位，至少三类字符" /></label>
-        <text class="password-rule">以字母或数字开头；包含大写、小写、数字、特殊字符中的至少三类。</text>
-      </block>
-      <view wx:if="{{createLocked}}" class="locked-note">创建结果待确认；请关闭并先回目录查询，不能重复提交。</view>
-      <view class="dialog-actions"><button class="ghost" bindtap="closeCreate" disabled="{{mutating}}">取消</button><button class="primary" bindtap="submitCreate" loading="{{mutating}}" disabled="{{mutating || createLocked}}">创建{{noun}}</button></view>
     </scroll-view>
   </view>
 
-  <view wx:if="{{detailOpen && current}}" class="mask" catchtouchmove="noop" bindtap="closeDetail">
-    <scroll-view class="dialog detail-dialog" scroll-y catchtap="noop">
-      <view class="dialog-heading"><view><text>{{current.name}}</text><text>{{current.code || current.id}}</text></view><view bindtap="closeDetail">×</view></view>
-      <view class="fact-grid"><view><text>状态</text><text>{{current.archived ? '封存' : '活跃'}}</text></view><view><text>数据库编号</text><text>{{current.id || '—'}}</text></view><view><text>业务编号</text><text>{{current.code || '—'}}</text></view><view><text>{{type === 'product' ? '类别' : '联系电话'}}</text><text>{{current.secondary || current.phone || '—'}}</text></view><view class="wide"><text>{{type === 'product' ? '介绍' : '地址 / 登录信息'}}</text><text>{{current.tertiary}}</text></view></view>
-      <view wx:if="{{type === 'teacher'}}" class="experience-panel">
-        <view class="section-heading"><text>体验项目额度</text><text>{{experienceRows.length}} 项</text></view>
-        <view wx:if="{{experienceLoading}}" class="empty">正在读取体验额度…</view>
-        <view wx:for="{{experienceRows}}" wx:key="productId" class="quota-row"><view><text>{{item.productName}}</text><text>{{item.productCode}}</text></view><view><text>{{item.availableCount}}</text><text>次可用</text></view><view><text>月度 {{item.monthlyAllowance}}</text><text>已用 {{item.usedCount}}</text></view></view>
-        <view wx:if="{{!experienceLoading && !experienceRows.length}}" class="empty">暂未配置体验项目</view>
+  <view class="table-section">
+    <view class="section-heading"><text>活跃{{noun}}</text><text>{{activeRows.length}} {{unit}}</text></view>
+    <scroll-view class="table-scroll" scroll-x>
+      <view class="data-table {{type}}">
+        <view class="table-row table-head" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text><text>查看</text></view>
+        <view class="table-row table-head" wx:else><text>老师姓名</text><text>老师编号</text><text>联系电话</text><text>状态</text><text>体验额度</text><text>账号操作</text></view>
+        <template wx:if="{{activeRows.length}}" is="directoryRows" data="{{rows: activeRows, type: type, mutatingRef: mutatingRef}}" />
+        <view wx:else class="table-empty">{{loading ? '正在读取数据库…' : '暂无活跃' + noun}}</view>
       </view>
-      <view class="dialog-actions"><button class="ghost" bindtap="closeDetail">关闭</button><button class="danger" data-ref="{{current.ref}}" bindtap="toggleStatus" loading="{{mutating}}" disabled="{{mutating}}">{{current.archived ? '激活' : '封存'}}{{noun}}</button></view>
+    </scroll-view>
+  </view>
+
+  <view class="table-section archived-section">
+    <view class="section-heading"><text>封存{{noun}}</text><text>{{archivedRows.length}} {{unit}}</text></view>
+    <scroll-view class="table-scroll" scroll-x>
+      <view class="data-table {{type}}">
+        <view class="table-row table-head" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text><text>查看</text></view>
+        <view class="table-row table-head" wx:else><text>老师姓名</text><text>老师编号</text><text>联系电话</text><text>状态</text><text>体验额度</text><text>账号操作</text></view>
+        <template wx:if="{{archivedRows.length}}" is="directoryRows" data="{{rows: archivedRows, type: type, mutatingRef: mutatingRef}}" />
+        <view wx:else class="table-empty">暂无封存{{noun}}</view>
+      </view>
     </scroll-view>
   </view>
   <view class="safe-bottom"></view>
 </view>
+
+<template name="directoryRows">
+  <block wx:for="{{rows}}" wx:key="ref">
+    <view wx:if="{{type === 'store'}}" class="table-row store">
+      <text class="link" data-ref="{{item.ref}}" bindtap="openDetail">{{item.name}}</text><text>{{item.contact}}</text><text>{{item.phone}}</text><text>{{item.address}}</text><text><text class="status {{item.archived ? 'archived' : 'active'}}">{{item.archived ? '封存' : '活跃'}}</text></text><text><button class="table-button" data-ref="{{item.ref}}" bindtap="openDetail">进入主页</button></text>
+    </view>
+    <view wx:else class="table-row teacher">
+      <text class="link" data-ref="{{item.ref}}" bindtap="openDetail">{{item.name}}</text><text>{{item.code}}</text><text>{{item.phone}}</text><text><text class="status {{item.archived ? 'archived' : 'active'}}">{{item.archived ? '封存' : '活跃'}}</text></text><text><button class="table-button" data-ref="{{item.ref}}" bindtap="openExperience">配置／充值</button></text><text><button class="table-button danger-button" data-ref="{{item.ref}}" bindtap="toggleTeacherStatus" loading="{{mutatingRef === item.ref}}" disabled="{{mutatingRef}}">{{item.archived ? '激活账号' : '封存账号'}}</button></text>
+    </view>
+  </block>
+</template>
