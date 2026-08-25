@@ -83,6 +83,10 @@ test("HQ store and teacher workspaces reuse authoritative services without a gen
   assert.match(directoryJs, /await this\.load\(\)[\s\S]*current\.archived !== \(next === "ARCHIVED"\)/,
     "status changes must be confirmed by a fresh database read");
   for (const label of ["查询结果", "活跃", "封存", "新增", "进入主页", "配置／充值"]) assert.match(directoryWxml, new RegExp(label));
+  assert.equal((directoryWxml.match(/class="table-row table-head store"/g) || []).length, 3,
+    "all store table headers must use the same horizontal column grid as store data rows");
+  assert.equal((directoryWxml.match(/class="table-row table-head teacher"/g) || []).length, 3,
+    "all teacher table headers must use the same horizontal column grid as teacher data rows");
   assert.doesNotMatch(directoryWxml, /class="modal|detail-mask/, "directory must route to dedicated pages instead of opening a generic detail modal");
   for (const action of ["getStoreDashboard", "getStoreBusinessAnalytics", "queryStoreBusinessRecords", "setMasterStatus"]) assert.match(storeDetail, new RegExp(action));
   assert.match(storeDetail, /storeId[\s\S]*queryStoreBusinessRecords/);
