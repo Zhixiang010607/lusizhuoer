@@ -11,6 +11,12 @@ function product(value) {
 function teacher(value) {
   return { teacherId: String(value.teacherId || ""), teacherCode: String(value.teacherCode || ""), teacherName: String(value.teacherName || "") };
 }
+function submittedOrderHint(session, refund) {
+  if (session && session.role === "teacher") {
+    return `请返回“我的工作台”，在“本人业务明细”的“${refund ? '退费' : '充值'}”分类中打开`;
+  }
+  return "请从充值查询进入";
+}
 
 function orderUrl(refund, result, intent = {}) {
   const recordId = String(result.rechargeId || "");
@@ -24,7 +30,7 @@ function orderUrl(refund, result, intent = {}) {
 Page({
   data: {
     session: {}, store: {}, refund: false, customer: null, products: [], productLabels: [], productIndex: -1, selectedProduct: null,
-    teachers: [], teacherLabels: [], teacherIndex: 0, selectedTeacher: null, unitCount: "", note: "", loadingOptions: false,
+    teachers: [], teacherLabels: [], teacherIndex: 0, selectedTeacher: null, teacherOptionsReady: false, unitCount: "", note: "", loadingOptions: false,
     busy: false, locked: false, recovering: false, ready: false, message: "", error: false
   },
   onLoad(options) {
@@ -40,42 +46,78 @@ Page({
       this.recoverPending();
     }
   },
-  customerChanged() { this.setData({ customer: null, products: this.data.refund ? [] : this.data.products, selectedProduct: null, productIndex: -1 }); this.syncReady(); },
+  customerChanged() {
+    if (this.data.refund) this._productRequestEpoch = (this._productRequestEpoch || 0) + 1;
+    this.setData({
+      customer: null, products: this.data.refund ? [] : this.data.products,
+      productLabels: this.data.refund ? [] : this.data.productLabels,
+      selectedProduct: null, productIndex: -1,
+      loadingOptions: this.data.refund ? false : this.data.loadingOptions
+    });
+    this.syncReady();
+  },
   async customerConfirmed(event) {
     const customer = event.detail.customer;
     this.setData({ customer, message: `已确认 ${customer.customerName}`, error: false, selectedProduct: null, productIndex: -1 });
-    if (this.data.refund) await this.loadProducts();
+    if (this.data.refund) await this.loadProducts(customer.customerCode);
+    if (this.data.session.role === "teacher" && this.data.teacherOptionsReady && !this.data.selectedTeacher) {
+      this.setData({ message: "当前老师不在该门店的可办理老师名单中，已禁止提交", error: true });
+    }
     this.syncReady();
   },
   async loadTeachers() {
+    this.setData({ teacherOptionsReady: false });
     try {
       const result = await callFace("listActiveTeachers", { storeId: this.data.store.id });
       const values = (result.teachers || []).map(teacher).filter((item) => item.teacherId);
       if (this.data.session.role === "teacher") {
         const mineIndex = values.findIndex((item) => item.teacherId === String(this.data.session.teacherId || ""));
         const mine = mineIndex >= 0 ? values[mineIndex] : null;
-        this.setData({ teachers: values, teacherLabels: values.map((item) => `${item.teacherName} · ${item.teacherCode}`), selectedTeacher: mine, teacherIndex: Math.max(0, mineIndex) });
+        this.setData({ teachers: values, teacherLabels: values.map((item) => `${item.teacherName} · ${item.teacherCode}`), selectedTeacher: mine, teacherIndex: Math.max(0, mineIndex), teacherOptionsReady: true });
+        if (!mine) this.setData({ message: "当前老师不在该门店的可办理老师名单中，已禁止提交", error: true });
       } else {
         const options = [{ teacherId: "", teacherCode: "", teacherName: "不指定业务老师" }, ...values];
-        this.setData({ teachers: options, teacherLabels: options.map((item) => item.teacherId ? `${item.teacherName} · ${item.teacherCode}` : item.teacherName), selectedTeacher: options[0], teacherIndex: 0 });
+        this.setData({ teachers: options, teacherLabels: options.map((item) => item.teacherId ? `${item.teacherName} · ${item.teacherCode}` : item.teacherName), selectedTeacher: options[0], teacherIndex: 0, teacherOptionsReady: true });
       }
       this.syncReady();
-    } catch (error) { this.setData({ message: error.message || "老师列表读取失败", error: true }); }
+    } catch (error) {
+      this.setData({ teacherOptionsReady: true, message: error.message || (this.data.session.role === "teacher" ? "当前老师信息读取失败，已禁止提交" : "老师列表读取失败"), error: true });
+    }
   },
-  async loadProducts() {
+  async loadProducts(expectedCustomerCode = String(this.data.customer?.customerCode || "")) {
+    const refund = this.data.refund;
+    const storeId = String(this.data.store.id || "");
+    const customerCode = String(expectedCustomerCode || "");
+    if (refund && !customerCode) {
+      this._productRequestEpoch = (this._productRequestEpoch || 0) + 1;
+      this.setData({ products: [], productLabels: [], selectedProduct: null, productIndex: -1, loadingOptions: false });
+      this.syncReady();
+      return;
+    }
+    const requestEpoch = (this._productRequestEpoch || 0) + 1;
+    this._productRequestEpoch = requestEpoch;
     this.setData({ loadingOptions: true, selectedProduct: null, productIndex: -1 });
     try {
-      const result = this.data.refund
-        ? await callFace("getCustomerProductBalances", { storeId: this.data.store.id, customerCode: this.data.customer.customerCode })
-        : await callFace("listActiveProducts", { storeId: this.data.store.id });
-      const values = (this.data.refund ? (result.balances || []) : (result.products || [])).map(product)
-        .filter((item) => item.productId && (!this.data.refund || item.purchasedCount > 0));
+      const result = refund
+        ? await callFace("getCustomerProductBalances", { storeId, customerCode })
+        : await callFace("listActiveProducts", { storeId });
+      if (requestEpoch !== this._productRequestEpoch || (refund && String(this.data.customer?.customerCode || "") !== customerCode)) return;
+      const values = (refund ? (result.balances || []) : (result.products || [])).map(product)
+        .filter((item) => item.productId && (!refund || item.purchasedCount > 0));
       this.setData({
         products: values,
-        productLabels: values.map((item) => this.data.refund ? `${item.productName}（剩余 ${item.remainingCount}，可退 ${item.purchasedCount}）` : `${item.productName} · ${item.productCode}`)
+        productLabels: values.map((item) => refund ? `${item.productName}（剩余 ${item.remainingCount}，可退 ${item.purchasedCount}）` : `${item.productName} · ${item.productCode}`)
       });
-    } catch (error) { this.setData({ products: [], productLabels: [], message: error.message || "项目读取失败", error: true }); }
-    finally { this.setData({ loadingOptions: false }); this.syncReady(); }
+    } catch (error) {
+      if (requestEpoch === this._productRequestEpoch && (!refund || String(this.data.customer?.customerCode || "") === customerCode)) {
+        this.setData({ products: [], productLabels: [], message: error.message || (refund ? "该客户可退余额读取失败" : "项目读取失败"), error: true });
+      }
+    } finally {
+      if (requestEpoch === this._productRequestEpoch && (!refund || String(this.data.customer?.customerCode || "") === customerCode)) {
+        this.setData({ loadingOptions: false });
+        this.syncReady();
+      }
+    }
   },
   selectProduct(event) { const index = Number(event.detail.value); this.setData({ productIndex: index, selectedProduct: this.data.products[index] || null }); this.syncReady(); },
   selectTeacher(event) { const index = Number(event.detail.value); this.setData({ teacherIndex: index, selectedTeacher: this.data.teachers[index] || null }); this.syncReady(); },
@@ -130,15 +172,17 @@ Page({
   },
   openSubmittedOrder(result, intent) {
     const url = orderUrl(this.data.refund || String(result.rechargeType || "").toUpperCase() === "REFUND", result, intent);
+    const refund = this.data.refund || String(result.rechargeType || "").toUpperCase() === "REFUND";
+    const hint = submittedOrderHint(this.data.session, refund);
     if (!url) {
-      this.setData({ message: "单据已写入，但服务端没有返回完整工单定位信息；请从充值查询进入，禁止重复提交。", error: true });
+      this.setData({ message: `单据已写入，但服务端没有返回完整工单定位信息；${hint}，禁止重复提交。`, error: true });
       return;
     }
     wx.redirectTo({
       url,
       fail: () => {
-        this.setData({ locked: true, message: `${result.rechargeCode} 已写入，但工单详情打开失败；原提交锁仍保留，请从充值查询进入，禁止重复提交。`, error: true });
-        wx.showModal({ title: "工单已提交", content: `${result.rechargeCode}\n原提交锁仍保留，请从充值查询进入详情`, showCancel: false });
+        this.setData({ locked: true, message: `${result.rechargeCode} 已写入，但工单详情打开失败；原提交锁仍保留，${hint}，禁止重复提交。`, error: true });
+        wx.showModal({ title: "工单已提交", content: `${result.rechargeCode}\n原提交锁仍保留，${hint}详情`, showCancel: false });
       }
     });
   },

@@ -5,21 +5,18 @@
 .summary-grid text { display: block; }
 .summary-grid text { min-height: 48rpx; color: #7c7062; font-size: 19rpx; line-height: 1.25; }
 .summary-grid .summary-value { min-height: 0; margin-top: 4rpx; color: #302a22; font-size: 29rpx; font-weight: 800; }
-.teacher-filter { padding: 14rpx; }
 .customer-table-scroll { width: 100%; margin-top: 14rpx; overflow: hidden; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
-.customer-table { width: 2070rpx; min-width: 2070rpx; background: #fff; }
-.customer-table.teacher-table { width: 1880rpx; min-width: 1880rpx; }
-.customer-row { min-height: 76rpx; display: grid; grid-template-columns: 190rpx 260rpx 180rpx 230rpx 140rpx 140rpx 140rpx 210rpx 100rpx 190rpx; align-items: center; border-top: 1rpx solid #dfcfb4; }
-.teacher-table .customer-row { grid-template-columns: 190rpx 260rpx 180rpx 230rpx 140rpx 140rpx 140rpx 210rpx 100rpx; }
+.customer-table { width: 1680rpx; min-width: 1680rpx; background: #fff; }
+.customer-row { min-height: 76rpx; display: grid; grid-template-columns: 190rpx 260rpx 180rpx 230rpx 140rpx 140rpx 140rpx 210rpx 190rpx; align-items: center; border-top: 1rpx solid #dfcfb4; }
 .customer-row:first-child { border-top: 0; }
-.customer-row text { min-width: 0; padding: 14rpx 16rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.customer-row text { min-width: 0; min-height: 76rpx; display: flex; align-items: center; justify-content: center; padding: 14rpx 16rpx; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .customer-head { min-height: 66rpx; color: #675b4b; background: #f5ead8; font-size: 22rpx; font-weight: 800; }
 .customer-name, .customer-link { color: #8b642e; font-weight: 800; }
 .status-action { width: 154rpx; min-height: 58rpx; margin: 8rpx auto; padding: 0 12rpx; color: #9a302b; background: #fff0ee; border: 1rpx solid #efc1bd; border-radius: 10rpx; font-size: 20rpx; font-weight: 750; line-height: 58rpx; }
 .status-action.restore { color: #08725f; background: #e8f8f2; border-color: #b9e3d5; }
 .pager { display: flex; align-items: center; justify-content: space-between; gap: 14rpx; padding-top: 22rpx; border-top: 1rpx solid #eadfce; }
 .pager button { width: 152rpx; min-height: 58rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 14rpx; font-size: 19rpx; line-height: 1; }
-.pager text { color: #7c7062; font-size: 19rpx; }
+.pager text { color: #7c7062; font-size: 19rpx; text-align: center; white-space: nowrap; }
 .page-jump { display: flex; align-items: center; justify-content: center; gap: 10rpx; margin-top: 14rpx; }
 .page-jump input { width: 104rpx; min-height: 58rpx; padding: 0 14rpx; font-size: 19rpx; text-align: center; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 12rpx; }
 .page-jump button { width: 132rpx; min-height: 58rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 14rpx; font-size: 19rpx; line-height: 1; }

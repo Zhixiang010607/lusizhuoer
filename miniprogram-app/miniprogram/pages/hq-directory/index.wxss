@@ -15,12 +15,13 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
 .section-heading > text:last-child { padding: 6rpx 12rpx; color: #74592d; background: #f4e7d0; border-radius: 999rpx; font-size: 18rpx; font-weight: 800; }
 .table-section { padding-right: 0; }
 .table-scroll { width: 100%; }
-.data-table { min-width: 900rpx; padding-right: 24rpx; }
-.data-table.store { min-width: 1060rpx; }
+.data-table { min-width: 900rpx; }
+.data-table.store { width: 1060rpx; min-width: 1060rpx; }
+.data-table.teacher { width: 626rpx; min-width: 626rpx; }
 .table-row { display: grid; align-items: center; min-height: 78rpx; border-top: 1rpx solid #eadfce; }
 .table-row.store { grid-template-columns: 180rpx 140rpx 180rpx 300rpx 110rpx 150rpx; }
-.table-row.teacher { grid-template-columns: 160rpx 130rpx 170rpx 100rpx 160rpx 156rpx; }
-.table-row > text { min-width: 0; padding: 12rpx 14rpx; overflow: hidden; font-size: 20rpx; text-overflow: ellipsis; white-space: nowrap; }
+.table-row.teacher { grid-template-columns: 160rpx 130rpx 190rpx 146rpx; }
+.table-row > text { min-width: 0; min-height: 78rpx; display: flex; align-items: center; justify-content: center; padding: 12rpx 14rpx; overflow: hidden; font-size: 20rpx; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .table-head { min-height: 68rpx; color: #5a4e3e; background: #f4e8d4; border-top: 0; border-radius: 14rpx 14rpx 0 0; font-weight: 850; }
 .link { color: #74592d; font-weight: 850; text-decoration: underline; }
 .status { display: inline-flex; align-items: center; justify-content: center; padding: 5rpx 11rpx; border-radius: 999rpx; font-size: 17rpx; font-weight: 800; }

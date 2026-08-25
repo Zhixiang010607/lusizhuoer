@@ -10,7 +10,7 @@
       <label class="field"><text class="field-label">项目</text><picker range="{{productLabels}}" value="{{productIndex}}" bindchange="chooseProduct"><view class="picker">{{productLabels[productIndex]}}</view></picker></label>
       <view class="two-fields">
         <label class="field"><text class="field-label">{{recordType === 'VERIFICATION' ? '核销类型' : '申请类型'}}</text><picker range="{{typeLabels}}" value="{{typeIndex}}" bindchange="chooseType"><view class="picker">{{typeLabels[typeIndex]}}</view></picker></label>
-        <label class="field"><text class="field-label">审核状态</text><picker range="{{statusLabels}}" value="{{statusIndex}}" bindchange="chooseStatus"><view class="picker">{{statusLabels[statusIndex]}}</view></picker></label>
+        <label class="field"><text class="field-label">{{recordType === 'VERIFICATION' ? '记录状态' : '审核状态'}}</text><picker range="{{statusLabels}}" value="{{statusIndex}}" bindchange="chooseStatus"><view class="picker">{{statusLabels[statusIndex]}}</view></picker></label>
       </view>
       <label class="field"><text class="field-label">时间范围</text><picker range="{{timeLabels}}" value="{{timeIndex}}" bindchange="chooseTime"><view class="picker">{{timeLabels[timeIndex]}}</view></picker></label>
       <view wx:if="{{customRange}}" class="two-fields"><label class="field"><text class="field-label">开始日期</text><picker mode="date" value="{{startDate}}" end="{{today}}" bindchange="changeStart"><view class="picker">{{startDate || '请选择'}}</view></picker></label><label class="field"><text class="field-label">结束日期</text><picker mode="date" value="{{endDate}}" end="{{today}}" bindchange="changeEnd"><view class="picker">{{endDate || '请选择'}}</view></picker></label></view>
@@ -25,7 +25,7 @@
     <view class="button-row"><button class="primary" bindtap="runQuery" loading="{{loading}}" disabled="{{loading}}">查询{{noun}}</button><button class="ghost" bindtap="resetQuery" disabled="{{loading}}">重置查询</button></view>
   </view>
 
-  <view class="summary-grid">
+  <view wx:if="{{recordType === 'RECHARGE'}}" class="summary-grid">
     <view><text>全部</text><text class="summary-value">{{summary.total || 0}}</text></view><view><text>待审核</text><text class="summary-value">{{summary.pending || 0}}</text></view><view><text>已通过</text><text class="summary-value">{{summary.approved || 0}}</text></view><view><text>已驳回</text><text class="summary-value">{{summary.rejected || 0}}</text></view>
   </view>
 
@@ -36,7 +36,7 @@
       <view class="record-table {{recordType === 'VERIFICATION' ? 'verification-table' : ''}}">
         <view class="record-row record-head"><text>工单号</text><text>客户</text><text>生日</text><text>门店</text><text>项目</text><text>类型</text><text wx:if="{{recordType === 'VERIFICATION'}}">老师</text><text>次数</text><text>状态</text><text>提交时间</text></view>
         <view wx:for="{{records}}" wx:key="id" class="record-row">
-          <text class="table-link" data-id="{{item.id}}" data-code="{{item.recordCode}}" bindtap="openRecord">{{item.recordCode}}</text>
+          <text class="table-link record-code" data-id="{{item.id}}" data-code="{{item.recordCode}}" data-category="{{item.originalType}}" bindtap="openRecord">{{item.recordCode}}</text>
           <text class="table-link" data-code="{{item.customerCode}}" bindtap="openCustomer">{{item.customerName}}</text>
           <text>{{item.birthDate}}</text><text>{{item.storeName}}</text><text>{{item.productName}}</text><text>{{item.typeLabel}}</text><text wx:if="{{recordType === 'VERIFICATION'}}">{{item.teacherName || '未指定'}}</text><text>{{item.unitCount}} 次</text><text>{{item.statusLabel}}</text><text>{{item.submittedAt}}</text>
         </view>

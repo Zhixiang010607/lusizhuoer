@@ -66,6 +66,7 @@ test("HQ chart mapper produces the same dynamic signed axis used by the web char
 test("HQ store and teacher workspaces reuse authoritative services without a generic detail modal", () => {
   const directoryJs = read("pages", "hq-directory", "index.js");
   const directoryWxml = read("pages", "hq-directory", "index.wxml");
+  const directoryWxss = read("pages", "hq-directory", "index.wxss");
   const storeCreate = read("pages", "store-create", "index.js");
   const teacherCreate = read("pages", "teacher-create", "index.js");
   const storeDetail = read("pages", "store-detail", "index.js");
@@ -74,24 +75,43 @@ test("HQ store and teacher workspaces reuse authoritative services without a gen
   const api = read("services", "api.js");
   const env = read("config", "env.js");
 
-  for (const action of ["listStores", "listStaff", "setMasterStatus", "setStaffStatus"]) assert.match(directoryJs, new RegExp(action));
+  for (const action of ["listStores", "listStaff"]) assert.match(directoryJs, new RegExp(action));
+  for (const retiredDirectoryMutation of ["setMasterStatus", "setStaffStatus"]) {
+    assert.doesNotMatch(directoryJs, new RegExp(retiredDirectoryMutation),
+      "directory rows are read-only; status mutations belong on the dedicated detail pages");
+  }
   assert.match(storeCreate, /createStoreWithAccount/);
   assert.match(teacherCreate, /callTeacherCreate/);
   assert.match(api, /config\.teacherCreateFunction/);
   assert.match(env, /teacherCreateFunction:\s*"teacherCreate"/);
   assert.match(teacherCreate, /result && result\.ok === true && result\.completed === true && proof\.complete === true/);
-  assert.match(directoryJs, /await this\.load\(\)[\s\S]*current\.archived !== \(next === "ARCHIVED"\)/,
-    "status changes must be confirmed by a fresh database read");
-  for (const label of ["查询结果", "活跃", "封存", "新增", "进入主页", "配置／充值"]) assert.match(directoryWxml, new RegExp(label));
+  for (const label of ["查询结果", "活跃", "封存", "新增", "进入主页"]) assert.match(directoryWxml, new RegExp(label));
+  for (const label of ["老师姓名", "老师编号", "联系电话", "状态"]) assert.match(directoryWxml, new RegExp(label));
+  for (const removed of ["体验额度", "账号操作", "配置／充值"]) assert.doesNotMatch(directoryWxml, new RegExp(removed));
   assert.equal((directoryWxml.match(/class="table-row table-head store"/g) || []).length, 3,
     "all store table headers must use the same horizontal column grid as store data rows");
   assert.equal((directoryWxml.match(/class="table-row table-head teacher"/g) || []).length, 3,
     "all teacher table headers must use the same horizontal column grid as teacher data rows");
+  assert.match(directoryWxml, /class="table-row teacher">\s*<text class="link"[^>]*bindtap="openDetail">\{\{item\.name\}\}<\/text><text>\{\{item\.code\}\}<\/text><text>\{\{item\.phone\}\}<\/text><text><text class="status/);
+  assert.match(directoryWxss, /\.data-table\.teacher\s*\{\s*width:\s*626rpx;\s*min-width:\s*626rpx;\s*\}/,
+    "the four teacher columns must exactly fill the table without a trailing blank strip");
+  assert.match(directoryWxss, /\.table-row\.teacher\s*\{\s*grid-template-columns:\s*160rpx 130rpx 190rpx 146rpx;\s*\}/,
+    "teacher table width must equal the sum of its four declared columns");
   assert.doesNotMatch(directoryWxml, /class="modal|detail-mask/, "directory must route to dedicated pages instead of opening a generic detail modal");
   for (const action of ["getStoreDashboard", "getStoreBusinessAnalytics", "queryStoreBusinessRecords", "setMasterStatus"]) assert.match(storeDetail, new RegExp(action));
   assert.match(storeDetail, /storeId[\s\S]*queryStoreBusinessRecords/);
   for (const action of ["getTeacherExperienceEntitlements", "upsertTeacherExperienceEntitlement", "rechargeTeacherExperienceEntitlement", "deleteTeacherExperienceEntitlement", "resetPassword", "setStaffStatus"]) assert.match(teacherDetail, new RegExp(action));
+  assert.match(teacherDetail, /const refreshed = await this\.refreshStaff\(\);[\s\S]*archived\(refreshed\) !== \(next === "ARCHIVED"\)/,
+    "teacher status changes must be confirmed by a fresh database read on the dedicated detail page");
   for (const label of ["老师账号管理", "保存新临时密码", "体验项目额度", "项目体验汇总", "已配置产品", "配置新产品", "单独充值体验次数", "额度变更记录"]) assert.match(teacherDetailWxml, new RegExp(label));
+
+  for (const page of ["hq-directory", "store-create", "store-detail", "teacher-create", "teacher-detail"]) {
+    const pageJson = JSON.parse(read("pages", page, "index.json"));
+    const pageWxml = read("pages", page, "index.wxml");
+    assert.equal(pageJson.usingComponents && pageJson.usingComponents["hq-rail"], undefined,
+      `${page} must not register the repeated HQ rail inside management`);
+    assert.doesNotMatch(pageWxml, /<hq-rail\b/, `${page} must rely on native back navigation`);
+  }
 });
 
 test("HQ review workbenches match web filters, pagination, exact links, and guarded decisions", () => {
@@ -101,9 +121,13 @@ test("HQ review workbenches match web filters, pagination, exact links, and guar
 
   assert.match(js, /const PAGE_SIZE = 100/);
   assert.match(js, /callStaff\("listReviewOrders"/);
-  assert.match(js, /paged:\s*this\.data\.mode === "filters"/);
-  assert.match(js, /pageNumber:\s*this\.data\.mode === "filters" \? page/);
-  assert.match(js, /this\.data\.type === "recharge" \? "NEW" : this\.data\.type === "refund" \? "REFUND" : "SUPPLEMENT"/);
+  assert.match(js, /const mode = this\.data\.mode;/);
+  assert.match(js, /paged:\s*mode === "filters"/);
+  assert.match(js, /pageNumber:\s*mode === "filters" \? page/);
+  assert.match(js, /if \(epoch !== this\._requestEpoch\) return;/,
+    "review filters must reject a stale response after the user changes scope");
+  assert.match(js, /type === "recharge" \? "NEW" : type === "refund" \? "REFUND" : "SUPPLEMENT"/,
+    "review requests must derive the application type from the immutable request snapshot");
   assert.match(js, /callStaff\("reviewOrder"/);
   assert.match(js, /decision:\s*this\.data\.decision/);
   assert.match(js, /note:\s*text\(this\.data\.reviewNote\)/);
@@ -118,6 +142,11 @@ test("HQ review workbenches match web filters, pagination, exact links, and guar
     "review headers and values must stay centered on one line");
   assert.match(wxss, /\.review-row > text:last-child, \.review-row > view:last-child\s*\{\s*border-right:\s*0;/,
     "the final review column must not leave a trailing border sliver");
+  for (const selector of ["review-type-tabs button", "mode-tabs button", "review-action button"]) {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    assert.match(wxss, new RegExp(`\\.${escaped}\\s*\\{[^}]*align-items:\\s*center;[^}]*justify-content:\\s*center;[^}]*white-space:\\s*nowrap;`, "s"),
+      `${selector} must center its wording instead of relying on native button line-height`);
+  }
 });
 
 test("mini internal palette is isolated warm ivory, champagne gold, and espresso", () => {

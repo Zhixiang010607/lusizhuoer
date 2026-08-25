@@ -5,3 +5,5 @@
 /miniprogram-app/miniprogram/miniprogram_npm/
 /miniprogram-app/project.private.config.json
 .DS_Store
+.codex-*.jpg
+.codex-*.png

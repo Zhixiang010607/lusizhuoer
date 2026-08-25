@@ -1,5 +1,4 @@
 <view class="workspace-page">
-  <hq-rail active="management" />
   <view class="workspace-topbar detail-topbar"><view><text class="topbar-title">{{profile.name || '老师'}} · 老师主页</text></view><button class="ghost back-button" bindtap="back">返回老师管理</button></view>
   <view class="workspace-main">
     <view wx:if="{{message}}" class="form-message {{error ? 'error' : ''}}">{{message}}</view>

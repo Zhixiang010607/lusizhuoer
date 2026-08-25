@@ -33,18 +33,16 @@ function teacherView(item) {
     archived: authoritative.length ? authoritative.includes("ARCHIVED") : archived(item)
   };
 }
-function confirmModal(content, confirmText = "确认") {
-  return new Promise((resolve) => wx.showModal({ title: "请确认", content, confirmText, success: (result) => resolve(result.confirm), fail: () => resolve(false) }));
-}
-
 Page({
   data: {
-    type: "store", title: "门店管理", noun: "门店", unit: "家", loading: true, mutatingRef: "", message: "", error: false,
+    type: "store", title: "门店管理", noun: "门店", unit: "家", loading: true, message: "", error: false,
     rows: [], activeRows: [], archivedRows: [], searched: false, searchRows: [], searchName: "", searchPhone: ""
   },
   onLoad(options) {
     if (!requireSession(["hq"])) return;
+    this._unloaded = false;
     if (options.type === "product") {
+      this._redirecting = true;
       wx.redirectTo({ url: "/pages/product-management/index" });
       return;
     }
@@ -54,26 +52,39 @@ Page({
     wx.setNavigationBarTitle({ title: "露思卓儿" });
   },
   onShow() {
-    if (!requireSession(["hq"]) || !META[this.data.type]) return;
+    if (this._redirecting || !requireSession(["hq"]) || !META[this.data.type]) return;
     this.load();
+  },
+  onUnload() {
+    this._unloaded = true;
+    this._requestEpoch = (this._requestEpoch || 0) + 1;
   },
   onPullDownRefresh() { this.load().finally(() => wx.stopPullDownRefresh()); },
   async load() {
-    if (this._loading) return;
-    this._loading = true;
+    const type = this.data.type;
+    const meta = META[type];
+    if (this._unloaded || !meta) return;
+    const epoch = (this._requestEpoch || 0) + 1;
+    this._requestEpoch = epoch;
+    const request = Object.freeze({ epoch, type, action: meta.action, noun: meta.noun });
     this.setData({ loading: true, message: "", error: false });
     try {
-      const result = await callStaff(META[this.data.type].action, this.data.type === "teacher" ? { role: "teacher" } : {});
-      const source = this.data.type === "store" ? result.stores : result.staff;
-      const rows = (source || []).map(this.data.type === "store" ? storeView : teacherView);
-      this.setData({ rows, activeRows: rows.filter((item) => !item.archived), archivedRows: rows.filter((item) => item.archived) }, () => {
-        if (this.data.searched) this.applySearch();
-      });
+      const payload = request.type === "teacher" ? Object.freeze({ role: "teacher" }) : Object.freeze({});
+      const result = await callStaff(request.action, payload);
+      if (this._unloaded || request.epoch !== this._requestEpoch || request.type !== this.data.type) return;
+      const source = request.type === "store" ? result.stores : result.staff;
+      const rows = (source || []).map(request.type === "store" ? storeView : teacherView);
+      const name = text(this.data.searchName).toLocaleLowerCase("zh-CN");
+      const phone = normalizedPhone(this.data.searchPhone);
+      const searchRows = this.data.searched ? rows.filter((item) =>
+        (!name || item.name.toLocaleLowerCase("zh-CN").includes(name) || item.code.toLocaleLowerCase("zh-CN").includes(name))
+        && (!phone || normalizedPhone(item.phone).includes(phone))) : [];
+      this.setData({ rows, activeRows: rows.filter((item) => !item.archived), archivedRows: rows.filter((item) => item.archived), searchRows });
     } catch (error) {
-      this.setData({ rows: [], activeRows: [], archivedRows: [], searchRows: [], message: error.message || `${this.data.noun}数据读取失败`, error: true });
+      if (this._unloaded || request.epoch !== this._requestEpoch || request.type !== this.data.type) return;
+      this.setData({ rows: [], activeRows: [], archivedRows: [], searchRows: [], message: error.message || `${request.noun}数据读取失败`, error: true });
     } finally {
-      this._loading = false;
-      this.setData({ loading: false });
+      if (!this._unloaded && request.epoch === this._requestEpoch && request.type === this.data.type) this.setData({ loading: false });
     }
   },
   inputSearchName(event) { this.setData({ searchName: event.detail.value }); },
@@ -103,27 +114,5 @@ Page({
     if (!ref) return;
     const route = this.data.type === "store" ? "store-detail/index?storeRef" : "teacher-detail/index?teacherRef";
     wx.navigateTo({ url: `/pages/${route}=${encodeURIComponent(ref)}` });
-  },
-  openExperience(event) { this.openDetail(event); },
-  async toggleTeacherStatus(event) {
-    if (this.data.type !== "teacher" || this.data.mutatingRef) return;
-    const ref = String(event.currentTarget.dataset.ref || "");
-    const row = this.data.rows.find((item) => item.ref === ref);
-    if (!row) return;
-    const next = row.archived ? "ACTIVE" : "ARCHIVED";
-    const action = row.archived ? "激活" : "封存";
-    if (!await confirmModal(`确认${action}老师“${row.name}”？${next === "ARCHIVED" ? "历史业务和体验额度记录会完整保留。" : ""}`, action)) return;
-    this.setData({ mutatingRef: ref, message: `正在${action}老师…`, error: false });
-    try {
-      if (row.authUid) await callStaff("setStaffStatus", { uid: row.authUid, phone: row.phone === "—" ? "" : row.phone, status: next });
-      else if (row.teacherId) await callStaff("setMasterStatus", { teacherId: row.teacherId, status: next });
-      else throw new Error("老师资料缺少可用账号或老师编号");
-      await this.load();
-      const current = this.data.rows.find((item) => item.ref === ref);
-      if (!current || current.archived !== (next === "ARCHIVED")) throw new Error(`${action}结果未能由数据库确认，请刷新后核对`);
-      this.setData({ message: `老师已${action}。`, error: false });
-    } catch (error) {
-      this.setData({ message: error.message || `老师${action}失败`, error: true });
-    } finally { this.setData({ mutatingRef: "" }); }
   }
 });

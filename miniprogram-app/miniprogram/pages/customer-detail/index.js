@@ -1,78 +1,472 @@
 const { callFace } = require("../../services/api");
 const { requireSession } = require("../../services/session");
+const { saveImageToAlbum } = require("../../services/photo-album");
 const query = require("../../services/query-tools");
 
+const HISTORY_LIMIT = 50;
+const MESSAGE_LIMIT = 20;
+const HISTORY_FIELDS = Object.freeze({
+  RECHARGE: "recharges",
+  VERIFICATION: "verifications",
+  EXPERIENCE: "experiences"
+});
+
+function clean(value) { return String(value ?? "").trim(); }
+function freshHistoryState() {
+  return {
+    RECHARGE: { hasMore: false, nextCursor: null, loading: false, message: "", error: false },
+    VERIFICATION: { hasMore: false, nextCursor: null, loading: false, message: "", error: false },
+    EXPERIENCE: { hasMore: false, nextCursor: null, loading: false, message: "", error: false }
+  };
+}
+function messageRole(value) {
+  return ({ hq: "总部", store: "门店", teacher: "老师" })[clean(value).toLowerCase()] || "账号";
+}
+function businessTeacher(row = {}) {
+  const name = clean(row.teacherName);
+  if (!name) return "未指定";
+  const code = clean(row.teacherCode);
+  return code ? `${name} · ${code}` : name;
+}
+function orderStatus(row = {}, type = "RECHARGE") {
+  const status = clean(row.recordStatus).toUpperCase();
+  if (type !== "RECHARGE") {
+    if (status === "VOIDED") return "历史已作废";
+    const verificationType = clean(row.verificationType).toUpperCase();
+    if (["NORMAL", "EXPERIENCE"].includes(verificationType) && status === "APPROVED") return "已完成";
+    return ({ PENDING: "待审核", APPROVED: "审核通过", REJECTED: "已驳回" })[status] || "未记录";
+  }
+  const voidStatus = clean(row.voidRequestStatus || "NONE").toUpperCase();
+  if (status === "VOIDED" || voidStatus === "APPROVED") return "已作废";
+  const base = ({ PENDING: "待审核", APPROVED: "审核通过", REJECTED: "已驳回" })[status] || "未记录";
+  if (status === "APPROVED" && voidStatus === "PENDING") return `${base} · 作废待审核`;
+  if (status === "APPROVED" && voidStatus === "REJECTED") return `${base} · 作废已驳回`;
+  return base;
+}
+function mapHistoryRow(row = {}, type = "RECHARGE") {
+  const originalType = clean(row.rechargeType || row.verificationType).toUpperCase();
+  const units = Math.abs(Number(row.unitCount || (type === "RECHARGE" ? 0 : 1)));
+  const negative = type === "RECHARGE" && ["REFUND", "VOID"].includes(originalType);
+  return {
+    ...row,
+    id: clean(row.id),
+    recordCode: clean(row.rechargeCode || row.verificationCode || row.id) || "—",
+    originalType,
+    productName: clean(row.productName) || "—",
+    teacherLabel: businessTeacher(row),
+    unitLabel: `${type === "RECHARGE" ? (negative ? "−" : "+") : ""}${units} 次`,
+    submittedAtLabel: query.displayDate(row.submittedAt),
+    statusLabel: orderStatus(row, type)
+  };
+}
+function mapHistory(rows, type) {
+  return (Array.isArray(rows) ? rows : []).map((row) => mapHistoryRow(row, type));
+}
+function mapProfile(value = {}) {
+  return {
+    ...value,
+    customerCode: clean(value.customerCode),
+    customerName: clean(value.customerName) || "—",
+    birthDateLabel: query.displayDate(value.birthDate),
+    storeLabel: [clean(value.storeName), clean(value.storeCode)].filter(Boolean).join(" · ") || "—",
+    latestRechargeLabel: query.displayDate(value.latestRechargeAt),
+    latestVerificationLabel: query.displayDate(value.latestVerificationAt),
+    createdAtLabel: query.displayDate(value.createdAt),
+    customerStatus: clean(value.customerStatus).toUpperCase() === "ARCHIVED" ? "ARCHIVED" : "ACTIVE",
+    totalRechargeCount: Number(value.totalRechargeCount || 0),
+    totalVerificationCount: Number(value.totalVerificationCount || 0),
+    totalExperienceCount: Number(value.totalExperienceCount || 0)
+  };
+}
+function mapBalances(rows) {
+  return (Array.isArray(rows) ? rows : []).map((row) => ({
+    ...row,
+    productName: clean(row.productName) || "—",
+    productCode: clean(row.productCode),
+    totalRechargeCount: Number(row.totalRechargeCount || 0),
+    totalVerificationCount: Number(row.totalVerificationCount || 0),
+    remainingCount: Number(row.remainingCount || 0)
+  }));
+}
+function mapMessages(rows) {
+  return (Array.isArray(rows) ? rows : []).map((row) => ({
+    ...row,
+    id: clean(row.id),
+    authorLabel: clean(row.authorName) || "未命名账号",
+    roleLabel: messageRole(row.authorRole),
+    createdAtLabel: query.displayDateTime(row.createdAt),
+    content: String(row.content || "")
+  }));
+}
+
 Page({
-  data: { customerCode: "", profile: null, balances: [], recharges: [], verifications: [], experiences: [], historyType: "RECHARGE", visibleHistory: [], photoUrl: "", photoLoading: false, photoSaving: false, loading: false, notes: "", originalNotes: "", savingNotes: false, message: "", error: false },
-  onLoad(options) {
-    if (!requireSession()) return;
-    this.setData({ customerCode: decodeURIComponent(options.customerCode || "") });
-    this.load();
+  data: {
+    session: {}, canManageStatus: false, canEditNotes: false,
+    customerCode: "", profile: null, balances: [],
+    recharges: [], verifications: [], experiences: [],
+    historyType: "RECHARGE", visibleHistory: [], historyHasMore: false,
+    historyLoading: false, historyMessage: "", historyError: false,
+    messages: [], messageTotal: 0, messageHasMore: false,
+    messagesLoading: false, messageSubmitting: false, messageText: "", messageLength: 0,
+    messageMessage: "", messageError: false,
+    notes: "", originalNotes: "", notesEditing: false, notesChanged: false,
+    savingNotes: false, notesMessage: "", notesError: false,
+    statusUpdating: false, statusMessage: "", statusError: false,
+    photoUrl: "", photoLoading: false, photoSaving: false, photoMessage: "", photoError: false,
+    loading: false, message: "", error: false
+  },
+
+  onLoad(options = {}) {
+    const session = requireSession(["hq", "store", "teacher"]);
+    if (!session) return;
+    this._historyState = freshHistoryState();
+    this._messageCursor = null;
+    this._profileEpoch = 0;
+    this._photoEpoch = 0;
+    this._messageEpoch = 0;
+    this.setData({
+      session,
+      canManageStatus: session.role === "hq" || session.role === "store",
+      canEditNotes: ["hq", "store", "teacher"].includes(session.role),
+      customerCode: decodeURIComponent(options.customerCode || "")
+    });
+    void this.load();
+  },
+  onUnload() {
+    this._profileEpoch = Number(this._profileEpoch || 0) + 1;
+    this._photoEpoch = Number(this._photoEpoch || 0) + 1;
+    this._messageEpoch = Number(this._messageEpoch || 0) + 1;
   },
   onPullDownRefresh() { this.load().finally(() => wx.stopPullDownRefresh()); },
+
   async load() {
-    if (!this.data.customerCode) return this.setData({ message: "缺少客户编号", error: true });
-    this.setData({ loading: true, message: "", error: false });
+    if (!this.data.customerCode) {
+      this.setData({ message: "缺少客户编号", error: true });
+      return;
+    }
+    const epoch = Number(this._profileEpoch || 0) + 1;
+    this._profileEpoch = epoch;
+    this._historyState = freshHistoryState();
+    this.setData({
+      loading: true, message: "", error: false,
+      profile: null, balances: [], recharges: [], verifications: [], experiences: [],
+      visibleHistory: [], historyHasMore: false, historyLoading: false,
+      historyMessage: "", historyError: false,
+      notesEditing: false, notesChanged: false, notesMessage: "", notesError: false,
+      statusMessage: "", statusError: false
+    });
+    void this.loadPhoto();
     try {
-      const result = await callFace("getCustomerProfile", { customerCode: this.data.customerCode, historyLimit: 20 });
-      const profile = result.customer;
-      this.setData({ profile, balances: result.balances || [], recharges: result.recharges || [], verifications: result.verifications || [], experiences: result.experiences || [], notes: String(profile.notes || ""), originalNotes: String(profile.notes || "") });
+      const result = await callFace("getCustomerProfile", {
+        customerCode: this.data.customerCode,
+        historyLimit: HISTORY_LIMIT
+      });
+      if (epoch !== this._profileEpoch) return;
+      const profile = mapProfile(result.customer || {});
+      if (!profile.customerCode || profile.customerCode !== this.data.customerCode) {
+        throw new Error("服务端返回的客户档案与当前客户不一致");
+      }
+      const nextHistory = freshHistoryState();
+      for (const [type, field] of Object.entries(HISTORY_FIELDS)) {
+        const page = result.history?.[field] || {};
+        nextHistory[type].hasMore = page.hasMore === true;
+        nextHistory[type].nextCursor = page.nextCursor || null;
+      }
+      this._historyState = nextHistory;
+      const notes = String(profile.notes || "");
+      this.setData({
+        profile,
+        balances: mapBalances(result.balances),
+        recharges: mapHistory(result.recharges, "RECHARGE"),
+        verifications: mapHistory(result.verifications, "VERIFICATION"),
+        experiences: mapHistory(result.experiences, "EXPERIENCE"),
+        notes, originalNotes: notes
+      });
       this.syncHistory();
-      await this.loadPhoto();
-    } catch (error) { this.setData({ message: error.message || "客户主页读取失败", error: true }); }
-    finally { this.setData({ loading: false }); }
+      void this.loadMessages({ reset: true });
+    } catch (error) {
+      if (epoch === this._profileEpoch) {
+        this.setData({ message: error.message || "客户主页读取失败", error: true });
+      }
+    } finally {
+      if (epoch === this._profileEpoch) this.setData({ loading: false });
+    }
   },
+
   async loadPhoto() {
-    if (this.data.photoLoading) return;
-    this.setData({ photoLoading: true });
+    if (!this.data.customerCode) return;
+    const epoch = Number(this._photoEpoch || 0) + 1;
+    this._photoEpoch = epoch;
+    this.setData({ photoLoading: true, photoUrl: "", photoMessage: "正在读取客户照片…", photoError: false });
     try {
       const result = await callFace("getCustomerPhotoUrl", { customerCode: this.data.customerCode });
+      if (epoch !== this._photoEpoch) return;
       if (!/^https:\/\//i.test(String(result.photoUrl || ""))) throw new Error("服务端未返回有效的照片临时地址");
-      this.setData({ photoUrl: result.photoUrl, message: "", error: false });
-    } catch (error) { this.setData({ message: error.message || "客户照片读取失败，点击照片区域可重试", error: true }); }
-    finally { this.setData({ photoLoading: false }); }
+      this.setData({ photoUrl: result.photoUrl, photoMessage: "", photoError: false });
+    } catch (error) {
+      if (epoch === this._photoEpoch) {
+        this.setData({ photoUrl: "", photoMessage: error.message || "客户照片读取失败，可单独重读", photoError: true });
+      }
+    } finally {
+      if (epoch === this._photoEpoch) this.setData({ photoLoading: false });
+    }
   },
-  reloadPhoto() { this.setData({ photoUrl: "" }); this.loadPhoto(); },
-  photoFailed() { this.setData({ photoUrl: "", message: "照片临时地址已失效或网络中断，请点击“重读原图”单独重取这一张。", error: true }); },
-  previewPhoto() { if (this.data.photoUrl) wx.previewImage({ current: this.data.photoUrl, urls: [this.data.photoUrl] }); },
+  reloadPhoto() { if (!this.data.photoLoading) void this.loadPhoto(); },
+  photoFailed() {
+    this.setData({
+      photoUrl: "",
+      photoMessage: "照片临时地址已失效或网络中断，请单独重读这一张。",
+      photoError: true
+    });
+  },
+  previewPhoto() {
+    if (this.data.photoUrl) wx.previewImage({ current: this.data.photoUrl, urls: [this.data.photoUrl] });
+  },
   async savePhoto() {
     if (!this.data.photoUrl || this.data.photoSaving) return;
-    this.setData({ photoSaving: true, message: "正在下载高清原图…", error: false });
+    this.setData({ photoSaving: true, photoMessage: "正在保存照片…", photoError: false });
     try {
-      const downloaded = await new Promise((resolve, reject) => wx.downloadFile({ url: this.data.photoUrl, success: resolve, fail: reject }));
+      const downloaded = await new Promise((resolve, reject) => wx.downloadFile({
+        url: this.data.photoUrl, success: resolve, fail: reject
+      }));
       if (downloaded.statusCode !== 200 || !downloaded.tempFilePath) throw new Error("原图下载失败");
-      await new Promise((resolve, reject) => wx.saveImageToPhotosAlbum({ filePath: downloaded.tempFilePath, success: resolve, fail: reject }));
-      this.setData({ message: "高清原图已保存到系统相册，未压缩。", error: false });
-    } catch (error) { this.setData({ message: error.errMsg || error.message || "照片保存失败，请检查相册权限后重试", error: true }); }
-    finally { this.setData({ photoSaving: false }); }
+      await saveImageToAlbum(downloaded.tempFilePath);
+      this.setData({ photoMessage: "照片已保存到系统相册", photoError: false });
+    } catch (error) {
+      this.setData({ photoMessage: error.errMsg || error.message || "照片保存失败，请检查相册权限后重试", photoError: true });
+    } finally { this.setData({ photoSaving: false }); }
   },
-  inputNotes(event) { this.setData({ notes: event.detail.value }); },
+
+  startEditNotes() {
+    if (!this.data.canEditNotes || this.data.savingNotes) return;
+    this.setData({
+      notes: this.data.originalNotes, notesEditing: true, notesChanged: false,
+      notesMessage: "", notesError: false
+    });
+  },
+  inputNotes(event) {
+    const notes = String(event.detail.value || "");
+    this.setData({ notes, notesChanged: notes !== this.data.originalNotes, notesMessage: "", notesError: false });
+  },
+  cancelEditNotes() {
+    if (this.data.savingNotes) return;
+    this.setData({
+      notes: this.data.originalNotes, notesEditing: false, notesChanged: false,
+      notesMessage: "", notesError: false
+    });
+  },
   async saveNotes() {
-    this.setData({ savingNotes: true, message: "正在保存备注…", error: false });
+    if (!this.data.canEditNotes || !this.data.notesEditing || this.data.savingNotes) return;
+    const notes = String(this.data.notes || "").replace(/\r\n?/g, "\n").trim();
+    if (notes.length > 5000) {
+      this.setData({ notesMessage: "客户备注不能超过 5000 个字符", notesError: true });
+      return;
+    }
+    this.setData({ savingNotes: true, notesMessage: "正在保存备注…", notesError: false });
     try {
-      const result = await callFace("updateCustomerNotes", { customerCode: this.data.customerCode, expectedNotes: this.data.originalNotes, notes: this.data.notes });
-      const saved = String(result.notes !== undefined ? result.notes : this.data.notes);
-      this.setData({ notes: saved, originalNotes: saved, message: "备注已保存", error: false });
-    } catch (error) { this.setData({ message: error.message || "备注保存失败", error: true }); }
-    finally { this.setData({ savingNotes: false }); }
+      const result = await callFace("updateCustomerNotes", {
+        customerCode: this.data.customerCode,
+        expectedNotes: this.data.originalNotes,
+        notes
+      });
+      const saved = String(result.customer?.notes ?? notes);
+      this.setData({
+        profile: { ...this.data.profile, notes: saved },
+        notes: saved, originalNotes: saved, notesEditing: false, notesChanged: false,
+        notesMessage: "备注已保存", notesError: false
+      });
+    } catch (error) {
+      this.setData({ notesMessage: error.message || "备注保存失败", notesError: true });
+    } finally { this.setData({ savingNotes: false }); }
   },
-  changeHistory(event) { this.setData({ historyType: event.currentTarget.dataset.type }); this.syncHistory(); },
+
+  changeHistory(event) {
+    const type = clean(event.currentTarget.dataset.type).toUpperCase();
+    if (!HISTORY_FIELDS[type]) return;
+    this.setData({ historyType: type });
+    this.syncHistory();
+  },
   syncHistory() {
-    const map = { RECHARGE: this.data.recharges, VERIFICATION: this.data.verifications, EXPERIENCE: this.data.experiences };
-    this.setData({ visibleHistory: (map[this.data.historyType] || []).map((item) => ({
-      ...item,
-      statusLabel: query.statusLabel(item.recordStatus),
-      recordCode: item.rechargeCode || item.verificationCode || "—"
-    })) });
+    const type = this.data.historyType;
+    const field = HISTORY_FIELDS[type] || HISTORY_FIELDS.RECHARGE;
+    const state = this._historyState?.[type] || freshHistoryState()[type];
+    this.setData({
+      visibleHistory: this.data[field] || [],
+      historyHasMore: state.hasMore === true,
+      historyLoading: state.loading === true,
+      historyMessage: state.message || "",
+      historyError: state.error === true
+    });
+  },
+  async loadMoreHistory() {
+    const type = this.data.historyType;
+    const field = HISTORY_FIELDS[type];
+    const state = this._historyState?.[type];
+    if (!field || !state?.hasMore || !state.nextCursor || state.loading) return;
+    const profileEpoch = this._profileEpoch;
+    state.loading = true;
+    state.message = "正在加载更多记录…";
+    state.error = false;
+    this.syncHistory();
+    try {
+      const result = await callFace("getCustomerProfile", {
+        customerCode: this.data.customerCode,
+        historyType: type,
+        historyLimit: HISTORY_LIMIT,
+        cursorSubmittedAt: state.nextCursor.submittedAt,
+        cursorId: state.nextCursor.id
+      });
+      if (profileEpoch !== this._profileEpoch) return;
+      const incoming = mapHistory(result[field], type);
+      const known = new Set((this.data[field] || []).map((row) => row.id));
+      const combined = [...(this.data[field] || []), ...incoming.filter((row) => !known.has(row.id))];
+      const page = result.history?.[field] || {};
+      state.hasMore = page.hasMore === true;
+      state.nextCursor = page.nextCursor || null;
+      state.message = incoming.length ? `已加载 ${incoming.length} 条记录` : "没有更多记录";
+      state.error = false;
+      this.setData({ [field]: combined });
+    } catch (error) {
+      state.message = error.message || "历史记录加载失败，请重试";
+      state.error = true;
+    } finally {
+      state.loading = false;
+      this.syncHistory();
+    }
   },
   openOrder(event) {
-    const id = String(event.currentTarget.dataset.id || "");
+    const id = clean(event.currentTarget.dataset.id);
     if (!id) return;
-    const code = String(event.currentTarget.dataset.code || "");
-    const historyType = String(this.data.historyType || "RECHARGE").toUpperCase();
-    const originalType = String(event.currentTarget.dataset.originalType || "").toUpperCase();
+    const code = clean(event.currentTarget.dataset.code);
+    const historyType = clean(this.data.historyType || "RECHARGE").toUpperCase();
+    const originalType = clean(event.currentTarget.dataset.originalType).toUpperCase();
     const category = historyType === "RECHARGE" && originalType === "REFUND" ? "REFUND" : historyType;
     const baseType = category === "RECHARGE" || category === "REFUND" ? "recharge" : "verification";
-    wx.navigateTo({ url: `/pages/order-detail/index?type=${baseType}&category=${category}&recordId=${encodeURIComponent(id)}&recordCode=${encodeURIComponent(code)}` });
+    wx.navigateTo({
+      url: `/pages/order-detail/index?type=${baseType}&category=${category}&recordId=${encodeURIComponent(id)}&recordCode=${encodeURIComponent(code)}`
+    });
+  },
+
+  async loadMessages({ reset = false } = {}) {
+    if (!this.data.customerCode || (this.data.messagesLoading && !reset)) return;
+    if (!reset && (!this.data.messageHasMore || !this._messageCursor)) return;
+    const epoch = Number(this._messageEpoch || 0) + 1;
+    this._messageEpoch = epoch;
+    const cursor = reset ? null : this._messageCursor;
+    if (reset) this._messageCursor = null;
+    this.setData({
+      messagesLoading: true,
+      messages: reset ? [] : this.data.messages,
+      messageTotal: reset ? 0 : this.data.messageTotal,
+      messageHasMore: reset ? false : this.data.messageHasMore,
+      messageMessage: reset ? "正在读取留言…" : "正在读取更早留言…",
+      messageError: false
+    });
+    try {
+      const payload = { customerCode: this.data.customerCode, messageLimit: MESSAGE_LIMIT };
+      if (cursor) {
+        payload.cursorCreatedAt = cursor.createdAt;
+        payload.cursorMessageId = cursor.id;
+      }
+      const result = await callFace("listCustomerMessages", payload);
+      if (epoch !== this._messageEpoch) return;
+      const incoming = mapMessages(result.messages);
+      const currentMessages = reset ? [] : this.data.messages;
+      const known = new Set(currentMessages.map((item) => item.id));
+      const messages = [...currentMessages, ...incoming.filter((item) => !known.has(item.id))];
+      this._messageCursor = result.page?.nextCursor || null;
+      this.setData({
+        messages,
+        messageTotal: Number(result.totalCount || 0),
+        messageHasMore: result.page?.hasMore === true,
+        messageMessage: "", messageError: false
+      });
+    } catch (error) {
+      if (epoch === this._messageEpoch) {
+        this.setData({ messageMessage: error.message || "客户留言读取失败，请重试", messageError: true });
+      }
+    } finally {
+      if (epoch === this._messageEpoch) this.setData({ messagesLoading: false });
+    }
+  },
+  loadMoreMessages() { void this.loadMessages(); },
+  retryMessages() { void this.loadMessages({ reset: true }); },
+  inputMessage(event) {
+    const parts = Array.from(String(event.detail.value || ""));
+    const messageText = parts.slice(0, 100).join("");
+    this.setData({
+      messageText, messageLength: Array.from(messageText).length,
+      messageMessage: "", messageError: false
+    });
+    return messageText;
+  },
+  async submitMessage() {
+    if (this.data.messageSubmitting) return;
+    const content = String(this.data.messageText || "").replace(/\r\n?/g, "\n").trim();
+    const length = Array.from(content).length;
+    if (!length || length > 100) {
+      this.setData({
+        messageMessage: length ? "单条留言不能超过 100 字" : "请输入留言内容",
+        messageError: true
+      });
+      return;
+    }
+    this.setData({ messageSubmitting: true, messageMessage: "正在提交留言…", messageError: false });
+    try {
+      const result = await callFace("addCustomerMessage", { customerCode: this.data.customerCode, content });
+      const saved = mapMessages(result.message ? [result.message] : []);
+      const known = new Set(this.data.messages.map((item) => item.id));
+      const messages = saved.length && !known.has(saved[0].id)
+        ? [saved[0], ...this.data.messages]
+        : this.data.messages;
+      this.setData({
+        messages,
+        messageTotal: Number(result.totalCount || messages.length),
+        messageText: "", messageLength: 0,
+        messageMessage: "留言已保存", messageError: false
+      });
+    } catch (error) {
+      this.setData({ messageMessage: error.message || "客户留言提交失败，请重试", messageError: true });
+    } finally { this.setData({ messageSubmitting: false }); }
+  },
+
+  toggleCustomerStatus() {
+    if (!this.data.canManageStatus || !this.data.profile || this.data.statusUpdating) return;
+    const currentStatus = this.data.profile.customerStatus;
+    const restoring = currentStatus === "ARCHIVED";
+    const targetStatus = restoring ? "ACTIVE" : "ARCHIVED";
+    const customerName = this.data.profile.customerName;
+    wx.showModal({
+      title: restoring ? "恢复为活跃" : "封存客户",
+      content: restoring
+        ? `确认将客户 ${customerName} 恢复为活跃？`
+        : `确认封存客户 ${customerName}？历史记录会继续保留。`,
+      confirmText: restoring ? "确认恢复" : "确认封存",
+      confirmColor: restoring ? "#607c6a" : "#99574b",
+      success: async (modal) => {
+        if (!modal.confirm) return;
+        this.setData({
+          statusUpdating: true,
+          statusMessage: `正在${restoring ? "恢复" : "封存"}客户…`,
+          statusError: false
+        });
+        try {
+          const result = await callFace("updateCustomerStatus", {
+            customerCode: this.data.customerCode,
+            expectedStatus: currentStatus,
+            targetStatus
+          });
+          const savedStatus = clean(result.customer?.customerStatus).toUpperCase();
+          if (savedStatus !== targetStatus) throw new Error("客户状态更新后回读不一致，请刷新重试");
+          this.setData({
+            profile: { ...this.data.profile, customerStatus: savedStatus },
+            statusMessage: restoring ? "客户已恢复为活跃" : "客户已封存",
+            statusError: false
+          });
+        } catch (error) {
+          this.setData({ statusMessage: error.message || "客户状态更新失败", statusError: true });
+        } finally { this.setData({ statusUpdating: false }); }
+      }
+    });
   }
 });

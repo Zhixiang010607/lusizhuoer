@@ -1,16 +1,17 @@
 const { callFace } = require("../../services/api");
 const { requireSession, getSelectedStore } = require("../../services/session");
+const { businessToday } = require("../../services/query-tools");
 
 function requestId() { return `mp_customer_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 14)}`.slice(0, 64); }
 
 Page({
-  data: { session: {}, store: {}, name: "", birthDate: "", notes: "", today: new Date().toISOString().slice(0, 10), consent: false, captureReady: false, busy: false, message: "", error: false },
+  data: { session: {}, store: {}, name: "", birthDate: "", notes: "", today: businessToday(), consent: false, captureReady: false, busy: false, message: "", error: false },
   onLoad() {
     const session = requireSession(["store", "teacher"]);
     if (!session) return;
     const store = getSelectedStore(session);
     if (!store) return wx.reLaunch({ url: "/pages/home/index" });
-    this.setData({ session, store });
+    this.setData({ session, store, today: businessToday() });
   },
   inputName(event) { this.setData({ name: event.detail.value }); this._requestId = ""; },
   inputBirthday(event) { this.setData({ birthDate: event.detail.value }); this._requestId = ""; },

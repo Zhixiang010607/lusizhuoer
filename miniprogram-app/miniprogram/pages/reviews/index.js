@@ -61,6 +61,7 @@ Page({
     await this.load(1, true);
   },
   onPullDownRefresh() { this.load(1, true).finally(() => wx.stopPullDownRefresh()); },
+  onUnload() { this._requestEpoch = Number(this._requestEpoch || 0) + 1; },
   openReviewType(event) {
     const type = String(event.currentTarget.dataset.type || "recharge");
     if (!["recharge", "refund"].includes(type) || type === this.data.type) return;
@@ -68,35 +69,45 @@ Page({
   },
   setMode(event) {
     const mode = event.currentTarget.dataset.mode === "code" ? "code" : "filters";
-    this.setData({ mode, code: "", rows: [], total: 0, page: 1, totalPages: 1, pageJump: "1", message: "", error: false });
+    this.invalidateRequest({ mode, code: "", rows: [], total: 0, page: 1, totalPages: 1, pageJump: "1", message: "", error: false });
   },
-  chooseStore(event) { this.setData({ storeIndex: Number(event.detail.value) }); },
-  chooseStatus(event) { this.setData({ statusIndex: Number(event.detail.value) }); },
-  inputCode(event) { this.setData({ code: String(event.detail.value || "").toUpperCase() }); },
+  chooseStore(event) { this.invalidateRequest({ storeIndex: Number(event.detail.value) }); },
+  chooseStatus(event) { this.invalidateRequest({ statusIndex: Number(event.detail.value) }); },
+  inputCode(event) { this.invalidateRequest({ code: String(event.detail.value || "").toUpperCase() }); },
   inputPage(event) { this.setData({ pageJump: String(event.detail.value || "") }); },
   runQuery() { this.load(1, this.data.storeLabels.length <= 1); },
-  resetQuery() { this.setData({ storeIndex: 0, statusIndex: 0, code: "", pageJump: "1" }, () => this.load(1, true)); },
+  resetQuery() { this.invalidateRequest({ storeIndex: 0, statusIndex: 0, code: "", pageJump: "1" }); this.load(1, true); },
+  invalidateRequest(changes) {
+    this._requestEpoch = Number(this._requestEpoch || 0) + 1;
+    this.setData({ ...(changes || {}), loading: false });
+  },
   async load(page = 1, reloadStores = false) {
-    if (this.data.loading && this.data.rows.length) return;
+    const epoch = Number(this._requestEpoch || 0) + 1;
+    this._requestEpoch = epoch;
+    const mode = this.data.mode;
+    const recordType = this.data.recordType;
+    const noun = this.data.noun;
+    const type = this.data.type;
     const recordCode = this.data.mode === "code" ? text(this.data.code).toUpperCase() : "";
-    if (this.data.mode === "code" && !recordCode) {
+    if (mode === "code" && !recordCode) {
       this.setData({ rows: [], total: 0, message: `请输入完整${this.data.noun}工单编号`, error: true, loading: false }); return;
     }
+    const payload = {
+      recordType, recordCode,
+      storeId: mode === "filters" && this.data.storeIndex > 0 ? this.data.stores[this.data.storeIndex - 1]?.id || "" : "",
+      applicationType: type === "recharge" ? "NEW" : type === "refund" ? "REFUND" : "SUPPLEMENT",
+      status: mode === "filters" ? STATUS[this.data.statusIndex]?.value || "" : "",
+      limit: mode === "code" ? 1 : PAGE_SIZE,
+      paged: mode === "filters", pageNumber: mode === "filters" ? page : undefined
+    };
     this.setData({ loading: true, message: "", error: false });
     try {
-      const payload = {
-        recordType: this.data.recordType, recordCode,
-        storeId: this.data.mode === "filters" && this.data.storeIndex > 0 ? this.data.stores[this.data.storeIndex - 1]?.id || "" : "",
-        applicationType: this.data.type === "recharge" ? "NEW" : this.data.type === "refund" ? "REFUND" : "SUPPLEMENT",
-        status: this.data.mode === "filters" ? STATUS[this.data.statusIndex]?.value || "" : "",
-        limit: this.data.mode === "code" ? 1 : PAGE_SIZE,
-        paged: this.data.mode === "filters", pageNumber: this.data.mode === "filters" ? page : undefined
-      };
       const result = await callStaff("listReviewOrders", payload);
-      const rows = (result.orders || []).map((row) => normalize(row, this.data.recordType === "RECHARGE"));
-      const total = this.data.mode === "filters" ? Number(result.total || 0) : rows.length;
-      const totalPages = this.data.mode === "filters" ? Math.max(1, Number(result.totalPages || 1)) : 1;
-      const currentPage = this.data.mode === "filters" ? Math.min(totalPages, Math.max(1, Number(result.pageNumber || page))) : 1;
+      if (epoch !== this._requestEpoch) return;
+      const rows = (result.orders || []).map((row) => normalize(row, recordType === "RECHARGE"));
+      const total = mode === "filters" ? Number(result.total || 0) : rows.length;
+      const totalPages = mode === "filters" ? Math.max(1, Number(result.totalPages || 1)) : 1;
+      const currentPage = mode === "filters" ? Math.min(totalPages, Math.max(1, Number(result.pageNumber || page))) : 1;
       const changes = { rows, total, totalPages, page: currentPage, pageJump: String(currentPage) };
       if (reloadStores || this.data.storeLabels.length <= 1) {
         const source = result.stores || [];
@@ -108,8 +119,11 @@ Page({
       }
       this.setData(changes);
     } catch (error) {
-      this.setData({ rows: [], total: 0, message: error.message || `${this.data.noun}审核工单读取失败`, error: true });
-    } finally { this.setData({ loading: false }); }
+      if (epoch !== this._requestEpoch) return;
+      this.setData({ rows: [], total: 0, page: 1, totalPages: 1, pageJump: "1", message: error.message || `${noun}审核工单读取失败`, error: true });
+    } finally {
+      if (epoch === this._requestEpoch) this.setData({ loading: false });
+    }
   },
   previousPage() { if (!this.data.loading && this.data.page > 1) this.load(this.data.page - 1); },
   nextPage() { if (!this.data.loading && this.data.page < this.data.totalPages) this.load(this.data.page + 1); },

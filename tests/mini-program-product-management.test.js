@@ -55,7 +55,7 @@ test("mini product template shares the authoritative web services and verifies e
   assert.match(js, /assertRoundTrip\(reread\.template/);
   assert.match(js, /template\.productStatus !== next/);
   assert.match(js, /jpegPdf\(/);
-  assert.match(js, /wx\.saveImageToPhotosAlbum/);
+  assert.match(js, /saveImageToAlbum/);
   assert.match(js, /wx\.shareFileMessage/);
   for (const label of ["产品单据模板", "模板内容", "共用产品 LOGO", "正常核销与体验核销共用", "充值与退费共用", "保存文字说明", "四种成品预览", "刷新预览", "下载样例"]) {
     assert.match(wxml, new RegExp(label), `product template UI is missing ${label}`);
@@ -67,7 +67,7 @@ test("mini product template shares the authoritative web services and verifies e
   }
 });
 
-test("mini product pages are registered and keep the HQ rail navigation", () => {
+test("mini product pages are registered without repeating the HQ home rail", () => {
   const app = JSON.parse(read("app.json"));
   for (const route of ["pages/product-management/index", "pages/product-create/index", "pages/product-detail/index"]) {
     assert.ok(app.pages.includes(route), `${route} is not registered`);
@@ -75,7 +75,7 @@ test("mini product pages are registered and keep the HQ rail navigation", () => 
   for (const page of ["product-management", "product-create", "product-detail"]) {
     const json = JSON.parse(read("pages", page, "index.json"));
     const wxml = read("pages", page, "index.wxml");
-    assert.equal(json.usingComponents["hq-rail"], "/components/hq-rail/index");
-    assert.match(wxml, /<hq-rail active="management"/);
+    assert.equal(json.usingComponents && json.usingComponents["hq-rail"], undefined);
+    assert.doesNotMatch(wxml, /<hq-rail\b/);
   }
 });

@@ -70,7 +70,7 @@ Page({
   data: {
     session: {}, roleTitle: "", roleSubtitle: "", loading: true, message: "", error: false,
     businessMenuOpen: false, queryMenuOpen: false, managementMenuOpen: false, reviewMenuOpen: false,
-    stores: [], storeLabels: [], storeIndex: 0, selectedStore: null, loadingStores: false,
+    stores: [], storeLabels: [], storeIndex: 0, selectedStore: null, loadingStores: false, businessContextReady: false,
     rangePreset: "MONTH", rangeOptions: readyRangeOptions("MONTH"), rangeStart: "", rangeEnd: "",
     rangeLabel: "本月", customRangeVisible: false,
     profileFacts: [], storeHero: {}, experienceBalances: [], summaryRows: [],
@@ -97,20 +97,38 @@ Page({
     else this.loadHqHome();
   },
 
+  onUnload() {
+    for (const key of [
+      "_teacherHomeRequestEpoch", "_storeHomeRequestEpoch", "_businessRequestEpoch",
+      "_customerRequestEpoch", "_hqHomeRequestEpoch", "_hqRankingRequestEpoch"
+    ]) this[key] = Number(this[key] || 0) + 1;
+  },
+
   async loadTeacherHome() {
+    const requestEpoch = (this._teacherHomeRequestEpoch || 0) + 1;
+    this._teacherHomeRequestEpoch = requestEpoch;
+    this._businessRequestEpoch = (this._businessRequestEpoch || 0) + 1;
+    this._customerRequestEpoch = (this._customerRequestEpoch || 0) + 1;
+    const businessRequestEpoch = this._businessRequestEpoch;
+    const customerRequestEpoch = this._customerRequestEpoch;
+    const businessType = this.data.businessType;
     const range = dashboard.scopedRange(this.data.rangePreset, { startDate: this.data.rangeStart, endDate: this.data.rangeEnd });
-    this.setData({ loading: true, loadingStores: true, rangeStart: range.startDate, rangeEnd: range.endDate });
+    this.setData({
+      loading: true, loadingStores: true, businessContextReady: false,
+      rangeStart: range.startDate, rangeEnd: range.endDate
+    });
     const [contextResult, workspaceResult, customersResult] = await Promise.allSettled([
       callFace("getTeacherBusinessContext"),
       callFace("getTeacherWorkspace", {
-        recordType: this.data.businessType, page: this.data.businessPage.page, pageSize: PAGE_SIZE,
+        recordType: businessType, page: this.data.businessPage.page, pageSize: PAGE_SIZE,
         includeOverview: true, ...dashboard.payload(range.startDate, range.endDate)
       }),
       callFace("getTeacherBusinessCustomers", {
         activePage: this.data.activeCustomers.page, archivedPage: this.data.archivedCustomers.page
       })
     ]);
-    const changes = { loading: false, loadingStores: false };
+    if (requestEpoch !== this._teacherHomeRequestEpoch) return;
+    const changes = { loading: false, loadingStores: false, businessContextReady: false, message: "", error: false };
     if (contextResult.status === "fulfilled") {
       const stores = (contextResult.value.stores || []).map((store) => ({
         id: String(store.storeId), code: String(store.storeCode || ""), name: String(store.storeName || "")
@@ -119,8 +137,11 @@ Page({
       const selected = stores.find((store) => saved && store.id === saved.id) || null;
       Object.assign(changes, {
         stores, storeLabels: stores.map((store) => `${store.name} · ${store.code || store.id}`), selectedStore: selected,
-        storeIndex: Math.max(0, stores.findIndex((store) => selected && store.id === selected.id))
+        storeIndex: Math.max(0, stores.findIndex((store) => selected && store.id === selected.id)),
+        businessContextReady: true
       });
+    } else {
+      Object.assign(changes, { stores: [], storeLabels: [], selectedStore: null, storeIndex: 0 });
     }
     if (workspaceResult.status === "fulfilled") {
       const value = workspaceResult.value;
@@ -130,36 +151,55 @@ Page({
         experienceBalances: quotaRows(value.experienceBalances), totals,
         summaryRows: summaryRows(value.summary?.products, totals),
         businessTabs: readyTabs(totals, this.data.businessType),
-        businessRecords: dashboard.records(value.page?.records, this.data.businessType),
-        businessPage: pageView(value.page), rangeLabel: dashboard.periodLabel(this.data.rangePreset, range.startDate, range.endDate)
+        rangeLabel: dashboard.periodLabel(this.data.rangePreset, range.startDate, range.endDate)
       });
+      if (businessRequestEpoch === this._businessRequestEpoch && this.data.businessType === businessType) {
+        Object.assign(changes, {
+          businessRecords: dashboard.records(value.page?.records, businessType),
+          businessPage: pageView(value.page)
+        });
+      }
     }
-    if (customersResult.status === "fulfilled") {
+    if (customersResult.status === "fulfilled" && customerRequestEpoch === this._customerRequestEpoch) {
       changes.activeCustomers = customerView(dashboard.customerGroup(customersResult.value.active));
       changes.archivedCustomers = customerView(dashboard.customerGroup(customersResult.value.archived));
     }
-    const message = rejectedMessage([workspaceResult, customersResult], "老师工作台读取失败");
+    const contextMessage = contextResult.status === "rejected"
+      ? `${contextResult.reason?.message || "可办理门店读取失败"}；已禁止办理业务，请重试。`
+      : "";
+    const message = contextMessage || rejectedMessage([workspaceResult, customersResult], "老师工作台读取失败");
     if (message) Object.assign(changes, { message, error: true });
     this.setData(changes);
   },
 
   async loadStoreHome() {
+    const requestEpoch = Number(this._storeHomeRequestEpoch || 0) + 1;
+    this._storeHomeRequestEpoch = requestEpoch;
+    this._businessRequestEpoch = Number(this._businessRequestEpoch || 0) + 1;
+    this._customerRequestEpoch = Number(this._customerRequestEpoch || 0) + 1;
+    const businessRequestEpoch = this._businessRequestEpoch;
+    const customerRequestEpoch = this._customerRequestEpoch;
+    const businessType = this.data.businessType;
+    const activeCustomerPage = this.data.activeCustomers.page;
+    const archivedCustomerPage = this.data.archivedCustomers.page;
+    const businessPage = this.data.businessPage.page;
     const range = dashboard.scopedRange(this.data.rangePreset, { startDate: this.data.rangeStart, endDate: this.data.rangeEnd });
-    const config = dashboard.TYPE_CONFIG[this.data.businessType];
+    const config = dashboard.TYPE_CONFIG[businessType];
     const rangeData = dashboard.payload(range.startDate, range.endDate);
-    this.setData({ loading: true, rangeStart: range.startDate, rangeEnd: range.endDate });
+    this.setData({ loading: true, rangeStart: range.startDate, rangeEnd: range.endDate, message: "", error: false });
     const [storeResult, analyticsResult, recordsResult] = await Promise.allSettled([
       callFace("getStoreDashboard", {
-        activeCustomerPage: this.data.activeCustomers.page, archivedCustomerPage: this.data.archivedCustomers.page
+        activeCustomerPage, archivedCustomerPage
       }),
       callFace("getStoreBusinessAnalytics", { ...rangeData, allTime: !range.startDate }),
       callFace("queryStoreBusinessRecords", {
         mode: "browse", statusCategory: "APPROVED", recordType: config.recordType,
         verificationType: config.verificationType, rechargeType: config.rechargeType,
-        page: this.data.businessPage.page, pageSize: PAGE_SIZE, ...rangeData
+        page: businessPage, pageSize: PAGE_SIZE, ...rangeData
       })
     ]);
-    const changes = { loading: false };
+    if (requestEpoch !== this._storeHomeRequestEpoch) return;
+    const changes = { loading: false, message: "", error: false };
     if (storeResult.status === "fulfilled") {
       const store = storeResult.value.store || {};
       const groups = dashboard.storeCustomerGroups(store);
@@ -170,9 +210,12 @@ Page({
           account: String(store.auth_uid || store.store_code || "未绑定登录账号"),
           status: String(store.store_status || "").toUpperCase() === "ARCHIVED" ? "封存" : "活跃"
         },
-        profileFacts: dashboard.storeFacts(store),
-        activeCustomers: customerView(groups.active), archivedCustomers: customerView(groups.archived)
+        profileFacts: dashboard.storeFacts(store)
       });
+      if (customerRequestEpoch === this._customerRequestEpoch) {
+        changes.activeCustomers = customerView(groups.active);
+        changes.archivedCustomers = customerView(groups.archived);
+      }
     }
     if (analyticsResult.status === "fulfilled") {
       const value = analyticsResult.value;
@@ -183,9 +226,11 @@ Page({
         rangeLabel: dashboard.periodLabel(this.data.rangePreset, range.startDate, range.endDate)
       });
     }
-    if (recordsResult.status === "fulfilled") {
+    if (recordsResult.status === "fulfilled"
+        && businessRequestEpoch === this._businessRequestEpoch
+        && this.data.businessType === businessType) {
       const value = recordsResult.value;
-      changes.businessRecords = dashboard.records(value.records, this.data.businessType);
+      changes.businessRecords = dashboard.records(value.records, businessType);
       changes.businessPage = pageView(value);
     }
     const message = rejectedMessage([storeResult, analyticsResult, recordsResult], "门店首页读取失败");
@@ -196,6 +241,8 @@ Page({
   async loadBusinessType(page = 1, includeOverview = false) {
     const rangeData = dashboard.payload(this.data.rangeStart, this.data.rangeEnd);
     const type = this.data.businessType;
+    const requestEpoch = (this._businessRequestEpoch || 0) + 1;
+    this._businessRequestEpoch = requestEpoch;
     this.setData({ businessLoading: true, message: "", error: false });
     try {
       let value;
@@ -213,6 +260,7 @@ Page({
             experienceBalances: quotaRows(value.experienceBalances), businessTabs: readyTabs(totals, type)
           });
         }
+        if (requestEpoch !== this._businessRequestEpoch || this.data.businessType !== type) return;
         this.setData(changes);
       } else {
         const config = dashboard.TYPE_CONFIG[type];
@@ -221,19 +269,27 @@ Page({
           verificationType: config.verificationType, rechargeType: config.rechargeType,
           page, pageSize: PAGE_SIZE, ...rangeData
         });
+        if (requestEpoch !== this._businessRequestEpoch || this.data.businessType !== type) return;
         this.setData({ businessRecords: dashboard.records(value.records, type), businessPage: pageView(value) });
       }
     } catch (error) {
-      this.setData({ message: error.message || "业务明细读取失败", error: true });
-    } finally { this.setData({ businessLoading: false }); }
+      if (requestEpoch === this._businessRequestEpoch && this.data.businessType === type) {
+        this.setData({ message: error.message || "业务明细读取失败", error: true });
+      }
+    } finally {
+      if (requestEpoch === this._businessRequestEpoch && this.data.businessType === type) this.setData({ businessLoading: false });
+    }
   },
 
   async loadCustomerPage(status, page) {
+    const requestEpoch = (this._customerRequestEpoch || 0) + 1;
+    this._customerRequestEpoch = requestEpoch;
     const activePage = status === "ACTIVE" ? page : this.data.activeCustomers.page;
     const archivedPage = status === "ARCHIVED" ? page : this.data.archivedCustomers.page;
     try {
       if (this.data.session.role === "teacher") {
         const value = await callFace("getTeacherBusinessCustomers", { activePage, archivedPage });
+        if (requestEpoch !== this._customerRequestEpoch) return;
         this.setData({
           activeCustomers: customerView(dashboard.customerGroup(value.active)),
           archivedCustomers: customerView(dashboard.customerGroup(value.archived))
@@ -241,22 +297,31 @@ Page({
       } else {
         const value = await callFace("getStoreDashboard", { activeCustomerPage: activePage, archivedCustomerPage: archivedPage });
         const groups = dashboard.storeCustomerGroups(value.store);
+        if (requestEpoch !== this._customerRequestEpoch) return;
         this.setData({ activeCustomers: customerView(groups.active), archivedCustomers: customerView(groups.archived) });
       }
-    } catch (error) { this.setData({ message: error.message || "客户列表读取失败", error: true }); }
+    } catch (error) {
+      if (requestEpoch === this._customerRequestEpoch) this.setData({ message: error.message || "客户列表读取失败", error: true });
+    }
   },
 
   async loadHqHome(pageNumber = 1) {
+    const requestEpoch = Number(this._hqHomeRequestEpoch || 0) + 1;
+    this._hqHomeRequestEpoch = requestEpoch;
+    const rankingRequestEpoch = Number(this._hqRankingRequestEpoch || 0) + 1;
+    this._hqRankingRequestEpoch = rankingRequestEpoch;
+    const dimension = this.data.hqDimension;
     const range = dashboard.hqRange(this.data.hqPeriod, { startDate: this.data.hqStart, endDate: this.data.hqEnd });
-    this.setData({ loading: true, hqStart: range.startDate, hqEnd: range.endDate, message: "", error: false });
+    this.setData({ loading: true, hqRankingLoading: true, hqStart: range.startDate, hqEnd: range.endDate, message: "", error: false });
     const [overviewResult, rankingResult] = await Promise.allSettled([
       callStaff("getHqDashboard", { mode: "overview", startDate: range.startDate, endDate: range.endDate }),
       callStaff("getHqDashboard", {
-        mode: "ranking", dimension: this.data.hqDimension, pageNumber, pageSize: RANKING_PAGE_SIZE,
+        mode: "ranking", dimension, pageNumber, pageSize: RANKING_PAGE_SIZE,
         startDate: range.startDate, endDate: range.endDate
       })
     ]);
-    const changes = { loading: false };
+    if (requestEpoch !== this._hqHomeRequestEpoch) return;
+    const changes = { loading: false, message: "", error: false };
     if (overviewResult.status === "fulfilled") {
       const value = overviewResult.value;
       const totals = value.totals || {};
@@ -273,9 +338,12 @@ Page({
       changes.hqLoadedAt = clockText();
       changes.hqScopeDetailText = `统计日期：${range.startDate} 至 ${range.endDate}；门店、项目与老师均为全部范围；客户包含活跃及已存档记录；数据库更新：${changes.hqLoadedAt}`;
     }
-    if (rankingResult.status === "fulfilled") {
+    const currentRankingRequest = rankingRequestEpoch === this._hqRankingRequestEpoch
+      && dimension === this.data.hqDimension;
+    if (currentRankingRequest) changes.hqRankingLoading = false;
+    if (currentRankingRequest && rankingResult.status === "fulfilled") {
       const ranking = rankingResult.value.ranking || {};
-      const rows = dashboard.hqRows(ranking.rows, this.data.hqDimension);
+      const rows = dashboard.hqRows(ranking.rows, dimension);
       const businessTotal = Math.max(1, dashboard.count(ranking.businessTotal));
       changes.hqRanking = rows.map((row, index) => ({
         ...row, rank: (dashboard.count(ranking.pageNumber) - 1) * RANKING_PAGE_SIZE + index + 1,
@@ -286,7 +354,7 @@ Page({
       });
       changes.hqRankingInput = String(changes.hqRankingPage.page);
       changes.hqRankingError = "";
-    } else {
+    } else if (currentRankingRequest && rankingResult.status === "rejected") {
       changes.hqRankingError = rankingResult.reason?.message || "总部排名读取失败，请单独重试";
     }
     const message = overviewResult.status === "rejected"
@@ -297,19 +365,22 @@ Page({
   },
 
   async loadHqRanking(pageNumber = 1) {
-    if (this.data.hqRankingLoading) return;
+    const requestEpoch = Number(this._hqRankingRequestEpoch || 0) + 1;
+    this._hqRankingRequestEpoch = requestEpoch;
+    const dimension = this.data.hqDimension;
     const range = dashboard.hqRange(this.data.hqPeriod, { startDate: this.data.hqStart, endDate: this.data.hqEnd });
     if (!range.startDate || !range.endDate || range.startDate > range.endDate || dashboard.rangeDays(range.startDate, range.endDate) > 366) {
-      this.setData({ message: "请选择不超过 366 天的有效日期范围", error: true }); return;
+      this.setData({ hqRankingLoading: false, message: "请选择不超过 366 天的有效日期范围", error: true }); return;
     }
     this.setData({ hqRankingLoading: true, hqRankingError: "", message: "", error: false });
     try {
       const value = await callStaff("getHqDashboard", {
-        mode: "ranking", dimension: this.data.hqDimension, pageNumber, pageSize: RANKING_PAGE_SIZE,
+        mode: "ranking", dimension, pageNumber, pageSize: RANKING_PAGE_SIZE,
         startDate: range.startDate, endDate: range.endDate
       });
+      if (requestEpoch !== this._hqRankingRequestEpoch || dimension !== this.data.hqDimension) return;
       const ranking = value.ranking || {};
-      const rows = dashboard.hqRows(ranking.rows, this.data.hqDimension);
+      const rows = dashboard.hqRows(ranking.rows, dimension);
       const businessTotal = Math.max(1, dashboard.count(ranking.businessTotal));
       const page = pageView({ total: ranking.total, page: ranking.pageNumber, pageSize: ranking.pageSize, totalPages: ranking.totalPages });
       this.setData({
@@ -320,8 +391,14 @@ Page({
         hqRankingPage: page, hqRankingInput: String(page.page)
       });
     } catch (error) {
-      this.setData({ hqRankingError: error.message || "总部排名读取失败，请单独重试" });
-    } finally { this.setData({ hqRankingLoading: false }); }
+      if (requestEpoch === this._hqRankingRequestEpoch && dimension === this.data.hqDimension) {
+        this.setData({ hqRankingError: error.message || "总部排名读取失败，请单独重试" });
+      }
+    } finally {
+      if (requestEpoch === this._hqRankingRequestEpoch && dimension === this.data.hqDimension) {
+        this.setData({ hqRankingLoading: false });
+      }
+    }
   },
 
   selectStore(event) {
@@ -462,6 +539,16 @@ Page({
   },
 
   ensureBusinessStore() {
+    if (this.data.session.role === "teacher") {
+      if (this.data.loadingStores || !this.data.businessContextReady) {
+        this.setData({ message: "可办理门店尚未读取成功，请重试后再办理业务", error: true });
+        return null;
+      }
+      const selected = this.data.selectedStore;
+      const store = selected && this.data.stores.find((item) => item.id === selected.id);
+      if (!store) { this.setData({ message: "老师办理业务前必须先选择当前可用门店", error: true }); return null; }
+      return store;
+    }
     const store = getSelectedStore(this.data.session);
     if (!store) { this.setData({ message: "老师办理业务前必须先选择门店", error: true }); return null; }
     return store;
@@ -501,5 +588,8 @@ Page({
       url: `/pages/order-detail/index?type=${config.recordType.toLowerCase()}&category=${category}&recordId=${encodeURIComponent(id)}&recordCode=${encodeURIComponent(code)}`
     });
   },
-  async logout() { await signOut(); wx.reLaunch({ url: "/pages/login/index" }); }
+  async logout() {
+    try { await signOut(); }
+    finally { wx.reLaunch({ url: "/pages/login/index" }); }
+  }
 });

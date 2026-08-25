@@ -9,6 +9,12 @@ function product(value) {
     remainingCount: Number(value.remainingCount || 0), availableCount: Number(value.availableCount || 0)
   };
 }
+function submittedOrderHint(session, experience) {
+  if (session && session.role === "teacher") {
+    return `请返回“我的工作台”，在“本人业务明细”的“${experience ? '体验' : '核销'}”分类中打开`;
+  }
+  return "请从核销查询进入";
+}
 
 function orderUrl(experience, result, intent = {}) {
   const recordId = String(result.verificationId || "");
@@ -21,7 +27,7 @@ function orderUrl(experience, result, intent = {}) {
 
 Page({
   data: {
-    session: {}, store: {}, experience: false, customer: null, teachers: [], teacherLabels: [], teacherIndex: -1, selectedTeacher: null,
+    session: {}, store: {}, experience: false, customer: null, teachers: [], teacherLabels: [], teacherIndex: -1, selectedTeacher: null, teacherOptionsReady: false,
     products: [], productLabels: [], productIndex: -1, selectedProduct: null, note: "", captureReady: false, faceVerified: false,
     faceRequestId: "", faceEvidenceToken: "", faceMessage: "", faceError: false, loadingOptions: false, verifying: false,
     busy: false, locked: false, recovering: false, ready: false, message: "", error: false
@@ -46,10 +52,14 @@ Page({
   customerChanged() { this.setData({ customer: null }); this.resetBusinessSelection(); },
   async customerConfirmed(event) {
     this.setData({ customer: event.detail.customer, message: `已确认 ${event.detail.customer.customerName}`, error: false });
-    this.resetFace();
+    this.resetBusinessSelection();
     await this.loadProducts();
+    if (this.data.session.role === "teacher" && this.data.teacherOptionsReady && !this.data.selectedTeacher) {
+      this.setData({ message: "当前老师不在该门店的可办理老师名单中，已禁止核销", error: true });
+    }
   },
   async loadTeachers() {
+    this.setData({ teacherOptionsReady: false });
     try {
       const result = await callFace("listActiveTeachers", { storeId: this.data.store.id });
       const values = (result.teachers || []).map(teacher).filter((item) => item.teacherId);
@@ -57,63 +67,120 @@ Page({
         ? values.findIndex((item) => item.teacherId === String(this.data.session.teacherId || ""))
         : -1;
       const mine = mineIndex >= 0 ? values[mineIndex] : null;
-      this.setData({ teachers: values, teacherLabels: values.map((item) => `${item.teacherName} · ${item.teacherCode}`), selectedTeacher: mine, teacherIndex: mineIndex });
+      this.setData({ teachers: values, teacherLabels: values.map((item) => `${item.teacherName} · ${item.teacherCode}`), selectedTeacher: mine, teacherIndex: mineIndex, teacherOptionsReady: true });
+      if (this.data.session.role === "teacher" && !mine) {
+        this.setData({ message: "当前老师不在该门店的可办理老师名单中，已禁止核销", error: true });
+      }
       if (this.data.customer && this.data.experience) await this.loadProducts();
       this.syncReady();
-    } catch (error) { this.setData({ message: error.message || "老师列表读取失败", error: true }); }
+    } catch (error) {
+      this.setData({ teacherOptionsReady: true, message: error.message || (this.data.session.role === "teacher" ? "当前老师信息读取失败，已禁止核销" : "老师列表读取失败"), error: true });
+    }
   },
   async loadProducts() {
     if (!this.data.customer || (this.data.experience && !this.data.selectedTeacher)) return;
+    const experience = this.data.experience;
+    const storeId = String(this.data.store.id || "");
+    const customerCode = String(this.data.customer.customerCode || "");
+    const teacherId = String(this.data.selectedTeacher?.teacherId || "");
+    const requestEpoch = (this._productRequestEpoch || 0) + 1;
+    this._productRequestEpoch = requestEpoch;
     this.setData({ loadingOptions: true, products: [], productLabels: [], selectedProduct: null, productIndex: -1 });
     this.resetFace();
     try {
-      const result = this.data.experience
-        ? await callFace("getTeacherExperienceEntitlements", { storeId: this.data.store.id, teacherId: this.data.selectedTeacher.teacherId })
-        : await callFace("getCustomerProductBalances", { storeId: this.data.store.id, customerCode: this.data.customer.customerCode });
-      const source = this.data.experience ? (result.entitlements || []) : (result.balances || []);
-      const values = source.map(product).filter((item) => item.productId && (this.data.experience ? item.availableCount > 0 : item.remainingCount > 0));
+      const result = experience
+        ? await callFace("getTeacherExperienceEntitlements", { storeId, teacherId })
+        : await callFace("getCustomerProductBalances", { storeId, customerCode });
+      if (!this.isCurrentProductRequest(requestEpoch, customerCode, teacherId, experience)) return;
+      const source = experience ? (result.entitlements || []) : (result.balances || []);
+      const values = source.map(product).filter((item) => item.productId && (experience ? item.availableCount > 0 : item.remainingCount > 0));
       this.setData({
         products: values,
-        productLabels: values.map((item) => `${item.productName}（${this.data.experience ? '老师可用' : '客户剩余'} ${this.data.experience ? item.availableCount : item.remainingCount} 次）`)
+        productLabels: values.map((item) => `${item.productName}（${experience ? '老师可用' : '客户剩余'} ${experience ? item.availableCount : item.remainingCount} 次）`)
       });
-    } catch (error) { this.setData({ message: error.message || "可核销项目读取失败", error: true }); }
-    finally { this.setData({ loadingOptions: false }); this.syncReady(); }
+    } catch (error) {
+      if (this.isCurrentProductRequest(requestEpoch, customerCode, teacherId, experience)) {
+        this.setData({ message: error.message || (experience ? "当前老师体验额度读取失败" : "该客户可核销余额读取失败"), error: true });
+      }
+    } finally {
+      if (this.isCurrentProductRequest(requestEpoch, customerCode, teacherId, experience)) {
+        this.setData({ loadingOptions: false });
+        this.syncReady();
+      }
+    }
+  },
+  isCurrentProductRequest(requestEpoch, customerCode, teacherId, experience) {
+    return requestEpoch === this._productRequestEpoch
+      && this.data.experience === experience
+      && String(this.data.customer?.customerCode || "") === customerCode
+      && (!experience || String(this.data.selectedTeacher?.teacherId || "") === teacherId);
   },
   selectTeacher(event) {
     const index = Number(event.detail.value);
     this.setData({ teacherIndex: index, selectedTeacher: this.data.teachers[index] || null });
-    this.resetFace();
-    if (this.data.experience) this.loadProducts(); else this.syncReady();
+    if (this.data.experience) {
+      this.resetBusinessSelection();
+      if (this.data.customer && this.data.selectedTeacher) this.loadProducts();
+    } else {
+      this.resetFace();
+      this.syncReady();
+    }
   },
   selectProduct(event) { const index = Number(event.detail.value); this.setData({ productIndex: index, selectedProduct: this.data.products[index] || null }); this.resetFace(); this.syncReady(); },
   inputNote(event) { this.setData({ note: event.detail.value }); },
   captureChanged(event) { this.setData({ captureReady: event.detail.ready === true }); this.resetFace(false); },
-  resetBusinessSelection() { this.setData({ products: [], productLabels: [], productIndex: -1, selectedProduct: null }); this.resetFace(); },
+  resetBusinessSelection() {
+    this._productRequestEpoch = (this._productRequestEpoch || 0) + 1;
+    this.setData({ products: [], productLabels: [], productIndex: -1, selectedProduct: null, loadingOptions: false });
+    this.resetFace();
+  },
   resetFace(resetCamera = true) {
+    this._faceRequestEpoch = (this._faceRequestEpoch || 0) + 1;
     if (resetCamera) {
       const camera = this.selectComponent("#verificationCamera");
       if (camera) camera.reset();
     }
-    this.setData({ faceVerified: false, faceRequestId: "", faceEvidenceToken: "", faceMessage: "", faceError: false });
+    this.setData({ faceVerified: false, faceRequestId: "", faceEvidenceToken: "", faceMessage: "", faceError: false, verifying: false });
     this.syncReady();
   },
   async verifyFace() {
     if (this.data.verifying) return;
     const capture = this.selectComponent("#verificationCamera").getCapture();
-    if (!capture || !this.data.customer) return;
+    if (!capture || !this.data.customer || !this.data.selectedProduct || !this.data.selectedTeacher) return;
+    const identity = {
+      customerCode: String(this.data.customer.customerCode || ""),
+      productId: String(this.data.selectedProduct?.productId || ""),
+      teacherId: String(this.data.selectedTeacher?.teacherId || "")
+    };
+    const requestEpoch = (this._faceRequestEpoch || 0) + 1;
+    this._faceRequestEpoch = requestEpoch;
     this.setData({ verifying: true, faceVerified: false, faceMessage: "正在由服务端完成客户 1:1 人脸与活体验证…", faceError: false });
     try {
       const result = await callFace("verifyCustomerFace", {
-        storeId: this.data.store.id, customerCode: this.data.customer.customerCode, imageBase64: capture.imageBase64,
+        storeId: this.data.store.id, customerCode: identity.customerCode, imageBase64: capture.imageBase64,
         thumbnailBase64: capture.thumbnailBase64, imageWidth: capture.imageWidth, imageHeight: capture.imageHeight
       });
+      if (!this.isCurrentFaceRequest(requestEpoch, identity)) return;
       const token = String(result.faceEvidenceToken || "");
       const requestId = String(result.requestId || "");
       if (!result.matched || !requestId || !/^[0-9a-f]{48}$/.test(token)) throw new Error("客户人脸验证或现场照片凭证不完整，禁止核销");
       this.setData({ faceVerified: true, faceRequestId: requestId, faceEvidenceToken: token, faceMessage: `客户 1:1 人脸验证通过（${Number(result.score || 0)} 分）`, faceError: false });
     } catch (error) {
-      this.setData({ faceVerified: false, faceRequestId: "", faceEvidenceToken: "", faceMessage: error.message || "人脸验证未通过", faceError: true });
-    } finally { this.setData({ verifying: false }); this.syncReady(); }
+      if (this.isCurrentFaceRequest(requestEpoch, identity)) {
+        this.setData({ faceVerified: false, faceRequestId: "", faceEvidenceToken: "", faceMessage: error.message || "人脸验证未通过", faceError: true });
+      }
+    } finally {
+      if (this.isCurrentFaceRequest(requestEpoch, identity)) {
+        this.setData({ verifying: false });
+        this.syncReady();
+      }
+    }
+  },
+  isCurrentFaceRequest(requestEpoch, identity) {
+    return requestEpoch === this._faceRequestEpoch
+      && String(this.data.customer?.customerCode || "") === identity.customerCode
+      && String(this.data.selectedProduct?.productId || "") === identity.productId
+      && String(this.data.selectedTeacher?.teacherId || "") === identity.teacherId;
   },
   syncReady() {
     this.setData({ ready: Boolean(this.data.customer && this.data.selectedProduct && this.data.selectedTeacher && this.data.faceVerified && this.data.faceRequestId && this.data.faceEvidenceToken && !this.data.locked) });
@@ -167,15 +234,17 @@ Page({
   },
   openSubmittedOrder(result, intent) {
     const url = orderUrl(this.data.experience || String(result.verificationType || "").toUpperCase() === "EXPERIENCE", result, intent);
+    const experience = this.data.experience || String(result.verificationType || "").toUpperCase() === "EXPERIENCE";
+    const hint = submittedOrderHint(this.data.session, experience);
     if (!url) {
-      this.setData({ message: "核销已写入，但服务端没有返回完整工单定位信息；请从核销查询进入，禁止重复提交。", error: true });
+      this.setData({ message: `核销已写入，但服务端没有返回完整工单定位信息；${hint}，禁止重复提交。`, error: true });
       return;
     }
     wx.redirectTo({
       url,
       fail: () => {
-        this.setData({ locked: true, message: `${result.verificationCode} 已写入，但工单详情打开失败；原提交锁仍保留，请从核销查询进入，禁止重复提交。`, error: true });
-        wx.showModal({ title: "核销已完成", content: `${result.verificationCode}\n原提交锁仍保留，请从核销查询进入详情`, showCancel: false });
+        this.setData({ locked: true, message: `${result.verificationCode} 已写入，但工单详情打开失败；原提交锁仍保留，${hint}，禁止重复提交。`, error: true });
+        wx.showModal({ title: "核销已完成", content: `${result.verificationCode}\n原提交锁仍保留，${hint}详情`, showCancel: false });
       }
     });
   },

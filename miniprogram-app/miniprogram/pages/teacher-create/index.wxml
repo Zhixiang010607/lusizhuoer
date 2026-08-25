@@ -1,5 +1,4 @@
 <view class="page">
-  <hq-rail active="management" />
   <view class="page-heading"><text>老师创建</text><text>总部专属</text></view>
   <view class="panel">
     <view class="section-heading"><view><text>老师账号资料</text><text>填写姓名、联系电话和初始密码即可创建</text></view><text>创建后自动生成编号</text></view>

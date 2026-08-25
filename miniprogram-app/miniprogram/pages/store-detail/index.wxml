@@ -1,5 +1,4 @@
 <view class="workspace-page">
-  <hq-rail active="management" />
   <view class="workspace-topbar detail-topbar"><view><text class="topbar-title">门店全局视图</text></view><view class="topbar-actions"><button class="ghost" bindtap="back">返回门店管理</button><button class="{{storeHero.archived ? 'secondary' : 'danger'}}" bindtap="toggleStatus" loading="{{statusLoading}}" disabled="{{statusLoading || !store}}">{{storeHero.archived ? '激活门店' : '封存门店'}}</button></view></view>
   <view class="workspace-main">
     <view wx:if="{{message}}" class="form-message {{error ? 'error' : ''}}">{{message}}</view>

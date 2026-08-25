@@ -1,5 +1,4 @@
 {
   "navigationBarTitleText": "露思卓儿",
-  "enablePullDownRefresh": true,
-  "usingComponents": { "hq-rail": "/components/hq-rail/index" }
+  "enablePullDownRefresh": true
 }

@@ -18,25 +18,33 @@ Page({
   data: { loading: true, products: [], message: "", error: false },
   onLoad() {
     if (!requireSession(["hq"])) return;
+    this._unloaded = false;
     wx.setNavigationBarTitle({ title: "露思卓儿" });
   },
   onShow() {
     if (!requireSession(["hq"])) return;
     this.load();
   },
+  onUnload() {
+    this._unloaded = true;
+    this._requestEpoch = (this._requestEpoch || 0) + 1;
+  },
   onPullDownRefresh() { this.load().finally(() => wx.stopPullDownRefresh()); },
   async load() {
-    if (this.data.loading && this._loading) return;
-    this._loading = true;
+    if (this._unloaded) return;
+    const epoch = (this._requestEpoch || 0) + 1;
+    this._requestEpoch = epoch;
+    const request = Object.freeze({ epoch });
     this.setData({ loading: true, message: "", error: false });
     try {
       const result = await callStaff("listProducts");
+      if (this._unloaded || request.epoch !== this._requestEpoch) return;
       this.setData({ products: (result.products || []).map(productView) });
     } catch (error) {
+      if (this._unloaded || request.epoch !== this._requestEpoch) return;
       this.setData({ products: [], message: error.message || "产品数据库读取失败，请下拉重试", error: true });
     } finally {
-      this._loading = false;
-      this.setData({ loading: false });
+      if (!this._unloaded && request.epoch === this._requestEpoch) this.setData({ loading: false });
     }
   },
   createProduct() { wx.navigateTo({ url: "/pages/product-create/index" }); },

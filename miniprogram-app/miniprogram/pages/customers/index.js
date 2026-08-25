@@ -3,6 +3,7 @@ const { requireSession } = require("../../services/session");
 const query = require("../../services/query-tools");
 
 const PAGE_SIZE = 20;
+const EMPTY_SUMMARY = Object.freeze({ total: 0, selectedTotal: 0, active: 0, archived: 0, informationOnly: 0, rechargedNoConsumption: 0, rechargedWithConsumption: 0 });
 function labels(options) { return options.map((item) => item.label); }
 function values(options) { return options.map((item) => item.value); }
 function processLabel(value) {
@@ -35,18 +36,19 @@ Page({
     statusLabels: labels(query.CUSTOMER_STATUS_OPTIONS), statusValues: values(query.CUSTOMER_STATUS_OPTIONS), statusIndex: 0,
     timeLabels: labels(query.TIME_OPTIONS), timeValues: values(query.TIME_OPTIONS), timeIndex: 0,
     customRange: false, startDate: "", endDate: "", today: query.businessToday(),
-    name: "", birthDate: "", teacherStatus: "ACTIVE",
-    summary: { total: 0, selectedTotal: 0, active: 0, archived: 0, informationOnly: 0, rechargedNoConsumption: 0, rechargedWithConsumption: 0 }
+    name: "", birthDate: "",
+    summary: { ...EMPTY_SUMMARY }
   },
 
   async onLoad() {
-    const session = requireSession();
+    const session = requireSession(["hq", "store"]);
     if (!session) return;
     this.setData({ session });
     if (session.role === "hq") await this.loadStores();
     await this.load(1);
   },
   onPullDownRefresh() { this.resetPaging(); this.load(1).finally(() => wx.stopPullDownRefresh()); },
+  onUnload() { this._requestEpoch = Number(this._requestEpoch || 0) + 1; },
 
   async loadStores() {
     try {
@@ -60,7 +62,12 @@ Page({
   },
 
   resetPaging() { this.setData({ page: 1, pageJump: "1", cursorStack: [null], nextCursor: null }); },
-  scopedPayload(cursor = null) {
+  scopedPayload(cursor = null, basePayload = null) {
+    if (basePayload) {
+      const payload = { ...basePayload };
+      if (cursor) { payload.cursorCreatedAt = cursor.createdAt; payload.cursorId = cursor.id; }
+      return payload;
+    }
     const payload = { mode: this.data.mode, limit: PAGE_SIZE };
     if (this.data.session.role === "hq" && this.data.storeIndex > 0) payload.storeId = this.data.stores[this.data.storeIndex - 1]?.id || "";
     if (this.data.mode === "manual") {
@@ -75,18 +82,20 @@ Page({
     if (cursor) { payload.cursorCreatedAt = cursor.createdAt; payload.cursorId = cursor.id; }
     return payload;
   },
-  fetchScoped(cursor) { return callFace("queryStoreCustomers", this.scopedPayload(cursor)); },
+  fetchScoped(cursor, basePayload) { return callFace("queryStoreCustomers", this.scopedPayload(cursor, basePayload)); },
 
-  async loadScopedPage(targetPage) {
+  async loadScopedPage(targetPage, epoch, basePayload) {
     const stack = this.data.cursorStack.length ? this.data.cursorStack.slice() : [null];
     while (targetPage > 1 && !stack[targetPage - 1]) {
       const pageToDiscover = stack.length;
-      const intermediate = await this.fetchScoped(stack[pageToDiscover - 1] || null);
+      const intermediate = await this.fetchScoped(stack[pageToDiscover - 1] || null, basePayload);
+      if (epoch !== this._requestEpoch) return false;
       if (!intermediate.hasMore || !intermediate.nextCursor) break;
       stack[pageToDiscover] = intermediate.nextCursor;
     }
     if (targetPage > 1 && !stack[targetPage - 1]) throw new Error("目标页已超出当前查询结果");
-    const result = await this.fetchScoped(stack[targetPage - 1] || null);
+    const result = await this.fetchScoped(stack[targetPage - 1] || null, basePayload);
+    if (epoch !== this._requestEpoch) return false;
     if (result.hasMore && result.nextCursor) stack[targetPage] = result.nextCursor;
     else stack.splice(targetPage);
     const summary = result.summary || {};
@@ -98,56 +107,56 @@ Page({
       page: targetPage, pageJump: String(targetPage), hasMore: result.hasMore === true,
       cursorStack: stack, nextCursor: result.nextCursor || null
     });
-  },
-
-  async loadTeacherPage(targetPage) {
-    const status = this.data.teacherStatus;
-    const payload = status === "ACTIVE" ? { activePage: targetPage, archivedPage: 1 } : { activePage: 1, archivedPage: targetPage };
-    const result = await callFace("getTeacherBusinessCustomers", payload);
-    const group = status === "ACTIVE" ? result.active : result.archived;
-    const total = Number(group.total || 0);
-    const pageSize = Number(group.pageSize || 10);
-    const totalPages = Math.max(1, Math.ceil(total / pageSize));
-    this.setData({
-      customers: customerRows(group.records || []), total, pageSize, totalPages,
-      page: targetPage, pageJump: String(targetPage), hasMore: targetPage < totalPages
-    });
+    return true;
   },
 
   async load(page = 1) {
-    if (this.data.loading) return;
     const targetPage = Math.max(1, Number(page) || 1);
+    const epoch = Number(this._requestEpoch || 0) + 1;
+    this._requestEpoch = epoch;
+    const basePayload = this.scopedPayload();
     this.setData({ loading: true, message: "", error: false });
     try {
-      if (this.data.session.role === "teacher") await this.loadTeacherPage(targetPage);
-      else await this.loadScopedPage(targetPage);
-    } catch (error) { this.setData({ customers: [], message: error.message || "客户读取失败", error: true }); }
-    finally { this.setData({ loading: false }); }
+      await this.loadScopedPage(targetPage, epoch, basePayload);
+    } catch (error) {
+      if (epoch !== this._requestEpoch) return;
+      this.setData({
+        customers: [], page: 1, pageJump: "1", total: 0, totalPages: 1, hasMore: false,
+        cursorStack: [null], nextCursor: null, summary: { ...EMPTY_SUMMARY },
+        message: error.message || "客户读取失败", error: true
+      });
+    } finally {
+      if (epoch === this._requestEpoch) this.setData({ loading: false });
+    }
   },
 
-  setMode(event) { this.setData({ mode: event.currentTarget.dataset.mode === "manual" ? "manual" : "browse" }); this.resetPaging(); },
-  chooseStore(event) { this.setData({ storeIndex: Number(event.detail.value) }); },
-  chooseProcess(event) { this.setData({ processIndex: Number(event.detail.value) }); },
-  chooseStatus(event) { this.setData({ statusIndex: Number(event.detail.value) }); },
+  invalidateRequest(changes) {
+    this._requestEpoch = Number(this._requestEpoch || 0) + 1;
+    this.setData({ ...(changes || {}), loading: false });
+  },
+
+  setMode(event) { this.invalidateRequest({ mode: event.currentTarget.dataset.mode === "manual" ? "manual" : "browse" }); this.resetPaging(); },
+  chooseStore(event) { this.invalidateRequest({ storeIndex: Number(event.detail.value) }); },
+  chooseProcess(event) { this.invalidateRequest({ processIndex: Number(event.detail.value) }); },
+  chooseStatus(event) { this.invalidateRequest({ statusIndex: Number(event.detail.value) }); },
   chooseTime(event) {
     const timeIndex = Number(event.detail.value);
     const timeValue = this.data.timeValues[timeIndex] || "ALL";
     const range = query.timeRange(timeValue, { startDate: this.data.startDate, endDate: this.data.endDate });
-    this.setData({ timeIndex, customRange: timeValue === "CUSTOM", startDate: range.startDate, endDate: range.endDate });
+    this.invalidateRequest({ timeIndex, customRange: timeValue === "CUSTOM", startDate: range.startDate, endDate: range.endDate });
   },
-  changeStart(event) { this.setData({ startDate: event.detail.value }); },
-  changeEnd(event) { this.setData({ endDate: event.detail.value }); },
-  inputName(event) { this.setData({ name: event.detail.value }); },
-  inputBirthday(event) { this.setData({ birthDate: event.detail.value }); },
-  changeTeacherStatus(event) { this.setData({ teacherStatus: event.currentTarget.dataset.status }); this.load(1); },
+  changeStart(event) { this.invalidateRequest({ startDate: event.detail.value }); },
+  changeEnd(event) { this.invalidateRequest({ endDate: event.detail.value }); },
+  inputName(event) { this.invalidateRequest({ name: event.detail.value }); },
+  inputBirthday(event) { this.invalidateRequest({ birthDate: event.detail.value }); },
   search() {
     if (this.data.startDate && this.data.endDate && this.data.startDate > this.data.endDate) {
       this.setData({ message: "开始日期不能晚于结束日期", error: true }); return;
     }
-    this.resetPaging(); this.load(1);
+    this.invalidateRequest(); this.resetPaging(); this.load(1);
   },
   resetSearch() {
-    this.setData({
+    this.invalidateRequest({
       mode: "browse", storeIndex: 0, processIndex: 0, statusIndex: 0, timeIndex: 0,
       customRange: false, startDate: "", endDate: "", name: "", birthDate: ""
     });
@@ -164,14 +173,15 @@ Page({
     this.load(page);
   },
   toggleCustomerStatus(event) {
-    if (this.data.session.role === "teacher" || this.data.loading || this.data.updatingCode) return;
+    if (this.data.loading || this.data.updatingCode) return;
     const customerCode = String(event.currentTarget.dataset.code || "");
+    const customerName = String(event.currentTarget.dataset.name || "客户");
     const currentStatus = String(event.currentTarget.dataset.status || "").toUpperCase();
     if (!customerCode || !["ACTIVE", "ARCHIVED"].includes(currentStatus)) return;
     const restoring = currentStatus === "ARCHIVED";
     wx.showModal({
       title: restoring ? "恢复为活跃" : "封存客户",
-      content: restoring ? `确认将客户 ${customerCode} 恢复为活跃？` : `确认将客户 ${customerCode} 设为存档？历史记录会继续保留。`,
+      content: restoring ? `确认将客户“${customerName}”恢复为活跃？` : `确认将客户“${customerName}”设为存档？历史记录会继续保留。`,
       confirmText: restoring ? "确认恢复" : "确认封存",
       confirmColor: restoring ? "#16845b" : "#9a302b",
       success: async (result) => {

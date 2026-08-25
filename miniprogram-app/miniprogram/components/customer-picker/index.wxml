@@ -13,15 +13,23 @@
     <picker mode="date" value="{{manualBirthday}}" end="{{today}}" bindchange="inputBirthday"><view class="field-value">{{manualBirthday || '选择生日'}}</view></picker>
     <button class="search" bindtap="manualSearch" loading="{{loading}}" disabled="{{loading}}">精确查询</button>
   </view>
+  <view wx:if="{{duplicateMatches.length}}" class="duplicate-list">
+    <text class="duplicate-title">请选择客户编号</text>
+    <button wx:for="{{duplicateMatches}}" wx:key="customerCode" class="duplicate-option" data-code="{{item.customerCode}}" bindtap="chooseDuplicate">
+      <text>{{item.customerName}} · {{item.birthDate}}</text>
+      <text>{{item.customerCode}}</text>
+    </button>
+  </view>
   <view wx:if="{{candidate}}" class="candidate">
-    <image class="customer-photo" src="{{photoUrl}}" mode="aspectFill" bindload="photoLoaded" binderror="photoFailed"></image>
+    <image wx:if="{{photoUrl}}" class="customer-photo" src="{{photoUrl}}" mode="aspectFill" data-customer-code="{{candidate.customerCode}}" data-photo-url="{{photoUrl}}" bindload="photoLoaded" binderror="photoFailed"></image>
+    <view wx:else class="customer-photo photo-placeholder">照片待读取</view>
     <view class="candidate-info">
       <text class="candidate-name">{{candidate.customerName}}</text>
       <text>{{candidate.birthDate}}</text>
       <text>{{candidate.customerCode}}</text>
     </view>
   </view>
-  <button wx:if="{{candidate}}" class="confirm" bindtap="confirm" disabled="{{!photoReady}}">{{photoReady ? '确认这位客户' : '正在读取客户照片…'}}</button>
-  <button wx:if="{{candidate && error}}" class="retry" bindtap="retryPhoto" loading="{{loading}}" disabled="{{loading}}">单独重读这张照片</button>
+  <button wx:if="{{candidate}}" class="confirm" bindtap="confirm" disabled="{{!photoReady}}">{{photoReady ? '确认这位客户' : (photoLoading ? '正在读取客户照片…' : '客户照片尚未就绪')}}</button>
+  <button wx:if="{{candidate && error}}" class="retry" bindtap="retryPhoto" loading="{{photoLoading}}" disabled="{{loading || photoLoading}}">单独重读这张照片</button>
   <text wx:if="{{message}}" class="picker-message {{error ? 'error' : ''}}">{{message}}</text>
 </view>

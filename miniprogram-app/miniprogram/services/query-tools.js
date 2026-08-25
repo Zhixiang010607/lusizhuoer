@@ -87,7 +87,7 @@ function displayDateTime(value) {
 }
 
 function statusLabel(value) {
-  return ({ PENDING: "待审核", APPROVED: "审核通过", REJECTED: "已驳回", VOIDED: "已关闭" })[String(value || "").toUpperCase()] || "未记录";
+  return ({ PENDING: "待审核", APPROVED: "审核通过", REJECTED: "已驳回", VOIDED: "已关闭", CLOSED: "已关闭" })[String(value || "").toUpperCase()] || "未记录";
 }
 
 function typeLabel(recordType, value) {
@@ -98,14 +98,19 @@ function typeLabel(recordType, value) {
 
 function normalizeRecord(item = {}, recordType = "RECHARGE") {
   const type = String(recordType || "RECHARGE").toUpperCase();
+  const originalType = String(item.originalType || item.original_type || "").toUpperCase();
+  const recordStatus = String(item.recordStatus || item.record_status || item.application_status || "").toUpperCase();
+  const completedWithoutReview = type === "VERIFICATION"
+    && ["NORMAL", "EXPERIENCE"].includes(originalType)
+    && recordStatus === "APPROVED";
   return {
     id: String(item.id || ""),
     recordCode: String(item.recordCode || item.record_code || "—"),
-    originalType: String(item.originalType || item.original_type || ""),
-    typeLabel: typeLabel(type, item.originalType || item.original_type),
+    originalType,
+    typeLabel: typeLabel(type, originalType),
     unitCount: Number(item.unitCount !== undefined ? item.unitCount : item.unit_count || 0),
-    recordStatus: String(item.recordStatus || item.record_status || item.application_status || ""),
-    statusLabel: statusLabel(item.recordStatus || item.record_status || item.application_status),
+    recordStatus,
+    statusLabel: completedWithoutReview ? "已完成" : statusLabel(recordStatus),
     submittedAt: displayDateTime(item.submittedAt || item.submitted_at || item.original_submitted_at || item.application_time),
     customerCode: String(item.customerCode || item.customer_code || ""),
     customerName: String(item.customerName || item.customer_name || "—"),

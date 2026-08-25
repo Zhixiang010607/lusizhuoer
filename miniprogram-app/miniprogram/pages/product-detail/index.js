@@ -1,5 +1,15 @@
 const { callStaff } = require("../../services/api");
 const { requireSession } = require("../../services/session");
+const { saveImageToAlbum } = require("../../services/photo-album");
+const {
+  CANVAS_WIDTH,
+  createProductSampleDocument,
+  createProductSamplePhotos,
+  renderReceiptCanvas,
+  exportReceiptJpegs,
+  createPdfBytes: jpegPdf,
+  safeFilename
+} = require("../../services/order-receipt");
 
 const PREVIEWS = Object.freeze([
   { value: "verification-pdf", label: "核销 PDF", hint: "正常核销与体验核销共用 · A4 分页" },
@@ -61,11 +71,6 @@ function fileInfo(filePath) {
   return wxCall((resolve, reject) => wx.getFileSystemManager().getFileInfo({ filePath, success: resolve, fail: reject }));
 }
 function imageInfo(src) { return wxCall((resolve, reject) => wx.getImageInfo({ src, success: resolve, fail: reject })); }
-function ascii(value) {
-  const output = new Uint8Array(value.length);
-  for (let index = 0; index < value.length; index += 1) output[index] = value.charCodeAt(index) & 255;
-  return output;
-}
 function concatBytes(parts) {
   const total = parts.reduce((sum, item) => sum + item.byteLength, 0);
   const output = new Uint8Array(total);
@@ -73,32 +78,6 @@ function concatBytes(parts) {
   parts.forEach((item) => { const bytes = item instanceof Uint8Array ? item : new Uint8Array(item); output.set(bytes, offset); offset += bytes.byteLength; });
   return output;
 }
-function jpegPdf(jpegBuffer, width, height) {
-  const image = new Uint8Array(jpegBuffer);
-  const pageWidth = 595;
-  const pageHeight = Math.max(842, Math.round(pageWidth * Number(height || 1) / Math.max(1, Number(width || 1))));
-  const content = ascii(`q\n${pageWidth} 0 0 ${pageHeight} 0 0 cm\n/Im0 Do\nQ\n`);
-  const parts = [ascii("%PDF-1.4\n%LUSIZHUOER\n")];
-  const offsets = [0];
-  let size = parts[0].byteLength;
-  function object(number, segments) {
-    offsets[number] = size;
-    const value = [ascii(`${number} 0 obj\n`), ...segments, ascii("\nendobj\n")];
-    value.forEach((segment) => { parts.push(segment); size += segment.byteLength; });
-  }
-  object(1, [ascii("<< /Type /Catalog /Pages 2 0 R >>")]);
-  object(2, [ascii("<< /Type /Pages /Kids [3 0 R] /Count 1 >>")]);
-  object(3, [ascii(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>`)]);
-  object(4, [ascii(`<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.byteLength} >>\nstream\n`), image, ascii("\nendstream")]);
-  object(5, [ascii(`<< /Length ${content.byteLength} >>\nstream\n`), content, ascii("endstream")]);
-  const xrefOffset = size;
-  let xref = "xref\n0 6\n0000000000 65535 f \n";
-  for (let index = 1; index <= 5; index += 1) xref += `${String(offsets[index]).padStart(10, "0")} 00000 n \n`;
-  xref += `trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
-  parts.push(ascii(xref));
-  return concatBytes(parts).buffer;
-}
-function safeFilename(value) { return text(value).replace(/[\\/:*?"<>|]/g, "-").slice(0, 80) || "产品单据样例"; }
 
 Page({
   data: {
@@ -106,7 +85,8 @@ Page({
     template: null, logoPreview: "", selectedLogo: false, message: "", error: false,
     verificationInstructions: "", rechargeInstructions: "", verificationCount: 0, rechargeCount: 0,
     previews: PREVIEWS.map((item, index) => ({ ...item, active: index === 0 })), activePreview: PREVIEWS[0].value,
-    previewTitle: PREVIEWS[0].label, previewHint: PREVIEWS[0].hint, isVerification: true, isPdf: true
+    previewTitle: PREVIEWS[0].label, previewHint: PREVIEWS[0].hint, isVerification: true, isPdf: true,
+    previewLoading: false, previewError: "", previewImages: [], previewPageCount: 0
   },
   onLoad(options) {
     if (!requireSession(["hq"])) return;
@@ -117,13 +97,18 @@ Page({
     this.load();
   },
   onPullDownRefresh() { this.load().finally(() => wx.stopPullDownRefresh()); },
+  onUnload() { this._previewEpoch = Number(this._previewEpoch || 0) + 1; },
   back() { wx.redirectTo({ url: "/pages/product-management/index" }); },
   async load() {
     if (!this.data.productRef) {
       this.setData({ loading: false, message: "缺少产品编号", error: true });
       return;
     }
-    this.setData({ loading: true, message: "", error: false, logoPreview: "", selectedLogo: false });
+    this._previewEpoch = Number(this._previewEpoch || 0) + 1;
+    this.setData({
+      loading: true, message: "", error: false, logoPreview: "", selectedLogo: false,
+      previewLoading: false, previewError: "", previewImages: [], previewPageCount: 0
+    });
     this._selectedLogo = null;
     try {
       const response = await callStaff("getProductReceiptTemplate", { productRef: this.data.productRef });
@@ -131,9 +116,10 @@ Page({
       this.applyTemplate(template);
       this.setData({ message: this._created ? "产品已创建，请继续配置 LOGO 和两组单据说明。" : "模板文字已读取，正在读取 LOGO 原图…", error: false });
       await this.loadLogoOriginal(template);
+      await this.renderPreview();
       this._created = false;
     } catch (error) {
-      this.setData({ template: null, message: error.message || "产品模板读取失败", error: true });
+      this.setData({ template: null, message: error.message || "产品模板读取失败", error: true, previewImages: [], previewError: "" });
     } finally { this.setData({ loading: false }); }
   },
   applyTemplate(template, preserveInstructions = false) {
@@ -186,12 +172,19 @@ Page({
     } finally { this.setData({ logoLoading: false }); }
   },
   logoError() {
-    if (this.data.template && this.data.template.logo && !this.data.logoLoading && !this._selectedLogo) this.loadLogoOriginal();
+    if (this.data.template && this.data.template.logo && !this.data.logoLoading && !this._selectedLogo) {
+      this.loadLogoOriginal().then(() => this.renderPreview()).catch(() => {});
+    }
   },
   inputInstructions(event) {
     const field = event.currentTarget.dataset.field;
     const value = event.detail.value;
-    this.setData({ [field]: value, [`${field === "verificationInstructions" ? "verification" : "recharge"}Count`]: value.length });
+    const current = previewOption(this.data.activePreview);
+    this.setData({
+      [field]: value,
+      [`${field === "verificationInstructions" ? "verification" : "recharge"}Count`]: value.length,
+      previewHint: `${current.hint} · 文字已修改，刷新后生效`
+    });
   },
   async chooseLogo() {
     if (this.data.mutating) return;
@@ -214,6 +207,7 @@ Page({
         mimeType, bytes, width: Number(dimensions.width), height: Number(dimensions.height)
       };
       this.setData({ selectedLogo: true, logoPreview: path, message: "已选择原图，点击“上传并保存”。", error: false });
+      await this.renderPreview();
     } catch (error) {
       if (/cancel/i.test(String(error.errMsg || error.message || ""))) return;
       this.setData({ message: error.message || error.errMsg || "LOGO 选择失败", error: true });
@@ -271,6 +265,7 @@ Page({
       this.applyTemplate(template, true);
       await this.loadLogoOriginal(template);
       if (!this.data.logoPreview) throw new Error("LOGO 已保存，但原图回读失败");
+      await this.renderPreview();
       this.setData({ message: "LOGO 原图已上传、回读核对并保存。", error: false });
     } catch (error) {
       await this.discardLogo(reference);
@@ -288,6 +283,7 @@ Page({
       this._selectedLogo = null;
       this.applyTemplate(template, true);
       this.setData({ selectedLogo: false, logoPreview: "", message: "产品 LOGO 已移除。", error: false });
+      await this.renderPreview();
     } catch (error) {
       this.setData({ message: error.message || "产品 LOGO 移除失败", error: true });
     } finally { this.setData({ mutating: false }); }
@@ -304,6 +300,7 @@ Page({
       const reread = await callStaff("getProductReceiptTemplate", { productRef: this.data.productRef });
       const template = assertRoundTrip(reread.template, expected, verificationInstructions, rechargeInstructions);
       this.applyTemplate(template);
+      await this.renderPreview();
       this.setData({ message: `${expected.productName}${expected.productCode ? `（${expected.productCode}）` : ""}的两组文字说明已保存并从数据库复核。`, error: false });
     } catch (error) {
       this.setData({ message: error.message || "文字说明保存失败", error: true });
@@ -337,127 +334,113 @@ Page({
       activePreview: current.value, previewTitle: current.label, previewHint: current.hint,
       previews: PREVIEWS.map((item) => ({ ...item, active: item.value === current.value })),
       isVerification: current.value.startsWith("verification"), isPdf: current.value.endsWith("pdf")
-    });
+    }, () => this.renderPreview());
   },
   refreshPreview() {
-    const current = previewOption(this.data.activePreview);
-    this.setData({ previewHint: `${current.hint} · 已按当前文字刷新` });
+    return this.renderPreview();
+  },
+  sampleDocument(kind = this.data.activePreview) {
+    return createProductSampleDocument({
+      template: this.data.template,
+      kind,
+      verificationInstructions: normalizedInstructions(this.data.verificationInstructions),
+      rechargeInstructions: normalizedInstructions(this.data.rechargeInstructions),
+      logoRequired: Boolean(this._selectedLogo || this.data.template && this.data.template.logo)
+    });
+  },
+  samplePhotos(kind = this.data.activePreview) {
+    return createProductSamplePhotos(kind);
+  },
+  nextViewTick() {
+    return new Promise((resolve) => {
+      if (typeof wx.nextTick === "function") wx.nextTick(resolve); else resolve();
+    });
+  },
+  queueReceiptRender(task) {
+    const previous = this._receiptRenderQueue || Promise.resolve();
+    const current = previous.catch(() => {}).then(task);
+    this._receiptRenderQueue = current.catch(() => {});
+    return current;
   },
   canvasNode() {
     return new Promise((resolve, reject) => this.createSelectorQuery().select("#receiptCanvas").fields({ node: true, size: true }).exec((items) => {
       if (!items || !items[0] || !items[0].node) reject(new Error("样例画布尚未准备完成")); else resolve(items[0].node);
     }));
   },
-  loadCanvasImage(canvas, source) {
-    return new Promise((resolve, reject) => {
-      const image = canvas.createImage();
-      image.onload = () => resolve(image);
-      image.onerror = () => reject(new Error("产品 LOGO 无法写入样例"));
-      image.src = source;
-    });
-  },
-  drawWrapped(context, value, x, y, maxWidth, lineHeight, maxLines = 50) {
-    const characters = Array.from(String(value || ""));
-    let line = "";
-    let lines = 0;
-    characters.forEach((character) => {
-      const test = line + character;
-      if ((character === "\n" || context.measureText(test).width > maxWidth) && line) {
-        if (lines < maxLines) context.fillText(line, x, y + lines * lineHeight);
-        lines += 1;
-        line = character === "\n" ? "" : character;
-      } else if (character !== "\n") line = test;
-    });
-    if (line && lines < maxLines) context.fillText(line, x, y + lines * lineHeight);
-    return y + (Math.min(maxLines, lines + (line ? 1 : 0)) * lineHeight);
-  },
-  async drawReceipt() {
-    if (this.data.template && this.data.template.logo && (!this.data.logoPreview || this.data.logoLoading)) throw new Error("产品 LOGO 原图尚未读取完成，本次没有生成文件");
+  async renderReceiptArtifacts(kind = this.data.activePreview) {
+    const current = previewOption(kind);
+    const documentData = this.sampleDocument(current.value);
+    const photos = this.samplePhotos(current.value);
+    await this.nextViewTick();
     const canvas = await this.canvasNode();
-    const verification = this.data.isVerification;
-    const width = 750;
-    const height = verification ? 1480 : 1120;
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext("2d");
-    context.fillStyle = "#fffdf9";
-    context.fillRect(0, 0, width, height);
-    context.strokeStyle = "#cdb68f";
-    context.lineWidth = 3;
-    context.strokeRect(28, 28, width - 56, height - 56);
-    context.fillStyle = "#786a57";
-    context.font = "18px sans-serif";
-    context.fillText(verification ? "正常核销 / 体验核销" : "充值 / 退费", 58, 78);
-    context.fillStyle = "#2f2921";
-    context.font = "bold 38px sans-serif";
-    context.fillText(verification ? "核销单 SAMPLE001" : "充值单 SAMPLE001", 58, 126);
-    context.font = "18px sans-serif";
-    context.fillStyle = "#756958";
-    context.fillText("门店详细地址：示例省示例市示例区示例路 1 号", 58, 160);
-    if (this.data.logoPreview) {
-      const logo = await this.loadCanvasImage(canvas, this.data.logoPreview);
-      context.drawImage(logo, 584, 58, 108, 108);
-    } else {
-      context.fillStyle = "#f1e4cf"; context.fillRect(584, 58, 108, 108);
-      context.fillStyle = "#7b684b"; context.font = "bold 20px sans-serif"; context.fillText("LOGO", 610, 120);
-    }
-    context.strokeStyle = "#d8c6a7"; context.lineWidth = 2;
-    context.beginPath(); context.moveTo(58, 194); context.lineTo(692, 194); context.stroke();
-    const facts = [["门店", "示例门店"], ["客户", "示例客户"], ["项目", this.data.template.productName], ["业务老师", "示例老师"], ["提交时间", "2026-08-19 12:34:56"]];
-    let y = 218;
-    facts.forEach(([label, value], index) => {
-      const column = index % 2;
-      const row = Math.floor(index / 2);
-      const x = 58 + column * 322;
-      const top = y + row * 84;
-      context.fillStyle = "#faf7f1"; context.fillRect(x, top, 306, 70);
-      context.fillStyle = "#817463"; context.font = "17px sans-serif"; context.fillText(label, x + 14, top + 24);
-      context.fillStyle = "#302a22"; context.font = "bold 20px sans-serif"; context.fillText(String(value), x + 14, top + 52);
+    const receipt = await renderReceiptCanvas({
+      canvas,
+      documentData,
+      photos,
+      logoSource: this.data.logoPreview,
+      paginate: current.value.endsWith("pdf")
     });
-    y += 3 * 84 + 22;
-    if (verification) {
-      context.fillStyle = "#2f2921"; context.font = "bold 24px sans-serif"; context.fillText("核销照片凭证", 58, y);
-      context.fillStyle = "#756958"; context.font = "16px sans-serif"; context.fillText("客户档案照、本次现场照与三个补充照片位", 58, y + 27);
-      y += 48;
-      [["客户建档照片", 58], ["本次核销人脸照", 380]].forEach(([label, x]) => {
-        context.fillStyle = "#f1eadf"; context.fillRect(x, y, 306, 190);
-        context.fillStyle = "#817463"; context.font = "19px sans-serif"; context.fillText(label, x + 84, y + 100);
+    const images = await exportReceiptJpegs(receipt, this);
+    return {
+      kind: current.value,
+      documentData,
+      images,
+      width: CANVAS_WIDTH,
+      height: receipt.height,
+      pageCount: receipt.pageCount,
+      paginate: receipt.paginate
+    };
+  },
+  async renderPreview() {
+    if (!this.data.template) return;
+    const current = previewOption(this.data.activePreview);
+    const epoch = Number(this._previewEpoch || 0) + 1;
+    this._previewEpoch = epoch;
+    this.setData({
+      previewLoading: true,
+      previewError: "",
+      previewHint: "正在生成高清预览…"
+    });
+    try {
+      const artifact = await this.queueReceiptRender(async () => {
+        if (epoch !== this._previewEpoch) return null;
+        return this.renderReceiptArtifacts(current.value);
       });
-      y += 204;
-      ["补充照片 1", "补充照片 2", "补充照片 3"].forEach((label, index) => {
-        const x = 58 + index * 214;
-        context.fillStyle = "#f1eadf"; context.fillRect(x, y, 198, 148);
-        context.fillStyle = "#817463"; context.font = "17px sans-serif"; context.fillText(label, x + 47, y + 80);
+      if (!artifact || epoch !== this._previewEpoch || current.value !== this.data.activePreview) return;
+      this.setData({
+        previewImages: artifact.images.map((item) => ({
+          ...item,
+          key: `${artifact.kind}-${item.pageNumber}`,
+          label: artifact.paginate ? `第 ${item.pageNumber} / ${artifact.pageCount} 页` : "高清长图"
+        })),
+        previewPageCount: artifact.pageCount,
+        previewHint: current.hint,
+        previewLoading: false,
+        previewError: ""
       });
-      y += 178;
-    } else {
-      context.fillStyle = "#2f2921"; context.font = "bold 24px sans-serif"; context.fillText("充值信息", 58, y); y += 20;
-      [["充值次数", "10 次"], ["提交时间", "2026-08-19 12:34:56"], ["审核时间", "2026-08-19 12:36:10"]].forEach(([label, value], index) => {
-        const top = y + 20 + index * 68;
-        context.fillStyle = "#faf7f1"; context.fillRect(58, top, 634, 56);
-        context.fillStyle = "#817463"; context.font = "17px sans-serif"; context.fillText(label, 74, top + 23);
-        context.fillStyle = "#302a22"; context.font = "bold 19px sans-serif"; context.fillText(value, 220, top + 36);
+    } catch (error) {
+      if (epoch !== this._previewEpoch) return;
+      this.setData({
+        previewImages: [], previewPageCount: 0, previewLoading: false,
+        previewError: error.message || error.errMsg || "预览生成失败",
+        previewHint: error.message || error.errMsg || "预览生成失败"
       });
-      y += 236;
     }
-    context.font = "bold 24px sans-serif"; context.fillStyle = "#302a22"; context.fillText("产品说明", 58, y); y += 38;
-    context.fillStyle = "#faf7f1"; context.fillRect(58, y - 8, 634, height - y - 56);
-    context.font = "21px sans-serif"; context.fillStyle = "#5f5548";
-    const instructions = verification ? normalizedInstructions(this.data.verificationInstructions) : normalizedInstructions(this.data.rechargeInstructions);
-    this.drawWrapped(context, instructions || "尚未填写单据说明", 76, y + 24, 598, 31, verification ? 13 : 11);
-    const output = await wxCall((resolve, reject) => wx.canvasToTempFilePath({ canvas, fileType: "jpg", quality: 1, success: resolve, fail: reject }));
-    return { path: output.tempFilePath, width, height };
   },
   async downloadPreview() {
     if (this.data.exporting || !this.data.template) return;
+    const current = previewOption(this.data.activePreview);
     this.setData({ exporting: true, message: "正在生成高清样例…", error: false });
     try {
-      const image = await this.drawReceipt();
-      const kind = this.data.isVerification ? "核销单" : "充值单";
-      const baseName = safeFilename(`${this.data.template.productName}-${kind}-样例`);
-      if (this.data.isPdf) {
-        const source = await readFile(image.path);
-        const pdf = jpegPdf(source.data, image.width, image.height);
+      const artifact = await this.queueReceiptRender(() => this.renderReceiptArtifacts(current.value));
+      const baseName = safeFilename(artifact.documentData.filename);
+      if (current.value.endsWith("pdf")) {
+        const pages = [];
+        for (const image of artifact.images) {
+          const source = await readFile(image.path);
+          pages.push({ width: image.width, height: image.height, bytes: new Uint8Array(source.data) });
+        }
+        const pdf = jpegPdf(pages);
         const filePath = `${wx.env.USER_DATA_PATH}/${baseName}.pdf`;
         await wxCall((resolve, reject) => wx.getFileSystemManager().writeFile({ filePath, data: pdf, success: resolve, fail: reject }));
         if (typeof wx.shareFileMessage === "function") {
@@ -466,9 +449,9 @@ Page({
           await wxCall((resolve, reject) => wx.openDocument({ filePath, fileType: "pdf", showMenu: true, success: resolve, fail: reject }));
         }
       } else {
-        await wxCall((resolve, reject) => wx.saveImageToPhotosAlbum({ filePath: image.path, success: resolve, fail: reject }));
+        await saveImageToAlbum(artifact.images[0].path);
       }
-      this.setData({ message: this.data.isPdf ? "PDF 样例已生成。" : "图片样例已保存到相册。", error: false });
+      this.setData({ message: current.value.endsWith("pdf") ? "PDF 样例已生成。" : "图片样例已保存到相册。", error: false });
     } catch (error) {
       if (/cancel/i.test(String(error.errMsg || error.message || ""))) this.setData({ message: "已取消保存样例。", error: false });
       else this.setData({ message: error.message || error.errMsg || "样例生成失败", error: true });

@@ -1,5 +1,4 @@
 <view class="page">
-  <hq-rail active="management" />
   <view class="page-heading"><text class="title">产品单据模板</text><button class="ghost return-button" bindtap="back">返回产品管理</button></view>
 
   <view wx:if="{{loading && !template}}" class="panel empty">正在读取产品模板…</view>
@@ -30,13 +29,17 @@
       <scroll-view class="preview-tabs" scroll-x enhanced show-scrollbar="false">
         <view class="preview-tab-row"><view wx:for="{{previews}}" wx:key="value" class="preview-tab {{item.active ? 'active' : ''}}" data-value="{{item.value}}" bindtap="choosePreview">{{item.label}}</view></view>
       </scroll-view>
-      <view class="preview-toolbar"><view><text>{{previewTitle}}</text><text>{{previewHint}}</text></view><view><button class="ghost" bindtap="refreshPreview">刷新预览</button><button class="primary" bindtap="downloadPreview" loading="{{exporting}}" disabled="{{exporting || logoLoading}}">下载样例</button></view></view>
+      <view class="preview-toolbar"><view><text>{{previewTitle}}</text><text>{{previewHint}}</text></view><view><button class="ghost" bindtap="refreshPreview" disabled="{{previewLoading}}">刷新预览</button><button class="primary" bindtap="downloadPreview" loading="{{exporting}}" disabled="{{exporting || logoLoading || previewLoading}}">下载样例</button></view></view>
       <view class="receipt-preview">
-        <view class="receipt-header"><view><text>{{isVerification ? '正常核销 / 体验核销' : '充值 / 退费'}}</text><text>{{isVerification ? '核销单' : '充值单'}} SAMPLE001</text><text>门店详细地址：示例省示例市示例区示例路 1 号</text></view><view class="mini-logo"><image wx:if="{{logoPreview}}" src="{{logoPreview}}" mode="aspectFit" /><text wx:else>LOGO</text></view></view>
-        <view class="receipt-facts"><view><text>门店</text><text>示例门店</text></view><view><text>客户</text><text>示例客户</text></view><view><text>项目</text><text>{{template.productName}}</text></view><view><text>业务老师</text><text>示例老师</text></view><view><text>提交时间</text><text>2026-08-19 12:34:56</text></view></view>
-        <view wx:if="{{isVerification}}" class="receipt-section"><text>核销照片凭证</text><text>客户档案照、本次现场照与三个补充照片位</text><view class="photo-main"><view>客户建档照片</view><view>本次核销人脸照</view></view><view class="photo-supplement"><view>补充照片 1</view><view>补充照片 2</view><view>补充照片 3</view></view></view>
-        <view wx:else class="receipt-section recharge-sample"><text>充值信息</text><view><text>充值次数</text><text>10 次</text></view><view><text>提交时间</text><text>2026-08-19 12:34:56</text></view><view><text>审核时间</text><text>2026-08-19 12:36:10</text></view></view>
-        <view class="receipt-instructions"><text>产品说明</text><text>{{isVerification ? (verificationInstructions || '尚未填写单据说明') : (rechargeInstructions || '尚未填写单据说明')}}</text></view>
+        <view wx:if="{{previewLoading}}" class="preview-state">正在生成高清预览…</view>
+        <view wx:elif="{{previewError}}" class="preview-state error">{{previewError}}</view>
+        <scroll-view wx:else class="generated-preview" scroll-y enhanced show-scrollbar="false">
+          <view wx:for="{{previewImages}}" wx:key="key" class="generated-page">
+            <text wx:if="{{isPdf}}" class="generated-page-label">{{item.label}}</text>
+            <image class="generated-receipt" src="{{item.path}}" mode="widthFix" show-menu-by-longpress="{{!isPdf}}" />
+          </view>
+          <view wx:if="{{!previewImages.length}}" class="preview-state">点击“刷新预览”生成成品。</view>
+        </scroll-view>
       </view>
     </view>
   </block>

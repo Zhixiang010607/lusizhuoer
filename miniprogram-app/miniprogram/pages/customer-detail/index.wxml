@@ -1,57 +1,131 @@
 <view class="page">
-  <view wx:if="{{loading}}" class="card empty">正在读取客户主页…</view>
-  <block wx:else-if="{{profile}}">
-    <view class="card profile">
+  <view wx:if="{{loading && !profile}}" class="card empty">正在读取客户主页…</view>
+
+  <block wx:if="{{profile}}">
+    <view class="card profile-card">
       <view class="profile-top">
         <image wx:if="{{photoUrl}}" class="photo-small" src="{{photoUrl}}" mode="aspectFill" bindtap="previewPhoto" binderror="photoFailed"></image>
-        <view wx:else class="photo-small photo-placeholder" bindtap="reloadPhoto">点击重读照片</view>
-        <view class="profile-name"><text>{{profile.customerName}}</text><text class="profile-sub">{{profile.customerCode}}</text><text class="profile-sub">{{profile.storeName}} · {{profile.birthDate}}</text></view>
+        <view wx:else class="photo-small photo-placeholder" bindtap="reloadPhoto">{{photoLoading ? '正在读取照片…' : '点击重读照片'}}</view>
+        <view class="profile-name">
+          <text>{{profile.customerName}}</text>
+          <text class="profile-sub">{{profile.customerCode}}</text>
+          <text class="profile-sub">{{profile.storeLabel}}</text>
+          <text class="profile-sub">{{profile.birthDateLabel}}</text>
+        </view>
       </view>
       <view class="button-row photo-actions">
-        <button class="secondary" bindtap="reloadPhoto" loading="{{photoLoading}}" disabled="{{photoLoading}}">重读原图</button>
-        <button class="secondary" bindtap="savePhoto" loading="{{photoSaving}}" disabled="{{photoSaving || !photoUrl}}">保存到相册</button>
+        <button class="secondary compact-button" bindtap="reloadPhoto" loading="{{photoLoading}}" disabled="{{photoLoading}}">重读原图</button>
+        <button class="secondary compact-button" bindtap="savePhoto" loading="{{photoSaving}}" disabled="{{photoSaving || !photoUrl}}">保存到相册</button>
       </view>
-      <view class="facts">
-        <view class="fact"><text class="label">状态</text><text class="value">{{profile.customerStatus === 'ACTIVE' ? '活跃' : '已封存'}}</text></view>
-        <view class="fact"><text class="label">总充值</text><text class="value">{{profile.totalRechargeCount}} 次</text></view>
-        <view class="fact"><text class="label">总核销</text><text class="value">{{profile.totalVerificationCount}} 次</text></view>
-        <view class="fact"><text class="label">总体验</text><text class="value">{{profile.totalExperienceCount}} 次</text></view>
+      <view wx:if="{{photoMessage}}" class="section-message {{photoError ? 'error' : ''}}">{{photoMessage}}</view>
+
+      <view class="facts profile-facts">
+        <view class="fact"><text class="label">累计充值</text><text class="value">{{profile.totalRechargeCount}} 次</text></view>
+        <view class="fact"><text class="label">累计核销</text><text class="value">{{profile.totalVerificationCount}} 次</text></view>
+        <view class="fact"><text class="label">累计体验</text><text class="value">{{profile.totalExperienceCount}} 次</text></view>
       </view>
+
+      <view class="subsection-title">近期信息</view>
+      <view class="recent-grid">
+        <view class="recent-item"><text>最近充值</text><text>{{profile.latestRechargeLabel}}</text></view>
+        <view class="recent-item"><text>最近核销</text><text>{{profile.latestVerificationLabel}}</text></view>
+        <view class="recent-item"><text>客户建立</text><text>{{profile.createdAtLabel}}</text></view>
+        <view class="recent-item status-item">
+          <text>客户状态</text>
+          <view class="status-line">
+            <text class="status-badge {{profile.customerStatus === 'ARCHIVED' ? 'archived' : 'active'}}">{{profile.customerStatus === 'ARCHIVED' ? '已封存' : '活跃'}}</text>
+            <button wx:if="{{canManageStatus}}" class="{{profile.customerStatus === 'ARCHIVED' ? 'status-activate' : 'status-archive'}}" bindtap="toggleCustomerStatus" loading="{{statusUpdating}}" disabled="{{statusUpdating}}">{{profile.customerStatus === 'ARCHIVED' ? '恢复活跃' : '封存客户'}}</button>
+          </view>
+        </view>
+      </view>
+      <view wx:if="{{statusMessage}}" class="section-message {{statusError ? 'error' : ''}}">{{statusMessage}}</view>
     </view>
 
-    <view class="card">
-      <view class="card-title"><text>客户备注</text><text class="badge">可编辑</text></view>
-      <textarea class="textarea" maxlength="1000" value="{{notes}}" bindinput="inputNotes" placeholder="填写客户备注"></textarea>
-      <button class="primary save-note" bindtap="saveNotes" loading="{{savingNotes}}" disabled="{{savingNotes || notes === originalNotes}}">保存备注</button>
+    <view class="card notes-card">
+      <view class="card-title notes-title">
+        <text>客户备注</text>
+        <view class="notes-actions">
+          <button wx:if="{{canEditNotes && !notesEditing}}" class="small-action" bindtap="startEditNotes">编辑</button>
+          <block wx:if="{{canEditNotes && notesEditing}}">
+            <button class="small-action" bindtap="saveNotes" loading="{{savingNotes}}" disabled="{{savingNotes || !notesChanged}}">保存</button>
+            <button class="small-action ghost-action" bindtap="cancelEditNotes" disabled="{{savingNotes}}">取消</button>
+          </block>
+        </view>
+      </view>
+      <scroll-view wx:if="{{!notesEditing}}" class="notes-read" scroll-y enhanced show-scrollbar="false"><text>{{notes || '暂无客户备注'}}</text></scroll-view>
+      <textarea wx:else class="textarea notes-input" maxlength="5000" value="{{notes}}" bindinput="inputNotes" disabled="{{savingNotes}}" placeholder="填写客户备注"></textarea>
+      <view wx:if="{{notesEditing}}" class="character-count">{{notes.length}} / 5000</view>
+      <view wx:if="{{notesMessage}}" class="section-message {{notesError ? 'error' : ''}}">{{notesMessage}}</view>
     </view>
 
-    <view class="card">
-      <view class="card-title"><text>项目余额</text><text class="badge">{{balances.length}} 个项目</text></view>
-      <view wx:for="{{balances}}" wx:key="productId" class="balance-row"><view><text class="balance-name">{{item.productName}}</text><text class="balance-code">{{item.productCode}}</text></view><text class="balance-count">{{item.remainingCount}} 次</text></view>
-      <view wx:if="{{!balances.length}}" class="empty">暂无项目余额</view>
+    <view class="card messages-card">
+      <view class="card-title"><text>客户留言</text><text class="badge">{{messageTotal}} 条</text></view>
+      <scroll-view class="message-list" scroll-y enhanced show-scrollbar="false">
+        <view wx:if="{{messagesLoading && !messages.length}}" class="message-empty">正在读取留言…</view>
+        <view wx:elif="{{!messages.length}}" class="message-empty">暂无客户留言</view>
+        <view wx:for="{{messages}}" wx:key="id" class="message-item">
+          <view class="message-meta">
+            <text class="message-author">{{item.authorLabel}}（{{item.roleLabel}}）</text>
+            <text class="message-time">{{item.createdAtLabel}}</text>
+          </view>
+          <text class="message-content">{{item.content}}</text>
+        </view>
+      </scroll-view>
+      <button wx:if="{{messageHasMore}}" class="secondary load-message-button" bindtap="loadMoreMessages" loading="{{messagesLoading}}" disabled="{{messagesLoading}}">加载更早留言</button>
+      <button wx:if="{{messageError && !messages.length}}" class="secondary load-message-button" bindtap="retryMessages" loading="{{messagesLoading}}" disabled="{{messagesLoading}}">重试留言</button>
+      <view class="message-compose">
+        <view class="message-input-wrap">
+          <textarea class="textarea message-input" maxlength="100" value="{{messageText}}" bindinput="inputMessage" disabled="{{messageSubmitting}}" placeholder="输入客户留言，最多100字"></textarea>
+          <text class="character-count {{messageLength >= 100 ? 'limit' : ''}}">{{messageLength}} / 100</text>
+        </view>
+        <button class="primary submit-message-button" bindtap="submitMessage" loading="{{messageSubmitting}}" disabled="{{messageSubmitting || !messageLength}}">提交留言</button>
+      </view>
+      <view wx:if="{{messageMessage}}" class="section-message {{messageError ? 'error' : ''}}">{{messageMessage}}</view>
     </view>
 
-    <view class="card">
-      <view class="card-title"><text>业务记录</text><text class="badge">最近记录</text></view>
+    <view class="card balance-card">
+      <view class="card-title"><text>项目次数汇总</text><text class="badge">{{balances.length}} 个项目</text></view>
+      <scroll-view wx:if="{{balances.length}}" class="table-scroll balance-scroll" scroll-x enhanced show-scrollbar="false">
+        <view class="balance-table">
+          <view class="balance-table-row table-head"><text>项目</text><text>累计充值</text><text>累计核销</text><text>剩余</text></view>
+          <view wx:for="{{balances}}" wx:key="productId" class="balance-table-row">
+            <text>{{item.productName}}{{item.productCode ? ' · ' + item.productCode : ''}}</text>
+            <text>{{item.totalRechargeCount}} 次</text>
+            <text>{{item.totalVerificationCount}} 次</text>
+            <text class="balance-count">{{item.remainingCount}} 次</text>
+          </view>
+        </view>
+      </scroll-view>
+      <view wx:else class="empty">暂无已充值项目</view>
+    </view>
+
+    <view class="card history-card">
+      <view class="card-title"><text>业务记录</text><text class="badge">已载 {{visibleHistory.length}} 条</text></view>
       <view class="segmented history-tabs">
-        <button class="{{historyType === 'RECHARGE' ? 'active' : ''}}" data-type="RECHARGE" bindtap="changeHistory">充值/退费</button>
+        <button class="{{historyType === 'RECHARGE' ? 'active' : ''}}" data-type="RECHARGE" bindtap="changeHistory">充值／退费</button>
         <button class="{{historyType === 'VERIFICATION' ? 'active' : ''}}" data-type="VERIFICATION" bindtap="changeHistory">核销</button>
         <button class="{{historyType === 'EXPERIENCE' ? 'active' : ''}}" data-type="EXPERIENCE" bindtap="changeHistory">体验</button>
       </view>
-      <scroll-view wx:if="{{visibleHistory.length}}" class="record-scroll" scroll-x="true" enhanced="true" show-scrollbar="false">
+      <scroll-view wx:if="{{visibleHistory.length}}" class="table-scroll record-scroll" scroll-x enhanced show-scrollbar="false">
         <view class="record-table">
-          <view class="record-row record-head"><text>单号</text><text>项目</text><text>业务老师</text><text>次数</text><text>状态</text></view>
+          <view class="record-row table-head"><text>单号</text><text>项目</text><text>业务老师</text><text>次数</text><text>提交日期</text><text>状态</text></view>
           <view wx:for="{{visibleHistory}}" wx:key="id" class="record-row">
-            <text class="record-code record-link" data-id="{{item.id}}" data-code="{{item.recordCode}}" data-original-type="{{item.rechargeType || item.verificationType}}" bindtap="openOrder">{{item.recordCode}}</text>
+            <text class="record-link" data-id="{{item.id}}" data-code="{{item.recordCode}}" data-original-type="{{item.originalType}}" bindtap="openOrder">{{item.recordCode}}</text>
             <text>{{item.productName}}</text>
-            <text>{{item.teacherName || '未指定'}}</text>
-            <text>{{item.unitCount}} 次</text>
+            <text>{{item.teacherLabel}}</text>
+            <text>{{item.unitLabel}}</text>
+            <text>{{item.submittedAtLabel}}</text>
             <text>{{item.statusLabel}}</text>
           </view>
         </view>
       </scroll-view>
-      <view wx:if="{{!visibleHistory.length}}" class="empty">暂无相关记录</view>
+      <view wx:elif="{{!historyLoading}}" class="empty">暂无相关记录</view>
+      <view class="history-pagination">
+        <button wx:if="{{historyHasMore}}" class="secondary load-history-button" bindtap="loadMoreHistory" loading="{{historyLoading}}" disabled="{{historyLoading}}">加载更多</button>
+      </view>
+      <view wx:if="{{historyMessage}}" class="section-message {{historyError ? 'error' : ''}}">{{historyMessage}}</view>
     </view>
   </block>
+
   <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
 </view>

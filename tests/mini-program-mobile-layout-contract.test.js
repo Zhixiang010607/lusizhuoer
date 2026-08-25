@@ -16,6 +16,8 @@ test("mini-program uses the shared mobile visual tokens and touch-sized controls
     assert.match(wxss, new RegExp(token, "i"), `missing shared mobile color token ${token}`);
   }
   assert.match(wxss, /\.input,\s*\.picker,\s*\.textarea\s*\{[^}]*min-height:\s*88rpx/s);
+  assert.match(wxss, /\.picker\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s,
+    "picker values must remain inside their rounded field on one line");
   assert.match(wxss, /\.primary,\s*\.secondary,\s*\.danger,\s*\.ghost\s*\{[^}]*min-height:\s*88rpx/s);
   assert.match(wxss, /\.action-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2,/s,
     "mobile business actions should follow the compact two-column web layout");
@@ -129,10 +131,35 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
   assert.match(wxss, /\.customer-table\s*\{\s*width:\s*100%;\s*min-width:\s*700rpx;/);
   assert.match(wxss, /\.summary-table \.table-row\s*\{[^}]*minmax\(180rpx,\s*1\.6fr\)[^}]*repeat\(4,\s*minmax\(100rpx,\s*1fr\)\)/s);
   assert.match(wxss, /\.table-row > view\s*\{[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
+  assert.match(wxss, /\.detail-info-item text\s*\{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s,
+    "profile facts must not split identifiers and phone numbers across lines");
+  assert.match(wxss, /\.ranking-table \.table-row > view\s*\{[^}]*justify-content:\s*center;[^}]*text-align:\s*center;/s,
+    "ranking headers and values must remain centered in their cells");
+  assert.match(wxss, /\.summary-table \.table-head \.summary-product\s*\{[^}]*align-items:\s*center\s*!important;[^}]*text-align:\s*center;/s,
+    "the product summary header must be centered while product rows remain left aligned");
+  assert.match(wxss, /\.table-pagination > text\s*\{[^}]*text-align:\s*center;[^}]*white-space:\s*nowrap;/s,
+    "previous, page summary, and next must stay on one centered row");
   assert.match(storeDetailWxml, /data-code="\{\{item\.customerCode\}\}" bindtap="openCustomer">\{\{item\.customerName\}\}<\/view>/);
   assert.doesNotMatch(storeDetailWxml, /\{\{item\.customerName\}\}\s*·\s*\{\{item\.customerCode\}\}/);
   assert.match(context, /模块顺序、文案、字号、间距、颜色、卡片边框与圆角、按钮排列、表格列宽/);
   assert.match(context, /微信原生状态栏、右上角胶囊、导航栏与浏览器自身地址栏属于平台边界/);
+});
+
+test("mobile management controls stay centered without breaking data into characters", () => {
+  const customers = read("miniprogram-app", "miniprogram", "pages", "customers", "index.wxss");
+  const reviews = read("miniprogram-app", "miniprogram", "pages", "reviews", "index.wxss");
+  const teacher = read("miniprogram-app", "miniprogram", "pages", "teacher-detail", "index.wxss");
+
+  assert.match(customers, /\.pager text\s*\{[^}]*text-align:\s*center;[^}]*white-space:\s*nowrap;/s);
+  for (const selector of ["review-type-tabs button", "mode-tabs button", "review-action button"]) {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    assert.match(reviews, new RegExp(`\\.${escaped}\\s*\\{[^}]*display:\\s*flex;[^}]*align-items:\\s*center;[^}]*justify-content:\\s*center;[^}]*white-space:\\s*nowrap;`, "s"),
+      `${selector} must center its label in both axes`);
+  }
+  assert.match(teacher, /\.quota-facts text:last-child\s*\{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s);
+  assert.match(teacher, /\.history-row text\s*\{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s);
+  assert.match(teacher, /\.history-row > view:first-child text:nth-child\(3\)\s*\{[^}]*overflow-wrap:\s*anywhere;[^}]*white-space:\s*normal;/s,
+    "only a free-form history note may wrap; dates, counts, names, and codes stay intact");
 });
 
 test("home dashboard mapper preserves web metric and profile column semantics", () => {

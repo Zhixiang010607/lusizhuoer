@@ -1,5 +1,4 @@
 <view class="page">
-  <hq-rail active="management" />
   <view class="page-heading"><text class="title">{{title}}</text></view>
 
   <view class="search-panel">
@@ -17,8 +16,8 @@
     <scroll-view class="table-scroll" scroll-x>
       <view class="data-table {{type}}">
         <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text><text>查看</text></view>
-        <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>老师编号</text><text>联系电话</text><text>状态</text><text>体验额度</text><text>账号操作</text></view>
-        <block wx:if="{{searched && searchRows.length}}"><template is="directoryRows" data="{{rows: searchRows, type: type, mutatingRef: mutatingRef}}" /></block>
+        <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>老师编号</text><text>联系电话</text><text>状态</text></view>
+        <block wx:if="{{searched && searchRows.length}}"><template is="directoryRows" data="{{rows: searchRows, type: type}}" /></block>
         <view wx:else class="table-empty">{{searched ? '没有符合条件的' + noun : '尚未查询'}}</view>
       </view>
     </scroll-view>
@@ -29,8 +28,8 @@
     <scroll-view class="table-scroll" scroll-x>
       <view class="data-table {{type}}">
         <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text><text>查看</text></view>
-        <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>老师编号</text><text>联系电话</text><text>状态</text><text>体验额度</text><text>账号操作</text></view>
-        <template wx:if="{{activeRows.length}}" is="directoryRows" data="{{rows: activeRows, type: type, mutatingRef: mutatingRef}}" />
+        <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>老师编号</text><text>联系电话</text><text>状态</text></view>
+        <template wx:if="{{activeRows.length}}" is="directoryRows" data="{{rows: activeRows, type: type}}" />
         <view wx:else class="table-empty">{{loading ? '正在读取数据库…' : '暂无活跃' + noun}}</view>
       </view>
     </scroll-view>
@@ -41,8 +40,8 @@
     <scroll-view class="table-scroll" scroll-x>
       <view class="data-table {{type}}">
         <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text><text>查看</text></view>
-        <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>老师编号</text><text>联系电话</text><text>状态</text><text>体验额度</text><text>账号操作</text></view>
-        <template wx:if="{{archivedRows.length}}" is="directoryRows" data="{{rows: archivedRows, type: type, mutatingRef: mutatingRef}}" />
+        <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>老师编号</text><text>联系电话</text><text>状态</text></view>
+        <template wx:if="{{archivedRows.length}}" is="directoryRows" data="{{rows: archivedRows, type: type}}" />
         <view wx:else class="table-empty">暂无封存{{noun}}</view>
       </view>
     </scroll-view>
@@ -56,7 +55,7 @@
       <text class="link" data-ref="{{item.ref}}" bindtap="openDetail">{{item.name}}</text><text>{{item.contact}}</text><text>{{item.phone}}</text><text>{{item.address}}</text><text><text class="status {{item.archived ? 'archived' : 'active'}}">{{item.archived ? '封存' : '活跃'}}</text></text><text><button class="table-button" data-ref="{{item.ref}}" bindtap="openDetail">进入主页</button></text>
     </view>
     <view wx:else class="table-row teacher">
-      <text class="link" data-ref="{{item.ref}}" bindtap="openDetail">{{item.name}}</text><text>{{item.code}}</text><text>{{item.phone}}</text><text><text class="status {{item.archived ? 'archived' : 'active'}}">{{item.archived ? '封存' : '活跃'}}</text></text><text><button class="table-button" data-ref="{{item.ref}}" bindtap="openExperience">配置／充值</button></text><text><button class="table-button danger-button" data-ref="{{item.ref}}" bindtap="toggleTeacherStatus" loading="{{mutatingRef === item.ref}}" disabled="{{mutatingRef}}">{{item.archived ? '激活账号' : '封存账号'}}</button></text>
+      <text class="link" data-ref="{{item.ref}}" bindtap="openDetail">{{item.name}}</text><text>{{item.code}}</text><text>{{item.phone}}</text><text><text class="status {{item.archived ? 'archived' : 'active'}}">{{item.archived ? '封存' : '活跃'}}</text></text>
     </view>
   </block>
 </template>

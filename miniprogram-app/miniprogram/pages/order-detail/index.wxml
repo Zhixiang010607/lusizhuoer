@@ -2,7 +2,7 @@
   <view wx:if="{{loading}}" class="card empty">正在从数据库读取工单…</view>
   <block wx:elif="{{order}}">
     <view class="card order-hero">
-      <view><text class="eyebrow">{{order.typeLabel}}</text><text class="order-title">{{noun}}单 {{order.recordCode}}</text><text class="order-address">门店详细地址：{{order.storeAddress}}</text></view>
+      <view class="hero-copy"><text class="eyebrow">{{order.typeLabel}}</text><text class="order-title">{{noun}}单 {{order.recordCode}}</text><text class="order-address">门店详细地址：{{order.storeAddress}}</text></view>
       <text class="status-badge status-{{order.recordStatus}}">{{order.statusLabel}}</text>
     </view>
 
@@ -13,9 +13,12 @@
     <view class="card">
       <view class="card-title"><text>{{noun}}信息</text><text class="badge">数据库原单</text></view>
       <view class="detail-grid">
-        <view><text>工单类型</text><text class="detail-value">{{order.typeLabel}}</text></view><view><text>次数</text><text class="detail-value">{{order.unitCount}} 次</text></view>
-        <view><text>提交时间</text><text class="detail-value">{{order.submittedAt}}</text></view><view><text>审核时间</text><text class="detail-value">{{order.reviewedAt}}</text></view>
-        <view wx:if="{{baseType === 'RECHARGE'}}"><text>业务前余额</text><text class="detail-value">{{order.balanceBeforeLabel}}</text></view><view wx:if="{{baseType === 'RECHARGE'}}"><text>业务后余额</text><text class="detail-value">{{order.balanceAfterLabel}}</text></view>
+        <view><text>工单类型</text><text class="detail-value">{{order.typeLabel}}</text></view>
+        <view><text>次数</text><text class="detail-value">{{order.unitCount}} 次</text></view>
+        <view><text>提交时间</text><text class="detail-value">{{order.submittedAt}}</text></view>
+        <view wx:if="{{baseType === 'RECHARGE' || order.originalType === 'SUPPLEMENT'}}"><text>审核时间</text><text class="detail-value">{{order.reviewedAt}}</text></view>
+        <view wx:if="{{baseType === 'RECHARGE'}}"><text>业务前余额</text><text class="detail-value">{{order.balanceBeforeLabel}}</text></view>
+        <view wx:if="{{baseType === 'RECHARGE'}}"><text>业务后余额</text><text class="detail-value">{{order.balanceAfterLabel}}</text></view>
       </view>
     </view>
 
@@ -24,19 +27,45 @@
       <view wx:for="{{notes}}" wx:key="label" class="note-row"><text>{{item.label}}</text><text>{{item.value}}</text></view>
     </view>
 
-    <view wx:if="{{baseType === 'VERIFICATION'}}" class="card">
-      <view class="card-title"><view><text>核销照片</text><text class="photo-note">点击预览高清原图；保存时不压缩</text></view><text class="badge">{{photos.length}} 张</text></view>
-      <view wx:if="{{photoLoading}}" class="empty">正在读取照片清单…</view>
-      <view wx:elif="{{photos.length}}" class="photo-grid">
-        <view wx:for="{{photos}}" wx:key="slot" class="photo-card">
-          <image class="photo" src="{{item.thumbnailUrl}}" mode="aspectFill" data-slot="{{item.slot}}" bindtap="previewPhoto"></image>
-          <view><text>{{item.label}}</text><text class="photo-size">{{item.sizeLabel}}</text></view>
-          <view class="photo-actions"><button data-slot="{{item.slot}}" bindtap="previewPhoto">查看原图</button><button data-slot="{{item.slot}}" bindtap="savePhoto">保存相册</button></view>
+    <view wx:if="{{baseType === 'VERIFICATION'}}" class="card photo-section">
+      <view class="card-title photo-heading">
+        <view><text>核销照片</text><text class="photo-note">五个照片位均以数据库清单为准</text></view>
+        <text class="badge">{{photoCount}} / 5</text>
+      </view>
+      <view wx:if="{{photoManifestError}}" class="photo-list-error">
+        <text>照片清单读取失败：{{photoManifestError}}</text>
+        <button class="secondary compact-button" bindtap="retryPhotoList" loading="{{photoLoading}}" disabled="{{photoLoading || uploading || exporting}}">重试清单</button>
+      </view>
+      <view wx:if="{{canEdit}}" class="edit-window">可补充或替换照片位 3–5；服务端授权截止 {{editableUntilLabel}}</view>
+      <view class="photo-grid">
+        <view wx:for="{{photos}}" wx:key="slot" class="photo-card state-{{item.state}}">
+          <view class="photo-frame">
+            <image wx:if="{{item.declared && item.thumbnailState === 'ready'}}" class="photo" src="{{item.thumbnailUrl}}" mode="aspectFill" data-slot="{{item.slot}}" bindtap="previewPhoto" binderror="photoThumbnailError"></image>
+            <view wx:elif="{{item.declared}}" class="slot-placeholder slot-error">
+              <text>缩略图读取失败</text>
+              <button class="secondary compact-button" data-slot="{{item.slot}}" bindtap="retryThumbnail" loading="{{item.retrying}}" disabled="{{item.retrying}}">重试此图</button>
+            </view>
+            <view wx:elif="{{item.state === 'loading'}}" class="slot-placeholder"><text>正在读取此照片位…</text></view>
+            <view wx:elif="{{item.state === 'list-error'}}" class="slot-placeholder slot-error"><text>清单读取失败</text></view>
+            <view wx:else class="slot-placeholder"><text>此照片位尚未上传</text></view>
+          </view>
+          <view class="photo-meta"><text>{{item.label}}</text><text>{{item.declared ? '已留存' : (item.state === 'empty' ? '空照片位' : '状态待确认')}}</text></view>
+          <view wx:if="{{item.declared}}" class="photo-actions">
+            <button data-slot="{{item.slot}}" bindtap="previewPhoto" disabled="{{originalBusySlot >= 0 || uploading}}">查看原图</button>
+            <button data-slot="{{item.slot}}" bindtap="savePhoto" disabled="{{originalBusySlot >= 0 || uploading}}">保存相册</button>
+          </view>
+          <button wx:if="{{canEdit && item.slot >= 2}}" class="upload-button" data-slot="{{item.slot}}" bindtap="uploadExtraPhoto" loading="{{uploading && uploadingSlot === item.slot}}" disabled="{{uploading || exporting || photoLoading}}">{{item.declared ? '选择或拍摄替换' : '选择或拍摄补充'}}</button>
         </view>
       </view>
-      <view wx:else class="empty">该工单暂无核销照片</view>
+    </view>
+
+    <view class="card export-card">
+      <view class="card-title"><text>导出业务凭证</text><text class="badge">{{noun}}</text></view>
+      <view class="export-actions"><button class="primary" bindtap="exportPdf" loading="{{exporting}}" disabled="{{exporting || uploading}}">导出 PDF</button><button class="secondary" bindtap="exportImage" loading="{{exporting}}" disabled="{{exporting || uploading}}">导出图片</button></view>
+      <text wx:if="{{exportProgress}}" class="export-progress">{{exportProgress}}</text>
     </view>
   </block>
   <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
+  <canvas id="receiptCanvas" type="2d" class="export-canvas"></canvas>
   <view class="safe-bottom"></view>
 </view>

@@ -1,24 +1,73 @@
-.profile-top { display: flex; align-items: center; gap: 22rpx; margin-bottom: 24rpx; }
+.profile-card { padding-bottom: 24rpx; }
+.profile-top { display: flex; align-items: center; gap: 20rpx; margin-bottom: 16rpx; }
 .profile-name { min-width: 0; flex: 1; }
-.profile-name text { display: block; }
-.profile-name > text:first-child { overflow: hidden; font-size: 36rpx; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
-.profile-name .profile-sub { margin-top: 7rpx; color: #7c7062; font-size: 22rpx; }
-.save-note { width: 100%; margin: 16rpx 0 0; }
-.balance-row { display: flex; align-items: center; justify-content: space-between; gap: 18rpx; padding: 19rpx 0; border-top: 1rpx solid #eadfce; }
-.balance-row:first-of-type { border-top: 0; }
-.balance-name, .balance-code { display: block; }
-.balance-name { font-weight: 800; }
-.balance-code { margin-top: 5rpx; color: #8a7d6d; font-size: 21rpx; }
-.balance-count { color: #8b642e; font-size: 31rpx; font-weight: 850; }
-.history-tabs { margin-bottom: 16rpx; }
-.history-tabs button { padding: 0 8rpx; }
-.record-scroll { width: 100%; overflow: hidden; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
-.record-table { width: 1300rpx; min-width: 1300rpx; background: #fff; }
-.record-row { min-height: 76rpx; display: grid; grid-template-columns: 310rpx 280rpx 260rpx 180rpx 270rpx; align-items: center; border-top: 1rpx solid #dfcfb4; }
-.record-row:first-child { border-top: 0; }
-.record-row text { min-width: 0; padding: 14rpx 16rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.record-head { min-height: 66rpx; color: #675b4b; background: #f5ead8; font-size: 22rpx; font-weight: 800; }
-.record-code { color: #8b642e; font-weight: 800; }
+.profile-name text { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-name > text:first-child { font-size: 36rpx; font-weight: 850; }
+.profile-name .profile-sub { margin-top: 6rpx; color: #7c7062; font-size: 22rpx; }
 .photo-placeholder { display: flex; align-items: center; justify-content: center; padding: 10rpx; color: #74695c; background: #f5ead8; font-size: 20rpx; line-height: 1.3; text-align: center; }
-.photo-actions { margin-top: 20rpx; }
-.record-link { color: #8b642e; font-weight: 800; text-decoration: underline; }
+.photo-actions { margin-top: 12rpx; }
+.compact-button { min-height: 68rpx; padding: 0 18rpx; font-size: 23rpx; }
+.profile-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 18rpx; }
+.profile-facts .fact { padding: 14rpx 8rpx; text-align: center; }
+.profile-facts .value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.subsection-title { margin: 22rpx 0 12rpx; font-size: 27rpx; font-weight: 850; }
+.recent-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10rpx; }
+.recent-item { min-width: 0; min-height: 104rpx; display: flex; flex-direction: column; justify-content: center; padding: 14rpx 16rpx; background: #fff7eb; border: 1rpx solid #eadcc6; border-radius: 14rpx; }
+.recent-item > text:first-child { color: #7c7062; font-size: 21rpx; }
+.recent-item > text:last-child { margin-top: 8rpx; overflow: hidden; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.status-item { justify-content: flex-start; }
+.status-line { min-width: 0; display: flex; align-items: center; gap: 10rpx; margin-top: 7rpx; }
+.status-badge { flex: none; padding: 5rpx 11rpx; border-radius: 999rpx; font-size: 20rpx; font-weight: 800; white-space: nowrap; }
+.status-badge.active { color: #426b55; background: #e7f2e9; }
+.status-badge.archived { color: #934d43; background: #f8e7e3; }
+.status-line button { min-width: 0; flex: 1; min-height: 54rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 10rpx; border-radius: 10rpx; font-size: 20rpx; font-weight: 800; line-height: 1.2; white-space: nowrap; }
+.status-activate { color: #426b55; background: #e7f2e9; border: 1rpx solid #b8d5c0; }
+.status-archive { color: #934d43; background: #f8e7e3; border: 1rpx solid #e1bab2; }
+
+.section-message { margin-top: 12rpx; padding: 12rpx 14rpx; color: #48705b; background: #edf5ee; border-radius: 10rpx; font-size: 21rpx; line-height: 1.45; }
+.section-message.error { color: #9a302b; background: #fff0ee; }
+
+.notes-title { align-items: center; }
+.notes-actions { min-width: 0; display: flex; align-items: center; gap: 8rpx; }
+.notes-actions button { width: auto; min-width: 94rpx; min-height: 54rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 14rpx; border-radius: 10rpx; font-size: 21rpx; font-weight: 800; line-height: 1.2; }
+.small-action { color: #fff; background: #76592f; }
+.small-action[disabled] { color: #9b9082; background: #e7ddce; }
+.ghost-action { color: #76592f; background: #fff; border: 1rpx solid #d8bc8c; }
+.notes-read { width: 100%; height: 220rpx; padding: 18rpx 20rpx; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 14rpx; }
+.notes-read text { color: #302a22; font-size: 24rpx; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+.notes-input { height: 220rpx; min-height: 220rpx; padding: 18rpx 20rpx; }
+.character-count { margin-top: 7rpx; color: #8a7d6d; font-size: 20rpx; text-align: right; }
+.character-count.limit { color: #99574b; font-weight: 800; }
+
+.message-list { max-height: 620rpx; display: grid; gap: 10rpx; overflow-y: auto; }
+.message-item { min-width: 0; padding: 15rpx 17rpx; background: #fff7eb; border: 1rpx solid #eadcc6; border-radius: 14rpx; }
+.message-meta { min-width: 0; display: flex; align-items: baseline; gap: 10rpx; }
+.message-author { min-width: 0; flex: 1; overflow: hidden; font-size: 22rpx; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.message-time { flex: none; color: #8a7d6d; font-size: 19rpx; white-space: nowrap; }
+.message-content { display: block; margin-top: 9rpx; color: #3c342a; font-size: 23rpx; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+.message-empty { min-height: 120rpx; display: flex; align-items: center; justify-content: center; color: #7c7062; background: #fff7eb; border: 1rpx dashed #d8c5a3; border-radius: 14rpx; font-size: 22rpx; }
+.load-message-button, .load-history-button { width: auto; min-width: 190rpx; min-height: 62rpx; display: flex; align-items: center; justify-content: center; margin: 14rpx auto 0; padding: 0 20rpx; font-size: 22rpx; line-height: 1.2; }
+.message-compose { display: grid; grid-template-columns: minmax(0, 1fr) 154rpx; align-items: end; gap: 10rpx; margin-top: 16rpx; padding-top: 16rpx; border-top: 1rpx solid #eadfce; }
+.message-input-wrap { min-width: 0; }
+.message-input { height: 126rpx; min-height: 126rpx; padding: 14rpx 17rpx; font-size: 23rpx; }
+.submit-message-button { width: 154rpx; min-height: 68rpx; margin: 0 0 27rpx; padding: 0 10rpx; font-size: 22rpx; }
+
+.table-scroll { width: 100%; overflow: hidden; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
+.balance-table { width: 660rpx; min-width: 660rpx; background: #fffaf3; }
+.balance-table-row { width: 660rpx; min-height: 74rpx; display: grid; grid-template-columns: 240rpx 140rpx 140rpx 140rpx; border-top: 1rpx solid #dfcfb4; }
+.balance-table-row:first-child { border-top: 0; }
+.balance-table-row text, .record-row text { min-width: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.balance-table-row text { min-height: 74rpx; padding: 12rpx 8rpx; font-size: 21rpx; }
+.table-head { color: #675b4b; background: #f5ead8; font-weight: 800; }
+.balance-count { color: #76592f; font-weight: 850; }
+
+.history-tabs { margin-bottom: 14rpx; }
+.history-tabs button { min-width: 0; padding: 0 6rpx; font-size: 22rpx; white-space: nowrap; }
+.record-table { width: 1160rpx; min-width: 1160rpx; background: #fffaf3; }
+.record-row { width: 1160rpx; min-height: 76rpx; display: grid; grid-template-columns: 220rpx 170rpx 190rpx 110rpx 170rpx 300rpx; border-top: 1rpx solid #dfcfb4; }
+.record-row:first-child { border-top: 0; }
+.record-row text { min-height: 76rpx; padding: 12rpx 9rpx; font-size: 21rpx; }
+.record-row.table-head { min-height: 66rpx; }
+.record-row.table-head text { min-height: 66rpx; }
+.record-link { color: #76592f; font-weight: 850; text-decoration: underline; }
+.history-pagination { min-height: 8rpx; display: flex; justify-content: center; }

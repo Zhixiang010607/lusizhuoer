@@ -34,22 +34,29 @@
 | 老师工作台 | `teacher-work-orders.html`、`teacher-work-order-detail.html`、`teacher-recharge-create.html`、`teacher-refund-create.html`、`teacher-verification-create.html`、`teacher-verification-experience.html` | 路由、首页布局、时间查询、4 类明细、客户范围、本人自动归属、体验仅老师均 `PASS-AUTO`；真实老师会话 `NEEDS-ROLE-LOGIN` |
 | 兼容入口 | `teacher-detail.html` 旧详情链接 | 重定向到当前 `staff-detail.html`，`PASS-AUTO` |
 
-## 微信小程序（12 个页面）
+## 微信小程序（19 个页面）
 
 | 页面 | 页面、按钮与查询 | 结果 |
 | --- | --- | --- |
-| `pages/login/index` | Logo 视觉衍生暖象牙白／浅香槟金背景、弧形居中框、“露思卓儿”原生文字、眼睛图标、手机号＋密码、圆角微信手机号登录、修改密码入口 | 既有账号密码登录及总部 UID／角色回读 `PASS-LIVE`；亮色 Logo 背景、框内文字、弧形布局、密码框右侧居中眼睛图标、微信圆角按钮文字双向居中和改密跳转均已在开发者工具重新构建并截图复验 `PASS-LIVE`；微信手机号授权 `NEEDS-CONSOLE-SETUP`（还需身份源、合法域名和真机） |
-| `pages/password-reset/index` | 既有手机号短信验证码、新密码与确认、眼睛图标、保存、返回登录 | 页面路由、验证码按钮列宽、输入框和右侧眼睛图标已在开发者工具渲染截图复验 `PASS-LIVE`；不自动创建陌生 Auth 用户、验证码会话、密码规则、调用当前 UID 自助改密及完成后退出均 `PASS-AUTO`；真实短信发送与改密 `CONFIRM-ONLY` |
-| `pages/home/index` | 三角色首页布局；总部“总／查／管／审／退”、栏下单列菜单、日期、六项指标、动态刻度图表、排名维度、紧凑分页、跳页、重试、CSV 导出；门店／老师业务汇总和明细 | 总部真实 UID／角色会话下首页、6 项指标、3 张图、真实排名、老师维度切换、第 1 页跳转、管理单列下拉及点外关闭均 `PASS-LIVE`，无页面异常；菜单互斥、分页文字居中、日期、排名独立读取和导出契约 `PASS-AUTO`；CSV 分享弹窗未实际触发，写文件／分享仍需真机复验 |
-| `pages/hq-directory/index` | 产品／门店／老师名称、编号、手机号查询，活跃／封存分区，新增表单，详情、老师体验额度、封存／激活 | 三类目录均在真实总部会话读取数据库且无页面异常，产品名称查询返回唯一匹配 `PASS-LIVE`；创建规则、独立老师创建云函数、状态回读确认和权限 `PASS-AUTO`；新增与状态写入 `CONFIRM-ONLY` |
-| `pages/reviews/index` | 充值／退费／核销按门店与状态、精确工单查询，100 条分页、直接跳页、工单／客户详情、通过／驳回与可选留言 | 充值、退费和核销三类均已在真实总部会话完成数据库只读查询，充值完整工单号查询返回唯一匹配且无页面异常 `PASS-LIVE`（空结果同样按数据库真实返回处理）；分页、详情和审核参数 `PASS-AUTO`；审核决定 `CONFIRM-ONLY` |
-| `pages/customers/index` | 总部门店范围、业务阶段、状态、建档日期、姓名／生日、汇总、清空、分页、直接跳页、详情入口；老师业务客户 | 原基础查询和详情入口 `PASS-LIVE`；扩展筛选、门店锁定、老师范围和游标直跳 `PASS-AUTO`；扩展页面待开发者工具重新登录后复验 |
-| `pages/customer-detail/index` | 原图重读／保存、备注、余额、充值／核销／体验历史页签及工单详情链接 | 详情读取与历史页签 `PASS-LIVE`；工单链接 `PASS-AUTO`；保存类操作 `CONFIRM-ONLY` |
-| `pages/customer-create/index` | 姓名、生日、备注、拍照、授权、提交 | 相机／授权／整体成功规则 `PASS-AUTO`；真实建立 `NEEDS-ROLE-LOGIN` |
-| `pages/recharge/index` | 充值／退费、客户、项目、老师、次数、留言、防重复恢复，完整成功或恢复后跳转对应工单详情 | 门店老师可选、老师自动绑定、门店锁定、`SUBMITTING → CONFIRMED → 详情回读清锁` 及充值／退费详情路由 `PASS-AUTO`；真实提交 `NEEDS-ROLE-LOGIN` |
-| `pages/verification/index` | 正常／体验、客户、项目、老师、照片、人脸、核销、防重复恢复，完整成功或恢复后跳转对应工单详情 | 正常核销老师必选、体验仅老师、只验客户脸、额度原子扣减、`SUBMITTING → CONFIRMED → 详情回读清锁` 及正常／体验详情路由 `PASS-AUTO`；真实提交 `NEEDS-ROLE-LOGIN` |
-| `pages/records/index` | 总部／门店充值与核销查询：门店、项目、类型、状态、日期、姓名／生日、汇总、分页和直接跳页 | 角色范围、筛选参数、页码分页和详情路由 `PASS-AUTO`；真实数据库页面待开发者工具重新登录后复验 |
-| `pages/order-detail/index` | 总部／门店精确工单读取、老师关联工单读取、充值／退费／正常核销／体验核销标题、同请求防重确认清锁、客户入口、核销照片原图预览与相册保存 | 精确鉴权参数、角色分流、同工单 ID＋请求编号回读清锁、提交后四类详情路由和照片读取 `PASS-AUTO`；真实数据库详情与照片待开发者工具重新登录后复验 |
+| `pages/login/index` | 暖象牙白／浅香槟金品牌背景、弧形居中框、手机号＋密码、微信手机号登录、修改密码入口 | 既有总部账号密码登录与 UID／角色回读 `PASS-LIVE`；登录布局 `PASS-LIVE`；微信手机号授权 `NEEDS-CONSOLE-SETUP` |
+| `pages/password-reset/index` | 短信验证码、新密码与确认、保存、返回登录 | 页面与既有账号改密契约 `PASS-AUTO`；真实短信发送与改密 `CONFIRM-ONLY` |
+| `pages/home/index` | 总部“总／查／管／审／退”及六项指标、图表、排名；门店／老师时间范围、四类汇总、明细和客户 | 总部只读数据库会话 `PASS-LIVE`；三角色布局、参数与旧响应隔离 `PASS-AUTO`；门店／老师真实角色会话 `NEEDS-ROLE-LOGIN` |
+| `pages/product-management/index` | “全部产品”列表、产品名称进入模板、新增产品入口 | 专用流程与页面结构 `PASS-AUTO`；真实创建 `CONFIRM-ONLY` |
+| `pages/product-create/index` | 产品名称、分类、说明和创建后直达模板 | 表单与创建后路由 `PASS-AUTO`；真实创建 `CONFIRM-ONLY` |
+| `pages/product-detail/index` | 产品状态、共用原始 LOGO、两组说明、数据库回读、核销／充值 PDF 与图片四种真实预览和导出 | 与网页版单据排版、A4 多页、长图相册保存、预览竞态和精简 LOGO 文案 `PASS-AUTO`；模板保存／状态修改 `CONFIRM-ONLY`；相册与文件分享需真机复验 |
+| `pages/hq-directory/index` | 门店按名称／电话、老师按姓名／电话查询；查询结果、活跃／封存表格、独立新增与详情入口 | 总部真实只读目录会话 `PASS-LIVE`；老师四列和查询竞态 `PASS-AUTO`；新增与状态修改 `CONFIRM-ONLY` |
+| `pages/store-create/index` | 门店名称、完整地址、多联系人和初始账号创建 | 表单、校验与服务端创建契约 `PASS-AUTO`；真实创建 `CONFIRM-ONLY` |
+| `pages/store-detail/index` | 基础资料、时间范围、项目汇总、四类明细、分页、活跃／封存客户、总部状态操作 | 读取、精确跳转、布局与请求隔离 `PASS-AUTO`；真实写操作 `CONFIRM-ONLY`；门店角色会话 `NEEDS-ROLE-LOGIN` |
+| `pages/teacher-create/index` | 姓名、手机号、初始密码，不采集老师人脸 | 创建字段、清理与回读契约 `PASS-AUTO`；真实创建 `CONFIRM-ONLY` |
+| `pages/teacher-detail/index` | 档案、密码重置、状态、体验额度总览／配置／充值／删除和历史 | 读取、布局、权限与请求隔离 `PASS-AUTO`；额度、密码和状态写操作 `CONFIRM-ONLY` |
+| `pages/reviews/index` | 充值／退费／历史补录核销查询、分页、跳页、工单／客户详情、通过／驳回 | 总部真实只读查询 `PASS-LIVE`；精确列宽、状态语义和旧响应隔离 `PASS-AUTO`；审核决定 `CONFIRM-ONLY` |
+| `pages/customers/index` | 总部／门店客户范围、阶段、状态、日期、姓名／生日、分页、详情；老师不进入通用客户页 | 查询参数、角色边界、表格与请求隔离 `PASS-AUTO`；扩展条件需真实数据库复验 |
+| `pages/customer-detail/index` | 资料和照片、产品余额、三类独立历史分页、备注、留言、状态、工单链接 | 基础读取 `PASS-LIVE`；完整移动端逻辑、照片失败隔离、相册权限和旧响应隔离 `PASS-AUTO`；保存与状态修改 `CONFIRM-ONLY` |
+| `pages/customer-create/index` | 姓名、生日、备注、现场照片、授权与提交 | 上海日期、长度、人脸和整体成功契约 `PASS-AUTO`；真实建立 `NEEDS-ROLE-LOGIN` |
+| `pages/recharge/index` | 充值／退费、客户、项目、可选或自动老师、余额、留言、防重复恢复和详情跳转 | 角色归属、余额旧响应隔离、幂等恢复和详情路由 `PASS-AUTO`；真实提交 `NEEDS-ROLE-LOGIN` |
+| `pages/verification/index` | 正常／体验、客户、项目、老师、五照片链路、人脸、额度、防重复恢复和详情跳转 | 只验客户脸、角色边界、余额／令牌旧响应隔离、幂等恢复 `PASS-AUTO`；真实提交 `NEEDS-ROLE-LOGIN` |
+| `pages/records/index` | 总部／门店充值与核销查询，门店、项目、类型、状态、日期、客户、分页和直接跳页；完整单号单行；审核汇总仅充值／退费显示 | 角色范围、核销无审核汇总、完整单号、完成状态语义、精确表格、请求快照和详情路由 `PASS-AUTO`；真实扩展筛选待复验 |
+| `pages/order-detail/index` | 四类工单精确回读、完整单号单行、客户入口、五照片位、重试／补图、原图相册、PDF／图片导出 | 权限、类型校正、24 小时原提交人补图、A4 多页、照片 fail-closed、无核销审核时间和共享单据排版 `PASS-AUTO`；真实照片、相册、补图和导出需真机／专用账号复验 |
 
 ## 尚未冒充完成的事项
 

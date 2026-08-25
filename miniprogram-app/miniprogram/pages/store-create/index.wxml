@@ -1,5 +1,4 @@
 <view class="page">
-  <hq-rail active="management" />
   <view class="page-heading"><text>门店创建</text><text>总部权限</text></view>
   <view class="panel">
     <view class="section-heading"><view><text>门店资料</text></view><text>编号将在创建成功后自动生成</text></view>

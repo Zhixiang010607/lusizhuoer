@@ -3,6 +3,7 @@ const { requireSession } = require("../../services/session");
 const query = require("../../services/query-tools");
 
 const PAGE_SIZE = 20;
+const EMPTY_SUMMARY = Object.freeze({ total: 0, pending: 0, approved: 0, rejected: 0 });
 
 function labels(options) { return options.map((item) => item.label); }
 function values(options) { return options.map((item) => item.value); }
@@ -10,7 +11,7 @@ function values(options) { return options.map((item) => item.value); }
 Page({
   data: {
     session: {}, recordType: "RECHARGE", noun: "充值", loading: false, message: "", error: false,
-    mode: "browse", records: [], summary: { total: 0, pending: 0, approved: 0, rejected: 0 },
+    mode: "browse", records: [], summary: { ...EMPTY_SUMMARY },
     page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1, pageJump: "1",
     stores: [], storeLabels: ["全部门店"], storeIndex: 0,
     products: [], productLabels: ["全部项目"], productIndex: 0,
@@ -36,6 +37,7 @@ Page({
   },
 
   onPullDownRefresh() { this.load(1).finally(() => wx.stopPullDownRefresh()); },
+  onUnload() { this._requestEpoch = Number(this._requestEpoch || 0) + 1; },
 
   async loadStores() {
     try {
@@ -73,10 +75,15 @@ Page({
   },
 
   async load(page = 1) {
-    if (this.data.loading) return;
+    const epoch = Number(this._requestEpoch || 0) + 1;
+    this._requestEpoch = epoch;
+    const payload = this.buildPayload(page);
+    const recordType = this.data.recordType;
+    const noun = this.data.noun;
     this.setData({ loading: true, message: "", error: false });
     try {
-      const result = await callFace("queryStoreBusinessRecords", this.buildPayload(page));
+      const result = await callFace("queryStoreBusinessRecords", payload);
+      if (epoch !== this._requestEpoch) return;
       const products = (result.products || []).map((product) => ({
         productId: String(product.productId || ""),
         label: [product.productName || "未命名项目", product.productCode || ""].filter(Boolean).join(" · ")
@@ -86,34 +93,45 @@ Page({
       const totalPages = Math.max(1, Number(result.totalPages || 1));
       const actualPage = Math.min(totalPages, Math.max(1, Number(result.page || page)));
       this.setData({
-        records: (result.records || []).map((item) => query.normalizeRecord(item, this.data.recordType)),
-        summary: result.summary || { total: 0, pending: 0, approved: 0, rejected: 0 },
+        records: (result.records || []).map((item) => query.normalizeRecord(item, recordType)),
+        summary: result.summary || { ...EMPTY_SUMMARY },
         products, productLabels: ["全部项目", ...products.map((product) => product.label)], productIndex: nextProductIndex,
         page: actualPage, pageJump: String(actualPage), total: Number(result.total || 0), totalPages
       });
     } catch (error) {
-      this.setData({ records: [], message: error.message || `${this.data.noun}查询失败`, error: true });
-    } finally { this.setData({ loading: false }); }
+      if (epoch !== this._requestEpoch) return;
+      this.setData({
+        records: [], summary: { ...EMPTY_SUMMARY }, page: 1, pageJump: "1", total: 0, totalPages: 1,
+        message: error.message || `${noun}查询失败`, error: true
+      });
+    } finally {
+      if (epoch === this._requestEpoch) this.setData({ loading: false });
+    }
+  },
+
+  invalidateRequest(changes) {
+    this._requestEpoch = Number(this._requestEpoch || 0) + 1;
+    this.setData({ ...(changes || {}), loading: false });
   },
 
   setMode(event) {
     const mode = event.currentTarget.dataset.mode === "manual" ? "manual" : "browse";
-    this.setData({ mode, page: 1, pageJump: "1" });
+    this.invalidateRequest({ mode, page: 1, pageJump: "1" });
   },
-  chooseStore(event) { this.setData({ storeIndex: Number(event.detail.value) }); },
-  chooseProduct(event) { this.setData({ productIndex: Number(event.detail.value) }); },
-  chooseStatus(event) { this.setData({ statusIndex: Number(event.detail.value) }); },
-  chooseType(event) { this.setData({ typeIndex: Number(event.detail.value) }); },
+  chooseStore(event) { this.invalidateRequest({ storeIndex: Number(event.detail.value) }); },
+  chooseProduct(event) { this.invalidateRequest({ productIndex: Number(event.detail.value) }); },
+  chooseStatus(event) { this.invalidateRequest({ statusIndex: Number(event.detail.value) }); },
+  chooseType(event) { this.invalidateRequest({ typeIndex: Number(event.detail.value) }); },
   chooseTime(event) {
     const timeIndex = Number(event.detail.value);
     const value = this.data.timeValues[timeIndex] || "ALL";
     const range = query.timeRange(value, { startDate: this.data.startDate, endDate: this.data.endDate });
-    this.setData({ timeIndex, customRange: value === "CUSTOM", startDate: range.startDate, endDate: range.endDate });
+    this.invalidateRequest({ timeIndex, customRange: value === "CUSTOM", startDate: range.startDate, endDate: range.endDate });
   },
-  changeStart(event) { this.setData({ startDate: event.detail.value }); },
-  changeEnd(event) { this.setData({ endDate: event.detail.value }); },
-  inputCustomerName(event) { this.setData({ customerName: event.detail.value }); },
-  inputBirthDate(event) { this.setData({ birthDate: event.detail.value }); },
+  changeStart(event) { this.invalidateRequest({ startDate: event.detail.value }); },
+  changeEnd(event) { this.invalidateRequest({ endDate: event.detail.value }); },
+  inputCustomerName(event) { this.invalidateRequest({ customerName: event.detail.value }); },
+  inputBirthDate(event) { this.invalidateRequest({ birthDate: event.detail.value }); },
   runQuery() {
     if (this.data.startDate && this.data.endDate && this.data.startDate > this.data.endDate) {
       this.setData({ message: "开始日期不能晚于结束日期", error: true }); return;
@@ -121,10 +139,11 @@ Page({
     this.load(1);
   },
   resetQuery() {
-    this.setData({
+    this.invalidateRequest({
       mode: "browse", storeIndex: 0, productIndex: 0, statusIndex: 0, typeIndex: 0, timeIndex: 0,
       startDate: "", endDate: "", customRange: false, customerName: "", birthDate: "", page: 1, pageJump: "1"
-    }, () => this.load(1));
+    });
+    this.load(1);
   },
   previousPage() { if (!this.data.loading && this.data.page > 1) this.load(this.data.page - 1); },
   nextPage() { if (!this.data.loading && this.data.page < this.data.totalPages) this.load(this.data.page + 1); },
@@ -143,6 +162,10 @@ Page({
   openRecord(event) {
     const id = String(event.currentTarget.dataset.id || "");
     const code = String(event.currentTarget.dataset.code || "");
-    if (id) wx.navigateTo({ url: `/pages/order-detail/index?type=${this.data.recordType.toLowerCase()}&recordId=${encodeURIComponent(id)}&recordCode=${encodeURIComponent(code)}` });
+    const originalType = String(event.currentTarget.dataset.category || "").toUpperCase();
+    const category = this.data.recordType === "RECHARGE"
+      ? (originalType === "REFUND" ? "REFUND" : "RECHARGE")
+      : (originalType === "EXPERIENCE" ? "EXPERIENCE" : "VERIFICATION");
+    if (id) wx.navigateTo({ url: `/pages/order-detail/index?type=${this.data.recordType.toLowerCase()}&category=${category}&recordId=${encodeURIComponent(id)}&recordCode=${encodeURIComponent(code)}` });
   }
 });

@@ -1,6 +1,4 @@
 <view class="page">
-  <hq-rail active="management" />
-
   <view class="page-heading">
     <text class="title">项目管理</text>
   </view>

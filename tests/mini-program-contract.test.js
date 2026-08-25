@@ -17,7 +17,14 @@ assert.match(read("services", "cloudbase.js"), /pnpm install --frozen-lockfile/)
 
 const app = JSON.parse(read("app.json"));
 assert.ok(!(app.requiredPrivateInfos || []).includes("chooseMedia"), "chooseMedia is not a valid requiredPrivateInfos entry");
-for (const page of ["login", "password-reset", "home", "hq-directory", "reviews", "customers", "customer-detail", "customer-create", "recharge", "verification", "records", "order-detail"]) {
+const expectedPages = [
+  "login", "password-reset", "home", "product-management", "product-create", "product-detail",
+  "hq-directory", "store-create", "store-detail", "teacher-create", "teacher-detail", "reviews",
+  "customers", "customer-detail", "customer-create", "recharge", "verification", "records", "order-detail"
+];
+assert.deepEqual(app.pages, expectedPages.map((page) => `pages/${page}/index`),
+  "the complete isolated mini-program page inventory must remain registered in its intended order");
+for (const page of expectedPages) {
   assert.ok(app.pages.includes(`pages/${page}/index`), `missing mini-program page ${page}`);
   for (const extension of ["js", "json", "wxml", "wxss"]) assert.ok(fs.existsSync(path.join(mini, "pages", page, `index.${extension}`)), `${page}.${extension} missing`);
 }
@@ -120,13 +127,18 @@ assert.deepEqual(verificationNavigation.redirects, [
 ]);
 
 const orderDetail = read("pages", "order-detail", "index.js");
-assert.match(orderDetail, /category === "EXPERIENCE" \? "体验核销" : "核销"/);
-assert.match(orderDetail, /category === "REFUND" \? "退费" : "充值"/);
+assert.match(orderDetail, /function exactOrderKind/);
+assert.match(orderDetail, /exact === "EXPERIENCE" \? "体验核销" : "核销"/);
+assert.match(orderDetail, /exact === "REFUND" \? "退费" : "充值"/);
 assert.match(orderDetail, /submission\.acknowledge\(this\.data\.baseType, this\.data\.recordId, this\.data\.submissionClientRequestId\)/);
+assert.match(read("pages", "order-detail", "index.wxml"), /baseType === 'RECHARGE' \|\| order\.originalType === 'SUPPLEMENT'/,
+  "normal and experience verification records must not render a review time");
 
 const photo = read("pages", "customer-detail", "index.js");
+const photoAlbum = read("services", "photo-album.js");
 assert.match(photo, /photoFailed\(\).*photoUrl: ""/s);
-assert.match(photo, /saveImageToPhotosAlbum/);
+assert.match(photo, /saveImageToAlbum/);
+assert.match(photoAlbum, /saveImageToPhotosAlbum/);
 assert.doesNotMatch(read("pages", "customer-detail", "index.wxml"), /binderror="reloadPhoto"/);
 
 // Execute the idempotency helper with isolated wx/session/callFunction mocks.

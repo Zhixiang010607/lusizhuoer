@@ -1,5 +1,4 @@
 <view class="page">
-  <hq-rail active="management" />
   <view class="page-heading"><text class="title">产品创建</text><text class="permission">总部权限</text></view>
 
   <view class="panel">
