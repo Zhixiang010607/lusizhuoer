@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v90";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v91";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -2023,35 +2023,75 @@ async function getActiveStoreCustomerDetail(event) {
   return getCustomerPhotoUrl(event, { requireActiveStoreCustomer: true, caller });
 }
 
+function activeStoreCustomerCursor(value) {
+  if (value === undefined || value === null) return null;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    fail("客户分页游标格式无效。", "BAD_REQUEST");
+  }
+  const expectedKeys = ["birthDate", "customerCode", "customerName"];
+  const actualKeys = Object.keys(value).sort();
+  if (actualKeys.length !== expectedKeys.length || actualKeys.some((key, index) => key !== expectedKeys[index])) {
+    fail("客户分页游标字段无效。", "BAD_REQUEST");
+  }
+  if (expectedKeys.some((key) => typeof value[key] !== "string" || value[key] !== value[key].trim() || !value[key])) {
+    fail("客户分页游标不完整。", "BAD_REQUEST");
+  }
+  const customerName = value.customerName;
+  const birthDate = optionalBusinessQueryDate(value.birthDate, "客户分页游标生日");
+  const customerCode = value.customerCode;
+  if (customerName.length > 100 || /[\u0000-\u001f\u007f]/.test(customerName)) {
+    fail("客户分页游标姓名无效。", "BAD_REQUEST");
+  }
+  if (customerCode.length > 96 || /[\u0000-\u001f\u007f]/.test(customerCode)) {
+    fail("客户分页游标编号无效。", "BAD_REQUEST");
+  }
+  return { customerName, birthDate, customerCode };
+}
+
 async function listActiveStoreCustomers(event = {}) {
   const caller = await activeBusinessCaller(event);
   const requestedLimit = Number(event.limit);
   const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100) : 100;
   const customerName = String(event.customerName || "").trim();
   const birthDate = optionalBusinessQueryDate(event.birthDate, "客户生日");
+  const cursor = activeStoreCustomerCursor(event.cursor);
   if (customerName.length > 100) fail("客户姓名不能超过 100 个字符。", "BAD_REQUEST");
   if (Boolean(customerName) !== Boolean(birthDate)) fail("按资料查询时必须同时填写客户姓名和生日。", "BAD_REQUEST");
+  if (cursor && customerName && (cursor.customerName !== customerName || cursor.birthDate !== birthDate)) {
+    fail("客户分页游标与当前姓名和生日查询不一致。", "BAD_REQUEST");
+  }
   const rows = await executeSql(
-    `SELECT customer_code, customer_name, birth_date
+    `SELECT customer_code, customer_name, birth_date,
+            TO_CHAR(COALESCE(birth_date, DATE '0001-01-01'), 'YYYY-MM-DD') AS cursor_birth_date
        FROM public.customers
       WHERE created_store_id = ${caller.storeId}
         AND customer_status = 'ACTIVE'
         ${customerName ? `AND customer_name = ${sqlText(customerName)} AND birth_date = ${sqlText(birthDate)}::date` : ""}
-      ORDER BY customer_name, birth_date, customer_code
+        ${cursor ? `AND (customer_name, COALESCE(birth_date, DATE '0001-01-01'), customer_code) > (${sqlText(cursor.customerName)}, ${sqlText(cursor.birthDate)}::date, ${sqlText(cursor.customerCode)})` : ""}
+      ORDER BY customer_name ASC, COALESCE(birth_date, DATE '0001-01-01') ASC, customer_code ASC
       LIMIT ${limit + 1}`
   );
   const hasMore = rows.length > limit;
+  const visibleRows = rows.slice(0, limit);
+  const last = visibleRows[visibleRows.length - 1];
   return {
     ok: true,
     storeId: String(caller.storeId),
     storeCode: caller.storeCode,
     storeName: caller.storeName,
-    customers: rows.slice(0, limit).map((customer) => ({
+    customers: visibleRows.map((customer) => ({
       customerCode: customer.customer_code,
       customerName: customer.customer_name,
       birthDate: customer.birth_date
     })),
-    hasMore
+    hasMore,
+    nextCursor: hasMore && last
+      ? {
+          customerName: String(last.customer_name || ""),
+          birthDate: String(last.cursor_birth_date || ""),
+          customerCode: String(last.customer_code || "")
+        }
+      : null
   };
 }
 

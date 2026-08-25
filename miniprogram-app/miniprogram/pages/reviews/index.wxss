@@ -33,8 +33,8 @@ button::after { border: 0; }
 .card-title > view text:last-child { color: #7c7062; font-size: 19rpx; }
 .badge { padding: 8rpx 14rpx; color: #74592d; background: #f4e7d0; border-radius: 999rpx; font-size: 18rpx; font-weight: 800; white-space: nowrap; }
 .table-scroll { width: 100%; border: 1rpx solid #e0d2bd; border-radius: 16rpx; }
-.review-table { width: 2080rpx; }
-.review-row { display: grid; grid-template-columns: 230rpx 150rpx 230rpx 220rpx 210rpx 180rpx 150rpx 230rpx 250rpx 230rpx; min-height: 84rpx; border-bottom: 1rpx solid #eadfce; }
+.review-table { width: 2050rpx; }
+.review-row { display: grid; grid-template-columns: 230rpx 150rpx 230rpx 220rpx 210rpx 180rpx 150rpx 230rpx 250rpx 200rpx; min-height: 84rpx; border-bottom: 1rpx solid #eadfce; }
 .review-row:last-child { border-bottom: 0; }
 .review-row > text, .review-row > view { min-width: 0; display: flex; align-items: center; justify-content: center; padding: 12rpx 14rpx; overflow: hidden; border-right: 1rpx solid #eee4d4; box-sizing: border-box; font-size: 19rpx; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .review-row > text:last-child, .review-row > view:last-child { border-right: 0; }

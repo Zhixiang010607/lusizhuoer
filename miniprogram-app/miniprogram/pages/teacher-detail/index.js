@@ -1,5 +1,6 @@
 const { callStaff } = require("../../services/api");
 const { requireSession } = require("../../services/session");
+const rechargeIntent = require("../../services/teacher-experience-recharge");
 
 function text(...values) { return String(values.find((value) => value !== undefined && value !== null && String(value).trim()) || "").trim(); }
 function number(row, names, fallback = 0) { for (const name of names) { const value = Number(row && row[name]); if (Number.isFinite(value)) return value; } return fallback; }
@@ -33,7 +34,6 @@ function summaryRows(rows, totals) {
   return [...map.values()].map((row) => ({ ...row, totalDisplay: row.totalExperienceCount === null ? row.usedCount : row.totalExperienceCount })).sort((left, right) => left.productName.localeCompare(right.productName, "zh-CN"));
 }
 function validPassword(value) { const password = String(value || ""); const groups = [/[A-Z]/, /[a-z]/, /\d/, /[^A-Za-z\d]/].filter((rule) => rule.test(password)).length; return password.length >= 8 && password.length <= 32 && /^[A-Za-z0-9]/.test(password) && groups >= 3; }
-function requestId() { return `teacher_experience_recharge_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`.slice(0, 64); }
 function confirm(content, confirmText) { return new Promise((resolve) => wx.showModal({ title: "请确认", content, confirmText, success: (result) => resolve(result.confirm), fail: () => resolve(false) })); }
 const REQUEST_EPOCH_KEYS = Object.freeze(["_loadRequestEpoch", "_profileRequestEpoch", "_productsRequestEpoch", "_experienceRequestEpoch", "_mutationRequestEpoch"]);
 function bump(page, key) { const epoch = (page[key] || 0) + 1; page[key] = epoch; return epoch; }
@@ -76,19 +76,41 @@ function experienceState(data, productSource, selected, historyExpanded) {
     }
   };
 }
+function exactRechargeProof(result, intent) {
+  const recharge = result && result.recharge || {};
+  const entitlement = result && result.entitlement || {};
+  const rechargeId = text(recharge.id, recharge.rechargeId, recharge.recharge_id);
+  const productId = text(entitlement.productId, entitlement.product_id);
+  const unitCount = number(recharge, ["unitCount", "unit_count"], NaN);
+  const before = number(recharge, ["availableBeforeCount", "available_before_count"], NaN);
+  const after = number(recharge, ["availableAfterCount", "available_after_count"], NaN);
+  if (!rechargeId || productId !== intent.productId || unitCount !== intent.unitCount
+      || !Number.isFinite(before) || !Number.isFinite(after) || after - before !== intent.unitCount) {
+    throw new Error("服务端未返回与原请求完全一致的体验充值证明，防重复提交锁仍保留");
+  }
+  return { rechargeId };
+}
+function definitiveRechargeRejection(error) {
+  if (error && (error.submissionUncertain === true || error.transportUncertain === true)) return false;
+  return [
+    "BAD_REQUEST", "FORBIDDEN", "UNAUTHENTICATED", "ARCHIVED",
+    "TEACHER_EXPERIENCE_QUOTA_NOT_CONFIGURED", "MASTER_DATA_NOT_ACTIVE"
+  ].includes(text(error && error.code).toUpperCase());
+}
 
 Page({
   data: {
     teacherRef: "", staff: null, teacherId: "", profile: {}, loading: true, mutating: "", message: "", error: false,
     entitlements: [], summaryRows: [], history: [], visibleHistory: [], historyExpanded: false,
     products: [], configureProducts: [], configureLabels: [], configureIndex: 0, configureProductId: "", monthlyAllowance: "",
-    rechargeProducts: [], rechargeLabels: [], rechargeIndex: 0, rechargeProductId: "", rechargeCount: "", rechargeNote: "", rechargeRequestId: "",
+    rechargeProducts: [], rechargeLabels: [], rechargeIndex: 0, rechargeProductId: "", rechargeCount: "", rechargeNote: "", rechargePending: false,
     overview: { available: 0, used: 0, lifetime: 0, activeProducts: 0 }, newPassword: ""
   },
   onLoad(options) {
     if (!requireSession(["hq"])) return;
     this._unloaded = false;
     this.setData({ teacherRef: decodeURIComponent(options.teacherRef || "") });
+    this.syncRechargePending();
     wx.setNavigationBarTitle({ title: "露思卓儿" });
     this.load();
   },
@@ -175,8 +197,15 @@ Page({
     }
   },
   chooseConfigureProduct(event) { const index = Number(event.detail.value || 0); this.setData({ configureIndex: index, configureProductId: this.data.configureProducts[index] && this.data.configureProducts[index].id || "" }); },
-  chooseRechargeProduct(event) { const index = Number(event.detail.value || 0); this.setData({ rechargeIndex: index, rechargeProductId: this.data.rechargeProducts[index] && this.data.rechargeProducts[index].productId || "", rechargeRequestId: "" }); },
-  input(event) { const field = event.currentTarget.dataset.field; this.setData({ [field]: event.detail.value, ...(field.startsWith("recharge") ? { rechargeRequestId: "" } : {}) }); },
+  chooseRechargeProduct(event) { const index = Number(event.detail.value || 0); this.setData({ rechargeIndex: index, rechargeProductId: this.data.rechargeProducts[index] && this.data.rechargeProducts[index].productId || "" }); },
+  input(event) { const field = event.currentTarget.dataset.field; this.setData({ [field]: event.detail.value }); },
+  syncRechargePending() {
+    let intent = null;
+    try { intent = rechargeIntent.read(); }
+    catch (error) { this.setData({ rechargePending: true, message: error.message || "体验充值防重复提交锁读取失败", error: true }); return null; }
+    this.setData({ rechargePending: Boolean(intent) });
+    return intent;
+  },
   async saveConfiguration() {
     if (this.data.mutating || this.data.profile.archived) return;
     const monthlyAllowance = Number(this.data.monthlyAllowance);
@@ -199,25 +228,87 @@ Page({
     }
   },
   async recharge() {
-    if (this.data.mutating || this.data.profile.archived) return;
+    if (this.data.mutating || this.data.profile.archived || this.data.rechargePending) return;
     const unitCount = Number(this.data.rechargeCount);
     if (!this.data.rechargeProductId || !Number.isInteger(unitCount) || unitCount < 1 || unitCount > 99999) return this.setData({ message: "请选择已配置产品，并填写 1 至 99,999 的整数充值次数。", error: true });
-    const clientRequestId = this.data.rechargeRequestId || requestId();
-    const request = Object.freeze({
-      epoch: bump(this, "_mutationRequestEpoch"), teacherId: text(this.data.teacherId),
-      productId: text(this.data.rechargeProductId), unitCount, note: text(this.data.rechargeNote), clientRequestId
-    });
-    this.setData({ mutating: "recharge", rechargeRequestId: clientRequestId, message: "正在为老师充值体验次数…", error: false });
+    let intent;
     try {
-      await callStaff("rechargeTeacherExperienceEntitlement", Object.freeze({ teacherId: request.teacherId, productId: request.productId, unitCount: request.unitCount, note: request.note, clientRequestId: request.clientRequestId }));
-      if (!current(this, "_mutationRequestEpoch", request.epoch)) return;
-      if (!await this.loadExperience({ teacherId: request.teacherId })) return;
-      if (!current(this, "_mutationRequestEpoch", request.epoch)) return;
-      this.setData({ rechargeCount: "", rechargeNote: "", rechargeRequestId: "", message: "老师体验次数已充值；客户余额未发生变化。", error: false });
+      intent = rechargeIntent.begin({
+        teacherId: text(this.data.teacherId), productId: text(this.data.rechargeProductId),
+        unitCount, note: text(this.data.rechargeNote)
+      });
     } catch (error) {
-      if (current(this, "_mutationRequestEpoch", request.epoch)) this.setData({ message: error.message || "体验次数充值失败", error: true });
+      this.syncRechargePending();
+      this.setData({ message: error.message || "无法建立体验充值防重复提交锁", error: true });
+      return;
+    }
+    this.setData({ rechargePending: true });
+    await this.runRechargeIntent(intent, false);
+  },
+  async recoverRecharge() {
+    if (this.data.mutating) return;
+    const intent = this.syncRechargePending();
+    if (!intent) return this.setData({ message: "当前没有待确认的体验充值。", error: false });
+    await this.runRechargeIntent(intent, true);
+  },
+  async runRechargeIntent(intent, recovering) {
+    const request = Object.freeze({
+      epoch: bump(this, "_mutationRequestEpoch"), teacherId: text(intent.teacherId), productId: text(intent.productId),
+      unitCount: Number(intent.unitCount), note: text(intent.note), clientRequestId: text(intent.clientRequestId)
+    });
+    if (!this._unloaded) this.setData({ mutating: "recharge", rechargePending: true, message: recovering ? "正在确认上次体验充值结果…" : "正在为老师充值体验次数…", error: false });
+    try {
+      const result = await callStaff("rechargeTeacherExperienceEntitlement", Object.freeze({
+        teacherId: request.teacherId, productId: request.productId, unitCount: request.unitCount,
+        note: request.note, clientRequestId: request.clientRequestId
+      }));
+      const proof = exactRechargeProof(result, request);
+      rechargeIntent.confirm(request.clientRequestId, proof.rechargeId);
+      const readback = await callStaff("getTeacherExperienceEntitlements", Object.freeze({ teacherId: request.teacherId }));
+      if (text(readback && readback.teacher && (readback.teacher.id || readback.teacher.teacherId)) !== request.teacherId) {
+        throw new Error("体验充值后的数据库回读老师不一致，防重复提交锁仍保留");
+      }
+      if (!(readback.entitlements || []).some((row) => text(row.productId, row.product_id) === request.productId)) {
+        throw new Error("体验充值后的数据库回读产品不一致，防重复提交锁仍保留");
+      }
+      if (!rechargeIntent.acknowledge(request.clientRequestId, proof.rechargeId)) {
+        throw new Error("体验充值已写入，但原请求确认信息不一致，防重复提交锁仍保留");
+      }
+      if (!this._unloaded && current(this, "_mutationRequestEpoch", request.epoch)) {
+        if (text(this.data.teacherId) === request.teacherId) {
+          const selected = { configureProductId: this.data.configureProductId, rechargeProductId: this.data.rechargeProductId };
+          this.setData(experienceState(readback, this.data.products, selected, this.data.historyExpanded));
+        }
+        this.setData({
+          rechargeCount: "", rechargeNote: "", rechargePending: false,
+          message: recovering ? "上次老师体验充值已从数据库确认；未重复增加次数。" : "老师体验次数已充值；客户余额未发生变化。",
+          error: false
+        });
+      }
+    } catch (error) {
+      let pending = true;
+      try {
+        if (definitiveRechargeRejection(error)) {
+          pending = !rechargeIntent.clearRejected(request.clientRequestId);
+          if (pending) rechargeIntent.markUncertain(request.clientRequestId);
+        } else {
+          rechargeIntent.markUncertain(request.clientRequestId);
+        }
+      } catch (lockError) {
+        error = lockError;
+        pending = true;
+      }
+      if (!this._unloaded && current(this, "_mutationRequestEpoch", request.epoch)) {
+        this.setData({
+          rechargePending: pending,
+          message: pending
+            ? `${error.message || "体验充值结果暂时无法确认"}。请点击“确认上次充值结果”，不要重新充值。`
+            : error.message || "体验次数充值未执行，请修改后重试。",
+          error: true
+        });
+      }
     } finally {
-      if (current(this, "_mutationRequestEpoch", request.epoch)) this.setData({ mutating: "" });
+      if (!this._unloaded && current(this, "_mutationRequestEpoch", request.epoch)) this.setData({ mutating: "" });
     }
   },
   async deleteConfiguration(event) {

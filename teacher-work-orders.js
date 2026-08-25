@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const VERSION = "0.16.2";
+  const VERSION = "0.16.3";
   const CUSTOMER_PAGE_SIZE = 10;
   const RECORD_PAGE_SIZE = 10;
   const TYPES = Object.freeze(["VERIFICATION", "RECHARGE", "EXPERIENCE", "REFUND"]);
@@ -109,10 +109,12 @@
   }
 
   function renderProfile(profile = {}) {
+    const loginPhone = String(session.phone || "").trim();
+    const loginIdentity = loginPhone || String(session.account || "").trim() || "—";
     const values = [
       ["老师姓名", profile.teacherName || session.staffName || "—"],
       ["老师短编号", profile.teacherCode || session.staffCode || "—"],
-      ["登录手机号", session.phone || session.account || "—"]
+      [loginPhone ? "登录手机号" : "登录账号", loginIdentity]
     ];
     $("teacherProfileInfo").innerHTML = values.map(([label, value]) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
   }

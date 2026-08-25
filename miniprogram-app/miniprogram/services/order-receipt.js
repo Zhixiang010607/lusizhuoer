@@ -6,7 +6,21 @@ const PAGE_MARGIN = 64;
 const CONTENT_WIDTH = CANVAS_WIDTH - PAGE_MARGIN * 2;
 const PDF_PAGE_WIDTH = 595.28;
 const PDF_PAGE_POINTS_HEIGHT = 841.89;
+const OUTPUT_SCALE = 2;
+const OUTPUT_WIDTH = CANVAS_WIDTH * OUTPUT_SCALE;
+const OUTPUT_PAGE_HEIGHT = PDF_PAGE_HEIGHT * OUTPUT_SCALE;
 const FONT_FAMILY = '"Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", Arial, sans-serif';
+const RECEIPT_BACKGROUND_SOURCE = "/images/receipt/lusizhuoer-receipt-bg-v1.jpg";
+const RECEIPT_COLORS = Object.freeze({
+  background: "#fffaf3",
+  panel: "rgba(255, 252, 246, 0.94)",
+  panelSoft: "rgba(248, 239, 224, 0.94)",
+  border: "#dfcfb4",
+  title: "#302a22",
+  secondary: "#7d6f5d",
+  accent: "#80622f",
+  accentSoft: "#f4e7d0"
+});
 
 function text(value, fallback = "—") {
   const normalized = String(value === undefined || value === null ? "" : value).trim();
@@ -27,8 +41,8 @@ function createProductSampleDocument(options = {}) {
   const productName = text(template.productName, "示例产品");
   const instructions = String((verification ? options.verificationInstructions : options.rechargeInstructions) || "").trim();
   const facts = [
+    { label: "客户", value: "示例客户 · C1-SAMPLE001", singleLine: true, span: 2 },
     { label: "门店", value: "示例门店" },
-    { label: "客户", value: "示例客户" },
     { label: "项目", value: productName },
     { label: "业务老师", value: "示例老师" }
   ];
@@ -123,34 +137,51 @@ function ensureSpace(y, required, paginate) {
 
 function drawLabelValueCard(context, item, x, y, width, draw) {
   setFont(context, 19, 500);
-  const valueLines = wrapLines(context, text(item.value), width - 32);
+  const singleLine = item && item.singleLine === true;
+  const value = singleLine ? text(item.value).replace(/\s+/g, " ") : text(item.value);
+  const valueLines = singleLine ? [value] : wrapLines(context, value, width - 32);
   const height = Math.max(86, 48 + valueLines.length * 29);
   if (draw) {
-    context.fillStyle = "#f6f8fb";
-    context.strokeStyle = "#d9e2ee";
+    context.fillStyle = RECEIPT_COLORS.panel;
+    context.strokeStyle = RECEIPT_COLORS.border;
     context.lineWidth = 1;
     roundedRect(context, x, y, width, height, 12);
     context.fill();
     context.stroke();
-    context.fillStyle = "#61708a";
+    context.fillStyle = RECEIPT_COLORS.secondary;
     setFont(context, 16, 500);
     context.textBaseline = "top";
     context.fillText(text(item.label), x + 16, y + 14);
-    drawWrappedText(context, text(item.value), x + 16, y + 40, width - 32, {
-      draw: true, size: 19, lineHeight: 29, weight: 700, color: "#101828"
-    });
+    if (singleLine) {
+      const maxWidth = width - 32;
+      setFont(context, 19, 700);
+      const measured = Math.max(1, context.measureText(value).width);
+      const fittedSize = Math.max(9, Math.min(19, Math.floor(19 * maxWidth / measured)));
+      context.save();
+      roundedRect(context, x + 14, y + 36, maxWidth + 4, 34, 0);
+      context.clip();
+      context.fillStyle = RECEIPT_COLORS.title;
+      setFont(context, fittedSize, 700);
+      context.textBaseline = "top";
+      context.fillText(value, x + 16, y + 40, maxWidth);
+      context.restore();
+    } else {
+      drawWrappedText(context, value, x + 16, y + 40, width - 32, {
+        draw: true, size: 19, lineHeight: 29, weight: 700, color: RECEIPT_COLORS.title
+      });
+    }
   }
   return height;
 }
 
 function drawSectionHeading(context, title, subtitle, y, draw) {
   if (draw) {
-    context.fillStyle = "#10233f";
+    context.fillStyle = RECEIPT_COLORS.title;
     setFont(context, 27, 800);
     context.textBaseline = "top";
     context.fillText(text(title), PAGE_MARGIN, y);
     if (subtitle) {
-      context.fillStyle = "#667085";
+      context.fillStyle = RECEIPT_COLORS.secondary;
       setFont(context, 16, 400);
       context.fillText(String(subtitle), PAGE_MARGIN, y + 39);
     }
@@ -190,25 +221,25 @@ function drawDocumentHeader(context, documentData, productLogo, draw) {
   const bottom = Math.max(subtitleY + subtitleMetrics.height, top + logoSize) + 30;
   if (!draw) return bottom;
 
-  context.fillStyle = "#10233f";
+  context.fillStyle = RECEIPT_COLORS.accent;
   context.fillRect(0, 0, CANVAS_WIDTH, 18);
-  context.fillStyle = "#edf4ff";
+  context.fillStyle = RECEIPT_COLORS.accentSoft;
   roundedRect(context, PAGE_MARGIN, top, kindWidth, 34, 17);
   context.fill();
-  context.fillStyle = "#245796";
+  context.fillStyle = RECEIPT_COLORS.accent;
   setFont(context, 18, 800);
   context.textBaseline = "middle";
   context.fillText(kind, PAGE_MARGIN + 17, top + 17);
 
   drawWrappedText(context, title, PAGE_MARGIN, titleY, leftWidth, {
-    draw: true, size: 42, lineHeight: 52, weight: 900, color: "#10233f"
+    draw: true, size: 42, lineHeight: 52, weight: 900, color: RECEIPT_COLORS.title
   });
   drawWrappedText(context, subtitle, PAGE_MARGIN, subtitleY, leftWidth, {
-    draw: true, size: 18, lineHeight: 28, color: "#667085"
+    draw: true, size: 18, lineHeight: 28, color: RECEIPT_COLORS.secondary
   });
 
-  context.fillStyle = "#f8fbff";
-  context.strokeStyle = "#d9e2ee";
+  context.fillStyle = RECEIPT_COLORS.panel;
+  context.strokeStyle = RECEIPT_COLORS.border;
   context.lineWidth = 1;
   roundedRect(context, logoX, top, logoSize, logoSize, 16);
   context.fill();
@@ -219,9 +250,9 @@ function drawDocumentHeader(context, documentData, productLogo, draw) {
   if (productLogo && productLogo.image) {
     drawImageContain(context, productLogo.image, logoX + 8, top + 8, logoSize - 16, logoSize - 16);
   } else {
-    context.fillStyle = "#d9e7f8";
+    context.fillStyle = RECEIPT_COLORS.panelSoft;
     context.fillRect(logoX + 8, top + 8, logoSize - 16, logoSize - 16);
-    context.fillStyle = "#315378";
+    context.fillStyle = RECEIPT_COLORS.accent;
     setFont(context, 22, 900);
     context.textAlign = "center";
     context.textBaseline = "middle";
@@ -236,9 +267,27 @@ function drawDocumentHeader(context, documentData, productLogo, draw) {
 function drawInfoGrid(context, items, y, draw, paginate, columns = 2) {
   const gap = 14;
   const columnCount = Math.max(1, Math.min(3, Number(columns) || 2));
-  const width = (CONTENT_WIDTH - gap * (columnCount - 1)) / columnCount;
-  for (let index = 0; index < items.length; index += columnCount) {
-    const row = items.slice(index, index + columnCount);
+  const regularWidth = (CONTENT_WIDTH - gap * (columnCount - 1)) / columnCount;
+  for (let index = 0; index < items.length;) {
+    const requestedSpan = Math.max(1, Math.min(columnCount, Number(items[index] && items[index].span || 1)));
+    if (requestedSpan === columnCount) {
+      const item = items[index];
+      const rowHeight = drawLabelValueCard(context, item, PAGE_MARGIN, y, CONTENT_WIDTH, false);
+      y = ensureSpace(y, rowHeight + 14, paginate);
+      drawLabelValueCard(context, item, PAGE_MARGIN, y, CONTENT_WIDTH, draw);
+      y += rowHeight + 14;
+      index += 1;
+      continue;
+    }
+    const row = [];
+    while (index < items.length && row.length < columnCount) {
+      const item = items[index];
+      if (Number(item && item.span || 1) >= columnCount) break;
+      row.push(item);
+      index += 1;
+    }
+    if (!row.length) continue;
+    const width = row.length === 1 ? CONTENT_WIDTH : regularWidth;
     const rowHeight = Math.max(...row.map((item) => drawLabelValueCard(context, item, PAGE_MARGIN, y, width, false)));
     y = ensureSpace(y, rowHeight + 14, paginate);
     row.forEach((item, column) => drawLabelValueCard(context, item, PAGE_MARGIN + column * (width + gap), y, width, draw));
@@ -254,23 +303,23 @@ function drawMessageCard(context, item, y, draw, paginate) {
   const height = Math.max(112, 66 + bodyLines.length * 31);
   y = ensureSpace(y, height + 14, paginate);
   if (draw) {
-    context.fillStyle = "#fbfcfe";
-    context.strokeStyle = "#d9e2ee";
+    context.fillStyle = RECEIPT_COLORS.panel;
+    context.strokeStyle = RECEIPT_COLORS.border;
     roundedRect(context, PAGE_MARGIN, y, CONTENT_WIDTH, height, 12);
     context.fill();
     context.stroke();
-    context.fillStyle = "#10233f";
+    context.fillStyle = RECEIPT_COLORS.title;
     setFont(context, 20, 800);
     context.textBaseline = "top";
     context.fillText(text(item.label), PAGE_MARGIN + padding, y + 17);
     if (item.time) {
-      context.fillStyle = "#667085";
+      context.fillStyle = RECEIPT_COLORS.secondary;
       setFont(context, 15, 400);
       const timeWidth = context.measureText(String(item.time)).width;
       context.fillText(String(item.time), PAGE_MARGIN + CONTENT_WIDTH - padding - timeWidth, y + 20);
     }
     drawWrappedText(context, text(item.value, "无"), PAGE_MARGIN + padding, y + 53, CONTENT_WIDTH - padding * 2, {
-      draw: true, size: 19, lineHeight: 31, color: "#344054"
+      draw: true, size: 19, lineHeight: 31, color: RECEIPT_COLORS.title
     });
   }
   return y + height + 14;
@@ -280,20 +329,20 @@ function drawPhotoCard(context, photo, x, y, width, draw, options = {}) {
   const imageHeight = options.imageHeight || 330;
   const cardHeight = options.cardHeight || 420;
   if (draw) {
-    context.fillStyle = "#f6f8fb";
-    context.strokeStyle = "#d9e2ee";
+    context.fillStyle = RECEIPT_COLORS.panel;
+    context.strokeStyle = RECEIPT_COLORS.border;
     roundedRect(context, x, y, width, cardHeight, 14);
     context.fill();
     context.stroke();
     context.save();
     roundedRect(context, x + 12, y + 12, width - 24, imageHeight, 10);
     context.clip();
-    context.fillStyle = "#e9eef5";
+    context.fillStyle = RECEIPT_COLORS.panelSoft;
     context.fillRect(x + 12, y + 12, width - 24, imageHeight);
     if (photo.image) {
       drawImageContain(context, photo.image, x + 12, y + 12, width - 24, imageHeight);
     } else {
-      context.fillStyle = "#7a879b";
+      context.fillStyle = RECEIPT_COLORS.secondary;
       setFont(context, 20, 600);
       context.textAlign = "center";
       context.textBaseline = "middle";
@@ -302,11 +351,11 @@ function drawPhotoCard(context, photo, x, y, width, draw, options = {}) {
       context.textBaseline = "top";
     }
     context.restore();
-    context.fillStyle = "#10233f";
+    context.fillStyle = RECEIPT_COLORS.title;
     setFont(context, 20, 800);
     context.textBaseline = "top";
     context.fillText(text(photo.label), x + 18, y + imageHeight + 26);
-    context.fillStyle = "#667085";
+    context.fillStyle = RECEIPT_COLORS.secondary;
     setFont(context, 15, 400);
     context.fillText(text(photo.meta, photo.image ? "已载入原图" : "空照片位"), x + 18, y + imageHeight + 58);
   }
@@ -352,13 +401,23 @@ function drawProductInstructions(context, documentData, y, draw, paginate) {
   return drawMessageCard(context, { label: "说明", value: instructions }, y, draw, paginate);
 }
 
+function drawReceiptBackground(context, backgroundImage, documentHeight) {
+  const height = Math.max(0, Number(documentHeight || 0));
+  context.fillStyle = RECEIPT_COLORS.background;
+  context.fillRect(0, 0, CANVAS_WIDTH, height);
+  if (!backgroundImage || !height) return;
+  const pageCount = Math.max(1, Math.ceil(height / PDF_PAGE_HEIGHT));
+  for (let page = 0; page < pageCount; page += 1) {
+    context.drawImage(backgroundImage, 0, page * PDF_PAGE_HEIGHT, CANVAS_WIDTH, PDF_PAGE_HEIGHT);
+  }
+}
+
 function layoutDocument(context, documentData, photos, productLogo, options = {}) {
   const draw = options.draw === true;
   const paginate = options.paginate === true;
   const compactVerification = documentData.compactVerification === true;
   if (draw) {
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, context.canvas.width, context.canvas.height);
+    drawReceiptBackground(context, options.backgroundImage || null, options.documentHeight);
   }
   let y = drawDocumentHeader(context, documentData, productLogo, draw);
   y = drawInfoGrid(context, documentData.facts || [], y, draw, paginate);
@@ -434,6 +493,42 @@ async function preparePhotos(canvas, photoItems) {
   return prepared;
 }
 
+async function prepareReceiptBackground(canvas, source) {
+  if (!source) throw new Error("露思卓儿凭证背景尚未配置，本次没有生成文件。");
+  return loadCanvasImage(canvas, source, "露思卓儿凭证背景载入失败，本次没有生成文件。请重试。");
+}
+
+function drawPreparedReceipt(canvas, prepared, pageIndex = null) {
+  const paged = Number.isInteger(pageIndex);
+  const logicalHeight = paged ? PDF_PAGE_HEIGHT : prepared.height;
+  canvas.width = OUTPUT_WIDTH;
+  canvas.height = Math.ceil(logicalHeight * OUTPUT_SCALE);
+  const context = canvas.getContext("2d");
+  context.scale(OUTPUT_SCALE, OUTPUT_SCALE);
+  if (paged) {
+    context.save();
+    context.translate(0, -pageIndex * PDF_PAGE_HEIGHT);
+  }
+  layoutDocument(context, prepared.documentData, prepared.photos, prepared.productLogo, {
+    draw: true,
+    paginate: prepared.paginate,
+    backgroundImage: prepared.backgroundImage,
+    documentHeight: prepared.height
+  });
+  if (prepared.paginate) {
+    for (let page = 0; page < prepared.pageCount; page += 1) {
+      context.fillStyle = RECEIPT_COLORS.secondary;
+      setFont(context, 14, 500);
+      context.textAlign = "center";
+      context.textBaseline = "bottom";
+      context.fillText(`第 ${page + 1} / ${prepared.pageCount} 页`, CANVAS_WIDTH / 2, (page + 1) * PDF_PAGE_HEIGHT - 20);
+    }
+    context.textAlign = "left";
+    context.textBaseline = "top";
+  }
+  if (paged) context.restore();
+}
+
 async function renderReceiptCanvas(options = {}) {
   const canvas = options.canvas;
   if (!canvas || typeof canvas.getContext !== "function") throw new Error("单据画布尚未准备完成");
@@ -447,27 +542,33 @@ async function renderReceiptCanvas(options = {}) {
   const height = paginate
     ? Math.max(PDF_PAGE_HEIGHT, Math.ceil(usedHeight / PDF_PAGE_HEIGHT) * PDF_PAGE_HEIGHT)
     : Math.max(500, Math.ceil(usedHeight));
-  canvas.width = CANVAS_WIDTH;
-  canvas.height = height;
-  context = canvas.getContext("2d");
-  const [productLogo, photos] = await Promise.all([
+  const [backgroundImage, productLogo, photos] = await Promise.all([
+    prepareReceiptBackground(canvas, options.backgroundSource || RECEIPT_BACKGROUND_SOURCE),
     prepareProductLogo(canvas, documentData, options.logoSource || ""),
     preparePhotos(canvas, rawPhotos)
   ]);
-  layoutDocument(context, documentData, photos, productLogo, { draw: true, paginate });
   const pageCount = paginate ? Math.ceil(height / PDF_PAGE_HEIGHT) : 1;
-  if (paginate) {
-    for (let page = 0; page < pageCount; page += 1) {
-      context.fillStyle = "#98a2b3";
-      setFont(context, 14, 500);
-      context.textAlign = "center";
-      context.textBaseline = "bottom";
-      context.fillText(`第 ${page + 1} / ${pageCount} 页`, CANVAS_WIDTH / 2, (page + 1) * PDF_PAGE_HEIGHT - 20);
+  const prepared = { documentData, photos, productLogo, backgroundImage, height, pageCount, paginate };
+  const renderPage = paginate
+    ? (pageIndex) => {
+      const index = Number(pageIndex);
+      if (!Number.isInteger(index) || index < 0 || index >= pageCount) throw new Error("PDF 页码超出范围");
+      drawPreparedReceipt(canvas, prepared, index);
     }
-    context.textAlign = "left";
-    context.textBaseline = "top";
-  }
-  return { canvas, width: CANVAS_WIDTH, height, pageCount, paginate };
+    : null;
+  if (renderPage) renderPage(0); else drawPreparedReceipt(canvas, prepared);
+  return {
+    canvas,
+    width: OUTPUT_WIDTH,
+    height: paginate ? OUTPUT_PAGE_HEIGHT : Math.ceil(height * OUTPUT_SCALE),
+    logicalWidth: CANVAS_WIDTH,
+    logicalHeight: height,
+    pageHeight: OUTPUT_PAGE_HEIGHT,
+    pixelScale: OUTPUT_SCALE,
+    pageCount,
+    paginate,
+    renderPage
+  };
 }
 
 function canvasToTempFile(scope, options) {
@@ -479,21 +580,24 @@ function canvasToTempFile(scope, options) {
 async function exportReceiptJpegs(receipt, scope) {
   const pages = [];
   const count = receipt.paginate ? receipt.pageCount : 1;
-  const height = receipt.paginate ? PDF_PAGE_HEIGHT : receipt.height;
+  const width = Number(receipt.width || CANVAS_WIDTH);
+  const height = receipt.paginate ? Number(receipt.pageHeight || PDF_PAGE_HEIGHT) : Number(receipt.height || PDF_PAGE_HEIGHT);
   for (let index = 0; index < count; index += 1) {
+    if (receipt.paginate && typeof receipt.renderPage === "function") receipt.renderPage(index);
+    const sequentialPage = receipt.paginate && typeof receipt.renderPage === "function";
     const output = await canvasToTempFile(scope, {
       canvas: receipt.canvas,
       x: 0,
-      y: receipt.paginate ? index * PDF_PAGE_HEIGHT : 0,
-      width: CANVAS_WIDTH,
+      y: receipt.paginate && !sequentialPage ? index * height : 0,
+      width,
       height,
-      destWidth: CANVAS_WIDTH,
+      destWidth: width,
       destHeight: height,
       fileType: "jpg",
-      quality: receipt.paginate ? 0.94 : 0.95
+      quality: receipt.paginate ? 0.98 : 0.97
     });
     if (!output || !output.tempFilePath) throw new Error(receipt.paginate ? `PDF 第 ${index + 1} 页生成失败` : "导出图片生成失败");
-    pages.push({ path: output.tempFilePath, width: CANVAS_WIDTH, height, pageNumber: index + 1 });
+    pages.push({ path: output.tempFilePath, width, height, pageNumber: index + 1 });
   }
   return pages;
 }
@@ -515,8 +619,8 @@ function concatBytes(chunks) {
 function createPdfBytes(jpegPages) {
   if (!Array.isArray(jpegPages) || !jpegPages.length) throw new Error("没有可写入 PDF 的页面");
   const pages = jpegPages.map((page) => ({
-    width: Number(page.width || CANVAS_WIDTH),
-    height: Number(page.height || PDF_PAGE_HEIGHT),
+    width: Number(page.width || OUTPUT_WIDTH),
+    height: Number(page.height || OUTPUT_PAGE_HEIGHT),
     bytes: page.bytes instanceof Uint8Array ? page.bytes : new Uint8Array(page.bytes)
   }));
   pages.forEach((page, index) => {
@@ -569,6 +673,10 @@ module.exports = {
   PDF_PAGE_HEIGHT,
   PDF_PAGE_WIDTH,
   PDF_PAGE_POINTS_HEIGHT,
+  OUTPUT_SCALE,
+  OUTPUT_WIDTH,
+  OUTPUT_PAGE_HEIGHT,
+  RECEIPT_BACKGROUND_SOURCE,
   createProductSampleDocument,
   createProductSamplePhotos,
   renderReceiptCanvas,

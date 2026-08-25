@@ -190,7 +190,10 @@ test("teacher experience reads reject late data, clear a current failure, and st
       calls += 1;
       return [oldExperience, newExperience, failedExperience, unloadedExperience][calls - 1].promise;
     } },
-    "../../services/session": { requireSession: () => ({ role: "hq" }) }
+    "../../services/session": { requireSession: () => ({ role: "hq" }) },
+    "../../services/teacher-experience-recharge": {
+      read: () => null, begin() {}, markUncertain() {}, confirm() {}, acknowledge() {}, clearRejected() {}
+    }
   });
   const page = pageInstance(definition, {
     teacherId: "9", products: [
@@ -221,8 +224,114 @@ test("teacher experience reads reject late data, clear a current failure, and st
   assert.equal(page.data.entitlements[0].productId, "sentinel");
 });
 
-test("all four management pages declare unload invalidation and immutable request snapshots", () => {
-  for (const page of ["hq-directory", "product-management", "store-detail", "teacher-detail"]) {
+test("store custom ranges reject incomplete, reversed, and oversized dates before any database request", async () => {
+  const dashboard = require(path.join(mini, "services", "home-dashboard.js"));
+  let apiCalls = 0;
+  const definition = loadPage("store-detail", {
+    "../../services/api": {
+      callStaff: async () => { apiCalls += 1; return {}; },
+      callFace: async () => { apiCalls += 1; return {}; }
+    },
+    "../../services/session": { requireSession: () => ({ role: "hq" }) },
+    "../../services/home-dashboard": dashboard
+  });
+  const cases = [
+    { start: "2026-08-01", end: "", message: /完整的开始日期和结束日期/ },
+    { start: "2026-08-26", end: "2026-08-25", message: /开始日期不能晚于结束日期/ },
+    { start: "2025-01-01", end: "2026-08-25", message: /最多统计 366 天/ }
+  ];
+
+  for (const item of cases) {
+    const page = pageInstance(definition, {
+      storeId: "7", rangePreset: "CUSTOM", rangeStart: item.start, rangeEnd: item.end,
+      businessType: "VERIFICATION", summaryRows: [{ productId: "OLD" }],
+      businessRecords: [{ id: "OLD" }], totals: { verification: 8, recharge: 7, experience: 6, refund: 5 },
+      businessPage: { page: 4, total: 40, totalPages: 4 }
+    });
+    page._unloaded = false;
+    await page.applyCustomRange();
+    assert.equal(apiCalls, 0);
+    assert.equal(page.data.summaryRows.length, 0);
+    assert.equal(page.data.businessRecords.length, 0);
+    assert.equal(page.data.businessPage.total, 0);
+    assert.equal(page.data.totals.verification, 0);
+    assert.equal(page.data.error, true);
+    assert.match(page.data.message, item.message);
+  }
+});
+
+test("product detail keeps the newest full refresh, clears a current failure, and ignores post-unload data", async () => {
+  const firstRead = deferred();
+  const latestRead = deferred();
+  const failedRead = deferred();
+  const unloadedRead = deferred();
+  const responses = [firstRead, latestRead, failedRead, unloadedRead];
+  const payloads = [];
+  let calls = 0;
+  const definition = loadPage("product-detail", {
+    "../../services/api": { callStaff: async (action, payload) => {
+      assert.equal(action, "getProductReceiptTemplate");
+      assert.ok(Object.isFrozen(payload), "each product read uses an immutable URL-reference snapshot");
+      payloads.push(payload);
+      const response = responses[calls];
+      calls += 1;
+      return response.promise;
+    } },
+    "../../services/session": { requireSession: () => ({ role: "hq" }) },
+    "../../services/photo-album": { saveImageToAlbum: async () => {} },
+    "../../services/order-receipt": {
+      CANVAS_WIDTH: 1120,
+      createProductSampleDocument: () => ({}), createProductSamplePhotos: () => [],
+      renderReceiptCanvas: async () => ({}), exportReceiptJpegs: async () => [],
+      createPdfBytes: () => new Uint8Array(), safeFilename: (value) => String(value || "sample")
+    }
+  });
+  const page = pageInstance(definition, { productRef: "7" });
+  page.renderPreview = async function renderPreview(request) {
+    assert.ok(Object.isFrozen(request), "the template, logo, and preview chain shares one immutable load request");
+    this.setData({
+      previewImages: [{ key: this.data.template.productName }],
+      previewPageCount: 1,
+      previewLoading: false
+    });
+  };
+  const template = (name) => ({
+    id: "7", productCode: "PRD007", productName: name, productStatus: "ACTIVE", logo: null,
+    verificationInstructions: `${name}核销`, rechargeInstructions: `${name}充值`
+  });
+
+  const oldLoad = page.load();
+  const newLoad = page.load();
+  latestRead.resolve({ template: template("新模板") });
+  await newLoad;
+  firstRead.resolve({ template: template("旧模板") });
+  await oldLoad;
+  assert.equal(page.data.template.productName, "新模板");
+  assert.equal(page.data.previewImages[0].key, "新模板");
+  assert.deepEqual(payloads.map((item) => item.productRef), ["7", "7"]);
+
+  const currentFailure = page.load();
+  assert.equal(page.data.template, null, "request start must remove the previous scope's template");
+  assert.equal(page.data.previewImages.length, 0, "request start must remove the previous scope's preview");
+  failedRead.reject(new Error("temporary template failure"));
+  await currentFailure;
+  assert.equal(page.data.template, null);
+  assert.equal(page.data.previewImages.length, 0);
+  assert.equal(page.data.error, true);
+  assert.match(page.data.message, /temporary template failure/);
+
+  const afterUnload = page.load();
+  page.onUnload();
+  page.setData({ template: template("卸载哨兵"), previewImages: [{ key: "卸载哨兵" }], message: "卸载哨兵" });
+  unloadedRead.resolve({ template: template("卸载后迟到模板") });
+  await afterUnload;
+  assert.equal(page.data.template.productName, "卸载哨兵");
+  assert.equal(page.data.previewImages[0].key, "卸载哨兵");
+  assert.equal(page.data.message, "卸载哨兵");
+});
+
+test("all five management pages declare unload invalidation and immutable request snapshots", () => {
+  for (const page of ["hq-directory", "product-management", "product-detail", "store-detail", "teacher-detail"]) {
     const source = read("pages", page, "index.js");
     assert.match(source, /onUnload\(\)/, `${page} must invalidate requests on unload`);
     assert.match(source, /Object\.freeze\(/, `${page} must capture immutable request data`);

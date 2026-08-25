@@ -2,7 +2,7 @@
   <view class="page-heading">
     <text class="eyebrow">{{refund ? '退费申请' : '办卡充值'}}</text>
     <text class="title">{{refund ? '申请退回已购次数' : '为客户提交充值单'}}</text>
-    <text class="subtitle">{{store.name}} · 业务将严格绑定当前账号和门店。</text>
+    <text class="subtitle">{{store.id ? store.name + ' · 业务将严格绑定当前账号和门店。' : '进入业务页后先选择本次业务的发生门店。'}}</text>
   </view>
 
   <view wx:if="{{locked}}" class="card recovery-card">
@@ -12,13 +12,24 @@
   </view>
 
   <block wx:else>
-    <view class="card">
-      <view class="card-title"><text>第一步：确认客户</text><text class="badge">必须看到照片</text></view>
+    <view wx:if="{{session.role === 'teacher'}}" class="card store-picker-card">
+      <view class="card-title"><text>第一步：选择办理门店</text><text class="badge">必选</text></view>
+      <label class="field">
+        <text class="field-label">本次发生门店</text>
+        <picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="selectStore" disabled="{{busy || loadingStores || !stores.length}}">
+          <view class="picker">{{loadingStores ? '正在读取可办理门店…' : (store.id ? store.name + ' · ' + (store.code || store.id) : (stores.length ? '请选择门店' : '暂无可办理门店'))}}</view>
+        </picker>
+      </label>
+      <button wx:if="{{!loadingStores && !stores.length}}" class="secondary" bindtap="loadTeacherStores">重试门店列表</button>
+    </view>
+
+    <view wx:if="{{store.id}}" class="card">
+      <view class="card-title"><text>{{session.role === 'teacher' ? '第二步：确认客户' : '第一步：确认客户'}}</text><text class="badge">必须看到照片</text></view>
       <customer-picker store-id="{{store.id}}" bindconfirm="customerConfirmed" bindchange="customerChanged"></customer-picker>
     </view>
 
-    <view class="card {{customer ? '' : 'disabled-card'}}">
-      <view class="card-title"><text>第二步：填写{{refund ? '退费' : '充值'}}信息</text><text class="badge">{{customer ? customer.customerName : '先确认客户'}}</text></view>
+    <view wx:if="{{store.id}}" class="card {{customer ? '' : 'disabled-card'}}">
+      <view class="card-title"><text>{{session.role === 'teacher' ? '第三步' : '第二步'}}：填写{{refund ? '退费' : '充值'}}信息</text><text class="badge">{{customer ? customer.customerName : '先确认客户'}}</text></view>
       <label class="field">
         <text class="field-label">项目</text>
         <picker range="{{productLabels}}" value="{{productIndex}}" bindchange="selectProduct" disabled="{{!customer || loadingOptions || !products.length}}">

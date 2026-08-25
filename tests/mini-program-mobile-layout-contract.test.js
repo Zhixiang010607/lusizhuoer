@@ -128,7 +128,10 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
   assert.doesNotMatch(wxss, /\.range-presets\s*\{[^}]*background:\s*#edf2f8/s);
   assert.match(wxss, /\.summary-table\s*\{\s*width:\s*100%;\s*min-width:\s*620rpx;/);
   assert.match(wxss, /\.record-table\s*\{\s*width:\s*100%;\s*min-width:\s*1050rpx;/);
-  assert.match(wxss, /\.customer-table\s*\{\s*width:\s*100%;\s*min-width:\s*700rpx;/);
+  assert.match(wxss, /\.customer-table\s*\{\s*width:\s*100%;\s*min-width:\s*620rpx;/,
+    "the five-column customer table must fit the standard card before horizontal scrolling is needed");
+  assert.doesNotMatch(wxss, /\.customer-table\s*\{[^}]*min-width:\s*700rpx/s,
+    "a fixed 700rpx minimum creates a meaningless sliver of horizontal scrolling on standard phones");
   assert.match(wxss, /\.summary-table \.table-row\s*\{[^}]*minmax\(180rpx,\s*1\.6fr\)[^}]*repeat\(4,\s*minmax\(100rpx,\s*1fr\)\)/s);
   assert.match(wxss, /\.table-row > view\s*\{[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
   assert.match(wxss, /\.detail-info-item text\s*\{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s,

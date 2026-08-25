@@ -38,7 +38,7 @@ function functionSource(source, name) {
   throw new Error(`function ${name} body is incomplete`);
 }
 
-includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v90"', "split cloud versions");
+includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v91"', "split cloud versions");
 includes(cloud, "const MAX_VERIFICATION_IMAGE_BYTES = 3 * 1024 * 1024", "original upload limit");
 includes(cloud, "const MAX_THUMBNAIL_BYTES = 384 * 1024", "thumbnail upload limit");
 includes(cloud, "if (action === \"getVerificationPhotos\")", "thumbnail list action");
@@ -234,7 +234,7 @@ assert.ok(
 includes(createUi, "verificationFaceEvidenceToken", "face evidence token state");
 includes(createUi, 'thumbnailBase64: verificationThumbnailDataUrl', "face thumbnail upload");
 includes(createUi, 'faceEvidenceToken: verificationFaceEvidenceToken', "atomic order binding payload");
-includes(createUi, 'const VERSION = "0.14.57"', "create UI cache version");
+includes(createUi, 'const VERSION = "0.14.58"', "create UI cache version");
 
 includes(detailUi, 'action: "getVerificationPhotos"', "detail thumbnail request");
 includes(detailUi, 'action: "getVerificationPhotoOriginalUrl"', "detail original request");
@@ -398,7 +398,7 @@ includes(detailHtml, 'id="verificationPhotoCameraDialog"', "camera preview dialo
 includes(detailHtml, 'id="verificationPhotoCameraVideo" autoplay playsinline muted', "mobile inline camera preview");
 includes(detailHtml, 'id="switchVerificationPhotoCamera"', "front/rear camera switch action");
 includes(detailHtml, 'aria-label="切换前后摄像头"', "camera switch accessible name");
-includes(detailHtml, 'order-export.js?v=0.1.6', "export renderer cache bust");
+includes(detailHtml, 'order-export.js?v=0.1.7', "export renderer cache bust");
 includes(detailHtml, 'business-detail.js?v=0.16.23', "detail script cache bust");
 includes(detailHtml, 'styles.css?v=0.15.49', "detail styles cache bust");
 includes(styles, ".verification-order-keyfacts.verification-order-five-keyfacts", "desktop verification header keeps five flexible facts in one row");
@@ -620,10 +620,10 @@ assert.deepEqual(
 );
 
 for (const page of ["customer-create.html", "recharge-create.html", "verification-create.html", "verification-experience.html"]) {
-  includes(read(page), "store-business.js?v=0.14.57", `${page} create script cache bust`);
+  includes(read(page), "store-business.js?v=0.14.58", `${page} create script cache bust`);
 }
 for (const page of ["teacher-recharge-create.html", "teacher-verification-create.html", "teacher-verification-experience.html"]) {
-  includes(read(page), "store-business.js?v=0.14.57", `${page} create script cache bust`);
+  includes(read(page), "store-business.js?v=0.14.58", `${page} create script cache bust`);
 }
 
 Promise.all([storageFallbackTestPromise, verificationSignTestPromise, localPreviewExportPromise])

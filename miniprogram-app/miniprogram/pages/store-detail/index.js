@@ -64,6 +64,9 @@ Page({
   },
   rangeData(source = this.data) {
     const range = dashboard.scopedRange(source.rangePreset, { startDate: source.rangeStart, endDate: source.rangeEnd });
+    const emptyAllowed = source.rangePreset === "ALL" && !range.startDate && !range.endDate;
+    if (!emptyAllowed && (!range.startDate || !range.endDate)) throw new Error("请选择完整的开始日期和结束日期");
+    if (range.startDate && range.endDate && range.startDate > range.endDate) throw new Error("开始日期不能晚于结束日期");
     if (range.startDate && range.endDate && dashboard.rangeDays(range.startDate, range.endDate) > 366) throw new Error("单次最多统计 366 天");
     return range;
   },
@@ -160,7 +163,7 @@ Page({
   },
   chooseStart(event) { this.setData({ rangeStart: event.detail.value }); },
   chooseEnd(event) { this.setData({ rangeEnd: event.detail.value }); },
-  applyCustomRange() { this.reloadAnalytics(); },
+  applyCustomRange() { return this.reloadAnalytics(); },
   async reloadAnalytics() {
     if (this._unloaded || !this.data.storeId) return;
     const request = Object.freeze({
@@ -168,7 +171,11 @@ Page({
       storeId: text(this.data.storeId), rangePreset: this.data.rangePreset, rangeStart: this.data.rangeStart, rangeEnd: this.data.rangeEnd,
       businessType: this.data.businessType
     });
-    this.setData({ businessLoading: true, message: "", error: false });
+    this.setData({
+      businessLoading: true, message: "", error: false,
+      totals: { ...dashboard.EMPTY_TOTALS }, summaryRows: [], businessTabs: dashboard.tabs(dashboard.EMPTY_TOTALS, request.businessType),
+      businessRecords: [], businessPage: emptyBusinessPage()
+    });
     try {
       const range = this.rangeData(request);
       if (current(this, "_analyticsRequestEpoch", request.analyticsEpoch)) this.setData({ rangeStart: range.startDate, rangeEnd: range.endDate });

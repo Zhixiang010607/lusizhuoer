@@ -59,7 +59,7 @@ includes(read("database/cloudbase-console/058-readonly-verify.sql"), "THEN 'READ
 
 // The browser persists a request number before the cloud call. A network
 // timeout can only query that original number; it cannot generate a new order.
-includes(business, 'const VERSION = "0.14.57"', "static workflow version");
+includes(business, 'const VERSION = "0.14.58"', "static workflow version");
 includes(business, "localStorage.setItem(key, JSON.stringify(intent))", "submission intent persistence");
 includes(business, "const saved = JSON.parse(localStorage.getItem(key)", "submission intent readback");
 includes(business, 'beginBusinessSubmission("RECHARGE", { storeId, ...payload })', "recharge persistent idempotency");
@@ -142,7 +142,7 @@ assert.equal(Object.keys(browserStorage).length, 0, "the loaded detail page must
 // experience, quota usage audit row) exists.
 const recoverySource = functionSource(cloud, "recoverBusinessSubmission");
 const attributionSource = functionSource(cloud, "teacherBusinessAttributionSourceCondition");
-includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v90"', "cloud function version");
+includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v91"', "cloud function version");
 includes(cloud, 'if (action === "recoverBusinessSubmission")', "recovery dispatcher");
 includes(recoverySource, "r.idempotency_key", "recharge lookup by idempotency key");
 includes(recoverySource, "v.idempotency_key", "verification lookup by idempotency key");

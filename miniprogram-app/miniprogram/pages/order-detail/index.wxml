@@ -2,7 +2,7 @@
   <view wx:if="{{loading}}" class="card empty">正在从数据库读取工单…</view>
   <block wx:elif="{{order}}">
     <view class="card order-hero">
-      <view class="hero-copy"><text class="eyebrow">{{order.typeLabel}}</text><text class="order-title">{{noun}}单 {{order.recordCode}}</text><text class="order-address">门店详细地址：{{order.storeAddress}}</text></view>
+      <view class="hero-copy"><text class="eyebrow">{{order.typeLabel}}</text><scroll-view class="order-title-scroll" scroll-x="true" show-scrollbar="{{false}}"><text class="order-title">{{noun}}单 {{order.recordCode}}</text></scroll-view><text class="order-address">门店详细地址：{{order.storeAddress}}</text></view>
       <text class="status-badge status-{{order.recordStatus}}">{{order.statusLabel}}</text>
     </view>
 

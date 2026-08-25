@@ -205,8 +205,23 @@ async function restoreAndValidateSession() {
   }
 }
 
+async function waitForStartupSession() {
+  const app = getAppSafe();
+  const startupPromise = app && app.globalData ? app.globalData.startupPromise : null;
+  if (startupPromise && typeof startupPromise.then === "function") {
+    try { await startupPromise; } catch (_) {}
+  }
+  return app && app.globalData && app.globalData.startupReady === true
+    ? app.globalData.session || null
+    : null;
+}
+
 function requireSession(allowedRoles) {
-  const session = readSession();
+  const app = getAppSafe();
+  const hasAppHarness = Boolean(app && app.globalData);
+  const session = hasAppHarness
+    ? (app.globalData.startupReady === true ? app.globalData.session : null)
+    : readSession();
   if (!session) {
     wx.reLaunch({ url: "/pages/login/index" });
     return null;
@@ -249,6 +264,6 @@ async function signOut() {
 module.exports = {
   passwordLogin, wechatPhoneLogin, requestPasswordResetCode, completePasswordReset,
   passwordResetCooldownRemaining,
-  restoreAndValidateSession, requireSession, readSession,
+  restoreAndValidateSession, waitForStartupSession, requireSession, readSession,
   getSelectedStore, setSelectedStore, clearSession, signOut, normalizePhone
 };

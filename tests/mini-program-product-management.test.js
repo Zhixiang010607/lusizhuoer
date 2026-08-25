@@ -56,7 +56,9 @@ test("mini product template shares the authoritative web services and verifies e
   assert.match(js, /template\.productStatus !== next/);
   assert.match(js, /jpegPdf\(/);
   assert.match(js, /saveImageToAlbum/);
-  assert.match(js, /wx\.shareFileMessage/);
+  assert.match(js, /wx\.openDocument/);
+  assert.match(js, /fileType:\s*"pdf"[\s\S]*showMenu:\s*true/);
+  assert.doesNotMatch(js, /shareFileMessage/, "async PDF generation must open the native document viewer instead of losing the original TAP gesture");
   for (const label of ["产品单据模板", "模板内容", "共用产品 LOGO", "正常核销与体验核销共用", "充值与退费共用", "保存文字说明", "四种成品预览", "刷新预览", "下载样例"]) {
     assert.match(wxml, new RegExp(label), `product template UI is missing ${label}`);
   }

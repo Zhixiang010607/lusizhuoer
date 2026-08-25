@@ -1,5 +1,5 @@
 const { callFace, callStaff } = require("../../services/api");
-const { requireSession, getSelectedStore, setSelectedStore, signOut } = require("../../services/session");
+const { waitForStartupSession, requireSession, getSelectedStore, signOut } = require("../../services/session");
 const dashboard = require("../../services/home-dashboard");
 
 const ROLE_META = Object.freeze({
@@ -54,40 +54,36 @@ function csvCell(value) {
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 function csvLine(values) { return values.map(csvCell).join(","); }
-function writeUserFile(path, data) {
-  return new Promise((resolve, reject) => wx.getFileSystemManager().writeFile({
-    filePath: path, data, encoding: "utf8", success: resolve, fail: reject
-  }));
-}
-function shareUserFile(path, fileName, fallbackText) {
-  if (typeof wx.shareFileMessage === "function") {
-    return new Promise((resolve, reject) => wx.shareFileMessage({ filePath: path, fileName, success: resolve, fail: reject }));
-  }
-  return new Promise((resolve, reject) => wx.setClipboardData({ data: fallbackText, success: resolve, fail: reject }));
+function copyCsvToClipboard(data) {
+  return new Promise((resolve, reject) => wx.setClipboardData({ data, success: resolve, fail: reject }));
 }
 
 Page({
   data: {
     session: {}, roleTitle: "", roleSubtitle: "", loading: true, message: "", error: false,
     businessMenuOpen: false, queryMenuOpen: false, managementMenuOpen: false, reviewMenuOpen: false,
-    stores: [], storeLabels: [], storeIndex: 0, selectedStore: null, loadingStores: false, businessContextReady: false,
     rangePreset: "MONTH", rangeOptions: readyRangeOptions("MONTH"), rangeStart: "", rangeEnd: "",
     rangeLabel: "本月", customRangeVisible: false,
     profileFacts: [], storeHero: {}, experienceBalances: [], summaryRows: [],
     totals: { ...dashboard.EMPTY_TOTALS }, businessType: "VERIFICATION",
     businessTabs: readyTabs(dashboard.EMPTY_TOTALS, "VERIFICATION"), businessRecords: [],
-    businessPage: pageView({}), businessLoading: false,
+    businessPage: pageView({}), businessPageInput: "1", businessScrollLeft: 0, summaryScrollLeft: 0, businessLoading: false,
     activeCustomers: customerView(dashboard.customerGroup()), archivedCustomers: customerView(dashboard.customerGroup()),
+    activeCustomerScrollLeft: 0, archivedCustomerScrollLeft: 0,
     hqPeriodOptions: dashboard.HQ_PERIOD_OPTIONS, hqPeriodLabels: dashboard.HQ_PERIOD_OPTIONS.map((item) => item.label),
     hqPeriod: "LAST_30", hqPeriodIndex: 3, hqStart: "", hqEnd: "",
     hqMetrics: [], hqCharts: [], hqDimensions: DIMENSIONS,
     hqDimensionLabels: DIMENSIONS.map((item) => item.label), hqDimension: "store", hqDimensionIndex: 0,
-    hqRanking: [], hqRankingPage: pageView({ pageSize: RANKING_PAGE_SIZE }), hqRankingInput: "1",
+    hqRanking: [], hqRankingPage: pageView({ pageSize: RANKING_PAGE_SIZE }), hqRankingInput: "1", hqRankingScrollLeft: 0,
     hqRankingLoading: false, hqRankingError: "", hqExporting: false, hqLoadedAt: "—", hqScopeDetailText: "正在连接数据库…",
     hqDetailOpen: false, hqDetailTitle: "数据库统计范围", hqDetailText: ""
   },
 
-  onShow() {
+  async onShow() {
+    const startupEpoch = Number(this._startupEpoch || 0) + 1;
+    this._startupEpoch = startupEpoch;
+    await waitForStartupSession();
+    if (startupEpoch !== this._startupEpoch) return;
     const session = requireSession();
     if (!session) return;
     const meta = ROLE_META[session.role] || { title: "工作台", subtitle: "" };
@@ -98,6 +94,7 @@ Page({
   },
 
   onUnload() {
+    this._startupEpoch = Number(this._startupEpoch || 0) + 1;
     for (const key of [
       "_teacherHomeRequestEpoch", "_storeHomeRequestEpoch", "_businessRequestEpoch",
       "_customerRequestEpoch", "_hqHomeRequestEpoch", "_hqRankingRequestEpoch"
@@ -112,37 +109,30 @@ Page({
     const businessRequestEpoch = this._businessRequestEpoch;
     const customerRequestEpoch = this._customerRequestEpoch;
     const businessType = this.data.businessType;
+    const businessPage = this.data.businessPage.page;
+    const activeCustomerPage = this.data.activeCustomers.page;
+    const archivedCustomerPage = this.data.archivedCustomers.page;
     const range = dashboard.scopedRange(this.data.rangePreset, { startDate: this.data.rangeStart, endDate: this.data.rangeEnd });
     this.setData({
-      loading: true, loadingStores: true, businessContextReady: false,
-      rangeStart: range.startDate, rangeEnd: range.endDate
+      loading: true,
+      rangeStart: range.startDate, rangeEnd: range.endDate,
+      profileFacts: [], experienceBalances: [], summaryRows: [], totals: { ...dashboard.EMPTY_TOTALS },
+      businessTabs: readyTabs(dashboard.EMPTY_TOTALS, businessType), businessRecords: [],
+      businessPage: pageView({}), businessPageInput: "1", businessScrollLeft: 0, summaryScrollLeft: 0,
+      activeCustomers: customerView(dashboard.customerGroup()), archivedCustomers: customerView(dashboard.customerGroup()),
+      activeCustomerScrollLeft: 0, archivedCustomerScrollLeft: 0
     });
-    const [contextResult, workspaceResult, customersResult] = await Promise.allSettled([
-      callFace("getTeacherBusinessContext"),
+    const [workspaceResult, customersResult] = await Promise.allSettled([
       callFace("getTeacherWorkspace", {
-        recordType: businessType, page: this.data.businessPage.page, pageSize: PAGE_SIZE,
+        recordType: businessType, page: businessPage, pageSize: PAGE_SIZE,
         includeOverview: true, ...dashboard.payload(range.startDate, range.endDate)
       }),
       callFace("getTeacherBusinessCustomers", {
-        activePage: this.data.activeCustomers.page, archivedPage: this.data.archivedCustomers.page
+        activePage: activeCustomerPage, archivedPage: archivedCustomerPage
       })
     ]);
     if (requestEpoch !== this._teacherHomeRequestEpoch) return;
-    const changes = { loading: false, loadingStores: false, businessContextReady: false, message: "", error: false };
-    if (contextResult.status === "fulfilled") {
-      const stores = (contextResult.value.stores || []).map((store) => ({
-        id: String(store.storeId), code: String(store.storeCode || ""), name: String(store.storeName || "")
-      }));
-      const saved = getSelectedStore(this.data.session);
-      const selected = stores.find((store) => saved && store.id === saved.id) || null;
-      Object.assign(changes, {
-        stores, storeLabels: stores.map((store) => `${store.name} · ${store.code || store.id}`), selectedStore: selected,
-        storeIndex: Math.max(0, stores.findIndex((store) => selected && store.id === selected.id)),
-        businessContextReady: true
-      });
-    } else {
-      Object.assign(changes, { stores: [], storeLabels: [], selectedStore: null, storeIndex: 0 });
-    }
+    const changes = { loading: false, message: "", error: false };
     if (workspaceResult.status === "fulfilled") {
       const value = workspaceResult.value;
       const totals = dashboard.totals(value.summary?.totals);
@@ -156,7 +146,7 @@ Page({
       if (businessRequestEpoch === this._businessRequestEpoch && this.data.businessType === businessType) {
         Object.assign(changes, {
           businessRecords: dashboard.records(value.page?.records, businessType),
-          businessPage: pageView(value.page)
+          businessPage: pageView(value.page), businessPageInput: String(pageView(value.page).page), businessScrollLeft: 0
         });
       }
     }
@@ -164,10 +154,7 @@ Page({
       changes.activeCustomers = customerView(dashboard.customerGroup(customersResult.value.active));
       changes.archivedCustomers = customerView(dashboard.customerGroup(customersResult.value.archived));
     }
-    const contextMessage = contextResult.status === "rejected"
-      ? `${contextResult.reason?.message || "可办理门店读取失败"}；已禁止办理业务，请重试。`
-      : "";
-    const message = contextMessage || rejectedMessage([workspaceResult, customersResult], "老师工作台读取失败");
+    const message = rejectedMessage([workspaceResult, customersResult], "老师工作台读取失败");
     if (message) Object.assign(changes, { message, error: true });
     this.setData(changes);
   },
@@ -186,7 +173,14 @@ Page({
     const range = dashboard.scopedRange(this.data.rangePreset, { startDate: this.data.rangeStart, endDate: this.data.rangeEnd });
     const config = dashboard.TYPE_CONFIG[businessType];
     const rangeData = dashboard.payload(range.startDate, range.endDate);
-    this.setData({ loading: true, rangeStart: range.startDate, rangeEnd: range.endDate, message: "", error: false });
+    this.setData({
+      loading: true, rangeStart: range.startDate, rangeEnd: range.endDate, message: "", error: false,
+      storeHero: {}, profileFacts: [], summaryRows: [], totals: { ...dashboard.EMPTY_TOTALS },
+      businessTabs: readyTabs(dashboard.EMPTY_TOTALS, businessType), businessRecords: [],
+      businessPage: pageView({}), businessPageInput: "1", businessScrollLeft: 0, summaryScrollLeft: 0,
+      activeCustomers: customerView(dashboard.customerGroup()), archivedCustomers: customerView(dashboard.customerGroup()),
+      activeCustomerScrollLeft: 0, archivedCustomerScrollLeft: 0
+    });
     const [storeResult, analyticsResult, recordsResult] = await Promise.allSettled([
       callFace("getStoreDashboard", {
         activeCustomerPage, archivedCustomerPage
@@ -232,6 +226,8 @@ Page({
       const value = recordsResult.value;
       changes.businessRecords = dashboard.records(value.records, businessType);
       changes.businessPage = pageView(value);
+      changes.businessPageInput = String(changes.businessPage.page);
+      changes.businessScrollLeft = 0;
     }
     const message = rejectedMessage([storeResult, analyticsResult, recordsResult], "门店首页读取失败");
     if (message) Object.assign(changes, { message, error: true });
@@ -243,7 +239,14 @@ Page({
     const type = this.data.businessType;
     const requestEpoch = (this._businessRequestEpoch || 0) + 1;
     this._businessRequestEpoch = requestEpoch;
-    this.setData({ businessLoading: true, message: "", error: false });
+    this.setData({
+      businessLoading: true, businessRecords: [], businessPage: pageView({}), businessPageInput: "1",
+      businessScrollLeft: 0, message: "", error: false,
+      ...(includeOverview ? {
+        totals: { ...dashboard.EMPTY_TOTALS }, summaryRows: [], experienceBalances: [],
+        businessTabs: readyTabs(dashboard.EMPTY_TOTALS, type), summaryScrollLeft: 0
+      } : {})
+    });
     try {
       let value;
       if (this.data.session.role === "teacher") {
@@ -251,7 +254,8 @@ Page({
           recordType: type, page, pageSize: PAGE_SIZE, includeOverview, ...rangeData
         });
         const changes = {
-          businessRecords: dashboard.records(value.page?.records, type), businessPage: pageView(value.page)
+          businessRecords: dashboard.records(value.page?.records, type), businessPage: pageView(value.page),
+          businessPageInput: String(pageView(value.page).page), businessScrollLeft: 0
         };
         if (includeOverview) {
           const totals = dashboard.totals(value.summary?.totals);
@@ -270,11 +274,18 @@ Page({
           page, pageSize: PAGE_SIZE, ...rangeData
         });
         if (requestEpoch !== this._businessRequestEpoch || this.data.businessType !== type) return;
-        this.setData({ businessRecords: dashboard.records(value.records, type), businessPage: pageView(value) });
+        const businessPage = pageView(value);
+        this.setData({
+          businessRecords: dashboard.records(value.records, type), businessPage,
+          businessPageInput: String(businessPage.page), businessScrollLeft: 0
+        });
       }
     } catch (error) {
       if (requestEpoch === this._businessRequestEpoch && this.data.businessType === type) {
-        this.setData({ message: error.message || "业务明细读取失败", error: true });
+        this.setData({
+          businessRecords: [], businessPage: pageView({}), businessPageInput: "1", businessScrollLeft: 0,
+          message: error.message || "业务明细读取失败", error: true
+        });
       }
     } finally {
       if (requestEpoch === this._businessRequestEpoch && this.data.businessType === type) this.setData({ businessLoading: false });
@@ -286,6 +297,10 @@ Page({
     this._customerRequestEpoch = requestEpoch;
     const activePage = status === "ACTIVE" ? page : this.data.activeCustomers.page;
     const archivedPage = status === "ARCHIVED" ? page : this.data.archivedCustomers.page;
+    const targetChanges = status === "ARCHIVED"
+      ? { archivedCustomers: customerView(dashboard.customerGroup()), archivedCustomerScrollLeft: 0 }
+      : { activeCustomers: customerView(dashboard.customerGroup()), activeCustomerScrollLeft: 0 };
+    this.setData({ ...targetChanges, message: "", error: false });
     try {
       if (this.data.session.role === "teacher") {
         const value = await callFace("getTeacherBusinessCustomers", { activePage, archivedPage });
@@ -301,7 +316,7 @@ Page({
         this.setData({ activeCustomers: customerView(groups.active), archivedCustomers: customerView(groups.archived) });
       }
     } catch (error) {
-      if (requestEpoch === this._customerRequestEpoch) this.setData({ message: error.message || "客户列表读取失败", error: true });
+      if (requestEpoch === this._customerRequestEpoch) this.setData({ ...targetChanges, message: error.message || "客户列表读取失败", error: true });
     }
   },
 
@@ -310,9 +325,15 @@ Page({
     this._hqHomeRequestEpoch = requestEpoch;
     const rankingRequestEpoch = Number(this._hqRankingRequestEpoch || 0) + 1;
     this._hqRankingRequestEpoch = rankingRequestEpoch;
+    this._hqRankingRetryPage = pageNumber;
     const dimension = this.data.hqDimension;
     const range = dashboard.hqRange(this.data.hqPeriod, { startDate: this.data.hqStart, endDate: this.data.hqEnd });
-    this.setData({ loading: true, hqRankingLoading: true, hqStart: range.startDate, hqEnd: range.endDate, message: "", error: false });
+    this.setData({
+      loading: true, hqRankingLoading: true, hqStart: range.startDate, hqEnd: range.endDate,
+      hqMetrics: [], hqCharts: [], hqLoadedAt: "—", hqScopeDetailText: "正在连接数据库…",
+      hqRanking: [], hqRankingPage: pageView({ pageSize: RANKING_PAGE_SIZE }), hqRankingInput: "1",
+      hqRankingScrollLeft: 0, hqRankingError: "", message: "", error: false
+    });
     const [overviewResult, rankingResult] = await Promise.allSettled([
       callStaff("getHqDashboard", { mode: "overview", startDate: range.startDate, endDate: range.endDate }),
       callStaff("getHqDashboard", {
@@ -352,6 +373,7 @@ Page({
       changes.hqRankingPage = pageView({
         total: ranking.total, page: ranking.pageNumber, pageSize: ranking.pageSize, totalPages: ranking.totalPages
       });
+      this._hqRankingRetryPage = changes.hqRankingPage.page;
       changes.hqRankingInput = String(changes.hqRankingPage.page);
       changes.hqRankingError = "";
     } else if (currentRankingRequest && rankingResult.status === "rejected") {
@@ -367,12 +389,21 @@ Page({
   async loadHqRanking(pageNumber = 1) {
     const requestEpoch = Number(this._hqRankingRequestEpoch || 0) + 1;
     this._hqRankingRequestEpoch = requestEpoch;
+    this._hqRankingRetryPage = pageNumber;
     const dimension = this.data.hqDimension;
     const range = dashboard.hqRange(this.data.hqPeriod, { startDate: this.data.hqStart, endDate: this.data.hqEnd });
     if (!range.startDate || !range.endDate || range.startDate > range.endDate || dashboard.rangeDays(range.startDate, range.endDate) > 366) {
-      this.setData({ hqRankingLoading: false, message: "请选择不超过 366 天的有效日期范围", error: true }); return;
+      this.setData({
+        hqRanking: [], hqRankingPage: pageView({ pageSize: RANKING_PAGE_SIZE }), hqRankingInput: "1",
+        hqRankingScrollLeft: 0, hqRankingLoading: false, hqRankingError: "请选择不超过 366 天的有效日期范围",
+        message: "请选择不超过 366 天的有效日期范围", error: true
+      });
+      return;
     }
-    this.setData({ hqRankingLoading: true, hqRankingError: "", message: "", error: false });
+    this.setData({
+      hqRanking: [], hqRankingPage: pageView({ pageSize: RANKING_PAGE_SIZE }), hqRankingInput: "1",
+      hqRankingScrollLeft: 0, hqRankingLoading: true, hqRankingError: "", message: "", error: false
+    });
     try {
       const value = await callStaff("getHqDashboard", {
         mode: "ranking", dimension, pageNumber, pageSize: RANKING_PAGE_SIZE,
@@ -383,6 +414,7 @@ Page({
       const rows = dashboard.hqRows(ranking.rows, dimension);
       const businessTotal = Math.max(1, dashboard.count(ranking.businessTotal));
       const page = pageView({ total: ranking.total, page: ranking.pageNumber, pageSize: ranking.pageSize, totalPages: ranking.totalPages });
+      this._hqRankingRetryPage = page.page;
       this.setData({
         hqRanking: rows.map((row, index) => ({
           ...row, rank: (page.page - 1) * RANKING_PAGE_SIZE + index + 1,
@@ -401,13 +433,6 @@ Page({
     }
   },
 
-  selectStore(event) {
-    const index = Number(event.detail.value);
-    const selected = this.data.stores[index];
-    if (!selected) return;
-    setSelectedStore(selected, this.data.session);
-    this.setData({ selectedStore: selected, storeIndex: index, message: "", error: false });
-  },
   closeMenus(changes = {}) {
     this.setData({ businessMenuOpen: false, queryMenuOpen: false, managementMenuOpen: false, reviewMenuOpen: false, ...changes });
   },
@@ -415,6 +440,11 @@ Page({
   toggleQueryMenu() { this.closeMenus({ queryMenuOpen: !this.data.queryMenuOpen }); },
   toggleManagementMenu() { this.closeMenus({ managementMenuOpen: !this.data.managementMenuOpen }); },
   toggleReviewMenu() { this.closeMenus({ reviewMenuOpen: !this.data.reviewMenuOpen }); },
+  jumpToSection(event) {
+    const selector = String(event.currentTarget.dataset.target || "");
+    if (!/^#[a-z][a-z0-9-]*$/i.test(selector)) return;
+    wx.pageScrollTo({ selector, duration: 220 });
+  },
   chooseRange(event) {
     const preset = event.currentTarget.dataset.preset;
     if (preset === "CUSTOM") {
@@ -443,10 +473,39 @@ Page({
   selectBusinessType(event) {
     const type = event.currentTarget.dataset.type;
     if (!dashboard.TYPE_CONFIG[type]) return;
-    this.setData({ businessType: type, businessTabs: readyTabs(this.data.totals, type), businessPage: pageView({}) }, () => this.loadBusinessType(1));
+    this.setData({
+      businessType: type, businessTabs: readyTabs(this.data.totals, type), businessRecords: [],
+      businessPage: pageView({}), businessPageInput: "1", businessScrollLeft: 0
+    }, () => this.loadBusinessType(1));
   },
   previousBusinessPage() { if (!this.data.businessPage.previousDisabled) this.loadBusinessType(this.data.businessPage.page - 1); },
   nextBusinessPage() { if (!this.data.businessPage.nextDisabled) this.loadBusinessType(this.data.businessPage.page + 1); },
+  inputBusinessPage(event) { this.setData({ businessPageInput: String(event.detail.value || "") }); },
+  jumpBusinessPage() {
+    const raw = String(this.data.businessPageInput || "").trim();
+    const page = Number(raw);
+    const totalPages = Math.max(1, Number(this.data.businessPage.totalPages || 1));
+    if (!/^\d+$/.test(raw) || !Number.isSafeInteger(page) || page < 1 || page > totalPages) {
+      this.setData({ message: `请输入 1 至 ${totalPages} 之间的页码`, error: true });
+      return;
+    }
+    return this.loadBusinessType(page);
+  },
+  rememberSummaryScroll(event) {
+    const value = Number(event.detail && event.detail.scrollLeft);
+    if (Number.isFinite(value) && value >= 0) this.data.summaryScrollLeft = value;
+  },
+  rememberBusinessScroll(event) {
+    const value = Number(event.detail && event.detail.scrollLeft);
+    if (Number.isFinite(value) && value >= 0) this.data.businessScrollLeft = value;
+  },
+  rememberCustomerScroll(event) {
+    const value = Number(event.detail && event.detail.scrollLeft);
+    const status = String(event.currentTarget.dataset.status || "ACTIVE");
+    if (!Number.isFinite(value) || value < 0) return;
+    if (status === "ARCHIVED") this.data.archivedCustomerScrollLeft = value;
+    else this.data.activeCustomerScrollLeft = value;
+  },
   customerPage(event) {
     const status = event.currentTarget.dataset.status;
     const direction = Number(event.currentTarget.dataset.direction);
@@ -466,7 +525,17 @@ Page({
   changeHqEnd(event) { this.setData({ hqEnd: event.detail.value, hqPeriod: "CUSTOM", hqPeriodIndex: 9 }, () => this.applyHqRange()); },
   applyHqRange() {
     if (!this.data.hqStart || !this.data.hqEnd || this.data.hqStart > this.data.hqEnd || dashboard.rangeDays(this.data.hqStart, this.data.hqEnd) > 366) {
-      this.setData({ message: "请选择不超过 366 天的有效日期范围", error: true }); return;
+      this._hqHomeRequestEpoch = Number(this._hqHomeRequestEpoch || 0) + 1;
+      this._hqRankingRequestEpoch = Number(this._hqRankingRequestEpoch || 0) + 1;
+      this._hqRankingRetryPage = 1;
+      this.setData({
+        loading: false, hqRankingLoading: false,
+        hqMetrics: [], hqCharts: [], hqLoadedAt: "—", hqScopeDetailText: "日期范围无效",
+        hqRanking: [], hqRankingPage: pageView({ pageSize: RANKING_PAGE_SIZE }), hqRankingInput: "1",
+        hqRankingScrollLeft: 0, hqRankingError: "请选择不超过 366 天的有效日期范围",
+        message: "请选择不超过 366 天的有效日期范围", error: true
+      });
+      return;
     }
     this.loadHqHome(1);
   },
@@ -482,15 +551,24 @@ Page({
   },
   previousHqPage() { if (!this.data.hqRankingPage.previousDisabled) this.loadHqRanking(this.data.hqRankingPage.page - 1); },
   nextHqPage() { if (!this.data.hqRankingPage.nextDisabled) this.loadHqRanking(this.data.hqRankingPage.page + 1); },
+  rememberHqRankingScroll(event) {
+    const scrollLeft = Number(event.detail && event.detail.scrollLeft);
+    if (Number.isFinite(scrollLeft) && scrollLeft >= 0) this.data.hqRankingScrollLeft = scrollLeft;
+  },
   inputHqPage(event) { this.setData({ hqRankingInput: String(event.detail.value || "") }); },
   jumpHqPage() {
     const raw = String(this.data.hqRankingInput || "").trim();
-    if (!/^\d+$/.test(raw) || Number(raw) < 1 || !Number.isSafeInteger(Number(raw))) {
+    const page = Number(raw);
+    if (!/^\d+$/.test(raw) || page < 1 || !Number.isSafeInteger(page)) {
       this.setData({ message: "请输入有效的正整数页码", error: true }); return;
     }
-    this.loadHqRanking(Math.min(Number(raw), this.data.hqRankingPage.totalPages));
+    const totalPages = Math.max(1, Number(this.data.hqRankingPage.totalPages || 1));
+    if (page > totalPages) {
+      this.setData({ message: `请输入 1 至 ${totalPages} 之间的页码`, error: true }); return;
+    }
+    return this.loadHqRanking(page);
   },
-  retryHqRanking() { this.loadHqRanking(this.data.hqRankingPage.page || 1); },
+  retryHqRanking() { return this.loadHqRanking(this._hqRankingRetryPage || this.data.hqRankingPage.page || 1); },
   openHqDetail(event) {
     const data = event.currentTarget.dataset || {};
     if (data.title && !data.drill) return;
@@ -527,35 +605,23 @@ Page({
         pageNumber += 1;
       } while (pageNumber <= totalPages);
       const csv = `\uFEFF${values.map(csvLine).join("\r\n")}`;
-      const fileName = `总部看板${dimensionLabel}排名-${range.startDate}-${range.endDate}.csv`;
-      const filePath = `${wx.env.USER_DATA_PATH}/${fileName}`;
-      await writeUserFile(filePath, csv);
-      await shareUserFile(filePath, fileName, csv);
-      this.setData({ message: typeof wx.shareFileMessage === "function" ? "排名 CSV 已生成" : "当前环境不支持分享文件，CSV 已复制", error: false });
+      await copyCsvToClipboard(csv);
+      this.setData({ message: "排名 CSV 内容已复制，可粘贴到表格或文本文件保存。", error: false });
     } catch (error) {
       const cancelled = /cancel/i.test(String(error && (error.errMsg || error.message) || ""));
-      this.setData({ message: cancelled ? "已取消分享" : error.message || error.errMsg || "排名导出失败", error: !cancelled });
+      this.setData({ message: cancelled ? "已取消复制" : error.message || error.errMsg || "排名导出失败", error: !cancelled });
     } finally { this.setData({ hqExporting: false }); }
   },
 
   ensureBusinessStore() {
-    if (this.data.session.role === "teacher") {
-      if (this.data.loadingStores || !this.data.businessContextReady) {
-        this.setData({ message: "可办理门店尚未读取成功，请重试后再办理业务", error: true });
-        return null;
-      }
-      const selected = this.data.selectedStore;
-      const store = selected && this.data.stores.find((item) => item.id === selected.id);
-      if (!store) { this.setData({ message: "老师办理业务前必须先选择当前可用门店", error: true }); return null; }
-      return store;
-    }
+    if (this.data.session.role === "teacher") return true;
     const store = getSelectedStore(this.data.session);
-    if (!store) { this.setData({ message: "老师办理业务前必须先选择门店", error: true }); return null; }
+    if (!store) { this.setData({ message: "当前登录门店读取失败，请重新登录后再办理业务", error: true }); return null; }
     return store;
   },
-  openCustomerCreate() { if (this.ensureBusinessStore()) wx.navigateTo({ url: "/pages/customer-create/index" }); },
-  openRecharge(event) { if (this.ensureBusinessStore()) wx.navigateTo({ url: `/pages/recharge/index?mode=${event.currentTarget.dataset.mode}` }); },
-  openVerification(event) { if (this.ensureBusinessStore()) wx.navigateTo({ url: `/pages/verification/index?mode=${event.currentTarget.dataset.mode}` }); },
+  openCustomerCreate() { this.closeMenus(); if (this.ensureBusinessStore()) wx.navigateTo({ url: "/pages/customer-create/index" }); },
+  openRecharge(event) { this.closeMenus(); if (this.ensureBusinessStore()) wx.navigateTo({ url: `/pages/recharge/index?mode=${event.currentTarget.dataset.mode}` }); },
+  openVerification(event) { this.closeMenus(); if (this.ensureBusinessStore()) wx.navigateTo({ url: `/pages/verification/index?mode=${event.currentTarget.dataset.mode}` }); },
   openCustomers() { wx.navigateTo({ url: "/pages/customers/index" }); },
   openQuery(event) {
     const type = String(event.currentTarget.dataset.type || "customer");
@@ -581,7 +647,7 @@ Page({
   openOrder(event) {
     const id = String(event.currentTarget.dataset.id || "");
     const code = String(event.currentTarget.dataset.code || "");
-    const category = String(event.currentTarget.dataset.category || this.data.businessType || "RECHARGE").toUpperCase();
+    const category = String(event.currentTarget.dataset.category || "").toUpperCase();
     const config = dashboard.TYPE_CONFIG[category];
     if (!id || !config) return;
     wx.navigateTo({

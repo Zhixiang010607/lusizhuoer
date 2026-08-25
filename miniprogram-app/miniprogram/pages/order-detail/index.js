@@ -40,6 +40,65 @@ function exactOrderKind(baseType, originalType) {
   };
 }
 
+function routeOrderExpectation(route = {}) {
+  const baseType = clean(route.baseType).toUpperCase();
+  const requestedCategory = clean(route.category).toUpperCase();
+  const recordId = clean(route.recordId);
+  const recordCode = clean(route.recordCode).toUpperCase();
+  if (!recordId || !recordCode) throw new Error("工单详情链接缺少完整工单编号");
+  if (baseType === "RECHARGE") {
+    if (["RECHARGE", "NEW"].includes(requestedCategory)) {
+      return { baseType, category: "RECHARGE", originalType: "NEW", recordId, recordCode };
+    }
+    if (requestedCategory === "REFUND") {
+      return { baseType, category: "REFUND", originalType: "REFUND", recordId, recordCode };
+    }
+    if (requestedCategory === "VOID") {
+      return { baseType, category: "VOID", originalType: "", recordId, recordCode, requireVoidRequest: true };
+    }
+    throw new Error("工单详情链接中的充值业务类型无效");
+  }
+  if (baseType === "VERIFICATION") {
+    if (["VERIFICATION", "NORMAL"].includes(requestedCategory)) {
+      return { baseType, category: "VERIFICATION", originalType: "NORMAL", recordId, recordCode };
+    }
+    if (requestedCategory === "EXPERIENCE") {
+      return { baseType, category: "EXPERIENCE", originalType: "EXPERIENCE", recordId, recordCode };
+    }
+    if (requestedCategory === "SUPPLEMENT") {
+      return { baseType, category: "SUPPLEMENT", originalType: "SUPPLEMENT", recordId, recordCode };
+    }
+    throw new Error("工单详情链接中的核销业务类型无效");
+  }
+  throw new Error("工单详情链接中的业务大类无效");
+}
+
+function assertExactRouteOrder(route, order = {}) {
+  const expected = routeOrderExpectation(route);
+  const serverBaseType = clean(order.serverBaseType).toUpperCase();
+  const serverId = clean(order.id);
+  const serverCode = clean(order.recordCode).toUpperCase();
+  const serverOriginalType = clean(order.originalType).toUpperCase();
+  const voidStatus = clean(order.voidStatus).toUpperCase();
+  if (serverId !== expected.recordId) throw new Error("数据库返回的工单与详情链接编号不一致");
+  if (serverCode !== expected.recordCode) throw new Error("数据库返回的完整工单号与详情链接不一致");
+  if (serverBaseType !== expected.baseType) throw new Error("数据库返回的工单业务大类与详情链接不一致");
+  if (expected.requireVoidRequest) {
+    if (!voidStatus || voidStatus === "NONE") throw new Error("数据库返回的工单不是详情链接指定的作废业务");
+  } else if (serverOriginalType !== expected.originalType) {
+    throw new Error("数据库返回的工单业务类型与详情链接不一致");
+  }
+  return expected;
+}
+
+function detailStatusLabel(baseType, originalType, status) {
+  const family = clean(baseType).toUpperCase();
+  const exact = clean(originalType).toUpperCase();
+  const state = clean(status).toUpperCase();
+  if (family === "VERIFICATION" && ["NORMAL", "EXPERIENCE"].includes(exact) && state === "APPROVED") return "已完成";
+  return query.statusLabel(state);
+}
+
 function receiptDocumentData(order, baseType, template) {
   const source = order || {};
   const recharge = clean(baseType).toUpperCase() === "RECHARGE";
@@ -47,9 +106,10 @@ function receiptDocumentData(order, baseType, template) {
   const supplement = !recharge && clean(source.originalType).toUpperCase() === "SUPPLEMENT";
   const reviewVisible = recharge || supplement;
   const businessName = refund ? "退费" : recharge ? "充值" : "核销";
+  const customerIdentity = [clean(source.customerName), clean(source.customerCode)].filter(Boolean).join(" · ") || "—";
   const facts = [
+    { label: "客户", value: customerIdentity, singleLine: true, span: 2 },
     { label: "门店", value: source.storeName },
-    { label: "客户", value: source.customerName },
     { label: "项目", value: source.productName },
     { label: "业务老师", value: source.teacherName || "未指定" }
   ];
@@ -166,10 +226,11 @@ function normalizeStaffOrder(row, baseType) {
   ].map(clean).filter(Boolean).join("");
   return {
     ...record,
+    serverBaseType: clean(value(source, "record_type", "recordType")).toUpperCase(),
     originalType,
     typeLabel: query.typeLabel(baseType, originalType),
     recordStatus: originalStatus,
-    statusLabel: query.statusLabel(originalStatus),
+    statusLabel: detailStatusLabel(baseType, originalType, originalStatus),
     reviewedAt: query.displayDateTime(value(source, "original_reviewed_at", "originalReviewedAt")),
     storeAddress: address || "未填写",
     message: clean(value(source, "initial_store_note", "initialStoreNote")),
@@ -191,6 +252,7 @@ function normalizeTeacherOrder(row, baseType) {
   const address = [source.storeProvince, source.storeCity, source.storeDistrict, source.storeAddressDetail].map(clean).filter(Boolean).join("");
   return {
     ...record,
+    serverBaseType: clean(source.recordType).toUpperCase(),
     originalType: clean(record.originalType).toUpperCase(),
     reviewedAt: query.displayDateTime(source.reviewedAt),
     storeAddress: address || "未填写",
@@ -206,6 +268,18 @@ function readFile(filePath, encoding) {
 }
 function writeFile(filePath, data) {
   return wxCall((resolve, reject) => wx.getFileSystemManager().writeFile({ filePath, data, success: resolve, fail: reject }));
+}
+function openPdfDocument(filePath) {
+  if (typeof wx.openDocument !== "function") {
+    return Promise.reject(new Error("当前微信版本无法打开 PDF，请升级微信后重试"));
+  }
+  return wxCall((resolve, reject) => wx.openDocument({
+    filePath,
+    fileType: "pdf",
+    showMenu: true,
+    success: resolve,
+    fail: reject
+  }));
 }
 function imageInfo(src) { return wxCall((resolve, reject) => wx.getImageInfo({ src, success: resolve, fail: reject })); }
 function concatBytes(parts) {
@@ -274,15 +348,23 @@ Page({
       recordId: decodeURIComponent(options.recordId || ""), recordCode: decodeURIComponent(options.recordCode || ""),
       submissionClientRequestId: decodeURIComponent(options.submissionClientRequestId || "")
     });
-    wx.setNavigationBarTitle({ title: `${routeKind.noun}工单详情` });
+    wx.setNavigationBarTitle({ title: "露思卓儿" });
     this.load();
   },
 
   onPullDownRefresh() { this.load().finally(() => wx.stopPullDownRefresh()); },
 
   async load() {
-    if (!this.data.recordId || this.data.loading === "locked") return;
-    const verification = this.data.baseType === "VERIFICATION";
+    if (this.data.loading === "locked") return;
+    const request = Object.freeze({
+      role: clean(this.data.session.role).toLowerCase(),
+      baseType: clean(this.data.baseType).toUpperCase(),
+      category: clean(this.data.category).toUpperCase(),
+      recordId: clean(this.data.recordId),
+      recordCode: clean(this.data.recordCode),
+      submissionClientRequestId: clean(this.data.submissionClientRequestId)
+    });
+    const verification = request.baseType === "VERIFICATION";
     this.setData({
       loading: "locked", message: "", error: false,
       ...(verification ? {
@@ -291,19 +373,21 @@ Page({
       } : {})
     });
     try {
+      const routeIdentity = routeOrderExpectation(request);
       let order;
-      if (this.data.session.role === "teacher") {
-        const result = await callFace("getTeacherWorkspace", { recordType: this.data.category, recordId: this.data.recordId });
-        order = normalizeTeacherOrder(result.record, this.data.baseType);
+      if (request.role === "teacher") {
+        const result = await callFace("getTeacherWorkspace", { recordType: request.category, recordId: request.recordId });
+        order = normalizeTeacherOrder(result.record, request.baseType);
       } else {
         const result = await callStaff("listReviewOrders", {
-          recordType: this.data.baseType, recordId: this.data.recordId,
-          recordCode: this.data.recordCode, detailRead: true, limit: 1
+          recordType: request.baseType, recordId: request.recordId,
+          recordCode: request.recordCode, detailRead: true, limit: 1
         });
-        order = normalizeStaffOrder((result.orders || [])[0], this.data.baseType);
+        order = normalizeStaffOrder((result.orders || [])[0], request.baseType);
       }
       if (!order?.id) throw new Error("数据库中未找到该张工单");
-      const exactKind = exactOrderKind(this.data.baseType, order.originalType);
+      assertExactRouteOrder(routeIdentity, order);
+      const exactKind = exactOrderKind(request.baseType, order.originalType);
       order.typeLabel = exactKind.typeLabel;
       const facts = [
         { label: "门店", value: order.storeName, note: order.storeCode || "—" },
@@ -313,17 +397,17 @@ Page({
       ];
       const notes = [
         { label: "提交说明", value: order.message },
-        ...((this.data.baseType === "RECHARGE" || clean(order.originalType).toUpperCase() === "SUPPLEMENT")
+        ...((request.baseType === "RECHARGE" || clean(order.originalType).toUpperCase() === "SUPPLEMENT")
           ? [{ label: "审核说明", value: order.reviewNote }]
           : []),
         { label: "补录说明", value: order.supplementNote }, { label: "作废说明", value: order.voidNote },
         { label: "作废审核说明", value: order.voidReviewNote }
       ].filter((item) => item.value);
-      this.setData({ order, facts, notes, category: exactKind.category, noun: exactKind.noun, loading: false });
-      wx.setNavigationBarTitle({ title: `${exactKind.noun}工单详情` });
-      if (this.data.submissionClientRequestId) {
+      this.setData({ order, facts, notes, category: routeIdentity.category, noun: exactKind.noun, loading: false });
+      wx.setNavigationBarTitle({ title: "露思卓儿" });
+      if (request.submissionClientRequestId) {
         try {
-          const acknowledged = submission.acknowledge(this.data.baseType, this.data.recordId, this.data.submissionClientRequestId);
+          const acknowledged = submission.acknowledge(request.baseType, request.recordId, request.submissionClientRequestId);
           if (!acknowledged) this.setData({ message: "工单详情已读取，但原提交确认信息不一致；防重复提交锁仍保留。", error: true });
         } catch (error) {
           this.setData({ message: error.message || "工单详情已读取，但防重复提交锁尚未清除。", error: true });
@@ -661,15 +745,15 @@ Page({
         const pdf = jpegPdf(pages);
         const filePath = `${wx.env.USER_DATA_PATH}/${baseName}.pdf`;
         await writeFile(filePath, pdf);
-        if (typeof wx.shareFileMessage === "function") {
-          await wxCall((resolve, reject) => wx.shareFileMessage({ filePath, fileName: `${baseName}.pdf`, success: resolve, fail: reject }));
-        } else {
-          await wxCall((resolve, reject) => wx.openDocument({ filePath, fileType: "pdf", showMenu: true, success: resolve, fail: reject }));
-        }
+        this.setData({ exportProgress: "正在打开 PDF…" });
+        await openPdfDocument(filePath);
       } else {
         await saveImageToAlbum(receipt.images[0].path);
       }
-      this.setData({ message: format === "pdf" ? "PDF 凭证已生成。" : "图片凭证已保存到相册。", error: false });
+      this.setData({
+        message: format === "pdf" ? "PDF 凭证已打开，可通过右上角菜单分享或保存。" : "图片凭证已保存到相册。",
+        error: false
+      });
     } catch (error) {
       if (/cancel/i.test(String(error.errMsg || error.message || ""))) this.setData({ message: "已取消导出。", error: false });
       else this.setData({ message: error.message || error.errMsg || "业务凭证生成失败", error: true });

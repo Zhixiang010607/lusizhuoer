@@ -16,8 +16,8 @@
         </view>
         <view class="password-reset-row"><text class="password-reset-link" role="button" bindtap="openPasswordReset">修改密码</text></view>
       </view>
-      <button id="login-submit" class="primary login-button" bindtap="submit" loading="{{busy}}" disabled="{{busy}}">登录</button>
-      <button id="login-wechat-phone" class="wechat-login" open-type="getPhoneNumber" bindgetphonenumber="submitWechatPhone" loading="{{busy}}" disabled="{{busy}}"><text>微信手机号登录</text></button>
+      <button id="login-submit" class="primary login-button" bindtap="submit" loading="{{busy || startupChecking}}" disabled="{{busy || startupChecking}}">登录</button>
+      <button id="login-wechat-phone" class="wechat-login" open-type="getPhoneNumber" bindgetphonenumber="submitWechatPhone" loading="{{busy || startupChecking}}" disabled="{{busy || startupChecking}}"><text>微信手机号登录</text></button>
       <view id="login-message" wx:if="{{message}}" class="message {{error ? 'error' : ''}}">{{message}}</view>
     </view>
   </view>

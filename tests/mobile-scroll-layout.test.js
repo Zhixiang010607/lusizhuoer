@@ -77,7 +77,7 @@ for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))
   const expectedStyleVersion = ["staff-detail.html", "teacher-create.html"].includes(file)
     ? "0.15.53"
     : file === "teacher-work-orders.html"
-    ? "0.15.57"
+    ? "0.15.58"
     : file === "teacher-management.html"
     ? "0.15.58"
     : file === "teacher-detail.html"

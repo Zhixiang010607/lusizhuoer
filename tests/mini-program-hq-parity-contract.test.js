@@ -33,6 +33,11 @@ test("HQ home exposes the complete web mobile rail and isolated ranking interact
   assert.match(js, /retryHqRanking\(\)/);
   assert.match(js, /async exportHqRanking\(\)/);
   assert.match(js, /RANKING_EXPORT_MAX_ROWS = 10000/);
+  assert.match(js, /wx\.setClipboardData\(\{\s*data/,
+    "ranking CSV uses a post-fetch-safe native clipboard handoff");
+  assert.match(js, /排名 CSV 内容已复制，可粘贴到表格或文本文件保存/);
+  assert.doesNotMatch(js, /shareFileMessage/,
+    "ranking export must not call a TAP-only API after asynchronously fetching all pages");
   assert.match(js, /hqScopeDetailText/);
   assert.doesNotMatch(wxml, /\{\{hqScopeText\}\}/, "the filter card must not repeat an already visible scope sentence");
   assert.match(wxml, /class="hq-filter-actions"><button bindtap="resetHqRange">重置筛选<\/button><\/view>/);
@@ -93,10 +98,19 @@ test("HQ store and teacher workspaces reuse authoritative services without a gen
   assert.equal((directoryWxml.match(/class="table-row table-head teacher"/g) || []).length, 3,
     "all teacher table headers must use the same horizontal column grid as teacher data rows");
   assert.match(directoryWxml, /class="table-row teacher">\s*<text class="link"[^>]*bindtap="openDetail">\{\{item\.name\}\}<\/text><text>\{\{item\.code\}\}<\/text><text>\{\{item\.phone\}\}<\/text><text><text class="status/);
-  assert.match(directoryWxss, /\.data-table\.teacher\s*\{\s*width:\s*626rpx;\s*min-width:\s*626rpx;\s*\}/,
-    "the four teacher columns must exactly fill the table without a trailing blank strip");
-  assert.match(directoryWxss, /\.table-row\.teacher\s*\{\s*grid-template-columns:\s*160rpx 130rpx 190rpx 146rpx;\s*\}/,
-    "teacher table width must equal the sum of its four declared columns");
+  assert.equal((directoryWxml.match(/class="table-section(?: archived-section)? \{\{type\}\}"/g) || []).length, 3,
+    "all three directory cards receive the role-specific gutter rule");
+  assert.match(directoryWxss, /\.table-section\.teacher\s*\{\s*padding-right:\s*24rpx;\s*\}/,
+    "teacher tables keep the same inner gutter on both sides");
+  assert.match(directoryWxss, /\.data-table\.teacher\s*\{\s*width:\s*100%;\s*min-width:\s*100%;\s*\}/,
+    "the four teacher columns expand to the full available card width");
+  assert.match(directoryWxss, /\.table-row\.teacher\s*\{\s*grid-template-columns:\s*minmax\(0, 1\.05fr\) minmax\(0, 0\.9fr\) minmax\(0, 1\.25fr\) minmax\(0, 0\.8fr\);\s*\}/,
+    "teacher columns distribute the available width without a trailing blank strip");
+  assert.match(directoryWxss, /\.data-table\.store\s*\{\s*width:\s*1060rpx;\s*min-width:\s*1060rpx;\s*\}/,
+    "the six-column store directory keeps its contained horizontal scroll width");
+  assert.match(directoryWxss, /\.table-row\.store\s*\{\s*grid-template-columns:\s*180rpx 140rpx 180rpx 300rpx 110rpx 150rpx;\s*\}/,
+    "the store directory width remains equal to its six declared columns");
+  assert.equal(180 + 140 + 180 + 300 + 110 + 150, 1060);
   assert.doesNotMatch(directoryWxml, /class="modal|detail-mask/, "directory must route to dedicated pages instead of opening a generic detail modal");
   for (const action of ["getStoreDashboard", "getStoreBusinessAnalytics", "queryStoreBusinessRecords", "setMasterStatus"]) assert.match(storeDetail, new RegExp(action));
   assert.match(storeDetail, /storeId[\s\S]*queryStoreBusinessRecords/);
@@ -132,12 +146,18 @@ test("HQ review workbenches match web filters, pagination, exact links, and guar
   assert.match(js, /decision:\s*this\.data\.decision/);
   assert.match(js, /note:\s*text\(this\.data\.reviewNote\)/);
   assert.match(js, /pages\/order-detail\/index/);
+  assert.match(js, /const category = recharge[\s\S]*isRefund \? "REFUND" : isVoid \? "VOID" : "RECHARGE"[\s\S]*: "SUPPLEMENT"/,
+    "review rows preserve the exact category required by the shared detail page");
+  assert.match(js, /category=\$\{encodeURIComponent\(row\.category\)\}/,
+    "review detail links carry the exact server-derived category");
   assert.match(js, /pages\/customer-detail\/index/);
   for (const label of ["充值审核", "退费审核", "按条件查询", "按工单编号", "门店范围", "审核状态", "工单类型", "上一页", "下一页", "跳至", "通过", "驳回", "审核留言（可选）"]) {
     assert.match(wxml, new RegExp(label), `HQ review UI is missing ${label}`);
   }
-  assert.match(wxss, /\.review-table\s*\{\s*width:\s*2080rpx;/,
+  assert.match(wxss, /\.review-table\s*\{\s*width:\s*2050rpx;/,
     "review table width must exactly equal the declared column total");
+  assert.match(wxss, /grid-template-columns:\s*230rpx 150rpx 230rpx 220rpx 210rpx 180rpx 150rpx 230rpx 250rpx 200rpx/);
+  assert.equal(230 + 150 + 230 + 220 + 210 + 180 + 150 + 230 + 250 + 200, 2050);
   assert.match(wxss, /\.review-row > text, \.review-row > view\s*\{[^}]*align-items:\s*center[^}]*justify-content:\s*center[^}]*text-align:\s*center[^}]*white-space:\s*nowrap/s,
     "review headers and values must stay centered on one line");
   assert.match(wxss, /\.review-row > text:last-child, \.review-row > view:last-child\s*\{\s*border-right:\s*0;/,

@@ -101,7 +101,7 @@ Page({
     session: {}, canManageStatus: false, canEditNotes: false,
     customerCode: "", profile: null, balances: [],
     recharges: [], verifications: [], experiences: [],
-    historyType: "RECHARGE", visibleHistory: [], historyHasMore: false,
+    historyType: "RECHARGE", visibleHistory: [], historyHasMore: false, historyScrollLeft: 0,
     historyLoading: false, historyMessage: "", historyError: false,
     messages: [], messageTotal: 0, messageHasMore: false,
     messagesLoading: false, messageSubmitting: false, messageText: "", messageLength: 0,
@@ -147,7 +147,7 @@ Page({
     this.setData({
       loading: true, message: "", error: false,
       profile: null, balances: [], recharges: [], verifications: [], experiences: [],
-      visibleHistory: [], historyHasMore: false, historyLoading: false,
+      visibleHistory: [], historyHasMore: false, historyLoading: false, historyScrollLeft: 0,
       historyMessage: "", historyError: false,
       notesEditing: false, notesChanged: false, notesMessage: "", notesError: false,
       statusMessage: "", statusError: false
@@ -265,8 +265,12 @@ Page({
   changeHistory(event) {
     const type = clean(event.currentTarget.dataset.type).toUpperCase();
     if (!HISTORY_FIELDS[type]) return;
-    this.setData({ historyType: type });
+    this.setData({ historyType: type, historyScrollLeft: 0 });
     this.syncHistory();
+  },
+  rememberHistoryScroll(event) {
+    const scrollLeft = Number(event.detail && event.detail.scrollLeft);
+    if (Number.isFinite(scrollLeft) && scrollLeft >= 0) this.data.historyScrollLeft = scrollLeft;
   },
   syncHistory() {
     const type = this.data.historyType;
@@ -322,8 +326,10 @@ Page({
     const code = clean(event.currentTarget.dataset.code);
     const historyType = clean(this.data.historyType || "RECHARGE").toUpperCase();
     const originalType = clean(event.currentTarget.dataset.originalType).toUpperCase();
-    const category = historyType === "RECHARGE" && originalType === "REFUND" ? "REFUND" : historyType;
-    const baseType = category === "RECHARGE" || category === "REFUND" ? "recharge" : "verification";
+    const category = historyType === "RECHARGE"
+      ? (originalType === "REFUND" ? "REFUND" : originalType === "VOID" ? "VOID" : "RECHARGE")
+      : (originalType === "EXPERIENCE" ? "EXPERIENCE" : originalType === "SUPPLEMENT" ? "SUPPLEMENT" : "VERIFICATION");
+    const baseType = ["RECHARGE", "REFUND", "VOID"].includes(category) ? "recharge" : "verification";
     wx.navigateTo({
       url: `/pages/order-detail/index?type=${baseType}&category=${category}&recordId=${encodeURIComponent(id)}&recordCode=${encodeURIComponent(code)}`
     });

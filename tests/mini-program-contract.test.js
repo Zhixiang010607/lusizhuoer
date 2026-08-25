@@ -106,7 +106,8 @@ assert.match(home, /session\.role === 'teacher'.*EXPERIENCE/s);
 
 const customerCreate = read("pages", "customer-create", "index.js");
 assert.ok(customerCreate.indexOf('callFace("validateCapture"') < customerCreate.indexOf('callFace("registerCustomer"'));
-assert.match(customerCreate, /if \(!code\) throw new Error/);
+assert.match(customerCreate, /if \(!code \|\| !facePersonId \|\| !photoFileId\)/,
+  "customer creation must require database readback proof for the code, face identity, and stored photo");
 
 const recharge = read("pages", "recharge", "index.js");
 for (const token of ["listActiveProducts", "getCustomerProductBalances", "listActiveTeachers", "createRechargeApplication", "recoverBusinessSubmission"]) assert.ok(recharge.includes(token) || read("services", "submission.js").includes(token));
@@ -173,7 +174,9 @@ const orderDetail = read("pages", "order-detail", "index.js");
 assert.match(orderDetail, /function exactOrderKind/);
 assert.match(orderDetail, /exact === "EXPERIENCE" \? "体验核销" : "核销"/);
 assert.match(orderDetail, /exact === "REFUND" \? "退费" : "充值"/);
-assert.match(orderDetail, /submission\.acknowledge\(this\.data\.baseType, this\.data\.recordId, this\.data\.submissionClientRequestId\)/);
+assert.match(orderDetail, /submission\.acknowledge\(request\.baseType, request\.recordId, request\.submissionClientRequestId\)/);
+assert.match(orderDetail, /assertExactRouteOrder\(routeIdentity, order\)/,
+  "order detail must verify the server-read id, code, base type and category before acknowledging a submission");
 assert.match(read("pages", "order-detail", "index.wxml"), /baseType === 'RECHARGE' \|\| order\.originalType === 'SUPPLEMENT'/,
   "normal and experience verification records must not render a review time");
 

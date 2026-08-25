@@ -11,7 +11,7 @@
 
   <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
 
-  <view class="table-section">
+  <view class="table-section {{type}}">
     <view class="section-heading"><text>查询结果</text><text>{{searched ? searchRows.length : 0}} {{unit}}</text></view>
     <scroll-view class="table-scroll" scroll-x>
       <view class="data-table {{type}}">
@@ -23,7 +23,7 @@
     </scroll-view>
   </view>
 
-  <view class="table-section">
+  <view class="table-section {{type}}">
     <view class="section-heading"><text>活跃{{noun}}</text><text>{{activeRows.length}} {{unit}}</text></view>
     <scroll-view class="table-scroll" scroll-x>
       <view class="data-table {{type}}">
@@ -35,7 +35,7 @@
     </scroll-view>
   </view>
 
-  <view class="table-section archived-section">
+  <view class="table-section archived-section {{type}}">
     <view class="section-heading"><text>封存{{noun}}</text><text>{{archivedRows.length}} {{unit}}</text></view>
     <scroll-view class="table-scroll" scroll-x>
       <view class="data-table {{type}}">

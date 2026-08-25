@@ -81,6 +81,17 @@ test("balance and history tables have exact centered single-line column widths",
   assert.match(wxss, /\.history-tabs button \{[^}]*align-items: center;[^}]*justify-content: center;[^}]*text-align: center;[^}]*white-space: nowrap;/s);
 });
 
+test("history tabs and full refresh reset the controlled horizontal position", () => {
+  assert.match(js, /historyType: "RECHARGE", visibleHistory: \[\], historyHasMore: false, historyScrollLeft: 0/);
+  assert.match(wxml, /class="table-scroll record-scroll"[^>]*scroll-left="\{\{historyScrollLeft\}\}"[^>]*bindscroll="rememberHistoryScroll"/);
+  const loadSection = js.slice(js.indexOf("async load()"), js.indexOf("async loadPhoto()"));
+  assert.match(loadSection, /historyScrollLeft: 0/);
+  const changeStart = js.indexOf("changeHistory(event)");
+  const changeSection = js.slice(changeStart, js.indexOf("syncHistory()", changeStart));
+  assert.match(changeSection, /historyType: type, historyScrollLeft: 0/);
+  assert.match(js, /rememberHistoryScroll\(event\)[\s\S]*this\.data\.historyScrollLeft = scrollLeft/);
+});
+
 test("history mapper preserves refund signs, teachers, dates, and server statuses", () => {
   let pageDefinition;
   const sandbox = {

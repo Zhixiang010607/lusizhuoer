@@ -26,8 +26,11 @@ function normalize(row, recharge) {
   const isVoid = applicationType === "VOID";
   const amount = Number(pick(row, "unit_count", "unitCount")) || 0;
   const customerCode = text(pick(row, "customer_code", "customerCode"));
+  const category = recharge
+    ? (isRefund ? "REFUND" : isVoid ? "VOID" : "RECHARGE")
+    : "SUPPLEMENT";
   return {
-    id: text(row.id), recordCode: text(pick(row, "record_code", "recordCode")), status,
+    id: text(row.id), recordCode: text(pick(row, "record_code", "recordCode")), status, category,
     statusLabel: { PENDING: "待审核", APPROVED: "审核通过", REJECTED: "已驳回" }[status] || status,
     kind: recharge ? (isRefund ? "退费申请" : isVoid ? "历史作废" : "充值申请") : "补录核销",
     storeId: text(pick(row, "store_id", "storeId")), storeName: text(pick(row, "store_name", "storeName")) || "未命名门店",
@@ -57,7 +60,7 @@ Page({
     const type = ["recharge", "refund", "verification"].includes(requested) ? requested : "recharge";
     const noun = type === "verification" ? "核销" : type === "refund" ? "退费" : "充值";
     this.setData({ session, type, noun, recordType: type === "verification" ? "VERIFICATION" : "RECHARGE" });
-    wx.setNavigationBarTitle({ title: `${noun}审核` });
+    wx.setNavigationBarTitle({ title: "露思卓儿" });
     await this.load(1, true);
   },
   onPullDownRefresh() { this.load(1, true).finally(() => wx.stopPullDownRefresh()); },
@@ -137,7 +140,12 @@ Page({
   openOrder(event) {
     const id = text(event.currentTarget.dataset.id);
     const code = text(event.currentTarget.dataset.code);
-    if (id) wx.navigateTo({ url: `/pages/order-detail/index?type=${this.data.recordType.toLowerCase()}&recordId=${encodeURIComponent(id)}&recordCode=${encodeURIComponent(code)}` });
+    const row = this.data.rows.find((item) => item.id === id && item.recordCode === code);
+    if (row && row.category) {
+      wx.navigateTo({
+        url: `/pages/order-detail/index?type=${this.data.recordType.toLowerCase()}&category=${encodeURIComponent(row.category)}&recordId=${encodeURIComponent(id)}&recordCode=${encodeURIComponent(code)}`
+      });
+    }
   },
   openCustomer(event) {
     const code = text(event.currentTarget.dataset.code);

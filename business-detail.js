@@ -2343,7 +2343,7 @@
         }
         if (directVerificationPhotoUploadUnavailable(error)) {
           task.beginDispatched = false;
-          throw verificationPhotoUploadError("新版照片上传服务尚未部署，请先执行迁移 039—059、部署 verificationPhoto v9，并将 faceRecognition 更新到 v90。", "PHOTO_UPLOAD_DIRECT_UNAVAILABLE");
+          throw verificationPhotoUploadError("新版照片上传服务尚未部署，请先执行迁移 039—059、部署 verificationPhoto v9，并将 faceRecognition 更新到 v91。", "PHOTO_UPLOAD_DIRECT_UNAVAILABLE");
         }
         throw error;
       } finally {

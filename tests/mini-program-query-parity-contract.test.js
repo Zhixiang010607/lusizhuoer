@@ -73,11 +73,19 @@ test("recharge and verification query share complete filters and exact order det
   assert.match(js, /if \(epoch !== this\._requestEpoch\) return;/,
     "business queries must reject stale responses after filters change");
   assert.match(js, /pages\/order-detail\/index\?type=/);
+  assert.match(js, /originalType === "SUPPLEMENT" \? "SUPPLEMENT" : "VERIFICATION"/,
+    "verification query links preserve historical supplement category for exact detail reads");
+  assert.match(js, /originalType === "VOID" \? "VOID" : "RECHARGE"/,
+    "recharge query links preserve historical void category for exact detail reads");
   assert.match(wxml, /bindtap="openRecord"/);
   assert.match(wxml, /class="table-link record-code"/);
   const wxss = read("pages", "records", "index.wxss");
-  assert.match(wxss, /\.record-row \.record-code \{[^}]*overflow:\s*visible;[^}]*text-overflow:\s*clip;[^}]*white-space:\s*nowrap;/,
-    "query order codes remain complete on one line instead of being ellipsized");
+  assert.match(wxss, /\.record-row \.record-code \{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*clip;[^}]*white-space:\s*nowrap;/,
+    "query order codes remain on one line and cannot paint over the adjacent customer cell");
+  assert.match(wxml, /scroll-left="\{\{tableScrollLeft\}\}"/,
+    "each query result can force the horizontal table back to its first column");
+  assert.match(js, /tableScrollLeft:\s*0/,
+    "queries, reset, and pagination keep a controlled horizontal scroll position");
   const recordCodeRule = wxss.match(/\.record-row \.record-code \{[^}]*\}/)?.[0] || "";
   assert.doesNotMatch(recordCodeRule, /font-size\s*:/,
     "query order codes must use the same readable font size as the rest of the table body");
@@ -115,10 +123,17 @@ test("customer history and role homes link exact records to the shared detail pa
   const homeJs = read("pages", "home", "index.js");
   const homeWxml = read("pages", "home", "index.wxml");
   assert.match(customerWxml, /bindtap="openOrder"/);
-  assert.match(customerJs, /category === "RECHARGE" \|\| category === "REFUND"/);
+  assert.match(customerJs, /originalType === "SUPPLEMENT" \? "SUPPLEMENT" : "VERIFICATION"/,
+    "customer history must not route historical supplements as normal verification");
+  assert.match(customerJs, /\["RECHARGE", "REFUND", "VOID"\]\.includes\(category\)/,
+    "recharge, refund, and historical void orders keep the recharge family");
   assert.match(customerJs, /pages\/order-detail\/index/);
   assert.match(homeWxml, /bindtap="openOrder"/);
   assert.match(homeJs, /dashboard\.TYPE_CONFIG\[category\]/);
+  assert.match(homeWxml, /data-category="\{\{item\.category\}\}"/,
+    "home rows carry their immutable category instead of whichever tab is currently selected");
+  assert.match(homeWxml, /class="table-pagination business-pagination"[\s\S]*bindtap="jumpBusinessPage"/,
+    "store and teacher business history retain direct page jumping on mobile");
 });
 
 test("shared query helpers preserve Shanghai business ranges and historical audit filters", () => {

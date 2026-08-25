@@ -78,7 +78,8 @@ function hqRange(period, custom = {}) {
     const startMonth = (Number(period.slice(1)) - 1) * 3;
     const startDate = dateText(new Date(Date.UTC(year, startMonth, 1)));
     const quarterEnd = dateText(new Date(Date.UTC(year, startMonth + 3, 0)));
-    return { startDate, endDate: quarterEnd < currentText ? quarterEnd : currentText };
+    const endDate = startDate > currentText ? quarterEnd : (quarterEnd < currentText ? quarterEnd : currentText);
+    return { startDate, endDate };
   }
   return { startDate: addDays(currentText, -29), endDate: currentText };
 }
@@ -112,7 +113,7 @@ function products(items = []) {
 }
 function records(items = [], type = "VERIFICATION") {
   return (Array.isArray(items) ? items : []).map((item) => ({
-    id: String(item.id || ""), type, recordCode: String(item.recordCode || "—"),
+    id: String(item.id || ""), type, category: type, recordCode: String(item.recordCode || "—"),
     storeName: String(item.storeName || "—"), storeCode: String(item.storeCode || ""),
     customerName: String(item.customerName || "—"), customerCode: String(item.customerCode || ""),
     productName: String(item.productName || "—"), unitCount: count(item.unitCount),

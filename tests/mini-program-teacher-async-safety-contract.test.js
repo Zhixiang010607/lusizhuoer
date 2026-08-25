@@ -94,7 +94,7 @@ function dashboardStub() {
     tabs: () => [], products: (items = []) => items, totals: (value = {}) => value,
     pageState: (value = {}) => ({ page: Number(value.page || 1), pageSize: Number(value.pageSize || 10), total: Number(value.total || 0), totalPages: Number(value.totalPages || 1) }),
     customerGroup: (value = {}) => ({ records: value.records || [], page: Number(value.page || 1), pageSize: Number(value.pageSize || 10), total: Number(value.total || 0), totalPages: Number(value.totalPages || 1) }),
-    count: (value) => Number(value || 0), records: (items = []) => items, teacherFacts: () => [], scopedRange: () => ({ startDate: "", endDate: "" }),
+    count: (value) => Number(value || 0), records: (items = [], type = "VERIFICATION") => items.map((item) => ({ ...item, category: type })), teacherFacts: () => [], scopedRange: () => ({ startDate: "", endDate: "" }),
     payload: () => ({}), periodLabel: () => "", rangeDays: () => 1,
     hqRange: () => ({ startDate: "2026-08-01", endDate: "2026-08-25" }),
     hqChart: () => ({ rows: [], axis: {} }), hqRows: (items = []) => items,
@@ -105,6 +105,7 @@ function dashboardStub() {
 function loadHome(signOut = async () => {}, callFace = async () => ({}), callStaff = async () => ({})) {
   let definition;
   const launches = [];
+  const navigations = [];
   vm.runInNewContext(read("pages", "home", "index.js"), {
     Page(value) { definition = value; },
     require(id) {
@@ -115,54 +116,50 @@ function loadHome(signOut = async () => {}, callFace = async () => ({}), callSta
       if (id === "../../services/home-dashboard") return dashboardStub();
       throw new Error(`unexpected home dependency ${id}`);
     },
-    wx: { reLaunch(options) { launches.push(options.url); }, navigateTo() {}, getFileSystemManager: () => ({}) },
+    wx: { reLaunch(options) { launches.push(options.url); }, navigateTo(options) { navigations.push(options.url); }, getFileSystemManager: () => ({}) },
     console, Date, Math, Promise, String, Number, Boolean, Object, encodeURIComponent
   }, { filename: "pages/home/index.js" });
   assert.ok(definition);
-  return { definition, launches };
+  return { definition, launches, navigations };
 }
 
-test("teacher home rejects stale cached stores and still returns to login when sign-out fails", async () => {
+test("teacher home enters each business page directly and still returns to login when sign-out fails", async () => {
   const failure = new Error("network failed");
-  const { definition, launches } = loadHome(async () => { throw failure; });
-  const page = pageInstance(definition, {
-    data: {
-      session: { role: "teacher" }, loadingStores: false, businessContextReady: true,
-      stores: [{ id: "active", name: "可用门店" }], selectedStore: { id: "stale", name: "失效门店" }
-    }
-  });
-  assert.equal(page.ensureBusinessStore(), null, "cached store absent from the current context must not be accepted");
-  assert.match(page.data.message, /必须先选择当前可用门店/);
-  page.setData({ selectedStore: { id: "active", name: "可用门店" } });
-  assert.equal(page.ensureBusinessStore().id, "active");
-  page.setData({ businessContextReady: false });
-  assert.equal(page.ensureBusinessStore(), null, "failed context load must fail closed");
+  const { definition, launches, navigations } = loadHome(async () => { throw failure; });
+  const page = pageInstance(definition, { data: { session: { role: "teacher" }, businessMenuOpen: true } });
+  assert.equal(page.ensureBusinessStore(), true, "teacher chooses the store inside the destination business page");
+  page.openCustomerCreate();
+  page.openRecharge({ currentTarget: { dataset: { mode: "NEW" } } });
+  page.openVerification({ currentTarget: { dataset: { mode: "EXPERIENCE" } } });
+  assert.deepEqual(navigations, [
+    "/pages/customer-create/index",
+    "/pages/recharge/index?mode=NEW",
+    "/pages/verification/index?mode=EXPERIENCE"
+  ]);
+  assert.equal(page.data.businessMenuOpen, false);
   await assert.rejects(page.logout(), failure);
   assert.deepEqual(launches, ["/pages/login/index"]);
 
   const source = read("pages", "home", "index.js");
   assert.match(source, /_businessRequestEpoch/);
   assert.match(source, /_customerRequestEpoch/);
-  assert.match(source, /已禁止办理业务/);
+  assert.doesNotMatch(source, /getTeacherBusinessContext|setSelectedStore|loadingStores|businessContextReady|selectedStore|storeLabels/);
 });
 
-test("teacher home context failure clears the selected store and fails closed", async () => {
+test("teacher home loads only workspace and related customers, not the business-store context", async () => {
+  const actions = [];
   const { definition } = loadHome(async () => {}, async (action) => {
-    if (action === "getTeacherBusinessContext") throw new Error("context unavailable");
+    actions.push(action);
+    if (action === "getTeacherBusinessContext") throw new Error("teacher home must not request business stores");
     if (action === "getTeacherWorkspace") return { profile: {}, summary: { totals: {}, products: [] }, experienceBalances: [], page: { records: [], page: 1, totalPages: 1 } };
     if (action === "getTeacherBusinessCustomers") return { active: {}, archived: {} };
     throw new Error(`unexpected teacher-home action ${action}`);
   });
-  const page = pageInstance(definition, { data: {
-    session: { role: "teacher", teacherId: "T-1" }, selectedStore: { id: "stale" },
-    stores: [{ id: "stale" }], businessContextReady: true
-  } });
+  const page = pageInstance(definition, { data: { session: { role: "teacher", teacherId: "T-1" } } });
   await page.loadTeacherHome();
-  assert.equal(page.data.businessContextReady, false);
-  assert.equal(page.data.selectedStore, null);
-  assert.deepEqual(Array.from(page.data.stores), []);
-  assert.match(page.data.message, /已禁止办理业务/);
-  assert.equal(page.ensureBusinessStore(), null);
+  assert.deepEqual(actions.sort(), ["getTeacherBusinessCustomers", "getTeacherWorkspace"]);
+  assert.equal(page.data.error, false);
+  assert.equal(Object.hasOwn(page.data, "businessContextReady"), false);
 });
 
 test("teacher business and customer page epochs reject late older responses", async () => {
@@ -196,6 +193,71 @@ test("teacher business and customer page epochs reject late older responses", as
   await oldCustomers;
   assert.equal(page.data.activeCustomers.page, 3);
   assert.equal(page.data.activeCustomers.records[0].customerCode, "C-NEW");
+});
+
+test("teacher and store failures clear rows, summaries, pages, and scroll positions from the previous scope", async () => {
+  const { definition } = loadHome(async () => {}, async (action) => {
+    if (action === "getTeacherBusinessContext") return { stores: [] };
+    throw new Error(`${action} unavailable`);
+  });
+  const page = pageInstance(definition, { data: {
+    session: { role: "teacher" }, businessType: "REFUND", profileFacts: [{ label: "旧资料" }],
+    experienceBalances: [{ productId: "old" }], summaryRows: [{ productId: "old" }],
+    totals: { verification: 9, recharge: 9, experience: 9, refund: 9 },
+    businessRecords: [{ id: "old", category: "RECHARGE" }],
+    businessPage: { page: 8, total: 80, totalPages: 8 }, businessPageInput: "8", businessScrollLeft: 600,
+    activeCustomers: { records: [{ customerCode: "old-active" }], page: 3, totalPages: 3 },
+    archivedCustomers: { records: [{ customerCode: "old-archived" }], page: 2, totalPages: 2 },
+    activeCustomerScrollLeft: 90, archivedCustomerScrollLeft: 120
+  } });
+  await page.loadTeacherHome();
+  assert.deepEqual(Array.from(page.data.profileFacts), []);
+  assert.deepEqual(Array.from(page.data.experienceBalances), []);
+  assert.deepEqual(Array.from(page.data.summaryRows), []);
+  assert.deepEqual(Array.from(page.data.businessRecords), []);
+  assert.equal(page.data.businessPage.page, 1);
+  assert.equal(page.data.businessPageInput, "1");
+  assert.equal(page.data.businessScrollLeft, 0);
+  assert.deepEqual(Array.from(page.data.activeCustomers.records), []);
+  assert.deepEqual(Array.from(page.data.archivedCustomers.records), []);
+  assert.equal(page.data.activeCustomerScrollLeft, 0);
+  assert.equal(page.data.archivedCustomerScrollLeft, 0);
+
+  page.setData({
+    session: { role: "store" }, businessType: "REFUND",
+    businessRecords: [{ id: "old-store" }], businessPage: { page: 4, totalPages: 4 },
+    businessPageInput: "4", businessScrollLeft: 400
+  });
+  await page.loadBusinessType(4);
+  assert.deepEqual(Array.from(page.data.businessRecords), []);
+  assert.equal(page.data.businessPage.page, 1);
+  assert.equal(page.data.businessPageInput, "1");
+  assert.equal(page.data.businessScrollLeft, 0);
+  assert.equal(page.data.error, true);
+});
+
+test("business page jumps are strict and order links use the row category snapshot", async () => {
+  const { definition } = loadHome();
+  const page = pageInstance(definition, { methods: {
+    loadBusinessType(target) { this.loadedPage = target; return target; }
+  }, data: {
+    businessPage: { page: 1, totalPages: 5 }, businessPageInput: "6", businessType: "REFUND"
+  } });
+  page.jumpBusinessPage();
+  assert.equal(page.loadedPage, undefined);
+  assert.match(page.data.message, /1 至 5/);
+  page.setData({ businessPageInput: "4", message: "", error: false });
+  assert.equal(page.jumpBusinessPage(), 4);
+  assert.equal(page.loadedPage, 4);
+
+  const source = read("pages", "home", "index.js");
+  const markup = read("pages", "home", "index.wxml");
+  assert.match(source, /const category = String\(event\.currentTarget\.dataset\.category \|\| ""\)\.toUpperCase\(\)/);
+  assert.doesNotMatch(source, /dataset\.category \|\| this\.data\.businessType/,
+    "an old row must never be reinterpreted using the newly selected tab");
+  assert.match(markup, /data-category="\{\{item\.category\}\}"/);
+  assert.match(markup, /scroll-left="\{\{businessScrollLeft\}\}"[^>]*bindscroll="rememberBusinessScroll"/);
+  assert.match(markup, /bindtap="jumpBusinessPage"/);
 });
 
 test("store initial home and HQ ranking reject late responses after a tab or dimension change", async () => {

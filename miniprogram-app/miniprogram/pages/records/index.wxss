@@ -13,7 +13,7 @@
 .record-row text { min-width: 0; min-height: 78rpx; display: flex; align-items: center; justify-content: center; padding: 14rpx 12rpx; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .record-head { min-height: 68rpx; color: #675b4b; background: #f5ead8; font-size: 22rpx; font-weight: 800; }
 .table-link { color: #8b642e; font-weight: 800; }
-.record-row .record-code { overflow: visible; text-overflow: clip; white-space: nowrap; }
+.record-row .record-code { overflow: hidden; text-overflow: clip; white-space: nowrap; }
 .pager { display: flex; align-items: center; justify-content: space-between; gap: 14rpx; margin-top: 18rpx; }
 .pager button { width: 152rpx; min-height: 58rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 14rpx; font-size: 19rpx; line-height: 1; }
 .pager > text { color: #7c7062; font-size: 19rpx; white-space: nowrap; }

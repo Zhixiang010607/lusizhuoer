@@ -11,7 +11,7 @@ function values(options) { return options.map((item) => item.value); }
 Page({
   data: {
     session: {}, recordType: "RECHARGE", noun: "充值", loading: false, message: "", error: false,
-    mode: "browse", records: [], summary: { ...EMPTY_SUMMARY },
+    mode: "browse", records: [], summary: { ...EMPTY_SUMMARY }, tableScrollLeft: 0,
     page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1, pageJump: "1",
     stores: [], storeLabels: ["全部门店"], storeIndex: 0,
     products: [], productLabels: ["全部项目"], productIndex: 0,
@@ -31,7 +31,7 @@ Page({
       session, recordType, noun: recordType === "VERIFICATION" ? "核销" : "充值",
       typeLabels: labels(typeOptions), typeValues: values(typeOptions), typeIndex: 0
     });
-    wx.setNavigationBarTitle({ title: `${this.data.noun}查询` });
+    wx.setNavigationBarTitle({ title: "露思卓儿" });
     if (session.role === "hq") await this.loadStores();
     await this.load(1);
   },
@@ -80,7 +80,7 @@ Page({
     const payload = this.buildPayload(page);
     const recordType = this.data.recordType;
     const noun = this.data.noun;
-    this.setData({ loading: true, message: "", error: false });
+    this.setData({ loading: true, message: "", error: false, tableScrollLeft: 0 });
     try {
       const result = await callFace("queryStoreBusinessRecords", payload);
       if (epoch !== this._requestEpoch) return;
@@ -96,12 +96,14 @@ Page({
         records: (result.records || []).map((item) => query.normalizeRecord(item, recordType)),
         summary: result.summary || { ...EMPTY_SUMMARY },
         products, productLabels: ["全部项目", ...products.map((product) => product.label)], productIndex: nextProductIndex,
-        page: actualPage, pageJump: String(actualPage), total: Number(result.total || 0), totalPages
+        page: actualPage, pageJump: String(actualPage), total: Number(result.total || 0), totalPages,
+        tableScrollLeft: 0
       });
     } catch (error) {
       if (epoch !== this._requestEpoch) return;
       this.setData({
         records: [], summary: { ...EMPTY_SUMMARY }, page: 1, pageJump: "1", total: 0, totalPages: 1,
+        tableScrollLeft: 0,
         message: error.message || `${noun}查询失败`, error: true
       });
     } finally {
@@ -111,7 +113,7 @@ Page({
 
   invalidateRequest(changes) {
     this._requestEpoch = Number(this._requestEpoch || 0) + 1;
-    this.setData({ ...(changes || {}), loading: false });
+    this.setData({ tableScrollLeft: 0, ...(changes || {}), loading: false });
   },
 
   setMode(event) {
@@ -164,8 +166,8 @@ Page({
     const code = String(event.currentTarget.dataset.code || "");
     const originalType = String(event.currentTarget.dataset.category || "").toUpperCase();
     const category = this.data.recordType === "RECHARGE"
-      ? (originalType === "REFUND" ? "REFUND" : "RECHARGE")
-      : (originalType === "EXPERIENCE" ? "EXPERIENCE" : "VERIFICATION");
+      ? (originalType === "REFUND" ? "REFUND" : originalType === "VOID" ? "VOID" : "RECHARGE")
+      : (originalType === "EXPERIENCE" ? "EXPERIENCE" : originalType === "SUPPLEMENT" ? "SUPPLEMENT" : "VERIFICATION");
     if (id) wx.navigateTo({ url: `/pages/order-detail/index?type=${this.data.recordType.toLowerCase()}&category=${category}&recordId=${encodeURIComponent(id)}&recordCode=${encodeURIComponent(code)}` });
   }
 });

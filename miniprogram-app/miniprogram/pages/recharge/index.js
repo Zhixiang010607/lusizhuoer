@@ -1,5 +1,5 @@
 const { callFace } = require("../../services/api");
-const { requireSession, getSelectedStore } = require("../../services/session");
+const { requireSession, getSelectedStore, setSelectedStore } = require("../../services/session");
 const submission = require("../../services/submission");
 
 function product(value) {
@@ -10,6 +10,14 @@ function product(value) {
 }
 function teacher(value) {
   return { teacherId: String(value.teacherId || ""), teacherCode: String(value.teacherCode || ""), teacherName: String(value.teacherName || "") };
+}
+function businessStore(value) {
+  value = value || {};
+  return {
+    id: String(value.storeId || value.id || ""),
+    code: String(value.storeCode || value.code || ""),
+    name: String(value.storeName || value.name || "")
+  };
 }
 function submittedOrderHint(session, refund) {
   if (session && session.role === "teacher") {
@@ -29,22 +37,81 @@ function orderUrl(refund, result, intent = {}) {
 
 Page({
   data: {
-    session: {}, store: {}, refund: false, customer: null, products: [], productLabels: [], productIndex: -1, selectedProduct: null,
+    session: {}, store: {}, stores: [], storeLabels: ["请选择门店"], storeIndex: 0, loadingStores: false,
+    refund: false, customer: null, products: [], productLabels: [], productIndex: -1, selectedProduct: null,
     teachers: [], teacherLabels: [], teacherIndex: 0, selectedTeacher: null, teacherOptionsReady: false, unitCount: "", note: "", loadingOptions: false,
     busy: false, locked: false, recovering: false, ready: false, message: "", error: false
   },
   onLoad(options) {
     const session = requireSession(["store", "teacher"]);
     if (!session) return;
-    const store = getSelectedStore(session);
-    if (!store) return wx.reLaunch({ url: "/pages/home/index" });
-    this.setData({ session, store, refund: String(options.mode || "NEW").toUpperCase() === "REFUND" });
-    this.loadTeachers();
-    if (!this.data.refund) this.loadProducts();
+    const refund = String(options.mode || "NEW").toUpperCase() === "REFUND";
+    this.setData({ session, refund });
+    if (session.role === "store") {
+      const store = getSelectedStore(session);
+      if (!store || !store.id) return wx.reLaunch({ url: "/pages/home/index" });
+      this.setData({ store: businessStore(store) });
+      this.loadTeachers();
+      if (!refund) this.loadProducts();
+    } else {
+      this.loadTeacherStores();
+    }
     if (submission.read("RECHARGE")) {
       this.setData({ locked: true, message: "检测到上一次充值或退费请求尚未确认，已锁定新提交。" });
       this.recoverPending();
     }
+  },
+  onUnload() {
+    this._storeRequestEpoch = (this._storeRequestEpoch || 0) + 1;
+    this._teacherRequestEpoch = (this._teacherRequestEpoch || 0) + 1;
+    this._productRequestEpoch = (this._productRequestEpoch || 0) + 1;
+  },
+  async loadTeacherStores() {
+    const requestEpoch = (this._storeRequestEpoch || 0) + 1;
+    this._storeRequestEpoch = requestEpoch;
+    this.setData({ loadingStores: true, stores: [], storeLabels: ["请选择门店"], storeIndex: 0, store: {}, message: "", error: false });
+    try {
+      const result = await callFace("getTeacherBusinessContext");
+      if (requestEpoch !== this._storeRequestEpoch) return;
+      const stores = (result.stores || []).map(businessStore).filter((item) => item.id && item.name);
+      this.setData({
+        stores,
+        storeLabels: ["请选择门店", ...stores.map((item) => `${item.name} · ${item.code || item.id}`)],
+        ...(!this.data.locked ? {
+          message: stores.length ? "请先选择本次业务的发生门店" : "暂无可办理的活跃门店",
+          error: !stores.length
+        } : {})
+      });
+    } catch (error) {
+      if (requestEpoch === this._storeRequestEpoch) {
+        this.setData({
+          stores: [], storeLabels: ["请选择门店"], storeIndex: 0, store: {},
+          ...(!this.data.locked ? { message: error.message || "可办理门店读取失败", error: true } : {})
+        });
+      }
+    } finally {
+      if (requestEpoch === this._storeRequestEpoch) this.setData({ loadingStores: false });
+    }
+  },
+  selectStore(event) {
+    if (this.data.busy || this.data.locked) return;
+    const pickerIndex = Number(event.detail.value);
+    const index = pickerIndex - 1;
+    const store = this.data.stores[index];
+    if (!store || !store.id || store.id === String(this.data.store.id || "")) return;
+    setSelectedStore(store, this.data.session);
+    this._teacherRequestEpoch = (this._teacherRequestEpoch || 0) + 1;
+    this._productRequestEpoch = (this._productRequestEpoch || 0) + 1;
+    this.setData({
+      store, storeIndex: pickerIndex,
+      customer: null,
+      teachers: [], teacherLabels: [], teacherIndex: 0, selectedTeacher: null, teacherOptionsReady: false,
+      products: [], productLabels: [], productIndex: -1, selectedProduct: null,
+      unitCount: "", note: "", loadingOptions: false, ready: false,
+      message: `已选择 ${store.name}，请确认客户`, error: false
+    });
+    this.loadTeachers();
+    if (!this.data.refund) this.loadProducts();
   },
   customerChanged() {
     if (this.data.refund) this._productRequestEpoch = (this._productRequestEpoch || 0) + 1;
@@ -52,13 +119,18 @@ Page({
       customer: null, products: this.data.refund ? [] : this.data.products,
       productLabels: this.data.refund ? [] : this.data.productLabels,
       selectedProduct: null, productIndex: -1,
-      loadingOptions: this.data.refund ? false : this.data.loadingOptions
+      unitCount: "", note: "", ready: false,
+      loadingOptions: this.data.refund ? false : this.data.loadingOptions,
+      message: "", error: false
     });
     this.syncReady();
   },
   async customerConfirmed(event) {
     const customer = event.detail.customer;
-    this.setData({ customer, message: `已确认 ${customer.customerName}`, error: false, selectedProduct: null, productIndex: -1 });
+    this.setData({
+      customer, message: `已确认 ${customer.customerName}`, error: false,
+      selectedProduct: null, productIndex: -1, unitCount: "", note: "", ready: false
+    });
     if (this.data.refund) await this.loadProducts(customer.customerCode);
     if (this.data.session.role === "teacher" && this.data.teacherOptionsReady && !this.data.selectedTeacher) {
       this.setData({ message: "当前老师不在该门店的可办理老师名单中，已禁止提交", error: true });
@@ -66,9 +138,14 @@ Page({
     this.syncReady();
   },
   async loadTeachers() {
+    const storeId = String(this.data.store.id || "");
+    if (!storeId) return;
+    const requestEpoch = (this._teacherRequestEpoch || 0) + 1;
+    this._teacherRequestEpoch = requestEpoch;
     this.setData({ teacherOptionsReady: false });
     try {
-      const result = await callFace("listActiveTeachers", { storeId: this.data.store.id });
+      const result = await callFace("listActiveTeachers", { storeId });
+      if (requestEpoch !== this._teacherRequestEpoch || String(this.data.store.id || "") !== storeId) return;
       const values = (result.teachers || []).map(teacher).filter((item) => item.teacherId);
       if (this.data.session.role === "teacher") {
         const mineIndex = values.findIndex((item) => item.teacherId === String(this.data.session.teacherId || ""));
@@ -81,7 +158,9 @@ Page({
       }
       this.syncReady();
     } catch (error) {
-      this.setData({ teacherOptionsReady: true, message: error.message || (this.data.session.role === "teacher" ? "当前老师信息读取失败，已禁止提交" : "老师列表读取失败"), error: true });
+      if (requestEpoch === this._teacherRequestEpoch && String(this.data.store.id || "") === storeId) {
+        this.setData({ teacherOptionsReady: true, message: error.message || (this.data.session.role === "teacher" ? "当前老师信息读取失败，已禁止提交" : "老师列表读取失败"), error: true });
+      }
     }
   },
   async loadProducts(expectedCustomerCode = String(this.data.customer?.customerCode || "")) {
@@ -127,7 +206,7 @@ Page({
     const count = Number(this.data.unitCount);
     const validCount = Number.isInteger(count) && count >= 1 && count <= 999;
     const refundAllowed = !this.data.refund || !this.data.selectedProduct || count <= this.data.selectedProduct.purchasedCount;
-    this.setData({ ready: Boolean(this.data.customer && this.data.selectedProduct && this.data.selectedTeacher && validCount && refundAllowed && !this.data.locked) });
+    this.setData({ ready: Boolean(this.data.store.id && this.data.customer && this.data.selectedProduct && this.data.selectedTeacher && validCount && refundAllowed && !this.data.locked) });
   },
   async submit() {
     if (this.data.busy || !this.data.ready) return;

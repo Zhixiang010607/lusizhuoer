@@ -23,7 +23,7 @@
     { "root": "pages/order-detail", "pages": ["index"] }
   ],
   "window": {
-    "navigationBarTitleText": "露思卓儿工作台",
+    "navigationBarTitleText": "露思卓儿",
     "navigationBarBackgroundColor": "#2f2921",
     "navigationBarTextStyle": "white",
     "backgroundColor": "#f3ede2",

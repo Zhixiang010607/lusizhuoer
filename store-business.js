@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.57", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.58", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   const formatBirthday = (value, fallback = "—") => {
     const raw = String(value ?? "").trim();
     if (!raw) return fallback;
@@ -26,7 +26,7 @@
   let storeId = teacherMode || hqMode ? "" : accountStoreId;
   const storeNo = Number(storeId.replace(/\D/g, "")) || 1;
   let storeName = teacherMode || hqMode ? "尚未选择门店" : `门店 ${storeNo}`;
-  let databaseCustomers = [], databaseTeachers = [], databaseProducts = [], candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", verificationThumbnailDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, verificationBalanceProjects = [], verificationFaceRequestId = "", verificationFaceEvidenceToken = "", customerEnrollmentRequest = null, previewCustomerCode = "", customerSubmissionBusy = false, submissionRecoveryLocked = false, submissionRecoveryRunning = false;
+  let databaseCustomers = [], databaseTeachers = [], databaseProducts = [], candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", verificationThumbnailDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, customerLookupScopeRequest = 0, verificationBalanceProjects = [], verificationFaceRequestId = "", verificationFaceEvidenceToken = "", customerEnrollmentRequest = null, previewCustomerCode = "", customerSubmissionBusy = false, submissionRecoveryLocked = false, submissionRecoveryRunning = false;
   const customerDetailCache = new Map(), customerDetailRequests = new Map();
   let customerServiceApp = null;
   let teacherBusinessStores = [], teacherBusinessProfile = null, teacherWorkflowStarted = false;
@@ -222,6 +222,72 @@
       throw error;
     }
     return data;
+  }
+
+  function normalizedActiveCustomer(value = {}) {
+    return {
+      id: String(value.customerCode || ""),
+      name: String(value.customerName || ""),
+      birthday: String(value.birthDate || "").slice(0, 10)
+    };
+  }
+
+  function activeCustomerCursorKey(value) {
+    if (typeof value === "string") return value.trim() ? `string:${value.trim()}` : "";
+    if (!value || typeof value !== "object") return "";
+    const customerName = String(value.customerName || "");
+    const birthDate = String(value.birthDate || "").slice(0, 10);
+    const customerCode = String(value.customerCode || "");
+    return customerName && birthDate && customerCode
+      ? `customer:${JSON.stringify([customerName, birthDate, customerCode])}`
+      : "";
+  }
+
+  async function fetchAllActiveStoreCustomers({ customerName = "", birthDate = "", expectedStoreId = "", isCurrent = () => true, onProgress = () => {} } = {}) {
+    const customers = [];
+    const seenCustomerCodes = new Set();
+    const seenCursors = new Set();
+    let cursor = null;
+    let storeMetadata = null;
+    while (true) {
+      if (!isCurrent()) return null;
+      const result = await callCustomerEnrollment({
+        action: "listActiveStoreCustomers",
+        limit: 100,
+        ...(customerName && birthDate ? { customerName, birthDate } : {}),
+        ...(cursor ? { cursor } : {})
+      });
+      if (!isCurrent()) return null;
+      const responseStoreId = String(result?.storeId || "");
+      if (expectedStoreId && responseStoreId !== expectedStoreId) {
+        throw new Error("客户列表返回了其他门店的数据，请重新选择门店后再试。");
+      }
+      storeMetadata ||= {
+        storeId: responseStoreId,
+        storeCode: String(result?.storeCode || ""),
+        storeName: String(result?.storeName || "")
+      };
+      // The server cursor is ordered by name, birthday and customer code.
+      // Preserve that page order and keep the first occurrence if rows move
+      // between pages while a new customer is being created concurrently.
+      (Array.isArray(result?.customers) ? result.customers : [])
+        .map(normalizedActiveCustomer)
+        .filter((customer) => customer.id && customer.name && customer.birthday)
+        .forEach((customer) => {
+          if (seenCustomerCodes.has(customer.id)) return;
+          seenCustomerCodes.add(customer.id);
+          customers.push(customer);
+        });
+      onProgress(customers.length);
+      if (result?.hasMore !== true) return { customers, ...(storeMetadata || {}) };
+      const nextCursor = result?.nextCursor;
+      const cursorKey = activeCustomerCursorKey(nextCursor);
+      if (!cursorKey || seenCursors.has(cursorKey)) {
+        throw new Error("客户列表分页游标无效，无法确认已读取全部客户，请刷新后重试。");
+      }
+      seenCursors.add(cursorKey);
+      cursor = nextCursor;
+    }
   }
   async function loadActiveTeachers(selectId, messageId, options = {}) {
     const select = $(selectId);
@@ -645,32 +711,44 @@
   }
   function setupLookup() {
     let activeCustomers = [];
+    let activeCustomerListRequest = 0;
+    let manualLookupRequest = 0;
+    const scopeRequest = ++customerLookupScopeRequest;
+    const scopeStoreId = String(storeId || "");
+    const isCurrentScope = () => scopeRequest === customerLookupScopeRequest && String(storeId || "") === scopeStoreId;
     const customerSelect = $("serviceCustomerSelect");
     $("serviceSelectBirthday").type = "text";
     const confirmButton = $("confirmCustomerSelection");
     confirmButton.dataset.initialText = confirmButton.textContent.trim();
     customerSelect.disabled = true;
-    customerSelect.innerHTML = `<option value="">正在从数据库读取本门店活跃客户…</option>`;
+    customerSelect.innerHTML = `<option value="">正在读取本门店全部活跃客户…</option>`;
     const loadActiveCustomers = async () => {
+      const listRequest = ++activeCustomerListRequest;
+      const isCurrentList = () => isCurrentScope() && listRequest === activeCustomerListRequest;
       try {
-        const result = await callCustomerEnrollment({ action: "listActiveStoreCustomers", limit:100 });
-        storeName = String(result?.storeName || result?.storeCode || storeName);
-        activeCustomers = (Array.isArray(result?.customers) ? result.customers : []).map((customer) => ({
-          id: String(customer.customerCode || ""),
-          name: String(customer.customerName || ""),
-          birthday: String(customer.birthDate || "").slice(0, 10)
-        })).filter((customer) => customer.id && customer.name && customer.birthday);
+        const result = await fetchAllActiveStoreCustomers({
+          expectedStoreId: scopeStoreId,
+          isCurrent: isCurrentList,
+          onProgress(count) {
+            if (!isCurrentList()) return;
+            customerSelect.innerHTML = `<option value="">正在读取本门店全部活跃客户（已读取 ${count} 位）…</option>`;
+          }
+        });
+        if (!result || !isCurrentList()) return;
+        storeName = String(result.storeName || result.storeCode || storeName);
+        activeCustomers = result.customers;
         databaseCustomers = activeCustomers;
         customerSelect.innerHTML = activeCustomers.length
-          ? `<option value="">${result?.hasMore ? "请选择现有客户（先显示前 100 位，其他客户请用姓名＋生日查询）" : "请选择现有客户"}</option>${activeCustomers.map((customer) => `<option value="${escapeHtml(customer.id)}">${escapeHtml(customer.name)} · ${escapeHtml(formatBirthday(customer.birthday))}</option>`).join("")}`
+          ? `<option value="">请选择现有客户（可滑动浏览全部 ${activeCustomers.length} 位）</option>${activeCustomers.map((customer) => `<option value="${escapeHtml(customer.id)}">${escapeHtml(customer.name)} · ${escapeHtml(formatBirthday(customer.birthday))}</option>`).join("")}`
           : `<option value="">本门店暂无活跃客户</option>`;
         customerSelect.disabled = activeCustomers.length === 0;
       } catch (error) {
+        if (!isCurrentList()) return;
         activeCustomers = [];
         databaseCustomers = [];
         customerSelect.innerHTML = `<option value="">客户数据读取失败</option>`;
         customerSelect.disabled = true;
-        showLookupError(error?.message || "无法从数据库读取本门店活跃客户，请刷新重试。");
+        if (manualLookupRequest === 0) showLookupError(error?.message || "无法从数据库读取本门店全部活跃客户，请刷新重试。");
       }
     };
     const lookupSelectedCustomer = () => {
@@ -683,12 +761,16 @@
       renderCustomerCore(customer);
     };
     $("serviceCustomerSelect").addEventListener("change", () => {
+      manualLookupRequest += 1;
       const customer = activeCustomers.find((item) => item.id === $("serviceCustomerSelect").value);
       $("serviceSelectBirthday").value = formatBirthday(customer?.birthday, "");
       lookupSelectedCustomer();
     });
-    $("serviceCustomerName").addEventListener("input", resetCandidate); $("serviceCustomerBirthday").addEventListener("change", resetCandidate);
+    const invalidateManualLookup = () => { manualLookupRequest += 1; resetCandidate(); };
+    $("serviceCustomerName").addEventListener("input", invalidateManualLookup);
+    $("serviceCustomerBirthday").addEventListener("change", invalidateManualLookup);
     document.querySelectorAll("[data-lookup-mode]").forEach((button) => button.addEventListener("click", () => {
+      manualLookupRequest += 1;
       document.querySelectorAll("[data-lookup-mode]").forEach((item) => item.classList.toggle("active", item === button));
       const manual = button.dataset.lookupMode === "manual"; $("selectLookupFields").hidden = manual; $("manualLookupFields").hidden = !manual; resetCandidate();
     }));
@@ -699,22 +781,29 @@
     $("serviceCustomerLookup").addEventListener("click", async () => {
       resetCandidate(); const name = $("serviceCustomerName").value.trim(), birthday = $("serviceCustomerBirthday").value;
       if (!name || !birthday) { showLookupError("客户姓名和生日都必须填写。"); return; }
+      const lookupRequest = ++manualLookupRequest;
+      const isCurrentLookup = () => isCurrentScope() && lookupRequest === manualLookupRequest;
       const button = $("serviceCustomerLookup"); button.disabled = true;
       $("serviceCustomerResults").innerHTML = `<div class="lookup-placeholder"><strong>正在查询客户</strong><span>仅在本门店活跃客户中按姓名和生日精确查询。</span></div>`;
       try {
-        const result = await callCustomerEnrollment({ action:"listActiveStoreCustomers", customerName:name, birthDate:birthday, limit:100 });
-        const matches = (Array.isArray(result?.customers) ? result.customers : []).map((customer) => ({
-          id:String(customer.customerCode || ""), name:String(customer.customerName || ""), birthday:String(customer.birthDate || "").slice(0, 10)
-        })).filter((customer) => customer.id && customer.name && customer.birthday);
+        const result = await fetchAllActiveStoreCustomers({ customerName: name, birthDate: birthday, expectedStoreId: scopeStoreId, isCurrent: isCurrentLookup });
+        if (!result || !isCurrentLookup()) return;
+        const matches = result.customers;
         if (matches.length === 1) renderCustomerCore(matches[0]);
         else if (matches.length > 1) {
           $("serviceCustomerResults").innerHTML = `<div class="duplicate-customer-list"><strong>找到 ${matches.length} 位同名同生日客户，请按编号选择：</strong>${matches.map((customer) => `<button type="button" data-preview-customer="${escapeHtml(customer.id)}">${escapeHtml(customer.name)} · ${escapeHtml(customer.id)}</button>`).join("")}</div>`;
           document.querySelectorAll("[data-preview-customer]").forEach((item) => item.addEventListener("click", () => renderCustomerCore(matches.find((customer) => customer.id === item.dataset.previewCustomer))));
         } else showLookupError("未找到本门店活跃客户；请核对信息，或先恢复已存档客户。");
-      } catch (error) { showLookupError(error?.message || "客户查询失败，请重试。"); }
-      finally { button.disabled = false; }
+      } catch (error) {
+        if (isCurrentLookup()) showLookupError(error?.message || "客户查询失败，请重试。");
+      } finally {
+        if (isCurrentScope()) button.disabled = false;
+      }
     });
     $("confirmCustomerSelection").addEventListener("click", () => { if (candidateCustomer) confirmCustomer(candidateCustomer.id); });
+    window.addEventListener("pagehide", () => {
+      if (scopeRequest === customerLookupScopeRequest) customerLookupScopeRequest += 1;
+    }, { once: true });
     loadActiveCustomers();
   }
   function showLookupError(message) { $("serviceCustomerResults").innerHTML = `<div class="lookup-placeholder error"><strong>未能确认客户</strong><span>${message}</span></div>`; }
@@ -940,7 +1029,13 @@
     summary.innerHTML = `申请前剩余 <strong>${project.remaining}</strong> 次；本次退费 <strong>${Number.isInteger(count) && count > 0 ? count : 0}</strong> 次；审核通过后剩余 <strong>${after}</strong> 次。${count > project.remaining ? "退费次数超过剩余次数，剩余次数将归 0。" : ""}`;
   }
   async function confirmCustomer(id) {
-    selectedCustomer = allCustomers().find((customer) => customer.id === id);
+    selectedCustomer = allCustomers().find((customer) => customer.id === id)
+      || (candidateCustomer?.id === id ? candidateCustomer : null);
+    if (!selectedCustomer) {
+      resetCandidate();
+      showLookupError("客户列表或精确查询结果已经失效，请重新选择客户。");
+      return;
+    }
     $("selectedCustomerText").textContent = `已确认：${selectedCustomer.name}（${selectedCustomer.id}）· ${formatBirthday(selectedCustomer.birthday)} · ${storeName}`; document.querySelector("form.store-business-form").classList.remove("business-step-disabled");
     if (page === "verification") { resetVerificationCapture(); await loadVerificationBalances(selectedCustomer); }
     if (page === "verification-experience") { resetVerificationCapture(); await loadTeacherExperienceEntitlements(); }

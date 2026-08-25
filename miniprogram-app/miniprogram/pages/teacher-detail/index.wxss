@@ -49,3 +49,5 @@
 .history-toggle { min-height: 64rpx; margin: 16rpx 0 0; font-size: 19rpx; }
 .form-message { margin-top: 14rpx; }
 .workspace-main { padding-bottom: 40rpx; }
+.pending-recharge { display: flex; flex-direction: column; gap: 12rpx; padding: 16rpx; color: #7a4d19; background: #fff3dc; border: 1rpx solid #dfc28c; border-radius: 14rpx; font-size: 21rpx; line-height: 1.5; }
+.pending-recharge button { width: 100%; margin: 0; }

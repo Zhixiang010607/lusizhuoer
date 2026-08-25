@@ -1,8 +1,16 @@
 const { callFace } = require("../../services/api");
-const { requireSession, getSelectedStore } = require("../../services/session");
+const { requireSession, getSelectedStore, setSelectedStore } = require("../../services/session");
 const submission = require("../../services/submission");
 
 function teacher(value) { return { teacherId: String(value.teacherId || ""), teacherCode: String(value.teacherCode || ""), teacherName: String(value.teacherName || "") }; }
+function businessStore(value) {
+  value = value || {};
+  return {
+    id: String(value.storeId || value.id || ""),
+    code: String(value.storeCode || value.code || ""),
+    name: String(value.storeName || value.name || "")
+  };
+}
 function product(value) {
   return {
     productId: String(value.productId || ""), productCode: String(value.productCode || ""), productName: String(value.productName || ""),
@@ -27,7 +35,8 @@ function orderUrl(experience, result, intent = {}) {
 
 Page({
   data: {
-    session: {}, store: {}, experience: false, customer: null, teachers: [], teacherLabels: [], teacherIndex: -1, selectedTeacher: null, teacherOptionsReady: false,
+    session: {}, store: {}, stores: [], storeLabels: ["请选择门店"], storeIndex: 0, loadingStores: false,
+    experience: false, customer: null, teachers: [], teacherLabels: [], teacherIndex: -1, selectedTeacher: null, teacherOptionsReady: false,
     products: [], productLabels: [], productIndex: -1, selectedProduct: null, note: "", captureReady: false, faceVerified: false,
     faceRequestId: "", faceEvidenceToken: "", faceMessage: "", faceError: false, loadingOptions: false, verifying: false,
     busy: false, locked: false, recovering: false, ready: false, message: "", error: false
@@ -40,28 +49,97 @@ Page({
       wx.showModal({ title: "无权办理", content: "体验核销只能由老师账号赠送。", showCancel: false, complete: () => wx.reLaunch({ url: "/pages/home/index" }) });
       return;
     }
-    const store = getSelectedStore(session);
-    if (!store) return wx.reLaunch({ url: "/pages/home/index" });
-    this.setData({ session, store, experience });
-    this.loadTeachers();
+    this.setData({ session, experience });
+    if (session.role === "store") {
+      const store = getSelectedStore(session);
+      if (!store || !store.id) return wx.reLaunch({ url: "/pages/home/index" });
+      this.setData({ store: businessStore(store) });
+      this.loadTeachers();
+    } else {
+      this.loadTeacherStores();
+    }
     if (submission.read("VERIFICATION")) {
       this.setData({ locked: true, message: "检测到上一次核销尚未确认，已禁止再次扣减。" });
       this.recoverPending();
     }
   },
-  customerChanged() { this.setData({ customer: null }); this.resetBusinessSelection(); },
+  onUnload() {
+    this._storeRequestEpoch = (this._storeRequestEpoch || 0) + 1;
+    this._teacherRequestEpoch = (this._teacherRequestEpoch || 0) + 1;
+    this._productRequestEpoch = (this._productRequestEpoch || 0) + 1;
+    this._faceRequestEpoch = (this._faceRequestEpoch || 0) + 1;
+  },
+  async loadTeacherStores() {
+    const requestEpoch = (this._storeRequestEpoch || 0) + 1;
+    this._storeRequestEpoch = requestEpoch;
+    this.setData({ loadingStores: true, stores: [], storeLabels: ["请选择门店"], storeIndex: 0, store: {}, message: "", error: false });
+    try {
+      const result = await callFace("getTeacherBusinessContext");
+      if (requestEpoch !== this._storeRequestEpoch) return;
+      const stores = (result.stores || []).map(businessStore).filter((item) => item.id && item.name);
+      this.setData({
+        stores,
+        storeLabels: ["请选择门店", ...stores.map((item) => `${item.name} · ${item.code || item.id}`)],
+        ...(!this.data.locked ? {
+          message: stores.length ? "请先选择本次核销的发生门店" : "暂无可办理的活跃门店",
+          error: !stores.length
+        } : {})
+      });
+    } catch (error) {
+      if (requestEpoch === this._storeRequestEpoch) {
+        this.setData({
+          stores: [], storeLabels: ["请选择门店"], storeIndex: 0, store: {},
+          ...(!this.data.locked ? { message: error.message || "可办理门店读取失败", error: true } : {})
+        });
+      }
+    } finally {
+      if (requestEpoch === this._storeRequestEpoch) this.setData({ loadingStores: false });
+    }
+  },
+  selectStore(event) {
+    if (this.data.busy || this.data.locked) return;
+    const pickerIndex = Number(event.detail.value);
+    const index = pickerIndex - 1;
+    const store = this.data.stores[index];
+    if (!store || !store.id || store.id === String(this.data.store.id || "")) return;
+    const camera = this.selectComponent("#verificationCamera");
+    if (camera) camera.reset();
+    setSelectedStore(store, this.data.session);
+    this._teacherRequestEpoch = (this._teacherRequestEpoch || 0) + 1;
+    this._productRequestEpoch = (this._productRequestEpoch || 0) + 1;
+    this._faceRequestEpoch = (this._faceRequestEpoch || 0) + 1;
+    this.setData({
+      store, storeIndex: pickerIndex,
+      customer: null,
+      teachers: [], teacherLabels: [], teacherIndex: -1, selectedTeacher: null, teacherOptionsReady: false,
+      products: [], productLabels: [], productIndex: -1, selectedProduct: null,
+      note: "", captureReady: false, faceVerified: false, faceRequestId: "", faceEvidenceToken: "",
+      faceMessage: "", faceError: false, loadingOptions: false, verifying: false, ready: false,
+      message: `已选择 ${store.name}，请确认客户`, error: false
+    });
+    this.loadTeachers();
+  },
+  customerChanged() {
+    this.setData({ customer: null, message: "", error: false });
+    this.resetBusinessSelection({ resetTeacher: this.data.session.role === "store", clearNote: true });
+  },
   async customerConfirmed(event) {
     this.setData({ customer: event.detail.customer, message: `已确认 ${event.detail.customer.customerName}`, error: false });
-    this.resetBusinessSelection();
+    this.resetBusinessSelection({ resetTeacher: this.data.session.role === "store", clearNote: true });
     await this.loadProducts();
     if (this.data.session.role === "teacher" && this.data.teacherOptionsReady && !this.data.selectedTeacher) {
       this.setData({ message: "当前老师不在该门店的可办理老师名单中，已禁止核销", error: true });
     }
   },
   async loadTeachers() {
+    const storeId = String(this.data.store.id || "");
+    if (!storeId) return;
+    const requestEpoch = (this._teacherRequestEpoch || 0) + 1;
+    this._teacherRequestEpoch = requestEpoch;
     this.setData({ teacherOptionsReady: false });
     try {
-      const result = await callFace("listActiveTeachers", { storeId: this.data.store.id });
+      const result = await callFace("listActiveTeachers", { storeId });
+      if (requestEpoch !== this._teacherRequestEpoch || String(this.data.store.id || "") !== storeId) return;
       const values = (result.teachers || []).map(teacher).filter((item) => item.teacherId);
       const mineIndex = this.data.session.role === "teacher"
         ? values.findIndex((item) => item.teacherId === String(this.data.session.teacherId || ""))
@@ -74,7 +152,9 @@ Page({
       if (this.data.customer && this.data.experience) await this.loadProducts();
       this.syncReady();
     } catch (error) {
-      this.setData({ teacherOptionsReady: true, message: error.message || (this.data.session.role === "teacher" ? "当前老师信息读取失败，已禁止核销" : "老师列表读取失败"), error: true });
+      if (requestEpoch === this._teacherRequestEpoch && String(this.data.store.id || "") === storeId) {
+        this.setData({ teacherOptionsReady: true, message: error.message || (this.data.session.role === "teacher" ? "当前老师信息读取失败，已禁止核销" : "老师列表读取失败"), error: true });
+      }
     }
   },
   async loadProducts() {
@@ -129,9 +209,14 @@ Page({
   selectProduct(event) { const index = Number(event.detail.value); this.setData({ productIndex: index, selectedProduct: this.data.products[index] || null }); this.resetFace(); this.syncReady(); },
   inputNote(event) { this.setData({ note: event.detail.value }); },
   captureChanged(event) { this.setData({ captureReady: event.detail.ready === true }); this.resetFace(false); },
-  resetBusinessSelection() {
+  resetBusinessSelection({ resetTeacher = false, clearNote = false } = {}) {
     this._productRequestEpoch = (this._productRequestEpoch || 0) + 1;
-    this.setData({ products: [], productLabels: [], productIndex: -1, selectedProduct: null, loadingOptions: false });
+    this.setData({
+      products: [], productLabels: [], productIndex: -1, selectedProduct: null,
+      loadingOptions: false, ready: false,
+      ...(clearNote ? { note: "" } : {}),
+      ...(resetTeacher ? { teacherIndex: -1, selectedTeacher: null } : {})
+    });
     this.resetFace();
   },
   resetFace(resetCamera = true) {
@@ -140,7 +225,11 @@ Page({
       const camera = this.selectComponent("#verificationCamera");
       if (camera) camera.reset();
     }
-    this.setData({ faceVerified: false, faceRequestId: "", faceEvidenceToken: "", faceMessage: "", faceError: false, verifying: false });
+    this.setData({
+      faceVerified: false, faceRequestId: "", faceEvidenceToken: "", faceMessage: "", faceError: false,
+      verifying: false, ready: false,
+      ...(resetCamera ? { captureReady: false } : {})
+    });
     this.syncReady();
   },
   async verifyFace() {
@@ -183,7 +272,7 @@ Page({
       && String(this.data.selectedTeacher?.teacherId || "") === identity.teacherId;
   },
   syncReady() {
-    this.setData({ ready: Boolean(this.data.customer && this.data.selectedProduct && this.data.selectedTeacher && this.data.faceVerified && this.data.faceRequestId && this.data.faceEvidenceToken && !this.data.locked) });
+    this.setData({ ready: Boolean(this.data.store.id && this.data.customer && this.data.selectedProduct && this.data.selectedTeacher && this.data.faceVerified && this.data.faceRequestId && this.data.faceEvidenceToken && !this.data.locked) });
   },
   async submit() {
     if (this.data.busy || !this.data.ready) return;
@@ -201,7 +290,7 @@ Page({
         ...identity, faceRequestId: this.data.faceRequestId, faceEvidenceToken: this.data.faceEvidenceToken, clientRequestId: intent.clientRequestId
       });
       if (String(result.recordStatus || "") !== "APPROVED" || !result.verificationId || !result.verificationCode || !result.deviceSignal) {
-        throw new Error("服务端未返回完整的已审核核销与设备信号，禁止显示成功");
+        throw new Error("服务端未返回完整的已完成核销与设备信号，禁止显示成功");
       }
       const confirmedIntent = submission.confirm("VERIFICATION", result.verificationId);
       this.setData({ locked: false, message: `核销单 ${result.verificationCode} 已完成，不会重复扣次。`, error: false, note: "" });

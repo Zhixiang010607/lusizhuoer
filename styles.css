@@ -2132,9 +2132,9 @@ body[data-store-analysis] {
 .product-preview-toolbar > div:first-child { min-width: 0; display: grid; gap: 2px; }
 .product-preview-toolbar strong { color: var(--navy); font-size: 14px; }
 .product-preview-toolbar span { color: var(--muted); font-size: 10px; }
-.product-preview-frame { min-width: 0; height: min(68vh, 820px); overflow: auto; border: 1px solid #ccd8e7; border-radius: 12px; background: #dfe6ef; overscroll-behavior: contain; }
-.product-preview-frame iframe { width: 100%; height: 100%; border: 0; background: #fff; }
-.product-preview-frame canvas { display: block; width: min(100%, 860px); height: auto; margin: 0 auto; background: #fff; box-shadow: 0 8px 28px #10233f21; }
+.product-preview-frame { min-width: 0; height: min(68vh, 820px); overflow: auto; border: 1px solid #dfcfb4; border-radius: 12px; background: #eee5d8; overscroll-behavior: contain; }
+.product-preview-frame iframe { width: 100%; height: 100%; border: 0; background: #fffaf3; }
+.product-preview-frame canvas { display: block; width: min(100%, 860px); height: auto; margin: 0 auto; background: #fffaf3; box-shadow: 0 8px 28px #5c452621; }
 .product-preview-loading { min-height: 100%; display: grid; place-items: center; color: var(--muted); }
 .product-preview-loading.is-error { color: #b42318; }
 
@@ -2463,11 +2463,165 @@ body[data-staff-detail] .teacher-experience-empty.is-error { color: #9c3329; bac
 
 @media (max-width: 420px) {
   .teacher-range-presets { grid-template-columns: repeat(auto-fit, minmax(68px, 1fr)); }
-  .teacher-quota-card dl { grid-template-columns: minmax(0, 1fr); }
   body[data-teacher-workspace] .panel-heading,
   body[data-store-dashboard] .panel-heading { align-items: flex-start; }
   body[data-teacher-workspace] .panel-heading .badge,
   body[data-store-dashboard] .panel-heading .badge { flex: 0 0 auto; }
+}
+
+/* Teacher home keeps identity and every configured experience project in one
+   compact phone row.  This is intentionally scoped to the Web workspace: the
+   Mini Program owns its own WXML/WXSS implementation. */
+@media (max-width: 760px) {
+  body[data-teacher-workspace] {
+    color: #302a22;
+    background: #f4eee3;
+  }
+
+  body[data-teacher-workspace] .detail-section,
+  body[data-teacher-workspace] .teacher-quota-panel {
+    border: 1px solid #dfcfb4;
+    background: rgba(255, 250, 243, .97);
+    box-shadow: 0 8px 24px rgba(92, 69, 38, .07);
+  }
+
+  body[data-teacher-workspace] .detail-section .panel-heading h2,
+  body[data-teacher-workspace] .teacher-quota-panel .panel-heading h2 {
+    color: #302a22;
+  }
+
+  body[data-teacher-workspace] .detail-section .badge,
+  body[data-teacher-workspace] .teacher-quota-panel .badge {
+    color: #80622f;
+    background: #f4e7d0;
+  }
+
+  body[data-teacher-workspace] #teacherProfileInfo {
+    grid-template-columns: minmax(0, 1fr) minmax(0, .86fr) minmax(0, 1.16fr);
+    gap: 1px;
+    border-color: #dfcfb4;
+    background: #dfcfb4;
+  }
+
+  body[data-teacher-workspace] #teacherProfileInfo article {
+    min-width: 0;
+    min-height: 56px;
+    padding: 9px 10px;
+    overflow: hidden;
+    background: rgba(255, 252, 246, .96);
+  }
+
+  body[data-teacher-workspace] #teacherProfileInfo span {
+    margin-bottom: 4px;
+    overflow: hidden;
+    color: #7d6f5d;
+    font-size: 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body[data-teacher-workspace] #teacherProfileInfo strong {
+    overflow: hidden;
+    color: #302a22;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body[data-teacher-workspace] .teacher-quota-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+  }
+
+  body[data-teacher-workspace] .teacher-quota-card {
+    grid-template-columns: minmax(0, 1fr) auto minmax(112px, .92fr);
+    align-items: center;
+    gap: 8px;
+    min-height: 58px;
+    padding: 9px 10px;
+    border-color: #dfcfb4;
+    border-radius: 11px;
+    background: rgba(255, 252, 246, .94);
+  }
+
+  body[data-teacher-workspace] .teacher-quota-card > div {
+    min-width: 0;
+    gap: 2px;
+    overflow: hidden;
+  }
+
+  body[data-teacher-workspace] .teacher-quota-card > div strong,
+  body[data-teacher-workspace] .teacher-quota-card > div small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body[data-teacher-workspace] .teacher-quota-card > div strong {
+    color: #302a22;
+    font-size: 12px;
+  }
+
+  body[data-teacher-workspace] .teacher-quota-card > div small {
+    color: #8b7b67;
+    font-size: 9px;
+  }
+
+  body[data-teacher-workspace] .teacher-quota-card p {
+    justify-self: end;
+    gap: 3px;
+    color: #80622f;
+    white-space: nowrap;
+  }
+
+  body[data-teacher-workspace] .teacher-quota-card p b {
+    font-size: 22px;
+    letter-spacing: -.03em;
+  }
+
+  body[data-teacher-workspace] .teacher-quota-card p span {
+    color: #80622f;
+    font-size: 9px;
+  }
+
+  body[data-teacher-workspace] .teacher-quota-card dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  body[data-teacher-workspace] .teacher-quota-card dl div {
+    min-width: 0;
+    gap: 1px;
+    padding: 5px 4px;
+    text-align: center;
+    background: rgba(244, 231, 208, .72);
+  }
+
+  body[data-teacher-workspace] .teacher-quota-card dt,
+  body[data-teacher-workspace] .teacher-quota-card dd {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body[data-teacher-workspace] .teacher-quota-card dt {
+    color: #8b7b67;
+    font-size: 8px;
+  }
+
+  body[data-teacher-workspace] .teacher-quota-card dd {
+    color: #4b3a25;
+    font-size: 10px;
+  }
+
+  body[data-teacher-workspace] .teacher-quota-empty {
+    min-height: 58px;
+    padding: 10px;
+    border-color: #dfcfb4;
+    color: #7d6f5d;
+    background: rgba(255, 252, 246, .94);
+  }
 }
 
 /* Teacher-facing HQ controls use one restrained, accessible action palette.

@@ -2,7 +2,7 @@
   <view class="page-heading">
     <text class="eyebrow">{{experience ? '老师赠送体验' : '正常核销'}}</text>
     <text class="title">{{experience ? '体验核销' : '客户项目核销'}}</text>
-    <text class="subtitle">{{store.name}} · 只扫客户的脸，不扫老师的脸。</text>
+    <text class="subtitle">{{store.id ? store.name + ' · 只扫客户的脸，不扫老师的脸。' : '进入业务页后先选择本次核销的发生门店。'}}</text>
   </view>
 
   <view wx:if="{{locked}}" class="card recovery-card">
@@ -12,13 +12,24 @@
   </view>
 
   <block wx:else>
-    <view class="card">
-      <view class="card-title"><text>第一步：确认客户</text><text class="badge">本门店活跃客户</text></view>
+    <view wx:if="{{session.role === 'teacher'}}" class="card store-picker-card">
+      <view class="card-title"><text>第一步：选择办理门店</text><text class="badge">必选</text></view>
+      <label class="field">
+        <text class="field-label">本次发生门店</text>
+        <picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="selectStore" disabled="{{busy || loadingStores || !stores.length}}">
+          <view class="picker">{{loadingStores ? '正在读取可办理门店…' : (store.id ? store.name + ' · ' + (store.code || store.id) : (stores.length ? '请选择门店' : '暂无可办理门店'))}}</view>
+        </picker>
+      </label>
+      <button wx:if="{{!loadingStores && !stores.length}}" class="secondary" bindtap="loadTeacherStores">重试门店列表</button>
+    </view>
+
+    <view wx:if="{{store.id}}" class="card">
+      <view class="card-title"><text>{{session.role === 'teacher' ? '第二步：确认客户' : '第一步：确认客户'}}</text><text class="badge">本门店活跃客户</text></view>
       <customer-picker store-id="{{store.id}}" bindconfirm="customerConfirmed" bindchange="customerChanged"></customer-picker>
     </view>
 
-    <view class="card {{customer ? '' : 'disabled-card'}}">
-      <view class="card-title"><text>第二步：选项目与老师</text><text class="badge">{{experience ? '扣老师体验次数' : '扣客户剩余次数'}}</text></view>
+    <view wx:if="{{store.id}}" class="card {{customer ? '' : 'disabled-card'}}">
+      <view class="card-title"><text>{{session.role === 'teacher' ? '第三步' : '第二步'}}：选项目与老师</text><text class="badge">{{experience ? '扣老师体验次数' : '扣客户剩余次数'}}</text></view>
       <label class="field">
         <text class="field-label">项目</text>
         <picker range="{{productLabels}}" value="{{productIndex}}" bindchange="selectProduct" disabled="{{!customer || loadingOptions || !products.length}}">
@@ -35,14 +46,14 @@
       <label class="field"><text class="field-label">{{experience ? '老师留言' : '门店留言'}}（可选）</text><textarea class="textarea" maxlength="500" value="{{note}}" bindinput="inputNote" placeholder="留在本次核销单中" /></label>
     </view>
 
-    <view class="card {{selectedProduct && selectedTeacher ? '' : 'disabled-card'}}">
-      <view class="card-title"><text>第三步：客户 1:1 人脸验证</text><text class="badge">{{faceVerified ? '已通过' : '待验证'}}</text></view>
+    <view wx:if="{{store.id}}" class="card {{selectedProduct && selectedTeacher ? '' : 'disabled-card'}}">
+      <view class="card-title"><text>{{session.role === 'teacher' ? '第四步' : '第三步'}}：客户 1:1 人脸验证</text><text class="badge">{{faceVerified ? '已通过' : '待验证'}}</text></view>
       <camera-capture id="verificationCamera" title="拍照并验证客户" bindchange="captureChanged"></camera-capture>
       <button class="secondary verify-button" bindtap="verifyFace" loading="{{verifying}}" disabled="{{verifying || !captureReady || !customer || !selectedProduct || !selectedTeacher}}">用该照片验证客户</button>
       <view wx:if="{{faceMessage}}" class="message {{faceVerified ? 'success' : (faceError ? 'error' : '')}}">{{faceMessage}}</view>
     </view>
 
-    <view class="card submit-card">
+    <view wx:if="{{store.id}}" class="card submit-card">
       <view class="section-note">核销写入、照片凭证、额度扣减和设备信号由服务端统一执行。本阶段仍使用现有虚拟设备信号，BLE 将在下一阶段接入。</view>
       <button class="primary" bindtap="submit" loading="{{busy}}" disabled="{{busy || !ready}}">确认{{experience ? '体验' : '正常'}}核销</button>
     </view>

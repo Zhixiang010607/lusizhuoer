@@ -17,13 +17,14 @@ function includes(source, expected, label) {
   assert.ok(source.includes(expected), `${label}: missing ${JSON.stringify(expected)}`);
 }
 
-function loadHelpers() {
+function loadHelpers(options = {}) {
   const marker = "\nPage({";
   assert.ok(js.includes(marker), "order-detail helper injection marker exists");
   const instrumented = js.replace(marker, `
 globalThis.__orderDetailHelpers = {
   PHOTO_SLOT_COUNT, MAX_EXTRA_PHOTO_BYTES, buildPhotoSlots, normalizePhotoManifest,
-  exactOrderKind, receiptDocumentData, receiptPhotoItems, requestId, jpegPdf
+  exactOrderKind, routeOrderExpectation, assertExactRouteOrder, detailStatusLabel,
+  receiptDocumentData, receiptPhotoItems, requestId, jpegPdf
 };
 Page({`);
   const context = {
@@ -31,11 +32,15 @@ Page({`);
     Page(definition) { context.page = definition; },
     require(request) {
       if (request.endsWith("query-tools")) return require(path.join(root, "miniprogram-app", "miniprogram", "services", "query-tools.js"));
-      if (request.endsWith("session")) return { requireSession() { return null; } };
-      if (request.endsWith("submission")) return { acknowledge() { return true; } };
+      if (request.endsWith("session")) return { requireSession() { return options.session || null; } };
+      if (request.endsWith("submission")) return { acknowledge: options.acknowledge || (() => true) };
       if (request.endsWith("photo-album")) return { saveImageToAlbum: async () => ({ saved: true }) };
       if (request.endsWith("order-receipt")) return sharedRenderer;
-      if (request.endsWith("api")) return { callFace() {}, callPhoto() {}, callStaff() {} };
+      if (request.endsWith("api")) return {
+        callFace: options.callFace || (() => ({})),
+        callPhoto: options.callPhoto || (() => ({})),
+        callStaff: options.callStaff || (() => ({}))
+      };
       throw new Error(`unexpected require ${request}`);
     },
     Uint8Array,
@@ -50,12 +55,24 @@ Page({`);
     RegExp,
     Error,
     decodeURIComponent,
-    encodeURIComponent
+    encodeURIComponent,
+    wx: {
+      setNavigationBarTitle() {},
+      stopPullDownRefresh() {}
+    }
   };
   context.globalThis = context;
   vm.createContext(context);
   vm.runInContext(instrumented, context, { filename: "order-detail/index.js" });
   return { helpers: context.__orderDetailHelpers, page: context.page };
+}
+
+function pageInstance(definition, data = {}) {
+  return {
+    ...definition,
+    data: { ...definition.data, ...data },
+    setData(changes) { Object.assign(this.data, changes); }
+  };
 }
 
 test("verification manifest always normalizes to five explicit slots without hiding read failures", () => {
@@ -106,11 +123,81 @@ test("server-read original type controls the exact visible business kind", () =>
     "every PDF page uses an A4 MediaBox");
 });
 
+test("detail renders and acknowledges only the exact server-read route identity", async (context) => {
+  const baseRecord = {
+    id: "41", recordType: "VERIFICATION", recordCode: "VE202608250041",
+    originalType: "NORMAL", recordStatus: "APPROVED", unitCount: 1,
+    submittedAt: "2026-08-25T05:19:00.000Z", reviewedAt: "2026-08-25T05:19:00.000Z",
+    storeName: "测试门店", customerName: "胡勇", productName: "海洋之蕴", teacherName: "叶吴老师"
+  };
+
+  async function run({ route = {}, record = baseRecord, acknowledge = () => true } = {}) {
+    const acknowledgeCalls = [];
+    const { page } = loadHelpers({
+      callFace: async () => ({ record }),
+      acknowledge(...args) { acknowledgeCalls.push(args); return acknowledge(...args); }
+    });
+    const instance = pageInstance(page, {
+      session: { role: "teacher" }, loading: false,
+      baseType: "VERIFICATION", category: "VERIFICATION",
+      recordId: "41", recordCode: "VE202608250041", submissionClientRequestId: "request-normal-41",
+      ...route
+    });
+    instance.loadPhotos = async () => true;
+    await instance.load();
+    return { instance, acknowledgeCalls };
+  }
+
+  const exact = await run();
+  assert.equal(exact.instance.data.order.recordCode, "VE202608250041");
+  assert.equal(exact.instance.data.order.statusLabel, "已完成", "approved normal verification is completed without review semantics");
+  assert.deepEqual(exact.acknowledgeCalls, [["VERIFICATION", "41", "request-normal-41"]]);
+
+  const mismatches = [
+    { label: "record id", record: { ...baseRecord, id: "42" } },
+    { label: "record code", record: { ...baseRecord, recordCode: "VE202608250099" } },
+    { label: "server base type", record: { ...baseRecord, recordType: "RECHARGE" } },
+    { label: "category", record: { ...baseRecord, originalType: "EXPERIENCE" } },
+    { label: "missing route code", route: { recordCode: "" } }
+  ];
+  for (const mismatch of mismatches) {
+    await context.test(mismatch.label, async () => {
+      const result = await run(mismatch);
+      assert.equal(result.instance.data.order, null, "a mismatched server detail never renders");
+      assert.equal(result.acknowledgeCalls.length, 0, "a mismatched server detail never clears the persistent submission lock");
+      assert.equal(result.instance.data.error, true);
+    });
+  }
+
+  const wrongRequest = await run({ acknowledge: () => false });
+  assert.ok(wrongRequest.instance.data.order, "an exact readable order may render even when the local request id differs");
+  assert.equal(wrongRequest.instance.data.error, true);
+  assert.match(wrongRequest.instance.data.message, /防重复提交锁仍保留/);
+});
+
+test("route categories and verification completion labels remain exact", () => {
+  const { helpers } = loadHelpers();
+  assert.equal(helpers.routeOrderExpectation({ baseType: "RECHARGE", category: "NEW", recordId: "1", recordCode: "RC1" }).category, "RECHARGE");
+  assert.equal(helpers.routeOrderExpectation({ baseType: "VERIFICATION", category: "SUPPLEMENT", recordId: "2", recordCode: "VS2" }).originalType, "SUPPLEMENT");
+  assert.doesNotThrow(() => helpers.assertExactRouteOrder(
+    { baseType: "RECHARGE", category: "VOID", recordId: "3", recordCode: "RV3" },
+    { id: "3", recordCode: "RV3", serverBaseType: "RECHARGE", originalType: "NEW", voidStatus: "PENDING" }
+  ));
+  assert.throws(() => helpers.assertExactRouteOrder(
+    { baseType: "RECHARGE", category: "VOID", recordId: "3", recordCode: "RV3" },
+    { id: "3", recordCode: "RV3", serverBaseType: "RECHARGE", originalType: "NEW", voidStatus: "NONE" }
+  ), /不是详情链接指定的作废业务/);
+  assert.equal(helpers.detailStatusLabel("VERIFICATION", "NORMAL", "APPROVED"), "已完成");
+  assert.equal(helpers.detailStatusLabel("VERIFICATION", "EXPERIENCE", "APPROVED"), "已完成");
+  assert.equal(helpers.detailStatusLabel("VERIFICATION", "SUPPLEMENT", "APPROVED"), "审核通过");
+});
+
 test("real order data is mapped into the shared web receipt semantics", () => {
   const { helpers } = loadHelpers();
   const base = {
     recordCode: "RC202608250036", typeLabel: "正常核销", originalType: "NORMAL",
     storeName: "测试门店", storeAddress: "江西省测试路 1 号", customerName: "胡勇",
+    customerCode: "C1-A3155559265B1691",
     productName: "海洋之蕴", teacherName: "叶吴老师", unitCount: 2,
     submittedAt: "2026-08-25 13:19:00", reviewedAt: "2026-08-25 13:21:00"
   };
@@ -122,8 +209,13 @@ test("real order data is mapped into the shared web receipt semantics", () => {
   assert.equal(verification.title, "核销单 RC202608250036");
   assert.equal(verification.compactVerification, true);
   assert.equal(verification.subtitle, "门店详细地址：江西省测试路 1 号 · 提交时间：2026-08-25 13:19:00");
-  assert.deepEqual(Array.from(verification.facts, (item) => item.label), ["门店", "客户", "项目", "业务老师", "提交时间"],
+  assert.deepEqual(Array.from(verification.facts, (item) => item.label), ["客户", "门店", "项目", "业务老师", "提交时间"],
     "verification exports retain the same five-fact layout as product previews");
+  assert.equal(verification.facts[0].label, "客户");
+  assert.equal(verification.facts[0].value, "胡勇 · C1-A3155559265B1691");
+  assert.equal(verification.facts[0].singleLine, true,
+    "app receipts print the complete customer name and number together without wrapping");
+  assert.equal(verification.facts[0].span, 2, "the complete customer identity owns a full-width receipt row");
   assert.equal(verification.details.length, 0, "NORMAL/EXPERIENCE receipts never add review-time details");
   assert.equal(verification.productTemplate.instructions, "核销说明");
   assert.equal(verification.productTemplate.logoRequired, true);
@@ -199,6 +291,10 @@ test("all four order categories export actual receipts and verification export f
   includes(js, "exportReceiptJpegs(receipt, this)", "real orders use the shared A4/long-image splitter");
   includes(js, "const pages = await this.readReceiptPdfPages(receipt.images)", "PDF reads the shared A4 page images");
   includes(js, "const pdf = jpegPdf(pages)", "PDF uses the shared multi-page JPEG-to-PDF helper");
+  includes(js, "wx.openDocument({", "PDF opens in the WeChat native document viewer");
+  includes(js, "showMenu: true", "the native document viewer exposes its share and save menu");
+  assert.doesNotMatch(js, /shareFileMessage/,
+    "the async receipt renderer cannot invoke shareFileMessage after the original TAP gesture expires");
   includes(js, "saveImageToAlbum(receipt.images[0].path)", "receipt image is saved to the authorized album flow");
   assert.doesNotMatch(js, /instructionLayout|drawPhotoCell|canvasPdfPages|PDF_CANVAS_PAGE_HEIGHT/,
     "order detail must not retain a second hand-written receipt renderer");
@@ -212,14 +308,19 @@ test("all four order categories export actual receipts and verification export f
 test("normal and experience details omit review time while supplement review remains visible", () => {
   includes(wxml, "baseType === 'RECHARGE' || order.originalType === 'SUPPLEMENT'", "review-time visibility contract");
   assert.equal((wxml.match(/<text>审核时间<\/text>/g) || []).length, 1, "there is only one guarded review-time row");
-  includes(js, 'this.data.baseType === "RECHARGE" || clean(order.originalType).toUpperCase() === "SUPPLEMENT"',
+  includes(js, 'request.baseType === "RECHARGE" || clean(order.originalType).toUpperCase() === "SUPPLEMENT"',
     "normal and experience records do not render a review note either");
-  includes(js, "exactOrderKind(this.data.baseType, order.originalType)", "database original type corrects the route hint");
-  includes(js, "wx.setNavigationBarTitle({ title: `${exactKind.noun}工单详情` })", "database original type corrects the page title");
+  includes(js, "exactOrderKind(request.baseType, order.originalType)", "database original type corrects the immutable route hint");
+  includes(js, 'wx.setNavigationBarTitle({ title: "露思卓儿" })', "authenticated order pages retain the native brand title");
   assert.match(wxss, /\.detail-grid \.detail-value \{[^}]*font-weight:\s*800;/);
   assert.match(wxss, /\.detail-grid text \{[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/,
     "detail scalar values are one-line ellipsized");
   const orderTitleRule = wxss.match(/\.order-title \{[^}]*\}/)?.[0] || "";
+  const orderTitleScrollRule = wxss.match(/\.order-title-scroll \{[^}]*\}/)?.[0] || "";
+  assert.match(wxml, /<scroll-view class="order-title-scroll" scroll-x="true"[^>]*><text class="order-title">/, "the full order number owns an internal horizontal scroller");
+  assert.match(orderTitleScrollRule, /width:\s*100%/);
+  assert.match(orderTitleScrollRule, /max-width:\s*100%/);
+  assert.match(orderTitleScrollRule, /overflow:\s*hidden/, "the long title cannot paint outside its card");
   assert.match(orderTitleRule, /white-space:\s*nowrap/, "the hero order number stays on one line");
   assert.doesNotMatch(orderTitleRule, /text-overflow:\s*ellipsis|overflow:\s*hidden|overflow-wrap:/,
     "the hero order number remains complete instead of being clipped or wrapped");

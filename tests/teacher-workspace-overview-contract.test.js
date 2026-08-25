@@ -23,8 +23,8 @@ assert.match(html, /data-range-preset="MONTH"[^>]*class="active"|class="active"[
 assert.match(html, /id="teacherExperienceBalances"[^>]*teacher-quota-grid/, "experience balances must have a dynamic project grid");
 assert.match(html, /<th scope="col">产品<\/th><th scope="col">核销<\/th><th scope="col">充值<\/th><th scope="col">体验<\/th><th scope="col">退费<\/th>/, "summary matrix axes must match the product and four business metrics");
 assert.doesNotMatch(html, /<th[^>]*>[^<]*(?:人脸|状态)[^<]*<\/th>/, "teacher workspace tables must not show face or status columns");
-assert.match(html, /styles\.css\?v=0\.15\.57/);
-assert.match(html, /teacher-work-orders\.js\?v=0\.16\.2/);
+assert.match(html, /styles\.css\?v=0\.15\.58/);
+assert.match(html, /teacher-work-orders\.js\?v=0\.16\.3/);
 assert.ok(html.indexOf('id="teacherBusinessDetails"') > html.indexOf('id="teacherOverviewTitle"'), "teacher details must follow the summary");
 assert.ok(html.indexOf('id="teacherBusinessDetails"') < html.indexOf('id="teacherActiveCustomersTitle"'), "teacher details must precede customer lists");
 assert.match(html, /id="teacherBusinessPagination"[^>]*business-record-pagination/, "teacher details must own numbered pagination");
@@ -38,7 +38,7 @@ assert.match(ui, /timeZone:\s*"Asia\/Shanghai"/, "preset dates must use the busi
 assert.match(ui, /preset === "WEEK"[\s\S]{0,240}1 - weekday/, "week must begin on Monday");
 assert.match(ui, /preset === "MONTH"[\s\S]{0,180}Date\.UTC\(year, month, 1\)/, "month must begin on day one");
 assert.match(ui, /recordType:\s*type[\s\S]{0,220}page:\s*targetPage[\s\S]{0,120}pageSize:\s*RECORD_PAGE_SIZE[\s\S]{0,160}includeOverview[\s\S]{0,220}rangePayload\(\)/, "the selected type, page and authoritative date range must be sent to the server");
-assert.match(ui, /function renderProfile[\s\S]{0,650}老师姓名[\s\S]{0,220}老师短编号[\s\S]{0,220}登录手机号/, "profile must keep only the three useful identity fields");
+assert.match(ui, /function renderProfile[\s\S]{0,650}老师姓名[\s\S]{0,220}老师短编号[\s\S]{0,300}登录手机号[\s\S]{0,80}登录账号/, "profile must keep only the three useful identity fields and label the login identity accurately");
 assert.doesNotMatch(ui, /statusLabel|hasFaceRequest|无人脸记录|账号状态/, "teacher workspace rendering must not retain face or status presentation");
 for (const label of ["单号", "门店", "客户", "项目", "次数", "提交时间"]) {
   assert.ok(ui.includes(`data-label="${label}"`), `mobile detail cards must expose ${label}`);

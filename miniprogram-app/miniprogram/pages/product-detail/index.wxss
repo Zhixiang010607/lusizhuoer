@@ -44,12 +44,12 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
 .preview-toolbar > view:first-child text:last-child { color: #7c7062; font-size: 17rpx; line-height: 1.4; }
 .preview-toolbar > view:last-child { flex: none; display: flex; gap: 8rpx; }
 .preview-toolbar button { width: auto; min-height: 62rpx; margin: 0; padding: 0 13rpx; border-radius: 13rpx; font-size: 18rpx; font-weight: 800; line-height: 1; }
-.receipt-preview { overflow: hidden; min-height: 480rpx; background: #e9edf3; border: 1rpx solid #cfd8e5; border-radius: 18rpx; }
+.receipt-preview { overflow: hidden; min-height: 480rpx; background: #f4ead9; border: 1rpx solid #dfcfb4; border-radius: 18rpx; }
 .generated-preview { height: 64vh; min-height: 620rpx; max-height: 1120rpx; padding: 20rpx; box-sizing: border-box; }
 .generated-page { width: 100%; margin: 0 auto 22rpx; }
 .generated-page:last-child { margin-bottom: 0; }
 .generated-page-label { display: block; margin: 0 0 8rpx; color: #667085; font-size: 17rpx; font-weight: 700; text-align: center; }
-.generated-receipt { display: block; width: 100%; background: #fff; border-radius: 5rpx; box-shadow: 0 10rpx 28rpx rgba(16,35,63,.14); }
+.generated-receipt { display: block; width: 100%; background: #fffaf3; border-radius: 5rpx; box-shadow: 0 10rpx 28rpx rgba(93,72,39,.14); }
 .preview-state { min-height: 480rpx; display: flex; align-items: center; justify-content: center; padding: 28rpx; color: #667085; font-size: 20rpx; line-height: 1.5; text-align: center; box-sizing: border-box; }
 .preview-state.error { color: #8b3f35; }
 .primary, .ghost { display: flex; align-items: center; justify-content: center; border-radius: 14rpx; font-weight: 800; line-height: 1; }
