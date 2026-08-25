@@ -12,6 +12,14 @@ function teacher(value) {
   return { teacherId: String(value.teacherId || ""), teacherCode: String(value.teacherCode || ""), teacherName: String(value.teacherName || "") };
 }
 
+function orderUrl(refund, result) {
+  const recordId = String(result.rechargeId || "");
+  const recordCode = String(result.rechargeCode || "");
+  if (!recordId || !recordCode) return "";
+  const category = refund ? "REFUND" : "RECHARGE";
+  return `/pages/order-detail/index?type=recharge&category=${category}&recordId=${encodeURIComponent(recordId)}&recordCode=${encodeURIComponent(recordCode)}`;
+}
+
 Page({
   data: {
     session: {}, store: {}, refund: false, customer: null, products: [], productLabels: [], productIndex: -1, selectedProduct: null,
@@ -95,7 +103,7 @@ Page({
       if (String(result.recordStatus || "") !== "PENDING" || !result.rechargeId || !result.rechargeCode) throw new Error("服务端未返回完整待审核单据，已禁止显示成功");
       submission.clear("RECHARGE");
       this.setData({ locked: false, message: `${this.data.refund ? '退费' : '充值'}单 ${result.rechargeCode} 已提交，等待总部审核。`, error: false, unitCount: "", note: "" });
-      wx.showModal({ title: "提交成功", content: `${result.rechargeCode}\n状态：待审核`, showCancel: false });
+      this.openSubmittedOrder(result);
     } catch (error) {
       submission.markUncertain("RECHARGE");
       await this.recoverAfterError(error, Boolean(result));
@@ -115,8 +123,22 @@ Page({
   },
   showRecovered(result) {
     this.setData({ locked: false, message: `已找到上次单据 ${result.rechargeCode}，不会重复提交。`, error: false });
-    wx.showModal({ title: "已恢复原单据", content: `${result.rechargeCode}\n状态：${result.recordStatus}`, showCancel: false });
+    this.openSubmittedOrder(result);
     this.syncReady();
+  },
+  openSubmittedOrder(result) {
+    const url = orderUrl(this.data.refund || String(result.rechargeType || "").toUpperCase() === "REFUND", result);
+    if (!url) {
+      this.setData({ message: "单据已写入，但服务端没有返回完整工单定位信息；请从充值查询进入，禁止重复提交。", error: true });
+      return;
+    }
+    wx.redirectTo({
+      url,
+      fail: () => {
+        this.setData({ message: `${result.rechargeCode} 已写入，但工单详情打开失败；请从充值查询进入，禁止重复提交。`, error: true });
+        wx.showModal({ title: "工单已提交", content: `${result.rechargeCode}\n请从充值查询进入详情`, showCancel: false });
+      }
+    });
   },
   async recoverPending() {
     if (this.data.recovering || !submission.read("RECHARGE")) return;

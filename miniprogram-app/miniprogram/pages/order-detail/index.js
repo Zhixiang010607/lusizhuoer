@@ -66,8 +66,9 @@ Page({
     if (!session) return;
     const baseType = String(options.type || "recharge").toUpperCase() === "VERIFICATION" ? "VERIFICATION" : "RECHARGE";
     const category = clean(options.category || baseType).toUpperCase();
+    const noun = baseType === "VERIFICATION" ? (category === "EXPERIENCE" ? "体验核销" : "核销") : (category === "REFUND" ? "退费" : "充值");
     this.setData({
-      session, baseType, category, noun: baseType === "VERIFICATION" ? "核销" : "充值",
+      session, baseType, category, noun,
       recordId: decodeURIComponent(options.recordId || ""), recordCode: decodeURIComponent(options.recordCode || "")
     });
     wx.setNavigationBarTitle({ title: `${this.data.noun}工单详情` });

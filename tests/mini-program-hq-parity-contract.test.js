@@ -36,6 +36,13 @@ test("HQ home exposes the complete web mobile rail and isolated ranking interact
   assert.match(js, /当前统计范围/);
   assert.match(wxml, /导出当前数据/);
   assert.match(wxml, /跳至/);
+  assert.match(wxml, /class="menu-backdrop" bindtap="closeMenus"/);
+  assert.match(wxml, /class="business-popover[^\"]*" catchtap="noop"/);
+  assert.match(wxss, /\.business-popover\s*\{[^}]*position:\s*fixed;[^}]*top:\s*90rpx;[^}]*max-width:\s*560rpx;/s);
+  assert.match(wxss, /\.popover-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
+  assert.doesNotMatch(wxss, /\.popover-grid\s*\{[^}]*repeat\(2,/s);
+  assert.match(wxss, /\.table-pagination button\s*\{[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*font-size:\s*18rpx;[^}]*line-height:\s*1;/s);
+  assert.match(wxss, /\.hq-ranking-pagination\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*auto minmax\(0,\s*1fr\) auto;/s);
   assert.match(wxss, /\.metric-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/s);
   assert.match(wxss, /\.bar-y-axis/);
   assert.match(wxss, /\.bar-grid-line/);

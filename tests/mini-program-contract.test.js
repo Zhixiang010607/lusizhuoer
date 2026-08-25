@@ -62,6 +62,10 @@ const recharge = read("pages", "recharge", "index.js");
 for (const token of ["listActiveProducts", "getCustomerProductBalances", "listActiveTeachers", "createRechargeApplication", "recoverBusinessSubmission"]) assert.ok(recharge.includes(token) || read("services", "submission.js").includes(token));
 assert.ok(recharge.indexOf('submission.begin("RECHARGE"') < recharge.indexOf('callFace("createRechargeApplication"'));
 assert.match(recharge, /submission\.markUncertain\("RECHARGE"\)/);
+assert.match(recharge, /pages\/order-detail\/index\?type=recharge/);
+assert.match(recharge, /openSubmittedOrder\(result\)[\s\S]*wx\.redirectTo\(\{/);
+assert.match(recharge, /category=\$\{category\}/);
+assert.match(recharge, /showRecovered\(result\)[\s\S]*this\.openSubmittedOrder\(result\)/);
 
 const verification = read("pages", "verification", "index.js");
 for (const token of ["getTeacherExperienceEntitlements", "getCustomerProductBalances", "verifyCustomerFace", "createVerificationApplication"]) assert.ok(verification.includes(token));
@@ -69,7 +73,55 @@ assert.match(verification, /experience && session\.role !== "teacher"/);
 assert.match(verification, /verificationType: this\.data\.experience \? "EXPERIENCE" : "NORMAL"/);
 assert.ok(verification.indexOf('callFace("verifyCustomerFace"') < verification.indexOf('callFace("createVerificationApplication"'));
 assert.ok(verification.indexOf('submission.begin("VERIFICATION"') < verification.indexOf('callFace("createVerificationApplication"'));
+assert.match(verification, /pages\/order-detail\/index\?type=verification/);
+assert.match(verification, /openSubmittedOrder\(result\)[\s\S]*wx\.redirectTo\(\{/);
+assert.match(verification, /category=\$\{category\}/);
+assert.match(verification, /showRecovered\(result\)[\s\S]*this\.openSubmittedOrder\(result\)/);
 assert.doesNotMatch(verification, /verifyTeacherFace|identifyFace|SearchPersons|1:N/);
+
+function submissionPageHarness(source) {
+  let definition;
+  const redirects = [];
+  vm.runInNewContext(source, {
+    Page(value) { definition = value; },
+    require(id) {
+      if (id === "../../services/api") return { callFace: async () => ({}) };
+      if (id === "../../services/session") return { requireSession: () => null, getSelectedStore: () => null };
+      if (id === "../../services/submission") return {};
+      throw new Error(`unexpected page dependency ${id}`);
+    },
+    wx: {
+      redirectTo(options) { redirects.push(options.url); },
+      showModal() {},
+      reLaunch() {}
+    },
+    encodeURIComponent, String, Number, Boolean, Math, Date, Promise
+  });
+  assert.ok(definition, "submission page must register itself");
+  return { definition, redirects };
+}
+
+const rechargeNavigation = submissionPageHarness(recharge);
+rechargeNavigation.definition.data.refund = false;
+rechargeNavigation.definition.openSubmittedOrder.call(rechargeNavigation.definition, { rechargeId: "31", rechargeCode: "RC31", rechargeType: "NEW" });
+rechargeNavigation.definition.openSubmittedOrder.call(rechargeNavigation.definition, { rechargeId: "32", rechargeCode: "RF32", rechargeType: "REFUND" });
+assert.deepEqual(rechargeNavigation.redirects, [
+  "/pages/order-detail/index?type=recharge&category=RECHARGE&recordId=31&recordCode=RC31",
+  "/pages/order-detail/index?type=recharge&category=REFUND&recordId=32&recordCode=RF32"
+]);
+
+const verificationNavigation = submissionPageHarness(verification);
+verificationNavigation.definition.data.experience = false;
+verificationNavigation.definition.openSubmittedOrder.call(verificationNavigation.definition, { verificationId: "41", verificationCode: "VE41", verificationType: "NORMAL" });
+verificationNavigation.definition.openSubmittedOrder.call(verificationNavigation.definition, { verificationId: "42", verificationCode: "EX42", verificationType: "EXPERIENCE" });
+assert.deepEqual(verificationNavigation.redirects, [
+  "/pages/order-detail/index?type=verification&category=VERIFICATION&recordId=41&recordCode=VE41",
+  "/pages/order-detail/index?type=verification&category=EXPERIENCE&recordId=42&recordCode=EX42"
+]);
+
+const orderDetail = read("pages", "order-detail", "index.js");
+assert.match(orderDetail, /category === "EXPERIENCE" \? "体验核销" : "核销"/);
+assert.match(orderDetail, /category === "REFUND" \? "退费" : "充值"/);
 
 const photo = read("pages", "customer-detail", "index.js");
 assert.match(photo, /photoFailed\(\).*photoUrl: ""/s);

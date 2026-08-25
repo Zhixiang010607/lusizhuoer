@@ -33,6 +33,7 @@ const cloud = read("cloudfunctions/staffAccount/index.js");
 const wrapper = read("cloudbase-phone-auth.js");
 const app = read("app.js");
 const page = read("index.html");
+const styles = read("styles.css");
 const overview = functionSource(cloud, "getHqDashboardOverview");
 const ranking = functionSource(cloud, "getHqDashboardRanking");
 const rankingSql = functionSource(cloud, "hqDashboardRankingSql");
@@ -78,5 +79,11 @@ assert.match(page, /id="rankingPreviousPage"/, "ranking pager needs previous-pag
 assert.match(page, /id="rankingPageInput"/, "ranking pager needs direct page input");
 assert.match(page, /id="rankingRetry"/, "a failed ranking request needs a focused retry action");
 assert.match(page, /id="rankingNextPage"/, "ranking pager needs next-page control");
+assert.ok(page.indexOf('id="rankingPreviousPage"') < page.indexOf('id="rankingPageLabel"')
+  && page.indexOf('id="rankingPageLabel"') < page.indexOf('id="rankingNextPage"')
+  && page.indexOf('id="rankingNextPage"') < page.indexOf('id="rankingPageInput"'),
+"mobile ranking pager must keep previous, page summary, and next together before the jump row");
+assert.match(styles, /\.dashboard-ranking-pagination\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(68px,\s*auto\) minmax\(0,\s*1fr\) minmax\(68px,\s*auto\)/s,
+  "mobile web ranking pager must keep previous/page/next in one centered row");
 
 console.log("HQ dashboard large-data pagination contract: PASS");

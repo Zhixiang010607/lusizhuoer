@@ -1260,9 +1260,12 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
   .review-pagination button { flex: 1 1 calc(50% - 6px); min-width: 0; }
   .review-pagination > span, .review-page-jump { flex: 1 1 100%; justify-content: center; }
   .review-page-jump input { width: 78px; }
-  .dashboard-ranking-pagination { justify-content: stretch; }
-  .dashboard-ranking-pagination button { flex: 1 1 calc(50% - 6px); min-width: 0; }
-  .dashboard-ranking-pagination > span, .ranking-page-jump { flex: 1 1 100%; justify-content: center; }
+  .dashboard-ranking-pagination { display: grid; grid-template-columns: minmax(68px, auto) minmax(0, 1fr) minmax(68px, auto); justify-content: stretch; }
+  .dashboard-ranking-pagination button { min-width: 0; }
+  .dashboard-ranking-pagination > span { min-width: 0; text-align: center; white-space: nowrap; }
+  .dashboard-ranking-pagination .ranking-page-jump { grid-column: 1 / 3; justify-content: flex-end; }
+  .dashboard-ranking-pagination #rankingPageJump { grid-column: 3; }
+  .dashboard-ranking-pagination #rankingRetry:not([hidden]) { grid-column: 1 / -1; justify-self: center; min-width: 96px; }
   .ranking-page-jump input { width: 78px; }
   .business-record-pagination .ranking-page-jump button { flex: 0 0 auto; min-width: 68px; }
 }

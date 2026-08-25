@@ -13,7 +13,9 @@
 .record-row text { min-width: 0; padding: 14rpx 16rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .record-head { min-height: 68rpx; color: #675b4b; background: #f5ead8; font-size: 22rpx; font-weight: 800; }
 .table-link { color: #8b642e; font-weight: 800; }
-.pager { margin-top: 18rpx; }
+.pager { display: flex; align-items: center; justify-content: space-between; gap: 14rpx; margin-top: 18rpx; }
+.pager button { width: 152rpx; min-height: 58rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 14rpx; font-size: 19rpx; line-height: 1; }
+.pager > text { color: #7c7062; font-size: 19rpx; white-space: nowrap; }
 .page-jump { display: flex; align-items: center; justify-content: center; gap: 10rpx; margin-top: 14rpx; }
-.page-jump input { width: 120rpx; min-height: 70rpx; padding: 0 16rpx; text-align: center; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 12rpx; }
-.page-jump button { width: 150rpx; min-height: 70rpx; margin: 0; font-size: 23rpx; }
+.page-jump input { width: 104rpx; min-height: 58rpx; padding: 0 14rpx; font-size: 19rpx; text-align: center; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 12rpx; }
+.page-jump button { width: 132rpx; min-height: 58rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 14rpx; font-size: 19rpx; line-height: 1; }

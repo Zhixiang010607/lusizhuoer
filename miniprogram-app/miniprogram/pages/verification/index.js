@@ -10,6 +10,14 @@ function product(value) {
   };
 }
 
+function orderUrl(experience, result) {
+  const recordId = String(result.verificationId || "");
+  const recordCode = String(result.verificationCode || "");
+  if (!recordId || !recordCode) return "";
+  const category = experience ? "EXPERIENCE" : "VERIFICATION";
+  return `/pages/order-detail/index?type=verification&category=${category}&recordId=${encodeURIComponent(recordId)}&recordCode=${encodeURIComponent(recordCode)}`;
+}
+
 Page({
   data: {
     session: {}, store: {}, experience: false, customer: null, teachers: [], teacherLabels: [], teacherIndex: -1, selectedTeacher: null,
@@ -129,9 +137,9 @@ Page({
       }
       submission.clear("VERIFICATION");
       this.setData({ locked: false, message: `核销单 ${result.verificationCode} 已完成，不会重复扣次。`, error: false, note: "" });
-      wx.showModal({ title: "核销已完成", content: `${result.verificationCode}\n状态：已通过`, showCancel: false });
       this.resetBusinessSelection();
       this.setData({ customer: null });
+      this.openSubmittedOrder(result);
     } catch (error) {
       submission.markUncertain("VERIFICATION");
       await this.recoverAfterError(error, Boolean(result));
@@ -152,8 +160,22 @@ Page({
   },
   showRecovered(result) {
     this.setData({ locked: false, message: `已找到上次核销 ${result.verificationCode}，未重复扣次。`, error: false });
-    wx.showModal({ title: "已恢复原核销", content: `${result.verificationCode}\n状态：${result.recordStatus}`, showCancel: false });
+    this.openSubmittedOrder(result);
     this.syncReady();
+  },
+  openSubmittedOrder(result) {
+    const url = orderUrl(this.data.experience || String(result.verificationType || "").toUpperCase() === "EXPERIENCE", result);
+    if (!url) {
+      this.setData({ message: "核销已写入，但服务端没有返回完整工单定位信息；请从核销查询进入，禁止重复提交。", error: true });
+      return;
+    }
+    wx.redirectTo({
+      url,
+      fail: () => {
+        this.setData({ message: `${result.verificationCode} 已写入，但工单详情打开失败；请从核销查询进入，禁止重复提交。`, error: true });
+        wx.showModal({ title: "核销已完成", content: `${result.verificationCode}\n请从核销查询进入详情`, showCancel: false });
+      }
+    });
   },
   async recoverPending() {
     if (this.data.recovering || !submission.read("VERIFICATION")) return;

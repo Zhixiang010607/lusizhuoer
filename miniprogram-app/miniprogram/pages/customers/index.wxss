@@ -18,8 +18,8 @@
 .status-action { width: 154rpx; min-height: 58rpx; margin: 8rpx auto; padding: 0 12rpx; color: #9a302b; background: #fff0ee; border: 1rpx solid #efc1bd; border-radius: 10rpx; font-size: 20rpx; font-weight: 750; line-height: 58rpx; }
 .status-action.restore { color: #08725f; background: #e8f8f2; border-color: #b9e3d5; }
 .pager { display: flex; align-items: center; justify-content: space-between; gap: 14rpx; padding-top: 22rpx; border-top: 1rpx solid #eadfce; }
-.pager button { width: 180rpx; min-height: 70rpx; margin: 0; font-size: 23rpx; }
-.pager text { color: #7c7062; font-size: 23rpx; }
+.pager button { width: 152rpx; min-height: 58rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 14rpx; font-size: 19rpx; line-height: 1; }
+.pager text { color: #7c7062; font-size: 19rpx; }
 .page-jump { display: flex; align-items: center; justify-content: center; gap: 10rpx; margin-top: 14rpx; }
-.page-jump input { width: 120rpx; min-height: 70rpx; padding: 0 16rpx; text-align: center; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 12rpx; }
-.page-jump button { width: 150rpx; min-height: 70rpx; margin: 0; font-size: 23rpx; }
+.page-jump input { width: 104rpx; min-height: 58rpx; padding: 0 14rpx; font-size: 19rpx; text-align: center; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 12rpx; }
+.page-jump button { width: 132rpx; min-height: 58rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 14rpx; font-size: 19rpx; line-height: 1; }
