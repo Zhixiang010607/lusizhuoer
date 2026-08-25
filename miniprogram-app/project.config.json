@@ -3,11 +3,26 @@
   "projectname": "lusizhuoer-business-miniapp",
   "compileType": "miniprogram",
   "miniprogramRoot": "miniprogram/",
+  "packOptions": {
+    "ignore": [
+      { "type": "folder", "value": "node_modules" },
+      { "type": "suffix", "value": ".map" },
+      { "type": "suffix", "value": ".d.ts" },
+      { "type": "file", "value": ".npmrc" },
+      { "type": "file", "value": "package.json" },
+      { "type": "file", "value": "pnpm-lock.yaml" }
+    ],
+    "include": []
+  },
   "setting": {
     "es6": true,
     "enhance": true,
     "postcss": true,
     "minified": true,
+    "minifyWXSS": true,
+    "minifyWXML": true,
+    "ignoreUploadUnusedFiles": true,
+    "uploadWithSourceMap": false,
     "urlCheck": true,
     "packNpmManually": false
   }

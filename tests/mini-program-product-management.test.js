@@ -69,8 +69,13 @@ test("mini product template shares the authoritative web services and verifies e
 
 test("mini product pages are registered without repeating the HQ home rail", () => {
   const app = JSON.parse(read("app.json"));
+  const registeredPages = [
+    ...app.pages,
+    ...(app.subPackages || []).flatMap((subpackage) =>
+      subpackage.pages.map((page) => `${subpackage.root}/${page}`))
+  ];
   for (const route of ["pages/product-management/index", "pages/product-create/index", "pages/product-detail/index"]) {
-    assert.ok(app.pages.includes(route), `${route} is not registered`);
+    assert.ok(registeredPages.includes(route), `${route} is not registered`);
   }
   for (const page of ["product-management", "product-create", "product-detail"]) {
     const json = JSON.parse(read("pages", page, "index.json"));

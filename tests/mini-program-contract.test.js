@@ -22,19 +22,62 @@ const expectedPages = [
   "hq-directory", "store-create", "store-detail", "teacher-create", "teacher-detail", "reviews",
   "customers", "customer-detail", "customer-create", "recharge", "verification", "records", "order-detail"
 ];
-assert.deepEqual(app.pages, expectedPages.map((page) => `pages/${page}/index`),
-  "the complete isolated mini-program page inventory must remain registered in its intended order");
+assert.deepEqual(app.pages, [
+  "pages/login/index", "pages/password-reset/index", "pages/home/index",
+  "pages/store-create/index", "pages/store-detail/index", "pages/teacher-create/index", "pages/teacher-detail/index"
+], "only startup pages and pages sharing main-package WXSS may remain in the two-megabyte main package");
+const subpackagePages = (app.subPackages || []).flatMap((subpackage) =>
+  subpackage.pages.map((page) => `${subpackage.root}/${page}`));
+const registeredPages = [...app.pages, ...subpackagePages];
+assert.deepEqual([...registeredPages].sort(), expectedPages.map((page) => `pages/${page}/index`).sort(),
+  "the complete isolated mini-program page inventory must remain registered");
+assert.equal(new Set((app.subPackages || []).map(({ root: packageRoot }) => packageRoot)).size,
+  (app.subPackages || []).length, "business subpackage roots must be unique");
+assert.equal((app.subPackages || []).length, 12, "business pages must stay outside the main package unless they share main-package WXSS");
 for (const page of expectedPages) {
-  assert.ok(app.pages.includes(`pages/${page}/index`), `missing mini-program page ${page}`);
+  assert.ok(registeredPages.includes(`pages/${page}/index`), `missing mini-program page ${page}`);
   for (const extension of ["js", "json", "wxml", "wxss"]) assert.ok(fs.existsSync(path.join(mini, "pages", page, `index.${extension}`)), `${page}.${extension} missing`);
 }
 
+assert.equal(project.setting.uploadWithSourceMap, false, "production uploads must exclude sourcemaps from the two-megabyte source limit");
+assert.equal(project.setting.ignoreUploadUnusedFiles, true, "production uploads must filter unused files");
+for (const suffix of [".map", ".d.ts"]) {
+  assert.ok(project.packOptions?.ignore?.some((rule) => rule.type === "suffix" && rule.value === suffix),
+    `production uploads must ignore ${suffix} files`);
+}
+assert.ok(project.packOptions?.ignore?.some((rule) => rule.type === "folder" && rule.value === "node_modules"),
+  "source node_modules must not be uploaded alongside miniprogram_npm");
+for (const file of [".npmrc", "package.json", "pnpm-lock.yaml"]) {
+  assert.ok(project.packOptions?.ignore?.some((rule) => rule.type === "file" && rule.value === file),
+    `local dependency metadata ${file} must not be uploaded`);
+}
+
+const subpackageRoots = new Set((app.subPackages || []).map(({ root: packageRoot }) => path.join(mini, packageRoot)));
+const excludedUploadFiles = new Set([".npmrc", "package.json", "pnpm-lock.yaml"]);
+let mainApplicationBytes = 0;
+function measureMainPackage(directory) {
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const file = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === "node_modules" || entry.name === "miniprogram_npm" || subpackageRoots.has(file)) continue;
+      measureMainPackage(file);
+    } else if (!entry.name.endsWith(".map") && !entry.name.endsWith(".d.ts") && !excludedUploadFiles.has(entry.name)) {
+      mainApplicationBytes += fs.statSync(file).size;
+    }
+  }
+}
+measureMainPackage(mini);
+const reachableNpmBytes = ["@cloudbase/js-sdk/index.js", "@cloudbase/adapter-wx_mp/index.js"]
+  .reduce((total, file) => total + fs.statSync(path.join(mini, "miniprogram_npm", file)).size, 0);
+assert.ok(mainApplicationBytes + reachableNpmBytes < 1.8 * 1024 * 1024,
+  "estimated raw main package must retain at least a 200KB margin below WeChat's 2MB limit");
+
 const allClientSource = [...fs.readdirSync(path.join(mini, "services")).map((file) => read("services", file)),
-  ...app.pages.map((page) => read(`${page}.js`)), read("config", "env.js")].join("\n");
+  ...registeredPages.map((page) => read(`${page}.js`)), read("config", "env.js")].join("\n");
 for (const forbidden of ["FACE_SECRET_ID", "FACE_SECRET_KEY", "CLOUDBASE_APIKEY", "PGPASSWORD", "ExecutePGSql", "SELECT * FROM", "INSERT INTO public."]) {
   assert.ok(!allClientSource.includes(forbidden), `client must not contain ${forbidden}`);
 }
-for (const wxml of app.pages.map((page) => read(`${page}.wxml`))) assert.doesNotMatch(wxml, /<\/?(?:small|div|span|p)(?:\s|>)/, "WXML must use mini-program built-in elements");
+for (const wxml of registeredPages.map((page) => read(`${page}.wxml`))) assert.doesNotMatch(wxml, /<\/?(?:small|div|span|p)(?:\s|>)/, "WXML must use mini-program built-in elements");
 
 const session = read("services", "session.js");
 assert.match(session, /signInWithPhoneAuth\(\{ phoneCode \}\)/);

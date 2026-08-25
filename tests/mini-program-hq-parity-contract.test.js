@@ -152,15 +152,20 @@ test("HQ review workbenches match web filters, pagination, exact links, and guar
 test("mini internal palette is isolated warm ivory, champagne gold, and espresso", () => {
   const app = read("app.wxss");
   const appJson = JSON.parse(read("app.json"));
+  const registeredPages = [
+    ...appJson.pages,
+    ...(appJson.subPackages || []).flatMap((subpackage) =>
+      subpackage.pages.map((page) => `${subpackage.root}/${page}`))
+  ];
   const context = fs.readFileSync(path.join(root, "PROJECT_CONTEXT.md"), "utf8");
   for (const color of ["#f3ede2", "#fffaf3", "#6f532e", "#a98243", "#302a22"]) assert.match(app, new RegExp(color, "i"));
   assert.equal(appJson.window.navigationBarBackgroundColor, "#2f2921");
-  assert.ok(appJson.pages.includes("pages/hq-directory/index"));
-  assert.ok(appJson.pages.includes("pages/product-management/index"));
-  assert.ok(appJson.pages.includes("pages/product-create/index"));
-  assert.ok(appJson.pages.includes("pages/product-detail/index"));
-  for (const route of ["pages/store-create/index", "pages/store-detail/index", "pages/teacher-create/index", "pages/teacher-detail/index"]) assert.ok(appJson.pages.includes(route));
-  assert.ok(appJson.pages.includes("pages/reviews/index"));
+  assert.ok(registeredPages.includes("pages/hq-directory/index"));
+  assert.ok(registeredPages.includes("pages/product-management/index"));
+  assert.ok(registeredPages.includes("pages/product-create/index"));
+  assert.ok(registeredPages.includes("pages/product-detail/index"));
+  for (const route of ["pages/store-create/index", "pages/store-detail/index", "pages/teacher-create/index", "pages/teacher-detail/index"]) assert.ok(registeredPages.includes(route));
+  assert.ok(registeredPages.includes("pages/reviews/index"));
   assert.match(context, /不得恢复旧版高饱和蓝色工作台主题/);
   assert.match(context, /只修改小程序 WXML／WXSS，不反向覆盖网页版客户端样式/);
 });
