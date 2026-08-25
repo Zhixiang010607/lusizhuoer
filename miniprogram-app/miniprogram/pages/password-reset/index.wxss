@@ -1,0 +1,23 @@
+.reset-page { position: relative; min-height: 100vh; display: flex; align-items: center; overflow: hidden; padding: calc(70rpx + env(safe-area-inset-top)) 42rpx calc(56rpx + env(safe-area-inset-bottom)); background: #f3ede2; }
+.reset-background { position: absolute; inset: 0; width: 100%; height: 100%; }
+.reset-card { position: relative; z-index: 1; width: 100%; max-width: 630rpx; margin: 0 auto; padding: 62rpx 46rpx 46rpx; background: rgba(255,252,246,.93); border: 1rpx solid rgba(174,137,75,.72); border-radius: 92rpx 92rpx 36rpx 36rpx; box-shadow: 0 30rpx 80rpx rgba(120,91,43,.18); }
+.reset-heading { margin-bottom: 40rpx; text-align: center; }
+.reset-title { display: block; color: #87662f; font-size: 44rpx; font-weight: 700; letter-spacing: 10rpx; text-indent: 10rpx; }
+.reset-note { display: block; margin-top: 14rpx; color: #8d8171; font-size: 21rpx; }
+.reset-card .field { margin-bottom: 24rpx; }
+.reset-card .field-label { color: #675b4b; font-size: 21rpx; }
+.reset-card .input { min-height: 78rpx; color: #302a22; background: rgba(255,255,255,.76); border: 1rpx solid rgba(174,137,75,.46); border-radius: 26rpx; }
+.code-field, .password-field { position: relative; }
+.code-field { display: grid; grid-template-columns: minmax(0,1fr) 176rpx; gap: 10rpx; }
+.code-field button { width: 100% !important; min-width: 0; min-height: 78rpx; margin: 0; padding: 0 10rpx; color: #74592d; background: rgba(255,255,255,.44); border: 1rpx solid rgba(154,117,56,.55); border-radius: 26rpx; font-size: 21rpx; line-height: 78rpx; }
+.password-field .input { padding-right: 106rpx; }
+.password-field > .password-toggle { position: absolute; top: 0; right: 7rpx; display: flex; align-items: center; justify-content: center; width: 92rpx; height: 78rpx; margin: 0; padding: 0; background: transparent; line-height: 1; }
+.eye-icon { position: relative; width: 36rpx; height: 23rpx; margin: 0; border: 2rpx solid #87662f; border-radius: 50% / 60%; }
+.eye-icon view { position: absolute; top: 50%; left: 50%; width: 8rpx; height: 8rpx; transform: translate(-50%,-50%); background: #87662f; border-radius: 50%; }
+.eye-icon:not(.visible)::after { content: ""; position: absolute; top: 8rpx; left: -5rpx; width: 46rpx; height: 2rpx; transform: rotate(-36deg); background: #87662f; box-shadow: 0 0 0 3rpx rgba(255,255,255,.76); }
+.reset-submit { width: 420rpx !important; max-width: 100%; min-width: 0; height: 86rpx; min-height: 86rpx; display: flex; align-items: center; justify-content: center; margin: 30rpx auto 0; padding: 0; color: #fffdf8; background: #a98243; border-radius: 43rpx; font-size: 24rpx; font-weight: 700; line-height: 1; text-align: center; }
+.reset-submit text { display: block; width: 100%; line-height: 86rpx; text-align: center; }
+.back-login { min-width: 0; min-height: 56rpx; margin: 16rpx auto 0; color: #74592d; background: transparent; font-size: 21rpx; line-height: 56rpx; }
+.back-login::after, .code-field button::after { border: 0; }
+.reset-card .message { text-align: center; }
+@media (max-width: 360px) { .reset-page { padding-right: 30rpx; padding-left: 30rpx; } .reset-card { padding: 52rpx 36rpx 40rpx; border-radius: 78rpx 78rpx 32rpx 32rpx; } }

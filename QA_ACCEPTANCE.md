@@ -34,11 +34,12 @@
 | 老师工作台 | `teacher-work-orders.html`、`teacher-work-order-detail.html`、`teacher-recharge-create.html`、`teacher-refund-create.html`、`teacher-verification-create.html`、`teacher-verification-experience.html` | 路由、首页布局、时间查询、4 类明细、客户范围、本人自动归属、体验仅老师均 `PASS-AUTO`；真实老师会话 `NEEDS-ROLE-LOGIN` |
 | 兼容入口 | `teacher-detail.html` 旧详情链接 | 重定向到当前 `staff-detail.html`，`PASS-AUTO` |
 
-## 微信小程序（9 个页面）
+## 微信小程序（10 个页面）
 
 | 页面 | 页面、按钮与查询 | 结果 |
 | --- | --- | --- |
-| `pages/login/index` | Logo 视觉衍生暖象牙白／浅香槟金背景、弧形居中框、“露思卓儿”原生文字、密码显隐、手机号＋密码、微信手机号授权 | 既有账号密码登录及总部 UID／角色回读 `PASS-LIVE`；亮色 Logo 背景、框内文字和弧形居中布局已在开发者工具重新构建并截图复验 `PASS-LIVE`；微信手机号授权 `NEEDS-CONSOLE-SETUP`（还需身份源、合法域名和真机） |
+| `pages/login/index` | Logo 视觉衍生暖象牙白／浅香槟金背景、弧形居中框、“露思卓儿”原生文字、眼睛图标、手机号＋密码、圆角微信手机号登录、修改密码入口 | 既有账号密码登录及总部 UID／角色回读 `PASS-LIVE`；亮色 Logo 背景、框内文字、弧形布局、密码框右侧居中眼睛图标、微信圆角按钮文字双向居中和改密跳转均已在开发者工具重新构建并截图复验 `PASS-LIVE`；微信手机号授权 `NEEDS-CONSOLE-SETUP`（还需身份源、合法域名和真机） |
+| `pages/password-reset/index` | 既有手机号短信验证码、新密码与确认、眼睛图标、保存、返回登录 | 页面路由、验证码按钮列宽、输入框和右侧眼睛图标已在开发者工具渲染截图复验 `PASS-LIVE`；不自动创建陌生 Auth 用户、验证码会话、密码规则、调用当前 UID 自助改密及完成后退出均 `PASS-AUTO`；真实短信发送与改密 `CONFIRM-ONLY` |
 | `pages/home/index` | 三角色首页布局、业务菜单、客户／充值／核销查询菜单、日期、统计、4 类明细、分页、工单与客户入口、退出 | 总部基础首页真实加载与重置查询 `PASS-LIVE`；三角色结构、查询菜单和权限 `PASS-AUTO`；新增查询菜单待开发者工具重新登录后复验 |
 | `pages/customers/index` | 总部门店范围、业务阶段、状态、建档日期、姓名／生日、汇总、清空、分页、直接跳页、详情入口；老师业务客户 | 原基础查询和详情入口 `PASS-LIVE`；扩展筛选、门店锁定、老师范围和游标直跳 `PASS-AUTO`；扩展页面待开发者工具重新登录后复验 |
 | `pages/customer-detail/index` | 原图重读／保存、备注、余额、充值／核销／体验历史页签及工单详情链接 | 详情读取与历史页签 `PASS-LIVE`；工单链接 `PASS-AUTO`；保存类操作 `CONFIRM-ONLY` |

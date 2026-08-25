@@ -8,15 +8,16 @@
         <text class="field-label">手机号</text>
         <input id="login-phone" class="input" type="number" maxlength="11" placeholder="请输入手机号" placeholder-class="login-placeholder" value="{{phone}}" bindinput="inputPhone" />
       </label>
-      <view class="field">
+      <view class="field password-login-field">
         <text class="field-label">登录密码</text>
         <view class="password-field">
           <input id="login-password" class="input" password="{{!passwordVisible}}" maxlength="32" placeholder="请输入登录密码" placeholder-class="login-placeholder" value="{{password}}" bindinput="inputPassword" />
-          <button class="password-toggle" bindtap="togglePassword">{{passwordVisible ? '隐藏' : '显示'}}</button>
+          <view class="password-toggle" role="button" aria-label="{{passwordVisible ? '隐藏密码' : '显示密码'}}" bindtap="togglePassword"><view class="eye-icon {{passwordVisible ? 'visible' : ''}}"><view></view></view></view>
         </view>
+        <view class="password-reset-row"><text class="password-reset-link" role="button" bindtap="openPasswordReset">修改密码</text></view>
       </view>
       <button id="login-submit" class="primary login-button" bindtap="submit" loading="{{busy}}" disabled="{{busy}}">登录</button>
-      <button id="login-wechat-phone" class="wechat-login" open-type="getPhoneNumber" bindgetphonenumber="submitWechatPhone" loading="{{busy}}" disabled="{{busy}}">微信手机号登录</button>
+      <button id="login-wechat-phone" class="wechat-login" open-type="getPhoneNumber" bindgetphonenumber="submitWechatPhone" loading="{{busy}}" disabled="{{busy}}"><text>微信手机号登录</text></button>
       <view id="login-message" wx:if="{{message}}" class="message {{error ? 'error' : ''}}">{{message}}</view>
     </view>
   </view>

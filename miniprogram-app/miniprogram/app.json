@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/login/index",
+    "pages/password-reset/index",
     "pages/home/index",
     "pages/customers/index",
     "pages/customer-detail/index",

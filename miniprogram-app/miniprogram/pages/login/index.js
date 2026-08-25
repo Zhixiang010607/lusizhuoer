@@ -8,6 +8,12 @@ Page({
   inputPhone(event) { this.setData({ phone: event.detail.value }); },
   inputPassword(event) { this.setData({ password: event.detail.value }); },
   togglePassword() { this.setData({ passwordVisible: !this.data.passwordVisible }); },
+  openPasswordReset() {
+    if (this.data.busy) return;
+    const phone = String(this.data.phone || "").replace(/\D/g, "");
+    const query = /^1[3-9]\d{9}$/.test(phone) ? `?phone=${encodeURIComponent(phone)}` : "";
+    wx.navigateTo({ url: `/pages/password-reset/index${query}` });
+  },
   async submitWechatPhone(event) {
     if (this.data.busy) return;
     const phoneCode = String(event && event.detail && event.detail.code || "").trim();

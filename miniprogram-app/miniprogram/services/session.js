@@ -3,7 +3,10 @@ const { callStaff } = require("./api");
 
 const SESSION_KEY = "lusizhuoerMiniSessionV1";
 const STORE_KEY_PREFIX = "lusizhuoerMiniStoreV1:";
+const SMS_COOLDOWN_KEY_PREFIX = "lusizhuoerMiniSmsCooldownV1:";
+const SMS_COOLDOWN_MS = 60 * 1000;
 const ROLES = new Set(["hq", "store", "teacher"]);
+let passwordResetVerifier = null;
 
 function normalizePhone(value) {
   const phone = String(value || "").replace(/\D/g, "");
@@ -126,6 +129,60 @@ async function wechatPhoneLogin(phoneCodeValue) {
   return signInAndFinish(auth, () => auth.signInWithPhoneAuth({ phoneCode }), "微信手机号登录失败");
 }
 
+function authData(result, fallback) {
+  if (!result || typeof result !== "object") {
+    throw new Error(`${fallback}，认证服务没有返回有效结果`);
+  }
+  const error = loginError(result, fallback);
+  if (error) throw error;
+  if (!result.data || typeof result.data !== "object") {
+    throw new Error(`${fallback}，认证服务没有返回有效会话`);
+  }
+  return result.data;
+}
+
+function passwordResetCooldownRemaining(phoneValue) {
+  let phone;
+  try { phone = normalizePhone(phoneValue); } catch (_) { return 0; }
+  const key = `${SMS_COOLDOWN_KEY_PREFIX}${phone}`;
+  const state = wx.getStorageSync(key);
+  const remaining = Math.max(0, Math.ceil((Number(state && state.lastSentAt || 0) + SMS_COOLDOWN_MS - Date.now()) / 1000));
+  if (!remaining) wx.removeStorageSync(key);
+  return remaining;
+}
+
+async function requestPasswordResetCode(phoneValue) {
+  const phone = normalizePhone(phoneValue);
+  const remaining = passwordResetCooldownRemaining(phone);
+  if (remaining > 0) throw new Error(`验证码已发送，请 ${remaining} 秒后再试`);
+  const auth = getAuth();
+  if (typeof auth.signInWithOtp !== "function") throw new Error("当前 CloudBase SDK 不支持短信验证，请检查 npm 依赖版本");
+  const result = await auth.signInWithOtp({ phone, options: { shouldCreateUser: false } });
+  const data = authData(result, "验证码发送失败");
+  if (typeof data.verifyOtp !== "function") throw new Error("验证码服务未返回验证会话");
+  passwordResetVerifier = data.verifyOtp;
+  wx.setStorageSync(`${SMS_COOLDOWN_KEY_PREFIX}${phone}`, { lastSentAt: Date.now() });
+  return true;
+}
+
+async function completePasswordReset(codeValue, newPassword) {
+  const code = String(codeValue || "").trim();
+  if (!passwordResetVerifier) throw new Error("请先获取短信验证码");
+  if (!/^\d{4,8}$/.test(code)) throw new Error("请输入有效短信验证码");
+  const auth = getAuth();
+  let verified = false;
+  try {
+    const result = await passwordResetVerifier({ token: code });
+    authData(result, "验证码无效或已过期");
+    verified = true;
+    await callStaff("changeOwnPassword", { newPassword });
+    passwordResetVerifier = null;
+    return true;
+  } finally {
+    if (verified) await clearFailedLogin(auth);
+  }
+}
+
 async function restoreAndValidateSession() {
   const stored = readSession();
   if (!stored || !stored.uid || !ROLES.has(stored.role)) return null;
@@ -190,6 +247,8 @@ async function signOut() {
 }
 
 module.exports = {
-  passwordLogin, wechatPhoneLogin, restoreAndValidateSession, requireSession, readSession,
+  passwordLogin, wechatPhoneLogin, requestPasswordResetCode, completePasswordReset,
+  passwordResetCooldownRemaining,
+  restoreAndValidateSession, requireSession, readSession,
   getSelectedStore, setSelectedStore, clearSession, signOut, normalizePhone
 };

@@ -45,9 +45,14 @@ test("mini-program login is concise and keeps both WeChat phone and password ent
     "the login must not restore decorative or explanatory template copy");
   assert.doesNotMatch(wxml, /login-system-mark|海洋之韵/);
   assert.match(wxml, /open-type="getPhoneNumber"/);
+  assert.match(wxml, />\s*<text>微信手机号登录<\/text>\s*<\/button>/);
+  assert.match(wxml, /class="password-reset-row"><text class="password-reset-link" role="button" bindtap="openPasswordReset">修改密码<\/text><\/view>/);
+  assert.match(wxml, /class="eye-icon \{\{passwordVisible \? 'visible' : ''\}\}"/);
+  assert.doesNotMatch(wxml, /\{\{passwordVisible \? '隐藏' : '显示'\}\}/,
+    "password visibility must use the eye icon instead of awkward text");
   assert.match(wxml, /id="login-phone"/);
   assert.match(wxml, /id="login-password"/);
-  assert.match(wxml, /passwordVisible\s*\?\s*'隐藏'\s*:\s*'显示'/);
+  assert.match(wxml, /aria-label="\{\{passwordVisible \? '隐藏密码' : '显示密码'\}\}"/);
   assert.doesNotMatch(wxml, /安全工作台|统一入口|登录说明|温馨提示/,
     "login page should not reintroduce explanatory filler");
   assert.match(wxss, /\.login-page\s*\{[^}]*align-items:\s*center[^}]*background:\s*#f3ede2/s);
@@ -57,8 +62,17 @@ test("mini-program login is concise and keeps both WeChat phone and password ent
   for (const color of ["#f3ede2", "#87662f", "#675b4b", "#302a22", "#a98243"]) {
     assert.match(wxss, new RegExp(color, "i"), `login palette is missing ${color}`);
   }
-  assert.match(wxss, /\.wechat-login\s*\{[^}]*color:\s*#74592d[^}]*border:\s*1rpx solid rgba\(154, 117, 56, \.64\)/s,
-    "WeChat phone authorization must stay a restrained champagne outline action");
+  assert.match(wxss, /\.wechat-login\s*\{[^}]*display:\s*flex[^}]*align-items:\s*center[^}]*justify-content:\s*center/s,
+    "the exact WeChat phone login wording must be centered in both axes");
+  assert.match(wxss, /\.wechat-login\s*\{[^}]*width:\s*420rpx\s*!important[^}]*min-width:\s*0[^}]*height:\s*76rpx[^}]*border-radius:\s*38rpx/s,
+    "WeChat phone login must remain a deliberately sized rounded secondary button instead of a divider label");
+  assert.doesNotMatch(wxml, /alternate-line/, "WeChat phone login must not be squeezed between decorative divider lines");
+  assert.match(wxml, /<view class="password-toggle" role="button"[^>]*bindtap="togglePassword">/,
+    "the eye icon control must avoid the native button minimum width");
+  assert.match(wxss, /\.password-toggle\s*\{[^}]*display:\s*flex[^}]*align-items:\s*center[^}]*justify-content:\s*center[^}]*width:\s*96rpx[^}]*height:\s*82rpx/s,
+    "the eye icon must stay vertically centered at the right edge");
+  assert.match(wxss, /\.password-reset-row\s*\{[^}]*justify-content:\s*flex-end/s,
+    "the password reset entry belongs below the password field at the right edge");
   assert.doesNotMatch(wxss, /#16845b/i, "login must not reintroduce a saturated green button");
   assert.match(context, /暖象牙白、浅香槟金竖屏品牌图/);
   assert.match(context, /清晰可辨的标志轮廓/);
