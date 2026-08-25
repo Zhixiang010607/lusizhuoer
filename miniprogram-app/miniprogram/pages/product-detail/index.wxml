@@ -1,11 +1,11 @@
 <view class="page">
-  <view class="page-heading"><text class="title">产品单据模板</text><button class="ghost return-button" bindtap="back">返回产品管理</button></view>
+  <view class="page-heading"><text class="title">项目单据模板</text><button class="ghost return-button" bindtap="back">返回项目管理</button></view>
 
-  <view wx:if="{{loading && !template}}" class="panel empty">正在读取产品模板…</view>
+  <view wx:if="{{loading && !template}}" class="panel empty">正在读取项目模板…</view>
   <block wx:if="{{template}}">
     <view class="panel summary-card">
       <view class="summary-copy"><text class="type-pill">{{template.productType}}</text><text class="product-name">{{template.productName}}</text><text class="meta">{{template.productCode || '未编号'}} · {{template.statusText}} · 模板更新：{{template.updatedText}}{{template.updatedByName ? ' · ' + template.updatedByName : ''}}</text></view>
-      <view class="summary-actions"><text class="template-badge {{template.ready ? 'ready' : ''}}">{{template.ready ? '模板已配置' : '模板待配置'}}</text><button class="ghost status-button" bindtap="toggleStatus" disabled="{{mutating}}">{{template.productStatus === 'ARCHIVED' ? '激活产品' : '封存产品'}}</button></view>
+      <view class="summary-actions"><text class="template-badge {{template.ready ? 'ready' : ''}}">{{template.ready ? '模板已配置' : '模板待配置'}}</text><button class="ghost status-button" bindtap="toggleStatus" disabled="{{mutating}}">{{template.productStatus === 'ARCHIVED' ? '激活项目' : '封存项目'}}</button></view>
     </view>
 
     <view class="panel editor-card">
@@ -13,7 +13,7 @@
       <view class="logo-editor">
         <view class="logo-square"><image wx:if="{{logoPreview}}" src="{{logoPreview}}" mode="aspectFit" binderror="logoError" /><text wx:else>LOGO</text></view>
         <view class="logo-controls">
-          <text>共用产品 LOGO</text>
+          <text>共用项目 LOGO</text>
           <view class="compact-actions"><button class="primary" bindtap="chooseLogo" disabled="{{mutating}}">选择图片</button><button class="primary" bindtap="uploadLogo" loading="{{mutating && selectedLogo}}" disabled="{{mutating || !selectedLogo}}">上传并保存</button><button class="ghost" bindtap="removeLogo" disabled="{{mutating || !template.logo}}">移除</button></view>
         </view>
       </view>

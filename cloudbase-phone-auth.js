@@ -272,7 +272,7 @@
   }
 
   function validateProductLogoData(value, expectedReference = "") {
-    if (!value || typeof value !== "object") throw new Error("产品 LOGO 原图服务返回了无效数据");
+    if (!value || typeof value !== "object") throw new Error("项目 LOGO 原图服务返回了无效数据");
     const reference = String(value.reference || "").trim();
     const mimeType = String(value.mimeType || "").trim().toLowerCase();
     const bytes = Number(value.bytes);
@@ -280,10 +280,10 @@
     if (!reference || !["image/png", "image/jpeg", "image/webp"].includes(mimeType)
         || !Number.isSafeInteger(bytes) || bytes < 8 || bytes > 8 * 1024 * 1024
         || base64Bytes !== bytes) {
-      throw new Error("产品 LOGO 原图服务返回了无效数据");
+      throw new Error("项目 LOGO 原图服务返回了无效数据");
     }
     if (expectedReference && reference !== expectedReference) {
-      const error = new Error("产品 LOGO 已更新，请重新读取产品模板");
+      const error = new Error("项目 LOGO 已更新，请重新读取项目模板");
       error.code = "PRODUCT_LOGO_CHANGED";
       throw error;
     }
@@ -301,8 +301,8 @@
         || !Number.isSafeInteger(chunkSize) || chunkSize < 256 * 1024 || chunkSize > 2 * 1024 * 1024
         || chunkSize % 3 !== 0) {
       const error = new Error(expectedReference && reference !== expectedReference
-        ? "产品 LOGO 已更新，请重新读取产品模板"
-        : "产品 LOGO 分块读取清单无效");
+        ? "项目 LOGO 已更新，请重新读取项目模板"
+        : "项目 LOGO 分块读取清单无效");
       error.code = expectedReference && reference !== expectedReference ? "PRODUCT_LOGO_CHANGED" : "PRODUCT_LOGO_CHUNK_INVALID";
       throw error;
     }
@@ -315,13 +315,13 @@
         expectedReference: reference,
         chunkOffset: offset,
         chunkLength
-      }, "产品 LOGO 分块读取失败");
+      }, "项目 LOGO 分块读取失败");
       const chunk = data.logo;
       if (!chunk || String(chunk.reference || "").trim() !== reference
           || Number(chunk.bytes) !== bytes || Number(chunk.chunkOffset) !== offset
           || Number(chunk.chunkBytes) !== chunkLength
           || canonicalBase64ByteLength(chunk.base64) !== chunkLength) {
-        throw new Error("产品 LOGO 分块读取不完整");
+        throw new Error("项目 LOGO 分块读取不完整");
       }
       parts.push(String(chunk.base64));
     }
@@ -567,24 +567,40 @@
     async createProduct({ productName, productType, description = "", clientRequestId = "" }) {
       return callStaffAccount(
         { action: "createProduct", productName, productType, description, clientRequestId },
-        "产品创建失败"
+        "项目创建失败"
       );
     },
     async listProducts() {
-      const data = await callStaffAccount({ action: "listProducts" }, "产品列表读取失败");
+      const data = await callStaffAccount({ action: "listProducts" }, "项目列表读取失败");
       return data.products || [];
+    },
+    async listRetailProducts() {
+      const data = await callStaffAccount({ action: "listRetailProducts" }, "产品列表读取失败");
+      return data.products || [];
+    },
+    async createRetailProduct({ productName, clientRequestId = "" }) {
+      return callStaffAccount(
+        { action: "createRetailProduct", productName, clientRequestId },
+        "产品创建失败"
+      );
+    },
+    async setRetailProductStatus({ productRef, status }) {
+      return callStaffAccount(
+        { action: "setRetailProductStatus", productRef, status },
+        "产品状态更新失败"
+      );
     },
     async setProductStatus({ productRef, status }) {
       const data = await callStaffAccount(
         { action: "setProductStatus", productRef, status },
-        "产品状态更新失败"
+        "项目状态更新失败"
       );
       clearProductReceiptCaches();
       return data;
     },
     async getProductReceiptTemplate({ productRef, forceRefresh = false, allowCached = false }) {
       const key = productReceiptRefKey(productRef);
-      if (!key) throw new Error("缺少产品编号");
+      if (!key) throw new Error("缺少项目编号");
       // Receipt exports require the latest database instructions. Persistent
       // template entries are therefore metadata for logo-keying unless a
       // caller explicitly opts into a short-lived cached template.
@@ -598,7 +614,7 @@
       const generation = productReceiptCacheGeneration;
       const flight = callProductReceiptRead(
         { action: "getProductReceiptTemplate", productRef },
-        "产品单据模板读取失败"
+        "项目单据模板读取失败"
       ).then((data) => {
         const value = data.template || null;
         if (generation === productReceiptCacheGeneration) rememberProductTemplate(productRef, value);
@@ -612,13 +628,13 @@
     async beginProductLogoUpload({ productRef, originalName, mimeType, bytes, width, height }) {
       return callStaffAccount(
         { action: "beginProductLogoUpload", productRef, originalName, mimeType, bytes, width, height },
-        "产品 LOGO 上传准备失败"
+        "项目 LOGO 上传准备失败"
       );
     },
     async uploadProductLogoByFunction({ productRef, originalName, mimeType, bytes, width, height, imageBase64 }) {
       const data = await callStaffAccount(
         { action: "uploadProductLogoByFunction", productRef, originalName, mimeType, bytes, width, height, imageBase64 },
-        "产品 LOGO 安全备用上传失败"
+        "项目 LOGO 安全备用上传失败"
       );
       clearProductReceiptCaches();
       rememberProductTemplate(productRef, data.template);
@@ -627,7 +643,7 @@
     async confirmProductLogoUpload({ productRef, reference, originalName, mimeType, bytes, width, height }) {
       const data = await callStaffAccount(
         { action: "confirmProductLogoUpload", productRef, reference, originalName, mimeType, bytes, width, height },
-        "产品 LOGO 保存确认失败"
+        "项目 LOGO 保存确认失败"
       );
       clearProductReceiptCaches();
       rememberProductTemplate(productRef, data.template);
@@ -636,13 +652,13 @@
     async discardProductLogoUpload({ productRef, reference }) {
       return callStaffAccount(
         { action: "discardProductLogoUpload", productRef, reference },
-        "产品 LOGO 未绑定文件清理失败"
+        "项目 LOGO 未绑定文件清理失败"
       );
     },
     async saveProductReceiptTemplate({ productRef, verificationInstructions, rechargeInstructions }) {
       const data = await callStaffAccount(
         { action: "saveProductReceiptTemplate", productRef, verificationInstructions, rechargeInstructions },
-        "产品单据模板保存失败"
+        "项目单据模板保存失败"
       );
       clearProductReceiptCaches();
       rememberProductTemplate(productRef, data.template);
@@ -651,7 +667,7 @@
     async removeProductReceiptLogo({ productRef }) {
       const data = await callStaffAccount(
         { action: "removeProductReceiptLogo", productRef },
-        "产品 LOGO 移除失败"
+        "项目 LOGO 移除失败"
       );
       clearProductReceiptCaches();
       rememberProductTemplate(productRef, data.template);
@@ -659,7 +675,7 @@
     },
     async getProductReceiptLogoData({ productRef, expectedReference = "", forceRefresh = false }) {
       const productKey = productReceiptRefKey(productRef);
-      if (!productKey) throw new Error("缺少产品编号");
+      if (!productKey) throw new Error("缺少项目编号");
       const reference = expectedProductLogoReference(productRef, expectedReference);
       const cacheKey = `${productKey}\n${reference}`;
       if (!forceRefresh) {
@@ -680,7 +696,7 @@
       const generation = productReceiptCacheGeneration;
       const flight = callProductReceiptRead(
         { action: "getProductReceiptLogoData", productRef, expectedReference: reference },
-        "产品 LOGO 原图读取失败"
+        "项目 LOGO 原图读取失败"
       ).then(async (data) => {
         const initial = data.logo || null;
         const value = initial?.chunked && !initial?.base64

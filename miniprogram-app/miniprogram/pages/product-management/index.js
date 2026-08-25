@@ -7,7 +7,7 @@ function productView(item) {
   const status = text(item.product_status).toUpperCase() === "ARCHIVED" ? "封存" : "活跃";
   return {
     id: text(item.id), ref: text(item.product_code) || text(item.id), code: text(item.product_code),
-    name: text(item.product_name) || "未命名产品", type: text(item.product_type) || "未分类", status,
+    name: text(item.product_name) || "未命名项目", type: text(item.product_type) || "未分类", status,
     templateConfigured: truthy(item.receipt_logo_configured)
       && truthy(item.verification_instructions_configured)
       && truthy(item.recharge_instructions_configured)
@@ -42,7 +42,7 @@ Page({
       this.setData({ products: (result.products || []).map(productView) });
     } catch (error) {
       if (this._unloaded || request.epoch !== this._requestEpoch) return;
-      this.setData({ products: [], message: error.message || "产品数据库读取失败，请下拉重试", error: true });
+      this.setData({ products: [], message: error.message || "项目数据库读取失败，请下拉重试", error: true });
     } finally {
       if (!this._unloaded && request.epoch === this._requestEpoch) this.setData({ loading: false });
     }

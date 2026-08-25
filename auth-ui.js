@@ -8,7 +8,7 @@
   const homes = { hq: "index.html", store: "store-detail.html", teacher: "teacher-work-orders.html" };
   const labels = { hq: "总部工作区", store: "门店工作区", teacher: "老师工作区" };
   const access = {
-    hq: new Set(["index.html", "change-password.html", "store-create.html", "project-create.html", "teacher-create.html", "hq-account-create.html", "hq-management.html", "store-management.html", "project-management.html", "teacher-management.html", "staff-detail.html", "store-detail.html", "store-analysis.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "refund-review.html", "verification-review.html"]),
+    hq: new Set(["index.html", "change-password.html", "store-create.html", "project-create.html", "teacher-create.html", "hq-account-create.html", "hq-management.html", "store-management.html", "project-management.html", "retail-product-management.html", "teacher-management.html", "staff-detail.html", "store-detail.html", "store-analysis.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "refund-review.html", "verification-review.html"]),
     store: new Set(["store-detail.html", "store-analysis.html", "change-password.html", "customer-detail.html", "customer-query.html", "customer-create.html", "recharge-create.html", "refund-create.html", "verification-create.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html"]),
     teacher: new Set(["teacher-work-orders.html", "change-password.html", "teacher-work-order-detail.html", "customer-detail.html", "recharge-detail.html", "verification-detail.html", "customer-create.html", "recharge-create.html", "refund-create.html", "verification-create.html", "verification-experience.html", "teacher-verification-create.html", "teacher-verification-experience.html", "teacher-recharge-create.html", "teacher-refund-create.html"])
   };
@@ -106,7 +106,7 @@
       document.querySelectorAll(".side-project-bar > .side-menu-group").forEach((group) => {
         if (group.querySelector("summary")?.textContent.includes("管理")) group.hidden = true;
       });
-      const managementLinks = [["project-management.html", "产品管理"], ["store-management.html", "门店管理"], ["teacher-management.html", "老师管理"], ["hq-management.html", "总部管理"]];
+      const managementLinks = [["project-management.html", "项目管理"], ["retail-product-management.html", "产品管理"], ["store-management.html", "门店管理"], ["teacher-management.html", "老师管理"], ["hq-management.html", "总部管理"]];
       document.querySelector('[data-menu="shared-query"]')?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="hq-management"><summary><span class="nav-icon">管</span><span>管理</span></summary><nav>${managementLinks.map(([href, text]) => `<a class="${page === href ? "active" : ""}" href="${href}">${text}</a>`).join("")}</nav></details>`);
     }
   }

@@ -9,26 +9,26 @@ const root = path.resolve(__dirname, "..");
 const mini = path.join(root, "miniprogram-app", "miniprogram");
 const read = (...parts) => fs.readFileSync(path.join(mini, ...parts), "utf8");
 
-test("mini product management follows the dedicated web mobile list instead of the generic directory", () => {
+test("mini project management follows the dedicated web mobile list instead of the generic directory", () => {
   const home = read("pages", "home", "index.js");
   const listJs = read("pages", "product-management", "index.js");
   const listWxml = read("pages", "product-management", "index.wxml");
   const legacy = read("pages", "hq-directory", "index.js");
 
-  assert.match(home, /type === "product"[\s\S]*pages\/product-management\/index/);
-  assert.match(legacy, /options\.type === "product"[\s\S]*pages\/product-management\/index/);
+  assert.match(home, /type === "project"[\s\S]*pages\/product-management\/index/);
+  assert.match(legacy, /options\.type === "project"[\s\S]*pages\/product-management\/index/);
   assert.match(listJs, /callStaff\("listProducts"\)/);
-  assert.match(listWxml, /全部产品/);
-  assert.match(listWxml, /点击产品进入单据模板设置/);
-  assert.match(listWxml, /新增产品/);
+  assert.match(listWxml, /全部项目/);
+  assert.match(listWxml, /点击项目进入单据模板设置/);
+  assert.match(listWxml, /新增项目/);
   assert.match(listWxml, /模板已配置/);
   assert.match(listWxml, /模板待配置/);
-  for (const retired of ["查询产品", "重置", "活跃产品", "封存产品"]) {
-    assert.doesNotMatch(listWxml, new RegExp(retired), `dedicated product list must not render ${retired}`);
+  for (const retired of ["查询项目", "重置", "活跃项目", "封存项目"]) {
+    assert.doesNotMatch(listWxml, new RegExp(retired), `dedicated project list must not render ${retired}`);
   }
 });
 
-test("mini product creation is a dedicated idempotent page and continues directly to template setup", () => {
+test("mini project creation is a dedicated idempotent page and continues directly to template setup", () => {
   const js = read("pages", "product-create", "index.js");
   const wxml = read("pages", "product-create", "index.wxml");
   assert.match(js, /lusizhuoerMiniProductCreateV1/);
@@ -36,12 +36,12 @@ test("mini product creation is a dedicated idempotent page and continues directl
   assert.match(js, /clientRequestId:\s*pendingRequestId\(\)/);
   assert.match(js, /product-detail\/index\?productRef=/);
   assert.match(js, /wx\.removeStorageSync\(PENDING_KEY\)/);
-  for (const label of ["产品创建", "产品资料", "产品名称", "产品类别", "产品介绍（选填）", "返回产品管理", "创建产品"]) {
+  for (const label of ["项目创建", "项目资料", "项目名称", "项目类别", "项目介绍（选填）", "返回项目管理", "创建项目"]) {
     assert.match(wxml, new RegExp(label));
   }
 });
 
-test("mini product template shares the authoritative web services and verifies every mutation", () => {
+test("mini project template shares the authoritative web services and verifies every mutation", () => {
   const js = read("pages", "product-detail", "index.js");
   const wxml = read("pages", "product-detail", "index.wxml");
 
@@ -59,7 +59,7 @@ test("mini product template shares the authoritative web services and verifies e
   assert.match(js, /wx\.openDocument/);
   assert.match(js, /fileType:\s*"pdf"[\s\S]*showMenu:\s*true/);
   assert.doesNotMatch(js, /shareFileMessage/, "async PDF generation must open the native document viewer instead of losing the original TAP gesture");
-  for (const label of ["产品单据模板", "模板内容", "共用产品 LOGO", "正常核销与体验核销共用", "充值与退费共用", "保存文字说明", "四种成品预览", "刷新预览", "下载样例"]) {
+  for (const label of ["项目单据模板", "模板内容", "共用项目 LOGO", "正常核销与体验核销共用", "充值与退费共用", "保存文字说明", "四种成品预览", "刷新预览", "下载样例"]) {
     assert.match(wxml, new RegExp(label), `product template UI is missing ${label}`);
   }
   for (const retired of ["logoMeta", "不压缩", "不裁切", "文件大小", "像素尺寸"]) assert.doesNotMatch(wxml, new RegExp(retired));

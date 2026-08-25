@@ -24,6 +24,7 @@
   </view>
   <view wx:if="{{managementMenuOpen && session.role === 'hq'}}" class="business-popover management-popover" catchtap="noop">
     <view class="popover-grid">
+      <view data-type="project" bindtap="openManagement">项目管理</view>
       <view data-type="product" bindtap="openManagement">产品管理</view>
       <view data-type="store" bindtap="openManagement">门店管理</view>
       <view data-type="teacher" bindtap="openManagement">老师管理</view>

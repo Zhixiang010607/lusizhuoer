@@ -16,10 +16,10 @@ test("HQ home exposes the complete web mobile rail and isolated ranking interact
   const wxss = read("pages", "home", "index.wxss");
   const webIndex = fs.readFileSync(path.join(root, "index.html"), "utf8");
 
-  for (const label of ["客户查询", "充值查询", "核销查询", "产品管理", "门店管理", "老师管理", "充值审核", "核销审核"]) {
+  for (const label of ["客户查询", "充值查询", "核销查询", "项目管理", "产品管理", "门店管理", "老师管理", "充值审核", "核销审核"]) {
     assert.match(wxml, new RegExp(label), `HQ mobile rail is missing ${label}`);
   }
-  for (const route of ["pages/product-management/index", "pages/hq-directory/index", "pages/reviews/index"]) assert.match(js, new RegExp(route));
+  for (const route of ["pages/product-management/index", "pages/retail-product-management/index", "pages/hq-directory/index", "pages/reviews/index"]) assert.match(js, new RegExp(route));
   assert.match(wxml, /class="rail-current" aria-label="\{\{roleTitle\}\}"/);
   assert.match(js, /hq:\s*\{\s*title:\s*"总部数据看板"/);
   assert.match(wxml, /aria-label="业务查询"/);
@@ -225,6 +225,7 @@ test("mini internal palette is isolated warm ivory, champagne gold, and espresso
   assert.ok(registeredPages.includes("pages/product-management/index"));
   assert.ok(registeredPages.includes("pages/product-create/index"));
   assert.ok(registeredPages.includes("pages/product-detail/index"));
+  assert.ok(registeredPages.includes("pages/retail-product-management/index"));
   for (const route of ["pages/store-create/index", "pages/store-detail/index", "pages/teacher-create/index", "pages/teacher-detail/index"]) assert.ok(registeredPages.includes(route));
   assert.ok(registeredPages.includes("pages/reviews/index"));
   assert.match(context, /不得恢复旧版高饱和蓝色工作台主题/);

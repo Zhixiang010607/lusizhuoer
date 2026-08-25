@@ -13,7 +13,8 @@
   <view data-route="/pages/records/index?type=verification" bindtap="go">核销查询</view>
 </view>
 <view wx:if="{{open === 'management'}}" class="rail-popover" catchtap="noop">
-  <view data-route="/pages/product-management/index" bindtap="go">产品管理</view>
+  <view data-route="/pages/product-management/index" bindtap="go">项目管理</view>
+  <view data-route="/pages/retail-product-management/index" bindtap="go">产品管理</view>
   <view data-route="/pages/hq-directory/index?type=store" bindtap="go">门店管理</view>
   <view data-route="/pages/hq-directory/index?type=teacher" bindtap="go">老师管理</view>
 </view>

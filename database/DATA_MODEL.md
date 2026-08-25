@@ -38,7 +38,8 @@ An archived account cannot sign in. Archiving does not delete historical records
 | Headquarters person | `hq_profiles` | One login account |
 | Teacher | `teachers` | One login account; current creation requires only name, unique phone and initial password |
 | Store | `stores` | Province, city, district, address; multiple `store_contacts`; one active store login binding |
-| Product | `products` | Product status and product details |
+| Service project | `products` | Recharge/verification/experience semantics, project status, receipt template and project details |
+| Topical/retail product | `retail_products` | Database-generated product code, product name and active/archive state only; physical deletion is blocked |
 | Customer | `customers` | Created store, face-library person ID and consent time; no customer phone is stored |
 
 Teacher creation, activation and login do not collect or require a teacher
@@ -51,8 +52,15 @@ Teacher experience allowances use `teacher_product_experience_quotas` plus
 immutable configuration, recharge, reset and usage ledgers. A live quota is
 `ACTIVE`; deleting a configuration archives it rather than deleting its audit
 lineage. Reconfiguration immediately replaces the current available count with
-the selected monthly allowance. All-time per-product experience totals are
+the selected monthly allowance. All-time per-project experience totals are
 derived from the immutable usage ledger, not the mutable current-month count.
+
+The historical SQL name `products` now means service projects and is retained
+for compatibility with business records. Migration 060 adds `retail_products`
+as a separate master for topical/physical products. Retail products never bind
+recharge, refund, verification, customer balance, teacher experience quota,
+receipt template or headquarters project statistics. They can only transition
+between `ACTIVE` and `ARCHIVED`; the database rejects `DELETE`.
 
 `operation_profiles` and `operation_store_scopes` are retained only as archived
 audit history. Migration 047 archives any remaining operation identity, scope
@@ -228,6 +236,7 @@ retirement cutover, then execute the remaining migrations through 059:
 057_teacher_created_customer_access.sql
 058_order_integrity_and_submission_recovery.sql
 059_business_teacher_attribution.sql
+060_retail_products.sql
 ```
 
 After 046 has committed, deploy `faceRecognition v69` and `staffAccount v50`
@@ -241,12 +250,12 @@ result that blocks the old CloudBase credentials. Only then execute
 `048_optional_teacher_face_and_experience_quota_lifecycle.sql` (or the seven
 ordered `048-01` through `048-07` CloudBase console parts). Next execute the
 ordered `049-01` through `049-13` parts and `049-readonly-verify.sql`, then 050.
-For a database that already ran historical 051/052, deploy `staffAccount v72`,
+For a database that already ran historical 051/052, deploy `staffAccount v73`,
 `faceRecognition v91`, and `teacherCreate v6` before executing 053. Run the 053
 read-only verification and require all seven rows to be `RETIRED`, remove the
 old teacher-face reconciliation Timer, then execute and verify 054 through 059.
 Deploy the final `faceRecognition v91`, `verificationPhoto v9`,
-`staffAccount v72` and `teacherCreate v6` matrix only after those migrations
+`staffAccount v73` and `teacherCreate v6` matrix only after those migrations
 are ready. A fresh database still follows numeric order; 053 immediately
 removes the historical 051/052 orchestration objects.
 

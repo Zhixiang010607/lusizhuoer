@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v72";
+const FUNCTION_VERSION = "v73";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -43,6 +43,7 @@ let managerClient = null;
 let storeBindingLayout = null;
 let storeCreationCapabilities = null;
 let productTemplateCapabilities = null;
+let retailProductCapabilities = null;
 const productLogoDownloadCache = new Map();
 const productLogoDownloadFlights = new Map();
 const productLogoSignCache = new Map();
@@ -78,9 +79,9 @@ function productTemplateStorageSettings() {
   const envId = String(process.env.CLOUDBASE_ENV_ID || process.env.TCB_ENV || "").trim();
   const accessToken = String(process.env.CLOUDBASE_APIKEY || process.env.CLOUDBASE_SERVICE_ROLE_KEY || "").trim();
   const bucketId = String(process.env.PRODUCT_TEMPLATE_BUCKET_ID || "product-templates").trim();
-  if (!envId) fail("产品模板存储缺少 CLOUDBASE_ENV_ID 或 TCB_ENV", "PRODUCT_STORAGE_NOT_CONFIGURED");
-  if (!accessToken) fail("产品模板存储缺少 CLOUDBASE_APIKEY", "PRODUCT_STORAGE_NOT_CONFIGURED");
-  if (!bucketId) fail("产品模板私有存储桶编号不能为空", "PRODUCT_STORAGE_NOT_CONFIGURED");
+  if (!envId) fail("项目模板存储缺少 CLOUDBASE_ENV_ID 或 TCB_ENV", "PRODUCT_STORAGE_NOT_CONFIGURED");
+  if (!accessToken) fail("项目模板存储缺少 CLOUDBASE_APIKEY", "PRODUCT_STORAGE_NOT_CONFIGURED");
+  if (!bucketId) fail("项目模板私有存储桶编号不能为空", "PRODUCT_STORAGE_NOT_CONFIGURED");
   return { envId, accessToken, bucketId };
 }
 
@@ -150,7 +151,7 @@ function signedStorageUpload(response, storage, objectName, contentType) {
       urlScheme: signedStorageUrlScheme(response),
       tokenPresent: Boolean(token)
     });
-    fail("产品 LOGO 上传地址生成失败", "PRODUCT_LOGO_UPLOAD_SIGN_FAILED");
+    fail("项目 LOGO 上传地址生成失败", "PRODUCT_LOGO_UPLOAD_SIGN_FAILED");
   }
   if (token && !new URL(url).searchParams.get("token")) {
     const target = new URL(url);
@@ -169,10 +170,10 @@ function signedStorageUpload(response, storage, objectName, contentType) {
 
 function parseProductLogoReference(value) {
   const reference = String(value || "").trim();
-  if (!reference.startsWith("pg://")) fail("产品 LOGO 存储引用无效", "PRODUCT_LOGO_REFERENCE_INVALID");
+  if (!reference.startsWith("pg://")) fail("项目 LOGO 存储引用无效", "PRODUCT_LOGO_REFERENCE_INVALID");
   const path = reference.slice(5);
   const slash = path.indexOf("/");
-  if (slash < 1 || slash === path.length - 1) fail("产品 LOGO 存储引用无效", "PRODUCT_LOGO_REFERENCE_INVALID");
+  if (slash < 1 || slash === path.length - 1) fail("项目 LOGO 存储引用无效", "PRODUCT_LOGO_REFERENCE_INVALID");
   return { bucketId: path.slice(0, slash), objectName: path.slice(slash + 1), reference };
 }
 
@@ -269,7 +270,7 @@ async function productLogoResponseBuffer(response, maximumBytes, expectedRange =
   const declaredBytes = Number(response?.headers?.["content-length"] || 0);
   const validStatus = expectedRange ? status === 206 : status === 200;
   if (!validStatus || !response?.body) {
-    const error = new Error(`产品 LOGO 存储响应无效（HTTP ${status || "未知"}）`);
+    const error = new Error(`项目 LOGO 存储响应无效（HTTP ${status || "未知"}）`);
     error.code = status ? `HTTP_${status}` : "PRODUCT_LOGO_DOWNLOAD_RESPONSE_INVALID";
     error.status = status || undefined;
     throw error;
@@ -282,14 +283,14 @@ async function productLogoResponseBuffer(response, maximumBytes, expectedRange =
         || Number(match[2]) !== expectedRange.end || Number(match[3]) !== expectedRange.total
         || (declaredBytes > 0 && declaredBytes !== expectedLength)) {
       response.body.destroy?.();
-      const error = new Error("产品 LOGO 分块响应范围无效");
+      const error = new Error("项目 LOGO 分块响应范围无效");
       error.code = "PRODUCT_LOGO_RANGE_MISMATCH";
       throw error;
     }
   }
   if (Number.isFinite(declaredBytes) && declaredBytes > maximumBytes) {
     response.body.destroy?.();
-    fail("产品 LOGO 超过允许的读取大小", "PRODUCT_LOGO_TOO_LARGE");
+    fail("项目 LOGO 超过允许的读取大小", "PRODUCT_LOGO_TOO_LARGE");
   }
   const chunks = [];
   let total = 0;
@@ -300,7 +301,7 @@ async function productLogoResponseBuffer(response, maximumBytes, expectedRange =
       total += buffer.length;
       if (total > maximumBytes) {
         response.body.destroy?.();
-        fail("产品 LOGO 超过允许的读取大小", "PRODUCT_LOGO_TOO_LARGE");
+        fail("项目 LOGO 超过允许的读取大小", "PRODUCT_LOGO_TOO_LARGE");
       }
       chunks.push(buffer);
     }
@@ -309,14 +310,14 @@ async function productLogoResponseBuffer(response, maximumBytes, expectedRange =
     throw error;
   }
   const output = Buffer.concat(chunks);
-  if (!output.length) fail("产品 LOGO 文件为空", "PRODUCT_LOGO_UPLOAD_INCOMPLETE");
+  if (!output.length) fail("项目 LOGO 文件为空", "PRODUCT_LOGO_UPLOAD_INCOMPLETE");
   if (declaredBytes > 0 && output.length !== declaredBytes) {
-    const error = new Error("产品 LOGO 下载流长度与响应头不一致");
+    const error = new Error("项目 LOGO 下载流长度与响应头不一致");
     error.code = "PRODUCT_LOGO_DOWNLOAD_TRUNCATED";
     throw error;
   }
   if (expectedRange && output.length !== expectedRange.end - expectedRange.start + 1) {
-    const error = new Error("产品 LOGO 分块下载长度不完整");
+    const error = new Error("项目 LOGO 分块下载长度不完整");
     error.code = "PRODUCT_LOGO_DOWNLOAD_TRUNCATED";
     throw error;
   }
@@ -392,7 +393,7 @@ async function downloadProductLogoUncached(reference, storage, maximumBytes, opt
   try {
     const signed = await signProductLogo(reference.reference, 900);
     const token = productLogoSignedToken(signed.url, storage);
-    if (!token) fail("产品 LOGO 签名读取令牌无效", "PRODUCT_LOGO_SIGN_FAILED");
+    if (!token) fail("项目 LOGO 签名读取令牌无效", "PRODUCT_LOGO_SIGN_FAILED");
     return await retryProductLogoStorage(range ? "downloadSignedRange" : "downloadObjectBySign", async () => {
       if (range) return fetchSignedProductLogoRange(signed.url, range, maximumBytes, expectedRange);
       const response = await manager().storage.downloadObjectBySign({
@@ -416,7 +417,7 @@ async function downloadProductLogoUncached(reference, storage, maximumBytes, opt
       signedRequestId: requestIdFrom(signedError) || undefined
     });
     throw productLogoStorageError(
-      "产品 LOGO 原图读取失败，请稍后重试",
+      "项目 LOGO 原图读取失败，请稍后重试",
       "PRODUCT_LOGO_DOWNLOAD_FAILED",
       signedError,
       { operation: "downloadProductLogo", bucketId: reference.bucketId, objectName: reference.objectName }
@@ -432,7 +433,7 @@ function cachedProductLogo(referenceValue, maximumBytes) {
     productLogoDownloadCacheBytes -= entry.buffer.length;
     return null;
   }
-  if (entry.buffer.length > maximumBytes) fail("产品 LOGO 超过允许的读取大小", "PRODUCT_LOGO_TOO_LARGE");
+  if (entry.buffer.length > maximumBytes) fail("项目 LOGO 超过允许的读取大小", "PRODUCT_LOGO_TOO_LARGE");
   productLogoDownloadCache.delete(referenceValue);
   productLogoDownloadCache.set(referenceValue, entry);
   return entry.buffer;
@@ -477,7 +478,7 @@ async function downloadProductLogo(referenceValue, maximumBytes = PRODUCT_LOGO_M
   const reference = parseProductLogoReference(referenceValue);
   const storage = productTemplateStorageSettings();
   if (reference.bucketId !== storage.bucketId || !/^products\/\d+\/receipt-logo\//.test(reference.objectName)) {
-    fail("产品 LOGO 不属于指定私有存储桶", "PRODUCT_LOGO_BUCKET_MISMATCH");
+    fail("项目 LOGO 不属于指定私有存储桶", "PRODUCT_LOGO_BUCKET_MISMATCH");
   }
   const useCache = options.cache === true;
   if (useCache) {
@@ -550,14 +551,14 @@ function productLogoDimensions(buffer, mimeType) {
   }
   if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height)
       || width < 1 || height < 1 || width > 12000 || height > 12000) {
-    fail("无法从产品 LOGO 原图确认图片尺寸", "PRODUCT_LOGO_DIMENSIONS_INVALID");
+    fail("无法从项目 LOGO 原图确认图片尺寸", "PRODUCT_LOGO_DIMENSIONS_INVALID");
   }
   return { width, height };
 }
 
 function productLogoFunctionBuffer(event, input) {
   if (input.bytes > PRODUCT_LOGO_FUNCTION_MAX_BYTES) {
-    fail("产品 LOGO 安全备用上传仅支持不超过 3 MB 的原图，请使用签名直传", "PRODUCT_LOGO_FUNCTION_TOO_LARGE");
+    fail("项目 LOGO 安全备用上传仅支持不超过 3 MB 的原图，请使用签名直传", "PRODUCT_LOGO_FUNCTION_TOO_LARGE");
   }
   const text = String(event.imageBase64 || "").trim();
   const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]*={0,2})$/i.exec(text);
@@ -566,24 +567,24 @@ function productLogoFunctionBuffer(event, input) {
   if (!match || String(match[1]).toLowerCase() !== input.mimeType
       || !base64 || !canonicalBase64.test(base64)
       || base64.length > Math.ceil(PRODUCT_LOGO_FUNCTION_MAX_BYTES / 3) * 4 + 4) {
-    fail("产品 LOGO 备用上传内容格式无效", "PRODUCT_LOGO_BASE64_INVALID");
+    fail("项目 LOGO 备用上传内容格式无效", "PRODUCT_LOGO_BASE64_INVALID");
   }
   const buffer = Buffer.from(base64, "base64");
   if (buffer.toString("base64") !== base64) {
-    fail("产品 LOGO 备用上传内容格式无效", "PRODUCT_LOGO_BASE64_INVALID");
+    fail("项目 LOGO 备用上传内容格式无效", "PRODUCT_LOGO_BASE64_INVALID");
   }
   if (buffer.length !== input.bytes) {
-    fail("产品 LOGO 大小与上传前不一致", "PRODUCT_LOGO_SIZE_MISMATCH");
+    fail("项目 LOGO 大小与上传前不一致", "PRODUCT_LOGO_SIZE_MISMATCH");
   }
   if (!buffer.length || buffer.length > PRODUCT_LOGO_FUNCTION_MAX_BYTES) {
-    fail("产品 LOGO 安全备用上传仅支持不超过 3 MB 的原图", "PRODUCT_LOGO_FUNCTION_TOO_LARGE");
+    fail("项目 LOGO 安全备用上传仅支持不超过 3 MB 的原图", "PRODUCT_LOGO_FUNCTION_TOO_LARGE");
   }
   if (!productLogoMagicMatches(buffer, input.mimeType)) {
-    fail("上传文件不是有效的产品 LOGO 图片", "PRODUCT_LOGO_FORMAT_INVALID");
+    fail("上传文件不是有效的项目 LOGO 图片", "PRODUCT_LOGO_FORMAT_INVALID");
   }
   const dimensions = productLogoDimensions(buffer, input.mimeType);
   if (dimensions.width !== input.width || dimensions.height !== input.height) {
-    fail("产品 LOGO 尺寸与上传前不一致", "PRODUCT_LOGO_DIMENSIONS_MISMATCH");
+    fail("项目 LOGO 尺寸与上传前不一致", "PRODUCT_LOGO_DIMENSIONS_MISMATCH");
   }
   return buffer;
 }
@@ -601,26 +602,26 @@ async function inspectProductLogo(referenceValue, expected) {
       envId: storage.envId
     });
   } catch (error) {
-    fail(`产品 LOGO 尚未上传完成：${error?.message || "存储对象不存在"}`, "PRODUCT_LOGO_UPLOAD_INCOMPLETE");
+    fail(`项目 LOGO 尚未上传完成：${error?.message || "存储对象不存在"}`, "PRODUCT_LOGO_UPLOAD_INCOMPLETE");
   }
   const info = storageObjectInfo(response);
-  if (!info) fail("无法确认产品 LOGO 上传结果", "PRODUCT_LOGO_INFO_INVALID");
+  if (!info) fail("无法确认项目 LOGO 上传结果", "PRODUCT_LOGO_INFO_INVALID");
   const bytes = Number(info.size ?? response?.headers?.["content-length"]);
   const contentType = String(info.content_type || response?.headers?.["content-type"] || "")
     .split(";", 1)[0].trim().toLowerCase();
   if (!Number.isSafeInteger(bytes) || bytes !== expected.bytes) {
-    fail("产品 LOGO 大小与上传前不一致", "PRODUCT_LOGO_SIZE_MISMATCH");
+    fail("项目 LOGO 大小与上传前不一致", "PRODUCT_LOGO_SIZE_MISMATCH");
   }
   if (contentType && contentType !== expected.mimeType) {
-    fail("产品 LOGO 类型与上传前不一致", "PRODUCT_LOGO_TYPE_MISMATCH");
+    fail("项目 LOGO 类型与上传前不一致", "PRODUCT_LOGO_TYPE_MISMATCH");
   }
   const buffer = await downloadProductLogo(reference.reference);
   if (buffer.length !== bytes || !productLogoMagicMatches(buffer, expected.mimeType)) {
-    fail("上传文件不是有效的产品 LOGO 图片", "PRODUCT_LOGO_FORMAT_INVALID");
+    fail("上传文件不是有效的项目 LOGO 图片", "PRODUCT_LOGO_FORMAT_INVALID");
   }
   const dimensions = productLogoDimensions(buffer, expected.mimeType);
   if (dimensions.width !== expected.width || dimensions.height !== expected.height) {
-    fail("产品 LOGO 尺寸与上传前不一致", "PRODUCT_LOGO_DIMENSIONS_MISMATCH");
+    fail("项目 LOGO 尺寸与上传前不一致", "PRODUCT_LOGO_DIMENSIONS_MISMATCH");
   }
   return { bytes, sha256: crypto.createHash("sha256").update(buffer).digest("hex") };
 }
@@ -656,7 +657,7 @@ async function signProductLogoUncached(reference, storage, expiresIn) {
     }));
     const signedUrl = validatedProductLogoSignedUrl(response, storage, reference);
     if (signedUrl) return signedUrl;
-    const error = new Error("产品 LOGO 单对象签名响应缺少可信 signedURL");
+    const error = new Error("项目 LOGO 单对象签名响应缺少可信 signedURL");
     error.code = "PRODUCT_LOGO_SIGN_RESPONSE_INVALID";
     throw error;
   } catch (error) {
@@ -673,7 +674,7 @@ async function signProductLogoUncached(reference, storage, expiresIn) {
       }));
       const signedUrl = validatedProductLogoSignedUrl(response, storage, reference);
       if (signedUrl) return signedUrl;
-      const error = new Error("产品 LOGO 批量签名响应缺少可信 signedURL");
+      const error = new Error("项目 LOGO 批量签名响应缺少可信 signedURL");
       error.code = "PRODUCT_LOGO_SIGN_RESPONSE_INVALID";
       throw error;
     } catch (error) {
@@ -688,7 +689,7 @@ async function signProductLogoUncached(reference, storage, expiresIn) {
         batchRequestId: requestIdFrom(error) || undefined
       });
       throw productLogoStorageError(
-        "产品 LOGO 临时访问地址生成失败",
+        "项目 LOGO 临时访问地址生成失败",
         "PRODUCT_LOGO_SIGN_FAILED",
         error,
         { operation: "signProductLogo", bucketId: reference.bucketId, objectName: reference.objectName }
@@ -696,7 +697,7 @@ async function signProductLogoUncached(reference, storage, expiresIn) {
     }
   }
   throw productLogoStorageError(
-    "产品 LOGO 临时访问地址生成失败",
+    "项目 LOGO 临时访问地址生成失败",
     "PRODUCT_LOGO_SIGN_FAILED",
     firstError,
     { operation: "signProductLogo", bucketId: reference.bucketId, objectName: reference.objectName }
@@ -707,7 +708,7 @@ async function signProductLogo(referenceValue, expiresIn = 900) {
   const reference = parseProductLogoReference(referenceValue);
   const storage = productTemplateStorageSettings();
   if (reference.bucketId !== storage.bucketId || !/^products\/\d+\/receipt-logo\//.test(reference.objectName)) {
-    fail("产品 LOGO 不属于指定私有存储桶", "PRODUCT_LOGO_BUCKET_MISMATCH");
+    fail("项目 LOGO 不属于指定私有存储桶", "PRODUCT_LOGO_BUCKET_MISMATCH");
   }
   const cacheKey = `${storage.envId}\n${reference.reference}`;
   const cached = productLogoSignCache.get(cacheKey);
@@ -1979,7 +1980,7 @@ async function getProductCreationCapabilities() {
         ), '') AS product_code_default`
     );
   } catch (error) {
-    asDatabaseError(error, "读取产品表结构");
+    asDatabaseError(error, "读取项目表结构");
   }
   const row = rows?.[0] || {};
   if (!databaseBoolean(row.has_products)) {
@@ -1992,10 +1993,10 @@ async function getProductCreationCapabilities() {
     databaseBoolean(row.has_idempotency_key) &&
     Boolean(String(row.product_code_default || "").trim());
   if (!baseReady) {
-    fail("产品表尚未完成升级，请先执行 018_product_creation_idempotency.sql", "DATABASE_SCHEMA_MISSING");
+    fail("项目表尚未完成升级，请先执行 018_product_creation_idempotency.sql", "DATABASE_SCHEMA_MISSING");
   }
   if (!databaseBoolean(row.has_unique_product_name)) {
-    fail("产品表尚未启用名称唯一约束，请先执行 019_unique_product_name.sql", "DATABASE_SCHEMA_MISSING");
+    fail("项目表尚未启用名称唯一约束，请先执行 019_unique_product_name.sql", "DATABASE_SCHEMA_MISSING");
   }
   return { ready: true };
 }
@@ -2003,13 +2004,13 @@ async function getProductCreationCapabilities() {
 function productInputFromEvent(event) {
   const clientRequestId = String(event.clientRequestId || "").trim();
   if (!/^[A-Za-z0-9_-]{8,64}$/.test(clientRequestId)) {
-    fail("产品创建请求编号格式无效", "BAD_REQUEST");
+    fail("项目创建请求编号格式无效", "BAD_REQUEST");
   }
   const description = String(event.description || "").trim();
-  if (description.length > 1000) fail("产品介绍不能超过 1000 个字符", "BAD_REQUEST");
+  if (description.length > 1000) fail("项目介绍不能超过 1000 个字符", "BAD_REQUEST");
   return {
-    productName: requiredText(event.productName, "产品名称", 100),
-    productType: requiredText(event.productType, "产品类别", 32),
+    productName: requiredText(event.productName, "项目名称", 100),
+    productType: requiredText(event.productType, "项目类别", 32),
     description,
     clientRequestId
   };
@@ -2026,7 +2027,7 @@ async function findProductByRequestId(clientRequestId) {
        LIMIT 1`
     );
   } catch (error) {
-    asDatabaseError(error, "读取产品创建请求");
+    asDatabaseError(error, "读取项目创建请求");
   }
   return rows?.[0] || null;
 }
@@ -2043,14 +2044,14 @@ async function findProductByName(productName) {
        LIMIT 1`
     );
   } catch (error) {
-    asDatabaseError(error, "检查产品名称");
+    asDatabaseError(error, "检查项目名称");
   }
   return rows?.[0] || null;
 }
 
 function failProductNameExists(product) {
   const code = String(product?.product_code || "").trim();
-  fail(`已存在同名产品${code ? `（${code}）` : ""}，不能重复创建`, "PRODUCT_NAME_EXISTS");
+  fail(`已存在同名项目${code ? `（${code}）` : ""}，不能重复创建`, "PRODUCT_NAME_EXISTS");
 }
 
 function assertSameProductRequest(product, input) {
@@ -2058,7 +2059,7 @@ function assertSameProductRequest(product, input) {
     String(product?.product_type || "").trim() === input.productType &&
     String(product?.description || "").trim() === input.description;
   if (!same) {
-    fail("同一产品创建请求编号已用于其他产品，请刷新创建页面后重试", "IDEMPOTENCY_CONFLICT");
+    fail("同一项目创建请求编号已用于其他项目，请刷新创建页面后重试", "IDEMPOTENCY_CONFLICT");
   }
 }
 
@@ -2103,7 +2104,7 @@ async function createProductRecord(event) {
         throw recoveryError;
       }
     }
-    asDatabaseError(error, "创建产品资料");
+    asDatabaseError(error, "创建项目资料");
   }
   // CloudBase executePGSql can report a successful writable statement without
   // exposing the rows produced by RETURNING. Always read the persisted record
@@ -2114,9 +2115,173 @@ async function createProductRecord(event) {
     ? returnedProduct
     : await findProductByRequestId(input.clientRequestId);
   if (!product?.id || !product?.product_code) {
-    fail("产品创建后数据库未返回产品编号", "DATABASE_ERROR");
+    fail("项目创建后数据库未返回项目编号", "DATABASE_ERROR");
   }
   assertSameProductRequest(product, input);
+  return { product, created: true };
+}
+
+async function requireRetailProductSchema() {
+  if (retailProductCapabilities) return retailProductCapabilities;
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT
+         (SELECT COUNT(*)::integer
+          FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'retail_products'
+            AND column_name IN (
+              'id', 'product_code', 'product_name', 'product_status', 'idempotency_key',
+              'created_by_staff_account_id', 'updated_by_staff_account_id', 'created_at', 'updated_at'
+            )) AS column_count,
+         EXISTS (
+           SELECT 1 FROM pg_indexes
+           WHERE schemaname = 'public' AND tablename = 'retail_products'
+             AND indexname = 'uq_retail_products_normalized_name'
+         ) AS has_unique_name,
+         EXISTS (
+           SELECT 1 FROM pg_indexes
+           WHERE schemaname = 'public' AND tablename = 'retail_products'
+             AND indexname = 'uq_retail_products_idempotency_key'
+         ) AS has_idempotency,
+         EXISTS (
+           SELECT 1
+           FROM pg_trigger t
+           JOIN pg_class c ON c.oid = t.tgrelid
+           JOIN pg_namespace n ON n.oid = c.relnamespace
+           WHERE n.nspname = 'public' AND c.relname = 'retail_products'
+             AND t.tgname = 'trg_060_prevent_retail_product_delete' AND NOT t.tgisinternal
+         ) AS has_delete_guard`
+    );
+  } catch (error) {
+    asDatabaseError(error, "读取独立产品表结构");
+  }
+  const row = rows?.[0] || {};
+  const ready = Number(row.column_count || 0) === 9 &&
+    databaseBoolean(row.has_unique_name) &&
+    databaseBoolean(row.has_idempotency) &&
+    databaseBoolean(row.has_delete_guard);
+  if (!ready) {
+    fail("产品数据库尚未升级，请先执行 060-01-retail-products.sql", "DATABASE_SCHEMA_MISSING");
+  }
+  retailProductCapabilities = { ready: true };
+  return retailProductCapabilities;
+}
+
+function retailProductInputFromEvent(event) {
+  const clientRequestId = String(event.clientRequestId || "").trim();
+  if (!/^[A-Za-z0-9_-]{8,64}$/.test(clientRequestId)) {
+    fail("产品创建请求编号格式无效", "BAD_REQUEST");
+  }
+  return {
+    productName: requiredText(event.productName, "产品名称", 100),
+    clientRequestId
+  };
+}
+
+async function findRetailProductByRequestId(clientRequestId) {
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT id, product_code, product_name, product_status, created_at, updated_at
+       FROM public.retail_products
+       WHERE idempotency_key = ${sqlText(clientRequestId)}
+       LIMIT 1`
+    );
+  } catch (error) {
+    asDatabaseError(error, "读取产品创建请求");
+  }
+  return rows?.[0] || null;
+}
+
+async function findRetailProductByName(productName) {
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT id, product_code, product_name, product_status, created_at, updated_at
+       FROM public.retail_products
+       WHERE LOWER(BTRIM(product_name)) = LOWER(BTRIM(${sqlText(productName)}))
+       ORDER BY id ASC
+       LIMIT 1`
+    );
+  } catch (error) {
+    asDatabaseError(error, "检查产品名称");
+  }
+  return rows?.[0] || null;
+}
+
+async function findRetailProductByReference(productRef) {
+  const value = String(productRef || "").trim();
+  if (!value) fail("缺少产品编号", "BAD_REQUEST");
+  const idCondition = /^\d+$/.test(value) ? `id = ${numericId(value, "产品编号")}` : "FALSE";
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT id, product_code, product_name, product_status, created_at, updated_at
+       FROM public.retail_products
+       WHERE (${idCondition}) OR product_code = ${sqlText(value)}
+       LIMIT 1`
+    );
+  } catch (error) {
+    asDatabaseError(error, "读取产品资料");
+  }
+  return rows?.[0] || null;
+}
+
+function assertSameRetailProductRequest(product, input) {
+  if (String(product?.product_name || "").trim() !== input.productName) {
+    fail("同一产品创建请求编号已用于其他产品，请刷新页面后重试", "IDEMPOTENCY_CONFLICT");
+  }
+}
+
+async function createRetailProductRecord(caller, event) {
+  await requireRetailProductSchema();
+  const input = retailProductInputFromEvent(event);
+  const recovered = await findRetailProductByRequestId(input.clientRequestId);
+  if (recovered) {
+    assertSameRetailProductRequest(recovered, input);
+    return { product: recovered, created: false };
+  }
+  const duplicate = await findRetailProductByName(input.productName);
+  if (duplicate) {
+    const code = String(duplicate.product_code || "").trim();
+    fail(`已存在同名产品${code ? `（${code}）` : ""}，请直接激活原产品`, "RETAIL_PRODUCT_NAME_EXISTS");
+  }
+  const actorId = numericId(caller.profile.staffId, "总部账号编号");
+  let rows;
+  try {
+    rows = await executeSql(
+      `WITH created_product AS (
+         INSERT INTO public.retail_products
+           (product_name, product_status, idempotency_key, created_by_staff_account_id, updated_by_staff_account_id)
+         VALUES
+           (${sqlText(input.productName)}, 'ACTIVE', ${sqlText(input.clientRequestId)}, ${actorId}, ${actorId})
+         RETURNING id, product_code, product_name, product_status, created_at, updated_at
+       )
+       SELECT id, product_code, product_name, product_status, created_at, updated_at
+       FROM created_product`
+    );
+  } catch (error) {
+    const concurrentRequest = await findRetailProductByRequestId(input.clientRequestId).catch(() => null);
+    if (concurrentRequest) {
+      assertSameRetailProductRequest(concurrentRequest, input);
+      return { product: concurrentRequest, created: false };
+    }
+    const concurrentName = await findRetailProductByName(input.productName).catch(() => null);
+    if (concurrentName) {
+      const code = String(concurrentName.product_code || "").trim();
+      fail(`已存在同名产品${code ? `（${code}）` : ""}，请直接激活原产品`, "RETAIL_PRODUCT_NAME_EXISTS");
+    }
+    asDatabaseError(error, "创建产品资料");
+  }
+  const returned = rows?.[0];
+  const product = returned?.id && returned?.product_code
+    ? returned
+    : await findRetailProductByRequestId(input.clientRequestId);
+  if (!product?.id || !product?.product_code) {
+    fail("产品创建后数据库未返回产品编号", "DATABASE_ERROR");
+  }
+  assertSameRetailProductRequest(product, input);
   return { product, created: true };
 }
 
@@ -2136,10 +2301,10 @@ async function requireProductTemplateSchema() {
          )`
     );
   } catch (error) {
-    asDatabaseError(error, "读取产品单据模板结构");
+    asDatabaseError(error, "读取项目单据模板结构");
   }
   if (Number(rows?.[0]?.column_count || 0) !== 10) {
-    fail("产品模板数据库尚未升级，请先执行 045-01-product-receipt-templates.sql", "DATABASE_SCHEMA_MISSING");
+    fail("项目模板数据库尚未升级，请先执行 045-01-product-receipt-templates.sql", "DATABASE_SCHEMA_MISSING");
   }
   productTemplateCapabilities = { ready: true };
   return productTemplateCapabilities;
@@ -2147,8 +2312,8 @@ async function requireProductTemplateSchema() {
 
 function productReferenceCondition(productRef, alias = "p") {
   const value = String(productRef || "").trim();
-  if (!value) fail("缺少产品编号", "BAD_REQUEST");
-  const id = /^\d+$/.test(value) ? numericId(value, "产品编号") : null;
+  if (!value) fail("缺少项目编号", "BAD_REQUEST");
+  const id = /^\d+$/.test(value) ? numericId(value, "项目编号") : null;
   return `((${id ? `${alias}.id = ${id}` : "FALSE"}) OR ${alias}.product_code = ${sqlText(value)})`;
 }
 
@@ -2170,9 +2335,9 @@ async function productTemplateRow(productRef) {
        LIMIT 1`
     );
   } catch (error) {
-    asDatabaseError(error, "读取产品单据模板");
+    asDatabaseError(error, "读取项目单据模板");
   }
-  if (!rows?.[0]) fail("未找到该产品", "NOT_FOUND");
+  if (!rows?.[0]) fail("未找到该项目", "NOT_FOUND");
   return rows[0];
 }
 
@@ -2227,13 +2392,13 @@ function productLogoUploadInput(event) {
   const bytes = Number(event.bytes);
   const width = Number(event.width);
   const height = Number(event.height);
-  if (!PRODUCT_LOGO_TYPES.has(mimeType)) fail("产品 LOGO 仅支持 PNG、JPEG 或 WebP", "PRODUCT_LOGO_TYPE_INVALID");
+  if (!PRODUCT_LOGO_TYPES.has(mimeType)) fail("项目 LOGO 仅支持 PNG、JPEG 或 WebP", "PRODUCT_LOGO_TYPE_INVALID");
   if (!Number.isSafeInteger(bytes) || bytes < 8 || bytes > PRODUCT_LOGO_MAX_BYTES) {
-    fail("产品 LOGO 原图必须小于 8 MB", "PRODUCT_LOGO_TOO_LARGE");
+    fail("项目 LOGO 原图必须小于 8 MB", "PRODUCT_LOGO_TOO_LARGE");
   }
   if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height)
       || width < 1 || height < 1 || width > 12000 || height > 12000) {
-    fail("产品 LOGO 图片尺寸无效", "PRODUCT_LOGO_DIMENSIONS_INVALID");
+    fail("项目 LOGO 图片尺寸无效", "PRODUCT_LOGO_DIMENSIONS_INVALID");
   }
   const originalName = String(event.originalName || "logo").replace(/[\\/\u0000-\u001f<>:"|?*]/g, "_").trim().slice(0, 180) || "logo";
   return { mimeType, bytes, width, height, originalName };
@@ -2259,7 +2424,7 @@ async function beginProductLogoUpload(event) {
   } catch (error) {
     if (error?.code === "PRODUCT_LOGO_UPLOAD_SIGN_FAILED") throw error;
     throw productLogoStorageError(
-      `产品 LOGO 上传地址生成失败：${error?.message || "请检查私有存储桶"}`,
+      `项目 LOGO 上传地址生成失败：${error?.message || "请检查私有存储桶"}`,
       "PRODUCT_LOGO_UPLOAD_SIGN_FAILED",
       error,
       { operation: "signUploadObject", bucketId: storage.bucketId, objectName }
@@ -2290,12 +2455,12 @@ async function persistProductLogo(caller, product, input, reference) {
     );
   } catch (error) {
     await deleteProductLogo(reference.reference);
-    asDatabaseError(error, "保存产品 LOGO");
+    asDatabaseError(error, "保存项目 LOGO");
   }
   const persisted = await productTemplateRow(String(product.id));
   if (String(persisted.receipt_logo_file_id || "") !== reference.reference) {
     await deleteProductLogo(reference.reference);
-    fail("产品 LOGO 保存后未能从数据库确认", "DATABASE_ERROR");
+    fail("项目 LOGO 保存后未能从数据库确认", "DATABASE_ERROR");
   }
   if (previousReference && previousReference !== reference.reference) void deleteProductLogo(previousReference);
   return productTemplatePayload(persisted);
@@ -2314,7 +2479,7 @@ async function confirmProductLogoUpload(caller, event) {
   const storage = productTemplateStorageSettings();
   const requiredPrefix = `products/${Number(product.id)}/receipt-logo/`;
   if (reference.bucketId !== storage.bucketId || !reference.objectName.startsWith(requiredPrefix)) {
-    fail("产品 LOGO 上传路径与当前产品不一致", "PRODUCT_LOGO_REFERENCE_INVALID");
+    fail("项目 LOGO 上传路径与当前项目不一致", "PRODUCT_LOGO_REFERENCE_INVALID");
   }
   try {
     await inspectProductLogo(reference.reference, input);
@@ -2358,7 +2523,7 @@ async function uploadProductLogoByFunction(caller, event) {
     } else {
       await deleteUnboundProductLogo(product, referenceValue);
       throw productLogoStorageError(
-        `产品 LOGO 安全备用上传失败：${error?.message || "请检查私有存储桶"}`,
+        `项目 LOGO 安全备用上传失败：${error?.message || "请检查私有存储桶"}`,
         "PRODUCT_LOGO_FUNCTION_UPLOAD_FAILED",
         error,
         { operation: "uploadObject", bucketId: storage.bucketId, objectName }
@@ -2381,7 +2546,7 @@ async function discardProductLogoUpload(caller, event) {
   const storage = productTemplateStorageSettings();
   const requiredPrefix = `products/${Number(product.id)}/receipt-logo/`;
   if (reference.bucketId !== storage.bucketId || !reference.objectName.startsWith(requiredPrefix)) {
-    fail("产品 LOGO 上传路径与当前产品不一致", "PRODUCT_LOGO_REFERENCE_INVALID");
+    fail("项目 LOGO 上传路径与当前项目不一致", "PRODUCT_LOGO_REFERENCE_INVALID");
   }
   const currentlyBound = reference.reference === String(product.receipt_logo_file_id || "");
   const discarded = currentlyBound ? false : await deleteProductLogo(reference.reference);
@@ -2405,7 +2570,7 @@ async function saveProductReceiptTemplate(caller, event) {
        WHERE id = ${Number(product.id)}`
     );
   } catch (error) {
-    asDatabaseError(error, "保存产品单据说明");
+    asDatabaseError(error, "保存项目单据说明");
   }
   return getProductReceiptTemplate({ productRef: String(product.id) });
 }
@@ -2424,7 +2589,7 @@ async function removeProductReceiptLogo(caller, event) {
        WHERE id = ${Number(product.id)}`
     );
   } catch (error) {
-    asDatabaseError(error, "移除产品 LOGO");
+    asDatabaseError(error, "移除项目 LOGO");
   }
   if (reference) void deleteProductLogo(reference);
   return getProductReceiptTemplate({ productRef: String(product.id) });
@@ -2432,17 +2597,17 @@ async function removeProductReceiptLogo(caller, event) {
 
 async function getProductReceiptLogoData(event) {
   const row = await productTemplateRow(event.productRef);
-  if (!row.receipt_logo_file_id) fail("该产品尚未上传 LOGO", "PRODUCT_LOGO_MISSING");
+  if (!row.receipt_logo_file_id) fail("该项目尚未上传 LOGO", "PRODUCT_LOGO_MISSING");
   const reference = String(row.receipt_logo_file_id || "").trim();
   const expectedReference = String(event.expectedReference || "").trim();
   if (expectedReference && expectedReference !== reference) {
-    fail("产品 LOGO 已更新，请重新读取产品模板", "PRODUCT_LOGO_CHANGED");
+    fail("项目 LOGO 已更新，请重新读取项目模板", "PRODUCT_LOGO_CHANGED");
   }
   const mimeType = String(row.receipt_logo_mime_type || "").trim().toLowerCase();
-  if (!PRODUCT_LOGO_TYPES.has(mimeType)) fail("产品 LOGO 保存类型无效", "PRODUCT_LOGO_TYPE_INVALID");
+  if (!PRODUCT_LOGO_TYPES.has(mimeType)) fail("项目 LOGO 保存类型无效", "PRODUCT_LOGO_TYPE_INVALID");
   const expectedBytes = Number(row.receipt_logo_bytes || 0);
   if (!Number.isSafeInteger(expectedBytes) || expectedBytes < 8 || expectedBytes > PRODUCT_LOGO_MAX_BYTES) {
-    fail("产品 LOGO 原图大小记录无效", "PRODUCT_LOGO_SIZE_MISMATCH");
+    fail("项目 LOGO 原图大小记录无效", "PRODUCT_LOGO_SIZE_MISMATCH");
   }
   const hasChunkRequest = Object.prototype.hasOwnProperty.call(event, "chunkOffset")
     || Object.prototype.hasOwnProperty.call(event, "chunkLength");
@@ -2463,7 +2628,7 @@ async function getProductReceiptLogoData(event) {
     if (!Number.isSafeInteger(chunkOffset) || chunkOffset < 0 || chunkOffset >= expectedBytes
         || chunkOffset % PRODUCT_LOGO_CHUNK_BYTES !== 0
         || !Number.isSafeInteger(chunkLength) || chunkLength !== requiredLength) {
-      fail("产品 LOGO 分块范围无效", "PRODUCT_LOGO_RANGE_INVALID");
+      fail("项目 LOGO 分块范围无效", "PRODUCT_LOGO_RANGE_INVALID");
     }
     const chunkEnd = chunkOffset + chunkLength - 1;
     const buffer = await downloadProductLogo(reference, chunkLength, {
@@ -2483,15 +2648,15 @@ async function getProductReceiptLogoData(event) {
   }
   const buffer = await downloadProductLogo(reference, PRODUCT_LOGO_FUNCTION_MAX_BYTES, { cache: true });
   if (buffer.length !== expectedBytes) {
-    fail("产品 LOGO 原图大小与数据库记录不一致", "PRODUCT_LOGO_SIZE_MISMATCH");
+    fail("项目 LOGO 原图大小与数据库记录不一致", "PRODUCT_LOGO_SIZE_MISMATCH");
   }
   if (!productLogoMagicMatches(buffer, mimeType)) {
-    fail("产品 LOGO 原图格式与数据库记录不一致", "PRODUCT_LOGO_FORMAT_INVALID");
+    fail("项目 LOGO 原图格式与数据库记录不一致", "PRODUCT_LOGO_FORMAT_INVALID");
   }
   const dimensions = productLogoDimensions(buffer, mimeType);
   if (dimensions.width !== Number(row.receipt_logo_width || 0)
       || dimensions.height !== Number(row.receipt_logo_height || 0)) {
-    fail("产品 LOGO 原图尺寸与数据库记录不一致", "PRODUCT_LOGO_DIMENSIONS_MISMATCH");
+    fail("项目 LOGO 原图尺寸与数据库记录不一致", "PRODUCT_LOGO_DIMENSIONS_MISMATCH");
   }
   return {
     reference,
@@ -3070,7 +3235,7 @@ async function getHqTeacherExperienceEntitlements(caller, event = {}) {
   const experienceTotals = experienceTotalRows.map((row) => ({
     productId: String(row.product_id || ""),
     productCode: String(row.product_code || ""),
-    productName: String(row.product_name || "未命名产品"),
+    productName: String(row.product_name || "未命名项目"),
     productStatus: String(row.product_status || "ARCHIVED"),
     totalExperienceCount: Number(row.total_experience_count || 0)
   }));
@@ -3096,7 +3261,7 @@ async function getHqTeacherExperienceEntitlements(caller, event = {}) {
 async function upsertTeacherExperienceEntitlement(caller, event = {}) {
   await requireTeacherExperienceQuotaSchema();
   const teacherId = numericId(event.teacherId || event.teacherRef, "老师编号");
-  const productId = numericId(event.productId, "产品编号");
+  const productId = numericId(event.productId, "项目编号");
   const monthlyAllowance = Number(event.monthlyAllowance);
   if (!Number.isInteger(monthlyAllowance) || monthlyAllowance < 0 || monthlyAllowance > 1000000) {
     fail("每月体验次数必须是 0 至 1000000 的整数。", "BAD_REQUEST");
@@ -3112,7 +3277,7 @@ async function upsertTeacherExperienceEntitlement(caller, event = {}) {
   } catch (error) {
     const detail = String(error?.message || "").toLowerCase();
     if (detail.includes("archived") || detail.includes("product is missing")) {
-      fail("封存老师或封存产品不能配置体验次数。", "MASTER_DATA_NOT_ACTIVE");
+      fail("封存老师或封存项目不能配置体验次数。", "MASTER_DATA_NOT_ACTIVE");
     }
     throw error;
   }
@@ -3125,7 +3290,7 @@ async function upsertTeacherExperienceEntitlement(caller, event = {}) {
 async function deleteTeacherExperienceEntitlement(caller, event = {}) {
   await requireTeacherExperienceQuotaSchema();
   const teacherId = numericId(event.teacherId || event.teacherRef, "老师编号");
-  const productId = numericId(event.productId, "产品编号");
+  const productId = numericId(event.productId, "项目编号");
   let rows;
   try {
     rows = await executeSql(
@@ -3137,7 +3302,7 @@ async function deleteTeacherExperienceEntitlement(caller, event = {}) {
   } catch (error) {
     const detail = String(error?.message || "").toLowerCase();
     if (detail.includes("no active experience quota")) {
-      fail("该老师该产品当前没有可删除的体验额度配置。", "TEACHER_EXPERIENCE_QUOTA_NOT_CONFIGURED");
+      fail("该老师该项目当前没有可删除的体验额度配置。", "TEACHER_EXPERIENCE_QUOTA_NOT_CONFIGURED");
     }
     throw error;
   }
@@ -3158,7 +3323,7 @@ async function deleteTeacherExperienceEntitlement(caller, event = {}) {
 async function rechargeTeacherExperienceEntitlement(caller, event = {}) {
   await requireTeacherExperienceQuotaSchema();
   const teacherId = numericId(event.teacherId || event.teacherRef, "老师编号");
-  const productId = numericId(event.productId, "产品编号");
+  const productId = numericId(event.productId, "项目编号");
   const unitCount = Number(event.unitCount);
   if (!Number.isInteger(unitCount) || unitCount < 1 || unitCount > 1000000) {
     fail("体验次数充值必须是 1 至 1000000 的整数。", "BAD_REQUEST");
@@ -3178,11 +3343,11 @@ async function rechargeTeacherExperienceEntitlement(caller, event = {}) {
   } catch (error) {
     const detail = String(error?.message || "").toLowerCase();
     if (detail.includes("no configured experience quota") || detail.includes("no active configured experience quota")) {
-      fail("请先配置该老师该产品的月度体验次数。", "TEACHER_EXPERIENCE_QUOTA_NOT_CONFIGURED");
+      fail("请先配置该老师该项目的月度体验次数。", "TEACHER_EXPERIENCE_QUOTA_NOT_CONFIGURED");
     }
     if (detail.includes("idempotency key belongs")) fail("该充值请求编号已用于另一笔体验充值。", "IDEMPOTENCY_CONFLICT");
     if (detail.includes("archived") || detail.includes("product is missing")) {
-      fail("封存老师或封存产品不能充值体验次数。", "MASTER_DATA_NOT_ACTIVE");
+      fail("封存老师或封存项目不能充值体验次数。", "MASTER_DATA_NOT_ACTIVE");
     }
     throw error;
   }
@@ -3970,9 +4135,66 @@ async function main(event = {}, context = {}) {
          ORDER BY id ASC`
       );
     } catch (error) {
+      asDatabaseError(error, "读取项目列表");
+    }
+    return { ok: true, products: rows };
+  }
+  if (action === "listRetailProducts") {
+    requireHq(caller);
+    await requireRetailProductSchema();
+    let rows;
+    try {
+      rows = await executeSql(
+        `SELECT id, product_code, product_name, product_status, created_at, updated_at
+         FROM public.retail_products
+         ORDER BY CASE product_status WHEN 'ACTIVE' THEN 0 ELSE 1 END, id ASC`
+      );
+    } catch (error) {
       asDatabaseError(error, "读取产品列表");
     }
     return { ok: true, products: rows };
+  }
+  if (action === "createRetailProduct") {
+    requireHq(caller);
+    const result = await createRetailProductRecord(caller, event);
+    return { ok: true, product: result.product, created: result.created };
+  }
+  if (action === "setRetailProductStatus") {
+    requireHq(caller);
+    await requireRetailProductSchema();
+    const productRef = String(event.productRef || "").trim();
+    const status = String(event.status || "").toUpperCase();
+    if (!productRef) fail("缺少产品编号", "BAD_REQUEST");
+    if (!["ACTIVE", "ARCHIVED"].includes(status)) {
+      fail("产品状态只能是 ACTIVE（活跃）或 ARCHIVED（封存）", "BAD_REQUEST");
+    }
+    const idCondition = /^\d+$/.test(productRef)
+      ? `id = ${numericId(productRef, "产品编号")}`
+      : "FALSE";
+    const actorId = numericId(caller.profile.staffId, "总部账号编号");
+    let rows;
+    try {
+      rows = await executeSql(
+        `WITH updated_product AS (
+           UPDATE public.retail_products
+           SET product_status = ${sqlText(status)},
+               updated_by_staff_account_id = ${actorId},
+               updated_at = NOW()
+           WHERE (${idCondition}) OR product_code = ${sqlText(productRef)}
+           RETURNING id, product_code, product_name, product_status, created_at, updated_at
+         )
+         SELECT id, product_code, product_name, product_status, created_at, updated_at
+         FROM updated_product`
+      );
+    } catch (error) {
+      asDatabaseError(error, "更新产品状态");
+    }
+    const product = rows?.[0] || await findRetailProductByReference(productRef);
+    if (!product) fail("未找到该产品", "NOT_FOUND");
+    if (String(product.product_status || "").toUpperCase() !== status) {
+      fail("产品状态写入后数据库回读不一致", "DATABASE_ERROR");
+    }
+    return { ok: true, product };
   }
   if (action === "createProduct") {
     requireHq(caller);
@@ -3983,12 +4205,12 @@ async function main(event = {}, context = {}) {
     requireHq(caller);
     const productRef = String(event.productRef || "").trim();
     const status = String(event.status || "").toUpperCase();
-    if (!productRef) fail("缺少产品编号", "BAD_REQUEST");
+    if (!productRef) fail("缺少项目编号", "BAD_REQUEST");
     if (!["ACTIVE", "ARCHIVED"].includes(status)) {
-      fail("产品状态只能是 ACTIVE（活跃）或 ARCHIVED（封存）", "BAD_REQUEST");
+      fail("项目状态只能是 ACTIVE（活跃）或 ARCHIVED（封存）", "BAD_REQUEST");
     }
     const idCondition = /^\d+$/.test(productRef)
-      ? `id = ${numericId(productRef, "产品编号")}`
+      ? `id = ${numericId(productRef, "项目编号")}`
       : "FALSE";
     let rows;
     try {
@@ -4005,9 +4227,9 @@ async function main(event = {}, context = {}) {
          FROM updated_product`
       );
     } catch (error) {
-      asDatabaseError(error, "更新产品状态");
+      asDatabaseError(error, "更新项目状态");
     }
-    if (!rows?.[0]) fail("未找到该产品", "NOT_FOUND");
+    if (!rows?.[0]) fail("未找到该项目", "NOT_FOUND");
     return { ok: true, product: rows[0] };
   }
   if (action === "getProductReceiptTemplate") {

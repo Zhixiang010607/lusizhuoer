@@ -31,13 +31,13 @@ function formatTime(value) {
   return `${parts[0]}-${String(parts[1]).padStart(2, "0")}-${String(parts[2]).padStart(2, "0")} ${String(parts[3]).padStart(2, "0")}:${String(parts[4]).padStart(2, "0")}:${String(parts[5]).padStart(2, "0")}`;
 }
 function templateView(candidate) {
-  if (!candidate || typeof candidate !== "object") throw new Error("服务器没有返回产品模板");
+  if (!candidate || typeof candidate !== "object") throw new Error("服务器没有返回项目模板");
   const logo = candidate.logo && typeof candidate.logo === "object" ? { ...candidate.logo } : null;
   const verificationInstructions = normalizedInstructions(candidate.verificationInstructions);
   const rechargeInstructions = normalizedInstructions(candidate.rechargeInstructions);
   const productStatus = text(candidate.productStatus).toUpperCase() === "ARCHIVED" ? "ARCHIVED" : "ACTIVE";
   return {
-    id: text(candidate.id), productCode: text(candidate.productCode), productName: text(candidate.productName) || "产品单据模板",
+    id: text(candidate.id), productCode: text(candidate.productCode), productName: text(candidate.productName) || "项目单据模板",
     productType: text(candidate.productType) || "未分类", description: text(candidate.description), productStatus, logo,
     verificationInstructions, rechargeInstructions, updatedAt: candidate.updatedAt || "", updatedByName: text(candidate.updatedByName),
     statusText: productStatus === "ARCHIVED" ? "封存" : "活跃",
@@ -49,13 +49,13 @@ function assertUrlProduct(candidate, requested) {
   const result = templateView(candidate);
   const ref = text(requested);
   const matches = /^\d+$/.test(ref) ? result.id === ref : result.productCode.toUpperCase() === ref.toUpperCase();
-  if (!ref || !matches) throw new Error(`页面产品与读取结果不一致（请求 ${ref || "—"}，返回 ${result.productCode || result.id || "无编号"}）`);
+  if (!ref || !matches) throw new Error(`页面项目与读取结果不一致（请求 ${ref || "—"}，返回 ${result.productCode || result.id || "无编号"}）`);
   return result;
 }
 function assertRoundTrip(candidate, expected, verificationInstructions, rechargeInstructions) {
   const result = templateView(candidate);
   if ((expected.id && result.id !== expected.id) || (expected.productCode && result.productCode !== expected.productCode)) {
-    throw new Error("保存后的模板与当前产品不一致，已停止显示成功状态");
+    throw new Error("保存后的模板与当前项目不一致，已停止显示成功状态");
   }
   if (result.verificationInstructions !== verificationInstructions || result.rechargeInstructions !== rechargeInstructions) {
     throw new Error("文字说明写入后回读不一致，请重新保存");
@@ -135,7 +135,7 @@ Page({
         loading: false, logoLoading: false, template: null, logoPreview: "", selectedLogo: false,
         verificationInstructions: "", rechargeInstructions: "", verificationCount: 0, rechargeCount: 0,
         previewLoading: false, previewError: "", previewImages: [], previewPageCount: 0,
-        previewHint: currentPreview.hint, message: "缺少产品编号", error: true
+        previewHint: currentPreview.hint, message: "缺少项目编号", error: true
       });
       return;
     }
@@ -150,7 +150,7 @@ Page({
       if (!currentLoad(this, request)) return;
       const template = assertUrlProduct(response.template, request.productRef);
       this.applyTemplate(template);
-      this.setData({ message: request.created ? "产品已创建，请继续配置 LOGO 和两组单据说明。" : "模板文字已读取，正在读取 LOGO 原图…", error: false });
+      this.setData({ message: request.created ? "项目已创建，请继续配置 LOGO 和两组单据说明。" : "模板文字已读取，正在读取 LOGO 原图…", error: false });
       await this.loadLogoOriginal(template, request);
       if (!currentLoad(this, request)) return;
       await this.renderPreview(request);
@@ -163,7 +163,7 @@ Page({
         template: null, logoPreview: "", selectedLogo: false, logoLoading: false,
         verificationInstructions: "", rechargeInstructions: "", verificationCount: 0, rechargeCount: 0,
         previewLoading: false, previewImages: [], previewPageCount: 0, previewError: "", previewHint: currentPreview.hint,
-        message: error.message || "产品模板读取失败", error: true
+        message: error.message || "项目模板读取失败", error: true
       });
     } finally {
       if (currentLoad(this, request)) this.setData({ loading: false });
@@ -329,18 +329,18 @@ Page({
   },
   async removeLogo() {
     if (this.data.mutating || !this.data.template || !this.data.template.logo) return;
-    const confirmed = await wxCall((resolve) => wx.showModal({ title: "移除产品 LOGO", content: "确定移除该产品的共用 LOGO 吗？", confirmText: "移除", success: (value) => resolve(value.confirm), fail: () => resolve(false) }));
+    const confirmed = await wxCall((resolve) => wx.showModal({ title: "移除项目 LOGO", content: "确定移除该项目的共用 LOGO 吗？", confirmText: "移除", success: (value) => resolve(value.confirm), fail: () => resolve(false) }));
     if (!confirmed) return;
-    this.setData({ mutating: true, message: "正在移除产品 LOGO…", error: false });
+    this.setData({ mutating: true, message: "正在移除项目 LOGO…", error: false });
     try {
       const response = await callStaff("removeProductReceiptLogo", { productRef: this.data.productRef });
       const template = assertUrlProduct(response.template, this.data.productRef);
       this._selectedLogo = null;
       this.applyTemplate(template, true);
-      this.setData({ selectedLogo: false, logoPreview: "", message: "产品 LOGO 已移除。", error: false });
+      this.setData({ selectedLogo: false, logoPreview: "", message: "项目 LOGO 已移除。", error: false });
       await this.renderPreview();
     } catch (error) {
-      this.setData({ message: error.message || "产品 LOGO 移除失败", error: true });
+      this.setData({ message: error.message || "项目 LOGO 移除失败", error: true });
     } finally { this.setData({ mutating: false }); }
   },
   async saveInstructions() {
@@ -366,20 +366,20 @@ Page({
     const next = this.data.template.productStatus === "ARCHIVED" ? "ACTIVE" : "ARCHIVED";
     const action = next === "ARCHIVED" ? "封存" : "激活";
     const confirmed = await wxCall((resolve) => wx.showModal({
-      title: `${action}产品`, content: next === "ARCHIVED" ? "历史单据和模板会继续保留。确认封存？" : "确认重新激活该产品？",
+      title: `${action}项目`, content: next === "ARCHIVED" ? "历史单据和模板会继续保留。确认封存？" : "确认重新激活该项目？",
       confirmText: action, success: (value) => resolve(value.confirm), fail: () => resolve(false)
     }));
     if (!confirmed) return;
-    this.setData({ mutating: true, message: `正在${action}产品…`, error: false });
+    this.setData({ mutating: true, message: `正在${action}项目…`, error: false });
     try {
       await callStaff("setProductStatus", { productRef: this.data.productRef, status: next });
       const reread = await callStaff("getProductReceiptTemplate", { productRef: this.data.productRef });
       const template = assertUrlProduct(reread.template, this.data.productRef);
       if (template.productStatus !== next) throw new Error(`${action}结果未能由数据库确认，请刷新后核对`);
       this.applyTemplate(template, true);
-      this.setData({ message: next === "ARCHIVED" ? "产品已封存，历史单据和模板继续保留。" : "产品已激活。", error: false });
+      this.setData({ message: next === "ARCHIVED" ? "项目已封存，历史单据和模板继续保留。" : "项目已激活。", error: false });
     } catch (error) {
-      this.setData({ message: error.message || `产品${action}失败`, error: true });
+      this.setData({ message: error.message || `项目${action}失败`, error: true });
     } finally { this.setData({ mutating: false }); }
   },
   choosePreview(event) {

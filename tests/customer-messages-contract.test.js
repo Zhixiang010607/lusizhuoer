@@ -52,7 +52,7 @@ assert.match(html, /class="customer-notes-messages-grid"[\s\S]*class="panel cust
 assert.match(html, /id="customerMessageInput"[^>]*maxlength="100"/);
 assert.match(html, /id="customerMessageList"[^>]*tabindex="0"/);
 assert.match(html, /customer-profile\.js\?v=0\.15\.13/);
-assert.match(html, /auth-ui\.js\?v=0\.19\.4/);
+assert.match(html, /auth-ui\.js\?v=0\.19\.5/);
 
 assert.match(ui, /hq:"总部", store:"门店", teacher:"老师"/);
 assert.match(ui, /年\$\{match\[2\]\}月\$\{match\[3\]\}日 \$\{match\[4\]\}:\$\{match\[5\]\}:\$\{match\[6\]\}/);

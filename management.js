@@ -13,9 +13,9 @@
     const match = raw.match(/^(\d{4})[-年](\d{1,2})[-月](\d{1,2})(?:日|[T\s].*)?$/);
     return match ? `${match[1]}年${match[2].padStart(2, "0")}月${match[3].padStart(2, "0")}日` : raw;
   };
-  // 产品只来自 CloudBase / PostgreSQL；不再读取浏览器临时产品数据。
+  // 项目只来自 CloudBase / PostgreSQL；不再读取浏览器临时项目数据。
   const projects = [];
-  let productListMessage = "正在读取产品数据…";
+  let productListMessage = "正在读取项目数据…";
   const chinaRegions = window.ChinaRegions || {};
   // 门店只来自 CloudBase / PostgreSQL；不再读取浏览器中的临时门店数据。
   const stores = [];
@@ -130,7 +130,7 @@
       $("entityInfo").innerHTML = values.map((value, i) => `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
       return;
     }
-    const captions = ["产品名称", "产品类别", "产品介绍", "状态", "创建日期", "最后更新日期"];
+    const captions = ["项目名称", "项目类别", "项目介绍", "状态", "创建日期", "最后更新日期"];
     const values = [entity.name, entity.productType || "未填写", entity.extra || "未填写", entity.status, formatDateTime(entity.createdAt, "未记录"), formatDateTime(entity.updatedAt, "未记录")];
     $("entityInfo").innerHTML = values.map((value, i) => `<article class="panel info-card"><span>${captions[i]}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
   }
@@ -164,12 +164,12 @@
   }
 
   function renderProjectTable(project) {
-    $("simpleStatsBody").innerHTML = `<tr><td colspan="5" class="query-empty">该产品当前没有真实充值或核销数据</td></tr>`;
+    $("simpleStatsBody").innerHTML = `<tr><td colspan="5" class="query-empty">该项目当前没有真实充值或核销数据</td></tr>`;
   }
 
   function renderProjectList() {
     if (!projects.length) {
-      $("projectList").innerHTML = `<section class="panel query-empty">${escapeHtml(productListMessage || "暂无产品数据，请先新增产品。")}</section>`;
+      $("projectList").innerHTML = `<section class="panel query-empty">${escapeHtml(productListMessage || "暂无项目数据，请先新增项目。")}</section>`;
       return;
     }
     $("projectList").innerHTML = projects.map((project) => {
@@ -206,7 +206,7 @@
     }
     renderSummary(entity);
     if (type === "project" && $("deleteEntity")) {
-      $("deleteEntity").textContent = entity.status === "活跃" ? "封存产品" : "激活产品";
+      $("deleteEntity").textContent = entity.status === "活跃" ? "封存项目" : "激活项目";
       $("deleteEntity").classList.toggle("danger-button", entity.status === "活跃");
     }
     if (type === "store") renderStoreTables(entity);
@@ -290,13 +290,13 @@
     if (entity.status !== "活跃" && !activatingProject) return;
     const actionText = activatingProject ? "激活" : "封存";
     const confirmText = activatingProject
-      ? `确认激活产品“${entity.name}”？`
+      ? `确认激活项目“${entity.name}”？`
       : `确认封存${labels[type]}“${entity.name}”？历史充值、核销和客户引用仍会保留，且不删除任何资料。`;
     if (!window.confirm(confirmText)) return;
     if (type === "project") {
       try {
         if (!window.CloudBasePhoneAuth?.setProductStatus) {
-          throw new Error("产品数据库服务尚未加载，请刷新页面后重试。");
+          throw new Error("项目数据库服务尚未加载，请刷新页面后重试。");
         }
         await window.CloudBasePhoneAuth.setProductStatus({
           productRef: entity.id,
@@ -305,7 +305,7 @@
         await syncRemoteProducts(entity.id);
         return;
       } catch (error) {
-        window.alert(error?.message || `产品${actionText}失败；数据库状态未修改。`);
+        window.alert(error?.message || `项目${actionText}失败；数据库状态未修改。`);
         return;
       }
     }
@@ -401,10 +401,10 @@
   async function syncRemoteProducts(selectedId = "") {
     if (type !== "project") return;
     projects.splice(0, projects.length);
-    productListMessage = "正在读取产品数据…";
+    productListMessage = "正在读取项目数据…";
     renderProjectList();
     if (!window.CloudBasePhoneAuth?.listProducts) {
-      productListMessage = "产品数据库服务尚未加载，请刷新页面后重试。";
+      productListMessage = "项目数据库服务尚未加载，请刷新页面后重试。";
       renderProjectList();
       return;
     }
@@ -425,14 +425,14 @@
         updatedAt: String(product.updated_at || "").trim()
       })).filter((product) => product.id && product.name);
       projects.splice(0, projects.length, ...records);
-      productListMessage = records.length ? "" : "暂无产品数据，请先新增产品。";
+      productListMessage = records.length ? "" : "暂无项目数据，请先新增项目。";
       refillSelect(String(selectedId || ""));
       renderProjectList();
       $("projectManagementContent").hidden = true;
     } catch (error) {
-      console.warn("产品列表读取失败", error);
+      console.warn("项目列表读取失败", error);
       projects.splice(0, projects.length);
-      productListMessage = error?.message || "产品数据库读取失败，请刷新页面后重试。";
+      productListMessage = error?.message || "项目数据库读取失败，请刷新页面后重试。";
       refillSelect();
       renderProjectList();
       $("projectManagementContent").hidden = true;

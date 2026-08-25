@@ -44,7 +44,7 @@ const productSummary = functionSource(cloud, "getHqDashboardProductSummary");
 const dispatcher = functionSource(cloud, "getHqDashboard");
 const rankingProjection = functionSource(cloud, "hqDashboardRankingProjection");
 
-assert.match(cloud, /const FUNCTION_VERSION = "v72"/, "large-data dashboard deployment must identify as v72");
+assert.match(cloud, /const FUNCTION_VERSION = "v73"/, "large-data dashboard deployment must identify as v73");
 assert.match(cloud, /const HQ_DASHBOARD_CHART_LIMIT = 10/, "overview charts must be strictly bounded");
 assert.match(cloud, /const HQ_DASHBOARD_MAX_PAGE_SIZE = 500/, "ranking page size must have a server maximum");
 assert.doesNotMatch(cloud, /getHqDashboardLegacyFullPayload/, "the unsafe full-payload dashboard query must not remain callable or retained");

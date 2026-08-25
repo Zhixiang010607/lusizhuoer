@@ -79,7 +79,7 @@ function hqProductSummaryRows(items = []) {
 }
 function hqProductSummaryView(payload = {}) {
   const summary = payload.productSummary;
-  if (!summary || !Array.isArray(summary.rows)) throw new Error("总部项目汇总服务版本过旧，请先部署 staffAccount v72");
+  if (!summary || !Array.isArray(summary.rows)) throw new Error("总部项目汇总服务版本过旧，请先部署 staffAccount v73");
   return {
     rows: hqProductSummaryRows(summary.rows),
     page: pageView({
@@ -461,7 +461,7 @@ Page({
     } else if (currentRankingRequest) {
       changes.hqRankingError = rankingResult.status === "rejected"
         ? rankingResult.reason?.message || "总部排名读取失败，请单独重试"
-        : "总部排名服务版本过旧，请先部署 staffAccount v72";
+        : "总部排名服务版本过旧，请先部署 staffAccount v73";
     }
     const message = overviewResult.status === "rejected"
       ? overviewResult.reason?.message || "总部首页读取失败"
@@ -499,7 +499,7 @@ Page({
         || rankingMetric !== this.data.hqRankingMetric || productId !== this.data.hqProductId) return;
       const ranking = value.ranking || {};
       if (!hqRankingMatches(ranking, dimension, rankingMetric, productId)) {
-        throw new Error("总部排名服务版本过旧，请先部署 staffAccount v72");
+        throw new Error("总部排名服务版本过旧，请先部署 staffAccount v73");
       }
       const rows = dashboard.hqRows(ranking.rows, dimension);
       const rankingTotal = Math.max(1, dashboard.count(ranking.rankingTotal));
@@ -766,7 +766,7 @@ Page({
         });
         const ranking = result.ranking || {};
         if (!hqRankingMatches(ranking, dimension, rankingMetric, productId)) {
-          throw new Error("总部排名服务版本过旧，请先部署 staffAccount v72");
+          throw new Error("总部排名服务版本过旧，请先部署 staffAccount v73");
         }
         const total = dashboard.count(ranking.total);
         if (total > REPORT_EXPORT_MAX_ROWS) throw new Error(`当前${dimensionLabel}排名共有 ${total} 条；请缩小统计日期范围后再导出（单次最多 ${REPORT_EXPORT_MAX_ROWS} 条）`);
@@ -816,9 +816,10 @@ Page({
     else wx.navigateTo({ url: `/pages/records/index?type=${type}` });
   },
   openManagement(event) {
-    const type = String(event.currentTarget.dataset.type || "product");
+    const type = String(event.currentTarget.dataset.type || "project");
     this.closeMenus();
-    if (type === "product") wx.navigateTo({ url: "/pages/product-management/index" });
+    if (type === "project") wx.navigateTo({ url: "/pages/product-management/index" });
+    else if (type === "product") wx.navigateTo({ url: "/pages/retail-product-management/index" });
     else wx.navigateTo({ url: `/pages/hq-directory/index?type=${encodeURIComponent(type)}` });
   },
   openReview(event) {

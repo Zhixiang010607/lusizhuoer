@@ -29,12 +29,12 @@
   }
 
   function currentProductRef() {
-    if (!template || !projectRef) throw new Error("产品模板尚未读取完成，请刷新页面重试");
+    if (!template || !projectRef) throw new Error("项目模板尚未读取完成，请刷新页面重试");
     return projectRef;
   }
 
   function assertUrlProduct(candidate) {
-    if (!candidate || typeof candidate !== "object") throw new Error("服务器没有返回产品模板");
+    if (!candidate || typeof candidate !== "object") throw new Error("服务器没有返回项目模板");
     const requested = String(projectRef || "").trim();
     const candidateId = String(candidate.id || "").trim();
     const candidateCode = String(candidate.productCode || "").trim();
@@ -42,7 +42,7 @@
       ? candidateId === requested
       : candidateCode.toUpperCase() === requested.toUpperCase();
     if (!requested || !matches) {
-      throw new Error(`页面产品与读取结果不一致（请求 ${requested || "—"}，返回 ${candidateCode || candidateId || "无编号"}）`);
+      throw new Error(`页面项目与读取结果不一致（请求 ${requested || "—"}，返回 ${candidateCode || candidateId || "无编号"}）`);
     }
     return candidate;
   }
@@ -55,17 +55,17 @@
     return {
       id: String(template?.id || "").trim(),
       productCode: String(template?.productCode || "").trim(),
-      productName: String(template?.productName || "产品").trim() || "产品"
+      productName: String(template?.productName || "项目").trim() || "项目"
     };
   }
 
   function assertTemplateRoundTrip(candidate, expected, verificationInstructions, rechargeInstructions) {
-    if (!candidate || typeof candidate !== "object") throw new Error("服务器没有返回保存后的产品模板");
+    if (!candidate || typeof candidate !== "object") throw new Error("服务器没有返回保存后的项目模板");
     const candidateId = String(candidate.id || "").trim();
     const candidateCode = String(candidate.productCode || "").trim();
     if ((expected.id && candidateId !== expected.id)
         || (expected.productCode && candidateCode !== expected.productCode)) {
-      throw new Error("保存后的模板与当前产品不一致，已停止显示成功状态");
+      throw new Error("保存后的模板与当前项目不一致，已停止显示成功状态");
     }
     if (normalizedInstructions(candidate.verificationInstructions) !== verificationInstructions
         || normalizedInstructions(candidate.rechargeInstructions) !== rechargeInstructions) {
@@ -108,7 +108,7 @@
     if ((expectedReference && returnedReference !== expectedReference)
         || !mimeType.startsWith("image/")
         || (expectedMimeType && mimeType !== expectedMimeType)) {
-      throw new Error("LOGO 原图与当前产品模板不一致");
+      throw new Error("LOGO 原图与当前项目模板不一致");
     }
     const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);
@@ -224,7 +224,7 @@
     } else {
       const url = URL.createObjectURL(source);
       const image = document.createElement("img");
-      image.alt = `${template?.productName || "产品"} LOGO`;
+      image.alt = `${template?.productName || "项目"} LOGO`;
       image.src = url;
       image.addEventListener("load", () => URL.revokeObjectURL(url), { once: true });
       image.addEventListener("error", () => URL.revokeObjectURL(url), { once: true });
@@ -245,12 +245,12 @@
 
   function renderTemplate() {
     $("productTemplateType").textContent = template.productType || "未分类";
-    $("productTemplateName").textContent = template.productName || "产品单据模板";
+    $("productTemplateName").textContent = template.productName || "项目单据模板";
     $("productTemplateMeta").textContent = `${template.productCode || "未编号"} · ${template.productStatus === "ARCHIVED" ? "封存" : "活跃"} · 模板更新：${formatTime(template.updatedAt)}${template.updatedByName ? ` · ${template.updatedByName}` : ""}`;
     const ready = Boolean(template.logo && template.verificationInstructions && template.rechargeInstructions);
     $("productTemplateState").textContent = ready ? "模板已配置" : "模板待配置";
     $("productTemplateState").classList.toggle("is-ready", ready);
-    $("toggleProductStatus").textContent = template.productStatus === "ARCHIVED" ? "激活产品" : "封存产品";
+    $("toggleProductStatus").textContent = template.productStatus === "ARCHIVED" ? "激活项目" : "封存项目";
     $("verificationReceiptInstructions").value = template.verificationInstructions || "";
     $("rechargeReceiptInstructions").value = template.rechargeInstructions || "";
     setTemplateControlsReady(true);
@@ -261,8 +261,8 @@
   function sampleDocument(kind) {
     const verification = kind.startsWith("verification");
     const productTemplate = {
-      productName: template?.productName || "示例产品",
-      productType: template?.productType || "产品类别",
+      productName: template?.productName || "示例项目",
+      productType: template?.productType || "项目类别",
       instructions: verification
         ? $("verificationReceiptInstructions").value.trim()
         : $("rechargeReceiptInstructions").value.trim(),
@@ -272,12 +272,12 @@
     const facts = [
       { label: "门店", value: "示例门店" },
       { label: "客户", value: "示例客户" },
-      { label: "项目", value: template?.productName || "示例产品" },
+      { label: "项目", value: template?.productName || "示例项目" },
       { label: "业务老师", value: "示例老师" }
     ];
     if (verification) facts.push({ label: "提交时间", value: "2026-08-19 12:34:56" });
     return {
-      filename: `${template?.productName || "产品"}-${verification ? "核销单" : "充值单"}-样例`,
+      filename: `${template?.productName || "项目"}-${verification ? "核销单" : "充值单"}-样例`,
       kind: verification ? "正常核销 / 体验核销" : "充值 / 退费",
       title: `${verification ? "核销单" : "充值单"} SAMPLE001`,
       subtitle: "门店详细地址：示例省示例市示例区示例路 1 号",
@@ -417,7 +417,7 @@
       throw new Error(`${reason?.message || "签名直传不可用"}；当前安全备用通道支持不超过 3 MB 的原图`);
     }
     if (!window.CloudBasePhoneAuth?.uploadProductLogoByFunction) {
-      throw reason || new Error("产品 LOGO 安全备用上传服务尚未加载");
+      throw reason || new Error("项目 LOGO 安全备用上传服务尚未加载");
     }
     setMessage("签名直传不可用，正在通过安全备用通道上传原图…");
     const imageBase64 = await originalFileDataUrl(file);
@@ -524,19 +524,19 @@
       setMessage("本地预览模式不会上传或修改腾讯云数据。", "success");
       return;
     }
-    if (!template?.logo || !window.confirm("确定移除该产品的共用 LOGO 吗？")) return;
+    if (!template?.logo || !window.confirm("确定移除该项目的共用 LOGO 吗？")) return;
     $("removeProductLogo").disabled = true;
-    setMessage("正在移除产品 LOGO…");
+    setMessage("正在移除项目 LOGO…");
     try {
       template = await window.CloudBasePhoneAuth.removeProductReceiptLogo({ productRef: currentProductRef() });
       logoBlob = null;
       selectedLogo = null;
       selectedLogoMeta = null;
       renderTemplate();
-      setMessage("产品 LOGO 已移除。", "success");
+      setMessage("项目 LOGO 已移除。", "success");
       void renderPreview();
     } catch (error) {
-      setMessage(error?.message || "产品 LOGO 移除失败", "error");
+      setMessage(error?.message || "项目 LOGO 移除失败", "error");
     }
   }
 
@@ -546,7 +546,7 @@
       return;
     }
     if (!template) {
-      setMessage("产品模板尚未读取完成，请刷新页面重试", "error");
+      setMessage("项目模板尚未读取完成，请刷新页面重试", "error");
       return;
     }
     const next = template.productStatus === "ARCHIVED" ? "ACTIVE" : "ARCHIVED";
@@ -555,16 +555,16 @@
       await window.CloudBasePhoneAuth.setProductStatus({ productRef: currentProductRef(), status: next });
       template.productStatus = next;
       renderTemplate();
-      setMessage(next === "ARCHIVED" ? "产品已封存，历史单据和模板继续保留。" : "产品已激活。", "success");
+      setMessage(next === "ARCHIVED" ? "项目已封存，历史单据和模板继续保留。" : "项目已激活。", "success");
     } catch (error) {
-      setMessage(error?.message || "产品状态更新失败", "error");
+      setMessage(error?.message || "项目状态更新失败", "error");
     } finally {
       $("toggleProductStatus").disabled = localPreviewMode;
     }
   }
 
   async function loadTemplate() {
-    if (!projectRef) throw new Error("缺少产品编号");
+    if (!projectRef) throw new Error("缺少项目编号");
     if (localPreviewMode) {
       template = {
         id: projectRef, productCode: projectRef, productName: "海洋之蕴",
@@ -579,12 +579,12 @@
       await renderPreview();
       return;
     }
-    if (!window.CloudBasePhoneAuth?.getProductReceiptTemplate) throw new Error("产品模板服务尚未加载");
+    if (!window.CloudBasePhoneAuth?.getProductReceiptTemplate) throw new Error("项目模板服务尚未加载");
     template = assertUrlProduct(await window.CloudBasePhoneAuth.getProductReceiptTemplate({ productRef: projectRef }));
-    if (!template) throw new Error("未找到该产品");
+    if (!template) throw new Error("未找到该项目");
     renderTemplate();
     if (new URLSearchParams(location.search).get("created") === "1") {
-      setMessage("产品已创建，请继续配置 LOGO 和两组单据说明。", "success");
+      setMessage("项目已创建，请继续配置 LOGO 和两组单据说明。", "success");
     } else {
       setMessage("模板文字已读取，正在读取 LOGO 原图…");
     }
@@ -618,7 +618,7 @@
     $("productTemplateName").textContent = "模板读取失败";
     $("productTemplateMeta").textContent = error?.message || "请刷新页面重试";
     $("productTemplateState").textContent = "读取失败";
-    $("productPreviewHint").textContent = "产品模板读取失败";
+    $("productPreviewHint").textContent = "项目模板读取失败";
     $("productPreviewFrame").innerHTML = '<div class="product-preview-loading is-error">请刷新页面重试</div>';
     setMessage(error?.message || "模板读取失败", "error");
   });

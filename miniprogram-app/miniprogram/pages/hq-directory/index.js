@@ -41,9 +41,14 @@ Page({
   onLoad(options) {
     if (!requireSession(["hq"])) return;
     this._unloaded = false;
-    if (options.type === "product") {
+    if (options.type === "project") {
       this._redirecting = true;
       wx.redirectTo({ url: "/pages/product-management/index" });
+      return;
+    }
+    if (options.type === "product") {
+      this._redirecting = true;
+      wx.redirectTo({ url: "/pages/retail-product-management/index" });
       return;
     }
     const type = META[options.type] ? options.type : "store";

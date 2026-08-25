@@ -28,24 +28,24 @@ Page({
     const productType = text(this.data.form.type);
     const description = text(this.data.form.description);
     if (!productName || !productType) {
-      this.setData({ message: "请填写产品名称和产品类别", error: true });
+      this.setData({ message: "请填写项目名称和项目类别", error: true });
       return;
     }
-    this.setData({ submitting: true, message: "正在写入产品数据库…", error: false });
+    this.setData({ submitting: true, message: "正在写入项目数据库…", error: false });
     try {
       const result = await callStaff("createProduct", {
         productName, productType, description, clientRequestId: pendingRequestId()
       });
       const productCode = text(result.product && result.product.product_code);
-      if (!productCode) throw new Error("产品已写入，但服务未返回产品编号");
+      if (!productCode) throw new Error("项目已写入，但服务未返回项目编号");
       wx.removeStorageSync(PENDING_KEY);
       wx.redirectTo({ url: `/pages/product-detail/index?productRef=${encodeURIComponent(productCode)}&created=1` });
     } catch (error) {
       if (error.code === "IDEMPOTENCY_CONFLICT") {
         wx.removeStorageSync(PENDING_KEY);
-        this.setData({ message: "创建内容已经改变，请再次点击“创建产品”。", error: true });
+        this.setData({ message: "创建内容已经改变，请再次点击“创建项目”。", error: true });
       } else {
-        this.setData({ message: error.message || "产品创建失败，请稍后重试", error: true });
+        this.setData({ message: error.message || "项目创建失败，请稍后重试", error: true });
       }
     } finally { this.setData({ submitting: false }); }
   }
