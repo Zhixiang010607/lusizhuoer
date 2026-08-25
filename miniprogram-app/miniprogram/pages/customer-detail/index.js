@@ -1,6 +1,5 @@
 const { callFace } = require("../../services/api");
 const { requireSession } = require("../../services/session");
-const { saveImageToAlbum } = require("../../services/photo-album");
 const query = require("../../services/query-tools");
 
 const HISTORY_LIMIT = 50;
@@ -24,9 +23,7 @@ function messageRole(value) {
 }
 function businessTeacher(row = {}) {
   const name = clean(row.teacherName);
-  if (!name) return "未指定";
-  const code = clean(row.teacherCode);
-  return code ? `${name} · ${code}` : name;
+  return name || "未指定";
 }
 function orderStatus(row = {}, type = "RECHARGE") {
   const status = clean(row.recordStatus).toUpperCase();
@@ -112,7 +109,7 @@ Page({
     notes: "", originalNotes: "", notesEditing: false, notesChanged: false,
     savingNotes: false, notesMessage: "", notesError: false,
     statusUpdating: false, statusMessage: "", statusError: false,
-    photoUrl: "", photoLoading: false, photoSaving: false, photoMessage: "", photoError: false,
+    photoUrl: "", photoLoading: false, photoMessage: "", photoError: false,
     loading: false, message: "", error: false
   },
 
@@ -205,36 +202,21 @@ Page({
       this.setData({ photoUrl: result.photoUrl, photoMessage: "", photoError: false });
     } catch (error) {
       if (epoch === this._photoEpoch) {
-        this.setData({ photoUrl: "", photoMessage: error.message || "客户照片读取失败，可单独重读", photoError: true });
+        this.setData({ photoUrl: "", photoMessage: error.message || "客户照片暂时无法显示", photoError: true });
       }
     } finally {
       if (epoch === this._photoEpoch) this.setData({ photoLoading: false });
     }
   },
-  reloadPhoto() { if (!this.data.photoLoading) void this.loadPhoto(); },
   photoFailed() {
     this.setData({
       photoUrl: "",
-      photoMessage: "照片临时地址已失效或网络中断，请单独重读这一张。",
+      photoMessage: "客户照片暂时无法显示，请稍后重新进入客户主页。",
       photoError: true
     });
   },
   previewPhoto() {
     if (this.data.photoUrl) wx.previewImage({ current: this.data.photoUrl, urls: [this.data.photoUrl] });
-  },
-  async savePhoto() {
-    if (!this.data.photoUrl || this.data.photoSaving) return;
-    this.setData({ photoSaving: true, photoMessage: "正在保存照片…", photoError: false });
-    try {
-      const downloaded = await new Promise((resolve, reject) => wx.downloadFile({
-        url: this.data.photoUrl, success: resolve, fail: reject
-      }));
-      if (downloaded.statusCode !== 200 || !downloaded.tempFilePath) throw new Error("原图下载失败");
-      await saveImageToAlbum(downloaded.tempFilePath);
-      this.setData({ photoMessage: "照片已保存到系统相册", photoError: false });
-    } catch (error) {
-      this.setData({ photoMessage: error.errMsg || error.message || "照片保存失败，请检查相册权限后重试", photoError: true });
-    } finally { this.setData({ photoSaving: false }); }
   },
 
   startEditNotes() {

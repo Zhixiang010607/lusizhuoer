@@ -51,8 +51,8 @@
 | `pages/teacher-create/index` | 姓名、手机号、初始密码，不采集老师人脸 | 创建字段、清理与回读契约 `PASS-AUTO`；真实创建 `CONFIRM-ONLY` |
 | `pages/teacher-detail/index` | 档案、密码重置、状态、体验额度总览／配置／充值／删除和历史 | 读取、布局、权限与请求隔离 `PASS-AUTO`；额度、密码和状态写操作 `CONFIRM-ONLY` |
 | `pages/reviews/index` | 充值／退费／历史补录核销查询、分页、跳页、工单／客户详情、通过／驳回 | 总部真实只读查询 `PASS-LIVE`；精确列宽、状态语义和旧响应隔离 `PASS-AUTO`；审核决定 `CONFIRM-ONLY` |
-| `pages/customers/index` | 总部／门店客户范围、阶段、状态、日期、姓名／生日、分页、详情；老师不进入通用客户页 | 查询参数、角色边界、表格与请求隔离 `PASS-AUTO`；扩展条件需真实数据库复验 |
-| `pages/customer-detail/index` | 资料和照片、产品余额、三类独立历史分页、备注、留言、状态、工单链接 | 基础读取 `PASS-LIVE`；完整移动端逻辑、照片失败隔离、相册权限和旧响应隔离 `PASS-AUTO`；保存与状态修改 `CONFIRM-ONLY` |
+| `pages/customers/index` | 总部／门店客户范围、阶段、状态、日期、姓名／生日、分页、只读详情；姓名后紧接充值／核销，客户状态最后；老师不进入通用客户页 | 查询参数、角色边界、精确列序／列宽、横滑复位和请求隔离 `PASS-AUTO`；扩展条件需真实数据库复验 |
+| `pages/customer-detail/index` | 资料和只读照片预览、产品余额、三类独立历史分页、备注、留言、状态、工单链接 | 基础读取 `PASS-LIVE`；无重读／相册按钮、名称精简、历史自适应列宽、照片失败隔离和旧响应隔离 `PASS-AUTO`；备注、留言与状态修改 `CONFIRM-ONLY` |
 | `pages/customer-create/index` | 姓名、生日、备注、现场照片、授权与提交 | 上海日期、长度、人脸和整体成功契约 `PASS-AUTO`；真实建立 `NEEDS-ROLE-LOGIN` |
 | `pages/recharge/index` | 充值／退费、客户、项目、可选或自动老师、余额、留言、防重复恢复和详情跳转 | 角色归属、余额旧响应隔离、幂等恢复和详情路由 `PASS-AUTO`；真实提交 `NEEDS-ROLE-LOGIN` |
 | `pages/verification/index` | 正常／体验、客户、项目、老师、五照片链路、人脸、额度、防重复恢复和详情跳转 | 只验客户脸、角色边界、余额／令牌旧响应隔离、幂等恢复 `PASS-AUTO`；真实提交 `NEEDS-ROLE-LOGIN` |

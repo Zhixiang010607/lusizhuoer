@@ -28,7 +28,7 @@ function customerRows(rows = []) {
 
 Page({
   data: {
-    session: {}, loading: false, message: "", error: false, mode: "browse", updatingCode: "",
+    session: {}, loading: false, message: "", error: false, mode: "browse", tableScrollLeft: 0,
     customers: [], page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1, hasMore: false, pageJump: "1",
     cursorStack: [null], nextCursor: null,
     stores: [], storeLabels: ["全部门店"], storeIndex: 0,
@@ -105,7 +105,7 @@ Page({
     this.setData({
       customers: customerRows(result.customers || []), summary, total, totalPages,
       page: targetPage, pageJump: String(targetPage), hasMore: result.hasMore === true,
-      cursorStack: stack, nextCursor: result.nextCursor || null
+      cursorStack: stack, nextCursor: result.nextCursor || null, tableScrollLeft: 0
     });
     return true;
   },
@@ -122,7 +122,7 @@ Page({
       if (epoch !== this._requestEpoch) return;
       this.setData({
         customers: [], page: 1, pageJump: "1", total: 0, totalPages: 1, hasMore: false,
-        cursorStack: [null], nextCursor: null, summary: { ...EMPTY_SUMMARY },
+        cursorStack: [null], nextCursor: null, summary: { ...EMPTY_SUMMARY }, tableScrollLeft: 0,
         message: error.message || "客户读取失败", error: true
       });
     } finally {
@@ -171,35 +171,6 @@ Page({
       this.setData({ message: `请输入 1 到 ${this.data.totalPages} 的有效页码`, error: true }); return;
     }
     this.load(page);
-  },
-  toggleCustomerStatus(event) {
-    if (this.data.loading || this.data.updatingCode) return;
-    const customerCode = String(event.currentTarget.dataset.code || "");
-    const customerName = String(event.currentTarget.dataset.name || "客户");
-    const currentStatus = String(event.currentTarget.dataset.status || "").toUpperCase();
-    if (!customerCode || !["ACTIVE", "ARCHIVED"].includes(currentStatus)) return;
-    const restoring = currentStatus === "ARCHIVED";
-    wx.showModal({
-      title: restoring ? "恢复为活跃" : "封存客户",
-      content: restoring ? `确认将客户“${customerName}”恢复为活跃？` : `确认将客户“${customerName}”设为存档？历史记录会继续保留。`,
-      confirmText: restoring ? "确认恢复" : "确认封存",
-      confirmColor: restoring ? "#16845b" : "#9a302b",
-      success: async (result) => {
-        if (!result.confirm) return;
-        this.setData({ updatingCode: customerCode, message: "", error: false });
-        try {
-          await callFace("updateCustomerStatus", {
-            customerCode, expectedStatus: currentStatus,
-            targetStatus: restoring ? "ACTIVE" : "ARCHIVED"
-          });
-          this.resetPaging();
-          await this.load(1);
-          this.setData({ message: restoring ? "客户已恢复为活跃" : "客户已封存", error: false });
-        } catch (error) {
-          this.setData({ message: error.message || "客户状态更新失败", error: true });
-        } finally { this.setData({ updatingCode: "" }); }
-      }
-    });
   },
   openCustomer(event) {
     const code = String(event.currentTarget.dataset.code || "");

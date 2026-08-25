@@ -29,10 +29,10 @@
   <view class="card result-card">
     <view class="card-title"><text>客户结果</text><text class="badge">共 {{total}} 位</text></view>
     <view wx:if="{{loading}}" class="empty">正在读取客户…</view>
-    <scroll-view wx:elif="{{customers.length}}" class="customer-table-scroll" scroll-x="true" enhanced="true" show-scrollbar="false">
+    <scroll-view wx:elif="{{customers.length}}" class="customer-table-scroll" scroll-x="true" scroll-left="{{tableScrollLeft}}" enhanced="true" show-scrollbar="false">
       <view class="customer-table">
-        <view class="customer-row customer-head"><text>姓名</text><text>门店</text><text>生日</text><text>业务阶段</text><text>状态</text><text>充值</text><text>核销</text><text>建档日期</text><text>状态操作</text></view>
-        <view wx:for="{{customers}}" wx:key="customerCode" class="customer-row" data-code="{{item.customerCode}}" bindtap="openCustomer"><text class="customer-name">{{item.customerName}}</text><text>{{item.storeName}}</text><text>{{item.birthDate}}</text><text>{{item.processLabel}}</text><text>{{item.statusLabel}}</text><text>{{item.rechargeCount}} 次</text><text>{{item.verificationCount}} 次</text><text>{{item.createdAtLabel}}</text><button class="status-action {{item.customerStatus === 'ARCHIVED' ? 'restore' : ''}}" data-code="{{item.customerCode}}" data-name="{{item.customerName}}" data-status="{{item.customerStatus}}" catchtap="toggleCustomerStatus" loading="{{updatingCode === item.customerCode}}" disabled="{{loading || updatingCode}}">{{item.customerStatus === 'ARCHIVED' ? '恢复活跃' : '封存客户'}}</button></view>
+        <view class="customer-row customer-head"><text>姓名</text><text>充值</text><text>核销</text><text>门店</text><text>生日</text><text>业务阶段</text><text>建档日期</text><text>客户状态</text></view>
+        <view wx:for="{{customers}}" wx:key="customerCode" class="customer-row" data-code="{{item.customerCode}}" bindtap="openCustomer"><text class="customer-name">{{item.customerName}}</text><text>{{item.rechargeCount}} 次</text><text>{{item.verificationCount}} 次</text><text>{{item.storeName}}</text><text>{{item.birthDate}}</text><text>{{item.processLabel}}</text><text>{{item.createdAtLabel}}</text><text>{{item.statusLabel}}</text></view>
       </view>
     </scroll-view>
     <view wx:else class="empty">当前范围暂无客户</view>

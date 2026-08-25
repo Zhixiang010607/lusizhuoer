@@ -28,6 +28,9 @@ test("mini customer profile consumes the existing cursor and message contracts",
   assert.match(js, /Array\.from\(content\)\.length/);
   assert.match(wxml, /maxlength="100"/);
   assert.match(wxml, /bindtap="loadMoreMessages"/);
+  assert.match(wxml, /bindtap="submitMessage"[^>]*>发送留言<\/button>/);
+  assert.match(wxss, /\.message-compose \{[^}]*flex-direction: column;[^}]*align-items: stretch;/s);
+  assert.match(wxss, /\.submit-message-button \{[^}]*width: 100%;[^}]*align-items: center;[^}]*justify-content: center;[^}]*text-align: center;/s);
 });
 
 test("notes, customer status, recent dates, and photo failures retain role boundaries", () => {
@@ -42,8 +45,11 @@ test("notes, customer status, recent dates, and photo failures retain role bound
   assert.match(wxml, /最近充值/);
   assert.match(wxml, /最近核销/);
   assert.match(wxml, /客户建立/);
-  assert.match(js, /require\("\.\.\/\.\.\/services\/photo-album"\)/);
-  assert.match(js, /saveImageToAlbum\(downloaded\.tempFilePath\)/);
+  assert.doesNotMatch(js, /photo-album|saveImageToAlbum|savePhoto|reloadPhoto/,
+    "the customer profile no longer exposes photo reload or album writes");
+  assert.doesNotMatch(wxml, /重读原图|保存到相册|bindtap="savePhoto"|bindtap="reloadPhoto"/);
+  assert.match(wxml, /bindtap="previewPhoto"/,
+    "the already loaded customer photo remains available for preview");
   const failedPhoto = js.slice(js.indexOf("photoFailed()"), js.indexOf("previewPhoto()"));
   assert.match(failedPhoto, /photoMessage:/);
   assert.doesNotMatch(failedPhoto, /message:/);
@@ -59,13 +65,20 @@ test("balance and history tables have exact centered single-line column widths",
   assert.match(wxml, /item\.teacherLabel/);
   assert.match(wxml, /item\.submittedAtLabel/);
   assert.match(wxml, /item\.statusLabel/);
+  assert.doesNotMatch(wxml, /item\.productCode/,
+    "customer profile tables show product names without internal product codes");
   assert.match(wxss, /\.balance-table \{ width: 660rpx; min-width: 660rpx;/);
   assert.match(wxss, /\.balance-table-row \{[^}]*width: 660rpx;[^}]*grid-template-columns: 240rpx 140rpx 140rpx 140rpx;/s);
   assert.equal(240 + 140 + 140 + 140, 660);
-  assert.match(wxss, /\.record-table \{ width: 1160rpx; min-width: 1160rpx;/);
-  assert.match(wxss, /\.record-row \{[^}]*width: 1160rpx;[^}]*grid-template-columns: 220rpx 170rpx 190rpx 110rpx 170rpx 300rpx;/s);
-  assert.equal(220 + 170 + 190 + 110 + 170 + 300, 1160);
+  assert.match(wxml, /record-table \{\{historyType === 'RECHARGE' \? 'recharge-history' : 'compact-history'\}\}/);
+  assert.match(wxss, /\.record-table\.recharge-history, \.record-table\.recharge-history \.record-row \{ min-width: 950rpx; \}/);
+  assert.match(wxss, /\.record-table\.compact-history, \.record-table\.compact-history \.record-row \{ min-width: 880rpx; \}/);
+  assert.match(wxss, /\.recharge-history \.record-row \{ grid-template-columns: minmax\(210rpx, 1\.35fr\) minmax\(130rpx, 0\.8fr\) minmax\(130rpx, 0\.8fr\) minmax\(90rpx, 0\.55fr\) minmax\(160rpx, 0\.95fr\) minmax\(230rpx, 1\.3fr\); \}/);
+  assert.match(wxss, /\.compact-history \.record-row \{ grid-template-columns: minmax\(210rpx, 1\.4fr\) minmax\(130rpx, 0\.85fr\) minmax\(130rpx, 0\.85fr\) minmax\(90rpx, 0\.6fr\) minmax\(160rpx, 1fr\) minmax\(160rpx, 1fr\); \}/);
+  assert.equal(210 + 130 + 130 + 90 + 160 + 230, 950);
+  assert.equal(210 + 130 + 130 + 90 + 160 + 160, 880);
   assert.match(wxss, /\.balance-table-row text, \.record-row text \{[^}]*align-items: center;[^}]*justify-content: center;[^}]*text-align: center;[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/s);
+  assert.match(wxss, /\.history-tabs button \{[^}]*align-items: center;[^}]*justify-content: center;[^}]*text-align: center;[^}]*white-space: nowrap;/s);
 });
 
 test("history mapper preserves refund signs, teachers, dates, and server statuses", () => {
@@ -95,7 +108,7 @@ test("history mapper preserves refund signs, teachers, dates, and server statuse
     submittedAt: "2026-08-25T01:00:00Z", recordStatus: "APPROVED"
   }], "RECHARGE")[0];
   assert.equal(mapped.unitLabel, "−3 次");
-  assert.equal(mapped.teacherLabel, "叶老师 · T7");
+  assert.equal(mapped.teacherLabel, "叶老师");
   assert.equal(mapped.submittedAtLabel, "2026-08-25");
   assert.equal(mapped.statusLabel, "审核通过");
   const newRecharge = sandbox.__customerDetailTest.mapHistory([{

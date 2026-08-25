@@ -5,17 +5,13 @@
     <view class="card profile-card">
       <view class="profile-top">
         <image wx:if="{{photoUrl}}" class="photo-small" src="{{photoUrl}}" mode="aspectFill" bindtap="previewPhoto" binderror="photoFailed"></image>
-        <view wx:else class="photo-small photo-placeholder" bindtap="reloadPhoto">{{photoLoading ? '正在读取照片…' : '点击重读照片'}}</view>
+        <view wx:else class="photo-small photo-placeholder">{{photoLoading ? '正在读取照片…' : '暂无照片'}}</view>
         <view class="profile-name">
           <text>{{profile.customerName}}</text>
           <text class="profile-sub">{{profile.customerCode}}</text>
           <text class="profile-sub">{{profile.storeLabel}}</text>
           <text class="profile-sub">{{profile.birthDateLabel}}</text>
         </view>
-      </view>
-      <view class="button-row photo-actions">
-        <button class="secondary compact-button" bindtap="reloadPhoto" loading="{{photoLoading}}" disabled="{{photoLoading}}">重读原图</button>
-        <button class="secondary compact-button" bindtap="savePhoto" loading="{{photoSaving}}" disabled="{{photoSaving || !photoUrl}}">保存到相册</button>
       </view>
       <view wx:if="{{photoMessage}}" class="section-message {{photoError ? 'error' : ''}}">{{photoMessage}}</view>
 
@@ -78,7 +74,7 @@
           <textarea class="textarea message-input" maxlength="100" value="{{messageText}}" bindinput="inputMessage" disabled="{{messageSubmitting}}" placeholder="输入客户留言，最多100字"></textarea>
           <text class="character-count {{messageLength >= 100 ? 'limit' : ''}}">{{messageLength}} / 100</text>
         </view>
-        <button class="primary submit-message-button" bindtap="submitMessage" loading="{{messageSubmitting}}" disabled="{{messageSubmitting || !messageLength}}">提交留言</button>
+        <button class="primary submit-message-button" bindtap="submitMessage" loading="{{messageSubmitting}}" disabled="{{messageSubmitting || !messageLength}}">发送留言</button>
       </view>
       <view wx:if="{{messageMessage}}" class="section-message {{messageError ? 'error' : ''}}">{{messageMessage}}</view>
     </view>
@@ -89,7 +85,7 @@
         <view class="balance-table">
           <view class="balance-table-row table-head"><text>项目</text><text>累计充值</text><text>累计核销</text><text>剩余</text></view>
           <view wx:for="{{balances}}" wx:key="productId" class="balance-table-row">
-            <text>{{item.productName}}{{item.productCode ? ' · ' + item.productCode : ''}}</text>
+            <text>{{item.productName}}</text>
             <text>{{item.totalRechargeCount}} 次</text>
             <text>{{item.totalVerificationCount}} 次</text>
             <text class="balance-count">{{item.remainingCount}} 次</text>
@@ -107,7 +103,7 @@
         <button class="{{historyType === 'EXPERIENCE' ? 'active' : ''}}" data-type="EXPERIENCE" bindtap="changeHistory">体验</button>
       </view>
       <scroll-view wx:if="{{visibleHistory.length}}" class="table-scroll record-scroll" scroll-x enhanced show-scrollbar="false">
-        <view class="record-table">
+        <view class="record-table {{historyType === 'RECHARGE' ? 'recharge-history' : 'compact-history'}}">
           <view class="record-row table-head"><text>单号</text><text>项目</text><text>业务老师</text><text>次数</text><text>提交日期</text><text>状态</text></view>
           <view wx:for="{{visibleHistory}}" wx:key="id" class="record-row">
             <text class="record-link" data-id="{{item.id}}" data-code="{{item.recordCode}}" data-original-type="{{item.originalType}}" bindtap="openOrder">{{item.recordCode}}</text>

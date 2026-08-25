@@ -22,7 +22,10 @@ test("HQ and store mini-program navigation exposes all three database searches",
 test("customer query keeps the web filter dimensions, role scope, details, and direct page jump", () => {
   const js = read("pages", "customers", "index.js");
   const wxml = read("pages", "customers", "index.wxml");
-  for (const label of ["门店范围", "业务阶段", "客户状态", "建档时间", "客户姓名", "生日", "跳至", "封存客户", "恢复活跃"]) {
+  const wxss = read("pages", "customers", "index.wxss");
+  const customerDetailJs = read("pages", "customer-detail", "index.js");
+  const customerDetailWxml = read("pages", "customer-detail", "index.wxml");
+  for (const label of ["门店范围", "业务阶段", "客户状态", "建档时间", "客户姓名", "生日", "跳至"]) {
     assert.match(wxml, new RegExp(label), `customer query is missing ${label}`);
   }
   for (const field of ["processStatus", "customerStatus", "startDate", "endDate", "storeId", "cursorCreatedAt", "cursorId"]) {
@@ -30,9 +33,12 @@ test("customer query keeps the web filter dimensions, role scope, details, and d
   }
   assert.match(js, /callStaff\("listStores"\)/);
   assert.match(js, /callFace\("queryStoreCustomers"/);
-  assert.match(js, /callFace\("updateCustomerStatus"/);
-  assert.match(js, /expectedStatus:\s*currentStatus/);
-  assert.match(wxml, /catchtap="toggleCustomerStatus"/);
+  assert.doesNotMatch(js, /updateCustomerStatus|toggleCustomerStatus/,
+    "customer search stays read-only; status changes belong to the customer profile");
+  assert.doesNotMatch(wxml, /状态操作|封存客户|恢复活跃|toggleCustomerStatus/);
+  assert.match(customerDetailJs, /callFace\("updateCustomerStatus"/);
+  assert.match(customerDetailJs, /savedStatus !== targetStatus/);
+  assert.match(customerDetailWxml, /bindtap="toggleCustomerStatus"/);
   assert.match(js, /requireSession\(\["hq", "store"\]\)/,
     "teacher customers remain on the teacher home instead of exposing the store/HQ query page");
   assert.doesNotMatch(wxml, />详情</, "the customer name itself is the detail link; no duplicate detail column");
@@ -43,6 +49,14 @@ test("customer query keeps the web filter dimensions, role scope, details, and d
   assert.match(js, /if \(epoch !== this\._requestEpoch\) return false;/,
     "customer results must reject stale responses after filters change");
   assert.match(js, /pages\/customer-detail\/index\?customerCode=/);
+  assert.match(wxml, /<view class="customer-row customer-head"><text>姓名<\/text><text>充值<\/text><text>核销<\/text><text>门店<\/text><text>生日<\/text><text>业务阶段<\/text><text>建档日期<\/text><text>客户状态<\/text><\/view>/,
+    "customer result columns keep recharge and verification after the name and status last");
+  assert.match(wxss, /\.customer-table \{ width: 1120rpx; min-width: 1120rpx;/);
+  assert.match(wxss, /grid-template-columns: 132rpx 92rpx 92rpx 160rpx 170rpx 200rpx 170rpx 104rpx;/);
+  assert.equal(132 + 92 + 92 + 160 + 170 + 200 + 170 + 104, 1120);
+  assert.match(wxml, /scroll-left="\{\{tableScrollLeft\}\}"/);
+  assert.match(js, /tableScrollLeft: 0/,
+    "fresh customer results return the table to its left edge");
 });
 
 test("recharge and verification query share complete filters and exact order detail links", () => {

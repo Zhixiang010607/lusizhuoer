@@ -5,8 +5,6 @@
 .profile-name > text:first-child { font-size: 36rpx; font-weight: 850; }
 .profile-name .profile-sub { margin-top: 6rpx; color: #7c7062; font-size: 22rpx; }
 .photo-placeholder { display: flex; align-items: center; justify-content: center; padding: 10rpx; color: #74695c; background: #f5ead8; font-size: 20rpx; line-height: 1.3; text-align: center; }
-.photo-actions { margin-top: 12rpx; }
-.compact-button { min-height: 68rpx; padding: 0 18rpx; font-size: 23rpx; }
 .profile-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 18rpx; }
 .profile-facts .fact { padding: 14rpx 8rpx; text-align: center; }
 .profile-facts .value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -47,24 +45,29 @@
 .message-content { display: block; margin-top: 9rpx; color: #3c342a; font-size: 23rpx; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
 .message-empty { min-height: 120rpx; display: flex; align-items: center; justify-content: center; color: #7c7062; background: #fff7eb; border: 1rpx dashed #d8c5a3; border-radius: 14rpx; font-size: 22rpx; }
 .load-message-button, .load-history-button { width: auto; min-width: 190rpx; min-height: 62rpx; display: flex; align-items: center; justify-content: center; margin: 14rpx auto 0; padding: 0 20rpx; font-size: 22rpx; line-height: 1.2; }
-.message-compose { display: grid; grid-template-columns: minmax(0, 1fr) 154rpx; align-items: end; gap: 10rpx; margin-top: 16rpx; padding-top: 16rpx; border-top: 1rpx solid #eadfce; }
-.message-input-wrap { min-width: 0; }
+.message-compose { min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: 12rpx; margin-top: 16rpx; padding-top: 16rpx; border-top: 1rpx solid #eadfce; }
+.message-input-wrap { width: 100%; min-width: 0; }
+.message-input-wrap .character-count { width: 100%; display: block; text-align: right; }
 .message-input { height: 126rpx; min-height: 126rpx; padding: 14rpx 17rpx; font-size: 23rpx; }
-.submit-message-button { width: 154rpx; min-height: 68rpx; margin: 0 0 27rpx; padding: 0 10rpx; font-size: 22rpx; }
+.submit-message-button { width: 100%; min-height: 64rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 14rpx; font-size: 21rpx; line-height: 1.2; text-align: center; }
 
 .table-scroll { width: 100%; overflow: hidden; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
 .balance-table { width: 660rpx; min-width: 660rpx; background: #fffaf3; }
 .balance-table-row { width: 660rpx; min-height: 74rpx; display: grid; grid-template-columns: 240rpx 140rpx 140rpx 140rpx; border-top: 1rpx solid #dfcfb4; }
 .balance-table-row:first-child { border-top: 0; }
-.balance-table-row text, .record-row text { min-width: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.balance-table-row text, .record-row text { width: 100%; min-width: 0; display: flex; align-items: center; justify-content: center; justify-self: stretch; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .balance-table-row text { min-height: 74rpx; padding: 12rpx 8rpx; font-size: 21rpx; }
 .table-head { color: #675b4b; background: #f5ead8; font-weight: 800; }
 .balance-count { color: #76592f; font-weight: 850; }
 
 .history-tabs { margin-bottom: 14rpx; }
-.history-tabs button { min-width: 0; padding: 0 6rpx; font-size: 22rpx; white-space: nowrap; }
-.record-table { width: 1160rpx; min-width: 1160rpx; background: #fffaf3; }
-.record-row { width: 1160rpx; min-height: 76rpx; display: grid; grid-template-columns: 220rpx 170rpx 190rpx 110rpx 170rpx 300rpx; border-top: 1rpx solid #dfcfb4; }
+.history-tabs button { min-width: 0; display: flex; align-items: center; justify-content: center; padding: 0 6rpx; font-size: 22rpx; line-height: 1.2; text-align: center; white-space: nowrap; }
+.record-table { width: 100%; background: #fffaf3; }
+.record-table.recharge-history, .record-table.recharge-history .record-row { min-width: 950rpx; }
+.record-table.compact-history, .record-table.compact-history .record-row { min-width: 880rpx; }
+.record-row { width: 100%; min-height: 76rpx; display: grid; border-top: 1rpx solid #dfcfb4; }
+.recharge-history .record-row { grid-template-columns: minmax(210rpx, 1.35fr) minmax(130rpx, 0.8fr) minmax(130rpx, 0.8fr) minmax(90rpx, 0.55fr) minmax(160rpx, 0.95fr) minmax(230rpx, 1.3fr); }
+.compact-history .record-row { grid-template-columns: minmax(210rpx, 1.4fr) minmax(130rpx, 0.85fr) minmax(130rpx, 0.85fr) minmax(90rpx, 0.6fr) minmax(160rpx, 1fr) minmax(160rpx, 1fr); }
 .record-row:first-child { border-top: 0; }
 .record-row text { min-height: 76rpx; padding: 12rpx 9rpx; font-size: 21rpx; }
 .record-row.table-head { min-height: 66rpx; }

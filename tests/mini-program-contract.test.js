@@ -180,9 +180,9 @@ assert.match(read("pages", "order-detail", "index.wxml"), /baseType === 'RECHARG
 const photo = read("pages", "customer-detail", "index.js");
 const photoAlbum = read("services", "photo-album.js");
 assert.match(photo, /photoFailed\(\).*photoUrl: ""/s);
-assert.match(photo, /saveImageToAlbum/);
+assert.doesNotMatch(photo, /saveImageToAlbum|savePhoto|reloadPhoto/);
 assert.match(photoAlbum, /saveImageToPhotosAlbum/);
-assert.doesNotMatch(read("pages", "customer-detail", "index.wxml"), /binderror="reloadPhoto"/);
+assert.doesNotMatch(read("pages", "customer-detail", "index.wxml"), /重读原图|保存到相册|bindtap="savePhoto"|bindtap="reloadPhoto"/);
 
 // Execute the idempotency helper with isolated wx/session/callFunction mocks.
 const submissionSource = read("services", "submission.js");
