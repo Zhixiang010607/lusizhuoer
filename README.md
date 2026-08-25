@@ -23,7 +23,7 @@
 
 当前小程序开发基线为 Node.js `>=20.19.0`、pnpm `9.15.9`、CloudBase JS SDK `3.7.1` 和微信开发者工具；依赖必须按 `pnpm-lock.yaml` 冻结安装，不再使用会产生第二份锁文件的 `npm install`。当前开发 AppID 为 `wxb053c1bd6c684d8b`，CloudBase 环境授权已经成功，仍需在微信公众平台为该 AppID 配置 CloudBase `request` 合法域名。AppID 可公开但任何密钥都不得写入仓库。现有 CloudBase 是 PostgreSQL 环境，不走微信开发者工具的“云环境转换”；小程序通过 SDK 与微信适配器复用同一环境和云函数。
 
-> 当前交付边界：仓库代码与文档以 `staffAccount v69`、`faceRecognition v90`、`verificationPhoto v9`、`teacherCreate v6` 为版本矩阵；CloudBase 小程序授权已成功，手机号＋密码已在开发者工具用既有账号完成总部会话回读。CloudBase `WX_MICRO_APP` 身份源仍未配置，当前 AppID 的正式 `request` 合法域名和真机验收仍未完成。本轮没有修改或上传云函数，也没有发布小程序；线上仍不能视为已支持微信手机号快捷登录。
+> 当前交付边界：仓库代码与文档以 `staffAccount v69`、`faceRecognition v90`、`verificationPhoto v9`、`teacherCreate v6` 为版本矩阵；CloudBase 小程序授权已成功，手机号＋密码已在开发者工具用既有账号完成总部会话回读。小程序 `0.2.0` 已于 2026-08-25 上传为体验版，但尚未提交微信审核或正式发布。CloudBase `WX_MICRO_APP` 身份源、当前 AppID 的正式 `request` 合法域名和真机验收仍未完成；线上公众仍不能视为已支持微信手机号快捷登录。本轮没有修改或上传云函数，也没有运行 SQL 或发布网站。
 
 ## 腾讯云客户人脸识别后端
 
