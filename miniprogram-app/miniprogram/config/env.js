@@ -3,5 +3,6 @@ module.exports = Object.freeze({
   region: "ap-shanghai",
   faceFunction: "faceRecognition",
   photoFunction: "verificationPhoto",
-  staffFunction: "staffAccount"
+  staffFunction: "staffAccount",
+  teacherCreateFunction: "teacherCreate"
 });

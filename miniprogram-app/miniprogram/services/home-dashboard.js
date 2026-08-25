@@ -167,6 +167,61 @@ function hqRows(items = [], dimension = "store") {
     }))
   }));
 }
+
+function flexibleAxis(maxValue, targetIntervals = 5) {
+  if (!Number.isFinite(maxValue) || maxValue <= 0) return { max: 5, step: 1, ticks: [0, 1, 2, 3, 4, 5] };
+  const roughStep = maxValue / targetIntervals;
+  const magnitude = 10 ** Math.floor(Math.log10(roughStep));
+  const normalized = roughStep / magnitude;
+  const factor = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+  const step = factor * magnitude;
+  const max = Math.ceil(maxValue / step) * step;
+  return { max, step, ticks: Array.from({ length: Math.round(max / step) + 1 }, (_, index) => index * step) };
+}
+
+function signedAxis(values = []) {
+  const minimum = Math.min(0, ...values.map(count));
+  const maximum = Math.max(0, ...values.map(count));
+  if (minimum >= 0) {
+    const positive = flexibleAxis(maximum);
+    return { min: 0, max: positive.max, step: positive.step, ticks: positive.ticks };
+  }
+  const positive = flexibleAxis(Math.max(Math.abs(minimum), maximum), 4);
+  const ticks = [];
+  for (let tick = -positive.max; tick <= positive.max; tick += positive.step) ticks.push(tick);
+  return { min: -positive.max, max: positive.max, step: positive.step, ticks };
+}
+
+function hqChart(items = [], dimension = "store") {
+  const rows = hqRows(items, dimension);
+  const metrics = ["recharge", "verification", "experience", "refund"];
+  const axis = signedAxis(rows.flatMap((row) => metrics.map((metric) => row[metric])));
+  const range = Math.max(1, axis.max - axis.min);
+  const positions = [5, 29, 53, 77];
+  return {
+    rows: rows.map((row) => ({
+      ...row,
+      bars: metrics.map((metric, index) => {
+        const value = row[metric];
+        const top = (axis.max - Math.max(value, 0)) / range * 100;
+        const height = Math.abs(value) / range * 100;
+        const valueTop = value < 0 ? top + height : top;
+        return {
+          metric, value, left: `${positions[index]}%`, top: `${top.toFixed(2)}%`,
+          height: `${height.toFixed(2)}%`, valueTop: `${valueTop.toFixed(2)}%`,
+          valueClass: value < 0 ? "negative" : value === 0 ? "zero" : "positive"
+        };
+      })
+    })),
+    axis: {
+      ...axis,
+      ticks: [...axis.ticks].reverse().map((value) => ({
+        value, label: String(value), top: `${((axis.max - value) / range * 100).toFixed(2)}%`,
+        zero: value === 0
+      }))
+    }
+  };
+}
 function customers(items = []) {
   return (Array.isArray(items) ? items : []).map((item) => ({
     customerId: String(item.customerId || item.customer_id || ""),
@@ -208,5 +263,6 @@ function pageState(page = {}) {
 module.exports = {
   RANGE_OPTIONS, HQ_PERIOD_OPTIONS, TYPE_CONFIG, METRIC_KEYS, EMPTY_TOTALS,
   count, today, rangeDays, scopedRange, hqRange, payload, totals, tabs, products,
-  records, storeFacts, teacherFacts, hqRows, customerGroup, storeCustomerGroups, periodLabel, pageState
+  records, storeFacts, teacherFacts, hqRows, hqChart, flexibleAxis, signedAxis,
+  customerGroup, storeCustomerGroups, periodLabel, pageState
 };

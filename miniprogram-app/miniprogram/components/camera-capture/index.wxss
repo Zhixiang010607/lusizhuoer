@@ -10,7 +10,7 @@
 .placeholder-title { margin-bottom: 10rpx; color: #304b69; font-weight: 800; }
 .buttons { display: flex; gap: 14rpx; margin-top: 18rpx; }
 .buttons button { flex: 1; min-height: 82rpx; margin: 0; border-radius: 15rpx; font-size: 26rpx; font-weight: 750; }
-.capture { background: #102947 !important; }
+.capture { background: #6f532e !important; }
 .clear { color: #8f322e; background: #fff; border: 1rpx solid #efc6c2; }
 .clear::after { border: 0; }
 .capture-message { display: block; margin-top: 14rpx; color: #42617f; font-size: 22rpx; line-height: 1.45; }

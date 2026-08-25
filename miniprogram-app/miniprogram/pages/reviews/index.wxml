@@ -1,0 +1,46 @@
+<view class="page">
+  <view class="page-heading"><text class="eyebrow">HEADQUARTERS REVIEW</text><text class="title">{{noun}}审核</text><text class="subtitle">待审核优先排列；查询、分页和审核规则与网页版一致</text></view>
+
+  <view wx:if="{{recordType === 'RECHARGE'}}" class="review-type-tabs"><button class="{{type === 'recharge' ? 'active' : ''}}" data-type="recharge" bindtap="openReviewType">充值审核</button><button class="{{type === 'refund' ? 'active' : ''}}" data-type="refund" bindtap="openReviewType">退费审核</button></view>
+
+  <view class="card filter-card">
+    <view class="mode-tabs"><button class="{{mode === 'filters' ? 'active' : ''}}" data-mode="filters" bindtap="setMode">按条件查询</button><button class="{{mode === 'code' ? 'active' : ''}}" data-mode="code" bindtap="setMode">按工单编号</button></view>
+    <block wx:if="{{mode === 'filters'}}">
+      <label class="field"><text>门店范围</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="chooseStore"><view class="picker">{{storeLabels[storeIndex]}}</view></picker></label>
+      <label class="field"><text>审核状态</text><picker range="{{statusLabels}}" value="{{statusIndex}}" bindchange="chooseStatus"><view class="picker">{{statusLabels[statusIndex]}}</view></picker></label>
+      <view class="fixed-type"><text>工单类型</text><text>{{type === 'recharge' ? '新办充值申请' : (type === 'refund' ? '退费申请' : '补录核销申请')}}</text></view>
+    </block>
+    <label wx:else class="field"><text>完整{{noun}}工单编号</text><input value="{{code}}" bindinput="inputCode" placeholder="输入完整工单编号" confirm-type="search" bindconfirm="runQuery" /></label>
+    <view class="button-row"><button class="primary" bindtap="runQuery" loading="{{loading}}" disabled="{{loading}}">查询</button><button class="ghost" bindtap="resetQuery" disabled="{{loading}}">重置</button></view>
+  </view>
+
+  <view wx:if="{{message}}" class="message {{error ? 'error' : ''}}">{{message}}</view>
+
+  <view class="card result-card">
+    <view class="card-title"><view><text>{{noun}}审核工单</text><text>待审核记录可通过或驳回，留言会写入数据库</text></view><text class="badge">{{total}} 条</text></view>
+    <view wx:if="{{loading}}" class="empty">正在读取审核工单…</view>
+    <scroll-view wx:elif="{{rows.length}}" class="table-scroll" scroll-x enhanced show-scrollbar="false">
+      <view class="review-table">
+        <view class="review-row head"><text>工单号</text><text>类型</text><text>门店</text><text>客户</text><text>项目</text><text>老师</text><text>影响</text><text>申请时间</text><text>审核</text><text>审核时间</text></view>
+        <view wx:for="{{rows}}" wx:key="id" class="review-row">
+          <text class="link" data-id="{{item.id}}" data-code="{{item.recordCode}}" bindtap="openOrder">{{item.recordCode}}</text><text>{{item.kind}}</text><text>{{item.storeName}}</text><text class="link" data-code="{{item.customerCode}}" bindtap="openCustomer">{{item.customerName}}</text><text>{{item.productName}}</text><text>{{item.teacherName}}</text><text>{{item.impact}}</text><text>{{item.submittedAt}}</text>
+          <view class="review-action"><block wx:if="{{item.status === 'PENDING'}}"><button data-id="{{item.id}}" data-decision="APPROVED" bindtap="openDecision">通过</button><button class="reject" data-id="{{item.id}}" data-decision="REJECTED" bindtap="openDecision">驳回</button></block><text wx:else class="status {{item.status}}">{{item.statusLabel}}</text></view>
+          <text>{{item.reviewedAt}}</text>
+        </view>
+      </view>
+    </scroll-view>
+    <view wx:else class="empty">当前条件下没有审核记录</view>
+    <view wx:if="{{mode === 'filters'}}" class="pager"><button class="ghost" bindtap="previousPage" disabled="{{loading || page <= 1}}">上一页</button><text>第 {{page}} / {{totalPages}} 页</text><button class="ghost" bindtap="nextPage" disabled="{{loading || page >= totalPages}}">下一页</button></view>
+    <view wx:if="{{mode === 'filters'}}" class="page-jump"><text>跳至</text><input type="number" value="{{pageJump}}" bindinput="inputPage" /><text>页</text><button class="primary compact" bindtap="jumpPage" disabled="{{loading}}">跳转</button></view>
+  </view>
+
+  <view wx:if="{{pendingOpen && pending}}" class="mask" catchtouchmove="noop" bindtap="closeDecision">
+    <view class="dialog" catchtap="noop">
+      <view class="dialog-heading"><view><text>{{decision === 'APPROVED' ? '确认通过' : '确认驳回'}}</text><text>{{pending.recordCode}} · {{pending.kind}}</text></view><view bindtap="closeDecision">×</view></view>
+      <view class="summary"><text>{{pending.storeName}} · {{pending.customerName}} · {{pending.productName}}</text><text>{{pending.impact}} · {{pending.submittedAt}}</text><text>申请留言：{{pending.applicantNote}}</text><text>审核人员：{{session.staffName || '当前总部账号'}} {{session.staffCode || ''}}</text></view>
+      <label class="field"><text>审核留言（可选）</text><textarea maxlength="1000" value="{{reviewNote}}" bindinput="inputReviewNote" placeholder="填写通过或驳回说明" /></label>
+      <view class="dialog-actions"><button class="ghost" bindtap="closeDecision" disabled="{{deciding}}">取消</button><button class="{{decision === 'REJECTED' ? 'danger' : 'primary'}}" bindtap="confirmDecision" loading="{{deciding}}" disabled="{{deciding}}">确认{{decision === 'APPROVED' ? '通过' : '驳回'}}</button></view>
+    </view>
+  </view>
+  <view class="safe-bottom"></view>
+</view>

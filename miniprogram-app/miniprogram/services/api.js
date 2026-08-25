@@ -21,6 +21,9 @@ function businessError(payload, fallback) {
   const error = new Error(payload.message || fallback);
   error.code = payload.code || "BUSINESS_REQUEST_FAILED";
   error.requestId = payload.requestId || "";
+  for (const field of ["stage", "storeId", "storeCode", "storeRolledBack", "transportUncertain", "completed"]) {
+    if (Object.prototype.hasOwnProperty.call(payload, field)) error[field] = payload[field];
+  }
   return error;
 }
 
@@ -52,4 +55,8 @@ function callStaff(action, data = {}) {
   return call(config.staffFunction, { action, ...data }, "员工账号服务没有返回有效结果");
 }
 
-module.exports = { callFace, callPhoto, callStaff, resultData };
+function callTeacherCreate(data = {}) {
+  return call(config.teacherCreateFunction, { action: "createTeacher", ...data }, "老师账号创建服务没有返回有效结果");
+}
+
+module.exports = { callFace, callPhoto, callStaff, callTeacherCreate, resultData };

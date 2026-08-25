@@ -12,7 +12,7 @@ const dashboard = require(path.join(root, "miniprogram-app", "miniprogram", "ser
 test("mini-program uses the shared mobile visual tokens and touch-sized controls", () => {
   const wxss = read("miniprogram-app", "miniprogram", "app.wxss");
 
-  for (const token of ["#132642", "#1f5eff", "#00a884", "#172033", "#667085", "#e4e8ef", "#f3f6f9"]) {
+  for (const token of ["#6f532e", "#a98243", "#607c6a", "#302a22", "#7c7062", "#dfcfb4", "#f3ede2"]) {
     assert.match(wxss, new RegExp(token, "i"), `missing shared mobile color token ${token}`);
   }
   assert.match(wxss, /\.input,\s*\.picker,\s*\.textarea\s*\{[^}]*min-height:\s*88rpx/s);
@@ -79,19 +79,22 @@ test("mini-program login is concise and keeps both WeChat phone and password ent
   assert.match(context, /整体颜色不能压得过深/);
 });
 
-test("mini-program keeps the company brand visible after login", () => {
+test("mini-program keeps the company brand in native navigation without duplicating the HQ content title", () => {
   const json = JSON.parse(read("miniprogram-app", "miniprogram", "pages", "home", "index.json"));
   const wxml = read("miniprogram-app", "miniprogram", "pages", "home", "index.wxml");
   const context = read("PROJECT_CONTEXT.md");
 
   assert.equal(json.navigationBarTitleText, "露思卓儿", "the native mini-program title keeps the brand visible above every role home");
   assert.match(wxml, /class="workspace-topbar"/);
-  assert.match(wxml, /class="topbar-title">露思卓儿<\/text>/,
-    "the in-content home title must keep the company brand visible");
+  assert.match(wxml, /<view wx:if="\{\{session\.role === 'hq'\}\}"><text class="topbar-role hq-page-title">\{\{roleTitle\}\}<\/text><\/view>/,
+    "HQ content must match the web page title without a duplicate brand heading");
+  assert.match(wxml, /<view wx:else><text class="topbar-eyebrow">[\s\S]*class="topbar-title">露思卓儿<\/text>/,
+    "teacher/store content keeps the brand structure while their web parity is retained");
   assert.match(wxml, /class="topbar-role">\{\{roleTitle\}\}<\/text>/,
     "the role-specific home title must remain a subtitle of the brand");
   assert.match(context, /小程序登录页不显示人物照/);
-  assert.match(context, /登录后各角色工作台顶部必须明确显示文字品牌名“露思卓儿”/);
+  assert.match(context, /微信原生导航栏统一显示文字品牌名“露思卓儿”/);
+  assert.match(context, /小程序不得再叠加一遍品牌大标题/);
 });
 
 test("all three mini-program homes reproduce the mobile web content layout", () => {

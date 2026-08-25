@@ -3,6 +3,8 @@
     "pages/login/index",
     "pages/password-reset/index",
     "pages/home/index",
+    "pages/hq-directory/index",
+    "pages/reviews/index",
     "pages/customers/index",
     "pages/customer-detail/index",
     "pages/customer-create/index",
@@ -13,9 +15,9 @@
   ],
   "window": {
     "navigationBarTitleText": "露思卓儿工作台",
-    "navigationBarBackgroundColor": "#102947",
+    "navigationBarBackgroundColor": "#2f2921",
     "navigationBarTextStyle": "white",
-    "backgroundColor": "#f3f7fb",
+    "backgroundColor": "#f3ede2",
     "backgroundTextStyle": "dark"
   },
   "style": "v2",

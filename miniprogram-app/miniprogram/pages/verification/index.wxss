@@ -1,5 +1,5 @@
 .recovery-card { border-color: #efc1bd; }
 .disabled-card { opacity: .68; }
-.impact { margin: -4rpx 0 22rpx; padding: 18rpx; color: #275277; background: #edf5fd; border-left: 6rpx solid #2f73d9; border-radius: 12rpx; line-height: 1.5; }
+.impact { margin: -4rpx 0 22rpx; padding: 18rpx; color: #625747; background: #f5ead8; border-left: 6rpx solid #a98243; border-radius: 12rpx; line-height: 1.5; }
 .verify-button { margin-top: 18rpx; }
 .submit-card { position: sticky; bottom: calc(16rpx + env(safe-area-inset-bottom)); z-index: 3; }

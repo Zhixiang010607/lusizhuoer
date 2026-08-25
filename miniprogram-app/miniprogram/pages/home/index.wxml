@@ -4,6 +4,8 @@
       <view class="rail-current" aria-label="{{roleTitle}}"><text class="rail-icon">{{session.role === 'hq' ? '总' : (session.role === 'store' ? '店' : '师')}}</text></view>
       <view wx:if="{{session.role !== 'hq'}}" class="rail-link {{businessMenuOpen ? 'active' : ''}}" bindtap="toggleBusinessMenu" aria-label="业务办理">办</view>
       <view wx:if="{{session.role !== 'teacher'}}" class="rail-link {{queryMenuOpen ? 'active' : ''}}" bindtap="toggleQueryMenu" aria-label="业务查询">查</view>
+      <view wx:if="{{session.role === 'hq'}}" class="rail-link {{managementMenuOpen ? 'active' : ''}}" bindtap="toggleManagementMenu" aria-label="管理">管</view>
+      <view wx:if="{{session.role === 'hq'}}" class="rail-link {{reviewMenuOpen ? 'active' : ''}}" bindtap="toggleReviewMenu" aria-label="审核">审</view>
       <view class="rail-link rail-logout" bindtap="logout" aria-label="退出登录">退</view>
     </view>
   </scroll-view>
@@ -21,9 +23,25 @@
       <view data-type="verification" bindtap="openQuery">核销查询</view>
     </view>
   </view>
+  <view wx:if="{{managementMenuOpen && session.role === 'hq'}}" class="business-popover management-popover">
+    <view class="popover-heading">管理</view>
+    <view class="popover-grid">
+      <view data-type="product" bindtap="openManagement">产品管理</view>
+      <view data-type="store" bindtap="openManagement">门店管理</view>
+      <view data-type="teacher" bindtap="openManagement">老师管理</view>
+    </view>
+  </view>
+  <view wx:if="{{reviewMenuOpen && session.role === 'hq'}}" class="business-popover review-popover">
+    <view class="popover-heading">审核</view>
+    <view class="popover-grid">
+      <view data-type="recharge" bindtap="openReview">充值审核</view>
+      <view data-type="verification" bindtap="openReview">核销审核</view>
+    </view>
+  </view>
 
   <view class="workspace-topbar">
-    <view><text class="topbar-eyebrow">{{session.role === 'hq' ? 'HEADQUARTERS ANALYTICS' : (session.role === 'store' ? 'STORE DASHBOARD' : 'MY WORKSPACE')}}</text><text class="topbar-title">露思卓儿</text><text class="topbar-role">{{roleTitle}}</text><text class="topbar-subtitle">{{roleSubtitle}}</text></view>
+    <view wx:if="{{session.role === 'hq'}}"><text class="topbar-role hq-page-title">{{roleTitle}}</text></view>
+    <view wx:else><text class="topbar-eyebrow">{{session.role === 'store' ? 'STORE DASHBOARD' : 'MY WORKSPACE'}}</text><text class="topbar-title">露思卓儿</text><text class="topbar-role">{{roleTitle}}</text><text class="topbar-subtitle">{{roleSubtitle}}</text></view>
   </view>
 
   <view class="workspace-main">
@@ -136,31 +154,53 @@
           <label><text>开始日期</text><picker mode="date" value="{{hqStart}}" bindchange="changeHqStart"><view class="filter-picker">{{hqStart}}</view></picker></label>
           <label><text>结束日期</text><picker mode="date" value="{{hqEnd}}" bindchange="changeHqEnd"><view class="filter-picker">{{hqEnd}}</view></picker></label>
         </view>
-        <view class="hq-filter-actions"><text>当前统计范围：{{hqStart}} 至 {{hqEnd}}</text><button bindtap="resetHqRange">重置筛选</button></view>
+        <view class="hq-filter-actions"><text>{{hqScopeText}}</text><button bindtap="resetHqRange">重置筛选</button></view>
       </view>
 
-      <view class="metric-grid">
-        <view wx:for="{{hqMetrics}}" wx:key="label" class="metric-card {{item.neutral ? 'neutral' : ''}}"><text>{{item.label}}</text><text>{{item.value}}</text><text>{{item.note}}</text></view>
+      <view class="metric-grid" aria-label="核心指标">
+        <view wx:for="{{hqMetrics}}" wx:key="label" class="metric-card {{item.neutral ? 'neutral' : ''}} {{item.drill ? 'interactive' : ''}}" role="{{item.drill ? 'button' : ''}}" data-drill="{{item.drill}}" data-title="{{item.label + '明细'}}" bindtap="openHqDetail"><text>{{item.label}}</text><text>{{item.value}}</text><text>{{item.note}}</text></view>
       </view>
 
       <view wx:for="{{hqCharts}}" wx:key="dimension" class="web-panel chart-card">
         <view class="panel-heading"><view><text class="panel-title">{{item.title}}</text><text class="panel-note">有效充值、核销、体验与退费次数 · 图内横向滚动</text></view><text class="web-badge">{{item.badge}}</text></view>
-        <block wx:if="{{item.rows.length}}"><view class="chart-legend"><view class="legend-item"><view class="legend-dot recharge-dot"></view><text>有效充值</text></view><view class="legend-item"><view class="legend-dot verification-dot"></view><text>有效核销</text></view><view class="legend-item"><view class="legend-dot experience-dot"></view><text>有效体验</text></view><view class="legend-item"><view class="legend-dot refund-dot"></view><text>有效退费</text></view><text>纵轴：次数</text></view><scroll-view class="chart-scroll" scroll-x enhanced show-scrollbar="false"><view class="bar-chart"><view class="bar-y-axis"><text>次数</text></view><view class="bar-canvas"><view wx:for="{{item.rows}}" wx:for-item="row" wx:key="entityId" class="bar-group"><view class="bars"><view wx:for="{{row.bars}}" wx:for-item="bar" wx:key="metric" class="bar {{bar.metric}}" style="height: {{bar.height}};"><text>{{bar.value}}</text></view></view><text class="bar-group-label">{{row.name}}</text></view></view></view></scroll-view></block>
+        <block wx:if="{{item.rows.length}}">
+          <view class="chart-legend"><view class="legend-item"><view class="legend-dot recharge-dot"></view><text>有效充值</text></view><view class="legend-item"><view class="legend-dot verification-dot"></view><text>有效核销</text></view><view class="legend-item"><view class="legend-dot experience-dot"></view><text>有效体验</text></view><view class="legend-item"><view class="legend-dot refund-dot"></view><text>有效退费</text></view><text>纵轴：次数 · 间隔 {{item.axis.step}}</text></view>
+          <view class="bar-chart-body">
+            <view class="bar-y-axis"><text class="axis-name">次数</text><text wx:for="{{item.axis.ticks}}" wx:for-item="tick" wx:key="value" class="axis-tick" style="top: {{tick.top}};">{{tick.label}}</text></view>
+            <scroll-view class="bar-plot-scroll" scroll-x enhanced show-scrollbar="false">
+              <view class="bar-canvas">
+                <view wx:for="{{item.axis.ticks}}" wx:for-item="tick" wx:key="value" class="bar-grid-line {{tick.zero ? 'zero' : ''}}" style="top: {{tick.top}};"></view>
+                <view wx:for="{{item.rows}}" wx:for-item="row" wx:key="entityId" class="bar-group" role="button" data-name="{{row.name + ' 的有效明细'}}" bindtap="openHqDetail">
+                  <view class="bars">
+                    <block wx:for="{{row.bars}}" wx:for-item="bar" wx:key="metric">
+                      <view class="bar {{bar.metric}} {{bar.valueClass}}" style="left: {{bar.left}}; top: {{bar.top}}; height: {{bar.height}};"></view>
+                      <text class="bar-value {{bar.metric}} {{bar.valueClass}}" style="left: {{bar.left}}; top: {{bar.valueTop}};">{{bar.value}}</text>
+                    </block>
+                  </view>
+                  <text class="bar-group-label">{{row.name}}</text>
+                </view>
+              </view>
+            </scroll-view>
+          </view>
+        </block>
         <view wx:else class="table-empty">当前日期范围暂无有效数据</view>
       </view>
 
       <view class="web-panel ranking-panel">
-        <view class="panel-heading ranking-heading"><view><text class="panel-title">完整排名</text><text class="panel-note">每页 100 条；图表仅显示 Top 10，完整排名按页读取</text></view><picker range="{{hqDimensionLabels}}" value="{{hqDimensionIndex}}" bindchange="chooseHqDimension"><view class="dimension-picker">分类维度 · {{hqDimensionLabels[hqDimensionIndex]}}</view></picker></view>
+        <view class="panel-heading ranking-heading"><view><text class="panel-title">完整排名</text><text class="panel-note">每页 100 条；图表仅显示 Top 10，完整排名按页读取</text></view><view class="ranking-actions"><picker range="{{hqDimensionLabels}}" value="{{hqDimensionIndex}}" bindchange="chooseHqDimension"><view class="dimension-picker">分类维度 · {{hqDimensionLabels[hqDimensionIndex]}}</view></picker><button bindtap="exportHqRanking" disabled="{{loading || hqRankingLoading || hqExporting || hqRankingError}}">{{hqExporting ? '正在导出…' : '导出当前数据'}}</button></view></view>
         <scroll-view class="table-scroll ranking-scroll" scroll-x enhanced show-scrollbar="false">
           <view class="ranking-table">
             <view class="table-row table-head"><view>排名</view><view>分类对象</view><view>分类维度</view><view>有效充值</view><view>有效核销</view><view>有效体验</view><view>有效退费</view><view>业务总计占比</view></view>
             <view wx:for="{{hqRanking}}" wx:key="entityId" class="table-row"><view>{{item.rank}}</view><view>{{item.name}}</view><view>按{{item.dimensionLabel}}</view><view>{{item.recharge}}</view><view>{{item.verification}}</view><view>{{item.experience}}</view><view>{{item.refund}}</view><view>{{item.share}}</view></view>
-            <view wx:if="{{!hqRanking.length}}" class="table-empty">{{loading ? '正在读取排名…' : '当前日期范围暂无有效数据'}}</view>
+            <view wx:if="{{!hqRanking.length}}" class="table-empty">{{loading || hqRankingLoading ? '正在读取排名…' : (hqRankingError || '当前日期范围暂无有效数据')}}</view>
           </view>
         </scroll-view>
-        <view class="table-pagination"><button disabled="{{hqRankingPage.previousDisabled}}" bindtap="previousHqPage">上一页</button><text>第 {{hqRankingPage.page}} / {{hqRankingPage.totalPages}} 页 · 共 {{hqRankingPage.total}} 条</text><button disabled="{{hqRankingPage.nextDisabled}}" bindtap="nextHqPage">下一页</button></view>
+        <view class="table-pagination hq-ranking-pagination"><button disabled="{{hqRankingPage.previousDisabled || hqRankingLoading}}" bindtap="previousHqPage">上一页</button><text>第 {{hqRankingPage.page}} / {{hqRankingPage.totalPages}} 页 · 共 {{hqRankingPage.total}} 条</text><view class="ranking-page-jump"><text>跳至第</text><input type="number" value="{{hqRankingInput}}" bindinput="inputHqPage" /><text>页</text><button disabled="{{hqRankingLoading}}" bindtap="jumpHqPage">跳转</button></view><button wx:if="{{hqRankingError}}" bindtap="retryHqRanking">重试排名</button><button disabled="{{hqRankingPage.nextDisabled || hqRankingLoading}}" bindtap="nextHqPage">下一页</button></view>
       </view>
     </block>
     <view class="safe-bottom"></view>
+  </view>
+  <view wx:if="{{hqDetailOpen}}" class="hq-detail-mask" bindtap="closeHqDetail">
+    <view class="hq-detail-dialog" catchtap="noop"><view class="hq-detail-heading"><text>{{hqDetailTitle}}</text><view role="button" aria-label="关闭" bindtap="closeHqDetail">×</view></view><text>{{hqDetailText}}</text><text>当前汇总来自数据库；逐笔记录请从顶部“查”进入充值查询或核销查询，并使用相同日期范围。</text></view>
   </view>
 </view>

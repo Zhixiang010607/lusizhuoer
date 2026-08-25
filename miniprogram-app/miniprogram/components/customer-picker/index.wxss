@@ -5,12 +5,12 @@
 .tabs button.active { color: #174f98; background: #fff; font-weight: 800; }
 .field-value { display: flex; align-items: center; width: 100%; min-height: 84rpx; padding: 0 20rpx; color: #132b46; background: #fff; border: 1rpx solid #ccd9e7; border-radius: 14rpx; }
 .manual-fields { display: grid; gap: 12rpx; }
-.search { min-height: 78rpx; color: #fff; background: #102947; border-radius: 14rpx; font-size: 25rpx; font-weight: 750; }
+.search { min-height: 78rpx; color: #fffdf8; background: #6f532e; border-radius: 14rpx; font-size: 25rpx; font-weight: 750; }
 .candidate { display: flex; gap: 18rpx; margin-top: 18rpx; padding: 18rpx; background: #fff; border: 1rpx solid #dbe5ef; border-radius: 16rpx; }
 .customer-photo { width: 128rpx; height: 156rpx; flex: none; background: #e7edf4; border-radius: 14rpx; }
 .candidate-info { display: flex; min-width: 0; flex-direction: column; justify-content: center; gap: 8rpx; color: #60758c; font-size: 22rpx; }
 .candidate-name { color: #10233d; font-size: 30rpx; font-weight: 800; }
-.confirm { min-height: 82rpx; margin-top: 14rpx; color: #fff; background: #102947; border-radius: 14rpx; font-size: 26rpx; font-weight: 800; }
+.confirm { min-height: 82rpx; margin-top: 14rpx; color: #fffdf8; background: #6f532e; border-radius: 14rpx; font-size: 26rpx; font-weight: 800; }
 .confirm[disabled] { color: #70849a; background: #dfe7ef; }
 .picker-message { display: block; margin-top: 13rpx; color: #4c6680; font-size: 22rpx; line-height: 1.45; }
 .picker-message.error { color: #a1322d; }
