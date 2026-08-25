@@ -2,9 +2,10 @@
 .detail-topbar { justify-content: space-between; gap: 14rpx; }
 .back-button { width: auto; min-width: 154rpx; min-height: 60rpx; margin: 0; padding: 0 14rpx; border-radius: 11rpx; font-size: 18rpx; }
 .store-status-badge.archived { color: #8f3a34; background: #fff0ee; }
-.teacher-profile-hero, .teacher-record-panel, .security-panel, .experience-panel { border-color: #e1cfaf; background: #fffaf3; }
-.teacher-record-panel .detail-info-grid { border-color: #dfcfb4; background: #dfcfb4; }
-.teacher-record-panel .detail-info-item { background: #fff8ec; }
+.teacher-profile-hero, .security-panel, .experience-panel { border-color: #e1cfaf; background: #fffaf3; }
+.teacher-profile-meta { min-width: 0; display: flex; align-items: center; gap: 18rpx; margin-top: 8rpx; color: #7c7062; }
+.teacher-profile-meta text { min-width: 0; display: block; overflow: hidden; font-size: 19rpx; text-overflow: ellipsis; white-space: nowrap; }
+.teacher-profile-meta text:last-child { flex: 1; }
 .security-panel .button-row button { min-height: 72rpx; font-size: 21rpx; }
 .security-panel .input, .experience-panel .input, .experience-panel .picker, .experience-panel .textarea { background: #fff; border-color: #dcc8a6; }
 .overview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; }
@@ -39,7 +40,6 @@
 .quota-facts text { display: block; }
 .quota-facts text:first-child { color: #7c7062; font-size: 19rpx; }
 .quota-facts text:last-child { width: 100%; min-width: 0; margin-top: 7rpx; font-size: 24rpx; font-weight: 850; white-space: nowrap; }
-.quota-facts view:last-child text:last-child { font-size: 19rpx; letter-spacing: -0.3rpx; }
 .forms-grid { display: grid; gap: 18rpx; margin-top: 26rpx; }
 .action-form { padding: 20rpx; background: #fff8ec; border: 1rpx solid #dfcfb4; border-radius: 20rpx; }
 .action-form button { margin: 0; }

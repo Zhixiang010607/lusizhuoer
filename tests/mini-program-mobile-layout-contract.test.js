@@ -162,15 +162,13 @@ test("mobile management controls stay centered without breaking data into charac
   assert.match(teacher, /\.quota-facts\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);[^}]*gap:\s*12rpx;/s,
     "each configured product must use a real two-by-two fact grid");
   assert.match(teacher, /\.quota-facts view\s*\{[^}]*min-height:\s*104rpx;[^}]*display:\s*flex;[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*text-align:\s*center;/s,
-    "all four configured-product facts must be centered inside equal cells");
+    "configured-product facts must be centered inside equal cells");
   assert.match(teacher, /\.quota-facts text:first-child\s*\{[^}]*font-size:\s*19rpx;/s);
   assert.match(teacher, /\.quota-facts text:last-child\s*\{[^}]*font-size:\s*24rpx;[^}]*white-space:\s*nowrap;/s);
-  assert.match(teacher, /\.quota-facts view:last-child text:last-child\s*\{[^}]*font-size:\s*19rpx;/s,
-    "the complete update timestamp stays on one line inside its half-width cell");
   assert.match(teacher, /\.history-row text\s*\{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s);
   assert.match(teacher, /\.history-row > view:first-child text:nth-child\(3\)\s*\{[^}]*overflow-wrap:\s*anywhere;[^}]*white-space:\s*normal;/s,
     "only a free-form history note may wrap; dates, counts, names, and codes stay intact");
-  assert.match(teacher, /\.teacher-profile-hero, \.teacher-record-panel, \.security-panel, \.experience-panel\s*\{[^}]*border-color:\s*#e1cfaf;[^}]*background:\s*#fffaf3/s,
+  assert.match(teacher, /\.teacher-profile-hero, \.security-panel, \.experience-panel\s*\{[^}]*border-color:\s*#e1cfaf;[^}]*background:\s*#fffaf3/s,
     "HQ teacher profile, account, and quota panels must use the same card palette as other pages");
   assert.match(teacher, /\.overview-card\s*\{[^}]*background:\s*#fff8ec;[^}]*border:\s*1rpx solid #dfcfb4/s);
   assert.match(teacher, /\.overview-card\.primary-card\s*\{[^}]*background:\s*#f6ead7;[^}]*border-color:\s*#d9bd8c/s);
@@ -181,6 +179,17 @@ test("mobile management controls stay centered without breaking data into charac
   assert.doesNotMatch(teacher, /\.quota-card\s*\{[^}]*background:\s*#fff;/s);
   const teacherWxml = read("miniprogram-app", "miniprogram", "pages", "teacher-detail", "index.wxml");
   const teacherJs = read("miniprogram-app", "miniprogram", "pages", "teacher-detail", "index.js");
+  assert.match(teacherWxml, /class="teacher-profile-meta"><text>编号 \{\{profile\.code\}\}<\/text><text>电话 \{\{profile\.phone\}\}<\/text>/,
+    "teacher code and phone move into the compact top profile hero");
+  assert.doesNotMatch(teacherWxml, /class="web-panel teacher-record-panel"|<text class="panel-title">老师档案<\/text>/,
+    "the redundant standalone teacher profile panel must be removed");
+  assert.doesNotMatch(`${teacherWxml}\n${teacherJs}`, /密码状态|passwordStatus/,
+    "HQ teacher profile must not repeat a derived password status above the password-management form");
+  assert.match(teacherWxml, /class="quota-facts"><view><text>每月基础<\/text>[\s\S]*<view><text>本月已体验<\/text>/);
+  assert.doesNotMatch(teacherWxml, /<text>单独充值<\/text>|<text>最近更新<\/text>|manualRechargeCount|monthlyResetText/,
+    "configured product cards show only the monthly base and current-month usage");
+  assert.match(teacherWxml, /<text class="subsection-title">单独充值体验次数<\/text>/,
+    "removing summary facts must not remove the actual top-up workflow");
   assert.match(teacherWxml, /class="history-list"[^>]*scroll-y[^>]*>[\s\S]*wx:for="\{\{history\}\}"/,
     "quota ledger stays inside its own vertical scrolling region");
   assert.match(teacher, /\.history-list\s*\{[^}]*max-height:\s*680rpx;[^}]*box-sizing:\s*border-box;[^}]*overflow-y:\s*auto;/s);

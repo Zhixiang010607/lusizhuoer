@@ -18,9 +18,9 @@ function entitlement(row = {}) {
     id: text(row.id, row.entitlementId, row.entitlement_id), productId: text(row.productId, row.product_id), productCode: text(row.productCode, row.product_code),
     productName: text(row.productName, row.product_name) || "未命名产品", productStatus: (text(row.productStatus, row.product_status) || "ACTIVE").toUpperCase(),
     monthlyAllowance: number(row, ["monthlyAllowance", "monthly_allowance"]), usedCount: number(row, ["usedCount", "used_count"]),
-    manualRechargeCount: number(row, ["manualRechargeCount", "manual_recharge_count"]), availableCount: number(row, ["availableCount", "available_count"]),
+    availableCount: number(row, ["availableCount", "available_count"]),
     totalExperienceCount: optionalNumber(row, ["totalExperienceCount", "total_experience_count", "totalUsedCount", "total_used_count"]),
-    monthlyResetText: formatTime(text(row.monthlyResetAt, row.monthly_reset_at)), productArchived: (text(row.productStatus, row.product_status) || "ACTIVE").toUpperCase() === "ARCHIVED"
+    productArchived: (text(row.productStatus, row.product_status) || "ACTIVE").toUpperCase() === "ARCHIVED"
   };
 }
 function totalRow(row = {}) { return { productId: text(row.productId, row.product_id), productCode: text(row.productCode, row.product_code), productName: text(row.productName, row.product_name) || "未命名产品", productStatus: (text(row.productStatus, row.product_status) || "ARCHIVED").toUpperCase(), totalExperienceCount: number(row, ["totalExperienceCount", "total_experience_count", "totalUsedCount", "total_used_count"]) }; }
@@ -30,7 +30,7 @@ function historyRow(row = {}, index = 0) {
 }
 function summaryRows(rows, totals) {
   const map = new Map(rows.map((row) => [row.productId, { ...row }]));
-  totals.forEach((total) => { const current = map.get(total.productId); if (current) current.totalExperienceCount = total.totalExperienceCount; else map.set(total.productId, { ...total, monthlyAllowance: 0, usedCount: 0, manualRechargeCount: 0, availableCount: 0, productArchived: total.productStatus === "ARCHIVED" }); });
+  totals.forEach((total) => { const current = map.get(total.productId); if (current) current.totalExperienceCount = total.totalExperienceCount; else map.set(total.productId, { ...total, monthlyAllowance: 0, usedCount: 0, availableCount: 0, productArchived: total.productStatus === "ARCHIVED" }); });
   return [...map.values()].map((row) => ({ ...row, totalDisplay: row.totalExperienceCount === null ? row.usedCount : row.totalExperienceCount })).sort((left, right) => left.productName.localeCompare(right.productName, "zh-CN"));
 }
 function validPassword(value) { const password = String(value || ""); const groups = [/[A-Z]/, /[a-z]/, /\d/, /[^A-Za-z\d]/].filter((rule) => rule.test(password)).length; return password.length >= 8 && password.length <= 32 && /^[A-Za-z0-9]/.test(password) && groups >= 3; }
@@ -122,7 +122,7 @@ Page({
   back() { wx.navigateBack(); },
   profileView(staff) {
     const name = text(staff.staff_name, staff.teacher_name) || "老师";
-    return { name, initials: Array.from(name)[0] || "师", code: text(staff.person_code, staff.teacher_code) || "未分配", phone: text(staff.phone) || "未填写", archived: archived(staff), passwordStatus: [true, "true", "t", 1, "1"].includes(staff.password_change_required) ? "临时密码待本人修改" : "密码已由本人确认", authUid: text(staff.auth_uid) };
+    return { name, initials: Array.from(name)[0] || "师", code: text(staff.person_code, staff.teacher_code) || "未分配", phone: text(staff.phone) || "未填写", archived: archived(staff), authUid: text(staff.auth_uid) };
   },
   async load() {
     if (this._unloaded) return;
