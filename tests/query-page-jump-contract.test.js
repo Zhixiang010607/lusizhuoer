@@ -14,7 +14,7 @@ for (const page of ["recharge-query.html", "verification-query.html"]) {
   const html = read(page);
   assert.match(html, /id="recordPageJumpInput"[^>]*type="number"[^>]*min="1"[^>]*step="1"/, `${page} exposes a positive-integer page input`);
   assert.match(html, /id="recordPageJumpButton"[^>]*>跳转<\//, `${page} exposes an explicit page-jump action`);
-  assert.match(html, /query\.js\?v=0\.15\.10/, `${page} busts the record-query script cache`);
+  assert.match(html, /query\.js\?v=0\.15\.11/, `${page} busts the record-query script cache`);
   assert.match(html, /styles\.css\?v=0\.15\.48/, `${page} busts the pager-style cache`);
 }
 

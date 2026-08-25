@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const VERSION = "0.16.4";
+  const VERSION = "0.16.5";
   const CUSTOMER_PAGE_SIZE = 10;
   const RECORD_PAGE_SIZE = 10;
   const TYPES = Object.freeze(["VERIFICATION", "RECHARGE", "EXPERIENCE", "REFUND"]);
@@ -22,7 +22,7 @@
   const emptyTypeMap = (factory) => Object.fromEntries(TYPES.map((type) => [type, factory(type)]));
   const state = {
     activeType: "VERIFICATION",
-    preset: "MONTH",
+    preset: "TODAY",
     range: { startDate: "", endDate: "" },
     rangeEpoch: 0,
     records: emptyTypeMap(() => []),
@@ -348,7 +348,7 @@
       const preset = button.dataset.rangePreset;
       if (preset === "CUSTOM") {
         state.preset = "CUSTOM";
-        const fallback = presetRange("MONTH");
+        const fallback = presetRange("TODAY");
         $("teacherRangeStart").value = state.range.startDate || fallback.startDate;
         $("teacherRangeEnd").value = state.range.endDate || fallback.endDate;
         renderRangeControls();
@@ -396,7 +396,7 @@
     renderProfile({});
     renderTabs();
     bindEvents();
-    applyRange("MONTH");
+    applyRange("TODAY");
     void loadBusinessCustomers();
     document.documentElement.dataset.prototypeVersion = VERSION;
   }

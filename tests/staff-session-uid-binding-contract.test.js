@@ -91,7 +91,7 @@ test("browser clients request staff session without resending the login phone", 
 test("an unknown authenticated UID fails even when the caller supplies an existing-looking phone", async () => {
   const state = { recoveryCalls: 0, sqlCalls: 0, bootstrapCalls: 0 };
   const sandbox = {
-    FUNCTION_VERSION: "v69",
+    FUNCTION_VERSION: "v71",
     console,
     module: { exports: {} },
     exports: {},

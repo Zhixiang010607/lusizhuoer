@@ -37,9 +37,13 @@ const styles = read("styles.css");
 const overview = functionSource(cloud, "getHqDashboardOverview");
 const ranking = functionSource(cloud, "getHqDashboardRanking");
 const rankingSql = functionSource(cloud, "hqDashboardRankingSql");
+const rankingRequest = functionSource(cloud, "dashboardRankingRequest");
+const businessEvents = functionSource(cloud, "hqBusinessEventsCte");
+const productSummarySql = functionSource(cloud, "hqDashboardProductSummarySql");
+const productSummary = functionSource(cloud, "getHqDashboardProductSummary");
 const dispatcher = functionSource(cloud, "getHqDashboard");
 
-assert.match(cloud, /const FUNCTION_VERSION = "v69"/, "large-data dashboard deployment must identify as v69");
+assert.match(cloud, /const FUNCTION_VERSION = "v71"/, "large-data dashboard deployment must identify as v71");
 assert.match(cloud, /const HQ_DASHBOARD_CHART_LIMIT = 10/, "overview charts must be strictly bounded");
 assert.match(cloud, /const HQ_DASHBOARD_MAX_PAGE_SIZE = 500/, "ranking page size must have a server maximum");
 assert.doesNotMatch(cloud, /getHqDashboardLegacyFullPayload/, "the unsafe full-payload dashboard query must not remain callable or retained");
@@ -58,13 +62,52 @@ assert.doesNotMatch(overview, /teacherRows|store_product_rows|teacher_product_ro
 assert.match(rankingSql, /COUNT\(\*\) OVER \(\)/, "each ranking page must carry its total count without returning all rows");
 assert.match(rankingSql, /LIMIT \$\{pageSize\} OFFSET \$\{pageOffset\}/,
   "ranking SQL must use bounded deterministic pagination");
+assert.match(rankingRequest, /\["store", "teacher"\]/,
+  "ranking objects are exactly store or teacher; project is a filter, not a ranking object");
+assert.match(rankingRequest, /\["recharge", "verification", "experience", "refund"\]/,
+  "ranking must validate the selected business metric");
+assert.match(rankingRequest, /productIdText \? numericId\(productIdText, "排名项目"\) : null/,
+  "ranking must validate an optional concrete project id");
+assert.match(businessEvents, /r\.product_id = \$\{productIdSql\}/);
+assert.match(businessEvents, /v\.product_id = \$\{productIdSql\}/);
+assert.match(rankingSql, /ORDER BY \$\{rankingColumn\} DESC/,
+  "database ordering must use the selected metric instead of a client-side page sort");
+assert.match(rankingSql, /AS ranking_total/,
+  "selected-metric share must use the full filtered metric total");
 assert.match(ranking, /pageNumber = Math\.min\(request\.pageNumber, totalPages\)/,
   "a stale high page request must be clamped safely");
+assert.match(productSummarySql, /FROM public\.products product[\s\S]*LEFT JOIN business_events event ON event\.product_id = product\.id/,
+  "project summary must include every configured project, including zero-business projects");
+assert.match(productSummarySql, /COUNT\(\*\) OVER \(\)::bigint AS total_rows/,
+  "project summary must count every project before pagination");
+assert.match(productSummarySql, /ROW_NUMBER\(\) OVER[\s\S]*ORDER BY entity_name ASC/,
+  "project summary pages must have stable project-name ordering");
+assert.match(productSummary, /pageSize:\s*request\.pageSize[\s\S]*totalPages:[\s\S]*rows:/,
+  "project summary must expose bounded pagination metadata and rows");
+assert.match(dispatcher, /mode === "product-summary"[\s\S]*getHqDashboardProductSummary/,
+  "project summary must have a dedicated read mode instead of reusing Top 10 ranking rows");
 
-assert.match(wrapper, /mode = "overview", dimension, pageNumber, pageSize/,
+assert.match(wrapper, /mode = "overview", dimension, rankingMetric, productId, pageNumber, pageSize/,
   "browser wrapper must forward the bounded dashboard request contract");
 assert.match(app, /mode: "overview"/, "dashboard initial load must request the small overview mode");
 assert.match(app, /mode: "ranking"/, "dashboard initial load and export must request paged rankings");
+assert.match(app, /rankingMetric,[\s\S]*productId,/,
+  "browser ranking requests must forward both business type and project scope");
+assert.match(app, /\["store", "teacher"\]\.map/,
+  "browser ranking objects must be limited to store or teacher");
+assert.match(app, /id="dashboardRankingProduct"/,
+  "browser ranking must offer all projects or one concrete project");
+assert.match(page, /option value="today" selected>今天<\/option>/,
+  "browser HQ first entry must default to today");
+assert.match(page, /id="dashboardRankingControls" class="dashboard-ranking-controls"/,
+  "time and ranking controls must live in the same filter panel");
+assert.match(page, /id="productSummaryBody"/);
+assert.match(page, /id="productSummaryPrevious"[\s\S]*id="productSummaryNext"/,
+  "browser project summary must page through all configured projects");
+assert.match(app, /mode:\s*"product-summary"[\s\S]*pageSize:\s*PRODUCT_SUMMARY_PAGE_SIZE/,
+  "browser must read the complete project summary through the dedicated paged service");
+assert.match(app, /\$\("period"\)\.value = "today"[\s\S]*\$\("rankingDimension"\)\.value = "store"[\s\S]*state\.rankingMetric = "recharge"[\s\S]*state\.rankingProductId = ""/,
+  "browser reset must restore today, store, all products, and recharge");
 assert.match(app, /Promise\.allSettled/, "a ranking failure must not discard a successful overview");
 assert.match(app, /try \{[\s\S]*?state\.ranking = normalizeRanking\(rankingResult\.value, dimension\)[\s\S]*?catch \(rankingError\)/,
   "a malformed fulfilled ranking response must not discard a successful overview");

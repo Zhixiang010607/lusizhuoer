@@ -83,7 +83,7 @@ for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))
     : file === "teacher-detail.html"
     ? "0.15.50"
     : file === "store-detail.html"
-    ? "0.15.57"
+    ? "0.15.60"
     : file === "store-management.html"
     ? "0.15.49"
     : ["store-analysis.html", "project-detail.html", "project-management.html", "project-create.html"].includes(file)
@@ -96,8 +96,8 @@ for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))
       ? "0.15.49"
     : ["customer-query.html", "recharge-query.html", "verification-query.html", "refund-review.html", "verification-review.html"].includes(file)
         ? "0.15.48"
-        : file === "index.html"
-          ? "0.15.45"
+    : file === "index.html"
+          ? "0.15.49"
         : file === "login.html"
           ? "0.15.59"
           : "0.15.44";

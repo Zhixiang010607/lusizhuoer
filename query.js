@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.10";
+  const VERSION = "0.15.11";
   const type = document.body.dataset.query;
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
@@ -49,7 +49,7 @@
 
     function setRecordPageJumpFiltersLocked(locked) {
       const ids = [
-        "recordProduct", "recordStatusCategory", "recordVerificationType", "recordTimeRange",
+        "recordProduct", "recordStatusCategory", "recordRechargeType", "recordVerificationType", "recordTimeRange",
         "recordDateStart", "recordDateEnd", "recordCustomerName", "recordCustomerBirthday",
         "recordStoreScope", "runRecordQuery", "resetRecordQuery"
       ];
@@ -192,6 +192,7 @@
         data.startDate = $("recordDateStart").value;
         data.endDate = $("recordDateEnd").value;
         if (recordType === "VERIFICATION") data.verificationType = $("recordVerificationType").value;
+        else data.rechargeType = $("recordRechargeType")?.value || "ALL";
       }
       if (cursor) {
         data.cursorSubmittedAt = cursor.submittedAt;
@@ -426,6 +427,24 @@
       }
     }
 
+    function applyDashboardEntryFilters() {
+      if (!isHq) return;
+      const params = new URLSearchParams(window.location.search);
+      const drill = String(params.get("drill") || "").toLowerCase();
+      const startDate = String(params.get("startDate") || "");
+      const endDate = String(params.get("endDate") || "");
+      if (/^\d{4}-\d{2}-\d{2}$/.test(startDate) && /^\d{4}-\d{2}-\d{2}$/.test(endDate) && startDate <= endDate) {
+        $("recordTimeRange").value = "custom";
+        $("recordDateStart").value = startDate;
+        $("recordDateEnd").value = endDate;
+      }
+      if (recordType === "VERIFICATION") {
+        if (drill === "verification") $("recordVerificationType").value = "NORMAL";
+        else if (drill === "experience") $("recordVerificationType").value = "EXPERIENCE";
+      } else if (drill === "recharge") $("recordRechargeType").value = "NEW";
+      else if (drill === "refund") $("recordRechargeType").value = "REFUND";
+    }
+    applyDashboardEntryFilters();
     applyTimeRange();
     document.querySelectorAll("[data-record-query-mode]").forEach((button) => {
       button.onclick = () => {
@@ -433,7 +452,7 @@
         load({ resetPage: true });
       };
     });
-    ["recordProduct", "recordStatusCategory"].forEach((id) => {
+    ["recordProduct", "recordStatusCategory", "recordRechargeType"].forEach((id) => {
       if ($(id)) $(id).onchange = () => { setMode("browse"); load({ resetPage: true }); };
     });
     if (recordType === "VERIFICATION") {
@@ -457,6 +476,7 @@
       $("recordProduct").value = "ALL";
       if ($("recordStatusCategory")) $("recordStatusCategory").value = "ALL";
       if (recordType === "VERIFICATION") $("recordVerificationType").value = "ALL";
+      else if ($("recordRechargeType")) $("recordRechargeType").value = "ALL";
       $("recordCustomerName").value = "";
       $("recordCustomerBirthday").value = "";
       $("recordCustomerBirthday").syncChineseBirthday?.();

@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v69";
+const FUNCTION_VERSION = "v71";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -1140,7 +1140,7 @@ function dashboardDateRange(event) {
 
 function dashboardReadMode(event = {}) {
   const mode = String(event.mode || "overview").trim().toLowerCase();
-  if (mode === "overview" || mode === "ranking") return mode;
+  if (mode === "overview" || mode === "ranking" || mode === "product-summary") return mode;
   fail("总部看板读取类型无效", "BAD_REQUEST");
 }
 
@@ -1157,11 +1157,18 @@ function strictDashboardPositiveInteger(value, label, fallback, maximum) {
 
 function dashboardRankingRequest(event = {}) {
   const dimension = String(event.dimension || "store").trim().toLowerCase();
-  if (!new Set(["store", "project", "teacher"]).has(dimension)) {
+  if (!new Set(["store", "teacher"]).has(dimension)) {
     fail("总部看板排名维度无效", "BAD_REQUEST");
   }
+  const rankingMetric = String(event.rankingMetric || "recharge").trim().toLowerCase();
+  if (!new Set(["recharge", "verification", "experience", "refund"]).has(rankingMetric)) {
+    fail("总部看板排名业务类型无效", "BAD_REQUEST");
+  }
+  const productIdText = String(event.productId || "").trim();
   return {
     dimension,
+    rankingMetric,
+    productId: productIdText ? numericId(productIdText, "排名项目") : null,
     pageNumber: strictDashboardPositiveInteger(
       event.pageNumber,
       "排名页码",
@@ -1172,6 +1179,23 @@ function dashboardRankingRequest(event = {}) {
       event.pageSize,
       "每页数量",
       HQ_DASHBOARD_DEFAULT_PAGE_SIZE,
+      HQ_DASHBOARD_MAX_PAGE_SIZE
+    )
+  };
+}
+
+function dashboardProductSummaryRequest(event = {}) {
+  return {
+    pageNumber: strictDashboardPositiveInteger(
+      event.pageNumber,
+      "项目汇总页码",
+      1,
+      HQ_DASHBOARD_MAX_PAGE_NUMBER
+    ),
+    pageSize: strictDashboardPositiveInteger(
+      event.pageSize,
+      "项目汇总每页条数",
+      10,
       HQ_DASHBOARD_MAX_PAGE_SIZE
     )
   };
@@ -1192,7 +1216,8 @@ function hqDashboardDateSql(requestedRange) {
 // classify whether teacher_id has a valid store/teacher source; they never
 // filter an event. Presentation master tables are joined after aggregation, so
 // archive status never removes historical facts from the headquarters totals.
-function hqBusinessEventsCte(startDateSql, endDateSql) {
+function hqBusinessEventsCte(startDateSql, endDateSql, productId = null) {
+  const productIdSql = productId ? `${productId}::bigint` : "NULL::bigint";
   return `WITH date_bounds AS (
     SELECT ${startDateSql} AS start_date,
            ${endDateSql} AS end_date
@@ -1225,6 +1250,7 @@ function hqBusinessEventsCte(startDateSql, endDateSql) {
         ON submitting_teacher.staff_account_id = submitter.id
      WHERE r.record_status = 'APPROVED'
        AND r.recharge_type IN ('NEW', 'REFUND')
+       AND (${productIdSql} IS NULL OR r.product_id = ${productIdSql})
        AND r.submitted_at >= b.start_at
        AND r.submitted_at < b.end_at
     UNION ALL
@@ -1250,6 +1276,7 @@ function hqBusinessEventsCte(startDateSql, endDateSql) {
         ON submitting_teacher.staff_account_id = submitter.id
      WHERE v.record_status = 'APPROVED'
        AND v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')
+       AND (${productIdSql} IS NULL OR v.product_id = ${productIdSql})
        AND v.submitted_at >= b.start_at
        AND v.submitted_at < b.end_at
   )`;
@@ -3531,9 +3558,19 @@ async function getHqDashboardOverview(requestedRange) {
   };
 }
 
-function hqDashboardRankingSql(startDateSql, endDateSql, dimension, pageSize, pageOffset) {
+function hqDashboardRankingMetricColumn(metric) {
+  return {
+    recharge: "recharge_count",
+    verification: "verification_count",
+    experience: "experience_count",
+    refund: "refund_count"
+  }[metric] || "recharge_count";
+}
+
+function hqDashboardRankingSql(startDateSql, endDateSql, dimension, rankingMetric, productId, pageSize, pageOffset) {
   const projection = hqDashboardRankingProjection(dimension);
-  return `${hqBusinessEventsCte(startDateSql, endDateSql)},
+  const rankingColumn = hqDashboardRankingMetricColumn(rankingMetric);
+  return `${hqBusinessEventsCte(startDateSql, endDateSql, productId)},
     ranked AS (
       ${projection}
     ), ranked_with_totals AS (
@@ -3541,14 +3578,15 @@ function hqDashboardRankingSql(startDateSql, endDateSql, dimension, pageSize, pa
              COUNT(*) OVER () AS total_rows,
              COALESCE(SUM(
                ranked.recharge_count + ranked.verification_count + ranked.experience_count + ranked.refund_count
-             ) OVER (), 0)::bigint AS business_total
+             ) OVER (), 0)::bigint AS business_total,
+             COALESCE(SUM(ranked.${rankingColumn}) OVER (), 0)::bigint AS ranking_total
         FROM ranked
     )
     SELECT entity_id, entity_code, entity_name,
            recharge_count, verification_count, experience_count, refund_count,
-           total_rows, business_total
+           total_rows, business_total, ranking_total
       FROM ranked_with_totals
-     ORDER BY (recharge_count + verification_count + experience_count + refund_count) DESC,
+     ORDER BY ${rankingColumn} DESC,
               entity_name ASC NULLS LAST,
               entity_id ASC
      LIMIT ${pageSize} OFFSET ${pageOffset}`;
@@ -3564,6 +3602,8 @@ async function getHqDashboardRanking(requestedRange, event) {
         startDateSql,
         endDateSql,
         request.dimension,
+        request.rankingMetric,
+        request.productId,
         request.pageSize,
         (request.pageNumber - 1) * request.pageSize
       )
@@ -3579,16 +3619,18 @@ async function getHqDashboardRanking(requestedRange, event) {
   let pageNumber = request.pageNumber;
   let total = Number(rows?.[0]?.total_rows || 0);
   let businessTotal = Number(rows?.[0]?.business_total || 0);
+  let rankingTotal = Number(rows?.[0]?.ranking_total || 0);
   if (!rows?.length && request.pageNumber > 1) {
     let totalRows;
     try {
       totalRows = await executeSql(
-        `${hqBusinessEventsCte(startDateSql, endDateSql)},
+        `${hqBusinessEventsCte(startDateSql, endDateSql, request.productId)},
          ranked AS (
            ${hqDashboardRankingProjection(request.dimension)}
          )
          SELECT COUNT(*)::bigint AS total_rows,
-                COALESCE(SUM(recharge_count + verification_count + experience_count + refund_count), 0)::bigint AS business_total
+                COALESCE(SUM(recharge_count + verification_count + experience_count + refund_count), 0)::bigint AS business_total,
+                COALESCE(SUM(${hqDashboardRankingMetricColumn(request.rankingMetric)}), 0)::bigint AS ranking_total
            FROM ranked`
       );
     } catch (error) {
@@ -3596,6 +3638,7 @@ async function getHqDashboardRanking(requestedRange, event) {
     }
     total = Number(totalRows?.[0]?.total_rows || 0);
     businessTotal = Number(totalRows?.[0]?.business_total || 0);
+    rankingTotal = Number(totalRows?.[0]?.ranking_total || 0);
     const totalPages = Math.max(1, Math.ceil(total / request.pageSize));
     pageNumber = Math.min(request.pageNumber, totalPages);
     if (total > 0 && pageNumber !== request.pageNumber) {
@@ -3605,6 +3648,8 @@ async function getHqDashboardRanking(requestedRange, event) {
             startDateSql,
             endDateSql,
             request.dimension,
+            request.rankingMetric,
+            request.productId,
             request.pageSize,
             (pageNumber - 1) * request.pageSize
           )
@@ -3618,12 +3663,107 @@ async function getHqDashboardRanking(requestedRange, event) {
   return {
     ranking: {
       dimension: request.dimension,
+      rankingMetric: request.rankingMetric,
+      productId: request.productId ? String(request.productId) : "",
       pageNumber,
       pageSize: request.pageSize,
       total,
       totalPages,
       businessTotal,
+      rankingTotal,
       rows: (rows || []).map(hqDashboardRow)
+    }
+  };
+}
+
+function hqDashboardProductSummarySql(startDateSql, endDateSql, pageNumber, pageSize) {
+  return `${hqBusinessEventsCte(startDateSql, endDateSql)},
+    product_summary AS (
+      SELECT product.id AS entity_id,
+             COALESCE(product.product_code::text, '') AS entity_code,
+             COALESCE(product.product_name::text, '') AS entity_name,
+             COALESCE(SUM(event.recharge_count), 0)::bigint AS recharge_count,
+             COALESCE(SUM(event.verification_count), 0)::bigint AS verification_count,
+             COALESCE(SUM(event.experience_count), 0)::bigint AS experience_count,
+             COALESCE(SUM(event.refund_count), 0)::bigint AS refund_count
+        FROM public.products product
+   LEFT JOIN business_events event ON event.product_id = product.id
+    GROUP BY product.id, product.product_code, product.product_name
+    ), ordered_products AS (
+      SELECT product_summary.*,
+             ROW_NUMBER() OVER (
+               ORDER BY entity_name ASC NULLS LAST, entity_code ASC NULLS LAST, entity_id ASC
+             )::bigint AS row_number,
+             COUNT(*) OVER ()::bigint AS total_rows
+        FROM product_summary
+    ), summary_meta AS (
+      SELECT COALESCE(MAX(total_rows), 0)::bigint AS total_rows,
+             LEAST(
+               ${pageNumber}::bigint,
+               GREATEST(1::bigint, CEIL(COALESCE(MAX(total_rows), 0)::numeric / ${pageSize})::bigint)
+             ) AS page_number
+        FROM ordered_products
+    ), result_rows AS (
+      SELECT 'META'::text AS row_type,
+             NULL::bigint AS entity_id,
+             NULL::text AS entity_code,
+             NULL::text AS entity_name,
+             NULL::bigint AS recharge_count,
+             NULL::bigint AS verification_count,
+             NULL::bigint AS experience_count,
+             NULL::bigint AS refund_count,
+             meta.total_rows,
+             meta.page_number,
+             0::bigint AS row_number
+        FROM summary_meta meta
+      UNION ALL
+      SELECT 'ROW'::text AS row_type,
+             product.entity_id,
+             product.entity_code,
+             product.entity_name,
+             product.recharge_count,
+             product.verification_count,
+             product.experience_count,
+             product.refund_count,
+             meta.total_rows,
+             meta.page_number,
+             product.row_number
+        FROM ordered_products product
+       CROSS JOIN summary_meta meta
+       WHERE product.row_number > (meta.page_number - 1) * ${pageSize}
+         AND product.row_number <= meta.page_number * ${pageSize}
+    )
+    SELECT *
+      FROM result_rows
+     ORDER BY CASE row_type WHEN 'META' THEN 0 ELSE 1 END, row_number ASC`;
+}
+
+async function getHqDashboardProductSummary(requestedRange, event) {
+  const request = dashboardProductSummaryRequest(event);
+  const { startDateSql, endDateSql } = hqDashboardDateSql(requestedRange);
+  let resultRows;
+  try {
+    resultRows = await executeSql(
+      hqDashboardProductSummarySql(
+        startDateSql,
+        endDateSql,
+        request.pageNumber,
+        request.pageSize
+      )
+    );
+  } catch (error) {
+    asDatabaseError(error, "读取总部首页项目汇总");
+  }
+  const meta = (resultRows || []).find((row) => row.row_type === "META") || {};
+  const total = Number(meta.total_rows || 0);
+  const pageNumber = Number(meta.page_number || 1);
+  return {
+    productSummary: {
+      pageNumber,
+      pageSize: request.pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / request.pageSize)),
+      rows: (resultRows || []).filter((row) => row.row_type === "ROW").map(hqDashboardRow)
     }
   };
 }
@@ -3633,7 +3773,9 @@ async function getHqDashboard(event = {}) {
   const mode = dashboardReadMode(event);
   const payload = mode === "ranking"
     ? await getHqDashboardRanking(requestedRange, event)
-    : await getHqDashboardOverview(requestedRange);
+    : mode === "product-summary"
+      ? await getHqDashboardProductSummary(requestedRange, event)
+      : await getHqDashboardOverview(requestedRange);
   return { ok: true, version: FUNCTION_VERSION, mode, ...payload };
 }
 

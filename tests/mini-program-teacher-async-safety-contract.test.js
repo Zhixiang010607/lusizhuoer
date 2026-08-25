@@ -301,12 +301,14 @@ test("store initial home and HQ ranking reject late responses after a tab or dim
   const currentRankingLoad = hqPage.loadHqRanking(1);
   newRanking.resolve({ ranking: {
     rows: [{ entityId: "T-NEW", name: "新老师", recharge: 1, verification: 2, experience: 0, refund: 0, businessTotal: 3 }],
-    total: 1, pageNumber: 1, pageSize: 100, totalPages: 1, businessTotal: 3
+    dimension: "teacher", rankingMetric: "recharge", productId: "",
+    total: 1, pageNumber: 1, pageSize: 100, totalPages: 1, businessTotal: 3, rankingTotal: 1
   } });
   await currentRankingLoad;
   oldRanking.resolve({ ranking: {
     rows: [{ entityId: "S-OLD", name: "旧门店", recharge: 9, verification: 0, experience: 0, refund: 0, businessTotal: 9 }],
-    total: 1, pageNumber: 1, pageSize: 100, totalPages: 1, businessTotal: 9
+    dimension: "store", rankingMetric: "recharge", productId: "",
+    total: 1, pageNumber: 1, pageSize: 100, totalPages: 1, businessTotal: 9, rankingTotal: 9
   } });
   await staleRankingLoad;
   assert.equal(hqPage.data.hqRanking[0].entityId, "T-NEW");

@@ -130,9 +130,12 @@ test("HQ ranking resets horizontal position for page and retry requests and reje
   await retry;
 });
 
-test("HQ ranking scroll view is controlled by the tracked horizontal position", () => {
+test("HQ ranking uses bounded cards instead of a horizontally scrolling wide table", () => {
   const wxml = read("pages", "home", "index.wxml");
-  assert.match(wxml, /class="table-scroll ranking-scroll"[^>]*scroll-left="\{\{hqRankingScrollLeft\}\}"[^>]*bindscroll="rememberHqRankingScroll"/);
+  const wxss = read("pages", "home", "index.wxss");
+  assert.match(wxml, /class="hq-ranking-list"/);
+  assert.doesNotMatch(wxml, /class="table-scroll ranking-scroll"/);
+  assert.match(wxss, /\.hq-ranking-card\s*\{[^}]*border:[^}]*border-radius:/s);
 });
 
 test("HQ invalid custom range cancels pending work and clears the previous scope", () => {

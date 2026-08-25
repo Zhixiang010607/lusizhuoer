@@ -120,8 +120,8 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
   assert.match(wxml, /session\.role === 'store'/);
   assert.match(wxml, /session\.role === 'hq'/);
   assert.match(wxss, /\.record-tabs\s*\{[^}]*grid-template-columns:\s*repeat\(2,/s);
-  assert.match(wxss, /\.metric-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/s,
-    "the 390px web breakpoint renders HQ metrics in one column");
+  assert.doesNotMatch(wxml, /class="metric-grid"|hq-analysis-card|分类统计|前 10 名/,
+    "the compact HQ home must not restore the redundant six metrics or duplicate Top 10 card");
   assert.match(wxss, /\.range-presets\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)[^}]*overflow:\s*hidden[^}]*background:\s*#eee3d2/s);
   assert.match(wxss, /\.range-button\s*\{[^}]*width:\s*100%\s*!important[^}]*max-width:\s*100%[^}]*align-items:\s*center[^}]*justify-content:\s*center/s);
   assert.match(wxss, /\.range-button\.active\s*\{[^}]*background:\s*#fffaf3[^}]*border-color:\s*#d9bd8c/s);
@@ -136,8 +136,10 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
   assert.match(wxss, /\.table-row > view\s*\{[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
   assert.match(wxss, /\.detail-info-item text\s*\{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s,
     "profile facts must not split identifiers and phone numbers across lines");
-  assert.match(wxss, /\.ranking-table \.table-row > view\s*\{[^}]*justify-content:\s*center;[^}]*text-align:\s*center;/s,
-    "ranking headers and values must remain centered in their cells");
+  assert.match(wxss, /\.hq-ranking-list\s*\{[^}]*display:\s*grid/s,
+    "the mobile HQ ranking uses contained cards rather than a wide table");
+  assert.match(wxss, /\.hq-ranking-head\s*\{[^}]*grid-template-columns:\s*auto minmax\(0,\s*1fr\) auto/s,
+    "rank, name, and share must share one bounded card row");
   assert.match(wxss, /\.summary-table \.table-head \.summary-product\s*\{[^}]*align-items:\s*center\s*!important;[^}]*text-align:\s*center;/s,
     "the product summary header must be centered while product rows remain left aligned");
   assert.match(wxss, /\.table-pagination > text\s*\{[^}]*text-align:\s*center;[^}]*white-space:\s*nowrap;/s,
@@ -199,6 +201,9 @@ test("mobile management controls stay centered without breaking data into charac
 });
 
 test("home dashboard mapper preserves web metric and profile column semantics", () => {
+  const js = read("miniprogram-app", "miniprogram", "pages", "home", "index.js");
+  const wxss = read("miniprogram-app", "miniprogram", "pages", "home", "index.wxss");
+  const storeDetailWxml = read("miniprogram-app", "miniprogram", "pages", "store-detail", "index.wxml");
   const rows = dashboard.hqRows([{ entityId: "1", entityName: "中心店", entityCode: "S001",
     recharge: 12, verification: 9, experience: 3, refund: 2 }], "store");
   assert.deepEqual(rows[0].bars.map((bar) => bar.metric), ["recharge", "verification", "experience", "refund"]);
@@ -208,7 +213,15 @@ test("home dashboard mapper preserves web metric and profile column semantics", 
     auth_uid: "uid-demo", store_code: "S001", store_name: "中心店", province: "江西省",
     city: "南昌市", district: "红谷滩区", address_detail: "测试路", store_status: "ACTIVE",
     contact_name: "联系人", contact_phone: "13900000000"
-  }).map((fact) => fact.label), ["唯一身份 ID", "业务编号", "门店名称", "地区", "详细地址", "门店状态", "联系人", "联系电话"]);
+  }).map((fact) => fact.label), ["地区", "详细地址", "联系人", "联系电话"]);
+  assert.match(js, /rangePreset:\s*"TODAY", rangeOptions:\s*readyRangeOptions\("TODAY"\)/,
+    "teacher and store role homes must default to today");
+  assert.match(storeDetailWxml, /<text class="profile-type">门店<\/text>[\s\S]*业务编号 \{\{storeHero\.code\}\}/,
+    "the store hero must show the useful business code instead of the long Auth UID");
+  assert.match(storeDetailWxml, /class="panel-title">联系与地址<\/text>[\s\S]*class="detail-info-grid store-profile-facts"/,
+    "the store profile must not repeat identity facts already present in the hero");
+  assert.match(wxss, /\.store-profile-facts\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)[^}]*background:\s*transparent/s,
+    "the four store contact facts use the shared compact warm layout");
   assert.equal(dashboard.storeCustomerGroups({ store_name: "中心店", customers: [{ customer_code: "C001" }], customer_total: 1 }).active.rows[0].storeName, "中心店");
 });
 

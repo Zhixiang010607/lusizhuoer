@@ -14,6 +14,7 @@ test("HQ home exposes the complete web mobile rail and isolated ranking interact
   const js = read("pages", "home", "index.js");
   const wxml = read("pages", "home", "index.wxml");
   const wxss = read("pages", "home", "index.wxss");
+  const webIndex = fs.readFileSync(path.join(root, "index.html"), "utf8");
 
   for (const label of ["客户查询", "充值查询", "核销查询", "产品管理", "门店管理", "老师管理", "充值审核", "核销审核"]) {
     assert.match(wxml, new RegExp(label), `HQ mobile rail is missing ${label}`);
@@ -27,6 +28,13 @@ test("HQ home exposes the complete web mobile rail and isolated ranking interact
   assert.match(wxml, /aria-label="退出登录"/);
   assert.match(js, /async loadHqRanking\(pageNumber = 1\)/);
   assert.match(js, /chooseHqDimension[\s\S]*this\.loadHqRanking\(1\)/);
+  assert.match(js, /const DIMENSIONS = Object\.freeze\(\[\s*\{ value: "store", label: "门店" \},\s*\{ value: "teacher", label: "老师" \}\s*\]\)/,
+    "project is a selectable scope, not a ranking object");
+  assert.match(js, /const RANKING_METRICS = Object\.freeze/);
+  assert.match(js, /chooseHqRankingMetric[\s\S]*loadHqRanking\(1\)/);
+  assert.match(js, /chooseHqProduct[\s\S]*loadHqRanking\(1\)/);
+  assert.match(js, /mode: "ranking", dimension, rankingMetric, productId/,
+    "mini ranking requests must carry object, project, and business selections");
   assert.match(js, /previousHqPage[\s\S]*loadHqRanking/);
   assert.match(js, /nextHqPage[\s\S]*loadHqRanking/);
   assert.match(js, /jumpHqPage\(\)/);
@@ -38,9 +46,38 @@ test("HQ home exposes the complete web mobile rail and isolated ranking interact
   assert.match(js, /排名 CSV 内容已复制，可粘贴到表格或文本文件保存/);
   assert.doesNotMatch(js, /shareFileMessage/,
     "ranking export must not call a TAP-only API after asynchronously fetching all pages");
-  assert.match(js, /hqScopeDetailText/);
+  assert.doesNotMatch(js, /hqScopeDetailText|hqDetailOpen/,
+    "the redesigned HQ home must not keep the retired statistics-range dialog state");
   assert.doesNotMatch(wxml, /\{\{hqScopeText\}\}/, "the filter card must not repeat an already visible scope sentence");
   assert.match(wxml, /class="hq-filter-actions"><button bindtap="resetHqRange">重置筛选<\/button><\/view>/);
+  assert.match(wxml, /排名对象/);
+  assert.match(wxml, /排序指标/);
+  assert.match(wxml, /项目范围/);
+  const hqFilterCard = wxml.slice(wxml.indexOf('<view class="web-panel hq-filters">'), wxml.indexOf('<view class="web-panel hq-project-summary-panel">'));
+  assert.ok(hqFilterCard.indexOf("时间周期") < hqFilterCard.indexOf("排名对象")
+    && hqFilterCard.indexOf("排名对象") < hqFilterCard.indexOf("项目范围")
+    && hqFilterCard.indexOf("项目范围") < hqFilterCard.indexOf("排序指标"),
+  "time, ranking object, project scope, and sorting metric must stay together in their exact query order");
+  assert.match(js, /hqPeriod:\s*"TODAY", hqPeriodIndex:\s*0/,
+    "HQ first entry must default to today");
+  assert.match(js, /resetHqRange\(\)[\s\S]*hqPeriod:\s*"TODAY"[\s\S]*hqDimension:\s*"store"[\s\S]*hqProductId:\s*""[\s\S]*hqRankingMetric:\s*"recharge"/,
+    "HQ reset must restore today, store, all products, and recharge");
+  assert.equal(dashboard.HQ_PERIOD_OPTIONS[0].value, "TODAY");
+  assert.deepEqual(dashboard.hqRange("TODAY"), { startDate: dashboard.today(), endDate: dashboard.today() });
+  assert.match(wxml, /class="hq-dimension-tabs"/);
+  assert.match(wxml, /class="hq-ranking-list"/);
+  assert.match(wxml, /项目汇总/);
+  assert.match(wxml, /当前时间范围内的全部项目/);
+  for (const label of ["项目", "充值", "核销", "体验", "退费", "合计"]) assert.match(wxml, new RegExp(label));
+  assert.match(wxml, /previousHqProductSummaryPage/);
+  assert.match(wxml, /nextHqProductSummaryPage/);
+  assert.match(js, /mode:\s*"product-summary", pageNumber:\s*1, pageSize:\s*PRODUCT_SUMMARY_PAGE_SIZE/,
+    "mini HQ must read a dedicated all-project summary instead of reusing Top 10 rows");
+  assert.match(js, /async loadHqProjectSummary\(pageNumber\)/);
+  assert.doesNotMatch(wxml, /class="metric-grid"|hq-analysis-card|分类统计|前 10 名/,
+    "the retired six metrics and duplicate Top 10 classification card must stay off the HQ home");
+  assert.doesNotMatch(webIndex, /class="metric-grid"|id="analysisGrid"|分类统计|前 10 名/,
+    "web and mini HQ home must retire the same duplicate summary sections");
   assert.match(wxml, /导出当前数据/);
   assert.match(wxml, /跳至/);
   assert.match(wxml, /class="menu-backdrop" bindtap="closeMenus"/);
@@ -50,9 +87,9 @@ test("HQ home exposes the complete web mobile rail and isolated ranking interact
   assert.doesNotMatch(wxss, /\.popover-grid\s*\{[^}]*repeat\(2,/s);
   assert.match(wxss, /\.table-pagination button\s*\{[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*font-size:\s*18rpx;[^}]*line-height:\s*1;/s);
   assert.match(wxss, /\.hq-ranking-pagination\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*auto minmax\(0,\s*1fr\) auto;/s);
-  assert.match(wxss, /\.metric-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/s);
-  assert.match(wxss, /\.bar-y-axis/);
-  assert.match(wxss, /\.bar-grid-line/);
+  assert.match(wxss, /\.hq-dimension-tabs button\s*\{[^}]*width:\s*100%\s*!important;[^}]*max-width:\s*100%;[^}]*overflow:\s*hidden/s,
+    "four metric controls must remain centered and contained on narrow screens");
+  assert.match(wxss, /\.hq-ranking-card/);
 });
 
 test("HQ chart mapper produces the same dynamic signed axis used by the web chart", () => {
@@ -90,7 +127,8 @@ test("HQ store and teacher workspaces reuse authoritative services without a gen
   assert.match(api, /config\.teacherCreateFunction/);
   assert.match(env, /teacherCreateFunction:\s*"teacherCreate"/);
   assert.match(teacherCreate, /result && result\.ok === true && result\.completed === true && proof\.complete === true/);
-  for (const label of ["查询结果", "活跃", "封存", "新增", "进入主页"]) assert.match(directoryWxml, new RegExp(label));
+  for (const label of ["查询结果", "活跃", "封存", "新增"]) assert.match(directoryWxml, new RegExp(label));
+  assert.doesNotMatch(directoryWxml, /<text>查看<\/text>|进入主页/);
   for (const label of ["老师姓名", "老师编号", "联系电话", "状态"]) assert.match(directoryWxml, new RegExp(label));
   for (const removed of ["体验额度", "账号操作", "配置／充值"]) assert.doesNotMatch(directoryWxml, new RegExp(removed));
   assert.equal((directoryWxml.match(/class="table-row table-head store"/g) || []).length, 3,
@@ -106,11 +144,11 @@ test("HQ store and teacher workspaces reuse authoritative services without a gen
     "the four teacher columns expand to the full available card width");
   assert.match(directoryWxss, /\.table-row\.teacher\s*\{\s*grid-template-columns:\s*minmax\(0, 1\.05fr\) minmax\(0, 0\.9fr\) minmax\(0, 1\.25fr\) minmax\(0, 0\.8fr\);\s*\}/,
     "teacher columns distribute the available width without a trailing blank strip");
-  assert.match(directoryWxss, /\.data-table\.store\s*\{\s*width:\s*1060rpx;\s*min-width:\s*1060rpx;\s*\}/,
-    "the six-column store directory keeps its contained horizontal scroll width");
-  assert.match(directoryWxss, /\.table-row\.store\s*\{\s*grid-template-columns:\s*180rpx 140rpx 180rpx 300rpx 110rpx 150rpx;\s*\}/,
-    "the store directory width remains equal to its six declared columns");
-  assert.equal(180 + 140 + 180 + 300 + 110 + 150, 1060);
+  assert.match(directoryWxss, /\.data-table\.store\s*\{\s*width:\s*910rpx;\s*min-width:\s*910rpx;\s*\}/,
+    "the five-column store directory keeps its contained horizontal scroll width");
+  assert.match(directoryWxss, /\.table-row\.store\s*\{\s*grid-template-columns:\s*180rpx 140rpx 180rpx 300rpx 110rpx;\s*\}/,
+    "the store directory width remains equal to its five declared columns");
+  assert.equal(180 + 140 + 180 + 300 + 110, 910);
   assert.doesNotMatch(directoryWxml, /class="modal|detail-mask/, "directory must route to dedicated pages instead of opening a generic detail modal");
   for (const action of ["getStoreDashboard", "getStoreBusinessAnalytics", "queryStoreBusinessRecords", "setMasterStatus"]) assert.match(storeDetail, new RegExp(action));
   assert.match(storeDetail, /storeId[\s\S]*queryStoreBusinessRecords/);

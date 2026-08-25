@@ -241,12 +241,12 @@ result that blocks the old CloudBase credentials. Only then execute
 `048_optional_teacher_face_and_experience_quota_lifecycle.sql` (or the seven
 ordered `048-01` through `048-07` CloudBase console parts). Next execute the
 ordered `049-01` through `049-13` parts and `049-readonly-verify.sql`, then 050.
-For a database that already ran historical 051/052, deploy `staffAccount v69`,
+For a database that already ran historical 051/052, deploy `staffAccount v71`,
 `faceRecognition v91`, and `teacherCreate v6` before executing 053. Run the 053
 read-only verification and require all seven rows to be `RETIRED`, remove the
 old teacher-face reconciliation Timer, then execute and verify 054 through 059.
 Deploy the final `faceRecognition v91`, `verificationPhoto v9`,
-`staffAccount v69` and `teacherCreate v6` matrix only after those migrations
+`staffAccount v71` and `teacherCreate v6` matrix only after those migrations
 are ready. A fresh database still follows numeric order; 053 immediately
 removes the historical 051/052 orchestration objects.
 

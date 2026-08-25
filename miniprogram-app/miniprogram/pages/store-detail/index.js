@@ -36,7 +36,7 @@ function emptyBusinessPage() { return pageView({}); }
 Page({
   data: {
     storeRef: "", storeId: "", account: null, store: null, storeHero: {}, profileFacts: [], loading: true, statusLoading: false,
-    message: "", error: false, rangePreset: "MONTH", rangeOptions: dashboard.RANGE_OPTIONS, rangeStart: "", rangeEnd: "", customRangeVisible: false,
+    message: "", error: false, rangePreset: "TODAY", rangeOptions: dashboard.RANGE_OPTIONS, rangeStart: "", rangeEnd: "", customRangeVisible: false,
     summaryRows: [], totals: { ...dashboard.EMPTY_TOTALS }, businessType: "VERIFICATION", businessTabs: dashboard.tabs({}, "VERIFICATION"),
     businessRecords: [], businessPage: pageView({}), businessLoading: false,
     activeCustomers: customerView(dashboard.customerGroup()), archivedCustomers: customerView(dashboard.customerGroup())
@@ -156,7 +156,7 @@ Page({
     }
   },
   chooseRange(event) {
-    const rangePreset = String(event.currentTarget.dataset.value || "MONTH");
+    const rangePreset = String(event.currentTarget.dataset.value || "TODAY");
     const customRangeVisible = rangePreset === "CUSTOM";
     this.setData({ rangePreset, customRangeVisible, businessPage: pageView({}) });
     if (!customRangeVisible) this.reloadAnalytics();

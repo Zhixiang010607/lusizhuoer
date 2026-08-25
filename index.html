@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>总部数据看板</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.45">
+  <link rel="stylesheet" href="styles.css?v=0.15.49">
 </head>
 <body data-view="global">
   <aside class="side-project-bar" aria-label="项目栏">
@@ -24,7 +24,7 @@
     <div>
       <p class="eyebrow">HEADQUARTERS ANALYTICS</p>
       <h1>总部数据看板</h1>
-      <p class="subtitle">真实数据库统计 · 默认显示最近 30 日</p>
+      <p class="subtitle">真实数据库统计 · 默认显示今天</p>
     </div>
     <div class="header-actions">
       <div class="status"><span></span>数据库模式</div>
@@ -36,10 +36,11 @@
       <div class="filter-grid global-filter-grid">
         <label>时间周期
           <select id="period">
+            <option value="today" selected>今天</option>
             <option value="thisWeek">本周（周一至今天）</option>
             <option value="thisMonth">本月（1日至今天）</option>
             <option value="last7">近 7 日</option>
-            <option value="last30" selected>近 30 日</option>
+            <option value="last30">近 30 日</option>
             <option value="q1">本年第一季度（1—3月）</option>
             <option value="q2">本年第二季度（4—6月）</option>
             <option value="q3">本年第三季度（7—9月）</option>
@@ -48,9 +49,10 @@
             <option value="custom">自定义</option>
           </select>
         </label>
-        <label>开始日期<input id="dateFrom" type="date"></label>
-        <label>结束日期<input id="dateTo" type="date"></label>
+        <label class="dashboard-custom-date" hidden>开始日期<input id="dateFrom" type="date"></label>
+        <label class="dashboard-custom-date" hidden>结束日期<input id="dateTo" type="date"></label>
       </div>
+      <div id="dashboardRankingControls" class="dashboard-ranking-controls" aria-label="排名筛选"></div>
       <div class="hidden-controls" aria-hidden="true">
         <select id="store"><option value="all">全部门店</option></select>
         <select id="project"><option value="all">全部项目</option></select>
@@ -68,46 +70,39 @@
       </div>
     </section>
 
-    <section class="metric-grid" aria-label="核心指标">
-      <button class="metric-card" data-drill="recharge">
-        <span>有效充值次数</span><strong id="rechargeTotal">—</strong><small id="rechargeDelta">数据库有效记录</small>
-      </button>
-      <button class="metric-card" data-drill="verification">
-        <span>有效核销次数</span><strong id="verificationTotal">—</strong><small id="verificationDelta">数据库有效记录</small>
-      </button>
-      <button class="metric-card" data-drill="experience">
-        <span>有效体验次数</span><strong id="experienceTotal">—</strong><small id="experienceDelta">数据库有效记录</small>
-      </button>
-      <button class="metric-card" data-drill="refund">
-        <span>有效退费次数</span><strong id="refundTotal">—</strong><small id="refundDelta">数据库有效记录</small>
-      </button>
-      <div class="metric-card neutral">
-        <span>已纳入门店</span><strong id="storeTotal">—</strong><small>门店主表全部门店</small>
+    <section class="panel hq-project-summary-card" aria-label="全部项目汇总">
+      <div class="panel-heading">
+        <div><h2>项目汇总</h2><p>当前时间范围内的全部项目，按项目名称排列</p></div>
+        <span id="productSummaryBadge" class="badge">共 0 个项目</span>
       </div>
-      <div class="metric-card neutral">
-        <span>已纳入老师</span><strong id="teacherTotal">—</strong><small>当前日期范围</small>
+      <div class="hq-project-summary-table" role="table" aria-label="按项目汇总四类业务">
+        <div class="hq-project-summary-row hq-project-summary-head" role="row"><span role="columnheader">项目</span><span role="columnheader">核销</span><span role="columnheader">充值</span><span role="columnheader">体验</span><span role="columnheader">退费</span></div>
+        <div id="productSummaryBody"></div>
+        <div class="hq-project-summary-row hq-project-summary-total" role="row"><strong role="cell">合计</strong><strong id="productSummaryVerification" role="cell">—</strong><strong id="productSummaryRecharge" role="cell">—</strong><strong id="productSummaryExperience" role="cell">—</strong><strong id="productSummaryRefund" role="cell">—</strong></div>
+      </div>
+      <div id="productSummaryPager" class="table-pagination hq-project-summary-pagination" hidden>
+        <button id="productSummaryPrevious" type="button">上一页</button>
+        <span id="productSummaryPageLabel">第 1 / 1 页</span>
+        <button id="productSummaryNext" type="button">下一页</button>
       </div>
     </section>
 
     <section class="dashboard-grid">
-      <section id="analysisGrid" class="analysis-grid global-analysis-grid wide" aria-label="分类统计图"></section>
-
       <article class="panel table-card wide">
         <div class="panel-heading">
-          <div><h2>完整排名</h2><p>每页 100 条；图表仅显示 Top 10，完整排名按页读取（最多浏览前 100 万条；CSV 单次最多 1 万条）</p></div>
+          <div><h2>完整排名</h2><p id="rankingRule">全部项目 · 按门店的充值次数降序；每页 100 条</p></div>
           <div class="ranking-actions">
-            <label class="ranking-dimension">分类维度
+            <label class="ranking-dimension" hidden>分类维度
               <select id="rankingDimension" aria-label="选择排名分类维度">
                 <option value="store">门店</option>
                 <option value="teacher">老师</option>
-                <option value="project">项目</option>
               </select>
             </label>
             <button id="exportBtn" type="button">导出当前数据</button>
           </div>
         </div>
-        <div class="table-scroll">
-          <table>
+        <div class="table-scroll dashboard-ranking-scroll">
+          <table class="dashboard-ranking-table">
             <thead><tr><th>排名</th><th>分类对象</th><th>分类维度</th><th>有效充值</th><th>有效核销</th><th>有效体验</th><th>有效退费</th><th>业务总计占比</th></tr></thead>
             <tbody id="rankingBody"></tbody>
           </table>
@@ -134,8 +129,8 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
-  <script src="cloudbase-phone-auth.js?v=0.20.0"></script>
-  <script src="app.js?v=0.15.5"></script>
+  <script src="cloudbase-phone-auth.js?v=0.20.1"></script>
+  <script src="app.js?v=0.15.9"></script>
   <script src="auth-ui.js?v=0.19.4"></script>
 </body>
 </html>

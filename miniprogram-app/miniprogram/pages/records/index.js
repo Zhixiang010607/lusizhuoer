@@ -7,6 +7,18 @@ const EMPTY_SUMMARY = Object.freeze({ total: 0, pending: 0, approved: 0, rejecte
 
 function labels(options) { return options.map((item) => item.label); }
 function values(options) { return options.map((item) => item.value); }
+function dashboardFilters(options, typeOptions) {
+  const drill = String(options.drill || "").toLowerCase();
+  const startDate = String(options.startDate || "");
+  const endDate = String(options.endDate || "");
+  const customRange = /^\d{4}-\d{2}-\d{2}$/.test(startDate) && /^\d{4}-\d{2}-\d{2}$/.test(endDate) && startDate <= endDate;
+  const targetType = ({ recharge: "NEW", refund: "REFUND", verification: "NORMAL", experience: "EXPERIENCE" })[drill] || "ALL";
+  return {
+    typeIndex: Math.max(0, typeOptions.findIndex((item) => item.value === targetType)),
+    timeIndex: customRange ? query.TIME_OPTIONS.findIndex((item) => item.value === "CUSTOM") : 0,
+    startDate: customRange ? startDate : "", endDate: customRange ? endDate : "", customRange
+  };
+}
 
 Page({
   data: {
@@ -27,9 +39,10 @@ Page({
     if (!session) return;
     const recordType = String(options.type || "recharge").toLowerCase() === "verification" ? "VERIFICATION" : "RECHARGE";
     const typeOptions = recordType === "VERIFICATION" ? query.VERIFICATION_TYPES : query.RECHARGE_TYPES;
+    const entryFilters = dashboardFilters(options, typeOptions);
     this.setData({
       session, recordType, noun: recordType === "VERIFICATION" ? "核销" : "充值",
-      typeLabels: labels(typeOptions), typeValues: values(typeOptions), typeIndex: 0
+      typeLabels: labels(typeOptions), typeValues: values(typeOptions), ...entryFilters
     });
     wx.setNavigationBarTitle({ title: "露思卓儿" });
     if (session.role === "hq") await this.loadStores();

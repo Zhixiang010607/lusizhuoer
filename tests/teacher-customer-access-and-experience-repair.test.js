@@ -59,7 +59,7 @@ assert.ok(storeHtml.indexOf('id="storeBusinessDetails"') < storeHtml.indexOf('id
   "store detail page follows its summary and precedes customer lists");
 assert.doesNotMatch(storeHtml, /体验项目剩余次数|teacherQuota|storeProjects/,
   "store layout excludes the teacher-specific quota panel and the superseded project table");
-assert.match(storeUi, /analyticsPreset: "MONTH"/);
+assert.match(storeUi, /analyticsPreset: "TODAY"/);
 assert.match(storeUi, /state\.analyticsPreset === "ALL"\) return \{\}/);
 assert.match(css, /body\[data-store-dashboard\] \.teacher-overview-heading h2 \{[^}]*white-space: nowrap/,
   "store summary title follows the same one-line mobile rule as teacher");

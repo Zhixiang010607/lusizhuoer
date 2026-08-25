@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.6";
+  const VERSION = "0.16.7";
   const CUSTOMER_PAGE_SIZE = 10;
   const BUSINESS_PAGE_SIZE = 10;
   const params = new URLSearchParams(location.search);
@@ -25,7 +25,7 @@
   const state = {
     activeCustomerRows: [], activeCustomerPage: 1, activeCustomerTotal: 0,
     archivedCustomerRows: [], archivedCustomerPage: 1, archivedCustomerTotal: 0,
-    dashboardStoreId: "", analyticsLoading: false, analyticsPreset: "MONTH", statusLoading: false,
+    dashboardStoreId: "", analyticsLoading: false, analyticsPreset: "TODAY", statusLoading: false,
     businessActiveType: "VERIFICATION", businessRangeEpoch: 0,
     businessRecords: emptyBusinessTypeMap(() => []),
     businessPages: emptyBusinessTypeMap(() => 1),
@@ -221,13 +221,12 @@
   function renderStore(store) {
     state.currentStore = store;
     state.dashboardStoreId = String(store.id || state.dashboardStoreId || "").trim();
-    const authUid = String(store.auth_uid || "").trim();
     const storeCode = String(store.store_code || "").trim();
     const effectiveStatus = archivedStore(state.storeAccount || store) || archivedStore(store) ? "ARCHIVED" : "ACTIVE";
     const status = effectiveStatus === "ARCHIVED" ? "封存" : "活跃";
     const locationText = [store.province, store.city, store.district].filter(Boolean).join(" · ") || "未填写";
 
-    $("storeHero").innerHTML = `<div class="profile-avatar store-profile-avatar">店</div><div><span class="profile-type">门店账号</span><div class="store-profile-title"><h2>${escapeHtml(store.store_name)}</h2><span class="store-status-badge ${effectiveStatus === "ARCHIVED" ? "archived" : "active"}">${escapeHtml(status)}</span></div><p>${escapeHtml(authUid || storeCode || "未绑定登录账号")}</p></div>`;
+    $("storeHero").innerHTML = `<div class="profile-avatar store-profile-avatar">店</div><div><span class="profile-type">门店</span><div class="store-profile-title"><h2>${escapeHtml(store.store_name)}</h2><span class="store-status-badge ${effectiveStatus === "ARCHIVED" ? "archived" : "active"}">${escapeHtml(status)}</span></div><p>业务编号 ${escapeHtml(storeCode || "—")}</p></div>`;
     if ($("storeHeaderStatus")) {
       $("storeHeaderStatus").innerHTML = `<span></span>${status === "封存" ? "已封存" : "正常营业"}`;
       $("storeHeaderStatus").classList.toggle("store-status-archived", effectiveStatus === "ARCHIVED");
@@ -235,12 +234,8 @@
     }
     renderStoreStatusAction({ ...store, store_status: effectiveStatus });
     $("storeBasicGrid").innerHTML = info([
-      ["唯一身份 ID", authUid],
-      ["业务编号", storeCode],
-      ["门店名称", store.store_name],
       ["地区", locationText],
       ["详细地址", store.address_detail || "未填写"],
-      ["门店状态", status],
       ["联系人", store.contact_name || "未填写"],
       ["联系电话", store.contact_phone || "未填写"]
     ]);
@@ -267,7 +262,7 @@
   }
 
   function setAnalyticsPeriod(period, { load = false } = {}) {
-    state.analyticsPreset = PRESET_LABELS[period] ? period : "MONTH";
+    state.analyticsPreset = PRESET_LABELS[period] ? period : "TODAY";
     const range = window.StoreAnalyticsData.periodRange(state.analyticsPreset);
     if (range && $("storeAnalyticsStart")) $("storeAnalyticsStart").value = range.startDate;
     if (range && $("storeAnalyticsEnd")) $("storeAnalyticsEnd").value = range.endDate;
@@ -536,7 +531,7 @@
 
   async function load() {
     document.documentElement.dataset.prototypeVersion = VERSION;
-    setAnalyticsPeriod("MONTH");
+    setAnalyticsPeriod("TODAY");
     renderBusinessTabs();
     if (!storeRef) {
       renderError("缺少门店唯一身份 ID。");

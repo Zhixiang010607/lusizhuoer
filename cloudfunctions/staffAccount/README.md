@@ -1,12 +1,12 @@
 # staffAccount 云函数
 
-当前版本：`v69`
+当前版本：`v71`
 
 `staffAccount` 负责员工会话、总部／门店账号、人员状态、老师体验额度、产品、审核与总部统计。它不再创建老师，也不再处理任何老师人脸写入。
 
 ## 登录与会话边界
 
-`staffAccount v69` 同时支持现有手机号＋密码登录和微信小程序手机号快捷登录。两种方式必须在 CloudBase 身份源中关联到同一个已有 Auth 用户和同一 UID；业务角色、账号状态和门店范围仍只从该 UID 对应的 PostgreSQL `staff_accounts` 回读。总部老师维度统计只认来源与业务类型都符合矩阵的 `teacher_id`：门店来源仅限充值、退费和正常核销，老师来源仅限该提交账号本人办理的充值、退费、正常核销和体验核销。历史总部、退役角色、老师错绑、门店体验或补录核销仍保留在总量、门店和项目统计中，但不会产生老师归属。总部审核与门店精确工单读取采用相同口径；其他历史工单保留但显示“未指定”。
+`staffAccount v71` 同时支持现有手机号＋密码登录和微信小程序手机号快捷登录。两种方式必须在 CloudBase 身份源中关联到同一个已有 Auth 用户和同一 UID；业务角色、账号状态和门店范围仍只从该 UID 对应的 PostgreSQL `staff_accounts` 回读。总部老师维度统计只认来源与业务类型都符合矩阵的 `teacher_id`：门店来源仅限充值、退费和正常核销，老师来源仅限该提交账号本人办理的充值、退费、正常核销和体验核销。历史总部、退役角色、老师错绑、门店体验或补录核销仍保留在总量、门店和项目统计中，但不会产生老师归属。总部审核与门店精确工单读取采用相同口径；其他历史工单保留但显示“未指定”。
 
 小程序快捷登录流程为：
 
@@ -27,7 +27,7 @@
 
 老师只能通过独立 `teacherCreate v6` 创建。创建只需要姓名、手机号和初始密码，
 不上传照片、不建立老师人脸，也不把人脸作为创建、激活、登录或业务选择条件。
-老师主页没有补录、替换或修改人脸入口。`staffAccount v69` 已彻底移除旧的老师
+老师主页没有补录、替换或修改人脸入口。`staffAccount v71` 已彻底移除旧的老师
 Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_operations`：
 
 - `beginTeacherProvisionWithFace`
@@ -40,7 +40,7 @@ Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_oper
 调用这些旧 action 会统一进入“不支持的操作”。`provisionStaff({ role: "teacher" })` 也会在 Auth 查询、用户创建和 SQL 写入之前返回 `TEACHER_CREATE_SERVICE_REQUIRED`。新建老师只能调用 `teacherCreate`。
 
 迁移 051／052 的旧表、函数和历史记录不再是本函数的运行依赖。部署
-`staffAccount v69`／`faceRecognition v91`／`teacherCreate v6` 后执行前向
+`staffAccount v71`／`faceRecognition v91`／`teacherCreate v6` 后执行前向
 迁移 053，会物理删除旧操作表与六个私有函数，不影响老师及业务历史。
 
 ## 保留能力
@@ -59,6 +59,10 @@ Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_oper
 老师赠送体验核销时，服务端按登录账号绑定老师额度，并只核验和保存所选客户的人脸。
 
 非老师能力保持不变，包括会话与总部引导、门店建档和账号管理、产品与回执模板、审核队列、人员密码和状态、总部统计，以及运营身份下线维护。
+
+`v71` 的总部排名读取使用严格的三段选择：`dimension` 只允许 `store`／`teacher`，`productId` 留空代表全部项目或传入一个真实项目 ID，`rankingMetric` 只允许 `recharge`／`verification`／`experience`／`refund`。数据库先按日期和项目过滤已通过业务，再按所选业务次数字段降序；响应回显 `dimension`、`productId`、`rankingMetric` 和该业务的 `rankingTotal`，客户端必须核对回显后才显示排名。旧版按四类合计排序或把项目作为排名对象的规则已退役。
+
+`v71` 另提供 `getHqDashboard({ mode: "product-summary" })` 的完整项目汇总分页。它以 `public.products` 为主表，因此无业务记录和已封存但仍保留历史的项目也不会从项目目录中消失；四类次数只统计所选日期内已通过的业务。响应每页默认 10 项、最多 500 项，回传 `pageNumber`、`pageSize`、`total`、`totalPages` 和当前页 `rows`。客户端必须逐页展示全部项目，页面底部的四类合计来自同一日期范围的全局总数，不得用当前页小计或旧 Top 10 图表代替。
 
 ## 环境变量
 
@@ -94,7 +98,7 @@ Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_oper
 
 ## 部署与验收
 
-上传包文件名必须为 `staffAccount-v69.zip`。ZIP 根目录直接包含：
+上传包文件名必须为 `staffAccount-v71.zip`。ZIP 根目录直接包含：
 
 ```text
 index.js
@@ -102,22 +106,22 @@ package.json
 README.md
 ```
 
-不得在 ZIP 中再套 `staffAccount/` 目录。平台按根目录 `package.json` 安装依赖；交付前必须回读 ZIP 根目录的 `README.md`，确认其显示当前版本 `v69`，并确认 ZIP 内 `index.js` 的运行时版本同样为 `v69`。
+不得在 ZIP 中再套 `staffAccount/` 目录。平台按根目录 `package.json` 安装依赖；交付前必须回读 ZIP 根目录的 `README.md`，确认其显示当前版本 `v71`，并确认 ZIP 内 `index.js` 的运行时版本同样为 `v71`。
 
 生产切换顺序：
 
 1. 在 CloudBase 身份源中配置类型 `WX_MICRO_APP` 并绑定正确小程序 AppID；设置 `AutoSignInWhenPhoneNumberMatch=TRUE`、`AutoSignUpWithProviderUser=FALSE`、`TransparentMode=FALSE`、`ReuseUserId=FALSE`，同时保留现有手机号＋密码登录方式。
-2. 打包并上传 `staffAccount-v69.zip`，使用 Node.js 18，配置上述环境变量，并将安全规则限制为已登录且非匿名用户。
+2. 打包并上传 `staffAccount-v71.zip`，使用 Node.js 18，配置上述环境变量，并将安全规则限制为已登录且非匿名用户。
 3. 删除 `staffAccount` 上的旧人脸补偿 Timer，只保留月度额度 Timer。
 4. 部署后先调用 `{ "action": "health" }`，确认版本和配置就绪；再分别用现有已登录会话和微信手机号授权后的会话调用无参数 `{ "action": "session" }`，确认返回的 UID、角色和门店与旧密码账号完全一致。
-5. `staffAccount v69` 验收通过后才发布当前小程序；不得先发布依赖快捷登录和无参数 `session` 的客户端。
+5. `staffAccount v71` 验收通过后才发布当前小程序；不得先发布依赖快捷登录和无参数 `session` 的客户端。
 
 健康检查必须返回：
 
 ```json
 {
   "ok": true,
-  "version": "v69",
+  "version": "v71",
   "managerNodeInstalled": true,
   "teacherExperienceResetTimerTriggerName": "reset-teacher-experience-quotas-monthly",
   "teacherCreationService": "teacherCreate"

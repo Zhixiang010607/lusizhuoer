@@ -52,16 +52,12 @@
     const nameMarkup = reference
       ? `<a class="record-link store-global-link" href="store-detail.html?storeId=${encodeURIComponent(reference)}">${escapeHtml(name)}</a>`
       : escapeHtml(name);
-    const homepageLink = reference
-      ? `<a class="button-link secondary-button store-open-link" href="store-detail.html?storeId=${encodeURIComponent(reference)}">进入主页</a>`
-      : "—";
     return `<tr>
       <td>${nameMarkup}</td>
       <td>${escapeHtml(storeContact(store) || "—")}</td>
       <td class="store-phone-cell">${escapeHtml(storePhone(store) || "—")}</td>
       <td>${escapeHtml(storeAddress(store) || "—")}</td>
       <td><span class="store-status-badge ${archived ? "archived" : "active"}">${archived ? "封存" : "活跃"}</span></td>
-      <td>${homepageLink}</td>
     </tr>`;
   }
 
@@ -69,7 +65,7 @@
     $(countId).textContent = `${stores.length} 家`;
     $(targetId).innerHTML = stores.length
       ? stores.map(storeRow).join("")
-      : `<tr><td colspan="6" class="store-directory-empty">${escapeHtml(emptyText)}</td></tr>`;
+      : `<tr><td colspan="5" class="store-directory-empty">${escapeHtml(emptyText)}</td></tr>`;
   }
 
   function renderDirectories() {
@@ -100,7 +96,7 @@
     const message = error?.message || "门店数据读取失败，请刷新页面后重试。";
     ["activeStoreCount", "archivedStoreCount", "searchStoreCount"].forEach((id) => { $(id).textContent = "读取失败"; });
     ["activeStoreRows", "archivedStoreRows", "searchStoreRows"].forEach((id) => {
-      $(id).innerHTML = `<tr><td colspan="6" class="store-directory-empty error-text">${escapeHtml(message)}</td></tr>`;
+      $(id).innerHTML = `<tr><td colspan="5" class="store-directory-empty error-text">${escapeHtml(message)}</td></tr>`;
     });
   }
 

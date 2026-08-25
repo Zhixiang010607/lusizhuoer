@@ -9,6 +9,7 @@ const RANGE_OPTIONS = Object.freeze([
 ]);
 
 const HQ_PERIOD_OPTIONS = Object.freeze([
+  { value: "TODAY", label: "今天" },
   { value: "THIS_WEEK", label: "本周（周一至今天）" },
   { value: "THIS_MONTH", label: "本月（1 日至今天）" },
   { value: "LAST_7", label: "近 7 日" },
@@ -70,6 +71,7 @@ function hqRange(period, custom = {}) {
   const current = dateFrom(currentText);
   const year = current.getUTCFullYear();
   if (period === "CUSTOM") return { startDate: custom.startDate || "", endDate: custom.endDate || "" };
+  if (period === "TODAY") return { startDate: currentText, endDate: currentText };
   if (period === "THIS_WEEK") return scopedRange("WEEK");
   if (period === "THIS_MONTH") return scopedRange("MONTH");
   if (period === "LAST_7") return { startDate: addDays(currentText, -6), endDate: currentText };
@@ -122,14 +124,9 @@ function records(items = [], type = "VERIFICATION") {
 }
 function storeFacts(store = {}) {
   const region = [store.province, store.city, store.district].filter(Boolean).join(" · ") || "未填写";
-  const status = String(store.store_status || store.status || "").toUpperCase() === "ARCHIVED" ? "封存" : "活跃";
   return [
-    { label: "唯一身份 ID", value: String(store.auth_uid || "未绑定登录账号") },
-    { label: "业务编号", value: String(store.store_code || store.storeCode || "—") },
-    { label: "门店名称", value: String(store.store_name || store.storeName || "—") },
     { label: "地区", value: region },
     { label: "详细地址", value: String(store.address_detail || "未填写") },
-    { label: "门店状态", value: status },
     { label: "联系人", value: String(store.contact_name || "未填写") },
     { label: "联系电话", value: String(store.contact_phone || store.phone || "未填写") }
   ];

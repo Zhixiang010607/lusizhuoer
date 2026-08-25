@@ -25,7 +25,7 @@ const archivedCustomerSection = html.slice(html.indexOf('id="storeArchivedCustom
 const includes = (source, expected, label) => assert.ok(source.includes(expected), `${label}: missing ${JSON.stringify(expected)}`);
 
 includes(html, 'data-store-range-preset="MONTH"', "overview exposes the monthly preset");
-assert.match(html, /class="active" type="button" data-store-range-preset="MONTH"/, "overview defaults to this month");
+assert.match(html, /class="active" type="button" data-store-range-preset="TODAY"/, "overview defaults to today");
 for (const preset of ["TODAY", "WEEK", "MONTH", "QUARTER", "YEAR", "ALL", "CUSTOM"]) {
   includes(html, `data-store-range-preset="${preset}"`, `${preset} range preset`);
 }
@@ -46,15 +46,22 @@ includes(activeCustomerSection, 'id="storeActiveCustomerBody"', "active bound cu
 includes(archivedCustomerSection, 'id="storeArchivedCustomerBody"', "archived bound customers have a dedicated table");
 includes(activeCustomerSection, '<h2 id="storeActiveCustomersTitle">活跃用户</h2>', "active customer heading matches teacher terminology");
 includes(archivedCustomerSection, '<h2 id="storeArchivedCustomersTitle">封存用户</h2>', "archived customer heading matches teacher terminology");
-includes(html, 'store-detail.js?v=0.16.6', "store detail script cache bust");
+includes(html, 'store-detail.js?v=0.16.7', "store detail script cache bust");
 includes(html, 'store-analytics-data.js?v=0.2.1', "store analytics helper cache bust");
-includes(html, 'styles.css?v=0.15.57', "store detail stylesheet cache bust");
+includes(html, 'styles.css?v=0.15.60', "store detail stylesheet cache bust");
 for (const [type, label] of [["VERIFICATION", "核销"], ["RECHARGE", "充值"], ["EXPERIENCE", "体验"], ["REFUND", "退费"]]) {
   assert.match(html, new RegExp(`data-store-record-type="${type}"[\\s\\S]{0,120}<span>${label}</span>`), `${label} must be a dedicated store detail button`);
 }
 includes(html, 'id="storeBusinessDetails"', "store homepage includes the teacher-style business detail panel");
 includes(html, 'id="storeBusinessPagination"', "store business details own numbered pagination");
-includes(detail, 'analyticsPreset: "MONTH"', "store summary defaults to this month");
+includes(detail, 'analyticsPreset: "TODAY"', "store summary defaults to today");
+includes(detail, 'setAnalyticsPeriod("TODAY")', "store initial load applies today");
+includes(html, 'class="detail-info-grid store-contact-grid"', "store profile keeps only a compact contact/address grid");
+for (const label of ["地区", "详细地址", "联系人", "联系电话"]) includes(detail, `["${label}"`, `store profile shows ${label}`);
+assert.doesNotMatch(detail.slice(detail.indexOf('$("storeBasicGrid")'), detail.indexOf("state.activeCustomerRows")), /唯一身份 ID|门店名称|门店状态/,
+  "facts already shown by the store hero must not be repeated in the profile grid");
+assert.match(css, /body\[data-store-dashboard\] \.store-contact-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/s,
+  "store contact facts stay in a compact two-column mobile block");
 includes(detail, 'if (state.analyticsPreset === "ALL") return {}', "all-time selection omits date bounds");
 includes(detail, 'class="teacher-summary-total"', "store summary renders the same total row as teacher summary");
 includes(detail, 'metricCell(product.verification)}${metricCell(product.recharge)}${metricCell(product.experience)}${metricCell(product.refund)}', "each project uses teacher metric order");
@@ -218,10 +225,11 @@ includes(css, '.status.store-status-archived', "archived store header gets a ded
 assert.match(css, /\.store-status-badge\.archived\s*\{\s*color:\s*#a33131;\s*background:\s*#fdecec;/, "store archive badges use the customer archive palette");
 assert.match(css, /\.teacher-status-badge\.archived,[\s\S]{0,80}\.store-status-badge\.archived\s*\{\s*color:\s*#a33131;\s*background:\s*#fdecec;/, "teacher and store directory archive badges share the customer archive palette");
 
-includes(storeManagementHtml, 'store-management.js?v=0.14.26', "store directory script cache bust");
+includes(storeManagementHtml, 'store-management.js?v=0.14.27', "store directory script cache bust");
 includes(storeManagementHtml, 'styles.css?v=0.15.49', "store directory stylesheet cache bust");
 includes(storeManagement, 'href="store-detail.html?storeId=${encodeURIComponent(reference)}"', "store directory opens the selected store homepage");
-includes(storeManagement, '>进入主页</a>', "store directory action only opens the selected store homepage");
+includes(storeManagement, 'class="record-link store-global-link"', "store name opens the selected store homepage");
+assert.doesNotMatch(storeManagement, />进入主页<\/a>/, "store directory does not repeat a separate homepage action");
 assert.doesNotMatch(storeManagement, /data-store-status-ref|setMasterStatus|setStaffStatus|toggleStoreStatus/, "store directory cannot change store status directly");
 assert.doesNotMatch(storeManagementHtml, /封存门店账号|激活门店账号/, "store directory contains no direct archive action");
 

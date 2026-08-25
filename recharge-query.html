@@ -32,6 +32,7 @@
             <button class="customer-query-method-heading" type="button" data-record-query-mode="browse"><span>方式一</span><strong id="recordBrowseTitle">筛选本门店全部充值记录</strong><small>按项目、审核状态及提交时间筛选</small></button>
             <div class="customer-query-row record-query-primary-row">
               <label>项目<select id="recordProduct"><option value="ALL">全部项目</option></select></label>
+              <label>申请类型<select id="recordRechargeType"><option value="ALL">全部类型</option><option value="NEW">充值申请</option><option value="REFUND">退费申请</option></select></label>
               <label>审核状态<select id="recordStatusCategory"><option value="ALL">全部充值单</option><option value="PENDING">待审核</option><option value="APPROVED">审核通过</option><option value="REJECTED">已驳回</option></select></label>
             </div>
             <div class="customer-query-row customer-query-time-row">
@@ -63,6 +64,6 @@
     <section class="panel table-card query-results"><div class="panel-heading"><div><h2>充值记录</h2></div><span class="badge">充值</span></div><div class="table-scroll"><table class="record-query-results-table legacy-record-results-table"><thead><tr><th>充值编号（可查看）</th><th>客户编号</th><th>客户姓名</th><th>生日</th><th>门店</th><th>项目</th><th>充值次数</th><th>提交时间</th><th>审核进度</th></tr></thead><tbody id="queryBody"></tbody></table></div></section>
   </main>
 
-  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.20.0"></script><script src="datetime.js?v=0.1.2"></script><script src="query.js?v=0.15.10"></script><script src="auth-ui.js?v=0.19.4"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.20.1"></script><script src="datetime.js?v=0.1.2"></script><script src="query.js?v=0.15.11"></script><script src="auth-ui.js?v=0.19.4"></script>
 </body>
 </html>

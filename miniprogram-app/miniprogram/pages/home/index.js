@@ -3,17 +3,23 @@ const { waitForStartupSession, requireSession, getSelectedStore, signOut } = req
 const dashboard = require("../../services/home-dashboard");
 
 const ROLE_META = Object.freeze({
-  hq: { title: "总部数据看板", subtitle: "真实数据库统计 · 默认显示最近 30 日" },
+  hq: { title: "总部数据看板", subtitle: "真实数据库统计 · 默认显示今天" },
   store: { title: "门店全局视图", subtitle: "业务汇总与门店资料" },
   teacher: { title: "我的工作台", subtitle: "查看本人有效业务、项目汇总与体验项目剩余次数" }
 });
 const DIMENSIONS = Object.freeze([
   { value: "store", label: "门店" },
-  { value: "teacher", label: "老师" },
-  { value: "project", label: "项目" }
+  { value: "teacher", label: "老师" }
+]);
+const RANKING_METRICS = Object.freeze([
+  { value: "recharge", label: "充值" },
+  { value: "verification", label: "核销" },
+  { value: "experience", label: "体验" },
+  { value: "refund", label: "退费" }
 ]);
 const PAGE_SIZE = 10;
 const RANKING_PAGE_SIZE = 100;
+const PRODUCT_SUMMARY_PAGE_SIZE = 10;
 const RANKING_EXPORT_MAX_ROWS = 10000;
 
 function readyRangeOptions(active) {
@@ -45,9 +51,42 @@ function rejectedMessage(results, fallback) {
 function clockText(date = new Date()) {
   return [date.getHours(), date.getMinutes(), date.getSeconds()].map((value) => String(value).padStart(2, "0")).join(":");
 }
-function hqChart(source, dimension, title, badge) {
+function hqChart(source, dimension, title, badge, rankingMetric = "recharge") {
   const chart = dashboard.hqChart(source, dimension);
-  return { dimension, title, badge, rows: chart.rows, axis: chart.axis };
+  const maximum = Math.max(1, ...chart.rows.map((row) => dashboard.count(row[rankingMetric])));
+  const rows = chart.rows.map((row, index) => {
+    const rankValue = dashboard.count(row[rankingMetric]);
+    return { ...row, rank: index + 1, rankValue, barWidth: `${Math.max(rankValue ? 4 : 0, rankValue / maximum * 100).toFixed(1)}%` };
+  });
+  return { dimension, title, badge, rankingMetric, rows, axis: chart.axis };
+}
+function hqRankingMatches(ranking, dimension, rankingMetric, productId) {
+  return String(ranking?.dimension || "") === dimension
+    && String(ranking?.rankingMetric || "") === rankingMetric
+    && String(ranking?.productId || "") === String(productId || "");
+}
+function hqProductSummaryRows(items = []) {
+  return (Array.isArray(items) ? items : []).map((row) => ({
+    productId: String(row.entityId || row.entity_id || ""),
+    productName: String(row.entityName || row.entity_name || "未命名项目"),
+    recharge: dashboard.count(row.recharge !== undefined ? row.recharge : row.recharge_count),
+    verification: dashboard.count(row.verification !== undefined ? row.verification : row.verification_count),
+    experience: dashboard.count(row.experience !== undefined ? row.experience : row.experience_count),
+    refund: dashboard.count(row.refund !== undefined ? row.refund : row.refund_count)
+  }));
+}
+function hqProductSummaryView(payload = {}) {
+  const summary = payload.productSummary;
+  if (!summary || !Array.isArray(summary.rows)) throw new Error("总部项目汇总服务版本过旧，请先部署 staffAccount v71");
+  return {
+    rows: hqProductSummaryRows(summary.rows),
+    page: pageView({
+      total: summary.total,
+      page: summary.pageNumber,
+      pageSize: summary.pageSize,
+      totalPages: summary.totalPages
+    })
+  };
 }
 function csvCell(value) {
   const text = String(value === undefined || value === null ? "" : value);
@@ -62,7 +101,7 @@ Page({
   data: {
     session: {}, roleTitle: "", roleSubtitle: "", loading: true, message: "", error: false,
     businessMenuOpen: false, queryMenuOpen: false, managementMenuOpen: false, reviewMenuOpen: false,
-    rangePreset: "MONTH", rangeOptions: readyRangeOptions("MONTH"), rangeStart: "", rangeEnd: "",
+    rangePreset: "TODAY", rangeOptions: readyRangeOptions("TODAY"), rangeStart: "", rangeEnd: "",
     rangeLabel: "本月", customRangeVisible: false,
     profileFacts: [], storeHero: {}, experienceBalances: [], summaryRows: [],
     totals: { ...dashboard.EMPTY_TOTALS }, businessType: "VERIFICATION",
@@ -71,12 +110,16 @@ Page({
     activeCustomers: customerView(dashboard.customerGroup()), archivedCustomers: customerView(dashboard.customerGroup()),
     activeCustomerScrollLeft: 0, archivedCustomerScrollLeft: 0,
     hqPeriodOptions: dashboard.HQ_PERIOD_OPTIONS, hqPeriodLabels: dashboard.HQ_PERIOD_OPTIONS.map((item) => item.label),
-    hqPeriod: "LAST_30", hqPeriodIndex: 3, hqStart: "", hqEnd: "",
+    hqPeriod: "TODAY", hqPeriodIndex: 0, hqStart: "", hqEnd: "",
     hqMetrics: [], hqCharts: [], hqDimensions: DIMENSIONS,
+    hqProjectSummaryRows: [], hqProjectSummaryPage: pageView({ pageSize: PRODUCT_SUMMARY_PAGE_SIZE }),
+    hqProjectSummaryTotals: { ...dashboard.EMPTY_TOTALS }, hqProjectSummaryLoading: false, hqProjectSummaryError: "",
     hqDimensionLabels: DIMENSIONS.map((item) => item.label), hqDimension: "store", hqDimensionIndex: 0,
+    hqRankingMetrics: RANKING_METRICS, hqRankingMetricLabels: RANKING_METRICS.map((item) => item.label),
+    hqRankingMetric: "recharge", hqRankingMetricIndex: 0,
+    hqProducts: [{ id: "", label: "全部项目" }], hqProductLabels: ["全部项目"], hqProductId: "", hqProductIndex: 0,
     hqRanking: [], hqRankingPage: pageView({ pageSize: RANKING_PAGE_SIZE }), hqRankingInput: "1", hqRankingScrollLeft: 0,
-    hqRankingLoading: false, hqRankingError: "", hqExporting: false, hqLoadedAt: "—", hqScopeDetailText: "正在连接数据库…",
-    hqDetailOpen: false, hqDetailTitle: "数据库统计范围", hqDetailText: ""
+    hqRankingLoading: false, hqRankingError: "", hqExporting: false, hqLoadedAt: "—"
   },
 
   async onShow() {
@@ -325,19 +368,30 @@ Page({
     this._hqHomeRequestEpoch = requestEpoch;
     const rankingRequestEpoch = Number(this._hqRankingRequestEpoch || 0) + 1;
     this._hqRankingRequestEpoch = rankingRequestEpoch;
+    const productSummaryRequestEpoch = Number(this._hqProductSummaryRequestEpoch || 0) + 1;
+    this._hqProductSummaryRequestEpoch = productSummaryRequestEpoch;
     this._hqRankingRetryPage = pageNumber;
     const dimension = this.data.hqDimension;
+    const rankingMetric = this.data.hqRankingMetric;
+    const productId = this.data.hqProductId;
     const range = dashboard.hqRange(this.data.hqPeriod, { startDate: this.data.hqStart, endDate: this.data.hqEnd });
     this.setData({
-      loading: true, hqRankingLoading: true, hqStart: range.startDate, hqEnd: range.endDate,
-      hqMetrics: [], hqCharts: [], hqLoadedAt: "—", hqScopeDetailText: "正在连接数据库…",
+      loading: true, hqRankingLoading: true, hqProjectSummaryLoading: true, hqStart: range.startDate, hqEnd: range.endDate,
+      hqMetrics: [], hqCharts: [], hqLoadedAt: "—",
+      hqProjectSummaryRows: [], hqProjectSummaryPage: pageView({ pageSize: PRODUCT_SUMMARY_PAGE_SIZE }),
+      hqProjectSummaryTotals: { ...dashboard.EMPTY_TOTALS }, hqProjectSummaryError: "",
       hqRanking: [], hqRankingPage: pageView({ pageSize: RANKING_PAGE_SIZE }), hqRankingInput: "1",
       hqRankingScrollLeft: 0, hqRankingError: "", message: "", error: false
     });
-    const [overviewResult, rankingResult] = await Promise.allSettled([
+    const [overviewResult, rankingResult, productResult, productSummaryResult] = await Promise.allSettled([
       callStaff("getHqDashboard", { mode: "overview", startDate: range.startDate, endDate: range.endDate }),
       callStaff("getHqDashboard", {
-        mode: "ranking", dimension, pageNumber, pageSize: RANKING_PAGE_SIZE,
+        mode: "ranking", dimension, rankingMetric, productId, pageNumber, pageSize: RANKING_PAGE_SIZE,
+        startDate: range.startDate, endDate: range.endDate
+      }),
+      callStaff("listProducts"),
+      callStaff("getHqDashboard", {
+        mode: "product-summary", pageNumber: 1, pageSize: PRODUCT_SUMMARY_PAGE_SIZE,
         startDate: range.startDate, endDate: range.endDate
       })
     ]);
@@ -347,37 +401,64 @@ Page({
       const value = overviewResult.value;
       const totals = value.totals || {};
       changes.hqMetrics = [
-        ["有效充值次数", totals.recharge, "数据库有效记录", "recharge"], ["有效核销次数", totals.verification, "数据库有效记录", "verification"],
-        ["有效体验次数", totals.experience, "数据库有效记录", "experience"], ["有效退费次数", totals.refund, "数据库有效记录", "refund"],
-        ["已纳入门店", totals.stores, "门店主表全部门店", ""], ["已纳入老师", totals.teachers, "当前日期范围", ""]
-      ].map(([label, valueText, note, drill], index) => ({ label, value: dashboard.count(valueText), note, drill, neutral: index > 3 }));
-      changes.hqCharts = [
-        hqChart(value.charts?.store, "store", "全局 · 按门店统计", "门店"),
-        hqChart(value.charts?.project, "project", "全局 · 按项目统计", "项目"),
-        hqChart(value.charts?.teacher, "teacher", "全局 · 按老师统计", "老师")
-      ];
+        ["有效充值次数", totals.recharge, "recharge"], ["有效核销次数", totals.verification, "verification"],
+        ["有效体验次数", totals.experience, "experience"], ["有效退费次数", totals.refund, "refund"],
+        ["已纳入门店", totals.stores, ""], ["已纳入老师", totals.teachers, ""]
+      ].map(([label, valueText, drill], index) => ({ label, value: dashboard.count(valueText), drill, neutral: index > 3 }));
+      changes.hqProjectSummaryTotals = dashboard.totals(totals);
       changes.hqLoadedAt = clockText();
-      changes.hqScopeDetailText = `统计日期：${range.startDate} 至 ${range.endDate}；门店、项目与老师均为全部范围；客户包含活跃及已存档记录；数据库更新：${changes.hqLoadedAt}`;
+    }
+    if (productSummaryRequestEpoch === this._hqProductSummaryRequestEpoch) {
+      changes.hqProjectSummaryLoading = false;
+      if (productSummaryResult.status === "fulfilled") {
+        try {
+          const summary = hqProductSummaryView(productSummaryResult.value);
+          changes.hqProjectSummaryRows = summary.rows;
+          changes.hqProjectSummaryPage = summary.page;
+          changes.hqProjectSummaryError = "";
+        } catch (summaryError) {
+          changes.hqProjectSummaryRows = [];
+          changes.hqProjectSummaryError = summaryError.message || "总部项目汇总返回格式无效";
+        }
+      } else {
+        changes.hqProjectSummaryRows = [];
+        changes.hqProjectSummaryError = productSummaryResult.reason?.message || "总部项目汇总读取失败";
+      }
+    }
+    if (productResult.status === "fulfilled") {
+      const products = [{ id: "", label: "全部项目" }, ...(productResult.value.products || []).map((item) => ({
+        id: String(item.id || ""),
+        label: `${String(item.product_name || item.productName || "未命名项目")}${item.product_code ? ` · ${item.product_code}` : ""}${String(item.product_status || "").toUpperCase() === "ARCHIVED" ? "（已封存）" : ""}`
+      })).filter((item) => item.id)];
+      changes.hqProducts = products;
+      changes.hqProductLabels = products.map((item) => item.label);
+      const selectedProductIndex = Math.max(0, products.findIndex((item) => item.id === productId));
+      changes.hqProductIndex = selectedProductIndex;
+      changes.hqProductId = products[selectedProductIndex]?.id || "";
     }
     const currentRankingRequest = rankingRequestEpoch === this._hqRankingRequestEpoch
-      && dimension === this.data.hqDimension;
+      && dimension === this.data.hqDimension && rankingMetric === this.data.hqRankingMetric && productId === this.data.hqProductId;
     if (currentRankingRequest) changes.hqRankingLoading = false;
-    if (currentRankingRequest && rankingResult.status === "fulfilled") {
+    if (currentRankingRequest && rankingResult.status === "fulfilled"
+      && hqRankingMatches(rankingResult.value.ranking, dimension, rankingMetric, productId)) {
       const ranking = rankingResult.value.ranking || {};
       const rows = dashboard.hqRows(ranking.rows, dimension);
-      const businessTotal = Math.max(1, dashboard.count(ranking.businessTotal));
+      const rankingTotal = Math.max(1, dashboard.count(ranking.rankingTotal));
       changes.hqRanking = rows.map((row, index) => ({
         ...row, rank: (dashboard.count(ranking.pageNumber) - 1) * RANKING_PAGE_SIZE + index + 1,
-        share: `${(row.businessTotal / businessTotal * 100).toFixed(1)}%`
+        rankValue: row[rankingMetric], share: `${(row[rankingMetric] / rankingTotal * 100).toFixed(1)}%`
       }));
+      changes.hqCharts = [hqChart(ranking.rows, dimension, `按${DIMENSIONS[this.data.hqDimensionIndex]?.label || "分类"}统计`, DIMENSIONS[this.data.hqDimensionIndex]?.label || "分类", rankingMetric)];
       changes.hqRankingPage = pageView({
         total: ranking.total, page: ranking.pageNumber, pageSize: ranking.pageSize, totalPages: ranking.totalPages
       });
       this._hqRankingRetryPage = changes.hqRankingPage.page;
       changes.hqRankingInput = String(changes.hqRankingPage.page);
       changes.hqRankingError = "";
-    } else if (currentRankingRequest && rankingResult.status === "rejected") {
-      changes.hqRankingError = rankingResult.reason?.message || "总部排名读取失败，请单独重试";
+    } else if (currentRankingRequest) {
+      changes.hqRankingError = rankingResult.status === "rejected"
+        ? rankingResult.reason?.message || "总部排名读取失败，请单独重试"
+        : "总部排名服务版本过旧，请先部署 staffAccount v71";
     }
     const message = overviewResult.status === "rejected"
       ? overviewResult.reason?.message || "总部首页读取失败"
@@ -391,6 +472,8 @@ Page({
     this._hqRankingRequestEpoch = requestEpoch;
     this._hqRankingRetryPage = pageNumber;
     const dimension = this.data.hqDimension;
+    const rankingMetric = this.data.hqRankingMetric;
+    const productId = this.data.hqProductId;
     const range = dashboard.hqRange(this.data.hqPeriod, { startDate: this.data.hqStart, endDate: this.data.hqEnd });
     if (!range.startDate || !range.endDate || range.startDate > range.endDate || dashboard.rangeDays(range.startDate, range.endDate) > 366) {
       this.setData({
@@ -406,28 +489,35 @@ Page({
     });
     try {
       const value = await callStaff("getHqDashboard", {
-        mode: "ranking", dimension, pageNumber, pageSize: RANKING_PAGE_SIZE,
+        mode: "ranking", dimension, rankingMetric, productId, pageNumber, pageSize: RANKING_PAGE_SIZE,
         startDate: range.startDate, endDate: range.endDate
       });
-      if (requestEpoch !== this._hqRankingRequestEpoch || dimension !== this.data.hqDimension) return;
+      if (requestEpoch !== this._hqRankingRequestEpoch || dimension !== this.data.hqDimension
+        || rankingMetric !== this.data.hqRankingMetric || productId !== this.data.hqProductId) return;
       const ranking = value.ranking || {};
+      if (!hqRankingMatches(ranking, dimension, rankingMetric, productId)) {
+        throw new Error("总部排名服务版本过旧，请先部署 staffAccount v71");
+      }
       const rows = dashboard.hqRows(ranking.rows, dimension);
-      const businessTotal = Math.max(1, dashboard.count(ranking.businessTotal));
+      const rankingTotal = Math.max(1, dashboard.count(ranking.rankingTotal));
       const page = pageView({ total: ranking.total, page: ranking.pageNumber, pageSize: ranking.pageSize, totalPages: ranking.totalPages });
       this._hqRankingRetryPage = page.page;
       this.setData({
         hqRanking: rows.map((row, index) => ({
           ...row, rank: (page.page - 1) * RANKING_PAGE_SIZE + index + 1,
-          share: `${(row.businessTotal / businessTotal * 100).toFixed(1)}%`
+          rankValue: row[rankingMetric], share: `${(row[rankingMetric] / rankingTotal * 100).toFixed(1)}%`
         })),
         hqRankingPage: page, hqRankingInput: String(page.page)
       });
+      if (page.page === 1) this.setData({ hqCharts: [hqChart(ranking.rows, dimension, "分类统计", DIMENSIONS[this.data.hqDimensionIndex]?.label || "分类", rankingMetric)] });
     } catch (error) {
-      if (requestEpoch === this._hqRankingRequestEpoch && dimension === this.data.hqDimension) {
+      if (requestEpoch === this._hqRankingRequestEpoch && dimension === this.data.hqDimension
+        && rankingMetric === this.data.hqRankingMetric && productId === this.data.hqProductId) {
         this.setData({ hqRankingError: error.message || "总部排名读取失败，请单独重试" });
       }
     } finally {
-      if (requestEpoch === this._hqRankingRequestEpoch && dimension === this.data.hqDimension) {
+      if (requestEpoch === this._hqRankingRequestEpoch && dimension === this.data.hqDimension
+        && rankingMetric === this.data.hqRankingMetric && productId === this.data.hqProductId) {
         this.setData({ hqRankingLoading: false });
       }
     }
@@ -448,7 +538,7 @@ Page({
   chooseRange(event) {
     const preset = event.currentTarget.dataset.preset;
     if (preset === "CUSTOM") {
-      const fallback = dashboard.scopedRange("MONTH");
+      const fallback = dashboard.scopedRange("TODAY");
       this.setData({ rangePreset: preset, rangeOptions: readyRangeOptions(preset), customRangeVisible: true,
         rangeStart: this.data.rangeStart || fallback.startDate, rangeEnd: this.data.rangeEnd || fallback.endDate });
       return;
@@ -515,14 +605,14 @@ Page({
   },
   chooseHqPeriod(event) {
     const index = Number(event.detail.value);
-    const period = dashboard.HQ_PERIOD_OPTIONS[index]?.value || "LAST_30";
+    const period = dashboard.HQ_PERIOD_OPTIONS[index]?.value || "TODAY";
     const range = dashboard.hqRange(period, { startDate: this.data.hqStart, endDate: this.data.hqEnd });
     this.setData({ hqPeriod: period, hqPeriodIndex: index, hqStart: range.startDate, hqEnd: range.endDate }, () => {
       if (period !== "CUSTOM") this.loadHqHome(1);
     });
   },
-  changeHqStart(event) { this.setData({ hqStart: event.detail.value, hqPeriod: "CUSTOM", hqPeriodIndex: 9 }, () => this.applyHqRange()); },
-  changeHqEnd(event) { this.setData({ hqEnd: event.detail.value, hqPeriod: "CUSTOM", hqPeriodIndex: 9 }, () => this.applyHqRange()); },
+  changeHqStart(event) { this.setData({ hqStart: event.detail.value, hqPeriod: "CUSTOM", hqPeriodIndex: dashboard.HQ_PERIOD_OPTIONS.findIndex((item) => item.value === "CUSTOM") }, () => this.applyHqRange()); },
+  changeHqEnd(event) { this.setData({ hqEnd: event.detail.value, hqPeriod: "CUSTOM", hqPeriodIndex: dashboard.HQ_PERIOD_OPTIONS.findIndex((item) => item.value === "CUSTOM") }, () => this.applyHqRange()); },
   applyHqRange() {
     if (!this.data.hqStart || !this.data.hqEnd || this.data.hqStart > this.data.hqEnd || dashboard.rangeDays(this.data.hqStart, this.data.hqEnd) > 366) {
       this._hqHomeRequestEpoch = Number(this._hqHomeRequestEpoch || 0) + 1;
@@ -530,7 +620,7 @@ Page({
       this._hqRankingRetryPage = 1;
       this.setData({
         loading: false, hqRankingLoading: false,
-        hqMetrics: [], hqCharts: [], hqLoadedAt: "—", hqScopeDetailText: "日期范围无效",
+        hqMetrics: [], hqCharts: [], hqLoadedAt: "—",
         hqRanking: [], hqRankingPage: pageView({ pageSize: RANKING_PAGE_SIZE }), hqRankingInput: "1",
         hqRankingScrollLeft: 0, hqRankingError: "请选择不超过 366 天的有效日期范围",
         message: "请选择不超过 366 天的有效日期范围", error: true
@@ -540,14 +630,72 @@ Page({
     this.loadHqHome(1);
   },
   resetHqRange() {
-    const index = 3;
-    const range = dashboard.hqRange("LAST_30");
-    this.setData({ hqPeriod: "LAST_30", hqPeriodIndex: index, hqStart: range.startDate, hqEnd: range.endDate }, () => this.loadHqHome(1));
+    const range = dashboard.hqRange("TODAY");
+    this.setData({
+      hqPeriod: "TODAY", hqPeriodIndex: 0, hqStart: range.startDate, hqEnd: range.endDate,
+      hqDimension: "store", hqDimensionIndex: 0,
+      hqProductId: "", hqProductIndex: 0,
+      hqRankingMetric: "recharge", hqRankingMetricIndex: 0
+    }, () => this.loadHqHome(1));
+  },
+  async loadHqProjectSummary(pageNumber) {
+    const requestEpoch = Number(this._hqProductSummaryRequestEpoch || 0) + 1;
+    this._hqProductSummaryRequestEpoch = requestEpoch;
+    const range = dashboard.hqRange(this.data.hqPeriod, { startDate: this.data.hqStart, endDate: this.data.hqEnd });
+    this.setData({
+      hqProjectSummaryLoading: true,
+      hqProjectSummaryRows: [],
+      hqProjectSummaryError: ""
+    });
+    try {
+      const payload = await callStaff("getHqDashboard", {
+        mode: "product-summary", pageNumber, pageSize: PRODUCT_SUMMARY_PAGE_SIZE,
+        startDate: range.startDate, endDate: range.endDate
+      });
+      if (requestEpoch !== this._hqProductSummaryRequestEpoch) return;
+      const summary = hqProductSummaryView(payload);
+      this.setData({
+        hqProjectSummaryLoading: false,
+        hqProjectSummaryRows: summary.rows,
+        hqProjectSummaryPage: summary.page,
+        hqProjectSummaryError: ""
+      });
+    } catch (error) {
+      if (requestEpoch !== this._hqProductSummaryRequestEpoch) return;
+      this.setData({
+        hqProjectSummaryLoading: false,
+        hqProjectSummaryRows: [],
+        hqProjectSummaryError: error.message || "总部项目汇总读取失败"
+      });
+    }
+  },
+  previousHqProductSummaryPage() {
+    if (!this.data.hqProjectSummaryPage.previousDisabled && !this.data.hqProjectSummaryLoading) {
+      this.loadHqProjectSummary(this.data.hqProjectSummaryPage.page - 1);
+    }
+  },
+  nextHqProductSummaryPage() {
+    if (!this.data.hqProjectSummaryPage.nextDisabled && !this.data.hqProjectSummaryLoading) {
+      this.loadHqProjectSummary(this.data.hqProjectSummaryPage.page + 1);
+    }
   },
   chooseHqDimension(event) {
-    const index = Number(event.detail.value);
+    if (this.data.hqRankingLoading || this.data.hqExporting) return;
+    const index = Number(event.currentTarget?.dataset?.index ?? event.detail?.value);
     const dimension = DIMENSIONS[index]?.value || "store";
     this.setData({ hqDimension: dimension, hqDimensionIndex: index }, () => this.loadHqRanking(1));
+  },
+  chooseHqRankingMetric(event) {
+    if (this.data.hqRankingLoading || this.data.hqExporting) return;
+    const index = Number(event.currentTarget.dataset.index);
+    const rankingMetric = RANKING_METRICS[index]?.value || "recharge";
+    this.setData({ hqRankingMetric: rankingMetric, hqRankingMetricIndex: index }, () => this.loadHqRanking(1));
+  },
+  chooseHqProduct(event) {
+    if (this.data.hqRankingLoading || this.data.hqExporting) return;
+    const index = Number(event.detail.value || 0);
+    const product = this.data.hqProducts[index] || this.data.hqProducts[0] || { id: "" };
+    this.setData({ hqProductIndex: index, hqProductId: product.id || "" }, () => this.loadHqRanking(1));
   },
   previousHqPage() { if (!this.data.hqRankingPage.previousDisabled) this.loadHqRanking(this.data.hqRankingPage.page - 1); },
   nextHqPage() { if (!this.data.hqRankingPage.nextDisabled) this.loadHqRanking(this.data.hqRankingPage.page + 1); },
@@ -569,21 +717,19 @@ Page({
     return this.loadHqRanking(page);
   },
   retryHqRanking() { return this.loadHqRanking(this._hqRankingRetryPage || this.data.hqRankingPage.page || 1); },
-  openHqDetail(event) {
-    const data = event.currentTarget.dataset || {};
-    if (data.title && !data.drill) return;
-    const title = String(event.currentTarget.dataset.title || event.currentTarget.dataset.name || "有效业务明细");
-    this.setData({
-      hqDetailOpen: true, hqDetailTitle: "数据库统计范围",
-      hqDetailText: `${title}；${this.data.hqScopeDetailText}`
-    });
+  openHqQuery(event) {
+    const drill = String(event.currentTarget.dataset.drill || "").toLowerCase();
+    if (!["recharge", "refund", "verification", "experience"].includes(drill)) return;
+    const type = ["recharge", "refund"].includes(drill) ? "recharge" : "verification";
+    wx.navigateTo({ url: `/pages/records/index?type=${type}&drill=${drill}&startDate=${encodeURIComponent(this.data.hqStart)}&endDate=${encodeURIComponent(this.data.hqEnd)}` });
   },
-  closeHqDetail() { this.setData({ hqDetailOpen: false }); },
   noop() {},
   async exportHqRanking() {
     if (this.data.loading || this.data.hqRankingLoading || this.data.hqExporting || this.data.hqRankingError) return;
     const range = dashboard.hqRange(this.data.hqPeriod, { startDate: this.data.hqStart, endDate: this.data.hqEnd });
     const dimension = this.data.hqDimension;
+    const rankingMetric = this.data.hqRankingMetric;
+    const productId = this.data.hqProductId;
     const dimensionLabel = this.data.hqDimensionLabels[this.data.hqDimensionIndex] || "分类";
     this.setData({ hqExporting: true, message: "正在读取完整排名并生成 CSV…", error: false });
     try {
@@ -592,10 +738,14 @@ Page({
       let totalPages = 1;
       do {
         const result = await callStaff("getHqDashboard", {
-          mode: "ranking", dimension, pageNumber, pageSize: RANKING_PAGE_SIZE,
+          mode: "ranking", dimension, rankingMetric, productId,
+          pageNumber, pageSize: RANKING_PAGE_SIZE,
           startDate: range.startDate, endDate: range.endDate
         });
         const ranking = result.ranking || {};
+        if (!hqRankingMatches(ranking, dimension, rankingMetric, productId)) {
+          throw new Error("总部排名服务版本过旧，请先部署 staffAccount v71");
+        }
         const total = dashboard.count(ranking.total);
         if (total > RANKING_EXPORT_MAX_ROWS) throw new Error(`当前${dimensionLabel}排名共有 ${total} 条；请缩小统计日期范围后再导出（单次最多 ${RANKING_EXPORT_MAX_ROWS} 条）`);
         totalPages = Math.max(1, dashboard.count(ranking.totalPages) || Math.ceil(total / RANKING_PAGE_SIZE));

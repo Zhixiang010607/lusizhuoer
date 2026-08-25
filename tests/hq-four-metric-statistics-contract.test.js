@@ -92,13 +92,16 @@ for (const metric of ["experience", "refund"]) {
     `${metric} must be normalized from the service response`);
   assert.match(app, new RegExp(`${metric}:\\s*finiteCount\\(pick\\(totals`, "i"),
     `${metric} must be normalized in dashboard totals`);
-  assert.match(page, new RegExp(`data-drill=\\"${metric}\\"`),
-    `${metric} must be drillable from the overview`);
-  assert.match(page, new RegExp(`id=\\"${metric}Total\\"`),
-    `${metric} must have a visible metric card`);
+  const summaryId = metric[0].toUpperCase() + metric.slice(1);
+  assert.match(page, new RegExp(`id=\\"productSummary${summaryId}\\"`),
+    `${metric} must remain visible in the all-product summary total`);
 }
-assert.match(app, /\["recharge",\s*"verification",\s*"experience",\s*"refund"\]/,
-  "charts must show all four business metrics together");
+assert.doesNotMatch(page, /class="metric-grid"|data-drill=/,
+  "the retired standalone HQ metric cards must not return");
+for (const label of ["有效充值", "有效核销", "有效体验", "有效退费"]) {
+  assert.match(page, new RegExp(`<th>${label}</th>`),
+    `the complete ranking must retain ${label}`);
+}
 assert.match(app, /有效体验次数/, "CSV export must retain experience");
 assert.match(app, /有效退费次数/, "CSV export must retain refunds");
 assert.match(page, /业务总计占比/, "ranking must base its share on all reported business counts");

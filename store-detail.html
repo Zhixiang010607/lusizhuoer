@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>门店全局视图</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.57">
+  <link rel="stylesheet" href="styles.css?v=0.15.60">
 </head>
 <body data-store-dashboard>
   <aside class="side-project-bar" aria-label="项目栏">
@@ -22,14 +22,14 @@
   </header>
   <main class="detail-page store-dashboard-page">
     <section id="storeHero" class="panel profile-hero"></section>
-    <section id="storeBasic" class="panel detail-section"><div class="panel-heading"><div><h2>基础资料</h2><p>门店身份、地址、账号和状态</p></div><span class="badge">门店档案</span></div><div id="storeBasicGrid" class="detail-info-grid"></div></section>
+    <section id="storeBasic" class="panel detail-section store-contact-panel"><div class="panel-heading"><div><h2>联系与地址</h2></div></div><div id="storeBasicGrid" class="detail-info-grid store-contact-grid"></div></section>
     <nav class="detail-anchor-nav"><a href="#storeBusinessOverview">业务汇总</a><a href="#storeBusinessDetails">业务明细</a><a href="#storeActiveCustomers">活跃用户</a><a href="#storeArchivedCustomers">封存用户</a></nav>
     <section id="storeBusinessOverview" class="panel teacher-overview-panel store-business-overview" aria-labelledby="storeOverviewTitle">
       <div class="panel-heading teacher-overview-heading"><div><h2 id="storeOverviewTitle">时间范围与业务汇总</h2><p>汇总仅统计本门店在所选周期内已经生效的业务次数</p></div><span id="storeAnalyticsScope" class="badge">本月</span></div>
       <div class="teacher-range-presets" role="group" aria-label="选择门店统计时间">
-        <button type="button" data-store-range-preset="TODAY">今天</button>
+        <button class="active" type="button" data-store-range-preset="TODAY">今天</button>
         <button type="button" data-store-range-preset="WEEK">本周</button>
-        <button class="active" type="button" data-store-range-preset="MONTH">本月</button>
+        <button type="button" data-store-range-preset="MONTH">本月</button>
         <button type="button" data-store-range-preset="QUARTER">本季度</button>
         <button type="button" data-store-range-preset="YEAR">本年</button>
         <button type="button" data-store-range-preset="ALL">全部</button>
@@ -41,7 +41,7 @@
         <button id="applyStoreAnalytics" class="primary-action" type="button">应用时间</button>
       </div>
       <div class="table-scroll teacher-summary-scroll" tabindex="0" aria-label="按项目汇总的门店业务次数">
-        <table class="teacher-summary-matrix"><thead id="storeAnalyticsHead"><tr><th scope="col">产品</th><th scope="col">核销</th><th scope="col">充值</th><th scope="col">体验</th><th scope="col">退费</th></tr></thead><tbody id="storeAnalyticsBody"><tr><td colspan="5" class="teacher-empty">正在计算本月汇总…</td></tr></tbody></table>
+        <table class="teacher-summary-matrix"><thead id="storeAnalyticsHead"><tr><th scope="col">产品</th><th scope="col">核销</th><th scope="col">充值</th><th scope="col">体验</th><th scope="col">退费</th></tr></thead><tbody id="storeAnalyticsBody"><tr><td colspan="5" class="teacher-empty">正在计算今天汇总…</td></tr></tbody></table>
       </div>
       <p id="storeAnalyticsMessage" class="form-message" aria-live="polite"></p>
     </section>
@@ -63,7 +63,7 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
-  <script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.20.0"></script><script src="datetime.js?v=0.1.2"></script>
-  <script src="store-analytics-data.js?v=0.2.1"></script><script src="store-detail.js?v=0.16.6"></script><script src="auth-ui.js?v=0.19.4"></script>
+  <script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.20.1"></script><script src="datetime.js?v=0.1.2"></script>
+  <script src="store-analytics-data.js?v=0.2.1"></script><script src="store-detail.js?v=0.16.7"></script><script src="auth-ui.js?v=0.19.4"></script>
 </body>
 </html>

@@ -19,12 +19,14 @@ for (const [type, label] of [["VERIFICATION", "核销"], ["RECHARGE", "充值"],
 for (const [preset, label] of [["TODAY", "今天"], ["WEEK", "本周"], ["MONTH", "本月"], ["QUARTER", "本季度"], ["YEAR", "本年"], ["ALL", "全部"], ["CUSTOM", "自定义"]]) {
   assert.match(html, new RegExp(`data-range-preset="${preset}"[^>]*>${label}</button>`), `${label} preset must be visible`);
 }
-assert.match(html, /data-range-preset="MONTH"[^>]*class="active"|class="active"[^>]*data-range-preset="MONTH"/, "month must be the default selected range");
+assert.match(html, /data-range-preset="TODAY"[^>]*class="active"|class="active"[^>]*data-range-preset="TODAY"/, "today must be the default selected range");
 assert.match(html, /id="teacherExperienceBalances"[^>]*teacher-quota-grid/, "experience balances must have a dynamic project grid");
 assert.match(html, /<th scope="col">产品<\/th><th scope="col">核销<\/th><th scope="col">充值<\/th><th scope="col">体验<\/th><th scope="col">退费<\/th>/, "summary matrix axes must match the product and four business metrics");
 assert.doesNotMatch(html, /<th[^>]*>[^<]*(?:人脸|状态)[^<]*<\/th>/, "teacher workspace tables must not show face or status columns");
 assert.match(html, /styles\.css\?v=0\.15\.59/);
-assert.match(html, /teacher-work-orders\.js\?v=0\.16\.4/);
+assert.match(html, /teacher-work-orders\.js\?v=0\.16\.5/);
+assert.match(ui, /preset:\s*"TODAY"/);
+assert.match(ui, /applyRange\("TODAY"\)/);
 assert.ok(html.indexOf('id="teacherBusinessDetails"') > html.indexOf('id="teacherOverviewTitle"'), "teacher details must follow the summary");
 assert.ok(html.indexOf('id="teacherBusinessDetails"') < html.indexOf('id="teacherActiveCustomersTitle"'), "teacher details must precede customer lists");
 assert.match(html, /id="teacherBusinessPagination"[^>]*business-record-pagination/, "teacher details must own numbered pagination");

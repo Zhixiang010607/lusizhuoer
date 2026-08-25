@@ -15,7 +15,7 @@
     <view class="section-heading"><text>查询结果</text><text>{{searched ? searchRows.length : 0}} {{unit}}</text></view>
     <scroll-view class="table-scroll" scroll-x>
       <view class="data-table {{type}}">
-        <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text><text>查看</text></view>
+        <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text></view>
         <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>老师编号</text><text>联系电话</text><text>状态</text></view>
         <block wx:if="{{searched && searchRows.length}}"><template is="directoryRows" data="{{rows: searchRows, type: type}}" /></block>
         <view wx:else class="table-empty">{{searched ? '没有符合条件的' + noun : '尚未查询'}}</view>
@@ -27,7 +27,7 @@
     <view class="section-heading"><text>活跃{{noun}}</text><text>{{activeRows.length}} {{unit}}</text></view>
     <scroll-view class="table-scroll" scroll-x>
       <view class="data-table {{type}}">
-        <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text><text>查看</text></view>
+        <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text></view>
         <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>老师编号</text><text>联系电话</text><text>状态</text></view>
         <template wx:if="{{activeRows.length}}" is="directoryRows" data="{{rows: activeRows, type: type}}" />
         <view wx:else class="table-empty">{{loading ? '正在读取数据库…' : '暂无活跃' + noun}}</view>
@@ -39,7 +39,7 @@
     <view class="section-heading"><text>封存{{noun}}</text><text>{{archivedRows.length}} {{unit}}</text></view>
     <scroll-view class="table-scroll" scroll-x>
       <view class="data-table {{type}}">
-        <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text><text>查看</text></view>
+        <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text></view>
         <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>老师编号</text><text>联系电话</text><text>状态</text></view>
         <template wx:if="{{archivedRows.length}}" is="directoryRows" data="{{rows: archivedRows, type: type}}" />
         <view wx:else class="table-empty">暂无封存{{noun}}</view>
@@ -52,7 +52,7 @@
 <template name="directoryRows">
   <block wx:for="{{rows}}" wx:key="ref">
     <view wx:if="{{type === 'store'}}" class="table-row store">
-      <text class="link" data-ref="{{item.ref}}" bindtap="openDetail">{{item.name}}</text><text>{{item.contact}}</text><text>{{item.phone}}</text><text>{{item.address}}</text><text><text class="status {{item.archived ? 'archived' : 'active'}}">{{item.archived ? '封存' : '活跃'}}</text></text><text><button class="table-button" data-ref="{{item.ref}}" bindtap="openDetail">进入主页</button></text>
+      <text class="link" data-ref="{{item.ref}}" bindtap="openDetail">{{item.name}}</text><text>{{item.contact}}</text><text>{{item.phone}}</text><text>{{item.address}}</text><text><text class="status {{item.archived ? 'archived' : 'active'}}">{{item.archived ? '封存' : '活跃'}}</text></text>
     </view>
     <view wx:else class="table-row teacher">
       <text class="link" data-ref="{{item.ref}}" bindtap="openDetail">{{item.name}}</text><text>{{item.code}}</text><text>{{item.phone}}</text><text><text class="status {{item.archived ? 'archived' : 'active'}}">{{item.archived ? '封存' : '活跃'}}</text></text>

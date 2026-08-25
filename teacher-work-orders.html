@@ -23,9 +23,9 @@
     <section class="panel teacher-overview-panel" aria-labelledby="teacherOverviewTitle">
       <div class="panel-heading teacher-overview-heading"><div><h2 id="teacherOverviewTitle">时间范围与业务汇总</h2><p>汇总仅统计当前老师在所选周期内已经生效的业务次数</p></div><span id="teacherRangeLabel" class="badge">本月</span></div>
       <div class="teacher-range-presets" role="group" aria-label="选择统计时间">
-        <button type="button" data-range-preset="TODAY">今天</button>
+        <button class="active" type="button" data-range-preset="TODAY">今天</button>
         <button type="button" data-range-preset="WEEK">本周</button>
-        <button class="active" type="button" data-range-preset="MONTH">本月</button>
+        <button type="button" data-range-preset="MONTH">本月</button>
         <button type="button" data-range-preset="QUARTER">本季度</button>
         <button type="button" data-range-preset="YEAR">本年</button>
         <button type="button" data-range-preset="ALL">全部</button>
@@ -39,7 +39,7 @@
       <div class="table-scroll teacher-summary-scroll" tabindex="0" aria-label="按项目汇总的业务次数">
         <table class="teacher-summary-matrix">
           <thead><tr><th scope="col">产品</th><th scope="col">核销</th><th scope="col">充值</th><th scope="col">体验</th><th scope="col">退费</th></tr></thead>
-          <tbody id="teacherSummaryBody"><tr><td colspan="5" class="teacher-empty">正在计算本月汇总…</td></tr></tbody>
+          <tbody id="teacherSummaryBody"><tr><td colspan="5" class="teacher-empty">正在计算今天汇总…</td></tr></tbody>
         </table>
       </div>
     </section>
@@ -75,7 +75,7 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
   <script src="datetime.js?v=0.1.2"></script>
-  <script src="teacher-work-orders.js?v=0.16.4"></script>
+  <script src="teacher-work-orders.js?v=0.16.5"></script>
   <script src="auth-ui.js?v=0.19.4"></script>
 </body>
 </html>
