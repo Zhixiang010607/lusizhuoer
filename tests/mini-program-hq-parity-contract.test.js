@@ -40,10 +40,13 @@ test("HQ home exposes the complete web mobile rail and isolated ranking interact
   assert.match(js, /jumpHqPage\(\)/);
   assert.match(js, /retryHqRanking\(\)/);
   assert.match(js, /async exportHqRanking\(\)/);
-  assert.match(js, /RANKING_EXPORT_MAX_ROWS = 10000/);
-  assert.match(js, /wx\.setClipboardData\(\{\s*data/,
-    "ranking CSV uses a post-fetch-safe native clipboard handoff");
-  assert.match(js, /排名 CSV 内容已复制，可粘贴到表格或文本文件保存/);
+  assert.match(js, /REPORT_EXPORT_MAX_ROWS = 10000/);
+  assert.match(js, /hqReport\.createReportPdf\(\{[\s\S]*productRows,[\s\S]*rankingRows,/,
+    "mini vector PDF must include all project summary rows and the complete ranking");
+  assert.match(js, /getFileSystemManager\(\)\.writeFile/);
+  assert.match(js, /openPdfDocument\(filePath\)/);
+  assert.doesNotMatch(js, /wx\.setClipboardData\(\{\s*data/,
+    "retired CSV clipboard export must not return");
   assert.doesNotMatch(js, /shareFileMessage/,
     "ranking export must not call a TAP-only API after asynchronously fetching all pages");
   assert.doesNotMatch(js, /hqScopeDetailText|hqDetailOpen/,
@@ -78,7 +81,7 @@ test("HQ home exposes the complete web mobile rail and isolated ranking interact
     "the retired six metrics and duplicate Top 10 classification card must stay off the HQ home");
   assert.doesNotMatch(webIndex, /class="metric-grid"|id="analysisGrid"|分类统计|前 10 名/,
     "web and mini HQ home must retire the same duplicate summary sections");
-  assert.match(wxml, /导出当前数据/);
+  assert.match(wxml, /导出完整报表 PDF/);
   assert.match(wxml, /跳至/);
   assert.match(wxml, /class="menu-backdrop" bindtap="closeMenus"/);
   assert.match(wxml, /class="business-popover[^\"]*" catchtap="noop"/);

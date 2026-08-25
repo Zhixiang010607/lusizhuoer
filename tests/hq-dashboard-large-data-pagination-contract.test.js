@@ -42,8 +42,9 @@ const businessEvents = functionSource(cloud, "hqBusinessEventsCte");
 const productSummarySql = functionSource(cloud, "hqDashboardProductSummarySql");
 const productSummary = functionSource(cloud, "getHqDashboardProductSummary");
 const dispatcher = functionSource(cloud, "getHqDashboard");
+const rankingProjection = functionSource(cloud, "hqDashboardRankingProjection");
 
-assert.match(cloud, /const FUNCTION_VERSION = "v71"/, "large-data dashboard deployment must identify as v71");
+assert.match(cloud, /const FUNCTION_VERSION = "v72"/, "large-data dashboard deployment must identify as v72");
 assert.match(cloud, /const HQ_DASHBOARD_CHART_LIMIT = 10/, "overview charts must be strictly bounded");
 assert.match(cloud, /const HQ_DASHBOARD_MAX_PAGE_SIZE = 500/, "ranking page size must have a server maximum");
 assert.doesNotMatch(cloud, /getHqDashboardLegacyFullPayload/, "the unsafe full-payload dashboard query must not remain callable or retained");
@@ -74,6 +75,10 @@ assert.match(rankingSql, /ORDER BY \$\{rankingColumn\} DESC/,
   "database ordering must use the selected metric instead of a client-side page sort");
 assert.match(rankingSql, /AS ranking_total/,
   "selected-metric share must use the full filtered metric total");
+assert.match(rankingProjection, /FROM public\.stores s[\s\S]*WHERE s\.store_status = 'ACTIVE'[\s\S]*OR event\.store_id IS NOT NULL/,
+  "all active stores and only archived stores with in-range facts must participate");
+assert.match(rankingProjection, /FROM public\.teachers teacher[\s\S]*WHERE teacher\.teacher_status = 'ACTIVE'[\s\S]*OR event\.teacher_id IS NOT NULL/,
+  "all active teachers and only archived teachers with in-range attributed facts must participate");
 assert.match(ranking, /pageNumber = Math\.min\(request\.pageNumber, totalPages\)/,
   "a stale high page request must be clamped safely");
 assert.match(productSummarySql, /FROM public\.products product[\s\S]*LEFT JOIN business_events event ON event\.product_id = product\.id/,
@@ -113,11 +118,14 @@ assert.match(app, /try \{[\s\S]*?state\.ranking = normalizeRanking\(rankingResul
   "a malformed fulfilled ranking response must not discard a successful overview");
 assert.match(app, /function fetchRankingPage\(/, "frontend must fetch ranking pages independently");
 assert.match(app, /function jumpToRankingPage\(/, "frontend must expose direct ranking page jumps");
-assert.match(app, /CSV_EXPORT_PAGE_SIZE = 500/, "CSV export must stream bounded ranking pages");
-assert.match(app, /CSV_EXPORT_MAX_ROWS = 10000/, "CSV export must have a browser-safe hard cap");
+assert.match(app, /PDF_EXPORT_PAGE_SIZE = 500/, "PDF export must stream bounded summary and ranking pages");
+assert.match(app, /PDF_EXPORT_MAX_ROWS = 10000/, "PDF export must have a browser-safe hard cap");
 assert.match(app, /RANKING_MAX_PAGE_NUMBER = 10000/, "the browser page jump must match the server page cap");
-assert.match(app, /page\.total > CSV_EXPORT_MAX_ROWS/, "CSV export must re-check the limit from the server response");
-assert.match(app, /while \(pageNumber <= totalPages\)/, "CSV export must collect all allowed ranking pages");
+assert.match(app, /page\.total > PDF_EXPORT_MAX_ROWS/, "PDF export must re-check the limit from the server response");
+assert.match(app, /while \(productPageNumber <= productTotalPages\)/, "PDF export must collect every project summary page");
+assert.match(app, /while \(pageNumber <= totalPages\)/, "PDF export must collect all allowed ranking pages");
+assert.match(app, /HqDashboardReport\.downloadReport\(\{[\s\S]*productRows,[\s\S]*rankingRows,/,
+  "PDF export must draw the full project summary and complete ranking together");
 assert.match(page, /id="rankingPreviousPage"/, "ranking pager needs previous-page control");
 assert.match(page, /id="rankingPageInput"/, "ranking pager needs direct page input");
 assert.match(page, /id="rankingRetry"/, "a failed ranking request needs a focused retry action");

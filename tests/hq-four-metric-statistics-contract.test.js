@@ -81,11 +81,14 @@ assert.match(rankingProjection, /dimension === "teacher"[\s\S]*?refund_count/i,
 assert.match(dashboard, /mode === "ranking"[\s\S]*getHqDashboardRanking/i,
   "dashboard dispatcher must expose a separate bounded ranking mode");
 
-// Archive changes prevent new selections but do not erase past approved
-// events.  Joining master data after event aggregation preserves archived
-// records in date-range reporting.
-assert.doesNotMatch(`${eventCte}\n${rankingProjection}\n${overview}`, /(?:store_status|teacher_status|product_status|customer_status)\s*=\s*'ACTIVE'/i,
-  "HQ historical analytics must not filter approved events by current archive state");
+// Archive changes never erase approved historical events. Ranking population
+// additionally includes every current active master (including zero rows),
+// while an archived master participates only when the selected range contains
+// an effective event for it.
+assert.doesNotMatch(eventCte, /(?:store_status|teacher_status|product_status|customer_status)\s*=\s*'ACTIVE'/i,
+  "the fact stream itself must never delete history by current archive state");
+assert.match(rankingProjection, /store_status = 'ACTIVE'[\s\S]*OR event\.store_id IS NOT NULL/i);
+assert.match(rankingProjection, /teacher_status = 'ACTIVE'[\s\S]*OR event\.teacher_id IS NOT NULL/i);
 
 for (const metric of ["experience", "refund"]) {
   assert.match(app, new RegExp(`${metric}:\\s*finiteCount\\(pick\\(row`, "i"),
@@ -102,8 +105,8 @@ for (const label of ["有效充值", "有效核销", "有效体验", "有效退�
   assert.match(page, new RegExp(`<th>${label}</th>`),
     `the complete ranking must retain ${label}`);
 }
-assert.match(app, /有效体验次数/, "CSV export must retain experience");
-assert.match(app, /有效退费次数/, "CSV export must retain refunds");
+assert.match(app, /HqDashboardReport\.downloadReport\(\{[\s\S]*productRows,[\s\S]*rankingRows,/,
+  "vector PDF export must retain project summary and complete ranking data");
 assert.match(page, /业务总计占比/, "ranking must base its share on all reported business counts");
 
 console.log("HQ four-metric statistics contract: PASS");

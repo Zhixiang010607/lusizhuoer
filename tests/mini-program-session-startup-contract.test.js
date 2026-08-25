@@ -105,6 +105,7 @@ function loadHome(waitForStartupSession, requireSession) {
         setSelectedStore() {}, signOut: async () => {}
       };
       if (id === "../../services/home-dashboard") return dashboard;
+      if (id === "../../services/hq-dashboard-report") return { createReportPdf: () => ({ bytes: new Uint8Array(), pages: 1 }), safeFilename: () => "report" };
       throw new Error(`unexpected home dependency ${id}`);
     },
     wx: {

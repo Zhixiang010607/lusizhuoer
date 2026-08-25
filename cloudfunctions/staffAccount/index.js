@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v71";
+const FUNCTION_VERSION = "v72";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -1293,6 +1293,8 @@ function hqDashboardRankingProjection(dimension) {
                    COALESCE(SUM(event.refund_count), 0)::bigint AS refund_count
               FROM public.stores s
          LEFT JOIN business_events event ON event.store_id = s.id
+            WHERE s.store_status = 'ACTIVE'
+               OR event.store_id IS NOT NULL
              GROUP BY s.id, s.store_code, s.store_name`;
   }
   if (dimension === "project") {
@@ -1308,17 +1310,18 @@ function hqDashboardRankingProjection(dimension) {
              GROUP BY event.product_id, product.product_code, product.product_name`;
   }
   if (dimension === "teacher") {
-    return `SELECT event.teacher_id AS entity_id,
+    return `SELECT teacher.id AS entity_id,
                    COALESCE(teacher.teacher_code::text, '') AS entity_code,
                    COALESCE(teacher.teacher_name::text, '') AS entity_name,
                    COALESCE(SUM(event.recharge_count), 0)::bigint AS recharge_count,
                    COALESCE(SUM(event.verification_count), 0)::bigint AS verification_count,
                    COALESCE(SUM(event.experience_count), 0)::bigint AS experience_count,
                    COALESCE(SUM(event.refund_count), 0)::bigint AS refund_count
-              FROM business_events event
-         LEFT JOIN public.teachers teacher ON teacher.id = event.teacher_id
-             WHERE event.teacher_id IS NOT NULL
-             GROUP BY event.teacher_id, teacher.teacher_code, teacher.teacher_name`;
+              FROM public.teachers teacher
+         LEFT JOIN business_events event ON event.teacher_id = teacher.id
+             WHERE teacher.teacher_status = 'ACTIVE'
+                OR event.teacher_id IS NOT NULL
+             GROUP BY teacher.id, teacher.teacher_code, teacher.teacher_name`;
   }
   fail("总部看板排名维度无效", "BAD_REQUEST");
 }

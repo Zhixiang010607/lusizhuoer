@@ -69,7 +69,7 @@ ROLLBACK;
    `047-02-hq-reviewer-guard.sql`；
 5. 依次完整执行 `048-01-quota-lifecycle-schema.sql` 至
    `048-07-comments.sql`，每个文件确认 `COMMIT` 成功；
-6. 部署 `faceRecognition v71` 与 `staffAccount v55`，分别调用 `health`
+6. 部署 `faceRecognition v72` 与 `staffAccount v55`，分别调用 `health`
    确认新版本；
 7. 最后才部署当前静态前端并强制刷新浏览器。
 
@@ -90,7 +90,7 @@ ROLLBACK;
 
 ## 053 删除旧老师人脸 Saga
 
-先部署 `staffAccount v71`、`faceRecognition v91` 和 `teacherCreate v6`，再按
+先部署 `staffAccount v72`、`faceRecognition v91` 和 `teacherCreate v6`，再按
 [`053-README.md`](053-README.md) 执行 `053-01-retire-legacy-teacher-face-saga.sql`，最后运行
 `053-readonly-verify.sql`，7 行必须全部为 `RETIRED`。
 
@@ -98,7 +98,7 @@ ROLLBACK;
 
 完成 053 后，按 [`054-README.md`](054-README.md) 完整执行
 `054-01-teacher-only-customer-face-experience.sql`，然后部署
-`faceRecognition v91`、`staffAccount v71`、`teacherCreate v6` 和当前静态前端。
+`faceRecognition v91`、`staffAccount v72`、`teacherCreate v6` 和当前静态前端。
 054 会在数据库层把体验创建限定为额度所属的当前老师账号，并把新体验凭证切换为
 客户登记照与客户现场照；历史照片不改写。
 

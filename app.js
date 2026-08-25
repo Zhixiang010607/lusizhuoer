@@ -2,13 +2,13 @@
   "use strict";
 
   // 文档同步约束：每次业务或界面变更都必须同步更新 main.tex 与 README.md。
-  const PROTOTYPE_VERSION = "0.15.9";
+  const PROTOTYPE_VERSION = "0.15.10";
   const BUSINESS_TIME_ZONE = "Asia/Shanghai";
   const RANKING_PAGE_SIZE = 100;
   const PRODUCT_SUMMARY_PAGE_SIZE = 10;
   const RANKING_MAX_PAGE_NUMBER = 10000;
-  const CSV_EXPORT_PAGE_SIZE = 500;
-  const CSV_EXPORT_MAX_ROWS = 10000;
+  const PDF_EXPORT_PAGE_SIZE = 500;
+  const PDF_EXPORT_MAX_ROWS = 10000;
   const EMPTY_DATA = Object.freeze({
     stores: [],
     teachers: [],
@@ -75,12 +75,6 @@
       '"': "&quot;",
       "'": "&#39;"
     })[character]);
-  }
-
-  function csvCell(value) {
-    let text = String(value ?? "");
-    if (/^\s*[=+\-@]/.test(text)) text = `'${text}`;
-    return `"${text.replace(/"/g, '""')}"`;
   }
 
   function finiteCount(value, fallback = 0) {
@@ -218,7 +212,7 @@
   function normalizeProductSummary(payload) {
     const source = payload?.productSummary;
     if (!source || typeof source !== "object" || !Array.isArray(source.rows)) {
-      throw new Error("总部项目汇总服务版本过旧，请先部署 staffAccount v71");
+      throw new Error("总部项目汇总服务版本过旧，请先部署 staffAccount v72");
     }
     const rows = source.rows.map((row) => ({
       entityId: String(pick(row, "entityId", "entity_id")),
@@ -629,16 +623,7 @@
     document.querySelectorAll(".dashboard-custom-date").forEach((field) => { field.hidden = !custom; });
   }
 
-  function rankingCsvHeader(dimension) {
-    const label = dimensionLabels[dimension] || "分类对象";
-    return [`${label}编号`, label, "有效充值次数", "有效核销次数", "有效体验次数", "有效退费次数"];
-  }
-
-  function rankingCsvRow(row) {
-    return [row.entityId, row.name, row.recharge, row.verification, row.experience, row.refund];
-  }
-
-  async function exportCsv() {
+  async function exportPdf() {
     if (state.requestState !== "ready" || state.exporting) return;
     const range = selectedRange();
     if (!range.valid) return;
@@ -650,8 +635,16 @@
       window.alert("排名尚未读取成功，暂时不能导出。请先重试排名读取。");
       return;
     }
-    if (Number(currentRanking.total || 0) > CSV_EXPORT_MAX_ROWS) {
-      window.alert(`当前${dimensionLabels[dimension] || "分类"}排名共有 ${fmt.format(currentRanking.total)} 条。为避免浏览器内存占用，单次 CSV 最多导出 ${fmt.format(CSV_EXPORT_MAX_ROWS)} 条；请缩小统计日期范围后重试。`);
+    if (state.productSummary?.error) {
+      window.alert("项目汇总尚未读取成功，暂时不能导出完整报表。请先重新读取首页数据。");
+      return;
+    }
+    if (Number(currentRanking.total || 0) > PDF_EXPORT_MAX_ROWS) {
+      window.alert(`当前${dimensionLabels[dimension] || "分类"}排名共有 ${fmt.format(currentRanking.total)} 条。为避免浏览器内存占用，单次 PDF 最多导出 ${fmt.format(PDF_EXPORT_MAX_ROWS)} 条；请缩小统计日期范围后重试。`);
+      return;
+    }
+    if (!window.HqDashboardReport?.downloadReport) {
+      window.alert("矢量 PDF 导出组件尚未加载，请刷新页面后重试。");
       return;
     }
     const exportButton = $("exportBtn");
@@ -659,11 +652,36 @@
     state.exporting = true;
     setControlsLoading(true);
     try {
-      const values = [rankingCsvHeader(dimension)];
+      const productRows = [];
+      let productPageNumber = 1;
+      let productTotalPages = 1;
+      do {
+        exportButton.textContent = `正在读取项目汇总 ${productPageNumber} / ${productTotalPages}…`;
+        const payload = await window.CloudBasePhoneAuth.getHqDashboard({
+          startDate: range.startDate,
+          endDate: range.endDate,
+          mode: "product-summary",
+          pageNumber: productPageNumber,
+          pageSize: PDF_EXPORT_PAGE_SIZE
+        });
+        const page = normalizeProductSummary(payload);
+        if (page.total > PDF_EXPORT_MAX_ROWS) {
+          throw new Error(`项目汇总共有 ${fmt.format(page.total)} 项，单次 PDF 最多绘制 ${fmt.format(PDF_EXPORT_MAX_ROWS)} 项。`);
+        }
+        if (productRows.length + page.rows.length > PDF_EXPORT_MAX_ROWS) {
+          throw new Error(`单次 PDF 最多绘制 ${fmt.format(PDF_EXPORT_MAX_ROWS)} 个项目，已停止继续读取。`);
+        }
+        productTotalPages = page.totalPages;
+        productRows.push(...page.rows);
+        productPageNumber += 1;
+      } while (productPageNumber <= productTotalPages);
+
+      const rankingRows = [];
       let pageNumber = 1;
       let totalPages = 1;
+      let rankingTotal = Number(currentRanking.rankingTotal || 0);
       do {
-        exportButton.textContent = `正在导出第 ${pageNumber} / ${totalPages} 页…`;
+        exportButton.textContent = `正在读取完整排名 ${pageNumber} / ${totalPages}…`;
         const payload = await window.CloudBasePhoneAuth.getHqDashboard({
           startDate: range.startDate,
           endDate: range.endDate,
@@ -672,30 +690,49 @@
           rankingMetric,
           productId,
           pageNumber,
-          pageSize: CSV_EXPORT_PAGE_SIZE
+          pageSize: PDF_EXPORT_PAGE_SIZE
         });
         const page = normalizeRanking(payload, dimension);
         if (page.dimension !== dimension || page.rankingMetric !== rankingMetric || page.productId !== productId) {
           throw new Error("总部排名导出范围与当前选择不一致");
         }
-        if (page.total > CSV_EXPORT_MAX_ROWS) {
-          throw new Error(`当前${dimensionLabels[dimension] || "分类"}排名共有 ${fmt.format(page.total)} 条。为避免浏览器内存占用，单次 CSV 最多导出 ${fmt.format(CSV_EXPORT_MAX_ROWS)} 条；请缩小统计日期范围后重试。`);
+        if (page.total > PDF_EXPORT_MAX_ROWS) {
+          throw new Error(`当前${dimensionLabels[dimension] || "分类"}排名共有 ${fmt.format(page.total)} 条。为避免浏览器内存占用，单次 PDF 最多导出 ${fmt.format(PDF_EXPORT_MAX_ROWS)} 条；请缩小统计日期范围后重试。`);
         }
-        if (values.length - 1 + page.rows.length > CSV_EXPORT_MAX_ROWS) {
-          throw new Error(`单次 CSV 最多导出 ${fmt.format(CSV_EXPORT_MAX_ROWS)} 条，已停止继续读取。请缩小统计日期范围后重试。`);
+        if (rankingRows.length + page.rows.length > PDF_EXPORT_MAX_ROWS) {
+          throw new Error(`单次 PDF 最多导出 ${fmt.format(PDF_EXPORT_MAX_ROWS)} 条排名，已停止继续读取。请缩小统计日期范围后重试。`);
         }
         totalPages = page.totalPages;
-        values.push(...page.rows.map(rankingCsvRow));
+        rankingTotal = Number(page.rankingTotal || rankingTotal || 0);
+        rankingRows.push(...page.rows);
         pageNumber += 1;
       } while (pageNumber <= totalPages);
-      const csv = values.map((row) => row.map(csvCell).join(",")).join("\r\n");
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }));
-      link.download = `总部看板${dimensionLabels[dimension] || "分类"}${rankingMetricLabels[rankingMetric]}排名.csv`;
-      link.click();
-      window.setTimeout(() => URL.revokeObjectURL(link.href), 0);
+
+      exportButton.textContent = "正在绘制矢量 PDF…";
+      const dimensionLabel = dimensionLabels[dimension] || "分类";
+      const metricLabel = rankingMetricLabels[rankingMetric] || "业务";
+      const productLabel = productId
+        ? state.rankingProducts.find((product) => product.id === productId)?.label || "指定项目"
+        : "全部项目";
+      window.HqDashboardReport.downloadReport({
+        filename: `露思卓儿总部-${range.startDate}至${range.endDate}-${dimensionLabel}-${metricLabel}排名`,
+        startDate: range.startDate,
+        endDate: range.endDate,
+        dimensionLabel,
+        metric: rankingMetric,
+        metricLabel,
+        productLabel,
+        generatedAt: new Intl.DateTimeFormat("zh-CN", {
+          timeZone: BUSINESS_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit",
+          hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false
+        }).format(new Date()),
+        productRows,
+        totals: state.data.totals,
+        rankingRows,
+        rankingTotal
+      });
     } catch (error) {
-      window.alert(error?.message || "总部排名导出失败，请稍后重试");
+      window.alert(error?.message || "总部矢量 PDF 导出失败，请稍后重试");
     } finally {
       state.exporting = false;
       exportButton.textContent = originalLabel;
@@ -777,7 +814,7 @@
     return normalizeRanking(payload, dimension);
   }
 
-  async function fetchProductSummaryPage(range, pageNumber) {
+  async function fetchProductSummaryPage(range, pageNumber, pageSize = PRODUCT_SUMMARY_PAGE_SIZE) {
     if (typeof window.CloudBasePhoneAuth?.getHqDashboard !== "function") {
       throw new Error("总部数据库服务未加载，请刷新页面后重试");
     }
@@ -786,7 +823,7 @@
       endDate: range.endDate,
       mode: "product-summary",
       pageNumber,
-      pageSize: PRODUCT_SUMMARY_PAGE_SIZE
+      pageSize
     });
     return normalizeProductSummary(payload);
   }
@@ -1016,7 +1053,7 @@
     $("productSummaryNext").addEventListener("click", () => {
       void loadProductSummaryPage(Math.min(Number(state.productSummary.totalPages || 1), Number(state.productSummary.pageNumber || 1) + 1));
     });
-    $("exportBtn").addEventListener("click", exportCsv);
+    $("exportBtn").addEventListener("click", exportPdf);
     if ($("rankingDimension")) $("rankingDimension").addEventListener("change", () => {
       if (state.requestState !== "ready") return;
       const { rows, teacherRows } = currentData();

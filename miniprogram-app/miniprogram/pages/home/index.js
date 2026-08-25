@@ -1,6 +1,7 @@
 const { callFace, callStaff } = require("../../services/api");
 const { waitForStartupSession, requireSession, getSelectedStore, signOut } = require("../../services/session");
 const dashboard = require("../../services/home-dashboard");
+const hqReport = require("../../services/hq-dashboard-report");
 
 const ROLE_META = Object.freeze({
   hq: { title: "总部数据看板", subtitle: "真实数据库统计 · 默认显示今天" },
@@ -20,7 +21,8 @@ const RANKING_METRICS = Object.freeze([
 const PAGE_SIZE = 10;
 const RANKING_PAGE_SIZE = 100;
 const PRODUCT_SUMMARY_PAGE_SIZE = 10;
-const RANKING_EXPORT_MAX_ROWS = 10000;
+const REPORT_EXPORT_PAGE_SIZE = 500;
+const REPORT_EXPORT_MAX_ROWS = 10000;
 
 function readyRangeOptions(active) {
   return dashboard.RANGE_OPTIONS.map((item) => ({ ...item, active: item.value === active }));
@@ -77,7 +79,7 @@ function hqProductSummaryRows(items = []) {
 }
 function hqProductSummaryView(payload = {}) {
   const summary = payload.productSummary;
-  if (!summary || !Array.isArray(summary.rows)) throw new Error("总部项目汇总服务版本过旧，请先部署 staffAccount v71");
+  if (!summary || !Array.isArray(summary.rows)) throw new Error("总部项目汇总服务版本过旧，请先部署 staffAccount v72");
   return {
     rows: hqProductSummaryRows(summary.rows),
     page: pageView({
@@ -88,13 +90,14 @@ function hqProductSummaryView(payload = {}) {
     })
   };
 }
-function csvCell(value) {
-  const text = String(value === undefined || value === null ? "" : value);
-  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+function wxCall(invoke) { return new Promise((resolve, reject) => invoke(resolve, reject)); }
+function openPdfDocument(filePath) {
+  if (typeof wx.openDocument !== "function") return Promise.reject(new Error("当前微信版本无法打开 PDF，请升级微信后重试"));
+  return wxCall((resolve, reject) => wx.openDocument({ filePath, fileType: "pdf", showMenu: true, success: resolve, fail: reject }));
 }
-function csvLine(values) { return values.map(csvCell).join(","); }
-function copyCsvToClipboard(data) {
-  return new Promise((resolve, reject) => wx.setClipboardData({ data, success: resolve, fail: reject }));
+function reportTimestamp(date = new Date()) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
 Page({
@@ -458,7 +461,7 @@ Page({
     } else if (currentRankingRequest) {
       changes.hqRankingError = rankingResult.status === "rejected"
         ? rankingResult.reason?.message || "总部排名读取失败，请单独重试"
-        : "总部排名服务版本过旧，请先部署 staffAccount v71";
+        : "总部排名服务版本过旧，请先部署 staffAccount v72";
     }
     const message = overviewResult.status === "rejected"
       ? overviewResult.reason?.message || "总部首页读取失败"
@@ -496,7 +499,7 @@ Page({
         || rankingMetric !== this.data.hqRankingMetric || productId !== this.data.hqProductId) return;
       const ranking = value.ranking || {};
       if (!hqRankingMatches(ranking, dimension, rankingMetric, productId)) {
-        throw new Error("总部排名服务版本过旧，请先部署 staffAccount v71");
+        throw new Error("总部排名服务版本过旧，请先部署 staffAccount v72");
       }
       const rows = dashboard.hqRows(ranking.rows, dimension);
       const rankingTotal = Math.max(1, dashboard.count(ranking.rankingTotal));
@@ -731,35 +734,68 @@ Page({
     const rankingMetric = this.data.hqRankingMetric;
     const productId = this.data.hqProductId;
     const dimensionLabel = this.data.hqDimensionLabels[this.data.hqDimensionIndex] || "分类";
-    this.setData({ hqExporting: true, message: "正在读取完整排名并生成 CSV…", error: false });
+    this.setData({ hqExporting: true, message: "正在读取项目汇总与完整排名…", error: false });
     try {
-      const values = [[`${dimensionLabel}编号`, dimensionLabel, "有效充值次数", "有效核销次数", "有效体验次数", "有效退费次数"]];
+      const productRows = [];
+      let productPageNumber = 1;
+      let productTotalPages = 1;
+      do {
+        this.setData({ message: `正在读取项目汇总 ${productPageNumber} / ${productTotalPages}…`, error: false });
+        const result = await callStaff("getHqDashboard", {
+          mode: "product-summary", pageNumber: productPageNumber, pageSize: REPORT_EXPORT_PAGE_SIZE,
+          startDate: range.startDate, endDate: range.endDate
+        });
+        const summary = hqProductSummaryView(result);
+        if (summary.page.total > REPORT_EXPORT_MAX_ROWS) throw new Error(`项目汇总共有 ${summary.page.total} 项，单次 PDF 最多绘制 ${REPORT_EXPORT_MAX_ROWS} 项`);
+        if (productRows.length + summary.rows.length > REPORT_EXPORT_MAX_ROWS) throw new Error(`单次 PDF 最多绘制 ${REPORT_EXPORT_MAX_ROWS} 个项目`);
+        productTotalPages = Math.max(1, summary.page.totalPages);
+        productRows.push(...summary.rows.map((row) => ({ name: row.productName, ...row })));
+        productPageNumber += 1;
+      } while (productPageNumber <= productTotalPages);
+
+      const rankingRows = [];
       let pageNumber = 1;
       let totalPages = 1;
+      let rankingTotal = 0;
       do {
+        this.setData({ message: `正在读取完整排名 ${pageNumber} / ${totalPages}…`, error: false });
         const result = await callStaff("getHqDashboard", {
           mode: "ranking", dimension, rankingMetric, productId,
-          pageNumber, pageSize: RANKING_PAGE_SIZE,
+          pageNumber, pageSize: REPORT_EXPORT_PAGE_SIZE,
           startDate: range.startDate, endDate: range.endDate
         });
         const ranking = result.ranking || {};
         if (!hqRankingMatches(ranking, dimension, rankingMetric, productId)) {
-          throw new Error("总部排名服务版本过旧，请先部署 staffAccount v71");
+          throw new Error("总部排名服务版本过旧，请先部署 staffAccount v72");
         }
         const total = dashboard.count(ranking.total);
-        if (total > RANKING_EXPORT_MAX_ROWS) throw new Error(`当前${dimensionLabel}排名共有 ${total} 条；请缩小统计日期范围后再导出（单次最多 ${RANKING_EXPORT_MAX_ROWS} 条）`);
-        totalPages = Math.max(1, dashboard.count(ranking.totalPages) || Math.ceil(total / RANKING_PAGE_SIZE));
-        for (const row of dashboard.hqRows(ranking.rows, dimension)) {
-          values.push([row.entityId, row.name, row.recharge, row.verification, row.experience, row.refund]);
-        }
+        if (total > REPORT_EXPORT_MAX_ROWS) throw new Error(`当前${dimensionLabel}排名共有 ${total} 条；请缩小统计日期范围后再导出（单次最多 ${REPORT_EXPORT_MAX_ROWS} 条）`);
+        totalPages = Math.max(1, dashboard.count(ranking.totalPages) || Math.ceil(total / REPORT_EXPORT_PAGE_SIZE));
+        const rows = dashboard.hqRows(ranking.rows, dimension);
+        if (rankingRows.length + rows.length > REPORT_EXPORT_MAX_ROWS) throw new Error(`单次 PDF 最多绘制 ${REPORT_EXPORT_MAX_ROWS} 条排名`);
+        rankingRows.push(...rows);
+        rankingTotal = dashboard.count(ranking.rankingTotal) || rankingTotal;
         pageNumber += 1;
       } while (pageNumber <= totalPages);
-      const csv = `\uFEFF${values.map(csvLine).join("\r\n")}`;
-      await copyCsvToClipboard(csv);
-      this.setData({ message: "排名 CSV 内容已复制，可粘贴到表格或文本文件保存。", error: false });
+
+      this.setData({ message: "正在绘制矢量 PDF…", error: false });
+      const metricLabel = this.data.hqRankingMetricLabels[this.data.hqRankingMetricIndex] || "业务";
+      const productLabel = this.data.hqProductLabels[this.data.hqProductIndex] || "全部项目";
+      const output = hqReport.createReportPdf({
+        startDate: range.startDate, endDate: range.endDate, dimensionLabel,
+        metric: rankingMetric, metricLabel, productLabel, generatedAt: reportTimestamp(),
+        productRows, totals: this.data.hqProjectSummaryTotals, rankingRows, rankingTotal
+      });
+      const baseName = hqReport.safeFilename(`露思卓儿总部-${range.startDate}至${range.endDate}-${dimensionLabel}-${metricLabel}排名`);
+      const filePath = `${wx.env.USER_DATA_PATH}/${baseName}.pdf`;
+      const bytes = output.bytes;
+      const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+      await wxCall((resolve, reject) => wx.getFileSystemManager().writeFile({ filePath, data: buffer, success: resolve, fail: reject }));
+      await openPdfDocument(filePath);
+      this.setData({ message: `矢量 PDF 已打开，共 ${output.pages} 页；可通过右上角菜单分享或保存。`, error: false });
     } catch (error) {
       const cancelled = /cancel/i.test(String(error && (error.errMsg || error.message) || ""));
-      this.setData({ message: cancelled ? "已取消复制" : error.message || error.errMsg || "排名导出失败", error: !cancelled });
+      this.setData({ message: cancelled ? "已取消打开 PDF" : error.message || error.errMsg || "矢量 PDF 导出失败", error: !cancelled });
     } finally { this.setData({ hqExporting: false }); }
   },
 

@@ -114,6 +114,7 @@ function loadHome(signOut = async () => {}, callFace = async () => ({}), callSta
         return { requireSession: () => null, getSelectedStore: () => ({ id: "stale" }), setSelectedStore() {}, signOut };
       }
       if (id === "../../services/home-dashboard") return dashboardStub();
+      if (id === "../../services/hq-dashboard-report") return { createReportPdf: () => ({ bytes: new Uint8Array(), pages: 1 }), safeFilename: () => "report" };
       throw new Error(`unexpected home dependency ${id}`);
     },
     wx: { reLaunch(options) { launches.push(options.url); }, navigateTo(options) { navigations.push(options.url); }, getFileSystemManager: () => ({}) },
