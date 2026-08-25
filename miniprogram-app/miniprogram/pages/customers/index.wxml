@@ -1,39 +1,46 @@
 <view class="page">
-  <view class="page-heading"><text class="eyebrow">客户资料</text><text class="title">{{session.role === 'teacher' ? '我的业务客户' : '客户查询'}}</text><text class="subtitle">{{session.role === 'teacher' ? '本人创建或本人有效业务关联的客户' : '按当前账号允许的门店范围查询'}}</text></view>
+  <view class="page-heading"><text class="eyebrow">CUSTOMER QUERY</text><text class="title">{{session.role === 'teacher' ? '我的业务客户' : '客户查询'}}</text><text class="subtitle">{{session.role === 'teacher' ? '本人创建或本人有效业务关联的客户' : '按当前账号允许的门店范围查询'}}</text></view>
 
   <view wx:if="{{session.role !== 'teacher'}}" class="card search-card">
-    <label class="field"><text class="field-label">客户姓名（可选）</text><input class="input" placeholder="支持姓名包含查询" value="{{name}}" bindinput="inputName" /></label>
-    <label class="field"><text class="field-label">生日（可选）</text><picker mode="date" value="{{birthDate}}" end="{{today}}" bindchange="inputBirthday"><view class="picker">{{birthDate || '选择生日'}}</view></picker></label>
-    <view class="button-row"><button class="primary" bindtap="search">查询</button><button class="ghost" bindtap="resetSearch">清空</button></view>
+    <view class="card-title"><text>查询条件</text><text class="badge">{{session.role === 'hq' ? '总部范围' : '本门店范围'}}</text></view>
+    <view class="segmented query-modes"><button class="{{mode === 'browse' ? 'active' : ''}}" data-mode="browse" bindtap="setMode">条件筛选</button><button class="{{mode === 'manual' ? 'active' : ''}}" data-mode="manual" bindtap="setMode">姓名＋生日</button></view>
+    <block wx:if="{{mode === 'browse'}}">
+      <label wx:if="{{session.role === 'hq'}}" class="field"><text class="field-label">门店范围</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="chooseStore"><view class="picker">{{storeLabels[storeIndex]}}</view></picker></label>
+      <view class="two-fields">
+        <label class="field"><text class="field-label">业务阶段</text><picker range="{{processLabels}}" value="{{processIndex}}" bindchange="chooseProcess"><view class="picker">{{processLabels[processIndex]}}</view></picker></label>
+        <label class="field"><text class="field-label">客户状态</text><picker range="{{statusLabels}}" value="{{statusIndex}}" bindchange="chooseStatus"><view class="picker">{{statusLabels[statusIndex]}}</view></picker></label>
+      </view>
+      <label class="field"><text class="field-label">建档时间</text><picker range="{{timeLabels}}" value="{{timeIndex}}" bindchange="chooseTime"><view class="picker">{{timeLabels[timeIndex]}}</view></picker></label>
+      <view wx:if="{{customRange}}" class="two-fields"><label class="field"><text class="field-label">开始日期</text><picker mode="date" value="{{startDate}}" end="{{today}}" bindchange="changeStart"><view class="picker">{{startDate || '请选择'}}</view></picker></label><label class="field"><text class="field-label">结束日期</text><picker mode="date" value="{{endDate}}" end="{{today}}" bindchange="changeEnd"><view class="picker">{{endDate || '请选择'}}</view></picker></label></view>
+    </block>
+    <block wx:else>
+      <label wx:if="{{session.role === 'hq'}}" class="field"><text class="field-label">门店范围</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="chooseStore"><view class="picker">{{storeLabels[storeIndex]}}</view></picker></label>
+      <label class="field"><text class="field-label">客户姓名（可单独填写）</text><input class="input" placeholder="支持姓名包含查询" value="{{name}}" bindinput="inputName" /></label>
+      <label class="field"><text class="field-label">生日（可单独填写）</text><picker mode="date" value="{{birthDate}}" end="{{today}}" bindchange="inputBirthday"><view class="picker">{{birthDate || '选择生日'}}</view></picker></label>
+    </block>
+    <view class="button-row"><button class="primary" bindtap="search" loading="{{loading}}" disabled="{{loading}}">查询客户</button><button class="ghost" bindtap="resetSearch" disabled="{{loading}}">重置查询</button></view>
   </view>
 
-  <view class="card">
-    <view class="segmented">
-      <button class="{{status === 'ACTIVE' ? 'active' : ''}}" data-status="ACTIVE" bindtap="changeStatus">活跃客户</button>
-      <button class="{{status === 'ARCHIVED' ? 'active' : ''}}" data-status="ARCHIVED" bindtap="changeStatus">封存客户</button>
-    </view>
+  <view wx:if="{{session.role === 'teacher'}}" class="card teacher-filter"><view class="segmented"><button class="{{teacherStatus === 'ACTIVE' ? 'active' : ''}}" data-status="ACTIVE" bindtap="changeTeacherStatus">活跃客户</button><button class="{{teacherStatus === 'ARCHIVED' ? 'active' : ''}}" data-status="ARCHIVED" bindtap="changeTeacherStatus">封存客户</button></view></view>
+
+  <view wx:if="{{session.role !== 'teacher'}}" class="summary-grid">
+    <view><text>当前结果</text><text class="summary-value">{{summary.selectedTotal || 0}}</text></view><view><text>活跃</text><text class="summary-value">{{summary.active || 0}}</text></view><view><text>封存</text><text class="summary-value">{{summary.archived || 0}}</text></view>
+    <view><text>有信息但没有充值</text><text class="summary-value">{{summary.informationOnly || 0}}</text></view><view><text>已充值但没有消费</text><text class="summary-value">{{summary.rechargedNoConsumption || 0}}</text></view><view><text>已充值并已有消费</text><text class="summary-value">{{summary.rechargedWithConsumption || 0}}</text></view>
+  </view>
+
+  <view class="card result-card">
+    <view class="card-title"><text>客户结果</text><text class="badge">共 {{total}} 位</text></view>
     <view wx:if="{{loading}}" class="empty">正在读取客户…</view>
     <scroll-view wx:elif="{{customers.length}}" class="customer-table-scroll" scroll-x="true" enhanced="true" show-scrollbar="false">
-      <view class="customer-table">
-        <view class="customer-row customer-head">
-          <text>姓名</text><text>门店</text><text>生日</text><text>充值</text><text>核销</text><text>详情</text>
-        </view>
-        <view wx:for="{{customers}}" wx:key="customerCode" class="customer-row" data-code="{{item.customerCode}}" bindtap="openCustomer">
-          <text class="customer-name">{{item.customerName}}</text>
-          <text>{{item.storeName || '—'}}</text>
-          <text>{{item.birthDate || '未填写'}}</text>
-          <text>{{item.rechargeCount || item.totalRechargeCount || 0}} 次</text>
-          <text>{{item.verificationCount || item.totalVerificationCount || 0}} 次</text>
-          <text class="customer-link">查看</text>
-        </view>
+      <view class="customer-table {{session.role === 'teacher' ? 'teacher-table' : ''}}">
+        <view class="customer-row customer-head"><text>姓名</text><text>门店</text><text>生日</text><text>业务阶段</text><text>状态</text><text>充值</text><text>核销</text><text>建档日期</text><text>详情</text><text wx:if="{{session.role !== 'teacher'}}">状态操作</text></view>
+        <view wx:for="{{customers}}" wx:key="customerCode" class="customer-row" data-code="{{item.customerCode}}" bindtap="openCustomer"><text class="customer-name">{{item.customerName}}</text><text>{{item.storeName}}</text><text>{{item.birthDate}}</text><text>{{item.processLabel}}</text><text>{{item.statusLabel}}</text><text>{{item.rechargeCount}} 次</text><text>{{item.verificationCount}} 次</text><text>{{item.createdAtLabel}}</text><text class="customer-link">查看</text><button wx:if="{{session.role !== 'teacher'}}" class="status-action {{item.customerStatus === 'ARCHIVED' ? 'restore' : ''}}" data-code="{{item.customerCode}}" data-status="{{item.customerStatus}}" catchtap="toggleCustomerStatus" loading="{{updatingCode === item.customerCode}}" disabled="{{loading || updatingCode}}">{{item.customerStatus === 'ARCHIVED' ? '恢复活跃' : '封存客户'}}</button></view>
       </view>
     </scroll-view>
-    <view wx:else class="empty">当前范围暂无{{status === 'ACTIVE' ? '活跃' : '封存'}}客户</view>
-    <view class="pager">
-      <button class="ghost" bindtap="previousPage" disabled="{{page <= 1 || loading}}">上一页</button>
-      <text>第 {{page}} 页</text>
-      <button class="ghost" bindtap="nextPage" disabled="{{!hasMore || loading}}">下一页</button>
-    </view>
+    <view wx:else class="empty">当前范围暂无客户</view>
+    <view class="pager"><button class="ghost" bindtap="previousPage" disabled="{{page <= 1 || loading}}">上一页</button><text>第 {{page}} / {{totalPages}} 页</text><button class="ghost" bindtap="nextPage" disabled="{{page >= totalPages || loading}}">下一页</button></view>
+    <view class="page-jump"><text>跳至</text><input type="number" value="{{pageJump}}" bindinput="inputPageJump" /><text>页</text><button class="secondary" bindtap="jumpPage" disabled="{{loading}}">跳转</button></view>
   </view>
-  <view wx:if="{{message}}" class="message error">{{message}}</view>
+  <view wx:if="{{message}}" class="message {{error ? 'error' : ''}}">{{message}}</view>
+  <view class="safe-bottom"></view>
 </view>

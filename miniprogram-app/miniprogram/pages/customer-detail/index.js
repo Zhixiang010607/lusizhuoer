@@ -1,5 +1,6 @@
 const { callFace } = require("../../services/api");
 const { requireSession } = require("../../services/session");
+const query = require("../../services/query-tools");
 
 Page({
   data: { customerCode: "", profile: null, balances: [], recharges: [], verifications: [], experiences: [], historyType: "RECHARGE", visibleHistory: [], photoUrl: "", photoLoading: false, photoSaving: false, loading: false, notes: "", originalNotes: "", savingNotes: false, message: "", error: false },
@@ -58,6 +59,20 @@ Page({
   changeHistory(event) { this.setData({ historyType: event.currentTarget.dataset.type }); this.syncHistory(); },
   syncHistory() {
     const map = { RECHARGE: this.data.recharges, VERIFICATION: this.data.verifications, EXPERIENCE: this.data.experiences };
-    this.setData({ visibleHistory: map[this.data.historyType] || [] });
+    this.setData({ visibleHistory: (map[this.data.historyType] || []).map((item) => ({
+      ...item,
+      statusLabel: query.statusLabel(item.recordStatus),
+      recordCode: item.rechargeCode || item.verificationCode || "—"
+    })) });
+  },
+  openOrder(event) {
+    const id = String(event.currentTarget.dataset.id || "");
+    if (!id) return;
+    const code = String(event.currentTarget.dataset.code || "");
+    const historyType = String(this.data.historyType || "RECHARGE").toUpperCase();
+    const originalType = String(event.currentTarget.dataset.originalType || "").toUpperCase();
+    const category = historyType === "RECHARGE" && originalType === "REFUND" ? "REFUND" : historyType;
+    const baseType = category === "RECHARGE" || category === "REFUND" ? "recharge" : "verification";
+    wx.navigateTo({ url: `/pages/order-detail/index?type=${baseType}&category=${category}&recordId=${encodeURIComponent(id)}&recordCode=${encodeURIComponent(code)}` });
   }
 });

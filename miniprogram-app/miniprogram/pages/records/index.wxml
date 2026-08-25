@@ -1,0 +1,51 @@
+<view class="page">
+  <view class="page-heading"><text class="eyebrow">BUSINESS QUERY</text><text class="title">{{noun}}查询</text><text class="subtitle">{{session.role === 'hq' ? '全部门店或指定门店' : '当前登录门店'}}数据库记录</text></view>
+
+  <view class="card filter-card">
+    <view class="card-title"><text>查询条件</text><text class="badge">{{session.role === 'hq' ? '总部范围' : '本门店范围'}}</text></view>
+    <view class="segmented query-modes"><button class="{{mode === 'browse' ? 'active' : ''}}" data-mode="browse" bindtap="setMode">条件筛选</button><button class="{{mode === 'manual' ? 'active' : ''}}" data-mode="manual" bindtap="setMode">姓名＋生日</button></view>
+
+    <block wx:if="{{mode === 'browse'}}">
+      <label wx:if="{{session.role === 'hq'}}" class="field"><text class="field-label">门店范围</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="chooseStore"><view class="picker">{{storeLabels[storeIndex]}}</view></picker></label>
+      <label class="field"><text class="field-label">项目</text><picker range="{{productLabels}}" value="{{productIndex}}" bindchange="chooseProduct"><view class="picker">{{productLabels[productIndex]}}</view></picker></label>
+      <view class="two-fields">
+        <label class="field"><text class="field-label">{{recordType === 'VERIFICATION' ? '核销类型' : '申请类型'}}</text><picker range="{{typeLabels}}" value="{{typeIndex}}" bindchange="chooseType"><view class="picker">{{typeLabels[typeIndex]}}</view></picker></label>
+        <label class="field"><text class="field-label">审核状态</text><picker range="{{statusLabels}}" value="{{statusIndex}}" bindchange="chooseStatus"><view class="picker">{{statusLabels[statusIndex]}}</view></picker></label>
+      </view>
+      <label class="field"><text class="field-label">时间范围</text><picker range="{{timeLabels}}" value="{{timeIndex}}" bindchange="chooseTime"><view class="picker">{{timeLabels[timeIndex]}}</view></picker></label>
+      <view wx:if="{{customRange}}" class="two-fields"><label class="field"><text class="field-label">开始日期</text><picker mode="date" value="{{startDate}}" end="{{today}}" bindchange="changeStart"><view class="picker">{{startDate || '请选择'}}</view></picker></label><label class="field"><text class="field-label">结束日期</text><picker mode="date" value="{{endDate}}" end="{{today}}" bindchange="changeEnd"><view class="picker">{{endDate || '请选择'}}</view></picker></label></view>
+    </block>
+
+    <block wx:else>
+      <label wx:if="{{session.role === 'hq'}}" class="field"><text class="field-label">门店范围</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="chooseStore"><view class="picker">{{storeLabels[storeIndex]}}</view></picker></label>
+      <label class="field"><text class="field-label">客户姓名（可单独填写）</text><input class="input" value="{{customerName}}" bindinput="inputCustomerName" placeholder="输入姓名；同名客户全部显示" /></label>
+      <label class="field"><text class="field-label">生日（可单独填写）</text><picker mode="date" value="{{birthDate}}" end="{{today}}" bindchange="inputBirthDate"><view class="picker">{{birthDate || '选择生日'}}</view></picker></label>
+    </block>
+
+    <view class="button-row"><button class="primary" bindtap="runQuery" loading="{{loading}}" disabled="{{loading}}">查询{{noun}}</button><button class="ghost" bindtap="resetQuery" disabled="{{loading}}">重置查询</button></view>
+  </view>
+
+  <view class="summary-grid">
+    <view><text>全部</text><text class="summary-value">{{summary.total || 0}}</text></view><view><text>待审核</text><text class="summary-value">{{summary.pending || 0}}</text></view><view><text>已通过</text><text class="summary-value">{{summary.approved || 0}}</text></view><view><text>已驳回</text><text class="summary-value">{{summary.rejected || 0}}</text></view>
+  </view>
+
+  <view class="card result-card">
+    <view class="card-title"><text>{{noun}}结果</text><text class="badge">共 {{total}} 条</text></view>
+    <view wx:if="{{loading}}" class="empty">正在查询{{noun}}记录…</view>
+    <scroll-view wx:elif="{{records.length}}" class="record-scroll" scroll-x="true" enhanced="true" show-scrollbar="false">
+      <view class="record-table {{recordType === 'VERIFICATION' ? 'verification-table' : ''}}">
+        <view class="record-row record-head"><text>工单号</text><text>客户</text><text>生日</text><text>门店</text><text>项目</text><text>类型</text><text wx:if="{{recordType === 'VERIFICATION'}}">老师</text><text>次数</text><text>状态</text><text>提交时间</text></view>
+        <view wx:for="{{records}}" wx:key="id" class="record-row">
+          <text class="table-link" data-id="{{item.id}}" data-code="{{item.recordCode}}" bindtap="openRecord">{{item.recordCode}}</text>
+          <text class="table-link" data-code="{{item.customerCode}}" bindtap="openCustomer">{{item.customerName}}</text>
+          <text>{{item.birthDate}}</text><text>{{item.storeName}}</text><text>{{item.productName}}</text><text>{{item.typeLabel}}</text><text wx:if="{{recordType === 'VERIFICATION'}}">{{item.teacherName || '未指定'}}</text><text>{{item.unitCount}} 次</text><text>{{item.statusLabel}}</text><text>{{item.submittedAt}}</text>
+        </view>
+      </view>
+    </scroll-view>
+    <view wx:else class="empty">没有符合条件的{{noun}}记录</view>
+    <view class="pager"><button class="ghost" bindtap="previousPage" disabled="{{loading || page <= 1}}">上一页</button><text>第 {{page}} / {{totalPages}} 页</text><button class="ghost" bindtap="nextPage" disabled="{{loading || page >= totalPages}}">下一页</button></view>
+    <view class="page-jump"><text>跳至</text><input type="number" value="{{pageJump}}" bindinput="inputPageJump" /><text>页</text><button class="secondary" bindtap="jumpPage" disabled="{{loading}}">跳转</button></view>
+  </view>
+  <view wx:if="{{message}}" class="message {{error ? 'error' : ''}}">{{message}}</view>
+  <view class="safe-bottom"></view>
+</view>

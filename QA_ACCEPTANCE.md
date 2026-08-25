@@ -34,20 +34,23 @@
 | 老师工作台 | `teacher-work-orders.html`、`teacher-work-order-detail.html`、`teacher-recharge-create.html`、`teacher-refund-create.html`、`teacher-verification-create.html`、`teacher-verification-experience.html` | 路由、首页布局、时间查询、4 类明细、客户范围、本人自动归属、体验仅老师均 `PASS-AUTO`；真实老师会话 `NEEDS-ROLE-LOGIN` |
 | 兼容入口 | `teacher-detail.html` 旧详情链接 | 重定向到当前 `staff-detail.html`，`PASS-AUTO` |
 
-## 微信小程序（7 个页面）
+## 微信小程序（9 个页面）
 
 | 页面 | 页面、按钮与查询 | 结果 |
 | --- | --- | --- |
-| `pages/login/index` | 品牌图、密码显隐、手机号＋密码、微信手机号授权 | 既有账号密码登录及总部 UID／角色回读 `PASS-LIVE`；微信手机号授权 `NEEDS-CONSOLE-SETUP`（还需身份源、合法域名和真机） |
-| `pages/home/index` | 三角色首页布局、业务菜单、日期、统计、4 类明细、分页、客户入口、退出 | 总部真实加载与重置查询 `PASS-LIVE`；三角色结构和权限 `PASS-AUTO` |
-| `pages/customers/index` | 姓名／生日查询、清空、活跃／封存页签、分页、详情入口 | 总部真实查询、清空、页签和详情入口 `PASS-LIVE`；门店锁店与老师客户范围 `PASS-AUTO` |
-| `pages/customer-detail/index` | 原图重读／保存、备注、余额、充值／核销／体验历史页签 | 详情读取与历史页签 `PASS-LIVE`；保存类操作 `CONFIRM-ONLY` |
+| `pages/login/index` | “露思卓儿”纯文字品牌、密码显隐、手机号＋密码、微信手机号授权 | 既有账号密码登录及总部 UID／角色回读 `PASS-LIVE`；无照片、无卡片、无装饰线、无投影的平面极简版已在开发者工具编译并截图复验 `PASS-LIVE`；微信手机号授权 `NEEDS-CONSOLE-SETUP`（还需身份源、合法域名和真机） |
+| `pages/home/index` | 三角色首页布局、业务菜单、客户／充值／核销查询菜单、日期、统计、4 类明细、分页、工单与客户入口、退出 | 总部基础首页真实加载与重置查询 `PASS-LIVE`；三角色结构、查询菜单和权限 `PASS-AUTO`；新增查询菜单待开发者工具重新登录后复验 |
+| `pages/customers/index` | 总部门店范围、业务阶段、状态、建档日期、姓名／生日、汇总、清空、分页、直接跳页、详情入口；老师业务客户 | 原基础查询和详情入口 `PASS-LIVE`；扩展筛选、门店锁定、老师范围和游标直跳 `PASS-AUTO`；扩展页面待开发者工具重新登录后复验 |
+| `pages/customer-detail/index` | 原图重读／保存、备注、余额、充值／核销／体验历史页签及工单详情链接 | 详情读取与历史页签 `PASS-LIVE`；工单链接 `PASS-AUTO`；保存类操作 `CONFIRM-ONLY` |
 | `pages/customer-create/index` | 姓名、生日、备注、拍照、授权、提交 | 相机／授权／整体成功规则 `PASS-AUTO`；真实建立 `NEEDS-ROLE-LOGIN` |
 | `pages/recharge/index` | 充值／退费、客户、项目、老师、次数、留言、防重复恢复 | 门店老师可选、老师自动绑定、门店锁定和防重 `PASS-AUTO`；真实提交 `NEEDS-ROLE-LOGIN` |
 | `pages/verification/index` | 正常／体验、客户、项目、老师、照片、人脸、核销、防重复恢复 | 正常核销老师必选、体验仅老师、只验客户脸、额度原子扣减 `PASS-AUTO`；真实提交 `NEEDS-ROLE-LOGIN` |
+| `pages/records/index` | 总部／门店充值与核销查询：门店、项目、类型、状态、日期、姓名／生日、汇总、分页和直接跳页 | 角色范围、筛选参数、页码分页和详情路由 `PASS-AUTO`；真实数据库页面待开发者工具重新登录后复验 |
+| `pages/order-detail/index` | 总部／门店精确工单读取、老师关联工单读取、客户入口、核销照片原图预览与相册保存 | 精确鉴权参数、角色分流和照片读取 `PASS-AUTO`；真实数据库详情与照片待开发者工具重新登录后复验 |
 
 ## 尚未冒充完成的事项
 
 1. 老师和门店没有专用测试账号，因此尚未做这两个角色的真实登录逐按钮提交验收。完成该项需要提供两个可随时重置的测试账号，或明确授权创建专用测试账号；不得动现有员工账号。
 2. CloudBase 小程序环境授权已成功，但 `WX_MICRO_APP`、微信公众平台 `request` 合法域名与真机微信手机号授权仍未完成。CloudBase 服务商域名入口本月修改额度已用完，不应继续重复提交；可直接在微信公众平台配置，或等额度恢复。
 3. 本轮没有上传云函数、运行 SQL、发布网站或上传／发布小程序。代码提交推送与上述发布状态必须分别确认。
+4. 2026-08-25 已重新扫码登录微信开发者工具并完成 `build-npm`；平面极简登录页和新增客户／充值／核销查询路由均在模拟器编译、渲染且没有页面异常。真实总部业务会话在本轮重编译后尚未重新输入，因此新增筛选与工单详情仍需完成真实数据库只读回归；不得把仅渲染成功写成 `PASS-LIVE`。

@@ -30,22 +30,30 @@ test("mini-program login is concise and keeps both WeChat phone and password ent
   const context = read("PROJECT_CONTEXT.md");
 
   assert.equal(json.navigationStyle, "custom");
-  assert.match(wxml, /id="login-brand-image"[^>]*src="\/images\/login\/brand-team\.jpg"[^>]*mode="widthFix"/);
-  assert.doesNotMatch(wxml, /login-system-mark|>露<\/view>/,
-    "the co-branded login image must not receive a second standalone 露 mark");
+  assert.doesNotMatch(wxml, /<image\b|login-brand-image|brand-team\.jpg/,
+    "the login page must not restore a portrait or combined brand image");
+  assert.match(wxml, /class="login-brand"><text>露思卓儿<\/text><\/view>/,
+    "the login header must contain only the four-character company wordmark");
+  assert.doesNotMatch(wxml, /brand-rule|login-divider|登录系统|快捷登录/,
+    "the login must not restore decorative or explanatory template copy");
+  assert.doesNotMatch(wxml, /login-system-mark|海洋之韵/);
   assert.match(wxml, /open-type="getPhoneNumber"/);
   assert.match(wxml, /id="login-phone"/);
   assert.match(wxml, /id="login-password"/);
   assert.match(wxml, /passwordVisible\s*\?\s*'隐藏'\s*:\s*'显示'/);
   assert.doesNotMatch(wxml, /安全工作台|统一入口|登录说明|温馨提示/,
     "login page should not reintroduce explanatory filler");
-  assert.match(wxss, /\.login-hero\s*\{[^}]*width:\s*100%[^}]*border-radius:/s);
-  for (const color of ["#0d0b09", "#c8a566", "#f8f3eb", "#087f52", "#8c682f"]) {
+  assert.match(wxss, /\.login-card\s*\{[^}]*background:\s*transparent[^}]*\}/s);
+  assert.match(wxss, /\.login-brand text\s*\{[^}]*color:\s*#172033[^}]*font-weight:\s*500[^}]*letter-spacing:\s*22rpx/s);
+  for (const color of ["#f6f6f3", "#172033", "#6d727b", "#c8cbd0", "#bfc2c6"]) {
     assert.match(wxss, new RegExp(color, "i"), `login palette is missing ${color}`);
   }
-  assert.match(wxss, /\.wechat-login\s*\{[^}]*#087f52/s,
-    "WeChat phone authorization must remain visually green");
-  assert.match(context, /登录页配色从人物图提取黑、金、暖白层级/);
+  assert.match(wxss, /\.wechat-login\s*\{[^}]*background:\s*transparent[^}]*border:\s*1rpx solid #bfc2c6/s,
+    "WeChat phone authorization must stay a quiet neutral secondary action");
+  assert.doesNotMatch(wxss, /linear-gradient|box-shadow:\s*0\s+[1-9]|#b49a6a|#16845b/i,
+    "login must not use gradients, raised shadows, gold, or green accents");
+  assert.match(context, /不显示人物照、联合品牌图、图形头像、装饰线或额外宣传文案/);
+  assert.match(context, /无卡片容器、无投影、无渐变、无金色和绿色强调/);
 });
 
 test("mini-program keeps the company brand visible after login", () => {
@@ -59,7 +67,7 @@ test("mini-program keeps the company brand visible after login", () => {
     "the in-content home title must keep the company brand visible");
   assert.match(wxml, /class="topbar-role">\{\{roleTitle\}\}<\/text>/,
     "the role-specific home title must remain a subtitle of the brand");
-  assert.match(context, /人物图只用于小程序登录页/);
+  assert.match(context, /小程序登录页不显示人物照/);
   assert.match(context, /登录后各角色工作台顶部必须明确显示文字品牌名“露思卓儿”/);
 });
 

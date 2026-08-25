@@ -44,7 +44,8 @@ function rejectedMessage(results, fallback) {
 
 Page({
   data: {
-    session: {}, roleTitle: "", roleSubtitle: "", loading: true, message: "", error: false, businessMenuOpen: false,
+    session: {}, roleTitle: "", roleSubtitle: "", loading: true, message: "", error: false,
+    businessMenuOpen: false, queryMenuOpen: false,
     stores: [], storeLabels: [], storeIndex: 0, selectedStore: null, loadingStores: false,
     rangePreset: "MONTH", rangeOptions: readyRangeOptions("MONTH"), rangeStart: "", rangeEnd: "",
     rangeLabel: "本月", customRangeVisible: false,
@@ -268,7 +269,8 @@ Page({
     setSelectedStore(selected, this.data.session);
     this.setData({ selectedStore: selected, storeIndex: index, message: "", error: false });
   },
-  toggleBusinessMenu() { this.setData({ businessMenuOpen: !this.data.businessMenuOpen }); },
+  toggleBusinessMenu() { this.setData({ businessMenuOpen: !this.data.businessMenuOpen, queryMenuOpen: false }); },
+  toggleQueryMenu() { this.setData({ queryMenuOpen: !this.data.queryMenuOpen, businessMenuOpen: false }); },
   chooseRange(event) {
     const preset = event.currentTarget.dataset.preset;
     if (preset === "CUSTOM") {
@@ -346,9 +348,25 @@ Page({
   openRecharge(event) { if (this.ensureBusinessStore()) wx.navigateTo({ url: `/pages/recharge/index?mode=${event.currentTarget.dataset.mode}` }); },
   openVerification(event) { if (this.ensureBusinessStore()) wx.navigateTo({ url: `/pages/verification/index?mode=${event.currentTarget.dataset.mode}` }); },
   openCustomers() { wx.navigateTo({ url: "/pages/customers/index" }); },
+  openQuery(event) {
+    const type = String(event.currentTarget.dataset.type || "customer");
+    this.setData({ queryMenuOpen: false });
+    if (type === "customer") wx.navigateTo({ url: "/pages/customers/index" });
+    else wx.navigateTo({ url: `/pages/records/index?type=${type}` });
+  },
   openCustomer(event) {
     const code = String(event.currentTarget.dataset.code || "");
     if (code) wx.navigateTo({ url: `/pages/customer-detail/index?customerCode=${encodeURIComponent(code)}` });
+  },
+  openOrder(event) {
+    const id = String(event.currentTarget.dataset.id || "");
+    const code = String(event.currentTarget.dataset.code || "");
+    const category = String(event.currentTarget.dataset.category || this.data.businessType || "RECHARGE").toUpperCase();
+    const config = dashboard.TYPE_CONFIG[category];
+    if (!id || !config) return;
+    wx.navigateTo({
+      url: `/pages/order-detail/index?type=${config.recordType.toLowerCase()}&category=${category}&recordId=${encodeURIComponent(id)}&recordCode=${encodeURIComponent(code)}`
+    });
   },
   async logout() { await signOut(); wx.reLaunch({ url: "/pages/login/index" }); }
 });

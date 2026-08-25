@@ -44,8 +44,12 @@ function callFace(action, data = {}) {
   return call(config.faceFunction, { action, ...data }, "业务服务没有返回有效结果");
 }
 
+function callPhoto(action, data = {}) {
+  return call(config.photoFunction, { action, ...data }, "核销照片服务没有返回有效结果");
+}
+
 function callStaff(action, data = {}) {
   return call(config.staffFunction, { action, ...data }, "员工账号服务没有返回有效结果");
 }
 
-module.exports = { callFace, callStaff, resultData };
+module.exports = { callFace, callPhoto, callStaff, resultData };

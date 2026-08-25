@@ -42,11 +42,11 @@
         <view class="record-table">
           <view class="record-row record-head"><text>单号</text><text>项目</text><text>业务老师</text><text>次数</text><text>状态</text></view>
           <view wx:for="{{visibleHistory}}" wx:key="id" class="record-row">
-            <text class="record-code">{{item.rechargeCode || item.verificationCode}}</text>
+            <text class="record-code record-link" data-id="{{item.id}}" data-code="{{item.recordCode}}" data-original-type="{{item.rechargeType || item.verificationType}}" bindtap="openOrder">{{item.recordCode}}</text>
             <text>{{item.productName}}</text>
             <text>{{item.teacherName || '未指定'}}</text>
             <text>{{item.unitCount}} 次</text>
-            <text>{{item.recordStatus}}</text>
+            <text>{{item.statusLabel}}</text>
           </view>
         </view>
       </scroll-view>

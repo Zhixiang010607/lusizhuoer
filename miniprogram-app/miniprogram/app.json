@@ -6,7 +6,9 @@
     "pages/customer-detail/index",
     "pages/customer-create/index",
     "pages/recharge/index",
-    "pages/verification/index"
+    "pages/verification/index",
+    "pages/records/index",
+    "pages/order-detail/index"
   ],
   "window": {
     "navigationBarTitleText": "露思卓儿工作台",

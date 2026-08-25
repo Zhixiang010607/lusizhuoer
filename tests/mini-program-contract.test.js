@@ -17,7 +17,7 @@ assert.match(read("services", "cloudbase.js"), /pnpm install --frozen-lockfile/)
 
 const app = JSON.parse(read("app.json"));
 assert.ok(!(app.requiredPrivateInfos || []).includes("chooseMedia"), "chooseMedia is not a valid requiredPrivateInfos entry");
-for (const page of ["login", "home", "customers", "customer-detail", "customer-create", "recharge", "verification"]) {
+for (const page of ["login", "home", "customers", "customer-detail", "customer-create", "recharge", "verification", "records", "order-detail"]) {
   assert.ok(app.pages.includes(`pages/${page}/index`), `missing mini-program page ${page}`);
   for (const extension of ["js", "json", "wxml", "wxss"]) assert.ok(fs.existsSync(path.join(mini, "pages", page, `index.${extension}`)), `${page}.${extension} missing`);
 }

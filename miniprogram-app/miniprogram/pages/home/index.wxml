@@ -3,7 +3,7 @@
     <view class="rail-inner">
       <view class="rail-current" aria-label="{{roleTitle}}"><text class="rail-icon">{{session.role === 'hq' ? '总' : (session.role === 'store' ? '店' : '师')}}</text></view>
       <view wx:if="{{session.role !== 'hq'}}" class="rail-link {{businessMenuOpen ? 'active' : ''}}" bindtap="toggleBusinessMenu" aria-label="业务办理">办</view>
-      <view wx:if="{{session.role !== 'teacher'}}" class="rail-link" bindtap="openCustomers" aria-label="客户查询">查</view>
+      <view wx:if="{{session.role !== 'teacher'}}" class="rail-link {{queryMenuOpen ? 'active' : ''}}" bindtap="toggleQueryMenu" aria-label="业务查询">查</view>
       <view class="rail-link rail-logout" bindtap="logout" aria-label="退出登录">退</view>
     </view>
   </scroll-view>
@@ -11,6 +11,14 @@
     <picker wx:if="{{session.role === 'teacher'}}" range="{{storeLabels}}" value="{{storeIndex}}" bindchange="selectStore" disabled="{{loadingStores || !stores.length}}"><view class="popover-store">{{selectedStore ? '本次门店 · ' + selectedStore.name : '选择本次办理门店'}}</view></picker>
     <view class="popover-grid">
       <view bindtap="openCustomerCreate">客户建立</view><view bindtap="openRecharge" data-mode="NEW">办卡充值</view><view bindtap="openRecharge" data-mode="REFUND">退费申请</view><view bindtap="openVerification" data-mode="NORMAL">核销办理</view><view wx:if="{{session.role === 'teacher'}}" bindtap="openVerification" data-mode="EXPERIENCE">体验核销</view>
+    </view>
+  </view>
+  <view wx:if="{{queryMenuOpen && session.role !== 'teacher'}}" class="business-popover query-popover">
+    <view class="popover-heading">数据库查询</view>
+    <view class="popover-grid">
+      <view data-type="customer" bindtap="openQuery">客户查询</view>
+      <view data-type="recharge" bindtap="openQuery">充值查询</view>
+      <view data-type="verification" bindtap="openQuery">核销查询</view>
     </view>
   </view>
 
@@ -89,7 +97,7 @@
         <scroll-view class="table-scroll record-scroll" scroll-x enhanced show-scrollbar="false">
           <view class="record-table">
             <view class="table-row table-head"><view>单号</view><view>门店</view><view>客户</view><view>项目</view><view>次数</view><view>提交时间</view></view>
-            <view wx:for="{{businessRecords}}" wx:key="id" class="table-row"><view>{{item.recordCode}}</view><view>{{item.storeName}}</view><view class="table-link" data-code="{{item.customerCode}}" bindtap="openCustomer">{{item.customerName}}</view><view>{{item.productName}}</view><view>{{item.unitCount}} 次</view><view>{{item.submittedAt}}</view></view>
+            <view wx:for="{{businessRecords}}" wx:key="id" class="table-row"><view class="table-link" data-id="{{item.id}}" data-code="{{item.recordCode}}" data-category="{{businessType}}" bindtap="openOrder">{{item.recordCode}}</view><view>{{item.storeName}}</view><view class="table-link" data-code="{{item.customerCode}}" bindtap="openCustomer">{{item.customerName}}</view><view>{{item.productName}}</view><view>{{item.unitCount}} 次</view><view>{{item.submittedAt}}</view></view>
             <view wx:if="{{!businessRecords.length}}" class="table-empty">{{businessLoading || loading ? '正在读取业务明细…' : '当前分类暂无有效记录'}}</view>
           </view>
         </scroll-view>

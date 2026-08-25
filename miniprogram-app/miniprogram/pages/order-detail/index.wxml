@@ -1,0 +1,42 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="card empty">正在从数据库读取工单…</view>
+  <block wx:elif="{{order}}">
+    <view class="card order-hero">
+      <view><text class="eyebrow">{{order.typeLabel}}</text><text class="order-title">{{noun}}单 {{order.recordCode}}</text><text class="order-address">门店详细地址：{{order.storeAddress}}</text></view>
+      <text class="status-badge status-{{order.recordStatus}}">{{order.statusLabel}}</text>
+    </view>
+
+    <view class="fact-grid">
+      <view wx:for="{{facts}}" wx:key="label" class="card fact-card" data-label="{{item.label}}" bindtap="openFact"><text>{{item.label}}</text><text class="fact-value">{{item.value || '—'}}</text><text class="fact-note">{{item.note}}</text></view>
+    </view>
+
+    <view class="card">
+      <view class="card-title"><text>{{noun}}信息</text><text class="badge">数据库原单</text></view>
+      <view class="detail-grid">
+        <view><text>工单类型</text><text class="detail-value">{{order.typeLabel}}</text></view><view><text>次数</text><text class="detail-value">{{order.unitCount}} 次</text></view>
+        <view><text>提交时间</text><text class="detail-value">{{order.submittedAt}}</text></view><view><text>审核时间</text><text class="detail-value">{{order.reviewedAt}}</text></view>
+        <view wx:if="{{baseType === 'RECHARGE'}}"><text>业务前余额</text><text class="detail-value">{{order.balanceBeforeLabel}}</text></view><view wx:if="{{baseType === 'RECHARGE'}}"><text>业务后余额</text><text class="detail-value">{{order.balanceAfterLabel}}</text></view>
+      </view>
+    </view>
+
+    <view wx:if="{{notes.length}}" class="card">
+      <view class="card-title"><text>工单说明</text><text class="badge">{{notes.length}} 项</text></view>
+      <view wx:for="{{notes}}" wx:key="label" class="note-row"><text>{{item.label}}</text><text>{{item.value}}</text></view>
+    </view>
+
+    <view wx:if="{{baseType === 'VERIFICATION'}}" class="card">
+      <view class="card-title"><view><text>核销照片</text><text class="photo-note">点击预览高清原图；保存时不压缩</text></view><text class="badge">{{photos.length}} 张</text></view>
+      <view wx:if="{{photoLoading}}" class="empty">正在读取照片清单…</view>
+      <view wx:elif="{{photos.length}}" class="photo-grid">
+        <view wx:for="{{photos}}" wx:key="slot" class="photo-card">
+          <image class="photo" src="{{item.thumbnailUrl}}" mode="aspectFill" data-slot="{{item.slot}}" bindtap="previewPhoto"></image>
+          <view><text>{{item.label}}</text><text class="photo-size">{{item.sizeLabel}}</text></view>
+          <view class="photo-actions"><button data-slot="{{item.slot}}" bindtap="previewPhoto">查看原图</button><button data-slot="{{item.slot}}" bindtap="savePhoto">保存相册</button></view>
+        </view>
+      </view>
+      <view wx:else class="empty">该工单暂无核销照片</view>
+    </view>
+  </block>
+  <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
+  <view class="safe-bottom"></view>
+</view>
