@@ -10,12 +10,13 @@ function product(value) {
   };
 }
 
-function orderUrl(experience, result) {
+function orderUrl(experience, result, intent = {}) {
   const recordId = String(result.verificationId || "");
   const recordCode = String(result.verificationCode || "");
   if (!recordId || !recordCode) return "";
   const category = experience ? "EXPERIENCE" : "VERIFICATION";
-  return `/pages/order-detail/index?type=verification&category=${category}&recordId=${encodeURIComponent(recordId)}&recordCode=${encodeURIComponent(recordCode)}`;
+  const acknowledgement = intent.clientRequestId ? `&submissionClientRequestId=${encodeURIComponent(intent.clientRequestId)}` : "";
+  return `/pages/order-detail/index?type=verification&category=${category}&recordId=${encodeURIComponent(recordId)}&recordCode=${encodeURIComponent(recordCode)}${acknowledgement}`;
 }
 
 Page({
@@ -135,11 +136,11 @@ Page({
       if (String(result.recordStatus || "") !== "APPROVED" || !result.verificationId || !result.verificationCode || !result.deviceSignal) {
         throw new Error("服务端未返回完整的已审核核销与设备信号，禁止显示成功");
       }
-      submission.clear("VERIFICATION");
+      const confirmedIntent = submission.confirm("VERIFICATION", result.verificationId);
       this.setData({ locked: false, message: `核销单 ${result.verificationCode} 已完成，不会重复扣次。`, error: false, note: "" });
       this.resetBusinessSelection();
       this.setData({ customer: null });
-      this.openSubmittedOrder(result);
+      this.openSubmittedOrder(result, confirmedIntent);
     } catch (error) {
       submission.markUncertain("VERIFICATION");
       await this.recoverAfterError(error, Boolean(result));
@@ -159,12 +160,13 @@ Page({
     await this.recoverPending();
   },
   showRecovered(result) {
+    const confirmedIntent = submission.confirm("VERIFICATION", result.verificationId);
     this.setData({ locked: false, message: `已找到上次核销 ${result.verificationCode}，未重复扣次。`, error: false });
-    this.openSubmittedOrder(result);
+    this.openSubmittedOrder(result, confirmedIntent);
     this.syncReady();
   },
-  openSubmittedOrder(result) {
-    const url = orderUrl(this.data.experience || String(result.verificationType || "").toUpperCase() === "EXPERIENCE", result);
+  openSubmittedOrder(result, intent) {
+    const url = orderUrl(this.data.experience || String(result.verificationType || "").toUpperCase() === "EXPERIENCE", result, intent);
     if (!url) {
       this.setData({ message: "核销已写入，但服务端没有返回完整工单定位信息；请从核销查询进入，禁止重复提交。", error: true });
       return;
@@ -172,8 +174,8 @@ Page({
     wx.redirectTo({
       url,
       fail: () => {
-        this.setData({ message: `${result.verificationCode} 已写入，但工单详情打开失败；请从核销查询进入，禁止重复提交。`, error: true });
-        wx.showModal({ title: "核销已完成", content: `${result.verificationCode}\n请从核销查询进入详情`, showCancel: false });
+        this.setData({ locked: true, message: `${result.verificationCode} 已写入，但工单详情打开失败；原提交锁仍保留，请从核销查询进入，禁止重复提交。`, error: true });
+        wx.showModal({ title: "核销已完成", content: `${result.verificationCode}\n原提交锁仍保留，请从核销查询进入详情`, showCancel: false });
       }
     });
   },

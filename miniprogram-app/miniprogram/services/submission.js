@@ -52,12 +52,29 @@ function clear(recordType) {
   if (read(recordType)) throw new Error("无法清除防重提交锁，已禁止继续办理");
   return true;
 }
+function confirm(recordType, recordId) {
+  const intent = read(recordType);
+  const id = String(recordId || "");
+  if (!intent || !intent.clientRequestId || !id) throw new Error("无法确认已写入工单，已保持防重复提交锁");
+  const confirmed = { ...intent, state: "CONFIRMED", recordId: id, confirmedAt: Date.now() };
+  wx.setStorageSync(key(recordType), confirmed);
+  const saved = read(recordType);
+  if (!saved || saved.state !== "CONFIRMED" || saved.recordId !== id || saved.clientRequestId !== intent.clientRequestId) {
+    throw new Error("无法保存工单完成状态，已保持防重复提交锁");
+  }
+  return saved;
+}
+function acknowledge(recordType, recordId, clientRequestId) {
+  const intent = read(recordType);
+  if (!intent) return true;
+  if (intent.state !== "CONFIRMED" || String(intent.recordId || "") !== String(recordId || "")
+      || String(intent.clientRequestId || "") !== String(clientRequestId || "")) return false;
+  return clear(recordType);
+}
 async function recover(recordType) {
   const intent = read(recordType);
   if (!intent) return { found: false, complete: false };
-  const result = await callFace("recoverBusinessSubmission", { recordType: intent.recordType, clientRequestId: intent.clientRequestId, storeId: intent.storeId });
-  if (result.found && result.complete) clear(recordType);
-  return result;
+  return callFace("recoverBusinessSubmission", { recordType: intent.recordType, clientRequestId: intent.clientRequestId, storeId: intent.storeId });
 }
 
-module.exports = { begin, read, markUncertain, clear, recover };
+module.exports = { begin, read, markUncertain, confirm, acknowledge, clear, recover };

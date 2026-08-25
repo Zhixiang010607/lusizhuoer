@@ -63,9 +63,9 @@ for (const token of ["listActiveProducts", "getCustomerProductBalances", "listAc
 assert.ok(recharge.indexOf('submission.begin("RECHARGE"') < recharge.indexOf('callFace("createRechargeApplication"'));
 assert.match(recharge, /submission\.markUncertain\("RECHARGE"\)/);
 assert.match(recharge, /pages\/order-detail\/index\?type=recharge/);
-assert.match(recharge, /openSubmittedOrder\(result\)[\s\S]*wx\.redirectTo\(\{/);
+assert.match(recharge, /openSubmittedOrder\(result, intent\)[\s\S]*wx\.redirectTo\(\{/);
 assert.match(recharge, /category=\$\{category\}/);
-assert.match(recharge, /showRecovered\(result\)[\s\S]*this\.openSubmittedOrder\(result\)/);
+assert.match(recharge, /showRecovered\(result\)[\s\S]*submission\.confirm\("RECHARGE", result\.rechargeId\)[\s\S]*this\.openSubmittedOrder\(result, confirmedIntent\)/);
 
 const verification = read("pages", "verification", "index.js");
 for (const token of ["getTeacherExperienceEntitlements", "getCustomerProductBalances", "verifyCustomerFace", "createVerificationApplication"]) assert.ok(verification.includes(token));
@@ -74,9 +74,9 @@ assert.match(verification, /verificationType: this\.data\.experience \? "EXPERIE
 assert.ok(verification.indexOf('callFace("verifyCustomerFace"') < verification.indexOf('callFace("createVerificationApplication"'));
 assert.ok(verification.indexOf('submission.begin("VERIFICATION"') < verification.indexOf('callFace("createVerificationApplication"'));
 assert.match(verification, /pages\/order-detail\/index\?type=verification/);
-assert.match(verification, /openSubmittedOrder\(result\)[\s\S]*wx\.redirectTo\(\{/);
+assert.match(verification, /openSubmittedOrder\(result, intent\)[\s\S]*wx\.redirectTo\(\{/);
 assert.match(verification, /category=\$\{category\}/);
-assert.match(verification, /showRecovered\(result\)[\s\S]*this\.openSubmittedOrder\(result\)/);
+assert.match(verification, /showRecovered\(result\)[\s\S]*submission\.confirm\("VERIFICATION", result\.verificationId\)[\s\S]*this\.openSubmittedOrder\(result, confirmedIntent\)/);
 assert.doesNotMatch(verification, /verifyTeacherFace|identifyFace|SearchPersons|1:N/);
 
 function submissionPageHarness(source) {
@@ -103,25 +103,26 @@ function submissionPageHarness(source) {
 
 const rechargeNavigation = submissionPageHarness(recharge);
 rechargeNavigation.definition.data.refund = false;
-rechargeNavigation.definition.openSubmittedOrder.call(rechargeNavigation.definition, { rechargeId: "31", rechargeCode: "RC31", rechargeType: "NEW" });
-rechargeNavigation.definition.openSubmittedOrder.call(rechargeNavigation.definition, { rechargeId: "32", rechargeCode: "RF32", rechargeType: "REFUND" });
+rechargeNavigation.definition.openSubmittedOrder.call(rechargeNavigation.definition, { rechargeId: "31", rechargeCode: "RC31", rechargeType: "NEW" }, { clientRequestId: "request_recharge_31" });
+rechargeNavigation.definition.openSubmittedOrder.call(rechargeNavigation.definition, { rechargeId: "32", rechargeCode: "RF32", rechargeType: "REFUND" }, { clientRequestId: "request_refund_32" });
 assert.deepEqual(rechargeNavigation.redirects, [
-  "/pages/order-detail/index?type=recharge&category=RECHARGE&recordId=31&recordCode=RC31",
-  "/pages/order-detail/index?type=recharge&category=REFUND&recordId=32&recordCode=RF32"
+  "/pages/order-detail/index?type=recharge&category=RECHARGE&recordId=31&recordCode=RC31&submissionClientRequestId=request_recharge_31",
+  "/pages/order-detail/index?type=recharge&category=REFUND&recordId=32&recordCode=RF32&submissionClientRequestId=request_refund_32"
 ]);
 
 const verificationNavigation = submissionPageHarness(verification);
 verificationNavigation.definition.data.experience = false;
-verificationNavigation.definition.openSubmittedOrder.call(verificationNavigation.definition, { verificationId: "41", verificationCode: "VE41", verificationType: "NORMAL" });
-verificationNavigation.definition.openSubmittedOrder.call(verificationNavigation.definition, { verificationId: "42", verificationCode: "EX42", verificationType: "EXPERIENCE" });
+verificationNavigation.definition.openSubmittedOrder.call(verificationNavigation.definition, { verificationId: "41", verificationCode: "VE41", verificationType: "NORMAL" }, { clientRequestId: "request_verification_41" });
+verificationNavigation.definition.openSubmittedOrder.call(verificationNavigation.definition, { verificationId: "42", verificationCode: "EX42", verificationType: "EXPERIENCE" }, { clientRequestId: "request_experience_42" });
 assert.deepEqual(verificationNavigation.redirects, [
-  "/pages/order-detail/index?type=verification&category=VERIFICATION&recordId=41&recordCode=VE41",
-  "/pages/order-detail/index?type=verification&category=EXPERIENCE&recordId=42&recordCode=EX42"
+  "/pages/order-detail/index?type=verification&category=VERIFICATION&recordId=41&recordCode=VE41&submissionClientRequestId=request_verification_41",
+  "/pages/order-detail/index?type=verification&category=EXPERIENCE&recordId=42&recordCode=EX42&submissionClientRequestId=request_experience_42"
 ]);
 
 const orderDetail = read("pages", "order-detail", "index.js");
 assert.match(orderDetail, /category === "EXPERIENCE" \? "体验核销" : "核销"/);
 assert.match(orderDetail, /category === "REFUND" \? "退费" : "充值"/);
+assert.match(orderDetail, /submission\.acknowledge\(this\.data\.baseType, this\.data\.recordId, this\.data\.submissionClientRequestId\)/);
 
 const photo = read("pages", "customer-detail", "index.js");
 assert.match(photo, /photoFailed\(\).*photoUrl: ""/s);
@@ -160,6 +161,12 @@ guard.recover("RECHARGE").then((missing) => {
   return guard.recover("RECHARGE");
 }).then((result) => {
   assert.equal(result.rechargeId, "99");
-  assert.equal(guard.read("RECHARGE"), null, "complete database recovery must clear the local lock");
+  assert.ok(guard.read("RECHARGE"), "complete recovery must retain the lock until the detail page acknowledges the exact order");
+  const confirmed = guard.confirm("RECHARGE", result.rechargeId);
+  assert.equal(confirmed.state, "CONFIRMED");
+  assert.equal(guard.acknowledge("RECHARGE", "98", confirmed.clientRequestId), false, "another order cannot clear the lock");
+  assert.ok(guard.read("RECHARGE"));
+  assert.equal(guard.acknowledge("RECHARGE", "99", confirmed.clientRequestId), true, "the exact detail read can acknowledge the submission");
+  assert.equal(guard.read("RECHARGE"), null, "the exact detail acknowledgement clears the local lock");
   console.log("mini-program contract tests passed");
 }).catch((error) => { console.error(error); process.exitCode = 1; });

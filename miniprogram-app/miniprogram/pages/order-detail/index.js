@@ -1,6 +1,7 @@
 const { callFace, callPhoto, callStaff } = require("../../services/api");
 const { requireSession } = require("../../services/session");
 const query = require("../../services/query-tools");
+const submission = require("../../services/submission");
 
 const PHOTO_LABELS = Object.freeze(["客户留存照", "本次核销照", "补充照片 1", "补充照片 2", "补充照片 3"]);
 
@@ -56,7 +57,7 @@ function normalizeTeacherOrder(row, baseType) {
 
 Page({
   data: {
-    session: {}, recordId: "", recordCode: "", baseType: "RECHARGE", category: "RECHARGE", noun: "充值",
+    session: {}, recordId: "", recordCode: "", submissionClientRequestId: "", baseType: "RECHARGE", category: "RECHARGE", noun: "充值",
     order: null, facts: [], notes: [], photos: [], loading: true, photoLoading: false,
     message: "", error: false
   },
@@ -69,7 +70,8 @@ Page({
     const noun = baseType === "VERIFICATION" ? (category === "EXPERIENCE" ? "体验核销" : "核销") : (category === "REFUND" ? "退费" : "充值");
     this.setData({
       session, baseType, category, noun,
-      recordId: decodeURIComponent(options.recordId || ""), recordCode: decodeURIComponent(options.recordCode || "")
+      recordId: decodeURIComponent(options.recordId || ""), recordCode: decodeURIComponent(options.recordCode || ""),
+      submissionClientRequestId: decodeURIComponent(options.submissionClientRequestId || "")
     });
     wx.setNavigationBarTitle({ title: `${this.data.noun}工单详情` });
     this.load();
@@ -105,6 +107,14 @@ Page({
         { label: "作废审核说明", value: order.voidReviewNote }
       ].filter((item) => item.value);
       this.setData({ order, facts, notes, loading: false });
+      if (this.data.submissionClientRequestId) {
+        try {
+          const acknowledged = submission.acknowledge(this.data.baseType, this.data.recordId, this.data.submissionClientRequestId);
+          if (!acknowledged) this.setData({ message: "工单详情已读取，但原提交确认信息不一致；防重复提交锁仍保留。", error: true });
+        } catch (error) {
+          this.setData({ message: error.message || "工单详情已读取，但防重复提交锁尚未清除。", error: true });
+        }
+      }
       if (this.data.baseType === "VERIFICATION") await this.loadPhotos();
     } catch (error) {
       this.setData({ order: null, loading: false, message: error.message || "工单详情读取失败", error: true });
