@@ -26,7 +26,7 @@ assert.match(css, /\.customer-notes-title-row \{[^}]*display: flex;[^}]*align-it
 assert.match(html, /class="customer-notes-messages-grid"[\s\S]*customer-notes-panel[\s\S]*customer-messages-panel/, "customer notes and messages must share the same layout row");
 assert.match(ui, /action:"updateCustomerNotes"/, "customer notes must save through the database service");
 assert.match(ui, /const canEditNotes = \["hq", "store", "teacher"\]/, "HQ, store and teacher may edit customer notes");
-assert.match(html, /customer-profile\.js\?v=0\.15\.14/, "customer business-teacher display must bust the profile script cache");
+assert.match(html, /customer-profile\.js\?v=0\.15\.15/, "customer business-teacher display must bust the profile script cache");
 assert.match(html, /id="customerRefundRecords"/, "refund records must have an independent customer-profile table");
 assert.match(ui, /EXPERIENCE:\s*\{ hasMore:false/, "experience records must paginate independently");
 assert.match(cloud, /async function updateCustomerNotes\(event\)/, "cloud function must persist customer notes");

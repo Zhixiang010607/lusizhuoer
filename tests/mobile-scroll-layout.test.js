@@ -40,6 +40,7 @@ assert(/@media \(max-width:\s*560px\)[\s\S]*?customer-profile-layout[\s\S]*?grid
 const businessPages = [
   "customer-create.html",
   "recharge-create.html",
+  "product-purchase-create.html",
   "verification-create.html",
   "verification-experience.html"
 ];
@@ -50,7 +51,7 @@ const teacherBusinessPages = [
 ];
 for (const file of businessPages) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
-  const styleVersion = file === "recharge-create.html" ? "0.15.49" : "0.15.44";
+  const styleVersion = ["recharge-create.html", "product-purchase-create.html"].includes(file) ? "0.15.49" : "0.15.44";
   assert(html.includes(`styles.css?v=${styleVersion}`), `${file} must use the current stylesheet cache key`);
   assert(html.includes("data-store-business"), `${file} must be a store business workflow`);
 }
@@ -100,13 +101,13 @@ for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))
       ? "0.15.49"
     : file === "recharge-review.html"
       ? "0.15.49"
-    : ["customer-query.html", "recharge-query.html", "verification-query.html", "refund-review.html", "verification-review.html"].includes(file)
+    : ["customer-query.html", "recharge-query.html", "verification-query.html", "refund-review.html", "verification-review.html", "product-purchase-review.html"].includes(file)
         ? "0.15.48"
     : file === "index.html"
           ? "0.15.49"
         : file === "login.html"
           ? "0.15.59"
-          : ["recharge-create.html", "teacher-recharge-create.html"].includes(file)
+          : ["recharge-create.html", "teacher-recharge-create.html", "product-purchase-create.html"].includes(file)
             ? "0.15.49"
             : "0.15.44";
   assert(html.includes(`styles.css?v=${expectedStyleVersion}`), `${file} must use the desktop-scroll stylesheet cache key`);

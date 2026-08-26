@@ -55,7 +55,7 @@ for (const action of [
   "getProductReceiptTemplate", "beginProductLogoUpload", "uploadProductLogoByFunction", "confirmProductLogoUpload", "discardProductLogoUpload",
   "saveProductReceiptTemplate", "removeProductReceiptLogo", "getProductReceiptLogoData"
 ]) assert.ok(cloud.includes(`action === "${action}"`), `cloud action ${action}`);
-assert.ok(cloud.includes('const FUNCTION_VERSION = "v74"'), "staffAccount retains the resilient project-logo read contract in v74");
+assert.ok(cloud.includes('const FUNCTION_VERSION = "v75"'), "staffAccount retains the resilient project-logo read contract in v75");
 assert.ok(cloud.includes("envId: process.env.CLOUDBASE_ENV_ID || process.env.TCB_ENV"), "manager and storage calls select the same environment");
 assert.ok(cloud.includes("signUploadObject"), "original logo uses direct signed upload");
 assert.ok(cloud.includes("canonicalProductLogoUploadUrl"), "signed upload uses a canonical HTTPS gateway target");
@@ -403,7 +403,7 @@ assert.ok(detailUi.includes("if (previewQueued) void renderPreview()"), "a save 
 assert.ok(detailUi.includes("模板文字已读取；LOGO 原图暂时不可用"), "a logo outage keeps persisted template text visible and editable");
 assert.ok(detailUi.includes("void reloadTemplateLogo({ automatic: true })"), "a failed logo read schedules one bounded background retry");
 assert.ok(detailUi.includes("template?.logo && !(logoBlob instanceof Blob)"), "the existing refresh control retries a missing logo instead of only rerendering the placeholder");
-assert.ok(detailHtml.includes('cloudbase-phone-auth.js?v=0.20.2'), "template page loads the current shared auth API cache key");
+assert.ok(detailHtml.includes('cloudbase-phone-auth.js?v=0.20.3'), "template page loads the current shared auth API cache key");
 assert.ok(detailHtml.includes('project-detail.js?v=0.2.5'), "template page busts the stale-logo script cache");
 
 assert.ok(exporter.includes("drawDocumentHeader(context, documentData, productLogo"), "receipts place the square product logo in the header");

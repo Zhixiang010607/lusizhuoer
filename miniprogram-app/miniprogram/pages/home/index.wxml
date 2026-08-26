@@ -12,7 +12,7 @@
   <view wx:if="{{businessMenuOpen || queryMenuOpen || managementMenuOpen || reviewMenuOpen}}" class="menu-backdrop" bindtap="closeMenus"></view>
   <view wx:if="{{businessMenuOpen && session.role !== 'hq'}}" class="business-popover" catchtap="noop">
     <view class="popover-grid">
-      <view bindtap="openCustomerCreate">客户建立</view><view bindtap="openRecharge" data-mode="NEW">办卡充值</view><view bindtap="openRecharge" data-mode="REFUND">退费申请</view><view bindtap="openVerification" data-mode="NORMAL">核销办理</view><view wx:if="{{session.role === 'teacher'}}" bindtap="openVerification" data-mode="EXPERIENCE">体验核销</view>
+      <view bindtap="openCustomerCreate">客户建立</view><view bindtap="openRecharge" data-mode="NEW">办卡充值</view><view bindtap="openProductPurchase">产品购买</view><view bindtap="openRecharge" data-mode="REFUND">退费申请</view><view bindtap="openVerification" data-mode="NORMAL">核销办理</view><view wx:if="{{session.role === 'teacher'}}" bindtap="openVerification" data-mode="EXPERIENCE">体验核销</view>
     </view>
   </view>
   <view wx:if="{{queryMenuOpen && session.role !== 'teacher'}}" class="business-popover query-popover" catchtap="noop">
@@ -34,6 +34,7 @@
     <view class="popover-grid">
       <view data-type="recharge" bindtap="openReview">充值审核</view>
       <view data-type="verification" bindtap="openReview">核销审核</view>
+      <view data-type="product-purchase" bindtap="openReview">产品购买审核</view>
     </view>
   </view>
 

@@ -58,6 +58,10 @@
 .balance-table-row:first-child { border-top: 0; }
 .balance-table-row text, .record-row text { width: 100%; min-width: 0; display: flex; align-items: center; justify-content: center; justify-self: stretch; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .balance-table-row text { min-height: 74rpx; padding: 12rpx 8rpx; font-size: 21rpx; }
+.retail-summary-table { width: 100%; min-width: 0; overflow: hidden; background: #fffaf3; border: 1rpx solid #dfcfb4; border-radius: 18rpx; }
+.retail-summary-row { min-height: 74rpx; display: grid; grid-template-columns: minmax(0, 1fr) 150rpx 150rpx; border-top: 1rpx solid #dfcfb4; }
+.retail-summary-row:first-child { border-top: 0; }
+.retail-summary-row text { min-width: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 12rpx 8rpx; font-size: 21rpx; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .table-head { color: #675b4b; background: #f5ead8; font-weight: 800; }
 .balance-count { color: #76592f; font-weight: 850; }
 

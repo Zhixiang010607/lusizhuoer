@@ -8,9 +8,9 @@
   const homes = { hq: "index.html", store: "store-detail.html", teacher: "teacher-work-orders.html" };
   const labels = { hq: "总部工作区", store: "门店工作区", teacher: "老师工作区" };
   const access = {
-    hq: new Set(["index.html", "change-password.html", "store-create.html", "project-create.html", "retail-product-create.html", "teacher-create.html", "hq-account-create.html", "hq-management.html", "store-management.html", "project-management.html", "retail-product-management.html", "teacher-management.html", "staff-detail.html", "store-detail.html", "store-analysis.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "refund-review.html", "verification-review.html"]),
-    store: new Set(["store-detail.html", "store-analysis.html", "change-password.html", "customer-detail.html", "customer-query.html", "customer-create.html", "recharge-create.html", "refund-create.html", "verification-create.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html"]),
-    teacher: new Set(["teacher-work-orders.html", "change-password.html", "teacher-work-order-detail.html", "customer-detail.html", "recharge-detail.html", "verification-detail.html", "customer-create.html", "recharge-create.html", "refund-create.html", "verification-create.html", "verification-experience.html", "teacher-verification-create.html", "teacher-verification-experience.html", "teacher-recharge-create.html", "teacher-refund-create.html"])
+    hq: new Set(["index.html", "change-password.html", "store-create.html", "project-create.html", "retail-product-create.html", "teacher-create.html", "hq-account-create.html", "hq-management.html", "store-management.html", "project-management.html", "retail-product-management.html", "teacher-management.html", "staff-detail.html", "store-detail.html", "store-analysis.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "refund-review.html", "product-purchase-review.html", "verification-review.html"]),
+    store: new Set(["store-detail.html", "store-analysis.html", "change-password.html", "customer-detail.html", "customer-query.html", "customer-create.html", "recharge-create.html", "product-purchase-create.html", "refund-create.html", "verification-create.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html"]),
+    teacher: new Set(["teacher-work-orders.html", "change-password.html", "teacher-work-order-detail.html", "customer-detail.html", "recharge-detail.html", "verification-detail.html", "customer-create.html", "recharge-create.html", "product-purchase-create.html", "refund-create.html", "verification-create.html", "verification-experience.html", "teacher-verification-create.html", "teacher-verification-experience.html", "teacher-recharge-create.html", "teacher-refund-create.html"])
   };
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
@@ -90,12 +90,12 @@
     primaryNav.innerHTML = `<a class="active" href="${homeUrl}"><span class="nav-icon">${navIcon}</span><span>${navLabel}</span></a>`;
     if (session.role === "store") {
       document.querySelectorAll(".side-project-bar > .side-menu-group").forEach((group) => { group.hidden = true; });
-      const businessLinks = [["customer-create.html", "客户建立"], ["recharge-create.html", "办卡充值"], ["refund-create.html", "退费申请"], ["verification-create.html", "核销办理"]];
+      const businessLinks = [["customer-create.html", "客户建立"], ["recharge-create.html", "办卡充值"], ["product-purchase-create.html", "产品购买"], ["refund-create.html", "退费申请"], ["verification-create.html", "核销办理"]];
       primaryNav.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="store-business"><summary><span class="nav-icon">办</span><span>业务办理</span></summary><nav>${businessLinks.map(([href, text]) => `<a class="${page === href ? "active" : ""}" href="${href}">${text}</a>`).join("")}</nav></details>`);
       const queryLinks = [["customer-query.html", "客户查询"], ["recharge-query.html", "充值查询"], ["verification-query.html", "核销查询"]];
       document.querySelector('[data-menu="store-business"]')?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="store-query"><summary><span class="nav-icon">查</span><span>查询</span></summary><nav>${queryLinks.map(([href, text]) => `<a class="${page === href ? "active" : ""}" href="${href}">${text}</a>`).join("")}</nav></details>`);
     } else if (session.role === "teacher") {
-      const businessLinks = [["customer-create.html", "客户建立"], ["recharge-create.html", "办卡充值"], ["refund-create.html", "退费申请"], ["verification-create.html", "核销办理"], ["verification-experience.html", "体验核销"]];
+      const businessLinks = [["customer-create.html", "客户建立"], ["recharge-create.html", "办卡充值"], ["product-purchase-create.html", "产品购买"], ["refund-create.html", "退费申请"], ["verification-create.html", "核销办理"], ["verification-experience.html", "体验核销"]];
       primaryNav.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="teacher-business"><summary><span class="nav-icon">办</span><span>业务办理</span></summary><nav>${businessLinks.map(([href, text]) => `<a class="${page === href ? "active" : ""}" href="${href}">${text}</a>`).join("")}</nav></details>`);
     } else {
       const queryLinks = [["customer-query.html", "客户查询"], ["recharge-query.html", "充值查询"], ["verification-query.html", "核销查询"]];
@@ -119,7 +119,7 @@
       reviewMenu = document.querySelector('[data-menu="review"]');
     }
     if (reviewMenu) {
-      reviewMenu.querySelector("nav").innerHTML = `<a class="${page === "recharge-review.html" ? "active" : ""}" href="recharge-review.html">充值审核</a><a class="${page === "refund-review.html" ? "active" : ""}" href="refund-review.html">退费审核</a>`;
+      reviewMenu.querySelector("nav").innerHTML = `<a class="${page === "recharge-review.html" ? "active" : ""}" href="recharge-review.html">充值审核</a><a class="${page === "refund-review.html" ? "active" : ""}" href="refund-review.html">退费审核</a><a class="${page === "product-purchase-review.html" ? "active" : ""}" href="product-purchase-review.html">产品购买审核</a>`;
       reviewMenu.hidden = false;
       reviewMenu.open = true;
     }

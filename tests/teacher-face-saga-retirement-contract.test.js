@@ -19,8 +19,8 @@ const canonical053 = read("database/migrations/053_retire_legacy_teacher_face_sa
 const console053 = read("database/cloudbase-console/053-01-retire-legacy-teacher-face-saga.sql");
 const verify053 = read("database/cloudbase-console/053-readonly-verify.sql");
 
-assert.match(staff, /const FUNCTION_VERSION = "v74"/);
-assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v9" : "v93"/);
+assert.match(staff, /const FUNCTION_VERSION = "v75"/);
+assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v9" : "v94"/);
 assert.match(teacher, /const FUNCTION_VERSION = "teacher-create-v6"/);
 
 const retiredImplementationNames = [

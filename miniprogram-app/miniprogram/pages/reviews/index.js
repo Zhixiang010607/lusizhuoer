@@ -19,7 +19,23 @@ function dateTime(value) {
   if (Number.isNaN(parsed.valueOf())) return "—";
   return new Date(parsed.valueOf() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16).replace("T", " ");
 }
-function normalize(row, recharge) {
+function normalize(row, recharge, purchase = false) {
+  if (purchase) {
+    const status = text(pick(row, "record_status", "recordStatus")).toUpperCase() || "PENDING";
+    return {
+      id: text(row.id), recordCode: text(pick(row, "purchase_code", "purchaseCode")), status, category: "PRODUCT_PURCHASE",
+      statusLabel: { PENDING: "待审核", APPROVED: "审核通过", REJECTED: "已驳回" }[status] || status,
+      kind: "产品购买", storeId: text(pick(row, "store_id", "storeId")), storeName: text(pick(row, "store_name", "storeName")) || "未命名门店",
+      storeCode: text(pick(row, "store_code", "storeCode")), customerCode: text(pick(row, "customer_code", "customerCode")),
+      customerName: text(pick(row, "customer_name", "customerName")) || "未命名客户",
+      productName: text(pick(row, "product_name_snapshot", "productNameSnapshot")) || "未命名产品",
+      teacherName: text(pick(row, "teacher_name", "teacherName")) || "—",
+      impact: `${Number(pick(row, "unit_count", "unitCount")) || 0} 件`,
+      submittedAt: dateTime(pick(row, "submitted_at", "submittedAt")),
+      reviewedAt: status === "PENDING" ? "—" : dateTime(pick(row, "reviewed_at", "reviewedAt")),
+      applicantNote: text(row.message) || "无"
+    };
+  }
   const applicationType = text(pick(row, "application_type", "applicationType")).toUpperCase();
   const status = text(pick(row, "application_status", "applicationStatus")).toUpperCase() || "PENDING";
   const isRefund = applicationType === "REFUND";
@@ -57,9 +73,9 @@ Page({
     const session = requireSession(["hq"]);
     if (!session) return;
     const requested = String(options.type || "recharge").toLowerCase();
-    const type = ["recharge", "refund", "verification"].includes(requested) ? requested : "recharge";
-    const noun = type === "verification" ? "核销" : type === "refund" ? "退费" : "充值";
-    this.setData({ session, type, noun, recordType: type === "verification" ? "VERIFICATION" : "RECHARGE" });
+    const type = ["recharge", "refund", "verification", "product-purchase"].includes(requested) ? requested : "recharge";
+    const noun = type === "verification" ? "核销" : type === "refund" ? "退费" : type === "product-purchase" ? "产品购买" : "充值";
+    this.setData({ session, type, noun, recordType: type === "verification" ? "VERIFICATION" : type === "product-purchase" ? "PRODUCT_PURCHASE" : "RECHARGE" });
     wx.setNavigationBarTitle({ title: "露思卓儿" });
     await this.load(1, true);
   },
@@ -105,9 +121,15 @@ Page({
     };
     this.setData({ loading: true, message: "", error: false });
     try {
-      const result = await callStaff("listReviewOrders", payload);
+      const productPurchase = type === "product-purchase";
+      const result = productPurchase
+        ? await callStaff("listRetailProductPurchaseReviews", {
+          purchaseCode: recordCode, storeId: payload.storeId, status: payload.status,
+          limit: payload.limit, pageNumber: payload.pageNumber || 1
+        })
+        : await callStaff("listReviewOrders", payload);
       if (epoch !== this._requestEpoch) return;
-      const rows = (result.orders || []).map((row) => normalize(row, recordType === "RECHARGE"));
+      const rows = (result.orders || []).map((row) => normalize(row, recordType === "RECHARGE", productPurchase));
       const total = mode === "filters" ? Number(result.total || 0) : rows.length;
       const totalPages = mode === "filters" ? Math.max(1, Number(result.totalPages || 1)) : 1;
       const currentPage = mode === "filters" ? Math.min(totalPages, Math.max(1, Number(result.pageNumber || page))) : 1;
@@ -141,7 +163,7 @@ Page({
     const id = text(event.currentTarget.dataset.id);
     const code = text(event.currentTarget.dataset.code);
     const row = this.data.rows.find((item) => item.id === id && item.recordCode === code);
-    if (row && row.category) {
+    if (row && row.category && row.category !== "PRODUCT_PURCHASE") {
       wx.navigateTo({
         url: `/pages/order-detail/index?type=${this.data.recordType.toLowerCase()}&category=${encodeURIComponent(row.category)}&recordId=${encodeURIComponent(id)}&recordCode=${encodeURIComponent(code)}`
       });
@@ -164,10 +186,9 @@ Page({
     if (this.data.deciding || !this.data.pending) return;
     this.setData({ deciding: true, message: "正在提交审核结果…", error: false });
     try {
-      await callStaff("reviewOrder", {
-        recordType: this.data.recordType, recordId: this.data.pending.id,
-        decision: this.data.decision, note: text(this.data.reviewNote)
-      });
+      const payload = { recordId: this.data.pending.id, decision: this.data.decision, note: text(this.data.reviewNote) };
+      if (this.data.type === "product-purchase") await callStaff("reviewRetailProductPurchase", payload);
+      else await callStaff("reviewOrder", { ...payload, recordType: this.data.recordType });
       const code = this.data.pending.recordCode;
       this.setData({ pendingOpen: false, pending: null, reviewNote: "", message: `${code} 审核结果已保存`, error: false });
       await this.load(this.data.page);

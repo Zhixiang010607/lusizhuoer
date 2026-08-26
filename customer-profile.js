@@ -23,7 +23,7 @@
   const birthdayText = (value) => { const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/); return match ? `${match[1]}年${match[2]}月${match[3]}日` : "—"; };
   const infoCard = (label, value) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || "—")}</strong></article>`;
   const verificationTypeText = (value) => ({ NORMAL:"正常核销", SUPPLEMENT:"补录核销", EXPERIENCE:"体验核销" }[value] || value || "正常核销");
-  let profile = null, balances = [], recharges = [], refunds = [], verifications = [], experiences = [], requestPending = false;
+  let profile = null, balances = [], retailProductSummary = [], recharges = [], refunds = [], verifications = [], experiences = [], requestPending = false;
   let notesEditing = false, notesPending = false, notesOriginal = "";
   let customerMessages = [], customerMessageTotal = 0, customerMessageHasMore = false, customerMessageNextCursor = null;
   let customerMessagesLoading = false, customerMessageSubmitting = false;
@@ -276,6 +276,9 @@
   }
   function renderBalances() {
     $("customerProjectSummary").innerHTML = balances.length ? balances.map((row) => `<tr><td>${escapeHtml(row.productName)}</td><td>${Number(row.totalRechargeCount || 0)}</td><td>${Number(row.totalVerificationCount || 0)}</td><td><strong>${Number(row.remainingCount || 0)}</strong></td></tr>`).join("") : emptyRow(4, "暂无已充值项目");
+    $("customerRetailProductSummary").innerHTML = retailProductSummary.length
+      ? retailProductSummary.map((row) => `<tr><td>${escapeHtml(row.productName)}</td><td>${Number(row.purchasedCount || 0)} 件</td><td>${Number(row.giftedCount || 0)} 件</td></tr>`).join("")
+      : emptyRow(3, "暂无产品购买或赠送记录");
   }
   function businessTeacher(row) {
     const name = String(row?.teacherName || "").trim();
@@ -381,6 +384,7 @@
     $("customerRecentInfo").innerHTML = ""; $("customerNotes").value = "";
     $("customerStatusMessage").textContent = message; $("customerStatusMessage").classList.add("error");
     $("customerProjectSummary").innerHTML = emptyRow(4, "客户项目数据读取失败");
+    $("customerRetailProductSummary").innerHTML = emptyRow(3, "客户产品数据读取失败");
     $("customerRechargeRecords").innerHTML = emptyRow(6, "充值记录读取失败");
     $("customerRefundRecords").innerHTML = emptyRow(6, "退费记录读取失败");
     $("customerVerificationRecords").innerHTML = emptyRow(4, "核销记录读取失败");
@@ -401,6 +405,7 @@
     try {
       const data = await callCustomerService(profilePayload({ historyLimit:50 }));
       profile = data.customer; balances = Array.isArray(data.balances) ? data.balances : [];
+      retailProductSummary = Array.isArray(data.retailProductSummary) ? data.retailProductSummary : [];
       recharges = Array.isArray(data.recharges) ? data.recharges : []; refunds = Array.isArray(data.refunds) ? data.refunds : []; verifications = Array.isArray(data.verifications) ? data.verifications : []; experiences = Array.isArray(data.experiences) ? data.experiences : [];
       historyState.RECHARGE.hasMore = data.history?.recharges?.hasMore === true;
       historyState.RECHARGE.nextCursor = data.history?.recharges?.nextCursor || null;

@@ -237,6 +237,8 @@ retirement cutover, then execute the remaining migrations through 059:
 058_order_integrity_and_submission_recovery.sql
 059_business_teacher_attribution.sql
 060_retail_products.sql
+061_recharge_product_gifts.sql
+062_retail_product_purchases.sql
 ```
 
 After 046 has committed, deploy `faceRecognition v69` and `staffAccount v50`
@@ -250,12 +252,12 @@ result that blocks the old CloudBase credentials. Only then execute
 `048_optional_teacher_face_and_experience_quota_lifecycle.sql` (or the seven
 ordered `048-01` through `048-07` CloudBase console parts). Next execute the
 ordered `049-01` through `049-13` parts and `049-readonly-verify.sql`, then 050.
-For a database that already ran historical 051/052, deploy `staffAccount v74`,
-`faceRecognition v93`, and `teacherCreate v6` before executing 053. Run the 053
+For a database that already ran historical 051/052, deploy `staffAccount v75`,
+`faceRecognition v94`, and `teacherCreate v6` before executing 053. Run the 053
 read-only verification and require all seven rows to be `RETIRED`, remove the
 old teacher-face reconciliation Timer, then execute and verify 054 through 059.
-Deploy the final `faceRecognition v93`, `verificationPhoto v9`,
-`staffAccount v74` and `teacherCreate v6` matrix only after those migrations
+Deploy the final `faceRecognition v94`, `verificationPhoto v9`,
+`staffAccount v75` and `teacherCreate v6` matrix only after those migrations
 are ready. A fresh database still follows numeric order; 053 immediately
 removes the historical 051/052 orchestration objects.
 
@@ -303,3 +305,11 @@ It creates no teacher face person or photo. Success requires the Auth account,
 activation and login are face-independent.
 Neither photo migration creates the CloudBase Storage
 buckets, which must be created separately as private infrastructure.
+
+Migrations 060--062 keep physical products separate from projects. 060 creates
+the product master, 061 stores immutable gifts attached to recharge orders,
+and 062 stores independent store/teacher product-purchase applications with a
+headquarters review state. Only approved purchases and gifts whose parent
+recharge is approved appear in the customer product summary; none of these
+rows changes project balances, verification, experience quotas, inventory, or
+the four project statistics.

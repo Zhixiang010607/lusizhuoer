@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v74";
+const FUNCTION_VERSION = "v75";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -2943,6 +2943,93 @@ async function requestOrderVoid(caller, event) {
   return rows[0];
 }
 
+async function requireRetailProductPurchaseSchema() {
+  const rows = await executeSql(
+    `SELECT TO_REGCLASS('public.retail_product_purchase_records') IS NOT NULL AS has_table,
+            TO_REGPROCEDURE('public.review_retail_product_purchase(bigint,bigint,text,text)') IS NOT NULL AS has_review`
+  );
+  if (!databaseBoolean(rows?.[0]?.has_table) || !databaseBoolean(rows?.[0]?.has_review)) {
+    fail("产品购买数据库尚未启用，请先执行迁移 062。", "DATABASE_SCHEMA_MISSING");
+  }
+}
+
+async function listRetailProductPurchaseReviews(caller, event = {}) {
+  requireReviewer(caller);
+  await requireRetailProductPurchaseSchema();
+  const status = String(event.status || "").trim().toUpperCase();
+  if (status && !["PENDING", "APPROVED", "REJECTED"].includes(status)) fail("审核状态无效", "BAD_REQUEST");
+  const purchaseCode = String(event.purchaseCode || event.recordCode || "").trim().toUpperCase();
+  if (purchaseCode && !/^PP\d{14}$/.test(purchaseCode)) fail("请输入完整产品购买单号", "BAD_REQUEST");
+  const storeText = String(event.storeId || "").trim();
+  const storeId = storeText ? numericId(storeText, "门店编号") : "";
+  const requestedLimit = Number(event.limit);
+  const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 100, 1), 100);
+  const requestedPage = Number(event.pageNumber);
+  const pageNumber = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const clauses = ["TRUE"];
+  if (status) clauses.push(`purchase.record_status = ${sqlText(status)}`);
+  if (purchaseCode) clauses.push(`purchase.purchase_code = ${sqlText(purchaseCode)}`);
+  if (storeId) clauses.push(`purchase.store_id = ${storeId}`);
+  const whereSql = clauses.join(" AND ");
+  const countRows = await executeSql(
+    `SELECT COUNT(*)::bigint AS total FROM public.retail_product_purchase_records purchase WHERE ${whereSql}`
+  );
+  const total = Number(countRows?.[0]?.total || 0);
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const currentPage = Math.min(pageNumber, totalPages);
+  const rows = await executeSql(
+    `SELECT purchase.id, purchase.purchase_code, purchase.unit_count,
+            purchase.record_status, purchase.message, purchase.review_note,
+            purchase.submitted_at, purchase.reviewed_at,
+            store.id AS store_id, store.store_code, store.store_name,
+            customer.customer_code, customer.customer_name,
+            purchase.retail_product_id, purchase.product_code_snapshot, purchase.product_name_snapshot,
+            teacher.id AS teacher_id, teacher.teacher_code, teacher.teacher_name,
+            submitter.staff_name AS submitted_by_name,
+            reviewer.staff_name AS reviewed_by_name
+       FROM public.retail_product_purchase_records purchase
+       JOIN public.stores store ON store.id = purchase.store_id
+       JOIN public.customers customer ON customer.id = purchase.customer_id
+       LEFT JOIN public.teachers teacher ON teacher.id = purchase.teacher_id
+       JOIN public.staff_accounts submitter ON submitter.id = purchase.submitted_by_account_id
+       LEFT JOIN public.staff_accounts reviewer ON reviewer.id = purchase.reviewed_by_account_id
+      WHERE ${whereSql}
+      ORDER BY (purchase.record_status = 'PENDING') DESC, purchase.submitted_at DESC, purchase.id DESC
+      LIMIT ${limit} OFFSET ${(currentPage - 1) * limit}`
+  );
+  const stores = currentPage === 1
+    ? await executeSql(`SELECT id AS store_id, store_code, store_name FROM public.stores ORDER BY store_name, store_code, id`)
+    : [];
+  return { orders: rows, total, pageNumber: currentPage, pageSize: limit, totalPages, stores };
+}
+
+async function reviewRetailProductPurchase(caller, event = {}) {
+  requireReviewer(caller);
+  await requireRetailProductPurchaseSchema();
+  const decision = String(event.decision || "").trim().toUpperCase();
+  if (!["APPROVED", "REJECTED"].includes(decision)) fail("审核结果只能是通过或驳回", "BAD_REQUEST");
+  const note = String(event.note || "").trim();
+  if (note.length > 1000) fail("审核留言不能超过 1000 个字符", "BAD_REQUEST");
+  const recordId = numericId(event.recordId || event.purchaseId, "购买工单编号");
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT record_id, purchase_code, record_status, reviewed_at
+         FROM public.review_retail_product_purchase(
+           ${recordId}, ${numericId(caller.profile.staffId, "当前审核账号")},
+           ${sqlText(decision)}, ${sqlText(note)}
+         )`
+    );
+  } catch (error) {
+    if (/RETAIL_PRODUCT_PURCHASE_NOT_PENDING/.test(String(error?.message || ""))) {
+      fail("该产品购买单已完成审核，请刷新列表", "ORDER_ALREADY_REVIEWED");
+    }
+    asDatabaseError(error, "审核产品购买单");
+  }
+  if (!rows?.[0]) fail("未找到待审核的产品购买单", "NOT_FOUND");
+  return rows[0];
+}
+
 async function reviewOrder(caller, event) {
   requireReviewer(caller);
   const recordType = String(event.recordType || "").trim().toUpperCase();
@@ -4297,6 +4384,12 @@ async function main(event = {}, context = {}) {
   }
   if (action === "reviewOrder") {
     return { ok: true, order: await reviewOrder(caller, event) };
+  }
+  if (action === "listRetailProductPurchaseReviews") {
+    return { ok: true, ...(await listRetailProductPurchaseReviews(caller, event)) };
+  }
+  if (action === "reviewRetailProductPurchase") {
+    return { ok: true, order: await reviewRetailProductPurchase(caller, event) };
   }
   if (action === "requestOrderVoid") {
     return { ok: true, order: await requestOrderVoid(caller, event) };

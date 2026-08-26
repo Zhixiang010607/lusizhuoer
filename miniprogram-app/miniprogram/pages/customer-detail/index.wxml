@@ -95,6 +95,15 @@
       <view wx:else class="empty">暂无已充值项目</view>
     </view>
 
+    <view class="card balance-card">
+      <view class="card-title"><text>产品汇总</text><text class="badge">{{retailProductSummary.length}} 个产品</text></view>
+      <view wx:if="{{retailProductSummary.length}}" class="retail-summary-table">
+        <view class="retail-summary-row table-head"><text>产品名称</text><text>购买</text><text>赠送</text></view>
+        <view wx:for="{{retailProductSummary}}" wx:key="productId" class="retail-summary-row"><text>{{item.productName}}</text><text>{{item.purchasedCount}} 件</text><text>{{item.giftedCount}} 件</text></view>
+      </view>
+      <view wx:else class="empty">暂无产品购买或赠送记录</view>
+    </view>
+
     <view class="card history-card">
       <view class="card-title"><text>业务记录</text><text class="badge">已载 {{visibleHistory.length}} 条</text></view>
       <view class="segmented history-tabs">

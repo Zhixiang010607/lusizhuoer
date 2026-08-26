@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v93";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v94";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -1377,6 +1377,13 @@ function teacherCustomerAccessCondition(caller, alias = "c") {
          AND teacher_recharge.record_status = 'APPROVED'
          AND teacher_recharge.recharge_type IN ('NEW', 'REFUND')
     )
+    OR EXISTS (
+      SELECT 1 FROM public.retail_product_purchase_records teacher_purchase
+       WHERE teacher_purchase.customer_id = ${alias}.id
+         AND teacher_purchase.teacher_id = ${sqlText(caller.teacherId)}::bigint
+         AND teacher_purchase.submitted_by_account_id = ${sqlText(caller.staffId)}::bigint
+         AND teacher_purchase.record_status = 'APPROVED'
+    )
   )`;
 }
 
@@ -1759,7 +1766,8 @@ async function getCustomerProfile(event) {
     return { ok: true, [field]: mapCustomerVerifications(historyPage.rows), history: { [field]: historyPage.page } };
   }
 
-  const [balances, rechargeRows, refundRows, verificationRows, experienceRows] = await Promise.all([
+  await requireRetailProductPurchaseSchema();
+  const [balances, rechargeRows, refundRows, verificationRows, experienceRows, retailProductRows] = await Promise.all([
     executeSql(
       `SELECT p.id AS product_id, p.product_code, p.product_name, p.product_status,
               b.total_recharge_count, b.total_verification_count, b.remaining_count, b.updated_at
@@ -1771,7 +1779,36 @@ async function getCustomerProfile(event) {
     executeSql(rechargeSql(false)),
     executeSql(rechargeSql(true)),
     executeSql(verificationSql(false)),
-    executeSql(verificationSql(true))
+    executeSql(verificationSql(true)),
+    executeSql(
+      `WITH purchased AS (
+         SELECT retail_product_id, SUM(unit_count)::bigint AS purchased_count
+           FROM public.retail_product_purchase_records
+          WHERE customer_id = ${sqlText(customerId)}::bigint
+            AND record_status = 'APPROVED'
+          GROUP BY retail_product_id
+       ), gifted AS (
+         SELECT gift.retail_product_id, SUM(gift.unit_count)::bigint AS gifted_count
+           FROM public.recharge_product_gifts gift
+           JOIN public.recharge_records recharge ON recharge.id = gift.recharge_id
+          WHERE gift.customer_id = ${sqlText(customerId)}::bigint
+            AND recharge.recharge_type = 'NEW'
+            AND recharge.record_status = 'APPROVED'
+          GROUP BY gift.retail_product_id
+       ), product_ids AS (
+         SELECT retail_product_id FROM purchased
+         UNION
+         SELECT retail_product_id FROM gifted
+       )
+       SELECT product.id AS retail_product_id, product.product_name,
+              COALESCE(purchased.purchased_count, 0)::bigint AS purchased_count,
+              COALESCE(gifted.gifted_count, 0)::bigint AS gifted_count
+         FROM product_ids ids
+         JOIN public.retail_products product ON product.id = ids.retail_product_id
+         LEFT JOIN purchased ON purchased.retail_product_id = ids.retail_product_id
+         LEFT JOIN gifted ON gifted.retail_product_id = ids.retail_product_id
+        ORDER BY product.product_name, product.product_code, product.id`
+    )
   ]);
   const rechargePage = customerHistoryPage(rechargeRows, historyOptions.limit);
   const refundPage = customerHistoryPage(refundRows, historyOptions.limit);
@@ -1798,6 +1835,10 @@ async function getCustomerProfile(event) {
       totalRechargeCount: Number(row.total_recharge_count || 0),
       totalVerificationCount: Number(row.total_verification_count || 0),
       remainingCount: Number(row.remaining_count || 0), updatedAt: row.updated_at
+    })),
+    retailProductSummary: retailProductRows.map((row) => ({
+      productId: String(row.retail_product_id), productName: String(row.product_name || ""),
+      purchasedCount: Number(row.purchased_count || 0), giftedCount: Number(row.gifted_count || 0)
     })),
     recharges: mapCustomerRecharges(rechargePage.rows),
     refunds: mapCustomerRecharges(refundPage.rows),
@@ -3101,6 +3142,94 @@ async function listActiveRetailProducts(event = {}) {
   };
 }
 
+async function requireRetailProductPurchaseSchema() {
+  const rows = await executeSql(
+    `SELECT TO_REGCLASS('public.retail_product_purchase_records') IS NOT NULL AS has_table,
+            TO_REGPROCEDURE('public.review_retail_product_purchase(bigint,bigint,text,text)') IS NOT NULL AS has_review`
+  );
+  if (!databaseBoolean(rows?.[0]?.has_table) || !databaseBoolean(rows?.[0]?.has_review)) {
+    fail("产品购买数据库尚未启用，请先执行迁移 062。", "DATABASE_SCHEMA_MISSING");
+  }
+}
+
+async function createRetailProductPurchaseApplication(event = {}) {
+  const caller = await activeBusinessCaller(event);
+  await requireRetailProductPurchaseSchema();
+  const customerCode = String(event.customerCode || "").trim();
+  if (!customerCode || customerCode.length > 96) fail("必须先确认本门店的活跃客户。", "CUSTOMER_REQUIRED");
+  const retailProductId = positiveDatabaseId(event.retailProductId ?? event.productId, "产品");
+  const unitCount = Number(event.unitCount);
+  if (!Number.isInteger(unitCount) || unitCount < 1 || unitCount > 999) {
+    fail("购买数量必须是 1 至 999 的整数。", "INVALID_UNIT_COUNT");
+  }
+  const message = String(event.message || "").trim();
+  if (message.length > 500) fail("填报留言不能超过 500 个字符。", "MESSAGE_TOO_LONG");
+  const idempotencyKey = rechargeSubmissionKey(event.clientRequestId);
+  const [customers, products] = await Promise.all([
+    executeSql(
+      `SELECT id, customer_code, customer_name
+         FROM public.customers
+        WHERE customer_code = ${sqlText(customerCode)}
+          AND created_store_id = ${caller.storeId}
+          AND customer_status = 'ACTIVE'
+        LIMIT 1`
+    ),
+    executeSql(
+      `SELECT id, product_code, product_name
+         FROM public.retail_products
+        WHERE id = ${sqlText(retailProductId)}::bigint
+          AND product_status = 'ACTIVE'
+        LIMIT 1`
+    )
+  ]);
+  const customer = customers[0];
+  const product = products[0];
+  if (!customer) fail("未找到本门店已确认的活跃客户。", "CUSTOMER_NOT_FOUND");
+  if (!product) fail("所选产品不存在或已经封存，请重新选择。", "RETAIL_PRODUCT_NOT_ACTIVE");
+  const teacherId = caller.role === "teacher" ? positiveDatabaseId(caller.teacherId, "老师") : "";
+  const rows = await executeSql(
+    `WITH inserted AS (
+       INSERT INTO public.retail_product_purchase_records
+         (store_id, teacher_id, customer_id, retail_product_id, unit_count,
+          submitted_by_account_id, message, idempotency_key,
+          product_code_snapshot, product_name_snapshot)
+       VALUES (${caller.storeId}::bigint, ${teacherId ? `${sqlText(teacherId)}::bigint` : "NULL"},
+               ${sqlText(customer.id)}::bigint, ${sqlText(retailProductId)}::bigint, ${unitCount},
+               ${caller.staffId}::bigint, ${sqlText(message)}, ${sqlText(idempotencyKey)},
+               ${sqlText(product.product_code)}, ${sqlText(product.product_name)})
+       ON CONFLICT (idempotency_key) DO NOTHING
+       RETURNING *, TRUE AS created_now
+     )
+     SELECT * FROM inserted
+     UNION ALL
+     SELECT purchase.*, FALSE AS created_now
+       FROM public.retail_product_purchase_records purchase
+      WHERE purchase.idempotency_key = ${sqlText(idempotencyKey)}
+        AND NOT EXISTS (SELECT 1 FROM inserted)
+     LIMIT 1`
+  );
+  const record = rows[0];
+  if (!record) fail("产品购买申请未能写入数据库，请稍后重试。", "RETAIL_PRODUCT_PURCHASE_CREATE_FAILED");
+  const sameRequest = String(record.store_id) === String(caller.storeId)
+    && String(record.teacher_id || "") === String(teacherId)
+    && String(record.customer_id) === String(customer.id)
+    && String(record.retail_product_id) === String(retailProductId)
+    && String(record.submitted_by_account_id) === String(caller.staffId)
+    && Number(record.unit_count) === unitCount
+    && String(record.message || "") === message;
+  if (!sameRequest) fail("该防重复提交编号已经用于另一张产品购买单，请刷新页面后重新提交。", "IDEMPOTENCY_CONFLICT");
+  return {
+    ok: true,
+    createdNow: databaseBoolean(record.created_now),
+    purchaseId: String(record.id), purchaseCode: String(record.purchase_code || ""),
+    recordStatus: String(record.record_status || "PENDING"), submittedAt: record.submitted_at,
+    unitCount: Number(record.unit_count || 0),
+    customer: { customerCode: customer.customer_code, customerName: customer.customer_name },
+    product: { productId: String(product.id), productCode: product.product_code, productName: product.product_name },
+    teacher: teacherId ? { teacherId, teacherCode: caller.teacherCode, teacherName: caller.teacherName } : null
+  };
+}
+
 function normalizeRechargeProductGifts(value, refund) {
   if (value === undefined || value === null) return [];
   if (!Array.isArray(value)) fail("产品赠予清单格式无效。", "INVALID_PRODUCT_GIFTS");
@@ -3646,10 +3775,47 @@ async function createVerificationApplication(event) {
 async function recoverBusinessSubmission(event) {
   const caller = await activeBusinessCaller(event);
   const recordType = String(event.recordType || "").trim().toUpperCase();
-  if (!['RECHARGE', 'VERIFICATION'].includes(recordType)) {
-    fail("必须指定需要恢复的充值或核销提交。", "BAD_REQUEST");
+  if (!['RECHARGE', 'VERIFICATION', 'PRODUCT_PURCHASE'].includes(recordType)) {
+    fail("必须指定需要恢复的充值、核销或产品购买提交。", "BAD_REQUEST");
   }
   const idempotencyKey = rechargeSubmissionKey(event.clientRequestId);
+
+  if (recordType === "PRODUCT_PURCHASE") {
+    await requireRetailProductPurchaseSchema();
+    const rows = await executeSql(
+      `SELECT purchase.id, purchase.purchase_code, purchase.store_id, purchase.teacher_id,
+              purchase.customer_id, purchase.retail_product_id, purchase.unit_count,
+              purchase.record_status, purchase.submitted_by_account_id, purchase.submitted_at,
+              customer.customer_code, customer.customer_name,
+              purchase.product_code_snapshot, purchase.product_name_snapshot,
+              teacher.teacher_code, teacher.teacher_name
+         FROM public.retail_product_purchase_records purchase
+         JOIN public.customers customer ON customer.id = purchase.customer_id
+         LEFT JOIN public.teachers teacher ON teacher.id = purchase.teacher_id
+        WHERE purchase.idempotency_key = ${sqlText(idempotencyKey)}
+        LIMIT 1`
+    );
+    const record = rows[0];
+    if (!record) return { ok: true, found: false, complete: false, recordType };
+    if (String(record.store_id) !== String(caller.storeId)
+        || String(record.submitted_by_account_id) !== String(caller.staffId)) {
+      fail("该防重复提交编号不属于当前账号和门店。", "FORBIDDEN");
+    }
+    return {
+      ok: true, found: true, complete: true, recovered: true, recordType,
+      purchaseId: String(record.id), purchaseCode: record.purchase_code,
+      recordStatus: record.record_status, submittedAt: record.submitted_at,
+      unitCount: Number(record.unit_count || 0),
+      customer: { customerCode: record.customer_code, customerName: record.customer_name },
+      product: {
+        productId: String(record.retail_product_id), productCode: record.product_code_snapshot,
+        productName: record.product_name_snapshot
+      },
+      teacher: record.teacher_id ? {
+        teacherId: String(record.teacher_id), teacherCode: record.teacher_code, teacherName: record.teacher_name
+      } : null
+    };
+  }
 
   if (recordType === "RECHARGE") {
     const rows = await executeSql(
@@ -5655,6 +5821,7 @@ exports.main = async (event = {}, context = {}) => {
     if (action === "listActiveRetailProducts") return await listActiveRetailProducts(event);
     if (action === "getTeacherExperienceEntitlements") return await getTeacherExperienceEntitlements(event);
     if (action === "createRechargeApplication") return await createRechargeApplication(event);
+    if (action === "createRetailProductPurchaseApplication") return await createRetailProductPurchaseApplication(event);
     if (action === "createVerificationApplication") return await createVerificationApplication(event);
     if (action === "recoverBusinessSubmission") return await recoverBusinessSubmission(event);
     if (action === "getActiveStoreCustomerDetail") return await getActiveStoreCustomerDetail(event);

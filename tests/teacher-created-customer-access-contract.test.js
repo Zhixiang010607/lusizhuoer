@@ -11,7 +11,7 @@ const migration = read("database", "migrations", "057_teacher_created_customer_a
 const consoleMigration = read("database", "cloudbase-console", "057-01-teacher-created-customer-access.sql");
 const reference = read("database", "customer-fields-reference.md");
 
-assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v9" : "v93"/);
+assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v9" : "v94"/);
 
 for (const sql of [migration, consoleMigration]) {
   assert.match(sql, /ADD COLUMN IF NOT EXISTS created_by_account_id BIGINT;/,

@@ -25,6 +25,8 @@
 
     <section class="panel customer-project-panel"><div class="panel-heading"><div><h2>项目次数汇总</h2><p>按每个已充值项目汇总总充值次数、核销次数和剩余次数。</p></div></div><div class="table-scroll customer-record-scroll"><table><thead><tr><th>项目</th><th>总充值次数</th><th>核销次数</th><th>剩余次数</th></tr></thead><tbody id="customerProjectSummary"></tbody></table></div></section>
 
+    <section class="panel customer-project-panel"><div class="panel-heading"><div><h2>产品汇总</h2><p>只统计审核通过的购买数量和已通过充值单中的赠送数量。</p></div></div><div class="table-scroll customer-record-scroll"><table><thead><tr><th>产品名称</th><th>购买</th><th>赠送</th></tr></thead><tbody id="customerRetailProductSummary"></tbody></table></div></section>
+
     <section class="customer-records-grid">
       <article class="panel customer-record-panel"><div class="panel-heading"><div><h2>充值记录</h2><p>先加载最近 50 条，可继续分批读取。</p></div><button id="loadMoreRecharges" type="button" hidden>加载更多</button></div><div class="table-scroll customer-record-scroll"><table class="customer-recharge-records-table"><thead><tr><th>充值单号</th><th>项目</th><th>充值次数</th><th>业务老师</th><th>提交日期</th><th>审核结果</th></tr></thead><tbody id="customerRechargeRecords"></tbody></table></div></article>
       <article class="panel customer-record-panel"><div class="panel-heading"><div><h2>退费记录</h2><p>先加载最近 50 条，可继续分批读取。</p></div><button id="loadMoreRefunds" type="button" hidden>加载更多</button></div><div class="table-scroll customer-record-scroll"><table class="customer-recharge-records-table"><thead><tr><th>退费单号</th><th>项目</th><th>退费次数</th><th>业务老师</th><th>提交日期</th><th>审核结果</th></tr></thead><tbody id="customerRefundRecords"></tbody></table></div></article>
@@ -37,7 +39,7 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
   <script src="datetime.js?v=0.1.2"></script>
-  <script src="customer-profile.js?v=0.15.14"></script>
-  <script src="auth-ui.js?v=0.19.6"></script>
+  <script src="customer-profile.js?v=0.15.15"></script>
+  <script src="auth-ui.js?v=0.19.7"></script>
 </body>
 </html>

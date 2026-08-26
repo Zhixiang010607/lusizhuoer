@@ -753,6 +753,19 @@
         "工单审核失败"
       );
     },
+    async listRetailProductPurchaseReviews({ purchaseCode = "", storeId = "", status = "", limit = 100, pageNumber = 1 } = {}) {
+      const data = await callStaffAccount(
+        { action: "listRetailProductPurchaseReviews", purchaseCode, storeId, status, limit, pageNumber },
+        "产品购买审核记录读取失败"
+      );
+      return { ...data, orders: data.orders || [], stores: data.stores || [] };
+    },
+    async reviewRetailProductPurchase({ recordId, decision, note }) {
+      return callStaffAccount(
+        { action: "reviewRetailProductPurchase", recordId, decision, note },
+        "产品购买单审核失败"
+      );
+    },
     smsCooldownRemaining(phone) { return cooldownRemaining(phone); }
   };
 })();

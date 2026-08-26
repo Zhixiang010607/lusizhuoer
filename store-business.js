@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.59", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.60", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   const formatBirthday = (value, fallback = "—") => {
     const raw = String(value ?? "").trim();
     if (!raw) return fallback;
@@ -9,7 +9,7 @@
   };
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
-  const businessPages = ["customer", "recharge", "refund", "verification", "verification-experience"];
+  const businessPages = ["customer", "recharge", "refund", "product-purchase", "verification", "verification-experience"];
   const teacherMode = session?.role === "teacher" && businessPages.includes(page);
   const legacyTeacherMode = teacherMode && document.body.hasAttribute("data-teacher-business");
   const sharedTeacherMode = teacherMode && !legacyTeacherMode;
@@ -428,6 +428,7 @@
   }
   function businessRecordTypeForPage() {
     if (["recharge", "refund"].includes(page)) return "RECHARGE";
+    if (page === "product-purchase") return "PRODUCT_PURCHASE";
     if (["verification", "verification-experience"].includes(page)) return "VERIFICATION";
     return "";
   }
@@ -524,9 +525,10 @@
   }
   function businessSubmissionUi(recordType) {
     const verification = recordType === "VERIFICATION";
+    const purchase = recordType === "PRODUCT_PURCHASE";
     return {
-      message: $(verification ? "verificationCreateMessage" : "rechargeCreateMessage"),
-      submit: verification ? $("verificationSubmit") : $("rechargeCreateForm")?.querySelector('[type="submit"]')
+      message: $(verification ? "verificationCreateMessage" : purchase ? "purchaseCreateMessage" : "rechargeCreateMessage"),
+      submit: verification ? $("verificationSubmit") : purchase ? $("productPurchaseForm")?.querySelector('[type="submit"]') : $("rechargeCreateForm")?.querySelector('[type="submit"]')
     };
   }
   function renderBusinessSubmissionLock(recordType, text) {
@@ -543,6 +545,18 @@
     message.append(" ", retry);
   }
   function openRecoveredBusinessSubmission(recordType, result) {
+    if (recordType === "PRODUCT_PURCHASE") {
+      if (!result.purchaseId || !result.purchaseCode) return false;
+      if (!confirmBusinessSubmission(recordType, result.purchaseId) || !clearBusinessSubmission(recordType)) {
+        renderBusinessSubmissionLock(recordType, "产品购买单已确认写入，但浏览器无法清除防重复提交锁，请允许本站存储后重试。");
+        return false;
+      }
+      submissionRecoveryLocked = false;
+      const { message, submit } = businessSubmissionUi(recordType);
+      if (message) message.textContent = `已找到上次产品购买单 ${result.purchaseCode}，不会重复提交。`;
+      if (submit) submit.disabled = false;
+      return true;
+    }
     const recharge = recordType === "RECHARGE";
     const id = recharge ? result.rechargeId : result.verificationId;
     if (!id) return false;
@@ -1204,6 +1218,52 @@
     });
     void recoverPendingBusinessSubmission("RECHARGE");
   }
+  function setupProductPurchase() {
+    setupLookup();
+    const select = $("purchaseProduct");
+    select.disabled = true;
+    select.innerHTML = `<option value="">正在读取激活产品…</option>`;
+    void callCustomerEnrollment({ action: "listActiveRetailProducts" }).then((result) => {
+      retailGiftProducts = (Array.isArray(result?.products) ? result.products : []).map((item) => ({
+        id: String(item.productId || ""), code: String(item.productCode || ""), name: String(item.productName || "")
+      })).filter((item) => item.id && item.name);
+      select.innerHTML = retailGiftProducts.length
+        ? `<option value="">请选择激活产品</option>${retailGiftProducts.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)} · ${escapeHtml(item.code)}</option>`).join("")}`
+        : `<option value="">当前没有激活产品</option>`;
+      select.disabled = retailGiftProducts.length === 0;
+    }).catch((error) => {
+      select.innerHTML = `<option value="">激活产品读取失败</option>`;
+      $("purchaseCreateMessage").textContent = error?.message || "激活产品读取失败";
+    });
+    $("productPurchaseForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (submissionRecoveryLocked || readBusinessSubmission("PRODUCT_PURCHASE")) return void recoverPendingBusinessSubmission("PRODUCT_PURCHASE");
+      const product = retailGiftProducts.find((item) => item.id === select.value);
+      const unitCount = Number($("purchaseCount").value);
+      const message = $("purchaseNote").value.trim();
+      if (!selectedCustomer) { $("purchaseCreateMessage").textContent = "必须先查询并确认客户"; return; }
+      if (!product) { $("purchaseCreateMessage").textContent = "请选择当前激活产品"; return; }
+      if (!Number.isInteger(unitCount) || unitCount < 1 || unitCount > 999) { $("purchaseCreateMessage").textContent = "购买数量必须是 1 至 999 的整数"; return; }
+      const payload = { storeId, customerCode: selectedCustomer.id, retailProductId: product.id, unitCount, message };
+      let intent;
+      try { intent = beginBusinessSubmission("PRODUCT_PURCHASE", payload); }
+      catch (error) { $("purchaseCreateMessage").textContent = error?.message || "无法保存防重复提交编号"; return; }
+      const submit = event.currentTarget.querySelector('[type="submit"]'); submit.disabled = true;
+      $("purchaseCreateMessage").textContent = "正在提交产品购买申请…";
+      try {
+        const result = await callCustomerEnrollment({ action: "createRetailProductPurchaseApplication", ...payload, clientRequestId: intent.clientRequestId });
+        if (String(result.recordStatus || "") !== "PENDING" || !result.purchaseId || !result.purchaseCode) throw new Error("服务端未返回完整待审核购买单");
+        confirmBusinessSubmission("PRODUCT_PURCHASE", result.purchaseId);
+        clearBusinessSubmission("PRODUCT_PURCHASE");
+        $("purchaseCount").value = ""; $("purchaseNote").value = "";
+        $("purchaseCreateMessage").textContent = `产品购买单 ${result.purchaseCode} 已提交，等待总部审核。`;
+      } catch (error) {
+        markBusinessSubmissionUncertain("PRODUCT_PURCHASE");
+        await recoverPendingBusinessSubmission("PRODUCT_PURCHASE", { missingIsDefinitive: !error?.submissionUncertain, originalError: error });
+      } finally { if (!submissionRecoveryLocked) submit.disabled = false; }
+    });
+    void recoverPendingBusinessSubmission("PRODUCT_PURCHASE");
+  }
   function syncVerificationSubmit() {
     const submit = $("verificationSubmit");
     const projectReady = Boolean($("verificationProject")?.value);
@@ -1390,6 +1450,7 @@
     $("teacherBusinessStoreMessage").textContent = `当前办理门店：${storeName}。如选择有误，可返回重新选择。`;
     $("teacherCustomerWorkflow")?.classList.remove("teacher-step-disabled");
     if (["recharge", "refund"].includes(page)) setupRecharge();
+    else if (page === "product-purchase") setupProductPurchase();
     else setupVerification();
   }
 
@@ -1525,6 +1586,7 @@
       if (scopeBadge) scopeBadge.textContent = storeName;
       if (page === "customer") setupCustomerCreate();
       else if (["recharge", "refund"].includes(page)) setupRecharge();
+      else if (page === "product-purchase") setupProductPurchase();
       else setupVerification();
     };
     confirm.addEventListener("click", () => {
@@ -1555,5 +1617,6 @@
   else if (hqMode || sharedTeacherMode) setupSharedBusiness();
   else if (page === "customer") setupCustomerCreate();
   else if (["recharge", "refund"].includes(page)) setupRecharge();
+  else if (page === "product-purchase") setupProductPurchase();
   else if (["verification", "verification-experience"].includes(page)) setupVerification();
 })();

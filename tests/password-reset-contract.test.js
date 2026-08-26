@@ -28,13 +28,13 @@ assert.match(phoneAuth, /function authResponseData\(result, fallback\)/, "authen
 assert.match(phoneAuth, /if \(!result \|\| typeof result !== "object"\)/, "null SDK responses must become readable errors");
 assert.match(phoneAuth, /return authResponseData\(result, "验证码无效或已过期"\);/, "OTP verification must reject an empty SDK response");
 
-assert.ok(loginHtml.includes("cloudbase-phone-auth.js?v=0.20.2"), "login must load the UID-only phone-auth client");
+assert.ok(loginHtml.includes("cloudbase-phone-auth.js?v=0.20.3"), "login must load the UID-only phone-auth client");
 assert.ok(loginHtml.includes("login.js?v=0.17.4"), "login must load the copy-cleanup runtime");
 
 for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
   if (!html.includes("cloudbase-phone-auth.js?v=")) continue;
-  const expectedVersion = "0.20.2";
+  const expectedVersion = "0.20.3";
   assert.ok(html.includes(`cloudbase-phone-auth.js?v=${expectedVersion}`), `${file} must load the guarded phone-auth client`);
 }
 

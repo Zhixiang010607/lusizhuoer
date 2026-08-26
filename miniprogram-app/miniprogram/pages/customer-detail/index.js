@@ -88,6 +88,12 @@ function mapBalances(rows) {
     remainingCount: Number(row.remainingCount || 0)
   }));
 }
+function mapRetailProductSummary(rows) {
+  return (Array.isArray(rows) ? rows : []).map((row) => ({
+    productId: clean(row.productId), productName: clean(row.productName) || "—",
+    purchasedCount: Number(row.purchasedCount || 0), giftedCount: Number(row.giftedCount || 0)
+  }));
+}
 function mapMessages(rows) {
   return (Array.isArray(rows) ? rows : []).map((row) => ({
     ...row,
@@ -102,7 +108,7 @@ function mapMessages(rows) {
 Page({
   data: {
     session: {}, canManageStatus: false, canEditNotes: false,
-    customerCode: "", profile: null, balances: [],
+    customerCode: "", profile: null, balances: [], retailProductSummary: [],
     recharges: [], refunds: [], verifications: [], experiences: [],
     historyType: "RECHARGE", visibleHistory: [], historyHasMore: false, historyScrollLeft: 0,
     historyLoading: false, historyMessage: "", historyError: false,
@@ -149,7 +155,7 @@ Page({
     this._historyState = freshHistoryState();
     this.setData({
       loading: true, message: "", error: false,
-      profile: null, balances: [], recharges: [], refunds: [], verifications: [], experiences: [],
+      profile: null, balances: [], retailProductSummary: [], recharges: [], refunds: [], verifications: [], experiences: [],
       visibleHistory: [], historyHasMore: false, historyLoading: false, historyScrollLeft: 0,
       historyMessage: "", historyError: false,
       notesEditing: false, notesChanged: false, notesMessage: "", notesError: false,
@@ -177,6 +183,7 @@ Page({
       this.setData({
         profile,
         balances: mapBalances(result.balances),
+        retailProductSummary: mapRetailProductSummary(result.retailProductSummary),
         recharges: mapHistory(result.recharges, "RECHARGE"),
         refunds: mapHistory(result.refunds, "REFUND"),
         verifications: mapHistory(result.verifications, "VERIFICATION"),

@@ -1,0 +1,3 @@
+.recovery-card { border-color: #efc1bd; }
+.disabled-card { opacity: .68; }
+.submit-card { padding-top: 22rpx; padding-bottom: 22rpx; }

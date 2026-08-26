@@ -2,7 +2,7 @@
   "use strict";
 
   // 文档同步约束：每次业务或界面变更都必须同步更新 main.tex 与 README.md。
-  const PROTOTYPE_VERSION = "0.15.14";
+  const PROTOTYPE_VERSION = "0.15.15";
   const BUSINESS_TIME_ZONE = "Asia/Shanghai";
   const RANKING_PAGE_SIZE = 100;
   const PRODUCT_SUMMARY_PAGE_SIZE = 10;
@@ -212,7 +212,7 @@
   function normalizeProductSummary(payload) {
     const source = payload?.productSummary;
     if (!source || typeof source !== "object" || !Array.isArray(source.rows)) {
-      throw new Error("总部项目汇总服务版本过旧，请先部署 staffAccount v74");
+      throw new Error("总部项目汇总服务版本过旧，请先部署 staffAccount v75");
     }
     const rows = source.rows.map((row) => ({
       entityId: String(pick(row, "entityId", "entity_id")),
