@@ -61,7 +61,7 @@ for (const page of pages) {
   assert.ok(!fs.existsSync(path.join(root, `hq-${page}`)), `${page} must not have a duplicated HQ page`);
 }
 for (const file of fs.readdirSync(root).filter((file) => file.endsWith(".html") && read(file).includes("auth-ui.js?v="))) {
-  const expectedAuthVersion = "0.19.5";
+  const expectedAuthVersion = "0.19.6";
   includes(read(file), `auth-ui.js?v=${expectedAuthVersion}`, `${file} auth cache key`);
 }
 for (const page of teacherBusinessPages) includes(read(page), "store-business.js?v=0.14.58", `${page} shared script version`);

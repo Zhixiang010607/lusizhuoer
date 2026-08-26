@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>产品创建</title>
+  <link rel="stylesheet" href="styles.css?v=0.15.50">
+</head>
+<body data-hq-create="retail-product">
+  <aside class="side-project-bar" aria-label="项目栏">
+    <div class="side-brand"><span>HQ</span><div><strong>总部工作台</strong><small>项目栏</small></div></div>
+    <nav class="side-nav"></nav>
+    <div class="side-footer">总部权限</div>
+  </aside>
+  <header class="topbar"><div><p class="eyebrow">PRODUCT CREATION</p><h1>产品创建</h1></div><div class="status"><span></span>总部权限</div></header>
+  <main class="hq-create-main">
+    <form id="retailProductCreateForm" class="panel hq-create-form retail-product-create-page-form">
+      <section class="hq-create-section retail-product-create-page-section">
+        <div class="panel-heading"><div><h2>产品资料</h2></div></div>
+        <div class="retail-product-create-fields">
+          <label>产品名称<input id="retailProductCreateName" required maxlength="100" autocomplete="off" placeholder="请输入产品名称"></label>
+        </div>
+      </section>
+      <div class="hq-create-actions"><span id="retailProductCreateMessage"></span><a class="button-link secondary-button" href="retail-product-management.html">返回产品管理</a><button type="submit">创建产品</button></div>
+    </form>
+  </main>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
+  <script src="cloudbase-auth-config.js"></script>
+  <script src="cloudbase-phone-auth.js?v=0.20.2"></script>
+  <script src="retail-product-create.js?v=0.1.0"></script>
+  <script src="auth-ui.js?v=0.19.6"></script>
+</body>
+</html>

@@ -13,6 +13,7 @@
     { "root": "pages/product-create", "pages": ["index"] },
     { "root": "pages/product-detail", "pages": ["index"] },
     { "root": "pages/retail-product-management", "pages": ["index"] },
+    { "root": "pages/retail-product-create", "pages": ["index"] },
     { "root": "pages/hq-directory", "pages": ["index"] },
     { "root": "pages/reviews", "pages": ["index"] },
     { "root": "pages/customers", "pages": ["index"] },

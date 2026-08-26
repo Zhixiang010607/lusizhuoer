@@ -49,18 +49,26 @@ test("web separates project templates from the simple product master", () => {
   const projectDetail = read("project-detail.html");
   const retailHtml = read("retail-product-management.html");
   const retailJs = read("retail-product-management.js");
+  const retailCreateHtml = read("retail-product-create.html");
+  const retailCreateJs = read("retail-product-create.js");
   assert.match(auth, /\["project-management\.html", "项目管理"\], \["retail-product-management\.html", "产品管理"\]/);
+  assert.match(auth, /"retail-product-create\.html"/);
   for (const label of ["全部项目", "点击项目进入单据模板设置", "新增项目"]) assert.match(projectList, new RegExp(label));
   for (const label of ["项目创建", "项目资料", "项目名称", "创建项目"]) assert.match(projectCreate, new RegExp(label));
   for (const label of ["项目单据模板", "返回项目管理", "共用项目 LOGO"]) assert.match(projectDetail, new RegExp(label));
-  for (const label of ["产品管理", "新增产品", "产品名称", "产品编号", "封存产品", "重新激活"]) {
-    assert.match(`${retailHtml}\n${retailJs}`, new RegExp(label));
-  }
+  for (const label of ["产品管理", "全部产品", "新增产品", "产品名称", "产品编号", "封存产品", "重新激活"]) assert.match(`${retailHtml}\n${retailJs}\n${retailCreateHtml}\n${retailCreateJs}`, new RegExp(label));
+  assert.match(retailHtml, /href="retail-product-create\.html"[^>]*>新增产品/);
+  assert.doesNotMatch(retailHtml, /<form\b|retailProductCreateName|请输入产品名称/);
+  for (const label of ["产品创建", "产品资料", "产品名称", "创建产品"]) assert.match(retailCreateHtml, new RegExp(label));
+  assert.equal((retailCreateHtml.match(/<input\b/g) || []).length, 1, "product creation must expose exactly one field");
   assert.match(retailJs, /listRetailProducts/);
-  assert.match(retailJs, /createRetailProduct/);
   assert.match(retailJs, /setRetailProductStatus/);
-  assert.doesNotMatch(retailHtml, /产品类别|产品介绍|单据模板|LOGO/);
-  assert.doesNotMatch(retailJs, /deleteRetailProduct/);
+  assert.doesNotMatch(retailJs, /createRetailProduct/);
+  assert.match(retailCreateJs, /createRetailProduct/);
+  assert.match(retailCreateJs, /clientRequestId:\s*pendingRequestId\(\)/);
+  assert.match(retailCreateJs, /retail-product-management\.html\?created=/);
+  assert.doesNotMatch(`${retailHtml}\n${retailCreateHtml}`, /产品类别|产品介绍|单据模板|LOGO/);
+  assert.doesNotMatch(`${retailJs}\n${retailCreateJs}`, /deleteRetailProduct/);
 });
 
 test("mini program exposes separate project and product entries and keeps product data minimal", () => {
@@ -73,13 +81,23 @@ test("mini program exposes separate project and product entries and keeps produc
   const homeJs = read("miniprogram-app/miniprogram/pages/home/index.js");
   const page = read("miniprogram-app/miniprogram/pages/retail-product-management/index.wxml");
   const logic = read("miniprogram-app/miniprogram/pages/retail-product-management/index.js");
+  const createPage = read("miniprogram-app/miniprogram/pages/retail-product-create/index.wxml");
+  const createLogic = read("miniprogram-app/miniprogram/pages/retail-product-create/index.js");
   assert.ok(routes.includes("pages/retail-product-management/index"));
+  assert.ok(routes.includes("pages/retail-product-create/index"));
   assert.match(home, /data-type="project"[^>]*>项目管理</);
   assert.match(home, /data-type="product"[^>]*>产品管理</);
   assert.match(homeJs, /type === "project"[\s\S]*pages\/product-management\/index/);
   assert.match(homeJs, /type === "product"[\s\S]*pages\/retail-product-management\/index/);
-  for (const label of ["只填写产品名称", "产品名称", "产品编号", "只能封存或重新激活"]) assert.match(page, new RegExp(label));
-  assert.doesNotMatch(page, /产品类别|产品介绍|单据模板|LOGO/);
-  for (const action of ["listRetailProducts", "createRetailProduct", "setRetailProductStatus"]) assert.match(logic, new RegExp(action));
-  assert.doesNotMatch(logic, /deleteRetailProduct/);
+  for (const label of ["全部产品", "新增产品", "产品名称", "产品编号", "只能封存或重新激活"]) assert.match(page, new RegExp(label));
+  assert.doesNotMatch(page, /<input\b|只填写产品名称/);
+  assert.match(logic, /pages\/retail-product-create\/index/);
+  for (const action of ["listRetailProducts", "setRetailProductStatus"]) assert.match(logic, new RegExp(action));
+  assert.doesNotMatch(logic, /createRetailProduct/);
+  for (const label of ["产品创建", "产品资料", "产品名称", "创建产品"]) assert.match(createPage, new RegExp(label));
+  assert.equal((createPage.match(/<input\b/g) || []).length, 1, "mini product creation must expose exactly one field");
+  assert.match(createLogic, /callStaff\("createRetailProduct"/);
+  assert.match(createLogic, /clientRequestId:\s*pendingRequestId\(\)/);
+  assert.doesNotMatch(`${page}\n${createPage}`, /产品类别|产品介绍|单据模板|LOGO/);
+  assert.doesNotMatch(`${logic}\n${createLogic}`, /deleteRetailProduct/);
 });

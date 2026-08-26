@@ -2,26 +2,11 @@
   "use strict";
 
   const $ = (id) => document.getElementById(id);
-  const PENDING_KEY = "pendingRetailProductCreateRequestId";
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>\"]/g, (char) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"
   })[char]);
   let products = [];
   let loading = false;
-
-  function createRequestId() {
-    if (window.crypto?.randomUUID) return window.crypto.randomUUID();
-    return `retail_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
-  }
-
-  function pendingRequestId() {
-    let requestId = sessionStorage.getItem(PENDING_KEY) || "";
-    if (!requestId) {
-      requestId = createRequestId();
-      sessionStorage.setItem(PENDING_KEY, requestId);
-    }
-    return requestId;
-  }
 
   function setMessage(message = "", isError = false) {
     const node = $("retailProductMessage");
@@ -78,39 +63,6 @@
     }
   }
 
-  async function submitProduct(event) {
-    event.preventDefault();
-    const name = $("retailProductName").value.trim();
-    if (!name) {
-      setMessage("请填写产品名称。", true);
-      return;
-    }
-    if (!window.CloudBasePhoneAuth?.createRetailProduct) {
-      setMessage("产品数据库服务尚未加载，请刷新页面后重试。", true);
-      return;
-    }
-    const button = $("createRetailProduct");
-    button.disabled = true;
-    setMessage("正在新增产品…");
-    try {
-      const result = await window.CloudBasePhoneAuth.createRetailProduct({
-        productName: name,
-        clientRequestId: pendingRequestId()
-      });
-      const code = String(result?.product?.product_code || "").trim();
-      if (!code) throw new Error("产品已写入，但数据库没有返回产品编号");
-      sessionStorage.removeItem(PENDING_KEY);
-      $("retailProductName").value = "";
-      setMessage(`产品 ${code} 已新增。`);
-      await loadProducts({ keepMessage: true });
-    } catch (error) {
-      if (error?.code === "IDEMPOTENCY_CONFLICT") sessionStorage.removeItem(PENDING_KEY);
-      setMessage(error?.message || "产品新增失败，请稍后重试。", true);
-    } finally {
-      button.disabled = false;
-    }
-  }
-
   async function toggleStatus(event) {
     const button = event.target.closest("[data-product-ref]");
     if (!button || button.disabled) return;
@@ -132,7 +84,11 @@
     }
   }
 
-  $("retailProductForm").addEventListener("submit", submitProduct);
   $("retailProductBody").addEventListener("click", toggleStatus);
-  loadProducts();
+  const createdCode = new URLSearchParams(location.search).get("created") || "";
+  if (createdCode) {
+    setMessage(`产品 ${createdCode} 已新增。`);
+    history.replaceState({}, "", "retail-product-management.html");
+  }
+  loadProducts({ keepMessage: Boolean(createdCode) });
 })();

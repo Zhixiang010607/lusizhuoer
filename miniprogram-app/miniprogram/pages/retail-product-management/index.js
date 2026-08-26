@@ -1,18 +1,8 @@
 const { callStaff } = require("../../services/api");
 const { requireSession } = require("../../services/session");
 
-const PENDING_KEY = "lusizhuoerMiniRetailProductCreateV1";
+const CREATED_KEY = "lusizhuoerMiniRetailProductCreatedV1";
 function text(value) { return String(value === undefined || value === null ? "" : value).trim(); }
-function newRequestId() {
-  return `retail_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`.slice(0, 64);
-}
-function pendingRequestId() {
-  const pending = wx.getStorageSync(PENDING_KEY);
-  if (pending && pending.requestId) return text(pending.requestId);
-  const requestId = newRequestId();
-  wx.setStorageSync(PENDING_KEY, { requestId, createdAt: Date.now() });
-  return requestId;
-}
 function productView(item) {
   const archived = text(item.product_status).toUpperCase() === "ARCHIVED";
   return {
@@ -31,7 +21,7 @@ function confirmModal(options) {
 
 Page({
   data: {
-    loading: true, submitting: false, mutatingRef: "", productName: "",
+    loading: true, mutatingRef: "",
     products: [], message: "", error: false
   },
   onLoad() {
@@ -41,6 +31,13 @@ Page({
   },
   onShow() {
     if (!requireSession(["hq"])) return;
+    const created = wx.getStorageSync(CREATED_KEY);
+    if (created && text(created.code)) {
+      wx.removeStorageSync(CREATED_KEY);
+      this.setData({ message: `产品 ${text(created.code)} 已新增。`, error: false });
+      this.load({ keepMessage: true });
+      return;
+    }
     this.load();
   },
   onUnload() {
@@ -48,7 +45,6 @@ Page({
     this._requestEpoch = (this._requestEpoch || 0) + 1;
   },
   onPullDownRefresh() { this.load().finally(() => wx.stopPullDownRefresh()); },
-  inputName(event) { this.setData({ productName: event.detail.value }); },
   async load(options = {}) {
     if (this._unloaded) return;
     const epoch = (this._requestEpoch || 0) + 1;
@@ -65,30 +61,8 @@ Page({
       if (!this._unloaded && epoch === this._requestEpoch) this.setData({ loading: false });
     }
   },
-  async createProduct() {
-    if (this.data.submitting) return;
-    const productName = text(this.data.productName);
-    if (!productName) {
-      this.setData({ message: "请填写产品名称。", error: true });
-      return;
-    }
-    this.setData({ submitting: true, message: "正在新增产品…", error: false });
-    try {
-      const result = await callStaff("createRetailProduct", {
-        productName,
-        clientRequestId: pendingRequestId()
-      });
-      const productCode = text(result.product && result.product.product_code);
-      if (!productCode) throw new Error("产品已写入，但数据库没有返回产品编号");
-      wx.removeStorageSync(PENDING_KEY);
-      this.setData({ productName: "", message: `产品 ${productCode} 已新增。`, error: false });
-      await this.load({ keepMessage: true });
-    } catch (error) {
-      if (error.code === "IDEMPOTENCY_CONFLICT") wx.removeStorageSync(PENDING_KEY);
-      this.setData({ message: error.message || "产品新增失败，请稍后重试", error: true });
-    } finally {
-      this.setData({ submitting: false });
-    }
+  createProduct() {
+    wx.navigateTo({ url: "/pages/retail-product-create/index" });
   },
   async toggleStatus(event) {
     const productRef = text(event.currentTarget.dataset.ref);

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>产品管理</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.49">
+  <link rel="stylesheet" href="styles.css?v=0.15.50">
 </head>
 <body data-retail-product-management>
   <aside class="side-project-bar" aria-label="项目栏">
@@ -17,17 +17,14 @@
     <div class="status"><span></span>总部权限</div>
   </header>
   <main class="retail-product-page">
-    <section class="panel retail-product-create-card">
-      <div class="panel-heading"><div><h2>新增产品</h2><p>只填写产品名称，产品编号由数据库自动生成。</p></div></div>
-      <form id="retailProductForm" class="retail-product-create-form">
-        <label>产品名称<input id="retailProductName" required maxlength="100" autocomplete="off" placeholder="请输入产品名称"></label>
-        <button id="createRetailProduct" type="submit">新增产品</button>
-      </form>
-      <p id="retailProductMessage" class="retail-product-message" role="status" aria-live="polite"></p>
+    <section class="panel management-toolbar project-management-toolbar">
+      <div><strong>全部产品</strong><span>产品只能封存或重新激活，不能删除</span></div>
+      <div class="toolbar-actions"><a class="button-link" href="retail-product-create.html">新增产品</a></div>
     </section>
+    <p id="retailProductMessage" class="retail-product-message" role="status" aria-live="polite"></p>
 
     <section class="panel retail-product-list-card">
-      <div class="panel-heading"><div><h2>全部产品</h2><p>产品只能封存或重新激活，不能删除。</p></div><span id="retailProductCount" class="badge">0 个产品</span></div>
+      <div class="panel-heading"><div><h2>产品列表</h2></div><span id="retailProductCount" class="badge">0 个产品</span></div>
       <div class="retail-product-table-wrap">
         <table class="retail-product-table">
           <thead><tr><th>产品名称</th><th>产品编号</th><th>状态</th><th>操作</th></tr></thead>
@@ -41,7 +38,7 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
   <script src="cloudbase-phone-auth.js?v=0.20.2"></script>
-  <script src="retail-product-management.js?v=0.1.0"></script>
-  <script src="auth-ui.js?v=0.19.5"></script>
+  <script src="retail-product-management.js?v=0.1.1"></script>
+  <script src="auth-ui.js?v=0.19.6"></script>
 </body>
 </html>

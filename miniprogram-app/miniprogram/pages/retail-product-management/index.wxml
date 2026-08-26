@@ -1,16 +1,18 @@
 <view class="page">
   <view class="page-heading"><text class="title">产品管理</text></view>
 
-  <view class="panel create-card">
-    <view class="section-heading"><view><text>新增产品</text><text>只填写产品名称，编号由数据库自动生成</text></view></view>
-    <label class="field"><text>产品名称</text><input maxlength="100" value="{{productName}}" bindinput="inputName" placeholder="请输入产品名称" /></label>
-    <button class="primary create-button" bindtap="createProduct" loading="{{submitting}}" disabled="{{submitting || mutatingRef}}">新增产品</button>
+  <view class="management-toolbar">
+    <view class="toolbar-copy">
+      <text>全部产品</text>
+      <text>产品只能封存或重新激活，不能删除</text>
+    </view>
+    <button class="primary add-button" bindtap="createProduct">新增产品</button>
   </view>
 
   <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
 
   <view class="panel list-card">
-    <view class="list-heading"><view><text>全部产品</text><text>只能封存或重新激活，不能删除</text></view><text class="count">{{products.length}} 个产品</text></view>
+    <view class="list-heading"><view><text>产品列表</text></view><text class="count">{{products.length}} 个产品</text></view>
     <view class="product-grid product-head"><text>产品名称</text><text>产品编号</text><text>状态</text><text>操作</text></view>
     <view wx:if="{{loading}}" class="empty">正在读取产品数据…</view>
     <view wx:elif="{{products.length}}">
@@ -18,7 +20,7 @@
         <text class="product-name">{{item.name}}</text>
         <text>{{item.code}}</text>
         <text class="status {{item.archived ? 'archived' : 'active'}}">{{item.status}}</text>
-        <button class="status-button {{item.archived ? '' : 'archive'}}" data-ref="{{item.ref}}" bindtap="toggleStatus" loading="{{mutatingRef === item.ref}}" disabled="{{mutatingRef || submitting}}">{{item.archived ? '激活' : '封存'}}</button>
+        <button class="status-button {{item.archived ? '' : 'archive'}}" data-ref="{{item.ref}}" bindtap="toggleStatus" loading="{{mutatingRef === item.ref}}" disabled="{{mutatingRef}}">{{item.archived ? '激活' : '封存'}}</button>
       </view>
     </view>
     <view wx:else class="empty">暂无产品，请先新增产品。</view>
