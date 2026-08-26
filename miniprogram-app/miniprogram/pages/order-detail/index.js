@@ -202,7 +202,8 @@ function buildPhotoSlots(state = "empty", labels = PHOTO_LABELS) {
     declared: false,
     thumbnailState: state === "loading" ? "loading" : "empty",
     thumbnailUrl: "",
-    retrying: false
+    retrying: false,
+    retryError: ""
   }));
 }
 
@@ -232,7 +233,8 @@ function normalizePhotoManifest(result, labels = PHOTO_LABELS) {
       declared: true,
       thumbnailUrl,
       thumbnailState: thumbnailUrl ? "ready" : "error",
-      retrying: false
+      retrying: false,
+      retryError: ""
     };
   });
   return { slots, count: rows.size };
@@ -337,6 +339,11 @@ function requestId(slot) {
   return `mini-photo-${Date.now().toString(36)}-${Number(slot)}-${random}`.slice(0, 64);
 }
 
+function photoPreviewPath(recordId, slot) {
+  const safeRecord = clean(recordId).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 48) || "record";
+  return `${wx.env.USER_DATA_PATH}/order-photo-preview-${safeRecord}-${Number(slot)}.jpg`;
+}
+
 async function mapWithConcurrency(items, limit, mapper) {
   const values = Array.isArray(items) ? items : [];
   const output = new Array(values.length);
@@ -373,6 +380,8 @@ Page({
       recordId: decodeURIComponent(options.recordId || ""), recordCode: decodeURIComponent(options.recordCode || ""),
       submissionClientRequestId: decodeURIComponent(options.submissionClientRequestId || "")
     });
+    this._photoLoadEpoch = 0;
+    this._photoRetrySequence = new Map();
     wx.setNavigationBarTitle({ title: "露思卓儿" });
     this.load();
   },
@@ -390,6 +399,7 @@ Page({
       submissionClientRequestId: clean(this.data.submissionClientRequestId)
     });
     const verification = request.baseType === "VERIFICATION";
+    this._photoLoadEpoch = Number(this._photoLoadEpoch || 0) + 1;
     this.setData({
       loading: "locked", message: "", error: false,
       ...(verification ? {
@@ -480,7 +490,7 @@ Page({
   },
 
   retryPhotoList() {
-    if (this.data.uploading || this.data.exporting) return false;
+    if (this.data.uploading || this.data.exporting || this.data.photos.some((photo) => photo.retrying)) return false;
     return this.loadPhotos();
   },
 
@@ -491,22 +501,46 @@ Page({
   photoThumbnailError(event) {
     const slot = Number(event.currentTarget.dataset.slot);
     const photo = this.data.photos.find((item) => item.slot === slot);
-    if (photo?.declared) this.updatePhotoSlot(slot, { thumbnailState: "error", thumbnailUrl: "", retrying: false });
+    if (photo?.declared) this.updatePhotoSlot(slot, {
+      thumbnailState: "error", thumbnailUrl: "", retrying: false,
+      retryError: "图片地址已失效，点击此照片重新加载"
+    });
   },
 
   async retryThumbnail(event) {
     const slot = Number(event.currentTarget.dataset.slot);
     const photo = this.data.photos.find((item) => item.slot === slot);
-    if (!photo?.declared || photo.retrying) return;
-    this.updatePhotoSlot(slot, { retrying: true });
+    const orderId = clean(this.data.order?.id);
+    if (!photo?.declared || photo.retrying || !orderId) return;
+    const epoch = Number(this._photoLoadEpoch || 0);
+    const sequence = Number(this._photoRetrySequence?.get(slot) || 0) + 1;
+    this._photoRetrySequence.set(slot, sequence);
+    this.updatePhotoSlot(slot, { retrying: true, retryError: "" });
     try {
-      const result = await callPhoto("getVerificationPhotoThumbnailData", { recordId: this.data.order.id, slot });
+      const result = await callPhoto("getVerificationPhotoThumbnailData", { recordId: orderId, slot });
       if (Number(result.slot) !== slot) throw new Error("缩略图位置与请求不一致");
       const image = jpegDataUrl(result.imageBase64, result.bytes);
-      this.updatePhotoSlot(slot, { thumbnailUrl: image.source, thumbnailState: "ready", retrying: false });
+      const localPath = photoPreviewPath(orderId, slot);
+      await writeFile(localPath, image.buffer);
+      if (epoch !== Number(this._photoLoadEpoch || 0)
+        || sequence !== Number(this._photoRetrySequence?.get(slot) || 0)
+        || clean(this.data.order?.id) !== orderId) return;
+      this.updatePhotoSlot(slot, {
+        thumbnailUrl: localPath,
+        thumbnailState: "ready",
+        retrying: false,
+        retryError: ""
+      });
     } catch (error) {
-      this.updatePhotoSlot(slot, { thumbnailUrl: "", thumbnailState: "error", retrying: false });
-      this.setData({ message: error.message || "该照片缩略图读取失败", error: true });
+      if (epoch !== Number(this._photoLoadEpoch || 0)
+        || sequence !== Number(this._photoRetrySequence?.get(slot) || 0)
+        || clean(this.data.order?.id) !== orderId) return;
+      this.updatePhotoSlot(slot, {
+        thumbnailUrl: "",
+        thumbnailState: "error",
+        retrying: false,
+        retryError: error.message || "该照片暂时无法读取，请点击重试"
+      });
     }
   },
 

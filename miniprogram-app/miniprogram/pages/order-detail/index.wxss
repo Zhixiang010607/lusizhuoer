@@ -40,6 +40,8 @@
 .slot-placeholder { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12rpx; padding: 18rpx; color: #837563; text-align: center; }
 .slot-placeholder text { font-size: 20rpx; line-height: 1.4; }
 .slot-placeholder.slot-error { color: #8d3e35; background: #fff1ed; }
+.slot-retry-target { border: 1rpx dashed #d7b98a; }
+.slot-retry-target:active { background: #f8e5dc; }
 .photo-meta { min-width: 0; padding: 10rpx 2rpx; }
 .photo-meta text { display: block; overflow: hidden; font-size: 23rpx; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
 .photo-meta text:last-child { margin-top: 4rpx; color: #7c7062; font-size: 19rpx; font-weight: 400; }

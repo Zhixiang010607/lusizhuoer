@@ -17,7 +17,7 @@ const photoFunctionDirectory = path.resolve(__dirname, "../cloudfunctions/verifi
 const photoPackage = JSON.parse(fs.readFileSync(path.join(photoFunctionDirectory, "package.json"), "utf8"));
 const sourceWrapper = fs.readFileSync(path.join(photoFunctionDirectory, "index.js"), "utf8");
 const deployWrapper = fs.readFileSync(path.join(photoFunctionDirectory, "deploy-index.js"), "utf8");
-assert.equal(photoPackage.version, "9.0.0", "reliable read layer has a distinguishable deployment package version");
+assert.equal(photoPackage.version, "10.0.0", "reliable read layer has a distinguishable deployment package version");
 for (const [label, wrapper] of [["source", sourceWrapper], ["deployment", deployWrapper]]) {
   assert.match(wrapper, /installManagerSigningReliability\(CloudBaseManager\)/, `${label} wrapper installs signing reliability before use`);
   assert.match(wrapper, /createVerificationPhotoMain\(sharedService\.main\)/, `${label} wrapper installs authorized read fallbacks`);
@@ -237,14 +237,11 @@ async function authorizedFallbacksAndNoUnauthorizedLeak() {
   };
   const main = createVerificationPhotoMain(sharedMain, { now: () => FIXED_NOW });
   const manifest = await main({ action: "getVerificationPhotos", recordId: "71" }, context);
-  assert.equal(manifest.photos[0].thumbnailFallback, "FUNCTION_DATA");
-  assert.equal(manifest.photos[0].thumbnailRetryable, false);
-  assert.match(manifest.photos[0].thumbnailUrl, /^data:image\/jpeg;base64,/);
-  assert.deepEqual(calls.map((call) => call.action), [
-    "getVerificationPhotos",
-    "getVerificationPhotoOriginalUrl",
-    "getVerificationPhotoExportData"
-  ], "manifest fallback re-enters shared authorization for original URL and bytes");
+  assert.equal(manifest.photos[0].thumbnailRetryable, true);
+  assert.equal(manifest.photos[0].thumbnailFallbackAction, "getVerificationPhotoThumbnailData");
+  assert.equal(manifest.photos[0].thumbnailUrl, "");
+  assert.deepEqual(calls.map((call) => call.action), ["getVerificationPhotos"],
+    "the first manifest never downloads originals for every failed thumbnail");
 
   calls.length = 0;
   const thumbnailData = await main({ action: "getVerificationPhotoThumbnailData", recordId: "71", slot: 2 }, context);
@@ -311,21 +308,23 @@ async function healthIdentifiesReliabilityLayer() {
     service: event.action === "health" ? "verificationPhoto" : "unexpected"
   }));
   const health = await main({ action: "health" }, {});
-  assert.equal(health.version, "v9");
+  assert.equal(health.version, "v10");
   assert.equal(health.sharedVersion, "v3");
   assert.deepEqual(health.verificationPhotoReadReliability, {
     signedUrlExpiryAware: true,
     sameObjectFlightDeduplication: true,
     maxSigningAttempts: 3,
     maxSigningConcurrency: 6,
-    thumbnailDataFallback: true
+    thumbnailDataFallback: true,
+    manifestFallbackDeferred: true,
+    perPhotoRetryIsolated: true
   });
   const timerResult = await main({ Type: "Timer", TriggerName: "cleanup-verification-photo-uploads-hourly" }, {});
-  assert.equal(timerResult.version, "v3", "timer cleanup results are not mislabeled as health v9");
+  assert.equal(timerResult.version, "v3", "timer cleanup results are not mislabeled as health v10");
   assert.equal(Object.hasOwn(timerResult, "sharedVersion"), false);
 }
 
-async function originalAndManifestResponseFallbackLimits() {
+async function originalFallbackAndManifestDeferral() {
   const smallJpeg = jpegDataUrl(4);
   const expired = signedUrl("expired.jpg", FIXED_SECONDS - 200, FIXED_SECONDS - 100);
   const originalCalls = [];
@@ -340,10 +339,9 @@ async function originalAndManifestResponseFallbackLimits() {
   assert.equal(original.transport, "FUNCTION_DATA", "an actually expired cached signed URL falls back to the authorized function payload");
   assert.deepEqual(originalCalls, ["getVerificationPhotoOriginalUrl", "getVerificationPhotoExportData"]);
 
-  const twoMegabytes = 2 * 1024 * 1024;
-  const largeJpeg = jpegDataUrl(twoMegabytes);
-  const exportSlots = [];
-  const budgetMain = createVerificationPhotoMain(async (event) => {
+  const manifestCalls = [];
+  const deferredMain = createVerificationPhotoMain(async (event) => {
+    manifestCalls.push({ action: event.action, slot: event.slot });
     if (event.action === "getVerificationPhotos") {
       return {
         ok: true,
@@ -352,24 +350,21 @@ async function originalAndManifestResponseFallbackLimits() {
           slot,
           thumbnailUrl: "",
           thumbnailError: "PHOTO_SIGN_FAILED",
-          originalBytes: twoMegabytes
+          originalBytes: 2 * 1024 * 1024
         }))
       };
     }
-    if (event.action === "getVerificationPhotoOriginalUrl") return { ok: false, code: "PHOTO_SIGN_FAILED" };
-    if (event.action === "getVerificationPhotoExportData") {
-      exportSlots.push(event.slot);
-      return { ok: true, slot: event.slot, imageBase64: largeJpeg, bytes: twoMegabytes, width: 10, height: 10 };
-    }
-    throw new Error("unexpected action");
+    throw new Error(`manifest must not call ${event.action}`);
   }, { now: () => FIXED_NOW });
-  const budgetManifest = await budgetMain({ action: "getVerificationPhotos", recordId: "71" }, {});
-  assert.equal(budgetManifest.ok, true, "one oversized fallback never fails the complete manifest");
-  assert.equal(budgetManifest.photos[0].thumbnailFallback, "FUNCTION_DATA");
-  assert.equal(budgetManifest.photos[1].thumbnailError, "PHOTO_THUMBNAIL_BYTES_DEFERRED");
-  assert.equal(budgetManifest.photos[1].thumbnailRetryable, true);
-  assert.equal(budgetManifest.photos[1].thumbnailFallbackAction, "getVerificationPhotoThumbnailData");
-  assert.deepEqual(exportSlots, [2], "the response budget prevents materializing bytes that cannot be returned");
+  const deferredManifest = await deferredMain({ action: "getVerificationPhotos", recordId: "71" }, {});
+  assert.equal(deferredManifest.ok, true);
+  assert.deepEqual(manifestCalls, [{ action: "getVerificationPhotos", slot: undefined }],
+    "failed thumbnails stay isolated until one slot is explicitly retried");
+  for (const photo of deferredManifest.photos) {
+    assert.equal(photo.thumbnailUrl, "");
+    assert.equal(photo.thumbnailRetryable, true);
+    assert.equal(photo.thumbnailFallbackAction, "getVerificationPhotoThumbnailData");
+  }
 
   const mismatchMain = createVerificationPhotoMain(async (event) => {
     if (event.action === "getVerificationPhotoThumbnailData") throw new Error("wrapper must translate this action");
@@ -389,7 +384,7 @@ async function originalAndManifestResponseFallbackLimits() {
   await authorizedFallbacksAndNoUnauthorizedLeak();
   await authenticatedTruncationGetsBoundedServerRetry();
   await healthIdentifiesReliabilityLayer();
-  await originalAndManifestResponseFallbackLimits();
+  await originalFallbackAndManifestDeferral();
   console.log("verification photo read reliability: PASS (30 same-object + 30 different-object requests)");
 })().catch((error) => {
   console.error(error);

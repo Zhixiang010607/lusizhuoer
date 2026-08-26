@@ -17,6 +17,16 @@ function includes(source, expected, label) {
   assert.ok(source.includes(expected), `${label}: missing ${JSON.stringify(expected)}`);
 }
 
+function functionSource(source, name) {
+  const plainStart = source.indexOf(`  ${name}(`);
+  const asyncStart = source.indexOf(`  async ${name}(`);
+  const start = plainStart >= 0 ? plainStart : asyncStart;
+  assert.ok(start >= 0, `missing page method ${name}`);
+  const next = source.indexOf("\n  },", start);
+  assert.ok(next > start, `missing page method end ${name}`);
+  return source.slice(start, next + 5);
+}
+
 function loadHelpers(options = {}) {
   const marker = "\nPage({";
   assert.ok(js.includes(marker), "order-detail helper injection marker exists");
@@ -57,6 +67,23 @@ Page({`);
     decodeURIComponent,
     encodeURIComponent,
     wx: {
+      env: { USER_DATA_PATH: "/mini-data" },
+      base64ToArrayBuffer(value) {
+        const bytes = Buffer.from(String(value || ""), "base64");
+        return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+      },
+      getFileSystemManager() {
+        return {
+          writeFile({ filePath, data, success, fail }) {
+            try {
+              options.writeFile?.(filePath, data);
+              success?.({});
+            } catch (error) {
+              fail?.(error);
+            }
+          }
+        };
+      },
       setNavigationBarTitle() {},
       stopPullDownRefresh() {}
     }
@@ -100,6 +127,40 @@ test("verification manifest always normalizes to five explicit slots without hid
     /无效或重复/
   );
   assert.throws(() => helpers.normalizePhotoManifest({ maxPhotos: 4, photos: [] }), /位置数量/);
+});
+
+test("tapping one failed photo rereads and updates only that slot", async () => {
+  const calls = [];
+  const writes = [];
+  const jpeg = `data:image/jpeg;base64,${Buffer.from([0xff, 0xd8, 0xff, 0xd9]).toString("base64")}`;
+  const { page } = loadHelpers({
+    async callPhoto(action, payload) {
+      calls.push({ action, payload });
+      return { ok: true, slot: payload.slot, imageBase64: jpeg, bytes: 4 };
+    },
+    writeFile(filePath, data) { writes.push({ filePath, bytes: data.byteLength }); }
+  });
+  const photos = page.data.photos.map((photo) => {
+    if (photo.slot === 0) return { ...photo, declared: true, thumbnailState: "ready", thumbnailUrl: "https://example.test/slot-0.jpg" };
+    if (photo.slot === 2) return { ...photo, declared: true, thumbnailState: "error", thumbnailUrl: "", retryError: "" };
+    return photo;
+  });
+  const instance = pageInstance(page, { order: { id: "71" }, photos });
+  instance._photoLoadEpoch = 1;
+  instance._photoRetrySequence = new Map();
+
+  await instance.retryThumbnail({ currentTarget: { dataset: { slot: 2 } } });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].action, "getVerificationPhotoThumbnailData");
+  assert.equal(calls[0].payload.recordId, "71");
+  assert.equal(calls[0].payload.slot, 2);
+  assert.deepEqual(writes, [{ filePath: "/mini-data/order-photo-preview-71-2.jpg", bytes: 4 }]);
+  assert.equal(instance.data.photos.find((photo) => photo.slot === 0).thumbnailUrl, "https://example.test/slot-0.jpg",
+    "an already visible photo stays untouched");
+  assert.equal(instance.data.photos.find((photo) => photo.slot === 2).thumbnailUrl, "/mini-data/order-photo-preview-71-2.jpg");
+  assert.equal(instance.data.photos.find((photo) => photo.slot === 2).thumbnailState, "ready");
+  assert.equal(instance.data.photos.filter((photo) => photo.retrying).length, 0);
 });
 
 test("server-read original type controls the exact visible business kind", () => {
@@ -267,6 +328,12 @@ test("verification photo UI has list and per-slot recovery, originals, album sav
   includes(wxml, 'wx:for="{{photos}}"', "five-slot renderer");
   includes(wxml, 'bindtap="retryPhotoList"', "list retry");
   includes(wxml, 'bindtap="retryThumbnail"', "per-slot thumbnail retry");
+  includes(wxml, 'catchtap="retryThumbnail"', "the retry button cannot bubble into a duplicate request");
+  includes(wxml, "点击重新加载这张照片", "the complete failed-photo area explains focused recovery");
+  includes(js, "photoPreviewPath(orderId, slot)", "one retried original is written to a local preview file instead of large setData Base64");
+  includes(js, "sequence !== Number(this._photoRetrySequence?.get(slot)", "a late focused retry cannot replace a newer slot state");
+  assert.doesNotMatch(functionSource(js, "retryThumbnail"), /loadPhotos\(/,
+    "clicking one failed photo cannot reload the complete five-photo manifest");
   includes(wxml, 'bindtap="previewPhoto"', "authorized original preview");
   includes(wxml, 'bindtap="savePhoto"', "authorized original album save");
   includes(wxml, 'bindtap="uploadExtraPhoto"', "choose-or-capture extra photo");

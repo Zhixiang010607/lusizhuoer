@@ -11,10 +11,6 @@ const DEFAULT_SIGN_ATTEMPTS = 3;
 const DEFAULT_RETRY_DELAYS_MS = [40, 120];
 const DEFAULT_AUTHENTICATED_READ_ATTEMPTS = 3;
 const RESPONSE_URL_SAFETY_MS = 10 * 1000;
-// A manifest is a synchronous SCF response. Keeping raw fallback bytes below
-// 3 MB leaves ample room for Base64 expansion, JSON and the five photo rows
-// under the platform's 6 MB response limit.
-const MAX_INLINE_MANIFEST_FALLBACK_BYTES = 3 * 1024 * 1024;
 
 function boundedInteger(value, fallback, minimum, maximum) {
   const parsed = Number(value);
@@ -309,20 +305,6 @@ function authenticatedReadRetryableResult(result) {
   ].includes(code);
 }
 
-function mapWithConcurrency(items, limit, mapper) {
-  const input = Array.isArray(items) ? items : [];
-  const output = new Array(input.length);
-  let cursor = 0;
-  const workers = Array.from({ length: Math.min(Math.max(1, Number(limit) || 1), input.length) }, async () => {
-    while (cursor < input.length) {
-      const index = cursor;
-      cursor += 1;
-      output[index] = await mapper(input[index], index);
-    }
-  });
-  return Promise.all(workers).then(() => output);
-}
-
 function safeJpegDataUrl(value, expectedBytes) {
   const data = String(value || "").trim();
   const match = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/i.exec(data);
@@ -410,96 +392,27 @@ function createVerificationPhotoMain(sharedMain, options = {}) {
     return originalDataFallback(event, context, result);
   }
 
-  async function improveManifest(event, context, result) {
+  function improveManifest(result) {
     if (result?.ok !== true || !Array.isArray(result.photos)) return result;
-    const stages = await mapWithConcurrency(result.photos, 2, async (photo) => {
+    const photos = result.photos.map((photo) => {
       const timing = photoUrlTiming(photo?.thumbnailUrl, photo?.thumbnailUrlExpiresIn ?? result.expiresIn, now());
       if (timing.usable) {
-        return {
-          photo: { ...photo, thumbnailUrl: timing.url, thumbnailUrlExpiresIn: timing.expiresIn },
-          needsBytes: false
-        };
+        return { ...photo, thumbnailUrl: timing.url, thumbnailUrlExpiresIn: timing.expiresIn };
       }
-      // The list action above already authorized the order. The fallback still
-      // goes through the shared original action so it receives its own live
-      // authorization check and VIEW_ORIGINAL audit before any URL is exposed.
-      const fallback = await sharedMain({ ...event, action: "getVerificationPhotoOriginalUrl", slot: Number(photo.slot) }, context);
-      if (fallback?.ok === true) {
-        const originalTiming = photoUrlTiming(fallback.photoUrl, fallback.expiresIn, now());
-        if (originalTiming.usable && originalTiming.transport === "SIGNED_URL") {
-          return {
-            photo: {
-              ...photo,
-              thumbnailUrl: originalTiming.url,
-              thumbnailUrlExpiresIn: originalTiming.expiresIn,
-              thumbnailError: "",
-              thumbnailRetryable: false,
-              thumbnailFallback: "ORIGINAL_URL"
-            },
-            needsBytes: false
-          };
-        }
-        return { photo, needsBytes: true };
-      }
-      if (signingFailureResult(fallback)) return { photo, needsBytes: true };
+      // Do not turn one slow or unavailable private-storage read into five
+      // sequential original reads during the first manifest request. The row
+      // remains declared, so clients can render an honest per-slot recovery
+      // target. Only the slot the user taps enters the separately authorized
+      // byte fallback below; other loaded slots and their URLs stay untouched.
       return {
-        photo: {
-          ...photo,
-          thumbnailError: String(fallback?.code || photo?.thumbnailError || "PHOTO_THUMBNAIL_UNAVAILABLE"),
-          thumbnailRetryable: false
-        },
-        needsBytes: false
+        ...photo,
+        thumbnailUrl: "",
+        thumbnailUrlExpiresIn: 0,
+        thumbnailError: String(photo?.thumbnailError || "PHOTO_THUMBNAIL_DEFERRED"),
+        thumbnailRetryable: true,
+        thumbnailFallbackAction: "getVerificationPhotoThumbnailData"
       };
     });
-
-    let remainingBytes = MAX_INLINE_MANIFEST_FALLBACK_BYTES;
-    const photos = [];
-    for (const stage of stages) {
-      const photo = stage.photo;
-      if (!stage.needsBytes) {
-        photos.push(photo);
-        continue;
-      }
-      const recordedBytes = Number(photo?.originalBytes || 0);
-      if (!Number.isInteger(recordedBytes) || recordedBytes <= 0 || recordedBytes > remainingBytes) {
-        photos.push({
-          ...photo,
-          thumbnailUrl: "",
-          thumbnailUrlExpiresIn: 0,
-          thumbnailError: "PHOTO_THUMBNAIL_BYTES_DEFERRED",
-          thumbnailRetryable: true,
-          thumbnailFallbackAction: "getVerificationPhotoThumbnailData"
-        });
-        continue;
-      }
-      // Shared export validates the database byte count and JPEG structure.
-      // Match the returned bytes to this manifest row and recheck JPEG magic
-      // before any inline data is exposed by the dedicated function.
-      const exported = await authorizedExportData({ ...event, slot: Number(photo.slot) }, context);
-      const dataUrl = exported?.ok === true && Number(exported.bytes) === recordedBytes
-        ? safeJpegDataUrl(exported.imageBase64, recordedBytes)
-        : "";
-      if (!dataUrl) {
-        photos.push({
-          ...photo,
-          thumbnailUrl: "",
-          thumbnailUrlExpiresIn: 0,
-          thumbnailError: "PHOTO_THUMBNAIL_BYTES_UNAVAILABLE",
-          thumbnailRetryable: true,
-          thumbnailFallbackAction: "getVerificationPhotoThumbnailData"
-        });
-        continue;
-      }
-      remainingBytes -= recordedBytes;
-      photos.push({
-        ...photo,
-        thumbnailUrl: dataUrl,
-        thumbnailUrlExpiresIn: 0,
-        thumbnailError: "",
-        thumbnailRetryable: false,
-        thumbnailFallback: "FUNCTION_DATA"
-      });
-    }
     return { ...result, photos };
   }
 
@@ -536,19 +449,21 @@ function createVerificationPhotoMain(sharedMain, options = {}) {
     if (action === "health" && !trustedTimerEvent && result?.ok === true) {
       return {
         ...result,
-        version: "v9",
+        version: "v10",
         sharedVersion: String(result.version || ""),
         verificationPhotoReadReliability: {
           signedUrlExpiryAware: true,
           sameObjectFlightDeduplication: true,
           maxSigningAttempts: DEFAULT_SIGN_ATTEMPTS,
           maxSigningConcurrency: DEFAULT_SIGN_CONCURRENCY,
-          thumbnailDataFallback: true
+          thumbnailDataFallback: true,
+          manifestFallbackDeferred: true,
+          perPhotoRetryIsolated: true
         }
       };
     }
     if (action === "getVerificationPhotoThumbnailData") return thumbnailDataResult(event, result);
-    if (action === "getVerificationPhotos") return improveManifest(event, context, result);
+    if (action === "getVerificationPhotos") return improveManifest(result);
     if (action === "getVerificationPhotoOriginalUrl") return improveOriginal(event, context, result);
     return result;
   };

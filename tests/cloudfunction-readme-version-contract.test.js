@@ -32,10 +32,10 @@ const photoPackage = JSON.parse(read("cloudfunctions/verificationPhoto/package.j
 const photoReadme = read("cloudfunctions/verificationPhoto/README.md");
 const photoReadReliability = read("cloudfunctions/verificationPhoto/read-reliability.js");
 const photoVersion = `v${String(photoPackage.version).split(".")[0]}`;
-assert.equal(photoVersion, faceVersions[1],
-  "verificationPhoto package major must match the shared photo-only runtime version");
 assert.match(photoReadme, new RegExp(`当前版本：\`${photoVersion}\``),
   "verificationPhoto README must match its runtime version");
+assert.match(photoReadme, new RegExp(`共享照片服务实现 \`${faceVersions[1]}\``),
+  "verificationPhoto README must identify the embedded shared implementation version");
 const photoAdapterVersion = /action === "health"[\s\S]*?version: "(v\d+)"/.exec(photoReadReliability)?.[1];
 assert.equal(photoAdapterVersion, photoVersion,
   "verificationPhoto public health adapter must match its package major");

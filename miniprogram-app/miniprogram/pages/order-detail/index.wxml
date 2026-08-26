@@ -49,9 +49,11 @@
         <view wx:for="{{photos}}" wx:key="slot" class="photo-card state-{{item.state}}">
           <view class="photo-frame">
             <image wx:if="{{item.declared && item.thumbnailState === 'ready'}}" class="photo" src="{{item.thumbnailUrl}}" mode="aspectFill" data-slot="{{item.slot}}" bindtap="previewPhoto" binderror="photoThumbnailError"></image>
-            <view wx:elif="{{item.declared}}" class="slot-placeholder slot-error">
-              <text>缩略图读取失败</text>
-              <button class="secondary compact-button" data-slot="{{item.slot}}" bindtap="retryThumbnail" loading="{{item.retrying}}" disabled="{{item.retrying}}">重试此图</button>
+            <view wx:elif="{{item.declared}}" class="slot-placeholder slot-error slot-retry-target" data-slot="{{item.slot}}" bindtap="retryThumbnail">
+              <text wx:if="{{item.retrying}}">正在重新读取这张照片…</text>
+              <text wx:elif="{{item.retryError}}">{{item.retryError}}</text>
+              <text wx:else>点击重新加载这张照片</text>
+              <button class="secondary compact-button" data-slot="{{item.slot}}" catchtap="retryThumbnail" loading="{{item.retrying}}" disabled="{{item.retrying}}">{{item.retrying ? '读取中' : '重新加载此图'}}</button>
             </view>
             <view wx:elif="{{item.state === 'loading'}}" class="slot-placeholder"><text>正在读取此照片位…</text></view>
             <view wx:elif="{{item.state === 'list-error'}}" class="slot-placeholder slot-error"><text>清单读取失败</text></view>
