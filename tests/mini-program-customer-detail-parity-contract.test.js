@@ -14,7 +14,7 @@ const wxss = fs.readFileSync(path.join(pageRoot, "index.wxss"), "utf8");
 
 test("mini customer profile consumes the existing cursor and message contracts", () => {
   assert.match(js, /const HISTORY_LIMIT = 50;/);
-  for (const type of ["RECHARGE", "REFUND", "VERIFICATION", "EXPERIENCE"]) {
+  for (const type of ["RECHARGE", "REFUND", "VERIFICATION", "EXPERIENCE", "PRODUCT_PURCHASE"]) {
     assert.match(js, new RegExp(`${type}: \\{ hasMore: false, nextCursor: null, loading: false`));
   }
   for (const field of ["historyType: type", "historyLimit: HISTORY_LIMIT", "cursorSubmittedAt", "cursorId"]) {
@@ -81,9 +81,12 @@ test("balance and history tables have exact centered single-line column widths",
   assert.match(wxss, /\.balance-table \{ width: 660rpx; min-width: 660rpx;/);
   assert.match(wxss, /\.balance-table-row \{[^}]*width: 660rpx;[^}]*grid-template-columns: 240rpx 140rpx 140rpx 140rpx;/s);
   assert.equal(240 + 140 + 140 + 140, 660);
-  assert.match(wxml, /historyType === 'RECHARGE' \|\| historyType === 'REFUND' \? 'recharge-history' : 'compact-history'/);
+  assert.match(wxml, /historyType === 'RECHARGE' \|\| historyType === 'REFUND' \|\| historyType === 'PRODUCT_PURCHASE' \? 'recharge-history' : 'compact-history'/);
   assert.match(wxml, /data-type="RECHARGE"[^>]*>充值<\/button>[\s\S]*data-type="REFUND"[^>]*>退费<\/button>/);
-  assert.match(wxss, /\.history-tabs \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/);
+  assert.match(wxml, /data-type="PRODUCT_PURCHASE"[^>]*>产品<\/button>/);
+  assert.match(wxml, /historyType === 'PRODUCT_PURCHASE' \? '产品' : '项目'/);
+  assert.match(wxml, /historyType === 'PRODUCT_PURCHASE' \? '数量' : '次数'/);
+  assert.match(wxss, /\.history-tabs \{[^}]*grid-template-columns: repeat\(5, minmax\(0, 1fr\)\);/);
   assert.match(wxss, /\.record-table\.recharge-history, \.record-table\.recharge-history \.record-row \{ min-width: 950rpx; \}/);
   assert.match(wxss, /\.record-table\.compact-history, \.record-table\.compact-history \.record-row \{ min-width: 880rpx; \}/);
   assert.match(wxss, /\.recharge-history \.record-row \{ grid-template-columns: minmax\(210rpx, 1\.35fr\) minmax\(130rpx, 0\.8fr\) minmax\(130rpx, 0\.8fr\) minmax\(90rpx, 0\.55fr\) minmax\(160rpx, 0\.95fr\) minmax\(230rpx, 1\.3fr\); \}/);
@@ -152,6 +155,12 @@ test("history mapper preserves refund signs, teachers, dates, and server statuse
     id: "10", verificationType: "SUPPLEMENT", unitCount: 1, recordStatus: "APPROVED"
   }], "VERIFICATION")[0];
   assert.equal(supplement.statusLabel, "审核通过");
+  const purchase = sandbox.__customerDetailTest.mapHistory([{
+    id: "11", purchaseCode: "PP20260826000011", unitCount: 3, recordStatus: "PENDING"
+  }], "PRODUCT_PURCHASE")[0];
+  assert.equal(purchase.recordCode, "PP20260826000011");
+  assert.equal(purchase.unitLabel, "3 件");
+  assert.equal(purchase.statusLabel, "待审核");
   const balance = sandbox.__customerDetailTest.mapBalances([{
     totalRechargeCount: 9, totalVerificationCount: 4, remainingCount: 5
   }])[0];
@@ -192,11 +201,13 @@ test("profile body survives a photo failure and appends only the selected histor
         refunds: [],
         verifications: [],
         experiences: [],
+        productPurchases: [],
         history: {
           recharges: { hasMore: true, nextCursor: { submittedAt: "cursor-time", id: "1" } },
           refunds: { hasMore: false, nextCursor: null },
           verifications: { hasMore: false, nextCursor: null },
-          experiences: { hasMore: false, nextCursor: null }
+          experiences: { hasMore: false, nextCursor: null },
+          productPurchases: { hasMore: false, nextCursor: null }
         }
       };
     }

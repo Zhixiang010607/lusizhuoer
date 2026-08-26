@@ -37,7 +37,7 @@ assert.match(migration, /id = NEW\.reviewed_by_account_id/, "the database mutati
 assert.match(migration, /RETAIL_PRODUCT_PURCHASE_DELETE_FORBIDDEN/, "purchase audit records must not be deletable");
 assert.match(migration, /OLD\.record_status <> 'PENDING'/, "review state must be single-transition and immutable afterwards");
 
-assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v9" : "v94"/);
+assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v9" : "v95"/);
 assert.match(face, /async function createRetailProductPurchaseApplication/);
 assert.match(face, /const caller = await activeBusinessCaller\(event\)/);
 assert.match(face, /caller\.role === "teacher" \? positiveDatabaseId\(caller\.teacherId, "老师"\) : ""/,
@@ -45,6 +45,8 @@ assert.match(face, /caller\.role === "teacher" \? positiveDatabaseId\(caller\.te
 assert.match(face, /action === "createRetailProductPurchaseApplication"/);
 assert.match(face, /recordType === "PRODUCT_PURCHASE"/);
 assert.match(face, /retailProductSummary:/);
+assert.match(face, /productPurchases: mapCustomerProductPurchases/);
+assert.match(face, /historyOptions\.type === "PRODUCT_PURCHASE"/);
 assert.match(face, /record_status = 'APPROVED'/, "customer purchase totals must include approved purchases only");
 assert.match(face, /recharge\.record_status = 'APPROVED'/, "customer gift totals must include approved recharge gifts only");
 
@@ -65,6 +67,7 @@ assert.match(storeBusiness, /setupLookup\(\)/, "web product purchase must reuse 
 assert.match(storeBusiness, /createRetailProductPurchaseApplication/);
 assert.match(webReview, /产品购买审核记录/);
 assert.match(webCustomer, /产品名称<\/th><th>购买<\/th><th>赠送/);
+assert.match(webCustomer, /<h2>产品记录<\/h2>/);
 
 assert.match(authUi, /\["product-purchase-create\.html", "产品购买"\]/);
 assert.match(authUi, /product-purchase-review\.html/);
@@ -79,5 +82,6 @@ assert.match(miniCreateJs, /requireSession\(\["store", "teacher"\]\)/);
 assert.match(miniCreateJs, /createRetailProductPurchaseApplication/);
 assert.match(miniReview, /type === 'product-purchase' \? '产品' : '项目'/);
 assert.match(miniCustomer, /产品名称<\/text><text>购买<\/text><text>赠送/);
+assert.match(miniCustomer, /data-type="PRODUCT_PURCHASE"[^>]*>产品<\/button>/);
 
 console.log("retail product purchase contract: PASS");

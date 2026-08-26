@@ -17,7 +17,7 @@ assert(/body\[data-customer-query\] \.customer-query-method-fields\s*\{\s*grid-t
 
 for (const file of ["customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html"]) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
-  const styleVersion = file === "customer-detail.html" ? "0.15.44" : "0.15.48";
+  const styleVersion = file === "customer-detail.html" ? "0.15.45" : "0.15.48";
   assert(html.includes(`styles.css?v=${styleVersion}`), `${file} must use the current stylesheet cache key`);
   assert(/<meta\s+name="viewport"/.test(html), `${file} must declare a mobile viewport`);
 }
@@ -79,6 +79,8 @@ for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))
   if (!html.includes("styles.css")) continue;
   const expectedStyleVersion = ["staff-detail.html", "teacher-create.html"].includes(file)
     ? "0.15.53"
+    : file === "customer-detail.html"
+    ? "0.15.45"
     : file === "teacher-work-orders.html"
     ? "0.15.59"
     : file === "teacher-management.html"

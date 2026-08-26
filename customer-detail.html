@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>客户主页</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.44">
+  <link rel="stylesheet" href="styles.css?v=0.15.45">
 </head>
 <body data-customer-profile>
   <aside class="side-project-bar" aria-label="项目栏"><div class="side-brand"><span>HQ</span><div><strong>总部工作台</strong><small>项目栏</small></div></div><p class="side-section-title">数据看板</p><nav class="side-nav"><a href="index.html"><span class="nav-icon">全</span><span>全局视图</span></a></nav><details class="side-menu-group"><summary><span class="nav-icon">管</span><span>管理</span></summary><nav><a href="project-management.html">项目管理</a><a href="retail-product-management.html">产品管理</a><a href="store-management.html">门店管理</a><a href="teacher-management.html">老师管理</a></nav></details><details class="side-menu-group" open><summary><span class="nav-icon">查</span><span>查询</span></summary><nav><a class="active" href="customer-query.html">客户查询</a><a href="recharge-query.html">充值查询</a><a href="verification-query.html">核销查询</a></nav></details><details class="side-menu-group" data-menu="review"><summary><span class="nav-icon">审</span><span>审核</span></summary><nav><a href="recharge-review.html">充值审核</a><a href="verification-review.html">核销审核</a></nav></details><div class="side-footer">静态原型</div></aside>
@@ -32,6 +32,7 @@
       <article class="panel customer-record-panel"><div class="panel-heading"><div><h2>退费记录</h2><p>先加载最近 50 条，可继续分批读取。</p></div><button id="loadMoreRefunds" type="button" hidden>加载更多</button></div><div class="table-scroll customer-record-scroll"><table class="customer-recharge-records-table"><thead><tr><th>退费单号</th><th>项目</th><th>退费次数</th><th>业务老师</th><th>提交日期</th><th>审核结果</th></tr></thead><tbody id="customerRefundRecords"></tbody></table></div></article>
       <article class="panel customer-record-panel"><div class="panel-heading"><div><h2>核销记录</h2><p>先加载最近 50 条，可继续分批读取。</p></div><button id="loadMoreVerifications" type="button" hidden>加载更多</button></div><div class="table-scroll customer-record-scroll"><table class="customer-simple-records-table"><thead><tr><th>核销单号</th><th>项目</th><th>业务老师</th><th>提交日期</th></tr></thead><tbody id="customerVerificationRecords"></tbody></table></div></article>
       <article class="panel customer-record-panel"><div class="panel-heading"><div><h2>体验记录</h2><p>先加载最近 50 条，可继续分批读取。</p></div><button id="loadMoreExperiences" type="button" hidden>加载更多</button></div><div class="table-scroll customer-record-scroll"><table class="customer-simple-records-table"><thead><tr><th>体验单号</th><th>项目</th><th>业务老师</th><th>提交日期</th></tr></thead><tbody id="customerExperienceRecords"></tbody></table></div></article>
+      <article class="panel customer-record-panel customer-product-record-panel"><div class="panel-heading"><div><h2>产品记录</h2><p>显示产品购买工单；审核通过后才计入上方产品汇总。</p></div><button id="loadMoreProductPurchases" type="button" hidden>加载更多</button></div><div class="table-scroll customer-record-scroll"><table class="customer-recharge-records-table"><thead><tr><th>产品单号</th><th>产品</th><th>数量</th><th>业务老师</th><th>提交日期</th><th>状态</th></tr></thead><tbody id="customerProductPurchaseRecords"></tbody></table></div></article>
     </section>
   </main>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
@@ -39,7 +40,7 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
   <script src="datetime.js?v=0.1.2"></script>
-  <script src="customer-profile.js?v=0.15.15"></script>
+  <script src="customer-profile.js?v=0.15.16"></script>
   <script src="auth-ui.js?v=0.19.7"></script>
 </body>
 </html>

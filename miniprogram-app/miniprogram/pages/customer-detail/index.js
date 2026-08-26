@@ -8,7 +8,8 @@ const HISTORY_FIELDS = Object.freeze({
   RECHARGE: "recharges",
   REFUND: "refunds",
   VERIFICATION: "verifications",
-  EXPERIENCE: "experiences"
+  EXPERIENCE: "experiences",
+  PRODUCT_PURCHASE: "productPurchases"
 });
 
 function clean(value) { return String(value ?? "").trim(); }
@@ -17,7 +18,8 @@ function freshHistoryState() {
     RECHARGE: { hasMore: false, nextCursor: null, loading: false, message: "", error: false },
     REFUND: { hasMore: false, nextCursor: null, loading: false, message: "", error: false },
     VERIFICATION: { hasMore: false, nextCursor: null, loading: false, message: "", error: false },
-    EXPERIENCE: { hasMore: false, nextCursor: null, loading: false, message: "", error: false }
+    EXPERIENCE: { hasMore: false, nextCursor: null, loading: false, message: "", error: false },
+    PRODUCT_PURCHASE: { hasMore: false, nextCursor: null, loading: false, message: "", error: false }
   };
 }
 function messageRole(value) {
@@ -44,17 +46,18 @@ function orderStatus(row = {}, type = "RECHARGE") {
 }
 function mapHistoryRow(row = {}, type = "RECHARGE") {
   const rechargeHistory = ["RECHARGE", "REFUND"].includes(type);
+  const productPurchase = type === "PRODUCT_PURCHASE";
   const originalType = clean(row.rechargeType || row.verificationType).toUpperCase();
-  const units = Math.abs(Number(row.unitCount || (rechargeHistory ? 0 : 1)));
+  const units = Math.abs(Number(row.unitCount || (rechargeHistory || productPurchase ? 0 : 1)));
   const negative = rechargeHistory && ["REFUND", "VOID"].includes(originalType);
   return {
     ...row,
     id: clean(row.id),
-    recordCode: clean(row.rechargeCode || row.verificationCode || row.id) || "—",
+    recordCode: clean(row.rechargeCode || row.verificationCode || row.purchaseCode || row.id) || "—",
     originalType,
     productName: clean(row.productName) || "—",
     teacherLabel: businessTeacher(row),
-    unitLabel: `${rechargeHistory ? (negative ? "−" : "+") : ""}${units} 次`,
+    unitLabel: productPurchase ? `${units} 件` : `${rechargeHistory ? (negative ? "−" : "+") : ""}${units} 次`,
     submittedAtLabel: query.displayDate(row.submittedAt),
     statusLabel: orderStatus(row, type)
   };
@@ -109,7 +112,7 @@ Page({
   data: {
     session: {}, canManageStatus: false, canEditNotes: false,
     customerCode: "", profile: null, balances: [], retailProductSummary: [],
-    recharges: [], refunds: [], verifications: [], experiences: [],
+    recharges: [], refunds: [], verifications: [], experiences: [], productPurchases: [],
     historyType: "RECHARGE", visibleHistory: [], historyHasMore: false, historyScrollLeft: 0,
     historyLoading: false, historyMessage: "", historyError: false,
     messages: [], messageTotal: 0, messageHasMore: false,
@@ -155,7 +158,7 @@ Page({
     this._historyState = freshHistoryState();
     this.setData({
       loading: true, message: "", error: false,
-      profile: null, balances: [], retailProductSummary: [], recharges: [], refunds: [], verifications: [], experiences: [],
+      profile: null, balances: [], retailProductSummary: [], recharges: [], refunds: [], verifications: [], experiences: [], productPurchases: [],
       visibleHistory: [], historyHasMore: false, historyLoading: false, historyScrollLeft: 0,
       historyMessage: "", historyError: false,
       notesEditing: false, notesChanged: false, notesMessage: "", notesError: false,
@@ -188,6 +191,7 @@ Page({
         refunds: mapHistory(result.refunds, "REFUND"),
         verifications: mapHistory(result.verifications, "VERIFICATION"),
         experiences: mapHistory(result.experiences, "EXPERIENCE"),
+        productPurchases: mapHistory(result.productPurchases, "PRODUCT_PURCHASE"),
         notes, originalNotes: notes
       });
       this.syncHistory();
@@ -336,6 +340,7 @@ Page({
     if (!id) return;
     const code = clean(event.currentTarget.dataset.code);
     const historyType = clean(this.data.historyType || "RECHARGE").toUpperCase();
+    if (historyType === "PRODUCT_PURCHASE") return;
     const originalType = clean(event.currentTarget.dataset.originalType).toUpperCase();
     const category = ["RECHARGE", "REFUND"].includes(historyType)
       ? (originalType === "REFUND" ? "REFUND" : originalType === "VOID" ? "VOID" : "RECHARGE")

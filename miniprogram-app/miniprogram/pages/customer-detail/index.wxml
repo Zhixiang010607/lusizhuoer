@@ -111,12 +111,14 @@
         <button class="{{historyType === 'REFUND' ? 'active' : ''}}" data-type="REFUND" bindtap="changeHistory">退费</button>
         <button class="{{historyType === 'VERIFICATION' ? 'active' : ''}}" data-type="VERIFICATION" bindtap="changeHistory">核销</button>
         <button class="{{historyType === 'EXPERIENCE' ? 'active' : ''}}" data-type="EXPERIENCE" bindtap="changeHistory">体验</button>
+        <button class="{{historyType === 'PRODUCT_PURCHASE' ? 'active' : ''}}" data-type="PRODUCT_PURCHASE" bindtap="changeHistory">产品</button>
       </view>
       <scroll-view wx:if="{{visibleHistory.length}}" class="table-scroll record-scroll" scroll-x enhanced show-scrollbar="false" scroll-left="{{historyScrollLeft}}" bindscroll="rememberHistoryScroll">
-        <view class="record-table {{historyType === 'RECHARGE' || historyType === 'REFUND' ? 'recharge-history' : 'compact-history'}}">
-          <view class="record-row table-head"><text>单号</text><text>项目</text><text>业务老师</text><text>次数</text><text>提交日期</text><text>状态</text></view>
+        <view class="record-table {{historyType === 'RECHARGE' || historyType === 'REFUND' || historyType === 'PRODUCT_PURCHASE' ? 'recharge-history' : 'compact-history'}}">
+          <view class="record-row table-head"><text>单号</text><text>{{historyType === 'PRODUCT_PURCHASE' ? '产品' : '项目'}}</text><text>业务老师</text><text>{{historyType === 'PRODUCT_PURCHASE' ? '数量' : '次数'}}</text><text>提交日期</text><text>状态</text></view>
           <view wx:for="{{visibleHistory}}" wx:key="id" class="record-row">
-            <text class="record-link" data-id="{{item.id}}" data-code="{{item.recordCode}}" data-original-type="{{item.originalType}}" bindtap="openOrder">{{item.recordCode}}</text>
+            <text wx:if="{{historyType === 'PRODUCT_PURCHASE'}}">{{item.recordCode}}</text>
+            <text wx:else class="record-link" data-id="{{item.id}}" data-code="{{item.recordCode}}" data-original-type="{{item.originalType}}" bindtap="openOrder">{{item.recordCode}}</text>
             <text>{{item.productName}}</text>
             <text>{{item.teacherLabel}}</text>
             <text>{{item.unitLabel}}</text>

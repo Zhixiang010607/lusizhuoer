@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v94";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v95";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -1643,7 +1643,7 @@ function customerHistoryOptions(event = {}) {
     ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100)
     : 50;
   const type = String(event.historyType || "").trim().toUpperCase();
-  if (type && !["RECHARGE", "REFUND", "VERIFICATION", "EXPERIENCE"].includes(type)) fail("客户历史类型无效。", "BAD_REQUEST");
+  if (type && !["RECHARGE", "REFUND", "VERIFICATION", "EXPERIENCE", "PRODUCT_PURCHASE"].includes(type)) fail("客户历史类型无效。", "BAD_REQUEST");
   const cursorSubmittedAt = scopedQueryCursorTimestamp(event.cursorSubmittedAt, "客户历史游标时间");
   const cursorId = String(event.cursorId || "").trim();
   if ((cursorSubmittedAt || cursorId) && !type) fail("客户历史游标必须指定记录类型。", "BAD_REQUEST");
@@ -1689,6 +1689,16 @@ function mapCustomerVerifications(rows) {
     unitCount: Number(row.unit_count || 1), recordStatus: row.record_status,
     voidRequestStatus: row.void_request_status, submittedAt: row.submitted_at, reviewedAt: row.reviewed_at,
     productId: String(row.product_id), productCode: row.product_code, productName: row.product_name,
+    teacherId: row.teacher_id ? String(row.teacher_id) : "", teacherCode: row.teacher_code || "", teacherName: row.teacher_name || ""
+  }));
+}
+
+function mapCustomerProductPurchases(rows) {
+  return rows.map((row) => ({
+    id: String(row.id), purchaseCode: row.purchase_code,
+    unitCount: Number(row.unit_count || 0), recordStatus: row.record_status,
+    submittedAt: row.submitted_at, reviewedAt: row.reviewed_at,
+    retailProductId: String(row.retail_product_id), productName: row.product_name_snapshot,
     teacherId: row.teacher_id ? String(row.teacher_id) : "", teacherCode: row.teacher_code || "", teacherName: row.teacher_name || ""
   }));
 }
@@ -1751,8 +1761,32 @@ async function getCustomerProfile(event) {
            ${historyOptions.type === (experienceOnly ? "EXPERIENCE" : "VERIFICATION") ? cursorSql("v") : ""}
          ORDER BY v.submitted_at DESC, v.id DESC
          LIMIT ${historyOptions.limit + 1}`;
+  const productPurchaseSql = `SELECT purchase.id, purchase.purchase_code, purchase.unit_count,
+               purchase.record_status, purchase.submitted_at, purchase.reviewed_at,
+               TO_CHAR(purchase.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_submitted_at,
+               purchase.retail_product_id, purchase.product_name_snapshot,
+               business_teacher.id AS teacher_id,
+               business_teacher.teacher_code,
+               business_teacher.teacher_name
+          FROM public.retail_product_purchase_records purchase
+     LEFT JOIN public.teachers business_teacher
+            ON business_teacher.id = purchase.teacher_id
+         WHERE purchase.customer_id = ${sqlText(customerId)}::bigint
+           ${historyOptions.type === "PRODUCT_PURCHASE" ? cursorSql("purchase") : ""}
+         ORDER BY purchase.submitted_at DESC, purchase.id DESC
+         LIMIT ${historyOptions.limit + 1}`;
 
   if (historyOptions.type) {
+    if (historyOptions.type === "PRODUCT_PURCHASE") {
+      await requireRetailProductPurchaseSchema();
+      const historyRows = await executeSql(productPurchaseSql);
+      const historyPage = customerHistoryPage(historyRows, historyOptions.limit);
+      return {
+        ok: true,
+        productPurchases: mapCustomerProductPurchases(historyPage.rows),
+        history: { productPurchases: historyPage.page }
+      };
+    }
     const rechargeHistory = ["RECHARGE", "REFUND"].includes(historyOptions.type);
     const historyRows = await executeSql(rechargeHistory
       ? rechargeSql(historyOptions.type === "REFUND")
@@ -1767,7 +1801,7 @@ async function getCustomerProfile(event) {
   }
 
   await requireRetailProductPurchaseSchema();
-  const [balances, rechargeRows, refundRows, verificationRows, experienceRows, retailProductRows] = await Promise.all([
+  const [balances, rechargeRows, refundRows, verificationRows, experienceRows, productPurchaseRows, retailProductRows] = await Promise.all([
     executeSql(
       `SELECT p.id AS product_id, p.product_code, p.product_name, p.product_status,
               b.total_recharge_count, b.total_verification_count, b.remaining_count, b.updated_at
@@ -1780,6 +1814,7 @@ async function getCustomerProfile(event) {
     executeSql(rechargeSql(true)),
     executeSql(verificationSql(false)),
     executeSql(verificationSql(true)),
+    executeSql(productPurchaseSql),
     executeSql(
       `WITH purchased AS (
          SELECT retail_product_id, SUM(unit_count)::bigint AS purchased_count
@@ -1814,6 +1849,7 @@ async function getCustomerProfile(event) {
   const refundPage = customerHistoryPage(refundRows, historyOptions.limit);
   const verificationPage = customerHistoryPage(verificationRows, historyOptions.limit);
   const experiencePage = customerHistoryPage(experienceRows, historyOptions.limit);
+  const productPurchasePage = customerHistoryPage(productPurchaseRows, historyOptions.limit);
   return {
     ok: true,
     customer: {
@@ -1844,7 +1880,12 @@ async function getCustomerProfile(event) {
     refunds: mapCustomerRecharges(refundPage.rows),
     verifications: mapCustomerVerifications(verificationPage.rows),
     experiences: mapCustomerVerifications(experiencePage.rows),
-    history: { recharges: rechargePage.page, refunds: refundPage.page, verifications: verificationPage.page, experiences: experiencePage.page }
+    productPurchases: mapCustomerProductPurchases(productPurchasePage.rows),
+    history: {
+      recharges: rechargePage.page, refunds: refundPage.page,
+      verifications: verificationPage.page, experiences: experiencePage.page,
+      productPurchases: productPurchasePage.page
+    }
   };
 }
 

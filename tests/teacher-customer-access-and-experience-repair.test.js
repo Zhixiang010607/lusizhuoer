@@ -18,7 +18,7 @@ const consoleMigration = read("database/cloudbase-console/056-01-experience-quot
 
 assert.match(customerUi, /const canReadPhoto\s*=\s*\["hq",\s*"store",\s*"teacher"\]\.includes\(session\?\.role\)/,
   "a teacher linked by an approved verification may request the customer profile photo");
-assert.match(customerHtml, /customer-profile\.js\?v=0\.15\.15/);
+assert.match(customerHtml, /customer-profile\.js\?v=0\.15\.16/);
 
 const photoSource = cloud.slice(cloud.indexOf("async function getCustomerPhotoUrl"), cloud.indexOf("async function getCustomerPhotoUploadIntent"));
 assert.match(photoSource, /await activeCustomerProfileCaller\(\)/,

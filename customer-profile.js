@@ -23,7 +23,7 @@
   const birthdayText = (value) => { const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/); return match ? `${match[1]}年${match[2]}月${match[3]}日` : "—"; };
   const infoCard = (label, value) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || "—")}</strong></article>`;
   const verificationTypeText = (value) => ({ NORMAL:"正常核销", SUPPLEMENT:"补录核销", EXPERIENCE:"体验核销" }[value] || value || "正常核销");
-  let profile = null, balances = [], retailProductSummary = [], recharges = [], refunds = [], verifications = [], experiences = [], requestPending = false;
+  let profile = null, balances = [], retailProductSummary = [], recharges = [], refunds = [], verifications = [], experiences = [], productPurchases = [], requestPending = false;
   let notesEditing = false, notesPending = false, notesOriginal = "";
   let customerMessages = [], customerMessageTotal = 0, customerMessageHasMore = false, customerMessageNextCursor = null;
   let customerMessagesLoading = false, customerMessageSubmitting = false;
@@ -32,7 +32,8 @@
     RECHARGE: { hasMore:false, nextCursor:null, loading:false },
     REFUND: { hasMore:false, nextCursor:null, loading:false },
     VERIFICATION: { hasMore:false, nextCursor:null, loading:false },
-    EXPERIENCE: { hasMore:false, nextCursor:null, loading:false }
+    EXPERIENCE: { hasMore:false, nextCursor:null, loading:false },
+    PRODUCT_PURCHASE: { hasMore:false, nextCursor:null, loading:false }
   };
 
   function hasReviewContext() {
@@ -313,14 +314,19 @@
       const codeCell = detail ? `<a class="record-link" href="${escapeHtml(detail)}">${escapeHtml(code)}</a>` : escapeHtml(code);
       return `<tr><td>${codeCell}</td><td>${escapeHtml(row.productName)}</td><td>${escapeHtml(businessTeacher(row))}</td><td>${escapeHtml(dateText(row.submittedAt))}</td></tr>`;
     }).join("") : emptyRow(4, "暂无体验记录");
+    $("customerProductPurchaseRecords").innerHTML = productPurchases.length ? productPurchases.map((row) => {
+      const code = row.purchaseCode || row.id;
+      return `<tr><td>${escapeHtml(code)}</td><td>${escapeHtml(row.productName)}</td><td>${Number(row.unitCount || 0)} 件</td><td>${escapeHtml(businessTeacher(row))}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row, "PRODUCT_PURCHASE"))}</td></tr>`;
+    }).join("") : emptyRow(6, "暂无产品购买记录");
     syncHistoryButton("RECHARGE");
     syncHistoryButton("REFUND");
     syncHistoryButton("VERIFICATION");
     syncHistoryButton("EXPERIENCE");
+    syncHistoryButton("PRODUCT_PURCHASE");
   }
   function historyKey(row) { return String(row?.id || ""); }
   function syncHistoryButton(type) {
-    const button = $({ RECHARGE:"loadMoreRecharges", REFUND:"loadMoreRefunds", VERIFICATION:"loadMoreVerifications", EXPERIENCE:"loadMoreExperiences" }[type]);
+    const button = $({ RECHARGE:"loadMoreRecharges", REFUND:"loadMoreRefunds", VERIFICATION:"loadMoreVerifications", EXPERIENCE:"loadMoreExperiences", PRODUCT_PURCHASE:"loadMoreProductPurchases" }[type]);
     if (!button) return;
     const state = historyState[type];
     button.hidden = !state.hasMore;
@@ -339,10 +345,10 @@
         cursorSubmittedAt:state.nextCursor.submittedAt,
         cursorId:state.nextCursor.id
       }));
-      const field = { RECHARGE:"recharges", REFUND:"refunds", VERIFICATION:"verifications", EXPERIENCE:"experiences" }[type];
+      const field = { RECHARGE:"recharges", REFUND:"refunds", VERIFICATION:"verifications", EXPERIENCE:"experiences", PRODUCT_PURCHASE:"productPurchases" }[type];
       const page = data.history?.[field] || {};
       const incoming = Array.isArray(data[field]) ? data[field] : [];
-      const target = { RECHARGE:recharges, REFUND:refunds, VERIFICATION:verifications, EXPERIENCE:experiences }[type];
+      const target = { RECHARGE:recharges, REFUND:refunds, VERIFICATION:verifications, EXPERIENCE:experiences, PRODUCT_PURCHASE:productPurchases }[type];
       const known = new Set(target.map(historyKey));
       incoming.forEach((row) => { if (!known.has(historyKey(row))) target.push(row); });
       state.hasMore = page.hasMore === true;
@@ -389,7 +395,8 @@
     $("customerRefundRecords").innerHTML = emptyRow(6, "退费记录读取失败");
     $("customerVerificationRecords").innerHTML = emptyRow(4, "核销记录读取失败");
     $("customerExperienceRecords").innerHTML = emptyRow(4, "体验记录读取失败");
-    ["loadMoreRecharges", "loadMoreRefunds", "loadMoreVerifications", "loadMoreExperiences"].forEach((id) => { if ($(id)) $(id).hidden = true; });
+    $("customerProductPurchaseRecords").innerHTML = emptyRow(6, "产品记录读取失败");
+    ["loadMoreRecharges", "loadMoreRefunds", "loadMoreVerifications", "loadMoreExperiences", "loadMoreProductPurchases"].forEach((id) => { if ($(id)) $(id).hidden = true; });
     if (canUseCustomerMessages) {
       $("customerMessageList").innerHTML = `<article class="customer-message-empty">${escapeHtml(message)}</article>`;
       $("loadMoreCustomerMessages").hidden = true;
@@ -406,7 +413,7 @@
       const data = await callCustomerService(profilePayload({ historyLimit:50 }));
       profile = data.customer; balances = Array.isArray(data.balances) ? data.balances : [];
       retailProductSummary = Array.isArray(data.retailProductSummary) ? data.retailProductSummary : [];
-      recharges = Array.isArray(data.recharges) ? data.recharges : []; refunds = Array.isArray(data.refunds) ? data.refunds : []; verifications = Array.isArray(data.verifications) ? data.verifications : []; experiences = Array.isArray(data.experiences) ? data.experiences : [];
+      recharges = Array.isArray(data.recharges) ? data.recharges : []; refunds = Array.isArray(data.refunds) ? data.refunds : []; verifications = Array.isArray(data.verifications) ? data.verifications : []; experiences = Array.isArray(data.experiences) ? data.experiences : []; productPurchases = Array.isArray(data.productPurchases) ? data.productPurchases : [];
       historyState.RECHARGE.hasMore = data.history?.recharges?.hasMore === true;
       historyState.RECHARGE.nextCursor = data.history?.recharges?.nextCursor || null;
       historyState.REFUND.hasMore = data.history?.refunds?.hasMore === true;
@@ -415,6 +422,8 @@
       historyState.VERIFICATION.nextCursor = data.history?.verifications?.nextCursor || null;
       historyState.EXPERIENCE.hasMore = data.history?.experiences?.hasMore === true;
       historyState.EXPERIENCE.nextCursor = data.history?.experiences?.nextCursor || null;
+      historyState.PRODUCT_PURCHASE.hasMore = data.history?.productPurchases?.hasMore === true;
+      historyState.PRODUCT_PURCHASE.nextCursor = data.history?.productPurchases?.nextCursor || null;
       renderBasic(); renderRecent(); renderBalances(); renderRecords();
       void loadCustomerMessages({ reset:true });
     } catch (error) { renderLoadError(error.message || "客户主页数据库读取失败，请刷新重试。"); }
@@ -425,6 +434,7 @@
   $("loadMoreRefunds")?.addEventListener("click", () => loadMoreHistory("REFUND"));
   $("loadMoreVerifications")?.addEventListener("click", () => loadMoreHistory("VERIFICATION"));
   $("loadMoreExperiences")?.addEventListener("click", () => loadMoreHistory("EXPERIENCE"));
+  $("loadMoreProductPurchases")?.addEventListener("click", () => loadMoreHistory("PRODUCT_PURCHASE"));
   $("loadMoreCustomerMessages")?.addEventListener("click", () => loadCustomerMessages());
   $("customerMessageForm")?.addEventListener("submit", submitCustomerMessage);
   $("customerMessageInput")?.addEventListener("input", syncCustomerMessageCounter);

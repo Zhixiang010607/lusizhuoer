@@ -754,6 +754,7 @@ dialog::backdrop { background: #0b142a88; backdrop-filter: blur(3px); }
 .customer-project-panel .customer-record-scroll { height: 166px; max-height: 166px; overflow-y: auto; }
 .customer-project-panel .customer-record-scroll thead th { position: sticky; top: 0; z-index: 1; }
 .customer-records-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.customer-product-record-panel { grid-column: 1 / -1; }
 .customer-record-scroll { max-height: 285px; overflow: auto; }
 .customer-record-scroll th, .customer-record-scroll td { white-space: nowrap; }
 .customer-record-panel .customer-record-scroll { height: 158px; max-height: 158px; overflow-x: hidden; overflow-y: auto; }
@@ -1744,6 +1745,7 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
 
   body[data-customer-profile] .customer-profile-grid,
   body[data-customer-profile] .customer-records-grid { grid-template-columns: 1fr; }
+  body[data-customer-profile] .customer-product-record-panel { grid-column: auto; }
 
   body[data-customer-profile] .customer-basic-recent .customer-recent-info {
     grid-template-columns: repeat(2, minmax(0, 1fr));
