@@ -23,7 +23,7 @@
 
 当前小程序开发基线为 Node.js `>=20.19.0`、pnpm `9.15.9`、CloudBase JS SDK `3.7.1` 和微信开发者工具；依赖必须按 `pnpm-lock.yaml` 冻结安装，不再使用会产生第二份锁文件的 `npm install`。当前开发 AppID 为 `wxb053c1bd6c684d8b`，CloudBase 环境授权已经成功，仍需在微信公众平台为该 AppID 配置 CloudBase `request` 合法域名。AppID 可公开但任何密钥都不得写入仓库。现有 CloudBase 是 PostgreSQL 环境，不走微信开发者工具的“云环境转换”；小程序通过 SDK 与微信适配器复用同一环境和云函数。
 
-> 当前代码版本矩阵为 `staffAccount v75`、`faceRecognition v96`、`verificationPhoto v10`、`teacherCreate v6`。产品主档、充值赠品和独立产品购买必须依次执行并验收迁移 060、061、062；安全迁移 063 必须随后完成三段执行并取得 8 行 `READY`，否则生产环境不得视为安全验收通过。063 第 2 步会强制修复当前迁移账号并安全跳过不可管理的腾讯云平台角色，平台角色由第 1 步的 schema 总封锁兜底。再人工上传 `deployments/staffAccount-v75.zip` 与 `deployments/faceRecognition-v96.zip`。核销照片首屏只读取可用缩略图；某张照片暂不可用时，点击该照片只重读该张安全原图，不刷新其他照片。代码推送、SQL、云函数、网页发布、小程序开发版上传、设为体验版、提交审核和正式发布仍分别计算。
+> 当前代码版本矩阵为 `staffAccount v75`、`faceRecognition v96`、`verificationPhoto v10`、`teacherCreate v6`。产品主档、充值赠品和独立产品购买仍须依次执行并验收迁移 060、061、062。安全迁移 063 已于 2026-08-26 完成三段执行，两份只读验收合计 8 行全部 `READY`；腾讯云平台自有角色由第 1 步的 schema 总封锁兜底。仍需人工上传 `deployments/staffAccount-v75.zip` 与 `deployments/faceRecognition-v96.zip`。核销照片首屏只读取可用缩略图；某张照片暂不可用时，点击该照片只重读该张安全原图，不刷新其他照片。代码推送、SQL、云函数、网页发布、小程序开发版上传、设为体验版、提交审核和正式发布仍分别计算。
 
 ## 腾讯云客户人脸识别后端
 
