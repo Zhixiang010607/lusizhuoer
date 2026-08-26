@@ -4,24 +4,17 @@
     <button class="{{mode === 'manual' ? 'active' : ''}}" data-mode="manual" bindtap="changeMode">姓名＋生日</button>
   </view>
   <view wx:if="{{mode === 'select'}}">
-    <view class="customer-list-heading">
+    <view class="customer-select-heading">
       <text>该门店活跃客户</text>
-      <text>{{customers.length}} 位已加载</text>
+      <text>{{listLoading ? '正在读取' : customers.length + ' 位可选'}}</text>
     </view>
-    <scroll-view class="customer-list" scroll-y enable-flex lower-threshold="100" bindscrolltolower="loadMoreCustomers">
-      <button wx:for="{{customers}}" wx:key="customerCode" class="customer-option {{selectedCustomerCode === item.customerCode ? 'selected' : ''}}" data-code="{{item.customerCode}}" bindtap="selectListedCustomer">
-        <view class="customer-option-main">
-          <text class="customer-option-name">{{item.customerName}}</text>
-          <text class="customer-option-birthday">{{item.birthDate}}</text>
-        </view>
-        <text class="customer-option-code">{{item.customerCode}}</text>
-      </button>
-      <view wx:if="{{listLoading}}" class="customer-list-footer">正在读取客户…</view>
-      <view wx:elif="{{listLoadingMore}}" class="customer-list-footer">正在加载更多…</view>
-      <view wx:elif="{{hasMore}}" class="customer-list-footer">继续向下滑动加载更多</view>
-      <view wx:elif="{{customers.length}}" class="customer-list-footer complete">已显示全部活跃客户</view>
-      <view wx:else class="customer-list-footer">暂无活跃客户</view>
-    </scroll-view>
+    <picker mode="selector" range="{{customerLabels}}" value="{{customerPickerIndex}}" bindchange="selectListedCustomer" disabled="{{listLoading || !customers.length}}">
+      <view class="customer-select-control {{listLoading || !customers.length ? 'disabled' : ''}}">
+        <text>{{listLoading ? '正在读取本门店全部活跃客户…' : customerLabels[customerPickerIndex]}}</text>
+        <text class="customer-select-arrow">⌄</text>
+      </view>
+    </picker>
+    <text wx:if="{{customers.length && !listLoading}}" class="customer-select-help">点开下拉框后可上下滑动选择全部客户</text>
     <text wx:if="{{listMessage}}" class="picker-message {{listError ? 'error' : ''}}">{{listMessage}}</text>
   </view>
   <view wx:else class="manual-fields">

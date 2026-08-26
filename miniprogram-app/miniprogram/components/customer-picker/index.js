@@ -42,8 +42,8 @@ Component({
     storeId: { type: String, value: "", observer() { this.reload(); } }
   },
   data: {
-    mode: "select", customers: [], selectedCustomerCode: "", nextCursor: null, hasMore: false,
-    listLoading: false, listLoadingMore: false, listMessage: "", listError: false,
+    mode: "select", customers: [], customerLabels: ["请选择现有客户"], customerPickerIndex: 0,
+    selectedCustomerCode: "", listLoading: false, listMessage: "", listError: false,
     manualName: "", manualBirthday: "", today: businessToday(), duplicateMatches: [], candidate: null,
     photoUrl: "", photoReady: false, photoLoading: false, loading: false, message: "", error: false
   },
@@ -51,7 +51,6 @@ Component({
     attached() { this.setData({ today: businessToday() }); this.reload(); },
     detached() {
       this._customerListStoreId = "";
-      this._customerPageRequestKey = "";
       this._customerListRequestEpoch = (this._customerListRequestEpoch || 0) + 1;
       this._manualSearchRequestEpoch = (this._manualSearchRequestEpoch || 0) + 1;
       this._candidateRequestEpoch = (this._candidateRequestEpoch || 0) + 1;
@@ -67,10 +66,9 @@ Component({
       this._customerListRequestEpoch = requestEpoch;
       this._manualSearchRequestEpoch = (this._manualSearchRequestEpoch || 0) + 1;
       this._candidateRequestEpoch = (this._candidateRequestEpoch || 0) + 1;
-      this._customerPageRequestKey = "";
       const reset = {
-        loading: false, listLoading: false, listLoadingMore: false, listMessage: "", listError: false,
-        customers: [], selectedCustomerCode: "", nextCursor: null, hasMore: false,
+        loading: false, listLoading: false, listMessage: "", listError: false,
+        customers: [], customerLabels: ["请选择现有客户"], customerPickerIndex: 0, selectedCustomerCode: "",
         duplicateMatches: [], candidate: null, photoUrl: "", photoReady: false, photoLoading: false,
         manualName: "", manualBirthday: "", message: "", error: false
       };
@@ -84,54 +82,58 @@ Component({
       this.setData(reset);
       this.triggerEvent("change", { customer: null });
       if (this.data.mode !== "select") return;
-      const request = {
-        storeId,
-        cursor: null,
-        append: false,
-        requestEpoch
-      };
-      this._customerListPromise = this.loadCustomerPage(request);
+      this._customerListPromise = this.loadAllCustomers({ storeId, requestEpoch });
       return this._customerListPromise;
     },
-    async loadCustomerPage(request) {
+    async loadAllCustomers(request) {
       const storeId = String(request.storeId || "");
       const requestEpoch = Number(request.requestEpoch || 0);
-      const append = request.append === true;
-      const cursor = customerCursor(request.cursor);
-      const requestKey = `${requestEpoch}:${storeId}:${cursorKey(cursor)}`;
-      if (!storeId || this._customerPageRequestKey === requestKey) return;
-      this._customerPageRequestKey = requestKey;
-      this.setData(append ? { listLoadingMore: true } : { listLoading: true });
+      if (!storeId) return;
+      const seenCursors = new Set();
+      let cursor = null;
+      let customers = [];
+      this.setData({ listLoading: true, listMessage: "正在读取本门店全部活跃客户…", listError: false });
       try {
-        const payload = { storeId, limit: 100 };
-        if (cursor) payload.cursor = { ...cursor };
-        const result = await callFace("listActiveStoreCustomers", payload);
+        while (true) {
+          const payload = { storeId, limit: 100 };
+          if (cursor) payload.cursor = { ...cursor };
+          const result = await callFace("listActiveStoreCustomers", payload);
+          if (!this.isCurrentListRequest({ storeId, requestEpoch })) return;
+          customers = mergeCustomers(customers, result.customers || []);
+          this.setData({ listMessage: `正在读取本门店全部活跃客户（已读取 ${customers.length} 位）…` });
+          if (result.hasMore !== true) break;
+          const nextCursor = customerCursor(result.nextCursor);
+          const nextCursorKey = cursorKey(nextCursor);
+          if (!nextCursorKey || nextCursorKey === cursorKey(cursor) || seenCursors.has(nextCursorKey)) {
+            throw new Error("客户分页信息无效，无法确认已读取全部客户，请重新进入页面后重试");
+          }
+          seenCursors.add(nextCursorKey);
+          cursor = nextCursor;
+        }
         if (!this.isCurrentListRequest({ storeId, requestEpoch })) return;
-        const incoming = mergeCustomers([], result.customers || []);
-        const customers = mergeCustomers(append ? this.data.customers : [], incoming);
-        const nextCursor = customerCursor(result.nextCursor);
-        const validProgress = !nextCursor || cursorKey(nextCursor) !== cursorKey(cursor);
-        const hasMore = Boolean(result.hasMore && nextCursor && validProgress);
         this.setData({
           customers,
-          nextCursor: hasMore ? nextCursor : null,
-          hasMore,
-          listMessage: result.hasMore && !hasMore ? "客户分页信息无效，已停止继续加载，请重试" : "",
-          listError: Boolean(result.hasMore && !hasMore)
+          customerLabels: [
+            customers.length ? `请选择现有客户（共 ${customers.length} 位）` : "本门店暂无活跃客户",
+            ...customers.map((item) => `${item.customerName} · ${item.birthDate}`)
+          ],
+          customerPickerIndex: 0,
+          selectedCustomerCode: "",
+          listMessage: "",
+          listError: false
         });
       } catch (error) {
         if (this.isCurrentListRequest({ storeId, requestEpoch })) {
           this.setData({
-            ...(append ? {} : { customers: [], nextCursor: null, hasMore: false, selectedCustomerCode: "" }),
-            listMessage: error.message || (append ? "继续加载客户失败，请再次滑到底部重试" : "客户读取失败"),
+            customers: [], customerLabels: ["客户数据读取失败"], customerPickerIndex: 0, selectedCustomerCode: "",
+            listMessage: error.message || "无法读取本门店全部活跃客户，请重新进入页面后重试",
             listError: true
           });
         }
       } finally {
-        if (this._customerPageRequestKey === requestKey) this._customerPageRequestKey = "";
         if (this.isCurrentListRequest({ storeId, requestEpoch })) {
-          if (!append) this._customerListStoreId = "";
-          this.setData(append ? { listLoadingMore: false } : { listLoading: false });
+          this._customerListStoreId = "";
+          this.setData({ listLoading: false });
         }
       }
     },
@@ -140,28 +142,16 @@ Component({
         && String(this.properties.storeId || "") === String(request.storeId || "")
         && this.data.mode === "select";
     },
-    loadMoreCustomers() {
-      const storeId = String(this.properties.storeId || "");
-      const cursor = customerCursor(this.data.nextCursor);
-      if (this.data.mode !== "select" || !storeId || this.data.listLoading || this.data.listLoadingMore || !this.data.hasMore || !cursor) return undefined;
-      return this.loadCustomerPage({
-        storeId,
-        cursor: { ...cursor },
-        append: true,
-        requestEpoch: this._customerListRequestEpoch
-      });
-    },
     changeMode(event) {
       const mode = String(event.currentTarget.dataset.mode || "");
       if (!['select', 'manual'].includes(mode) || mode === this.data.mode) return;
       this._customerListRequestEpoch = (this._customerListRequestEpoch || 0) + 1;
       this._manualSearchRequestEpoch = (this._manualSearchRequestEpoch || 0) + 1;
       this._candidateRequestEpoch = (this._candidateRequestEpoch || 0) + 1;
-      this._customerPageRequestKey = "";
       this._customerListStoreId = "";
       this.setData({
-        mode, customers: [], selectedCustomerCode: "", nextCursor: null, hasMore: false,
-        listLoading: false, listLoadingMore: false, listMessage: "", listError: false, loading: false,
+        mode, customers: [], customerLabels: ["请选择现有客户"], customerPickerIndex: 0, selectedCustomerCode: "",
+        listLoading: false, listMessage: "", listError: false, loading: false,
         manualName: "", manualBirthday: "", duplicateMatches: [], candidate: null,
         photoUrl: "", photoReady: false, photoLoading: false, message: "", error: false
       });
@@ -182,10 +172,15 @@ Component({
       this.triggerEvent("change", { customer: null });
     },
     async selectListedCustomer(event) {
-      const code = String(event.currentTarget.dataset.code || "");
-      const selected = this.data.customers.find((item) => item.customerCode === code);
-      this.setData({ selectedCustomerCode: selected ? code : "" });
+      const pickerIndex = Math.max(0, Number(event.detail.value) || 0);
+      const selected = this.data.customers[pickerIndex - 1] || null;
+      this.setData({ customerPickerIndex: selected ? pickerIndex : 0, selectedCustomerCode: selected ? selected.customerCode : "" });
       if (selected) await this.loadCandidate(selected);
+      else {
+        this._candidateRequestEpoch = (this._candidateRequestEpoch || 0) + 1;
+        this.setData({ duplicateMatches: [], candidate: null, photoUrl: "", photoReady: false, photoLoading: false, message: "", error: false });
+        this.triggerEvent("change", { customer: null });
+      }
     },
     async manualSearch() {
       const name = String(this.data.manualName || "").trim();

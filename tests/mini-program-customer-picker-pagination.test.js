@@ -50,7 +50,7 @@ function row(customerCode, customerName, birthDate = "2000-01-01") {
   return { customerCode, customerName, birthDate };
 }
 
-test("active customer list appends cursor pages and deduplicates customer codes", async () => {
+test("active customer dropdown reads every cursor page and deduplicates customer codes", async () => {
   const calls = [];
   const firstCursor = { customerName: "乙", birthDate: "2000-01-02", customerCode: "C-2" };
   const definition = loadPicker(async (action, payload) => {
@@ -72,14 +72,11 @@ test("active customer list appends cursor pages and deduplicates customer codes"
   const { instance } = pickerInstance(definition);
 
   await instance.reload();
-  assert.deepEqual(Array.from(instance.data.customers, (item) => item.customerCode), ["C-1", "C-2"]);
-  assert.equal(instance.data.hasMore, true);
-  assert.deepEqual(JSON.parse(JSON.stringify(instance.data.nextCursor)), firstCursor);
-
-  await instance.loadMoreCustomers();
   assert.deepEqual(Array.from(instance.data.customers, (item) => item.customerCode), ["C-1", "C-2", "C-3"]);
-  assert.equal(instance.data.hasMore, false);
-  assert.equal(instance.data.nextCursor, null);
+  assert.deepEqual(Array.from(instance.data.customerLabels), [
+    "请选择现有客户（共 3 位）", "甲 · 2000-01-01", "乙 · 2000-01-02", "丙 · 2000-01-03"
+  ]);
+  assert.equal(instance.data.customerPickerIndex, 0);
   assert.deepEqual(calls, [
     { storeId: "7", limit: 100 },
     { storeId: "7", limit: 100, cursor: firstCursor }
@@ -88,43 +85,68 @@ test("active customer list appends cursor pages and deduplicates customer codes"
 
 test("store and mode changes clear the list and ignore late pagination responses", async () => {
   const latePage = deferred();
+  const latePageStarted = deferred();
   const cursor = { customerName: "甲", birthDate: "2000-01-01", customerCode: "C-1" };
   const definition = loadPicker(async (action, payload) => {
     assert.equal(action, "listActiveStoreCustomers");
-    if (payload.storeId === "7" && payload.cursor) return latePage.promise;
+    if (payload.storeId === "7" && payload.cursor) {
+      latePageStarted.resolve();
+      return latePage.promise;
+    }
     if (payload.storeId === "7") return { customers: [row("C-1", "甲")], hasMore: true, nextCursor: cursor };
     if (payload.storeId === "8") return { customers: [row("C-8", "新门店客户")], hasMore: false, nextCursor: null };
     throw new Error(`unexpected store ${payload.storeId}`);
   });
   const { instance, events } = pickerInstance(definition);
 
-  await instance.reload();
-  const oldAppend = instance.loadMoreCustomers();
+  const oldLoad = instance.reload();
+  await latePageStarted.promise;
   instance.properties.storeId = "8";
   await instance.reload();
   latePage.resolve({ customers: [row("C-OLD", "旧响应")], hasMore: false, nextCursor: null });
-  await oldAppend;
+  await oldLoad;
   assert.deepEqual(Array.from(instance.data.customers, (item) => item.customerCode), ["C-8"]);
 
   instance.changeMode({ currentTarget: { dataset: { mode: "manual" } } });
   assert.deepEqual(Array.from(instance.data.customers), []);
-  assert.equal(instance.data.nextCursor, null);
-  assert.equal(instance.data.hasMore, false);
+  assert.deepEqual(Array.from(instance.data.customerLabels), ["请选择现有客户"]);
+  assert.equal(instance.data.customerPickerIndex, 0);
   assert.equal(instance.data.selectedCustomerCode, "");
   assert.equal(events.at(-1).name, "change");
   assert.equal(events.at(-1).detail.customer, null);
 });
 
-test("customer picker renders an internal vertical infinite list and keeps exact search separate", () => {
+test("customer picker renders a native dropdown and keeps exact search separate", () => {
   const markup = read("components", "customer-picker", "index.wxml");
   const style = read("components", "customer-picker", "index.wxss");
   const source = read("components", "customer-picker", "index.js");
 
-  assert.match(markup, /<scroll-view[^>]*class="customer-list"[^>]*scroll-y[^>]*bindscrolltolower="loadMoreCustomers"/);
+  assert.match(markup, /<picker[^>]*mode="selector"[^>]*range="\{\{customerLabels\}\}"[^>]*bindchange="selectListedCustomer"/);
   assert.match(markup, /data-mode="manual"[^>]*>姓名＋生日<\/button>/);
-  assert.match(markup, /data-code="\{\{item\.customerCode\}\}"[^>]*bindtap="selectListedCustomer"/);
-  assert.match(style, /\.customer-list\s*\{[^}]*height:\s*430rpx/);
+  assert.match(markup, /点开下拉框后可上下滑动选择全部客户/);
+  assert.doesNotMatch(markup, /class="customer-list"|bindscrolltolower="loadMoreCustomers"/);
+  assert.match(style, /\.customer-select-control\s*\{[^}]*min-height:\s*84rpx/);
   assert.match(source, /callFace\("listActiveStoreCustomers", payload\)/);
   assert.match(source, /if \(cursor\) payload\.cursor = \{ \.\.\.cursor \}/);
-  assert.doesNotMatch(markup, /<picker[^>]*range="\{\{customerLabels\}\}"/);
+  assert.match(source, /while \(true\)/);
+  assert.doesNotMatch(source, /loadMoreCustomers/);
+});
+
+test("dropdown selection resolves the selected customer and loads the same photo confirmation", async () => {
+  const definition = loadPicker(async (action, payload) => {
+    if (action === "listActiveStoreCustomers") {
+      return { customers: [row("C-1", "甲"), row("C-2", "乙", "2000-02-02")], hasMore: false };
+    }
+    assert.equal(action, "getActiveStoreCustomerDetail");
+    assert.equal(payload.customerCode, "C-2");
+    return { customer: row("C-2", "乙", "2000-02-02"), photoUrl: "https://example.test/c-2.jpg" };
+  });
+  const { instance } = pickerInstance(definition);
+
+  await instance.reload();
+  await instance.selectListedCustomer({ detail: { value: "2" } });
+  assert.equal(instance.data.customerPickerIndex, 2);
+  assert.equal(instance.data.selectedCustomerCode, "C-2");
+  assert.equal(instance.data.candidate.customerCode, "C-2");
+  assert.equal(instance.data.photoUrl, "https://example.test/c-2.jpg");
 });
