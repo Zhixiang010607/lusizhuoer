@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v95";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v96";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -2251,7 +2251,12 @@ async function queryStoreCustomers(event = {}) {
                         FROM public.customers c
                        WHERE ${baseClauses.join(" AND ")}`;
   const listSql = `SELECT c.id, c.customer_code, c.customer_name, c.birth_date, c.customer_status,
-            c.customer_process_status, c.total_recharge_count, c.total_verification_count,
+            c.customer_process_status, c.total_recharge_count,
+            (SELECT COALESCE(SUM(v.unit_count), 0)::bigint
+               FROM public.verification_records v
+              WHERE v.customer_id = c.id
+                AND v.record_status = 'APPROVED'
+                AND v.verification_type = 'NORMAL') AS normal_verification_count,
             c.created_at, c.created_store_id AS store_id, s.store_name, s.store_code,
             TO_CHAR(c.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_created_at
        FROM public.customers c
@@ -2293,7 +2298,7 @@ async function queryStoreCustomers(event = {}) {
       birthDate: customer.birth_date, customerStatus: customer.customer_status,
       customerProcessStatus: customer.customer_process_status,
       totalRechargeCount: Number(customer.total_recharge_count || 0),
-      totalVerificationCount: Number(customer.total_verification_count || 0),
+      totalVerificationCount: Number(customer.normal_verification_count || 0),
       createdAt: customer.created_at, storeId: String(customer.store_id),
       storeName: customer.store_name, storeCode: customer.store_code
     })),
@@ -2741,7 +2746,12 @@ async function getStoreDashboard(event = {}) {
     ),
     executeSql(
     `SELECT c.id AS customer_id, c.customer_code, c.customer_name, c.birth_date,
-            c.customer_status, c.total_recharge_count, c.total_verification_count,
+            c.customer_status, c.total_recharge_count,
+            (SELECT COALESCE(SUM(v.unit_count), 0)::bigint
+               FROM public.verification_records v
+              WHERE v.customer_id = c.id
+                AND v.record_status = 'APPROVED'
+                AND v.verification_type = 'NORMAL') AS total_verification_count,
             COALESCE(COUNT(b.product_id) FILTER (
               WHERE b.total_recharge_count > 0 OR b.total_verification_count > 0
             ), 0) AS product_count,
@@ -2752,7 +2762,7 @@ async function getStoreDashboard(event = {}) {
       WHERE c.created_store_id = ${storeId}::bigint
         AND c.customer_status = 'ACTIVE'
       GROUP BY c.id, c.customer_code, c.customer_name, c.birth_date,
-               c.customer_status, c.total_recharge_count, c.total_verification_count,
+               c.customer_status, c.total_recharge_count,
                c.latest_recharge_at, c.latest_verification_at
       ORDER BY c.created_at DESC, c.id DESC
       LIMIT ${customerPageSize} OFFSET ${customerOffset}`
@@ -2765,7 +2775,12 @@ async function getStoreDashboard(event = {}) {
     ),
     executeSql(
     `SELECT c.id AS customer_id, c.customer_code, c.customer_name, c.birth_date,
-            c.customer_status, c.total_recharge_count, c.total_verification_count,
+            c.customer_status, c.total_recharge_count,
+            (SELECT COALESCE(SUM(v.unit_count), 0)::bigint
+               FROM public.verification_records v
+              WHERE v.customer_id = c.id
+                AND v.record_status = 'APPROVED'
+                AND v.verification_type = 'NORMAL') AS total_verification_count,
             COALESCE(COUNT(b.product_id) FILTER (
               WHERE b.total_recharge_count > 0 OR b.total_verification_count > 0
             ), 0) AS product_count,
@@ -2776,7 +2791,7 @@ async function getStoreDashboard(event = {}) {
       WHERE c.created_store_id = ${storeId}::bigint
         AND c.customer_status = 'ARCHIVED'
       GROUP BY c.id, c.customer_code, c.customer_name, c.birth_date,
-               c.customer_status, c.total_recharge_count, c.total_verification_count,
+               c.customer_status, c.total_recharge_count,
                c.latest_recharge_at, c.latest_verification_at
       ORDER BY c.created_at DESC, c.id DESC
       LIMIT ${customerPageSize} OFFSET ${archivedCustomerOffset}`
