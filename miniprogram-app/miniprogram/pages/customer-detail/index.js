@@ -6,6 +6,7 @@ const HISTORY_LIMIT = 50;
 const MESSAGE_LIMIT = 20;
 const HISTORY_FIELDS = Object.freeze({
   RECHARGE: "recharges",
+  REFUND: "refunds",
   VERIFICATION: "verifications",
   EXPERIENCE: "experiences"
 });
@@ -14,6 +15,7 @@ function clean(value) { return String(value ?? "").trim(); }
 function freshHistoryState() {
   return {
     RECHARGE: { hasMore: false, nextCursor: null, loading: false, message: "", error: false },
+    REFUND: { hasMore: false, nextCursor: null, loading: false, message: "", error: false },
     VERIFICATION: { hasMore: false, nextCursor: null, loading: false, message: "", error: false },
     EXPERIENCE: { hasMore: false, nextCursor: null, loading: false, message: "", error: false }
   };
@@ -27,7 +29,7 @@ function businessTeacher(row = {}) {
 }
 function orderStatus(row = {}, type = "RECHARGE") {
   const status = clean(row.recordStatus).toUpperCase();
-  if (type !== "RECHARGE") {
+  if (!["RECHARGE", "REFUND"].includes(type)) {
     if (status === "VOIDED") return "历史已作废";
     const verificationType = clean(row.verificationType).toUpperCase();
     if (["NORMAL", "EXPERIENCE"].includes(verificationType) && status === "APPROVED") return "已完成";
@@ -41,9 +43,10 @@ function orderStatus(row = {}, type = "RECHARGE") {
   return base;
 }
 function mapHistoryRow(row = {}, type = "RECHARGE") {
+  const rechargeHistory = ["RECHARGE", "REFUND"].includes(type);
   const originalType = clean(row.rechargeType || row.verificationType).toUpperCase();
-  const units = Math.abs(Number(row.unitCount || (type === "RECHARGE" ? 0 : 1)));
-  const negative = type === "RECHARGE" && ["REFUND", "VOID"].includes(originalType);
+  const units = Math.abs(Number(row.unitCount || (rechargeHistory ? 0 : 1)));
+  const negative = rechargeHistory && ["REFUND", "VOID"].includes(originalType);
   return {
     ...row,
     id: clean(row.id),
@@ -51,7 +54,7 @@ function mapHistoryRow(row = {}, type = "RECHARGE") {
     originalType,
     productName: clean(row.productName) || "—",
     teacherLabel: businessTeacher(row),
-    unitLabel: `${type === "RECHARGE" ? (negative ? "−" : "+") : ""}${units} 次`,
+    unitLabel: `${rechargeHistory ? (negative ? "−" : "+") : ""}${units} 次`,
     submittedAtLabel: query.displayDate(row.submittedAt),
     statusLabel: orderStatus(row, type)
   };
@@ -100,7 +103,7 @@ Page({
   data: {
     session: {}, canManageStatus: false, canEditNotes: false,
     customerCode: "", profile: null, balances: [],
-    recharges: [], verifications: [], experiences: [],
+    recharges: [], refunds: [], verifications: [], experiences: [],
     historyType: "RECHARGE", visibleHistory: [], historyHasMore: false, historyScrollLeft: 0,
     historyLoading: false, historyMessage: "", historyError: false,
     messages: [], messageTotal: 0, messageHasMore: false,
@@ -146,7 +149,7 @@ Page({
     this._historyState = freshHistoryState();
     this.setData({
       loading: true, message: "", error: false,
-      profile: null, balances: [], recharges: [], verifications: [], experiences: [],
+      profile: null, balances: [], recharges: [], refunds: [], verifications: [], experiences: [],
       visibleHistory: [], historyHasMore: false, historyLoading: false, historyScrollLeft: 0,
       historyMessage: "", historyError: false,
       notesEditing: false, notesChanged: false, notesMessage: "", notesError: false,
@@ -175,6 +178,7 @@ Page({
         profile,
         balances: mapBalances(result.balances),
         recharges: mapHistory(result.recharges, "RECHARGE"),
+        refunds: mapHistory(result.refunds, "REFUND"),
         verifications: mapHistory(result.verifications, "VERIFICATION"),
         experiences: mapHistory(result.experiences, "EXPERIENCE"),
         notes, originalNotes: notes
@@ -326,7 +330,7 @@ Page({
     const code = clean(event.currentTarget.dataset.code);
     const historyType = clean(this.data.historyType || "RECHARGE").toUpperCase();
     const originalType = clean(event.currentTarget.dataset.originalType).toUpperCase();
-    const category = historyType === "RECHARGE"
+    const category = ["RECHARGE", "REFUND"].includes(historyType)
       ? (originalType === "REFUND" ? "REFUND" : originalType === "VOID" ? "VOID" : "RECHARGE")
       : (originalType === "EXPERIENCE" ? "EXPERIENCE" : originalType === "SUPPLEMENT" ? "SUPPLEMENT" : "VERIFICATION");
     const baseType = ["RECHARGE", "REFUND", "VOID"].includes(category) ? "recharge" : "verification";

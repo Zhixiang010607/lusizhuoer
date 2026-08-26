@@ -91,7 +91,9 @@
 
   function drawLabelValueCard(context, item, x, y, width, draw) {
     setFont(context, 19, 500);
-    const valueLines = wrapLines(context, text(item.value), width - 32);
+    const singleLine = item && item.singleLine === true;
+    const value = singleLine ? text(item.value).replace(/\s+/g, " ") : text(item.value);
+    const valueLines = singleLine ? [value] : wrapLines(context, value, width - 32);
     const height = Math.max(86, 48 + valueLines.length * 29);
     if (draw) {
       context.fillStyle = RECEIPT_COLORS.panel;
@@ -104,13 +106,28 @@
       setFont(context, 16, 500);
       context.textBaseline = "top";
       context.fillText(text(item.label), x + 16, y + 14);
-      drawWrappedText(context, text(item.value), x + 16, y + 40, width - 32, {
-        draw: true,
-        size: 19,
-        lineHeight: 29,
-        weight: 700,
-        color: RECEIPT_COLORS.title
-      });
+      if (singleLine) {
+        const maxWidth = width - 32;
+        setFont(context, 19, 700);
+        const measured = Math.max(1, context.measureText(value).width);
+        const fittedSize = Math.max(9, Math.min(19, Math.floor(19 * maxWidth / measured)));
+        context.save();
+        roundedRect(context, x + 14, y + 36, maxWidth + 4, 34, 0);
+        context.clip();
+        context.fillStyle = RECEIPT_COLORS.title;
+        setFont(context, fittedSize, 700);
+        context.textBaseline = "top";
+        context.fillText(value, x + 16, y + 40, maxWidth);
+        context.restore();
+      } else {
+        drawWrappedText(context, value, x + 16, y + 40, width - 32, {
+          draw: true,
+          size: 19,
+          lineHeight: 29,
+          weight: 700,
+          color: RECEIPT_COLORS.title
+        });
+      }
     }
     return height;
   }
@@ -218,6 +235,44 @@
       row.forEach((item, column) => drawLabelValueCard(context, item, PAGE_MARGIN + column * (width + gap), y, width, draw));
       y += rowHeight + 14;
     }
+    return y;
+  }
+
+  function drawProductGiftCard(context, item, index, y, draw, paginate) {
+    const height = 86;
+    y = ensureSpace(y, height + 14, paginate);
+    if (draw) {
+      context.fillStyle = RECEIPT_COLORS.panel;
+      context.strokeStyle = RECEIPT_COLORS.border;
+      context.lineWidth = 1;
+      roundedRect(context, PAGE_MARGIN, y, CONTENT_WIDTH, height, 12);
+      context.fill();
+      context.stroke();
+
+      const quantityWidth = 150;
+      const textWidth = CONTENT_WIDTH - quantityWidth - 54;
+      context.fillStyle = RECEIPT_COLORS.title;
+      setFont(context, 20, 800);
+      context.textBaseline = "middle";
+      context.fillText(text(item.productName, `赠予产品 ${index + 1}`), PAGE_MARGIN + 18, y + height / 2, textWidth);
+      context.fillStyle = RECEIPT_COLORS.accent;
+      setFont(context, 22, 900);
+      context.textAlign = "right";
+      context.textBaseline = "middle";
+      context.fillText(`${Math.max(0, Number(item.unitCount) || 0)} 件`, PAGE_MARGIN + CONTENT_WIDTH - 20, y + height / 2);
+      context.textAlign = "left";
+      context.textBaseline = "top";
+    }
+    return y + height + 14;
+  }
+
+  function drawProductGifts(context, productGifts, y, draw, paginate) {
+    const gifts = Array.isArray(productGifts) ? productGifts : [];
+    if (!gifts.length) return y;
+    y += 16;
+    y = ensureSpace(y, 70 + 100, paginate);
+    y = drawSectionHeading(context, "赠予产品", "本次充值随单赠予的产品名称与数量", y, draw);
+    gifts.forEach((gift, index) => { y = drawProductGiftCard(context, gift, index, y, draw, paginate); });
     return y;
   }
 
@@ -365,6 +420,7 @@
       y = drawSectionHeading(context, documentData.detailTitle || "工单信息", documentData.detailSubtitle, y, draw);
       const details = documentData.details || [];
       y = drawInfoGrid(context, details, y, draw, paginate, details.length === 3 ? 3 : 2);
+      y = drawProductGifts(context, documentData.productGifts, y, draw, paginate);
     }
 
     const messages = Array.isArray(documentData.messages) ? documentData.messages : [];

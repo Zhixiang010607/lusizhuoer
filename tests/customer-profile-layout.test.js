@@ -26,13 +26,15 @@ assert.match(css, /\.customer-notes-title-row \{[^}]*display: flex;[^}]*align-it
 assert.match(html, /class="customer-notes-messages-grid"[\s\S]*customer-notes-panel[\s\S]*customer-messages-panel/, "customer notes and messages must share the same layout row");
 assert.match(ui, /action:"updateCustomerNotes"/, "customer notes must save through the database service");
 assert.match(ui, /const canEditNotes = \["hq", "store", "teacher"\]/, "HQ, store and teacher may edit customer notes");
-assert.match(html, /customer-profile\.js\?v=0\.15\.13/, "customer business-teacher display must bust the profile script cache");
+assert.match(html, /customer-profile\.js\?v=0\.15\.14/, "customer business-teacher display must bust the profile script cache");
+assert.match(html, /id="customerRefundRecords"/, "refund records must have an independent customer-profile table");
 assert.match(ui, /EXPERIENCE:\s*\{ hasMore:false/, "experience records must paginate independently");
 assert.match(cloud, /async function updateCustomerNotes\(event\)/, "cloud function must persist customer notes");
 assert.match(cloud, /async function updateCustomerNotes\(event\) \{[\s\S]*await activeCustomerProfileCaller\(\)[\s\S]*findCustomerForNotes/, "note writes must use the teacher-aware customer profile scope");
 assert.match(cloud, /UPDATE public\.customers AS c[\s\S]*\$\{customerProfileScope\(caller, "c"\)\}[\s\S]*COALESCE\(c\.notes, ''\)/, "teacher note writes remain limited to linked customers through a valid SQL alias");
-assert.match(cloud, /\["RECHARGE", "VERIFICATION", "EXPERIENCE"\]/, "customer history API must accept experience history");
-assert.equal((html.match(/<th>业务老师<\/th>/g) || []).length, 3, "recharge, verification and experience histories must display a business-teacher column");
+assert.match(cloud, /\["RECHARGE", "REFUND", "VERIFICATION", "EXPERIENCE"\]/, "customer history API must paginate recharge and refund independently");
+assert.match(cloud, /r\.recharge_type = '\$\{refundOnly \? "REFUND" : "NEW"\}'/, "recharge and refund rows must be split by the server query");
+assert.equal((html.match(/<th>业务老师<\/th>/g) || []).length, 4, "recharge, refund, verification and experience histories must display a business-teacher column");
 assert.match(ui, /function businessTeacher\(row\)[\s\S]*row\?\.teacherName[\s\S]*row\?\.teacherCode/, "customer histories must render only the server-provided business teacher");
 assert.match(cloud, /LEFT JOIN public\.teachers business_teacher[\s\S]*business_teacher\.id = r\.teacher_id/, "recharge history must display the teacher selected on the order");
 assert.match(cloud, /LEFT JOIN public\.teachers business_teacher[\s\S]*business_teacher\.id = v\.teacher_id/, "verification and experience history must display the teacher selected on the order");

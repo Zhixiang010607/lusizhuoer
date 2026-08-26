@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.24";
+  const VERSION = "0.16.25";
   const PRODUCT_LOGO_DETAIL_RETRY_DELAYS_MS = Object.freeze([0, 360, 1080]);
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
@@ -355,7 +355,7 @@
   function exportDocumentData(record, loadedTemplate = currentProductTemplate) {
     const recharge = type === "recharge";
     const refund = recharge && first(record.originalType, record.rechargeType).toUpperCase() === "REFUND";
-    const facts = Array.from($("orderKeyfacts")?.children || []).map((element) => ({
+    const screenFacts = Array.from($("orderKeyfacts")?.children || []).map((element) => ({
       label: elementText(element, "span"),
       value: elementText(element, "strong")
     }));
@@ -363,14 +363,15 @@
       label: elementText(element, "span"),
       value: elementText(element, "strong")
     }));
-    if (recharge) {
-      normalizeProductGifts(record?.productGifts).forEach((gift, index) => {
-        details.push({ label: `赠予产品 ${index + 1}`, value: `${gift.productName}${gift.productCode ? ` · ${gift.productCode}` : ""} × ${gift.unitCount} 件` });
-      });
-    }
-    const verificationFacts = facts.filter((item) => ["门店", "客户", "项目", "业务老师"].includes(item.label));
+    const factMap = new Map(screenFacts.map((item) => [item.label, item]));
+    const rechargeFacts = ["客户", "项目", "门店", "业务老师"].map((label) => ({
+      label,
+      value: factMap.get(label)?.value || "—",
+      singleLine: true
+    }));
+    const verificationFacts = screenFacts.filter((item) => ["门店", "客户", "项目", "业务老师"].includes(item.label));
     const submittedAt = details.find((item) => item.label === "提交时间")?.value
-      || facts.find((item) => item.label === "提交时间")?.value
+      || screenFacts.find((item) => item.label === "提交时间")?.value
       || "—";
     const messages = [];
     const customerName = first(record.customerName, record.customerCode, "客户");
@@ -383,12 +384,13 @@
       subtitle: recharge
         ? (clean($("orderDescription")?.textContent) || "业务工单完整导出")
         : `${clean($("orderDescription")?.textContent) || "门店详细地址：未填写"} · 提交时间：${submittedAt}`,
-      facts: recharge ? facts : verificationFacts,
+      facts: recharge ? rechargeFacts : verificationFacts,
       customerFacing: true,
       compactVerification: !recharge,
       detailTitle: refund ? "退费信息" : recharge ? "充值信息" : "核销信息",
       detailSubtitle: refund ? "退费次数与办理时间" : recharge ? "充值次数与办理时间" : "该工单数据库中保存的完整业务内容",
       details: recharge ? details : [],
+      productGifts: recharge ? normalizeProductGifts(record?.productGifts) : [],
       messages,
       productTemplate: {
         productName: first(template.productName, record.projectName, record.productName, "产品"),

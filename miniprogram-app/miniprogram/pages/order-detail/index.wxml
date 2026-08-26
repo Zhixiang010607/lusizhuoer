@@ -17,8 +17,6 @@
         <view><text>次数</text><text class="detail-value">{{order.unitCount}} 次</text></view>
         <view><text>提交时间</text><text class="detail-value">{{order.submittedAt}}</text></view>
         <view wx:if="{{baseType === 'RECHARGE' || order.originalType === 'SUPPLEMENT'}}"><text>审核时间</text><text class="detail-value">{{order.reviewedAt}}</text></view>
-        <view wx:if="{{baseType === 'RECHARGE'}}"><text>业务前余额</text><text class="detail-value">{{order.balanceBeforeLabel}}</text></view>
-        <view wx:if="{{baseType === 'RECHARGE'}}"><text>业务后余额</text><text class="detail-value">{{order.balanceAfterLabel}}</text></view>
       </view>
     </view>
 

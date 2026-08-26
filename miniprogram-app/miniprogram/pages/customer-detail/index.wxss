@@ -61,7 +61,7 @@
 .table-head { color: #675b4b; background: #f5ead8; font-weight: 800; }
 .balance-count { color: #76592f; font-weight: 850; }
 
-.history-tabs { margin-bottom: 14rpx; }
+.history-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 14rpx; }
 .history-tabs button { min-width: 0; display: flex; align-items: center; justify-content: center; padding: 0 6rpx; font-size: 22rpx; line-height: 1.2; text-align: center; white-space: nowrap; }
 .record-table { width: 100%; background: #fffaf3; }
 .record-table.recharge-history, .record-table.recharge-history .record-row { min-width: 950rpx; }

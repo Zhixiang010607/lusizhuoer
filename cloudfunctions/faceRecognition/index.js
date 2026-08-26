@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v92";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v93";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -1636,7 +1636,7 @@ function customerHistoryOptions(event = {}) {
     ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100)
     : 50;
   const type = String(event.historyType || "").trim().toUpperCase();
-  if (type && !["RECHARGE", "VERIFICATION", "EXPERIENCE"].includes(type)) fail("客户历史类型无效。", "BAD_REQUEST");
+  if (type && !["RECHARGE", "REFUND", "VERIFICATION", "EXPERIENCE"].includes(type)) fail("客户历史类型无效。", "BAD_REQUEST");
   const cursorSubmittedAt = scopedQueryCursorTimestamp(event.cursorSubmittedAt, "客户历史游标时间");
   const cursorId = String(event.cursorId || "").trim();
   if ((cursorSubmittedAt || cursorId) && !type) fail("客户历史游标必须指定记录类型。", "BAD_REQUEST");
@@ -1709,7 +1709,7 @@ async function getCustomerProfile(event) {
   const cursorSql = historyOptions.cursorSubmittedAt
     ? (alias) => `AND (${alias}.submitted_at, ${alias}.id) < (${sqlText(historyOptions.cursorSubmittedAt)}::timestamptz, ${historyOptions.cursorId}::bigint)`
     : () => "";
-  const rechargeSql = `SELECT r.id, r.recharge_code, r.recharge_type, r.unit_count,
+  const rechargeSql = (refundOnly = false) => `SELECT r.id, r.recharge_code, r.recharge_type, r.unit_count,
                r.balance_before_count, r.balance_after_count,
                r.record_status, r.void_request_status, r.submitted_at, r.reviewed_at,
                TO_CHAR(r.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_submitted_at,
@@ -1723,7 +1723,8 @@ async function getCustomerProfile(event) {
             ON business_teacher.id = r.teacher_id
            AND ${teacherBusinessAttributionSourceCondition("r", "RECHARGE")}
          WHERE r.customer_id = ${sqlText(customerId)}::bigint
-           ${historyOptions.type === "RECHARGE" ? cursorSql("r") : ""}
+           AND r.recharge_type = '${refundOnly ? "REFUND" : "NEW"}'
+           ${historyOptions.type === (refundOnly ? "REFUND" : "RECHARGE") ? cursorSql("r") : ""}
          ORDER BY r.submitted_at DESC, r.id DESC
          LIMIT ${historyOptions.limit + 1}`;
   const verificationSql = (experienceOnly = false) => `SELECT v.id, v.verification_code, v.verification_type, v.unit_count,
@@ -1745,18 +1746,20 @@ async function getCustomerProfile(event) {
          LIMIT ${historyOptions.limit + 1}`;
 
   if (historyOptions.type) {
-    const historyRows = await executeSql(historyOptions.type === "RECHARGE"
-      ? rechargeSql
+    const rechargeHistory = ["RECHARGE", "REFUND"].includes(historyOptions.type);
+    const historyRows = await executeSql(rechargeHistory
+      ? rechargeSql(historyOptions.type === "REFUND")
       : verificationSql(historyOptions.type === "EXPERIENCE"));
     const historyPage = customerHistoryPage(historyRows, historyOptions.limit);
-    if (historyOptions.type === "RECHARGE") {
-      return { ok: true, recharges: mapCustomerRecharges(historyPage.rows), history: { recharges: historyPage.page } };
+    if (rechargeHistory) {
+      const field = historyOptions.type === "REFUND" ? "refunds" : "recharges";
+      return { ok: true, [field]: mapCustomerRecharges(historyPage.rows), history: { [field]: historyPage.page } };
     }
     const field = historyOptions.type === "EXPERIENCE" ? "experiences" : "verifications";
     return { ok: true, [field]: mapCustomerVerifications(historyPage.rows), history: { [field]: historyPage.page } };
   }
 
-  const [balances, rechargeRows, verificationRows, experienceRows] = await Promise.all([
+  const [balances, rechargeRows, refundRows, verificationRows, experienceRows] = await Promise.all([
     executeSql(
       `SELECT p.id AS product_id, p.product_code, p.product_name, p.product_status,
               b.total_recharge_count, b.total_verification_count, b.remaining_count, b.updated_at
@@ -1765,11 +1768,13 @@ async function getCustomerProfile(event) {
         WHERE b.customer_id = ${sqlText(customerId)}::bigint
         ORDER BY p.product_name, p.product_code`
     ),
-    executeSql(rechargeSql),
+    executeSql(rechargeSql(false)),
+    executeSql(rechargeSql(true)),
     executeSql(verificationSql(false)),
     executeSql(verificationSql(true))
   ]);
   const rechargePage = customerHistoryPage(rechargeRows, historyOptions.limit);
+  const refundPage = customerHistoryPage(refundRows, historyOptions.limit);
   const verificationPage = customerHistoryPage(verificationRows, historyOptions.limit);
   const experiencePage = customerHistoryPage(experienceRows, historyOptions.limit);
   return {
@@ -1795,9 +1800,10 @@ async function getCustomerProfile(event) {
       remainingCount: Number(row.remaining_count || 0), updatedAt: row.updated_at
     })),
     recharges: mapCustomerRecharges(rechargePage.rows),
+    refunds: mapCustomerRecharges(refundPage.rows),
     verifications: mapCustomerVerifications(verificationPage.rows),
     experiences: mapCustomerVerifications(experiencePage.rows),
-    history: { recharges: rechargePage.page, verifications: verificationPage.page, experiences: experiencePage.page }
+    history: { recharges: rechargePage.page, refunds: refundPage.page, verifications: verificationPage.page, experiences: experiencePage.page }
   };
 }
 

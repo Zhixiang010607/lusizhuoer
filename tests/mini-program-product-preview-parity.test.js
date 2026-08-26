@@ -38,10 +38,13 @@ test("product sample facts match the web mobile preview for verification and rec
   assert.equal(recharge.kind, "充值 / 退费");
   assert.equal(recharge.title, "充值单 SAMPLE001");
   assert.equal(recharge.compactVerification, false);
-  assert.deepEqual(recharge.facts.map((item) => item.label), ["客户", "门店", "项目", "业务老师"]);
+  assert.deepEqual(recharge.facts.map((item) => item.label), ["客户", "项目", "门店", "业务老师"]);
   assert.deepEqual(recharge.facts[0], {
-    label: "客户", value: "示例客户 · C1-SAMPLE001", singleLine: true, span: 2
-  }, "recharge samples reserve a full row for the complete customer identity");
+    label: "客户", value: "示例客户 · C1-SAMPLE001", singleLine: true
+  }, "recharge samples place the complete customer identity beside the project");
+  assert.deepEqual(recharge.facts[1], {
+    label: "项目", value: "海洋之蕴", singleLine: true
+  });
   assert.deepEqual(recharge.details, [
     { label: "充值次数", value: "10 次" },
     { label: "提交时间", value: "2026-08-19 12:34:56" },
@@ -135,8 +138,8 @@ test("native receipt renderer preserves the web A4 and long-image geometry", asy
     "every A4 product-preview page must draw the shared Lusizhuoer background exactly once");
   assert.deepEqual(customerIdentityDraws.map((item) => item.value), ["示例客户 · C1-SAMPLE001"],
     "the customer name and number are painted once instead of wrapped into multiple lines");
-  assert.ok(customerIdentityDraws[0].maxWidth > 1000 && customerIdentityDraws[0].maxWidth < 1200,
-    "the one-line customer identity owns the full receipt width without crossing its card");
+  assert.ok(customerIdentityDraws[0].maxWidth > 480 && customerIdentityDraws[0].maxWidth < 540,
+    "the one-line customer identity stays inside the left half-row beside the project");
 });
 
 test("PDF writer creates true multi-page A4 output instead of one tall page", () => {

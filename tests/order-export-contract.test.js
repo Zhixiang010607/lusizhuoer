@@ -75,7 +75,7 @@ assert.ok(twoPagePdf.includes("xref\n0 9"), "multi-page PDF xref count");
 for (const html of [rechargeHtml, verificationHtml]) {
   includes(html, 'id="exportOrderPdf"', "PDF export button");
   includes(html, 'id="exportOrderImage"', "image export button");
-  assert.ok(html.indexOf("order-export.js?v=0.1.7") < html.indexOf("business-detail.js?v=0.16.24"), "exporter must load before detail controller");
+  assert.ok(html.indexOf("order-export.js?v=0.1.8") < html.indexOf("business-detail.js?v=0.16.25"), "exporter must load before detail controller");
 }
 
 includes(verificationHtml, 'class="verification-order-keyfacts verification-order-five-keyfacts"', "verification detail uses a five-fact header");
@@ -114,10 +114,12 @@ includes(detailSource, "customerFacing: true", "all downloaded orders use the cu
 includes(detailSource, "const messages = [];", "all downloaded orders omit internal messages");
 includes(detailSource, '[["充值次数", rechargeCountLabel], ["提交时间", submittedAt], ["审核时间", reviewedAt]]', "recharge screen and export keep only count and two timestamps");
 includes(detailSource, '[["退费次数", rechargeCountLabel], ["提交时间", submittedAt], ["审核时间", reviewedAt]]', "refund screen and export keep only count and two timestamps");
-includes(detailSource, "facts: recharge ? facts : verificationFacts", "verification PDF keeps only the customer-facing business facts including address");
+includes(detailSource, 'const rechargeFacts = ["客户", "项目", "门店", "业务老师"]', "recharge PDF keeps customer and project on the first row, then store and teacher");
+includes(detailSource, "facts: recharge ? rechargeFacts : verificationFacts", "verification PDF keeps only the customer-facing business facts including address");
 includes(detailSource, "details: recharge ? details : []", "verification PDF removes repeated detail grid and unit count");
+includes(detailSource, "productGifts: recharge ? normalizeProductGifts(record?.productGifts) : []", "only recharge exports may carry a separate product gift section");
 includes(detailSource, "· 提交时间：${submittedAt}`", "verification PDF keeps submission time after the store address");
-includes(detailSource, 'facts.find((item) => item.label === "提交时间")?.value', "verification PDF reads submission time from the compact screen header");
+includes(detailSource, 'screenFacts.find((item) => item.label === "提交时间")?.value', "verification PDF reads submission time from the compact screen header");
 const exportDataSource = detailSource.slice(detailSource.indexOf("function exportDocumentData"), detailSource.indexOf("async function fetchVerificationPhotoUrlBlob"));
 assert.ok(!/verification(Store|Hq)Message|recharge(Store|Hq)Message/.test(exportDataSource), "customer PDFs never read any internal message");
 const exportCurrentOrderSource = detailSource.slice(detailSource.indexOf("async function exportCurrentOrder"), detailSource.indexOf("function isVoidableOriginalType"));
@@ -190,6 +192,32 @@ assert.ok(multilineInstructionTexts.includes("产品说明"), "product instructi
 for (const line of ["5、疗程后保持清洁。", "7、疗程后坚持护理。", "7、三个月内注意饮食。"]) {
   assert.ok(multilineInstructionTexts.includes(line), `product instructions preserve manual line break: ${line}`);
 }
+
+const noGiftStart = headerTexts.length;
+exporter.__layoutDocument(headerContext, {
+  kind: "充值申请", title: "充值单 RC-NO-GIFT", subtitle: "测试",
+  facts: [], details: [
+    { label: "充值次数", value: "10 次" },
+    { label: "提交时间", value: "2026-08-26 22:46" },
+    { label: "审核时间", value: "—" }
+  ], productGifts: [], messages: []
+}, [], { draw: true, paginate: false });
+assert.ok(!headerTexts.slice(noGiftStart).includes("赠予产品"), "giftless recharge exports omit the whole gift section");
+
+const giftStart = headerTexts.length;
+exporter.__layoutDocument(headerContext, {
+  kind: "充值申请", title: "充值单 RC-WITH-GIFT", subtitle: "测试",
+  facts: [], details: [
+    { label: "充值次数", value: "10 次" },
+    { label: "提交时间", value: "2026-08-26 22:46" },
+    { label: "审核时间", value: "2026-08-26 22:50" }
+  ], productGifts: [{ productName: "面霜", productCode: "PDT001", unitCount: 2 }], messages: []
+}, [], { draw: true, paginate: false });
+const giftTexts = headerTexts.slice(giftStart);
+for (const expected of ["赠予产品", "面霜", "2 件"]) {
+  assert.ok(giftTexts.includes(expected), `separate gift section includes ${expected}`);
+}
+assert.ok(!giftTexts.includes("PDT001"), "printed recharge receipts omit gift product numbers");
 
 (async () => {
   const fivePhotos = Array.from({ length: 5 }, (_, slot) => ({

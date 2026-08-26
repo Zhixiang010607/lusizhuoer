@@ -42,9 +42,9 @@ test("migration 061 stores immutable recharge gifts with parent scope and active
   assert.match(read("database/cloudbase-console/061-README.md"), /8 行[\s\S]*READY/);
 });
 
-test("faceRecognition v92 validates and atomically creates recharge gifts", () => {
+test("faceRecognition v93 validates and atomically creates recharge gifts", () => {
   const cloud = read("cloudfunctions/faceRecognition/index.js");
-  assert.match(cloud, /PHOTO_ONLY_FUNCTION \? "v9" : "v92"/);
+  assert.match(cloud, /PHOTO_ONLY_FUNCTION \? "v9" : "v93"/);
   const list = section(cloud, "async function listActiveRetailProducts", "function normalizeRechargeProductGifts");
   assert.match(list, /activeBusinessCaller\(event\)/);
   assert.match(list, /FROM public\.retail_products[\s\S]*product_status = 'ACTIVE'/);
@@ -127,17 +127,30 @@ test("mini recharge gift flow and customer confirmation are centered and removab
   assert.match(confirm, /line-height: 1/);
 });
 
-test("recharge detail and exports preserve gift name, code and quantity", () => {
+test("recharge detail keeps gift traceability while exports use name and quantity only", () => {
   const web = read("business-detail.js");
   const mini = read("miniprogram-app/miniprogram/pages/order-detail/index.js");
   const miniPage = read("miniprogram-app/miniprogram/pages/order-detail/index.wxml");
+  const webRenderer = read("order-export.js");
+  const miniRenderer = read("miniprogram-app/miniprogram/services/order-receipt.js");
   for (const source of [web, mini]) {
     assert.match(source, /function normalizeProductGifts/);
     assert.match(source, /productGifts/);
-    assert.match(source, /赠予产品/);
     assert.match(source, /productCode/);
     assert.match(source, /unitCount/);
   }
+  for (const renderer of [webRenderer, miniRenderer]) {
+    assert.match(renderer, /function drawProductGifts/);
+    assert.match(renderer, /drawSectionHeading\(context, "赠予产品"/);
+    assert.match(renderer, /if \(!gifts\.length\) return y;/);
+  }
+  const webGiftCard = webRenderer.slice(webRenderer.indexOf("function drawProductGiftCard"), webRenderer.indexOf("function drawProductGifts"));
+  const miniGiftCard = miniRenderer.slice(miniRenderer.indexOf("function drawProductGiftCard"), miniRenderer.indexOf("function drawProductGifts"));
+  assert.doesNotMatch(webGiftCard, /productCode|历史产品/);
+  assert.doesNotMatch(miniGiftCard, /productCode|历史产品/);
+  assert.match(web, /const rechargeFacts = \["客户", "项目", "门店", "业务老师"\]/);
+  assert.match(mini, /const facts = recharge \? \[[\s\S]*label: "客户"[\s\S]*label: "项目"[\s\S]*label: "门店"[\s\S]*label: "业务老师"/);
+  assert.doesNotMatch(miniPage, /业务前余额|业务后余额/);
   assert.match(read("recharge-detail.html"), /id="rechargeProductGiftsPanel"/);
   assert.match(web, /panel\.hidden = !gifts\.length/,
     "the web order must hide the complete gift section when no gifts exist");

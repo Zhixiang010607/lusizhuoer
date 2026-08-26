@@ -40,13 +40,18 @@ function createProductSampleDocument(options = {}) {
   const verification = kind.startsWith("verification");
   const productName = text(template.productName, "示例产品");
   const instructions = String((verification ? options.verificationInstructions : options.rechargeInstructions) || "").trim();
-  const facts = [
+  const facts = verification ? [
     { label: "客户", value: "示例客户 · C1-SAMPLE001", singleLine: true, span: 2 },
     { label: "门店", value: "示例门店" },
     { label: "项目", value: productName },
-    { label: "业务老师", value: "示例老师" }
+    { label: "业务老师", value: "示例老师" },
+    { label: "提交时间", value: "2026-08-19 12:34:56" }
+  ] : [
+    { label: "客户", value: "示例客户 · C1-SAMPLE001", singleLine: true },
+    { label: "项目", value: productName, singleLine: true },
+    { label: "门店", value: "示例门店", singleLine: true },
+    { label: "业务老师", value: "示例老师", singleLine: true }
   ];
-  if (verification) facts.push({ label: "提交时间", value: "2026-08-19 12:34:56" });
   return {
     filename: `${productName}-${verification ? "核销单" : "充值单"}-样例`,
     kind: verification ? "正常核销 / 体验核销" : "充值 / 退费",
@@ -296,6 +301,44 @@ function drawInfoGrid(context, items, y, draw, paginate, columns = 2) {
   return y;
 }
 
+function drawProductGiftCard(context, item, index, y, draw, paginate) {
+  const height = 86;
+  y = ensureSpace(y, height + 14, paginate);
+  if (draw) {
+    context.fillStyle = RECEIPT_COLORS.panel;
+    context.strokeStyle = RECEIPT_COLORS.border;
+    context.lineWidth = 1;
+    roundedRect(context, PAGE_MARGIN, y, CONTENT_WIDTH, height, 12);
+    context.fill();
+    context.stroke();
+
+    const quantityWidth = 150;
+    const textWidth = CONTENT_WIDTH - quantityWidth - 54;
+    context.fillStyle = RECEIPT_COLORS.title;
+    setFont(context, 20, 800);
+    context.textBaseline = "middle";
+    context.fillText(text(item.productName, `赠予产品 ${index + 1}`), PAGE_MARGIN + 18, y + height / 2, textWidth);
+    context.fillStyle = RECEIPT_COLORS.accent;
+    setFont(context, 22, 900);
+    context.textAlign = "right";
+    context.textBaseline = "middle";
+    context.fillText(`${Math.max(0, Number(item.unitCount) || 0)} 件`, PAGE_MARGIN + CONTENT_WIDTH - 20, y + height / 2);
+    context.textAlign = "left";
+    context.textBaseline = "top";
+  }
+  return y + height + 14;
+}
+
+function drawProductGifts(context, productGifts, y, draw, paginate) {
+  const gifts = Array.isArray(productGifts) ? productGifts : [];
+  if (!gifts.length) return y;
+  y += 16;
+  y = ensureSpace(y, 70 + 100, paginate);
+  y = drawSectionHeading(context, "赠予产品", "本次充值随单赠予的产品名称与数量", y, draw);
+  gifts.forEach((gift, index) => { y = drawProductGiftCard(context, gift, index, y, draw, paginate); });
+  return y;
+}
+
 function drawMessageCard(context, item, y, draw, paginate) {
   const padding = 22;
   setFont(context, 19, 400);
@@ -427,6 +470,7 @@ function layoutDocument(context, documentData, photos, productLogo, options = {}
     y = drawSectionHeading(context, documentData.detailTitle || "工单信息", documentData.detailSubtitle, y, draw);
     const details = documentData.details || [];
     y = drawInfoGrid(context, details, y, draw, paginate, details.length === 3 ? 3 : 2);
+    y = drawProductGifts(context, documentData.productGifts, y, draw, paginate);
   }
 
   const messages = Array.isArray(documentData.messages) ? documentData.messages : [];

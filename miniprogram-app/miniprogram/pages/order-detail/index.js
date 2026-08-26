@@ -122,23 +122,24 @@ function receiptDocumentData(order, baseType, template) {
   const reviewVisible = recharge || supplement;
   const businessName = refund ? "退费" : recharge ? "充值" : "核销";
   const customerIdentity = [clean(source.customerName), clean(source.customerCode)].filter(Boolean).join(" · ") || "—";
-  const facts = [
+  const facts = recharge ? [
+    { label: "客户", value: customerIdentity, singleLine: true },
+    { label: "项目", value: source.productName, singleLine: true },
+    { label: "门店", value: source.storeName, singleLine: true },
+    { label: "业务老师", value: source.teacherName || "未指定", singleLine: true }
+  ] : [
     { label: "客户", value: customerIdentity, singleLine: true, span: 2 },
     { label: "门店", value: source.storeName },
     { label: "项目", value: source.productName },
-    { label: "业务老师", value: source.teacherName || "未指定" }
+    { label: "业务老师", value: source.teacherName || "未指定" },
+    { label: "提交时间", value: source.submittedAt || "—" }
   ];
-  if (!recharge) facts.push({ label: "提交时间", value: source.submittedAt || "—" });
   const details = recharge ? [
     { label: refund ? "退费次数" : "充值次数", value: `${Number(source.unitCount || 0)} 次` },
     { label: "提交时间", value: source.submittedAt || "—" },
     { label: "审核时间", value: source.reviewedAt || "—" }
   ] : [];
-  if (recharge) {
-    normalizeProductGifts(source.productGifts).forEach((gift, index) => {
-      details.push({ label: `赠予产品 ${index + 1}`, value: `${gift.productName}${gift.productCode ? ` · ${gift.productCode}` : ""} × ${gift.unitCount} 件` });
-    });
-  }
+  const productGifts = recharge ? normalizeProductGifts(source.productGifts) : [];
   const messages = [
     source.message ? { label: "提交说明", value: source.message, time: source.submittedAt || "" } : null,
     reviewVisible && source.reviewNote ? { label: "审核说明", value: source.reviewNote, time: source.reviewedAt || "" } : null,
@@ -159,6 +160,7 @@ function receiptDocumentData(order, baseType, template) {
     detailTitle: refund ? "退费信息" : recharge ? "充值信息" : "核销信息",
     detailSubtitle: refund ? "退费次数与办理时间" : recharge ? "充值次数与办理时间" : "该工单数据库中保存的完整业务内容",
     details,
+    productGifts,
     messages,
     productTemplate: {
       productName: template.productName || source.productName || "产品",

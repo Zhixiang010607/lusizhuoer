@@ -14,7 +14,7 @@ const wxss = fs.readFileSync(path.join(pageRoot, "index.wxss"), "utf8");
 
 test("mini customer profile consumes the existing cursor and message contracts", () => {
   assert.match(js, /const HISTORY_LIMIT = 50;/);
-  for (const type of ["RECHARGE", "VERIFICATION", "EXPERIENCE"]) {
+  for (const type of ["RECHARGE", "REFUND", "VERIFICATION", "EXPERIENCE"]) {
     assert.match(js, new RegExp(`${type}: \\{ hasMore: false, nextCursor: null, loading: false`));
   }
   for (const field of ["historyType: type", "historyLimit: HISTORY_LIMIT", "cursorSubmittedAt", "cursorId"]) {
@@ -81,7 +81,9 @@ test("balance and history tables have exact centered single-line column widths",
   assert.match(wxss, /\.balance-table \{ width: 660rpx; min-width: 660rpx;/);
   assert.match(wxss, /\.balance-table-row \{[^}]*width: 660rpx;[^}]*grid-template-columns: 240rpx 140rpx 140rpx 140rpx;/s);
   assert.equal(240 + 140 + 140 + 140, 660);
-  assert.match(wxml, /record-table \{\{historyType === 'RECHARGE' \? 'recharge-history' : 'compact-history'\}\}/);
+  assert.match(wxml, /historyType === 'RECHARGE' \|\| historyType === 'REFUND' \? 'recharge-history' : 'compact-history'/);
+  assert.match(wxml, /data-type="RECHARGE"[^>]*>充值<\/button>[\s\S]*data-type="REFUND"[^>]*>退费<\/button>/);
+  assert.match(wxss, /\.history-tabs \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/);
   assert.match(wxss, /\.record-table\.recharge-history, \.record-table\.recharge-history \.record-row \{ min-width: 950rpx; \}/);
   assert.match(wxss, /\.record-table\.compact-history, \.record-table\.compact-history \.record-row \{ min-width: 880rpx; \}/);
   assert.match(wxss, /\.recharge-history \.record-row \{ grid-template-columns: minmax\(210rpx, 1\.35fr\) minmax\(130rpx, 0\.8fr\) minmax\(130rpx, 0\.8fr\) minmax\(90rpx, 0\.55fr\) minmax\(160rpx, 0\.95fr\) minmax\(230rpx, 1\.3fr\); \}/);
@@ -133,6 +135,11 @@ test("history mapper preserves refund signs, teachers, dates, and server statuse
   assert.equal(mapped.teacherLabel, "叶老师");
   assert.equal(mapped.submittedAtLabel, "2026-08-25");
   assert.equal(mapped.statusLabel, "审核通过");
+  const refund = sandbox.__customerDetailTest.mapHistory([{
+    id: "7", rechargeCode: "RF7", rechargeType: "REFUND", unitCount: 3,
+    recordStatus: "APPROVED"
+  }], "REFUND")[0];
+  assert.equal(refund.unitLabel, "−3 次");
   const newRecharge = sandbox.__customerDetailTest.mapHistory([{
     id: "8", rechargeType: "NEW", unitCount: 2, recordStatus: "PENDING"
   }], "RECHARGE")[0];
@@ -170,7 +177,7 @@ test("profile body survives a photo failure and appends only the selected histor
       assert.equal(payload.cursorSubmittedAt, "cursor-time");
       assert.equal(payload.cursorId, "1");
       return {
-        recharges: [{ id: "2", rechargeCode: "RF2", rechargeType: "REFUND", unitCount: 2, recordStatus: "APPROVED" }],
+        recharges: [{ id: "2", rechargeCode: "RC2", rechargeType: "NEW", unitCount: 2, recordStatus: "APPROVED" }],
         history: { recharges: { hasMore: false, nextCursor: null } }
       };
     }
@@ -182,10 +189,12 @@ test("profile body survives a photo failure and appends only the selected histor
         },
         balances: [],
         recharges: [{ id: "1", rechargeCode: "RC1", rechargeType: "NEW", unitCount: 5, recordStatus: "APPROVED" }],
+        refunds: [],
         verifications: [],
         experiences: [],
         history: {
           recharges: { hasMore: true, nextCursor: { submittedAt: "cursor-time", id: "1" } },
+          refunds: { hasMore: false, nextCursor: null },
           verifications: { hasMore: false, nextCursor: null },
           experiences: { hasMore: false, nextCursor: null }
         }
@@ -229,7 +238,7 @@ test("profile body survives a photo failure and appends only the selected histor
   assert.equal(page.data.messages.length, 1);
   assert.equal(page.data.recharges.length, 1);
   await page.loadMoreHistory();
-  assert.equal(Array.from(page.data.recharges, (row) => row.unitLabel).join("|"), "+5 次|−2 次");
+  assert.equal(Array.from(page.data.recharges, (row) => row.unitLabel).join("|"), "+5 次|+2 次");
   assert.equal(page.data.historyHasMore, false);
   assert.ok(calls.some(({ action, payload }) => action === "getCustomerProfile" && payload.historyLimit === 50));
 });
