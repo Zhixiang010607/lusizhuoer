@@ -76,6 +76,11 @@ assert.match(verify, /service role retained/);
 assert.match(verify, /paid verification balance trigger/);
 assert.match(verify, /paid verification balance guard body/);
 assert.match(verify, /CASE WHEN record_count = 0 THEN 'READY' ELSE 'UNSAFE' END/);
+assert.match(verifyAccess, /PG_GET_USERBYID\(proc\.proowner\) = 'tencentdb_cloudbase_root'/);
+assert.match(verifyAccess, /'guard_system_tables', 'guard_system_tables_on_drop'/);
+assert.match(verifyAccess, /NOT function\.provider_guard[\s\S]*HAS_SCHEMA_PRIVILEGE\('anon', 'public', 'USAGE'\)/,
+  "provider guard exception must stay conditional on schema containment");
+assert.match(verifyAccess, /NOT function\.provider_guard[\s\S]*HAS_SCHEMA_PRIVILEGE\('authenticated', 'public', 'USAGE'\)/);
 
 assert.match(diagnoseFunctions, /WITH RECURSIVE client_roles/);
 assert.match(diagnoseFunctions, /HAS_FUNCTION_PRIVILEGE\(client\.oid, routine\.oid, 'EXECUTE'\)/);

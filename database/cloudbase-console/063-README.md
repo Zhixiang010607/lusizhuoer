@@ -41,6 +41,14 @@ CloudBase 云函数；`anon` 和 `authenticated` 不再直接读取或修改 Pos
 再按实际授权来源生成最小撤权修复。schema 验收为 `READY` 时这些残留例程当前
 不能被客户端调用，但在诊断完成前仍不得把整体验收标记为通过。
 
+CloudBase 当前会在 `public` schema 中保留平台所有者
+`tencentdb_cloudbase_root` 的 `guard_system_tables()` 和
+`guard_system_tables_on_drop()`。当前数据库管理员无权撤销它们的默认 `PUBLIC`
+执行 ACL；它们是腾讯云系统表 DDL 保护例程，不是业务函数。第一份验收仅在
+`anon`／`authenticated` 同时拥有 schema 使用权时把这两个例程判为可调用；
+其他任何 public 例程只要客户端仍有执行 ACL，仍会直接判为 `UNSAFE`。因此这项
+例外必须和 `client schema access closed = READY` 同时成立，不能单独放行。
+
 本次没有修改任何云函数源码，因此不产生新的云函数 ZIP，也不需要改变当前云
 函数公开版本。SQL 执行完成后仍应分别用总部、门店、老师真实账号验证登录、查询、
 充值提交／审核、余额充足和不足核销、人脸失败、设备信号不生成等场景。
