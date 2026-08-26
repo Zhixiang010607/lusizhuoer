@@ -9,6 +9,7 @@ const read = (...parts) => fs.readFileSync(path.join(root, ...parts), "utf8");
 
 const migration = read("database", "migrations", "062_retail_product_purchases.sql");
 const consoleMigration = read("database", "cloudbase-console", "062-01-retail-product-purchases.sql");
+const consoleVerify = read("database", "cloudbase-console", "062-readonly-verify.sql");
 const face = read("cloudfunctions", "faceRecognition", "index.js");
 const staff = read("cloudfunctions", "staffAccount", "index.js");
 const authUi = read("auth-ui.js");
@@ -24,6 +25,10 @@ const miniReview = read("miniprogram-app", "miniprogram", "pages", "reviews", "i
 const miniCustomer = read("miniprogram-app", "miniprogram", "pages", "customer-detail", "index.wxml");
 
 assert.equal(consoleMigration, migration, "CloudBase console 062 must stay byte-identical to the canonical migration");
+assert.match(consoleVerify, /WITH checks AS/);
+assert.equal((consoleVerify.match(/UNION ALL/g) || []).length, 4,
+  "CloudBase console 062 verification must return all five checks in one result table");
+assert.match(consoleVerify, /ORDER BY sort_order/);
 assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.retail_product_purchase_records/);
 assert.match(migration, /record_status TEXT NOT NULL DEFAULT 'PENDING'/);
 assert.match(migration, /role_code NOT IN \('store', 'teacher'\)/, "only store and teacher submitters may write purchase applications");
