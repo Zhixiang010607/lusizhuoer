@@ -13,6 +13,7 @@ const defaultAcl = read("database", "cloudbase-console", "063-02-default-privile
 const balanceGuard = read("database", "cloudbase-console", "063-03-paid-verification-balance-guard.sql");
 const verifyAccess = read("database", "cloudbase-console", "063-readonly-verify-01-access.sql");
 const verifyDefaults = read("database", "cloudbase-console", "063-readonly-verify-02-defaults-and-balance.sql");
+const diagnoseFunctions = read("database", "cloudbase-console", "063-readonly-diagnose-function-access.sql");
 const verify = `${verifyAccess}\n${verifyDefaults}`;
 const readme = read("database", "cloudbase-console", "063-README.md");
 const projectContext = read("PROJECT_CONTEXT.md");
@@ -75,6 +76,13 @@ assert.match(verify, /service role retained/);
 assert.match(verify, /paid verification balance trigger/);
 assert.match(verify, /paid verification balance guard body/);
 assert.match(verify, /CASE WHEN record_count = 0 THEN 'READY' ELSE 'UNSAFE' END/);
+
+assert.match(diagnoseFunctions, /WITH RECURSIVE client_roles/);
+assert.match(diagnoseFunctions, /HAS_FUNCTION_PRIVILEGE\(client\.oid, routine\.oid, 'EXECUTE'\)/);
+assert.match(diagnoseFunctions, /ACLEXPLODE\(COALESCE\(/);
+assert.match(diagnoseFunctions, /routine_signature[\s\S]*routine_type[\s\S]*owner_role[\s\S]*grant_sources/);
+assert.doesNotMatch(diagnoseFunctions, /\b(REVOKE|GRANT|ALTER|DROP|CREATE|INSERT|UPDATE|DELETE)\b/,
+  "diagnostic must remain read-only");
 
 assert.match(readme, /063-01-existing-object-lockdown\.sql[\s\S]*063-02-default-privilege-lockdown\.sql[\s\S]*063-03-paid-verification-balance-guard\.sql[\s\S]*063-readonly-verify-01-access\.sql[\s\S]*063-readonly-verify-02-defaults-and-balance\.sql/);
 assert.match(readme, /不产生新的云函数 ZIP/);

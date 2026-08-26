@@ -34,6 +34,13 @@ CloudBase 云函数；`anon` 和 `authenticated` 不再直接读取或修改 Pos
 执行。执行 063 后如果以后又用旧迁移创建了对象，应安全重跑 063-01、063-02 和
 只读验收，确认旧脚本没有重新授予客户端直连权限。
 
+如果第一份验收只有 `client function execution closed` 不是 `READY`，不要猜测
+或直接修改函数所有者。只读执行
+[`063-readonly-diagnose-function-access.sql`](063-readonly-diagnose-function-access.sql)，
+保留其 `routine_signature`、`routine_type`、`owner_role` 和 `grant_sources` 结果，
+再按实际授权来源生成最小撤权修复。schema 验收为 `READY` 时这些残留例程当前
+不能被客户端调用，但在诊断完成前仍不得把整体验收标记为通过。
+
 本次没有修改任何云函数源码，因此不产生新的云函数 ZIP，也不需要改变当前云
 函数公开版本。SQL 执行完成后仍应分别用总部、门店、老师真实账号验证登录、查询、
 充值提交／审核、余额充足和不足核销、人脸失败、设备信号不生成等场景。
