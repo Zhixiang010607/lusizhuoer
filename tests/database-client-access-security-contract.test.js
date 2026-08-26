@@ -93,7 +93,8 @@ assert.match(readme, /063-01-existing-object-lockdown\.sql[\s\S]*063-02-default-
 assert.match(readme, /不产生新的云函数 ZIP/);
 assert.match(projectContext, /`anon`／`authenticated` 对该 schema、表、序列和函数均为零权限/);
 assert.match(projectContext, /余额不足时整个事务以约束错误失败/);
-assert.match(rootReadme, /安全迁移 063 必须随后完成三段执行并取得 8 行 `READY`/);
+assert.match(rootReadme, /安全迁移 063 已于 2026-08-26 完成三段执行[\s\S]*8 行全部 `READY`/);
+assert.match(projectContext, /迁移 063 的三段控制台 SQL 已由用户在 2026-08-26 执行[\s\S]*8 行均为 `record_count = 0`、`status = READY`/);
 
 const rechargeStart = face.indexOf("async function createRechargeApplication(event)");
 const rechargeEnd = face.indexOf("async function requireVerificationSubmissionSchema", rechargeStart);
