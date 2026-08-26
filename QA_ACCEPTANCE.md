@@ -19,6 +19,7 @@
 | 页面范围 | 页面、按钮与查询 | 结果 |
 | --- | --- | --- |
 | 登录与安全 | `login.html` 登录；`change-password.html` 密码规则、两次密码一致性与保存按钮 | 登录 `PASS-LIVE`；空密码校验 `PASS-LIVE`；真实改密 `CONFIRM-ONLY` |
+| 数据库直连安全 | 普通客户端无 schema／表／序列／函数权限；未来对象默认关闭；正常核销余额不足由数据库拒绝 | 063 契约测试 `PASS-AUTO`；三段 SQL 尚待控制台执行并取得 8 行 `READY`，当前为 `FIXED-PENDING-SQL` |
 | 总部首页 | `index.html` 日期周期、重置、4 项指标详情、6 个图表下钻、老师／产品／门店排名、分页、导出 | `PASS-LIVE` |
 | 客户查询 | `customer-query.html` 姓名、生日、门店、业务阶段、状态、快捷筛选、重置、分页、进入详情 | `PASS-LIVE` |
 | 客户详情 | `customer-detail.html` 资料、照片重读、备注校验、留言校验、余额与四类历史 | 读取与空值校验 `PASS-LIVE`；保存和封存／恢复 `CONFIRM-ONLY` |

@@ -23,7 +23,7 @@
 
 当前小程序开发基线为 Node.js `>=20.19.0`、pnpm `9.15.9`、CloudBase JS SDK `3.7.1` 和微信开发者工具；依赖必须按 `pnpm-lock.yaml` 冻结安装，不再使用会产生第二份锁文件的 `npm install`。当前开发 AppID 为 `wxb053c1bd6c684d8b`，CloudBase 环境授权已经成功，仍需在微信公众平台为该 AppID 配置 CloudBase `request` 合法域名。AppID 可公开但任何密钥都不得写入仓库。现有 CloudBase 是 PostgreSQL 环境，不走微信开发者工具的“云环境转换”；小程序通过 SDK 与微信适配器复用同一环境和云函数。
 
-> 当前代码版本矩阵为 `staffAccount v75`、`faceRecognition v96`、`verificationPhoto v10`、`teacherCreate v6`。产品主档、充值赠品和独立产品购买必须依次执行并验收迁移 060、061、062，再人工上传 `deployments/staffAccount-v75.zip` 与 `deployments/faceRecognition-v96.zip`。核销照片首屏只读取可用缩略图；某张照片暂不可用时，点击该照片只重读该张安全原图，不刷新其他照片。代码推送、SQL、云函数、网页发布、小程序开发版上传、设为体验版、提交审核和正式发布仍分别计算。
+> 当前代码版本矩阵为 `staffAccount v75`、`faceRecognition v96`、`verificationPhoto v10`、`teacherCreate v6`。产品主档、充值赠品和独立产品购买必须依次执行并验收迁移 060、061、062；安全迁移 063 必须随后完成三段执行并取得 8 行 `READY`，否则生产环境不得视为安全验收通过。再人工上传 `deployments/staffAccount-v75.zip` 与 `deployments/faceRecognition-v96.zip`。核销照片首屏只读取可用缩略图；某张照片暂不可用时，点击该照片只重读该张安全原图，不刷新其他照片。代码推送、SQL、云函数、网页发布、小程序开发版上传、设为体验版、提交审核和正式发布仍分别计算。
 
 ## 腾讯云客户人脸识别后端
 
@@ -67,7 +67,7 @@
 总部进入数据库全局工作区；门店直接进入所选门店工作区，老师进入个人工作台。未登录访问业务页面、直接输入其他身份页面地址、
 或者门店修改URL中的门店编号时，`auth-ui.js` 都会拦截并返回本身份首页。侧栏只生成当前身份允许的入口，并提供账号、门店及退出登录。
 总部的客户、充值和核销查询使用同一套数据库页面，可查看全部门店或选择一个具体门店；门店账号的三类查询固定锁定到登录门店，不能选择“全部门店”或其他门店。客户查询和门店／老师客户列表里的“核销次数”只统计已通过的正常核销，体验核销只进入独立体验统计。页面选项只决定筛选条件，最终权限仍由云函数根据 CloudBase UID 校验。
-前端路由隔离不是安全边界：`staffAccount`、`faceRecognition` 和 PostgreSQL RLS 都会再次按 CloudBase UID、账号状态和角色校验。历史运营账号会被封存并拒绝会话、审核、客户资料和照片读取；其既有审核记录继续保留作审计。
+前端路由隔离不是安全边界：`staffAccount`、`faceRecognition` 会再次按 CloudBase UID、账号状态和角色校验，PostgreSQL 触发器与约束负责最终状态机。迁移 063 后 `PUBLIC`、`anon`、`authenticated` 对 `public` schema、业务表、序列和函数均无直接权限，网页和小程序只能调用云函数，可信 `service_role` 才可直接访问数据库。历史运营账号会被封存并拒绝会话、审核、客户资料和照片读取；其既有审核记录继续保留作审计。
 
 业务办理只允许门店和老师账号。总部侧栏不显示客户建立、办卡充值、退费申请或核销办理入口，旧页面地址也会被前端权限表送回总部首页；云函数对总部账号的直接调用统一返回 `FORBIDDEN`。门店账号由服务端 UID 锁定到登录门店；老师办理前必须选择一个真实、活跃的门店，老师身份始终由登录账号锁定。
 
@@ -190,18 +190,18 @@
 2. 执行迁移 `039_direct_verification_photo_upload.sql`（CloudBase SQL 编辑器应依次执行独立的 `039-01` 至 `039-05`），建立短时上传任务、每单唯一进行中任务和原子提交函数；随后执行 `040_fix_verification_photo_commit_ambiguity.sql`（控制台使用 `040-01`），消除提交函数返回字段与冲突键 `photo_slot` 的 PL/pgSQL 歧义；
 3. 可选在 CloudBase PG 云存储中新建私有桶 `verification-photos`；也可把核销照片放在现有私有桶 `customer-photos`。`teacherCreate v6` 只需 `CLOUDBASE_ENV_ID`／`TCB_ENV`，不再配置任何人脸或照片桶变量。所有环境变量在控制台一项一行，不要把整段 `KEY=value` 粘贴进单个值。在现有安全规则中合并 `verificationPhoto` 与 `teacherCreate` 的非匿名登录调用权限，保留顶层 `*` 和其他函数条目；
 4. 先完成历史库必需的 046—050。部署不再读写旧 Saga 的 `staffAccount v75`、`faceRecognition v96` 和 `teacherCreate v6` 后，完整执行 `053-01-retire-legacy-teacher-face-saga.sql`，再运行 `053-readonly-verify.sql`，7 行必须全部为 `RETIRED`。已经执行过的 051/052 不需回滚；053 会只删除它们的旧操作表与私有函数；
-5. 完成 054 后执行 `055-01-remove-teacher-face-order-guards.sql`，确认最后 3 行全部为 `READY`；再执行 056、057、058 并按各自 README 完成只读验收；按 `database/cloudbase-console/059-README.md` 完成业务老师矩阵；依次执行并验收 060 独立产品主档和 061 充值产品赠予明细。将 `teacherCreate` 设为 60 秒、至少 256 MB；部署 `staffAccount v75`、`faceRecognition v96`、`verificationPhoto v10` 与 `teacherCreate v6`，分别调用 `health` 核对版本与配置；
+5. 完成 054 后执行 `055-01-remove-teacher-face-order-guards.sql`，确认最后 3 行全部为 `READY`；再执行 056、057、058 并按各自 README 完成只读验收；按 `database/cloudbase-console/059-README.md` 完成业务老师矩阵；依次执行并验收 060 独立产品主档、061 充值产品赠予和 062 独立产品购买。随后按 `database/cloudbase-console/063-README.md` 依次执行三段安全 SQL，最后 8 行必须全部为 `READY`。将 `teacherCreate` 设为 60 秒、至少 256 MB；部署 `staffAccount v75`、`faceRecognition v96`、`verificationPhoto v10` 与 `teacherCreate v6`，分别调用 `health` 核对版本与配置；
 6. `staffAccount` 只保留老师体验额度的月初 Timer。从触发器配置中删除 `reconcile-teacher-face-operations`，`teacherCreate` 不配置 Timer；
 7. 部署当前静态文件到 CloudBase 静态网站托管并强制刷新浏览器；
 8. 通过总部、门店和老师真实账号完成角色边界回归，并确认历史运营账号无法获取业务会话或通过审核；验证总部没有任何办理入口且直接调用被拒绝，门店／老师可以在各自权限内办理，同时完成核销照片查看、历史总部单或当前门店／老师单的真实原提交人上传或替换、取消后重试、非提交人拒绝和 24 小时截止测试。
 
 生产库已经执行 039、但补充照片上传出现 `column reference "photo_slot" is ambiguous (SQLSTATE 42702)` 时，只需完整执行一次 040；不要重跑 037--039。040 只替换原子提交函数，不改表、不删除或重写已有照片数据。
 
-生产更新顺序固定为“确认 039、046—050 与 053 已完成 → 依次执行并验收 054—061 → 确认微信主体／隐私／计费前置并配置 CloudBase `WX_MICRO_APP` → 部署 `staffAccount v75`、`faceRecognition v96`、`verificationPhoto v10`、`teacherCreate v6` 与当前前端／小程序 → 四个云函数分别执行 `health` → 强制刷新并用真机验收小程序”。
+生产更新顺序固定为“确认 039、046—050 与 053 已完成 → 依次执行并验收 054—063 → 确认微信主体／隐私／计费前置并配置 CloudBase `WX_MICRO_APP` → 部署 `staffAccount v75`、`faceRecognition v96`、`verificationPhoto v10`、`teacherCreate v6` 与当前前端／小程序 → 四个云函数分别执行 `health` → 强制刷新并用真机验收小程序”。
 
 核销详情的高清原图查看器支持按钮、鼠标滚轮、键盘、拖动和手机／iPad 双指缩放。页面先显示缩略图，高清图解码完成后再替换；临时签名地址不可用时，查看器会在相同工单权限和查看审计下改用 `verificationPhoto` 的鉴权读取通道取回原图，并且只创建当前页面内存 Blob，不持久化照片。最多只保留两张已解码原图，减少连续查看照片造成的内存占用。
 
-生产环境不得信任前端传入的门店或账号权限范围，所有数据权限必须由后端根据登录账号重新校验。
+生产环境不得信任前端传入的门店或账号权限范围，所有数据权限必须由后端根据登录账号重新校验。普通登录角色不得直接执行 PostgreSQL 审核／核销函数或读写业务表；正常核销还必须由数据库在客户行锁内重算余额并在不足时拒绝，拒绝事务不得产生设备信号。
 
 ## 代码与文档同步规则
 

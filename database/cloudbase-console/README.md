@@ -162,6 +162,21 @@ ROLLBACK;
 
 062 只建立产品购买工单和总部审核状态机。门店与老师提交，总部审核；待审核和驳回不计入客户汇总。客户主页“购买”来自已通过购买单，“赠送”来自父充值单已通过的 061 赠品。
 
+## 063 数据库安全封锁
+
+完成现有业务迁移后，必须按 [`063-README.md`](063-README.md) 依次整文件执行：
+
+1. `063-01-existing-object-lockdown.sql`；
+2. `063-02-default-privilege-lockdown.sql`；
+3. `063-03-paid-verification-balance-guard.sql`；
+4. 只读 `063-readonly-verify-01-access.sql`；
+5. 只读 `063-readonly-verify-02-defaults-and-balance.sql`。
+
+最后 8 行 `record_count` 必须全部为 `0`、`status` 全部为 `READY`。第 1 步会立即
+撤销 `PUBLIC`／`anon`／`authenticated` 对现有 `public` schema、表、序列和函数的
+直连权限；第 2 步封锁未来对象默认权限；第 3 步在数据库层拒绝余额不足的正常核销。
+本迁移不修改云函数代码，因此不产生新的 ZIP。
+
 ### 048 在当前控制台报 `unterminated dollar-quoted string`
 
 部分 CloudBase SQL 编辑器会在约 4KB 时截断粘贴内容；这不是数据库函数语法
