@@ -147,7 +147,7 @@ test("web business pages keep native scrolling selection plus exact lookup and s
     assert.match(html, /<select id="serviceCustomerSelect"><\/select>/, `${page} must retain the native scrolling customer select`);
     assert.match(html, /id="serviceCustomerName"/, `${page} must retain exact name lookup`);
     assert.match(html, /id="serviceCustomerBirthday"/, `${page} must retain exact birthday lookup`);
-    assert.ok(html.includes("store-business.js?v=0.14.58"), `${page} must load the current cursor-aware workflow`);
+    assert.ok(html.includes("store-business.js?v=0.14.59"), `${page} must load the current cursor-aware workflow`);
   }
   assert.ok(business.includes("scopeRequest === customerLookupScopeRequest"), "late responses must be tied to the current store scope");
   assert.ok(business.includes('window.addEventListener("pagehide"'), "leaving a page invalidates pending customer reads");

@@ -50,12 +50,14 @@ const teacherBusinessPages = [
 ];
 for (const file of businessPages) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
-  assert(html.includes('styles.css?v=0.15.44'), `${file} must use the current stylesheet cache key`);
+  const styleVersion = file === "recharge-create.html" ? "0.15.49" : "0.15.44";
+  assert(html.includes(`styles.css?v=${styleVersion}`), `${file} must use the current stylesheet cache key`);
   assert(html.includes("data-store-business"), `${file} must be a store business workflow`);
 }
 for (const file of teacherBusinessPages) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
-  assert(html.includes('styles.css?v=0.15.44'), `${file} must use the current stylesheet cache key`);
+  const styleVersion = file === "teacher-recharge-create.html" ? "0.15.49" : "0.15.44";
+  assert(html.includes(`styles.css?v=${styleVersion}`), `${file} must use the current stylesheet cache key`);
   assert(html.includes("data-store-business"), `${file} must be a store business workflow`);
 }
 
@@ -95,7 +97,7 @@ for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))
     : file === "verification-detail.html"
     ? "0.15.49"
     : file === "recharge-detail.html"
-      ? "0.15.48"
+      ? "0.15.49"
     : file === "recharge-review.html"
       ? "0.15.49"
     : ["customer-query.html", "recharge-query.html", "verification-query.html", "refund-review.html", "verification-review.html"].includes(file)
@@ -104,7 +106,9 @@ for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))
           ? "0.15.49"
         : file === "login.html"
           ? "0.15.59"
-          : "0.15.44";
+          : ["recharge-create.html", "teacher-recharge-create.html"].includes(file)
+            ? "0.15.49"
+            : "0.15.44";
   assert(html.includes(`styles.css?v=${expectedStyleVersion}`), `${file} must use the desktop-scroll stylesheet cache key`);
 }
 

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>充值工单详情</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.48">
+  <link rel="stylesheet" href="styles.css?v=0.15.49">
 </head>
 <body data-record-detail="recharge">
   <aside class="side-project-bar" aria-label="项目栏">
@@ -57,6 +57,11 @@
         <p id="reviewStatusRow" class="unified-review-status">当前审核结果：<strong id="reviewStatus">待审核</strong></p>
       </section>
     </section>
+
+    <section id="rechargeProductGiftsPanel" class="panel recharge-product-gifts-panel" hidden>
+      <div class="panel-heading"><div><h2>产品赠予</h2><p>随本充值工单固化的实物／涂抹类产品明细。</p></div><span id="rechargeProductGiftsCount" class="badge">0 种</span></div>
+      <div id="rechargeProductGiftsList" class="recharge-product-gifts-list"></div>
+    </section>
   </main>
 
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
@@ -67,7 +72,7 @@
   <script src="datetime.js?v=0.1.2"></script>
   <script src="order-export.js?v=0.1.7"></script>
   <script src="business-submission-ack.js?v=0.1.0"></script>
-  <script src="business-detail.js?v=0.16.23"></script>
+  <script src="business-detail.js?v=0.16.24"></script>
   <script src="auth-ui.js?v=0.19.6"></script>
 </body>
 </html>

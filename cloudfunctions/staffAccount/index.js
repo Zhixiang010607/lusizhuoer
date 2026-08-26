@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v73";
+const FUNCTION_VERSION = "v74";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -44,6 +44,7 @@ let storeBindingLayout = null;
 let storeCreationCapabilities = null;
 let productTemplateCapabilities = null;
 let retailProductCapabilities = null;
+let rechargeProductGiftSchemaReady = null;
 const productLogoDownloadCache = new Map();
 const productLogoDownloadFlights = new Map();
 const productLogoSignCache = new Map();
@@ -2709,6 +2710,15 @@ function reviewOrderTeacherAttributionCondition(alias, recordType) {
   )`;
 }
 
+async function hasRechargeProductGiftSchema() {
+  if (rechargeProductGiftSchemaReady !== null) return rechargeProductGiftSchemaReady;
+  const rows = await executeSql(
+    `SELECT TO_REGCLASS('public.recharge_product_gifts') IS NOT NULL AS ready`
+  );
+  rechargeProductGiftSchemaReady = databaseBoolean(rows?.[0]?.ready);
+  return rechargeProductGiftSchemaReady;
+}
+
 async function listReviewOrders(caller, event) {
   const exactLookup = Boolean(String(event.recordId || "").trim() || String(event.recordCode || "").trim());
   const storeReader = caller.profile?.role === "store";
@@ -2762,6 +2772,18 @@ async function listReviewOrders(caller, event) {
   const cursorId = cursorIdValue ? numericId(cursorIdValue, "审核列表游标编号") : "";
   const pageOffsetPagination = paged && hasPageNumber;
   const sqlLimit = paged && !pageOffsetPagination ? limit + 1 : limit;
+  const rechargeProductGiftSelect = recordType === "RECHARGE" && exactLookup && await hasRechargeProductGiftSchema()
+    ? `(SELECT COALESCE(JSONB_AGG(JSONB_BUILD_OBJECT(
+           'id', gift.id,
+           'retailProductId', gift.retail_product_id,
+           'productCode', gift.product_code_snapshot,
+           'productName', gift.product_name_snapshot,
+           'unitCount', gift.unit_count,
+           'displayOrder', gift.display_order
+         ) ORDER BY gift.display_order, gift.id), '[]'::jsonb)
+          FROM public.recharge_product_gifts gift
+         WHERE gift.recharge_id = r.id)`
+    : `'[]'::jsonb`;
   let sql;
   let countSql = "";
   if (recordType === "RECHARGE") {
@@ -2797,7 +2819,8 @@ async function listReviewOrders(caller, event) {
                   s.district AS store_district, s.address_detail AS store_address_detail,
                   c.id AS customer_id, c.customer_code, c.customer_name,
                   p.id AS product_id, p.product_code, p.product_name,
-                  t.id AS teacher_id, t.teacher_code, t.teacher_name
+                  t.id AS teacher_id, t.teacher_code, t.teacher_name,
+                  ${rechargeProductGiftSelect} AS product_gifts
              ${fromSql}
              ${whereSql}
          ORDER BY (${statusExpression} = 'PENDING') DESC, ${timeExpression} DESC, r.id DESC`;

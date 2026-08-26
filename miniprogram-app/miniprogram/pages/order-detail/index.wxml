@@ -22,6 +22,16 @@
       </view>
     </view>
 
+    <view wx:if="{{baseType === 'RECHARGE' && order.productGifts.length}}" class="card gift-detail-card">
+      <view class="card-title"><text>产品赠予</text><text class="badge">{{order.productGifts.length}} 种</text></view>
+      <view class="gift-detail-list">
+        <view wx:for="{{order.productGifts}}" wx:key="retailProductId" class="gift-detail-row">
+          <view><text>{{item.productName}}</text><text>{{item.productCode}}</text></view>
+          <text>{{item.unitCount}} 件</text>
+        </view>
+      </view>
+    </view>
+
     <view wx:if="{{notes.length}}" class="card">
       <view class="card-title"><text>工单说明</text><text class="badge">{{notes.length}} 项</text></view>
       <view wx:for="{{notes}}" wx:key="label" class="note-row"><text>{{item.label}}</text><text>{{item.value}}</text></view>

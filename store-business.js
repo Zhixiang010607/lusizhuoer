@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.58", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.59", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   const formatBirthday = (value, fallback = "—") => {
     const raw = String(value ?? "").trim();
     if (!raw) return fallback;
@@ -26,7 +26,7 @@
   let storeId = teacherMode || hqMode ? "" : accountStoreId;
   const storeNo = Number(storeId.replace(/\D/g, "")) || 1;
   let storeName = teacherMode || hqMode ? "尚未选择门店" : `门店 ${storeNo}`;
-  let databaseCustomers = [], databaseTeachers = [], databaseProducts = [], candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", verificationThumbnailDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, customerLookupScopeRequest = 0, verificationBalanceProjects = [], verificationFaceRequestId = "", verificationFaceEvidenceToken = "", customerEnrollmentRequest = null, previewCustomerCode = "", customerSubmissionBusy = false, submissionRecoveryLocked = false, submissionRecoveryRunning = false;
+  let databaseCustomers = [], databaseTeachers = [], databaseProducts = [], retailGiftProducts = [], rechargeProductGifts = [], candidateCustomer = null, selectedCustomer = null, faceCaptured = false, photoCaptured = false, rechargeEvidenceCaptured = false, capturedPhotoDataUrl = "", verificationThumbnailDataUrl = "", cameraStream = null, customerPreviewRequest = 0, balanceRequest = 0, customerLookupScopeRequest = 0, verificationBalanceProjects = [], verificationFaceRequestId = "", verificationFaceEvidenceToken = "", customerEnrollmentRequest = null, previewCustomerCode = "", customerSubmissionBusy = false, submissionRecoveryLocked = false, submissionRecoveryRunning = false;
   const customerDetailCache = new Map(), customerDetailRequests = new Map();
   let customerServiceApp = null;
   let teacherBusinessStores = [], teacherBusinessProfile = null, teacherWorkflowStarted = false;
@@ -351,6 +351,75 @@
       const message = $(messageId);
       if (message) message.textContent = error?.message || "无法从数据库读取活跃项目，请刷新后重试";
     }
+  }
+
+  function renderRechargeProductGifts() {
+    const list = $("rechargeGiftList");
+    if (!list) return;
+    list.innerHTML = rechargeProductGifts.length
+      ? rechargeProductGifts.map((item, index) => `<article class="recharge-gift-row"><div><strong>${escapeHtml(item.productName)}</strong><span>${escapeHtml(item.productCode)} · ${item.unitCount} 件</span></div><button type="button" data-remove-recharge-gift="${index}">删除</button></article>`).join("")
+      : `<p class="recharge-gift-empty">暂未添加产品赠予</p>`;
+  }
+
+  function resetRechargeProductGifts() {
+    rechargeProductGifts = [];
+    if ($("rechargeGiftProduct")) $("rechargeGiftProduct").value = "";
+    if ($("rechargeGiftQuantity")) $("rechargeGiftQuantity").value = "";
+    if ($("rechargeGiftMessage")) $("rechargeGiftMessage").textContent = "";
+    renderRechargeProductGifts();
+  }
+
+  async function loadActiveRetailGiftProducts() {
+    const select = $("rechargeGiftProduct");
+    if (!select) return;
+    select.disabled = true;
+    select.innerHTML = `<option value="">正在读取激活产品…</option>`;
+    try {
+      const result = await callCustomerEnrollment({ action: "listActiveRetailProducts" });
+      retailGiftProducts = (Array.isArray(result?.products) ? result.products : []).map((item) => ({
+        id: String(item.productId || ""), code: String(item.productCode || ""), name: String(item.productName || "")
+      })).filter((item) => item.id && item.name);
+      select.innerHTML = retailGiftProducts.length
+        ? `<option value="">请选择激活产品</option>${retailGiftProducts.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)} · ${escapeHtml(item.code)}</option>`).join("")}`
+        : `<option value="">当前没有可赠予的激活产品</option>`;
+      select.disabled = retailGiftProducts.length === 0;
+    } catch (error) {
+      retailGiftProducts = [];
+      select.innerHTML = `<option value="">激活产品读取失败</option>`;
+      select.disabled = true;
+      if ($("rechargeGiftMessage")) $("rechargeGiftMessage").textContent = `${error?.message || "赠予产品读取失败"}；仍可不添加赠品提交充值。`;
+    }
+  }
+
+  function setupRechargeProductGifts() {
+    if (!$("rechargeGiftProduct")) return;
+    renderRechargeProductGifts();
+    void loadActiveRetailGiftProducts();
+    $("addRechargeGift").addEventListener("click", () => {
+      const productId = $("rechargeGiftProduct").value;
+      const unitCount = Number($("rechargeGiftQuantity").value);
+      const product = retailGiftProducts.find((item) => item.id === productId);
+      const message = $("rechargeGiftMessage");
+      if (!selectedCustomer) { message.textContent = "必须先确认当前客户。"; return; }
+      if (!product) { message.textContent = "请先选择一个当前激活的赠予产品。"; return; }
+      if (!Number.isInteger(unitCount) || unitCount < 1 || unitCount > 999) { message.textContent = "赠予数量必须是 1 至 999 的整数。"; return; }
+      if (rechargeProductGifts.some((item) => item.retailProductId === product.id)) { message.textContent = "该产品已经加入；如需修改，请先删除后重新加入。"; return; }
+      if (rechargeProductGifts.length >= 20) { message.textContent = "一张充值单最多加入 20 种赠予产品。"; return; }
+      rechargeProductGifts.push({ retailProductId: product.id, productCode: product.code, productName: product.name, unitCount });
+      $("rechargeGiftProduct").value = "";
+      $("rechargeGiftQuantity").value = "";
+      message.textContent = `已加入 ${product.name} × ${unitCount}`;
+      renderRechargeProductGifts();
+    });
+    $("rechargeGiftList").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-remove-recharge-gift]");
+      if (!button) return;
+      const index = Number(button.dataset.removeRechargeGift);
+      if (!Number.isInteger(index) || index < 0 || index >= rechargeProductGifts.length) return;
+      const [removed] = rechargeProductGifts.splice(index, 1);
+      $("rechargeGiftMessage").textContent = `已删除 ${removed.productName}`;
+      renderRechargeProductGifts();
+    });
   }
 
   function businessSubmissionStorageKey(recordType) {
@@ -814,6 +883,7 @@
     selectedCustomer = null;
     previewCustomerCode = "";
     verificationBalanceProjects = [];
+    if (page === "recharge") resetRechargeProductGifts();
     if (page === "refund" && $("rechargeProject")) {
       databaseProducts = [];
       $("rechargeProject").disabled = true;
@@ -1045,7 +1115,10 @@
   function setupRecharge() {
     const refundPage = page === "refund";
     setupLookup();
-    if (!refundPage) loadActiveProducts("rechargeProject", "rechargeCreateMessage");
+    if (!refundPage) {
+      loadActiveProducts("rechargeProject", "rechargeCreateMessage");
+      setupRechargeProductGifts();
+    }
     loadActiveTeachers("rechargeTeacher", "rechargeCreateMessage", { optional: true });
     if (refundPage) {
       $("rechargeProject").addEventListener("change", renderRefundImpact);
@@ -1064,7 +1137,11 @@
       if (!project || (teacherId && !teacher)) { $("rechargeCreateMessage").textContent = "项目或老师数据已经失效，请刷新页面后重新选择"; return; }
       if (teacherMode && teacher?.id !== normalizedTeacherProfile(teacherBusinessProfile || {}).id) { $("rechargeCreateMessage").textContent = "老师账号只能将业务绑定给本人，请刷新页面后重试"; return; }
       if (refundPage && count > Number(project.purchased || 0)) { $("rechargeCreateMessage").textContent = `最多可退 ${project.purchased} 次；可以超过剩余 ${project.remaining} 次，但不能超过尚未退费的总购买次数`; return; }
-      const payload = { applicationType: refundPage ? "REFUND" : "NEW", customerCode: selectedCustomer.id, productId: project.id, teacherId: teacher?.id || "", unitCount: count, message: note };
+      const payload = {
+        applicationType: refundPage ? "REFUND" : "NEW", customerCode: selectedCustomer.id,
+        productId: project.id, teacherId: teacher?.id || "", unitCount: count, message: note,
+        productGifts: refundPage ? [] : rechargeProductGifts.map((item) => ({ retailProductId: item.retailProductId, unitCount: item.unitCount }))
+      };
       let intent;
       try {
         intent = beginBusinessSubmission("RECHARGE", { storeId, ...payload });
@@ -1105,6 +1182,7 @@
           note,
           account: String(session?.account || ""),
           createdAt: result.submittedAt || new Date().toISOString(),
+          productGifts: Array.isArray(result.productGifts) ? result.productGifts : rechargeProductGifts.map((item, index) => ({ ...item, displayOrder: index + 1 })),
           databaseBacked: true
         };
         saveGeneratedOrder("prototypeRechargeRecords", record);

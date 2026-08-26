@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>老师办理充值</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.44">
+  <link rel="stylesheet" href="styles.css?v=0.15.49">
 </head>
 <body data-store-business="recharge" data-teacher-business>
   <aside class="side-project-bar" aria-label="老师工作台"><div class="side-brand"><span>师</span><div><strong>老师工作台</strong><small>本人业务</small></div></div><nav class="side-nav"></nav><div class="side-footer">老师账号</div></aside>
@@ -27,6 +27,12 @@
       <form id="rechargeCreateForm" class="panel store-business-form workflow-action-panel business-step-disabled">
         <div class="panel-heading"><div><h2>第二步：填写充值信息</h2><p id="selectedCustomerText"></p></div><span class="badge">充值</span></div>
         <div class="store-business-grid"><label>项目<select id="rechargeProject" required></select></label><label>当前老师（自动绑定）<select id="rechargeTeacher" required></select></label><label>充值次数<input id="rechargeCount" type="number" min="1" max="999" value="10" required></label><label class="full-field">老师留言<textarea id="rechargeNote" rows="3" maxlength="500" placeholder="可给审核人员留言"></textarea></label></div>
+        <section class="recharge-gift-step" aria-labelledby="teacherRechargeGiftTitle">
+          <div class="recharge-gift-heading"><div><h3 id="teacherRechargeGiftTitle">第三步：填写产品赠予</h3><p>先选择当前激活产品，再填写数量，最后点“＋”加入清单。</p></div><span class="badge">可选</span></div>
+          <div class="recharge-gift-adder"><label>激活产品<select id="rechargeGiftProduct"><option value="">选择门店后读取激活产品…</option></select></label><label>数量<input id="rechargeGiftQuantity" type="number" min="1" max="999" inputmode="numeric" placeholder="1 至 999"></label><button id="addRechargeGift" class="recharge-gift-plus" type="button" aria-label="加入产品赠予">＋</button></div>
+          <div id="rechargeGiftList" class="recharge-gift-list"><p class="recharge-gift-empty">暂未添加产品赠予</p></div>
+          <p id="rechargeGiftMessage" class="recharge-gift-message" role="status"></p>
+        </section>
         <div class="form-submit-row"><span id="rechargeCreateMessage"></span><button type="submit">提交充值申请</button></div>
       </form>
     </div>
@@ -35,7 +41,7 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
-  <script src="store-business.js?v=0.14.58"></script>
+  <script src="store-business.js?v=0.14.59"></script>
   <script src="auth-ui.js?v=0.19.6"></script>
 </body>
 </html>

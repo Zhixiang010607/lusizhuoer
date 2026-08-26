@@ -988,6 +988,31 @@ textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px #1f5eff18; out
 .consent-row input { width: 17px; height: 17px; margin: 0; }
 .form-submit-row { display: flex; align-items: center; justify-content: flex-end; gap: 16px; margin-top: auto; padding-top: 18px; border-top: 1px solid var(--line); }
 .form-submit-row span { margin-right: auto; color: var(--muted); font-size: 12px; }
+.recharge-gift-step { grid-column: 1 / -1; margin-top: 14px; padding: clamp(14px, 2vw, 20px); background: #fff8ec; border: 1px solid #dfcfb4; border-radius: 18px; }
+.recharge-gift-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.recharge-gift-heading h3 { margin: 0; color: #302a22; font-size: clamp(16px, 1.7vw, 20px); }
+.recharge-gift-heading p { margin: 5px 0 0; color: #756958; font-size: 12px; line-height: 1.5; }
+.recharge-gift-adder { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(100px, .35fr) 46px; align-items: end; gap: 10px; margin-top: 14px; }
+.recharge-gift-adder label { min-width: 0; }
+.recharge-gift-plus { width: 46px; min-width: 46px; height: 46px; min-height: 46px; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0; color: #fffdf8; background: #7b5a2d; border: 0; border-radius: 50%; font-size: 28px; font-weight: 500; line-height: 1; }
+.recharge-gift-plus:hover { background: #684922; }
+.recharge-gift-list { display: grid; gap: 8px; margin-top: 14px; }
+.recharge-gift-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 11px 13px; background: #fffdf8; border: 1px solid #e3d3ba; border-radius: 13px; }
+.recharge-gift-row > div { min-width: 0; }
+.recharge-gift-row strong, .recharge-gift-row span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recharge-gift-row strong { color: #302a22; font-size: 14px; }
+.recharge-gift-row span { margin-top: 3px; color: #7c7062; font-size: 12px; }
+.recharge-gift-row button { flex: none; min-height: 34px; padding: 0 13px; color: #934d43; background: #fff0ed; border: 1px solid #e5bfb9; border-radius: 10px; font-size: 12px; }
+.recharge-gift-empty { margin: 0; padding: 10px; color: #8b7f70; font-size: 12px; text-align: center; }
+.recharge-gift-message { min-height: 18px; margin: 8px 0 0; color: #74592d; font-size: 12px; }
+.recharge-product-gifts-panel { background: #fffaf3; border-color: #dfcfb4; }
+.recharge-product-gifts-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.recharge-product-gift-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; padding: 14px 16px; background: #fff8ec; border: 1px solid #e3d3ba; border-radius: 14px; }
+.recharge-product-gift-row > div { min-width: 0; }
+.recharge-product-gift-row strong, .recharge-product-gift-row span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recharge-product-gift-row strong { color: #302a22; font-size: 14px; }
+.recharge-product-gift-row span { margin-top: 4px; color: #7c7062; font-size: 12px; }
+.recharge-product-gift-row b { flex: none; color: #7b5a2d; font-size: 16px; }
 body[data-store-business] .form-submit-row button:disabled {
   cursor: not-allowed;
   color: #738196;
@@ -1029,7 +1054,7 @@ body[data-store-business] .form-submit-row button:disabled {
 .customer-profile-details { display: grid; align-content: start; gap: 13px; }
 .customer-profile-details .customer-core-facts { grid-template-columns: 1fr; }
 .profile-photo-note { margin: 0; padding: 12px; border-left: 3px solid var(--blue); color: var(--muted); background: #edf4ff; font-size: 11px; line-height: 1.7; }
-.confirm-customer-button { position: sticky; bottom: 0; z-index: 2; width: 100%; min-height: 46px; margin-top: auto; font-weight: 800; }
+.confirm-customer-button { position: sticky; bottom: 0; z-index: 2; width: 100%; min-height: 46px; display: flex; align-items: center; justify-content: center; margin-top: auto; padding-top: 0; padding-bottom: 0; font-weight: 800; line-height: 1; text-align: center; }
 .confirm-customer-button:disabled { cursor: not-allowed; color: #8491a3; background: #dfe5ed; box-shadow: none; }
 .duplicate-customer-list { display: grid; gap: 8px; align-content: start; }
 .duplicate-customer-list button { color: var(--ink); background: white; text-align: left; }
@@ -1437,6 +1462,8 @@ body[data-review] .review-table .status-待审核 { color: #8a5b00; background: 
   .teacher-directory-toolbar .toolbar-actions { grid-column: 1 / -1; }
 }
 @media (max-width: 760px) {
+  .recharge-gift-adder { grid-template-columns: minmax(0, 1fr) 92px 44px; }
+  .recharge-gift-plus { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
   body { padding-left: 0; }
   .teacher-business-main { width: min(100% - 14px, 1680px); margin-top: 8px; }
   .teacher-business-store-panel, .hq-business-store-panel { padding: 16px; }

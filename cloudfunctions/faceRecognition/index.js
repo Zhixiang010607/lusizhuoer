@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v91";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v92";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -3063,6 +3063,88 @@ async function listActiveProducts(event = {}) {
   };
 }
 
+async function rechargeProductGiftSchemaAvailable() {
+  const rows = await executeSql(
+    `SELECT TO_REGCLASS('public.recharge_product_gifts') IS NOT NULL AS ready`
+  );
+  return databaseBoolean(rows?.[0]?.ready);
+}
+
+async function listActiveRetailProducts(event = {}) {
+  await activeBusinessCaller(event);
+  const rows = await executeSql(
+    `SELECT TO_REGCLASS('public.retail_products') IS NOT NULL AS ready`
+  );
+  if (!databaseBoolean(rows?.[0]?.ready)) {
+    fail("产品主档尚未启用，请先执行迁移 060。", "DATABASE_SCHEMA_MISSING");
+  }
+  const products = await executeSql(
+    `SELECT id AS product_id, product_code, product_name
+       FROM public.retail_products
+      WHERE product_status = 'ACTIVE'
+      ORDER BY product_name, product_code, id
+      LIMIT 1000`
+  );
+  return {
+    ok: true,
+    products: products.map((item) => ({
+      productId: String(item.product_id),
+      productCode: String(item.product_code || ""),
+      productName: String(item.product_name || "")
+    }))
+  };
+}
+
+function normalizeRechargeProductGifts(value, refund) {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) fail("产品赠予清单格式无效。", "INVALID_PRODUCT_GIFTS");
+  if (refund && value.length) fail("退费申请不能附带产品赠予。", "PRODUCT_GIFTS_RECHARGE_ONLY");
+  if (value.length > 20) fail("一张充值单最多赠予 20 种产品。", "TOO_MANY_PRODUCT_GIFTS");
+  const seen = new Set();
+  return value.map((item, index) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      fail("产品赠予清单格式无效。", "INVALID_PRODUCT_GIFTS");
+    }
+    const retailProductId = positiveDatabaseId(item.retailProductId ?? item.productId, "赠予产品");
+    if (seen.has(retailProductId)) fail("同一种赠予产品只能加入一次。", "DUPLICATE_PRODUCT_GIFT");
+    seen.add(retailProductId);
+    const unitCount = Number(item.unitCount ?? item.quantity);
+    if (!Number.isInteger(unitCount) || unitCount < 1 || unitCount > 999) {
+      fail("赠予产品数量必须是 1 至 999 的整数。", "INVALID_PRODUCT_GIFT_COUNT");
+    }
+    return { displayOrder: index + 1, retailProductId, unitCount };
+  });
+}
+
+function parsedProductGiftRows(value) {
+  let rows = value;
+  if (typeof rows === "string") {
+    try { rows = JSON.parse(rows); } catch (_) { rows = []; }
+  }
+  return (Array.isArray(rows) ? rows : []).map((row) => ({
+    id: row.id === undefined || row.id === null ? "" : String(row.id),
+    retailProductId: String(row.retail_product_id ?? row.retailProductId ?? row.product_id ?? row.productId ?? ""),
+    productCode: String(row.product_code_snapshot ?? row.productCode ?? row.product_code ?? ""),
+    productName: String(row.product_name_snapshot ?? row.productName ?? row.product_name ?? ""),
+    unitCount: Number(row.unit_count ?? row.unitCount ?? row.quantity ?? 0),
+    displayOrder: Number(row.display_order ?? row.displayOrder ?? 0)
+  })).filter((row) => row.retailProductId && row.unitCount > 0)
+    .sort((left, right) => left.displayOrder - right.displayOrder || Number(left.id || 0) - Number(right.id || 0));
+}
+
+async function readRechargeProductGifts(rechargeId, schemaAvailable = null) {
+  const ready = schemaAvailable === null ? await rechargeProductGiftSchemaAvailable() : schemaAvailable;
+  if (!ready) return [];
+  const rows = await executeSql(
+    `SELECT id, retail_product_id, product_code_snapshot, product_name_snapshot,
+            unit_count, display_order
+       FROM public.recharge_product_gifts
+      WHERE recharge_id = ${sqlText(rechargeId)}::bigint
+      ORDER BY display_order, id`
+  );
+  return parsedProductGiftRows(rows);
+}
+
 function positiveDatabaseId(value, label) {
   const text = String(value ?? "").trim();
   if (!/^[1-9]\d{0,18}$/.test(text)) fail(`必须选择有效的${label}。`, "BAD_REQUEST");
@@ -3077,7 +3159,7 @@ function rechargeSubmissionKey(value) {
   return text;
 }
 
-async function requireRechargeSubmissionSchema({ refund = false } = {}) {
+async function requireRechargeSubmissionSchema({ refund = false, giftRequired = false } = {}) {
   const rows = await executeSql(
     `SELECT EXISTS (
        SELECT 1
@@ -3106,7 +3188,8 @@ async function requireRechargeSubmissionSchema({ refund = false } = {}) {
         WHERE table_schema = 'public'
           AND table_name = 'recharge_records'
           AND column_name = 'balance_after_count'
-     ) AS has_refund_snapshots`
+     ) AS has_refund_snapshots,
+     TO_REGCLASS('public.recharge_product_gifts') IS NOT NULL AS has_gift_table`
   );
   if (!databaseBoolean(rows?.[0]?.has_idempotency_key)) {
     fail("充值单数据库缺少防重复提交字段，请先执行迁移 023。", "DATABASE_SCHEMA_MISSING");
@@ -3117,6 +3200,10 @@ async function requireRechargeSubmissionSchema({ refund = false } = {}) {
   if (refund && !databaseBoolean(rows?.[0]?.has_refund_snapshots)) {
     fail("退费单数据库结构尚未启用，请先执行迁移 044。", "DATABASE_SCHEMA_MISSING");
   }
+  if (giftRequired && !databaseBoolean(rows?.[0]?.has_gift_table)) {
+    fail("充值产品赠予尚未启用，请先执行迁移 061。", "DATABASE_SCHEMA_MISSING");
+  }
+  return rows?.[0] || {};
 }
 
 async function createRechargeApplication(event) {
@@ -3124,6 +3211,7 @@ async function createRechargeApplication(event) {
   const applicationType = String(event.applicationType || "NEW").trim().toUpperCase();
   if (!["NEW", "REFUND"].includes(applicationType)) fail("申请类型只能是充值或退费。", "BAD_REQUEST");
   const refund = applicationType === "REFUND";
+  const requestedProductGifts = normalizeRechargeProductGifts(event.productGifts, refund);
   const customerCode = String(event.customerCode || "").trim();
   if (!customerCode || customerCode.length > 96) fail("必须先确认本门店的活跃客户。", "CUSTOMER_REQUIRED");
   const productId = positiveDatabaseId(event.productId, "项目");
@@ -3142,7 +3230,8 @@ async function createRechargeApplication(event) {
   if (message.length > 500) fail("门店留言不能超过 500 个字符。", "MESSAGE_TOO_LONG");
   const idempotencyKey = rechargeSubmissionKey(event.clientRequestId);
 
-  await requireRechargeSubmissionSchema({ refund });
+  const rechargeSchema = await requireRechargeSubmissionSchema({ refund, giftRequired: requestedProductGifts.length > 0 });
+  const hasGiftSchema = databaseBoolean(rechargeSchema.has_gift_table);
   const customers = await executeSql(
     `SELECT id, customer_code, customer_name
        FROM public.customers
@@ -3164,6 +3253,27 @@ async function createRechargeApplication(event) {
   const product = products[0];
   if (!product) fail("所选项目不存在或已经封存，请重新选择。", "PRODUCT_NOT_ACTIVE");
 
+  let productGifts = [];
+  if (requestedProductGifts.length) {
+    const giftIds = requestedProductGifts.map((item) => `${sqlText(item.retailProductId)}::bigint`).join(", ");
+    const giftProducts = await executeSql(
+      `SELECT id, product_code, product_name
+         FROM public.retail_products
+        WHERE product_status = 'ACTIVE'
+          AND id IN (${giftIds})`
+    );
+    const giftById = new Map(giftProducts.map((item) => [String(item.id), item]));
+    productGifts = requestedProductGifts.map((item) => {
+      const giftProduct = giftById.get(item.retailProductId);
+      if (!giftProduct) fail("所选赠予产品不存在或已经封存，请重新选择。", "RETAIL_PRODUCT_NOT_ACTIVE");
+      return {
+        ...item,
+        productCode: String(giftProduct.product_code || ""),
+        productName: String(giftProduct.product_name || "")
+      };
+    });
+  }
+
   let teacher = null;
   if (teacherId) {
     const teachers = await executeSql(
@@ -3181,6 +3291,23 @@ async function createRechargeApplication(event) {
   }
   const teacherIdSql = teacherId ? `${sqlText(teacherId)}::bigint` : "NULL";
 
+  const giftSourceSql = productGifts.length
+    ? `VALUES ${productGifts.map((item) => `(${item.displayOrder}::smallint, ${sqlText(item.retailProductId)}::bigint, ${item.unitCount}::integer, ${sqlText(item.productCode)}::text, ${sqlText(item.productName)}::text)`).join(", ")}`
+    : `SELECT NULL::smallint, NULL::bigint, NULL::integer, NULL::text, NULL::text WHERE FALSE`;
+  const giftWriteCte = hasGiftSchema ? `, gift_source(display_order, retail_product_id, unit_count, product_code_snapshot, product_name_snapshot) AS (
+       ${giftSourceSql}
+     ), inserted_gifts AS (
+       INSERT INTO public.recharge_product_gifts
+         (recharge_id, retail_product_id, display_order, unit_count,
+          store_id, customer_id, teacher_id, product_code_snapshot, product_name_snapshot)
+       SELECT inserted.id, gift_source.retail_product_id, gift_source.display_order, gift_source.unit_count,
+              inserted.store_id, inserted.customer_id, inserted.teacher_id,
+              gift_source.product_code_snapshot, gift_source.product_name_snapshot
+         FROM inserted
+         JOIN gift_source ON TRUE
+       RETURNING id
+     )` : "";
+  const insertedGiftCountSql = hasGiftSchema ? `(SELECT COUNT(*)::bigint FROM inserted_gifts)` : `0::bigint`;
   const rows = await executeSql(
     `WITH current_balance AS (
        SELECT b.total_recharge_count, GREATEST(b.remaining_count, 0) AS remaining_count
@@ -3205,13 +3332,14 @@ async function createRechargeApplication(event) {
        RETURNING id, recharge_code, recharge_type, store_id, teacher_id, customer_id,
                  product_id, unit_count, record_status, submitted_by_account_id,
                  submitted_at, message, idempotency_key, balance_before_count, balance_after_count
-     )
-     SELECT *, TRUE AS created_now FROM inserted
+     )${giftWriteCte}
+     SELECT *, TRUE AS created_now, ${insertedGiftCountSql} AS inserted_gift_count FROM inserted
      UNION ALL
      SELECT r.id, r.recharge_code, r.recharge_type, r.store_id, r.teacher_id,
             r.customer_id, r.product_id, r.unit_count, r.record_status,
             r.submitted_by_account_id, r.submitted_at, r.message,
-            r.idempotency_key, r.balance_before_count, r.balance_after_count, FALSE AS created_now
+            r.idempotency_key, r.balance_before_count, r.balance_after_count,
+            FALSE AS created_now, 0::bigint AS inserted_gift_count
        FROM public.recharge_records r
       WHERE r.idempotency_key = ${sqlText(idempotencyKey)}
         AND NOT EXISTS (SELECT 1 FROM inserted)
@@ -3220,6 +3348,13 @@ async function createRechargeApplication(event) {
   const record = rows[0];
   if (!record) fail(refund ? "退费次数超过该项目尚未退费的总购买次数，请重新填写。" : "充值申请未能写入数据库，请稍后重试。", refund ? "REFUND_COUNT_EXCEEDS_PURCHASED" : "RECHARGE_CREATE_FAILED");
 
+  const storedProductGifts = await readRechargeProductGifts(record.id, hasGiftSchema);
+  const sameGiftRequest = storedProductGifts.length === productGifts.length
+    && storedProductGifts.every((stored, index) => (
+      stored.retailProductId === productGifts[index].retailProductId
+      && stored.unitCount === productGifts[index].unitCount
+      && stored.displayOrder === productGifts[index].displayOrder
+    ));
   const sameRequest = record.recharge_type === applicationType
     && String(record.store_id) === String(caller.storeId)
     && String(record.submitted_by_account_id) === String(caller.staffId)
@@ -3227,7 +3362,8 @@ async function createRechargeApplication(event) {
     && String(record.customer_id) === String(customer.id)
     && String(record.product_id) === String(productId)
     && Number(record.unit_count) === unitCount
-    && String(record.message || "") === message;
+    && String(record.message || "") === message
+    && sameGiftRequest;
   if (!sameRequest) {
     fail(`该防重复提交编号已经用于另一张${refund ? "退费" : "充值"}单，请刷新页面后重新提交。`, "IDEMPOTENCY_CONFLICT");
   }
@@ -3245,7 +3381,8 @@ async function createRechargeApplication(event) {
     balanceAfterCount: record.balance_after_count === null || record.balance_after_count === undefined ? null : Number(record.balance_after_count),
     customer: { customerCode: customer.customer_code, customerName: customer.customer_name },
     product: { productId: String(product.id), productCode: product.product_code, productName: product.product_name },
-    teacher: teacher ? { teacherId: String(teacher.id), teacherCode: teacher.teacher_code, teacherName: teacher.teacher_name } : null
+    teacher: teacher ? { teacherId: String(teacher.id), teacherCode: teacher.teacher_code, teacherName: teacher.teacher_name } : null,
+    productGifts: storedProductGifts
   };
 }
 
@@ -3531,6 +3668,7 @@ async function recoverBusinessSubmission(event) {
         || String(record.submitted_by_account_id) !== String(caller.staffId)) {
       fail("该防重复提交编号不属于当前账号和门店。", "FORBIDDEN");
     }
+    const productGifts = await readRechargeProductGifts(record.id);
     return {
       ok: true,
       found: true,
@@ -3551,7 +3689,8 @@ async function recoverBusinessSubmission(event) {
         teacherId: String(record.teacher_id),
         teacherCode: record.teacher_code,
         teacherName: record.teacher_name
-      } : null
+      } : null,
+      productGifts
     };
   }
 
@@ -3769,7 +3908,8 @@ function teacherOrderRows(rows, recordType) {
     customerCode: String(row.customer_code || ""),
     customerName: String(row.customer_name || ""),
     productCode: String(row.product_code || ""),
-    productName: String(row.product_name || "")
+    productName: String(row.product_name || ""),
+    productGifts: parsedProductGiftRows(row.product_gifts)
   }));
 }
 
@@ -3960,6 +4100,18 @@ async function getTeacherWorkspace(event = {}) {
     const listOffset = !detailMode && !legacyCombined && options.numberedPage
       ? `OFFSET ${(options.page - 1) * options.pageSize}`
       : "";
+    const giftSelect = baseRecordType === "RECHARGE" && detailMode && await rechargeProductGiftSchemaAvailable()
+      ? `(SELECT COALESCE(JSONB_AGG(JSONB_BUILD_OBJECT(
+             'id', gift.id,
+             'retailProductId', gift.retail_product_id,
+             'productCode', gift.product_code_snapshot,
+             'productName', gift.product_name_snapshot,
+             'unitCount', gift.unit_count,
+             'displayOrder', gift.display_order
+           ) ORDER BY gift.display_order, gift.id), '[]'::jsonb)
+            FROM public.recharge_product_gifts gift
+           WHERE gift.recharge_id = ${alias}.id) AS product_gifts`
+      : `'[]'::jsonb AS product_gifts`;
     const listSql = `SELECT ${alias}.id, ${alias}.${codeColumn} AS record_code,
               ${alias}.${typeColumn} AS original_type, ${alias}.unit_count,
               ${baseRecordType === "RECHARGE" ? `${alias}.balance_before_count, ${alias}.balance_after_count` : "NULL::integer AS balance_before_count, NULL::integer AS balance_after_count"},
@@ -3976,7 +4128,8 @@ async function getTeacherWorkspace(event = {}) {
               c.customer_code, c.customer_name,
               p.product_code, p.product_name,
               business_teacher.id AS teacher_id,
-              business_teacher.teacher_code, business_teacher.teacher_name
+              business_teacher.teacher_code, business_teacher.teacher_name,
+              ${giftSelect}
          FROM public.${table} ${alias}
          JOIN public.stores s ON s.id = ${alias}.store_id
          JOIN public.customers c ON c.id = ${alias}.customer_id
@@ -5493,6 +5646,7 @@ exports.main = async (event = {}, context = {}) => {
     if (action === "getTeacherBusinessCustomers") return await getTeacherBusinessCustomers(event);
     if (action === "listActiveTeachers") return await listActiveTeachers(event);
     if (action === "listActiveProducts") return await listActiveProducts(event);
+    if (action === "listActiveRetailProducts") return await listActiveRetailProducts(event);
     if (action === "getTeacherExperienceEntitlements") return await getTeacherExperienceEntitlements(event);
     if (action === "createRechargeApplication") return await createRechargeApplication(event);
     if (action === "createVerificationApplication") return await createVerificationApplication(event);

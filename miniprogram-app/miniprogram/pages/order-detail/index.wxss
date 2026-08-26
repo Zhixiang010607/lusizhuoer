@@ -15,6 +15,13 @@
 .detail-grid view { min-width: 0; padding: 18rpx; background: #fff7eb; border-radius: 14rpx; }
 .detail-grid text { display: block; overflow: hidden; color: #7c7062; font-size: 21rpx; text-overflow: ellipsis; white-space: nowrap; }
 .detail-grid .detail-value { margin-top: 7rpx; color: #302a22; font-size: 24rpx; font-weight: 800; }
+.gift-detail-card { background: #fffaf3; }
+.gift-detail-list { display: grid; gap: 10rpx; }
+.gift-detail-row { display: flex; align-items: center; justify-content: space-between; gap: 18rpx; padding: 18rpx; background: #fff7eb; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
+.gift-detail-row > view { min-width: 0; }
+.gift-detail-row text { display: block; overflow: hidden; color: #302a22; font-size: 24rpx; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.gift-detail-row view text:last-child { margin-top: 5rpx; color: #7c7062; font-size: 20rpx; font-weight: 500; }
+.gift-detail-row > text { flex: none; color: #7b5a2d; font-size: 26rpx; }
 .note-row { padding: 18rpx 0; border-top: 1rpx solid #eadfce; }
 .note-row:first-of-type { border-top: 0; }
 .note-row text { display: block; }

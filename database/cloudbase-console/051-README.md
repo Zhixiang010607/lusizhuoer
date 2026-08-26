@@ -1,6 +1,6 @@
 # Migration 051 部署顺序
 
-> **已退役：** 该文件只保留历史追溯。当前版本不再执行 051；已执行的库请在部署 staffAccount v73／faceRecognition v91／teacherCreate v6 后执行 053 删除旧状态表。
+> **已退役：** 该文件只保留历史追溯。当前版本不再执行 051；已执行的库请在部署 staffAccount v74／faceRecognition v92／teacherCreate v6 后执行 053 删除旧状态表。
 
 051 为老师新建／补录／替换人脸增加持久操作租约、取消栅栏和可重试清理墓碑。它不修改已有老师、
 人脸、照片或业务流水；控制记录只保存随机 owner token 的 SHA-256，不保存 token 原文。

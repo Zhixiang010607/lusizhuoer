@@ -23,7 +23,7 @@
 .photo-placeholder { display: flex; align-items: center; justify-content: center; color: #8a7d6d; font-size: 20rpx; text-align: center; }
 .candidate-info { display: flex; min-width: 0; flex-direction: column; justify-content: center; gap: 8rpx; color: #7c7062; font-size: 22rpx; }
 .candidate-name { color: #302a22; font-size: 30rpx; font-weight: 800; }
-.confirm { min-height: 82rpx; margin-top: 14rpx; color: #fffdf8; background: #6f532e; border-radius: 14rpx; font-size: 26rpx; font-weight: 800; }
+.confirm { height: 82rpx; min-height: 82rpx; display: flex; align-items: center; justify-content: center; margin-top: 14rpx; padding: 0 24rpx; color: #fffdf8; background: #6f532e; border-radius: 14rpx; font-size: 26rpx; font-weight: 800; line-height: 1; text-align: center; }
 .confirm[disabled] { color: #9b9082; background: #e7ddce; }
 .picker-message { display: block; margin-top: 13rpx; color: #675b4b; font-size: 22rpx; line-height: 1.45; }
 .picker-message.error { color: #a1322d; }

@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.23";
+  const VERSION = "0.16.24";
   const PRODUCT_LOGO_DETAIL_RETRY_DELAYS_MS = Object.freeze([0, 360, 1080]);
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
@@ -101,6 +101,22 @@
     return row?.[snake] ?? row?.[camel] ?? "";
   }
 
+  function normalizeProductGifts(value) {
+    let rows = value;
+    if (typeof rows === "string") {
+      try { rows = JSON.parse(rows); } catch (_) { rows = []; }
+    }
+    return (Array.isArray(rows) ? rows : []).map((item, index) => ({
+      id: clean(first(item?.id, index + 1)),
+      retailProductId: clean(first(item?.retailProductId, item?.retail_product_id, item?.productId, item?.product_id)),
+      productCode: clean(first(item?.productCode, item?.product_code_snapshot, item?.product_code)),
+      productName: clean(first(item?.productName, item?.product_name_snapshot, item?.product_name)),
+      unitCount: Number(item?.unitCount ?? item?.unit_count ?? item?.quantity ?? 0),
+      displayOrder: Number(item?.displayOrder ?? item?.display_order ?? index + 1)
+    })).filter((item) => item.retailProductId && Number.isInteger(item.unitCount) && item.unitCount > 0)
+      .sort((left, right) => left.displayOrder - right.displayOrder);
+  }
+
   function normalizeDatabaseOrder(row) {
     if (!row) return null;
     const originalType = clean(field(row, "original_type", "originalType")).toUpperCase();
@@ -146,6 +162,7 @@
       supplementNote: field(row, "supplement_note", "supplementNote"),
       initialHqNote: field(row, "initial_review_note", "initialReviewNote"),
       reviewNote: field(row, "initial_review_note", "initialReviewNote"),
+      productGifts: normalizeProductGifts(field(row, "product_gifts", "productGifts")),
       databaseBacked: true
     };
   }
@@ -189,6 +206,7 @@
       supplementNote: clean(row.supplementNote),
       initialHqNote: clean(row.reviewNote),
       reviewNote: clean(row.reviewNote),
+      productGifts: normalizeProductGifts(row.productGifts),
       databaseBacked: true
     };
   }
@@ -345,6 +363,11 @@
       label: elementText(element, "span"),
       value: elementText(element, "strong")
     }));
+    if (recharge) {
+      normalizeProductGifts(record?.productGifts).forEach((gift, index) => {
+        details.push({ label: `赠予产品 ${index + 1}`, value: `${gift.productName}${gift.productCode ? ` · ${gift.productCode}` : ""} × ${gift.unitCount} 件` });
+      });
+    }
     const verificationFacts = facts.filter((item) => ["门店", "客户", "项目", "业务老师"].includes(item.label));
     const submittedAt = details.find((item) => item.label === "提交时间")?.value
       || facts.find((item) => item.label === "提交时间")?.value
@@ -1092,6 +1115,17 @@
     $("rechargeHqMessage").textContent = hqMessage || "无";
     $("rechargeStoreMessageTime").textContent = formatTime(first(record?.createdAt, record?.submittedAt)) || "—";
     $("rechargeHqMessageTime").textContent = formatTime(first(record?.reviewedAt, record?.approvedAt, record?.rejectedAt)) || "—";
+  }
+
+  function renderRechargeProductGifts(record) {
+    const panel = $("rechargeProductGiftsPanel");
+    const list = $("rechargeProductGiftsList");
+    const count = $("rechargeProductGiftsCount");
+    if (!panel || !list || !count) return;
+    const gifts = normalizeProductGifts(record?.productGifts);
+    panel.hidden = !gifts.length;
+    count.textContent = `${gifts.length} 种`;
+    list.innerHTML = gifts.map((gift) => `<article class="recharge-product-gift-row"><div><strong>${escapeHtml(gift.productName)}</strong><span>${escapeHtml(gift.productCode || "历史产品")}</span></div><b>${gift.unitCount} 件</b></article>`).join("");
   }
 
   function combinedStoreMessage(record) {
@@ -2825,6 +2859,7 @@
     if (!recharge) missingFacts.push("提交时间");
     $("orderKeyfacts").innerHTML = missingFacts.map((label) => factCard(label, "", "")).join("");
     if (recharge) $("orderInfo").innerHTML = infoCard("充值单编号", recordId);
+    renderRechargeProductGifts(null);
     if (!recharge) {
       renderVerificationMessages(null);
       resetVerificationPhotoPanel("尚未读取到可关联的数据库核销单。");
@@ -2884,6 +2919,7 @@
         ? [["退费次数", rechargeCountLabel], ["提交时间", submittedAt], ["审核时间", reviewedAt]]
         : [["充值次数", rechargeCountLabel], ["提交时间", submittedAt], ["审核时间", reviewedAt]];
       $("orderInfo").innerHTML = items.map(([label, value]) => infoCard(label, value)).join("");
+      renderRechargeProductGifts(record);
     }
 
     if (!recharge) {

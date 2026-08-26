@@ -22,6 +22,21 @@ function optionalNumber(input) {
   return Number.isFinite(number) ? `${number} 次` : "—";
 }
 function normalizedInstructions(input) { return clean(input).replace(/\r\n?/g, "\n"); }
+function normalizeProductGifts(input) {
+  let rows = input;
+  if (typeof rows === "string") {
+    try { rows = JSON.parse(rows); } catch (_) { rows = []; }
+  }
+  return (Array.isArray(rows) ? rows : []).map((item, index) => ({
+    id: clean(item?.id || index + 1),
+    retailProductId: clean(item?.retailProductId ?? item?.retail_product_id ?? item?.productId ?? item?.product_id),
+    productCode: clean(item?.productCode ?? item?.product_code_snapshot ?? item?.product_code),
+    productName: clean(item?.productName ?? item?.product_name_snapshot ?? item?.product_name),
+    unitCount: Number(item?.unitCount ?? item?.unit_count ?? item?.quantity ?? 0),
+    displayOrder: Number(item?.displayOrder ?? item?.display_order ?? index + 1)
+  })).filter((item) => item.retailProductId && Number.isInteger(item.unitCount) && item.unitCount > 0)
+    .sort((left, right) => left.displayOrder - right.displayOrder);
+}
 
 function exactOrderKind(baseType, originalType) {
   const family = clean(baseType).toUpperCase() === "VERIFICATION" ? "VERIFICATION" : "RECHARGE";
@@ -114,6 +129,16 @@ function receiptDocumentData(order, baseType, template) {
     { label: "业务老师", value: source.teacherName || "未指定" }
   ];
   if (!recharge) facts.push({ label: "提交时间", value: source.submittedAt || "—" });
+  const details = recharge ? [
+    { label: refund ? "退费次数" : "充值次数", value: `${Number(source.unitCount || 0)} 次` },
+    { label: "提交时间", value: source.submittedAt || "—" },
+    { label: "审核时间", value: source.reviewedAt || "—" }
+  ] : [];
+  if (recharge) {
+    normalizeProductGifts(source.productGifts).forEach((gift, index) => {
+      details.push({ label: `赠予产品 ${index + 1}`, value: `${gift.productName}${gift.productCode ? ` · ${gift.productCode}` : ""} × ${gift.unitCount} 件` });
+    });
+  }
   const messages = [
     source.message ? { label: "提交说明", value: source.message, time: source.submittedAt || "" } : null,
     reviewVisible && source.reviewNote ? { label: "审核说明", value: source.reviewNote, time: source.reviewedAt || "" } : null,
@@ -133,11 +158,7 @@ function receiptDocumentData(order, baseType, template) {
     compactVerification: !recharge,
     detailTitle: refund ? "退费信息" : recharge ? "充值信息" : "核销信息",
     detailSubtitle: refund ? "退费次数与办理时间" : recharge ? "充值次数与办理时间" : "该工单数据库中保存的完整业务内容",
-    details: recharge ? [
-      { label: refund ? "退费次数" : "充值次数", value: `${Number(source.unitCount || 0)} 次` },
-      { label: "提交时间", value: source.submittedAt || "—" },
-      { label: "审核时间", value: source.reviewedAt || "—" }
-    ] : [],
+    details,
     messages,
     productTemplate: {
       productName: template.productName || source.productName || "产品",
@@ -242,7 +263,8 @@ function normalizeStaffOrder(row, baseType) {
     voidNote: clean(value(source, "void_request_note", "voidRequestNote")),
     voidReviewNote: clean(value(source, "void_review_note", "voidReviewNote")),
     voidSubmittedAt: query.displayDateTime(value(source, "void_requested_at", "voidRequestedAt")),
-    voidReviewedAt: query.displayDateTime(value(source, "void_reviewed_at", "voidReviewedAt"))
+    voidReviewedAt: query.displayDateTime(value(source, "void_reviewed_at", "voidReviewedAt")),
+    productGifts: normalizeProductGifts(value(source, "product_gifts", "productGifts"))
   };
 }
 
@@ -258,7 +280,8 @@ function normalizeTeacherOrder(row, baseType) {
     storeAddress: address || "未填写",
     message: clean(source.message), reviewNote: clean(source.reviewNote), supplementNote: clean(source.supplementNote),
     balanceBeforeLabel: optionalNumber(source.balanceBeforeCount), balanceAfterLabel: optionalNumber(source.balanceAfterCount),
-    voidStatus: clean(source.voidRequestStatus), voidNote: "", voidReviewNote: "", voidSubmittedAt: "—", voidReviewedAt: "—"
+    voidStatus: clean(source.voidRequestStatus), voidNote: "", voidReviewNote: "", voidSubmittedAt: "—", voidReviewedAt: "—",
+    productGifts: normalizeProductGifts(source.productGifts)
   };
 }
 

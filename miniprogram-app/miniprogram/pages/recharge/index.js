@@ -8,6 +8,13 @@ function product(value) {
     purchasedCount: Number(value.purchasedCount || 0), remainingCount: Number(value.remainingCount || 0)
   };
 }
+function retailProduct(value) {
+  return {
+    productId: String(value.productId || ""),
+    productCode: String(value.productCode || ""),
+    productName: String(value.productName || "")
+  };
+}
 function teacher(value) {
   return { teacherId: String(value.teacherId || ""), teacherCode: String(value.teacherCode || ""), teacherName: String(value.teacherName || "") };
 }
@@ -40,6 +47,8 @@ Page({
     session: {}, store: {}, stores: [], storeLabels: ["请选择门店"], storeIndex: 0, loadingStores: false,
     refund: false, customer: null, products: [], productLabels: [], productIndex: -1, selectedProduct: null,
     teachers: [], teacherLabels: [], teacherIndex: 0, selectedTeacher: null, teacherOptionsReady: false, unitCount: "", note: "", loadingOptions: false,
+    giftProducts: [], giftProductLabels: ["请选择激活产品"], giftProductIndex: 0, selectedGiftProduct: null,
+    giftProductQuantity: "", productGifts: [], loadingGiftProducts: false,
     busy: false, locked: false, recovering: false, ready: false, message: "", error: false
   },
   onLoad(options) {
@@ -52,7 +61,7 @@ Page({
       if (!store || !store.id) return wx.reLaunch({ url: "/pages/home/index" });
       this.setData({ store: businessStore(store) });
       this.loadTeachers();
-      if (!refund) this.loadProducts();
+      if (!refund) { this.loadProducts(); this.loadGiftProducts(); }
     } else {
       this.loadTeacherStores();
     }
@@ -65,6 +74,7 @@ Page({
     this._storeRequestEpoch = (this._storeRequestEpoch || 0) + 1;
     this._teacherRequestEpoch = (this._teacherRequestEpoch || 0) + 1;
     this._productRequestEpoch = (this._productRequestEpoch || 0) + 1;
+    this._giftProductRequestEpoch = (this._giftProductRequestEpoch || 0) + 1;
   },
   async loadTeacherStores() {
     const requestEpoch = (this._storeRequestEpoch || 0) + 1;
@@ -102,16 +112,19 @@ Page({
     setSelectedStore(store, this.data.session);
     this._teacherRequestEpoch = (this._teacherRequestEpoch || 0) + 1;
     this._productRequestEpoch = (this._productRequestEpoch || 0) + 1;
+    this._giftProductRequestEpoch = (this._giftProductRequestEpoch || 0) + 1;
     this.setData({
       store, storeIndex: pickerIndex,
       customer: null,
       teachers: [], teacherLabels: [], teacherIndex: 0, selectedTeacher: null, teacherOptionsReady: false,
       products: [], productLabels: [], productIndex: -1, selectedProduct: null,
+      giftProducts: [], giftProductLabels: ["请选择激活产品"], giftProductIndex: 0,
+      selectedGiftProduct: null, giftProductQuantity: "", productGifts: [], loadingGiftProducts: false,
       unitCount: "", note: "", loadingOptions: false, ready: false,
       message: `已选择 ${store.name}，请确认客户`, error: false
     });
     this.loadTeachers();
-    if (!this.data.refund) this.loadProducts();
+    if (!this.data.refund) { this.loadProducts(); this.loadGiftProducts(); }
   },
   customerChanged() {
     if (this.data.refund) this._productRequestEpoch = (this._productRequestEpoch || 0) + 1;
@@ -119,6 +132,7 @@ Page({
       customer: null, products: this.data.refund ? [] : this.data.products,
       productLabels: this.data.refund ? [] : this.data.productLabels,
       selectedProduct: null, productIndex: -1,
+      selectedGiftProduct: null, giftProductIndex: 0, giftProductQuantity: "", productGifts: [],
       unitCount: "", note: "", ready: false,
       loadingOptions: this.data.refund ? false : this.data.loadingOptions,
       message: "", error: false
@@ -129,7 +143,9 @@ Page({
     const customer = event.detail.customer;
     this.setData({
       customer, message: `已确认 ${customer.customerName}`, error: false,
-      selectedProduct: null, productIndex: -1, unitCount: "", note: "", ready: false
+      selectedProduct: null, productIndex: -1,
+      selectedGiftProduct: null, giftProductIndex: 0, giftProductQuantity: "", productGifts: [],
+      unitCount: "", note: "", ready: false
     });
     if (this.data.refund) await this.loadProducts(customer.customerCode);
     if (this.data.session.role === "teacher" && this.data.teacherOptionsReady && !this.data.selectedTeacher) {
@@ -198,8 +214,74 @@ Page({
       }
     }
   },
+  async loadGiftProducts() {
+    if (this.data.refund || !String(this.data.store.id || "")) return;
+    const storeId = String(this.data.store.id || "");
+    const requestEpoch = (this._giftProductRequestEpoch || 0) + 1;
+    this._giftProductRequestEpoch = requestEpoch;
+    this.setData({
+      loadingGiftProducts: true, giftProducts: [], giftProductLabels: ["正在读取激活产品…"],
+      giftProductIndex: 0, selectedGiftProduct: null, giftProductQuantity: "", productGifts: []
+    });
+    try {
+      const result = await callFace("listActiveRetailProducts", { storeId });
+      if (requestEpoch !== this._giftProductRequestEpoch || String(this.data.store.id || "") !== storeId) return;
+      const values = (result.products || []).map(retailProduct).filter((item) => item.productId && item.productName);
+      this.setData({
+        giftProducts: values,
+        giftProductLabels: ["请选择激活产品", ...values.map((item) => `${item.productName} · ${item.productCode}`)]
+      });
+    } catch (error) {
+      if (requestEpoch === this._giftProductRequestEpoch && String(this.data.store.id || "") === storeId) {
+        this.setData({
+          giftProducts: [], giftProductLabels: ["激活产品读取失败"],
+          message: error.message || "赠予产品读取失败；仍可不添加赠品提交充值", error: true
+        });
+      }
+    } finally {
+      if (requestEpoch === this._giftProductRequestEpoch && String(this.data.store.id || "") === storeId) {
+        this.setData({ loadingGiftProducts: false });
+      }
+    }
+  },
   selectProduct(event) { const index = Number(event.detail.value); this.setData({ productIndex: index, selectedProduct: this.data.products[index] || null }); this.syncReady(); },
   selectTeacher(event) { const index = Number(event.detail.value); this.setData({ teacherIndex: index, selectedTeacher: this.data.teachers[index] || null }); this.syncReady(); },
+  selectGiftProduct(event) {
+    const pickerIndex = Number(event.detail.value || 0);
+    this.setData({ giftProductIndex: pickerIndex, selectedGiftProduct: this.data.giftProducts[pickerIndex - 1] || null, message: "", error: false });
+  },
+  inputGiftQuantity(event) { this.setData({ giftProductQuantity: event.detail.value, message: "", error: false }); },
+  addProductGift() {
+    if (this.data.busy || this.data.locked || !this.data.customer) return;
+    const selected = this.data.selectedGiftProduct;
+    const unitCount = Number(this.data.giftProductQuantity);
+    if (!selected?.productId) return this.setData({ message: "请先选择一个当前激活的赠予产品。", error: true });
+    if (!Number.isInteger(unitCount) || unitCount < 1 || unitCount > 999) {
+      return this.setData({ message: "赠予数量必须是 1 至 999 的整数。", error: true });
+    }
+    if (this.data.productGifts.some((item) => item.retailProductId === selected.productId)) {
+      return this.setData({ message: "该产品已经加入赠予清单；如需修改，请先删除后重新加入。", error: true });
+    }
+    if (this.data.productGifts.length >= 20) return this.setData({ message: "一张充值单最多加入 20 种赠予产品。", error: true });
+    this.setData({
+      productGifts: [...this.data.productGifts, {
+        retailProductId: selected.productId, productCode: selected.productCode,
+        productName: selected.productName, unitCount
+      }],
+      giftProductIndex: 0, selectedGiftProduct: null, giftProductQuantity: "",
+      message: `已加入 ${selected.productName} × ${unitCount}`, error: false
+    });
+  },
+  removeProductGift(event) {
+    if (this.data.busy || this.data.locked) return;
+    const index = Number(event.currentTarget.dataset.index);
+    if (!Number.isInteger(index) || index < 0 || index >= this.data.productGifts.length) return;
+    const removed = this.data.productGifts[index];
+    this.setData({
+      productGifts: this.data.productGifts.filter((_, giftIndex) => giftIndex !== index),
+      message: `已删除 ${removed.productName}`, error: false
+    });
+  },
   inputCount(event) { this.setData({ unitCount: event.detail.value }); this.syncReady(); },
   inputNote(event) { this.setData({ note: event.detail.value }); },
   syncReady() {
@@ -213,7 +295,8 @@ Page({
     const count = Number(this.data.unitCount);
     const payload = {
       storeId: this.data.store.id, applicationType: this.data.refund ? "REFUND" : "NEW", customerCode: this.data.customer.customerCode,
-      productId: this.data.selectedProduct.productId, teacherId: this.data.selectedTeacher.teacherId, unitCount: count, message: String(this.data.note || "").trim()
+      productId: this.data.selectedProduct.productId, teacherId: this.data.selectedTeacher.teacherId, unitCount: count, message: String(this.data.note || "").trim(),
+      productGifts: this.data.refund ? [] : this.data.productGifts.map((item) => ({ retailProductId: item.retailProductId, unitCount: item.unitCount }))
     };
     let intent;
     try { intent = submission.begin("RECHARGE", payload); }
@@ -224,7 +307,7 @@ Page({
       result = await callFace("createRechargeApplication", { ...payload, clientRequestId: intent.clientRequestId });
       if (String(result.recordStatus || "") !== "PENDING" || !result.rechargeId || !result.rechargeCode) throw new Error("服务端未返回完整待审核单据，已禁止显示成功");
       const confirmedIntent = submission.confirm("RECHARGE", result.rechargeId);
-      this.setData({ locked: false, message: `${this.data.refund ? '退费' : '充值'}单 ${result.rechargeCode} 已提交，等待总部审核。`, error: false, unitCount: "", note: "" });
+      this.setData({ locked: false, message: `${this.data.refund ? '退费' : '充值'}单 ${result.rechargeCode} 已提交，等待总部审核。`, error: false, unitCount: "", note: "", productGifts: [], giftProductIndex: 0, selectedGiftProduct: null, giftProductQuantity: "" });
       this.openSubmittedOrder(result, confirmedIntent);
     } catch (error) {
       submission.markUncertain("RECHARGE");

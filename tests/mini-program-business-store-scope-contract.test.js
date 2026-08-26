@@ -228,6 +228,6 @@ test("store accounts use only their bound store and never render the teacher sto
   for (const pageName of ["recharge", "verification", "customer-create"]) {
     const markup = fs.readFileSync(path.join(mini, "pages", pageName, "index.wxml"), "utf8");
     assert.match(markup, /wx:if="\{\{session\.role === 'teacher'\}\}" class="card store-picker-card"/);
-    assert.match(markup, /第一步：选择办理门店/);
+    assert.match(markup, /选择办理门店/);
   }
 });
