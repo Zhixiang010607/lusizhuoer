@@ -80,6 +80,7 @@ test("mini program exposes separate project and product entries and keeps produc
   const home = read("miniprogram-app/miniprogram/pages/home/index.wxml");
   const homeJs = read("miniprogram-app/miniprogram/pages/home/index.js");
   const page = read("miniprogram-app/miniprogram/pages/retail-product-management/index.wxml");
+  const pageStyles = read("miniprogram-app/miniprogram/pages/retail-product-management/index.wxss");
   const logic = read("miniprogram-app/miniprogram/pages/retail-product-management/index.js");
   const createPage = read("miniprogram-app/miniprogram/pages/retail-product-create/index.wxml");
   const createLogic = read("miniprogram-app/miniprogram/pages/retail-product-create/index.js");
@@ -100,4 +101,6 @@ test("mini program exposes separate project and product entries and keeps produc
   assert.match(createLogic, /clientRequestId:\s*pendingRequestId\(\)/);
   assert.doesNotMatch(`${page}\n${createPage}`, /产品类别|产品介绍|单据模板|LOGO/);
   assert.doesNotMatch(`${logic}\n${createLogic}`, /deleteRetailProduct/);
+  assert.match(pageStyles, /\.status-button\s*\{[^}]*justify-self:\s*center;[^}]*display:\s*flex;[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*width:\s*104rpx;[^}]*height:\s*56rpx;/s,
+    "product status actions must be compact and centered in both axes");
 });

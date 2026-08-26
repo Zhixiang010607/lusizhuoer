@@ -55,7 +55,7 @@
           <view class="picker">{{loadingGiftProducts ? '正在读取激活产品…' : giftProductLabels[giftProductIndex]}}</view>
         </picker>
         <input class="input gift-quantity" type="number" maxlength="3" value="{{giftProductQuantity}}" bindinput="inputGiftQuantity" disabled="{{!customer}}" placeholder="数量" />
-        <button class="gift-plus" type="button" bindtap="addProductGift" disabled="{{!customer || busy || locked}}" aria-label="加入产品赠予">＋</button>
+        <button class="gift-plus" bindtap="addProductGift" disabled="{{!customer || busy || locked}}" aria-label="加入产品赠予"><text class="gift-plus-symbol">＋</text></button>
       </view>
       <button wx:if="{{!loadingGiftProducts && !giftProducts.length}}" class="secondary gift-retry" bindtap="loadGiftProducts" disabled="{{!customer}}">重试激活产品列表</button>
       <view wx:if="{{productGifts.length}}" class="gift-list">

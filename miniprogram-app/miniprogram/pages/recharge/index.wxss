@@ -1,11 +1,12 @@
 .recovery-card { border-color: #efc1bd; }
 .disabled-card { opacity: .68; }
 .impact { margin: -4rpx 0 22rpx; padding: 18rpx; color: #625747; background: #f5ead8; border-left: 6rpx solid #a98243; border-radius: 12rpx; line-height: 1.5; }
-.gift-add-row { display: grid; grid-template-columns: minmax(0, 1fr) 132rpx 76rpx; align-items: center; gap: 12rpx; margin-top: 18rpx; }
-.gift-product-picker { min-width: 0; }
+.gift-add-row { width: 100%; min-width: 0; display: flex; align-items: center; gap: 12rpx; margin-top: 18rpx; }
+.gift-product-picker { flex: 1 1 0; min-width: 0; overflow: hidden; }
 .gift-product-picker .picker { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gift-quantity { width: 100%; min-width: 0; margin: 0; padding: 0 14rpx; text-align: center; }
-.gift-plus { width: 76rpx; min-width: 76rpx; height: 76rpx; min-height: 76rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0; color: #fffdf8; background: #7b5a2d; border-radius: 50%; font-size: 42rpx; font-weight: 500; line-height: 1; }
+.gift-quantity { flex: 0 0 116rpx; width: 116rpx; min-width: 0; margin: 0; padding: 0 14rpx; text-align: center; }
+.gift-plus { flex: 0 0 72rpx; width: 72rpx; min-width: 72rpx; height: 72rpx; min-height: 72rpx; display: flex; align-items: center; justify-content: center; overflow: hidden; margin: 0; padding: 0; color: #fffdf8; background: #7b5a2d; border-radius: 50%; font-size: 40rpx; font-weight: 500; line-height: 1; }
+.gift-plus-symbol { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; color: inherit; font-size: inherit; line-height: 1; text-align: center; }
 .gift-plus::after, .gift-remove::after { border: 0; }
 .gift-plus[disabled] { color: #a99c8c; background: #e6dccd; }
 .gift-retry { margin-top: 14rpx; }
@@ -18,6 +19,7 @@
 .gift-empty { display: block; margin-top: 18rpx; color: #8b7f70; font-size: 21rpx; text-align: center; }
 .submit-card { padding-top: 22rpx; padding-bottom: 22rpx; }
 @media (max-width: 360px) {
-  .gift-add-row { grid-template-columns: minmax(0, 1fr) 112rpx 70rpx; gap: 8rpx; }
-  .gift-plus { width: 70rpx; min-width: 70rpx; height: 70rpx; min-height: 70rpx; }
+  .gift-add-row { gap: 8rpx; }
+  .gift-quantity { flex-basis: 104rpx; width: 104rpx; }
+  .gift-plus { flex-basis: 68rpx; width: 68rpx; min-width: 68rpx; height: 68rpx; min-height: 68rpx; }
 }

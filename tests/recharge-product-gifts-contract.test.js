@@ -100,6 +100,7 @@ test("web store and teacher recharge flows use choose, quantity, plus, delete or
 
 test("mini recharge gift flow and customer confirmation are centered and removable", () => {
   const page = read("miniprogram-app/miniprogram/pages/recharge/index.wxml");
+  const pageStyles = read("miniprogram-app/miniprogram/pages/recharge/index.wxss");
   const logic = read("miniprogram-app/miniprogram/pages/recharge/index.js");
   assert.match(page, /第三步：填写产品赠予/);
   const picker = page.indexOf('bindchange="selectGiftProduct"');
@@ -110,6 +111,12 @@ test("mini recharge gift flow and customer confirmation are centered and removab
   assert.match(logic, /callFace\("listActiveRetailProducts", \{ storeId \}\)/);
   assert.match(logic, /productGifts: this\.data\.refund \? \[\] : this\.data\.productGifts\.map/);
   assert.match(logic, /this\.data\.productGifts\.filter\(\(_, giftIndex\) => giftIndex !== index\)/);
+  assert.match(page, /class="gift-plus"[^>]*><text class="gift-plus-symbol">＋<\/text><\/button>/,
+    "the add action must render an explicit visible plus symbol");
+  assert.match(pageStyles, /\.gift-add-row\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;[^}]*display:\s*flex;/s);
+  assert.match(pageStyles, /\.gift-product-picker\s*\{[^}]*flex:\s*1 1 0;[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;/s);
+  assert.match(pageStyles, /\.gift-plus\s*\{[^}]*flex:\s*0 0 72rpx;[^}]*width:\s*72rpx;[^}]*align-items:\s*center;[^}]*justify-content:\s*center;/s,
+    "the plus must stay fully inside the gift row and centered in both axes");
 
   const pickerStyles = read("miniprogram-app/miniprogram/components/customer-picker/index.wxss");
   const confirm = pickerStyles.match(/\.confirm \{[^}]+\}/)?.[0] || "";
@@ -132,6 +139,10 @@ test("recharge detail and exports preserve gift name, code and quantity", () => 
     assert.match(source, /unitCount/);
   }
   assert.match(read("recharge-detail.html"), /id="rechargeProductGiftsPanel"/);
+  assert.match(web, /panel\.hidden = !gifts\.length/,
+    "the web order must hide the complete gift section when no gifts exist");
+  assert.match(miniPage, /wx:if="\{\{baseType === 'RECHARGE' && order\.productGifts\.length\}\}" class="card gift-detail-card"/,
+    "the mini order must render product gifts only when a recharge has gift lines");
   assert.match(miniPage, /产品赠予/);
   assert.match(miniPage, /item\.productCode/);
   assert.match(miniPage, /item\.unitCount/);
