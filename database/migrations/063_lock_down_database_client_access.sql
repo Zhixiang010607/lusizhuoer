@@ -34,9 +34,9 @@ GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO service_role;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO service_role;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO service_role;
 
--- Future objects: remove the provider defaults that previously granted anon
--- reads, authenticated writes and PUBLIC routine execution.  Cover every
--- current public-schema object owner plus the role running this migration.
+-- Future objects: always harden the role running this migration.  Repair other
+-- object owners when CloudBase permits it; provider-owned roles can be
+-- immutable, so the schema denial above remains the authoritative boundary.
 DO $$
 DECLARE
   owner_row RECORD;
@@ -62,21 +62,27 @@ BEGIN
     SELECT role_name
       FROM public_object_owners
      WHERE role_name IS NOT NULL
-     ORDER BY role_name
+     ORDER BY (role_name <> CURRENT_USER::TEXT), role_name
   LOOP
-    EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE ALL ON TABLES FROM PUBLIC, anon, authenticated', owner_row.role_name);
-    EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE ALL ON SEQUENCES FROM PUBLIC, anon, authenticated', owner_row.role_name);
-    EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated', owner_row.role_name);
-    EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE ALL ON TABLES FROM PUBLIC, anon, authenticated', owner_row.role_name);
-    EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE ALL ON SEQUENCES FROM PUBLIC, anon, authenticated', owner_row.role_name);
-    EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated', owner_row.role_name);
-
-    EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I GRANT ALL ON TABLES TO service_role', owner_row.role_name);
-    EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I GRANT ALL ON SEQUENCES TO service_role', owner_row.role_name);
-    EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I GRANT EXECUTE ON FUNCTIONS TO service_role', owner_row.role_name);
-    EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public GRANT ALL ON TABLES TO service_role', owner_row.role_name);
-    EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public GRANT ALL ON SEQUENCES TO service_role', owner_row.role_name);
-    EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO service_role', owner_row.role_name);
+    BEGIN
+      EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE ALL ON TABLES FROM PUBLIC, anon, authenticated', owner_row.role_name);
+      EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE ALL ON SEQUENCES FROM PUBLIC, anon, authenticated', owner_row.role_name);
+      EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated', owner_row.role_name);
+      EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE ALL ON TABLES FROM PUBLIC, anon, authenticated', owner_row.role_name);
+      EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE ALL ON SEQUENCES FROM PUBLIC, anon, authenticated', owner_row.role_name);
+      EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated', owner_row.role_name);
+      EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I GRANT ALL ON TABLES TO service_role', owner_row.role_name);
+      EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I GRANT ALL ON SEQUENCES TO service_role', owner_row.role_name);
+      EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I GRANT EXECUTE ON FUNCTIONS TO service_role', owner_row.role_name);
+      EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public GRANT ALL ON TABLES TO service_role', owner_row.role_name);
+      EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public GRANT ALL ON SEQUENCES TO service_role', owner_row.role_name);
+      EXECUTE FORMAT('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO service_role', owner_row.role_name);
+    EXCEPTION WHEN insufficient_privilege THEN
+      IF owner_row.role_name = CURRENT_USER::TEXT THEN
+        RAISE;
+      END IF;
+      RAISE NOTICE 'Skipped CloudBase-owned role %; schema denial remains authoritative', owner_row.role_name;
+    END;
   END LOOP;
 END;
 $$;

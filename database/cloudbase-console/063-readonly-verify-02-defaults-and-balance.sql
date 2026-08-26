@@ -1,19 +1,17 @@
 -- 063 read-only verification 2/2: defaults, backend access and balance guard.
 
 WITH namespace AS (SELECT oid FROM pg_namespace WHERE nspname = 'public'),
-owners AS (
-  SELECT class.relowner AS oid FROM pg_class AS class JOIN namespace ON namespace.oid = class.relnamespace
-  UNION SELECT proc.proowner FROM pg_proc AS proc JOIN namespace ON namespace.oid = proc.pronamespace
-  UNION SELECT CURRENT_USER::regrole::oid
-), bad_defaults AS (
+migration_owner AS (SELECT CURRENT_USER::regrole::oid AS oid),
+bad_defaults AS (
   SELECT 1 FROM pg_default_acl AS defaults
   CROSS JOIN LATERAL ACLEXPLODE(defaults.defaclacl) AS privilege
   LEFT JOIN pg_roles AS grantee ON grantee.oid = privilege.grantee
-  WHERE defaults.defaclnamespace IN (0, (SELECT oid FROM namespace))
+  WHERE defaults.defaclrole = (SELECT oid FROM migration_owner)
+    AND defaults.defaclnamespace IN (0, (SELECT oid FROM namespace))
     AND defaults.defaclobjtype IN ('r', 'S', 'f')
     AND (privilege.grantee = 0 OR grantee.rolname IN ('anon', 'authenticated'))
 ), bad_function_defaults AS (
-  SELECT 1 FROM owners AS owner
+  SELECT 1 FROM migration_owner AS owner
   LEFT JOIN pg_default_acl AS defaults ON defaults.defaclrole = owner.oid
     AND defaults.defaclnamespace = 0 AND defaults.defaclobjtype = 'f'
   CROSS JOIN LATERAL ACLEXPLODE(COALESCE(defaults.defaclacl, ACLDEFAULT('f', owner.oid))) AS privilege
@@ -22,7 +20,7 @@ owners AS (
   SELECT COALESCE(PG_GET_FUNCTIONDEF(
     TO_REGPROCEDURE('public.enforce_paid_verification_available_balance_v63()')), '') AS source
 ), checks AS (
-  SELECT 1 AS sort_order, 'future client defaults closed'::TEXT AS check_name,
+  SELECT 1 AS sort_order, 'migration owner defaults closed'::TEXT AS check_name,
     ((SELECT COUNT(*) FROM bad_defaults) + (SELECT COUNT(*) FROM bad_function_defaults))::BIGINT AS record_count
   UNION ALL
   SELECT 2, 'service role retained', CASE WHEN

@@ -37,6 +37,11 @@ for (const source of [migration, defaultAcl]) {
   assert.match(source, /ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated/);
   assert.match(source, /IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated/);
   assert.match(source, /GRANT EXECUTE ON FUNCTIONS TO service_role/);
+  assert.match(source, /EXCEPTION WHEN insufficient_privilege/,
+    "CloudBase-owned roles must not abort the current migration owner's repair");
+  assert.match(source, /owner_row\.role_name = CURRENT_USER::TEXT[\s\S]*RAISE;/,
+    "failure to close the current migration owner's defaults must remain fatal");
+  assert.match(source, /schema denial remains authoritative/);
 }
 
 for (const source of [migration, balanceGuard]) {
@@ -65,7 +70,7 @@ assert.match(verify, /client schema access closed/);
 assert.match(verify, /client table access closed/);
 assert.match(verify, /client sequence access closed/);
 assert.match(verify, /client function execution closed/);
-assert.match(verify, /future client defaults closed/);
+assert.match(verify, /migration owner defaults closed/);
 assert.match(verify, /service role retained/);
 assert.match(verify, /paid verification balance trigger/);
 assert.match(verify, /paid verification balance guard body/);
