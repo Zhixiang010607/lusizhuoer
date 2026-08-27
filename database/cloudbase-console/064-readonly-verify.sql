@@ -1,9 +1,23 @@
 -- Read-only verification for migration 064. Every row must report READY.
+-- PostgreSQL commonly deparses `BETWEEN 1 AND 999` as the equivalent
+-- `(unit_count >= 1) AND (unit_count <= 999)`, so accept both renderings.
 SELECT 'verification unit constraint' AS check_name,
        COUNT(*) FILTER (
-         WHERE PG_GET_CONSTRAINTDEF(oid) NOT ILIKE '%BETWEEN 1 AND 999%'
+         WHERE NOT (
+           PG_GET_CONSTRAINTDEF(oid) ILIKE '%BETWEEN 1 AND 999%'
+           OR (
+             PG_GET_CONSTRAINTDEF(oid) ~* 'unit_count[^0-9]*>= *1'
+             AND PG_GET_CONSTRAINTDEF(oid) ~* 'unit_count[^0-9]*<= *999'
+           )
+         )
        ) AS record_count,
-       CASE WHEN COUNT(*) = 1 AND BOOL_AND(PG_GET_CONSTRAINTDEF(oid) ILIKE '%BETWEEN 1 AND 999%')
+       CASE WHEN COUNT(*) = 1 AND BOOL_AND(
+              PG_GET_CONSTRAINTDEF(oid) ILIKE '%BETWEEN 1 AND 999%'
+              OR (
+                PG_GET_CONSTRAINTDEF(oid) ~* 'unit_count[^0-9]*>= *1'
+                AND PG_GET_CONSTRAINTDEF(oid) ~* 'unit_count[^0-9]*<= *999'
+              )
+            )
             THEN 'READY' ELSE 'CHECK' END AS status
   FROM pg_constraint
  WHERE conrelid = 'public.verification_records'::regclass
@@ -11,9 +25,21 @@ SELECT 'verification unit constraint' AS check_name,
 UNION ALL
 SELECT 'experience usage unit constraint',
        COUNT(*) FILTER (
-         WHERE PG_GET_CONSTRAINTDEF(oid) NOT ILIKE '%BETWEEN 1 AND 999%'
+         WHERE NOT (
+           PG_GET_CONSTRAINTDEF(oid) ILIKE '%BETWEEN 1 AND 999%'
+           OR (
+             PG_GET_CONSTRAINTDEF(oid) ~* 'unit_count[^0-9]*>= *1'
+             AND PG_GET_CONSTRAINTDEF(oid) ~* 'unit_count[^0-9]*<= *999'
+           )
+         )
        ),
-       CASE WHEN COUNT(*) = 1 AND BOOL_AND(PG_GET_CONSTRAINTDEF(oid) ILIKE '%BETWEEN 1 AND 999%')
+       CASE WHEN COUNT(*) = 1 AND BOOL_AND(
+              PG_GET_CONSTRAINTDEF(oid) ILIKE '%BETWEEN 1 AND 999%'
+              OR (
+                PG_GET_CONSTRAINTDEF(oid) ~* 'unit_count[^0-9]*>= *1'
+                AND PG_GET_CONSTRAINTDEF(oid) ~* 'unit_count[^0-9]*<= *999'
+              )
+            )
             THEN 'READY' ELSE 'CHECK' END
   FROM pg_constraint
  WHERE conrelid = 'public.teacher_experience_quota_usages'::regclass

@@ -86,4 +86,8 @@ test("rules, deployment handoff and read-only checks retire fixed-one behavior",
   assert.match(verifySql, /legacy fixed-one writers blocked/);
   assert.match(verifySql, /client execution remains closed/);
   assert.match(verifySql, /experience usage matches verification/);
+  assert.match(verifySql, /unit_count\[\^0-9\]\*>= \*1/,
+    "the verifier must accept PostgreSQL's normalized lower-bound rendering");
+  assert.match(verifySql, /unit_count\[\^0-9\]\*<= \*999/,
+    "the verifier must accept PostgreSQL's normalized upper-bound rendering");
 });
