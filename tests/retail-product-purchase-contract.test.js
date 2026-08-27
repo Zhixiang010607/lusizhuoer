@@ -52,7 +52,7 @@ assert.match(face, /historyOptions\.type === "PRODUCT_PURCHASE"/);
 assert.match(face, /record_status = 'APPROVED'/, "customer purchase totals must include approved purchases only");
 assert.match(face, /recharge\.record_status = 'APPROVED'/, "customer gift totals must include approved recharge gifts only");
 
-assert.match(staff, /const FUNCTION_VERSION = "v78"/);
+assert.match(staff, /const FUNCTION_VERSION = "v79"/);
 assert.match(staff, /async function listRetailProductPurchaseReviews/);
 assert.match(staff, /async function reviewRetailProductPurchase/);
 assert.match(staff, /requireReviewer\(caller\)/);
@@ -60,8 +60,18 @@ assert.match(staff, /review_retail_product_purchase/);
 for (const filter of ["retailProductId", "customerName", "birthDate", "startDate", "endDate"]) {
   assert.match(staff, new RegExp(filter), `HQ product query must support ${filter}`);
 }
-assert.match(staff, /COUNT\(\*\) FILTER \(WHERE purchase\.record_status = 'PENDING'\)/,
+assert.match(staff, /COUNT\(\*\) FILTER \(WHERE entry\.record_status = 'PENDING'\)/,
   "product query must return a filter-aware review-state summary");
+assert.match(staff, /'PURCHASE'::text AS source_type[\s\S]*FROM public\.retail_product_purchase_records purchase/,
+  "combined product query must retain independent purchase orders");
+assert.match(staff, /FROM public\.recharge_product_gifts gift[\s\S]*JOIN public\.recharge_records recharge/,
+  "combined product query must include immutable recharge gift lines");
+assert.match(staff, /recharge\.recharge_code AS record_code, 'GIFT'::text AS source_type/,
+  "gift rows must expose the parent recharge order code and explicit source");
+assert.match(staff, /requestedSourceType[\s\S]*clauses\.push\(`entry\.source_type =/,
+  "product query must support an explicit purchase/gift source filter");
+assert.match(staff, /COUNT\(\*\) FILTER \(WHERE entry\.source_type = 'PURCHASE'\)/);
+assert.match(staff, /COUNT\(\*\) FILTER \(WHERE entry\.source_type = 'GIFT'\)/);
 assert.match(staff, /FROM public\.retail_products[\s\S]*productStatus/,
   "product query must return active and archived product choices");
 
@@ -90,6 +100,7 @@ assert.doesNotMatch(miniCreate, /chooseMedia|capturePhoto|faceImage|faceConsent/
 assert.match(miniCreateJs, /requireSession\(\["store", "teacher"\]\)/);
 assert.match(miniCreateJs, /createRetailProductPurchaseApplication/);
 assert.match(miniReview, /type === 'product-purchase' \? '产品' : '项目'/);
+assert.match(miniCreateJs, /createRetailProductPurchaseApplication/);
 assert.match(miniCustomer, /产品名称<\/text><text>购买<\/text><text>赠送/);
 assert.match(miniCustomer, /data-type="PRODUCT_PURCHASE"[^>]*>产品<\/button>/);
 assert.match(miniCustomer, /class="retail-summary-scroll"[\s\S]*scroll-y="\{\{retailSummaryScrollable\}\}"/,

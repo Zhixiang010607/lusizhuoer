@@ -55,7 +55,7 @@ Page({
     this._requestEpoch = epoch;
     this.setData({ loading: true, message: "" });
     try {
-      const result = await callStaff("listRetailProductPurchaseReviews", { purchaseCode: this.data.recordCode, limit: 1, pageNumber: 1 });
+      const result = await callStaff("listRetailProductPurchaseReviews", { sourceType: "PURCHASE", purchaseCode: this.data.recordCode, limit: 1, pageNumber: 1 });
       if (epoch !== this._requestEpoch) return;
       const source = (result.orders || []).find((row) => text(row.id) === this.data.recordId && text(field(row, "purchase_code", "purchaseCode")) === this.data.recordCode);
       if (!source) throw new Error("未找到该产品购买工单");

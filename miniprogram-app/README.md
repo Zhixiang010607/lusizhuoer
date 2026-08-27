@@ -18,9 +18,9 @@
 
 BLE 开机尚未实现。当前核销成功后仍写入现有 `device_signal_outbox` 虚拟设备信号；下一阶段在服务端核销已确认后，再由小程序使用蓝牙 API 发送对应指令。
 
-> 当前仓库代码按 `staffAccount v77`、`faceRecognition v99`、`verificationPhoto v10`、`teacherCreate v6` 编排。部署产品购买前必须依次验收迁移 060、061、062；部署核销自选次数还必须执行并验收 064，再上传 `faceRecognition-v99.zip`。小程序新增门店／老师“办 → 产品购买”、总部独立购买审核、客户产品三列汇总与业务记录第五项“产品”；购买无需人脸，审核通过前不累计。小程序版本上传、设为体验版、提交审核和正式发布仍是独立状态。
+> 当前仓库代码按 `staffAccount v79`、`faceRecognition v99`、`verificationPhoto v10`、`teacherCreate v6` 编排。迁移 060—064 已完成验收，本轮不需要新增 SQL。小程序保留门店／老师“办 → 产品购买”、总部独立购买审核、客户产品三列汇总与业务记录第五项“产品”；总部产品查询同时区分独立产品购买和充值赠送，赠送行使用父充值 `RC...` 工单号并进入同一充值详情。小程序版本上传、设为体验版、提交审核和正式发布仍是独立状态。
 
-> 2026-08-28：`0.2.26` 已通过微信官方 `miniprogram-ci` 成功上传为开发版，并生成登录页真机预览二维码。该版继承 `0.2.25` 的登录身份清理、产品购买工单、同名客户、客户五行滚动、移除总部核销审核及“未指定老师”排名汇总；配套 `staffAccount v77` 与 `faceRecognition v99` 在云函数出口统一规范化时间字段，客户／业务查询每次加载新结果时也会回到表格最左侧，修复真机工单详情、审核列表、查询结果、客户留言、客户建档与老师额度记录显示 `—` 或初始横向错位。待上传的 `0.2.27` 在微信手机号一次性 code 兑换成功后刷新 SDK 会话并核对 UID，仅对 `UNAUTHENTICATED`／`UNASSIGNED_IDENTITY` 瞬时错误有限重试无参数 `staffAccount.session`，不以手机号回退查询且不自动改绑。该版已通过全部 212 项测试；当前 `miniprogram-ci` 上传被微信代码上传白名单拒绝，需加入开发机 IPv6 `2403:5816:9bbd:0:60f7:55e8:c409:fbd` 或关闭对应限制。两份云函数已经 `health` 回读当前版本且本轮未修改。尚未手动设为体验版、提交审核或正式发布；微信接口 IP 白名单与代码上传 IP 白名单分别配置。
+> 2026-08-28：`0.2.29` 已上传为开发版。该版本在产品查询增加“全部来源／产品购买／充值赠送”，显示明确来源并让充值赠送进入父充值单；产品购买审核和详情仍强制只读 `PURCHASE`。微信小程序身份源已关闭透明模式和 UID 复用并开启同手机号自动关联；小程序仍在每次登录前退出旧 SDK 会话，微信手机号授权后核对平台 UID，绝不按客户端手机号自行改绑。配套 `staffAccount v79` ZIP 上传并通过 `health` 前，统一产品查询不能视为线上生效。尚未手动设为体验版、提交审核或正式发布。
 
 ## 登录最终规则
 
@@ -36,7 +36,7 @@ BLE 开机尚未实现。当前核销成功后仍写入现有 `device_signal_out
 ## CloudBase 与微信前置配置
 
 1. 在与现有 Auth 用户、云函数和 PostgreSQL 相同的 CloudBase 环境中启用 `WX_MICRO_APP` 身份源，配置当前小程序 AppID 和 AppSecret。
-2. 显式配置 `On=TRUE`、`AutoSignInWhenPhoneNumberMatch=TRUE`、`AutoSignUpWithProviderUser=FALSE`、`TransparentMode=FALSE`、`ReuseUserId=FALSE`，并保持用户名／手机号＋密码登录开启。不得依赖控制台默认值。
+2. 显式配置 `On=TRUE`、`AutoSignInWhenPhoneNumberMatch=TRUE`、`TransparentMode=FALSE`、`ReuseUserId=FALSE`，并保持用户名／手机号＋密码登录开启。全托管持久身份模式可能固定回显 `AutoSignUpWithProviderUser=TRUE`；这不得创建或改绑任何业务账号，未映射 UID 必须登录失败。不得依赖控制台默认值。
 3. 将 `staffAccount`、`faceRecognition`、`verificationPhoto` 等业务云函数的安全规则继续限定为已登录且非匿名用户；微信登录成功不代表已获得总部、门店或老师权限。核销照片清单和高清原图由独立 `verificationPhoto` 服务读取，不把照片流量重新压回人脸与业务主函数。
 4. AppSecret 只能保存在 CloudBase 身份源的服务端密钥位。快捷登录不新增小程序端密钥，不需要自建微信解密云函数、Custom Login 私钥或自定义 ticket。
 5. 微信小程序必须是已完成认证的非个人主体。发布前在微信公众平台完成手机号用途的用户隐私保护指引、接口声明和页面明确授权文案。

@@ -212,11 +212,17 @@ function normalizeRecord(item = {}, recordType = "RECHARGE") {
 
 function normalizeProductPurchaseRecord(item = {}) {
   const recordStatus = String(item.recordStatus || item.record_status || "").toUpperCase();
+  const sourceType = String(item.sourceType || item.source_type || "PURCHASE").toUpperCase() === "GIFT" ? "GIFT" : "PURCHASE";
+  const sourceLineId = String(item.sourceLineId || item.source_line_id || item.id || "");
+  const detailRecordId = String(item.detailRecordId || item.recordId || item.record_id || item.id || "");
   return {
-    id: String(item.id || ""),
-    recordCode: String(item.purchaseCode || item.purchase_code || "—"),
-    originalType: "PRODUCT_PURCHASE",
-    typeLabel: "产品购买",
+    id: `${sourceType}:${sourceLineId}`,
+    detailRecordId,
+    recordCode: String(item.recordCode || item.record_code || item.purchaseCode || item.purchase_code || "—"),
+    sourceType,
+    sourceLabel: sourceType === "GIFT" ? "充值赠送" : "产品购买",
+    originalType: sourceType === "GIFT" ? "RECHARGE_GIFT" : "PRODUCT_PURCHASE",
+    typeLabel: sourceType === "GIFT" ? "充值赠送" : "产品购买",
     unitCount: Number(item.unitCount !== undefined ? item.unitCount : item.unit_count || 0),
     recordStatus,
     statusLabel: statusLabel(recordStatus),

@@ -66,15 +66,19 @@ test("customer query keeps the web filter dimensions, role scope, details, and d
 test("recharge, verification, and product query share complete filters and exact order detail links", () => {
   const js = read("pages", "records", "index.js");
   const wxml = read("pages", "records", "index.wxml");
-  for (const label of ["门店范围", "项目", "审核状态", "时间范围", "客户姓名", "生日", "跳至"]) {
+  for (const label of ["产品来源", "门店范围", "项目", "审核状态", "时间范围", "客户姓名", "生日", "跳至"]) {
     assert.match(wxml, new RegExp(label), `business query is missing ${label}`);
   }
-  for (const field of ["recordType", "productId", "statusCategory", "verificationType", "rechargeType", "startDate", "endDate", "customerName", "birthDate", "page", "pageSize"]) {
+  for (const field of ["recordType", "productId", "sourceType", "statusCategory", "verificationType", "rechargeType", "startDate", "endDate", "customerName", "birthDate", "page", "pageSize"]) {
     assert.match(js, new RegExp(field), `business query does not send ${field}`);
   }
   assert.match(js, /callFace\("queryStoreBusinessRecords"/);
   assert.match(js, /callStaff\("listRetailProductPurchaseReviews"/);
+  assert.match(js, /\{ label: "产品购买", value: "PURCHASE" \}/);
+  assert.match(js, /\{ label: "充值赠送", value: "GIFT" \}/);
   assert.match(js, /pages\/product-purchase-detail\/index\?recordId=/);
+  assert.match(js, /sourceType === "GIFT"[\s\S]*pages\/order-detail\/index\?type=recharge&category=RECHARGE/,
+    "recharge gifts must open their parent recharge order rather than inventing a gift order");
   assert.match(js, /const payload = this\.buildPayload\(page\)/);
   assert.match(js, /if \(epoch !== this\._requestEpoch\) return;/,
     "business queries must reject stale responses after filters change");
@@ -104,8 +108,12 @@ test("recharge, verification, and product query share complete filters and exact
   assert.match(wxml, /<view wx:if="\{\{recordType !== 'VERIFICATION'\}\}" class="summary-grid">/,
     "review-state summary cards belong to recharge/refund and product purchases, not completed verification queries");
   assert.match(wxml, /recordType === 'PRODUCT_PURCHASE' \? '产品' : '项目'/);
-  assert.match(wxss, /\.product-purchase-table \{\s*width:\s*1570rpx;\s*min-width:\s*1570rpx;/,
-    "product purchase table width must equal its visible column widths");
+  assert.match(wxml, />来源<\/text>/,
+    "the combined product query must visibly distinguish purchases from recharge gifts");
+  assert.match(wxml, /summary\.purchase/);
+  assert.match(wxml, /summary\.gift/);
+  assert.match(wxss, /\.product-purchase-table \{\s*width:\s*1720rpx;\s*min-width:\s*1720rpx;/,
+    "the combined product table width must equal its visible column widths");
 });
 
 test("order detail uses safe exact reads and exposes authorized verification originals", () => {
@@ -204,4 +212,14 @@ test("shared query helpers preserve Shanghai business ranges while retired statu
   assert.equal(purchase.productName, "面霜");
   assert.equal(purchase.unitCount, 3);
   assert.equal(purchase.submittedAt, "2026-08-27 20:34");
+  assert.equal(purchase.sourceType, "PURCHASE");
+  assert.equal(purchase.sourceLabel, "产品购买");
+  const gift = tools.normalizeProductPurchaseRecord({
+    source_type: "GIFT", source_line_id: "88", record_id: "66",
+    record_code: "RC202608280001", product_name_snapshot: "面霜", unit_count: 2
+  });
+  assert.equal(gift.recordCode, "RC202608280001");
+  assert.equal(gift.detailRecordId, "66");
+  assert.equal(gift.sourceLabel, "充值赠送");
+  assert.equal(gift.originalType, "RECHARGE_GIFT");
 });

@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v78";
+const FUNCTION_VERSION = "v79";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -3058,10 +3058,21 @@ async function requireRetailProductPurchaseSchema() {
 async function listRetailProductPurchaseReviews(caller, event = {}) {
   requireReviewer(caller);
   await requireRetailProductPurchaseSchema();
+  if (!await hasRechargeProductGiftSchema()) {
+    fail("充值产品赠送数据库尚未启用，请先执行迁移 061。", "DATABASE_SCHEMA_MISSING");
+  }
   const status = String(event.status || "").trim().toUpperCase();
   if (status && !["PENDING", "APPROVED", "REJECTED"].includes(status)) fail("审核状态无效", "BAD_REQUEST");
-  const purchaseCode = String(event.purchaseCode || event.recordCode || "").trim().toUpperCase();
+  const requestedSourceType = String(event.sourceType || "").trim().toUpperCase();
+  if (requestedSourceType && !["PURCHASE", "GIFT"].includes(requestedSourceType)) fail("产品来源无效", "BAD_REQUEST");
+  const purchaseCode = String(event.purchaseCode || "").trim().toUpperCase();
   if (purchaseCode && !/^PP\d{14}$/.test(purchaseCode)) fail("请输入完整产品购买单号", "BAD_REQUEST");
+  const recordCode = String(event.recordCode || purchaseCode || "").trim().toUpperCase();
+  if (recordCode && !/^(?:PP\d{14}|RC\d{12})$/.test(recordCode)) fail("请输入完整产品工单号", "BAD_REQUEST");
+  const sourceType = purchaseCode ? "PURCHASE"
+    : recordCode.startsWith("PP") ? "PURCHASE"
+      : recordCode.startsWith("RC") ? "GIFT"
+        : requestedSourceType;
   const storeText = String(event.storeId || "").trim();
   const storeId = storeText ? numericId(storeText, "门店编号") : "";
   const productText = String(event.retailProductId || event.productId || "").trim();
@@ -3081,47 +3092,74 @@ async function listRetailProductPurchaseReviews(caller, event = {}) {
   const requestedPage = Number(event.pageNumber);
   const pageNumber = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const clauses = ["TRUE"];
-  if (status) clauses.push(`purchase.record_status = ${sqlText(status)}`);
-  if (purchaseCode) clauses.push(`purchase.purchase_code = ${sqlText(purchaseCode)}`);
-  if (storeId) clauses.push(`purchase.store_id = ${storeId}`);
-  if (retailProductId) clauses.push(`purchase.retail_product_id = ${retailProductId}`);
+  if (status) clauses.push(`entry.record_status = ${sqlText(status)}`);
+  if (sourceType) clauses.push(`entry.source_type = ${sqlText(sourceType)}`);
+  if (recordCode) clauses.push(`entry.record_code = ${sqlText(recordCode)}`);
+  if (storeId) clauses.push(`entry.store_id = ${storeId}`);
+  if (retailProductId) clauses.push(`entry.retail_product_id = ${retailProductId}`);
   if (customerName) clauses.push(`customer.customer_name ILIKE '%' || ${sqlText(customerName)} || '%'`);
   if (birthDate) clauses.push(`customer.birth_date = ${sqlText(birthDate)}::date`);
   if (startDate) {
-    clauses.push(`purchase.submitted_at >= (${sqlText(startDate)}::date::timestamp AT TIME ZONE 'Asia/Shanghai')`);
-    clauses.push(`purchase.submitted_at < ((${sqlText(endDate)}::date + 1)::timestamp AT TIME ZONE 'Asia/Shanghai')`);
+    clauses.push(`entry.submitted_at >= (${sqlText(startDate)}::date::timestamp AT TIME ZONE 'Asia/Shanghai')`);
+    clauses.push(`entry.submitted_at < ((${sqlText(endDate)}::date + 1)::timestamp AT TIME ZONE 'Asia/Shanghai')`);
   }
   const whereSql = clauses.join(" AND ");
+  const sourceSql = `WITH product_entries AS (
+    SELECT purchase.id AS source_line_id, purchase.id AS record_id,
+           purchase.purchase_code AS record_code, 'PURCHASE'::text AS source_type,
+           purchase.unit_count, purchase.record_status, purchase.message, purchase.review_note,
+           purchase.submitted_at, purchase.reviewed_at,
+           purchase.store_id, purchase.customer_id, purchase.retail_product_id, purchase.teacher_id,
+           purchase.product_code_snapshot, purchase.product_name_snapshot,
+           purchase.submitted_by_account_id, purchase.reviewed_by_account_id
+      FROM public.retail_product_purchase_records purchase
+    UNION ALL
+    SELECT gift.id AS source_line_id, recharge.id AS record_id,
+           recharge.recharge_code AS record_code, 'GIFT'::text AS source_type,
+           gift.unit_count, recharge.record_status, recharge.message, recharge.review_note,
+           recharge.submitted_at, recharge.reviewed_at,
+           gift.store_id, gift.customer_id, gift.retail_product_id, gift.teacher_id,
+           gift.product_code_snapshot, gift.product_name_snapshot,
+           recharge.submitted_by_account_id, recharge.reviewed_by_account_id
+      FROM public.recharge_product_gifts gift
+      JOIN public.recharge_records recharge ON recharge.id = gift.recharge_id
+     WHERE recharge.recharge_type = 'NEW'
+  )`;
   const countRows = await executeSql(
-    `SELECT COUNT(*)::bigint AS total
-       FROM public.retail_product_purchase_records purchase
-       JOIN public.customers customer ON customer.id = purchase.customer_id
+    `${sourceSql}
+     SELECT COUNT(*)::bigint AS total
+       FROM product_entries entry
+       JOIN public.customers customer ON customer.id = entry.customer_id
       WHERE ${whereSql}`
   );
   const total = Number(countRows?.[0]?.total || 0);
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const currentPage = Math.min(pageNumber, totalPages);
   const rows = await executeSql(
-    `SELECT purchase.id, purchase.purchase_code, purchase.unit_count,
-            purchase.record_status, purchase.message, purchase.review_note,
-            purchase.submitted_at, purchase.reviewed_at,
+    `${sourceSql}
+     SELECT entry.record_id AS id, entry.source_line_id, entry.record_id, entry.record_code,
+            CASE WHEN entry.source_type = 'PURCHASE' THEN entry.record_code ELSE '' END AS purchase_code,
+            entry.source_type, entry.unit_count,
+            entry.record_status, entry.message, entry.review_note,
+            entry.submitted_at, entry.reviewed_at,
             store.id AS store_id, store.store_code, store.store_name,
             customer.customer_code, customer.customer_name, customer.birth_date,
-            purchase.retail_product_id, purchase.product_code_snapshot, purchase.product_name_snapshot,
+            entry.retail_product_id, entry.product_code_snapshot, entry.product_name_snapshot,
             teacher.id AS teacher_id, teacher.teacher_code, teacher.teacher_name,
             submitter.staff_name AS submitted_by_name,
             reviewer.staff_name AS reviewed_by_name
-       FROM public.retail_product_purchase_records purchase
-       JOIN public.stores store ON store.id = purchase.store_id
-       JOIN public.customers customer ON customer.id = purchase.customer_id
-       LEFT JOIN public.teachers teacher ON teacher.id = purchase.teacher_id
-       JOIN public.staff_accounts submitter ON submitter.id = purchase.submitted_by_account_id
-       LEFT JOIN public.staff_accounts reviewer ON reviewer.id = purchase.reviewed_by_account_id
+       FROM product_entries entry
+       JOIN public.stores store ON store.id = entry.store_id
+       JOIN public.customers customer ON customer.id = entry.customer_id
+       LEFT JOIN public.teachers teacher ON teacher.id = entry.teacher_id
+       JOIN public.staff_accounts submitter ON submitter.id = entry.submitted_by_account_id
+       LEFT JOIN public.staff_accounts reviewer ON reviewer.id = entry.reviewed_by_account_id
       WHERE ${whereSql}
-      ORDER BY (purchase.record_status = 'PENDING') DESC, purchase.submitted_at DESC, purchase.id DESC
+      ORDER BY (entry.record_status = 'PENDING') DESC, entry.submitted_at DESC,
+               entry.source_type, entry.source_line_id DESC
       LIMIT ${limit} OFFSET ${(currentPage - 1) * limit}`
   );
-  const summaryClauses = clauses.filter((clause) => !clause.startsWith("purchase.record_status ="));
+  const summaryClauses = clauses.filter((clause) => !clause.startsWith("entry.record_status ="));
   const [stores, products, summaryRows] = await Promise.all([
     executeSql(`SELECT id AS store_id, store_code, store_name FROM public.stores ORDER BY store_name, store_code, id`),
     executeSql(
@@ -3130,12 +3168,15 @@ async function listRetailProductPurchaseReviews(caller, event = {}) {
         ORDER BY (product_status = 'ACTIVE') DESC, product_name, product_code, id`
     ),
     executeSql(
-      `SELECT COUNT(*)::bigint AS total,
-              COUNT(*) FILTER (WHERE purchase.record_status = 'PENDING')::bigint AS pending,
-              COUNT(*) FILTER (WHERE purchase.record_status = 'APPROVED')::bigint AS approved,
-              COUNT(*) FILTER (WHERE purchase.record_status = 'REJECTED')::bigint AS rejected
-         FROM public.retail_product_purchase_records purchase
-         JOIN public.customers customer ON customer.id = purchase.customer_id
+      `${sourceSql}
+       SELECT COUNT(*)::bigint AS total,
+              COUNT(*) FILTER (WHERE entry.source_type = 'PURCHASE')::bigint AS purchase,
+              COUNT(*) FILTER (WHERE entry.source_type = 'GIFT')::bigint AS gift,
+              COUNT(*) FILTER (WHERE entry.record_status = 'PENDING')::bigint AS pending,
+              COUNT(*) FILTER (WHERE entry.record_status = 'APPROVED')::bigint AS approved,
+              COUNT(*) FILTER (WHERE entry.record_status = 'REJECTED')::bigint AS rejected
+         FROM product_entries entry
+         JOIN public.customers customer ON customer.id = entry.customer_id
         WHERE ${summaryClauses.join(" AND ")}`
     )
   ]);
@@ -3150,7 +3191,8 @@ async function listRetailProductPurchaseReviews(caller, event = {}) {
     })),
     summary: {
       total: Number(summary.total || 0), pending: Number(summary.pending || 0),
-      approved: Number(summary.approved || 0), rejected: Number(summary.rejected || 0)
+      approved: Number(summary.approved || 0), rejected: Number(summary.rejected || 0),
+      purchase: Number(summary.purchase || 0), gift: Number(summary.gift || 0)
     }
   };
 }

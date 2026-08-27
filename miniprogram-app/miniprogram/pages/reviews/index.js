@@ -131,7 +131,7 @@ Page({
       const productPurchase = type === "product-purchase";
       const result = productPurchase
         ? await callStaff("listRetailProductPurchaseReviews", {
-          purchaseCode: recordCode, storeId: payload.storeId, status: payload.status,
+          sourceType: "PURCHASE", purchaseCode: recordCode, storeId: payload.storeId, status: payload.status,
           limit: payload.limit, pageNumber: payload.pageNumber || 1
         })
         : await callStaff("listReviewOrders", payload);

@@ -1,6 +1,7 @@
 .filter-card .query-modes { margin-bottom: 20rpx; }
 .two-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; }
 .summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8rpx; margin-bottom: 14rpx; }
+.source-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .summary-grid view { min-width: 0; padding: 16rpx 8rpx; text-align: center; background: #fff; border: 1rpx solid #dfcfb4; border-radius: 16rpx; }
 .summary-grid text { display: block; }
 .summary-grid text { color: #7c7062; font-size: 20rpx; }
@@ -8,10 +9,10 @@
 .record-scroll { width: 100%; overflow: hidden; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
 .record-table { width: 1560rpx; min-width: 1560rpx; background: #fff; }
 .verification-table { width: 1720rpx; min-width: 1720rpx; }
-.product-purchase-table { width: 1570rpx; min-width: 1570rpx; }
+.product-purchase-table { width: 1720rpx; min-width: 1720rpx; }
 .record-row { min-height: 78rpx; display: grid; grid-template-columns: 280rpx 160rpx 140rpx 200rpx 170rpx 150rpx 100rpx 140rpx 220rpx; align-items: center; border-top: 1rpx solid #dfcfb4; }
 .verification-table .record-row { grid-template-columns: 280rpx 160rpx 140rpx 200rpx 170rpx 150rpx 160rpx 100rpx 140rpx 220rpx; }
-.product-purchase-table .record-row { grid-template-columns: 280rpx 160rpx 140rpx 200rpx 170rpx 160rpx 100rpx 140rpx 220rpx; }
+.product-purchase-table .record-row { grid-template-columns: 280rpx 160rpx 140rpx 200rpx 170rpx 150rpx 160rpx 100rpx 140rpx 220rpx; }
 .record-row text { min-width: 0; min-height: 78rpx; display: flex; align-items: center; justify-content: center; padding: 14rpx 12rpx; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .record-head { min-height: 68rpx; color: #675b4b; background: #f5ead8; font-size: 22rpx; font-weight: 800; }
 .table-link { color: #8b642e; font-weight: 800; }

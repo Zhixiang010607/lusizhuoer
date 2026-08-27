@@ -4,6 +4,7 @@
   <view class="card filter-card">
     <view class="card-title"><text>查询条件</text><text class="badge">{{session.role === 'hq' ? '总部范围' : '本门店范围'}}</text></view>
     <view class="segmented query-modes"><button class="{{mode === 'browse' ? 'active' : ''}}" data-mode="browse" bindtap="setMode">条件筛选</button><button class="{{mode === 'manual' ? 'active' : ''}}" data-mode="manual" bindtap="setMode">姓名＋生日</button></view>
+    <label wx:if="{{recordType === 'PRODUCT_PURCHASE'}}" class="field"><text class="field-label">产品来源</text><picker range="{{sourceLabels}}" value="{{sourceIndex}}" bindchange="chooseSource"><view class="picker">{{sourceLabels[sourceIndex]}}</view></picker></label>
 
     <block wx:if="{{mode === 'browse'}}">
       <label wx:if="{{session.role === 'hq'}}" class="field"><text class="field-label">门店范围</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="chooseStore"><view class="picker">{{storeLabels[storeIndex]}}</view></picker></label>
@@ -26,6 +27,9 @@
     <view class="button-row"><button class="primary" bindtap="runQuery" loading="{{loading}}" disabled="{{loading}}">查询{{noun}}</button><button class="ghost" bindtap="resetQuery" disabled="{{loading}}">重置查询</button></view>
   </view>
 
+  <view wx:if="{{recordType === 'PRODUCT_PURCHASE'}}" class="summary-grid source-summary">
+    <view><text>产品购买</text><text class="summary-value">{{summary.purchase || 0}}</text></view><view><text>充值赠送</text><text class="summary-value">{{summary.gift || 0}}</text></view>
+  </view>
   <view wx:if="{{recordType !== 'VERIFICATION'}}" class="summary-grid">
     <view><text>全部</text><text class="summary-value">{{summary.total || 0}}</text></view><view><text>待审核</text><text class="summary-value">{{summary.pending || 0}}</text></view><view><text>已通过</text><text class="summary-value">{{summary.approved || 0}}</text></view><view><text>已驳回</text><text class="summary-value">{{summary.rejected || 0}}</text></view>
   </view>
@@ -35,11 +39,11 @@
     <view wx:if="{{loading}}" class="empty">正在查询{{noun}}记录…</view>
     <scroll-view wx:elif="{{records.length}}" class="record-scroll" scroll-x="true" scroll-left="{{tableScrollLeft}}" enhanced="true" show-scrollbar="false">
       <view class="record-table {{recordType === 'VERIFICATION' ? 'verification-table' : (recordType === 'PRODUCT_PURCHASE' ? 'product-purchase-table' : '')}}">
-        <view class="record-row record-head"><text>工单号</text><text>客户</text><text>生日</text><text>门店</text><text>{{recordType === 'PRODUCT_PURCHASE' ? '产品' : '项目'}}</text><text wx:if="{{recordType !== 'PRODUCT_PURCHASE'}}">类型</text><text wx:if="{{recordType === 'VERIFICATION' || recordType === 'PRODUCT_PURCHASE'}}">老师</text><text>{{recordType === 'PRODUCT_PURCHASE' ? '数量' : '次数'}}</text><text>状态</text><text>提交时间</text></view>
+        <view class="record-row record-head"><text>工单号</text><text>客户</text><text>生日</text><text>门店</text><text>{{recordType === 'PRODUCT_PURCHASE' ? '产品' : '项目'}}</text><text wx:if="{{recordType === 'PRODUCT_PURCHASE'}}">来源</text><text wx:if="{{recordType !== 'PRODUCT_PURCHASE'}}">类型</text><text wx:if="{{recordType === 'VERIFICATION' || recordType === 'PRODUCT_PURCHASE'}}">老师</text><text>{{recordType === 'PRODUCT_PURCHASE' ? '数量' : '次数'}}</text><text>状态</text><text>提交时间</text></view>
         <view wx:for="{{records}}" wx:key="id" class="record-row">
-          <text class="table-link record-code" data-id="{{item.id}}" data-code="{{item.recordCode}}" data-category="{{item.originalType}}" bindtap="openRecord">{{item.recordCode}}</text>
+          <text class="table-link record-code" data-id="{{item.id}}" data-detail-id="{{item.detailRecordId}}" data-code="{{item.recordCode}}" data-category="{{item.originalType}}" data-source="{{item.sourceType}}" bindtap="openRecord">{{item.recordCode}}</text>
           <text class="table-link" data-code="{{item.customerCode}}" bindtap="openCustomer">{{item.customerName}}</text>
-          <text>{{item.birthDate}}</text><text>{{item.storeName}}</text><text>{{item.productName}}</text><text wx:if="{{recordType !== 'PRODUCT_PURCHASE'}}">{{item.typeLabel}}</text><text wx:if="{{recordType === 'VERIFICATION' || recordType === 'PRODUCT_PURCHASE'}}">{{item.teacherName || '未指定'}}</text><text>{{item.unitCount}} {{recordType === 'PRODUCT_PURCHASE' ? '件' : '次'}}</text><text>{{item.statusLabel}}</text><text>{{item.submittedAt}}</text>
+          <text>{{item.birthDate}}</text><text>{{item.storeName}}</text><text>{{item.productName}}</text><text wx:if="{{recordType === 'PRODUCT_PURCHASE'}}">{{item.sourceLabel}}</text><text wx:if="{{recordType !== 'PRODUCT_PURCHASE'}}">{{item.typeLabel}}</text><text wx:if="{{recordType === 'VERIFICATION' || recordType === 'PRODUCT_PURCHASE'}}">{{item.teacherName || '未指定'}}</text><text>{{item.unitCount}} {{recordType === 'PRODUCT_PURCHASE' ? '件' : '次'}}</text><text>{{item.statusLabel}}</text><text>{{item.submittedAt}}</text>
         </view>
       </view>
     </scroll-view>

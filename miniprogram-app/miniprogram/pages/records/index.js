@@ -3,7 +3,12 @@ const { requireSession } = require("../../services/session");
 const query = require("../../services/query-tools");
 
 const PAGE_SIZE = 20;
-const EMPTY_SUMMARY = Object.freeze({ total: 0, pending: 0, approved: 0, rejected: 0 });
+const EMPTY_SUMMARY = Object.freeze({ total: 0, purchase: 0, gift: 0, pending: 0, approved: 0, rejected: 0 });
+const PRODUCT_SOURCES = Object.freeze([
+  { label: "全部来源", value: "" },
+  { label: "产品购买", value: "PURCHASE" },
+  { label: "充值赠送", value: "GIFT" }
+]);
 
 function labels(options) { return options.map((item) => item.label); }
 function values(options) { return options.map((item) => item.value); }
@@ -27,6 +32,7 @@ Page({
     page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1, pageJump: "1",
     stores: [], storeLabels: ["全部门店"], storeIndex: 0,
     products: [], productLabels: ["全部项目"], productIndex: 0,
+    sourceLabels: labels(PRODUCT_SOURCES), sourceValues: values(PRODUCT_SOURCES), sourceIndex: 0,
     statusLabels: labels(query.STATUS_OPTIONS), statusValues: values(query.STATUS_OPTIONS), statusIndex: 0,
     typeLabels: labels(query.RECHARGE_TYPES), typeValues: values(query.RECHARGE_TYPES), typeIndex: 0,
     timeLabels: labels(query.TIME_OPTIONS), timeValues: values(query.TIME_OPTIONS), timeIndex: 0,
@@ -92,6 +98,9 @@ Page({
       page,
       pageSize: PAGE_SIZE
     };
+    if (this.data.recordType === "PRODUCT_PURCHASE") {
+      payload.sourceType = this.data.sourceValues[this.data.sourceIndex] || "";
+    }
     if (this.data.session.role === "hq" && this.data.storeIndex > 0) payload.storeId = this.data.stores[this.data.storeIndex - 1]?.id || "";
     if (this.data.mode === "manual") {
       payload.customerName = String(this.data.customerName || "").trim();
@@ -112,6 +121,7 @@ Page({
     return callStaff("listRetailProductPurchaseReviews", {
       storeId: payload.storeId || "",
       retailProductId: payload.productId && payload.productId !== "ALL" ? payload.productId : "",
+      sourceType: payload.sourceType || "",
       status: payload.statusCategory && payload.statusCategory !== "ALL" ? payload.statusCategory : "",
       customerName: payload.customerName || "",
       birthDate: payload.birthDate || "",
@@ -174,6 +184,7 @@ Page({
   },
   chooseStore(event) { this.invalidateRequest({ storeIndex: Number(event.detail.value) }); },
   chooseProduct(event) { this.invalidateRequest({ productIndex: Number(event.detail.value) }); },
+  chooseSource(event) { this.invalidateRequest({ sourceIndex: Number(event.detail.value) }); },
   chooseStatus(event) { this.invalidateRequest({ statusIndex: Number(event.detail.value) }); },
   chooseType(event) { this.invalidateRequest({ typeIndex: Number(event.detail.value) }); },
   chooseTime(event) {
@@ -195,6 +206,7 @@ Page({
   resetQuery() {
     this.invalidateRequest({
       mode: "browse", storeIndex: 0, productIndex: 0, statusIndex: 0, typeIndex: 0, timeIndex: 0,
+      sourceIndex: 0,
       startDate: "", endDate: "", customRange: false, customerName: "", birthDate: "", page: 1, pageJump: "1"
     });
     this.load(1);
@@ -215,10 +227,16 @@ Page({
   },
   openRecord(event) {
     const id = String(event.currentTarget.dataset.id || "");
+    const detailId = String(event.currentTarget.dataset.detailId || id);
     const code = String(event.currentTarget.dataset.code || "");
     const originalType = String(event.currentTarget.dataset.category || "").toUpperCase();
+    const sourceType = String(event.currentTarget.dataset.source || "").toUpperCase();
     if (this.data.recordType === "PRODUCT_PURCHASE") {
-      if (id) wx.navigateTo({ url: `/pages/product-purchase-detail/index?recordId=${encodeURIComponent(id)}&recordCode=${encodeURIComponent(code)}` });
+      if (sourceType === "GIFT" && detailId) {
+        wx.navigateTo({ url: `/pages/order-detail/index?type=recharge&category=RECHARGE&recordId=${encodeURIComponent(detailId)}&recordCode=${encodeURIComponent(code)}` });
+      } else if (detailId) {
+        wx.navigateTo({ url: `/pages/product-purchase-detail/index?recordId=${encodeURIComponent(detailId)}&recordCode=${encodeURIComponent(code)}` });
+      }
       return;
     }
     const category = this.data.recordType === "RECHARGE"

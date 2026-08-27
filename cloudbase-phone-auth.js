@@ -755,7 +755,7 @@
     },
     async listRetailProductPurchaseReviews({ purchaseCode = "", storeId = "", status = "", limit = 100, pageNumber = 1 } = {}) {
       const data = await callStaffAccount(
-        { action: "listRetailProductPurchaseReviews", purchaseCode, storeId, status, limit, pageNumber },
+        { action: "listRetailProductPurchaseReviews", sourceType: "PURCHASE", purchaseCode, storeId, status, limit, pageNumber },
         "产品购买审核记录读取失败"
       );
       return { ...data, orders: data.orders || [], stores: data.stores || [] };
