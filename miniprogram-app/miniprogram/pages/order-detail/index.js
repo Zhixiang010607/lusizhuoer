@@ -256,7 +256,10 @@ function normalizeStaffOrder(row, baseType) {
     typeLabel: query.typeLabel(baseType, originalType),
     recordStatus: originalStatus,
     statusLabel: detailStatusLabel(baseType, originalType, originalStatus),
-    reviewedAt: query.displayDateTime(value(source, "original_reviewed_at", "originalReviewedAt")),
+    reviewedAt: query.displayDateTimeAny(
+      source.reviewedAt, source.reviewed_at, source.originalReviewedAt, source.original_reviewed_at,
+      source.approvedAt, source.approved_at, source.reviewTime, source.review_time
+    ),
     storeAddress: address || "未填写",
     message: clean(value(source, "initial_store_note", "initialStoreNote")),
     reviewNote: clean(value(source, "initial_review_note", "initialReviewNote")),
@@ -266,8 +269,8 @@ function normalizeStaffOrder(row, baseType) {
     voidStatus: clean(value(source, "void_request_status", "voidRequestStatus")),
     voidNote: clean(value(source, "void_request_note", "voidRequestNote")),
     voidReviewNote: clean(value(source, "void_review_note", "voidReviewNote")),
-    voidSubmittedAt: query.displayDateTime(value(source, "void_requested_at", "voidRequestedAt")),
-    voidReviewedAt: query.displayDateTime(value(source, "void_reviewed_at", "voidReviewedAt")),
+    voidSubmittedAt: query.displayDateTimeAny(source.voidRequestedAt, source.void_requested_at),
+    voidReviewedAt: query.displayDateTimeAny(source.voidReviewedAt, source.void_reviewed_at),
     productGifts: normalizeProductGifts(value(source, "product_gifts", "productGifts"))
   };
 }
@@ -280,7 +283,10 @@ function normalizeTeacherOrder(row, baseType) {
     ...record,
     serverBaseType: clean(source.recordType).toUpperCase(),
     originalType: clean(record.originalType).toUpperCase(),
-    reviewedAt: query.displayDateTime(source.reviewedAt),
+    reviewedAt: query.displayDateTimeAny(
+      source.reviewedAt, source.reviewed_at, source.originalReviewedAt, source.original_reviewed_at,
+      source.approvedAt, source.approved_at
+    ),
     storeAddress: address || "未填写",
     message: clean(source.message), reviewNote: clean(source.reviewNote), supplementNote: clean(source.supplementNote),
     balanceBeforeLabel: optionalNumber(source.balanceBeforeCount), balanceAfterLabel: optionalNumber(source.balanceAfterCount),
@@ -459,7 +465,7 @@ Page({
     this.setData({
       photos: normalized.slots, photoCount: normalized.count, photoManifestLoaded: true, photoManifestError: "",
       canEdit: result.canEdit === true, isSubmitter: result.isSubmitter === true,
-      editableUntil: result.editableUntil || "", editableUntilLabel: query.displayDateTime(result.editableUntil)
+      editableUntil: result.editableUntil || "", editableUntilLabel: query.displayDateTimeAny(result.editableUntil, result.editable_until)
     });
     return normalized;
   },

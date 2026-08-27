@@ -1,6 +1,6 @@
 const { callStaff } = require("../../services/api");
 const { requireSession } = require("../../services/session");
-const { displayDateTime } = require("../../services/query-tools");
+const { displayDateTimeAny } = require("../../services/query-tools");
 
 function text(...values) {
   const value = values.find((item) => item !== undefined && item !== null && String(item).trim());
@@ -19,8 +19,13 @@ function normalize(row = {}) {
     productName: text(field(row, "product_name_snapshot", "productNameSnapshot")) || "—",
     teacherName: text(field(row, "teacher_name", "teacherName")) || "未指定",
     unitCount: Number(field(row, "unit_count", "unitCount")) || 0,
-    submittedAt: displayDateTime(field(row, "submitted_at", "submittedAt")),
-    reviewedAt: status === "PENDING" ? "—" : displayDateTime(field(row, "reviewed_at", "reviewedAt")),
+    submittedAt: displayDateTimeAny(
+      row.submittedAt, row.submitted_at, row.applicationTime, row.application_time,
+      row.createdAt, row.created_at
+    ),
+    reviewedAt: status === "PENDING" ? "—" : displayDateTimeAny(
+      row.reviewedAt, row.reviewed_at, row.approvedAt, row.approved_at
+    ),
     submittedBy: text(field(row, "submitted_by_name", "submittedByName")) || "—",
     reviewedBy: status === "PENDING" ? "—" : text(field(row, "reviewed_by_name", "reviewedByName")) || "—",
     message: text(row.message) || "无",

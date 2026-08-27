@@ -76,19 +76,40 @@ function timeRange(value, custom = {}) {
 }
 
 function displayDate(value) {
-  const text = String(value || "").slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "—";
+  const source = unwrapDateTime(value);
+  const direct = String(source || "").trim().match(/^(\d{4}-\d{2}-\d{2})$/);
+  if (direct) return direct[1];
+  const millis = dateTimeMillis(source);
+  if (!Number.isFinite(millis)) return "—";
+  return new Date(millis + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+function wrappedNumber(value) {
+  let current = value;
+  for (let depth = 0; depth < 4; depth += 1) {
+    if (typeof current === "number") return Number.isFinite(current) ? current : NaN;
+    if (typeof current === "string" && /^-?\d+(?:\.\d+)?$/.test(current.trim())) return Number(current);
+    if (!current || typeof current !== "object") return NaN;
+    const key = ["$numberLong", "$numberInt", "$numberDouble", "numberLong", "long", "value"]
+      .find((item) => current[item] !== undefined && current[item] !== current);
+    if (!key) return NaN;
+    current = current[key];
+  }
+  return NaN;
 }
 
 function unwrapDateTime(value) {
   let current = value;
-  const keys = ["$date", "date", "value", "timestamp", "time", "iso", "isoString"];
+  const keys = ["$date", "date", "value", "timestamp", "time", "iso", "isoString", "datetime", "dateTime"];
   for (let depth = 0; depth < 4 && current && typeof current === "object"; depth += 1) {
-    const seconds = current.seconds ?? current._seconds;
-    const nanoseconds = current.nanoseconds ?? current._nanoseconds ?? 0;
-    if (Number.isFinite(Number(seconds))) return Number(seconds) * 1000 + Number(nanoseconds) / 1000000;
-    const milliseconds = current.milliseconds ?? current._milliseconds;
-    if (Number.isFinite(Number(milliseconds))) return Number(milliseconds);
+    if (Object.prototype.toString.call(current) === "[object Date]") return current.valueOf();
+    const directNumber = wrappedNumber(current);
+    if (Number.isFinite(directNumber)) return directNumber;
+    const seconds = wrappedNumber(current.seconds ?? current._seconds);
+    const nanoseconds = wrappedNumber(current.nanoseconds ?? current._nanoseconds ?? 0);
+    if (Number.isFinite(seconds)) return seconds * 1000 + (Number.isFinite(nanoseconds) ? nanoseconds : 0) / 1000000;
+    const milliseconds = wrappedNumber(current.milliseconds ?? current._milliseconds);
+    if (Number.isFinite(milliseconds)) return milliseconds;
     const key = keys.find((item) => current[item] !== undefined && current[item] !== current);
     if (!key) break;
     current = current[key];
@@ -99,6 +120,7 @@ function unwrapDateTime(value) {
 function dateTimeMillis(value) {
   const source = unwrapDateTime(value);
   if (source === undefined || source === null || source === "") return NaN;
+  if (Object.prototype.toString.call(source) === "[object Date]") return source.valueOf();
   if (typeof source === "number" || /^\d{10,16}$/.test(String(source).trim())) {
     let amount = Number(source);
     if (!Number.isFinite(amount)) return NaN;
@@ -107,6 +129,12 @@ function dateTimeMillis(value) {
     return amount;
   }
   let text = String(source).trim();
+  if ((text.startsWith("{") && text.endsWith("}")) || (text.startsWith('"') && text.endsWith('"'))) {
+    try {
+      const decoded = JSON.parse(text);
+      if (decoded !== source) return dateTimeMillis(decoded);
+    } catch (_) {}
+  }
   const postgres = text.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?)(?:\s*)(Z|[+-]\d{2}(?::?\d{2})?)?$/i);
   if (postgres) {
     const time = postgres[2].replace(/\.(\d{3})\d+$/, ".$1");
@@ -123,6 +151,22 @@ function displayDateTime(value) {
   const millis = dateTimeMillis(value);
   if (!Number.isFinite(millis)) return "—";
   return new Date(millis + 8 * 60 * 60 * 1000).toISOString().slice(0, 16).replace("T", " ");
+}
+
+function displayDateTimeAny(...values) {
+  for (const value of values) {
+    const output = displayDateTime(value);
+    if (output !== "—") return output;
+  }
+  return "—";
+}
+
+function displayDateAny(...values) {
+  for (const value of values) {
+    const output = displayDate(value);
+    if (output !== "—") return output;
+  }
+  return "—";
 }
 
 function statusLabel(value) {
@@ -150,10 +194,13 @@ function normalizeRecord(item = {}, recordType = "RECHARGE") {
     unitCount: Number(item.unitCount !== undefined ? item.unitCount : item.unit_count || 0),
     recordStatus,
     statusLabel: completedWithoutReview ? "已完成" : statusLabel(recordStatus),
-    submittedAt: displayDateTime(item.submittedAt || item.submitted_at || item.original_submitted_at || item.application_time),
+    submittedAt: displayDateTimeAny(
+      item.submittedAt, item.submitted_at, item.originalSubmittedAt, item.original_submitted_at,
+      item.applicationTime, item.application_time, item.createdAt, item.created_at
+    ),
     customerCode: String(item.customerCode || item.customer_code || ""),
     customerName: String(item.customerName || item.customer_name || "—"),
-    birthDate: displayDate(item.birthDate || item.birth_date),
+    birthDate: displayDateAny(item.birthDate, item.birth_date),
     storeId: String(item.storeId || item.store_id || ""),
     storeName: String(item.storeName || item.store_name || "—"),
     storeCode: String(item.storeCode || item.store_code || ""),
@@ -173,6 +220,6 @@ function optionIndex(options, value) {
 module.exports = {
   TIME_OPTIONS, STATUS_OPTIONS, VERIFICATION_TYPES, RECHARGE_TYPES,
   CUSTOMER_PROCESS_OPTIONS, CUSTOMER_STATUS_OPTIONS,
-  businessToday, timeRange, displayDate, displayDateTime, statusLabel, typeLabel,
+  businessToday, timeRange, displayDate, displayDateAny, displayDateTime, displayDateTimeAny, statusLabel, typeLabel,
   normalizeRecord, optionIndex
 };

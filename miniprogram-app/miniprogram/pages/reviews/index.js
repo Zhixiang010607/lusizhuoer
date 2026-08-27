@@ -1,6 +1,6 @@
 const { callStaff } = require("../../services/api");
 const { requireSession } = require("../../services/session");
-const { displayDateTime } = require("../../services/query-tools");
+const { displayDateTimeAny } = require("../../services/query-tools");
 
 const PAGE_SIZE = 100;
 const STATUS = Object.freeze([
@@ -27,8 +27,14 @@ function normalize(row, purchase = false) {
       productName: text(pick(row, "product_name_snapshot", "productNameSnapshot")) || "未命名产品",
       teacherName: text(pick(row, "teacher_name", "teacherName")) || "—",
       impact: `${Number(pick(row, "unit_count", "unitCount")) || 0} 件`,
-      submittedAt: displayDateTime(pick(row, "submitted_at", "submittedAt")),
-      reviewedAt: status === "PENDING" ? "—" : displayDateTime(pick(row, "reviewed_at", "reviewedAt")),
+      submittedAt: displayDateTimeAny(
+        row.submittedAt, row.submitted_at, row.applicationTime, row.application_time,
+        row.originalSubmittedAt, row.original_submitted_at, row.createdAt, row.created_at
+      ),
+      reviewedAt: status === "PENDING" ? "—" : displayDateTimeAny(
+        row.reviewedAt, row.reviewed_at, row.originalReviewedAt, row.original_reviewed_at,
+        row.approvedAt, row.approved_at
+      ),
       applicantNote: text(row.message) || "无"
     };
   }
@@ -49,8 +55,15 @@ function normalize(row, purchase = false) {
     productName: text(pick(row, "product_name", "productName")) || "未命名项目",
     teacherName: text(pick(row, "teacher_name", "teacherName")) || "—",
     impact: `${isRefund || isVoid ? "−" : "+"}${amount} 次`,
-    submittedAt: displayDateTime(pick(row, "application_time", "applicationTime")),
-    reviewedAt: status === "PENDING" ? "—" : displayDateTime(isVoid ? pick(row, "void_reviewed_at", "voidReviewedAt") : pick(row, "original_reviewed_at", "originalReviewedAt")),
+    submittedAt: displayDateTimeAny(
+      row.applicationTime, row.application_time, row.originalSubmittedAt, row.original_submitted_at,
+      row.submittedAt, row.submitted_at, row.createdAt, row.created_at
+    ),
+    reviewedAt: status === "PENDING" ? "—" : displayDateTimeAny(
+      ...(isVoid
+        ? [row.voidReviewedAt, row.void_reviewed_at]
+        : [row.originalReviewedAt, row.original_reviewed_at, row.reviewedAt, row.reviewed_at, row.approvedAt, row.approved_at])
+    ),
     applicantNote: text(isVoid ? pick(row, "void_request_note", "voidRequestNote") : pick(row, "initial_store_note", "initialStoreNote")) || "无"
   };
 }

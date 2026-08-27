@@ -17,12 +17,12 @@ function customerRows(rows = []) {
   return rows.map((item) => ({
     ...item,
     customerCode: String(item.customerCode || ""), customerName: String(item.customerName || "—"),
-    birthDate: query.displayDate(item.birthDate), storeName: String(item.storeName || "—"),
+    birthDate: query.displayDateAny(item.birthDate, item.birth_date), storeName: String(item.storeName || item.store_name || "—"),
     statusLabel: String(item.customerStatus || "").toUpperCase() === "ARCHIVED" ? "已封存" : "活跃",
     processLabel: processLabel(item.customerProcessStatus),
     rechargeCount: Number(item.totalRechargeCount !== undefined ? item.totalRechargeCount : item.rechargeCount || 0),
     verificationCount: Number(item.totalVerificationCount !== undefined ? item.totalVerificationCount : item.verificationCount || 0),
-    createdAtLabel: query.displayDate(item.createdAt)
+    createdAtLabel: query.displayDateAny(item.createdAt, item.created_at)
   }));
 }
 

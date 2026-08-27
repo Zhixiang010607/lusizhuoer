@@ -1,6 +1,6 @@
 const { callStaff } = require("../../services/api");
 const { requireSession } = require("../../services/session");
-const { displayDateTime } = require("../../services/query-tools");
+const { displayDateTimeAny } = require("../../services/query-tools");
 const { saveImageToAlbum } = require("../../services/photo-album");
 const {
   createProductSampleDocument,
@@ -23,11 +23,11 @@ const FUNCTION_LOGO_BYTES = 3 * 1024 * 1024;
 function text(value) { return String(value === undefined || value === null ? "" : value).trim(); }
 function normalizedInstructions(value) { return String(value === undefined || value === null ? "" : value).replace(/\r\n?/g, "\n").trim(); }
 function previewOption(value) { return PREVIEWS.find((item) => item.value === value) || PREVIEWS[0]; }
-function formatTime(value) {
-  const source = text(value);
-  if (!source) return "未保存";
-  const formatted = displayDateTime(source);
-  return formatted === "—" ? source : formatted;
+function formatTime(...values) {
+  const formatted = displayDateTimeAny(...values);
+  if (formatted !== "—") return formatted;
+  const source = text(values.find((value) => typeof value === "string" && value.trim()));
+  return source || "未保存";
 }
 function templateView(candidate) {
   if (!candidate || typeof candidate !== "object") throw new Error("服务器没有返回项目模板");
@@ -40,7 +40,7 @@ function templateView(candidate) {
     productType: text(candidate.productType) || "未分类", description: text(candidate.description), productStatus, logo,
     verificationInstructions, rechargeInstructions, updatedAt: candidate.updatedAt || "", updatedByName: text(candidate.updatedByName),
     statusText: productStatus === "ARCHIVED" ? "封存" : "活跃",
-    updatedText: formatTime(candidate.updatedAt),
+    updatedText: formatTime(candidate.updatedAt, candidate.updated_at, candidate.templateUpdatedAt, candidate.template_updated_at),
     ready: Boolean(logo && verificationInstructions && rechargeInstructions)
   };
 }

@@ -1,6 +1,6 @@
 const { callStaff } = require("../../services/api");
 const { requireSession } = require("../../services/session");
-const { displayDateTime } = require("../../services/query-tools");
+const { displayDateTimeAny } = require("../../services/query-tools");
 const rechargeIntent = require("../../services/teacher-experience-recharge");
 
 function text(...values) { return String(values.find((value) => value !== undefined && value !== null && String(value).trim()) || "").trim(); }
@@ -10,8 +10,8 @@ function archived(staff = {}) {
   const authoritative = [staff.account_status, staff.teacher_status].map((value) => text(value).toUpperCase()).filter((value) => ["ACTIVE", "ARCHIVED"].includes(value));
   return authoritative.length ? authoritative.includes("ARCHIVED") : [staff.status, staff.profile_status].map((value) => text(value).toUpperCase()).includes("ARCHIVED");
 }
-function formatTime(value) {
-  const formatted = displayDateTime(value);
+function formatTime(...values) {
+  const formatted = displayDateTimeAny(...values);
   return formatted === "—" ? "未记录" : formatted;
 }
 function historyType(value) {
@@ -37,7 +37,7 @@ function entitlement(row = {}) {
 function totalRow(row = {}) { return { productId: text(row.productId, row.product_id), productCode: text(row.productCode, row.product_code), productName: text(row.productName, row.product_name) || "未命名产品", productStatus: (text(row.productStatus, row.product_status) || "ARCHIVED").toUpperCase(), totalExperienceCount: number(row, ["totalExperienceCount", "total_experience_count", "totalUsedCount", "total_used_count"]) }; }
 function historyRow(row = {}, index = 0) {
   const count = number(row, ["unitCount", "unit_count", "deltaCount", "delta_count", "count", "amount"]);
-  return { key: `${text(row.id, row.ledgerId, row.ledger_id, row.createdAt, row.created_at, row.occurredAt, row.occurred_at) || "history"}-${index}`, at: formatTime(text(row.createdAt, row.created_at, row.occurredAt, row.occurred_at, row.eventAt, row.event_at, row.at)), type: historyType(text(row.eventType, row.event_type, row.type, row.recordType, row.record_type)), productName: text(row.productName, row.product_name) || "未命名产品", productCode: text(row.productCode, row.product_code), count, countText: `${count > 0 ? "+" : ""}${count} 次`, note: text(row.note, row.message, row.reason), actorName: text(row.actorName, row.actor_name, row.createdByName, row.created_by_name, row.operatorName, row.operator_name) || "系统／总部" };
+  return { key: `${text(row.id, row.ledgerId, row.ledger_id, row.createdAt, row.created_at, row.occurredAt, row.occurred_at) || "history"}-${index}`, at: formatTime(row.createdAt, row.created_at, row.occurredAt, row.occurred_at, row.eventAt, row.event_at, row.at), type: historyType(text(row.eventType, row.event_type, row.type, row.recordType, row.record_type)), productName: text(row.productName, row.product_name) || "未命名产品", productCode: text(row.productCode, row.product_code), count, countText: `${count > 0 ? "+" : ""}${count} 次`, note: text(row.note, row.message, row.reason), actorName: text(row.actorName, row.actor_name, row.createdByName, row.created_by_name, row.operatorName, row.operator_name) || "系统／总部" };
 }
 function summaryRows(rows, totals) {
   const map = new Map(rows.map((row) => [row.productId, { ...row }]));

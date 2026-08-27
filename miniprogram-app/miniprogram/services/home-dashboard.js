@@ -1,4 +1,4 @@
-const { displayDateTime } = require("./query-tools");
+const { displayDateAny, displayDateTimeAny } = require("./query-tools");
 
 const RANGE_OPTIONS = Object.freeze([
   { value: "TODAY", label: "今天" },
@@ -89,10 +89,6 @@ function hqRange(period, custom = {}) {
 }
 
 function payload(startDate, endDate) { return startDate && endDate ? { startDate, endDate } : {}; }
-function displayDate(value) {
-  const text = String(value || "").slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "—";
-}
 function totals(source = {}) {
   return Object.fromEntries(METRIC_KEYS.map((key) => [key, count(source[key])]));
 }
@@ -116,8 +112,9 @@ function records(items = [], type = "VERIFICATION") {
     storeName: String(item.storeName || "—"), storeCode: String(item.storeCode || ""),
     customerName: String(item.customerName || "—"), customerCode: String(item.customerCode || ""),
     productName: String(item.productName || "—"), unitCount: count(item.unitCount),
-    submittedAt: displayDateTime(
-      item.submittedAt ?? item.submitted_at ?? item.applicationTime ?? item.application_time ?? item.createdAt ?? item.created_at
+    submittedAt: displayDateTimeAny(
+      item.submittedAt, item.submitted_at, item.originalSubmittedAt, item.original_submitted_at,
+      item.applicationTime, item.application_time, item.createdAt, item.created_at
     )
   }));
 }
@@ -224,7 +221,7 @@ function customers(items = []) {
     customerCode: String(item.customerCode || item.customer_code || ""),
     customerName: String(item.customerName || item.customer_name || "未命名客户"),
     storeName: String(item.storeName || item.store_name || "—"),
-    birthDate: displayDate(item.birthDate || item.birth_date),
+    birthDate: displayDateAny(item.birthDate, item.birth_date),
     rechargeCount: count(item.rechargeCount !== undefined ? item.rechargeCount : item.total_recharge_count),
     verificationCount: count(item.verificationCount !== undefined ? item.verificationCount : item.total_verification_count)
   }));

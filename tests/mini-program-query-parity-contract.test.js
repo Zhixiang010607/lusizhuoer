@@ -158,6 +158,22 @@ test("shared query helpers preserve Shanghai business ranges and historical audi
   assert.equal(tools.displayDateTime("2026-08-27 20:34:56+08"), "2026-08-27 20:34");
   assert.equal(tools.displayDateTime({ value: "2026-08-27T12:34:56.000Z" }), "2026-08-27 20:34");
   assert.equal(tools.displayDateTime({ seconds: 1787834096, nanoseconds: 0 }), "2026-08-27 20:34");
+  assert.equal(tools.displayDateTime(new Date("2026-08-27T12:34:56.000Z")), "2026-08-27 20:34",
+    "database driver Date objects must survive the shared formatter");
+  assert.equal(tools.displayDateTime({ $date: { $numberLong: "1787834096000" } }), "2026-08-27 20:34",
+    "CloudBase extended JSON dates must not become a missing-time dash");
+  assert.equal(tools.displayDateTime({ seconds: { $numberLong: "1787834096" }, nanoseconds: { $numberInt: "0" } }), "2026-08-27 20:34",
+    "wrapped timestamp seconds must render on iPhone WeChat");
+  assert.equal(tools.displayDateTime('{"$date":{"$numberLong":"1787834096000"}}'), "2026-08-27 20:34",
+    "stringified CloudBase date wrappers must be decoded once");
+  assert.equal(tools.displayDateTimeAny({}, null, "2026-08-27T12:34:56.000Z"), "2026-08-27 20:34",
+    "an invalid first alias must not hide a valid later time alias");
+  assert.equal(tools.displayDateAny({ $date: { $numberLong: "1787834096000" } }), "2026-08-27",
+    "date-only cells share the same wrapper compatibility");
+  assert.equal(tools.displayDate("2026-08-26T18:30:00.000Z"), "2026-08-27",
+    "timestamp-backed date cells must use the Shanghai calendar day");
+  assert.equal(tools.normalizeRecord({ submittedAt: {}, submitted_at: "2026-08-27T12:34:56.000Z" }).submittedAt, "2026-08-27 20:34",
+    "query results must try every server alias before showing a dash");
   const completedVerification = tools.normalizeRecord({
     id: "10", recordCode: "V10", originalType: "NORMAL", recordStatus: "APPROVED"
   }, "VERIFICATION");

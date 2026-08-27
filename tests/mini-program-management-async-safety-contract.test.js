@@ -35,7 +35,7 @@ function loadPage(pageName, dependencies) {
     Page(value) { definition = value; },
     require(id) {
       if (Object.prototype.hasOwnProperty.call(dependencies, id)) return dependencies[id];
-      if (id === "../../services/query-tools") return { displayDateTime: (value) => String(value || "—") };
+      if (id === "../../services/query-tools") return { displayDateTimeAny: (...values) => String(values.find(Boolean) || "—") };
       throw new Error(`unexpected ${pageName} dependency ${id}`);
     },
     wx: {

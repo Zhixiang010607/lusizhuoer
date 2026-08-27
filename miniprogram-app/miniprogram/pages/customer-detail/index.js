@@ -58,7 +58,10 @@ function mapHistoryRow(row = {}, type = "RECHARGE") {
     productName: clean(row.productName) || "—",
     teacherLabel: businessTeacher(row),
     unitLabel: productPurchase ? `${units} 件` : `${rechargeHistory ? (negative ? "−" : "+") : ""}${units} 次`,
-    submittedAtLabel: query.displayDateTime(row.submittedAt),
+    submittedAtLabel: query.displayDateTimeAny(
+      row.submittedAt, row.submitted_at, row.applicationTime, row.application_time,
+      row.originalSubmittedAt, row.original_submitted_at, row.createdAt, row.created_at
+    ),
     statusLabel: orderStatus(row, type)
   };
 }
@@ -70,11 +73,11 @@ function mapProfile(value = {}) {
     ...value,
     customerCode: clean(value.customerCode),
     customerName: clean(value.customerName) || "—",
-    birthDateLabel: query.displayDate(value.birthDate),
+    birthDateLabel: query.displayDateAny(value.birthDate, value.birth_date),
     storeLabel: [clean(value.storeName), clean(value.storeCode)].filter(Boolean).join(" · ") || "—",
-    latestRechargeLabel: query.displayDate(value.latestRechargeAt),
-    latestVerificationLabel: query.displayDate(value.latestVerificationAt),
-    createdAtLabel: query.displayDate(value.createdAt),
+    latestRechargeLabel: query.displayDateAny(value.latestRechargeAt, value.latest_recharge_at),
+    latestVerificationLabel: query.displayDateAny(value.latestVerificationAt, value.latest_verification_at),
+    createdAtLabel: query.displayDateAny(value.createdAt, value.created_at),
     customerStatus: clean(value.customerStatus).toUpperCase() === "ARCHIVED" ? "ARCHIVED" : "ACTIVE",
     totalRechargeCount: Number(value.totalRechargeCount || 0),
     totalVerificationCount: Number(value.totalVerificationCount || 0),
@@ -103,7 +106,9 @@ function mapMessages(rows) {
     id: clean(row.id),
     authorLabel: clean(row.authorName) || "未命名账号",
     roleLabel: messageRole(row.authorRole),
-    createdAtLabel: query.displayDateTime(row.createdAt),
+    createdAtLabel: query.displayDateTimeAny(
+      row.createdAt, row.created_at, row.messageTime, row.message_time, row.submittedAt, row.submitted_at
+    ),
     content: String(row.content || "")
   }));
 }

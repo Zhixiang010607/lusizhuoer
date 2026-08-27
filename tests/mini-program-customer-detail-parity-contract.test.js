@@ -119,7 +119,8 @@ test("history mapper preserves refund signs, teachers, dates, and server statuse
       if (id === "../../services/query-tools") {
         return {
           displayDate: (value) => String(value || "").slice(0, 10) || "—",
-          displayDateTime: (value) => String(value || "")
+          displayDateAny: (...values) => String(values.find(Boolean) || "").slice(0, 10) || "—",
+          displayDateTimeAny: (...values) => String(values.find(Boolean) || "")
         };
       }
       throw new Error(`unexpected dependency ${id}`);
@@ -222,7 +223,8 @@ test("profile body survives a photo failure and appends only the selected histor
       if (id === "../../services/query-tools") {
         return {
           displayDate: (value) => String(value || "").slice(0, 10) || "—",
-          displayDateTime: (value) => String(value || "")
+          displayDateAny: (...values) => String(values.find(Boolean) || "").slice(0, 10) || "—",
+          displayDateTimeAny: (...values) => String(values.find(Boolean) || "")
         };
       }
       throw new Error(`unexpected dependency ${id}`);
