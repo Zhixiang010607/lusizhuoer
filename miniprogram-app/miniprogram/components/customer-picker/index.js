@@ -171,6 +171,12 @@ Component({
       this.setData({ manualBirthday: event.detail.value, duplicateMatches: [], candidate: null, photoUrl: "", photoReady: false, photoLoading: false, message: "", error: false });
       this.triggerEvent("change", { customer: null });
     },
+    clearBirthday() {
+      this._manualSearchRequestEpoch = (this._manualSearchRequestEpoch || 0) + 1;
+      this._candidateRequestEpoch = (this._candidateRequestEpoch || 0) + 1;
+      this.setData({ manualBirthday: "", duplicateMatches: [], candidate: null, photoUrl: "", photoReady: false, photoLoading: false, message: "", error: false });
+      this.triggerEvent("change", { customer: null });
+    },
     async selectListedCustomer(event) {
       const pickerIndex = Math.max(0, Number(event.detail.value) || 0);
       const selected = this.data.customers[pickerIndex - 1] || null;
@@ -185,7 +191,7 @@ Component({
     async manualSearch() {
       const name = String(this.data.manualName || "").trim();
       const birthDate = this.data.manualBirthday;
-      if (!name || !birthDate) return this.setData({ message: "姓名和生日都必须填写", error: true });
+      if (!name && !birthDate) return this.setData({ message: "姓名或生日请至少填写一项", error: true });
       const storeId = String(this.properties.storeId || "");
       const requestEpoch = (this._manualSearchRequestEpoch || 0) + 1;
       this._manualSearchRequestEpoch = requestEpoch;
@@ -193,12 +199,30 @@ Component({
       this.setData({ loading: true, duplicateMatches: [], candidate: null, photoUrl: "", photoReady: false, photoLoading: false, message: "正在查询…", error: false });
       this.triggerEvent("change", { customer: null });
       try {
-        const result = await callFace("listActiveStoreCustomers", { storeId, customerName: name, birthDate, limit: 100 });
-        if (requestEpoch !== this._manualSearchRequestEpoch || String(this.properties.storeId || "") !== storeId) return;
-        const matches = (result.customers || []).map(customer).filter((item) => item.customerCode && item.customerName && item.birthDate);
+        const seenCursors = new Set();
+        let cursor = null;
+        let matches = [];
+        while (true) {
+          const payload = { storeId, limit: 100 };
+          if (name) payload.customerName = name;
+          if (birthDate) payload.birthDate = birthDate;
+          if (cursor) payload.cursor = { ...cursor };
+          const result = await callFace("listActiveStoreCustomers", payload);
+          if (requestEpoch !== this._manualSearchRequestEpoch || String(this.properties.storeId || "") !== storeId) return;
+          matches = mergeCustomers(matches, result.customers || []);
+          if (result.hasMore !== true) break;
+          const nextCursor = customerCursor(result.nextCursor);
+          const nextCursorKey = cursorKey(nextCursor);
+          if (!nextCursorKey || nextCursorKey === cursorKey(cursor) || seenCursors.has(nextCursorKey)) {
+            throw new Error("客户查询分页信息无效，请重新查询");
+          }
+          seenCursors.add(nextCursorKey);
+          cursor = nextCursor;
+          this.setData({ message: `正在查询（已找到 ${matches.length} 位）…` });
+        }
         if (!matches.length) throw new Error("未找到当前门店的活跃客户");
         if (matches.length > 1) {
-          this.setData({ duplicateMatches: matches, message: `找到 ${matches.length} 位同名同生日客户，请按客户编号选择`, error: false });
+          this.setData({ duplicateMatches: matches, message: `找到 ${matches.length} 位匹配客户，请按客户编号选择`, error: false });
           return;
         }
         await this.loadCandidate(matches[0]);

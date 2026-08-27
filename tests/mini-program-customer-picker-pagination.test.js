@@ -122,7 +122,9 @@ test("customer picker renders a native dropdown and keeps exact search separate"
   const source = read("components", "customer-picker", "index.js");
 
   assert.match(markup, /<picker[^>]*mode="selector"[^>]*range="\{\{customerLabels\}\}"[^>]*bindchange="selectListedCustomer"/);
-  assert.match(markup, /data-mode="manual"[^>]*>姓名＋生日<\/button>/);
+  assert.match(markup, /data-mode="manual"[^>]*>姓名／生日<\/button>/);
+  assert.match(markup, /姓名或生日任填一项；两项都填时同时匹配/);
+  assert.match(markup, /bindtap="clearBirthday"/);
   assert.match(markup, /点开下拉框后可上下滑动选择全部客户/);
   assert.doesNotMatch(markup, /class="customer-list"|bindscrolltolower="loadMoreCustomers"/);
   assert.match(style, /\.customer-select-control\s*\{[^}]*min-height:\s*84rpx/);
@@ -130,6 +132,56 @@ test("customer picker renders a native dropdown and keeps exact search separate"
   assert.match(source, /if \(cursor\) payload\.cursor = \{ \.\.\.cursor \}/);
   assert.match(source, /while \(true\)/);
   assert.doesNotMatch(source, /loadMoreCustomers/);
+});
+
+test("manual lookup accepts either name or birthday and reads every matching cursor page", async () => {
+  const calls = [];
+  const cursor = { customerName: "同名", birthDate: "2000-01-01", customerCode: "C-1" };
+  const definition = loadPicker(async (action, payload) => {
+    assert.equal(action, "listActiveStoreCustomers");
+    calls.push(JSON.parse(JSON.stringify(payload)));
+    if (!payload.cursor) {
+      return { customers: [row("C-1", "同名")], hasMore: true, nextCursor: cursor };
+    }
+    return { customers: [row("C-2", "同名", "2001-02-02")], hasMore: false, nextCursor: null };
+  });
+  const { instance } = pickerInstance(definition);
+  instance.data.manualName = "同名";
+
+  await instance.manualSearch();
+
+  assert.equal(instance.data.duplicateMatches.length, 2);
+  assert.match(instance.data.message, /找到 2 位匹配客户/);
+  assert.deepEqual(calls, [
+    { storeId: "7", limit: 100, customerName: "同名" },
+    { storeId: "7", limit: 100, customerName: "同名", cursor }
+  ]);
+});
+
+test("manual lookup accepts birthday alone and rejects only a completely empty search", async () => {
+  const calls = [];
+  const definition = loadPicker(async (action, payload) => {
+    assert.equal(action, "listActiveStoreCustomers");
+    calls.push(JSON.parse(JSON.stringify(payload)));
+    return {
+      customers: [row("C-1", "甲", "2001-06-07"), row("C-2", "乙", "2001-06-07")],
+      hasMore: false,
+      nextCursor: null
+    };
+  });
+  const { instance } = pickerInstance(definition);
+
+  await instance.manualSearch();
+  assert.equal(calls.length, 0);
+  assert.equal(instance.data.error, true);
+  assert.match(instance.data.message, /至少填写一项/);
+
+  instance.data.manualBirthday = "2001-06-07";
+  await instance.manualSearch();
+  assert.deepEqual(calls, [{ storeId: "7", limit: 100, birthDate: "2001-06-07" }]);
+  assert.equal(instance.data.duplicateMatches.length, 2);
+  instance.clearBirthday();
+  assert.equal(instance.data.manualBirthday, "");
 });
 
 test("dropdown selection resolves the selected customer and loads the same photo confirmation", async () => {

@@ -1,7 +1,7 @@
 .picker-card { padding: 22rpx; background: #fff8ec; border: 1rpx solid #dfcfb4; border-radius: 20rpx; }
 .tabs { display: flex; gap: 8rpx; margin-bottom: 18rpx; padding: 7rpx; background: #eee4d6; border-radius: 16rpx; }
 .tabs button { flex: 1; min-height: 68rpx; display: flex; align-items: center; justify-content: center; margin: 0; color: #796d5e; background: transparent; border-radius: 12rpx; font-size: 24rpx; line-height: 1; }
-.tabs button::after, .search::after, .confirm::after { border: 0; }
+.tabs button::after, .search::after, .confirm::after, .clear-date::after { border: 0; }
 .tabs button.active { color: #74592d; background: #fffaf3; font-weight: 800; }
 .field-value { display: flex; align-items: center; width: 100%; min-height: 84rpx; padding: 0 20rpx; color: #302a22; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 14rpx; }
 .customer-select-heading { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin: 0 4rpx 10rpx; color: #4b4033; font-size: 23rpx; font-weight: 800; }
@@ -12,6 +12,10 @@
 .customer-select-arrow { flex: none; color: #8b744e; font-size: 30rpx; line-height: 1; }
 .customer-select-help { display: block; margin: 10rpx 4rpx 0; color: #817565; font-size: 20rpx; line-height: 1.4; }
 .manual-fields { display: grid; gap: 12rpx; }
+.manual-date-row { display: flex; align-items: stretch; gap: 10rpx; }
+.manual-date-picker { min-width: 0; flex: 1; }
+.clear-date { width: 112rpx; min-height: 84rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0; color: #74592d; background: #f4e7d0; border-radius: 14rpx; font-size: 22rpx; font-weight: 750; line-height: 1; }
+.manual-help { color: #817565; font-size: 20rpx; line-height: 1.4; }
 .search { min-height: 78rpx; color: #fffdf8; background: #6f532e; border-radius: 14rpx; font-size: 25rpx; font-weight: 750; }
 .duplicate-list { display: grid; gap: 10rpx; margin-top: 16rpx; }
 .duplicate-title { color: #675b4b; font-size: 22rpx; font-weight: 800; }

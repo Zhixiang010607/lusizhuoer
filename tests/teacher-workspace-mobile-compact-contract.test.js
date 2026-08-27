@@ -50,7 +50,7 @@ test("teacher business menu still enters store-first recharge refund verificatio
     ["verification-experience.html", "体验核销"]
   ]) {
     assert.ok(teacherMenu.includes(`["${href}", "${label}"]`), `${label} must stay in the teacher business menu`);
-    assert.match(read(href), /store-business\.js\?v=0\.14\.60/, `${label} must use the store-first business controller`);
+    assert.match(read(href), /store-business\.js\?v=0\.14\.61/, `${label} must use the store-first business controller`);
   }
 
   assert.match(businessUi, /const sharedTeacherMode = teacherMode && !legacyTeacherMode/,

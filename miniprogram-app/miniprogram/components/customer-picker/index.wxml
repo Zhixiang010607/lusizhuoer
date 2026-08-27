@@ -1,7 +1,7 @@
 <view class="picker-card">
   <view class="tabs">
     <button class="{{mode === 'select' ? 'active' : ''}}" data-mode="select" bindtap="changeMode">现有客户</button>
-    <button class="{{mode === 'manual' ? 'active' : ''}}" data-mode="manual" bindtap="changeMode">姓名＋生日</button>
+    <button class="{{mode === 'manual' ? 'active' : ''}}" data-mode="manual" bindtap="changeMode">姓名／生日</button>
   </view>
   <view wx:if="{{mode === 'select'}}">
     <view class="customer-select-heading">
@@ -19,7 +19,11 @@
   </view>
   <view wx:else class="manual-fields">
     <input class="field-value" placeholder="客户姓名" value="{{manualName}}" bindinput="inputName" />
-    <picker mode="date" value="{{manualBirthday}}" end="{{today}}" bindchange="inputBirthday"><view class="field-value">{{manualBirthday || '选择生日'}}</view></picker>
+    <view class="manual-date-row">
+      <picker class="manual-date-picker" mode="date" value="{{manualBirthday}}" end="{{today}}" bindchange="inputBirthday"><view class="field-value">{{manualBirthday || '选择生日'}}</view></picker>
+      <button wx:if="{{manualBirthday}}" class="clear-date" bindtap="clearBirthday">清除</button>
+    </view>
+    <text class="manual-help">姓名或生日任填一项；两项都填时同时匹配</text>
     <button class="search" bindtap="manualSearch" loading="{{loading}}" disabled="{{loading}}">精确查询</button>
   </view>
   <view wx:if="{{duplicateMatches.length}}" class="duplicate-list">

@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v96";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v97";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -2144,9 +2144,11 @@ async function listActiveStoreCustomers(event = {}) {
   const birthDate = optionalBusinessQueryDate(event.birthDate, "客户生日");
   const cursor = activeStoreCustomerCursor(event.cursor);
   if (customerName.length > 100) fail("客户姓名不能超过 100 个字符。", "BAD_REQUEST");
-  if (Boolean(customerName) !== Boolean(birthDate)) fail("按资料查询时必须同时填写客户姓名和生日。", "BAD_REQUEST");
-  if (cursor && customerName && (cursor.customerName !== customerName || cursor.birthDate !== birthDate)) {
-    fail("客户分页游标与当前姓名和生日查询不一致。", "BAD_REQUEST");
+  if (cursor && customerName && cursor.customerName !== customerName) {
+    fail("客户分页游标与当前姓名查询不一致。", "BAD_REQUEST");
+  }
+  if (cursor && birthDate && cursor.birthDate !== birthDate) {
+    fail("客户分页游标与当前生日查询不一致。", "BAD_REQUEST");
   }
   const rows = await executeSql(
     `SELECT customer_code, customer_name, birth_date,
@@ -2154,7 +2156,8 @@ async function listActiveStoreCustomers(event = {}) {
        FROM public.customers
       WHERE created_store_id = ${caller.storeId}
         AND customer_status = 'ACTIVE'
-        ${customerName ? `AND customer_name = ${sqlText(customerName)} AND birth_date = ${sqlText(birthDate)}::date` : ""}
+        ${customerName ? `AND customer_name = ${sqlText(customerName)}` : ""}
+        ${birthDate ? `AND birth_date = ${sqlText(birthDate)}::date` : ""}
         ${cursor ? `AND (customer_name, COALESCE(birth_date, DATE '0001-01-01'), customer_code) > (${sqlText(cursor.customerName)}, ${sqlText(cursor.birthDate)}::date, ${sqlText(cursor.customerCode)})` : ""}
       ORDER BY customer_name ASC, COALESCE(birth_date, DATE '0001-01-01') ASC, customer_code ASC
       LIMIT ${limit + 1}`

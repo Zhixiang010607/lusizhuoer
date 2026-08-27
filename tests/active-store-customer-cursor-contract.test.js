@@ -86,14 +86,14 @@ test("the next cursor resumes strictly after the last name/birthdate/code tuple"
   );
 });
 
-test("exact name and birthday search can paginate only with a matching cursor", async () => {
+test("combined exact name and birthday search can paginate only with a matching cursor", async () => {
   const subject = harness([[]]);
   await subject.listActiveStoreCustomers({
     customerName: "同名客户",
     birthDate: "2000-01-01",
     cursor: { customerName: "同名客户", birthDate: "2000-01-01", customerCode: "C-100" }
   });
-  assert.match(subject.sqlCalls[0], /AND customer_name = '同名客户' AND birth_date = '2000-01-01'::date/);
+  assert.match(subject.sqlCalls[0], /AND customer_name = '同名客户'\s+AND birth_date = '2000-01-01'::date/);
 
   await assert.rejects(
     () => subject.listActiveStoreCustomers({
@@ -104,6 +104,36 @@ test("exact name and birthday search can paginate only with a matching cursor", 
     (error) => error.code === "BAD_REQUEST" && /不一致/.test(error.message)
   );
   assert.equal(subject.sqlCalls.length, 1, "a mismatched cursor is rejected before database access");
+});
+
+test("exact customer lookup accepts name-only or birthday-only filters", async () => {
+  const subject = harness([[], []]);
+
+  await subject.listActiveStoreCustomers({
+    customerName: "单独姓名",
+    cursor: { customerName: "单独姓名", birthDate: "2000-01-01", customerCode: "C-101" }
+  });
+  assert.match(subject.sqlCalls[0], /AND customer_name = '单独姓名'/);
+  assert.doesNotMatch(subject.sqlCalls[0], /AND birth_date =/);
+
+  await subject.listActiveStoreCustomers({
+    birthDate: "2001-06-07",
+    cursor: { customerName: "任意姓名", birthDate: "2001-06-07", customerCode: "C-102" }
+  });
+  assert.doesNotMatch(subject.sqlCalls[1], /AND customer_name =/);
+  assert.match(subject.sqlCalls[1], /AND birth_date = '2001-06-07'::date/);
+});
+
+test("single-field lookup rejects a cursor outside that exact filter", async () => {
+  const subject = harness([[]]);
+  await assert.rejects(
+    () => subject.listActiveStoreCustomers({
+      birthDate: "2001-06-07",
+      cursor: { customerName: "客户", birthDate: "2001-06-08", customerCode: "C-103" }
+    }),
+    (error) => error.code === "BAD_REQUEST" && /生日查询不一致/.test(error.message)
+  );
+  assert.equal(subject.sqlCalls.length, 0);
 });
 
 test("customer cursors reject malformed, partial, padded, invalid-date, and extra fields", () => {

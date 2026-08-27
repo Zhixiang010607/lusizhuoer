@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.60", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.61", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   const formatBirthday = (value, fallback = "—") => {
     const raw = String(value ?? "").trim();
     if (!raw) return fallback;
@@ -254,7 +254,8 @@
       const result = await callCustomerEnrollment({
         action: "listActiveStoreCustomers",
         limit: 100,
-        ...(customerName && birthDate ? { customerName, birthDate } : {}),
+        ...(customerName ? { customerName } : {}),
+        ...(birthDate ? { birthDate } : {}),
         ...(cursor ? { cursor } : {})
       });
       if (!isCurrent()) return null;
@@ -863,18 +864,18 @@
     });
     $("serviceCustomerLookup").addEventListener("click", async () => {
       resetCandidate(); const name = $("serviceCustomerName").value.trim(), birthday = $("serviceCustomerBirthday").value;
-      if (!name || !birthday) { showLookupError("客户姓名和生日都必须填写。"); return; }
+      if (!name && !birthday) { showLookupError("客户姓名或生日请至少填写一项。"); return; }
       const lookupRequest = ++manualLookupRequest;
       const isCurrentLookup = () => isCurrentScope() && lookupRequest === manualLookupRequest;
       const button = $("serviceCustomerLookup"); button.disabled = true;
-      $("serviceCustomerResults").innerHTML = `<div class="lookup-placeholder"><strong>正在查询客户</strong><span>仅在本门店活跃客户中按姓名和生日精确查询。</span></div>`;
+      $("serviceCustomerResults").innerHTML = `<div class="lookup-placeholder"><strong>正在查询客户</strong><span>仅在本门店活跃客户中按已填写的姓名或生日精确查询。</span></div>`;
       try {
         const result = await fetchAllActiveStoreCustomers({ customerName: name, birthDate: birthday, expectedStoreId: scopeStoreId, isCurrent: isCurrentLookup });
         if (!result || !isCurrentLookup()) return;
         const matches = result.customers;
         if (matches.length === 1) renderCustomerCore(matches[0]);
         else if (matches.length > 1) {
-          $("serviceCustomerResults").innerHTML = `<div class="duplicate-customer-list"><strong>找到 ${matches.length} 位同名同生日客户，请按编号选择：</strong>${matches.map((customer) => `<button type="button" data-preview-customer="${escapeHtml(customer.id)}">${escapeHtml(customer.name)} · ${escapeHtml(customer.id)}</button>`).join("")}</div>`;
+          $("serviceCustomerResults").innerHTML = `<div class="duplicate-customer-list"><strong>找到 ${matches.length} 位匹配客户，请按编号选择：</strong>${matches.map((customer) => `<button type="button" data-preview-customer="${escapeHtml(customer.id)}">${escapeHtml(customer.name)} · ${escapeHtml(formatBirthday(customer.birthday))} · ${escapeHtml(customer.id)}</button>`).join("")}</div>`;
           document.querySelectorAll("[data-preview-customer]").forEach((item) => item.addEventListener("click", () => renderCustomerCore(matches.find((customer) => customer.id === item.dataset.previewCustomer))));
         } else showLookupError("未找到本门店活跃客户；请核对信息，或先恢复已存档客户。");
       } catch (error) {

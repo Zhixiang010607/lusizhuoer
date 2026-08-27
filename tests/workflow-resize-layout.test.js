@@ -11,7 +11,7 @@ for (const page of workflowPages) {
   const html = fs.readFileSync(path.join(root, page), "utf8");
   assert.match(html, /id="workflowResizeHandle"[^>]*role="separator"/, `${page} should expose the workflow resize handle`);
   assert.match(html, page === "recharge-create.html" ? /styles\.css\?v=0\.15\.49/ : /styles\.css\?v=0\.15\.44/, `${page} should load the current responsive stylesheet`);
-  assert.match(html, /store-business\.js\?v=0\.14\.60/, `${page} should load the current workflow script`);
+  assert.match(html, /store-business\.js\?v=0\.14\.61/, `${page} should load the current workflow script`);
 }
 
 const customerHtml = fs.readFileSync(path.join(root, "customer-create.html"), "utf8");

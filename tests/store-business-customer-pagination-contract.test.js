@@ -85,7 +85,7 @@ test("web business customer selector reads every cursor page in stable order and
   assert.deepEqual(calls[1].cursor, firstCursor);
 });
 
-test("web exact name and birthday search retains its filters on every cursor page", async () => {
+test("web exact lookup retains whichever name or birthday filters were supplied on every cursor page", async () => {
   const calls = [];
   const cursor = { customerName: "同名", birthDate: "2001-06-07", customerCode: "C010" };
   const harness = customerPagingHarness(async (payload) => {
@@ -106,6 +106,20 @@ test("web exact name and birthday search retains its filters on every cursor pag
     assert.equal(call.birthDate, "2001-06-07");
   }
   assert.deepEqual(calls[1].cursor, cursor);
+
+  calls.length = 0;
+  harness.setCaller(async (payload) => {
+    calls.push(JSON.parse(JSON.stringify(payload)));
+    return { storeId: "S1", customers: [], hasMore: false, nextCursor: null };
+  });
+  await harness.fetchAllActiveStoreCustomers({ customerName: "只填姓名", expectedStoreId: "S1" });
+  assert.equal(calls[0].customerName, "只填姓名");
+  assert.equal(calls[0].birthDate, undefined);
+
+  calls.length = 0;
+  await harness.fetchAllActiveStoreCustomers({ birthDate: "2001-06-07", expectedStoreId: "S1" });
+  assert.equal(calls[0].customerName, undefined);
+  assert.equal(calls[0].birthDate, "2001-06-07");
 });
 
 test("web customer pagination refuses stale stores, stale pages and broken cursors", async () => {
@@ -142,13 +156,20 @@ test("web customer pagination refuses stale stores, stale pages and broken curso
 });
 
 test("web business pages keep native scrolling selection plus exact lookup and scope invalidation", () => {
-  for (const page of ["recharge-create.html", "refund-create.html", "verification-create.html", "verification-experience.html"]) {
+  for (const page of [
+    "recharge-create.html", "product-purchase-create.html", "refund-create.html", "verification-create.html", "verification-experience.html",
+    "teacher-recharge-create.html", "teacher-refund-create.html", "teacher-verification-create.html", "teacher-verification-experience.html"
+  ]) {
     const html = read(page);
     assert.match(html, /<select id="serviceCustomerSelect"><\/select>/, `${page} must retain the native scrolling customer select`);
     assert.match(html, /id="serviceCustomerName"/, `${page} must retain exact name lookup`);
     assert.match(html, /id="serviceCustomerBirthday"/, `${page} must retain exact birthday lookup`);
-    assert.ok(html.includes("store-business.js?v=0.14.60"), `${page} must load the current cursor-aware workflow`);
+    assert.match(html, /手动输入姓名或生日/, `${page} must explain that either exact field is sufficient`);
+    assert.ok(html.includes("store-business.js?v=0.14.61"), `${page} must load the current cursor-aware workflow`);
   }
+  assert.ok(business.includes('if (!name && !birthday) { showLookupError("客户姓名或生日请至少填写一项。")'), "manual lookup must require either field, not both");
+  assert.ok(business.includes('...(customerName ? { customerName } : {})'), "name-only filters must reach the server");
+  assert.ok(business.includes('...(birthDate ? { birthDate } : {})'), "birthday-only filters must reach the server");
   assert.ok(business.includes("scopeRequest === customerLookupScopeRequest"), "late responses must be tied to the current store scope");
   assert.ok(business.includes('window.addEventListener("pagehide"'), "leaving a page invalidates pending customer reads");
   assert.ok(business.includes("seenCustomerCodes.has(customer.id)"), "cursor overlap must not duplicate customer options");

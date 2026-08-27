@@ -42,9 +42,9 @@ test("migration 061 stores immutable recharge gifts with parent scope and active
   assert.match(read("database/cloudbase-console/061-README.md"), /8 行[\s\S]*READY/);
 });
 
-test("faceRecognition v96 validates and atomically creates recharge gifts", () => {
+test("faceRecognition v97 validates and atomically creates recharge gifts", () => {
   const cloud = read("cloudfunctions/faceRecognition/index.js");
-  assert.match(cloud, /PHOTO_ONLY_FUNCTION \? "v9" : "v96"/);
+  assert.match(cloud, /PHOTO_ONLY_FUNCTION \? "v9" : "v97"/);
   const list = section(cloud, "async function listActiveRetailProducts", "function normalizeRechargeProductGifts");
   assert.match(list, /activeBusinessCaller\(event\)/);
   assert.match(list, /FROM public\.retail_products[\s\S]*product_status = 'ACTIVE'/);
@@ -87,7 +87,7 @@ test("web store and teacher recharge flows use choose, quantity, plus, delete or
     const add = html.indexOf('id="addRechargeGift"');
     assert.ok(select >= 0 && select < quantity && quantity < add, "gift controls must remain choose → quantity → plus");
     assert.match(html, /class="recharge-gift-plus"[\s\S]*>＋<\/button>/);
-    assert.match(html, /store-business\.js\?v=0\.14\.60/);
+    assert.match(html, /store-business\.js\?v=0\.14\.61/);
   }
   const logic = read("store-business.js");
   assert.match(logic, /action: "listActiveRetailProducts"/);
