@@ -140,6 +140,14 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
   assert.match(wxss, /\.anchor-inner text\s*\{[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*font-size:\s*23rpx/s);
   assert.match(wxss, /\.summary-scroll\s*\{[^}]*box-sizing:\s*border-box/s);
   assert.match(wxss, /\.record-table\s*\{\s*width:\s*100%;\s*min-width:\s*1050rpx;/);
+  assert.match(js, /function businessRecordsView\(items, type\)[\s\S]*businessViewportHeight:\s*72 \+ \(visibleRows \? visibleRows \* 82 : 110\)[\s\S]*businessScrollable:\s*businessRecords\.length > 5/,
+    "business detail must grow for one to five rows and become internally scrollable only after five rows");
+  assert.match(wxml, /class="table-scroll record-scroll"[^>]*scroll-x[^>]*scroll-y="\{\{businessScrollable\}\}"[^>]*show-scrollbar="\{\{businessScrollable\}\}"[^>]*style="height: \{\{businessViewportHeight\}\}rpx"/,
+    "the calculated business-detail viewport must drive the real-device scroll-view height");
+  assert.match(wxml, /wx:if="\{\{businessScrollable\}\}" class="record-scroll-hint">超过 5 条，可在表格内上下滑动<\/text>/,
+    "a long business list must visibly explain its internal vertical scrolling");
+  assert.match(wxss, /\.record-scroll\s*\{[^}]*box-sizing:\s*border-box;[^}]*overflow:\s*auto;/s,
+    "business detail scrolling must stay clipped inside its rounded table card");
   assert.match(wxss, /\.customer-table\s*\{\s*width:\s*100%;\s*min-width:\s*620rpx;/,
     "the five-column customer table must fit the standard card before horizontal scrolling is needed");
   assert.doesNotMatch(wxss, /\.customer-table\s*\{[^}]*min-width:\s*700rpx/s,
@@ -239,6 +247,10 @@ test("home dashboard mapper preserves web metric and profile column semantics", 
   assert.match(wxss, /\.store-profile-facts\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)[^}]*background:\s*transparent/s,
     "the four store contact facts use the shared compact warm layout");
   assert.equal(dashboard.storeCustomerGroups({ store_name: "中心店", customers: [{ customer_code: "C001" }], customer_total: 1 }).active.rows[0].storeName, "中心店");
+  assert.equal(dashboard.records([{ submitted_at: "2026-08-27 12:34:56+00" }])[0].submittedAt, "2026-08-27 20:34",
+    "business detail accepts PostgreSQL snake-case timestamps and renders Shanghai wall time");
+  assert.equal(dashboard.records([{ application_time: { $date: "2026-08-27T12:34:56.000Z" } }])[0].submittedAt, "2026-08-27 20:34",
+    "business detail accepts wrapped CloudBase timestamps from alternate query paths");
 });
 
 test("customer data views use deliberate horizontal tables on narrow screens", () => {

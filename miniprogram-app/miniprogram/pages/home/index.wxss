@@ -78,6 +78,8 @@
 .custom-range button { grid-column: 1 / -1; min-height: 78rpx; display: flex; align-items: center; justify-content: center; color: #fffdf8; background: #6f532e; border-radius: 12rpx; font-size: 23rpx; font-weight: 800; line-height: 1; white-space: nowrap; }
 .table-scroll { max-width: 100%; overflow-x: auto; overflow-y: hidden; border: 1rpx solid #dfcfb4; border-radius: 24rpx; }
 .summary-scroll { box-sizing: border-box; }
+.record-scroll { box-sizing: border-box; overflow: auto; }
+.record-scroll-hint { display: block; margin: -8rpx 0 12rpx; color: #7c7062; font-size: 18rpx; text-align: right; }
 .summary-table { width: 100%; min-width: 620rpx; }
 .record-table { width: 100%; min-width: 1050rpx; }
 .customer-table { width: 100%; min-width: 620rpx; }

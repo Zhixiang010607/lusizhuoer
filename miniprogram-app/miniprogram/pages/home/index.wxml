@@ -111,7 +111,8 @@
         <view class="record-tabs">
           <button wx:for="{{businessTabs}}" wx:key="type" class="record-tab {{item.active ? 'active' : ''}}" data-type="{{item.type}}" bindtap="selectBusinessType"><text>{{item.label}}</text><text>{{item.total}} 次</text></button>
         </view>
-        <scroll-view class="table-scroll record-scroll" scroll-x enhanced show-scrollbar="false" scroll-left="{{businessScrollLeft}}" bindscroll="rememberBusinessScroll">
+        <text wx:if="{{businessScrollable}}" class="record-scroll-hint">超过 5 条，可在表格内上下滑动</text>
+        <scroll-view class="table-scroll record-scroll" scroll-x scroll-y="{{businessScrollable}}" enhanced show-scrollbar="{{businessScrollable}}" style="height: {{businessViewportHeight}}rpx" scroll-left="{{businessScrollLeft}}" bindscroll="rememberBusinessScroll">
           <view class="record-table">
             <view class="table-row table-head"><view>单号</view><view>门店</view><view>客户</view><view>项目</view><view>次数</view><view>提交时间</view></view>
             <view wx:for="{{businessRecords}}" wx:key="id" class="table-row"><view class="table-link" data-id="{{item.id}}" data-code="{{item.recordCode}}" data-category="{{item.category}}" bindtap="openOrder">{{item.recordCode}}</view><view>{{item.storeName}}</view><view class="table-link" data-code="{{item.customerCode}}" bindtap="openCustomer">{{item.customerName}}</view><view>{{item.productName}}</view><view>{{item.unitCount}} 次</view><view>{{item.submittedAt}}</view></view>

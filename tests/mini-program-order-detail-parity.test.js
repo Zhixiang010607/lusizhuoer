@@ -338,6 +338,12 @@ test("verification photo UI has list and per-slot recovery, originals, album sav
   includes(wxml, 'bindtap="savePhoto"', "authorized original album save");
   includes(wxml, 'bindtap="uploadExtraPhoto"', "choose-or-capture extra photo");
   includes(wxml, "canEdit && item.slot >= 2", "server-authorized edit buttons");
+  assert.match(wxss, /\.photo-card\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;/s,
+    "each photo cell must clip its own controls instead of painting into its neighbor");
+  assert.match(wxss, /\.photo-actions button, \.upload-button, \.compact-button\s*\{[^}]*max-width:\s*100%;[^}]*min-width:\s*0;[^}]*box-sizing:\s*border-box;[^}]*align-items:\s*center;[^}]*justify-content:\s*center;/s,
+    "photo controls must fit their grid cell and center the label on real devices");
+  assert.match(wxss, /\.upload-button\s*\{[^}]*width:\s*100%;[^}]*justify-self:\s*stretch;/s,
+    "each supplemental-photo button occupies only its own bounded card width");
   assert.doesNotMatch(wxml, /photos\.length|暂无核销照片/, "a read failure cannot become a no-photo screen");
   assert.doesNotMatch(`${js}\n${wxml}`, /\bKB\b|不压缩|未压缩/, "size/compression explanations are retired");
 });

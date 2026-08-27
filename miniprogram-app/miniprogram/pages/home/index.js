@@ -50,6 +50,15 @@ function customerView(group) {
   const visibleRows = Math.min(5, Math.max(1, rows.length));
   return { ...group, ...pageView(group), viewportHeight: 72 + visibleRows * 82 };
 }
+function businessRecordsView(items, type) {
+  const businessRecords = dashboard.records(items, type);
+  const visibleRows = Math.min(5, businessRecords.length);
+  return {
+    businessRecords,
+    businessViewportHeight: 72 + (visibleRows ? visibleRows * 82 : 110),
+    businessScrollable: businessRecords.length > 5
+  };
+}
 function rejectedMessage(results, fallback) {
   const failed = results.find((item) => item.status === "rejected");
   return failed ? failed.reason?.message || fallback : "";
@@ -112,7 +121,7 @@ Page({
     rangeLabel: "本月", customRangeVisible: false,
     profileFacts: [], storeHero: {}, experienceBalances: [], summaryRows: [],
     totals: { ...dashboard.EMPTY_TOTALS }, businessType: "VERIFICATION",
-    businessTabs: readyTabs(dashboard.EMPTY_TOTALS, "VERIFICATION"), businessRecords: [],
+    businessTabs: readyTabs(dashboard.EMPTY_TOTALS, "VERIFICATION"), ...businessRecordsView([], "VERIFICATION"),
     businessPage: pageView({}), businessPageInput: "1", businessScrollLeft: 0, summaryScrollLeft: 0, businessLoading: false,
     activeCustomers: customerView(dashboard.customerGroup()), archivedCustomers: customerView(dashboard.customerGroup()),
     activeCustomerScrollLeft: 0, archivedCustomerScrollLeft: 0,
@@ -167,7 +176,7 @@ Page({
       loading: true,
       rangeStart: range.startDate, rangeEnd: range.endDate,
       profileFacts: [], experienceBalances: [], summaryRows: [], totals: { ...dashboard.EMPTY_TOTALS },
-      businessTabs: readyTabs(dashboard.EMPTY_TOTALS, businessType), businessRecords: [],
+      businessTabs: readyTabs(dashboard.EMPTY_TOTALS, businessType), ...businessRecordsView([], businessType),
       businessPage: pageView({}), businessPageInput: "1", businessScrollLeft: 0, summaryScrollLeft: 0,
       activeCustomers: customerView(dashboard.customerGroup()), archivedCustomers: customerView(dashboard.customerGroup()),
       activeCustomerScrollLeft: 0, archivedCustomerScrollLeft: 0
@@ -195,7 +204,7 @@ Page({
       });
       if (businessRequestEpoch === this._businessRequestEpoch && this.data.businessType === businessType) {
         Object.assign(changes, {
-          businessRecords: dashboard.records(value.page?.records, businessType),
+          ...businessRecordsView(value.page?.records, businessType),
           businessPage: pageView(value.page), businessPageInput: String(pageView(value.page).page), businessScrollLeft: 0
         });
       }
@@ -226,7 +235,7 @@ Page({
     this.setData({
       loading: true, rangeStart: range.startDate, rangeEnd: range.endDate, message: "", error: false,
       storeHero: {}, profileFacts: [], summaryRows: [], totals: { ...dashboard.EMPTY_TOTALS },
-      businessTabs: readyTabs(dashboard.EMPTY_TOTALS, businessType), businessRecords: [],
+      businessTabs: readyTabs(dashboard.EMPTY_TOTALS, businessType), ...businessRecordsView([], businessType),
       businessPage: pageView({}), businessPageInput: "1", businessScrollLeft: 0, summaryScrollLeft: 0,
       activeCustomers: customerView(dashboard.customerGroup()), archivedCustomers: customerView(dashboard.customerGroup()),
       activeCustomerScrollLeft: 0, archivedCustomerScrollLeft: 0
@@ -274,7 +283,7 @@ Page({
         && businessRequestEpoch === this._businessRequestEpoch
         && this.data.businessType === businessType) {
       const value = recordsResult.value;
-      changes.businessRecords = dashboard.records(value.records, businessType);
+      Object.assign(changes, businessRecordsView(value.records, businessType));
       changes.businessPage = pageView(value);
       changes.businessPageInput = String(changes.businessPage.page);
       changes.businessScrollLeft = 0;
@@ -290,7 +299,7 @@ Page({
     const requestEpoch = (this._businessRequestEpoch || 0) + 1;
     this._businessRequestEpoch = requestEpoch;
     this.setData({
-      businessLoading: true, businessRecords: [], businessPage: pageView({}), businessPageInput: "1",
+      businessLoading: true, ...businessRecordsView([], type), businessPage: pageView({}), businessPageInput: "1",
       businessScrollLeft: 0, message: "", error: false,
       ...(includeOverview ? {
         totals: { ...dashboard.EMPTY_TOTALS }, summaryRows: [], experienceBalances: [],
@@ -304,7 +313,7 @@ Page({
           recordType: type, page, pageSize: PAGE_SIZE, includeOverview, ...rangeData
         });
         const changes = {
-          businessRecords: dashboard.records(value.page?.records, type), businessPage: pageView(value.page),
+          ...businessRecordsView(value.page?.records, type), businessPage: pageView(value.page),
           businessPageInput: String(pageView(value.page).page), businessScrollLeft: 0
         };
         if (includeOverview) {
@@ -326,14 +335,14 @@ Page({
         if (requestEpoch !== this._businessRequestEpoch || this.data.businessType !== type) return;
         const businessPage = pageView(value);
         this.setData({
-          businessRecords: dashboard.records(value.records, type), businessPage,
+          ...businessRecordsView(value.records, type), businessPage,
           businessPageInput: String(businessPage.page), businessScrollLeft: 0
         });
       }
     } catch (error) {
       if (requestEpoch === this._businessRequestEpoch && this.data.businessType === type) {
         this.setData({
-          businessRecords: [], businessPage: pageView({}), businessPageInput: "1", businessScrollLeft: 0,
+          ...businessRecordsView([], type), businessPage: pageView({}), businessPageInput: "1", businessScrollLeft: 0,
           message: error.message || "业务明细读取失败", error: true
         });
       }
@@ -571,7 +580,7 @@ Page({
     const type = event.currentTarget.dataset.type;
     if (!dashboard.TYPE_CONFIG[type]) return;
     this.setData({
-      businessType: type, businessTabs: readyTabs(this.data.totals, type), businessRecords: [],
+      businessType: type, businessTabs: readyTabs(this.data.totals, type), ...businessRecordsView([], type),
       businessPage: pageView({}), businessPageInput: "1", businessScrollLeft: 0
     }, () => this.loadBusinessType(1));
   },

@@ -116,7 +116,9 @@ function records(items = [], type = "VERIFICATION") {
     storeName: String(item.storeName || "—"), storeCode: String(item.storeCode || ""),
     customerName: String(item.customerName || "—"), customerCode: String(item.customerCode || ""),
     productName: String(item.productName || "—"), unitCount: count(item.unitCount),
-    submittedAt: displayDateTime(item.submittedAt)
+    submittedAt: displayDateTime(
+      item.submittedAt ?? item.submitted_at ?? item.applicationTime ?? item.application_time ?? item.createdAt ?? item.created_at
+    )
   }));
 }
 function storeFacts(store = {}) {
