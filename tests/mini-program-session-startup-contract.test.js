@@ -64,6 +64,10 @@ function loadLogin(waitForStartupSession) {
         passwordLogin: async () => { passwordLogins += 1; return {}; },
         wechatPhoneLogin: async () => ({})
       };
+      if (id === "../../services/wechat-phone") return {
+        authorizationFailureMessage: () => "微信手机号授权失败",
+        loginFailureMessage: () => "微信手机号登录失败"
+      };
       throw new Error(`unexpected login dependency ${id}`);
     },
     wx: { reLaunch({ url }) { launches.push(url); }, navigateTo() {} },

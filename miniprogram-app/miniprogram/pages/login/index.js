@@ -1,4 +1,5 @@
 const { passwordLogin, wechatPhoneLogin, waitForStartupSession } = require("../../services/session");
+const { authorizationFailureMessage, loginFailureMessage } = require("../../services/wechat-phone");
 
 Page({
   data: { phone: "", password: "", passwordVisible: false, busy: false, startupChecking: false, message: "", error: false },
@@ -25,7 +26,7 @@ Page({
     if (this.data.busy || this.data.startupChecking) return;
     const phoneCode = String(event && event.detail && event.detail.code || "").trim();
     if (!phoneCode) {
-      this.setData({ message: "需要你同意使用微信绑定手机号，才能快捷登录", error: true });
+      this.setData({ message: authorizationFailureMessage(event && event.detail), error: true });
       return;
     }
     this.setData({ busy: true, message: "正在验证微信手机号和业务身份…", error: false });
@@ -34,7 +35,7 @@ Page({
       this.setData({ password: "", message: `欢迎 ${session.staffName || "登录账号"}`, error: false });
       wx.reLaunch({ url: "/pages/home/index" });
     } catch (error) {
-      this.setData({ password: "", message: error.message || "微信手机号登录失败", error: true });
+      this.setData({ password: "", message: loginFailureMessage(error), error: true });
     } finally { this.setData({ busy: false }); }
   },
   async submit() {
