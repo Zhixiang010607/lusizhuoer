@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v97";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v98";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -3590,17 +3590,17 @@ async function requireVerificationSubmissionSchema() {
           AND column_name = 'idempotency_key'
      ) AS has_idempotency_key,
      TO_REGPROCEDURE(
-       'public.create_verification_with_face_photo(character varying,bigint,bigint,bigint,bigint,character varying,bigint,text,text,character varying,character varying,character varying)'
+       'public.create_verification_with_face_photo(character varying,bigint,bigint,bigint,bigint,integer,character varying,bigint,text,text,character varying,character varying,character varying)'
      ) IS NOT NULL AS has_photo_create_function,
      COALESCE(POSITION(
        'PROFILE_BOUND' IN PG_GET_FUNCTIONDEF(TO_REGPROCEDURE(
-         'public.create_verification_with_face_photo(character varying,bigint,bigint,bigint,bigint,character varying,bigint,text,text,character varying,character varying,character varying)'
+         'public.create_verification_with_face_photo(character varying,bigint,bigint,bigint,bigint,integer,character varying,bigint,text,text,character varying,character varying,character varying)'
        ))
      ), 0) > 0 AS has_profile_snapshot,
      TO_REGCLASS('public.device_signal_outbox') IS NOT NULL AS has_device_signal_outbox,
      COALESCE(POSITION(
        'device_signal_outbox' IN PG_GET_FUNCTIONDEF(TO_REGPROCEDURE(
-         'public.create_verification_with_face_photo(character varying,bigint,bigint,bigint,bigint,character varying,bigint,text,text,character varying,character varying,character varying)'
+         'public.create_verification_with_face_photo(character varying,bigint,bigint,bigint,bigint,integer,character varying,bigint,text,text,character varying,character varying,character varying)'
        ))
      ), 0) > 0 AS has_atomic_device_signal`
   );
@@ -3609,7 +3609,7 @@ async function requireVerificationSubmissionSchema() {
       || !databaseBoolean(rows?.[0]?.has_profile_snapshot)
       || !databaseBoolean(rows?.[0]?.has_device_signal_outbox)
       || !databaseBoolean(rows?.[0]?.has_atomic_device_signal)) {
-    fail("核销单数据库缺少照片证据或设备信号结构，请先依次执行迁移 026、037、038 和 041。", "DATABASE_SCHEMA_MISSING");
+    fail("核销单数据库缺少可选次数、照片证据或设备信号结构，请先依次执行迁移 026、037、038、041 和 064。", "DATABASE_SCHEMA_MISSING");
   }
 }
 
@@ -3637,12 +3637,12 @@ async function requireCustomerFaceExperienceSchema() {
   const rows = await executeSql(
     `SELECT
             TO_REGPROCEDURE(
-              'public.create_experience_verification_with_customer_face_photo(bigint,bigint,bigint,bigint,bigint,text,character varying,character varying,character varying)'
+              'public.create_experience_verification_with_customer_face_photo(bigint,bigint,bigint,bigint,integer,bigint,text,character varying,character varying,character varying)'
             ) IS NOT NULL AS create_function`
   );
   const schema = rows?.[0] || {};
   if (!databaseBoolean(schema.create_function)) {
-    fail("老师赠送体验核销的客户人脸结构尚未启用，请先执行迁移 054。", "DATABASE_SCHEMA_MISSING");
+    fail("老师赠送体验核销的可选次数与客户人脸结构尚未启用，请先执行迁移 054 和 064。", "DATABASE_SCHEMA_MISSING");
   }
 }
 
@@ -3651,6 +3651,10 @@ async function createVerificationApplication(event) {
   const customerCode = String(event.customerCode || "").trim();
   if (!customerCode || customerCode.length > 96) fail("必须先确认本门店的活跃客户。", "CUSTOMER_REQUIRED");
   const productId = positiveDatabaseId(event.productId, "项目");
+  const unitCount = Number(event.unitCount);
+  if (!Number.isInteger(unitCount) || unitCount < 1 || unitCount > 999) {
+    fail("核销次数必须由办理人员选择，并且是 1 至 999 的整数。", "INVALID_UNIT_COUNT");
+  }
   const verificationType = String(event.verificationType || "").trim().toUpperCase();
   if (!["NORMAL", "EXPERIENCE"].includes(verificationType)) {
     fail("仅支持正常核销或体验核销。", "INVALID_VERIFICATION_TYPE");
@@ -3724,14 +3728,14 @@ async function createVerificationApplication(event) {
       ? `SELECT * FROM public.create_experience_verification_with_customer_face_photo(
            ${caller.storeId}::bigint, ${sqlText(teacherId)}::bigint,
            ${sqlText(customer.id)}::bigint, ${sqlText(productId)}::bigint,
-           ${caller.staffId}::bigint, ${sqlText(message)}::text,
+           ${unitCount}::integer, ${caller.staffId}::bigint, ${sqlText(message)}::text,
            ${sqlText(faceRequestId)}::varchar, ${sqlText(faceEvidenceToken)}::varchar,
            ${sqlText(idempotencyKey)}::varchar
          )`
       : `SELECT * FROM public.create_verification_with_face_photo(
            ${sqlText(verificationType)}::varchar, ${caller.storeId}::bigint,
            ${sqlText(teacherId)}::bigint, ${sqlText(customer.id)}::bigint,
-           ${sqlText(productId)}::bigint, ${sqlText(initialStatus)}::varchar,
+           ${sqlText(productId)}::bigint, ${unitCount}::integer, ${sqlText(initialStatus)}::varchar,
            ${caller.staffId}::bigint, ${sqlText(message)}::text,
            ${sqlText(supplementNote)}::text, ${sqlText(faceRequestId)}::varchar,
            ${sqlText(faceEvidenceToken)}::varchar, ${sqlText(idempotencyKey)}::varchar
@@ -3764,6 +3768,7 @@ async function createVerificationApplication(event) {
     && String(record.teacher_id) === String(teacherId)
     && String(record.customer_id) === String(customer.id)
     && String(record.product_id) === String(productId)
+    && Number(record.unit_count) === unitCount
     && String(record.message || "") === message
     && String(record.face_request_id || "") === faceRequestId;
   if (!sameRequest) {
@@ -3816,7 +3821,7 @@ async function createVerificationApplication(event) {
     verificationType: record.verification_type,
     recordStatus: record.record_status,
     submittedAt: record.submitted_at,
-    unitCount: Number(record.unit_count || 1),
+    unitCount: Number(record.unit_count),
     customer: { customerCode: customer.customer_code, customerName: customer.customer_name },
     product: { productId: String(product.id), productCode: product.product_code, productName: product.product_name },
     teacher: { teacherId: String(teacher.id), teacherCode: teacher.teacher_code, teacherName: teacher.teacher_name },
@@ -3826,6 +3831,7 @@ async function createVerificationApplication(event) {
       port: "VIRTUAL_DEVICE_START",
       type: signal.signal_type,
       status: signal.signal_status,
+      unitCount: Number(record.unit_count),
       queuedAt: signal.created_at
     }
   };
@@ -3972,7 +3978,7 @@ async function recoverBusinessSubmission(event) {
     verificationType: record.verification_type,
     recordStatus: record.record_status,
     submittedAt: record.submitted_at,
-    unitCount: Number(record.unit_count || 1),
+    unitCount: Number(record.unit_count),
     customer: { customerCode: record.customer_code, customerName: record.customer_name },
     product: { productId: String(record.product_id), productCode: record.product_code, productName: record.product_name },
     teacher: record.teacher_id ? {
@@ -3987,6 +3993,7 @@ async function recoverBusinessSubmission(event) {
       port: "VIRTUAL_DEVICE_START",
       type: record.signal_type,
       status: record.signal_status,
+      unitCount: Number(record.unit_count),
       queuedAt: record.signal_created_at
     } : null
   };

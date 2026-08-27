@@ -1,6 +1,6 @@
 ﻿(() => {
   "use strict";
-  const VERSION = "0.14.61", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
+  const VERSION = "0.14.62", page = document.body.dataset.storeBusiness, $ = (id) => document.getElementById(id);
   const formatBirthday = (value, fallback = "—") => {
     const raw = String(value ?? "").trim();
     if (!raw) return fallback;
@@ -907,6 +907,7 @@
     }
     if (["verification", "verification-experience"].includes(page)) {
       resetVerificationCapture();
+      resetVerificationUnitCount();
       const project = $("verificationProject");
       if (project) {
         project.disabled = true;
@@ -992,6 +993,7 @@
     if (!select) return;
     const request = ++balanceRequest;
     verificationBalanceProjects = [];
+    resetVerificationUnitCount();
     select.disabled = true;
     select.innerHTML = `<option value="">正在读取该客户的真实项目余额…</option>`;
     try {
@@ -1025,6 +1027,7 @@
     const teacherId = String($("verificationTeacher")?.value || "");
     const request = ++balanceRequest;
     verificationBalanceProjects = [];
+    resetVerificationUnitCount();
     select.disabled = true;
     if (!teacherId) {
       select.innerHTML = `<option value="">请先选择有可用体验次数的老师</option>`;
@@ -1265,11 +1268,39 @@
     });
     void recoverPendingBusinessSubmission("PRODUCT_PURCHASE");
   }
+  function resetVerificationUnitCount() {
+    const input = $("verificationUnitCount");
+    if (!input) return;
+    input.value = "";
+    input.disabled = true;
+    input.max = "999";
+    input.placeholder = "选择项目后填写";
+  }
+  function syncVerificationUnitCount({ clear = false } = {}) {
+    const input = $("verificationUnitCount");
+    const productId = String($("verificationProject")?.value || "");
+    const project = verificationBalanceProjects.find((item) => item.id === productId);
+    if (!input) return null;
+    if (clear) input.value = "";
+    if (!project) {
+      input.disabled = true;
+      input.max = "999";
+      input.placeholder = "选择项目后填写";
+      return null;
+    }
+    const limit = Math.min(999, Math.max(0, Math.trunc(Number(project.remaining || 0))));
+    input.disabled = limit < 1;
+    input.max = String(limit || 999);
+    input.placeholder = limit > 0 ? `请输入 1 至 ${limit} 次` : "当前项目没有可用次数";
+    const unitCount = Number(input.value);
+    return Number.isInteger(unitCount) && unitCount >= 1 && unitCount <= limit ? unitCount : null;
+  }
   function syncVerificationSubmit() {
     const submit = $("verificationSubmit");
     const projectReady = Boolean($("verificationProject")?.value);
     const teacherReady = Boolean($("verificationTeacher")?.value);
-    const ready = !submissionRecoveryLocked && Boolean(selectedCustomer) && photoCaptured && projectReady && teacherReady;
+    const countReady = syncVerificationUnitCount() !== null;
+    const ready = !submissionRecoveryLocked && Boolean(selectedCustomer) && photoCaptured && projectReady && teacherReady && countReady;
     if (submit) {
       submit.disabled = !ready;
       submit.setAttribute("aria-disabled", String(!ready));
@@ -1288,7 +1319,11 @@
     const experiencePage = page === "verification-experience";
     setupLookup(); $("verificationProject").innerHTML = `<option value="">${experiencePage ? "确认客户后读取当前老师的体验次数" : "确认客户后从数据库加载可核销项目"}</option>`; loadActiveTeachers("verificationTeacher", "verificationCreateMessage");
     const video = $("verificationCamera"), preview = $("verificationPhotoPreview"), placeholder = $("verificationCameraPlaceholder"), canvas = $("verificationCaptureCanvas"), open = $("openVerificationCamera"), capture = $("captureVerificationPhoto"), retake = $("retakeVerificationPhoto"), status = $("verificationPhotoStatus"), message = $("verificationCreateMessage");
-    $("verificationProject").addEventListener("change", syncVerificationSubmit);
+    $("verificationProject").addEventListener("change", () => {
+      syncVerificationUnitCount({ clear: true });
+      syncVerificationSubmit();
+    });
+    $("verificationUnitCount").addEventListener("input", syncVerificationSubmit);
     $("verificationTeacher").addEventListener("change", async () => {
       if (experiencePage) {
         // Rebinding the authenticated teacher context invalidates any quota
@@ -1376,16 +1411,19 @@
       if (!photoCaptured) { $("verificationCreateMessage").textContent = "必须完成现场拍照并通过所选客户的 1:1 人脸验证，才能核销和发送设备信号"; return; }
       const project = verificationBalanceProjects.find((item) => item.id === projectId);
       if (!project) { $("verificationCreateMessage").textContent = experience ? "所选老师的体验次数已失效，请重新选择老师和项目后再试" : "所选项目余额已失效，请重新确认客户后再试"; return; }
+      const unitCount = syncVerificationUnitCount();
+      if (unitCount === null) { $("verificationCreateMessage").textContent = `核销次数必须由办理人员填写，并且是 1 至 ${Math.min(999, project.remaining)} 的整数`; return; }
       const teacher = databaseTeachers.find((item) => item.id === teacherId);
       if (!teacher) { $("verificationCreateMessage").textContent = "老师数据已经失效，请刷新页面后重新选择"; return; }
       if (teacherMode && teacher.id !== normalizedTeacherProfile(teacherBusinessProfile || {}).id) { $("verificationCreateMessage").textContent = "老师账号只能将业务绑定给本人，请刷新页面后重试"; return; }
-      const payload = { customerCode: selectedCustomer.id, productId: project.id, teacherId: teacher.id, verificationType: experience ? "EXPERIENCE" : "NORMAL", message: note, faceRequestId: verificationFaceRequestId, faceEvidenceToken: verificationFaceEvidenceToken };
+      const payload = { customerCode: selectedCustomer.id, productId: project.id, unitCount, teacherId: teacher.id, verificationType: experience ? "EXPERIENCE" : "NORMAL", message: note, faceRequestId: verificationFaceRequestId, faceEvidenceToken: verificationFaceEvidenceToken };
       let intent;
       try {
         intent = beginBusinessSubmission("VERIFICATION", {
           storeId,
           customerCode: selectedCustomer.id,
           productId: project.id,
+          unitCount,
           teacherId: teacher.id,
           verificationType: experience ? "EXPERIENCE" : "NORMAL",
           message: note
@@ -1404,13 +1442,14 @@
         const expectedStatus = "APPROVED";
         if (String(result.recordStatus || "") !== expectedStatus) throw new Error("数据库返回的核销单状态与当前业务类型不一致，已停止跳转");
         if (!result.verificationId || !result.verificationCode) throw new Error("数据库已响应，但没有返回核销单编号，已停止跳转");
+        if (Number(result.unitCount) !== unitCount || Number(result.deviceSignal?.unitCount) !== unitCount) throw new Error("数据库或设备信号返回的核销次数与本次选择不一致，已停止跳转");
         const record = {
           id: String(result.verificationId), recordCode: String(result.verificationCode), recordType: "verification",
           customerId: String(result.customer?.customerCode || selectedCustomer.id), customerName: String(result.customer?.customerName || selectedCustomer.name),
           name: selectedCustomer.name, birthday: selectedCustomer.birthday, storeId, storeName,
           projectId: String(result.product?.productId || project.id), projectCode: String(result.product?.productCode || project.code || ""), projectName: String(result.product?.productName || project.name),
           teacherId: String(result.teacher?.teacherId || teacher.id), teacherCode: String(result.teacher?.teacherCode || teacher.code || ""), teacherName: String(result.teacher?.teacherName || teacher.name),
-          count: Number(result.unitCount || 1), faceVerification: "活体检测与人脸比对通过",
+          count: Number(result.unitCount), faceVerification: "活体检测与人脸比对通过",
           faceSubjectType: "CUSTOMER",
           faceSubjectTeacherId: "",
           verificationType: experience ? "体验核销" : "正常核销", status: String(result.recordStatus),

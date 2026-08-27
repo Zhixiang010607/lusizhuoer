@@ -442,11 +442,11 @@ test("verification balance and face requests cannot cross customer selections", 
   await firstBalance;
   assert.deepEqual(Array.from(page.data.products, (item) => item.productId), ["P-B"]);
 
-  page.setData({ selectedProduct: page.data.products[0], captureReady: true });
+  page.setData({ selectedProduct: page.data.products[0], unitCount: "1", unitCountMax: 2, unitCountValid: true, captureReady: true });
   const firstFace = page.verifyFace();
   page.setData({ customer: { customerCode: "C-A", customerName: "甲" } });
   page.resetFace(false);
-  page.setData({ selectedProduct: { productId: "P-A", productName: "甲项目" }, captureReady: true });
+  page.setData({ selectedProduct: { productId: "P-A", productName: "甲项目" }, unitCount: "1", unitCountMax: 9, unitCountValid: true, captureReady: true });
   const secondFace = page.verifyFace();
   facesA.resolve({ matched: true, requestId: "request-a", faceEvidenceToken: "a".repeat(48), score: 90 });
   await secondFace;

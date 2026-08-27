@@ -165,7 +165,7 @@ test("web business pages keep native scrolling selection plus exact lookup and s
     assert.match(html, /id="serviceCustomerName"/, `${page} must retain exact name lookup`);
     assert.match(html, /id="serviceCustomerBirthday"/, `${page} must retain exact birthday lookup`);
     assert.match(html, /手动输入姓名或生日/, `${page} must explain that either exact field is sufficient`);
-    assert.ok(html.includes("store-business.js?v=0.14.61"), `${page} must load the current cursor-aware workflow`);
+    assert.ok(html.includes("store-business.js?v=0.14.62"), `${page} must load the current cursor-aware workflow`);
   }
   assert.ok(business.includes('if (!name && !birthday) { showLookupError("客户姓名或生日请至少填写一项。")'), "manual lookup must require either field, not both");
   assert.ok(business.includes('...(customerName ? { customerName } : {})'), "name-only filters must reach the server");

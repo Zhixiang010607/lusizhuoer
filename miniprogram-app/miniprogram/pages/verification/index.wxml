@@ -37,19 +37,23 @@
         </picker>
       </label>
       <label class="field">
+        <text class="field-label">{{experience ? '体验次数' : '核销次数'}}（必填）</text>
+        <input class="input" type="number" inputmode="numeric" maxlength="3" value="{{unitCount}}" bindinput="inputUnitCount" disabled="{{!selectedProduct}}" placeholder="{{selectedProduct ? '请输入 1 至 ' + unitCountMax + ' 次' : '请先选择项目'}}" />
+      </label>
+      <label class="field">
         <text class="field-label">业务老师{{session.role === 'teacher' ? '（自动绑定）' : '（必选）'}}</text>
         <picker range="{{teacherLabels}}" value="{{teacherIndex}}" bindchange="selectTeacher" disabled="{{session.role === 'teacher' || loadingOptions}}">
           <view class="picker">{{selectedTeacher ? selectedTeacher.teacherName + ' · ' + selectedTeacher.teacherCode : '请选择老师'}}</view>
         </picker>
       </label>
-      <view wx:if="{{selectedProduct}}" class="impact">{{experience ? '当前老师可用 ' + selectedProduct.availableCount + ' 次' : '当前客户剩余 ' + selectedProduct.remainingCount + ' 次'}}；本次核销 1 次。</view>
+      <view wx:if="{{selectedProduct}}" class="impact">{{experience ? '当前老师可用 ' + selectedProduct.availableCount + ' 次' : '当前客户剩余 ' + selectedProduct.remainingCount + ' 次'}}；请自行填写本次{{experience ? '体验' : '核销'}}次数。</view>
       <label class="field"><text class="field-label">{{experience ? '老师留言' : '门店留言'}}（可选）</text><textarea class="textarea" maxlength="500" value="{{note}}" bindinput="inputNote" placeholder="留在本次核销单中" /></label>
     </view>
 
-    <view wx:if="{{store.id}}" class="card {{selectedProduct && selectedTeacher ? '' : 'disabled-card'}}">
+    <view wx:if="{{store.id}}" class="card {{selectedProduct && selectedTeacher && unitCountValid ? '' : 'disabled-card'}}">
       <view class="card-title"><text>{{session.role === 'teacher' ? '第四步' : '第三步'}}：客户 1:1 人脸验证</text><text class="badge">{{faceVerified ? '已通过' : '待验证'}}</text></view>
       <camera-capture id="verificationCamera" title="拍照并验证客户" bindchange="captureChanged"></camera-capture>
-      <button class="secondary verify-button" bindtap="verifyFace" loading="{{verifying}}" disabled="{{verifying || !captureReady || !customer || !selectedProduct || !selectedTeacher}}">用该照片验证客户</button>
+      <button class="secondary verify-button" bindtap="verifyFace" loading="{{verifying}}" disabled="{{verifying || !captureReady || !customer || !selectedProduct || !selectedTeacher || !unitCountValid}}">用该照片验证客户</button>
       <view wx:if="{{faceMessage}}" class="message {{faceVerified ? 'success' : (faceError ? 'error' : '')}}">{{faceMessage}}</view>
     </view>
 

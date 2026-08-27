@@ -90,7 +90,7 @@ ROLLBACK;
 
 ## 053 删除旧老师人脸 Saga
 
-先部署 `staffAccount v75`、`faceRecognition v95` 和 `teacherCreate v6`，再按
+先部署 `staffAccount v75`、`faceRecognition v98` 和 `teacherCreate v6`，再按
 [`053-README.md`](053-README.md) 执行 `053-01-retire-legacy-teacher-face-saga.sql`，最后运行
 `053-readonly-verify.sql`，7 行必须全部为 `RETIRED`。
 
@@ -98,7 +98,7 @@ ROLLBACK;
 
 完成 053 后，按 [`054-README.md`](054-README.md) 完整执行
 `054-01-teacher-only-customer-face-experience.sql`，然后部署
-`faceRecognition v95`、`staffAccount v75`、`teacherCreate v6` 和当前静态前端。
+`faceRecognition v98`、`staffAccount v75`、`teacherCreate v6` 和当前静态前端。
 054 会在数据库层把体验创建限定为额度所属的当前老师账号，并把新体验凭证切换为
 客户登记照与客户现场照；历史照片不改写。
 
@@ -130,7 +130,7 @@ ROLLBACK;
 8. 整文件执行只读 `059-readonly-verify-store-binding.sql`；
 9. 整文件执行只读 `059-readonly-verify.sql`。
 
-最后两段验证的每一行都必须为 `READY`。059 固化门店充值／退费老师可选、门店正常核销老师必选、门店体验核销拒绝、老师账号自动绑定本人的写入边界。验收通过后再部署 `faceRecognition v95`、`verificationPhoto v9` 与当前 Web／小程序。
+最后两段验证的每一行都必须为 `READY`。059 固化门店充值／退费老师可选、门店正常核销老师必选、门店体验核销拒绝、老师账号自动绑定本人的写入边界。验收通过后再部署 `faceRecognition v98`、`verificationPhoto v10` 与当前 Web／小程序。
 
 ## 060 独立产品主档
 
@@ -148,7 +148,7 @@ ROLLBACK;
 
 1. 整文件执行 `061-01-recharge-product-gifts.sql`；
 2. 整文件执行只读 `061-readonly-verify.sql`，8 行必须全部为 `READY`；
-3. 上传并验收 `faceRecognition-v95.zip` 与 `staffAccount-v75.zip` 后，再发布包含充值第三步赠品的网页和小程序。
+3. 上传并验收 `faceRecognition-v98.zip` 与 `staffAccount-v75.zip` 后，再发布包含充值第三步赠品的网页和小程序。
 
 061 只为 `NEW` 充值单增加可选、不可变的产品赠品明细。每行固定绑定父充值单的门店、客户和业务老师，并保存当时的产品编号、名称与数量快照；退费不能带赠品，赠品也不进入库存、客户项目余额、核销、体验额度或统计。
 
@@ -158,7 +158,7 @@ ROLLBACK;
 
 1. 整文件执行 `062-01-retail-product-purchases.sql`；
 2. 整文件执行 `062-readonly-verify.sql`，4 项均须为 `READY`；
-3. 上传并验收 `faceRecognition-v95.zip` 与 `staffAccount-v75.zip`，再发布含“产品购买”入口和独立审核页的网页／小程序。
+3. 上传并验收 `faceRecognition-v98.zip` 与 `staffAccount-v75.zip`，再发布含“产品购买”入口和独立审核页的网页／小程序。
 
 062 只建立产品购买工单和总部审核状态机。门店与老师提交，总部审核；待审核和驳回不计入客户汇总。客户主页“购买”来自已通过购买单，“赠送”来自父充值单已通过的 061 赠品。
 
@@ -178,6 +178,21 @@ ROLLBACK;
 修改的腾讯云平台角色；第 3 步在数据库层拒绝余额不足的正常核销。平台角色仍由
 第 1 步的 schema 总封锁隔离。旧版第 2 步若报 default privileges 权限错误，不会
 回滚第 1 步；新建查询执行最新版第 2 步。本迁移不修改云函数代码，因此不产生新 ZIP。
+
+## 064 正常／体验核销自选次数
+
+063 全部验收为 `READY` 后，按 [`064-README.md`](064-README.md) 在短暂停止
+核销写入的窗口执行：
+
+1. 整文件执行 `064-01-variable-verification-unit-count.sql`；
+2. 立即上传 `faceRecognition-v98.zip` 并用 `health` 确认 `version=v98`；
+3. 整文件执行 `064-readonly-verify.sql`，8 行必须全部为
+   `record_count=0`、`status=READY`；
+4. 再发布本提交的网页版和小程序，并分别验证多次正常核销、多次体验核销、
+   余额／额度不足、重复提交和超时恢复。
+
+064 把主核销记录与体验额度流水的次数约束改为 `1—999`，数据库事务按办理人员
+所选次数原子扣减。旧函数签名会明确拒绝写入，避免旧客户端继续静默按 1 次建单。
 
 ### 048 在当前控制台报 `unterminated dollar-quoted string`
 
