@@ -18,7 +18,7 @@ function plain(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function loadSession({ authError, authResult, staffResult, storedSession } = {}) {
+function loadSession({ authError, authResult, staffErrorSequence = [], staffResult, storedSession } = {}) {
   const storage = new Map();
   if (storedSession) storage.set(sessionKey, storedSession);
   const app = { globalData: { session: storedSession || null } };
@@ -27,6 +27,7 @@ function loadSession({ authError, authResult, staffResult, storedSession } = {})
     authEvents: [],
     callStaffArgs: [],
     removedKeys: [],
+    refreshSessionCalls: 0,
     signInArgs: [],
     signOutCalls: 0,
     storageWrites: []
@@ -41,11 +42,22 @@ function loadSession({ authError, authResult, staffResult, storedSession } = {})
     async signOut() {
       state.authEvents.push("signOut");
       state.signOutCalls += 1;
+    },
+    async refreshSession() {
+      state.refreshSessionCalls += 1;
+      return authResult || { data: { user: { uid: "staff-auth-uid" } } };
+    },
+    async getAccessToken() {
+      return { accessToken: "test-token" };
+    },
+    async getCurrentUser() {
+      return { uid: "staff-auth-uid" };
     }
   };
   const sandbox = {
     Date,
     console,
+    setTimeout,
     getApp: () => app,
     module: { exports: {} },
     exports: {},
@@ -55,6 +67,8 @@ function loadSession({ authError, authResult, staffResult, storedSession } = {})
         return {
           callStaff: async (...args) => {
             state.callStaffArgs.push(plain(args));
+            const staffError = staffErrorSequence.shift();
+            if (staffError) throw staffError;
             return staffResult;
           }
         };
@@ -119,6 +133,28 @@ test("WeChat phone login exchanges only phoneCode and resolves staff session by 
     "a phone returned by staffAccount must not leak into persistent storage");
   assert.equal(state.signOutCalls, 1,
     "the pre-login sign-out prevents a stale SDK token from reaching staffAccount");
+  assert.equal(state.refreshSessionCalls, 1,
+    "phone login must refresh the SDK session before resolving the business identity");
+});
+
+test("WeChat phone login retries a transient stale-token staff session without rebinding the account", async () => {
+  const staleTokenError = Object.assign(new Error("身份尚未绑定"), { code: "UNASSIGNED_IDENTITY" });
+  const { api, state } = loadSession({
+    staffResult: activeStaff,
+    staffErrorSequence: [staleTokenError]
+  });
+
+  const session = await api.wechatPhoneLogin("one-time-phone-code");
+
+  assert.equal(session.uid, activeStaff.uid);
+  assert.deepEqual(state.callStaffArgs, [["session"], ["session"]],
+    "only the UID-based public session action may be retried");
+  assert.equal(state.refreshSessionCalls, 2,
+    "the SDK session must be refreshed again after a transient stale-token response");
+  assert.deepEqual(state.signInArgs, [{ phoneCode: "one-time-phone-code" }],
+    "a retry must not exchange or reuse the one-time phone code twice");
+  assert.equal(state.signOutCalls, 1,
+    "a recovered transient response must keep the newly authenticated session");
 });
 
 test("a rejected business identity signs out and clears any local session", async () => {

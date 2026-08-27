@@ -5,6 +5,7 @@ const SESSION_KEY = "lusizhuoerMiniSessionV1";
 const STORE_KEY_PREFIX = "lusizhuoerMiniStoreV1:";
 const SMS_COOLDOWN_KEY_PREFIX = "lusizhuoerMiniSmsCooldownV1:";
 const SMS_COOLDOWN_MS = 60 * 1000;
+const AUTH_SESSION_RETRY_DELAYS_MS = Object.freeze([180, 520]);
 const ROLES = new Set(["hq", "store", "teacher"]);
 let passwordResetVerifier = null;
 
@@ -33,7 +34,61 @@ function getAppSafe() {
 function identityUid(result) {
   const identity = result && result.data ? result.data : result || {};
   const user = identity.user || identity.session && identity.session.user || {};
-  return String(user.uid || user.id || user.sub || "");
+  return String(user.uid || user.id || user.sub || identity.uid || identity.id || identity.sub || "");
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(milliseconds) || 0)));
+}
+
+function transientStaffSessionError(error) {
+  return ["UNASSIGNED_IDENTITY", "UNAUTHENTICATED"].includes(String(error && error.code || "").toUpperCase());
+}
+
+async function stabilizeAuthenticatedIdentity(auth, authenticatedUid) {
+  // CloudBase 3.x can finish the phone-code exchange before the token used by
+  // a following callFunction has been refreshed. Refresh/read the SDK-owned
+  // session only; never recover or rebind a staff account from client data.
+  if (auth && typeof auth.refreshSession === "function") {
+    try { await auth.refreshSession(); } catch (_) {}
+  }
+  if (auth && typeof auth.getAccessToken === "function") {
+    try { await auth.getAccessToken(); } catch (_) {}
+  }
+
+  let currentUid = "";
+  const readers = [
+    auth && typeof auth.getCurrentUser === "function" ? () => auth.getCurrentUser(true) : null,
+    auth && typeof auth.getUserInfo === "function" ? () => auth.getUserInfo() : null
+  ].filter(Boolean);
+  for (const read of readers) {
+    try {
+      currentUid = identityUid(await read());
+      if (currentUid) break;
+    } catch (_) {}
+  }
+  if (currentUid && currentUid !== String(authenticatedUid || "")) {
+    const error = new Error("CloudBase 登录身份切换尚未完成，请重新授权微信手机号");
+    error.code = "AUTH_IDENTITY_MISMATCH";
+    throw error;
+  }
+}
+
+async function resolveStaffSession(auth, authenticatedUid, stabilizeIdentity) {
+  if (!stabilizeIdentity) return callStaff("session");
+
+  let lastError = null;
+  for (let attempt = 0; attempt <= AUTH_SESSION_RETRY_DELAYS_MS.length; attempt += 1) {
+    await stabilizeAuthenticatedIdentity(auth, authenticatedUid);
+    try {
+      return await callStaff("session");
+    } catch (error) {
+      lastError = error;
+      if (!transientStaffSessionError(error) || attempt >= AUTH_SESSION_RETRY_DELAYS_MS.length) throw error;
+      await wait(AUTH_SESSION_RETRY_DELAYS_MS[attempt]);
+    }
+  }
+  throw lastError;
 }
 
 function loginError(result, fallback) {
@@ -79,7 +134,7 @@ async function clearFailedLogin(auth) {
   clearSession();
 }
 
-async function finishAuthenticatedLogin(auth, result, fallback) {
+async function finishAuthenticatedLogin(auth, result, fallback, stabilizeIdentity = false) {
   const resultError = loginError(result, fallback);
   if (resultError) {
     await clearFailedLogin(auth);
@@ -87,7 +142,7 @@ async function finishAuthenticatedLogin(auth, result, fallback) {
   }
   const authenticatedUid = identityUid(result);
   try {
-    const staff = await callStaff("session");
+    const staff = await resolveStaffSession(auth, authenticatedUid, stabilizeIdentity);
     return businessSession(staff, authenticatedUid);
   } catch (error) {
     await clearFailedLogin(auth);
@@ -95,7 +150,7 @@ async function finishAuthenticatedLogin(auth, result, fallback) {
   }
 }
 
-async function signInAndFinish(auth, authenticate, fallback) {
+async function signInAndFinish(auth, authenticate, fallback, stabilizeIdentity = false) {
   let result;
   try {
     // Explicit login must never inherit a CloudBase Auth identity left behind
@@ -108,7 +163,7 @@ async function signInAndFinish(auth, authenticate, fallback) {
     await clearFailedLogin(auth);
     throw error;
   }
-  return finishAuthenticatedLogin(auth, result, fallback);
+  return finishAuthenticatedLogin(auth, result, fallback, stabilizeIdentity);
 }
 
 async function passwordLogin(phoneValue, password) {
@@ -131,7 +186,7 @@ async function wechatPhoneLogin(phoneCodeValue) {
   if (typeof auth.signInWithPhoneAuth !== "function") {
     throw new Error("当前 CloudBase SDK 不支持微信手机号登录，请检查 npm 依赖版本");
   }
-  return signInAndFinish(auth, () => auth.signInWithPhoneAuth({ phoneCode }), "微信手机号登录失败");
+  return signInAndFinish(auth, () => auth.signInWithPhoneAuth({ phoneCode }), "微信手机号登录失败", true);
 }
 
 function authData(result, fallback) {
