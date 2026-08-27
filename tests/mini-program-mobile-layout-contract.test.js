@@ -141,7 +141,9 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
   assert.match(wxss, /\.hq-ranking-head\s*\{[^}]*grid-template-columns:\s*auto minmax\(0,\s*1fr\) auto/s,
     "rank, name, and share must share one bounded card row");
   assert.match(wxss, /\.summary-table \.table-head \.summary-product\s*\{[^}]*align-items:\s*center\s*!important;[^}]*text-align:\s*center;/s,
-    "the product summary header must be centered while product rows remain left aligned");
+    "the project summary header must be centered while project rows remain left aligned");
+  assert.equal((wxml.match(/class="summary-product">项目<\/view>/g) || []).length, 2,
+    "store/teacher and HQ service summaries must use 项目 rather than the separate retail 产品 concept");
   assert.match(wxss, /\.table-pagination > text\s*\{[^}]*text-align:\s*center;[^}]*white-space:\s*nowrap;/s,
     "previous, page summary, and next must stay on one centered row");
   assert.match(storeDetailWxml, /data-code="\{\{item\.customerCode\}\}" bindtap="openCustomer">\{\{item\.customerName\}\}<\/view>/);

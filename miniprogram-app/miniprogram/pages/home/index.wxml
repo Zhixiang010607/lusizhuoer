@@ -94,7 +94,7 @@
         </view>
         <scroll-view class="table-scroll summary-scroll" scroll-x enhanced show-scrollbar="false" scroll-left="{{summaryScrollLeft}}" bindscroll="rememberSummaryScroll">
           <view class="summary-table">
-            <view class="table-row table-head"><view class="summary-product">产品</view><view>核销</view><view>充值</view><view>体验</view><view>退费</view></view>
+            <view class="table-row table-head"><view class="summary-product">项目</view><view>核销</view><view>充值</view><view>体验</view><view>退费</view></view>
             <view wx:for="{{summaryRows}}" wx:key="productId" class="table-row {{item.total ? 'summary-total' : ''}}">
               <view class="summary-product"><text>{{item.productName}}</text><text wx:if="{{item.productCode}}">{{item.productCode}}</text></view>
               <view><text class="metric-number">{{item.verification}}</text><text class="metric-unit">次</text></view>
@@ -165,7 +165,7 @@
         <view class="panel-heading"><view><text class="panel-title">项目汇总</text><text class="hq-ranking-rule">当前时间范围内的全部项目，按项目名称排列</text></view><text class="web-badge">共 {{hqProjectSummaryPage.total}} 个项目</text></view>
         <scroll-view class="table-scroll summary-scroll" scroll-x enhanced show-scrollbar="false">
           <view class="summary-table">
-            <view class="table-row table-head"><view class="summary-product">产品</view><view>核销</view><view>充值</view><view>体验</view><view>退费</view></view>
+            <view class="table-row table-head"><view class="summary-product">项目</view><view>核销</view><view>充值</view><view>体验</view><view>退费</view></view>
             <view wx:for="{{hqProjectSummaryRows}}" wx:key="productId" class="table-row">
               <view class="summary-product"><text>{{item.productName}}</text></view>
               <view><text class="metric-number">{{item.verification}}</text><text class="metric-unit">次</text></view>

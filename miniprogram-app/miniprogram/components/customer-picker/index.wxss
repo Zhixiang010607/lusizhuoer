@@ -16,7 +16,7 @@
 .manual-date-picker { min-width: 0; flex: 1; }
 .clear-date { width: 112rpx; min-height: 84rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0; color: #74592d; background: #f4e7d0; border-radius: 14rpx; font-size: 22rpx; font-weight: 750; line-height: 1; }
 .manual-help { color: #817565; font-size: 20rpx; line-height: 1.4; }
-.search { min-height: 78rpx; color: #fffdf8; background: #6f532e; border-radius: 14rpx; font-size: 25rpx; font-weight: 750; }
+.search { min-height: 78rpx; display: flex; align-items: center; justify-content: center; padding: 0 28rpx; color: #fffdf8; background: #6f532e; border-radius: 14rpx; font-size: 25rpx; font-weight: 750; line-height: 1; text-align: center; box-sizing: border-box; }
 .duplicate-list { display: grid; gap: 10rpx; margin-top: 16rpx; }
 .duplicate-title { color: #675b4b; font-size: 22rpx; font-weight: 800; }
 .duplicate-option { width: 100%; min-height: 76rpx; display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin: 0; padding: 12rpx 18rpx; color: #302a22; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 14rpx; font-size: 22rpx; line-height: 1.3; text-align: left; }

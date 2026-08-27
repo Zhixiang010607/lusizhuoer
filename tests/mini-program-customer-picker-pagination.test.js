@@ -128,6 +128,8 @@ test("customer picker renders a native dropdown and keeps exact search separate"
   assert.match(markup, /点开下拉框后可上下滑动选择全部客户/);
   assert.doesNotMatch(markup, /class="customer-list"|bindscrolltolower="loadMoreCustomers"/);
   assert.match(style, /\.customer-select-control\s*\{[^}]*min-height:\s*84rpx/);
+  assert.match(style, /\.search\s*\{[^}]*display:\s*flex;[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*line-height:\s*1;[^}]*text-align:\s*center;/s,
+    "the exact-search label must be centered in both axes instead of inheriting the native button line box");
   assert.match(source, /callFace\("listActiveStoreCustomers", payload\)/);
   assert.match(source, /if \(cursor\) payload\.cursor = \{ \.\.\.cursor \}/);
   assert.match(source, /while \(true\)/);
