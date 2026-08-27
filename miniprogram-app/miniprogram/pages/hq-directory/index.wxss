@@ -2,20 +2,19 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
 .page { width: calc(100% - 28rpx); min-height: 100vh; margin: 0 auto; padding: 16rpx 0 40rpx; overflow-x: hidden; }
 .page-heading { margin: 8rpx 6rpx 20rpx; }
 .title { font-family: Georgia, "Times New Roman", serif; font-size: 40rpx; font-weight: 800; }
-.search-panel, .table-section { margin-bottom: 16rpx; padding: 24rpx; background: #fffaf3; border: 1rpx solid #dfcfb4; border-radius: 24rpx; box-shadow: 0 12rpx 34rpx rgba(93,72,39,.08); }
+.search-panel, .table-section { width: 100%; min-width: 0; margin-bottom: 16rpx; padding: 24rpx; background: #fffaf3; border: 1rpx solid #dfcfb4; border-radius: 24rpx; box-sizing: border-box; box-shadow: 0 12rpx 34rpx rgba(93,72,39,.08); }
 .search-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16rpx; }
 .search-fields label { min-width: 0; display: flex; flex-direction: column; gap: 9rpx; }
 .search-fields label > text { color: #554a3c; font-size: 21rpx; font-weight: 800; }
-.search-fields input { width: 100%; min-height: 80rpx; padding: 0 20rpx; color: #302a22; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 15rpx; font-size: 22rpx; }
+.search-fields input { width: 100%; min-height: 80rpx; padding: 0 20rpx; color: #302a22; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 15rpx; box-sizing: border-box; font-size: 22rpx; }
 .search-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; margin-top: 18rpx; }
-.search-actions button { min-height: 74rpx; display: flex; align-items: center; justify-content: center; margin: 0; border-radius: 14rpx; font-size: 21rpx; font-weight: 800; line-height: 1; }
+.search-actions button { width: 100%; min-width: 0; min-height: 74rpx; display: flex; align-items: center; justify-content: center; margin: 0; border-radius: 14rpx; box-sizing: border-box; font-size: 21rpx; font-weight: 800; line-height: 1; }
 .primary { color: #fffdf8; background: #6f532e; }
+.secondary { color: #74592d; background: #fff; border: 1rpx solid #d7c39f; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin-bottom: 16rpx; }
 .section-heading > text:first-child { font-size: 28rpx; font-weight: 850; }
 .section-heading > text:last-child { padding: 6rpx 12rpx; color: #74592d; background: #f4e7d0; border-radius: 999rpx; font-size: 18rpx; font-weight: 800; }
-.table-section { padding-right: 0; }
-.table-section.teacher { padding-right: 24rpx; }
-.table-scroll { width: 100%; }
+.table-scroll { width: 100%; max-width: 100%; min-width: 0; overflow: hidden; box-sizing: border-box; }
 .data-table { min-width: 900rpx; }
 .data-table.store { width: 910rpx; min-width: 910rpx; }
 .data-table.teacher { width: 100%; min-width: 100%; }

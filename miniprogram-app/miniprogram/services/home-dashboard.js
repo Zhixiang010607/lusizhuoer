@@ -1,3 +1,5 @@
+const { displayDateTime } = require("./query-tools");
+
 const RANGE_OPTIONS = Object.freeze([
   { value: "TODAY", label: "今天" },
   { value: "WEEK", label: "本周" },
@@ -90,11 +92,6 @@ function payload(startDate, endDate) { return startDate && endDate ? { startDate
 function displayDate(value) {
   const text = String(value || "").slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "—";
-}
-function displayDateTime(value) {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.valueOf())) return "—";
-  return new Date(parsed.valueOf() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16).replace("T", " ");
 }
 function totals(source = {}) {
   return Object.fromEntries(METRIC_KEYS.map((key) => [key, count(source[key])]));

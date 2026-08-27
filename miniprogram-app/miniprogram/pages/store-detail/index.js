@@ -9,7 +9,15 @@ function pageView(source = {}) {
   const page = dashboard.pageState(source);
   return { ...page, previousDisabled: page.page <= 1, nextDisabled: page.page >= page.totalPages };
 }
-function customerView(source = {}) { return { ...source, previousDisabled: source.page <= 1, nextDisabled: source.page >= source.totalPages }; }
+function customerView(source = {}) {
+  const rows = Array.isArray(source.rows) ? source.rows : [];
+  return {
+    ...source,
+    previousDisabled: source.page <= 1,
+    nextDisabled: source.page >= source.totalPages,
+    viewportHeight: 72 + Math.min(5, Math.max(1, rows.length)) * 82
+  };
+}
 function summaryRows(items, totals) {
   const rows = dashboard.products(items);
   if (!rows.length) return [];

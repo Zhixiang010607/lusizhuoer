@@ -152,6 +152,12 @@ test("shared query helpers preserve Shanghai business ranges and historical audi
   assert.equal(row.typeLabel, "退费申请");
   assert.equal(row.statusLabel, "审核通过");
   assert.equal(row.submittedAt, "2026-08-25 08:00");
+  assert.equal(tools.displayDateTime("2026-08-27 12:34:56+00"), "2026-08-27 20:34");
+  assert.equal(tools.displayDateTime("2026-08-27 12:34:56.123456Z"), "2026-08-27 20:34",
+    "iPhone WeChat must accept PostgreSQL microsecond precision after normalization to milliseconds");
+  assert.equal(tools.displayDateTime("2026-08-27 20:34:56+08"), "2026-08-27 20:34");
+  assert.equal(tools.displayDateTime({ value: "2026-08-27T12:34:56.000Z" }), "2026-08-27 20:34");
+  assert.equal(tools.displayDateTime({ seconds: 1787834096, nanoseconds: 0 }), "2026-08-27 20:34");
   const completedVerification = tools.normalizeRecord({
     id: "10", recordCode: "V10", originalType: "NORMAL", recordStatus: "APPROVED"
   }, "VERIFICATION");

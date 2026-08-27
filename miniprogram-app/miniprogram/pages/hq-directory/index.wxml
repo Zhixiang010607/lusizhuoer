@@ -6,7 +6,7 @@
       <label><text>{{type === 'store' ? '按门店名称查询' : '按姓名查询'}}</text><input value="{{searchName}}" bindinput="inputSearchName" bindconfirm="runSearch" confirm-type="search" placeholder="{{type === 'store' ? '输入门店名称' : '输入老师姓名'}}" /></label>
       <label><text>{{type === 'store' ? '按联系人电话查询' : '按联系电话查询'}}</text><input type="number" value="{{searchPhone}}" bindinput="inputSearchPhone" bindconfirm="runSearch" confirm-type="search" placeholder="输入联系电话" /></label>
     </view>
-    <view class="search-actions"><button class="primary" bindtap="runSearch">查询</button><button class="primary" bindtap="openCreate">新增{{noun}}</button></view>
+    <view class="search-actions"><button class="primary" bindtap="runSearch">查询</button><button class="secondary" bindtap="openCreate">新增{{noun}}</button></view>
   </view>
 
   <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>

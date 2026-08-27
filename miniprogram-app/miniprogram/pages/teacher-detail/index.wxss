@@ -31,6 +31,7 @@
 .quota-head > view:first-child text:first-child { font-size: 25rpx; font-weight: 850; }
 .quota-head > view:first-child text:last-child { margin-top: 4rpx; color: #7c7062; font-size: 18rpx; }
 .quota-actions button { width: auto; min-height: 54rpx; margin: 0; padding: 0 12rpx; font-size: 17rpx; }
+.quota-actions .delete-configuration { min-width: 126rpx; min-height: 62rpx; padding: 0 16rpx; font-size: 20rpx; }
 .quota-balance { display: flex; align-items: baseline; gap: 12rpx; margin: 20rpx 0; color: #74592d; }
 .quota-balance > text:first-child { color: #74695c; font-size: 19rpx; }
 .quota-balance > text:last-child { font-size: 42rpx; font-weight: 900; }

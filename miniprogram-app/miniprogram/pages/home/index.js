@@ -45,7 +45,11 @@ function quotaRows(items = []) {
     availableCount: dashboard.count(item.availableCount)
   }));
 }
-function customerView(group) { return { ...group, ...pageView(group) }; }
+function customerView(group) {
+  const rows = Array.isArray(group?.rows) ? group.rows : [];
+  const visibleRows = Math.min(5, Math.max(1, rows.length));
+  return { ...group, ...pageView(group), viewportHeight: 72 + visibleRows * 82 };
+}
 function rejectedMessage(results, fallback) {
   const failed = results.find((item) => item.status === "rejected");
   return failed ? failed.reason?.message || fallback : "";
@@ -825,6 +829,7 @@ Page({
   },
   openReview(event) {
     const type = String(event.currentTarget.dataset.type || "recharge");
+    if (!["recharge", "product-purchase"].includes(type)) return;
     this.closeMenus();
     wx.navigateTo({ url: `/pages/reviews/index?type=${encodeURIComponent(type)}` });
   },

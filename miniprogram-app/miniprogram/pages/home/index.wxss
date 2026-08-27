@@ -87,11 +87,12 @@
 .record-table .table-row { grid-template-columns: 210rpx 170rpx 150rpx 180rpx 100rpx 240rpx; }
 .customer-table .table-row { grid-template-columns: minmax(90rpx, .85fr) minmax(115rpx, 1.25fr) minmax(118rpx, 1.15fr) minmax(110rpx, 1fr) minmax(110rpx, 1fr); }
 .table-row > view { min-width: 0; display: flex; align-items: center; padding: 20rpx 22rpx; overflow: hidden; color: #554a3c; font-size: 22rpx; text-overflow: ellipsis; white-space: nowrap; }
-.customer-table .table-row > view { padding-right: 8rpx; padding-left: 8rpx; font-size: 19rpx; }
+.customer-scroll { overflow: auto; }
+.customer-table .table-row > view { padding-right: 8rpx; padding-left: 8rpx; font-size: 21rpx; }
 .record-table .table-row > view, .customer-table .table-row > view { justify-content: center; text-align: center; }
 .table-head { min-height: 72rpx; background: #f5ead8; }
 .summary-table .table-head { height: 72rpx; min-height: 72rpx; }
-.table-head > view { color: #675b4b; font-size: 20rpx; font-weight: 800; }
+.table-head > view { color: #675b4b; font-size: 21rpx; font-weight: 800; }
 .summary-product { flex-direction: column; align-items: flex-start !important; justify-content: center; background: #fff7eb; }
 .summary-product text { display: block; }
 .summary-product text:first-child { color: #302a22; font-weight: 800; }

@@ -69,7 +69,7 @@ test("notes and messages keep symmetric in-card spacing and the warm internal pa
 });
 
 test("balance and history tables have exact centered single-line column widths", () => {
-  for (const label of ["累计充值", "累计核销", "剩余", "业务老师", "提交日期", "状态"]) {
+  for (const label of ["累计充值", "累计核销", "剩余", "业务老师", "提交时间", "状态"]) {
     assert.match(wxml, new RegExp(label));
   }
   assert.match(wxml, /item\.unitLabel/);
@@ -87,12 +87,12 @@ test("balance and history tables have exact centered single-line column widths",
   assert.match(wxml, /historyType === 'PRODUCT_PURCHASE' \? '产品' : '项目'/);
   assert.match(wxml, /historyType === 'PRODUCT_PURCHASE' \? '数量' : '次数'/);
   assert.match(wxss, /\.history-tabs \{[^}]*grid-template-columns: repeat\(5, minmax\(0, 1fr\)\);/);
-  assert.match(wxss, /\.record-table\.recharge-history, \.record-table\.recharge-history \.record-row \{ min-width: 950rpx; \}/);
-  assert.match(wxss, /\.record-table\.compact-history, \.record-table\.compact-history \.record-row \{ min-width: 880rpx; \}/);
-  assert.match(wxss, /\.recharge-history \.record-row \{ grid-template-columns: minmax\(210rpx, 1\.35fr\) minmax\(130rpx, 0\.8fr\) minmax\(130rpx, 0\.8fr\) minmax\(90rpx, 0\.55fr\) minmax\(160rpx, 0\.95fr\) minmax\(230rpx, 1\.3fr\); \}/);
-  assert.match(wxss, /\.compact-history \.record-row \{ grid-template-columns: minmax\(210rpx, 1\.4fr\) minmax\(130rpx, 0\.85fr\) minmax\(130rpx, 0\.85fr\) minmax\(90rpx, 0\.6fr\) minmax\(160rpx, 1fr\) minmax\(160rpx, 1fr\); \}/);
-  assert.equal(210 + 130 + 130 + 90 + 160 + 230, 950);
-  assert.equal(210 + 130 + 130 + 90 + 160 + 160, 880);
+  assert.match(wxss, /\.record-table\.recharge-history, \.record-table\.recharge-history \.record-row \{ min-width: 1020rpx; \}/);
+  assert.match(wxss, /\.record-table\.compact-history, \.record-table\.compact-history \.record-row \{ min-width: 950rpx; \}/);
+  assert.match(wxss, /\.recharge-history \.record-row \{ grid-template-columns: minmax\(210rpx, 1\.35fr\) minmax\(130rpx, 0\.8fr\) minmax\(130rpx, 0\.8fr\) minmax\(90rpx, 0\.55fr\) minmax\(230rpx, 1\.15fr\) minmax\(230rpx, 1\.3fr\); \}/);
+  assert.match(wxss, /\.compact-history \.record-row \{ grid-template-columns: minmax\(210rpx, 1\.4fr\) minmax\(130rpx, 0\.85fr\) minmax\(130rpx, 0\.85fr\) minmax\(90rpx, 0\.6fr\) minmax\(230rpx, 1\.2fr\) minmax\(160rpx, 1fr\); \}/);
+  assert.equal(210 + 130 + 130 + 90 + 230 + 230, 1020);
+  assert.equal(210 + 130 + 130 + 90 + 230 + 160, 950);
   assert.match(wxss, /\.balance-table-row text, \.record-row text \{[^}]*align-items: center;[^}]*justify-content: center;[^}]*text-align: center;[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/s);
   assert.match(wxss, /\.history-tabs button \{[^}]*align-items: center;[^}]*justify-content: center;[^}]*text-align: center;[^}]*white-space: nowrap;/s);
 });
@@ -136,7 +136,7 @@ test("history mapper preserves refund signs, teachers, dates, and server statuse
   }], "RECHARGE")[0];
   assert.equal(mapped.unitLabel, "−3 次");
   assert.equal(mapped.teacherLabel, "叶老师");
-  assert.equal(mapped.submittedAtLabel, "2026-08-25");
+  assert.equal(mapped.submittedAtLabel, "2026-08-25T01:00:00Z");
   assert.equal(mapped.statusLabel, "审核通过");
   const refund = sandbox.__customerDetailTest.mapHistory([{
     id: "7", rechargeCode: "RF7", rechargeType: "REFUND", unitCount: 3,

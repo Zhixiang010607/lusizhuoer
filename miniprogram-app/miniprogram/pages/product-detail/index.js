@@ -1,5 +1,6 @@
 const { callStaff } = require("../../services/api");
 const { requireSession } = require("../../services/session");
+const { displayDateTime } = require("../../services/query-tools");
 const { saveImageToAlbum } = require("../../services/photo-album");
 const {
   createProductSampleDocument,
@@ -25,10 +26,8 @@ function previewOption(value) { return PREVIEWS.find((item) => item.value === va
 function formatTime(value) {
   const source = text(value);
   if (!source) return "未保存";
-  const date = new Date(source);
-  if (Number.isNaN(date.getTime())) return source;
-  const parts = [date.getFullYear(), date.getMonth() + 1, date.getDate(), date.getHours(), date.getMinutes(), date.getSeconds()];
-  return `${parts[0]}-${String(parts[1]).padStart(2, "0")}-${String(parts[2]).padStart(2, "0")} ${String(parts[3]).padStart(2, "0")}:${String(parts[4]).padStart(2, "0")}:${String(parts[5]).padStart(2, "0")}`;
+  const formatted = displayDateTime(source);
+  return formatted === "—" ? source : formatted;
 }
 function templateView(candidate) {
   if (!candidate || typeof candidate !== "object") throw new Error("服务器没有返回项目模板");

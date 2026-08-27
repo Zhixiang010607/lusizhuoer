@@ -20,5 +20,5 @@
 </view>
 <view wx:if="{{open === 'review'}}" class="rail-popover" catchtap="noop">
   <view data-route="/pages/reviews/index?type=recharge" bindtap="go">充值审核</view>
-  <view data-route="/pages/reviews/index?type=verification" bindtap="go">核销审核</view>
+  <view data-route="/pages/reviews/index?type=product-purchase" bindtap="go">产品购买审核</view>
 </view>

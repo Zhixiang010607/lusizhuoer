@@ -1,0 +1,32 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="state">正在读取产品购买工单…</view>
+  <view wx:elif="{{message}}" class="state error">{{message}}</view>
+  <block wx:elif="{{order}}">
+    <view class="hero">
+      <text class="eyebrow">产品购买申请</text>
+      <text class="title">产品购买单 {{order.code}}</text>
+      <text class="status {{order.status}}">{{order.statusLabel}}</text>
+    </view>
+    <view class="card facts">
+      <view><text>客户</text><text>{{order.customerName}}</text></view>
+      <view><text>产品</text><text>{{order.productName}}</text></view>
+      <view><text>门店</text><text>{{order.storeName}}</text></view>
+      <view><text>业务老师</text><text>{{order.teacherName}}</text></view>
+    </view>
+    <view class="card">
+      <view class="card-title">购买信息</view>
+      <view class="detail-grid">
+        <view><text>购买数量</text><text>{{order.unitCount}} 件</text></view>
+        <view><text>提交时间</text><text>{{order.submittedAt}}</text></view>
+        <view><text>审核时间</text><text>{{order.reviewedAt}}</text></view>
+        <view><text>提交人员</text><text>{{order.submittedBy}}</text></view>
+        <view><text>审核人员</text><text>{{order.reviewedBy}}</text></view>
+      </view>
+    </view>
+    <view class="card notes">
+      <view><text>提交说明</text><text>{{order.message}}</text></view>
+      <view><text>审核说明</text><text>{{order.reviewNote}}</text></view>
+    </view>
+  </block>
+  <view class="safe-bottom"></view>
+</view>

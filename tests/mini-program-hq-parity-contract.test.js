@@ -16,9 +16,10 @@ test("HQ home exposes the complete web mobile rail and isolated ranking interact
   const wxss = read("pages", "home", "index.wxss");
   const webIndex = fs.readFileSync(path.join(root, "index.html"), "utf8");
 
-  for (const label of ["客户查询", "充值查询", "核销查询", "项目管理", "产品管理", "门店管理", "老师管理", "充值审核", "核销审核"]) {
+  for (const label of ["客户查询", "充值查询", "核销查询", "项目管理", "产品管理", "门店管理", "老师管理", "充值审核", "产品购买审核"]) {
     assert.match(wxml, new RegExp(label), `HQ mobile rail is missing ${label}`);
   }
+  assert.doesNotMatch(wxml, /核销审核/, "normal and experience verification never enter a headquarters review queue");
   for (const route of ["pages/product-management/index", "pages/retail-product-management/index", "pages/hq-directory/index", "pages/reviews/index"]) assert.match(js, new RegExp(route));
   assert.match(wxml, /class="rail-current" aria-label="\{\{roleTitle\}\}"/);
   assert.match(js, /hq:\s*\{\s*title:\s*"总部数据看板"/);
@@ -141,8 +142,10 @@ test("HQ store and teacher workspaces reuse authoritative services without a gen
   assert.match(directoryWxml, /class="table-row teacher">\s*<text class="link"[^>]*bindtap="openDetail">\{\{item\.name\}\}<\/text><text>\{\{item\.code\}\}<\/text><text>\{\{item\.phone\}\}<\/text><text><text class="status/);
   assert.equal((directoryWxml.match(/class="table-section(?: archived-section)? \{\{type\}\}"/g) || []).length, 3,
     "all three directory cards receive the role-specific gutter rule");
-  assert.match(directoryWxss, /\.table-section\.teacher\s*\{\s*padding-right:\s*24rpx;\s*\}/,
-    "teacher tables keep the same inner gutter on both sides");
+  assert.match(directoryWxss, /\.search-panel, \.table-section\s*\{[^}]*padding:\s*24rpx;/s,
+    "all directory cards inherit the same inner gutter on both sides");
+  assert.doesNotMatch(directoryWxss, /\.table-section[^}]*padding-right:\s*0/,
+    "directory tables must not remove the right gutter on real devices");
   assert.match(directoryWxss, /\.data-table\.teacher\s*\{\s*width:\s*100%;\s*min-width:\s*100%;\s*\}/,
     "the four teacher columns expand to the full available card width");
   assert.match(directoryWxss, /\.table-row\.teacher\s*\{\s*grid-template-columns:\s*minmax\(0, 1\.05fr\) minmax\(0, 0\.9fr\) minmax\(0, 1\.25fr\) minmax\(0, 0\.8fr\);\s*\}/,
@@ -181,14 +184,18 @@ test("HQ review workbenches match web filters, pagination, exact links, and guar
   assert.match(js, /pageNumber:\s*mode === "filters" \? page/);
   assert.match(js, /if \(epoch !== this\._requestEpoch\) return;/,
     "review filters must reject a stale response after the user changes scope");
-  assert.match(js, /type === "recharge" \? "NEW" : type === "refund" \? "REFUND" : "SUPPLEMENT"/,
+  assert.match(js, /type === "refund" \? "REFUND" : "NEW"/,
     "review requests must derive the application type from the immutable request snapshot");
   assert.match(js, /callStaff\("reviewOrder"/);
   assert.match(js, /decision:\s*this\.data\.decision/);
   assert.match(js, /note:\s*text\(this\.data\.reviewNote\)/);
   assert.match(js, /pages\/order-detail\/index/);
-  assert.match(js, /const category = recharge[\s\S]*isRefund \? "REFUND" : isVoid \? "VOID" : "RECHARGE"[\s\S]*: "SUPPLEMENT"/,
+  assert.match(js, /const category = isRefund \? "REFUND" : isVoid \? "VOID" : "RECHARGE"/,
     "review rows preserve the exact category required by the shared detail page");
+  assert.match(js, /pages\/product-purchase-detail\/index/,
+    "product purchase rows must open their dedicated simple work-order page");
+  assert.doesNotMatch(js, /SUPPLEMENT|补录核销/,
+    "the retired headquarters verification-review path must not remain reachable or described");
   assert.match(js, /category=\$\{encodeURIComponent\(row\.category\)\}/,
     "review detail links carry the exact server-derived category");
   assert.match(js, /pages\/customer-detail\/index/);

@@ -68,11 +68,11 @@
 .history-tabs { grid-template-columns: repeat(5, minmax(0, 1fr)); margin-bottom: 14rpx; }
 .history-tabs button { min-width: 0; display: flex; align-items: center; justify-content: center; padding: 0 6rpx; font-size: 22rpx; line-height: 1.2; text-align: center; white-space: nowrap; }
 .record-table { width: 100%; background: #fffaf3; }
-.record-table.recharge-history, .record-table.recharge-history .record-row { min-width: 950rpx; }
-.record-table.compact-history, .record-table.compact-history .record-row { min-width: 880rpx; }
+.record-table.recharge-history, .record-table.recharge-history .record-row { min-width: 1020rpx; }
+.record-table.compact-history, .record-table.compact-history .record-row { min-width: 950rpx; }
 .record-row { width: 100%; min-height: 76rpx; display: grid; border-top: 1rpx solid #dfcfb4; }
-.recharge-history .record-row { grid-template-columns: minmax(210rpx, 1.35fr) minmax(130rpx, 0.8fr) minmax(130rpx, 0.8fr) minmax(90rpx, 0.55fr) minmax(160rpx, 0.95fr) minmax(230rpx, 1.3fr); }
-.compact-history .record-row { grid-template-columns: minmax(210rpx, 1.4fr) minmax(130rpx, 0.85fr) minmax(130rpx, 0.85fr) minmax(90rpx, 0.6fr) minmax(160rpx, 1fr) minmax(160rpx, 1fr); }
+.recharge-history .record-row { grid-template-columns: minmax(210rpx, 1.35fr) minmax(130rpx, 0.8fr) minmax(130rpx, 0.8fr) minmax(90rpx, 0.55fr) minmax(230rpx, 1.15fr) minmax(230rpx, 1.3fr); }
+.compact-history .record-row { grid-template-columns: minmax(210rpx, 1.4fr) minmax(130rpx, 0.85fr) minmax(130rpx, 0.85fr) minmax(90rpx, 0.6fr) minmax(230rpx, 1.2fr) minmax(160rpx, 1fr); }
 .record-row:first-child { border-top: 0; }
 .record-row text { min-height: 76rpx; padding: 12rpx 9rpx; font-size: 21rpx; }
 .record-row.table-head { min-height: 66rpx; }

@@ -19,9 +19,11 @@
 .search { min-height: 78rpx; display: flex; align-items: center; justify-content: center; padding: 0 28rpx; color: #fffdf8; background: #6f532e; border-radius: 14rpx; font-size: 25rpx; font-weight: 750; line-height: 1; text-align: center; box-sizing: border-box; }
 .duplicate-list { display: grid; gap: 10rpx; margin-top: 16rpx; }
 .duplicate-title { color: #675b4b; font-size: 22rpx; font-weight: 800; }
-.duplicate-option { width: 100%; min-height: 76rpx; display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin: 0; padding: 12rpx 18rpx; color: #302a22; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 14rpx; font-size: 22rpx; line-height: 1.3; text-align: left; }
+.duplicate-option { width: 100%; min-height: 76rpx; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 18rpx; margin: 0; padding: 12rpx 18rpx; color: #302a22; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 14rpx; box-sizing: border-box; font-size: 22rpx; line-height: 1.3; text-align: left; }
 .duplicate-option::after { border: 0; }
-.duplicate-option text:last-child { flex: none; color: #74592d; font-weight: 800; }
+.duplicate-option text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.duplicate-option text:first-child { font-weight: 850; }
+.duplicate-option text:last-child { color: #74695c; }
 .candidate { display: flex; gap: 18rpx; margin-top: 18rpx; padding: 18rpx; background: #fff; border: 1rpx solid #dfcfb4; border-radius: 16rpx; }
 .customer-photo { width: 128rpx; height: 156rpx; flex: none; background: #eee4d6; border-radius: 14rpx; }
 .photo-placeholder { display: flex; align-items: center; justify-content: center; color: #8a7d6d; font-size: 20rpx; text-align: center; }

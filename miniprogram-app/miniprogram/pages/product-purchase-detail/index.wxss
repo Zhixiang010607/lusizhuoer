@@ -1,0 +1,19 @@
+page { min-height: 100%; color: #302a22; background: #f3ede2; }
+.page { width: calc(100% - 32rpx); max-width: 900rpx; min-height: 100vh; margin: 0 auto; padding: 24rpx 0; box-sizing: border-box; }
+.hero, .card, .state { margin-bottom: 18rpx; padding: 24rpx; background: #fffaf3; border: 1rpx solid #dfcfb4; border-radius: 24rpx; box-sizing: border-box; }
+.hero { display: flex; flex-direction: column; gap: 10rpx; color: #fffaf8; background: #7a5b31; border-color: #7a5b31; }
+.eyebrow { color: #f3e2c4; font-size: 20rpx; }
+.title { overflow: hidden; font-size: 32rpx; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
+.status { align-self: flex-start; padding: 7rpx 14rpx; color: #fff; background: rgba(255,255,255,.18); border-radius: 999rpx; font-size: 20rpx; font-weight: 800; }
+.facts, .detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; }
+.facts view, .detail-grid view { min-width: 0; display: flex; flex-direction: column; gap: 7rpx; padding: 18rpx; background: #fff7eb; border-radius: 16rpx; }
+.facts text:first-child, .detail-grid text:first-child, .notes view text:first-child { color: #7c7062; font-size: 19rpx; }
+.facts text:last-child, .detail-grid text:last-child { overflow: hidden; font-size: 23rpx; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
+.card-title { margin-bottom: 16rpx; font-size: 28rpx; font-weight: 900; }
+.notes { display: grid; gap: 16rpx; }
+.notes view { display: flex; flex-direction: column; gap: 8rpx; padding-bottom: 16rpx; border-bottom: 1rpx solid #eadfce; }
+.notes view:last-child { padding-bottom: 0; border-bottom: 0; }
+.notes view text:last-child { overflow-wrap: anywhere; font-size: 22rpx; line-height: 1.55; }
+.state { color: #786c5d; text-align: center; }
+.state.error { color: #8b3f35; background: #fff1ed; border-color: #e4bdb4; }
+.safe-bottom { height: calc(24rpx + env(safe-area-inset-bottom)); }

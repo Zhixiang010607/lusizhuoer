@@ -33,7 +33,6 @@
   <view wx:if="{{reviewMenuOpen && session.role === 'hq'}}" class="business-popover review-popover" catchtap="noop">
     <view class="popover-grid">
       <view data-type="recharge" bindtap="openReview">充值审核</view>
-      <view data-type="verification" bindtap="openReview">核销审核</view>
       <view data-type="product-purchase" bindtap="openReview">产品购买审核</view>
     </view>
   </view>
@@ -124,7 +123,7 @@
 
       <view id="active-customers" class="web-panel customer-panel">
         <view class="panel-heading"><view><text class="panel-title">活跃用户</text><text class="panel-note">点击姓名可进入客户主页</text></view><text class="web-badge">{{activeCustomers.total}} 位用户</text></view>
-        <scroll-view class="table-scroll customer-scroll" scroll-x enhanced show-scrollbar="false" scroll-left="{{activeCustomerScrollLeft}}" data-status="ACTIVE" bindscroll="rememberCustomerScroll">
+        <scroll-view class="table-scroll customer-scroll" scroll-x scroll-y enhanced show-scrollbar="false" style="height: {{activeCustomers.viewportHeight}}rpx" scroll-left="{{activeCustomerScrollLeft}}" data-status="ACTIVE" bindscroll="rememberCustomerScroll">
           <view class="customer-table">
             <view class="table-row table-head"><view>姓名</view><view>门店</view><view>生日</view><view>充值次数</view><view>核销次数</view></view>
             <view wx:for="{{activeCustomers.rows}}" wx:key="customerCode" class="table-row"><view class="table-link" data-code="{{item.customerCode}}" bindtap="openCustomer">{{item.customerName}}</view><view>{{item.storeName}}</view><view>{{item.birthDate}}</view><view>{{item.rechargeCount}} 次</view><view class="metric-number">{{item.verificationCount}} 次</view></view>
@@ -136,7 +135,7 @@
 
       <view id="archived-customers" class="web-panel customer-panel archived-section">
         <view class="panel-heading"><view><text class="panel-title">封存用户</text><text class="panel-note">封存客户仍保留历史关联；点击姓名可进入客户主页</text></view><text class="web-badge archived-badge">{{archivedCustomers.total}} 位用户</text></view>
-        <scroll-view class="table-scroll customer-scroll" scroll-x enhanced show-scrollbar="false" scroll-left="{{archivedCustomerScrollLeft}}" data-status="ARCHIVED" bindscroll="rememberCustomerScroll">
+        <scroll-view class="table-scroll customer-scroll" scroll-x scroll-y enhanced show-scrollbar="false" style="height: {{archivedCustomers.viewportHeight}}rpx" scroll-left="{{archivedCustomerScrollLeft}}" data-status="ARCHIVED" bindscroll="rememberCustomerScroll">
           <view class="customer-table">
             <view class="table-row table-head"><view>姓名</view><view>门店</view><view>生日</view><view>充值次数</view><view>核销次数</view></view>
             <view wx:for="{{archivedCustomers.rows}}" wx:key="customerCode" class="table-row"><view class="table-link" data-code="{{item.customerCode}}" bindtap="openCustomer">{{item.customerName}}</view><view>{{item.storeName}}</view><view>{{item.birthDate}}</view><view>{{item.rechargeCount}} 次</view><view class="metric-number">{{item.verificationCount}} 次</view></view>

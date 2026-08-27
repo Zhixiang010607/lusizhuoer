@@ -58,7 +58,7 @@ function mapHistoryRow(row = {}, type = "RECHARGE") {
     productName: clean(row.productName) || "—",
     teacherLabel: businessTeacher(row),
     unitLabel: productPurchase ? `${units} 件` : `${rechargeHistory ? (negative ? "−" : "+") : ""}${units} 次`,
-    submittedAtLabel: query.displayDate(row.submittedAt),
+    submittedAtLabel: query.displayDateTime(row.submittedAt),
     statusLabel: orderStatus(row, type)
   };
 }
@@ -340,7 +340,11 @@ Page({
     if (!id) return;
     const code = clean(event.currentTarget.dataset.code);
     const historyType = clean(this.data.historyType || "RECHARGE").toUpperCase();
-    if (historyType === "PRODUCT_PURCHASE") return;
+    if (historyType === "PRODUCT_PURCHASE") {
+      if (this.data.session.role !== "hq") return;
+      wx.navigateTo({ url: `/pages/product-purchase-detail/index?recordId=${encodeURIComponent(id)}&recordCode=${encodeURIComponent(code)}` });
+      return;
+    }
     const originalType = clean(event.currentTarget.dataset.originalType).toUpperCase();
     const category = ["RECHARGE", "REFUND"].includes(historyType)
       ? (originalType === "REFUND" ? "REFUND" : originalType === "VOID" ? "VOID" : "RECHARGE")

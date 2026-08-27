@@ -80,10 +80,49 @@ function displayDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "—";
 }
 
+function unwrapDateTime(value) {
+  let current = value;
+  const keys = ["$date", "date", "value", "timestamp", "time", "iso", "isoString"];
+  for (let depth = 0; depth < 4 && current && typeof current === "object"; depth += 1) {
+    const seconds = current.seconds ?? current._seconds;
+    const nanoseconds = current.nanoseconds ?? current._nanoseconds ?? 0;
+    if (Number.isFinite(Number(seconds))) return Number(seconds) * 1000 + Number(nanoseconds) / 1000000;
+    const milliseconds = current.milliseconds ?? current._milliseconds;
+    if (Number.isFinite(Number(milliseconds))) return Number(milliseconds);
+    const key = keys.find((item) => current[item] !== undefined && current[item] !== current);
+    if (!key) break;
+    current = current[key];
+  }
+  return current;
+}
+
+function dateTimeMillis(value) {
+  const source = unwrapDateTime(value);
+  if (source === undefined || source === null || source === "") return NaN;
+  if (typeof source === "number" || /^\d{10,16}$/.test(String(source).trim())) {
+    let amount = Number(source);
+    if (!Number.isFinite(amount)) return NaN;
+    if (Math.abs(amount) < 100000000000) amount *= 1000;
+    if (Math.abs(amount) > 100000000000000) amount /= 1000;
+    return amount;
+  }
+  let text = String(source).trim();
+  const postgres = text.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?)(?:\s*)(Z|[+-]\d{2}(?::?\d{2})?)?$/i);
+  if (postgres) {
+    const time = postgres[2].replace(/\.(\d{3})\d+$/, ".$1");
+    let zone = postgres[3] || "Z";
+    if (/^[+-]\d{2}$/.test(zone)) zone += ":00";
+    else if (/^[+-]\d{4}$/.test(zone)) zone = `${zone.slice(0, 3)}:${zone.slice(3)}`;
+    text = `${postgres[1]}T${time}${zone}`;
+  }
+  const parsed = new Date(text);
+  return parsed.valueOf();
+}
+
 function displayDateTime(value) {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.valueOf())) return "—";
-  return new Date(parsed.valueOf() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16).replace("T", " ");
+  const millis = dateTimeMillis(value);
+  if (!Number.isFinite(millis)) return "—";
+  return new Date(millis + 8 * 60 * 60 * 1000).toISOString().slice(0, 16).replace("T", " ");
 }
 
 function statusLabel(value) {

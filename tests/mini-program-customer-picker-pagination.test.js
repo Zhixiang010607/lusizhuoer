@@ -125,6 +125,10 @@ test("customer picker renders a native dropdown and keeps exact search separate"
   assert.match(markup, /data-mode="manual"[^>]*>姓名／生日<\/button>/);
   assert.match(markup, /姓名或生日任填一项；两项都填时同时匹配/);
   assert.match(markup, /bindtap="clearBirthday"/);
+  assert.match(markup, />请选择客户<\/text>/);
+  const duplicateMarkup = markup.slice(markup.indexOf('class="duplicate-list"'), markup.indexOf('wx:if="{{candidate}}"'));
+  assert.doesNotMatch(duplicateMarkup, /请选择客户编号|<text[^>]*>\s*\{\{item\.customerCode\}\}/,
+    "duplicate-name choices use name and birthday while the database code remains an internal key");
   assert.match(markup, /点开下拉框后可上下滑动选择全部客户/);
   assert.doesNotMatch(markup, /class="customer-list"|bindscrolltolower="loadMoreCustomers"/);
   assert.match(style, /\.customer-select-control\s*\{[^}]*min-height:\s*84rpx/);

@@ -222,7 +222,7 @@ Component({
         }
         if (!matches.length) throw new Error("未找到当前门店的活跃客户");
         if (matches.length > 1) {
-          this.setData({ duplicateMatches: matches, message: `找到 ${matches.length} 位匹配客户，请按客户编号选择`, error: false });
+          this.setData({ duplicateMatches: matches, message: `找到 ${matches.length} 位匹配客户，请按姓名和生日选择`, error: false });
           return;
         }
         await this.loadCandidate(matches[0]);

@@ -1,5 +1,6 @@
 const { callStaff } = require("../../services/api");
 const { requireSession } = require("../../services/session");
+const { displayDateTime } = require("../../services/query-tools");
 
 const PAGE_SIZE = 100;
 const STATUS = Object.freeze([
@@ -14,12 +15,7 @@ function text(...values) {
   return String(value || "").trim();
 }
 function pick(row, snake, camel) { return row?.[snake] ?? row?.[camel] ?? ""; }
-function dateTime(value) {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.valueOf())) return "—";
-  return new Date(parsed.valueOf() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16).replace("T", " ");
-}
-function normalize(row, recharge, purchase = false) {
+function normalize(row, purchase = false) {
   if (purchase) {
     const status = text(pick(row, "record_status", "recordStatus")).toUpperCase() || "PENDING";
     return {
@@ -31,8 +27,8 @@ function normalize(row, recharge, purchase = false) {
       productName: text(pick(row, "product_name_snapshot", "productNameSnapshot")) || "未命名产品",
       teacherName: text(pick(row, "teacher_name", "teacherName")) || "—",
       impact: `${Number(pick(row, "unit_count", "unitCount")) || 0} 件`,
-      submittedAt: dateTime(pick(row, "submitted_at", "submittedAt")),
-      reviewedAt: status === "PENDING" ? "—" : dateTime(pick(row, "reviewed_at", "reviewedAt")),
+      submittedAt: displayDateTime(pick(row, "submitted_at", "submittedAt")),
+      reviewedAt: status === "PENDING" ? "—" : displayDateTime(pick(row, "reviewed_at", "reviewedAt")),
       applicantNote: text(row.message) || "无"
     };
   }
@@ -42,21 +38,19 @@ function normalize(row, recharge, purchase = false) {
   const isVoid = applicationType === "VOID";
   const amount = Number(pick(row, "unit_count", "unitCount")) || 0;
   const customerCode = text(pick(row, "customer_code", "customerCode"));
-  const category = recharge
-    ? (isRefund ? "REFUND" : isVoid ? "VOID" : "RECHARGE")
-    : "SUPPLEMENT";
+  const category = isRefund ? "REFUND" : isVoid ? "VOID" : "RECHARGE";
   return {
     id: text(row.id), recordCode: text(pick(row, "record_code", "recordCode")), status, category,
     statusLabel: { PENDING: "待审核", APPROVED: "审核通过", REJECTED: "已驳回" }[status] || status,
-    kind: recharge ? (isRefund ? "退费申请" : isVoid ? "历史作废" : "充值申请") : "补录核销",
+    kind: isRefund ? "退费申请" : isVoid ? "历史作废" : "充值申请",
     storeId: text(pick(row, "store_id", "storeId")), storeName: text(pick(row, "store_name", "storeName")) || "未命名门店",
     storeCode: text(pick(row, "store_code", "storeCode")), customerCode,
     customerName: text(pick(row, "customer_name", "customerName")) || "未命名客户",
     productName: text(pick(row, "product_name", "productName")) || "未命名项目",
     teacherName: text(pick(row, "teacher_name", "teacherName")) || "—",
-    impact: recharge ? `${isRefund || isVoid ? "−" : "+"}${amount} 次` : `核销 +${amount || 1} 次`,
-    submittedAt: dateTime(pick(row, "application_time", "applicationTime")),
-    reviewedAt: status === "PENDING" ? "—" : dateTime(isVoid ? pick(row, "void_reviewed_at", "voidReviewedAt") : pick(row, "original_reviewed_at", "originalReviewedAt")),
+    impact: `${isRefund || isVoid ? "−" : "+"}${amount} 次`,
+    submittedAt: displayDateTime(pick(row, "application_time", "applicationTime")),
+    reviewedAt: status === "PENDING" ? "—" : displayDateTime(isVoid ? pick(row, "void_reviewed_at", "voidReviewedAt") : pick(row, "original_reviewed_at", "originalReviewedAt")),
     applicantNote: text(isVoid ? pick(row, "void_request_note", "voidRequestNote") : pick(row, "initial_store_note", "initialStoreNote")) || "无"
   };
 }
@@ -73,9 +67,9 @@ Page({
     const session = requireSession(["hq"]);
     if (!session) return;
     const requested = String(options.type || "recharge").toLowerCase();
-    const type = ["recharge", "refund", "verification", "product-purchase"].includes(requested) ? requested : "recharge";
-    const noun = type === "verification" ? "核销" : type === "refund" ? "退费" : type === "product-purchase" ? "产品购买" : "充值";
-    this.setData({ session, type, noun, recordType: type === "verification" ? "VERIFICATION" : type === "product-purchase" ? "PRODUCT_PURCHASE" : "RECHARGE" });
+    const type = ["recharge", "refund", "product-purchase"].includes(requested) ? requested : "recharge";
+    const noun = type === "refund" ? "退费" : type === "product-purchase" ? "产品购买" : "充值";
+    this.setData({ session, type, noun, recordType: type === "product-purchase" ? "PRODUCT_PURCHASE" : "RECHARGE" });
     wx.setNavigationBarTitle({ title: "露思卓儿" });
     await this.load(1, true);
   },
@@ -114,7 +108,7 @@ Page({
     const payload = {
       recordType, recordCode,
       storeId: mode === "filters" && this.data.storeIndex > 0 ? this.data.stores[this.data.storeIndex - 1]?.id || "" : "",
-      applicationType: type === "recharge" ? "NEW" : type === "refund" ? "REFUND" : "SUPPLEMENT",
+      applicationType: type === "refund" ? "REFUND" : "NEW",
       status: mode === "filters" ? STATUS[this.data.statusIndex]?.value || "" : "",
       limit: mode === "code" ? 1 : PAGE_SIZE,
       paged: mode === "filters", pageNumber: mode === "filters" ? page : undefined
@@ -129,7 +123,7 @@ Page({
         })
         : await callStaff("listReviewOrders", payload);
       if (epoch !== this._requestEpoch) return;
-      const rows = (result.orders || []).map((row) => normalize(row, recordType === "RECHARGE", productPurchase));
+      const rows = (result.orders || []).map((row) => normalize(row, productPurchase));
       const total = mode === "filters" ? Number(result.total || 0) : rows.length;
       const totalPages = mode === "filters" ? Math.max(1, Number(result.totalPages || 1)) : 1;
       const currentPage = mode === "filters" ? Math.min(totalPages, Math.max(1, Number(result.pageNumber || page))) : 1;
@@ -163,7 +157,11 @@ Page({
     const id = text(event.currentTarget.dataset.id);
     const code = text(event.currentTarget.dataset.code);
     const row = this.data.rows.find((item) => item.id === id && item.recordCode === code);
-    if (row && row.category && row.category !== "PRODUCT_PURCHASE") {
+    if (row?.category === "PRODUCT_PURCHASE") {
+      wx.navigateTo({
+        url: `/pages/product-purchase-detail/index?recordId=${encodeURIComponent(id)}&recordCode=${encodeURIComponent(code)}`
+      });
+    } else if (row && row.category) {
       wx.navigateTo({
         url: `/pages/order-detail/index?type=${this.data.recordType.toLowerCase()}&category=${encodeURIComponent(row.category)}&recordId=${encodeURIComponent(id)}&recordCode=${encodeURIComponent(code)}`
       });

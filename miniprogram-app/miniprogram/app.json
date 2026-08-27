@@ -21,6 +21,7 @@
     { "root": "pages/customer-create", "pages": ["index"] },
     { "root": "pages/recharge", "pages": ["index"] },
     { "root": "pages/product-purchase", "pages": ["index"] },
+    { "root": "pages/product-purchase-detail", "pages": ["index"] },
     { "root": "pages/verification", "pages": ["index"] },
     { "root": "pages/records", "pages": ["index"] },
     { "root": "pages/order-detail", "pages": ["index"] }

@@ -1,5 +1,6 @@
 const { callStaff } = require("../../services/api");
 const { requireSession } = require("../../services/session");
+const { displayDateTime } = require("../../services/query-tools");
 const rechargeIntent = require("../../services/teacher-experience-recharge");
 
 function text(...values) { return String(values.find((value) => value !== undefined && value !== null && String(value).trim()) || "").trim(); }
@@ -10,8 +11,18 @@ function archived(staff = {}) {
   return authoritative.length ? authoritative.includes("ARCHIVED") : [staff.status, staff.profile_status].map((value) => text(value).toUpperCase()).includes("ARCHIVED");
 }
 function formatTime(value) {
-  const date = new Date(value);
-  return Number.isNaN(date.valueOf()) ? "未记录" : new Date(date.valueOf() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16).replace("T", " ");
+  const formatted = displayDateTime(value);
+  return formatted === "—" ? "未记录" : formatted;
+}
+function historyType(value) {
+  const code = text(value).toUpperCase();
+  return ({
+    TOP_UP: "额度充值", RECHARGE: "额度充值",
+    CONFIGURATION: "配置额度", CONFIGURED: "配置额度", CREATE: "配置额度",
+    REMOVED: "删除配置", REMOVE: "删除配置", DELETED: "删除配置",
+    MONTHLY_RESET: "月度更新", RESET: "月度更新",
+    EXPERIENCE: "体验核销", USAGE: "体验核销", CONSUMPTION: "体验核销"
+  })[code] || "额度变更";
 }
 function entitlement(row = {}) {
   return {
@@ -26,7 +37,7 @@ function entitlement(row = {}) {
 function totalRow(row = {}) { return { productId: text(row.productId, row.product_id), productCode: text(row.productCode, row.product_code), productName: text(row.productName, row.product_name) || "未命名产品", productStatus: (text(row.productStatus, row.product_status) || "ARCHIVED").toUpperCase(), totalExperienceCount: number(row, ["totalExperienceCount", "total_experience_count", "totalUsedCount", "total_used_count"]) }; }
 function historyRow(row = {}, index = 0) {
   const count = number(row, ["unitCount", "unit_count", "deltaCount", "delta_count", "count", "amount"]);
-  return { key: `${text(row.id, row.ledgerId, row.ledger_id, row.createdAt, row.created_at, row.occurredAt, row.occurred_at) || "history"}-${index}`, at: formatTime(text(row.createdAt, row.created_at, row.occurredAt, row.occurred_at, row.eventAt, row.event_at, row.at)), type: text(row.eventType, row.event_type, row.type, row.recordType, row.record_type) || "体验额度变更", productName: text(row.productName, row.product_name) || "未命名产品", productCode: text(row.productCode, row.product_code), count, countText: `${count > 0 ? "+" : ""}${count} 次`, note: text(row.note, row.message, row.reason), actorName: text(row.actorName, row.actor_name, row.createdByName, row.created_by_name, row.operatorName, row.operator_name) || "系统／总部" };
+  return { key: `${text(row.id, row.ledgerId, row.ledger_id, row.createdAt, row.created_at, row.occurredAt, row.occurred_at) || "history"}-${index}`, at: formatTime(text(row.createdAt, row.created_at, row.occurredAt, row.occurred_at, row.eventAt, row.event_at, row.at)), type: historyType(text(row.eventType, row.event_type, row.type, row.recordType, row.record_type)), productName: text(row.productName, row.product_name) || "未命名产品", productCode: text(row.productCode, row.product_code), count, countText: `${count > 0 ? "+" : ""}${count} 次`, note: text(row.note, row.message, row.reason), actorName: text(row.actorName, row.actor_name, row.createdByName, row.created_by_name, row.operatorName, row.operator_name) || "系统／总部" };
 }
 function summaryRows(rows, totals) {
   const map = new Map(rows.map((row) => [row.productId, { ...row }]));

@@ -27,10 +27,10 @@
     <button class="search" bindtap="manualSearch" loading="{{loading}}" disabled="{{loading}}">精确查询</button>
   </view>
   <view wx:if="{{duplicateMatches.length}}" class="duplicate-list">
-    <text class="duplicate-title">请选择客户编号</text>
+    <text class="duplicate-title">请选择客户</text>
     <button wx:for="{{duplicateMatches}}" wx:key="customerCode" class="duplicate-option" data-code="{{item.customerCode}}" bindtap="chooseDuplicate">
-      <text>{{item.customerName}} · {{item.birthDate}}</text>
-      <text>{{item.customerCode}}</text>
+      <text>{{item.customerName}}</text>
+      <text>{{item.birthDate}}</text>
     </button>
   </view>
   <view wx:if="{{candidate}}" class="candidate">

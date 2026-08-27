@@ -39,6 +39,7 @@ function loadPage(intent, callStaff) {
       if (id === "../../services/api") return { callStaff };
       if (id === "../../services/session") return { requireSession: () => ({ role: "hq", uid: "hq-auth-uid" }) };
       if (id === "../../services/teacher-experience-recharge") return intent;
+      if (id === "../../services/query-tools") return { displayDateTime: (value) => String(value || "—") };
       throw new Error(`unexpected teacher-detail dependency ${id}`);
     },
     wx: {
