@@ -130,7 +130,7 @@ v99 的 `recoverBusinessSubmission` 仅允许原提交账号、原门店按同�
 3. 完成 046、总部封锁旧运营凭据、047 和 048 后，依次执行 `049-01` 至 `049-13`，再运行 `049-readonly-verify.sql`，全部必须为 `READY`。049 是向前迁移，不要修改或重跑生产已执行的 048。
 4. 执行迁移 050 的 7 段控制台 SQL并确认只读验收全部 `READY`，再按 053 指引退役旧老师人脸 Saga。`faceRecognition v99` 不依赖迁移 051／052，也不需要老师人脸操作恢复 Timer。
 5. 完整执行迁移 054（CloudBase SQL 编辑器使用 `054-01-teacher-only-customer-face-experience.sql`），把新体验核销切换为老师账号赠送、客户人脸凭证。
-6. 将 `faceRecognition` 执行超时设为 **90 秒**；准备 `faceRecognition v99`、`verificationPhoto v10`、`staffAccount v77` 和 `teacherCreate v6`，但等 060—064 验收完成后再统一部署。`teacherCreate` 可设为 **60 秒、至少 256 MB**，且不再需要任何 FACE 或照片桶变量。
+6. 将 `faceRecognition` 执行超时设为 **90 秒**；准备 `faceRecognition v99`、`verificationPhoto v10`、`staffAccount v78` 和 `teacherCreate v6`，但等 060—064 验收完成后再统一部署。`teacherCreate` 可设为 **60 秒、至少 256 MB**，且不再需要任何 FACE 或照片桶变量。
 7. 完整执行迁移 055 并确认 3 行全部 `READY`，移除充值、退费、核销和体验核销中的旧老师人脸门禁；再执行 `056-01-experience-quota-column-ambiguity.sql`，确认返回 `READY`。
 8. 执行 `057-01-teacher-created-customer-access.sql`，确认字段、外键和索引 3 行全部为 `READY`。
 9. 按 `058-README.md` 执行三段 SQL，确认只读验收两行全部为 `READY`。
@@ -140,7 +140,7 @@ v99 的 `recoverBusinessSubmission` 仅允许原提交账号、原门店按同�
 13. 调用 `faceRecognition v99` 与同轮配套函数的 `health` 核对实际版本，运行 064 只读验收，再发布当前网页和小程序并强制刷新。
 
 当前切换顺序为“确认 048—050 与 053 已完成 → 依次执行并验收 054—064 → 部署
-`faceRecognition v99`、同轮配套的 `verificationPhoto`、`staffAccount v77`、`teacherCreate v6` → 分别 health →
+`faceRecognition v99`、同轮配套的 `verificationPhoto`、`staffAccount v78`、`teacherCreate v6` → 分别 health →
 发布当前静态前端”。不要再发送任何老师人脸 action；新体验核销只能调用客户 1:1
 人脸验证。
 

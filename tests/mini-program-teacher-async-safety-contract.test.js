@@ -294,7 +294,7 @@ test("store initial home and HQ ranking reject late responses after a tab or dim
     throw new Error(`unexpected ranking dimension ${payload.dimension}`);
   });
   const hqPage = pageInstance(hqHome.definition, { data: {
-    session: { role: "hq" }, hqDimension: "store", hqPeriod: "LAST_30",
+    session: { role: "hq" }, hqDimension: "store", hqPeriod: "MONTH",
     hqRankingPage: { page: 1, totalPages: 1 }
   } });
   const staleRankingLoad = hqPage.loadHqRanking(1);

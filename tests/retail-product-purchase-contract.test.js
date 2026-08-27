@@ -23,6 +23,8 @@ const miniCreate = read("miniprogram-app", "miniprogram", "pages", "product-purc
 const miniCreateJs = read("miniprogram-app", "miniprogram", "pages", "product-purchase", "index.js");
 const miniReview = read("miniprogram-app", "miniprogram", "pages", "reviews", "index.wxml");
 const miniCustomer = read("miniprogram-app", "miniprogram", "pages", "customer-detail", "index.wxml");
+const miniCustomerJs = read("miniprogram-app", "miniprogram", "pages", "customer-detail", "index.js");
+const miniCustomerCss = read("miniprogram-app", "miniprogram", "pages", "customer-detail", "index.wxss");
 
 assert.equal(consoleMigration, migration, "CloudBase console 062 must stay byte-identical to the canonical migration");
 assert.match(consoleVerify, /WITH checks AS/);
@@ -50,11 +52,18 @@ assert.match(face, /historyOptions\.type === "PRODUCT_PURCHASE"/);
 assert.match(face, /record_status = 'APPROVED'/, "customer purchase totals must include approved purchases only");
 assert.match(face, /recharge\.record_status = 'APPROVED'/, "customer gift totals must include approved recharge gifts only");
 
-assert.match(staff, /const FUNCTION_VERSION = "v77"/);
+assert.match(staff, /const FUNCTION_VERSION = "v78"/);
 assert.match(staff, /async function listRetailProductPurchaseReviews/);
 assert.match(staff, /async function reviewRetailProductPurchase/);
 assert.match(staff, /requireReviewer\(caller\)/);
 assert.match(staff, /review_retail_product_purchase/);
+for (const filter of ["retailProductId", "customerName", "birthDate", "startDate", "endDate"]) {
+  assert.match(staff, new RegExp(filter), `HQ product query must support ${filter}`);
+}
+assert.match(staff, /COUNT\(\*\) FILTER \(WHERE purchase\.record_status = 'PENDING'\)/,
+  "product query must return a filter-aware review-state summary");
+assert.match(staff, /FROM public\.retail_products[\s\S]*productStatus/,
+  "product query must return active and archived product choices");
 
 assert.match(webCreate, /data-store-business="product-purchase"/);
 assert.match(webCreate, /第一步：查找并确认客户/);
@@ -83,5 +92,10 @@ assert.match(miniCreateJs, /createRetailProductPurchaseApplication/);
 assert.match(miniReview, /type === 'product-purchase' \? '产品' : '项目'/);
 assert.match(miniCustomer, /产品名称<\/text><text>购买<\/text><text>赠送/);
 assert.match(miniCustomer, /data-type="PRODUCT_PURCHASE"[^>]*>产品<\/button>/);
+assert.match(miniCustomer, /class="retail-summary-scroll"[\s\S]*scroll-y="\{\{retailSummaryScrollable\}\}"/,
+  "customer product summary must scroll inside its card only after the row limit");
+assert.match(miniCustomerJs, /visibleRows = Math\.min\(5, retailProductSummary\.length\)/);
+assert.match(miniCustomerCss, /grid-template-columns: minmax\(0, 1\.4fr\) repeat\(2, minmax\(110rpx, \.8fr\)\)/,
+  "product, purchase, and gift columns must use a compact responsive grid");
 
 console.log("retail product purchase contract: PASS");

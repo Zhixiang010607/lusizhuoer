@@ -112,6 +112,11 @@ function reportTimestamp(date = new Date()) {
   const pad = (value) => String(value).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
+function hqRangePayload(period, range) {
+  return period === "ALL"
+    ? { allTime: true }
+    : { startDate: range.startDate, endDate: range.endDate };
+}
 
 Page({
   data: {
@@ -400,15 +405,15 @@ Page({
       hqRankingScrollLeft: 0, hqRankingError: "", message: "", error: false
     });
     const [overviewResult, rankingResult, productResult, productSummaryResult] = await Promise.allSettled([
-      callStaff("getHqDashboard", { mode: "overview", startDate: range.startDate, endDate: range.endDate }),
+      callStaff("getHqDashboard", { mode: "overview", ...hqRangePayload(this.data.hqPeriod, range) }),
       callStaff("getHqDashboard", {
         mode: "ranking", dimension, rankingMetric, productId, pageNumber, pageSize: RANKING_PAGE_SIZE,
-        startDate: range.startDate, endDate: range.endDate
+        ...hqRangePayload(this.data.hqPeriod, range)
       }),
       callStaff("listProducts"),
       callStaff("getHqDashboard", {
         mode: "product-summary", pageNumber: 1, pageSize: PRODUCT_SUMMARY_PAGE_SIZE,
-        startDate: range.startDate, endDate: range.endDate
+        ...hqRangePayload(this.data.hqPeriod, range)
       })
     ]);
     if (requestEpoch !== this._hqHomeRequestEpoch) return;
@@ -491,7 +496,8 @@ Page({
     const rankingMetric = this.data.hqRankingMetric;
     const productId = this.data.hqProductId;
     const range = dashboard.hqRange(this.data.hqPeriod, { startDate: this.data.hqStart, endDate: this.data.hqEnd });
-    if (!range.startDate || !range.endDate || range.startDate > range.endDate || dashboard.rangeDays(range.startDate, range.endDate) > 366) {
+    if (this.data.hqPeriod !== "ALL"
+      && (!range.startDate || !range.endDate || range.startDate > range.endDate || dashboard.rangeDays(range.startDate, range.endDate) > 366)) {
       this.setData({
         hqRanking: [], hqRankingPage: pageView({ pageSize: RANKING_PAGE_SIZE }), hqRankingInput: "1",
         hqRankingScrollLeft: 0, hqRankingLoading: false, hqRankingError: "请选择不超过 366 天的有效日期范围",
@@ -506,7 +512,7 @@ Page({
     try {
       const value = await callStaff("getHqDashboard", {
         mode: "ranking", dimension, rankingMetric, productId, pageNumber, pageSize: RANKING_PAGE_SIZE,
-        startDate: range.startDate, endDate: range.endDate
+        ...hqRangePayload(this.data.hqPeriod, range)
       });
       if (requestEpoch !== this._hqRankingRequestEpoch || dimension !== this.data.hqDimension
         || rankingMetric !== this.data.hqRankingMetric || productId !== this.data.hqProductId) return;
@@ -666,7 +672,7 @@ Page({
     try {
       const payload = await callStaff("getHqDashboard", {
         mode: "product-summary", pageNumber, pageSize: PRODUCT_SUMMARY_PAGE_SIZE,
-        startDate: range.startDate, endDate: range.endDate
+        ...hqRangePayload(this.data.hqPeriod, range)
       });
       if (requestEpoch !== this._hqProductSummaryRequestEpoch) return;
       const summary = hqProductSummaryView(payload);
@@ -756,7 +762,7 @@ Page({
         this.setData({ message: `正在读取项目汇总 ${productPageNumber} / ${productTotalPages}…`, error: false });
         const result = await callStaff("getHqDashboard", {
           mode: "product-summary", pageNumber: productPageNumber, pageSize: REPORT_EXPORT_PAGE_SIZE,
-          startDate: range.startDate, endDate: range.endDate
+          ...hqRangePayload(this.data.hqPeriod, range)
         });
         const summary = hqProductSummaryView(result);
         if (summary.page.total > REPORT_EXPORT_MAX_ROWS) throw new Error(`项目汇总共有 ${summary.page.total} 项，单次 PDF 最多绘制 ${REPORT_EXPORT_MAX_ROWS} 项`);
@@ -775,7 +781,7 @@ Page({
         const result = await callStaff("getHqDashboard", {
           mode: "ranking", dimension, rankingMetric, productId,
           pageNumber, pageSize: REPORT_EXPORT_PAGE_SIZE,
-          startDate: range.startDate, endDate: range.endDate
+          ...hqRangePayload(this.data.hqPeriod, range)
         });
         const ranking = result.ranking || {};
         if (!hqRankingMatches(ranking, dimension, rankingMetric, productId)) {
@@ -794,12 +800,14 @@ Page({
       this.setData({ message: "正在绘制矢量 PDF…", error: false });
       const metricLabel = this.data.hqRankingMetricLabels[this.data.hqRankingMetricIndex] || "业务";
       const productLabel = this.data.hqProductLabels[this.data.hqProductIndex] || "全部项目";
+      const reportStartDate = this.data.hqPeriod === "ALL" ? "最早记录" : range.startDate;
+      const reportEndDate = this.data.hqPeriod === "ALL" ? "今天" : range.endDate;
       const output = hqReport.createReportPdf({
-        startDate: range.startDate, endDate: range.endDate, dimensionLabel,
+        startDate: reportStartDate, endDate: reportEndDate, dimensionLabel,
         metric: rankingMetric, metricLabel, productLabel, generatedAt: reportTimestamp(),
         productRows, totals: this.data.hqProjectSummaryTotals, rankingRows, rankingTotal
       });
-      const baseName = hqReport.safeFilename(`露思卓儿总部-${range.startDate}至${range.endDate}-${dimensionLabel}-${metricLabel}排名`);
+      const baseName = hqReport.safeFilename(`露思卓儿总部-${this.data.hqPeriod === "ALL" ? "全部时间" : `${range.startDate}至${range.endDate}`}-${dimensionLabel}-${metricLabel}排名`);
       const filePath = `${wx.env.USER_DATA_PATH}/${baseName}.pdf`;
       const bytes = output.bytes;
       const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);

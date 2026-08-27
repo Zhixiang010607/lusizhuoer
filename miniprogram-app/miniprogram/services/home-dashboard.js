@@ -10,19 +10,7 @@ const RANGE_OPTIONS = Object.freeze([
   { value: "CUSTOM", label: "自定义" }
 ]);
 
-const HQ_PERIOD_OPTIONS = Object.freeze([
-  { value: "TODAY", label: "今天" },
-  { value: "THIS_WEEK", label: "本周（周一至今天）" },
-  { value: "THIS_MONTH", label: "本月（1 日至今天）" },
-  { value: "LAST_7", label: "近 7 日" },
-  { value: "LAST_30", label: "近 30 日" },
-  { value: "Q1", label: "本年第一季度（1—3 月）" },
-  { value: "Q2", label: "本年第二季度（4—6 月）" },
-  { value: "Q3", label: "本年第三季度（7—9 月）" },
-  { value: "Q4", label: "本年第四季度（10—12 月）" },
-  { value: "YTD", label: "本年截至今天" },
-  { value: "CUSTOM", label: "自定义" }
-]);
+const HQ_PERIOD_OPTIONS = RANGE_OPTIONS;
 
 const TYPE_CONFIG = Object.freeze({
   VERIFICATION: { label: "核销", recordType: "VERIFICATION", verificationType: "NORMAL" },
@@ -69,23 +57,7 @@ function scopedRange(preset, custom = {}) {
 }
 
 function hqRange(period, custom = {}) {
-  const currentText = today();
-  const current = dateFrom(currentText);
-  const year = current.getUTCFullYear();
-  if (period === "CUSTOM") return { startDate: custom.startDate || "", endDate: custom.endDate || "" };
-  if (period === "TODAY") return { startDate: currentText, endDate: currentText };
-  if (period === "THIS_WEEK") return scopedRange("WEEK");
-  if (period === "THIS_MONTH") return scopedRange("MONTH");
-  if (period === "LAST_7") return { startDate: addDays(currentText, -6), endDate: currentText };
-  if (period === "YTD") return { startDate: `${year}-01-01`, endDate: currentText };
-  if (/^Q[1-4]$/.test(period)) {
-    const startMonth = (Number(period.slice(1)) - 1) * 3;
-    const startDate = dateText(new Date(Date.UTC(year, startMonth, 1)));
-    const quarterEnd = dateText(new Date(Date.UTC(year, startMonth + 3, 0)));
-    const endDate = startDate > currentText ? quarterEnd : (quarterEnd < currentText ? quarterEnd : currentText);
-    return { startDate, endDate };
-  }
-  return { startDate: addDays(currentText, -29), endDate: currentText };
+  return scopedRange(period, custom);
 }
 
 function payload(startDate, endDate) { return startDate && endDate ? { startDate, endDate } : {}; }

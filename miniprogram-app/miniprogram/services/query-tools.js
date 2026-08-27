@@ -11,8 +11,7 @@ const STATUS_OPTIONS = Object.freeze([
   { value: "ALL", label: "全部状态" },
   { value: "PENDING", label: "待审核" },
   { value: "APPROVED", label: "审核通过" },
-  { value: "REJECTED", label: "已驳回" },
-  { value: "CLOSED", label: "已关闭" }
+  { value: "REJECTED", label: "已驳回" }
 ]);
 
 const VERIFICATION_TYPES = Object.freeze([
@@ -25,8 +24,7 @@ const VERIFICATION_TYPES = Object.freeze([
 const RECHARGE_TYPES = Object.freeze([
   { value: "ALL", label: "全部类型" },
   { value: "NEW", label: "充值申请" },
-  { value: "REFUND", label: "退费申请" },
-  { value: "VOID", label: "历史作废" }
+  { value: "REFUND", label: "退费申请" }
 ]);
 
 const CUSTOMER_PROCESS_OPTIONS = Object.freeze([
@@ -212,6 +210,34 @@ function normalizeRecord(item = {}, recordType = "RECHARGE") {
   };
 }
 
+function normalizeProductPurchaseRecord(item = {}) {
+  const recordStatus = String(item.recordStatus || item.record_status || "").toUpperCase();
+  return {
+    id: String(item.id || ""),
+    recordCode: String(item.purchaseCode || item.purchase_code || "—"),
+    originalType: "PRODUCT_PURCHASE",
+    typeLabel: "产品购买",
+    unitCount: Number(item.unitCount !== undefined ? item.unitCount : item.unit_count || 0),
+    recordStatus,
+    statusLabel: statusLabel(recordStatus),
+    submittedAt: displayDateTimeAny(
+      item.submittedAt, item.submitted_at, item.applicationTime, item.application_time,
+      item.createdAt, item.created_at
+    ),
+    customerCode: String(item.customerCode || item.customer_code || ""),
+    customerName: String(item.customerName || item.customer_name || "—"),
+    birthDate: displayDateAny(item.birthDate, item.birth_date),
+    storeId: String(item.storeId || item.store_id || ""),
+    storeName: String(item.storeName || item.store_name || "—"),
+    storeCode: String(item.storeCode || item.store_code || ""),
+    productId: String(item.retailProductId || item.retail_product_id || item.productId || item.product_id || ""),
+    productName: String(item.productNameSnapshot || item.product_name_snapshot || item.productName || item.product_name || "—"),
+    productCode: String(item.productCodeSnapshot || item.product_code_snapshot || item.productCode || item.product_code || ""),
+    teacherName: String(item.teacherName || item.teacher_name || ""),
+    teacherCode: String(item.teacherCode || item.teacher_code || "")
+  };
+}
+
 function optionIndex(options, value) {
   const index = options.findIndex((item) => item.value === value);
   return index >= 0 ? index : 0;
@@ -221,5 +247,5 @@ module.exports = {
   TIME_OPTIONS, STATUS_OPTIONS, VERIFICATION_TYPES, RECHARGE_TYPES,
   CUSTOMER_PROCESS_OPTIONS, CUSTOMER_STATUS_OPTIONS,
   businessToday, timeRange, displayDate, displayDateAny, displayDateTime, displayDateTimeAny, statusLabel, typeLabel,
-  normalizeRecord, optionIndex
+  normalizeRecord, normalizeProductPurchaseRecord, optionIndex
 };

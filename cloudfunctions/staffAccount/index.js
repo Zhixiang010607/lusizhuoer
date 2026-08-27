@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v77";
+const FUNCTION_VERSION = "v78";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -1191,6 +1191,9 @@ function dashboardDateRange(event) {
   const rawEnd = event.endDate === undefined || event.endDate === null
     ? ""
     : String(event.endDate).trim();
+  const allTime = event.allTime === true;
+  if (allTime && (rawStart || rawEnd)) fail("全部时间不能同时指定开始或结束日期", "BAD_REQUEST");
+  if (allTime) return { allTime: true };
   if (Boolean(rawStart) !== Boolean(rawEnd)) {
     fail("开始日期和结束日期必须同时提供", "BAD_REQUEST");
   }
@@ -1270,6 +1273,23 @@ function dashboardProductSummaryRequest(event = {}) {
 }
 
 function hqDashboardDateSql(requestedRange) {
+  if (requestedRange?.allTime === true) {
+    return {
+      startDateSql: `(COALESCE(
+        (SELECT MIN(source.first_date)
+           FROM (
+             SELECT MIN((submitted_at AT TIME ZONE 'Asia/Shanghai')::date) AS first_date
+               FROM public.recharge_records
+              WHERE record_status = 'APPROVED' AND recharge_type IN ('NEW', 'REFUND')
+             UNION ALL
+             SELECT MIN((submitted_at AT TIME ZONE 'Asia/Shanghai')::date) AS first_date
+               FROM public.verification_records
+              WHERE record_status = 'APPROVED' AND verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')
+           ) source),
+        (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai')::date))`,
+      endDateSql: "(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai')::date"
+    };
+  }
   return {
     startDateSql: requestedRange
       ? `${sqlText(requestedRange.startDate)}::date`
@@ -3044,6 +3064,18 @@ async function listRetailProductPurchaseReviews(caller, event = {}) {
   if (purchaseCode && !/^PP\d{14}$/.test(purchaseCode)) fail("请输入完整产品购买单号", "BAD_REQUEST");
   const storeText = String(event.storeId || "").trim();
   const storeId = storeText ? numericId(storeText, "门店编号") : "";
+  const productText = String(event.retailProductId || event.productId || "").trim();
+  const retailProductId = productText ? numericId(productText, "产品编号") : "";
+  const customerName = String(event.customerName || "").trim();
+  if (customerName.length > 100) fail("客户姓名查询不能超过 100 个字符", "BAD_REQUEST");
+  const birthDateText = String(event.birthDate || "").trim();
+  const birthDate = birthDateText ? strictDashboardDate(birthDateText, "客户生日") : "";
+  const startText = String(event.startDate || "").trim();
+  const endText = String(event.endDate || "").trim();
+  if (Boolean(startText) !== Boolean(endText)) fail("开始日期和结束日期必须同时提供", "BAD_REQUEST");
+  const startDate = startText ? strictDashboardDate(startText, "开始日期") : "";
+  const endDate = endText ? strictDashboardDate(endText, "结束日期") : "";
+  if (startDate && startDate > endDate) fail("开始日期不能晚于结束日期", "BAD_REQUEST");
   const requestedLimit = Number(event.limit);
   const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 100, 1), 100);
   const requestedPage = Number(event.pageNumber);
@@ -3052,9 +3084,19 @@ async function listRetailProductPurchaseReviews(caller, event = {}) {
   if (status) clauses.push(`purchase.record_status = ${sqlText(status)}`);
   if (purchaseCode) clauses.push(`purchase.purchase_code = ${sqlText(purchaseCode)}`);
   if (storeId) clauses.push(`purchase.store_id = ${storeId}`);
+  if (retailProductId) clauses.push(`purchase.retail_product_id = ${retailProductId}`);
+  if (customerName) clauses.push(`customer.customer_name ILIKE '%' || ${sqlText(customerName)} || '%'`);
+  if (birthDate) clauses.push(`customer.birth_date = ${sqlText(birthDate)}::date`);
+  if (startDate) {
+    clauses.push(`purchase.submitted_at >= (${sqlText(startDate)}::date::timestamp AT TIME ZONE 'Asia/Shanghai')`);
+    clauses.push(`purchase.submitted_at < ((${sqlText(endDate)}::date + 1)::timestamp AT TIME ZONE 'Asia/Shanghai')`);
+  }
   const whereSql = clauses.join(" AND ");
   const countRows = await executeSql(
-    `SELECT COUNT(*)::bigint AS total FROM public.retail_product_purchase_records purchase WHERE ${whereSql}`
+    `SELECT COUNT(*)::bigint AS total
+       FROM public.retail_product_purchase_records purchase
+       JOIN public.customers customer ON customer.id = purchase.customer_id
+      WHERE ${whereSql}`
   );
   const total = Number(countRows?.[0]?.total || 0);
   const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -3064,7 +3106,7 @@ async function listRetailProductPurchaseReviews(caller, event = {}) {
             purchase.record_status, purchase.message, purchase.review_note,
             purchase.submitted_at, purchase.reviewed_at,
             store.id AS store_id, store.store_code, store.store_name,
-            customer.customer_code, customer.customer_name,
+            customer.customer_code, customer.customer_name, customer.birth_date,
             purchase.retail_product_id, purchase.product_code_snapshot, purchase.product_name_snapshot,
             teacher.id AS teacher_id, teacher.teacher_code, teacher.teacher_name,
             submitter.staff_name AS submitted_by_name,
@@ -3079,10 +3121,38 @@ async function listRetailProductPurchaseReviews(caller, event = {}) {
       ORDER BY (purchase.record_status = 'PENDING') DESC, purchase.submitted_at DESC, purchase.id DESC
       LIMIT ${limit} OFFSET ${(currentPage - 1) * limit}`
   );
-  const stores = currentPage === 1
-    ? await executeSql(`SELECT id AS store_id, store_code, store_name FROM public.stores ORDER BY store_name, store_code, id`)
-    : [];
-  return { orders: rows, total, pageNumber: currentPage, pageSize: limit, totalPages, stores };
+  const summaryClauses = clauses.filter((clause) => !clause.startsWith("purchase.record_status ="));
+  const [stores, products, summaryRows] = await Promise.all([
+    executeSql(`SELECT id AS store_id, store_code, store_name FROM public.stores ORDER BY store_name, store_code, id`),
+    executeSql(
+      `SELECT id AS product_id, product_code, product_name, product_status
+         FROM public.retail_products
+        ORDER BY (product_status = 'ACTIVE') DESC, product_name, product_code, id`
+    ),
+    executeSql(
+      `SELECT COUNT(*)::bigint AS total,
+              COUNT(*) FILTER (WHERE purchase.record_status = 'PENDING')::bigint AS pending,
+              COUNT(*) FILTER (WHERE purchase.record_status = 'APPROVED')::bigint AS approved,
+              COUNT(*) FILTER (WHERE purchase.record_status = 'REJECTED')::bigint AS rejected
+         FROM public.retail_product_purchase_records purchase
+         JOIN public.customers customer ON customer.id = purchase.customer_id
+        WHERE ${summaryClauses.join(" AND ")}`
+    )
+  ]);
+  const summary = summaryRows?.[0] || {};
+  return {
+    orders: rows, total, pageNumber: currentPage, pageSize: limit, totalPages, stores,
+    products: (products || []).map((product) => ({
+      productId: String(product.product_id || ""),
+      productCode: String(product.product_code || ""),
+      productName: String(product.product_name || ""),
+      productStatus: String(product.product_status || "")
+    })),
+    summary: {
+      total: Number(summary.total || 0), pending: Number(summary.pending || 0),
+      approved: Number(summary.approved || 0), rejected: Number(summary.rejected || 0)
+    }
+  };
 }
 
 async function reviewRetailProductPurchase(caller, event = {}) {

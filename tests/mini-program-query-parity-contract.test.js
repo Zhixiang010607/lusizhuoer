@@ -10,13 +10,15 @@ const mini = path.join(root, "miniprogram-app", "miniprogram");
 const read = (...parts) => fs.readFileSync(path.join(mini, ...parts), "utf8");
 const tools = require(path.join(mini, "services", "query-tools.js"));
 
-test("HQ and store mini-program navigation exposes all three database searches", () => {
+test("HQ and store mini-program navigation exposes role-appropriate database searches", () => {
   const homeJs = read("pages", "home", "index.js");
   const homeWxml = read("pages", "home", "index.wxml");
-  for (const label of ["客户查询", "充值查询", "核销查询"]) assert.match(homeWxml, new RegExp(label));
+  for (const label of ["客户查询", "充值查询", "核销查询", "产品查询"]) assert.match(homeWxml, new RegExp(label));
   assert.match(homeWxml, /session\.role !== 'teacher'/);
   assert.match(homeJs, /pages\/records\/index\?type=/);
   assert.match(homeJs, /pages\/customers\/index/);
+  assert.match(homeWxml, /data-type="product"[^>]*bindtap="openQuery"/,
+    "product-purchase search must be a distinct HQ query entry");
 });
 
 test("customer query keeps the web filter dimensions, role scope, details, and direct page jump", () => {
@@ -61,7 +63,7 @@ test("customer query keeps the web filter dimensions, role scope, details, and d
     "customer query, reset, and pagination return the newly rendered table to its first column");
 });
 
-test("recharge and verification query share complete filters and exact order detail links", () => {
+test("recharge, verification, and product query share complete filters and exact order detail links", () => {
   const js = read("pages", "records", "index.js");
   const wxml = read("pages", "records", "index.wxml");
   for (const label of ["门店范围", "项目", "审核状态", "时间范围", "客户姓名", "生日", "跳至"]) {
@@ -71,6 +73,8 @@ test("recharge and verification query share complete filters and exact order det
     assert.match(js, new RegExp(field), `business query does not send ${field}`);
   }
   assert.match(js, /callFace\("queryStoreBusinessRecords"/);
+  assert.match(js, /callStaff\("listRetailProductPurchaseReviews"/);
+  assert.match(js, /pages\/product-purchase-detail\/index\?recordId=/);
   assert.match(js, /const payload = this\.buildPayload\(page\)/);
   assert.match(js, /if \(epoch !== this\._requestEpoch\) return;/,
     "business queries must reject stale responses after filters change");
@@ -97,8 +101,11 @@ test("recharge and verification query share complete filters and exact order det
     "the widened recharge table width equals its visible column widths");
   assert.match(wxss, /\.verification-table \{\s*width:\s*1720rpx;\s*min-width:\s*1720rpx;/,
     "the widened verification table width equals its visible column widths");
-  assert.match(wxml, /<view wx:if="\{\{recordType === 'RECHARGE'\}\}" class="summary-grid">/,
-    "review-state summary cards belong to recharge/refund only and stay hidden on verification queries");
+  assert.match(wxml, /<view wx:if="\{\{recordType !== 'VERIFICATION'\}\}" class="summary-grid">/,
+    "review-state summary cards belong to recharge/refund and product purchases, not completed verification queries");
+  assert.match(wxml, /recordType === 'PRODUCT_PURCHASE' \? '产品' : '项目'/);
+  assert.match(wxss, /\.product-purchase-table \{\s*width:\s*1570rpx;\s*min-width:\s*1570rpx;/,
+    "product purchase table width must equal its visible column widths");
 });
 
 test("order detail uses safe exact reads and exposes authorized verification originals", () => {
@@ -140,15 +147,15 @@ test("customer history and role homes link exact records to the shared detail pa
     "store and teacher business history retain direct page jumping on mobile");
 });
 
-test("shared query helpers preserve Shanghai business ranges and historical audit filters", () => {
+test("shared query helpers preserve Shanghai business ranges while retired statuses stay out of filters", () => {
   assert.deepEqual(tools.timeRange("ALL"), { startDate: "", endDate: "" });
   const week = tools.timeRange("LAST_7");
   assert.match(week.startDate, /^\d{4}-\d{2}-\d{2}$/);
   assert.match(week.endDate, /^\d{4}-\d{2}-\d{2}$/);
   assert.ok(week.startDate <= week.endDate);
-  assert.ok(tools.STATUS_OPTIONS.some((item) => item.value === "CLOSED"));
+  assert.ok(!tools.STATUS_OPTIONS.some((item) => item.value === "CLOSED"));
   assert.ok(tools.VERIFICATION_TYPES.some((item) => item.value === "SUPPLEMENT"));
-  assert.ok(tools.RECHARGE_TYPES.some((item) => item.value === "VOID"));
+  assert.ok(!tools.RECHARGE_TYPES.some((item) => item.value === "VOID"));
   const row = tools.normalizeRecord({
     id: "9", recordCode: "R9", originalType: "REFUND", recordStatus: "APPROVED",
     customerName: "测试", birthDate: "2020-01-02", submittedAt: "2026-08-25T00:00:00.000Z"
@@ -187,4 +194,14 @@ test("shared query helpers preserve Shanghai business ranges and historical audi
   assert.equal(completedVerification.statusLabel, "已完成");
   assert.equal(reviewedSupplement.statusLabel, "审核通过");
   assert.equal(tools.statusLabel("CLOSED"), "已关闭");
+  const purchase = tools.normalizeProductPurchaseRecord({
+    id: "12", purchase_code: "PP20260828000001", record_status: "APPROVED",
+    unit_count: 3, customer_name: "测试", birth_date: "2020-01-02",
+    store_name: "测试门店", product_name_snapshot: "面霜", teacher_name: "苗苗",
+    submitted_at: "2026-08-27T12:34:56.000Z"
+  });
+  assert.equal(purchase.recordCode, "PP20260828000001");
+  assert.equal(purchase.productName, "面霜");
+  assert.equal(purchase.unitCount, 3);
+  assert.equal(purchase.submittedAt, "2026-08-27 20:34");
 });

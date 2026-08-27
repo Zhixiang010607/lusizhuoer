@@ -20,6 +20,7 @@
       <view data-type="customer" bindtap="openQuery">客户查询</view>
       <view data-type="recharge" bindtap="openQuery">充值查询</view>
       <view data-type="verification" bindtap="openQuery">核销查询</view>
+      <view wx:if="{{session.role === 'hq'}}" data-type="product" bindtap="openQuery">产品查询</view>
     </view>
   </view>
   <view wx:if="{{managementMenuOpen && session.role === 'hq'}}" class="business-popover management-popover" catchtap="noop">

@@ -11,6 +11,7 @@
   <view data-route="/pages/customers/index" bindtap="go">客户查询</view>
   <view data-route="/pages/records/index?type=recharge" bindtap="go">充值查询</view>
   <view data-route="/pages/records/index?type=verification" bindtap="go">核销查询</view>
+  <view data-route="/pages/records/index?type=product" bindtap="go">产品查询</view>
 </view>
 <view wx:if="{{open === 'management'}}" class="rail-popover" catchtap="noop">
   <view data-route="/pages/product-management/index" bindtap="go">项目管理</view>

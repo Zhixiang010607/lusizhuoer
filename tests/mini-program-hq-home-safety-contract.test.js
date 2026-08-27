@@ -46,13 +46,13 @@ function loadHome(callStaff) {
   });
 }
 
-test("HQ future quarter uses its complete natural quarter under a fixed Shanghai clock", () => {
+test("HQ time periods exactly reuse the store and teacher range menu", () => {
   const originalNow = Date.now;
   Date.now = () => Date.parse("2026-08-25T03:00:00.000Z");
   try {
-    assert.deepEqual(dashboard.hqRange("Q2"), { startDate: "2026-04-01", endDate: "2026-06-30" });
-    assert.deepEqual(dashboard.hqRange("Q3"), { startDate: "2026-07-01", endDate: "2026-08-25" });
-    assert.deepEqual(dashboard.hqRange("Q4"), { startDate: "2026-10-01", endDate: "2026-12-31" });
+    assert.deepEqual(dashboard.HQ_PERIOD_OPTIONS, dashboard.RANGE_OPTIONS);
+    assert.deepEqual(dashboard.hqRange("QUARTER"), { startDate: "2026-07-01", endDate: "2026-08-25" });
+    assert.deepEqual(dashboard.hqRange("ALL"), { startDate: "", endDate: "" });
   } finally {
     Date.now = originalNow;
   }
@@ -66,7 +66,7 @@ test("HQ overview and ranking clear stale scope data before requests and keep it
     return payload.mode === "overview" ? overview.promise : ranking.promise;
   });
   Object.assign(page.data, {
-    session: { role: "hq" }, hqPeriod: "LAST_30", hqDimension: "store",
+    session: { role: "hq" }, hqPeriod: "MONTH", hqDimension: "store",
     hqMetrics: [{ label: "旧指标" }], hqCharts: [{ title: "旧图表" }], hqLoadedAt: "12:34:56",
     hqScopeDetailText: "旧范围", hqRanking: [{ entityId: "OLD" }],
     hqRankingPage: { page: 9, total: 900, totalPages: 9 }, hqRankingInput: "9", hqRankingScrollLeft: 640
@@ -100,7 +100,7 @@ test("HQ ranking resets horizontal position for page and retry requests and reje
     return active.promise;
   });
   Object.assign(page.data, {
-    session: { role: "hq" }, hqPeriod: "LAST_30", hqDimension: "store",
+    session: { role: "hq" }, hqPeriod: "MONTH", hqDimension: "store",
     hqRanking: [{ entityId: "OLD" }], hqRankingPage: { page: 1, total: 300, totalPages: 3 },
     hqRankingInput: "4", hqRankingScrollLeft: 0
   });

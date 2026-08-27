@@ -43,10 +43,16 @@ const productSummarySql = functionSource(cloud, "hqDashboardProductSummarySql");
 const productSummary = functionSource(cloud, "getHqDashboardProductSummary");
 const dispatcher = functionSource(cloud, "getHqDashboard");
 const rankingProjection = functionSource(cloud, "hqDashboardRankingProjection");
+const dateRange = functionSource(cloud, "dashboardDateRange");
+const dateSql = functionSource(cloud, "hqDashboardDateSql");
 
-assert.match(cloud, /const FUNCTION_VERSION = "v77"/, "large-data dashboard deployment must identify as v77");
+assert.match(cloud, /const FUNCTION_VERSION = "v78"/, "large-data dashboard deployment must identify as v78");
 assert.match(cloud, /const HQ_DASHBOARD_CHART_LIMIT = 10/, "overview charts must be strictly bounded");
 assert.match(cloud, /const HQ_DASHBOARD_MAX_PAGE_SIZE = 500/, "ranking page size must have a server maximum");
+assert.match(dateRange, /event\.allTime === true[\s\S]*return \{ allTime: true \}/,
+  "explicit all-time requests must bypass only the ordinary 366-day custom-range boundary");
+assert.match(dateSql, /MIN\(\(submitted_at AT TIME ZONE 'Asia\/Shanghai'\)::date\)[\s\S]*CURRENT_TIMESTAMP AT TIME ZONE 'Asia\/Shanghai'/,
+  "all-time range must start at the first approved business day in the Shanghai calendar");
 assert.doesNotMatch(cloud, /getHqDashboardLegacyFullPayload/, "the unsafe full-payload dashboard query must not remain callable or retained");
 assert.match(dispatcher, /mode === "ranking"[\s\S]*getHqDashboardRanking[\s\S]*getHqDashboardOverview/,
   "dashboard dispatcher must split overview and ranking responses");

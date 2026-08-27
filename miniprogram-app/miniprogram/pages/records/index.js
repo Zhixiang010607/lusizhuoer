@@ -35,13 +35,22 @@ Page({
   },
 
   async onLoad(options) {
+    const requestedType = String(options.type || "recharge").toLowerCase();
+    const recordType = requestedType === "verification"
+      ? "VERIFICATION"
+      : requestedType === "product"
+        ? "PRODUCT_PURCHASE"
+        : "RECHARGE";
     const session = requireSession(["hq", "store"]);
     if (!session) return;
-    const recordType = String(options.type || "recharge").toLowerCase() === "verification" ? "VERIFICATION" : "RECHARGE";
+    if (recordType === "PRODUCT_PURCHASE" && session.role !== "hq") {
+      wx.reLaunch({ url: "/pages/home/index" });
+      return;
+    }
     const typeOptions = recordType === "VERIFICATION" ? query.VERIFICATION_TYPES : query.RECHARGE_TYPES;
     const entryFilters = dashboardFilters(options, typeOptions);
     this.setData({
-      session, recordType, noun: recordType === "VERIFICATION" ? "核销" : "充值",
+      session, recordType, noun: recordType === "VERIFICATION" ? "核销" : recordType === "PRODUCT_PURCHASE" ? "产品" : "充值",
       typeLabels: labels(typeOptions), typeValues: values(typeOptions), ...entryFilters
     });
     wx.setNavigationBarTitle({ title: "露思卓儿" });
@@ -92,10 +101,25 @@ Page({
     payload.productId = this.data.productIndex > 0 ? this.data.products[this.data.productIndex - 1]?.productId || "ALL" : "ALL";
     payload.statusCategory = this.data.statusValues[this.data.statusIndex] || "ALL";
     if (this.data.recordType === "VERIFICATION") payload.verificationType = this.data.typeValues[this.data.typeIndex] || "ALL";
-    else payload.rechargeType = this.data.typeValues[this.data.typeIndex] || "ALL";
+    else if (this.data.recordType === "RECHARGE") payload.rechargeType = this.data.typeValues[this.data.typeIndex] || "ALL";
     payload.startDate = this.data.startDate;
     payload.endDate = this.data.endDate;
     return payload;
+  },
+
+  async requestRecords(payload) {
+    if (this.data.recordType !== "PRODUCT_PURCHASE") return callFace("queryStoreBusinessRecords", payload);
+    return callStaff("listRetailProductPurchaseReviews", {
+      storeId: payload.storeId || "",
+      retailProductId: payload.productId && payload.productId !== "ALL" ? payload.productId : "",
+      status: payload.statusCategory && payload.statusCategory !== "ALL" ? payload.statusCategory : "",
+      customerName: payload.customerName || "",
+      birthDate: payload.birthDate || "",
+      startDate: payload.startDate || "",
+      endDate: payload.endDate || "",
+      limit: payload.pageSize,
+      pageNumber: payload.page
+    });
   },
 
   async load(page = 1) {
@@ -106,20 +130,25 @@ Page({
     const noun = this.data.noun;
     this.setData({ loading: true, message: "", error: false, tableScrollLeft: 0 });
     try {
-      const result = await callFace("queryStoreBusinessRecords", payload);
+      const result = await this.requestRecords(payload);
       if (epoch !== this._requestEpoch) return;
       const products = (result.products || []).map((product) => ({
-        productId: String(product.productId || ""),
-        label: [product.productName || "未命名项目", product.productCode || ""].filter(Boolean).join(" · ")
+        productId: String(product.productId || product.retail_product_id || product.id || ""),
+        label: [
+          product.productName || product.product_name || "未命名产品",
+          product.productCode || product.product_code || "",
+          String(product.productStatus || product.product_status || "").toUpperCase() === "ARCHIVED" ? "（已封存）" : ""
+        ].filter(Boolean).join(" · ")
       }));
       const selectedProductId = this.data.productIndex > 0 ? this.data.products[this.data.productIndex - 1]?.productId : "";
       const nextProductIndex = selectedProductId ? Math.max(0, products.findIndex((item) => item.productId === selectedProductId) + 1) : 0;
       const totalPages = Math.max(1, Number(result.totalPages || 1));
-      const actualPage = Math.min(totalPages, Math.max(1, Number(result.page || page)));
+      const actualPage = Math.min(totalPages, Math.max(1, Number(result.page || result.pageNumber || page)));
       this.setData({
-        records: (result.records || []).map((item) => query.normalizeRecord(item, recordType)),
+        records: (recordType === "PRODUCT_PURCHASE" ? result.orders || [] : result.records || [])
+          .map((item) => recordType === "PRODUCT_PURCHASE" ? query.normalizeProductPurchaseRecord(item) : query.normalizeRecord(item, recordType)),
         summary: result.summary || { ...EMPTY_SUMMARY },
-        products, productLabels: ["全部项目", ...products.map((product) => product.label)], productIndex: nextProductIndex,
+        products, productLabels: [recordType === "PRODUCT_PURCHASE" ? "全部产品" : "全部项目", ...products.map((product) => product.label)], productIndex: nextProductIndex,
         page: actualPage, pageJump: String(actualPage), total: Number(result.total || 0), totalPages
       }, () => this.resetTableScroll());
     } catch (error) {
@@ -188,6 +217,10 @@ Page({
     const id = String(event.currentTarget.dataset.id || "");
     const code = String(event.currentTarget.dataset.code || "");
     const originalType = String(event.currentTarget.dataset.category || "").toUpperCase();
+    if (this.data.recordType === "PRODUCT_PURCHASE") {
+      if (id) wx.navigateTo({ url: `/pages/product-purchase-detail/index?recordId=${encodeURIComponent(id)}&recordCode=${encodeURIComponent(code)}` });
+      return;
+    }
     const category = this.data.recordType === "RECHARGE"
       ? (originalType === "REFUND" ? "REFUND" : originalType === "VOID" ? "VOID" : "RECHARGE")
       : (originalType === "EXPERIENCE" ? "EXPERIENCE" : originalType === "SUPPLEMENT" ? "SUPPLEMENT" : "VERIFICATION");

@@ -16,7 +16,7 @@ test("HQ home exposes the complete web mobile rail and isolated ranking interact
   const wxss = read("pages", "home", "index.wxss");
   const webIndex = fs.readFileSync(path.join(root, "index.html"), "utf8");
 
-  for (const label of ["客户查询", "充值查询", "核销查询", "项目管理", "产品管理", "门店管理", "老师管理", "充值审核", "产品购买审核"]) {
+  for (const label of ["客户查询", "充值查询", "核销查询", "产品查询", "项目管理", "产品管理", "门店管理", "老师管理", "充值审核", "产品购买审核"]) {
     assert.match(wxml, new RegExp(label), `HQ mobile rail is missing ${label}`);
   }
   assert.doesNotMatch(wxml, /核销审核/, "normal and experience verification never enter a headquarters review queue");
@@ -67,7 +67,11 @@ test("HQ home exposes the complete web mobile rail and isolated ranking interact
   assert.match(js, /resetHqRange\(\)[\s\S]*hqPeriod:\s*"TODAY"[\s\S]*hqDimension:\s*"store"[\s\S]*hqProductId:\s*""[\s\S]*hqRankingMetric:\s*"recharge"/,
     "HQ reset must restore today, store, all products, and recharge");
   assert.equal(dashboard.HQ_PERIOD_OPTIONS[0].value, "TODAY");
+  assert.deepEqual(dashboard.HQ_PERIOD_OPTIONS, dashboard.RANGE_OPTIONS,
+    "HQ must use the same today/week/month/quarter/year/all/custom dropdown as store and teacher");
   assert.deepEqual(dashboard.hqRange("TODAY"), { startDate: dashboard.today(), endDate: dashboard.today() });
+  assert.match(js, /period === "ALL"[\s\S]*\{ allTime: true \}/,
+    "HQ all-time selection must use the dedicated server contract rather than a fake one-year range");
   assert.match(wxml, /class="hq-dimension-tabs"/);
   assert.match(wxml, /class="hq-ranking-list"/);
   assert.match(wxml, /项目汇总/);

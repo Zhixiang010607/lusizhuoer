@@ -100,6 +100,15 @@ function mapRetailProductSummary(rows) {
     purchasedCount: Number(row.purchasedCount || 0), giftedCount: Number(row.giftedCount || 0)
   }));
 }
+function retailSummaryView(rows) {
+  const retailProductSummary = mapRetailProductSummary(rows);
+  const visibleRows = Math.min(5, retailProductSummary.length);
+  return {
+    retailProductSummary,
+    retailSummaryScrollable: retailProductSummary.length > 5,
+    retailSummaryViewportHeight: 68 + visibleRows * 76
+  };
+}
 function mapMessages(rows) {
   return (Array.isArray(rows) ? rows : []).map((row) => ({
     ...row,
@@ -117,6 +126,7 @@ Page({
   data: {
     session: {}, canManageStatus: false, canEditNotes: false,
     customerCode: "", profile: null, balances: [], retailProductSummary: [],
+    retailSummaryScrollable: false, retailSummaryViewportHeight: 68,
     recharges: [], refunds: [], verifications: [], experiences: [], productPurchases: [],
     historyType: "RECHARGE", visibleHistory: [], historyHasMore: false, historyScrollLeft: 0,
     historyLoading: false, historyMessage: "", historyError: false,
@@ -163,7 +173,8 @@ Page({
     this._historyState = freshHistoryState();
     this.setData({
       loading: true, message: "", error: false,
-      profile: null, balances: [], retailProductSummary: [], recharges: [], refunds: [], verifications: [], experiences: [], productPurchases: [],
+      profile: null, balances: [], retailProductSummary: [], retailSummaryScrollable: false, retailSummaryViewportHeight: 68,
+      recharges: [], refunds: [], verifications: [], experiences: [], productPurchases: [],
       visibleHistory: [], historyHasMore: false, historyLoading: false, historyScrollLeft: 0,
       historyMessage: "", historyError: false,
       notesEditing: false, notesChanged: false, notesMessage: "", notesError: false,
@@ -191,7 +202,7 @@ Page({
       this.setData({
         profile,
         balances: mapBalances(result.balances),
-        retailProductSummary: mapRetailProductSummary(result.retailProductSummary),
+        ...retailSummaryView(result.retailProductSummary),
         recharges: mapHistory(result.recharges, "RECHARGE"),
         refunds: mapHistory(result.refunds, "REFUND"),
         verifications: mapHistory(result.verifications, "VERIFICATION"),
