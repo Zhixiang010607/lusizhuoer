@@ -116,6 +116,14 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
   }
   assert.match(wxml, /class="workspace-rail"[^>]*scroll-x/);
   assert.match(wxml, /class="table-scroll summary-scroll"[^>]*scroll-x/);
+  assert.match(wxml, /<view class="detail-anchor-nav"><view class="anchor-inner">/,
+    "the four store anchors must use a content-height view instead of a real-device default-height scroll-view");
+  assert.doesNotMatch(wxml, /<scroll-view class="detail-anchor-nav"/,
+    "the store anchor bar must not inherit WeChat scroll-view's device-only default height");
+  assert.match(wxml, /class="table-scroll summary-scroll" style="height: \{\{summaryRows\.length \? 76 \+ summaryRows\.length \* 94 : 186\}\}rpx;"/,
+    "the store/teacher project summary viewport must grow and shrink with its actual row count");
+  assert.match(wxml, /class="table-scroll summary-scroll" style="height: \{\{76 \+ \(hqProjectSummaryRows\.length \+ 1\) \* 94 \+ \(!hqProjectSummaryRows\.length \? 110 : 0\)\}\}rpx;"/,
+    "the HQ project summary viewport must also use a data-driven real-device height");
   assert.match(wxml, /session\.role === 'teacher'/);
   assert.match(wxml, /session\.role === 'store'/);
   assert.match(wxml, /session\.role === 'hq'/);
@@ -127,12 +135,18 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
   assert.match(wxss, /\.range-button\.active\s*\{[^}]*background:\s*#fffaf3[^}]*border-color:\s*#d9bd8c/s);
   assert.doesNotMatch(wxss, /\.range-presets\s*\{[^}]*background:\s*#edf2f8/s);
   assert.match(wxss, /\.summary-table\s*\{\s*width:\s*100%;\s*min-width:\s*620rpx;/);
+  assert.match(wxss, /\.detail-anchor-nav\s*\{[^}]*height:\s*84rpx;[^}]*overflow:\s*hidden/s);
+  assert.match(wxss, /\.anchor-inner\s*\{[^}]*width:\s*100%;[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/s);
+  assert.match(wxss, /\.anchor-inner text\s*\{[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*font-size:\s*23rpx/s);
+  assert.match(wxss, /\.summary-scroll\s*\{[^}]*box-sizing:\s*border-box/s);
   assert.match(wxss, /\.record-table\s*\{\s*width:\s*100%;\s*min-width:\s*1050rpx;/);
   assert.match(wxss, /\.customer-table\s*\{\s*width:\s*100%;\s*min-width:\s*620rpx;/,
     "the five-column customer table must fit the standard card before horizontal scrolling is needed");
   assert.doesNotMatch(wxss, /\.customer-table\s*\{[^}]*min-width:\s*700rpx/s,
     "a fixed 700rpx minimum creates a meaningless sliver of horizontal scrolling on standard phones");
   assert.match(wxss, /\.summary-table \.table-row\s*\{[^}]*minmax\(180rpx,\s*1\.6fr\)[^}]*repeat\(4,\s*minmax\(100rpx,\s*1fr\)\)/s);
+  assert.match(wxss, /\.summary-table \.table-row\s*\{[^}]*height:\s*94rpx;[^}]*min-height:\s*94rpx/s);
+  assert.match(wxss, /\.summary-table \.table-head\s*\{[^}]*height:\s*72rpx;[^}]*min-height:\s*72rpx/s);
   assert.match(wxss, /\.table-row > view\s*\{[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
   assert.match(wxss, /\.detail-info-item text\s*\{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s,
     "profile facts must not split identifiers and phone numbers across lines");

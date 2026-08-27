@@ -63,9 +63,9 @@
 .profile-title-row > text:first-child { min-width: 0; overflow: hidden; font-size: 32rpx; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
 .store-status-badge { flex: none; padding: 5rpx 11rpx; color: #087157; background: #ddf7ee; border-radius: 999rpx; font-size: 18rpx; font-weight: 800; }
 .profile-copy > text:last-child { min-width: 0; overflow: hidden; color: #7c7062; font-size: 21rpx; text-overflow: ellipsis; white-space: nowrap; }
-.detail-anchor-nav { position: sticky; top: 8rpx; z-index: 10; width: 100%; margin-bottom: 28rpx; padding: 18rpx; border: 1rpx solid #dfcfb4; border-radius: 24rpx; background: rgba(255,250,243,.94); box-shadow: 0 20rpx 60rpx rgba(93,72,39,.08); white-space: nowrap; }
-.anchor-inner { display: inline-flex; gap: 10rpx; }
-.anchor-inner text { padding: 13rpx 20rpx; color: #675b4b; border-radius: 14rpx; font-size: 21rpx; font-weight: 800; }
+.detail-anchor-nav { position: sticky; top: 8rpx; z-index: 10; width: 100%; height: 84rpx; margin-bottom: 28rpx; padding: 8rpx; overflow: hidden; border: 1rpx solid #dfcfb4; border-radius: 24rpx; background: rgba(255,250,243,.94); box-shadow: 0 20rpx 60rpx rgba(93,72,39,.08); }
+.anchor-inner { width: 100%; height: 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4rpx; }
+.anchor-inner text { min-width: 0; height: 100%; display: flex; align-items: center; justify-content: center; padding: 0 4rpx; overflow: hidden; color: #675b4b; border-radius: 14rpx; font-size: 23rpx; font-weight: 800; line-height: 1; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .anchor-inner text:active { color: #fffdf8; background: #74592d; }
 .overview-panel .panel-heading { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16rpx; }
 .overview-panel .web-badge { justify-self: start; }
@@ -77,18 +77,20 @@
 .date-picker, .filter-picker { min-height: 64rpx; display: flex; align-items: center; padding: 0 16rpx; color: #302a22; background: #fff; border: 1rpx solid #dcc8a6; border-radius: 14rpx; font-size: 21rpx; }
 .custom-range button { grid-column: 1 / -1; min-height: 78rpx; display: flex; align-items: center; justify-content: center; color: #fffdf8; background: #6f532e; border-radius: 12rpx; font-size: 23rpx; font-weight: 800; line-height: 1; white-space: nowrap; }
 .table-scroll { max-width: 100%; overflow-x: auto; overflow-y: hidden; border: 1rpx solid #dfcfb4; border-radius: 24rpx; }
+.summary-scroll { box-sizing: border-box; }
 .summary-table { width: 100%; min-width: 620rpx; }
 .record-table { width: 100%; min-width: 1050rpx; }
 .customer-table { width: 100%; min-width: 620rpx; }
 .table-row { display: grid; min-height: 82rpx; border-bottom: 1rpx solid #eadfce; }
 .table-row:last-child { border-bottom: 0; }
-.summary-table .table-row { grid-template-columns: minmax(180rpx, 1.6fr) repeat(4, minmax(100rpx, 1fr)); }
+.summary-table .table-row { height: 94rpx; min-height: 94rpx; grid-template-columns: minmax(180rpx, 1.6fr) repeat(4, minmax(100rpx, 1fr)); }
 .record-table .table-row { grid-template-columns: 210rpx 170rpx 150rpx 180rpx 100rpx 240rpx; }
 .customer-table .table-row { grid-template-columns: minmax(90rpx, .85fr) minmax(115rpx, 1.25fr) minmax(118rpx, 1.15fr) minmax(110rpx, 1fr) minmax(110rpx, 1fr); }
 .table-row > view { min-width: 0; display: flex; align-items: center; padding: 20rpx 22rpx; overflow: hidden; color: #554a3c; font-size: 22rpx; text-overflow: ellipsis; white-space: nowrap; }
 .customer-table .table-row > view { padding-right: 8rpx; padding-left: 8rpx; font-size: 19rpx; }
 .record-table .table-row > view, .customer-table .table-row > view { justify-content: center; text-align: center; }
 .table-head { min-height: 72rpx; background: #f5ead8; }
+.summary-table .table-head { height: 72rpx; min-height: 72rpx; }
 .table-head > view { color: #675b4b; font-size: 20rpx; font-weight: 800; }
 .summary-product { flex-direction: column; align-items: flex-start !important; justify-content: center; background: #fff7eb; }
 .summary-product text { display: block; }
@@ -101,6 +103,7 @@
 .summary-total > view { background: #f4e7d0; font-weight: 900; }
 .table-link { color: #8b642e !important; font-weight: 800; text-decoration: underline; }
 .table-empty { min-height: 110rpx; display: flex; align-items: center; justify-content: center; padding: 28rpx; color: #7c7062; text-align: center; }
+.summary-table .table-empty { height: 110rpx; min-height: 110rpx; }
 .record-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16rpx; margin: 20rpx 0 22rpx; padding: 14rpx; border-radius: 20rpx; background: #eee4d6; }
 .record-tab { min-width: 0; min-height: 108rpx; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5rpx; margin: 0; padding: 12rpx; color: #796d5e; background: transparent; border-radius: 14rpx; }
 .record-tab text:first-child { font-size: 24rpx; font-weight: 850; }

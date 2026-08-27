@@ -78,7 +78,7 @@
           <view wx:for="{{profileFacts}}" wx:key="label" class="detail-info-item"><text>{{item.label}}</text><text>{{item.value}}</text></view>
         </view>
       </view>
-      <scroll-view class="detail-anchor-nav" scroll-x enhanced show-scrollbar="false"><view class="anchor-inner"><text role="button" data-target="#business-summary" bindtap="jumpToSection">业务汇总</text><text role="button" data-target="#business-records" bindtap="jumpToSection">业务明细</text><text role="button" data-target="#active-customers" bindtap="jumpToSection">活跃用户</text><text role="button" data-target="#archived-customers" bindtap="jumpToSection">封存用户</text></view></scroll-view>
+      <view class="detail-anchor-nav"><view class="anchor-inner"><text role="button" data-target="#business-summary" bindtap="jumpToSection">业务汇总</text><text role="button" data-target="#business-records" bindtap="jumpToSection">业务明细</text><text role="button" data-target="#active-customers" bindtap="jumpToSection">活跃用户</text><text role="button" data-target="#archived-customers" bindtap="jumpToSection">封存用户</text></view></view>
     </block>
 
     <block wx:if="{{session.role !== 'hq'}}">
@@ -92,7 +92,7 @@
           <label><text>结束日期</text><picker mode="date" value="{{rangeEnd}}" bindchange="changeRangeEnd"><view class="date-picker">{{rangeEnd || '请选择'}}</view></picker></label>
           <button bindtap="applyCustomRange">应用时间</button>
         </view>
-        <scroll-view class="table-scroll summary-scroll" scroll-x enhanced show-scrollbar="false" scroll-left="{{summaryScrollLeft}}" bindscroll="rememberSummaryScroll">
+        <scroll-view class="table-scroll summary-scroll" style="height: {{summaryRows.length ? 76 + summaryRows.length * 94 : 186}}rpx;" scroll-x enhanced show-scrollbar="false" scroll-left="{{summaryScrollLeft}}" bindscroll="rememberSummaryScroll">
           <view class="summary-table">
             <view class="table-row table-head"><view class="summary-product">项目</view><view>核销</view><view>充值</view><view>体验</view><view>退费</view></view>
             <view wx:for="{{summaryRows}}" wx:key="productId" class="table-row {{item.total ? 'summary-total' : ''}}">
@@ -163,7 +163,7 @@
 
       <view class="web-panel hq-project-summary-panel">
         <view class="panel-heading"><view><text class="panel-title">项目汇总</text><text class="hq-ranking-rule">当前时间范围内的全部项目，按项目名称排列</text></view><text class="web-badge">共 {{hqProjectSummaryPage.total}} 个项目</text></view>
-        <scroll-view class="table-scroll summary-scroll" scroll-x enhanced show-scrollbar="false">
+        <scroll-view class="table-scroll summary-scroll" style="height: {{76 + (hqProjectSummaryRows.length + 1) * 94 + (!hqProjectSummaryRows.length ? 110 : 0)}}rpx;" scroll-x enhanced show-scrollbar="false">
           <view class="summary-table">
             <view class="table-row table-head"><view class="summary-product">项目</view><view>核销</view><view>充值</view><view>体验</view><view>退费</view></view>
             <view wx:for="{{hqProjectSummaryRows}}" wx:key="productId" class="table-row">
