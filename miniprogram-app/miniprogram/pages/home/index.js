@@ -48,7 +48,7 @@ function quotaRows(items = []) {
 function customerView(group) {
   const rows = Array.isArray(group?.rows) ? group.rows : [];
   const visibleRows = Math.min(5, Math.max(1, rows.length));
-  return { ...group, ...pageView(group), viewportHeight: 72 + visibleRows * 82 };
+  return { ...group, ...pageView(group), viewportHeight: 72 + visibleRows * 82, tabletVisibleRows: Math.min(5, rows.length) };
 }
 function businessRecordsView(items, type) {
   const businessRecords = dashboard.records(items, type);
@@ -56,6 +56,7 @@ function businessRecordsView(items, type) {
   return {
     businessRecords,
     businessViewportHeight: 72 + (visibleRows ? visibleRows * 82 : 110),
+    businessTabletVisibleRows: visibleRows,
     businessScrollable: businessRecords.length > 5
   };
 }

@@ -67,3 +67,45 @@ button::after { border: 0; }
 .action .action-note { display: none; }
 .section-note { margin: -6rpx 0 18rpx; color: var(--muted); font-size: 23rpx; line-height: 1.5; }
 .safe-bottom { height: env(safe-area-inset-bottom); }
+
+/*
+ * Tablets need a real layout breakpoint.  rpx intentionally follows the
+ * viewport width, which is useful on phones but makes controls and type grow
+ * to desktop-like sizes on an iPad.  Keep the phone rules above intact and
+ * cap the shared component geometry in physical pixels on wider screens.
+ */
+@media (min-width: 700px) {
+  page { --shadow: 0 8px 24px rgba(93, 72, 39, .08); font-size: 16px; }
+  page .page { width: calc(100% - 48px); max-width: 1120px; margin: 0 auto; padding: 20px 0 36px; }
+  page .page-heading { margin-bottom: 16px; padding: 16px 20px; border-radius: 16px; }
+  page .page-heading .title { font-size: 26px; }
+  page .card { margin-bottom: 16px; padding: 20px; border-width: 1px; border-radius: 20px; box-shadow: var(--shadow); }
+  page .card-title { gap: 12px; margin-bottom: 14px; }
+  page .card-title text:first-child { font-size: 22px; }
+  page .badge { padding: 5px 10px; font-size: 13px; }
+  page .field { margin-bottom: 16px; }
+  page .field-label { margin-bottom: 7px; font-size: 15px; }
+  page .input, page .picker, page .textarea { min-height: 48px; padding-right: 16px; padding-left: 16px; border-width: 1px; border-radius: 12px; font-size: 16px; }
+  page .textarea { min-height: 120px; padding-top: 14px; }
+  page .primary, page .secondary, page .danger, page .ghost { min-height: 48px; padding: 0 18px; border-width: 1px; border-radius: 12px; font-size: 16px; }
+  page .button-row { gap: 12px; }
+  page .button-row button { min-width: 0; }
+  page .message { margin-top: 12px; padding: 12px 14px; border-radius: 10px; font-size: 14px; }
+  page .empty { padding: 28px 16px; }
+  page .list-item { gap: 14px; padding: 14px 0; border-width: 1px; }
+  page .list-main .name { font-size: 18px; }
+  page .list-main .meta { margin-top: 5px; font-size: 14px; }
+  page .chevron { font-size: 24px; }
+  page .segmented { gap: 6px; padding: 6px; border-radius: 14px; }
+  page .segmented button { min-height: 44px; border-radius: 10px; font-size: 15px; }
+  page .photo { height: 360px; border-radius: 16px; }
+  page .photo-small { width: 88px; height: 106px; border-radius: 12px; }
+  page .facts { gap: 10px; }
+  page .fact { padding: 14px; border-width: 1px; border-radius: 12px; }
+  page .fact .label { font-size: 14px; }
+  page .fact .value { margin-top: 6px; font-size: 16px; }
+  page .action-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  page .action { min-height: 78px; padding: 14px; border-width: 1px; border-top-width: 4px; border-radius: 14px; }
+  page .action .action-title { font-size: 17px; }
+  page .section-note { margin: -4px 0 14px; font-size: 14px; }
+}

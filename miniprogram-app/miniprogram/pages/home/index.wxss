@@ -184,3 +184,138 @@
   .web-panel { padding: 20rpx; }
   .topbar-subtitle { max-width: 500rpx; }
 }
+
+/* Wide mini-program windows use capped tablet geometry instead of scaled rpx. */
+@media (min-width: 700px) {
+  .workspace-page { font-size: 16px; }
+  .workspace-rail { height: 64px; }
+  .rail-inner { max-width: 1120px; height: 64px; gap: 8px; margin: 0 auto; padding: 8px 20px; }
+  .rail-current, .rail-link { width: 48px; height: 48px; border-radius: 12px; font-size: 14px; }
+  .rail-icon { width: 34px; height: 34px; border-radius: 10px; font-size: 14px; }
+  .rail-current { box-shadow: 0 5px 14px rgba(59,42,18,.28); }
+  .rail-logout { box-shadow: -12px 0 18px #2f2921; }
+  .menu-backdrop { inset: 64px 0 0; }
+  .business-popover { top: 64px; right: 24px; left: auto; width: 360px; max-width: calc(100vw - 48px); max-height: calc(100vh - 84px); padding: 14px; border-width: 1px; border-radius: 16px; box-shadow: 0 18px 48px rgba(47,41,33,.4); }
+  .popover-grid { gap: 6px; }
+  .popover-grid view { min-height: 46px; padding: 0 16px; border-radius: 10px; font-size: 15px; }
+  .workspace-topbar { min-height: 70px; padding: 14px 24px; }
+  .topbar-title { font-size: 28px; }
+  .topbar-role { margin-top: 3px; font-size: 14px; }
+  .hq-page-title { font-size: 24px; }
+  .workspace-main, .role-teacher .workspace-main { width: calc(100% - 48px); max-width: 1120px; margin: 20px auto 0; }
+  .web-panel { margin-bottom: 16px; padding: 20px; border-width: 1px; border-radius: 20px; box-shadow: 0 8px 24px rgba(120,91,43,.08); }
+  .panel-heading { gap: 12px; margin-bottom: 14px; }
+  .panel-title { font-size: 22px; }
+  .panel-note { margin-top: 5px; font-size: 14px; }
+  .web-badge { padding: 5px 10px; font-size: 13px; }
+  .form-message { margin-bottom: 14px; padding: 12px 14px; border-radius: 10px; font-size: 14px; }
+
+  .role-store .workspace-main { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 16px; }
+  .role-store .workspace-main > .web-panel { margin-bottom: 0; }
+  .role-store .workspace-main > .form-message,
+  .role-store .workspace-main > .detail-anchor-nav,
+  .role-store .workspace-main > .overview-panel,
+  .role-store .workspace-main > .business-panel,
+  .role-store .workspace-main > .customer-panel,
+  .role-store .workspace-main > .safe-bottom { grid-column: 1 / -1; }
+  .role-store .profile-hero, .role-store .store-contact-panel { height: 100%; }
+
+  .detail-info-grid { gap: 1px; border-width: 1px; border-radius: 16px; }
+  .detail-info-item { min-height: 92px; padding: 18px; }
+  .detail-info-item text:first-child { margin-bottom: 8px; font-size: 13px; }
+  .detail-info-item text:last-child { font-size: 17px; }
+  .store-profile-facts { gap: 10px; }
+  .store-profile-facts .detail-info-item { min-height: 82px; padding: 14px; border-width: 1px; border-radius: 14px; }
+  .store-profile-facts .detail-info-item text:first-child { margin-bottom: 6px; font-size: 13px; }
+  .store-profile-facts .detail-info-item text:last-child { font-size: 16px; }
+  .teacher-profile-row .detail-info-item { min-height: 68px; padding: 10px 8px; }
+  .teacher-profile-row .detail-info-item text:first-child { margin-bottom: 5px; font-size: 12px; }
+  .teacher-profile-row .detail-info-item text:last-child { font-size: 16px; }
+  .teacher-quota-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .teacher-quota-card { min-height: 82px; grid-template-columns: minmax(0, 1.7fr) repeat(3, minmax(72px, .72fr)); gap: 1px; border-width: 1px; border-radius: 14px; }
+  .quota-identity { padding: 10px 12px; font-size: 15px; }
+  .quota-metric { padding: 8px 4px; }
+  .quota-metric text:first-child { font-size: 11px; }
+  .quota-metric text:last-child { margin-top: 4px; font-size: 14px; }
+  .quota-available text:last-child { font-size: 17px; }
+  .profile-hero { gap: 18px; padding: 20px; }
+  .profile-avatar { width: 64px; height: 64px; border-radius: 16px; font-size: 24px; }
+  .profile-copy .profile-type { font-size: 13px; }
+  .profile-title-row { gap: 8px; margin: 3px 0; }
+  .profile-title-row > text:first-child { font-size: 23px; }
+  .store-status-badge { padding: 4px 8px; font-size: 12px; }
+  .profile-copy > text:last-child { font-size: 14px; }
+
+  .detail-anchor-nav { top: 8px; height: 58px; margin-bottom: 0; padding: 6px; border-width: 1px; border-radius: 16px; box-shadow: 0 10px 30px rgba(93,72,39,.08); }
+  .anchor-inner { gap: 6px; }
+  .anchor-inner text { padding: 0 8px; border-radius: 10px; font-size: 15px; }
+  .overview-panel .panel-heading { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
+  .overview-panel .web-badge { justify-self: end; }
+  .range-presets { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; margin: 18px 0; padding: 8px; border-radius: 16px; }
+  .range-button { min-height: 48px; padding: 0 4px; border-width: 1px; border-radius: 11px; font-size: 14px; }
+  .range-button.active { box-shadow: 0 4px 12px rgba(93,72,39,.11); }
+  .custom-range { grid-template-columns: repeat(2, minmax(0, 1fr)) auto; gap: 12px; margin-bottom: 16px; padding: 16px; border-width: 1px; border-radius: 16px; }
+  .custom-range label > text, .hq-filter-grid label > text { margin-bottom: 6px; font-size: 13px; }
+  .date-picker, .filter-picker { min-height: 46px; padding: 0 14px; border-width: 1px; border-radius: 10px; font-size: 15px; }
+  .custom-range button { grid-column: auto; min-width: 130px; min-height: 46px; padding: 0 16px; border-radius: 10px; font-size: 15px; }
+
+  .table-scroll { border-width: 1px; border-radius: 16px; }
+  .summary-scroll { height: auto !important; }
+  .record-scroll-hint { margin: -4px 0 10px; font-size: 13px; }
+  .summary-table { min-width: 680px; }
+  .record-table { min-width: 920px; }
+  .customer-table { min-width: 700px; }
+  .table-row { min-height: 56px; border-bottom-width: 1px; }
+  .summary-table .table-row { height: 62px; min-height: 62px; grid-template-columns: minmax(190px, 1.6fr) repeat(4, minmax(92px, 1fr)); }
+  .record-table .table-row { grid-template-columns: 160px 130px 130px minmax(140px, 1fr) 72px 170px; }
+  .customer-table .table-row { grid-template-columns: minmax(100px, .9fr) minmax(130px, 1.2fr) minmax(120px, 1.05fr) minmax(110px, 1fr) minmax(110px, 1fr); }
+  .table-row > view { padding: 14px 16px; font-size: 14px; }
+  .customer-table .table-row > view { padding-right: 8px; padding-left: 8px; font-size: 14px; }
+  .table-head, .summary-table .table-head { height: 48px; min-height: 48px; }
+  .table-head > view { font-size: 14px; }
+  .summary-product text:last-child { margin-top: 3px; font-size: 12px; }
+  .metric-number { font-size: 18px; }
+  .metric-unit { margin-left: 4px; font-size: 12px; }
+  .table-empty, .summary-table .table-empty { min-height: 76px; height: 76px; padding: 18px; font-size: 14px; }
+  .record-scroll[data-visible-rows="0"], .customer-scroll[data-visible-rows="0"] { height: 124px !important; }
+  .record-scroll[data-visible-rows="1"], .customer-scroll[data-visible-rows="1"] { height: 104px !important; }
+  .record-scroll[data-visible-rows="2"], .customer-scroll[data-visible-rows="2"] { height: 160px !important; }
+  .record-scroll[data-visible-rows="3"], .customer-scroll[data-visible-rows="3"] { height: 216px !important; }
+  .record-scroll[data-visible-rows="4"], .customer-scroll[data-visible-rows="4"] { height: 272px !important; }
+  .record-scroll[data-visible-rows="5"], .customer-scroll[data-visible-rows="5"] { height: 328px !important; }
+
+  .record-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 16px 0 18px; padding: 8px; border-radius: 14px; }
+  .record-tab { min-height: 58px; gap: 3px; padding: 8px; border-radius: 10px; }
+  .record-tab text:first-child { font-size: 16px; }
+  .record-tab text:last-child { font-size: 12px; }
+  .table-pagination { gap: 10px; margin-top: 14px; font-size: 13px; }
+  .table-pagination button { min-width: 88px; min-height: 44px; padding: 0 14px; border-width: 1px; border-radius: 9px; font-size: 14px; }
+  .business-pagination, .hq-ranking-pagination { grid-template-columns: 96px minmax(0, 1fr) 96px; }
+  .business-page-jump, .ranking-page-jump { gap: 8px; }
+  .business-page-jump input, .ranking-page-jump input { width: 82px; height: 44px; padding: 0 8px; border-width: 1px; border-radius: 9px; font-size: 14px; }
+  .business-page-jump button, .ranking-page-jump button, .hq-ranking-pagination > button { min-width: 88px; }
+  .archived-section { border-color: #e1cfaf; background: #fffaf3; }
+  .archived-badge { color: #8f3a34; background: #fff0ee; }
+
+  .hq-filter-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; margin-bottom: 12px; }
+  .hq-custom-dates { gap: 10px; }
+  .hq-filter-actions { margin-top: 14px; padding-top: 14px; border-top-width: 1px; }
+  .hq-filter-actions button { min-width: 104px; min-height: 44px; padding: 0 14px; border-radius: 10px; font-size: 14px; }
+  .hq-control-label { margin-bottom: 6px; font-size: 13px; }
+  .hq-dimension-tabs { gap: 6px; margin-bottom: 12px; padding: 6px; border-radius: 14px; }
+  .hq-dimension-tabs button { min-height: 44px; padding: 0 6px; border-radius: 10px; font-size: 14px; }
+  .hq-product-filter { margin-bottom: 14px; }
+  .hq-ranking-rule { margin-top: 4px; font-size: 13px; }
+  .hq-ranking-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .hq-ranking-card { padding: 14px; border-width: 1px; border-radius: 14px; }
+  .hq-ranking-head { gap: 8px; margin-bottom: 10px; }
+  .hq-ranking-head text:first-child { font-size: 12px; }
+  .hq-ranking-head text:nth-child(2) { font-size: 16px; }
+  .hq-ranking-head text:last-child { font-size: 14px; }
+  .hq-ranking-metrics { gap: 4px; }
+  .hq-ranking-metrics text:first-child { font-size: 12px; }
+  .hq-ranking-metrics text:last-child { margin-top: 3px; font-size: 15px; }
+  .ranking-actions { gap: 10px; }
+  .ranking-actions button { min-height: 44px; padding: 0 14px; border-radius: 10px; font-size: 14px; }
+  .safe-bottom { height: calc(18px + env(safe-area-inset-bottom)); }
+}

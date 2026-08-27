@@ -113,7 +113,7 @@
           <button wx:for="{{businessTabs}}" wx:key="type" class="record-tab {{item.active ? 'active' : ''}}" data-type="{{item.type}}" bindtap="selectBusinessType"><text>{{item.label}}</text><text>{{item.total}} 次</text></button>
         </view>
         <text wx:if="{{businessScrollable}}" class="record-scroll-hint">超过 5 条，可在表格内上下滑动</text>
-        <scroll-view class="table-scroll record-scroll" scroll-x scroll-y="{{businessScrollable}}" enhanced show-scrollbar="{{businessScrollable}}" style="height: {{businessViewportHeight}}rpx" scroll-left="{{businessScrollLeft}}" bindscroll="rememberBusinessScroll">
+        <scroll-view class="table-scroll record-scroll" data-visible-rows="{{businessTabletVisibleRows}}" scroll-x scroll-y="{{businessScrollable}}" enhanced show-scrollbar="{{businessScrollable}}" style="height: {{businessViewportHeight}}rpx" scroll-left="{{businessScrollLeft}}" bindscroll="rememberBusinessScroll">
           <view class="record-table">
             <view class="table-row table-head"><view>单号</view><view>门店</view><view>客户</view><view>项目</view><view>次数</view><view>提交时间</view></view>
             <view wx:for="{{businessRecords}}" wx:key="id" class="table-row"><view class="table-link" data-id="{{item.id}}" data-code="{{item.recordCode}}" data-category="{{item.category}}" bindtap="openOrder">{{item.recordCode}}</view><view>{{item.storeName}}</view><view class="table-link" data-code="{{item.customerCode}}" bindtap="openCustomer">{{item.customerName}}</view><view>{{item.productName}}</view><view>{{item.unitCount}} 次</view><view>{{item.submittedAt}}</view></view>
@@ -125,7 +125,7 @@
 
       <view id="active-customers" class="web-panel customer-panel">
         <view class="panel-heading"><view><text class="panel-title">活跃用户</text><text class="panel-note">点击姓名可进入客户主页</text></view><text class="web-badge">{{activeCustomers.total}} 位用户</text></view>
-        <scroll-view class="table-scroll customer-scroll" scroll-x scroll-y enhanced show-scrollbar="false" style="height: {{activeCustomers.viewportHeight}}rpx" scroll-left="{{activeCustomerScrollLeft}}" data-status="ACTIVE" bindscroll="rememberCustomerScroll">
+        <scroll-view class="table-scroll customer-scroll" data-visible-rows="{{activeCustomers.tabletVisibleRows}}" scroll-x scroll-y enhanced show-scrollbar="false" style="height: {{activeCustomers.viewportHeight}}rpx" scroll-left="{{activeCustomerScrollLeft}}" data-status="ACTIVE" bindscroll="rememberCustomerScroll">
           <view class="customer-table">
             <view class="table-row table-head"><view>姓名</view><view>门店</view><view>生日</view><view>充值次数</view><view>核销次数</view></view>
             <view wx:for="{{activeCustomers.rows}}" wx:key="customerCode" class="table-row"><view class="table-link" data-code="{{item.customerCode}}" bindtap="openCustomer">{{item.customerName}}</view><view>{{item.storeName}}</view><view>{{item.birthDate}}</view><view>{{item.rechargeCount}} 次</view><view class="metric-number">{{item.verificationCount}} 次</view></view>
@@ -137,7 +137,7 @@
 
       <view id="archived-customers" class="web-panel customer-panel archived-section">
         <view class="panel-heading"><view><text class="panel-title">封存用户</text><text class="panel-note">封存客户仍保留历史关联；点击姓名可进入客户主页</text></view><text class="web-badge archived-badge">{{archivedCustomers.total}} 位用户</text></view>
-        <scroll-view class="table-scroll customer-scroll" scroll-x scroll-y enhanced show-scrollbar="false" style="height: {{archivedCustomers.viewportHeight}}rpx" scroll-left="{{archivedCustomerScrollLeft}}" data-status="ARCHIVED" bindscroll="rememberCustomerScroll">
+        <scroll-view class="table-scroll customer-scroll" data-visible-rows="{{archivedCustomers.tabletVisibleRows}}" scroll-x scroll-y enhanced show-scrollbar="false" style="height: {{archivedCustomers.viewportHeight}}rpx" scroll-left="{{archivedCustomerScrollLeft}}" data-status="ARCHIVED" bindscroll="rememberCustomerScroll">
           <view class="customer-table">
             <view class="table-row table-head"><view>姓名</view><view>门店</view><view>生日</view><view>充值次数</view><view>核销次数</view></view>
             <view wx:for="{{archivedCustomers.rows}}" wx:key="customerCode" class="table-row"><view class="table-link" data-code="{{item.customerCode}}" bindtap="openCustomer">{{item.customerName}}</view><view>{{item.storeName}}</view><view>{{item.birthDate}}</view><view>{{item.rechargeCount}} 次</view><view class="metric-number">{{item.verificationCount}} 次</view></view>
