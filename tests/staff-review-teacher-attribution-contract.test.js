@@ -26,8 +26,8 @@ function functionSource(source, name) {
   throw new Error(`function ${name} body is incomplete`);
 }
 
-assert.match(staff, /const FUNCTION_VERSION = "v75"/);
-assert.match(readme, /当前版本：`v75`/);
+assert.match(staff, /const FUNCTION_VERSION = "v76"/);
+assert.match(readme, /当前版本：`v76`/);
 
 const attribution = functionSource(staff, "reviewOrderTeacherAttributionCondition");
 assert.match(attribution, /attribution_submitter\.id = \$\{alias\}\.submitted_by_account_id/,

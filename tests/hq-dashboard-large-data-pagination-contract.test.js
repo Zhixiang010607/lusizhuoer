@@ -44,7 +44,7 @@ const productSummary = functionSource(cloud, "getHqDashboardProductSummary");
 const dispatcher = functionSource(cloud, "getHqDashboard");
 const rankingProjection = functionSource(cloud, "hqDashboardRankingProjection");
 
-assert.match(cloud, /const FUNCTION_VERSION = "v75"/, "large-data dashboard deployment must identify as v75");
+assert.match(cloud, /const FUNCTION_VERSION = "v76"/, "large-data dashboard deployment must identify as v76");
 assert.match(cloud, /const HQ_DASHBOARD_CHART_LIMIT = 10/, "overview charts must be strictly bounded");
 assert.match(cloud, /const HQ_DASHBOARD_MAX_PAGE_SIZE = 500/, "ranking page size must have a server maximum");
 assert.doesNotMatch(cloud, /getHqDashboardLegacyFullPayload/, "the unsafe full-payload dashboard query must not remain callable or retained");
@@ -79,6 +79,8 @@ assert.match(rankingProjection, /FROM public\.stores s[\s\S]*WHERE s\.store_stat
   "all active stores and only archived stores with in-range facts must participate");
 assert.match(rankingProjection, /FROM public\.teachers teacher[\s\S]*WHERE teacher\.teacher_status = 'ACTIVE'[\s\S]*OR event\.teacher_id IS NOT NULL/,
   "all active teachers and only archived teachers with in-range attributed facts must participate");
+assert.match(rankingProjection, /'UNASSIGNED'::text AS entity_code[\s\S]*WHERE event\.teacher_id IS NULL/,
+  "teacher ranking totals must retain effective business that has no trusted teacher attribution");
 assert.match(ranking, /pageNumber = Math\.min\(request\.pageNumber, totalPages\)/,
   "a stale high page request must be clamped safely");
 assert.match(productSummarySql, /FROM public\.products product[\s\S]*LEFT JOIN business_events event ON event\.product_id = product\.id/,

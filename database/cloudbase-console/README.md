@@ -90,7 +90,7 @@ ROLLBACK;
 
 ## 053 删除旧老师人脸 Saga
 
-先部署 `staffAccount v75`、`faceRecognition v98` 和 `teacherCreate v6`，再按
+先部署 `staffAccount v76`、`faceRecognition v98` 和 `teacherCreate v6`，再按
 [`053-README.md`](053-README.md) 执行 `053-01-retire-legacy-teacher-face-saga.sql`，最后运行
 `053-readonly-verify.sql`，7 行必须全部为 `RETIRED`。
 
@@ -98,7 +98,7 @@ ROLLBACK;
 
 完成 053 后，按 [`054-README.md`](054-README.md) 完整执行
 `054-01-teacher-only-customer-face-experience.sql`，然后部署
-`faceRecognition v98`、`staffAccount v75`、`teacherCreate v6` 和当前静态前端。
+`faceRecognition v98`、`staffAccount v76`、`teacherCreate v6` 和当前静态前端。
 054 会在数据库层把体验创建限定为额度所属的当前老师账号，并把新体验凭证切换为
 客户登记照与客户现场照；历史照片不改写。
 
@@ -138,7 +138,7 @@ ROLLBACK;
 
 1. 整文件执行 `060-01-retail-products.sql`；
 2. 整文件执行只读 `060-readonly-verify.sql`，4 行必须全部为 `READY`；
-3. 上传并验收 `staffAccount-v75.zip` 后，再使用网页版或小程序新增产品。
+3. 上传并验收 `staffAccount-v76.zip` 后，再使用网页版或小程序新增产品。
 
 060 不修改既有 `public.products` 项目和任何历史业务。新 `public.retail_products` 只保存涂抹类／实物产品名称、自动编号、状态与内部审计；产品只能封存或重新激活，删除保护触发器会拒绝物理删除。
 
@@ -148,7 +148,7 @@ ROLLBACK;
 
 1. 整文件执行 `061-01-recharge-product-gifts.sql`；
 2. 整文件执行只读 `061-readonly-verify.sql`，8 行必须全部为 `READY`；
-3. 上传并验收 `faceRecognition-v98.zip` 与 `staffAccount-v75.zip` 后，再发布包含充值第三步赠品的网页和小程序。
+3. 上传并验收 `faceRecognition-v98.zip` 与 `staffAccount-v76.zip` 后，再发布包含充值第三步赠品的网页和小程序。
 
 061 只为 `NEW` 充值单增加可选、不可变的产品赠品明细。每行固定绑定父充值单的门店、客户和业务老师，并保存当时的产品编号、名称与数量快照；退费不能带赠品，赠品也不进入库存、客户项目余额、核销、体验额度或统计。
 
@@ -158,7 +158,7 @@ ROLLBACK;
 
 1. 整文件执行 `062-01-retail-product-purchases.sql`；
 2. 整文件执行 `062-readonly-verify.sql`，4 项均须为 `READY`；
-3. 上传并验收 `faceRecognition-v98.zip` 与 `staffAccount-v75.zip`，再发布含“产品购买”入口和独立审核页的网页／小程序。
+3. 上传并验收 `faceRecognition-v98.zip` 与 `staffAccount-v76.zip`，再发布含“产品购买”入口和独立审核页的网页／小程序。
 
 062 只建立产品购买工单和总部审核状态机。门店与老师提交，总部审核；待审核和驳回不计入客户汇总。客户主页“购买”来自已通过购买单，“赠送”来自父充值单已通过的 061 赠品。
 

@@ -70,7 +70,7 @@ test("faceRecognition v98 validates and atomically creates recharge gifts", () =
 
 test("staff detail readers expose the immutable gift lines", () => {
   const cloud = read("cloudfunctions/staffAccount/index.js");
-  assert.match(cloud, /const FUNCTION_VERSION = "v75"/);
+  assert.match(cloud, /const FUNCTION_VERSION = "v76"/);
   assert.match(cloud, /TO_REGCLASS\('public\.recharge_product_gifts'\)/);
   assert.match(cloud, /JSONB_AGG\(JSONB_BUILD_OBJECT\([\s\S]*'productCode', gift\.product_code_snapshot[\s\S]*'unitCount', gift\.unit_count/);
   assert.match(cloud, /WHERE gift\.recharge_id = r\.id/);

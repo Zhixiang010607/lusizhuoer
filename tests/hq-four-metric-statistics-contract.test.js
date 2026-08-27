@@ -78,6 +78,10 @@ assert.match(rankingProjection, /dimension === "teacher"[\s\S]*?experience_count
   "teacher historical rankings must retain experience detail");
 assert.match(rankingProjection, /dimension === "teacher"[\s\S]*?refund_count/i,
   "teacher historical rankings must retain refund detail");
+assert.match(rankingProjection, /'UNASSIGNED'::text AS entity_code[\s\S]*?'未指定老师'::text AS entity_name/i,
+  "teacher ranking must expose an explicit non-teacher bucket for effective unassigned business");
+assert.match(rankingProjection, /FROM business_events event[\s\S]*?WHERE event\.teacher_id IS NULL[\s\S]*?HAVING COALESCE\(SUM/i,
+  "the unassigned bucket must include only effective facts that have no trusted teacher attribution");
 assert.match(dashboard, /mode === "ranking"[\s\S]*getHqDashboardRanking/i,
   "dashboard dispatcher must expose a separate bounded ranking mode");
 

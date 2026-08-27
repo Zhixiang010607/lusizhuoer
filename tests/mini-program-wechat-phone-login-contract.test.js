@@ -24,6 +24,7 @@ function loadSession({ authError, authResult, staffResult, storedSession } = {})
   const app = { globalData: { session: storedSession || null } };
   const state = {
     app,
+    authEvents: [],
     callStaffArgs: [],
     removedKeys: [],
     signInArgs: [],
@@ -32,11 +33,13 @@ function loadSession({ authError, authResult, staffResult, storedSession } = {})
   };
   const auth = {
     async signInWithPhoneAuth(args) {
+      state.authEvents.push("signInWithPhoneAuth");
       state.signInArgs.push(plain(args));
       if (authError) throw authError;
       return authResult || { data: { user: { uid: "staff-auth-uid" } } };
     },
     async signOut() {
+      state.authEvents.push("signOut");
       state.signOutCalls += 1;
     }
   };
@@ -100,6 +103,8 @@ test("WeChat phone login exchanges only phoneCode and resolves staff session by 
   const session = await api.wechatPhoneLogin("one-time-phone-code");
 
   assert.deepEqual(state.signInArgs, [{ phoneCode: "one-time-phone-code" }]);
+  assert.deepEqual(state.authEvents, ["signOut", "signInWithPhoneAuth"],
+    "an explicit login must clear any stale CloudBase identity before exchanging the phone code");
   assert.deepEqual(state.callStaffArgs, [["session"]],
     "the public session action must not receive a client-supplied phone");
   assert.equal(session.uid, activeStaff.uid, "the staff service UID is the cached identity authority");
@@ -112,7 +117,8 @@ test("WeChat phone login exchanges only phoneCode and resolves staff session by 
   assert.equal(Object.hasOwn(cached, "phone"), false, "the persistent session must omit phone");
   assert.equal(JSON.stringify(cached).includes("13900000000"), false,
     "a phone returned by staffAccount must not leak into persistent storage");
-  assert.equal(state.signOutCalls, 0);
+  assert.equal(state.signOutCalls, 1,
+    "the pre-login sign-out prevents a stale SDK token from reaching staffAccount");
 });
 
 test("a rejected business identity signs out and clears any local session", async () => {
@@ -123,8 +129,8 @@ test("a rejected business identity signs out and clears any local session", asyn
   await assert.rejects(api.wechatPhoneLogin("rejected-one-time-code"));
 
   assert.deepEqual(state.callStaffArgs, [["session"]]);
-  assert.equal(state.signOutCalls, 1,
-    "a CloudBase identity without an allowed business profile must be signed out");
+  assert.equal(state.signOutCalls, 2,
+    "the stale identity and the rejected new identity must both be signed out");
   assert.equal(storage.has(sessionKey), false, "failed login must clear the cached session");
   assert.equal(state.app.globalData.session, null, "failed login must clear the in-memory session");
 });
@@ -137,7 +143,7 @@ test("an authentication error signs out, clears local state, and skips the staff
   await assert.rejects(api.wechatPhoneLogin("invalid-one-time-code"), /认证失败/);
 
   assert.deepEqual(state.callStaffArgs, [], "an authentication error must not reach staffAccount");
-  assert.equal(state.signOutCalls, 1, "an authentication error must clear any SDK login state");
+  assert.equal(state.signOutCalls, 2, "an authentication error must clear both stale and partial SDK login state");
   assert.equal(storage.has(sessionKey), false, "an authentication error must clear the cached business session");
   assert.equal(state.app.globalData.session, null, "an authentication error must clear the in-memory session");
 });
@@ -155,7 +161,7 @@ test("a blank CloudBase UNKNOWN error reports transport configuration instead of
   );
 
   assert.deepEqual(state.callStaffArgs, [], "a blocked Auth request must not reach staffAccount");
-  assert.equal(state.signOutCalls, 1, "a blocked Auth request must clear the SDK login state");
+  assert.equal(state.signOutCalls, 2, "a blocked Auth request must clear stale and partial SDK login state");
 });
 
 test("a rejected authentication promise also signs out and clears local state", async () => {
@@ -165,7 +171,7 @@ test("a rejected authentication promise also signs out and clears local state", 
   await assert.rejects(api.wechatPhoneLogin("rejected-one-time-code"), /网络认证失败/);
 
   assert.deepEqual(state.callStaffArgs, [], "a rejected SDK promise must not reach staffAccount");
-  assert.equal(state.signOutCalls, 1, "a rejected SDK promise must clear any SDK login state");
+  assert.equal(state.signOutCalls, 2, "a rejected SDK promise must clear stale and partial SDK login state");
   assert.equal(storage.has(sessionKey), false, "a rejected SDK promise must clear the cached business session");
   assert.equal(state.app.globalData.session, null, "a rejected SDK promise must clear the in-memory session");
 });

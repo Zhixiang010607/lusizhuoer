@@ -83,7 +83,7 @@ function hqProductSummaryRows(items = []) {
 }
 function hqProductSummaryView(payload = {}) {
   const summary = payload.productSummary;
-  if (!summary || !Array.isArray(summary.rows)) throw new Error("总部项目汇总服务版本过旧，请先部署 staffAccount v75");
+  if (!summary || !Array.isArray(summary.rows)) throw new Error("总部项目汇总服务版本过旧，请先部署 staffAccount v76");
   return {
     rows: hqProductSummaryRows(summary.rows),
     page: pageView({
@@ -465,7 +465,7 @@ Page({
     } else if (currentRankingRequest) {
       changes.hqRankingError = rankingResult.status === "rejected"
         ? rankingResult.reason?.message || "总部排名读取失败，请单独重试"
-        : "总部排名服务版本过旧，请先部署 staffAccount v75";
+        : "总部排名服务版本过旧，请先部署 staffAccount v76";
     }
     const message = overviewResult.status === "rejected"
       ? overviewResult.reason?.message || "总部首页读取失败"
@@ -503,7 +503,7 @@ Page({
         || rankingMetric !== this.data.hqRankingMetric || productId !== this.data.hqProductId) return;
       const ranking = value.ranking || {};
       if (!hqRankingMatches(ranking, dimension, rankingMetric, productId)) {
-        throw new Error("总部排名服务版本过旧，请先部署 staffAccount v75");
+        throw new Error("总部排名服务版本过旧，请先部署 staffAccount v76");
       }
       const rows = dashboard.hqRows(ranking.rows, dimension);
       const rankingTotal = Math.max(1, dashboard.count(ranking.rankingTotal));
@@ -770,7 +770,7 @@ Page({
         });
         const ranking = result.ranking || {};
         if (!hqRankingMatches(ranking, dimension, rankingMetric, productId)) {
-          throw new Error("总部排名服务版本过旧，请先部署 staffAccount v75");
+          throw new Error("总部排名服务版本过旧，请先部署 staffAccount v76");
         }
         const total = dashboard.count(ranking.total);
         if (total > REPORT_EXPORT_MAX_ROWS) throw new Error(`当前${dimensionLabel}排名共有 ${total} 条；请缩小统计日期范围后再导出（单次最多 ${REPORT_EXPORT_MAX_ROWS} 条）`);

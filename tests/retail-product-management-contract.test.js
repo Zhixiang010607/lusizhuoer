@@ -29,9 +29,9 @@ test("migration 060 creates an isolated retail product master that cannot be del
   assert.match(verify, /CASE WHEN record_count = 2 THEN 'READY'/);
 });
 
-test("staffAccount v75 exposes HQ-only retail product list, create and archive APIs without delete", () => {
+test("staffAccount v76 exposes HQ-only retail product list, create and archive APIs without delete", () => {
   const cloud = read("cloudfunctions/staffAccount/index.js");
-  assert.match(cloud, /const FUNCTION_VERSION = "v75"/);
+  assert.match(cloud, /const FUNCTION_VERSION = "v76"/);
   for (const action of ["listRetailProducts", "createRetailProduct", "setRetailProductStatus"]) {
     assert.match(cloud, new RegExp(`action === "${action}"\\) \\{[\\s\\S]{0,180}requireHq\\(caller\\)`), `${action} must require headquarters`);
   }

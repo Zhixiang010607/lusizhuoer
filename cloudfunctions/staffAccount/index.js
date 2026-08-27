@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v75";
+const FUNCTION_VERSION = "v76";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -1323,7 +1323,23 @@ function hqDashboardRankingProjection(dimension) {
          LEFT JOIN business_events event ON event.teacher_id = teacher.id
              WHERE teacher.teacher_status = 'ACTIVE'
                 OR event.teacher_id IS NOT NULL
-             GROUP BY teacher.id, teacher.teacher_code, teacher.teacher_name`;
+             GROUP BY teacher.id, teacher.teacher_code, teacher.teacher_name
+             UNION ALL
+            SELECT 0::bigint AS entity_id,
+                   'UNASSIGNED'::text AS entity_code,
+                   '未指定老师'::text AS entity_name,
+                   COALESCE(SUM(event.recharge_count), 0)::bigint AS recharge_count,
+                   COALESCE(SUM(event.verification_count), 0)::bigint AS verification_count,
+                   COALESCE(SUM(event.experience_count), 0)::bigint AS experience_count,
+                   COALESCE(SUM(event.refund_count), 0)::bigint AS refund_count
+              FROM business_events event
+             WHERE event.teacher_id IS NULL
+            HAVING COALESCE(SUM(
+                     event.recharge_count
+                   + event.verification_count
+                   + event.experience_count
+                   + event.refund_count
+                   ), 0) > 0`;
   }
   fail("总部看板排名维度无效", "BAD_REQUEST");
 }

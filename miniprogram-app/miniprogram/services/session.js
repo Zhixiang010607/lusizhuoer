@@ -98,6 +98,11 @@ async function finishAuthenticatedLogin(auth, result, fallback) {
 async function signInAndFinish(auth, authenticate, fallback) {
   let result;
   try {
+    // Explicit login must never inherit a CloudBase Auth identity left behind
+    // by a previous account or an interrupted startup validation.  In
+    // particular, signInWithPhoneAuth can otherwise return the new phone user
+    // while a following function call still carries the stale SDK token.
+    await clearFailedLogin(auth);
     result = await authenticate();
   } catch (error) {
     await clearFailedLogin(auth);
