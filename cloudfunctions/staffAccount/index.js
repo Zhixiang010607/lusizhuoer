@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v76";
+const FUNCTION_VERSION = "v77";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -757,11 +757,77 @@ function sqlText(value) {
   return `'${String(value ?? "").replace(/'/g, "''")}'`;
 }
 
+function temporalNumber(value) {
+  let current = value;
+  for (let depth = 0; depth < 5; depth += 1) {
+    if (typeof current === "number") return Number.isFinite(current) ? current : NaN;
+    if (typeof current === "string") {
+      const parsed = Number(current.trim());
+      return Number.isFinite(parsed) ? parsed : NaN;
+    }
+    if (!current || typeof current !== "object") return NaN;
+    const key = ["$numberLong", "$numberInt", "$numberDouble", "value"].find((name) => current[name] !== undefined);
+    if (!key) return NaN;
+    current = current[key];
+  }
+  return NaN;
+}
+
+function sqlTemporalText(value, columnName = "") {
+  const column = String(columnName || "").toLowerCase();
+  if (!/(?:_at|_time|_date)$/.test(column) || value === null || value === undefined || value === "") return value;
+  let current = value;
+  for (let depth = 0; depth < 8; depth += 1) {
+    if (current instanceof Date) return Number.isNaN(current.getTime()) ? value : current.toISOString();
+    if (typeof current === "number") {
+      const millis = Math.abs(current) < 100000000000 ? current * 1000 : current;
+      const parsed = new Date(millis);
+      return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
+    }
+    if (typeof current === "string") {
+      const text = current.trim();
+      if (!text) return value;
+      if (/^-?\d+(?:\.\d+)?$/.test(text)) { current = Number(text); continue; }
+      if (text[0] === "{" || text[0] === "[") {
+        try { current = JSON.parse(text); continue; } catch (error) { /* keep database text */ }
+      }
+      if (/_date$/.test(column) && /^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+      const normalized = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(text)
+        ? `${text.replace(" ", "T")}Z`
+        : text.replace(/([+-]\d{2})$/, "$1:00");
+      const parsed = new Date(normalized);
+      return Number.isNaN(parsed.getTime()) ? text : parsed.toISOString();
+    }
+    if (!current || typeof current !== "object") return value;
+    if (typeof current.toDate === "function") {
+      try { current = current.toDate(); continue; } catch (error) { /* inspect stored fields */ }
+    }
+    if (typeof current.toISOString === "function") {
+      try {
+        const text = current.toISOString();
+        if (text) { current = text; continue; }
+      } catch (error) { /* inspect stored fields */ }
+    }
+    const seconds = temporalNumber(current.seconds ?? current._seconds);
+    if (Number.isFinite(seconds)) {
+      const nanos = temporalNumber(current.nanoseconds ?? current._nanoseconds);
+      const parsed = new Date((seconds * 1000) + (Number.isFinite(nanos) ? Math.trunc(nanos / 1000000) : 0));
+      return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
+    }
+    const wrapperKey = ["$date", "$numberLong", "$numberInt", "$numberDouble", "date", "timestamp", "time", "iso", "isoString", "value"].find((name) => current[name] !== undefined);
+    if (wrapperKey) { current = current[wrapperKey]; continue; }
+    const printable = String(current);
+    if (printable && printable !== "[object Object]") { current = printable; continue; }
+    return value;
+  }
+  return value;
+}
+
 function parseSqlRows(result) {
   const columns = result?.Columns || [];
   return (result?.Rows || []).map((raw) => {
     const values = Array.isArray(raw) ? raw : JSON.parse(raw);
-    return Object.fromEntries(columns.map((column, index) => [column, values[index]]));
+    return Object.fromEntries(columns.map((column, index) => [column, sqlTemporalText(values[index], column)]));
   });
 }
 

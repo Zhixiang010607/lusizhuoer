@@ -48,7 +48,18 @@ Page({
     await this.load(1);
   },
   onPullDownRefresh() { this.resetPaging(); this.load(1).finally(() => wx.stopPullDownRefresh()); },
-  onUnload() { this._requestEpoch = Number(this._requestEpoch || 0) + 1; },
+  onUnload() {
+    this._requestEpoch = Number(this._requestEpoch || 0) + 1;
+    this._scrollResetEpoch = Number(this._scrollResetEpoch || 0) + 1;
+  },
+
+  resetTableScroll() {
+    const epoch = Number(this._scrollResetEpoch || 0) + 1;
+    this._scrollResetEpoch = epoch;
+    this.setData({ tableScrollLeft: 1 }, () => {
+      if (epoch === this._scrollResetEpoch) this.setData({ tableScrollLeft: 0 });
+    });
+  },
 
   async loadStores() {
     try {
@@ -105,8 +116,8 @@ Page({
     this.setData({
       customers: customerRows(result.customers || []), summary, total, totalPages,
       page: targetPage, pageJump: String(targetPage), hasMore: result.hasMore === true,
-      cursorStack: stack, nextCursor: result.nextCursor || null, tableScrollLeft: 0
-    });
+      cursorStack: stack, nextCursor: result.nextCursor || null
+    }, () => this.resetTableScroll());
     return true;
   },
 

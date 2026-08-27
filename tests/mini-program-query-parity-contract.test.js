@@ -55,8 +55,10 @@ test("customer query keeps the web filter dimensions, role scope, details, and d
   assert.match(wxss, /grid-template-columns: 132rpx 92rpx 92rpx 160rpx 170rpx 200rpx 170rpx 104rpx;/);
   assert.equal(132 + 92 + 92 + 160 + 170 + 200 + 170 + 104, 1120);
   assert.match(wxml, /scroll-left="\{\{tableScrollLeft\}\}"/);
-  assert.match(js, /tableScrollLeft: 0/,
-    "fresh customer results return the table to its left edge");
+  assert.match(js, /resetTableScroll\(\)[\s\S]*tableScrollLeft: 1[\s\S]*tableScrollLeft: 0/,
+    "fresh customer results must force a changed scroll value before returning to the left edge");
+  assert.match(js, /\}, \(\) => this\.resetTableScroll\(\)\);/,
+    "customer query, reset, and pagination return the newly rendered table to its first column");
 });
 
 test("recharge and verification query share complete filters and exact order detail links", () => {
@@ -84,8 +86,10 @@ test("recharge and verification query share complete filters and exact order det
     "query order codes remain on one line and cannot paint over the adjacent customer cell");
   assert.match(wxml, /scroll-left="\{\{tableScrollLeft\}\}"/,
     "each query result can force the horizontal table back to its first column");
-  assert.match(js, /tableScrollLeft:\s*0/,
-    "queries, reset, and pagination keep a controlled horizontal scroll position");
+  assert.match(js, /resetTableScroll\(\)[\s\S]*tableScrollLeft: 1[\s\S]*tableScrollLeft: 0/,
+    "queries force a changed scroll value before returning the table to its first column");
+  assert.match(js, /\}, \(\) => this\.resetTableScroll\(\)\);/,
+    "queries, reset, and pagination reset the newly rendered horizontal table");
   const recordCodeRule = wxss.match(/\.record-row \.record-code \{[^}]*\}/)?.[0] || "";
   assert.doesNotMatch(recordCodeRule, /font-size\s*:/,
     "query order codes must use the same readable font size as the rest of the table body");

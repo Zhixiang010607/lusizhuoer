@@ -42,9 +42,9 @@ test("migration 061 stores immutable recharge gifts with parent scope and active
   assert.match(read("database/cloudbase-console/061-README.md"), /8 行[\s\S]*READY/);
 });
 
-test("faceRecognition v98 validates and atomically creates recharge gifts", () => {
+test("faceRecognition v99 validates and atomically creates recharge gifts", () => {
   const cloud = read("cloudfunctions/faceRecognition/index.js");
-  assert.match(cloud, /PHOTO_ONLY_FUNCTION \? "v9" : "v98"/);
+  assert.match(cloud, /PHOTO_ONLY_FUNCTION \? "v9" : "v99"/);
   const list = section(cloud, "async function listActiveRetailProducts", "function normalizeRechargeProductGifts");
   assert.match(list, /activeBusinessCaller\(event\)/);
   assert.match(list, /FROM public\.retail_products[\s\S]*product_status = 'ACTIVE'/);
@@ -70,7 +70,7 @@ test("faceRecognition v98 validates and atomically creates recharge gifts", () =
 
 test("staff detail readers expose the immutable gift lines", () => {
   const cloud = read("cloudfunctions/staffAccount/index.js");
-  assert.match(cloud, /const FUNCTION_VERSION = "v76"/);
+  assert.match(cloud, /const FUNCTION_VERSION = "v77"/);
   assert.match(cloud, /TO_REGCLASS\('public\.recharge_product_gifts'\)/);
   assert.match(cloud, /JSONB_AGG\(JSONB_BUILD_OBJECT\([\s\S]*'productCode', gift\.product_code_snapshot[\s\S]*'unitCount', gift\.unit_count/);
   assert.match(cloud, /WHERE gift\.recharge_id = r\.id/);

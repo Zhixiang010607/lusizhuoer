@@ -50,7 +50,18 @@ Page({
   },
 
   onPullDownRefresh() { this.load(1).finally(() => wx.stopPullDownRefresh()); },
-  onUnload() { this._requestEpoch = Number(this._requestEpoch || 0) + 1; },
+  onUnload() {
+    this._requestEpoch = Number(this._requestEpoch || 0) + 1;
+    this._scrollResetEpoch = Number(this._scrollResetEpoch || 0) + 1;
+  },
+
+  resetTableScroll() {
+    const epoch = Number(this._scrollResetEpoch || 0) + 1;
+    this._scrollResetEpoch = epoch;
+    this.setData({ tableScrollLeft: 1 }, () => {
+      if (epoch === this._scrollResetEpoch) this.setData({ tableScrollLeft: 0 });
+    });
+  },
 
   async loadStores() {
     try {
@@ -109,9 +120,8 @@ Page({
         records: (result.records || []).map((item) => query.normalizeRecord(item, recordType)),
         summary: result.summary || { ...EMPTY_SUMMARY },
         products, productLabels: ["全部项目", ...products.map((product) => product.label)], productIndex: nextProductIndex,
-        page: actualPage, pageJump: String(actualPage), total: Number(result.total || 0), totalPages,
-        tableScrollLeft: 0
-      });
+        page: actualPage, pageJump: String(actualPage), total: Number(result.total || 0), totalPages
+      }, () => this.resetTableScroll());
     } catch (error) {
       if (epoch !== this._requestEpoch) return;
       this.setData({
