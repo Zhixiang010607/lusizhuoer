@@ -132,6 +132,8 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
     "the standard-phone HQ filter card must use a compact two-by-two grid instead of four tall rows");
   assert.match(wxss, /\.hq-ranking-control-grid \.hq-dimension-tabs,\s*\.hq-ranking-control-grid \.hq-product-filter\s*\{\s*margin-bottom:\s*0;/,
     "the two-by-two HQ controls must not carry desktop-only bottom gaps");
+  assert.match(wxss, /\.hq-ranking-control-grid \.filter-picker\s*\{[^}]*color:\s*#5f4a2f;[^}]*background:\s*#f5ead8;[^}]*border-color:\s*#d8c5a3;/s,
+    "the time and project pickers must share the warm champagne filter palette");
   assert.match(wxss, /\.hq-custom-dates\s*\{[^}]*grid-column:\s*1 \/ -1;/s,
     "a custom HQ date range must remain full width below the compact controls");
   assert.match(wxss, /\.hq-filter-actions\s*\{[^}]*grid-column:\s*1 \/ -1;[^}]*justify-content:\s*center;/s,
