@@ -16,3 +16,18 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
 .message.error { color: #8b3f35; background: #fff1ed; border: 1rpx solid #e4bdb4; }
 .message.success { color: #4f664f; background: #f0f6ec; border: 1rpx solid #c9dbc0; }
 .safe-bottom { height: calc(24rpx + env(safe-area-inset-bottom)); }
+
+@media (min-width: 700px) {
+  .page { width: calc(100% - 48px); max-width: 900px; padding: 20px 0 36px; }
+  .page-heading { gap: 16px; margin: 4px 4px 16px; }
+  .title { font-size: 26px; }
+  .permission { padding: 5px 10px; font-size: 13px; }
+  .panel { display: grid; grid-template-columns: minmax(150px, .32fr) minmax(0, 1fr); gap: 20px; align-items: end; padding: 20px; border-width: 1px; border-radius: 18px; }
+  .section-title { align-self: center; margin-bottom: 0; font-size: 20px; }
+  .field { min-width: 0; gap: 7px; margin-top: 0; }
+  .field > text { font-size: 14px; }
+  .field input { min-height: 50px; padding: 0 14px; border-width: 1px; border-radius: 12px; font-size: 16px; }
+  .actions { max-width: 560px; gap: 12px; margin: 16px auto 0; }
+  .actions button { min-height: 48px; border-radius: 12px; font-size: 15px; }
+  .message { margin-top: 14px; padding: 12px 14px; border-radius: 11px; font-size: 14px; }
+}

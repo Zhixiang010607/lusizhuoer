@@ -136,8 +136,12 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
     "the time and project pickers must share the warm champagne filter palette");
   assert.match(wxss, /\.hq-custom-dates\s*\{[^}]*grid-column:\s*1 \/ -1;/s,
     "a custom HQ date range must remain full width below the compact controls");
-  assert.match(wxss, /\.hq-filter-actions\s*\{[^}]*grid-column:\s*1 \/ -1;[^}]*justify-content:\s*center;/s,
-    "the mobile HQ reset action must stay compact and centered below both columns");
+  assert.match(wxml, /class="hq-control-heading"[\s\S]*class="hq-inline-reset" bindtap="resetHqRange">重置筛选<\/button>/,
+    "the mobile HQ reset action must stay inline with the sorting metric heading");
+  assert.match(wxss, /\.hq-inline-reset\s*\{[^}]*min-width:\s*94rpx;[^}]*min-height:\s*42rpx;/s,
+    "the inline reset action must remain compact on a standard phone");
+  assert.doesNotMatch(wxml, /class="hq-filter-actions"/,
+    "the HQ reset action must not occupy a standalone row");
   assert.doesNotMatch(wxml, /class="metric-grid"|hq-analysis-card|分类统计|前 10 名/,
     "the compact HQ home must not restore the redundant six metrics or duplicate Top 10 card");
   assert.match(wxss, /\.range-presets\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)[^}]*overflow:\s*hidden[^}]*background:\s*#eee3d2/s);

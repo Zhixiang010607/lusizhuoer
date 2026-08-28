@@ -131,8 +131,9 @@
 .hq-ranking-control-grid .filter-picker { color: #5f4a2f; background: #f5ead8; border-color: #d8c5a3; font-weight: 750; }
 .hq-custom-dates { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; }
 .hq-custom-dates label { min-width: 0; }
-.hq-filter-actions { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; margin-top: 2rpx; padding-top: 12rpx; border-top: 1rpx solid #e5d6bd; }
-.hq-filter-actions button { width: auto !important; min-width: 110rpx; min-height: 60rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 16rpx; color: #fffdf8; background: #6f532e; border-radius: 14rpx; font-size: 18rpx; line-height: 1; white-space: nowrap; }
+.hq-control-heading { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8rpx; margin-bottom: 8rpx; }
+.hq-control-heading .hq-control-label { min-width: 0; margin: 0; }
+.hq-inline-reset { width: auto !important; min-width: 94rpx; min-height: 42rpx; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; margin: 0; padding: 0 12rpx; color: #74592d; background: #fffaf3; border: 1rpx solid #d8c5a3; border-radius: 999rpx; font-size: 16rpx; font-weight: 800; line-height: 1; white-space: nowrap; }
 .metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; margin: 16rpx 0; }
 .metric-card { min-height: 126rpx; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16rpx 12rpx; color: #302a22; background: #fffaf3; border: 1rpx solid #e1cfaf; border-top: 6rpx solid #b58a43; border-radius: 20rpx; box-shadow: 0 12rpx 32rpx rgba(120,91,43,.07); text-align: center; }
 .metric-card.interactive:active { transform: translateY(1rpx); background: #fff7e9; }
@@ -321,8 +322,8 @@
   .hq-ranking-control-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hq-ranking-control-grid .hq-dimension-tabs, .hq-ranking-control-grid .hq-product-filter { margin-bottom: 0; }
   .hq-custom-dates { grid-column: 1 / -1; gap: 10px; }
-  .hq-filter-actions { grid-column: 1 / -1; justify-content: flex-end; margin-top: 0; padding-top: 12px; border-top-width: 1px; }
-  .hq-filter-actions button { min-width: 104px; min-height: 44px; padding: 0 14px; border-radius: 10px; font-size: 14px; }
+  .hq-control-heading { gap: 8px; margin-bottom: 6px; }
+  .hq-inline-reset { min-width: 82px; min-height: 32px; padding: 0 12px; border-width: 1px; font-size: 13px; }
   .hq-control-label { margin-bottom: 6px; font-size: 13px; }
   .hq-dimension-tabs { gap: 6px; margin-bottom: 12px; padding: 6px; border-radius: 14px; }
   .hq-dimension-tabs button { min-height: 44px; padding: 0 6px; border-radius: 10px; font-size: 14px; }

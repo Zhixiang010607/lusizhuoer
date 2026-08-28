@@ -231,12 +231,23 @@ test("store and teacher customer/order details use compact adaptive tablet works
 });
 
 test("headquarters creation and project-template forms use compact tablet grids", () => {
+  const storeCreateWxml = read("miniprogram-app", "miniprogram", "pages", "store-create", "index.wxml");
+  const storeCreateWxss = read("miniprogram-app", "miniprogram", "pages", "store-create", "index.wxss");
   const productCreateWxml = read("miniprogram-app", "miniprogram", "pages", "product-create", "index.wxml");
   const productCreateWxss = read("miniprogram-app", "miniprogram", "pages", "product-create", "index.wxss");
+  const retailCreateWxss = read("miniprogram-app", "miniprogram", "pages", "retail-product-create", "index.wxss");
   const teacherCreateWxml = read("miniprogram-app", "miniprogram", "pages", "teacher-create", "index.wxml");
   const teacherCreateWxss = read("miniprogram-app", "miniprogram", "pages", "teacher-create", "index.wxss");
   const productDetailWxml = read("miniprogram-app", "miniprogram", "pages", "product-detail", "index.wxml");
   const productDetailWxss = read("miniprogram-app", "miniprogram", "pages", "product-detail", "index.wxss");
+
+  assert.match(storeCreateWxml, /class="store-create-grid"/);
+  assert.match(storeCreateWxml, /class="store-fields"/);
+  assert.match(storeCreateWxss, /@media \(min-width: 700px\)[\s\S]*?\.store-create-grid \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s,
+    "store details and account contact should use two tablet cards");
+  assert.match(storeCreateWxss, /\.store-fields \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s);
+  assert.match(storeCreateWxss, /\.field-wide \{ grid-column: 1 \/ -1; \}/,
+    "address and initial password should retain the full width inside their own card");
 
   assert.match(productCreateWxml, /class="project-fields"/);
   assert.match(productCreateWxml, /class="field field-description"/);
@@ -245,6 +256,11 @@ test("headquarters creation and project-template forms use compact tablet grids"
   assert.match(productCreateWxss, /\.field-description \{ grid-column: 1 \/ -1; \}/);
   assert.match(productCreateWxss, /\.field textarea \{ min-height: 128px;/,
     "the optional project description must not retain the magnified phone height");
+
+  assert.match(retailCreateWxss, /@media \(min-width: 700px\)[\s\S]*?\.page \{[^}]*max-width: 900px;/s,
+    "the one-field retail-product form must use a bounded tablet workspace");
+  assert.match(retailCreateWxss, /\.panel \{[^}]*grid-template-columns: minmax\(150px, \.32fr\) minmax\(0, 1fr\);/s,
+    "the retail product heading and its sole field should share one compact row");
 
   assert.match(teacherCreateWxml, /class="teacher-fields"/);
   assert.match(teacherCreateWxss, /@media \(min-width: 700px\)[\s\S]*?\.teacher-fields \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/s,
@@ -351,6 +367,8 @@ test("HQ tablet filters use a balanced two-by-two control grid", () => {
 
   assert.match(homeWxml, /class="hq-filter-grid hq-ranking-control-grid"/);
   assert.match(homeWxml, /class="hq-control-field"/);
+  assert.match(homeWxml, /class="hq-control-heading"[\s\S]*class="hq-inline-reset" bindtap="resetHqRange">重置筛选<\/button>/);
+  assert.doesNotMatch(homeWxml, /class="hq-filter-actions"/);
   assert.match(homeWxss, /\.hq-ranking-control-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/);
-  assert.match(homeWxss, /\.hq-filter-actions \{[^}]*grid-column: 1 \/ -1;[^}]*justify-content: flex-end;/s);
+  assert.match(homeWxss, /\.hq-inline-reset \{[^}]*min-width: 82px;[^}]*min-height: 32px;/s);
 });
