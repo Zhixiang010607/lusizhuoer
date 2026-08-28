@@ -55,3 +55,47 @@
 .export-actions button { width: 100%; min-height: 78rpx; margin: 0; font-size: 23rpx; }
 .export-progress { display: block; margin-top: 12rpx; color: #756958; font-size: 20rpx; text-align: center; }
 .export-canvas { position: fixed; left: -10000px; top: 0; width: 1240px; height: 1754px; pointer-events: none; }
+
+@media (min-width: 700px) {
+  .order-hero { gap: 14px; padding: 24px; }
+  .order-title-scroll { margin-top: 6px; }
+  .order-title { padding-right: 2px; font-size: 24px; }
+  .order-address { margin-top: 9px; font-size: 14px; }
+  .status-badge { padding: 6px 10px; border-width: 1px; border-radius: 999px; font-size: 14px; }
+  .fact-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .fact-card { padding: 16px; }
+  .fact-card text { font-size: 13px; }
+  .fact-card .fact-value { margin-top: 6px; font-size: 18px; }
+  .fact-card .fact-note { margin-top: 4px; font-size: 12px; }
+  .detail-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .detail-grid view { padding: 14px; border-radius: 12px; }
+  .detail-grid text { font-size: 13px; }
+  .detail-grid .detail-value { margin-top: 6px; font-size: 16px; }
+  .gift-detail-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .gift-detail-row { gap: 12px; padding: 13px 14px; border-width: 1px; border-radius: 12px; }
+  .gift-detail-row text { font-size: 16px; }
+  .gift-detail-row view text:last-child { margin-top: 4px; font-size: 13px; }
+  .gift-detail-row > text { font-size: 17px; }
+  .note-row { padding: 13px 0; border-width: 1px; }
+  .note-row text:first-child { font-size: 13px; }
+  .note-row text:last-child { margin-top: 5px; font-size: 15px; }
+  .photo-note { margin-top: 4px; font-size: 13px; }
+  .photo-list-error { gap: 10px; margin-bottom: 12px; padding: 11px; border-width: 1px; border-radius: 11px; font-size: 13px; }
+  .edit-window { margin-bottom: 12px; padding: 10px 12px; border-radius: 10px; font-size: 13px; }
+  .photo-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .photo-card { padding: 10px; border-width: 1px; border-radius: 14px; }
+  .photo-card:nth-child(5) { grid-column: auto; }
+  .photo-frame { height: 220px; border-radius: 10px; }
+  .slot-placeholder { gap: 9px; padding: 14px; }
+  .slot-placeholder text { font-size: 13px; }
+  .photo-meta { padding: 8px 2px; }
+  .photo-meta text { font-size: 15px; }
+  .photo-meta text:last-child { margin-top: 3px; font-size: 12px; }
+  .photo-actions { gap: 6px; }
+  .photo-actions button, .upload-button, .compact-button { min-height: 42px; padding: 0 8px; border-radius: 9px; font-size: 13px; }
+  .upload-button { margin-top: 7px; }
+  .compact-button { min-height: 40px; padding: 0 10px; font-size: 12px; line-height: 40px; }
+  .export-actions { gap: 12px; }
+  .export-actions button { min-height: 48px; font-size: 16px; }
+  .export-progress { margin-top: 10px; font-size: 13px; }
+}

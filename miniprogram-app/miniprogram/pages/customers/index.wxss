@@ -30,13 +30,13 @@
 
 @media (min-width: 700px) {
   .search-card .query-modes { margin-bottom: 16px; }
-  .query-grid { gap: 0 16px; }
+  .query-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 16px; }
   .query-grid .query-wide { grid-column: auto; }
   .query-grid .field { margin-bottom: 16px; }
-  .summary-grid { gap: 8px; margin-bottom: 16px; }
-  .summary-grid view { padding: 12px 8px; border-width: 1px; border-radius: 12px; }
-  .summary-grid text { min-height: 36px; font-size: 13px; }
-  .summary-grid .summary-value { min-height: 0; margin-top: 4px; font-size: 20px; }
+  .summary-grid { gap: 6px; margin-bottom: 14px; }
+  .summary-grid view { padding: 7px 8px; border-width: 1px; border-radius: 10px; }
+  .summary-grid text { min-height: 24px; font-size: 11px; line-height: 1.2; }
+  .summary-grid .summary-value { min-height: 0; margin-top: 2px; font-size: 17px; }
   .customer-table-scroll { margin-top: 12px; border-width: 1px; border-radius: 12px; }
   .customer-table-scroll[data-visible-rows="1"] { height: 112px; }
   .customer-table-scroll[data-visible-rows="2"] { height: 170px; }

@@ -1,3 +1,11 @@
 .recovery-card { border-color: #efc1bd; }
 .disabled-card { opacity: .68; }
 .submit-card { padding-top: 22rpx; padding-bottom: 22rpx; }
+
+@media (min-width: 700px) {
+  .workflow-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 16px; }
+  .workflow-grid > .card { height: 100%; margin: 0; }
+  .workflow-grid .workflow-wide,
+  .workflow-grid > .store-picker-card { grid-column: 1 / -1; height: auto; }
+  .submit-card .primary { width: min(420px, 100%); margin: 0 auto; }
+}

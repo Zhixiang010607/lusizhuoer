@@ -83,3 +83,90 @@
 .record-row.table-head text { min-height: 66rpx; }
 .record-link { color: #76592f; font-weight: 850; text-decoration: underline; }
 .history-pagination { min-height: 8rpx; display: flex; justify-content: center; }
+.customer-communication-grid, .customer-summary-grid { display: contents; }
+.table-scroll-hint { display: block; margin: -4rpx 0 10rpx; color: #7c7062; font-size: 18rpx; text-align: right; }
+.balance-scroll[data-visible-rows="1"] { height: 148rpx; }
+.balance-scroll[data-visible-rows="2"] { height: 222rpx; }
+.balance-scroll[data-visible-rows="3"] { height: 296rpx; }
+.balance-scroll[data-visible-rows="4"] { height: 370rpx; }
+.balance-scroll[data-visible-rows="5"] { height: 444rpx; }
+.retail-summary-scroll[data-visible-rows="1"] { height: 144rpx; }
+.retail-summary-scroll[data-visible-rows="2"] { height: 220rpx; }
+.retail-summary-scroll[data-visible-rows="3"] { height: 296rpx; }
+.retail-summary-scroll[data-visible-rows="4"] { height: 372rpx; }
+.retail-summary-scroll[data-visible-rows="5"] { height: 448rpx; }
+.record-scroll[data-visible-rows="1"] { height: 142rpx; }
+.record-scroll[data-visible-rows="2"] { height: 218rpx; }
+.record-scroll[data-visible-rows="3"] { height: 294rpx; }
+.record-scroll[data-visible-rows="4"] { height: 370rpx; }
+.record-scroll[data-visible-rows="5"] { height: 446rpx; }
+
+@media (min-width: 700px) {
+  .profile-card { padding-bottom: 20px; }
+  .profile-top { gap: 16px; margin-bottom: 12px; }
+  .profile-name > text:first-child { font-size: 24px; }
+  .profile-name .profile-sub { margin-top: 4px; font-size: 14px; }
+  .photo-placeholder { padding: 8px; font-size: 13px; }
+  .profile-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 14px; }
+  .profile-facts .fact { padding: 12px 8px; }
+  .subsection-title { margin: 18px 0 10px; font-size: 19px; }
+  .recent-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .recent-item { min-height: 82px; padding: 12px 14px; border-width: 1px; border-radius: 12px; }
+  .recent-item > text:first-child { font-size: 13px; }
+  .recent-item > text:last-child { margin-top: 6px; font-size: 15px; }
+  .status-line { gap: 8px; margin-top: 6px; }
+  .status-badge { padding: 4px 8px; font-size: 12px; }
+  .status-line button { min-height: 38px; padding: 0 8px; border-radius: 9px; font-size: 13px; }
+  .section-message { margin-top: 10px; padding: 10px 12px; border-radius: 9px; font-size: 13px; }
+  .customer-communication-grid, .customer-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 16px; margin-bottom: 16px; }
+  .customer-communication-grid > .card, .customer-summary-grid > .card { height: 100%; margin: 0; }
+  .notes-actions { gap: 6px; }
+  .notes-actions button { min-width: 72px; min-height: 40px; padding: 0 11px; border-radius: 9px; font-size: 13px; }
+  .notes-read, .notes-input { height: 178px; min-height: 178px; padding: 14px 16px; border-width: 1px; border-radius: 12px; }
+  .notes-read text { font-size: 15px; }
+  .character-count { margin-top: 6px; font-size: 12px; }
+  .message-list { max-height: 210px; gap: 8px; }
+  .message-item { padding: 11px 13px; border-width: 1px; border-radius: 11px; }
+  .message-meta { gap: 8px; }
+  .message-author { font-size: 14px; }
+  .message-time { font-size: 12px; }
+  .message-content { margin-top: 6px; font-size: 14px; }
+  .message-empty { min-height: 90px; border-width: 1px; border-radius: 11px; font-size: 14px; }
+  .message-compose { gap: 10px; margin-top: 12px; padding: 12px; border-width: 1px; border-radius: 14px; }
+  .message-input { height: 92px; min-height: 92px; padding: 11px 13px; font-size: 14px; }
+  .submit-message-button { min-height: 44px; font-size: 14px; }
+  .load-message-button, .load-history-button { min-width: 150px; min-height: 44px; margin-top: 12px; padding: 0 14px; font-size: 14px; }
+  .table-scroll-hint, .retail-summary-hint { margin: -2px 0 8px; font-size: 12px; }
+  .table-scroll, .retail-summary-scroll { border-width: 1px; border-radius: 12px; }
+  .balance-table { width: 100%; min-width: 520px; }
+  .balance-table-row { width: 100%; min-height: 52px; grid-template-columns: minmax(180px, 1.3fr) repeat(3, minmax(95px, .8fr)); border-width: 1px; }
+  .balance-table-row text { min-height: 52px; padding: 8px 7px; font-size: 14px; }
+  .balance-scroll[data-visible-rows="1"] { height: 104px; }
+  .balance-scroll[data-visible-rows="2"] { height: 156px; }
+  .balance-scroll[data-visible-rows="3"] { height: 208px; }
+  .balance-scroll[data-visible-rows="4"] { height: 260px; }
+  .balance-scroll[data-visible-rows="5"] { height: 312px; }
+  .retail-summary-row { height: 52px; min-height: 52px; grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(90px, .8fr)); border-width: 1px; }
+  .retail-summary-row.table-head { height: 48px; min-height: 48px; }
+  .retail-summary-row text { padding: 8px 7px; font-size: 14px; }
+  .retail-summary-row .retail-count { font-size: 15px; }
+  .retail-summary-scroll[data-visible-rows="1"] { height: 100px; }
+  .retail-summary-scroll[data-visible-rows="2"] { height: 152px; }
+  .retail-summary-scroll[data-visible-rows="3"] { height: 204px; }
+  .retail-summary-scroll[data-visible-rows="4"] { height: 256px; }
+  .retail-summary-scroll[data-visible-rows="5"] { height: 308px; }
+  .history-tabs { grid-template-columns: repeat(5, minmax(0, 1fr)); margin-bottom: 12px; }
+  .history-tabs button { padding: 0 6px; font-size: 14px; }
+  .record-table.recharge-history, .record-table.recharge-history .record-row { min-width: 930px; }
+  .record-table.compact-history, .record-table.compact-history .record-row { min-width: 850px; }
+  .recharge-history .record-row { grid-template-columns: 190px 120px 120px 80px 210px 210px; }
+  .compact-history .record-row { grid-template-columns: 190px 120px 120px 80px 210px 130px; }
+  .record-row { min-height: 52px; border-width: 1px; }
+  .record-row text { min-height: 52px; padding: 8px 7px; font-size: 14px; }
+  .record-row.table-head, .record-row.table-head text { min-height: 48px; }
+  .record-scroll[data-visible-rows="1"] { height: 100px; }
+  .record-scroll[data-visible-rows="2"] { height: 152px; }
+  .record-scroll[data-visible-rows="3"] { height: 204px; }
+  .record-scroll[data-visible-rows="4"] { height: 256px; }
+  .record-scroll[data-visible-rows="5"] { height: 308px; }
+}

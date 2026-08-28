@@ -37,6 +37,7 @@
       <view wx:if="{{statusMessage}}" class="section-message {{statusError ? 'error' : ''}}">{{statusMessage}}</view>
     </view>
 
+    <view class="customer-communication-grid">
     <view class="card notes-card">
       <view class="card-title notes-title">
         <text>客户备注</text>
@@ -78,10 +79,13 @@
       </view>
       <view wx:if="{{messageMessage}}" class="section-message {{messageError ? 'error' : ''}}">{{messageMessage}}</view>
     </view>
+    </view>
 
+    <view class="customer-summary-grid">
     <view class="card balance-card">
       <view class="card-title"><text>项目次数汇总</text><text class="badge">{{balances.length}} 个项目</text></view>
-      <scroll-view wx:if="{{balances.length}}" class="table-scroll balance-scroll" scroll-x enhanced show-scrollbar="false">
+      <text wx:if="{{balances.length > 5}}" class="table-scroll-hint">超过 5 个项目，可在表格内上下滑动</text>
+      <scroll-view wx:if="{{balances.length}}" class="table-scroll balance-scroll" scroll-x="true" data-visible-rows="{{balances.length > 5 ? 5 : balances.length}}" scroll-y="{{balances.length > 5}}" enhanced show-scrollbar="{{balances.length > 5}}">
         <view class="balance-table">
           <view class="balance-table-row table-head"><text>项目</text><text>累计充值</text><text>累计核销</text><text>剩余</text></view>
           <view wx:for="{{balances}}" wx:key="productId" class="balance-table-row">
@@ -98,13 +102,14 @@
     <view class="card balance-card">
       <view class="card-title"><text>产品汇总</text><text class="badge">{{retailProductSummary.length}} 个产品</text></view>
       <text wx:if="{{retailSummaryScrollable}}" class="retail-summary-hint">超过 5 个产品，可在表格内上下滑动</text>
-      <scroll-view wx:if="{{retailProductSummary.length}}" class="retail-summary-scroll" scroll-y="{{retailSummaryScrollable}}" enhanced show-scrollbar="{{retailSummaryScrollable}}" style="height: {{retailSummaryViewportHeight}}rpx;">
+      <scroll-view wx:if="{{retailProductSummary.length}}" class="retail-summary-scroll" data-visible-rows="{{retailProductSummary.length > 5 ? 5 : retailProductSummary.length}}" scroll-y="{{retailSummaryScrollable}}" enhanced show-scrollbar="{{retailSummaryScrollable}}">
         <view class="retail-summary-table">
           <view class="retail-summary-row table-head"><text>产品名称</text><text>购买</text><text>赠送</text></view>
           <view wx:for="{{retailProductSummary}}" wx:key="productId" class="retail-summary-row"><text>{{item.productName}}</text><text class="retail-count">{{item.purchasedCount}} 件</text><text class="retail-count">{{item.giftedCount}} 件</text></view>
         </view>
       </scroll-view>
       <view wx:else class="empty">暂无产品购买或赠送记录</view>
+    </view>
     </view>
 
     <view class="card history-card">
@@ -116,7 +121,8 @@
         <button class="{{historyType === 'EXPERIENCE' ? 'active' : ''}}" data-type="EXPERIENCE" bindtap="changeHistory">体验</button>
         <button class="{{historyType === 'PRODUCT_PURCHASE' ? 'active' : ''}}" data-type="PRODUCT_PURCHASE" bindtap="changeHistory">产品</button>
       </view>
-      <scroll-view wx:if="{{visibleHistory.length}}" class="table-scroll record-scroll" scroll-x enhanced show-scrollbar="false" scroll-left="{{historyScrollLeft}}" bindscroll="rememberHistoryScroll">
+      <text wx:if="{{visibleHistory.length > 5}}" class="table-scroll-hint">超过 5 条，可在表格内上下滑动</text>
+      <scroll-view wx:if="{{visibleHistory.length}}" class="table-scroll record-scroll" scroll-x="true" scroll-left="{{historyScrollLeft}}" bindscroll="rememberHistoryScroll" data-visible-rows="{{visibleHistory.length > 5 ? 5 : visibleHistory.length}}" scroll-y="{{visibleHistory.length > 5}}" enhanced show-scrollbar="{{visibleHistory.length > 5}}">
         <view class="record-table {{historyType === 'RECHARGE' || historyType === 'REFUND' || historyType === 'PRODUCT_PURCHASE' ? 'recharge-history' : 'compact-history'}}">
           <view class="record-row table-head"><text>单号</text><text>{{historyType === 'PRODUCT_PURCHASE' ? '产品' : '项目'}}</text><text>业务老师</text><text>{{historyType === 'PRODUCT_PURCHASE' ? '数量' : '次数'}}</text><text>提交时间</text><text>状态</text></view>
           <view wx:for="{{visibleHistory}}" wx:key="id" class="record-row">

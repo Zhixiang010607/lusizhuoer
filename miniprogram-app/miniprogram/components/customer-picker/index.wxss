@@ -34,3 +34,32 @@
 .picker-message { display: block; margin-top: 13rpx; color: #675b4b; font-size: 22rpx; line-height: 1.45; }
 .picker-message.error { color: #a1322d; }
 .retry { margin-top: 12rpx; color: #74592d; background: #f4e7d0; border-radius: 14rpx; font-size: 24rpx; }
+
+@media (min-width: 700px) {
+  .picker-card { padding: 16px; border-width: 1px; border-radius: 16px; }
+  .tabs { gap: 6px; margin-bottom: 14px; padding: 5px; border-radius: 12px; }
+  .tabs button { min-height: 44px; border-radius: 9px; font-size: 15px; }
+  .field-value, .customer-select-control { min-height: 48px; padding: 0 14px; border-width: 1px; border-radius: 11px; font-size: 16px; }
+  .customer-select-heading { gap: 12px; margin: 0 3px 8px; font-size: 14px; }
+  .customer-select-heading text:last-child { font-size: 13px; }
+  .customer-select-control { gap: 12px; }
+  .customer-select-control > text:first-child { font-size: 15px; }
+  .customer-select-arrow { font-size: 22px; }
+  .customer-select-help { margin: 8px 3px 0; font-size: 13px; }
+  .manual-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+  .manual-date-row { gap: 8px; }
+  .clear-date { width: 76px; min-height: 48px; border-radius: 11px; font-size: 14px; }
+  .manual-help { align-self: center; font-size: 13px; }
+  .search { min-height: 48px; padding: 0 18px; border-radius: 11px; font-size: 16px; }
+  .duplicate-list { gap: 8px; margin-top: 14px; }
+  .duplicate-title { font-size: 14px; }
+  .duplicate-option { min-height: 48px; gap: 12px; padding: 9px 13px; border-width: 1px; border-radius: 11px; font-size: 14px; }
+  .candidate { gap: 14px; margin-top: 14px; padding: 14px; border-width: 1px; border-radius: 13px; }
+  .customer-photo { width: 92px; height: 108px; border-radius: 11px; }
+  .photo-placeholder { font-size: 13px; }
+  .candidate-info { gap: 6px; font-size: 14px; }
+  .candidate-name { font-size: 20px; }
+  .confirm { width: min(360px, 100%); height: 48px; min-height: 48px; margin: 12px auto 0; padding: 0 18px; border-radius: 11px; font-size: 16px; }
+  .picker-message { margin-top: 10px; font-size: 14px; }
+  .retry { width: min(320px, 100%); margin: 10px auto 0; border-radius: 11px; font-size: 14px; }
+}

@@ -150,16 +150,14 @@
 
     <block wx:if="{{session.role === 'hq'}}">
       <view class="web-panel hq-filters">
-        <view class="hq-filter-grid">
-          <label><text>时间周期</text><picker range="{{hqPeriodLabels}}" value="{{hqPeriodIndex}}" bindchange="chooseHqPeriod"><view class="filter-picker">{{hqPeriodLabels[hqPeriodIndex]}}</view></picker></label>
+        <view class="hq-filter-grid hq-ranking-control-grid">
+          <label class="hq-control-field"><text>时间周期</text><picker range="{{hqPeriodLabels}}" value="{{hqPeriodIndex}}" bindchange="chooseHqPeriod"><view class="filter-picker">{{hqPeriodLabels[hqPeriodIndex]}}</view></picker></label>
+          <view class="hq-control-field"><text class="hq-control-label">排名对象</text><view class="hq-dimension-tabs"><button wx:for="{{hqDimensions}}" wx:key="value" class="{{item.value === hqDimension ? 'active' : ''}}" data-index="{{index}}" bindtap="chooseHqDimension">{{item.label}}</button></view></view>
+          <label class="hq-control-field hq-product-filter"><text class="hq-control-label">项目范围</text><picker range="{{hqProductLabels}}" value="{{hqProductIndex}}" bindchange="chooseHqProduct"><view class="filter-picker">{{hqProductLabels[hqProductIndex]}}</view></picker></label>
+          <view class="hq-control-field"><text class="hq-control-label">排序指标</text><view class="hq-dimension-tabs hq-metric-tabs"><button wx:for="{{hqRankingMetrics}}" wx:key="value" class="{{item.value === hqRankingMetric ? 'active' : ''}}" data-index="{{index}}" bindtap="chooseHqRankingMetric">{{item.label}}</button></view></view>
           <view wx:if="{{hqPeriod === 'CUSTOM'}}" class="hq-custom-dates"><label><text>开始日期</text><picker mode="date" value="{{hqStart}}" bindchange="changeHqStart"><view class="filter-picker">{{hqStart}}</view></picker></label><label><text>结束日期</text><picker mode="date" value="{{hqEnd}}" bindchange="changeHqEnd"><view class="filter-picker">{{hqEnd}}</view></picker></label></view>
+          <view class="hq-filter-actions"><button bindtap="resetHqRange">重置筛选</button></view>
         </view>
-        <text class="hq-control-label">排名对象</text>
-        <view class="hq-dimension-tabs"><button wx:for="{{hqDimensions}}" wx:key="value" class="{{item.value === hqDimension ? 'active' : ''}}" data-index="{{index}}" bindtap="chooseHqDimension">{{item.label}}</button></view>
-        <label class="hq-product-filter"><text class="hq-control-label">项目范围</text><picker range="{{hqProductLabels}}" value="{{hqProductIndex}}" bindchange="chooseHqProduct"><view class="filter-picker">{{hqProductLabels[hqProductIndex]}}</view></picker></label>
-        <text class="hq-control-label">排序指标</text>
-        <view class="hq-dimension-tabs hq-metric-tabs"><button wx:for="{{hqRankingMetrics}}" wx:key="value" class="{{item.value === hqRankingMetric ? 'active' : ''}}" data-index="{{index}}" bindtap="chooseHqRankingMetric">{{item.label}}</button></view>
-        <view class="hq-filter-actions"><button bindtap="resetHqRange">重置筛选</button></view>
       </view>
 
       <view class="web-panel hq-project-summary-panel">
@@ -183,7 +181,7 @@
 
       <view class="web-panel ranking-panel">
         <view class="panel-heading ranking-heading"><view><text class="panel-title">完整排名</text><text class="hq-ranking-rule">{{hqProductLabels[hqProductIndex]}} · 按{{hqDimensionLabels[hqDimensionIndex]}}的{{hqRankingMetricLabels[hqRankingMetricIndex]}}次数降序</text></view><view class="ranking-actions"><button bindtap="exportHqRanking" disabled="{{loading || hqRankingLoading || hqExporting || hqRankingError}}">{{hqExporting ? '正在导出…' : '导出完整报表 PDF'}}</button></view></view>
-        <view class="hq-ranking-list"><view wx:for="{{hqRanking}}" wx:key="entityId" class="hq-ranking-card"><view class="hq-ranking-head"><text>第 {{item.rank}} 名</text><text>{{item.name}}</text><text>{{item.share}}</text></view><view class="hq-ranking-metrics"><view><text>充值</text><text>{{item.recharge}}</text></view><view><text>核销</text><text>{{item.verification}}</text></view><view><text>体验</text><text>{{item.experience}}</text></view><view><text>退费</text><text>{{item.refund}}</text></view></view></view><view wx:if="{{!hqRanking.length}}" class="table-empty">{{loading || hqRankingLoading ? '正在读取排名…' : (hqRankingError || '当前日期范围暂无有效数据')}}</view></view>
+        <view class="hq-ranking-list"><view wx:for="{{hqRanking}}" wx:key="entityId" class="hq-ranking-card"><view class="hq-ranking-head"><text>第 {{item.rank}} 名</text><text>{{item.name}}</text><text>{{item.share}}</text></view><view class="hq-ranking-selected-metric"><text>{{item.selectedMetricLabel}}</text><text>{{item.selectedMetricValue}} 次</text></view></view><view wx:if="{{!hqRanking.length}}" class="table-empty">{{loading || hqRankingLoading ? '正在读取排名…' : (hqRankingError || '当前日期范围暂无有效数据')}}</view></view>
         <view class="table-pagination hq-ranking-pagination"><button disabled="{{hqRankingPage.previousDisabled || hqRankingLoading}}" bindtap="previousHqPage">上一页</button><text>第 {{hqRankingPage.page}} / {{hqRankingPage.totalPages}} 页 · 共 {{hqRankingPage.total}} 条</text><button disabled="{{hqRankingPage.nextDisabled || hqRankingLoading}}" bindtap="nextHqPage">下一页</button><view class="ranking-page-jump"><text>跳至第</text><input type="number" value="{{hqRankingInput}}" bindinput="inputHqPage" /><text>页</text><button disabled="{{hqRankingLoading}}" bindtap="jumpHqPage">跳转</button></view><button wx:if="{{hqRankingError}}" class="ranking-retry" bindtap="retryHqRanking">重试排名</button></view>
       </view>
     </block>

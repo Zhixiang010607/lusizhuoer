@@ -10,19 +10,19 @@
     </label>
     <button wx:if="{{!loadingStores && !stores.length}}" class="secondary" bindtap="loadTeacherStores">重试门店列表</button>
   </view>
-  <block wx:if="{{store.id}}">
-  <view class="card">
+  <view wx:if="{{store.id}}" class="create-workspace">
+  <view class="card create-details-card">
     <view class="card-title"><text>{{session.role === 'teacher' ? '第二步：填写客户资料' : '第一步：填写客户资料'}}</text><text class="badge">当前门店</text></view>
     <label class="field"><text class="field-label">客户姓名</text><input class="input" maxlength="40" value="{{name}}" bindinput="inputName" placeholder="请输入真实姓名" /></label>
     <label class="field"><text class="field-label">生日</text><picker mode="date" value="{{birthDate}}" end="{{today}}" bindchange="inputBirthday"><view class="picker">{{birthDate || '请选择生日'}}</view></picker></label>
     <label class="field"><text class="field-label">客户备注（可选）</text><textarea class="textarea" maxlength="500" value="{{notes}}" bindinput="inputNotes" placeholder="最多 500 字"></textarea></label>
   </view>
-  <view class="card">
+  <view class="card create-photo-card">
     <view class="card-title"><text>{{session.role === 'teacher' ? '第三步：拍摄客户照片' : '第二步：拍摄客户照片'}}</text><text class="badge">现场拍摄</text></view>
     <camera-capture id="customerCamera" title="客户建档照片" bindchange="captureChanged"></camera-capture>
     <label class="consent"><checkbox checked="{{consent}}" bindtap="toggleConsent" color="#a98243" /><text>我已取得客户明确授权：采集并绑定其人脸信息，仅用于本人核销身份验证与业务安全。</text></label>
   </view>
-  <button class="primary submit" bindtap="submit" loading="{{busy}}" disabled="{{busy || !captureReady || !consent}}">验证照片并建立客户</button>
-  </block>
+  <button class="primary submit create-submit" bindtap="submit" loading="{{busy}}" disabled="{{busy || !captureReady || !consent}}">验证照片并建立客户</button>
+  </view>
   <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
 </view>

@@ -2,14 +2,16 @@
   <view class="page-heading"><text class="eyebrow">产品购买</text><text class="title">为客户填报产品购买</text><text class="subtitle">无需人脸识别；审核通过后计入客户产品汇总。</text></view>
   <view wx:if="{{locked}}" class="card recovery-card"><view class="card-title"><text>上次提交结果待确认</text><text class="badge">禁止重复</text></view><text class="section-note">{{message}}</text><button class="primary" bindtap="recoverPending" loading="{{recovering}}">检查上次提交结果</button></view>
   <block wx:else>
-    <view wx:if="{{session.role === 'teacher'}}" class="card"><view class="card-title"><text>选择办理门店</text><text class="badge">必选</text></view><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="selectStore" disabled="{{loadingStores || busy}}"><view class="picker">{{loadingStores ? '正在读取可办理门店…' : (store.id ? store.name + ' · ' + (store.code || store.id) : '请选择门店')}}</view></picker></view>
-    <view wx:if="{{store.id}}" class="card"><view class="card-title"><text>第一步：确认客户</text><text class="badge">本门店活跃客户</text></view><customer-picker store-id="{{store.id}}" bindconfirm="customerConfirmed" bindchange="customerChanged"></customer-picker></view>
-    <view wx:if="{{store.id}}" class="card {{customer ? '' : 'disabled-card'}}"><view class="card-title"><text>第二步：填写购买信息</text><text class="badge">{{customer ? customer.customerName : '先确认客户'}}</text></view>
+    <view class="workflow-grid">
+    <view wx:if="{{session.role === 'teacher'}}" class="card store-picker-card"><view class="card-title"><text>选择办理门店</text><text class="badge">必选</text></view><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="selectStore" disabled="{{loadingStores || busy}}"><view class="picker">{{loadingStores ? '正在读取可办理门店…' : (store.id ? store.name + ' · ' + (store.code || store.id) : '请选择门店')}}</view></picker></view>
+    <view wx:if="{{store.id}}" class="card customer-step-card"><view class="card-title"><text>第一步：确认客户</text><text class="badge">本门店活跃客户</text></view><customer-picker store-id="{{store.id}}" bindconfirm="customerConfirmed" bindchange="customerChanged"></customer-picker></view>
+    <view wx:if="{{store.id}}" class="card info-step-card {{customer ? '' : 'disabled-card'}}"><view class="card-title"><text>第二步：填写购买信息</text><text class="badge">{{customer ? customer.customerName : '先确认客户'}}</text></view>
       <label class="field"><text class="field-label">激活产品</text><picker range="{{productLabels}}" value="{{productIndex}}" bindchange="selectProduct" disabled="{{!customer || loadingProducts || !products.length}}"><view class="picker">{{loadingProducts ? '正在读取激活产品…' : productLabels[productIndex]}}</view></picker></label>
       <label class="field"><text class="field-label">购买数量</text><input class="input" type="number" maxlength="3" value="{{unitCount}}" bindinput="inputCount" placeholder="1 至 999 的整数" /></label>
       <label class="field"><text class="field-label">填报留言（可选）</text><textarea class="textarea" maxlength="500" value="{{note}}" bindinput="inputNote" placeholder="总部审核人员可看到" /></label>
     </view>
-    <view wx:if="{{store.id}}" class="card submit-card {{customer ? '' : 'disabled-card'}}"><button class="primary" bindtap="submit" loading="{{busy}}" disabled="{{busy || !ready}}">提交产品购买申请</button></view>
+    <view wx:if="{{store.id}}" class="card submit-card workflow-wide {{customer ? '' : 'disabled-card'}}"><button class="primary" bindtap="submit" loading="{{busy}}" disabled="{{busy || !ready}}">提交产品购买申请</button></view>
+    </view>
   </block>
   <view wx:if="{{message && !locked}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view><view class="safe-bottom"></view>
 </view>

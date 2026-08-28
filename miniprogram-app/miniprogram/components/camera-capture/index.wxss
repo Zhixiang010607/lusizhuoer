@@ -15,3 +15,17 @@
 .clear::after { border: 0; }
 .capture-message { display: block; margin-top: 14rpx; color: #675b4b; font-size: 22rpx; line-height: 1.45; }
 .capture-message.error { color: #a1332e; }
+
+@media (min-width: 700px) {
+  .capture-card { padding: 16px; border-width: 1px; border-radius: 16px; }
+  .capture-heading { gap: 12px; margin-bottom: 14px; }
+  .capture-heading .title { font-size: 19px; }
+  .capture-heading .hint { margin-top: 4px; font-size: 13px; }
+  .state { padding: 5px 9px; border-radius: 999px; font-size: 12px; }
+  .preview, .placeholder { height: 300px; border-radius: 14px; }
+  .placeholder { padding: 28px; font-size: 14px; }
+  .placeholder-title { margin-bottom: 7px; }
+  .buttons { gap: 10px; margin-top: 14px; }
+  .buttons button { min-height: 48px; border-radius: 11px; font-size: 16px; }
+  .capture-message { margin-top: 10px; font-size: 14px; }
+}

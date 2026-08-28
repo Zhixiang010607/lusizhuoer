@@ -124,6 +124,7 @@
 .archived-section { border-color: #ecd2cf; background: linear-gradient(180deg, #fff, #fffafa); }
 .archived-badge { color: #8f3a34; background: #fff0ee; }
 .hq-filter-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14rpx; margin-bottom: 14rpx; }
+.hq-control-field { min-width: 0; }
 .hq-custom-dates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; }
 .hq-custom-dates label { min-width: 0; }
 .hq-filter-actions { display: flex; align-items: center; justify-content: center; margin-top: 18rpx; padding-top: 18rpx; border-top: 1rpx solid #e5d6bd; }
@@ -156,11 +157,11 @@
 .hq-top-head text:last-child { padding-left: 4rpx; color: #74592d; font-size: 19rpx; font-weight: 850; }
 .hq-top-track { height: 8rpx; margin: 14rpx 0; overflow: hidden; background: #eadfce; border-radius: 999rpx; }
 .hq-top-track view { height: 100%; background: linear-gradient(90deg, #a98243, #d4b97e); border-radius: inherit; }
-.hq-top-metrics, .hq-ranking-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6rpx; }
-.hq-top-metrics view, .hq-ranking-metrics view { min-width: 0; text-align: center; }
-.hq-top-metrics text, .hq-ranking-metrics text { display: block; white-space: nowrap; }
-.hq-top-metrics text:first-child, .hq-ranking-metrics text:first-child { color: #7c7062; font-size: 16rpx; }
-.hq-top-metrics text:last-child, .hq-ranking-metrics text:last-child { margin-top: 4rpx; color: #302a22; font-size: 20rpx; font-weight: 850; }
+.hq-top-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6rpx; }
+.hq-top-metrics view { min-width: 0; text-align: center; }
+.hq-top-metrics text { display: block; white-space: nowrap; }
+.hq-top-metrics text:first-child { color: #7c7062; font-size: 16rpx; }
+.hq-top-metrics text:last-child { margin-top: 4rpx; color: #302a22; font-size: 20rpx; font-weight: 850; }
 .ranking-heading { width: 100%; align-items: center; flex-wrap: wrap; }
 .ranking-actions { display: flex; align-items: flex-end; gap: 12rpx; }
 .ranking-actions button { width: auto !important; min-width: 0; min-height: 64rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 18rpx; color: #fffdf8; background: #6f532e; border-radius: 12rpx; font-size: 19rpx; line-height: 1; white-space: nowrap; }
@@ -171,6 +172,9 @@
 .hq-ranking-head text:first-child { color: #806942; font-size: 17rpx; font-weight: 850; }
 .hq-ranking-head text:nth-child(2) { color: #302a22; font-size: 21rpx; font-weight: 850; }
 .hq-ranking-head text:last-child { color: #74592d; font-size: 19rpx; font-weight: 850; }
+.hq-ranking-selected-metric { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; padding-top: 12rpx; border-top: 1rpx solid #eadcc5; }
+.hq-ranking-selected-metric text:first-child { color: #7c7062; font-size: 17rpx; }
+.hq-ranking-selected-metric text:last-child { color: #302a22; font-size: 22rpx; font-weight: 850; white-space: nowrap; }
 .hq-ranking-pagination { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12rpx; }
 .hq-ranking-pagination > text { min-width: 0; text-align: center; white-space: nowrap; }
 .ranking-page-jump { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 8rpx; }
@@ -306,9 +310,11 @@
   .archived-section { border-color: #e1cfaf; background: #fffaf3; }
   .archived-badge { color: #8f3a34; background: #fff0ee; }
 
-  .hq-filter-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; margin-bottom: 12px; }
-  .hq-custom-dates { gap: 10px; }
-  .hq-filter-actions { margin-top: 14px; padding-top: 14px; border-top-width: 1px; }
+  .hq-filter-grid { gap: 12px 16px; margin-bottom: 0; }
+  .hq-ranking-control-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hq-ranking-control-grid .hq-dimension-tabs, .hq-ranking-control-grid .hq-product-filter { margin-bottom: 0; }
+  .hq-custom-dates { grid-column: 1 / -1; gap: 10px; }
+  .hq-filter-actions { grid-column: 1 / -1; justify-content: flex-end; margin-top: 0; padding-top: 12px; border-top-width: 1px; }
   .hq-filter-actions button { min-width: 104px; min-height: 44px; padding: 0 14px; border-radius: 10px; font-size: 14px; }
   .hq-control-label { margin-bottom: 6px; font-size: 13px; }
   .hq-dimension-tabs { gap: 6px; margin-bottom: 12px; padding: 6px; border-radius: 14px; }
@@ -321,9 +327,9 @@
   .hq-ranking-head text:first-child { font-size: 12px; }
   .hq-ranking-head text:nth-child(2) { font-size: 16px; }
   .hq-ranking-head text:last-child { font-size: 14px; }
-  .hq-ranking-metrics { gap: 4px; }
-  .hq-ranking-metrics text:first-child { font-size: 12px; }
-  .hq-ranking-metrics text:last-child { margin-top: 3px; font-size: 15px; }
+  .hq-ranking-selected-metric { gap: 8px; padding-top: 9px; border-top-width: 1px; }
+  .hq-ranking-selected-metric text:first-child { font-size: 12px; }
+  .hq-ranking-selected-metric text:last-child { font-size: 16px; }
   .ranking-actions { gap: 10px; }
   .ranking-actions button { min-height: 44px; padding: 0 14px; border-radius: 10px; font-size: 14px; }
   .safe-bottom { height: calc(18px + env(safe-area-inset-bottom)); }

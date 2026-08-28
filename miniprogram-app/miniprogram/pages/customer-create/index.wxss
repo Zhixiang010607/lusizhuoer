@@ -1,3 +1,11 @@
 .consent { display: flex; align-items: flex-start; gap: 13rpx; margin-top: 22rpx; color: #675b4b; font-size: 23rpx; line-height: 1.55; }
 .consent checkbox { flex: none; transform: scale(.86); transform-origin: left top; }
 .submit { width: 100%; margin: 0; }
+
+@media (min-width: 700px) {
+  .store-picker-card { max-width: 720px; margin-right: auto; margin-left: auto; }
+  .create-workspace { display: grid; grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr); align-items: start; gap: 16px; }
+  .create-workspace > .card { height: 100%; margin: 0; }
+  .create-submit { grid-column: 1 / -1; width: min(420px, 100%); min-height: 50px; justify-self: center; }
+  .consent { gap: 10px; margin-top: 16px; font-size: 14px; line-height: 1.5; }
+}

@@ -6,7 +6,7 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
 .subtitle { color: #7c7062; font-size: 20rpx; line-height: 1.5; }
 .card { width: 100%; min-width: 0; margin-bottom: 18rpx; padding: 24rpx; background: #fffaf3; border: 1rpx solid #dfcfb4; border-radius: 24rpx; box-sizing: border-box; box-shadow: 0 14rpx 42rpx rgba(93,72,39,.07); }
 .review-type-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; margin-bottom: 18rpx; }
-.review-type-tabs button { display: flex; align-items: center; justify-content: center; color: #74592d; background: #fffaf3; border: 1rpx solid #d8c5a3; line-height: 1; white-space: nowrap; }
+.review-type-tabs button { width: 100%; min-width: 0; display: flex; align-items: center; justify-content: center; color: #74592d; background: #fffaf3; border: 1rpx solid #d8c5a3; box-sizing: border-box; line-height: 1; white-space: nowrap; }
 .review-type-tabs button.active { color: #fffdf8; background: #6f532e; }
 .mode-tabs { width: 100%; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10rpx; padding: 8rpx; background: #eee4d6; border-radius: 18rpx; box-sizing: border-box; }
 button { min-height: 76rpx; display: flex; align-items: center; justify-content: center; margin: 0; border-radius: 16rpx; font-size: 21rpx; font-weight: 800; line-height: 1; white-space: nowrap; }
@@ -81,9 +81,10 @@ button::after { border: 0; }
   .review-type-tabs { gap: 12px; margin-bottom: 16px; }
   .mode-tabs { gap: 6px; padding: 6px; border-radius: 14px; }
   button { min-height: 48px; border-radius: 12px; font-size: 15px; }
-  .review-filter-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+  .review-filter-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
   .review-filter-grid .field { min-width: 0; margin-top: 0; }
-  .review-filter-grid .fixed-type, .review-code-field { grid-column: 1 / -1; }
+  .review-filter-grid .fixed-type { grid-column: auto; }
+  .review-code-field { grid-column: 1 / -1; }
   .field { gap: 7px; margin-top: 16px; }
   .field > text, .fixed-type > text:first-child { font-size: 14px; }
   .field input, .field textarea, .picker { min-height: 48px; padding: 0 16px; border-width: 1px; border-radius: 12px; font-size: 15px; }

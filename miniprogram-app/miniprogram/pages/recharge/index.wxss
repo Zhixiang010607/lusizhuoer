@@ -23,3 +23,21 @@
   .gift-quantity { flex-basis: 104rpx; width: 104rpx; }
   .gift-plus { flex-basis: 68rpx; width: 68rpx; min-width: 68rpx; height: 68rpx; min-height: 68rpx; }
 }
+
+@media (min-width: 700px) {
+  .workflow-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 16px; }
+  .workflow-grid > .card { height: 100%; margin: 0; }
+  .workflow-grid .workflow-wide,
+  .workflow-grid > .store-picker-card { grid-column: 1 / -1; height: auto; }
+  .gift-add-row { gap: 12px; margin-top: 14px; }
+  .gift-quantity { flex: 0 0 100px; width: 100px; padding: 0 12px; }
+  .gift-plus { flex: 0 0 48px; width: 48px; min-width: 48px; height: 48px; min-height: 48px; font-size: 28px; }
+  .gift-list { gap: 8px; margin-top: 14px; }
+  .gift-row { gap: 12px; padding: 12px 14px; border-width: 1px; border-radius: 12px; }
+  .gift-copy text { font-size: 16px; }
+  .gift-copy text:last-child { margin-top: 4px; font-size: 13px; }
+  .gift-remove { min-height: 42px; padding: 0 14px; border-width: 1px; border-radius: 10px; font-size: 14px; }
+  .gift-empty { margin-top: 14px; font-size: 14px; }
+  .impact { margin: -2px 0 16px; padding: 13px 14px; border-left-width: 4px; border-radius: 10px; font-size: 14px; }
+  .submit-card .primary { width: min(420px, 100%); margin: 0 auto; }
+}
