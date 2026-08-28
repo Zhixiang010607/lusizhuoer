@@ -225,9 +225,9 @@ test("store and teacher customer/order details use compact adaptive tablet works
   assert.match(customerWxss, /\.customer-communication-grid > \.card, \.customer-summary-grid > \.card \{ min-width: 0; height: 100%; margin: 0; \}/,
     "paired customer cards must be allowed to shrink inside either tablet column");
   assert.match(customerWxss, /@media \(min-width: 700px\)[\s\S]*?\.balance-table \{ width: 100%; min-width: 0; \}/s,
-    "the four-column project summary must fit its half-width tablet card without horizontal clipping");
-  assert.match(customerWxss, /\.balance-table-row \{[^}]*grid-template-columns: minmax\(0, 1\.3fr\) repeat\(3, minmax\(64px, \.8fr\)\);/s,
-    "project name, recharge, verification, and balance must all remain visible in the left summary card");
+    "the five-column project summary must fit its half-width tablet card without horizontal clipping");
+  assert.match(customerWxss, /\.balance-table-row \{[^}]*grid-template-columns: minmax\(0, 1\.25fr\) repeat\(4, minmax\(52px, \.72fr\)\);/s,
+    "project name, gross recharge, refund, verification, and balance must all remain visible in the left summary card");
   assert.match(customerWxss, /\.customer-communication-grid > \.notes-card \{ display: flex; flex-direction: column; \}/,
     "the tablet note card must expose a vertical fill context beside the taller message card");
   assert.match(customerWxss, /\.customer-communication-grid > \.notes-card \.notes-read,[\s\S]*?\.customer-communication-grid > \.notes-card \.notes-input \{ height: auto; min-height: 178px; flex: 1; \}/,

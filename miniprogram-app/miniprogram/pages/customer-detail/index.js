@@ -80,6 +80,7 @@ function mapProfile(value = {}) {
     createdAtLabel: query.displayDateAny(value.createdAt, value.created_at),
     customerStatus: clean(value.customerStatus).toUpperCase() === "ARCHIVED" ? "ARCHIVED" : "ACTIVE",
     totalRechargeCount: Number(value.totalRechargeCount || 0),
+    totalRefundCount: Number(value.totalRefundCount || 0),
     totalVerificationCount: Number(value.totalVerificationCount || 0),
     totalExperienceCount: Number(value.totalExperienceCount || 0)
   };
@@ -90,6 +91,7 @@ function mapBalances(rows) {
     productName: clean(row.productName) || "—",
     productCode: clean(row.productCode),
     totalRechargeCount: Number(row.totalRechargeCount || 0),
+    totalRefundCount: Number(row.totalRefundCount || 0),
     totalVerificationCount: Number(row.totalVerificationCount || 0),
     remainingCount: Number(row.remainingCount || 0)
   }));

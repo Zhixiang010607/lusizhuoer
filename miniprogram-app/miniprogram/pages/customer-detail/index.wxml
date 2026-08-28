@@ -17,6 +17,7 @@
 
       <view class="facts profile-facts">
         <view class="fact"><text class="label">累计充值</text><text class="value">{{profile.totalRechargeCount}} 次</text></view>
+        <view class="fact"><text class="label">累计退费</text><text class="value">{{profile.totalRefundCount}} 次</text></view>
         <view class="fact"><text class="label">累计核销</text><text class="value">{{profile.totalVerificationCount}} 次</text></view>
         <view class="fact"><text class="label">累计体验</text><text class="value">{{profile.totalExperienceCount}} 次</text></view>
       </view>
@@ -87,10 +88,11 @@
       <text wx:if="{{balances.length > 5}}" class="table-scroll-hint">超过 5 个项目，可在表格内上下滑动</text>
       <scroll-view wx:if="{{balances.length}}" class="table-scroll balance-scroll" scroll-x="true" data-visible-rows="{{balances.length > 5 ? 5 : balances.length}}" scroll-y="{{balances.length > 5}}" enhanced show-scrollbar="{{balances.length > 5}}">
         <view class="balance-table">
-          <view class="balance-table-row table-head"><text>项目</text><text>累计充值</text><text>累计核销</text><text>剩余</text></view>
+          <view class="balance-table-row table-head"><text>项目</text><text>累计充值</text><text>累计退费</text><text>累计核销</text><text>剩余</text></view>
           <view wx:for="{{balances}}" wx:key="productId" class="balance-table-row">
             <text>{{item.productName}}</text>
             <text>{{item.totalRechargeCount}} 次</text>
+            <text>{{item.totalRefundCount}} 次</text>
             <text>{{item.totalVerificationCount}} 次</text>
             <text class="balance-count">{{item.remainingCount}} 次</text>
           </view>

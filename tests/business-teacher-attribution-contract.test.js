@@ -16,8 +16,8 @@ function section(startMarker, endMarker) {
   return cloud.slice(start, end);
 }
 
-assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v9" : "v101"/);
-assert.match(readme, /当前版本：`v101`/);
+assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v9" : "v102"/);
+assert.match(readme, /当前版本：`v102`/);
 
 const attributionSource = section("function teacherBusinessAttributionSourceCondition", "function trustedBusinessTeacherIdSql");
 const trustedTeacherId = section("function trustedBusinessTeacherIdSql", "function teacherBusinessOwnershipCondition");
@@ -257,7 +257,7 @@ assert.doesNotMatch(verify065, /\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUN
   "065 verification must remain read-only");
 assert.equal((verify065.match(/UNION ALL/g) || []).length, 8,
   "065 verification must return all nine checks in one result table");
-assert.match(readme065, /065-01-store-optional-business-teacher\.sql[\s\S]*faceRecognition-v101\.zip[\s\S]*065-readonly-verify\.sql[\s\S]*0\.2\.39/,
+assert.match(readme065, /065-01-store-optional-business-teacher\.sql[\s\S]*faceRecognition-v102\.zip[\s\S]*065-readonly-verify\.sql[\s\S]*0\.2\.42/,
   "065 README must preserve SQL, cloud function, verification, and mini-program order");
 
 console.log("business teacher attribution contract: PASS");

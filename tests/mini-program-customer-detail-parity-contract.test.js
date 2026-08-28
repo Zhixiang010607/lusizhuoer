@@ -69,7 +69,7 @@ test("notes and messages keep symmetric in-card spacing and the warm internal pa
 });
 
 test("balance and history tables have exact centered single-line column widths", () => {
-  for (const label of ["累计充值", "累计核销", "剩余", "业务老师", "提交时间", "状态"]) {
+  for (const label of ["累计充值", "累计退费", "累计核销", "剩余", "业务老师", "提交时间", "状态"]) {
     assert.match(wxml, new RegExp(label));
   }
   assert.match(wxml, /item\.unitLabel/);
@@ -78,9 +78,9 @@ test("balance and history tables have exact centered single-line column widths",
   assert.match(wxml, /item\.statusLabel/);
   assert.doesNotMatch(wxml, /item\.productCode/,
     "customer profile tables show product names without internal product codes");
-  assert.match(wxss, /\.balance-table \{ width: 660rpx; min-width: 660rpx;/);
-  assert.match(wxss, /\.balance-table-row \{[^}]*width: 660rpx;[^}]*grid-template-columns: 240rpx 140rpx 140rpx 140rpx;/s);
-  assert.equal(240 + 140 + 140 + 140, 660);
+  assert.match(wxss, /\.balance-table \{ width: 760rpx; min-width: 760rpx;/);
+  assert.match(wxss, /\.balance-table-row \{[^}]*width: 760rpx;[^}]*grid-template-columns: 220rpx repeat\(4, 135rpx\);/s);
+  assert.equal(220 + (4 * 135), 760);
   assert.match(wxml, /historyType === 'RECHARGE' \|\| historyType === 'REFUND' \|\| historyType === 'PRODUCT_PURCHASE' \? 'recharge-history' : 'compact-history'/);
   assert.match(wxml, /historyType === 'PRODUCT_PURCHASE' \? 'product-history' : ''/);
   assert.match(wxml, /data-type="RECHARGE"[^>]*>充值<\/button>[\s\S]*data-type="REFUND"[^>]*>退费<\/button>/);

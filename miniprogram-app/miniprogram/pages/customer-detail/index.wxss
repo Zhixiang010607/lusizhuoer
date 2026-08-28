@@ -5,7 +5,7 @@
 .profile-name > text:first-child { font-size: 36rpx; font-weight: 850; }
 .profile-name .profile-sub { margin-top: 6rpx; color: #7c7062; font-size: 22rpx; }
 .photo-placeholder { display: flex; align-items: center; justify-content: center; padding: 10rpx; color: #74695c; background: #f5ead8; font-size: 20rpx; line-height: 1.3; text-align: center; }
-.profile-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 18rpx; }
+.profile-facts { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 18rpx; }
 .profile-facts .fact { padding: 14rpx 8rpx; text-align: center; }
 .profile-facts .value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .subsection-title { margin: 22rpx 0 12rpx; font-size: 27rpx; font-weight: 850; }
@@ -53,8 +53,8 @@
 .submit-message-button { width: 100%; min-height: 64rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 14rpx; font-size: 21rpx; line-height: 1.2; text-align: center; }
 
 .table-scroll { width: 100%; overflow: hidden; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
-.balance-table { width: 660rpx; min-width: 660rpx; background: #fffaf3; }
-.balance-table-row { width: 660rpx; min-height: 74rpx; display: grid; grid-template-columns: 240rpx 140rpx 140rpx 140rpx; border-top: 1rpx solid #dfcfb4; }
+.balance-table { width: 760rpx; min-width: 760rpx; background: #fffaf3; }
+.balance-table-row { width: 760rpx; min-height: 74rpx; display: grid; grid-template-columns: 220rpx repeat(4, 135rpx); border-top: 1rpx solid #dfcfb4; }
 .balance-table-row:first-child { border-top: 0; }
 .balance-table-row text, .record-row text { width: 100%; min-width: 0; display: flex; align-items: center; justify-content: center; justify-self: stretch; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .balance-table-row text { min-height: 74rpx; padding: 12rpx 8rpx; font-size: 21rpx; }
@@ -110,7 +110,7 @@
   .profile-name > text:first-child { font-size: 24px; }
   .profile-name .profile-sub { margin-top: 4px; font-size: 14px; }
   .photo-placeholder { padding: 8px; font-size: 13px; }
-  .profile-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 14px; }
+  .profile-facts { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 14px; }
   .profile-facts .fact { padding: 12px 8px; }
   .subsection-title { margin: 18px 0 10px; font-size: 19px; }
   .recent-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
@@ -145,7 +145,7 @@
   .table-scroll-hint, .retail-summary-hint { margin: -2px 0 8px; font-size: 12px; }
   .table-scroll, .retail-summary-scroll { border-width: 1px; border-radius: 12px; }
   .balance-table { width: 100%; min-width: 0; }
-  .balance-table-row { width: 100%; min-height: 52px; grid-template-columns: minmax(0, 1.3fr) repeat(3, minmax(64px, .8fr)); border-width: 1px; }
+  .balance-table-row { width: 100%; min-height: 52px; grid-template-columns: minmax(0, 1.25fr) repeat(4, minmax(52px, .72fr)); border-width: 1px; }
   .balance-table-row text { min-height: 52px; padding: 8px 7px; font-size: 14px; }
   .balance-scroll[data-visible-rows="1"] { height: 104px; }
   .balance-scroll[data-visible-rows="2"] { height: 156px; }

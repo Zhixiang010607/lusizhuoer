@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v101";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v102";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -1776,7 +1776,21 @@ async function getCustomerProfile(event) {
   const customerRows = await executeSql(
     `SELECT c.id, c.customer_code, c.customer_name, c.birth_date, c.notes,
             c.customer_status, c.customer_process_status,
-            c.total_recharge_count, c.total_verification_count, c.total_experience_count,
+            COALESCE((
+              SELECT SUM(recharge.unit_count)
+                FROM public.recharge_records recharge
+               WHERE recharge.customer_id = c.id
+                 AND recharge.recharge_type = 'NEW'
+                 AND recharge.record_status = 'APPROVED'
+            ), 0)::bigint AS gross_recharge_count,
+            COALESCE((
+              SELECT SUM(refund.unit_count)
+                FROM public.recharge_records refund
+               WHERE refund.customer_id = c.id
+                 AND refund.recharge_type = 'REFUND'
+                 AND refund.record_status = 'APPROVED'
+            ), 0)::bigint AS total_refund_count,
+            c.total_verification_count, c.total_experience_count,
             c.latest_recharge_at, c.latest_verification_at, c.created_at, c.updated_at,
             c.created_store_id, s.store_code, s.store_name
       FROM public.customers c
@@ -1869,11 +1883,33 @@ async function getCustomerProfile(event) {
   await requireRetailProductPurchaseSchema();
   const [balances, rechargeRows, refundRows, verificationRows, experienceRows, productPurchaseRows, retailProductRows] = await Promise.all([
     executeSql(
-      `SELECT p.id AS product_id, p.product_code, p.product_name, p.product_status,
-              b.total_recharge_count, b.total_verification_count, b.remaining_count, b.updated_at
-         FROM public.customer_product_balances b
-         JOIN public.products p ON p.id = b.product_id
-        WHERE b.customer_id = ${sqlText(customerId)}::bigint
+      `WITH recharge_history AS (
+         SELECT recharge.product_id,
+                COALESCE(SUM(recharge.unit_count) FILTER (WHERE recharge.recharge_type = 'NEW'), 0)::bigint AS gross_recharge_count,
+                COALESCE(SUM(recharge.unit_count) FILTER (WHERE recharge.recharge_type = 'REFUND'), 0)::bigint AS total_refund_count
+           FROM public.recharge_records recharge
+          WHERE recharge.customer_id = ${sqlText(customerId)}::bigint
+            AND recharge.record_status = 'APPROVED'
+          GROUP BY recharge.product_id
+       ), product_ids AS (
+         SELECT product_id
+           FROM public.customer_product_balances
+          WHERE customer_id = ${sqlText(customerId)}::bigint
+         UNION
+         SELECT product_id FROM recharge_history
+       )
+       SELECT p.id AS product_id, p.product_code, p.product_name, p.product_status,
+              COALESCE(history.gross_recharge_count, 0)::bigint AS total_recharge_count,
+              COALESCE(history.total_refund_count, 0)::bigint AS total_refund_count,
+              COALESCE(balance.total_verification_count, 0)::bigint AS total_verification_count,
+              COALESCE(balance.remaining_count, 0)::bigint AS remaining_count,
+              balance.updated_at
+         FROM product_ids ids
+         JOIN public.products p ON p.id = ids.product_id
+    LEFT JOIN public.customer_product_balances balance
+           ON balance.customer_id = ${sqlText(customerId)}::bigint
+          AND balance.product_id = ids.product_id
+    LEFT JOIN recharge_history history ON history.product_id = ids.product_id
         ORDER BY p.product_name, p.product_code`
     ),
     executeSql(rechargeSql(false)),
@@ -1923,7 +1959,8 @@ async function getCustomerProfile(event) {
       birthDate: customer.birth_date, notes: customer.notes || "",
       customerStatus: customer.customer_status,
       customerProcessStatus: customer.customer_process_status,
-      totalRechargeCount: Number(customer.total_recharge_count || 0),
+      totalRechargeCount: Number(customer.gross_recharge_count || 0),
+      totalRefundCount: Number(customer.total_refund_count || 0),
       totalVerificationCount: Number(customer.total_verification_count || 0),
       totalExperienceCount: Number(customer.total_experience_count || 0),
       latestRechargeAt: customer.latest_recharge_at,
@@ -1935,6 +1972,7 @@ async function getCustomerProfile(event) {
       productId: String(row.product_id), productCode: row.product_code, productName: row.product_name,
       productStatus: row.product_status,
       totalRechargeCount: Number(row.total_recharge_count || 0),
+      totalRefundCount: Number(row.total_refund_count || 0),
       totalVerificationCount: Number(row.total_verification_count || 0),
       remainingCount: Number(row.remaining_count || 0), updatedAt: row.updated_at
     })),
