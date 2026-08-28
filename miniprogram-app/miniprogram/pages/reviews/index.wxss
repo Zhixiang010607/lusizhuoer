@@ -92,7 +92,7 @@ button::after { border: 0; }
   .mode-tabs { gap: 4px; padding: 4px; border-radius: 10px; }
   .filter-card .review-type-tabs button, .filter-card .mode-tabs button { height: 38px; min-height: 38px; padding: 0 10px; border-radius: 8px; font-size: 14px; line-height: 1; }
   button { min-height: 42px; border-radius: 10px; font-size: 14px; }
-  .review-filter-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: 12px; row-gap: 0; margin-top: 10px; align-items: end; }
+  .review-filter-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.15fr) minmax(0, .85fr) minmax(0, .85fr); column-gap: 12px; row-gap: 0; margin-top: 10px; align-items: end; }
   .review-filter-grid .field { min-width: 0; margin-top: 0; }
   .review-code-field { grid-column: span 2; }
   .field { gap: 5px; margin-top: 12px; }
@@ -115,9 +115,9 @@ button::after { border: 0; }
   .table-scroll[data-visible-rows="3"] { height: 204px; }
   .table-scroll[data-visible-rows="4"] { height: 256px; }
   .table-scroll[data-visible-rows="5"] { height: 308px; }
-  .review-table { width: 100%; min-width: 836px; }
-  .review-row { grid-template-columns: 132px 64px 64px 78px 58px 50px 124px 142px 124px; min-height: 52px; border-width: 1px; }
-  .review-row > text, .review-row > view { min-height: 52px; padding: 6px 5px; font-size: 13px; }
+  .review-table { width: 100%; min-width: 904px; }
+  .review-row { grid-template-columns: 152px 88px 72px 82px 64px 58px 128px 124px 136px; min-height: 52px; border-width: 1px; }
+  .review-row > text, .review-row > view { min-height: 52px; padding: 6px 8px; font-size: 14px; }
   .review-row.head { min-height: 48px; }
   .review-action { gap: 6px; }
   .review-action button { min-width: 72px; min-height: 40px; padding: 0 10px; font-size: 13px; }

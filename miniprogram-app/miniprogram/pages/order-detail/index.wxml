@@ -79,5 +79,6 @@
   </block>
   <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
   <canvas id="receiptCanvas" type="2d" class="export-canvas"></canvas>
+  <canvas id="photoNormalizeCanvas" type="2d" class="export-canvas"></canvas>
   <view class="safe-bottom"></view>
 </view>

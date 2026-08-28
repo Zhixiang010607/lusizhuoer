@@ -93,7 +93,8 @@ test("query and review pages use compact tablet filters and five-row result view
   assert.doesNotMatch(reviewsWxml, /class="fixed-type"/,
     "review type already comes from the active review tab and must not be repeated as an odd filter tile");
   assert.match(reviewsWxss, /\.filter-switches\.has-review-types \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s);
-  assert.match(reviewsWxss, /\.review-filter-grid \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/s);
+  assert.match(reviewsWxss, /\.review-filter-grid \{[^}]*grid-template-columns: minmax\(0, 1\.15fr\) minmax\(0, 1\.15fr\) minmax\(0, \.85fr\) minmax\(0, \.85fr\);/s,
+    "review fields should retain more room than the paired query actions on tablets");
   assert.match(reviewsWxss, /\.filter-card \.review-type-tabs button, \.filter-card \.mode-tabs button \{[^}]*height: 38px;[^}]*min-height: 38px;[^}]*font-size: 14px;/s,
     "review switches must stop at one compact tablet height");
   assert.match(reviewsWxss, /\.field input, \.field textarea, \.picker \{[^}]*min-height: 42px;[^}]*height: 42px;[^}]*font-size: 14px;/s,
@@ -106,10 +107,12 @@ test("query and review pages use compact tablet filters and five-row result view
     reviewsWxss.lastIndexOf(".button-row.review-query-actions") > reviewsWxss.lastIndexOf(".button-row, .dialog-actions"),
     "the review action alignment override must follow the generic button margin rule"
   );
-  assert.match(reviewsWxss, /@media \(min-width: 700px\)[\s\S]*?\.review-table \{ width: 100%; min-width: 836px; \}/s,
+  assert.match(reviewsWxss, /@media \(min-width: 700px\)[\s\S]*?\.review-table \{ width: 100%; min-width: 904px; \}/s,
     "review columns should fill the tablet card while retaining an exact content-derived minimum");
-  assert.match(reviewsWxss, /\.review-row \{[^}]*grid-template-columns: 132px 64px 64px 78px 58px 50px 124px 142px 124px;/s,
+  assert.match(reviewsWxss, /\.review-row \{[^}]*grid-template-columns: 152px 88px 72px 82px 64px 58px 128px 124px 136px;/s,
     "short review fields must stay compact while the order code, actions, and complete timestamps keep enough width");
+  assert.match(reviewsWxss, /\.review-row > text, \.review-row > view \{[^}]*padding: 6px 8px;[^}]*font-size: 14px;/s,
+    "tablet review cells must keep readable text and independent horizontal gutters");
   assert.match(reviewsWxss, /\.review-type-tabs button \{[^}]*width: 100%;[^}]*min-width: 0;/s,
     "recharge and refund review tabs should fill their two balanced tablet columns");
   assert.match(directoryWxss, /\.search-fields \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s);

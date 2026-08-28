@@ -32,8 +32,8 @@
       </view>
     </scroll-view>
     <view wx:else class="empty">当前条件下没有审核记录</view>
-    <view wx:if="{{mode === 'filters'}}" class="pager"><button class="ghost" bindtap="previousPage" disabled="{{loading || page <= 1}}">上一页</button><text>第 {{page}} / {{totalPages}} 页</text><button class="ghost" bindtap="nextPage" disabled="{{loading || page >= totalPages}}">下一页</button></view>
-    <view wx:if="{{mode === 'filters'}}" class="page-jump"><text>跳至</text><input type="number" value="{{pageJump}}" bindinput="inputPage" /><text>页</text><button class="primary compact" bindtap="jumpPage" disabled="{{loading}}">跳转</button></view>
+    <view wx:if="{{mode === 'filters' && total > 0}}" class="pager"><button class="ghost" bindtap="previousPage" disabled="{{loading || page <= 1}}">上一页</button><text>第 {{page}} / {{totalPages}} 页</text><button class="ghost" bindtap="nextPage" disabled="{{loading || page >= totalPages}}">下一页</button></view>
+    <view wx:if="{{mode === 'filters' && total > 0}}" class="page-jump"><text>跳至</text><input type="number" value="{{pageJump}}" bindinput="inputPage" /><text>页</text><button class="primary compact" bindtap="jumpPage" disabled="{{loading}}">跳转</button></view>
   </view>
 
   <view wx:if="{{pendingOpen && pending}}" class="mask" catchtouchmove="noop" bindtap="closeDecision">

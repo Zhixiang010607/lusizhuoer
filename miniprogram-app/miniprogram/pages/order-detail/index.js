@@ -11,7 +11,8 @@ const {
 } = require("../../services/order-receipt");
 
 const PHOTO_SLOT_COUNT = 5;
-const MAX_EXTRA_PHOTO_BYTES = 3 * 1024 * 1024;
+const MAX_EXTRA_SOURCE_PHOTO_BYTES = 7 * 1024 * 1024;
+const MAX_EXTRA_UPLOAD_PHOTO_BYTES = 3 * 1024 * 1024;
 const PHOTO_LABELS = Object.freeze(["客户留存照", "本次核销照", "补充照片 1", "补充照片 2", "补充照片 3"]);
 
 function value(row, snake, camel) { return row?.[snake] ?? row?.[camel] ?? ""; }
@@ -315,6 +316,25 @@ function openPdfDocument(filePath) {
   }));
 }
 function imageInfo(src) { return wxCall((resolve, reject) => wx.getImageInfo({ src, success: resolve, fail: reject })); }
+function imageFormat(bytes) {
+  if (!(bytes instanceof Uint8Array)) return "";
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "jpeg";
+  if (bytes.length >= 8
+      && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
+      && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a) return "png";
+  if (bytes.length >= 12
+      && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
+      && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) return "webp";
+  return "";
+}
+function loadCanvasImage(canvas, source) {
+  return new Promise((resolve, reject) => {
+    const image = canvas.createImage();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("当前微信版本无法读取这张照片，请改选 JPG、PNG 或 WebP 图片"));
+    image.src = source;
+  });
+}
 function concatBytes(parts) {
   const total = parts.reduce((sum, part) => sum + part.byteLength, 0);
   const output = new Uint8Array(total);
@@ -614,6 +634,64 @@ Page({
     }
   },
 
+  photoNormalizeCanvasNode() {
+    return new Promise((resolve, reject) => this.createSelectorQuery().select("#photoNormalizeCanvas").fields({ node: true, size: true }).exec((items) => {
+      if (!items || !items[0] || !items[0].node) reject(new Error("照片处理画布尚未准备完成，请稍后重试"));
+      else resolve(items[0].node);
+    }));
+  },
+
+  canvasPhotoJpeg(canvas, width, height, quality) {
+    return wxCall((resolve, reject) => wx.canvasToTempFilePath({
+      canvas, x: 0, y: 0, width, height, destWidth: width, destHeight: height,
+      fileType: "jpg", quality, success: resolve, fail: reject
+    }, this));
+  },
+
+  async normalizeExtraPhoto(filePath, sourceBuffer, dimensions) {
+    const sourceBytes = new Uint8Array(sourceBuffer);
+    if (!Number.isInteger(sourceBytes.byteLength) || sourceBytes.byteLength < 12
+        || sourceBytes.byteLength > MAX_EXTRA_SOURCE_PHOTO_BYTES) {
+      throw new Error("补充照片单张不能超过 7 MB");
+    }
+    const format = imageFormat(sourceBytes);
+    if (!format) throw new Error("补充照片支持 JPG、JPEG、PNG 或 WebP");
+    if (format === "jpeg" && sourceBytes.byteLength <= MAX_EXTRA_UPLOAD_PHOTO_BYTES) {
+      return { buffer: sourceBuffer, bytes: sourceBytes.byteLength, converted: false };
+    }
+
+    const sourceWidth = Number(dimensions?.width || 0);
+    const sourceHeight = Number(dimensions?.height || 0);
+    if (!Number.isInteger(sourceWidth) || !Number.isInteger(sourceHeight)
+        || sourceWidth < 1 || sourceHeight < 1 || sourceWidth > 10000 || sourceHeight > 10000) {
+      throw new Error("补充照片尺寸无效，请重新选择");
+    }
+    const canvas = await this.photoNormalizeCanvasNode();
+    const image = await loadCanvasImage(canvas, filePath);
+    const maxEdges = [2400, 2000, 1600, 1280];
+    const qualities = [0.92, 0.86, 0.78, 0.7];
+    for (const maxEdge of maxEdges) {
+      const scale = Math.min(1, maxEdge / Math.max(sourceWidth, sourceHeight));
+      const width = Math.max(1, Math.round(sourceWidth * scale));
+      const height = Math.max(1, Math.round(sourceHeight * scale));
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, width, height);
+      context.drawImage(image, 0, 0, width, height);
+      for (const quality of qualities) {
+        const output = await this.canvasPhotoJpeg(canvas, width, height, quality);
+        const read = await readFile(output.tempFilePath);
+        const bytes = new Uint8Array(read.data);
+        if (imageFormat(bytes) === "jpeg" && bytes.byteLength <= MAX_EXTRA_UPLOAD_PHOTO_BYTES) {
+          return { buffer: read.data, bytes: bytes.byteLength, converted: true };
+        }
+      }
+    }
+    throw new Error("照片转换后仍然过大，请选择内容更简单或尺寸更小的照片");
+  },
+
   async uploadExtraPhoto(event) {
     const slot = Number(event.currentTarget.dataset.slot);
     if (!this.data.canEdit || this.data.uploading || this.data.photoLoading || !Number.isInteger(slot) || slot < 2 || slot > 4) return;
@@ -635,15 +713,9 @@ Page({
     this.setData({ uploading: true, uploadingSlot: slot, message: "正在校验并保存补充照片…", error: false });
     try {
       const [read, dimensions] = await Promise.all([readFile(filePath), imageInfo(filePath)]);
-      const buffer = read.data;
+      const normalized = await this.normalizeExtraPhoto(filePath, read.data, dimensions);
+      const buffer = normalized.buffer;
       const bytes = new Uint8Array(buffer);
-      const type = clean(dimensions.type).toLowerCase();
-      if (!Number.isInteger(bytes.byteLength) || bytes.byteLength < 4 || bytes.byteLength > MAX_EXTRA_PHOTO_BYTES) {
-        throw new Error("补充照片须为不超过 3 MB 的 JPEG");
-      }
-      if (!["jpeg", "jpg"].includes(type) || bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff) {
-        throw new Error("补充照片仅支持 JPEG");
-      }
       const begin = await this.callPhotoWithTransportRetry("beginVerificationPhotoUpload", {
         recordId: this.data.order.id, slot, requestId: uploadRequestId, originalBytes: bytes.byteLength
       });
@@ -677,7 +749,10 @@ Page({
       }
       if (clean(committed?.status) !== "COMMITTED") throw new Error("照片服务没有确认保存结果");
       requestOpened = false;
-      this.setData({ message: `${PHOTO_LABELS[slot]}已保存，正在重新读取数据库照片清单。`, error: false });
+      this.setData({
+        message: `${PHOTO_LABELS[slot]}已保存${normalized.converted ? "（已安全转换为 JPEG）" : ""}，正在重新读取数据库照片清单。`,
+        error: false
+      });
       await this.loadPhotos();
     } catch (error) {
       if (requestOpened && !commitUncertain) {

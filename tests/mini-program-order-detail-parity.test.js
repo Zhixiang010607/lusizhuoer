@@ -32,7 +32,8 @@ function loadHelpers(options = {}) {
   assert.ok(js.includes(marker), "order-detail helper injection marker exists");
   const instrumented = js.replace(marker, `
 globalThis.__orderDetailHelpers = {
-  PHOTO_SLOT_COUNT, MAX_EXTRA_PHOTO_BYTES, buildPhotoSlots, normalizePhotoManifest,
+  PHOTO_SLOT_COUNT, MAX_EXTRA_SOURCE_PHOTO_BYTES, MAX_EXTRA_UPLOAD_PHOTO_BYTES, imageFormat,
+  buildPhotoSlots, normalizePhotoManifest,
   exactOrderKind, routeOrderExpectation, assertExactRouteOrder, detailStatusLabel,
   receiptDocumentData, receiptPhotoItems, requestId, jpegPdf
 };
@@ -170,7 +171,14 @@ test("server-read original type controls the exact visible business kind", () =>
   assert.equal(helpers.exactOrderKind("RECHARGE", "NEW").noun, "充值");
   assert.equal(helpers.exactOrderKind("RECHARGE", "REFUND").noun, "退费");
   assert.match(helpers.requestId(4), /^[A-Za-z0-9][A-Za-z0-9_-]{15,63}$/);
-  assert.equal(helpers.MAX_EXTRA_PHOTO_BYTES, 3 * 1024 * 1024);
+  assert.equal(helpers.MAX_EXTRA_SOURCE_PHOTO_BYTES, 7 * 1024 * 1024);
+  assert.equal(helpers.MAX_EXTRA_UPLOAD_PHOTO_BYTES, 3 * 1024 * 1024);
+  assert.equal(helpers.imageFormat(new Uint8Array([0xff, 0xd8, 0xff, 0xd9])), "jpeg");
+  assert.equal(helpers.imageFormat(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])), "png");
+  assert.equal(helpers.imageFormat(new Uint8Array([
+    0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50
+  ])), "webp");
+  assert.equal(helpers.imageFormat(new Uint8Array([0x47, 0x49, 0x46, 0x38])), "");
 
   const jpegPage = { width: 1240, height: 1754, bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]) };
   const pdf = Buffer.from(helpers.jpegPdf([jpegPage]));
@@ -319,7 +327,11 @@ test("verification photo UI has list and per-slot recovery, originals, album sav
   includes(js, "slot < 2 || slot > 4", "only extra slots can be changed");
   includes(js, "begin.uploadMode !== \"FUNCTION\"", "the mini-program accepts only the dedicated v9 function upload mode");
   includes(js, "functionUploadProof: begin.functionUploadProof", "commit echoes the server capability");
-  includes(js, "bytes.byteLength > MAX_EXTRA_PHOTO_BYTES", "the client enforces the 3 MB ceiling");
+  includes(js, "sourceBytes.byteLength > MAX_EXTRA_SOURCE_PHOTO_BYTES", "source selection is capped at 7 MB");
+  includes(js, "bytes.byteLength <= MAX_EXTRA_UPLOAD_PHOTO_BYTES", "normalized JPEG remains within the server's 3 MB contract");
+  includes(js, 'fileType: "jpg"', "PNG and WebP sources are re-encoded as JPEG before upload");
+  includes(js, 'return "png"', "PNG source magic bytes are accepted");
+  includes(js, 'return "webp"', "WebP source magic bytes are accepted");
   includes(js, "await this.loadPhotos();", "a successful write rereads the database manifest");
   includes(js, "this.data.uploading || this.data.photoLoading", "concurrent writes and manifest reloads are isolated");
   includes(js, "const { saveImageToAlbum }", "album permission behavior is shared");
@@ -338,6 +350,7 @@ test("verification photo UI has list and per-slot recovery, originals, album sav
   includes(wxml, 'bindtap="savePhoto"', "authorized original album save");
   includes(wxml, 'bindtap="uploadExtraPhoto"', "choose-or-capture extra photo");
   includes(wxml, "canEdit && item.slot >= 2", "server-authorized edit buttons");
+  includes(wxml, 'id="photoNormalizeCanvas"', "a dedicated hidden canvas normalizes supplemental source images");
   assert.match(wxss, /\.photo-card\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;/s,
     "each photo cell must clip its own controls instead of painting into its neighbor");
   assert.match(wxss, /\.photo-actions button, \.upload-button, \.compact-button\s*\{[^}]*max-width:\s*100%;[^}]*min-width:\s*0;[^}]*box-sizing:\s*border-box;[^}]*align-items:\s*center;[^}]*justify-content:\s*center;/s,
