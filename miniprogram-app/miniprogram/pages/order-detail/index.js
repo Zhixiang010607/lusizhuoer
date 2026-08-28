@@ -2,7 +2,7 @@ const { callFace, callPhoto, callStaff } = require("../../services/api");
 const { requireSession } = require("../../services/session");
 const query = require("../../services/query-tools");
 const submission = require("../../services/submission");
-const { saveImageToAlbum } = require("../../services/photo-album");
+const { saveImageToAlbum, isPermissionFailure } = require("../../services/photo-album");
 const {
   renderReceiptCanvas,
   exportReceiptJpegs,
@@ -11,9 +11,11 @@ const {
 } = require("../../services/order-receipt");
 
 const PHOTO_SLOT_COUNT = 5;
+const DETAIL_PHOTO_SLOTS = Object.freeze([1, 2, 3, 4]);
+const RECEIPT_PHOTO_SLOTS = Object.freeze([1]);
 const MAX_EXTRA_SOURCE_PHOTO_BYTES = 7 * 1024 * 1024;
 const MAX_EXTRA_UPLOAD_PHOTO_BYTES = 3 * 1024 * 1024;
-const PHOTO_LABELS = Object.freeze(["客户留存照", "本次核销照", "补充照片 1", "补充照片 2", "补充照片 3"]);
+const PHOTO_LABELS = Object.freeze(["客户建档留存照", "客户核销照片", "补充照片 1", "补充照片 2", "补充照片 3"]);
 
 function value(row, snake, camel) { return row?.[snake] ?? row?.[camel] ?? ""; }
 function clean(input) { return String(input ?? "").trim(); }
@@ -141,13 +143,8 @@ function receiptDocumentData(order, baseType, template) {
     { label: "审核时间", value: source.reviewedAt || "—" }
   ] : [];
   const productGifts = recharge ? normalizeProductGifts(source.productGifts) : [];
-  const messages = [
-    source.message ? { label: "提交说明", value: source.message, time: source.submittedAt || "" } : null,
-    reviewVisible && source.reviewNote ? { label: "审核说明", value: source.reviewNote, time: source.reviewedAt || "" } : null,
-    source.supplementNote ? { label: "补录说明", value: source.supplementNote } : null,
-    source.voidNote ? { label: "作废说明", value: source.voidNote, time: source.voidSubmittedAt || "" } : null,
-    source.voidReviewNote ? { label: "作废审核说明", value: source.voidReviewNote, time: source.voidReviewedAt || "" } : null
-  ].filter(Boolean);
+  // 客户可下载的 PDF／图片凭证只包含业务事实，任何门店、审核、补录或作废留言都不得进入导出模型。
+  const messages = [];
   return {
     filename: `${source.customerName || "客户"}+${source.productName || "项目"}+${businessName}`,
     kind: source.typeLabel || businessName,
@@ -174,7 +171,7 @@ function receiptDocumentData(order, baseType, template) {
 
 function receiptPhotoItems(photos) {
   const bySlot = new Map((Array.isArray(photos) ? photos : []).map((photo) => [Number(photo.slot), photo]));
-  return Array.from({ length: PHOTO_SLOT_COUNT }, (_, slot) => {
+  return RECEIPT_PHOTO_SLOTS.map((slot) => {
     const photo = bySlot.get(slot) || {};
     const required = photo.declared === true;
     return {
@@ -190,8 +187,12 @@ function receiptPhotoItems(photos) {
 
 function labelsForManifest(result, noun = "核销") {
   const labels = [...PHOTO_LABELS];
-  if (clean(result?.faceSubjectType).toUpperCase() === "TEACHER") labels[0] = "老师留存照";
-  labels[1] = `${clean(noun) || "核销"}现场照`;
+  if (clean(result?.faceSubjectType).toUpperCase() === "TEACHER") {
+    labels[0] = "老师登记照";
+    labels[1] = "老师核销照片";
+  } else {
+    labels[1] = `${clean(noun) || "核销"}现场照`;
+  }
   return labels;
 }
 
@@ -199,12 +200,15 @@ function buildPhotoSlots(state = "empty", labels = PHOTO_LABELS) {
   return Array.from({ length: PHOTO_SLOT_COUNT }, (_, slot) => ({
     slot,
     label: labels[slot] || `照片 ${slot + 1}`,
+    visible: DETAIL_PHOTO_SLOTS.includes(slot),
     state,
     declared: false,
     thumbnailState: state === "loading" ? "loading" : "empty",
     thumbnailUrl: "",
     retrying: false,
-    retryError: ""
+    retryError: "",
+    originalBusy: false,
+    originalAction: ""
   }));
 }
 
@@ -235,7 +239,9 @@ function normalizePhotoManifest(result, labels = PHOTO_LABELS) {
       thumbnailUrl,
       thumbnailState: thumbnailUrl ? "ready" : "error",
       retrying: false,
-      retryError: ""
+      retryError: "",
+      originalBusy: false,
+      originalAction: ""
     };
   });
   return { slots, count: rows.size };
@@ -303,6 +309,12 @@ function readFile(filePath, encoding) {
 function writeFile(filePath, data) {
   return wxCall((resolve, reject) => wx.getFileSystemManager().writeFile({ filePath, data, success: resolve, fail: reject }));
 }
+function unlinkFile(filePath) {
+  return wxCall((resolve, reject) => wx.getFileSystemManager().unlink({ filePath, success: resolve, fail: reject }));
+}
+function fileInfo(filePath) {
+  return wxCall((resolve, reject) => wx.getFileSystemManager().getFileInfo({ filePath, success: resolve, fail: reject }));
+}
 function openPdfDocument(filePath) {
   if (typeof wx.openDocument !== "function") {
     return Promise.reject(new Error("当前微信版本无法打开 PDF，请升级微信后重试"));
@@ -365,9 +377,38 @@ function requestId(slot) {
   return `mini-photo-${Date.now().toString(36)}-${Number(slot)}-${random}`.slice(0, 64);
 }
 
-function photoPreviewPath(recordId, slot) {
+function photoPreviewPath(recordId, slot, token = "") {
   const safeRecord = clean(recordId).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 48) || "record";
-  return `${wx.env.USER_DATA_PATH}/order-photo-preview-${safeRecord}-${Number(slot)}.jpg`;
+  const safeToken = clean(token).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 32) || "page";
+  return `${wx.env.USER_DATA_PATH}/order-photo-preview-${safeRecord}-${Number(slot)}-${safeToken}.jpg`;
+}
+
+function originalPhotoCacheKey(recordId, slot) {
+  return `${clean(recordId)}:${Number(slot)}`;
+}
+
+function photoManifestIdentity(photo) {
+  if (!photo?.declared) return "empty";
+  return [
+    "declared",
+    clean(photo.uploadedAt || photo.uploaded_at || photo.updatedAt || photo.updated_at),
+    Number(photo.originalBytes || photo.original_bytes || 0),
+    clean(photo.objectKey || photo.object_key || photo.originalObjectRef || photo.original_object_ref),
+    clean(photo.etag || photo.sha256)
+  ].join("|");
+}
+
+function originalPhotoFilePath(recordId, slot, token, sequence) {
+  const safeRecord = clean(recordId).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 48) || "record";
+  const safeToken = clean(token).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 32) || "page";
+  return `${wx.env.USER_DATA_PATH}/order-photo-${safeRecord}-${Number(slot)}-${safeToken}-${Number(sequence)}.jpg`;
+}
+
+function originalActionCanRetry(error) {
+  const code = clean(error?.code).toUpperCase();
+  const message = clean(error?.errMsg || error?.message);
+  if (/cancel/i.test(message) || code.startsWith("ALBUM_")) return false;
+  return !isPermissionFailure(error);
 }
 
 async function mapWithConcurrency(items, limit, mapper) {
@@ -389,9 +430,9 @@ Page({
   data: {
     session: {}, recordId: "", recordCode: "", submissionClientRequestId: "", baseType: "RECHARGE", category: "RECHARGE", noun: "充值",
     order: null, facts: [], notes: [], loading: true,
-    photos: buildPhotoSlots(), photoCount: 0, photoLoading: false, photoManifestLoaded: false, photoManifestError: "",
+    photos: buildPhotoSlots(), photoCount: 0, visiblePhotoCount: 0, photoLoading: false, photoManifestLoaded: false, photoManifestError: "",
     canEdit: false, isSubmitter: false, editableUntil: "", editableUntilLabel: "—", uploading: false, uploadingSlot: -1,
-    exporting: false, exportProgress: "", originalBusySlot: -1,
+    exporting: false, exportProgress: "",
     message: "", error: false
   },
 
@@ -408,11 +449,30 @@ Page({
     });
     this._photoLoadEpoch = 0;
     this._photoRetrySequence = new Map();
+    this._originalPhotoFlights = new Map();
+    this._originalPhotoCache = new Map();
+    this._originalPhotoGenerations = new Map();
+    this._photoManifestIdentities = new Map();
+    this._ownedPhotoFiles = new Set();
+    this._photoPageToken = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    this._photoFileSequence = 0;
     wx.setNavigationBarTitle({ title: "露思卓儿" });
     this.load();
   },
 
   onPullDownRefresh() { this.load().finally(() => wx.stopPullDownRefresh()); },
+
+  onUnload() {
+    this._photoLoadEpoch = Number(this._photoLoadEpoch || 0) + 1;
+    if (this._photoRetrySequence) this._photoRetrySequence.clear();
+    if (this._originalPhotoFlights) this._originalPhotoFlights.clear();
+    if (this._originalPhotoCache) this._originalPhotoCache.clear();
+    if (this._originalPhotoGenerations) this._originalPhotoGenerations.clear();
+    if (this._photoManifestIdentities) this._photoManifestIdentities.clear();
+    const owned = this._ownedPhotoFiles ? Array.from(this._ownedPhotoFiles) : [];
+    if (this._ownedPhotoFiles) this._ownedPhotoFiles.clear();
+    owned.forEach((filePath) => unlinkFile(filePath).catch(() => {}));
+  },
 
   async load() {
     if (this.data.loading === "locked") return;
@@ -429,7 +489,7 @@ Page({
     this.setData({
       loading: "locked", message: "", error: false,
       ...(verification ? {
-        photos: buildPhotoSlots("loading"), photoCount: 0, photoManifestLoaded: false, photoManifestError: "",
+        photos: buildPhotoSlots("loading"), photoCount: 0, visiblePhotoCount: 0, photoManifestLoaded: false, photoManifestError: "",
         canEdit: false, isSubmitter: false, editableUntil: "", editableUntilLabel: "—"
       } : {})
     });
@@ -482,8 +542,21 @@ Page({
 
   applyPhotoManifest(result) {
     const normalized = normalizePhotoManifest(result, labelsForManifest(result, this.data.noun));
+    this.ensureOriginalPhotoState();
+    const recordId = clean(this.data.order?.id);
+    if (recordId) normalized.slots.forEach((photo) => {
+      const key = originalPhotoCacheKey(recordId, photo.slot);
+      const identity = photoManifestIdentity(photo);
+      const previous = this._photoManifestIdentities.get(key);
+      if (previous !== undefined && previous !== identity) this.clearOriginalPhotoCache(photo.slot, recordId);
+      this._photoManifestIdentities.set(key, identity);
+    });
     this.setData({
-      photos: normalized.slots, photoCount: normalized.count, photoManifestLoaded: true, photoManifestError: "",
+      photos: normalized.slots,
+      photoCount: normalized.count,
+      visiblePhotoCount: normalized.slots.filter((photo) => photo.visible && photo.declared).length,
+      photoManifestLoaded: true,
+      photoManifestError: "",
       canEdit: result.canEdit === true, isSubmitter: result.isSubmitter === true,
       editableUntil: result.editableUntil || "", editableUntilLabel: query.displayDateTimeAny(result.editableUntil, result.editable_until)
     });
@@ -495,7 +568,7 @@ Page({
     const hadManifest = this.data.photoManifestLoaded;
     this.setData({
       photoLoading: true, photoManifestError: "",
-      ...(!hadManifest ? { photos: buildPhotoSlots("loading", labelsForManifest({}, this.data.noun)), photoCount: 0 } : {})
+      ...(!hadManifest ? { photos: buildPhotoSlots("loading", labelsForManifest({}, this.data.noun)), photoCount: 0, visiblePhotoCount: 0 } : {})
     });
     try {
       const result = await callPhoto("getVerificationPhotos", { recordId: this.data.order.id });
@@ -506,7 +579,7 @@ Page({
       this.setData({
         photoManifestError: message,
         ...(!hadManifest ? {
-          photos: buildPhotoSlots("list-error", labelsForManifest({}, this.data.noun)), photoCount: 0,
+          photos: buildPhotoSlots("list-error", labelsForManifest({}, this.data.noun)), photoCount: 0, visiblePhotoCount: 0,
           photoManifestLoaded: false, canEdit: false, isSubmitter: false, editableUntil: "", editableUntilLabel: "—"
         } : {}),
         message, error: true
@@ -546,8 +619,10 @@ Page({
       const result = await callPhoto("getVerificationPhotoThumbnailData", { recordId: orderId, slot });
       if (Number(result.slot) !== slot) throw new Error("缩略图位置与请求不一致");
       const image = jpegDataUrl(result.imageBase64, result.bytes);
-      const localPath = photoPreviewPath(orderId, slot);
+      this.ensureOriginalPhotoState();
+      const localPath = photoPreviewPath(orderId, slot, this._photoPageToken);
       await writeFile(localPath, image.buffer);
+      this._ownedPhotoFiles.add(localPath);
       if (epoch !== Number(this._photoLoadEpoch || 0)
         || sequence !== Number(this._photoRetrySequence?.get(slot) || 0)
         || clean(this.data.order?.id) !== orderId) return;
@@ -570,60 +645,170 @@ Page({
     }
   },
 
-  async originalPhotoSource(slot) {
-    const photo = this.data.photos.find((item) => item.slot === slot);
-    if (!photo?.declared) throw new Error("该照片位置尚未上传");
-    const result = await callPhoto("getVerificationPhotoOriginalUrl", { recordId: this.data.order.id, slot });
-    const source = clean(result.photoUrl);
-    if (/^https:\/\//i.test(source)) return { source, buffer: null };
-    const image = jpegDataUrl(source, result.originalBytes || photo.originalBytes);
-    return { source: image.source, buffer: image.buffer };
+  ensureOriginalPhotoState() {
+    if (!this._originalPhotoFlights) this._originalPhotoFlights = new Map();
+    if (!this._originalPhotoCache) this._originalPhotoCache = new Map();
+    if (!this._originalPhotoGenerations) this._originalPhotoGenerations = new Map();
+    if (!this._photoManifestIdentities) this._photoManifestIdentities = new Map();
+    if (!this._ownedPhotoFiles) this._ownedPhotoFiles = new Set();
+    if (!this._photoPageToken) this._photoPageToken = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    if (!Number.isFinite(this._photoFileSequence)) this._photoFileSequence = 0;
   },
 
-  async localOriginalPath(slot, resolved) {
+  async clearOriginalPhotoCache(slot, recordId = clean(this.data.order?.id)) {
+    this.ensureOriginalPhotoState();
+    const key = originalPhotoCacheKey(recordId, slot);
+    const generation = Number(this._originalPhotoGenerations.get(key) || 0) + 1;
+    this._originalPhotoGenerations.set(key, generation);
+    const cached = this._originalPhotoCache.get(key);
+    this._originalPhotoCache.delete(key);
+    const flight = this._originalPhotoFlights.get(key);
+    if (flight && Number(flight.generation) !== generation) this._originalPhotoFlights.delete(key);
+    const filePath = typeof cached === "string" ? cached : clean(cached?.filePath);
+    if (!filePath || !this._ownedPhotoFiles.has(filePath)) return;
+    this._ownedPhotoFiles.delete(filePath);
+    await unlinkFile(filePath).catch(() => {});
+  },
+
+  async originalPhotoSource(slot, recordId) {
+    const photo = this.data.photos.find((item) => Number(item.slot) === Number(slot));
+    if (!photo?.declared) throw new Error("该照片位置尚未上传");
+    const result = await callPhoto("getVerificationPhotoOriginalUrl", { recordId, slot });
+    if (result.slot !== undefined && Number(result.slot) !== Number(slot)) throw new Error("原图位置与请求不一致");
+    const source = clean(result.photoUrl);
+    const expectedBytes = Number(result.originalBytes || photo.originalBytes || 0);
+    if (/^https:\/\//i.test(source)) return { source, buffer: null, expectedBytes };
+    const image = jpegDataUrl(source, expectedBytes);
+    return { source: "", buffer: image.buffer, expectedBytes: image.bytes };
+  },
+
+  async localOriginalPath(slot, recordId, resolved) {
+    this.ensureOriginalPhotoState();
+    let filePath;
     if (resolved.buffer) {
-      const path = `${wx.env.USER_DATA_PATH}/order-photo-${this.data.order.id}-${slot}-${Date.now()}.jpg`;
-      await writeFile(path, resolved.buffer);
-      return path;
+      this._photoFileSequence += 1;
+      filePath = originalPhotoFilePath(recordId, slot, this._photoPageToken, this._photoFileSequence);
+      await writeFile(filePath, resolved.buffer);
+    } else {
+      const downloaded = await wxCall((resolve, reject) => wx.downloadFile({ url: resolved.source, success: resolve, fail: reject }));
+      if (Number(downloaded.statusCode) !== 200 || !clean(downloaded.tempFilePath)) throw new Error("原图下载失败");
+      filePath = clean(downloaded.tempFilePath);
     }
-    const downloaded = await wxCall((resolve, reject) => wx.downloadFile({ url: resolved.source, success: resolve, fail: reject }));
-    if (downloaded.statusCode !== 200 || !downloaded.tempFilePath) throw new Error("原图下载失败");
-    return downloaded.tempFilePath;
+    this._ownedPhotoFiles.add(filePath);
+    try {
+      const info = await fileInfo(filePath);
+      const actualBytes = Number(info.size || 0);
+      if (Number(resolved.expectedBytes || 0) > 0 && actualBytes !== Number(resolved.expectedBytes)) {
+        throw new Error("原图与数据库记录大小不一致");
+      }
+    } catch (error) {
+      this._ownedPhotoFiles.delete(filePath);
+      await unlinkFile(filePath).catch(() => {});
+      throw error;
+    }
+    return filePath;
+  },
+
+  async originalPhotoLocalPath(slot, { refresh = false } = {}) {
+    this.ensureOriginalPhotoState();
+    const recordId = clean(this.data.order?.id);
+    if (!recordId || !Number.isInteger(Number(slot))) throw new Error("工单照片参数无效");
+    const key = originalPhotoCacheKey(recordId, slot);
+    if (refresh) await this.clearOriginalPhotoCache(slot, recordId);
+    let generation = Number(this._originalPhotoGenerations.get(key) || 0);
+    const cached = this._originalPhotoCache.get(key);
+    if (cached) {
+      const cachedPath = typeof cached === "string" ? cached : clean(cached.filePath);
+      const cachedGeneration = typeof cached === "string" ? generation : Number(cached.generation);
+      if (cachedPath && cachedGeneration === generation) {
+        try {
+          await fileInfo(cachedPath);
+          if (Number(this._originalPhotoGenerations.get(key) || 0) === generation
+            && this._originalPhotoCache.get(key) === cached) return cachedPath;
+        } catch (_) {
+          if (Number(this._originalPhotoGenerations.get(key) || 0) === generation
+            && this._originalPhotoCache.get(key) === cached) await this.clearOriginalPhotoCache(slot, recordId);
+        }
+      }
+      if (this._originalPhotoCache.get(key) === cached) this._originalPhotoCache.delete(key);
+      if (cachedPath && this._ownedPhotoFiles.has(cachedPath)) {
+        this._ownedPhotoFiles.delete(cachedPath);
+        await unlinkFile(cachedPath).catch(() => {});
+      }
+      generation = Number(this._originalPhotoGenerations.get(key) || 0);
+    }
+    const existing = this._originalPhotoFlights.get(key);
+    if (existing && Number(existing.generation) === generation) return existing.promise;
+    const epoch = Number(this._photoLoadEpoch || 0);
+    const promise = (async () => {
+      const resolved = await this.originalPhotoSource(Number(slot), recordId);
+      const filePath = await this.localOriginalPath(Number(slot), recordId, resolved);
+      const generationChanged = Number(this._originalPhotoGenerations.get(key) || 0) !== generation;
+      if (epoch !== Number(this._photoLoadEpoch || 0) || clean(this.data.order?.id) !== recordId || generationChanged) {
+        this._ownedPhotoFiles.delete(filePath);
+        await unlinkFile(filePath).catch(() => {});
+        const error = new Error(generationChanged ? "照片已更新，旧原图读取结果已丢弃" : "工单已切换，旧照片读取结果已丢弃");
+        error.code = generationChanged ? "STALE_PHOTO_GENERATION" : "STALE_PHOTO_PAGE";
+        throw error;
+      }
+      this._originalPhotoCache.set(key, { generation, filePath });
+      return filePath;
+    })();
+    const flight = { generation, promise };
+    this._originalPhotoFlights.set(key, flight);
+    try { return await promise; }
+    finally {
+      if (this._originalPhotoFlights.get(key) === flight) this._originalPhotoFlights.delete(key);
+    }
+  },
+
+  async runOriginalPhotoAction(slot, action) {
+    let attempt = 0;
+    while (attempt < 2) {
+      try {
+        const filePath = await this.originalPhotoLocalPath(slot, { refresh: attempt > 0 });
+        await action(filePath);
+        return filePath;
+      } catch (error) {
+        if (attempt > 0 || !originalActionCanRetry(error)) throw error;
+        await this.clearOriginalPhotoCache(slot);
+        attempt += 1;
+      }
+    }
+    throw new Error("原图读取失败");
+  },
+
+  setOriginalPhotoBusy(slot, busy, action = "") {
+    this.updatePhotoSlot(slot, { originalBusy: busy, originalAction: busy ? action : "" });
   },
 
   async previewPhoto(event) {
     const slot = Number(event.currentTarget.dataset.slot);
-    if (!Number.isInteger(slot) || this.data.originalBusySlot >= 0) return;
-    this.setData({ originalBusySlot: slot, message: "", error: false });
-    wx.showLoading({ title: "读取原图", mask: true });
+    const photo = this.data.photos.find((item) => Number(item.slot) === slot);
+    if (!Number.isInteger(slot) || !photo?.declared || photo.originalBusy) return;
+    this.setOriginalPhotoBusy(slot, true, "preview");
+    this.setData({ message: "", error: false });
     try {
-      const resolved = await this.originalPhotoSource(slot);
-      const current = resolved.buffer ? await this.localOriginalPath(slot, resolved) : resolved.source;
-      await wxCall((resolve, reject) => wx.previewImage({ current, urls: [current], success: resolve, fail: reject }));
+      await this.runOriginalPhotoAction(slot, (current) => wxCall((resolve, reject) => wx.previewImage({
+        current, urls: [current], success: resolve, fail: reject
+      })));
     } catch (error) {
       this.setData({ message: error.message || error.errMsg || "原图读取失败", error: true });
-    } finally {
-      wx.hideLoading();
-      this.setData({ originalBusySlot: -1 });
-    }
+    } finally { this.setOriginalPhotoBusy(slot, false); }
   },
 
   async savePhoto(event) {
     const slot = Number(event.currentTarget.dataset.slot);
-    if (!Number.isInteger(slot) || this.data.originalBusySlot >= 0) return;
-    this.setData({ originalBusySlot: slot, message: "", error: false });
-    wx.showLoading({ title: "保存原图", mask: true });
+    const photo = this.data.photos.find((item) => Number(item.slot) === slot);
+    if (!Number.isInteger(slot) || !photo?.declared || photo.originalBusy) return;
+    this.setOriginalPhotoBusy(slot, true, "save");
+    this.setData({ message: "", error: false });
     try {
-      const resolved = await this.originalPhotoSource(slot);
-      const filePath = await this.localOriginalPath(slot, resolved);
-      await saveImageToAlbum(filePath);
+      await this.runOriginalPhotoAction(slot, (filePath) => saveImageToAlbum(filePath));
       this.setData({ message: "原图已保存到系统相册。", error: false });
     } catch (error) {
       this.setData({ message: error.errMsg || error.message || "原图保存失败，请检查相册权限后重试", error: true });
-    } finally {
-      wx.hideLoading();
-      this.setData({ originalBusySlot: -1 });
-    }
+    } finally { this.setOriginalPhotoBusy(slot, false); }
   },
 
   async callPhotoWithTransportRetry(action, payload) {
@@ -694,7 +879,9 @@ Page({
 
   async uploadExtraPhoto(event) {
     const slot = Number(event.currentTarget.dataset.slot);
-    if (!this.data.canEdit || this.data.uploading || this.data.photoLoading || !Number.isInteger(slot) || slot < 2 || slot > 4) return;
+    const photo = this.data.photos.find((item) => Number(item.slot) === slot);
+    if (!this.data.canEdit || this.data.uploading || this.data.photoLoading || photo?.originalBusy
+      || !Number.isInteger(slot) || slot < 2 || slot > 4) return;
     let chosen;
     try {
       chosen = await wxCall((resolve, reject) => wx.chooseMedia({
@@ -722,6 +909,7 @@ Page({
       requestOpened = !begin.alreadyCommitted;
       if (begin.alreadyCommitted) {
         this.setData({ message: "该补充照片已经保存，正在重新读取照片清单。", error: false });
+        await this.clearOriginalPhotoCache(slot);
         await this.loadPhotos();
         return;
       }
@@ -753,6 +941,7 @@ Page({
         message: `${PHOTO_LABELS[slot]}已保存${normalized.converted ? "（已安全转换为 JPEG）" : ""}，正在重新读取数据库照片清单。`,
         error: false
       });
+      await this.clearOriginalPhotoCache(slot);
       await this.loadPhotos();
     } catch (error) {
       if (requestOpened && !commitUncertain) {
@@ -812,9 +1001,11 @@ Page({
   async verificationPhotosForExport() {
     const manifest = await callPhoto("getVerificationPhotos", { recordId: this.data.order.id });
     const normalized = this.applyPhotoManifest(manifest);
-    const declared = normalized.slots.filter((photo) => photo.declared);
+    const receiptPhotos = RECEIPT_PHOTO_SLOTS.map((slot) => normalized.slots.find((photo) => photo.slot === slot));
+    const missingReceiptPhoto = receiptPhotos.filter((photo) => !photo?.declared);
+    if (missingReceiptPhoto.length) throw new Error("核销单缺少客户核销照片，本次没有生成文件");
     let completed = 0;
-    const results = await mapWithConcurrency(declared, 2, async (photo) => {
+    const results = await mapWithConcurrency(receiptPhotos, 1, async (photo) => {
       try {
         const result = await callPhoto("getVerificationPhotoExportData", { recordId: this.data.order.id, slot: photo.slot });
         if (Number(result.slot) !== photo.slot) throw new Error("照片位置与导出请求不一致");
@@ -825,16 +1016,16 @@ Page({
         return { ok: false, slot: photo.slot, error };
       } finally {
         completed += 1;
-        this.setData({ exportProgress: `正在读取核销原图 ${completed}/${declared.length}` });
+        this.setData({ exportProgress: `正在读取客户核销原图 ${completed}/${RECEIPT_PHOTO_SLOTS.length}` });
       }
     });
     const failures = results.filter((item) => !item.ok);
     if (failures.length) {
       const first = failures[0].error?.message || "原图不可用";
-      throw new Error(`数据库已登记的核销照片有 ${failures.length} 张读取失败（${first}），本次没有生成文件`);
+      throw new Error(`客户核销照片读取失败（${first}），本次没有生成文件`);
     }
     const sourceBySlot = new Map(results.map((item) => [item.slot, item.source]));
-    return normalized.slots.map((photo) => ({ ...photo, exportSource: sourceBySlot.get(photo.slot) || "" }));
+    return receiptPhotos.map((photo) => ({ ...photo, exportSource: sourceBySlot.get(photo.slot) || "" }));
   },
 
   canvasNode() {

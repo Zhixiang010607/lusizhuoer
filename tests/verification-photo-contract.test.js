@@ -286,7 +286,7 @@ assert.ok(
     < functionSource(cloud, "getVerificationPhotos").indexOf("signVerificationPhoto("),
   "thumbnail URLs must be signed only after the verification-order permission check"
 );
-includes(detailUi, 'const VERSION = "0.16.25"', "detail UI cache version");
+includes(detailUi, 'const VERSION = "0.16.27"', "detail UI cache version");
 includes(functionSource(detailUi, "callVerificationPhoto"), 'callFunction({ name: "verificationPhoto", data })', "all photo operations use the dedicated photo cloud function");
 includes(functionSource(detailUi, "callVerificationPhotoLifecycle"), "callVerificationPhoto(data)", "bounded photo lifecycle calls use the dedicated photo helper");
 includes(functionSource(detailUi, "loadTeacherOrder"), 'name: "faceRecognition"', "teacher workspace remains on the business and face cloud function");
@@ -398,8 +398,8 @@ includes(detailHtml, 'id="verificationPhotoCameraDialog"', "camera preview dialo
 includes(detailHtml, 'id="verificationPhotoCameraVideo" autoplay playsinline muted', "mobile inline camera preview");
 includes(detailHtml, 'id="switchVerificationPhotoCamera"', "front/rear camera switch action");
 includes(detailHtml, 'aria-label="切换前后摄像头"', "camera switch accessible name");
-includes(detailHtml, 'order-export.js?v=0.1.8', "export renderer cache bust");
-includes(detailHtml, 'business-detail.js?v=0.16.25', "detail script cache bust");
+includes(detailHtml, 'order-export.js?v=0.1.11', "export renderer cache bust");
+includes(detailHtml, 'business-detail.js?v=0.16.27', "detail script cache bust");
 includes(detailHtml, 'styles.css?v=0.15.49', "detail styles cache bust");
 includes(styles, ".verification-order-keyfacts.verification-order-five-keyfacts", "desktop verification header keeps five flexible facts in one row");
 includes(styles, ".verification-order-store-message", "single full-width store message layout");
@@ -531,7 +531,10 @@ vm.runInContext(`
   const serverManifest = {
     ok: true,
     editableUntil: "2000-01-01T00:00:00.000Z",
-    photos: [{ slot: 2, originalBytes: 4, uploadedAt: "2026-08-18T00:00:00.000Z", thumbnailUrl: "", originalUrl: "" }]
+    photos: [
+      { slot: 1, originalBytes: 4, uploadedAt: "2026-08-18T00:00:00.000Z", thumbnailUrl: "", originalUrl: "" },
+      { slot: 2, originalBytes: 99, uploadedAt: "2026-08-18T00:00:00.000Z", thumbnailUrl: "", originalUrl: "supplement-must-not-be-read" }
+    ]
   };
   const fetchVerificationPhotoManifest = async () => serverManifest;
   const renderVerificationPhotos = () => {};
@@ -551,12 +554,12 @@ vm.runInContext(`
   ${functionSource(detailUi, "verificationPhotoManifestSignature")}
   ${functionSource(detailUi, "mergeVerificationPhotoLocalPreviews")}
   ${exportPhotosSource}
-  verificationPhotoLocalPreviews.set(2, {
+  verificationPhotoLocalPreviews.set(1, {
     recordId: "71",
     thumbnailUrl: "blob:just-committed-thumbnail",
     originalUrl: "blob:just-committed-original",
     photo: {
-      slot: 2,
+      slot: 1,
       originalBytes: 4,
       uploadedAt: "2026-08-18T00:00:00.000Z",
       thumbnailUrl: "blob:just-committed-thumbnail",
@@ -568,9 +571,11 @@ vm.runInContext(`
 `, localExportHarness, { filename: "verification-photo-local-export.js" });
 const localPreviewExportPromise = (async () => {
   const result = await localExportHarness.module.exports.verificationExportPhotos({ id: "71", databaseBacked: true });
-  assert.equal(localExportHarness.__seenPhotos.length, 1, "just-committed local photo is queued exactly once");
+  assert.equal(localExportHarness.__seenPhotos.length, 1, "only the just-committed core photo is queued exactly once");
+  assert.equal(localExportHarness.__seenPhotos[0].slot, 1, "supplemental photos never enter the receipt download queue");
   assert.equal(localExportHarness.__seenPhotos[0].originalUrl, "blob:just-committed-original", "export receives the local original Blob URL");
-  assert.equal(result.photos[2].blob, justCommittedExportBlob, "export embeds the just-committed local JPEG Blob");
+  assert.equal(result.photos.length, 1, "verification receipt source contains only the current verification photo");
+  assert.equal(result.photos[0].blob, justCommittedExportBlob, "export embeds the just-committed local JPEG Blob");
 })();
 
 const viewerHarness = { module: { exports: {} } };

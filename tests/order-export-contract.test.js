@@ -18,7 +18,7 @@ function includes(source, expected, label) {
 
 const instrumented = exporterSource.replace(
   "exportCanvasPagesPdf, downloadBlob, safeFilename\n  });",
-  "exportCanvasPagesPdf, downloadBlob, safeFilename, __createPdfBytes: createPdfBytes, __preparePhotos: preparePhotos, __layoutDocument: (context, data, photos, options) => layoutDocument(context, data, photos, { image: null }, options), __drawPhotos: drawPhotos\n  });"
+  "exportCanvasPagesPdf, downloadBlob, safeFilename, __createPdfBytes: createPdfBytes, __preparePhotos: preparePhotos, __selectReceiptPhotos: selectReceiptPhotos, __layoutDocument: (context, data, photos, options) => layoutDocument(context, data, photos, { image: null }, options), __drawPhotos: drawPhotos\n  });"
 );
 const decodedImages = [];
 const context = {
@@ -62,6 +62,7 @@ const pdfBytes = exporter.__createPdfBytes([{ width: 1, height: 1, bytes: new Ui
 const pdfText = Buffer.from(pdfBytes).toString("latin1");
 assert.ok(pdfText.startsWith("%PDF-1.4"), "PDF header");
 assert.ok(pdfText.includes("/Subtype /Image"), "PDF image object");
+assert.ok(pdfText.includes("/MediaBox [0 0 595.28 841.89]"), "PDF pages retain exact A4 dimensions");
 assert.ok(pdfText.includes("xref\n0 6"), "PDF xref count");
 assert.ok(pdfText.endsWith("%%EOF\n"), "PDF trailer");
 
@@ -75,7 +76,7 @@ assert.ok(twoPagePdf.includes("xref\n0 9"), "multi-page PDF xref count");
 for (const html of [rechargeHtml, verificationHtml]) {
   includes(html, 'id="exportOrderPdf"', "PDF export button");
   includes(html, 'id="exportOrderImage"', "image export button");
-  assert.ok(html.indexOf("order-export.js?v=0.1.8") < html.indexOf("business-detail.js?v=0.16.25"), "exporter must load before detail controller");
+  assert.ok(html.indexOf("order-export.js?v=0.1.11") < html.indexOf("business-detail.js?v=0.16.27"), "exporter must load before detail controller");
 }
 
 includes(verificationHtml, 'class="verification-order-keyfacts verification-order-five-keyfacts"', "verification detail uses a five-fact header");
@@ -106,6 +107,10 @@ includes(detailSource, 'button.dataset.photoPreviewState === "failed"', "a faile
 includes(detailSource, 'delete button.dataset.photoRecovery', "a failed retry never leaves the photo permanently locked");
 includes(exporterSource, "if (item.required && !image)", "known-photo decode completeness assertion");
 includes(exporterSource, "catch (_) { image = null; }", "imageBitmap decode fallback");
+includes(exporterSource, "function selectReceiptPhotos", "receipt renderer owns a defensive core-photo selector");
+includes(exporterSource, "const printablePhotoItems = selectReceiptPhotos(documentData, options?.photos || [])", "supplementary photos are removed before decoding");
+includes(exporterSource, "preparePhotos(printablePhotoItems)", "only selected core photos reach the decoder");
+assert.doesNotMatch(exporterSource, /documentData\.messages|留言与审核记录/, "all exported receipts ignore messages and audit history even when callers pass them");
 assert.ok(!detailSource.includes("已用占位信息完成导出"), "known photo failures may not be reported as a successful placeholder export");
 includes(detailSource, 'exportCurrentOrder("pdf")', "PDF button wiring");
 includes(detailSource, 'exportCurrentOrder("image")', "image button wiring");
@@ -133,6 +138,7 @@ assert.ok(!/html2canvas|jspdf|unpkg|cdnjs/i.test(exporterSource), "export must n
 
 const headerTexts = [];
 const headerRects = [];
+const fontDraws = [];
 let photoDrawCount = 0;
 const headerContext = {
   canvas: { width: 1240, height: 1200 },
@@ -142,8 +148,18 @@ const headerContext = {
   drawImage() { photoDrawCount += 1; },
   save() {}, restore() {}, clip() {},
   measureText(value) { return { width: String(value).length * 20 }; },
-  fillText(value) { headerTexts.push(String(value)); }
+  fillText(value) {
+    const rendered = String(value);
+    headerTexts.push(rendered);
+    fontDraws.push({ text: rendered, font: String(this.font) });
+  }
 };
+function fontFor(draws, value) {
+  const match = draws.find((entry) => entry.text === value);
+  assert.ok(match, `missing rendered text for font assertion: ${value}`);
+  return match.font;
+}
+const documentHeaderFontStart = fontDraws.length;
 exporter.__layoutDocument(headerContext, {
   kind: "补录核销",
   title: "核销单 VX202608180001",
@@ -155,6 +171,10 @@ for (const expected of ["补录核销", "核销单 VX202608180001", "数据库�
 }
 for (const removed of ["当前审核状态", "已通过", "审核已完成"]) assert.ok(!headerTexts.includes(removed), `JPG/PDF header removes ${removed}`);
 assert.ok(headerRects.some(([x, y, width, height]) => x === 0 && y === 0 && width === 1240 && height === 18), "export keeps the top accent stripe");
+const documentHeaderFonts = fontDraws.slice(documentHeaderFontStart);
+assert.match(fontFor(documentHeaderFonts, "补录核销"), /\b22px\b/, "order kind uses the enlarged font");
+assert.match(fontFor(documentHeaderFonts, "核销单 VX202608180001"), /\b52px\b/, "order title uses the enlarged font");
+assert.match(fontFor(documentHeaderFonts, "数据库工单完整导出"), /\b22px\b/, "order subtitle uses the enlarged font");
 
 const compactDocument = {
   compactVerification: true,
@@ -168,18 +188,65 @@ const compactDocument = {
     { label: "业务老师", value: "李道良" }
   ],
   details: [{ label: "核销次数", value: "1" }, { label: "核销单编号", value: "不应重复" }],
-  messages: [{ label: "门店留言", value: "无", time: "2026-08-19 09:11:57" }]
+  messages: [{ label: "绝不打印的门店留言", value: "绝不打印的审核内容", time: "2026-08-19 09:11:57" }]
 };
-const compactPhotos = Array.from({ length: 5 }, (_, index) => ({ label: `照片 ${index + 1}`, meta: "已留存" }));
+const compactPhotos = [
+  { slot: 4, label: "补充照片 3", meta: "不打印", image: { width: 100, height: 80 } },
+  { slot: 1, label: "核销现场照", meta: "核心照片", image: { width: 100, height: 80 } },
+  { slot: 0, label: "客户留存照", meta: "核心照片", image: { width: 100, height: 80 } },
+  { slot: 2, label: "补充照片 1", meta: "不打印", image: { width: 100, height: 80 } },
+  { slot: 3, label: "补充照片 2", meta: "不打印", image: { width: 100, height: 80 } }
+];
+assert.equal(
+  Array.from(exporter.__selectReceiptPhotos(compactDocument, compactPhotos), (photo) => photo.label).join("|"),
+  "核销现场照",
+  "slot-based verification exports retain only the current verification photo"
+);
+assert.equal(
+  Array.from(exporter.__selectReceiptPhotos(compactDocument, [
+    { label: "样例客户留存照" }, { label: "样例核销现场照" }, { label: "样例补充照片" }
+  ]), (photo) => photo.label).join("|"),
+  "样例核销现场照",
+  "product samples without explicit slots retain only their current verification photo"
+);
 const compactHeight = exporter.__layoutDocument(headerContext, compactDocument, compactPhotos, { draw: false, paginate: true });
-assert.ok(compactHeight < 1754, `five-photo verification PDF fits one A4 page, got ${compactHeight}px`);
+assert.ok(compactHeight <= 1754, `one-photo verification PDF fits one A4 page, got ${compactHeight}px`);
 const compactTextStart = headerTexts.length;
+const compactFontStart = fontDraws.length;
+const compactPhotoDrawStart = photoDrawCount;
 exporter.__layoutDocument(headerContext, compactDocument, compactPhotos, { draw: true, paginate: true });
 const compactTexts = headerTexts.slice(compactTextStart);
+const compactFonts = fontDraws.slice(compactFontStart);
+assert.equal(photoDrawCount - compactPhotoDrawStart, 1, "compact verification draws exactly the current verification photo");
 assert.ok(!compactTexts.includes("核销次数"), "compact verification PDF does not repeat the fixed one-unit count");
 assert.ok(!compactTexts.includes("不应重复"), "compact verification PDF does not repeat the order number");
+for (const removed of ["绝不打印的门店留言", "绝不打印的审核内容", "留言与审核记录", "补充照片 1", "补充照片 2", "补充照片 3"]) {
+  assert.ok(!compactTexts.includes(removed), `compact verification omits internal/supplementary content: ${removed}`);
+}
+for (const expected of ["客户核销照片", "仅保留核销时使用的身份照片", "核销现场照"]) {
+  assert.ok(compactTexts.includes(expected), `compact verification retains ${expected}`);
+}
+assert.match(fontFor(compactFonts, "门店"), /\b20px\b/, "fact labels use the enlarged font");
+assert.match(fontFor(compactFonts, "测试门店"), /\b25px\b/, "fact values use the enlarged font");
+assert.match(fontFor(compactFonts, "客户核销照片"), /\b34px\b/, "section headings use the enlarged font");
+assert.match(fontFor(compactFonts, "核销现场照"), /\b24px\b/, "photo labels use the enlarged font");
+assert.match(fontFor(compactFonts, "核心照片"), /\b18px\b/, "photo metadata uses the enlarged font");
+
+const rechargeMessageStart = headerTexts.length;
+exporter.__layoutDocument(headerContext, {
+  kind: "充值申请",
+  title: "充值单 RC-NO-MESSAGES",
+  subtitle: "测试",
+  facts: [], details: [],
+  messages: [{ label: "总部审核记录", value: "这一段内部审核内容不允许打印" }]
+}, [], { draw: true, paginate: false });
+const rechargeMessageTexts = headerTexts.slice(rechargeMessageStart);
+for (const removed of ["留言与审核记录", "总部审核记录", "这一段内部审核内容不允许打印"]) {
+  assert.ok(!rechargeMessageTexts.includes(removed), `recharge/refund receipts omit ${removed}`);
+}
 
 const multilineInstructionStart = headerTexts.length;
+const multilineInstructionFontStart = fontDraws.length;
 exporter.__layoutDocument(headerContext, {
   kind: "充值",
   title: "充值单 RC202608200001",
@@ -188,10 +255,31 @@ exporter.__layoutDocument(headerContext, {
   productTemplate: { instructions: "5、疗程后保持清洁。\n7、疗程后坚持护理。\n7、三个月内注意饮食。" }
 }, [], { draw: true, paginate: false });
 const multilineInstructionTexts = headerTexts.slice(multilineInstructionStart);
+const multilineInstructionFonts = fontDraws.slice(multilineInstructionFontStart);
 assert.ok(multilineInstructionTexts.includes("产品说明"), "product instructions keep the customer-facing section title");
 for (const line of ["5、疗程后保持清洁。", "7、疗程后坚持护理。", "7、三个月内注意饮食。"]) {
   assert.ok(multilineInstructionTexts.includes(line), `product instructions preserve manual line break: ${line}`);
 }
+assert.match(fontFor(multilineInstructionFonts, "产品说明"), /\b34px\b/, "product instruction heading uses the enlarged font");
+assert.match(fontFor(multilineInstructionFonts, "说明"), /\b25px\b/, "product instruction label uses the enlarged font");
+assert.match(fontFor(multilineInstructionFonts, "5、疗程后保持清洁。"), /\b24px\b/, "product instruction body uses the enlarged font");
+
+const longInstructions = Array.from(
+  { length: 90 },
+  (_, index) => `${index + 1}、疗程说明必须完整保留，并在跨页时继续排版。`
+).join("\n");
+const longInstructionStart = headerTexts.length;
+const longInstructionHeight = exporter.__layoutDocument(headerContext, {
+  kind: "充值",
+  title: "充值单 RC-LONG-INSTRUCTIONS",
+  subtitle: "门店详细地址：测试地址",
+  facts: [], details: [], messages: [],
+  productTemplate: { instructions: longInstructions }
+}, [], { draw: true, paginate: true });
+const longInstructionTexts = headerTexts.slice(longInstructionStart);
+assert.ok(longInstructionHeight > 1754, "long product instructions span more than one A4 canvas page");
+assert.ok(longInstructionTexts.includes("说明（续）"), "continued product instructions are explicitly labelled on later pages");
+assert.ok(longInstructionTexts.includes("90、疗程说明必须完整保留，并在跨页时继续排版。"), "the final instruction remains in the rendered receipt");
 
 const noGiftStart = headerTexts.length;
 exporter.__layoutDocument(headerContext, {
@@ -224,13 +312,15 @@ assert.ok(!giftTexts.includes("PDT001"), "printed recharge receipts omit gift pr
     slot,
     label: `照片 ${slot + 1}`,
     required: true,
-    blob: new Blob([onePixelJpeg], { type: "image/jpeg" })
+    blob: new Blob([slot === 1 ? onePixelJpeg : Buffer.from("archive and supplement must never decode")], { type: "image/jpeg" })
   }));
-  const prepared = await exporter.__preparePhotos(fivePhotos);
-  assert.equal(prepared.filter((item) => item.required && item.image).length, 5, "all five existing photos decode before export");
-  assert.equal(decodedImages.length, 5, "five photo blobs were decoded");
+  const selectedPhotos = exporter.__selectReceiptPhotos({ compactVerification: true }, fivePhotos);
+  const prepared = await exporter.__preparePhotos(selectedPhotos);
+  assert.equal(prepared.filter((item) => item.required && item.image).length, 1, "the current verification photo decodes before export");
+  assert.equal(decodedImages.length, 1, "archive and supplementary photo blobs never reach the decoder");
+  const preparedDrawStart = photoDrawCount;
   exporter.__drawPhotos(headerContext, prepared, 0, true, false);
-  assert.equal(photoDrawCount, 5, "all five decoded photos are actually drawn into the export canvas");
+  assert.equal(photoDrawCount - preparedDrawStart, 1, "the decoded current verification photo is drawn into the export canvas");
 
   context.createImageBitmap = async () => { throw new Error("imageOrientation option unsupported"); };
   context.Image = class FallbackImage {

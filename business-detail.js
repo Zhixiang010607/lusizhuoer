@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.25";
+  const VERSION = "0.16.27";
   const PRODUCT_LOGO_DETAIL_RETRY_DELAYS_MS = Object.freeze([0, 360, 1080]);
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
@@ -906,7 +906,8 @@
     }
     const manifestSignature = verificationPhotoManifestSignature(manifest);
     const available = new Map(manifest.photos.map((photo) => [Number(photo.slot), photo]));
-    const output = Array.from({ length: 5 }, (_, slot) => ({
+    const printableSlots = [1];
+    const output = printableSlots.map((slot) => ({
       slot,
       label: photoSlotLabel(slot),
       required: available.has(slot),
@@ -914,7 +915,7 @@
       placeholder: available.has(slot) ? "照片读取中" : "尚未上传",
       blob: null
     }));
-    const queue = Array.from(available.values()).filter((photo) => Number.isInteger(Number(photo.slot)) && Number(photo.slot) >= 0 && Number(photo.slot) <= 4);
+    const queue = printableSlots.map((slot) => available.get(slot)).filter(Boolean);
     let cursor = 0;
     let succeeded = 0;
     const failures = [];
@@ -928,7 +929,8 @@
         try {
           const fetched = await fetchVerificationPhotoForExport(recordId, photo, (message) => setExportControls(false, message));
           const blob = fetched.blob;
-          output[slot] = {
+          const outputIndex = printableSlots.indexOf(slot);
+          output[outputIndex] = {
             slot,
             label: photoSlotLabel(slot),
             required: true,
@@ -1323,7 +1325,7 @@
     if (!panel) return;
     currentVerificationPhotoPayload = null;
     verificationPhotoRequest += 1;
-    $("verificationPhotoCount").textContent = "已绑定 0 / 5";
+    $("verificationPhotoCount").textContent = "已绑定 0 / 4";
     $("verificationPhotoHint").textContent = message;
     $("verificationPhotoGrid").innerHTML = Array.from({ length: 5 }, (_, slot) => `
       <article class="verification-photo-card">
@@ -1633,18 +1635,20 @@
     });
     currentVerificationPhotoPayload = { ...payload, photos, loadedAt, error: null };
     const bySlot = new Map(photos.map((photo) => [Number(photo.slot), photo]));
-    $("verificationPhotoCount").textContent = `已绑定 ${photos.length} / 5`;
+    const displaySlots = [1, 2, 3, 4];
+    const visiblePhotoCount = displaySlots.filter((slot) => bySlot.has(slot)).length;
+    $("verificationPhotoCount").textContent = `已绑定 ${visiblePhotoCount} / 4`;
     const deadline = formatTime(payload?.editableUntil);
     const immutableFacePhotos = verificationFaceSubjectType() === "TEACHER"
-      ? "老师登记照与老师本次体验核销照"
-      : "客户留存照与本次核销人脸照";
+      ? "老师核销身份照"
+      : "客户核销身份照";
     $("verificationPhotoHint").textContent = payload?.canEdit
-      ? `你是本单提交人，可在 ${deadline || "提交后 24 小时内"} 前上传或替换 3 张补充照片。${immutableFacePhotos}均不可修改。`
+      ? `你是本单提交人，可在 ${deadline || "提交后 24 小时内"} 前上传或替换 3 张补充照片。${immutableFacePhotos}不可修改。客户建档留存照只作系统核验依据，不在工单详情或凭证展示。`
       : payload?.isSubmitter
       ? `照片修改窗口已于 ${deadline || "提交后 24 小时"} 结束；现有照片永久只读。`
       : "照片仅供有权查看本核销单的账号浏览；只有本单提交人可在 24 小时内上传或替换补充照片。";
     clearVerificationPhotoThumbnailFallbacks();
-    $("verificationPhotoGrid").innerHTML = Array.from({ length: 5 }, (_, slot) => verificationPhotoCard(bySlot.get(slot), slot, payload)).join("");
+    $("verificationPhotoGrid").innerHTML = displaySlots.map((slot) => verificationPhotoCard(bySlot.get(slot), slot, payload)).join("");
     const renderRequest = verificationPhotoRequest;
     $("verificationPhotoGrid").querySelectorAll("[data-verification-thumbnail-slot]").forEach((image) => {
       const slot = Number(image.dataset.verificationThumbnailSlot);

@@ -39,8 +39,8 @@
 
     <view wx:if="{{baseType === 'VERIFICATION'}}" class="card photo-section">
       <view class="card-title photo-heading">
-        <view><text>核销照片</text><text class="photo-note">五个照片位均以数据库清单为准</text></view>
-        <text class="badge">{{photoCount}} / 5</text>
+        <view><text>核销照片</text><text class="photo-note">展示核销身份照与三张补充照片</text></view>
+        <text class="badge">{{visiblePhotoCount}} / 4</text>
       </view>
       <view wx:if="{{photoManifestError}}" class="photo-list-error">
         <text>照片清单读取失败：{{photoManifestError}}</text>
@@ -48,7 +48,7 @@
       </view>
       <view wx:if="{{canEdit}}" class="edit-window">可补充或替换照片位 3–5；服务端授权截止 {{editableUntilLabel}}</view>
       <view class="photo-grid">
-        <view wx:for="{{photos}}" wx:key="slot" class="photo-card state-{{item.state}}">
+        <view wx:for="{{photos}}" wx:key="slot" hidden="{{!item.visible}}" class="photo-card state-{{item.state}}">
           <view class="photo-frame">
             <image wx:if="{{item.declared && item.thumbnailState === 'ready'}}" class="photo" src="{{item.thumbnailUrl}}" mode="aspectFill" data-slot="{{item.slot}}" bindtap="previewPhoto" binderror="photoThumbnailError"></image>
             <view wx:elif="{{item.declared}}" class="slot-placeholder slot-error slot-retry-target" data-slot="{{item.slot}}" bindtap="retryThumbnail">
@@ -63,10 +63,10 @@
           </view>
           <view class="photo-meta"><text>{{item.label}}</text><text>{{item.declared ? '已留存' : (item.state === 'empty' ? '空照片位' : '状态待确认')}}</text></view>
           <view wx:if="{{item.declared}}" class="photo-actions">
-            <button data-slot="{{item.slot}}" bindtap="previewPhoto" disabled="{{originalBusySlot >= 0 || uploading}}">查看原图</button>
-            <button data-slot="{{item.slot}}" bindtap="savePhoto" disabled="{{originalBusySlot >= 0 || uploading}}">保存相册</button>
+            <button data-slot="{{item.slot}}" bindtap="previewPhoto" loading="{{item.originalBusy && item.originalAction === 'preview'}}" disabled="{{item.originalBusy || uploading}}">查看原图</button>
+            <button data-slot="{{item.slot}}" bindtap="savePhoto" loading="{{item.originalBusy && item.originalAction === 'save'}}" disabled="{{item.originalBusy || uploading}}">保存相册</button>
           </view>
-          <button wx:if="{{canEdit && item.slot >= 2}}" class="upload-button" data-slot="{{item.slot}}" bindtap="uploadExtraPhoto" loading="{{uploading && uploadingSlot === item.slot}}" disabled="{{uploading || exporting || photoLoading}}">{{item.declared ? '选择或拍摄替换' : '选择或拍摄补充'}}</button>
+          <button wx:if="{{canEdit && item.slot >= 2}}" class="upload-button" data-slot="{{item.slot}}" bindtap="uploadExtraPhoto" loading="{{uploading && uploadingSlot === item.slot}}" disabled="{{uploading || exporting || photoLoading || item.originalBusy}}">{{item.declared ? '选择或拍摄替换' : '选择或拍摄补充'}}</button>
         </view>
       </view>
     </view>

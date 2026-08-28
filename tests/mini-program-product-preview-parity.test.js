@@ -53,21 +53,20 @@ test("product sample facts match the web mobile preview for verification and rec
   assert.equal(recharge.productTemplate.instructions, "充值说明");
 
   assert.deepEqual(renderer.createProductSamplePhotos("verification-image"), [
-    { label: "客户建档照片", required: false, placeholder: "照片区域", meta: "样例照片位" },
-    { label: "本次核销人脸照", required: false, placeholder: "照片区域", meta: "样例照片位" },
-    { label: "补充照片 1", required: false, placeholder: "照片区域", meta: "样例照片位" },
-    { label: "补充照片 2", required: false, placeholder: "照片区域", meta: "样例照片位" },
-    { label: "补充照片 3", required: false, placeholder: "照片区域", meta: "样例照片位" }
+    { slot: 1, label: "客户核销照片", required: false, placeholder: "照片区域", meta: "样例照片位" }
   ]);
   assert.deepEqual(renderer.createProductSamplePhotos("recharge-pdf"), []);
 
   for (const phrase of [
     "正常核销 / 体验核销", "充值 / 退费", "门店详细地址：示例省示例市示例区示例路 1 号",
-    "充值次数与办理时间", "客户留存照、本次核销人脸照与补充照片"
+    "充值次数与办理时间"
   ]) {
     assert.ok(webProject.includes(phrase) || webExporter.includes(phrase), `web reference is missing ${phrase}`);
     assert.ok(rendererSource.includes(phrase), `mini renderer is missing ${phrase}`);
   }
+  assert.ok(rendererSource.includes("仅保留核销时使用的身份照片"));
+  assert.doesNotMatch(rendererSource, /留言与审核记录|补充照片|本次核销人脸照/,
+    "generated receipts must not contain message sections or supplemental-photo wording");
 });
 
 test("native receipt renderer preserves the web A4 and long-image geometry", async () => {
@@ -87,10 +86,12 @@ test("native receipt renderer preserves the web A4 and long-image geometry", asy
     "const CANVAS_WIDTH = 1240", "const PDF_PAGE_HEIGHT = 1754", "const PAGE_MARGIN = 64",
     "const OUTPUT_SCALE = 2", "const OUTPUT_WIDTH = CANVAS_WIDTH * OUTPUT_SCALE",
     "const OUTPUT_PAGE_HEIGHT = PDF_PAGE_HEIGHT * OUTPUT_SCALE", "drawPreparedReceipt",
-    "{ imageHeight: 238, cardHeight: 314 }", "{ imageHeight: 176, cardHeight: 252 }",
+    "{ imageHeight: 280, cardHeight: 370 }",
     'background: "#fffaf3"', 'border: "#dfcfb4"', 'title: "#302a22"',
     'accent: "#80622f"', "drawReceiptBackground", "prepareReceiptBackground",
-    "singleLine", "fittedSize", "context.fillText(value, x + 16, y + 40, maxWidth)"
+    "singleLine", "fittedSize", "context.fillText(value, x + 18, y + 50, maxWidth)",
+    "title: 52", "subtitle: 22", "factLabel: 20", "factValue: 25", "sectionTitle: 34",
+    "photoLabel: 24", "instructionBody: 24", "pageNumber: 18", "drawInstructionText"
   ]) {
     assert.ok(rendererSource.includes(contract), `mini renderer is missing ${contract}`);
   }
@@ -103,11 +104,13 @@ test("native receipt renderer preserves the web A4 and long-image geometry", asy
   const canvas = { width: 0, height: 0 };
   let backgroundDrawCount = 0;
   const customerIdentityDraws = [];
+  const paintedTexts = [];
   const context = {
     canvas,
     measureText(value) { return { width: Array.from(String(value)).length * 18 }; },
     beginPath() {}, moveTo() {}, arcTo() {}, closePath() {}, fill() {}, stroke() {}, fillRect() {},
     fillText(value, x, y, maxWidth) {
+      paintedTexts.push({ value: String(value), x, y, maxWidth });
       if (String(value).includes("C1-SAMPLE001")) customerIdentityDraws.push({ value, x, y, maxWidth });
     },
     save() {}, restore() {}, clip() {}, scale() {}, translate() {}, drawImage() { backgroundDrawCount += 1; },
@@ -128,6 +131,10 @@ test("native receipt renderer preserves the web A4 and long-image geometry", asy
     rechargeInstructions: "说明".repeat(1200),
     logoRequired: false
   });
+  documentData.messages = [
+    { label: "提交说明", value: "绝不能打印的提交留言" },
+    { label: "审核说明", value: "绝不能打印的审核留言" }
+  ];
   const result = await renderer.renderReceiptCanvas({ canvas, documentData, photos: [], paginate: true });
   assert.equal(result.width, 2480);
   assert.equal(result.height, 3508, "the active PDF canvas stays within one 300 DPI A4 page");
@@ -140,6 +147,61 @@ test("native receipt renderer preserves the web A4 and long-image geometry", asy
     "the customer name and number are painted once instead of wrapped into multiple lines");
   assert.ok(customerIdentityDraws[0].maxWidth > 480 && customerIdentityDraws[0].maxWidth < 540,
     "the one-line customer identity stays inside the left half-row beside the project");
+  assert.equal(paintedTexts.some((item) => item.value.includes("绝不能打印")), false,
+    "documentData messages are ignored by every PDF/image receipt render");
+  const instructionDraws = paintedTexts.filter((item) => /^说明/.test(item.value));
+  assert.ok(instructionDraws.length > 10, "the long product instructions are painted across pages");
+  assert.ok(instructionDraws.every((item) => {
+    const pageY = ((item.y % 1754) + 1754) % 1754;
+    return pageY < 1690;
+  }), "larger instruction text stays above every A4 page footer");
+});
+
+test("verification renderer decodes and paints only the current verification photo", async () => {
+  const loadedSources = [];
+  const paintedTexts = [];
+  const canvas = { width: 0, height: 0 };
+  const context = {
+    canvas,
+    measureText(value) { return { width: Array.from(String(value)).length * 18 }; },
+    beginPath() {}, moveTo() {}, arcTo() {}, closePath() {}, fill() {}, stroke() {}, fillRect() {},
+    fillText(value) { paintedTexts.push(String(value)); },
+    save() {}, restore() {}, clip() {}, scale() {}, translate() {}, drawImage() {},
+    set fillStyle(_) {}, set strokeStyle(_) {}, set lineWidth(_) {}, set font(_) {},
+    set textBaseline(_) {}, set textAlign(_) {}
+  };
+  canvas.getContext = () => context;
+  canvas.createImage = () => {
+    const image = { width: 930, height: 1316, onload: null, onerror: null };
+    Object.defineProperty(image, "src", {
+      set(value) { loadedSources.push(String(value)); queueMicrotask(() => image.onload && image.onload()); }
+    });
+    return image;
+  };
+  const documentData = renderer.createProductSampleDocument({
+    template: { productName: "示例项目", productType: "护理" },
+    kind: "verification-pdf",
+    verificationInstructions: "核销说明",
+    logoRequired: false
+  });
+  documentData.messages = [{ label: "审核说明", value: "不应打印的审核留言" }];
+  const photos = [
+    { slot: 0, label: "客户建档留存照", required: true, source: "archive-photo-0" },
+    { slot: 1, label: "客户核销照片", required: true, source: "verification-photo-1" },
+    { slot: 2, label: "额外位置一", required: true, source: "extra-photo-2" },
+    { slot: 3, label: "额外位置二", required: true, source: "extra-photo-3" },
+    { slot: 4, label: "额外位置三", required: true, source: "extra-photo-4" }
+  ];
+  const result = await renderer.renderReceiptCanvas({ canvas, documentData, photos, paginate: true });
+  assert.deepEqual(loadedSources.filter((source) => source.startsWith("verification-photo")), ["verification-photo-1"]);
+  assert.equal(loadedSources.some((source) => source.startsWith("archive-photo")), false,
+    "the initial customer archive photo is not decoded for a work-order receipt");
+  assert.equal(loadedSources.some((source) => source.startsWith("extra-photo")), false,
+    "supplemental photos are not decoded and cannot block receipt generation");
+  assert.ok(paintedTexts.includes("客户核销照片"));
+  assert.equal(paintedTexts.includes("客户建档留存照"), false);
+  assert.equal(paintedTexts.some((value) => value.includes("额外位置") || value.includes("不应打印")), false);
+  assert.equal(result.pageCount, 1, "the enlarged one-photo verification receipt still fits one A4 page");
 });
 
 test("PDF writer creates true multi-page A4 output instead of one tall page", () => {

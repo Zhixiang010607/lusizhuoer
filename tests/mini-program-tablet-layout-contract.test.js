@@ -258,11 +258,12 @@ test("store and teacher customer/order details use compact adaptive tablet works
     "tablet work-order timestamps must remain complete instead of becoming an ellipsis");
   assert.match(orderWxss, /\.order-secondary-grid \{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(300px, 1fr\)\);/s,
     "optional gifts and work-order notes should fill one or two tablet columns without an empty forced column");
-  assert.match(orderWxss, /\.photo-grid \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
+  assert.match(orderWxss, /\.photo-grid \{ grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/,
+    "the four visible work-order photos share one compact tablet row");
   assert.match(orderWxss, /\.photo-frame \{ height: clamp\(180px, 24vw, 230px\);/,
     "evidence photos should respond to the tablet width without becoming giant cards");
-  assert.match(orderWxss, /\.photo-card:nth-child\(5\) \{ grid-column: auto; \}/,
-    "the fifth evidence photo must not stretch into a giant full-width iPad card");
+  assert.doesNotMatch(orderWxss, /\.photo-card:nth-child\(4\) \{[^}]*grid-column:\s*1\s*\/\s*-1;/,
+    "the fourth and final visible work-order photo must not stretch into a giant full-width iPad card");
   assert.match(orderWxss, /\.export-card \{[^}]*grid-template-columns: minmax\(180px, \.42fr\) minmax\(0, 1fr\);/s,
     "export actions should use a compact horizontal tablet row");
 });

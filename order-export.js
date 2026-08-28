@@ -17,6 +17,22 @@
     accent: "#80622f",
     accentSoft: "#f4e7d0"
   });
+  const RECEIPT_FONT_SIZES = Object.freeze({
+    kind: 22,
+    title: 52,
+    subtitle: 22,
+    factLabel: 20,
+    factValue: 25,
+    sectionTitle: 34,
+    sectionSubtitle: 20,
+    giftName: 25,
+    giftCount: 27,
+    photoLabel: 24,
+    photoMeta: 18,
+    instructionLabel: 25,
+    instructionBody: 24,
+    pageNumber: 18
+  });
   const encoder = new TextEncoder();
   let receiptBackgroundPromise = null;
 
@@ -68,7 +84,7 @@
   }
 
   function drawWrappedText(context, value, x, y, maxWidth, options = {}) {
-    const size = options.size || 24;
+    const size = options.size || 27;
     const lineHeight = options.lineHeight || Math.round(size * 1.55);
     setFont(context, size, options.weight || 400);
     const lines = wrapLines(context, value, maxWidth);
@@ -90,11 +106,12 @@
   }
 
   function drawLabelValueCard(context, item, x, y, width, draw) {
-    setFont(context, 19, 500);
+    setFont(context, RECEIPT_FONT_SIZES.factValue, 500);
     const singleLine = item && item.singleLine === true;
     const value = singleLine ? text(item.value).replace(/\s+/g, " ") : text(item.value);
-    const valueLines = singleLine ? [value] : wrapLines(context, value, width - 32);
-    const height = Math.max(86, 48 + valueLines.length * 29);
+    const valueLines = singleLine ? [value] : wrapLines(context, value, width - 36);
+    const valueLineHeight = 36;
+    const height = Math.max(108, 60 + valueLines.length * valueLineHeight);
     if (draw) {
       context.fillStyle = RECEIPT_COLORS.panel;
       context.strokeStyle = RECEIPT_COLORS.border;
@@ -103,28 +120,29 @@
       context.fill();
       context.stroke();
       context.fillStyle = RECEIPT_COLORS.secondary;
-      setFont(context, 16, 500);
+      setFont(context, RECEIPT_FONT_SIZES.factLabel, 600);
       context.textBaseline = "top";
-      context.fillText(text(item.label), x + 16, y + 14);
+      context.fillText(text(item.label), x + 18, y + 16);
       if (singleLine) {
-        const maxWidth = width - 32;
-        setFont(context, 19, 700);
+        const maxWidth = width - 36;
+        const normalSize = RECEIPT_FONT_SIZES.factValue;
+        setFont(context, normalSize, 750);
         const measured = Math.max(1, context.measureText(value).width);
-        const fittedSize = Math.max(9, Math.min(19, Math.floor(19 * maxWidth / measured)));
+        const fittedSize = Math.max(13, Math.min(normalSize, Math.floor(normalSize * maxWidth / measured)));
         context.save();
-        roundedRect(context, x + 14, y + 36, maxWidth + 4, 34, 0);
+        roundedRect(context, x + 16, y + 45, maxWidth + 4, 44, 0);
         context.clip();
         context.fillStyle = RECEIPT_COLORS.title;
-        setFont(context, fittedSize, 700);
+        setFont(context, fittedSize, 750);
         context.textBaseline = "top";
-        context.fillText(value, x + 16, y + 40, maxWidth);
+        context.fillText(value, x + 18, y + 50, maxWidth);
         context.restore();
       } else {
-        drawWrappedText(context, value, x + 16, y + 40, width - 32, {
+        drawWrappedText(context, value, x + 18, y + 50, width - 36, {
           draw: true,
-          size: 19,
-          lineHeight: 29,
-          weight: 700,
+          size: RECEIPT_FONT_SIZES.factValue,
+          lineHeight: valueLineHeight,
+          weight: 750,
           color: RECEIPT_COLORS.title
         });
       }
@@ -135,16 +153,16 @@
   function drawSectionHeading(context, title, subtitle, y, draw) {
     if (draw) {
       context.fillStyle = RECEIPT_COLORS.title;
-      setFont(context, 27, 800);
+      setFont(context, RECEIPT_FONT_SIZES.sectionTitle, 850);
       context.textBaseline = "top";
       context.fillText(text(title), PAGE_MARGIN, y);
       if (subtitle) {
         context.fillStyle = RECEIPT_COLORS.secondary;
-        setFont(context, 16, 400);
-        context.fillText(String(subtitle), PAGE_MARGIN, y + 39);
+        setFont(context, RECEIPT_FONT_SIZES.sectionSubtitle, 450);
+        context.fillText(String(subtitle), PAGE_MARGIN, y + 49);
       }
     }
-    return y + (subtitle ? 68 : 48);
+    return y + (subtitle ? 84 : 60);
   }
 
   function drawDocumentHeader(context, documentData, productLogo, draw) {
@@ -155,20 +173,20 @@
     const kind = text(documentData.kind, documentData.detailTitle || "业务工单");
     const title = text(documentData.title, "业务工单");
     const subtitle = text(documentData.subtitle, "业务工单完整导出");
-    setFont(context, 18, 800);
-    const kindWidth = Math.min(leftWidth, Math.max(96, context.measureText(kind).width + 34));
-    const titleY = top + 51;
+    setFont(context, RECEIPT_FONT_SIZES.kind, 800);
+    const kindWidth = Math.min(leftWidth, Math.max(104, context.measureText(kind).width + 38));
+    const titleY = top + 57;
     const titleMetrics = drawWrappedText(context, title, PAGE_MARGIN, titleY, leftWidth, {
       draw: false,
-      size: 42,
-      lineHeight: 52,
+      size: RECEIPT_FONT_SIZES.title,
+      lineHeight: 64,
       weight: 900
     });
     const subtitleY = titleY + titleMetrics.height + 8;
     const subtitleMetrics = drawWrappedText(context, subtitle, PAGE_MARGIN, subtitleY, leftWidth, {
       draw: false,
-      size: 18,
-      lineHeight: 28
+      size: RECEIPT_FONT_SIZES.subtitle,
+      lineHeight: 34
     });
     const logoX = PAGE_MARGIN + leftWidth + gap;
     const bottom = Math.max(subtitleY + subtitleMetrics.height, top + logoSize) + 30;
@@ -177,24 +195,24 @@
     context.fillStyle = RECEIPT_COLORS.accent;
     context.fillRect(0, 0, CANVAS_WIDTH, 18);
     context.fillStyle = RECEIPT_COLORS.accentSoft;
-    roundedRect(context, PAGE_MARGIN, top, kindWidth, 34, 17);
+    roundedRect(context, PAGE_MARGIN, top, kindWidth, 38, 19);
     context.fill();
     context.fillStyle = RECEIPT_COLORS.accent;
-    setFont(context, 18, 800);
+    setFont(context, RECEIPT_FONT_SIZES.kind, 800);
     context.textBaseline = "middle";
-    context.fillText(kind, PAGE_MARGIN + 17, top + 17);
+    context.fillText(kind, PAGE_MARGIN + 19, top + 19);
 
     drawWrappedText(context, title, PAGE_MARGIN, titleY, leftWidth, {
       draw: true,
-      size: 42,
-      lineHeight: 52,
+      size: RECEIPT_FONT_SIZES.title,
+      lineHeight: 64,
       weight: 900,
       color: RECEIPT_COLORS.title
     });
     drawWrappedText(context, subtitle, PAGE_MARGIN, subtitleY, leftWidth, {
       draw: true,
-      size: 18,
-      lineHeight: 28,
+      size: RECEIPT_FONT_SIZES.subtitle,
+      lineHeight: 34,
       color: RECEIPT_COLORS.secondary
     });
 
@@ -213,7 +231,7 @@
       context.fillStyle = RECEIPT_COLORS.panelSoft;
       context.fillRect(logoX + 8, top + 8, logoSize - 16, logoSize - 16);
       context.fillStyle = RECEIPT_COLORS.accent;
-      setFont(context, 22, 900);
+      setFont(context, 24, 900);
       context.textAlign = "center";
       context.textBaseline = "middle";
       context.fillText("LOGO", logoX + logoSize / 2, top + logoSize / 2);
@@ -239,7 +257,7 @@
   }
 
   function drawProductGiftCard(context, item, index, y, draw, paginate) {
-    const height = 86;
+    const height = 96;
     y = ensureSpace(y, height + 14, paginate);
     if (draw) {
       context.fillStyle = RECEIPT_COLORS.panel;
@@ -252,11 +270,11 @@
       const quantityWidth = 150;
       const textWidth = CONTENT_WIDTH - quantityWidth - 54;
       context.fillStyle = RECEIPT_COLORS.title;
-      setFont(context, 20, 800);
+      setFont(context, RECEIPT_FONT_SIZES.giftName, 800);
       context.textBaseline = "middle";
       context.fillText(text(item.productName, `赠予产品 ${index + 1}`), PAGE_MARGIN + 18, y + height / 2, textWidth);
       context.fillStyle = RECEIPT_COLORS.accent;
-      setFont(context, 22, 900);
+      setFont(context, RECEIPT_FONT_SIZES.giftCount, 900);
       context.textAlign = "right";
       context.textBaseline = "middle";
       context.fillText(`${Math.max(0, Number(item.unitCount) || 0)} 件`, PAGE_MARGIN + CONTENT_WIDTH - 20, y + height / 2);
@@ -278,9 +296,9 @@
 
   function drawMessageCard(context, item, y, draw, paginate) {
     const padding = 22;
-    setFont(context, 19, 400);
+    setFont(context, 22, 400);
     const bodyLines = wrapLines(context, text(item.value, "无"), CONTENT_WIDTH - padding * 2);
-    const height = Math.max(112, 66 + bodyLines.length * 31);
+    const height = Math.max(124, 72 + bodyLines.length * 34);
     y = ensureSpace(y, height + 14, paginate);
     if (draw) {
       context.fillStyle = RECEIPT_COLORS.panel;
@@ -289,19 +307,19 @@
       context.fill();
       context.stroke();
       context.fillStyle = RECEIPT_COLORS.title;
-      setFont(context, 20, 800);
+      setFont(context, RECEIPT_FONT_SIZES.photoLabel, 800);
       context.textBaseline = "top";
       context.fillText(text(item.label), PAGE_MARGIN + padding, y + 17);
       if (item.time) {
         context.fillStyle = RECEIPT_COLORS.secondary;
-        setFont(context, 15, 400);
+        setFont(context, 17, 400);
         const timeWidth = context.measureText(String(item.time)).width;
         context.fillText(String(item.time), PAGE_MARGIN + CONTENT_WIDTH - padding - timeWidth, y + 20);
       }
-      drawWrappedText(context, text(item.value, "无"), PAGE_MARGIN + padding, y + 53, CONTENT_WIDTH - padding * 2, {
+      drawWrappedText(context, text(item.value, "无"), PAGE_MARGIN + padding, y + 59, CONTENT_WIDTH - padding * 2, {
         draw: true,
-        size: 19,
-        lineHeight: 31,
+        size: 22,
+        lineHeight: 34,
         color: RECEIPT_COLORS.title
       });
     }
@@ -336,7 +354,7 @@
         drawImageCover(context, photo.image, x + 12, y + 12, width - 24, imageHeight);
       } else {
         context.fillStyle = RECEIPT_COLORS.secondary;
-        setFont(context, 20, 600);
+        setFont(context, 22, 600);
         context.textAlign = "center";
         context.textBaseline = "middle";
         context.fillText(text(photo.placeholder, "尚未上传"), x + width / 2, y + 12 + imageHeight / 2);
@@ -345,11 +363,11 @@
       }
       context.restore();
       context.fillStyle = RECEIPT_COLORS.title;
-      setFont(context, 20, 800);
+      setFont(context, RECEIPT_FONT_SIZES.photoLabel, 800);
       context.textBaseline = "top";
       context.fillText(text(photo.label), x + 18, y + imageHeight + 26);
       context.fillStyle = RECEIPT_COLORS.secondary;
-      setFont(context, 15, 400);
+      setFont(context, RECEIPT_FONT_SIZES.photoMeta, 400);
       context.fillText(text(photo.meta, photo.image ? "已载入原图" : "空照片位"), x + 18, y + imageHeight + 58);
     }
     return cardHeight;
@@ -380,8 +398,60 @@
   }
 
   function drawCompactVerificationPhotos(context, photos, y, draw, paginate) {
-    y = drawPhotoRow(context, photos.slice(0, 2), y, 2, { imageHeight: 238, cardHeight: 314 }, draw, paginate);
-    return drawPhotoRow(context, photos.slice(2, 5), y, 3, { imageHeight: 176, cardHeight: 252 }, draw, paginate);
+    return drawPhotoRow(context, photos.slice(0, 1), y, 1, { imageHeight: 420, cardHeight: 514 }, draw, paginate);
+  }
+
+  function selectReceiptPhotos(documentData, photoItems) {
+    const photos = Array.isArray(photoItems) ? photoItems : [];
+    if (documentData?.compactVerification !== true) return photos;
+    const coreSlots = new Map();
+    photos.forEach((photo, index) => {
+      const rawSlot = photo?.slot;
+      const hasExplicitSlot = rawSlot !== undefined && rawSlot !== null && String(rawSlot).trim() !== "";
+      const slot = hasExplicitSlot && Number.isInteger(Number(rawSlot)) ? Number(rawSlot) : index;
+      if (slot === 1 && !coreSlots.has(slot)) coreSlots.set(slot, photo);
+    });
+    return [1].map((slot) => coreSlots.get(slot)).filter(Boolean);
+  }
+
+  function drawInstructionChunk(context, lines, label, y, draw) {
+    const padding = 24;
+    const lineHeight = 38;
+    const height = Math.max(132, 76 + lines.length * lineHeight);
+    if (draw) {
+      context.fillStyle = RECEIPT_COLORS.panel;
+      context.strokeStyle = RECEIPT_COLORS.border;
+      roundedRect(context, PAGE_MARGIN, y, CONTENT_WIDTH, height, 12);
+      context.fill();
+      context.stroke();
+      context.fillStyle = RECEIPT_COLORS.title;
+      setFont(context, RECEIPT_FONT_SIZES.instructionLabel, 850);
+      context.textBaseline = "top";
+      context.fillText(label, PAGE_MARGIN + padding, y + 18);
+      setFont(context, RECEIPT_FONT_SIZES.instructionBody, 450);
+      lines.forEach((line, index) => context.fillText(line, PAGE_MARGIN + padding, y + 58 + index * lineHeight));
+    }
+    return y + height + 14;
+  }
+
+  function drawInstructionText(context, value, y, draw, paginate) {
+    const padding = 24;
+    const lineHeight = 38;
+    setFont(context, RECEIPT_FONT_SIZES.instructionBody, 450);
+    const lines = wrapLines(context, text(value, "无"), CONTENT_WIDTH - padding * 2);
+    if (!paginate) return drawInstructionChunk(context, lines, "说明", y, draw);
+    let offset = 0;
+    let part = 0;
+    while (offset < lines.length) {
+      y = ensureSpace(y, 146, true);
+      const availableHeight = Math.max(132, pageBottom(y) - y - 14);
+      const maxLines = Math.max(1, Math.floor((availableHeight - 76) / lineHeight));
+      const chunk = lines.slice(offset, offset + maxLines);
+      y = drawInstructionChunk(context, chunk, part === 0 ? "说明" : "说明（续）", y, draw);
+      offset += chunk.length;
+      part += 1;
+    }
+    return y;
   }
 
   function drawProductInstructions(context, documentData, y, draw, paginate) {
@@ -389,9 +459,9 @@
     const instructions = String(template.instructions || "").trim();
     if (!instructions) return y;
     y += 10;
-    y = ensureSpace(y, 70, paginate);
+    y = ensureSpace(y, 86, paginate);
     y = drawSectionHeading(context, "产品说明", "", y, draw);
-    return drawMessageCard(context, { label: "说明", value: instructions }, y, draw, paginate);
+    return drawInstructionText(context, instructions, y, draw, paginate);
   }
 
   function drawReceiptBackground(context, backgroundImage) {
@@ -409,6 +479,7 @@
     const draw = options.draw === true;
     const paginate = options.paginate === true;
     const compactVerification = documentData.compactVerification === true;
+    const printablePhotos = selectReceiptPhotos(documentData, photos);
     if (draw) {
       drawReceiptBackground(context, options.backgroundImage || null);
     }
@@ -423,23 +494,13 @@
       y = drawProductGifts(context, documentData.productGifts, y, draw, paginate);
     }
 
-    const messages = Array.isArray(documentData.messages) ? documentData.messages : [];
-    if (messages.length) {
-      y += compactVerification ? 8 : 16;
-      if (!compactVerification) {
-        y = ensureSpace(y, 70, paginate);
-        y = drawSectionHeading(context, "留言与审核记录", "按工单数据库内容完整导出", y, draw);
-      }
-      messages.forEach((message) => { y = drawMessageCard(context, message, y, draw, paginate); });
-    }
-
-    if (photos.length) {
+    if (printablePhotos.length) {
       y += compactVerification ? 8 : 16;
       y = ensureSpace(y, 70, paginate);
-      y = drawSectionHeading(context, "核销照片凭证", compactVerification ? "客户留存照、本次核销人脸照与补充照片" : "客户留存照、本次核销人脸照与三个补充照片位", y, draw);
+      y = drawSectionHeading(context, "客户核销照片", "仅保留核销时使用的身份照片", y, draw);
       y = compactVerification
-        ? drawCompactVerificationPhotos(context, photos, y, draw, paginate)
-        : drawPhotos(context, photos, y, draw, paginate);
+        ? drawCompactVerificationPhotos(context, printablePhotos, y, draw, paginate)
+        : drawPhotos(context, printablePhotos, y, draw, paginate);
     }
 
     y = drawProductInstructions(context, documentData, y, draw, paginate);
@@ -462,7 +523,7 @@
       const pageCount = Math.ceil(height / PDF_PAGE_HEIGHT);
       for (let page = 0; page < pageCount; page += 1) {
         context.fillStyle = RECEIPT_COLORS.secondary;
-        setFont(context, 14, 500);
+        setFont(context, RECEIPT_FONT_SIZES.pageNumber, 500);
         context.textAlign = "center";
         context.textBaseline = "bottom";
         context.fillText(`第 ${page + 1} / ${pageCount} 页`, CANVAS_WIDTH / 2, (page + 1) * PDF_PAGE_HEIGHT - 20);
@@ -673,8 +734,9 @@
 
   async function renderOrderCanvas(options = {}) {
     const documentData = options?.documentData || {};
+    const printablePhotoItems = selectReceiptPhotos(documentData, options?.photos || []);
     const [photos, productLogo, backgroundImage] = await Promise.all([
-      preparePhotos(options?.photos || []),
+      preparePhotos(printablePhotoItems),
       prepareProductLogo(documentData.productTemplate),
       prepareReceiptBackground()
     ]);
