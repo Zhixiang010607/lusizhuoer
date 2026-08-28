@@ -160,10 +160,9 @@
   .retail-summary-scroll[data-visible-rows="5"] { height: 308px; }
   .history-tabs { grid-template-columns: repeat(5, minmax(0, 1fr)); margin-bottom: 12px; }
   .history-tabs button { padding: 0 6px; font-size: 14px; }
-  .record-table.recharge-history, .record-table.recharge-history .record-row { min-width: 930px; }
-  .record-table.compact-history, .record-table.compact-history .record-row { min-width: 850px; }
-  .recharge-history .record-row { grid-template-columns: 190px 120px 120px 80px 210px 210px; }
-  .compact-history .record-row { grid-template-columns: 190px 120px 120px 80px 210px 130px; }
+  .record-table.recharge-history, .record-table.recharge-history .record-row,
+  .record-table.compact-history, .record-table.compact-history .record-row { width: 100%; min-width: 650px; }
+  .recharge-history .record-row, .compact-history .record-row { grid-template-columns: 150px minmax(90px, 1fr) minmax(80px, .85fr) 56px 145px 90px; }
   .record-row { min-height: 52px; border-width: 1px; }
   .record-row text { min-height: 52px; padding: 8px 7px; font-size: 14px; }
   .record-row.table-head, .record-row.table-head text { min-height: 48px; }

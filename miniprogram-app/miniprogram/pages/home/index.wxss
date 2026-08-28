@@ -282,13 +282,13 @@
   .table-scroll { border-width: 1px; border-radius: 16px; }
   .summary-scroll { height: auto !important; }
   .record-scroll-hint { margin: -4px 0 10px; font-size: 13px; }
-  .summary-table { min-width: 680px; }
-  .record-table { min-width: 920px; }
-  .customer-table { min-width: 700px; }
+  .summary-table { width: 100%; min-width: 560px; }
+  .record-table { width: 100%; min-width: 720px; }
+  .customer-table { width: 100%; min-width: 560px; }
   .table-row { min-height: 56px; border-bottom-width: 1px; }
-  .summary-table .table-row { height: 62px; min-height: 62px; grid-template-columns: minmax(190px, 1.6fr) repeat(4, minmax(92px, 1fr)); }
-  .record-table .table-row { grid-template-columns: 160px 130px 130px minmax(140px, 1fr) 72px 170px; }
-  .customer-table .table-row { grid-template-columns: minmax(100px, .9fr) minmax(130px, 1.2fr) minmax(120px, 1.05fr) minmax(110px, 1fr) minmax(110px, 1fr); }
+  .summary-table .table-row { height: 62px; min-height: 62px; grid-template-columns: minmax(176px, 1.6fr) repeat(4, minmax(86px, 1fr)); }
+  .record-table .table-row { grid-template-columns: 145px minmax(100px, .9fr) minmax(96px, .85fr) minmax(110px, 1.15fr) 58px 145px; }
+  .customer-table .table-row { grid-template-columns: minmax(88px, .8fr) minmax(104px, 1.05fr) minmax(96px, 1fr) minmax(86px, .85fr) minmax(86px, .85fr); }
   .table-row > view { padding: 14px 16px; font-size: 14px; }
   .customer-table .table-row > view { padding-right: 8px; padding-left: 8px; font-size: 14px; }
   .table-head, .summary-table .table-head { height: 48px; min-height: 48px; }
