@@ -10,29 +10,31 @@
       <view wx:for="{{facts}}" wx:key="label" class="card fact-card" data-label="{{item.label}}" bindtap="openFact"><text>{{item.label}}</text><text class="fact-value">{{item.value || '—'}}</text><text class="fact-note">{{item.note}}</text></view>
     </view>
 
-    <view class="card">
+    <view class="card detail-card">
       <view class="card-title"><text>{{noun}}信息</text><text class="badge">数据库原单</text></view>
       <view class="detail-grid">
         <view><text>工单类型</text><text class="detail-value">{{order.typeLabel}}</text></view>
         <view><text>次数</text><text class="detail-value">{{order.unitCount}} 次</text></view>
-        <view><text>提交时间</text><text class="detail-value">{{order.submittedAt}}</text></view>
-        <view wx:if="{{baseType === 'RECHARGE' || order.originalType === 'SUPPLEMENT'}}"><text>审核时间</text><text class="detail-value">{{order.reviewedAt}}</text></view>
+        <view class="detail-time"><text>提交时间</text><text class="detail-value">{{order.submittedAt}}</text></view>
+        <view wx:if="{{baseType === 'RECHARGE' || order.originalType === 'SUPPLEMENT'}}" class="detail-time"><text>审核时间</text><text class="detail-value">{{order.reviewedAt}}</text></view>
       </view>
     </view>
 
-    <view wx:if="{{baseType === 'RECHARGE' && order.productGifts.length}}" class="card gift-detail-card">
-      <view class="card-title"><text>产品赠予</text><text class="badge">{{order.productGifts.length}} 种</text></view>
-      <view class="gift-detail-list">
-        <view wx:for="{{order.productGifts}}" wx:key="retailProductId" class="gift-detail-row">
-          <view><text>{{item.productName}}</text><text>{{item.productCode}}</text></view>
-          <text>{{item.unitCount}} 件</text>
+    <view wx:if="{{(baseType === 'RECHARGE' && order.productGifts.length) || notes.length}}" class="order-secondary-grid">
+      <view wx:if="{{baseType === 'RECHARGE' && order.productGifts.length}}" class="card gift-detail-card">
+        <view class="card-title"><text>产品赠予</text><text class="badge">{{order.productGifts.length}} 种</text></view>
+        <view class="gift-detail-list">
+          <view wx:for="{{order.productGifts}}" wx:key="retailProductId" class="gift-detail-row">
+            <view><text>{{item.productName}}</text><text>{{item.productCode}}</text></view>
+            <text>{{item.unitCount}} 件</text>
+          </view>
         </view>
       </view>
-    </view>
 
-    <view wx:if="{{notes.length}}" class="card">
-      <view class="card-title"><text>工单说明</text><text class="badge">{{notes.length}} 项</text></view>
-      <view wx:for="{{notes}}" wx:key="label" class="note-row"><text>{{item.label}}</text><text>{{item.value}}</text></view>
+      <view wx:if="{{notes.length}}" class="card notes-card">
+        <view class="card-title"><text>工单说明</text><text class="badge">{{notes.length}} 项</text></view>
+        <view wx:for="{{notes}}" wx:key="label" class="note-row"><text>{{item.label}}</text><text>{{item.value}}</text></view>
+      </view>
     </view>
 
     <view wx:if="{{baseType === 'VERIFICATION'}}" class="card photo-section">

@@ -145,9 +145,10 @@ test("store and teacher workflows use bounded two-column tablet surfaces", () =>
     "the shared camera preview must not become a giant rpx panel on iPad");
 });
 
-test("store and teacher customer/order details cap long tablet content at five rows", () => {
+test("store and teacher customer/order details use compact adaptive tablet workspaces", () => {
   const customerWxml = read("miniprogram-app", "miniprogram", "pages", "customer-detail", "index.wxml");
   const customerWxss = read("miniprogram-app", "miniprogram", "pages", "customer-detail", "index.wxss");
+  const orderWxml = read("miniprogram-app", "miniprogram", "pages", "order-detail", "index.wxml");
   const orderWxss = read("miniprogram-app", "miniprogram", "pages", "order-detail", "index.wxss");
 
   assert.match(customerWxml, /class="customer-communication-grid"/);
@@ -157,10 +158,37 @@ test("store and teacher customer/order details cap long tablet content at five r
   assert.match(customerWxml, /class="table-scroll record-scroll"[^>]*data-visible-rows="\{\{visibleHistory\.length > 5 \? 5 : visibleHistory\.length\}\}"[^>]*scroll-y="\{\{visibleHistory\.length > 5\}\}"/);
   assert.match(customerWxss, /@media \(min-width: 700px\)[\s\S]*?\.customer-communication-grid, \.customer-summary-grid \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s);
   assert.match(customerWxss, /\.record-scroll\[data-visible-rows="5"\] \{ height: 308px; \}/);
+  assert.match(orderWxml, /class="order-secondary-grid"/);
+  assert.match(orderWxss, /@media \(min-width: 700px\)[\s\S]*?\.order-hero \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto;/s,
+    "recharge, refund, normal verification, and experience verification must share a compact horizontal tablet header");
   assert.match(orderWxss, /@media \(min-width: 700px\)[\s\S]*?\.fact-grid \{ grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/s);
+  assert.match(orderWxml, /class="detail-time"/);
+  assert.match(orderWxss, /\.detail-grid \.detail-time \.detail-value \{[^}]*overflow: visible;[^}]*text-overflow: clip;/s,
+    "tablet work-order timestamps must remain complete instead of becoming an ellipsis");
+  assert.match(orderWxss, /\.order-secondary-grid \{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(300px, 1fr\)\);/s,
+    "optional gifts and work-order notes should fill one or two tablet columns without an empty forced column");
   assert.match(orderWxss, /\.photo-grid \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
+  assert.match(orderWxss, /\.photo-frame \{ height: clamp\(180px, 24vw, 230px\);/,
+    "evidence photos should respond to the tablet width without becoming giant cards");
   assert.match(orderWxss, /\.photo-card:nth-child\(5\) \{ grid-column: auto; \}/,
     "the fifth evidence photo must not stretch into a giant full-width iPad card");
+  assert.match(orderWxss, /\.export-card \{[^}]*grid-template-columns: minmax\(180px, \.42fr\) minmax\(0, 1fr\);/s,
+    "export actions should use a compact horizontal tablet row");
+});
+
+test("product purchase detail uses a compact tablet information layout", () => {
+  const wxml = read("miniprogram-app", "miniprogram", "pages", "product-purchase-detail", "index.wxml");
+  const wxss = read("miniprogram-app", "miniprogram", "pages", "product-purchase-detail", "index.wxss");
+  const context = read("PROJECT_CONTEXT.md");
+
+  assert.match(wxml, /class="detail-layout"[\s\S]*class="card purchase-card"[\s\S]*class="card notes"/s);
+  assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.hero \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto;/s,
+    "the work-order hero must become a compact horizontal tablet header");
+  assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.page \.facts \{ grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/s,
+    "customer, product, store, and teacher should share one tablet row");
+  assert.match(wxss, /\.detail-layout \{ display: grid; grid-template-columns: minmax\(0, 1\.35fr\) minmax\(260px, \.75fr\);/,
+    "purchase facts and notes should use the tablet width instead of stacking oversized cards");
+  assert.match(context, /全部工单详情在平板上必须使用紧凑横向工单头/);
 });
 
 test("HQ ranking cards show only the selected business metric", () => {

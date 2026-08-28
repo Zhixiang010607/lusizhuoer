@@ -15,6 +15,7 @@
 .detail-grid view { min-width: 0; padding: 18rpx; background: #fff7eb; border-radius: 14rpx; }
 .detail-grid text { display: block; overflow: hidden; color: #7c7062; font-size: 21rpx; text-overflow: ellipsis; white-space: nowrap; }
 .detail-grid .detail-value { margin-top: 7rpx; color: #302a22; font-size: 24rpx; font-weight: 800; }
+.order-secondary-grid { min-width: 0; }
 .gift-detail-card { background: #fffaf3; }
 .gift-detail-list { display: grid; gap: 10rpx; }
 .gift-detail-row { display: flex; align-items: center; justify-content: space-between; gap: 18rpx; padding: 18rpx; background: #fff7eb; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
@@ -57,20 +58,27 @@
 .export-canvas { position: fixed; left: -10000px; top: 0; width: 1240px; height: 1754px; pointer-events: none; }
 
 @media (min-width: 700px) {
-  .order-hero { gap: 14px; padding: 24px; }
+  .page { width: calc(100% - 48px); max-width: 1040px; margin: 0 auto; padding: 20px 0 36px; }
+  .order-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 5px 16px; padding: 18px; border-radius: 18px; }
+  .hero-copy { display: grid; gap: 5px; }
+  .order-hero .eyebrow { grid-row: 1; font-size: 13px; }
   .order-title-scroll { margin-top: 6px; }
   .order-title { padding-right: 2px; font-size: 24px; }
-  .order-address { margin-top: 9px; font-size: 14px; }
-  .status-badge { padding: 6px 10px; border-width: 1px; border-radius: 999px; font-size: 14px; }
-  .fact-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
-  .fact-card { padding: 16px; }
+  .order-address { margin-top: 2px; font-size: 13px; }
+  .status-badge { grid-column: 2; grid-row: 1; align-self: center; padding: 6px 10px; border-width: 1px; border-radius: 999px; font-size: 13px; }
+  .fact-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .fact-card { padding: 13px; border-radius: 14px; }
   .fact-card text { font-size: 13px; }
-  .fact-card .fact-value { margin-top: 6px; font-size: 18px; }
+  .fact-card .fact-value { margin-top: 5px; font-size: 17px; }
   .fact-card .fact-note { margin-top: 4px; font-size: 12px; }
-  .detail-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-  .detail-grid view { padding: 14px; border-radius: 12px; }
+  .detail-card { padding: 16px; border-radius: 16px; }
+  .detail-grid { grid-template-columns: minmax(0, .8fr) minmax(0, .65fr) repeat(2, minmax(165px, 1.25fr)); gap: 10px; }
+  .detail-grid view { padding: 12px; border-radius: 11px; }
   .detail-grid text { font-size: 13px; }
-  .detail-grid .detail-value { margin-top: 6px; font-size: 16px; }
+  .detail-grid .detail-value { margin-top: 5px; font-size: 16px; }
+  .detail-grid .detail-time .detail-value { overflow: visible; font-size: 15px; text-overflow: clip; }
+  .order-secondary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: stretch; gap: 14px; margin-bottom: 14px; }
+  .order-secondary-grid > .card { height: 100%; margin-bottom: 0; padding: 16px; border-radius: 16px; }
   .gift-detail-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .gift-detail-row { gap: 12px; padding: 13px 14px; border-width: 1px; border-radius: 12px; }
   .gift-detail-row text { font-size: 16px; }
@@ -79,13 +87,14 @@
   .note-row { padding: 13px 0; border-width: 1px; }
   .note-row text:first-child { font-size: 13px; }
   .note-row text:last-child { margin-top: 5px; font-size: 15px; }
+  .photo-section { padding: 16px; border-radius: 16px; }
   .photo-note { margin-top: 4px; font-size: 13px; }
   .photo-list-error { gap: 10px; margin-bottom: 12px; padding: 11px; border-width: 1px; border-radius: 11px; font-size: 13px; }
   .edit-window { margin-bottom: 12px; padding: 10px 12px; border-radius: 10px; font-size: 13px; }
   .photo-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
   .photo-card { padding: 10px; border-width: 1px; border-radius: 14px; }
   .photo-card:nth-child(5) { grid-column: auto; }
-  .photo-frame { height: 220px; border-radius: 10px; }
+  .photo-frame { height: clamp(180px, 24vw, 230px); border-radius: 10px; }
   .slot-placeholder { gap: 9px; padding: 14px; }
   .slot-placeholder text { font-size: 13px; }
   .photo-meta { padding: 8px 2px; }
@@ -95,7 +104,9 @@
   .photo-actions button, .upload-button, .compact-button { min-height: 42px; padding: 0 8px; border-radius: 9px; font-size: 13px; }
   .upload-button { margin-top: 7px; }
   .compact-button { min-height: 40px; padding: 0 10px; font-size: 12px; line-height: 40px; }
-  .export-actions { gap: 12px; }
+  .export-card { display: grid; grid-template-columns: minmax(180px, .42fr) minmax(0, 1fr); align-items: center; gap: 14px; padding: 16px; border-radius: 16px; }
+  .export-card .card-title { margin-bottom: 0; }
+  .export-actions { gap: 10px; }
   .export-actions button { min-height: 48px; font-size: 16px; }
-  .export-progress { margin-top: 10px; font-size: 13px; }
+  .export-progress { grid-column: 1 / -1; margin-top: 0; font-size: 13px; }
 }

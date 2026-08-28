@@ -6,6 +6,7 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
 .title { overflow: hidden; font-size: 32rpx; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
 .status { align-self: flex-start; padding: 7rpx 14rpx; color: #fff; background: rgba(255,255,255,.18); border-radius: 999rpx; font-size: 20rpx; font-weight: 800; }
 .facts, .detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; }
+.detail-layout { min-width: 0; }
 .facts view, .detail-grid view { min-width: 0; display: flex; flex-direction: column; gap: 7rpx; padding: 18rpx; background: #fff7eb; border-radius: 16rpx; }
 .facts text:first-child, .detail-grid text:first-child, .notes view text:first-child { color: #7c7062; font-size: 19rpx; }
 .facts text:last-child, .detail-grid text:last-child { overflow: hidden; font-size: 23rpx; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
@@ -17,3 +18,24 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
 .state { color: #786c5d; text-align: center; }
 .state.error { color: #8b3f35; background: #fff1ed; border-color: #e4bdb4; }
 .safe-bottom { height: calc(24rpx + env(safe-area-inset-bottom)); }
+
+@media (min-width: 700px) {
+  .page { width: calc(100% - 48px); max-width: 1040px; padding: 20px 0 36px; }
+  .hero, .card, .state { margin-bottom: 14px; padding: 18px; border-width: 1px; border-radius: 18px; }
+  .hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 16px; align-items: center; }
+  .eyebrow { grid-column: 1; font-size: 13px; }
+  .title { grid-column: 1; font-size: 24px; }
+  .status { grid-column: 2; grid-row: 1 / span 2; padding: 6px 11px; font-size: 13px; }
+  .page .facts { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .facts view, .detail-grid view { gap: 5px; padding: 13px; border-radius: 12px; }
+  .facts text:first-child, .detail-grid text:first-child, .notes view text:first-child { font-size: 13px; }
+  .facts text:last-child, .detail-grid text:last-child { font-size: 17px; }
+  .detail-layout { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(260px, .75fr); gap: 14px; align-items: start; }
+  .detail-layout > .card { height: 100%; margin-bottom: 0; }
+  .detail-grid { gap: 10px; }
+  .card-title { margin-bottom: 12px; font-size: 20px; }
+  .notes { gap: 12px; }
+  .notes view { gap: 6px; padding-bottom: 12px; border-width: 1px; }
+  .notes view text:last-child { font-size: 16px; line-height: 1.45; }
+  .state { font-size: 14px; }
+}
