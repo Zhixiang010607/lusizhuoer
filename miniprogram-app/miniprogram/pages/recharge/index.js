@@ -175,7 +175,20 @@ Page({
       this.syncReady();
     } catch (error) {
       if (requestEpoch === this._teacherRequestEpoch && String(this.data.store.id || "") === storeId) {
-        this.setData({ teacherOptionsReady: true, message: error.message || (this.data.session.role === "teacher" ? "当前老师信息读取失败，已禁止提交" : "老师列表读取失败"), error: true });
+        if (this.data.session.role === "store") {
+          const blankTeacher = { teacherId: "", teacherCode: "", teacherName: "不指定业务老师" };
+          this.setData({
+            teachers: [blankTeacher], teacherLabels: [blankTeacher.teacherName], teacherIndex: 0,
+            selectedTeacher: blankTeacher, teacherOptionsReady: true,
+            message: error.message || "老师列表读取失败；仍可不指定老师办理", error: true
+          });
+        } else {
+          this.setData({
+            teachers: [], teacherLabels: [], teacherIndex: -1, selectedTeacher: null,
+            teacherOptionsReady: true, message: error.message || "当前老师信息读取失败，已禁止提交", error: true
+          });
+        }
+        this.syncReady();
       }
     }
   },
@@ -288,14 +301,17 @@ Page({
     const count = Number(this.data.unitCount);
     const validCount = Number.isInteger(count) && count >= 1 && count <= 999;
     const refundAllowed = !this.data.refund || !this.data.selectedProduct || count <= this.data.selectedProduct.purchasedCount;
-    this.setData({ ready: Boolean(this.data.store.id && this.data.customer && this.data.selectedProduct && this.data.selectedTeacher && validCount && refundAllowed && !this.data.locked) });
+    const teacherReady = this.data.session.role === "store"
+      ? this.data.teacherOptionsReady
+      : Boolean(this.data.selectedTeacher?.teacherId);
+    this.setData({ ready: Boolean(this.data.store.id && this.data.customer && this.data.selectedProduct && teacherReady && validCount && refundAllowed && !this.data.locked) });
   },
   async submit() {
     if (this.data.busy || !this.data.ready) return;
     const count = Number(this.data.unitCount);
     const payload = {
       storeId: this.data.store.id, applicationType: this.data.refund ? "REFUND" : "NEW", customerCode: this.data.customer.customerCode,
-      productId: this.data.selectedProduct.productId, teacherId: this.data.selectedTeacher.teacherId, unitCount: count, message: String(this.data.note || "").trim(),
+      productId: this.data.selectedProduct.productId, teacherId: String(this.data.selectedTeacher?.teacherId || ""), unitCount: count, message: String(this.data.note || "").trim(),
       productGifts: this.data.refund ? [] : this.data.productGifts.map((item) => ({ retailProductId: item.retailProductId, unitCount: item.unitCount }))
     };
     let intent;

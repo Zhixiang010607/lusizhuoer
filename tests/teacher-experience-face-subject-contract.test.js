@@ -81,7 +81,7 @@ assert.match(entitlements, /positiveDatabaseId\(caller\.teacherId, "老师"\)/,
 const create = functionSource(face, "createVerificationApplication");
 assert.match(create, /experienceVerification && caller\.role !== "teacher"[\s\S]{0,180}FORBIDDEN/,
   "store and HQ are rejected server-side for EXPERIENCE creation");
-assert.match(create, /caller\.role === "teacher" \? caller\.teacherId : requestedTeacherId/,
+assert.match(create, /caller\.role === "teacher"[\s\S]{0,120}positiveDatabaseId\(caller\.teacherId, "老师"\)/,
   "teacher identity comes from the authenticated account");
 assert.match(create, /create_experience_verification_with_customer_face_photo/,
   "EXPERIENCE calls the customer-photo atomic entry point");

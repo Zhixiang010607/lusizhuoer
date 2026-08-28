@@ -9,6 +9,7 @@
     </view>
     <view class="card info-step-card {{customer ? '' : 'disabled-card'}}"><view class="card-title"><text>第二步：填写购买信息</text><text class="badge">{{customer ? customer.customerName : '先确认客户'}}</text></view>
       <label class="field"><text class="field-label">激活产品</text><picker range="{{productLabels}}" value="{{productIndex}}" bindchange="selectProduct" disabled="{{!customer || loadingProducts || !products.length}}"><view class="picker">{{loadingProducts ? '正在读取激活产品…' : productLabels[productIndex]}}</view></picker></label>
+      <label class="field"><text class="field-label">业务老师（{{session.role === 'store' ? '可选' : '本人'}}）</text><picker range="{{teacherLabels}}" value="{{teacherIndex}}" bindchange="selectTeacher" disabled="{{session.role === 'teacher' || loadingTeachers || !teacherOptionsReady}}"><view class="picker">{{loadingTeachers ? '正在读取业务老师…' : (teacherLabels[teacherIndex] || (session.role === 'store' ? '不指定业务老师' : '当前老师不可办理'))}}</view></picker></label>
       <label class="field"><text class="field-label">购买数量</text><input class="input" type="number" maxlength="3" value="{{unitCount}}" bindinput="inputCount" disabled="{{!customer}}" placeholder="{{customer ? '1 至 999 的整数' : '请先确认客户'}}" /></label>
       <label class="field"><text class="field-label">填报留言（可选）</text><textarea class="textarea" maxlength="500" value="{{note}}" bindinput="inputNote" disabled="{{!customer}}" placeholder="{{customer ? '总部审核人员可看到' : '请先确认客户'}}" /></label>
     </view>

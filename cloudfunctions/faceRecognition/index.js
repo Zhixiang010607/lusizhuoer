@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v100";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v101";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -3270,10 +3270,17 @@ async function listActiveRetailProducts(event = {}) {
 async function requireRetailProductPurchaseSchema() {
   const rows = await executeSql(
     `SELECT TO_REGCLASS('public.retail_product_purchase_records') IS NOT NULL AS has_table,
-            TO_REGPROCEDURE('public.review_retail_product_purchase(bigint,bigint,text,text)') IS NOT NULL AS has_review`
+            TO_REGPROCEDURE('public.review_retail_product_purchase(bigint,bigint,text,text)') IS NOT NULL AS has_review,
+            COALESCE(POSITION(
+              'STORE_RETAIL_PRODUCT_TEACHER_OPTIONAL_V65' IN PG_GET_FUNCTIONDEF(
+                TO_REGPROCEDURE('public.validate_retail_product_purchase_insert()')
+              )
+            ), 0) > 0 AS has_optional_teacher`
   );
-  if (!databaseBoolean(rows?.[0]?.has_table) || !databaseBoolean(rows?.[0]?.has_review)) {
-    fail("产品购买数据库尚未启用，请先执行迁移 062。", "DATABASE_SCHEMA_MISSING");
+  if (!databaseBoolean(rows?.[0]?.has_table)
+      || !databaseBoolean(rows?.[0]?.has_review)
+      || !databaseBoolean(rows?.[0]?.has_optional_teacher)) {
+    fail("产品购买数据库尚未启用门店可选业务老师规则，请先依次执行迁移 062 和 065。", "DATABASE_SCHEMA_MISSING");
   }
 }
 
@@ -3311,7 +3318,28 @@ async function createRetailProductPurchaseApplication(event = {}) {
   const product = products[0];
   if (!customer) fail("未找到本门店已确认的活跃客户。", "CUSTOMER_NOT_FOUND");
   if (!product) fail("所选产品不存在或已经封存，请重新选择。", "RETAIL_PRODUCT_NOT_ACTIVE");
-  const teacherId = caller.role === "teacher" ? positiveDatabaseId(caller.teacherId, "老师") : "";
+  const requestedTeacherId = String(event.teacherId || "").trim();
+  if (caller.role === "teacher" && requestedTeacherId && requestedTeacherId !== String(caller.teacherId)) {
+    fail("老师账号只能把产品购买绑定到本人。", "FORBIDDEN");
+  }
+  const teacherId = caller.role === "teacher"
+    ? positiveDatabaseId(caller.teacherId, "老师")
+    : (requestedTeacherId ? positiveDatabaseId(requestedTeacherId, "老师") : "");
+  let selectedTeacher = null;
+  if (teacherId) {
+    const teachers = await executeSql(
+      `SELECT t.id, t.teacher_code, t.teacher_name
+         FROM public.teachers t
+         JOIN public.staff_accounts a ON a.id = t.staff_account_id
+        WHERE t.id = ${sqlText(teacherId)}::bigint
+          AND t.teacher_status = 'ACTIVE'
+          AND a.role_code = 'teacher'
+          AND a.account_status = 'ACTIVE'
+        LIMIT 1`
+    );
+    selectedTeacher = teachers[0] || null;
+    if (!selectedTeacher) fail("所选老师不存在或已经封存，请重新选择。", "TEACHER_NOT_ACTIVE");
+  }
   const rows = await executeSql(
     `WITH inserted AS (
        INSERT INTO public.retail_product_purchase_records
@@ -3351,7 +3379,11 @@ async function createRetailProductPurchaseApplication(event = {}) {
     unitCount: Number(record.unit_count || 0),
     customer: { customerCode: customer.customer_code, customerName: customer.customer_name },
     product: { productId: String(product.id), productCode: product.product_code, productName: product.product_name },
-    teacher: teacherId ? { teacherId, teacherCode: caller.teacherCode, teacherName: caller.teacherName } : null
+    teacher: selectedTeacher ? {
+      teacherId: String(selectedTeacher.id),
+      teacherCode: selectedTeacher.teacher_code,
+      teacherName: selectedTeacher.teacher_name
+    } : null
   };
 }
 
@@ -3449,13 +3481,21 @@ async function requireRechargeSubmissionSchema({ refund = false, giftRequired = 
           AND table_name = 'recharge_records'
           AND column_name = 'balance_after_count'
      ) AS has_refund_snapshots,
-     TO_REGCLASS('public.recharge_product_gifts') IS NOT NULL AS has_gift_table`
+     TO_REGCLASS('public.recharge_product_gifts') IS NOT NULL AS has_gift_table,
+     COALESCE(POSITION(
+       'STORE_BUSINESS_TEACHER_OPTIONAL_V65' IN PG_GET_FUNCTIONDEF(
+         TO_REGPROCEDURE('public.enforce_business_teacher_matrix_v65()')
+       )
+     ), 0) > 0 AS has_optional_teacher_guard`
   );
   if (!databaseBoolean(rows?.[0]?.has_idempotency_key)) {
     fail("充值单数据库缺少防重复提交字段，请先执行迁移 023。", "DATABASE_SCHEMA_MISSING");
   }
   if (!databaseBoolean(rows?.[0]?.teacher_is_optional)) {
-    fail("充值单数据库尚未允许业务老师为空，请先执行迁移 024。", "DATABASE_SCHEMA_MISSING");
+    fail("充值单数据库尚未允许业务老师为空，请先执行迁移 065。", "DATABASE_SCHEMA_MISSING");
+  }
+  if (!databaseBoolean(rows?.[0]?.has_optional_teacher_guard)) {
+    fail("充值与退费数据库尚未启用门店可选业务老师规则，请先执行迁移 065。", "DATABASE_SCHEMA_MISSING");
   }
   if (refund && !databaseBoolean(rows?.[0]?.has_refund_snapshots)) {
     fail("退费单数据库结构尚未启用，请先执行迁移 044。", "DATABASE_SCHEMA_MISSING");
@@ -3668,14 +3708,20 @@ async function requireVerificationSubmissionSchema() {
        'device_signal_outbox' IN PG_GET_FUNCTIONDEF(TO_REGPROCEDURE(
          'public.create_verification_with_face_photo(character varying,bigint,bigint,bigint,bigint,integer,character varying,bigint,text,text,character varying,character varying,character varying)'
        ))
-     ), 0) > 0 AS has_atomic_device_signal`
+     ), 0) > 0 AS has_atomic_device_signal,
+     COALESCE(POSITION(
+       'STORE_BUSINESS_TEACHER_OPTIONAL_V65' IN PG_GET_FUNCTIONDEF(
+         TO_REGPROCEDURE('public.enforce_business_teacher_matrix_v65()')
+       )
+     ), 0) > 0 AS has_optional_teacher`
   );
   if (!databaseBoolean(rows?.[0]?.has_idempotency_key)
       || !databaseBoolean(rows?.[0]?.has_photo_create_function)
       || !databaseBoolean(rows?.[0]?.has_profile_snapshot)
       || !databaseBoolean(rows?.[0]?.has_device_signal_outbox)
-      || !databaseBoolean(rows?.[0]?.has_atomic_device_signal)) {
-    fail("核销单数据库缺少可选次数、照片证据或设备信号结构，请先依次执行迁移 026、037、038、041 和 064。", "DATABASE_SCHEMA_MISSING");
+      || !databaseBoolean(rows?.[0]?.has_atomic_device_signal)
+      || !databaseBoolean(rows?.[0]?.has_optional_teacher)) {
+    fail("核销单数据库缺少可选次数、照片证据、设备信号或门店可选老师规则，请先依次执行迁移 026、037、038、041、064 和 065。", "DATABASE_SCHEMA_MISSING");
   }
 }
 
@@ -3733,7 +3779,9 @@ async function createVerificationApplication(event) {
   if (caller.role === "teacher" && requestedTeacherId && requestedTeacherId !== String(caller.teacherId)) {
     fail("老师账号只能把核销绑定到本人。", "FORBIDDEN");
   }
-  const teacherId = positiveDatabaseId(caller.role === "teacher" ? caller.teacherId : requestedTeacherId, "老师");
+  const teacherId = caller.role === "teacher"
+    ? positiveDatabaseId(caller.teacherId, "老师")
+    : (requestedTeacherId ? positiveDatabaseId(requestedTeacherId, "老师") : "");
   const message = String(event.message || "").trim();
   if (message.length > 500) fail("门店留言不能超过 500 个字符。", "MESSAGE_TOO_LONG");
   const faceRequestId = String(event.faceRequestId || "").trim();
@@ -3773,18 +3821,22 @@ async function createVerificationApplication(event) {
   const product = products[0];
   if (!product) fail("所选项目不存在或已经封存，请重新选择。", "PRODUCT_NOT_ACTIVE");
 
-  const teachers = await executeSql(
-    `SELECT t.id, t.teacher_code, t.teacher_name
-       FROM public.teachers t
-       JOIN public.staff_accounts a ON a.id = t.staff_account_id
-      WHERE t.id = ${sqlText(teacherId)}::bigint
-        AND t.teacher_status = 'ACTIVE'
-        AND a.role_code = 'teacher'
-        AND a.account_status = 'ACTIVE'
-      LIMIT 1`
-  );
-  const teacher = teachers[0];
-  if (!teacher) fail("所选老师不存在或已经封存，请重新选择。", "TEACHER_NOT_ACTIVE");
+  let teacher = null;
+  if (teacherId) {
+    const teachers = await executeSql(
+      `SELECT t.id, t.teacher_code, t.teacher_name
+         FROM public.teachers t
+         JOIN public.staff_accounts a ON a.id = t.staff_account_id
+        WHERE t.id = ${sqlText(teacherId)}::bigint
+          AND t.teacher_status = 'ACTIVE'
+          AND a.role_code = 'teacher'
+          AND a.account_status = 'ACTIVE'
+        LIMIT 1`
+    );
+    teacher = teachers[0] || null;
+    if (!teacher) fail("所选老师不存在或已经封存，请重新选择。", "TEACHER_NOT_ACTIVE");
+  }
+  const teacherIdSql = teacherId ? `${sqlText(teacherId)}::bigint` : "NULL";
 
   const initialStatus = "APPROVED";
   const supplementNote = "";
@@ -3792,7 +3844,7 @@ async function createVerificationApplication(event) {
   try {
     const createSql = experienceVerification
       ? `SELECT * FROM public.create_experience_verification_with_customer_face_photo(
-           ${caller.storeId}::bigint, ${sqlText(teacherId)}::bigint,
+           ${caller.storeId}::bigint, ${teacherIdSql},
            ${sqlText(customer.id)}::bigint, ${sqlText(productId)}::bigint,
            ${unitCount}::integer, ${caller.staffId}::bigint, ${sqlText(message)}::text,
            ${sqlText(faceRequestId)}::varchar, ${sqlText(faceEvidenceToken)}::varchar,
@@ -3800,7 +3852,7 @@ async function createVerificationApplication(event) {
          )`
       : `SELECT * FROM public.create_verification_with_face_photo(
            ${sqlText(verificationType)}::varchar, ${caller.storeId}::bigint,
-           ${sqlText(teacherId)}::bigint, ${sqlText(customer.id)}::bigint,
+           ${teacherIdSql}, ${sqlText(customer.id)}::bigint,
            ${sqlText(productId)}::bigint, ${unitCount}::integer, ${sqlText(initialStatus)}::varchar,
            ${caller.staffId}::bigint, ${sqlText(message)}::text,
            ${sqlText(supplementNote)}::text, ${sqlText(faceRequestId)}::varchar,
@@ -3831,7 +3883,7 @@ async function createVerificationApplication(event) {
 
   const sameRequest = String(record.verification_type) === verificationType
     && String(record.store_id) === String(caller.storeId)
-    && String(record.teacher_id) === String(teacherId)
+    && String(record.teacher_id || "") === String(teacherId)
     && String(record.customer_id) === String(customer.id)
     && String(record.product_id) === String(productId)
     && Number(record.unit_count) === unitCount
@@ -3890,7 +3942,9 @@ async function createVerificationApplication(event) {
     unitCount: Number(record.unit_count),
     customer: { customerCode: customer.customer_code, customerName: customer.customer_name },
     product: { productId: String(product.id), productCode: product.product_code, productName: product.product_name },
-    teacher: { teacherId: String(teacher.id), teacherCode: teacher.teacher_code, teacherName: teacher.teacher_name },
+    teacher: teacher ? {
+      teacherId: String(teacher.id), teacherCode: teacher.teacher_code, teacherName: teacher.teacher_name
+    } : null,
     experienceQuota,
     deviceSignal: {
       id: String(signal.id),

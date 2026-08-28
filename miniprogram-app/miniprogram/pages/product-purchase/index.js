@@ -8,12 +8,17 @@ function store(value = {}) {
 function product(value = {}) {
   return { id: String(value.productId || ""), code: String(value.productCode || ""), name: String(value.productName || "") };
 }
+function teacher(value = {}) {
+  return { teacherId: String(value.teacherId || ""), teacherCode: String(value.teacherCode || ""), teacherName: String(value.teacherName || "") };
+}
 
 Page({
   data: {
     session: {}, store: {}, stores: [], storeLabels: ["请选择门店"], storeIndex: 0,
     customer: null, products: [], productLabels: ["请选择激活产品"], productIndex: 0,
     selectedProduct: null, unitCount: "", note: "", loadingStores: false, loadingProducts: false,
+    teachers: [], teacherLabels: ["正在读取业务老师…"], teacherIndex: 0, selectedTeacher: null,
+    teacherOptionsReady: false, loadingTeachers: false,
     busy: false, locked: false, recovering: false, ready: false, message: "", error: false
   },
   onLoad() {
@@ -24,14 +29,14 @@ Page({
       const selected = getSelectedStore(session);
       if (!selected?.id) return wx.reLaunch({ url: "/pages/home/index" });
       this.setData({ store: store(selected) });
-      this.loadProducts();
+      this.loadTeachers(); this.loadProducts();
     } else this.loadTeacherStores();
     if (submission.read("PRODUCT_PURCHASE")) {
       this.setData({ locked: true, message: "检测到上一次产品购买提交尚未确认，已锁定重复提交。" });
       this.recoverPending();
     }
   },
-  onUnload() { this._storeEpoch = Number(this._storeEpoch || 0) + 1; this._productEpoch = Number(this._productEpoch || 0) + 1; },
+  onUnload() { this._storeEpoch = Number(this._storeEpoch || 0) + 1; this._productEpoch = Number(this._productEpoch || 0) + 1; this._teacherEpoch = Number(this._teacherEpoch || 0) + 1; },
   async loadTeacherStores() {
     const epoch = Number(this._storeEpoch || 0) + 1; this._storeEpoch = epoch;
     this.setData({ loadingStores: true, stores: [], storeLabels: ["请选择门店"], storeIndex: 0, store: {} });
@@ -50,11 +55,62 @@ Page({
     if (!selected?.id) return;
     setSelectedStore(selected, this.data.session);
     this._productEpoch = Number(this._productEpoch || 0) + 1;
-    this.setData({ store: selected, storeIndex: pickerIndex, customer: null, products: [], productLabels: ["请选择激活产品"], productIndex: 0, selectedProduct: null, unitCount: "", note: "", message: `已选择 ${selected.name}，请确认客户`, error: false });
-    this.loadProducts(); this.syncReady();
+    this._teacherEpoch = Number(this._teacherEpoch || 0) + 1;
+    this.setData({
+      store: selected, storeIndex: pickerIndex, customer: null,
+      products: [], productLabels: ["请选择激活产品"], productIndex: 0, selectedProduct: null,
+      teachers: [], teacherLabels: ["正在读取业务老师…"], teacherIndex: 0, selectedTeacher: null,
+      teacherOptionsReady: false, unitCount: "", note: "", message: `已选择 ${selected.name}，请确认客户`, error: false
+    });
+    this.loadTeachers(); this.loadProducts(); this.syncReady();
   },
   customerChanged() { this.setData({ customer: null, unitCount: "", note: "", message: "", error: false }); this.syncReady(); },
   customerConfirmed(event) { const customer = event.detail.customer; this.setData({ customer, message: `已确认 ${customer.customerName}`, error: false }); this.syncReady(); },
+  async loadTeachers() {
+    const storeId = String(this.data.store.id || ""); if (!storeId) return;
+    const epoch = Number(this._teacherEpoch || 0) + 1; this._teacherEpoch = epoch;
+    this.setData({ loadingTeachers: true, teacherOptionsReady: false });
+    try {
+      const result = await callFace("listActiveTeachers", { storeId });
+      if (epoch !== this._teacherEpoch || String(this.data.store.id || "") !== storeId) return;
+      const activeTeachers = (result.teachers || []).map(teacher).filter((item) => item.teacherId);
+      if (this.data.session.role === "teacher") {
+        const selectedIndex = activeTeachers.findIndex((item) => item.teacherId === String(this.data.session.teacherId || ""));
+        const selectedTeacher = selectedIndex >= 0 ? activeTeachers[selectedIndex] : null;
+        this.setData({
+          teachers: activeTeachers,
+          teacherLabels: activeTeachers.map((item) => `${item.teacherName} · ${item.teacherCode}`),
+          teacherIndex: Math.max(0, selectedIndex), selectedTeacher, teacherOptionsReady: true
+        });
+        if (!selectedTeacher) this.setData({ message: "当前老师不在该门店的可办理老师名单中，已禁止提交", error: true });
+      } else {
+        const options = [{ teacherId: "", teacherCode: "", teacherName: "不指定业务老师" }, ...activeTeachers];
+        this.setData({
+          teachers: options,
+          teacherLabels: options.map((item) => item.teacherId ? `${item.teacherName} · ${item.teacherCode}` : item.teacherName),
+          teacherIndex: 0, selectedTeacher: options[0], teacherOptionsReady: true
+        });
+      }
+    } catch (error) {
+      if (epoch === this._teacherEpoch && String(this.data.store.id || "") === storeId) {
+        if (this.data.session.role === "store") {
+          const blankTeacher = { teacherId: "", teacherCode: "", teacherName: "不指定业务老师" };
+          this.setData({
+            teachers: [blankTeacher], teacherLabels: [blankTeacher.teacherName], teacherIndex: 0,
+            selectedTeacher: blankTeacher, teacherOptionsReady: true,
+            message: error.message || "老师列表读取失败；仍可不指定老师办理", error: true
+          });
+        } else {
+          this.setData({
+            teachers: [], teacherLabels: [], teacherIndex: 0, selectedTeacher: null,
+            teacherOptionsReady: true, message: error.message || "当前老师信息读取失败，已禁止提交", error: true
+          });
+        }
+      }
+    } finally {
+      if (epoch === this._teacherEpoch) { this.setData({ loadingTeachers: false }); this.syncReady(); }
+    }
+  },
   async loadProducts() {
     const storeId = String(this.data.store.id || ""); if (!storeId) return;
     const epoch = Number(this._productEpoch || 0) + 1; this._productEpoch = epoch;
@@ -69,15 +125,19 @@ Page({
     } finally { if (epoch === this._productEpoch) { this.setData({ loadingProducts: false }); this.syncReady(); } }
   },
   selectProduct(event) { const index = Number(event.detail.value); this.setData({ productIndex: index, selectedProduct: this.data.products[index - 1] || null }); this.syncReady(); },
+  selectTeacher(event) { const index = Number(event.detail.value); this.setData({ teacherIndex: index, selectedTeacher: this.data.teachers[index] || null }); this.syncReady(); },
   inputCount(event) { this.setData({ unitCount: event.detail.value }); this.syncReady(); },
   inputNote(event) { this.setData({ note: event.detail.value }); },
   syncReady() {
     const count = Number(this.data.unitCount);
-    this.setData({ ready: Boolean(this.data.store.id && this.data.customer && this.data.selectedProduct && Number.isInteger(count) && count >= 1 && count <= 999 && !this.data.locked) });
+    const teacherReady = this.data.session.role === "store"
+      ? this.data.teacherOptionsReady
+      : Boolean(this.data.selectedTeacher?.teacherId);
+    this.setData({ ready: Boolean(this.data.store.id && this.data.customer && this.data.selectedProduct && teacherReady && Number.isInteger(count) && count >= 1 && count <= 999 && !this.data.locked) });
   },
   async submit() {
     if (this.data.busy || !this.data.ready) return;
-    const payload = { storeId: this.data.store.id, customerCode: this.data.customer.customerCode, retailProductId: this.data.selectedProduct.id, unitCount: Number(this.data.unitCount), message: String(this.data.note || "").trim() };
+    const payload = { storeId: this.data.store.id, customerCode: this.data.customer.customerCode, retailProductId: this.data.selectedProduct.id, teacherId: String(this.data.selectedTeacher?.teacherId || ""), unitCount: Number(this.data.unitCount), message: String(this.data.note || "").trim() };
     let intent;
     try { intent = submission.begin("PRODUCT_PURCHASE", payload); }
     catch (error) { return this.setData({ locked: true, message: error.message, error: true }); }

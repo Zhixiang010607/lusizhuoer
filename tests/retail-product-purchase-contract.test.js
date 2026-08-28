@@ -39,11 +39,11 @@ assert.match(migration, /id = NEW\.reviewed_by_account_id/, "the database mutati
 assert.match(migration, /RETAIL_PRODUCT_PURCHASE_DELETE_FORBIDDEN/, "purchase audit records must not be deletable");
 assert.match(migration, /OLD\.record_status <> 'PENDING'/, "review state must be single-transition and immutable afterwards");
 
-assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v9" : "v100"/);
+assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v9" : "v101"/);
 assert.match(face, /async function createRetailProductPurchaseApplication/);
 assert.match(face, /const caller = await activeBusinessCaller\(event\)/);
-assert.match(face, /caller\.role === "teacher" \? positiveDatabaseId\(caller\.teacherId, "老师"\) : ""/,
-  "teacher submissions must bind the authenticated teacher while store submissions remain unassigned");
+assert.match(face, /const teacherId = caller\.role === "teacher"[\s\S]*positiveDatabaseId\(caller\.teacherId, "老师"\)[\s\S]*requestedTeacherId \? positiveDatabaseId\(requestedTeacherId, "老师"\) : ""/,
+  "store product purchases may select a teacher or leave the field empty");
 assert.match(face, /action === "createRetailProductPurchaseApplication"/);
 assert.match(face, /recordType === "PRODUCT_PURCHASE"/);
 assert.match(face, /retailProductSummary:/);

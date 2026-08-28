@@ -42,9 +42,9 @@ test("migration 061 stores immutable recharge gifts with parent scope and active
   assert.match(read("database/cloudbase-console/061-README.md"), /8 行[\s\S]*READY/);
 });
 
-test("faceRecognition v100 validates and atomically creates recharge gifts", () => {
+test("faceRecognition v101 validates and atomically creates recharge gifts", () => {
   const cloud = read("cloudfunctions/faceRecognition/index.js");
-  assert.match(cloud, /PHOTO_ONLY_FUNCTION \? "v9" : "v100"/);
+  assert.match(cloud, /PHOTO_ONLY_FUNCTION \? "v9" : "v101"/);
   const list = section(cloud, "async function listActiveRetailProducts", "function normalizeRechargeProductGifts");
   assert.match(list, /activeBusinessCaller\(event\)/);
   assert.match(list, /FROM public\.retail_products[\s\S]*product_status = 'ACTIVE'/);

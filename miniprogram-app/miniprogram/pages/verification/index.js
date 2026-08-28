@@ -36,7 +36,7 @@ function orderUrl(experience, result, intent = {}) {
 Page({
   data: {
     session: {}, store: {}, stores: [], storeLabels: ["请选择门店"], storeIndex: 0, loadingStores: false,
-    experience: false, customer: null, teachers: [], teacherLabels: [], teacherIndex: -1, selectedTeacher: null, teacherOptionsReady: false,
+    experience: false, customer: null, teachers: [], teacherLabels: [], teacherIndex: -1, selectedTeacher: null, teacherOptionsReady: false, teacherReady: false,
     products: [], productLabels: [], productIndex: -1, selectedProduct: null, unitCount: "", unitCountMax: 0, unitCountValid: false, note: "", captureReady: false, faceVerified: false,
     faceRequestId: "", faceEvidenceToken: "", faceMessage: "", faceError: false, loadingOptions: false, verifying: false,
     busy: false, locked: false, recovering: false, ready: false, message: "", error: false
@@ -111,7 +111,7 @@ Page({
     this.setData({
       store, storeIndex: pickerIndex,
       customer: null,
-      teachers: [], teacherLabels: [], teacherIndex: -1, selectedTeacher: null, teacherOptionsReady: false,
+      teachers: [], teacherLabels: [], teacherIndex: -1, selectedTeacher: null, teacherOptionsReady: false, teacherReady: false,
       products: [], productLabels: [], productIndex: -1, selectedProduct: null, unitCount: "", unitCountMax: 0, unitCountValid: false,
       note: "", captureReady: false, faceVerified: false, faceRequestId: "", faceEvidenceToken: "",
       faceMessage: "", faceError: false, loadingOptions: false, verifying: false, ready: false,
@@ -140,12 +140,21 @@ Page({
     try {
       const result = await callFace("listActiveTeachers", { storeId });
       if (requestEpoch !== this._teacherRequestEpoch || String(this.data.store.id || "") !== storeId) return;
-      const values = (result.teachers || []).map(teacher).filter((item) => item.teacherId);
+      const activeTeachers = (result.teachers || []).map(teacher).filter((item) => item.teacherId);
+      const values = this.data.session.role === "store"
+        ? [{ teacherId: "", teacherCode: "", teacherName: "不指定业务老师" }, ...activeTeachers]
+        : activeTeachers;
       const mineIndex = this.data.session.role === "teacher"
         ? values.findIndex((item) => item.teacherId === String(this.data.session.teacherId || ""))
-        : -1;
+        : 0;
       const mine = mineIndex >= 0 ? values[mineIndex] : null;
-      this.setData({ teachers: values, teacherLabels: values.map((item) => `${item.teacherName} · ${item.teacherCode}`), selectedTeacher: mine, teacherIndex: mineIndex, teacherOptionsReady: true });
+      this.setData({
+        teachers: values,
+        teacherLabels: values.map((item) => item.teacherId ? `${item.teacherName} · ${item.teacherCode}` : item.teacherName),
+        selectedTeacher: mine,
+        teacherIndex: mineIndex,
+        teacherOptionsReady: true
+      });
       if (this.data.session.role === "teacher" && !mine) {
         this.setData({ message: "当前老师不在该门店的可办理老师名单中，已禁止核销", error: true });
       }
@@ -153,7 +162,19 @@ Page({
       this.syncReady();
     } catch (error) {
       if (requestEpoch === this._teacherRequestEpoch && String(this.data.store.id || "") === storeId) {
-        this.setData({ teacherOptionsReady: true, message: error.message || (this.data.session.role === "teacher" ? "当前老师信息读取失败，已禁止核销" : "老师列表读取失败"), error: true });
+        const storeBlank = this.data.session.role === "store"
+          ? [{ teacherId: "", teacherCode: "", teacherName: "不指定业务老师" }]
+          : [];
+        this.setData({
+          teachers: storeBlank,
+          teacherLabels: storeBlank.map((item) => item.teacherName),
+          teacherIndex: storeBlank.length ? 0 : -1,
+          selectedTeacher: storeBlank[0] || null,
+          teacherOptionsReady: true,
+          message: error.message || (this.data.session.role === "teacher" ? "当前老师信息读取失败，已禁止核销" : "老师列表读取失败；仍可不指定老师办理"),
+          error: true
+        });
+        this.syncReady();
       }
     }
   },
@@ -246,7 +267,10 @@ Page({
       products: [], productLabels: [], productIndex: -1, selectedProduct: null, unitCount: "", unitCountMax: 0, unitCountValid: false,
       loadingOptions: false, ready: false,
       ...(clearNote ? { note: "" } : {}),
-      ...(resetTeacher ? { teacherIndex: -1, selectedTeacher: null } : {})
+      ...(resetTeacher ? (() => {
+        const blankIndex = this.data.teachers.findIndex((item) => !item.teacherId);
+        return { teacherIndex: blankIndex, selectedTeacher: blankIndex >= 0 ? this.data.teachers[blankIndex] : null };
+      })() : {})
     });
     this.resetFace();
   },
@@ -267,7 +291,7 @@ Page({
     if (this.data.verifying) return;
     const capture = this.selectComponent("#verificationCamera").getCapture();
     const unitCount = Number(this.data.unitCount);
-    if (!capture || !this.data.customer || !this.data.selectedProduct || !this.data.selectedTeacher
+    if (!capture || !this.data.customer || !this.data.selectedProduct || !this.data.teacherReady
         || !Number.isInteger(unitCount) || unitCount < 1 || unitCount > Number(this.data.unitCountMax || 0)) return;
     const identity = {
       customerCode: String(this.data.customer.customerCode || ""),
@@ -309,9 +333,13 @@ Page({
   syncReady() {
     const unitCount = Number(this.data.unitCount);
     const countReady = Number.isInteger(unitCount) && unitCount >= 1 && unitCount <= Number(this.data.unitCountMax || 0);
+    const teacherReady = this.data.session.role === "store"
+      ? this.data.teacherOptionsReady
+      : Boolean(this.data.selectedTeacher?.teacherId);
     this.setData({
       unitCountValid: countReady,
-      ready: Boolean(this.data.store.id && this.data.customer && this.data.selectedProduct && this.data.selectedTeacher && countReady && this.data.faceVerified && this.data.faceRequestId && this.data.faceEvidenceToken && !this.data.locked)
+      teacherReady,
+      ready: Boolean(this.data.store.id && this.data.customer && this.data.selectedProduct && teacherReady && countReady && this.data.faceVerified && this.data.faceRequestId && this.data.faceEvidenceToken && !this.data.locked)
     });
   },
   async submit() {
@@ -322,7 +350,7 @@ Page({
     }
     const identity = {
       storeId: this.data.store.id, customerCode: this.data.customer.customerCode, productId: this.data.selectedProduct.productId,
-      unitCount, teacherId: this.data.selectedTeacher.teacherId, verificationType: this.data.experience ? "EXPERIENCE" : "NORMAL", message: String(this.data.note || "").trim()
+      unitCount, teacherId: String(this.data.selectedTeacher?.teacherId || ""), verificationType: this.data.experience ? "EXPERIENCE" : "NORMAL", message: String(this.data.note || "").trim()
     };
     let intent;
     try { intent = submission.begin("VERIFICATION", identity); }

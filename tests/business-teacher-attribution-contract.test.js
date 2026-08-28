@@ -16,8 +16,8 @@ function section(startMarker, endMarker) {
   return cloud.slice(start, end);
 }
 
-assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v9" : "v100"/);
-assert.match(readme, /当前版本：`v100`/);
+assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v9" : "v101"/);
+assert.match(readme, /当前版本：`v101`/);
 
 const attributionSource = section("function teacherBusinessAttributionSourceCondition", "function trustedBusinessTeacherIdSql");
 const trustedTeacherId = section("function trustedBusinessTeacherIdSql", "function teacherBusinessOwnershipCondition");
@@ -63,17 +63,16 @@ assert.match(recharge, /t\.teacher_status = 'ACTIVE'[\s\S]*a\.role_code = 'teach
   "a selected teacher must have an active teacher profile and login account");
 
 const verification = section("async function createVerificationApplication", "async function recoverBusinessSubmission");
-const requiredTeacher = verification.indexOf('positiveDatabaseId(caller.role === "teacher" ? caller.teacherId : requestedTeacherId, "老师")');
-assert.ok(requiredTeacher >= 0,
-  "store normal verification must require a selected teacher");
 assert.match(verification, /experienceVerification && caller\.role !== "teacher"[\s\S]*"FORBIDDEN"/,
   "store and HQ experience verification must be rejected by role");
 assert.match(verification, /caller\.role === "teacher"[\s\S]*requestedTeacherId !== String\(caller\.teacherId\)[\s\S]*"FORBIDDEN"/,
   "teacher verification must reject attempts to select another teacher");
-assert.match(verification, /positiveDatabaseId\(caller\.role === "teacher" \? caller\.teacherId : requestedTeacherId, "老师"\)/,
-  "store normal verification must require a concrete teacher while teacher verification binds self");
+assert.match(verification, /const teacherId = caller\.role === "teacher"[\s\S]*positiveDatabaseId\(caller\.teacherId, "老师"\)[\s\S]*requestedTeacherId \? positiveDatabaseId\(requestedTeacherId, "老师"\) : ""/,
+  "teacher verification binds self while store normal verification keeps teacher optional");
 assert.match(verification, /t\.teacher_status = 'ACTIVE'[\s\S]*a\.role_code = 'teacher'[\s\S]*a\.account_status = 'ACTIVE'/,
-  "normal verification may only bind a currently active teacher");
+  "a selected verification teacher must have an active profile and login account");
+assert.match(verification, /const teacherIdSql = teacherId \? `\$\{sqlText\(teacherId\)\}::bigint` : "NULL"/,
+  "store verification must write SQL NULL when no teacher is selected");
 
 const entitlements = section("async function getTeacherExperienceEntitlements", "async function listActiveTeachers");
 assert.match(entitlements, /caller\.role !== "teacher"[\s\S]*"FORBIDDEN"/,
@@ -230,5 +229,35 @@ assert.match(layoutVerify059, /has_current OR has_legacy[\s\S]*'READY'/,
   "final layout verification must reject an environment with neither binding layout");
 assert.match(readme059, /059-preflight-store-binding-layout\.sql[\s\S]*059-preflight-business-teacher-attribution\.sql[\s\S]*059-00-store-binding-prerequisites\.sql[\s\S]*059-01-business-teacher-function\.sql[\s\S]*059-02-business-teacher-triggers\.sql[\s\S]*059-readonly-verify-store-binding\.sql[\s\S]*059-readonly-verify\.sql/,
   "059 README must preserve the executable order");
+
+const migration065 = read("database/migrations/065_store_optional_business_teacher.sql");
+const console065 = read("database/cloudbase-console/065-01-store-optional-business-teacher.sql");
+const verify065 = read("database/cloudbase-console/065-readonly-verify.sql");
+const readme065 = read("database/cloudbase-console/065-README.md");
+
+assert.equal(console065, migration065,
+  "canonical and CloudBase console 065 migrations must stay byte-for-byte aligned");
+assert.match(migration065, /STORE_BUSINESS_TEACHER_OPTIONAL_V65/,
+  "065 must explicitly retire the store-required teacher rule");
+assert.match(migration065, /TEACHER_SELF_ATTRIBUTION_V65/,
+  "065 must retain teacher self-attribution");
+assert.match(migration065, /STORE_EXPERIENCE_DENIED_V65/,
+  "065 must retain the store experience-verification denial");
+assert.match(migration065, /STORE_RETAIL_PRODUCT_TEACHER_OPTIONAL_V65/,
+  "065 must make store retail purchase teacher attribution optional");
+assert.match(migration065, /ALTER COLUMN teacher_id DROP NOT NULL/,
+  "all affected store business records must permit a null teacher");
+assert.match(migration065, /IS NOT DISTINCT FROM p_teacher_id/,
+  "verification idempotency must compare an optional teacher null-safely");
+assert.match(migration065, /IF NEW\.teacher_id IS NOT NULL[\s\S]*teacher_status = 'ACTIVE'[\s\S]*account_status = 'ACTIVE'/,
+  "a teacher selected by a store must remain subject to active-profile validation");
+assert.match(migration065, /REVOKE ALL ON FUNCTION public\.enforce_business_teacher_matrix_v65\(\)\s+FROM PUBLIC, anon, authenticated/,
+  "client roles must not execute the v65 business guard directly");
+assert.doesNotMatch(verify065, /\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE)\b/i,
+  "065 verification must remain read-only");
+assert.equal((verify065.match(/UNION ALL/g) || []).length, 8,
+  "065 verification must return all nine checks in one result table");
+assert.match(readme065, /065-01-store-optional-business-teacher\.sql[\s\S]*faceRecognition-v101\.zip[\s\S]*065-readonly-verify\.sql[\s\S]*0\.2\.39/,
+  "065 README must preserve SQL, cloud function, verification, and mini-program order");
 
 console.log("business teacher attribution contract: PASS");
