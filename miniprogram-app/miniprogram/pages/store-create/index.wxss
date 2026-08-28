@@ -10,7 +10,7 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
 .section-heading > view text:last-child { color: #7c7062; font-size: 19rpx; }
 .field { display: flex; flex-direction: column; gap: 9rpx; margin-top: 17rpx; }
 .field > text { color: #554a3c; font-size: 21rpx; font-weight: 800; }
-.field input, .picker { width: 100%; min-height: 82rpx; display: flex; align-items: center; padding: 0 20rpx; color: #302a22; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 15rpx; font-size: 22rpx; }
+.field input, .picker { width: 100%; min-height: 82rpx; display: flex; align-items: center; padding: 0 20rpx; color: #302a22; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 15rpx; box-sizing: border-box; font-size: 22rpx; }
 .actions { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 12rpx; }
 .actions button { min-height: 78rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 16rpx; border-radius: 15rpx; font-size: 19rpx; font-weight: 800; line-height: 1; }
 .primary { color: #fffdf8; background: #6f532e; }.ghost { color: #74592d; background: #fff; border: 1rpx solid #d7c39f; }
@@ -22,18 +22,21 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
   .page-heading { gap: 16px; margin: 4px 4px 16px; }
   .page-heading text:first-child { font-size: 26px; }
   .page-heading text:last-child, .section-heading > text { padding: 5px 10px; font-size: 13px; }
-  .store-create-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
-  .panel { min-width: 0; margin-bottom: 0; padding: 20px; border-width: 1px; border-radius: 18px; }
+  .store-create-grid { padding: 18px; background: #fffaf3; border: 1px solid #dfcfb4; border-radius: 18px; box-shadow: 0 12px 34px rgba(93,72,39,.08); }
+  .store-create-grid .panel { min-width: 0; margin: 0; padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+  .store-create-grid .panel + .panel { margin-top: 16px; padding-top: 16px; border-top: 1px solid #eadcc6; }
   .section-heading { gap: 12px; margin-bottom: 14px; }
   .section-heading > view { gap: 4px; }
   .section-heading > view text:first-child { font-size: 20px; }
   .section-heading > view text:last-child { font-size: 13px; }
-  .store-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; }
+  .store-fields { display: grid; gap: 12px; align-items: end; }
+  .store-data-panel .store-fields { grid-template-columns: minmax(130px, .65fr) minmax(230px, 1.25fr) minmax(230px, 1.2fr); }
+  .contact-data-panel .store-fields { grid-template-columns: minmax(140px, .7fr) minmax(190px, .95fr) minmax(260px, 1.35fr); }
   .field { min-width: 0; gap: 7px; margin-top: 0; }
-  .field-wide { grid-column: 1 / -1; }
+  .field-wide { grid-column: auto; }
   .field > text { font-size: 14px; }
-  .field input, .picker { min-height: 50px; padding: 0 14px; border-width: 1px; border-radius: 12px; box-sizing: border-box; font-size: 16px; }
+  .field input, .picker { min-height: 46px; padding: 0 13px; border-width: 1px; border-radius: 11px; font-size: 15px; }
   .message { margin: 14px 0 0; padding: 12px 14px; border-radius: 11px; font-size: 14px; }
-  .actions { max-width: 620px; gap: 12px; margin: 16px auto 0; }
-  .actions button { min-height: 48px; border-radius: 12px; font-size: 15px; }
+  .actions { max-width: 560px; gap: 12px; margin: 16px auto 0; }
+  .actions button { min-height: 46px; border-radius: 11px; font-size: 15px; }
 }

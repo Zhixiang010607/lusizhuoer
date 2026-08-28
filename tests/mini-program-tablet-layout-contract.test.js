@@ -259,11 +259,15 @@ test("headquarters creation and project-template forms use compact tablet grids"
 
   assert.match(storeCreateWxml, /class="store-create-grid"/);
   assert.match(storeCreateWxml, /class="store-fields"/);
-  assert.match(storeCreateWxss, /@media \(min-width: 700px\)[\s\S]*?\.store-create-grid \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s,
-    "store details and account contact should use two tablet cards");
-  assert.match(storeCreateWxss, /\.store-fields \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s);
-  assert.match(storeCreateWxss, /\.field-wide \{ grid-column: 1 \/ -1; \}/,
-    "address and initial password should retain the full width inside their own card");
+  assert.match(storeCreateWxss, /@media \(min-width: 700px\)[\s\S]*?\.store-create-grid \{[^}]*padding: 18px;[^}]*background: #fffaf3;[^}]*border: 1px solid #dfcfb4;/s,
+    "the tablet store form should use one compact shared surface instead of two stretched half-width cards");
+  assert.match(storeCreateWxss, /\.store-create-grid \.panel \{[^}]*padding: 0;[^}]*background: transparent;[^}]*border: 0;/s);
+  assert.match(storeCreateWxss, /\.store-data-panel \.store-fields \{[^}]*grid-template-columns: minmax\(130px, \.65fr\) minmax\(230px, 1\.25fr\) minmax\(230px, 1\.2fr\);/s,
+    "store name, full region, and address should occupy one content-weighted tablet row");
+  assert.match(storeCreateWxss, /\.contact-data-panel \.store-fields \{[^}]*grid-template-columns: minmax\(140px, \.7fr\) minmax\(190px, \.95fr\) minmax\(260px, 1\.35fr\);/s,
+    "contact name, phone, and password should occupy one content-weighted tablet row");
+  assert.match(storeCreateWxss, /\.field-wide \{ grid-column: auto; \}/,
+    "address and password must join their respective tablet row instead of forcing empty second rows");
 
   assert.match(productCreateWxml, /class="project-fields"/);
   assert.match(productCreateWxml, /class="field field-description"/);
