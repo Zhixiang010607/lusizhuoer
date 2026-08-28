@@ -56,16 +56,16 @@
       <view class="card-title"><text>第三步：客户 1:1 人脸验证</text><text class="badge">{{faceVerified ? '已通过' : '待验证'}}</text></view>
       <camera-capture wx:if="{{customer && selectedProduct && teacherReady && unitCountValid && !qualificationActive}}" id="verificationCamera" title="拍照并验证客户" bindchange="captureChanged"></camera-capture>
       <view wx:elif="{{qualificationActive && faceVerified}}" class="face-locked"><text>客户人脸验证已通过</text><text>资格剩余 {{qualificationSeconds}} 秒</text></view>
-      <text wx:else class="section-note">完成门店、客户、项目和次数选择后即可拍照验证；门店可不指定业务老师</text>
+      <text wx:else class="section-note">选好客户、项目和次数后拍照验证。</text>
       <button wx:if="{{!qualificationActive}}" class="secondary verify-button" bindtap="verifyFace" loading="{{verifying}}" disabled="{{verifying || !captureReady || !customer || !selectedProduct || !teacherReady || !unitCountValid}}">用该照片验证客户</button>
       <view wx:if="{{faceMessage}}" class="message {{faceVerified ? 'success' : (faceError ? 'error' : '')}}">{{faceMessage}}</view>
     </view>
 
     <view class="card submit-card workflow-wide">
       <view class="card-title"><text>第四步：扫码并连接设备</text><text class="badge">{{qualificationActive ? qualificationSeconds + ' 秒' : '尚未授权'}}</text></view>
-      <view class="section-note">人脸通过后建立一次 90 秒设备资格。设备进入工作状态前不会扣次；成功后二维码窗口永久关闭并自动打开核销工单。</view>
-      <button wx:if="{{!qualificationActive}}" class="primary" bindtap="submit" loading="{{busy}}" disabled="{{busy || !ready}}">建立 90 秒设备核销资格</button>
-      <button wx:else class="primary" bindtap="openBleWindow" disabled="{{blePermanentlyClosed || qualificationSeconds <= 0}}">打开设备二维码窗口（{{qualificationSeconds}} 秒）</button>
+      <view class="section-note">人脸通过后，90 秒内扫码连接；设备启动成功后才扣次。</view>
+      <button wx:if="{{!qualificationActive}}" class="primary" bindtap="submit" loading="{{busy}}" disabled="{{busy || !ready}}">开始设备核销</button>
+      <button wx:else class="primary" bindtap="openBleWindow" disabled="{{blePermanentlyClosed || qualificationSeconds <= 0}}">扫码连接设备（{{qualificationSeconds}} 秒）</button>
     </view>
     </view>
   </block>
@@ -92,7 +92,7 @@
         <text wx:if="{{bleErrorAdvice}}" class="ble-advice">{{bleErrorAdvice}}</text>
       </view>
       <button class="primary ble-start" bindtap="startBleVerification" loading="{{bleRunning}}" disabled="{{bleRunning || blePermanentlyClosed || qualificationSeconds <= 0}}">{{bleRunning ? '正在连接设备…' : (bleAuthorizationSent ? '重新连接并核对原设备' : '扫描设备二维码并开启蓝牙')}}</button>
-      <text class="ble-window-note">关闭此窗口不会取消资格。90 秒内可再次打开；设备进入工作状态后不可再次打开。</text>
+      <text class="ble-window-note">90 秒内可重新打开；设备启动后永久关闭。</text>
     </view>
   </view>
   <view class="safe-bottom"></view>

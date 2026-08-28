@@ -10,7 +10,7 @@
 1. 确认 064 已执行，且 `064-readonly-verify.sql` 的 8 行全部为 `READY`。
 2. 短暂停止充值、退费、核销和产品购买的新建操作。
 3. 整文件执行 `065-01-store-optional-business-teacher.sql`。
-4. 立即上传 `faceRecognition-v103.zip`，调用 `health` 确认 `version=v103`。
+4. 立即上传 `faceRecognition-v104.zip`，调用 `health` 确认 `version=v104`。
 5. 执行 `065-readonly-verify.sql`；全部 9 行必须为
    `record_count=0`、`status=READY`。
 6. 上传小程序 `0.2.43` 开发版，分别用门店账号验证四类业务的“留空老师”

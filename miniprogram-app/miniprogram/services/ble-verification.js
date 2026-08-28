@@ -482,11 +482,14 @@ function errorFeedback(error) {
     BLE_AUTHORIZATION_DEVICE_LOCKED: ["资格已绑定原设备", "不能更换设备或重复开机。请连接原设备核对状态，或等待本次 90 秒资格结束后重新验证。", false],
     BLE_AUTHORIZATION_NOT_ACTIVE: ["一次性授权已失效", "禁止继续核销或重复开机，请检查原设备与原工单状态。", false],
     BLE_AUTHORIZATION_EXPIRED: ["设备开机授权已过期", "设备没有在一次性授权有效期内确认进入工作状态，本次没有核销；请检查设备状态后重新做人脸验证。", false],
-    BLE_SIGNING_KEY_INVALID: ["设备签名密钥配置错误", "请管理员检查云函数 BLE_AUTH_SIGNING_KEY，聊天和代码仓库中不得传递密钥。", false],
+    BLE_SIGNING_KEY_MISSING: ["设备密钥未配置", "请管理员在 faceRecognition 云函数中配置 BLE_AUTH_SIGNING_KEY；本次没有扣次。", false],
+    BLE_SIGNING_KEY_INVALID: ["设备密钥配置错误", "BLE_AUTH_SIGNING_KEY 至少需要 32 字节；本次没有扣次。", false],
     BLE_SCHEMA_MISSING: ["BLE 数据表尚未部署", "请管理员执行 066 BLE 数据库脚本后再办理。", false],
     BLE_QUALIFICATION_EXPIRED: ["90 秒资格已过期", "本次没有扣次，请重新拍照做人脸验证。", false],
     BLE_QUALIFICATION_INVALID: ["设备资格无效", "资格与当前登录身份或业务参数不一致，请重新办理。", false],
     BLE_QUALIFICATION_NOT_FOUND: ["未找到设备资格", "本次没有扣次，请重新拍照建立 90 秒资格。", false],
+    BLE_QUALIFICATION_CREATE_FAILED: ["设备准备失败", "请稍后重试；本次没有扣次。", true],
+    BLE_QUALIFICATION_INCOMPLETE: ["设备准备失败", "服务端返回不完整，请稍后重试；本次没有扣次。", true],
     BLE_QUALIFICATION_RACE: ["资格已被其他请求使用", "已禁止重复授权；请先检查原设备和原工单状态。", false],
     BLE_AUTHORIZATION_INVALID: ["一次性授权无效", "禁止继续开机，请检查原办理记录并联系管理员。", false],
     BLE_AUTHORIZATION_NOT_FOUND: ["未找到一次性授权", "禁止重复扫码；请先检查原设备是否已经启动。", false],
@@ -514,14 +517,17 @@ function errorFeedback(error) {
   const selected = catalog[code] || deviceCodes[code];
   if (selected) return { code, message, title: selected[0], advice: selected[1], retryable: selected[2] };
   const wxFailure = code.startsWith("WX_");
+  const technicalFailure = /(cannot read|undefined|typeerror|syntaxerror|sqlstate|failed_precondition|stack)/i.test(message);
   return {
     code,
-    message,
-    retryable: wxFailure,
-    title: wxFailure ? "微信蓝牙接口调用失败" : "未识别的设备错误",
+    message: technicalFailure ? "设备准备失败，本次没有扣次。" : message,
+    retryable: wxFailure || technicalFailure,
+    title: wxFailure ? "微信蓝牙接口调用失败" : (technicalFailure ? "设备准备失败" : "未识别的设备错误"),
     advice: wxFailure
       ? "请检查微信相机、蓝牙和定位权限并重试；仍失败时截图错误代码联系技术人员。"
-      : "请勿盲目重复扫码。保留此错误代码和时间，先检查设备是否已启动及是否已有工单。"
+      : (technicalFailure
+          ? "请稍后重试；仍失败时把错误代码发给管理员。"
+          : "请勿盲目重复扫码。保留此错误代码和时间，先检查设备是否已启动及是否已有工单。")
   };
 }
 

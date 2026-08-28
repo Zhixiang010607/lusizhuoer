@@ -387,11 +387,14 @@ Page({
     let intent;
     try { intent = submission.begin("VERIFICATION", identity); }
     catch (error) { return this.setData({ locked: true, message: error.message, error: true }); }
-    this.setData({ busy: true, message: "正在建立 90 秒设备核销资格；此时尚未扣次。", error: false });
+    this.setData({ busy: true, message: "正在准备设备核销，本次尚未扣次。", error: false });
     try {
       const qualification = await callFace("createVerificationBleQualification", {
         ...identity, faceRequestId: this.data.faceRequestId, faceEvidenceToken: this.data.faceEvidenceToken, clientRequestId: intent.clientRequestId
       });
+      if (!qualification || typeof qualification !== "object") {
+        throw Object.assign(new Error("设备资格返回为空，本次没有扣次。"), { code: "BLE_QUALIFICATION_INCOMPLETE" });
+      }
       if (qualification.complete && qualification.verificationId) {
         return this.showRecovered(qualification);
       }
@@ -437,9 +440,9 @@ Page({
       blePermanentlyClosed: false,
       bleErrorTitle: "", bleErrorCode: "", bleErrorAdvice: "",
       bleStatusMessage: authorizationSent
-        ? "一次性授权已经签发；可重新连接原设备核对是否进入工作状态，禁止更换设备或重复授权。"
-        : "90 秒内可关闭并重新打开扫码窗口；设备进入工作状态前不会扣次。",
-      message: "人脸验证已通过，90 秒内请扫描设备二维码。", error: false,
+        ? "授权已发送，请重新连接原设备核对状态。"
+        : "90 秒内扫码连接；设备启动前不扣次。",
+      message: "人脸已通过，请在 90 秒内扫码。", error: false,
       ready: false
     });
     this._qualificationTimer = setInterval(() => {
@@ -452,7 +455,7 @@ Page({
     if (this._qualificationTimer) clearInterval(this._qualificationTimer);
     this._qualificationTimer = null;
     if (this.data.bleAuthorizationSent) {
-      this.setData({ qualificationActive: false, qualificationSeconds: 0, bleWindowVisible: false, locked: true, message: "扫码资格已到期，但设备授权已经发出，正在核对设备状态；请勿重新办理。", error: true });
+      this.setData({ qualificationActive: false, qualificationSeconds: 0, bleWindowVisible: false, locked: true, message: "扫码已超时，正在核对原设备状态，请勿重复办理。", error: true });
       return;
     }
     if (this._bleSession) this._bleSession.cancel();
@@ -462,7 +465,7 @@ Page({
     this.setData({
       qualification: null, qualificationActive: false, qualificationSeconds: 0,
       bleWindowVisible: false, bleRunning: false, bleAuthorizationSent: false,
-      message: "90 秒设备核销资格已过期，本次没有扣次；请重新拍照验证。", error: true
+      message: "扫码已超时，本次没有扣次，请重新拍照验证。", error: true
     });
     this.resetFace();
   },
@@ -572,13 +575,13 @@ Page({
       }
       const intent = submission.read("VERIFICATION");
       const qualification = await callFace("recoverVerificationBleQualification", { clientRequestId: intent.clientRequestId });
-      if (qualification.found && qualification.complete) return this.showRecovered(qualification);
-      if (qualification.found && !qualification.expired && qualification.qualificationToken) {
+      if (qualification?.found && qualification.complete) return this.showRecovered(qualification);
+      if (qualification?.found && !qualification.expired && qualification.qualificationToken) {
         this.setData({ locked: false });
         this.activateQualification(qualification, false);
         return;
       }
-      if (qualification.found && qualification.expired) {
+      if (qualification?.found && qualification.expired) {
         try { clearBleProgress(); } catch (_) { /* continue */ }
         submission.clear("VERIFICATION");
         this.setData({ locked: false, qualificationActive: false, message: "上次 90 秒设备资格已过期且没有扣次，请重新拍照验证。", error: true });

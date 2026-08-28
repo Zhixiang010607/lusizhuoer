@@ -2,7 +2,7 @@
 .disabled-card { opacity: .68; }
 .impact { margin: -4rpx 0 22rpx; padding: 18rpx; color: #625747; background: #f5ead8; border-left: 6rpx solid #a98243; border-radius: 12rpx; line-height: 1.5; }
 .verify-button { margin-top: 18rpx; }
-.submit-card { position: sticky; bottom: calc(16rpx + env(safe-area-inset-bottom)); z-index: 3; }
+.submit-card { position: static; }
 .locked-summary, .face-locked { display: flex; flex-direction: column; gap: 8rpx; padding: 22rpx; border: 1px solid #dfc79f; border-radius: 18rpx; background: #fbf5ea; color: #70614d; }
 .locked-summary-title { color: #2f2a23; font-weight: 700; }
 .face-locked { flex-direction: row; justify-content: space-between; align-items: center; color: #276b57; }

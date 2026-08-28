@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const { pinyin } = require("pinyin-pro");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v103";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v104";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -3823,7 +3823,10 @@ function sha256Text(value) {
 }
 
 function verificationBleSigningKey() {
-  const key = required("BLE_AUTH_SIGNING_KEY");
+  const key = String(process.env.BLE_AUTH_SIGNING_KEY || "").trim();
+  if (!key) {
+    fail("设备签名密钥尚未配置，请管理员在 faceRecognition 云函数环境变量中配置 BLE_AUTH_SIGNING_KEY。", "BLE_SIGNING_KEY_MISSING");
+  }
   if (Buffer.byteLength(key, "utf8") < 32) {
     fail("BLE 授权签名密钥长度不足，请配置至少 32 字节的 BLE_AUTH_SIGNING_KEY。", "BLE_SIGNING_KEY_INVALID");
   }
@@ -3862,6 +3865,7 @@ async function createVerificationBleQualification(event) {
   await requireVerificationSubmissionSchema();
   await requireVerificationFaceSubjectSchema();
   await requireVerificationBleSchema();
+  verificationBleSigningKey();
 
   const customerCode = String(event.customerCode || "").trim();
   if (!customerCode || customerCode.length > 96) fail("必须先确认本门店的活跃客户。", "CUSTOMER_REQUIRED");
@@ -3995,22 +3999,23 @@ async function createVerificationBleQualification(event) {
       LIMIT 1`
   );
   let qualification = existingRows[0];
+  const matchesQualificationRequest = (row) => row
+    && String(row.store_id) === String(caller.storeId)
+    && String(row.submitted_by_account_id) === String(caller.staffId)
+    && String(row.verification_type) === verificationType
+    && String(row.teacher_id || "") === String(teacherId)
+    && String(row.customer_id) === String(customer.id)
+    && String(row.product_id) === String(productId)
+    && Number(row.unit_count) === unitCount
+    && String(row.face_request_id) === faceRequestId
+    && String(row.face_evidence_token) === faceEvidenceToken;
   if (qualification) {
-    const sameRequest = String(qualification.store_id) === String(caller.storeId)
-      && String(qualification.submitted_by_account_id) === String(caller.staffId)
-      && String(qualification.verification_type) === verificationType
-      && String(qualification.teacher_id || "") === String(teacherId)
-      && String(qualification.customer_id) === String(customer.id)
-      && String(qualification.product_id) === String(productId)
-      && Number(qualification.unit_count) === unitCount
-      && String(qualification.face_request_id) === faceRequestId
-      && String(qualification.face_evidence_token) === faceEvidenceToken;
-    if (!sameRequest) fail("该防重复提交编号已经用于另一笔核销。", "IDEMPOTENCY_CONFLICT");
+    if (!matchesQualificationRequest(qualification)) fail("该防重复提交编号已经用于另一笔核销。", "IDEMPOTENCY_CONFLICT");
   } else {
     const token = crypto.randomBytes(24).toString("hex");
     const teacherSql = teacherId ? `${sqlText(teacherId)}::bigint` : "NULL";
     try {
-      const inserted = await executeSql(
+      await executeSql(
         `INSERT INTO public.verification_ble_qualifications
            (qualification_token, verification_type, store_id, teacher_id, customer_id,
             product_id, unit_count, submitted_by_account_id, message, face_request_id,
@@ -4020,17 +4025,33 @@ async function createVerificationBleQualification(event) {
             ${sqlText(customer.id)}::bigint, ${sqlText(productId)}::bigint, ${unitCount},
             ${caller.staffId}, ${sqlText(message)}, ${sqlText(faceRequestId)},
             ${sqlText(faceEvidenceToken)}, ${sqlText(idempotencyKey)}, ${sqlText(deviceType)},
-            NOW() + INTERVAL '90 seconds')
-         RETURNING *`
+            NOW() + INTERVAL '90 seconds')`
       );
-      qualification = inserted[0];
     } catch (error) {
-      if (!String(error?.message || "").toLowerCase().includes("unique")) throw error;
-      fail("同一核销请求正在建立 BLE 资格，请立即点击恢复，不要重复提交。", "BLE_QUALIFICATION_RACE");
+      const detail = String(error?.message || "").toLowerCase();
+      if (!detail.includes("unique") && !detail.includes("duplicate") && !detail.includes("23505")) throw error;
+    }
+    const insertedRows = await executeSql(
+      `SELECT qualification.*, customer.customer_code, customer.customer_name,
+              product.product_code, product.product_name,
+              teacher.teacher_code, teacher.teacher_name
+         FROM public.verification_ble_qualifications AS qualification
+         JOIN public.customers AS customer ON customer.id = qualification.customer_id
+         JOIN public.products AS product ON product.id = qualification.product_id
+         LEFT JOIN public.teachers AS teacher ON teacher.id = qualification.teacher_id
+        WHERE qualification.idempotency_key = ${sqlText(idempotencyKey)}
+        LIMIT 1`
+    );
+    qualification = insertedRows[0];
+    if (!qualification) {
+      fail("设备资格写入后未能读取，请稍后重试；本次没有扣次。", "BLE_QUALIFICATION_CREATE_FAILED");
+    }
+    if (!matchesQualificationRequest(qualification)) {
+      fail("该防重复提交编号已经用于另一笔核销。", "IDEMPOTENCY_CONFLICT");
     }
   }
 
-  if (qualification.verification_id) {
+  if (qualification?.verification_id) {
     return recoverBusinessSubmission({ ...event, recordType: "VERIFICATION", clientRequestId: event.clientRequestId });
   }
   const expiresAt = new Date(qualification.expires_at).getTime();
