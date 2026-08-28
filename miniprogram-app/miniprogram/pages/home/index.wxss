@@ -165,16 +165,18 @@
 .ranking-heading { width: 100%; align-items: center; flex-wrap: wrap; }
 .ranking-actions { display: flex; align-items: flex-end; gap: 12rpx; }
 .ranking-actions button { width: auto !important; min-width: 0; min-height: 64rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 18rpx; color: #fffdf8; background: #6f532e; border-radius: 12rpx; font-size: 19rpx; line-height: 1; white-space: nowrap; }
-.hq-ranking-list { display: grid; gap: 12rpx; }
-.hq-ranking-card { padding: 16rpx; background: #fff8ec; border: 1rpx solid #dfcfb4; border-radius: 18rpx; }
-.hq-ranking-head { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12rpx; margin-bottom: 14rpx; }
-.hq-ranking-head text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hq-ranking-head text:first-child { color: #806942; font-size: 17rpx; font-weight: 850; }
-.hq-ranking-head text:nth-child(2) { color: #302a22; font-size: 21rpx; font-weight: 850; }
-.hq-ranking-head text:last-child { color: #74592d; font-size: 19rpx; font-weight: 850; }
-.hq-ranking-selected-metric { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; padding-top: 12rpx; border-top: 1rpx solid #eadcc5; }
-.hq-ranking-selected-metric text:first-child { color: #7c7062; font-size: 17rpx; }
-.hq-ranking-selected-metric text:last-child { color: #302a22; font-size: 22rpx; font-weight: 850; white-space: nowrap; }
+.hq-ranking-list { overflow: hidden; background: #fffaf3; border: 1rpx solid #dfcfb4; border-radius: 18rpx; }
+.hq-ranking-row { min-width: 0; display: grid; grid-template-columns: 68rpx minmax(0, 1.55fr) repeat(4, minmax(72rpx, .7fr)); align-items: stretch; }
+.hq-ranking-row > text { min-width: 0; min-height: 66rpx; display: flex; align-items: center; justify-content: center; padding: 0 5rpx; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.hq-ranking-table-head { color: #675c4e; background: #f4e8d1; font-size: 17rpx; font-weight: 850; }
+.hq-ranking-table-head > text.active { color: #74592d; background: #ead7b3; }
+.hq-ranking-card { background: #fffaf3; border-top: 1rpx solid #eadcc5; }
+.hq-ranking-card > text { min-height: 78rpx; font-size: 18rpx; }
+.hq-ranking-rank { color: #806942; font-weight: 850; }
+.hq-ranking-name { justify-content: flex-start !important; color: #302a22; font-size: 19rpx !important; font-weight: 850; text-align: left !important; }
+.hq-ranking-value { color: #5f564b; }
+.hq-ranking-value.active { color: #74592d; background: #fbf0dc; font-weight: 900; }
+.hq-ranking-list > .table-empty { border-top: 1rpx solid #eadcc5; }
 .hq-ranking-pagination { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12rpx; }
 .hq-ranking-pagination > text { min-width: 0; text-align: center; white-space: nowrap; }
 .ranking-page-jump { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 8rpx; }
@@ -321,15 +323,13 @@
   .hq-dimension-tabs button { min-height: 44px; padding: 0 6px; border-radius: 10px; font-size: 14px; }
   .hq-product-filter { margin-bottom: 14px; }
   .hq-ranking-rule { margin-top: 4px; font-size: 13px; }
-  .hq-ranking-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .hq-ranking-card { padding: 14px; border-width: 1px; border-radius: 14px; }
-  .hq-ranking-head { gap: 8px; margin-bottom: 10px; }
-  .hq-ranking-head text:first-child { font-size: 12px; }
-  .hq-ranking-head text:nth-child(2) { font-size: 16px; }
-  .hq-ranking-head text:last-child { font-size: 14px; }
-  .hq-ranking-selected-metric { gap: 8px; padding-top: 9px; border-top-width: 1px; }
-  .hq-ranking-selected-metric text:first-child { font-size: 12px; }
-  .hq-ranking-selected-metric text:last-child { font-size: 16px; }
+  .hq-ranking-list { border-width: 1px; border-radius: 14px; }
+  .hq-ranking-row { grid-template-columns: 64px minmax(160px, 1.55fr) repeat(4, minmax(76px, .7fr)); }
+  .hq-ranking-row > text { min-height: 46px; padding: 0 6px; }
+  .hq-ranking-table-head { font-size: 13px; }
+  .hq-ranking-card { border-top-width: 1px; }
+  .hq-ranking-card > text { min-height: 54px; font-size: 14px; }
+  .hq-ranking-name { font-size: 15px !important; }
   .ranking-actions { gap: 10px; }
   .ranking-actions button { min-height: 44px; padding: 0 14px; border-radius: 10px; font-size: 14px; }
   .safe-bottom { height: calc(18px + env(safe-area-inset-bottom)); }

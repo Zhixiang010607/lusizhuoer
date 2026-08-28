@@ -465,12 +465,9 @@ Page({
       && hqRankingMatches(rankingResult.value.ranking, dimension, rankingMetric, productId)) {
       const ranking = rankingResult.value.ranking || {};
       const rows = dashboard.hqRows(ranking.rows, dimension);
-      const rankingTotal = Math.max(1, dashboard.count(ranking.rankingTotal));
-      const selectedMetricLabel = RANKING_METRICS.find((item) => item.value === rankingMetric)?.label || "业务";
       changes.hqRanking = rows.map((row, index) => ({
-        ...row, rank: (dashboard.count(ranking.pageNumber) - 1) * RANKING_PAGE_SIZE + index + 1,
-        rankValue: row[rankingMetric], selectedMetricLabel, selectedMetricValue: row[rankingMetric],
-        share: `${(row[rankingMetric] / rankingTotal * 100).toFixed(1)}%`
+        ...row,
+        rank: (dashboard.count(ranking.pageNumber) - 1) * RANKING_PAGE_SIZE + index + 1
       }));
       changes.hqCharts = [hqChart(ranking.rows, dimension, `按${DIMENSIONS[this.data.hqDimensionIndex]?.label || "分类"}统计`, DIMENSIONS[this.data.hqDimensionIndex]?.label || "分类", rankingMetric)];
       changes.hqRankingPage = pageView({
@@ -524,15 +521,12 @@ Page({
         throw new Error("总部排名服务版本过旧，请先部署 staffAccount v76");
       }
       const rows = dashboard.hqRows(ranking.rows, dimension);
-      const rankingTotal = Math.max(1, dashboard.count(ranking.rankingTotal));
-      const selectedMetricLabel = RANKING_METRICS.find((item) => item.value === rankingMetric)?.label || "业务";
       const page = pageView({ total: ranking.total, page: ranking.pageNumber, pageSize: ranking.pageSize, totalPages: ranking.totalPages });
       this._hqRankingRetryPage = page.page;
       this.setData({
         hqRanking: rows.map((row, index) => ({
-          ...row, rank: (page.page - 1) * RANKING_PAGE_SIZE + index + 1,
-          rankValue: row[rankingMetric], selectedMetricLabel, selectedMetricValue: row[rankingMetric],
-          share: `${(row[rankingMetric] / rankingTotal * 100).toFixed(1)}%`
+          ...row,
+          rank: (page.page - 1) * RANKING_PAGE_SIZE + index + 1
         })),
         hqRankingPage: page, hqRankingInput: String(page.page)
       });

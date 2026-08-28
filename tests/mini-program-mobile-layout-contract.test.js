@@ -158,10 +158,10 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
   assert.match(wxss, /\.table-row > view\s*\{[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
   assert.match(wxss, /\.detail-info-item text\s*\{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s,
     "profile facts must not split identifiers and phone numbers across lines");
-  assert.match(wxss, /\.hq-ranking-list\s*\{[^}]*display:\s*grid/s,
-    "the mobile HQ ranking uses contained cards rather than a wide table");
-  assert.match(wxss, /\.hq-ranking-head\s*\{[^}]*grid-template-columns:\s*auto minmax\(0,\s*1fr\) auto/s,
-    "rank, name, and share must share one bounded card row");
+  assert.match(wxss, /\.hq-ranking-list\s*\{[^}]*overflow:\s*hidden[^}]*border-radius:/s,
+    "the mobile HQ ranking stays inside one bounded table card");
+  assert.match(wxss, /\.hq-ranking-row\s*\{[^}]*grid-template-columns:[^}]*repeat\(4,/s,
+    "rank, name, and all four metrics must share one bounded row");
   assert.match(wxss, /\.summary-table \.table-head \.summary-product\s*\{[^}]*align-items:\s*center\s*!important;[^}]*text-align:\s*center;/s,
     "the project summary header must be centered while project rows remain left aligned");
   assert.equal((wxml.match(/class="summary-product">项目<\/view>/g) || []).length, 2,

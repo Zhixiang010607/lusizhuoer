@@ -219,16 +219,24 @@ test("HQ retail product management uses compact adaptive tablet cards", () => {
   assert.match(context, /产品按可用宽度自动使用两列或三列卡片展示名称、编号、状态和操作/);
 });
 
-test("HQ ranking cards show only the selected business metric", () => {
+test("HQ ranking uses one compact table and shows all four business metrics", () => {
   const homeWxml = read("miniprogram-app", "miniprogram", "pages", "home", "index.wxml");
+  const homeWxss = read("miniprogram-app", "miniprogram", "pages", "home", "index.wxss");
   const homeJs = read("miniprogram-app", "miniprogram", "pages", "home", "index.js");
+  const context = read("PROJECT_CONTEXT.md");
 
-  assert.match(homeWxml, /class="hq-ranking-selected-metric"/);
-  assert.match(homeWxml, /\{\{item\.selectedMetricLabel\}\}/);
-  assert.match(homeWxml, /\{\{item\.selectedMetricValue\}\} 次/);
-  assert.doesNotMatch(homeWxml, /class="hq-ranking-metrics"/,
-    "each store or teacher must not repeat all four metrics after a sort metric is already selected");
-  assert.match(homeJs, /selectedMetricLabel, selectedMetricValue: row\[rankingMetric\]/);
+  assert.match(homeWxml, /class="hq-ranking-row hq-ranking-table-head"[\s\S]*充值[\s\S]*核销[\s\S]*体验[\s\S]*退费/);
+  for (const metric of ["recharge", "verification", "experience", "refund"]) {
+    assert.match(homeWxml, new RegExp(`\\{\\{item\\.${metric}\\}\\} 次`));
+  }
+  assert.doesNotMatch(homeWxml, /class="hq-ranking-selected-metric"|\{\{item\.share\}\}/,
+    "ranking rows must not repeat a selected-only card or percentage");
+  assert.doesNotMatch(homeJs, /selectedMetricLabel|selectedMetricValue|share:\s*`/,
+    "the obsolete selected-only ranking card mapping must remain retired");
+  assert.match(homeWxss, /\.hq-ranking-row \{[^}]*grid-template-columns:[^}]*repeat\(4,/s);
+  assert.doesNotMatch(homeWxss, /\.hq-ranking-list \{[^}]*grid-template-columns:\s*repeat\(2,/s,
+    "the complete ranking must not split into two tablet columns");
+  assert.match(context, /小程序完整排名使用单列紧凑表格/);
 });
 
 test("HQ tablet filters use a balanced two-by-two control grid", () => {
