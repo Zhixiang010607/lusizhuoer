@@ -142,6 +142,14 @@ test("query and review pages use compact tablet filters and five-row result view
   assert.match(recordsWxss, /\.record-row text \{[^}]*padding: 8px 6px;[^}]*font-size: 13px;/s,
     "tablet result cells should not waste horizontal space on oversized padding");
   assert.match(recordsWxml, /class="button-row query-actions \{\{mode === 'browse' && !customRange \? 'inline-query-actions' : ''\}\}"/);
+  assert.match(recordsWxss, /@media \(min-width: 700px\)[\s\S]*?\.filter-card \{ padding: 16px 18px; \}/s,
+    "record query cards should use compact tablet padding instead of magnifying the phone surface");
+  assert.match(recordsWxss, /\.filter-card \.query-modes button \{ min-height: 38px;[^}]*font-size: 14px; \}/,
+    "record query mode switches must stay compact while remaining tappable on tablets");
+  assert.match(recordsWxss, /\.query-grid \.input, \.query-grid \.picker \{ min-height: 42px;[^}]*font-size: 14px; \}/,
+    "recharge, verification, and product filter controls must share one compact tablet height");
+  assert.match(recordsWxss, /\.query-actions button \{ min-height: 42px;[^}]*font-size: 14px; \}/,
+    "record query and reset actions must align to the same compact control height");
   assert.match(recordsWxss, /\.query-grid \.query-time \{ grid-column: 1; \}/);
   assert.match(recordsWxss, /\.query-actions\.inline-query-actions \{ grid-column: 2 \/ -1; align-self: end; \}/,
     "recharge, verification, and product searches should share the time-range row on tablets");

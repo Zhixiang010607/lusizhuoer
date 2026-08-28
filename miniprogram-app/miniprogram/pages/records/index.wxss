@@ -33,12 +33,19 @@
 .page-jump button { width: 132rpx; min-height: 58rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 14rpx; font-size: 19rpx; line-height: 1; }
 
 @media (min-width: 700px) {
-  .filter-card .query-modes { margin-bottom: 16px; }
-  .query-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 16px; }
+  .filter-card { padding: 16px 18px; }
+  .filter-card .card-title { margin-bottom: 10px; }
+  .filter-card .card-title text:first-child { font-size: 20px; }
+  .filter-card .query-modes { gap: 4px; margin-bottom: 10px; padding: 4px; border-radius: 11px; }
+  .filter-card .query-modes button { min-height: 38px; border-radius: 8px; font-size: 14px; }
+  .query-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 12px; }
   .query-grid .query-wide { grid-column: auto; }
-  .query-grid .field { margin-bottom: 16px; }
+  .query-grid .field { margin-bottom: 10px; }
+  .query-grid .field-label { margin-bottom: 5px; font-size: 13px; }
+  .query-grid .input, .query-grid .picker { min-height: 42px; padding-right: 14px; padding-left: 14px; border-radius: 10px; font-size: 14px; }
   .query-grid .query-time { grid-column: 1; }
-  .query-actions { margin-top: 0; margin-bottom: 16px; }
+  .query-actions { gap: 10px; margin-top: 0; margin-bottom: 10px; }
+  .query-actions button { min-height: 42px; padding: 0 14px; border-radius: 10px; font-size: 14px; }
   .query-actions.inline-query-actions { grid-column: 2 / -1; align-self: end; }
   .summary-grid { gap: 6px; margin-bottom: 14px; }
   .summary-grid view { padding: 7px 8px; border-width: 1px; border-radius: 10px; }
