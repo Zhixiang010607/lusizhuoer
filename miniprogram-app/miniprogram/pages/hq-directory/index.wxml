@@ -13,7 +13,7 @@
 
   <view class="table-section {{type}}">
     <view class="section-heading"><text>查询结果</text><text>{{searched ? searchRows.length : 0}} {{unit}}</text></view>
-    <scroll-view class="table-scroll" scroll-x>
+    <scroll-view class="table-scroll" scroll-x="true" data-visible-rows="{{searchRows.length > 5 ? 5 : searchRows.length}}" scroll-y="{{searchRows.length > 5}}" enhanced="true" show-scrollbar="{{searchRows.length > 5}}">
       <view class="data-table {{type}}">
         <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text></view>
         <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>老师编号</text><text>联系电话</text><text>状态</text></view>
@@ -25,7 +25,7 @@
 
   <view class="table-section {{type}}">
     <view class="section-heading"><text>活跃{{noun}}</text><text>{{activeRows.length}} {{unit}}</text></view>
-    <scroll-view class="table-scroll" scroll-x>
+    <scroll-view class="table-scroll" scroll-x="true" data-visible-rows="{{activeRows.length > 5 ? 5 : activeRows.length}}" scroll-y="{{activeRows.length > 5}}" enhanced="true" show-scrollbar="{{activeRows.length > 5}}">
       <view class="data-table {{type}}">
         <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text></view>
         <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>老师编号</text><text>联系电话</text><text>状态</text></view>
@@ -37,7 +37,7 @@
 
   <view class="table-section archived-section {{type}}">
     <view class="section-heading"><text>封存{{noun}}</text><text>{{archivedRows.length}} {{unit}}</text></view>
-    <scroll-view class="table-scroll" scroll-x>
+    <scroll-view class="table-scroll" scroll-x="true" data-visible-rows="{{archivedRows.length > 5 ? 5 : archivedRows.length}}" scroll-y="{{archivedRows.length > 5}}" enhanced="true" show-scrollbar="{{archivedRows.length > 5}}">
       <view class="data-table {{type}}">
         <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text></view>
         <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>老师编号</text><text>联系电话</text><text>状态</text></view>

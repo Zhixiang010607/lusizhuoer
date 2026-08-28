@@ -1,5 +1,7 @@
 .filter-card .query-modes { margin-bottom: 20rpx; }
-.two-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; }
+.query-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 12rpx; }
+.query-grid .field { min-width: 0; }
+.query-grid .query-wide { grid-column: 1 / -1; }
 .summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8rpx; margin-bottom: 14rpx; }
 .source-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .summary-grid view { min-width: 0; padding: 16rpx 8rpx; text-align: center; background: #fff; border: 1rpx solid #dfcfb4; border-radius: 16rpx; }
@@ -7,6 +9,11 @@
 .summary-grid text { color: #7c7062; font-size: 20rpx; }
 .summary-grid .summary-value { margin-top: 6rpx; color: #302a22; font-size: 30rpx; font-weight: 800; }
 .record-scroll { width: 100%; overflow: hidden; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
+.record-scroll[data-visible-rows="1"] { height: 146rpx; }
+.record-scroll[data-visible-rows="2"] { height: 224rpx; }
+.record-scroll[data-visible-rows="3"] { height: 302rpx; }
+.record-scroll[data-visible-rows="4"] { height: 380rpx; }
+.record-scroll[data-visible-rows="5"] { height: 458rpx; }
 .record-table { width: 1560rpx; min-width: 1560rpx; background: #fff; }
 .verification-table { width: 1720rpx; min-width: 1720rpx; }
 .product-purchase-table { width: 1720rpx; min-width: 1720rpx; }
@@ -23,3 +30,32 @@
 .page-jump { display: flex; align-items: center; justify-content: center; gap: 10rpx; margin-top: 14rpx; }
 .page-jump input { width: 104rpx; min-height: 58rpx; padding: 0 14rpx; font-size: 19rpx; text-align: center; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 12rpx; }
 .page-jump button { width: 132rpx; min-height: 58rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 14rpx; font-size: 19rpx; line-height: 1; }
+
+@media (min-width: 700px) {
+  .filter-card .query-modes { margin-bottom: 16px; }
+  .query-grid { gap: 0 16px; }
+  .query-grid .query-wide { grid-column: auto; }
+  .query-grid .field { margin-bottom: 16px; }
+  .summary-grid { gap: 8px; margin-bottom: 16px; }
+  .summary-grid view { padding: 12px 8px; border-width: 1px; border-radius: 12px; }
+  .summary-grid text { font-size: 13px; }
+  .summary-grid .summary-value { margin-top: 4px; font-size: 20px; }
+  .record-scroll { border-width: 1px; border-radius: 12px; }
+  .record-scroll[data-visible-rows="1"] { height: 112px; }
+  .record-scroll[data-visible-rows="2"] { height: 170px; }
+  .record-scroll[data-visible-rows="3"] { height: 228px; }
+  .record-scroll[data-visible-rows="4"] { height: 286px; }
+  .record-scroll[data-visible-rows="5"] { height: 344px; }
+  .record-table { width: 1260px; min-width: 1260px; }
+  .verification-table, .product-purchase-table { width: 1390px; min-width: 1390px; }
+  .record-row { min-height: 58px; grid-template-columns: 210px 130px 100px 150px 145px 120px 90px 125px 190px; border-width: 1px; }
+  .verification-table .record-row, .product-purchase-table .record-row { grid-template-columns: 210px 130px 100px 150px 145px 120px 140px 90px 115px 190px; }
+  .record-row text { min-height: 58px; padding: 8px 10px; font-size: 14px; }
+  .record-head { min-height: 54px; font-size: 14px; }
+  .pager { gap: 14px; margin-top: 16px; }
+  .pager button { width: 120px; min-height: 44px; padding: 0 12px; font-size: 14px; }
+  .pager > text { font-size: 14px; }
+  .page-jump { gap: 8px; margin-top: 12px; }
+  .page-jump input { width: 88px; min-height: 44px; padding: 0 10px; border-width: 1px; border-radius: 10px; font-size: 14px; }
+  .page-jump button { width: 110px; min-height: 44px; padding: 0 12px; font-size: 14px; }
+}

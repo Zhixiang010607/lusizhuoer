@@ -13,6 +13,7 @@ button { min-height: 76rpx; display: flex; align-items: center; justify-content:
 button::after { border: 0; }
 .mode-tabs button { display: flex; align-items: center; justify-content: center; color: #796d5e; background: transparent; line-height: 1; white-space: nowrap; }
 .mode-tabs button.active { color: #fffdf8; background: #6f532e; box-shadow: 0 7rpx 18rpx rgba(77,57,31,.18); }
+.review-filter-grid { min-width: 0; }
 .field { display: flex; flex-direction: column; gap: 10rpx; margin-top: 18rpx; }
 .field > text, .fixed-type > text:first-child { color: #554a3c; font-size: 20rpx; font-weight: 800; }
 .field input, .field textarea, .picker { width: 100%; min-height: 82rpx; padding: 0 20rpx; color: #302a22; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 16rpx; box-sizing: border-box; font-size: 22rpx; }
@@ -34,6 +35,11 @@ button::after { border: 0; }
 .card-title > view text:last-child { color: #7c7062; font-size: 19rpx; }
 .badge { padding: 8rpx 14rpx; color: #74592d; background: #f4e7d0; border-radius: 999rpx; font-size: 18rpx; font-weight: 800; white-space: nowrap; }
 .table-scroll { width: 100%; max-width: 100%; min-width: 0; overflow: hidden; border: 1rpx solid #e0d2bd; border-radius: 16rpx; box-sizing: border-box; }
+.table-scroll[data-visible-rows="1"] { height: 152rpx; }
+.table-scroll[data-visible-rows="2"] { height: 236rpx; }
+.table-scroll[data-visible-rows="3"] { height: 320rpx; }
+.table-scroll[data-visible-rows="4"] { height: 404rpx; }
+.table-scroll[data-visible-rows="5"] { height: 488rpx; }
 .review-table { width: 2050rpx; }
 .review-row { display: grid; grid-template-columns: 230rpx 150rpx 230rpx 220rpx 210rpx 180rpx 150rpx 230rpx 250rpx 200rpx; min-height: 84rpx; border-bottom: 1rpx solid #eadfce; }
 .review-row:last-child { border-bottom: 0; }
@@ -64,3 +70,60 @@ button::after { border: 0; }
 .dialog-heading > view:last-child { width: 58rpx; height: 58rpx; display: flex; align-items: center; justify-content: center; color: #74592d; font-size: 38rpx; }
 .summary { display: flex; flex-direction: column; gap: 9rpx; margin-top: 20rpx; padding: 18rpx; color: #625747; background: #f5ead8; border-radius: 16rpx; font-size: 20rpx; line-height: 1.45; }
 .safe-bottom { height: calc(24rpx + env(safe-area-inset-bottom)); }
+
+@media (min-width: 700px) {
+  .page { width: calc(100% - 48px); max-width: 1120px; padding: 20px 0 36px; }
+  .page-heading { gap: 6px; margin: 0 0 16px; }
+  .eyebrow { font-size: 12px; letter-spacing: 2px; }
+  .title { font-size: 28px; }
+  .subtitle { font-size: 14px; }
+  .card { margin-bottom: 16px; padding: 20px; border-width: 1px; border-radius: 20px; box-shadow: 0 8px 24px rgba(93,72,39,.08); }
+  .review-type-tabs { gap: 12px; margin-bottom: 16px; }
+  .mode-tabs { gap: 6px; padding: 6px; border-radius: 14px; }
+  button { min-height: 48px; border-radius: 12px; font-size: 15px; }
+  .review-filter-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+  .review-filter-grid .field { min-width: 0; margin-top: 0; }
+  .review-filter-grid .fixed-type, .review-code-field { grid-column: 1 / -1; }
+  .field { gap: 7px; margin-top: 16px; }
+  .field > text, .fixed-type > text:first-child { font-size: 14px; }
+  .field input, .field textarea, .picker { min-height: 48px; padding: 0 16px; border-width: 1px; border-radius: 12px; font-size: 15px; }
+  .field textarea { min-height: 120px; padding-top: 14px; }
+  .fixed-type { margin-top: 0; padding: 14px 16px; border-radius: 12px; }
+  .fixed-type > text:last-child { font-size: 14px; }
+  .button-row, .dialog-actions { gap: 12px; margin-top: 16px; }
+  .compact { min-width: 104px; min-height: 44px; padding: 0 14px; }
+  .message { margin-bottom: 16px; padding: 12px 14px; border-width: 1px; border-radius: 10px; font-size: 14px; }
+  .card-title { gap: 14px; margin-bottom: 16px; }
+  .card-title > view { gap: 4px; }
+  .card-title > view text:first-child { font-size: 22px; }
+  .card-title > view text:last-child { font-size: 13px; }
+  .badge { padding: 5px 10px; font-size: 13px; }
+  .table-scroll { border-width: 1px; border-radius: 12px; }
+  .table-scroll[data-visible-rows="1"] { height: 112px; }
+  .table-scroll[data-visible-rows="2"] { height: 170px; }
+  .table-scroll[data-visible-rows="3"] { height: 228px; }
+  .table-scroll[data-visible-rows="4"] { height: 286px; }
+  .table-scroll[data-visible-rows="5"] { height: 344px; }
+  .review-table { width: 1500px; min-width: 1500px; }
+  .review-row { grid-template-columns: 190px 110px 170px 150px 150px 120px 100px 180px 230px 150px; min-height: 58px; border-width: 1px; }
+  .review-row > text, .review-row > view { min-height: 58px; padding: 8px 10px; border-width: 1px; font-size: 14px; }
+  .review-row.head { min-height: 54px; }
+  .review-action { gap: 6px; }
+  .review-action button { min-width: 72px; min-height: 40px; padding: 0 10px; font-size: 13px; }
+  .status { padding: 4px 8px; font-size: 12px; }
+  .pager { gap: 14px; margin-top: 16px; }
+  .pager button { width: 120px; min-height: 44px; padding: 0 12px; font-size: 14px; }
+  .pager > text { font-size: 14px; }
+  .page-jump { gap: 8px; margin-top: 12px; font-size: 14px; }
+  .page-jump input { width: 88px; height: 44px; padding: 0 10px; border-width: 1px; border-radius: 10px; font-size: 14px; }
+  .page-jump button { min-height: 44px; padding: 0 12px; font-size: 14px; }
+  .empty { padding: 28px 16px; font-size: 14px; }
+  .mask { padding: 32px; }
+  .dialog { max-width: 680px; padding: 24px; border-width: 1px; border-radius: 22px; box-shadow: 0 24px 64px rgba(47,41,33,.32); }
+  .dialog-heading { gap: 16px; }
+  .dialog-heading > view:first-child { gap: 4px; }
+  .dialog-heading > view:first-child text:first-child { font-size: 24px; }
+  .dialog-heading > view:first-child text:last-child { font-size: 13px; }
+  .dialog-heading > view:last-child { width: 44px; height: 44px; font-size: 30px; }
+  .summary { gap: 7px; margin-top: 16px; padding: 14px; border-radius: 12px; font-size: 14px; }
+}

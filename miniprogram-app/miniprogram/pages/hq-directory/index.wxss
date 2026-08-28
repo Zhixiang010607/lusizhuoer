@@ -15,6 +15,12 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
 .section-heading > text:first-child { font-size: 28rpx; font-weight: 850; }
 .section-heading > text:last-child { padding: 6rpx 12rpx; color: #74592d; background: #f4e7d0; border-radius: 999rpx; font-size: 18rpx; font-weight: 800; }
 .table-scroll { width: 100%; max-width: 100%; min-width: 0; overflow: hidden; box-sizing: border-box; }
+.table-scroll[data-visible-rows="0"] { height: 136rpx; }
+.table-scroll[data-visible-rows="1"] { height: 146rpx; }
+.table-scroll[data-visible-rows="2"] { height: 224rpx; }
+.table-scroll[data-visible-rows="3"] { height: 302rpx; }
+.table-scroll[data-visible-rows="4"] { height: 380rpx; }
+.table-scroll[data-visible-rows="5"] { height: 458rpx; }
 .data-table { min-width: 900rpx; }
 .data-table.store { width: 910rpx; min-width: 910rpx; }
 .data-table.teacher { width: 100%; min-width: 100%; }
@@ -34,3 +40,34 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
 .message.error { color: #8b3f35; background: #fff1ed; border: 1rpx solid #e4bdb4; }
 .message.success { color: #4f664f; background: #f0f6ec; border: 1rpx solid #c9dbc0; }
 .safe-bottom { height: calc(24rpx + env(safe-area-inset-bottom)); }
+
+@media (min-width: 700px) {
+  .page { width: calc(100% - 48px); max-width: 1120px; padding: 20px 0 36px; }
+  .page-heading { margin: 0 4px 16px; }
+  .title { font-size: 28px; }
+  .search-panel, .table-section { margin-bottom: 16px; padding: 20px; border-width: 1px; border-radius: 20px; box-shadow: 0 8px 24px rgba(93,72,39,.08); }
+  .search-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .search-fields label { gap: 7px; }
+  .search-fields label > text { font-size: 14px; }
+  .search-fields input { min-height: 48px; padding: 0 16px; border-width: 1px; border-radius: 12px; font-size: 15px; }
+  .search-actions { gap: 12px; margin-top: 16px; }
+  .search-actions button { min-height: 48px; border-width: 1px; border-radius: 12px; font-size: 15px; }
+  .section-heading { gap: 14px; margin-bottom: 14px; }
+  .section-heading > text:first-child { font-size: 22px; }
+  .section-heading > text:last-child { padding: 5px 10px; font-size: 13px; }
+  .table-scroll[data-visible-rows="0"] { height: 116px; }
+  .table-scroll[data-visible-rows="1"] { height: 108px; }
+  .table-scroll[data-visible-rows="2"] { height: 164px; }
+  .table-scroll[data-visible-rows="3"] { height: 220px; }
+  .table-scroll[data-visible-rows="4"] { height: 276px; }
+  .table-scroll[data-visible-rows="5"] { height: 332px; }
+  .data-table { min-width: 860px; }
+  .data-table.store { width: 900px; min-width: 900px; }
+  .table-row { min-height: 56px; border-width: 1px; }
+  .table-row.store { grid-template-columns: 180px 130px 160px 310px 120px; }
+  .table-row > text { min-height: 56px; padding: 8px 10px; font-size: 14px; }
+  .table-head { min-height: 52px; border-radius: 12px 12px 0 0; }
+  .status { padding: 4px 8px; font-size: 12px; }
+  .table-empty { padding: 28px 16px; font-size: 14px; }
+  .message { margin-bottom: 16px; padding: 12px 14px; border-width: 1px; border-radius: 10px; font-size: 14px; }
+}
