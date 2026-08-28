@@ -39,6 +39,8 @@
 .store-profile-facts .detail-info-item { min-height: 112rpx; padding: 20rpx; border: 1rpx solid #e1cfaf; border-radius: 18rpx; background: #f7efe2; }
 .store-profile-facts .detail-info-item text:first-child { margin-bottom: 9rpx; color: #7c7062; font-size: 18rpx; }
 .store-profile-facts .detail-info-item text:last-child { color: #302a22; font-size: 22rpx; }
+.store-profile-facts .store-address-fact { grid-column: 1 / -1; min-height: 102rpx; }
+.store-profile-facts .store-address-fact text:last-child { overflow: visible; text-overflow: clip; white-space: normal; word-break: break-all; line-height: 1.45; }
 .teacher-profile-panel { border-color: #d7ba85; background: linear-gradient(180deg, #fffaf3 0%, #f9edd9 100%); }
 .teacher-profile-row { grid-template-columns: repeat(2, minmax(0, 1fr)); border-color: #d7ba85; background: #d7ba85; }
 .teacher-profile-row .detail-info-item { min-height: 88rpx; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 13rpx 10rpx; text-align: center; background: linear-gradient(180deg, #fff8ec 0%, #f5e4c6 100%); }
@@ -252,6 +254,7 @@
   .store-profile-facts .detail-info-item { min-height: 82px; padding: 14px; border-width: 1px; border-radius: 14px; }
   .store-profile-facts .detail-info-item text:first-child { margin-bottom: 6px; font-size: 13px; }
   .store-profile-facts .detail-info-item text:last-child { font-size: 16px; }
+  .store-profile-facts .store-address-fact { min-height: 72px; }
   .teacher-profile-row .detail-info-item { min-height: 68px; padding: 10px 8px; }
   .teacher-profile-row .detail-info-item text:first-child { margin-bottom: 5px; font-size: 12px; }
   .teacher-profile-row .detail-info-item text:last-child { font-size: 16px; }

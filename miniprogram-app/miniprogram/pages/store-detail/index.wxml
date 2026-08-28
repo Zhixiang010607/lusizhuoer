@@ -5,7 +5,7 @@
     <view wx:if="{{loading && !store}}" class="web-panel empty">正在读取门店数据库…</view>
     <block wx:if="{{store}}">
       <view class="web-panel profile-hero"><view class="profile-avatar">店</view><view class="profile-copy"><text class="profile-type">门店</text><view class="profile-title-row"><text>{{storeHero.name}}</text><text class="store-status-badge {{storeHero.archived ? 'archived' : ''}}">{{storeHero.archived ? '封存' : '活跃'}}</text></view><text>业务编号 {{storeHero.code}}</text></view></view>
-      <view class="web-panel store-contact-panel"><view class="panel-heading"><view><text class="panel-title">联系与地址</text></view></view><view class="detail-info-grid store-profile-facts"><view wx:for="{{profileFacts}}" wx:key="label" class="detail-info-item"><text>{{item.label}}</text><text>{{item.value}}</text></view></view></view>
+      <view class="web-panel store-contact-panel"><view class="panel-heading"><view><text class="panel-title">联系与地址</text></view></view><view class="detail-info-grid store-profile-facts"><view wx:for="{{profileFacts}}" wx:key="label" class="detail-info-item {{item.wide ? 'store-address-fact' : ''}}"><text>{{item.label}}</text><text>{{item.value}}</text></view></view></view>
       <view class="web-panel overview-panel">
         <view class="panel-heading"><view><text class="panel-title">门店业务汇总</text></view></view>
         <view class="range-presets"><button wx:for="{{rangeOptions}}" wx:key="value" class="range-button {{rangePreset === item.value ? 'active' : ''}}" data-value="{{item.value}}" bindtap="chooseRange">{{item.label}}</button></view>

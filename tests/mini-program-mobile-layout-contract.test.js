@@ -258,11 +258,14 @@ test("home dashboard mapper preserves web metric and profile column semantics", 
     recharge: 1, verification: 2, experience: 3, refund: 4 }], "teacher");
   assert.equal(teacherRows[0].name, "苗苗", "teacher ranking keeps the code internally but displays only the teacher name");
   assert.equal(teacherRows[0].entityCode, "TCHF420");
-  assert.deepEqual(dashboard.storeFacts({
+  const storeFacts = dashboard.storeFacts({
     auth_uid: "uid-demo", store_code: "S001", store_name: "中心店", province: "江西省",
     city: "南昌市", district: "红谷滩区", address_detail: "测试路", store_status: "ACTIVE",
     contact_name: "联系人", contact_phone: "13900000000"
-  }).map((fact) => fact.label), ["地区", "详细地址", "联系人", "联系电话"]);
+  });
+  assert.deepEqual(storeFacts.map((fact) => fact.label), ["地区", "详细地址", "联系人", "联系电话"]);
+  assert.deepEqual(storeFacts.map((fact) => Boolean(fact.wide)), [true, true, false, false],
+    "region and detailed address must use safe full-width cards while contact facts remain compact");
   assert.match(js, /rangePreset:\s*"TODAY", rangeOptions:\s*readyRangeOptions\("TODAY"\)/,
     "teacher and store role homes must default to today");
   assert.match(storeDetailWxml, /<text class="profile-type">门店<\/text>[\s\S]*业务编号 \{\{storeHero\.code\}\}/,
@@ -271,6 +274,12 @@ test("home dashboard mapper preserves web metric and profile column semantics", 
     "the store profile must not repeat identity facts already present in the hero");
   assert.match(wxss, /\.store-profile-facts\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)[^}]*background:\s*transparent/s,
     "the four store contact facts use the shared compact warm layout");
+  assert.match(wxss, /\.store-profile-facts \.store-address-fact\s*\{[^}]*grid-column:\s*1\s*\/\s*-1[^}]*\}/s,
+    "store addresses must span the full contact grid instead of being truncated in a half-width card");
+  assert.match(wxss, /\.store-profile-facts \.store-address-fact text:last-child\s*\{[^}]*white-space:\s*normal[^}]*word-break:\s*break-all/s,
+    "long store addresses must remain completely readable");
+  assert.match(storeDetailWxml, /class="detail-info-item \{\{item\.wide \? 'store-address-fact' : ''\}\}"/,
+    "store detail must apply the safe address layout marker from the shared mapper");
   assert.equal(dashboard.storeCustomerGroups({ store_name: "中心店", customers: [{ customer_code: "C001" }], customer_total: 1 }).active.rows[0].storeName, "中心店");
   assert.equal(dashboard.records([{ submitted_at: "2026-08-27 12:34:56+00" }])[0].submittedAt, "2026-08-27 20:34",
     "business detail accepts PostgreSQL snake-case timestamps and renders Shanghai wall time");

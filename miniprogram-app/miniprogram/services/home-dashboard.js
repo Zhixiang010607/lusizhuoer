@@ -93,8 +93,8 @@ function records(items = [], type = "VERIFICATION") {
 function storeFacts(store = {}) {
   const region = [store.province, store.city, store.district].filter(Boolean).join(" · ") || "未填写";
   return [
-    { label: "地区", value: region },
-    { label: "详细地址", value: String(store.address_detail || "未填写") },
+    { label: "地区", value: region, wide: true },
+    { label: "详细地址", value: String(store.address_detail || "未填写"), wide: true },
     { label: "联系人", value: String(store.contact_name || "未填写") },
     { label: "联系电话", value: String(store.contact_phone || store.phone || "未填写") }
   ];

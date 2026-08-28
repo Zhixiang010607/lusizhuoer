@@ -75,7 +75,7 @@
       <view class="web-panel detail-section store-contact-panel">
         <view class="panel-heading"><view><text class="panel-title">联系与地址</text></view></view>
         <view class="detail-info-grid store-profile-facts">
-          <view wx:for="{{profileFacts}}" wx:key="label" class="detail-info-item"><text>{{item.label}}</text><text>{{item.value}}</text></view>
+          <view wx:for="{{profileFacts}}" wx:key="label" class="detail-info-item {{item.wide ? 'store-address-fact' : ''}}"><text>{{item.label}}</text><text>{{item.value}}</text></view>
         </view>
       </view>
       <view class="detail-anchor-nav"><view class="anchor-inner"><text role="button" data-target="#business-summary" bindtap="jumpToSection">业务汇总</text><text role="button" data-target="#business-records" bindtap="jumpToSection">业务明细</text><text role="button" data-target="#active-customers" bindtap="jumpToSection">活跃用户</text><text role="button" data-target="#archived-customers" bindtap="jumpToSection">封存用户</text></view></view>
