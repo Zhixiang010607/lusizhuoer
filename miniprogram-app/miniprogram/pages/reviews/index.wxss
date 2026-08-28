@@ -83,12 +83,12 @@ button::after { border: 0; }
   .review-filter-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 16px; align-items: end; }
   .review-filter-grid .field { min-width: 0; margin-top: 0; }
   .review-code-field { grid-column: span 2; }
-  .review-query-actions { grid-column: span 2; margin-top: 0; }
   .field { gap: 7px; margin-top: 16px; }
   .field > text { font-size: 14px; }
   .field input, .field textarea, .picker { min-height: 48px; padding: 0 16px; border-width: 1px; border-radius: 12px; font-size: 15px; }
   .field textarea { min-height: 120px; padding-top: 14px; }
   .button-row, .dialog-actions { gap: 12px; margin-top: 16px; }
+  .button-row.review-query-actions { grid-column: span 2; align-self: end; margin-top: 0; }
   .compact { min-width: 104px; min-height: 44px; padding: 0 14px; }
   .message { margin-bottom: 16px; padding: 12px 14px; border-width: 1px; border-radius: 10px; font-size: 14px; }
   .card-title { gap: 14px; margin-bottom: 16px; }

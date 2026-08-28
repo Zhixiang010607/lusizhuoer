@@ -88,8 +88,12 @@ test("query and review pages use compact tablet filters and five-row result view
     "review type already comes from the active review tab and must not be repeated as an odd filter tile");
   assert.match(reviewsWxss, /\.filter-switches\.has-review-types \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s);
   assert.match(reviewsWxss, /\.review-filter-grid \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/s);
-  assert.match(reviewsWxss, /\.review-query-actions \{ grid-column: span 2; margin-top: 0; \}/,
+  assert.match(reviewsWxss, /\.button-row\.review-query-actions \{ grid-column: span 2; align-self: end; margin-top: 0; \}/,
     "store, status, query, and reset must form one balanced tablet row");
+  assert.ok(
+    reviewsWxss.lastIndexOf(".button-row.review-query-actions") > reviewsWxss.lastIndexOf(".button-row, .dialog-actions"),
+    "the review action alignment override must follow the generic button margin rule"
+  );
   assert.match(reviewsWxss, /@media \(min-width: 700px\)[\s\S]*?\.review-table \{ width: 100%; min-width: 0; \}/s,
     "review columns must share the full tablet card width without a fixed-width overflow");
   assert.match(reviewsWxss, /\.review-type-tabs button \{[^}]*width: 100%;[^}]*min-width: 0;/s,
