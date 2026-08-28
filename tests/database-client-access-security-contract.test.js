@@ -103,15 +103,26 @@ assert.ok(rechargeStart >= 0 && rechargeEnd > rechargeStart);
 assert.match(rechargeSource, /INSERT INTO public\.recharge_records[\s\S]*'PENDING'/,
   "recharge applications must still be inserted pending instead of trusting a client status");
 
-const verificationStart = face.indexOf("async function createVerificationApplication(event)");
-const verificationEnd = face.indexOf("async function recoverBusinessSubmission(event)", verificationStart);
-const verificationSource = face.slice(verificationStart, verificationEnd);
-assert.ok(verificationStart >= 0 && verificationEnd > verificationStart);
-assert.match(verificationSource, /faceEvidenceToken/);
-assert.match(verificationSource, /\^\[0-9a-f\]\{48\}\$/);
-assert.match(verificationSource, /create_verification_with_face_photo/);
-assert.match(verificationSource, /FROM public\.device_signal_outbox/,
+const qualificationStart = face.indexOf("async function createVerificationBleQualification(event)");
+const qualificationEnd = face.indexOf("async function recoverVerificationBleQualification(event)", qualificationStart);
+const qualificationSource = face.slice(qualificationStart, qualificationEnd);
+assert.ok(qualificationStart >= 0 && qualificationEnd > qualificationStart);
+assert.match(qualificationSource, /faceEvidenceToken/);
+assert.match(qualificationSource, /\^\[0-9a-f\]\{48\}\$/);
+const finalizerStart = face.indexOf("async function finalizeVerificationApplicationInternal(event)");
+const finalizerEnd = face.indexOf("async function recoverBusinessSubmission(event)", finalizerStart);
+const finalizerSource = face.slice(finalizerStart, finalizerEnd);
+assert.ok(finalizerStart >= 0 && finalizerEnd > finalizerStart);
+assert.match(finalizerSource, /create_verification_with_face_photo/);
+assert.match(finalizerSource, /FROM public\.device_signal_outbox/,
   "device authorization must be returned from the committed database outbox");
+const confirmationStart = face.indexOf("async function confirmVerificationBleWorkStarted(event)");
+const confirmationEnd = face.indexOf("async function finalizeVerificationApplicationInternal(event)", confirmationStart);
+const confirmationSource = face.slice(confirmationStart, confirmationEnd);
+assert.match(confirmationSource, /result\.ok !== true \|\| Number\(result\.status\) !== 2/,
+  "the database writer must remain unreachable until the BLE device reports working");
+assert.match(face, /action === "createVerificationApplication"[\s\S]{0,260}BLE_REQUIRED/,
+  "clients cannot bypass BLE by calling the retired direct writer");
 
 const reviewStart = staff.indexOf("async function reviewOrder(caller, event)");
 const reviewEnd = staff.indexOf("async function requireTeacherStatusSchema", reviewStart);

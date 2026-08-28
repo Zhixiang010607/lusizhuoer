@@ -73,6 +73,15 @@ function loadBusinessPage(file, callFace, wxOverrides = {}) {
       if (id === "../../services/api") return { callFace };
       if (id === "../../services/session") return { requireSession: () => null, getSelectedStore: () => null };
       if (id === "../../services/submission") return submissionStub();
+      if (id === "../../services/ble-verification") {
+        return {
+          BleVerificationSession: class {},
+          readProgress: () => null,
+          saveProgress() {}, clearProgress() {},
+          retryFinalization: async () => null,
+          errorFeedback: (error) => ({ message: String(error && error.message || "蓝牙连接失败"), recoverable: true })
+        };
+      }
       throw new Error(`unexpected ${file} dependency ${id}`);
     },
     wx: { redirectTo() {}, showModal() {}, reLaunch() {}, ...wxOverrides },

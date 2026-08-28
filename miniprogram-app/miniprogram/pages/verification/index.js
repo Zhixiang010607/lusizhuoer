@@ -1,6 +1,14 @@
 const { callFace } = require("../../services/api");
 const { requireSession, getSelectedStore, setSelectedStore } = require("../../services/session");
 const submission = require("../../services/submission");
+const {
+  BleVerificationSession,
+  readProgress: readBleProgress,
+  saveProgress: saveBleProgress,
+  clearProgress: clearBleProgress,
+  retryFinalization,
+  errorFeedback
+} = require("../../services/ble-verification");
 
 function teacher(value) { return { teacherId: String(value.teacherId || ""), teacherCode: String(value.teacherCode || ""), teacherName: String(value.teacherName || "") }; }
 function businessStore(value) {
@@ -39,7 +47,11 @@ Page({
     experience: false, customer: null, teachers: [], teacherLabels: [], teacherIndex: -1, selectedTeacher: null, teacherOptionsReady: false, teacherReady: false,
     products: [], productLabels: [], productIndex: -1, selectedProduct: null, unitCount: "", unitCountMax: 0, unitCountValid: false, note: "", captureReady: false, faceVerified: false,
     faceRequestId: "", faceEvidenceToken: "", faceMessage: "", faceError: false, loadingOptions: false, verifying: false,
-    busy: false, locked: false, recovering: false, ready: false, message: "", error: false
+    busy: false, locked: false, recovering: false, ready: false, message: "", error: false,
+    qualification: null, qualificationActive: false, qualificationSeconds: 0,
+    bleWindowVisible: false, bleRunning: false, bleAuthorizationSent: false,
+    blePermanentlyClosed: false, bleStage: "", bleStatusMessage: "",
+    bleErrorTitle: "", bleErrorCode: "", bleErrorAdvice: ""
   },
   onLoad(options) {
     const session = requireSession(["store", "teacher"]);
@@ -58,7 +70,11 @@ Page({
     } else {
       this.loadTeacherStores();
     }
-    if (submission.read("VERIFICATION")) {
+    const bleProgress = readBleProgress();
+    if (bleProgress?.deviceResult && Number(bleProgress.deviceResult.status) === 2) {
+      this.setData({ locked: true, blePermanentlyClosed: true, message: "设备已进入工作状态，正在恢复核销工单；禁止再次扫码。" });
+      this.recoverPending();
+    } else if (submission.read("VERIFICATION")) {
       this.setData({ locked: true, message: "检测到上一次核销尚未确认，已禁止再次扣减。" });
       this.recoverPending();
     }
@@ -68,7 +84,10 @@ Page({
     this._teacherRequestEpoch = (this._teacherRequestEpoch || 0) + 1;
     this._productRequestEpoch = (this._productRequestEpoch || 0) + 1;
     this._faceRequestEpoch = (this._faceRequestEpoch || 0) + 1;
+    if (this._qualificationTimer) clearInterval(this._qualificationTimer);
+    if (this._bleSession && !this.data.bleAuthorizationSent) this._bleSession.cancel();
   },
+  preventTouchMove() {},
   async loadTeacherStores() {
     const requestEpoch = (this._storeRequestEpoch || 0) + 1;
     this._storeRequestEpoch = requestEpoch;
@@ -97,7 +116,7 @@ Page({
     }
   },
   selectStore(event) {
-    if (this.data.busy || this.data.locked) return;
+    if (this.data.busy || this.data.locked || this.data.qualificationActive) return;
     const pickerIndex = Number(event.detail.value);
     const index = pickerIndex - 1;
     const store = this.data.stores[index];
@@ -120,10 +139,12 @@ Page({
     this.loadTeachers();
   },
   customerChanged() {
+    if (this.data.qualificationActive) return;
     this.setData({ customer: null, message: "", error: false });
     this.resetBusinessSelection({ resetTeacher: this.data.session.role === "store", clearNote: true });
   },
   async customerConfirmed(event) {
+    if (this.data.qualificationActive) return;
     this.setData({ customer: event.detail.customer, message: `已确认 ${event.detail.customer.customerName}`, error: false });
     this.resetBusinessSelection({ resetTeacher: this.data.session.role === "store", clearNote: true });
     await this.loadProducts();
@@ -217,6 +238,7 @@ Page({
       && (!experience || String(this.data.selectedTeacher?.teacherId || "") === teacherId);
   },
   selectTeacher(event) {
+    if (this.data.qualificationActive) return;
     const index = Number(event.detail.value);
     this.setData({ teacherIndex: index, selectedTeacher: this.data.teachers[index] || null });
     if (this.data.experience) {
@@ -228,6 +250,7 @@ Page({
     }
   },
   selectProduct(event) {
+    if (this.data.qualificationActive) return;
     const index = Number(event.detail.value);
     const selectedProduct = this.data.products[index] || null;
     const available = selectedProduct
@@ -244,6 +267,7 @@ Page({
     this.syncReady();
   },
   inputUnitCount(event) {
+    if (this.data.qualificationActive) return;
     const value = String(event.detail.value || "").replace(/\D/g, "").slice(0, 3);
     this._faceRequestEpoch = (this._faceRequestEpoch || 0) + 1;
     this.setData({
@@ -259,8 +283,14 @@ Page({
     });
     this.syncReady();
   },
-  inputNote(event) { this.setData({ note: event.detail.value }); },
-  captureChanged(event) { this.setData({ captureReady: event.detail.ready === true }); this.resetFace(false); },
+  inputNote(event) {
+    if (!this.data.qualificationActive) this.setData({ note: event.detail.value });
+  },
+  captureChanged(event) {
+    if (this.data.qualificationActive) return;
+    this.setData({ captureReady: event.detail.ready === true });
+    this.resetFace(false);
+  },
   resetBusinessSelection({ resetTeacher = false, clearNote = false } = {}) {
     this._productRequestEpoch = (this._productRequestEpoch || 0) + 1;
     this.setData({
@@ -339,11 +369,13 @@ Page({
     this.setData({
       unitCountValid: countReady,
       teacherReady,
-      ready: Boolean(this.data.store.id && this.data.customer && this.data.selectedProduct && teacherReady && countReady && this.data.faceVerified && this.data.faceRequestId && this.data.faceEvidenceToken && !this.data.locked)
+      ready: Boolean(this.data.store.id && this.data.customer && this.data.selectedProduct && teacherReady && countReady
+        && this.data.faceVerified && this.data.faceRequestId && this.data.faceEvidenceToken
+        && !this.data.locked && !this.data.qualificationActive)
     });
   },
   async submit() {
-    if (this.data.busy || !this.data.ready) return;
+    if (this.data.busy || this.data.qualificationActive || !this.data.ready) return;
     const unitCount = Number(this.data.unitCount);
     if (!Number.isInteger(unitCount) || unitCount < 1 || unitCount > Number(this.data.unitCountMax || 0)) {
       return this.setData({ message: `核销次数必须由办理人员填写，并且是 1 至 ${this.data.unitCountMax || 0} 的整数`, error: true });
@@ -355,44 +387,160 @@ Page({
     let intent;
     try { intent = submission.begin("VERIFICATION", identity); }
     catch (error) { return this.setData({ locked: true, message: error.message, error: true }); }
-    this.setData({ busy: true, message: "正在原子写入核销、照片凭证、额度和设备信号…", error: false });
-    let result = null;
+    this.setData({ busy: true, message: "正在建立 90 秒设备核销资格；此时尚未扣次。", error: false });
     try {
-      result = await callFace("createVerificationApplication", {
+      const qualification = await callFace("createVerificationBleQualification", {
         ...identity, faceRequestId: this.data.faceRequestId, faceEvidenceToken: this.data.faceEvidenceToken, clientRequestId: intent.clientRequestId
       });
-      if (String(result.recordStatus || "") !== "APPROVED" || !result.verificationId || !result.verificationCode || !result.deviceSignal) {
-        throw new Error("服务端未返回完整的已完成核销与设备信号，禁止显示成功");
+      if (qualification.complete && qualification.verificationId) {
+        return this.showRecovered(qualification);
       }
-      if (Number(result.unitCount) !== unitCount || Number(result.deviceSignal.unitCount) !== unitCount) {
-        throw new Error("数据库或设备信号返回的核销次数与本次选择不一致，禁止显示成功");
+      if (!qualification.qualificationToken || !qualification.expiresAt || Number(qualification.unitCount) !== unitCount) {
+        throw Object.assign(new Error("服务端没有返回完整的 BLE 核销资格，本次没有扣次。"), { code: "BLE_QUALIFICATION_INCOMPLETE" });
       }
-      const confirmedIntent = submission.confirm("VERIFICATION", result.verificationId);
-      this.setData({ locked: false, message: `核销单 ${result.verificationCode} 已完成，不会重复扣次。`, error: false, note: "" });
-      this.resetBusinessSelection();
-      this.setData({ customer: null });
-      this.openSubmittedOrder(result, confirmedIntent);
+      saveBleProgress({
+        state: "QUALIFIED",
+        irreversible: false,
+        clientRequestId: intent.clientRequestId,
+        qualificationToken: qualification.qualificationToken,
+        qualificationExpiresAt: qualification.expiresAt,
+        qualification
+      });
+      this.activateQualification(qualification, true);
     } catch (error) {
-      submission.markUncertain("VERIFICATION");
-      await this.recoverAfterError(error, Boolean(result));
-    } finally { this.setData({ busy: false }); this.syncReady(); }
-  },
-  async recoverAfterError(error, hadResult) {
-    if (!error.submissionUncertain && !hadResult) {
-      try {
-        const recovered = await submission.recover("VERIFICATION");
-        if (recovered.found && recovered.complete) return this.showRecovered(recovered);
+      if (error.submissionUncertain) {
+        submission.markUncertain("VERIFICATION");
+        this.setData({ locked: true, message: "设备资格响应中断，正在核对原请求；请勿重新拍照提交。", error: true });
+        await this.recoverPending();
+      } else {
         submission.clear("VERIFICATION");
         if (["FACE_PHOTO_EVIDENCE_REQUIRED", "FACE_PHOTO_EVIDENCE_INVALID"].includes(error.code)) this.resetFace();
-        return this.setData({ locked: false, message: error.message || "核销未写入，可修正后重试", error: true });
-      } catch (_) { /* keep lock */ }
+        const feedback = errorFeedback(error);
+        this.setData({ locked: false, message: feedback.message, error: true });
+      }
+    } finally { this.setData({ busy: false }); this.syncReady(); }
+  },
+  activateQualification(qualification, openWindow = false) {
+    const expiresAt = new Date(qualification.expiresAt || 0).getTime();
+    const seconds = Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000));
+    if (!seconds) return this.expireQualification();
+    if (this._qualificationTimer) clearInterval(this._qualificationTimer);
+    const progress = readBleProgress();
+    const authorizationSent = Boolean(progress?.authorizationToken
+      && String(progress.qualificationToken || "") === String(qualification.qualificationToken || ""));
+    this.setData({
+      qualification,
+      qualificationActive: true,
+      qualificationSeconds: seconds,
+      bleWindowVisible: openWindow,
+      bleAuthorizationSent: authorizationSent,
+      blePermanentlyClosed: false,
+      bleErrorTitle: "", bleErrorCode: "", bleErrorAdvice: "",
+      bleStatusMessage: authorizationSent
+        ? "一次性授权已经签发；可重新连接原设备核对是否进入工作状态，禁止更换设备或重复授权。"
+        : "90 秒内可关闭并重新打开扫码窗口；设备进入工作状态前不会扣次。",
+      message: "人脸验证已通过，90 秒内请扫描设备二维码。", error: false,
+      ready: false
+    });
+    this._qualificationTimer = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000));
+      this.setData({ qualificationSeconds: remaining });
+      if (!remaining) this.expireQualification();
+    }, 500);
+  },
+  expireQualification() {
+    if (this._qualificationTimer) clearInterval(this._qualificationTimer);
+    this._qualificationTimer = null;
+    if (this.data.bleAuthorizationSent) {
+      this.setData({ qualificationActive: false, qualificationSeconds: 0, bleWindowVisible: false, locked: true, message: "扫码资格已到期，但设备授权已经发出，正在核对设备状态；请勿重新办理。", error: true });
+      return;
     }
-    this.setData({ locked: true, message: "核销响应中断，扣次可能已完成。为防止第二张单，已锁定再次提交。", error: true });
-    await this.recoverPending();
+    if (this._bleSession) this._bleSession.cancel();
+    this._bleSession = null;
+    try { clearBleProgress(); } catch (_) { /* keep visible server result */ }
+    try { submission.clear("VERIFICATION"); } catch (_) { /* keep page safe */ }
+    this.setData({
+      qualification: null, qualificationActive: false, qualificationSeconds: 0,
+      bleWindowVisible: false, bleRunning: false, bleAuthorizationSent: false,
+      message: "90 秒设备核销资格已过期，本次没有扣次；请重新拍照验证。", error: true
+    });
+    this.resetFace();
+  },
+  openBleWindow() {
+    if (this.data.blePermanentlyClosed) return;
+    if (!this.data.qualificationActive || this.data.qualificationSeconds <= 0) return this.expireQualification();
+    this.setData({ bleWindowVisible: true, bleErrorTitle: "", bleErrorCode: "", bleErrorAdvice: "" });
+  },
+  closeBleWindow() {
+    if (this.data.blePermanentlyClosed) return;
+    if (this.data.bleRunning) return;
+    this.setData({ bleWindowVisible: false });
+    if (this._bleSession) this._bleSession.cancel();
+  },
+  async startBleVerification() {
+    if (this.data.bleRunning || this.data.blePermanentlyClosed) return;
+    if (!this.data.qualificationActive || this.data.qualificationSeconds <= 0) return this.expireQualification();
+    const intent = submission.read("VERIFICATION");
+    if (!intent?.clientRequestId) {
+      return this.setData({ locked: true, bleWindowVisible: false, message: "防重复提交编号丢失，已禁止设备授权；请联系管理员。", error: true });
+    }
+    this.setData({
+      bleWindowVisible: true, bleRunning: true, bleStage: "QR_SCANNING", bleStatusMessage: "准备扫描设备二维码",
+      bleErrorTitle: "", bleErrorCode: "", bleErrorAdvice: ""
+    });
+    const session = new BleVerificationSession({
+      qualification: this.data.qualification,
+      clientRequestId: intent.clientRequestId,
+      onState: (state) => this.setData({ bleStage: state.stage || "", bleStatusMessage: state.message || "" }),
+      onIrreversible: (state) => {
+        if (state?.authorizationSent) this.setData({ bleAuthorizationSent: true, bleStatusMessage: "授权已发往设备，正在确认是否进入工作状态；请勿重新扫码。" });
+        if (state?.deviceResult && Number(state.deviceResult.status) === 2) {
+          this.setData({ blePermanentlyClosed: true, bleWindowVisible: false, locked: true, message: "设备已进入工作状态，二维码窗口已永久关闭，正在生成核销工单。", error: false });
+        }
+      }
+    });
+    this._bleSession = session;
+    try {
+      const result = await session.run();
+      const confirmedIntent = submission.confirm("VERIFICATION", result.verificationId);
+      try { clearBleProgress(); } catch (_) { /* final record is already authoritative */ }
+      if (this._qualificationTimer) clearInterval(this._qualificationTimer);
+      this.setData({
+        qualificationActive: false, bleRunning: false, blePermanentlyClosed: true,
+        bleWindowVisible: false, locked: false, message: `设备已启动，核销单 ${result.verificationCode} 已完成。`, error: false
+      });
+      this.openSubmittedOrder(result, confirmedIntent);
+    } catch (error) {
+      const progress = readBleProgress();
+      if (progress?.deviceResult && Number(progress.deviceResult.status) === 2) {
+        this.setData({ blePermanentlyClosed: true, bleWindowVisible: false, locked: true, message: "设备已启动但工单响应中断，正在从数据库恢复；禁止重复扫码。", error: true });
+        await this.recoverPending();
+      } else {
+        const feedback = errorFeedback(error);
+        const authorizationSent = Boolean(progress?.authorizationToken
+          && String(progress.qualificationToken || "") === String(this.data.qualification?.qualificationToken || ""));
+        this.setData({
+          bleRunning: false,
+          bleAuthorizationSent: authorizationSent,
+          bleErrorTitle: feedback.title,
+          bleErrorCode: feedback.code,
+          bleErrorAdvice: feedback.advice,
+          bleStatusMessage: feedback.message,
+          message: feedback.message,
+          error: !["BLE_QR_CANCELLED", "BLE_WINDOW_CLOSED"].includes(feedback.code)
+        });
+        if (this.data.qualificationSeconds <= 0) this.expireQualification();
+      }
+    } finally {
+      if (this._bleSession === session) this._bleSession = null;
+      if (!this.data.blePermanentlyClosed) this.setData({ bleRunning: false });
+    }
   },
   showRecovered(result) {
     const confirmedIntent = submission.confirm("VERIFICATION", result.verificationId);
-    this.setData({ locked: false, message: `已找到上次核销 ${result.verificationCode}，未重复扣次。`, error: false });
+    try { clearBleProgress(); } catch (_) { /* order acknowledgement keeps idempotency */ }
+    if (this._qualificationTimer) clearInterval(this._qualificationTimer);
+    this.setData({ locked: false, qualificationActive: false, blePermanentlyClosed: true, bleWindowVisible: false, message: `已找到上次核销 ${result.verificationCode}，未重复扣次。`, error: false });
     this.openSubmittedOrder(result, confirmedIntent);
     this.syncReady();
   },
@@ -414,12 +562,34 @@ Page({
   },
   async recoverPending() {
     if (this.data.recovering || !submission.read("VERIFICATION")) return;
-    this.setData({ recovering: true, locked: true, message: "正在从数据库核对原核销、照片、额度审计和设备信号…", error: false });
+    this.setData({ recovering: true, message: "正在核对 90 秒资格、设备状态和原核销工单…", error: false });
     try {
+      const progress = readBleProgress();
+      if (progress?.deviceResult && Number(progress.deviceResult.status) === 2) {
+        this.setData({ locked: true, blePermanentlyClosed: true, bleWindowVisible: false });
+        const finalized = await retryFinalization(progress);
+        if (finalized?.verificationId) return this.showRecovered(finalized);
+      }
+      const intent = submission.read("VERIFICATION");
+      const qualification = await callFace("recoverVerificationBleQualification", { clientRequestId: intent.clientRequestId });
+      if (qualification.found && qualification.complete) return this.showRecovered(qualification);
+      if (qualification.found && !qualification.expired && qualification.qualificationToken) {
+        this.setData({ locked: false });
+        this.activateQualification(qualification, false);
+        return;
+      }
+      if (qualification.found && qualification.expired) {
+        try { clearBleProgress(); } catch (_) { /* continue */ }
+        submission.clear("VERIFICATION");
+        this.setData({ locked: false, qualificationActive: false, message: "上次 90 秒设备资格已过期且没有扣次，请重新拍照验证。", error: true });
+        this.resetFace();
+        return;
+      }
       const result = await submission.recover("VERIFICATION");
       if (result.found && result.complete) return this.showRecovered(result);
       if (result.found) return this.setData({ message: "核销主记录已写入，但设备信号或体验额度审计不完整。已锁定，请联系管理员。", error: true });
-      this.setData({ message: "数据库暂未找到结果，原请求可能仍在执行。请稍后再检查，绝对不要重复提交。", error: true });
+      submission.clear("VERIFICATION");
+      this.setData({ locked: false, message: "数据库未找到资格或工单，本次没有扣次；请重新办理。", error: true });
     } catch (error) { this.setData({ message: `${error.message || '暂时无法检查'}；已继续锁定重复核销。`, error: true }); }
     finally { this.setData({ recovering: false }); }
   }

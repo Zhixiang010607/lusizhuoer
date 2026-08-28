@@ -78,14 +78,15 @@ assert.match(entitlements, /caller\.role !== "teacher"[\s\S]{0,160}FORBIDDEN/,
   "store and HQ cannot read the EXPERIENCE creation entitlement path");
 assert.match(entitlements, /positiveDatabaseId\(caller\.teacherId, "老师"\)/,
   "entitlements use the authenticated teacher ID");
-const create = functionSource(face, "createVerificationApplication");
-assert.match(create, /experienceVerification && caller\.role !== "teacher"[\s\S]{0,180}FORBIDDEN/,
+const qualification = functionSource(face, "createVerificationBleQualification");
+const finalizer = functionSource(face, "finalizeVerificationApplicationInternal");
+assert.match(qualification, /experienceVerification && caller\.role !== "teacher"[\s\S]{0,180}FORBIDDEN/,
   "store and HQ are rejected server-side for EXPERIENCE creation");
-assert.match(create, /caller\.role === "teacher"[\s\S]{0,120}positiveDatabaseId\(caller\.teacherId, "老师"\)/,
+assert.match(qualification, /caller\.role === "teacher"[\s\S]{0,220}positiveDatabaseId\(caller\.teacherId, "老师"\)/,
   "teacher identity comes from the authenticated account");
-assert.match(create, /create_experience_verification_with_customer_face_photo/,
+assert.match(finalizer, /create_experience_verification_with_customer_face_photo/,
   "EXPERIENCE calls the customer-photo atomic entry point");
-assert.doesNotMatch(create, /TEACHER_FACE_REQUIRED_FOR_EXPERIENCE|face_enrollment_status|face_person_id/,
+assert.doesNotMatch(`${qualification}\n${finalizer}`, /TEACHER_FACE_REQUIRED_FOR_EXPERIENCE|face_enrollment_status|face_person_id/,
   "teacher face does not gate EXPERIENCE creation");
 
 const customerFace = functionSource(face, "verifyCustomerFace");

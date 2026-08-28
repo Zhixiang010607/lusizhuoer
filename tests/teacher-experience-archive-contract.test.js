@@ -193,7 +193,7 @@ const teacherCreateCloud = read("cloudfunctions/teacherCreate/index.js");
 const staffReadme = read("cloudfunctions/staffAccount/README.md");
 const analytics = functionSource(faceCloud, "storeAnalyticsEventCte");
 const hqDashboard = functionSource(staffCloud, "getHqDashboard");
-const verificationCreate = functionSource(faceCloud, "createVerificationApplication");
+const verificationQualification = functionSource(faceCloud, "createVerificationBleQualification");
 const teacherProvision = functionSource(teacherCreateCloud, "createTeacher");
 const teacherAuthentication = functionSource(teacherCreateCloud, "createActiveAuthentication");
 const hqEntitlementRead = functionSource(staffCloud, "getHqTeacherExperienceEntitlements");
@@ -203,7 +203,7 @@ const entitlementRecharge = functionSource(staffCloud, "rechargeTeacherExperienc
 const monthlyResetTimer = functionSource(staffCloud, "handleTrustedTeacherExperienceResetTimer");
 const teacherStatusSchema = functionSource(staffCloud, "requireTeacherStatusSchema");
 
-includes(verificationCreate, 'verificationType === "EXPERIENCE"',
+includes(verificationQualification, 'verificationType === "EXPERIENCE"',
   "verification API must branch explicitly for teacher-owned experience allowance");
 assert.match(faceCloud, /getTeacher[a-zA-Z]*Experience|TeacherExperience[a-zA-Z]*Quota/i,
   "experience workflow must expose a server-side teacher-product allowance reader");
@@ -225,7 +225,7 @@ assert.match(functionSource(businessUi, "loadTeacherExperienceEntitlements"), /c
   "experience allowance lookup must use the face service's active-business authorization path");
 assert.doesNotMatch(functionSource(faceCloud, "getTeacherExperienceEntitlements"), /customer_product_balances/i,
   "the active experience-product reader must not consult customer purchased-unit balances");
-assert.match(verificationCreate, /TEACHER_EXPERIENCE_QUOTA_EXHAUSTED/,
+assert.match(verificationQualification, /TEACHER_EXPERIENCE_QUOTA_EXHAUSTED/,
   "the verification endpoint must surface an exhausted teacher quota distinctly from customer balance exhaustion");
 
 assert.match(teacherCreate, /老师不采集照片、不建立人脸/,

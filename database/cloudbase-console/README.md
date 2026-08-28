@@ -200,7 +200,7 @@ ROLLBACK;
 
 1. 短暂停止充值、退费、核销和产品购买的新建操作；
 2. 整文件执行 `065-01-store-optional-business-teacher.sql`；
-3. 立即上传 `faceRecognition-v101.zip` 并用 `health` 确认 `version=v101`；
+3. 继续执行 066 后，立即上传 `faceRecognition-v103.zip` 并用 `health` 确认 `version=v103`；
 4. 执行 `065-readonly-verify.sql`，9 行必须全部为
    `record_count=0`、`status=READY`；
 5. 上传小程序 `0.2.39` 开发版并做门店留空老师／选择老师、老师自动归本人验收。
@@ -209,6 +209,24 @@ ROLLBACK;
 选中老师时才校验并产生老师统计、客户关系和历史归属。老师账号仍强制绑定本人，
 门店体验核销仍然拒绝。迁移同时退役旧必选约束，并使空老师核销能安全写入设备
 信号和通过防重恢复。
+
+## 066 BLE 核销资格与一次性设备授权
+
+065 验收完成后，按 [`066-README.md`](066-README.md) 执行：
+
+1. 短暂停止正常核销和体验核销新建，整文件执行
+   `066-01-ble-verification-authorization.sql`；
+2. 在受控运维流程登记设备序列号、项目设备类型和配对码哈希，应用端不保存明文配对码；
+3. 在 `faceRecognition` 环境变量配置独立的 `BLE_AUTH_SIGNING_KEY`，上传
+   `faceRecognition-v103.zip` 并确认 `health version=v103`；
+4. 执行 `066-readonly-verify.sql`，10 行必须全部为 `READY`；
+5. 用真机验收人脸通过后的 90 秒扫码资格、关闭／重开、蓝牙与协议错误不扣次、
+   设备状态 `2` 才扣次建单，以及成功后永久关闭扫码窗口并跳转精确工单。
+
+066 不改变现有核销原子写入。它只把写入推迟到登记设备完成一次性授权并回报工作
+状态之后；任意扫码、蓝牙、网络、设备或协议失败都不得提前扣减余额／体验额度。
+协议 V2.0 的设备回执尚无设备侧签名，属于已记录的剩余风险；固件 V2.1 应增加
+设备 HMAC／签名回执与重放保护。
 
 ### 048 在当前控制台报 `unterminated dollar-quoted string`
 

@@ -16,8 +16,8 @@ function section(startMarker, endMarker) {
   return cloud.slice(start, end);
 }
 
-assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v9" : "v102"/);
-assert.match(readme, /当前版本：`v102`/);
+assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v9" : "v103"/);
+assert.match(readme, /当前版本：`v103`/);
 
 const attributionSource = section("function teacherBusinessAttributionSourceCondition", "function trustedBusinessTeacherIdSql");
 const trustedTeacherId = section("function trustedBusinessTeacherIdSql", "function teacherBusinessOwnershipCondition");
@@ -62,17 +62,20 @@ assert.match(recharge, /const teacherId = caller\.role === "teacher"[\s\S]*posit
 assert.match(recharge, /t\.teacher_status = 'ACTIVE'[\s\S]*a\.role_code = 'teacher'[\s\S]*a\.account_status = 'ACTIVE'/,
   "a selected teacher must have an active teacher profile and login account");
 
-const verification = section("async function createVerificationApplication", "async function recoverBusinessSubmission");
-assert.match(verification, /experienceVerification && caller\.role !== "teacher"[\s\S]*"FORBIDDEN"/,
+const verificationQualification = section("async function createVerificationBleQualification", "async function recoverVerificationBleQualification");
+const verificationFinalizer = section("async function finalizeVerificationApplicationInternal", "async function recoverBusinessSubmission");
+assert.match(verificationQualification, /experienceVerification && caller\.role !== "teacher"[\s\S]*"FORBIDDEN"/,
   "store and HQ experience verification must be rejected by role");
-assert.match(verification, /caller\.role === "teacher"[\s\S]*requestedTeacherId !== String\(caller\.teacherId\)[\s\S]*"FORBIDDEN"/,
+assert.match(verificationQualification, /caller\.role === "teacher"[\s\S]*requestedTeacherId !== String\(caller\.teacherId\)[\s\S]*"FORBIDDEN"/,
   "teacher verification must reject attempts to select another teacher");
-assert.match(verification, /const teacherId = caller\.role === "teacher"[\s\S]*positiveDatabaseId\(caller\.teacherId, "老师"\)[\s\S]*requestedTeacherId \? positiveDatabaseId\(requestedTeacherId, "老师"\) : ""/,
+assert.match(verificationQualification, /const teacherId = caller\.role === "teacher"[\s\S]*positiveDatabaseId\(caller\.teacherId, "老师"\)[\s\S]*requestedTeacherId \? positiveDatabaseId\(requestedTeacherId, "老师"\) : ""/,
   "teacher verification binds self while store normal verification keeps teacher optional");
-assert.match(verification, /t\.teacher_status = 'ACTIVE'[\s\S]*a\.role_code = 'teacher'[\s\S]*a\.account_status = 'ACTIVE'/,
+assert.match(verificationQualification, /teacher\.teacher_status = 'ACTIVE'[\s\S]*account\.role_code = 'teacher'[\s\S]*account\.account_status = 'ACTIVE'/,
   "a selected verification teacher must have an active profile and login account");
-assert.match(verification, /const teacherIdSql = teacherId \? `\$\{sqlText\(teacherId\)\}::bigint` : "NULL"/,
+assert.match(verificationFinalizer, /const teacherIdSql = teacherId \? `\$\{sqlText\(teacherId\)\}::bigint` : "NULL"/,
   "store verification must write SQL NULL when no teacher is selected");
+assert.match(cloud, /action === "createVerificationApplication"[\s\S]{0,260}BLE_REQUIRED/,
+  "the retired direct verification writer must stay blocked until a BLE device reports working");
 
 const entitlements = section("async function getTeacherExperienceEntitlements", "async function listActiveTeachers");
 assert.match(entitlements, /caller\.role !== "teacher"[\s\S]*"FORBIDDEN"/,
@@ -257,7 +260,7 @@ assert.doesNotMatch(verify065, /\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUN
   "065 verification must remain read-only");
 assert.equal((verify065.match(/UNION ALL/g) || []).length, 8,
   "065 verification must return all nine checks in one result table");
-assert.match(readme065, /065-01-store-optional-business-teacher\.sql[\s\S]*faceRecognition-v102\.zip[\s\S]*065-readonly-verify\.sql[\s\S]*0\.2\.42/,
+assert.match(readme065, /065-01-store-optional-business-teacher\.sql[\s\S]*faceRecognition-v103\.zip[\s\S]*065-readonly-verify\.sql[\s\S]*0\.2\.43/,
   "065 README must preserve SQL, cloud function, verification, and mini-program order");
 
 console.log("business teacher attribution contract: PASS");

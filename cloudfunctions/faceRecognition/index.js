@@ -3,9 +3,10 @@
 const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
+const { pinyin } = require("pinyin-pro");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v102";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v103";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -3796,7 +3797,541 @@ async function requireCustomerFaceExperienceSchema() {
   }
 }
 
-async function createVerificationApplication(event) {
+async function requireVerificationBleSchema() {
+  const rows = await executeSql(
+    `SELECT TO_REGCLASS('public.verification_ble_qualifications') IS NOT NULL AS qualifications,
+            TO_REGCLASS('public.verification_ble_authorizations') IS NOT NULL AS authorizations,
+            TO_REGCLASS('public.verification_ble_devices') IS NOT NULL AS devices`
+  );
+  const schema = rows?.[0] || {};
+  if (!databaseBoolean(schema.qualifications)
+      || !databaseBoolean(schema.authorizations)
+      || !databaseBoolean(schema.devices)) {
+    fail("BLE 核销数据库结构尚未启用，请先执行迁移 066。", "BLE_SCHEMA_MISSING");
+  }
+}
+
+function verificationDeviceType(productName) {
+  const segments = pinyin(String(productName || ""), { toneType: "none", type: "array" });
+  const value = segments.join("").toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (!value) fail("项目名称无法转换成有效设备类型，请先修正项目名称。", "BLE_DEVICE_TYPE_INVALID");
+  return value.slice(0, 128);
+}
+
+function sha256Text(value) {
+  return crypto.createHash("sha256").update(String(value || ""), "utf8").digest("hex");
+}
+
+function verificationBleSigningKey() {
+  const key = required("BLE_AUTH_SIGNING_KEY");
+  if (Buffer.byteLength(key, "utf8") < 32) {
+    fail("BLE 授权签名密钥长度不足，请配置至少 32 字节的 BLE_AUTH_SIGNING_KEY。", "BLE_SIGNING_KEY_INVALID");
+  }
+  return key;
+}
+
+function verificationBleAuthorizationPayload(input) {
+  return {
+    command: "enter_work",
+    device_id: input.deviceId,
+    device_type: input.deviceType,
+    nonce: input.nonce,
+    usage_count: input.unitCount,
+    issued_at: input.issuedAt,
+    expire_at: input.expireAt
+  };
+}
+
+function verificationBleSignature(payload) {
+  const canonical = [
+    ["command", payload.command],
+    ["device_id", payload.device_id],
+    ["device_type", payload.device_type],
+    ["usage_count", payload.usage_count],
+    ["expire_at", payload.expire_at],
+    ["issued_at", payload.issued_at],
+    ["nonce", payload.nonce]
+  ].map(([key, value]) => `${key}=${value}`).join("&");
+  return crypto.createHmac("sha256", verificationBleSigningKey())
+    .update(canonical, "utf8")
+    .digest("hex");
+}
+
+async function createVerificationBleQualification(event) {
+  const caller = await activeBusinessCaller(event);
+  await requireVerificationSubmissionSchema();
+  await requireVerificationFaceSubjectSchema();
+  await requireVerificationBleSchema();
+
+  const customerCode = String(event.customerCode || "").trim();
+  if (!customerCode || customerCode.length > 96) fail("必须先确认本门店的活跃客户。", "CUSTOMER_REQUIRED");
+  const productId = positiveDatabaseId(event.productId, "项目");
+  const unitCount = Number(event.unitCount);
+  if (!Number.isInteger(unitCount) || unitCount < 1 || unitCount > 999) {
+    fail("核销次数必须由办理人员选择，并且是 1 至 999 的整数。", "INVALID_UNIT_COUNT");
+  }
+  const verificationType = String(event.verificationType || "").trim().toUpperCase();
+  if (!["NORMAL", "EXPERIENCE"].includes(verificationType)) {
+    fail("仅支持正常核销或体验核销。", "INVALID_VERIFICATION_TYPE");
+  }
+  const experienceVerification = verificationType === "EXPERIENCE";
+  if (experienceVerification && caller.role !== "teacher") {
+    fail("体验核销只能由老师账号赠送，门店和总部账号不能发起。", "FORBIDDEN");
+  }
+  const requestedTeacherId = String(event.teacherId || "").trim();
+  if (caller.role === "teacher" && requestedTeacherId && requestedTeacherId !== String(caller.teacherId)) {
+    fail("老师账号只能把核销绑定到本人。", "FORBIDDEN");
+  }
+  const teacherId = caller.role === "teacher"
+    ? positiveDatabaseId(caller.teacherId, "老师")
+    : (requestedTeacherId ? positiveDatabaseId(requestedTeacherId, "老师") : "");
+  const message = String(event.message || "").trim();
+  if (message.length > 500) fail("门店留言不能超过 500 个字符。", "MESSAGE_TOO_LONG");
+  const faceRequestId = String(event.faceRequestId || "").trim();
+  const faceEvidenceToken = String(event.faceEvidenceToken || "").trim();
+  if (!/^[A-Za-z0-9_-]{8,128}$/.test(faceRequestId)) {
+    fail("必须先完成现场拍照及所选客户的 1:1 人脸验证。", "FACE_VERIFICATION_REQUIRED");
+  }
+  if (!/^[0-9a-f]{48}$/.test(faceEvidenceToken)) {
+    fail("现场人脸照片尚未安全保存，请重新拍照验证。", "FACE_PHOTO_EVIDENCE_REQUIRED");
+  }
+  if (experienceVerification) {
+    await requireTeacherExperienceQuotaLifecycleSchema();
+    await requireCustomerFaceExperienceSchema();
+  }
+
+  const customers = await executeSql(
+    `SELECT id, customer_code, customer_name
+       FROM public.customers
+      WHERE customer_code = ${sqlText(customerCode)}
+        AND created_store_id = ${caller.storeId}
+        AND customer_status = 'ACTIVE'
+      LIMIT 1`
+  );
+  const customer = customers[0];
+  if (!customer) fail("未找到本门店已确认的活跃客户。", "CUSTOMER_NOT_FOUND");
+  const products = await executeSql(
+    `SELECT id, product_code, product_name
+       FROM public.products
+      WHERE id = ${sqlText(productId)}::bigint
+        AND product_status = 'ACTIVE'
+      LIMIT 1`
+  );
+  const selectedProduct = products[0];
+  if (!selectedProduct) fail("所选项目不存在或已经封存，请重新选择。", "PRODUCT_NOT_ACTIVE");
+
+  let selectedTeacher = null;
+  if (teacherId) {
+    const teachers = await executeSql(
+      `SELECT teacher.id, teacher.teacher_code, teacher.teacher_name
+         FROM public.teachers AS teacher
+         JOIN public.staff_accounts AS account ON account.id = teacher.staff_account_id
+        WHERE teacher.id = ${sqlText(teacherId)}::bigint
+          AND teacher.teacher_status = 'ACTIVE'
+          AND account.role_code = 'teacher'
+          AND account.account_status = 'ACTIVE'
+        LIMIT 1`
+    );
+    selectedTeacher = teachers[0] || null;
+    if (!selectedTeacher) fail("所选老师不存在或已经封存，请重新选择。", "TEACHER_NOT_ACTIVE");
+  }
+  if (experienceVerification && !selectedTeacher) {
+    fail("体验核销必须绑定当前老师。", "TEACHER_REQUIRED");
+  }
+
+  const draftRows = await executeSql(
+    `SELECT evidence_token
+       FROM public.verification_photo_drafts
+      WHERE evidence_token = ${sqlText(faceEvidenceToken)}
+        AND store_id = ${caller.storeId}
+        AND customer_id = ${sqlText(customer.id)}::bigint
+        AND submitted_by_account_id = ${caller.staffId}
+        AND face_request_id = ${sqlText(faceRequestId)}
+        AND face_subject_type = 'CUSTOMER'
+        AND consumed_at IS NULL
+        AND expires_at > CLOCK_TIMESTAMP()
+      LIMIT 1`
+  );
+  if (!draftRows[0]) {
+    fail("现场人脸照片已过期、已使用或不属于当前提交，请重新拍照验证。", "FACE_PHOTO_EVIDENCE_INVALID");
+  }
+
+  if (experienceVerification) {
+    const quotaRows = await executeSql(
+      `SELECT available_count
+         FROM public.teacher_product_experience_quotas
+        WHERE teacher_id = ${sqlText(teacherId)}::bigint
+          AND product_id = ${sqlText(productId)}::bigint
+        LIMIT 1`
+    );
+    if (!quotaRows[0]) fail("该老师尚未配置这个项目的体验次数。", "TEACHER_EXPERIENCE_QUOTA_NOT_CONFIGURED");
+    if (Number(quotaRows[0].available_count || 0) < unitCount) {
+      fail("该老师该项目的体验次数不足。", "TEACHER_EXPERIENCE_QUOTA_EXHAUSTED");
+    }
+  } else {
+    const balanceRows = await executeSql(
+      `SELECT remaining_count
+         FROM public.customer_product_balances
+        WHERE customer_id = ${sqlText(customer.id)}::bigint
+          AND product_id = ${sqlText(productId)}::bigint
+        LIMIT 1`
+    );
+    if (Number(balanceRows?.[0]?.remaining_count || 0) < unitCount) {
+      fail("该客户所选项目的剩余次数不足。", "INSUFFICIENT_BALANCE");
+    }
+  }
+
+  const idempotencyKey = rechargeSubmissionKey(event.clientRequestId);
+  const deviceType = verificationDeviceType(selectedProduct.product_name);
+  const existingRows = await executeSql(
+    `SELECT qualification.*, customer.customer_code, customer.customer_name,
+            product.product_code, product.product_name,
+            teacher.teacher_code, teacher.teacher_name
+       FROM public.verification_ble_qualifications AS qualification
+       JOIN public.customers AS customer ON customer.id = qualification.customer_id
+       JOIN public.products AS product ON product.id = qualification.product_id
+       LEFT JOIN public.teachers AS teacher ON teacher.id = qualification.teacher_id
+      WHERE qualification.idempotency_key = ${sqlText(idempotencyKey)}
+      LIMIT 1`
+  );
+  let qualification = existingRows[0];
+  if (qualification) {
+    const sameRequest = String(qualification.store_id) === String(caller.storeId)
+      && String(qualification.submitted_by_account_id) === String(caller.staffId)
+      && String(qualification.verification_type) === verificationType
+      && String(qualification.teacher_id || "") === String(teacherId)
+      && String(qualification.customer_id) === String(customer.id)
+      && String(qualification.product_id) === String(productId)
+      && Number(qualification.unit_count) === unitCount
+      && String(qualification.face_request_id) === faceRequestId
+      && String(qualification.face_evidence_token) === faceEvidenceToken;
+    if (!sameRequest) fail("该防重复提交编号已经用于另一笔核销。", "IDEMPOTENCY_CONFLICT");
+  } else {
+    const token = crypto.randomBytes(24).toString("hex");
+    const teacherSql = teacherId ? `${sqlText(teacherId)}::bigint` : "NULL";
+    try {
+      const inserted = await executeSql(
+        `INSERT INTO public.verification_ble_qualifications
+           (qualification_token, verification_type, store_id, teacher_id, customer_id,
+            product_id, unit_count, submitted_by_account_id, message, face_request_id,
+            face_evidence_token, idempotency_key, expected_device_type, expires_at)
+         VALUES
+           (${sqlText(token)}, ${sqlText(verificationType)}, ${caller.storeId}, ${teacherSql},
+            ${sqlText(customer.id)}::bigint, ${sqlText(productId)}::bigint, ${unitCount},
+            ${caller.staffId}, ${sqlText(message)}, ${sqlText(faceRequestId)},
+            ${sqlText(faceEvidenceToken)}, ${sqlText(idempotencyKey)}, ${sqlText(deviceType)},
+            NOW() + INTERVAL '90 seconds')
+         RETURNING *`
+      );
+      qualification = inserted[0];
+    } catch (error) {
+      if (!String(error?.message || "").toLowerCase().includes("unique")) throw error;
+      fail("同一核销请求正在建立 BLE 资格，请立即点击恢复，不要重复提交。", "BLE_QUALIFICATION_RACE");
+    }
+  }
+
+  if (qualification.verification_id) {
+    return recoverBusinessSubmission({ ...event, recordType: "VERIFICATION", clientRequestId: event.clientRequestId });
+  }
+  const expiresAt = new Date(qualification.expires_at).getTime();
+  if (qualification.qualification_status === "CANCELLED" || expiresAt <= Date.now()) {
+    await executeSql(
+      `UPDATE public.verification_ble_qualifications
+          SET qualification_status = 'EXPIRED', updated_at = CLOCK_TIMESTAMP()
+        WHERE id = ${sqlText(qualification.id)}::bigint
+          AND verification_id IS NULL`
+    );
+    fail("本次人脸核验后的 90 秒 BLE 资格已过期，请重新拍照验证。", "BLE_QUALIFICATION_EXPIRED");
+  }
+  return {
+    ok: true,
+    complete: false,
+    qualificationToken: qualification.qualification_token,
+    qualificationStatus: qualification.qualification_status,
+    expiresAt: qualification.expires_at,
+    validSeconds: Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)),
+    expectedDeviceType: qualification.expected_device_type,
+    unitCount: Number(qualification.unit_count),
+    verificationType: qualification.verification_type,
+    customer: { customerCode: customer.customer_code, customerName: customer.customer_name },
+    product: { productId: String(selectedProduct.id), productCode: selectedProduct.product_code, productName: selectedProduct.product_name },
+    teacher: selectedTeacher ? {
+      teacherId: String(selectedTeacher.id), teacherCode: selectedTeacher.teacher_code, teacherName: selectedTeacher.teacher_name
+    } : null
+  };
+}
+
+async function recoverVerificationBleQualification(event) {
+  const caller = await activeBusinessCaller(event);
+  await requireVerificationBleSchema();
+  const idempotencyKey = rechargeSubmissionKey(event.clientRequestId);
+  const rows = await executeSql(
+    `SELECT qualification.*, customer.customer_code, customer.customer_name,
+            product.product_code, product.product_name,
+            teacher.teacher_code, teacher.teacher_name
+       FROM public.verification_ble_qualifications AS qualification
+       JOIN public.customers AS customer ON customer.id = qualification.customer_id
+       JOIN public.products AS product ON product.id = qualification.product_id
+       LEFT JOIN public.teachers AS teacher ON teacher.id = qualification.teacher_id
+      WHERE qualification.idempotency_key = ${sqlText(idempotencyKey)}
+      LIMIT 1`
+  );
+  const qualification = rows[0];
+  if (!qualification) return { ok: true, found: false, complete: false };
+  if (String(qualification.store_id) !== String(caller.storeId)
+      || String(qualification.submitted_by_account_id) !== String(caller.staffId)) {
+    fail("该 BLE 核销资格不属于当前账号和门店。", "FORBIDDEN");
+  }
+  if (qualification.verification_id) {
+    return recoverBusinessSubmission({ ...event, recordType: "VERIFICATION" });
+  }
+  const expiresAt = new Date(qualification.expires_at).getTime();
+  const expired = expiresAt <= Date.now() || qualification.qualification_status === "EXPIRED";
+  if (expired && qualification.qualification_status !== "EXPIRED") {
+    await executeSql(
+      `UPDATE public.verification_ble_qualifications
+          SET qualification_status = 'EXPIRED', updated_at = CLOCK_TIMESTAMP()
+        WHERE id = ${sqlText(qualification.id)}::bigint
+          AND verification_id IS NULL`
+    );
+  }
+  return {
+    ok: true, found: true, complete: false,
+    expired,
+    qualificationToken: qualification.qualification_token,
+    qualificationStatus: expired ? "EXPIRED" : qualification.qualification_status,
+    expiresAt: qualification.expires_at,
+    validSeconds: expired ? 0 : Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)),
+    expectedDeviceType: qualification.expected_device_type,
+    unitCount: Number(qualification.unit_count),
+    verificationType: qualification.verification_type,
+    customer: { customerCode: qualification.customer_code, customerName: qualification.customer_name },
+    product: {
+      productId: String(qualification.product_id), productCode: qualification.product_code,
+      productName: qualification.product_name
+    },
+    teacher: qualification.teacher_id ? {
+      teacherId: String(qualification.teacher_id), teacherCode: qualification.teacher_code,
+      teacherName: qualification.teacher_name
+    } : null
+  };
+}
+
+async function issueVerificationBleAuthorization(event) {
+  const caller = await activeBusinessCaller(event);
+  await requireVerificationBleSchema();
+  const qualificationToken = String(event.qualificationToken || "").trim();
+  const qrSn = String(event.qrSn || "").trim().toUpperCase();
+  const qrCode = String(event.qrCode || "").trim();
+  const device = event.deviceInfo && typeof event.deviceInfo === "object" ? event.deviceInfo : {};
+  const deviceId = String(device.device_id || device.deviceId || "").trim().toUpperCase();
+  const deviceType = String(device.device_type || device.deviceType || "").trim().toLowerCase();
+  const bleName = String(device.ble_name || device.bleName || "").trim();
+  const nonce = String(device.nonce || "").trim();
+  const status = Number(device.status);
+  if (!/^[0-9a-f]{48}$/.test(qualificationToken)) fail("BLE 核销资格无效。", "BLE_QUALIFICATION_INVALID");
+  if (!/^NCM[0-9A-F]{11}$/.test(qrSn) || !/^\d{6}$/.test(qrCode)) fail("设备二维码格式不正确。", "BLE_QR_INVALID");
+  if (deviceId !== qrSn) fail("二维码编号与蓝牙设备编号不一致。", "BLE_DEVICE_ID_MISMATCH");
+  if (!/^[a-z0-9]+$/.test(deviceType)) fail("设备类型格式不正确。", "BLE_DEVICE_TYPE_INVALID");
+  if (bleName !== `NCM-${qrSn.slice(-6)}`) fail("设备蓝牙名称与二维码不一致。", "BLE_NAME_MISMATCH");
+  if (!/^[0-9a-fA-F]{32}$/.test(nonce)) fail("设备随机数格式不正确。", "BLE_NONCE_INVALID");
+  if (status !== 1) fail(status === 2 ? "设备正在服务中，不能重复授权。" : "设备尚未进入待机状态。", "BLE_DEVICE_NOT_READY");
+
+  const qualificationRows = await executeSql(
+    `SELECT * FROM public.verification_ble_qualifications
+      WHERE qualification_token = ${sqlText(qualificationToken)}
+        AND store_id = ${caller.storeId}
+        AND submitted_by_account_id = ${caller.staffId}
+      LIMIT 1`
+  );
+  const qualification = qualificationRows[0];
+  if (!qualification) fail("未找到属于当前账号的 BLE 核销资格。", "BLE_QUALIFICATION_NOT_FOUND");
+  if (qualification.verification_id || qualification.qualification_status === "COMPLETED") {
+    fail("这笔核销已经完成，二维码窗口已永久关闭。", "BLE_ALREADY_FINALIZED");
+  }
+  if (new Date(qualification.expires_at).getTime() <= Date.now()) {
+    fail("90 秒 BLE 核销资格已过期，请重新拍照验证。", "BLE_QUALIFICATION_EXPIRED");
+  }
+  if (qualification.expected_device_type !== deviceType) {
+    fail(`设备类型不匹配：本次需要 ${qualification.expected_device_type}。`, "BLE_DEVICE_TYPE_MISMATCH");
+  }
+
+  const previousAuthorizationRows = await executeSql(
+    `SELECT authorization_token, authorization_status, verification_id, expires_at
+       FROM public.verification_ble_authorizations
+      WHERE qualification_id = ${sqlText(qualification.id)}::bigint
+      LIMIT 1`
+  );
+  const previousAuthorization = previousAuthorizationRows[0];
+  if (previousAuthorization) {
+    if (previousAuthorization.verification_id || previousAuthorization.authorization_status === "FINALIZED") {
+      fail("这笔核销已经完成，二维码窗口已永久关闭。", "BLE_ALREADY_FINALIZED");
+    }
+    fail("这次人脸资格已经签发过设备授权，不能更换设备或重复开机。", "BLE_AUTHORIZATION_ALREADY_ISSUED");
+  }
+
+  const registeredRows = await executeSql(
+    `SELECT * FROM public.verification_ble_devices
+      WHERE qr_sn = ${sqlText(qrSn)}
+        AND device_id = ${sqlText(deviceId)}
+        AND device_type = ${sqlText(deviceType)}
+        AND ble_name = ${sqlText(bleName)}
+        AND pairing_code_hash = ${sqlText(sha256Text(qrCode))}
+        AND device_status = 'ACTIVE'
+      LIMIT 1`
+  );
+  if (!registeredRows[0]) fail("设备未登记、已停用或二维码配对码不正确。", "BLE_DEVICE_NOT_PROVISIONED");
+
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const qualificationExpireAt = Math.floor(new Date(qualification.expires_at).getTime() / 1000);
+  const expireAt = Math.min(issuedAt + 30, qualificationExpireAt);
+  if (expireAt <= issuedAt) {
+    fail("90 秒 BLE 核销资格已过期，请重新拍照验证。", "BLE_QUALIFICATION_EXPIRED");
+  }
+  const payload = verificationBleAuthorizationPayload({
+    deviceId, deviceType, nonce, unitCount: Number(qualification.unit_count), issuedAt, expireAt
+  });
+  const signature = verificationBleSignature(payload);
+  const authorizationToken = crypto.randomBytes(24).toString("hex");
+  try {
+    await executeSql(
+      `INSERT INTO public.verification_ble_authorizations
+        (authorization_token, qualification_id, qr_sn, qr_code_hash, device_id,
+         device_type, nonce, unit_count, issued_at, expires_at, signature_hash)
+       VALUES
+        (${sqlText(authorizationToken)}, ${sqlText(qualification.id)}::bigint,
+         ${sqlText(qrSn)}, ${sqlText(sha256Text(qrCode))}, ${sqlText(deviceId)},
+         ${sqlText(deviceType)}, ${sqlText(nonce)}, ${Number(qualification.unit_count)},
+         TO_TIMESTAMP(${issuedAt}), TO_TIMESTAMP(${expireAt}), ${sqlText(sha256Text(signature))})`
+    );
+  } catch (error) {
+    const detail = String(error?.message || "").toLowerCase();
+    if (detail.includes("qualification_id")) {
+      fail("这次人脸资格已经签发过设备授权，不能重复开机。", "BLE_AUTHORIZATION_ALREADY_ISSUED");
+    }
+    if (detail.includes("unique")) fail("该设备随机数已经使用，请重新读取设备状态。", "BLE_NONCE_REUSED");
+    throw error;
+  }
+  await executeSql(
+    `UPDATE public.verification_ble_qualifications
+        SET qualification_status = 'AUTHORIZED', updated_at = CLOCK_TIMESTAMP()
+      WHERE id = ${sqlText(qualification.id)}::bigint
+        AND verification_id IS NULL`
+  );
+  return {
+    ok: true,
+    authorizationToken,
+    expiresAt: new Date(expireAt * 1000).toISOString(),
+    authCommand: {
+      ver: "1.0",
+      seq: 2,
+      cmd: "auth",
+      auth: {
+        ...payload,
+        signature
+      }
+    }
+  };
+}
+
+async function confirmVerificationBleWorkStarted(event) {
+  const caller = await activeBusinessCaller(event);
+  await requireVerificationBleSchema();
+  const authorizationToken = String(event.authorizationToken || "").trim();
+  const result = event.deviceResult && typeof event.deviceResult === "object" ? event.deviceResult : {};
+  const deviceId = String(result.device_id || result.deviceId || "").trim().toUpperCase();
+  const deviceType = String(result.device_type || result.deviceType || "").trim().toLowerCase();
+  const nonce = String(result.nonce || "").trim();
+  if (!/^[0-9a-f]{48}$/.test(authorizationToken)) fail("BLE 设备授权回执无效。", "BLE_AUTHORIZATION_INVALID");
+  if (result.ok !== true || Number(result.status) !== 2) {
+    fail("设备尚未确认进入工作状态，本次没有核销。", "BLE_DEVICE_NOT_WORKING");
+  }
+  const rows = await executeSql(
+    `SELECT authorization.*, qualification.verification_type, qualification.store_id,
+            qualification.teacher_id, qualification.customer_id, qualification.product_id,
+            qualification.submitted_by_account_id, qualification.message,
+            qualification.face_request_id, qualification.face_evidence_token,
+            qualification.idempotency_key, qualification.qualification_token
+       FROM public.verification_ble_authorizations AS authorization
+       JOIN public.verification_ble_qualifications AS qualification
+         ON qualification.id = authorization.qualification_id
+      WHERE authorization.authorization_token = ${sqlText(authorizationToken)}
+      LIMIT 1`
+  );
+  const authorization = rows[0];
+  if (!authorization) fail("未找到 BLE 设备授权。", "BLE_AUTHORIZATION_NOT_FOUND");
+  if (String(authorization.store_id) !== String(caller.storeId)
+      || String(authorization.submitted_by_account_id) !== String(caller.staffId)) {
+    fail("该 BLE 授权不属于当前账号和门店。", "FORBIDDEN");
+  }
+  if (deviceId !== String(authorization.device_id)
+      || deviceType !== String(authorization.device_type)
+      || nonce !== String(authorization.nonce)) {
+    fail("设备工作回执与本次授权不一致，已禁止核销。", "BLE_DEVICE_RECEIPT_MISMATCH");
+  }
+  if (authorization.verification_id) {
+    return recoverBusinessSubmission({
+      ...event,
+      recordType: "VERIFICATION",
+      clientRequestId: String(authorization.idempotency_key)
+    });
+  }
+  if (!["ISSUED", "DEVICE_WORKING"].includes(String(authorization.authorization_status))) {
+    fail("这张一次性设备授权已经失效，禁止继续核销。", "BLE_AUTHORIZATION_NOT_ACTIVE");
+  }
+  if (authorization.authorization_status === "ISSUED"
+      && new Date(authorization.expires_at).getTime() <= Date.now()) {
+    await executeSql(
+      `UPDATE public.verification_ble_authorizations
+          SET authorization_status = 'EXPIRED', updated_at = CLOCK_TIMESTAMP()
+        WHERE id = ${sqlText(authorization.id)}::bigint
+          AND authorization_status = 'ISSUED'
+          AND verification_id IS NULL`
+    );
+    fail("设备没有在一次性授权有效期内进入工作状态，本次没有核销。", "BLE_AUTHORIZATION_EXPIRED");
+  }
+  await executeSql(
+    `UPDATE public.verification_ble_authorizations
+        SET authorization_status = 'DEVICE_WORKING',
+            updated_at = CLOCK_TIMESTAMP()
+      WHERE id = ${sqlText(authorization.id)}::bigint
+        AND authorization_status = 'ISSUED'
+        AND verification_id IS NULL`
+  );
+
+  const customerRows = await executeSql(
+    `SELECT customer_code FROM public.customers WHERE id = ${sqlText(authorization.customer_id)}::bigint LIMIT 1`
+  );
+  const finalResult = await finalizeVerificationApplicationInternal({
+    ...event,
+    storeId: String(authorization.store_id),
+    customerCode: customerRows?.[0]?.customer_code,
+    productId: String(authorization.product_id),
+    unitCount: Number(authorization.unit_count),
+    teacherId: authorization.teacher_id ? String(authorization.teacher_id) : "",
+    verificationType: authorization.verification_type,
+    message: authorization.message,
+    faceRequestId: authorization.face_request_id,
+    faceEvidenceToken: authorization.face_evidence_token,
+    clientRequestId: String(authorization.idempotency_key),
+    _trustedBleIdempotencyKey: String(authorization.idempotency_key)
+  });
+  await executeSql(
+    `UPDATE public.verification_ble_authorizations
+        SET authorization_status = 'FINALIZED', verification_id = ${sqlText(finalResult.verificationId)}::bigint,
+            updated_at = CLOCK_TIMESTAMP()
+      WHERE id = ${sqlText(authorization.id)}::bigint`
+  );
+  await executeSql(
+    `UPDATE public.verification_ble_qualifications
+        SET qualification_status = 'COMPLETED', verification_id = ${sqlText(finalResult.verificationId)}::bigint,
+            updated_at = CLOCK_TIMESTAMP()
+      WHERE id = ${sqlText(authorization.qualification_id)}::bigint`
+  );
+  return { ...finalResult, bleFinalized: true, bleDeviceId: deviceId };
+}
+
+async function finalizeVerificationApplicationInternal(event) {
   const caller = await activeBusinessCaller(event);
   const customerCode = String(event.customerCode || "").trim();
   if (!customerCode || customerCode.length > 96) fail("必须先确认本门店的活跃客户。", "CUSTOMER_REQUIRED");
@@ -3830,7 +4365,9 @@ async function createVerificationApplication(event) {
   if (!/^[0-9a-f]{48}$/.test(faceEvidenceToken)) {
     fail("现场人脸照片尚未安全保存，请重新拍照验证。", "FACE_PHOTO_EVIDENCE_REQUIRED");
   }
-  const idempotencyKey = rechargeSubmissionKey(event.clientRequestId);
+  const idempotencyKey = event._trustedBleIdempotencyKey
+    ? String(event._trustedBleIdempotencyKey)
+    : rechargeSubmissionKey(event.clientRequestId);
   await requireVerificationSubmissionSchema();
   await requireVerificationFaceSubjectSchema();
   if (experienceVerification) {
@@ -6046,7 +6583,13 @@ exports.main = async (event = {}, context = {}) => {
     if (action === "getTeacherExperienceEntitlements") return await getTeacherExperienceEntitlements(event);
     if (action === "createRechargeApplication") return await createRechargeApplication(event);
     if (action === "createRetailProductPurchaseApplication") return await createRetailProductPurchaseApplication(event);
-    if (action === "createVerificationApplication") return await createVerificationApplication(event);
+    if (action === "createVerificationBleQualification") return await createVerificationBleQualification(event);
+    if (action === "recoverVerificationBleQualification") return await recoverVerificationBleQualification(event);
+    if (action === "issueVerificationBleAuthorization") return await issueVerificationBleAuthorization(event);
+    if (action === "confirmVerificationBleWorkStarted") return await confirmVerificationBleWorkStarted(event);
+    if (action === "createVerificationApplication") {
+      fail("核销必须在人脸通过后连接 BLE 设备，旧直写入口已经关闭。", "BLE_REQUIRED");
+    }
     if (action === "recoverBusinessSubmission") return await recoverBusinessSubmission(event);
     if (action === "getActiveStoreCustomerDetail") return await getActiveStoreCustomerDetail(event);
     if (action === "getCustomerPhotoUrl") return await getCustomerPhotoUrl(event);

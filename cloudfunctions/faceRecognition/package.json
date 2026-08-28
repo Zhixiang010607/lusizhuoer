@@ -6,6 +6,7 @@
   "dependencies": {
     "@cloudbase/manager-node": "5.6.4",
     "@cloudbase/node-sdk": "3.18.3",
+    "pinyin-pro": "3.27.0",
     "tencentcloud-sdk-nodejs": "^4.1.188"
   }
 }

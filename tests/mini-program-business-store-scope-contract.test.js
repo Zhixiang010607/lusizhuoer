@@ -89,6 +89,16 @@ function loadPage(relativeFile, session = teacherSession) {
           recover: async () => ({ found: false, complete: false })
         };
       }
+      if (id === "../../services/ble-verification") {
+        return {
+          BleVerificationSession: class {},
+          readProgress: () => null,
+          saveProgress() {},
+          clearProgress() {},
+          retryFinalization: async () => null,
+          errorFeedback: (error) => ({ message: String(error && error.message || "蓝牙连接失败"), recoverable: true })
+        };
+      }
       throw new Error(`unexpected require ${id}`);
     }
   };
@@ -257,9 +267,9 @@ test("store-scoped controls stay disabled until the embedded store and customer 
   assert.match(purchase, /<textarea[^>]*disabled="\{\{!customer\}\}"[^>]*placeholder="\{\{customer \?/,
     "product-purchase notes must be disabled before a customer is confirmed");
 
-  assert.match(verification, /<camera-capture wx:if="\{\{customer && selectedProduct && teacherReady && unitCountValid\}\}"/,
+  assert.match(verification, /<camera-capture wx:if="\{\{customer && selectedProduct && teacherReady && unitCountValid && !qualificationActive\}\}"/,
     "verification camera access must wait for the complete scoped selection while allowing a store to omit the teacher");
-  assert.match(verification, /<textarea[^>]*disabled="\{\{!customer\}\}"[^>]*placeholder="\{\{customer \?/,
+  assert.match(verification, /<textarea[^>]*disabled="\{\{qualificationActive \|\| !customer\}\}"[^>]*placeholder="\{\{customer \?/,
     "verification notes must be disabled before a customer is confirmed");
 });
 

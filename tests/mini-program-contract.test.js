@@ -119,11 +119,13 @@ assert.match(recharge, /category=\$\{category\}/);
 assert.match(recharge, /showRecovered\(result\)[\s\S]*submission\.confirm\("RECHARGE", result\.rechargeId\)[\s\S]*this\.openSubmittedOrder\(result, confirmedIntent\)/);
 
 const verification = read("pages", "verification", "index.js");
-for (const token of ["getTeacherExperienceEntitlements", "getCustomerProductBalances", "verifyCustomerFace", "createVerificationApplication"]) assert.ok(verification.includes(token));
+for (const token of ["getTeacherExperienceEntitlements", "getCustomerProductBalances", "verifyCustomerFace", "createVerificationBleQualification"]) assert.ok(verification.includes(token));
+const bleVerification = read("services", "ble-verification.js");
+for (const token of ["issueVerificationBleAuthorization", "confirmVerificationBleWorkStarted"]) assert.ok(bleVerification.includes(token));
 assert.match(verification, /experience && session\.role !== "teacher"/);
 assert.match(verification, /verificationType: this\.data\.experience \? "EXPERIENCE" : "NORMAL"/);
-assert.ok(verification.indexOf('callFace("verifyCustomerFace"') < verification.indexOf('callFace("createVerificationApplication"'));
-assert.ok(verification.indexOf('submission.begin("VERIFICATION"') < verification.indexOf('callFace("createVerificationApplication"'));
+assert.ok(verification.indexOf('callFace("verifyCustomerFace"') < verification.indexOf('callFace("createVerificationBleQualification"'));
+assert.ok(verification.indexOf('submission.begin("VERIFICATION"') < verification.indexOf('callFace("createVerificationBleQualification"'));
 assert.match(verification, /pages\/order-detail\/index\?type=verification/);
 assert.match(verification, /openSubmittedOrder\(result, intent\)[\s\S]*wx\.redirectTo\(\{/);
 assert.match(verification, /category=\$\{category\}/);
@@ -139,6 +141,14 @@ function submissionPageHarness(source) {
       if (id === "../../services/api") return { callFace: async () => ({}) };
       if (id === "../../services/session") return { requireSession: () => null, getSelectedStore: () => null };
       if (id === "../../services/submission") return {};
+      if (id === "../../services/ble-verification") return {
+        BleVerificationSession: class {},
+        parseDeviceQr() { return {}; },
+        readBleProgress() { return null; },
+        saveBleProgress() {},
+        clearBleProgress() {},
+        errorFeedback(error) { return { title: "BLE", message: error?.message || "", advice: "", code: "" }; }
+      };
       throw new Error(`unexpected page dependency ${id}`);
     },
     wx: {

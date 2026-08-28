@@ -49,6 +49,13 @@ function businessPage(relativeFile) {
     "../../services/api": { callFace: async () => ({}) },
     "../../services/session": { requireSession: () => null, getSelectedStore: () => null },
     "../../services/submission": submissionStub(),
+    "../../services/ble-verification": {
+      BleVerificationSession: class {},
+      readProgress: () => null,
+      saveProgress() {}, clearProgress() {},
+      retryFinalization: async () => null,
+      errorFeedback: (error) => ({ message: String(error && error.message || "蓝牙连接失败"), recoverable: true })
+    },
     wx: { reLaunch() {}, redirectTo() {}, showModal() {} }
   });
 }
@@ -103,6 +110,13 @@ test("store verification customer changes clear teacher, project, note, camera, 
     "../../services/api": { callFace: async () => ({}) },
     "../../services/session": { requireSession: () => null, getSelectedStore: () => null },
     "../../services/submission": submissionStub(),
+    "../../services/ble-verification": {
+      BleVerificationSession: class {},
+      readProgress: () => null,
+      saveProgress() {}, clearProgress() {},
+      retryFinalization: async () => null,
+      errorFeedback: (error) => ({ message: String(error && error.message || "蓝牙连接失败"), recoverable: true })
+    },
     selectComponent: () => ({ reset() { cameraResetCount += 1; } }),
     wx: { reLaunch() {}, redirectTo() {}, showModal() {} }
   });
@@ -158,7 +172,8 @@ test("store verification customer changes clear teacher, project, note, camera, 
 
   const source = pageSource("pages/verification/index.js");
   assert.doesNotMatch(source, /已审核核销/, "normal and experience verification complete immediately without review");
-  assert.match(source, /已完成核销/);
+  assert.match(source, /设备已进入工作状态/,
+    "verification completion must be gated by the device entering working state");
 });
 
 function customerCreatePage(registerResult, redirects) {
