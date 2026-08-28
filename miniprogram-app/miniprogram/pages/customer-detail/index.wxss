@@ -120,6 +120,9 @@
   .section-message { margin-top: 10px; padding: 10px 12px; border-radius: 9px; font-size: 13px; }
   .customer-communication-grid, .customer-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 16px; margin-bottom: 16px; }
   .customer-communication-grid > .card, .customer-summary-grid > .card { height: 100%; margin: 0; }
+  .customer-communication-grid > .notes-card { display: flex; flex-direction: column; }
+  .customer-communication-grid > .notes-card .notes-read,
+  .customer-communication-grid > .notes-card .notes-input { height: auto; min-height: 178px; flex: 1; }
   .notes-actions { gap: 6px; }
   .notes-actions button { min-width: 72px; min-height: 40px; padding: 0 11px; border-radius: 9px; font-size: 13px; }
   .notes-read, .notes-input { height: 178px; min-height: 178px; padding: 14px 16px; border-width: 1px; border-radius: 12px; }

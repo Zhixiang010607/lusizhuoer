@@ -177,6 +177,10 @@ test("store and teacher customer/order details use compact adaptive tablet works
   assert.match(customerWxml, /class="retail-summary-scroll" data-visible-rows="\{\{retailProductSummary\.length > 5 \? 5 : retailProductSummary\.length\}\}"/);
   assert.match(customerWxml, /class="table-scroll record-scroll"[^>]*data-visible-rows="\{\{visibleHistory\.length > 5 \? 5 : visibleHistory\.length\}\}"[^>]*scroll-y="\{\{visibleHistory\.length > 5\}\}"/);
   assert.match(customerWxss, /@media \(min-width: 700px\)[\s\S]*?\.customer-communication-grid, \.customer-summary-grid \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s);
+  assert.match(customerWxss, /\.customer-communication-grid > \.notes-card \{ display: flex; flex-direction: column; \}/,
+    "the tablet note card must expose a vertical fill context beside the taller message card");
+  assert.match(customerWxss, /\.customer-communication-grid > \.notes-card \.notes-read,[\s\S]*?\.customer-communication-grid > \.notes-card \.notes-input \{ height: auto; min-height: 178px; flex: 1; \}/,
+    "read and edit note borders should both fill the remaining paired-card height");
   assert.match(customerWxss, /\.record-scroll\[data-visible-rows="5"\] \{ height: 308px; \}/);
   assert.match(orderWxml, /class="order-secondary-grid"/);
   assert.match(orderWxss, /@media \(min-width: 700px\)[\s\S]*?\.order-hero \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto;/s,
