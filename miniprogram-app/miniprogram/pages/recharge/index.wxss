@@ -27,8 +27,7 @@
 @media (min-width: 700px) {
   .workflow-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 16px; }
   .workflow-grid > .card { height: 100%; margin: 0; }
-  .workflow-grid .workflow-wide,
-  .workflow-grid > .store-picker-card { grid-column: 1 / -1; height: auto; }
+  .workflow-grid .workflow-wide { grid-column: 1 / -1; height: auto; }
   .gift-add-row { gap: 12px; margin-top: 14px; }
   .gift-quantity { flex: 0 0 100px; width: 100px; padding: 0 12px; }
   .gift-plus { flex: 0 0 48px; width: 48px; min-width: 48px; height: 48px; min-height: 48px; font-size: 28px; }

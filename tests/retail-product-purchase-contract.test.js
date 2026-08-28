@@ -93,7 +93,7 @@ assert.match(authUi, /product-purchase-review\.html/);
 assert.match(miniApp, /"root": "pages\/product-purchase", "pages": \["index"\]/);
 assert.match(miniHome, /bindtap="openProductPurchase">产品购买/);
 assert.match(miniHome, /data-type="product-purchase" bindtap="openReview">产品购买审核/);
-assert.match(miniCreate, /<customer-picker store-id="\{\{store\.id\}\}"/,
+assert.match(miniCreate, /<customer-picker(?: wx:if="\{\{store\.id\}\}")? store-id="\{\{store\.id\}\}"/,
   "mini-program purchase must reuse the established store-scoped customer picker");
 assert.match(miniCreate, /第二步：填写购买信息/);
 assert.doesNotMatch(miniCreate, /chooseMedia|capturePhoto|faceImage|faceConsent/);

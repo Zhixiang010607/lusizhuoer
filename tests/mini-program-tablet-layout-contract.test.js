@@ -93,25 +93,31 @@ test("query and review pages use compact tablet filters and five-row result view
   assert.doesNotMatch(reviewsWxml, /class="fixed-type"/,
     "review type already comes from the active review tab and must not be repeated as an odd filter tile");
   assert.match(reviewsWxss, /\.filter-switches\.has-review-types \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s);
-  assert.match(reviewsWxss, /\.review-filter-grid \{[^}]*grid-template-columns: minmax\(0, 1\.15fr\) minmax\(0, 1\.15fr\) minmax\(0, \.85fr\) minmax\(0, \.85fr\);/s,
-    "review fields should retain more room than the paired query actions on tablets");
-  assert.match(reviewsWxss, /\.filter-card \.review-type-tabs button, \.filter-card \.mode-tabs button \{[^}]*height: 38px;[^}]*min-height: 38px;[^}]*font-size: 14px;/s,
+  assert.match(reviewsWxss, /\.review-filter-grid \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/s,
+    "review store, status, query, and reset must be four equal outer columns on tablets");
+  assert.match(reviewsWxss, /\.filter-card \.review-type-tabs button, \.filter-card \.mode-tabs button \{[^}]*height: 36px;[^}]*min-height: 36px;[^}]*font-size: 13px;/s,
     "review switches must stop at one compact tablet height");
-  assert.match(reviewsWxss, /\.field input, \.field textarea, \.picker \{[^}]*min-height: 42px;[^}]*height: 42px;[^}]*font-size: 14px;/s,
-    "review filter fields must align on one compact physical baseline");
-  assert.match(reviewsWxss, /\.button-row\.review-query-actions \{ grid-column: span 2; align-self: end; gap: 10px; margin-top: 0; \}/,
-    "store, status, query, and reset must form one balanced tablet row");
-  assert.match(reviewsWxss, /\.filter-card \.review-query-actions button \{[^}]*height: 42px;[^}]*min-height: 42px;[^}]*font-size: 14px;/s,
+  assert.match(reviewsWxss, /\.review-filter-grid \.field > \.field-label \{[^}]*font-size: 22rpx;[^}]*font-weight: 700;/s,
+    "phone review labels must use the same 22rpx query typography as customer and record queries");
+  assert.match(reviewsWxss, /@media \(min-width: 700px\)[\s\S]*?\.review-filter-grid \.field > \.field-label \{[^}]*font-size: 13px;[^}]*font-weight: 700;/s,
+    "tablet review labels must use the same 13px query typography as customer and record queries");
+  assert.match(reviewsWxss, /\.field input, \.field textarea, \.picker,\s*\.review-filter-grid \.field input, \.review-filter-grid \.picker \{[^}]*min-height: 38px;[^}]*height: 38px;[^}]*font-size: 13px;/s,
+    "the tablet override must match the earlier high-specificity review picker rule so fields really align on one compact physical baseline");
+  assert.match(reviewsWxss, /\.review-action-cell \{ align-self: start; margin-top: 0; \}/,
+    "each review action must occupy one direct tablet grid cell from the same top baseline");
+  assert.match(reviewsWxss, /\.review-filter-grid \.field > \.field-label \{[^}]*font-size: 13px;[^}]*font-weight: 700;/s,
+    "the tablet override must match the earlier high-specificity review label rule and reuse the established query label typography");
+  assert.match(reviewsWxss, /\.review-action-cell::before \{[^}]*height: 16px;[^}]*margin-bottom: 5px;/s,
+    "review actions must reserve the same label line so their controls align with the picker top edge");
+  assert.match(reviewsWxss, /\.filter-card \.review-action-cell button \{[^}]*width: 100%;[^}]*height: 38px;[^}]*min-height: 38px;[^}]*font-size: 13px;/s,
     "review query actions must exactly match the adjacent filter field height");
-  assert.ok(
-    reviewsWxss.lastIndexOf(".button-row.review-query-actions") > reviewsWxss.lastIndexOf(".button-row, .dialog-actions"),
-    "the review action alignment override must follow the generic button margin rule"
-  );
-  assert.match(reviewsWxss, /@media \(min-width: 700px\)[\s\S]*?\.review-table \{ width: 100%; min-width: 904px; \}/s,
+  assert.doesNotMatch(reviewsWxml, /button-row review-query-actions/,
+    "review query actions must not be nested into a separate two-column wrapper");
+  assert.match(reviewsWxss, /@media \(min-width: 700px\)[\s\S]*?\.review-table \{ width: 100%; min-width: 934px; \}/s,
     "review columns should fill the tablet card while retaining an exact content-derived minimum");
-  assert.match(reviewsWxss, /\.review-row \{[^}]*grid-template-columns: 152px 88px 72px 82px 64px 58px 128px 124px 136px;/s,
+  assert.match(reviewsWxss, /\.review-row \{[^}]*grid-template-columns: 148px 78px 66px 72px 60px 50px 132px 112px 136px;[^}]*column-gap: 8px;[^}]*padding: 0 8px;/s,
     "short review fields must stay compact while the order code, actions, and complete timestamps keep enough width");
-  assert.match(reviewsWxss, /\.review-row > text, \.review-row > view \{[^}]*padding: 6px 8px;[^}]*font-size: 14px;/s,
+  assert.match(reviewsWxss, /\.review-row > text, \.review-row > view \{[^}]*padding: 6px 4px;[^}]*font-size: 14px;/s,
     "tablet review cells must keep readable text and independent horizontal gutters");
   assert.match(reviewsWxss, /\.review-type-tabs button \{[^}]*width: 100%;[^}]*min-width: 0;/s,
     "recharge and refund review tabs should fill their two balanced tablet columns");

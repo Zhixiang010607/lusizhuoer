@@ -217,17 +217,59 @@ test("switching a teacher business page store clears every old-store customer, o
   assert.equal(verificationHarness.page.data.ready, false);
 });
 
-test("store accounts use only their bound store and never render the teacher store selector", async () => {
-  for (const [pageName, options] of [["recharge", { mode: "NEW" }], ["verification", { mode: "NORMAL" }], ["customer-create", undefined]]) {
+test("store accounts use only their bound store and never fetch the teacher business context", async () => {
+  for (const [pageName, options] of [["recharge", { mode: "NEW" }], ["verification", { mode: "NORMAL" }], ["customer-create", undefined], ["product-purchase", undefined]]) {
     const { page, calls } = loadPage(`pages/${pageName}/index.js`, storeSession);
     page.onLoad(options);
     await settlePageTasks();
     assert.equal(page.data.store.id, selectedStore.id);
     assert.equal(calls.some((call) => call.action === "getTeacherBusinessContext"), false);
   }
-  for (const pageName of ["recharge", "verification", "customer-create"]) {
+});
+
+test("teacher business pages embed store selection in the first normal card and never restore a standalone store step", () => {
+  for (const pageName of ["customer-create", "recharge", "product-purchase", "verification"]) {
     const markup = fs.readFileSync(path.join(mini, "pages", pageName, "index.wxml"), "utf8");
-    assert.match(markup, /wx:if="\{\{session\.role === 'teacher'\}\}" class="card store-picker-card"/);
-    assert.match(markup, /选择办理门店/);
+    assert.match(markup, /wx:if="\{\{session\.role === 'teacher'\}\}" class="field"/,
+      `${pageName} must keep the teacher store picker inside a regular business card`);
+    assert.match(markup, />办理门店</);
+    assert.doesNotMatch(markup, /store-picker-card|第一步：\s*选择办理门店/,
+      `${pageName} must not render a standalone store-selection step`);
+    assert.doesNotMatch(markup, /<view wx:if="\{\{store\.id\}\}" class="(?:create-workspace|workflow-grid)"/,
+      `${pageName} must render the complete workflow before a store is selected`);
   }
+});
+
+test("store-scoped controls stay disabled until the embedded store and customer flow is ready", () => {
+  const recharge = fs.readFileSync(path.join(mini, "pages", "recharge", "index.wxml"), "utf8");
+  const purchase = fs.readFileSync(path.join(mini, "pages", "product-purchase", "index.wxml"), "utf8");
+  const verification = fs.readFileSync(path.join(mini, "pages", "verification", "index.wxml"), "utf8");
+
+  assert.match(recharge, /disabled="\{\{!customer \|\| session\.role === 'teacher' \|\| loadingOptions\}\}"/,
+    "recharge teacher selection must remain unavailable before a customer is confirmed");
+  assert.match(recharge, /<input[^>]*disabled="\{\{!customer\}\}"[^>]*placeholder="\{\{customer \?/,
+    "recharge unit entry must be disabled before a customer is confirmed");
+  assert.match(recharge, /<textarea[^>]*disabled="\{\{!customer\}\}"[^>]*placeholder="\{\{customer \?/,
+    "recharge notes must be disabled before a customer is confirmed");
+
+  assert.match(purchase, /<input[^>]*disabled="\{\{!customer\}\}"[^>]*placeholder="\{\{customer \?/,
+    "product-purchase units must be disabled before a customer is confirmed");
+  assert.match(purchase, /<textarea[^>]*disabled="\{\{!customer\}\}"[^>]*placeholder="\{\{customer \?/,
+    "product-purchase notes must be disabled before a customer is confirmed");
+
+  assert.match(verification, /<camera-capture wx:if="\{\{customer && selectedProduct && selectedTeacher && unitCountValid\}\}"/,
+    "verification camera access must wait for the complete scoped selection");
+  assert.match(verification, /<textarea[^>]*disabled="\{\{!customer\}\}"[^>]*placeholder="\{\{customer \?/,
+    "verification notes must be disabled before a customer is confirmed");
+});
+
+test("teacher home business entries navigate directly and never require a homepage store selection", () => {
+  const source = fs.readFileSync(path.join(mini, "pages", "home", "index.js"), "utf8");
+  assert.match(source, /ensureBusinessStore\(\)\s*\{\s*if \(this\.data\.session\.role === "teacher"\) return true;/,
+    "teacher business entry must never be blocked by a homepage store picker");
+  for (const route of ["customer-create/index", "recharge/index", "product-purchase/index", "verification/index"]) {
+    assert.ok(source.includes(`/pages/${route}`), `teacher home must navigate directly to ${route}`);
+  }
+  assert.doesNotMatch(source, /pages\/(?:customer-create|recharge|product-purchase|verification)\/index[^`"']*storeId=/,
+    "the homepage must not preselect or pass a store before the business page opens");
 });

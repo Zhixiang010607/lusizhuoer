@@ -13,23 +13,20 @@
 
   <block wx:else>
     <view class="workflow-grid">
-    <view wx:if="{{session.role === 'teacher'}}" class="card store-picker-card">
-      <view class="card-title"><text>选择办理门店</text><text class="badge">必选</text></view>
-      <label class="field">
-        <text class="field-label">本次发生门店</text>
+    <view class="card customer-step-card">
+      <view class="card-title"><text>第一步：确认客户</text><text class="badge">必须看到照片</text></view>
+      <label wx:if="{{session.role === 'teacher'}}" class="field">
+        <text class="field-label">办理门店</text>
         <picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="selectStore" disabled="{{busy || loadingStores || !stores.length}}">
           <view class="picker">{{loadingStores ? '正在读取可办理门店…' : (store.id ? store.name + ' · ' + (store.code || store.id) : (stores.length ? '请选择门店' : '暂无可办理门店'))}}</view>
         </picker>
       </label>
-      <button wx:if="{{!loadingStores && !stores.length}}" class="secondary" bindtap="loadTeacherStores">重试门店列表</button>
+      <button wx:if="{{session.role === 'teacher' && !loadingStores && !stores.length}}" class="secondary" bindtap="loadTeacherStores">重试门店列表</button>
+      <customer-picker wx:if="{{store.id}}" store-id="{{store.id}}" bindconfirm="customerConfirmed" bindchange="customerChanged"></customer-picker>
+      <text wx:else class="section-note">选择办理门店后即可确认客户</text>
     </view>
 
-    <view wx:if="{{store.id}}" class="card customer-step-card">
-      <view class="card-title"><text>第一步：确认客户</text><text class="badge">必须看到照片</text></view>
-      <customer-picker store-id="{{store.id}}" bindconfirm="customerConfirmed" bindchange="customerChanged"></customer-picker>
-    </view>
-
-    <view wx:if="{{store.id}}" class="card info-step-card {{customer ? '' : 'disabled-card'}}">
+    <view class="card info-step-card {{customer ? '' : 'disabled-card'}}">
       <view class="card-title"><text>第二步：填写{{refund ? '退费' : '充值'}}信息</text><text class="badge">{{customer ? customer.customerName : '先确认客户'}}</text></view>
       <label class="field">
         <text class="field-label">项目</text>
@@ -40,15 +37,15 @@
       <view wx:if="{{refund && selectedProduct}}" class="impact">已购未退 {{selectedProduct.purchasedCount}} 次，当前剩余 {{selectedProduct.remainingCount}} 次；本次最多可退 {{selectedProduct.purchasedCount}} 次。</view>
       <label class="field">
         <text class="field-label">业务老师{{session.role === 'teacher' ? '（自动绑定）' : '（可选）'}}</text>
-        <picker range="{{teacherLabels}}" value="{{teacherIndex}}" bindchange="selectTeacher" disabled="{{session.role === 'teacher' || loadingOptions}}">
+        <picker range="{{teacherLabels}}" value="{{teacherIndex}}" bindchange="selectTeacher" disabled="{{!customer || session.role === 'teacher' || loadingOptions}}">
           <view class="picker">{{selectedTeacher ? selectedTeacher.teacherName + ' · ' + selectedTeacher.teacherCode : '不指定业务老师'}}</view>
         </picker>
       </label>
-      <label class="field"><text class="field-label">{{refund ? '退费次数' : '充值次数'}}</text><input class="input" type="number" maxlength="3" value="{{unitCount}}" bindinput="inputCount" placeholder="1 至 999 的整数" /></label>
-      <label class="field"><text class="field-label">门店留言（可选）</text><textarea class="textarea" maxlength="500" value="{{note}}" bindinput="inputNote" placeholder="审核人员可在详情中看到" /></label>
+      <label class="field"><text class="field-label">{{refund ? '退费次数' : '充值次数'}}</text><input class="input" type="number" maxlength="3" value="{{unitCount}}" bindinput="inputCount" disabled="{{!customer}}" placeholder="{{customer ? '1 至 999 的整数' : '请先确认客户'}}" /></label>
+      <label class="field"><text class="field-label">门店留言（可选）</text><textarea class="textarea" maxlength="500" value="{{note}}" bindinput="inputNote" disabled="{{!customer}}" placeholder="{{customer ? '审核人员可在详情中看到' : '请先确认客户'}}" /></label>
     </view>
 
-    <view wx:if="{{store.id && !refund}}" class="card workflow-wide {{customer ? '' : 'disabled-card'}}">
+    <view wx:if="{{!refund}}" class="card workflow-wide {{customer ? '' : 'disabled-card'}}">
       <view class="card-title"><text>第三步：填写产品赠予</text><text class="badge">可选</text></view>
       <text class="section-note">先选择当前激活产品，再填写数量，最后点“＋”加入清单。</text>
       <view class="gift-add-row">
@@ -68,7 +65,7 @@
       <text wx:else class="gift-empty">暂未添加产品赠予</text>
     </view>
 
-    <view wx:if="{{store.id}}" class="card submit-card workflow-wide {{customer ? '' : 'disabled-card'}}">
+    <view class="card submit-card workflow-wide {{customer ? '' : 'disabled-card'}}">
       <button class="primary" bindtap="submit" loading="{{busy}}" disabled="{{busy || !ready}}">提交{{refund ? '退费' : '充值'}}申请</button>
     </view>
     </view>

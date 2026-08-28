@@ -226,14 +226,18 @@ test("HQ review workbenches match web filters, pagination, exact links, and guar
     "review headers and values must stay centered on one line");
   assert.doesNotMatch(wxss, /\.review-row > text, \.review-row > view\s*\{[^}]*border-right:/s,
     "review columns should use spacing instead of middle divider lines");
-  assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.review-table \{ width: 100%; min-width: 904px; \}/s,
+  assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.review-table \{ width: 100%; min-width: 934px; \}/s,
     "tablet review tables keep a compact content-aware floor while adapting to the card width");
   assert.match(wxss, /\.review-filter-grid \{[^}]*display: grid;[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s,
     "phone review filters must pair store and status instead of stacking two oversized full-width controls");
   assert.match(wxss, /\.filter-card \.review-type-tabs button, \.filter-card \.mode-tabs button \{ min-height: 60rpx; font-size: 20rpx; \}/,
     "review switches must use the compact phone density");
-  assert.match(wxss, /\.filter-card \.review-query-actions button \{ min-height: 72rpx; font-size: 21rpx; \}/,
+  assert.match(wxss, /\.filter-card \.review-action-cell button \{[^}]*min-height: 72rpx;[^}]*font-size: 21rpx;/s,
     "review actions must match the compact filter control height");
+  assert.doesNotMatch(wxml, /button-row review-query-actions/,
+    "query and reset must be direct siblings of store and status instead of a nested two-column group");
+  assert.equal((wxml.match(/class="review-action-cell"/g) || []).length, 2,
+    "query and reset must each own one equal-width outer grid cell");
   for (const selector of ["review-type-tabs button", "mode-tabs button", "review-action button"]) {
     const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     assert.match(wxss, new RegExp(`\\.${escaped}\\s*\\{[^}]*align-items:\\s*center;[^}]*justify-content:\\s*center;[^}]*white-space:\\s*nowrap;`, "s"),

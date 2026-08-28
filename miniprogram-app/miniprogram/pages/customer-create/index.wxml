@@ -1,28 +1,26 @@
 <view class="page">
-  <view class="page-heading"><text class="eyebrow">现场建档</text><text class="title">建立客户</text><text class="subtitle">{{store.id ? '当前门店：' + store.name + '。照片、资料、人脸档案必须由服务端整体成功。' : '进入业务页后先选择本次建立客户的门店。'}}</text></view>
-  <view wx:if="{{session.role === 'teacher'}}" class="card store-picker-card">
-    <view class="card-title"><text>第一步：选择办理门店</text><text class="badge">必选</text></view>
-    <label class="field">
-      <text class="field-label">本次发生门店</text>
+  <view class="page-heading"><text class="eyebrow">现场建档</text><text class="title">建立客户</text><text class="subtitle">{{store.id ? '当前门店：' + store.name + '。照片、资料、人脸档案必须由服务端整体成功。' : '请在客户资料中选择本次建立客户的门店。'}}</text></view>
+  <view class="create-workspace">
+  <view class="card create-details-card">
+    <view class="card-title"><text>客户资料</text><text class="badge">{{store.id ? '当前门店' : '先选门店'}}</text></view>
+    <label wx:if="{{session.role === 'teacher'}}" class="field">
+      <text class="field-label">办理门店</text>
       <picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="selectStore" disabled="{{busy || loadingStores || !stores.length}}">
         <view class="picker">{{loadingStores ? '正在读取可办理门店…' : (store.id ? store.name + ' · ' + (store.code || store.id) : (stores.length ? '请选择门店' : '暂无可办理门店'))}}</view>
       </picker>
     </label>
-    <button wx:if="{{!loadingStores && !stores.length}}" class="secondary" bindtap="loadTeacherStores">重试门店列表</button>
+    <button wx:if="{{session.role === 'teacher' && !loadingStores && !stores.length}}" class="secondary" bindtap="loadTeacherStores">重试门店列表</button>
+    <label class="field"><text class="field-label">客户姓名</text><input class="input" maxlength="40" value="{{name}}" bindinput="inputName" disabled="{{!store.id || busy}}" placeholder="请输入真实姓名" /></label>
+    <label class="field"><text class="field-label">生日</text><picker mode="date" value="{{birthDate}}" end="{{today}}" bindchange="inputBirthday" disabled="{{!store.id || busy}}"><view class="picker">{{birthDate || '请选择生日'}}</view></picker></label>
+    <label class="field"><text class="field-label">客户备注（可选）</text><textarea class="textarea" maxlength="500" value="{{notes}}" bindinput="inputNotes" disabled="{{!store.id || busy}}" placeholder="最多 500 字"></textarea></label>
   </view>
-  <view wx:if="{{store.id}}" class="create-workspace">
-  <view class="card create-details-card">
-    <view class="card-title"><text>{{session.role === 'teacher' ? '第二步：填写客户资料' : '第一步：填写客户资料'}}</text><text class="badge">当前门店</text></view>
-    <label class="field"><text class="field-label">客户姓名</text><input class="input" maxlength="40" value="{{name}}" bindinput="inputName" placeholder="请输入真实姓名" /></label>
-    <label class="field"><text class="field-label">生日</text><picker mode="date" value="{{birthDate}}" end="{{today}}" bindchange="inputBirthday"><view class="picker">{{birthDate || '请选择生日'}}</view></picker></label>
-    <label class="field"><text class="field-label">客户备注（可选）</text><textarea class="textarea" maxlength="500" value="{{notes}}" bindinput="inputNotes" placeholder="最多 500 字"></textarea></label>
-  </view>
-  <view class="card create-photo-card">
-    <view class="card-title"><text>{{session.role === 'teacher' ? '第三步：拍摄客户照片' : '第二步：拍摄客户照片'}}</text><text class="badge">现场拍摄</text></view>
-    <camera-capture id="customerCamera" title="客户建档照片" bindchange="captureChanged"></camera-capture>
+  <view class="card create-photo-card {{store.id ? '' : 'disabled-card'}}">
+    <view class="card-title"><text>拍摄客户照片</text><text class="badge">现场拍摄</text></view>
+    <camera-capture wx:if="{{store.id}}" id="customerCamera" title="客户建档照片" bindchange="captureChanged"></camera-capture>
+    <text wx:else class="section-note">选择办理门店后即可拍摄客户照片</text>
     <label class="consent"><checkbox checked="{{consent}}" bindtap="toggleConsent" color="#a98243" /><text>我已取得客户明确授权：采集并绑定其人脸信息，仅用于本人核销身份验证与业务安全。</text></label>
   </view>
-  <button class="primary submit create-submit" bindtap="submit" loading="{{busy}}" disabled="{{busy || !captureReady || !consent}}">验证照片并建立客户</button>
+  <button class="primary submit create-submit" bindtap="submit" loading="{{busy}}" disabled="{{busy || !store.id || !captureReady || !consent}}">验证照片并建立客户</button>
   </view>
   <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
 </view>
