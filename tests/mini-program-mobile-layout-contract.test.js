@@ -136,10 +136,12 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
     "the time and project pickers must share the warm champagne filter palette");
   assert.match(wxss, /\.hq-custom-dates\s*\{[^}]*grid-column:\s*1 \/ -1;/s,
     "a custom HQ date range must remain full width below the compact controls");
-  assert.match(wxml, /class="hq-control-heading"[\s\S]*class="hq-inline-reset" bindtap="resetHqRange">重置筛选<\/button>/,
-    "the mobile HQ reset action must stay inline with the sorting metric heading");
-  assert.match(wxss, /\.hq-inline-reset\s*\{[^}]*min-width:\s*94rpx;[^}]*min-height:\s*42rpx;/s,
-    "the inline reset action must remain compact on a standard phone");
+  assert.match(wxml, /class="hq-control-field hq-product-filter"[\s\S]*class="hq-control-heading"[\s\S]*项目范围[\s\S]*class="hq-inline-reset" bindtap="resetHqRange">恢复默认<\/button>/,
+    "the mobile HQ default action must stay in the project-scope half of the grid");
+  assert.match(wxss, /\.hq-inline-reset\s*\{[^}]*min-width:\s*0;[^}]*min-height:\s*34rpx;[^}]*background:\s*transparent;[^}]*border:\s*0;/s,
+    "the inline default action must remain a low-emphasis text control on a standard phone");
+  assert.doesNotMatch(wxml, /排序指标<\/text><button class="hq-inline-reset"/,
+    "the sorting metric heading must not contain the reset action");
   assert.doesNotMatch(wxml, /class="hq-filter-actions"/,
     "the HQ reset action must not occupy a standalone row");
   assert.doesNotMatch(wxml, /class="metric-grid"|hq-analysis-card|分类统计|前 10 名/,

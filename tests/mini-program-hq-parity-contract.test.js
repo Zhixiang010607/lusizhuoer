@@ -53,7 +53,8 @@ test("HQ home exposes the complete web mobile rail and isolated ranking interact
   assert.doesNotMatch(js, /hqScopeDetailText|hqDetailOpen/,
     "the redesigned HQ home must not keep the retired statistics-range dialog state");
   assert.doesNotMatch(wxml, /\{\{hqScopeText\}\}/, "the filter card must not repeat an already visible scope sentence");
-  assert.match(wxml, /class="hq-control-heading"[\s\S]*class="hq-inline-reset" bindtap="resetHqRange">重置筛选<\/button>/);
+  assert.match(wxml, /class="hq-control-field hq-product-filter"[\s\S]*项目范围[\s\S]*class="hq-inline-reset" bindtap="resetHqRange">恢复默认<\/button>/);
+  assert.doesNotMatch(wxml, /排序指标<\/text><button class="hq-inline-reset"/);
   assert.doesNotMatch(wxml, /class="hq-filter-actions"/);
   assert.match(wxml, /排名对象/);
   assert.match(wxml, /排序指标/);
