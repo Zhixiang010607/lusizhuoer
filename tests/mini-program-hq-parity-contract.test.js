@@ -203,7 +203,7 @@ test("HQ review workbenches match web filters, pagination, exact links, and guar
   assert.match(js, /category=\$\{encodeURIComponent\(row\.category\)\}/,
     "review detail links carry the exact server-derived category");
   assert.match(js, /pages\/customer-detail\/index/);
-  for (const label of ["充值审核", "退费审核", "按条件查询", "按工单编号", "门店范围", "审核状态", "工单类型", "上一页", "下一页", "跳至", "通过", "驳回", "审核留言（可选）"]) {
+  for (const label of ["充值审核", "退费审核", "按条件查询", "按工单编号", "门店范围", "审核状态", "上一页", "下一页", "跳至", "通过", "驳回", "审核留言（可选）"]) {
     assert.match(wxml, new RegExp(label), `HQ review UI is missing ${label}`);
   }
   assert.match(wxss, /\.review-table\s*\{\s*width:\s*2050rpx;/,

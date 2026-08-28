@@ -82,7 +82,14 @@ test("query and review pages use compact tablet filters and five-row result view
     assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.query-grid \.query-wide \{ grid-column: auto; \}/,
       "phone-wide fields should share compact columns only on tablets");
   }
-  assert.match(reviewsWxss, /\.review-filter-grid \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/s);
+  assert.match(reviewsWxml, /class="filter-switches \{\{recordType === 'RECHARGE' \? 'has-review-types' : ''\}\}"/,
+    "review type and query mode switches must belong to one filter workbench");
+  assert.doesNotMatch(reviewsWxml, /class="fixed-type"/,
+    "review type already comes from the active review tab and must not be repeated as an odd filter tile");
+  assert.match(reviewsWxss, /\.filter-switches\.has-review-types \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s);
+  assert.match(reviewsWxss, /\.review-filter-grid \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/s);
+  assert.match(reviewsWxss, /\.review-query-actions \{ grid-column: span 2; margin-top: 0; \}/,
+    "store, status, query, and reset must form one balanced tablet row");
   assert.match(reviewsWxss, /\.review-type-tabs button \{[^}]*width: 100%;[^}]*min-width: 0;/s,
     "recharge and refund review tabs should fill their two balanced tablet columns");
   assert.match(directoryWxss, /\.search-fields \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s);

@@ -5,9 +5,10 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
 .title { color: #302a22; font-family: Georgia, "Times New Roman", serif; font-size: 44rpx; font-weight: 700; }
 .subtitle { color: #7c7062; font-size: 20rpx; line-height: 1.5; }
 .card { width: 100%; min-width: 0; margin-bottom: 18rpx; padding: 24rpx; background: #fffaf3; border: 1rpx solid #dfcfb4; border-radius: 24rpx; box-sizing: border-box; box-shadow: 0 14rpx 42rpx rgba(93,72,39,.07); }
-.review-type-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; margin-bottom: 18rpx; }
-.review-type-tabs button { width: 100%; min-width: 0; display: flex; align-items: center; justify-content: center; color: #74592d; background: #fffaf3; border: 1rpx solid #d8c5a3; box-sizing: border-box; line-height: 1; white-space: nowrap; }
-.review-type-tabs button.active { color: #fffdf8; background: #6f532e; }
+.filter-switches { display: grid; gap: 12rpx; }
+.review-type-tabs { width: 100%; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10rpx; padding: 8rpx; background: #eee4d6; border-radius: 18rpx; box-sizing: border-box; }
+.review-type-tabs button { width: 100%; min-width: 0; display: flex; align-items: center; justify-content: center; color: #796d5e; background: transparent; border: 0; box-sizing: border-box; line-height: 1; white-space: nowrap; }
+.review-type-tabs button.active { color: #fffdf8; background: #6f532e; box-shadow: 0 7rpx 18rpx rgba(77,57,31,.18); }
 .mode-tabs { width: 100%; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10rpx; padding: 8rpx; background: #eee4d6; border-radius: 18rpx; box-sizing: border-box; }
 button { min-height: 76rpx; display: flex; align-items: center; justify-content: center; margin: 0; border-radius: 16rpx; font-size: 21rpx; font-weight: 800; line-height: 1; white-space: nowrap; }
 button::after { border: 0; }
@@ -15,12 +16,10 @@ button::after { border: 0; }
 .mode-tabs button.active { color: #fffdf8; background: #6f532e; box-shadow: 0 7rpx 18rpx rgba(77,57,31,.18); }
 .review-filter-grid { min-width: 0; }
 .field { display: flex; flex-direction: column; gap: 10rpx; margin-top: 18rpx; }
-.field > text, .fixed-type > text:first-child { color: #554a3c; font-size: 20rpx; font-weight: 800; }
+.field > text { color: #554a3c; font-size: 20rpx; font-weight: 800; }
 .field input, .field textarea, .picker { width: 100%; min-height: 82rpx; padding: 0 20rpx; color: #302a22; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 16rpx; box-sizing: border-box; font-size: 22rpx; }
 .field textarea { min-height: 170rpx; padding-top: 18rpx; }
 .picker { display: flex; align-items: center; }
-.fixed-type { display: flex; align-items: center; justify-content: space-between; margin-top: 18rpx; padding: 18rpx 20rpx; background: #f7eddd; border-radius: 16rpx; }
-.fixed-type > text:last-child { color: #74592d; font-size: 20rpx; font-weight: 800; }
 .button-row, .dialog-actions { width: 100%; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14rpx; margin-top: 22rpx; box-sizing: border-box; }
 .button-row button, .mode-tabs button, .dialog-actions button { width: 100%; min-width: 0; box-sizing: border-box; }
 .primary { color: #fffdf8; background: #6f532e; }
@@ -78,19 +77,18 @@ button::after { border: 0; }
   .title { font-size: 28px; }
   .subtitle { font-size: 14px; }
   .card { margin-bottom: 16px; padding: 20px; border-width: 1px; border-radius: 20px; box-shadow: 0 8px 24px rgba(93,72,39,.08); }
-  .review-type-tabs { gap: 12px; margin-bottom: 16px; }
+  .filter-switches.has-review-types { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .review-type-tabs { gap: 6px; padding: 6px; border-radius: 14px; }
   .mode-tabs { gap: 6px; padding: 6px; border-radius: 14px; }
   button { min-height: 48px; border-radius: 12px; font-size: 15px; }
-  .review-filter-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+  .review-filter-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 16px; align-items: end; }
   .review-filter-grid .field { min-width: 0; margin-top: 0; }
-  .review-filter-grid .fixed-type { grid-column: auto; }
-  .review-code-field { grid-column: 1 / -1; }
+  .review-code-field { grid-column: span 2; }
+  .review-query-actions { grid-column: span 2; margin-top: 0; }
   .field { gap: 7px; margin-top: 16px; }
-  .field > text, .fixed-type > text:first-child { font-size: 14px; }
+  .field > text { font-size: 14px; }
   .field input, .field textarea, .picker { min-height: 48px; padding: 0 16px; border-width: 1px; border-radius: 12px; font-size: 15px; }
   .field textarea { min-height: 120px; padding-top: 14px; }
-  .fixed-type { margin-top: 0; padding: 14px 16px; border-radius: 12px; }
-  .fixed-type > text:last-child { font-size: 14px; }
   .button-row, .dialog-actions { gap: 12px; margin-top: 16px; }
   .compact { min-width: 104px; min-height: 44px; padding: 0 14px; }
   .message { margin-bottom: 16px; padding: 12px 14px; border-width: 1px; border-radius: 10px; font-size: 14px; }
