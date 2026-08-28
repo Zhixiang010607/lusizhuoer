@@ -191,6 +191,17 @@ test("product purchase detail uses a compact tablet information layout", () => {
   assert.match(context, /全部工单详情在平板上必须使用紧凑横向工单头/);
 });
 
+test("HQ project management uses compact adaptive tablet cards", () => {
+  const wxss = read("miniprogram-app", "miniprogram", "pages", "product-management", "index.wxss");
+  const context = read("PROJECT_CONTEXT.md");
+
+  assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.page \{[^}]*max-width: 1040px;/s,
+    "project management must stay inside a bounded tablet workspace");
+  assert.match(wxss, /\.product-list \{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(220px, 1fr\)\);/s,
+    "tablet width should automatically choose two or three compact project cards per row");
+  assert.match(context, /项目按可用宽度自动使用两列或三列独立卡片/);
+});
+
 test("HQ ranking cards show only the selected business metric", () => {
   const homeWxml = read("miniprogram-app", "miniprogram", "pages", "home", "index.wxml");
   const homeJs = read("miniprogram-app", "miniprogram", "pages", "home", "index.js");
