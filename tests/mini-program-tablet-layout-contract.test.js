@@ -100,6 +100,10 @@ test("query and review pages use compact tablet filters and five-row result view
     "customer query summary must stay compact instead of magnifying its labels on iPad");
   assert.match(recordsWxss, /@media \(min-width: 700px\)[\s\S]*?\.summary-grid \.summary-value \{[^}]*font-size: 17px;/s,
     "record query totals must use a compact tablet numeral size");
+  assert.match(recordsWxml, /class="button-row query-actions \{\{mode === 'browse' && !customRange \? 'inline-query-actions' : ''\}\}"/);
+  assert.match(recordsWxss, /\.query-grid \.query-time \{ grid-column: 1; \}/);
+  assert.match(recordsWxss, /\.query-actions\.inline-query-actions \{ grid-column: 2 \/ -1; align-self: end; \}/,
+    "recharge, verification, and product searches should share the time-range row on tablets");
 });
 
 test("store and teacher workflows use bounded two-column tablet surfaces", () => {

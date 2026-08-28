@@ -2,6 +2,7 @@
 .query-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 12rpx; }
 .query-grid .field { min-width: 0; }
 .query-grid .query-wide { grid-column: 1 / -1; }
+.query-actions { grid-column: 1 / -1; }
 .summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8rpx; margin-bottom: 14rpx; }
 .source-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .summary-grid view { min-width: 0; padding: 16rpx 8rpx; text-align: center; background: #fff; border: 1rpx solid #dfcfb4; border-radius: 16rpx; }
@@ -36,6 +37,9 @@
   .query-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 16px; }
   .query-grid .query-wide { grid-column: auto; }
   .query-grid .field { margin-bottom: 16px; }
+  .query-grid .query-time { grid-column: 1; }
+  .query-actions { margin-top: 0; margin-bottom: 16px; }
+  .query-actions.inline-query-actions { grid-column: 2 / -1; align-self: end; }
   .summary-grid { gap: 6px; margin-bottom: 14px; }
   .summary-grid view { padding: 7px 8px; border-width: 1px; border-radius: 10px; }
   .summary-grid text { font-size: 11px; line-height: 1.2; }

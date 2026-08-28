@@ -14,7 +14,7 @@
         <label class="field"><text class="field-label">{{recordType === 'VERIFICATION' ? '记录状态' : '审核状态'}}</text><picker range="{{statusLabels}}" value="{{statusIndex}}" bindchange="chooseStatus"><view class="picker">{{statusLabels[statusIndex]}}</view></picker></label>
         </block>
         <label wx:else class="field"><text class="field-label">审核状态</text><picker range="{{statusLabels}}" value="{{statusIndex}}" bindchange="chooseStatus"><view class="picker">{{statusLabels[statusIndex]}}</view></picker></label>
-        <label class="field query-wide"><text class="field-label">时间范围</text><picker range="{{timeLabels}}" value="{{timeIndex}}" bindchange="chooseTime"><view class="picker">{{timeLabels[timeIndex]}}</view></picker></label>
+        <label class="field query-wide query-time"><text class="field-label">时间范围</text><picker range="{{timeLabels}}" value="{{timeIndex}}" bindchange="chooseTime"><view class="picker">{{timeLabels[timeIndex]}}</view></picker></label>
         <label wx:if="{{customRange}}" class="field"><text class="field-label">开始日期</text><picker mode="date" value="{{startDate}}" end="{{today}}" bindchange="changeStart"><view class="picker">{{startDate || '请选择'}}</view></picker></label>
         <label wx:if="{{customRange}}" class="field"><text class="field-label">结束日期</text><picker mode="date" value="{{endDate}}" end="{{today}}" bindchange="changeEnd"><view class="picker">{{endDate || '请选择'}}</view></picker></label>
       </block>
@@ -23,9 +23,8 @@
         <label class="field query-wide"><text class="field-label">客户姓名（可单独填写）</text><input class="input" value="{{customerName}}" bindinput="inputCustomerName" placeholder="输入姓名；同名客户全部显示" /></label>
         <label class="field query-wide"><text class="field-label">生日（可单独填写）</text><picker mode="date" value="{{birthDate}}" end="{{today}}" bindchange="inputBirthDate"><view class="picker">{{birthDate || '选择生日'}}</view></picker></label>
       </block>
+      <view class="button-row query-actions {{mode === 'browse' && !customRange ? 'inline-query-actions' : ''}}"><button class="primary" bindtap="runQuery" loading="{{loading}}" disabled="{{loading}}">查询{{noun}}</button><button class="ghost" bindtap="resetQuery" disabled="{{loading}}">重置查询</button></view>
     </view>
-
-    <view class="button-row"><button class="primary" bindtap="runQuery" loading="{{loading}}" disabled="{{loading}}">查询{{noun}}</button><button class="ghost" bindtap="resetQuery" disabled="{{loading}}">重置查询</button></view>
   </view>
 
   <view wx:if="{{recordType === 'PRODUCT_PURCHASE'}}" class="summary-grid source-summary">
