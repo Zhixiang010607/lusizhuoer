@@ -133,12 +133,16 @@ test("query and review pages use compact tablet filters and five-row result view
     "record query totals must use a compact tablet numeral size");
   assert.match(recordsWxss, /@media \(min-width: 700px\)[\s\S]*?\.record-table \{ width: 100%; min-width: 825px; \}/s,
     "recharge and refund query columns should reveal more fields before tablet scrolling");
-  assert.match(recordsWxss, /\.verification-table, \.product-purchase-table \{ width: 100%; min-width: 900px; \}/,
-    "verification and product query columns should use their exact compact tablet width");
+  assert.match(recordsWxss, /\.verification-table \{ width: 100%; min-width: 815px; \}/,
+    "verification query columns should shrink after the redundant status column is removed");
+  assert.match(recordsWxss, /\.product-purchase-table \{ width: 100%; min-width: 900px; \}/,
+    "product query columns should use their exact compact tablet width");
   assert.match(recordsWxss, /\.record-row \{[^}]*grid-template-columns: 145px minmax\(72px, \.75fr\) 86px minmax\(90px, 1fr\) minmax\(90px, 1fr\) 68px 56px 82px 136px;/s,
     "tablet query columns should reserve the most width for the full order code and timestamp");
-  assert.match(recordsWxss, /\.verification-table \.record-row, \.product-purchase-table \.record-row \{ grid-template-columns: 145px minmax\(72px, \.75fr\) 86px minmax\(90px, 1fr\) minmax\(90px, 1fr\) 68px 72px 56px 82px 136px; \}/,
-    "verification and product source/teacher columns should stay compact and aligned");
+  assert.match(recordsWxss, /\.verification-table \.record-row \{ grid-template-columns: 145px minmax\(72px, \.75fr\) 86px minmax\(90px, 1fr\) minmax\(90px, 1fr\) 68px 72px 56px 136px; \}/,
+    "verification columns must omit status and keep the remaining fields aligned");
+  assert.match(recordsWxss, /\.product-purchase-table \.record-row \{ grid-template-columns: 145px minmax\(72px, \.75fr\) 86px minmax\(90px, 1fr\) minmax\(90px, 1fr\) 68px 72px 56px 82px 136px; \}/,
+    "product source, teacher, quantity, status, and time columns should stay compact and aligned");
   assert.match(recordsWxss, /\.record-row text \{[^}]*padding: 8px 6px;[^}]*font-size: 13px;/s,
     "tablet result cells should not waste horizontal space on oversized padding");
   assert.match(recordsWxml, /class="button-row query-actions \{\{mode === 'browse' && !customRange \? 'inline-query-actions' : ''\}\}"/);

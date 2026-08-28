@@ -103,8 +103,12 @@ test("recharge, verification, and product query share complete filters and exact
     "query order codes must use the same readable font size as the rest of the table body");
   assert.match(wxss, /\.record-table \{\s*width:\s*1560rpx;\s*min-width:\s*1560rpx;/,
     "the widened recharge table width equals its visible column widths");
-  assert.match(wxss, /\.verification-table \{\s*width:\s*1720rpx;\s*min-width:\s*1720rpx;/,
-    "the widened verification table width equals its visible column widths");
+  assert.match(wxss, /\.verification-table \{\s*width:\s*1580rpx;\s*min-width:\s*1580rpx;/,
+    "the verification table width equals its visible columns after removing redundant status");
+  assert.match(wxml, /<text wx:if="\{\{recordType !== 'VERIFICATION'\}\}">状态<\/text>/,
+    "completed verification query results must not repeat a status column");
+  assert.match(wxml, /<text wx:if="\{\{recordType !== 'VERIFICATION'\}\}">\{\{item\.statusLabel\}\}<\/text>/,
+    "verification rows must omit the redundant completed label while other records keep status");
   assert.match(wxml, /<view wx:if="\{\{recordType !== 'VERIFICATION'\}\}" class="summary-grid">/,
     "review-state summary cards belong to recharge/refund and product purchases, not completed verification queries");
   assert.match(wxml, /recordType === 'PRODUCT_PURCHASE' \? '产品' : '项目'/);
