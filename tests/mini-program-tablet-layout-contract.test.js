@@ -111,6 +111,12 @@ test("query and review pages use compact tablet filters and five-row result view
   assert.match(directoryWxss, /\.table-scroll\[data-visible-rows="5"\] \{ height: 332px; \}/);
   assert.match(customersWxss, /@media \(min-width: 700px\)[\s\S]*?\.summary-grid text \{[^}]*min-height: 24px;[^}]*font-size: 11px;/s,
     "customer query summary must stay compact instead of magnifying its labels on iPad");
+  assert.match(customersWxss, /@media \(min-width: 700px\)[\s\S]*?\.customer-table \{ width: 100%; min-width: 744px; \}/s,
+    "customer query should fill a wide tablet card and scroll only below its compact minimum width");
+  assert.match(customersWxss, /\.customer-row \{[^}]*grid-template-columns: 82px 64px 64px 102px 94px minmax\(138px, 1fr\) 104px 96px;/s,
+    "short customer fields must stay compact while the business-stage column absorbs spare tablet width");
+  assert.match(customersWxss, /\.customer-row text \{[^}]*padding: 8px 5px;[^}]*font-size: 13px;/s,
+    "customer result cells should not lose tablet space to phone-sized padding");
   assert.match(recordsWxss, /@media \(min-width: 700px\)[\s\S]*?\.summary-grid \.summary-value \{[^}]*font-size: 17px;/s,
     "record query totals must use a compact tablet numeral size");
   assert.match(recordsWxss, /@media \(min-width: 700px\)[\s\S]*?\.record-table \{ width: 905px; min-width: 905px; \}/s,
