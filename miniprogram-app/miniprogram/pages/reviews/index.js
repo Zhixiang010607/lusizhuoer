@@ -73,7 +73,7 @@ Page({
     session: {}, type: "recharge", recordType: "RECHARGE", noun: "充值", loading: true, deciding: false,
     message: "", error: false, mode: "filters", code: "", rows: [], total: 0, page: 1, totalPages: 1, pageJump: "1",
     stores: [], storeLabels: ["全部门店"], storeIndex: 0,
-    statusLabels: STATUS.map((item) => item.label), statusIndex: 0,
+    statusLabels: STATUS.map((item) => item.label), statusIndex: 1,
     pendingOpen: false, pending: null, decision: "APPROVED", reviewNote: ""
   },
   async onLoad(options) {
@@ -102,7 +102,7 @@ Page({
   inputCode(event) { this.invalidateRequest({ code: String(event.detail.value || "").toUpperCase() }); },
   inputPage(event) { this.setData({ pageJump: String(event.detail.value || "") }); },
   runQuery() { this.load(1, this.data.storeLabels.length <= 1); },
-  resetQuery() { this.invalidateRequest({ storeIndex: 0, statusIndex: 0, code: "", pageJump: "1" }); this.load(1, true); },
+  resetQuery() { this.invalidateRequest({ storeIndex: 0, statusIndex: 1, code: "", pageJump: "1" }); this.load(1, true); },
   invalidateRequest(changes) {
     this._requestEpoch = Number(this._requestEpoch || 0) + 1;
     this.setData({ ...(changes || {}), loading: false });

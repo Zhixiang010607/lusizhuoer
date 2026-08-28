@@ -5,23 +5,23 @@
     <view class="card-title"><text>查询条件</text><text class="badge">{{session.role === 'hq' ? '总部范围' : '本门店范围'}}</text></view>
     <view class="segmented query-modes"><button class="{{mode === 'browse' ? 'active' : ''}}" data-mode="browse" bindtap="setMode">条件筛选</button><button class="{{mode === 'manual' ? 'active' : ''}}" data-mode="manual" bindtap="setMode">姓名＋生日</button></view>
     <view class="query-grid">
-      <label wx:if="{{recordType === 'PRODUCT_PURCHASE'}}" class="field query-wide"><text class="field-label">产品来源</text><picker range="{{sourceLabels}}" value="{{sourceIndex}}" bindchange="chooseSource"><view class="picker">{{sourceLabels[sourceIndex]}}</view></picker></label>
+      <label wx:if="{{recordType === 'PRODUCT_PURCHASE'}}" class="field {{mode === 'browse' ? '' : 'query-wide'}}"><text class="field-label">产品来源</text><picker range="{{sourceLabels}}" value="{{sourceIndex}}" bindchange="chooseSource"><view class="picker">{{sourceLabels[sourceIndex]}}</view></picker></label>
       <block wx:if="{{mode === 'browse'}}">
-        <label wx:if="{{session.role === 'hq'}}" class="field query-wide"><text class="field-label">门店范围</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="chooseStore"><view class="picker">{{storeLabels[storeIndex]}}</view></picker></label>
-        <label class="field query-wide"><text class="field-label">{{recordType === 'PRODUCT_PURCHASE' ? '产品' : '项目'}}</text><picker range="{{productLabels}}" value="{{productIndex}}" bindchange="chooseProduct"><view class="picker">{{productLabels[productIndex]}}</view></picker></label>
+        <label wx:if="{{session.role === 'hq'}}" class="field"><text class="field-label">门店范围</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="chooseStore"><view class="picker">{{storeLabels[storeIndex]}}</view></picker></label>
+        <label class="field"><text class="field-label">{{recordType === 'PRODUCT_PURCHASE' ? '产品' : '项目'}}</text><picker range="{{productLabels}}" value="{{productIndex}}" bindchange="chooseProduct"><view class="picker">{{productLabels[productIndex]}}</view></picker></label>
         <block wx:if="{{recordType !== 'PRODUCT_PURCHASE'}}">
         <label class="field"><text class="field-label">{{recordType === 'VERIFICATION' ? '核销类型' : '申请类型'}}</text><picker range="{{typeLabels}}" value="{{typeIndex}}" bindchange="chooseType"><view class="picker">{{typeLabels[typeIndex]}}</view></picker></label>
         <label class="field"><text class="field-label">{{recordType === 'VERIFICATION' ? '记录状态' : '审核状态'}}</text><picker range="{{statusLabels}}" value="{{statusIndex}}" bindchange="chooseStatus"><view class="picker">{{statusLabels[statusIndex]}}</view></picker></label>
         </block>
         <label wx:else class="field"><text class="field-label">审核状态</text><picker range="{{statusLabels}}" value="{{statusIndex}}" bindchange="chooseStatus"><view class="picker">{{statusLabels[statusIndex]}}</view></picker></label>
-        <label class="field query-wide query-time"><text class="field-label">时间范围</text><picker range="{{timeLabels}}" value="{{timeIndex}}" bindchange="chooseTime"><view class="picker">{{timeLabels[timeIndex]}}</view></picker></label>
+        <label class="field query-time {{session.role === 'hq' ? 'query-wide' : ''}}"><text class="field-label">时间范围</text><picker range="{{timeLabels}}" value="{{timeIndex}}" bindchange="chooseTime"><view class="picker">{{timeLabels[timeIndex]}}</view></picker></label>
         <label wx:if="{{customRange}}" class="field"><text class="field-label">开始日期</text><picker mode="date" value="{{startDate}}" end="{{today}}" bindchange="changeStart"><view class="picker">{{startDate || '请选择'}}</view></picker></label>
         <label wx:if="{{customRange}}" class="field"><text class="field-label">结束日期</text><picker mode="date" value="{{endDate}}" end="{{today}}" bindchange="changeEnd"><view class="picker">{{endDate || '请选择'}}</view></picker></label>
       </block>
       <block wx:else>
         <label wx:if="{{session.role === 'hq'}}" class="field query-wide"><text class="field-label">门店范围</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="chooseStore"><view class="picker">{{storeLabels[storeIndex]}}</view></picker></label>
-        <label class="field query-wide"><text class="field-label">客户姓名（可单独填写）</text><input class="input" value="{{customerName}}" bindinput="inputCustomerName" placeholder="输入姓名；同名客户全部显示" /></label>
-        <label class="field query-wide"><text class="field-label">生日（可单独填写）</text><picker mode="date" value="{{birthDate}}" end="{{today}}" bindchange="inputBirthDate"><view class="picker">{{birthDate || '选择生日'}}</view></picker></label>
+        <label class="field"><text class="field-label">客户姓名（可单独填写）</text><input class="input" value="{{customerName}}" bindinput="inputCustomerName" placeholder="输入姓名；同名客户全部显示" /></label>
+        <label class="field"><text class="field-label">生日（可单独填写）</text><picker mode="date" value="{{birthDate}}" end="{{today}}" bindchange="inputBirthDate"><view class="picker">{{birthDate || '选择生日'}}</view></picker></label>
       </block>
       <view class="button-row query-actions {{mode === 'browse' && !customRange ? 'inline-query-actions' : ''}}"><button class="primary" bindtap="runQuery" loading="{{loading}}" disabled="{{loading}}">查询{{noun}}</button><button class="ghost" bindtap="resetQuery" disabled="{{loading}}">重置查询</button></view>
     </view>

@@ -6,10 +6,10 @@
     <view class="segmented query-modes"><button class="{{mode === 'browse' ? 'active' : ''}}" data-mode="browse" bindtap="setMode">条件筛选</button><button class="{{mode === 'manual' ? 'active' : ''}}" data-mode="manual" bindtap="setMode">姓名＋生日</button></view>
     <block wx:if="{{mode === 'browse'}}">
       <view class="query-grid">
-        <label wx:if="{{session.role === 'hq'}}" class="field query-wide"><text class="field-label">门店范围</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="chooseStore"><view class="picker">{{storeLabels[storeIndex]}}</view></picker></label>
+        <label wx:if="{{session.role === 'hq'}}" class="field"><text class="field-label">门店范围</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="chooseStore"><view class="picker">{{storeLabels[storeIndex]}}</view></picker></label>
         <label class="field"><text class="field-label">业务阶段</text><picker range="{{processLabels}}" value="{{processIndex}}" bindchange="chooseProcess"><view class="picker">{{processLabels[processIndex]}}</view></picker></label>
         <label class="field"><text class="field-label">客户状态</text><picker range="{{statusLabels}}" value="{{statusIndex}}" bindchange="chooseStatus"><view class="picker">{{statusLabels[statusIndex]}}</view></picker></label>
-        <label class="field query-wide"><text class="field-label">建档时间</text><picker range="{{timeLabels}}" value="{{timeIndex}}" bindchange="chooseTime"><view class="picker">{{timeLabels[timeIndex]}}</view></picker></label>
+        <label class="field {{session.role === 'hq' ? '' : 'query-wide'}}"><text class="field-label">建档时间</text><picker range="{{timeLabels}}" value="{{timeIndex}}" bindchange="chooseTime"><view class="picker">{{timeLabels[timeIndex]}}</view></picker></label>
         <label wx:if="{{customRange}}" class="field"><text class="field-label">开始日期</text><picker mode="date" value="{{startDate}}" end="{{today}}" bindchange="changeStart"><view class="picker">{{startDate || '请选择'}}</view></picker></label>
         <label wx:if="{{customRange}}" class="field"><text class="field-label">结束日期</text><picker mode="date" value="{{endDate}}" end="{{today}}" bindchange="changeEnd"><view class="picker">{{endDate || '请选择'}}</view></picker></label>
       </view>
@@ -17,8 +17,8 @@
     <block wx:else>
       <view class="query-grid">
         <label wx:if="{{session.role === 'hq'}}" class="field query-wide"><text class="field-label">门店范围</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="chooseStore"><view class="picker">{{storeLabels[storeIndex]}}</view></picker></label>
-        <label class="field query-wide"><text class="field-label">客户姓名（可单独填写）</text><input class="input" placeholder="支持姓名包含查询" value="{{name}}" bindinput="inputName" /></label>
-        <label class="field query-wide"><text class="field-label">生日（可单独填写）</text><picker mode="date" value="{{birthDate}}" end="{{today}}" bindchange="inputBirthday"><view class="picker">{{birthDate || '选择生日'}}</view></picker></label>
+        <label class="field"><text class="field-label">客户姓名（可单独填写）</text><input class="input" placeholder="支持姓名包含查询" value="{{name}}" bindinput="inputName" /></label>
+        <label class="field"><text class="field-label">生日（可单独填写）</text><picker mode="date" value="{{birthDate}}" end="{{today}}" bindchange="inputBirthday"><view class="picker">{{birthDate || '选择生日'}}</view></picker></label>
       </view>
     </block>
     <view class="button-row"><button class="primary" bindtap="search" loading="{{loading}}" disabled="{{loading}}">查询客户</button><button class="ghost" bindtap="resetSearch" disabled="{{loading}}">重置查询</button></view>

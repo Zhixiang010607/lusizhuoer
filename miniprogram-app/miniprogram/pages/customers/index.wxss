@@ -1,13 +1,19 @@
-.search-card .query-modes { margin-bottom: 20rpx; }
+.search-card { padding: 18rpx; }
+.search-card .card-title { margin-bottom: 12rpx; }
+.search-card .query-modes { margin-bottom: 12rpx; padding: 5rpx; }
+.search-card .query-modes button { min-height: 60rpx; font-size: 23rpx; }
 .query-modes button { display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.2; white-space: nowrap; }
 .query-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 12rpx; }
-.query-grid .field { min-width: 0; }
+.query-grid .field { min-width: 0; margin-bottom: 10rpx; }
+.query-grid .field-label { margin-bottom: 6rpx; font-size: 22rpx; }
+.query-grid .input, .query-grid .picker { min-height: 72rpx; padding-right: 16rpx; padding-left: 16rpx; font-size: 24rpx; }
 .query-grid .query-wide { grid-column: 1 / -1; }
-.summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8rpx; margin-bottom: 14rpx; }
-.summary-grid view { min-width: 0; padding: 16rpx 6rpx; text-align: center; background: #fff; border: 1rpx solid #dfcfb4; border-radius: 16rpx; }
+.search-card > .button-row button { min-height: 72rpx; font-size: 23rpx; }
+.summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6rpx; margin-bottom: 12rpx; }
+.summary-grid view { min-width: 0; padding: 10rpx 6rpx; text-align: center; background: #fff; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
 .summary-grid text { display: block; }
-.summary-grid text { min-height: 48rpx; color: #7c7062; font-size: 19rpx; line-height: 1.25; }
-.summary-grid .summary-value { min-height: 0; margin-top: 4rpx; color: #302a22; font-size: 29rpx; font-weight: 800; }
+.summary-grid text { min-height: 34rpx; color: #7c7062; font-size: 18rpx; line-height: 1.2; }
+.summary-grid .summary-value { min-height: 0; margin-top: 2rpx; color: #302a22; font-size: 26rpx; font-weight: 800; }
 .result-card { min-width: 0; overflow: hidden; }
 .customer-table-scroll { width: 100%; max-width: 100%; margin-top: 14rpx; overflow: hidden; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
 .customer-table-scroll[data-visible-rows="1"] { height: 138rpx; }
@@ -29,6 +35,7 @@
 .page-jump button { width: 116rpx; min-height: 56rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 10rpx; font-size: 18rpx; line-height: 1; }
 
 @media (min-width: 700px) {
+  .search-card > .button-row button { min-height: 48px; font-size: 16px; }
   .search-card .query-modes { margin-bottom: 16px; }
   .query-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 16px; }
   .query-grid .query-wide { grid-column: auto; }

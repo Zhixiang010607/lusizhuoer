@@ -53,6 +53,19 @@ test("customer query keeps the web filter dimensions, role scope, details, and d
   assert.match(js, /pages\/customer-detail\/index\?customerCode=/);
   assert.match(wxml, /<view class="customer-row customer-head"><text>姓名<\/text><text>充值<\/text><text>核销<\/text><text>门店<\/text><text>生日<\/text><text>业务阶段<\/text><text>建档日期<\/text><text>客户状态<\/text><\/view>/,
     "customer result columns keep recharge and verification after the name and status last");
+  assert.match(wxml, /wx:if="\{\{session\.role === 'hq'\}\}" class="field"><text class="field-label">门店范围<\/text>/,
+    "HQ customer search must pair store scope with business stage on phones");
+  assert.match(wxml, /class="field \{\{session\.role === 'hq' \? '' : 'query-wide'\}\}"><text class="field-label">建档时间<\/text>/,
+    "customer date range must pair with status for HQ and span only when the store role would leave a half-row");
+  assert.match(wxml, /class="field"><text class="field-label">客户姓名（可单独填写）<\/text>/);
+  assert.match(wxml, /class="field"><text class="field-label">生日（可单独填写）<\/text>/,
+    "manual customer name and birthday must share one compact phone row");
+  assert.match(wxss, /\.query-grid \.field \{ min-width: 0; margin-bottom: 10rpx; \}/);
+  assert.match(wxss, /\.query-grid \.input, \.query-grid \.picker \{ min-height: 72rpx;/,
+    "customer query controls must use the compact phone density");
+  assert.match(wxss, /\.summary-grid view \{[^}]*padding: 10rpx 6rpx;[^}]*border-radius: 14rpx;/,
+    "customer result totals must not consume a full information-card height on phones");
+  assert.match(wxss, /\.summary-grid text \{ min-height: 34rpx;[^}]*font-size: 18rpx;/);
   assert.match(wxss, /\.customer-table \{ width: 1120rpx; min-width: 1120rpx;/);
   assert.match(wxss, /grid-template-columns: 132rpx 92rpx 92rpx 160rpx 170rpx 200rpx 170rpx 104rpx;/);
   assert.equal(132 + 92 + 92 + 160 + 170 + 200 + 170 + 104, 1120);
@@ -118,6 +131,20 @@ test("recharge, verification, and product query share complete filters and exact
   assert.match(wxml, /summary\.gift/);
   assert.match(wxss, /\.product-purchase-table \{\s*width:\s*1720rpx;\s*min-width:\s*1720rpx;/,
     "the combined product table width must equal its visible column widths");
+  assert.match(wxml, /wx:if="\{\{session\.role === 'hq'\}\}" class="field"><text class="field-label">门店范围<\/text>/,
+    "HQ business search must pair store scope with project or product on phones");
+  assert.match(wxml, /class="field"><text class="field-label">\{\{recordType === 'PRODUCT_PURCHASE' \? '产品' : '项目'\}\}<\/text>/);
+  assert.match(wxml, /class="field query-time \{\{session\.role === 'hq' \? 'query-wide' : ''\}\}"><text class="field-label">时间范围<\/text>/,
+    "store searches must use the spare half-row for time while HQ keeps the balanced full-width time row");
+  assert.match(wxml, /class="field"><text class="field-label">客户姓名（可单独填写）<\/text>/);
+  assert.match(wxml, /class="field"><text class="field-label">生日（可单独填写）<\/text>/,
+    "manual business customer lookup must keep name and birthday together");
+  assert.match(wxss, /\.query-grid \.field \{ min-width: 0; margin-bottom: 10rpx; \}/);
+  assert.match(wxss, /\.query-grid \.input, \.query-grid \.picker \{ min-height: 72rpx;/);
+  assert.match(wxss, /\.query-actions button \{ min-height: 72rpx; font-size: 23rpx; \}/,
+    "business query and reset actions must match the compact phone control density");
+  assert.match(wxss, /\.summary-grid view \{[^}]*padding: 10rpx 6rpx;[^}]*border-radius: 14rpx;/,
+    "business status totals must use compact phone tiles above the results");
 });
 
 test("order detail uses safe exact reads and exposes authorized verification originals", () => {

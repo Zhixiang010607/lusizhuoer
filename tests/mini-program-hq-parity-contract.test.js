@@ -184,6 +184,10 @@ test("HQ review workbenches match web filters, pagination, exact links, and guar
   const wxss = read("pages", "reviews", "index.wxss");
 
   assert.match(js, /const PAGE_SIZE = 100/);
+  assert.match(js, /statusLabels: STATUS\.map\(\(item\) => item\.label\), statusIndex: 1/,
+    "all review workbenches must open on pending records instead of loading every historical status");
+  assert.match(js, /resetQuery\(\) \{ this\.invalidateRequest\(\{ storeIndex: 0, statusIndex: 1/,
+    "resetting a review search must restore the pending default");
   assert.match(js, /callStaff\("listReviewOrders"/);
   assert.match(js, /const mode = this\.data\.mode;/);
   assert.match(js, /paged:\s*mode === "filters"/);
@@ -218,6 +222,12 @@ test("HQ review workbenches match web filters, pagination, exact links, and guar
     "review columns should use spacing instead of middle divider lines");
   assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.review-table \{ width: 100%; min-width: 0; \}/s,
     "tablet review tables must adapt to the card width instead of keeping a fixed desktop width");
+  assert.match(wxss, /\.review-filter-grid \{[^}]*display: grid;[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s,
+    "phone review filters must pair store and status instead of stacking two oversized full-width controls");
+  assert.match(wxss, /\.filter-card \.review-type-tabs button, \.filter-card \.mode-tabs button \{ min-height: 60rpx; font-size: 20rpx; \}/,
+    "review switches must use the compact phone density");
+  assert.match(wxss, /\.filter-card \.review-query-actions button \{ min-height: 72rpx; font-size: 21rpx; \}/,
+    "review actions must match the compact filter control height");
   for (const selector of ["review-type-tabs button", "mode-tabs button", "review-action button"]) {
     const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     assert.match(wxss, new RegExp(`\\.${escaped}\\s*\\{[^}]*align-items:\\s*center;[^}]*justify-content:\\s*center;[^}]*white-space:\\s*nowrap;`, "s"),
