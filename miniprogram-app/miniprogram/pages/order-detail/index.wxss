@@ -15,6 +15,8 @@
 .detail-grid view { min-width: 0; padding: 18rpx; background: #fff7eb; border-radius: 14rpx; }
 .detail-grid text { display: block; overflow: hidden; color: #7c7062; font-size: 21rpx; text-overflow: ellipsis; white-space: nowrap; }
 .detail-grid .detail-value { margin-top: 7rpx; color: #302a22; font-size: 24rpx; font-weight: 800; }
+.detail-grid-three .detail-time { grid-column: 1 / -1; }
+.detail-grid .detail-time .detail-value { overflow: visible; font-variant-numeric: tabular-nums; text-overflow: clip; }
 .order-secondary-grid { min-width: 0; }
 .gift-detail-card { background: #fffaf3; }
 .gift-detail-list { display: grid; gap: 10rpx; }
@@ -73,6 +75,8 @@
   .fact-card .fact-note { margin-top: 4px; font-size: 12px; }
   .detail-card { padding: 16px; border-radius: 16px; }
   .detail-grid { grid-template-columns: minmax(0, .8fr) minmax(0, .65fr) repeat(2, minmax(165px, 1.25fr)); gap: 10px; }
+  .detail-grid.detail-grid-three { grid-template-columns: minmax(0, .8fr) minmax(0, .65fr) minmax(260px, 2.5fr); }
+  .detail-grid-three .detail-time { grid-column: auto; }
   .detail-grid view { padding: 12px; border-radius: 11px; }
   .detail-grid text { font-size: 13px; }
   .detail-grid .detail-value { margin-top: 5px; font-size: 16px; }

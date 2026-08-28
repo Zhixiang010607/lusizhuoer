@@ -167,6 +167,10 @@ test("store and teacher customer/order details use compact adaptive tablet works
     "recharge, refund, normal verification, and experience verification must share a compact horizontal tablet header");
   assert.match(orderWxss, /@media \(min-width: 700px\)[\s\S]*?\.fact-grid \{ grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/s);
   assert.match(orderWxml, /class="detail-time"/);
+  assert.match(orderWxml, /detail-grid-three/,
+    "a three-field verification detail must not reserve an empty fourth tablet column");
+  assert.match(orderWxss, /\.detail-grid\.detail-grid-three\s*\{[^}]*grid-template-columns:\s*minmax\(0, \.8fr\) minmax\(0, \.65fr\) minmax\(260px, 2\.5fr\);/s,
+    "the verification submission time must receive the remaining tablet width");
   assert.match(orderWxss, /\.detail-grid \.detail-time \.detail-value \{[^}]*overflow: visible;[^}]*text-overflow: clip;/s,
     "tablet work-order timestamps must remain complete instead of becoming an ellipsis");
   assert.match(orderWxss, /\.order-secondary-grid \{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(300px, 1fr\)\);/s,
