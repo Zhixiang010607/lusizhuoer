@@ -134,6 +134,10 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
     "the two-by-two HQ controls must not carry desktop-only bottom gaps");
   assert.match(wxss, /\.hq-ranking-control-grid \.filter-picker\s*\{[^}]*color:\s*#5f4a2f;[^}]*background:\s*#f5ead8;[^}]*border-color:\s*#d8c5a3;/s,
     "the time and project pickers must share the warm champagne filter palette");
+  assert.match(wxss, /\.hq-ranking-control-grid \.hq-dimension-tabs\s*\{[^}]*height:\s*64rpx;[^}]*min-height:\s*64rpx;[^}]*padding:\s*6rpx;/s,
+    "the mobile segmented controls must have the exact same outer height as the pickers");
+  assert.match(wxss, /\.hq-ranking-control-grid \.hq-dimension-tabs button\s*\{[^}]*height:\s*52rpx;[^}]*min-height:\s*0;/s,
+    "the inner buttons must fit inside the shared 64rpx control height instead of enlarging it");
   assert.match(wxss, /\.hq-custom-dates\s*\{[^}]*grid-column:\s*1 \/ -1;/s,
     "a custom HQ date range must remain full width below the compact controls");
   assert.match(wxml, /class="hq-control-field hq-product-filter"[\s\S]*class="hq-control-heading"[\s\S]*项目范围[\s\S]*class="hq-inline-reset" bindtap="resetHqRange">恢复默认<\/button>/,

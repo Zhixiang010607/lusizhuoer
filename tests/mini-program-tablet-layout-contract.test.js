@@ -371,5 +371,7 @@ test("HQ tablet filters use a balanced two-by-two control grid", () => {
   assert.doesNotMatch(homeWxml, /排序指标<\/text><button class="hq-inline-reset"/);
   assert.doesNotMatch(homeWxml, /class="hq-filter-actions"/);
   assert.match(homeWxss, /\.hq-ranking-control-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/);
+  assert.match(homeWxss, /\.hq-ranking-control-grid \.hq-dimension-tabs \{[^}]*height: 46px;[^}]*min-height: 46px;[^}]*padding: 4px;/s);
+  assert.match(homeWxss, /\.hq-ranking-control-grid \.hq-dimension-tabs button \{[^}]*height: 38px;[^}]*min-height: 0;/s);
   assert.match(homeWxss, /\.hq-inline-reset \{[^}]*min-width: 0;[^}]*min-height: 26px;[^}]*border-width: 0;/s);
 });
