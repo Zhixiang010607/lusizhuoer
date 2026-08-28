@@ -23,9 +23,9 @@
     <view wx:if="{{loading}}" class="empty">正在读取审核工单…</view>
     <scroll-view wx:elif="{{rows.length}}" class="table-scroll" scroll-x="true" data-visible-rows="{{rows.length > 5 ? 5 : rows.length}}" scroll-y="{{rows.length > 5}}" enhanced="true" show-scrollbar="{{rows.length > 5}}">
       <view class="review-table">
-        <view class="review-row head"><text>工单号</text><text>类型</text><text>门店</text><text>客户</text><text>{{type === 'product-purchase' ? '产品' : '项目'}}</text><text>老师</text><text>影响</text><text>申请时间</text><text>审核</text><text>审核时间</text></view>
+        <view class="review-row head"><text>工单号</text><text>门店</text><text>客户</text><text>{{type === 'product-purchase' ? '产品' : '项目'}}</text><text>老师</text><text>影响</text><text>申请时间</text><text>审核</text><text>审核时间</text></view>
         <view wx:for="{{rows}}" wx:key="id" class="review-row">
-          <text class="link" data-id="{{item.id}}" data-code="{{item.recordCode}}" bindtap="openOrder">{{item.recordCode}}</text><text>{{item.kind}}</text><text>{{item.storeName}}</text><text class="link" data-code="{{item.customerCode}}" bindtap="openCustomer">{{item.customerName}}</text><text>{{item.productName}}</text><text>{{item.teacherName}}</text><text>{{item.impact}}</text><text>{{item.submittedAt}}</text>
+          <text class="link" data-id="{{item.id}}" data-code="{{item.recordCode}}" bindtap="openOrder">{{item.recordCode}}</text><text>{{item.storeName}}</text><text class="link" data-code="{{item.customerCode}}" bindtap="openCustomer">{{item.customerName}}</text><text>{{item.productName}}</text><text>{{item.teacherName}}</text><text>{{item.impact}}</text><text>{{item.submittedAt}}</text>
           <view class="review-action"><block wx:if="{{item.status === 'PENDING'}}"><button data-id="{{item.id}}" data-decision="APPROVED" bindtap="openDecision">通过</button><button class="reject" data-id="{{item.id}}" data-decision="REJECTED" bindtap="openDecision">驳回</button></block><text wx:else class="status {{item.status}}">{{item.statusLabel}}</text></view>
           <text>{{item.reviewedAt}}</text>
         </view>

@@ -39,11 +39,10 @@ button::after { border: 0; }
 .table-scroll[data-visible-rows="3"] { height: 320rpx; }
 .table-scroll[data-visible-rows="4"] { height: 404rpx; }
 .table-scroll[data-visible-rows="5"] { height: 488rpx; }
-.review-table { width: 2050rpx; }
-.review-row { display: grid; grid-template-columns: 230rpx 150rpx 230rpx 220rpx 210rpx 180rpx 150rpx 230rpx 250rpx 200rpx; min-height: 84rpx; border-bottom: 1rpx solid #eadfce; }
+.review-table { width: 1900rpx; }
+.review-row { display: grid; grid-template-columns: 230rpx 230rpx 220rpx 210rpx 180rpx 150rpx 230rpx 250rpx 200rpx; min-height: 84rpx; border-bottom: 1rpx solid #eadfce; }
 .review-row:last-child { border-bottom: 0; }
-.review-row > text, .review-row > view { min-width: 0; display: flex; align-items: center; justify-content: center; padding: 12rpx 14rpx; overflow: hidden; border-right: 1rpx solid #eee4d4; box-sizing: border-box; font-size: 19rpx; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
-.review-row > text:last-child, .review-row > view:last-child { border-right: 0; }
+.review-row > text, .review-row > view { min-width: 0; display: flex; align-items: center; justify-content: center; padding: 12rpx 14rpx; overflow: hidden; box-sizing: border-box; font-size: 19rpx; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .review-row.head { min-height: 68rpx; color: #fffdf8; background: #4b4033; font-weight: 850; }
 .review-row:not(.head):nth-child(odd) { background: #fff; }
 .link { color: #8b642e; font-weight: 850; text-decoration: underline; }
@@ -103,9 +102,9 @@ button::after { border: 0; }
   .table-scroll[data-visible-rows="3"] { height: 228px; }
   .table-scroll[data-visible-rows="4"] { height: 286px; }
   .table-scroll[data-visible-rows="5"] { height: 344px; }
-  .review-table { width: 1500px; min-width: 1500px; }
-  .review-row { grid-template-columns: 190px 110px 170px 150px 150px 120px 100px 180px 230px 150px; min-height: 58px; border-width: 1px; }
-  .review-row > text, .review-row > view { min-height: 58px; padding: 8px 10px; border-width: 1px; font-size: 14px; }
+  .review-table { width: 100%; min-width: 0; }
+  .review-row { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, .9fr) minmax(0, 1fr) minmax(0, .8fr) minmax(0, .7fr) minmax(0, 1.35fr) minmax(0, 1.3fr) minmax(0, 1.35fr); min-height: 58px; border-width: 1px; }
+  .review-row > text, .review-row > view { min-height: 58px; padding: 8px 6px; font-size: 12px; }
   .review-row.head { min-height: 54px; }
   .review-action { gap: 6px; }
   .review-action button { min-width: 72px; min-height: 40px; padding: 0 10px; font-size: 13px; }

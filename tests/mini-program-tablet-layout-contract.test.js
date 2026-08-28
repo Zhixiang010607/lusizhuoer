@@ -90,6 +90,8 @@ test("query and review pages use compact tablet filters and five-row result view
   assert.match(reviewsWxss, /\.review-filter-grid \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/s);
   assert.match(reviewsWxss, /\.review-query-actions \{ grid-column: span 2; margin-top: 0; \}/,
     "store, status, query, and reset must form one balanced tablet row");
+  assert.match(reviewsWxss, /@media \(min-width: 700px\)[\s\S]*?\.review-table \{ width: 100%; min-width: 0; \}/s,
+    "review columns must share the full tablet card width without a fixed-width overflow");
   assert.match(reviewsWxss, /\.review-type-tabs button \{[^}]*width: 100%;[^}]*min-width: 0;/s,
     "recharge and refund review tabs should fill their two balanced tablet columns");
   assert.match(directoryWxss, /\.search-fields \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s);

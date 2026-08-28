@@ -206,14 +206,16 @@ test("HQ review workbenches match web filters, pagination, exact links, and guar
   for (const label of ["充值审核", "退费审核", "按条件查询", "按工单编号", "门店范围", "审核状态", "上一页", "下一页", "跳至", "通过", "驳回", "审核留言（可选）"]) {
     assert.match(wxml, new RegExp(label), `HQ review UI is missing ${label}`);
   }
-  assert.match(wxss, /\.review-table\s*\{\s*width:\s*2050rpx;/,
+  assert.match(wxss, /\.review-table\s*\{\s*width:\s*1900rpx;/,
     "review table width must exactly equal the declared column total");
-  assert.match(wxss, /grid-template-columns:\s*230rpx 150rpx 230rpx 220rpx 210rpx 180rpx 150rpx 230rpx 250rpx 200rpx/);
-  assert.equal(230 + 150 + 230 + 220 + 210 + 180 + 150 + 230 + 250 + 200, 2050);
+  assert.match(wxss, /grid-template-columns:\s*230rpx 230rpx 220rpx 210rpx 180rpx 150rpx 230rpx 250rpx 200rpx/);
+  assert.equal(230 + 230 + 220 + 210 + 180 + 150 + 230 + 250 + 200, 1900);
   assert.match(wxss, /\.review-row > text, \.review-row > view\s*\{[^}]*align-items:\s*center[^}]*justify-content:\s*center[^}]*text-align:\s*center[^}]*white-space:\s*nowrap/s,
     "review headers and values must stay centered on one line");
-  assert.match(wxss, /\.review-row > text:last-child, \.review-row > view:last-child\s*\{\s*border-right:\s*0;/,
-    "the final review column must not leave a trailing border sliver");
+  assert.doesNotMatch(wxss, /\.review-row > text, \.review-row > view\s*\{[^}]*border-right:/s,
+    "review columns should use spacing instead of middle divider lines");
+  assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.review-table \{ width: 100%; min-width: 0; \}/s,
+    "tablet review tables must adapt to the card width instead of keeping a fixed desktop width");
   for (const selector of ["review-type-tabs button", "mode-tabs button", "review-action button"]) {
     const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     assert.match(wxss, new RegExp(`\\.${escaped}\\s*\\{[^}]*align-items:\\s*center;[^}]*justify-content:\\s*center;[^}]*white-space:\\s*nowrap;`, "s"),
