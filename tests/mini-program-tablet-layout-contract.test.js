@@ -202,6 +202,23 @@ test("HQ project management uses compact adaptive tablet cards", () => {
   assert.match(context, /项目按可用宽度自动使用两列或三列独立卡片/);
 });
 
+test("HQ retail product management uses compact adaptive tablet cards", () => {
+  const wxml = read("miniprogram-app", "miniprogram", "pages", "retail-product-management", "index.wxml");
+  const wxss = read("miniprogram-app", "miniprogram", "pages", "retail-product-management", "index.wxss");
+  const context = read("PROJECT_CONTEXT.md");
+
+  assert.match(wxml, /wx:elif="\{\{products\.length\}\}" class="product-list"/);
+  assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.page \{[^}]*max-width: 1040px;/s,
+    "retail product management must stay inside a bounded tablet workspace");
+  assert.match(wxss, /\.product-list \{[^}]*grid-template-columns: repeat\(auto-fill, minmax\(260px, 1fr\)\);/s,
+    "tablet width should automatically choose two or three compact retail product cards per row");
+  assert.match(wxss, /\.product-head \{ display: none; \}/,
+    "the magnified four-column phone header must retire on tablets");
+  assert.match(wxss, /\.status-button \{[^}]*width: 82px;[^}]*height: 38px;/s,
+    "product status actions must remain compact and separate from card text");
+  assert.match(context, /产品按可用宽度自动使用两列或三列卡片展示名称、编号、状态和操作/);
+});
+
 test("HQ ranking cards show only the selected business metric", () => {
   const homeWxml = read("miniprogram-app", "miniprogram", "pages", "home", "index.wxml");
   const homeJs = read("miniprogram-app", "miniprogram", "pages", "home", "index.js");

@@ -15,10 +15,10 @@
     <view class="list-heading"><view><text>产品列表</text></view><text class="count">{{products.length}} 个产品</text></view>
     <view class="product-grid product-head"><text>产品名称</text><text>产品编号</text><text>状态</text><text>操作</text></view>
     <view wx:if="{{loading}}" class="empty">正在读取产品数据…</view>
-    <view wx:elif="{{products.length}}">
+    <view wx:elif="{{products.length}}" class="product-list">
       <view wx:for="{{products}}" wx:key="ref" class="product-grid product-row">
         <text class="product-name">{{item.name}}</text>
-        <text>{{item.code}}</text>
+        <text class="product-code">{{item.code}}</text>
         <text class="status {{item.archived ? 'archived' : 'active'}}">{{item.status}}</text>
         <button class="status-button {{item.archived ? '' : 'archive'}}" data-ref="{{item.ref}}" bindtap="toggleStatus" loading="{{mutatingRef === item.ref}}" disabled="{{mutatingRef}}">{{item.archived ? '激活' : '封存'}}</button>
       </view>

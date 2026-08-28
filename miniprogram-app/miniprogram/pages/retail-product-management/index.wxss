@@ -29,3 +29,40 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
 .status-button.archive { color: #9b493f; background: #fff2ef; border-color: #dca99f; }
 .empty { padding: 42rpx 12rpx; color: #887c6d; font-size: 21rpx; text-align: center; }
 .safe-bottom { height: calc(24rpx + env(safe-area-inset-bottom)); }
+
+@media (min-width: 700px) {
+  .page { width: calc(100% - 48px); max-width: 1040px; padding: 20px 0 36px; }
+  .page-heading { margin: 0 4px 14px; }
+  .title { font-size: 26px; }
+  .management-toolbar { gap: 16px; margin-bottom: 14px; padding: 18px; border-width: 1px; border-radius: 18px; }
+  .toolbar-copy { gap: 4px; }
+  .toolbar-copy text:first-child { font-size: 22px; }
+  .toolbar-copy text:last-child { font-size: 14px; }
+  .add-button { min-width: 132px; min-height: 44px; padding: 0 18px; border-radius: 11px; font-size: 14px; }
+  .message { margin-bottom: 14px; padding: 13px 16px; border-radius: 12px; font-size: 14px; }
+  .list-card { padding: 18px; border-width: 1px; border-radius: 18px; }
+  .list-heading { align-items: center; margin: 0 0 14px; }
+  .list-heading > view { gap: 4px; }
+  .list-heading > view text:first-child { font-size: 22px; }
+  .count { padding: 5px 10px; font-size: 13px; }
+  .product-head { display: none; }
+  .product-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .product-row, .product-row:last-child {
+    min-height: 112px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    gap: 12px 10px;
+    padding: 18px;
+    background: #fffaf3;
+    border: 1px solid #dfcfb4;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(93,72,39,.07);
+    font-size: 14px;
+  }
+  .product-grid > text { padding: 0; text-align: left; }
+  .product-name { grid-column: 1; grid-row: 1; align-self: center; font-size: 20px; }
+  .product-code { grid-column: 1; grid-row: 2; align-self: center; color: #7c7062; font-size: 14px; }
+  .status { grid-column: 2; grid-row: 1; align-self: center; padding: 4px 9px !important; font-size: 12px; }
+  .status-button { grid-column: 2; grid-row: 2; width: 82px; height: 38px; min-height: 38px; border-width: 1px; border-radius: 10px; font-size: 13px; }
+  .empty { padding: 36px 12px; font-size: 14px; }
+}
