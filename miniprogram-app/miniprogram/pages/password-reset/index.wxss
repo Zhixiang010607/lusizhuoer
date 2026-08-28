@@ -21,3 +21,24 @@
 .back-login::after, .code-field button::after { border: 0; }
 .reset-card .message { text-align: center; }
 @media (max-width: 360px) { .reset-page { padding-right: 30rpx; padding-left: 30rpx; } .reset-card { padding: 52rpx 36rpx 40rpx; border-radius: 78rpx 78rpx 32rpx 32rpx; } }
+
+@media (min-width: 700px) {
+  .reset-page { padding: calc(28px + env(safe-area-inset-top)) 40px calc(28px + env(safe-area-inset-bottom)); }
+  .reset-card { max-width: 540px; padding: 42px 44px 36px; border-width: 1px; border-radius: 54px 54px 26px 26px; box-shadow: 0 18px 54px rgba(120,91,43,.16); }
+  .reset-heading { margin-bottom: 30px; }
+  .reset-title { font-size: 32px; letter-spacing: 8px; text-indent: 8px; }
+  .reset-note { margin-top: 10px; font-size: 14px; }
+  .reset-card .field { margin-bottom: 18px; }
+  .reset-card .field-label { font-size: 14px; }
+  .reset-card .input { min-height: 52px; border-width: 1px; border-radius: 16px; font-size: 16px; }
+  .code-field { grid-template-columns: minmax(0,1fr) 132px; gap: 10px; }
+  .code-field button { min-height: 52px; padding: 0 12px; border-width: 1px; border-radius: 16px; font-size: 14px; line-height: 52px; }
+  .password-field .input { padding-right: 66px; }
+  .password-field > .password-toggle { right: 4px; width: 58px; height: 52px; }
+  .eye-icon { width: 25px; height: 16px; border-width: 1.5px; }
+  .eye-icon view { width: 6px; height: 6px; }
+  .eye-icon:not(.visible)::after { top: 6px; left: -3px; width: 31px; height: 1.5px; box-shadow: 0 0 0 2px rgba(255,255,255,.76); }
+  .reset-submit { width: 320px !important; height: 54px; min-height: 54px; margin-top: 24px; border-radius: 27px; font-size: 17px; }
+  .reset-submit text { line-height: 54px; }
+  .back-login { min-height: 42px; margin-top: 12px; font-size: 14px; line-height: 42px; }
+}

@@ -16,6 +16,21 @@ test("mini-program shared controls stop scaling after the tablet breakpoint", ()
   assert.match(wxss, /page \.primary, page \.secondary, page \.danger, page \.ghost \{[^}]*min-height: 48px;[^}]*font-size: 16px;/s);
   assert.match(wxss, /page \.button-row \{ gap: 12px; \}/,
     "tablet action rows must retain a physical gap between controls");
+  assert.match(wxss, /page \.facts \{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(180px, 1fr\)\);/s,
+    "compact facts should fill available tablet columns without leaving a forced empty half");
+});
+
+test("login and password reset use bounded tablet forms", () => {
+  const login = read("miniprogram-app", "miniprogram", "pages", "login", "index.wxss");
+  const reset = read("miniprogram-app", "miniprogram", "pages", "password-reset", "index.wxss");
+
+  assert.match(login, /@media \(min-width: 700px\) \{/);
+  assert.match(login, /\.login-shell \{ max-width: 500px; \}/);
+  assert.match(login, /\.login-card \{[^}]*padding: 46px 44px 38px;[^}]*border-radius: 56px 56px 26px 26px;/s);
+  assert.match(login, /\.login-card \.input \{[^}]*min-height: 54px;[^}]*font-size: 17px;/s);
+  assert.match(login, /\.wechat-login \{[^}]*width: 320px !important;[^}]*height: 48px;/s);
+  assert.match(reset, /@media \(min-width: 700px\) \{/);
+  assert.match(reset, /\.reset-card \{[^}]*max-width: 540px;[^}]*padding: 42px 44px 36px;/s);
 });
 
 test("role homes use a bounded tablet dashboard instead of a magnified phone", () => {
@@ -27,6 +42,8 @@ test("role homes use a bounded tablet dashboard instead of a magnified phone", (
   assert.match(wxss, /@media \(min-width: 700px\) \{/);
   assert.match(wxss, /\.workspace-main, \.role-teacher \.workspace-main \{[^}]*max-width: 1120px;[^}]*margin: 20px auto 0;/s);
   assert.match(wxss, /\.role-store \.workspace-main \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[^}]*gap: 16px;/s);
+  assert.match(wxss, /\.role-teacher \.workspace-main \{[^}]*grid-template-columns: minmax\(240px, \.72fr\) minmax\(0, 1\.28fr\);[^}]*gap: 16px;/s,
+    "teacher profile and quota cards should use the available tablet width");
   assert.match(wxss, /\.role-store \.workspace-main > \.overview-panel,[\s\S]*?\.role-store \.workspace-main > \.customer-panel,[\s\S]*?grid-column: 1 \/ -1;/,
     "wide data tables stay full width while compact profile cards may use two columns");
   assert.match(wxss, /\.range-presets \{[^}]*grid-template-columns: repeat\(7, minmax\(0, 1fr\)\);[^}]*gap: 8px;/s);

@@ -220,6 +220,15 @@
   .role-store .workspace-main > .safe-bottom { grid-column: 1 / -1; }
   .role-store .profile-hero, .role-store .store-contact-panel { height: 100%; }
 
+  .role-teacher .workspace-main { display: grid; grid-template-columns: minmax(240px, .72fr) minmax(0, 1.28fr); align-items: start; gap: 16px; }
+  .role-teacher .workspace-main > .web-panel { margin-bottom: 0; }
+  .role-teacher .workspace-main > .form-message,
+  .role-teacher .workspace-main > .overview-panel,
+  .role-teacher .workspace-main > .business-panel,
+  .role-teacher .workspace-main > .customer-panel,
+  .role-teacher .workspace-main > .safe-bottom { grid-column: 1 / -1; }
+  .role-teacher .teacher-quota-grid { grid-template-columns: minmax(0, 1fr); }
+
   .detail-info-grid { gap: 1px; border-width: 1px; border-radius: 16px; }
   .detail-info-item { min-height: 92px; padding: 18px; }
   .detail-info-item text:first-child { margin-bottom: 8px; font-size: 13px; }

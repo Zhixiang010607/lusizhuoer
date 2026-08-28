@@ -100,7 +100,7 @@ button::after { border: 0; }
   page .segmented button { min-height: 44px; border-radius: 10px; font-size: 15px; }
   page .photo { height: 360px; border-radius: 16px; }
   page .photo-small { width: 88px; height: 106px; border-radius: 12px; }
-  page .facts { gap: 10px; }
+  page .facts { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
   page .fact { padding: 14px; border-width: 1px; border-radius: 12px; }
   page .fact .label { font-size: 14px; }
   page .fact .value { margin-top: 6px; font-size: 16px; }
