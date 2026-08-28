@@ -179,9 +179,13 @@ test("store and teacher customer/order details use compact adaptive tablet works
   assert.match(orderWxml, /class="detail-time"/);
   assert.match(orderWxml, /detail-grid-three/,
     "a three-field verification detail must not reserve an empty fourth tablet column");
+  assert.match(orderWxml, /'detail-grid-three' : 'detail-grid-reviewed'/,
+    "recharge, refund, and supplement details must use dedicated reviewed-order time columns");
+  assert.match(orderWxss, /\.detail-grid\.detail-grid-reviewed\s*\{[^}]*grid-template-columns:\s*minmax\(96px, \.62fr\) minmax\(72px, \.5fr\) repeat\(2, minmax\(190px, 1\.44fr\)\);/s,
+    "submitted and reviewed timestamps must receive wider tablet columns than type and count");
   assert.match(orderWxss, /\.detail-grid\.detail-grid-three\s*\{[^}]*grid-template-columns:\s*minmax\(0, \.8fr\) minmax\(0, \.65fr\) minmax\(260px, 2\.5fr\);/s,
     "the verification submission time must receive the remaining tablet width");
-  assert.match(orderWxss, /\.detail-grid \.detail-time \.detail-value \{[^}]*overflow: visible;[^}]*text-overflow: clip;/s,
+  assert.match(orderWxss, /\.detail-grid \.detail-time \.detail-value \{[^}]*width: max-content;[^}]*max-width: none;[^}]*overflow: visible;[^}]*text-overflow: clip;[^}]*white-space: nowrap;/s,
     "tablet work-order timestamps must remain complete instead of becoming an ellipsis");
   assert.match(orderWxss, /\.order-secondary-grid \{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(300px, 1fr\)\);/s,
     "optional gifts and work-order notes should fill one or two tablet columns without an empty forced column");

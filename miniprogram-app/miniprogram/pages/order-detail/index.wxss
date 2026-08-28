@@ -75,12 +75,13 @@
   .fact-card .fact-note { margin-top: 4px; font-size: 12px; }
   .detail-card { padding: 16px; border-radius: 16px; }
   .detail-grid { grid-template-columns: minmax(0, .8fr) minmax(0, .65fr) repeat(2, minmax(165px, 1.25fr)); gap: 10px; }
+  .detail-grid.detail-grid-reviewed { grid-template-columns: minmax(96px, .62fr) minmax(72px, .5fr) repeat(2, minmax(190px, 1.44fr)); }
   .detail-grid.detail-grid-three { grid-template-columns: minmax(0, .8fr) minmax(0, .65fr) minmax(260px, 2.5fr); }
   .detail-grid-three .detail-time { grid-column: auto; }
   .detail-grid view { padding: 12px; border-radius: 11px; }
   .detail-grid text { font-size: 13px; }
   .detail-grid .detail-value { margin-top: 5px; font-size: 16px; }
-  .detail-grid .detail-time .detail-value { overflow: visible; font-size: 15px; text-overflow: clip; }
+  .detail-grid .detail-time .detail-value { width: max-content; max-width: none; overflow: visible; font-size: 14px; text-overflow: clip; white-space: nowrap; }
   .order-secondary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: stretch; gap: 14px; margin-bottom: 14px; }
   .order-secondary-grid > .card { height: 100%; margin-bottom: 0; padding: 16px; border-radius: 16px; }
   .gift-detail-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }

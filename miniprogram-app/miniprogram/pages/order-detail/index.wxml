@@ -12,7 +12,7 @@
 
     <view class="card detail-card">
       <view class="card-title"><text>{{noun}}信息</text><text class="badge">数据库原单</text></view>
-      <view class="detail-grid {{baseType === 'VERIFICATION' && order.originalType !== 'SUPPLEMENT' ? 'detail-grid-three' : ''}}">
+      <view class="detail-grid {{baseType === 'VERIFICATION' && order.originalType !== 'SUPPLEMENT' ? 'detail-grid-three' : 'detail-grid-reviewed'}}">
         <view><text>工单类型</text><text class="detail-value">{{order.typeLabel}}</text></view>
         <view><text>次数</text><text class="detail-value">{{order.unitCount}} 次</text></view>
         <view class="detail-time"><text>提交时间</text><text class="detail-value">{{order.submittedAt}}</text></view>
