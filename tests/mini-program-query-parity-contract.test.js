@@ -51,6 +51,10 @@ test("customer query keeps the web filter dimensions, role scope, details, and d
   assert.match(js, /if \(epoch !== this\._requestEpoch\) return false;/,
     "customer results must reject stale responses after filters change");
   assert.match(js, /pages\/customer-detail\/index\?customerCode=/);
+  assert.match(js, /timeValues: values\(query\.TIME_OPTIONS\), \.\.\.query\.defaultTimeFilter\(\)/,
+    "HQ and store customer queries must open on today's Shanghai business date");
+  assert.match(js, /resetSearch\(\)[\s\S]*\.\.\.query\.defaultTimeFilter\(\)/,
+    "resetting a customer query must return the time range to today");
   assert.match(wxml, /<view class="customer-row customer-head"><text>姓名<\/text><text>充值<\/text><text>核销<\/text><text>门店<\/text><text>生日<\/text><text>业务阶段<\/text><text>建档日期<\/text><text>客户状态<\/text><\/view>/,
     "customer result columns keep recharge and verification after the name and status last");
   assert.match(wxml, /wx:if="\{\{session\.role === 'hq'\}\}" class="field"><text class="field-label">门店范围<\/text>/,
@@ -96,6 +100,10 @@ test("recharge, verification, and product query share complete filters and exact
   assert.match(js, /if \(epoch !== this\._requestEpoch\) return;/,
     "business queries must reject stale responses after filters change");
   assert.match(js, /pages\/order-detail\/index\?type=/);
+  assert.match(js, /timeValues: values\(query\.TIME_OPTIONS\), \.\.\.query\.defaultTimeFilter\(\)/,
+    "HQ and store business queries must open on today's Shanghai business date");
+  assert.match(js, /resetQuery\(\)[\s\S]*\.\.\.query\.defaultTimeFilter\(\)/,
+    "resetting recharge, refund, verification, or product queries must return to today");
   assert.match(js, /originalType === "SUPPLEMENT" \? "SUPPLEMENT" : "VERIFICATION"/,
     "verification query links preserve historical supplement category for exact detail reads");
   assert.match(js, /originalType === "VOID" \? "VOID" : "RECHARGE"/,
@@ -187,6 +195,12 @@ test("customer history and role homes link exact records to the shared detail pa
 });
 
 test("shared query helpers preserve Shanghai business ranges while retired statuses stay out of filters", () => {
+  const today = tools.businessToday();
+  assert.equal(tools.TIME_OPTIONS[0].value, "TODAY");
+  assert.deepEqual(tools.timeRange("TODAY"), { startDate: today, endDate: today });
+  assert.deepEqual(tools.defaultTimeFilter(), {
+    timeIndex: 0, startDate: today, endDate: today, customRange: false
+  });
   assert.deepEqual(tools.timeRange("ALL"), { startDate: "", endDate: "" });
   const week = tools.timeRange("LAST_7");
   assert.match(week.startDate, /^\d{4}-\d{2}-\d{2}$/);

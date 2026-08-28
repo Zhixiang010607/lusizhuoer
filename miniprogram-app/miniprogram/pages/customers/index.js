@@ -34,8 +34,8 @@ Page({
     stores: [], storeLabels: ["全部门店"], storeIndex: 0,
     processLabels: labels(query.CUSTOMER_PROCESS_OPTIONS), processValues: values(query.CUSTOMER_PROCESS_OPTIONS), processIndex: 0,
     statusLabels: labels(query.CUSTOMER_STATUS_OPTIONS), statusValues: values(query.CUSTOMER_STATUS_OPTIONS), statusIndex: 0,
-    timeLabels: labels(query.TIME_OPTIONS), timeValues: values(query.TIME_OPTIONS), timeIndex: 0,
-    customRange: false, startDate: "", endDate: "", today: query.businessToday(),
+    timeLabels: labels(query.TIME_OPTIONS), timeValues: values(query.TIME_OPTIONS), ...query.defaultTimeFilter(),
+    today: query.businessToday(),
     name: "", birthDate: "",
     summary: { ...EMPTY_SUMMARY }
   },
@@ -152,7 +152,7 @@ Page({
   chooseStatus(event) { this.invalidateRequest({ statusIndex: Number(event.detail.value) }); },
   chooseTime(event) {
     const timeIndex = Number(event.detail.value);
-    const timeValue = this.data.timeValues[timeIndex] || "ALL";
+    const timeValue = this.data.timeValues[timeIndex] || "TODAY";
     const range = query.timeRange(timeValue, { startDate: this.data.startDate, endDate: this.data.endDate });
     this.invalidateRequest({ timeIndex, customRange: timeValue === "CUSTOM", startDate: range.startDate, endDate: range.endDate });
   },
@@ -168,8 +168,8 @@ Page({
   },
   resetSearch() {
     this.invalidateRequest({
-      mode: "browse", storeIndex: 0, processIndex: 0, statusIndex: 0, timeIndex: 0,
-      customRange: false, startDate: "", endDate: "", name: "", birthDate: ""
+      mode: "browse", storeIndex: 0, processIndex: 0, statusIndex: 0,
+      ...query.defaultTimeFilter(), name: "", birthDate: ""
     });
     this.resetPaging(); this.load(1);
   },

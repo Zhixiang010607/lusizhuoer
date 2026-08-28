@@ -1,4 +1,5 @@
 const TIME_OPTIONS = Object.freeze([
+  { value: "TODAY", label: "今天" },
   { value: "ALL", label: "全部时间" },
   { value: "LAST_7", label: "近 7 天" },
   { value: "LAST_MONTH", label: "近 1 个月" },
@@ -55,11 +56,12 @@ function addDays(value, amount) {
 }
 
 function timeRange(value, custom = {}) {
-  const type = String(value || "ALL").toUpperCase();
+  const type = String(value || "TODAY").toUpperCase();
   const today = businessToday();
   const current = dateFrom(today);
   const year = current.getUTCFullYear();
   const month = current.getUTCMonth();
+  if (type === "TODAY") return { startDate: today, endDate: today };
   if (type === "ALL") return { startDate: "", endDate: "" };
   if (type === "CUSTOM") return { startDate: custom.startDate || "", endDate: custom.endDate || "" };
   if (type === "LAST_7") return { startDate: addDays(today, -6), endDate: today };
@@ -249,9 +251,19 @@ function optionIndex(options, value) {
   return index >= 0 ? index : 0;
 }
 
+function defaultTimeFilter() {
+  const today = businessToday();
+  return {
+    timeIndex: optionIndex(TIME_OPTIONS, "TODAY"),
+    startDate: today,
+    endDate: today,
+    customRange: false
+  };
+}
+
 module.exports = {
   TIME_OPTIONS, STATUS_OPTIONS, VERIFICATION_TYPES, RECHARGE_TYPES,
   CUSTOMER_PROCESS_OPTIONS, CUSTOMER_STATUS_OPTIONS,
-  businessToday, timeRange, displayDate, displayDateAny, displayDateTime, displayDateTimeAny, statusLabel, typeLabel,
+  businessToday, timeRange, defaultTimeFilter, displayDate, displayDateAny, displayDateTime, displayDateTimeAny, statusLabel, typeLabel,
   normalizeRecord, normalizeProductPurchaseRecord, optionIndex
 };

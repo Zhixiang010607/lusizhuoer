@@ -16,12 +16,15 @@ function dashboardFilters(options, typeOptions) {
   const drill = String(options.drill || "").toLowerCase();
   const startDate = String(options.startDate || "");
   const endDate = String(options.endDate || "");
-  const customRange = /^\d{4}-\d{2}-\d{2}$/.test(startDate) && /^\d{4}-\d{2}-\d{2}$/.test(endDate) && startDate <= endDate;
+  const explicitRange = /^\d{4}-\d{2}-\d{2}$/.test(startDate) && /^\d{4}-\d{2}-\d{2}$/.test(endDate) && startDate <= endDate;
+  const defaultTime = query.defaultTimeFilter();
+  const isToday = explicitRange && startDate === defaultTime.startDate && endDate === defaultTime.endDate;
   const targetType = ({ recharge: "NEW", refund: "REFUND", verification: "NORMAL", experience: "EXPERIENCE" })[drill] || "ALL";
   return {
     typeIndex: Math.max(0, typeOptions.findIndex((item) => item.value === targetType)),
-    timeIndex: customRange ? query.TIME_OPTIONS.findIndex((item) => item.value === "CUSTOM") : 0,
-    startDate: customRange ? startDate : "", endDate: customRange ? endDate : "", customRange
+    ...(explicitRange && !isToday ? {
+      timeIndex: query.optionIndex(query.TIME_OPTIONS, "CUSTOM"), startDate, endDate, customRange: true
+    } : defaultTime)
   };
 }
 
@@ -35,8 +38,8 @@ Page({
     sourceLabels: labels(PRODUCT_SOURCES), sourceValues: values(PRODUCT_SOURCES), sourceIndex: 0,
     statusLabels: labels(query.STATUS_OPTIONS), statusValues: values(query.STATUS_OPTIONS), statusIndex: 0,
     typeLabels: labels(query.RECHARGE_TYPES), typeValues: values(query.RECHARGE_TYPES), typeIndex: 0,
-    timeLabels: labels(query.TIME_OPTIONS), timeValues: values(query.TIME_OPTIONS), timeIndex: 0,
-    startDate: "", endDate: "", customRange: false, today: query.businessToday(),
+    timeLabels: labels(query.TIME_OPTIONS), timeValues: values(query.TIME_OPTIONS), ...query.defaultTimeFilter(),
+    today: query.businessToday(),
     customerName: "", birthDate: ""
   },
 
@@ -189,7 +192,7 @@ Page({
   chooseType(event) { this.invalidateRequest({ typeIndex: Number(event.detail.value) }); },
   chooseTime(event) {
     const timeIndex = Number(event.detail.value);
-    const value = this.data.timeValues[timeIndex] || "ALL";
+    const value = this.data.timeValues[timeIndex] || "TODAY";
     const range = query.timeRange(value, { startDate: this.data.startDate, endDate: this.data.endDate });
     this.invalidateRequest({ timeIndex, customRange: value === "CUSTOM", startDate: range.startDate, endDate: range.endDate });
   },
@@ -205,9 +208,9 @@ Page({
   },
   resetQuery() {
     this.invalidateRequest({
-      mode: "browse", storeIndex: 0, productIndex: 0, statusIndex: 0, typeIndex: 0, timeIndex: 0,
-      sourceIndex: 0,
-      startDate: "", endDate: "", customRange: false, customerName: "", birthDate: "", page: 1, pageJump: "1"
+      mode: "browse", storeIndex: 0, productIndex: 0, statusIndex: 0, typeIndex: 0,
+      sourceIndex: 0, ...query.defaultTimeFilter(),
+      customerName: "", birthDate: "", page: 1, pageJump: "1"
     });
     this.load(1);
   },

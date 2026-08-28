@@ -238,6 +238,9 @@ test("record queries reset horizontal scroll and keep order codes inside their o
   page.data.tableScrollLeft = 640;
   page.resetQuery();
   assert.equal(page.data.tableScrollLeft, 0, "reset must return the table to its first column immediately");
+  assert.equal(page.data.timeValues[page.data.timeIndex], "TODAY");
+  assert.equal(page.data.startDate, queryTools.businessToday());
+  assert.equal(page.data.endDate, queryTools.businessToday());
 
   const wxml = pageSource("pages/records/index.wxml");
   const wxss = pageSource("pages/records/index.wxss");
