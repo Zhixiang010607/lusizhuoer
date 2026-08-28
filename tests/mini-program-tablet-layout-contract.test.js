@@ -113,6 +113,16 @@ test("query and review pages use compact tablet filters and five-row result view
     "customer query summary must stay compact instead of magnifying its labels on iPad");
   assert.match(recordsWxss, /@media \(min-width: 700px\)[\s\S]*?\.summary-grid \.summary-value \{[^}]*font-size: 17px;/s,
     "record query totals must use a compact tablet numeral size");
+  assert.match(recordsWxss, /@media \(min-width: 700px\)[\s\S]*?\.record-table \{ width: 905px; min-width: 905px; \}/s,
+    "recharge and refund query columns should reveal more fields before tablet scrolling");
+  assert.match(recordsWxss, /\.verification-table, \.product-purchase-table \{ width: 985px; min-width: 985px; \}/,
+    "verification and product query columns should use their exact compact tablet width");
+  assert.match(recordsWxss, /\.record-row \{[^}]*grid-template-columns: 150px 82px 90px 102px 100px 82px 62px 92px 145px;/s,
+    "tablet query columns should reserve the most width for the full order code and timestamp");
+  assert.match(recordsWxss, /\.verification-table \.record-row, \.product-purchase-table \.record-row \{ grid-template-columns: 150px 82px 90px 102px 100px 78px 78px 62px 98px 145px; \}/,
+    "verification and product source/teacher columns should stay compact and aligned");
+  assert.match(recordsWxss, /\.record-row text \{[^}]*padding: 8px 6px;[^}]*font-size: 13px;/s,
+    "tablet result cells should not waste horizontal space on oversized padding");
   assert.match(recordsWxml, /class="button-row query-actions \{\{mode === 'browse' && !customRange \? 'inline-query-actions' : ''\}\}"/);
   assert.match(recordsWxss, /\.query-grid \.query-time \{ grid-column: 1; \}/);
   assert.match(recordsWxss, /\.query-actions\.inline-query-actions \{ grid-column: 2 \/ -1; align-self: end; \}/,

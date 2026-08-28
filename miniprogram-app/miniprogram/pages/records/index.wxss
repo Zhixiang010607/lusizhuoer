@@ -50,12 +50,12 @@
   .record-scroll[data-visible-rows="3"] { height: 228px; }
   .record-scroll[data-visible-rows="4"] { height: 286px; }
   .record-scroll[data-visible-rows="5"] { height: 344px; }
-  .record-table { width: 1260px; min-width: 1260px; }
-  .verification-table, .product-purchase-table { width: 1390px; min-width: 1390px; }
-  .record-row { min-height: 58px; grid-template-columns: 210px 130px 100px 150px 145px 120px 90px 125px 190px; border-width: 1px; }
-  .verification-table .record-row, .product-purchase-table .record-row { grid-template-columns: 210px 130px 100px 150px 145px 120px 140px 90px 115px 190px; }
-  .record-row text { min-height: 58px; padding: 8px 10px; font-size: 14px; }
-  .record-head { min-height: 54px; font-size: 14px; }
+  .record-table { width: 905px; min-width: 905px; }
+  .verification-table, .product-purchase-table { width: 985px; min-width: 985px; }
+  .record-row { min-height: 58px; grid-template-columns: 150px 82px 90px 102px 100px 82px 62px 92px 145px; border-width: 1px; }
+  .verification-table .record-row, .product-purchase-table .record-row { grid-template-columns: 150px 82px 90px 102px 100px 78px 78px 62px 98px 145px; }
+  .record-row text { min-height: 58px; padding: 8px 6px; font-size: 13px; }
+  .record-head { min-height: 54px; font-size: 13px; }
   .pager { gap: 14px; margin-top: 16px; }
   .pager button { width: 120px; min-height: 44px; padding: 0 12px; font-size: 14px; }
   .pager > text { font-size: 14px; }
