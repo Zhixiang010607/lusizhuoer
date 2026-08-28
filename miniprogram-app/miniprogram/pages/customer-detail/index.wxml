@@ -123,7 +123,7 @@
       </view>
       <text wx:if="{{visibleHistory.length > 5}}" class="table-scroll-hint">超过 5 条，可在表格内上下滑动</text>
       <scroll-view wx:if="{{visibleHistory.length}}" class="table-scroll record-scroll" scroll-x="true" scroll-left="{{historyScrollLeft}}" bindscroll="rememberHistoryScroll" data-visible-rows="{{visibleHistory.length > 5 ? 5 : visibleHistory.length}}" scroll-y="{{visibleHistory.length > 5}}" enhanced show-scrollbar="{{visibleHistory.length > 5}}">
-        <view class="record-table {{historyType === 'RECHARGE' || historyType === 'REFUND' || historyType === 'PRODUCT_PURCHASE' ? 'recharge-history' : 'compact-history'}}">
+        <view class="record-table {{historyType === 'RECHARGE' || historyType === 'REFUND' || historyType === 'PRODUCT_PURCHASE' ? 'recharge-history' : 'compact-history'}} {{historyType === 'PRODUCT_PURCHASE' ? 'product-history' : ''}}">
           <view class="record-row table-head"><text>单号</text><text>{{historyType === 'PRODUCT_PURCHASE' ? '产品' : '项目'}}</text><text>业务老师</text><text>{{historyType === 'PRODUCT_PURCHASE' ? '数量' : '次数'}}</text><text>提交时间</text><text>状态</text></view>
           <view wx:for="{{visibleHistory}}" wx:key="id" class="record-row">
             <text class="{{historyType === 'PRODUCT_PURCHASE' && session.role !== 'hq' ? '' : 'record-link'}}" data-id="{{item.id}}" data-code="{{item.recordCode}}" data-original-type="{{item.originalType}}" bindtap="openOrder">{{item.recordCode}}</text>

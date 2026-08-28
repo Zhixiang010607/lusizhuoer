@@ -74,11 +74,14 @@
 .record-table { width: 100%; background: #fffaf3; }
 .record-table.recharge-history, .record-table.recharge-history .record-row { min-width: 1020rpx; }
 .record-table.compact-history, .record-table.compact-history .record-row { min-width: 950rpx; }
+.record-table.product-history, .record-table.product-history .record-row { min-width: 1040rpx; }
 .record-row { width: 100%; min-height: 76rpx; display: grid; border-top: 1rpx solid #dfcfb4; }
 .recharge-history .record-row { grid-template-columns: minmax(210rpx, 1.35fr) minmax(130rpx, 0.8fr) minmax(130rpx, 0.8fr) minmax(90rpx, 0.55fr) minmax(230rpx, 1.15fr) minmax(230rpx, 1.3fr); }
 .compact-history .record-row { grid-template-columns: minmax(210rpx, 1.4fr) minmax(130rpx, 0.85fr) minmax(130rpx, 0.85fr) minmax(90rpx, 0.6fr) minmax(230rpx, 1.2fr) minmax(160rpx, 1fr); }
+.product-history .record-row { grid-template-columns: minmax(230rpx, 1.45fr) minmax(130rpx, 0.8fr) minmax(130rpx, 0.8fr) minmax(90rpx, 0.55fr) minmax(230rpx, 1.15fr) minmax(230rpx, 1.3fr); }
 .record-row:first-child { border-top: 0; }
 .record-row text { min-height: 76rpx; padding: 12rpx 9rpx; font-size: 21rpx; }
+.product-history .record-row > text:first-child { box-sizing: border-box; padding-right: 18rpx; padding-left: 18rpx; }
 .record-row.table-head { min-height: 66rpx; }
 .record-row.table-head text { min-height: 66rpx; }
 .record-link { color: #76592f; font-weight: 850; text-decoration: underline; }
@@ -163,6 +166,9 @@
   .record-table.recharge-history, .record-table.recharge-history .record-row,
   .record-table.compact-history, .record-table.compact-history .record-row { width: 100%; min-width: 650px; }
   .recharge-history .record-row, .compact-history .record-row { grid-template-columns: 150px minmax(90px, 1fr) minmax(80px, .85fr) 56px 145px 90px; }
+  .record-table.product-history, .record-table.product-history .record-row { min-width: 666px; }
+  .product-history .record-row { grid-template-columns: 166px minmax(90px, 1fr) minmax(80px, .85fr) 56px 145px 90px; }
+  .product-history .record-row > text:first-child { padding-right: 10px; padding-left: 10px; }
   .record-row { min-height: 52px; border-width: 1px; }
   .record-row text { min-height: 52px; padding: 8px 7px; font-size: 14px; }
   .record-row.table-head, .record-row.table-head text { min-height: 48px; }

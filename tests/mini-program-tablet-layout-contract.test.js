@@ -216,6 +216,10 @@ test("store and teacher customer/order details use compact adaptive tablet works
     "all five customer-history tabs should share a compact adaptive tablet table width");
   assert.match(customerWxss, /\.recharge-history \.record-row, \.compact-history \.record-row \{ grid-template-columns: 150px minmax\(90px, 1fr\) minmax\(80px, \.85fr\) 56px 145px 90px; \}/,
     "history codes and full timestamps stay protected while short fields stop wasting tablet width");
+  assert.match(customerWxss, /\.record-table\.product-history, \.record-table\.product-history \.record-row \{ min-width: 666px; \}/,
+    "product purchase history reserves enough width to inset its full order code");
+  assert.match(customerWxss, /\.product-history \.record-row > text:first-child \{ padding-right: 10px; padding-left: 10px; \}/,
+    "product purchase order codes must not touch the tablet table border");
   assert.match(orderWxml, /class="order-secondary-grid"/);
   assert.match(orderWxss, /@media \(min-width: 700px\)[\s\S]*?\.order-hero \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto;/s,
     "recharge, refund, normal verification, and experience verification must share a compact horizontal tablet header");

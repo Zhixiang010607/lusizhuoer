@@ -82,6 +82,7 @@ test("balance and history tables have exact centered single-line column widths",
   assert.match(wxss, /\.balance-table-row \{[^}]*width: 660rpx;[^}]*grid-template-columns: 240rpx 140rpx 140rpx 140rpx;/s);
   assert.equal(240 + 140 + 140 + 140, 660);
   assert.match(wxml, /historyType === 'RECHARGE' \|\| historyType === 'REFUND' \|\| historyType === 'PRODUCT_PURCHASE' \? 'recharge-history' : 'compact-history'/);
+  assert.match(wxml, /historyType === 'PRODUCT_PURCHASE' \? 'product-history' : ''/);
   assert.match(wxml, /data-type="RECHARGE"[^>]*>充值<\/button>[\s\S]*data-type="REFUND"[^>]*>退费<\/button>/);
   assert.match(wxml, /data-type="PRODUCT_PURCHASE"[^>]*>产品<\/button>/);
   assert.match(wxml, /historyType === 'PRODUCT_PURCHASE' \? '产品' : '项目'/);
@@ -91,6 +92,8 @@ test("balance and history tables have exact centered single-line column widths",
   assert.match(wxss, /\.record-table\.compact-history, \.record-table\.compact-history \.record-row \{ min-width: 950rpx; \}/);
   assert.match(wxss, /\.recharge-history \.record-row \{ grid-template-columns: minmax\(210rpx, 1\.35fr\) minmax\(130rpx, 0\.8fr\) minmax\(130rpx, 0\.8fr\) minmax\(90rpx, 0\.55fr\) minmax\(230rpx, 1\.15fr\) minmax\(230rpx, 1\.3fr\); \}/);
   assert.match(wxss, /\.compact-history \.record-row \{ grid-template-columns: minmax\(210rpx, 1\.4fr\) minmax\(130rpx, 0\.85fr\) minmax\(130rpx, 0\.85fr\) minmax\(90rpx, 0\.6fr\) minmax\(230rpx, 1\.2fr\) minmax\(160rpx, 1fr\); \}/);
+  assert.match(wxss, /\.record-table\.product-history, \.record-table\.product-history \.record-row \{ min-width: 1040rpx; \}/);
+  assert.match(wxss, /\.product-history \.record-row > text:first-child \{ box-sizing: border-box; padding-right: 18rpx; padding-left: 18rpx; \}/);
   assert.equal(210 + 130 + 130 + 90 + 230 + 230, 1020);
   assert.equal(210 + 130 + 130 + 90 + 230 + 160, 950);
   assert.match(wxss, /\.balance-table-row text, \.record-row text \{[^}]*align-items: center;[^}]*justify-content: center;[^}]*text-align: center;[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/s);
