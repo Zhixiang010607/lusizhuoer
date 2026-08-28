@@ -119,7 +119,7 @@
   .status-line button { min-height: 38px; padding: 0 8px; border-radius: 9px; font-size: 13px; }
   .section-message { margin-top: 10px; padding: 10px 12px; border-radius: 9px; font-size: 13px; }
   .customer-communication-grid, .customer-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 16px; margin-bottom: 16px; }
-  .customer-communication-grid > .card, .customer-summary-grid > .card { height: 100%; margin: 0; }
+  .customer-communication-grid > .card, .customer-summary-grid > .card { min-width: 0; height: 100%; margin: 0; }
   .customer-communication-grid > .notes-card { display: flex; flex-direction: column; }
   .customer-communication-grid > .notes-card .notes-read,
   .customer-communication-grid > .notes-card .notes-input { height: auto; min-height: 178px; flex: 1; }
@@ -141,8 +141,8 @@
   .load-message-button, .load-history-button { min-width: 150px; min-height: 44px; margin-top: 12px; padding: 0 14px; font-size: 14px; }
   .table-scroll-hint, .retail-summary-hint { margin: -2px 0 8px; font-size: 12px; }
   .table-scroll, .retail-summary-scroll { border-width: 1px; border-radius: 12px; }
-  .balance-table { width: 100%; min-width: 520px; }
-  .balance-table-row { width: 100%; min-height: 52px; grid-template-columns: minmax(180px, 1.3fr) repeat(3, minmax(95px, .8fr)); border-width: 1px; }
+  .balance-table { width: 100%; min-width: 0; }
+  .balance-table-row { width: 100%; min-height: 52px; grid-template-columns: minmax(0, 1.3fr) repeat(3, minmax(64px, .8fr)); border-width: 1px; }
   .balance-table-row text { min-height: 52px; padding: 8px 7px; font-size: 14px; }
   .balance-scroll[data-visible-rows="1"] { height: 104px; }
   .balance-scroll[data-visible-rows="2"] { height: 156px; }

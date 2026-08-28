@@ -189,6 +189,12 @@ test("store and teacher customer/order details use compact adaptive tablet works
   assert.match(customerWxml, /class="retail-summary-scroll" data-visible-rows="\{\{retailProductSummary\.length > 5 \? 5 : retailProductSummary\.length\}\}"/);
   assert.match(customerWxml, /class="table-scroll record-scroll"[^>]*data-visible-rows="\{\{visibleHistory\.length > 5 \? 5 : visibleHistory\.length\}\}"[^>]*scroll-y="\{\{visibleHistory\.length > 5\}\}"/);
   assert.match(customerWxss, /@media \(min-width: 700px\)[\s\S]*?\.customer-communication-grid, \.customer-summary-grid \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s);
+  assert.match(customerWxss, /\.customer-communication-grid > \.card, \.customer-summary-grid > \.card \{ min-width: 0; height: 100%; margin: 0; \}/,
+    "paired customer cards must be allowed to shrink inside either tablet column");
+  assert.match(customerWxss, /@media \(min-width: 700px\)[\s\S]*?\.balance-table \{ width: 100%; min-width: 0; \}/s,
+    "the four-column project summary must fit its half-width tablet card without horizontal clipping");
+  assert.match(customerWxss, /\.balance-table-row \{[^}]*grid-template-columns: minmax\(0, 1\.3fr\) repeat\(3, minmax\(64px, \.8fr\)\);/s,
+    "project name, recharge, verification, and balance must all remain visible in the left summary card");
   assert.match(customerWxss, /\.customer-communication-grid > \.notes-card \{ display: flex; flex-direction: column; \}/,
     "the tablet note card must expose a vertical fill context beside the taller message card");
   assert.match(customerWxss, /\.customer-communication-grid > \.notes-card \.notes-read,[\s\S]*?\.customer-communication-grid > \.notes-card \.notes-input \{ height: auto; min-height: 178px; flex: 1; \}/,
@@ -222,6 +228,54 @@ test("store and teacher customer/order details use compact adaptive tablet works
     "the fifth evidence photo must not stretch into a giant full-width iPad card");
   assert.match(orderWxss, /\.export-card \{[^}]*grid-template-columns: minmax\(180px, \.42fr\) minmax\(0, 1fr\);/s,
     "export actions should use a compact horizontal tablet row");
+});
+
+test("headquarters creation and project-template forms use compact tablet grids", () => {
+  const productCreateWxml = read("miniprogram-app", "miniprogram", "pages", "product-create", "index.wxml");
+  const productCreateWxss = read("miniprogram-app", "miniprogram", "pages", "product-create", "index.wxss");
+  const teacherCreateWxml = read("miniprogram-app", "miniprogram", "pages", "teacher-create", "index.wxml");
+  const teacherCreateWxss = read("miniprogram-app", "miniprogram", "pages", "teacher-create", "index.wxss");
+  const productDetailWxml = read("miniprogram-app", "miniprogram", "pages", "product-detail", "index.wxml");
+  const productDetailWxss = read("miniprogram-app", "miniprogram", "pages", "product-detail", "index.wxss");
+
+  assert.match(productCreateWxml, /class="project-fields"/);
+  assert.match(productCreateWxml, /class="field field-description"/);
+  assert.match(productCreateWxss, /@media \(min-width: 700px\)[\s\S]*?\.project-fields \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s,
+    "project name and category should share a compact tablet row");
+  assert.match(productCreateWxss, /\.field-description \{ grid-column: 1 \/ -1; \}/);
+  assert.match(productCreateWxss, /\.field textarea \{ min-height: 128px;/,
+    "the optional project description must not retain the magnified phone height");
+
+  assert.match(teacherCreateWxml, /class="teacher-fields"/);
+  assert.match(teacherCreateWxss, /@media \(min-width: 700px\)[\s\S]*?\.teacher-fields \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/s,
+    "name, phone, and initial password should occupy one readable tablet row");
+  assert.match(teacherCreateWxss, /\.rule-panel \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/,
+    "teacher creation rules should use three equal tablet cards");
+
+  assert.match(productDetailWxml, /class="instruction-grid"/);
+  assert.match(productDetailWxss, /@media \(min-width: 700px\)[\s\S]*?\.instruction-grid \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s,
+    "verification and recharge receipt instructions should share the tablet width");
+  assert.match(productDetailWxss, /\.logo-editor \{ grid-template-columns: 110px minmax\(0, 1fr\);/,
+    "the shared receipt logo must stay compact instead of scaling with the iPad");
+  assert.match(productDetailWxss, /\.instruction-field textarea \{ min-height: 190px;/);
+});
+
+test("HQ teacher detail uses a real tablet workspace instead of a magnified stack", () => {
+  const wxml = read("miniprogram-app", "miniprogram", "pages", "teacher-detail", "index.wxml");
+  const wxss = read("miniprogram-app", "miniprogram", "pages", "teacher-detail", "index.wxss");
+
+  assert.match(wxml, /class="teacher-detail-grid"/);
+  assert.match(wxml, /class="teacher-detail-sidebar"/);
+  assert.match(wxml, /experience-overview-panel/);
+  assert.match(wxml, /experience-project-panel/);
+  assert.match(wxml, /experience-operations-panel/);
+  assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.teacher-detail-grid \{[^}]*grid-template-columns: minmax\(280px, \.76fr\) minmax\(0, 1\.24fr\);/s,
+    "profile/account and the quota overview should use two purposeful tablet columns");
+  assert.match(wxss, /\.experience-project-panel, \.experience-operations-panel \{ grid-column: 1 \/ -1; \}/,
+    "project configuration, forms, and audit history should retain full tablet width");
+  assert.match(wxss, /\.experience-project-panel \{[^}]*grid-template-columns: minmax\(0, \.74fr\) minmax\(0, 1\.26fr\);/s);
+  assert.match(wxss, /\.quota-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.match(wxss, /\.forms-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
 });
 
 test("product purchase detail uses a compact tablet information layout", () => {
@@ -282,6 +336,10 @@ test("HQ ranking uses one compact table and shows all four business metrics", ()
   assert.doesNotMatch(homeJs, /selectedMetricLabel|selectedMetricValue|share:\s*`/,
     "the obsolete selected-only ranking card mapping must remain retired");
   assert.match(homeWxss, /\.hq-ranking-row \{[^}]*grid-template-columns:[^}]*repeat\(4,/s);
+  assert.match(homeWxss, /\.summary-product \{[^}]*align-items: center !important;[^}]*text-align: center;/s,
+    "project names and the global total label must share the centered summary alignment");
+  assert.doesNotMatch(homeWxss, /\.hq-ranking-name \{[^}]*justify-content: flex-start|\.hq-ranking-name \{[^}]*text-align: left/s,
+    "ranking entity names must align with the shared centered table columns");
   assert.doesNotMatch(homeWxss, /\.hq-ranking-list \{[^}]*grid-template-columns:\s*repeat\(2,/s,
     "the complete ranking must not split into two tablet columns");
   assert.match(context, /小程序完整排名使用单列紧凑表格/);

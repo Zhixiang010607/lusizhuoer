@@ -18,8 +18,10 @@
         </view>
       </view>
 
-      <label class="instruction-field"><view><text>核销单说明</text><text>正常核销与体验核销共用</text></view><textarea maxlength="3000" data-field="verificationInstructions" value="{{verificationInstructions}}" bindinput="inputInstructions" placeholder="填写核销单底部文字说明" disabled="{{mutating}}" /><text class="count">{{verificationCount}}/3000</text></label>
-      <label class="instruction-field"><view><text>充值单说明</text><text>充值与退费共用</text></view><textarea maxlength="3000" data-field="rechargeInstructions" value="{{rechargeInstructions}}" bindinput="inputInstructions" placeholder="填写充值单、退费单底部文字说明" disabled="{{mutating}}" /><text class="count">{{rechargeCount}}/3000</text></label>
+      <view class="instruction-grid">
+        <label class="instruction-field"><view><text>核销单说明</text><text>正常核销与体验核销共用</text></view><textarea maxlength="3000" data-field="verificationInstructions" value="{{verificationInstructions}}" bindinput="inputInstructions" placeholder="填写核销单底部文字说明" disabled="{{mutating}}" /><text class="count">{{verificationCount}}/3000</text></label>
+        <label class="instruction-field"><view><text>充值单说明</text><text>充值与退费共用</text></view><textarea maxlength="3000" data-field="rechargeInstructions" value="{{rechargeInstructions}}" bindinput="inputInstructions" placeholder="填写充值单、退费单底部文字说明" disabled="{{mutating}}" /><text class="count">{{rechargeCount}}/3000</text></label>
+      </view>
       <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
       <view class="save-row"><button class="primary save-button" bindtap="saveInstructions" loading="{{mutating && !selectedLogo}}" disabled="{{mutating}}">保存文字说明</button></view>
     </view>

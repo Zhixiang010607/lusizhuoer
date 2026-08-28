@@ -3,9 +3,11 @@
 
   <view class="panel">
     <view class="section-title">项目资料</view>
-    <label class="field"><text>项目名称</text><input maxlength="60" data-field="name" value="{{form.name}}" bindinput="input" placeholder="请输入项目名称" /></label>
-    <label class="field"><text>项目类别</text><input maxlength="32" data-field="type" value="{{form.type}}" bindinput="input" placeholder="例如：护理项目" /></label>
-    <label class="field"><text>项目介绍（选填）</text><textarea maxlength="1000" data-field="description" value="{{form.description}}" bindinput="input" placeholder="可填写项目介绍" /></label>
+    <view class="project-fields">
+      <label class="field"><text>项目名称</text><input maxlength="60" data-field="name" value="{{form.name}}" bindinput="input" placeholder="请输入项目名称" /></label>
+      <label class="field"><text>项目类别</text><input maxlength="32" data-field="type" value="{{form.type}}" bindinput="input" placeholder="例如：护理项目" /></label>
+      <label class="field field-description"><text>项目介绍（选填）</text><textarea maxlength="1000" data-field="description" value="{{form.description}}" bindinput="input" placeholder="可填写项目介绍" /></label>
+    </view>
   </view>
 
   <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>

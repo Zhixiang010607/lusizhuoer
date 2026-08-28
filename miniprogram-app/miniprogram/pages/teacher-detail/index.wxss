@@ -1,6 +1,7 @@
 @import "../home/index.wxss";
 .detail-topbar { justify-content: space-between; gap: 14rpx; }
 .back-button { width: auto; min-width: 154rpx; min-height: 60rpx; margin: 0; padding: 0 14rpx; border-radius: 11rpx; font-size: 18rpx; }
+.teacher-detail-grid, .teacher-detail-sidebar { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
 .store-status-badge.archived { color: #8f3a34; background: #fff0ee; }
 .teacher-profile-hero, .security-panel, .experience-panel { border-color: #e1cfaf; background: #fffaf3; }
 .teacher-profile-meta { min-width: 0; display: flex; align-items: center; gap: 18rpx; margin-top: 8rpx; color: #7c7062; }
@@ -16,6 +17,7 @@
 .overview-card.primary-card { background: #f6ead7; border-color: #d9bd8c; }
 .overview-card .date-value { font-size: 22rpx !important; }
 .subsection { margin-top: 26rpx; padding-top: 24rpx; border-top: 1rpx solid #e5d6bd; }
+.experience-project-panel > .subsection:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 .subsection-title { display: block; margin-bottom: 16rpx; font-size: 27rpx; font-weight: 850; }
 .summary-grid, .quota-grid { display: grid; gap: 12rpx; }
 .summary-item { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; padding: 18rpx; background: #fff8ec; border: 1rpx solid #dfcfb4; border-radius: 16rpx; }
@@ -42,6 +44,7 @@
 .quota-facts text:first-child { color: #7c7062; font-size: 19rpx; }
 .quota-facts text:last-child { width: 100%; min-width: 0; margin-top: 7rpx; font-size: 24rpx; font-weight: 850; white-space: nowrap; }
 .forms-grid { display: grid; gap: 18rpx; margin-top: 26rpx; }
+.experience-operations-panel > .forms-grid { margin-top: 0; }
 .action-form { padding: 20rpx; background: #fff8ec; border: 1rpx solid #dfcfb4; border-radius: 20rpx; }
 .action-form button { margin: 0; }
 .history-section { padding: 20rpx; background: #fff8ec; border: 1rpx solid #dfcfb4; border-radius: 18rpx; }
@@ -62,3 +65,57 @@
 .workspace-main { padding-bottom: 40rpx; }
 .pending-recharge { display: flex; flex-direction: column; gap: 12rpx; padding: 16rpx; color: #7a4d19; background: #fff3dc; border: 1rpx solid #dfc28c; border-radius: 14rpx; font-size: 21rpx; line-height: 1.5; }
 .pending-recharge button { width: 100%; margin: 0; }
+
+@media (min-width: 700px) {
+  .workspace-main { max-width: 1120px; margin: 20px auto 0; }
+  .teacher-detail-grid { grid-template-columns: minmax(280px, .76fr) minmax(0, 1.24fr); gap: 16px; align-items: start; }
+  .teacher-detail-sidebar { gap: 16px; align-content: start; }
+  .teacher-detail-sidebar > .web-panel, .teacher-detail-grid > .experience-panel { margin-bottom: 0; }
+  .experience-project-panel, .experience-operations-panel { grid-column: 1 / -1; }
+
+  .teacher-profile-hero { min-height: 118px; gap: 14px; padding: 18px; }
+  .teacher-profile-hero .profile-avatar { width: 58px; height: 58px; border-radius: 15px; font-size: 22px; }
+  .teacher-profile-meta { gap: 12px; margin-top: 6px; }
+  .teacher-profile-meta text { font-size: 14px; }
+  .security-panel, .experience-panel { padding: 20px; border-width: 1px; border-radius: 18px; }
+  .security-panel .panel-heading, .experience-panel .panel-heading { margin-bottom: 16px; }
+  .security-panel .button-row { gap: 10px; }
+  .security-panel .button-row button { min-height: 46px; padding: 0 10px; font-size: 14px; }
+
+  .overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .overview-card { min-height: 94px; padding: 14px; border-width: 1px; border-radius: 14px; }
+  .overview-card > text:first-child { font-size: 13px; }
+  .overview-card > text:nth-child(2) { margin-top: 7px; font-size: 26px; }
+  .overview-card .unit { margin-left: 4px; font-size: 13px; }
+  .overview-card .date-value { font-size: 16px !important; }
+
+  .experience-project-panel { display: grid; grid-template-columns: minmax(0, .74fr) minmax(0, 1.26fr); gap: 18px; align-items: start; }
+  .experience-project-panel > .subsection { min-width: 0; margin-top: 0; padding-top: 0; border-top: 0; }
+  .subsection-title { margin-bottom: 12px; font-size: 19px; }
+  .summary-grid { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+  .summary-item { gap: 12px; padding: 14px; border-width: 1px; border-radius: 13px; }
+  .summary-item > view:first-child text:last-child, .summary-item > view:last-child text:last-child { margin-top: 4px; font-size: 13px; }
+  .summary-item > view:last-child text:first-child { font-size: 22px; }
+  .quota-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .quota-card { padding: 14px; border-width: 1px; border-radius: 14px; }
+  .quota-head > view:first-child text:first-child { font-size: 17px; }
+  .quota-head > view:first-child text:last-child { margin-top: 3px; font-size: 13px; }
+  .quota-actions .delete-configuration { min-width: 96px; min-height: 42px; padding: 0 12px; font-size: 14px; }
+  .quota-balance { gap: 8px; margin: 12px 0; }
+  .quota-balance > text:first-child { font-size: 13px; }
+  .quota-balance > text:last-child { font-size: 28px; }
+  .quota-balance .unit { margin-left: 4px; font-size: 13px; }
+  .quota-facts { gap: 8px; }
+  .quota-facts view { min-height: 72px; padding: 10px 8px; border-width: 1px; border-radius: 10px; }
+  .quota-facts text:first-child { font-size: 12px; }
+  .quota-facts text:last-child { margin-top: 5px; font-size: 17px; }
+
+  .forms-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .action-form { padding: 16px; border-width: 1px; border-radius: 16px; }
+  .action-form .textarea { min-height: 112px; }
+  .history-section { margin-top: 16px; padding: 16px; border-width: 1px; border-radius: 14px; }
+  .history-list { max-height: 360px; margin-top: 12px; }
+  .history-row { gap: 14px; margin-top: 6px; padding: 12px 14px; border-width: 1px; border-radius: 12px; }
+  .history-row > view:first-child text:not(:first-child), .history-row > view:last-child text:not(:first-child) { margin-top: 4px; font-size: 13px; }
+  .history-count { padding: 4px 9px; font-size: 13px; }
+}

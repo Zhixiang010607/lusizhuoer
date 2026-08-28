@@ -59,3 +59,46 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
 .empty { color: #887c6d; font-size: 21rpx; text-align: center; }
 .export-canvas { position: fixed; left: -10000px; top: 0; width: 1240px; height: 1754px; pointer-events: none; }
 .safe-bottom { height: calc(24rpx + env(safe-area-inset-bottom)); }
+
+@media (min-width: 700px) {
+  .page { width: calc(100% - 48px); max-width: 1120px; padding: 20px 0 36px; }
+  .page-heading { gap: 14px; margin: 4px 4px 16px; }
+  .title { font-size: 26px; }
+  .return-button { min-width: 150px; min-height: 46px; padding: 0 14px; font-size: 14px; }
+  .panel { margin-bottom: 14px; padding: 20px; border-width: 1px; border-radius: 18px; }
+  .summary-card { gap: 16px; }
+  .summary-copy { gap: 5px; }
+  .type-pill, .template-badge { padding: 5px 9px; font-size: 12px; }
+  .product-name { font-size: 22px; }
+  .meta { font-size: 13px; }
+  .summary-actions { gap: 8px; }
+  .status-button { min-width: 120px; min-height: 44px; padding: 0 12px; font-size: 14px; }
+  .section-heading { gap: 4px; margin-bottom: 14px; }
+  .section-heading text:first-child { font-size: 20px; }
+  .section-heading text:last-child { font-size: 13px; }
+  .logo-editor { grid-template-columns: 110px minmax(0, 1fr); gap: 16px; padding: 16px; border-width: 1px; border-radius: 14px; }
+  .logo-square { width: 110px; height: 110px; border-radius: 12px; font-size: 15px; }
+  .logo-controls { gap: 7px; }
+  .logo-controls > text:first-child { font-size: 17px; }
+  .compact-actions { gap: 8px; margin-top: 3px; }
+  .compact-actions button { min-height: 42px; padding: 0 11px; border-radius: 10px; font-size: 13px; }
+  .instruction-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+  .instruction-field { min-width: 0; margin-top: 0; }
+  .instruction-field > view { gap: 10px; margin-bottom: 7px; }
+  .instruction-field > view text:first-child { font-size: 15px; }
+  .instruction-field > view text:last-child { font-size: 12px; }
+  .instruction-field textarea { min-height: 190px; padding: 13px 14px; border-width: 1px; border-radius: 12px; font-size: 14px; }
+  .count { margin-top: 5px; font-size: 12px; }
+  .save-row { margin-top: 14px; }
+  .save-button { min-width: 170px; min-height: 46px; padding: 0 16px; font-size: 14px; }
+  .preview-tab-row { gap: 7px; }
+  .preview-tab { min-width: 112px; min-height: 44px; padding: 0 10px; border-radius: 10px; font-size: 13px; }
+  .preview-toolbar { gap: 12px; margin: 14px 0; }
+  .preview-toolbar > view:first-child text:first-child { font-size: 16px; }
+  .preview-toolbar > view:first-child text:last-child { font-size: 12px; }
+  .preview-toolbar > view:last-child { gap: 8px; }
+  .preview-toolbar button { min-height: 42px; padding: 0 11px; border-radius: 10px; font-size: 13px; }
+  .receipt-preview { min-height: 360px; border-width: 1px; border-radius: 14px; }
+  .generated-preview { height: 62vh; min-height: 460px; max-height: 760px; padding: 16px; }
+  .preview-state { min-height: 360px; padding: 22px; font-size: 14px; }
+}
