@@ -94,8 +94,14 @@ test("query and review pages use compact tablet filters and five-row result view
     "review type already comes from the active review tab and must not be repeated as an odd filter tile");
   assert.match(reviewsWxss, /\.filter-switches\.has-review-types \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s);
   assert.match(reviewsWxss, /\.review-filter-grid \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/s);
-  assert.match(reviewsWxss, /\.button-row\.review-query-actions \{ grid-column: span 2; align-self: end; margin-top: 0; \}/,
+  assert.match(reviewsWxss, /\.filter-card \.review-type-tabs button, \.filter-card \.mode-tabs button \{[^}]*height: 38px;[^}]*min-height: 38px;[^}]*font-size: 14px;/s,
+    "review switches must stop at one compact tablet height");
+  assert.match(reviewsWxss, /\.field input, \.field textarea, \.picker \{[^}]*min-height: 42px;[^}]*height: 42px;[^}]*font-size: 14px;/s,
+    "review filter fields must align on one compact physical baseline");
+  assert.match(reviewsWxss, /\.button-row\.review-query-actions \{ grid-column: span 2; align-self: end; gap: 10px; margin-top: 0; \}/,
     "store, status, query, and reset must form one balanced tablet row");
+  assert.match(reviewsWxss, /\.filter-card \.review-query-actions button \{[^}]*height: 42px;[^}]*min-height: 42px;[^}]*font-size: 14px;/s,
+    "review query actions must exactly match the adjacent filter field height");
   assert.ok(
     reviewsWxss.lastIndexOf(".button-row.review-query-actions") > reviewsWxss.lastIndexOf(".button-row, .dialog-actions"),
     "the review action alignment override must follow the generic button margin rule"
@@ -123,7 +129,11 @@ test("query and review pages use compact tablet filters and five-row result view
   assert.match(recordsWxss, /\.record-scroll\[data-visible-rows="5"\] \{ height: 344px; \}/);
   assert.match(reviewsWxss, /\.table-scroll\[data-visible-rows="5"\] \{ height: 308px; \}/);
   assert.match(directoryWxss, /\.table-scroll\[data-visible-rows="5"\] \{ height: 332px; \}/);
-  assert.match(customersWxss, /@media \(min-width: 700px\)[\s\S]*?\.summary-grid text \{[^}]*min-height: 24px;[^}]*font-size: 11px;/s,
+  assert.match(customersWxss, /@media \(min-width: 700px\)[\s\S]*?\.search-card \.query-modes button \{ min-height: 38px; font-size: 14px; \}/s,
+    "customer query mode controls must use the same compact tablet density as the other query pages");
+  assert.match(customersWxss, /@media \(min-width: 700px\)[\s\S]*?\.query-grid \.input, \.query-grid \.picker \{[^}]*min-height: 42px;[^}]*font-size: 14px;/s,
+    "customer query filter controls must not retain magnified phone geometry on iPad");
+  assert.match(customersWxss, /@media \(min-width: 700px\)[\s\S]*?\.summary-grid text \{[^}]*min-height: 16px;[^}]*font-size: 10px;/s,
     "customer query summary must stay compact instead of magnifying its labels on iPad");
   assert.match(customersWxss, /@media \(min-width: 700px\)[\s\S]*?\.customer-table \{ width: 100%; min-width: 744px; \}/s,
     "customer query should fill a wide tablet card and scroll only below its compact minimum width");
@@ -380,6 +390,8 @@ test("HQ ranking uses one compact table and shows all four business metrics", ()
     "ranking entity names must align with the shared centered table columns");
   assert.doesNotMatch(homeWxss, /\.hq-ranking-list \{[^}]*grid-template-columns:\s*repeat\(2,/s,
     "the complete ranking must not split into two tablet columns");
+  assert.match(context, /门店和老师编号只作为内部识别数据保留/,
+    "complete ranking must show entity names without repeating internal store or teacher codes");
   assert.match(context, /小程序完整排名使用单列紧凑表格/);
 });
 

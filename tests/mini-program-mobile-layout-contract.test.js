@@ -254,6 +254,10 @@ test("home dashboard mapper preserves web metric and profile column semantics", 
   assert.equal(rows[0].businessTotal, 26);
   assert.equal(rows[0].name, "中心店");
   assert.equal(rows[0].entityCode, "S001");
+  const teacherRows = dashboard.hqRows([{ entityId: "2", entityName: "苗苗", entityCode: "TCHF420",
+    recharge: 1, verification: 2, experience: 3, refund: 4 }], "teacher");
+  assert.equal(teacherRows[0].name, "苗苗", "teacher ranking keeps the code internally but displays only the teacher name");
+  assert.equal(teacherRows[0].entityCode, "TCHF420");
   assert.deepEqual(dashboard.storeFacts({
     auth_uid: "uid-demo", store_code: "S001", store_name: "中心店", province: "江西省",
     city: "南昌市", district: "红谷滩区", address_detail: "测试路", store_status: "ACTIVE",

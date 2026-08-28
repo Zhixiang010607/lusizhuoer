@@ -212,10 +212,12 @@ test("HQ review workbenches match web filters, pagination, exact links, and guar
   for (const label of ["充值审核", "退费审核", "按条件查询", "按工单编号", "门店范围", "审核状态", "上一页", "下一页", "跳至", "通过", "驳回", "审核留言（可选）"]) {
     assert.match(wxml, new RegExp(label), `HQ review UI is missing ${label}`);
   }
-  assert.match(wxss, /\.review-table\s*\{\s*width:\s*1270rpx;/,
+  assert.match(wxss, /\.review-table\s*\{\s*width:\s*1440rpx;\s*min-width:\s*100%;/,
     "review table width must exactly equal the declared column total");
-  assert.match(wxss, /grid-template-columns:\s*196rpx 96rpx 96rpx 108rpx 88rpx 70rpx 220rpx 176rpx 220rpx/);
-  assert.equal(196 + 96 + 96 + 108 + 88 + 70 + 220 + 176 + 220, 1270);
+  assert.match(wxss, /grid-template-columns:\s*234rpx 126rpx 116rpx 140rpx 104rpx 88rpx 220rpx 196rpx 216rpx/);
+  assert.equal(234 + 126 + 116 + 140 + 104 + 88 + 220 + 196 + 216, 1440);
+  assert.match(wxss, /\.review-row > text, \.review-row > view\s*\{[^}]*padding:\s*9rpx 14rpx;/s,
+    "mobile review cells keep a safe horizontal gutter instead of visually merging adjacent values");
   assert.match(wxss, /\.review-row > text, \.review-row > view\s*\{[^}]*align-items:\s*center[^}]*justify-content:\s*center[^}]*text-align:\s*center[^}]*white-space:\s*nowrap/s,
     "review headers and values must stay centered on one line");
   assert.doesNotMatch(wxss, /\.review-row > text, \.review-row > view\s*\{[^}]*border-right:/s,

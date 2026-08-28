@@ -49,10 +49,10 @@ button::after { border: 0; }
 .table-scroll[data-visible-rows="3"] { height: 280rpx; }
 .table-scroll[data-visible-rows="4"] { height: 352rpx; }
 .table-scroll[data-visible-rows="5"] { height: 424rpx; }
-.review-table { width: 1270rpx; }
-.review-row { display: grid; grid-template-columns: 196rpx 96rpx 96rpx 108rpx 88rpx 70rpx 220rpx 176rpx 220rpx; min-height: 72rpx; border-bottom: 1rpx solid #eadfce; }
+.review-table { width: 1440rpx; min-width: 100%; }
+.review-row { display: grid; grid-template-columns: 234rpx 126rpx 116rpx 140rpx 104rpx 88rpx 220rpx 196rpx 216rpx; min-height: 72rpx; border-bottom: 1rpx solid #eadfce; }
 .review-row:last-child { border-bottom: 0; }
-.review-row > text, .review-row > view { min-width: 0; display: flex; align-items: center; justify-content: center; padding: 9rpx 10rpx; overflow: hidden; box-sizing: border-box; font-size: 21rpx; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.review-row > text, .review-row > view { min-width: 0; display: flex; align-items: center; justify-content: center; padding: 9rpx 14rpx; overflow: hidden; box-sizing: border-box; font-size: 21rpx; line-height: 1.25; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .review-row.head { min-height: 64rpx; color: #fffdf8; background: #4b4033; font-weight: 850; }
 .review-row:not(.head):nth-child(odd) { background: #fff; }
 .link { color: #8b642e; font-weight: 850; text-decoration: underline; }
@@ -80,25 +80,28 @@ button::after { border: 0; }
 .safe-bottom { height: calc(24rpx + env(safe-area-inset-bottom)); }
 
 @media (min-width: 700px) {
-  .page { width: calc(100% - 48px); max-width: 1120px; padding: 20px 0 36px; }
-  .page-heading { gap: 6px; margin: 0 0 16px; }
+  .page { width: calc(100% - 48px); max-width: 1120px; padding: 16px 0 32px; }
+  .page-heading { gap: 4px; margin: 0 0 12px; }
   .eyebrow { font-size: 12px; letter-spacing: 2px; }
-  .title { font-size: 28px; }
-  .subtitle { font-size: 14px; }
-  .card { margin-bottom: 16px; padding: 20px; border-width: 1px; border-radius: 20px; box-shadow: 0 8px 24px rgba(93,72,39,.08); }
-  .filter-switches.has-review-types { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-  .review-type-tabs { gap: 6px; padding: 6px; border-radius: 14px; }
-  .mode-tabs { gap: 6px; padding: 6px; border-radius: 14px; }
-  button { min-height: 48px; border-radius: 12px; font-size: 15px; }
-  .review-filter-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 16px; align-items: end; }
+  .title { font-size: 23px; }
+  .subtitle { font-size: 13px; }
+  .card { margin-bottom: 14px; padding: 16px 18px; border-width: 1px; border-radius: 16px; box-shadow: 0 7px 20px rgba(93,72,39,.07); }
+  .filter-card { padding: 14px 16px; }
+  .filter-switches.has-review-types { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .review-type-tabs { gap: 4px; padding: 4px; border-radius: 10px; }
+  .mode-tabs { gap: 4px; padding: 4px; border-radius: 10px; }
+  .filter-card .review-type-tabs button, .filter-card .mode-tabs button { height: 38px; min-height: 38px; padding: 0 10px; border-radius: 8px; font-size: 14px; line-height: 1; }
+  button { min-height: 42px; border-radius: 10px; font-size: 14px; }
+  .review-filter-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: 12px; row-gap: 0; margin-top: 10px; align-items: end; }
   .review-filter-grid .field { min-width: 0; margin-top: 0; }
   .review-code-field { grid-column: span 2; }
-  .field { gap: 7px; margin-top: 16px; }
-  .field > text { font-size: 14px; }
-  .field input, .field textarea, .picker { min-height: 48px; padding: 0 16px; border-width: 1px; border-radius: 12px; font-size: 15px; }
+  .field { gap: 5px; margin-top: 12px; }
+  .field > text { font-size: 13px; line-height: 1.2; }
+  .field input, .field textarea, .picker { min-height: 42px; height: 42px; padding: 0 12px; border-width: 1px; border-radius: 10px; font-size: 14px; line-height: 1; }
   .field textarea { min-height: 120px; padding-top: 14px; }
-  .button-row, .dialog-actions { gap: 12px; margin-top: 16px; }
-  .button-row.review-query-actions { grid-column: span 2; align-self: end; margin-top: 0; }
+  .button-row, .dialog-actions { gap: 10px; margin-top: 12px; }
+  .button-row.review-query-actions { grid-column: span 2; align-self: end; gap: 10px; margin-top: 0; }
+  .filter-card .review-query-actions button { height: 42px; min-height: 42px; padding: 0 12px; border-radius: 10px; font-size: 14px; line-height: 1; }
   .compact { min-width: 104px; min-height: 44px; padding: 0 14px; }
   .message { margin-bottom: 16px; padding: 12px 14px; border-width: 1px; border-radius: 10px; font-size: 14px; }
   .card-title { gap: 14px; margin-bottom: 16px; }
@@ -125,7 +128,8 @@ button::after { border: 0; }
   .page-jump { gap: 8px; margin-top: 12px; font-size: 14px; }
   .page-jump input { width: 88px; height: 44px; padding: 0 10px; border-width: 1px; border-radius: 10px; font-size: 14px; }
   .page-jump button { min-height: 44px; padding: 0 12px; font-size: 14px; }
-  .empty { padding: 28px 16px; font-size: 14px; }
+  .result-card { padding: 16px 18px; }
+  .empty { padding: 20px 12px; font-size: 14px; }
   .mask { padding: 32px; }
   .dialog { max-width: 680px; padding: 24px; border-width: 1px; border-radius: 22px; box-shadow: 0 24px 64px rgba(47,41,33,.32); }
   .dialog-heading { gap: 16px; }

@@ -35,15 +35,24 @@
 .page-jump button { width: 116rpx; min-height: 56rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 10rpx; font-size: 18rpx; line-height: 1; }
 
 @media (min-width: 700px) {
-  .search-card > .button-row button { min-height: 48px; font-size: 16px; }
-  .search-card .query-modes { margin-bottom: 16px; }
-  .query-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 16px; }
+  .page-heading { margin-bottom: 12px; padding: 12px 16px; border-radius: 14px; }
+  .page-heading .title { font-size: 22px; }
+  .search-card { padding: 14px 16px; }
+  .search-card .card-title { margin-bottom: 10px; }
+  .search-card .card-title text:first-child { font-size: 19px; }
+  .search-card .query-modes { margin-bottom: 10px; padding: 4px; }
+  .search-card .query-modes button { min-height: 38px; font-size: 14px; }
+  .query-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 12px; }
   .query-grid .query-wide { grid-column: auto; }
-  .query-grid .field { margin-bottom: 16px; }
-  .summary-grid { gap: 6px; margin-bottom: 14px; }
-  .summary-grid view { padding: 7px 8px; border-width: 1px; border-radius: 10px; }
-  .summary-grid text { min-height: 24px; font-size: 11px; line-height: 1.2; }
-  .summary-grid .summary-value { min-height: 0; margin-top: 2px; font-size: 17px; }
+  .query-grid .field { margin-bottom: 10px; }
+  .query-grid .field-label { margin-bottom: 5px; font-size: 13px; }
+  .query-grid .input, .query-grid .picker { min-height: 42px; padding-right: 12px; padding-left: 12px; border-radius: 10px; font-size: 14px; }
+  .search-card > .button-row { gap: 10px; }
+  .search-card > .button-row button { min-height: 42px; border-radius: 10px; font-size: 14px; }
+  .summary-grid { gap: 6px; margin-bottom: 10px; }
+  .summary-grid view { padding: 4px 6px; border-width: 1px; border-radius: 9px; }
+  .summary-grid text { min-height: 16px; font-size: 10px; line-height: 1.15; }
+  .summary-grid .summary-value { min-height: 0; margin-top: 1px; font-size: 16px; }
   .customer-table-scroll { margin-top: 12px; border-width: 1px; border-radius: 12px; }
   .customer-table-scroll[data-visible-rows="1"] { height: 112px; }
   .customer-table-scroll[data-visible-rows="2"] { height: 170px; }
