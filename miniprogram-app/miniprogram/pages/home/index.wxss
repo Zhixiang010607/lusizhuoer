@@ -124,11 +124,14 @@
 .archived-section { border-color: #ecd2cf; background: linear-gradient(180deg, #fff, #fffafa); }
 .archived-badge { color: #8f3a34; background: #fff0ee; }
 .hq-filter-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14rpx; margin-bottom: 14rpx; }
-.hq-control-field { min-width: 0; }
-.hq-custom-dates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; }
+.hq-ranking-control-grid { grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); align-items: end; gap: 16rpx 12rpx; margin-bottom: 0; }
+.hq-control-field { min-width: 0; display: flex; flex-direction: column; align-self: stretch; }
+.hq-control-field > picker, .hq-control-field > .hq-dimension-tabs { width: 100%; margin-top: auto; }
+.hq-ranking-control-grid .hq-dimension-tabs, .hq-ranking-control-grid .hq-product-filter { margin-bottom: 0; }
+.hq-custom-dates { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; }
 .hq-custom-dates label { min-width: 0; }
-.hq-filter-actions { display: flex; align-items: center; justify-content: center; margin-top: 18rpx; padding-top: 18rpx; border-top: 1rpx solid #e5d6bd; }
-.hq-filter-actions button { width: auto !important; min-width: 110rpx; min-height: 66rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 16rpx; color: #fffdf8; background: #6f532e; border-radius: 14rpx; font-size: 18rpx; line-height: 1; white-space: nowrap; }
+.hq-filter-actions { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; margin-top: 2rpx; padding-top: 12rpx; border-top: 1rpx solid #e5d6bd; }
+.hq-filter-actions button { width: auto !important; min-width: 110rpx; min-height: 60rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 16rpx; color: #fffdf8; background: #6f532e; border-radius: 14rpx; font-size: 18rpx; line-height: 1; white-space: nowrap; }
 .metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; margin: 16rpx 0; }
 .metric-card { min-height: 126rpx; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16rpx 12rpx; color: #302a22; background: #fffaf3; border: 1rpx solid #e1cfaf; border-top: 6rpx solid #b58a43; border-radius: 20rpx; box-shadow: 0 12rpx 32rpx rgba(120,91,43,.07); text-align: center; }
 .metric-card.interactive:active { transform: translateY(1rpx); background: #fff7e9; }
@@ -144,6 +147,7 @@
 .hq-ranking-rule { display: block; margin-top: 6rpx; color: #7c7062; font-size: 17rpx; line-height: 1.35; }
 .hq-control-label { display: block; margin: 0 0 8rpx; color: #6f6457; font-size: 18rpx; font-weight: 800; }
 .hq-metric-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.hq-metric-tabs button { font-size: 18rpx; }
 .hq-product-filter { display: block; margin-bottom: 16rpx; }
 .hq-dimension-tabs button { width: 100% !important; max-width: 100%; min-width: 0; min-height: 64rpx; display: flex; align-items: center; justify-content: center; justify-self: stretch; margin: 0; padding: 0 4rpx; overflow: hidden; color: #6f6457; background: transparent; border-radius: 13rpx; font-size: 19rpx; font-weight: 800; line-height: 1; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .hq-dimension-tabs button.active { color: #74592d; background: #fffaf3; box-shadow: 0 6rpx 18rpx rgba(93,72,39,.1); }

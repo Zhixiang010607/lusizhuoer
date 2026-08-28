@@ -128,6 +128,14 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
   assert.match(wxml, /session\.role === 'store'/);
   assert.match(wxml, /session\.role === 'hq'/);
   assert.match(wxss, /\.record-tabs\s*\{[^}]*grid-template-columns:\s*repeat\(2,/s);
+  assert.match(wxss, /\.hq-ranking-control-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*\.85fr\)\s+minmax\(0,\s*1\.15fr\)[^}]*align-items:\s*end/s,
+    "the standard-phone HQ filter card must use a compact two-by-two grid instead of four tall rows");
+  assert.match(wxss, /\.hq-ranking-control-grid \.hq-dimension-tabs,\s*\.hq-ranking-control-grid \.hq-product-filter\s*\{\s*margin-bottom:\s*0;/,
+    "the two-by-two HQ controls must not carry desktop-only bottom gaps");
+  assert.match(wxss, /\.hq-custom-dates\s*\{[^}]*grid-column:\s*1 \/ -1;/s,
+    "a custom HQ date range must remain full width below the compact controls");
+  assert.match(wxss, /\.hq-filter-actions\s*\{[^}]*grid-column:\s*1 \/ -1;[^}]*justify-content:\s*center;/s,
+    "the mobile HQ reset action must stay compact and centered below both columns");
   assert.doesNotMatch(wxml, /class="metric-grid"|hq-analysis-card|分类统计|前 10 名/,
     "the compact HQ home must not restore the redundant six metrics or duplicate Top 10 card");
   assert.match(wxss, /\.range-presets\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)[^}]*overflow:\s*hidden[^}]*background:\s*#eee3d2/s);
