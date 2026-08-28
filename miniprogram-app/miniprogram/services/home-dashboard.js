@@ -116,7 +116,10 @@ function hqRows(items = [], dimension = "store") {
     const refund = count(row.refund !== undefined ? row.refund : row.refund_count);
     return {
       rank: index + 1, entityId: String(row.entityId || row.entity_id || ""),
-      name: code && !name.includes(code) ? `${name} · ${code}` : name,
+      entityName: name,
+      entityCode: code,
+      // 门店编号只用于内部定位、筛选和接口传参；总部主页排名及导出只显示门店名称。
+      name: dimension === "store" ? name : (code && !name.includes(code) ? `${name} · ${code}` : name),
       dimensionLabel: label, recharge, verification, experience, refund,
       businessTotal: recharge + verification + experience + refund
     };

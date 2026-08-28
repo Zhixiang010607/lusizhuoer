@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v99";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v100";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -2610,7 +2610,7 @@ async function getStoreDashboard(event = {}) {
   };
   const customerPage = dashboardCustomerPage(event.activeCustomerPage || event.customerPage, "活跃客户");
   const archivedCustomerPage = dashboardCustomerPage(event.archivedCustomerPage, "封存客户");
-  const customerPageSize = 10;
+  const customerPageSize = 20;
   const customerOffset = (customerPage - 1) * customerPageSize;
   const archivedCustomerOffset = (archivedCustomerPage - 1) * customerPageSize;
   const layout = await getStoreBindingLayout();
@@ -4257,7 +4257,7 @@ function teacherBusinessCustomerPage(value, label) {
 async function getTeacherBusinessCustomers(event = {}) {
   const caller = await activeTeacherCaller();
   const teacherId = positiveDatabaseId(caller.teacherId, "老师");
-  const pageSize = 10;
+  const pageSize = 20;
   const activePage = teacherBusinessCustomerPage(event.activePage, "活跃客户");
   const archivedPage = teacherBusinessCustomerPage(event.archivedPage, "封存客户");
   const eventCte = `teacher_customer_events AS (

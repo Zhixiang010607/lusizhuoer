@@ -2,7 +2,7 @@ const { callFace, callStaff } = require("../../services/api");
 const { requireSession } = require("../../services/session");
 const dashboard = require("../../services/home-dashboard");
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 20;
 function text(...values) { return String(values.find((value) => value !== undefined && value !== null && String(value).trim()) || "").trim(); }
 function archived(row = {}) { return [row.store_status, row.account_status, row.status].some((value) => text(value).toUpperCase() === "ARCHIVED"); }
 function pageView(source = {}) {
@@ -11,11 +11,25 @@ function pageView(source = {}) {
 }
 function customerView(source = {}) {
   const rows = Array.isArray(source.rows) ? source.rows : [];
+  const visibleRows = Math.min(5, Math.max(1, rows.length));
   return {
     ...source,
     previousDisabled: source.page <= 1,
     nextDisabled: source.page >= source.totalPages,
-    viewportHeight: 72 + Math.min(5, Math.max(1, rows.length)) * 82
+    pageInput: String(source.page || 1),
+    viewportHeight: 64 + visibleRows * 72,
+    tabletVisibleRows: Math.min(5, rows.length),
+    scrollable: rows.length > 5
+  };
+}
+function businessRecordsView(items = [], type = "VERIFICATION") {
+  const businessRecords = dashboard.records(items, type);
+  const visibleRows = Math.min(5, businessRecords.length);
+  return {
+    businessRecords,
+    businessVisibleRows: visibleRows,
+    businessViewportHeight: 64 + (visibleRows ? visibleRows * 72 : 104),
+    businessScrollable: businessRecords.length > 5
   };
 }
 function summaryRows(items, totals) {
@@ -46,7 +60,7 @@ Page({
     storeRef: "", storeId: "", account: null, store: null, storeHero: {}, profileFacts: [], loading: true, statusLoading: false,
     message: "", error: false, rangePreset: "TODAY", rangeOptions: dashboard.RANGE_OPTIONS, rangeStart: "", rangeEnd: "", customRangeVisible: false,
     summaryRows: [], totals: { ...dashboard.EMPTY_TOTALS }, businessType: "VERIFICATION", businessTabs: dashboard.tabs({}, "VERIFICATION"),
-    businessRecords: [], businessPage: pageView({}), businessLoading: false,
+    ...businessRecordsView([], "VERIFICATION"), businessPage: pageView({}), businessPageInput: "1", businessLoading: false,
     activeCustomers: customerView(dashboard.customerGroup()), archivedCustomers: customerView(dashboard.customerGroup())
   },
   onLoad(options) {
@@ -140,9 +154,9 @@ Page({
         }
       }
       if (current(this, "_businessRequestEpoch", request.businessEpoch)) {
-        if (recordsRead.status === "fulfilled") Object.assign(patch, { businessRecords: dashboard.records(recordsRead.value.records, request.businessType), businessPage: pageView(recordsRead.value) });
+        if (recordsRead.status === "fulfilled") Object.assign(patch, businessRecordsView(recordsRead.value.records, request.businessType), { businessPage: pageView(recordsRead.value), businessPageInput: String(pageView(recordsRead.value).page) });
         else {
-          Object.assign(patch, { businessRecords: [], businessPage: emptyBusinessPage() });
+          Object.assign(patch, businessRecordsView([], request.businessType), { businessPage: emptyBusinessPage(), businessPageInput: "1" });
           if (!failureMessage) failureMessage = recordsRead.reason && recordsRead.reason.message || "业务明细读取失败";
         }
       }
@@ -157,7 +171,7 @@ Page({
       if (current(this, "_analyticsRequestEpoch", request.analyticsEpoch)) Object.assign(patch, {
         totals: { ...dashboard.EMPTY_TOTALS }, summaryRows: [], businessTabs: dashboard.tabs(dashboard.EMPTY_TOTALS, this.data.businessType)
       });
-      if (current(this, "_businessRequestEpoch", request.businessEpoch)) Object.assign(patch, { businessRecords: [], businessPage: emptyBusinessPage() });
+      if (current(this, "_businessRequestEpoch", request.businessEpoch)) Object.assign(patch, businessRecordsView([], request.businessType), { businessPage: emptyBusinessPage(), businessPageInput: "1" });
       this.setData(patch);
     } finally {
       if (current(this, "_loadRequestEpoch", request.loadEpoch)) this.setData({ loading: false });
@@ -166,7 +180,7 @@ Page({
   chooseRange(event) {
     const rangePreset = String(event.currentTarget.dataset.value || "TODAY");
     const customRangeVisible = rangePreset === "CUSTOM";
-    this.setData({ rangePreset, customRangeVisible, businessPage: pageView({}) });
+    this.setData({ rangePreset, customRangeVisible, businessPage: pageView({}), businessPageInput: "1" });
     if (!customRangeVisible) this.reloadAnalytics();
   },
   chooseStart(event) { this.setData({ rangeStart: event.detail.value }); },
@@ -182,7 +196,7 @@ Page({
     this.setData({
       businessLoading: true, message: "", error: false,
       totals: { ...dashboard.EMPTY_TOTALS }, summaryRows: [], businessTabs: dashboard.tabs(dashboard.EMPTY_TOTALS, request.businessType),
-      businessRecords: [], businessPage: emptyBusinessPage()
+      ...businessRecordsView([], request.businessType), businessPage: emptyBusinessPage(), businessPageInput: "1"
     });
     try {
       const range = this.rangeData(request);
@@ -205,9 +219,9 @@ Page({
         }
       }
       if (current(this, "_businessRequestEpoch", request.businessEpoch)) {
-        if (recordsRead.status === "fulfilled") Object.assign(patch, { businessRecords: dashboard.records(recordsRead.value.records, request.businessType), businessPage: pageView(recordsRead.value) });
+        if (recordsRead.status === "fulfilled") Object.assign(patch, businessRecordsView(recordsRead.value.records, request.businessType), { businessPage: pageView(recordsRead.value), businessPageInput: String(pageView(recordsRead.value).page) });
         else {
-          Object.assign(patch, { businessRecords: [], businessPage: emptyBusinessPage() });
+          Object.assign(patch, businessRecordsView([], request.businessType), { businessPage: emptyBusinessPage(), businessPageInput: "1" });
           if (!failureMessage) failureMessage = recordsRead.reason && recordsRead.reason.message || "业务明细读取失败";
         }
       }
@@ -221,7 +235,7 @@ Page({
       if (analyticsCurrent) Object.assign(patch, {
         totals: { ...dashboard.EMPTY_TOTALS }, summaryRows: [], businessTabs: dashboard.tabs(dashboard.EMPTY_TOTALS, this.data.businessType)
       });
-      if (businessCurrent) Object.assign(patch, { businessRecords: [], businessPage: emptyBusinessPage() });
+      if (businessCurrent) Object.assign(patch, businessRecordsView([], request.businessType), { businessPage: emptyBusinessPage(), businessPageInput: "1" });
       this.setData(patch);
     } finally {
       if (current(this, "_businessRequestEpoch", request.businessEpoch)) this.setData({ businessLoading: false });
@@ -229,7 +243,7 @@ Page({
   },
   chooseBusiness(event) {
     const businessType = String(event.currentTarget.dataset.type || "VERIFICATION");
-    this.setData({ businessType, businessTabs: dashboard.tabs(this.data.totals, businessType), businessPage: pageView({}) });
+    this.setData({ businessType, businessTabs: dashboard.tabs(this.data.totals, businessType), ...businessRecordsView([], businessType), businessPage: pageView({}), businessPageInput: "1" });
     this.loadBusinessPage(1);
   },
   async loadBusinessPage(page) {
@@ -245,16 +259,28 @@ Page({
       const payload = Object.freeze({ storeId: request.storeId, mode: "browse", statusCategory: "APPROVED", recordType: config.recordType, verificationType: config.verificationType, rechargeType: config.rechargeType, page: request.page, pageSize: PAGE_SIZE, ...dashboard.payload(range.startDate, range.endDate) });
       const result = await callFace("queryStoreBusinessRecords", payload);
       if (!current(this, "_businessRequestEpoch", request.epoch)) return;
-      this.setData({ businessRecords: dashboard.records(result.records, request.businessType), businessPage: pageView(result) });
+      const businessPage = pageView(result);
+      this.setData({ ...businessRecordsView(result.records, request.businessType), businessPage, businessPageInput: String(businessPage.page) });
     } catch (error) {
       if (!current(this, "_businessRequestEpoch", request.epoch)) return;
-      this.setData({ businessRecords: [], businessPage: emptyBusinessPage(), message: error.message || "业务明细读取失败", error: true });
+      this.setData({ ...businessRecordsView([], request.businessType), businessPage: emptyBusinessPage(), businessPageInput: "1", message: error.message || "业务明细读取失败", error: true });
     } finally {
       if (current(this, "_businessRequestEpoch", request.epoch)) this.setData({ businessLoading: false });
     }
   },
   previousBusiness() { this.loadBusinessPage(this.data.businessPage.page - 1); },
   nextBusiness() { this.loadBusinessPage(this.data.businessPage.page + 1); },
+  inputBusinessPage(event) { this.setData({ businessPageInput: String(event.detail.value || "") }); },
+  jumpBusinessPage() {
+    const raw = String(this.data.businessPageInput || "").trim();
+    const page = Number(raw);
+    const totalPages = Math.max(1, Number(this.data.businessPage.totalPages || 1));
+    if (!/^\d+$/.test(raw) || !Number.isSafeInteger(page) || page < 1 || page > totalPages) {
+      this.setData({ message: `请输入 1 至 ${totalPages} 之间的页码`, error: true });
+      return;
+    }
+    return this.loadBusinessPage(page);
+  },
   async loadCustomerPage(status, page) {
     if (this._unloaded || !this.data.storeId || !["ACTIVE", "ARCHIVED"].includes(status)) return;
     const epochKey = status === "ACTIVE" ? "_activeCustomerRequestEpoch" : "_archivedCustomerRequestEpoch";
@@ -279,6 +305,23 @@ Page({
   },
   previousCustomer(event) { const status = event.currentTarget.dataset.status; const group = status === "ACTIVE" ? this.data.activeCustomers : this.data.archivedCustomers; this.loadCustomerPage(status, group.page - 1); },
   nextCustomer(event) { const status = event.currentTarget.dataset.status; const group = status === "ACTIVE" ? this.data.activeCustomers : this.data.archivedCustomers; this.loadCustomerPage(status, group.page + 1); },
+  inputCustomerPage(event) {
+    const status = String(event.currentTarget.dataset.status || "ACTIVE");
+    const key = status === "ARCHIVED" ? "archivedCustomers.pageInput" : "activeCustomers.pageInput";
+    this.setData({ [key]: String(event.detail.value || "") });
+  },
+  jumpCustomerPage(event) {
+    const status = String(event.currentTarget.dataset.status || "ACTIVE");
+    const group = status === "ARCHIVED" ? this.data.archivedCustomers : this.data.activeCustomers;
+    const raw = String(group.pageInput || "").trim();
+    const page = Number(raw);
+    const totalPages = Math.max(1, Number(group.totalPages || 1));
+    if (!/^\d+$/.test(raw) || !Number.isSafeInteger(page) || page < 1 || page > totalPages) {
+      this.setData({ message: `请输入 1 至 ${totalPages} 之间的页码`, error: true });
+      return;
+    }
+    return this.loadCustomerPage(status, page);
+  },
   openCustomer(event) { const code = String(event.currentTarget.dataset.code || ""); if (code) wx.navigateTo({ url: `/pages/customer-detail/index?customerCode=${encodeURIComponent(code)}` }); },
   openOrder(event) {
     const id = String(event.currentTarget.dataset.id || "");

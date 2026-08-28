@@ -125,26 +125,26 @@
 
       <view id="active-customers" class="web-panel customer-panel">
         <view class="panel-heading"><view><text class="panel-title">活跃用户</text><text class="panel-note">点击姓名可进入客户主页</text></view><text class="web-badge">{{activeCustomers.total}} 位用户</text></view>
-        <scroll-view class="table-scroll customer-scroll" data-visible-rows="{{activeCustomers.tabletVisibleRows}}" scroll-x scroll-y enhanced show-scrollbar="false" style="height: {{activeCustomers.viewportHeight}}rpx" scroll-left="{{activeCustomerScrollLeft}}" data-status="ACTIVE" bindscroll="rememberCustomerScroll">
+        <scroll-view class="table-scroll customer-scroll" data-visible-rows="{{activeCustomers.tabletVisibleRows}}" scroll-x scroll-y="{{activeCustomers.scrollable}}" enhanced show-scrollbar="{{activeCustomers.scrollable}}" style="height: {{activeCustomers.viewportHeight}}rpx" scroll-left="{{activeCustomerScrollLeft}}" data-status="ACTIVE" bindscroll="rememberCustomerScroll">
           <view class="customer-table">
             <view class="table-row table-head"><view>姓名</view><view>门店</view><view>生日</view><view>充值次数</view><view>核销次数</view></view>
             <view wx:for="{{activeCustomers.rows}}" wx:key="customerCode" class="table-row"><view class="table-link" data-code="{{item.customerCode}}" bindtap="openCustomer">{{item.customerName}}</view><view>{{item.storeName}}</view><view>{{item.birthDate}}</view><view>{{item.rechargeCount}} 次</view><view class="metric-number">{{item.verificationCount}} 次</view></view>
             <view wx:if="{{!activeCustomers.rows.length}}" class="table-empty">暂无活跃客户</view>
           </view>
         </scroll-view>
-        <view class="table-pagination"><button disabled="{{activeCustomers.previousDisabled}}" data-status="ACTIVE" data-direction="-1" bindtap="customerPage">上一页</button><text>第 {{activeCustomers.page}} / {{activeCustomers.totalPages}} 页</text><button disabled="{{activeCustomers.nextDisabled}}" data-status="ACTIVE" data-direction="1" bindtap="customerPage">下一页</button></view>
+        <view class="table-pagination customer-pagination"><button disabled="{{activeCustomers.previousDisabled}}" data-status="ACTIVE" data-direction="-1" bindtap="customerPage">上一页</button><text>第 {{activeCustomers.page}} / {{activeCustomers.totalPages}} 页</text><button disabled="{{activeCustomers.nextDisabled}}" data-status="ACTIVE" data-direction="1" bindtap="customerPage">下一页</button><view class="customer-page-jump"><text>跳至第</text><input type="number" value="{{activeCustomers.pageInput}}" data-status="ACTIVE" bindinput="inputCustomerPage" /><text>页</text><button data-status="ACTIVE" bindtap="jumpCustomerPage">跳转</button></view></view>
       </view>
 
       <view id="archived-customers" class="web-panel customer-panel archived-section">
         <view class="panel-heading"><view><text class="panel-title">封存用户</text><text class="panel-note">封存客户仍保留历史关联；点击姓名可进入客户主页</text></view><text class="web-badge archived-badge">{{archivedCustomers.total}} 位用户</text></view>
-        <scroll-view class="table-scroll customer-scroll" data-visible-rows="{{archivedCustomers.tabletVisibleRows}}" scroll-x scroll-y enhanced show-scrollbar="false" style="height: {{archivedCustomers.viewportHeight}}rpx" scroll-left="{{archivedCustomerScrollLeft}}" data-status="ARCHIVED" bindscroll="rememberCustomerScroll">
+        <scroll-view class="table-scroll customer-scroll" data-visible-rows="{{archivedCustomers.tabletVisibleRows}}" scroll-x scroll-y="{{archivedCustomers.scrollable}}" enhanced show-scrollbar="{{archivedCustomers.scrollable}}" style="height: {{archivedCustomers.viewportHeight}}rpx" scroll-left="{{archivedCustomerScrollLeft}}" data-status="ARCHIVED" bindscroll="rememberCustomerScroll">
           <view class="customer-table">
             <view class="table-row table-head"><view>姓名</view><view>门店</view><view>生日</view><view>充值次数</view><view>核销次数</view></view>
             <view wx:for="{{archivedCustomers.rows}}" wx:key="customerCode" class="table-row"><view class="table-link" data-code="{{item.customerCode}}" bindtap="openCustomer">{{item.customerName}}</view><view>{{item.storeName}}</view><view>{{item.birthDate}}</view><view>{{item.rechargeCount}} 次</view><view class="metric-number">{{item.verificationCount}} 次</view></view>
             <view wx:if="{{!archivedCustomers.rows.length}}" class="table-empty">暂无封存客户</view>
           </view>
         </scroll-view>
-        <view class="table-pagination"><button disabled="{{archivedCustomers.previousDisabled}}" data-status="ARCHIVED" data-direction="-1" bindtap="customerPage">上一页</button><text>第 {{archivedCustomers.page}} / {{archivedCustomers.totalPages}} 页</text><button disabled="{{archivedCustomers.nextDisabled}}" data-status="ARCHIVED" data-direction="1" bindtap="customerPage">下一页</button></view>
+        <view class="table-pagination customer-pagination"><button disabled="{{archivedCustomers.previousDisabled}}" data-status="ARCHIVED" data-direction="-1" bindtap="customerPage">上一页</button><text>第 {{archivedCustomers.page}} / {{archivedCustomers.totalPages}} 页</text><button disabled="{{archivedCustomers.nextDisabled}}" data-status="ARCHIVED" data-direction="1" bindtap="customerPage">下一页</button><view class="customer-page-jump"><text>跳至第</text><input type="number" value="{{archivedCustomers.pageInput}}" data-status="ARCHIVED" bindinput="inputCustomerPage" /><text>页</text><button data-status="ARCHIVED" bindtap="jumpCustomerPage">跳转</button></view></view>
       </view>
     </block>
 
@@ -180,11 +180,13 @@
 
       <view class="web-panel ranking-panel">
         <view class="panel-heading ranking-heading"><view><text class="panel-title">完整排名</text><text class="hq-ranking-rule">{{hqProductLabels[hqProductIndex]}} · 按{{hqDimensionLabels[hqDimensionIndex]}}的{{hqRankingMetricLabels[hqRankingMetricIndex]}}次数降序</text></view><view class="ranking-actions"><button bindtap="exportHqRanking" disabled="{{loading || hqRankingLoading || hqExporting || hqRankingError}}">{{hqExporting ? '正在导出…' : '导出完整报表 PDF'}}</button></view></view>
+        <scroll-view class="hq-ranking-scroll" data-visible-rows="{{hqRankingVisibleRows}}" scroll-y="{{hqRankingScrollable}}" enhanced show-scrollbar="{{hqRankingScrollable}}" style="height: {{hqRankingViewportHeight}}rpx">
         <view class="hq-ranking-list">
           <view class="hq-ranking-row hq-ranking-table-head"><text>名次</text><text>{{hqDimensionLabels[hqDimensionIndex]}}</text><text class="{{hqRankingMetric === 'recharge' ? 'active' : ''}}">充值</text><text class="{{hqRankingMetric === 'verification' ? 'active' : ''}}">核销</text><text class="{{hqRankingMetric === 'experience' ? 'active' : ''}}">体验</text><text class="{{hqRankingMetric === 'refund' ? 'active' : ''}}">退费</text></view>
           <view wx:for="{{hqRanking}}" wx:key="entityId" class="hq-ranking-row hq-ranking-card"><text class="hq-ranking-rank">{{item.rank}}</text><text class="hq-ranking-name">{{item.name}}</text><text class="hq-ranking-value {{hqRankingMetric === 'recharge' ? 'active' : ''}}">{{item.recharge}} 次</text><text class="hq-ranking-value {{hqRankingMetric === 'verification' ? 'active' : ''}}">{{item.verification}} 次</text><text class="hq-ranking-value {{hqRankingMetric === 'experience' ? 'active' : ''}}">{{item.experience}} 次</text><text class="hq-ranking-value {{hqRankingMetric === 'refund' ? 'active' : ''}}">{{item.refund}} 次</text></view>
           <view wx:if="{{!hqRanking.length}}" class="table-empty">{{loading || hqRankingLoading ? '正在读取排名…' : (hqRankingError || '当前日期范围暂无有效数据')}}</view>
         </view>
+        </scroll-view>
         <view class="table-pagination hq-ranking-pagination"><button disabled="{{hqRankingPage.previousDisabled || hqRankingLoading}}" bindtap="previousHqPage">上一页</button><text>第 {{hqRankingPage.page}} / {{hqRankingPage.totalPages}} 页 · 共 {{hqRankingPage.total}} 条</text><button disabled="{{hqRankingPage.nextDisabled || hqRankingLoading}}" bindtap="nextHqPage">下一页</button><view class="ranking-page-jump"><text>跳至第</text><input type="number" value="{{hqRankingInput}}" bindinput="inputHqPage" /><text>页</text><button disabled="{{hqRankingLoading}}" bindtap="jumpHqPage">跳转</button></view><button wx:if="{{hqRankingError}}" class="ranking-retry" bindtap="retryHqRanking">重试排名</button></view>
       </view>
     </block>

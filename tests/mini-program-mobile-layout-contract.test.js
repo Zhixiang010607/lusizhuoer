@@ -159,8 +159,8 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
   assert.match(wxss, /\.anchor-inner\s*\{[^}]*width:\s*100%;[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/s);
   assert.match(wxss, /\.anchor-inner text\s*\{[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*font-size:\s*23rpx/s);
   assert.match(wxss, /\.summary-scroll\s*\{[^}]*box-sizing:\s*border-box/s);
-  assert.match(wxss, /\.record-table\s*\{\s*width:\s*100%;\s*min-width:\s*1050rpx;/);
-  assert.match(js, /function businessRecordsView\(items, type\)[\s\S]*businessViewportHeight:\s*72 \+ \(visibleRows \? visibleRows \* 82 : 110\)[\s\S]*businessScrollable:\s*businessRecords\.length > 5/,
+  assert.match(wxss, /\.record-table\s*\{\s*width:\s*100%;\s*min-width:\s*950rpx;/);
+  assert.match(js, /function businessRecordsView\(items, type\)[\s\S]*businessViewportHeight:\s*64 \+ \(visibleRows \? visibleRows \* 72 : 104\)[\s\S]*businessScrollable:\s*businessRecords\.length > 5/,
     "business detail must grow for one to five rows and become internally scrollable only after five rows");
   assert.match(wxml, /class="table-scroll record-scroll"[^>]*scroll-x[^>]*scroll-y="\{\{businessScrollable\}\}"[^>]*show-scrollbar="\{\{businessScrollable\}\}"[^>]*style="height: \{\{businessViewportHeight\}\}rpx"/,
     "the calculated business-detail viewport must drive the real-device scroll-view height");
@@ -172,9 +172,9 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
     "the five-column customer table must fit the standard card before horizontal scrolling is needed");
   assert.doesNotMatch(wxss, /\.customer-table\s*\{[^}]*min-width:\s*700rpx/s,
     "a fixed 700rpx minimum creates a meaningless sliver of horizontal scrolling on standard phones");
-  assert.match(wxss, /\.summary-table \.table-row\s*\{[^}]*minmax\(180rpx,\s*1\.6fr\)[^}]*repeat\(4,\s*minmax\(100rpx,\s*1fr\)\)/s);
-  assert.match(wxss, /\.summary-table \.table-row\s*\{[^}]*height:\s*94rpx;[^}]*min-height:\s*94rpx/s);
-  assert.match(wxss, /\.summary-table \.table-head\s*\{[^}]*height:\s*72rpx;[^}]*min-height:\s*72rpx/s);
+  assert.match(wxss, /\.summary-table \.table-row\s*\{[^}]*minmax\(170rpx,\s*1\.55fr\)[^}]*repeat\(4,\s*minmax\(96rpx,\s*1fr\)\)/s);
+  assert.match(wxss, /\.summary-table \.table-row\s*\{[^}]*height:\s*82rpx;[^}]*min-height:\s*82rpx/s);
+  assert.match(wxss, /\.summary-table \.table-head\s*\{[^}]*height:\s*64rpx;[^}]*min-height:\s*64rpx/s);
   assert.match(wxss, /\.table-row > view\s*\{[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
   assert.match(wxss, /\.detail-info-item text\s*\{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s,
     "profile facts must not split identifiers and phone numbers across lines");
@@ -252,7 +252,8 @@ test("home dashboard mapper preserves web metric and profile column semantics", 
     recharge: 12, verification: 9, experience: 3, refund: 2 }], "store");
   assert.deepEqual(rows[0].bars.map((bar) => bar.metric), ["recharge", "verification", "experience", "refund"]);
   assert.equal(rows[0].businessTotal, 26);
-  assert.equal(rows[0].name, "中心店 · S001");
+  assert.equal(rows[0].name, "中心店");
+  assert.equal(rows[0].entityCode, "S001");
   assert.deepEqual(dashboard.storeFacts({
     auth_uid: "uid-demo", store_code: "S001", store_name: "中心店", province: "江西省",
     city: "南昌市", district: "红谷滩区", address_detail: "测试路", store_status: "ACTIVE",

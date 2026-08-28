@@ -44,16 +44,16 @@ button::after { border: 0; }
 .card-title > view text:last-child { color: #7c7062; font-size: 19rpx; }
 .badge { padding: 8rpx 14rpx; color: #74592d; background: #f4e7d0; border-radius: 999rpx; font-size: 18rpx; font-weight: 800; white-space: nowrap; }
 .table-scroll { width: 100%; max-width: 100%; min-width: 0; overflow: hidden; border: 1rpx solid #e0d2bd; border-radius: 16rpx; box-sizing: border-box; }
-.table-scroll[data-visible-rows="1"] { height: 152rpx; }
-.table-scroll[data-visible-rows="2"] { height: 236rpx; }
-.table-scroll[data-visible-rows="3"] { height: 320rpx; }
-.table-scroll[data-visible-rows="4"] { height: 404rpx; }
-.table-scroll[data-visible-rows="5"] { height: 488rpx; }
-.review-table { width: 1900rpx; }
-.review-row { display: grid; grid-template-columns: 230rpx 230rpx 220rpx 210rpx 180rpx 150rpx 230rpx 250rpx 200rpx; min-height: 84rpx; border-bottom: 1rpx solid #eadfce; }
+.table-scroll[data-visible-rows="1"] { height: 136rpx; }
+.table-scroll[data-visible-rows="2"] { height: 208rpx; }
+.table-scroll[data-visible-rows="3"] { height: 280rpx; }
+.table-scroll[data-visible-rows="4"] { height: 352rpx; }
+.table-scroll[data-visible-rows="5"] { height: 424rpx; }
+.review-table { width: 1270rpx; }
+.review-row { display: grid; grid-template-columns: 196rpx 96rpx 96rpx 108rpx 88rpx 70rpx 220rpx 176rpx 220rpx; min-height: 72rpx; border-bottom: 1rpx solid #eadfce; }
 .review-row:last-child { border-bottom: 0; }
-.review-row > text, .review-row > view { min-width: 0; display: flex; align-items: center; justify-content: center; padding: 12rpx 14rpx; overflow: hidden; box-sizing: border-box; font-size: 19rpx; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
-.review-row.head { min-height: 68rpx; color: #fffdf8; background: #4b4033; font-weight: 850; }
+.review-row > text, .review-row > view { min-width: 0; display: flex; align-items: center; justify-content: center; padding: 9rpx 10rpx; overflow: hidden; box-sizing: border-box; font-size: 21rpx; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.review-row.head { min-height: 64rpx; color: #fffdf8; background: #4b4033; font-weight: 850; }
 .review-row:not(.head):nth-child(odd) { background: #fff; }
 .link { color: #8b642e; font-weight: 850; text-decoration: underline; }
 .review-action { display: flex !important; justify-content: center; gap: 8rpx; }
@@ -107,15 +107,15 @@ button::after { border: 0; }
   .card-title > view text:last-child { font-size: 13px; }
   .badge { padding: 5px 10px; font-size: 13px; }
   .table-scroll { border-width: 1px; border-radius: 12px; }
-  .table-scroll[data-visible-rows="1"] { height: 112px; }
-  .table-scroll[data-visible-rows="2"] { height: 170px; }
-  .table-scroll[data-visible-rows="3"] { height: 228px; }
-  .table-scroll[data-visible-rows="4"] { height: 286px; }
-  .table-scroll[data-visible-rows="5"] { height: 344px; }
-  .review-table { width: 100%; min-width: 0; }
-  .review-row { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, .9fr) minmax(0, 1fr) minmax(0, .8fr) minmax(0, .7fr) minmax(0, 1.35fr) minmax(0, 1.3fr) minmax(0, 1.35fr); min-height: 58px; border-width: 1px; }
-  .review-row > text, .review-row > view { min-height: 58px; padding: 8px 6px; font-size: 12px; }
-  .review-row.head { min-height: 54px; }
+  .table-scroll[data-visible-rows="1"] { height: 100px; }
+  .table-scroll[data-visible-rows="2"] { height: 152px; }
+  .table-scroll[data-visible-rows="3"] { height: 204px; }
+  .table-scroll[data-visible-rows="4"] { height: 256px; }
+  .table-scroll[data-visible-rows="5"] { height: 308px; }
+  .review-table { width: 100%; min-width: 836px; }
+  .review-row { grid-template-columns: 132px 64px 64px 78px 58px 50px 124px 142px 124px; min-height: 52px; border-width: 1px; }
+  .review-row > text, .review-row > view { min-height: 52px; padding: 6px 5px; font-size: 13px; }
+  .review-row.head { min-height: 48px; }
   .review-action { gap: 6px; }
   .review-action button { min-width: 72px; min-height: 40px; padding: 0 10px; font-size: 13px; }
   .status { padding: 4px 8px; font-size: 12px; }

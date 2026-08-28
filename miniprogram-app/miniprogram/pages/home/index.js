@@ -18,8 +18,8 @@ const RANKING_METRICS = Object.freeze([
   { value: "experience", label: "体验" },
   { value: "refund", label: "退费" }
 ]);
-const PAGE_SIZE = 10;
-const RANKING_PAGE_SIZE = 100;
+const PAGE_SIZE = 20;
+const RANKING_PAGE_SIZE = 20;
 const PRODUCT_SUMMARY_PAGE_SIZE = 10;
 const REPORT_EXPORT_PAGE_SIZE = 500;
 const REPORT_EXPORT_MAX_ROWS = 10000;
@@ -48,16 +48,33 @@ function quotaRows(items = []) {
 function customerView(group) {
   const rows = Array.isArray(group?.rows) ? group.rows : [];
   const visibleRows = Math.min(5, Math.max(1, rows.length));
-  return { ...group, ...pageView(group), viewportHeight: 72 + visibleRows * 82, tabletVisibleRows: Math.min(5, rows.length) };
+  const page = pageView(group);
+  return {
+    ...group, ...page,
+    pageInput: String(page.page),
+    viewportHeight: 64 + visibleRows * 72,
+    tabletVisibleRows: Math.min(5, rows.length),
+    scrollable: rows.length > 5
+  };
 }
 function businessRecordsView(items, type) {
   const businessRecords = dashboard.records(items, type);
   const visibleRows = Math.min(5, businessRecords.length);
   return {
     businessRecords,
-    businessViewportHeight: 72 + (visibleRows ? visibleRows * 82 : 110),
+    businessViewportHeight: 64 + (visibleRows ? visibleRows * 72 : 104),
     businessTabletVisibleRows: visibleRows,
     businessScrollable: businessRecords.length > 5
+  };
+}
+function rankingView(items = []) {
+  const rows = Array.isArray(items) ? items : [];
+  const visibleRows = Math.min(5, rows.length);
+  return {
+    hqRanking: rows,
+    hqRankingVisibleRows: visibleRows,
+    hqRankingViewportHeight: 64 + (visibleRows ? visibleRows * 72 : 104),
+    hqRankingScrollable: rows.length > 5
   };
 }
 function rejectedMessage(results, fallback) {
@@ -140,7 +157,7 @@ Page({
     hqRankingMetrics: RANKING_METRICS, hqRankingMetricLabels: RANKING_METRICS.map((item) => item.label),
     hqRankingMetric: "recharge", hqRankingMetricIndex: 0,
     hqProducts: [{ id: "", label: "全部项目" }], hqProductLabels: ["全部项目"], hqProductId: "", hqProductIndex: 0,
-    hqRanking: [], hqRankingPage: pageView({ pageSize: RANKING_PAGE_SIZE }), hqRankingInput: "1", hqRankingScrollLeft: 0,
+    ...rankingView([]), hqRankingPage: pageView({ pageSize: RANKING_PAGE_SIZE }), hqRankingInput: "1", hqRankingScrollLeft: 0,
     hqRankingLoading: false, hqRankingError: "", hqExporting: false, hqLoadedAt: "—"
   },
 
@@ -402,7 +419,7 @@ Page({
       hqMetrics: [], hqCharts: [], hqLoadedAt: "—",
       hqProjectSummaryRows: [], hqProjectSummaryPage: pageView({ pageSize: PRODUCT_SUMMARY_PAGE_SIZE }),
       hqProjectSummaryTotals: { ...dashboard.EMPTY_TOTALS }, hqProjectSummaryError: "",
-      hqRanking: [], hqRankingPage: pageView({ pageSize: RANKING_PAGE_SIZE }), hqRankingInput: "1",
+      ...rankingView([]), hqRankingPage: pageView({ pageSize: RANKING_PAGE_SIZE }), hqRankingInput: "1",
       hqRankingScrollLeft: 0, hqRankingError: "", message: "", error: false
     });
     const [overviewResult, rankingResult, productResult, productSummaryResult] = await Promise.allSettled([
@@ -465,10 +482,10 @@ Page({
       && hqRankingMatches(rankingResult.value.ranking, dimension, rankingMetric, productId)) {
       const ranking = rankingResult.value.ranking || {};
       const rows = dashboard.hqRows(ranking.rows, dimension);
-      changes.hqRanking = rows.map((row, index) => ({
+      Object.assign(changes, rankingView(rows.map((row, index) => ({
         ...row,
         rank: (dashboard.count(ranking.pageNumber) - 1) * RANKING_PAGE_SIZE + index + 1
-      }));
+      }))));
       changes.hqCharts = [hqChart(ranking.rows, dimension, `按${DIMENSIONS[this.data.hqDimensionIndex]?.label || "分类"}统计`, DIMENSIONS[this.data.hqDimensionIndex]?.label || "分类", rankingMetric)];
       changes.hqRankingPage = pageView({
         total: ranking.total, page: ranking.pageNumber, pageSize: ranking.pageSize, totalPages: ranking.totalPages
@@ -499,14 +516,14 @@ Page({
     if (this.data.hqPeriod !== "ALL"
       && (!range.startDate || !range.endDate || range.startDate > range.endDate || dashboard.rangeDays(range.startDate, range.endDate) > 366)) {
       this.setData({
-        hqRanking: [], hqRankingPage: pageView({ pageSize: RANKING_PAGE_SIZE }), hqRankingInput: "1",
+        ...rankingView([]), hqRankingPage: pageView({ pageSize: RANKING_PAGE_SIZE }), hqRankingInput: "1",
         hqRankingScrollLeft: 0, hqRankingLoading: false, hqRankingError: "请选择不超过 366 天的有效日期范围",
         message: "请选择不超过 366 天的有效日期范围", error: true
       });
       return;
     }
     this.setData({
-      hqRanking: [], hqRankingPage: pageView({ pageSize: RANKING_PAGE_SIZE }), hqRankingInput: "1",
+      ...rankingView([]), hqRankingPage: pageView({ pageSize: RANKING_PAGE_SIZE }), hqRankingInput: "1",
       hqRankingScrollLeft: 0, hqRankingLoading: true, hqRankingError: "", message: "", error: false
     });
     try {
@@ -524,10 +541,10 @@ Page({
       const page = pageView({ total: ranking.total, page: ranking.pageNumber, pageSize: ranking.pageSize, totalPages: ranking.totalPages });
       this._hqRankingRetryPage = page.page;
       this.setData({
-        hqRanking: rows.map((row, index) => ({
+        ...rankingView(rows.map((row, index) => ({
           ...row,
           rank: (page.page - 1) * RANKING_PAGE_SIZE + index + 1
-        })),
+        }))),
         hqRankingPage: page, hqRankingInput: String(page.page)
       });
       if (page.page === 1) this.setData({ hqCharts: [hqChart(ranking.rows, dimension, "分类统计", DIMENSIONS[this.data.hqDimensionIndex]?.label || "分类", rankingMetric)] });
@@ -624,6 +641,23 @@ Page({
     const page = Math.min(group.totalPages, Math.max(1, group.page + direction));
     if (page !== group.page) this.loadCustomerPage(status, page);
   },
+  inputCustomerPage(event) {
+    const status = String(event.currentTarget.dataset.status || "ACTIVE");
+    const key = status === "ARCHIVED" ? "archivedCustomers.pageInput" : "activeCustomers.pageInput";
+    this.setData({ [key]: String(event.detail.value || "") });
+  },
+  jumpCustomerPage(event) {
+    const status = String(event.currentTarget.dataset.status || "ACTIVE");
+    const group = status === "ARCHIVED" ? this.data.archivedCustomers : this.data.activeCustomers;
+    const raw = String(group.pageInput || "").trim();
+    const page = Number(raw);
+    const totalPages = Math.max(1, Number(group.totalPages || 1));
+    if (!/^\d+$/.test(raw) || !Number.isSafeInteger(page) || page < 1 || page > totalPages) {
+      this.setData({ message: `请输入 1 至 ${totalPages} 之间的页码`, error: true });
+      return;
+    }
+    return this.loadCustomerPage(status, page);
+  },
   chooseHqPeriod(event) {
     const index = Number(event.detail.value);
     const period = dashboard.HQ_PERIOD_OPTIONS[index]?.value || "TODAY";
@@ -642,7 +676,7 @@ Page({
       this.setData({
         loading: false, hqRankingLoading: false,
         hqMetrics: [], hqCharts: [], hqLoadedAt: "—",
-        hqRanking: [], hqRankingPage: pageView({ pageSize: RANKING_PAGE_SIZE }), hqRankingInput: "1",
+        ...rankingView([]), hqRankingPage: pageView({ pageSize: RANKING_PAGE_SIZE }), hqRankingInput: "1",
         hqRankingScrollLeft: 0, hqRankingError: "请选择不超过 366 天的有效日期范围",
         message: "请选择不超过 366 天的有效日期范围", error: true
       });

@@ -51,13 +51,13 @@ test("role homes use a bounded tablet dashboard instead of a magnified phone", (
     "business tabs must not overlap or float over one another on iPad");
   assert.match(wxss, /\.summary-scroll \{ height: auto !important; \}/,
     "project summary height must follow its real tablet rows");
-  assert.match(wxss, /\.record-scroll\[data-visible-rows="5"\], \.customer-scroll\[data-visible-rows="5"\] \{ height: 328px !important; \}/,
+  assert.match(wxss, /\.record-scroll\[data-visible-rows="5"\], \.customer-scroll\[data-visible-rows="5"\] \{ height: 308px !important; \}/,
     "long tablet lists must stop at five compact rows before internal scrolling");
   assert.match(wxss, /\.summary-table \{ width: 100%; min-width: 560px; \}/,
     "tablet project summaries should fill the card without keeping the old conservative minimum width");
-  assert.match(wxss, /\.record-table \{ width: 100%; min-width: 720px; \}/,
+  assert.match(wxss, /\.record-table \{ width: 100%; min-width: 680px; \}/,
     "tablet business records should protect codes and times but compact all short columns");
-  assert.match(wxss, /\.customer-table \{ width: 100%; min-width: 560px; \}/,
+  assert.match(wxss, /\.customer-table \{ width: 100%; min-width: 520px; \}/,
     "store customer tables should reveal all five short fields before horizontal scrolling");
   assert.match(wxss, /\.archived-section \{ border-color: #e1cfaf; background: #fffaf3; \}/,
     "the archived section must share the warm ivory card palette");
@@ -100,8 +100,10 @@ test("query and review pages use compact tablet filters and five-row result view
     reviewsWxss.lastIndexOf(".button-row.review-query-actions") > reviewsWxss.lastIndexOf(".button-row, .dialog-actions"),
     "the review action alignment override must follow the generic button margin rule"
   );
-  assert.match(reviewsWxss, /@media \(min-width: 700px\)[\s\S]*?\.review-table \{ width: 100%; min-width: 0; \}/s,
-    "review columns must share the full tablet card width without a fixed-width overflow");
+  assert.match(reviewsWxss, /@media \(min-width: 700px\)[\s\S]*?\.review-table \{ width: 100%; min-width: 836px; \}/s,
+    "review columns should fill the tablet card while retaining an exact content-derived minimum");
+  assert.match(reviewsWxss, /\.review-row \{[^}]*grid-template-columns: 132px 64px 64px 78px 58px 50px 124px 142px 124px;/s,
+    "short review fields must stay compact while the order code, actions, and complete timestamps keep enough width");
   assert.match(reviewsWxss, /\.review-type-tabs button \{[^}]*width: 100%;[^}]*min-width: 0;/s,
     "recharge and refund review tabs should fill their two balanced tablet columns");
   assert.match(directoryWxss, /\.search-fields \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s);
@@ -119,7 +121,7 @@ test("query and review pages use compact tablet filters and five-row result view
     "search, active and archived directory tables each own a five-row viewport");
   assert.match(customersWxss, /\.customer-table-scroll\[data-visible-rows="5"\] \{ height: 344px; \}/);
   assert.match(recordsWxss, /\.record-scroll\[data-visible-rows="5"\] \{ height: 344px; \}/);
-  assert.match(reviewsWxss, /\.table-scroll\[data-visible-rows="5"\] \{ height: 344px; \}/);
+  assert.match(reviewsWxss, /\.table-scroll\[data-visible-rows="5"\] \{ height: 308px; \}/);
   assert.match(directoryWxss, /\.table-scroll\[data-visible-rows="5"\] \{ height: 332px; \}/);
   assert.match(customersWxss, /@media \(min-width: 700px\)[\s\S]*?\.summary-grid text \{[^}]*min-height: 24px;[^}]*font-size: 11px;/s,
     "customer query summary must stay compact instead of magnifying its labels on iPad");

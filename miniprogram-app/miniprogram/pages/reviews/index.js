@@ -2,7 +2,7 @@ const { callStaff } = require("../../services/api");
 const { requireSession } = require("../../services/session");
 const { displayDateTimeAny } = require("../../services/query-tools");
 
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 20;
 const STATUS = Object.freeze([
   { value: "", label: "全部状态" },
   { value: "PENDING", label: "待审核" },
