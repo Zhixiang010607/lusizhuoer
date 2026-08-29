@@ -7,7 +7,7 @@
 1. 在 CloudBase PostgreSQL 控制台完整执行 [`066-01-ble-verification-authorization.sql`](066-01-ble-verification-authorization.sql)。
 2. 在 `faceRecognition` 云函数环境变量中配置一个随机且至少 32 字节的 `BLE_AUTH_SIGNING_KEY`。密钥不要发到聊天、不要写入仓库或小程序。
 3. 将设备登记到 `public.verification_ble_devices`。`pairing_code_hash` 必须是六位配对码的 SHA-256 小写十六进制值；数据库不得保存明文配对码。`device_type` 是对应项目名称的全小写拼音，不能包含空格或标点。
-4. 上传 `deployments/faceRecognition-v104.zip`，安装依赖并调用 `health`，确认 `version=v104`。
+4. 上传 `deployments/faceRecognition-v105.zip`，安装依赖并调用 `health`，确认 `version=v105`。
 5. 执行 [`066-readonly-verify.sql`](066-readonly-verify.sql)，确认每一行都是 `READY`。
 6. 最后上传小程序 `0.2.43` 并设为体验版。不要在 SQL 和云函数尚未生效时先发布前端。
 

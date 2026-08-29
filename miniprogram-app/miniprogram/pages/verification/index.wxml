@@ -17,15 +17,15 @@
       <view class="card-title"><text>第一步：确认客户</text><text class="badge">本门店活跃客户</text></view>
       <label wx:if="{{session.role === 'teacher'}}" class="field">
         <text class="field-label">办理门店</text>
-        <picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="selectStore" disabled="{{busy || qualificationActive || loadingStores || !stores.length}}">
+        <picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="selectStore" disabled="{{busy || (qualificationActive && bleAuthorizationSent) || loadingStores || !stores.length}}">
           <view class="picker">{{loadingStores ? '正在读取可办理门店…' : (store.id ? store.name + ' · ' + (store.code || store.id) : (stores.length ? '请选择门店' : '暂无可办理门店'))}}</view>
         </picker>
       </label>
       <button wx:if="{{session.role === 'teacher' && !loadingStores && !stores.length}}" class="secondary" bindtap="loadTeacherStores">重试门店列表</button>
-      <customer-picker wx:if="{{store.id && !qualificationActive}}" store-id="{{store.id}}" bindconfirm="customerConfirmed" bindchange="customerChanged"></customer-picker>
-      <view wx:elif="{{qualificationActive && customer}}" class="locked-summary">
+      <customer-picker wx:if="{{store.id && (!qualificationActive || !bleAuthorizationSent)}}" store-id="{{store.id}}" bindconfirm="customerConfirmed" bindchange="customerChanged"></customer-picker>
+      <view wx:elif="{{qualificationActive && bleAuthorizationSent && customer}}" class="locked-summary">
         <text class="locked-summary-title">{{customer.customerName}}</text>
-        <text>客户已锁定；完成或结束本次 90 秒设备流程前不可更换。</text>
+        <text>设备授权已经发出，必须完成或恢复原设备流程，不能更换客户。</text>
       </view>
       <text wx:else class="section-note">选择办理门店后即可确认客户</text>
     </view>

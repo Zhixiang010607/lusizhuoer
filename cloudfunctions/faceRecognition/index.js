@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const { pinyin } = require("pinyin-pro");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v104";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v105";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -3988,7 +3988,11 @@ async function createVerificationBleQualification(event) {
   const idempotencyKey = rechargeSubmissionKey(event.clientRequestId);
   const deviceType = verificationDeviceType(selectedProduct.product_name);
   const existingRows = await executeSql(
-    `SELECT qualification.*, customer.customer_code, customer.customer_name,
+    `SELECT qualification.*,
+            GREATEST(0, LEAST(90,
+              CEIL(EXTRACT(EPOCH FROM (qualification.expires_at - CLOCK_TIMESTAMP())))::integer
+            )) AS valid_seconds,
+            customer.customer_code, customer.customer_name,
             product.product_code, product.product_name,
             teacher.teacher_code, teacher.teacher_name
        FROM public.verification_ble_qualifications AS qualification
@@ -4032,7 +4036,11 @@ async function createVerificationBleQualification(event) {
       if (!detail.includes("unique") && !detail.includes("duplicate") && !detail.includes("23505")) throw error;
     }
     const insertedRows = await executeSql(
-      `SELECT qualification.*, customer.customer_code, customer.customer_name,
+      `SELECT qualification.*,
+              GREATEST(0, LEAST(90,
+                CEIL(EXTRACT(EPOCH FROM (qualification.expires_at - CLOCK_TIMESTAMP())))::integer
+              )) AS valid_seconds,
+              customer.customer_code, customer.customer_name,
               product.product_code, product.product_name,
               teacher.teacher_code, teacher.teacher_name
          FROM public.verification_ble_qualifications AS qualification
@@ -4054,8 +4062,8 @@ async function createVerificationBleQualification(event) {
   if (qualification?.verification_id) {
     return recoverBusinessSubmission({ ...event, recordType: "VERIFICATION", clientRequestId: event.clientRequestId });
   }
-  const expiresAt = new Date(qualification.expires_at).getTime();
-  if (qualification.qualification_status === "CANCELLED" || expiresAt <= Date.now()) {
+  const validSeconds = Number(qualification.valid_seconds || 0);
+  if (qualification.qualification_status === "CANCELLED" || validSeconds <= 0) {
     await executeSql(
       `UPDATE public.verification_ble_qualifications
           SET qualification_status = 'EXPIRED', updated_at = CLOCK_TIMESTAMP()
@@ -4070,7 +4078,8 @@ async function createVerificationBleQualification(event) {
     qualificationToken: qualification.qualification_token,
     qualificationStatus: qualification.qualification_status,
     expiresAt: qualification.expires_at,
-    validSeconds: Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)),
+    validSeconds,
+    faceRequestId: qualification.face_request_id,
     expectedDeviceType: qualification.expected_device_type,
     unitCount: Number(qualification.unit_count),
     verificationType: qualification.verification_type,
@@ -4087,7 +4096,11 @@ async function recoverVerificationBleQualification(event) {
   await requireVerificationBleSchema();
   const idempotencyKey = rechargeSubmissionKey(event.clientRequestId);
   const rows = await executeSql(
-    `SELECT qualification.*, customer.customer_code, customer.customer_name,
+    `SELECT qualification.*,
+            GREATEST(0, LEAST(90,
+              CEIL(EXTRACT(EPOCH FROM (qualification.expires_at - CLOCK_TIMESTAMP())))::integer
+            )) AS valid_seconds,
+            customer.customer_code, customer.customer_name,
             product.product_code, product.product_name,
             teacher.teacher_code, teacher.teacher_name
        FROM public.verification_ble_qualifications AS qualification
@@ -4106,8 +4119,35 @@ async function recoverVerificationBleQualification(event) {
   if (qualification.verification_id) {
     return recoverBusinessSubmission({ ...event, recordType: "VERIFICATION" });
   }
-  const expiresAt = new Date(qualification.expires_at).getTime();
-  const expired = expiresAt <= Date.now() || qualification.qualification_status === "EXPIRED";
+  const authorizationRows = await executeSql(
+    `SELECT authorization_status, verification_id, device_id, expires_at,
+            GREATEST(0,
+              CEIL(EXTRACT(EPOCH FROM (expires_at - CLOCK_TIMESTAMP())))::integer
+            ) AS valid_seconds
+       FROM public.verification_ble_authorizations
+      WHERE qualification_id = ${sqlText(qualification.id)}::bigint
+      LIMIT 1`
+  );
+  let authorization = authorizationRows[0] || null;
+  if (authorization?.verification_id) {
+    return recoverBusinessSubmission({ ...event, recordType: "VERIFICATION" });
+  }
+  const recoveredStatus = String(authorization?.authorization_status || "");
+  const recoveredValidSeconds = Number(authorization?.valid_seconds || 0);
+  if (recoveredStatus === "ISSUED" && recoveredValidSeconds <= 0) {
+    await executeSql(
+      `UPDATE public.verification_ble_authorizations
+          SET authorization_status = 'EXPIRED', updated_at = CLOCK_TIMESTAMP()
+        WHERE qualification_id = ${sqlText(qualification.id)}::bigint
+          AND authorization_status = 'ISSUED'
+          AND expires_at <= CLOCK_TIMESTAMP()`
+    );
+    authorization = { ...authorization, authorization_status: "EXPIRED", valid_seconds: 0 };
+  }
+  const authorizationStatus = String(authorization?.authorization_status || "");
+  const authorizationIssued = ["ISSUED", "DEVICE_WORKING"].includes(authorizationStatus);
+  const validSeconds = Number(qualification.valid_seconds || 0);
+  const expired = validSeconds <= 0 || qualification.qualification_status === "EXPIRED";
   if (expired && qualification.qualification_status !== "EXPIRED") {
     await executeSql(
       `UPDATE public.verification_ble_qualifications
@@ -4122,7 +4162,12 @@ async function recoverVerificationBleQualification(event) {
     qualificationToken: qualification.qualification_token,
     qualificationStatus: expired ? "EXPIRED" : qualification.qualification_status,
     expiresAt: qualification.expires_at,
-    validSeconds: expired ? 0 : Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)),
+    validSeconds: expired ? 0 : validSeconds,
+    faceRequestId: qualification.face_request_id,
+    authorizationIssued,
+    authorizationStatus,
+    authorizationDeviceId: authorization?.device_id || "",
+    authorizationValidSeconds: Number(authorization?.valid_seconds || 0),
     expectedDeviceType: qualification.expected_device_type,
     unitCount: Number(qualification.unit_count),
     verificationType: qualification.verification_type,
@@ -4159,7 +4204,13 @@ async function issueVerificationBleAuthorization(event) {
   if (status !== 1) fail(status === 2 ? "设备正在服务中，不能重复授权。" : "设备尚未进入待机状态。", "BLE_DEVICE_NOT_READY");
 
   const qualificationRows = await executeSql(
-    `SELECT * FROM public.verification_ble_qualifications
+    `SELECT qualification.*,
+            FLOOR(EXTRACT(EPOCH FROM CLOCK_TIMESTAMP()))::bigint AS server_epoch_seconds,
+            FLOOR(EXTRACT(EPOCH FROM qualification.expires_at))::bigint AS qualification_expires_epoch,
+            GREATEST(0, LEAST(90,
+              CEIL(EXTRACT(EPOCH FROM (qualification.expires_at - CLOCK_TIMESTAMP())))::integer
+            )) AS valid_seconds
+       FROM public.verification_ble_qualifications AS qualification
       WHERE qualification_token = ${sqlText(qualificationToken)}
         AND store_id = ${caller.storeId}
         AND submitted_by_account_id = ${caller.staffId}
@@ -4170,13 +4221,6 @@ async function issueVerificationBleAuthorization(event) {
   if (qualification.verification_id || qualification.qualification_status === "COMPLETED") {
     fail("这笔核销已经完成，二维码窗口已永久关闭。", "BLE_ALREADY_FINALIZED");
   }
-  if (new Date(qualification.expires_at).getTime() <= Date.now()) {
-    fail("90 秒 BLE 核销资格已过期，请重新拍照验证。", "BLE_QUALIFICATION_EXPIRED");
-  }
-  if (qualification.expected_device_type !== deviceType) {
-    fail(`设备类型不匹配：本次需要 ${qualification.expected_device_type}。`, "BLE_DEVICE_TYPE_MISMATCH");
-  }
-
   const previousAuthorizationRows = await executeSql(
     `SELECT authorization_token, authorization_status, verification_id, expires_at
        FROM public.verification_ble_authorizations
@@ -4189,6 +4233,12 @@ async function issueVerificationBleAuthorization(event) {
       fail("这笔核销已经完成，二维码窗口已永久关闭。", "BLE_ALREADY_FINALIZED");
     }
     fail("这次人脸资格已经签发过设备授权，不能更换设备或重复开机。", "BLE_AUTHORIZATION_ALREADY_ISSUED");
+  }
+  if (Number(qualification.valid_seconds || 0) <= 0) {
+    fail("90 秒 BLE 核销资格已过期，请重新拍照验证。", "BLE_QUALIFICATION_EXPIRED");
+  }
+  if (qualification.expected_device_type !== deviceType) {
+    fail(`设备类型不匹配：本次需要 ${qualification.expected_device_type}。`, "BLE_DEVICE_TYPE_MISMATCH");
   }
 
   const registeredRows = await executeSql(
@@ -4203,8 +4253,8 @@ async function issueVerificationBleAuthorization(event) {
   );
   if (!registeredRows[0]) fail("设备未登记、已停用或二维码配对码不正确。", "BLE_DEVICE_NOT_PROVISIONED");
 
-  const issuedAt = Math.floor(Date.now() / 1000);
-  const qualificationExpireAt = Math.floor(new Date(qualification.expires_at).getTime() / 1000);
+  const issuedAt = Number(qualification.server_epoch_seconds);
+  const qualificationExpireAt = Number(qualification.qualification_expires_epoch);
   const expireAt = Math.min(issuedAt + 30, qualificationExpireAt);
   if (expireAt <= issuedAt) {
     fail("90 秒 BLE 核销资格已过期，请重新拍照验证。", "BLE_QUALIFICATION_EXPIRED");

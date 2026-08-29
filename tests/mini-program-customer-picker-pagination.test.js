@@ -208,3 +208,40 @@ test("dropdown selection resolves the selected customer and loads the same photo
   assert.equal(instance.data.candidate.customerCode, "C-2");
   assert.equal(instance.data.photoUrl, "https://example.test/c-2.jpg");
 });
+
+test("background pagination never clears a customer selected from an already loaded page", async () => {
+  const latePage = deferred();
+  const latePageStarted = deferred();
+  const cursor = { customerName: "甲", birthDate: "2000-01-01", customerCode: "C-1" };
+  const definition = loadPicker(async (action, payload) => {
+    if (action === "getActiveStoreCustomerDetail") {
+      assert.equal(payload.customerCode, "C-1");
+      return { customer: row("C-1", "甲"), photoUrl: "https://example.test/c-1.jpg" };
+    }
+    assert.equal(action, "listActiveStoreCustomers");
+    if (!payload.cursor) {
+      return { customers: [row("C-1", "甲")], hasMore: true, nextCursor: cursor };
+    }
+    latePageStarted.resolve();
+    return latePage.promise;
+  });
+  const { instance } = pickerInstance(definition);
+
+  const loading = instance.reload();
+  await latePageStarted.promise;
+  assert.equal(instance.data.listLoading, true);
+  assert.deepEqual(Array.from(instance.data.customers, (item) => item.customerCode), ["C-1"]);
+
+  await instance.selectListedCustomer({ detail: { value: "1" } });
+  assert.equal(instance.data.selectedCustomerCode, "C-1");
+  assert.equal(instance.data.candidate.customerCode, "C-1");
+
+  latePage.resolve({ customers: [row("C-2", "乙")], hasMore: false, nextCursor: null });
+  await loading;
+
+  assert.deepEqual(Array.from(instance.data.customers, (item) => item.customerCode), ["C-1", "C-2"]);
+  assert.equal(instance.data.customerPickerIndex, 1);
+  assert.equal(instance.data.selectedCustomerCode, "C-1");
+  assert.equal(instance.data.candidate.customerCode, "C-1");
+  assert.equal(instance.data.photoUrl, "https://example.test/c-1.jpg");
+});

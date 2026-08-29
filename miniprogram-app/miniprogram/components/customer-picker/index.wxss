@@ -1,7 +1,7 @@
 .picker-card { padding: 22rpx; background: #fff8ec; border: 1rpx solid #dfcfb4; border-radius: 20rpx; }
 .tabs { display: flex; gap: 8rpx; margin-bottom: 18rpx; padding: 7rpx; background: #eee4d6; border-radius: 16rpx; }
 .tabs button { flex: 1; min-height: 68rpx; display: flex; align-items: center; justify-content: center; margin: 0; color: #796d5e; background: transparent; border-radius: 12rpx; font-size: 24rpx; line-height: 1; }
-.tabs button::after, .search::after, .confirm::after, .clear-date::after { border: 0; }
+.tabs button::after, .search::after, .confirm::after, .clear-date::after, .list-retry::after { border: 0; }
 .tabs button.active { color: #74592d; background: #fffaf3; font-weight: 800; }
 .field-value { display: flex; align-items: center; width: 100%; min-height: 84rpx; padding: 0 20rpx; color: #302a22; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 14rpx; }
 .customer-select-heading { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin: 0 4rpx 10rpx; color: #4b4033; font-size: 23rpx; font-weight: 800; }
@@ -33,6 +33,7 @@
 .confirm[disabled] { color: #9b9082; background: #e7ddce; }
 .picker-message { display: block; margin-top: 13rpx; color: #675b4b; font-size: 22rpx; line-height: 1.45; }
 .picker-message.error { color: #a1322d; }
+.list-retry { min-height: 68rpx; display: flex; align-items: center; justify-content: center; margin: 12rpx 0 0; color: #74592d; background: #f4e7d0; border-radius: 14rpx; font-size: 22rpx; font-weight: 750; line-height: 1; }
 .retry { margin-top: 12rpx; color: #74592d; background: #f4e7d0; border-radius: 14rpx; font-size: 24rpx; }
 
 @media (min-width: 700px) {
@@ -61,5 +62,6 @@
   .candidate-name { font-size: 20px; }
   .confirm { width: min(360px, 100%); height: 48px; min-height: 48px; margin: 12px auto 0; padding: 0 18px; border-radius: 11px; font-size: 16px; }
   .picker-message { margin-top: 10px; font-size: 14px; }
+  .list-retry { width: min(260px, 100%); min-height: 44px; margin: 10px auto 0; border-radius: 10px; font-size: 14px; }
   .retry { width: min(320px, 100%); margin: 10px auto 0; border-radius: 11px; font-size: 14px; }
 }

@@ -116,7 +116,8 @@ Page({
     }
   },
   selectStore(event) {
-    if (this.data.busy || this.data.locked || this.data.qualificationActive) return;
+    if (this.data.busy || this.data.locked || (this.data.qualificationActive && this.data.bleAuthorizationSent)) return;
+    this.abandonReversibleQualification();
     const pickerIndex = Number(event.detail.value);
     const index = pickerIndex - 1;
     const store = this.data.stores[index];
@@ -139,12 +140,14 @@ Page({
     this.loadTeachers();
   },
   customerChanged() {
-    if (this.data.qualificationActive) return;
+    if (this.data.qualificationActive && this.data.bleAuthorizationSent) return;
+    this.abandonReversibleQualification();
     this.setData({ customer: null, message: "", error: false });
     this.resetBusinessSelection({ resetTeacher: this.data.session.role === "store", clearNote: true });
   },
   async customerConfirmed(event) {
-    if (this.data.qualificationActive) return;
+    if (this.data.qualificationActive && this.data.bleAuthorizationSent) return;
+    this.abandonReversibleQualification();
     this.setData({ customer: event.detail.customer, message: `已确认 ${event.detail.customer.customerName}`, error: false });
     this.resetBusinessSelection({ resetTeacher: this.data.session.role === "store", clearNote: true });
     await this.loadProducts();
@@ -398,7 +401,10 @@ Page({
       if (qualification.complete && qualification.verificationId) {
         return this.showRecovered(qualification);
       }
-      if (!qualification.qualificationToken || !qualification.expiresAt || Number(qualification.unitCount) !== unitCount) {
+      const validSeconds = Number(qualification.validSeconds || 0);
+      if (!qualification.qualificationToken || !Number.isInteger(validSeconds) || validSeconds < 1 || validSeconds > 90
+        || !qualification.faceRequestId || String(qualification.faceRequestId) !== String(this.data.faceRequestId)
+        || Number(qualification.unitCount) !== unitCount) {
         throw Object.assign(new Error("服务端没有返回完整的 BLE 核销资格，本次没有扣次。"), { code: "BLE_QUALIFICATION_INCOMPLETE" });
       }
       saveBleProgress({
@@ -423,14 +429,17 @@ Page({
       }
     } finally { this.setData({ busy: false }); this.syncReady(); }
   },
-  activateQualification(qualification, openWindow = false) {
-    const expiresAt = new Date(qualification.expiresAt || 0).getTime();
-    const seconds = Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000));
+  activateQualification(qualification, openWindow = false, authorizationOverride = null) {
+    const seconds = Number(qualification?.validSeconds || 0);
     if (!seconds) return this.expireQualification();
+    if (!Number.isInteger(seconds) || seconds < 1 || seconds > 90) return this.expireQualification();
     if (this._qualificationTimer) clearInterval(this._qualificationTimer);
     const progress = readBleProgress();
-    const authorizationSent = Boolean(progress?.authorizationToken
-      && String(progress.qualificationToken || "") === String(qualification.qualificationToken || ""));
+    const authorizationSent = authorizationOverride === null
+      ? Boolean(progress?.authorizationToken
+        && String(progress.qualificationToken || "") === String(qualification.qualificationToken || ""))
+      : Boolean(authorizationOverride);
+    this._qualificationDeadline = Date.now() + seconds * 1000;
     this.setData({
       qualification,
       qualificationActive: true,
@@ -446,10 +455,27 @@ Page({
       ready: false
     });
     this._qualificationTimer = setInterval(() => {
-      const remaining = Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000));
+      const remaining = Math.max(0, Math.ceil((this._qualificationDeadline - Date.now()) / 1000));
       this.setData({ qualificationSeconds: remaining });
       if (!remaining) this.expireQualification();
     }, 500);
+  },
+  abandonReversibleQualification() {
+    if (!this.data.qualificationActive || this.data.bleAuthorizationSent) return false;
+    if (this._qualificationTimer) clearInterval(this._qualificationTimer);
+    this._qualificationTimer = null;
+    this._qualificationDeadline = 0;
+    if (this._bleSession) this._bleSession.cancel();
+    this._bleSession = null;
+    try { clearBleProgress(); } catch (_) { /* no irreversible state exists */ }
+    try { submission.clear("VERIFICATION"); } catch (_) { /* no irreversible state exists */ }
+    this.setData({
+      qualification: null, qualificationActive: false, qualificationSeconds: 0,
+      bleWindowVisible: false, bleRunning: false, bleAuthorizationSent: false,
+      blePermanentlyClosed: false, locked: false, message: "", error: false
+    });
+    this.resetFace();
+    return true;
   },
   expireQualification() {
     if (this._qualificationTimer) clearInterval(this._qualificationTimer);
@@ -469,10 +495,49 @@ Page({
     });
     this.resetFace();
   },
-  openBleWindow() {
+  async refreshQualificationForBle() {
+    const intent = submission.read("VERIFICATION");
+    if (!intent?.clientRequestId) {
+      throw Object.assign(new Error("防重复提交编号丢失，已禁止设备授权；请重新办理。"), { code: "BLE_SUBMISSION_INTENT_MISSING" });
+    }
+    const recovered = await callFace("recoverVerificationBleQualification", { clientRequestId: intent.clientRequestId });
+    if (recovered?.complete && recovered.verificationId) {
+      this.showRecovered(recovered);
+      return null;
+    }
+    if (!recovered?.found || !recovered.qualificationToken) {
+      throw Object.assign(new Error("服务端未找到本次设备资格，本次没有扣次，请重新拍照验证。"), { code: "BLE_QUALIFICATION_NOT_FOUND" });
+    }
+    const authorizationIssued = Boolean(recovered.authorizationIssued);
+    if (authorizationIssued) this.setData({ bleAuthorizationSent: true, locked: false });
+    const validSeconds = Number(recovered.validSeconds || 0);
+    if (recovered.expired || !Number.isInteger(validSeconds) || validSeconds < 1 || validSeconds > 90) {
+      if (authorizationIssued) {
+        throw Object.assign(new Error("设备授权已经发出，但资格窗口已结束；正在恢复原设备结果，不能更换客户或重复核销。"), { code: "BLE_AUTHORIZATION_RECOVERY_REQUIRED" });
+      }
+      this.expireQualification();
+      throw Object.assign(new Error("90 秒设备资格已过期，本次没有扣次，请重新拍照验证。"), { code: "BLE_QUALIFICATION_EXPIRED" });
+    }
+    if (String(recovered.qualificationToken) !== String(this.data.qualification?.qualificationToken || "")
+      || String(recovered.faceRequestId || "") !== String(this.data.faceRequestId || "")
+      || Number(recovered.unitCount) !== Number(this.data.unitCount)) {
+      throw Object.assign(new Error("页面数据与服务端设备资格不一致，已禁止扫码，请重新办理。"), { code: "BLE_QUALIFICATION_MISMATCH" });
+    }
+    this.activateQualification(recovered, false, authorizationIssued);
+    return recovered;
+  },
+  async openBleWindow() {
     if (this.data.blePermanentlyClosed) return;
     if (!this.data.qualificationActive || this.data.qualificationSeconds <= 0) return this.expireQualification();
-    this.setData({ bleWindowVisible: true, bleErrorTitle: "", bleErrorCode: "", bleErrorAdvice: "" });
+    try {
+      const qualification = await this.refreshQualificationForBle();
+      if (!qualification) return;
+      this.setData({ bleWindowVisible: true, bleErrorTitle: "", bleErrorCode: "", bleErrorAdvice: "" });
+    } catch (error) {
+      const feedback = errorFeedback(error);
+      this.setData({ bleWindowVisible: false, message: feedback.message, error: true });
+      if (error.code === "BLE_AUTHORIZATION_RECOVERY_REQUIRED") await this.recoverPending();
+    }
   },
   closeBleWindow() {
     if (this.data.blePermanentlyClosed) return;
@@ -486,6 +551,15 @@ Page({
     const intent = submission.read("VERIFICATION");
     if (!intent?.clientRequestId) {
       return this.setData({ locked: true, bleWindowVisible: false, message: "防重复提交编号丢失，已禁止设备授权；请联系管理员。", error: true });
+    }
+    try {
+      const qualification = await this.refreshQualificationForBle();
+      if (!qualification) return;
+    } catch (error) {
+      const feedback = errorFeedback(error);
+      this.setData({ bleWindowVisible: false, message: feedback.message, error: true });
+      if (error.code === "BLE_AUTHORIZATION_RECOVERY_REQUIRED") await this.recoverPending();
+      return;
     }
     this.setData({
       bleWindowVisible: true, bleRunning: true, bleStage: "QR_SCANNING", bleStatusMessage: "准备扫描设备二维码",
@@ -576,15 +650,21 @@ Page({
       const intent = submission.read("VERIFICATION");
       const qualification = await callFace("recoverVerificationBleQualification", { clientRequestId: intent.clientRequestId });
       if (qualification?.found && qualification.complete) return this.showRecovered(qualification);
-      if (qualification?.found && !qualification.expired && qualification.qualificationToken) {
-        this.setData({ locked: false });
-        this.activateQualification(qualification, false);
+      if (qualification?.found && qualification.authorizationIssued && !qualification.expired && qualification.qualificationToken) {
+        this.setData({ locked: false, bleAuthorizationSent: true });
+        this.activateQualification(qualification, false, true);
         return;
       }
-      if (qualification?.found && qualification.expired) {
+      if (qualification?.found && qualification.authorizationIssued) {
+        this.setData({ locked: true, bleAuthorizationSent: true, qualificationActive: false, qualificationSeconds: 0, bleWindowVisible: false, message: "设备授权已经发出，正在恢复原设备结果；不能更换客户或重复核销。", error: true });
+        const result = await submission.recover("VERIFICATION");
+        if (result.found && result.complete) return this.showRecovered(result);
+        return;
+      }
+      if (qualification?.found && !qualification.authorizationIssued) {
         try { clearBleProgress(); } catch (_) { /* continue */ }
         submission.clear("VERIFICATION");
-        this.setData({ locked: false, qualificationActive: false, message: "上次 90 秒设备资格已过期且没有扣次，请重新拍照验证。", error: true });
+        this.setData({ locked: false, qualification: null, qualificationActive: false, qualificationSeconds: 0, bleAuthorizationSent: false, message: "上次仅完成人脸验证，尚未向设备授权、没有扣次，现已取消；可以重新选择客户。", error: false });
         this.resetFace();
         return;
       }

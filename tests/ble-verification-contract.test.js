@@ -41,6 +41,13 @@ test('client supports reopenable QR window and irreversible success navigation',
   assert.match(bleSource, /BLE_WINDOW_CLOSED/);
 });
 
+test('only a live device authorization locks the selected store and customer', () => {
+  assert.match(faceSource, /\["ISSUED", "DEVICE_WORKING"\]\.includes\(authorizationStatus\)/);
+  assert.match(faceSource, /authorization_status = 'EXPIRED'[\s\S]{0,240}authorization_status = 'ISSUED'[\s\S]{0,160}expires_at <= CLOCK_TIMESTAMP\(\)/);
+  assert.match(pageWxml, /!qualificationActive \|\| !bleAuthorizationSent/);
+  assert.match(pageWxml, /qualificationActive && bleAuthorizationSent && customer/);
+});
+
 test('device identity and authorization are bound and pairing codes stay hashed', () => {
   assert.equal(facePackage.dependencies['pinyin-pro'], '3.27.0');
   assert.match(faceSource, /BLE_AUTH_SIGNING_KEY/);

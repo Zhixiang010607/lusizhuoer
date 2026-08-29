@@ -6,16 +6,18 @@
   <view wx:if="{{mode === 'select'}}">
     <view class="customer-select-heading">
       <text>该门店活跃客户</text>
-      <text>{{listLoading ? '正在读取' : customers.length + ' 位可选'}}</text>
+      <text>{{listLoading ? (customers.length ? '继续读取中' : '正在读取') : customers.length + ' 位可选'}}</text>
     </view>
-    <picker mode="selector" range="{{customerLabels}}" value="{{customerPickerIndex}}" bindchange="selectListedCustomer" disabled="{{listLoading || !customers.length}}">
-      <view class="customer-select-control {{listLoading || !customers.length ? 'disabled' : ''}}">
-        <text>{{listLoading ? '正在读取本门店全部活跃客户…' : customerLabels[customerPickerIndex]}}</text>
+    <picker mode="selector" range="{{customerLabels}}" value="{{customerPickerIndex}}" bindchange="selectListedCustomer" disabled="{{!customers.length}}">
+      <view class="customer-select-control {{!customers.length ? 'disabled' : ''}}">
+        <text>{{listLoading && !customers.length ? '正在读取本门店活跃客户…' : customerLabels[customerPickerIndex]}}</text>
         <text class="customer-select-arrow">⌄</text>
       </view>
     </picker>
-    <text wx:if="{{customers.length && !listLoading}}" class="customer-select-help">点开下拉框后可上下滑动选择全部客户</text>
+    <text wx:if="{{customers.length && listLoading}}" class="customer-select-help">点开下拉框后可上下滑动选择已读取客户；其余客户正在继续读取</text>
+    <text wx:elif="{{customers.length}}" class="customer-select-help">点开下拉框后可上下滑动选择全部客户</text>
     <text wx:if="{{listMessage}}" class="picker-message {{listError ? 'error' : ''}}">{{listMessage}}</text>
+    <button wx:if="{{listError}}" class="list-retry" bindtap="reload" loading="{{listLoading}}" disabled="{{listLoading}}">重新读取客户列表</button>
   </view>
   <view wx:else class="manual-fields">
     <input class="field-value" placeholder="客户姓名" value="{{manualName}}" bindinput="inputName" />

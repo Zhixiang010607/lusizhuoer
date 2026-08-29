@@ -39,7 +39,7 @@ function mergeCustomers(current, incoming) {
 
 Component({
   properties: {
-    storeId: { type: String, value: "", observer() { this.reload(); } }
+    storeId: { type: String, value: "", observer() { this.scheduleReload(); } }
   },
   data: {
     mode: "select", customers: [], customerLabels: ["请选择现有客户"], customerPickerIndex: 0,
@@ -48,8 +48,14 @@ Component({
     photoUrl: "", photoReady: false, photoLoading: false, loading: false, message: "", error: false
   },
   lifetimes: {
-    attached() { this.setData({ today: businessToday() }); this.reload(); },
+    attached() {
+      this._detached = false;
+      this.setData({ today: businessToday() });
+      this.scheduleReload();
+    },
     detached() {
+      this._detached = true;
+      this._customerListPromise = null;
       this._customerListStoreId = "";
       this._customerListRequestEpoch = (this._customerListRequestEpoch || 0) + 1;
       this._manualSearchRequestEpoch = (this._manualSearchRequestEpoch || 0) + 1;
@@ -57,15 +63,28 @@ Component({
     }
   },
   methods: {
+    scheduleReload() {
+      if (this._reloadScheduled || this._detached) return;
+      this._reloadScheduled = true;
+      Promise.resolve().then(() => {
+        this._reloadScheduled = false;
+        if (!this._detached) this.reload();
+      });
+    },
+    resetPhotoRetry() {
+      this._photoRetryCustomerCode = "";
+      this._photoRetryCount = 0;
+    },
     async reload() {
       const storeId = String(this.properties.storeId || "");
-      if (storeId && this.data.mode === "select" && this.data.listLoading && this._customerListStoreId === storeId) {
+      if (storeId && this.data.mode === "select" && this._customerListPromise && this._customerListStoreId === storeId) {
         return this._customerListPromise;
       }
       const requestEpoch = (this._customerListRequestEpoch || 0) + 1;
       this._customerListRequestEpoch = requestEpoch;
       this._manualSearchRequestEpoch = (this._manualSearchRequestEpoch || 0) + 1;
       this._candidateRequestEpoch = (this._candidateRequestEpoch || 0) + 1;
+      this.resetPhotoRetry();
       const reset = {
         loading: false, listLoading: false, listMessage: "", listError: false,
         customers: [], customerLabels: ["请选择现有客户"], customerPickerIndex: 0, selectedCustomerCode: "",
@@ -73,6 +92,7 @@ Component({
         manualName: "", manualBirthday: "", message: "", error: false
       };
       if (!storeId) {
+        this._customerListPromise = null;
         this._customerListStoreId = "";
         this.setData(reset);
         this.triggerEvent("change", { customer: null });
@@ -82,8 +102,16 @@ Component({
       this.setData(reset);
       this.triggerEvent("change", { customer: null });
       if (this.data.mode !== "select") return;
-      this._customerListPromise = this.loadAllCustomers({ storeId, requestEpoch });
-      return this._customerListPromise;
+      const promise = this.loadAllCustomers({ storeId, requestEpoch });
+      this._customerListPromise = promise;
+      try {
+        return await promise;
+      } finally {
+        if (this._customerListPromise === promise) {
+          this._customerListPromise = null;
+          this._customerListStoreId = "";
+        }
+      }
     },
     async loadAllCustomers(request) {
       const storeId = String(request.storeId || "");
@@ -100,7 +128,21 @@ Component({
           const result = await callFace("listActiveStoreCustomers", payload);
           if (!this.isCurrentListRequest({ storeId, requestEpoch })) return;
           customers = mergeCustomers(customers, result.customers || []);
-          this.setData({ listMessage: `正在读取本门店全部活跃客户（已读取 ${customers.length} 位）…` });
+          const selectedCustomerCode = String(this.data.selectedCustomerCode || "");
+          const selectedIndex = customers.findIndex((item) => item.customerCode === selectedCustomerCode);
+          this.setData({
+            customers,
+            customerLabels: [
+              customers.length ? `请选择现有客户（已读取 ${customers.length} 位）` : "本门店暂无活跃客户",
+              ...customers.map((item) => `${item.customerName} · ${item.birthDate}`)
+            ],
+            customerPickerIndex: selectedIndex >= 0 ? selectedIndex + 1 : 0,
+            selectedCustomerCode: selectedIndex >= 0 ? selectedCustomerCode : "",
+            listMessage: result.hasMore === true
+              ? `已读取 ${customers.length} 位客户，可立即选择；其余客户仍在后台读取…`
+              : "",
+            listError: false
+          });
           if (result.hasMore !== true) break;
           const nextCursor = customerCursor(result.nextCursor);
           const nextCursorKey = cursorKey(nextCursor);
@@ -111,28 +153,41 @@ Component({
           cursor = nextCursor;
         }
         if (!this.isCurrentListRequest({ storeId, requestEpoch })) return;
+        const selectedCustomerCode = String(this.data.selectedCustomerCode || "");
+        const selectedIndex = customers.findIndex((item) => item.customerCode === selectedCustomerCode);
         this.setData({
           customers,
           customerLabels: [
             customers.length ? `请选择现有客户（共 ${customers.length} 位）` : "本门店暂无活跃客户",
             ...customers.map((item) => `${item.customerName} · ${item.birthDate}`)
           ],
-          customerPickerIndex: 0,
-          selectedCustomerCode: "",
+          customerPickerIndex: selectedIndex >= 0 ? selectedIndex + 1 : 0,
+          selectedCustomerCode: selectedIndex >= 0 ? selectedCustomerCode : "",
           listMessage: "",
           listError: false
         });
       } catch (error) {
         if (this.isCurrentListRequest({ storeId, requestEpoch })) {
+          const selectedCustomerCode = String(this.data.selectedCustomerCode || "");
+          const selectedIndex = customers.findIndex((item) => item.customerCode === selectedCustomerCode);
           this.setData({
-            customers: [], customerLabels: ["客户数据读取失败"], customerPickerIndex: 0, selectedCustomerCode: "",
-            listMessage: error.message || "无法读取本门店全部活跃客户，请重新进入页面后重试",
+            customers,
+            customerLabels: customers.length
+              ? [
+                `请选择现有客户（已读取 ${customers.length} 位）`,
+                ...customers.map((item) => `${item.customerName} · ${item.birthDate}`)
+              ]
+              : ["客户数据读取失败"],
+            customerPickerIndex: selectedIndex >= 0 ? selectedIndex + 1 : 0,
+            selectedCustomerCode: selectedIndex >= 0 ? selectedCustomerCode : "",
+            listMessage: customers.length
+              ? `后续客户读取失败；已读取的 ${customers.length} 位仍可选择，也可重新读取客户列表`
+              : (error.message || "客户列表读取失败，请重新读取或改用姓名／生日查询"),
             listError: true
           });
         }
       } finally {
         if (this.isCurrentListRequest({ storeId, requestEpoch })) {
-          this._customerListStoreId = "";
           this.setData({ listLoading: false });
         }
       }
@@ -148,7 +203,9 @@ Component({
       this._customerListRequestEpoch = (this._customerListRequestEpoch || 0) + 1;
       this._manualSearchRequestEpoch = (this._manualSearchRequestEpoch || 0) + 1;
       this._candidateRequestEpoch = (this._candidateRequestEpoch || 0) + 1;
+      this._customerListPromise = null;
       this._customerListStoreId = "";
+      this.resetPhotoRetry();
       this.setData({
         mode, customers: [], customerLabels: ["请选择现有客户"], customerPickerIndex: 0, selectedCustomerCode: "",
         listLoading: false, listMessage: "", listError: false, loading: false,
@@ -162,24 +219,28 @@ Component({
     inputName(event) {
       this._manualSearchRequestEpoch = (this._manualSearchRequestEpoch || 0) + 1;
       this._candidateRequestEpoch = (this._candidateRequestEpoch || 0) + 1;
+      this.resetPhotoRetry();
       this.setData({ manualName: event.detail.value, duplicateMatches: [], candidate: null, photoUrl: "", photoReady: false, photoLoading: false, message: "", error: false });
       this.triggerEvent("change", { customer: null });
     },
     inputBirthday(event) {
       this._manualSearchRequestEpoch = (this._manualSearchRequestEpoch || 0) + 1;
       this._candidateRequestEpoch = (this._candidateRequestEpoch || 0) + 1;
+      this.resetPhotoRetry();
       this.setData({ manualBirthday: event.detail.value, duplicateMatches: [], candidate: null, photoUrl: "", photoReady: false, photoLoading: false, message: "", error: false });
       this.triggerEvent("change", { customer: null });
     },
     clearBirthday() {
       this._manualSearchRequestEpoch = (this._manualSearchRequestEpoch || 0) + 1;
       this._candidateRequestEpoch = (this._candidateRequestEpoch || 0) + 1;
+      this.resetPhotoRetry();
       this.setData({ manualBirthday: "", duplicateMatches: [], candidate: null, photoUrl: "", photoReady: false, photoLoading: false, message: "", error: false });
       this.triggerEvent("change", { customer: null });
     },
     async selectListedCustomer(event) {
       const pickerIndex = Math.max(0, Number(event.detail.value) || 0);
       const selected = this.data.customers[pickerIndex - 1] || null;
+      this.resetPhotoRetry();
       this.setData({ customerPickerIndex: selected ? pickerIndex : 0, selectedCustomerCode: selected ? selected.customerCode : "" });
       if (selected) await this.loadCandidate(selected);
       else {
@@ -196,6 +257,7 @@ Component({
       const requestEpoch = (this._manualSearchRequestEpoch || 0) + 1;
       this._manualSearchRequestEpoch = requestEpoch;
       this._candidateRequestEpoch = (this._candidateRequestEpoch || 0) + 1;
+      this.resetPhotoRetry();
       this.setData({ loading: true, duplicateMatches: [], candidate: null, photoUrl: "", photoReady: false, photoLoading: false, message: "正在查询…", error: false });
       this.triggerEvent("change", { customer: null });
       try {
@@ -238,6 +300,7 @@ Component({
       const code = String(event.currentTarget.dataset.code || "");
       const selected = this.data.duplicateMatches.find((item) => item.customerCode === code);
       if (!selected) return;
+      this.resetPhotoRetry();
       this.setData({ duplicateMatches: [] });
       await this.loadCandidate(selected);
     },
@@ -268,15 +331,30 @@ Component({
     photoLoaded(event) {
       const data = event.currentTarget.dataset || {};
       if (String(data.customerCode || "") !== String(this.data.candidate?.customerCode || "") || String(data.photoUrl || "") !== String(this.data.photoUrl || "")) return;
+      this.resetPhotoRetry();
       this.setData({ photoReady: true, message: "照片已加载，请核对后确认", error: false });
     },
     photoFailed(event) {
       const data = event.currentTarget.dataset || {};
       if (String(data.customerCode || "") !== String(this.data.candidate?.customerCode || "") || String(data.photoUrl || "") !== String(this.data.photoUrl || "")) return;
-      this.setData({ photoReady: false, message: "客户照片加载失败，禁止继续办理；可单独重读", error: true });
+      const customerCode = String(this.data.candidate?.customerCode || "");
+      if (this._photoRetryCustomerCode !== customerCode) {
+        this._photoRetryCustomerCode = customerCode;
+        this._photoRetryCount = 0;
+      }
+      if (this._photoRetryCount < 1 && this.data.candidate && !this.data.photoLoading) {
+        this._photoRetryCount += 1;
+        this.setData({ photoReady: false, message: "照片临时地址已失效，正在自动重读…", error: false });
+        return this.loadCandidate(this.data.candidate);
+      }
+      this.setData({ photoReady: false, message: "客户照片加载失败，禁止继续办理；请点重读照片", error: true });
+      return undefined;
     },
     retryPhoto() {
-      if (this.data.candidate && !this.data.loading && !this.data.photoLoading) return this.loadCandidate(this.data.candidate);
+      if (this.data.candidate && !this.data.loading && !this.data.photoLoading) {
+        this.resetPhotoRetry();
+        return this.loadCandidate(this.data.candidate);
+      }
       return undefined;
     },
     confirm() {
