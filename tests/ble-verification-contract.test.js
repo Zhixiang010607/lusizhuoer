@@ -62,6 +62,8 @@ test('device identity is checked without a device registry and QR codes stay has
   assert.doesNotMatch(faceSource, /BLE_DEVICE_NOT_PROVISIONED/);
   assert.match(registryCleanupSql, /DROP TABLE IF EXISTS public\.verification_ble_devices/);
   assert.match(verifySql, /BLE device registry absent/);
+  assert.match(verifySql, /00:01:30/);
+  assert.match(verifySql, /00:00:30/);
 });
 
 test('BLE signing key is mandatory and qualification creation is read back safely', () => {

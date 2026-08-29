@@ -49,13 +49,27 @@ SELECT '90 second qualification constraint', COUNT(*),
        CASE WHEN COUNT(*) >= 1 THEN 'READY' ELSE 'CHECK' END
   FROM pg_constraint
  WHERE conrelid = TO_REGCLASS('public.verification_ble_qualifications')
-   AND pg_get_constraintdef(oid) ILIKE '%90 seconds%'
+   AND contype = 'c'
+   AND pg_get_constraintdef(oid) ILIKE '%expires_at%'
+   AND pg_get_constraintdef(oid) ILIKE '%created_at%'
+   -- PostgreSQL may normalize INTERVAL '90 seconds' to 00:01:30.
+   AND (
+     pg_get_constraintdef(oid) ILIKE '%90 seconds%'
+     OR pg_get_constraintdef(oid) ILIKE '%00:01:30%'
+   )
 UNION ALL
 SELECT '30 second authorization constraint', COUNT(*),
        CASE WHEN COUNT(*) >= 1 THEN 'READY' ELSE 'CHECK' END
   FROM pg_constraint
  WHERE conrelid = TO_REGCLASS('public.verification_ble_authorizations')
-   AND pg_get_constraintdef(oid) ILIKE '%30 seconds%'
+   AND contype = 'c'
+   AND pg_get_constraintdef(oid) ILIKE '%expires_at%'
+   AND pg_get_constraintdef(oid) ILIKE '%issued_at%'
+   -- PostgreSQL may normalize INTERVAL '30 seconds' to 00:00:30.
+   AND (
+     pg_get_constraintdef(oid) ILIKE '%30 seconds%'
+     OR pg_get_constraintdef(oid) ILIKE '%00:00:30%'
+   )
 UNION ALL
 SELECT 'plaintext QR code absent', COUNT(*),
        CASE WHEN COUNT(*) = 0 THEN 'READY' ELSE 'UNSAFE' END
