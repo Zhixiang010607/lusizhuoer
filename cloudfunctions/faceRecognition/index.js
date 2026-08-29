@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const { pinyin } = require("pinyin-pro");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v105";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v106";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -3800,13 +3800,11 @@ async function requireCustomerFaceExperienceSchema() {
 async function requireVerificationBleSchema() {
   const rows = await executeSql(
     `SELECT TO_REGCLASS('public.verification_ble_qualifications') IS NOT NULL AS qualifications,
-            TO_REGCLASS('public.verification_ble_authorizations') IS NOT NULL AS authorizations,
-            TO_REGCLASS('public.verification_ble_devices') IS NOT NULL AS devices`
+            TO_REGCLASS('public.verification_ble_authorizations') IS NOT NULL AS authorizations`
   );
   const schema = rows?.[0] || {};
   if (!databaseBoolean(schema.qualifications)
-      || !databaseBoolean(schema.authorizations)
-      || !databaseBoolean(schema.devices)) {
+      || !databaseBoolean(schema.authorizations)) {
     fail("BLE 核销数据库结构尚未启用，请先执行迁移 066。", "BLE_SCHEMA_MISSING");
   }
 }
@@ -4240,18 +4238,6 @@ async function issueVerificationBleAuthorization(event) {
   if (qualification.expected_device_type !== deviceType) {
     fail(`设备类型不匹配：本次需要 ${qualification.expected_device_type}。`, "BLE_DEVICE_TYPE_MISMATCH");
   }
-
-  const registeredRows = await executeSql(
-    `SELECT * FROM public.verification_ble_devices
-      WHERE qr_sn = ${sqlText(qrSn)}
-        AND device_id = ${sqlText(deviceId)}
-        AND device_type = ${sqlText(deviceType)}
-        AND ble_name = ${sqlText(bleName)}
-        AND pairing_code_hash = ${sqlText(sha256Text(qrCode))}
-        AND device_status = 'ACTIVE'
-      LIMIT 1`
-  );
-  if (!registeredRows[0]) fail("设备未登记、已停用或二维码配对码不正确。", "BLE_DEVICE_NOT_PROVISIONED");
 
   const issuedAt = Number(qualification.server_epoch_seconds);
   const qualificationExpireAt = Number(qualification.qualification_expires_epoch);

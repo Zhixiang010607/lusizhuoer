@@ -4,42 +4,45 @@
 WITH required_tables(name) AS (
   VALUES
     ('verification_ble_qualifications'),
-    ('verification_ble_authorizations'),
-    ('verification_ble_devices')
+    ('verification_ble_authorizations')
 )
 SELECT 'BLE tables present' AS check_name,
        COUNT(*) AS record_count,
-       CASE WHEN COUNT(*) = 3 THEN 'READY' ELSE 'CHECK' END AS status
-  FROM required_tables
+       CASE WHEN COUNT(*) = 2 THEN 'READY' ELSE 'CHECK' END AS status
+ FROM required_tables
  WHERE TO_REGCLASS('public.' || name) IS NOT NULL
 UNION ALL
+SELECT 'BLE device registry absent',
+       CASE WHEN TO_REGCLASS('public.verification_ble_devices') IS NULL THEN 0 ELSE 1 END,
+       CASE WHEN TO_REGCLASS('public.verification_ble_devices') IS NULL THEN 'READY' ELSE 'CHECK' END
+UNION ALL
 SELECT 'BLE tables have RLS', COUNT(*),
-       CASE WHEN COUNT(*) = 3 THEN 'READY' ELSE 'CHECK' END
+       CASE WHEN COUNT(*) = 2 THEN 'READY' ELSE 'CHECK' END
   FROM pg_class c
   JOIN pg_namespace n ON n.oid = c.relnamespace
  WHERE n.nspname = 'public'
-   AND c.relname IN ('verification_ble_qualifications', 'verification_ble_authorizations', 'verification_ble_devices')
+   AND c.relname IN ('verification_ble_qualifications', 'verification_ble_authorizations')
    AND c.relrowsecurity
 UNION ALL
 SELECT 'client table access closed', COUNT(*),
        CASE WHEN COUNT(*) = 0 THEN 'READY' ELSE 'UNSAFE' END
   FROM information_schema.role_table_grants
  WHERE table_schema = 'public'
-   AND table_name IN ('verification_ble_qualifications', 'verification_ble_authorizations', 'verification_ble_devices')
+   AND table_name IN ('verification_ble_qualifications', 'verification_ble_authorizations')
    AND grantee IN ('PUBLIC', 'anon', 'authenticated')
 UNION ALL
 SELECT 'client sequence access closed', COUNT(*),
        CASE WHEN COUNT(*) = 0 THEN 'READY' ELSE 'UNSAFE' END
   FROM information_schema.role_usage_grants
  WHERE object_schema = 'public'
-   AND object_name IN ('verification_ble_qualifications_id_seq', 'verification_ble_authorizations_id_seq', 'verification_ble_devices_id_seq')
+   AND object_name IN ('verification_ble_qualifications_id_seq', 'verification_ble_authorizations_id_seq')
    AND grantee IN ('PUBLIC', 'anon', 'authenticated')
 UNION ALL
 SELECT 'service role retained', COUNT(DISTINCT table_name),
-       CASE WHEN COUNT(DISTINCT table_name) = 3 THEN 'READY' ELSE 'CHECK' END
+       CASE WHEN COUNT(DISTINCT table_name) = 2 THEN 'READY' ELSE 'CHECK' END
   FROM information_schema.role_table_grants
  WHERE table_schema = 'public'
-   AND table_name IN ('verification_ble_qualifications', 'verification_ble_authorizations', 'verification_ble_devices')
+   AND table_name IN ('verification_ble_qualifications', 'verification_ble_authorizations')
    AND grantee = 'service_role'
 UNION ALL
 SELECT '90 second qualification constraint', COUNT(*),
@@ -54,12 +57,12 @@ SELECT '30 second authorization constraint', COUNT(*),
  WHERE conrelid = TO_REGCLASS('public.verification_ble_authorizations')
    AND pg_get_constraintdef(oid) ILIKE '%30 seconds%'
 UNION ALL
-SELECT 'plaintext pairing absent', COUNT(*),
+SELECT 'plaintext QR code absent', COUNT(*),
        CASE WHEN COUNT(*) = 0 THEN 'READY' ELSE 'UNSAFE' END
   FROM information_schema.columns
  WHERE table_schema = 'public'
-   AND table_name IN ('verification_ble_devices', 'verification_ble_authorizations')
-   AND column_name IN ('pairing_code', 'qr_code')
+   AND table_name = 'verification_ble_authorizations'
+   AND column_name = 'qr_code'
 UNION ALL
 SELECT 'stored qualification windows valid', COUNT(*),
        CASE WHEN COUNT(*) = 0 THEN 'READY' ELSE 'CHECK' END

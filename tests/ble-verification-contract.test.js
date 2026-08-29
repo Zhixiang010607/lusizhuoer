@@ -12,6 +12,7 @@ const pageWxss = fs.readFileSync(path.join(root, 'miniprogram-app/miniprogram/pa
 const bleSource = fs.readFileSync(path.join(root, 'miniprogram-app/miniprogram/services/ble-verification.js'), 'utf8');
 const migration = fs.readFileSync(path.join(root, 'database/migrations/066_ble_verification_authorization.sql'), 'utf8');
 const verifySql = fs.readFileSync(path.join(root, 'database/cloudbase-console/066-readonly-verify.sql'), 'utf8');
+const registryCleanupSql = fs.readFileSync(path.join(root, 'database/cloudbase-console/066-02-retire-legacy-device-registry.sql'), 'utf8');
 
 test('BLE verification uses 90-second qualification and 30-second device authorization', () => {
   assert.match(migration, /INTERVAL '90 seconds'/);
@@ -48,15 +49,19 @@ test('only a live device authorization locks the selected store and customer', (
   assert.match(pageWxml, /qualificationActive && bleAuthorizationSent && customer/);
 });
 
-test('device identity and authorization are bound and pairing codes stay hashed', () => {
+test('device identity is checked without a device registry and QR codes stay hashed in audit', () => {
   assert.equal(facePackage.dependencies['pinyin-pro'], '3.27.0');
   assert.match(faceSource, /BLE_AUTH_SIGNING_KEY/);
   assert.match(faceSource, /createHmac\(['"]sha256['"]/);
   assert.match(faceSource, /device_id/);
   assert.match(faceSource, /device_type/);
   assert.match(faceSource, /nonce/);
-  assert.match(migration, /pairing_code_hash CHAR\(64\)/);
-  assert.doesNotMatch(migration, /\bpairing_code\s+(?:VARCHAR|TEXT|CHAR)/i);
+  assert.match(migration, /verification_ble_authorizations/);
+  assert.match(migration, /qr_code_hash CHAR\(64\)/);
+  assert.doesNotMatch(migration, /verification_ble_devices|pairing_code_hash/i);
+  assert.doesNotMatch(faceSource, /BLE_DEVICE_NOT_PROVISIONED/);
+  assert.match(registryCleanupSql, /DROP TABLE IF EXISTS public\.verification_ble_devices/);
+  assert.match(verifySql, /BLE device registry absent/);
 });
 
 test('BLE signing key is mandatory and qualification creation is read back safely', () => {

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the normative BLE device interaction protocol PDF.
 
-The document intentionally mirrors the deployed v105 server and 0.2.48
+The document intentionally mirrors the deployed v106 server and 0.2.48
 mini-program contract.  It also labels the one remaining production security
 gap (unsigned device receipts) instead of presenting it as already solved.
 """
@@ -36,7 +36,7 @@ from reportlab.platypus import (
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 OUT_DIR = os.path.join(ROOT, "output", "pdf")
-OUT_FILE = os.path.join(OUT_DIR, "Lusizhuoer_BLE_Device_Interaction_Protocol_V3.0.pdf")
+OUT_FILE = os.path.join(OUT_DIR, "Lusizhuoer_BLE_Device_Interaction_Protocol_V3.1.pdf")
 
 PAGE_W, PAGE_H = A4
 MARGIN_X = 15 * mm
@@ -201,7 +201,7 @@ class NumberedDocTemplate(BaseDocTemplate):
             rightMargin=MARGIN_X,
             topMargin=MARGIN_TOP,
             bottomMargin=MARGIN_BOTTOM,
-            title="露思卓儿小程序 BLE 扫码核销设备交互协议 V3.0",
+            title="露思卓儿小程序 BLE 扫码核销设备交互协议 V3.1",
             author="广州露思卓儿科技有限公司",
             subject="BLE hardware integration protocol",
         )
@@ -226,7 +226,7 @@ def draw_page(canvas, doc):
     canvas.rect(0, PAGE_H - 7 * mm, PAGE_W, 7 * mm, fill=1, stroke=0)
     canvas.setFont(FONT, 6.8)
     canvas.setFillColor(MUTED)
-    canvas.drawString(MARGIN_X, 7.5 * mm, "露思卓儿 · BLE 设备交互协议 V3.0 · 受控技术文档")
+    canvas.drawString(MARGIN_X, 7.5 * mm, "露思卓儿 · BLE 设备交互协议 V3.1 · 受控技术文档")
     canvas.drawRightString(PAGE_W - MARGIN_X, 7.5 * mm, f"第 {page} 页")
     canvas.restoreState()
 
@@ -331,7 +331,7 @@ def build_story():
     story += [Spacer(1, 22 * mm)]
     story.append(rich("<font color='#7A592C'>露 思 卓 儿</font>", "CoverSubZH"))
     story.append(p("小程序 BLE 扫码核销设备交互协议", "CoverTitleZH"))
-    story.append(p("V3.0 · 实施版（硬件 / 固件 / 小程序 / 云函数 / 测试共同基线）", "CoverSubZH"))
+    story.append(p("V3.1 · 实施版（硬件 / 固件 / 小程序 / 云函数 / 测试共同基线）", "CoverSubZH"))
     story.append(Spacer(1, 10 * mm))
     story.append(callout(
         "文档用途",
@@ -342,14 +342,14 @@ def build_story():
     story.append(table(
         ["项目", "值"],
         [
-            ["文档版本", "V3.0 / 2026-08-29"],
-            ["对齐服务端", "faceRecognition v105"],
+            ["文档版本", "V3.1 / 2026-08-29"],
+            ["对齐服务端", "faceRecognition v106"],
             ["对齐小程序", "0.2.48"],
-            ["数据库基线", "迁移 066：BLE qualification / device / authorization"],
+            ["数据库基线", "迁移 066：BLE qualification / authorization（仅两张短时表）；旧三表环境执行 066-02 清理注册表"],
             ["适用业务", "正常核销、体验核销"],
             ["协议传输", "微信小程序 BLE Central + GATT 透明传输；UTF-8 JSON Lines"],
             ["密钥算法", "HMAC-SHA256（对称消息认证；不是公钥加密）"],
-            ["密钥与凭据", "本文不包含任何真实 BLE 密钥、AppSecret、二维码配对码或用户凭据"],
+            ["密钥与凭据", "本文不包含任何真实 BLE 密钥、AppSecret、二维码会话码或用户凭据"],
         ],
         widths=[35, 135],
         font_size=8,
@@ -377,8 +377,8 @@ def build_story():
     story += bullets([
         "App 不下发能量、温度、模式、光源、启停或单次服务时长。设备进入工作态后不再按具体项目限制模式。",
         "一个核销次数对应多少分钟尚未定稿，必须与米总确认后写入设备受控配置；禁止固件擅自固定为 30 分钟。",
-        "二维码中的 6 位 code 不是密钥，不提供独立安全性；它只用于服务端核对设备登记记录。",
-        "当前 v105 未验证设备回执的独立 MAC。本文件给出量产回执 MAC 格式，但须待服务端升级后才能形成端到端密码学闭环。",
+        "二维码中的 6 位 code 不是密钥，不提供独立安全性；它只是本次扫码会话的短标识。服务端不查询设备注册表。",
+        "当前 v106 未验证设备回执的独立 MAC。本文件给出量产回执 MAC 格式，但须待服务端升级后才能形成端到端密码学闭环。",
     ])
     story.append(h2("1.3 业务规则（简版）"))
     story.append(table(
@@ -404,7 +404,7 @@ def build_story():
             ["小程序", "已登录 UID、本机临时进度、微信 BLE API", "不能直接扣次、不能生成 HMAC、不能决定设备是否可开机"],
             ["CloudBase 云函数", "数据库、角色/门店权限、余额/体验额度、BLE_AUTH_SIGNING_KEY", "不能只凭客户端声称的 status=2 视为设备不可伪造证明"],
             ["BLE 设备", "自身 device_id、device_type、当前 nonce、HMAC 密钥、工作状态", "二维码 code 和 App 请求本身不可信，必须验 HMAC"],
-            ["二维码", "设备静态索引 sn + 6 位兼容配对码", "可被拍照复制，不是安全令牌"],
+            ["二维码", "设备序列号 sn + 6 位会话码", "可被拍照复制，不是密钥，也不是设备登记证明"],
         ],
         widths=[31, 70, 69],
     ))
@@ -416,7 +416,7 @@ def build_story():
         ["4", "小程序", "解析 nc://bind，开启蓝牙，按 NCM-xxxxxx 搜索并连接"],
         ["5", "小程序 → 设备", "发送 get_info；读取 device_id/type/name/status/nonce"],
         ["6", "小程序 → 服务端", "提交 qualification + QR + info，请求一次性授权"],
-        ["7", "服务端", "验证资格/账户/门店/客户/项目/次数/设备登记/nonce，生成 HMAC auth"],
+        ["7", "服务端", "验证资格/账户/门店/客户/项目/次数/二维码结构/实时设备信息/nonce，生成 HMAC auth"],
         ["8", "小程序 → 设备", "发送 auth；设备验证、持久化会话、置 status=2"],
         ["9", "设备 → 小程序", "返回 auth_result；超时则小程序发送 query_status"],
         ["10", "小程序 → 服务端", "确认 DEVICE_WORKING；服务端幂等扣次并生成工单"],
@@ -425,7 +425,7 @@ def build_story():
     story.append(table(["#", "执行方", "动作"], flow_rows, widths=[10, 37, 123]))
     story.append(callout(
         "严禁越级",
-        "未完成人脸、qualification 不完整/过期、设备 status 不是 1、设备未登记、类型不匹配、HMAC 无效或 nonce 已用时，设备不得工作，服务端不得扣次。",
+        "未完成人脸、qualification 不完整/过期、设备 status 不是 1、二维码与实时设备信息不匹配、类型不匹配、HMAC 无效或 nonce 已用时，设备不得工作，服务端不得扣次。系统不存在设备注册表，也不得以“未登记”为拒绝理由。",
         "warn",
     ))
     story.append(PageBreak())
@@ -452,7 +452,7 @@ def build_story():
     story += bullets([
         "调用无声调拼音转换；按原字符顺序拼接。",
         "转换为小写；删除空格、连字符、下划线、标点和所有非 a-z0-9 字符。",
-        "若结果为空，服务端拒绝建立资格；固件与设备登记值必须完全相同。",
+        "若结果为空，服务端拒绝建立资格；设备实时返回的 device_type 必须与本次项目归一化结果完全相同。",
         "示例：海洋之蕴 → haiyangzhiyun；魔法柔肤 → mofaroufu；露思康辰 → lusikangchen。",
     ])
     story.append(callout(
@@ -539,7 +539,7 @@ def build_story():
     story.append(code("openssl rand -hex 32"))
     story += bullets([
         "命令生成 32 个随机字节，并以 64 个小写十六进制字符输出。",
-        "当前 faceRecognition v105 把这 64 个字符作为 UTF-8/ASCII 密钥字节直接传给 HMAC；设备必须做同样处理。禁止把 64 字符 hex 再解码为 32 raw bytes，否则签名不同。",
+        "当前 faceRecognition v106 把这 64 个字符作为 UTF-8/ASCII 密钥字节直接传给 HMAC；设备必须做同样处理。禁止把 64 字符 hex 再解码为 32 raw bytes，否则签名不同。",
         "同一 64 字符值写入云函数环境变量 BLE_AUTH_SIGNING_KEY 和每台设备安全存储。",
         "密钥长度按 UTF-8 至少 32 字节；建议始终使用上述 64 字符格式。",
     ])
@@ -578,7 +578,7 @@ def build_story():
     story.append(code(f"key_utf8 = {test_key}\ncanonical = {test_canonical}\nsignature = {test_sig}"))
     story.append(callout(
         "量产安全缺口",
-        "当前设备 auth_result/status 没有被 v105 独立验 MAC。HMAC 已保护“服务端→设备”的开机授权，但“设备→服务端”的工作回执仍经客户端转发。第 12 节规定了兼容扩展字段；服务端升级验证前，不得宣称端到端完全防伪。",
+        "当前设备 auth_result/status 没有被 v106 独立验 MAC。HMAC 已保护“服务端→设备”的开机授权，但“设备→服务端”的工作回执仍经客户端转发。第 12 节规定了兼容扩展字段；服务端升级验证前，不得宣称端到端完全防伪。",
         "warn",
     ))
     story.append(PageBreak())
@@ -790,7 +790,7 @@ def build_story():
 
     # 12 receipt MAC extension
     story.append(h1("12. 量产回执签名扩展（向后兼容，服务端升级后强制）"))
-    story.append(p("当前 0.2.48 会忽略未知字段，因此固件现在可以附带以下字段；但 faceRecognition v105 尚未验证它们。量产上线前应升级服务端，使 auth_result/status 的设备证明也通过 HMAC 验证。"))
+    story.append(p("当前 0.2.48 会忽略未知字段，因此固件现在可以附带以下字段；但 faceRecognition v106 尚未验证它们。量产上线前应升级服务端，使 auth_result/status 的设备证明也通过 HMAC 验证。"))
     story.append(h2("12.1 建议新增字段"))
     story.append(table(
         ["字段", "类型", "要求"],
@@ -898,16 +898,16 @@ def build_story():
     story.append(PageBreak())
 
     # 16 provisioning
-    story.append(h1("16. 出厂配置、设备登记与密钥轮换"))
-    story.append(h2("16.1 每台设备出厂记录"))
+    story.append(h1("16. 出厂配置、共享密钥与轮换"))
+    story.append(h2("16.1 每台设备本地出厂配置"))
     story.append(table(
         ["字段", "示例/说明", "保存位置"],
         [
-            ["device_id / qr_sn", "NCM1F0C58D0A00", "设备安全配置 + 服务端设备表 + 二维码"],
-            ["ble_name", "NCM-8D0A00", "设备广播配置 + 服务端设备表"],
-            ["device_type", "haiyangzhiyun", "设备安全配置 + 服务端设备表"],
-            ["pairing_code", "382451", "二维码明文；服务端只存 SHA-256"],
-            ["BLE_AUTH_SIGNING_KEY", "64 hex chars", "设备安全存储 + 云函数环境变量；绝不进二维码/设备表"],
+            ["device_id / qr_sn", "NCM1F0C58D0A00", "设备本地安全配置 + 二维码；服务端不建立设备注册表"],
+            ["ble_name", "NCM-8D0A00", "设备广播配置；由小程序现场读取并校验"],
+            ["device_type", "haiyangzhiyun", "设备本地安全配置；必须等于本次项目归一化结果"],
+            ["session_code", "382451", "二维码明文会话码；非密钥、非配对凭据，不持久登记"],
+            ["BLE_AUTH_SIGNING_KEY", "64 hex chars", "设备安全存储 + 云函数环境变量；绝不进二维码或数据库"],
             ["unit_duration_sec", "TBD", "设备受控配置；米总确认后下发"],
             ["firmware_version", "厂商定义", "设备诊断信息/生产记录"],
         ],
@@ -917,11 +917,11 @@ def build_story():
     story += bullets([
         "在离线/受控量产工装生成或领取密钥；严禁用小程序普通 BLE 链路写入。",
         "写入设备安全存储，启用读保护，关闭调试读取；执行 HMAC 自检向量。",
-        "生成二维码并把 pairing_code 的 SHA-256、设备身份、类型、广播名登记到服务端。",
+        "生成只含 sn 与 6 位会话码的二维码；不把设备身份、类型、广播名或会话码登记到数据库。",
         "上线前执行第 18 节验收；验收报告只记录 key_id/批次，不记录真实密钥。",
     ])
     story.append(h2("16.3 轮换"))
-    story.append(p("当前 v105 只读取一个 BLE_AUTH_SIGNING_KEY，没有 key_id 在线选择。轮换必须协调云函数与设备批次，安排双钥过渡或停机窗口；在服务端支持 key_id 前，禁止单方面改云端或设备端密钥。"))
+    story.append(p("当前 v106 只读取一个 BLE_AUTH_SIGNING_KEY，没有 key_id 在线选择。轮换必须协调云函数与设备批次，安排双钥过渡或停机窗口；在服务端支持 key_id 前，禁止单方面改云端或设备端密钥。"))
     story.append(PageBreak())
 
     # 17 backend contract brief
@@ -942,12 +942,12 @@ def build_story():
         "当前登录 UID、角色、门店、办理人员、客户、项目、核销类型、次数与人脸证据。",
         "正常核销余额或体验额度；体验核销仅老师发起；门店业务老师可选。",
         "qualification 属于当前账号/门店且未过期；未完成、未签发其他授权。",
-        "设备登记 ACTIVE；sn/id/type/name/code hash 全部匹配；status=1；nonce 合法且未用。",
+        "二维码 sn/code 结构合法；二维码 sn、广播名和设备实时返回的 id/type/name 一致；status=1；nonce 合法且未用。不存在设备登记状态检查。",
         "HMAC key 存在且 UTF-8 长度至少 32 字节。",
     ])
     story.append(callout(
         "客户端无权写数据库",
-        "BLE 三张表启用 RLS；anon/authenticated 无表、序列访问；只有 service_role 可写。小程序不得直接插入资格、设备或授权，也不得直接扣次。",
+        "BLE 两张短时表启用 RLS；anon/authenticated 无表、序列访问；只有 service_role 可写。小程序不得直接插入资格或授权，也不得直接扣次。数据库中没有设备注册表。",
         "ok",
     ))
     story.append(PageBreak())
@@ -989,7 +989,7 @@ def build_story():
         ["责任方", "必须完成"],
         [
             ["硬件/固件", "唯一 GATT 业务通道；HMAC 测试向量；nonce CSPRNG；断电安全持久化；错误码；长帧/分片；提前退出"],
-            ["后端", "迁移 066 READY；设备登记；BLE_AUTH_SIGNING_KEY；90/30 秒数据库约束；幂等核销；禁止客户端写表"],
+            ["后端", "迁移 066 两张短时表 READY；066-02 清理旧注册表且 absent=READY；BLE_AUTH_SIGNING_KEY；90/30 秒约束；幂等核销；禁止客户端写表"],
             ["小程序", "严格人脸门禁；剩余时间用服务端值；结构化中文错误；扫码关闭/重开；status=2 后跳同一工单"],
             ["安全", "密钥注入/读保护/日志检查；回执 MAC 服务端验证方案；威胁模型与轮换预案"],
             ["QA", "第 18 节 24 项真机验收，覆盖 iOS/Android、断电、弱网、通知丢失、重复包"],
@@ -1047,7 +1047,7 @@ def build_story():
     story.append(Spacer(1, 5 * mm))
     story.append(callout(
         "文档结束",
-        "本 PDF 是硬件交互实施基线，不携带真实密钥。交付固件时请在版本说明中写明“兼容 Lusizhuoer BLE Protocol V3.0”并附第 18 节测试报告。",
+        "本 PDF 是硬件交互实施基线，不携带真实密钥。交付固件时请在版本说明中写明“兼容 Lusizhuoer BLE Protocol V3.1”并附第 18 节测试报告。",
         "ok",
     ))
     return story

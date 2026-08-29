@@ -105,7 +105,7 @@ function localProtocolError(payload) {
     1006: "设备编号与二维码不一致。",
     1007: "设备类型与所选项目不匹配。",
     1008: "设备不支持进入工作状态命令。",
-    1009: "设备尚未完成出厂登记。",
+    1009: "设备安全配置不完整。",
     1011: "本次核销次数不符合设备要求。"
   };
   return messages[code] || String(payload?.message || payload?.error || "设备返回未知错误");
@@ -474,7 +474,6 @@ function errorFeedback(error) {
     BLE_NONCE_INVALID: ["设备随机数无效", "设备没有产生符合协议的一次性随机数，已禁止授权；请重启设备或升级固件。", false],
     BLE_DEVICE_NOT_READY: ["设备未处于待机状态", "请在设备端结束旧服务并恢复待机，再重新扫码。", true],
     BLE_DEVICE_BUSY_OTHER_SESSION: ["设备正在其他服务中", "本手机没有对应授权记录，禁止接管或重复扣次；请先结束设备当前服务。", false],
-    BLE_DEVICE_NOT_PROVISIONED: ["设备尚未登记", "请由总部先在数据库登记设备编号、类型与二维码校验信息。", false],
     BLE_PROGRESS_SAVE_FAILED: ["无法保存防重复进度", "为避免设备启动后重复扣次，已禁止继续；请清理微信存储空间后重试。", false],
     BLE_SESSION_EXPIRED: ["登录状态已失效", "请重新登录后从原工单恢复入口继续，切勿重复发起核销。", false],
     BLE_AUTHORIZATION_INCOMPLETE: ["服务端授权不完整", "设备尚未获得完整开机指令，本次不会扣次；请联系管理员检查云函数。", false],
@@ -503,7 +502,7 @@ function errorFeedback(error) {
     BLE_DEVICE_400: ["设备请求格式错误", "设备无法识别 V2.0 指令，请检查固件协议。", false],
     BLE_DEVICE_403: ["设备拒绝授权", "请检查设备状态和授权签名；禁止重复提交。", false],
     BLE_DEVICE_404: ["设备不支持命令", "请升级到支持 V2.0 get_info/auth/query_status 的固件。", false],
-    BLE_DEVICE_1001: ["设备判定签名无效", "请核对云函数签名密钥与设备内置公钥/密钥配置。", false],
+    BLE_DEVICE_1001: ["设备判定签名无效", "请核对云函数与设备安全存储中的 HMAC 共享密钥。", false],
     BLE_DEVICE_1002: ["设备授权已过期", "本次一次性开机授权已经过期，不能重复发送；请检查设备状态后重新做人脸验证。", false],
     BLE_DEVICE_1003: ["设备随机数不一致", "请断开后重新连接，让设备返回当前随机数。", true],
     BLE_DEVICE_1004: ["设备随机数已使用", "禁止重复开机；请先检查原工单，确认结束后生成新随机数。", false],
@@ -511,7 +510,7 @@ function errorFeedback(error) {
     BLE_DEVICE_1006: ["设备编号不一致", "二维码设备编号与固件编号不一致，请停止使用该设备。", false],
     BLE_DEVICE_1007: ["设备类型不匹配", "请改扫当前项目对应类型的设备。", false],
     BLE_DEVICE_1008: ["设备不支持工作命令", "请升级设备固件后再办理。", false],
-    BLE_DEVICE_1009: ["设备未完成出厂登记", "请由总部登记设备后再办理。", false],
+    BLE_DEVICE_1009: ["设备安全配置不完整", "请检查设备固件、共享密钥和安全存储配置。", false],
     BLE_DEVICE_1011: ["设备不接受本次次数", "请核对本次次数与设备协议限制；不要擅自改成固定 1 次。", false]
   };
   const selected = catalog[code] || deviceCodes[code];
