@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.27";
+  const VERSION = "0.16.28";
   const PRODUCT_LOGO_DETAIL_RETRY_DELAYS_MS = Object.freeze([0, 360, 1080]);
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
@@ -369,10 +369,6 @@
       value: factMap.get(label)?.value || "—",
       singleLine: true
     }));
-    const verificationFacts = screenFacts.filter((item) => ["门店", "客户", "项目", "业务老师"].includes(item.label));
-    const submittedAt = details.find((item) => item.label === "提交时间")?.value
-      || screenFacts.find((item) => item.label === "提交时间")?.value
-      || "—";
     const messages = [];
     const customerName = first(record.customerName, record.customerCode, "客户");
     const projectName = first(record.projectName, record.productName, record.projectCode, record.productCode, "项目");
@@ -381,15 +377,13 @@
       filename: `${customerName}+${projectName}+${refund ? "退费" : recharge ? "充值" : "核销"}`,
       kind: clean($("orderKindTag")?.textContent) || (recharge ? "充值" : "核销"),
       title: clean($("orderTitle")?.textContent) || `${recharge ? "充值" : "核销"}工单`,
-      subtitle: recharge
-        ? (clean($("orderDescription")?.textContent) || "业务工单完整导出")
-        : `${clean($("orderDescription")?.textContent) || "门店详细地址：未填写"} · 提交时间：${submittedAt}`,
-      facts: recharge ? rechargeFacts : verificationFacts,
+      subtitle: clean($("orderDescription")?.textContent) || "门店详细地址：未填写",
+      facts: rechargeFacts,
       customerFacing: true,
       compactVerification: !recharge,
       detailTitle: refund ? "退费信息" : recharge ? "充值信息" : "核销信息",
-      detailSubtitle: refund ? "退费次数与办理时间" : recharge ? "充值次数与办理时间" : "该工单数据库中保存的完整业务内容",
-      details: recharge ? details : [],
+      detailSubtitle: refund ? "退费次数与办理时间" : recharge ? "充值次数与办理时间" : "核销次数与办理时间",
+      details,
       productGifts: recharge ? normalizeProductGifts(record?.productGifts) : [],
       messages,
       productTemplate: {
@@ -816,62 +810,6 @@
     }
   }
 
-  async function fetchVerificationPhotoForExport(recordId, photo, onStatus = () => {}) {
-    const slot = Number(photo?.slot);
-    const firstCacheKey = verificationExportCacheKey(recordId, photo);
-    let originalError = null;
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
-      try {
-        const blob = await fetchVerificationPhotoBlob(recordId, photo);
-        return { blob, usedThumbnail: false };
-      } catch (error) {
-        originalError = error;
-        if (attempt >= 2 || !verificationPhotoReadCanRetry(error)) break;
-        onStatus(`${photoSlotLabel(slot)}原图读取不稳定，正在单独重试…`);
-        verificationExportBlobCache.delete(firstCacheKey);
-        verificationPhotoBlobFlights.delete(firstCacheKey);
-        try {
-          const manifest = await fetchVerificationPhotoManifest(recordId);
-          const refreshed = manifest.photos.find((candidate) => Number(candidate?.slot) === slot);
-          if (refreshed) {
-            Object.assign(photo, refreshed);
-            photo.originalUrlExpiresAt = verificationPhotoUrlNeverExpires(photo.originalUrl)
-              ? Number.MAX_SAFE_INTEGER
-              : Date.now() + Math.max(0, Number(photo?.originalUrlExpiresIn ?? manifest?.expiresIn ?? 0) * 1000);
-          }
-        } catch (_) { /* 下一次读取仍会走服务端安全通道 */ }
-        verificationExportBlobCache.delete(verificationExportCacheKey(recordId, photo));
-        verificationPhotoBlobFlights.delete(verificationExportCacheKey(recordId, photo));
-        await waitForVerificationPhotoRetry(240);
-      }
-    }
-    onStatus(`${photoSlotLabel(slot)}高清原图暂不可用，正在读取安全缩略图备份…`);
-    try {
-      const blob = await fetchVerificationPhotoThumbnailFallback(recordId, slot);
-      return { blob, usedThumbnail: true };
-    } catch (thumbnailError) {
-      const error = new Error(`${photoSlotLabel(slot)}原图和预览图都无法读取。${clean(originalError?.message || thumbnailError?.message)}`);
-      error.code = originalError?.code || thumbnailError?.code || "PHOTO_EXPORT_UNAVAILABLE";
-      throw error;
-    }
-  }
-
-  function exportPhotoFailureMeta(error) {
-    const code = clean(error?.code).toUpperCase();
-    const message = clean(error?.message);
-    if (code === "PHOTO_NOT_FOUND" || message.includes("尚未上传") || message.includes("不存在")) return "照片文件未找到";
-    if (code === "PHOTO_SIGN_FAILED" || message.includes("临时访问地址")) return "已保存 · 临时访问地址生成失败";
-    if (message.includes("HTTP") || message.includes("下载")) return "已保存 · 照片下载失败";
-    return "已保存 · 导出时暂无法读取原图";
-  }
-
-  function verificationPhotoManifestSignature(payload) {
-    return (Array.isArray(payload?.photos) ? payload.photos : [])
-      .map((photo) => [Number(photo?.slot), Number(photo?.originalBytes || 0), clean(photo?.uploadedAt)].join(":"))
-      .sort()
-      .join("|");
-  }
-
   async function fetchVerificationPhotoManifest(recordId) {
     const payload = await callVerificationPhotoRead({ action: "getVerificationPhotos", recordId });
     if (payload?.ok !== true || !Array.isArray(payload?.photos)) {
@@ -880,113 +818,14 @@
     return payload;
   }
 
-  async function verificationExportPhotos(record) {
-    await verificationPhotoLoadPromise;
-    if (verificationPhotoUploadBusy) throw new Error("照片仍在上传，请等待保存完成后再导出。");
-    const recordId = clean(record?.id);
-    const databaseBacked = record?.databaseBacked === true && /^\d+$/.test(recordId);
-    let manifest = currentVerificationPhotoPayload;
-    if (databaseBacked) {
-      setExportControls(false, "正在核对数据库中的最新照片清单…");
-      try {
-        manifest = mergeVerificationPhotoLocalPreviews(
-          await fetchVerificationPhotoManifest(recordId),
-          recordId
-        );
-        renderVerificationPhotos(manifest, recordId);
-      } catch (error) {
-        throw new Error(`核销照片清单暂时无法确认，本次没有生成文件。${clean(error?.message) || "请刷新页面后重试。"}`);
-      }
-    } else if (!manifest) {
-      manifest = { ok: true, photos: [], error: null };
-    }
-    const listError = manifest?.error || null;
-    if (listError || !Array.isArray(manifest?.photos)) {
-      throw new Error("核销照片清单暂时无法确认，本次没有生成文件。请刷新页面后重试。");
-    }
-    const manifestSignature = verificationPhotoManifestSignature(manifest);
-    const available = new Map(manifest.photos.map((photo) => [Number(photo.slot), photo]));
-    const printableSlots = [1];
-    const output = printableSlots.map((slot) => ({
-      slot,
-      label: photoSlotLabel(slot),
-      required: available.has(slot),
-      meta: available.has(slot) ? "正在读取高清原图" : "空照片位",
-      placeholder: available.has(slot) ? "照片读取中" : "尚未上传",
-      blob: null
-    }));
-    const queue = printableSlots.map((slot) => available.get(slot)).filter(Boolean);
-    let cursor = 0;
-    let succeeded = 0;
-    const failures = [];
-    const thumbnailFallbacks = [];
-    const workers = Array.from({ length: Math.min(2, queue.length) }, async () => {
-      while (cursor < queue.length) {
-        const index = cursor;
-        cursor += 1;
-        const photo = queue[index];
-        const slot = Number(photo.slot);
-        try {
-          const fetched = await fetchVerificationPhotoForExport(recordId, photo, (message) => setExportControls(false, message));
-          const blob = fetched.blob;
-          const outputIndex = printableSlots.indexOf(slot);
-          output[outputIndex] = {
-            slot,
-            label: photoSlotLabel(slot),
-            required: true,
-            meta: [fetched.usedThumbnail ? "安全缩略图备份" : "高清原图", photoSizeLabel(blob.size), formatTime(photo.uploadedAt) || "已保存"].filter(Boolean).join(" · "),
-            placeholder: "照片读取失败",
-            blob
-          };
-          if (fetched.usedThumbnail) thumbnailFallbacks.push(slot);
-          succeeded += 1;
-        } catch (error) {
-          failures.push({ slot, message: exportPhotoFailureMeta(error) });
-        } finally {
-          setExportControls(false, `核销照片成功读取 ${succeeded} / ${queue.length}…`);
-        }
-      }
-    });
-    await Promise.all(workers);
-    if (failures.length) {
-      const labels = failures.sort((left, right) => left.slot - right.slot)
-        .map((failure) => `${photoSlotLabel(failure.slot)}（${failure.message}）`).join("、");
-      throw new Error(`${labels}未能完整载入，本次没有生成文件。请检查网络后重试。`);
-    }
-    const requiredCount = output.filter((photo) => photo.required).length;
-    const loadedCount = output.filter((photo) => photo.required && photo.blob instanceof Blob && photo.blob.size).length;
-    if (loadedCount !== requiredCount) throw new Error("核销照片完整性检查未通过，本次没有生成文件。请重试。");
-    const editableUntil = Date.parse(manifest?.editableUntil || "");
-    if (databaseBacked && Number.isFinite(editableUntil) && editableUntil > Date.now()) {
-      setExportControls(false, "正在确认照片清单没有在导出期间发生变化…");
-      let confirmedManifest;
-      try { confirmedManifest = await fetchVerificationPhotoManifest(recordId); }
-      catch (error) {
-        throw new Error(`核销照片最终确认失败，本次没有生成文件。${clean(error?.message) || "请重试。"}`);
-      }
-      if (verificationPhotoManifestSignature(confirmedManifest) !== manifestSignature) {
-        renderVerificationPhotos(confirmedManifest, recordId);
-        throw new Error("核销照片在导出期间发生了变化，本次没有生成文件。请重新导出以包含最新照片。");
-      }
-    }
-    const warning = thumbnailFallbacks.length
-      ? `${thumbnailFallbacks.sort((left, right) => left - right).map(photoSlotLabel).join("、")}的高清原图地址暂不可用，已自动使用安全缩略图完成导出`
-      : "";
-    return { photos: output, warning };
-  }
-
   async function exportCurrentOrder(format) {
     if (orderExportBusy || !currentRecord) return;
-    if (type === "verification" && verificationPhotoUploadBusy) {
-      setExportControls(false, "照片正在上传，请等待保存完成后再导出。");
-      return;
-    }
     if (!window.OrderExporter?.exportOrder) {
       setExportControls(true, "导出组件未加载，请刷新页面重试。");
       return;
     }
     orderExportBusy = true;
-    setExportControls(false, type === "verification" ? "正在准备工单与照片…" : "正在生成客户业务凭证…");
+    setExportControls(false, "正在生成客户业务凭证…");
     try {
       // A product template can be edited in another tab after this detail page
       // opened. Always re-read it at the action boundary so the downloaded
@@ -995,14 +834,13 @@
       let exportTemplate;
       try { exportTemplate = await productTemplateLoadPromise; }
       catch (error) { throw new Error(`产品单据模板读取失败，本次没有生成文件。${clean(error?.message) || "请重试。"}`); }
-      const photoResult = type === "verification" ? await verificationExportPhotos(currentRecord) : { photos: [], warning: "" };
       setExportControls(false, format === "pdf" ? "正在分页生成 PDF…" : "正在生成高清图片…");
       const result = await window.OrderExporter.exportOrder({
         format,
         documentData: exportDocumentData(currentRecord, exportTemplate),
-        photos: photoResult.photos
+        photos: []
       });
-      setExportControls(false, `已生成：${result.filename}${photoResult.warning ? `（${photoResult.warning}）` : ""}`);
+      setExportControls(false, `已生成：${result.filename}`);
     } catch (error) {
       setExportControls(false, error?.message || "工单导出失败，请重试。");
     } finally {

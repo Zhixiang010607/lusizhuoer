@@ -168,41 +168,6 @@ async function inlineDataUrlIsPageLifetimeOnly() {
   assert.equal(blob.size, 4);
 }
 
-async function exportFallsBackToSafeThumbnail() {
-  const harness = {
-    module: { exports: {} }, Blob, Number, Date,
-    __thumbnailReads: 0, __status: []
-  };
-  vm.createContext(harness);
-  vm.runInContext(`
-    const clean = (value) => String(value ?? "").trim();
-    const verificationExportBlobCache = new Map();
-    const verificationPhotoBlobFlights = new Map();
-    const verificationExportCacheKey = (recordId, photo) => [recordId, photo.slot, photo.originalBytes, photo.uploadedAt].join(":");
-    const verificationPhotoReadCanRetry = () => false;
-    const photoSlotLabel = (slot) => "photo " + slot;
-    const fetchVerificationPhotoBlob = async () => {
-      const error = new Error("original object address not found");
-      error.code = "PHOTO_NOT_FOUND";
-      throw error;
-    };
-    const fetchVerificationPhotoThumbnailFallback = async () => {
-      globalThis.__thumbnailReads += 1;
-      return new Blob([new Uint8Array([255, 216, 255, 217])], { type: "image/jpeg" });
-    };
-    const fetchVerificationPhotoManifest = async () => ({ ok: true, photos: [] });
-    const verificationPhotoUrlNeverExpires = () => false;
-    const waitForVerificationPhotoRetry = async () => {};
-    ${functionSource("fetchVerificationPhotoForExport")}
-    module.exports = fetchVerificationPhotoForExport;
-  `, harness, { filename: "verification-photo-export-thumbnail-fallback.js" });
-  const result = await harness.module.exports("71", { slot: 3, originalBytes: 100, uploadedAt: "now" }, (message) => harness.__status.push(message));
-  assert.equal(result.usedThumbnail, true, "missing original address uses the independently authorized thumbnail bytes");
-  assert.equal(result.blob.type, "image/jpeg");
-  assert.equal(harness.__thumbnailReads, 1, "only the failed photo requests one thumbnail fallback");
-  assert.ok(harness.__status.some((message) => message.includes("安全缩略图备份")));
-}
-
 async function localOriginalDownloadPreservesExactBytes() {
   const exact = new Blob([new Uint8Array([255, 216, 255, 11, 22, 33, 255, 217])], { type: "image/jpeg" });
   const harness = {
@@ -297,7 +262,6 @@ async function mobileAlbumSavePreservesExactBytes() {
   await clientReadFlights();
   await clientBlobFlights();
   await inlineDataUrlIsPageLifetimeOnly();
-  await exportFallsBackToSafeThumbnail();
   await localOriginalDownloadPreservesExactBytes();
   await mobileAlbumSavePreservesExactBytes();
   console.log("verification photo client read reliability: PASS (30 same + 30 different)");

@@ -149,7 +149,7 @@ test("recharge detail keeps gift traceability while exports use name and quantit
   assert.doesNotMatch(webGiftCard, /productCode|历史产品/);
   assert.doesNotMatch(miniGiftCard, /productCode|历史产品/);
   assert.match(web, /const rechargeFacts = \["客户", "项目", "门店", "业务老师"\]/);
-  assert.match(mini, /const facts = recharge \? \[[\s\S]*label: "客户"[\s\S]*label: "项目"[\s\S]*label: "门店"[\s\S]*label: "业务老师"/);
+  assert.match(mini, /const facts = \[[\s\S]*label: "客户"[\s\S]*label: "项目"[\s\S]*label: "门店"[\s\S]*label: "业务老师"/);
   assert.doesNotMatch(miniPage, /业务前余额|业务后余额/);
   assert.match(read("recharge-detail.html"), /id="rechargeProductGiftsPanel"/);
   assert.match(web, /panel\.hidden = !gifts\.length/,

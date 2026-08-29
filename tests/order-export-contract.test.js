@@ -76,7 +76,7 @@ assert.ok(twoPagePdf.includes("xref\n0 9"), "multi-page PDF xref count");
 for (const html of [rechargeHtml, verificationHtml]) {
   includes(html, 'id="exportOrderPdf"', "PDF export button");
   includes(html, 'id="exportOrderImage"', "image export button");
-  assert.ok(html.indexOf("order-export.js?v=0.1.11") < html.indexOf("business-detail.js?v=0.16.27"), "exporter must load before detail controller");
+  assert.ok(html.indexOf("order-export.js?v=0.1.12") < html.indexOf("business-detail.js?v=0.16.28"), "exporter must load before detail controller");
 }
 
 includes(verificationHtml, 'class="verification-order-keyfacts verification-order-five-keyfacts"', "verification detail uses a five-fact header");
@@ -84,29 +84,15 @@ assert.doesNotMatch(verificationHtml, /id="orderInfo"|<h2>核销信息<\/h2>|ver
 includes(verificationHtml, '<h2 id="reviewPanelTitle">门店留言</h2>', "verification detail keeps one store message panel");
 includes(detailSource, 'keyFacts.push(factCard("提交时间", submittedAt, ""))', "verification detail adds submission time beside the business facts");
 includes(detailSource, 'const description = `门店详细地址：${fullStoreAddress(record) || "未填写"}`', "all order types replace the generic subtitle with the full store address");
-includes(detailSource, '`${clean($("orderDescription")?.textContent) || "门店详细地址：未填写"} · 提交时间：${submittedAt}`', "verification customer export includes both store address and submission time");
+includes(detailSource, 'subtitle: clean($("orderDescription")?.textContent) || "门店详细地址：未填写"', "verification customer export keeps the store address as its subtitle");
 includes(detailSource, 'if (recharge) $("orderInfo").innerHTML', "the shared controller only renders the detail grid for recharge and refund orders");
 
 includes(detailSource, 'filename: `${customerName}+${projectName}+${refund ? "退费" : recharge ? "充值" : "核销"}`', "required filename contract");
 includes(detailSource, 'kind: clean($("orderKindTag")?.textContent)', "header order-kind export");
 assert.ok(!detailSource.includes('statusLabel: "当前审核状态"'), "customer export does not carry a duplicated approval status card");
-includes(detailSource, 'action: "getVerificationPhotoOriginalUrl"', "existing authorized original-photo action");
-includes(detailSource, 'action: "getVerificationPhotoExportData"', "CORS-safe authorized export fallback");
-includes(detailSource, 'cache: "no-store"', "private signed original is not persisted in the browser HTTP cache");
-includes(detailSource, 'mode: "cors"', "private photo CORS fetch");
-includes(detailSource, "Math.min(2, queue.length)", "bounded original-photo concurrency");
-includes(detailSource, "fetchVerificationPhotoForExport(recordId, photo", "each export photo owns an isolated retry and fallback path");
-includes(detailSource, "fetchVerificationPhotoThumbnailFallback(recordId, slot)", "export falls back to the authenticated thumbnail when the original address is unavailable");
-includes(detailSource, "核销照片成功读取 ${succeeded} / ${queue.length}", "export progress counts successful photo reads rather than merely completed attempts");
-includes(detailSource, "已自动使用安全缩略图完成导出", "successful thumbnail fallback remains visible to the operator");
-includes(detailSource, "核销照片清单暂时无法确认，本次没有生成文件", "photo-list failure blocks incomplete export");
-includes(detailSource, "if (failures.length)", "known-photo fetch failure blocks incomplete export");
-includes(detailSource, "loadedCount !== requiredCount", "known-photo download completeness assertion");
 includes(detailSource, 'loading="eager" fetchpriority="high"', "all five short-lived thumbnails start loading before their signed addresses expire");
 includes(detailSource, 'button.dataset.photoPreviewState === "failed"', "a failed photo card retries only that photo when clicked");
 includes(detailSource, 'delete button.dataset.photoRecovery', "a failed retry never leaves the photo permanently locked");
-includes(exporterSource, "if (item.required && !image)", "known-photo decode completeness assertion");
-includes(exporterSource, "catch (_) { image = null; }", "imageBitmap decode fallback");
 includes(exporterSource, "function selectReceiptPhotos", "receipt renderer owns a defensive core-photo selector");
 includes(exporterSource, "const printablePhotoItems = selectReceiptPhotos(documentData, options?.photos || [])", "supplementary photos are removed before decoding");
 includes(exporterSource, "preparePhotos(printablePhotoItems)", "only selected core photos reach the decoder");
@@ -120,17 +106,15 @@ includes(detailSource, "const messages = [];", "all downloaded orders omit inter
 includes(detailSource, '[["充值次数", rechargeCountLabel], ["提交时间", submittedAt], ["审核时间", reviewedAt]]', "recharge screen and export keep only count and two timestamps");
 includes(detailSource, '[["退费次数", rechargeCountLabel], ["提交时间", submittedAt], ["审核时间", reviewedAt]]', "refund screen and export keep only count and two timestamps");
 includes(detailSource, 'const rechargeFacts = ["客户", "项目", "门店", "业务老师"]', "recharge PDF keeps customer and project on the first row, then store and teacher");
-includes(detailSource, "facts: recharge ? rechargeFacts : verificationFacts", "verification PDF keeps only the customer-facing business facts including address");
-includes(detailSource, "details: recharge ? details : []", "verification PDF removes repeated detail grid and unit count");
+includes(detailSource, "facts: rechargeFacts", "all receipts keep the same compact customer, project, store and teacher fact order");
+includes(detailSource, "details,", "verification PDF keeps only type, count and submission time in the compact detail grid");
 includes(detailSource, "productGifts: recharge ? normalizeProductGifts(record?.productGifts) : []", "only recharge exports may carry a separate product gift section");
-includes(detailSource, "· 提交时间：${submittedAt}`", "verification PDF keeps submission time after the store address");
-includes(detailSource, 'screenFacts.find((item) => item.label === "提交时间")?.value', "verification PDF reads submission time from the compact screen header");
+includes(detailSource, 'const details = Array.from($("orderInfo")?.children || [])', "verification PDF reuses the visible type, count and submission-time fields without inventing hidden values");
 const exportDataSource = detailSource.slice(detailSource.indexOf("function exportDocumentData"), detailSource.indexOf("async function fetchVerificationPhotoUrlBlob"));
 assert.ok(!/verification(Store|Hq)Message|recharge(Store|Hq)Message/.test(exportDataSource), "customer PDFs never read any internal message");
 const exportCurrentOrderSource = detailSource.slice(detailSource.indexOf("async function exportCurrentOrder"), detailSource.indexOf("function isVoidableOriginalType"));
-includes(exportCurrentOrderSource, 'type === "verification" ? await verificationExportPhotos(currentRecord) : { photos: [], warning: "" }', "verification exports keep photos while recharge and refund exports use an empty photo list");
 includes(exportCurrentOrderSource, "productTemplateLoadPromise = loadProductReceiptTemplate(currentRecord, { forceLogoRefresh: true })", "every export forces a live logo read for its own product");
-includes(exportCurrentOrderSource, "photos: photoResult.photos", "verification photos are passed to the exporter");
+includes(exportCurrentOrderSource, "photos: []", "all exported receipts omit photos");
 for (const removedCopy of ["由总部维护的当前产品单据说明", "导出时间：", "系统工单导出", "露思卓儿客户业务凭证"]) {
   assert.ok(!exporterSource.includes(removedCopy), `customer receipt removes internal/footer copy: ${removedCopy}`);
 }
@@ -182,12 +166,16 @@ const compactDocument = {
   title: "核销单 VX202608190024",
   subtitle: "提交时间：2026-08-19 09:11:57",
   facts: [
-    { label: "门店", value: "测试门店" },
     { label: "客户", value: "李四" },
     { label: "项目", value: "魔法柔肤" },
+    { label: "门店", value: "测试门店" },
     { label: "业务老师", value: "李道良" }
   ],
-  details: [{ label: "核销次数", value: "1" }, { label: "核销单编号", value: "不应重复" }],
+  details: [
+    { label: "工单类型", value: "体验核销" },
+    { label: "次数", value: "1 次" },
+    { label: "提交时间", value: "2026-08-19 09:11:57", span: 2 }
+  ],
   messages: [{ label: "绝不打印的门店留言", value: "绝不打印的审核内容", time: "2026-08-19 09:11:57" }]
 };
 const compactPhotos = [
@@ -199,38 +187,35 @@ const compactPhotos = [
 ];
 assert.equal(
   Array.from(exporter.__selectReceiptPhotos(compactDocument, compactPhotos), (photo) => photo.label).join("|"),
-  "核销现场照",
-  "slot-based verification exports retain only the current verification photo"
+  "",
+  "slot-based verification exports omit every photo"
 );
 assert.equal(
   Array.from(exporter.__selectReceiptPhotos(compactDocument, [
     { label: "样例客户留存照" }, { label: "样例核销现场照" }, { label: "样例补充照片" }
   ]), (photo) => photo.label).join("|"),
-  "样例核销现场照",
-  "product samples without explicit slots retain only their current verification photo"
+  "",
+  "product samples without explicit slots omit every photo"
 );
 const compactHeight = exporter.__layoutDocument(headerContext, compactDocument, compactPhotos, { draw: false, paginate: true });
-assert.ok(compactHeight <= 1754, `one-photo verification PDF fits one A4 page, got ${compactHeight}px`);
+assert.ok(compactHeight <= 1754, `no-photo verification PDF fits one A4 page, got ${compactHeight}px`);
 const compactTextStart = headerTexts.length;
 const compactFontStart = fontDraws.length;
 const compactPhotoDrawStart = photoDrawCount;
 exporter.__layoutDocument(headerContext, compactDocument, compactPhotos, { draw: true, paginate: true });
 const compactTexts = headerTexts.slice(compactTextStart);
 const compactFonts = fontDraws.slice(compactFontStart);
-assert.equal(photoDrawCount - compactPhotoDrawStart, 1, "compact verification draws exactly the current verification photo");
-assert.ok(!compactTexts.includes("核销次数"), "compact verification PDF does not repeat the fixed one-unit count");
+assert.equal(photoDrawCount - compactPhotoDrawStart, 0, "compact verification draws no photos");
+assert.ok(compactTexts.includes("次数"), "compact verification PDF keeps the selected unit count");
 assert.ok(!compactTexts.includes("不应重复"), "compact verification PDF does not repeat the order number");
 for (const removed of ["绝不打印的门店留言", "绝不打印的审核内容", "留言与审核记录", "补充照片 1", "补充照片 2", "补充照片 3"]) {
   assert.ok(!compactTexts.includes(removed), `compact verification omits internal/supplementary content: ${removed}`);
 }
-for (const expected of ["客户核销照片", "仅保留核销时使用的身份照片", "核销现场照"]) {
-  assert.ok(compactTexts.includes(expected), `compact verification retains ${expected}`);
+for (const removed of ["客户核销照片", "仅保留核销时使用的身份照片", "核销现场照"]) {
+  assert.ok(!compactTexts.includes(removed), `compact verification omits photo copy: ${removed}`);
 }
 assert.match(fontFor(compactFonts, "门店"), /\b20px\b/, "fact labels use the enlarged font");
 assert.match(fontFor(compactFonts, "测试门店"), /\b25px\b/, "fact values use the enlarged font");
-assert.match(fontFor(compactFonts, "客户核销照片"), /\b34px\b/, "section headings use the enlarged font");
-assert.match(fontFor(compactFonts, "核销现场照"), /\b24px\b/, "photo labels use the enlarged font");
-assert.match(fontFor(compactFonts, "核心照片"), /\b18px\b/, "photo metadata uses the enlarged font");
 
 const rechargeMessageStart = headerTexts.length;
 exporter.__layoutDocument(headerContext, {
@@ -316,11 +301,11 @@ assert.ok(!giftTexts.includes("PDT001"), "printed recharge receipts omit gift pr
   }));
   const selectedPhotos = exporter.__selectReceiptPhotos({ compactVerification: true }, fivePhotos);
   const prepared = await exporter.__preparePhotos(selectedPhotos);
-  assert.equal(prepared.filter((item) => item.required && item.image).length, 1, "the current verification photo decodes before export");
-  assert.equal(decodedImages.length, 1, "archive and supplementary photo blobs never reach the decoder");
+  assert.equal(prepared.length, 0, "verification export prepares no photos");
+  assert.equal(decodedImages.length, 0, "verification photo blobs never reach the decoder");
   const preparedDrawStart = photoDrawCount;
   exporter.__drawPhotos(headerContext, prepared, 0, true, false);
-  assert.equal(photoDrawCount - preparedDrawStart, 1, "the decoded current verification photo is drawn into the export canvas");
+  assert.equal(photoDrawCount - preparedDrawStart, 0, "verification export draws no photo");
 
   context.createImageBitmap = async () => { throw new Error("imageOrientation option unsupported"); };
   context.Image = class FallbackImage {

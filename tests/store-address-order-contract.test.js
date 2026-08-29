@@ -20,7 +20,8 @@ for (const source of [staffAccount, faceRecognition]) {
 
 assert.ok(detail.includes('const description = `门店详细地址：${fullStoreAddress(record) || "未填写"}`'), "recharge, refund, normal verification and experience verification share one address subtitle");
 assert.ok(detail.includes('[record?.storeProvince, record?.storeCity, record?.storeDistrict, record?.storeAddressDetail]'), "the displayed address combines every persisted address part");
-assert.ok(detail.includes('"门店详细地址：未填写"} · 提交时间：${submittedAt}'), "verification PDF/image export retains the store address");
+assert.ok(detail.includes('subtitle: clean($("orderDescription")?.textContent) || "门店详细地址：未填写"'), "verification PDF/image export retains the store address");
+assert.ok(detail.includes('detailSubtitle: refund ? "退费次数与办理时间" : recharge ? "充值次数与办理时间" : "核销次数与办理时间"'), "verification PDF/image export keeps submission time in its compact information grid");
 assert.ok(!styles.includes("order-store-address-fact"), "the address stays in the compact subtitle instead of taking another card");
 
 console.log("store address order contract: PASS");

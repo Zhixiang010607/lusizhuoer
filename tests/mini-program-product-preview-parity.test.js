@@ -28,11 +28,15 @@ test("product sample facts match the web mobile preview for verification and rec
   assert.equal(verification.kind, "正常核销 / 体验核销");
   assert.equal(verification.title, "核销单 SAMPLE001");
   assert.equal(verification.compactVerification, true);
-  assert.deepEqual(verification.facts.map((item) => item.label), ["客户", "门店", "项目", "业务老师", "提交时间"]);
+  assert.deepEqual(verification.facts.map((item) => item.label), ["客户", "项目", "门店", "业务老师"]);
   assert.deepEqual(verification.facts[0], {
-    label: "客户", value: "示例客户 · C1-SAMPLE001", singleLine: true, span: 2
+    label: "客户", value: "示例客户 · C1-SAMPLE001", singleLine: true
   }, "product samples print the customer name and number together on one line");
-  assert.deepEqual(verification.details, []);
+  assert.deepEqual(verification.details, [
+    { label: "工单类型", value: "正常核销" },
+    { label: "次数", value: "2 次" },
+    { label: "提交时间", value: "2026-08-19 12:34:56", span: 2 }
+  ]);
   assert.equal(verification.productTemplate.instructions, "核销说明");
 
   assert.equal(recharge.kind, "充值 / 退费");
@@ -52,9 +56,7 @@ test("product sample facts match the web mobile preview for verification and rec
   ]);
   assert.equal(recharge.productTemplate.instructions, "充值说明");
 
-  assert.deepEqual(renderer.createProductSamplePhotos("verification-image"), [
-    { slot: 1, label: "客户核销照片", required: false, placeholder: "照片区域", meta: "样例照片位" }
-  ]);
+  assert.deepEqual(renderer.createProductSamplePhotos("verification-image"), []);
   assert.deepEqual(renderer.createProductSamplePhotos("recharge-pdf"), []);
 
   for (const phrase of [
@@ -64,9 +66,8 @@ test("product sample facts match the web mobile preview for verification and rec
     assert.ok(webProject.includes(phrase) || webExporter.includes(phrase), `web reference is missing ${phrase}`);
     assert.ok(rendererSource.includes(phrase), `mini renderer is missing ${phrase}`);
   }
-  assert.ok(rendererSource.includes("仅保留核销时使用的身份照片"));
-  assert.doesNotMatch(rendererSource, /留言与审核记录|补充照片|本次核销人脸照/,
-    "generated receipts must not contain message sections or supplemental-photo wording");
+  assert.doesNotMatch(rendererSource, /留言与审核记录/,
+    "generated receipts must not contain internal message or audit sections");
 });
 
 test("native receipt renderer preserves the web A4 and long-image geometry", async () => {
@@ -86,12 +87,11 @@ test("native receipt renderer preserves the web A4 and long-image geometry", asy
     "const CANVAS_WIDTH = 1240", "const PDF_PAGE_HEIGHT = 1754", "const PAGE_MARGIN = 64",
     "const OUTPUT_SCALE = 2", "const OUTPUT_WIDTH = CANVAS_WIDTH * OUTPUT_SCALE",
     "const OUTPUT_PAGE_HEIGHT = PDF_PAGE_HEIGHT * OUTPUT_SCALE", "drawPreparedReceipt",
-    "{ imageHeight: 280, cardHeight: 370 }",
     'background: "#fffaf3"', 'border: "#dfcfb4"', 'title: "#302a22"',
     'accent: "#80622f"', "drawReceiptBackground", "prepareReceiptBackground",
     "singleLine", "fittedSize", "context.fillText(value, x + 18, y + 50, maxWidth)",
     "title: 52", "subtitle: 22", "factLabel: 20", "factValue: 25", "sectionTitle: 34",
-    "photoLabel: 24", "instructionBody: 24", "pageNumber: 18", "drawInstructionText"
+    "instructionBody: 24", "pageNumber: 18", "drawInstructionText"
   ]) {
     assert.ok(rendererSource.includes(contract), `mini renderer is missing ${contract}`);
   }
@@ -157,7 +157,7 @@ test("native receipt renderer preserves the web A4 and long-image geometry", asy
   }), "larger instruction text stays above every A4 page footer");
 });
 
-test("verification renderer decodes and paints only the current verification photo", async () => {
+test("verification renderer omits every photo from the generated receipt", async () => {
   const loadedSources = [];
   const paintedTexts = [];
   const canvas = { width: 0, height: 0 };
@@ -193,15 +193,16 @@ test("verification renderer decodes and paints only the current verification pho
     { slot: 4, label: "额外位置三", required: true, source: "extra-photo-4" }
   ];
   const result = await renderer.renderReceiptCanvas({ canvas, documentData, photos, paginate: true });
-  assert.deepEqual(loadedSources.filter((source) => source.startsWith("verification-photo")), ["verification-photo-1"]);
+  assert.equal(loadedSources.some((source) => source.includes("-photo-")), false,
+    "work-order receipts do not decode any customer photo");
   assert.equal(loadedSources.some((source) => source.startsWith("archive-photo")), false,
     "the initial customer archive photo is not decoded for a work-order receipt");
   assert.equal(loadedSources.some((source) => source.startsWith("extra-photo")), false,
     "supplemental photos are not decoded and cannot block receipt generation");
-  assert.ok(paintedTexts.includes("客户核销照片"));
+  assert.equal(paintedTexts.includes("客户核销照片"), false);
   assert.equal(paintedTexts.includes("客户建档留存照"), false);
   assert.equal(paintedTexts.some((value) => value.includes("额外位置") || value.includes("不应打印")), false);
-  assert.equal(result.pageCount, 1, "the enlarged one-photo verification receipt still fits one A4 page");
+  assert.equal(result.pageCount, 1, "the compact photo-free verification receipt fits one A4 page");
 });
 
 test("PDF writer creates true multi-page A4 output instead of one tall page", () => {

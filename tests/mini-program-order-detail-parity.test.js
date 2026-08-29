@@ -32,13 +32,15 @@ function loadHelpers(options = {}) {
   assert.ok(js.includes(marker), "order-detail helper injection marker exists");
   const instrumented = js.replace(marker, `
 globalThis.__orderDetailHelpers = {
-  PHOTO_SLOT_COUNT, DETAIL_PHOTO_SLOTS, RECEIPT_PHOTO_SLOTS, MAX_EXTRA_SOURCE_PHOTO_BYTES, MAX_EXTRA_UPLOAD_PHOTO_BYTES, imageFormat,
+  PHOTO_SLOT_COUNT, DETAIL_PHOTO_SLOTS, MAX_EXTRA_SOURCE_PHOTO_BYTES, MAX_EXTRA_UPLOAD_PHOTO_BYTES, imageFormat,
   buildPhotoSlots, normalizePhotoManifest,
   exactOrderKind, routeOrderExpectation, assertExactRouteOrder, detailStatusLabel,
-  receiptDocumentData, receiptPhotoItems, requestId, jpegPdf, originalPhotoCacheKey, originalActionCanRetry
+  receiptDocumentData, requestId, jpegPdf, originalPhotoCacheKey,
+  ORIGINAL_PHOTO_CACHE_TTL_MS, ORIGINAL_PHOTO_CACHE_STORAGE_KEY
 };
 Page({`);
-  const files = new Map();
+  const files = options.files || new Map();
+  const storage = options.storage || new Map();
   const context = {
     globalThis: null,
     Page(definition) { context.page = definition; },
@@ -95,6 +97,14 @@ Page({`);
               success?.({ size });
             } catch (error) { fail?.(error); }
           },
+          copyFile({ srcPath, destPath, success, fail }) {
+            try {
+              const size = options.fileInfo?.(srcPath) ?? files.get(srcPath);
+              if (!Number.isFinite(size)) throw new Error("source file missing");
+              files.set(destPath, size);
+              success?.({});
+            } catch (error) { fail?.(error); }
+          },
           unlink({ filePath, success, fail }) {
             try {
               files.delete(filePath);
@@ -108,6 +118,13 @@ Page({`);
         if (options.downloadFile) return options.downloadFile(request);
         request.fail?.(new Error("downloadFile not configured"));
       },
+      getStorageSync(key) { return storage.get(key); },
+      setStorageSync(key, value) { storage.set(key, JSON.parse(JSON.stringify(value))); },
+      removeStorageSync(key) { storage.delete(key); },
+      showShareImageMenu(request) {
+        if (options.showShareImageMenu) return options.showShareImageMenu(request);
+        request.success?.({});
+      },
       previewImage(request) {
         if (options.previewImage) return options.previewImage(request);
         request.success?.({});
@@ -119,7 +136,7 @@ Page({`);
   context.globalThis = context;
   vm.createContext(context);
   vm.runInContext(instrumented, context, { filename: "order-detail/index.js" });
-  return { helpers: context.__orderDetailHelpers, page: context.page, context, files };
+  return { helpers: context.__orderDetailHelpers, page: context.page, context, files, storage };
 }
 
 function pageInstance(definition, data = {}) {
@@ -312,22 +329,22 @@ test("real order data is mapped into the shared web receipt semantics", () => {
   const verification = helpers.receiptDocumentData(base, "VERIFICATION", template);
   assert.equal(verification.title, "核销单 RC202608250036");
   assert.equal(verification.compactVerification, true);
-  assert.equal(verification.subtitle, "门店详细地址：江西省测试路 1 号 · 提交时间：2026-08-25 13:19:00");
-  assert.deepEqual(Array.from(verification.facts, (item) => item.label), ["客户", "门店", "项目", "业务老师", "提交时间"],
-    "verification exports retain the same five-fact layout as product previews");
+  assert.equal(verification.subtitle, "门店详细地址：江西省测试路 1 号");
+  assert.deepEqual(Array.from(verification.facts, (item) => item.label), ["客户", "项目", "门店", "业务老师"],
+    "verification exports use the same compact identity layout as recharge receipts");
   assert.equal(verification.facts[0].label, "客户");
   assert.equal(verification.facts[0].value, "胡勇 · C1-A3155559265B1691");
   assert.equal(verification.facts[0].singleLine, true,
     "app receipts print the complete customer name and number together without wrapping");
-  assert.equal(verification.facts[0].span, 2, "the complete customer identity owns a full-width receipt row");
-  assert.equal(verification.details.length, 0, "NORMAL/EXPERIENCE receipts never add review-time details");
+  assert.deepEqual(Array.from(verification.details, (item) => item.label), ["工单类型", "次数", "提交时间"]);
+  assert.equal(verification.details[2].span, 2, "the complete submitted time owns a full-width receipt row");
   assert.equal(verification.productTemplate.instructions, "核销说明");
   assert.equal(verification.productTemplate.logoRequired, true);
   const experience = helpers.receiptDocumentData({ ...base, typeLabel: "体验核销", originalType: "EXPERIENCE" }, "VERIFICATION", template);
-  assert.doesNotMatch(experience.subtitle, /审核时间/, "EXPERIENCE omits review time like NORMAL");
+  assert.doesNotMatch(JSON.stringify(experience), /审核时间/, "EXPERIENCE omits review time like NORMAL");
 
   const supplement = helpers.receiptDocumentData({ ...base, typeLabel: "历史补录", originalType: "SUPPLEMENT" }, "VERIFICATION", template);
-  assert.match(supplement.subtitle, /审核时间：2026-08-25 13:21:00$/, "SUPPLEMENT keeps its review time");
+  assert.doesNotMatch(JSON.stringify(supplement), /审核时间/, "verification receipts never print an approval-time field");
 
   const refund = helpers.receiptDocumentData({ ...base, typeLabel: "退费申请", originalType: "REFUND" }, "RECHARGE", template);
   assert.equal(refund.title, "退费单 RC202608250036");
@@ -342,18 +359,11 @@ test("real order data is mapped into the shared web receipt semantics", () => {
   assert.deepEqual(Array.from(recharge.messages, (item) => item.label), [],
     "all customer-facing PDF and image exports omit internal messages");
 
-  const photos = helpers.receiptPhotoItems([
-    { slot: 0, label: "客户建档留存照", declared: true, exportSource: "data:image/jpeg;base64,/9j/2Q==" },
-    { slot: 1, label: "客户核销照片", declared: true, exportSource: "data:image/jpeg;base64,/9j/2Q==" },
-    { slot: 3, label: "补充照片 2", declared: true, exportSource: "data:image/jpeg;base64,/9j/2Q==" }
-  ]);
-  assert.equal(photos.length, 1, "receipts render only the current verification photo");
-  assert.deepEqual(Array.from(photos, (photo) => photo.required), [true]);
-  assert.deepEqual(Array.from(photos, (photo) => photo.slot), [1]);
-  assert.equal(photos[0].source.startsWith("data:image/jpeg"), true);
+  assert.equal(Object.hasOwn(verification, "photos"), false,
+    "receipt semantics never carry verification photos into PDF or image exports");
 });
 
-test("verification photo UI has list and per-slot recovery, originals, album save, and server-authorized editing", () => {
+test("verification photo UI has focused recovery, 24-hour originals, album save, forwarding, and server-authorized editing", () => {
   for (const action of [
     "getVerificationPhotos", "getVerificationPhotoThumbnailData", "getVerificationPhotoOriginalUrl",
     "beginVerificationPhotoUpload", "getVerificationPhotoUploadStatus", "cancelVerificationPhotoUpload",
@@ -386,13 +396,19 @@ test("verification photo UI has list and per-slot recovery, originals, album sav
   includes(wxml, 'bindtap="previewPhoto"', "authorized original preview");
   includes(wxml, 'bindtap="savePhoto"', "authorized original album save");
   includes(js, "this._originalPhotoFlights = new Map()", "same-slot original reads are coalesced in flight");
-  includes(js, "this._originalPhotoCache = new Map()", "the page owns a local original-file cache");
+  includes(js, "this._originalPhotoCache = new Map()", "the page owns an in-memory original-file cache");
   includes(js, "const existing = this._originalPhotoFlights.get(key)", "a duplicate slot read joins its current request");
   includes(js, "await fileInfo(cachedPath)", "cached originals are reused only while their local file still exists");
+  includes(js, "ORIGINAL_PHOTO_CACHE_TTL_MS = 24 * 60 * 60 * 1000", "originals persist for one day");
+  includes(js, "ORIGINAL_PHOTO_CACHE_STORAGE_KEY", "persistent cache metadata survives page navigation");
+  includes(js, '"getVerificationPhotoExportData"', "a domain-list failure falls back to authenticated inline bytes");
   includes(js, "STALE_PHOTO_GENERATION", "a replaced manifest invalidates an older original-photo generation");
-  includes(js, "attempt < 2", "preview and save retry a failed local photo action at most once");
-  includes(js, "await this.clearOriginalPhotoCache(slot)", "failure invalidates only the requested slot");
-  includes(js, "owned.forEach((filePath) => unlinkFile(filePath)", "page unload clears generated local photo files");
+  includes(js, "wx.showShareImageMenu", "downloaded originals can be forwarded from WeChat");
+  includes(wxml, 'bindtap="sharePhoto"', "each original has a direct forward action");
+  includes(wxml, 'wx:if="{{photoViewerOpen}}"', "the enlarged viewer is app-controlled");
+  assert.match(wxml, /(?:bindtap|catchtap)="shareViewerPhoto"/, "the enlarged viewer also exposes forwarding");
+  assert.doesNotMatch(functionSource(js, "onUnload"), /clearOriginalPhotoCache/,
+    "leaving the page must not delete the 24-hour original cache");
   assert.doesNotMatch(wxml, /originalBusySlot/, "one slow photo cannot disable every other photo slot");
   assert.match(wxml, /disabled="\{\{item\.originalBusy \|\| uploading\}\}"/,
     "only the active slot is disabled while its original is loading");
@@ -412,18 +428,23 @@ test("verification photo UI has list and per-slot recovery, originals, album sav
   assert.doesNotMatch(`${js}\n${wxml}`, /\bKB\b|不压缩|未压缩/, "size/compression explanations are retired");
 });
 
-test("original photo reads are single-flight per slot and reuse only page-local file paths", async () => {
+test("original photo reads are single-flight, persist for 24 hours, and survive page unload", async () => {
   let releaseFirst;
   let calls = 0;
   const first = new Promise((resolve) => { releaseFirst = resolve; });
-  const { page: definition, files } = loadHelpers({
+  const sharedFiles = new Map();
+  const sharedStorage = new Map();
+  const options = {
+    files: sharedFiles,
+    storage: sharedStorage,
     callPhoto(action, payload) {
       assert.equal(action, "getVerificationPhotoOriginalUrl");
       calls += 1;
       if (payload.slot === 0 && calls === 1) return first;
       return Promise.resolve({ slot: payload.slot, photoUrl: "data:image/jpeg;base64,/9j/2Q==", originalBytes: 4 });
     }
-  });
+  };
+  const { page: definition, helpers } = loadHelpers(options);
   const page = pageInstance(definition, {
     order: { id: "order-1" },
     photos: [
@@ -434,6 +455,8 @@ test("original photo reads are single-flight per slot and reuse only page-local 
   page._photoLoadEpoch = 1;
   const pendingA = page.originalPhotoLocalPath(0);
   const pendingB = page.originalPhotoLocalPath(0);
+  await Promise.resolve();
+  await Promise.resolve();
   assert.equal(calls, 1, "two simultaneous reads of one slot share one cloud call");
   releaseFirst({ slot: 0, photoUrl: "data:image/jpeg;base64,/9j/2Q==", originalBytes: 4 });
   const [pathA, pathB] = await Promise.all([pendingA, pendingB]);
@@ -445,26 +468,43 @@ test("original photo reads are single-flight per slot and reuse only page-local 
   assert.notEqual(pathOther, pathA);
   assert.equal(cachedOriginalPath(page, "order-1:0"), pathA);
   assert.equal(/^https:|^data:/i.test(cachedOriginalPath(page, "order-1:0")), false);
-  assert.equal(files.size, 2);
+  assert.equal(sharedFiles.size, 2);
+  const cacheIndex = sharedStorage.get(helpers.ORIGINAL_PHOTO_CACHE_STORAGE_KEY);
+  assert.equal(cacheIndex["order-1:0"].expiresAt - cacheIndex["order-1:0"].cachedAt, helpers.ORIGINAL_PHOTO_CACHE_TTL_MS);
 
   page.onUnload();
   await Promise.resolve();
   assert.equal(page._originalPhotoCache.size, 0);
-  assert.equal(files.size, 0, "page-owned files are removed when the detail page closes");
+  assert.equal(sharedFiles.size, 2, "24-hour originals are not deleted when the detail page closes");
+
+  const { page: nextDefinition } = loadHelpers(options);
+  const nextPage = pageInstance(nextDefinition, {
+    order: { id: "order-1" },
+    photos: [{ slot: 0, declared: true, originalBytes: 4, originalBusy: false }]
+  });
+  nextPage._photoLoadEpoch = 1;
+  assert.equal(await nextPage.originalPhotoLocalPath(0), pathA, "a later page reuses the persisted original");
+  assert.equal(calls, 2, "the server is not called again while the 24-hour cache remains valid");
 });
 
-test("signed original URLs are downloaded into the page cache and never retained in page data", async () => {
+test("signed original URL failures fall back to authenticated bytes and never retain the URL", async () => {
   const signedUrls = [];
+  const actions = [];
   const { page: definition } = loadHelpers({
     callPhoto(action, payload) {
-      assert.equal(action, "getVerificationPhotoOriginalUrl");
-      return Promise.resolve({ slot: payload.slot, photoUrl: `https://signed.example.test/photo-${payload.slot}?token=secret`, originalBytes: 4 });
+      actions.push(action);
+      if (action === "getVerificationPhotoOriginalUrl") {
+        return Promise.resolve({ slot: payload.slot, photoUrl: `https://signed.example.test/photo-${payload.slot}?token=secret`, originalBytes: 4 });
+      }
+      if (action === "getVerificationPhotoExportData") {
+        return Promise.resolve({ slot: payload.slot, imageBase64: "data:image/jpeg;base64,/9j/2Q==", bytes: 4 });
+      }
+      throw new Error(`unexpected photo action ${action}`);
     },
     downloadFile(request) {
       signedUrls.push(request.url);
-      request.success({ statusCode: 200, tempFilePath: "/tmp/wechat-photo-0.jpg" });
-    },
-    fileInfo() { return 4; }
+      request.fail({ errMsg: "downloadFile:fail url not in domain list" });
+    }
   });
   const page = pageInstance(definition, {
     order: { id: "order-signed" },
@@ -472,11 +512,14 @@ test("signed original URLs are downloaded into the page cache and never retained
   });
   page._photoLoadEpoch = 1;
   const localPath = await page.originalPhotoLocalPath(0);
-  assert.equal(localPath, "/tmp/wechat-photo-0.jpg");
+  assert.match(localPath, /order-photo-cache-order-signed-0-/);
   assert.equal(cachedOriginalPath(page, "order-signed:0"), localPath);
   assert.equal(JSON.stringify(page.data).includes("signed.example.test"), false);
   assert.equal(JSON.stringify(Array.from(page._originalPhotoCache.values())).includes("signed.example.test"), false);
   assert.equal(signedUrls.length, 1);
+  assert.deepEqual(actions, ["getVerificationPhotoOriginalUrl", "getVerificationPhotoExportData"]);
+  assert.equal(await page.originalPhotoLocalPath(0), localPath);
+  assert.equal(signedUrls.length, 1, "the fallback result is cached rather than downloaded again");
 });
 
 test("a missing cached file invalidates and rereads only its own slot", async () => {
@@ -503,7 +546,7 @@ test("a missing cached file invalidates and rereads only its own slot", async ()
   files.delete(firstPath);
   const refreshedPath = await page.originalPhotoLocalPath(0);
   assert.equal(calls, 3, "only the missing slot is fetched again");
-  assert.notEqual(refreshedPath, firstPath);
+  assert.equal(refreshedPath, firstPath, "the stable cache filename is restored after a missing-file reread");
   assert.equal(cachedOriginalPath(page, "order-missing-cache:1"), untouchedPath);
   assert.equal(files.has(untouchedPath), true, "another slot's valid local file is preserved");
 });
@@ -530,6 +573,8 @@ test("a manifest replacement invalidates the old slot generation and rejects its
     (value) => ({ value }),
     (error) => ({ error })
   );
+  await Promise.resolve();
+  await Promise.resolve();
   assert.equal(calls, 1);
 
   page.applyPhotoManifest({
@@ -545,25 +590,23 @@ test("a manifest replacement invalidates the old slot generation and rejects its
     "the late old flight cannot overwrite the replacement generation's cache");
 });
 
-test("preview and album save clear only the failed slot and retry its fresh local original once", async () => {
+test("preview, album save, direct forwarding, and viewer forwarding reuse one local original", async () => {
   let photoCalls = 0;
-  let previewCalls = 0;
   let saveCalls = 0;
+  let shareCalls = 0;
   const { page: definition } = loadHelpers({
     callPhoto(action, payload) {
       assert.equal(action, "getVerificationPhotoOriginalUrl");
       photoCalls += 1;
       return Promise.resolve({ slot: payload.slot, photoUrl: "data:image/jpeg;base64,/9j/2Q==", originalBytes: 4 });
     },
-    previewImage(request) {
-      previewCalls += 1;
-      if (previewCalls === 1) request.fail(new Error("cached preview file expired"));
-      else request.success({});
-    },
     async saveImageToAlbum() {
       saveCalls += 1;
-      if (saveCalls === 1) throw new Error("cached save file expired");
       return { saved: true };
+    },
+    showShareImageMenu(request) {
+      shareCalls += 1;
+      request.success({});
     }
   });
   const page = pageInstance(definition, {
@@ -574,70 +617,35 @@ test("preview and album save clear only the failed slot and retry its fresh loca
     ]
   });
   page._photoLoadEpoch = 1;
-  const untouched = await page.originalPhotoLocalPath(1);
   const firstSlotPath = await page.originalPhotoLocalPath(0);
-  assert.equal(photoCalls, 2);
+  assert.equal(photoCalls, 1);
 
   await page.previewPhoto({ currentTarget: { dataset: { slot: 0 } } });
-  assert.equal(previewCalls, 2);
-  assert.equal(photoCalls, 3, "preview failure refreshes only slot 0 once");
-  assert.notEqual(cachedOriginalPath(page, "order-2:0"), firstSlotPath);
-  assert.equal(cachedOriginalPath(page, "order-2:1"), untouched, "slot 1 cache survives slot 0 recovery");
+  assert.equal(page.data.photoViewerOpen, true);
+  assert.equal(page.data.photoViewerPath, firstSlotPath);
   assert.equal(page.data.error, false);
 
   await page.savePhoto({ currentTarget: { dataset: { slot: 0 } } });
+  await page.sharePhoto({ currentTarget: { dataset: { slot: 0 } } });
+  await page.saveViewerPhoto();
+  await page.shareViewerPhoto();
   assert.equal(saveCalls, 2);
-  assert.equal(photoCalls, 4, "save failure also refreshes the same slot only once");
-  assert.equal(cachedOriginalPath(page, "order-2:1"), untouched);
+  assert.equal(shareCalls, 2);
+  assert.equal(photoCalls, 1, "all actions reuse the exact same local original without repeat requests");
   assert.equal(page.data.message, "原图已保存到系统相册。");
 });
 
-test("verification receipt export reads only current verification slot 1 and fails closed when it is missing", async () => {
-  const requested = [];
-  const manifest = {
-    maxPhotos: 5,
-    photos: Array.from({ length: 5 }, (_, slot) => ({ slot, declared: true, originalBytes: 4, thumbnailUrl: `https://example.test/${slot}.jpg` }))
-  };
-  const { page: definition } = loadHelpers({
-    callPhoto(action, payload) {
-      if (action === "getVerificationPhotos") return Promise.resolve(manifest);
-      if (action === "getVerificationPhotoExportData") {
-        requested.push(payload.slot);
-        return Promise.resolve({ slot: payload.slot, imageBase64: "data:image/jpeg;base64,/9j/2Q==", bytes: 4 });
-      }
-      throw new Error(`unexpected photo action ${action}`);
-    }
-  });
-  const page = pageInstance(definition, { order: { id: "order-export" }, noun: "核销" });
-  const photos = await page.verificationPhotosForExport();
-  assert.deepEqual(requested, [1]);
-  assert.deepEqual(Array.from(photos, (photo) => photo.slot), [1]);
-
-  const { page: missingDefinition } = loadHelpers({
-    callPhoto(action) {
-      if (action === "getVerificationPhotos") return Promise.resolve({ maxPhotos: 5, photos: [{ slot: 0, declared: true, originalBytes: 4 }] });
-      throw new Error("export data must not be requested when the verification photo is missing");
-    }
-  });
-  const missingPage = pageInstance(missingDefinition, { order: { id: "order-missing" }, noun: "核销" });
-  await assert.rejects(() => missingPage.verificationPhotosForExport(), /缺少客户核销照片/);
-});
-
-test("all four order categories export actual receipts and verification export fails closed", () => {
-  for (const action of ["getProductReceiptTemplate", "getProductReceiptLogoData", "getVerificationPhotoExportData"]) {
+test("all four order categories export actual receipts without exporting verification photos", () => {
+  for (const action of ["getProductReceiptTemplate", "getProductReceiptLogoData"]) {
     includes(js, `\"${action}\"`, `export action ${action}`);
   }
-  includes(js, "const receiptPhotos = RECEIPT_PHOTO_SLOTS.map", "export derives only the current verification photo from a fresh database manifest");
-  includes(js, "const missingReceiptPhoto = receiptPhotos.filter", "the current verification photo remains fail-closed");
-  includes(js, "mapWithConcurrency(receiptPhotos, 1", "only the current verification original is read");
-  includes(js, "const failures = results.filter((item) => !item.ok)", "all attempted photo reads are checked");
-  includes(js, "本次没有生成文件", "known-photo failures stop export");
-  includes(js, "return RECEIPT_PHOTO_SLOTS.map", "archive and supplemental slots never enter the receipt renderer");
-  includes(js, "const required = photo.declared === true", "the current verification database photo stays required in the shared renderer");
+  assert.doesNotMatch(js, /verificationPhotosForExport|const receiptPhotos = RECEIPT_PHOTO_SLOTS\.map/,
+    "verification originals never enter receipt export");
   includes(js, "template.verificationInstructions", "verification and experience use the verification receipt instructions");
   includes(js, "template.rechargeInstructions", "recharge and refund use the recharge receipt instructions");
   includes(js, 'require("../../services/order-receipt")', "real orders import the same receipt service as product previews");
   includes(js, "renderReceiptCanvas({", "real orders use the shared canvas layout");
+  includes(functionSource(js, "renderSharedReceipt"), "photos: []", "every exported order receipt explicitly renders with no photos");
   includes(js, "exportReceiptJpegs(receipt, this)", "real orders use the shared A4/long-image splitter");
   includes(js, "const pages = await this.readReceiptPdfPages(receipt.images)", "PDF reads the shared A4 page images");
   includes(js, "const pdf = jpegPdf(pages)", "PDF uses the shared multi-page JPEG-to-PDF helper");

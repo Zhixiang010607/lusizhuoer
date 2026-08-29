@@ -65,6 +65,7 @@
           <view wx:if="{{item.declared}}" class="photo-actions">
             <button data-slot="{{item.slot}}" bindtap="previewPhoto" loading="{{item.originalBusy && item.originalAction === 'preview'}}" disabled="{{item.originalBusy || uploading}}">查看原图</button>
             <button data-slot="{{item.slot}}" bindtap="savePhoto" loading="{{item.originalBusy && item.originalAction === 'save'}}" disabled="{{item.originalBusy || uploading}}">保存相册</button>
+            <button data-slot="{{item.slot}}" bindtap="sharePhoto" loading="{{item.originalBusy && item.originalAction === 'share'}}" disabled="{{item.originalBusy || uploading}}">转发照片</button>
           </view>
           <button wx:if="{{canEdit && item.slot >= 2}}" class="upload-button" data-slot="{{item.slot}}" bindtap="uploadExtraPhoto" loading="{{uploading && uploadingSlot === item.slot}}" disabled="{{uploading || exporting || photoLoading || item.originalBusy}}">{{item.declared ? '选择或拍摄替换' : '选择或拍摄补充'}}</button>
         </view>
@@ -78,6 +79,19 @@
     </view>
   </block>
   <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
+  <view wx:if="{{photoViewerOpen}}" class="photo-viewer" catchtouchmove="stopViewerEvent" bindtap="closePhotoViewer">
+    <view class="photo-viewer-panel" catchtap="stopViewerEvent">
+      <view class="photo-viewer-head">
+        <text>{{photoViewerLabel}}</text>
+        <button class="photo-viewer-close" catchtap="closePhotoViewer">关闭</button>
+      </view>
+      <image class="photo-viewer-image" src="{{photoViewerPath}}" mode="aspectFit"></image>
+      <view class="photo-viewer-actions">
+        <button class="secondary" catchtap="saveViewerPhoto">保存相册</button>
+        <button class="primary" catchtap="shareViewerPhoto">转发照片</button>
+      </view>
+    </view>
+  </view>
   <canvas id="receiptCanvas" type="2d" class="export-canvas"></canvas>
   <canvas id="photoNormalizeCanvas" type="2d" class="export-canvas"></canvas>
   <view class="safe-bottom"></view>

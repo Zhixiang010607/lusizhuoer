@@ -56,13 +56,7 @@ function createProductSampleDocument(options = {}) {
   const verification = kind.startsWith("verification");
   const productName = text(template.productName, "示例产品");
   const instructions = String((verification ? options.verificationInstructions : options.rechargeInstructions) || "").trim();
-  const facts = verification ? [
-    { label: "客户", value: "示例客户 · C1-SAMPLE001", singleLine: true, span: 2 },
-    { label: "门店", value: "示例门店" },
-    { label: "项目", value: productName },
-    { label: "业务老师", value: "示例老师" },
-    { label: "提交时间", value: "2026-08-19 12:34:56" }
-  ] : [
+  const facts = [
     { label: "客户", value: "示例客户 · C1-SAMPLE001", singleLine: true },
     { label: "项目", value: productName, singleLine: true },
     { label: "门店", value: "示例门店", singleLine: true },
@@ -76,9 +70,13 @@ function createProductSampleDocument(options = {}) {
     facts,
     compactVerification: verification,
     customerFacing: true,
-    detailTitle: "充值信息",
-    detailSubtitle: "充值次数与办理时间",
-    details: verification ? [] : [
+    detailTitle: verification ? "核销信息" : "充值信息",
+    detailSubtitle: verification ? "核销次数与办理时间" : "充值次数与办理时间",
+    details: verification ? [
+      { label: "工单类型", value: "正常核销" },
+      { label: "次数", value: "2 次" },
+      { label: "提交时间", value: "2026-08-19 12:34:56", span: 2 }
+    ] : [
       { label: "充值次数", value: "10 次" },
       { label: "提交时间", value: "2026-08-19 12:34:56" },
       { label: "审核时间", value: "2026-08-19 12:36:10" }
@@ -93,8 +91,7 @@ function createProductSampleDocument(options = {}) {
 }
 
 function createProductSamplePhotos(kind) {
-  if (!String(kind || "").startsWith("verification")) return [];
-  return [{ slot: 1, label: "客户核销照片", required: false, placeholder: "照片区域", meta: "样例照片位" }];
+  return [];
 }
 
 function setFont(context, size, weight = 400) {
@@ -433,22 +430,6 @@ function drawPhotoCard(context, photo, x, y, width, draw, options = {}) {
   return cardHeight;
 }
 
-function drawPhotoRow(context, photos, y, columns, options, draw, paginate) {
-  if (!photos.length) return y;
-  const gap = 14;
-  const width = (CONTENT_WIDTH - gap * (columns - 1)) / columns;
-  const cardHeight = options.cardHeight;
-  y = ensureSpace(y, cardHeight + 14, paginate);
-  photos.forEach((photo, index) => {
-    drawPhotoCard(context, photo, PAGE_MARGIN + index * (width + gap), y, width, draw, options);
-  });
-  return y + cardHeight + 14;
-}
-
-function drawCompactVerificationPhotos(context, photos, y, draw, paginate) {
-  return drawPhotoRow(context, photos.slice(0, 2), y, 2, { imageHeight: 280, cardHeight: 370 }, draw, paginate);
-}
-
 function drawPhotos(context, photos, y, draw, paginate) {
   const gap = 16;
   const width = (CONTENT_WIDTH - gap) / 2;
@@ -484,13 +465,8 @@ function drawReceiptBackground(context, backgroundImage, documentHeight) {
 
 function printableReceiptPhotos(documentData, photoItems) {
   const photos = Array.isArray(photoItems) ? photoItems : [];
-  if (documentData.compactVerification !== true) return photos;
-  const hasSlotNumbers = photos.some((photo) => Number.isInteger(Number(photo && photo.slot)));
-  if (!hasSlotNumbers) return photos.slice(0, 1);
-  return photos
-    .filter((photo) => Number(photo && photo.slot) === 1)
-    .sort((left, right) => Number(left.slot) - Number(right.slot))
-    .slice(0, 1);
+  if (documentData.compactVerification === true) return [];
+  return photos;
 }
 
 function layoutDocument(context, documentData, photos, productLogo, options = {}) {
@@ -502,22 +478,18 @@ function layoutDocument(context, documentData, photos, productLogo, options = {}
   }
   let y = drawDocumentHeader(context, documentData, productLogo, draw);
   y = drawInfoGrid(context, documentData.facts || [], y, draw, paginate);
-  if (!compactVerification) {
-    y += 12;
-    y = ensureSpace(y, 70, paginate);
-    y = drawSectionHeading(context, documentData.detailTitle || "工单信息", documentData.detailSubtitle, y, draw);
-    const details = documentData.details || [];
-    y = drawInfoGrid(context, details, y, draw, paginate, details.length === 3 ? 3 : 2);
-    y = drawProductGifts(context, documentData.productGifts, y, draw, paginate);
-  }
+  y += 12;
+  y = ensureSpace(y, 70, paginate);
+  y = drawSectionHeading(context, documentData.detailTitle || "工单信息", documentData.detailSubtitle, y, draw);
+  const details = documentData.details || [];
+  y = drawInfoGrid(context, details, y, draw, paginate, details.length === 3 ? 3 : 2);
+  y = drawProductGifts(context, documentData.productGifts, y, draw, paginate);
 
-  if (photos.length) {
-    y += compactVerification ? 8 : 16;
+  if (!compactVerification && photos.length) {
+    y += 16;
     y = ensureSpace(y, 86, paginate);
     y = drawSectionHeading(context, "客户核销照片", "仅保留核销时使用的身份照片", y, draw);
-    y = compactVerification
-      ? drawCompactVerificationPhotos(context, photos, y, draw, paginate)
-      : drawPhotos(context, photos, y, draw, paginate);
+    y = drawPhotos(context, photos, y, draw, paginate);
   }
 
   y = drawProductInstructions(context, documentData, y, draw, paginate);

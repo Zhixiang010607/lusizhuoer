@@ -52,6 +52,6 @@ test("product samples and real order exports stay on the same branded renderer",
     "product image sample download uses the shared receipt renderer");
 
   for (const html of ["project-detail.html", "recharge-detail.html", "verification-detail.html"]) {
-    assert.ok(read(html).includes('order-export.js?v=0.1.11'), `${html} must load the branded renderer cache version`);
+    assert.ok(read(html).includes('order-export.js?v=0.1.12'), `${html} must load the branded renderer cache version`);
   }
 });

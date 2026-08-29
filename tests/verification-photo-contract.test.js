@@ -286,7 +286,7 @@ assert.ok(
     < functionSource(cloud, "getVerificationPhotos").indexOf("signVerificationPhoto("),
   "thumbnail URLs must be signed only after the verification-order permission check"
 );
-includes(detailUi, 'const VERSION = "0.16.27"', "detail UI cache version");
+includes(detailUi, 'const VERSION = "0.16.28"', "detail UI cache version");
 includes(functionSource(detailUi, "callVerificationPhoto"), 'callFunction({ name: "verificationPhoto", data })', "all photo operations use the dedicated photo cloud function");
 includes(functionSource(detailUi, "callVerificationPhotoLifecycle"), "callVerificationPhoto(data)", "bounded photo lifecycle calls use the dedicated photo helper");
 includes(functionSource(detailUi, "loadTeacherOrder"), 'name: "faceRecognition"', "teacher workspace remains on the business and face cloud function");
@@ -339,10 +339,9 @@ includes(detailUi, "preloadVerificationPhotoOriginal", "small original backgroun
 includes(detailUi, "connection?.saveData === true", "data-saver preload guard");
 includes(detailUi, "originalUrlExpiresAt", "short-lived original URL expiry guard");
 includes(detailUi, 'image.fetchPriority = "high"', "clicked original receives high network priority");
-includes(detailUi, 'action: "getVerificationPhotoExportData"', "PDF/image export authorized binary fallback");
+includes(detailUi, 'action: "getVerificationPhotoExportData"', "original-photo view, save, and forward use the authorized binary fallback");
 includes(detailUi, 'cache: "no-store"', "private signed responses are never persisted in the browser HTTP cache");
-includes(detailUi, "Math.min(2, queue.length)", "at most two private originals export concurrently");
-includes(detailUi, "verificationExportBlobCache", "consecutive PDF/JPG exports reuse downloaded originals");
+includes(detailUi, "verificationExportBlobCache", "consecutive original-photo actions reuse downloaded originals");
 includes(detailUi, "verificationPhotoReadFlights", "same authorized photo-read request is coalesced in flight");
 includes(detailUi, "verificationPhotoBlobFlights", "same original-photo download is coalesced in flight");
 includes(functionSource(detailUi, "callVerificationPhoto"), "wrapped.code = clean(error?.code)", "cloud SDK error codes survive client wrapping");
@@ -369,20 +368,6 @@ assert.ok(
 includes(originalViewerSource, "URL.createObjectURL(blob)", "viewer converts the authorized fallback bytes into an in-memory image URL");
 includes(functionSource(detailUi, "revokeVerificationPhotoViewerFallback"), "URL.revokeObjectURL(url)", "viewer fallback object URL is explicitly released");
 includes(detailUi, "revokeVerificationPhotoViewerFallback();\n    clearVerificationPhotoLocalPreviews();", "page exit releases the viewer fallback URL");
-includes(detailUi, "if (failures.length)", "existing photo failures block incomplete exports");
-const exportPhotosSource = functionSource(detailUi, "verificationExportPhotos");
-assert.ok(
-  exportPhotosSource.indexOf("fetchVerificationPhotoManifest(recordId)")
-    < exportPhotosSource.indexOf("const available = new Map"),
-  "database photo manifest must be refreshed before deciding which slots are empty"
-);
-includes(exportPhotosSource, "manifest = mergeVerificationPhotoLocalPreviews(", "export assigns the optimistic local-preview merge back to its working manifest");
-assert.ok(
-  exportPhotosSource.indexOf("manifest = mergeVerificationPhotoLocalPreviews(")
-    < exportPhotosSource.indexOf("const available = new Map(manifest.photos"),
-  "just-committed local Blob URLs enter the export queue before available slots are captured"
-);
-includes(exportPhotosSource, "verificationPhotoManifestSignature(confirmedManifest) !== manifestSignature", "editable photo manifest is rechecked after downloads");
 includes(functionSource(detailUi, "fetchVerificationPhotoManifest"), "payload?.ok !== true || !Array.isArray(payload?.photos)", "null/loading manifest cannot be treated as five empty slots");
 includes(functionSource(detailUi, "finishVerificationPhotoTask"), "verificationPhotoLoadPromise = refreshVerificationPhotosSilently", "completed upload refreshes the authoritative manifest in the background");
 assert.ok(!functionSource(detailUi, "chooseVerificationPhoto").includes("capture"), "gallery/file picker must not force camera capture");
@@ -398,8 +383,8 @@ includes(detailHtml, 'id="verificationPhotoCameraDialog"', "camera preview dialo
 includes(detailHtml, 'id="verificationPhotoCameraVideo" autoplay playsinline muted', "mobile inline camera preview");
 includes(detailHtml, 'id="switchVerificationPhotoCamera"', "front/rear camera switch action");
 includes(detailHtml, 'aria-label="切换前后摄像头"', "camera switch accessible name");
-includes(detailHtml, 'order-export.js?v=0.1.11', "export renderer cache bust");
-includes(detailHtml, 'business-detail.js?v=0.16.27', "detail script cache bust");
+includes(detailHtml, 'order-export.js?v=0.1.12', "export renderer cache bust");
+includes(detailHtml, 'business-detail.js?v=0.16.28', "detail script cache bust");
 includes(detailHtml, 'styles.css?v=0.15.49', "detail styles cache bust");
 includes(styles, ".verification-order-keyfacts.verification-order-five-keyfacts", "desktop verification header keeps five flexible facts in one row");
 includes(styles, ".verification-order-store-message", "single full-width store message layout");
@@ -512,72 +497,6 @@ assert.equal(localPreviewHarness.__renders.at(-1).photos.find((photo) => Number(
 
 // A server refresh may arrive before its private thumbnail/original is usable.
 // Export must queue the merged local preview, not the unmerged server manifest,
-// so a photo that has just committed can be exported immediately.
-const justCommittedExportBlob = new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], { type: "image/jpeg" });
-const localExportHarness = {
-  module: { exports: {} },
-  Blob,
-  __seenPhotos: [],
-  __blob: justCommittedExportBlob
-};
-vm.createContext(localExportHarness);
-vm.runInContext(`
-  const clean = (value) => String(value || "").trim();
-  const verificationPhotoLocalPreviews = new Map();
-  let verificationPhotoLoadPromise = Promise.resolve();
-  let verificationPhotoUploadBusy = false;
-  let currentVerificationPhotoPayload = { ok: true, photos: [] };
-  const setExportControls = () => {};
-  const serverManifest = {
-    ok: true,
-    editableUntil: "2000-01-01T00:00:00.000Z",
-    photos: [
-      { slot: 1, originalBytes: 4, uploadedAt: "2026-08-18T00:00:00.000Z", thumbnailUrl: "", originalUrl: "" },
-      { slot: 2, originalBytes: 99, uploadedAt: "2026-08-18T00:00:00.000Z", thumbnailUrl: "", originalUrl: "supplement-must-not-be-read" }
-    ]
-  };
-  const fetchVerificationPhotoManifest = async () => serverManifest;
-  const renderVerificationPhotos = () => {};
-  const photoSlotLabel = (slot) => \`slot-\${slot}\`;
-  const photoSizeLabel = (bytes) => \`\${bytes} B\`;
-  const formatTime = (value) => String(value || "");
-  const fetchVerificationPhotoBlob = async (_recordId, photo) => {
-    globalThis.__seenPhotos.push(photo);
-    if (photo.originalUrl !== "blob:just-committed-original") throw new Error("local original Blob URL was not merged into export manifest");
-    return globalThis.__blob;
-  };
-  const fetchVerificationPhotoForExport = async (recordId, photo) => ({
-    blob: await fetchVerificationPhotoBlob(recordId, photo),
-    usedThumbnail: false
-  });
-  const exportPhotoFailureMeta = (error) => String(error?.message || error);
-  ${functionSource(detailUi, "verificationPhotoManifestSignature")}
-  ${functionSource(detailUi, "mergeVerificationPhotoLocalPreviews")}
-  ${exportPhotosSource}
-  verificationPhotoLocalPreviews.set(1, {
-    recordId: "71",
-    thumbnailUrl: "blob:just-committed-thumbnail",
-    originalUrl: "blob:just-committed-original",
-    photo: {
-      slot: 1,
-      originalBytes: 4,
-      uploadedAt: "2026-08-18T00:00:00.000Z",
-      thumbnailUrl: "blob:just-committed-thumbnail",
-      originalUrl: "blob:just-committed-original",
-      localPreview: true
-    }
-  });
-  module.exports = { verificationExportPhotos };
-`, localExportHarness, { filename: "verification-photo-local-export.js" });
-const localPreviewExportPromise = (async () => {
-  const result = await localExportHarness.module.exports.verificationExportPhotos({ id: "71", databaseBacked: true });
-  assert.equal(localExportHarness.__seenPhotos.length, 1, "only the just-committed core photo is queued exactly once");
-  assert.equal(localExportHarness.__seenPhotos[0].slot, 1, "supplemental photos never enter the receipt download queue");
-  assert.equal(localExportHarness.__seenPhotos[0].originalUrl, "blob:just-committed-original", "export receives the local original Blob URL");
-  assert.equal(result.photos.length, 1, "verification receipt source contains only the current verification photo");
-  assert.equal(result.photos[0].blob, justCommittedExportBlob, "export embeds the just-committed local JPEG Blob");
-})();
-
 const viewerHarness = { module: { exports: {} } };
 vm.createContext(viewerHarness);
 vm.runInContext([
@@ -631,7 +550,7 @@ for (const page of ["teacher-recharge-create.html", "teacher-verification-create
   includes(read(page), "store-business.js?v=0.14.62", `${page} create script cache bust`);
 }
 
-Promise.all([storageFallbackTestPromise, verificationSignTestPromise, localPreviewExportPromise])
+Promise.all([storageFallbackTestPromise, verificationSignTestPromise])
   .then(() => console.log("verification photo contract: PASS"))
   .catch((error) => {
     console.error(error);
