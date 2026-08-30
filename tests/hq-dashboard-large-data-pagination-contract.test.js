@@ -46,7 +46,7 @@ const rankingProjection = functionSource(cloud, "hqDashboardRankingProjection");
 const dateRange = functionSource(cloud, "dashboardDateRange");
 const dateSql = functionSource(cloud, "hqDashboardDateSql");
 
-assert.match(cloud, /const FUNCTION_VERSION = "v79"/, "large-data dashboard deployment must identify as v79");
+assert.match(cloud, /const FUNCTION_VERSION = "v80"/, "large-data dashboard deployment must identify as v80");
 assert.match(cloud, /const HQ_DASHBOARD_CHART_LIMIT = 10/, "overview charts must be strictly bounded");
 assert.match(cloud, /const HQ_DASHBOARD_MAX_PAGE_SIZE = 500/, "ranking page size must have a server maximum");
 assert.match(dateRange, /event\.allTime === true[\s\S]*return \{ allTime: true \}/,

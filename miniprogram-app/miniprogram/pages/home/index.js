@@ -179,8 +179,14 @@ Page({
     this._startupEpoch = Number(this._startupEpoch || 0) + 1;
     for (const key of [
       "_teacherHomeRequestEpoch", "_storeHomeRequestEpoch", "_businessRequestEpoch",
-      "_customerRequestEpoch", "_hqHomeRequestEpoch", "_hqRankingRequestEpoch"
+      "_customerRequestEpoch", "_hqHomeRequestEpoch", "_hqRankingRequestEpoch",
+      "_hqProductSummaryRequestEpoch"
     ]) this[key] = Number(this[key] || 0) + 1;
+    const customerPageRequestEpochs = this._customerPageRequestEpochs || {};
+    this._customerPageRequestEpochs = {
+      ACTIVE: Number(customerPageRequestEpochs.ACTIVE || 0) + 1,
+      ARCHIVED: Number(customerPageRequestEpochs.ARCHIVED || 0) + 1
+    };
   },
 
   async loadTeacherHome() {
@@ -375,8 +381,9 @@ Page({
   },
 
   async loadCustomerPage(status, page) {
-    const requestEpoch = (this._customerRequestEpoch || 0) + 1;
-    this._customerRequestEpoch = requestEpoch;
+    const customerPageRequestEpochs = this._customerPageRequestEpochs || {};
+    const requestEpoch = Number(customerPageRequestEpochs[status] || 0) + 1;
+    this._customerPageRequestEpochs = { ...customerPageRequestEpochs, [status]: requestEpoch };
     const activePage = status === "ACTIVE" ? page : this.data.activeCustomers.page;
     const archivedPage = status === "ARCHIVED" ? page : this.data.archivedCustomers.page;
     const targetChanges = status === "ARCHIVED"
@@ -386,19 +393,23 @@ Page({
     try {
       if (this.data.session.role === "teacher") {
         const value = await callFace("getTeacherBusinessCustomers", { activePage, archivedPage });
-        if (requestEpoch !== this._customerRequestEpoch) return;
-        this.setData({
-          activeCustomers: customerView(dashboard.customerGroup(value.active)),
-          archivedCustomers: customerView(dashboard.customerGroup(value.archived))
-        });
+        if (requestEpoch !== this._customerPageRequestEpochs[status]) return;
+        const group = status === "ARCHIVED" ? value.archived : value.active;
+        this.setData(status === "ARCHIVED"
+          ? { archivedCustomers: customerView(dashboard.customerGroup(group)) }
+          : { activeCustomers: customerView(dashboard.customerGroup(group)) });
       } else {
         const value = await callFace("getStoreDashboard", { activeCustomerPage: activePage, archivedCustomerPage: archivedPage });
         const groups = dashboard.storeCustomerGroups(value.store);
-        if (requestEpoch !== this._customerRequestEpoch) return;
-        this.setData({ activeCustomers: customerView(groups.active), archivedCustomers: customerView(groups.archived) });
+        if (requestEpoch !== this._customerPageRequestEpochs[status]) return;
+        this.setData(status === "ARCHIVED"
+          ? { archivedCustomers: customerView(groups.archived) }
+          : { activeCustomers: customerView(groups.active) });
       }
     } catch (error) {
-      if (requestEpoch === this._customerRequestEpoch) this.setData({ ...targetChanges, message: error.message || "客户列表读取失败", error: true });
+      if (requestEpoch === this._customerPageRequestEpochs[status]) {
+        this.setData({ ...targetChanges, message: error.message || "客户列表读取失败", error: true });
+      }
     }
   },
 

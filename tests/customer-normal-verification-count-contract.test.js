@@ -31,9 +31,12 @@ test("store dashboard customer lists use the same normal-only count", () => {
   const customerNormalAggregates = source.match(
     /FROM public\.verification_records v[\s\S]{0,260}?v\.customer_id = c\.id[\s\S]{0,260}?v\.record_status = 'APPROVED'[\s\S]{0,260}?v\.verification_type = 'NORMAL'\) AS total_verification_count/g
   ) || [];
-  assert.equal(customerNormalAggregates.length, 2,
-    "active and archived store customer pages must each derive normal verification totals");
+  assert.equal(customerNormalAggregates.length, 1,
+    "active and archived store customer pages must share the same normal-only verification aggregate");
+  assert.match(source, /dashboardCustomersSql\("ACTIVE", customerOffset\)/,
+    "the shared dashboard customer query must load active customers");
+  assert.match(source, /dashboardCustomersSql\("ARCHIVED", archivedCustomerOffset\)/,
+    "the shared dashboard customer query must load archived customers");
   assert.doesNotMatch(source, /c\.total_verification_count/,
     "store customer pages must not display the mixed customer master total");
 });
-

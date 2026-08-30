@@ -7,6 +7,6 @@
 1. 选择业务低峰期，暂时停止新增充值、退费和审核操作。
 2. 在 CloudBase SQL 控制台完整执行 `067-01-refund-query-performance.sql`。
 3. 执行 `067-readonly-verify.sql`。前两项必须为 `READY`；第三项显示现有退费记录数量。
-4. 上传并部署 `faceRecognition-v107.zip`，随后用退费查询验证“今天”和“全部时间”。
+4. 上传并部署 `faceRecognition-v108.zip`，随后用退费查询验证“今天”和“全部时间”。
 
 脚本只增加索引并更新统计信息，不修改业务记录。数据量很大时建立索引需要数分钟，请不要重复点击执行。

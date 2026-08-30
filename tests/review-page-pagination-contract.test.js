@@ -33,14 +33,15 @@ assert.match(phoneAuth, /pageNumber = null/);
 assert.match(phoneAuth, /payload\.pageNumber = pageNumber/);
 assert.match(phoneAuth, /totalPages: Number\(data\.totalPages \|\| 0\)/);
 
-assert.match(staffAccount, /const FUNCTION_VERSION = "v79"/);
+assert.match(staffAccount, /const FUNCTION_VERSION = "v80"/);
 assert.match(staffAccount, /const pageNumberValue = event\.pageNumber;/);
 assert.match(staffAccount, /requestedPageNumber > 10000/);
 assert.match(staffAccount, /if \(hasCursor && hasPageNumber\) fail\("审核列表不能同时使用页码与游标", "BAD_REQUEST"\);/);
 assert.match(staffAccount, /const pageOffsetPagination = paged && hasPageNumber;/);
 assert.match(staffAccount, /SELECT COUNT\(\*\) AS total/);
-assert.match(staffAccount, /const pageOffset = \(pageNumber - 1\) \* limit;/);
-assert.match(staffAccount, /LIMIT \$\{limit\} OFFSET \$\{pageOffset\}/);
+assert.match(staffAccount, /const pageNumber = Math\.min\(requestedPageNumber, totalPages\);/);
+assert.match(staffAccount, /LIMIT \$\{limit\} OFFSET __PAGE_OFFSET__/);
+assert.match(staffAccount, /pageSql\.replace\("__PAGE_OFFSET__", String\(pageOffset\)\)/);
 assert.match(staffAccount, /hasMore: pageNumber < totalPages/);
 assert.match(staffAccount, /ORDER BY \(\$\{statusExpression\} = 'PENDING'\) DESC, \$\{timeExpression\} DESC/);
 assert.match(staffAccount, /nextCursor: hasMore && last/, "legacy cursor callers remain supported");

@@ -9,7 +9,7 @@
 3. 在 `faceRecognition` 云函数环境变量中配置一个随机且至少 32 字节的 `BLE_AUTH_SIGNING_KEY`，并把完全相同的值写入设备受保护的非易失安全存储。密钥不要发到聊天、不要写入仓库、小程序或二维码。
 4. 不建立、不查询也不维护设备注册表、设备主档、数据库设备白名单或配对码表。设备身份由二维码序列号、实时 BLE `get_info`、一次性随机数、90／30 秒窗口和 HMAC-SHA256 共享密钥共同校验。
 5. 按 [`067-README.md`](067-README.md) 在业务低峰期建立大数据充值／退费查询索引并通过只读验收。
-6. 上传 `deployments/faceRecognition-v107.zip`，安装依赖并调用 `health`，确认 `version=v107`。
+6. 上传 `deployments/faceRecognition-v108.zip`，安装依赖并调用 `health`，确认 `version=v108`。
 7. 执行 [`066-readonly-verify.sql`](066-readonly-verify.sql)，确认 11 行全部为 `READY`，其中 `BLE device registry absent` 必须为 `READY`。
 8. 最后上传当前小程序并设为体验版。不要在 SQL 和云函数尚未生效时先发布前端。
 

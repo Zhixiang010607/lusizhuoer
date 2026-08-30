@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const { pinyin } = require("pinyin-pro");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v107";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v108";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -2543,14 +2543,14 @@ async function queryStoreBusinessRecords(event = {}) {
                         FROM public.${table} ${alias}
                         ${filterCustomerJoin}
                        WHERE ${baseClauses.join(" AND ")}`;
-  const listSql = `WITH page_records AS (
+  const buildListSql = (effectivePage) => `WITH page_records AS (
                     SELECT ${alias}.*
                       FROM public.${table} ${alias}
                       ${filterCustomerJoin}
                      WHERE ${listClauses.join(" AND ")}
                      ORDER BY ${alias}.submitted_at DESC, ${alias}.id DESC
                      LIMIT ${numberedPage ? pageSize : limit + 1}
-                     ${numberedPage ? `OFFSET ${(page - 1) * pageSize}` : ""}
+                     ${numberedPage ? `OFFSET ${(effectivePage - 1) * pageSize}` : ""}
                    )
                    SELECT ${recordSelect},
                           c.customer_code, c.customer_name, c.birth_date,
@@ -2575,8 +2575,11 @@ async function queryStoreBusinessRecords(event = {}) {
                          ORDER BY CASE WHEN p.product_status = 'ACTIVE' THEN 0 ELSE 1 END,
                                   p.product_name, p.product_code`;
 
-  const [rawRecords, summaryRows, productRows] = await Promise.all([
-    executeSql(listSql),
+  // Count first, then clamp the requested page before loading display joins.
+  // A rapid filter change can otherwise leave the client briefly requesting a
+  // page that existed for the previous filter, producing an avoidable error or
+  // an empty result under the stress dataset.
+  const [summaryRows, productRows] = await Promise.all([
     executeSql(summarySql),
     executeSql(productsSql)
   ]);
@@ -2589,8 +2592,9 @@ async function queryStoreBusinessRecords(event = {}) {
     || 0
   );
   const totalPages = Math.max(1, Math.ceil(filteredTotal / pageSize));
-  if (numberedPage && filteredTotal > 0 && page > totalPages) fail("业务明细页码超出有效范围。", "PAGE_OUT_OF_RANGE");
-  const hasMore = numberedPage ? page < totalPages : rawRecords.length > limit;
+  const effectivePage = numberedPage ? Math.min(page, totalPages) : 1;
+  const rawRecords = await executeSql(buildListSql(effectivePage));
+  const hasMore = numberedPage ? effectivePage < totalPages : rawRecords.length > limit;
   const pageRows = numberedPage ? rawRecords : rawRecords.slice(0, limit);
   const last = pageRows[pageRows.length - 1];
   return {
@@ -2643,7 +2647,7 @@ async function queryStoreBusinessRecords(event = {}) {
       hasFaceRequest: databaseBoolean(record.has_face_request)
     })),
     total: filteredTotal,
-    page,
+    page: effectivePage,
     pageSize,
     totalPages,
     hasMore,
@@ -2665,6 +2669,28 @@ async function getStoreDashboard(event = {}) {
   const customerPageSize = 20;
   const customerOffset = (customerPage - 1) * customerPageSize;
   const archivedCustomerOffset = (archivedCustomerPage - 1) * customerPageSize;
+  const dashboardCustomersSql = (status, offset) =>
+    `SELECT c.id AS customer_id, c.customer_code, c.customer_name, c.birth_date,
+            c.customer_status, c.total_recharge_count,
+            (SELECT COALESCE(SUM(v.unit_count), 0)::bigint
+               FROM public.verification_records v
+              WHERE v.customer_id = c.id
+                AND v.record_status = 'APPROVED'
+                AND v.verification_type = 'NORMAL') AS total_verification_count,
+            COALESCE(COUNT(b.product_id) FILTER (
+              WHERE b.total_recharge_count > 0 OR b.total_verification_count > 0
+            ), 0) AS product_count,
+            COALESCE(SUM(b.remaining_count), 0) AS remaining_count,
+            GREATEST(c.latest_recharge_at, c.latest_verification_at) AS last_business_at
+       FROM public.customers c
+       LEFT JOIN public.customer_product_balances b ON b.customer_id = c.id
+      WHERE c.created_store_id = ${storeId}::bigint
+        AND c.customer_status = ${sqlLiteral(status)}
+      GROUP BY c.id, c.customer_code, c.customer_name, c.birth_date,
+               c.customer_status, c.total_recharge_count,
+               c.latest_recharge_at, c.latest_verification_at
+      ORDER BY c.created_at DESC, c.id DESC
+      LIMIT ${customerPageSize} OFFSET ${offset}`;
   const layout = await getStoreBindingLayout();
   const accountJoin = layout === "stores"
     ? "LEFT JOIN public.staff_accounts account ON account.id = s.store_account_id"
@@ -2865,67 +2891,33 @@ async function getStoreDashboard(event = {}) {
         WHERE created_store_id = ${storeId}::bigint
           AND customer_status = 'ACTIVE'`
     ),
-    executeSql(
-    `SELECT c.id AS customer_id, c.customer_code, c.customer_name, c.birth_date,
-            c.customer_status, c.total_recharge_count,
-            (SELECT COALESCE(SUM(v.unit_count), 0)::bigint
-               FROM public.verification_records v
-              WHERE v.customer_id = c.id
-                AND v.record_status = 'APPROVED'
-                AND v.verification_type = 'NORMAL') AS total_verification_count,
-            COALESCE(COUNT(b.product_id) FILTER (
-              WHERE b.total_recharge_count > 0 OR b.total_verification_count > 0
-            ), 0) AS product_count,
-            COALESCE(SUM(b.remaining_count), 0) AS remaining_count,
-            GREATEST(c.latest_recharge_at, c.latest_verification_at) AS last_business_at
-       FROM public.customers c
-       LEFT JOIN public.customer_product_balances b ON b.customer_id = c.id
-      WHERE c.created_store_id = ${storeId}::bigint
-        AND c.customer_status = 'ACTIVE'
-      GROUP BY c.id, c.customer_code, c.customer_name, c.birth_date,
-               c.customer_status, c.total_recharge_count,
-               c.latest_recharge_at, c.latest_verification_at
-      ORDER BY c.created_at DESC, c.id DESC
-      LIMIT ${customerPageSize} OFFSET ${customerOffset}`
-    ),
+    executeSql(dashboardCustomersSql("ACTIVE", customerOffset)),
     executeSql(
       `SELECT COUNT(*) AS customer_total
          FROM public.customers
         WHERE created_store_id = ${storeId}::bigint
           AND customer_status = 'ARCHIVED'`
     ),
-    executeSql(
-    `SELECT c.id AS customer_id, c.customer_code, c.customer_name, c.birth_date,
-            c.customer_status, c.total_recharge_count,
-            (SELECT COALESCE(SUM(v.unit_count), 0)::bigint
-               FROM public.verification_records v
-              WHERE v.customer_id = c.id
-                AND v.record_status = 'APPROVED'
-                AND v.verification_type = 'NORMAL') AS total_verification_count,
-            COALESCE(COUNT(b.product_id) FILTER (
-              WHERE b.total_recharge_count > 0 OR b.total_verification_count > 0
-            ), 0) AS product_count,
-            COALESCE(SUM(b.remaining_count), 0) AS remaining_count,
-            GREATEST(c.latest_recharge_at, c.latest_verification_at) AS last_business_at
-       FROM public.customers c
-       LEFT JOIN public.customer_product_balances b ON b.customer_id = c.id
-      WHERE c.created_store_id = ${storeId}::bigint
-        AND c.customer_status = 'ARCHIVED'
-      GROUP BY c.id, c.customer_code, c.customer_name, c.birth_date,
-               c.customer_status, c.total_recharge_count,
-               c.latest_recharge_at, c.latest_verification_at
-      ORDER BY c.created_at DESC, c.id DESC
-      LIMIT ${customerPageSize} OFFSET ${archivedCustomerOffset}`
-    )
+    executeSql(dashboardCustomersSql("ARCHIVED", archivedCustomerOffset))
   ]);
   const store = storeRows[0];
   if (!store) fail("未找到当前登录账号绑定的门店。", "STORE_NOT_FOUND");
   const customerTotal = Number(customerCountRows?.[0]?.customer_total || 0);
   const customerPages = Math.max(1, Math.ceil(customerTotal / customerPageSize));
-  if (customerTotal && customerPage > customerPages) fail("客户分页超出有效范围。", "PAGE_OUT_OF_RANGE");
+  const effectiveCustomerPage = Math.min(customerPage, customerPages);
   const archivedCustomerTotal = Number(archivedCustomerCountRows?.[0]?.customer_total || 0);
   const archivedCustomerPages = Math.max(1, Math.ceil(archivedCustomerTotal / customerPageSize));
-  if (archivedCustomerTotal && archivedCustomerPage > archivedCustomerPages) fail("封存客户分页超出有效范围。", "PAGE_OUT_OF_RANGE");
+  const effectiveArchivedCustomerPage = Math.min(archivedCustomerPage, archivedCustomerPages);
+  if (effectiveCustomerPage !== customerPage) {
+    customers.splice(0, customers.length, ...(await executeSql(
+      dashboardCustomersSql("ACTIVE", (effectiveCustomerPage - 1) * customerPageSize)
+    )));
+  }
+  if (effectiveArchivedCustomerPage !== archivedCustomerPage) {
+    archivedCustomers.splice(0, archivedCustomers.length, ...(await executeSql(
+      dashboardCustomersSql("ARCHIVED", (effectiveArchivedCustomerPage - 1) * customerPageSize)
+    )));
+  }
 
   return {
     ok: true,
@@ -2936,11 +2928,11 @@ async function getStoreDashboard(event = {}) {
       teachers: [],
       customers,
       customer_total: customerTotal,
-      customer_page: customerPage,
+      customer_page: effectiveCustomerPage,
       customer_page_size: customerPageSize,
       archived_customers: archivedCustomers,
       archived_customer_total: archivedCustomerTotal,
-      archived_customer_page: archivedCustomerPage,
+      archived_customer_page: effectiveArchivedCustomerPage,
       archived_customer_page_size: customerPageSize
     }
   };
@@ -4933,7 +4925,6 @@ function teacherOrderPage(rows, recordType, limit) {
 
 function teacherNumberedOrderPage(rows, recordType, total, page, pageSize) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  if (total > 0 && page > totalPages) fail("老师业务明细页码超出有效范围。", "PAGE_OUT_OF_RANGE");
   return {
     records: teacherOrderRows(rows, recordType),
     page: {
@@ -5027,8 +5018,12 @@ async function getTeacherBusinessCustomers(event = {}) {
   ]);
   const activeTotal = Number(countRows?.[0]?.active_total || 0);
   const archivedTotal = Number(countRows?.[0]?.archived_total || 0);
-  if (activeTotal && activePage > Math.ceil(activeTotal / pageSize)) fail("活跃客户分页超出有效范围。", "PAGE_OUT_OF_RANGE");
-  if (archivedTotal && archivedPage > Math.ceil(archivedTotal / pageSize)) fail("封存客户分页超出有效范围。", "PAGE_OUT_OF_RANGE");
+  const effectiveActivePage = Math.min(activePage, Math.max(1, Math.ceil(activeTotal / pageSize)));
+  const effectiveArchivedPage = Math.min(archivedPage, Math.max(1, Math.ceil(archivedTotal / pageSize)));
+  const [visibleActiveRows, visibleArchivedRows] = await Promise.all([
+    effectiveActivePage === activePage ? Promise.resolve(activeRows) : rowsForStatus("ACTIVE", effectiveActivePage),
+    effectiveArchivedPage === archivedPage ? Promise.resolve(archivedRows) : rowsForStatus("ARCHIVED", effectiveArchivedPage)
+  ]);
   const mapRows = (rows) => rows.map((row) => ({
     customerId: String(row.customer_id || ""),
     customerCode: String(row.customer_code || ""),
@@ -5046,8 +5041,8 @@ async function getTeacherBusinessCustomers(event = {}) {
   }));
   return {
     ok: true,
-    active: { records: mapRows(activeRows), total: activeTotal, page: activePage, pageSize },
-    archived: { records: mapRows(archivedRows), total: archivedTotal, page: archivedPage, pageSize }
+    active: { records: mapRows(visibleActiveRows), total: activeTotal, page: effectiveActivePage, pageSize },
+    archived: { records: mapRows(visibleArchivedRows), total: archivedTotal, page: effectiveArchivedPage, pageSize }
   };
 }
 
@@ -5100,9 +5095,6 @@ async function getTeacherWorkspace(event = {}) {
     const listLimit = detailMode ? 1
       : legacyCombined ? options.limit + 1
         : options.numberedPage ? options.pageSize : options.limit + 1;
-    const listOffset = !detailMode && !legacyCombined && options.numberedPage
-      ? `OFFSET ${(options.page - 1) * options.pageSize}`
-      : "";
     const giftSelect = baseRecordType === "RECHARGE" && detailMode && await rechargeProductGiftSchemaAvailable()
       ? `(SELECT COALESCE(JSONB_AGG(JSONB_BUILD_OBJECT(
              'id', gift.id,
@@ -5115,7 +5107,7 @@ async function getTeacherWorkspace(event = {}) {
             FROM public.recharge_product_gifts gift
            WHERE gift.recharge_id = ${alias}.id) AS product_gifts`
       : `'[]'::jsonb AS product_gifts`;
-    const listSql = `SELECT ${alias}.id, ${alias}.${codeColumn} AS record_code,
+    const listSql = (numberedPage = options.page) => `SELECT ${alias}.id, ${alias}.${codeColumn} AS record_code,
               ${alias}.${typeColumn} AS original_type, ${alias}.unit_count,
               ${baseRecordType === "RECHARGE" ? `${alias}.balance_before_count, ${alias}.balance_after_count` : "NULL::integer AS balance_before_count, NULL::integer AS balance_after_count"},
               ${alias}.record_status, ${alias}.void_request_status,
@@ -5143,14 +5135,14 @@ async function getTeacherWorkspace(event = {}) {
         WHERE ${clauses.join(" AND ")}
         ORDER BY ${alias}.submitted_at DESC, ${alias}.id DESC
         LIMIT ${listLimit}
-        ${listOffset}`;
-    if (detailMode || legacyCombined || !options.numberedPage) return executeSql(listSql);
+        ${!detailMode && !legacyCombined && options.numberedPage ? `OFFSET ${(numberedPage - 1) * options.pageSize}` : ""}`;
+    if (detailMode || legacyCombined || !options.numberedPage) return executeSql(listSql());
     const countClauses = clauses.filter((clause) => !clause.startsWith(`(${alias}.submitted_at, ${alias}.id) <`));
-    const [rows, countRows] = await Promise.all([
-      executeSql(listSql),
-      executeSql(`SELECT COUNT(*) AS total FROM public.${table} ${alias} WHERE ${countClauses.join(" AND ")}`)
-    ]);
-    return { rows, total: Number(countRows?.[0]?.total || 0) };
+    const countRows = await executeSql(`SELECT COUNT(*) AS total FROM public.${table} ${alias} WHERE ${countClauses.join(" AND ")}`);
+    const total = Number(countRows?.[0]?.total || 0);
+    const effectivePage = Math.min(options.page, Math.max(1, Math.ceil(total / options.pageSize)));
+    const rows = await executeSql(listSql(effectivePage));
+    return { rows, total, page: effectivePage };
   };
 
   const loadOverview = async () => {
@@ -5256,7 +5248,7 @@ async function getTeacherWorkspace(event = {}) {
   if (options.recordType) {
     const queryResult = await query(options.recordType);
     const page = options.numberedPage
-      ? teacherNumberedOrderPage(queryResult.rows, options.recordType, queryResult.total, options.page, options.pageSize)
+      ? teacherNumberedOrderPage(queryResult.rows, options.recordType, queryResult.total, queryResult.page, options.pageSize)
       : teacherOrderPage(queryResult, options.recordType, options.limit);
     const overview = options.includeOverview ? await loadOverview() : {};
     return { ok: true, profile, page: { records: page.records, ...page.page }, ...overview };

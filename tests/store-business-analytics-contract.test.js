@@ -163,8 +163,10 @@ assert.deepEqual(stressProject, {
   refundOverRemaining: 50
 }, "customer-level zero floors explain why 5000 - 4500 - 100 does not reduce the project balance below 450");
 assert.match(dashboardProjectSource, /WHERE p\.product_status = 'ACTIVE'[\s\S]*?UNION[\s\S]*?SELECT event\.product_id/, "active zero products and historical store products remain visible");
-assert.equal((dashboardSource.match(/(?:c\.)?created_store_id = \$\{storeId\}::bigint\s+AND (?:c\.)?customer_status = 'ACTIVE'/g) || []).length, 2, "customer count and page queries both return this store's active bound customers");
-assert.equal((dashboardSource.match(/(?:c\.)?created_store_id = \$\{storeId\}::bigint\s+AND (?:c\.)?customer_status = 'ARCHIVED'/g) || []).length, 2, "customer count and page queries both return this store's archived bound customers");
+assert.equal((dashboardSource.match(/customer_status = 'ACTIVE'/g) || []).length, 1, "the count query records this store's active bound customers once");
+assert.equal((dashboardSource.match(/customer_status = 'ARCHIVED'/g) || []).length, 1, "the count query records this store's archived bound customers once");
+includes(dashboardSource, 'dashboardCustomersSql("ACTIVE", customerOffset)', "the shared page query loads active customers");
+includes(dashboardSource, 'dashboardCustomersSql("ARCHIVED", archivedCustomerOffset)', "the shared page query loads archived customers");
 includes(dashboardSource, "archived_customers: archivedCustomers", "store dashboard returns a separate archived customer page");
 includes(dashboardSource, "teachers: []", "removed teacher table no longer requires a dashboard query");
 assert.doesNotMatch(dashboardSource, /JOIN public\.teachers/, "store dashboard does not fetch teacher aggregates");
