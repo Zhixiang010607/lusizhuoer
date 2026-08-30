@@ -53,8 +53,8 @@ test("role homes use a bounded tablet dashboard instead of a magnified phone", (
     "project summary height must follow its real tablet rows");
   assert.match(wxss, /\.record-scroll\[data-visible-rows="5"\], \.customer-scroll\[data-visible-rows="5"\] \{ height: 308px !important; \}/,
     "long tablet lists must stop at five compact rows before internal scrolling");
-  assert.match(wxss, /\.summary-table \{ width: 100%; min-width: 0; \}/,
-    "tablet project summaries should fully adapt to the card instead of forcing horizontal overflow");
+  assert.match(wxss, /\.summary-table \{ width: 100%; min-width: 680px; \}/,
+    "tablet project summaries should keep one font size and scroll inside the table when values are wide");
   assert.match(wxss, /\.record-table \{ width: 100%; min-width: 680px; \}/,
     "tablet business records should protect codes and times but compact all short columns");
   assert.match(wxss, /\.customer-table \{ width: 100%; min-width: 520px; \}/,

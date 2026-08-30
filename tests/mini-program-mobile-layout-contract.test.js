@@ -154,7 +154,7 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
   assert.match(wxss, /\.range-button\s*\{[^}]*width:\s*100%\s*!important[^}]*max-width:\s*100%[^}]*align-items:\s*center[^}]*justify-content:\s*center/s);
   assert.match(wxss, /\.range-button\.active\s*\{[^}]*background:\s*#fffaf3[^}]*border-color:\s*#d9bd8c/s);
   assert.doesNotMatch(wxss, /\.range-presets\s*\{[^}]*background:\s*#edf2f8/s);
-  assert.match(wxss, /\.summary-table\s*\{\s*width:\s*100%;\s*min-width:\s*0;/);
+  assert.match(wxss, /\.summary-table\s*\{\s*width:\s*100%;\s*min-width:\s*960rpx;/);
   assert.match(wxss, /\.detail-anchor-nav\s*\{[^}]*height:\s*84rpx;[^}]*overflow:\s*hidden/s);
   assert.match(wxss, /\.anchor-inner\s*\{[^}]*width:\s*100%;[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/s);
   assert.match(wxss, /\.anchor-inner text\s*\{[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*font-size:\s*23rpx/s);
@@ -172,7 +172,7 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
     "the five-column customer table must fit the standard card before horizontal scrolling is needed");
   assert.doesNotMatch(wxss, /\.customer-table\s*\{[^}]*min-width:\s*700rpx/s,
     "a fixed 700rpx minimum creates a meaningless sliver of horizontal scrolling on standard phones");
-  assert.match(wxss, /\.summary-table \.table-row\s*\{[^}]*minmax\(148rpx,\s*1\.35fr\)[^}]*repeat\(4,\s*minmax\(0,\s*1fr\)\)/s);
+  assert.match(wxss, /\.summary-table \.table-row\s*\{[^}]*minmax\(180rpx,\s*1\.25fr\)[^}]*repeat\(4,\s*minmax\(195rpx,\s*1fr\)\)/s);
   assert.match(wxss, /\.summary-table \.table-row\s*\{[^}]*height:\s*82rpx;[^}]*min-height:\s*82rpx/s);
   assert.match(wxss, /\.summary-table \.table-head\s*\{[^}]*height:\s*64rpx;[^}]*min-height:\s*64rpx/s);
   assert.match(wxss, /\.table-row > view\s*\{[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
