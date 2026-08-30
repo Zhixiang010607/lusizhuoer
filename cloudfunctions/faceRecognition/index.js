@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const { pinyin } = require("pinyin-pro");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v106";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v107";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -2443,7 +2443,7 @@ async function queryStoreBusinessRecords(event = {}) {
   const mode = String(event.mode || "browse").trim().toLowerCase();
   if (!["browse", "manual"].includes(mode)) fail("工单查询方式无效。", "BAD_REQUEST");
   const statusCategory = String(event.statusCategory || "ALL").trim().toUpperCase();
-  if (!["ALL", "PENDING", "APPROVED", "REJECTED", "CLOSED"].includes(statusCategory)) {
+  if (!["ALL", "PENDING", "APPROVED", "REJECTED"].includes(statusCategory)) {
     fail("工单状态筛选无效。", "BAD_REQUEST");
   }
   const verificationType = String(event.verificationType || "ALL").trim().toUpperCase();
@@ -2451,7 +2451,7 @@ async function queryStoreBusinessRecords(event = {}) {
     fail("核销类型筛选无效。", "BAD_REQUEST");
   }
   const rechargeType = String(event.rechargeType || "ALL").trim().toUpperCase();
-  if (!["ALL", "NEW", "REFUND", "VOID"].includes(rechargeType)) {
+  if (!["ALL", "NEW", "REFUND"].includes(rechargeType)) {
     fail("充值类型筛选无效。", "BAD_REQUEST");
   }
 
@@ -2486,13 +2486,21 @@ async function queryStoreBusinessRecords(event = {}) {
 
   const alias = recordType === "RECHARGE" ? "r" : "v";
   const table = recordType === "RECHARGE" ? "recharge_records" : "verification_records";
+  // The record table is the source of truth for scope, type, status and time.
+  // Only exact customer search needs the customer table during filtering.  In
+  // particular, never join every display dimension before LIMIT/OFFSET: the
+  // ten-year stress dataset makes that plan needlessly expensive and can make
+  // the refund page time out before PostgreSQL returns its first row.
+  const filterCustomerJoin = mode === "manual"
+    ? `JOIN public.customers customer_filter ON customer_filter.id = ${alias}.customer_id`
+    : "";
   const baseClauses = [scopedStoreClause(caller, `${alias}.store_id`)];
   if (recordType === "RECHARGE" && rechargeType !== "ALL") {
     baseClauses.push(`r.recharge_type = ${sqlText(rechargeType)}`);
   }
   if (mode === "manual") {
-    if (customerName) baseClauses.push(`c.customer_name ILIKE '%' || ${sqlText(customerName)} || '%'`);
-    if (birthDate) baseClauses.push(`c.birth_date = ${sqlText(birthDate)}::date`);
+    if (customerName) baseClauses.push(`customer_filter.customer_name ILIKE '%' || ${sqlText(customerName)} || '%'`);
+    if (birthDate) baseClauses.push(`customer_filter.birth_date = ${sqlText(birthDate)}::date`);
   } else {
     if (productId) baseClauses.push(`${alias}.product_id = ${productId}`);
     if (recordType === "VERIFICATION" && verificationType !== "ALL") {
@@ -2505,7 +2513,7 @@ async function queryStoreBusinessRecords(event = {}) {
   const listClauses = [...baseClauses];
   if (statusCategory === "PENDING") listClauses.push(`${alias}.record_status = 'PENDING'`);
   else if (statusCategory === "APPROVED") listClauses.push(`${alias}.record_status = 'APPROVED'`);
-  else if (["REJECTED", "CLOSED"].includes(statusCategory)) listClauses.push(`${alias}.record_status IN ('REJECTED', 'VOIDED')`);
+  else if (statusCategory === "REJECTED") listClauses.push(`${alias}.record_status IN ('REJECTED', 'VOIDED')`);
   if (cursorSubmittedAt) {
     listClauses.push(`(${alias}.submitted_at, ${alias}.id) < (${sqlText(cursorSubmittedAt)}::timestamptz, ${cursorId}::bigint)`);
   }
@@ -2525,7 +2533,6 @@ async function queryStoreBusinessRecords(event = {}) {
                         AND ${teacherBusinessAttributionSourceCondition(alias, recordType)}`;
   const baseJoin = `JOIN public.customers c
                       ON c.id = ${alias}.customer_id
-                     AND c.created_store_id = ${alias}.store_id
                     JOIN public.stores s ON s.id = ${alias}.store_id
                     JOIN public.products p ON p.id = ${alias}.product_id
                     ${teacherJoin}`;
@@ -2534,21 +2541,28 @@ async function queryStoreBusinessRecords(event = {}) {
                              COUNT(*) FILTER (WHERE ${alias}.record_status = 'APPROVED') AS approved,
                              COUNT(*) FILTER (WHERE ${alias}.record_status IN ('REJECTED', 'VOIDED')) AS rejected
                         FROM public.${table} ${alias}
-                        ${baseJoin}
+                        ${filterCustomerJoin}
                        WHERE ${baseClauses.join(" AND ")}`;
-  const listSql = `SELECT ${recordSelect},
+  const listSql = `WITH page_records AS (
+                    SELECT ${alias}.*
+                      FROM public.${table} ${alias}
+                      ${filterCustomerJoin}
+                     WHERE ${listClauses.join(" AND ")}
+                     ORDER BY ${alias}.submitted_at DESC, ${alias}.id DESC
+                     LIMIT ${numberedPage ? pageSize : limit + 1}
+                     ${numberedPage ? `OFFSET ${(page - 1) * pageSize}` : ""}
+                   )
+                   SELECT ${recordSelect},
                           c.customer_code, c.customer_name, c.birth_date,
                           s.id AS store_id, s.store_code, s.store_name,
                           s.province AS store_province, s.city AS store_city,
                           s.district AS store_district, s.address_detail AS store_address_detail,
                           p.id AS product_id, p.product_code, p.product_name,
                           t.id AS teacher_id, t.teacher_code, t.teacher_name
-                     FROM public.${table} ${alias}
+                     FROM page_records ${alias}
                     ${baseJoin}
-                   WHERE ${listClauses.join(" AND ")}
                    ORDER BY ${alias}.submitted_at DESC, ${alias}.id DESC
-                    LIMIT ${numberedPage ? pageSize : limit + 1}
-                    ${numberedPage ? `OFFSET ${(page - 1) * pageSize}` : ""}`;
+                   `;
   const productsSql = `SELECT p.id AS product_id, p.product_code, p.product_name, p.product_status
                           FROM public.products p
                          WHERE p.product_status = 'ACTIVE'
@@ -2570,7 +2584,7 @@ async function queryStoreBusinessRecords(event = {}) {
   const filteredTotal = Number(
     statusCategory === "PENDING" ? summary.pending
       : statusCategory === "APPROVED" ? summary.approved
-        : ["REJECTED", "CLOSED"].includes(statusCategory) ? summary.rejected
+        : statusCategory === "REJECTED" ? summary.rejected
           : summary.total
     || 0
   );
@@ -2591,8 +2605,7 @@ async function queryStoreBusinessRecords(event = {}) {
       total: Number(summary.total || 0),
       pending: Number(summary.pending || 0),
       approved: Number(summary.approved || 0),
-      rejected: Number(summary.rejected || 0),
-      closed: Number(summary.rejected || 0)
+      rejected: Number(summary.rejected || 0)
     },
     products: productRows.map((product) => ({
       productId: String(product.product_id),

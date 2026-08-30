@@ -64,8 +64,9 @@ assert.doesNotMatch(reviewUi, /\b(?:window\.)?confirm\s*\(/, "confirming the rev
 assert.match(authUi, /"recharge-review\.html", "refund-review\.html"/);
 assert.match(authUi, /href="refund-review\.html">退费审核/);
 
-assert.match(queryCloud, /\["ALL", "PENDING", "APPROVED", "REJECTED", "CLOSED"\]/);
-assert.match(queryCloud, /\["REJECTED", "CLOSED"\]\.includes\(statusCategory\)/);
+assert.match(queryCloud, /\["ALL", "PENDING", "APPROVED", "REJECTED"\]/);
+assert.doesNotMatch(queryCloud, /\["ALL", "PENDING", "APPROVED", "REJECTED", "CLOSED"\]/);
+assert.match(queryCloud, /else if \(statusCategory === "REJECTED"\)/);
 assert.match(queryCloud, /rejected: Number\(summary\.rejected \|\| 0\)/);
 assert.match(accountCloud, /const FUNCTION_VERSION = "v79"/);
 assert.match(accountCloud, /const ORDER_VOID_APPLICATIONS_ENABLED = false/);

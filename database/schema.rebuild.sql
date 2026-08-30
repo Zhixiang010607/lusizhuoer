@@ -331,6 +331,18 @@ CREATE INDEX idx_recharge_product_store_cursor
 CREATE INDEX idx_recharge_product_teacher_cursor
   ON public.recharge_records (product_id, teacher_id, submitted_at DESC, id DESC)
   WHERE teacher_id IS NOT NULL;
+CREATE INDEX idx_recharge_store_type_cursor
+  ON public.recharge_records (store_id, recharge_type, submitted_at DESC, id DESC)
+  WHERE recharge_type IN ('NEW', 'REFUND');
+CREATE INDEX idx_recharge_store_type_status_cursor
+  ON public.recharge_records (store_id, recharge_type, record_status, submitted_at DESC, id DESC)
+  WHERE recharge_type IN ('NEW', 'REFUND');
+CREATE INDEX idx_recharge_type_cursor
+  ON public.recharge_records (recharge_type, submitted_at DESC, id DESC)
+  WHERE recharge_type IN ('NEW', 'REFUND');
+CREATE INDEX idx_recharge_type_product_store_cursor
+  ON public.recharge_records (product_id, store_id, recharge_type, submitted_at DESC, id DESC)
+  WHERE recharge_type IN ('NEW', 'REFUND');
 CREATE INDEX idx_recharge_submitted_brin
   ON public.recharge_records USING BRIN (submitted_at) WITH (pages_per_range = 128);
 CREATE UNIQUE INDEX uq_recharge_idempotency_key

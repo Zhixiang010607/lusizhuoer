@@ -10,10 +10,11 @@
 1. 确认 064 已执行，且 `064-readonly-verify.sql` 的 8 行全部为 `READY`。
 2. 短暂停止充值、退费、核销和产品购买的新建操作。
 3. 整文件执行 `065-01-store-optional-business-teacher.sql`。
-4. 立即上传 `faceRecognition-v106.zip`，调用 `health` 确认 `version=v106`。
-5. 执行 `065-readonly-verify.sql`；全部 9 行必须为
+4. 继续按 066 README 完成 BLE 表和密钥配置，再按 067 README 在低峰期建立大数据充值／退费查询索引。
+5. 上传 `faceRecognition-v107.zip`，调用 `health` 确认 `version=v107`。
+6. 执行 `065-readonly-verify.sql`；全部 9 行必须为
    `record_count=0`、`status=READY`。
-6. 上传小程序 `0.2.43` 开发版，分别用门店账号验证四类业务的“留空老师”
+7. 上传当前小程序开发版 `0.2.43`，分别用门店账号验证四类业务的“留空老师”
    和“选择老师”，再用老师账号确认只能归属本人。
 
 065 会退役 059 中“门店正常核销老师必选”和 062 中“门店产品购买不得选择
