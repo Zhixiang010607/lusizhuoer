@@ -97,10 +97,10 @@
             <view class="table-row table-head"><view class="summary-product">项目</view><view>核销</view><view>充值</view><view>体验</view><view>退费</view></view>
             <view wx:for="{{summaryRows}}" wx:key="productId" class="table-row {{item.total ? 'summary-total' : ''}}">
               <view class="summary-product"><text>{{item.productName}}</text><text wx:if="{{item.productCode}}">{{item.productCode}}</text></view>
-              <view><text class="metric-number">{{item.verification}}</text><text class="metric-unit">次</text></view>
-              <view><text class="metric-number">{{item.recharge}}</text><text class="metric-unit">次</text></view>
-              <view><text class="metric-number">{{item.experience}}</text><text class="metric-unit">次</text></view>
-              <view><text class="metric-number">{{item.refund}}</text><text class="metric-unit">次</text></view>
+              <view class="summary-metric"><text class="metric-number {{item.verification >= 10000000 ? 'metric-number--micro' : (item.verification >= 1000000 ? 'metric-number--dense' : (item.verification >= 100000 ? 'metric-number--compact' : ''))}}">{{item.verification}}</text><text class="metric-unit">次</text></view>
+              <view class="summary-metric"><text class="metric-number {{item.recharge >= 10000000 ? 'metric-number--micro' : (item.recharge >= 1000000 ? 'metric-number--dense' : (item.recharge >= 100000 ? 'metric-number--compact' : ''))}}">{{item.recharge}}</text><text class="metric-unit">次</text></view>
+              <view class="summary-metric"><text class="metric-number {{item.experience >= 10000000 ? 'metric-number--micro' : (item.experience >= 1000000 ? 'metric-number--dense' : (item.experience >= 100000 ? 'metric-number--compact' : ''))}}">{{item.experience}}</text><text class="metric-unit">次</text></view>
+              <view class="summary-metric"><text class="metric-number {{item.refund >= 10000000 ? 'metric-number--micro' : (item.refund >= 1000000 ? 'metric-number--dense' : (item.refund >= 100000 ? 'metric-number--compact' : ''))}}">{{item.refund}}</text><text class="metric-unit">次</text></view>
             </view>
             <view wx:if="{{!summaryRows.length}}" class="table-empty">{{loading ? '正在计算业务汇总…' : '所选时间内暂无有效业务'}}</view>
           </view>
@@ -166,12 +166,12 @@
             <view class="table-row table-head"><view class="summary-product">项目</view><view>核销</view><view>充值</view><view>体验</view><view>退费</view></view>
             <view wx:for="{{hqProjectSummaryRows}}" wx:key="productId" class="table-row">
               <view class="summary-product"><text>{{item.productName}}</text></view>
-              <view><text class="metric-number">{{item.verification}}</text><text class="metric-unit">次</text></view>
-              <view><text class="metric-number">{{item.recharge}}</text><text class="metric-unit">次</text></view>
-              <view><text class="metric-number">{{item.experience}}</text><text class="metric-unit">次</text></view>
-              <view><text class="metric-number">{{item.refund}}</text><text class="metric-unit">次</text></view>
+              <view class="summary-metric"><text class="metric-number {{item.verification >= 10000000 ? 'metric-number--micro' : (item.verification >= 1000000 ? 'metric-number--dense' : (item.verification >= 100000 ? 'metric-number--compact' : ''))}}">{{item.verification}}</text><text class="metric-unit">次</text></view>
+              <view class="summary-metric"><text class="metric-number {{item.recharge >= 10000000 ? 'metric-number--micro' : (item.recharge >= 1000000 ? 'metric-number--dense' : (item.recharge >= 100000 ? 'metric-number--compact' : ''))}}">{{item.recharge}}</text><text class="metric-unit">次</text></view>
+              <view class="summary-metric"><text class="metric-number {{item.experience >= 10000000 ? 'metric-number--micro' : (item.experience >= 1000000 ? 'metric-number--dense' : (item.experience >= 100000 ? 'metric-number--compact' : ''))}}">{{item.experience}}</text><text class="metric-unit">次</text></view>
+              <view class="summary-metric"><text class="metric-number {{item.refund >= 10000000 ? 'metric-number--micro' : (item.refund >= 1000000 ? 'metric-number--dense' : (item.refund >= 100000 ? 'metric-number--compact' : ''))}}">{{item.refund}}</text><text class="metric-unit">次</text></view>
             </view>
-            <view class="table-row summary-total"><view class="summary-product"><text>合计</text></view><view>{{hqProjectSummaryTotals.verification}} 次</view><view>{{hqProjectSummaryTotals.recharge}} 次</view><view>{{hqProjectSummaryTotals.experience}} 次</view><view>{{hqProjectSummaryTotals.refund}} 次</view></view>
+            <view class="table-row summary-total"><view class="summary-product"><text>合计</text></view><view class="summary-metric"><text class="metric-number {{hqProjectSummaryTotals.verification >= 10000000 ? 'metric-number--micro' : (hqProjectSummaryTotals.verification >= 1000000 ? 'metric-number--dense' : (hqProjectSummaryTotals.verification >= 100000 ? 'metric-number--compact' : ''))}}">{{hqProjectSummaryTotals.verification}}</text><text class="metric-unit">次</text></view><view class="summary-metric"><text class="metric-number {{hqProjectSummaryTotals.recharge >= 10000000 ? 'metric-number--micro' : (hqProjectSummaryTotals.recharge >= 1000000 ? 'metric-number--dense' : (hqProjectSummaryTotals.recharge >= 100000 ? 'metric-number--compact' : ''))}}">{{hqProjectSummaryTotals.recharge}}</text><text class="metric-unit">次</text></view><view class="summary-metric"><text class="metric-number {{hqProjectSummaryTotals.experience >= 10000000 ? 'metric-number--micro' : (hqProjectSummaryTotals.experience >= 1000000 ? 'metric-number--dense' : (hqProjectSummaryTotals.experience >= 100000 ? 'metric-number--compact' : ''))}}">{{hqProjectSummaryTotals.experience}}</text><text class="metric-unit">次</text></view><view class="summary-metric"><text class="metric-number {{hqProjectSummaryTotals.refund >= 10000000 ? 'metric-number--micro' : (hqProjectSummaryTotals.refund >= 1000000 ? 'metric-number--dense' : (hqProjectSummaryTotals.refund >= 100000 ? 'metric-number--compact' : ''))}}">{{hqProjectSummaryTotals.refund}}</text><text class="metric-unit">次</text></view></view>
             <view wx:if="{{!hqProjectSummaryRows.length}}" class="table-empty">{{hqProjectSummaryLoading ? '正在读取全部项目汇总…' : (hqProjectSummaryError || '当前没有项目')}}</view>
           </view>
         </scroll-view>

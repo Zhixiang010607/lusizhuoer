@@ -216,17 +216,17 @@ test("HQ review workbenches match web filters, pagination, exact links, and guar
     "empty review results must not reserve a pagination row");
   assert.match(wxml, /wx:if="\{\{mode === 'filters' && total > 0\}\}" class="page-jump"/,
     "empty review results must not reserve a page-jump row");
-  assert.match(wxss, /\.review-table\s*\{\s*width:\s*1440rpx;\s*min-width:\s*100%;/,
+  assert.match(wxss, /\.review-table\s*\{\s*width:\s*1750rpx;\s*min-width:\s*100%;/,
     "review table width must exactly equal the declared column total");
-  assert.match(wxss, /grid-template-columns:\s*234rpx 126rpx 116rpx 140rpx 104rpx 88rpx 220rpx 196rpx 216rpx/);
-  assert.equal(234 + 126 + 116 + 140 + 104 + 88 + 220 + 196 + 216, 1440);
-  assert.match(wxss, /\.review-row > text, \.review-row > view\s*\{[^}]*padding:\s*9rpx 14rpx;/s,
+  assert.match(wxss, /grid-template-columns:\s*340rpx 150rpx 150rpx 150rpx 130rpx 100rpx 280rpx 170rpx 280rpx/);
+  assert.equal(340 + 150 + 150 + 150 + 130 + 100 + 280 + 170 + 280, 1750);
+  assert.match(wxss, /\.review-row > text, \.review-row > view\s*\{[^}]*padding:\s*8rpx 6rpx;/s,
     "mobile review cells keep a safe horizontal gutter instead of visually merging adjacent values");
   assert.match(wxss, /\.review-row > text, \.review-row > view\s*\{[^}]*align-items:\s*center[^}]*justify-content:\s*center[^}]*text-align:\s*center[^}]*white-space:\s*nowrap/s,
     "review headers and values must stay centered on one line");
   assert.doesNotMatch(wxss, /\.review-row > text, \.review-row > view\s*\{[^}]*border-right:/s,
     "review columns should use spacing instead of middle divider lines");
-  assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.review-table \{ width: 100%; min-width: 934px; \}/s,
+  assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.review-table \{ width: 100%; min-width: 992px; \}/s,
     "tablet review tables keep a compact content-aware floor while adapting to the card width");
   assert.match(wxss, /\.review-filter-grid \{[^}]*display: grid;[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s,
     "phone review filters must pair store and status instead of stacking two oversized full-width controls");

@@ -109,7 +109,7 @@ test("recharge, verification, and product query share complete filters and exact
   assert.match(js, /originalType === "VOID" \? "VOID" : "RECHARGE"/,
     "recharge query links preserve historical void category for exact detail reads");
   assert.match(wxml, /bindtap="openRecord"/);
-  assert.match(wxml, /class="table-link record-code"/);
+  assert.match(wxml, /class="[^"]*table-link record-code"/);
   const wxss = read("pages", "records", "index.wxss");
   assert.match(wxss, /\.record-row \.record-code \{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*clip;[^}]*white-space:\s*nowrap;/,
     "query order codes remain on one line and cannot paint over the adjacent customer cell");
@@ -122,13 +122,13 @@ test("recharge, verification, and product query share complete filters and exact
   const recordCodeRule = wxss.match(/\.record-row \.record-code \{[^}]*\}/)?.[0] || "";
   assert.doesNotMatch(recordCodeRule, /font-size\s*:/,
     "query order codes must use the same readable font size as the rest of the table body");
-  assert.match(wxss, /\.record-table \{\s*width:\s*1560rpx;\s*min-width:\s*1560rpx;/,
+  assert.match(wxss, /\.record-table \{\s*width:\s*1760rpx;\s*min-width:\s*1760rpx;/,
     "the widened recharge table width equals its visible column widths");
-  assert.match(wxss, /\.verification-table \{\s*width:\s*1580rpx;\s*min-width:\s*1580rpx;/,
+  assert.match(wxss, /\.verification-table \{\s*width:\s*1780rpx;\s*min-width:\s*1780rpx;/,
     "the verification table width equals its visible columns after removing redundant status");
-  assert.match(wxml, /<text wx:if="\{\{recordType !== 'VERIFICATION'\}\}">状态<\/text>/,
+  assert.match(wxml, /<text wx:if="\{\{recordType !== 'VERIFICATION'\}\}"[^>]*>状态<\/text>/,
     "completed verification query results must not repeat a status column");
-  assert.match(wxml, /<text wx:if="\{\{recordType !== 'VERIFICATION'\}\}">\{\{item\.statusLabel\}\}<\/text>/,
+  assert.match(wxml, /<text wx:if="\{\{recordType !== 'VERIFICATION'\}\}"[^>]*>\{\{item\.statusLabel\}\}<\/text>/,
     "verification rows must omit the redundant completed label while other records keep status");
   assert.match(wxml, /<view wx:if="\{\{recordType !== 'VERIFICATION'\}\}" class="summary-grid">/,
     "review-state summary cards belong to recharge/refund and product purchases, not completed verification queries");
@@ -137,7 +137,7 @@ test("recharge, verification, and product query share complete filters and exact
     "the combined product query must visibly distinguish purchases from recharge gifts");
   assert.match(wxml, /summary\.purchase/);
   assert.match(wxml, /summary\.gift/);
-  assert.match(wxss, /\.product-purchase-table \{\s*width:\s*1720rpx;\s*min-width:\s*1720rpx;/,
+  assert.match(wxss, /\.product-purchase-table \{\s*width:\s*1920rpx;\s*min-width:\s*1920rpx;/,
     "the combined product table width must equal its visible column widths");
   assert.match(wxml, /wx:if="\{\{session\.role === 'hq'\}\}" class="field"><text class="field-label">门店范围<\/text>/,
     "HQ business search must pair store scope with project or product on phones");

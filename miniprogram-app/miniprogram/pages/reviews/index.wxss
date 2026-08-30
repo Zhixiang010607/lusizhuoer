@@ -48,16 +48,19 @@ button::after { border: 0; }
 .table-scroll[data-visible-rows="3"] { height: 280rpx; }
 .table-scroll[data-visible-rows="4"] { height: 352rpx; }
 .table-scroll[data-visible-rows="5"] { height: 424rpx; }
-.review-table { width: 1440rpx; min-width: 100%; }
-.review-row { display: grid; grid-template-columns: 234rpx 126rpx 116rpx 140rpx 104rpx 88rpx 220rpx 196rpx 216rpx; min-height: 72rpx; border-bottom: 1rpx solid #eadfce; }
+.review-table { width: 1750rpx; min-width: 100%; }
+.review-row { display: grid; grid-template-columns: 340rpx 150rpx 150rpx 150rpx 130rpx 100rpx 280rpx 170rpx 280rpx; min-height: 72rpx; border-bottom: 1rpx solid #eadfce; }
 .review-row:last-child { border-bottom: 0; }
-.review-row > text, .review-row > view { min-width: 0; display: flex; align-items: center; justify-content: center; padding: 9rpx 14rpx; overflow: hidden; box-sizing: border-box; font-size: 21rpx; line-height: 1.25; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.review-row > text, .review-row > view { min-width: 0; display: flex; align-items: center; justify-content: center; padding: 8rpx 6rpx; overflow: hidden; box-sizing: border-box; font-size: 21rpx; line-height: 1.25; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .review-row.head { min-height: 64rpx; color: #fffdf8; background: #4b4033; font-weight: 850; }
 .review-row:not(.head):nth-child(odd) { background: #fff; }
 .link { color: #8b642e; font-weight: 850; text-decoration: underline; }
 .review-action { display: flex !important; justify-content: center; gap: 8rpx; }
 .review-action button { width: auto; min-width: 82rpx; min-height: 54rpx; display: flex; align-items: center; justify-content: center; padding: 0 12rpx; color: #fff; background: #607c6a; font-size: 18rpx; line-height: 1; white-space: nowrap; }
 .review-action button.reject { background: #99574b; }
+.review-cell--order { padding-right: 8rpx !important; padding-left: 8rpx !important; font-size: 20rpx !important; font-variant-numeric: tabular-nums; letter-spacing: -0.3rpx; }
+.review-cell--time { font-size: 18rpx !important; font-variant-numeric: tabular-nums; letter-spacing: -0.2rpx; }
+.review-cell--impact, .review-cell--decision { padding-right: 4rpx !important; padding-left: 4rpx !important; }
 .status { display: inline-flex; padding: 5rpx 10rpx; border-radius: 999rpx; font-size: 17rpx; font-weight: 800; }
 .status.APPROVED { color: #4f6f5d; background: #e9f1ec; }
 .status.REJECTED { color: #8b4a40; background: #f8e8e4; }
@@ -117,8 +120,9 @@ button::after { border: 0; }
   .table-scroll[data-visible-rows="3"] { height: 204px; }
   .table-scroll[data-visible-rows="4"] { height: 256px; }
   .table-scroll[data-visible-rows="5"] { height: 308px; }
-  .review-table { width: 100%; min-width: 934px; }
-  .review-row { grid-template-columns: 148px 78px 66px 72px 60px 50px 132px 112px 136px; column-gap: 8px; min-height: 52px; padding: 0 8px; border-width: 1px; box-sizing: border-box; }
+  .review-table { width: 100%; min-width: 992px; }
+  .review-row { grid-template-columns: 170px 90px 82px 82px 72px 60px 170px 96px 170px; min-height: 52px; padding: 0; border-width: 1px; box-sizing: border-box; }
+  .review-cell--order, .review-cell--time { font-size: 12px !important; }
   .review-row > text, .review-row > view { min-height: 52px; padding: 6px 4px; font-size: 14px; }
   .review-row.head { min-height: 48px; }
   .review-action { gap: 6px; }
