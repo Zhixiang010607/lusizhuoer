@@ -260,6 +260,8 @@ test("record queries reset horizontal scroll and keep order codes inside their o
   const wxml = pageSource("pages/records/index.wxml");
   const wxss = pageSource("pages/records/index.wxss");
   assert.match(wxml, /scroll-left="\{\{tableScrollLeft\}\}"/);
-  assert.match(wxss, /\.record-row \.record-code \{[^}]*overflow:\s*hidden/s);
-  assert.doesNotMatch(wxss, /\.record-row \.record-code \{[^}]*overflow:\s*visible/s);
+  assert.match(wxss, /\.record-table, \.verification-table, \.product-purchase-table \{ width: auto; min-width: 100%; display: inline-table; table-layout: auto;/,
+    "business result columns must adapt to their content instead of using a fixed clipped width");
+  assert.match(wxss, /\.record-row text \{[^}]*display:\s*table-cell;[^}]*white-space:\s*nowrap;/,
+    "business result values must stay readable on one line and use horizontal scrolling when needed");
 });

@@ -154,12 +154,12 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
   assert.match(wxss, /\.range-button\s*\{[^}]*width:\s*100%\s*!important[^}]*max-width:\s*100%[^}]*align-items:\s*center[^}]*justify-content:\s*center/s);
   assert.match(wxss, /\.range-button\.active\s*\{[^}]*background:\s*#fffaf3[^}]*border-color:\s*#d9bd8c/s);
   assert.doesNotMatch(wxss, /\.range-presets\s*\{[^}]*background:\s*#edf2f8/s);
-  assert.match(wxss, /\.summary-table\s*\{\s*width:\s*100%;\s*min-width:\s*960rpx;/);
+  assert.match(wxss, /\.summary-table, \.record-table, \.customer-table\s*\{[^}]*width:\s*auto;[^}]*min-width:\s*100%;[^}]*display:\s*inline-table;[^}]*table-layout:\s*auto;/s,
+    "home tables must derive each column from the longest visible header or value");
   assert.match(wxss, /\.detail-anchor-nav\s*\{[^}]*height:\s*84rpx;[^}]*overflow:\s*hidden/s);
   assert.match(wxss, /\.anchor-inner\s*\{[^}]*width:\s*100%;[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/s);
   assert.match(wxss, /\.anchor-inner text\s*\{[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*font-size:\s*23rpx/s);
   assert.match(wxss, /\.summary-scroll\s*\{[^}]*box-sizing:\s*border-box/s);
-  assert.match(wxss, /\.record-table\s*\{\s*width:\s*100%;\s*min-width:\s*950rpx;/);
   assert.match(js, /function businessRecordsView\(items, type\)[\s\S]*businessViewportHeight:\s*64 \+ \(visibleRows \? visibleRows \* 72 : 104\)[\s\S]*businessScrollable:\s*businessRecords\.length > 5/,
     "business detail must grow for one to five rows and become internally scrollable only after five rows");
   assert.match(wxml, /class="table-scroll record-scroll"[^>]*scroll-x[^>]*scroll-y="\{\{businessScrollable\}\}"[^>]*show-scrollbar="\{\{businessScrollable\}\}"[^>]*style="height: \{\{businessViewportHeight\}\}rpx"/,
@@ -168,20 +168,19 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
     "a long business list must visibly explain its internal vertical scrolling");
   assert.match(wxss, /\.record-scroll\s*\{[^}]*box-sizing:\s*border-box;[^}]*overflow:\s*auto;/s,
     "business detail scrolling must stay clipped inside its rounded table card");
-  assert.match(wxss, /\.customer-table\s*\{\s*width:\s*100%;\s*min-width:\s*620rpx;/,
-    "the five-column customer table must fit the standard card before horizontal scrolling is needed");
-  assert.doesNotMatch(wxss, /\.customer-table\s*\{[^}]*min-width:\s*700rpx/s,
-    "a fixed 700rpx minimum creates a meaningless sliver of horizontal scrolling on standard phones");
-  assert.match(wxss, /\.summary-table \.table-row\s*\{[^}]*minmax\(180rpx,\s*1\.25fr\)[^}]*repeat\(4,\s*minmax\(195rpx,\s*1fr\)\)/s);
-  assert.match(wxss, /\.summary-table \.table-row\s*\{[^}]*height:\s*82rpx;[^}]*min-height:\s*82rpx/s);
-  assert.match(wxss, /\.summary-table \.table-head\s*\{[^}]*height:\s*64rpx;[^}]*min-height:\s*64rpx/s);
-  assert.match(wxss, /\.table-row > view\s*\{[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
+  assert.match(wxss, /\.summary-table \.table-row, \.record-table \.table-row, \.customer-table \.table-row\s*\{[^}]*display:\s*table-row;/s);
+  assert.match(wxss, /\.summary-table \.table-row > view, \.record-table \.table-row > view, \.customer-table \.table-row > view\s*\{[^}]*display:\s*table-cell;[^}]*padding:\s*10rpx 18rpx;[^}]*font-size:\s*21rpx;[^}]*white-space:\s*nowrap;/s,
+    "every home table cell must share one readable font and equal horizontal spacing");
   assert.match(wxss, /\.detail-info-item text\s*\{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s,
     "profile facts must not split identifiers and phone numbers across lines");
-  assert.match(wxss, /\.hq-ranking-list\s*\{[^}]*overflow:\s*hidden[^}]*border-radius:/s,
-    "the mobile HQ ranking stays inside one bounded table card");
-  assert.match(wxss, /\.hq-ranking-row\s*\{[^}]*grid-template-columns:[^}]*repeat\(4,/s,
-    "rank, name, and all four metrics must share one bounded row");
+  assert.match(wxss, /\.hq-ranking-list\s*\{[^}]*width:\s*auto;[^}]*min-width:\s*100%;[^}]*display:\s*inline-table;[^}]*table-layout:\s*auto;/s,
+    "the mobile HQ ranking must use the same content-sized table contract");
+  assert.match(wxss, /\.hq-ranking-row\s*\{[^}]*display:\s*table-row;/s);
+  assert.match(wxss, /\.hq-ranking-row > text\s*\{[^}]*display:\s*table-cell;[^}]*white-space:\s*nowrap;/s,
+    "rank, name, and all four metrics must stay readable and horizontally scroll together");
+  assert.match(wxss, /\.hq-ranking-card > text\s*\{[^}]*font-size:\s*21rpx;/s);
+  assert.match(wxss, /\.hq-ranking-name\s*\{[^}]*font-size:\s*inherit\s*!important;/s,
+    "store and teacher names must use the same font size as the adjacent ranking values");
   assert.match(wxss, /\.summary-table \.table-head \.summary-product\s*\{[^}]*align-items:\s*center\s*!important;[^}]*text-align:\s*center;/s,
     "the project summary header must be centered while project rows remain left aligned");
   assert.equal((wxml.match(/class="summary-product">项目<\/view>/g) || []).length, 2,
@@ -202,7 +201,7 @@ test("mobile management controls stay centered without breaking data into charac
   assert.match(customers, /\.pager text\s*\{[^}]*text-align:\s*center;[^}]*white-space:\s*nowrap;/s);
   for (const selector of ["review-type-tabs button", "mode-tabs button", "review-action button"]) {
     const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    assert.match(reviews, new RegExp(`\\.${escaped}\\s*\\{[^}]*display:\\s*flex;[^}]*align-items:\\s*center;[^}]*justify-content:\\s*center;[^}]*white-space:\\s*nowrap;`, "s"),
+    assert.match(reviews, new RegExp(`\\.${escaped}\\s*\\{[^}]*display:\\s*(?:inline-)?flex;[^}]*align-items:\\s*center;[^}]*justify-content:\\s*center;[^}]*white-space:\\s*nowrap;`, "s"),
       `${selector} must center its label in both axes`);
   }
   assert.match(teacher, /\.quota-facts\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);[^}]*gap:\s*12rpx;/s,

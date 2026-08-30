@@ -137,8 +137,9 @@ test("HQ ranking keeps uniform columns and scrolls only inside its table", () =>
   assert.match(wxml, /class="hq-ranking-scroll"[^>]*scroll-x="true"/);
   assert.match(wxml, /class="hq-ranking-list"/);
   assert.match(wxml, /class="hq-ranking-row hq-ranking-table-head"/);
-  assert.match(wxss, /\.hq-ranking-list\s*\{[^}]*min-width:\s*960rpx;[^}]*overflow:\s*hidden[^}]*border:[^}]*border-radius:/s);
-  assert.match(wxss, /\.hq-ranking-row\s*\{[^}]*min-width:\s*960rpx;[^}]*grid-template-columns:[^}]*repeat\(4,/s);
+  assert.match(wxss, /\.hq-ranking-list\s*\{[^}]*width:\s*auto;[^}]*min-width:\s*100%;[^}]*display:\s*inline-table;[^}]*table-layout:\s*auto;[^}]*overflow:\s*visible;[^}]*border:[^}]*border-radius:/s);
+  assert.match(wxss, /\.hq-ranking-row\s*\{[^}]*display:\s*table-row;/s);
+  assert.match(wxss, /\.hq-ranking-row > text\s*\{[^}]*display:\s*table-cell;[^}]*white-space:\s*nowrap;/s);
 });
 
 test("HQ invalid custom range cancels pending work and clears the previous scope", () => {

@@ -108,7 +108,7 @@ assert.match(miniCustomer, /data-type="PRODUCT_PURCHASE"[^>]*>产品<\/button>/)
 assert.match(miniCustomer, /class="retail-summary-scroll"[\s\S]*scroll-y="\{\{retailSummaryScrollable\}\}"/,
   "customer product summary must scroll inside its card only after the row limit");
 assert.match(miniCustomerJs, /visibleRows = Math\.min\(5, retailProductSummary\.length\)/);
-assert.match(miniCustomerCss, /grid-template-columns: minmax\(0, 1\.4fr\) repeat\(2, minmax\(110rpx, \.8fr\)\)/,
-  "product, purchase, and gift columns must use a compact responsive grid");
+assert.match(miniCustomerCss, /\.retail-summary-table\s*\{[^}]*width:\s*auto;[^}]*min-width:\s*100%;[^}]*display:\s*inline-table;[^}]*table-layout:\s*auto;/s,
+  "product, purchase, and gift columns must size to their contents and scroll only when needed");
 
 console.log("retail product purchase contract: PASS");

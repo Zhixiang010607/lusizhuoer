@@ -53,12 +53,10 @@ test("role homes use a bounded tablet dashboard instead of a magnified phone", (
     "project summary height must follow its real tablet rows");
   assert.match(wxss, /\.record-scroll\[data-visible-rows="5"\], \.customer-scroll\[data-visible-rows="5"\] \{ height: 308px !important; \}/,
     "long tablet lists must stop at five compact rows before internal scrolling");
-  assert.match(wxss, /\.summary-table \{ width: 100%; min-width: 680px; \}/,
-    "tablet project summaries should keep one font size and scroll inside the table when values are wide");
-  assert.match(wxss, /\.record-table \{ width: 100%; min-width: 680px; \}/,
-    "tablet business records should protect codes and times but compact all short columns");
-  assert.match(wxss, /\.customer-table \{ width: 100%; min-width: 520px; \}/,
-    "store customer tables should reveal all five short fields before horizontal scrolling");
+  assert.match(wxss, /\.summary-table, \.record-table, \.customer-table \{ width: auto; min-width: 100%; \}/,
+    "tablet tables should size columns from their longest values and scroll only when needed");
+  assert.match(wxss, /\.summary-table \.table-row > view, \.record-table \.table-row > view, \.customer-table \.table-row > view \{[^}]*height: 52px;[^}]*padding: 8px 12px;[^}]*font-size: 14px;/s,
+    "tablet table cells should keep a compact, uniform typography");
   assert.match(wxss, /\.archived-section \{ border-color: #e1cfaf; background: #fffaf3; \}/,
     "the archived section must share the warm ivory card palette");
   assert.match(wxml, /class="table-scroll record-scroll" data-visible-rows="\{\{businessTabletVisibleRows\}\}"/);
@@ -113,21 +111,23 @@ test("query and review pages use compact tablet filters and five-row result view
     "review query actions must exactly match the adjacent filter field height");
   assert.doesNotMatch(reviewsWxml, /button-row review-query-actions/,
     "review query actions must not be nested into a separate two-column wrapper");
-  assert.match(reviewsWxss, /@media \(min-width: 700px\)[\s\S]*?\.review-table \{ width: 100%; min-width: 992px; \}/s,
-    "review columns should fill the tablet card while retaining an exact content-derived minimum");
-  assert.match(reviewsWxss, /\.review-row \{[^}]*grid-template-columns: 170px 90px 82px 82px 72px 60px 170px 96px 170px;[^}]*padding: 0;/s,
-    "short review fields must stay compact while the order code and complete timestamps keep enough width");
-  assert.match(reviewsWxss, /\.review-row > text, \.review-row > view \{[^}]*padding: 6px 4px;[^}]*font-size: 14px;/s,
-    "tablet review cells must keep readable text and independent horizontal gutters");
+  assert.match(reviewsWxss, /\.review-table \{[^}]*width: auto;[^}]*min-width: 100%;[^}]*display: inline-table;[^}]*table-layout: auto;/s,
+    "review columns must derive their width from the longest visible value");
+  assert.match(reviewsWxss, /\.review-row \{[^}]*display: table-row;/s,
+    "review rows must use the shared adaptive table layout");
+  assert.match(reviewsWxss, /\.review-row > text, \.review-row > view \{[^}]*display: table-cell;[^}]*padding: 10rpx 18rpx;[^}]*font-size: 21rpx;[^}]*white-space: nowrap;/s,
+    "review cells must use one readable phone size, equal gutters, and no wrapping");
+  assert.match(reviewsWxss, /@media \(min-width: 700px\)[\s\S]*?\.review-row > text, \.review-row > view \{[^}]*padding: 6px 12px;[^}]*font-size: 14px;/s,
+    "tablet review cells must keep the same readable size and equal gutters");
   assert.match(reviewsWxss, /\.review-type-tabs button \{[^}]*width: 100%;[^}]*min-width: 0;/s,
     "recharge and refund review tabs should fill their two balanced tablet columns");
   assert.match(directoryWxss, /\.search-fields \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s);
-  assert.match(directoryWxss, /@media \(min-width: 700px\)[\s\S]*?\.data-table \{ width: 100%; min-width: 0; \}/s,
-    "tablet directories must start from the card width rather than a global oversized table minimum");
-  assert.match(directoryWxss, /\.data-table\.store \{ width: 100%; min-width: 700px; \}/,
-    "the five-column store directory should scroll only below its content-derived compact width");
-  assert.match(directoryWxss, /\.table-row\.store \{ grid-template-columns: 150px 105px 140px minmax\(220px, 1fr\) 85px; \}/,
-    "store name, contact, phone and status stay compact while the address absorbs spare tablet width");
+  assert.match(directoryWxss, /\.data-table \{[^}]*width: auto;[^}]*min-width: 100%;[^}]*display: inline-table;[^}]*table-layout: auto;/s,
+    "directory columns must be content-driven rather than fixed by one role-specific grid");
+  assert.match(directoryWxss, /\.table-row \{[^}]*display: table-row;/s,
+    "directory rows must share the adaptive table layout");
+  assert.match(directoryWxss, /\.table-row > text \{[^}]*display: table-cell;[^}]*padding: 10rpx 18rpx;[^}]*font-size: 21rpx;[^}]*white-space: nowrap;/s,
+    "directory cells must keep one size and scroll instead of shrinking or wrapping");
 
   assert.match(customersWxml, /data-visible-rows="\{\{customers\.length > 5 \? 5 : customers\.length\}\}" scroll-y="\{\{customers\.length > 5\}\}"/);
   assert.match(recordsWxml, /data-visible-rows="\{\{records\.length > 5 \? 5 : records\.length\}\}" scroll-y="\{\{records\.length > 5\}\}"/);
@@ -144,28 +144,20 @@ test("query and review pages use compact tablet filters and five-row result view
     "customer query filter controls must not retain magnified phone geometry on iPad");
   assert.match(customersWxss, /@media \(min-width: 700px\)[\s\S]*?\.summary-grid text \{[^}]*min-height: 16px;[^}]*font-size: 10px;/s,
     "customer query summary must stay compact instead of magnifying its labels on iPad");
-  assert.match(customersWxss, /@media \(min-width: 700px\)[\s\S]*?\.customer-table \{ width: 100%; min-width: 744px; \}/s,
-    "customer query should fill a wide tablet card and scroll only below its compact minimum width");
-  assert.match(customersWxss, /\.customer-row \{[^}]*grid-template-columns: 82px 64px 64px 102px 94px minmax\(138px, 1fr\) 104px 96px;/s,
-    "short customer fields must stay compact while the business-stage column absorbs spare tablet width");
-  assert.match(customersWxss, /\.customer-row text \{[^}]*padding: 8px 5px;[^}]*font-size: 13px;/s,
-    "customer result cells should not lose tablet space to phone-sized padding");
+  assert.match(customersWxss, /\.customer-table \{[^}]*width: auto;[^}]*min-width: 100%;[^}]*display: inline-table;[^}]*table-layout: auto;/s,
+    "customer query columns must derive their widths from the current page values");
+  assert.match(customersWxss, /\.customer-row \{[^}]*display: table-row;/s,
+    "customer results must use the shared adaptive table layout");
+  assert.match(customersWxss, /\.customer-row text \{[^}]*display: table-cell;[^}]*padding: 10rpx 18rpx;[^}]*font-size: 21rpx;[^}]*white-space: nowrap;/s,
+    "customer result cells must keep one size, equal gutters, and no wrapping");
   assert.match(recordsWxss, /@media \(min-width: 700px\)[\s\S]*?\.summary-grid \.summary-value \{[^}]*font-size: 17px;/s,
     "record query totals must use a compact tablet numeral size");
-  assert.match(recordsWxss, /@media \(min-width: 700px\)[\s\S]*?\.record-table \{ width: 100%; min-width: 981px; \}/s,
-    "recharge and refund query columns should reveal more fields before tablet scrolling");
-  assert.match(recordsWxss, /\.verification-table \{ width: 100%; min-width: 983px; \}/,
-    "verification query columns should shrink after the redundant status column is removed");
-  assert.match(recordsWxss, /\.product-purchase-table \{ width: 100%; min-width: 1063px; \}/,
-    "product query columns should use their exact compact tablet width");
-  assert.match(recordsWxss, /\.record-row \{[^}]*grid-template-columns: 175px 110px 92px 110px 100px 76px 58px 80px 180px;/s,
-    "tablet query columns should reserve the most width for the full order code and timestamp");
-  assert.match(recordsWxss, /\.verification-table \.record-row \{ grid-template-columns: 175px 110px 92px 110px 100px 76px 82px 58px 180px; \}/,
-    "verification columns must omit status and keep the remaining fields aligned");
-  assert.match(recordsWxss, /\.product-purchase-table \.record-row \{ grid-template-columns: 175px 110px 92px 110px 100px 76px 82px 58px 80px 180px; \}/,
-    "product source, teacher, quantity, status, and time columns should stay compact and aligned");
-  assert.match(recordsWxss, /\.record-row text \{[^}]*padding: 8px 4px;[^}]*font-size: 13px;/s,
-    "tablet result cells should not waste horizontal space on oversized padding");
+  assert.match(recordsWxss, /\.record-table, \.verification-table, \.product-purchase-table \{[^}]*width: auto;[^}]*min-width: 100%;[^}]*display: inline-table;[^}]*table-layout: auto;/s,
+    "recharge, refund, verification, and product queries must share content-driven widths");
+  assert.match(recordsWxss, /\.record-row \{[^}]*display: table-row;/s,
+    "all record query rows must use the shared adaptive table layout");
+  assert.match(recordsWxss, /\.record-row text \{[^}]*display: table-cell;[^}]*padding: 10rpx 18rpx;[^}]*font-size: 21rpx;[^}]*white-space: nowrap;/s,
+    "record result cells must keep one size and scroll instead of shrinking or wrapping");
   assert.match(recordsWxml, /class="button-row query-actions \{\{mode === 'browse' && !customRange \? 'inline-query-actions' : ''\}\}"/);
   assert.match(recordsWxss, /@media \(min-width: 700px\)[\s\S]*?\.filter-card \{ padding: 16px 18px; \}/s,
     "record query cards should use compact tablet padding instead of magnifying the phone surface");
@@ -224,23 +216,19 @@ test("store and teacher customer/order details use compact adaptive tablet works
   assert.match(customerWxss, /@media \(min-width: 700px\)[\s\S]*?\.customer-communication-grid, \.customer-summary-grid \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s);
   assert.match(customerWxss, /\.customer-communication-grid > \.card, \.customer-summary-grid > \.card \{ min-width: 0; height: 100%; margin: 0; \}/,
     "paired customer cards must be allowed to shrink inside either tablet column");
-  assert.match(customerWxss, /@media \(min-width: 700px\)[\s\S]*?\.balance-table \{ width: 100%; min-width: 0; \}/s,
-    "the five-column project summary must fit its half-width tablet card without horizontal clipping");
-  assert.match(customerWxss, /\.balance-table-row \{[^}]*grid-template-columns: minmax\(0, 1\.25fr\) repeat\(4, minmax\(52px, \.72fr\)\);/s,
-    "project name, gross recharge, refund, verification, and balance must all remain visible in the left summary card");
+  assert.match(customerWxss, /@media \(min-width: 700px\)[\s\S]*?\.balance-table, \.retail-summary-table, \.record-table \{ width: auto; min-width: 100%; \}/s,
+    "customer tables should size tablet columns from their content");
+  assert.match(customerWxss, /\.balance-table-row\s*\{[^}]*display:\s*table-row;/s,
+    "customer balance rows must use the intrinsic table layout");
+  assert.match(customerWxss, /\.record-row\s*\{[^}]*display:\s*table-row;/s,
+    "customer history rows must use the intrinsic table layout");
+  assert.match(customerWxss, /\.balance-table-row text, \.retail-summary-row text, \.record-row text\s*\{[^}]*height:\s*52px;[^}]*padding:\s*8px 12px;[^}]*font-size:\s*14px;/s,
+    "customer tablet cells should use the same compact typography");
   assert.match(customerWxss, /\.customer-communication-grid > \.notes-card \{ display: flex; flex-direction: column; \}/,
     "the tablet note card must expose a vertical fill context beside the taller message card");
   assert.match(customerWxss, /\.customer-communication-grid > \.notes-card \.notes-read,[\s\S]*?\.customer-communication-grid > \.notes-card \.notes-input \{ height: auto; min-height: 178px; flex: 1; \}/,
     "read and edit note borders should both fill the remaining paired-card height");
   assert.match(customerWxss, /\.record-scroll\[data-visible-rows="5"\] \{ height: 308px; \}/);
-  assert.match(customerWxss, /\.record-table\.recharge-history, \.record-table\.recharge-history \.record-row,[\s\S]*?\.record-table\.compact-history, \.record-table\.compact-history \.record-row \{ width: 100%; min-width: 650px; \}/,
-    "all five customer-history tabs should share a compact adaptive tablet table width");
-  assert.match(customerWxss, /\.recharge-history \.record-row, \.compact-history \.record-row \{ grid-template-columns: 150px minmax\(90px, 1fr\) minmax\(80px, \.85fr\) 56px 145px 90px; \}/,
-    "history codes and full timestamps stay protected while short fields stop wasting tablet width");
-  assert.match(customerWxss, /\.record-table\.product-history, \.record-table\.product-history \.record-row \{ min-width: 666px; \}/,
-    "product purchase history reserves enough width to inset its full order code");
-  assert.match(customerWxss, /\.product-history \.record-row > text:first-child \{ padding-right: 10px; padding-left: 10px; \}/,
-    "product purchase order codes must not touch the tablet table border");
   assert.match(orderWxml, /class="order-secondary-grid"/);
   assert.match(orderWxss, /@media \(min-width: 700px\)[\s\S]*?\.order-hero \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto;/s,
     "recharge, refund, normal verification, and experience verification must share a compact horizontal tablet header");
@@ -393,7 +381,11 @@ test("HQ ranking uses one compact table and shows all four business metrics", ()
     "ranking rows must not repeat a selected-only card or percentage");
   assert.doesNotMatch(homeJs, /selectedMetricLabel|selectedMetricValue|share:\s*`/,
     "the obsolete selected-only ranking card mapping must remain retired");
-  assert.match(homeWxss, /\.hq-ranking-row \{[^}]*grid-template-columns:[^}]*repeat\(4,/s);
+  assert.match(homeWxss, /\.hq-ranking-row \{[^}]*display: table-row;/s);
+  assert.match(homeWxss, /\.hq-ranking-row > text\s*\{[^}]*display:\s*table-cell;/s);
+  assert.match(homeWxss, /@media \(min-width: 700px\)[\s\S]*?\.hq-ranking-row > text\s*\{[^}]*height:\s*46px;[^}]*padding:\s*8px 12px;[^}]*font-size:\s*14px;/s);
+  assert.match(homeWxss, /\.hq-ranking-name\s*\{[^}]*font-size:\s*inherit\s*!important;/s,
+    "store and teacher names must inherit the same compact tablet size as ranking metrics");
   assert.match(homeWxss, /\.summary-product \{[^}]*align-items: center !important;[^}]*text-align: center;/s,
     "project names and the global total label must share the centered summary alignment");
   assert.doesNotMatch(homeWxss, /\.hq-ranking-name \{[^}]*justify-content: flex-start|\.hq-ranking-name \{[^}]*text-align: left/s,

@@ -152,15 +152,12 @@ test("HQ store and teacher workspaces reuse authoritative services without a gen
     "all directory cards inherit the same inner gutter on both sides");
   assert.doesNotMatch(directoryWxss, /\.table-section[^}]*padding-right:\s*0/,
     "directory tables must not remove the right gutter on real devices");
-  assert.match(directoryWxss, /\.data-table\.teacher\s*\{\s*width:\s*100%;\s*min-width:\s*100%;\s*\}/,
-    "the four teacher columns expand to the full available card width");
-  assert.match(directoryWxss, /\.table-row\.teacher\s*\{\s*grid-template-columns:\s*minmax\(0, 1\.05fr\) minmax\(0, 0\.9fr\) minmax\(0, 1\.25fr\) minmax\(0, 0\.8fr\);\s*\}/,
-    "teacher columns distribute the available width without a trailing blank strip");
-  assert.match(directoryWxss, /\.data-table\.store\s*\{\s*width:\s*910rpx;\s*min-width:\s*910rpx;\s*\}/,
-    "the five-column store directory keeps its contained horizontal scroll width");
-  assert.match(directoryWxss, /\.table-row\.store\s*\{\s*grid-template-columns:\s*180rpx 140rpx 180rpx 300rpx 110rpx;\s*\}/,
-    "the store directory width remains equal to its five declared columns");
-  assert.equal(180 + 140 + 180 + 300 + 110, 910);
+  assert.match(directoryWxss, /\.data-table\s*\{[^}]*width:\s*auto;[^}]*min-width:\s*100%;[^}]*display:\s*inline-table;[^}]*table-layout:\s*auto;/s,
+    "teacher and store columns must size to their longest content and scroll only when necessary");
+  assert.match(directoryWxss, /\.table-row\s*\{[^}]*display:\s*table-row;/s,
+    "directory headers and data rows must share the same content-aware table columns");
+  assert.match(directoryWxss, /\.table-row > text\s*\{[^}]*display:\s*table-cell;[^}]*padding:\s*10rpx 18rpx;[^}]*text-align:\s*center;[^}]*white-space:\s*nowrap;/s,
+    "directory values must keep one consistent type size and equal cell spacing without clipping");
   assert.doesNotMatch(directoryWxml, /class="modal|detail-mask/, "directory must route to dedicated pages instead of opening a generic detail modal");
   for (const action of ["getStoreDashboard", "getStoreBusinessAnalytics", "queryStoreBusinessRecords", "setMasterStatus"]) assert.match(storeDetail, new RegExp(action));
   assert.match(storeDetail, /storeId[\s\S]*queryStoreBusinessRecords/);
@@ -216,18 +213,16 @@ test("HQ review workbenches match web filters, pagination, exact links, and guar
     "empty review results must not reserve a pagination row");
   assert.match(wxml, /wx:if="\{\{mode === 'filters' && total > 0\}\}" class="page-jump"/,
     "empty review results must not reserve a page-jump row");
-  assert.match(wxss, /\.review-table\s*\{\s*width:\s*1750rpx;\s*min-width:\s*100%;/,
-    "review table width must exactly equal the declared column total");
-  assert.match(wxss, /grid-template-columns:\s*340rpx 150rpx 150rpx 150rpx 130rpx 100rpx 280rpx 170rpx 280rpx/);
-  assert.equal(340 + 150 + 150 + 150 + 130 + 100 + 280 + 170 + 280, 1750);
-  assert.match(wxss, /\.review-row > text, \.review-row > view\s*\{[^}]*padding:\s*8rpx 6rpx;/s,
-    "mobile review cells keep a safe horizontal gutter instead of visually merging adjacent values");
-  assert.match(wxss, /\.review-row > text, \.review-row > view\s*\{[^}]*align-items:\s*center[^}]*justify-content:\s*center[^}]*text-align:\s*center[^}]*white-space:\s*nowrap/s,
+  assert.match(wxss, /\.review-table\s*\{[^}]*width:\s*auto;[^}]*min-width:\s*100%;[^}]*display:\s*inline-table;[^}]*table-layout:\s*auto;/s,
+    "review columns must size to their longest value and scroll only when necessary");
+  assert.match(wxss, /\.review-row > text, \.review-row > view\s*\{[^}]*display:\s*table-cell;[^}]*padding:\s*10rpx 18rpx;/s,
+    "mobile review cells keep a safe and even horizontal gutter");
+  assert.match(wxss, /\.review-row > text, \.review-row > view\s*\{[^}]*vertical-align:\s*middle;[^}]*text-align:\s*center;[^}]*white-space:\s*nowrap/s,
     "review headers and values must stay centered on one line");
   assert.doesNotMatch(wxss, /\.review-row > text, \.review-row > view\s*\{[^}]*border-right:/s,
     "review columns should use spacing instead of middle divider lines");
-  assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.review-table \{ width: 100%; min-width: 992px; \}/s,
-    "tablet review tables keep a compact content-aware floor while adapting to the card width");
+  assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.review-table \{ width: auto; min-width: 100%; \}/s,
+    "tablet review tables keep content-aware columns while adapting to the card width");
   assert.match(wxss, /\.review-filter-grid \{[^}]*display: grid;[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s,
     "phone review filters must pair store and status instead of stacking two oversized full-width controls");
   assert.match(wxss, /\.filter-card \.review-type-tabs button, \.filter-card \.mode-tabs button \{ min-height: 60rpx; font-size: 20rpx; \}/,

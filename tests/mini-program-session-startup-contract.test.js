@@ -146,8 +146,8 @@ test("home waits for startup validation and store section links perform real pag
     assert.match(wxml, new RegExp(`data-target="#${id}"[^>]*bindtap="jumpToSection"`));
   }
   const wxss = read("pages", "home", "index.wxss");
-  assert.match(wxss, /\.customer-table\s*\{[^}]*width:\s*100%[^}]*min-width:\s*620rpx/s);
-  assert.doesNotMatch(wxss, /\.customer-table\s*\{[^}]*min-width:\s*700rpx/s);
+  assert.match(wxss, /\.summary-table, \.record-table, \.customer-table \{ width: auto; min-width: 100%; display: inline-table; table-layout: auto;/,
+    "home tables must fit the viewport first and expand only for real content");
 });
 
 test("synchronous deep-link guards fail closed until startup and never fall back to stale storage when app state exists", () => {

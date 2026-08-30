@@ -70,9 +70,8 @@ test("customer query keeps the web filter dimensions, role scope, details, and d
   assert.match(wxss, /\.summary-grid view \{[^}]*padding: 10rpx 6rpx;[^}]*border-radius: 14rpx;/,
     "customer result totals must not consume a full information-card height on phones");
   assert.match(wxss, /\.summary-grid text \{ min-height: 34rpx;[^}]*font-size: 18rpx;/);
-  assert.match(wxss, /\.customer-table \{ width: 1120rpx; min-width: 1120rpx;/);
-  assert.match(wxss, /grid-template-columns: 132rpx 92rpx 92rpx 160rpx 170rpx 200rpx 170rpx 104rpx;/);
-  assert.equal(132 + 92 + 92 + 160 + 170 + 200 + 170 + 104, 1120);
+  assert.match(wxss, /\.customer-table \{ width: auto; min-width: 100%; display: inline-table; table-layout: auto;/,
+    "customer result columns must size to their content and scroll only when the content exceeds the viewport");
   assert.match(wxml, /scroll-left="\{\{tableScrollLeft\}\}"/);
   assert.match(js, /resetTableScroll\(\)[\s\S]*tableScrollLeft: 1[\s\S]*tableScrollLeft: 0/,
     "fresh customer results must force a changed scroll value before returning to the left edge");
@@ -111,8 +110,10 @@ test("recharge, verification, and product query share complete filters and exact
   assert.match(wxml, /bindtap="openRecord"/);
   assert.match(wxml, /class="[^"]*table-link record-code"/);
   const wxss = read("pages", "records", "index.wxss");
-  assert.match(wxss, /\.record-row \.record-code \{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*clip;[^}]*white-space:\s*nowrap;/,
-    "query order codes remain on one line and cannot paint over the adjacent customer cell");
+  assert.match(wxss, /\.record-table, \.verification-table, \.product-purchase-table \{ width: auto; min-width: 100%; display: inline-table; table-layout: auto;/,
+    "all business result tables must size columns from their content and scroll only when needed");
+  assert.match(wxss, /\.record-row text \{[^}]*display:\s*table-cell;[^}]*font-size:\s*21rpx;[^}]*white-space:\s*nowrap;/,
+    "business result cells must keep one readable font size without clipping long values");
   assert.match(wxml, /scroll-left="\{\{tableScrollLeft\}\}"/,
     "each query result can force the horizontal table back to its first column");
   assert.match(js, /resetTableScroll\(\)[\s\S]*tableScrollLeft: 1[\s\S]*tableScrollLeft: 0/,
@@ -122,10 +123,6 @@ test("recharge, verification, and product query share complete filters and exact
   const recordCodeRule = wxss.match(/\.record-row \.record-code \{[^}]*\}/)?.[0] || "";
   assert.doesNotMatch(recordCodeRule, /font-size\s*:/,
     "query order codes must use the same readable font size as the rest of the table body");
-  assert.match(wxss, /\.record-table \{\s*width:\s*1760rpx;\s*min-width:\s*1760rpx;/,
-    "the widened recharge table width equals its visible column widths");
-  assert.match(wxss, /\.verification-table \{\s*width:\s*1780rpx;\s*min-width:\s*1780rpx;/,
-    "the verification table width equals its visible columns after removing redundant status");
   assert.match(wxml, /<text wx:if="\{\{recordType !== 'VERIFICATION'\}\}"[^>]*>状态<\/text>/,
     "completed verification query results must not repeat a status column");
   assert.match(wxml, /<text wx:if="\{\{recordType !== 'VERIFICATION'\}\}"[^>]*>\{\{item\.statusLabel\}\}<\/text>/,
@@ -137,8 +134,6 @@ test("recharge, verification, and product query share complete filters and exact
     "the combined product query must visibly distinguish purchases from recharge gifts");
   assert.match(wxml, /summary\.purchase/);
   assert.match(wxml, /summary\.gift/);
-  assert.match(wxss, /\.product-purchase-table \{\s*width:\s*1920rpx;\s*min-width:\s*1920rpx;/,
-    "the combined product table width must equal its visible column widths");
   assert.match(wxml, /wx:if="\{\{session\.role === 'hq'\}\}" class="field"><text class="field-label">门店范围<\/text>/,
     "HQ business search must pair store scope with project or product on phones");
   assert.match(wxml, /class="field"><text class="field-label">\{\{recordType === 'PRODUCT_PURCHASE' \? '产品' : '项目'\}\}<\/text>/);
