@@ -62,7 +62,7 @@ test("ranking names use the same calm data typography as other values", () => {
   assert.doesNotMatch(wxss, /\.hq-ranking-value\.active|\.hq-ranking-table-head\s*>\s*text\.active/);
   assert.match(
     wxss,
-    /\.hq-ranking-name\s*\{[^}]*color:\s*#5f564b;[^}]*font-size:\s*inherit\s*!important;[^}]*font-weight:\s*600;/s
+    /\.hq-ranking-name\s*\{[^}]*color:\s*#5f564b;[^}]*font-size:\s*inherit\s*!important;[^}]*font-weight:\s*500;/s
   );
 });
 

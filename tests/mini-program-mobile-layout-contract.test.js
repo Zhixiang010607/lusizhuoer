@@ -178,7 +178,8 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
   assert.match(wxss, /\.hq-ranking-row\s*\{[^}]*display:\s*table-row;/s);
   assert.match(wxss, /\.hq-ranking-row > text\s*\{[^}]*display:\s*table-cell;[^}]*white-space:\s*nowrap;/s,
     "rank, name, and all four metrics must stay readable and horizontally scroll together");
-  assert.match(wxss, /\.hq-ranking-card > text\s*\{[^}]*font-size:\s*21rpx;/s);
+  assert.match(wxss, /\.hq-ranking-card > text\s*\{[^}]*font-size:\s*18rpx;/s,
+    "mobile ranking rows must stay compact even when the totals grow large");
   assert.match(wxss, /\.hq-ranking-name\s*\{[^}]*font-size:\s*inherit\s*!important;/s,
     "store and teacher names must use the same font size as the adjacent ranking values");
   assert.match(wxss, /\.summary-table \.table-head \.summary-product\s*\{[^}]*align-items:\s*center\s*!important;[^}]*text-align:\s*center;/s,

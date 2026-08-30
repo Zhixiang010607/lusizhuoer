@@ -178,10 +178,10 @@
 .hq-ranking-row > text { min-width: 0; height: 64rpx; display: table-cell; padding: 10rpx 18rpx; overflow: visible; vertical-align: middle; text-align: center; text-overflow: clip; white-space: nowrap; }
 .hq-ranking-table-head { color: #675c4e; background: #f4e8d1; font-size: 21rpx; font-weight: 850; }
 .hq-ranking-card { background: #fffaf3; border-top: 1rpx solid #eadcc5; }
-.hq-ranking-card > text { height: 72rpx; font-size: 21rpx; }
-.hq-ranking-rank { color: #806942; font-weight: 850; }
-.hq-ranking-name { color: #5f564b; font-size: inherit !important; font-weight: 600; }
-.hq-ranking-value { color: #5f564b; }
+.hq-ranking-card > text { height: 72rpx; font-size: 18rpx; font-weight: 500; }
+.hq-ranking-rank { color: #806942; font-weight: 650; }
+.hq-ranking-name { color: #5f564b; font-size: inherit !important; font-weight: 500; }
+.hq-ranking-value { color: #5f564b; font-weight: 500; }
 .hq-ranking-list > .table-empty { border-top: 1rpx solid #eadcc5; }
 .hq-ranking-pagination { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12rpx; }
 .hq-ranking-pagination > text { min-width: 0; text-align: center; white-space: nowrap; }
