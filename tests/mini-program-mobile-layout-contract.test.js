@@ -180,8 +180,8 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
     "rank, name, and all four metrics must stay readable and horizontally scroll together");
   assert.match(wxss, /\.hq-ranking-card > text\s*\{[^}]*font-size:\s*18rpx;/s,
     "mobile ranking rows must stay compact even when the totals grow large");
-  assert.match(wxss, /\.hq-ranking-name\s*\{[^}]*font-size:\s*inherit\s*!important;/s,
-    "store and teacher names must use the same font size as the adjacent ranking values");
+  assert.match(wxss, /\.hq-ranking-name\s*\{[^}]*font-size:\s*18rpx\s*!important;[^}]*font-weight:\s*500;[^}]*line-height:\s*1\.35;/s,
+    "store and teacher names must use the same explicit mobile typography as adjacent ranking values");
   assert.match(wxss, /\.summary-table \.table-head \.summary-product\s*\{[^}]*align-items:\s*center\s*!important;[^}]*text-align:\s*center;/s,
     "the project summary header must be centered while project rows remain left aligned");
   assert.equal((wxml.match(/class="summary-product">项目<\/view>/g) || []).length, 2,

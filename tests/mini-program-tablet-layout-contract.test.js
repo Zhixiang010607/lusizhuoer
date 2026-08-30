@@ -384,8 +384,8 @@ test("HQ ranking uses one compact table and shows all four business metrics", ()
   assert.match(homeWxss, /\.hq-ranking-row \{[^}]*display: table-row;/s);
   assert.match(homeWxss, /\.hq-ranking-row > text\s*\{[^}]*display:\s*table-cell;/s);
   assert.match(homeWxss, /@media \(min-width: 700px\)[\s\S]*?\.hq-ranking-row > text\s*\{[^}]*height:\s*46px;[^}]*padding:\s*8px 12px;[^}]*font-size:\s*14px;/s);
-  assert.match(homeWxss, /\.hq-ranking-name\s*\{[^}]*font-size:\s*inherit\s*!important;/s,
-    "store and teacher names must inherit the same compact tablet size as ranking metrics");
+  assert.match(homeWxss, /@media \(min-width: 700px\)[\s\S]*?\.hq-ranking-name\s*\{[^}]*font-size:\s*14px\s*!important;/s,
+    "store and teacher names must use the same explicit compact tablet size as ranking metrics");
   assert.match(homeWxss, /\.summary-product \{[^}]*align-items: center !important;[^}]*text-align: center;/s,
     "project names and the global total label must share the centered summary alignment");
   assert.doesNotMatch(homeWxss, /\.hq-ranking-name \{[^}]*justify-content: flex-start|\.hq-ranking-name \{[^}]*text-align: left/s,

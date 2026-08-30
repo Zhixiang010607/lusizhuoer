@@ -180,7 +180,7 @@
 .hq-ranking-card { background: #fffaf3; border-top: 1rpx solid #eadcc5; }
 .hq-ranking-card > text { height: 72rpx; font-size: 18rpx; font-weight: 500; }
 .hq-ranking-rank { color: #806942; font-weight: 650; }
-.hq-ranking-name { color: #5f564b; font-size: inherit !important; font-weight: 500; }
+.hq-ranking-name { color: #5f564b; font-size: 18rpx !important; font-weight: 500; line-height: 1.35; }
 .hq-ranking-value { color: #5f564b; font-weight: 500; }
 .hq-ranking-list > .table-empty { border-top: 1rpx solid #eadcc5; }
 .hq-ranking-pagination { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12rpx; }
@@ -338,7 +338,7 @@
   .hq-ranking-table-head { font-size: 14px; }
   .hq-ranking-card { border-top-width: 1px; }
   .hq-ranking-card > text { height: 54px; font-size: 14px; }
-  .hq-ranking-name { font-size: inherit !important; }
+  .hq-ranking-name { font-size: 14px !important; }
   .ranking-actions { gap: 10px; }
   .ranking-actions button { min-height: 44px; padding: 0 14px; border-radius: 10px; font-size: 14px; }
   .safe-bottom { height: calc(18px + env(safe-area-inset-bottom)); }
