@@ -2,7 +2,9 @@
 
 该函数仅在 CloudBase 后端运行，用于门店与老师共享的客户建档、照片质量检测、私有照片留存、人脸人员库录入、1:1 核验和业务数据接口。总部只保留查询、审核、管理与已有记录读取，不能新建客户或业务工单。客户不需要提供身份证。核销单照片的列表、原图、导出及三个补充照片位上传已拆到独立的 `verificationPhoto v10`；当前静态前端不再把这些照片动作发给本函数。
 
-当前版本：`v108`
+当前版本：`v109`
+
+`v109` 修复门店全局视图加载失败：门店客户状态查询改为仅接受 `ACTIVE`／`ARCHIVED` 的白名单 SQL helper，移除对不存在的 `sqlLiteral` 的调用；其余业务接口、权限与统计口径保持不变。
 
 `v108` 同时修复大数据量下的充值／退费查询：汇总和计数先在业务表上完成，只有姓名／生日精确查询才联接客户表；明细先按条件排序、分页，再只为当前页联接客户、门店、项目和老师。门店业务明细、活跃／封存客户、老师客户与工作台列表也统一先计数再取当前页，页码超出时自动夹取并重读最后有效页，避免重复提交、空白页和前端错乱。历史工单按工单自己的办理门店查询，不再错误要求它等于客户最初建档门店。压力数据环境必须先执行 067 的四个游标索引，再部署本版本。
 
@@ -34,7 +36,7 @@ v108 最终取消设备注册表依赖。数据库只保留 `verification_ble_qu
 ## 老师与门店工作台（v108）
 
 新建老师只调用独立的 `teacherCreate v6/createTeacher`，该函数只创建账号和老师
-主档，不接收图片或建立老师人脸。`faceRecognition v108` 不接受老师创建、照片检测、
+主档，不接收图片或建立老师人脸。`faceRecognition v109` 不接受老师创建、照片检测、
 补录、替换、回读、回滚或最终清理委托，也不读取迁移 051 的老师人脸操作租约。
 
 v108 允许门店和老师办理正常核销，体验核销只允许老师账号。正常核销和体验核销都要求办理人员明确选择 1—999 次，次数进入幂等匹配；数据库按同一次数原子校验并扣减客户余额或老师体验额度，设备信号只读取数据库确认后的次数。两类核销都调用同一个 `verifyCustomerFace` 与 `persistVerifiedFaceEvidence`，现场只对所选客户的 `PersonId` 做 1:1 比对。门店充值、退费、正常核销和独立产品购买的业务老师全部可选；留空时不写老师归属，选择时必须是一位主档及登录账号均活跃的真实老师。老师账号的充值、退费、正常核销、体验核销和独立产品购买都由服务端自动绑定本人并拒绝改绑。有效 `teacher_id` 是老师统计、老师客户关系和历史业务老师显示的归属依据；门店提交时老师不必是提交账号，老师账号提交时则必须与该 `teacher_id` 为同一人，总部和退役角色的旧字段不构成归属。
@@ -110,13 +112,13 @@ v99 的 `recoverBusinessSubmission` 仅允许原提交账号、原门店按同�
 - 对象路径：人脸凭证使用 `face-evidence/<store>/<staff>/<token>/...`，新版补充照片使用 `records/<verificationId>/slot-<n>/direct-<timestamp>-<server nonce>.jpg`；路径全部由云函数随机生成，浏览器输入不会进入路径，每次替换都使用新对象名且签名禁止覆盖。
 - 每单固定展示 2 张人脸照片和 3 个补充照片位。迁移 054 后，正常核销与新体验核销的前两张都是客户登记照和客户现场照；迁移 049 至 053 期间生成的历史老师脸体验单继续标记为 `TEACHER` 并如实展示，不会把旧照片伪装成客户。补充照片只保存一份高清 JPEG，提交时服务端验证实际字节数、MIME、JPEG 文件头、真实尺寸和 SHA-256；缩略图由 CloudBase 图片处理按需生成。
 - 当前网页固定调用独立的 `verificationPhoto v10`，其响应为 `uploadMode=FUNCTION`：数据库先建立／复用上传请求并锁定“每单一个进行中任务”，网页再把压缩 JPEG 和该任务的短时证明提交给函数；函数只能写入任务已锁定的同一桶和随机对象路径。这样不依赖浏览器 PUT 签名，取消、重试、提交人和 24 小时限制仍由迁移 039 原子函数控制。
-- `faceRecognition v108` 暂时保留 v52 的 `DIRECT`／精确 `FUNCTION` 回退实现，供旧客户端平滑升级和共享服务测试；当前生产前端不调用这组兼容照片动作。两个函数均不会接受客户端指定的桶或对象路径。
+- `faceRecognition v109` 暂时保留 v52 的 `DIRECT`／精确 `FUNCTION` 回退实现，供旧客户端平滑升级和共享服务测试；当前生产前端不调用这组兼容照片动作。两个函数均不会接受客户端指定的桶或对象路径。
 - 原图和缩略图设置私有长期缓存；数据库从不保存签名 URL。详情首屏仅以最多 2 路并发准备 5 张缩略图，不提前签发 5 张高清原图；点击时才重新校验权限、写查看审计并取得该照片的短时原图地址。页面先显示缩略图，再无闪烁替换为高清图；同页重复查看可复用仍有效的私有地址，并把已解码原图限制为最多 2 张。
 - 在本函数配置名为 `cleanup-verification-photo-drafts-hourly` 的每小时 Timer，只清除过期且未建单的人脸照片草稿。触发器使用 CloudBase `triggers` 配置，不携带 `action` 或清理凭证；v99 会严格验证平台保留的 `TRIGGER_SRC=timer`、函数名、事件类型、触发器名、时间和无终端用户 UID。取消／过期的迁移 039 补充照片任务由 `verificationPhoto` 的另一个 Timer 清理；两个触发器名不要互换。
 
 ## 部署
 
-上传包文件名必须为 `faceRecognition-v108.zip`。把本目录中的 `index.js`、`package.json` 和 `README.md` 放在 ZIP 根目录；不要再套一层目录。函数入口为 `index.main`，部署时安装 `package.json` 依赖。交付前必须回读 ZIP 根目录的 README 与运行时代码，确认两者均为 `v108`。
+上传包文件名必须为 `faceRecognition-v109.zip`。把本目录中的 `index.js`、`package.json` 和 `README.md` 放在 ZIP 根目录；不要再套一层目录。函数入口为 `index.main`，部署时安装 `package.json` 依赖。交付前必须回读 ZIP 根目录的 README 与运行时代码，确认两者均为 `v109`。
 
 在 `faceRecognition` 的触发器配置编辑器中填写以下完整配置。CloudBase 只接受顶层 `triggers` 数组；不要在这里填写业务事件、`action` 或 `cleanupToken`：
 
@@ -139,19 +141,19 @@ v99 的 `recoverBusinessSubmission` 仅允许原提交账号、原门店按同�
 1. 在完整 PostgreSQL migration 工具中执行 `database/migrations/039_direct_verification_photo_upload.sql`；腾讯云 SQL 编辑器则依次单独执行 `039-01`、`039-02`、`039-03`、`039-04`、`039-05`。
 2. 执行 `database/migrations/040_fix_verification_photo_commit_ambiguity.sql`；腾讯云 SQL 编辑器只需执行一次 `040-01-fix-verification-photo-commit-ambiguity.sql`。已经完成 039 的生产库不要重跑 039。
 3. 完成 046、总部封锁旧运营凭据、047 和 048 后，依次执行 `049-01` 至 `049-13`，再运行 `049-readonly-verify.sql`，全部必须为 `READY`。049 是向前迁移，不要修改或重跑生产已执行的 048。
-4. 执行迁移 050 的 7 段控制台 SQL并确认只读验收全部 `READY`，再按 053 指引退役旧老师人脸 Saga。`faceRecognition v108` 不依赖迁移 051／052，也不需要老师人脸操作恢复 Timer。
+4. 执行迁移 050 的 7 段控制台 SQL并确认只读验收全部 `READY`，再按 053 指引退役旧老师人脸 Saga。`faceRecognition v109` 不依赖迁移 051／052，也不需要老师人脸操作恢复 Timer。
 5. 完整执行迁移 054（CloudBase SQL 编辑器使用 `054-01-teacher-only-customer-face-experience.sql`），把新体验核销切换为老师账号赠送、客户人脸凭证。
-6. 将 `faceRecognition` 执行超时设为 **90 秒**；准备 `faceRecognition v108`、`verificationPhoto v10`、`staffAccount v80` 和 `teacherCreate v6`，但等 060—067 验收完成后再统一部署。`teacherCreate` 可设为 **60 秒、至少 256 MB**，且不再需要任何 FACE 或照片桶变量。
+6. 将 `faceRecognition` 执行超时设为 **90 秒**；准备 `faceRecognition v109`、`verificationPhoto v10`、`staffAccount v80` 和 `teacherCreate v6`，但等 060—067 验收完成后再统一部署。`teacherCreate` 可设为 **60 秒、至少 256 MB**，且不再需要任何 FACE 或照片桶变量。
 7. 完整执行迁移 055 并确认 3 行全部 `READY`，移除充值、退费、核销和体验核销中的旧老师人脸门禁；再执行 `056-01-experience-quota-column-ambiguity.sql`，确认返回 `READY`。
 8. 执行 `057-01-teacher-created-customer-access.sql`，确认字段、外键和索引 3 行全部为 `READY`。
 9. 按 `058-README.md` 执行三段 SQL，确认只读验收两行全部为 `READY`。
 10. 按 `059-README.md` 先执行只读预检，再执行写入文件和只读验收，确认业务老师矩阵全部为 `READY`。
 11. 按 060 README 建立独立产品主档，再按 061、062 README 建立并验收充值赠品明细与独立产品购买。
 12. 确认 063 的 8 行安全验收全部为 `READY`；短暂停止核销写入，执行 064。随后按 065 README 短暂停止充值、退费、核销和产品购买新建并执行 065；继续整文件执行 066，并在云函数环境变量配置独立的 `BLE_AUTH_SIGNING_KEY`。066 不登记设备，只建立短时资格和授权审计。最后在低峰期按 067 README 建立充值／退费查询索引并完成只读验收。
-13. 如果旧版 066 曾建立第三张设备注册表，先执行 `066-02-retire-legacy-device-registry.sql`；部署 `faceRecognition v108`，调用其与同轮配套函数的 `health` 核对实际版本；依次运行 065 的 9 行、066 的 11 行和 067 的只读验收，再发布当前网页和小程序并强制刷新。
+13. 如果旧版 066 曾建立第三张设备注册表，先执行 `066-02-retire-legacy-device-registry.sql`；部署 `faceRecognition v109`，调用其与同轮配套函数的 `health` 核对实际版本；依次运行 065 的 9 行、066 的 11 行和 067 的只读验收，再发布当前网页和小程序并强制刷新。
 
 当前切换顺序为“确认 048—050 与 053 已完成 → 依次执行并验收 054—065 → 执行 066 并配置 `BLE_AUTH_SIGNING_KEY` → 低峰期执行并验收 067 → 部署
-`faceRecognition v108`、同轮配套的 `verificationPhoto`、`staffAccount v80`、`teacherCreate v6` → 分别 health → 运行 065—067 只读验收 →
+`faceRecognition v109`、同轮配套的 `verificationPhoto`、`staffAccount v80`、`teacherCreate v6` → 分别 health → 运行 065—067 只读验收 →
 发布当前静态前端”。不要再发送任何老师人脸 action；新体验核销只能调用客户 1:1
 人脸验证。
 
@@ -166,7 +168,7 @@ v99 的 `recoverBusinessSubmission` 仅允许原提交账号、原门店按同�
 ```json
 {
   "ok": true,
-  "version": "v108",
+  "version": "v109",
   "photoBucketId": "customer-photos",
   "verificationPhotoBucketId": "verification-photos",
   "verificationPhotoFallbackBucketId": "customer-photos",

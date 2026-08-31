@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const { pinyin } = require("pinyin-pro");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v108";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v109";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -99,6 +99,13 @@ function fail(message, code = "BAD_REQUEST") {
 
 function sqlText(value) {
   return `'${String(value ?? "").replace(/'/g, "''")}'`;
+}
+
+function customerStatusSql(status) {
+  if (status !== "ACTIVE" && status !== "ARCHIVED") {
+    fail("客户状态不受支持。", "INVALID_CUSTOMER_STATUS");
+  }
+  return sqlText(status);
 }
 
 function temporalNumber(value) {
@@ -2685,7 +2692,7 @@ async function getStoreDashboard(event = {}) {
        FROM public.customers c
        LEFT JOIN public.customer_product_balances b ON b.customer_id = c.id
       WHERE c.created_store_id = ${storeId}::bigint
-        AND c.customer_status = ${sqlLiteral(status)}
+        AND c.customer_status = ${customerStatusSql(status)}
       GROUP BY c.id, c.customer_code, c.customer_name, c.birth_date,
                c.customer_status, c.total_recharge_count,
                c.latest_recharge_at, c.latest_verification_at

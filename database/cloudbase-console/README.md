@@ -200,7 +200,7 @@ ROLLBACK;
 
 1. 短暂停止充值、退费、核销和产品购买的新建操作；
 2. 整文件执行 `065-01-store-optional-business-teacher.sql`；
-3. 继续执行 066；旧版 066 曾建立第三张设备注册表时先运行 `066-02-retire-legacy-device-registry.sql`。随后在低峰期执行 067，再上传 `faceRecognition-v108.zip` 并用 `health` 确认 `version=v108`；
+3. 继续执行 066；旧版 066 曾建立第三张设备注册表时先运行 `066-02-retire-legacy-device-registry.sql`。随后在低峰期执行 067，再上传 `faceRecognition-v109.zip` 并用 `health` 确认 `version=v109`；
 4. 执行 `065-readonly-verify.sql`，9 行必须全部为
    `record_count=0`、`status=READY`；
 5. 上传小程序 `0.2.39` 开发版并做门店留空老师／选择老师、老师自动归本人验收。
@@ -218,7 +218,7 @@ ROLLBACK;
    `066-01-ble-verification-authorization.sql`；
 2. 不建立设备注册表、设备主档、数据库设备白名单或配对码表；执行过旧三表版 066 的环境先运行 `066-02-retire-legacy-device-registry.sql` 清理退役表。二维码序列号和六位码仅用于当次扫码，实时设备信息必须由 BLE `get_info` 读取；
 3. 在 `faceRecognition` 环境变量和设备安全存储配置同一份独立的 `BLE_AUTH_SIGNING_KEY`；
-4. 按 [`067-README.md`](067-README.md) 在低峰期建立大数据充值／退费查询索引，然后上传 `faceRecognition-v108.zip` 并确认 `health version=v108`；
+4. 按 [`067-README.md`](067-README.md) 在低峰期建立大数据充值／退费查询索引，然后上传 `faceRecognition-v109.zip` 并确认 `health version=v109`；
 5. 执行 `066-readonly-verify.sql`，11 行必须全部为 `READY`，并确认 `BLE device registry absent` 为 `READY`；
 6. 用真机验收人脸通过后的 90 秒扫码资格、关闭／重开、蓝牙与协议错误不扣次、
    设备状态 `2` 才扣次建单，以及成功后永久关闭扫码窗口并跳转精确工单。
@@ -235,7 +235,7 @@ ROLLBACK;
 1. 暂停充值、退费写入以及总部充值／退费查询；
 2. 整文件执行 `067-01-refund-query-performance.sql`，为门店、类型、状态、项目、提交时间和游标建立组合索引；
 3. 执行 `067-readonly-verify.sql`，确认四个索引有效；
-4. 上传 `faceRecognition-v108.zip`，用 `health` 确认版本后，分别验收“今天”和“全部时间”的总部退费查询及翻页。
+4. 上传 `faceRecognition-v109.zip`，用 `health` 确认版本后，分别验收“今天”和“全部时间”的总部退费查询及翻页。
 
 067 不修改业务数据。配套 v108 会先在业务表筛选、计数和分页，再联接当前页展示资料；历史工单按工单自己的办理门店查询，不再被客户最初建档门店误排除。
 

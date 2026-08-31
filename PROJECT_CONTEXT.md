@@ -422,7 +422,7 @@
 - 旧 046／049 文件名或历史 SQL 中仍可能出现老师人脸逻辑；它们是迁移历史，不代表当前规则，不能重新部署旧函数覆盖 053—055。
 - 生产部署前必须逐项查询函数、表、触发器、约束和版本是否 READY，不能仅凭 SQL 编辑器显示“执行成功”。
 - 云函数 `health` 返回版本必须与源码、README、测试和上传 ZIP 文件名一致。
-- 当前仓库基线版本：`staffAccount v80`、`faceRecognition v108`、`verificationPhoto v10`、`teacherCreate v6`。以后修改任一可部署云函数必须按 `AGENTS.md` 同步升级版本。
+- 当前仓库基线版本：`staffAccount v80`、`faceRecognition v109`、`verificationPhoto v10`、`teacherCreate v6`。以后修改任一可部署云函数必须按 `AGENTS.md` 同步升级版本。
 - 每个发生代码变化的云函数都必须生成 `deployments/<函数名>-v<版本>.zip`，确认 ZIP 根目录、源码、README、测试和文件名版本一致，并在交付时提供可点击的本机绝对路径链接。
 - 禁止把未经验证的旧 ZIP 上传覆盖当前函数。
 - 任何需要用户在腾讯云执行的 SQL 都必须保存成 `database/cloudbase-console/` 下可整文件复制粘贴的独立 `.sql`；多步操作按编号拆分并由 README 写明顺序。不能只在聊天、Markdown 代码块或 diff 中交付 SQL。

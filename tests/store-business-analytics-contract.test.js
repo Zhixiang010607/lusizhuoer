@@ -163,8 +163,10 @@ assert.deepEqual(stressProject, {
   refundOverRemaining: 50
 }, "customer-level zero floors explain why 5000 - 4500 - 100 does not reduce the project balance below 450");
 assert.match(dashboardProjectSource, /WHERE p\.product_status = 'ACTIVE'[\s\S]*?UNION[\s\S]*?SELECT event\.product_id/, "active zero products and historical store products remain visible");
-assert.equal((dashboardSource.match(/customer_status = 'ACTIVE'/g) || []).length, 1, "the count query records this store's active bound customers once");
-assert.equal((dashboardSource.match(/customer_status = 'ARCHIVED'/g) || []).length, 1, "the count query records this store's archived bound customers once");
+assert.match(cloud, /function customerStatusSql\(status\)/, "store dashboard customer status SQL uses a dedicated helper");
+assert.match(cloud, /INVALID_CUSTOMER_STATUS/, "store dashboard customer status helper rejects unsupported values");
+assert.match(dashboardSource, /customer_status = \$\{customerStatusSql\(status\)\}/, "store dashboard customer status query uses the validated helper");
+assert.doesNotMatch(dashboardSource, /sqlLiteral\s*\(/, "store dashboard does not call the removed sqlLiteral helper");
 includes(dashboardSource, 'dashboardCustomersSql("ACTIVE", customerOffset)', "the shared page query loads active customers");
 includes(dashboardSource, 'dashboardCustomersSql("ARCHIVED", archivedCustomerOffset)', "the shared page query loads archived customers");
 includes(dashboardSource, "archived_customers: archivedCustomers", "store dashboard returns a separate archived customer page");

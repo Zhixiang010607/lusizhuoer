@@ -11,7 +11,7 @@
 2. 短暂停止充值、退费、核销和产品购买的新建操作。
 3. 整文件执行 `065-01-store-optional-business-teacher.sql`。
 4. 继续按 066 README 完成 BLE 表和密钥配置，再按 067 README 在低峰期建立大数据充值／退费查询索引。
-5. 上传 `faceRecognition-v108.zip`，调用 `health` 确认 `version=v108`。
+5. 上传 `faceRecognition-v109.zip`，调用 `health` 确认 `version=v109`。
 6. 执行 `065-readonly-verify.sql`；全部 9 行必须为
    `record_count=0`、`status=READY`。
 7. 上传当前小程序开发版 `0.2.43`，分别用门店账号验证四类业务的“留空老师”
