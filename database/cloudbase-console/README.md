@@ -237,7 +237,18 @@ ROLLBACK;
 3. 执行 `067-readonly-verify.sql`，确认四个索引有效；
 4. 上传 `faceRecognition-v109.zip`，用 `health` 确认版本后，分别验收“今天”和“全部时间”的总部退费查询及翻页。
 
-067 不修改业务数据。配套 v108 会先在业务表筛选、计数和分页，再联接当前页展示资料；历史工单按工单自己的办理门店查询，不再被客户最初建档门店误排除。
+067 不修改业务数据。配套 v109 会先在业务表筛选、计数和分页，再联接当前页展示资料；历史工单按工单自己的办理门店查询，不再被客户最初建档门店误排除。
+
+## 068 正常／体验核销客户评价
+
+067 验收完成后，按 [`068-README.md`](068-README.md) 执行：
+
+1. 整文件执行 `068-01-customer-work-order-ratings.sql`；
+2. 执行 `068-readonly-verify.sql`，9 行必须全部为 `READY`；
+3. 配置 `CUSTOMER_RATING_SIGNING_KEY`、实际 `rating.html` 完整 HTTPS 地址 `CUSTOMER_RATING_BASE_URL`，并完成匿名登录、匿名角色云函数网关权限和 `customerRating` 的 `"auth != null"` 调用规则；
+4. 上传 `customerRating-v1.zip`，确认 `health` 返回 `version=v1`、`configured=true`，再发布含 `rating.html` 的静态网页和小程序 `0.2.49`。
+
+068 只新增每张已完成正常／体验核销唯一、一次提交、不可删除的客户评价，不修改核销、人脸、照片、BLE、余额或体验额度。门店导出凭证可带评价二维码，老师和总部导出保持无二维码原版。
 
 ### 048 在当前控制台报 `unterminated dollar-quoted string`
 

@@ -1,0 +1,11 @@
+{
+  "name": "lusizhuoer-customer-rating",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "dependencies": {
+    "@cloudbase/manager-node": "5.6.4",
+    "@cloudbase/node-sdk": "3.18.3",
+    "qrcode": "1.5.4"
+  }
+}

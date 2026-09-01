@@ -77,6 +77,23 @@
       <view class="export-actions"><button class="primary" bindtap="exportPdf" loading="{{exporting}}" disabled="{{exporting || uploading}}">导出 PDF</button><button class="secondary" bindtap="exportImage" loading="{{exporting}}" disabled="{{exporting || uploading}}">导出图片</button></view>
       <text wx:if="{{exportProgress}}" class="export-progress">{{exportProgress}}</text>
     </view>
+
+    <view wx:if="{{baseType === 'VERIFICATION'}}" class="card rating-card">
+      <view class="card-title"><text>客户评价</text><text class="badge">{{rating.submitted ? '已评价' : '暂无评价'}}</text></view>
+      <view wx:if="{{ratingLoading}}" class="rating-empty">正在读取客户评价…</view>
+      <view wx:elif="{{ratingError}}" class="rating-empty rating-load-error">
+        <text>{{ratingError}}</text>
+        <button class="secondary compact-button" bindtap="retryRating">重新读取</button>
+      </view>
+      <view wx:elif="{{!rating.submitted}}" class="rating-empty">暂无评价</view>
+      <view wx:else class="rating-content">
+        <view class="rating-score-row"><text>门店环境</text><text class="rating-stars">{{rating.storeEnvironmentStars}}</text><text class="rating-score-value">{{rating.storeEnvironmentScore}} 星</text></view>
+        <view wx:if="{{rating.requiresTeacherScore}}" class="rating-score-row"><text>老师服务</text><text class="rating-stars">{{rating.teacherServiceStars}}</text><text class="rating-score-value">{{rating.teacherServiceScore}} 星</text></view>
+        <view class="rating-score-row"><text>整体体验</text><text class="rating-stars">{{rating.overallExperienceStars}}</text><text class="rating-score-value">{{rating.overallExperienceScore}} 星</text></view>
+        <view wx:if="{{rating.customerComment}}" class="rating-comment"><text>客户留言</text><text>{{rating.customerComment}}</text></view>
+        <text class="rating-time">评价时间：{{rating.submittedAtLabel}}</text>
+      </view>
+    </view>
   </block>
   <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
   <view wx:if="{{photoViewerOpen}}" class="photo-viewer" catchtouchmove="stopViewerEvent" bindtap="closePhotoViewer">

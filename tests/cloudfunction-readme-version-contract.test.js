@@ -46,4 +46,19 @@ assert.match(photoReadme, new RegExp(`staffAccount(?:-| )${staffVersion}`),
 assert.match(staffReadme, new RegExp(`faceRecognition ${faceVersions[2]}`),
   "staffAccount deployment matrix must name the current faceRecognition runtime");
 
+const ratingSource = read("cloudfunctions/customerRating/index.js");
+const ratingReadme = read("cloudfunctions/customerRating/README.md");
+const ratingVersion = /const FUNCTION_VERSION = "(v\d+)"/.exec(ratingSource)?.[1];
+assert.ok(ratingVersion, "customerRating must expose a runtime version");
+assert.match(ratingReadme, new RegExp(`当前版本：\`${ratingVersion}\``),
+  "customerRating README must match its runtime version");
+assert.match(ratingReadme, new RegExp(`customerRating-${ratingVersion}\\.zip`),
+  "customerRating README must name its matching deployment ZIP");
+for (const [name, source] of [
+  ["faceRecognition", faceReadme], ["staffAccount", staffReadme], ["verificationPhoto", photoReadme]
+]) {
+  assert.match(source, new RegExp(`customerRating(?:-| )${ratingVersion}`),
+    `${name} deployment matrix must name the current customerRating runtime`);
+}
+
 console.log("cloud function README version contract: PASS");

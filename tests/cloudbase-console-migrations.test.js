@@ -283,4 +283,21 @@ assert.equal(
   "CloudBase 040 must match the canonical migration executable SQL"
 );
 
+const ratingMigration = fs.readFileSync(
+  path.join(root, "database", "migrations", "068_customer_work_order_ratings.sql"),
+  "utf8"
+);
+const ratingConsoleMigration = fs.readFileSync(
+  path.join(consoleDir, "068-01-customer-work-order-ratings.sql"),
+  "utf8"
+);
+assert.equal(ratingConsoleMigration, ratingMigration,
+  "CloudBase migration 068 must match the canonical customer-rating migration exactly");
+assert.ok(Buffer.byteLength(ratingConsoleMigration, "utf8") < 9000,
+  "CloudBase migration 068 must remain safe to paste into the SQL editor");
+assert.match(ratingConsoleMigration, /BEGIN;[\s\S]*COMMIT;\s*$/,
+  "CloudBase migration 068 must be a complete transaction");
+assert.doesNotMatch(ratingConsoleMigration, /^\\i\s/m,
+  "CloudBase migration 068 must not depend on psql include commands");
+
 console.log("cloudbase console migrations: PASS");

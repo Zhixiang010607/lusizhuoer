@@ -18,7 +18,7 @@ function includes(source, expected, label) {
 
 const instrumented = exporterSource.replace(
   "exportCanvasPagesPdf, downloadBlob, safeFilename\n  });",
-  "exportCanvasPagesPdf, downloadBlob, safeFilename, __createPdfBytes: createPdfBytes, __preparePhotos: preparePhotos, __selectReceiptPhotos: selectReceiptPhotos, __layoutDocument: (context, data, photos, options) => layoutDocument(context, data, photos, { image: null }, options), __drawPhotos: drawPhotos\n  });"
+  "exportCanvasPagesPdf, downloadBlob, safeFilename, __createPdfBytes: createPdfBytes, __preparePhotos: preparePhotos, __selectReceiptPhotos: selectReceiptPhotos, __layoutDocument: (context, data, photos, options) => layoutDocument(context, data, photos, { image: null }, { enabled: false, image: null }, options), __layoutDocumentWithRating: (context, data, photos, ratingQr, options) => layoutDocument(context, data, photos, { image: null }, ratingQr, options), __drawPhotos: drawPhotos\n  });"
 );
 const decodedImages = [];
 const context = {
@@ -76,7 +76,7 @@ assert.ok(twoPagePdf.includes("xref\n0 9"), "multi-page PDF xref count");
 for (const html of [rechargeHtml, verificationHtml]) {
   includes(html, 'id="exportOrderPdf"', "PDF export button");
   includes(html, 'id="exportOrderImage"', "image export button");
-  assert.ok(html.indexOf("order-export.js?v=0.1.12") < html.indexOf("business-detail.js?v=0.16.28"), "exporter must load before detail controller");
+  assert.ok(html.indexOf("order-export.js?v=0.1.13") < html.indexOf("business-detail.js?v=0.16.29"), "exporter must load before detail controller");
 }
 
 includes(verificationHtml, 'class="verification-order-keyfacts verification-order-five-keyfacts"', "verification detail uses a five-fact header");
@@ -199,6 +199,24 @@ assert.equal(
 );
 const compactHeight = exporter.__layoutDocument(headerContext, compactDocument, compactPhotos, { draw: false, paginate: true });
 assert.ok(compactHeight <= 1754, `no-photo verification PDF fits one A4 page, got ${compactHeight}px`);
+const ratingDocument = {
+  ...compactDocument,
+  ratingQr: { title: "扫码评价本次服务", description: "选择 1–5 星并留下您的意见。" }
+};
+const ratingHeight = exporter.__layoutDocumentWithRating(
+  headerContext, ratingDocument, compactPhotos, { enabled: true, image: { width: 640, height: 640 } },
+  { draw: false, paginate: true }
+);
+assert.ok(ratingHeight > compactHeight, "store receipt reserves a conditional customer-rating QR section");
+const ratingTextStart = headerTexts.length;
+exporter.__layoutDocumentWithRating(
+  headerContext, ratingDocument, compactPhotos, { enabled: true, image: { width: 640, height: 640 } },
+  { draw: true, paginate: true }
+);
+const ratingTexts = headerTexts.slice(ratingTextStart);
+for (const expected of ["客户评价", "扫码评价本次服务", "请使用微信扫码 · 每张工单仅可评价一次"]) {
+  assert.ok(ratingTexts.includes(expected), `store receipt renders ${expected}`);
+}
 const compactTextStart = headerTexts.length;
 const compactFontStart = fontDraws.length;
 const compactPhotoDrawStart = photoDrawCount;

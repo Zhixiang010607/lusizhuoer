@@ -55,8 +55,31 @@ function callStaff(action, data = {}) {
   return call(config.staffFunction, { action, ...data }, "员工账号服务没有返回有效结果");
 }
 
+function callRating(action, data = {}) {
+  return getApp().callFunction({ name: config.ratingFunction, data: { action, ...data } })
+    .then((raw) => {
+      const payload = [raw && raw.result, raw && raw.data && raw.data.result, raw && raw.data, raw]
+        .map(parsed)
+        .find((value) => value && typeof value === "object"
+          && Object.prototype.hasOwnProperty.call(value, "success"));
+      if (!payload || payload.success !== true) {
+        const error = new Error(payload?.error?.message || "客户评价服务没有返回有效结果");
+        error.code = payload?.error?.code || "RATING_SERVICE_FAILED";
+        throw error;
+      }
+      return payload.data || {};
+    })
+    .catch((cause) => {
+      if (cause?.code === "RATING_SERVICE_FAILED" || cause?.code && cause?.message) throw cause;
+      const error = new Error(cause?.message || "客户评价服务没有返回有效结果");
+      error.code = cause?.code || "FUNCTION_INVOCATION_FAILED";
+      error.requestId = cause?.requestId || cause?.RequestId || "";
+      throw error;
+    });
+}
+
 function callTeacherCreate(data = {}) {
   return call(config.teacherCreateFunction, { action: "createTeacher", ...data }, "老师账号创建服务没有返回有效结果");
 }
 
-module.exports = { callFace, callPhoto, callStaff, callTeacherCreate, resultData };
+module.exports = { callFace, callPhoto, callStaff, callRating, callTeacherCreate, resultData };

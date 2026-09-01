@@ -415,7 +415,7 @@ assert.ok(businessDetail.includes("产品单据模板读取失败，本次没有
 assert.ok(businessDetail.includes("productTemplateLoadPromise = loadProductReceiptTemplate(currentRecord, { forceLogoRefresh: true })"), "every real export forces a live logo read");
 assert.ok(businessDetail.includes("尚未配置${receiptKind}单据说明"), "an unconfigured product cannot silently generate an empty receipt");
 assert.ok(businessDetail.includes("const request = ++productTemplateRequest"), "older template requests cannot overwrite a newer export-time read");
-assert.ok(businessDetail.includes("exportDocumentData(currentRecord, exportTemplate)"), "an export uses its own verified template rather than mutable page state");
+assert.ok(businessDetail.includes("exportDocumentData(currentRecord, exportTemplate, ratingQrSource)"), "an export uses its own verified template rather than mutable page state");
 assert.ok(businessDetail.includes("URL.createObjectURL(logoBlob)"), "order details render the already verified logo Blob rather than an expiring signed URL");
 assert.ok(businessDetail.includes("PRODUCT_LOGO_DETAIL_RETRY_DELAYS_MS"), "order details retry a transient private-logo read with bounded backoff");
 assert.ok(businessDetail.includes("currentProductTemplate = template;\n      currentProductTemplateError = lastLogoError"), "a logo outage keeps authorized template metadata visible");

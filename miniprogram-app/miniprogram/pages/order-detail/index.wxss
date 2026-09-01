@@ -56,6 +56,19 @@
 .export-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; }
 .export-actions button { width: 100%; min-height: 78rpx; margin: 0; font-size: 23rpx; }
 .export-progress { display: block; margin-top: 12rpx; color: #756958; font-size: 20rpx; text-align: center; }
+.rating-card { background: linear-gradient(145deg, #fffaf3, #f8edda); }
+.rating-empty { min-height: 104rpx; display: flex; align-items: center; justify-content: center; gap: 12rpx; padding: 20rpx; color: #7c7062; background: #fff7eb; border: 1rpx dashed #dfcfb4; border-radius: 14rpx; font-size: 22rpx; text-align: center; }
+.rating-load-error { color: #8d3e35; background: #fff1ed; border-color: #e3bbb4; }
+.rating-content { display: grid; gap: 10rpx; }
+.rating-score-row { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.4fr) auto; align-items: center; gap: 12rpx; padding: 17rpx 18rpx; background: #fff7eb; border: 1rpx solid #eadcc6; border-radius: 13rpx; }
+.rating-score-row > text:first-child { color: #5f5345; font-size: 22rpx; font-weight: 800; }
+.rating-score-row .rating-stars { overflow: hidden; color: #b77c24; font-size: 29rpx; letter-spacing: 2rpx; text-overflow: clip; white-space: nowrap; }
+.rating-score-row .rating-score-value { color: #74592d; font-size: 21rpx; white-space: nowrap; }
+.rating-comment { padding: 18rpx; background: rgba(255,255,255,.72); border-left: 5rpx solid #c5944b; border-radius: 0 13rpx 13rpx 0; }
+.rating-comment text { display: block; }
+.rating-comment text:first-child { color: #7c7062; font-size: 20rpx; font-weight: 800; }
+.rating-comment text:last-child { margin-top: 8rpx; color: #302a22; font-size: 23rpx; line-height: 1.65; white-space: pre-wrap; }
+.rating-time { display: block; color: #8a7d6d; font-size: 19rpx; text-align: right; }
 .photo-viewer { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 999; box-sizing: border-box; display: flex; align-items: center; justify-content: center; padding: 28rpx; background: rgba(28, 23, 18, .9); }
 .photo-viewer-panel { width: 100%; max-width: 1120rpx; box-sizing: border-box; padding: 22rpx; background: #fffaf3; border: 1rpx solid #d8c39f; border-radius: 22rpx; box-shadow: 0 22rpx 70rpx rgba(0, 0, 0, .3); }
 .photo-viewer-head { display: flex; align-items: center; justify-content: space-between; gap: 18rpx; margin-bottom: 16rpx; }
@@ -120,6 +133,17 @@
   .export-actions { gap: 10px; }
   .export-actions button { min-height: 48px; font-size: 16px; }
   .export-progress { grid-column: 1 / -1; margin-top: 0; font-size: 13px; }
+  .rating-card { padding: 16px; border-radius: 16px; }
+  .rating-empty { min-height: 64px; gap: 10px; padding: 14px; border-width: 1px; border-radius: 12px; font-size: 14px; }
+  .rating-content { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+  .rating-score-row { grid-template-columns: 1fr; justify-items: center; gap: 5px; padding: 13px; border-width: 1px; border-radius: 11px; text-align: center; }
+  .rating-score-row > text:first-child { font-size: 13px; }
+  .rating-score-row .rating-stars { font-size: 21px; letter-spacing: 1px; }
+  .rating-score-row .rating-score-value { font-size: 13px; }
+  .rating-comment { grid-column: 1 / -1; padding: 14px; border-left-width: 4px; border-radius: 0 11px 11px 0; }
+  .rating-comment text:first-child { font-size: 12px; }
+  .rating-comment text:last-child { margin-top: 6px; font-size: 15px; }
+  .rating-time { grid-column: 1 / -1; font-size: 12px; }
   .photo-viewer { padding: 24px; }
   .photo-viewer-panel { max-width: 880px; padding: 18px; border-width: 1px; border-radius: 18px; }
   .photo-viewer-head { gap: 14px; margin-bottom: 12px; }

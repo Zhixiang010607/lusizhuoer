@@ -4,5 +4,6 @@ module.exports = Object.freeze({
   faceFunction: "faceRecognition",
   photoFunction: "verificationPhoto",
   staffFunction: "staffAccount",
+  ratingFunction: "customerRating",
   teacherCreateFunction: "teacherCreate"
 });

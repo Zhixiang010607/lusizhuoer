@@ -3068,3 +3068,74 @@ body[data-staff-detail] .staff-admin-actions .secondary-button:not(#staffStatusA
   body[data-staff-detail] .teacher-experience-recharge-button,
   body[data-staff-detail] .teacher-experience-delete-button { width: 100%; min-height: 44px; }
 }
+/* Customer rating appears only at the bottom of normal/experience verification details. */
+.customer-rating-panel {
+  background: linear-gradient(145deg, #fffaf3, #f8edda);
+}
+
+.customer-rating-empty {
+  min-height: 94px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+  color: #776a5a;
+  background: #fff7eb;
+  border: 1px dashed #dfcfb4;
+  border-radius: 14px;
+  text-align: center;
+}
+
+.customer-rating-empty.is-error {
+  color: #8d3e35;
+  background: #fff1ed;
+  border-color: #e3bbb4;
+}
+
+.customer-rating-empty button {
+  min-height: 38px;
+  padding: 0 14px;
+  color: #74592d;
+  background: #f4e7d0;
+  border: 0;
+  border-radius: 10px;
+}
+
+.customer-rating-content { display: grid; gap: 10px; }
+.customer-rating-scores { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.customer-rating-score {
+  min-width: 0;
+  padding: 16px;
+  background: #fff7eb;
+  border: 1px solid #eadcc6;
+  border-radius: 13px;
+  text-align: center;
+}
+.customer-rating-score span,
+.customer-rating-score strong,
+.customer-rating-score small { display: block; }
+.customer-rating-score span { color: #5f5345; font-size: 13px; font-weight: 800; }
+.customer-rating-score strong { margin-top: 7px; overflow: hidden; color: #b77c24; font-size: 24px; letter-spacing: 2px; white-space: nowrap; }
+.customer-rating-score small { margin-top: 5px; color: #74592d; font-size: 12px; font-weight: 700; }
+.customer-rating-comment {
+  margin: 0;
+  padding: 16px 18px;
+  color: #302a22;
+  background: rgba(255,255,255,.74);
+  border-left: 4px solid #c5944b;
+  border-radius: 0 13px 13px 0;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+.customer-rating-comment::before { display: block; margin-bottom: 6px; color: #7c7062; font-size: 12px; font-weight: 800; content: "客户留言"; }
+.customer-rating-time { color: #8a7d6d; font-size: 12px; text-align: right; }
+
+@media (max-width: 699px) {
+  .customer-rating-scores { grid-template-columns: 1fr; }
+  .customer-rating-score { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.4fr) auto; align-items: center; gap: 8px; padding: 13px; text-align: left; }
+  .customer-rating-score strong,
+  .customer-rating-score small { margin-top: 0; }
+  .customer-rating-score strong { font-size: 21px; text-align: center; }
+  .customer-rating-score small { white-space: nowrap; }
+}

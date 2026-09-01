@@ -24,7 +24,7 @@ assert.match(detailHtml, /<h2 id="reviewPanelTitle">总部审核<\/h2>/);
 assert.match(detailHtml, /id="rechargeStoreMessage"[\s\S]*id="rechargeHqMessage"/);
 assert.match(detailHtml, /门店原申请留言[\s\S]*总部回复/);
 assert.doesNotMatch(detailHtml, /id="storeVoidAction"|id="submitVoidApplication"|<h2>留言记录<\/h2>|id="orderComments"/);
-assert.match(detailHtml, /business-detail\.js\?v=0\.16\.28/);
+assert.match(detailHtml, /business-detail\.js\?v=0\.16\.29/);
 assert.match(detailUi, /function renderRechargeReviewMessages\(record\)/);
 assert.match(detailUi, /renderRechargeReviewMessages\(record\);/);
 assert.doesNotMatch(detailUi, /setupVoidApplication\(record, normalKind/);

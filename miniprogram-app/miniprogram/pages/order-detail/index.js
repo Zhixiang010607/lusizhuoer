@@ -1,4 +1,4 @@
-const { callFace, callPhoto, callStaff } = require("../../services/api");
+const { callFace, callPhoto, callStaff, callRating } = require("../../services/api");
 const { requireSession } = require("../../services/session");
 const query = require("../../services/query-tools");
 const submission = require("../../services/submission");
@@ -118,7 +118,7 @@ function detailStatusLabel(baseType, originalType, status) {
   return query.statusLabel(state);
 }
 
-function receiptDocumentData(order, baseType, template) {
+function receiptDocumentData(order, baseType, template, ratingQrSource = "") {
   const source = order || {};
   const recharge = clean(baseType).toUpperCase() === "RECHARGE";
   const refund = recharge && clean(source.originalType).toUpperCase() === "REFUND";
@@ -157,12 +157,57 @@ function receiptDocumentData(order, baseType, template) {
     details,
     productGifts,
     messages,
+    ratingQr: ratingQrSource ? {
+      source: ratingQrSource,
+      title: "扫码评价本次服务",
+      description: "请选择门店环境、老师服务和整体体验 1–5 星，可填写文字留言。"
+    } : null,
     productTemplate: {
       productName: template.productName || source.productName || "产品",
       productType: template.productType || "未分类",
       instructions: recharge ? template.rechargeInstructions : template.verificationInstructions,
       logoRequired: Boolean(template.logo)
     }
+  };
+}
+
+function stars(score) {
+  const value = Math.max(0, Math.min(5, Number(score) || 0));
+  return `${"★".repeat(value)}${"☆".repeat(5 - value)}`;
+}
+
+function emptyRating() {
+  return {
+    submitted: false,
+    requiresTeacherScore: false,
+    storeEnvironmentScore: 0,
+    teacherServiceScore: 0,
+    overallExperienceScore: 0,
+    storeEnvironmentStars: "",
+    teacherServiceStars: "",
+    overallExperienceStars: "",
+    customerComment: "",
+    submittedAtLabel: "—"
+  };
+}
+
+function normalizeCustomerRating(result = {}) {
+  const submitted = result.submitted === true || clean(result.ratingStatus).toUpperCase() === "SUBMITTED";
+  if (!submitted) return { ...emptyRating(), requiresTeacherScore: result.requiresTeacherScore === true };
+  const storeEnvironmentScore = Number(result.storeEnvironmentScore || 0);
+  const teacherServiceScore = Number(result.teacherServiceScore || 0);
+  const overallExperienceScore = Number(result.overallExperienceScore || 0);
+  return {
+    submitted: true,
+    requiresTeacherScore: result.requiresTeacherScore === true,
+    storeEnvironmentScore,
+    teacherServiceScore,
+    overallExperienceScore,
+    storeEnvironmentStars: stars(storeEnvironmentScore),
+    teacherServiceStars: stars(teacherServiceScore),
+    overallExperienceStars: stars(overallExperienceScore),
+    customerComment: clean(result.customerComment),
+    submittedAtLabel: query.displayDateTimeAny(result.submittedAt, result.submitted_at)
   };
 }
 
@@ -451,6 +496,7 @@ Page({
     photos: buildPhotoSlots(), photoCount: 0, visiblePhotoCount: 0, photoLoading: false, photoManifestLoaded: false, photoManifestError: "",
     canEdit: false, isSubmitter: false, editableUntil: "", editableUntilLabel: "—", uploading: false, uploadingSlot: -1,
     exporting: false, exportProgress: "",
+    rating: emptyRating(), ratingLoading: false, ratingError: "",
     photoViewerOpen: false, photoViewerPath: "", photoViewerSlot: -1, photoViewerLabel: "",
     message: "", error: false
   },
@@ -511,7 +557,8 @@ Page({
       loading: "locked", message: "", error: false,
       ...(verification ? {
         photos: buildPhotoSlots("loading"), photoCount: 0, visiblePhotoCount: 0, photoManifestLoaded: false, photoManifestError: "",
-        canEdit: false, isSubmitter: false, editableUntil: "", editableUntilLabel: "—"
+        canEdit: false, isSubmitter: false, editableUntil: "", editableUntilLabel: "—",
+        rating: emptyRating(), ratingLoading: true, ratingError: ""
       } : {})
     });
     try {
@@ -555,7 +602,7 @@ Page({
           this.setData({ message: error.message || "工单详情已读取，但防重复提交锁尚未清除。", error: true });
         }
       }
-      if (verification) await this.loadPhotos();
+      if (verification) await Promise.all([this.loadPhotos(), this.loadRating()]);
     } catch (error) {
       this.setData({ order: null, loading: false, message: error.message || "工单详情读取失败", error: true });
     }
@@ -612,6 +659,31 @@ Page({
   retryPhotoList() {
     if (this.data.uploading || this.data.exporting || this.data.photos.some((photo) => photo.retrying)) return false;
     return this.loadPhotos();
+  },
+
+  async loadRating() {
+    if (this.data.baseType !== "VERIFICATION" || !this.data.order?.id || this.data.ratingLoading === "locked") return false;
+    const recordId = clean(this.data.order.id);
+    this.setData({ ratingLoading: "locked", ratingError: "" });
+    if (!["NORMAL", "EXPERIENCE"].includes(clean(this.data.order.originalType).toUpperCase())) {
+      this.setData({ rating: emptyRating(), ratingLoading: false, ratingError: "" });
+      return true;
+    }
+    try {
+      const result = await callRating("getForStaff", { verificationId: recordId });
+      if (clean(this.data.order?.id) !== recordId) return false;
+      this.setData({ rating: normalizeCustomerRating(result), ratingLoading: false, ratingError: "" });
+      return true;
+    } catch (error) {
+      if (clean(this.data.order?.id) !== recordId) return false;
+      this.setData({ rating: emptyRating(), ratingLoading: false, ratingError: error.message || "客户评价读取失败" });
+      return false;
+    }
+  },
+
+  retryRating() {
+    if (this.data.ratingLoading || !this.data.order?.id) return false;
+    return this.loadRating();
   },
 
   updatePhotoSlot(slot, changes) {
@@ -1136,9 +1208,9 @@ Page({
     }));
   },
 
-  async renderSharedReceipt(template, paginate = false) {
+  async renderSharedReceipt(template, paginate = false, ratingQrSource = "") {
     const canvas = await this.canvasNode();
-    const documentData = receiptDocumentData(this.data.order, this.data.baseType, template);
+    const documentData = receiptDocumentData(this.data.order, this.data.baseType, template, ratingQrSource);
     const receipt = await renderReceiptCanvas({
       canvas,
       documentData,
@@ -1164,9 +1236,25 @@ Page({
     if (this.data.exporting || !this.data.order) return;
     this.setData({ exporting: true, exportProgress: "正在读取产品单据模板…", message: "", error: false });
     try {
+      let ratingQrSource = "";
+      const storeRatingExport = clean(this.data.session?.role).toLowerCase() === "store"
+        && this.data.baseType === "VERIFICATION"
+        && ["NORMAL", "EXPERIENCE"].includes(clean(this.data.order?.originalType).toUpperCase());
+      if (storeRatingExport && !this.data.rating.submitted) {
+        this.setData({ exportProgress: "正在生成客户评价二维码…" });
+        const issued = await callRating("issueForStore", { verificationId: clean(this.data.order.id) });
+        if (issued.alreadySubmitted) {
+          await this.loadRating();
+        } else {
+          ratingQrSource = clean(issued.qrDataUrl);
+          if (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/i.test(ratingQrSource)) {
+            throw new Error("评价服务没有返回有效二维码，本次没有生成文件");
+          }
+        }
+      }
       const template = await this.loadReceiptTemplate();
       this.setData({ exportProgress: "正在生成业务凭证…" });
-      const receipt = await this.renderSharedReceipt(template, format === "pdf");
+      const receipt = await this.renderSharedReceipt(template, format === "pdf", ratingQrSource);
       const baseName = safeFilename(receipt.documentData.filename);
       if (format === "pdf") {
         this.setData({ exportProgress: `正在写入 ${receipt.pageCount} 页 A4 PDF…` });

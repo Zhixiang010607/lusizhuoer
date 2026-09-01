@@ -1,15 +1,19 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.28";
+  const VERSION = "0.16.29";
   const PRODUCT_LOGO_DETAIL_RETRY_DELAYS_MS = Object.freeze([0, 360, 1080]);
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
   let photoServiceApp = null;
+  let ratingServiceApp = null;
   let verificationPhotoRequest = 0;
   let currentRecord = null;
+  let currentCustomerRating = null;
+  let customerRatingRequest = 0;
+  let customerRatingLoadPromise = Promise.resolve();
   let currentVerificationPhotoPayload = null;
   let verificationPhotoLoadPromise = Promise.resolve();
   let verificationPhotoUploadBusy = false;
@@ -260,6 +264,25 @@
     return payload;
   }
 
+  async function callCustomerRating(action, data = {}) {
+    if (!window.cloudbase || !window.CloudBaseAuthConfig || !window.registerFunctions) {
+      throw new Error("客户评价服务未加载，请刷新页面重试");
+    }
+    registerCloudBaseComponent(window.registerAuth, "auth");
+    registerCloudBaseComponent(window.registerFunctions, "functions");
+    ratingServiceApp ||= window.cloudbase.init(window.CloudBaseAuthConfig);
+    const raw = await ratingServiceApp.callFunction({ name: "customerRating", data: { action, ...data } });
+    const payload = [raw?.result, raw?.data?.result, raw?.data, raw]
+      .map(parsedObject)
+      .find((candidate) => candidate && Object.prototype.hasOwnProperty.call(candidate, "success"));
+    if (!payload?.success) {
+      const error = new Error(payload?.error?.message || "客户评价服务没有返回业务结果");
+      error.code = payload?.error?.code || "RATING_SERVICE_FAILED";
+      throw error;
+    }
+    return payload.data || {};
+  }
+
   function verificationPhotoReadFlightKey(data) {
     return [clean(data?.action), clean(data?.recordId), Number(data?.slot ?? -1)].join(":");
   }
@@ -352,7 +375,7 @@
     return clean(element?.querySelector(selector)?.textContent);
   }
 
-  function exportDocumentData(record, loadedTemplate = currentProductTemplate) {
+  function exportDocumentData(record, loadedTemplate = currentProductTemplate, ratingQrSource = "") {
     const recharge = type === "recharge";
     const refund = recharge && first(record.originalType, record.rechargeType).toUpperCase() === "REFUND";
     const screenFacts = Array.from($("orderKeyfacts")?.children || []).map((element) => ({
@@ -386,6 +409,11 @@
       details,
       productGifts: recharge ? normalizeProductGifts(record?.productGifts) : [],
       messages,
+      ratingQr: !recharge && ratingQrSource ? {
+        source: ratingQrSource,
+        title: "扫码评价本次服务",
+        description: "请选择门店环境、老师服务和整体体验 1–5 星，可填写文字留言。"
+      } : null,
       productTemplate: {
         productName: first(template.productName, record.projectName, record.productName, "产品"),
         productType: first(template.productType, "未分类"),
@@ -827,6 +855,28 @@
     orderExportBusy = true;
     setExportControls(false, "正在生成客户业务凭证…");
     try {
+      let ratingQrSource = "";
+      const exactVerificationType = first(
+        currentRecord.originalType,
+        currentRecord.verificationType,
+        currentRecord.applicationType
+      ).toUpperCase();
+      const storeRatingExport = type === "verification"
+        && clean(readSession()?.role).toLowerCase() === "store"
+        && ["NORMAL", "EXPERIENCE"].includes(exactVerificationType);
+      if (storeRatingExport && currentCustomerRating?.submitted !== true) {
+        setExportControls(false, "正在生成客户评价二维码…");
+        const issued = await callCustomerRating("issueForStore", { verificationId: clean(currentRecord.id) });
+        if (issued.alreadySubmitted) {
+          currentCustomerRating = issued;
+          renderCustomerRating(issued);
+        } else {
+          ratingQrSource = clean(issued.qrDataUrl);
+          if (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/i.test(ratingQrSource)) {
+            throw new Error("评价服务没有返回有效二维码，本次没有生成文件");
+          }
+        }
+      }
       // A product template can be edited in another tab after this detail page
       // opened. Always re-read it at the action boundary so the downloaded
       // customer file never contains a stale or silently empty template.
@@ -837,7 +887,7 @@
       setExportControls(false, format === "pdf" ? "正在分页生成 PDF…" : "正在生成高清图片…");
       const result = await window.OrderExporter.exportOrder({
         format,
-        documentData: exportDocumentData(currentRecord, exportTemplate),
+        documentData: exportDocumentData(currentRecord, exportTemplate, ratingQrSource),
         photos: []
       });
       setExportControls(false, `已生成：${result.filename}`);
@@ -983,6 +1033,81 @@
     const storeMessage = combinedStoreMessage(record);
     $("reviewPanelTitle").textContent = "门店留言";
     $("verificationStoreMessage").textContent = storeMessage || "无";
+  }
+
+  function ratingStars(score) {
+    const value = Math.max(0, Math.min(5, Number(score) || 0));
+    return `${"★".repeat(value)}${"☆".repeat(5 - value)}`;
+  }
+
+  function renderCustomerRating(rating, error = "") {
+    const body = $("customerRatingBody");
+    const status = $("customerRatingStatus");
+    if (!body || !status) return;
+    const submitted = rating?.submitted === true || clean(rating?.ratingStatus).toUpperCase() === "SUBMITTED";
+    if (error) {
+      status.textContent = "读取失败";
+      body.className = "customer-rating-empty is-error";
+      body.innerHTML = `<span>${escapeHtml(error)}</span><button id="retryCustomerRating" type="button">重新读取</button>`;
+      $("retryCustomerRating")?.addEventListener("click", () => {
+        if (currentRecord) customerRatingLoadPromise = loadCustomerRating(currentRecord);
+      });
+      return;
+    }
+    if (!submitted) {
+      status.textContent = "暂无评价";
+      body.className = "customer-rating-empty";
+      body.textContent = "暂无评价";
+      return;
+    }
+    status.textContent = "已评价";
+    const scores = [
+      ["门店环境", rating.storeEnvironmentScore],
+      ...(rating.requiresTeacherScore ? [["老师服务", rating.teacherServiceScore]] : []),
+      ["整体体验", rating.overallExperienceScore]
+    ];
+    body.className = "customer-rating-content";
+    body.innerHTML = `<div class="customer-rating-scores">${scores.map(([label, score]) => `
+      <div class="customer-rating-score"><span>${escapeHtml(label)}</span><strong>${escapeHtml(ratingStars(score))}</strong><small>${Number(score)} 星</small></div>`).join("")}</div>
+      ${rating.customerComment ? `<blockquote class="customer-rating-comment">${escapeHtml(rating.customerComment)}</blockquote>` : ""}
+      <div class="customer-rating-time">评价时间：${escapeHtml(formatTime(rating.submittedAt) || "—")}</div>`;
+  }
+
+  async function loadCustomerRating(record) {
+    const request = ++customerRatingRequest;
+    const verificationId = clean(record?.id);
+    const verificationKind = clean(first(
+      record?.originalType,
+      record?.verificationType,
+      record?.applicationType,
+      record?.originalKind
+    )).toUpperCase();
+    currentCustomerRating = null;
+    const body = $("customerRatingBody");
+    const status = $("customerRatingStatus");
+    if (!body || !status) return false;
+    status.textContent = "读取中";
+    body.className = "customer-rating-empty";
+    body.textContent = "正在读取客户评价…";
+    if (!["NORMAL", "EXPERIENCE"].includes(verificationKind)) {
+      renderCustomerRating(null);
+      return true;
+    }
+    if (!/^\d+$/.test(verificationId)) {
+      renderCustomerRating(null);
+      return false;
+    }
+    try {
+      const rating = await callCustomerRating("getForStaff", { verificationId });
+      if (request !== customerRatingRequest || clean(currentRecord?.id) !== verificationId) return false;
+      currentCustomerRating = rating;
+      renderCustomerRating(rating);
+      return true;
+    } catch (error) {
+      if (request !== customerRatingRequest || clean(currentRecord?.id) !== verificationId) return false;
+      renderCustomerRating(null, error?.message || "客户评价读取失败");
+      return false;
+    }
   }
 
   function verificationFaceSubjectType(record = currentRecord, payload = currentVerificationPhotoPayload) {
@@ -2685,6 +2810,9 @@
 
   function renderMissing(recordId) {
     currentRecord = null;
+    currentCustomerRating = null;
+    customerRatingRequest += 1;
+    customerRatingLoadPromise = Promise.resolve();
     currentVerificationPhotoPayload = null;
     currentProductTemplate = null;
     currentProductTemplateError = null;
@@ -2706,6 +2834,7 @@
     renderRechargeProductGifts(null);
     if (!recharge) {
       renderVerificationMessages(null);
+      renderCustomerRating(null);
       resetVerificationPhotoPanel("尚未读取到可关联的数据库核销单。");
       return;
     }
@@ -2769,6 +2898,7 @@
     if (!recharge) {
       renderVerificationMessages(record);
       verificationPhotoLoadPromise = loadVerificationPhotos(record);
+      customerRatingLoadPromise = loadCustomerRating(record);
       setExportControls(true, "可导出完整工单；导出时会按权限读取高清照片。");
       return;
     }

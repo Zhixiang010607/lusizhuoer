@@ -441,6 +441,43 @@
     return drawInstructionText(context, instructions, y, draw, paginate);
   }
 
+  function drawRatingQr(context, documentData, ratingQr, y, draw, paginate) {
+    if (!ratingQr?.enabled) return y;
+    y += 16;
+    y = ensureSpace(y, 350, paginate);
+    y = drawSectionHeading(context, "客户评价", "本二维码仅与当前核销工单绑定", y, draw);
+    const height = 260;
+    if (draw) {
+      if (!ratingQr.image) throw new Error("客户评价二维码尚未完整载入，本次没有生成文件。");
+      context.fillStyle = RECEIPT_COLORS.panel;
+      context.strokeStyle = RECEIPT_COLORS.border;
+      context.lineWidth = 1;
+      roundedRect(context, PAGE_MARGIN, y, CONTENT_WIDTH, height, 14);
+      context.fill();
+      context.stroke();
+      const qrSize = 220;
+      const qrX = PAGE_MARGIN + 20;
+      const qrY = y + 20;
+      context.fillStyle = "#ffffff";
+      roundedRect(context, qrX, qrY, qrSize, qrSize, 10);
+      context.fill();
+      drawImageCover(context, ratingQr.image, qrX, qrY, qrSize, qrSize);
+      const textX = qrX + qrSize + 34;
+      const textWidth = CONTENT_WIDTH - qrSize - 74;
+      context.fillStyle = RECEIPT_COLORS.title;
+      setFont(context, 32, 850);
+      context.textBaseline = "top";
+      context.fillText(text(documentData.ratingQr?.title, "扫码评价本次服务"), textX, y + 50, textWidth);
+      drawWrappedText(context, text(documentData.ratingQr?.description, "选择 1–5 星并留下您的意见。"), textX, y + 102, textWidth, {
+        draw: true, size: 22, lineHeight: 35, color: RECEIPT_COLORS.secondary
+      });
+      context.fillStyle = RECEIPT_COLORS.accent;
+      setFont(context, 20, 750);
+      context.fillText("请使用微信扫码 · 每张工单仅可评价一次", textX, y + 205, textWidth);
+    }
+    return y + height + 14;
+  }
+
   function drawReceiptBackground(context, backgroundImage) {
     const height = Number(context?.canvas?.height || 0);
     context.fillStyle = RECEIPT_COLORS.background;
@@ -452,7 +489,7 @@
     }
   }
 
-  function layoutDocument(context, documentData, photos, productLogo, options = {}) {
+  function layoutDocument(context, documentData, photos, productLogo, ratingQr, options = {}) {
     const draw = options.draw === true;
     const paginate = options.paginate === true;
     const compactVerification = documentData.compactVerification === true;
@@ -477,21 +514,22 @@
     }
 
     y = drawProductInstructions(context, documentData, y, draw, paginate);
+    y = drawRatingQr(context, documentData, ratingQr, y, draw, paginate);
 
     y += 24;
     return y;
   }
 
-  function makeCanvas(documentData, photos, productLogo, backgroundImage, paginate) {
+  function makeCanvas(documentData, photos, productLogo, ratingQr, backgroundImage, paginate) {
     const measureCanvas = document.createElement("canvas");
     const measureContext = measureCanvas.getContext("2d");
-    const usedHeight = layoutDocument(measureContext, documentData, photos, productLogo, { draw: false, paginate });
+    const usedHeight = layoutDocument(measureContext, documentData, photos, productLogo, ratingQr, { draw: false, paginate });
     const height = paginate ? Math.max(PDF_PAGE_HEIGHT, Math.ceil(usedHeight / PDF_PAGE_HEIGHT) * PDF_PAGE_HEIGHT) : Math.max(500, Math.ceil(usedHeight));
     const canvas = document.createElement("canvas");
     canvas.width = CANVAS_WIDTH;
     canvas.height = height;
     const context = canvas.getContext("2d", { alpha: false });
-    layoutDocument(context, documentData, photos, productLogo, { draw: true, paginate, backgroundImage });
+    layoutDocument(context, documentData, photos, productLogo, ratingQr, { draw: true, paginate, backgroundImage });
     if (paginate) {
       const pageCount = Math.ceil(height / PDF_PAGE_HEIGHT);
       for (let page = 0; page < pageCount; page += 1) {
@@ -576,6 +614,22 @@
       throw new Error("产品 LOGO 原图尚未完整载入，本次没有生成文件。请重试。");
     }
     return { image };
+  }
+
+  async function prepareRatingQr(documentData) {
+    const source = String(documentData?.ratingQr?.source || "").trim();
+    if (!source) return { enabled: false, image: null };
+    if (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/i.test(source)) {
+      throw new Error("客户评价二维码格式无效，本次没有生成文件。");
+    }
+    const image = await new Promise((resolve, reject) => {
+      const element = new Image();
+      element.decoding = "async";
+      element.addEventListener("load", () => resolve(element), { once: true });
+      element.addEventListener("error", () => reject(new Error("客户评价二维码解码失败，本次没有生成文件。请重试。")), { once: true });
+      element.src = source;
+    });
+    return { enabled: true, image };
   }
 
   function prepareReceiptBackground() {
@@ -708,12 +762,13 @@
   async function renderOrderCanvas(options = {}) {
     const documentData = options?.documentData || {};
     const printablePhotoItems = selectReceiptPhotos(documentData, options?.photos || []);
-    const [photos, productLogo, backgroundImage] = await Promise.all([
+    const [photos, productLogo, ratingQr, backgroundImage] = await Promise.all([
       preparePhotos(printablePhotoItems),
       prepareProductLogo(documentData.productTemplate),
+      prepareRatingQr(documentData),
       prepareReceiptBackground()
     ]);
-    return makeCanvas(documentData, photos, productLogo, backgroundImage, Boolean(options?.paginate));
+    return makeCanvas(documentData, photos, productLogo, ratingQr, backgroundImage, Boolean(options?.paginate));
   }
 
   async function createOrderPdfBlob(options = {}) {

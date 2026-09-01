@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f8f0e3">
+  <title>服务评价 · 露思卓儿</title>
+  <link rel="stylesheet" href="rating.css?v=0.1.0">
+</head>
+<body>
+  <main class="rating-page">
+    <section class="rating-shell" aria-labelledby="ratingTitle">
+      <header class="rating-brand">
+        <span class="rating-brand-mark" aria-hidden="true"></span>
+        <div><p>露思卓儿</p><span>LUSIZHUOER</span></div>
+      </header>
+
+      <div class="rating-heading">
+        <p class="rating-eyebrow">SERVICE RATING</p>
+        <h1 id="ratingTitle">期待您的评价</h1>
+        <p>每一颗星，都会帮助我们把下一次服务做得更好。</p>
+      </div>
+
+      <div id="ratingLoading" class="rating-state" role="status">正在读取本次服务信息…</div>
+      <div id="ratingError" class="rating-state rating-state-error" role="alert" hidden></div>
+
+      <section id="ratingContext" class="rating-context" hidden>
+        <div><span>服务门店</span><strong id="ratingStoreName">—</strong></div>
+        <div id="ratingTeacherContext"><span>服务老师</span><strong id="ratingTeacherName">—</strong></div>
+      </section>
+
+      <form id="ratingForm" class="rating-form" novalidate hidden>
+        <fieldset class="rating-question" data-rating-group="storeEnvironmentScore">
+          <legend><span>01</span><strong>门店环境</strong><small>整洁、舒适与整体氛围</small></legend>
+          <div class="star-picker" role="radiogroup" aria-label="门店环境评分"></div>
+          <output>请选择 1–5 星</output>
+        </fieldset>
+
+        <fieldset id="teacherRatingQuestion" class="rating-question" data-rating-group="teacherServiceScore">
+          <legend><span>02</span><strong>老师服务</strong><small>专业、耐心与服务态度</small></legend>
+          <div class="star-picker" role="radiogroup" aria-label="老师服务评分"></div>
+          <output>请选择 1–5 星</output>
+        </fieldset>
+
+        <fieldset class="rating-question" data-rating-group="overallExperienceScore">
+          <legend><span>03</span><strong>整体体验</strong><small>您对本次服务的总体感受</small></legend>
+          <div class="star-picker" role="radiogroup" aria-label="整体体验评分"></div>
+          <output>请选择 1–5 星</output>
+        </fieldset>
+
+        <label class="rating-comment">
+          <span><strong>想对我们说的话</strong><small><b id="ratingCommentCount">0</b> / 500</small></span>
+          <textarea id="ratingComment" maxlength="500" rows="5" placeholder="可选填写您的感受或建议…"></textarea>
+        </label>
+
+        <p id="ratingFormMessage" class="rating-form-message" role="alert"></p>
+        <button id="submitRating" class="rating-submit" type="submit">提交评价</button>
+        <p class="rating-privacy">评价仅与本次核销工单绑定，不会公开您的个人信息。</p>
+      </form>
+
+      <section id="ratingComplete" class="rating-complete" hidden>
+        <span class="rating-complete-icon" aria-hidden="true">✓</span>
+        <h2>感谢您的评价</h2>
+        <p>本次评价已经提交，老师、门店和总部可以在对应工单中查看。</p>
+        <div id="ratingCompleteScores" class="rating-complete-scores"></div>
+        <blockquote id="ratingCompleteComment" hidden></blockquote>
+      </section>
+    </section>
+  </main>
+
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
+  <script src="cloudbase-auth-config.js"></script>
+  <script src="rating.js?v=0.1.0"></script>
+</body>
+</html>
