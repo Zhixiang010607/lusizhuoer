@@ -67,6 +67,11 @@ test("customerRating v1 keeps public links signed, stable, scoped, and one-time"
   assert.match(issue, /publicUrl\.searchParams\.set\("token", token\)/,
     "configured rating page queries and fragments must receive the token safely");
   assert.match(issue, /ON CONFLICT \(verification_id\) DO NOTHING/);
+  assert.doesNotMatch(`${issue}\n${functionBody(cloud, "publicRow", "getPublic")}`,
+    /expires?_at|expiry|token_ttl|Date\.now\(\)/i,
+    "an unsubmitted rating QR must not expire");
+  assert.doesNotMatch(migration, /token_expires|expires?_at|token_ttl/i,
+    "migration 068 must not add an expiry to an open rating link");
 
   const staffRead = functionBody(cloud, "canReadRating", "getForStaff");
   assert.match(staffRead, /staff\.role_code === "hq"/);
@@ -76,6 +81,8 @@ test("customerRating v1 keeps public links signed, stable, scoped, and one-time"
   const submit = functionBody(cloud, "submitPublic", "health");
   assert.match(submit, /rating_status = 'OPEN'/);
   assert.match(submit, /submitted_at IS NULL/);
+  assert.match(submit, /alreadySubmitted: true/,
+    "a submitted rating must be returned read-only instead of being updated again");
   assert.match(submit, /COMMENT_TOO_LONG/);
   assert.match(submit, /row\.teacher_id[\s\S]*numberScore\(event\.teacherServiceScore/);
 });
