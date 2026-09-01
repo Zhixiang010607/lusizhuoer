@@ -2,7 +2,7 @@
   "use strict";
 
   // 文档同步约束：每次业务或界面变更都必须同步更新 main.tex 与 README.md。
-  const PROTOTYPE_VERSION = "0.15.22";
+  const PROTOTYPE_VERSION = "0.15.23";
   const BUSINESS_TIME_ZONE = "Asia/Shanghai";
   const RANKING_PAGE_SIZE = 100;
   const PRODUCT_SUMMARY_PAGE_SIZE = 10;

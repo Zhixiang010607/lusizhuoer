@@ -76,7 +76,7 @@ assert.ok(twoPagePdf.includes("xref\n0 9"), "multi-page PDF xref count");
 for (const html of [rechargeHtml, verificationHtml]) {
   includes(html, 'id="exportOrderPdf"', "PDF export button");
   includes(html, 'id="exportOrderImage"', "image export button");
-  assert.ok(html.indexOf("order-export.js?v=0.1.13") < html.indexOf("business-detail.js?v=0.16.29"), "exporter must load before detail controller");
+  assert.ok(html.indexOf("order-export.js?v=0.1.13") < html.indexOf("business-detail.js?v=0.16.30"), "exporter must load before detail controller");
 }
 
 includes(verificationHtml, 'class="verification-order-keyfacts verification-order-five-keyfacts"', "verification detail uses a five-fact header");
@@ -207,7 +207,7 @@ const ratingHeight = exporter.__layoutDocumentWithRating(
   headerContext, ratingDocument, compactPhotos, { enabled: true, image: { width: 640, height: 640 } },
   { draw: false, paginate: true }
 );
-assert.ok(ratingHeight > compactHeight, "store receipt reserves a conditional customer-rating QR section");
+assert.ok(ratingHeight > compactHeight, "eligible HQ/store receipt reserves a conditional customer-rating QR section");
 const ratingTextStart = headerTexts.length;
 exporter.__layoutDocumentWithRating(
   headerContext, ratingDocument, compactPhotos, { enabled: true, image: { width: 640, height: 640 } },

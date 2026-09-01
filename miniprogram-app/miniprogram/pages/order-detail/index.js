@@ -1237,12 +1237,12 @@ Page({
     this.setData({ exporting: true, exportProgress: "正在读取产品单据模板…", message: "", error: false });
     try {
       let ratingQrSource = "";
-      const storeRatingExport = clean(this.data.session?.role).toLowerCase() === "store"
+      const ratingExport = ["store", "hq"].includes(clean(this.data.session?.role).toLowerCase())
         && this.data.baseType === "VERIFICATION"
         && ["NORMAL", "EXPERIENCE"].includes(clean(this.data.order?.originalType).toUpperCase());
-      if (storeRatingExport && !this.data.rating.submitted) {
+      if (ratingExport && !this.data.rating.submitted) {
         this.setData({ exportProgress: "正在生成客户评价二维码…" });
-        const issued = await callRating("issueForStore", { verificationId: clean(this.data.order.id) });
+        const issued = await callRating("issueForReceipt", { verificationId: clean(this.data.order.id) });
         if (issued.alreadySubmitted) {
           await this.loadRating();
         } else {

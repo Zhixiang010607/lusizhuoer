@@ -149,7 +149,7 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 4. 依次执行并验收 049、050；部署不再读写旧 Saga 的 `faceRecognition v109`、`staffAccount v80` 和 `teacherCreate v6` 后执行 053 并确认 7 行全部 `RETIRED`。继续依次执行并验收 054—067；删除旧 `reconcile-teacher-face-operations` Timer，保留老师额度月初 Timer。
 5. 新建或更新函数 `verificationPhoto`，上传 `verificationPhoto-v10.zip`，配置上述环境变量、512 MB 内存和 60 秒超时。
 6. 对 `verificationPhoto` 调用 `{ "action": "health" }`，确认 `version: "v10"`、`sharedVersion: "v9"` 与全部就绪字段，再保存本节的 triggers-only 配置。
-7. 评价同轮还必须执行并验收 068、配置至少 32 字节的 `CUSTOMER_RATING_SIGNING_KEY` 及实际 `rating.html` 地址 `CUSTOMER_RATING_BASE_URL`、上传 `customerRating-v1.zip` 并确认 `health` 为 `v1` 且 `configured=true`。`verificationPhoto v10` 不读取或写入评价。
+7. 评价同轮还必须执行并验收 068、配置至少 32 字节的 `CUSTOMER_RATING_SIGNING_KEY` 及实际 `rating.html` 地址 `CUSTOMER_RATING_BASE_URL`、上传 `customerRating-v2.zip` 并确认 `health` 为 `v2` 且 `configured=true`。`verificationPhoto v10` 不读取或写入评价。
 8. 只有相关函数均验证成功后，才发布包含 `rating.html` 的当前静态前端并强制刷新浏览器；不要先发前端。
 
 `verificationPhoto` 应返回类似：

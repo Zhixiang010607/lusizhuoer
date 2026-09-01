@@ -48,8 +48,8 @@ test("migration 068 binds one immutable rating to a completed normal or experien
     "migration 068 handoff must verify the cloud function retains CRUD access");
 });
 
-test("customerRating v1 keeps public links signed, stable, scoped, and one-time", () => {
-  assert.match(cloud, /const FUNCTION_VERSION = "v1"/);
+test("customerRating v2 keeps public links signed, stable, scoped, and one-time", () => {
+  assert.match(cloud, /const FUNCTION_VERSION = "v2"/);
   assert.match(cloud, /CUSTOMER_RATING_SIGNING_KEY/);
   assert.match(cloud, /缺少 CUSTOMER_RATING_BASE_URL/);
   assert.match(cloud, /Buffer\.byteLength\(value, "utf8"\) >= 32/);
@@ -59,8 +59,13 @@ test("customerRating v1 keeps public links signed, stable, scoped, and one-time"
   assert.doesNotMatch(cloud, /verified_at/,
     "rating eligibility must use the real approved work-order status, not the retired draft field");
 
-  const issue = functionBody(cloud, "issueForStore", "publicRow");
-  assert.match(issue, /staff\.role_code !== "store"/);
+  const issuePolicy = functionBody(cloud, "canIssueRating", "getForStaff");
+  assert.match(issuePolicy, /staff\.role_code === "hq"/);
+  assert.match(issuePolicy, /staff\.role_code === "store"/);
+  assert.doesNotMatch(issuePolicy, /staff\.role_code === "teacher"/);
+  const issue = functionBody(cloud, "issueForReceipt", "publicRow");
+  assert.match(issue, /!canIssueRating\(staff, order\)/);
+  assert.match(issue, /仅总部或工单所属门店可以生成评价二维码/);
   assert.match(issue, /order\.record_status !== "APPROVED"/);
   assert.match(issue, /signedRatingToken\(rating\)/,
     "repeat exports must derive the same token from the rating id and token version");
@@ -103,7 +108,7 @@ test("public rating page provides three accessible star groups and optional text
     "customer QR page must not redirect anonymous customers to staff login");
 });
 
-test("web work-order detail shows no-rating or submitted stars and only store exports request a QR", () => {
+test("web work-order detail shows ratings while HQ and store exports request a QR", () => {
   assert.match(webHtml, /id="customerRatingPanel"[\s\S]*id="customerRatingBody"/);
   assert.ok(webHtml.indexOf('id="customerRatingPanel"') > webHtml.indexOf('id="verificationPhotoPanel"'),
     "customer rating must be appended at the bottom of the work-order content");
@@ -113,16 +118,16 @@ test("web work-order detail shows no-rating or submitted stars and only store ex
   assert.match(webDetail, /"★"\.repeat\(value\)/);
   assert.match(webDetail, /rating\.customerComment/);
   const exportBody = functionBody(webDetail, "exportCurrentOrder", "isVoidableOriginalType");
-  assert.match(exportBody, /readSession\(\)\?\.role\)\.toLowerCase\(\) === "store"/);
+  assert.match(exportBody, /\["store", "hq"\]\.includes\(clean\(readSession\(\)\?\.role\)\.toLowerCase\(\)\)/);
   assert.match(exportBody, /\["NORMAL", "EXPERIENCE"\]\.includes/);
-  assert.match(exportBody, /callCustomerRating\("issueForStore"/);
-  assert.doesNotMatch(exportBody, /role[^\n]+(?:teacher|hq)[\s\S]*issueForStore/i,
-    "teacher and HQ export paths must never issue a QR");
+  assert.match(exportBody, /callCustomerRating\("issueForReceipt"/);
+  assert.doesNotMatch(exportBody, /\["store", "hq", "teacher"\]/,
+    "teacher export paths must never issue a QR");
   assert.match(webReceipt, /if \(!ratingQr\?\.enabled\) return y/);
   assert.match(webReceipt, /if \(!source\) return \{ enabled: false, image: null \}/);
 });
 
-test("mini-program phone and iPad detail use the same rating and store-only QR contract", () => {
+test("mini-program phone and iPad detail use the same HQ/store QR contract", () => {
   assert.match(miniApi, /Object\.prototype\.hasOwnProperty\.call\(value, "success"\)/,
     "mini-program must parse the customerRating success/data response contract");
   assert.match(miniWxml, /wx:elif="\{\{!rating\.submitted\}\}" class="rating-empty">暂无评价<\/view>/);
@@ -136,9 +141,11 @@ test("mini-program phone and iPad detail use the same rating and store-only QR c
   const exportEnd = miniDetail.indexOf("\n  exportPdf()", exportStart);
   assert.ok(exportStart >= 0 && exportEnd > exportStart, "missing mini-program exportOrder method");
   const exportBody = miniDetail.slice(exportStart, exportEnd);
-  assert.match(exportBody, /session\?\.role\)\.toLowerCase\(\) === "store"/);
+  assert.match(exportBody, /\["store", "hq"\]\.includes\(clean\(this\.data\.session\?\.role\)\.toLowerCase\(\)\)/);
   assert.match(exportBody, /\["NORMAL", "EXPERIENCE"\]\.includes/);
-  assert.match(exportBody, /callRating\("issueForStore"/);
+  assert.match(exportBody, /callRating\("issueForReceipt"/);
+  assert.doesNotMatch(exportBody, /\["store", "hq", "teacher"\]/,
+    "teacher mini-program exports must never issue a QR");
   assert.match(miniReceipt, /if \(!ratingQr\?\.enabled\) return y/);
   assert.match(miniReceipt, /if \(!source\) return \{ enabled: false, image: null \}/);
 });

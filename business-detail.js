@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.29";
+  const VERSION = "0.16.30";
   const PRODUCT_LOGO_DETAIL_RETRY_DELAYS_MS = Object.freeze([0, 360, 1080]);
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
@@ -861,12 +861,12 @@
         currentRecord.verificationType,
         currentRecord.applicationType
       ).toUpperCase();
-      const storeRatingExport = type === "verification"
-        && clean(readSession()?.role).toLowerCase() === "store"
+      const ratingExport = type === "verification"
+        && ["store", "hq"].includes(clean(readSession()?.role).toLowerCase())
         && ["NORMAL", "EXPERIENCE"].includes(exactVerificationType);
-      if (storeRatingExport && currentCustomerRating?.submitted !== true) {
+      if (ratingExport && currentCustomerRating?.submitted !== true) {
         setExportControls(false, "正在生成客户评价二维码…");
-        const issued = await callCustomerRating("issueForStore", { verificationId: clean(currentRecord.id) });
+        const issued = await callCustomerRating("issueForReceipt", { verificationId: clean(currentRecord.id) });
         if (issued.alreadySubmitted) {
           currentCustomerRating = issued;
           renderCustomerRating(issued);

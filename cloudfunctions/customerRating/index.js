@@ -5,7 +5,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const QRCode = require("qrcode");
 
-const FUNCTION_VERSION = "v1";
+const FUNCTION_VERSION = "v2";
 let cloudApp = null;
 let managerClient = null;
 let storeBindingLayout = "";
@@ -236,6 +236,11 @@ function canReadRating(staff, order) {
     || (staff.role_code === "teacher" && String(staff.teacher_id) === String(order.teacher_id));
 }
 
+function canIssueRating(staff, order) {
+  return staff.role_code === "hq"
+    || (staff.role_code === "store" && String(staff.store_id) === String(order.store_id));
+}
+
 async function getForStaff(event) {
   const verificationId = sqlId(event.verificationId, "核销工单");
   const [staff, order] = await Promise.all([currentStaff(), orderForVerification(verificationId)]);
@@ -246,20 +251,20 @@ async function getForStaff(event) {
   return {
     exists: view.submitted,
     linkIssued: Boolean(rating),
-    canIssue: staff.role_code === "store"
-      && String(staff.store_id) === String(order.store_id)
+    canIssue: canIssueRating(staff, order)
       && order.record_status === "APPROVED"
       && !view.submitted,
     ...view
   };
 }
 
-async function issueForStore(event) {
+async function issueForReceipt(event) {
   const verificationId = sqlId(event.verificationId, "核销工单");
   const [staff, order] = await Promise.all([currentStaff(), orderForVerification(verificationId)]);
-  if (staff.role_code !== "store") fail("仅工单所属门店可以生成评价二维码。", "FORBIDDEN");
   if (!order) fail("核销工单不存在。", "NOT_FOUND");
-  if (String(order.store_id) !== String(staff.store_id)) fail("只能生成本门店工单的评价二维码。", "FORBIDDEN");
+  if (!canIssueRating(staff, order)) {
+    fail("仅总部或工单所属门店可以生成评价二维码。", "FORBIDDEN");
+  }
   if (order.record_status !== "APPROVED") fail("核销尚未完成，不能生成评价二维码。", "ORDER_NOT_COMPLETED");
 
   let rating = await ratingForVerification(verificationId);
@@ -399,7 +404,8 @@ exports.main = async (event = {}) => {
     switch (String(event.action || "")) {
       case "health": data = health(); break;
       case "getForStaff": data = await getForStaff(event); break;
-      case "issueForStore": data = await issueForStore(event); break;
+      case "issueForReceipt":
+      case "issueForStore": data = await issueForReceipt(event); break;
       case "getPublic": data = await getPublic(event); break;
       case "submitPublic": data = await submitPublic(event); break;
       default: fail("不支持的评价操作。", "UNKNOWN_ACTION");
