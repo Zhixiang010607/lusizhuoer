@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const { pinyin } = require("pinyin-pro");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v109";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v110";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -2419,6 +2419,235 @@ async function queryStoreCustomers(event = {}) {
     })),
     hasMore,
     nextCursor: hasMore && last ? { createdAt: last.cursor_created_at, id: String(last.id) } : null
+  };
+}
+
+function inactiveVerificationCursor(event = {}) {
+  const baselineAt = scopedQueryCursorTimestamp(event.cursorBaselineAt, "未核销客户分页时间游标");
+  const customerIdText = String(event.cursorCustomerId || "").trim();
+  if (Boolean(baselineAt) !== Boolean(customerIdText)) fail("未核销客户分页游标不完整。", "BAD_REQUEST");
+  return {
+    baselineAt,
+    customerId: customerIdText ? businessQueryDatabaseId(customerIdText, "未核销客户分页编号") : ""
+  };
+}
+
+// Headquarters and stores can find customers who have not completed a NORMAL
+// or EXPERIENCE verification for a caller-supplied number of Shanghai calendar
+// days. The baseline follows the required fixed ladder: latest approved NORMAL
+// first; only when no NORMAL exists may the latest approved EXPERIENCE be used;
+// customers with neither type use their immutable customer-created time.
+async function queryInactiveVerificationCustomers(event = {}) {
+  const caller = await activeScopedQueryCaller(event);
+  const minimumDaysText = String(event.minimumDays ?? "").trim();
+  const minimumDays = Number(minimumDaysText);
+  if (!/^\d+$/.test(minimumDaysText) || !Number.isInteger(minimumDays) || minimumDays < 1 || minimumDays > 3650) {
+    fail("未核销天数必须是 1 至 3650 的整数。", "BAD_REQUEST");
+  }
+  const requestedLimit = Number(event.limit);
+  const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 20, 1), 100);
+  const cursor = inactiveVerificationCursor(event);
+  const eligibleSql = `WITH eligible_customers AS (
+    SELECT c.id, c.customer_code, c.customer_name, c.birth_date, c.customer_status,
+           c.created_at, c.created_store_id AS store_id,
+           s.store_name, s.store_code,
+           latest.id AS last_verification_id,
+           latest.verification_code AS last_verification_code,
+           latest.verification_type AS last_verification_type,
+           latest.product_name AS last_product_name,
+           COALESCE(latest.submitted_at, c.created_at) AS baseline_at,
+           CASE WHEN latest.id IS NULL THEN 'CUSTOMER_CREATED' ELSE latest.verification_type END AS baseline_source,
+           ((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai')::date
+             - (COALESCE(latest.submitted_at, c.created_at) AT TIME ZONE 'Asia/Shanghai')::date)::integer AS days_since
+      FROM public.customers c
+      JOIN public.stores s ON s.id = c.created_store_id
+ LEFT JOIN LATERAL (
+        SELECT v.id, v.verification_code, v.verification_type, v.submitted_at,
+               p.product_name
+          FROM public.verification_records v
+          JOIN public.products p ON p.id = v.product_id
+         WHERE v.customer_id = c.id
+           AND v.record_status = 'APPROVED'
+           AND v.verification_type IN ('NORMAL', 'EXPERIENCE')
+         ORDER BY CASE WHEN v.verification_type = 'NORMAL' THEN 0 ELSE 1 END ASC,
+                  v.submitted_at DESC, v.id DESC
+         LIMIT 1
+      ) latest ON TRUE
+     WHERE ${scopedStoreClause(caller, "c.created_store_id")}
+       AND c.customer_status = 'ACTIVE'
+       AND ((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai')::date
+             - (COALESCE(latest.submitted_at, c.created_at) AT TIME ZONE 'Asia/Shanghai')::date) >= ${minimumDays}
+  )`;
+  const cursorClause = cursor.baselineAt
+    ? `(inactive.baseline_at, inactive.id) > (${sqlText(cursor.baselineAt)}::timestamptz, ${cursor.customerId}::bigint)`
+    : "TRUE";
+  const [rows, summaryRows] = await Promise.all([
+    executeSql(`${eligibleSql}
+      SELECT inactive.*,
+             TO_CHAR(inactive.baseline_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_baseline_at
+        FROM eligible_customers inactive
+       WHERE ${cursorClause}
+       ORDER BY inactive.baseline_at ASC, inactive.id ASC
+       LIMIT ${limit + 1}`),
+    executeSql(`${eligibleSql}
+      SELECT COUNT(*) AS selected_total,
+             COUNT(*) FILTER (WHERE baseline_source = 'NORMAL') AS normal_baseline,
+             COUNT(*) FILTER (WHERE baseline_source = 'EXPERIENCE') AS experience_baseline,
+             COUNT(*) FILTER (WHERE baseline_source = 'CUSTOMER_CREATED') AS never_verified
+        FROM eligible_customers`)
+  ]);
+  const hasMore = rows.length > limit;
+  const pageRows = rows.slice(0, limit);
+  const last = pageRows[pageRows.length - 1];
+  const summary = summaryRows[0] || {};
+  return {
+    ok: true,
+    scopeMode: caller.scopeMode,
+    storeId: caller.storeId ? String(caller.storeId) : "",
+    storeCode: caller.storeCode || "",
+    storeName: caller.storeName || "",
+    minimumDays,
+    summary: {
+      selectedTotal: Number(summary.selected_total || 0),
+      normalBaseline: Number(summary.normal_baseline || 0),
+      experienceBaseline: Number(summary.experience_baseline || 0),
+      neverVerified: Number(summary.never_verified || 0)
+    },
+    customers: pageRows.map((customer) => ({
+      customerCode: customer.customer_code,
+      customerName: customer.customer_name,
+      birthDate: customer.birth_date,
+      customerStatus: customer.customer_status,
+      storeId: String(customer.store_id),
+      storeName: customer.store_name,
+      storeCode: customer.store_code,
+      baselineAt: customer.baseline_at,
+      baselineSource: customer.baseline_source,
+      daysSince: Number(customer.days_since || 0),
+      lastVerificationId: customer.last_verification_id ? String(customer.last_verification_id) : "",
+      lastVerificationCode: customer.last_verification_code || "",
+      lastVerificationType: customer.last_verification_type || "",
+      lastProductName: customer.last_product_name || ""
+    })),
+    hasMore,
+    nextCursor: hasMore && last
+      ? { baselineAt: last.cursor_baseline_at, customerId: String(last.id) }
+      : null
+  };
+}
+
+function lowBalanceCursor(event = {}) {
+  const remainingText = String(event.cursorRemainingCount ?? "").trim();
+  const customerIdText = String(event.cursorCustomerId || "").trim();
+  const productIdText = String(event.cursorProductId || "").trim();
+  const supplied = [remainingText, customerIdText, productIdText].filter(Boolean).length;
+  if (supplied !== 0 && supplied !== 3) fail("低余次客户分页游标不完整。", "BAD_REQUEST");
+  if (!supplied) return { remainingCount: "", customerId: "", productId: "" };
+  const remainingCount = Number(remainingText);
+  if (!/^\d+$/.test(remainingText) || !Number.isSafeInteger(remainingCount)) {
+    fail("低余次客户分页余次无效。", "BAD_REQUEST");
+  }
+  return {
+    remainingCount,
+    customerId: businessQueryDatabaseId(customerIdText, "低余次客户分页客户"),
+    productId: businessQueryDatabaseId(productIdText, "低余次客户分页项目")
+  };
+}
+
+// A balance row is the authoritative proof that a customer opened the project
+// card.  Never synthesize zero-balance rows for products the customer did not
+// purchase.  EXPERIENCE verifications are already excluded by the balance
+// state machine and therefore cannot lower the remaining purchased units.
+async function queryLowBalanceCustomers(event = {}) {
+  const caller = await activeScopedQueryCaller(event);
+  const remainingBelowText = String(event.remainingBelow ?? "").trim();
+  const remainingBelow = Number(remainingBelowText);
+  if (!/^\d+$/.test(remainingBelowText) || !Number.isInteger(remainingBelow)
+      || remainingBelow < 1 || remainingBelow > 999999) {
+    fail("剩余次数阈值必须是 1 至 999999 的整数。", "BAD_REQUEST");
+  }
+  const productIdText = String(event.productId || "").trim();
+  const productId = productIdText && productIdText.toUpperCase() !== "ALL"
+    ? businessQueryDatabaseId(productIdText, "项目")
+    : "";
+  const requestedLimit = Number(event.limit);
+  const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 20, 1), 100);
+  const cursor = lowBalanceCursor(event);
+  const baseClauses = [
+    scopedStoreClause(caller, "c.created_store_id"),
+    "c.customer_status = 'ACTIVE'",
+    "p.product_status = 'ACTIVE'",
+    "b.total_recharge_count > 0",
+    `b.remaining_count < ${remainingBelow}`
+  ];
+  if (productId) baseClauses.push(`b.product_id = ${productId}::bigint`);
+  const cursorClause = cursor.customerId
+    ? `(b.remaining_count, c.id, b.product_id) > (${cursor.remainingCount}::integer, ${cursor.customerId}::bigint, ${cursor.productId}::bigint)`
+    : "TRUE";
+  const fromSql = `FROM public.customer_product_balances b
+       JOIN public.customers c ON c.id = b.customer_id
+       JOIN public.products p ON p.id = b.product_id
+       JOIN public.stores s ON s.id = c.created_store_id
+      WHERE ${baseClauses.join("\n        AND ")}`;
+  const [rows, summaryRows] = await Promise.all([
+    executeSql(
+      `SELECT c.id AS customer_id, c.customer_code, c.customer_name, c.birth_date,
+              c.created_store_id AS store_id, s.store_code, s.store_name,
+              p.id AS product_id, p.product_code, p.product_name,
+              b.total_recharge_count, b.total_verification_count,
+              b.remaining_count, b.updated_at
+         ${fromSql}
+          AND ${cursorClause}
+        ORDER BY b.remaining_count ASC, c.id ASC, b.product_id ASC
+        LIMIT ${limit + 1}`
+    ),
+    executeSql(
+      `SELECT COUNT(*) AS selected_total,
+              COUNT(DISTINCT c.id) AS customer_total,
+              COUNT(DISTINCT b.product_id) AS product_total,
+              COUNT(*) FILTER (WHERE b.remaining_count = 0) AS zero_balance
+         ${fromSql}`
+    )
+  ]);
+  const hasMore = rows.length > limit;
+  const pageRows = rows.slice(0, limit);
+  const last = pageRows[pageRows.length - 1];
+  const summary = summaryRows[0] || {};
+  return {
+    ok: true,
+    scopeMode: caller.scopeMode,
+    storeId: caller.storeId ? String(caller.storeId) : "",
+    storeCode: caller.storeCode || "",
+    storeName: caller.storeName || "",
+    remainingBelow,
+    productId: productId || "",
+    summary: {
+      selectedTotal: Number(summary.selected_total || 0),
+      customerTotal: Number(summary.customer_total || 0),
+      productTotal: Number(summary.product_total || 0),
+      zeroBalance: Number(summary.zero_balance || 0)
+    },
+    balances: pageRows.map((row) => ({
+      customerCode: row.customer_code,
+      customerName: row.customer_name,
+      birthDate: row.birth_date,
+      storeId: String(row.store_id),
+      storeCode: row.store_code,
+      storeName: row.store_name,
+      productId: String(row.product_id),
+      productCode: row.product_code,
+      productName: row.product_name,
+      purchasedCount: Number(row.total_recharge_count || 0),
+      consumedCount: Number(row.total_verification_count || 0),
+      remainingCount: Number(row.remaining_count || 0),
+      updatedAt: row.updated_at
+    })),
+    hasMore,
+    nextCursor: hasMore && last ? {
+      remainingCount: Number(last.remaining_count || 0),
+      customerId: String(last.customer_id),
+      productId: String(last.product_id)
+    } : null
   };
 }
 
@@ -6639,6 +6868,8 @@ exports.main = async (event = {}, context = {}) => {
     if (action === "registerCustomer") return await registerCustomer(event);
     if (action === "listActiveStoreCustomers") return await listActiveStoreCustomers(event);
     if (action === "queryStoreCustomers") return await queryStoreCustomers(event);
+    if (action === "queryInactiveVerificationCustomers") return await queryInactiveVerificationCustomers(event);
+    if (action === "queryLowBalanceCustomers") return await queryLowBalanceCustomers(event);
     if (action === "queryStoreBusinessRecords") return await queryStoreBusinessRecords(event);
     if (action === "getStoreDashboard") return await getStoreDashboard(event);
     if (action === "getStoreBusinessAnalytics") return await getStoreBusinessAnalytics(event);

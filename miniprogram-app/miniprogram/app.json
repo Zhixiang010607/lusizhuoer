@@ -17,6 +17,8 @@
     { "root": "pages/hq-directory", "pages": ["index"] },
     { "root": "pages/reviews", "pages": ["index"] },
     { "root": "pages/customers", "pages": ["index"] },
+    { "root": "pages/inactive-customers", "pages": ["index"] },
+    { "root": "pages/low-balance-customers", "pages": ["index"] },
     { "root": "pages/customer-detail", "pages": ["index"] },
     { "root": "pages/customer-create", "pages": ["index"] },
     { "root": "pages/recharge", "pages": ["index"] },

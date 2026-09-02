@@ -18,6 +18,8 @@
   <view wx:if="{{queryMenuOpen && session.role !== 'teacher'}}" class="business-popover query-popover" catchtap="noop">
     <view class="popover-grid">
       <view data-type="customer" bindtap="openQuery">客户查询</view>
+      <view data-type="inactive-customer" bindtap="openQuery">未核销客户</view>
+      <view data-type="low-balance-customer" bindtap="openQuery">低余次客户</view>
       <view data-type="recharge" bindtap="openQuery">充值查询</view>
       <view data-type="verification" bindtap="openQuery">核销查询</view>
       <view wx:if="{{session.role === 'hq'}}" data-type="product" bindtap="openQuery">产品查询</view>

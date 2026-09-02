@@ -23,6 +23,8 @@ const nativeTablePages = [
   ["records", "record-table"],
   ["reviews", "review-table"],
   ["customers", "customer-table"],
+  ["inactive-customers", "inactive-table"],
+  ["low-balance-customers", "low-balance-table"],
   ["hq-directory", "data-table"],
   ["customer-detail", "balance-table"],
 ];

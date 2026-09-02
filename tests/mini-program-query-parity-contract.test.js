@@ -13,10 +13,12 @@ const tools = require(path.join(mini, "services", "query-tools.js"));
 test("HQ and store mini-program navigation exposes role-appropriate database searches", () => {
   const homeJs = read("pages", "home", "index.js");
   const homeWxml = read("pages", "home", "index.wxml");
-  for (const label of ["客户查询", "充值查询", "核销查询", "产品查询"]) assert.match(homeWxml, new RegExp(label));
+  for (const label of ["客户查询", "未核销客户", "低余次客户", "充值查询", "核销查询", "产品查询"]) assert.match(homeWxml, new RegExp(label));
   assert.match(homeWxml, /session\.role !== 'teacher'/);
   assert.match(homeJs, /pages\/records\/index\?type=/);
   assert.match(homeJs, /pages\/customers\/index/);
+  assert.match(homeJs, /pages\/inactive-customers\/index/);
+  assert.match(homeJs, /pages\/low-balance-customers\/index/);
   assert.match(homeWxml, /data-type="product"[^>]*bindtap="openQuery"/,
     "product-purchase search must be a distinct HQ query entry");
 });

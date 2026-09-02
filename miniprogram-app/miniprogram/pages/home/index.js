@@ -879,6 +879,8 @@ Page({
     const type = String(event.currentTarget.dataset.type || "customer");
     this.setData({ queryMenuOpen: false });
     if (type === "customer") wx.navigateTo({ url: "/pages/customers/index" });
+    else if (type === "inactive-customer") wx.navigateTo({ url: "/pages/inactive-customers/index" });
+    else if (type === "low-balance-customer") wx.navigateTo({ url: "/pages/low-balance-customers/index" });
     else wx.navigateTo({ url: `/pages/records/index?type=${type}` });
   },
   openManagement(event) {

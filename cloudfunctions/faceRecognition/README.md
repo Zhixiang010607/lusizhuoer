@@ -2,7 +2,9 @@
 
 该函数仅在 CloudBase 后端运行，用于门店与老师共享的客户建档、照片质量检测、私有照片留存、人脸人员库录入、1:1 核验和业务数据接口。总部只保留查询、审核、管理与已有记录读取，不能新建客户或业务工单。客户不需要提供身份证。核销单照片的列表、原图、导出及三个补充照片位上传已拆到独立的 `verificationPhoto v10`；当前静态前端不再把这些照片动作发给本函数。
 
-当前版本：`v109`
+当前版本：`v110`
+
+`v110` 为总部与门店增加两个只读客户提醒接口。`queryInactiveVerificationCustomers` 永久排除封存客户，按“任意正常核销优先 → 没有正常时才用体验核销 → 两类都没有时用客户建档”的固定阶梯和手填上海自然日查询；`queryLowBalanceCustomers` 直接读取 `customer_product_balances` 权威余额，只统计已经开卡的活跃项目，支持单个／全部项目和手填严格小于阈值。总部可以选择全部或指定门店，门店始终锁定本店，老师无权调用；两者均稳定游标分页且不需要新增数据库结构。
 
 `v109` 修复门店全局视图加载失败：门店客户状态查询改为仅接受 `ACTIVE`／`ARCHIVED` 的白名单 SQL helper，移除对不存在的 `sqlLiteral` 的调用；其余业务接口、权限与统计口径保持不变。
 
@@ -36,7 +38,7 @@ v108 最终取消设备注册表依赖。数据库只保留 `verification_ble_qu
 ## 老师与门店工作台（v108）
 
 新建老师只调用独立的 `teacherCreate v6/createTeacher`，该函数只创建账号和老师
-主档，不接收图片或建立老师人脸。`faceRecognition v109` 不接受老师创建、照片检测、
+主档，不接收图片或建立老师人脸。`faceRecognition v110` 不接受老师创建、照片检测、
 补录、替换、回读、回滚或最终清理委托，也不读取迁移 051 的老师人脸操作租约。
 
 v108 允许门店和老师办理正常核销，体验核销只允许老师账号。正常核销和体验核销都要求办理人员明确选择 1—999 次，次数进入幂等匹配；数据库按同一次数原子校验并扣减客户余额或老师体验额度，设备信号只读取数据库确认后的次数。两类核销都调用同一个 `verifyCustomerFace` 与 `persistVerifiedFaceEvidence`，现场只对所选客户的 `PersonId` 做 1:1 比对。门店充值、退费、正常核销和独立产品购买的业务老师全部可选；留空时不写老师归属，选择时必须是一位主档及登录账号均活跃的真实老师。老师账号的充值、退费、正常核销、体验核销和独立产品购买都由服务端自动绑定本人并拒绝改绑。有效 `teacher_id` 是老师统计、老师客户关系和历史业务老师显示的归属依据；门店提交时老师不必是提交账号，老师账号提交时则必须与该 `teacher_id` 为同一人，总部和退役角色的旧字段不构成归属。
@@ -112,13 +114,13 @@ v99 的 `recoverBusinessSubmission` 仅允许原提交账号、原门店按同�
 - 对象路径：人脸凭证使用 `face-evidence/<store>/<staff>/<token>/...`，新版补充照片使用 `records/<verificationId>/slot-<n>/direct-<timestamp>-<server nonce>.jpg`；路径全部由云函数随机生成，浏览器输入不会进入路径，每次替换都使用新对象名且签名禁止覆盖。
 - 每单固定展示 2 张人脸照片和 3 个补充照片位。迁移 054 后，正常核销与新体验核销的前两张都是客户登记照和客户现场照；迁移 049 至 053 期间生成的历史老师脸体验单继续标记为 `TEACHER` 并如实展示，不会把旧照片伪装成客户。补充照片只保存一份高清 JPEG，提交时服务端验证实际字节数、MIME、JPEG 文件头、真实尺寸和 SHA-256；缩略图由 CloudBase 图片处理按需生成。
 - 当前网页固定调用独立的 `verificationPhoto v10`，其响应为 `uploadMode=FUNCTION`：数据库先建立／复用上传请求并锁定“每单一个进行中任务”，网页再把压缩 JPEG 和该任务的短时证明提交给函数；函数只能写入任务已锁定的同一桶和随机对象路径。这样不依赖浏览器 PUT 签名，取消、重试、提交人和 24 小时限制仍由迁移 039 原子函数控制。
-- `faceRecognition v109` 暂时保留 v52 的 `DIRECT`／精确 `FUNCTION` 回退实现，供旧客户端平滑升级和共享服务测试；当前生产前端不调用这组兼容照片动作。两个函数均不会接受客户端指定的桶或对象路径。
+- `faceRecognition v110` 暂时保留 v52 的 `DIRECT`／精确 `FUNCTION` 回退实现，供旧客户端平滑升级和共享服务测试；当前生产前端不调用这组兼容照片动作。两个函数均不会接受客户端指定的桶或对象路径。
 - 原图和缩略图设置私有长期缓存；数据库从不保存签名 URL。详情首屏仅以最多 2 路并发准备 5 张缩略图，不提前签发 5 张高清原图；点击时才重新校验权限、写查看审计并取得该照片的短时原图地址。页面先显示缩略图，再无闪烁替换为高清图；同页重复查看可复用仍有效的私有地址，并把已解码原图限制为最多 2 张。
 - 在本函数配置名为 `cleanup-verification-photo-drafts-hourly` 的每小时 Timer，只清除过期且未建单的人脸照片草稿。触发器使用 CloudBase `triggers` 配置，不携带 `action` 或清理凭证；v99 会严格验证平台保留的 `TRIGGER_SRC=timer`、函数名、事件类型、触发器名、时间和无终端用户 UID。取消／过期的迁移 039 补充照片任务由 `verificationPhoto` 的另一个 Timer 清理；两个触发器名不要互换。
 
 ## 部署
 
-上传包文件名必须为 `faceRecognition-v109.zip`。把本目录中的 `index.js`、`package.json` 和 `README.md` 放在 ZIP 根目录；不要再套一层目录。函数入口为 `index.main`，部署时安装 `package.json` 依赖。交付前必须回读 ZIP 根目录的 README 与运行时代码，确认两者均为 `v109`。
+上传包文件名必须为 `faceRecognition-v110.zip`。把本目录中的 `index.js`、`package.json` 和 `README.md` 放在 ZIP 根目录；不要再套一层目录。函数入口为 `index.main`，部署时安装 `package.json` 依赖。交付前必须回读 ZIP 根目录的 README 与运行时代码，确认两者均为 `v110`。
 
 在 `faceRecognition` 的触发器配置编辑器中填写以下完整配置。CloudBase 只接受顶层 `triggers` 数组；不要在这里填写业务事件、`action` 或 `cleanupToken`：
 
@@ -141,19 +143,19 @@ v99 的 `recoverBusinessSubmission` 仅允许原提交账号、原门店按同�
 1. 在完整 PostgreSQL migration 工具中执行 `database/migrations/039_direct_verification_photo_upload.sql`；腾讯云 SQL 编辑器则依次单独执行 `039-01`、`039-02`、`039-03`、`039-04`、`039-05`。
 2. 执行 `database/migrations/040_fix_verification_photo_commit_ambiguity.sql`；腾讯云 SQL 编辑器只需执行一次 `040-01-fix-verification-photo-commit-ambiguity.sql`。已经完成 039 的生产库不要重跑 039。
 3. 完成 046、总部封锁旧运营凭据、047 和 048 后，依次执行 `049-01` 至 `049-13`，再运行 `049-readonly-verify.sql`，全部必须为 `READY`。049 是向前迁移，不要修改或重跑生产已执行的 048。
-4. 执行迁移 050 的 7 段控制台 SQL并确认只读验收全部 `READY`，再按 053 指引退役旧老师人脸 Saga。`faceRecognition v109` 不依赖迁移 051／052，也不需要老师人脸操作恢复 Timer。
+4. 执行迁移 050 的 7 段控制台 SQL并确认只读验收全部 `READY`，再按 053 指引退役旧老师人脸 Saga。`faceRecognition v110` 不依赖迁移 051／052，也不需要老师人脸操作恢复 Timer。
 5. 完整执行迁移 054（CloudBase SQL 编辑器使用 `054-01-teacher-only-customer-face-experience.sql`），把新体验核销切换为老师账号赠送、客户人脸凭证。
-6. 将 `faceRecognition` 执行超时设为 **90 秒**；准备 `faceRecognition v109`、`verificationPhoto v10`、`staffAccount v81` 和 `teacherCreate v6`，但等 060—067 验收完成后再统一部署。`teacherCreate` 可设为 **60 秒、至少 256 MB**，且不再需要任何 FACE 或照片桶变量。
+6. 将 `faceRecognition` 执行超时设为 **90 秒**；准备 `faceRecognition v110`、`verificationPhoto v10`、`staffAccount v81` 和 `teacherCreate v6`，但等 060—067 验收完成后再统一部署。`teacherCreate` 可设为 **60 秒、至少 256 MB**，且不再需要任何 FACE 或照片桶变量。
 7. 完整执行迁移 055 并确认 3 行全部 `READY`，移除充值、退费、核销和体验核销中的旧老师人脸门禁；再执行 `056-01-experience-quota-column-ambiguity.sql`，确认返回 `READY`。
 8. 执行 `057-01-teacher-created-customer-access.sql`，确认字段、外键和索引 3 行全部为 `READY`。
 9. 按 `058-README.md` 执行三段 SQL，确认只读验收两行全部为 `READY`。
 10. 按 `059-README.md` 先执行只读预检，再执行写入文件和只读验收，确认业务老师矩阵全部为 `READY`。
 11. 按 060 README 建立独立产品主档，再按 061、062 README 建立并验收充值赠品明细与独立产品购买。
 12. 确认 063 的 8 行安全验收全部为 `READY`；短暂停止核销写入，执行 064。随后按 065 README 短暂停止充值、退费、核销和产品购买新建并执行 065；继续整文件执行 066，并在云函数环境变量配置独立的 `BLE_AUTH_SIGNING_KEY`。066 不登记设备，只建立短时资格和授权审计。最后在低峰期按 067 README 建立充值／退费查询索引并完成只读验收。
-13. 执行并验收 068，配置至少 32 字节的 `CUSTOMER_RATING_SIGNING_KEY` 及实际 `rating.html` 地址 `CUSTOMER_RATING_BASE_URL`，准备 `customerRating-v4.zip`。如果旧版 066 曾建立第三张设备注册表，先执行 `066-02-retire-legacy-device-registry.sql`；部署 `faceRecognition v109` 及同轮配套函数，分别调用 `health` 核对实际版本，再发布包含 `rating.html` 的网页和小程序并强制刷新。
+13. 执行并验收 068，配置至少 32 字节的 `CUSTOMER_RATING_SIGNING_KEY` 及实际 `rating.html` 地址 `CUSTOMER_RATING_BASE_URL`，准备 `customerRating-v4.zip`。如果旧版 066 曾建立第三张设备注册表，先执行 `066-02-retire-legacy-device-registry.sql`；部署 `faceRecognition v110` 及同轮配套函数，分别调用 `health` 核对实际版本，再发布包含 `rating.html` 的网页和小程序并强制刷新。
 
 当前切换顺序为“确认 048—050 与 053 已完成 → 依次执行并验收 054—065 → 执行 066 并配置 `BLE_AUTH_SIGNING_KEY` → 低峰期执行并验收 067 → 部署
-`faceRecognition v109`、同轮配套的 `verificationPhoto v10`、`staffAccount v81`、`teacherCreate v6`、`customerRating v4` → 分别 health → 运行 065—068 只读验收 →
+`faceRecognition v110`、同轮配套的 `verificationPhoto v10`、`staffAccount v81`、`teacherCreate v6`、`customerRating v4` → 分别 health → 运行 065—068 只读验收 →
 发布当前静态前端”。不要再发送任何老师人脸 action；新体验核销只能调用客户 1:1
 人脸验证。
 
@@ -168,7 +170,7 @@ v99 的 `recoverBusinessSubmission` 仅允许原提交账号、原门店按同�
 ```json
 {
   "ok": true,
-  "version": "v109",
+  "version": "v110",
   "photoBucketId": "customer-photos",
   "verificationPhotoBucketId": "verification-photos",
   "verificationPhotoFallbackBucketId": "customer-photos",
@@ -210,6 +212,8 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 - `getTeacherBusinessContext`：仅允许活跃老师账号调用，返回当前老师本人身份和可选择的活跃门店。老师必须先选择本次办理门店，后续每个业务动作都会由服务端重新校验老师身份与门店状态。
 - `listActiveStoreCustomers`：门店账号按 UID 锁定自身门店；老师账号必须提交一个真实活跃门店 ID。只返回目标门店 `customer_status='ACTIVE'` 客户的编号、姓名和生日，不预取备注、状态或业务汇总。每批最多 100 位并按“姓名、生日、客户编号”稳定升序；响应在还有下一批时返回 `nextCursor={customerName,birthDate,customerCode}`，下一次请求把该对象原样放入 `cursor` 即可继续加载完整名单。旧请求不传 `cursor` 时仍从首批开始；`customerName` 与 `birthDate` 可单独传入精确匹配，也可同时传入取交集，游标必须与当前已传筛选字段一致且字段完整。
 - `queryStoreCustomers`：总部与门店共用的真实客户查询。服务端先根据 CloudBase UID 验证活跃身份；总部可查看全部门店或选择一个真实门店，门店账号始终锁定到自身绑定门店，老师无权调用。结果使用 `(created_at,id)` 游标分页且每页最多 100 条，业务阶段、活跃／封存及总数均由数据库对完整筛选范围汇总。结果中的“核销次数”直接从已通过且 `verification_type='NORMAL'` 的正常核销重新汇总，不读取会同时包含体验的客户主档历史累计字段。
+- `queryInactiveVerificationCustomers`：总部与门店共用的未核销客户查询，只读取 `customer_status='ACTIVE'` 的正常在档客户。总部可查全部或一个真实门店，门店始终锁定本店，老师无权调用。`minimumDays` 必须是 `1—3650` 的整数上海自然日；每位客户只要存在任意已完成正常核销就取最新 `NORMAL`，完全没有正常核销时才取最新 `EXPERIENCE`，两类都没有时取建档时间。充值、退费和产品购买不参与起点；结果按起点最早优先，以 `(baseline_at,customer_id)` 稳定分页。
+- `queryLowBalanceCustomers`：总部与门店共用的低余次客户查询，只读取正常在档客户与当前活跃项目。`remainingBelow` 必须是 `1—999999` 的整数，可提交一个真实项目 ID 或留空表示全部项目。接口直接读取 `customer_product_balances`，要求 `total_recharge_count > 0` 且 `remaining_count < remainingBelow`；余额为 0 的已开卡项目会命中，从未开卡的项目不会被合成 0 次。结果按 `(remaining_count,customer_id,product_id)` 稳定分页，并分别返回匹配卡项、客户、项目和 0 次余额总数。
 - `queryStoreBusinessRecords`：总部与门店共用的充值／核销查询。总部可查看全部门店或选择一个真实门店；门店范围只来自服务端 UID 绑定，浏览器不能扩大权限，老师无权调用。支持按项目、原单状态、核销类型、提交日期或客户姓名＋生日查询；充值记录另返回作废申请状态，核销记录只显示原单审核状态。列表按 `(submitted_at,id)` 游标分页且每页最多 100 条，顶部统计由数据库对完整筛选范围汇总。部署前应依次完成迁移 `026`--`036`，并执行 `033_hq_query_indexes.sql` 支撑总部跨门店查询。
 - `getStoreDashboard`：总部与门店共用的真实门店主页。门店账号始终按当前 CloudBase UID 锁定自身绑定门店；总部必须提交一个真实数字门店 ID，服务端验证门店存在后返回该门店基础资料、项目累计和分页客户数据。老师无权调用，浏览器传入的门店编号不能扩大门店账号权限。项目累计将体验明确独立（不扣客户余额），分页客户列表的“核销次数”同样只累计已通过的 `NORMAL` 正常核销；并返回退费生效前是否已有付费核销、退费实际扣掉的客户余额、余额不足而未扣余的退款、历史冲销、原始应计余额和按客户×项目归零后的调整，避免把不同客户的余额跨人抵扣。该动作依赖迁移 `021_customer_product_effective_balances.sql` 的客户余额汇总；生产环境建议同时执行迁移 `031_store_dashboard_indexes.sql`。
 - `listActiveTeachers`：门店账号读取全部活跃老师；老师账号只能得到当前登录老师本人。老师办理页的老师下拉框由此锁定，浏览器不能把工单绑定给其他老师。

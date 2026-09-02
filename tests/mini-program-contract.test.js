@@ -20,7 +20,7 @@ assert.ok(!(app.requiredPrivateInfos || []).includes("chooseMedia"), "chooseMedi
 const expectedPages = [
   "login", "password-reset", "home", "product-management", "product-create", "product-detail", "retail-product-management", "retail-product-create",
   "hq-directory", "store-create", "store-detail", "teacher-create", "teacher-detail", "reviews",
-  "customers", "customer-detail", "customer-create", "recharge", "product-purchase", "product-purchase-detail", "verification", "records", "order-detail"
+  "customers", "inactive-customers", "low-balance-customers", "customer-detail", "customer-create", "recharge", "product-purchase", "product-purchase-detail", "verification", "records", "order-detail"
 ];
 assert.deepEqual(app.pages, [
   "pages/login/index", "pages/password-reset/index", "pages/home/index",
@@ -33,7 +33,7 @@ assert.deepEqual([...registeredPages].sort(), expectedPages.map((page) => `pages
   "the complete isolated mini-program page inventory must remain registered");
 assert.equal(new Set((app.subPackages || []).map(({ root: packageRoot }) => packageRoot)).size,
   (app.subPackages || []).length, "business subpackage roots must be unique");
-assert.equal((app.subPackages || []).length, 16, "business pages must stay outside the main package unless they share main-package WXSS");
+assert.equal((app.subPackages || []).length, 18, "business pages must stay outside the main package unless they share main-package WXSS");
 for (const page of expectedPages) {
   assert.ok(registeredPages.includes(`pages/${page}/index`), `missing mini-program page ${page}`);
   for (const extension of ["js", "json", "wxml", "wxss"]) assert.ok(fs.existsSync(path.join(mini, "pages", page, `index.${extension}`)), `${page}.${extension} missing`);
