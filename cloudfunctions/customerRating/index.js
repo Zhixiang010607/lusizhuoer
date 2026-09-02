@@ -5,7 +5,8 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const QRCode = require("qrcode");
 
-const FUNCTION_VERSION = "v3";
+const FUNCTION_VERSION = "v4";
+const DURABLE_READ_DELAYS_MS = Object.freeze([0, 25, 75, 150, 300]);
 let cloudApp = null;
 let managerClient = null;
 let storeBindingLayout = "";
@@ -214,7 +215,7 @@ async function orderForVerification(verificationId) {
 async function ratingForVerification(verificationId) {
   const rows = await executeSql(
     `SELECT r.id, r.verification_id, r.store_id, r.teacher_id, r.token_version,
-            r.rating_status, r.store_environment_score, r.teacher_service_score,
+            r.token_hash, r.rating_status, r.store_environment_score, r.teacher_service_score,
             r.overall_experience_score, r.customer_comment,
             r.submitted_at AS rating_submitted_at,
             vr.verification_type, vr.record_status,
@@ -228,6 +229,19 @@ async function ratingForVerification(verificationId) {
       LIMIT 1`
   );
   return rows[0] || null;
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function readRatingAfterWrite(verificationId, accepts = Boolean) {
+  for (const delay of DURABLE_READ_DELAYS_MS) {
+    if (delay > 0) await wait(delay);
+    const rating = await ratingForVerification(verificationId);
+    if (rating && accepts(rating)) return rating;
+  }
+  return null;
 }
 
 function canReadRating(staff, order) {
@@ -285,10 +299,11 @@ async function issueForReceipt(event) {
        RETURNING id, verification_id, store_id, teacher_id, token_version,
                  rating_status, submitted_at AS rating_submitted_at`
     );
-    // CloudBase SQL writes and the following independent read can briefly use
-    // different visibility paths.  Use the row returned by the write itself so
-    // the first export cannot report failure after the record was created.
-    rating = created[0] || await ratingForVerification(verificationId);
+    // CloudBase executePGSql may commit a write without exposing RETURNING rows,
+    // and its following SELECT may briefly use a different visibility path.
+    // Confirm the durable row with bounded retries before deciding that the
+    // first HQ/store export failed.
+    rating = created[0] || await readRatingAfterWrite(verificationId);
   }
   if (!rating) fail("评价链接创建失败，请重试。", "RATING_ISSUE_FAILED");
   if (rating.rating_status === "SUBMITTED" || rating.rating_submitted_at) {
@@ -307,11 +322,24 @@ async function issueForReceipt(event) {
       RETURNING id`
   );
   if (!updated.length) {
-    const latest = await ratingForVerification(verificationId);
+    // An empty RETURNING envelope is not proof that the UPDATE failed. Read the
+    // exact token state back; this is also safe for retries after an earlier
+    // request committed but reported RATING_ISSUE_FAILED to the client.
+    const latest = await readRatingAfterWrite(verificationId, (row) => (
+      row.rating_status === "SUBMITTED"
+      || Boolean(row.rating_submitted_at)
+      || (String(row.id) === String(rating.id)
+        && Number(row.token_version || 1) === Number(rating.token_version || 1)
+        && row.rating_status === "OPEN"
+        && !row.rating_submitted_at
+        && String(row.token_hash || "") === tokenHash)
+    ));
     if (latest?.rating_status === "SUBMITTED" || latest?.rating_submitted_at) {
       return { alreadySubmitted: true, ...publicRating(latest) };
     }
-    fail("评价链接创建失败，请重试。", "RATING_ISSUE_FAILED");
+    if (!latest || String(latest.token_hash || "") !== tokenHash) {
+      fail("评价链接创建失败，请重试。", "RATING_ISSUE_FAILED");
+    }
   }
   const publicUrl = new URL(ratingBaseUrl());
   publicUrl.searchParams.set("token", token);

@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
+const vm = require("node:vm");
 
 const root = path.resolve(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
@@ -48,8 +49,8 @@ test("migration 068 binds one immutable rating to a completed normal or experien
     "migration 068 handoff must verify the cloud function retains CRUD access");
 });
 
-test("customerRating v3 keeps public links signed, stable, scoped, and one-time", () => {
-  assert.match(cloud, /const FUNCTION_VERSION = "v3"/);
+test("customerRating v4 keeps public links signed, stable, scoped, and one-time", () => {
+  assert.match(cloud, /const FUNCTION_VERSION = "v4"/);
   assert.match(cloud, /CUSTOMER_RATING_SIGNING_KEY/);
   assert.match(cloud, /缺少 CUSTOMER_RATING_BASE_URL/);
   assert.match(cloud, /Buffer\.byteLength\(value, "utf8"\) >= 32/);
@@ -73,9 +74,14 @@ test("customerRating v3 keeps public links signed, stable, scoped, and one-time"
     "configured rating page queries and fragments must receive the token safely");
   assert.match(issue, /ON CONFLICT \(verification_id\) DO NOTHING/);
   assert.match(issue, /RETURNING id, verification_id, store_id, teacher_id, token_version,[\s\S]*rating_status, submitted_at AS rating_submitted_at/,
-    "the first export must use the row returned by the insert instead of a potentially stale follow-up read");
-  assert.match(issue, /rating = created\[0\] \|\| await ratingForVerification\(verificationId\)/,
-    "a concurrent pre-existing rating may still fall back to the regular lookup");
+    "the first export should use the insert row whenever CloudBase exposes it");
+  assert.match(issue, /rating = created\[0\] \|\| await readRatingAfterWrite\(verificationId\)/,
+    "an empty CloudBase RETURNING envelope must fall back to bounded durable readback");
+  assert.match(cloud, /const DURABLE_READ_DELAYS_MS = Object\.freeze\(\[0, 25, 75, 150, 300\]\)/);
+  assert.match(cloud, /r\.token_hash, r\.rating_status/,
+    "post-write confirmation must read the persisted token digest");
+  assert.match(issue, /String\(row\.token_hash \|\| ""\) === tokenHash/,
+    "an empty UPDATE RETURNING envelope must be accepted only after exact token readback");
   assert.doesNotMatch(`${issue}\n${functionBody(cloud, "publicRow", "getPublic")}`,
     /expires?_at|expiry|token_ttl|Date\.now\(\)/i,
     "an unsubmitted rating QR must not expire");
@@ -94,6 +100,86 @@ test("customerRating v3 keeps public links signed, stable, scoped, and one-time"
     "a submitted rating must be returned read-only instead of being updated again");
   assert.match(submit, /COMMENT_TOO_LONG/);
   assert.match(submit, /row\.teacher_id[\s\S]*numberScore\(event\.teacherServiceScore/);
+});
+
+test("customerRating v4 issues an HQ QR when CloudBase commits writes with empty RETURNING rows", async () => {
+  let rating = null;
+  let ratingReadsAfterInsert = 0;
+  const sqlResult = (row) => row
+    ? { Columns: Object.keys(row), Rows: [Object.values(row)] }
+    : { Columns: [], Rows: [] };
+  const executePGSql = async ({ Sql }) => {
+    if (Sql.includes("information_schema.columns")) {
+      return sqlResult({ has_store_account_id: true, has_staff_store_assignments: false });
+    }
+    if (Sql.includes("FROM public.staff_accounts a")) {
+      return sqlResult({ id: "7", role_code: "hq", account_status: "ACTIVE", store_id: null, store_status: null, teacher_id: null, teacher_status: null });
+    }
+    if (Sql.includes("FROM public.verification_customer_ratings r")) {
+      if (rating && ratingReadsAfterInsert++ === 0) return sqlResult(null);
+      return sqlResult(rating);
+    }
+    if (Sql.includes("FROM public.verification_records vr")) {
+      return sqlResult({
+        id: "42", store_id: "3", teacher_id: "5", verification_type: "NORMAL",
+        record_status: "APPROVED", order_submitted_at: "2026-09-02T00:00:00Z",
+        store_name: "测试门店", teacher_name: "测试老师"
+      });
+    }
+    if (Sql.includes("INSERT INTO public.verification_customer_ratings")) {
+      rating = {
+        id: "901", verification_id: "42", store_id: "3", teacher_id: "5", token_version: 1,
+        token_hash: "placeholder", rating_status: "OPEN", rating_submitted_at: null,
+        verification_type: "NORMAL", record_status: "APPROVED",
+        order_submitted_at: "2026-09-02T00:00:00Z", store_name: "测试门店", teacher_name: "测试老师"
+      };
+      return sqlResult(null);
+    }
+    if (Sql.includes("UPDATE public.verification_customer_ratings") && Sql.includes("SET token_hash")) {
+      const tokenHash = /SET token_hash = '([0-9a-f]{64})'/.exec(Sql)?.[1];
+      assert.ok(tokenHash, "token update must persist a SHA-256 digest");
+      rating = { ...rating, token_hash: tokenHash };
+      return sqlResult(null);
+    }
+    throw new Error(`unexpected SQL in customerRating runtime test: ${Sql}`);
+  };
+  const module = { exports: {} };
+  const sandbox = {
+    Buffer,
+    URL,
+    console: { error() {} },
+    exports: module.exports,
+    module,
+    process: {
+      env: {
+        CLOUDBASE_ENV_ID: "test-env",
+        CUSTOMER_RATING_SIGNING_KEY: "test-signing-key-with-more-than-32-bytes",
+        CUSTOMER_RATING_BASE_URL: "https://example.test/rating.html"
+      }
+    },
+    require(name) {
+      if (name === "node:crypto") return require("node:crypto");
+      if (name === "@cloudbase/node-sdk") {
+        return { init: () => ({ auth: () => ({ getUserInfo: () => ({ uid: "hq-auth-uid" }) }) }) };
+      }
+      if (name === "@cloudbase/manager-node") {
+        return { init: () => ({ database: { executePGSql } }) };
+      }
+      if (name === "qrcode") {
+        return { toDataURL: async () => "data:image/png;base64,dGVzdA==" };
+      }
+      throw new Error(`unexpected dependency: ${name}`);
+    },
+    setTimeout
+  };
+  vm.runInNewContext(cloud, sandbox, { filename: "cloudfunctions/customerRating/index.js" });
+  const result = await module.exports.main({ action: "issueForReceipt", verificationId: "42" });
+  assert.equal(result.success, true);
+  assert.equal(result.version, "v4");
+  assert.equal(result.data.alreadySubmitted, false);
+  assert.equal(result.data.qrDataUrl, "data:image/png;base64,dGVzdA==");
+  assert.match(result.data.url, /^https:\/\/example\.test\/rating\.html\?token=/);
+  assert.equal(ratingReadsAfterInsert >= 2, true, "the empty insert response must trigger durable read retries");
 });
 
 test("public rating page provides three accessible star groups and optional text without staff login", () => {
