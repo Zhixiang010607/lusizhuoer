@@ -14,17 +14,20 @@ function sourceLabel(value) {
 }
 
 function customerRows(rows = []) {
-  return rows.map((item) => ({
-    ...item,
-    customerCode: String(item.customerCode || ""),
-    customerName: String(item.customerName || "—"),
-    storeName: String(item.storeName || "—"),
-    birthDateLabel: query.displayDateAny(item.birthDate, item.birth_date),
-    baselineAtLabel: query.displayDateTimeAny(item.baselineAt, item.baseline_at),
-    baselineSourceLabel: sourceLabel(item.baselineSource),
-    daysSince: Number(item.daysSince || 0),
-    lastProductName: String(item.lastProductName || "—")
-  }));
+  return rows.map((item) => {
+    const baselineSource = String(item.baselineSource || "CUSTOMER_CREATED").toUpperCase();
+    return {
+      ...item,
+      customerCode: String(item.customerCode || ""),
+      customerName: String(item.customerName || "—"),
+      storeName: String(item.storeName || "—"),
+      baselineSourceLabel: sourceLabel(baselineSource),
+      lastVerificationLabel: baselineSource === "CUSTOMER_CREATED"
+        ? "从未核销"
+        : query.displayDateTimeAny(item.baselineAt, item.baseline_at),
+      daysSince: Number(item.daysSince || 0)
+    };
+  });
 }
 
 Page({

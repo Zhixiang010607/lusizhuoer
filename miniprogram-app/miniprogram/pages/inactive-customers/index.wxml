@@ -23,8 +23,8 @@
     <view wx:if="{{loading}}" class="empty">正在读取客户…</view>
     <scroll-view wx:elif="{{customers.length}}" class="inactive-table-scroll" scroll-x="true" data-visible-rows="{{customers.length > 5 ? 5 : customers.length}}" scroll-y="{{customers.length > 5}}" scroll-left="{{tableScrollLeft}}" enhanced="true" show-scrollbar="{{customers.length > 5}}">
       <view class="inactive-table">
-        <view class="inactive-row inactive-head"><text>姓名</text><text>已间隔</text><text>计算起点</text><text>起点时间</text><text>上次项目</text><text>门店</text><text>生日</text></view>
-        <view wx:for="{{customers}}" wx:key="customerCode" class="inactive-row" data-code="{{item.customerCode}}" bindtap="openCustomer"><text class="customer-name">{{item.customerName}}</text><text class="days-since">{{item.daysSince}} 天</text><text>{{item.baselineSourceLabel}}</text><text>{{item.baselineAtLabel}}</text><text>{{item.lastProductName}}</text><text>{{item.storeName}}</text><text>{{item.birthDateLabel}}</text></view>
+        <view class="inactive-row inactive-head"><text>客户</text><text>门店</text><text>间隔时间</text><text>计算起点</text><text>上次核销</text></view>
+        <view wx:for="{{customers}}" wx:key="customerCode" class="inactive-row" data-code="{{item.customerCode}}" bindtap="openCustomer"><text class="customer-name">{{item.customerName}}</text><text>{{item.storeName}}</text><text class="days-since">{{item.daysSince}} 天</text><text>{{item.baselineSourceLabel}}</text><text>{{item.lastVerificationLabel}}</text></view>
       </view>
     </scroll-view>
     <view wx:elif="{{searched}}" class="empty">当前条件下暂无客户</view>

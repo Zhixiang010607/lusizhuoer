@@ -69,9 +69,12 @@ test("HQ and store mini-programs expose a manual inactivity query without teache
   assert.match(pageJs, /pages\/customer-detail\/index\?customerCode=/);
   assert.match(pageWxml, /至少多少天没有核销/);
   assert.match(pageWxml, /有正常核销时取最新正常核销；没有正常核销才取最新体验核销；两类都没有时取客户建档时间/);
-  for (const label of ["已间隔", "计算起点", "起点时间", "上次项目", "门店", "生日", "跳至"]) {
+  for (const label of ["客户", "门店", "间隔时间", "计算起点", "上次核销", "跳至"]) {
     assert.match(pageWxml, new RegExp(label), `inactive-customer results are missing ${label}`);
   }
+  assert.doesNotMatch(pageWxml, /起点时间|上次项目|生日/,
+    "the compact result must keep only the user-selected five columns");
+  assert.match(pageJs, /baselineSource === "CUSTOMER_CREATED"[\s\S]*\? "从未核销"/);
   assert.doesNotMatch(pageWxml, /客户状态|已封存|全部状态/);
   assert.match(pageWxss, /\.inactive-table \{ width: auto; min-width: 100%; display: inline-table; table-layout: auto;/);
   assert.match(pageWxss, /@media \(min-width: 700px\)/,
