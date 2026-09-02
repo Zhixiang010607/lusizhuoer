@@ -2263,11 +2263,21 @@ body[data-store-analysis] {
    These controls live in the HQ teacher detail, so archived records remain
    readable while all write actions become unavailable. */
 .teacher-experience-panel { display: grid; gap: 14px; margin-top: 18px; padding: 16px; }
-.teacher-experience-overview { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; overflow: hidden; border: 1px solid var(--line); border-radius: 11px; background: var(--line); }
-.teacher-experience-overview article { min-height: 70px; padding: 12px; background: #fff; }
-.teacher-experience-overview span, .teacher-experience-overview strong { display: block; }
-.teacher-experience-overview span { color: var(--muted); font-size: 11px; }
-.teacher-experience-overview strong { margin-top: 6px; color: var(--ink); font-size: 16px; }
+.teacher-experience-overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; overflow: hidden; border: 1px solid var(--line); border-radius: 11px; background: #fffaf3; }
+.teacher-experience-monthly-item { min-width: 0; overflow: hidden; border: 1px solid #dfcfb4; border-radius: 12px; background: #fffaf3; }
+.teacher-experience-monthly-item header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border-bottom: 1px solid #eadcc5; background: #f6ead7; }
+.teacher-experience-monthly-item header > div { min-width: 0; }
+.teacher-experience-monthly-item header strong, .teacher-experience-monthly-item header span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.teacher-experience-monthly-item header strong { color: #4a3825; font-size: 14px; }
+.teacher-experience-monthly-item header span { margin-top: 3px; color: #85745d; font-size: 10px; }
+.teacher-experience-monthly-item header em { flex: none; padding: 4px 8px; color: #74592d; background: #fffaf3; border-radius: 999px; font-size: 10px; font-style: normal; font-weight: 800; }
+.teacher-experience-monthly-item dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 0; background: #eadcc5; }
+.teacher-experience-monthly-item dl > div { min-width: 0; min-height: 62px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px; background: #fffaf3; text-align: center; }
+.teacher-experience-monthly-item dt { color: #7c7062; font-size: 10px; }
+.teacher-experience-monthly-item dd { margin: 5px 0 0; color: #4a3825; font-size: 17px; font-weight: 900; }
+.teacher-experience-monthly-item dd small { margin-left: 3px; color: #74695c; font-size: 10px; }
+.teacher-experience-monthly-item dl .available { background: #f7ead3; }
+.teacher-experience-monthly-item dl .available dd { color: #80602c; }
 .teacher-experience-config, .teacher-experience-recharge { display: grid; grid-template-columns: minmax(210px, .85fr) minmax(0, 1.6fr); gap: 14px; align-items: start; padding: 14px; border: 1px solid #cbd8e9; border-radius: 12px; background: #f7faff; }
 .teacher-experience-config h3, .teacher-experience-recharge h3, .teacher-experience-table-card h3 { margin: 0 0 5px; color: var(--navy); font-size: 15px; }
 .teacher-experience-config p, .teacher-experience-recharge p, .teacher-experience-table-card .panel-heading p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
@@ -2379,18 +2389,11 @@ body[data-staff-detail] .teacher-experience-heading { display: flex; align-items
 body[data-staff-detail] .teacher-experience-heading h2 { margin: 0 0 7px; color: #152d4c; font-size: 21px; letter-spacing: -.02em; }
 body[data-staff-detail] .teacher-experience-heading > div > p:last-child { max-width: 720px; margin: 0; color: #5c7089; font-size: 12px; line-height: 1.6; }
 body[data-staff-detail] .teacher-experience-state { flex: 0 0 auto; display: inline-flex; align-items: center; min-height: 30px; padding: 6px 10px; border: 1px solid #cdddf0; border-radius: 999px; color: #315b88; background: #edf5ff; font-size: 11px; font-weight: 800; white-space: nowrap; }
-body[data-staff-detail] .teacher-experience-overview { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; overflow: hidden; border: 0; border-bottom: 1px solid #e5edf5; border-radius: 0; background: #e5edf5; }
-body[data-staff-detail] .teacher-experience-overview article { min-height: 126px; padding: 17px 22px; background: #fff; }
-body[data-staff-detail] .teacher-experience-overview article.primary { color: #fff; background: linear-gradient(135deg, #174a9c, #2877e9); }
-body[data-staff-detail] .teacher-experience-overview span { display: block; color: #6c7e93; font-size: 11px; font-weight: 800; }
-body[data-staff-detail] .teacher-experience-overview strong { display: block; margin-top: 8px; color: #182f4b; font-size: 28px; line-height: 1; letter-spacing: -.045em; font-variant-numeric: tabular-nums; }
-body[data-staff-detail] .teacher-experience-overview strong small { margin-left: 4px; font-size: 13px; letter-spacing: 0; }
-body[data-staff-detail] .teacher-experience-overview p { margin: 9px 0 0; color: #738399; font-size: 11px; line-height: 1.45; }
-body[data-staff-detail] .teacher-experience-overview .primary span,
-body[data-staff-detail] .teacher-experience-overview .primary strong,
-body[data-staff-detail] .teacher-experience-overview .primary p { color: #fff; }
-body[data-staff-detail] .teacher-experience-overview .primary p { color: #dceaff; }
-body[data-staff-detail] .teacher-experience-overview .muted strong { font-size: 18px; letter-spacing: -.025em; white-space: nowrap; }
+body[data-staff-detail] .teacher-experience-overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px; padding: 18px 28px; overflow: hidden; border: 0; border-bottom: 1px solid #eadcc5; border-radius: 0; background: #fffaf3; }
+body[data-staff-detail] .teacher-experience-monthly-item { min-height: 0; padding: 0; background: #fffaf3; }
+body[data-staff-detail] .teacher-experience-monthly-item header strong { margin: 0; color: #4a3825; font-size: 14px; letter-spacing: 0; }
+body[data-staff-detail] .teacher-experience-monthly-item header span { color: #85745d; font-size: 10px; }
+body[data-staff-detail] .teacher-experience-monthly-item dd { color: #4a3825; font-size: 17px; letter-spacing: 0; }
 body[data-staff-detail] .teacher-experience-problem { grid-column: 1 / -1; min-height: 0 !important; display: grid; gap: 6px; padding: 18px 22px !important; color: #8e291f; background: #fff9f8 !important; }
 body[data-staff-detail] .teacher-experience-problem strong { margin: 0; color: #8e291f; font-size: 15px; letter-spacing: 0; }
 body[data-staff-detail] .teacher-experience-problem p { margin: 0; color: #a54b42; }
@@ -2497,9 +2500,7 @@ body[data-staff-detail] .teacher-experience-empty.is-error { color: #9c3329; bac
   body[data-staff-detail] .teacher-experience-heading { align-items: flex-start; padding: 18px; }
   body[data-staff-detail] .teacher-experience-heading h2 { font-size: 19px; }
   body[data-staff-detail] .teacher-experience-state { max-width: 118px; white-space: normal; }
-  body[data-staff-detail] .teacher-experience-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  body[data-staff-detail] .teacher-experience-overview article { min-height: 108px; padding: 15px; }
-  body[data-staff-detail] .teacher-experience-overview strong { font-size: 24px; }
+  body[data-staff-detail] .teacher-experience-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 14px; }
   body[data-staff-detail] .teacher-experience-workspace { padding: 14px; }
   body[data-staff-detail] .teacher-experience-list-card,
   body[data-staff-detail] .teacher-experience-config,
@@ -3057,7 +3058,7 @@ body[data-staff-detail] .staff-admin-actions .secondary-button:not(#staffStatusA
   body[data-staff-detail] .teacher-profile-hero { grid-template-columns: 50px minmax(0, 1fr); gap: 10px; padding: 15px; }
   body[data-staff-detail] .teacher-profile-avatar { width: 50px; height: 50px; border-radius: 15px; font-size: 19px; }
   body[data-staff-detail] .teacher-profile-meta { grid-template-columns: minmax(0, 1fr); }
-  body[data-staff-detail] .teacher-experience-overview { grid-template-columns: minmax(0, 1fr); }
+  body[data-staff-detail] .teacher-experience-overview { grid-template-columns: minmax(0, 1fr); padding: 10px; }
   body[data-staff-detail] .teacher-experience-workspace { padding: 10px; }
   body[data-staff-detail] .teacher-experience-list-card,
   body[data-staff-detail] .teacher-experience-config,

@@ -246,7 +246,7 @@ ROLLBACK;
 1. 整文件执行 `068-01-customer-work-order-ratings.sql`；
 2. 执行 `068-readonly-verify.sql`，9 行必须全部为 `READY`；
 3. 配置 `CUSTOMER_RATING_SIGNING_KEY`、实际 `rating.html` 完整 HTTPS 地址 `CUSTOMER_RATING_BASE_URL`，并完成匿名登录、匿名角色云函数网关权限和 `customerRating` 的 `"auth != null"` 调用规则；
-4. 上传 `customerRating-v2.zip`，确认 `health` 返回 `version=v2`、`configured=true`，再发布含 `rating.html` 的静态网页和小程序 `0.2.50`。
+4. 上传 `customerRating-v3.zip`，确认 `health` 返回 `version=v3`、`configured=true`，再发布含 `rating.html` 的静态网页和小程序 `0.2.51`。
 
 068 只新增每张已完成正常／体验核销唯一、一次提交、不可删除的客户评价，不修改核销、人脸、照片、BLE、余额或体验额度。总部和工单所属门店导出凭证可带评价二维码，老师导出保持无二维码原版。
 

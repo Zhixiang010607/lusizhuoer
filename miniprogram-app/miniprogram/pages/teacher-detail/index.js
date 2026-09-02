@@ -29,6 +29,8 @@ function entitlement(row = {}) {
     id: text(row.id, row.entitlementId, row.entitlement_id), productId: text(row.productId, row.product_id), productCode: text(row.productCode, row.product_code),
     productName: text(row.productName, row.product_name) || "未命名产品", productStatus: (text(row.productStatus, row.product_status) || "ACTIVE").toUpperCase(),
     monthlyAllowance: number(row, ["monthlyAllowance", "monthly_allowance"]), usedCount: number(row, ["usedCount", "used_count"]),
+    monthlyExperienceCount: number(row, ["monthlyExperienceCount", "monthly_experience_count", "usedCount", "used_count"]),
+    monthlyRechargeCount: number(row, ["monthlyRechargeCount", "monthly_recharge_count"]),
     availableCount: number(row, ["availableCount", "available_count"]),
     totalExperienceCount: optionalNumber(row, ["totalExperienceCount", "total_experience_count", "totalUsedCount", "total_used_count"]),
     productArchived: (text(row.productStatus, row.product_status) || "ACTIVE").toUpperCase() === "ARCHIVED"
@@ -41,7 +43,7 @@ function historyRow(row = {}, index = 0) {
 }
 function summaryRows(rows, totals) {
   const map = new Map(rows.map((row) => [row.productId, { ...row }]));
-  totals.forEach((total) => { const current = map.get(total.productId); if (current) current.totalExperienceCount = total.totalExperienceCount; else map.set(total.productId, { ...total, monthlyAllowance: 0, usedCount: 0, availableCount: 0, productArchived: total.productStatus === "ARCHIVED" }); });
+  totals.forEach((total) => { const current = map.get(total.productId); if (current) current.totalExperienceCount = total.totalExperienceCount; else map.set(total.productId, { ...total, monthlyAllowance: 0, usedCount: 0, monthlyExperienceCount: 0, monthlyRechargeCount: 0, availableCount: 0, productArchived: total.productStatus === "ARCHIVED" }); });
   return [...map.values()].map((row) => ({ ...row, totalDisplay: row.totalExperienceCount === null ? row.usedCount : row.totalExperienceCount })).sort((left, right) => left.productName.localeCompare(right.productName, "zh-CN"));
 }
 function validPassword(value) { const password = String(value || ""); const groups = [/[A-Z]/, /[a-z]/, /\d/, /[^A-Za-z\d]/].filter((rule) => rule.test(password)).length; return password.length >= 8 && password.length <= 32 && /^[A-Za-z0-9]/.test(password) && groups >= 3; }
@@ -79,12 +81,7 @@ function experienceState(data, productSource, selected) {
     configureIndex: Math.max(0, configureProducts.findIndex((item) => item.id === configureProductId)), configureProductId,
     rechargeProducts, rechargeLabels: rechargeProducts.map((item) => `${item.productName}${item.productCode ? `（${item.productCode}）` : ""}`),
     rechargeIndex: Math.max(0, rechargeProducts.findIndex((item) => item.productId === rechargeProductId)), rechargeProductId,
-    overview: {
-      available: number(data, ["totalAvailableCount", "totalAvailable"], rows.reduce((sum, row) => sum + row.availableCount, 0)),
-      used: rows.reduce((sum, row) => sum + row.usedCount, 0),
-      lifetime: number(data, ["totalExperienceCount", "total_experience_count"], summary.reduce((sum, row) => sum + row.totalDisplay, 0)),
-      activeProducts: rechargeProducts.length
-    }
+    overview: { activeProducts: rechargeProducts.length }
   };
 }
 function exactRechargeProof(result, intent) {

@@ -52,7 +52,7 @@ assert.match(face, /historyOptions\.type === "PRODUCT_PURCHASE"/);
 assert.match(face, /record_status = 'APPROVED'/, "customer purchase totals must include approved purchases only");
 assert.match(face, /recharge\.record_status = 'APPROVED'/, "customer gift totals must include approved recharge gifts only");
 
-assert.match(staff, /const FUNCTION_VERSION = "v80"/);
+assert.match(staff, /const FUNCTION_VERSION = "v81"/);
 assert.match(staff, /async function listRetailProductPurchaseReviews/);
 assert.match(staff, /async function reviewRetailProductPurchase/);
 assert.match(staff, /requireReviewer\(caller\)/);

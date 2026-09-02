@@ -68,7 +68,7 @@ assert.match(queryCloud, /\["ALL", "PENDING", "APPROVED", "REJECTED"\]/);
 assert.doesNotMatch(queryCloud, /\["ALL", "PENDING", "APPROVED", "REJECTED", "CLOSED"\]/);
 assert.match(queryCloud, /else if \(statusCategory === "REJECTED"\)/);
 assert.match(queryCloud, /rejected: Number\(summary\.rejected \|\| 0\)/);
-assert.match(accountCloud, /const FUNCTION_VERSION = "v80"/);
+assert.match(accountCloud, /const FUNCTION_VERSION = "v81"/);
 assert.match(accountCloud, /const ORDER_VOID_APPLICATIONS_ENABLED = false/);
 assert.doesNotMatch(accountCloud, /applicationType: "NEW"/);
 assert.match(accountCloud, /"ORDER_VOID_DISABLED"/);

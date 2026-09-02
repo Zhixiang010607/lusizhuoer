@@ -48,8 +48,8 @@ test("migration 068 binds one immutable rating to a completed normal or experien
     "migration 068 handoff must verify the cloud function retains CRUD access");
 });
 
-test("customerRating v2 keeps public links signed, stable, scoped, and one-time", () => {
-  assert.match(cloud, /const FUNCTION_VERSION = "v2"/);
+test("customerRating v3 keeps public links signed, stable, scoped, and one-time", () => {
+  assert.match(cloud, /const FUNCTION_VERSION = "v3"/);
   assert.match(cloud, /CUSTOMER_RATING_SIGNING_KEY/);
   assert.match(cloud, /缺少 CUSTOMER_RATING_BASE_URL/);
   assert.match(cloud, /Buffer\.byteLength\(value, "utf8"\) >= 32/);
@@ -72,6 +72,10 @@ test("customerRating v2 keeps public links signed, stable, scoped, and one-time"
   assert.match(issue, /publicUrl\.searchParams\.set\("token", token\)/,
     "configured rating page queries and fragments must receive the token safely");
   assert.match(issue, /ON CONFLICT \(verification_id\) DO NOTHING/);
+  assert.match(issue, /RETURNING id, verification_id, store_id, teacher_id, token_version,[\s\S]*rating_status, submitted_at AS rating_submitted_at/,
+    "the first export must use the row returned by the insert instead of a potentially stale follow-up read");
+  assert.match(issue, /rating = created\[0\] \|\| await ratingForVerification\(verificationId\)/,
+    "a concurrent pre-existing rating may still fall back to the regular lookup");
   assert.doesNotMatch(`${issue}\n${functionBody(cloud, "publicRow", "getPublic")}`,
     /expires?_at|expiry|token_ttl|Date\.now\(\)/i,
     "an unsubmitted rating QR must not expire");

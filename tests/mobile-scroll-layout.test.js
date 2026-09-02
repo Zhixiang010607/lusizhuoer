@@ -77,7 +77,9 @@ assert(/@media \(min-width:\s*981px\)[\s\S]*?store-business-main[\s\S]*?min-heig
 for (const file of fs.readdirSync(root).filter((name) => name.endsWith(".html"))) {
   const html = fs.readFileSync(path.join(root, file), "utf8");
   if (!html.includes("styles.css")) continue;
-  const expectedStyleVersion = ["staff-detail.html", "teacher-create.html"].includes(file)
+  const expectedStyleVersion = file === "staff-detail.html"
+    ? "0.15.61"
+    : file === "teacher-create.html"
     ? "0.15.53"
     : file === "customer-detail.html"
     ? "0.15.45"

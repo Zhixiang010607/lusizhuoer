@@ -216,11 +216,13 @@ test("mobile management controls stay centered without breaking data into charac
     "only a free-form history note may wrap; dates, counts, names, and codes stay intact");
   assert.match(teacher, /\.teacher-profile-hero, \.security-panel, \.experience-panel\s*\{[^}]*border-color:\s*#e1cfaf;[^}]*background:\s*#fffaf3/s,
     "HQ teacher profile, account, and quota panels must use the same card palette as other pages");
-  assert.match(teacher, /\.overview-card\s*\{[^}]*background:\s*#fff8ec;[^}]*border:\s*1rpx solid #dfcfb4/s);
-  assert.match(teacher, /\.overview-card\.primary-card\s*\{[^}]*background:\s*#f6ead7;[^}]*border-color:\s*#d9bd8c/s);
+  assert.match(teacher, /\.monthly-overview-card\s*\{[^}]*border:\s*1rpx solid #dfcfb4;[^}]*background:\s*#fff8ec/s);
+  assert.match(teacher, /\.monthly-project-head\s*\{[^}]*background:\s*#f6ead7/s);
+  assert.match(teacher, /\.monthly-metrics\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/s);
+  assert.match(teacher, /\.monthly-metrics > view\s*\{[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*background:\s*#fffaf3/s);
   assert.doesNotMatch(teacher, /#f4dfba|#eef3e9|#f2ebf0|#f8ead7/,
     "teacher detail must not mix several unrelated card background colors");
-  assert.doesNotMatch(teacher, /\.overview-card\s*\{[^}]*background:\s*#fff;/s);
+  assert.doesNotMatch(teacher, /\.monthly-overview-card\s*\{[^}]*background:\s*#fff;/s);
   assert.doesNotMatch(teacher, /\.summary-item\s*\{[^}]*background:\s*#fff;/s);
   assert.doesNotMatch(teacher, /\.quota-card\s*\{[^}]*background:\s*#fff;/s);
   const teacherWxml = read("miniprogram-app", "miniprogram", "pages", "teacher-detail", "index.wxml");
@@ -232,8 +234,10 @@ test("mobile management controls stay centered without breaking data into charac
   assert.doesNotMatch(`${teacherWxml}\n${teacherJs}`, /密码状态|passwordStatus/,
     "HQ teacher profile must not repeat a derived password status above the password-management form");
   assert.match(teacherWxml, /class="quota-facts"><view><text>每月基础<\/text>[\s\S]*<view><text>本月已体验<\/text>/);
-  assert.doesNotMatch(teacherWxml, /<text>单独充值<\/text>|<text>最近更新<\/text>|manualRechargeCount|monthlyResetText/,
+  assert.doesNotMatch(teacherWxml, /class="quota-facts">[\s\S]{0,260}<text>单独充值<\/text>|class="quota-facts">[\s\S]{0,260}<text>最近更新<\/text>|manualRechargeCount|monthlyResetText/,
     "configured product cards show only the monthly base and current-month usage");
+  assert.match(teacherWxml, /class="monthly-overview-grid"[\s\S]*monthlyAllowance[\s\S]*monthlyRechargeCount[\s\S]*monthlyExperienceCount[\s\S]*availableCount/,
+    "the former aggregate overview must become one monthly summary card per configured project");
   assert.match(teacherWxml, /<text class="subsection-title">单独充值体验次数<\/text>/,
     "removing summary facts must not remove the actual top-up workflow");
   assert.match(teacherWxml, /class="history-list"[^>]*scroll-y[^>]*>[\s\S]*wx:for="\{\{history\}\}"/,

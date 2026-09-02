@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v80";
+const FUNCTION_VERSION = "v81";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -3466,6 +3466,8 @@ function teacherExperienceEntitlement(row) {
     quotaMonth: row.quota_month,
     availableCount: Number(row.available_count || row.available_after_count || 0),
     usedCount: Number(row.used_count || 0),
+    monthlyExperienceCount: Number(row.monthly_experience_count || 0),
+    monthlyRechargeCount: Number(row.monthly_recharge_count || 0),
     totalExperienceCount: Number(row.total_experience_count || row.total_used_count || 0),
     totalUsedCount: Number(row.total_used_count || row.total_experience_count || 0),
     manualRechargeCount: Number(row.manual_recharge_count || 0),
@@ -3503,6 +3505,27 @@ async function getHqTeacherExperienceEntitlements(caller, event = {}) {
     `SELECT q.id, q.teacher_id, q.product_id, q.monthly_allowance, q.quota_month,
             q.available_count, q.used_count, q.manual_recharge_count, q.monthly_reset_at,
             p.product_code, p.product_name, p.product_status,
+            COALESCE((
+              SELECT SUM(r.unit_count)::bigint
+                FROM public.teacher_experience_quota_recharges r
+               WHERE r.teacher_id = q.teacher_id
+                 AND r.product_id = q.product_id
+                 AND r.quota_month = public.teacher_experience_quota_month()
+            ), 0)::bigint AS monthly_recharge_count,
+            COALESCE((
+              SELECT SUM(month_usage.unit_count)::bigint
+                FROM public.teacher_experience_quota_usages month_usage
+                JOIN public.verification_records month_verification
+                  ON month_verification.id = month_usage.verification_id
+               WHERE month_usage.teacher_id = q.teacher_id
+                 AND month_usage.product_id = q.product_id
+                 AND month_usage.quota_month = public.teacher_experience_quota_month()
+                 AND month_verification.teacher_id = month_usage.teacher_id
+                 AND month_verification.product_id = month_usage.product_id
+                 AND month_verification.record_status = 'APPROVED'
+                 AND month_verification.verification_type = 'EXPERIENCE'
+                 AND ${reviewOrderTeacherAttributionCondition("month_verification", "VERIFICATION")}
+            ), 0)::bigint AS monthly_experience_count,
             COALESCE((
               SELECT SUM(u.unit_count)::bigint
                 FROM public.teacher_experience_quota_usages u

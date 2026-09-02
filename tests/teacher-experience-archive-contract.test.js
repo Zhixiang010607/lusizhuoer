@@ -317,6 +317,14 @@ for (const action of ["getTeacherExperienceEntitlements", "upsertTeacherExperien
 }
 assert.match(hqEntitlementRead, /total_experience_count|total_used_count/i,
   "HQ entitlement read must expose all-time experience totals per product");
+assert.match(hqEntitlementRead, /month_usage\.quota_month\s*=\s*public\.teacher_experience_quota_month\(\)/,
+  "current-month experience totals must come from immutable usage rows instead of the resettable live quota counter");
+assert.match(hqEntitlementRead, /month_verification\.record_status\s*=\s*'APPROVED'[\s\S]{0,260}month_verification\.verification_type\s*=\s*'EXPERIENCE'/,
+  "current-month project totals must count only valid completed experience work orders");
+assert.match(hqEntitlementRead, /AS monthly_recharge_count/,
+  "HQ entitlement rows must return an immutable current-month top-up total");
+assert.match(hqEntitlementRead, /AS monthly_experience_count/,
+  "HQ entitlement rows must return an immutable current-month experience total");
 assert.match(hqEntitlementRead, /experienceTotals[\s\S]{0,260}teacher_experience_quota_usages|teacher_experience_quota_usages[\s\S]{0,1200}experienceTotals/i,
   "HQ summary must retain completed per-product totals even after a configuration is removed");
 assert.match(functionSource(faceCloud, "getTeacherExperienceEntitlements"), /total_experience_count|total_used_count/i,
@@ -349,6 +357,10 @@ assert.match(staffDetailUi, /totalExperienceCount/,
   "HQ teacher detail must render cumulative per-product experience totals");
 assert.match(staffDetailUi, /experienceTotals[\s\S]{0,160}normalizeExperienceTotal/,
   "HQ teacher detail must render historical project totals separately from live quota rows");
+assert.match(staffDetailUi, /teacher-experience-monthly-item[\s\S]{0,900}monthlyRechargeCount[\s\S]{0,500}monthlyExperienceCount/,
+  "the web teacher detail must render one current-month summary per configured project");
+assert.match(staffDetailUi, /本月已体验<\/dt><dd>\$\{row\.monthlyExperienceCount\}/,
+  "configured project cards must not display the resettable quota used_count as a calendar-month fact");
 assert.match(staffDetailUi, /teacherExperienceRechargeProduct/,
   "HQ teacher detail must keep a product selector for independent recharge");
 assert.match(staffDetailUi, /isStaffArchived\(\).*不能新增配置或充值|老师已封存.*不能新增配置或充值/s,

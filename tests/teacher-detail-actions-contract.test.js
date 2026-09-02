@@ -72,7 +72,7 @@ for (const file of ["query.js", "management.js", "detail.js"]) {
 
 assert.match(staffDetailHtml, /cloudbase-phone-auth\.js\?v=0\.20\.3/,
   "teacher home must refresh the shared cloud-function client");
-assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.10/,
+assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.11/,
   "teacher home must refresh its action handlers");
 assert.match(teacherCreateHtml, /teacher-create\.js\?v=0\.5\.0/,
   "teacher creation must refresh the no-photo UI");

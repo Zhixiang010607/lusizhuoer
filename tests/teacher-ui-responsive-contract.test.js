@@ -15,7 +15,7 @@ const detail = read("staff-detail.js");
 const detailHtml = read("staff-detail.html");
 
 for (const html of [createHtml, detailHtml, read("teacher-detail.html")]) {
-  assert.match(html, /styles\.css\?v=0\.15\.5[0-3]/, "every teacher management surface must refresh the shared visual system");
+  assert.match(html, /styles\.css\?v=0\.15\.(?:5[0-3]|61)/, "every teacher management surface must refresh the shared visual system");
   assert.match(html, /<meta\s+name="viewport"/, "teacher pages must declare a mobile viewport");
 }
 assert.match(managementHtml, /styles\.css\?v=0\.15\.58/, "teacher directory must refresh the horizontal phone table layout");
@@ -24,7 +24,7 @@ assert.match(managementHtml, /teacher-management\.js\?v=0\.14\.28/, "teacher dir
 assert.match(createHtml, /teacher-create\.js\?v=0\.5\.0/, "teacher creation behavior must be cache-busted");
 assert.match(createHtml, /cloudbase-phone-auth\.js\?v=0\.20\.3/,
   "teacher creation must refresh the no-photo creation API wrapper");
-assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.10/, "teacher home behavior must be cache-busted");
+assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.11/, "teacher home behavior must be cache-busted");
 
 for (const label of ["老师姓名", "老师编号", "联系电话", "状态", "体验额度", "账号操作"]) {
   assert.ok(management.includes(`data-label="${label}"`), `mobile teacher cards must expose the ${label} field label`);

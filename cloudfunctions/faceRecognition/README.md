@@ -143,17 +143,17 @@ v99 的 `recoverBusinessSubmission` 仅允许原提交账号、原门店按同�
 3. 完成 046、总部封锁旧运营凭据、047 和 048 后，依次执行 `049-01` 至 `049-13`，再运行 `049-readonly-verify.sql`，全部必须为 `READY`。049 是向前迁移，不要修改或重跑生产已执行的 048。
 4. 执行迁移 050 的 7 段控制台 SQL并确认只读验收全部 `READY`，再按 053 指引退役旧老师人脸 Saga。`faceRecognition v109` 不依赖迁移 051／052，也不需要老师人脸操作恢复 Timer。
 5. 完整执行迁移 054（CloudBase SQL 编辑器使用 `054-01-teacher-only-customer-face-experience.sql`），把新体验核销切换为老师账号赠送、客户人脸凭证。
-6. 将 `faceRecognition` 执行超时设为 **90 秒**；准备 `faceRecognition v109`、`verificationPhoto v10`、`staffAccount v80` 和 `teacherCreate v6`，但等 060—067 验收完成后再统一部署。`teacherCreate` 可设为 **60 秒、至少 256 MB**，且不再需要任何 FACE 或照片桶变量。
+6. 将 `faceRecognition` 执行超时设为 **90 秒**；准备 `faceRecognition v109`、`verificationPhoto v10`、`staffAccount v81` 和 `teacherCreate v6`，但等 060—067 验收完成后再统一部署。`teacherCreate` 可设为 **60 秒、至少 256 MB**，且不再需要任何 FACE 或照片桶变量。
 7. 完整执行迁移 055 并确认 3 行全部 `READY`，移除充值、退费、核销和体验核销中的旧老师人脸门禁；再执行 `056-01-experience-quota-column-ambiguity.sql`，确认返回 `READY`。
 8. 执行 `057-01-teacher-created-customer-access.sql`，确认字段、外键和索引 3 行全部为 `READY`。
 9. 按 `058-README.md` 执行三段 SQL，确认只读验收两行全部为 `READY`。
 10. 按 `059-README.md` 先执行只读预检，再执行写入文件和只读验收，确认业务老师矩阵全部为 `READY`。
 11. 按 060 README 建立独立产品主档，再按 061、062 README 建立并验收充值赠品明细与独立产品购买。
 12. 确认 063 的 8 行安全验收全部为 `READY`；短暂停止核销写入，执行 064。随后按 065 README 短暂停止充值、退费、核销和产品购买新建并执行 065；继续整文件执行 066，并在云函数环境变量配置独立的 `BLE_AUTH_SIGNING_KEY`。066 不登记设备，只建立短时资格和授权审计。最后在低峰期按 067 README 建立充值／退费查询索引并完成只读验收。
-13. 执行并验收 068，配置至少 32 字节的 `CUSTOMER_RATING_SIGNING_KEY` 及实际 `rating.html` 地址 `CUSTOMER_RATING_BASE_URL`，准备 `customerRating-v2.zip`。如果旧版 066 曾建立第三张设备注册表，先执行 `066-02-retire-legacy-device-registry.sql`；部署 `faceRecognition v109` 及同轮配套函数，分别调用 `health` 核对实际版本，再发布包含 `rating.html` 的网页和小程序并强制刷新。
+13. 执行并验收 068，配置至少 32 字节的 `CUSTOMER_RATING_SIGNING_KEY` 及实际 `rating.html` 地址 `CUSTOMER_RATING_BASE_URL`，准备 `customerRating-v3.zip`。如果旧版 066 曾建立第三张设备注册表，先执行 `066-02-retire-legacy-device-registry.sql`；部署 `faceRecognition v109` 及同轮配套函数，分别调用 `health` 核对实际版本，再发布包含 `rating.html` 的网页和小程序并强制刷新。
 
 当前切换顺序为“确认 048—050 与 053 已完成 → 依次执行并验收 054—065 → 执行 066 并配置 `BLE_AUTH_SIGNING_KEY` → 低峰期执行并验收 067 → 部署
-`faceRecognition v109`、同轮配套的 `verificationPhoto v10`、`staffAccount v80`、`teacherCreate v6`、`customerRating v2` → 分别 health → 运行 065—068 只读验收 →
+`faceRecognition v109`、同轮配套的 `verificationPhoto v10`、`staffAccount v81`、`teacherCreate v6`、`customerRating v3` → 分别 health → 运行 065—068 只读验收 →
 发布当前静态前端”。不要再发送任何老师人脸 action；新体验核销只能调用客户 1:1
 人脸验证。
 

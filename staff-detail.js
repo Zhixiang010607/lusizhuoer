@@ -144,6 +144,8 @@
       productStatus: stringValue(row, ["productStatus", "product_status"], "ACTIVE").toUpperCase(),
       monthlyAllowance: numberValue(row, ["monthlyAllowance", "monthly_allowance"]),
       usedCount: numberValue(row, ["usedCount", "used_count"]),
+      monthlyExperienceCount: numberValue(row, ["monthlyExperienceCount", "monthly_experience_count", "usedCount", "used_count"]),
+      monthlyRechargeCount: numberValue(row, ["monthlyRechargeCount", "monthly_recharge_count"]),
       manualRechargeCount: numberValue(row, ["manualRechargeCount", "manual_recharge_count"]),
       availableCount: numberValue(row, ["availableCount", "available_count"]),
       totalExperienceCount: optionalNumberValue(row, ["totalExperienceCount", "total_experience_count", "totalUsedCount", "total_used_count", "lifetimeUsedCount", "lifetime_used_count"]),
@@ -263,7 +265,7 @@
         <div class="teacher-experience-balance"><span>当前可用</span><strong>${row.availableCount}<small>次</small></strong></div>
         <dl class="teacher-experience-quota-facts">
           <div><dt>每月基础</dt><dd>${row.monthlyAllowance} 次</dd></div>
-          <div><dt>本月已体验</dt><dd>${row.usedCount} 次</dd></div>
+          <div><dt>本月已体验</dt><dd>${row.monthlyExperienceCount} 次</dd></div>
           <div><dt>单独充值</dt><dd>${row.manualRechargeCount} 次</dd></div>
           <div><dt>最近更新</dt><dd>${escapeHtml(formatTime(row.monthlyResetAt))}</dd></div>
         </dl>
@@ -293,6 +295,8 @@
       byProductId.set(total.productId, {
         ...total,
         usedCount: 0,
+        monthlyExperienceCount: 0,
+        monthlyRechargeCount: 0,
         monthlyAllowance: 0,
         manualRechargeCount: 0,
         availableCount: 0,
@@ -355,23 +359,21 @@
   }
 
   function renderExperienceOverview(data = {}) {
-    const total = numberValue(data, ["totalAvailableCount", "totalAvailable"], experience.rows.reduce((sum, row) => sum + row.availableCount, 0));
     const activeConfigured = experience.rows.filter((row) => row.productStatus === "ACTIVE").length;
-    const monthlyUsedTotal = experience.rows.reduce((sum, row) => sum + row.usedCount, 0);
-    const totalExperience = numberValue(
-      data,
-      ["totalExperienceCount", "total_experience_count"],
-      experienceSummaryRows().reduce((sum, row) => sum + totalExperienceFor(row), 0)
-    );
     const overview = $("teacherExperienceOverview");
-    $("teacherExperienceState").textContent = isStaffArchived() ? "老师已封存 · 仅可查询" : `${activeConfigured} 个活跃产品`;
+    $("teacherExperienceState").textContent = isStaffArchived() ? "老师已封存 · 仅可查询" : `${activeConfigured} 个配置项目`;
     overview.setAttribute("aria-busy", "false");
-    overview.innerHTML = [
-      ["当前可用", `${total}`, "次", "余额会在体验核销时扣减", "primary"],
-      ["本月已体验", `${monthlyUsedTotal}`, "次", "本月已完成的体验服务", ""],
-      ["累计体验", `${totalExperience}`, "次", "各项目累计完成次数", ""],
-      ["月初自动更新", "每月 1 日 00:00", "", "仅更新活跃老师的活跃产品", "muted"]
-    ].map(([label, value, unit, note, tone]) => `<article class="${tone}"><span>${label}</span><strong>${value}${unit ? `<small>${unit}</small>` : ""}</strong><p>${note}</p></article>`).join("");
+    overview.innerHTML = experience.rows.length
+      ? experience.rows.map((row) => `<article class="teacher-experience-monthly-item">
+          <header><div><strong>${escapeHtml(row.productName)}</strong>${row.productCode ? `<span>${escapeHtml(row.productCode)}</span>` : ""}</div><em>本月</em></header>
+          <dl>
+            <div><dt>基础额度</dt><dd>${row.monthlyAllowance}<small>次</small></dd></div>
+            <div><dt>单独充值</dt><dd>${row.monthlyRechargeCount}<small>次</small></dd></div>
+            <div><dt>已体验</dt><dd>${row.monthlyExperienceCount}<small>次</small></dd></div>
+            <div class="available"><dt>当前可用</dt><dd>${row.availableCount}<small>次</small></dd></div>
+          </dl>
+        </article>`).join("")
+      : '<div class="teacher-experience-empty"><strong>尚未配置体验项目</strong><span>配置后会按项目分别显示当月基础、充值、已体验和当前可用次数。</span></div>';
   }
 
   function renderExperience(data = {}) {

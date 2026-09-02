@@ -165,6 +165,10 @@ assert.match(detailUi, /totalExperienceCount/,
   "teacher home must preserve the server-provided per-product experience totals");
 assert.match(detailUi, /累计完成体验/,
   "teacher home must label the historical per-product experience total clearly");
+assert.match(staff, /monthlyExperienceCount:\s*Number\(row\.monthly_experience_count\s*\|\|\s*0\)/,
+  "staffAccount must expose the immutable current-month experience count separately from used_count");
+assert.match(detailUi, /monthlyExperienceCount/,
+  "teacher home must use the server-provided calendar-month experience count");
 assert.match(detailUi, /体验额度已保存并立即生效[\s\S]{0,220}当前可用次数现为 \$\{monthlyAllowance\}/,
   "configuration must state that it replaces the current quota immediately rather than adding to it");
 assert.match(detailUi, /teacher_experience_recharge|teacherExperienceRecharge/,

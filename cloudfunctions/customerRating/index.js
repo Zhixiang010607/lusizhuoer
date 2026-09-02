@@ -5,7 +5,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const QRCode = require("qrcode");
 
-const FUNCTION_VERSION = "v2";
+const FUNCTION_VERSION = "v3";
 let cloudApp = null;
 let managerClient = null;
 let storeBindingLayout = "";
@@ -273,7 +273,7 @@ async function issueForReceipt(event) {
   }
   if (!rating) {
     const placeholderHash = crypto.randomBytes(32).toString("hex");
-    await executeSql(
+    const created = await executeSql(
       `INSERT INTO public.verification_customer_ratings
          (verification_id, store_id, teacher_id, issued_by_account_id,
           token_hash, token_version, rating_status, issued_at, updated_at)
@@ -281,9 +281,14 @@ async function issueForReceipt(event) {
          (${verificationId}, ${sqlId(order.store_id, "门店")},
           ${order.teacher_id ? sqlId(order.teacher_id, "老师") : "NULL"},
           ${sqlId(staff.id, "员工")}, ${sqlText(placeholderHash)}, 1, 'OPEN', NOW(), NOW())
-       ON CONFLICT (verification_id) DO NOTHING`
+       ON CONFLICT (verification_id) DO NOTHING
+       RETURNING id, verification_id, store_id, teacher_id, token_version,
+                 rating_status, submitted_at AS rating_submitted_at`
     );
-    rating = await ratingForVerification(verificationId);
+    // CloudBase SQL writes and the following independent read can briefly use
+    // different visibility paths.  Use the row returned by the write itself so
+    // the first export cannot report failure after the record was created.
+    rating = created[0] || await ratingForVerification(verificationId);
   }
   if (!rating) fail("评价链接创建失败，请重试。", "RATING_ISSUE_FAILED");
   if (rating.rating_status === "SUBMITTED" || rating.rating_submitted_at) {
