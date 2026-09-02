@@ -23,7 +23,7 @@
 
 当前小程序开发基线为 Node.js `>=20.19.0`、pnpm `9.15.9`、CloudBase JS SDK `3.7.1` 和微信开发者工具；依赖必须按 `pnpm-lock.yaml` 冻结安装，不再使用会产生第二份锁文件的 `npm install`。当前开发 AppID 为 `wxb053c1bd6c684d8b`。2026-08-27 已完成 CloudBase 全托管认证，CloudBase 身份认证中的同 AppID 微信小程序身份源也已启用；全托管模式下不再通过旧服务商扫码入口反复修改域名。AppID 可公开但任何密钥都不得写入仓库。现有 CloudBase 是 PostgreSQL 环境，不走微信开发者工具的“云环境转换”；小程序通过 SDK 与微信适配器复用同一环境和云函数。
 
-> 当前代码版本矩阵为 `staffAccount v81`、`faceRecognition v109`、`verificationPhoto v10`、`teacherCreate v6`、`customerRating v3`，网页版为 `0.15.24`，小程序发布目标为 `0.2.51`。迁移 068 已在环境 `rusizhuoer-d9gbcsgym07651694` 执行并取得 9 行 `READY`；评价服务继续使用独立签名密钥、正式 `rating.html` 地址、匿名登录、只放行评价路由的 OPA 策略及 `customerRating` 的 `"auth != null"` 函数安全规则。二维码签发权限为总部或工单所属门店，老师仍被服务端拒绝。代码推送、SQL、云函数、网页发布、小程序开发版上传、设为体验版、提交审核和正式发布仍分别计算。
+> 当前代码版本矩阵为 `staffAccount v81`、`faceRecognition v109`、`verificationPhoto v10`、`teacherCreate v6`、`customerRating v3`，网页版为 `0.15.24`，小程序发布目标为 `0.2.53`。迁移 068 已在环境 `rusizhuoer-d9gbcsgym07651694` 执行并取得 9 行 `READY`；评价服务继续使用独立签名密钥、正式 `rating.html` 地址、匿名登录、只放行评价路由的 OPA 策略及 `customerRating` 的 `"auth != null"` 函数安全规则。二维码签发权限为总部或工单所属门店，老师仍被服务端拒绝。代码推送、SQL、云函数、网页发布、小程序开发版上传、设为体验版、提交审核和正式发布仍分别计算。
 
 2026-09-02 本轮已部署：`staffAccount v81` 把总部老师主页改为按配置项目显示上海自然月的当前基础、本月单独充值、本月已体验和当前可用；自然月数据来自不可变充值／扣次流水及已通过体验工单，删除配置仍只封存，重新配置不会清空历史。`customerRating v3` 修复首次导出时“数据库已写入评价记录、独立读取短暂不可见”造成的评价链接误报失败，改为直接使用写入返回行生成二维码。两个云函数线上 `health` 均已核对；网页版 `0.15.24` 的 5 个变更文件已发布并逐文件确认远端 SHA-256 与本地一致；小程序 `0.2.51` 已通过微信开发者工具官方 CLI 上传为开发版本，总包 `1,948,225` 字节。本轮不需要也未执行新 SQL；只读生产核对确认删除配置函数只写 `ARCHIVED`，额度充值、重置、使用和配置事件到额度配置的 4 条外键全部为 `ON DELETE RESTRICT`。`0.2.51` 尚未设为体验版、提交审核或正式发布。
 

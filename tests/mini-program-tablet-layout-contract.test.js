@@ -319,6 +319,12 @@ test("HQ teacher detail uses a real tablet workspace instead of a magnified stac
     "profile/account and the quota overview should use two purposeful tablet columns");
   assert.match(wxss, /\.experience-project-panel, \.experience-operations-panel \{ grid-column: 1 \/ -1; \}/,
     "project configuration, forms, and audit history should retain full tablet width");
+  assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.monthly-overview-grid \{[^}]*grid-template-columns: minmax\(0, 1fr\);[^}]*gap: 8px;/s,
+    "each configured project must occupy one compact tablet row");
+  assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.monthly-overview-card \{[^}]*display: grid;[^}]*grid-template-columns: minmax\(132px, 1\.15fr\) minmax\(0, 3\.85fr\);/s,
+    "the tablet project identity and its four metrics must share one horizontal row");
+  assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.monthly-metrics \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/s,
+    "all four monthly metrics must stay on the same tablet line");
   assert.match(wxss, /\.experience-project-panel \{[^}]*grid-template-columns: minmax\(0, \.74fr\) minmax\(0, 1\.26fr\);/s);
   assert.match(wxss, /\.quota-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
   assert.match(wxss, /\.forms-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);

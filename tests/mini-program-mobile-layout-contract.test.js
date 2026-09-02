@@ -218,7 +218,10 @@ test("mobile management controls stay centered without breaking data into charac
     "HQ teacher profile, account, and quota panels must use the same card palette as other pages");
   assert.match(teacher, /\.monthly-overview-card\s*\{[^}]*border:\s*1rpx solid #dfcfb4;[^}]*background:\s*#fff8ec/s);
   assert.match(teacher, /\.monthly-project-head\s*\{[^}]*background:\s*#f6ead7/s);
-  assert.match(teacher, /\.monthly-metrics\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/s);
+  assert.match(teacher, /\.monthly-overview-card\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(146rpx,\s*1\.15fr\)\s*minmax\(0,\s*3\.85fr\)/s,
+    "phone summaries must keep each project identity and all metrics on one row");
+  assert.match(teacher, /\.monthly-metrics\s*\{[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/s,
+    "phone summaries must keep the four monthly facts on one row");
   assert.match(teacher, /\.monthly-metrics > view\s*\{[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*background:\s*#fffaf3/s);
   assert.doesNotMatch(teacher, /#f4dfba|#eef3e9|#f2ebf0|#f8ead7/,
     "teacher detail must not mix several unrelated card background colors");

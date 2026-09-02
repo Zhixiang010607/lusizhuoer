@@ -51,7 +51,7 @@
 | `pages/store-create/index` | 门店名称、完整地址、多联系人和初始账号创建 | 表单、校验与服务端创建契约 `PASS-AUTO`；真实创建 `CONFIRM-ONLY` |
 | `pages/store-detail/index` | 基础资料、时间范围、项目汇总、四类明细、分页、活跃／封存客户、总部状态操作 | 读取、精确跳转、布局与请求隔离 `PASS-AUTO`；真实写操作 `CONFIRM-ONLY`；门店角色会话 `NEEDS-ROLE-LOGIN` |
 | `pages/teacher-create/index` | 姓名、手机号、初始密码，不采集老师人脸 | 创建字段、清理与回读契约 `PASS-AUTO`；真实创建 `CONFIRM-ONLY` |
-| `pages/teacher-detail/index` | 档案、密码重置、状态、逐配置项目上海自然月汇总、配置／充值／删除和历史 | 当前基础／本月单独充值／本月已体验／当前可用逐项目显示，以及删除重配后从不可变流水保留历史的契约 `PASS-AUTO`；额度、密码和状态写操作 `CONFIRM-ONLY` |
+| `pages/teacher-detail/index` | 档案、密码重置、状态、逐配置项目上海自然月汇总、配置／充值／删除和历史 | 当前基础／本月单独充值／本月已体验／当前可用逐项目显示，手机与 iPad 均为每项目一条横向记录，以及删除重配后从不可变流水保留历史的契约 `PASS-AUTO`；额度、密码和状态写操作 `CONFIRM-ONLY` |
 | `pages/reviews/index` | 充值／退费／历史补录核销查询、分页、跳页、工单／客户详情、通过／驳回 | 总部真实只读查询 `PASS-LIVE`；精确列宽、状态语义和旧响应隔离 `PASS-AUTO`；审核决定 `CONFIRM-ONLY` |
 | `pages/customers/index` | 总部／门店客户范围、阶段、状态、日期、姓名／生日、分页、只读详情；姓名后紧接充值／核销，客户状态最后；老师不进入通用客户页 | 查询参数、角色边界、精确列序／列宽、横滑复位和请求隔离 `PASS-AUTO`；扩展条件需真实数据库复验 |
 | `pages/customer-detail/index` | 资料和只读照片预览、产品余额、三类独立历史分页、备注、留言、状态、工单链接 | 基础读取 `PASS-LIVE`；无重读／相册按钮、名称精简、历史自适应列宽、照片失败隔离和旧响应隔离 `PASS-AUTO`；备注、留言与状态修改 `CONFIRM-ONLY` |

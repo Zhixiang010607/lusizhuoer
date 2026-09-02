@@ -11,18 +11,18 @@
 .security-panel .input, .experience-panel .input, .experience-panel .picker, .experience-panel .textarea { background: #fff; border-color: #dcc8a6; }
 .monthly-summary-note { display: block; }
 .monthly-overview-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14rpx; }
-.monthly-overview-card { min-width: 0; overflow: hidden; border: 1rpx solid #dfcfb4; border-radius: 18rpx; background: #fff8ec; }
-.monthly-project-head { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 12rpx; padding: 16rpx 18rpx; border-bottom: 1rpx solid #eadcc5; background: #f6ead7; }
+.monthly-overview-card { min-width: 0; display: grid; grid-template-columns: minmax(146rpx, 1.15fr) minmax(0, 3.85fr); overflow: hidden; border: 1rpx solid #dfcfb4; border-radius: 18rpx; background: #fff8ec; }
+.monthly-project-head { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8rpx; padding: 12rpx 14rpx; border-right: 1rpx solid #eadcc5; background: #f6ead7; }
 .monthly-project-head > view { min-width: 0; }
 .monthly-project-head > view text { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.monthly-project-head > view text:first-child { color: #4a3825; font-size: 24rpx; font-weight: 850; }
-.monthly-project-head > view text:last-child { margin-top: 4rpx; color: #85745d; font-size: 17rpx; }
-.monthly-project-head > text { flex: none; padding: 5rpx 10rpx; color: #74592d; background: #fffaf3; border-radius: 999rpx; font-size: 17rpx; font-weight: 800; }
-.monthly-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rpx; background: #eadcc5; }
-.monthly-metrics > view { min-width: 0; min-height: 94rpx; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12rpx 8rpx; background: #fffaf3; text-align: center; }
+.monthly-project-head > view text:first-child { color: #4a3825; font-size: 20rpx; font-weight: 850; }
+.monthly-project-head > view text:last-child { margin-top: 3rpx; color: #85745d; font-size: 15rpx; }
+.monthly-project-head > text { display: none; }
+.monthly-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rpx; background: #eadcc5; }
+.monthly-metrics > view { min-width: 0; min-height: 100rpx; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 9rpx 3rpx; background: #fffaf3; text-align: center; }
 .monthly-metrics text { width: 100%; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.monthly-metrics text:first-child { color: #7c7062; font-size: 17rpx; }
-.monthly-metrics text:last-child { margin-top: 6rpx; color: #4a3825; font-size: 23rpx; font-weight: 900; }
+.monthly-metrics text:first-child { color: #7c7062; font-size: 15rpx; }
+.monthly-metrics text:last-child { margin-top: 5rpx; color: #4a3825; font-size: 20rpx; font-weight: 900; }
 .monthly-metrics .monthly-available { background: #f7ead3; }
 .monthly-metrics .monthly-available text:last-child { color: #80602c; }
 .monthly-overview-empty { min-height: 112rpx; display: flex; align-items: center; justify-content: center; }
@@ -92,14 +92,14 @@
   .security-panel .button-row { gap: 10px; }
   .security-panel .button-row button { min-height: 46px; padding: 0 10px; font-size: 14px; }
 
-  .monthly-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .monthly-overview-card { border-width: 1px; border-radius: 14px; }
-  .monthly-project-head { gap: 8px; padding: 11px 13px; border-bottom-width: 1px; }
+  .monthly-overview-grid { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .monthly-overview-card { display: grid; grid-template-columns: minmax(132px, 1.15fr) minmax(0, 3.85fr); border-width: 1px; border-radius: 14px; }
+  .monthly-project-head { gap: 8px; padding: 9px 11px; border-right: 1px solid #eadcc5; border-bottom: 0; }
   .monthly-project-head > view text:first-child { font-size: 16px; }
   .monthly-project-head > view text:last-child { margin-top: 3px; font-size: 12px; }
-  .monthly-project-head > text { padding: 4px 8px; font-size: 12px; }
-  .monthly-metrics { gap: 1px; }
-  .monthly-metrics > view { min-height: 64px; padding: 8px 6px; }
+  .monthly-project-head > text { display: block; padding: 4px 8px; font-size: 12px; }
+  .monthly-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; }
+  .monthly-metrics > view { min-height: 58px; padding: 7px 5px; }
   .monthly-metrics text:first-child { font-size: 11px; }
   .monthly-metrics text:last-child { margin-top: 4px; font-size: 16px; }
   .monthly-overview-empty { min-height: 76px; }
