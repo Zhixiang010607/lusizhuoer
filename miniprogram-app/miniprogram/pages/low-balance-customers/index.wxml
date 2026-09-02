@@ -24,8 +24,8 @@
     <view wx:if="{{loading}}" class="empty">正在读取余额…</view>
     <scroll-view wx:elif="{{balances.length}}" class="low-balance-table-scroll" scroll-x="true" data-visible-rows="{{balances.length > 5 ? 5 : balances.length}}" scroll-y="{{balances.length > 5}}" scroll-left="{{tableScrollLeft}}" enhanced="true" show-scrollbar="{{balances.length > 5}}">
       <view class="low-balance-table">
-        <view class="low-balance-row low-balance-head"><text>姓名</text><text>项目</text><text>当前剩余</text><text>净开卡</text><text>已核销</text><text>门店</text><text>生日</text></view>
-        <view wx:for="{{balances}}" wx:key="rowKey" class="low-balance-row" data-code="{{item.customerCode}}" bindtap="openCustomer"><text class="customer-name">{{item.customerName}}</text><text>{{item.productName}}{{item.productCode ? ' · ' + item.productCode : ''}}</text><text class="remaining-count">{{item.remainingCount}} 次</text><text>{{item.purchasedCount}} 次</text><text>{{item.consumedCount}} 次</text><text>{{item.storeName}}</text><text>{{item.birthDateLabel}}</text></view>
+        <view class="low-balance-row low-balance-head"><text>姓名</text><text>项目</text><text>当前剩余</text><text>净开卡</text><text>已核销</text><text>门店</text></view>
+        <view wx:for="{{balances}}" wx:key="rowKey" class="low-balance-row" data-code="{{item.customerCode}}" bindtap="openCustomer"><text class="customer-name">{{item.customerName}}</text><text>{{item.productName}}</text><text class="remaining-count">{{item.remainingCount}} 次</text><text>{{item.purchasedCount}} 次</text><text>{{item.consumedCount}} 次</text><text>{{item.storeName}}</text></view>
       </view>
     </scroll-view>
     <view wx:elif="{{searched}}" class="empty">当前条件下暂无已开卡客户</view>

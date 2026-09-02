@@ -45,7 +45,7 @@
 .message-time { flex: none; color: #8a7d6d; font-size: 19rpx; white-space: nowrap; }
 .message-content { display: block; margin-top: 9rpx; color: #3c342a; font-size: 23rpx; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
 .message-empty { min-height: 120rpx; display: flex; align-items: center; justify-content: center; color: #7c7062; background: #f9edda; border: 1rpx dashed #d8bc8c; border-radius: 14rpx; font-size: 22rpx; }
-.load-message-button, .load-history-button { width: auto; min-width: 190rpx; min-height: 62rpx; display: flex; align-items: center; justify-content: center; margin: 14rpx auto 0; padding: 0 20rpx; font-size: 22rpx; line-height: 1.2; }
+.load-message-button { width: auto; min-width: 190rpx; min-height: 62rpx; display: flex; align-items: center; justify-content: center; margin: 14rpx auto 0; padding: 0 20rpx; font-size: 22rpx; line-height: 1.2; }
 .message-compose { min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: 12rpx; margin-top: 16rpx; padding: 16rpx; background: #f5ead8; border: 1rpx solid #dfc69e; border-radius: 18rpx; }
 .message-input-wrap { width: 100%; min-width: 0; }
 .message-input-wrap .character-count { width: 100%; display: block; text-align: right; }
@@ -74,7 +74,9 @@
 .record-row { display: table-row; }
 .record-row.table-head text { height: 66rpx; }
 .record-link { color: #76592f; font-weight: 850; text-decoration: underline; }
-.history-pagination { min-height: 8rpx; display: flex; justify-content: center; }
+.history-pagination { width: 100%; display: grid; grid-template-columns: 116rpx minmax(0, 1fr) 116rpx; align-items: center; gap: 10rpx; margin-top: 16rpx; padding-top: 16rpx; border-top: 1rpx solid #eadfce; }
+.history-pagination button { width: 116rpx; min-height: 56rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 10rpx; font-size: 18rpx; line-height: 1; }
+.history-pagination text { min-width: 0; color: #7c7062; font-size: 18rpx; text-align: center; white-space: nowrap; }
 .customer-communication-grid, .customer-summary-grid { display: contents; }
 .table-scroll-hint { display: block; margin: -4rpx 0 10rpx; color: #7c7062; font-size: 18rpx; text-align: right; }
 .balance-scroll[data-visible-rows="1"] { height: 148rpx; }
@@ -130,7 +132,7 @@
   .message-compose { gap: 10px; margin-top: 12px; padding: 12px; border-width: 1px; border-radius: 14px; }
   .message-input { height: 92px; min-height: 92px; padding: 11px 13px; font-size: 14px; }
   .submit-message-button { min-height: 44px; font-size: 14px; }
-  .load-message-button, .load-history-button { min-width: 150px; min-height: 44px; margin-top: 12px; padding: 0 14px; font-size: 14px; }
+  .load-message-button { min-width: 150px; min-height: 44px; margin-top: 12px; padding: 0 14px; font-size: 14px; }
   .table-scroll-hint, .retail-summary-hint { margin: -2px 0 8px; font-size: 12px; }
   .table-scroll, .retail-summary-scroll { border-width: 1px; border-radius: 12px; }
   .balance-table, .retail-summary-table, .record-table { width: auto; min-width: 100%; }
@@ -148,6 +150,9 @@
   .retail-summary-scroll[data-visible-rows="5"] { height: 308px; }
   .history-tabs { grid-template-columns: repeat(5, minmax(0, 1fr)); margin-bottom: 12px; }
   .history-tabs button { padding: 0 6px; font-size: 14px; }
+  .history-pagination { grid-template-columns: 84px minmax(0, 1fr) 84px; gap: 8px; margin-top: 12px; padding-top: 12px; border-top-width: 1px; }
+  .history-pagination button { width: 84px; min-height: 38px; padding: 0 8px; font-size: 12px; }
+  .history-pagination text { font-size: 12px; }
   .record-row.table-head text { height: 48px; }
   .record-scroll[data-visible-rows="1"] { height: 100px; }
   .record-scroll[data-visible-rows="2"] { height: 152px; }

@@ -1,6 +1,5 @@
 const { callFace, callStaff } = require("../../services/api");
 const { requireSession } = require("../../services/session");
-const query = require("../../services/query-tools");
 
 const PAGE_SIZE = 20;
 const EMPTY_SUMMARY = Object.freeze({ selectedTotal: 0, customerTotal: 0, productTotal: 0, zeroBalance: 0 });
@@ -13,8 +12,6 @@ function balanceRows(rows = []) {
     customerName: String(item.customerName || "—"),
     storeName: String(item.storeName || "—"),
     productName: String(item.productName || "—"),
-    productCode: String(item.productCode || ""),
-    birthDateLabel: query.displayDateAny(item.birthDate, item.birth_date),
     purchasedCount: Number(item.purchasedCount || 0),
     consumedCount: Number(item.consumedCount || 0),
     remainingCount: Number(item.remainingCount || 0)
@@ -71,13 +68,12 @@ Page({
       const result = await callStaff("listProducts");
       const products = (result.products || []).map((product) => ({
         id: String(product.id || product.product_id || ""),
-        code: String(product.product_code || product.productCode || ""),
         name: String(product.product_name || product.productName || "未命名项目"),
         status: String(product.product_status || product.productStatus || "ACTIVE").toUpperCase()
       })).filter((product) => product.id && product.status === "ACTIVE");
       this.setData({
         products,
-        productLabels: ["全部项目", ...products.map((product) => `${product.name}${product.code ? ` · ${product.code}` : ""}`)]
+        productLabels: ["全部项目", ...products.map((product) => product.name)]
       });
     } catch (error) {
       this.setData({ message: error.message || "项目列表读取失败", error: true });

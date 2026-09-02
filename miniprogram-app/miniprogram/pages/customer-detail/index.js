@@ -2,7 +2,7 @@ const { callFace } = require("../../services/api");
 const { requireSession } = require("../../services/session");
 const query = require("../../services/query-tools");
 
-const HISTORY_LIMIT = 50;
+const HISTORY_LIMIT = 20;
 const MESSAGE_LIMIT = 20;
 const HISTORY_FIELDS = Object.freeze({
   RECHARGE: "recharges",
@@ -15,11 +15,11 @@ const HISTORY_FIELDS = Object.freeze({
 function clean(value) { return String(value ?? "").trim(); }
 function freshHistoryState() {
   return {
-    RECHARGE: { hasMore: false, nextCursor: null, loading: false, message: "", error: false },
-    REFUND: { hasMore: false, nextCursor: null, loading: false, message: "", error: false },
-    VERIFICATION: { hasMore: false, nextCursor: null, loading: false, message: "", error: false },
-    EXPERIENCE: { hasMore: false, nextCursor: null, loading: false, message: "", error: false },
-    PRODUCT_PURCHASE: { hasMore: false, nextCursor: null, loading: false, message: "", error: false }
+    RECHARGE: { page: 1, cursorStack: [null], hasMore: false, nextCursor: null, loading: false, message: "", error: false },
+    REFUND: { page: 1, cursorStack: [null], hasMore: false, nextCursor: null, loading: false, message: "", error: false },
+    VERIFICATION: { page: 1, cursorStack: [null], hasMore: false, nextCursor: null, loading: false, message: "", error: false },
+    EXPERIENCE: { page: 1, cursorStack: [null], hasMore: false, nextCursor: null, loading: false, message: "", error: false },
+    PRODUCT_PURCHASE: { page: 1, cursorStack: [null], hasMore: false, nextCursor: null, loading: false, message: "", error: false }
   };
 }
 function messageRole(value) {
@@ -130,7 +130,7 @@ Page({
     customerCode: "", profile: null, balances: [], retailProductSummary: [],
     retailSummaryScrollable: false, retailSummaryViewportHeight: 68,
     recharges: [], refunds: [], verifications: [], experiences: [], productPurchases: [],
-    historyType: "RECHARGE", visibleHistory: [], historyHasMore: false, historyScrollLeft: 0,
+    historyType: "RECHARGE", visibleHistory: [], historyPage: 1, historyHasMore: false, historyScrollLeft: 0,
     historyLoading: false, historyMessage: "", historyError: false,
     messages: [], messageTotal: 0, messageHasMore: false,
     messagesLoading: false, messageSubmitting: false, messageText: "", messageLength: 0,
@@ -177,7 +177,7 @@ Page({
       loading: true, message: "", error: false,
       profile: null, balances: [], retailProductSummary: [], retailSummaryScrollable: false, retailSummaryViewportHeight: 68,
       recharges: [], refunds: [], verifications: [], experiences: [], productPurchases: [],
-      visibleHistory: [], historyHasMore: false, historyLoading: false, historyScrollLeft: 0,
+      visibleHistory: [], historyPage: 1, historyHasMore: false, historyLoading: false, historyScrollLeft: 0,
       historyMessage: "", historyError: false,
       notesEditing: false, notesChanged: false, notesMessage: "", notesError: false,
       statusMessage: "", statusError: false
@@ -311,48 +311,60 @@ Page({
     const state = this._historyState?.[type] || freshHistoryState()[type];
     this.setData({
       visibleHistory: this.data[field] || [],
+      historyPage: Number(state.page || 1),
       historyHasMore: state.hasMore === true,
       historyLoading: state.loading === true,
       historyMessage: state.message || "",
       historyError: state.error === true
     });
   },
-  async loadMoreHistory() {
+  async loadHistoryPage(targetPage) {
     const type = this.data.historyType;
     const field = HISTORY_FIELDS[type];
     const state = this._historyState?.[type];
-    if (!field || !state?.hasMore || !state.nextCursor || state.loading) return;
+    const currentPage = Number(state?.page || 1);
+    const nextPage = Number(targetPage);
+    if (!field || !state || state.loading || !Number.isInteger(nextPage) || Math.abs(nextPage - currentPage) !== 1) return;
+    if (nextPage < 1 || (nextPage > currentPage && (!state.hasMore || !state.nextCursor))) return;
+    const cursorStack = Array.isArray(state.cursorStack) && state.cursorStack.length ? state.cursorStack.slice() : [null];
+    if (nextPage > currentPage) cursorStack[nextPage - 1] = state.nextCursor;
+    const cursor = cursorStack[nextPage - 1] || null;
     const profileEpoch = this._profileEpoch;
     state.loading = true;
-    state.message = "正在加载更多记录…";
+    state.message = `正在读取第 ${nextPage} 页…`;
     state.error = false;
     this.syncHistory();
     try {
-      const result = await callFace("getCustomerProfile", {
+      const payload = {
         customerCode: this.data.customerCode,
         historyType: type,
-        historyLimit: HISTORY_LIMIT,
-        cursorSubmittedAt: state.nextCursor.submittedAt,
-        cursorId: state.nextCursor.id
-      });
+        historyLimit: HISTORY_LIMIT
+      };
+      if (cursor) {
+        payload.cursorSubmittedAt = cursor.submittedAt;
+        payload.cursorId = cursor.id;
+      }
+      const result = await callFace("getCustomerProfile", payload);
       if (profileEpoch !== this._profileEpoch) return;
       const incoming = mapHistory(result[field], type);
-      const known = new Set((this.data[field] || []).map((row) => row.id));
-      const combined = [...(this.data[field] || []), ...incoming.filter((row) => !known.has(row.id))];
       const page = result.history?.[field] || {};
+      state.page = nextPage;
+      state.cursorStack = cursorStack;
       state.hasMore = page.hasMore === true;
       state.nextCursor = page.nextCursor || null;
-      state.message = incoming.length ? `已加载 ${incoming.length} 条记录` : "没有更多记录";
+      state.message = "";
       state.error = false;
-      this.setData({ [field]: combined });
+      this.setData({ [field]: incoming, historyScrollLeft: 0 });
     } catch (error) {
-      state.message = error.message || "历史记录加载失败，请重试";
+      state.message = error.message || "业务记录翻页失败，请重试";
       state.error = true;
     } finally {
       state.loading = false;
       this.syncHistory();
     }
   },
+  previousHistoryPage() { void this.loadHistoryPage(Number(this.data.historyPage || 1) - 1); },
+  nextHistoryPage() { void this.loadHistoryPage(Number(this.data.historyPage || 1) + 1); },
   openOrder(event) {
     const id = clean(event.currentTarget.dataset.id);
     if (!id) return;

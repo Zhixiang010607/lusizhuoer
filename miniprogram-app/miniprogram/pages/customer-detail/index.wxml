@@ -115,7 +115,7 @@
     </view>
 
     <view class="card history-card">
-      <view class="card-title"><text>业务记录</text><text class="badge">已载 {{visibleHistory.length}} 条</text></view>
+      <view class="card-title"><text>业务记录</text><text class="badge">本页 {{visibleHistory.length}} 条</text></view>
       <view class="segmented history-tabs">
         <button class="{{historyType === 'RECHARGE' ? 'active' : ''}}" data-type="RECHARGE" bindtap="changeHistory">充值</button>
         <button class="{{historyType === 'REFUND' ? 'active' : ''}}" data-type="REFUND" bindtap="changeHistory">退费</button>
@@ -123,7 +123,7 @@
         <button class="{{historyType === 'EXPERIENCE' ? 'active' : ''}}" data-type="EXPERIENCE" bindtap="changeHistory">体验</button>
         <button class="{{historyType === 'PRODUCT_PURCHASE' ? 'active' : ''}}" data-type="PRODUCT_PURCHASE" bindtap="changeHistory">产品</button>
       </view>
-      <text wx:if="{{visibleHistory.length > 5}}" class="table-scroll-hint">超过 5 条，可在表格内上下滑动</text>
+      <text wx:if="{{visibleHistory.length > 5}}" class="table-scroll-hint">本页超过 5 条，可在表格内上下滑动</text>
       <scroll-view wx:if="{{visibleHistory.length}}" class="table-scroll record-scroll" scroll-x="true" scroll-left="{{historyScrollLeft}}" bindscroll="rememberHistoryScroll" data-visible-rows="{{visibleHistory.length > 5 ? 5 : visibleHistory.length}}" scroll-y="{{visibleHistory.length > 5}}" enhanced show-scrollbar="{{visibleHistory.length > 5}}">
         <view class="record-table {{historyType === 'RECHARGE' || historyType === 'REFUND' || historyType === 'PRODUCT_PURCHASE' ? 'recharge-history' : 'compact-history'}} {{historyType === 'PRODUCT_PURCHASE' ? 'product-history' : ''}}">
           <view class="record-row table-head"><text>单号</text><text>{{historyType === 'PRODUCT_PURCHASE' ? '产品' : '项目'}}</text><text>业务老师</text><text>{{historyType === 'PRODUCT_PURCHASE' ? '数量' : '次数'}}</text><text>提交时间</text><text>状态</text></view>
@@ -139,7 +139,9 @@
       </scroll-view>
       <view wx:elif="{{!historyLoading}}" class="empty">暂无相关记录</view>
       <view class="history-pagination">
-        <button wx:if="{{historyHasMore}}" class="secondary load-history-button" bindtap="loadMoreHistory" loading="{{historyLoading}}" disabled="{{historyLoading}}">加载更多</button>
+        <button class="ghost" bindtap="previousHistoryPage" disabled="{{historyPage <= 1 || historyLoading}}">上一页</button>
+        <text>第 {{historyPage}} 页</text>
+        <button class="ghost" bindtap="nextHistoryPage" disabled="{{!historyHasMore || historyLoading}}">下一页</button>
       </view>
       <view wx:if="{{historyMessage}}" class="section-message {{historyError ? 'error' : ''}}">{{historyMessage}}</view>
     </view>

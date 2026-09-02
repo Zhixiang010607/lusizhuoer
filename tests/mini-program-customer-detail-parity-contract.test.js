@@ -12,10 +12,10 @@ const js = fs.readFileSync(path.join(pageRoot, "index.js"), "utf8");
 const wxml = fs.readFileSync(path.join(pageRoot, "index.wxml"), "utf8");
 const wxss = fs.readFileSync(path.join(pageRoot, "index.wxss"), "utf8");
 
-test("mini customer profile consumes the existing cursor and message contracts", () => {
-  assert.match(js, /const HISTORY_LIMIT = 50;/);
+test("mini customer profile paginates every business history at twenty rows", () => {
+  assert.match(js, /const HISTORY_LIMIT = 20;/);
   for (const type of ["RECHARGE", "REFUND", "VERIFICATION", "EXPERIENCE", "PRODUCT_PURCHASE"]) {
-    assert.match(js, new RegExp(`${type}: \\{ hasMore: false, nextCursor: null, loading: false`));
+    assert.match(js, new RegExp(`${type}: \\{ page: 1, cursorStack: \\[null\\], hasMore: false, nextCursor: null, loading: false`));
   }
   for (const field of ["historyType: type", "historyLimit: HISTORY_LIMIT", "cursorSubmittedAt", "cursorId"]) {
     assert.match(js, new RegExp(field));
@@ -27,6 +27,10 @@ test("mini customer profile consumes the existing cursor and message contracts",
   assert.match(js, /callFace\("addCustomerMessage"/);
   assert.match(js, /Array\.from\(content\)\.length/);
   assert.match(wxml, /maxlength="100"/);
+  assert.match(wxml, /bindtap="previousHistoryPage"[^>]*>上一页<\/button>/);
+  assert.match(wxml, /第 \{\{historyPage\}\} 页/);
+  assert.match(wxml, /bindtap="nextHistoryPage"[^>]*>下一页<\/button>/);
+  assert.doesNotMatch(wxml, /bindtap="loadMoreHistory"|>加载更多<\/button>|已载 \{\{visibleHistory\.length\}\} 条/);
   assert.match(wxml, /bindtap="loadMoreMessages"/);
   assert.match(wxml, /bindtap="submitMessage"[^>]*>发送留言<\/button>/);
   assert.match(wxss, /\.message-compose \{[^}]*flex-direction: column;[^}]*align-items: stretch;/s);
@@ -93,8 +97,8 @@ test("balance and history tables have exact centered single-line column widths",
   assert.match(wxss, /\.history-tabs button \{[^}]*align-items: center;[^}]*justify-content: center;[^}]*text-align: center;[^}]*white-space: nowrap;/s);
 });
 
-test("history tabs and full refresh reset the controlled horizontal position", () => {
-  assert.match(js, /historyType: "RECHARGE", visibleHistory: \[\], historyHasMore: false, historyScrollLeft: 0/);
+test("history tabs, paging, and full refresh reset the controlled horizontal position", () => {
+  assert.match(js, /historyType: "RECHARGE", visibleHistory: \[\], historyPage: 1, historyHasMore: false, historyScrollLeft: 0/);
   assert.match(wxml, /class="table-scroll record-scroll"[^>]*scroll-left="\{\{historyScrollLeft\}\}"[^>]*bindscroll="rememberHistoryScroll"/);
   const loadSection = js.slice(js.indexOf("async load()"), js.indexOf("async loadPhoto()"));
   assert.match(loadSection, /historyScrollLeft: 0/);
@@ -102,6 +106,7 @@ test("history tabs and full refresh reset the controlled horizontal position", (
   const changeSection = js.slice(changeStart, js.indexOf("syncHistory()", changeStart));
   assert.match(changeSection, /historyType: type, historyScrollLeft: 0/);
   assert.match(js, /rememberHistoryScroll\(event\)[\s\S]*this\.data\.historyScrollLeft = scrollLeft/);
+  assert.match(js, /this\.setData\(\{ \[field\]: incoming, historyScrollLeft: 0 \}\)/);
 });
 
 test("history mapper preserves refund signs, teachers, dates, and server statuses", () => {
@@ -167,7 +172,7 @@ test("history mapper preserves refund signs, teachers, dates, and server statuse
   );
 });
 
-test("profile body survives a photo failure and appends only the selected history cursor", async () => {
+test("profile body survives a photo failure and replaces each selected twenty-row history page", async () => {
   let pageDefinition;
   const calls = [];
   async function callFace(action, payload) {
@@ -180,6 +185,12 @@ test("profile body survives a photo failure and appends only the selected histor
       };
     }
     if (action === "getCustomerProfile" && payload.historyType === "RECHARGE") {
+      if (!payload.cursorSubmittedAt) {
+        return {
+          recharges: [{ id: "1", rechargeCode: "RC1", rechargeType: "NEW", unitCount: 5, recordStatus: "APPROVED" }],
+          history: { recharges: { hasMore: true, nextCursor: { submittedAt: "cursor-time", id: "1" } } }
+        };
+      }
       assert.equal(payload.cursorSubmittedAt, "cursor-time");
       assert.equal(payload.cursorId, "1");
       return {
@@ -246,8 +257,14 @@ test("profile body survives a photo failure and appends only the selected histor
   assert.equal(page.data.error, false, "a signed-photo failure must not turn the profile body into an error");
   assert.equal(page.data.messages.length, 1);
   assert.equal(page.data.recharges.length, 1);
-  await page.loadMoreHistory();
-  assert.equal(Array.from(page.data.recharges, (row) => row.unitLabel).join("|"), "+5 次|+2 次");
+  page.nextHistoryPage();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(Array.from(page.data.recharges, (row) => row.unitLabel).join("|"), "+2 次");
+  assert.equal(page.data.historyPage, 2);
   assert.equal(page.data.historyHasMore, false);
-  assert.ok(calls.some(({ action, payload }) => action === "getCustomerProfile" && payload.historyLimit === 50));
+  page.previousHistoryPage();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(Array.from(page.data.recharges, (row) => row.unitLabel).join("|"), "+5 次");
+  assert.equal(page.data.historyPage, 1);
+  assert.ok(calls.some(({ action, payload }) => action === "getCustomerProfile" && payload.historyLimit === 20));
 });

@@ -63,9 +63,13 @@ test("HQ and store mini-programs expose project-selectable low-balance search", 
   assert.match(pageJs, /if \(epoch !== this\._requestEpoch\) return false;/);
   assert.match(pageJs, /pages\/customer-detail\/index\?customerCode=/);
   assert.match(pageJs, /productLabels: \["全部项目"\]/);
-  for (const label of ["门店范围", "项目范围", "剩余次数低于", "当前剩余", "净开卡", "已核销", "门店", "生日", "跳至"]) {
+  for (const label of ["门店范围", "项目范围", "剩余次数低于", "当前剩余", "净开卡", "已核销", "门店", "跳至"]) {
     assert.match(pageWxml, new RegExp(label), `low-balance results are missing ${label}`);
   }
+  assert.doesNotMatch(pageWxml, /生日|item\.productCode/,
+    "low-balance results must omit birthdays and project codes");
+  assert.doesNotMatch(pageJs, /birthDateLabel|product\.code|productCode/,
+    "low-balance view models and selectors must not append removed fields");
   assert.match(pageWxml, /只统计已开卡项目，0 次余额会命中，从未开卡不会按 0 次计入/);
   assert.match(pageWxml, /封存客户不参与查询/);
   assert.match(pageWxss, /\.low-balance-table \{ width: auto; min-width: 100%; display: inline-table; table-layout: auto;/);
