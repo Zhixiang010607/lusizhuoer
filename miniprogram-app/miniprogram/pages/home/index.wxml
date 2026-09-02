@@ -4,12 +4,13 @@
       <view class="rail-current" aria-label="{{roleTitle}}"><text class="rail-icon">{{session.role === 'hq' ? '总' : (session.role === 'store' ? '店' : '师')}}</text></view>
       <view wx:if="{{session.role !== 'hq'}}" class="rail-link {{businessMenuOpen ? 'active' : ''}}" bindtap="toggleBusinessMenu" aria-label="业务办理">办</view>
       <view wx:if="{{session.role !== 'teacher'}}" class="rail-link {{queryMenuOpen ? 'active' : ''}}" bindtap="toggleQueryMenu" aria-label="业务查询">查</view>
+      <view wx:if="{{session.role !== 'teacher'}}" class="rail-link {{coreMetricsMenuOpen ? 'active' : ''}}" bindtap="toggleCoreMetricsMenu" aria-label="运营核心指标查询">营</view>
       <view wx:if="{{session.role === 'hq'}}" class="rail-link {{managementMenuOpen ? 'active' : ''}}" bindtap="toggleManagementMenu" aria-label="管理">管</view>
       <view wx:if="{{session.role === 'hq'}}" class="rail-link {{reviewMenuOpen ? 'active' : ''}}" bindtap="toggleReviewMenu" aria-label="审核">审</view>
       <view class="rail-link rail-logout" bindtap="logout" aria-label="退出登录">退</view>
     </view>
   </scroll-view>
-  <view wx:if="{{businessMenuOpen || queryMenuOpen || managementMenuOpen || reviewMenuOpen}}" class="menu-backdrop" bindtap="closeMenus"></view>
+  <view wx:if="{{businessMenuOpen || queryMenuOpen || coreMetricsMenuOpen || managementMenuOpen || reviewMenuOpen}}" class="menu-backdrop" bindtap="closeMenus"></view>
   <view wx:if="{{businessMenuOpen && session.role !== 'hq'}}" class="business-popover" catchtap="noop">
     <view class="popover-grid">
       <view bindtap="openCustomerCreate">客户建立</view><view bindtap="openRecharge" data-mode="NEW">办卡充值</view><view bindtap="openProductPurchase">产品购买</view><view bindtap="openRecharge" data-mode="REFUND">退费申请</view><view bindtap="openVerification" data-mode="NORMAL">核销办理</view><view wx:if="{{session.role === 'teacher'}}" bindtap="openVerification" data-mode="EXPERIENCE">体验核销</view>
@@ -18,11 +19,16 @@
   <view wx:if="{{queryMenuOpen && session.role !== 'teacher'}}" class="business-popover query-popover" catchtap="noop">
     <view class="popover-grid">
       <view data-type="customer" bindtap="openQuery">客户查询</view>
-      <view data-type="inactive-customer" bindtap="openQuery">未核销客户</view>
-      <view data-type="low-balance-customer" bindtap="openQuery">低余次客户</view>
       <view data-type="recharge" bindtap="openQuery">充值查询</view>
       <view data-type="verification" bindtap="openQuery">核销查询</view>
       <view wx:if="{{session.role === 'hq'}}" data-type="product" bindtap="openQuery">产品查询</view>
+    </view>
+  </view>
+  <view wx:if="{{coreMetricsMenuOpen && session.role !== 'teacher'}}" class="business-popover core-metrics-popover" catchtap="noop">
+    <text class="popover-heading">运营核心指标查询</text>
+    <view class="popover-grid">
+      <view data-type="inactive-customer" bindtap="openQuery">活跃预警</view>
+      <view data-type="low-balance-customer" bindtap="openQuery">余次预警</view>
     </view>
   </view>
   <view wx:if="{{managementMenuOpen && session.role === 'hq'}}" class="business-popover management-popover" catchtap="noop">

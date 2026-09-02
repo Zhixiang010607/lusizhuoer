@@ -97,6 +97,8 @@ test("every page enforces the exact headquarters, store, and teacher permission 
   const home = read("pages/home/index.wxml");
   assert.match(home, /businessMenuOpen && session\.role !== 'hq'/, "only store and teacher may open business handling");
   assert.match(home, /queryMenuOpen && session\.role !== 'teacher'/, "only headquarters and store may open general queries");
+  assert.match(home, /coreMetricsMenuOpen && session\.role !== 'teacher'/,
+    "only headquarters and store may open operational metrics");
   assert.match(home, /managementMenuOpen && session\.role === 'hq'/, "only headquarters may open management");
   assert.match(home, /reviewMenuOpen && session\.role === 'hq'/, "only headquarters may open reviews");
   assert.match(home, /wx:if="\{\{session\.role === 'teacher'\}\}" bindtap="openVerification" data-mode="EXPERIENCE"/,

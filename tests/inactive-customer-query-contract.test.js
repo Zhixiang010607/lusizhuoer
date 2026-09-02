@@ -51,8 +51,8 @@ test("server applies the fixed NORMAL then EXPERIENCE then customer-created base
 
 test("HQ and store mini-programs expose a manual inactivity query without teacher access", () => {
   assert.match(app, /"root": "pages\/inactive-customers"/);
-  assert.match(homeWxml, /data-type="inactive-customer"[^>]*>未核销客户<\/view>/);
-  assert.match(homeWxml, /queryMenuOpen && session\.role !== 'teacher'/);
+  assert.match(homeWxml, /data-type="inactive-customer"[^>]*>活跃预警<\/view>/);
+  assert.match(homeWxml, /coreMetricsMenuOpen && session\.role !== 'teacher'/);
   assert.match(homeJs, /type === "inactive-customer"[\s\S]*pages\/inactive-customers\/index/);
   assert.match(pageJs, /requireSession\(\["hq", "store"\]\)/);
   assert.match(pageJs, /callFace\("queryInactiveVerificationCustomers"/);
@@ -67,7 +67,7 @@ test("HQ and store mini-programs expose a manual inactivity query without teache
   assert.match(pageJs, /if \(epoch !== this\._requestEpoch\) return false;/,
     "filter changes must make stale customer responses harmless");
   assert.match(pageJs, /pages\/customer-detail\/index\?customerCode=/);
-  assert.match(pageWxml, /至少多少天没有核销/);
+  assert.match(pageWxml, /核销间隔至少多少天/);
   assert.match(pageWxml, /有正常核销时取最新正常核销；没有正常核销才取最新体验核销；两类都没有时取客户建档时间/);
   for (const label of ["客户", "门店", "间隔时间", "计算起点", "上次核销", "跳至"]) {
     assert.match(pageWxml, new RegExp(label), `inactive-customer results are missing ${label}`);

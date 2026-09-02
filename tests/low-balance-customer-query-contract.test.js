@@ -49,7 +49,7 @@ test("server queries authoritative opened-card balances and excludes archived cu
 
 test("HQ and store mini-programs expose project-selectable low-balance search", () => {
   assert.match(app, /"root": "pages\/low-balance-customers"/);
-  assert.match(homeWxml, /data-type="low-balance-customer"[^>]*>低余次客户<\/view>/);
+  assert.match(homeWxml, /data-type="low-balance-customer"[^>]*>余次预警<\/view>/);
   assert.match(homeJs, /type === "low-balance-customer"[\s\S]*pages\/low-balance-customers\/index/);
   assert.match(pageJs, /requireSession\(\["hq", "store"\]\)/);
   assert.match(pageJs, /callStaff\("listStores"\)/);

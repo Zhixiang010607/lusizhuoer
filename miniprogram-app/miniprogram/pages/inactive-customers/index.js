@@ -1,5 +1,11 @@
 const { callFace, callStaff } = require("../../services/api");
 const { requireSession } = require("../../services/session");
+const {
+  EXPORT_BATCH_SIZE,
+  EXPORT_MAX_ROWS,
+  createGroupedWorkbook,
+  openWorkbook
+} = require("../../services/grouped-table-export");
 const query = require("../../services/query-tools");
 
 const PAGE_SIZE = 20;
@@ -32,7 +38,7 @@ function customerRows(rows = []) {
 
 Page({
   data: {
-    session: {}, loading: false, searched: false, message: "", error: false, tableScrollLeft: 0,
+    session: {}, loading: false, exporting: false, searched: false, message: "", error: false, tableScrollLeft: 0,
     minimumDays: "", customers: [], summary: { ...EMPTY_SUMMARY },
     page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1, pageJump: "1",
     cursorStack: [null], nextCursor: null,
@@ -47,12 +53,14 @@ Page({
   },
 
   onPullDownRefresh() {
+    if (this.data.exporting) { wx.stopPullDownRefresh(); return; }
     const action = this.data.searched ? this.load(1) : Promise.resolve();
     action.finally(() => wx.stopPullDownRefresh());
   },
 
   onUnload() {
     this._requestEpoch = Number(this._requestEpoch || 0) + 1;
+    this._exportEpoch = Number(this._exportEpoch || 0) + 1;
     this._scrollResetEpoch = Number(this._scrollResetEpoch || 0) + 1;
   },
 
@@ -61,6 +69,7 @@ Page({
       const result = await callStaff("listStores");
       const stores = (result.stores || []).map((store) => ({
         id: String(store.id || store.store_id || ""),
+        name: String(store.store_name || store.storeName || "未命名门店"),
         label: [store.store_name || store.storeName || "未命名门店", store.store_code || store.storeCode || ""].filter(Boolean).join(" · ")
       })).filter((store) => store.id);
       this.setData({ stores, storeLabels: ["全部门店", ...stores.map((store) => store.label)] });
@@ -79,8 +88,9 @@ Page({
 
   clearResults(changes = {}) {
     this._requestEpoch = Number(this._requestEpoch || 0) + 1;
+    this._exportEpoch = Number(this._exportEpoch || 0) + 1;
     this.setData({
-      ...changes, loading: false, searched: false, customers: [], summary: { ...EMPTY_SUMMARY },
+      ...changes, loading: false, exporting: false, searched: false, customers: [], summary: { ...EMPTY_SUMMARY },
       page: 1, total: 0, totalPages: 1, pageJump: "1", cursorStack: [null], nextCursor: null,
       tableScrollLeft: 0, message: "", error: false
     });
@@ -148,7 +158,7 @@ Page({
       this.setData({
         searched: true, customers: [], summary: { ...EMPTY_SUMMARY }, page: 1, total: 0,
         totalPages: 1, pageJump: "1", cursorStack: [null], nextCursor: null,
-        tableScrollLeft: 0, message: error.message || "未核销客户读取失败", error: true
+        tableScrollLeft: 0, message: error.message || "活跃预警读取失败", error: true
       });
     } finally {
       if (epoch === this._requestEpoch) this.setData({ loading: false });
@@ -167,16 +177,82 @@ Page({
   },
 
   resetSearch() { this.clearResults({ minimumDays: "", storeIndex: 0 }); },
-  previousPage() { if (!this.data.loading && this.data.page > 1) this.load(this.data.page - 1); },
-  nextPage() { if (!this.data.loading && this.data.page < this.data.totalPages) this.load(this.data.page + 1); },
+  previousPage() { if (!this.data.loading && !this.data.exporting && this.data.page > 1) this.load(this.data.page - 1); },
+  nextPage() { if (!this.data.loading && !this.data.exporting && this.data.page < this.data.totalPages) this.load(this.data.page + 1); },
   inputPageJump(event) { this.setData({ pageJump: String(event.detail.value || "") }); },
   jumpPage() {
+    if (this.data.exporting) return;
     const page = Number(this.data.pageJump);
     if (!Number.isInteger(page) || page < 1 || page > this.data.totalPages) {
       this.setData({ message: `请输入 1 到 ${this.data.totalPages} 的有效页码`, error: true });
       return;
     }
     this.load(page);
+  },
+  selectedStoreName() {
+    if (this.data.session.role !== "hq") return String(this.data.session.storeName || "本门店");
+    if (this.data.storeIndex <= 0) return "全部门店";
+    return String(this.data.stores[this.data.storeIndex - 1]?.name || "指定门店");
+  },
+  async exportAll() {
+    const expectedTotal = Number(this.data.total || 0);
+    if (!this.data.searched || this.data.loading || this.data.exporting || expectedTotal <= 0) return;
+    if (expectedTotal > EXPORT_MAX_ROWS) {
+      this.setData({ message: `当前结果有 ${expectedTotal} 条，单次最多导出 ${EXPORT_MAX_ROWS} 条，请缩小查询范围`, error: true });
+      return;
+    }
+    const exportEpoch = Number(this._exportEpoch || 0) + 1;
+    this._exportEpoch = exportEpoch;
+    const basePayload = { ...this.basePayload(), limit: EXPORT_BATCH_SIZE };
+    const uniqueRows = new Map();
+    const seenCursors = new Set();
+    let cursor = null;
+    this.setData({ exporting: true, message: `正在准备导出 0 / ${expectedTotal} 条…`, error: false });
+    try {
+      while (true) {
+        const result = await this.fetchPage(cursor, basePayload);
+        if (exportEpoch !== this._exportEpoch) return;
+        const currentTotal = Number(result.summary?.selectedTotal || 0);
+        if (currentTotal !== expectedTotal) throw new Error("查询结果在导出期间发生变化，请重新查询后再导出");
+        for (const row of customerRows(result.customers || [])) uniqueRows.set(row.customerCode, row);
+        if (uniqueRows.size > EXPORT_MAX_ROWS) throw new Error(`单次最多导出 ${EXPORT_MAX_ROWS} 条，请缩小查询范围`);
+        this.setData({ message: `正在准备导出 ${Math.min(uniqueRows.size, expectedTotal)} / ${expectedTotal} 条…`, error: false });
+        if (!result.hasMore) break;
+        if (!result.nextCursor) throw new Error("导出游标缺失，请重新查询后再试");
+        const fingerprint = JSON.stringify(result.nextCursor);
+        if (seenCursors.has(fingerprint)) throw new Error("导出游标重复，请重新查询后再试");
+        seenCursors.add(fingerprint);
+        cursor = result.nextCursor;
+      }
+      const rows = [...uniqueRows.values()];
+      if (rows.length !== expectedTotal) throw new Error("查询结果在导出期间发生变化，请重新查询后再导出");
+      const today = query.businessToday();
+      const report = createGroupedWorkbook({
+        title: "活跃预警查询结果",
+        sheetName: "活跃预警",
+        criteria: `查询条件：核销间隔至少 ${String(this.data.minimumDays).trim()} 天｜门店范围：${this.selectedStoreName()}｜导出日期：${today}｜共 ${rows.length} 位客户`,
+        rows,
+        groupKey: (row) => row.storeId || row.storeName,
+        groupLabel: (row) => row.storeName,
+        columns: [
+          { key: "customerName", header: "客户", width: 22 },
+          { key: "storeName", header: "门店", width: 20 },
+          { key: "daysSince", header: "间隔时间（天）", width: 16, type: "number" },
+          { key: "baselineSourceLabel", header: "计算起点", width: 15 },
+          { key: "lastVerificationLabel", header: "上次核销", width: 21 }
+        ]
+      });
+      await openWorkbook({ bytes: report.bytes, filename: `活跃预警-${today}` });
+      if (exportEpoch === this._exportEpoch) {
+        this.setData({ message: `已导出 ${report.rowCount} 位客户，并按 ${report.groupCount} 个门店分组`, error: false });
+      }
+    } catch (error) {
+      if (exportEpoch !== this._exportEpoch) return;
+      const cancelled = /cancel/i.test(String(error && (error.errMsg || error.message) || ""));
+      this.setData({ message: cancelled ? "已取消打开 Excel" : error.message || error.errMsg || "活跃预警导出失败", error: !cancelled });
+    } finally {
+      if (exportEpoch === this._exportEpoch) this.setData({ exporting: false });
+    }
   },
   openCustomer(event) {
     const code = String(event.currentTarget.dataset.code || "");

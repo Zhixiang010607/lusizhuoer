@@ -12,6 +12,9 @@
 .summary-grid text { min-height: 34rpx; display: block; color: #7c7062; font-size: 18rpx; line-height: 1.2; }
 .summary-grid .summary-value { min-height: 0; margin-top: 2rpx; color: #302a22; font-size: 26rpx; font-weight: 800; }
 .result-card { min-width: 0; overflow: hidden; }
+.result-export { display: flex; align-items: center; gap: 12rpx; margin-top: 12rpx; padding: 12rpx 14rpx; background: #f7efe2; border: 1rpx solid #e1cfaf; border-radius: 14rpx; }
+.result-export text { min-width: 0; flex: 1; color: #746756; font-size: 18rpx; line-height: 1.4; }
+.result-export button { width: 218rpx; min-height: 58rpx; flex: none; margin: 0; padding: 0 10rpx; font-size: 19rpx; line-height: 1; }
 .low-balance-table-scroll { width: 100%; max-width: 100%; margin-top: 14rpx; overflow-x: auto; overflow-y: hidden; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
 .low-balance-table-scroll[data-visible-rows="1"] { height: 138rpx; }
 .low-balance-table-scroll[data-visible-rows="2"] { height: 210rpx; }
@@ -50,6 +53,9 @@
   .summary-grid text { min-height: 16px; font-size: 10px; }
   .summary-grid .summary-value { margin-top: 1px; font-size: 17px; }
   .result-card { padding: 14px 16px; }
+  .result-export { gap: 10px; margin-top: 10px; padding: 9px 12px; border-width: 1px; border-radius: 10px; }
+  .result-export text { font-size: 12px; }
+  .result-export button { width: 150px; min-height: 38px; padding: 0 8px; font-size: 13px; }
   .low-balance-table-scroll { margin-top: 10px; border-width: 1px; border-radius: 11px; }
   .low-balance-table-scroll[data-visible-rows="1"] { height: 104px; }
   .low-balance-table-scroll[data-visible-rows="2"] { height: 164px; }

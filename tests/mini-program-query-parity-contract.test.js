@@ -13,12 +13,19 @@ const tools = require(path.join(mini, "services", "query-tools.js"));
 test("HQ and store mini-program navigation exposes role-appropriate database searches", () => {
   const homeJs = read("pages", "home", "index.js");
   const homeWxml = read("pages", "home", "index.wxml");
-  for (const label of ["客户查询", "未核销客户", "低余次客户", "充值查询", "核销查询", "产品查询"]) assert.match(homeWxml, new RegExp(label));
+  for (const label of ["客户查询", "充值查询", "核销查询", "产品查询", "运营核心指标查询", "活跃预警", "余次预警"]) assert.match(homeWxml, new RegExp(label));
   assert.match(homeWxml, /session\.role !== 'teacher'/);
+  const generalQuery = homeWxml.slice(homeWxml.indexOf("queryMenuOpen &&"), homeWxml.indexOf("coreMetricsMenuOpen &&"));
+  assert.doesNotMatch(generalQuery, /活跃预警|余次预警/,
+    "operational metrics must not remain mixed into the ordinary query dropdown");
+  const coreMetrics = homeWxml.slice(homeWxml.indexOf("coreMetricsMenuOpen &&"), homeWxml.indexOf("managementMenuOpen &&"));
+  assert.match(coreMetrics, /运营核心指标查询[\s\S]*活跃预警[\s\S]*余次预警/,
+    "the separate operational-metrics dropdown must contain both new indicators");
   assert.match(homeJs, /pages\/records\/index\?type=/);
   assert.match(homeJs, /pages\/customers\/index/);
   assert.match(homeJs, /pages\/inactive-customers\/index/);
   assert.match(homeJs, /pages\/low-balance-customers\/index/);
+  assert.match(homeJs, /toggleCoreMetricsMenu\(\)[\s\S]*coreMetricsMenuOpen/);
   assert.match(homeWxml, /data-type="product"[^>]*bindtap="openQuery"/,
     "product-purchase search must be a distinct HQ query entry");
 });

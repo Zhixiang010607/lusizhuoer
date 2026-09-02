@@ -139,7 +139,7 @@ function hqRangePayload(period, range) {
 Page({
   data: {
     session: {}, roleTitle: "", roleSubtitle: "", loading: true, message: "", error: false,
-    businessMenuOpen: false, queryMenuOpen: false, managementMenuOpen: false, reviewMenuOpen: false,
+    businessMenuOpen: false, queryMenuOpen: false, coreMetricsMenuOpen: false, managementMenuOpen: false, reviewMenuOpen: false,
     rangePreset: "TODAY", rangeOptions: readyRangeOptions("TODAY"), rangeStart: "", rangeEnd: "",
     rangeLabel: "本月", customRangeVisible: false,
     profileFacts: [], storeHero: {}, experienceBalances: [], summaryRows: [],
@@ -573,10 +573,11 @@ Page({
   },
 
   closeMenus(changes = {}) {
-    this.setData({ businessMenuOpen: false, queryMenuOpen: false, managementMenuOpen: false, reviewMenuOpen: false, ...changes });
+    this.setData({ businessMenuOpen: false, queryMenuOpen: false, coreMetricsMenuOpen: false, managementMenuOpen: false, reviewMenuOpen: false, ...changes });
   },
   toggleBusinessMenu() { this.closeMenus({ businessMenuOpen: !this.data.businessMenuOpen }); },
   toggleQueryMenu() { this.closeMenus({ queryMenuOpen: !this.data.queryMenuOpen }); },
+  toggleCoreMetricsMenu() { this.closeMenus({ coreMetricsMenuOpen: !this.data.coreMetricsMenuOpen }); },
   toggleManagementMenu() { this.closeMenus({ managementMenuOpen: !this.data.managementMenuOpen }); },
   toggleReviewMenu() { this.closeMenus({ reviewMenuOpen: !this.data.reviewMenuOpen }); },
   jumpToSection(event) {
@@ -877,7 +878,7 @@ Page({
   openCustomers() { wx.navigateTo({ url: "/pages/customers/index" }); },
   openQuery(event) {
     const type = String(event.currentTarget.dataset.type || "customer");
-    this.setData({ queryMenuOpen: false });
+    this.closeMenus();
     if (type === "customer") wx.navigateTo({ url: "/pages/customers/index" });
     else if (type === "inactive-customer") wx.navigateTo({ url: "/pages/inactive-customers/index" });
     else if (type === "low-balance-customer") wx.navigateTo({ url: "/pages/low-balance-customers/index" });
