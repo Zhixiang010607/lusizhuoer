@@ -67,6 +67,11 @@ assert.ok(
   faceService.indexOf('require("tencentcloud-sdk-nodejs")') > faceService.indexOf("function faceClient()"),
   "the shared service does not load the face SDK at module initialization"
 );
+includes(faceService, 'require("pinyin-pro").pinyin', "face service still loads pinyin for BLE device types");
+assert.ok(
+  faceService.indexOf('require("pinyin-pro")') > faceService.indexOf("function verificationDeviceType("),
+  "the photo-only cold start does not require the face-only pinyin dependency"
+);
 
 // The split reuses migration 039 and the existing atomic intent functions; it
 // does not create a second write protocol or require a new schema migration.
@@ -198,7 +203,7 @@ vm.runInContext(
   assert.equal(health.ok, true);
   assert.equal(health.version, "v3");
   assert.equal(health.service, "verificationPhoto");
-  assert.equal(health.uploadMode, "FUNCTION");
+  assert.equal(health.uploadMode, "DIRECT");
   assert.equal(health.ready, true);
   assert.equal(health.verificationPhotoBucketMetadataReady, true);
   assert.equal(health.verificationPhotoServiceRoleStorageReady, true);
@@ -230,8 +235,8 @@ vm.runInContext(
   }
   assert.equal(forbiddenFaceCalls, 0, "rejected action never invokes face code or face configuration");
 
-  // Exercise begin with PHOTO_ONLY_FUNCTION=true. The intent/owner protocol is
-  // unchanged, but no signed browser PUT or fallback bucket probe is attempted.
+  // Exercise begin with PHOTO_ONLY_FUNCTION=true. The database intent is
+  // established first, then the dedicated service returns one exact signed PUT.
   const ownerChecks = [];
   const sqlCalls = [];
   let signedPutCalls = 0;
@@ -248,7 +253,7 @@ vm.runInContext(
   };
   const beginHarness = {
     module: { exports: {} },
-    console: { warn() {} },
+    console: { warn() {}, error() {} },
     crypto,
     PHOTO_ONLY_FUNCTION: true,
     requireVerificationPhotoUploadSchema: async () => {},
@@ -278,7 +283,14 @@ vm.runInContext(
       expiresAt: row.expires_at
     }),
     verificationPhotoUploadConflict: () => ({ ok: false, code: "PHOTO_UPLOAD_ALREADY_ACTIVE" }),
-    signVerificationPhotoUploadReference: async () => { signedPutCalls += 1; throw new Error("must not sign"); },
+    signVerificationPhotoUploadReference: async () => {
+      signedPutCalls += 1;
+      return {
+        url: "https://private.example.test/upload?token=short-lived",
+        method: "PUT",
+        contentType: "image/jpeg"
+      };
+    },
     signedUploadFunctionFallbackAllowed: () => true,
     requireVerificationPhotoFunctionFallbackStorage: async () => { fallbackProbeCalls += 1; },
     verificationPhotoFunctionUploadProof: () => "a".repeat(64),
@@ -290,17 +302,33 @@ vm.runInContext(
   });
   const begin = await beginHarness.module.exports({});
   assert.equal(begin.ok, true);
-  assert.equal(begin.uploadMode, "FUNCTION");
-  assert.equal(begin.functionUploadProof, "a".repeat(64));
-  assert.equal(begin.originalUpload, null);
+  assert.equal(begin.uploadMode, "DIRECT");
+  assert.equal(begin.functionUploadProof, undefined);
+  assert.match(begin.originalUpload.url, /^https:\/\//);
+  assert.equal(begin.originalUpload.expectedBytes, 12345);
   assert.equal(begin.thumbnailUpload, null);
-  assert.equal(signedPutCalls, 0, "photo-only begin skips signed browser PUT generation");
+  assert.equal(signedPutCalls, 1, "photo-only begin signs the request-bound private object exactly once");
   assert.equal(fallbackProbeCalls, 0, "photo-only begin does not enter the signed-PUT failure fallback path");
   assert.deepEqual(ownerChecks, [false, true], "begin checks submitter first and the 24-hour window before creating an upload");
   assert.equal(sqlCalls.length, 2, "begin first checks existing work then atomically creates/reuses one intent");
   includes(sqlCalls[1], "public.begin_verification_photo_upload", "begin delegates to migration 039");
   includes(sqlCalls[1], "71::bigint", "begin intent is bound to the order");
   includes(sqlCalls[1], "9::bigint", "begin intent is bound to the submitting staff account");
+
+  sqlCalls.length = 0;
+  beginHarness.signVerificationPhotoUploadReference = async () => {
+    signedPutCalls += 1;
+    throw Object.assign(new Error("provider unavailable"), { code: "InternalError" });
+  };
+  await assert.rejects(
+    beginHarness.module.exports({}),
+    (error) => error.code === "PHOTO_UPLOAD_SIGN_FAILED",
+    "the dedicated service never falls back to function-carried image bytes"
+  );
+  assert.ok(
+    sqlCalls.some((sql) => sql.includes("public.cancel_verification_photo_upload")),
+    "a failed signed URL generation precisely cancels the newly opened upload intent"
+  );
 
   console.log("verification-photo-service-split tests passed");
 })().catch((error) => {
@@ -379,6 +407,9 @@ assert.ok(
 includes(commitSource, "requireVerificationPhotoUploadOwner(context)", "commit requires the exact submitter");
 includes(commitSource, "requireVerificationPhotoUploadOwner(context, { requireWindow: true })", "commit rechecks the 24-hour window");
 includes(commitSource, "actor_account_id = ${context.caller.staffId}::bigint", "commit query binds the intent to the caller account");
+includes(commitSource, "if (PHOTO_ONLY_FUNCTION && event.imageBase64)", "dedicated service rejects Base64 photo relay");
+includes(commitSource, '"PHOTO_DIRECT_UPLOAD_REQUIRED"', "dedicated direct-only rejection has a stable code");
+includes(commitSource, "inspected = await inspectVerificationPhotoObject", "direct commit authenticates and inspects the exact stored object");
 assert.ok(
   commitSource.indexOf("requireVerificationPhotoFunctionUploadProof(event, context, request)")
     < commitSource.indexOf("cleanVerificationJpeg("),

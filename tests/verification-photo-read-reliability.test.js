@@ -17,7 +17,7 @@ const photoFunctionDirectory = path.resolve(__dirname, "../cloudfunctions/verifi
 const photoPackage = JSON.parse(fs.readFileSync(path.join(photoFunctionDirectory, "package.json"), "utf8"));
 const sourceWrapper = fs.readFileSync(path.join(photoFunctionDirectory, "index.js"), "utf8");
 const deployWrapper = fs.readFileSync(path.join(photoFunctionDirectory, "deploy-index.js"), "utf8");
-assert.equal(photoPackage.version, "10.0.0", "reliable read layer has a distinguishable deployment package version");
+assert.equal(photoPackage.version, "11.0.0", "reliable read layer has a distinguishable deployment package version");
 for (const [label, wrapper] of [["source", sourceWrapper], ["deployment", deployWrapper]]) {
   assert.match(wrapper, /installManagerSigningReliability\(CloudBaseManager\)/, `${label} wrapper installs signing reliability before use`);
   assert.match(wrapper, /createVerificationPhotoMain\(sharedService\.main\)/, `${label} wrapper installs authorized read fallbacks`);
@@ -308,7 +308,7 @@ async function healthIdentifiesReliabilityLayer() {
     service: event.action === "health" ? "verificationPhoto" : "unexpected"
   }));
   const health = await main({ action: "health" }, {});
-  assert.equal(health.version, "v10");
+  assert.equal(health.version, "v11");
   assert.equal(health.sharedVersion, "v3");
   assert.deepEqual(health.verificationPhotoReadReliability, {
     signedUrlExpiryAware: true,
@@ -320,7 +320,7 @@ async function healthIdentifiesReliabilityLayer() {
     perPhotoRetryIsolated: true
   });
   const timerResult = await main({ Type: "Timer", TriggerName: "cleanup-verification-photo-uploads-hourly" }, {});
-  assert.equal(timerResult.version, "v3", "timer cleanup results are not mislabeled as health v10");
+  assert.equal(timerResult.version, "v3", "timer cleanup results are not mislabeled as health v11");
   assert.equal(Object.hasOwn(timerResult, "sharedVersion"), false);
 }
 

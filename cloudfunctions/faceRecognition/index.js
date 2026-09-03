@@ -3,10 +3,9 @@
 const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
-const { pinyin } = require("pinyin-pro");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v9" : "v110";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v10" : "v111";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -23,6 +22,7 @@ let cloudApp = null;
 let managerClient = null;
 let storeBindingLayout = null;
 let iaiClientClass = null;
+let pinyinFunction = null;
 let verificationPhotoUploadSchemaReady = null;
 const signedCustomerPhotoCache = new Map();
 const signedVerificationPhotoCache = new Map();
@@ -520,14 +520,24 @@ function signedVerificationPhotoUpload(response, storage, objectName) {
   let url = nestedResponseValue(
     response,
     /^(?:url|signedurl|fullsignedurl|uploadurl)$/i,
-    (value) => typeof value === "string" && /^https:\/\//i.test(value.trim())
+    (value) => typeof value === "string"
+      && (/^https:\/\//i.test(value.trim()) || /^\/v1\/storages\/object\/upload\/sign\//.test(value.trim()))
   );
   const token = nestedResponseValue(
     response,
     /^(?:token|uploadtoken|signaturetoken)$/i,
     (value) => typeof value === "string" && value.trim().length > 0
   );
-  if (!url) {
+  const expectedPath = `/v1/storages/object/upload/sign/${encodeURIComponent(storage.bucketId)}/${objectName
+    .split("/").map((segment) => encodeURIComponent(segment)).join("/")}`;
+  const trustedOrigin = `https://${storage.envId}.api.tcloudbasegateway.com`;
+  let target;
+  try {
+    target = new URL(url, trustedOrigin);
+  } catch (_) {
+    target = null;
+  }
+  if (!url || !target || target.origin !== trustedOrigin || target.pathname !== expectedPath) {
     console.error("CloudBase signed upload response has no HTTPS URL", {
       bucketId: storage.bucketId,
       objectName,
@@ -541,10 +551,9 @@ function signedVerificationPhotoUpload(response, storage, objectName) {
   // server. The browser never receives or sends the service-role API key and
   // must not place this upload token in an Authorization header.
   if (token) {
-    const target = new URL(url);
     if (!target.searchParams.get("token")) target.searchParams.set("token", token);
-    url = target.toString();
   }
+  url = target.toString();
   return {
     url,
     bucketId: storage.bucketId,
@@ -4051,7 +4060,8 @@ async function requireVerificationBleSchema() {
 }
 
 function verificationDeviceType(productName) {
-  const segments = pinyin(String(productName || ""), { toneType: "none", type: "array" });
+  pinyinFunction ||= require("pinyin-pro").pinyin;
+  const segments = pinyinFunction(String(productName || ""), { toneType: "none", type: "array" });
   const value = segments.join("").toLowerCase().replace(/[^a-z0-9]/g, "");
   if (!value) fail("项目名称无法转换成有效设备类型，请先修正项目名称。", "BLE_DEVICE_TYPE_INVALID");
   return value.slice(0, 128);
@@ -6171,7 +6181,7 @@ async function beginVerificationPhotoUpload(event) {
   }
   requireVerificationPhotoUploadOwner(context, { requireWindow: true });
 
-  let uploadMode = PHOTO_ONLY_FUNCTION ? "FUNCTION" : "DIRECT";
+  let uploadMode = "DIRECT";
   let signedUploadFailure = null;
   let objectReference = String(existing?.original_object_ref || "");
   let bucketId = String(existing?.bucket_id || "");
@@ -6221,15 +6231,36 @@ async function beginVerificationPhotoUpload(event) {
   }
   const storedReference = String(request.original_object_ref || objectReference);
   let upload = null;
-  if (!PHOTO_ONLY_FUNCTION) {
-    try {
-      upload = await signVerificationPhotoUploadReference(storedReference);
-    } catch (error) {
-      if (!signedUploadFunctionFallbackAllowed(error)) throw error;
-      await requireVerificationPhotoFunctionFallbackStorage(storedReference);
-      uploadMode = "FUNCTION";
-      signedUploadFailure = error;
+  try {
+    upload = await signVerificationPhotoUploadReference(storedReference);
+  } catch (error) {
+    if (PHOTO_ONLY_FUNCTION) {
+      try {
+        await executeSql(
+          `SELECT *
+             FROM public.cancel_verification_photo_upload(
+               ${sqlText(requestId)}::varchar,
+               ${context.verificationId}::bigint,
+               ${context.caller.staffId}::bigint
+             )`
+        );
+      } catch (cancelError) {
+        console.error("Failed to cancel verification-photo intent after signed upload failure", {
+          verificationId: context.verificationId,
+          slot,
+          code: String(cancelError?.code || "PHOTO_UPLOAD_CANCEL_FAILED"),
+          requestId: cancelError?.requestId || cancelError?.RequestId || ""
+        });
+      }
+      const unavailable = new Error("补充照片签名直传地址生成失败，请稍后重试。");
+      unavailable.code = "PHOTO_UPLOAD_SIGN_FAILED";
+      unavailable.requestId = error?.requestId || error?.RequestId || "";
+      throw unavailable;
     }
+    if (!signedUploadFunctionFallbackAllowed(error)) throw error;
+    await requireVerificationPhotoFunctionFallbackStorage(storedReference);
+    uploadMode = "FUNCTION";
+    signedUploadFailure = error;
   }
   if (uploadMode === "FUNCTION" && signedUploadFailure) {
     console.warn("Signed verification-photo upload unavailable; using the authenticated cloud-function fallback", {
@@ -6371,8 +6402,8 @@ async function commitVerificationPhotoUpload(event) {
     return { ok: true, ...initialState, alreadyCommitted: true };
   }
   requireVerificationPhotoUploadOwner(context, { requireWindow: true });
-  if (PHOTO_ONLY_FUNCTION && !event.imageBase64) {
-    fail("独立核销照片服务必须通过云函数提交照片内容。", "PHOTO_FUNCTION_UPLOAD_REQUIRED");
+  if (PHOTO_ONLY_FUNCTION && event.imageBase64) {
+    fail("独立核销照片服务只接受签名直传后的无字节提交。", "PHOTO_DIRECT_UPLOAD_REQUIRED");
   }
   let inspected;
   if (event.imageBase64) {
@@ -6805,7 +6836,7 @@ exports.main = async (event = {}, context = {}) => {
           ready,
           version: FUNCTION_VERSION,
           service: "verificationPhoto",
-          uploadMode: "FUNCTION",
+          uploadMode: "DIRECT",
           photoBucketId: String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim(),
           verificationPhotoBucketId: String(process.env.VERIFICATION_PHOTO_BUCKET_ID || "verification-photos").trim(),
           verificationPhotoFallbackBucketId: String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim(),

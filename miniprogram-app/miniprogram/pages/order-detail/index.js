@@ -1080,6 +1080,31 @@ Page({
     throw new Error("照片转换后仍然过大，请选择内容更简单或尺寸更小的照片");
   },
 
+  async uploadExtraPhotoDirect(upload, buffer) {
+    const url = clean(upload?.url || upload?.signedUrl);
+    const method = clean(upload?.method || "PUT").toUpperCase();
+    const expectedBytes = Number(upload?.expectedBytes || 0);
+    if (!/^https:\/\//i.test(url) || method !== "PUT") {
+      throw new Error("照片服务没有返回有效的签名直传地址");
+    }
+    if (expectedBytes > 0 && expectedBytes !== new Uint8Array(buffer).byteLength) {
+      throw new Error("补充照片大小与服务器授权不一致，请重新选择");
+    }
+    const response = await wxCall((resolve, reject) => wx.request({
+      url,
+      method: "PUT",
+      data: buffer,
+      header: { "Content-Type": "image/jpeg" },
+      responseType: "text",
+      timeout: 180000,
+      success: resolve,
+      fail: reject
+    }));
+    if (Number(response.statusCode) < 200 || Number(response.statusCode) >= 300) {
+      throw new Error(`补充照片直传失败（HTTP ${response.statusCode || "—"}）`);
+    }
+  },
+
   async uploadExtraPhoto(event) {
     const slot = Number(event.currentTarget.dataset.slot);
     const photo = this.data.photos.find((item) => Number(item.slot) === slot);
@@ -1116,14 +1141,16 @@ Page({
         await this.loadPhotos();
         return;
       }
-      if (begin.uploadMode !== "FUNCTION" || !/^[a-f0-9]{64}$/i.test(clean(begin.functionUploadProof))) {
-        throw new Error("照片服务没有返回有效的云函数上传授权");
+      if (begin.uploadMode !== "DIRECT" || !begin.originalUpload) {
+        throw new Error("照片服务没有返回有效的签名直传授权");
       }
-      const imageBase64 = `data:image/jpeg;base64,${wx.arrayBufferToBase64(buffer)}`;
       let committed;
       try {
+        this.setData({ message: "正在将补充照片直传到私有存储，请勿关闭页面…", error: false });
+        await this.uploadExtraPhotoDirect(begin.originalUpload, buffer);
+        this.setData({ message: "上传完成，正在校验完整性并绑定工单…", error: false });
         committed = await this.callPhotoWithTransportRetry("commitVerificationPhotoUpload", {
-          recordId: this.data.order.id, requestId: uploadRequestId, imageBase64, functionUploadProof: begin.functionUploadProof
+          recordId: this.data.order.id, requestId: uploadRequestId
         });
       } catch (error) {
         commitUncertain = error.submissionUncertain === true;

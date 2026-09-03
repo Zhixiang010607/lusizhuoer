@@ -118,6 +118,10 @@ Page({`);
         if (options.downloadFile) return options.downloadFile(request);
         request.fail?.(new Error("downloadFile not configured"));
       },
+      request(request) {
+        if (options.request) return options.request(request);
+        request.fail?.(new Error("request not configured"));
+      },
       getStorageSync(key) { return storage.get(key); },
       setStorageSync(key, value) { storage.set(key, JSON.parse(JSON.stringify(value))); },
       removeStorageSync(key) { storage.delete(key); },
@@ -372,8 +376,11 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
   includes(js, "canEdit: result.canEdit === true", "edit permission comes from the manifest");
   includes(js, "editableUntil: result.editableUntil", "edit deadline comes from the manifest");
   includes(js, "slot < 2 || slot > 4", "only extra slots can be changed");
-  includes(js, "begin.uploadMode !== \"FUNCTION\"", "the mini-program accepts only the dedicated v9 function upload mode");
-  includes(js, "functionUploadProof: begin.functionUploadProof", "commit echoes the server capability");
+  includes(js, "begin.uploadMode !== \"DIRECT\"", "the mini-program accepts only the dedicated signed direct-upload mode");
+  includes(js, "await this.uploadExtraPhotoDirect(begin.originalUpload, buffer)", "the normalized JPEG bytes go directly to private storage");
+  includes(js, 'header: { "Content-Type": "image/jpeg" }', "the signed PUT carries the exact JPEG MIME type");
+  assert.doesNotMatch(functionSource(js, "uploadExtraPhoto"), /arrayBufferToBase64|imageBase64|functionUploadProof/,
+    "the mini-program supplemental-photo path never Base64-expands or relays image bytes through a cloud function");
   includes(js, "sourceBytes.byteLength > MAX_EXTRA_SOURCE_PHOTO_BYTES", "source selection is capped at 7 MB");
   includes(js, "bytes.byteLength <= MAX_EXTRA_UPLOAD_PHOTO_BYTES", "normalized JPEG remains within the server's 3 MB contract");
   includes(js, 'fileType: "jpg"', "PNG and WebP sources are re-encoded as JPEG before upload");
@@ -426,6 +433,41 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
     "each supplemental-photo button occupies only its own bounded card width");
   assert.doesNotMatch(wxml, /photos\.length|暂无核销照片/, "a read failure cannot become a no-photo screen");
   assert.doesNotMatch(`${js}\n${wxml}`, /\bKB\b|不压缩|未压缩/, "size/compression explanations are retired");
+});
+
+test("supplemental JPEG uses an exact signed PUT without Base64 expansion", async () => {
+  const requests = [];
+  const { page } = loadHelpers({
+    request(options) {
+      requests.push(options);
+      options.success({ statusCode: 200, data: "" });
+      return {};
+    }
+  });
+  const instance = pageInstance(page);
+  const buffer = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]).buffer;
+  await instance.uploadExtraPhotoDirect({
+    url: "https://private.example.test/object.jpg?token=short-lived",
+    method: "PUT",
+    expectedBytes: 4,
+    headers: { Authorization: "must-not-be-forwarded" }
+  }, buffer);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].method, "PUT");
+  assert.equal(requests[0].data, buffer, "wx.request receives the original ArrayBuffer without copying it into text");
+  assert.deepEqual(JSON.parse(JSON.stringify(requests[0].header)), { "Content-Type": "image/jpeg" },
+    "only the signed MIME contract is sent; arbitrary response headers are ignored");
+  assert.equal(requests[0].timeout, 180000);
+
+  await assert.rejects(
+    instance.uploadExtraPhotoDirect({
+      url: "https://private.example.test/object.jpg?token=short-lived",
+      method: "PUT",
+      expectedBytes: 5
+    }, buffer),
+    /大小与服务器授权不一致/,
+    "the mini-program refuses a byte count that does not match the signed intent"
+  );
 });
 
 test("original photo reads are single-flight, persist for 24 hours, and survive page unload", async () => {

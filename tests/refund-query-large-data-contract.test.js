@@ -12,7 +12,7 @@ test("refund query pages indexed business rows before display joins", () => {
   const queryEnd = source.indexOf("async function", queryStart + 20);
   const query = source.slice(queryStart, queryEnd > queryStart ? queryEnd : undefined);
 
-  assert.match(source, /PHOTO_ONLY_FUNCTION \? "v9" : "v110"/);
+  assert.match(source, /PHOTO_ONLY_FUNCTION \? "v10" : "v111"/);
   assert.match(query, /WITH page_records AS/);
   assert.match(query, /FROM page_records/);
   assert.match(query, /JOIN public\.customers customer_filter/);

@@ -555,6 +555,9 @@ assert.equal(bucketReady({ public: false, file_size_limit: 100, allowed_mime_typ
 assert.equal(bucketReady({ public: false, file_size_limit: 5 * 1024 * 1024, allowed_mime_types: ["image/png"] }, 123), false, "bucket without JPEG MIME is rejected");
 assert.equal(bucketReady({ public: false, file_size_limit: null, allowed_mime_types: '{image/jpeg}' }, 123), true, "PostgreSQL text-array JPEG metadata is accepted");
 includes(beginCloud, 'uploadMode = "FUNCTION"', "server-selected authenticated fallback mode");
+includes(beginCloud, "if (PHOTO_ONLY_FUNCTION)", "dedicated service separates direct-only signing failure handling");
+includes(beginCloud, "public.cancel_verification_photo_upload", "dedicated signing failure releases the exact database upload lock");
+includes(beginCloud, 'unavailable.code = "PHOTO_UPLOAD_SIGN_FAILED"', "dedicated signing failure has a stable client code");
 includes(beginCloud, "signedUploadFunctionFallbackAllowed(error)", "narrow signed-upload fallback predicate");
 assert.ok(
   beginCloud.indexOf("requireVerificationPhotoFunctionFallbackStorage(storedReference)")
@@ -711,6 +714,8 @@ assert.throws(
 
 const signedUpload = functionSource(cloud, "signedVerificationPhotoUpload");
 includes(signedUpload, 'headers: { "Content-Type": "image/jpeg" }', "raw signed PUT content-type contract");
+includes(signedUpload, 'api.tcloudbasegateway.com', "relative SDK routes are anchored to the exact CloudBase environment");
+includes(signedUpload, "target.pathname !== expectedPath", "signed upload authority cannot drift to another object path");
 assert.ok(!signedUpload.includes("storage.accessToken"), "signed target never returns storage accessToken");
 
 const signingHarness = {
@@ -727,14 +732,24 @@ vm.runInContext([
   "module.exports = { signedVerificationPhotoUpload };"
 ].join("\n"), signingHarness, { filename: "verification-photo-signed-target.js" });
 const signedTarget = signingHarness.module.exports.signedVerificationPhotoUpload(
-  { data: { signedUrl: "https://storage.invalid/object.jpg?algorithm=test", uploadToken: "short-lived-token" } },
-  { bucketId: "verification-photos", accessToken: "service-role-must-not-leak" },
+  { data: { signedUrl: "/v1/storages/object/upload/sign/verification-photos/records/71/slot-2/direct-server.jpg", uploadToken: "short-lived-token" } },
+  { bucketId: "verification-photos", envId: "same-env", accessToken: "service-role-must-not-leak" },
   "records/71/slot-2/direct-server.jpg"
 );
+assert.equal(new URL(signedTarget.url).origin, "https://same-env.api.tcloudbasegateway.com", "SDK relative URL uses only the configured environment origin");
 assert.equal(new URL(signedTarget.url).searchParams.get("token"), "short-lived-token", "SDK token is normalized into the complete signed URL");
 assert.deepEqual(JSON.parse(JSON.stringify(signedTarget.headers)), { "Content-Type": "image/jpeg" });
 assert.equal(Object.prototype.hasOwnProperty.call(signedTarget, "token"), false, "short-lived token is not duplicated into response fields");
 assert.ok(!JSON.stringify(signedTarget).includes("service-role-must-not-leak"), "service role accessToken never enters the browser response");
+assert.throws(
+  () => signingHarness.module.exports.signedVerificationPhotoUpload(
+    { url: "https://attacker.example.test/v1/storages/object/upload/sign/verification-photos/records/71/slot-2/direct-server.jpg", token: "forged" },
+    { bucketId: "verification-photos", envId: "same-env", accessToken: "service-role-must-not-leak" },
+    "records/71/slot-2/direct-server.jpg"
+  ),
+  (error) => error?.code === "PHOTO_UPLOAD_SIGN_FAILED",
+  "an absolute signed target outside the configured CloudBase gateway is rejected"
+);
 
 const inspectObject = functionSource(cloud, "inspectVerificationPhotoObject");
 for (const securityCheck of [
@@ -843,8 +858,8 @@ assert.ok(
 );
 includes(commitCloud, "inspected = await inspectVerificationPhotoObject", "server-inspected metadata");
 includes(commitCloud, "if (event.imageBase64)", "commit accepts bytes only for the explicit function fallback");
-includes(commitCloud, "if (PHOTO_ONLY_FUNCTION && !event.imageBase64)", "dedicated photo service refuses a byte-less direct-upload commit");
-includes(commitCloud, '"PHOTO_FUNCTION_UPLOAD_REQUIRED"', "dedicated photo service has a stable function-upload-only error");
+includes(commitCloud, "if (PHOTO_ONLY_FUNCTION && event.imageBase64)", "dedicated photo service rejects function-carried Base64 bytes");
+includes(commitCloud, '"PHOTO_DIRECT_UPLOAD_REQUIRED"', "dedicated photo service has a stable direct-upload-only error");
 assert.ok(
   commitCloud.indexOf("requireVerificationPhotoFunctionUploadProof(event, context, request)")
     < commitCloud.indexOf("cleanVerificationJpeg("),
