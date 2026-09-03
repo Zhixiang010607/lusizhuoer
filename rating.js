@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.1.0";
+  const VERSION = "0.1.1";
   const $ = (id) => document.getElementById(id);
   const token = new URLSearchParams(location.search).get("token") || "";
   const scores = { storeEnvironmentScore: 0, teacherServiceScore: 0, overallExperienceScore: 0 };
@@ -117,6 +117,8 @@
     ratingContext = data;
     $("ratingStoreName").textContent = data.storeName || "服务门店";
     $("ratingTeacherName").textContent = data.teacherName || "未指定";
+    $("ratingProjectName").textContent = data.projectName || "服务项目";
+    $("ratingServiceTime").textContent = data.serviceTime || "—";
     $("ratingTeacherContext").hidden = !data.requiresTeacherScore;
     $("teacherRatingQuestion").hidden = !data.requiresTeacherScore;
     $("ratingContext").hidden = false;

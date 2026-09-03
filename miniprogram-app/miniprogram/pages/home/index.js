@@ -882,6 +882,7 @@ Page({
     if (type === "customer") wx.navigateTo({ url: "/pages/customers/index" });
     else if (type === "inactive-customer") wx.navigateTo({ url: "/pages/inactive-customers/index" });
     else if (type === "low-balance-customer") wx.navigateTo({ url: "/pages/low-balance-customers/index" });
+    else if (type === "rating-analysis") wx.navigateTo({ url: "/pages/rating-analysis/index" });
     else wx.navigateTo({ url: `/pages/records/index?type=${type}` });
   },
   openManagement(event) {

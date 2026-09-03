@@ -1,6 +1,6 @@
 # 门店业务与总部数据系统
 
-当前前端版本：`0.15.24`
+当前前端版本：`0.15.25`
 
 ## 跨设备项目规则
 
@@ -19,11 +19,13 @@
 
 ## 微信小程序
 
-`miniprogram-app/` 是复用当前 CloudBase 后端与同一员工 UID 权限的原生微信小程序。仓库范围包含外壳、手机号密码登录、用户点击授权的微信手机号快捷登录、与网页版手机内容区逐项一致的总部／门店／老师首页、客户／充值／核销数据库查询及精确工单详情、总部／门店“活跃预警”和“余次预警”运营指标查询、总部项目／产品／门店／老师管理、总部充值／退费和产品购买审核、客户查询与建立、充值／退费、正常／老师体验核销，以及人脸通过后的 BLE 扫码授权门禁。BLE 资格有效 90 秒，窗口可在有效期内关闭和重开；只有设备回报工作状态 `2` 后才扣次建单。正常与体验核销没有审核流程，总部核销审核入口已经退休。小程序内部使用暖象牙白、浅香槟金和深咖主题，但继续按网页版手机端复刻布局、按钮、查询和业务逻辑。网页和小程序只统一视觉层级与业务语义，客户端源码、路由、会话和平台能力仍物理隔离。导入、构建、安全与断网防重验收见 [`miniprogram-app/README.md`](miniprogram-app/README.md)。
+`miniprogram-app/` 是复用当前 CloudBase 后端与同一员工 UID 权限的原生微信小程序。仓库范围包含外壳、手机号密码登录、用户点击授权的微信手机号快捷登录、与网页版手机内容区逐项一致的总部／门店／老师首页、客户／充值／核销数据库查询及精确工单详情、总部／门店“活跃预警”“余次预警”和“评价分析”运营指标查询、总部项目／产品／门店／老师管理、总部充值／退费和产品购买审核、客户查询与建立、充值／退费、正常／老师体验核销，以及人脸通过后的 BLE 扫码授权门禁。BLE 资格有效 90 秒，窗口可在有效期内关闭和重开；只有设备回报工作状态 `2` 后才扣次建单。正常与体验核销没有审核流程，总部核销审核入口已经退休。小程序内部使用暖象牙白、浅香槟金和深咖主题，但继续按网页版手机端复刻布局、按钮、查询和业务逻辑。网页和小程序只统一视觉层级与业务语义，客户端源码、路由、会话和平台能力仍物理隔离。导入、构建、安全与断网防重验收见 [`miniprogram-app/README.md`](miniprogram-app/README.md)。
 
 当前小程序开发基线为 Node.js `>=20.19.0`、pnpm `9.15.9`、CloudBase JS SDK `3.7.1` 和微信开发者工具；依赖必须按 `pnpm-lock.yaml` 冻结安装，不再使用会产生第二份锁文件的 `npm install`。当前开发 AppID 为 `wxb053c1bd6c684d8b`。2026-08-27 已完成 CloudBase 全托管认证，CloudBase 身份认证中的同 AppID 微信小程序身份源也已启用；全托管模式下不再通过旧服务商扫码入口反复修改域名。AppID 可公开但任何密钥都不得写入仓库。现有 CloudBase 是 PostgreSQL 环境，不走微信开发者工具的“云环境转换”；小程序通过 SDK 与微信适配器复用同一环境和云函数。
 
-> 当前代码版本矩阵为 `staffAccount v81`、`faceRecognition v110`、`verificationPhoto v10`、`teacherCreate v6`、`customerRating v4`，网页版为 `0.15.24`，小程序发布目标为 `0.2.54`。迁移 068 已在环境 `rusizhuoer-d9gbcsgym07651694` 执行并取得 9 行 `READY`；评价服务继续使用独立签名密钥、正式 `rating.html` 地址、匿名登录、只放行评价路由的 OPA 策略及 `customerRating` 的 `"auth != null"` 函数安全规则。二维码签发权限为总部或工单所属门店，老师仍被服务端拒绝。代码推送、SQL、云函数、网页发布、小程序开发版上传、设为体验版、提交审核和正式发布仍分别计算。
+> 当前代码版本矩阵为 `staffAccount v81`、`faceRecognition v110`、`verificationPhoto v10`、`teacherCreate v6`、`customerRating v6`，网页版为 `0.15.25`，小程序开发版本为 `0.2.55`。迁移 068 已在环境 `rusizhuoer-d9gbcsgym07651694` 执行并取得 9 行 `READY`；评价服务继续使用独立签名密钥、正式 `rating.html` 地址、匿名登录、只放行评价路由的 OPA 策略及 `customerRating` 的 `"auth != null"` 函数安全规则。二维码签发权限为总部或工单所属门店，老师仍被服务端拒绝。扫码填写页显示工单绑定的服务项目和上海时区服务时间，长留言在固定高度输入框内上下滚动；总部／门店的运营指标新增最低分口径的“评价分析”和两张饼图。代码推送、SQL、云函数、网页发布、小程序开发版上传、设为体验版、提交审核和正式发布仍分别计算。
+
+2026-09-03 已部署：`customerRating v6` 已上传并在线调用 `health`，返回 `version=v6`、`configured=true`；网页版 `0.15.25` 的 5 个变更文件已发布并逐文件确认远端 SHA-256 与本地一致；小程序 `0.2.55` 已通过微信开发者工具官方 CLI 上传为开发版本，主包 `1,594,665` 字节、总包 `2,031,887` 字节。总部／门店“评价分析”支持门店、项目、老师、上海业务时间和 0—5 分任意多选；0 表示未评价，已评价工单按三项最低分归档，无老师时取两项。0—5 分分布和评价覆盖率只按门店／项目／老师／时间统计，不被分数多选改变分母。扫码评价页同时显示服务项目、服务时间，500 字留言框固定高度并允许框内纵向滚动。本轮不改数据库结构、没有执行新 SQL；`0.2.55` 尚未设为体验版、提交审核或正式发布。
 
 2026-09-02 当前部署进度：`faceRecognition v110` 与 `customerRating v4` 已通过微信开发者工具官方 CloudBase CLI 上传，平台回执均为 `success=true`，只读函数信息均为 `Active`；独立控制台会话未登录，尚未在线调用 `health`，不能把 Active 冒充为健康检查通过。小程序 `0.2.54` 为总部／门店增加独立“运营核心指标查询”下拉栏：“活跃预警”由操作者手填天数，按任意正常核销优先、其次体验核销、最后客户建档时间的固定阶梯计算；“余次预警”按权威已开卡余额严格筛选低于手填次数的单个或全部活跃项目，其结果项目列只显示名称、不追加编号，并移除生日列。两项服务端查询都永久排除封存客户，总部可查全部／指定门店，门店只查本店，老师无权调用；当前条件下的全部结果均可导出为按门店分组的 Excel，不限于当前 20 条分页。该目标不修改数据库结构，也不需要新 SQL；小程序上传状态以本轮最终交付记录为准。
 
@@ -200,14 +202,14 @@
 2. 执行迁移 `039_direct_verification_photo_upload.sql`（CloudBase SQL 编辑器应依次执行独立的 `039-01` 至 `039-05`），建立短时上传任务、每单唯一进行中任务和原子提交函数；随后执行 `040_fix_verification_photo_commit_ambiguity.sql`（控制台使用 `040-01`），消除提交函数返回字段与冲突键 `photo_slot` 的 PL/pgSQL 歧义；
 3. 可选在 CloudBase PG 云存储中新建私有桶 `verification-photos`；也可把核销照片放在现有私有桶 `customer-photos`。`teacherCreate v6` 只需 `CLOUDBASE_ENV_ID`／`TCB_ENV`，不再配置任何人脸或照片桶变量。所有环境变量在控制台一项一行，不要把整段 `KEY=value` 粘贴进单个值。在现有安全规则中合并 `verificationPhoto` 与 `teacherCreate` 的非匿名登录调用权限，保留顶层 `*` 和其他函数条目；
 4. 先完成历史库必需的 046—050。部署不再读写旧 Saga 的 `staffAccount v81`、`faceRecognition v110` 和 `teacherCreate v6` 后，完整执行 `053-01-retire-legacy-teacher-face-saga.sql`，再运行 `053-readonly-verify.sql`，7 行必须全部为 `RETIRED`。已经执行过的 051/052 不需回滚；053 会只删除它们的旧操作表与私有函数；
-5. 完成 054 后执行 `055-01-remove-teacher-face-order-guards.sql`，确认最后 3 行全部为 `READY`；再执行并验收 056—067。随后整文件执行 `database/cloudbase-console/068-01-customer-work-order-ratings.sql` 并运行 `068-readonly-verify.sql`。配置 `BLE_AUTH_SIGNING_KEY`、独立的 `CUSTOMER_RATING_SIGNING_KEY`，以及实际 `rating.html` 完整 HTTPS 地址 `CUSTOMER_RATING_BASE_URL`；开启 CloudBase 匿名登录，在 OPA 用户策略中只对以 `/v1/functions/customerRating` 开头的评价函数路由追加放行，并在环境级云函数安全规则中合并 `"customerRating": { "invoke": "auth != null" }`，保留现有 `*` 与其他函数条目。所有员工动作仍必须由各函数内部按 UID 和人员主档鉴权，数据库不得向匿名角色开放，评价公开动作还必须校验工单签名令牌。部署 `faceRecognition v110`、`staffAccount v81`、`verificationPhoto v10`、`teacherCreate v6`、`customerRating v4`，分别调用 `health` 核对版本与配置；
+5. 完成 054 后执行 `055-01-remove-teacher-face-order-guards.sql`，确认最后 3 行全部为 `READY`；再执行并验收 056—067。随后整文件执行 `database/cloudbase-console/068-01-customer-work-order-ratings.sql` 并运行 `068-readonly-verify.sql`。配置 `BLE_AUTH_SIGNING_KEY`、独立的 `CUSTOMER_RATING_SIGNING_KEY`，以及实际 `rating.html` 完整 HTTPS 地址 `CUSTOMER_RATING_BASE_URL`；开启 CloudBase 匿名登录，在 OPA 用户策略中只对以 `/v1/functions/customerRating` 开头的评价函数路由追加放行，并在环境级云函数安全规则中合并 `"customerRating": { "invoke": "auth != null" }`，保留现有 `*` 与其他函数条目。所有员工动作仍必须由各函数内部按 UID 和人员主档鉴权，数据库不得向匿名角色开放，评价公开动作还必须校验工单签名令牌。部署 `faceRecognition v110`、`staffAccount v81`、`verificationPhoto v10`、`teacherCreate v6`、`customerRating v6`，分别调用 `health` 核对版本与配置；
 6. `staffAccount` 只保留老师体验额度的月初 Timer。从触发器配置中删除 `reconcile-teacher-face-operations`，`teacherCreate` 不配置 Timer；
 7. 部署当前静态文件到 CloudBase 静态网站托管并强制刷新浏览器；
 8. 通过总部、门店和老师真实账号完成角色边界回归，并确认历史运营账号无法获取业务会话或通过审核；验证总部没有任何办理入口且直接调用被拒绝，门店／老师可以在各自权限内办理，同时完成核销照片查看、历史总部单或当前门店／老师单的真实原提交人上传或替换、取消后重试、非提交人拒绝和 24 小时截止测试。
 
 生产库已经执行 039、但补充照片上传出现 `column reference "photo_slot" is ambiguous (SQLSTATE 42702)` 时，只需完整执行一次 040；不要重跑 037--039。040 只替换原子提交函数，不改表、不删除或重写已有照片数据。
 
-生产更新顺序固定为“确认 039、046—050 与 053 已完成 → 依次执行并验收 054—067 → 执行并验收 068 → 配置 `BLE_AUTH_SIGNING_KEY`、`CUSTOMER_RATING_SIGNING_KEY` 与 `CUSTOMER_RATING_BASE_URL` → 部署 `faceRecognition v110`、`staffAccount v81`、`verificationPhoto v10`、`teacherCreate v6`、`customerRating v4` → 五个云函数分别执行 `health` → 发布当前静态网页（含 `rating.html`）→ 上传小程序 → 强制刷新并用门店、老师、总部和未登录客户完成真机验收”。
+生产更新顺序固定为“确认 039、046—050 与 053 已完成 → 依次执行并验收 054—067 → 执行并验收 068 → 配置 `BLE_AUTH_SIGNING_KEY`、`CUSTOMER_RATING_SIGNING_KEY` 与 `CUSTOMER_RATING_BASE_URL` → 部署 `faceRecognition v110`、`staffAccount v81`、`verificationPhoto v10`、`teacherCreate v6`、`customerRating v6` → 五个云函数分别执行 `health` → 发布当前静态网页（含 `rating.html`）→ 上传小程序 → 强制刷新并用门店、老师、总部和未登录客户完成真机验收”。
 
 核销详情的高清原图查看器支持按钮、鼠标滚轮、键盘、拖动和手机／iPad 双指缩放。页面先显示缩略图，高清图解码完成后再替换；临时签名地址不可用时，查看器会在相同工单权限和查看审计下改用 `verificationPhoto` 的鉴权读取通道取回原图，并且只创建当前页面内存 Blob，不持久化照片。最多只保留两张已解码原图，减少连续查看照片造成的内存占用。
 

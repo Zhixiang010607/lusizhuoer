@@ -33,6 +33,7 @@ const ROLE_MATRIX = Object.freeze({
   "pages/customers/index": ["hq", "store"],
   "pages/inactive-customers/index": ["hq", "store"],
   "pages/low-balance-customers/index": ["hq", "store"],
+  "pages/rating-analysis/index": ["hq", "store"],
   "pages/records/index": ["hq", "store"],
   "pages/customer-detail/index": ["hq", "store", "teacher"],
   "pages/order-detail/index": ["hq", "store", "teacher"],

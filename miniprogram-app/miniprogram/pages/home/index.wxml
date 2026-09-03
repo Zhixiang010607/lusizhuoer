@@ -29,6 +29,7 @@
     <view class="popover-grid">
       <view data-type="inactive-customer" bindtap="openQuery">活跃预警</view>
       <view data-type="low-balance-customer" bindtap="openQuery">余次预警</view>
+      <view data-type="rating-analysis" bindtap="openQuery">评价分析</view>
     </view>
   </view>
   <view wx:if="{{managementMenuOpen && session.role === 'hq'}}" class="business-popover management-popover" catchtap="noop">

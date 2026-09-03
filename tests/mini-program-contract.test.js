@@ -20,7 +20,7 @@ assert.ok(!(app.requiredPrivateInfos || []).includes("chooseMedia"), "chooseMedi
 const expectedPages = [
   "login", "password-reset", "home", "product-management", "product-create", "product-detail", "retail-product-management", "retail-product-create",
   "hq-directory", "store-create", "store-detail", "teacher-create", "teacher-detail", "reviews",
-  "customers", "inactive-customers", "low-balance-customers", "customer-detail", "customer-create", "recharge", "product-purchase", "product-purchase-detail", "verification", "records", "order-detail"
+  "customers", "inactive-customers", "low-balance-customers", "rating-analysis", "customer-detail", "customer-create", "recharge", "product-purchase", "product-purchase-detail", "verification", "records", "order-detail"
 ];
 assert.deepEqual(app.pages, [
   "pages/login/index", "pages/password-reset/index", "pages/home/index",
@@ -33,7 +33,7 @@ assert.deepEqual([...registeredPages].sort(), expectedPages.map((page) => `pages
   "the complete isolated mini-program page inventory must remain registered");
 assert.equal(new Set((app.subPackages || []).map(({ root: packageRoot }) => packageRoot)).size,
   (app.subPackages || []).length, "business subpackage roots must be unique");
-assert.equal((app.subPackages || []).length, 18, "business pages must stay outside the main package unless they share main-package WXSS");
+assert.equal((app.subPackages || []).length, 19, "business pages must stay outside the main package unless they share main-package WXSS");
 for (const page of expectedPages) {
   assert.ok(registeredPages.includes(`pages/${page}/index`), `missing mini-program page ${page}`);
   for (const extension of ["js", "json", "wxml", "wxss"]) assert.ok(fs.existsSync(path.join(mini, "pages", page, `index.${extension}`)), `${page}.${extension} missing`);
@@ -51,9 +51,13 @@ for (const file of [".npmrc", "package.json", "pnpm-lock.yaml"]) {
   assert.ok(project.packOptions?.ignore?.some((rule) => rule.type === "file" && rule.value === file),
     `local dependency metadata ${file} must not be uploaded`);
 }
+assert.ok(project.packOptions?.ignore?.some((rule) => rule.type === "file" && rule.value === "services/Untitled.png"),
+  "the unreferenced local image must stay outside the upload package");
 
 const subpackageRoots = new Set((app.subPackages || []).map(({ root: packageRoot }) => path.join(mini, packageRoot)));
-const excludedUploadFiles = new Set([".npmrc", "package.json", "pnpm-lock.yaml"]);
+const excludedUploadFiles = new Set((project.packOptions?.ignore || [])
+  .filter((rule) => rule.type === "file")
+  .map((rule) => String(rule.value || "").replaceAll("\\", "/")));
 let mainApplicationBytes = 0;
 function measureMainPackage(directory) {
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
@@ -61,7 +65,8 @@ function measureMainPackage(directory) {
     if (entry.isDirectory()) {
       if (entry.name === "node_modules" || entry.name === "miniprogram_npm" || subpackageRoots.has(file)) continue;
       measureMainPackage(file);
-    } else if (!entry.name.endsWith(".map") && !entry.name.endsWith(".d.ts") && !excludedUploadFiles.has(entry.name)) {
+    } else if (!entry.name.endsWith(".map") && !entry.name.endsWith(".d.ts")
+      && !excludedUploadFiles.has(path.relative(mini, file).split(path.sep).join("/"))) {
       mainApplicationBytes += fs.statSync(file).size;
     }
   }

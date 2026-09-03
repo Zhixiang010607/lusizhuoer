@@ -10,7 +10,8 @@
       { "type": "suffix", "value": ".d.ts" },
       { "type": "file", "value": ".npmrc" },
       { "type": "file", "value": "package.json" },
-      { "type": "file", "value": "pnpm-lock.yaml" }
+      { "type": "file", "value": "pnpm-lock.yaml" },
+      { "type": "file", "value": "services/Untitled.png" }
     ],
     "include": []
   },

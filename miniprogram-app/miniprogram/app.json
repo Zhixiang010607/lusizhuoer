@@ -19,6 +19,7 @@
     { "root": "pages/customers", "pages": ["index"] },
     { "root": "pages/inactive-customers", "pages": ["index"] },
     { "root": "pages/low-balance-customers", "pages": ["index"] },
+    { "root": "pages/rating-analysis", "pages": ["index"] },
     { "root": "pages/customer-detail", "pages": ["index"] },
     { "root": "pages/customer-create", "pages": ["index"] },
     { "root": "pages/recharge", "pages": ["index"] },

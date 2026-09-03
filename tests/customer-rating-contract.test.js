@@ -24,6 +24,7 @@ const migration = read("database/migrations/068_customer_work_order_ratings.sql"
 const readonlyVerify = read("database/cloudbase-console/068-readonly-verify.sql");
 const publicHtml = read("rating.html");
 const publicJs = read("rating.js");
+const publicCss = read("rating.css");
 const webDetail = read("business-detail.js");
 const webHtml = read("verification-detail.html");
 const webReceipt = read("order-export.js");
@@ -49,8 +50,8 @@ test("migration 068 binds one immutable rating to a completed normal or experien
     "migration 068 handoff must verify the cloud function retains CRUD access");
 });
 
-test("customerRating v4 keeps public links signed, stable, scoped, and one-time", () => {
-  assert.match(cloud, /const FUNCTION_VERSION = "v4"/);
+test("customerRating v6 keeps public links signed, stable, scoped, and one-time", () => {
+  assert.match(cloud, /const FUNCTION_VERSION = "v6"/);
   assert.match(cloud, /CUSTOMER_RATING_SIGNING_KEY/);
   assert.match(cloud, /缺少 CUSTOMER_RATING_BASE_URL/);
   assert.match(cloud, /Buffer\.byteLength\(value, "utf8"\) >= 32/);
@@ -100,9 +101,17 @@ test("customerRating v4 keeps public links signed, stable, scoped, and one-time"
     "a submitted rating must be returned read-only instead of being updated again");
   assert.match(submit, /COMMENT_TOO_LONG/);
   assert.match(submit, /row\.teacher_id[\s\S]*numberScore\(event\.teacherServiceScore/);
+
+  const publicRead = functionBody(cloud, "publicRow", "getPublic");
+  assert.match(publicRead, /JOIN public\.products p ON p\.id = vr\.product_id/,
+    "the public rating context must resolve the service project from the bound work order");
+  assert.match(publicRead, /TO_CHAR\(vr\.submitted_at AT TIME ZONE 'Asia\/Shanghai', 'YYYY-MM-DD HH24:MI'\) AS service_time/,
+    "the service time must use the Shanghai business timezone");
+  assert.match(cloud, /projectName: row\?\.product_name \|\| ""/);
+  assert.match(cloud, /serviceTime: row\?\.service_time \|\| ""/);
 });
 
-test("customerRating v4 issues an HQ QR when CloudBase commits writes with empty RETURNING rows", async () => {
+test("customerRating v6 issues an HQ QR when CloudBase commits writes with empty RETURNING rows", async () => {
   let rating = null;
   let ratingReadsAfterInsert = 0;
   const sqlResult = (row) => row
@@ -123,7 +132,8 @@ test("customerRating v4 issues an HQ QR when CloudBase commits writes with empty
       return sqlResult({
         id: "42", store_id: "3", teacher_id: "5", verification_type: "NORMAL",
         record_status: "APPROVED", order_submitted_at: "2026-09-02T00:00:00Z",
-        store_name: "测试门店", teacher_name: "测试老师"
+        store_name: "测试门店", teacher_name: "测试老师", product_name: "测试项目",
+        service_time: "2026-09-02 08:00"
       });
     }
     if (Sql.includes("INSERT INTO public.verification_customer_ratings")) {
@@ -131,7 +141,8 @@ test("customerRating v4 issues an HQ QR when CloudBase commits writes with empty
         id: "901", verification_id: "42", store_id: "3", teacher_id: "5", token_version: 1,
         token_hash: "placeholder", rating_status: "OPEN", rating_submitted_at: null,
         verification_type: "NORMAL", record_status: "APPROVED",
-        order_submitted_at: "2026-09-02T00:00:00Z", store_name: "测试门店", teacher_name: "测试老师"
+        order_submitted_at: "2026-09-02T00:00:00Z", store_name: "测试门店", teacher_name: "测试老师",
+        product_name: "测试项目", service_time: "2026-09-02 08:00"
       };
       return sqlResult(null);
     }
@@ -175,15 +186,15 @@ test("customerRating v4 issues an HQ QR when CloudBase commits writes with empty
   vm.runInNewContext(cloud, sandbox, { filename: "cloudfunctions/customerRating/index.js" });
   const result = await module.exports.main({ action: "issueForReceipt", verificationId: "42" });
   assert.equal(result.success, true);
-  assert.equal(result.version, "v4");
+  assert.equal(result.version, "v6");
   assert.equal(result.data.alreadySubmitted, false);
   assert.equal(result.data.qrDataUrl, "data:image/png;base64,dGVzdA==");
   assert.match(result.data.url, /^https:\/\/example\.test\/rating\.html\?token=/);
   assert.equal(ratingReadsAfterInsert >= 2, true, "the empty insert response must trigger durable read retries");
 });
 
-test("public rating page provides three accessible star groups and optional text without staff login", () => {
-  for (const label of ["门店环境", "老师服务", "整体体验", "想对我们说的话"]) {
+test("public rating page shows service context, three star groups, and scrollable optional text without staff login", () => {
+  for (const label of ["服务项目", "服务时间", "门店环境", "老师服务", "整体体验", "想对我们说的话"]) {
     assert.ok(publicHtml.includes(label), `public rating page missing ${label}`);
   }
   assert.equal((publicHtml.match(/class="star-picker" role="radiogroup"/g) || []).length, 3);
@@ -193,7 +204,11 @@ test("public rating page provides three accessible star groups and optional text
   assert.match(publicJs, /auth\.getLoginState\(\)/);
   assert.match(publicJs, /auth\.anonymousAuthProvider\(\)\.signIn\(\)/);
   assert.match(publicJs, /callRating\("submitPublic"/);
+  assert.match(publicJs, /ratingProjectName"\)\.textContent = data\.projectName/);
+  assert.match(publicJs, /ratingServiceTime"\)\.textContent = data\.serviceTime/);
   assert.match(publicJs, /teacherRatingQuestion"\)\.hidden = !data\.requiresTeacherScore/);
+  assert.match(publicCss, /\.rating-comment textarea \{[\s\S]*height: 132px;[\s\S]*max-height: 132px;[\s\S]*overflow-y: auto;[\s\S]*resize: none;/,
+    "long comments must scroll vertically inside a stable-height textarea");
   assert.doesNotMatch(publicJs, /auth-ui|location\.href\s*=\s*["']login/,
     "customer QR page must not redirect anonymous customers to staff login");
 });

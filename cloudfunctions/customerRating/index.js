@@ -5,7 +5,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const QRCode = require("qrcode");
 
-const FUNCTION_VERSION = "v4";
+const FUNCTION_VERSION = "v6";
 const DURABLE_READ_DELAYS_MS = Object.freeze([0, 25, 75, 150, 300]);
 let cloudApp = null;
 let managerClient = null;
@@ -90,6 +90,56 @@ function numberScore(value, label) {
   return score;
 }
 
+function pageNumber(value, fallback = 1) {
+  const parsed = Number(value ?? fallback);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 500000) {
+    fail("页码无效。", "INVALID_PAGE");
+  }
+  return parsed;
+}
+
+function pageSize(value, fallback = 20) {
+  const parsed = Number(value ?? fallback);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 100) {
+    fail("每页数量必须在 1 至 100 之间。", "INVALID_PAGE_SIZE");
+  }
+  return parsed;
+}
+
+function dateOnly(value, label) {
+  const text = String(value || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) fail(`${label}格式无效。`, "INVALID_DATE");
+  const [year, month, day] = text.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    fail(`${label}无效。`, "INVALID_DATE");
+  }
+  return text;
+}
+
+function ratingDateRange(event) {
+  const startRaw = String(event.startDate || "").trim();
+  const endRaw = String(event.endDate || "").trim();
+  if (!startRaw && !endRaw) return null;
+  if (!startRaw || !endRaw) fail("开始日期和结束日期必须同时填写。", "INVALID_DATE_RANGE");
+  const startDate = dateOnly(startRaw, "开始日期");
+  const endDate = dateOnly(endRaw, "结束日期");
+  if (startDate > endDate) fail("开始日期不能晚于结束日期。", "INVALID_DATE_RANGE");
+  const days = Math.round((Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86400000);
+  if (days > 366) fail("自定义时间范围不能超过 366 天。", "DATE_RANGE_TOO_LARGE");
+  return { startDate, endDate };
+}
+
+function ratingScores(value) {
+  if (value === undefined || value === null || value === "") return [0, 1, 2, 3, 4, 5];
+  const source = Array.isArray(value) ? value : String(value ?? "").split(",");
+  const scores = [...new Set(source.map((item) => Number(item)))].sort((left, right) => left - right);
+  if (!scores.length || scores.some((score) => !Number.isInteger(score) || score < 0 || score > 5)) {
+    fail("评分必须从 0 至 5 分中至少选择一项。", "INVALID_RATING_SCORES");
+  }
+  return scores;
+}
+
 function ratingSigningKey({ required = true } = {}) {
   const value = String(process.env.CUSTOMER_RATING_SIGNING_KEY || "");
   const valid = Buffer.byteLength(value, "utf8") >= 32;
@@ -153,6 +203,8 @@ function publicRating(row) {
     submitted,
     storeName: row?.store_name || "",
     teacherName: row?.teacher_name || "",
+    projectName: row?.product_name || "",
+    serviceTime: row?.service_time || "",
     requiresTeacherScore: Boolean(row?.teacher_id),
     verificationType: row?.verification_type === "EXPERIENCE" ? "EXPERIENCE" : "NORMAL",
     storeEnvironmentScore: submitted ? Number(row?.store_environment_score || 0) : 0,
@@ -201,9 +253,11 @@ async function orderForVerification(verificationId) {
   const rows = await executeSql(
     `SELECT vr.id, vr.store_id, vr.teacher_id, vr.verification_type,
             vr.record_status, vr.submitted_at AS order_submitted_at,
-            s.store_name, t.teacher_name
+            s.store_name, t.teacher_name, p.product_name,
+            TO_CHAR(vr.submitted_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD HH24:MI') AS service_time
        FROM public.verification_records vr
        JOIN public.stores s ON s.id = vr.store_id
+       JOIN public.products p ON p.id = vr.product_id
        LEFT JOIN public.teachers t ON t.id = vr.teacher_id
       WHERE vr.id = ${verificationId}
         AND vr.verification_type IN ('NORMAL', 'EXPERIENCE')
@@ -220,10 +274,12 @@ async function ratingForVerification(verificationId) {
             r.submitted_at AS rating_submitted_at,
             vr.verification_type, vr.record_status,
             vr.submitted_at AS order_submitted_at,
-            s.store_name, t.teacher_name
+            s.store_name, t.teacher_name, p.product_name,
+            TO_CHAR(vr.submitted_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD HH24:MI') AS service_time
        FROM public.verification_customer_ratings r
        JOIN public.verification_records vr ON vr.id = r.verification_id
        JOIN public.stores s ON s.id = r.store_id
+       JOIN public.products p ON p.id = vr.product_id
        LEFT JOIN public.teachers t ON t.id = r.teacher_id
       WHERE r.verification_id = ${verificationId}
       LIMIT 1`
@@ -269,6 +325,182 @@ async function getForStaff(event) {
       && order.record_status === "APPROVED"
       && !view.submitted,
     ...view
+  };
+}
+
+function requireRatingAnalysisStaff(staff) {
+  if (!staff || !["hq", "store"].includes(staff.role_code)) {
+    fail("仅总部或门店可以查询评价分析。", "FORBIDDEN");
+  }
+}
+
+function ratingAnalysisBaseConditions(staff, event) {
+  requireRatingAnalysisStaff(staff);
+  const conditions = [
+    "vr.record_status = 'APPROVED'",
+    "vr.verification_type IN ('NORMAL', 'EXPERIENCE')"
+  ];
+  if (staff.role_code === "store") {
+    conditions.push(`vr.store_id = ${sqlId(staff.store_id, "门店")}`);
+  } else if (event.storeId && String(event.storeId).toUpperCase() !== "ALL") {
+    conditions.push(`vr.store_id = ${sqlId(event.storeId, "门店")}`);
+  }
+  if (event.productId && String(event.productId).toUpperCase() !== "ALL") {
+    conditions.push(`vr.product_id = ${sqlId(event.productId, "项目")}`);
+  }
+  const teacher = String(event.teacherId || "").trim();
+  if (teacher.toUpperCase() === "NONE") conditions.push("vr.teacher_id IS NULL");
+  else if (teacher && teacher.toUpperCase() !== "ALL") {
+    conditions.push(`vr.teacher_id = ${sqlId(teacher, "老师")}`);
+  }
+  const range = ratingDateRange(event);
+  if (range) {
+    conditions.push(`vr.submitted_at >= (${sqlText(range.startDate)}::date::timestamp AT TIME ZONE 'Asia/Shanghai')`);
+    conditions.push(`vr.submitted_at < (((${sqlText(range.endDate)}::date + 1)::timestamp) AT TIME ZONE 'Asia/Shanghai')`);
+  }
+  return conditions;
+}
+
+const EFFECTIVE_RATING_SCORE_SQL = `CASE
+  WHEN r.rating_status = 'SUBMITTED' AND r.submitted_at IS NOT NULL
+  THEN LEAST(r.store_environment_score, r.overall_experience_score,
+             COALESCE(r.teacher_service_score, 5))
+  ELSE 0
+END`;
+
+function ratingAnalysisCte(conditions) {
+  return `WITH scoped_ratings AS (
+    SELECT vr.id, vr.verification_code, vr.verification_type, vr.submitted_at,
+           vr.store_id, vr.product_id, vr.teacher_id,
+           c.customer_code, c.customer_name,
+           s.store_name, p.product_name, t.teacher_name,
+           r.rating_status, r.store_environment_score, r.teacher_service_score,
+           r.overall_experience_score,
+           ${EFFECTIVE_RATING_SCORE_SQL} AS effective_score
+      FROM public.verification_records vr
+      JOIN public.customers c ON c.id = vr.customer_id
+      JOIN public.stores s ON s.id = vr.store_id
+      JOIN public.products p ON p.id = vr.product_id
+      LEFT JOIN public.teachers t ON t.id = vr.teacher_id
+      LEFT JOIN public.verification_customer_ratings r ON r.verification_id = vr.id
+     WHERE ${conditions.join("\n       AND ")}
+  )`;
+}
+
+async function getRatingAnalysisOptions() {
+  const staff = await currentStaff();
+  requireRatingAnalysisStaff(staff);
+  const scope = staff.role_code === "store"
+    ? `AND vr.store_id = ${sqlId(staff.store_id, "门店")}`
+    : "";
+  const rows = await executeSql(
+    `WITH accessible AS (
+       SELECT vr.store_id, vr.product_id, vr.teacher_id
+         FROM public.verification_records vr
+        WHERE vr.record_status = 'APPROVED'
+          AND vr.verification_type IN ('NORMAL', 'EXPERIENCE')
+          ${scope}
+     )
+     SELECT DISTINCT 'STORE' AS option_type, s.id::TEXT AS option_id,
+            s.store_name AS option_name, s.store_status AS option_status
+       FROM accessible a JOIN public.stores s ON s.id = a.store_id
+     UNION ALL
+     SELECT DISTINCT 'PRODUCT', p.id::TEXT, p.product_name, p.product_status
+       FROM accessible a JOIN public.products p ON p.id = a.product_id
+     UNION ALL
+     SELECT DISTINCT 'TEACHER', t.id::TEXT, t.teacher_name, t.teacher_status
+       FROM accessible a JOIN public.teachers t ON t.id = a.teacher_id
+     ORDER BY option_type, option_name, option_id`
+  );
+  const options = (type) => rows.filter((row) => row.option_type === type).map((row) => ({
+    id: String(row.option_id || ""),
+    name: String(row.option_name || ""),
+    status: String(row.option_status || "").toUpperCase()
+  }));
+  return {
+    stores: options("STORE"),
+    products: options("PRODUCT"),
+    teachers: options("TEACHER"),
+    allowsUnassignedTeacher: true
+  };
+}
+
+async function queryRatingAnalysis(event) {
+  const staff = await currentStaff();
+  const conditions = ratingAnalysisBaseConditions(staff, event);
+  const scores = ratingScores(event.scores);
+  const requestedPage = pageNumber(event.pageNumber, 1);
+  const limit = pageSize(event.pageSize, 20);
+  const cte = ratingAnalysisCte(conditions);
+  const scoreList = scores.join(", ");
+  const [summaryRows, resultRows] = await Promise.all([
+    executeSql(
+      `${cte}
+       SELECT COUNT(*)::BIGINT AS total_count,
+              COUNT(*) FILTER (WHERE effective_score > 0)::BIGINT AS rated_count,
+              COUNT(*) FILTER (WHERE effective_score = 0)::BIGINT AS score_0_count,
+              COUNT(*) FILTER (WHERE effective_score = 1)::BIGINT AS score_1_count,
+              COUNT(*) FILTER (WHERE effective_score = 2)::BIGINT AS score_2_count,
+              COUNT(*) FILTER (WHERE effective_score = 3)::BIGINT AS score_3_count,
+              COUNT(*) FILTER (WHERE effective_score = 4)::BIGINT AS score_4_count,
+              COUNT(*) FILTER (WHERE effective_score = 5)::BIGINT AS score_5_count,
+              COUNT(*) FILTER (WHERE effective_score IN (${scoreList}))::BIGINT AS selected_count
+         FROM scoped_ratings`
+    ),
+    executeSql(
+      `${cte}
+       SELECT id, verification_code AS record_code, verification_type,
+              customer_code, customer_name, store_id, store_name,
+              product_id, product_name, teacher_id, teacher_name,
+              TO_CHAR(submitted_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD HH24:MI') AS service_time,
+              effective_score, store_environment_score, teacher_service_score,
+              overall_experience_score
+         FROM scoped_ratings
+        WHERE effective_score IN (${scoreList})
+        ORDER BY submitted_at DESC, id DESC
+        LIMIT ${limit}
+       OFFSET ${(requestedPage - 1) * limit}`
+    )
+  ]);
+  const summaryRow = summaryRows[0] || {};
+  const total = Number(summaryRow.total_count || 0);
+  const rated = Number(summaryRow.rated_count || 0);
+  const selectedTotal = Number(summaryRow.selected_count || 0);
+  const totalPages = Math.max(1, Math.ceil(selectedTotal / limit));
+  const actualPage = Math.min(requestedPage, totalPages);
+  if (actualPage !== requestedPage && selectedTotal > 0) {
+    return queryRatingAnalysis({ ...event, pageNumber: actualPage });
+  }
+  return {
+    pageNumber: actualPage,
+    pageSize: limit,
+    total: selectedTotal,
+    totalPages,
+    selectedScores: scores,
+    summary: {
+      total,
+      rated,
+      unrated: Math.max(0, total - rated),
+      scoreCounts: [0, 1, 2, 3, 4, 5].map((score) => Number(summaryRow[`score_${score}_count`] || 0))
+    },
+    orders: resultRows.map((row) => ({
+      id: String(row.id || ""),
+      recordCode: String(row.record_code || ""),
+      verificationType: row.verification_type === "EXPERIENCE" ? "EXPERIENCE" : "NORMAL",
+      customerCode: String(row.customer_code || ""),
+      customerName: String(row.customer_name || ""),
+      storeId: String(row.store_id || ""),
+      storeName: String(row.store_name || ""),
+      productId: String(row.product_id || ""),
+      productName: String(row.product_name || ""),
+      teacherId: row.teacher_id ? String(row.teacher_id) : "",
+      teacherName: String(row.teacher_name || ""),
+      serviceTime: String(row.service_time || ""),
+      effectiveScore: Number(row.effective_score || 0),
+      storeEnvironmentScore: Number(row.store_environment_score || 0),
+      teacherServiceScore: Number(row.teacher_service_score || 0),
+      overallExperienceScore: Number(row.overall_experience_score || 0)
+    }))
   };
 }
 
@@ -360,10 +592,12 @@ async function publicRow(token) {
             r.store_environment_score, r.teacher_service_score,
             r.overall_experience_score, r.customer_comment,
             r.submitted_at AS rating_submitted_at,
-            vr.verification_type, s.store_name, t.teacher_name
+            vr.verification_type, s.store_name, t.teacher_name, p.product_name,
+            TO_CHAR(vr.submitted_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD HH24:MI') AS service_time
        FROM public.verification_customer_ratings r
        JOIN public.verification_records vr ON vr.id = r.verification_id
        JOIN public.stores s ON s.id = r.store_id
+       JOIN public.products p ON p.id = vr.product_id
        LEFT JOIN public.teachers t ON t.id = r.teacher_id
       WHERE r.id = ${verified.id}
         AND r.token_version = ${verified.version}
@@ -437,6 +671,8 @@ exports.main = async (event = {}) => {
     switch (String(event.action || "")) {
       case "health": data = health(); break;
       case "getForStaff": data = await getForStaff(event); break;
+      case "getRatingAnalysisOptions": data = await getRatingAnalysisOptions(); break;
+      case "queryRatingAnalysis": data = await queryRatingAnalysis(event); break;
       case "issueForReceipt":
       case "issueForStore": data = await issueForReceipt(event); break;
       case "getPublic": data = await getPublic(event); break;

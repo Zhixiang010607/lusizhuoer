@@ -48,8 +48,11 @@ assert.match(staffReadme, new RegExp(`faceRecognition ${faceVersions[2]}`),
 
 const ratingSource = read("cloudfunctions/customerRating/index.js");
 const ratingReadme = read("cloudfunctions/customerRating/README.md");
+const ratingPackage = JSON.parse(read("cloudfunctions/customerRating/package.json"));
 const ratingVersion = /const FUNCTION_VERSION = "(v\d+)"/.exec(ratingSource)?.[1];
 assert.ok(ratingVersion, "customerRating must expose a runtime version");
+assert.equal(`v${String(ratingPackage.version).split(".")[0]}`, ratingVersion,
+  "customerRating package major must match its runtime version");
 assert.match(ratingReadme, new RegExp(`当前版本：\`${ratingVersion}\``),
   "customerRating README must match its runtime version");
 assert.match(ratingReadme, new RegExp(`customerRating-${ratingVersion}\\.zip`),
