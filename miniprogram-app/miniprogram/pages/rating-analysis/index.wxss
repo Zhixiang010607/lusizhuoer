@@ -16,15 +16,25 @@
 .chart-grid { display: grid; grid-template-columns: 1fr; gap: 12rpx; margin-bottom: 14rpx; }
 .chart-card { margin-bottom: 0; padding: 18rpx; }
 .chart-card .card-title { margin-bottom: 8rpx; }
-.chart-card .card-title text:first-child { font-size: 30rpx; }
-.chart-body { min-width: 0; display: grid; grid-template-columns: 252rpx minmax(0, 1fr); align-items: center; gap: 12rpx; }
-.pie-canvas { width: 252rpx; height: 252rpx; }
-.chart-legend { min-width: 0; display: grid; gap: 5rpx; }
-.legend-row { min-width: 0; display: grid; grid-template-columns: 16rpx minmax(0, 1fr) auto; align-items: center; gap: 7rpx; font-size: 22rpx; }
-.legend-dot { width: 16rpx; height: 16rpx; border-radius: 50%; }
-.legend-label { min-width: 0; overflow: hidden; color: #665a4b; text-overflow: ellipsis; white-space: nowrap; }
-.legend-value { color: #302a22; font-variant-numeric: tabular-nums; font-weight: 750; white-space: nowrap; }
-.chart-note { display: block; margin-top: 10rpx; color: #817463; font-size: 21rpx; line-height: 1.5; }
+.chart-card .card-title text:first-child { font-size: 38rpx; }
+.chart-card .badge { padding: 8rpx 15rpx; font-size: 26rpx; }
+.chart-body { min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: 14rpx; }
+.pie-chart { width: 270rpx; height: 270rpx; flex: none; display: flex; align-items: center; justify-content: center; align-self: center; border-radius: 50%; }
+.pie-center { width: 57%; height: 57%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #302a22; background: #fffaf3; border-radius: 50%; text-align: center; }
+.pie-total { font-size: 44rpx; font-weight: 900; line-height: 1.05; }
+.pie-label { margin-top: 7rpx; color: #7c7062; font-size: 28rpx; font-weight: 650; line-height: 1.15; }
+.chart-legend { width: auto; max-width: 100%; min-width: 100%; display: inline-table; align-self: stretch; table-layout: auto; border-collapse: collapse; }
+.legend-head, .legend-row { display: table-row; }
+.legend-head > text, .legend-row > .legend-key, .legend-row > .legend-count, .legend-row > .legend-value { display: table-cell; vertical-align: middle; white-space: nowrap; }
+.legend-head > text { height: 64rpx; padding: 8rpx 22rpx; box-sizing: border-box; color: #8a7c69; border-bottom: 1rpx solid #dfcfb4; font-size: 34rpx; font-weight: 750; }
+.legend-head > text:nth-child(2), .legend-head > text:nth-child(3) { text-align: right; }
+.legend-row > .legend-key, .legend-row > .legend-count, .legend-row > .legend-value { height: 78rpx; padding: 10rpx 22rpx; box-sizing: border-box; background: #fffaf3; border-bottom: 1rpx solid #eadcc6; font-size: 40rpx; }
+.legend-key-content { display: flex; align-items: center; gap: 10rpx; }
+.legend-dot { width: 20rpx; height: 20rpx; border-radius: 50%; }
+.legend-label { min-width: 0; color: #665a4b; font-weight: 700; white-space: nowrap; }
+.legend-count, .legend-value { color: #302a22; font-variant-numeric: tabular-nums; font-weight: 800; text-align: right; }
+.legend-value { color: #74592d; }
+.chart-note { display: block; margin-top: 12rpx; color: #817463; font-size: 28rpx; line-height: 1.55; }
 
 .result-card { min-width: 0; overflow: hidden; }
 .rating-table-scroll { width: 100%; max-width: 100%; margin-top: 14rpx; overflow-x: auto; overflow-y: hidden; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
@@ -70,13 +80,17 @@
   .chart-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
   .chart-card { padding: 14px 16px; }
   .chart-card .card-title { margin-bottom: 6px; }
-  .chart-card .card-title text:first-child { font-size: 20px; }
-  .chart-body { grid-template-columns: 174px minmax(0, 1fr); gap: 10px; }
-  .pie-canvas { width: 174px; height: 174px; }
-  .chart-legend { gap: 4px; }
-  .legend-row { grid-template-columns: 11px minmax(0, 1fr) auto; gap: 6px; font-size: 14px; }
-  .legend-dot { width: 11px; height: 11px; }
-  .chart-note { margin-top: 7px; font-size: 13px; }
+  .chart-card .card-title text:first-child { font-size: 24px; }
+  .chart-card .badge { padding: 6px 11px; font-size: 16px; }
+  .chart-body { gap: 12px; }
+  .pie-chart { width: 190px; height: 190px; }
+  .pie-total { font-size: 26px; }
+  .pie-label { margin-top: 5px; font-size: 18px; }
+  .legend-head > text { height: 38px; padding: 6px 8px; border-bottom-width: 1px; font-size: 20px; }
+  .legend-row > .legend-key, .legend-row > .legend-count, .legend-row > .legend-value { height: 48px; padding: 7px 8px; border-bottom-width: 1px; font-size: 22px; }
+  .legend-key-content { gap: 8px; }
+  .legend-dot { width: 14px; height: 14px; }
+  .chart-note { margin-top: 10px; font-size: 17px; }
   .result-card { padding: 14px 16px; }
   .rating-table-scroll { margin-top: 10px; border-width: 1px; border-radius: 11px; }
   .rating-table-scroll[data-visible-rows="1"] { height: 104px; }

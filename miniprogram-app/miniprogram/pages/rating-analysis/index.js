@@ -11,6 +11,19 @@ function values(options) { return options.map((item) => item.value); }
 function percentage(count, total) { return total > 0 ? `${(Number(count || 0) * 100 / total).toFixed(1)}%` : "0.0%"; }
 function statusSuffix(status) { return String(status || "").toUpperCase() === "ARCHIVED" ? "（已封存）" : ""; }
 
+function pieGradient(items = []) {
+  const segments = items.filter((item) => Number(item.count || 0) > 0);
+  const total = segments.reduce((sum, item) => sum + Number(item.count || 0), 0);
+  if (!total) return "#e3d8c8";
+  let cursor = 0;
+  const stops = segments.map((item, index) => {
+    const start = cursor;
+    cursor = index === segments.length - 1 ? 100 : cursor + Number(item.count || 0) * 100 / total;
+    return `${item.color} ${start.toFixed(4)}% ${cursor.toFixed(4)}%`;
+  });
+  return `conic-gradient(from -90deg, ${stops.join(", ")})`;
+}
+
 function scoreOptions(selected = [0, 1, 2, 3, 4, 5]) {
   const chosen = new Set(selected.map(Number));
   return [0, 1, 2, 3, 4, 5].map((score) => ({
@@ -26,20 +39,24 @@ function normalizeSummary(source = {}) {
   const rated = Number(source.rated || 0);
   const unrated = Number(source.unrated ?? Math.max(0, total - rated));
   const ratedCounts = counts.slice(1);
+  const scoreLegend = ratedCounts.map((count, index) => ({
+    score: index + 1,
+    label: `${index + 1} 分`,
+    count,
+    percentage: percentage(count, rated),
+    color: SCORE_COLORS[index + 1]
+  }));
+  const coverageLegend = [
+    { label: "已评价", count: rated, percentage: percentage(rated, total), color: "#9b7335" },
+    { label: "未评价", count: unrated, percentage: percentage(unrated, total), color: "#d8cbb8" }
+  ];
   return {
     total, rated, unrated, scoreCounts: counts,
     coveragePercent: percentage(rated, total),
-    scoreLegend: ratedCounts.map((count, index) => ({
-      score: index + 1,
-      label: `${index + 1} 分`,
-      count,
-      percentage: percentage(count, rated),
-      color: SCORE_COLORS[index + 1]
-    })),
-    coverageLegend: [
-      { label: "已评价", count: rated, percentage: percentage(rated, total), color: "#9b7335" },
-      { label: "未评价", count: unrated, percentage: percentage(unrated, total), color: "#d8cbb8" }
-    ]
+    scoreLegend,
+    coverageLegend,
+    scoreGradient: pieGradient(scoreLegend),
+    coverageGradient: pieGradient(coverageLegend)
   };
 }
 
@@ -97,7 +114,6 @@ Page({
   onUnload() {
     this._requestEpoch = Number(this._requestEpoch || 0) + 1;
     this._optionEpoch = Number(this._optionEpoch || 0) + 1;
-    this._chartEpoch = Number(this._chartEpoch || 0) + 1;
     this._scrollResetEpoch = Number(this._scrollResetEpoch || 0) + 1;
   },
 
@@ -138,7 +154,6 @@ Page({
 
   clearResults(changes = {}) {
     this._requestEpoch = Number(this._requestEpoch || 0) + 1;
-    this._chartEpoch = Number(this._chartEpoch || 0) + 1;
     this.setData({
       ...changes, loading: false, searched: false, orders: [], summary: normalizeSummary(EMPTY_SUMMARY),
       page: 1, total: 0, totalPages: 1, pageJump: "1", tableScrollLeft: 0, message: "", error: false
@@ -217,7 +232,7 @@ Page({
         searched: true, orders: normalizeOrders(result.orders || []), summary,
         page: actualPage, pageJump: String(actualPage), total: Number(result.total || 0),
         totalPages: Math.max(1, Number(result.totalPages || 1))
-      }, () => this.drawCharts(epoch));
+      });
       this.resetTableScroll();
     } catch (error) {
       if (epoch !== this._requestEpoch) return;
@@ -256,74 +271,6 @@ Page({
       return;
     }
     this.load(page);
-  },
-
-  canvasNode(selector) {
-    if (typeof wx.createSelectorQuery !== "function") return Promise.resolve(null);
-    return new Promise((resolve) => {
-      wx.createSelectorQuery().in(this).select(selector).fields({ node: true, size: true }).exec((rows) => resolve(rows?.[0] || null));
-    });
-  },
-
-  async drawPie(selector, segments, centerTop, centerBottom) {
-    const target = await this.canvasNode(selector);
-    if (!target?.node || !target.width || !target.height) return;
-    const canvas = target.node;
-    const windowInfo = typeof wx.getWindowInfo === "function" ? wx.getWindowInfo() : wx.getSystemInfoSync();
-    const ratio = Math.min(2, Number(windowInfo.pixelRatio || 1));
-    canvas.width = Math.round(target.width * ratio);
-    canvas.height = Math.round(target.height * ratio);
-    const context = canvas.getContext("2d");
-    context.scale(ratio, ratio);
-    context.clearRect(0, 0, target.width, target.height);
-    const centerX = target.width / 2;
-    const centerY = target.height / 2;
-    const radius = Math.min(target.width, target.height) * 0.43;
-    const total = segments.reduce((sum, item) => sum + Number(item.count || 0), 0);
-    let start = -Math.PI / 2;
-    if (!total) {
-      context.beginPath();
-      context.arc(centerX, centerY, radius, 0, Math.PI * 2);
-      context.fillStyle = "#e3d8c8";
-      context.fill();
-    } else {
-      segments.filter((item) => Number(item.count || 0) > 0).forEach((item) => {
-        const end = start + Math.PI * 2 * Number(item.count || 0) / total;
-        context.beginPath();
-        context.moveTo(centerX, centerY);
-        context.arc(centerX, centerY, radius, start, end);
-        context.closePath();
-        context.fillStyle = item.color;
-        context.fill();
-        start = end;
-      });
-    }
-    context.beginPath();
-    context.arc(centerX, centerY, radius * 0.57, 0, Math.PI * 2);
-    context.fillStyle = "#fffaf3";
-    context.fill();
-    context.fillStyle = "#302a22";
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    const centerTopSize = Math.max(16, radius * 0.29);
-    const centerBottomSize = Math.max(11, radius * 0.18);
-    context.font = `800 ${centerTopSize}px sans-serif`;
-    context.fillText(centerTop, centerX, centerY - centerTopSize * 0.38);
-    context.fillStyle = "#7c7062";
-    context.font = `600 ${centerBottomSize}px sans-serif`;
-    context.fillText(centerBottom, centerX, centerY + centerTopSize * 0.58);
-  },
-
-  async drawCharts(requestEpoch) {
-    const chartEpoch = Number(this._chartEpoch || 0) + 1;
-    this._chartEpoch = chartEpoch;
-    await Promise.resolve();
-    if (requestEpoch !== this._requestEpoch || chartEpoch !== this._chartEpoch) return;
-    const summary = this.data.summary;
-    await Promise.all([
-      this.drawPie("#scoreDistributionChart", summary.scoreLegend || [], String(summary.rated || 0), "已评价"),
-      this.drawPie("#ratingCoverageChart", summary.coverageLegend || [], summary.coveragePercent || "0.0%", "评价覆盖率")
-    ]);
   },
 
   openCustomer(event) {
