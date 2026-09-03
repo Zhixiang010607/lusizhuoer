@@ -25,15 +25,16 @@ function normalizeSummary(source = {}) {
   const total = Number(source.total || 0);
   const rated = Number(source.rated || 0);
   const unrated = Number(source.unrated ?? Math.max(0, total - rated));
+  const ratedCounts = counts.slice(1);
   return {
     total, rated, unrated, scoreCounts: counts,
     coveragePercent: percentage(rated, total),
-    scoreLegend: counts.map((count, score) => ({
-      score,
-      label: score === 0 ? "0 分（未评价）" : `${score} 分`,
+    scoreLegend: ratedCounts.map((count, index) => ({
+      score: index + 1,
+      label: `${index + 1} 分`,
       count,
-      percentage: percentage(count, total),
-      color: SCORE_COLORS[score]
+      percentage: percentage(count, rated),
+      color: SCORE_COLORS[index + 1]
     })),
     coverageLegend: [
       { label: "已评价", count: rated, percentage: percentage(rated, total), color: "#9b7335" },
@@ -304,11 +305,13 @@ Page({
     context.fillStyle = "#302a22";
     context.textAlign = "center";
     context.textBaseline = "middle";
-    context.font = `800 ${Math.max(14, radius * 0.27)}px sans-serif`;
-    context.fillText(centerTop, centerX, centerY - 7);
+    const centerTopSize = Math.max(16, radius * 0.29);
+    const centerBottomSize = Math.max(11, radius * 0.18);
+    context.font = `800 ${centerTopSize}px sans-serif`;
+    context.fillText(centerTop, centerX, centerY - centerTopSize * 0.38);
     context.fillStyle = "#7c7062";
-    context.font = `${Math.max(10, radius * 0.16)}px sans-serif`;
-    context.fillText(centerBottom, centerX, centerY + 13);
+    context.font = `600 ${centerBottomSize}px sans-serif`;
+    context.fillText(centerBottom, centerX, centerY + centerTopSize * 0.58);
   },
 
   async drawCharts(requestEpoch) {
@@ -318,7 +321,7 @@ Page({
     if (requestEpoch !== this._requestEpoch || chartEpoch !== this._chartEpoch) return;
     const summary = this.data.summary;
     await Promise.all([
-      this.drawPie("#scoreDistributionChart", summary.scoreLegend || [], String(summary.total || 0), "全部工单"),
+      this.drawPie("#scoreDistributionChart", summary.scoreLegend || [], String(summary.rated || 0), "已评价"),
       this.drawPie("#ratingCoverageChart", summary.coverageLegend || [], summary.coveragePercent || "0.0%", "评价覆盖率")
     ]);
   },

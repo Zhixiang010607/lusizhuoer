@@ -6,8 +6,8 @@
 .query-grid .picker { min-height: 72rpx; padding-right: 16rpx; padding-left: 16rpx; font-size: 24rpx; }
 .score-filter { margin: 2rpx 0 14rpx; padding: 14rpx; background: #f8f0e4; border: 1rpx solid #e1cfaf; border-radius: 14rpx; }
 .score-filter .field-label { margin-bottom: 10rpx; }
-.score-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8rpx; }
-.score-option { min-width: 0; min-height: 58rpx; margin: 0; padding: 0 6rpx; color: #6d6255; background: #fff; border: 1rpx solid #d9c8ad; border-radius: 12rpx; font-size: 20rpx; line-height: 1; }
+.score-options { width: 100%; min-width: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8rpx; overflow: hidden; }
+.score-option { width: 100%; max-width: 100%; min-width: 0; height: 58rpx; min-height: 0; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 6rpx; overflow: hidden; color: #6d6255; background: #fff; border: 1rpx solid #d9c8ad; border-radius: 12rpx; font-size: 20rpx; line-height: 1; }
 .score-option.selected { color: #fffdf8; background: #75572f; border-color: #75572f; font-weight: 800; }
 .score-option[disabled] { opacity: .68; }
 .query-note { display: block; margin-top: 10rpx; color: #7c7062; font-size: 19rpx; line-height: 1.5; }
@@ -16,15 +16,15 @@
 .chart-grid { display: grid; grid-template-columns: 1fr; gap: 12rpx; margin-bottom: 14rpx; }
 .chart-card { margin-bottom: 0; padding: 18rpx; }
 .chart-card .card-title { margin-bottom: 8rpx; }
-.chart-card .card-title text:first-child { font-size: 27rpx; }
-.chart-body { min-width: 0; display: grid; grid-template-columns: 220rpx minmax(0, 1fr); align-items: center; gap: 12rpx; }
-.pie-canvas { width: 220rpx; height: 220rpx; }
+.chart-card .card-title text:first-child { font-size: 30rpx; }
+.chart-body { min-width: 0; display: grid; grid-template-columns: 252rpx minmax(0, 1fr); align-items: center; gap: 12rpx; }
+.pie-canvas { width: 252rpx; height: 252rpx; }
 .chart-legend { min-width: 0; display: grid; gap: 5rpx; }
-.legend-row { min-width: 0; display: grid; grid-template-columns: 14rpx minmax(0, 1fr) auto; align-items: center; gap: 7rpx; font-size: 18rpx; }
-.legend-dot { width: 14rpx; height: 14rpx; border-radius: 50%; }
+.legend-row { min-width: 0; display: grid; grid-template-columns: 16rpx minmax(0, 1fr) auto; align-items: center; gap: 7rpx; font-size: 22rpx; }
+.legend-dot { width: 16rpx; height: 16rpx; border-radius: 50%; }
 .legend-label { min-width: 0; overflow: hidden; color: #665a4b; text-overflow: ellipsis; white-space: nowrap; }
 .legend-value { color: #302a22; font-variant-numeric: tabular-nums; font-weight: 750; white-space: nowrap; }
-.chart-note { display: block; margin-top: 8rpx; color: #817463; font-size: 17rpx; line-height: 1.45; }
+.chart-note { display: block; margin-top: 10rpx; color: #817463; font-size: 21rpx; line-height: 1.5; }
 
 .result-card { min-width: 0; overflow: hidden; }
 .rating-table-scroll { width: 100%; max-width: 100%; margin-top: 14rpx; overflow-x: auto; overflow-y: hidden; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
@@ -63,20 +63,20 @@
   .score-filter { margin: 0 0 10px; padding: 10px 12px; border-width: 1px; border-radius: 10px; }
   .score-filter .field-label { margin-bottom: 7px; font-size: 13px; }
   .score-options { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 7px; }
-  .score-option { min-height: 36px; padding: 0 5px; border-width: 1px; border-radius: 9px; font-size: 12px; }
+  .score-option { height: 36px; min-height: 0; padding: 0 5px; border-width: 1px; border-radius: 9px; font-size: 12px; }
   .query-note { margin-top: 7px; font-size: 11px; }
   .search-card > .button-row { gap: 10px; }
   .search-card > .button-row button { min-height: 42px; font-size: 14px; }
   .chart-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
   .chart-card { padding: 14px 16px; }
   .chart-card .card-title { margin-bottom: 6px; }
-  .chart-card .card-title text:first-child { font-size: 18px; }
-  .chart-body { grid-template-columns: 150px minmax(0, 1fr); gap: 10px; }
-  .pie-canvas { width: 150px; height: 150px; }
+  .chart-card .card-title text:first-child { font-size: 20px; }
+  .chart-body { grid-template-columns: 174px minmax(0, 1fr); gap: 10px; }
+  .pie-canvas { width: 174px; height: 174px; }
   .chart-legend { gap: 4px; }
-  .legend-row { grid-template-columns: 9px minmax(0, 1fr) auto; gap: 6px; font-size: 11px; }
-  .legend-dot { width: 9px; height: 9px; }
-  .chart-note { margin-top: 6px; font-size: 10px; }
+  .legend-row { grid-template-columns: 11px minmax(0, 1fr) auto; gap: 6px; font-size: 14px; }
+  .legend-dot { width: 11px; height: 11px; }
+  .chart-note { margin-top: 7px; font-size: 13px; }
   .result-card { padding: 14px 16px; }
   .rating-table-scroll { margin-top: 10px; border-width: 1px; border-radius: 11px; }
   .rating-table-scroll[data-visible-rows="1"] { height: 104px; }

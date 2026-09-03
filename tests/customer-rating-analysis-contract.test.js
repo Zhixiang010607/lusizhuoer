@@ -114,7 +114,7 @@ test("mini-program exposes a two-pie rating analysis with arbitrary 0-5 multi-se
   assert.match(pageJs, /callRating\("queryRatingAnalysis", this\.payload\(targetPage\)\)/);
   assert.match(pageJs, /selectedScores: \[0, 1, 2, 3, 4, 5\]/);
   assert.match(pageJs, /toggleScore\(event\)[\s\S]*selected\.delete\(score\)[\s\S]*selected\.add\(score\)/);
-  for (const label of ["门店", "项目", "老师", "时间范围", "最低评分（可任意多选）", "0–5 分分布", "评价覆盖率"]) {
+  for (const label of ["门店", "项目", "老师", "时间范围", "最低评分（可任意多选）", "1–5 分分布", "评价覆盖率"]) {
     assert.ok(pageWxml.includes(label), `rating analysis page missing ${label}`);
   }
   assert.match(pageWxml, /0 表示未评价/);
@@ -122,7 +122,31 @@ test("mini-program exposes a two-pie rating analysis with arbitrary 0-5 multi-se
   assert.match(pageWxml, /id="scoreDistributionChart" type="2d"/);
   assert.match(pageWxml, /id="ratingCoverageChart" type="2d"/);
   assert.match(pageWxml, /分数多选不会改变图表分母/);
+  assert.match(pageWxml, /0 分未评价不进入本图/);
+  assert.match(pageJs, /const ratedCounts = counts\.slice\(1\)/,
+    "the score distribution excludes the zero-score unrated bucket");
+  assert.match(pageJs, /percentage\(count, rated\)/,
+    "each 1-5 score share uses rated orders as its denominator");
+  assert.match(pageJs, /String\(summary\.rated \|\| 0\), "已评价"/,
+    "the score pie center reports only rated orders");
   assert.match(pageJs, /context\.arc\(centerX, centerY, radius, start, end\)/);
+  assert.match(pageWxss, /\.score-options \{ width: 100%; min-width: 0; display: grid;[\s\S]*overflow: hidden;/,
+    "the phone score grid must clip native-button overflow inside its card");
+  assert.match(pageWxss, /\.score-option \{ width: 100%; max-width: 100%; min-width: 0; height: 58rpx; min-height: 0; display: flex;/,
+    "each native score button must stay inside one of the three equal tracks");
+  assert.match(pageWxss, /@media \(min-width: 700px\)[\s\S]*\.score-option \{ height: 36px; min-height: 0;/,
+    "tablet score buttons use the same fixed-box contract");
+  assert.match(pageWxss, /\.chart-body \{[^}]*grid-template-columns: 252rpx minmax\(0, 1fr\)/,
+    "phone pie charts use the enlarged canvas column");
+  assert.match(pageWxss, /\.pie-canvas \{ width: 252rpx; height: 252rpx;/);
+  assert.match(pageWxss, /@media \(min-width: 700px\)[\s\S]*\.chart-body \{ grid-template-columns: 174px minmax\(0, 1fr\)/,
+    "tablet pie charts are enlarged without changing the two-card grid");
+  assert.match(pageWxss, /\.legend-row \{[^}]*font-size: 22rpx;/,
+    "phone score labels and percentages remain readable beside the larger pie");
+  assert.match(pageWxss, /@media \(min-width: 700px\)[\s\S]*\.legend-row \{[^}]*font-size: 14px;/,
+    "tablet legends use readable physical-pixel text");
+  assert.match(pageJs, /const centerTopSize = Math\.max\(16, radius \* 0\.29\)/,
+    "pie-center totals grow together with the canvas");
   assert.match(pageWxss, /\.chart-grid \{ display: grid; grid-template-columns: 1fr;/);
   assert.match(pageWxss, /@media \(min-width: 700px\)[\s\S]*\.chart-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(pageWxss, /\.rating-table \{ width: auto; min-width: 100%; display: inline-table; table-layout: auto;/);

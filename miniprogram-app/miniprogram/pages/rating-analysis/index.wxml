@@ -21,14 +21,14 @@
 
   <view wx:if="{{searched}}" class="chart-grid">
     <view class="card chart-card">
-      <view class="card-title"><text>0–5 分分布</text><text class="badge">共 {{summary.total}} 单</text></view>
+      <view class="card-title"><text>1–5 分分布</text><text class="badge">共 {{summary.rated}} 单</text></view>
       <view class="chart-body">
         <canvas id="scoreDistributionChart" type="2d" class="pie-canvas"></canvas>
         <view class="chart-legend">
           <view wx:for="{{summary.scoreLegend}}" wx:key="score" class="legend-row"><text class="legend-dot" style="background: {{item.color}}"></text><text class="legend-label">{{item.label}}</text><text class="legend-value">{{item.count}} · {{item.percentage}}</text></view>
         </view>
       </view>
-      <text class="chart-note">分母为当前门店、项目、老师与时间范围内的全部可评价工单。</text>
+      <text class="chart-note">仅统计当前条件下已评价工单；0 分未评价不进入本图。</text>
     </view>
     <view class="card chart-card">
       <view class="card-title"><text>评价覆盖率</text><text class="badge">{{summary.rated}} / {{summary.total}}</text></view>
