@@ -383,7 +383,7 @@ includes(detailHtml, 'id="verificationPhotoCameraDialog"', "camera preview dialo
 includes(detailHtml, 'id="verificationPhotoCameraVideo" autoplay playsinline muted', "mobile inline camera preview");
 includes(detailHtml, 'id="switchVerificationPhotoCamera"', "front/rear camera switch action");
 includes(detailHtml, 'aria-label="切换前后摄像头"', "camera switch accessible name");
-includes(detailHtml, 'order-export.js?v=0.1.13', "export renderer cache bust");
+includes(detailHtml, 'order-export.js?v=0.1.14', "export renderer cache bust");
 includes(detailHtml, 'business-detail.js?v=0.16.30', "detail script cache bust");
 includes(detailHtml, 'styles.css?v=0.15.60', "detail styles cache bust");
 includes(styles, ".verification-order-keyfacts.verification-order-five-keyfacts", "desktop verification header keeps five flexible facts in one row");

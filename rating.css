@@ -161,9 +161,8 @@ textarea { font: inherit; }
 
 .rating-complete { padding: 26px 18px; text-align: center; background: rgba(255,255,255,.64); border: 1px solid var(--line); border-radius: 20px; }
 .rating-complete-icon { width: 54px; height: 54px; display: grid; place-items: center; margin: 0 auto; color: #fff; background: linear-gradient(145deg, #8a9a67, #afbd8a); border-radius: 50%; font-size: 26px; font-weight: 900; }
-.rating-complete h2 { margin: 16px 0 6px; font-family: Georgia, "Songti SC", serif; font-size: 26px; }
-.rating-complete > p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
-.rating-complete-scores { display: grid; gap: 8px; margin-top: 20px; text-align: left; }
+.rating-complete h2 { margin: 16px 0 0; font-family: Georgia, "Songti SC", serif; font-size: 26px; }
+.rating-complete-scores { display: grid; gap: 8px; margin-top: 24px; text-align: left; }
 .rating-complete-scores div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 13px; background: var(--gold-pale); border-radius: 12px; font-size: 13px; }
 .rating-complete-scores b { color: #b47c27; font-size: 18px; letter-spacing: .08em; }
 .rating-complete blockquote { margin: 14px 0 0; padding: 14px; color: var(--coffee-soft); background: #fffaf2; border-left: 3px solid #c4964c; border-radius: 0 12px 12px 0; font-size: 13px; line-height: 1.7; text-align: left; white-space: pre-wrap; }

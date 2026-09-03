@@ -207,6 +207,10 @@ test("public rating page shows service context, three star groups, and scrollabl
   assert.match(publicJs, /ratingProjectName"\)\.textContent = data\.projectName/);
   assert.match(publicJs, /ratingServiceTime"\)\.textContent = data\.serviceTime/);
   assert.match(publicJs, /teacherRatingQuestion"\)\.hidden = !data\.requiresTeacherScore/);
+  assert.doesNotMatch(publicHtml, /本次评价已经提交|老师、门店和总部可以在对应工单中查看/,
+    "the completed customer page keeps only the result and removes redundant staff-facing instructions");
+  assert.match(publicHtml, /rating\.css\?v=0\.1\.2/);
+  assert.match(publicHtml, /rating\.js\?v=0\.1\.2/);
   assert.match(publicCss, /\.rating-comment textarea \{[\s\S]*height: 132px;[\s\S]*max-height: 132px;[\s\S]*overflow-y: auto;[\s\S]*resize: none;/,
     "long comments must scroll vertically inside a stable-height textarea");
   assert.doesNotMatch(publicJs, /auth-ui|location\.href\s*=\s*["']login/,

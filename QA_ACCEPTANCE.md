@@ -25,7 +25,7 @@
 | 客户详情 | `customer-detail.html` 资料、照片重读、备注校验、留言校验、余额与四类历史 | 读取与空值校验 `PASS-LIVE`；保存和封存／恢复 `CONFIRM-ONLY` |
 | 充值查询与详情 | `recharge-query.html` 条件、状态、客户查询、重置、分页；`recharge-detail.html` 详情、PDF、图片 | `PASS-LIVE` |
 | 核销查询与详情 | `verification-query.html` 条件、类型、客户查询、重置、分页；`verification-detail.html` 5 个照片位、原图、重读、PDF、图片、单张下载，以及工单底部客户评价 | 原有详情 `PASS-LIVE`；评价的暂无／星级／留言、三角色只读边界、总部与所属门店导出二维码及老师无二维码 `PASS-AUTO`；068 已执行，当前服务目标为 `customerRating v6`，兼容写入成功但 `RETURNING` 为空的首次签发与令牌更新，仍待总部／门店／老师真实角色复验 |
-| 客户扫码评价 | `rating.html` 匿名会话、本次服务项目／上海时区服务时间、门店环境／老师服务／整体体验 1—5 星、500 字框内滚动留言和完成态 | 服务上下文、固定高度留言框纵向滚动、手机／iPad 视觉及公开令牌、单次提交、无老师时省略老师评分 `PASS-AUTO`；匿名登录、OPA 网关和函数安全规则仍为 `PASS-LIVE`，`customerRating v6` 已通过线上健康检查，`0.15.25` 的 5 个变更文件已发布并逐文件校验；待真实工单二维码提交复验 |
+| 客户扫码评价 | `rating.html` 匿名会话、本次服务项目／上海时区服务时间、门店环境／老师服务／整体体验 1—5 星、500 字框内滚动留言和完成态 | 服务上下文、固定高度留言框纵向滚动、手机／iPad 视觉、完成页仅保留感谢／评分／留言及公开令牌、单次提交、无老师时省略老师评分 `PASS-AUTO`；匿名登录、OPA 网关和函数安全规则仍为 `PASS-LIVE`，`customerRating v6` 已通过线上健康检查，`0.15.26` 已发布并逐文件校验；待真实工单二维码提交复验 |
 | 审核 | `recharge-review.html`、`refund-review.html`、`verification-review.html` 的条件查询、工单查询、分页、详情入口、通过／驳回 | 查询 `PASS-LIVE`；审核决定 `CONFIRM-ONLY`；补录核销为历史兼容只读入口 |
 | 产品管理 | `project-management.html`、`project-create.html`、`project-detail.html` 的查询、进入详情、模板 4 页签、刷新、样例下载 | `PASS-LIVE`；创建、保存、封存与上传 `CONFIRM-ONLY` |
 | 门店管理 | `store-management.html` 名称与电话查询、新增入口、进入门店；`store-create.html` 表单；`store-detail.html` 时间范围、自定义日期、4 类业务页签、客户与统计 | 查询与只读操作 `PASS-LIVE`；创建和封存 `CONFIRM-ONLY` |
@@ -46,7 +46,7 @@
 | `pages/home/index` | 总部“总／查／管／审／退”及六项指标、图表、排名；门店／老师时间范围、四类汇总、明细和客户；老师基础资料与体验项目紧凑单行 | 总部只读数据库会话 `PASS-LIVE`；三角色布局、老师主页不提前选门店、参数与旧响应隔离 `PASS-AUTO`；门店／老师真实角色会话 `NEEDS-ROLE-LOGIN` |
 | `pages/product-management/index` | “全部产品”列表、产品名称进入模板、新增产品入口 | 专用流程与页面结构 `PASS-AUTO`；真实创建 `CONFIRM-ONLY` |
 | `pages/product-create/index` | 产品名称、分类、说明和创建后直达模板 | 表单与创建后路由 `PASS-AUTO`；真实创建 `CONFIRM-ONLY` |
-| `pages/product-detail/index` | 产品状态、共用原始 LOGO、两组说明、数据库回读、核销／充值 PDF 与图片四种真实预览和导出 | 与网页版单据排版、暖象牙品牌背景、A4 逐页 300 DPI、完整客户编号单行、长图相册保存、预览竞态和精简 LOGO 文案 `PASS-AUTO`；模板保存／状态修改 `CONFIRM-ONLY`；相册与文件分享需真机复验 |
+| `pages/product-detail/index` | 产品状态、共用原始 LOGO、两组说明、数据库回读、核销／充值 PDF 与图片四种真实预览和导出 | 与网页版单据排版、字段标题 30／数据值 48／单行最低 34 的可读层级、最多两列详情、暖象牙品牌背景、A4 逐页 300 DPI、完整客户编号单行、长图相册保存、预览竞态和精简 LOGO 文案 `PASS-AUTO`；模板保存／状态修改 `CONFIRM-ONLY`；相册与文件分享需真机复验 |
 | `pages/hq-directory/index` | 门店按名称／电话、老师按姓名／电话查询；查询结果、活跃／封存表格、独立新增与详情入口 | 总部真实只读目录会话 `PASS-LIVE`；老师四列满宽与等距留白、查询竞态 `PASS-AUTO`；新增与状态修改 `CONFIRM-ONLY` |
 | `pages/store-create/index` | 门店名称、完整地址、多联系人和初始账号创建 | 表单、校验与服务端创建契约 `PASS-AUTO`；真实创建 `CONFIRM-ONLY` |
 | `pages/store-detail/index` | 基础资料、时间范围、项目汇总、四类明细、分页、活跃／封存客户、总部状态操作 | 读取、精确跳转、布局与请求隔离 `PASS-AUTO`；真实写操作 `CONFIRM-ONLY`；门店角色会话 `NEEDS-ROLE-LOGIN` |
@@ -63,7 +63,7 @@
 | `pages/product-purchase/index` | 老师先选本次门店；确认客户、激活产品、数量、留言、防重复恢复和详情跳转 | 共用客户选择器的单项／联合精确查询、门店切换清空、老师本人归属和独立购买工单契约 `PASS-AUTO`；真实提交 `NEEDS-ROLE-LOGIN` |
 | `pages/verification/index` | 老师先选本次门店；正常／体验、客户、项目、老师、五照片链路、人脸、额度、防重复恢复和详情跳转 | 共用客户选择器支持姓名或生日任一项精确查询、联合查询、全匹配分页和多结果明确选择；门店切换清空、只验客户脸、角色边界、余额／令牌旧响应隔离、幂等恢复 `PASS-AUTO`；真实提交 `NEEDS-ROLE-LOGIN` |
 | `pages/records/index` | 总部／门店充值与核销查询，门店、项目、类型、状态、日期、客户、分页和直接跳页；完整单号单行；审核汇总仅充值／退费显示 | 角色范围、核销无审核汇总、完整单号、完成状态语义、精确表格、请求快照和详情路由 `PASS-AUTO`；真实扩展筛选待复验 |
-| `pages/order-detail/index` | 四类工单精确回读、完整单号单行、客户入口、五照片位、重试／补图、补充照片签名直传、原图相册、PDF／图片导出，以及核销工单底部客户评价 | 原有权限、照片和单据契约继续 `PASS-AUTO`；补图直接 PUT 原始 JPEG `ArrayBuffer`、不 Base64／不函数字节中转、精确字节授权和失败取消 `PASS-AUTO`；上海区内 145 KB／近 3 MB 并发存储往返及 SHA-256 为 `PASS-LIVE`；当前代码已进入 `0.2.56` 开发版本，真实业务工单补图、评价、相册和三角色导出仍需真机／专用账号复验 |
+| `pages/order-detail/index` | 四类工单精确回读、完整单号单行、客户入口、五照片位、重试／补图、补充照片签名直传、原图相册、PDF／图片导出，以及核销工单底部客户评价 | 原有权限、照片和单据契约继续 `PASS-AUTO`；全部工单 PDF／图片采用字段标题次级、数据主级、最多两列及完整时间整行的共同渲染，浏览器真实 Canvas 视觉已复核；补图直接 PUT 原始 JPEG `ArrayBuffer`、不 Base64／不函数字节中转、精确字节授权和失败取消 `PASS-AUTO`；上海区内 145 KB／近 3 MB 并发存储往返及 SHA-256 为 `PASS-LIVE`；当前代码已进入 `0.2.57` 开发版本，真实业务工单补图、评价、相册和三角色导出仍需真机／专用账号复验 |
 
 ## 尚未冒充完成的事项
 
@@ -77,3 +77,4 @@
 8. 2026-09-02 已通过微信开发者工具官方 CloudBase CLI 上传 `customerRating v4` 和 `faceRecognition v110`，平台分别回执 3 个文件／7.3 KB、3 个文件／82.5 KB 且 `success=true`；随后只读函数信息确认两者均为 `Active`。独立浏览器控制台仍是未登录会话，尚未在线调用 `health`，因此版本健康检查仍待复验。小程序 `0.2.54` 为总部／门店新增独立“运营核心指标查询”栏，其中“活跃预警”和“余次预警”永久排除封存客户；专项自动化覆盖固定核销优先级、权威已开卡余额、单个／全部活跃项目、门店权限、稳定分页、全部结果按门店分组导出 Excel 和手机／iPad 布局，本轮不需要新 SQL。小程序开发版上传和真实角色数据库结果仍须按最终交付状态单独记录，未完成前不得标为 `PASS-LIVE`。
 9. 2026-09-03 已上传 `customerRating v6`，官方 CloudBase CLI 回执 3 个文件／10.1 KB、`success=true`，只读函数信息为 `Active`；随后在线调用 `health` 返回 `version=v6`、`configured=true`，签名密钥和正式评价页地址均已配置。网页版 `0.15.25` 的 `rating.css`、`rating.js`、`rating.html`、`app.js`、`index.html` 已发布，CloudBase 静态托管 ETag 和带缓存破除参数的 HTTPS 下载 SHA-256 均逐文件与本地一致。小程序 `0.2.55` 已通过官方 CLI 上传到 AppID `wxb053c1bd6c684d8b` 的开发版本，主包 `1,594,665` 字节、总包 `2,031,887` 字节；未被代码引用的本地 `services/Untitled.png` 保持原文件不变，并由上传配置明确排除。本轮不改数据库结构、没有执行新 SQL；真实总部／门店评价分析、扫码提交及三角色查看／导出仍待专用账号真机复验，`0.2.55` 尚未设为体验版、提交审核或正式发布。
 10. 2026-09-03 已上传 `faceRecognition v111` 与 `verificationPhoto v11`，线上 `health` 返回 `v111`、`v11`，照片服务为 `ready=true`、`sharedVersion=v10`、`uploadMode=DIRECT`，上传结构和服务端私有存储访问均就绪。小程序 `0.2.56` 已通过官方 CLI 上传为开发版本，主包 `1,594,665` 字节、总包 `2,032,836` 字节。上海区临时函数实测 145 KB 有效 JPEG 单路上传／下载 393／214 ms，12 路并发上传 12/12、60 次并发下载 60/60 成功；接近 3 MB 的 4 路并发上传／下载也均为 4/4，所有下载字节数和 SHA-256 一致。17 个专用对象和临时函数已精确删除并复核不存在。诊断输出暴露的旧 service-role API Key 已在新 Key 验证并切换 `faceRecognition`、`verificationPhoto`、`staffAccount` 后删除，删除后三个函数再次健康。本轮不改数据库、没有执行新 SQL、没有重新发布网页；真实工单补图仍为 `NEEDS-ROLE-LOGIN`，`0.2.56` 尚未设为体验版、提交审核或正式发布。
+11. 2026-09-03 已将网页版 `0.15.26` 的 10 个变更文件安全发布，CLI 发布后一致性校验和独立 HTTPS 下载 SHA-256 复核均通过；小程序 `0.2.57` 已上传开发版本，主包 `1,594,721` 字节、总包 `2,032,892` 字节。网页和小程序全部可导出工单及项目四种样例统一放大字段标题、真实数据、说明和二维码文案，真实数据明显大于字段标题，单行长值不再低至 13，详情最多两列且完整时间整行；本地浏览器真实 Canvas 预览和 279 项自动化均通过。扫码评价完成页已删除面向内部员工的查看说明。本轮不改云函数或数据库、没有新 SQL；`0.2.57` 尚未设为体验版、提交审核或正式发布。

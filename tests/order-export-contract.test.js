@@ -76,7 +76,7 @@ assert.ok(twoPagePdf.includes("xref\n0 9"), "multi-page PDF xref count");
 for (const html of [rechargeHtml, verificationHtml]) {
   includes(html, 'id="exportOrderPdf"', "PDF export button");
   includes(html, 'id="exportOrderImage"', "image export button");
-  assert.ok(html.indexOf("order-export.js?v=0.1.13") < html.indexOf("business-detail.js?v=0.16.30"), "exporter must load before detail controller");
+  assert.ok(html.indexOf("order-export.js?v=0.1.14") < html.indexOf("business-detail.js?v=0.16.30"), "exporter must load before detail controller");
 }
 
 includes(verificationHtml, 'class="verification-order-keyfacts verification-order-five-keyfacts"', "verification detail uses a five-fact header");
@@ -156,9 +156,9 @@ for (const expected of ["补录核销", "核销单 VX202608180001", "数据库�
 for (const removed of ["当前审核状态", "已通过", "审核已完成"]) assert.ok(!headerTexts.includes(removed), `JPG/PDF header removes ${removed}`);
 assert.ok(headerRects.some(([x, y, width, height]) => x === 0 && y === 0 && width === 1240 && height === 18), "export keeps the top accent stripe");
 const documentHeaderFonts = fontDraws.slice(documentHeaderFontStart);
-assert.match(fontFor(documentHeaderFonts, "补录核销"), /\b22px\b/, "order kind uses the enlarged font");
-assert.match(fontFor(documentHeaderFonts, "核销单 VX202608180001"), /\b52px\b/, "order title uses the enlarged font");
-assert.match(fontFor(documentHeaderFonts, "数据库工单完整导出"), /\b22px\b/, "order subtitle uses the enlarged font");
+assert.match(fontFor(documentHeaderFonts, "补录核销"), /\b28px\b/, "order kind uses a readable font");
+assert.match(fontFor(documentHeaderFonts, "核销单 VX202608180001"), /\b46px\b/, "order title no longer overwhelms the business values");
+assert.match(fontFor(documentHeaderFonts, "数据库工单完整导出"), /\b28px\b/, "order subtitle uses a readable font");
 
 const compactDocument = {
   compactVerification: true,
@@ -232,8 +232,14 @@ for (const removed of ["绝不打印的门店留言", "绝不打印的审核内�
 for (const removed of ["客户核销照片", "仅保留核销时使用的身份照片", "核销现场照"]) {
   assert.ok(!compactTexts.includes(removed), `compact verification omits photo copy: ${removed}`);
 }
-assert.match(fontFor(compactFonts, "门店"), /\b20px\b/, "fact labels use the enlarged font");
-assert.match(fontFor(compactFonts, "测试门店"), /\b25px\b/, "fact values use the enlarged font");
+assert.match(fontFor(compactFonts, "门店"), /\b30px\b/, "fact labels remain readable without dominating the value");
+assert.match(fontFor(compactFonts, "测试门店"), /\b48px\b/, "fact values are materially larger than their labels");
+assert.ok(exporterSource.includes("Math.max(34, Math.min(normalSize"),
+  "long single-line values must not collapse to the retired mini 13px font");
+assert.ok(exporterSource.includes("drawInfoGrid(context, details, y, draw, paginate, 2)"),
+  "all work-order detail values use at most two columns so timestamps remain legible");
+assert.ok(exporterSource.includes('/时间$/.test(text(firstItem?.label, ""))'),
+  "complete timestamps automatically own a full receipt row");
 
 const rechargeMessageStart = headerTexts.length;
 exporter.__layoutDocument(headerContext, {
@@ -263,9 +269,9 @@ assert.ok(multilineInstructionTexts.includes("产品说明"), "product instructi
 for (const line of ["5、疗程后保持清洁。", "7、疗程后坚持护理。", "7、三个月内注意饮食。"]) {
   assert.ok(multilineInstructionTexts.includes(line), `product instructions preserve manual line break: ${line}`);
 }
-assert.match(fontFor(multilineInstructionFonts, "产品说明"), /\b34px\b/, "product instruction heading uses the enlarged font");
-assert.match(fontFor(multilineInstructionFonts, "说明"), /\b25px\b/, "product instruction label uses the enlarged font");
-assert.match(fontFor(multilineInstructionFonts, "5、疗程后保持清洁。"), /\b24px\b/, "product instruction body uses the enlarged font");
+assert.match(fontFor(multilineInstructionFonts, "产品说明"), /\b38px\b/, "product instruction heading uses the readable shared hierarchy");
+assert.match(fontFor(multilineInstructionFonts, "说明"), /\b34px\b/, "product instruction label uses the readable shared hierarchy");
+assert.match(fontFor(multilineInstructionFonts, "5、疗程后保持清洁。"), /\b34px\b/, "product instruction body is no longer miniature");
 
 const longInstructions = Array.from(
   { length: 90 },

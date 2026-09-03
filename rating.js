@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.1.1";
+  const VERSION = "0.1.2";
   const $ = (id) => document.getElementById(id);
   const token = new URLSearchParams(location.search).get("token") || "";
   const scores = { storeEnvironmentScore: 0, teacherServiceScore: 0, overallExperienceScore: 0 };

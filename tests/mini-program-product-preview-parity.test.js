@@ -89,9 +89,11 @@ test("native receipt renderer preserves the web A4 and long-image geometry", asy
     "const OUTPUT_PAGE_HEIGHT = PDF_PAGE_HEIGHT * OUTPUT_SCALE", "drawPreparedReceipt",
     'background: "#fffaf3"', 'border: "#dfcfb4"', 'title: "#302a22"',
     'accent: "#80622f"', "drawReceiptBackground", "prepareReceiptBackground",
-    "singleLine", "fittedSize", "context.fillText(value, x + 18, y + 50, maxWidth)",
-    "title: 52", "subtitle: 22", "factLabel: 20", "factValue: 25", "sectionTitle: 34",
-    "instructionBody: 24", "pageNumber: 18", "drawInstructionText"
+    "singleLine", "fittedSize", "context.fillText(value, x + 18, y + 61, maxWidth)",
+    "title: 46", "subtitle: 28", "factLabel: 30", "factValue: 48", "sectionTitle: 38",
+    "instructionBody: 34", "pageNumber: 24", "drawInstructionText",
+    "Math.max(34, Math.min(normalSize", "drawInfoGrid(context, details, y, draw, paginate, 2)",
+    '/时间$/.test(text(firstItem && firstItem.label, ""))'
   ]) {
     assert.ok(rendererSource.includes(contract), `mini renderer is missing ${contract}`);
   }
