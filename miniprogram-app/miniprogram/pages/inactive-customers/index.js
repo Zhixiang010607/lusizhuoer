@@ -6,27 +6,41 @@ const {
   createGroupedWorkbook,
   openWorkbook
 } = require("../../services/grouped-table-export");
+const { PDF_EXPORT_MAX_ROWS, createGroupedPdf, openPdf } = require("../../services/grouped-table-pdf");
 const query = require("../../services/query-tools");
 
 const PAGE_SIZE = 20;
-const EMPTY_SUMMARY = Object.freeze({ selectedTotal: 0, normalBaseline: 0, experienceBaseline: 0, neverVerified: 0 });
+const CATEGORIES = Object.freeze(["ZERO", "NONZERO"]);
+const EMPTY_SUMMARY = Object.freeze({
+  selectedTotal: 0,
+  categoryTotal: 0,
+  zeroBalanceCustomers: 0,
+  nonzeroBalanceCustomers: 0,
+  normalBaseline: 0,
+  experienceBaseline: 0,
+  neverVerified: 0
+});
+
+function prefixFor(category) { return category === "ZERO" ? "zero" : "nonzero"; }
+function categoryLabel(category) { return category === "ZERO" ? "全部项目为 0" : "任意项目非 0"; }
 
 function sourceLabel(value) {
-  return ({
-    NORMAL: "正常核销",
-    EXPERIENCE: "体验核销",
-    CUSTOMER_CREATED: "客户建档"
-  })[String(value || "").toUpperCase()] || "客户建档";
+  return ({ NORMAL: "正常核销", EXPERIENCE: "体验核销", CUSTOMER_CREATED: "客户建档" })[
+    String(value || "").toUpperCase()
+  ] || "客户建档";
 }
 
 function customerRows(rows = []) {
   return rows.map((item) => {
     const baselineSource = String(item.baselineSource || "CUSTOMER_CREATED").toUpperCase();
+    const balanceCategory = String(item.balanceCategory || "ZERO").toUpperCase();
     return {
       ...item,
       customerCode: String(item.customerCode || ""),
       customerName: String(item.customerName || "—"),
       storeName: String(item.storeName || "—"),
+      balanceCategory,
+      categoryLabel: categoryLabel(balanceCategory),
       baselineSourceLabel: sourceLabel(baselineSource),
       lastVerificationLabel: baselineSource === "CUSTOMER_CREATED"
         ? "从未核销"
@@ -36,12 +50,23 @@ function customerRows(rows = []) {
   });
 }
 
+function emptyCategoryPatch(prefix) {
+  return {
+    [`${prefix}Customers`]: [], [`${prefix}Page`]: 1, [`${prefix}Total`]: 0,
+    [`${prefix}TotalPages`]: 1, [`${prefix}PageJump`]: "1",
+    [`${prefix}CursorStack`]: [null], [`${prefix}NextCursor`]: null,
+    [`${prefix}TableScrollLeft`]: 0
+  };
+}
+
 Page({
   data: {
-    session: {}, loading: false, exporting: false, searched: false, message: "", error: false, tableScrollLeft: 0,
-    minimumDays: "", customers: [], summary: { ...EMPTY_SUMMARY },
-    page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1, pageJump: "1",
-    cursorStack: [null], nextCursor: null,
+    session: {}, loading: false, exporting: false, searched: false, message: "", error: false,
+    minimumDays: "", summary: { ...EMPTY_SUMMARY }, total: 0, pageSize: PAGE_SIZE,
+    zeroCustomers: [], zeroPage: 1, zeroTotal: 0, zeroTotalPages: 1, zeroPageJump: "1",
+    zeroCursorStack: [null], zeroNextCursor: null, zeroTableScrollLeft: 0,
+    nonzeroCustomers: [], nonzeroPage: 1, nonzeroTotal: 0, nonzeroTotalPages: 1, nonzeroPageJump: "1",
+    nonzeroCursorStack: [null], nonzeroNextCursor: null, nonzeroTableScrollLeft: 0,
     stores: [], storeLabels: ["全部门店"], storeIndex: 0
   },
 
@@ -54,7 +79,7 @@ Page({
 
   onPullDownRefresh() {
     if (this.data.exporting) { wx.stopPullDownRefresh(); return; }
-    const action = this.data.searched ? this.load(1) : Promise.resolve();
+    const action = this.data.searched ? this.loadBoth() : Promise.resolve();
     action.finally(() => wx.stopPullDownRefresh());
   },
 
@@ -78,11 +103,20 @@ Page({
     }
   },
 
-  resetTableScroll() {
+  resetTableScroll(category) {
+    const prefix = prefixFor(category);
     const epoch = Number(this._scrollResetEpoch || 0) + 1;
     this._scrollResetEpoch = epoch;
-    this.setData({ tableScrollLeft: 1 }, () => {
-      if (epoch === this._scrollResetEpoch) this.setData({ tableScrollLeft: 0 });
+    this.setData({ [`${prefix}TableScrollLeft`]: 1 }, () => {
+      if (epoch === this._scrollResetEpoch) this.setData({ [`${prefix}TableScrollLeft`]: 0 });
+    });
+  },
+
+  resetBothTableScroll() {
+    const epoch = Number(this._scrollResetEpoch || 0) + 1;
+    this._scrollResetEpoch = epoch;
+    this.setData({ zeroTableScrollLeft: 1, nonzeroTableScrollLeft: 1 }, () => {
+      if (epoch === this._scrollResetEpoch) this.setData({ zeroTableScrollLeft: 0, nonzeroTableScrollLeft: 0 });
     });
   },
 
@@ -90,28 +124,26 @@ Page({
     this._requestEpoch = Number(this._requestEpoch || 0) + 1;
     this._exportEpoch = Number(this._exportEpoch || 0) + 1;
     this.setData({
-      ...changes, loading: false, exporting: false, searched: false, customers: [], summary: { ...EMPTY_SUMMARY },
-      page: 1, total: 0, totalPages: 1, pageJump: "1", cursorStack: [null], nextCursor: null,
-      tableScrollLeft: 0, message: "", error: false
+      ...changes, loading: false, exporting: false, searched: false,
+      summary: { ...EMPTY_SUMMARY }, total: 0,
+      ...emptyCategoryPatch("zero"), ...emptyCategoryPatch("nonzero"),
+      message: "", error: false
     });
   },
 
   chooseStore(event) { this.clearResults({ storeIndex: Number(event.detail.value) }); },
   inputMinimumDays(event) { this.clearResults({ minimumDays: String(event.detail.value || "") }); },
 
-  basePayload() {
-    const payload = {
-      minimumDays: String(this.data.minimumDays || "").trim(),
-      limit: PAGE_SIZE
-    };
+  basePayload(limit = PAGE_SIZE) {
+    const payload = { minimumDays: String(this.data.minimumDays || "").trim(), limit };
     if (this.data.session.role === "hq" && this.data.storeIndex > 0) {
       payload.storeId = this.data.stores[this.data.storeIndex - 1]?.id || "";
     }
     return payload;
   },
 
-  fetchPage(cursor, basePayload) {
-    const payload = { ...basePayload };
+  fetchPage(category, cursor, basePayload) {
+    const payload = { ...basePayload, balanceCategory: category };
     if (cursor) {
       payload.cursorBaselineAt = cursor.baselineAt;
       payload.cursorCustomerId = cursor.customerId;
@@ -119,47 +151,82 @@ Page({
     return callFace("queryInactiveVerificationCustomers", payload);
   },
 
-  async loadScopedPage(targetPage, epoch, basePayload) {
-    const stack = this.data.cursorStack.length ? this.data.cursorStack.slice() : [null];
+  async resolveCategoryPage(category, targetPage, epoch, basePayload) {
+    const prefix = prefixFor(category);
+    const stack = targetPage === 1 ? [null] : this.data[`${prefix}CursorStack`]?.length
+      ? this.data[`${prefix}CursorStack`].slice()
+      : [null];
     while (targetPage > 1 && !stack[targetPage - 1]) {
       const pageToDiscover = stack.length;
-      const intermediate = await this.fetchPage(stack[pageToDiscover - 1] || null, basePayload);
-      if (epoch !== this._requestEpoch) return false;
+      const intermediate = await this.fetchPage(category, stack[pageToDiscover - 1] || null, basePayload);
+      if (epoch !== this._requestEpoch) return null;
       if (!intermediate.hasMore || !intermediate.nextCursor) break;
       stack[pageToDiscover] = intermediate.nextCursor;
     }
     if (targetPage > 1 && !stack[targetPage - 1]) throw new Error("目标页已超出当前查询结果");
-    const result = await this.fetchPage(stack[targetPage - 1] || null, basePayload);
-    if (epoch !== this._requestEpoch) return false;
+    const result = await this.fetchPage(category, stack[targetPage - 1] || null, basePayload);
+    if (epoch !== this._requestEpoch) return null;
     if (result.hasMore && result.nextCursor) stack[targetPage] = result.nextCursor;
     else stack.splice(targetPage);
     const summary = result.summary || { ...EMPTY_SUMMARY };
-    const total = Number(summary.selectedTotal || 0);
-    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-    if (targetPage > totalPages && total > 0) throw new Error(`请输入 1 到 ${totalPages} 的有效页码`);
-    this.setData({
-      searched: true, customers: customerRows(result.customers || []), summary,
-      page: targetPage, total, totalPages, pageJump: String(targetPage),
-      cursorStack: stack, nextCursor: result.nextCursor || null
-    }, () => this.resetTableScroll());
-    return true;
+    const categoryTotal = Number(summary.categoryTotal || 0);
+    const totalPages = Math.max(1, Math.ceil(categoryTotal / PAGE_SIZE));
+    if (targetPage > totalPages && categoryTotal > 0) throw new Error(`请输入 1 到 ${totalPages} 的有效页码`);
+    return { rows: customerRows(result.customers || []), summary, categoryTotal, totalPages, stack, nextCursor: result.nextCursor || null };
   },
 
-  async load(page = 1) {
-    const targetPage = Math.max(1, Number(page) || 1);
+  categoryPatch(category, targetPage, state) {
+    const prefix = prefixFor(category);
+    return {
+      [`${prefix}Customers`]: state.rows, [`${prefix}Page`]: targetPage,
+      [`${prefix}Total`]: state.categoryTotal, [`${prefix}TotalPages`]: state.totalPages,
+      [`${prefix}PageJump`]: String(targetPage), [`${prefix}CursorStack`]: state.stack,
+      [`${prefix}NextCursor`]: state.nextCursor
+    };
+  },
+
+  async loadBoth() {
     const epoch = Number(this._requestEpoch || 0) + 1;
     this._requestEpoch = epoch;
     const basePayload = this.basePayload();
     this.setData({ loading: true, message: "", error: false });
     try {
-      await this.loadScopedPage(targetPage, epoch, basePayload);
+      const [zeroState, nonzeroState] = await Promise.all([
+        this.resolveCategoryPage("ZERO", 1, epoch, basePayload),
+        this.resolveCategoryPage("NONZERO", 1, epoch, basePayload)
+      ]);
+      if (epoch !== this._requestEpoch || !zeroState || !nonzeroState) return;
+      const summary = zeroState.summary;
+      this.setData({
+        searched: true, summary, total: Number(summary.selectedTotal || 0),
+        ...this.categoryPatch("ZERO", 1, zeroState),
+        ...this.categoryPatch("NONZERO", 1, nonzeroState)
+      }, () => this.resetBothTableScroll());
     } catch (error) {
       if (epoch !== this._requestEpoch) return;
       this.setData({
-        searched: true, customers: [], summary: { ...EMPTY_SUMMARY }, page: 1, total: 0,
-        totalPages: 1, pageJump: "1", cursorStack: [null], nextCursor: null,
-        tableScrollLeft: 0, message: error.message || "活跃预警读取失败", error: true
+        searched: true, summary: { ...EMPTY_SUMMARY }, total: 0,
+        ...emptyCategoryPatch("zero"), ...emptyCategoryPatch("nonzero"),
+        message: error.message || "活跃预警读取失败", error: true
       });
+    } finally {
+      if (epoch === this._requestEpoch) this.setData({ loading: false });
+    }
+  },
+
+  async loadCategory(category, targetPage) {
+    const epoch = Number(this._requestEpoch || 0) + 1;
+    this._requestEpoch = epoch;
+    this.setData({ loading: true, message: "", error: false });
+    try {
+      const state = await this.resolveCategoryPage(category, targetPage, epoch, this.basePayload());
+      if (epoch !== this._requestEpoch || !state) return;
+      this.setData({
+        searched: true, summary: state.summary, total: Number(state.summary.selectedTotal || 0),
+        ...this.categoryPatch(category, targetPage, state)
+      }, () => this.resetTableScroll(category));
+    } catch (error) {
+      if (epoch === this._requestEpoch) this.setData({ message: error.message || "活跃预警读取失败", error: true });
     } finally {
       if (epoch === this._requestEpoch) this.setData({ loading: false });
     }
@@ -172,88 +239,119 @@ Page({
       this.setData({ message: "请输入 1 至 3650 的整数天数", error: true });
       return;
     }
-    this.setData({ cursorStack: [null], nextCursor: null, page: 1, pageJump: "1" });
-    this.load(1);
+    this.setData({ ...emptyCategoryPatch("zero"), ...emptyCategoryPatch("nonzero") });
+    this.loadBoth();
   },
 
   resetSearch() { this.clearResults({ minimumDays: "", storeIndex: 0 }); },
-  previousPage() { if (!this.data.loading && !this.data.exporting && this.data.page > 1) this.load(this.data.page - 1); },
-  nextPage() { if (!this.data.loading && !this.data.exporting && this.data.page < this.data.totalPages) this.load(this.data.page + 1); },
-  inputPageJump(event) { this.setData({ pageJump: String(event.detail.value || "") }); },
-  jumpPage() {
-    if (this.data.exporting) return;
-    const page = Number(this.data.pageJump);
-    if (!Number.isInteger(page) || page < 1 || page > this.data.totalPages) {
-      this.setData({ message: `请输入 1 到 ${this.data.totalPages} 的有效页码`, error: true });
+  previousPage(event) {
+    const category = String(event.currentTarget.dataset.category || "").toUpperCase();
+    const prefix = prefixFor(category);
+    const page = Number(this.data[`${prefix}Page`] || 1);
+    if (CATEGORIES.includes(category) && !this.data.loading && !this.data.exporting && page > 1) this.loadCategory(category, page - 1);
+  },
+  nextPage(event) {
+    const category = String(event.currentTarget.dataset.category || "").toUpperCase();
+    const prefix = prefixFor(category);
+    const page = Number(this.data[`${prefix}Page`] || 1);
+    const totalPages = Number(this.data[`${prefix}TotalPages`] || 1);
+    if (CATEGORIES.includes(category) && !this.data.loading && !this.data.exporting && page < totalPages) this.loadCategory(category, page + 1);
+  },
+  inputPageJump(event) {
+    const category = String(event.currentTarget.dataset.category || "").toUpperCase();
+    if (CATEGORIES.includes(category)) this.setData({ [`${prefixFor(category)}PageJump`]: String(event.detail.value || "") });
+  },
+  jumpPage(event) {
+    if (this.data.loading || this.data.exporting) return;
+    const category = String(event.currentTarget.dataset.category || "").toUpperCase();
+    if (!CATEGORIES.includes(category)) return;
+    const prefix = prefixFor(category);
+    const page = Number(this.data[`${prefix}PageJump`]);
+    const totalPages = Number(this.data[`${prefix}TotalPages`] || 1);
+    if (!Number.isInteger(page) || page < 1 || page > totalPages) {
+      this.setData({ message: `请输入 1 到 ${totalPages} 的有效页码`, error: true });
       return;
     }
-    this.load(page);
+    this.loadCategory(category, page);
   },
+
   selectedStoreName() {
     if (this.data.session.role !== "hq") return String(this.data.session.storeName || "本门店");
     if (this.data.storeIndex <= 0) return "全部门店";
     return String(this.data.stores[this.data.storeIndex - 1]?.name || "指定门店");
   },
-  async exportAll() {
+
+  async collectCategory(category, expectedCategoryTotal, expectedTotal, basePayload, exportEpoch, uniqueRows) {
+    const seenCursors = new Set();
+    let cursor = null;
+    while (true) {
+      const result = await this.fetchPage(category, cursor, basePayload);
+      if (exportEpoch !== this._exportEpoch) return;
+      if (Number(result.summary?.selectedTotal || 0) !== expectedTotal
+          || Number(result.summary?.categoryTotal || 0) !== expectedCategoryTotal) {
+        throw new Error("查询结果在导出期间发生变化，请重新查询后再导出");
+      }
+      for (const row of customerRows(result.customers || [])) uniqueRows.set(row.customerCode, row);
+      if (uniqueRows.size > EXPORT_MAX_ROWS) throw new Error(`单次最多导出 ${EXPORT_MAX_ROWS} 条，请缩小查询范围`);
+      this.setData({ message: `正在准备导出 ${Math.min(uniqueRows.size, expectedTotal)} / ${expectedTotal} 位…`, error: false });
+      if (!result.hasMore) break;
+      if (!result.nextCursor) throw new Error("导出游标缺失，请重新查询后再试");
+      const fingerprint = JSON.stringify(result.nextCursor);
+      if (seenCursors.has(fingerprint)) throw new Error("导出游标重复，请重新查询后再试");
+      seenCursors.add(fingerprint);
+      cursor = result.nextCursor;
+    }
+  },
+
+  async exportAll(format = "excel") {
     const expectedTotal = Number(this.data.total || 0);
     if (!this.data.searched || this.data.loading || this.data.exporting || expectedTotal <= 0) return;
-    if (expectedTotal > EXPORT_MAX_ROWS) {
-      this.setData({ message: `当前结果有 ${expectedTotal} 条，单次最多导出 ${EXPORT_MAX_ROWS} 条，请缩小查询范围`, error: true });
+    const exportLimit = format === "pdf" ? PDF_EXPORT_MAX_ROWS : EXPORT_MAX_ROWS;
+    if (expectedTotal > exportLimit) {
+      this.setData({ message: `当前结果有 ${expectedTotal} 位，单次最多导出 ${exportLimit} 位，请缩小查询范围`, error: true });
       return;
     }
     const exportEpoch = Number(this._exportEpoch || 0) + 1;
     this._exportEpoch = exportEpoch;
-    const basePayload = { ...this.basePayload(), limit: EXPORT_BATCH_SIZE };
+    const basePayload = this.basePayload(EXPORT_BATCH_SIZE);
     const uniqueRows = new Map();
-    const seenCursors = new Set();
-    let cursor = null;
-    this.setData({ exporting: true, message: `正在准备导出 0 / ${expectedTotal} 条…`, error: false });
+    this.setData({ exporting: true, message: `正在准备导出 0 / ${expectedTotal} 位…`, error: false });
     try {
-      while (true) {
-        const result = await this.fetchPage(cursor, basePayload);
-        if (exportEpoch !== this._exportEpoch) return;
-        const currentTotal = Number(result.summary?.selectedTotal || 0);
-        if (currentTotal !== expectedTotal) throw new Error("查询结果在导出期间发生变化，请重新查询后再导出");
-        for (const row of customerRows(result.customers || [])) uniqueRows.set(row.customerCode, row);
-        if (uniqueRows.size > EXPORT_MAX_ROWS) throw new Error(`单次最多导出 ${EXPORT_MAX_ROWS} 条，请缩小查询范围`);
-        this.setData({ message: `正在准备导出 ${Math.min(uniqueRows.size, expectedTotal)} / ${expectedTotal} 条…`, error: false });
-        if (!result.hasMore) break;
-        if (!result.nextCursor) throw new Error("导出游标缺失，请重新查询后再试");
-        const fingerprint = JSON.stringify(result.nextCursor);
-        if (seenCursors.has(fingerprint)) throw new Error("导出游标重复，请重新查询后再试");
-        seenCursors.add(fingerprint);
-        cursor = result.nextCursor;
-      }
+      await this.collectCategory("ZERO", Number(this.data.zeroTotal || 0), expectedTotal, basePayload, exportEpoch, uniqueRows);
+      await this.collectCategory("NONZERO", Number(this.data.nonzeroTotal || 0), expectedTotal, basePayload, exportEpoch, uniqueRows);
+      if (exportEpoch !== this._exportEpoch) return;
       const rows = [...uniqueRows.values()];
       if (rows.length !== expectedTotal) throw new Error("查询结果在导出期间发生变化，请重新查询后再导出");
       const today = query.businessToday();
-      const report = createGroupedWorkbook({
-        title: "活跃预警查询结果",
-        sheetName: "活跃预警",
+      const reportOptions = {
+        title: "活跃预警查询结果", sheetName: "活跃预警",
         criteria: `查询条件：核销间隔至少 ${String(this.data.minimumDays).trim()} 天｜门店范围：${this.selectedStoreName()}｜导出日期：${today}｜共 ${rows.length} 位客户`,
-        rows,
-        groupKey: (row) => row.storeId || row.storeName,
-        groupLabel: (row) => row.storeName,
+        rows, groupKey: (row) => row.storeId || row.storeName, groupLabel: (row) => row.storeName,
         columns: [
+          { key: "categoryLabel", header: "预警分类", width: 18 },
           { key: "customerName", header: "客户", width: 22 },
           { key: "storeName", header: "门店", width: 20 },
           { key: "daysSince", header: "间隔时间（天）", width: 16, type: "number" },
           { key: "baselineSourceLabel", header: "计算起点", width: 15 },
           { key: "lastVerificationLabel", header: "上次核销", width: 21 }
         ]
-      });
-      await openWorkbook({ bytes: report.bytes, filename: `活跃预警-${today}` });
-      if (exportEpoch === this._exportEpoch) {
-        this.setData({ message: `已导出 ${report.rowCount} 位客户，并按 ${report.groupCount} 个门店分组`, error: false });
-      }
+      };
+      const report = format === "pdf" ? createGroupedPdf(reportOptions) : createGroupedWorkbook(reportOptions);
+      if (format === "pdf") await openPdf({ bytes: report.bytes, filename: `活跃预警-${today}` });
+      else await openWorkbook({ bytes: report.bytes, filename: `活跃预警-${today}` });
+      if (exportEpoch === this._exportEpoch) this.setData({ message: `已导出 ${report.rowCount} 位客户的 ${format === "pdf" ? "PDF" : "Excel"}，并按 ${report.groupCount} 个门店分组`, error: false });
     } catch (error) {
       if (exportEpoch !== this._exportEpoch) return;
       const cancelled = /cancel/i.test(String(error && (error.errMsg || error.message) || ""));
-      this.setData({ message: cancelled ? "已取消打开 Excel" : error.message || error.errMsg || "活跃预警导出失败", error: !cancelled });
+      this.setData({ message: cancelled ? `已取消打开 ${format === "pdf" ? "PDF" : "Excel"}` : error.message || error.errMsg || "活跃预警导出失败", error: !cancelled });
     } finally {
       if (exportEpoch === this._exportEpoch) this.setData({ exporting: false });
     }
   },
+
+  exportExcel() { return this.exportAll("excel"); },
+  exportPdf() { return this.exportAll("pdf"); },
+
   openCustomer(event) {
     const code = String(event.currentTarget.dataset.code || "");
     if (code) wx.navigateTo({ url: `/pages/customer-detail/index?customerCode=${encodeURIComponent(code)}` });

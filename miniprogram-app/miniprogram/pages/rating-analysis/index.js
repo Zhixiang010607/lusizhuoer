@@ -1,5 +1,12 @@
 const { callRating } = require("../../services/api");
 const { requireSession } = require("../../services/session");
+const {
+  EXPORT_BATCH_SIZE,
+  EXPORT_MAX_ROWS,
+  createGroupedWorkbook,
+  openWorkbook
+} = require("../../services/grouped-table-export");
+const { PDF_EXPORT_MAX_ROWS, createGroupedPdf, openPdf } = require("../../services/grouped-table-pdf");
 const query = require("../../services/query-tools");
 
 const PAGE_SIZE = 20;
@@ -88,7 +95,7 @@ function normalizeOrders(rows = []) {
 
 Page({
   data: {
-    session: {}, loading: false, searched: false, message: "", error: false, tableScrollLeft: 0,
+    session: {}, loading: false, exporting: false, searched: false, message: "", error: false, tableScrollLeft: 0,
     stores: [], storeLabels: ["全部门店"], storeIndex: 0,
     products: [], productLabels: ["全部项目"], productIndex: 0,
     teachers: [], teacherLabels: ["全部老师", "未指定老师"], teacherValues: ["", "NONE"], teacherIndex: 0,
@@ -107,12 +114,14 @@ Page({
   },
 
   onPullDownRefresh() {
+    if (this.data.exporting) { wx.stopPullDownRefresh(); return; }
     const action = this.loadOptions().then(() => this.data.searched ? this.load(1) : undefined);
     action.finally(() => wx.stopPullDownRefresh());
   },
 
   onUnload() {
     this._requestEpoch = Number(this._requestEpoch || 0) + 1;
+    this._exportEpoch = Number(this._exportEpoch || 0) + 1;
     this._optionEpoch = Number(this._optionEpoch || 0) + 1;
     this._scrollResetEpoch = Number(this._scrollResetEpoch || 0) + 1;
   },
@@ -154,8 +163,9 @@ Page({
 
   clearResults(changes = {}) {
     this._requestEpoch = Number(this._requestEpoch || 0) + 1;
+    this._exportEpoch = Number(this._exportEpoch || 0) + 1;
     this.setData({
-      ...changes, loading: false, searched: false, orders: [], summary: normalizeSummary(EMPTY_SUMMARY),
+      ...changes, loading: false, exporting: false, searched: false, orders: [], summary: normalizeSummary(EMPTY_SUMMARY),
       page: 1, total: 0, totalPages: 1, pageJump: "1", tableScrollLeft: 0, message: "", error: false
     });
   },
@@ -187,8 +197,8 @@ Page({
     this.clearResults({ selectedScores, scoreOptions: scoreOptions(selectedScores) });
   },
 
-  payload(page) {
-    const result = { pageNumber: page, pageSize: PAGE_SIZE, scores: this.data.selectedScores.slice() };
+  payload(page, pageSize = PAGE_SIZE) {
+    const result = { pageNumber: page, pageSize, scores: this.data.selectedScores.slice() };
     if (this.data.session.role === "hq" && this.data.storeIndex > 0) {
       result.storeId = this.data.stores[this.data.storeIndex - 1]?.id || "";
     }
@@ -261,10 +271,11 @@ Page({
     });
   },
 
-  previousPage() { if (!this.data.loading && this.data.page > 1) this.load(this.data.page - 1); },
-  nextPage() { if (!this.data.loading && this.data.page < this.data.totalPages) this.load(this.data.page + 1); },
+  previousPage() { if (!this.data.loading && !this.data.exporting && this.data.page > 1) this.load(this.data.page - 1); },
+  nextPage() { if (!this.data.loading && !this.data.exporting && this.data.page < this.data.totalPages) this.load(this.data.page + 1); },
   inputPageJump(event) { this.setData({ pageJump: String(event.detail.value || "") }); },
   jumpPage() {
+    if (this.data.exporting) return;
     const page = Number(this.data.pageJump);
     if (!Number.isInteger(page) || page < 1 || page > this.data.totalPages) {
       this.setData({ message: `请输入 1 到 ${this.data.totalPages} 的有效页码`, error: true });
@@ -272,6 +283,93 @@ Page({
     }
     this.load(page);
   },
+
+  selectedStoreName() {
+    if (this.data.session.role !== "hq") return String(this.data.session.storeName || "本门店");
+    if (this.data.storeIndex <= 0) return "全部门店";
+    return String(this.data.stores[this.data.storeIndex - 1]?.name || "指定门店");
+  },
+  selectedProductName() {
+    if (this.data.productIndex <= 0) return "全部项目";
+    return String(this.data.products[this.data.productIndex - 1]?.name || "指定项目");
+  },
+  selectedTeacherName() {
+    return String(this.data.teacherLabels[this.data.teacherIndex] || "全部老师");
+  },
+  exportCriteria(today, count) {
+    const scoreText = this.data.selectedScores.map((score) => score === 0 ? "未评价" : `${score}分`).join("、");
+    const coverage = this.data.summary.coveragePercent || "0.0%";
+    const distribution = (this.data.summary.scoreLegend || []).map((item) => `${item.label}${item.count}单/${item.percentage}`).join("、");
+    return `门店：${this.selectedStoreName()}｜项目：${this.selectedProductName()}｜老师：${this.selectedTeacherName()}｜时间：${this.data.startDate || "最早"} 至 ${this.data.endDate || "今天"}｜最低分：${scoreText}｜评价覆盖率：${coverage}｜1–5分分布：${distribution}｜导出日期：${today}｜共 ${count} 单`;
+  },
+
+  async collectAllOrders(expectedTotal, exportEpoch) {
+    const uniqueRows = new Map();
+    let pageNumber = 1;
+    let totalPages = 1;
+    do {
+      const result = await callRating("queryRatingAnalysis", this.payload(pageNumber, EXPORT_BATCH_SIZE));
+      if (exportEpoch !== this._exportEpoch) return [];
+      if (Number(result.total || 0) !== expectedTotal) throw new Error("查询结果在导出期间发生变化，请重新查询后再导出");
+      totalPages = Math.max(1, Number(result.totalPages || 1));
+      for (const row of normalizeOrders(result.orders || [])) uniqueRows.set(row.rowKey, row);
+      if (uniqueRows.size > EXPORT_MAX_ROWS) throw new Error(`单次最多导出 ${EXPORT_MAX_ROWS} 条，请缩小查询范围`);
+      this.setData({ message: `正在准备导出 ${Math.min(uniqueRows.size, expectedTotal)} / ${expectedTotal} 单…`, error: false });
+      pageNumber += 1;
+    } while (pageNumber <= totalPages);
+    const rows = [...uniqueRows.values()];
+    if (rows.length !== expectedTotal) throw new Error("查询结果在导出期间发生变化，请重新查询后再导出");
+    return rows;
+  },
+
+  async exportAll(format = "excel") {
+    const expectedTotal = Number(this.data.total || 0);
+    if (!this.data.searched || this.data.loading || this.data.exporting || expectedTotal <= 0) return;
+    const exportLimit = format === "pdf" ? PDF_EXPORT_MAX_ROWS : EXPORT_MAX_ROWS;
+    if (expectedTotal > exportLimit) {
+      this.setData({ message: `当前结果有 ${expectedTotal} 单，单次最多导出 ${exportLimit} 单，请缩小查询范围`, error: true });
+      return;
+    }
+    const exportEpoch = Number(this._exportEpoch || 0) + 1;
+    this._exportEpoch = exportEpoch;
+    this.setData({ exporting: true, message: `正在准备导出 0 / ${expectedTotal} 单…`, error: false });
+    try {
+      const rows = await this.collectAllOrders(expectedTotal, exportEpoch);
+      if (exportEpoch !== this._exportEpoch) return;
+      const today = query.businessToday();
+      const reportOptions = {
+        title: "评价分析查询结果", sheetName: "评价分析",
+        criteria: this.exportCriteria(today, rows.length), rows,
+        groupKey: (row) => row.storeId || row.storeName,
+        groupLabel: (row) => row.storeName,
+        columns: [
+          { key: "recordCode", header: "工单号", width: 22 },
+          { key: "customerName", header: "客户", width: 18 },
+          { key: "storeName", header: "门店", width: 18 },
+          { key: "productName", header: "项目", width: 18 },
+          { key: "teacherName", header: "老师", width: 16 },
+          { key: "serviceTime", header: "服务时间", width: 20 },
+          { key: "effectiveScoreLabel", header: "最低分", width: 11 },
+          { key: "storeScoreLabel", header: "门店环境", width: 11 },
+          { key: "teacherScoreLabel", header: "老师服务", width: 11 },
+          { key: "overallScoreLabel", header: "整体体验", width: 11 }
+        ]
+      };
+      const report = format === "pdf" ? createGroupedPdf(reportOptions) : createGroupedWorkbook(reportOptions);
+      if (format === "pdf") await openPdf({ bytes: report.bytes, filename: `评价分析-${today}` });
+      else await openWorkbook({ bytes: report.bytes, filename: `评价分析-${today}` });
+      if (exportEpoch === this._exportEpoch) this.setData({ message: `已导出 ${report.rowCount} 单的 ${format === "pdf" ? "PDF" : "Excel"}，并按 ${report.groupCount} 个门店分组`, error: false });
+    } catch (error) {
+      if (exportEpoch !== this._exportEpoch) return;
+      const cancelled = /cancel/i.test(String(error && (error.errMsg || error.message) || ""));
+      this.setData({ message: cancelled ? `已取消打开 ${format === "pdf" ? "PDF" : "Excel"}` : error.message || error.errMsg || "评价分析导出失败", error: !cancelled });
+    } finally {
+      if (exportEpoch === this._exportEpoch) this.setData({ exporting: false });
+    }
+  },
+
+  exportExcel() { return this.exportAll("excel"); },
+  exportPdf() { return this.exportAll("pdf"); },
 
   openCustomer(event) {
     const code = String(event.currentTarget.dataset.code || "");

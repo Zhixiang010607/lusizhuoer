@@ -37,6 +37,10 @@
 .chart-note { display: block; margin-top: 12rpx; color: #817463; font-size: 28rpx; line-height: 1.55; }
 
 .result-card { min-width: 0; overflow: hidden; }
+.result-export { display: flex; flex-direction: column; align-items: stretch; gap: 12rpx; margin-top: 12rpx; padding: 12rpx 14rpx; background: #f7efe2; border: 1rpx solid #e1cfaf; border-radius: 14rpx; }
+.result-export > text { color: #746756; font-size: 18rpx; line-height: 1.4; }
+.export-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10rpx; }
+.result-export button { width: 100%; min-height: 58rpx; margin: 0; padding: 0 10rpx; font-size: 19rpx; line-height: 1; }
 .rating-table-scroll { width: 100%; max-width: 100%; margin-top: 14rpx; overflow-x: auto; overflow-y: hidden; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
 .rating-table-scroll[data-visible-rows="1"] { height: 138rpx; }
 .rating-table-scroll[data-visible-rows="2"] { height: 210rpx; }
@@ -92,6 +96,10 @@
   .legend-dot { width: 14px; height: 14px; }
   .chart-note { margin-top: 10px; font-size: 17px; }
   .result-card { padding: 14px 16px; }
+  .result-export { display: grid; grid-template-columns: minmax(0, 1fr) 310px; align-items: center; gap: 10px; margin-top: 10px; padding: 9px 12px; border-width: 1px; border-radius: 10px; }
+  .result-export > text { font-size: 12px; }
+  .export-buttons { gap: 8px; }
+  .result-export button { min-height: 38px; padding: 0 8px; font-size: 13px; }
   .rating-table-scroll { margin-top: 10px; border-width: 1px; border-radius: 11px; }
   .rating-table-scroll[data-visible-rows="1"] { height: 104px; }
   .rating-table-scroll[data-visible-rows="2"] { height: 164px; }

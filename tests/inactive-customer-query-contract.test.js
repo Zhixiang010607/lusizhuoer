@@ -39,6 +39,16 @@ test("server applies the fixed NORMAL then EXPERIENCE then customer-created base
   assert.match(source, /scopedStoreClause\(caller, "c\.created_store_id"\)/);
   assert.match(source, /c\.customer_status = 'ACTIVE'/,
     "archived customers must be excluded at the authoritative server boundary");
+  assert.match(source, /FROM public\.customer_product_balances balance[\s\S]*balance\.customer_id = c\.id[\s\S]*balance\.remaining_count <> 0/,
+    "active-warning classification must be customer-level and use authoritative remaining balances");
+  assert.match(source, /THEN 'NONZERO' ELSE 'ZERO' END AS balance_category/,
+    "customers with no nonzero balance, including customers without balance rows, belong to the all-zero class");
+  assert.match(source, /inactive\.balance_category = 'ZERO'/);
+  assert.match(source, /inactive\.balance_category = 'NONZERO'/);
+  assert.match(source, /COUNT\(\*\) FILTER \(WHERE balance_category = 'ZERO'\) AS zero_balance_customers/);
+  assert.match(source, /COUNT\(\*\) FILTER \(WHERE balance_category = 'NONZERO'\) AS nonzero_balance_customers/);
+  assert.match(source, /categoryTotal: Number\(summary\.category_total \|\| 0\)/);
+  assert.match(source, /balanceCategory: customer\.balance_category/);
   assert.match(source, /ORDER BY inactive\.baseline_at ASC, inactive\.id ASC/,
     "the longest-inactive customers should be listed first with a stable cursor");
   assert.match(source, /normalBaseline: Number\(summary\.normal_baseline \|\| 0\)/);
@@ -62,9 +72,14 @@ test("HQ and store mini-programs expose a manual inactivity query without teache
   assert.match(pageJs, /storeId/);
   assert.match(pageJs, /cursorBaselineAt/);
   assert.match(pageJs, /cursorCustomerId/);
+  assert.match(pageJs, /balanceCategory: category/);
+  assert.match(pageJs, /Promise\.all\(\[[\s\S]*resolveCategoryPage\("ZERO", 1[\s\S]*resolveCategoryPage\("NONZERO", 1/,
+    "both customer categories must load as separate result sections");
+  assert.match(pageJs, /zeroCursorStack: \[null\]/);
+  assert.match(pageJs, /nonzeroCursorStack: \[null\]/);
   assert.match(pageJs, /while \(targetPage > 1 && !stack\[targetPage - 1\]\)/,
     "direct page jumps must walk the stable server cursor using one filter snapshot");
-  assert.match(pageJs, /if \(epoch !== this\._requestEpoch\) return false;/,
+  assert.match(pageJs, /if \(epoch !== this\._requestEpoch\) return null;/,
     "filter changes must make stale customer responses harmless");
   assert.match(pageJs, /pages\/customer-detail\/index\?customerCode=/);
   assert.match(pageWxml, /核销间隔至少多少天/);
@@ -76,7 +91,13 @@ test("HQ and store mini-programs expose a manual inactivity query without teache
     "the compact result must keep only the user-selected five columns");
   assert.match(pageJs, /baselineSource === "CUSTOMER_CREATED"[\s\S]*\? "从未核销"/);
   assert.doesNotMatch(pageWxml, /客户状态|已封存|全部状态/);
+  for (const label of ["全部项目为 0", "任意项目非 0", "导出 PDF", "导出 Excel", "10000 位"]) {
+    assert.match(pageWxml, new RegExp(label), `inactive customer split/export is missing ${label}`);
+  }
+  assert.match(pageWxml, /data-category="ZERO" bindtap="previousPage"/);
+  assert.match(pageWxml, /data-category="NONZERO" bindtap="previousPage"/);
   assert.match(pageWxss, /\.inactive-table \{ width: auto; min-width: 100%; display: inline-table; table-layout: auto;/);
+  assert.match(pageWxss, /\.result-sections \{ display: grid; grid-template-columns: 1fr;/);
   assert.match(pageWxss, /@media \(min-width: 700px\)/,
     "the new query must retain a compact iPad layout");
 });

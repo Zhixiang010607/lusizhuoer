@@ -4,19 +4,19 @@
   <view class="card search-card">
     <view class="card-title"><text>查询条件</text><text class="badge">{{session.role === 'hq' ? '总部范围' : '本门店范围'}}</text></view>
     <view class="query-grid">
-      <label wx:if="{{session.role === 'hq'}}" class="field"><text class="field-label">门店</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="chooseStore" disabled="{{loading}}"><view class="picker">{{storeLabels[storeIndex]}}</view></picker></label>
-      <label class="field"><text class="field-label">项目</text><picker range="{{productLabels}}" value="{{productIndex}}" bindchange="chooseProduct" disabled="{{loading}}"><view class="picker">{{productLabels[productIndex]}}</view></picker></label>
-      <label class="field"><text class="field-label">老师</text><picker range="{{teacherLabels}}" value="{{teacherIndex}}" bindchange="chooseTeacher" disabled="{{loading}}"><view class="picker">{{teacherLabels[teacherIndex]}}</view></picker></label>
-      <label class="field"><text class="field-label">时间范围</text><picker range="{{timeLabels}}" value="{{timeIndex}}" bindchange="chooseTime" disabled="{{loading}}"><view class="picker">{{timeLabels[timeIndex]}}</view></picker></label>
-      <label wx:if="{{customRange}}" class="field"><text class="field-label">开始日期</text><picker mode="date" value="{{startDate}}" end="{{today}}" bindchange="changeStart" disabled="{{loading}}"><view class="picker">{{startDate || '请选择'}}</view></picker></label>
-      <label wx:if="{{customRange}}" class="field"><text class="field-label">结束日期</text><picker mode="date" value="{{endDate}}" end="{{today}}" bindchange="changeEnd" disabled="{{loading}}"><view class="picker">{{endDate || '请选择'}}</view></picker></label>
+      <label wx:if="{{session.role === 'hq'}}" class="field"><text class="field-label">门店</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="chooseStore" disabled="{{loading || exporting}}"><view class="picker">{{storeLabels[storeIndex]}}</view></picker></label>
+      <label class="field"><text class="field-label">项目</text><picker range="{{productLabels}}" value="{{productIndex}}" bindchange="chooseProduct" disabled="{{loading || exporting}}"><view class="picker">{{productLabels[productIndex]}}</view></picker></label>
+      <label class="field"><text class="field-label">老师</text><picker range="{{teacherLabels}}" value="{{teacherIndex}}" bindchange="chooseTeacher" disabled="{{loading || exporting}}"><view class="picker">{{teacherLabels[teacherIndex]}}</view></picker></label>
+      <label class="field"><text class="field-label">时间范围</text><picker range="{{timeLabels}}" value="{{timeIndex}}" bindchange="chooseTime" disabled="{{loading || exporting}}"><view class="picker">{{timeLabels[timeIndex]}}</view></picker></label>
+      <label wx:if="{{customRange}}" class="field"><text class="field-label">开始日期</text><picker mode="date" value="{{startDate}}" end="{{today}}" bindchange="changeStart" disabled="{{loading || exporting}}"><view class="picker">{{startDate || '请选择'}}</view></picker></label>
+      <label wx:if="{{customRange}}" class="field"><text class="field-label">结束日期</text><picker mode="date" value="{{endDate}}" end="{{today}}" bindchange="changeEnd" disabled="{{loading || exporting}}"><view class="picker">{{endDate || '请选择'}}</view></picker></label>
     </view>
     <view class="score-filter">
       <text class="field-label">最低评分（可任意多选）</text>
-      <view class="score-options"><button wx:for="{{scoreOptions}}" wx:key="score" class="score-option {{item.selected ? 'selected' : ''}}" data-score="{{item.score}}" bindtap="toggleScore" disabled="{{loading}}">{{item.label}}</button></view>
+      <view class="score-options"><button wx:for="{{scoreOptions}}" wx:key="score" class="score-option {{item.selected ? 'selected' : ''}}" data-score="{{item.score}}" bindtap="toggleScore" disabled="{{loading || exporting}}">{{item.label}}</button></view>
       <text class="query-note">0 表示未评价；已评价工单取门店环境、老师服务和整体体验中的最低分，无业务老师时取其余两项最低分。例如 5、5、4 归为 4 分。</text>
     </view>
-    <view class="button-row"><button class="primary" bindtap="search" loading="{{loading}}" disabled="{{loading}}">查询评价</button><button class="ghost" bindtap="resetSearch" disabled="{{loading}}">重置查询</button></view>
+    <view class="button-row"><button class="primary" bindtap="search" loading="{{loading}}" disabled="{{loading || exporting}}">查询评价</button><button class="ghost" bindtap="resetSearch" disabled="{{loading || exporting}}">重置查询</button></view>
   </view>
 
   <view wx:if="{{searched}}" class="chart-grid">
@@ -46,6 +46,7 @@
 
   <view class="card result-card">
     <view class="card-title"><text>工单结果</text><text class="badge">共 {{total}} 单</text></view>
+    <view wx:if="{{searched}}" class="result-export"><text>导出当前条件下的全部工单，按门店分组；PDF、Excel 单次上限均为 10000 单。</text><view class="export-buttons"><button class="secondary" bindtap="exportPdf" loading="{{exporting}}" disabled="{{loading || exporting || total <= 0}}">导出 PDF</button><button class="secondary" bindtap="exportExcel" loading="{{exporting}}" disabled="{{loading || exporting || total <= 0}}">导出 Excel</button></view></view>
     <view wx:if="{{loading}}" class="empty">正在读取评价工单…</view>
     <scroll-view wx:elif="{{orders.length}}" class="rating-table-scroll" scroll-x="true" data-visible-rows="{{orders.length > 5 ? 5 : orders.length}}" scroll-y="{{orders.length > 5}}" scroll-left="{{tableScrollLeft}}" enhanced="true" show-scrollbar="{{orders.length > 5}}">
       <view class="rating-table">
@@ -55,8 +56,8 @@
     </scroll-view>
     <view wx:elif="{{searched}}" class="empty">当前条件下没有匹配工单</view>
     <view wx:else class="empty">选择条件后查询评价工单</view>
-    <view wx:if="{{searched}}" class="pager"><button class="ghost" bindtap="previousPage" disabled="{{loading || page <= 1}}">上一页</button><text>第 {{page}} / {{totalPages}} 页</text><button class="ghost" bindtap="nextPage" disabled="{{loading || page >= totalPages}}">下一页</button></view>
-    <view wx:if="{{searched}}" class="page-jump"><text>跳至</text><input type="number" value="{{pageJump}}" bindinput="inputPageJump" /><text>页</text><button class="secondary" bindtap="jumpPage" disabled="{{loading}}">跳转</button></view>
+    <view wx:if="{{searched}}" class="pager"><button class="ghost" bindtap="previousPage" disabled="{{loading || exporting || page <= 1}}">上一页</button><text>第 {{page}} / {{totalPages}} 页</text><button class="ghost" bindtap="nextPage" disabled="{{loading || exporting || page >= totalPages}}">下一页</button></view>
+    <view wx:if="{{searched}}" class="page-jump"><text>跳至</text><input type="number" value="{{pageJump}}" bindinput="inputPageJump" disabled="{{exporting}}" /><text>页</text><button class="secondary" bindtap="jumpPage" disabled="{{loading || exporting}}">跳转</button></view>
   </view>
 
   <view wx:if="{{message}}" class="message {{error ? 'error' : ''}}">{{message}}</view>

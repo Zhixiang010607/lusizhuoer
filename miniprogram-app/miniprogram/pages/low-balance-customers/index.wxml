@@ -1,5 +1,5 @@
 <view class="page">
-  <view class="page-heading"><text class="eyebrow">LOW BALANCE QUERY</text><text class="title">余次预警</text><text class="subtitle">筛选已开卡且项目剩余次数低于阈值的客户</text></view>
+  <view class="page-heading"><text class="eyebrow">LOW BALANCE QUERY</text><text class="title">余次预警</text><text class="subtitle">按客户＋项目筛选已开卡的低余次卡项</text></view>
 
   <view class="card search-card">
     <view class="card-title"><text>查询条件</text><text class="badge">{{session.role === 'hq' ? '总部范围' : '本门店范围'}}</text></view>
@@ -8,31 +8,52 @@
       <label class="field"><text class="field-label">项目范围</text><picker range="{{productLabels}}" value="{{productIndex}}" bindchange="chooseProduct" disabled="{{loading || exporting}}"><view class="picker">{{productLabels[productIndex]}}</view></picker></label>
       <label class="field {{session.role === 'hq' ? 'query-wide' : ''}}"><text class="field-label">剩余次数低于</text><input class="input" type="number" maxlength="6" placeholder="例如：5" value="{{remainingBelow}}" bindinput="inputRemainingBelow" disabled="{{loading || exporting}}" /></label>
     </view>
-    <text class="query-note">按“严格低于”筛选；只统计已开卡项目，0 次余额会命中，从未开卡不会按 0 次计入。封存客户不参与查询。</text>
+    <text class="query-note">按“严格低于”筛选；只统计未封存客户已经开卡的项目。从未开卡不会按 0 次计入。</text>
     <view class="button-row"><button class="primary" bindtap="search" loading="{{loading}}" disabled="{{loading || exporting}}">查询余次预警</button><button class="ghost" bindtap="resetSearch" disabled="{{loading || exporting}}">重置查询</button></view>
   </view>
 
   <view wx:if="{{searched}}" class="summary-grid">
     <view><text>匹配卡项</text><text class="summary-value">{{summary.selectedTotal || 0}}</text></view>
+    <view><text>余次为 0</text><text class="summary-value">{{summary.zeroBalance || 0}}</text></view>
+    <view><text>非 0 低余次</text><text class="summary-value">{{summary.nonzeroBelowThreshold || 0}}</text></view>
     <view><text>匹配客户</text><text class="summary-value">{{summary.customerTotal || 0}}</text></view>
-    <view><text>涉及项目</text><text class="summary-value">{{summary.productTotal || 0}}</text></view>
-    <view><text>余额为 0</text><text class="summary-value">{{summary.zeroBalance || 0}}</text></view>
   </view>
 
   <view class="card result-card">
-    <view class="card-title"><text>开卡余额结果</text><text class="badge">共 {{total}} 个卡项</text></view>
-    <view wx:if="{{searched}}" class="result-export"><text>导出当前查询条件下的全部卡项，并按门店分组</text><button class="secondary" bindtap="exportAll" loading="{{exporting}}" disabled="{{loading || exporting || total <= 0}}">{{exporting ? '正在导出…' : '导出全部 Excel'}}</button></view>
-    <view wx:if="{{loading}}" class="empty">正在读取余额…</view>
-    <scroll-view wx:elif="{{balances.length}}" class="low-balance-table-scroll" scroll-x="true" data-visible-rows="{{balances.length > 5 ? 5 : balances.length}}" scroll-y="{{balances.length > 5}}" scroll-left="{{tableScrollLeft}}" enhanced="true" show-scrollbar="{{balances.length > 5}}">
-      <view class="low-balance-table">
-        <view class="low-balance-row low-balance-head"><text>姓名</text><text>项目</text><text>当前剩余</text><text>净开卡</text><text>已核销</text><text>门店</text></view>
-        <view wx:for="{{balances}}" wx:key="rowKey" class="low-balance-row" data-code="{{item.customerCode}}" bindtap="openCustomer"><text class="customer-name">{{item.customerName}}</text><text>{{item.productName}}</text><text class="remaining-count">{{item.remainingCount}} 次</text><text>{{item.purchasedCount}} 次</text><text>{{item.consumedCount}} 次</text><text>{{item.storeName}}</text></view>
+    <view class="card-title"><text>客户＋项目结果</text><text class="badge">共 {{total}} 个卡项</text></view>
+    <view wx:if="{{searched}}" class="result-export">
+      <text>导出当前条件下的全部卡项，按门店分组并保留预警分类；PDF、Excel 单次上限均为 10000 个卡项。</text>
+      <view class="export-buttons"><button class="secondary" bindtap="exportPdf" loading="{{exporting}}" disabled="{{loading || exporting || total <= 0}}">导出 PDF</button><button class="secondary" bindtap="exportExcel" loading="{{exporting}}" disabled="{{loading || exporting || total <= 0}}">导出 Excel</button></view>
+    </view>
+    <view wx:if="{{loading && !searched}}" class="empty">正在读取余额…</view>
+    <view wx:elif="{{searched}}" class="result-sections">
+      <view class="result-section">
+        <view class="section-title"><view><text>项目余次为 0</text><text class="section-note">客户＋项目当前剩余次数等于 0</text></view><text class="badge">{{zeroTotal}} 个</text></view>
+        <scroll-view wx:if="{{zeroBalances.length}}" class="low-balance-table-scroll" scroll-x="true" data-visible-rows="{{zeroBalances.length > 5 ? 5 : zeroBalances.length}}" scroll-y="{{zeroBalances.length > 5}}" scroll-left="{{zeroTableScrollLeft}}" enhanced="true" show-scrollbar="{{zeroBalances.length > 5}}">
+          <view class="low-balance-table">
+            <view class="low-balance-row low-balance-head"><text>姓名</text><text>项目</text><text>当前剩余</text><text>净开卡</text><text>已核销</text><text>门店</text></view>
+            <view wx:for="{{zeroBalances}}" wx:key="rowKey" class="low-balance-row" data-code="{{item.customerCode}}" bindtap="openCustomer"><text class="customer-name">{{item.customerName}}</text><text>{{item.productName}}</text><text class="remaining-count">{{item.remainingCount}} 次</text><text>{{item.purchasedCount}} 次</text><text>{{item.consumedCount}} 次</text><text>{{item.storeName}}</text></view>
+          </view>
+        </scroll-view>
+        <view wx:else class="empty compact-empty">当前条件下没有这类卡项</view>
+        <view class="pager"><button class="ghost" data-category="ZERO" bindtap="previousPage" disabled="{{zeroPage <= 1 || loading || exporting}}">上一页</button><text>第 {{zeroPage}} / {{zeroTotalPages}} 页</text><button class="ghost" data-category="ZERO" bindtap="nextPage" disabled="{{zeroPage >= zeroTotalPages || loading || exporting}}">下一页</button></view>
+        <view class="page-jump"><text>跳至</text><input type="number" value="{{zeroPageJump}}" data-category="ZERO" bindinput="inputPageJump" disabled="{{loading || exporting}}" /><text>页</text><button class="secondary" data-category="ZERO" bindtap="jumpPage" disabled="{{loading || exporting}}">跳转</button></view>
       </view>
-    </scroll-view>
-    <view wx:elif="{{searched}}" class="empty">当前条件下暂无已开卡客户</view>
+
+      <view class="result-section">
+        <view class="section-title"><view><text>非 0 且低于阈值</text><text class="section-note">客户＋项目余次不等于 0，但严格小于设定值</text></view><text class="badge">{{nonzeroTotal}} 个</text></view>
+        <scroll-view wx:if="{{nonzeroBalances.length}}" class="low-balance-table-scroll" scroll-x="true" data-visible-rows="{{nonzeroBalances.length > 5 ? 5 : nonzeroBalances.length}}" scroll-y="{{nonzeroBalances.length > 5}}" scroll-left="{{nonzeroTableScrollLeft}}" enhanced="true" show-scrollbar="{{nonzeroBalances.length > 5}}">
+          <view class="low-balance-table">
+            <view class="low-balance-row low-balance-head"><text>姓名</text><text>项目</text><text>当前剩余</text><text>净开卡</text><text>已核销</text><text>门店</text></view>
+            <view wx:for="{{nonzeroBalances}}" wx:key="rowKey" class="low-balance-row" data-code="{{item.customerCode}}" bindtap="openCustomer"><text class="customer-name">{{item.customerName}}</text><text>{{item.productName}}</text><text class="remaining-count">{{item.remainingCount}} 次</text><text>{{item.purchasedCount}} 次</text><text>{{item.consumedCount}} 次</text><text>{{item.storeName}}</text></view>
+          </view>
+        </scroll-view>
+        <view wx:else class="empty compact-empty">当前条件下没有这类卡项</view>
+        <view class="pager"><button class="ghost" data-category="NONZERO" bindtap="previousPage" disabled="{{nonzeroPage <= 1 || loading || exporting}}">上一页</button><text>第 {{nonzeroPage}} / {{nonzeroTotalPages}} 页</text><button class="ghost" data-category="NONZERO" bindtap="nextPage" disabled="{{nonzeroPage >= nonzeroTotalPages || loading || exporting}}">下一页</button></view>
+        <view class="page-jump"><text>跳至</text><input type="number" value="{{nonzeroPageJump}}" data-category="NONZERO" bindinput="inputPageJump" disabled="{{loading || exporting}}" /><text>页</text><button class="secondary" data-category="NONZERO" bindtap="jumpPage" disabled="{{loading || exporting}}">跳转</button></view>
+      </view>
+    </view>
     <view wx:else class="empty">请选择项目并填写余次阈值后查询</view>
-    <view wx:if="{{searched}}" class="pager"><button class="ghost" bindtap="previousPage" disabled="{{page <= 1 || loading || exporting}}">上一页</button><text>第 {{page}} / {{totalPages}} 页</text><button class="ghost" bindtap="nextPage" disabled="{{page >= totalPages || loading || exporting}}">下一页</button></view>
-    <view wx:if="{{searched}}" class="page-jump"><text>跳至</text><input type="number" value="{{pageJump}}" bindinput="inputPageJump" disabled="{{exporting}}" /><text>页</text><button class="secondary" bindtap="jumpPage" disabled="{{loading || exporting}}">跳转</button></view>
   </view>
   <view wx:if="{{message}}" class="message {{error ? 'error' : ''}}">{{message}}</view>
   <view class="safe-bottom"></view>

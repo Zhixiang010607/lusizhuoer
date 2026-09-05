@@ -172,6 +172,39 @@ test("query and review pages use compact tablet filters and five-row result view
     "recharge, verification, and product searches should share the time-range row on tablets");
 });
 
+test("operational core queries keep compact tablet controls and independent result sections", () => {
+  const inactiveWxml = read("miniprogram-app", "miniprogram", "pages", "inactive-customers", "index.wxml");
+  const inactiveWxss = read("miniprogram-app", "miniprogram", "pages", "inactive-customers", "index.wxss");
+  const balanceWxml = read("miniprogram-app", "miniprogram", "pages", "low-balance-customers", "index.wxml");
+  const balanceWxss = read("miniprogram-app", "miniprogram", "pages", "low-balance-customers", "index.wxss");
+  const ratingWxml = read("miniprogram-app", "miniprogram", "pages", "rating-analysis", "index.wxml");
+  const ratingWxss = read("miniprogram-app", "miniprogram", "pages", "rating-analysis", "index.wxss");
+
+  for (const wxss of [inactiveWxss, balanceWxss, ratingWxss]) {
+    assert.match(wxss, /@media \(min-width: 700px\) \{/,
+      "every operational query must replace magnified rpx geometry with physical tablet sizes");
+    assert.match(wxss, /\.result-export \{[^}]*grid-template-columns: minmax\(0, 1fr\) 310px;/s,
+      "export text and the two format buttons must occupy separate tablet columns");
+    assert.match(wxss, /\.export-buttons \{ gap: 8px; \}/,
+      "PDF and Excel buttons must remain separated on an iPad");
+  }
+  for (const [wxml, wxss, tableClass] of [
+    [inactiveWxml, inactiveWxss, "inactive"],
+    [balanceWxml, balanceWxss, "low-balance"]
+  ]) {
+    assert.equal((wxml.match(/class="result-section"/g) || []).length, 2,
+      "each warning query must render its two result categories as separate sections");
+    assert.match(wxss, new RegExp(`\\.${tableClass}-table \\{[^}]*width: auto;[^}]*min-width: 100%;[^}]*display: inline-table;[^}]*table-layout: auto;`, "s"),
+      "tablet columns must size from their contents and scroll only inside their own table");
+    assert.match(wxss, new RegExp(`@media \\(min-width: 700px\\)[\\s\\S]*?\\.${tableClass}-table-scroll\\[data-visible-rows="5"\\] \\{ height: 344px; \\}`, "s"),
+      "each category keeps a bounded five-row tablet viewport");
+  }
+  assert.match(ratingWxss, /\.chart-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/,
+    "rating charts remain side by side without overlap on an iPad");
+  assert.match(ratingWxml, /导出 PDF[\s\S]*导出 Excel/,
+    "rating analysis exposes both export formats in the same responsive workbench");
+});
+
 test("store and teacher workflows use bounded two-column tablet surfaces", () => {
   const createWxml = read("miniprogram-app", "miniprogram", "pages", "customer-create", "index.wxml");
   const createWxss = read("miniprogram-app", "miniprogram", "pages", "customer-create", "index.wxss");

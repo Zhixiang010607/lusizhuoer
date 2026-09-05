@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v10" : "v111";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v10" : "v112";
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -2441,6 +2441,14 @@ function inactiveVerificationCursor(event = {}) {
   };
 }
 
+function operationalBalanceCategory(event = {}) {
+  const value = String(event.balanceCategory || "ALL").trim().toUpperCase();
+  if (!["ALL", "ZERO", "NONZERO"].includes(value)) {
+    fail("预警分类无效。", "BAD_REQUEST");
+  }
+  return value;
+}
+
 // Headquarters and stores can find customers who have not completed a NORMAL
 // or EXPERIENCE verification for a caller-supplied number of Shanghai calendar
 // days. The baseline follows the required fixed ladder: latest approved NORMAL
@@ -2448,6 +2456,7 @@ function inactiveVerificationCursor(event = {}) {
 // customers with neither type use their immutable customer-created time.
 async function queryInactiveVerificationCustomers(event = {}) {
   const caller = await activeScopedQueryCaller(event);
+  const balanceCategory = operationalBalanceCategory(event);
   const minimumDaysText = String(event.minimumDays ?? "").trim();
   const minimumDays = Number(minimumDaysText);
   if (!/^\d+$/.test(minimumDaysText) || !Number.isInteger(minimumDays) || minimumDays < 1 || minimumDays > 3650) {
@@ -2466,6 +2475,12 @@ async function queryInactiveVerificationCustomers(event = {}) {
            latest.product_name AS last_product_name,
            COALESCE(latest.submitted_at, c.created_at) AS baseline_at,
            CASE WHEN latest.id IS NULL THEN 'CUSTOMER_CREATED' ELSE latest.verification_type END AS baseline_source,
+           CASE WHEN EXISTS (
+             SELECT 1
+               FROM public.customer_product_balances balance
+              WHERE balance.customer_id = c.id
+                AND balance.remaining_count <> 0
+           ) THEN 'NONZERO' ELSE 'ZERO' END AS balance_category,
            ((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai')::date
              - (COALESCE(latest.submitted_at, c.created_at) AT TIME ZONE 'Asia/Shanghai')::date)::integer AS days_since
       FROM public.customers c
@@ -2490,16 +2505,30 @@ async function queryInactiveVerificationCustomers(event = {}) {
   const cursorClause = cursor.baselineAt
     ? `(inactive.baseline_at, inactive.id) > (${sqlText(cursor.baselineAt)}::timestamptz, ${cursor.customerId}::bigint)`
     : "TRUE";
+  const categoryClause = balanceCategory === "ZERO"
+    ? "inactive.balance_category = 'ZERO'"
+    : balanceCategory === "NONZERO"
+      ? "inactive.balance_category = 'NONZERO'"
+      : "TRUE";
+  const summaryCategoryClause = balanceCategory === "ZERO"
+    ? "balance_category = 'ZERO'"
+    : balanceCategory === "NONZERO"
+      ? "balance_category = 'NONZERO'"
+      : "TRUE";
   const [rows, summaryRows] = await Promise.all([
     executeSql(`${eligibleSql}
       SELECT inactive.*,
              TO_CHAR(inactive.baseline_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_baseline_at
         FROM eligible_customers inactive
-       WHERE ${cursorClause}
+       WHERE ${categoryClause}
+         AND ${cursorClause}
        ORDER BY inactive.baseline_at ASC, inactive.id ASC
        LIMIT ${limit + 1}`),
     executeSql(`${eligibleSql}
       SELECT COUNT(*) AS selected_total,
+             COUNT(*) FILTER (WHERE ${summaryCategoryClause}) AS category_total,
+             COUNT(*) FILTER (WHERE balance_category = 'ZERO') AS zero_balance_customers,
+             COUNT(*) FILTER (WHERE balance_category = 'NONZERO') AS nonzero_balance_customers,
              COUNT(*) FILTER (WHERE baseline_source = 'NORMAL') AS normal_baseline,
              COUNT(*) FILTER (WHERE baseline_source = 'EXPERIENCE') AS experience_baseline,
              COUNT(*) FILTER (WHERE baseline_source = 'CUSTOMER_CREATED') AS never_verified
@@ -2516,8 +2545,12 @@ async function queryInactiveVerificationCustomers(event = {}) {
     storeCode: caller.storeCode || "",
     storeName: caller.storeName || "",
     minimumDays,
+    balanceCategory,
     summary: {
       selectedTotal: Number(summary.selected_total || 0),
+      categoryTotal: Number(summary.category_total || 0),
+      zeroBalanceCustomers: Number(summary.zero_balance_customers || 0),
+      nonzeroBalanceCustomers: Number(summary.nonzero_balance_customers || 0),
       normalBaseline: Number(summary.normal_baseline || 0),
       experienceBaseline: Number(summary.experience_baseline || 0),
       neverVerified: Number(summary.never_verified || 0)
@@ -2532,6 +2565,7 @@ async function queryInactiveVerificationCustomers(event = {}) {
       storeCode: customer.store_code,
       baselineAt: customer.baseline_at,
       baselineSource: customer.baseline_source,
+      balanceCategory: customer.balance_category,
       daysSince: Number(customer.days_since || 0),
       lastVerificationId: customer.last_verification_id ? String(customer.last_verification_id) : "",
       lastVerificationCode: customer.last_verification_code || "",
@@ -2569,6 +2603,7 @@ function lowBalanceCursor(event = {}) {
 // state machine and therefore cannot lower the remaining purchased units.
 async function queryLowBalanceCustomers(event = {}) {
   const caller = await activeScopedQueryCaller(event);
+  const balanceCategory = operationalBalanceCategory(event);
   const remainingBelowText = String(event.remainingBelow ?? "").trim();
   const remainingBelow = Number(remainingBelowText);
   if (!/^\d+$/.test(remainingBelowText) || !Number.isInteger(remainingBelow)
@@ -2590,6 +2625,11 @@ async function queryLowBalanceCustomers(event = {}) {
     `b.remaining_count < ${remainingBelow}`
   ];
   if (productId) baseClauses.push(`b.product_id = ${productId}::bigint`);
+  const categoryClause = balanceCategory === "ZERO"
+    ? "b.remaining_count = 0"
+    : balanceCategory === "NONZERO"
+      ? "b.remaining_count <> 0"
+      : "TRUE";
   const cursorClause = cursor.customerId
     ? `(b.remaining_count, c.id, b.product_id) > (${cursor.remainingCount}::integer, ${cursor.customerId}::bigint, ${cursor.productId}::bigint)`
     : "TRUE";
@@ -2606,15 +2646,18 @@ async function queryLowBalanceCustomers(event = {}) {
               b.total_recharge_count, b.total_verification_count,
               b.remaining_count, b.updated_at
          ${fromSql}
+          AND ${categoryClause}
           AND ${cursorClause}
         ORDER BY b.remaining_count ASC, c.id ASC, b.product_id ASC
         LIMIT ${limit + 1}`
     ),
     executeSql(
       `SELECT COUNT(*) AS selected_total,
+              COUNT(*) FILTER (WHERE ${categoryClause}) AS category_total,
               COUNT(DISTINCT c.id) AS customer_total,
               COUNT(DISTINCT b.product_id) AS product_total,
-              COUNT(*) FILTER (WHERE b.remaining_count = 0) AS zero_balance
+              COUNT(*) FILTER (WHERE b.remaining_count = 0) AS zero_balance,
+              COUNT(*) FILTER (WHERE b.remaining_count <> 0) AS nonzero_below_threshold
          ${fromSql}`
     )
   ]);
@@ -2630,11 +2673,14 @@ async function queryLowBalanceCustomers(event = {}) {
     storeName: caller.storeName || "",
     remainingBelow,
     productId: productId || "",
+    balanceCategory,
     summary: {
       selectedTotal: Number(summary.selected_total || 0),
+      categoryTotal: Number(summary.category_total || 0),
       customerTotal: Number(summary.customer_total || 0),
       productTotal: Number(summary.product_total || 0),
-      zeroBalance: Number(summary.zero_balance || 0)
+      zeroBalance: Number(summary.zero_balance || 0),
+      nonzeroBelowThreshold: Number(summary.nonzero_below_threshold || 0)
     },
     balances: pageRows.map((row) => ({
       customerCode: row.customer_code,
@@ -2649,6 +2695,7 @@ async function queryLowBalanceCustomers(event = {}) {
       purchasedCount: Number(row.total_recharge_count || 0),
       consumedCount: Number(row.total_verification_count || 0),
       remainingCount: Number(row.remaining_count || 0),
+      balanceCategory: Number(row.remaining_count || 0) === 0 ? "ZERO" : "NONZERO",
       updatedAt: row.updated_at
     })),
     hasMore,

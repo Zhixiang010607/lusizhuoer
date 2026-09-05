@@ -7,14 +7,22 @@
 .query-grid .query-wide { grid-column: 1 / -1; }
 .query-note { display: block; margin: 2rpx 0 14rpx; color: #7c7062; font-size: 19rpx; line-height: 1.5; }
 .search-card > .button-row button { min-height: 72rpx; font-size: 23rpx; }
-.summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6rpx; margin-bottom: 12rpx; }
+.summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6rpx; margin-bottom: 12rpx; }
 .summary-grid view { min-width: 0; padding: 10rpx 6rpx; text-align: center; background: #fff; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
 .summary-grid text { min-height: 34rpx; display: block; color: #7c7062; font-size: 18rpx; line-height: 1.2; }
 .summary-grid .summary-value { min-height: 0; margin-top: 2rpx; color: #302a22; font-size: 26rpx; font-weight: 800; }
 .result-card { min-width: 0; overflow: hidden; }
-.result-export { display: flex; align-items: center; gap: 12rpx; margin-top: 12rpx; padding: 12rpx 14rpx; background: #f7efe2; border: 1rpx solid #e1cfaf; border-radius: 14rpx; }
+.result-export { display: flex; flex-direction: column; align-items: stretch; gap: 12rpx; margin-top: 12rpx; padding: 12rpx 14rpx; background: #f7efe2; border: 1rpx solid #e1cfaf; border-radius: 14rpx; }
 .result-export text { min-width: 0; flex: 1; color: #746756; font-size: 18rpx; line-height: 1.4; }
-.result-export button { width: 218rpx; min-height: 58rpx; flex: none; margin: 0; padding: 0 10rpx; font-size: 19rpx; line-height: 1; }
+.export-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10rpx; }
+.result-export button { width: 100%; min-height: 58rpx; margin: 0; padding: 0 10rpx; font-size: 19rpx; line-height: 1; }
+.result-sections { display: grid; grid-template-columns: 1fr; gap: 18rpx; margin-top: 18rpx; }
+.result-section { min-width: 0; padding: 14rpx; background: #fffaf3; border: 1rpx solid #dfcfb4; border-radius: 16rpx; overflow: hidden; }
+.section-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 12rpx; }
+.section-title > view { min-width: 0; }
+.section-title > view > text:first-child { display: block; color: #302a22; font-size: 27rpx; font-weight: 850; }
+.section-note { display: block; margin-top: 5rpx; color: #817463; font-size: 18rpx; line-height: 1.35; }
+.compact-empty { min-height: 118rpx; margin-top: 14rpx; }
 .inactive-table-scroll { width: 100%; max-width: 100%; margin-top: 14rpx; overflow-x: auto; overflow-y: hidden; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
 .inactive-table-scroll[data-visible-rows="1"] { height: 138rpx; }
 .inactive-table-scroll[data-visible-rows="2"] { height: 210rpx; }
@@ -48,14 +56,21 @@
   .query-note { margin: 0 0 10px; font-size: 12px; }
   .search-card > .button-row { gap: 10px; }
   .search-card > .button-row button { min-height: 42px; font-size: 14px; }
-  .summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+  .summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
   .summary-grid view { padding: 8px 6px; border-width: 1px; border-radius: 11px; }
   .summary-grid text { min-height: 16px; font-size: 10px; }
   .summary-grid .summary-value { margin-top: 1px; font-size: 17px; }
   .result-card { padding: 14px 16px; }
-  .result-export { gap: 10px; margin-top: 10px; padding: 9px 12px; border-width: 1px; border-radius: 10px; }
+  .result-export { display: grid; grid-template-columns: minmax(0, 1fr) 310px; align-items: center; gap: 10px; margin-top: 10px; padding: 9px 12px; border-width: 1px; border-radius: 10px; }
   .result-export text { font-size: 12px; }
-  .result-export button { width: 150px; min-height: 38px; padding: 0 8px; font-size: 13px; }
+  .export-buttons { gap: 8px; }
+  .result-export button { min-height: 38px; padding: 0 8px; font-size: 13px; }
+  .result-sections { gap: 14px; margin-top: 14px; }
+  .result-section { padding: 12px; border-width: 1px; border-radius: 12px; }
+  .section-title { gap: 10px; }
+  .section-title > view > text:first-child { font-size: 17px; }
+  .section-note { margin-top: 3px; font-size: 11px; }
+  .compact-empty { min-height: 80px; margin-top: 10px; }
   .inactive-table-scroll { margin-top: 10px; border-width: 1px; border-radius: 11px; }
   .inactive-table-scroll[data-visible-rows="1"] { height: 104px; }
   .inactive-table-scroll[data-visible-rows="2"] { height: 164px; }

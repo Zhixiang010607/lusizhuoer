@@ -42,6 +42,11 @@ test("server queries authoritative opened-card balances and excludes archived cu
   assert.match(source, /COUNT\(DISTINCT c\.id\) AS customer_total/);
   assert.match(source, /COUNT\(DISTINCT b\.product_id\) AS product_total/);
   assert.match(source, /COUNT\(\*\) FILTER \(WHERE b\.remaining_count = 0\) AS zero_balance/);
+  assert.match(source, /balanceCategory === "ZERO"[\s\S]*b\.remaining_count = 0[\s\S]*balanceCategory === "NONZERO"[\s\S]*b\.remaining_count <> 0/,
+    "customer-project rows must be split into zero and nonzero-below-threshold classes");
+  assert.match(source, /COUNT\(\*\) FILTER \(WHERE b\.remaining_count <> 0\) AS nonzero_below_threshold/);
+  assert.match(source, /categoryTotal: Number\(summary\.category_total \|\| 0\)/);
+  assert.match(source, /balanceCategory: Number\(row\.remaining_count \|\| 0\) === 0 \? "ZERO" : "NONZERO"/);
   assert.doesNotMatch(source, /verification_records|recharge_records/,
     "the query must read the balance state machine rather than re-summing orders");
   assert.match(cloud, /action === "queryLowBalanceCustomers"/);
@@ -59,8 +64,12 @@ test("HQ and store mini-programs expose project-selectable low-balance search", 
   for (const field of ["remainingBelow", "productId", "storeId", "cursorRemainingCount", "cursorCustomerId", "cursorProductId"]) {
     assert.match(pageJs, new RegExp(field), `low-balance query does not send ${field}`);
   }
+  assert.match(pageJs, /balanceCategory: category/);
+  assert.match(pageJs, /zeroCursorStack: \[null\]/);
+  assert.match(pageJs, /nonzeroCursorStack: \[null\]/);
+  assert.match(pageJs, /Promise\.all\(\[[\s\S]*resolveCategoryPage\("ZERO", 1[\s\S]*resolveCategoryPage\("NONZERO", 1/);
   assert.match(pageJs, /while \(targetPage > 1 && !stack\[targetPage - 1\]\)/);
-  assert.match(pageJs, /if \(epoch !== this\._requestEpoch\) return false;/);
+  assert.match(pageJs, /if \(epoch !== this\._requestEpoch\) return null;/);
   assert.match(pageJs, /pages\/customer-detail\/index\?customerCode=/);
   assert.match(pageJs, /productLabels: \["全部项目"\]/);
   for (const label of ["门店范围", "项目范围", "剩余次数低于", "当前剩余", "净开卡", "已核销", "门店", "跳至"]) {
@@ -70,8 +79,14 @@ test("HQ and store mini-programs expose project-selectable low-balance search", 
     "low-balance results must omit birthdays and project codes");
   assert.doesNotMatch(pageJs, /birthDateLabel|product\.code|productCode/,
     "low-balance view models and selectors must not append removed fields");
-  assert.match(pageWxml, /只统计已开卡项目，0 次余额会命中，从未开卡不会按 0 次计入/);
-  assert.match(pageWxml, /封存客户不参与查询/);
+  assert.match(pageWxml, /只统计未封存客户已经开卡的项目/);
+  assert.match(pageWxml, /从未开卡不会按 0 次计入/);
+  for (const label of ["项目余次为 0", "非 0 且低于阈值", "导出 PDF", "导出 Excel", "10000 个卡项"]) {
+    assert.match(pageWxml, new RegExp(label), `low-balance split/export is missing ${label}`);
+  }
+  assert.match(pageWxml, /data-category="ZERO" bindtap="previousPage"/);
+  assert.match(pageWxml, /data-category="NONZERO" bindtap="previousPage"/);
   assert.match(pageWxss, /\.low-balance-table \{ width: auto; min-width: 100%; display: inline-table; table-layout: auto;/);
+  assert.match(pageWxss, /\.result-sections \{ display: grid; grid-template-columns: 1fr;/);
   assert.match(pageWxss, /@media \(min-width: 700px\)/);
 });
