@@ -1,0 +1,19 @@
+{
+  "viewport": [
+    390,
+    753
+  ],
+  "creationValidation": true,
+  "created": true,
+  "wrongPasswordRejected": true,
+  "passwordCleared": true,
+  "authenticatedRole": "teacher",
+  "bindingMatches": true,
+  "events": [
+    "authenticate",
+    "authenticate",
+    "refresh",
+    "staffSession"
+  ],
+  "isolatedServices": true
+}
