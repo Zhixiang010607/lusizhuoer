@@ -127,8 +127,8 @@ function receiptDocumentData(order, baseType, template, ratingQrSource = "") {
   const businessName = refund ? "退费" : recharge ? "充值" : "核销";
   const customerIdentity = [clean(source.customerName), clean(source.customerCode)].filter(Boolean).join(" · ") || "—";
   const facts = [
-    { label: "客户", value: customerIdentity, singleLine: true },
-    { label: "项目", value: source.productName, singleLine: true },
+    { label: "客户", value: customerIdentity, singleLine: true, span: 2 },
+    { label: "项目", value: source.productName, singleLine: true, span: 2 },
     { label: "门店", value: source.storeName, singleLine: true },
     { label: "业务老师", value: source.teacherName || "未指定", singleLine: true }
   ];

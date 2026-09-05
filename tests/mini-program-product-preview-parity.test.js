@@ -15,7 +15,7 @@ const webProject = fs.readFileSync(path.join(root, "project-detail.js"), "utf8")
 const webExporter = fs.readFileSync(path.join(root, "order-export.js"), "utf8");
 const renderer = require(path.join(mini, "services", "order-receipt.js"));
 
-test("product sample facts match the web mobile preview for verification and recharge", () => {
+test("product sample facts preserve the verification and recharge business fields", () => {
   const shared = {
     template: { productName: "海洋之蕴", productType: "护理" },
     verificationInstructions: "核销说明",
@@ -30,7 +30,7 @@ test("product sample facts match the web mobile preview for verification and rec
   assert.equal(verification.compactVerification, true);
   assert.deepEqual(verification.facts.map((item) => item.label), ["客户", "项目", "门店", "业务老师"]);
   assert.deepEqual(verification.facts[0], {
-    label: "客户", value: "示例客户 · C1-SAMPLE001", singleLine: true
+    label: "客户", value: "示例客户 · C1-SAMPLE001", singleLine: true, span: 2
   }, "product samples print the customer name and number together on one line");
   assert.deepEqual(verification.details, [
     { label: "工单类型", value: "正常核销" },
@@ -44,10 +44,10 @@ test("product sample facts match the web mobile preview for verification and rec
   assert.equal(recharge.compactVerification, false);
   assert.deepEqual(recharge.facts.map((item) => item.label), ["客户", "项目", "门店", "业务老师"]);
   assert.deepEqual(recharge.facts[0], {
-    label: "客户", value: "示例客户 · C1-SAMPLE001", singleLine: true
-  }, "recharge samples place the complete customer identity beside the project");
+    label: "客户", value: "示例客户 · C1-SAMPLE001", singleLine: true, span: 2
+  }, "recharge samples keep the complete customer identity on its own row");
   assert.deepEqual(recharge.facts[1], {
-    label: "项目", value: "海洋之蕴", singleLine: true
+    label: "项目", value: "海洋之蕴", singleLine: true, span: 2
   });
   assert.deepEqual(recharge.details, [
     { label: "充值次数", value: "10 次" },
@@ -89,10 +89,10 @@ test("native receipt renderer preserves the web A4 and long-image geometry", asy
     "const OUTPUT_PAGE_HEIGHT = PDF_PAGE_HEIGHT * OUTPUT_SCALE", "drawPreparedReceipt",
     'background: "#fffaf3"', 'border: "#dfcfb4"', 'title: "#302a22"',
     'accent: "#80622f"', "drawReceiptBackground", "prepareReceiptBackground",
-    "singleLine", "fittedSize", "context.fillText(value, x + 18, y + 61, maxWidth)",
-    "title: 46", "subtitle: 28", "factLabel: 30", "factValue: 48", "sectionTitle: 38",
-    "instructionBody: 34", "pageNumber: 24", "drawInstructionText",
-    "Math.max(34, Math.min(normalSize", "drawInfoGrid(context, details, y, draw, paginate, 2)",
+    "singleLine", "fittedSize", "context.fillText(value, x + 18, y + 48, maxWidth)",
+    "title: 36", "subtitle: 22", "factLabel: 22", "factValue: 36", "sectionTitle: 30",
+    "instructionBody: 26", "pageNumber: 20", "drawInstructionText",
+    "Math.max(28, Math.min(normalSize", "drawInfoGrid(context, details, y, draw, paginate, 2)",
     '/时间$/.test(text(firstItem && firstItem.label, ""))'
   ]) {
     assert.ok(rendererSource.includes(contract), `mini renderer is missing ${contract}`);
@@ -107,16 +107,17 @@ test("native receipt renderer preserves the web A4 and long-image geometry", asy
   let backgroundDrawCount = 0;
   const customerIdentityDraws = [];
   const paintedTexts = [];
+  let currentFont = "";
   const context = {
     canvas,
     measureText(value) { return { width: Array.from(String(value)).length * 18 }; },
     beginPath() {}, moveTo() {}, arcTo() {}, closePath() {}, fill() {}, stroke() {}, fillRect() {},
     fillText(value, x, y, maxWidth) {
-      paintedTexts.push({ value: String(value), x, y, maxWidth });
+      paintedTexts.push({ value: String(value), x, y, maxWidth, font: currentFont });
       if (String(value).includes("C1-SAMPLE001")) customerIdentityDraws.push({ value, x, y, maxWidth });
     },
     save() {}, restore() {}, clip() {}, scale() {}, translate() {}, drawImage() { backgroundDrawCount += 1; },
-    set fillStyle(_) {}, set strokeStyle(_) {}, set lineWidth(_) {}, set font(_) {},
+    set fillStyle(_) {}, set strokeStyle(_) {}, set lineWidth(_) {}, set font(value) { currentFont = value; },
     set textBaseline(_) {}, set textAlign(_) {}
   };
   canvas.getContext = () => context;
@@ -147,16 +148,18 @@ test("native receipt renderer preserves the web A4 and long-image geometry", asy
     "every A4 product-preview page must draw the shared Lusizhuoer background exactly once");
   assert.deepEqual(customerIdentityDraws.map((item) => item.value), ["示例客户 · C1-SAMPLE001"],
     "the customer name and number are painted once instead of wrapped into multiple lines");
-  assert.ok(customerIdentityDraws[0].maxWidth > 480 && customerIdentityDraws[0].maxWidth < 540,
-    "the one-line customer identity stays inside the left half-row beside the project");
+  assert.equal(customerIdentityDraws[0].maxWidth, 1076,
+    "the complete customer identity has a full-width row with protected inner padding");
   assert.equal(paintedTexts.some((item) => item.value.includes("绝不能打印")), false,
     "documentData messages are ignored by every PDF/image receipt render");
+  assert.ok(paintedTexts.every((item) => /^[1-9]00 \d+px /.test(item.font)),
+    "Canvas text uses standard font weights to prevent numeric weights being parsed as oversized text");
   const instructionDraws = paintedTexts.filter((item) => /^说明/.test(item.value));
   assert.ok(instructionDraws.length > 10, "the long product instructions are painted across pages");
   assert.ok(instructionDraws.every((item) => {
     const pageY = ((item.y % 1754) + 1754) % 1754;
     return pageY < 1690;
-  }), "larger instruction text stays above every A4 page footer");
+  }), "instruction text stays above every A4 page footer");
 });
 
 test("verification renderer omits every photo from the generated receipt", async () => {
@@ -205,6 +208,52 @@ test("verification renderer omits every photo from the generated receipt", async
   assert.equal(paintedTexts.includes("客户建档留存照"), false);
   assert.equal(paintedTexts.some((value) => value.includes("额外位置") || value.includes("不应打印")), false);
   assert.equal(result.pageCount, 1, "the compact photo-free verification receipt fits one A4 page");
+});
+
+test("rating QR keeps its size and fits together on the current or next A4 page", async () => {
+  const rectangles = [];
+  const qrDraws = [];
+  let pathTop = 0;
+  let firstArc = false;
+  const canvas = { width: 0, height: 0 };
+  const context = {
+    measureText(value) { return { width: Array.from(String(value)).length * 18 }; },
+    beginPath() { firstArc = true; },
+    moveTo(_x, y) { pathTop = y; },
+    arcTo(_x1, _y1, _x2, y2) {
+      if (firstArc) rectangles.push({ top: pathTop, height: y2 - pathTop });
+      firstArc = false;
+    },
+    closePath() {}, fill() {}, stroke() {}, fillRect() {}, fillText() {},
+    save() {}, restore() {}, clip() {}, scale() {}, translate() {},
+    drawImage(_image, _x, _y, width, height) {
+      if (width === 220 && height === 220) qrDraws.push({ width, height });
+    }
+  };
+  canvas.getContext = () => context;
+  canvas.createImage = () => {
+    const image = { width: 220, height: 220 };
+    Object.defineProperty(image, "src", { set() { queueMicrotask(() => image.onload()); } });
+    return image;
+  };
+  for (const lineCount of [5, 8]) {
+    rectangles.length = 0;
+    qrDraws.length = 0;
+    const documentData = renderer.createProductSampleDocument({
+      kind: "verification-pdf",
+      verificationInstructions: Array.from({ length: lineCount }, (_, i) => `${i + 1}、示例护理说明。`).join("\n")
+    });
+    documentData.ratingQr = { source: "data:image/png;base64,AAAA" };
+    const result = await renderer.renderReceiptCanvas({ canvas, documentData, paginate: true });
+    const ratingCard = rectangles.find((item) => item.height === 260);
+    assert.ok(ratingCard, "rating card was drawn");
+    assert.deepEqual(qrDraws, [{ width: 220, height: 220 }], "QR remains at its original readable size");
+    assert.equal(result.pageCount, lineCount === 5 ? 1 : 2);
+    assert.equal(ratingCard.top >= 1754, lineCount === 8,
+      "short receipts retain the QR on page one; longer content moves the whole card");
+    assert.ok(ratingCard.top % 1754 + ratingCard.height <= 1754 - 64,
+      "the complete rating card remains above the page footer");
+  }
 });
 
 test("PDF writer creates true multi-page A4 output instead of one tall page", () => {

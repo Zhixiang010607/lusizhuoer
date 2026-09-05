@@ -341,6 +341,8 @@ test("real order data is mapped into the shared web receipt semantics", () => {
   assert.equal(verification.facts[0].value, "胡勇 · C1-A3155559265B1691");
   assert.equal(verification.facts[0].singleLine, true,
     "app receipts print the complete customer name and number together without wrapping");
+  assert.equal(verification.facts[0].span, 2, "complete customer identity owns a full receipt row");
+  assert.equal(verification.facts[1].span, 2, "project names retain a full row above the store and teacher pair");
   assert.deepEqual(Array.from(verification.details, (item) => item.label), ["工单类型", "次数", "提交时间"]);
   assert.equal(verification.details[2].span, 2, "the complete submitted time owns a full-width receipt row");
   assert.equal(verification.productTemplate.instructions, "核销说明");
