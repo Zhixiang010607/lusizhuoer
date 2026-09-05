@@ -1,0 +1,372 @@
+{
+  "viewport": [
+    390,
+    844
+  ],
+  "frames": [
+    {
+      "ms": 0,
+      "bounds": {
+        ".login-background": {
+          "left": 0,
+          "top": 0,
+          "width": 390,
+          "height": 844
+        },
+        ".login-card": {
+          "left": 21,
+          "top": 158.921875,
+          "width": 348,
+          "height": 519.1484375
+        },
+        ".login-heading": {
+          "left": 44,
+          "top": 266.921875,
+          "width": 302,
+          "height": 50.1484375
+        },
+        "#login-phone": {
+          "left": 44,
+          "top": 359.5703125,
+          "width": 302,
+          "height": 49
+        },
+        "#login-password": {
+          "left": 44,
+          "top": 447.0703125,
+          "width": 302,
+          "height": 49
+        },
+        "#login-submit": {
+          "left": 44,
+          "top": 547.0703125,
+          "width": 302,
+          "height": 49
+        },
+        "#login-wechat-phone": {
+          "left": 44,
+          "top": 606.0703125,
+          "width": 302,
+          "height": 49
+        }
+      },
+      "transforms": {
+        ".login-mark-reveal": "matrix(1, 0, 0, 1, 0, 61.2)",
+        ".login-mark-surface": "matrix(1, 0, 0, 1, 0, -61.2)",
+        ".login-brand text": "matrix(1, 0, 0, 1, 0, 39.875)"
+      }
+    },
+    {
+      "ms": 120,
+      "bounds": {
+        ".login-background": {
+          "left": 0,
+          "top": 0,
+          "width": 390,
+          "height": 844
+        },
+        ".login-card": {
+          "left": 21,
+          "top": 158.921875,
+          "width": 348,
+          "height": 519.1484375
+        },
+        ".login-heading": {
+          "left": 44,
+          "top": 266.921875,
+          "width": 302,
+          "height": 50.1484375
+        },
+        "#login-phone": {
+          "left": 44,
+          "top": 359.5703125,
+          "width": 302,
+          "height": 49
+        },
+        "#login-password": {
+          "left": 44,
+          "top": 447.0703125,
+          "width": 302,
+          "height": 49
+        },
+        "#login-submit": {
+          "left": 44,
+          "top": 547.0703125,
+          "width": 302,
+          "height": 49
+        },
+        "#login-wechat-phone": {
+          "left": 44,
+          "top": 606.0703125,
+          "width": 302,
+          "height": 49
+        }
+      },
+      "transforms": {
+        ".login-mark-reveal": "matrix(1, 0, 0, 1, 0, 33.7674)",
+        ".login-mark-surface": "matrix(1, 0, 0, 1, 0, -33.7674)",
+        ".login-brand text": "matrix(1, 0, 0, 1, 0, 39.875)"
+      }
+    },
+    {
+      "ms": 280,
+      "bounds": {
+        ".login-background": {
+          "left": 0,
+          "top": 0,
+          "width": 390,
+          "height": 844
+        },
+        ".login-card": {
+          "left": 21,
+          "top": 158.921875,
+          "width": 348,
+          "height": 519.1484375
+        },
+        ".login-heading": {
+          "left": 44,
+          "top": 266.921875,
+          "width": 302,
+          "height": 50.1484375
+        },
+        "#login-phone": {
+          "left": 44,
+          "top": 359.5703125,
+          "width": 302,
+          "height": 49
+        },
+        "#login-password": {
+          "left": 44,
+          "top": 447.0703125,
+          "width": 302,
+          "height": 49
+        },
+        "#login-submit": {
+          "left": 44,
+          "top": 547.0703125,
+          "width": 302,
+          "height": 49
+        },
+        "#login-wechat-phone": {
+          "left": 44,
+          "top": 606.0703125,
+          "width": 302,
+          "height": 49
+        }
+      },
+      "transforms": {
+        ".login-mark-reveal": "matrix(1, 0, 0, 1, 0, 12.8739)",
+        ".login-mark-surface": "matrix(1, 0, 0, 1, 0, -12.8739)",
+        ".login-brand text": "matrix(1, 0, 0, 1, 0, 23.3216)"
+      }
+    },
+    {
+      "ms": 520,
+      "bounds": {
+        ".login-background": {
+          "left": 0,
+          "top": 0,
+          "width": 390,
+          "height": 844
+        },
+        ".login-card": {
+          "left": 21,
+          "top": 158.921875,
+          "width": 348,
+          "height": 519.1484375
+        },
+        ".login-heading": {
+          "left": 44,
+          "top": 266.921875,
+          "width": 302,
+          "height": 50.1484375
+        },
+        "#login-phone": {
+          "left": 44,
+          "top": 359.5703125,
+          "width": 302,
+          "height": 49
+        },
+        "#login-password": {
+          "left": 44,
+          "top": 447.0703125,
+          "width": 302,
+          "height": 49
+        },
+        "#login-submit": {
+          "left": 44,
+          "top": 547.0703125,
+          "width": 302,
+          "height": 49
+        },
+        "#login-wechat-phone": {
+          "left": 44,
+          "top": 606.0703125,
+          "width": 302,
+          "height": 49
+        }
+      },
+      "transforms": {
+        ".login-mark-reveal": "matrix(1, 0, 0, 1, 0, 2.45529)",
+        ".login-mark-surface": "matrix(1, 0, 0, 1, 0, -2.45529)",
+        ".login-brand text": "matrix(1, 0, 0, 1, 0, 4.59119)"
+      }
+    },
+    {
+      "ms": 900,
+      "bounds": {
+        ".login-background": {
+          "left": 0,
+          "top": 0,
+          "width": 390,
+          "height": 844
+        },
+        ".login-card": {
+          "left": 21,
+          "top": 158.921875,
+          "width": 348,
+          "height": 519.1484375
+        },
+        ".login-heading": {
+          "left": 44,
+          "top": 266.921875,
+          "width": 302,
+          "height": 50.1484375
+        },
+        "#login-phone": {
+          "left": 44,
+          "top": 359.5703125,
+          "width": 302,
+          "height": 49
+        },
+        "#login-password": {
+          "left": 44,
+          "top": 447.0703125,
+          "width": 302,
+          "height": 49
+        },
+        "#login-submit": {
+          "left": 44,
+          "top": 547.0703125,
+          "width": 302,
+          "height": 49
+        },
+        "#login-wechat-phone": {
+          "left": 44,
+          "top": 606.0703125,
+          "width": 302,
+          "height": 49
+        }
+      },
+      "transforms": {
+        ".login-mark-reveal": "matrix(1, 0, 0, 1, 0, 0.0303453)",
+        ".login-mark-surface": "matrix(1, 0, 0, 1, 0, -0.0303453)",
+        ".login-brand text": "matrix(1, 0, 0, 1, 0, 0.123843)"
+      }
+    },
+    {
+      "ms": 1200,
+      "bounds": {
+        ".login-background": {
+          "left": 0,
+          "top": 0,
+          "width": 390,
+          "height": 844
+        },
+        ".login-card": {
+          "left": 21,
+          "top": 158.921875,
+          "width": 348,
+          "height": 519.1484375
+        },
+        ".login-heading": {
+          "left": 44,
+          "top": 266.921875,
+          "width": 302,
+          "height": 50.1484375
+        },
+        "#login-phone": {
+          "left": 44,
+          "top": 359.5703125,
+          "width": 302,
+          "height": 49
+        },
+        "#login-password": {
+          "left": 44,
+          "top": 447.0703125,
+          "width": 302,
+          "height": 49
+        },
+        "#login-submit": {
+          "left": 44,
+          "top": 547.0703125,
+          "width": 302,
+          "height": 49
+        },
+        "#login-wechat-phone": {
+          "left": 44,
+          "top": 606.0703125,
+          "width": 302,
+          "height": 49
+        }
+      },
+      "transforms": {
+        ".login-mark-reveal": "matrix(1, 0, 0, 1, 0, 0)",
+        ".login-mark-surface": "matrix(1, 0, 0, 1, 0, 0)",
+        ".login-brand text": "matrix(1, 0, 0, 1, 0, 0)"
+      }
+    }
+  ],
+  "bounds": {
+    ".login-card": {
+      "left": 21,
+      "top": 158.921875,
+      "width": 348,
+      "height": 519.1484375
+    },
+    ".login-mark": {
+      "left": 44,
+      "top": 189.921875,
+      "width": 60,
+      "height": 60
+    },
+    ".login-brand": {
+      "left": 115,
+      "top": 201.796875,
+      "width": 140,
+      "height": 36.25
+    },
+    "#login-phone": {
+      "left": 44,
+      "top": 359.5703125,
+      "width": 302,
+      "height": 49
+    },
+    "#login-password": {
+      "left": 44,
+      "top": 447.0703125,
+      "width": 302,
+      "height": 49
+    },
+    "#login-submit": {
+      "left": 44,
+      "top": 547.0703125,
+      "width": 302,
+      "height": 49
+    },
+    "#login-wechat-phone": {
+      "left": 44,
+      "top": 606.0703125,
+      "width": 302,
+      "height": 49
+    },
+    ".password-toggle": {
+      "left": 295,
+      "top": 447.0703125,
+      "width": 49,
+      "height": 49
+    }
+  },
+  "inputDuringMotion": true,
+  "settled": true
+}
