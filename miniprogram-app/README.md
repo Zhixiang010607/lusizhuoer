@@ -1,5 +1,7 @@
 # 露思卓儿移动业务小程序
 
+2026-09-05 [三类账号权限与 26 页布局检查报告](../docs/reviews/2026-09-05-miniprogram-role-layout-audit.md)：包含逐页建议、手机／平板示例截图和优先级。本次检查文档不代表页面修复或小程序发布。
+
 这是现有 CloudBase 系统的原生微信小程序客户端，不复制 PostgreSQL 规则，直接复用测试环境 `rusizhuoer-d9gbcsgym07651694` 中的 `staffAccount` 和 `faceRecognition` 服务端逻辑。
 
 ## 当前完成范围

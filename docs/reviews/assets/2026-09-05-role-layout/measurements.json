@@ -1,0 +1,1014 @@
+{
+  "date": "2026-09-05",
+  "sourceCommit": "a7f2424eebd8d4066e484c28b7a8f7e732d89ac2",
+  "syntheticDataOnly": true,
+  "phone": {
+    "viewport": [
+      390,
+      844
+    ],
+    "cases": [
+      {
+        "name": "photos-actions",
+        "metrics": [
+          {
+            "selector": ".photo-card",
+            "text": "点击重新加载这张照片重新加载此图客户核销照片已留存查看原图保存相册转发照片",
+            "width": 172.5,
+            "height": 214.5,
+            "fontSize": "13px",
+            "ellipsis": "clip",
+            "paddingLeft": "6px",
+            "paddingRight": "6px"
+          },
+          {
+            "selector": ".photo-card",
+            "text": "点击重新加载这张照片重新加载此图补充照片 1已留存查看原图保存相册转发照片",
+            "width": 172.5,
+            "height": 214.5,
+            "fontSize": "13px",
+            "ellipsis": "clip",
+            "paddingLeft": "6px",
+            "paddingRight": "6px"
+          },
+          {
+            "selector": ".photo-card",
+            "text": "点击重新加载这张照片重新加载此图补充照片 2已留存查看原图保存相册转发照片",
+            "width": 172.5,
+            "height": 214.5,
+            "fontSize": "13px",
+            "ellipsis": "clip",
+            "paddingLeft": "6px",
+            "paddingRight": "6px"
+          },
+          {
+            "selector": ".photo-card",
+            "text": "点击重新加载这张照片重新加载此图补充照片 3已留存查看原图保存相册转发照片",
+            "width": 172.5,
+            "height": 214.5,
+            "fontSize": "13px",
+            "ellipsis": "clip",
+            "paddingLeft": "6px",
+            "paddingRight": "6px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "查看原图",
+            "width": 50.1640625,
+            "height": 31,
+            "fontSize": "10px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "4px",
+            "paddingRight": "4px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "保存相册",
+            "width": 50.1640625,
+            "height": 31,
+            "fontSize": "10px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "4px",
+            "paddingRight": "4px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "转发照片",
+            "width": 50.171875,
+            "height": 31,
+            "fontSize": "10px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "4px",
+            "paddingRight": "4px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "查看原图",
+            "width": 50.1640625,
+            "height": 31,
+            "fontSize": "10px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "4px",
+            "paddingRight": "4px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "保存相册",
+            "width": 50.1640625,
+            "height": 31,
+            "fontSize": "10px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "4px",
+            "paddingRight": "4px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "转发照片",
+            "width": 50.171875,
+            "height": 31,
+            "fontSize": "10px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "4px",
+            "paddingRight": "4px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "查看原图",
+            "width": 50.1640625,
+            "height": 31,
+            "fontSize": "10px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "4px",
+            "paddingRight": "4px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "保存相册",
+            "width": 50.1640625,
+            "height": 31,
+            "fontSize": "10px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "4px",
+            "paddingRight": "4px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "转发照片",
+            "width": 50.171875,
+            "height": 31,
+            "fontSize": "10px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "4px",
+            "paddingRight": "4px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "查看原图",
+            "width": 50.1640625,
+            "height": 31,
+            "fontSize": "10px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "4px",
+            "paddingRight": "4px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "保存相册",
+            "width": 50.1640625,
+            "height": 31,
+            "fontSize": "10px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "4px",
+            "paddingRight": "4px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "转发照片",
+            "width": 50.171875,
+            "height": 31,
+            "fontSize": "10px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "4px",
+            "paddingRight": "4px"
+          }
+        ]
+      },
+      {
+        "name": "purchase-valid-code",
+        "metrics": [
+          {
+            "selector": ".title",
+            "text": "产品购买单 PP20260905123456",
+            "width": 348,
+            "height": 22.5,
+            "fontSize": "16px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".detail-grid text",
+            "text": "购买数量",
+            "width": 153,
+            "height": 12.5,
+            "fontSize": "9px",
+            "ellipsis": "clip",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".detail-grid text",
+            "text": "999 件",
+            "width": 153,
+            "height": 15,
+            "fontSize": "11px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".detail-grid text",
+            "text": "提交时间",
+            "width": 153,
+            "height": 12.5,
+            "fontSize": "9px",
+            "ellipsis": "clip",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".detail-grid text",
+            "text": "2026-09-05 12:34:56",
+            "width": 153,
+            "height": 13,
+            "fontSize": "11px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".detail-grid text",
+            "text": "审核时间",
+            "width": 153,
+            "height": 12.5,
+            "fontSize": "9px",
+            "ellipsis": "clip",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".detail-grid text",
+            "text": "2026-09-05 12:45:00",
+            "width": 153,
+            "height": 13,
+            "fontSize": "11px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".detail-grid text",
+            "text": "提交人员",
+            "width": 153,
+            "height": 12.5,
+            "fontSize": "9px",
+            "ellipsis": "clip",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".detail-grid text",
+            "text": "示例门店",
+            "width": 153,
+            "height": 15,
+            "fontSize": "11px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".detail-grid text",
+            "text": "审核人员",
+            "width": 153,
+            "height": 12.5,
+            "fontSize": "9px",
+            "ellipsis": "clip",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".detail-grid text",
+            "text": "示例总部",
+            "width": 153,
+            "height": 15,
+            "fontSize": "11px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          }
+        ]
+      },
+      {
+        "name": "monthly-metrics",
+        "metrics": [
+          {
+            "selector": ".monthly-metrics text",
+            "text": "基础额度",
+            "width": 61.546875,
+            "height": 10,
+            "fontSize": "7px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".monthly-metrics text",
+            "text": "99999 次",
+            "width": 61.546875,
+            "height": 14,
+            "fontSize": "10px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".monthly-metrics text",
+            "text": "单独充值",
+            "width": 61.546875,
+            "height": 10,
+            "fontSize": "7px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".monthly-metrics text",
+            "text": "99999 次",
+            "width": 61.546875,
+            "height": 14,
+            "fontSize": "10px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".monthly-metrics text",
+            "text": "已体验",
+            "width": 61.546875,
+            "height": 10,
+            "fontSize": "7px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".monthly-metrics text",
+            "text": "99999 次",
+            "width": 61.546875,
+            "height": 14,
+            "fontSize": "10px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".monthly-metrics text",
+            "text": "当前可用",
+            "width": 61.546875,
+            "height": 10,
+            "fontSize": "7px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".monthly-metrics text",
+            "text": "99999 次",
+            "width": 61.546875,
+            "height": 14,
+            "fontSize": "10px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".topbar-title",
+            "text": "示例老师 · 老师主页",
+            "width": 170.828125,
+            "height": 52,
+            "fontSize": "20px",
+            "ellipsis": "clip",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          }
+        ]
+      },
+      {
+        "name": "review-error",
+        "metrics": [
+          {
+            "selector": ".message",
+            "text": "示例：网络繁忙，审核结果未保存，请重试。",
+            "width": 374,
+            "height": 35,
+            "fontSize": "10px",
+            "ellipsis": "clip",
+            "paddingLeft": "10px",
+            "paddingRight": "10px"
+          },
+          {
+            "selector": ".dialog",
+            "text": "确认通过RC260905000001 · 充值×示例美容门店 · 示例客户 · 示例长名称美容护理项目+99999 次 · 2026-09-05 12:34:56申请留言：这是隔离布局检查使用的示例说明。审核人员：示例总部 审核留言（可选）取消确认通过",
+            "width": 362,
+            "height": 399,
+            "fontSize": "13px",
+            "ellipsis": "clip",
+            "paddingLeft": "14px",
+            "paddingRight": "14px"
+          }
+        ]
+      }
+    ]
+  },
+  "tablet": {
+    "viewport": [
+      768,
+      1024
+    ],
+    "cases": [
+      {
+        "name": "photos-actions",
+        "metrics": [
+          {
+            "selector": ".photo-card",
+            "text": "点击重新加载这张照片重新加载此图客户核销照片已留存查看原图保存相册转发照片",
+            "width": 160.5,
+            "height": 304.8125,
+            "fontSize": "16px",
+            "ellipsis": "clip",
+            "paddingLeft": "10px",
+            "paddingRight": "10px"
+          },
+          {
+            "selector": ".photo-card",
+            "text": "点击重新加载这张照片重新加载此图补充照片 1已留存查看原图保存相册转发照片",
+            "width": 160.5,
+            "height": 304.8125,
+            "fontSize": "16px",
+            "ellipsis": "clip",
+            "paddingLeft": "10px",
+            "paddingRight": "10px"
+          },
+          {
+            "selector": ".photo-card",
+            "text": "点击重新加载这张照片重新加载此图补充照片 2已留存查看原图保存相册转发照片",
+            "width": 160.5,
+            "height": 304.8125,
+            "fontSize": "16px",
+            "ellipsis": "clip",
+            "paddingLeft": "10px",
+            "paddingRight": "10px"
+          },
+          {
+            "selector": ".photo-card",
+            "text": "点击重新加载这张照片重新加载此图补充照片 3已留存查看原图保存相册转发照片",
+            "width": 160.5,
+            "height": 304.8125,
+            "fontSize": "16px",
+            "ellipsis": "clip",
+            "paddingLeft": "10px",
+            "paddingRight": "10px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "查看原图",
+            "width": 42.1640625,
+            "height": 42,
+            "fontSize": "13px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "8px",
+            "paddingRight": "8px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "保存相册",
+            "width": 42.1640625,
+            "height": 42,
+            "fontSize": "13px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "8px",
+            "paddingRight": "8px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "转发照片",
+            "width": 42.171875,
+            "height": 42,
+            "fontSize": "13px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "8px",
+            "paddingRight": "8px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "查看原图",
+            "width": 42.1640625,
+            "height": 42,
+            "fontSize": "13px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "8px",
+            "paddingRight": "8px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "保存相册",
+            "width": 42.1640625,
+            "height": 42,
+            "fontSize": "13px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "8px",
+            "paddingRight": "8px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "转发照片",
+            "width": 42.171875,
+            "height": 42,
+            "fontSize": "13px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "8px",
+            "paddingRight": "8px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "查看原图",
+            "width": 42.1640625,
+            "height": 42,
+            "fontSize": "13px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "8px",
+            "paddingRight": "8px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "保存相册",
+            "width": 42.1640625,
+            "height": 42,
+            "fontSize": "13px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "8px",
+            "paddingRight": "8px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "转发照片",
+            "width": 42.171875,
+            "height": 42,
+            "fontSize": "13px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "8px",
+            "paddingRight": "8px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "查看原图",
+            "width": 42.1640625,
+            "height": 42,
+            "fontSize": "13px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "8px",
+            "paddingRight": "8px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "保存相册",
+            "width": 42.1640625,
+            "height": 42,
+            "fontSize": "13px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "8px",
+            "paddingRight": "8px"
+          },
+          {
+            "selector": ".photo-actions button",
+            "text": "转发照片",
+            "width": 42.171875,
+            "height": 42,
+            "fontSize": "13px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "8px",
+            "paddingRight": "8px"
+          }
+        ]
+      },
+      {
+        "name": "purchase-valid-code",
+        "metrics": [
+          {
+            "selector": ".title",
+            "text": "产品购买单 PP20260905123456",
+            "width": 592,
+            "height": 33.5,
+            "fontSize": "24px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".detail-grid text",
+            "text": "购买数量",
+            "width": 171,
+            "height": 18.5,
+            "fontSize": "13px",
+            "ellipsis": "clip",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".detail-grid text",
+            "text": "999 件",
+            "width": 171,
+            "height": 24,
+            "fontSize": "17px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".detail-grid text",
+            "text": "提交时间",
+            "width": 171,
+            "height": 18.5,
+            "fontSize": "13px",
+            "ellipsis": "clip",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".detail-grid text",
+            "text": "2026-09-05 12:34:56",
+            "width": 171,
+            "height": 20,
+            "fontSize": "17px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".detail-grid text",
+            "text": "审核时间",
+            "width": 171,
+            "height": 18.5,
+            "fontSize": "13px",
+            "ellipsis": "clip",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".detail-grid text",
+            "text": "2026-09-05 12:45:00",
+            "width": 171,
+            "height": 20,
+            "fontSize": "17px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".detail-grid text",
+            "text": "提交人员",
+            "width": 171,
+            "height": 18.5,
+            "fontSize": "13px",
+            "ellipsis": "clip",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".detail-grid text",
+            "text": "示例门店",
+            "width": 171,
+            "height": 24,
+            "fontSize": "17px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".detail-grid text",
+            "text": "审核人员",
+            "width": 171,
+            "height": 18.5,
+            "fontSize": "13px",
+            "ellipsis": "clip",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".detail-grid text",
+            "text": "示例总部",
+            "width": 171,
+            "height": 24,
+            "fontSize": "17px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          }
+        ]
+      },
+      {
+        "name": "monthly-metrics",
+        "metrics": [
+          {
+            "selector": ".monthly-metrics text",
+            "text": "基础额度",
+            "width": 51.25,
+            "height": 15,
+            "fontSize": "11px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".monthly-metrics text",
+            "text": "99999 次",
+            "width": 51.25,
+            "height": 22.5,
+            "fontSize": "16px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".monthly-metrics text",
+            "text": "单独充值",
+            "width": 51.25,
+            "height": 15,
+            "fontSize": "11px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".monthly-metrics text",
+            "text": "99999 次",
+            "width": 51.25,
+            "height": 22.5,
+            "fontSize": "16px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".monthly-metrics text",
+            "text": "已体验",
+            "width": 51.25,
+            "height": 15,
+            "fontSize": "11px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".monthly-metrics text",
+            "text": "99999 次",
+            "width": 51.25,
+            "height": 22.5,
+            "fontSize": "16px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".monthly-metrics text",
+            "text": "当前可用",
+            "width": 51.25,
+            "height": 15,
+            "fontSize": "11px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".monthly-metrics text",
+            "text": "99999 次",
+            "width": 51.25,
+            "height": 22.5,
+            "fontSize": "16px",
+            "ellipsis": "ellipsis",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".topbar-title",
+            "text": "示例老师 · 老师主页",
+            "width": 242.859375,
+            "height": 36.3984375,
+            "fontSize": "28px",
+            "ellipsis": "clip",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          }
+        ]
+      },
+      {
+        "name": "review-error",
+        "metrics": [
+          {
+            "selector": ".message",
+            "text": "示例：网络繁忙，审核结果未保存，请重试。",
+            "width": 720,
+            "height": 47,
+            "fontSize": "14px",
+            "ellipsis": "clip",
+            "paddingLeft": "14px",
+            "paddingRight": "14px"
+          },
+          {
+            "selector": ".dialog",
+            "text": "确认通过RC260905000001 · 充值×示例美容门店 · 示例客户 · 示例长名称美容护理项目+99999 次 · 2026-09-05 12:34:56申请留言：这是隔离布局检查使用的示例说明。审核人员：示例总部 审核留言（可选）取消确认通过",
+            "width": 680,
+            "height": 469.1875,
+            "fontSize": "16px",
+            "ellipsis": "clip",
+            "paddingLeft": "24px",
+            "paddingRight": "24px"
+          }
+        ]
+      },
+      {
+        "name": "store-create",
+        "metrics": [
+          {
+            "selector": ".actions",
+            "text": "返回门店管理创建门店与登录账号",
+            "width": 560,
+            "height": 46,
+            "fontSize": "16px",
+            "ellipsis": "clip",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".actions button",
+            "text": "返回门店管理",
+            "width": 184,
+            "height": 46,
+            "fontSize": "15px",
+            "ellipsis": "clip",
+            "paddingLeft": "16px",
+            "paddingRight": "16px"
+          },
+          {
+            "selector": ".actions button",
+            "text": "创建门店与登录账号",
+            "width": 184,
+            "height": 46,
+            "fontSize": "15px",
+            "ellipsis": "clip",
+            "paddingLeft": "16px",
+            "paddingRight": "16px"
+          }
+        ]
+      },
+      {
+        "name": "retail-product-management",
+        "metrics": [
+          {
+            "selector": ".product-row",
+            "text": "示例长名称美容护理项目0QA01活跃封存",
+            "width": 335,
+            "height": 116,
+            "fontSize": "14px",
+            "ellipsis": "clip",
+            "paddingLeft": "18px",
+            "paddingRight": "18px"
+          },
+          {
+            "selector": ".product-row",
+            "text": "示例长名称美容护理项目1QA01活跃封存",
+            "width": 335,
+            "height": 116,
+            "fontSize": "14px",
+            "ellipsis": "clip",
+            "paddingLeft": "18px",
+            "paddingRight": "18px"
+          },
+          {
+            "selector": ".product-row",
+            "text": "示例长名称美容护理项目2QA01活跃封存",
+            "width": 335,
+            "height": 116,
+            "fontSize": "14px",
+            "ellipsis": "clip",
+            "paddingLeft": "18px",
+            "paddingRight": "18px"
+          },
+          {
+            "selector": ".product-row",
+            "text": "示例长名称美容护理项目3QA01活跃封存",
+            "width": 335,
+            "height": 116,
+            "fontSize": "14px",
+            "ellipsis": "clip",
+            "paddingLeft": "18px",
+            "paddingRight": "18px"
+          },
+          {
+            "selector": ".status-button",
+            "text": "封存",
+            "width": 184,
+            "height": 38,
+            "fontSize": "13px",
+            "ellipsis": "clip",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".status-button",
+            "text": "封存",
+            "width": 184,
+            "height": 38,
+            "fontSize": "13px",
+            "ellipsis": "clip",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".status-button",
+            "text": "封存",
+            "width": 184,
+            "height": 38,
+            "fontSize": "13px",
+            "ellipsis": "clip",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          },
+          {
+            "selector": ".status-button",
+            "text": "封存",
+            "width": 184,
+            "height": 38,
+            "fontSize": "13px",
+            "ellipsis": "clip",
+            "paddingLeft": "0px",
+            "paddingRight": "0px"
+          }
+        ]
+      }
+    ]
+  },
+  "phoneButtonBounds": [
+    {
+      "name": "store-create",
+      "rows": [
+        {
+          "text": "返回门店管理",
+          "left": 7,
+          "top": 622,
+          "width": 184,
+          "height": 40
+        },
+        {
+          "text": "创建门店与登录账号",
+          "left": 161,
+          "top": 622,
+          "width": 184,
+          "height": 40
+        }
+      ]
+    },
+    {
+      "name": "teacher-create",
+      "rows": [
+        {
+          "text": "返回老师管理",
+          "left": 7,
+          "top": 541.640625,
+          "width": 184,
+          "height": 40
+        },
+        {
+          "text": "创建老师账号",
+          "left": 161,
+          "top": 541.640625,
+          "width": 184,
+          "height": 40
+        }
+      ]
+    },
+    {
+      "name": "retail-product-management",
+      "rows": [
+        {
+          "text": "封存",
+          "left": 188.9921875,
+          "top": 233,
+          "width": 184,
+          "height": 29
+        },
+        {
+          "text": "封存",
+          "left": 188.9921875,
+          "top": 276,
+          "width": 184,
+          "height": 29
+        },
+        {
+          "text": "封存",
+          "left": 188.9921875,
+          "top": 319,
+          "width": 184,
+          "height": 29
+        },
+        {
+          "text": "封存",
+          "left": 188.9921875,
+          "top": 362,
+          "width": 184,
+          "height": 29
+        }
+      ]
+    }
+  ]
+}
