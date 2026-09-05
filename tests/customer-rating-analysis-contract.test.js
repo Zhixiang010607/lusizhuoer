@@ -17,7 +17,7 @@ const pageWxml = read("miniprogram-app/miniprogram/pages/rating-analysis/index.w
 const pageWxss = read("miniprogram-app/miniprogram/pages/rating-analysis/index.wxss");
 
 test("rating analysis classifies each eligible order by its lowest score and reserves zero for unrated", () => {
-  assert.match(cloud, /const FUNCTION_VERSION = "v6"/);
+  assert.match(cloud, /const FUNCTION_VERSION = "v7"/);
   assert.match(cloud, /WHEN r\.rating_status = 'SUBMITTED' AND r\.submitted_at IS NOT NULL[\s\S]*THEN LEAST\(r\.store_environment_score, r\.overall_experience_score,[\s\S]*COALESCE\(r\.teacher_service_score, 5\)\)[\s\S]*ELSE 0/);
   assert.match(cloud, /vr\.record_status = 'APPROVED'/);
   assert.match(cloud, /vr\.verification_type IN \('NORMAL', 'EXPERIENCE'\)/);
@@ -39,7 +39,7 @@ test("rating analysis locks stores by role and supports project, teacher, Shangh
   assert.match(cloud, /AT TIME ZONE 'Asia\/Shanghai'/);
   assert.match(cloud, /自定义时间范围不能超过 366 天/);
   assert.match(cloud, /评分必须从 0 至 5 分中至少选择一项/);
-  assert.match(cloud, /ORDER BY submitted_at DESC, id DESC[\s\S]*LIMIT \$\{limit\}[\s\S]*OFFSET \$\{\(requestedPage - 1\) \* limit\}/);
+  assert.match(cloud, /ORDER BY submitted_at DESC, id DESC[\s\S]*LIMIT \$\{limit\}[\s\S]*OFFSET \$\{exportAll \? 0 : \(requestedPage - 1\) \* limit\}/);
   assert.match(cloud, /仅总部或门店可以查询评价分析/);
   assert.match(cloud, /case "getRatingAnalysisOptions"/);
   assert.match(cloud, /case "queryRatingAnalysis"/);
@@ -58,11 +58,10 @@ test("HQ runtime returns full-scope pies while a score combination filters only 
     if (Sql.includes("FROM public.staff_accounts a")) {
       return sqlResult({ id: "7", role_code: "hq", account_status: "ACTIVE", store_id: null, store_status: null, teacher_id: null, teacher_status: null });
     }
-    if (Sql.includes("COUNT(*)::BIGINT AS total_count")) {
-      return sqlResult({ total_count: "20", rated_count: "15", score_0_count: "5", score_1_count: "1", score_2_count: "2", score_3_count: "3", score_4_count: "4", score_5_count: "5", selected_count: "9" });
-    }
-    if (Sql.includes("ORDER BY submitted_at DESC, id DESC")) {
+    if (Sql.includes("summary AS") && Sql.includes("paged AS")) {
       return sqlResult({
+        total_count: "20", rated_count: "15", score_0_count: "5", score_1_count: "1",
+        score_2_count: "2", score_3_count: "3", score_4_count: "4", score_5_count: "5", selected_count: "9",
         id: "42", record_code: "VXST202609030042", verification_type: "NORMAL",
         customer_code: "CST000042", customer_name: "测试客户", store_id: "3", store_name: "测试门店",
         product_id: "8", product_name: "测试项目", teacher_id: "5", teacher_name: "测试老师",
@@ -90,7 +89,7 @@ test("HQ runtime returns full-scope pies while a score combination filters only 
     startDate: "2026-09-01", endDate: "2026-09-03", scores: [0, 4], pageNumber: 1, pageSize: 20
   });
   assert.equal(result.success, true);
-  assert.equal(result.version, "v6");
+  assert.equal(result.version, "v7");
   assert.deepEqual(Array.from(result.data.selectedScores), [0, 4]);
   assert.deepEqual(Array.from(result.data.summary.scoreCounts), [5, 1, 2, 3, 4, 5]);
   assert.equal(result.data.summary.total, 20);
@@ -103,6 +102,8 @@ test("HQ runtime returns full-scope pies while a score combination filters only 
   assert.match(combinedSql, /vr\.product_id = 8/);
   assert.match(combinedSql, /vr\.teacher_id = 5/);
   assert.match(combinedSql, /effective_score IN \(0, 4\)/);
+  assert.equal(sqlCalls.filter((sql) => sql.includes("summary AS") && sql.includes("paged AS")).length, 1,
+    "summary, charts and page rows must share one database statement");
 });
 
 test("mini-program exposes a two-pie rating analysis with arbitrary 0-5 multi-select", () => {
@@ -119,8 +120,8 @@ test("mini-program exposes a two-pie rating analysis with arbitrary 0-5 multi-se
   }
   assert.match(pageWxml, /0 表示未评价/);
   assert.match(pageWxml, /例如 5、5、4 归为 4 分/);
-  assert.match(pageWxml, /class="pie-chart" style="background: \{\{summary\.scoreGradient\}\}"/);
-  assert.match(pageWxml, /class="pie-chart" style="background: \{\{summary\.coverageGradient\}\}"/);
+  assert.match(pageWxml, /wx:for="\{\{summary\.scoreSlices\}\}"[^>]*class="pie-slice"/);
+  assert.match(pageWxml, /wx:for="\{\{summary\.coverageSlices\}\}"[^>]*class="pie-slice"/);
   assert.match(pageWxml, /分数多选不会改变图表分母/);
   assert.match(pageWxml, /0 分未评价不进入本图/);
   assert.match(pageJs, /const ratedCounts = counts\.slice\(1\)/,
@@ -143,11 +144,11 @@ test("mini-program exposes a two-pie rating analysis with arbitrary 0-5 multi-se
     "counts and percentages must not remain visually merged in one text node");
   assert.match(pageWxss, /\.chart-body \{[^}]*display: flex;[^}]*flex-direction: column;[^}]*align-items: stretch;/,
     "page-native pie views use a stable vertical flex layout above the full-width legends");
-  assert.match(pageWxml, /class="pie-chart" style="background: \{\{summary\.scoreGradient\}\}"/);
-  assert.match(pageWxml, /class="pie-chart" style="background: \{\{summary\.coverageGradient\}\}"/);
+  assert.doesNotMatch(pageJs, /conic-gradient\(/,
+    "rating charts must not depend on conic-gradient support in older iPad WebViews");
   assert.doesNotMatch(pageWxml, /<canvas\b/,
     "rating pies must not use native canvas layers that can drift away from their cards");
-  assert.match(pageWxss, /\.pie-chart \{ width: 270rpx; height: 270rpx;/);
+  assert.match(pageWxss, /\.pie-chart \{[^}]*width: 270rpx; height: 270rpx;/);
   assert.match(pageWxss, /\.chart-legend \{[^}]*width: auto;[^}]*min-width: 100%;[^}]*display: inline-table;[^}]*table-layout: auto;[^}]*border-collapse: collapse;/,
     "score, count, and percentage use the same full-width content-adaptive table layout as query results");
   assert.match(pageWxss, /\.legend-head, \.legend-row \{ display: table-row;/);
@@ -157,8 +158,8 @@ test("mini-program exposes a two-pie rating analysis with arbitrary 0-5 multi-se
     "tablet pies stay enlarged inside the two-card grid");
   assert.match(pageWxss, /@media \(min-width: 700px\)[\s\S]*\.legend-row > \.legend-key, \.legend-row > \.legend-count, \.legend-row > \.legend-value \{[^}]*font-size: 22px;/,
     "tablet legend data uses readable physical-pixel text");
-  assert.match(pageJs, /function pieGradient\(items = \[\]\)/,
-    "pie colors are derived directly from the current summary without an asynchronous canvas draw");
+  assert.match(pageJs, /function pieSlices\(items = \[\]\)/,
+    "pie sectors are derived directly from the current summary without an asynchronous canvas draw");
   assert.match(pageWxss, /\.pie-total \{ font-size: 44rpx;/,
     "phone pie-center totals remain large and readable");
   assert.match(pageWxss, /\.chart-grid \{ display: grid; grid-template-columns: 1fr;/);

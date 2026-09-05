@@ -19,8 +19,10 @@
 .chart-card .card-title text:first-child { font-size: 38rpx; }
 .chart-card .badge { padding: 8rpx 15rpx; font-size: 26rpx; }
 .chart-body { min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: 14rpx; }
-.pie-chart { width: 270rpx; height: 270rpx; flex: none; display: flex; align-items: center; justify-content: center; align-self: center; border-radius: 50%; }
-.pie-center { width: 57%; height: 57%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #302a22; background: #fffaf3; border-radius: 50%; text-align: center; }
+.pie-chart { position: relative; width: 270rpx; height: 270rpx; flex: none; align-self: center; overflow: hidden; background: #e3d8c8; border-radius: 50%; }
+.pie-slice { position: absolute; top: 0; left: 50%; width: 50%; height: 100%; overflow: hidden; transform-origin: left center; }
+.pie-slice-fill { position: absolute; top: 0; left: -100%; width: 100%; height: 100%; transform-origin: right center; border-radius: 100% 0 0 100% / 50% 0 0 50%; }
+.pie-center { position: absolute; z-index: 2; top: 21.5%; left: 21.5%; width: 57%; height: 57%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #302a22; background: #fffaf3; border-radius: 50%; text-align: center; }
 .pie-total { font-size: 44rpx; font-weight: 900; line-height: 1.05; }
 .pie-label { margin-top: 7rpx; color: #7c7062; font-size: 28rpx; font-weight: 650; line-height: 1.15; }
 .chart-legend { width: auto; max-width: 100%; min-width: 100%; display: inline-table; align-self: stretch; table-layout: auto; border-collapse: collapse; }

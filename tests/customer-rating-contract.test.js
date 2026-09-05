@@ -50,8 +50,8 @@ test("migration 068 binds one immutable rating to a completed normal or experien
     "migration 068 handoff must verify the cloud function retains CRUD access");
 });
 
-test("customerRating v6 keeps public links signed, stable, scoped, and one-time", () => {
-  assert.match(cloud, /const FUNCTION_VERSION = "v6"/);
+test("customerRating v7 keeps public links signed, stable, scoped, and one-time", () => {
+  assert.match(cloud, /const FUNCTION_VERSION = "v7"/);
   assert.match(cloud, /CUSTOMER_RATING_SIGNING_KEY/);
   assert.match(cloud, /缺少 CUSTOMER_RATING_BASE_URL/);
   assert.match(cloud, /Buffer\.byteLength\(value, "utf8"\) >= 32/);
@@ -101,6 +101,10 @@ test("customerRating v6 keeps public links signed, stable, scoped, and one-time"
     "a submitted rating must be returned read-only instead of being updated again");
   assert.match(submit, /COMMENT_TOO_LONG/);
   assert.match(submit, /row\.teacher_id[\s\S]*numberScore\(event\.teacherServiceScore/);
+  assert.match(submit, /readRatingAfterWrite\(row\.verification_id/,
+    "an empty UPDATE RETURNING envelope must trigger bounded durable readback");
+  assert.match(submit, /String\(candidate\.token_hash \|\| ""\) === String\(result\.verified\.tokenHash\)/,
+    "submit readback must confirm the exact signed token digest");
 
   const publicRead = functionBody(cloud, "publicRow", "getPublic");
   assert.match(publicRead, /JOIN public\.products p ON p\.id = vr\.product_id/,
@@ -111,9 +115,11 @@ test("customerRating v6 keeps public links signed, stable, scoped, and one-time"
   assert.match(cloud, /serviceTime: row\?\.service_time \|\| ""/);
 });
 
-test("customerRating v6 issues an HQ QR when CloudBase commits writes with empty RETURNING rows", async () => {
+test("customerRating v7 issues an HQ QR when CloudBase commits writes with empty RETURNING rows", async () => {
   let rating = null;
+  let pendingSubmission = null;
   let ratingReadsAfterInsert = 0;
+  let submissionReadbacks = 0;
   const sqlResult = (row) => row
     ? { Columns: Object.keys(row), Rows: [Object.values(row)] }
     : { Columns: [], Rows: [] };
@@ -125,6 +131,10 @@ test("customerRating v6 issues an HQ QR when CloudBase commits writes with empty
       return sqlResult({ id: "7", role_code: "hq", account_status: "ACTIVE", store_id: null, store_status: null, teacher_id: null, teacher_status: null });
     }
     if (Sql.includes("FROM public.verification_customer_ratings r")) {
+      if (pendingSubmission && submissionReadbacks++ > 0) {
+        rating = pendingSubmission;
+        pendingSubmission = null;
+      }
       if (rating && ratingReadsAfterInsert++ === 0) return sqlResult(null);
       return sqlResult(rating);
     }
@@ -150,6 +160,19 @@ test("customerRating v6 issues an HQ QR when CloudBase commits writes with empty
       const tokenHash = /SET token_hash = '([0-9a-f]{64})'/.exec(Sql)?.[1];
       assert.ok(tokenHash, "token update must persist a SHA-256 digest");
       rating = { ...rating, token_hash: tokenHash };
+      return sqlResult(null);
+    }
+    if (Sql.includes("UPDATE public.verification_customer_ratings") && Sql.includes("SET store_environment_score")) {
+      assert.match(Sql, /store_environment_score = 5/);
+      assert.match(Sql, /teacher_service_score = 4/);
+      assert.match(Sql, /overall_experience_score = 3/);
+      assert.match(Sql, /customer_comment = '服务很好'/);
+      pendingSubmission = {
+        ...rating,
+        rating_status: "SUBMITTED", rating_submitted_at: "2026-09-02T00:30:00Z",
+        store_environment_score: 5, teacher_service_score: 4,
+        overall_experience_score: 3, customer_comment: "服务很好"
+      };
       return sqlResult(null);
     }
     throw new Error(`unexpected SQL in customerRating runtime test: ${Sql}`);
@@ -186,11 +209,26 @@ test("customerRating v6 issues an HQ QR when CloudBase commits writes with empty
   vm.runInNewContext(cloud, sandbox, { filename: "cloudfunctions/customerRating/index.js" });
   const result = await module.exports.main({ action: "issueForReceipt", verificationId: "42" });
   assert.equal(result.success, true);
-  assert.equal(result.version, "v6");
+  assert.equal(result.version, "v7");
   assert.equal(result.data.alreadySubmitted, false);
   assert.equal(result.data.qrDataUrl, "data:image/png;base64,dGVzdA==");
   assert.match(result.data.url, /^https:\/\/example\.test\/rating\.html\?token=/);
   assert.equal(ratingReadsAfterInsert >= 2, true, "the empty insert response must trigger durable read retries");
+
+  const token = new URL(result.data.url).searchParams.get("token");
+  const submitted = await module.exports.main({
+    action: "submitPublic", token,
+    storeEnvironmentScore: 5, teacherServiceScore: 4, overallExperienceScore: 3,
+    customerComment: "服务很好"
+  });
+  assert.equal(submitted.success, true);
+  assert.equal(submitted.data.submitted, true);
+  assert.equal(submitted.data.storeEnvironmentScore, 5);
+  assert.equal(submitted.data.teacherServiceScore, 4);
+  assert.equal(submitted.data.overallExperienceScore, 3);
+  assert.equal(submitted.data.customerComment, "服务很好");
+  assert.equal(submissionReadbacks >= 2, true,
+    "an empty submit RETURNING envelope must retry until the durable rating is visible");
 });
 
 test("public rating page shows service context, three star groups, and scrollable optional text without staff login", () => {

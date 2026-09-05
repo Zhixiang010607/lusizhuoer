@@ -199,18 +199,33 @@ Page({
     };
   },
 
+  firstPageState(category, result) {
+    const section = result.sections?.[category];
+    if (!section || !Array.isArray(section.balances)) {
+      throw new Error("余次预警服务版本过旧，请先部署最新云函数");
+    }
+    const summary = result.summary || { ...EMPTY_SUMMARY };
+    const categoryTotal = Number(section.categoryTotal || 0);
+    const totalPages = Math.max(1, Math.ceil(categoryTotal / PAGE_SIZE));
+    const stack = [null];
+    if (section.hasMore && section.nextCursor) stack[1] = section.nextCursor;
+    return {
+      rows: balanceRows(section.balances), summary, categoryTotal, totalPages,
+      stack, nextCursor: section.nextCursor || null
+    };
+  },
+
   async loadBoth() {
     const epoch = Number(this._requestEpoch || 0) + 1;
     this._requestEpoch = epoch;
     const basePayload = this.basePayload();
     this.setData({ loading: true, message: "", error: false });
     try {
-      const [zeroState, nonzeroState] = await Promise.all([
-        this.resolveCategoryPage("ZERO", 1, epoch, basePayload),
-        this.resolveCategoryPage("NONZERO", 1, epoch, basePayload)
-      ]);
-      if (epoch !== this._requestEpoch || !zeroState || !nonzeroState) return;
-      const summary = zeroState.summary;
+      const result = await this.fetchPage("BOTH", null, basePayload);
+      if (epoch !== this._requestEpoch) return;
+      const zeroState = this.firstPageState("ZERO", result);
+      const nonzeroState = this.firstPageState("NONZERO", result);
+      const summary = result.summary || { ...EMPTY_SUMMARY };
       this.setData({
         searched: true, summary, total: Number(summary.selectedTotal || 0),
         ...this.categoryPatch("ZERO", 1, zeroState),
@@ -299,26 +314,16 @@ Page({
     return String(this.data.products[this.data.productIndex - 1]?.name || "指定项目");
   },
 
-  async collectCategory(category, expectedCategoryTotal, expectedTotal, basePayload, exportEpoch, uniqueRows) {
-    const seenCursors = new Set();
-    let cursor = null;
-    while (true) {
-      const result = await this.fetchPage(category, cursor, basePayload);
-      if (exportEpoch !== this._exportEpoch) return;
-      if (Number(result.summary?.selectedTotal || 0) !== expectedTotal
-          || Number(result.summary?.categoryTotal || 0) !== expectedCategoryTotal) {
-        throw new Error("查询结果在导出期间发生变化，请重新查询后再导出");
-      }
-      for (const row of balanceRows(result.balances || [])) uniqueRows.set(row.rowKey, row);
-      if (uniqueRows.size > EXPORT_MAX_ROWS) throw new Error(`单次最多导出 ${EXPORT_MAX_ROWS} 条，请缩小查询范围`);
-      this.setData({ message: `正在准备导出 ${Math.min(uniqueRows.size, expectedTotal)} / ${expectedTotal} 个卡项…`, error: false });
-      if (!result.hasMore) break;
-      if (!result.nextCursor) throw new Error("导出游标缺失，请重新查询后再试");
-      const fingerprint = JSON.stringify(result.nextCursor);
-      if (seenCursors.has(fingerprint)) throw new Error("导出游标重复，请重新查询后再试");
-      seenCursors.add(fingerprint);
-      cursor = result.nextCursor;
-    }
+  async collectExportSnapshot(expectedTotal, exportEpoch) {
+    const result = await this.fetchPage("BOTH", null, { ...this.basePayload(EXPORT_BATCH_SIZE), exportAll: true });
+    if (exportEpoch !== this._exportEpoch) return [];
+    const snapshotTotal = Number(result.summary?.selectedTotal || 0);
+    if (snapshotTotal !== expectedTotal) throw new Error("查询结果在导出前发生变化，请重新查询后再导出");
+    const rows = balanceRows(result.exportBalances || []);
+    if (rows.length !== snapshotTotal) throw new Error("完整导出结果校验失败，请重新查询后再导出");
+    const uniqueRows = new Map(rows.map((row) => [row.rowKey, row]));
+    if (uniqueRows.size !== rows.length) throw new Error("完整导出出现重复卡项，请重新查询后再导出");
+    return [...uniqueRows.values()];
   },
 
   async exportAll(format = "excel") {
@@ -331,15 +336,10 @@ Page({
     }
     const exportEpoch = Number(this._exportEpoch || 0) + 1;
     this._exportEpoch = exportEpoch;
-    const basePayload = this.basePayload(EXPORT_BATCH_SIZE);
-    const uniqueRows = new Map();
     this.setData({ exporting: true, message: `正在准备导出 0 / ${expectedTotal} 个卡项…`, error: false });
     try {
-      await this.collectCategory("ZERO", Number(this.data.zeroTotal || 0), expectedTotal, basePayload, exportEpoch, uniqueRows);
-      await this.collectCategory("NONZERO", Number(this.data.nonzeroTotal || 0), expectedTotal, basePayload, exportEpoch, uniqueRows);
+      const rows = await this.collectExportSnapshot(expectedTotal, exportEpoch);
       if (exportEpoch !== this._exportEpoch) return;
-      const rows = [...uniqueRows.values()];
-      if (rows.length !== expectedTotal) throw new Error("查询结果在导出期间发生变化，请重新查询后再导出");
       const today = query.businessToday();
       const reportOptions = {
         title: "余次预警查询结果", sheetName: "余次预警",

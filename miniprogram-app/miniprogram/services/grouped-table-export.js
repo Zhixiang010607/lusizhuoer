@@ -1,5 +1,5 @@
 const EXPORT_BATCH_SIZE = 100;
-const EXPORT_MAX_ROWS = 10000;
+const EXPORT_MAX_ROWS = 1000;
 
 function clean(value) { return String(value ?? "").trim(); }
 function safeFilename(value) {
@@ -16,6 +16,11 @@ function validXmlText(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;");
+}
+function visualUnits(value) {
+  return Array.from(String(value ?? "")).reduce(
+    (sum, character) => sum + (character.codePointAt(0) <= 0x7f ? 1 : 2), 0
+  );
 }
 function utf8Bytes(value) {
   const bytes = [];
@@ -132,7 +137,7 @@ function stylesXml() {
   <fills count="6"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF2E2C5"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FF80602F"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFFAF3"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFF8ED"/><bgColor indexed="64"/></patternFill></fill></fills>
   <borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFE5D7C2"/></left><right style="thin"><color rgb="FFE5D7C2"/></right><top style="thin"><color rgb="FFE5D7C2"/></top><bottom style="thin"><color rgb="FFE5D7C2"/></bottom><diagonal/></border></borders>
   <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-  <cellXfs count="7"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="2" fillId="5" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="164" fontId="0" fillId="4" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf></cellXfs>
+  <cellXfs count="8"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="2" fillId="5" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="164" fontId="0" fillId="4" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf></cellXfs>
   <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`;
 }
@@ -142,8 +147,11 @@ function worksheetXml({ title, criteria, columns, rows, groupKey, groupLabel }) 
   const lastColumn = columnName(columns.length - 1);
   const xmlRows = [];
   const merges = [`A1:${lastColumn}1`, `A2:${lastColumn}2`];
+  const criteriaCapacity = Math.max(20, columns.reduce((sum, column) => sum + Number(column.width || 16), 0));
+  const criteriaLineCount = Math.max(1, Math.ceil(visualUnits(criteria) / criteriaCapacity));
+  const criteriaHeight = 8 + criteriaLineCount * 18;
   xmlRows.push(`<row r="1" ht="32" customHeight="1">${inlineCell("A1", title, 1)}</row>`);
-  xmlRows.push(`<row r="2" ht="22" customHeight="1">${inlineCell("A2", criteria, 2)}</row>`);
+  xmlRows.push(`<row r="2" ht="${criteriaHeight}" customHeight="1">${inlineCell("A2", criteria, 7)}</row>`);
   xmlRows.push('<row r="3" ht="9" customHeight="1"/>');
   let rowNumber = 4;
   for (const group of groups) {

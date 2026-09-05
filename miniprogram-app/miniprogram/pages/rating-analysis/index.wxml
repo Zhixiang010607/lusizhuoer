@@ -23,7 +23,10 @@
     <view class="card chart-card">
       <view class="card-title"><text>1–5 分分布</text><text class="badge">共 {{summary.rated}} 单</text></view>
       <view class="chart-body">
-        <view class="pie-chart" style="background: {{summary.scoreGradient}}"><view class="pie-center"><text class="pie-total">{{summary.rated}}</text><text class="pie-label">已评价</text></view></view>
+        <view class="pie-chart">
+          <view wx:for="{{summary.scoreSlices}}" wx:key="key" class="pie-slice" style="{{item.sliceStyle}}"><view class="pie-slice-fill" style="{{item.fillStyle}}"></view></view>
+          <view class="pie-center"><text class="pie-total">{{summary.rated}}</text><text class="pie-label">已评价</text></view>
+        </view>
         <view class="chart-legend">
           <view class="legend-head"><text>评分</text><text>数量</text><text>占比</text></view>
           <view wx:for="{{summary.scoreLegend}}" wx:key="score" class="legend-row"><view class="legend-key"><view class="legend-key-content"><text class="legend-dot" style="background: {{item.color}}"></text><text class="legend-label">{{item.label}}</text></view></view><text class="legend-count">{{item.count}}</text><text class="legend-value">{{item.percentage}}</text></view>
@@ -34,7 +37,10 @@
     <view class="card chart-card">
       <view class="card-title"><text>评价覆盖率</text><text class="badge">{{summary.rated}} / {{summary.total}}</text></view>
       <view class="chart-body coverage-body">
-        <view class="pie-chart" style="background: {{summary.coverageGradient}}"><view class="pie-center"><text class="pie-total">{{summary.coveragePercent}}</text><text class="pie-label">评价覆盖率</text></view></view>
+        <view class="pie-chart">
+          <view wx:for="{{summary.coverageSlices}}" wx:key="key" class="pie-slice" style="{{item.sliceStyle}}"><view class="pie-slice-fill" style="{{item.fillStyle}}"></view></view>
+          <view class="pie-center"><text class="pie-total">{{summary.coveragePercent}}</text><text class="pie-label">评价覆盖率</text></view>
+        </view>
         <view class="chart-legend">
           <view class="legend-head"><text>状态</text><text>数量</text><text>占比</text></view>
           <view wx:for="{{summary.coverageLegend}}" wx:key="label" class="legend-row"><view class="legend-key"><view class="legend-key-content"><text class="legend-dot" style="background: {{item.color}}"></text><text class="legend-label">{{item.label}}</text></view></view><text class="legend-count">{{item.count}}</text><text class="legend-value">{{item.percentage}}</text></view>
@@ -46,7 +52,7 @@
 
   <view class="card result-card">
     <view class="card-title"><text>工单结果</text><text class="badge">共 {{total}} 单</text></view>
-    <view wx:if="{{searched}}" class="result-export"><text>导出当前条件下的全部工单，按门店分组；PDF、Excel 单次上限均为 10000 单。</text><view class="export-buttons"><button class="secondary" bindtap="exportPdf" loading="{{exporting}}" disabled="{{loading || exporting || total <= 0}}">导出 PDF</button><button class="secondary" bindtap="exportExcel" loading="{{exporting}}" disabled="{{loading || exporting || total <= 0}}">导出 Excel</button></view></view>
+    <view wx:if="{{searched}}" class="result-export"><text>导出当前条件下的全部工单，按门店分组；PDF、Excel 单次上限均为 1000 单。</text><view class="export-buttons"><button class="secondary" bindtap="exportPdf" loading="{{exporting}}" disabled="{{loading || exporting || total <= 0}}">导出 PDF</button><button class="secondary" bindtap="exportExcel" loading="{{exporting}}" disabled="{{loading || exporting || total <= 0}}">导出 Excel</button></view></view>
     <view wx:if="{{loading}}" class="empty">正在读取评价工单…</view>
     <scroll-view wx:elif="{{orders.length}}" class="rating-table-scroll" scroll-x="true" data-visible-rows="{{orders.length > 5 ? 5 : orders.length}}" scroll-y="{{orders.length > 5}}" scroll-left="{{tableScrollLeft}}" enhanced="true" show-scrollbar="{{orders.length > 5}}">
       <view class="rating-table">

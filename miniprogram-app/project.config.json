@@ -13,7 +13,11 @@
       { "type": "file", "value": "pnpm-lock.yaml" },
       { "type": "file", "value": "services/Untitled.png" }
     ],
-    "include": []
+    "include": [
+      { "type": "file", "value": "pages/inactive-customers/NotoSansCJKsc-Common-Identity.br" },
+      { "type": "file", "value": "pages/low-balance-customers/NotoSansCJKsc-Common-Identity.br" },
+      { "type": "file", "value": "pages/rating-analysis/NotoSansCJKsc-Common-Identity.br" }
+    ]
   },
   "setting": {
     "es6": true,

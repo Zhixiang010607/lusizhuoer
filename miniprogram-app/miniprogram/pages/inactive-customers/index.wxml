@@ -20,7 +20,7 @@
   <view class="card result-card">
     <view class="card-title"><text>客户结果</text><text class="badge">共 {{total}} 位</text></view>
     <view wx:if="{{searched}}" class="result-export">
-      <text>导出当前条件下的全部客户，按门店分组并保留预警分类；PDF、Excel 单次上限均为 10000 位。</text>
+      <text>导出当前条件下的全部客户，按门店分组并保留预警分类；PDF、Excel 单次上限均为 1000 位。</text>
       <view class="export-buttons"><button class="secondary" bindtap="exportPdf" loading="{{exporting}}" disabled="{{loading || exporting || total <= 0}}">导出 PDF</button><button class="secondary" bindtap="exportExcel" loading="{{exporting}}" disabled="{{loading || exporting || total <= 0}}">导出 Excel</button></view>
     </view>
     <view wx:if="{{loading && !searched}}" class="empty">正在读取客户…</view>

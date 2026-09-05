@@ -38,7 +38,7 @@ test("migration 064 replaces fixed-one constraints with bounded selected counts"
 test("the database and cloud service remain the count authority", () => {
   assert.match(read("database/migrations/063_lock_down_database_client_access.sql"), /available_units < NEW\.unit_count/,
     "paid verification must still reject insufficient balance at the database boundary");
-  assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v10" : "v112"/);
+  assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v10" : "v113"/);
   assert.match(cloud, /const unitCount = Number\(event\.unitCount\)/);
   assert.match(cloud, /unitCount < 1 \|\| unitCount > 999/);
   assert.match(cloud, /Number\(record\.unit_count\) === unitCount/,
@@ -82,7 +82,7 @@ test("web and mini-program require an explicit count and bind it to idempotency"
 test("rules, deployment handoff and read-only checks retire fixed-one behavior", () => {
   assert.match(context, /不能隐藏、预填或固定为 1/);
   assert.match(context, /废弃正常核销和体验核销固定为 1 次/);
-  assert.match(context, /faceRecognition v112/);
+  assert.match(context, /faceRecognition v113/);
   assert.match(verifySql, /legacy fixed-one writers blocked/);
   assert.match(verifySql, /client execution remains closed/);
   assert.match(verifySql, /experience usage matches verification/);

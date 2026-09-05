@@ -30,17 +30,20 @@ function pageInstance(definition) {
 test("app exposes one startup promise and marks validation ready even when a stale session is rejected", async () => {
   const validation = deferred();
   let definition;
+  const keepScreenCalls = [];
   vm.runInNewContext(read("app.js"), {
     App(value) { definition = value; },
     require(id) {
       if (id === "./services/session") return { restoreAndValidateSession: () => validation.promise };
       throw new Error(`unexpected app dependency ${id}`);
     },
+    wx: { setKeepScreenOn(options) { keepScreenCalls.push(options.keepScreenOn); } },
     Promise
   }, { filename: "app.js" });
 
   const app = Object.assign({}, definition, { globalData: { ...definition.globalData } });
   const started = app.onLaunch();
+  assert.deepEqual(keepScreenCalls, [true], "launch must request a screen that stays awake");
   assert.equal(app.globalData.startupReady, false);
   assert.equal(app.globalData.startupPromise, started);
   assert.equal(typeof started.then, "function");
@@ -50,6 +53,8 @@ test("app exposes one startup promise and marks validation ready even when a sta
   assert.equal(session, null);
   assert.equal(app.globalData.session, null);
   assert.equal(app.globalData.startupReady, true);
+  app.onShow();
+  assert.deepEqual(keepScreenCalls, [true, true], "returning to the foreground must renew the keep-awake request");
 });
 
 function loadLogin(waitForStartupSession) {

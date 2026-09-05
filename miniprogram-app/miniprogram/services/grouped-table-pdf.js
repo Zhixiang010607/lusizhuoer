@@ -1,6 +1,7 @@
 "use strict";
 
-const PDF_EXPORT_MAX_ROWS = 10000;
+const PDF_EXPORT_MAX_ROWS = 1000;
+const CJK_FONT_FILENAME = "NotoSansCJKsc-Common-Identity.br";
 const PAGE_WIDTH = 841.89;
 const PAGE_HEIGHT = 595.28;
 const MARGIN = 30;
@@ -24,11 +25,13 @@ function color(value) { return value.map(decimal).join(" "); }
 function safeFilename(value) {
   return clean(value, "运营指标查询结果").replace(/[\\/:*?"<>|\u0000-\u001f]/g, "-").replace(/\s+/g, " ").slice(0, 100);
 }
-function pdfText(value) {
+function pdfText(value, mappings) {
   let output = "";
   for (const character of Array.from(clean(value, ""))) {
     const point = character.codePointAt(0);
-    output += (point <= 0xffff ? point : 0x003f).toString(16).padStart(4, "0").toUpperCase();
+    const cid = point <= 0xffff ? point : 0x25a1;
+    mappings.set(cid, cid);
+    output += cid.toString(16).padStart(4, "0").toUpperCase();
   }
   return `<${output || "0020"}>`;
 }
@@ -64,6 +67,22 @@ function fitted(value, width, size) {
   }
   return `${output}…`;
 }
+function wrapped(value, width, size) {
+  const source = clean(value);
+  const maximum = Math.max(1, width / Math.max(1, size));
+  const lines = [];
+  let line = "";
+  for (const character of Array.from(source)) {
+    if (line && visualUnits(`${line}${character}`) > maximum) {
+      lines.push(line);
+      line = character;
+    } else {
+      line += character;
+    }
+  }
+  if (line || !lines.length) lines.push(line || " ");
+  return lines;
+}
 function addFillRect(commands, x, top, width, height, fill) {
   commands.push(`${color(fill)} rg ${decimal(x)} ${decimal(PAGE_HEIGHT - top - height)} ${decimal(width)} ${decimal(height)} re f`);
 }
@@ -77,8 +96,9 @@ function addText(commands, value, x, top, size = 9, options = {}) {
   if (width && options.align === "center") offset = Math.max(0, (width - visualUnits(output) * size) / 2);
   if (width && options.align === "right") offset = Math.max(0, width - visualUnits(output) * size - 5);
   let cursor = x + offset;
+  if (!commands.cjkMappings) commands.cjkMappings = new Map();
   textRuns(output).forEach((run) => {
-    commands.push(`BT /${run.ascii ? "F2" : "F1"} ${decimal(size)} Tf ${color(options.color || COLORS.dark)} rg ${decimal(cursor)} ${decimal(PAGE_HEIGHT - top - size)} Td ${run.ascii ? pdfAsciiText(run.value) : pdfText(run.value)} Tj ET`);
+    commands.push(`BT /${run.ascii ? "F2" : "F1"} ${decimal(size)} Tf ${color(options.color || COLORS.dark)} rg ${decimal(cursor)} ${decimal(PAGE_HEIGHT - top - size)} Td ${run.ascii ? pdfAsciiText(run.value) : pdfText(run.value, commands.cjkMappings)} Tj ET`);
     cursor += visualUnits(run.value) * size;
   });
 }
@@ -155,15 +175,77 @@ function streamObject(value) {
   const bytes = ascii(value);
   return concatBytes([ascii(`<< /Length ${bytes.byteLength} >>\nstream\n`), bytes, ascii("\nendstream")]);
 }
-function createPdfBytes(pageCommands) {
+function byteView(value) {
+  if (value instanceof Uint8Array) return value;
+  if (value instanceof ArrayBuffer) return new Uint8Array(value);
+  if (ArrayBuffer.isView(value)) return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  throw new Error("PDF 内置中文字体内容无效");
+}
+function binaryStreamObject(value, dictionary = "") {
+  const bytes = byteView(value);
+  return concatBytes([
+    ascii(`<< /Length ${bytes.byteLength}${dictionary ? ` ${dictionary}` : ""} >>\nstream\n`),
+    bytes,
+    ascii("\nendstream")
+  ]);
+}
+function bundledCjkFontBytes(explicitBytes) {
+  if (explicitBytes) return byteView(explicitBytes);
+  if (typeof wx === "undefined" || typeof wx.getFileSystemManager !== "function"
+      || typeof getCurrentPages !== "function") {
+    throw new Error("当前环境无法读取 PDF 内置中文字体");
+  }
+  const pages = getCurrentPages();
+  const route = String(pages[pages.length - 1]?.route || "").replace(/^\/+/, "");
+  if (!route) throw new Error("无法确定 PDF 字体所在页面");
+  const routeDirectory = route.includes("/") ? route.slice(0, route.lastIndexOf("/")) : route;
+  const manager = wx.getFileSystemManager();
+  if (typeof manager.readCompressedFileSync !== "function") {
+    throw new Error("当前微信版本不支持 PDF 内置中文字体，请升级微信后重试");
+  }
+  const candidates = [`/${routeDirectory}/${CJK_FONT_FILENAME}`, `${routeDirectory}/${CJK_FONT_FILENAME}`];
+  let latestError;
+  for (const filePath of candidates) {
+    try { return byteView(manager.readCompressedFileSync({ filePath, compressionAlgorithm: "br" })); }
+    catch (error) { latestError = error; }
+  }
+  throw new Error(`PDF 内置中文字体读取失败：${latestError?.errMsg || latestError?.message || "文件不存在"}`);
+}
+function toUnicodeCMap(mappings) {
+  const entries = [...mappings.entries()].sort((left, right) => left[0] - right[0]);
+  const lines = [
+    "/CIDInit /ProcSet findresource begin", "12 dict begin", "begincmap",
+    "/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def",
+    "/CMapName /NotoSansCJKsc-Common-UCS def", "/CMapType 2 def",
+    "1 begincodespacerange", "<0000> <FFFF>", "endcodespacerange"
+  ];
+  for (let index = 0; index < entries.length; index += 100) {
+    const chunk = entries.slice(index, index + 100);
+    lines.push(`${chunk.length} beginbfchar`);
+    chunk.forEach(([cid, unicode]) => {
+      lines.push(`<${cid.toString(16).padStart(4, "0").toUpperCase()}> <${unicode.toString(16).padStart(4, "0").toUpperCase()}>`);
+    });
+    lines.push("endbfchar");
+  }
+  lines.push("endcmap", "CMapName currentdict /CMap defineresource pop", "end", "end");
+  return lines.join("\n");
+}
+function createPdfBytes(pageCommands, cjkFontBytes) {
   const objects = new Map();
   const pageReferences = [];
+  const cjkMappings = new Map();
+  pageCommands.forEach((commands) => {
+    if (commands.cjkMappings) commands.cjkMappings.forEach((unicode, cid) => cjkMappings.set(cid, unicode));
+  });
   objects.set(1, ascii("<< /Type /Catalog /Pages 2 0 R >>"));
-  objects.set(3, ascii("<< /Type /Font /Subtype /Type0 /BaseFont /STSong-Light /Encoding /UniGB-UCS2-H /DescendantFonts [4 0 R] >>"));
-  objects.set(4, ascii("<< /Type /Font /Subtype /CIDFontType0 /BaseFont /STSong-Light /CIDSystemInfo << /Registry (Adobe) /Ordering (GB1) /Supplement 5 >> /DW 1000 >>"));
+  objects.set(3, ascii("<< /Type /Font /Subtype /Type0 /BaseFont /NotoSansCJKsc-Regular /Encoding /Identity-H /DescendantFonts [4 0 R] /ToUnicode 6 0 R >>"));
+  objects.set(4, ascii("<< /Type /Font /Subtype /CIDFontType0 /BaseFont /NotoSansCJKsc-Regular /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor 7 0 R /DW 1000 >>"));
   objects.set(5, ascii("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"));
+  objects.set(6, streamObject(toUnicodeCMap(cjkMappings)));
+  objects.set(7, ascii("<< /Type /FontDescriptor /FontName /NotoSansCJKsc-Regular /Flags 4 /FontBBox [-1002 -1048 2928 1808] /ItalicAngle 0 /Ascent 1160 /Descent -288 /CapHeight 733 /StemV 80 /FontFile3 8 0 R >>"));
+  objects.set(8, binaryStreamObject(cjkFontBytes, "/Subtype /CIDFontType0C"));
   pageCommands.forEach((commands, index) => {
-    const pageNumber = 6 + index * 2;
+    const pageNumber = 9 + index * 2;
     const contentNumber = pageNumber + 1;
     pageReferences.push(`${pageNumber} 0 R`);
     addText(commands, `第 ${index + 1} / ${pageCommands.length} 页`, MARGIN, PAGE_HEIGHT - 22, 8, { width: CONTENT_WIDTH, align: "right", color: COLORS.muted });
@@ -171,7 +253,7 @@ function createPdfBytes(pageCommands) {
     objects.set(contentNumber, streamObject(commands.join("\n")));
   });
   objects.set(2, ascii(`<< /Type /Pages /Count ${pageReferences.length} /Kids [${pageReferences.join(" ")}] >>`));
-  const objectCount = 5 + pageCommands.length * 2;
+  const objectCount = 8 + pageCommands.length * 2;
   const chunks = [concatBytes([ascii("%PDF-1.4\n%"), new Uint8Array([0xe2, 0xe3, 0xcf, 0xd3]), ascii("\n")])];
   const offsets = new Array(objectCount + 1).fill(0);
   let length = chunks[0].byteLength;
@@ -192,13 +274,17 @@ function createGroupedPdf(options = {}) {
   if (!rows.length) throw new Error("当前查询没有可导出的结果");
   if (!columns.length) throw new Error("PDF 缺少列定义");
   if (rows.length > PDF_EXPORT_MAX_ROWS) throw new Error(`当前结果有 ${rows.length} 条，单次最多导出 ${PDF_EXPORT_MAX_ROWS} 条`);
+  const cjkFontBytes = bundledCjkFontBytes(options.cjkFontBytes);
   const groupKey = typeof options.groupKey === "function" ? options.groupKey : (row) => row.storeId || row.storeName;
   const groupLabel = typeof options.groupLabel === "function" ? options.groupLabel : (row) => row.storeName;
   const groups = groupedRows(rows, groupKey, groupLabel);
   const pages = [];
   let page = startPage(clean(options.title, "运营指标查询结果"), "按门店分组", false);
-  addText(page.commands, clean(options.criteria, `共 ${rows.length} 条`), MARGIN, page.top, 8.5, { width: CONTENT_WIDTH, color: COLORS.muted });
-  page.top += 25;
+  const criteriaLines = wrapped(clean(options.criteria, `共 ${rows.length} 条`), CONTENT_WIDTH - 8, 8.5);
+  criteriaLines.forEach((line, index) => {
+    addText(page.commands, line, MARGIN, page.top + index * 12, 8.5, { width: CONTENT_WIDTH, color: COLORS.muted });
+  });
+  page.top += criteriaLines.length * 12 + 10;
   for (const group of groups) {
     let rowIndex = 0;
     do {
@@ -223,7 +309,7 @@ function createGroupedPdf(options = {}) {
     } while (rowIndex < group.rows.length);
   }
   if (page.commands.length) pages.push(page.commands);
-  return { bytes: createPdfBytes(pages), pages: pages.length, rowCount: rows.length, groupCount: groups.length };
+  return { bytes: createPdfBytes(pages, cjkFontBytes), pages: pages.length, rowCount: rows.length, groupCount: groups.length };
 }
 
 function wxCall(invoke) { return new Promise((resolve, reject) => invoke(resolve, reject)); }

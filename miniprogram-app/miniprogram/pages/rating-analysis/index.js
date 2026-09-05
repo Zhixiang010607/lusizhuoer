@@ -18,17 +18,28 @@ function values(options) { return options.map((item) => item.value); }
 function percentage(count, total) { return total > 0 ? `${(Number(count || 0) * 100 / total).toFixed(1)}%` : "0.0%"; }
 function statusSuffix(status) { return String(status || "").toUpperCase() === "ARCHIVED" ? "（已封存）" : ""; }
 
-function pieGradient(items = []) {
+function pieSlices(items = []) {
   const segments = items.filter((item) => Number(item.count || 0) > 0);
   const total = segments.reduce((sum, item) => sum + Number(item.count || 0), 0);
-  if (!total) return "#e3d8c8";
-  let cursor = 0;
-  const stops = segments.map((item, index) => {
-    const start = cursor;
-    cursor = index === segments.length - 1 ? 100 : cursor + Number(item.count || 0) * 100 / total;
-    return `${item.color} ${start.toFixed(4)}% ${cursor.toFixed(4)}%`;
+  if (!total) return [];
+  const slices = [];
+  let cursor = -90;
+  segments.forEach((item, itemIndex) => {
+    let sweep = Number(item.count || 0) * 360 / total;
+    while (sweep > 0.0001) {
+      // The half-circle mask is supported by older iPad WebViews that do not
+      // paint conic-gradient. Split larger sectors into <= 180 degree pieces.
+      const piece = Math.min(180, sweep);
+      slices.push({
+        key: `${itemIndex}-${slices.length}`,
+        sliceStyle: `transform: rotate(${cursor.toFixed(4)}deg);`,
+        fillStyle: `background: ${item.color}; transform: rotate(${piece.toFixed(4)}deg);`
+      });
+      cursor += piece;
+      sweep -= piece;
+    }
   });
-  return `conic-gradient(from -90deg, ${stops.join(", ")})`;
+  return slices;
 }
 
 function scoreOptions(selected = [0, 1, 2, 3, 4, 5]) {
@@ -62,8 +73,8 @@ function normalizeSummary(source = {}) {
     coveragePercent: percentage(rated, total),
     scoreLegend,
     coverageLegend,
-    scoreGradient: pieGradient(scoreLegend),
-    coverageGradient: pieGradient(coverageLegend)
+    scoreSlices: pieSlices(scoreLegend),
+    coverageSlices: pieSlices(coverageLegend)
   };
 }
 
@@ -304,22 +315,14 @@ Page({
   },
 
   async collectAllOrders(expectedTotal, exportEpoch) {
-    const uniqueRows = new Map();
-    let pageNumber = 1;
-    let totalPages = 1;
-    do {
-      const result = await callRating("queryRatingAnalysis", this.payload(pageNumber, EXPORT_BATCH_SIZE));
-      if (exportEpoch !== this._exportEpoch) return [];
-      if (Number(result.total || 0) !== expectedTotal) throw new Error("查询结果在导出期间发生变化，请重新查询后再导出");
-      totalPages = Math.max(1, Number(result.totalPages || 1));
-      for (const row of normalizeOrders(result.orders || [])) uniqueRows.set(row.rowKey, row);
-      if (uniqueRows.size > EXPORT_MAX_ROWS) throw new Error(`单次最多导出 ${EXPORT_MAX_ROWS} 条，请缩小查询范围`);
-      this.setData({ message: `正在准备导出 ${Math.min(uniqueRows.size, expectedTotal)} / ${expectedTotal} 单…`, error: false });
-      pageNumber += 1;
-    } while (pageNumber <= totalPages);
-    const rows = [...uniqueRows.values()];
-    if (rows.length !== expectedTotal) throw new Error("查询结果在导出期间发生变化，请重新查询后再导出");
-    return rows;
+    const result = await callRating("queryRatingAnalysis", { ...this.payload(1, EXPORT_BATCH_SIZE), exportAll: true });
+    if (exportEpoch !== this._exportEpoch) return [];
+    if (Number(result.total || 0) !== expectedTotal) throw new Error("查询结果在导出前发生变化，请重新查询后再导出");
+    const rows = normalizeOrders(result.orders || []);
+    if (rows.length !== expectedTotal) throw new Error("完整导出结果校验失败，请重新查询后再导出");
+    const uniqueRows = new Map(rows.map((row) => [row.rowKey, row]));
+    if (uniqueRows.size !== rows.length) throw new Error("完整导出出现重复工单，请重新查询后再导出");
+    return [...uniqueRows.values()];
   },
 
   async exportAll(format = "excel") {

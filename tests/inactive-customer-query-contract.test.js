@@ -47,7 +47,7 @@ test("server applies the fixed NORMAL then EXPERIENCE then customer-created base
   assert.match(source, /inactive\.balance_category = 'NONZERO'/);
   assert.match(source, /COUNT\(\*\) FILTER \(WHERE balance_category = 'ZERO'\) AS zero_balance_customers/);
   assert.match(source, /COUNT\(\*\) FILTER \(WHERE balance_category = 'NONZERO'\) AS nonzero_balance_customers/);
-  assert.match(source, /categoryTotal: Number\(summary\.category_total \|\| 0\)/);
+  assert.match(source, /categoryTotal: category === "ZERO"/);
   assert.match(source, /balanceCategory: customer\.balance_category/);
   assert.match(source, /ORDER BY inactive\.baseline_at ASC, inactive\.id ASC/,
     "the longest-inactive customers should be listed first with a stable cursor");
@@ -73,8 +73,8 @@ test("HQ and store mini-programs expose a manual inactivity query without teache
   assert.match(pageJs, /cursorBaselineAt/);
   assert.match(pageJs, /cursorCustomerId/);
   assert.match(pageJs, /balanceCategory: category/);
-  assert.match(pageJs, /Promise\.all\(\[[\s\S]*resolveCategoryPage\("ZERO", 1[\s\S]*resolveCategoryPage\("NONZERO", 1/,
-    "both customer categories must load as separate result sections");
+  assert.match(pageJs, /fetchPage\("BOTH", null, basePayload\)/,
+    "both customer categories must load from one database snapshot");
   assert.match(pageJs, /zeroCursorStack: \[null\]/);
   assert.match(pageJs, /nonzeroCursorStack: \[null\]/);
   assert.match(pageJs, /while \(targetPage > 1 && !stack\[targetPage - 1\]\)/,
@@ -91,7 +91,7 @@ test("HQ and store mini-programs expose a manual inactivity query without teache
     "the compact result must keep only the user-selected five columns");
   assert.match(pageJs, /baselineSource === "CUSTOMER_CREATED"[\s\S]*\? "从未核销"/);
   assert.doesNotMatch(pageWxml, /客户状态|已封存|全部状态/);
-  for (const label of ["全部项目为 0", "任意项目非 0", "导出 PDF", "导出 Excel", "10000 位"]) {
+  for (const label of ["全部项目为 0", "任意项目非 0", "导出 PDF", "导出 Excel", "1000 位"]) {
     assert.match(pageWxml, new RegExp(label), `inactive customer split/export is missing ${label}`);
   }
   assert.match(pageWxml, /data-category="ZERO" bindtap="previousPage"/);
@@ -100,4 +100,7 @@ test("HQ and store mini-programs expose a manual inactivity query without teache
   assert.match(pageWxss, /\.result-sections \{ display: grid; grid-template-columns: 1fr;/);
   assert.match(pageWxss, /@media \(min-width: 700px\)/,
     "the new query must retain a compact iPad layout");
+  assert.match(pageJs, /exportAll: true/);
+  assert.match(pageJs, /result\.exportCustomers/,
+    "the full export must be returned by one server-side snapshot instead of stitched client pages");
 });

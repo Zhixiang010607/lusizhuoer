@@ -5,8 +5,9 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const QRCode = require("qrcode");
 
-const FUNCTION_VERSION = "v6";
+const FUNCTION_VERSION = "v7";
 const DURABLE_READ_DELAYS_MS = Object.freeze([0, 25, 75, 150, 300]);
+const RATING_ANALYSIS_EXPORT_MAX_ROWS = 1000;
 let cloudApp = null;
 let managerClient = null;
 let storeBindingLayout = "";
@@ -429,13 +430,17 @@ async function queryRatingAnalysis(event) {
   const staff = await currentStaff();
   const conditions = ratingAnalysisBaseConditions(staff, event);
   const scores = ratingScores(event.scores);
-  const requestedPage = pageNumber(event.pageNumber, 1);
-  const limit = pageSize(event.pageSize, 20);
+  const exportAll = event.exportAll === true;
+  const requestedPage = exportAll ? 1 : pageNumber(event.pageNumber, 1);
+  const limit = exportAll ? RATING_ANALYSIS_EXPORT_MAX_ROWS + 1 : pageSize(event.pageSize, 20);
   const cte = ratingAnalysisCte(conditions);
   const scoreList = scores.join(", ");
-  const [summaryRows, resultRows] = await Promise.all([
-    executeSql(
-      `${cte}
+  // Counts, chart totals and the visible page must come from one PostgreSQL
+  // statement. Separate executePGSql calls can observe different commits and
+  // make the chart disagree with the work orders returned beside it.
+  const analysisRows = await executeSql(
+    `${cte},
+     summary AS (
        SELECT COUNT(*)::BIGINT AS total_count,
               COUNT(*) FILTER (WHERE effective_score > 0)::BIGINT AS rated_count,
               COUNT(*) FILTER (WHERE effective_score = 0)::BIGINT AS score_0_count,
@@ -445,11 +450,10 @@ async function queryRatingAnalysis(event) {
               COUNT(*) FILTER (WHERE effective_score = 4)::BIGINT AS score_4_count,
               COUNT(*) FILTER (WHERE effective_score = 5)::BIGINT AS score_5_count,
               COUNT(*) FILTER (WHERE effective_score IN (${scoreList}))::BIGINT AS selected_count
-         FROM scoped_ratings`
-    ),
-    executeSql(
-      `${cte}
-       SELECT id, verification_code AS record_code, verification_type,
+         FROM scoped_ratings
+     ),
+     paged AS (
+       SELECT id, verification_code AS record_code, verification_type, submitted_at,
               customer_code, customer_name, store_id, store_name,
               product_id, product_name, teacher_id, teacher_name,
               TO_CHAR(submitted_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD HH24:MI') AS service_time,
@@ -459,13 +463,21 @@ async function queryRatingAnalysis(event) {
         WHERE effective_score IN (${scoreList})
         ORDER BY submitted_at DESC, id DESC
         LIMIT ${limit}
-       OFFSET ${(requestedPage - 1) * limit}`
-    )
-  ]);
-  const summaryRow = summaryRows[0] || {};
+       OFFSET ${exportAll ? 0 : (requestedPage - 1) * limit}
+     )
+     SELECT summary.*, paged.*
+       FROM summary
+       LEFT JOIN paged ON TRUE
+      ORDER BY paged.submitted_at DESC NULLS LAST, paged.id DESC NULLS LAST`
+  );
+  const summaryRow = analysisRows[0] || {};
+  const resultRows = analysisRows.filter((row) => row.id !== null && row.id !== undefined && row.id !== "");
   const total = Number(summaryRow.total_count || 0);
   const rated = Number(summaryRow.rated_count || 0);
   const selectedTotal = Number(summaryRow.selected_count || 0);
+  if (exportAll && selectedTotal > RATING_ANALYSIS_EXPORT_MAX_ROWS) {
+    fail(`当前结果有 ${selectedTotal} 单，单次最多导出 ${RATING_ANALYSIS_EXPORT_MAX_ROWS} 单，请缩小查询范围。`, "EXPORT_TOO_LARGE");
+  }
   const totalPages = Math.max(1, Math.ceil(selectedTotal / limit));
   const actualPage = Math.min(requestedPage, totalPages);
   if (actualPage !== requestedPage && selectedTotal > 0) {
@@ -473,7 +485,7 @@ async function queryRatingAnalysis(event) {
   }
   return {
     pageNumber: actualPage,
-    pageSize: limit,
+    pageSize: exportAll ? RATING_ANALYSIS_EXPORT_MAX_ROWS : limit,
     total: selectedTotal,
     totalPages,
     selectedScores: scores,
@@ -588,7 +600,8 @@ async function issueForReceipt(event) {
 async function publicRow(token) {
   const verified = parseAndVerifyToken(token);
   const rows = await executeSql(
-    `SELECT r.id, r.rating_status, r.teacher_id,
+    `SELECT r.id, r.verification_id, r.token_version, r.token_hash,
+            r.rating_status, r.teacher_id,
             r.store_environment_score, r.teacher_service_score,
             r.overall_experience_score, r.customer_comment,
             r.submitted_at AS rating_submitted_at,
@@ -640,16 +653,44 @@ async function submitPublic(event) {
         AND token_hash = ${sqlText(result.verified.tokenHash)}
         AND submitted_at IS NULL
         AND rating_status = 'OPEN'
-      RETURNING id`
+      RETURNING id, submitted_at AS rating_submitted_at`
   );
-  if (!updated.length) {
-    const latest = await publicRow(event.token);
-    if (latest.row.rating_status === "SUBMITTED" || latest.row.rating_submitted_at) {
-      return { alreadySubmitted: true, ...publicRating(latest.row) };
-    }
-    fail("评价提交失败，请重试。", "RATING_SUBMIT_FAILED");
+  if (updated.length) {
+    return {
+      submitted: true,
+      ...publicRating({
+        ...row,
+        rating_status: "SUBMITTED",
+        rating_submitted_at: updated[0].rating_submitted_at || new Date().toISOString(),
+        store_environment_score: storeScore,
+        teacher_service_score: teacherScore,
+        overall_experience_score: overallScore,
+        customer_comment: comment
+      })
+    };
   }
-  return { submitted: true, ...(await getPublic(event)) };
+
+  // CloudBase can commit an UPDATE while returning an empty RETURNING
+  // envelope. Confirm the exact durable rating with bounded reads so a
+  // successful one-time submission is never reported as a retryable failure.
+  const persisted = await readRatingAfterWrite(row.verification_id, (candidate) => (
+    String(candidate.id) === String(result.verified.id)
+    && Number(candidate.token_version || 1) === Number(result.verified.version)
+    && String(candidate.token_hash || "") === String(result.verified.tokenHash)
+    && candidate.rating_status === "SUBMITTED"
+    && Boolean(candidate.rating_submitted_at)
+  ));
+  if (!persisted) fail("评价提交结果暂时无法确认，请稍后扫码查看。", "RATING_SUBMIT_UNCONFIRMED");
+  const sameSubmission = Number(persisted.store_environment_score || 0) === storeScore
+    && Number(persisted.overall_experience_score || 0) === overallScore
+    && (teacherScore === null
+      ? persisted.teacher_service_score === null || persisted.teacher_service_score === undefined
+      : Number(persisted.teacher_service_score || 0) === teacherScore)
+    && String(persisted.customer_comment || "") === comment;
+  return {
+    ...(sameSubmission ? { submitted: true } : { alreadySubmitted: true }),
+    ...publicRating(persisted)
+  };
 }
 
 function health() {

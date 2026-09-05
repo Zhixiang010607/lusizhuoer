@@ -142,7 +142,7 @@ assert.equal(Object.keys(browserStorage).length, 0, "the loaded detail page must
 // experience, quota usage audit row) exists.
 const recoverySource = functionSource(cloud, "recoverBusinessSubmission");
 const attributionSource = functionSource(cloud, "teacherBusinessAttributionSourceCondition");
-includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v10" : "v112"', "cloud function version");
+includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v10" : "v113"', "cloud function version");
 includes(cloud, 'if (action === "recoverBusinessSubmission")', "recovery dispatcher");
 includes(recoverySource, "r.idempotency_key", "recharge lookup by idempotency key");
 includes(recoverySource, "v.idempotency_key", "verification lookup by idempotency key");

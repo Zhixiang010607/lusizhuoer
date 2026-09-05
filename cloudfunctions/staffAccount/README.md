@@ -40,7 +40,7 @@ Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_oper
 调用这些旧 action 会统一进入“不支持的操作”。`provisionStaff({ role: "teacher" })` 也会在 Auth 查询、用户创建和 SQL 写入之前返回 `TEACHER_CREATE_SERVICE_REQUIRED`。新建老师只能调用 `teacherCreate`。
 
 迁移 051／052 的旧表、函数和历史记录不再是本函数的运行依赖。部署
-`staffAccount v81`／`faceRecognition v112`／`teacherCreate v6` 后执行前向
+`staffAccount v81`／`faceRecognition v113`／`teacherCreate v6` 后执行前向
 迁移 053，会物理删除旧操作表与六个私有函数，不影响老师及业务历史。
 
 ## 保留能力
@@ -123,7 +123,7 @@ README.md
 
 1. 在 CloudBase 身份源中配置类型 `WX_MICRO_APP` 并绑定正确小程序 AppID；设置 `On=TRUE`、`AutoSignInWhenPhoneNumberMatch=TRUE`、`TransparentMode=FALSE`、`ReuseUserId=FALSE`，同时保留现有手机号＋密码登录方式。全托管持久身份模式可能固定回显 `AutoSignUpWithProviderUser=TRUE`；这只建立 Auth 身份，业务会话仍只认既有 UID 映射，未绑定身份必须拒绝。
 2. 依次执行并验收迁移 060、061、062，再打包并上传 `staffAccount-v81.zip`，使用 Node.js 20，配置上述环境变量，并将安全规则限制为已登录且非匿名用户。v81 的精确充值工单详情和统一产品查询会读取 061 中不可变的赠品明细，并通过 062 的独立函数审核产品购买单。
-3. 客户评价作为独立同轮服务部署：执行并验收 068，配置至少 32 字节的 `CUSTOMER_RATING_SIGNING_KEY` 及实际 `rating.html` 地址 `CUSTOMER_RATING_BASE_URL`，上传 `customerRating-v6.zip` 并确认其 `health`。`staffAccount v81` 不签发或写入评价。
+3. 客户评价作为独立同轮服务部署：执行并验收 068，配置至少 32 字节的 `CUSTOMER_RATING_SIGNING_KEY` 及实际 `rating.html` 地址 `CUSTOMER_RATING_BASE_URL`，上传 `customerRating-v7.zip` 并确认其 `health`。`staffAccount v81` 不签发或写入评价。
 4. 删除 `staffAccount` 上的旧人脸补偿 Timer，只保留月度额度 Timer。
 5. 部署后先调用 `{ "action": "health" }`，确认版本和配置就绪；再分别用现有已登录会话和微信手机号授权后的会话调用无参数 `{ "action": "session" }`，确认返回的 UID、角色和门店与旧密码账号完全一致。
 6. `staffAccount v81` 验收通过后才发布当前小程序；不得先发布依赖新产品查询、快捷登录和无参数 `session` 的客户端。

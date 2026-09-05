@@ -38,15 +38,15 @@ test("server queries authoritative opened-card balances and excludes archived cu
   assert.match(source, /scopedStoreClause\(caller, "c\.created_store_id"\)/);
   assert.match(source, /if \(productId\) baseClauses\.push\(`b\.product_id = \$\{productId\}::bigint`\)/,
     "one project and all-project queries must share the same balance contract");
-  assert.match(source, /ORDER BY b\.remaining_count ASC, c\.id ASC, b\.product_id ASC/);
-  assert.match(source, /COUNT\(DISTINCT c\.id\) AS customer_total/);
-  assert.match(source, /COUNT\(DISTINCT b\.product_id\) AS product_total/);
-  assert.match(source, /COUNT\(\*\) FILTER \(WHERE b\.remaining_count = 0\) AS zero_balance/);
-  assert.match(source, /balanceCategory === "ZERO"[\s\S]*b\.remaining_count = 0[\s\S]*balanceCategory === "NONZERO"[\s\S]*b\.remaining_count <> 0/,
+  assert.match(source, /ORDER BY balance\.remaining_count ASC, balance\.customer_id ASC, balance\.product_id ASC/);
+  assert.match(source, /COUNT\(DISTINCT customer_id\) AS customer_total/);
+  assert.match(source, /COUNT\(DISTINCT product_id\) AS product_total/);
+  assert.match(source, /COUNT\(\*\) FILTER \(WHERE remaining_count = 0\) AS zero_balance/);
+  assert.match(source, /balanceCategory === "ZERO"[\s\S]*balance\.remaining_count = 0[\s\S]*balanceCategory === "NONZERO"[\s\S]*balance\.remaining_count <> 0/,
     "customer-project rows must be split into zero and nonzero-below-threshold classes");
-  assert.match(source, /COUNT\(\*\) FILTER \(WHERE b\.remaining_count <> 0\) AS nonzero_below_threshold/);
-  assert.match(source, /categoryTotal: Number\(summary\.category_total \|\| 0\)/);
-  assert.match(source, /balanceCategory: Number\(row\.remaining_count \|\| 0\) === 0 \? "ZERO" : "NONZERO"/);
+  assert.match(source, /COUNT\(\*\) FILTER \(WHERE remaining_count <> 0\) AS nonzero_below_threshold/);
+  assert.match(source, /categoryTotal: category === "ZERO"/);
+  assert.match(source, /balanceCategory: row\.balance_category/);
   assert.doesNotMatch(source, /verification_records|recharge_records/,
     "the query must read the balance state machine rather than re-summing orders");
   assert.match(cloud, /action === "queryLowBalanceCustomers"/);
@@ -67,7 +67,7 @@ test("HQ and store mini-programs expose project-selectable low-balance search", 
   assert.match(pageJs, /balanceCategory: category/);
   assert.match(pageJs, /zeroCursorStack: \[null\]/);
   assert.match(pageJs, /nonzeroCursorStack: \[null\]/);
-  assert.match(pageJs, /Promise\.all\(\[[\s\S]*resolveCategoryPage\("ZERO", 1[\s\S]*resolveCategoryPage\("NONZERO", 1/);
+  assert.match(pageJs, /fetchPage\("BOTH", null, basePayload\)/);
   assert.match(pageJs, /while \(targetPage > 1 && !stack\[targetPage - 1\]\)/);
   assert.match(pageJs, /if \(epoch !== this\._requestEpoch\) return null;/);
   assert.match(pageJs, /pages\/customer-detail\/index\?customerCode=/);
@@ -81,7 +81,7 @@ test("HQ and store mini-programs expose project-selectable low-balance search", 
     "low-balance view models and selectors must not append removed fields");
   assert.match(pageWxml, /只统计未封存客户已经开卡的项目/);
   assert.match(pageWxml, /从未开卡不会按 0 次计入/);
-  for (const label of ["项目余次为 0", "非 0 且低于阈值", "导出 PDF", "导出 Excel", "10000 个卡项"]) {
+  for (const label of ["项目余次为 0", "非 0 且低于阈值", "导出 PDF", "导出 Excel", "1000 个卡项"]) {
     assert.match(pageWxml, new RegExp(label), `low-balance split/export is missing ${label}`);
   }
   assert.match(pageWxml, /data-category="ZERO" bindtap="previousPage"/);
@@ -89,4 +89,7 @@ test("HQ and store mini-programs expose project-selectable low-balance search", 
   assert.match(pageWxss, /\.low-balance-table \{ width: auto; min-width: 100%; display: inline-table; table-layout: auto;/);
   assert.match(pageWxss, /\.result-sections \{ display: grid; grid-template-columns: 1fr;/);
   assert.match(pageWxss, /@media \(min-width: 700px\)/);
+  assert.match(pageJs, /exportAll: true/);
+  assert.match(pageJs, /result\.exportBalances/,
+    "the full export must be returned by one server-side snapshot instead of stitched client pages");
 });

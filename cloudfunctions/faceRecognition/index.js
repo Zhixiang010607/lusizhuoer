@@ -5,7 +5,8 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v10" : "v112";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v10" : "v113";
+const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
   : "cleanup-verification-photo-drafts-hourly";
@@ -2443,7 +2444,7 @@ function inactiveVerificationCursor(event = {}) {
 
 function operationalBalanceCategory(event = {}) {
   const value = String(event.balanceCategory || "ALL").trim().toUpperCase();
-  if (!["ALL", "ZERO", "NONZERO"].includes(value)) {
+  if (!["ALL", "ZERO", "NONZERO", "BOTH"].includes(value)) {
     fail("预警分类无效。", "BAD_REQUEST");
   }
   return value;
@@ -2462,9 +2463,18 @@ async function queryInactiveVerificationCustomers(event = {}) {
   if (!/^\d+$/.test(minimumDaysText) || !Number.isInteger(minimumDays) || minimumDays < 1 || minimumDays > 3650) {
     fail("未核销天数必须是 1 至 3650 的整数。", "BAD_REQUEST");
   }
+  const exportAll = event.exportAll === true;
   const requestedLimit = Number(event.limit);
-  const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 20, 1), 100);
+  const limit = exportAll
+    ? OPERATIONAL_EXPORT_MAX_ROWS
+    : Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 20, 1), 100);
   const cursor = inactiveVerificationCursor(event);
+  if (exportAll && balanceCategory !== "BOTH") {
+    fail("完整导出必须同时读取两个预警分类。", "BAD_REQUEST");
+  }
+  if (balanceCategory === "BOTH" && cursor.baselineAt) {
+    fail("双分类首页查询不能携带单分类分页游标。", "BAD_REQUEST");
+  }
   const eligibleSql = `WITH eligible_customers AS (
     SELECT c.id, c.customer_code, c.customer_name, c.birth_date, c.customer_status,
            c.created_at, c.created_store_id AS store_id,
@@ -2515,16 +2525,34 @@ async function queryInactiveVerificationCustomers(event = {}) {
     : balanceCategory === "NONZERO"
       ? "balance_category = 'NONZERO'"
       : "TRUE";
-  const [rows, summaryRows] = await Promise.all([
-    executeSql(`${eligibleSql}
-      SELECT inactive.*,
-             TO_CHAR(inactive.baseline_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_baseline_at
-        FROM eligible_customers inactive
-       WHERE ${categoryClause}
-         AND ${cursorClause}
-       ORDER BY inactive.baseline_at ASC, inactive.id ASC
-       LIMIT ${limit + 1}`),
-    executeSql(`${eligibleSql}
+  const pageSql = exportAll
+    ? `SELECT inactive.*
+         FROM eligible_customers inactive
+        ORDER BY CASE inactive.balance_category WHEN 'ZERO' THEN 0 ELSE 1 END,
+                 inactive.baseline_at ASC, inactive.id ASC
+        LIMIT ${OPERATIONAL_EXPORT_MAX_ROWS + 1}`
+    : balanceCategory === "BOTH"
+    ? `SELECT ranked.*
+         FROM (
+           SELECT inactive.*,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY inactive.balance_category
+                    ORDER BY inactive.baseline_at ASC, inactive.id ASC
+                  ) AS category_row_number
+             FROM eligible_customers inactive
+         ) ranked
+        WHERE ranked.category_row_number <= ${limit + 1}`
+    : `SELECT inactive.*
+         FROM eligible_customers inactive
+        WHERE ${categoryClause}
+          AND ${cursorClause}
+        ORDER BY inactive.baseline_at ASC, inactive.id ASC
+        LIMIT ${limit + 1}`;
+  // The summary and visible rows intentionally share one SQL statement. The
+  // BOTH mode gives the mini-program both first sections from the same MVCC
+  // snapshot, so a concurrent recharge cannot put one customer in both cards.
+  const queryRows = await executeSql(`${eligibleSql},
+    summary AS (
       SELECT COUNT(*) AS selected_total,
              COUNT(*) FILTER (WHERE ${summaryCategoryClause}) AS category_total,
              COUNT(*) FILTER (WHERE balance_category = 'ZERO') AS zero_balance_customers,
@@ -2532,13 +2560,63 @@ async function queryInactiveVerificationCustomers(event = {}) {
              COUNT(*) FILTER (WHERE baseline_source = 'NORMAL') AS normal_baseline,
              COUNT(*) FILTER (WHERE baseline_source = 'EXPERIENCE') AS experience_baseline,
              COUNT(*) FILTER (WHERE baseline_source = 'CUSTOMER_CREATED') AS never_verified
-        FROM eligible_customers`)
-  ]);
-  const hasMore = rows.length > limit;
-  const pageRows = rows.slice(0, limit);
-  const last = pageRows[pageRows.length - 1];
-  const summary = summaryRows[0] || {};
-  return {
+        FROM eligible_customers
+    ),
+    page_rows AS (
+      ${pageSql}
+    )
+    SELECT page_rows.*,
+           TO_CHAR(page_rows.baseline_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_baseline_at,
+           summary.*
+      FROM summary
+      LEFT JOIN page_rows ON TRUE
+     ORDER BY CASE page_rows.balance_category WHEN 'ZERO' THEN 0 WHEN 'NONZERO' THEN 1 ELSE 2 END,
+              page_rows.baseline_at ASC NULLS LAST, page_rows.id ASC NULLS LAST`);
+  const summary = queryRows[0] || {};
+  const resultRows = queryRows.filter((row) => row.id !== null && row.id !== undefined && row.id !== "");
+  const summaryView = {
+    selectedTotal: Number(summary.selected_total || 0),
+    categoryTotal: Number(summary.category_total || 0),
+    zeroBalanceCustomers: Number(summary.zero_balance_customers || 0),
+    nonzeroBalanceCustomers: Number(summary.nonzero_balance_customers || 0),
+    normalBaseline: Number(summary.normal_baseline || 0),
+    experienceBaseline: Number(summary.experience_baseline || 0),
+    neverVerified: Number(summary.never_verified || 0)
+  };
+  const mapCustomer = (customer) => ({
+    customerCode: customer.customer_code,
+    customerName: customer.customer_name,
+    birthDate: customer.birth_date,
+    customerStatus: customer.customer_status,
+    storeId: String(customer.store_id),
+    storeName: customer.store_name,
+    storeCode: customer.store_code,
+    baselineAt: customer.baseline_at,
+    baselineSource: customer.baseline_source,
+    balanceCategory: customer.balance_category,
+    daysSince: Number(customer.days_since || 0),
+    lastVerificationId: customer.last_verification_id ? String(customer.last_verification_id) : "",
+    lastVerificationCode: customer.last_verification_code || "",
+    lastVerificationType: customer.last_verification_type || "",
+    lastProductName: customer.last_product_name || ""
+  });
+  const categoryPage = (category) => {
+    const categoryRows = resultRows.filter((row) => !category || row.balance_category === category);
+    const hasMore = categoryRows.length > limit;
+    const pageRows = categoryRows.slice(0, limit);
+    const last = pageRows[pageRows.length - 1];
+    return {
+      categoryTotal: category === "ZERO"
+        ? summaryView.zeroBalanceCustomers
+        : category === "NONZERO" ? summaryView.nonzeroBalanceCustomers : summaryView.selectedTotal,
+      customers: pageRows.map(mapCustomer),
+      hasMore,
+      nextCursor: hasMore && last
+        ? { baselineAt: last.cursor_baseline_at, customerId: String(last.id) }
+        : null
+    };
+  };
+  const baseResult = {
     ok: true,
     scopeMode: caller.scopeMode,
     storeId: caller.storeId ? String(caller.storeId) : "",
@@ -2546,37 +2624,24 @@ async function queryInactiveVerificationCustomers(event = {}) {
     storeName: caller.storeName || "",
     minimumDays,
     balanceCategory,
-    summary: {
-      selectedTotal: Number(summary.selected_total || 0),
-      categoryTotal: Number(summary.category_total || 0),
-      zeroBalanceCustomers: Number(summary.zero_balance_customers || 0),
-      nonzeroBalanceCustomers: Number(summary.nonzero_balance_customers || 0),
-      normalBaseline: Number(summary.normal_baseline || 0),
-      experienceBaseline: Number(summary.experience_baseline || 0),
-      neverVerified: Number(summary.never_verified || 0)
-    },
-    customers: pageRows.map((customer) => ({
-      customerCode: customer.customer_code,
-      customerName: customer.customer_name,
-      birthDate: customer.birth_date,
-      customerStatus: customer.customer_status,
-      storeId: String(customer.store_id),
-      storeName: customer.store_name,
-      storeCode: customer.store_code,
-      baselineAt: customer.baseline_at,
-      baselineSource: customer.baseline_source,
-      balanceCategory: customer.balance_category,
-      daysSince: Number(customer.days_since || 0),
-      lastVerificationId: customer.last_verification_id ? String(customer.last_verification_id) : "",
-      lastVerificationCode: customer.last_verification_code || "",
-      lastVerificationType: customer.last_verification_type || "",
-      lastProductName: customer.last_product_name || ""
-    })),
-    hasMore,
-    nextCursor: hasMore && last
-      ? { baselineAt: last.cursor_baseline_at, customerId: String(last.id) }
-      : null
+    summary: summaryView
   };
+  if (exportAll) {
+    if (summaryView.selectedTotal > OPERATIONAL_EXPORT_MAX_ROWS || resultRows.length > OPERATIONAL_EXPORT_MAX_ROWS) {
+      fail(`当前结果有 ${summaryView.selectedTotal} 位，单次最多导出 ${OPERATIONAL_EXPORT_MAX_ROWS} 位，请缩小查询范围。`, "EXPORT_TOO_LARGE");
+    }
+    return { ...baseResult, exportCustomers: resultRows.map(mapCustomer) };
+  }
+  if (balanceCategory === "BOTH") {
+    return {
+      ...baseResult,
+      sections: {
+        ZERO: categoryPage("ZERO"),
+        NONZERO: categoryPage("NONZERO")
+      }
+    };
+  }
+  return { ...baseResult, ...categoryPage(balanceCategory === "ALL" ? "" : balanceCategory) };
 }
 
 function lowBalanceCursor(event = {}) {
@@ -2614,9 +2679,18 @@ async function queryLowBalanceCustomers(event = {}) {
   const productId = productIdText && productIdText.toUpperCase() !== "ALL"
     ? businessQueryDatabaseId(productIdText, "项目")
     : "";
+  const exportAll = event.exportAll === true;
   const requestedLimit = Number(event.limit);
-  const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 20, 1), 100);
+  const limit = exportAll
+    ? OPERATIONAL_EXPORT_MAX_ROWS
+    : Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 20, 1), 100);
   const cursor = lowBalanceCursor(event);
+  if (exportAll && balanceCategory !== "BOTH") {
+    fail("完整导出必须同时读取两个预警分类。", "BAD_REQUEST");
+  }
+  if (balanceCategory === "BOTH" && cursor.customerId) {
+    fail("双分类首页查询不能携带单分类分页游标。", "BAD_REQUEST");
+  }
   const baseClauses = [
     scopedStoreClause(caller, "c.created_store_id"),
     "c.customer_status = 'ACTIVE'",
@@ -2626,46 +2700,114 @@ async function queryLowBalanceCustomers(event = {}) {
   ];
   if (productId) baseClauses.push(`b.product_id = ${productId}::bigint`);
   const categoryClause = balanceCategory === "ZERO"
-    ? "b.remaining_count = 0"
+    ? "balance.remaining_count = 0"
     : balanceCategory === "NONZERO"
-      ? "b.remaining_count <> 0"
+      ? "balance.remaining_count <> 0"
       : "TRUE";
   const cursorClause = cursor.customerId
-    ? `(b.remaining_count, c.id, b.product_id) > (${cursor.remainingCount}::integer, ${cursor.customerId}::bigint, ${cursor.productId}::bigint)`
+    ? `(balance.remaining_count, balance.customer_id, balance.product_id) > (${cursor.remainingCount}::integer, ${cursor.customerId}::bigint, ${cursor.productId}::bigint)`
     : "TRUE";
   const fromSql = `FROM public.customer_product_balances b
        JOIN public.customers c ON c.id = b.customer_id
        JOIN public.products p ON p.id = b.product_id
        JOIN public.stores s ON s.id = c.created_store_id
       WHERE ${baseClauses.join("\n        AND ")}`;
-  const [rows, summaryRows] = await Promise.all([
-    executeSql(
-      `SELECT c.id AS customer_id, c.customer_code, c.customer_name, c.birth_date,
+  const eligibleSql = `WITH eligible_balances AS (
+      SELECT c.id AS customer_id, c.customer_code, c.customer_name, c.birth_date,
               c.created_store_id AS store_id, s.store_code, s.store_name,
               p.id AS product_id, p.product_code, p.product_name,
               b.total_recharge_count, b.total_verification_count,
-              b.remaining_count, b.updated_at
+              b.remaining_count, b.updated_at,
+              CASE WHEN b.remaining_count = 0 THEN 'ZERO' ELSE 'NONZERO' END AS balance_category
          ${fromSql}
-          AND ${categoryClause}
+  )`;
+  const pageSql = exportAll
+    ? `SELECT balance.*
+         FROM eligible_balances balance
+        ORDER BY CASE balance.balance_category WHEN 'ZERO' THEN 0 ELSE 1 END,
+                 balance.remaining_count ASC, balance.customer_id ASC, balance.product_id ASC
+        LIMIT ${OPERATIONAL_EXPORT_MAX_ROWS + 1}`
+    : balanceCategory === "BOTH"
+    ? `SELECT ranked.*
+         FROM (
+           SELECT balance.*,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY balance.balance_category
+                    ORDER BY balance.remaining_count ASC, balance.customer_id ASC, balance.product_id ASC
+                  ) AS category_row_number
+             FROM eligible_balances balance
+         ) ranked
+        WHERE ranked.category_row_number <= ${limit + 1}`
+    : `SELECT balance.*
+         FROM eligible_balances balance
+        WHERE ${categoryClause}
           AND ${cursorClause}
-        ORDER BY b.remaining_count ASC, c.id ASC, b.product_id ASC
-        LIMIT ${limit + 1}`
+        ORDER BY balance.remaining_count ASC, balance.customer_id ASC, balance.product_id ASC
+        LIMIT ${limit + 1}`;
+  const queryRows = await executeSql(`${eligibleSql},
+    summary AS (
+      SELECT COUNT(*) AS selected_total,
+             COUNT(*) FILTER (WHERE ${categoryClause}) AS category_total,
+             COUNT(DISTINCT customer_id) AS customer_total,
+             COUNT(DISTINCT product_id) AS product_total,
+             COUNT(*) FILTER (WHERE remaining_count = 0) AS zero_balance,
+             COUNT(*) FILTER (WHERE remaining_count <> 0) AS nonzero_below_threshold
+        FROM eligible_balances balance
     ),
-    executeSql(
-      `SELECT COUNT(*) AS selected_total,
-              COUNT(*) FILTER (WHERE ${categoryClause}) AS category_total,
-              COUNT(DISTINCT c.id) AS customer_total,
-              COUNT(DISTINCT b.product_id) AS product_total,
-              COUNT(*) FILTER (WHERE b.remaining_count = 0) AS zero_balance,
-              COUNT(*) FILTER (WHERE b.remaining_count <> 0) AS nonzero_below_threshold
-         ${fromSql}`
+    page_rows AS (
+      ${pageSql}
     )
-  ]);
-  const hasMore = rows.length > limit;
-  const pageRows = rows.slice(0, limit);
-  const last = pageRows[pageRows.length - 1];
-  const summary = summaryRows[0] || {};
-  return {
+    SELECT page_rows.*, summary.*
+      FROM summary
+      LEFT JOIN page_rows ON TRUE
+     ORDER BY CASE page_rows.balance_category WHEN 'ZERO' THEN 0 WHEN 'NONZERO' THEN 1 ELSE 2 END,
+              page_rows.remaining_count ASC NULLS LAST,
+              page_rows.customer_id ASC NULLS LAST, page_rows.product_id ASC NULLS LAST`);
+  const summary = queryRows[0] || {};
+  const resultRows = queryRows.filter((row) => row.customer_id !== null && row.customer_id !== undefined && row.customer_id !== "");
+  const summaryView = {
+    selectedTotal: Number(summary.selected_total || 0),
+    categoryTotal: Number(summary.category_total || 0),
+    customerTotal: Number(summary.customer_total || 0),
+    productTotal: Number(summary.product_total || 0),
+    zeroBalance: Number(summary.zero_balance || 0),
+    nonzeroBelowThreshold: Number(summary.nonzero_below_threshold || 0)
+  };
+  const mapBalance = (row) => ({
+    customerCode: row.customer_code,
+    customerName: row.customer_name,
+    birthDate: row.birth_date,
+    storeId: String(row.store_id),
+    storeCode: row.store_code,
+    storeName: row.store_name,
+    productId: String(row.product_id),
+    productCode: row.product_code,
+    productName: row.product_name,
+    purchasedCount: Number(row.total_recharge_count || 0),
+    consumedCount: Number(row.total_verification_count || 0),
+    remainingCount: Number(row.remaining_count || 0),
+    balanceCategory: row.balance_category,
+    updatedAt: row.updated_at
+  });
+  const categoryPage = (category) => {
+    const categoryRows = resultRows.filter((row) => !category || row.balance_category === category);
+    const hasMore = categoryRows.length > limit;
+    const pageRows = categoryRows.slice(0, limit);
+    const last = pageRows[pageRows.length - 1];
+    return {
+      categoryTotal: category === "ZERO"
+        ? summaryView.zeroBalance
+        : category === "NONZERO" ? summaryView.nonzeroBelowThreshold : summaryView.selectedTotal,
+      balances: pageRows.map(mapBalance),
+      hasMore,
+      nextCursor: hasMore && last ? {
+        remainingCount: Number(last.remaining_count || 0),
+        customerId: String(last.customer_id),
+        productId: String(last.product_id)
+      } : null
+    };
+  };
+  const baseResult = {
     ok: true,
     scopeMode: caller.scopeMode,
     storeId: caller.storeId ? String(caller.storeId) : "",
@@ -2674,37 +2816,24 @@ async function queryLowBalanceCustomers(event = {}) {
     remainingBelow,
     productId: productId || "",
     balanceCategory,
-    summary: {
-      selectedTotal: Number(summary.selected_total || 0),
-      categoryTotal: Number(summary.category_total || 0),
-      customerTotal: Number(summary.customer_total || 0),
-      productTotal: Number(summary.product_total || 0),
-      zeroBalance: Number(summary.zero_balance || 0),
-      nonzeroBelowThreshold: Number(summary.nonzero_below_threshold || 0)
-    },
-    balances: pageRows.map((row) => ({
-      customerCode: row.customer_code,
-      customerName: row.customer_name,
-      birthDate: row.birth_date,
-      storeId: String(row.store_id),
-      storeCode: row.store_code,
-      storeName: row.store_name,
-      productId: String(row.product_id),
-      productCode: row.product_code,
-      productName: row.product_name,
-      purchasedCount: Number(row.total_recharge_count || 0),
-      consumedCount: Number(row.total_verification_count || 0),
-      remainingCount: Number(row.remaining_count || 0),
-      balanceCategory: Number(row.remaining_count || 0) === 0 ? "ZERO" : "NONZERO",
-      updatedAt: row.updated_at
-    })),
-    hasMore,
-    nextCursor: hasMore && last ? {
-      remainingCount: Number(last.remaining_count || 0),
-      customerId: String(last.customer_id),
-      productId: String(last.product_id)
-    } : null
+    summary: summaryView
   };
+  if (exportAll) {
+    if (summaryView.selectedTotal > OPERATIONAL_EXPORT_MAX_ROWS || resultRows.length > OPERATIONAL_EXPORT_MAX_ROWS) {
+      fail(`当前结果有 ${summaryView.selectedTotal} 个卡项，单次最多导出 ${OPERATIONAL_EXPORT_MAX_ROWS} 个卡项，请缩小查询范围。`, "EXPORT_TOO_LARGE");
+    }
+    return { ...baseResult, exportBalances: resultRows.map(mapBalance) };
+  }
+  if (balanceCategory === "BOTH") {
+    return {
+      ...baseResult,
+      sections: {
+        ZERO: categoryPage("ZERO"),
+        NONZERO: categoryPage("NONZERO")
+      }
+    };
+  }
+  return { ...baseResult, ...categoryPage(balanceCategory === "ALL" ? "" : balanceCategory) };
 }
 
 function optionalBusinessQueryDate(value, label) {
