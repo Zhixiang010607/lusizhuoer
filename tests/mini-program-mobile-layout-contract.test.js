@@ -30,13 +30,13 @@ test("mini-program login is concise and keeps both WeChat phone and password ent
   const wxml = read("miniprogram-app", "miniprogram", "pages", "login", "index.wxml");
   const wxss = read("miniprogram-app", "miniprogram", "pages", "login", "index.wxss");
   const context = read("PROJECT_CONTEXT.md");
-  const backgroundPath = path.join(root, "miniprogram-app", "miniprogram", "images", "login", "lusizhuoer-login-bg-v3.jpg");
+  const backgroundPath = path.join(root, "miniprogram-app", "miniprogram", "images", "login", "lusizhuoer-login-bg-v4.jpg");
 
   assert.equal(json.navigationStyle, "custom");
   const loginImageSources = [...wxml.matchAll(/<image\b[^>]*\bsrc="([^"]+)"/g)].map((match) => match[1]);
-  assert.deepEqual([...new Set(loginImageSources)], ["/images/login/lusizhuoer-login-bg-v3.jpg"],
-    "the background and animated logo must reuse the existing brand artwork without adding a portrait");
-  assert.match(wxml, /class="login-background" src="\/images\/login\/lusizhuoer-login-bg-v3\.jpg" mode="aspectFill"/);
+  assert.deepEqual([...new Set(loginImageSources)], ["/images/login/lusizhuoer-login-bg-v4.jpg"],
+    "the background and animated logo must reuse the refined brand artwork without adding a portrait");
+  assert.match(wxml, /class="login-background" src="\/images\/login\/lusizhuoer-login-bg-v4\.jpg" mode="aspectFill"/);
   assert.doesNotMatch(wxml, /login-brand-image|brand-team\.jpg|海洋之韵|OCEAN\s+WONDER/i,
     "the login page must not restore a portrait or the combined Ocean Wonder artwork");
   assert.ok(fs.existsSync(backgroundPath), "generated Lusizhuoer login background is missing");

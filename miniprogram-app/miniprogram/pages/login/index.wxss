@@ -8,9 +8,9 @@
   background: #f3ede2;
 }
 .login-background, .login-shade { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.login-background { z-index: 0; transform-origin: 50% 22%; animation: login-silk-reveal 2800ms cubic-bezier(.16, 1, .3, 1) both; }
+.login-background { z-index: 0; transform-origin: 50% 22%; animation: login-silk-reveal 3600ms cubic-bezier(.16, 1, .3, 1) both; }
 .login-shade { z-index: 1; background: rgba(255, 250, 243, .24); }
-.login-light { position: absolute; z-index: 1; inset: -12% -30%; pointer-events: none; opacity: 0; background: linear-gradient(112deg, transparent 36%, rgba(255,250,243,.4) 47%, rgba(255,250,243,.12) 54%, transparent 66%); animation: login-silk-light 3000ms 160ms ease-in-out both; }
+.login-light { position: absolute; z-index: 1; inset: -12% -30%; pointer-events: none; opacity: 0; background: linear-gradient(112deg, transparent 40%, rgba(255,250,243,.36) 48%, rgba(255,250,243,.1) 53%, transparent 62%); animation: login-silk-light 3500ms 140ms ease-in-out both; }
 .login-shell { position: relative; z-index: 2; width: 100%; max-width: 670rpx; margin: 0 auto; }
 .login-card {
   width: 100%;
@@ -19,19 +19,21 @@
   border: 1rpx solid #dfcfb4;
   border-radius: 32rpx;
   box-shadow: 0 16rpx 48rpx rgba(120, 91, 43, .09);
-  animation: login-form-arrive 900ms cubic-bezier(.16, 1, .3, 1) both;
+  animation: login-form-arrive 1100ms cubic-bezier(.16, 1, .3, 1) both;
 }
 .login-identity { display: flex; align-items: center; gap: 22rpx; margin-bottom: 34rpx; }
-.login-mark { position: relative; flex: none; width: 116rpx; height: 116rpx; overflow: hidden; border-radius: 50%; background: #f3ede2; pointer-events: none; animation: login-mark-arrive 1500ms cubic-bezier(.16, 1, .3, 1) both; }
-/* Frame the existing brand artwork; the original image and logo remain intact. */
+.login-mark { position: relative; flex: none; width: 116rpx; height: 116rpx; overflow: hidden; border-radius: 50%; background: #f3ede2; pointer-events: none; transform-origin: 50% 50%; animation: login-mark-arrive 1800ms cubic-bezier(.16, 1, .3, 1) both; }
+/* Frame the refined background emblem; keep the exact wordmark in WXML. */
 .login-mark-art { position: absolute; width: 190rpx; height: 411rpx; left: -39rpx; top: -24rpx; }
-.login-mark-glint { position: absolute; inset: -15% -65%; opacity: 0; background: linear-gradient(110deg, transparent 35%, rgba(255,250,243,.75) 49%, rgba(255,250,243,.22) 56%, transparent 66%); animation: login-mark-glint 1800ms 700ms ease-in-out both; }
-.login-brand { min-width: 0; margin-bottom: 0; text-align: left; animation: login-wordmark-arrive 1200ms cubic-bezier(.16, 1, .3, 1) both; }
+.login-mark-glint { position: absolute; inset: -15% -65%; opacity: 0; background: linear-gradient(110deg, transparent 43%, rgba(255,250,243,.18) 47%, rgba(255,250,243,.92) 50%, rgba(255,250,243,.18) 53%, transparent 57%); animation: login-mark-glint 1900ms 800ms cubic-bezier(.4, 0, .2, 1) both; }
+.login-mark::after { content: ""; position: absolute; inset: 0; border: 1rpx solid rgba(169,130,67,.24); border-radius: 50%; pointer-events: none; animation: login-mark-edge 2400ms 180ms ease-out both; }
+.login-brand { min-width: 0; margin-bottom: 0; text-align: left; animation: login-wordmark-arrive 1400ms 180ms cubic-bezier(.16, 1, .3, 1) both; }
 .login-brand text { display: block; color: #87662f; font-family: "Songti SC", "STSong", serif; font-size: 56rpx; font-weight: 600; letter-spacing: 12rpx; line-height: 1.25; }
-.login-heading { margin-bottom: 36rpx; }
+.login-heading { margin-bottom: 36rpx; animation: login-content-arrive 1100ms 300ms cubic-bezier(.16, 1, .3, 1) both; }
 .login-title { display: block; color: #302a22; font-size: 38rpx; font-weight: 600; line-height: 1.35; }
 .login-subtitle { display: block; margin-top: 10rpx; color: #7c7062; font-size: 25rpx; line-height: 1.5; }
-.login-card .field { margin-bottom: 28rpx; }
+.login-card .field { margin-bottom: 28rpx; animation: login-field-reveal 1000ms 440ms ease-out both; }
+.login-card .password-login-field { animation-delay: 560ms; }
 .login-card .field-label { margin-bottom: 12rpx; color: #675b4b; font-size: 26rpx; font-weight: 500; }
 .login-card .input { width: 100%; height: 96rpx; min-height: 96rpx; padding: 0 26rpx; color: #302a22; background: #fffaf3; border: 1rpx solid #dfcfb4; border-radius: 18rpx; box-shadow: none; font-size: 30rpx; }
 .login-card .input:focus { border-color: #a98243; }
@@ -50,6 +52,8 @@
 .wechat-login text { display: block; width: 100%; line-height: 1.4; text-align: center; }
 .wechat-login::after { border: 0; }
 .wechat-login[disabled] { color: #9b9082; background: #f3ede2; }
+.login-button { animation: login-content-arrive 1000ms 680ms cubic-bezier(.16, 1, .3, 1) both; }
+.wechat-login { animation: login-content-arrive 1000ms 780ms cubic-bezier(.16, 1, .3, 1) both; }
 .login-card .message { margin-top: 24rpx; padding: 20rpx 24rpx; color: #5f513f; background: #f4e7d0; border: 1rpx solid #dfcfb4; border-radius: 16rpx; font-size: 25rpx; line-height: 1.5; }
 .login-card .message.error { color: #913b31; background: #fff0ee; border-color: #ecd2cf; }
 @media (max-width: 360px) {
@@ -85,34 +89,49 @@
   .login-card .message { margin-top: 18px; padding: 12px 14px; border-width: 1px; border-radius: 10px; font-size: 14px; }
 }
 
-/* A single, quiet introduction. Keep the form usable throughout the motion. */
+/* One sequence: emblem, wordmark, fields, actions, then a quiet light finish.
+   Inputs only fade, so their native hit areas never move independently. */
 @keyframes login-silk-reveal {
-  from { opacity: .82; transform: scale(1.045); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: .9; transform: scale(1.025); }
+  to { opacity: 1; transform: none; }
 }
 @keyframes login-silk-light {
   0% { opacity: 0; transform: translateX(-26%); }
-  35% { opacity: .6; }
+  38% { opacity: .45; }
   100% { opacity: 0; transform: translateX(26%); }
 }
 @keyframes login-form-arrive {
-  from { opacity: .68; transform: translateY(18rpx); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: .86; transform: translateY(10rpx); }
+  to { opacity: 1; transform: none; }
 }
 @keyframes login-mark-arrive {
-  from { opacity: .18; transform: scale(.84); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: .12; transform: scale(1.16); }
+  to { opacity: 1; transform: none; }
 }
 @keyframes login-wordmark-arrive {
-  from { opacity: .35; transform: translateY(6rpx); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: .18; transform: translateX(12rpx); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes login-content-arrive {
+  from { opacity: .3; transform: translateY(10rpx); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes login-field-reveal {
+  from { opacity: .45; }
+  to { opacity: 1; }
+}
+@keyframes login-mark-edge {
+  0% { opacity: 0; }
+  45% { opacity: 1; }
+  100% { opacity: .55; }
 }
 @keyframes login-mark-glint {
   0% { opacity: 0; transform: translateX(-42%); }
-  35% { opacity: .8; }
+  42% { opacity: .85; }
   100% { opacity: 0; transform: translateX(42%); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .login-background, .login-card, .login-mark, .login-brand { animation: none; opacity: 1; transform: none; }
+  .login-background, .login-card, .login-mark, .login-brand, .login-heading,
+  .login-card .field, .login-button, .wechat-login, .login-mark::after { animation: none; opacity: 1; transform: none; }
   .login-light, .login-mark-glint { display: none; animation: none; }
 }

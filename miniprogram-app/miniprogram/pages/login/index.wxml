@@ -1,11 +1,11 @@
 <view class="login-page">
-  <image class="login-background" src="/images/login/lusizhuoer-login-bg-v3.jpg" mode="aspectFill"></image>
+  <image class="login-background" src="/images/login/lusizhuoer-login-bg-v4.jpg" mode="aspectFill"></image>
   <view class="login-shade"></view>
   <view class="login-light" aria-hidden="true"></view>
   <view class="login-shell">
     <view class="login-card">
       <view class="login-identity">
-        <view class="login-mark" aria-hidden="true"><image class="login-mark-art" src="/images/login/lusizhuoer-login-bg-v3.jpg" mode="scaleToFill"></image><view class="login-mark-glint"></view></view>
+        <view class="login-mark" aria-hidden="true"><image class="login-mark-art" src="/images/login/lusizhuoer-login-bg-v4.jpg" mode="scaleToFill"></image><view class="login-mark-glint"></view></view>
         <view class="login-brand"><text>露思卓儿</text></view>
       </view>
       <view class="login-heading"><text class="login-title">欢迎回来</text><text class="login-subtitle">登录账号，开始今天的工作</text></view>
