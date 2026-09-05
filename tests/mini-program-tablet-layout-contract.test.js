@@ -95,7 +95,7 @@ test("query and review pages use compact tablet filters and five-row result view
     "review store, status, query, and reset must be four equal outer columns on tablets");
   assert.match(reviewsWxss, /\.filter-card \.review-type-tabs button, \.filter-card \.mode-tabs button \{[^}]*height: 36px;[^}]*min-height: 36px;[^}]*font-size: 13px;/s,
     "review switches must stop at one compact tablet height");
-  assert.match(reviewsWxss, /\.review-filter-grid \.field > \.field-label \{[^}]*font-size: 22rpx;[^}]*font-weight: 700;/s,
+  assert.match(reviewsWxss, /\.review-filter-grid \.field > \.field-label \{[^}]*font-size: 24rpx;[^}]*font-weight: 700;/s,
     "phone review labels must use the same 22rpx query typography as customer and record queries");
   assert.match(reviewsWxss, /@media \(min-width: 700px\)[\s\S]*?\.review-filter-grid \.field > \.field-label \{[^}]*font-size: 13px;[^}]*font-weight: 700;/s,
     "tablet review labels must use the same 13px query typography as customer and record queries");
@@ -115,7 +115,7 @@ test("query and review pages use compact tablet filters and five-row result view
     "review columns must derive their width from the longest visible value");
   assert.match(reviewsWxss, /\.review-row \{[^}]*display: table-row;/s,
     "review rows must use the shared adaptive table layout");
-  assert.match(reviewsWxss, /\.review-row > text, \.review-row > view \{[^}]*display: table-cell;[^}]*padding: 10rpx 18rpx;[^}]*font-size: 21rpx;[^}]*white-space: nowrap;/s,
+  assert.match(reviewsWxss, /\.review-row > text, \.review-row > view \{[^}]*display: table-cell;[^}]*padding: 10rpx 18rpx;[^}]*font-size: 24rpx;[^}]*white-space: nowrap;/s,
     "review cells must use one readable phone size, equal gutters, and no wrapping");
   assert.match(reviewsWxss, /@media \(min-width: 700px\)[\s\S]*?\.review-row > text, \.review-row > view \{[^}]*padding: 6px 12px;[^}]*font-size: 14px;/s,
     "tablet review cells must keep the same readable size and equal gutters");
@@ -148,7 +148,7 @@ test("query and review pages use compact tablet filters and five-row result view
     "customer query columns must derive their widths from the current page values");
   assert.match(customersWxss, /\.customer-row \{[^}]*display: table-row;/s,
     "customer results must use the shared adaptive table layout");
-  assert.match(customersWxss, /\.customer-row text \{[^}]*display: table-cell;[^}]*padding: 10rpx 18rpx;[^}]*font-size: 21rpx;[^}]*white-space: nowrap;/s,
+  assert.match(customersWxss, /\.customer-row text \{[^}]*display: table-cell;[^}]*padding: 10rpx 18rpx;[^}]*font-size: 24rpx;[^}]*white-space: nowrap;/s,
     "customer result cells must keep one size, equal gutters, and no wrapping");
   assert.match(recordsWxss, /@media \(min-width: 700px\)[\s\S]*?\.summary-grid \.summary-value \{[^}]*font-size: 17px;/s,
     "record query totals must use a compact tablet numeral size");
@@ -156,7 +156,7 @@ test("query and review pages use compact tablet filters and five-row result view
     "recharge, refund, verification, and product queries must share content-driven widths");
   assert.match(recordsWxss, /\.record-row \{[^}]*display: table-row;/s,
     "all record query rows must use the shared adaptive table layout");
-  assert.match(recordsWxss, /\.record-row text \{[^}]*display: table-cell;[^}]*padding: 10rpx 18rpx;[^}]*font-size: 21rpx;[^}]*white-space: nowrap;/s,
+  assert.match(recordsWxss, /\.record-row text \{[^}]*display: table-cell;[^}]*padding: 10rpx 18rpx;[^}]*font-size: 24rpx;[^}]*white-space: nowrap;/s,
     "record result cells must keep one size and scroll instead of shrinking or wrapping");
   assert.match(recordsWxml, /class="button-row query-actions \{\{mode === 'browse' && !customRange \? 'inline-query-actions' : ''\}\}"/);
   assert.match(recordsWxss, /@media \(min-width: 700px\)[\s\S]*?\.filter-card \{ padding: 16px 18px; \}/s,
@@ -348,17 +348,15 @@ test("HQ teacher detail uses a real tablet workspace instead of a magnified stac
   assert.match(wxml, /experience-overview-panel/);
   assert.match(wxml, /experience-project-panel/);
   assert.match(wxml, /experience-operations-panel/);
-  assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.teacher-detail-grid \{[^}]*grid-template-columns: minmax\(280px, \.76fr\) minmax\(0, 1\.24fr\);/s,
-    "profile/account and the quota overview should use two purposeful tablet columns");
-  assert.match(wxss, /\.experience-project-panel, \.experience-operations-panel \{ grid-column: 1 \/ -1; \}/,
-    "project configuration, forms, and audit history should retain full tablet width");
-  assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.monthly-overview-grid \{[^}]*grid-template-columns: minmax\(0, 1fr\);[^}]*gap: 8px;/s,
-    "each configured project must occupy one compact tablet row");
-  assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.monthly-overview-card \{[^}]*display: grid;[^}]*grid-template-columns: minmax\(132px, 1\.15fr\) minmax\(0, 3\.85fr\);/s,
-    "the tablet project identity and its four metrics must share one horizontal row");
-  assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.monthly-metrics \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/s,
-    "all four monthly metrics must stay on the same tablet line");
-  assert.match(wxss, /\.experience-project-panel \{[^}]*grid-template-columns: minmax\(0, \.74fr\) minmax\(0, 1\.26fr\);/s);
+  assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.teacher-detail-grid \{[^}]*grid-template-columns: minmax\(0, 1fr\);/s,
+    "medium tablets give complete monthly records the full workspace width");
+  assert.match(wxss, /@media \(min-width: 1100px\)[\s\S]*?\.teacher-detail-grid \{[^}]*grid-template-columns: minmax\(280px, \.7fr\) minmax\(0, 1\.3fr\);/s,
+    "profile/account and overview split only when there is room for both");
+  assert.match(wxss, /\.experience-project-panel, \.experience-operations-panel \{ grid-column: 1 \/ -1; \}/);
+  assert.match(wxss, /\.monthly-overview-card \{ display: table-row; \}/);
+  assert.match(wxml, /class="monthly-overview-scroll"[^>]*scroll-x[^>]*height: \{\{entitlements\.length \* 84 \+ 2\}\}px;/,
+    "native horizontal scroll view height must follow the actual count of 84px records");
+  assert.match(wxss, /\.experience-project-panel \{[^}]*grid-template-columns: minmax\(0, 1fr\);/s);
   assert.match(wxss, /\.quota-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
   assert.match(wxss, /\.forms-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
 });
@@ -384,7 +382,7 @@ test("HQ project management uses compact adaptive tablet cards", () => {
 
   assert.match(wxss, /@media \(min-width: 700px\)[\s\S]*?\.page \{[^}]*max-width: 1040px;/s,
     "project management must stay inside a bounded tablet workspace");
-  assert.match(wxss, /\.product-list \{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(220px, 1fr\)\);/s,
+  assert.match(wxss, /\.product-list \{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(300px, 1fr\)\);/s,
     "tablet width should automatically choose two or three compact project cards per row");
   assert.match(context, /项目按可用宽度自动使用两列或三列独立卡片/);
 });
@@ -401,7 +399,7 @@ test("HQ retail product management uses compact adaptive tablet cards", () => {
     "tablet width should automatically choose two or three compact retail product cards per row");
   assert.match(wxss, /\.product-head \{ display: none; \}/,
     "the magnified four-column phone header must retire on tablets");
-  assert.match(wxss, /\.status-button \{[^}]*width: 82px;[^}]*height: 38px;/s,
+  assert.match(wxss, /\.status-button \{[^}]*width: 82px !important;[^}]*height: 38px;/s,
     "product status actions must remain compact and separate from card text");
   assert.match(context, /产品按可用宽度自动使用两列或三列卡片展示名称、编号、状态和操作/);
 });

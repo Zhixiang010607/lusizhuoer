@@ -42,6 +42,7 @@
       <view class="dialog-heading"><view><text>{{decision === 'APPROVED' ? '确认通过' : '确认驳回'}}</text><text>{{pending.recordCode}} · {{pending.kind}}</text></view><view bindtap="closeDecision">×</view></view>
       <view class="summary"><text>{{pending.storeName}} · {{pending.customerName}} · {{pending.productName}}</text><text>{{pending.impact}} · {{pending.submittedAt}}</text><text>申请留言：{{pending.applicantNote}}</text><text>审核人员：{{session.staffName || '当前总部账号'}} {{session.staffCode || ''}}</text></view>
       <label class="field"><text>审核留言（可选）</text><textarea maxlength="1000" value="{{reviewNote}}" bindinput="inputReviewNote" placeholder="填写通过或驳回说明" /></label>
+      <view wx:if="{{deciding || decisionError}}" class="message decision-message {{decisionError ? 'error' : ''}}" role="alert">{{deciding ? '正在保存审核结果，请稍候…' : decisionError}}</view>
       <view class="dialog-actions"><button class="ghost" bindtap="closeDecision" disabled="{{deciding}}">取消</button><button class="{{decision === 'REJECTED' ? 'danger' : 'primary'}}" bindtap="confirmDecision" loading="{{deciding}}" disabled="{{deciding}}">确认{{decision === 'APPROVED' ? '通过' : '驳回'}}</button></view>
     </view>
   </view>

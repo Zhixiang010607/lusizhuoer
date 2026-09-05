@@ -101,6 +101,6 @@ test("mini program exposes separate project and product entries and keeps produc
   assert.match(createLogic, /clientRequestId:\s*pendingRequestId\(\)/);
   assert.doesNotMatch(`${page}\n${createPage}`, /产品类别|产品介绍|单据模板|LOGO/);
   assert.doesNotMatch(`${logic}\n${createLogic}`, /deleteRetailProduct/);
-  assert.match(pageStyles, /\.status-button\s*\{[^}]*justify-self:\s*center;[^}]*display:\s*flex;[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*width:\s*104rpx;[^}]*height:\s*56rpx;/s,
+  assert.match(pageStyles, /\.status-button\s*\{[^}]*justify-self:\s*center;[^}]*display:\s*flex;[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*width:\s*104rpx !important;[^}]*height:\s*76rpx;/s,
     "product status actions must be compact and centered in both axes");
 });

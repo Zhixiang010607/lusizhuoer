@@ -15,6 +15,7 @@
     <view class="workflow-grid">
     <view class="card customer-step-card">
       <view class="card-title"><text>第一步：确认客户</text><text class="badge">必须看到照片</text></view>
+      <view wx:if="{{session.role === 'store' && store.id}}" class="business-context"><text>办理门店</text><text>{{store.name}}</text></view>
       <label wx:if="{{session.role === 'teacher'}}" class="field">
         <text class="field-label">办理门店</text>
         <picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="selectStore" disabled="{{busy || loadingStores || !stores.length}}">
@@ -37,7 +38,8 @@
       <view wx:if="{{refund && selectedProduct}}" class="impact">已购未退 {{selectedProduct.purchasedCount}} 次，当前剩余 {{selectedProduct.remainingCount}} 次；本次最多可退 {{selectedProduct.purchasedCount}} 次。</view>
       <label class="field">
         <text class="field-label">业务老师{{session.role === 'teacher' ? '（自动绑定）' : '（可选）'}}</text>
-        <picker range="{{teacherLabels}}" value="{{teacherIndex}}" bindchange="selectTeacher" disabled="{{!customer || session.role === 'teacher' || loadingOptions}}">
+        <view wx:if="{{session.role === 'teacher'}}" class="readonly-field">{{selectedTeacher ? selectedTeacher.teacherName + (selectedTeacher.teacherCode ? ' · ' + selectedTeacher.teacherCode : '') : (store.id ? '请先确认客户并读取本人信息' : '选择门店后确认本人信息')}}</view>
+        <picker wx:else range="{{teacherLabels}}" value="{{teacherIndex}}" bindchange="selectTeacher" disabled="{{!customer || session.role === 'teacher' || loadingOptions}}">
           <view class="picker">{{selectedTeacher ? selectedTeacher.teacherName + ' · ' + selectedTeacher.teacherCode : '不指定业务老师'}}</view>
         </picker>
       </label>

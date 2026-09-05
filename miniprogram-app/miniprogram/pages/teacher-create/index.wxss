@@ -13,10 +13,10 @@
   .section-heading { gap: 12px; margin-bottom: 14px; }
   .section-heading > view { gap: 4px; }
   .section-heading > view text:first-child { font-size: 20px; }
-  .section-heading > view text:last-child { font-size: 13px; }
+  .section-heading > view text:last-child:not(:first-child) { font-size: 13px; }
   .teacher-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
   .field { gap: 7px; margin-top: 0; }
-  .field > text { font-size: 14px; }
+  .field > text:not(.field-help) { font-size: 14px; }
   .field input { min-height: 50px; padding: 0 14px; border-width: 1px; border-radius: 12px; font-size: 16px; }
   .rule-panel { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
   .rule-panel > view { gap: 4px; padding: 14px; border-width: 1px; border-radius: 12px; }

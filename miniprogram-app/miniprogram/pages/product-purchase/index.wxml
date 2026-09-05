@@ -1,15 +1,18 @@
 <view class="page">
   <view class="page-heading"><text class="eyebrow">产品购买</text><text class="title">为客户填报产品购买</text><text class="subtitle">无需人脸识别；审核通过后计入客户产品汇总。</text></view>
+  <view wx:if="{{lastPurchaseCode && !locked}}" class="card purchase-success"><text class="purchase-success-title">产品购买申请已提交</text><text class="purchase-success-code">{{lastPurchaseCode}}</text><text class="section-note">总部审核后生效，可在客户主页的产品记录中查看。下方可继续办理新申请。</text></view>
   <view wx:if="{{locked}}" class="card recovery-card"><view class="card-title"><text>上次提交结果待确认</text><text class="badge">禁止重复</text></view><text class="section-note">{{message}}</text><button class="primary" bindtap="recoverPending" loading="{{recovering}}">检查上次提交结果</button></view>
   <block wx:else>
     <view class="workflow-grid">
     <view class="card customer-step-card"><view class="card-title"><text>第一步：确认客户</text><text class="badge">本门店活跃客户</text></view>
+      <view wx:if="{{session.role === 'store' && store.id}}" class="business-context"><text>办理门店</text><text>{{store.name}}</text></view>
       <label wx:if="{{session.role === 'teacher'}}" class="field"><text class="field-label">办理门店</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="selectStore" disabled="{{loadingStores || busy || !stores.length}}"><view class="picker">{{loadingStores ? '正在读取可办理门店…' : (store.id ? store.name + ' · ' + (store.code || store.id) : (stores.length ? '请选择门店' : '暂无可办理门店'))}}</view></picker></label>
       <customer-picker wx:if="{{store.id}}" store-id="{{store.id}}" bindconfirm="customerConfirmed" bindchange="customerChanged"></customer-picker><text wx:else class="section-note">选择办理门店后即可确认客户</text>
     </view>
     <view class="card info-step-card {{customer ? '' : 'disabled-card'}}"><view class="card-title"><text>第二步：填写购买信息</text><text class="badge">{{customer ? customer.customerName : '先确认客户'}}</text></view>
       <label class="field"><text class="field-label">激活产品</text><picker range="{{productLabels}}" value="{{productIndex}}" bindchange="selectProduct" disabled="{{!customer || loadingProducts || !products.length}}"><view class="picker">{{loadingProducts ? '正在读取激活产品…' : productLabels[productIndex]}}</view></picker></label>
-      <label class="field"><text class="field-label">业务老师（{{session.role === 'store' ? '可选' : '本人'}}）</text><picker range="{{teacherLabels}}" value="{{teacherIndex}}" bindchange="selectTeacher" disabled="{{session.role === 'teacher' || loadingTeachers || !teacherOptionsReady}}"><view class="picker">{{loadingTeachers ? '正在读取业务老师…' : (teacherLabels[teacherIndex] || (session.role === 'store' ? '不指定业务老师' : '当前老师不可办理'))}}</view></picker></label>
+      <label class="field"><text class="field-label">业务老师（{{session.role === 'store' ? '可选' : '本人'}}）</text><view wx:if="{{session.role === 'teacher'}}" class="readonly-field">{{selectedTeacher ? selectedTeacher.teacherName + (selectedTeacher.teacherCode ? ' · ' + selectedTeacher.teacherCode : '') : (store.id ? '请先确认客户并读取本人信息' : '选择门店后确认本人信息')}}</view>
+        <picker wx:else range="{{teacherLabels}}" value="{{teacherIndex}}" bindchange="selectTeacher" disabled="{{session.role === 'teacher' || loadingTeachers || !teacherOptionsReady}}"><view class="picker">{{loadingTeachers ? '正在读取业务老师…' : (teacherLabels[teacherIndex] || (session.role === 'store' ? '不指定业务老师' : '当前老师不可办理'))}}</view></picker></label>
       <label class="field"><text class="field-label">购买数量</text><input class="input" type="number" maxlength="3" value="{{unitCount}}" bindinput="inputCount" disabled="{{!customer}}" placeholder="{{customer ? '1 至 999 的整数' : '请先确认客户'}}" /></label>
       <label class="field"><text class="field-label">填报留言（可选）</text><textarea class="textarea" maxlength="500" value="{{note}}" bindinput="inputNote" disabled="{{!customer}}" placeholder="{{customer ? '总部审核人员可看到' : '请先确认客户'}}" /></label>
     </view>

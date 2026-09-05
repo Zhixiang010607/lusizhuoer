@@ -192,7 +192,7 @@ test("all three mini-program homes preserve business content in the refreshed br
     "previous, page summary, and next must stay on one centered row");
   assert.match(storeDetailWxml, /data-code="\{\{item\.customerCode\}\}" bindtap="openCustomer">\{\{item\.customerName\}\}<\/view>/);
   assert.doesNotMatch(storeDetailWxml, /\{\{item\.customerName\}\}\s*·\s*\{\{item\.customerCode\}\}/);
-  assert.match(context, /旧的“与网页版手机端逐项像素一致”约定在这些页面已经退役，模块顺序与业务语义仍保持/);
+  assert.match(context, /旧的“只改登录与首页”和“与网页版手机端逐项像素一致”约定已经退役，模块顺序、表单顺序与业务语义仍保持/);
   assert.match(context, /微信原生状态栏、右上角胶囊、导航栏与浏览器自身地址栏属于平台边界/);
 });
 
@@ -218,13 +218,16 @@ test("mobile management controls stay centered without breaking data into charac
     "only a free-form history note may wrap; dates, counts, names, and codes stay intact");
   assert.match(teacher, /\.teacher-profile-hero, \.security-panel, \.experience-panel\s*\{[^}]*border-color:\s*#e1cfaf;[^}]*background:\s*#fffaf3/s,
     "HQ teacher profile, account, and quota panels must use the same card palette as other pages");
-  assert.match(teacher, /\.monthly-overview-card\s*\{[^}]*border:\s*1rpx solid #dfcfb4;[^}]*background:\s*#fff8ec/s);
+  assert.match(teacher, /\.monthly-overview-scroll\s*\{[^}]*max-width:\s*100%;[^}]*border:\s*1px solid #dfcfb4;/s);
+  assert.match(teacher, /\.monthly-overview-grid\s*\{[^}]*display:\s*inline-table;[^}]*min-width:\s*100%;[^}]*table-layout:\s*auto;/s,
+    "monthly summary columns must expand for complete names and counts inside their own scroll view");
+  assert.match(teacher, /\.monthly-overview-card\s*\{[^}]*display:\s*table-row;/s,
+    "each project and its four monthly metrics remain one horizontal record");
+  assert.match(teacher, /\.monthly-project-head, \.monthly-metric\s*\{[^}]*display:\s*table-cell;[^}]*vertical-align:\s*middle;[^}]*text-align:\s*center;[^}]*white-space:\s*nowrap;/s);
   assert.match(teacher, /\.monthly-project-head\s*\{[^}]*background:\s*#f6ead7/s);
-  assert.match(teacher, /\.monthly-overview-card\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(146rpx,\s*1\.15fr\)\s*minmax\(0,\s*3\.85fr\)/s,
-    "phone summaries must keep each project identity and all metrics on one row");
-  assert.match(teacher, /\.monthly-metrics\s*\{[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/s,
-    "phone summaries must keep the four monthly facts on one row");
-  assert.match(teacher, /\.monthly-metrics > view\s*\{[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*background:\s*#fffaf3/s);
+  assert.match(teacher, /\.monthly-metric\s*\{[^}]*background:\s*#fffaf3/s);
+  assert.doesNotMatch(teacher, /\.monthly-(?:project-head|metric)[^{]*\{[^}]*text-overflow:\s*ellipsis/s,
+    "monthly counts and project names must never become ellipses");
   assert.doesNotMatch(teacher, /#f4dfba|#eef3e9|#f2ebf0|#f8ead7/,
     "teacher detail must not mix several unrelated card background colors");
   assert.doesNotMatch(teacher, /\.monthly-overview-card\s*\{[^}]*background:\s*#fff;/s);

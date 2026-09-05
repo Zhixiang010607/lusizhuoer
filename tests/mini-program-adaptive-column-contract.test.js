@@ -9,11 +9,11 @@ const root = path.resolve(__dirname, "..");
 const mini = path.join(root, "miniprogram-app", "miniprogram");
 const readMini = (...parts) => fs.readFileSync(path.join(mini, ...parts), "utf8");
 
-function assertAutoTableContract(wxss) {
+function assertAutoTableContract(wxss, page) {
   assert.match(wxss, /width:\s*auto;\s*min-width:\s*100%;\s*display:\s*inline-table;\s*table-layout:\s*auto;/);
   assert.match(wxss, /display:\s*table-cell;/);
   assert.match(wxss, /padding:\s*10rpx 18rpx;/);
-  assert.match(wxss, /font-size:\s*21rpx;/);
+  assert.match(wxss, ["home", "hq-directory", "customer-detail"].includes(page) ? /font-size:\s*21rpx;/ : /font-size:\s*24rpx;/);
   assert.match(wxss, /white-space:\s*nowrap;/);
   assert.match(wxss, /font-size:\s*14px;/);
 }
@@ -37,7 +37,7 @@ for (const [page, marker] of nativeTablePages) {
 
     assert.match(wxml, /scroll-x(?:="true")?/);
     assert.match(wxss, new RegExp(`\\.${marker}`));
-    assertAutoTableContract(wxss);
+    assertAutoTableContract(wxss, page);
   });
 }
 

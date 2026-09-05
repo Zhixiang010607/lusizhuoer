@@ -229,9 +229,9 @@ test("HQ review workbenches match web filters, pagination, exact links, and guar
     "tablet review tables keep content-aware columns while adapting to the card width");
   assert.match(wxss, /\.review-filter-grid \{[^}]*display: grid;[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s,
     "phone review filters must pair store and status instead of stacking two oversized full-width controls");
-  assert.match(wxss, /\.filter-card \.review-type-tabs button, \.filter-card \.mode-tabs button \{ min-height: 60rpx; font-size: 20rpx; \}/,
+  assert.match(wxss, /\.filter-card \.review-type-tabs button, \.filter-card \.mode-tabs button \{ min-height: 60rpx; font-size: 24rpx; \}/,
     "review switches must use the compact phone density");
-  assert.match(wxss, /\.filter-card \.review-action-cell button \{[^}]*min-height: 72rpx;[^}]*font-size: 21rpx;/s,
+  assert.match(wxss, /\.filter-card \.review-action-cell button \{[^}]*min-height: 72rpx;[^}]*font-size: 24rpx;/s,
     "review actions must match the compact filter control height");
   assert.doesNotMatch(wxml, /button-row review-query-actions/,
     "query and reset must be direct siblings of store and status instead of a nested two-column group");

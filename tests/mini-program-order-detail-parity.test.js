@@ -56,7 +56,8 @@ Page({`);
       if (request.endsWith("api")) return {
         callFace: options.callFace || (() => ({})),
         callPhoto: options.callPhoto || (() => ({})),
-        callStaff: options.callStaff || (() => ({}))
+        callStaff: options.callStaff || (() => ({})),
+        callRating: options.callRating || (() => ({}))
       };
       throw new Error(`unexpected require ${request}`);
     },
@@ -729,4 +730,41 @@ test("normal and experience details omit review time while supplement review rem
   assert.match(wxss, /\.order-hero \{[^}]*flex-direction:\s*column;/,
     "the title owns a full row and the status badge moves below it");
   assert.doesNotMatch(wxss, /word-break:\s*break-all/, "detail values no longer break every character");
+});
+
+
+test("rating access denial is quiet and not retried, while transport failure stays retryable", async () => {
+  let calls = 0;
+  let code = "FORBIDDEN";
+  const { page: definition } = loadHelpers({ callRating: async () => {
+    calls++;
+    const error = new Error("示例读取失败"); error.code = code; throw error;
+  } });
+  const page = pageInstance(definition, { baseType: "VERIFICATION", order: { id: "qa-1", originalType: "NORMAL" } });
+  await page.loadRating();
+  assert.equal(page.data.ratingRestricted, true);
+  assert.equal(page.data.ratingError, "");
+  assert.equal(await page.retryRating(), false);
+  assert.equal(calls, 1);
+  // A fresh order load clears the presentation state and defers authorization to the server again.
+  code = "FUNCTION_INVOCATION_FAILED";
+  page.data.order = { id: "qa-2", originalType: "EXPERIENCE" };
+  await page.loadRating();
+  assert.equal(page.data.ratingRestricted, false);
+  assert.equal(page.data.ratingError, "示例读取失败");
+  await page.retryRating();
+  assert.equal(calls, 3);
+});
+
+test("a late rating denial cannot overwrite another order's rating state", async () => {
+  let rejectRequest;
+  const { page: definition } = loadHelpers({ callRating: () => new Promise((_, reject) => { rejectRequest = reject; }) });
+  const page = pageInstance(definition, { baseType: "VERIFICATION", order: { id: "qa-1", originalType: "NORMAL" } });
+  const request = page.loadRating();
+  page.setData({ order: { id: "qa-2", originalType: "NORMAL" }, ratingLoading: false, ratingRestricted: false, ratingError: "" });
+  const error = new Error("旧工单评价不可见"); error.code = "FORBIDDEN"; rejectRequest(error);
+  await request;
+  assert.equal(page.data.ratingRestricted, false);
+  assert.equal(page.data.ratingLoading, false);
+  assert.equal(page.data.ratingError, "");
 });

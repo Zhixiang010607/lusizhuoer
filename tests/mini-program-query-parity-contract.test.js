@@ -79,7 +79,7 @@ test("customer query keeps the web filter dimensions, role scope, details, and d
     "customer query controls must use the compact phone density");
   assert.match(wxss, /\.summary-grid view \{[^}]*padding: 10rpx 6rpx;[^}]*border-radius: 14rpx;/,
     "customer result totals must not consume a full information-card height on phones");
-  assert.match(wxss, /\.summary-grid text \{ min-height: 34rpx;[^}]*font-size: 18rpx;/);
+  assert.match(wxss, /\.summary-grid text \{ min-height: 34rpx;[^}]*font-size: 24rpx;/);
   assert.match(wxss, /\.customer-table \{ width: auto; min-width: 100%; display: inline-table; table-layout: auto;/,
     "customer result columns must size to their content and scroll only when the content exceeds the viewport");
   assert.match(wxml, /scroll-left="\{\{tableScrollLeft\}\}"/);
@@ -122,7 +122,7 @@ test("recharge, verification, and product query share complete filters and exact
   const wxss = read("pages", "records", "index.wxss");
   assert.match(wxss, /\.record-table, \.verification-table, \.product-purchase-table \{ width: auto; min-width: 100%; display: inline-table; table-layout: auto;/,
     "all business result tables must size columns from their content and scroll only when needed");
-  assert.match(wxss, /\.record-row text \{[^}]*display:\s*table-cell;[^}]*font-size:\s*21rpx;[^}]*white-space:\s*nowrap;/,
+  assert.match(wxss, /\.record-row text \{[^}]*display:\s*table-cell;[^}]*font-size:\s*24rpx;[^}]*white-space:\s*nowrap;/,
     "business result cells must keep one readable font size without clipping long values");
   assert.match(wxml, /scroll-left="\{\{tableScrollLeft\}\}"/,
     "each query result can force the horizontal table back to its first column");
@@ -154,7 +154,7 @@ test("recharge, verification, and product query share complete filters and exact
     "manual business customer lookup must keep name and birthday together");
   assert.match(wxss, /\.query-grid \.field \{ min-width: 0; margin-bottom: 10rpx; \}/);
   assert.match(wxss, /\.query-grid \.input, \.query-grid \.picker \{ min-height: 72rpx;/);
-  assert.match(wxss, /\.query-actions button \{ min-height: 72rpx; font-size: 23rpx; \}/,
+  assert.match(wxss, /\.query-actions button \{ min-height: 72rpx; font-size: 24rpx; \}/,
     "business query and reset actions must match the compact phone control density");
   assert.match(wxss, /\.summary-grid view \{[^}]*padding: 10rpx 6rpx;[^}]*border-radius: 14rpx;/,
     "business status totals must use compact phone tiles above the results");

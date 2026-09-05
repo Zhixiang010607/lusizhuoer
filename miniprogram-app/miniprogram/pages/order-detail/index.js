@@ -496,7 +496,7 @@ Page({
     photos: buildPhotoSlots(), photoCount: 0, visiblePhotoCount: 0, photoLoading: false, photoManifestLoaded: false, photoManifestError: "",
     canEdit: false, isSubmitter: false, editableUntil: "", editableUntilLabel: "—", uploading: false, uploadingSlot: -1,
     exporting: false, exportProgress: "",
-    rating: emptyRating(), ratingLoading: false, ratingError: "",
+    rating: emptyRating(), ratingLoading: false, ratingError: "", ratingRestricted: false,
     photoViewerOpen: false, photoViewerPath: "", photoViewerSlot: -1, photoViewerLabel: "",
     message: "", error: false
   },
@@ -558,7 +558,7 @@ Page({
       ...(verification ? {
         photos: buildPhotoSlots("loading"), photoCount: 0, visiblePhotoCount: 0, photoManifestLoaded: false, photoManifestError: "",
         canEdit: false, isSubmitter: false, editableUntil: "", editableUntilLabel: "—",
-        rating: emptyRating(), ratingLoading: true, ratingError: ""
+        rating: emptyRating(), ratingLoading: true, ratingError: "", ratingRestricted: false
       } : {})
     });
     try {
@@ -664,25 +664,28 @@ Page({
   async loadRating() {
     if (this.data.baseType !== "VERIFICATION" || !this.data.order?.id || this.data.ratingLoading === "locked") return false;
     const recordId = clean(this.data.order.id);
-    this.setData({ ratingLoading: "locked", ratingError: "" });
+    this.setData({ ratingLoading: "locked", ratingError: "", ratingRestricted: false });
     if (!["NORMAL", "EXPERIENCE"].includes(clean(this.data.order.originalType).toUpperCase())) {
-      this.setData({ rating: emptyRating(), ratingLoading: false, ratingError: "" });
+      this.setData({ rating: emptyRating(), ratingLoading: false, ratingError: "", ratingRestricted: false });
       return true;
     }
     try {
       const result = await callRating("getForStaff", { verificationId: recordId });
       if (clean(this.data.order?.id) !== recordId) return false;
-      this.setData({ rating: normalizeCustomerRating(result), ratingLoading: false, ratingError: "" });
+      this.setData({ rating: normalizeCustomerRating(result), ratingLoading: false, ratingError: "", ratingRestricted: false });
       return true;
     } catch (error) {
       if (clean(this.data.order?.id) !== recordId) return false;
-      this.setData({ rating: emptyRating(), ratingLoading: false, ratingError: error.message || "客户评价读取失败" });
+      this.setData({
+        rating: emptyRating(), ratingLoading: false, ratingRestricted: error.code === "FORBIDDEN",
+        ratingError: error.code === "FORBIDDEN" ? "" : (error.message || "客户评价读取失败")
+      });
       return false;
     }
   },
 
   retryRating() {
-    if (this.data.ratingLoading || !this.data.order?.id) return false;
+    if (this.data.ratingLoading || this.data.ratingRestricted || !this.data.order?.id) return false;
     return this.loadRating();
   },
 

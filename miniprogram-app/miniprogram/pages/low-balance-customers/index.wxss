@@ -2,26 +2,26 @@
 .search-card .card-title { margin-bottom: 12rpx; }
 .query-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 12rpx; }
 .query-grid .field { min-width: 0; margin-bottom: 10rpx; }
-.query-grid .field-label { margin-bottom: 6rpx; font-size: 22rpx; }
+.query-grid .field-label { margin-bottom: 6rpx; font-size: 24rpx; }
 .query-grid .input, .query-grid .picker { min-height: 72rpx; padding-right: 16rpx; padding-left: 16rpx; font-size: 24rpx; }
 .query-grid .query-wide { grid-column: 1 / -1; }
-.query-note { display: block; margin: 2rpx 0 14rpx; color: #7c7062; font-size: 19rpx; line-height: 1.5; }
-.search-card > .button-row button { min-height: 72rpx; font-size: 23rpx; }
+.query-note { display: block; margin: 2rpx 0 14rpx; color: #7c7062; font-size: 24rpx; line-height: 1.5; }
+.search-card > .button-row button { min-height: 72rpx; font-size: 24rpx; }
 .summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6rpx; margin-bottom: 12rpx; }
 .summary-grid view { min-width: 0; padding: 10rpx 6rpx; text-align: center; background: #fff; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
-.summary-grid text { min-height: 34rpx; display: block; color: #7c7062; font-size: 18rpx; line-height: 1.2; }
+.summary-grid text { min-height: 34rpx; display: block; color: #7c7062; font-size: 24rpx; line-height: 1.2; }
 .summary-grid .summary-value { min-height: 0; margin-top: 2rpx; color: #302a22; font-size: 26rpx; font-weight: 800; }
 .result-card { min-width: 0; overflow: hidden; }
 .result-export { display: flex; flex-direction: column; align-items: stretch; gap: 12rpx; margin-top: 12rpx; padding: 12rpx 14rpx; background: #f7efe2; border: 1rpx solid #e1cfaf; border-radius: 14rpx; }
-.result-export text { min-width: 0; flex: 1; color: #746756; font-size: 18rpx; line-height: 1.4; }
+.result-export text { min-width: 0; flex: 1; color: #746756; font-size: 24rpx; line-height: 1.4; }
 .export-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10rpx; }
-.result-export button { width: 100%; min-height: 58rpx; margin: 0; padding: 0 10rpx; font-size: 19rpx; line-height: 1; }
+.result-export button { width: 100% !important; min-height: 80rpx; margin: 0; padding: 0 10rpx; font-size: 24rpx; line-height: 1; }
 .result-sections { display: grid; grid-template-columns: 1fr; gap: 18rpx; margin-top: 18rpx; }
 .result-section { min-width: 0; padding: 14rpx; background: #fffaf3; border: 1rpx solid #dfcfb4; border-radius: 16rpx; overflow: hidden; }
 .section-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 12rpx; }
 .section-title > view { min-width: 0; }
 .section-title > view > text:first-child { display: block; color: #302a22; font-size: 27rpx; font-weight: 850; }
-.section-note { display: block; margin-top: 5rpx; color: #817463; font-size: 18rpx; line-height: 1.35; }
+.section-note { display: block; margin-top: 5rpx; color: #817463; font-size: 24rpx; line-height: 1.35; }
 .compact-empty { min-height: 118rpx; margin-top: 14rpx; }
 .low-balance-table-scroll { width: 100%; max-width: 100%; margin-top: 14rpx; overflow-x: auto; overflow-y: hidden; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
 .low-balance-table-scroll[data-visible-rows="1"] { height: 138rpx; }
@@ -31,18 +31,18 @@
 .low-balance-table-scroll[data-visible-rows="5"] { height: 426rpx; }
 .low-balance-table { width: auto; min-width: 100%; display: inline-table; table-layout: auto; border-collapse: collapse; background: #fff; }
 .low-balance-row { display: table-row; font-variant-numeric: tabular-nums; }
-.low-balance-row text { height: 72rpx; display: table-cell; padding: 10rpx 18rpx; box-sizing: border-box; vertical-align: middle; border-top: 1rpx solid #dfcfb4; font-size: 21rpx; line-height: 1.25; text-align: center; white-space: nowrap; }
+.low-balance-row text { height: 72rpx; display: table-cell; padding: 10rpx 18rpx; box-sizing: border-box; vertical-align: middle; border-top: 1rpx solid #dfcfb4; font-size: 24rpx; line-height: 1.25; text-align: center; white-space: nowrap; }
 .low-balance-row:first-child text { border-top: 0; }
 .low-balance-head { color: #675b4b; background: #f5ead8; font-weight: 800; }
 .low-balance-head text { height: 66rpx; }
 .customer-name { color: #8b642e; font-weight: 800; }
 .remaining-count { color: #8d5527; font-weight: 900; }
 .pager { width: 100%; display: grid; grid-template-columns: 116rpx minmax(0, 1fr) 116rpx; align-items: center; gap: 10rpx; padding-top: 20rpx; border-top: 1rpx solid #eadfce; }
-.pager button { width: 116rpx; min-height: 56rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 10rpx; font-size: 18rpx; line-height: 1; }
-.pager text { min-width: 0; color: #7c7062; font-size: 18rpx; text-align: center; white-space: nowrap; }
+.pager button { width: 116rpx !important; min-height: 80rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 10rpx; font-size: 24rpx; line-height: 1; }
+.pager text { min-width: 0; color: #7c7062; font-size: 24rpx; text-align: center; white-space: nowrap; }
 .page-jump { width: 100%; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 8rpx; margin-top: 12rpx; overflow: hidden; }
-.page-jump input { width: 100rpx; min-height: 56rpx; padding: 0 10rpx; font-size: 18rpx; text-align: center; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 12rpx; }
-.page-jump button { width: 116rpx; min-height: 56rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 10rpx; font-size: 18rpx; line-height: 1; }
+.page-jump input { width: 100rpx; min-height: 80rpx; padding: 0 10rpx; font-size: 24rpx; text-align: center; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 12rpx; }
+.page-jump button { width: 116rpx !important; min-height: 80rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 10rpx; font-size: 24rpx; line-height: 1; }
 
 @media (min-width: 700px) {
   .page-heading { margin-bottom: 12px; padding: 12px 16px; border-radius: 14px; }
@@ -80,9 +80,9 @@
   .low-balance-row text { height: 60px; padding: 8px 14px; border-top-width: 1px; font-size: 14px; }
   .low-balance-head text { height: 44px; }
   .pager { grid-template-columns: 84px minmax(0, 1fr) 84px; gap: 8px; padding-top: 14px; border-top-width: 1px; }
-  .pager button { width: 84px; min-height: 38px; padding: 0 8px; font-size: 12px; }
+  .pager button { width: 84px !important; min-height: 38px; padding: 0 8px; font-size: 12px; }
   .pager text { font-size: 12px; }
   .page-jump { gap: 6px; margin-top: 8px; }
   .page-jump input { width: 72px; min-height: 38px; padding: 0 8px; font-size: 12px; border-width: 1px; border-radius: 9px; }
-  .page-jump button { width: 84px; min-height: 38px; padding: 0 8px; font-size: 12px; }
+  .page-jump button { width: 84px !important; min-height: 38px; padding: 0 8px; font-size: 12px; }
 }

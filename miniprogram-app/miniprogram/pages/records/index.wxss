@@ -1,19 +1,19 @@
 .filter-card { padding: 18rpx; }
 .filter-card .card-title { margin-bottom: 12rpx; }
 .filter-card .query-modes { margin-bottom: 12rpx; padding: 5rpx; }
-.filter-card .query-modes button { min-height: 60rpx; font-size: 23rpx; }
+.filter-card .query-modes button { min-height: 60rpx; font-size: 24rpx; }
 .query-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 12rpx; }
 .query-grid .field { min-width: 0; margin-bottom: 10rpx; }
-.query-grid .field-label { margin-bottom: 6rpx; font-size: 22rpx; }
+.query-grid .field-label { margin-bottom: 6rpx; font-size: 24rpx; }
 .query-grid .input, .query-grid .picker { min-height: 72rpx; padding-right: 16rpx; padding-left: 16rpx; font-size: 24rpx; }
 .query-grid .query-wide { grid-column: 1 / -1; }
 .query-actions { grid-column: 1 / -1; }
-.query-actions button { min-height: 72rpx; font-size: 23rpx; }
+.query-actions button { min-height: 72rpx; font-size: 24rpx; }
 .summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6rpx; margin-bottom: 12rpx; }
 .source-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .summary-grid view { min-width: 0; padding: 10rpx 6rpx; text-align: center; background: #fff; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
 .summary-grid text { display: block; }
-.summary-grid text { color: #7c7062; font-size: 18rpx; line-height: 1.2; }
+.summary-grid text { color: #7c7062; font-size: 24rpx; line-height: 1.2; }
 .summary-grid .summary-value { margin-top: 2rpx; color: #302a22; font-size: 26rpx; font-weight: 800; }
 .record-scroll { width: 100%; overflow: hidden; scroll-padding-inline: 12rpx; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
 .record-scroll[data-visible-rows="1"] { height: 146rpx; }
@@ -23,17 +23,17 @@
 .record-scroll[data-visible-rows="5"] { height: 458rpx; }
 .record-table, .verification-table, .product-purchase-table { width: auto; min-width: 100%; display: inline-table; table-layout: auto; border-collapse: collapse; background: #fff; }
 .record-row { display: table-row; font-variant-numeric: tabular-nums; }
-.record-row text { height: 78rpx; display: table-cell; padding: 10rpx 18rpx; box-sizing: border-box; vertical-align: middle; border-top: 1rpx solid #dfcfb4; font-size: 21rpx; line-height: 1.25; text-align: center; white-space: nowrap; }
+.record-row text { height: 78rpx; display: table-cell; padding: 10rpx 18rpx; box-sizing: border-box; vertical-align: middle; border-top: 1rpx solid #dfcfb4; font-size: 24rpx; line-height: 1.25; text-align: center; white-space: nowrap; }
 .record-head { height: 68rpx; color: #675b4b; background: #f5ead8; font-weight: 800; }
 .record-head text { height: 68rpx; border-top: 0; }
 .table-link { color: #8b642e; font-weight: 800; }
 .record-cell--order, .record-cell--birth, .record-cell--time { font-variant-numeric: tabular-nums; }
 .pager { display: flex; align-items: center; justify-content: space-between; gap: 14rpx; margin-top: 18rpx; }
-.pager button { width: 152rpx; min-height: 58rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 14rpx; font-size: 19rpx; line-height: 1; }
-.pager > text { color: #7c7062; font-size: 19rpx; white-space: nowrap; }
+.pager button { width: 152rpx !important; min-height: 80rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 14rpx; font-size: 24rpx; line-height: 1; }
+.pager > text { color: #7c7062; font-size: 24rpx; white-space: nowrap; }
 .page-jump { display: flex; align-items: center; justify-content: center; gap: 10rpx; margin-top: 14rpx; }
-.page-jump input { width: 104rpx; min-height: 58rpx; padding: 0 14rpx; font-size: 19rpx; text-align: center; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 12rpx; }
-.page-jump button { width: 132rpx; min-height: 58rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 14rpx; font-size: 19rpx; line-height: 1; }
+.page-jump input { width: 104rpx; min-height: 80rpx; padding: 0 14rpx; font-size: 24rpx; text-align: center; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 12rpx; }
+.page-jump button { width: 132rpx !important; min-height: 80rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 14rpx; font-size: 24rpx; line-height: 1; }
 
 @media (min-width: 700px) {
   .filter-card { padding: 16px 18px; }
@@ -64,9 +64,9 @@
   .record-row text { height: 58px; padding: 8px 12px; border-width: 1px; font-size: 14px; }
   .record-head, .record-head text { height: 54px; }
   .pager { gap: 14px; margin-top: 16px; }
-  .pager button { width: 120px; min-height: 44px; padding: 0 12px; font-size: 14px; }
+  .pager button { width: 120px !important; min-height: 44px; padding: 0 12px; font-size: 14px; }
   .pager > text { font-size: 14px; }
   .page-jump { gap: 8px; margin-top: 12px; }
   .page-jump input { width: 88px; min-height: 44px; padding: 0 10px; border-width: 1px; border-radius: 10px; font-size: 14px; }
-  .page-jump button { width: 110px; min-height: 44px; padding: 0 12px; font-size: 14px; }
+  .page-jump button { width: 110px !important; min-height: 44px; padding: 0 12px; font-size: 14px; }
 }

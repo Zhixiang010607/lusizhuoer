@@ -1,6 +1,6 @@
 @import "../home/index.wxss";
 .detail-topbar { justify-content: space-between; gap: 14rpx; }
-.back-button { width: auto; min-width: 154rpx; min-height: 60rpx; margin: 0; padding: 0 14rpx; border-radius: 11rpx; font-size: 18rpx; }
+.back-button { width: auto !important; min-width: 154rpx; min-height: 60rpx; margin: 0; padding: 0 14rpx; border-radius: 11rpx; font-size: 24rpx; }
 .teacher-detail-grid, .teacher-detail-sidebar { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
 .store-status-badge.archived { color: #8f3a34; background: #fff0ee; }
 .teacher-profile-hero, .security-panel, .experience-panel { border-color: #e1cfaf; background: #fffaf3; }
@@ -10,21 +10,20 @@
 .security-panel .button-row button { min-height: 72rpx; font-size: 21rpx; }
 .security-panel .input, .experience-panel .input, .experience-panel .picker, .experience-panel .textarea { background: #fff; border-color: #dcc8a6; }
 .monthly-summary-note { display: block; }
-.monthly-overview-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14rpx; }
-.monthly-overview-card { min-width: 0; display: grid; grid-template-columns: minmax(146rpx, 1.15fr) minmax(0, 3.85fr); overflow: hidden; border: 1rpx solid #dfcfb4; border-radius: 18rpx; background: #fff8ec; }
-.monthly-project-head { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8rpx; padding: 12rpx 14rpx; border-right: 1rpx solid #eadcc5; background: #f6ead7; }
-.monthly-project-head > view { min-width: 0; }
-.monthly-project-head > view text { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.monthly-project-head > view text:first-child { color: #4a3825; font-size: 20rpx; font-weight: 850; }
-.monthly-project-head > view text:last-child { margin-top: 3rpx; color: #85745d; font-size: 15rpx; }
-.monthly-project-head > text { display: none; }
-.monthly-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rpx; background: #eadcc5; }
-.monthly-metrics > view { min-width: 0; min-height: 100rpx; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 9rpx 3rpx; background: #fffaf3; text-align: center; }
-.monthly-metrics text { width: 100%; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.monthly-metrics text:first-child { color: #7c7062; font-size: 15rpx; }
-.monthly-metrics text:last-child { margin-top: 5rpx; color: #4a3825; font-size: 20rpx; font-weight: 900; }
-.monthly-metrics .monthly-available { background: #f7ead3; }
-.monthly-metrics .monthly-available text:last-child { color: #80602c; }
+.monthly-overview-scroll { width: 100%; max-width: 100%; box-sizing: border-box; border: 1px solid #dfcfb4; border-radius: 14px; }
+.monthly-overview-grid { display: inline-table; width: auto; min-width: 100%; border-collapse: collapse; table-layout: auto; }
+.monthly-overview-card { display: table-row; }
+.monthly-project-head, .monthly-metric { display: table-cell; height: 84px; padding: 12px; border-bottom: 1px solid #eadcc5; vertical-align: middle; text-align: center; white-space: nowrap; }
+.monthly-overview-card:last-child > view { border-bottom: 0; }
+.monthly-project-head { background: #f6ead7; }
+.monthly-project-head text, .monthly-metric text { display: block; font-size: 13px; white-space: nowrap; }
+.monthly-project-head text:first-child { color: #4a3825; font-weight: 750; }
+.monthly-project-head text:last-child { margin-top: 6px; color: #85745d; font-size: 12px; }
+.monthly-metric { background: #fffaf3; }
+.monthly-metric text:first-child { color: #7c7062; font-size: 12px; }
+.monthly-metric text:last-child { margin-top: 6px; color: #4a3825; font-size: 15px; font-weight: 750; }
+.monthly-available { background: #f7ead3; }
+.monthly-available text:last-child { color: #80602c; }
 .monthly-overview-empty { min-height: 112rpx; display: flex; align-items: center; justify-content: center; }
 .subsection { margin-top: 26rpx; padding-top: 24rpx; border-top: 1rpx solid #e5d6bd; }
 .experience-project-panel > .subsection:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
@@ -42,7 +41,7 @@
 .quota-head text { display: block; }
 .quota-head > view:first-child text:first-child { font-size: 25rpx; font-weight: 850; }
 .quota-head > view:first-child text:last-child { margin-top: 4rpx; color: #7c7062; font-size: 18rpx; }
-.quota-actions button { width: auto; min-height: 54rpx; margin: 0; padding: 0 12rpx; font-size: 17rpx; }
+.quota-actions button { width: auto !important; min-height: 54rpx; margin: 0; padding: 0 12rpx; font-size: 17rpx; }
 .quota-actions .delete-configuration { min-width: 126rpx; min-height: 62rpx; padding: 0 16rpx; font-size: 20rpx; }
 .quota-balance { display: flex; align-items: baseline; gap: 12rpx; margin: 20rpx 0; color: #74592d; }
 .quota-balance > text:first-child { color: #74695c; font-size: 19rpx; }
@@ -78,8 +77,8 @@
 
 @media (min-width: 700px) {
   .workspace-main { max-width: 1120px; margin: 20px auto 0; }
-  .teacher-detail-grid { grid-template-columns: minmax(280px, .76fr) minmax(0, 1.24fr); gap: 16px; align-items: start; }
-  .teacher-detail-sidebar { gap: 16px; align-content: start; }
+  .teacher-detail-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+  .teacher-detail-sidebar { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-content: start; }
   .teacher-detail-sidebar > .web-panel, .teacher-detail-grid > .experience-panel { margin-bottom: 0; }
   .experience-project-panel, .experience-operations-panel { grid-column: 1 / -1; }
 
@@ -92,19 +91,12 @@
   .security-panel .button-row { gap: 10px; }
   .security-panel .button-row button { min-height: 46px; padding: 0 10px; font-size: 14px; }
 
-  .monthly-overview-grid { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-  .monthly-overview-card { display: grid; grid-template-columns: minmax(132px, 1.15fr) minmax(0, 3.85fr); border-width: 1px; border-radius: 14px; }
-  .monthly-project-head { gap: 8px; padding: 9px 11px; border-right: 1px solid #eadcc5; border-bottom: 0; }
-  .monthly-project-head > view text:first-child { font-size: 16px; }
-  .monthly-project-head > view text:last-child { margin-top: 3px; font-size: 12px; }
-  .monthly-project-head > text { display: block; padding: 4px 8px; font-size: 12px; }
-  .monthly-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; }
-  .monthly-metrics > view { min-height: 58px; padding: 7px 5px; }
-  .monthly-metrics text:first-child { font-size: 11px; }
-  .monthly-metrics text:last-child { margin-top: 4px; font-size: 16px; }
+  .monthly-project-head text:first-child { font-size: 16px; }
+  .monthly-metric text:first-child { font-size: 13px; }
+  .monthly-metric text:last-child { font-size: 16px; }
   .monthly-overview-empty { min-height: 76px; }
 
-  .experience-project-panel { display: grid; grid-template-columns: minmax(0, .74fr) minmax(0, 1.26fr); gap: 18px; align-items: start; }
+  .experience-project-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-items: start; }
   .experience-project-panel > .subsection { min-width: 0; margin-top: 0; padding-top: 0; border-top: 0; }
   .subsection-title { margin-bottom: 12px; font-size: 19px; }
   .summary-grid { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
@@ -113,7 +105,9 @@
   .summary-item > view:last-child text:first-child { font-size: 22px; }
   .quota-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .quota-card { padding: 14px; border-width: 1px; border-radius: 14px; }
-  .quota-head > view:first-child text:first-child { font-size: 17px; }
+  .quota-head { flex-wrap: wrap; }
+  .quota-head > view:first-child { flex: 1 1 180px; }
+  .quota-head > view:first-child text:first-child { font-size: 17px; line-height: 1.5; overflow-wrap: anywhere; }
   .quota-head > view:first-child text:last-child { margin-top: 3px; font-size: 13px; }
   .quota-actions .delete-configuration { min-width: 96px; min-height: 42px; padding: 0 12px; font-size: 14px; }
   .quota-balance { gap: 8px; margin: 12px 0; }
@@ -134,3 +128,20 @@
   .history-row > view:first-child text:not(:first-child), .history-row > view:last-child text:not(:first-child) { margin-top: 4px; font-size: 13px; }
   .history-count { padding: 4px 9px; font-size: 13px; }
 }
+
+.security-panel .button-row { margin-top: 20rpx; flex-wrap: wrap; }
+.security-panel .button-row button { flex: 1 1 220rpx; }
+@media (min-width: 700px) {
+  .detail-topbar .back-button { min-width: 116px; min-height: 44px; padding: 0 14px; font-size: 14px; }
+  .security-panel .button-row { margin-top: 14px; }
+  .security-panel .button-row button { flex-basis: 120px; }
+}
+@media (min-width: 1100px) {
+  .teacher-detail-grid { grid-template-columns: minmax(280px, .7fr) minmax(0, 1.3fr); }
+  .teacher-detail-sidebar { grid-template-columns: minmax(0, 1fr); }
+  .experience-project-panel { grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); }
+  .quota-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+.monthly-scroll-hint { display: block; margin-bottom: 12rpx; color: #7c7062; font-size: 24rpx; }
+@media (min-width: 700px) { .monthly-scroll-hint { display: none; } }

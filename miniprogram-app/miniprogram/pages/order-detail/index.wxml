@@ -79,8 +79,9 @@
     </view>
 
     <view wx:if="{{baseType === 'VERIFICATION'}}" class="card rating-card">
-      <view class="card-title"><text>客户评价</text><text class="badge">{{rating.submitted ? '已评价' : '暂无评价'}}</text></view>
+      <view class="card-title"><text>客户评价</text><text class="badge">{{ratingRestricted ? '查看范围受限' : (rating.submitted ? '已评价' : '暂无评价')}}</text></view>
       <view wx:if="{{ratingLoading}}" class="rating-empty">正在读取客户评价…</view>
+      <view wx:elif="{{ratingRestricted}}" class="rating-empty">此工单评价仅对总部、所属门店和工单绑定老师开放</view>
       <view wx:elif="{{ratingError}}" class="rating-empty rating-load-error">
         <text>{{ratingError}}</text>
         <button class="secondary compact-button" bindtap="retryRating">重新读取</button>

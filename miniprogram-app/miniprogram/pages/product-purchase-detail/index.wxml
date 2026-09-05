@@ -18,8 +18,8 @@
         <view class="card-title">购买信息</view>
         <view class="detail-grid">
           <view><text>购买数量</text><text>{{order.unitCount}} 件</text></view>
-          <view><text>提交时间</text><text>{{order.submittedAt}}</text></view>
-          <view><text>审核时间</text><text>{{order.reviewedAt}}</text></view>
+          <view class="detail-time"><text>提交时间</text><text>{{order.submittedAt}}</text></view>
+          <view class="detail-time"><text>审核时间</text><text>{{order.reviewedAt}}</text></view>
           <view><text>提交人员</text><text>{{order.submittedBy}}</text></view>
           <view><text>审核人员</text><text>{{order.reviewedBy}}</text></view>
         </view>

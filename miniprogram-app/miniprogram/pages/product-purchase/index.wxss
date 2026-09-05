@@ -4,7 +4,15 @@
 
 @media (min-width: 700px) {
   .workflow-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 16px; }
-  .workflow-grid > .card { height: 100%; margin: 0; }
+  .workflow-grid > .card { height: auto; margin: 0; }
   .workflow-grid .workflow-wide { grid-column: 1 / -1; height: auto; }
   .submit-card .primary { width: min(420px, 100%); margin: 0 auto; }
 }
+
+.purchase-success { border-color: #b8cbb9; }
+.purchase-success-title { display: block; color: #4f6f5d; font-size: 28rpx; font-weight: 700; }
+.purchase-success-code { display: block; margin: 14rpx 0; color: #302a22; font-size: 28rpx; font-weight: 700; white-space: nowrap; }
+.purchase-success .section-note { margin: 0; }
+@media (min-width: 700px) { .purchase-success-title, .purchase-success-code { font-size: 18px; } .purchase-success-code { margin: 10px 0; } }
+
+@media (min-width: 700px) { .workflow-grid .card-title > text:first-child { font-size: 18px; } .workflow-grid .textarea { height: 120px; } }

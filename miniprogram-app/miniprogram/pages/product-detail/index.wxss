@@ -2,20 +2,20 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
 .page { width: calc(100% - 28rpx); min-height: 100vh; margin: 0 auto; padding: 16rpx 0 40rpx; overflow-x: hidden; }
 .page-heading { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin: 8rpx 6rpx 20rpx; }
 .title { min-width: 0; font-family: Georgia, "Times New Roman", serif; font-size: 38rpx; font-weight: 800; }
-.return-button { width: auto; min-width: 162rpx; min-height: 66rpx; padding: 0 16rpx; font-size: 19rpx; }
+.return-button { width: auto !important; min-width: 162rpx; min-height: 66rpx; padding: 0 16rpx; font-size: 19rpx; }
 .panel { margin-bottom: 16rpx; padding: 24rpx; background: #fffaf3; border: 1rpx solid #dfcfb4; border-radius: 24rpx; box-shadow: 0 12rpx 34rpx rgba(93,72,39,.08); }
 .summary-card { display: flex; align-items: center; justify-content: space-between; gap: 18rpx; }
 .summary-copy { min-width: 0; display: flex; flex: 1; flex-direction: column; align-items: flex-start; gap: 7rpx; }
 .type-pill, .template-badge { padding: 6rpx 12rpx; color: #74592d; background: #f4e7d0; border-radius: 999rpx; font-size: 18rpx; font-weight: 800; }
-.product-name { overflow: hidden; max-width: 100%; font-size: 32rpx; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
+.product-name { overflow: visible; max-width: 100%; font-size: 32rpx; font-weight: 750; white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
 .meta { color: #7c7062; font-size: 18rpx; line-height: 1.5; }
 .summary-actions { flex: none; display: flex; flex-direction: column; align-items: stretch; gap: 10rpx; }
 .template-badge { text-align: center; }
 .template-badge.ready { color: #4f6f5d; background: #e9f1ec; }
-.status-button { width: auto; min-width: 142rpx; min-height: 66rpx; padding: 0 14rpx; font-size: 19rpx; }
+.status-button { width: auto !important; min-width: 142rpx; min-height: 66rpx; padding: 0 14rpx; font-size: 19rpx; }
 .section-heading { display: flex; flex-direction: column; gap: 6rpx; margin-bottom: 20rpx; }
 .section-heading text:first-child { font-size: 29rpx; font-weight: 850; }
-.section-heading text:last-child { color: #7c7062; font-size: 19rpx; line-height: 1.45; }
+.section-heading text:last-child:not(:first-child) { color: #7c7062; font-size: 19rpx; line-height: 1.45; }
 .logo-editor { display: grid; grid-template-columns: 168rpx minmax(0, 1fr); gap: 20rpx; align-items: center; padding: 20rpx; background: #fff; border: 1rpx solid #eadcc6; border-radius: 20rpx; }
 .logo-square { width: 168rpx; height: 168rpx; display: flex; align-items: center; justify-content: center; overflow: hidden; color: #8a7656; background: #f3e7d4; border-radius: 18rpx; font-size: 23rpx; font-weight: 800; }
 .logo-square image { width: 100%; height: 100%; }
@@ -75,7 +75,7 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
   .status-button { min-width: 120px; min-height: 44px; padding: 0 12px; font-size: 14px; }
   .section-heading { gap: 4px; margin-bottom: 14px; }
   .section-heading text:first-child { font-size: 20px; }
-  .section-heading text:last-child { font-size: 13px; }
+  .section-heading text:last-child:not(:first-child) { font-size: 13px; }
   .logo-editor { grid-template-columns: 110px minmax(0, 1fr); gap: 16px; padding: 16px; border-width: 1px; border-radius: 14px; }
   .logo-square { width: 110px; height: 110px; border-radius: 12px; font-size: 15px; }
   .logo-controls { gap: 7px; }

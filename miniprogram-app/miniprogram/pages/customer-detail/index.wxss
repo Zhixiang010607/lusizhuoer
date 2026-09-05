@@ -101,10 +101,10 @@
   .profile-name > text:first-child { font-size: 24px; }
   .profile-name .profile-sub { margin-top: 4px; font-size: 14px; }
   .photo-placeholder { padding: 8px; font-size: 13px; }
-  .profile-facts { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 14px; }
+  page .page .profile-facts { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 14px; }
   .profile-facts .fact { padding: 12px 8px; }
   .subsection-title { margin: 18px 0 10px; font-size: 19px; }
-  .recent-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .recent-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .recent-item { min-height: 82px; padding: 12px 14px; border-width: 1px; border-radius: 12px; }
   .recent-item > text:first-child { font-size: 13px; }
   .recent-item > text:last-child { margin-top: 6px; font-size: 15px; }
@@ -160,3 +160,5 @@
   .record-scroll[data-visible-rows="4"] { height: 256px; }
   .record-scroll[data-visible-rows="5"] { height: 308px; }
 }
+
+@media (max-width: 360px) { .recent-grid { grid-template-columns: minmax(0, 1fr); } }

@@ -3,7 +3,8 @@
   <view class="create-workspace">
   <view class="card create-details-card">
     <view class="card-title"><text>客户资料</text><text class="badge">{{store.id ? '当前门店' : '先选门店'}}</text></view>
-    <label wx:if="{{session.role === 'teacher'}}" class="field">
+    <view wx:if="{{session.role === 'store' && store.id}}" class="business-context"><text>办理门店</text><text>{{store.name}}</text></view>
+      <label wx:if="{{session.role === 'teacher'}}" class="field">
       <text class="field-label">办理门店</text>
       <picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="selectStore" disabled="{{busy || loadingStores || !stores.length}}">
         <view class="picker">{{loadingStores ? '正在读取可办理门店…' : (store.id ? store.name + ' · ' + (store.code || store.id) : (stores.length ? '请选择门店' : '暂无可办理门店'))}}</view>

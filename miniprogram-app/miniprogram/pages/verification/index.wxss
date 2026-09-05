@@ -28,7 +28,7 @@
 
 @media (min-width: 700px) {
   .workflow-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 16px; }
-  .workflow-grid > .card { height: 100%; margin: 0; }
+  .workflow-grid > .card { height: auto; margin: 0; }
   .workflow-grid .workflow-wide { grid-column: 1 / -1; height: auto; }
   .impact { margin: -2px 0 16px; padding: 13px 14px; border-left-width: 4px; border-radius: 10px; font-size: 14px; }
   .verify-button { width: min(420px, 100%); margin: 14px auto 0; }
@@ -46,3 +46,5 @@
   .ble-state { min-height: 112px; padding: 18px; border-radius: 14px; }
   .ble-state-title { font-size: 18px; }
 }
+
+@media (min-width: 700px) { .workflow-grid .card-title > text:first-child { font-size: 18px; } .workflow-grid .textarea { height: 120px; } }

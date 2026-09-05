@@ -15,6 +15,7 @@
     <view class="workflow-grid">
     <view class="card customer-step-card">
       <view class="card-title"><text>第一步：确认客户</text><text class="badge">本门店活跃客户</text></view>
+      <view wx:if="{{session.role === 'store' && store.id}}" class="business-context"><text>办理门店</text><text>{{store.name}}</text></view>
       <label wx:if="{{session.role === 'teacher'}}" class="field">
         <text class="field-label">办理门店</text>
         <picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="selectStore" disabled="{{busy || (qualificationActive && bleAuthorizationSent) || loadingStores || !stores.length}}">
@@ -44,7 +45,8 @@
       </label>
       <label class="field">
         <text class="field-label">业务老师{{session.role === 'teacher' ? '（自动绑定）' : '（可选）'}}</text>
-        <picker range="{{teacherLabels}}" value="{{teacherIndex}}" bindchange="selectTeacher" disabled="{{qualificationActive || !customer || session.role === 'teacher' || !teacherOptionsReady}}">
+        <view wx:if="{{session.role === 'teacher'}}" class="readonly-field">{{selectedTeacher ? selectedTeacher.teacherName + (selectedTeacher.teacherCode ? ' · ' + selectedTeacher.teacherCode : '') : (store.id ? '请先确认客户并读取本人信息' : '选择门店后确认本人信息')}}</view>
+        <picker wx:else range="{{teacherLabels}}" value="{{teacherIndex}}" bindchange="selectTeacher" disabled="{{qualificationActive || !customer || session.role === 'teacher' || !teacherOptionsReady}}">
           <view class="picker">{{selectedTeacher ? selectedTeacher.teacherName + (selectedTeacher.teacherCode ? ' · ' + selectedTeacher.teacherCode : '') : '正在读取老师选项…'}}</view>
         </picker>
       </label>

@@ -6,13 +6,13 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
 .panel { padding: 26rpx; background: #fffaf3; border: 1rpx solid #dfcfb4; border-radius: 24rpx; box-shadow: 0 12rpx 34rpx rgba(93,72,39,.08); }
 .section-title { margin-bottom: 18rpx; font-size: 30rpx; font-weight: 850; }
 .field { display: flex; flex-direction: column; gap: 10rpx; margin-top: 18rpx; }
-.field > text { color: #554a3c; font-size: 21rpx; font-weight: 800; }
-.field input { width: 100%; min-height: 84rpx; padding: 0 20rpx; color: #302a22; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 16rpx; box-sizing: border-box; font-size: 23rpx; }
+.field > text { color: #554a3c; font-size: 24rpx; font-weight: 800; }
+.field input { width: 100%; min-height: 84rpx; padding: 0 20rpx; color: #302a22; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 16rpx; box-sizing: border-box; font-size: 26rpx; }
 .actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14rpx; margin-top: 18rpx; }
-.actions button { min-height: 78rpx; margin: 0; border-radius: 16rpx; font-size: 21rpx; font-weight: 800; line-height: 1; }
+.actions button { width: 100% !important; max-width: 100%; min-width: 0; min-height: 88rpx; display: flex; align-items: center; justify-content: center; margin: 0; border-radius: 16rpx; font-size: 24rpx; font-weight: 800; line-height: 1; }
 .primary { color: #fffdf8; background: #6f532e; }
 .ghost { color: #74592d; background: #fff; border: 1rpx solid #d7c39f; }
-.message { margin-top: 18rpx; padding: 17rpx 20rpx; border-radius: 16rpx; font-size: 21rpx; line-height: 1.5; }
+.message { margin-top: 18rpx; padding: 17rpx 20rpx; border-radius: 16rpx; font-size: 24rpx; line-height: 1.5; }
 .message.error { color: #8b3f35; background: #fff1ed; border: 1rpx solid #e4bdb4; }
 .message.success { color: #4f664f; background: #f0f6ec; border: 1rpx solid #c9dbc0; }
 .safe-bottom { height: calc(24rpx + env(safe-area-inset-bottom)); }

@@ -1,10 +1,11 @@
 <view class="reset-page">
-  <image class="reset-background" src="/images/login/lusizhuoer-login-bg-v3.jpg" mode="aspectFill"></image>
+  <image class="reset-background" src="/images/login/lusizhuoer-login-bg-v4.jpg" mode="aspectFill"></image>
   <view class="reset-card">
     <view class="reset-heading"><text class="reset-title">修改密码</text><text class="reset-note">短信验证后设置新密码</text></view>
     <label class="field"><text class="field-label">手机号</text><input class="input" type="number" maxlength="11" placeholder="请输入手机号" value="{{phone}}" bindinput="inputPhone" /></label>
     <view class="field"><text class="field-label">短信验证码</text><view class="code-field"><input class="input" type="number" maxlength="8" placeholder="请输入验证码" value="{{code}}" bindinput="inputCode" /><button bindtap="sendCode" loading="{{sending}}" disabled="{{busy || sending || cooldown > 0}}">{{cooldown > 0 ? cooldown + ' 秒' : '获取验证码'}}</button></view></view>
-    <view class="field"><text class="field-label">新密码</text><view class="password-field"><input class="input" password="{{!newVisible}}" maxlength="32" placeholder="8–32 位，至少包含三类字符" value="{{newPassword}}" bindinput="inputNewPassword" /><view class="password-toggle" role="button" aria-label="{{newVisible ? '隐藏新密码' : '显示新密码'}}" bindtap="toggleNewPassword"><view class="eye-icon {{newVisible ? 'visible' : ''}}"><view></view></view></view></view></view>
+    <view class="field"><text class="field-label">新密码</text><view class="password-field"><input class="input" password="{{!newVisible}}" maxlength="32" placeholder="请输入新密码" value="{{newPassword}}" bindinput="inputNewPassword" /><view class="password-toggle" role="button" aria-label="{{newVisible ? '隐藏新密码' : '显示新密码'}}" bindtap="toggleNewPassword"><view class="eye-icon {{newVisible ? 'visible' : ''}}"><view></view></view></view></view></view>
+    <text class="field-help reset-password-help">8–32 位；大写字母、小写字母、数字、特殊字符中至少包含三类。</text>
     <view class="field"><text class="field-label">确认新密码</text><view class="password-field"><input class="input" password="{{!confirmationVisible}}" maxlength="32" placeholder="请再次输入新密码" value="{{confirmation}}" bindinput="inputConfirmation" /><view class="password-toggle" role="button" aria-label="{{confirmationVisible ? '隐藏确认密码' : '显示确认密码'}}" bindtap="toggleConfirmation"><view class="eye-icon {{confirmationVisible ? 'visible' : ''}}"><view></view></view></view></view></view>
     <button class="reset-submit" bindtap="submit" loading="{{busy}}" disabled="{{busy || sending}}"><text>保存新密码</text></button>
     <button class="back-login" bindtap="backToLogin" disabled="{{busy}}">返回登录</button>

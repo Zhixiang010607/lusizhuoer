@@ -1,5 +1,5 @@
 <view class="workspace-page">
-  <view class="workspace-topbar detail-topbar"><view><text class="topbar-title">{{profile.name || '老师'}} · 老师主页</text></view><button class="ghost back-button" bindtap="back">返回老师管理</button></view>
+  <view class="workspace-topbar detail-topbar"><view><text class="topbar-title">老师主页</text></view><button class="ghost back-button" bindtap="back">返回老师管理</button></view>
   <view class="workspace-main">
     <view wx:if="{{message}}" class="form-message {{error ? 'error' : ''}}">{{message}}</view>
     <view wx:if="{{loading && !staff}}" class="web-panel empty">正在读取老师数据库…</view>
@@ -7,11 +7,22 @@
       <view class="teacher-detail-grid">
         <view class="teacher-detail-sidebar">
           <view class="web-panel profile-hero teacher-profile-hero"><view class="profile-avatar">{{profile.initials}}</view><view class="profile-copy"><text class="profile-type">老师档案</text><view class="profile-title-row"><text>{{profile.name}}</text><text class="store-status-badge {{profile.archived ? 'archived' : ''}}">{{profile.archived ? '封存' : '活跃'}}</text></view><view class="teacher-profile-meta"><text>编号 {{profile.code}}</text><text>电话 {{profile.phone}}</text></view></view></view>
-          <view class="web-panel security-panel"><view class="panel-heading"><view><text class="panel-title">老师账号管理</text></view></view><label class="field"><text class="field-label">新临时密码</text><input class="input" password maxlength="32" value="{{newPassword}}" data-field="newPassword" bindinput="input" placeholder="8–32 位，字母或数字开头，至少含三类字符" disabled="{{mutating || !profile.authUid}}" /></label><view class="button-row"><button class="secondary" bindtap="resetPassword" loading="{{mutating === 'password'}}" disabled="{{mutating || !profile.authUid}}">保存新临时密码</button><button class="{{profile.archived ? 'secondary' : 'danger'}}" bindtap="toggleStatus" loading="{{mutating === 'status'}}" disabled="{{mutating}}">{{profile.archived ? '激活老师' : '封存老师'}}</button></view></view>
+          <view class="web-panel security-panel"><view class="panel-heading"><view><text class="panel-title">老师账号管理</text></view></view><label class="field"><text class="field-label">新临时密码</text><input class="input" password maxlength="32" value="{{newPassword}}" data-field="newPassword" bindinput="input" placeholder="请输入新临时密码" disabled="{{mutating || !profile.authUid}}" /></label><text class="field-help">8–32 位，以字母或数字开头；大写、小写、数字、特殊字符中至少含三类。</text><view class="button-row"><button class="secondary" bindtap="resetPassword" loading="{{mutating === 'password'}}" disabled="{{mutating || !profile.authUid}}">保存新临时密码</button><button class="{{profile.archived ? 'secondary' : 'danger'}}" bindtap="toggleStatus" loading="{{mutating === 'status'}}" disabled="{{mutating}}">{{profile.archived ? '激活老师' : '封存老师'}}</button></view></view>
         </view>
         <view class="web-panel experience-panel experience-overview-panel">
         <view class="panel-heading"><view><text class="panel-title">配置项目当月汇总</text><text class="panel-note monthly-summary-note">按上海自然月分别统计；删除后重新配置不会清空已完成体验</text></view><text class="web-badge">{{profile.archived ? '老师已封存 · 仅可查询' : overview.activeProducts + ' 个配置项目'}}</text></view>
-        <view wx:if="{{entitlements.length}}" class="monthly-overview-grid"><view wx:for="{{entitlements}}" wx:key="productId" class="monthly-overview-card"><view class="monthly-project-head"><view><text>{{item.productName}}</text><text>{{item.productCode || '—'}}</text></view><text>本月</text></view><view class="monthly-metrics"><view><text>基础额度</text><text>{{item.monthlyAllowance}} 次</text></view><view><text>单独充值</text><text>{{item.monthlyRechargeCount}} 次</text></view><view><text>已体验</text><text>{{item.monthlyExperienceCount}} 次</text></view><view class="monthly-available"><text>当前可用</text><text>{{item.availableCount}} 次</text></view></view></view></view><view wx:else class="empty monthly-overview-empty">尚未配置体验项目</view>
+        <text wx:if="{{entitlements.length}}" class="monthly-scroll-hint">左右滑动查看完整额度</text>
+        <scroll-view wx:if="{{entitlements.length}}" class="monthly-overview-scroll" scroll-x enhanced style="height: {{entitlements.length * 84 + 2}}px;">
+          <view class="monthly-overview-grid">
+            <view wx:for="{{entitlements}}" wx:key="productId" class="monthly-overview-card">
+              <view class="monthly-project-head"><text>{{item.productName}}</text><text>{{item.productCode || '—'}}</text></view>
+              <view class="monthly-metric"><text>基础额度</text><text>{{item.monthlyAllowance}} 次</text></view>
+              <view class="monthly-metric"><text>单独充值</text><text>{{item.monthlyRechargeCount}} 次</text></view>
+              <view class="monthly-metric"><text>已体验</text><text>{{item.monthlyExperienceCount}} 次</text></view>
+              <view class="monthly-metric monthly-available"><text>当前可用</text><text>{{item.availableCount}} 次</text></view>
+            </view>
+          </view>
+        </scroll-view><view wx:else class="empty monthly-overview-empty">尚未配置体验项目</view>
         </view>
         <view class="web-panel experience-panel experience-project-panel">
         <view class="subsection"><text class="subsection-title">项目体验汇总</text><view class="summary-grid"><view wx:for="{{summaryRows}}" wx:key="productId" class="summary-item"><view><text>{{item.productName}}</text><text>{{item.productCode}}</text></view><view><text>{{item.totalDisplay}}</text><text>累计完成体验</text></view></view><view wx:if="{{!summaryRows.length}}" class="empty">暂无项目体验数据</view></view></view>

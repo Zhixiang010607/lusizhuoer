@@ -19,7 +19,7 @@ Page({
     selectedProduct: null, unitCount: "", note: "", loadingStores: false, loadingProducts: false,
     teachers: [], teacherLabels: ["正在读取业务老师…"], teacherIndex: 0, selectedTeacher: null,
     teacherOptionsReady: false, loadingTeachers: false,
-    busy: false, locked: false, recovering: false, ready: false, message: "", error: false
+    busy: false, locked: false, recovering: false, ready: false, message: "", error: false, lastPurchaseCode: ""
   },
   onLoad() {
     const session = requireSession(["store", "teacher"]);
@@ -57,15 +57,15 @@ Page({
     this._productEpoch = Number(this._productEpoch || 0) + 1;
     this._teacherEpoch = Number(this._teacherEpoch || 0) + 1;
     this.setData({
-      store: selected, storeIndex: pickerIndex, customer: null,
+      store: selected, storeIndex: pickerIndex, customer: null, lastPurchaseCode: "",
       products: [], productLabels: ["请选择激活产品"], productIndex: 0, selectedProduct: null,
       teachers: [], teacherLabels: ["正在读取业务老师…"], teacherIndex: 0, selectedTeacher: null,
       teacherOptionsReady: false, unitCount: "", note: "", message: `已选择 ${selected.name}，请确认客户`, error: false
     });
     this.loadTeachers(); this.loadProducts(); this.syncReady();
   },
-  customerChanged() { this.setData({ customer: null, unitCount: "", note: "", message: "", error: false }); this.syncReady(); },
-  customerConfirmed(event) { const customer = event.detail.customer; this.setData({ customer, message: `已确认 ${customer.customerName}`, error: false }); this.syncReady(); },
+  customerChanged() { this.setData({ customer: null, lastPurchaseCode: "", unitCount: "", note: "", message: "", error: false }); this.syncReady(); },
+  customerConfirmed(event) { const customer = event.detail.customer; this.setData({ customer, lastPurchaseCode: "", message: `已确认 ${customer.customerName}`, error: false }); this.syncReady(); },
   async loadTeachers() {
     const storeId = String(this.data.store.id || ""); if (!storeId) return;
     const epoch = Number(this._teacherEpoch || 0) + 1; this._teacherEpoch = epoch;
@@ -141,12 +141,12 @@ Page({
     let intent;
     try { intent = submission.begin("PRODUCT_PURCHASE", payload); }
     catch (error) { return this.setData({ locked: true, message: error.message, error: true }); }
-    this.setData({ busy: true, message: "正在提交；请勿退出或重复点击…", error: false });
+    this.setData({ busy: true, lastPurchaseCode: "", message: "正在提交；请勿退出或重复点击…", error: false });
     try {
       const result = await callFace("createRetailProductPurchaseApplication", { ...payload, clientRequestId: intent.clientRequestId });
       if (String(result.recordStatus || "") !== "PENDING" || !result.purchaseId || !result.purchaseCode) throw new Error("服务端未返回完整待审核购买单");
       submission.confirm("PRODUCT_PURCHASE", result.purchaseId); submission.clear("PRODUCT_PURCHASE");
-      this.setData({ locked: false, unitCount: "", note: "", ready: false, message: `产品购买单 ${result.purchaseCode} 已提交，等待总部审核。`, error: false });
+      this.setData({ locked: false, lastPurchaseCode: String(result.purchaseCode), unitCount: "", note: "", ready: false, message: `产品购买单 ${result.purchaseCode} 已提交，等待总部审核。`, error: false });
     } catch (error) {
       submission.markUncertain("PRODUCT_PURCHASE");
       this.setData({ locked: true, message: error.message || "提交结果待确认，已锁定重复提交", error: true });
@@ -160,7 +160,7 @@ Page({
       const result = await submission.recover("PRODUCT_PURCHASE");
       if (result.found && result.complete && result.purchaseId && result.purchaseCode) {
         submission.confirm("PRODUCT_PURCHASE", result.purchaseId); submission.clear("PRODUCT_PURCHASE");
-        this.setData({ locked: false, message: `已找到上次产品购买单 ${result.purchaseCode}，不会重复提交。`, error: false });
+        this.setData({ locked: false, lastPurchaseCode: String(result.purchaseCode), message: `已找到上次产品购买单 ${result.purchaseCode}，不会重复提交。`, error: false });
       } else if (!result.found) {
         submission.clear("PRODUCT_PURCHASE");
         this.setData({ locked: false, message: "数据库未找到上次购买单，可以重新提交。", error: false });

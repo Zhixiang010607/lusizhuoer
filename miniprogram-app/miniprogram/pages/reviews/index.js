@@ -74,7 +74,7 @@ Page({
     message: "", error: false, mode: "filters", code: "", rows: [], total: 0, page: 1, totalPages: 1, pageJump: "1",
     stores: [], storeLabels: ["全部门店"], storeIndex: 0,
     statusLabels: STATUS.map((item) => item.label), statusIndex: 1,
-    pendingOpen: false, pending: null, decision: "APPROVED", reviewNote: ""
+    pendingOpen: false, pending: null, decision: "APPROVED", reviewNote: "", decisionError: ""
   },
   async onLoad(options) {
     const session = requireSession(["hq"]);
@@ -188,14 +188,14 @@ Page({
     const item = this.data.rows.find((row) => row.id === String(event.currentTarget.dataset.id || ""));
     const decision = String(event.currentTarget.dataset.decision || "");
     if (!item || item.status !== "PENDING" || !["APPROVED", "REJECTED"].includes(decision)) return;
-    this.setData({ pendingOpen: true, pending: item, decision, reviewNote: "" });
+    this.setData({ pendingOpen: true, pending: item, decision, reviewNote: "", decisionError: "" });
   },
-  closeDecision() { if (!this.data.deciding) this.setData({ pendingOpen: false, pending: null, reviewNote: "" }); },
+  closeDecision() { if (!this.data.deciding) this.setData({ pendingOpen: false, pending: null, reviewNote: "", decisionError: "" }); },
   inputReviewNote(event) { this.setData({ reviewNote: event.detail.value }); },
   noop() {},
   async confirmDecision() {
     if (this.data.deciding || !this.data.pending) return;
-    this.setData({ deciding: true, message: "正在提交审核结果…", error: false });
+    this.setData({ deciding: true, decisionError: "" });
     try {
       const payload = { recordId: this.data.pending.id, decision: this.data.decision, note: text(this.data.reviewNote) };
       if (this.data.type === "product-purchase") await callStaff("reviewRetailProductPurchase", payload);
@@ -204,7 +204,7 @@ Page({
       this.setData({ pendingOpen: false, pending: null, reviewNote: "", message: `${code} 审核结果已保存`, error: false });
       await this.load(this.data.page);
     } catch (error) {
-      this.setData({ message: error.message || "工单审核失败", error: true });
+      this.setData({ decisionError: error.message || "工单审核失败，请稍后重试" });
     } finally { this.setData({ deciding: false }); }
   }
 });
