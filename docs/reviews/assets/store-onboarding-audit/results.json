@@ -1,0 +1,57 @@
+{
+  "checkedAt": "2026-09-06",
+  "sourceCommit": "10cd3b8891387cae9422d2edc8a99965ed7bed86",
+  "scope": "Local source execution with synthetic Auth, SQL, storage and navigation; no production account writes or real-login claim.",
+  "checks": [
+    {
+      "name": "normal-create-and-password-login",
+      "observation": "passed",
+      "detail": "Actual dispatcher, creation/binding helpers and mini session; isolated Auth/SQL. New initial password enters the same store; wrong password rejected."
+    },
+    {
+      "name": "recovered-password-feedback",
+      "observation": "confirmed",
+      "detail": "Server preserves existing Auth password and returns passwordInitialized=false; mini page redirects without explaining that the supplied initial password was not applied."
+    },
+    {
+      "name": "committed-store-empty-return",
+      "observation": "confirmed",
+      "detail": "Injected committed store write with empty returned rows: creation reports DATABASE_ERROR before account creation, without write-after-read confirmation."
+    },
+    {
+      "name": "committed-binding-empty-return-stores",
+      "observation": "confirmed",
+      "detail": "Injected successful binding with empty returned rows: reports STORE_BINDING_FAILED although binding was committed."
+    },
+    {
+      "name": "committed-binding-empty-return-assignments",
+      "observation": "confirmed",
+      "detail": "Injected successful binding with empty returned rows: reports STORE_BINDING_FAILED although binding was committed."
+    },
+    {
+      "name": "success-navigation-failure",
+      "observation": "confirmed",
+      "detail": "A failed redirect leaves no success lock or recovery callback; the same page allows a second creation request. This check does not claim duplicate persisted accounts."
+    },
+    {
+      "name": "success-storage-cleanup-failure",
+      "observation": "confirmed",
+      "detail": "A local pending-key cleanup error converts a confirmed server success into a visible creation error."
+    },
+    {
+      "name": "unconfirmed-result-feedback",
+      "observation": "confirmed",
+      "detail": "Transport uncertainty does not lock the store creation form or tell the operator to first check the directory; retry issues a second request. No production timeout or duplicate account was claimed."
+    },
+    {
+      "name": "account-warning-hidden",
+      "observation": "confirmed",
+      "detail": "An account audit warning returned by the service is discarded on navigation."
+    },
+    {
+      "name": "contact-failure-unfinished-store",
+      "observation": "confirmed",
+      "detail": "Isolated contact-write failure after a committed store leaves an unfinished profile outside account-stage cleanup; later recovery is still possible."
+    }
+  ]
+}
