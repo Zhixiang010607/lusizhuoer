@@ -1,13 +1,13 @@
 <view class="workspace-page role-{{session.role}}">
   <scroll-view id="home-ready" class="workspace-rail" scroll-x enhanced show-scrollbar="false">
     <view class="rail-inner">
-      <view class="rail-current" aria-label="{{roleTitle}}"><text class="rail-icon">{{session.role === 'hq' ? '总' : (session.role === 'store' ? '店' : '师')}}</text></view>
-      <view wx:if="{{session.role !== 'hq'}}" class="rail-link {{businessMenuOpen ? 'active' : ''}}" bindtap="toggleBusinessMenu" aria-label="业务办理">办</view>
-      <view wx:if="{{session.role !== 'teacher'}}" class="rail-link {{queryMenuOpen ? 'active' : ''}}" bindtap="toggleQueryMenu" aria-label="业务查询">查</view>
-      <view wx:if="{{session.role !== 'teacher'}}" class="rail-link {{coreMetricsMenuOpen ? 'active' : ''}}" bindtap="toggleCoreMetricsMenu" aria-label="运营核心指标查询">营</view>
-      <view wx:if="{{session.role === 'hq'}}" class="rail-link {{managementMenuOpen ? 'active' : ''}}" bindtap="toggleManagementMenu" aria-label="管理">管</view>
-      <view wx:if="{{session.role === 'hq'}}" class="rail-link {{reviewMenuOpen ? 'active' : ''}}" bindtap="toggleReviewMenu" aria-label="审核">审</view>
-      <view class="rail-link rail-logout" bindtap="logout" aria-label="退出登录">退</view>
+      <view class="rail-current" aria-label="{{roleTitle}}"><text class="rail-icon">总览</text></view>
+      <view wx:if="{{session.role !== 'hq'}}" class="rail-link {{businessMenuOpen ? 'active' : ''}}" bindtap="toggleBusinessMenu" role="button" aria-label="业务办理" aria-expanded="{{businessMenuOpen}}">办理</view>
+      <view wx:if="{{session.role !== 'teacher'}}" class="rail-link {{queryMenuOpen ? 'active' : ''}}" bindtap="toggleQueryMenu" role="button" aria-label="业务查询" aria-expanded="{{queryMenuOpen}}">查询</view>
+      <view wx:if="{{session.role !== 'teacher'}}" class="rail-link {{coreMetricsMenuOpen ? 'active' : ''}}" bindtap="toggleCoreMetricsMenu" role="button" aria-label="运营核心指标查询" aria-expanded="{{coreMetricsMenuOpen}}">运营</view>
+      <view wx:if="{{session.role === 'hq'}}" class="rail-link {{managementMenuOpen ? 'active' : ''}}" bindtap="toggleManagementMenu" role="button" aria-label="管理" aria-expanded="{{managementMenuOpen}}">管理</view>
+      <view wx:if="{{session.role === 'hq'}}" class="rail-link {{reviewMenuOpen ? 'active' : ''}}" bindtap="toggleReviewMenu" role="button" aria-label="审核" aria-expanded="{{reviewMenuOpen}}">审核</view>
+      <view class="rail-link rail-logout" bindtap="logout" role="button" aria-label="退出登录">退出</view>
     </view>
   </scroll-view>
   <view wx:if="{{businessMenuOpen || queryMenuOpen || coreMetricsMenuOpen || managementMenuOpen || reviewMenuOpen}}" class="menu-backdrop" bindtap="closeMenus"></view>
@@ -159,6 +159,7 @@
 
     <block wx:if="{{session.role === 'hq'}}">
       <view class="web-panel hq-filters">
+        <view class="panel-heading"><view><text class="panel-title">数据范围</text></view></view>
         <view class="hq-filter-grid hq-ranking-control-grid">
           <label class="hq-control-field"><text>时间周期</text><picker range="{{hqPeriodLabels}}" value="{{hqPeriodIndex}}" bindchange="chooseHqPeriod"><view class="filter-picker">{{hqPeriodLabels[hqPeriodIndex]}}</view></picker></label>
           <view class="hq-control-field"><text class="hq-control-label">排名对象</text><view class="hq-dimension-tabs"><button wx:for="{{hqDimensions}}" wx:key="value" class="{{item.value === hqDimension ? 'active' : ''}}" data-index="{{index}}" bindtap="chooseHqDimension">{{item.label}}</button></view></view>

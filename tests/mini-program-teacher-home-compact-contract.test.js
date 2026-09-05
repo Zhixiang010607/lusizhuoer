@@ -15,9 +15,9 @@ test("teacher profile uses one warm two-column row without login identity or cha
 
   assert.match(wxml, /session\.role === 'teacher'[\s\S]*class="web-panel detail-section teacher-profile-panel"[\s\S]*class="detail-info-grid teacher-profile-row"/);
   assert.match(wxml, /session\.role === 'store'[\s\S]*class="detail-info-grid store-profile-facts">/);
-  assert.match(wxss, /\.teacher-profile-panel\s*\{[^}]*#d7ba85[^}]*linear-gradient\(180deg, #fffaf3 0%, #f9edd9 100%\)/s);
-  assert.match(wxss, /\.teacher-profile-row\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)[^}]*#d7ba85/s);
-  assert.match(wxss, /\.teacher-profile-row \.detail-info-item\s*\{[^}]*align-items:\s*center[^}]*justify-content:\s*center[^}]*text-align:\s*center[^}]*linear-gradient\(180deg, #fff8ec 0%, #f5e4c6 100%\)/s);
+  assert.match(wxss, /\.teacher-profile-panel\s*\{[^}]*border-color:\s*#e1cfaf;[^}]*background:\s*#fffaf3;/s);
+  assert.match(wxss, /\.teacher-profile-row\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)[^}]*#dfcfb4/s);
+  assert.match(wxss, /\.teacher-profile-row \.detail-info-item\s*\{[^}]*align-items:\s*center[^}]*justify-content:\s*center[^}]*text-align:\s*center[^}]*background:\s*#fff8ec;/s);
   assert.match(wxss, /\.detail-info-item text\s*\{[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
   assert.match(dashboard, /老师姓名[\s\S]{0,180}老师短编号/);
   assert.doesNotMatch(dashboard, /登录身份|老师本人/);

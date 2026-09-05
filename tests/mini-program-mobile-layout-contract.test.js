@@ -42,7 +42,7 @@ test("mini-program login is concise and keeps both WeChat phone and password ent
   assert.match(wxml, /class="login-brand"><text>露思卓儿<\/text><\/view>/,
     "the exact four-character wordmark must remain native WXML text");
   assert.match(wxml, /class="login-card">[\s\S]*id="login-phone"[\s\S]*id="login-password"[\s\S]*id="login-submit"[\s\S]*id="login-wechat-phone"[\s\S]*id="login-message"/,
-    "all login text and controls must remain inside the centered curved frame");
+    "all login controls and feedback must stay inside the bounded form panel");
   assert.doesNotMatch(wxml, /brand-rule|login-divider|登录系统|快捷登录/,
     "the login must not restore decorative or explanatory template copy");
   assert.doesNotMatch(wxml, /login-system-mark|海洋之韵/);
@@ -58,20 +58,20 @@ test("mini-program login is concise and keeps both WeChat phone and password ent
   assert.doesNotMatch(wxml, /安全工作台|统一入口|登录说明|温馨提示/,
     "login page should not reintroduce explanatory filler");
   assert.match(wxss, /\.login-page\s*\{[^}]*align-items:\s*center[^}]*background:\s*#f3ede2/s);
-  assert.match(wxss, /\.login-card\s*\{[^}]*background:\s*rgba\(255, 252, 246, \.9\)[^}]*border-radius:\s*104rpx 104rpx 38rpx 38rpx/s,
-    "the login form must be a centered warm curved frame");
-  assert.match(wxss, /\.login-brand text\s*\{[^}]*color:\s*#87662f[^}]*letter-spacing:\s*18rpx/s);
+  assert.match(wxss, /\.login-card\s*\{[^}]*background:\s*rgba\(255, 250, 243, \.96\)[^}]*border-radius:\s*32rpx/s,
+    "the login form must keep the warm palette with restrained corners");
+  assert.match(wxss, /\.login-brand text\s*\{[^}]*color:\s*#87662f[^}]*letter-spacing:\s*12rpx/s);
   for (const color of ["#f3ede2", "#87662f", "#675b4b", "#302a22", "#a98243"]) {
     assert.match(wxss, new RegExp(color, "i"), `login palette is missing ${color}`);
   }
   assert.match(wxss, /\.wechat-login\s*\{[^}]*display:\s*flex[^}]*align-items:\s*center[^}]*justify-content:\s*center/s,
     "the exact WeChat phone login wording must be centered in both axes");
-  assert.match(wxss, /\.wechat-login\s*\{[^}]*width:\s*420rpx\s*!important[^}]*min-width:\s*0[^}]*height:\s*76rpx[^}]*border-radius:\s*38rpx/s,
-    "WeChat phone login must remain a deliberately sized rounded secondary button instead of a divider label");
+  assert.match(wxss, /\.wechat-login\s*\{[^}]*width:\s*100%\s*!important[^}]*min-width:\s*0[^}]*height:\s*96rpx[^}]*border-radius:\s*18rpx/s,
+    "both login methods must align to the same full-width form geometry");
   assert.doesNotMatch(wxml, /alternate-line/, "WeChat phone login must not be squeezed between decorative divider lines");
   assert.match(wxml, /<view class="password-toggle" role="button"[^>]*bindtap="togglePassword">/,
     "the eye icon control must avoid the native button minimum width");
-  assert.match(wxss, /\.password-toggle\s*\{[^}]*display:\s*flex[^}]*align-items:\s*center[^}]*justify-content:\s*center[^}]*width:\s*96rpx[^}]*height:\s*82rpx/s,
+  assert.match(wxss, /\.password-toggle\s*\{[^}]*display:\s*flex[^}]*align-items:\s*center[^}]*justify-content:\s*center[^}]*width:\s*96rpx[^}]*height:\s*96rpx/s,
     "the eye icon must stay vertically centered at the right edge");
   assert.match(wxss, /\.password-reset-row\s*\{[^}]*justify-content:\s*flex-end/s,
     "the password reset entry belongs below the password field at the right edge");
@@ -99,7 +99,7 @@ test("mini-program keeps the company brand in native navigation without duplicat
   assert.match(context, /小程序不得再叠加一遍品牌大标题/);
 });
 
-test("all three mini-program homes reproduce the mobile web content layout", () => {
+test("all three mini-program homes preserve business content in the refreshed brand layout", () => {
   const js = read("miniprogram-app", "miniprogram", "pages", "home", "index.js");
   const wxml = read("miniprogram-app", "miniprogram", "pages", "home", "index.wxml");
   const wxss = read("miniprogram-app", "miniprogram", "pages", "home", "index.wxss");
@@ -190,7 +190,7 @@ test("all three mini-program homes reproduce the mobile web content layout", () 
     "previous, page summary, and next must stay on one centered row");
   assert.match(storeDetailWxml, /data-code="\{\{item\.customerCode\}\}" bindtap="openCustomer">\{\{item\.customerName\}\}<\/view>/);
   assert.doesNotMatch(storeDetailWxml, /\{\{item\.customerName\}\}\s*·\s*\{\{item\.customerCode\}\}/);
-  assert.match(context, /模块顺序、文案、字号、间距、颜色、卡片边框与圆角、按钮排列、表格列宽/);
+  assert.match(context, /旧的“与网页版手机端逐项像素一致”约定在这些页面已经退役，模块顺序与业务语义仍保持/);
   assert.match(context, /微信原生状态栏、右上角胶囊、导航栏与浏览器自身地址栏属于平台边界/);
 });
 

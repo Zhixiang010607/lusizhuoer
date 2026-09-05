@@ -4,6 +4,7 @@
   <view class="login-shell">
     <view class="login-card">
       <view class="login-brand"><text>露思卓儿</text></view>
+      <view class="login-heading"><text class="login-title">欢迎回来</text><text class="login-subtitle">登录账号，开始今天的工作</text></view>
       <label class="field">
         <text class="field-label">手机号</text>
         <input id="login-phone" class="input" type="number" maxlength="11" placeholder="请输入手机号" placeholder-class="login-placeholder" value="{{phone}}" bindinput="inputPhone" />

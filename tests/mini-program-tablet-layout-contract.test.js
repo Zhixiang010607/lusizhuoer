@@ -26,9 +26,9 @@ test("login and password reset use bounded tablet forms", () => {
 
   assert.match(login, /@media \(min-width: 700px\) \{/);
   assert.match(login, /\.login-shell \{ max-width: 500px; \}/);
-  assert.match(login, /\.login-card \{[^}]*padding: 46px 44px 38px;[^}]*border-radius: 56px 56px 26px 26px;/s);
+  assert.match(login, /\.login-card \{[^}]*padding: 46px 44px 38px;[^}]*border-radius: 24px;/s);
   assert.match(login, /\.login-card \.input \{[^}]*min-height: 54px;[^}]*font-size: 17px;/s);
-  assert.match(login, /\.wechat-login \{[^}]*width: 320px !important;[^}]*height: 48px;/s);
+  assert.match(login, /\.wechat-login \{[^}]*width: 100% !important;[^}]*height: 54px;/s);
   assert.match(reset, /@media \(min-width: 700px\) \{/);
   assert.match(reset, /\.reset-card \{[^}]*max-width: 540px;[^}]*padding: 42px 44px 36px;/s);
 });
