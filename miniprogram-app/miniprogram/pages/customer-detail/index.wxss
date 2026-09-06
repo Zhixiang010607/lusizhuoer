@@ -89,11 +89,11 @@
 .retail-summary-scroll[data-visible-rows="3"] { height: 296rpx; }
 .retail-summary-scroll[data-visible-rows="4"] { height: 372rpx; }
 .retail-summary-scroll[data-visible-rows="5"] { height: 448rpx; }
-.record-scroll[data-visible-rows="1"] { height: 142rpx; }
-.record-scroll[data-visible-rows="2"] { height: 218rpx; }
-.record-scroll[data-visible-rows="3"] { height: 294rpx; }
-.record-scroll[data-visible-rows="4"] { height: 370rpx; }
-.record-scroll[data-visible-rows="5"] { height: 446rpx; }
+.record-scroll[data-visible-rows="1"] { height: 140rpx; }
+.record-scroll[data-visible-rows="2"] { height: 214rpx; }
+.record-scroll[data-visible-rows="3"] { height: 288rpx; }
+.record-scroll[data-visible-rows="4"] { height: 362rpx; }
+.record-scroll[data-visible-rows="5"] { height: 436rpx; }
 
 @media (min-width: 700px) {
   .profile-card { padding-bottom: 20px; }

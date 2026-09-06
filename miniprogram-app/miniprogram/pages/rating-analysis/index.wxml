@@ -16,7 +16,7 @@
       <view class="score-options"><button wx:for="{{scoreOptions}}" wx:key="score" class="score-option {{item.selected ? 'selected' : ''}}" data-score="{{item.score}}" bindtap="toggleScore" disabled="{{loading || exporting}}">{{item.label}}</button></view>
       <text class="query-note">0 表示未评价；已评价工单取门店环境、老师服务和整体体验中的最低分，无业务老师时取其余两项最低分。例如 5、5、4 归为 4 分。</text>
     </view>
-    <view class="button-row"><button class="primary" bindtap="search" loading="{{loading}}" disabled="{{loading || exporting}}">查询评价</button><button class="ghost" bindtap="resetSearch" disabled="{{loading || exporting}}">重置查询</button></view>
+    <view class="button-row"><button class="primary" bindtap="search" loading="{{loading}}" disabled="{{loading || exporting}}">开始查询</button></view>
   </view>
 
   <view wx:if="{{searched}}" class="chart-grid">
@@ -62,8 +62,8 @@
     </scroll-view>
     <view wx:elif="{{searched}}" class="empty">当前条件下没有匹配工单</view>
     <view wx:else class="empty">选择条件后查询评价工单</view>
-    <view wx:if="{{searched}}" class="pager"><button class="ghost" bindtap="previousPage" disabled="{{loading || exporting || page <= 1}}">上一页</button><text>第 {{page}} / {{totalPages}} 页</text><button class="ghost" bindtap="nextPage" disabled="{{loading || exporting || page >= totalPages}}">下一页</button></view>
-    <view wx:if="{{searched}}" class="page-jump"><text>跳至</text><input type="number" value="{{pageJump}}" bindinput="inputPageJump" disabled="{{exporting}}" /><text>页</text><button class="secondary" bindtap="jumpPage" disabled="{{loading || exporting}}">跳转</button></view>
+    <view wx:if="{{!loading && (totalPages > 1 || page > 1)}}" class="pager"><button class="ghost" bindtap="previousPage" disabled="{{loading || exporting || page <= 1}}">上一页</button><text>第 {{page}} / {{totalPages}} 页</text><button class="ghost" bindtap="nextPage" disabled="{{loading || exporting || page >= totalPages}}">下一页</button></view>
+    <view wx:if="{{!loading && totalPages > 1}}" class="page-jump"><text>跳至</text><input type="number" value="{{pageJump}}" bindinput="inputPageJump" disabled="{{exporting}}" /><text>页</text><button class="secondary" bindtap="jumpPage" disabled="{{loading || exporting}}">跳转</button></view>
   </view>
 
   <view wx:if="{{message}}" class="message {{error ? 'error' : ''}}">{{message}}</view>

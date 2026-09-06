@@ -167,7 +167,7 @@ test("teacher home loads only workspace and related customers, not the business-
   });
   const page = pageInstance(definition, { data: { session: { role: "teacher", teacherId: "T-1" } } });
   await page.loadTeacherHome();
-  assert.deepEqual(actions.sort(), ["getTeacherBusinessCustomers", "getTeacherWorkspace"]);
+  assert.deepEqual(actions, ["getTeacherWorkspace"], "the compact teacher home must not fetch customer directories");
   assert.equal(page.data.error, false);
   assert.equal(Object.hasOwn(page.data, "businessContextReady"), false);
 });

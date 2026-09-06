@@ -15,7 +15,6 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
 .section-heading > text:first-child { font-size: 28rpx; font-weight: 850; }
 .section-heading > text:last-child { padding: 6rpx 12rpx; color: #74592d; background: #f4e7d0; border-radius: 999rpx; font-size: 18rpx; font-weight: 800; }
 .table-scroll { width: 100%; max-width: 100%; min-width: 0; overflow-x: auto; overflow-y: hidden; box-sizing: border-box; }
-.table-scroll[data-visible-rows="0"] { height: 136rpx; }
 .table-scroll[data-visible-rows="1"] { height: 146rpx; }
 .table-scroll[data-visible-rows="2"] { height: 224rpx; }
 .table-scroll[data-visible-rows="3"] { height: 302rpx; }
@@ -32,7 +31,7 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
 .status.active { color: #4f6f5d; background: #e9f1ec; }
 .status.archived { color: #8b4a40; background: #f8e8e4; }
 .danger-button { color: #8b4a40; border-color: #dbb5a9; background: #fff8f5; }
-.table-empty { min-width: 100%; padding: 40rpx 20rpx; color: #887c6d; font-size: 20rpx; text-align: center; }
+.table-empty { min-width: 100%; padding: 40rpx 20rpx; color: #887c6d; font-size: 24rpx; line-height: 1.6; text-align: left; white-space: normal; overflow-wrap: anywhere; }
 .archived-section { background: #fff8f3; border-color: #e1c9bc; }
 .message { margin-bottom: 16rpx; padding: 17rpx 20rpx; border-radius: 16rpx; font-size: 21rpx; line-height: 1.5; }
 .message.error { color: #8b3f35; background: #fff1ed; border: 1rpx solid #e4bdb4; }
@@ -53,7 +52,6 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
   .section-heading { gap: 14px; margin-bottom: 14px; }
   .section-heading > text:first-child { font-size: 22px; }
   .section-heading > text:last-child { padding: 5px 10px; font-size: 13px; }
-  .table-scroll[data-visible-rows="0"] { height: 116px; }
   .table-scroll[data-visible-rows="1"] { height: 108px; }
   .table-scroll[data-visible-rows="2"] { height: 164px; }
   .table-scroll[data-visible-rows="3"] { height: 220px; }

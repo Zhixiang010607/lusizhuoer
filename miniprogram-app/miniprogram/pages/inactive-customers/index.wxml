@@ -8,7 +8,7 @@
       <label class="field {{session.role === 'store' ? 'query-wide' : ''}}"><text class="field-label">核销间隔至少多少天</text><input class="input" type="number" maxlength="4" placeholder="例如：30" value="{{minimumDays}}" bindinput="inputMinimumDays" disabled="{{loading || exporting}}" /></label>
     </view>
     <text class="query-note">有正常核销时取最新正常核销；没有正常核销才取最新体验核销；两类都没有时取客户建档时间。只查询未封存客户。</text>
-    <view class="button-row"><button class="primary" bindtap="search" loading="{{loading}}" disabled="{{loading || exporting}}">查询活跃预警</button><button class="ghost" bindtap="resetSearch" disabled="{{loading || exporting}}">重置查询</button></view>
+    <view class="button-row"><button class="primary" bindtap="search" loading="{{loading}}" disabled="{{loading || exporting}}">开始查询</button></view>
   </view>
 
   <view wx:if="{{searched}}" class="summary-grid">
@@ -34,8 +34,8 @@
           </view>
         </scroll-view>
         <view wx:else class="empty compact-empty">当前条件下没有这类客户</view>
-        <view class="pager"><button class="ghost" data-category="ZERO" bindtap="previousPage" disabled="{{zeroPage <= 1 || loading || exporting}}">上一页</button><text>第 {{zeroPage}} / {{zeroTotalPages}} 页</text><button class="ghost" data-category="ZERO" bindtap="nextPage" disabled="{{zeroPage >= zeroTotalPages || loading || exporting}}">下一页</button></view>
-        <view class="page-jump"><text>跳至</text><input type="number" value="{{zeroPageJump}}" data-category="ZERO" bindinput="inputPageJump" disabled="{{loading || exporting}}" /><text>页</text><button class="secondary" data-category="ZERO" bindtap="jumpPage" disabled="{{loading || exporting}}">跳转</button></view>
+        <view wx:if="{{!loading && (zeroTotalPages > 1 || zeroPage > 1)}}" class="pager"><button class="ghost" data-category="ZERO" bindtap="previousPage" disabled="{{zeroPage <= 1 || loading || exporting}}">上一页</button><text>第 {{zeroPage}} / {{zeroTotalPages}} 页</text><button class="ghost" data-category="ZERO" bindtap="nextPage" disabled="{{zeroPage >= zeroTotalPages || loading || exporting}}">下一页</button></view>
+        <view wx:if="{{!loading && zeroTotalPages > 1}}" class="page-jump"><text>跳至</text><input type="number" value="{{zeroPageJump}}" data-category="ZERO" bindinput="inputPageJump" disabled="{{loading || exporting}}" /><text>页</text><button class="secondary" data-category="ZERO" bindtap="jumpPage" disabled="{{loading || exporting}}">跳转</button></view>
       </view>
 
       <view class="result-section">
@@ -47,8 +47,8 @@
           </view>
         </scroll-view>
         <view wx:else class="empty compact-empty">当前条件下没有这类客户</view>
-        <view class="pager"><button class="ghost" data-category="NONZERO" bindtap="previousPage" disabled="{{nonzeroPage <= 1 || loading || exporting}}">上一页</button><text>第 {{nonzeroPage}} / {{nonzeroTotalPages}} 页</text><button class="ghost" data-category="NONZERO" bindtap="nextPage" disabled="{{nonzeroPage >= nonzeroTotalPages || loading || exporting}}">下一页</button></view>
-        <view class="page-jump"><text>跳至</text><input type="number" value="{{nonzeroPageJump}}" data-category="NONZERO" bindinput="inputPageJump" disabled="{{loading || exporting}}" /><text>页</text><button class="secondary" data-category="NONZERO" bindtap="jumpPage" disabled="{{loading || exporting}}">跳转</button></view>
+        <view wx:if="{{!loading && (nonzeroTotalPages > 1 || nonzeroPage > 1)}}" class="pager"><button class="ghost" data-category="NONZERO" bindtap="previousPage" disabled="{{nonzeroPage <= 1 || loading || exporting}}">上一页</button><text>第 {{nonzeroPage}} / {{nonzeroTotalPages}} 页</text><button class="ghost" data-category="NONZERO" bindtap="nextPage" disabled="{{nonzeroPage >= nonzeroTotalPages || loading || exporting}}">下一页</button></view>
+        <view wx:if="{{!loading && nonzeroTotalPages > 1}}" class="page-jump"><text>跳至</text><input type="number" value="{{nonzeroPageJump}}" data-category="NONZERO" bindinput="inputPageJump" disabled="{{loading || exporting}}" /><text>页</text><button class="secondary" data-category="NONZERO" bindtap="jumpPage" disabled="{{loading || exporting}}">跳转</button></view>
       </view>
     </view>
     <view wx:else class="empty">请输入核销间隔天数后查询</view>

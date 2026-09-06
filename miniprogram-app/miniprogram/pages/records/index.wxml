@@ -23,7 +23,7 @@
         <label class="field"><text class="field-label">客户姓名（可单独填写）</text><input class="input" value="{{customerName}}" bindinput="inputCustomerName" placeholder="输入姓名；同名客户全部显示" /></label>
         <label class="field"><text class="field-label">生日（可单独填写）</text><picker mode="date" value="{{birthDate}}" end="{{today}}" bindchange="inputBirthDate"><view class="picker">{{birthDate || '选择生日'}}</view></picker></label>
       </block>
-      <view class="button-row query-actions {{mode === 'browse' && !customRange ? 'inline-query-actions' : ''}}"><button class="primary" bindtap="runQuery" loading="{{loading}}" disabled="{{loading}}">查询{{noun}}</button><button class="ghost" bindtap="resetQuery" disabled="{{loading}}">重置查询</button></view>
+      <view class="button-row query-actions {{mode === 'browse' && !customRange ? 'inline-query-actions' : ''}}"><button class="primary" bindtap="runQuery" loading="{{loading}}" disabled="{{loading}}">开始查询</button></view>
     </view>
   </view>
 
@@ -48,8 +48,8 @@
       </view>
     </scroll-view>
     <view wx:else class="empty">没有符合条件的{{noun}}记录</view>
-    <view class="pager"><button class="ghost" bindtap="previousPage" disabled="{{loading || page <= 1}}">上一页</button><text>第 {{page}} / {{totalPages}} 页</text><button class="ghost" bindtap="nextPage" disabled="{{loading || page >= totalPages}}">下一页</button></view>
-    <view class="page-jump"><text>跳至</text><input type="number" value="{{pageJump}}" bindinput="inputPageJump" /><text>页</text><button class="secondary" bindtap="jumpPage" disabled="{{loading}}">跳转</button></view>
+    <view wx:if="{{!loading && (totalPages > 1 || page > 1)}}" class="pager"><button class="ghost" bindtap="previousPage" disabled="{{loading || page <= 1}}">上一页</button><text>第 {{page}} / {{totalPages}} 页</text><button class="ghost" bindtap="nextPage" disabled="{{loading || page >= totalPages}}">下一页</button></view>
+    <view wx:if="{{!loading && totalPages > 1}}" class="page-jump"><text>跳至</text><input type="number" value="{{pageJump}}" bindinput="inputPageJump" /><text>页</text><button class="secondary" bindtap="jumpPage" disabled="{{loading}}">跳转</button></view>
   </view>
   <view wx:if="{{message}}" class="message {{error ? 'error' : ''}}">{{message}}</view>
   <view class="safe-bottom"></view>

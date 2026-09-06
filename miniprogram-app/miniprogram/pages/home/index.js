@@ -139,7 +139,7 @@ function hqRangePayload(period, range) {
 Page({
   data: {
     session: {}, roleTitle: "", roleSubtitle: "", loading: true, message: "", error: false,
-    businessMenuOpen: false, queryMenuOpen: false, coreMetricsMenuOpen: false, managementMenuOpen: false, reviewMenuOpen: false,
+    overviewMenuOpen: false, businessMenuOpen: false, queryMenuOpen: false, coreMetricsMenuOpen: false, managementMenuOpen: false, reviewMenuOpen: false,
     rangePreset: "TODAY", rangeOptions: readyRangeOptions("TODAY"), rangeStart: "", rangeEnd: "",
     rangeLabel: "本月", customRangeVisible: false,
     profileFacts: [], storeHero: {}, experienceBalances: [], summaryRows: [],
@@ -195,11 +195,8 @@ Page({
     this._businessRequestEpoch = (this._businessRequestEpoch || 0) + 1;
     this._customerRequestEpoch = (this._customerRequestEpoch || 0) + 1;
     const businessRequestEpoch = this._businessRequestEpoch;
-    const customerRequestEpoch = this._customerRequestEpoch;
     const businessType = this.data.businessType;
     const businessPage = this.data.businessPage.page;
-    const activeCustomerPage = this.data.activeCustomers.page;
-    const archivedCustomerPage = this.data.archivedCustomers.page;
     const range = dashboard.scopedRange(this.data.rangePreset, { startDate: this.data.rangeStart, endDate: this.data.rangeEnd });
     this.setData({
       loading: true,
@@ -210,13 +207,10 @@ Page({
       activeCustomers: customerView(dashboard.customerGroup()), archivedCustomers: customerView(dashboard.customerGroup()),
       activeCustomerScrollLeft: 0, archivedCustomerScrollLeft: 0
     });
-    const [workspaceResult, customersResult] = await Promise.allSettled([
+    const [workspaceResult] = await Promise.allSettled([
       callFace("getTeacherWorkspace", {
         recordType: businessType, page: businessPage, pageSize: PAGE_SIZE,
         includeOverview: true, ...dashboard.payload(range.startDate, range.endDate)
-      }),
-      callFace("getTeacherBusinessCustomers", {
-        activePage: activeCustomerPage, archivedPage: archivedCustomerPage
       })
     ]);
     if (requestEpoch !== this._teacherHomeRequestEpoch) return;
@@ -238,11 +232,7 @@ Page({
         });
       }
     }
-    if (customersResult.status === "fulfilled" && customerRequestEpoch === this._customerRequestEpoch) {
-      changes.activeCustomers = customerView(dashboard.customerGroup(customersResult.value.active));
-      changes.archivedCustomers = customerView(dashboard.customerGroup(customersResult.value.archived));
-    }
-    const message = rejectedMessage([workspaceResult, customersResult], "老师工作台读取失败");
+    const message = rejectedMessage([workspaceResult], "老师工作台读取失败");
     if (message) Object.assign(changes, { message, error: true });
     this.setData(changes);
   },
@@ -575,7 +565,16 @@ Page({
   },
 
   closeMenus(changes = {}) {
-    this.setData({ businessMenuOpen: false, queryMenuOpen: false, coreMetricsMenuOpen: false, managementMenuOpen: false, reviewMenuOpen: false, ...changes });
+    this.setData({ overviewMenuOpen: false, businessMenuOpen: false, queryMenuOpen: false, coreMetricsMenuOpen: false, managementMenuOpen: false, reviewMenuOpen: false, ...changes });
+  },
+  toggleOverviewMenu() {
+    if (this.data.session.role === "teacher") this.closeMenus({ overviewMenuOpen: !this.data.overviewMenuOpen });
+  },
+  openTeacherOverview() { this.closeMenus(); wx.pageScrollTo({ scrollTop: 0, duration: 220 }); },
+  openTeacherCustomers() {
+    if (this.data.session.role !== "teacher") return;
+    this.closeMenus();
+    wx.navigateTo({ url: "/pages/teacher-customers/index" });
   },
   toggleBusinessMenu() { this.closeMenus({ businessMenuOpen: !this.data.businessMenuOpen }); },
   toggleQueryMenu() { this.closeMenus({ queryMenuOpen: !this.data.queryMenuOpen }); },

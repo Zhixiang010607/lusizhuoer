@@ -122,8 +122,8 @@ test("all three mini-program homes preserve business content in the refreshed br
     "the four store anchors must use a content-height view instead of a real-device default-height scroll-view");
   assert.doesNotMatch(wxml, /<scroll-view class="detail-anchor-nav"/,
     "the store anchor bar must not inherit WeChat scroll-view's device-only default height");
-  assert.match(wxml, /class="table-scroll summary-scroll" style="height: \{\{summaryRows\.length \? 76 \+ summaryRows\.length \* 94 : 186\}\}rpx;"/,
-    "the store/teacher project summary viewport must grow and shrink with its actual row count");
+  assert.match(wxml, /class="table-scroll summary-scroll" style="height: \{\{68 \+ summaryRows\.length \* 72\}\}rpx;"/,
+    "the store/teacher summary height must match the compact header, rows, and border");
   assert.match(wxml, /<project-summary[^>]*rows="\{\{hqProjectSummaryRows\}\}"/,
     "HQ summary delegates geometry to the measured native component");
   const summaryComponent = read("miniprogram-app", "miniprogram", "components", "project-summary", "index.js");
@@ -145,14 +145,11 @@ test("all three mini-program homes preserve business content in the refreshed br
     "the inner buttons must fit inside the shared 64rpx control height instead of enlarging it");
   assert.match(wxss, /\.hq-custom-dates\s*\{[^}]*grid-column:\s*1 \/ -1;/s,
     "a custom HQ date range must remain full width below the compact controls");
-  assert.match(wxml, /class="hq-control-field hq-product-filter"[\s\S]*class="hq-control-heading"[\s\S]*项目范围[\s\S]*class="hq-inline-reset" bindtap="resetHqRange">恢复默认<\/button>/,
-    "the mobile HQ default action must stay in the project-scope half of the grid");
-  assert.match(wxss, /\.hq-inline-reset\s*\{[^}]*min-width:\s*0;[^}]*min-height:\s*34rpx;[^}]*background:\s*transparent;[^}]*border:\s*0;/s,
-    "the inline default action must remain a low-emphasis text control on a standard phone");
-  assert.doesNotMatch(wxml, /排序指标<\/text><button class="hq-inline-reset"/,
-    "the sorting metric heading must not contain the reset action");
-  assert.doesNotMatch(wxml, /class="hq-filter-actions"/,
-    "the HQ reset action must not occupy a standalone row");
+  assert.match(wxml, /class="hq-control-field hq-product-filter"[\s\S]*class="hq-control-heading"[\s\S]*项目范围/);
+  assert.doesNotMatch(wxml, /bindtap="resetHqRange"|恢复默认/,
+    "HQ filters no longer expose a redundant reset action");
+  assert.doesNotMatch(wxss, /\.hq-inline-reset/);
+  assert.doesNotMatch(wxml, /class="hq-filter-actions"/);
   assert.doesNotMatch(wxml, /class="metric-grid"|hq-analysis-card|分类统计|前 10 名/,
     "the compact HQ home must not restore the redundant six metrics or duplicate Top 10 card");
   assert.match(wxss, /\.range-presets\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)[^}]*overflow:\s*hidden[^}]*background:\s*#eee3d2/s);

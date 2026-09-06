@@ -52,7 +52,7 @@ test("customer query keeps the web filter dimensions, role scope, details, and d
   assert.match(customerDetailJs, /savedStatus !== targetStatus/);
   assert.match(customerDetailWxml, /bindtap="toggleCustomerStatus"/);
   assert.match(js, /requireSession\(\["hq", "store"\]\)/,
-    "teacher customers remain on the teacher home instead of exposing the store/HQ query page");
+    "teacher customers stay on their dedicated page instead of exposing the store/HQ query page");
   assert.doesNotMatch(wxml, />详情</, "the customer name itself is the detail link; no duplicate detail column");
   assert.match(js, /while \(targetPage > 1 && !stack\[targetPage - 1\]\)/,
     "cursor-backed customer search must fetch through intermediate pages for a direct jump");
@@ -67,10 +67,10 @@ test("customer query keeps the web filter dimensions, role scope, details, and d
     "resetting a customer query must return the time range to today");
   assert.match(wxml, /<view class="customer-row customer-head"><text>姓名<\/text><text>充值<\/text><text>核销<\/text><text>门店<\/text><text>生日<\/text><text>业务阶段<\/text><text>建档日期<\/text><text>客户状态<\/text><\/view>/,
     "customer result columns keep recharge and verification after the name and status last");
-  assert.match(wxml, /wx:if="\{\{session\.role === 'hq'\}\}" class="field"><text class="field-label">门店范围<\/text>/,
-    "HQ customer search must pair store scope with business stage on phones");
-  assert.match(wxml, /class="field \{\{session\.role === 'hq' \? '' : 'query-wide'\}\}"><text class="field-label">建档时间<\/text>/,
-    "customer date range must pair with status for HQ and span only when the store role would leave a half-row");
+  assert.match(wxml, /wx:if="\{\{session\.role === 'hq'\}\}" class="field query-wide"><text class="field-label">门店范围<\/text>/);
+  assert.match(wxml, /class="query-grid customer-time-actions"[\s\S]*建档时间[\s\S]*class="customer-query-action"[\s\S]*开始查询/,
+    "customer date range and query action share the same control row");
+  assert.match(wxss, /\.query-grid\.customer-time-actions \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/);
   assert.match(wxml, /class="field"><text class="field-label">客户姓名（可单独填写）<\/text>/);
   assert.match(wxml, /class="field"><text class="field-label">生日（可单独填写）<\/text>/,
     "manual customer name and birthday must share one compact phone row");

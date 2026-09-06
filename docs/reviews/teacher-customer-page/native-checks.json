@@ -1,0 +1,80 @@
+{
+  "viewport": [
+    390,
+    753
+  ],
+  "isolatedServices": true,
+  "nativeErrors": [],
+  "teacherHomeCustomerTablesRemoved": true,
+  "teacherHomeDoesNotFetchCustomers": true,
+  "overviewNavigation": true,
+  "customerEmptyAndError": true,
+  "customerSeparatePagination": true,
+  "retrySamePage": true,
+  "paginationBounds": [
+    {
+      "id": "",
+      "dataset": {},
+      "left": 12,
+      "right": 378,
+      "top": 138,
+      "bottom": 406,
+      "width": 366,
+      "height": 268
+    },
+    {
+      "id": "",
+      "dataset": {},
+      "left": 82,
+      "right": 308,
+      "top": 325,
+      "bottom": 340,
+      "width": 226,
+      "height": 15
+    },
+    [
+      {
+        "id": "",
+        "dataset": {},
+        "left": 25,
+        "right": 76,
+        "top": 315,
+        "bottom": 350,
+        "width": 51,
+        "height": 35
+      },
+      {
+        "id": "",
+        "dataset": {},
+        "left": 314,
+        "right": 365,
+        "top": 315,
+        "bottom": 350,
+        "width": 51,
+        "height": 35
+      }
+    ]
+  ],
+  "metrics": [
+    {
+      "page": "store-home",
+      "summaryTableHeight": 181,
+      "summaryViewportHeight": 185,
+      "noticeWidths": [
+        336,
+        336,
+        336
+      ]
+    },
+    {
+      "page": "store-detail",
+      "summaryTableHeight": 181,
+      "summaryViewportHeight": 185,
+      "noticeWidths": [
+        336,
+        336,
+        336
+      ]
+    }
+  ]
+}

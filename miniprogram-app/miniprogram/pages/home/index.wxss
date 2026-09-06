@@ -3,6 +3,8 @@
 .rail-inner { width: 100%; height: 56px; display: inline-flex; align-items: center; gap: 4rpx; padding: 6px 16rpx; }
 .rail-current, .rail-link { width: auto; min-width: 80rpx; height: 44px; display: inline-flex; align-items: center; justify-content: center; flex: 1; padding: 0 8rpx; border-radius: 14rpx; color: #eadfce; background: transparent; font-size: 24rpx; font-weight: 500; vertical-align: top; }
 .rail-icon { display: block; color: #fffdf8; font-size: inherit; line-height: 1; }
+.rail-chevron { margin-left: 10rpx; font-size: 24rpx; line-height: 1; }
+.business-popover.overview-popover { margin-right: auto; margin-left: 0; }
 .rail-current { color: #fffdf8; background: #a98243; box-shadow: none; }
 .rail-link.active { color: #fffdf8; background: rgba(255,255,255,.12); }
 .rail-logout { margin-left: 8rpx; color: #eadfce; box-shadow: none; }
@@ -107,6 +109,7 @@
 .summary-total > view { background: #f4e7d0; font-weight: 900; }
 .table-link { color: #8b642e !important; font-weight: 800; text-decoration: underline; }
 .table-empty { min-height: 110rpx; display: flex; align-items: center; justify-content: center; padding: 28rpx; color: #7c7062; text-align: center; }
+.table-notice { width: 100%; padding: 26rpx 24rpx; border: 1rpx solid #dfcfb4; border-radius: 20rpx; color: #7c7062; background: #fffaf3; font-size: 24rpx; line-height: 1.6; text-align: left; white-space: normal; overflow-wrap: anywhere; }
 .summary-table .table-empty { height: 110rpx; min-height: 110rpx; }
 .record-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16rpx; margin: 20rpx 0 22rpx; padding: 14rpx; border-radius: 20rpx; background: #eee4d6; }
 .record-tab { min-width: 0; min-height: 108rpx; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5rpx; margin: 0; padding: 12rpx; color: #796d5e; background: transparent; border-radius: 14rpx; }
@@ -136,7 +139,6 @@
 .hq-custom-dates label { min-width: 0; }
 .hq-control-heading { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8rpx; margin-bottom: 8rpx; }
 .hq-control-heading .hq-control-label { min-width: 0; margin: 0; }
-.hq-inline-reset { width: auto !important; min-width: 0; min-height: 34rpx; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; margin: 0; padding: 0 2rpx; color: #8a7048; background: transparent; border: 0; border-radius: 0; font-size: 16rpx; font-weight: 750; line-height: 1; white-space: nowrap; }
 .metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; margin: 16rpx 0; }
 .metric-card { min-height: 126rpx; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16rpx 12rpx; color: #302a22; background: #fffaf3; border: 1rpx solid #e1cfaf; border-top: 6rpx solid #b58a43; border-radius: 20rpx; box-shadow: 0 12rpx 32rpx rgba(120,91,43,.07); text-align: center; }
 .metric-card.interactive:active { transform: translateY(1rpx); background: #fff7e9; }
@@ -288,6 +290,7 @@
   .custom-range button { grid-column: auto; min-width: 130px; min-height: 46px; padding: 0 16px; border-radius: 10px; font-size: 15px; }
 
   .table-scroll { border-width: 1px; border-radius: 16px; }
+  .table-notice { padding: 18px; border-width: 1px; border-radius: 16px; font-size: 14px; }
   .summary-scroll { height: auto !important; }
   .record-scroll-hint { margin: -4px 0 10px; font-size: 13px; }
   .summary-table, .record-table, .customer-table { width: auto; min-width: 100%; }
@@ -326,7 +329,6 @@
   .hq-ranking-control-grid .hq-dimension-tabs button { height: 38px; min-height: 0; border-radius: 8px; }
   .hq-custom-dates { grid-column: 1 / -1; gap: 10px; }
   .hq-control-heading { gap: 8px; margin-bottom: 6px; }
-  .hq-inline-reset { min-width: 0; min-height: 26px; padding: 0 2px; border-width: 0; font-size: 12px; }
   .hq-control-label { margin-bottom: 6px; font-size: 13px; }
   .hq-dimension-tabs { gap: 6px; margin-bottom: 12px; padding: 6px; border-radius: 14px; }
   .hq-dimension-tabs button { min-height: 44px; padding: 0 6px; border-radius: 10px; font-size: 14px; }

@@ -9,7 +9,7 @@
       <label class="field {{session.role === 'hq' ? 'query-wide' : ''}}"><text class="field-label">剩余次数低于</text><input class="input" type="number" maxlength="6" placeholder="例如：5" value="{{remainingBelow}}" bindinput="inputRemainingBelow" disabled="{{loading || exporting}}" /></label>
     </view>
     <text class="query-note">按“严格低于”筛选；只统计未封存客户已经开卡的项目。从未开卡不会按 0 次计入。</text>
-    <view class="button-row"><button class="primary" bindtap="search" loading="{{loading}}" disabled="{{loading || exporting}}">查询余次预警</button><button class="ghost" bindtap="resetSearch" disabled="{{loading || exporting}}">重置查询</button></view>
+    <view class="button-row"><button class="primary" bindtap="search" loading="{{loading}}" disabled="{{loading || exporting}}">开始查询</button></view>
   </view>
 
   <view wx:if="{{searched}}" class="summary-grid">
@@ -36,8 +36,8 @@
           </view>
         </scroll-view>
         <view wx:else class="empty compact-empty">当前条件下没有这类卡项</view>
-        <view class="pager"><button class="ghost" data-category="ZERO" bindtap="previousPage" disabled="{{zeroPage <= 1 || loading || exporting}}">上一页</button><text>第 {{zeroPage}} / {{zeroTotalPages}} 页</text><button class="ghost" data-category="ZERO" bindtap="nextPage" disabled="{{zeroPage >= zeroTotalPages || loading || exporting}}">下一页</button></view>
-        <view class="page-jump"><text>跳至</text><input type="number" value="{{zeroPageJump}}" data-category="ZERO" bindinput="inputPageJump" disabled="{{loading || exporting}}" /><text>页</text><button class="secondary" data-category="ZERO" bindtap="jumpPage" disabled="{{loading || exporting}}">跳转</button></view>
+        <view wx:if="{{!loading && (zeroTotalPages > 1 || zeroPage > 1)}}" class="pager"><button class="ghost" data-category="ZERO" bindtap="previousPage" disabled="{{zeroPage <= 1 || loading || exporting}}">上一页</button><text>第 {{zeroPage}} / {{zeroTotalPages}} 页</text><button class="ghost" data-category="ZERO" bindtap="nextPage" disabled="{{zeroPage >= zeroTotalPages || loading || exporting}}">下一页</button></view>
+        <view wx:if="{{!loading && zeroTotalPages > 1}}" class="page-jump"><text>跳至</text><input type="number" value="{{zeroPageJump}}" data-category="ZERO" bindinput="inputPageJump" disabled="{{loading || exporting}}" /><text>页</text><button class="secondary" data-category="ZERO" bindtap="jumpPage" disabled="{{loading || exporting}}">跳转</button></view>
       </view>
 
       <view class="result-section">
@@ -49,8 +49,8 @@
           </view>
         </scroll-view>
         <view wx:else class="empty compact-empty">当前条件下没有这类卡项</view>
-        <view class="pager"><button class="ghost" data-category="NONZERO" bindtap="previousPage" disabled="{{nonzeroPage <= 1 || loading || exporting}}">上一页</button><text>第 {{nonzeroPage}} / {{nonzeroTotalPages}} 页</text><button class="ghost" data-category="NONZERO" bindtap="nextPage" disabled="{{nonzeroPage >= nonzeroTotalPages || loading || exporting}}">下一页</button></view>
-        <view class="page-jump"><text>跳至</text><input type="number" value="{{nonzeroPageJump}}" data-category="NONZERO" bindinput="inputPageJump" disabled="{{loading || exporting}}" /><text>页</text><button class="secondary" data-category="NONZERO" bindtap="jumpPage" disabled="{{loading || exporting}}">跳转</button></view>
+        <view wx:if="{{!loading && (nonzeroTotalPages > 1 || nonzeroPage > 1)}}" class="pager"><button class="ghost" data-category="NONZERO" bindtap="previousPage" disabled="{{nonzeroPage <= 1 || loading || exporting}}">上一页</button><text>第 {{nonzeroPage}} / {{nonzeroTotalPages}} 页</text><button class="ghost" data-category="NONZERO" bindtap="nextPage" disabled="{{nonzeroPage >= nonzeroTotalPages || loading || exporting}}">下一页</button></view>
+        <view wx:if="{{!loading && nonzeroTotalPages > 1}}" class="page-jump"><text>跳至</text><input type="number" value="{{nonzeroPageJump}}" data-category="NONZERO" bindinput="inputPageJump" disabled="{{loading || exporting}}" /><text>页</text><button class="secondary" data-category="NONZERO" bindtap="jumpPage" disabled="{{loading || exporting}}">跳转</button></view>
       </view>
     </view>
     <view wx:else class="empty">请选择项目并填写余次阈值后查询</view>

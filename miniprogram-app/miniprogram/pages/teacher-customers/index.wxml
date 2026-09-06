@@ -1,0 +1,26 @@
+<view class="page">
+  <view class="page-heading"><view><text class="title">我的客户</text><text class="subtitle">查看与本人有关联的客户及业务记录</text></view><button class="back" bindtap="back">返回工作台</button></view>
+  <view wx:if="{{!authorized}}" class="notice">正在确认账号…</view>
+  <block wx:else>
+    <view class="status-tabs">
+      <button class="{{status === 'ACTIVE' ? 'active' : ''}}" data-status="ACTIVE" bindtap="chooseStatus">活跃客户<text wx:if="{{counts.ACTIVE !== null}}">{{counts.ACTIVE}}</text></button>
+      <button class="{{status === 'ARCHIVED' ? 'active' : ''}}" data-status="ARCHIVED" bindtap="chooseStatus">封存客户<text wx:if="{{counts.ARCHIVED !== null}}">{{counts.ARCHIVED}}</text></button>
+    </view>
+    <view class="panel">
+      <view wx:if="{{loading}}" class="notice">正在读取{{status === 'ACTIVE' ? '活跃' : '封存'}}客户…</view>
+      <view wx:elif="{{error}}" class="notice error"><text>{{message}}</text><button class="retry" bindtap="retry">重新读取</button></view>
+      <view wx:elif="{{!group.rows.length}}" class="notice">暂无{{status === 'ACTIVE' ? '活跃' : '封存'}}客户</view>
+      <block wx:else>
+        <scroll-view class="customer-scroll" scroll-x enhanced show-scrollbar="false" style="height: {{tableHeight ? tableHeight + 'px' : 64 + group.rows.length * 78 + 'rpx'}};">
+          <view class="customer-table">
+            <view class="table-row table-head"><view>姓名</view><view>门店</view><view>生日</view><view>充值次数</view><view>核销次数</view></view>
+            <view wx:for="{{group.rows}}" wx:key="customerCode" class="table-row"><view class="customer-link" data-code="{{item.customerCode}}" bindtap="openCustomer">{{item.customerName}}</view><view>{{item.storeName}}</view><view>{{item.birthDate}}</view><view>{{item.rechargeCount}} 次</view><view>{{item.verificationCount}} 次</view></view>
+          </view>
+        </scroll-view>
+        <view wx:if="{{group.totalPages > 1 || group.page > 1}}" class="pagination"><button class="page-control" disabled="{{group.page <= 1}}" bindtap="previousPage">上一页</button><text class="page-count">第 {{group.page}} / {{group.totalPages}} 页 · 共 {{group.total}} 位</text><button class="page-control" disabled="{{group.page >= group.totalPages}}" bindtap="nextPage">下一页</button></view>
+        <view wx:if="{{group.totalPages > 1}}" class="page-jump"><text>跳至第</text><input type="number" value="{{pageInput}}" bindinput="inputPage" /><text>页</text><button bindtap="jumpPage">跳转</button></view>
+        <text wx:if="{{message}}" class="page-message">{{message}}</text>
+      </block>
+    </view>
+  </block>
+</view>

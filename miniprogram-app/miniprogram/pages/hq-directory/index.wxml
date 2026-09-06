@@ -6,45 +6,45 @@
       <label><text>{{type === 'store' ? '按门店名称查询' : '按姓名查询'}}</text><input value="{{searchName}}" bindinput="inputSearchName" bindconfirm="runSearch" confirm-type="search" placeholder="{{type === 'store' ? '输入门店名称' : '输入老师姓名'}}" /></label>
       <label><text>{{type === 'store' ? '按联系人电话查询' : '按联系电话查询'}}</text><input type="number" value="{{searchPhone}}" bindinput="inputSearchPhone" bindconfirm="runSearch" confirm-type="search" placeholder="输入联系电话" /></label>
     </view>
-    <view class="search-actions"><button class="primary" bindtap="runSearch">查询</button><button class="secondary" bindtap="openCreate">新增{{noun}}</button></view>
+    <view class="search-actions"><button class="primary" bindtap="runSearch" disabled="{{loading}}">开始查询</button><button class="secondary" bindtap="openCreate">新增{{noun}}</button></view>
   </view>
 
   <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
 
   <view class="table-section {{type}}">
     <view class="section-heading"><text>查询结果</text><text>{{searched ? searchRows.length : 0}} {{unit}}</text></view>
-    <scroll-view class="table-scroll" scroll-x="true" data-visible-rows="{{searchRows.length > 5 ? 5 : searchRows.length}}" scroll-y="{{searchRows.length > 5}}" enhanced="true" show-scrollbar="{{searchRows.length > 5}}">
+    <scroll-view wx:if="{{searchRows.length}}" class="table-scroll" scroll-x="true" data-visible-rows="{{searchRows.length > 5 ? 5 : searchRows.length}}" scroll-y="{{searchRows.length > 5}}" enhanced="true" show-scrollbar="{{searchRows.length > 5}}">
       <view class="data-table {{type}}">
         <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text></view>
         <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>老师编号</text><text>联系电话</text><text>状态</text></view>
         <block wx:if="{{searched && searchRows.length}}"><template is="directoryRows" data="{{rows: searchRows, type: type}}" /></block>
-        <view wx:else class="table-empty">{{searched ? '没有符合条件的' + noun : '尚未查询'}}</view>
       </view>
     </scroll-view>
+    <view wx:else class="table-empty">{{loading ? '正在读取数据库…' : (error ? '数据读取失败，请刷新后重试' : (searched ? '没有符合条件的' + noun : '填写条件后开始查询'))}}</view>
   </view>
 
   <view class="table-section {{type}}">
     <view class="section-heading"><text>活跃{{noun}}</text><text>{{activeRows.length}} {{unit}}</text></view>
-    <scroll-view class="table-scroll" scroll-x="true" data-visible-rows="{{activeRows.length > 5 ? 5 : activeRows.length}}" scroll-y="{{activeRows.length > 5}}" enhanced="true" show-scrollbar="{{activeRows.length > 5}}">
+    <scroll-view wx:if="{{activeRows.length}}" class="table-scroll" scroll-x="true" data-visible-rows="{{activeRows.length > 5 ? 5 : activeRows.length}}" scroll-y="{{activeRows.length > 5}}" enhanced="true" show-scrollbar="{{activeRows.length > 5}}">
       <view class="data-table {{type}}">
         <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text></view>
         <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>老师编号</text><text>联系电话</text><text>状态</text></view>
         <template wx:if="{{activeRows.length}}" is="directoryRows" data="{{rows: activeRows, type: type}}" />
-        <view wx:else class="table-empty">{{loading ? '正在读取数据库…' : '暂无活跃' + noun}}</view>
       </view>
     </scroll-view>
+    <view wx:else class="table-empty">{{loading ? '正在读取数据库…' : (error ? '数据读取失败，请刷新后重试' : '暂无活跃' + noun)}}</view>
   </view>
 
   <view class="table-section archived-section {{type}}">
     <view class="section-heading"><text>封存{{noun}}</text><text>{{archivedRows.length}} {{unit}}</text></view>
-    <scroll-view class="table-scroll" scroll-x="true" data-visible-rows="{{archivedRows.length > 5 ? 5 : archivedRows.length}}" scroll-y="{{archivedRows.length > 5}}" enhanced="true" show-scrollbar="{{archivedRows.length > 5}}">
+    <scroll-view wx:if="{{archivedRows.length}}" class="table-scroll" scroll-x="true" data-visible-rows="{{archivedRows.length > 5 ? 5 : archivedRows.length}}" scroll-y="{{archivedRows.length > 5}}" enhanced="true" show-scrollbar="{{archivedRows.length > 5}}">
       <view class="data-table {{type}}">
         <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text></view>
         <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>老师编号</text><text>联系电话</text><text>状态</text></view>
         <template wx:if="{{archivedRows.length}}" is="directoryRows" data="{{rows: archivedRows, type: type}}" />
-        <view wx:else class="table-empty">暂无封存{{noun}}</view>
       </view>
     </scroll-view>
+    <view wx:else class="table-empty">{{loading ? '正在读取数据库…' : (error ? '数据读取失败，请刷新后重试' : '暂无封存' + noun)}}</view>
   </view>
   <view class="safe-bottom"></view>
 </view>

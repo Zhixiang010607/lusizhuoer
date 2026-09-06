@@ -53,7 +53,8 @@ test("HQ home exposes the complete web mobile rail and isolated ranking interact
   assert.doesNotMatch(js, /hqScopeDetailText|hqDetailOpen/,
     "the redesigned HQ home must not keep the retired statistics-range dialog state");
   assert.doesNotMatch(wxml, /\{\{hqScopeText\}\}/, "the filter card must not repeat an already visible scope sentence");
-  assert.match(wxml, /class="hq-control-field hq-product-filter"[\s\S]*项目范围[\s\S]*class="hq-inline-reset" bindtap="resetHqRange">恢复默认<\/button>/);
+  assert.match(wxml, /class="hq-control-field hq-product-filter"[\s\S]*项目范围/);
+  assert.doesNotMatch(wxml, /bindtap="resetHqRange"|恢复默认/);
   assert.doesNotMatch(wxml, /排序指标<\/text><button class="hq-inline-reset"/);
   assert.doesNotMatch(wxml, /class="hq-filter-actions"/);
   assert.match(wxml, /排名对象/);
@@ -213,9 +214,9 @@ test("HQ review workbenches match web filters, pagination, exact links, and guar
   for (const label of ["充值审核", "退费审核", "按条件查询", "按工单编号", "门店范围", "审核状态", "上一页", "下一页", "跳至", "通过", "驳回", "审核留言（可选）"]) {
     assert.match(wxml, new RegExp(label), `HQ review UI is missing ${label}`);
   }
-  assert.match(wxml, /wx:if="\{\{mode === 'filters' && total > 0\}\}" class="pager"/,
+  assert.match(wxml, /wx:if="\{\{mode === 'filters' && !loading && \(totalPages > 1 \|\| page > 1\)\}\}" class="pager"/,
     "empty review results must not reserve a pagination row");
-  assert.match(wxml, /wx:if="\{\{mode === 'filters' && total > 0\}\}" class="page-jump"/,
+  assert.match(wxml, /wx:if="\{\{mode === 'filters' && !loading && totalPages > 1\}\}" class="page-jump"/,
     "empty review results must not reserve a page-jump row");
   assert.match(wxss, /\.review-table\s*\{[^}]*width:\s*auto;[^}]*min-width:\s*100%;[^}]*display:\s*inline-table;[^}]*table-layout:\s*auto;/s,
     "review columns must size to their longest value and scroll only when necessary");
@@ -234,9 +235,9 @@ test("HQ review workbenches match web filters, pagination, exact links, and guar
   assert.match(wxss, /\.filter-card \.review-action-cell button \{[^}]*min-height: 72rpx;[^}]*font-size: 24rpx;/s,
     "review actions must match the compact filter control height");
   assert.doesNotMatch(wxml, /button-row review-query-actions/,
-    "query and reset must be direct siblings of store and status instead of a nested two-column group");
-  assert.equal((wxml.match(/class="review-action-cell"/g) || []).length, 2,
-    "query and reset must each own one equal-width outer grid cell");
+    "the query action must be a direct sibling of store and status");
+  assert.equal((wxml.match(/class="review-action-cell"/g) || []).length, 1,
+    "only the start-query action remains after removing reset");
   for (const selector of ["review-type-tabs button", "mode-tabs button", "review-action button"]) {
     const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     assert.match(wxss, new RegExp(`\\.${escaped}\\s*\\{[^}]*align-items:\\s*center;[^}]*justify-content:\\s*center;[^}]*white-space:\\s*nowrap;`, "s"),

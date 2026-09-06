@@ -130,3 +130,12 @@ button::after { border: 0; }
   .readonly-field { min-height: 48px; padding: 12px 16px; border-width: 1px; border-radius: 12px; font-size: 16px; }
   .field-help { margin-top: 8px; font-size: 13px; }
 }
+
+/* Lists and controls share safe bounds, including native style v2 buttons. */
+.page button { max-width: 100%; min-width: 0; box-sizing: border-box; }
+.page .empty { width: 100%; min-width: 0; grid-column: 1 / -1; font-size: 24rpx; line-height: 1.6; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+@media (min-width: 700px) {
+  .page .empty { font-size: 14px; }
+  .page .search-card > .button-row { max-width: 240px; margin-left: auto; }
+  .page .query-actions { width: 100%; max-width: 240px; justify-self: end; }
+}

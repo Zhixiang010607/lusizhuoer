@@ -1,0 +1,1058 @@
+{
+  "date": "2026-09-06",
+  "viewport": [
+    390,
+    753
+  ],
+  "scenarioCount": 60,
+  "isolatedRenderingOnly": true,
+  "sourcePagesReviewed": 27,
+  "issues": [],
+  "nativeErrors": [],
+  "results": [
+    {
+      "page": "customers",
+      "variant": "",
+      "rows": 0,
+      "tables": [],
+      "pagers": 0,
+      "jumps": 0,
+      "timeActionBounds": [
+        {
+          "id": "",
+          "dataset": {},
+          "left": 17,
+          "right": 192,
+          "top": 281.1484375,
+          "bottom": 318.1484375,
+          "width": 175,
+          "height": 37
+        },
+        {
+          "id": "",
+          "dataset": {},
+          "left": 198,
+          "right": 373,
+          "top": 281.1484375,
+          "bottom": 318.1484375,
+          "width": 175,
+          "height": 37
+        }
+      ]
+    },
+    {
+      "page": "customers",
+      "variant": "",
+      "rows": 3,
+      "tables": [
+        {
+          "selector": ".customer-table-scroll",
+          "viewport": 148,
+          "expected": 145,
+          "gap": 3
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0,
+      "timeActionBounds": [
+        {
+          "id": "",
+          "dataset": {},
+          "left": 17,
+          "right": 192,
+          "top": 281.1484375,
+          "bottom": 318.1484375,
+          "width": 175,
+          "height": 37
+        },
+        {
+          "id": "",
+          "dataset": {},
+          "left": 198,
+          "right": 373,
+          "top": 281.1484375,
+          "bottom": 318.1484375,
+          "width": 175,
+          "height": 37
+        }
+      ]
+    },
+    {
+      "page": "customers",
+      "variant": "",
+      "rows": 6,
+      "tables": [
+        {
+          "selector": ".customer-table-scroll",
+          "viewport": 223,
+          "expected": 219,
+          "gap": 4
+        }
+      ],
+      "pagers": 1,
+      "jumps": 1,
+      "timeActionBounds": [
+        {
+          "id": "",
+          "dataset": {},
+          "left": 17,
+          "right": 192,
+          "top": 281.1484375,
+          "bottom": 318.1484375,
+          "width": 175,
+          "height": 37
+        },
+        {
+          "id": "",
+          "dataset": {},
+          "left": 198,
+          "right": 373,
+          "top": 281.1484375,
+          "bottom": 318.1484375,
+          "width": 175,
+          "height": 37
+        }
+      ]
+    },
+    {
+      "page": "records",
+      "variant": "RECHARGE",
+      "rows": 0,
+      "tables": [],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "records",
+      "variant": "RECHARGE",
+      "rows": 3,
+      "tables": [
+        {
+          "selector": ".record-scroll",
+          "viewport": 159,
+          "expected": 155,
+          "gap": 4
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "records",
+      "variant": "RECHARGE",
+      "rows": 6,
+      "tables": [
+        {
+          "selector": ".record-scroll",
+          "viewport": 240,
+          "expected": 235,
+          "gap": 5
+        }
+      ],
+      "pagers": 1,
+      "jumps": 1
+    },
+    {
+      "page": "records",
+      "variant": "VERIFICATION",
+      "rows": 0,
+      "tables": [],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "records",
+      "variant": "VERIFICATION",
+      "rows": 3,
+      "tables": [
+        {
+          "selector": ".record-scroll",
+          "viewport": 159,
+          "expected": 155,
+          "gap": 4
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "records",
+      "variant": "VERIFICATION",
+      "rows": 6,
+      "tables": [
+        {
+          "selector": ".record-scroll",
+          "viewport": 240,
+          "expected": 235,
+          "gap": 5
+        }
+      ],
+      "pagers": 1,
+      "jumps": 1
+    },
+    {
+      "page": "records",
+      "variant": "PRODUCT_PURCHASE",
+      "rows": 0,
+      "tables": [],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "records",
+      "variant": "PRODUCT_PURCHASE",
+      "rows": 3,
+      "tables": [
+        {
+          "selector": ".record-scroll",
+          "viewport": 159,
+          "expected": 155,
+          "gap": 4
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "records",
+      "variant": "PRODUCT_PURCHASE",
+      "rows": 6,
+      "tables": [
+        {
+          "selector": ".record-scroll",
+          "viewport": 240,
+          "expected": 235,
+          "gap": 5
+        }
+      ],
+      "pagers": 1,
+      "jumps": 1
+    },
+    {
+      "page": "reviews",
+      "variant": "recharge",
+      "rows": 0,
+      "tables": [],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "reviews",
+      "variant": "recharge",
+      "rows": 3,
+      "tables": [
+        {
+          "selector": ".table-scroll",
+          "viewport": 145,
+          "expected": 144,
+          "gap": 1
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "reviews",
+      "variant": "recharge",
+      "rows": 6,
+      "tables": [
+        {
+          "selector": ".table-scroll",
+          "viewport": 220,
+          "expected": 218,
+          "gap": 2
+        }
+      ],
+      "pagers": 1,
+      "jumps": 1
+    },
+    {
+      "page": "reviews",
+      "variant": "refund",
+      "rows": 0,
+      "tables": [],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "reviews",
+      "variant": "refund",
+      "rows": 3,
+      "tables": [
+        {
+          "selector": ".table-scroll",
+          "viewport": 145,
+          "expected": 144,
+          "gap": 1
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "reviews",
+      "variant": "refund",
+      "rows": 6,
+      "tables": [
+        {
+          "selector": ".table-scroll",
+          "viewport": 220,
+          "expected": 218,
+          "gap": 2
+        }
+      ],
+      "pagers": 1,
+      "jumps": 1
+    },
+    {
+      "page": "reviews",
+      "variant": "product-purchase",
+      "rows": 0,
+      "tables": [],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "reviews",
+      "variant": "product-purchase",
+      "rows": 3,
+      "tables": [
+        {
+          "selector": ".table-scroll",
+          "viewport": 145,
+          "expected": 144,
+          "gap": 1
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "reviews",
+      "variant": "product-purchase",
+      "rows": 6,
+      "tables": [
+        {
+          "selector": ".table-scroll",
+          "viewport": 220,
+          "expected": 218,
+          "gap": 2
+        }
+      ],
+      "pagers": 1,
+      "jumps": 1
+    },
+    {
+      "page": "hq-directory",
+      "variant": "store",
+      "rows": 0,
+      "tables": [],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "hq-directory",
+      "variant": "store",
+      "rows": 3,
+      "tables": [
+        {
+          "selector": ".table-scroll",
+          "viewport": 157,
+          "expected": 155,
+          "gap": 2
+        },
+        {
+          "selector": ".table-scroll",
+          "viewport": 157,
+          "expected": 155,
+          "gap": 2
+        },
+        {
+          "selector": ".table-scroll",
+          "viewport": 157,
+          "expected": 155,
+          "gap": 2
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "hq-directory",
+      "variant": "store",
+      "rows": 6,
+      "tables": [
+        {
+          "selector": ".table-scroll",
+          "viewport": 238,
+          "expected": 235,
+          "gap": 3
+        },
+        {
+          "selector": ".table-scroll",
+          "viewport": 238,
+          "expected": 235,
+          "gap": 3
+        },
+        {
+          "selector": ".table-scroll",
+          "viewport": 238,
+          "expected": 235,
+          "gap": 3
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "hq-directory",
+      "variant": "teacher",
+      "rows": 0,
+      "tables": [],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "hq-directory",
+      "variant": "teacher",
+      "rows": 3,
+      "tables": [
+        {
+          "selector": ".table-scroll",
+          "viewport": 157,
+          "expected": 155,
+          "gap": 2
+        },
+        {
+          "selector": ".table-scroll",
+          "viewport": 157,
+          "expected": 155,
+          "gap": 2
+        },
+        {
+          "selector": ".table-scroll",
+          "viewport": 157,
+          "expected": 155,
+          "gap": 2
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "hq-directory",
+      "variant": "teacher",
+      "rows": 6,
+      "tables": [
+        {
+          "selector": ".table-scroll",
+          "viewport": 238,
+          "expected": 235,
+          "gap": 3
+        },
+        {
+          "selector": ".table-scroll",
+          "viewport": 238,
+          "expected": 235,
+          "gap": 3
+        },
+        {
+          "selector": ".table-scroll",
+          "viewport": 238,
+          "expected": 235,
+          "gap": 3
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "inactive-customers",
+      "variant": "",
+      "rows": 0,
+      "tables": [],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "inactive-customers",
+      "variant": "",
+      "rows": 3,
+      "tables": [
+        {
+          "selector": ".inactive-table-scroll",
+          "viewport": 148,
+          "expected": 145,
+          "gap": 3
+        },
+        {
+          "selector": ".inactive-table-scroll",
+          "viewport": 148,
+          "expected": 145,
+          "gap": 3
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "inactive-customers",
+      "variant": "",
+      "rows": 6,
+      "tables": [
+        {
+          "selector": ".inactive-table-scroll",
+          "viewport": 223,
+          "expected": 219,
+          "gap": 4
+        },
+        {
+          "selector": ".inactive-table-scroll",
+          "viewport": 223,
+          "expected": 219,
+          "gap": 4
+        }
+      ],
+      "pagers": 2,
+      "jumps": 2
+    },
+    {
+      "page": "low-balance-customers",
+      "variant": "",
+      "rows": 0,
+      "tables": [],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "low-balance-customers",
+      "variant": "",
+      "rows": 3,
+      "tables": [
+        {
+          "selector": ".low-balance-table-scroll",
+          "viewport": 148,
+          "expected": 145,
+          "gap": 3
+        },
+        {
+          "selector": ".low-balance-table-scroll",
+          "viewport": 148,
+          "expected": 145,
+          "gap": 3
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "low-balance-customers",
+      "variant": "",
+      "rows": 6,
+      "tables": [
+        {
+          "selector": ".low-balance-table-scroll",
+          "viewport": 223,
+          "expected": 219,
+          "gap": 4
+        },
+        {
+          "selector": ".low-balance-table-scroll",
+          "viewport": 223,
+          "expected": 219,
+          "gap": 4
+        }
+      ],
+      "pagers": 2,
+      "jumps": 2
+    },
+    {
+      "page": "rating-analysis",
+      "variant": "",
+      "rows": 0,
+      "tables": [],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "rating-analysis",
+      "variant": "",
+      "rows": 3,
+      "tables": [
+        {
+          "selector": ".rating-table-scroll",
+          "viewport": 148,
+          "expected": 145,
+          "gap": 3
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "rating-analysis",
+      "variant": "",
+      "rows": 6,
+      "tables": [
+        {
+          "selector": ".rating-table-scroll",
+          "viewport": 223,
+          "expected": 219,
+          "gap": 4
+        }
+      ],
+      "pagers": 1,
+      "jumps": 1
+    },
+    {
+      "page": "customer-detail",
+      "variant": "",
+      "rows": 0,
+      "tables": [],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "customer-detail",
+      "variant": "",
+      "rows": 3,
+      "tables": [
+        {
+          "selector": ".balance-scroll",
+          "viewport": 155,
+          "expected": 152,
+          "gap": 3
+        },
+        {
+          "selector": ".retail-summary-scroll",
+          "viewport": 153,
+          "expected": 152,
+          "gap": 1
+        },
+        {
+          "selector": ".record-scroll",
+          "viewport": 151,
+          "expected": 148,
+          "gap": 3
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "customer-detail",
+      "variant": "",
+      "rows": 6,
+      "tables": [
+        {
+          "selector": ".balance-scroll",
+          "viewport": 232,
+          "expected": 228,
+          "gap": 4
+        },
+        {
+          "selector": ".retail-summary-scroll",
+          "viewport": 232,
+          "expected": 230,
+          "gap": 2
+        },
+        {
+          "selector": ".record-scroll",
+          "viewport": 228,
+          "expected": 224,
+          "gap": 4
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "teacher-detail",
+      "variant": "",
+      "rows": 0,
+      "tables": [],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "teacher-detail",
+      "variant": "",
+      "rows": 3,
+      "tables": [
+        {
+          "selector": ".monthly-overview-scroll",
+          "viewport": 254,
+          "expected": 252,
+          "gap": 2
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "teacher-detail",
+      "variant": "",
+      "rows": 6,
+      "tables": [
+        {
+          "selector": ".monthly-overview-scroll",
+          "viewport": 506,
+          "expected": 504,
+          "gap": 2
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "customers",
+      "variant": "store",
+      "rows": 0,
+      "tables": [],
+      "pagers": 0,
+      "jumps": 0,
+      "timeActionBounds": [
+        {
+          "id": "",
+          "dataset": {},
+          "left": 17,
+          "right": 192,
+          "top": 219.6484375,
+          "bottom": 256.6484375,
+          "width": 175,
+          "height": 37
+        },
+        {
+          "id": "",
+          "dataset": {},
+          "left": 198,
+          "right": 373,
+          "top": 219.6484375,
+          "bottom": 256.6484375,
+          "width": 175,
+          "height": 37
+        }
+      ],
+      "customDateBounds": [
+        {
+          "id": "",
+          "dataset": {},
+          "left": 17,
+          "right": 192,
+          "top": 200.1484375,
+          "bottom": 256.6484375,
+          "width": 175,
+          "height": 56.5
+        },
+        {
+          "id": "",
+          "dataset": {},
+          "left": 17,
+          "right": 192,
+          "top": 261.6484375,
+          "bottom": 318.1484375,
+          "width": 175,
+          "height": 56.5
+        },
+        {
+          "id": "",
+          "dataset": {},
+          "left": 198,
+          "right": 373,
+          "top": 261.6484375,
+          "bottom": 318.1484375,
+          "width": 175,
+          "height": 56.5
+        }
+      ]
+    },
+    {
+      "page": "customers",
+      "variant": "store",
+      "rows": 3,
+      "tables": [
+        {
+          "selector": ".customer-table-scroll",
+          "viewport": 148,
+          "expected": 145,
+          "gap": 3
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0,
+      "timeActionBounds": [
+        {
+          "id": "",
+          "dataset": {},
+          "left": 17,
+          "right": 192,
+          "top": 219.6484375,
+          "bottom": 256.6484375,
+          "width": 175,
+          "height": 37
+        },
+        {
+          "id": "",
+          "dataset": {},
+          "left": 198,
+          "right": 373,
+          "top": 219.6484375,
+          "bottom": 256.6484375,
+          "width": 175,
+          "height": 37
+        }
+      ]
+    },
+    {
+      "page": "customers",
+      "variant": "store",
+      "rows": 6,
+      "tables": [
+        {
+          "selector": ".customer-table-scroll",
+          "viewport": 223,
+          "expected": 219,
+          "gap": 4
+        }
+      ],
+      "pagers": 1,
+      "jumps": 1,
+      "timeActionBounds": [
+        {
+          "id": "",
+          "dataset": {},
+          "left": 17,
+          "right": 192,
+          "top": 219.6484375,
+          "bottom": 256.6484375,
+          "width": 175,
+          "height": 37
+        },
+        {
+          "id": "",
+          "dataset": {},
+          "left": 198,
+          "right": 373,
+          "top": 219.6484375,
+          "bottom": 256.6484375,
+          "width": 175,
+          "height": 37
+        }
+      ]
+    },
+    {
+      "page": "records",
+      "variant": "RECHARGE-store",
+      "rows": 0,
+      "tables": [],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "records",
+      "variant": "RECHARGE-store",
+      "rows": 3,
+      "tables": [
+        {
+          "selector": ".record-scroll",
+          "viewport": 159,
+          "expected": 155,
+          "gap": 4
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "records",
+      "variant": "RECHARGE-store",
+      "rows": 6,
+      "tables": [
+        {
+          "selector": ".record-scroll",
+          "viewport": 240,
+          "expected": 235,
+          "gap": 5
+        }
+      ],
+      "pagers": 1,
+      "jumps": 1
+    },
+    {
+      "page": "records",
+      "variant": "VERIFICATION-store",
+      "rows": 0,
+      "tables": [],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "records",
+      "variant": "VERIFICATION-store",
+      "rows": 3,
+      "tables": [
+        {
+          "selector": ".record-scroll",
+          "viewport": 159,
+          "expected": 155,
+          "gap": 4
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "records",
+      "variant": "VERIFICATION-store",
+      "rows": 6,
+      "tables": [
+        {
+          "selector": ".record-scroll",
+          "viewport": 240,
+          "expected": 235,
+          "gap": 5
+        }
+      ],
+      "pagers": 1,
+      "jumps": 1
+    },
+    {
+      "page": "inactive-customers",
+      "variant": "store",
+      "rows": 0,
+      "tables": [],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "inactive-customers",
+      "variant": "store",
+      "rows": 3,
+      "tables": [
+        {
+          "selector": ".inactive-table-scroll",
+          "viewport": 148,
+          "expected": 145,
+          "gap": 3
+        },
+        {
+          "selector": ".inactive-table-scroll",
+          "viewport": 148,
+          "expected": 145,
+          "gap": 3
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "inactive-customers",
+      "variant": "store",
+      "rows": 6,
+      "tables": [
+        {
+          "selector": ".inactive-table-scroll",
+          "viewport": 223,
+          "expected": 219,
+          "gap": 4
+        },
+        {
+          "selector": ".inactive-table-scroll",
+          "viewport": 223,
+          "expected": 219,
+          "gap": 4
+        }
+      ],
+      "pagers": 2,
+      "jumps": 2
+    },
+    {
+      "page": "low-balance-customers",
+      "variant": "store",
+      "rows": 0,
+      "tables": [],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "low-balance-customers",
+      "variant": "store",
+      "rows": 3,
+      "tables": [
+        {
+          "selector": ".low-balance-table-scroll",
+          "viewport": 148,
+          "expected": 145,
+          "gap": 3
+        },
+        {
+          "selector": ".low-balance-table-scroll",
+          "viewport": 148,
+          "expected": 145,
+          "gap": 3
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "low-balance-customers",
+      "variant": "store",
+      "rows": 6,
+      "tables": [
+        {
+          "selector": ".low-balance-table-scroll",
+          "viewport": 223,
+          "expected": 219,
+          "gap": 4
+        },
+        {
+          "selector": ".low-balance-table-scroll",
+          "viewport": 223,
+          "expected": 219,
+          "gap": 4
+        }
+      ],
+      "pagers": 2,
+      "jumps": 2
+    },
+    {
+      "page": "rating-analysis",
+      "variant": "store",
+      "rows": 0,
+      "tables": [],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "rating-analysis",
+      "variant": "store",
+      "rows": 3,
+      "tables": [
+        {
+          "selector": ".rating-table-scroll",
+          "viewport": 148,
+          "expected": 145,
+          "gap": 3
+        }
+      ],
+      "pagers": 0,
+      "jumps": 0
+    },
+    {
+      "page": "rating-analysis",
+      "variant": "store",
+      "rows": 6,
+      "tables": [
+        {
+          "selector": ".rating-table-scroll",
+          "viewport": 223,
+          "expected": 219,
+          "gap": 4
+        }
+      ],
+      "pagers": 1,
+      "jumps": 1
+    }
+  ]
+}

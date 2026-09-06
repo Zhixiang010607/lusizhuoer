@@ -12,8 +12,7 @@
         <label class="field"><text class="field-label">审核状态</text><picker range="{{statusLabels}}" value="{{statusIndex}}" bindchange="chooseStatus"><view class="picker">{{statusLabels[statusIndex]}}</view></picker></label>
       </block>
       <label wx:else class="field review-code-field"><text class="field-label">完整{{noun}}工单编号</text><input value="{{code}}" bindinput="inputCode" placeholder="输入完整工单编号" confirm-type="search" bindconfirm="runQuery" /></label>
-      <view class="review-action-cell"><button class="primary" bindtap="runQuery" loading="{{loading}}" disabled="{{loading}}">查询</button></view>
-      <view class="review-action-cell"><button class="ghost" bindtap="resetQuery" disabled="{{loading}}">重置</button></view>
+      <view class="review-action-cell"><button class="primary" bindtap="runQuery" loading="{{loading}}" disabled="{{loading}}">开始查询</button></view>
     </view>
   </view>
 
@@ -33,8 +32,8 @@
       </view>
     </scroll-view>
     <view wx:else class="empty">当前条件下没有审核记录</view>
-    <view wx:if="{{mode === 'filters' && total > 0}}" class="pager"><button class="ghost" bindtap="previousPage" disabled="{{loading || page <= 1}}">上一页</button><text>第 {{page}} / {{totalPages}} 页</text><button class="ghost" bindtap="nextPage" disabled="{{loading || page >= totalPages}}">下一页</button></view>
-    <view wx:if="{{mode === 'filters' && total > 0}}" class="page-jump"><text>跳至</text><input type="number" value="{{pageJump}}" bindinput="inputPage" /><text>页</text><button class="primary compact" bindtap="jumpPage" disabled="{{loading}}">跳转</button></view>
+    <view wx:if="{{mode === 'filters' && !loading && (totalPages > 1 || page > 1)}}" class="pager"><button class="ghost" bindtap="previousPage" disabled="{{loading || page <= 1}}">上一页</button><text>第 {{page}} / {{totalPages}} 页</text><button class="ghost" bindtap="nextPage" disabled="{{loading || page >= totalPages}}">下一页</button></view>
+    <view wx:if="{{mode === 'filters' && !loading && totalPages > 1}}" class="page-jump"><text>跳至</text><input type="number" value="{{pageJump}}" bindinput="inputPage" /><text>页</text><button class="primary compact" bindtap="jumpPage" disabled="{{loading}}">跳转</button></view>
   </view>
 
   <view wx:if="{{pendingOpen && pending}}" class="mask" catchtouchmove="noop" bindtap="closeDecision">

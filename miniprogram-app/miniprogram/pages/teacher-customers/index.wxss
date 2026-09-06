@@ -1,0 +1,55 @@
+page { color: #302a22; background: #f3ede2; }
+.page { width: calc(100% - 48rpx); margin: 0 auto; padding: 28rpx 0 calc(40rpx + env(safe-area-inset-bottom)); }
+.page-heading { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin: 0 4rpx 28rpx; }
+.page-heading > view { min-width: 0; flex: 1; }
+.title, .subtitle { display: block; }
+.title { font-size: 36rpx; font-weight: 600; line-height: 1.4; }
+.subtitle { margin-top: 8rpx; color: #7c7062; font-size: 23rpx; line-height: 1.5; }
+.page button { display: flex; align-items: center; justify-content: center; width: auto !important; min-width: 0; max-width: 100%; min-height: 76rpx; margin: 0; padding: 0 20rpx; border: 1rpx solid #d8c5a3; border-radius: 14rpx; color: #74592d; background: #fffaf3; font-size: 24rpx; line-height: 1.4; }
+button::after { border: 0; }
+.back { flex: none; font-size: 23rpx; }
+.status-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10rpx; margin-bottom: 22rpx; padding: 8rpx; border-radius: 20rpx; background: #eee4d6; }
+.status-tabs button { width: 100% !important; gap: 14rpx; border-color: transparent; background: transparent; }
+.status-tabs button.active { border-color: #dfcfb4; background: #fffaf3; font-weight: 600; }
+.status-tabs text { font-size: 22rpx; color: #7c7062; }
+.panel { padding: 24rpx; border: 1rpx solid #e1cfaf; border-radius: 24rpx; background: #fffaf3; }
+.notice { padding: 20rpx 4rpx; color: #7c7062; font-size: 25rpx; line-height: 1.6; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+.notice > text { display: block; }
+.notice.error { color: #8b3f35; }
+.retry { display: inline-flex; margin-top: 20rpx; }
+.customer-scroll { width: 100%; overflow: hidden; border-radius: 16rpx; background: #fff; }
+.customer-table { display: table; width: auto; min-width: 100%; border-collapse: collapse; }
+.table-row { display: table-row; }
+.table-row > view { display: table-cell; height: 78rpx; padding: 12rpx 18rpx; border-bottom: 1rpx solid #eadfce; vertical-align: middle; text-align: center; font-size: 24rpx; line-height: 1.4; white-space: nowrap; }
+.table-head > view { height: 64rpx; color: #675b4b; background: #f5ead8; font-weight: 600; }
+.table-row:last-child > view { border-bottom: 0; }
+.table-row > .customer-link { color: #74592d; font-weight: 600; text-decoration: underline; }
+.pagination { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12rpx; margin-top: 22rpx; }
+.pagination > text { min-width: 0; text-align: center; color: #7c7062; font-size: 21rpx; line-height: 1.5; }
+.pagination button { min-height: 68rpx; padding: 0 16rpx; font-size: 22rpx; }
+button[disabled] { color: #9b9082; background: #f4eee5; }
+.page-jump { display: flex; align-items: center; justify-content: center; gap: 12rpx; margin-top: 16rpx; color: #7c7062; font-size: 22rpx; }
+.page-jump input { width: 108rpx; height: 68rpx; border: 1rpx solid #dcc8a6; border-radius: 12rpx; background: #fff; text-align: center; }
+.page-jump button { min-height: 68rpx; }
+.page-message { display: block; margin-top: 16rpx; color: #8b3f35; font-size: 23rpx; }
+@media (min-width: 700px) {
+  .page { width: calc(100% - 48px); max-width: 1120px; padding: 24px 0 40px; }
+  .page-heading { margin: 0 4px 20px; }
+  .title { font-size: 26px; }
+  .subtitle { margin-top: 6px; font-size: 14px; }
+  .page button, .page .back { min-height: 44px; padding: 0 16px; border-radius: 10px; font-size: 14px; }
+  .status-tabs { max-width: 460px; gap: 8px; margin-bottom: 18px; padding: 6px; border-radius: 14px; }
+  .status-tabs text { font-size: 13px; }
+  .panel { padding: 20px; border-radius: 18px; }
+  .notice { padding: 14px 4px; font-size: 15px; }
+  .retry { margin-top: 14px; }
+  .customer-scroll { border-radius: 12px; }
+  .table-row > view { height: 52px; padding: 10px 12px; font-size: 14px; }
+  .table-head > view { height: 46px; }
+  .pagination { gap: 12px; margin-top: 18px; }
+  .pagination > text, .pagination button { font-size: 14px; }
+  .pagination button, .page-jump button { min-height: 44px; padding: 0 16px; }
+  .page-jump { gap: 10px; margin-top: 12px; font-size: 14px; }
+  .page-jump input { width: 80px; height: 44px; border-radius: 10px; }
+  .page-message { font-size: 14px; }
+}

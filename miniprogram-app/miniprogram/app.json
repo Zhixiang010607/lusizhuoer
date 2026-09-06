@@ -9,6 +9,7 @@
     "pages/teacher-detail/index"
   ],
   "subPackages": [
+    { "root": "pages/teacher-customers", "pages": ["index"] },
     { "root": "pages/product-management", "pages": ["index"] },
     { "root": "pages/product-create", "pages": ["index"] },
     { "root": "pages/product-detail", "pages": ["index"] },

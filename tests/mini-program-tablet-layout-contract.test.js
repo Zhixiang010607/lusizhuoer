@@ -91,8 +91,8 @@ test("query and review pages use compact tablet filters and five-row result view
   assert.doesNotMatch(reviewsWxml, /class="fixed-type"/,
     "review type already comes from the active review tab and must not be repeated as an odd filter tile");
   assert.match(reviewsWxss, /\.filter-switches\.has-review-types \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s);
-  assert.match(reviewsWxss, /\.review-filter-grid \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/s,
-    "review store, status, query, and reset must be four equal outer columns on tablets");
+  assert.match(reviewsWxss, /\.review-filter-grid \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/s,
+    "review store, status, and query must be three equal outer columns on tablets");
   assert.match(reviewsWxss, /\.filter-card \.review-type-tabs button, \.filter-card \.mode-tabs button \{[^}]*height: 36px;[^}]*min-height: 36px;[^}]*font-size: 13px;/s,
     "review switches must stop at one compact tablet height");
   assert.match(reviewsWxss, /\.review-filter-grid \.field > \.field-label \{[^}]*font-size: 24rpx;[^}]*font-weight: 700;/s,
@@ -101,7 +101,7 @@ test("query and review pages use compact tablet filters and five-row result view
     "tablet review labels must use the same 13px query typography as customer and record queries");
   assert.match(reviewsWxss, /\.field input, \.field textarea, \.picker,\s*\.review-filter-grid \.field input, \.review-filter-grid \.picker \{[^}]*min-height: 38px;[^}]*height: 38px;[^}]*font-size: 13px;/s,
     "the tablet override must match the earlier high-specificity review picker rule so fields really align on one compact physical baseline");
-  assert.match(reviewsWxss, /\.review-action-cell \{ align-self: start; margin-top: 0; \}/,
+  assert.match(reviewsWxss, /\.review-action-cell \{ grid-column: auto; align-self: start; margin-top: 0; \}/,
     "each review action must occupy one direct tablet grid cell from the same top baseline");
   assert.match(reviewsWxss, /\.review-filter-grid \.field > \.field-label \{[^}]*font-size: 13px;[^}]*font-weight: 700;/s,
     "the tablet override must match the earlier high-specificity review label rule and reuse the established query label typography");
@@ -440,11 +440,12 @@ test("HQ tablet filters use a balanced two-by-two control grid", () => {
 
   assert.match(homeWxml, /class="hq-filter-grid hq-ranking-control-grid"/);
   assert.match(homeWxml, /class="hq-control-field"/);
-  assert.match(homeWxml, /class="hq-control-field hq-product-filter"[\s\S]*项目范围[\s\S]*class="hq-inline-reset" bindtap="resetHqRange">恢复默认<\/button>/);
+  assert.match(homeWxml, /class="hq-control-field hq-product-filter"[\s\S]*项目范围/);
+  assert.doesNotMatch(homeWxml, /bindtap="resetHqRange"|恢复默认/);
   assert.doesNotMatch(homeWxml, /排序指标<\/text><button class="hq-inline-reset"/);
   assert.doesNotMatch(homeWxml, /class="hq-filter-actions"/);
   assert.match(homeWxss, /\.hq-ranking-control-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/);
   assert.match(homeWxss, /\.hq-ranking-control-grid \.hq-dimension-tabs \{[^}]*height: 46px;[^}]*min-height: 46px;[^}]*padding: 4px;/s);
   assert.match(homeWxss, /\.hq-ranking-control-grid \.hq-dimension-tabs button \{[^}]*height: 38px;[^}]*min-height: 0;/s);
-  assert.match(homeWxss, /\.hq-inline-reset \{[^}]*min-width: 0;[^}]*min-height: 26px;[^}]*border-width: 0;/s);
+  assert.doesNotMatch(homeWxss, /\.hq-inline-reset/);
 });

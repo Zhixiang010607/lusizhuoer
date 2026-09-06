@@ -138,7 +138,7 @@
         </view>
       </scroll-view>
       <view wx:elif="{{!historyLoading}}" class="empty">暂无相关记录</view>
-      <view class="history-pagination">
+      <view wx:if="{{historyHasMore || historyPage > 1}}" class="history-pagination">
         <button class="ghost" bindtap="previousHistoryPage" disabled="{{historyPage <= 1 || historyLoading}}">上一页</button>
         <text>第 {{historyPage}} 页</text>
         <button class="ghost" bindtap="nextHistoryPage" disabled="{{!historyHasMore || historyLoading}}">下一页</button>

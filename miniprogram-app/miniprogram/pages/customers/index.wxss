@@ -9,6 +9,9 @@
 .query-grid .input, .query-grid .picker { min-height: 72rpx; padding-right: 16rpx; padding-left: 16rpx; font-size: 24rpx; }
 .query-grid .query-wide { grid-column: 1 / -1; }
 .search-card > .button-row button { min-height: 72rpx; font-size: 24rpx; }
+.query-grid.customer-time-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.customer-query-action { min-width: 0; align-self: end; margin-bottom: 10rpx; }
+.customer-query-action button { width: 100% !important; min-height: 72rpx; padding: 0 16rpx; font-size: 24rpx; }
 .summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6rpx; margin-bottom: 12rpx; }
 .summary-grid view { min-width: 0; padding: 10rpx 6rpx; text-align: center; background: #fff; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
 .summary-grid text { display: block; }
@@ -45,6 +48,10 @@
   .search-card .query-modes button { min-height: 38px; font-size: 14px; }
   .query-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 12px; }
   .query-grid .query-wide { grid-column: auto; }
+  .query-grid.customer-browse-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .query-grid.customer-time-actions { max-width: calc(66.6667% - 4px); }
+  .customer-query-action { margin-bottom: 10px; }
+  .customer-query-action button { min-height: 42px; padding: 0 12px; border-radius: 10px; font-size: 14px; }
   .query-grid .field { margin-bottom: 10px; }
   .query-grid .field-label { margin-bottom: 5px; font-size: 13px; }
   .query-grid .input, .query-grid .picker { min-height: 42px; padding-right: 12px; padding-left: 12px; border-radius: 10px; font-size: 14px; }

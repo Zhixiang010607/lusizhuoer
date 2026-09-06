@@ -1,0 +1,43 @@
+{
+  "date": "2026-09-06",
+  "client": "WeChat Mini Program",
+  "routesReviewed": [
+    "pages/login/index",
+    "pages/password-reset/index",
+    "pages/home/index",
+    "pages/store-create/index",
+    "pages/store-detail/index",
+    "pages/teacher-create/index",
+    "pages/teacher-detail/index",
+    "pages/teacher-customers/index",
+    "pages/product-management/index",
+    "pages/product-create/index",
+    "pages/product-detail/index",
+    "pages/retail-product-management/index",
+    "pages/retail-product-create/index",
+    "pages/hq-directory/index",
+    "pages/reviews/index",
+    "pages/customers/index",
+    "pages/inactive-customers/index",
+    "pages/low-balance-customers/index",
+    "pages/rating-analysis/index",
+    "pages/customer-detail/index",
+    "pages/customer-create/index",
+    "pages/recharge/index",
+    "pages/product-purchase/index",
+    "pages/product-purchase-detail/index",
+    "pages/verification/index",
+    "pages/records/index",
+    "pages/order-detail/index"
+  ],
+  "routeCount": 27,
+  "review": [
+    "Table empty state placement",
+    "Scroll viewport and row heights",
+    "Query reset controls",
+    "Empty and single-page navigation",
+    "Native button width bounds"
+  ],
+  "remainingTableNestedEmptyStates": [],
+  "scope": "Source review of every registered route; native rendering coverage is recorded separately."
+}
