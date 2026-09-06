@@ -9,7 +9,7 @@ page {
   --line: #dfcfb4;
   --surface: #fffaf3;
   --page: #f3ede2;
-  --shadow: 0 12rpx 34rpx rgba(93, 72, 39, .08);
+  --shadow: none;
   background: var(--page);
   color: var(--ink);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
@@ -24,7 +24,7 @@ button::after { border: 0; }
 .page-heading .title { display: block; font-size: 36rpx; font-weight: 800; line-height: 1.25; }
 .card { min-width: 0; margin-bottom: 14rpx; padding: 22rpx; overflow: hidden; background: var(--surface); border: 1rpx solid var(--line); border-radius: 24rpx; box-shadow: var(--shadow); }
 .card-title { display: flex; align-items: center; justify-content: space-between; gap: 14rpx; margin-bottom: 14rpx; }
-.card-title text:first-child { min-width: 0; font-size: 29rpx; font-weight: 800; }
+.card-title text:first-child { min-width: 0; font-size: 29rpx; font-weight: 600; }
 .badge { flex: none; padding: 6rpx 12rpx; color: #74592d; background: #f4e7d0; border-radius: 999rpx; font-size: 20rpx; font-weight: 700; }
 .field { display: block; margin-bottom: 18rpx; }
 .field-label { display: block; margin-bottom: 8rpx; color: #675b4b; font-size: 25rpx; font-weight: 700; }
@@ -75,7 +75,7 @@ button::after { border: 0; }
  * cap the shared component geometry in physical pixels on wider screens.
  */
 @media (min-width: 700px) {
-  page { --shadow: 0 8px 24px rgba(93, 72, 39, .08); font-size: 16px; }
+  page { --shadow: none; font-size: 16px; }
   page .page { width: calc(100% - 48px); max-width: 1120px; margin: 0 auto; padding: 20px 0 36px; }
   page .page-heading { margin-bottom: 16px; padding: 16px 20px; border-radius: 16px; }
   page .page-heading .title { font-size: 26px; }

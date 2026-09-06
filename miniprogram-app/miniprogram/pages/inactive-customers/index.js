@@ -61,6 +61,7 @@ function emptyCategoryPatch(prefix) {
 
 Page({
   data: {
+    rulesExpanded: false,
     session: {}, loading: false, exporting: false, searched: false, message: "", error: false,
     minimumDays: "", summary: { ...EMPTY_SUMMARY }, total: 0, pageSize: PAGE_SIZE,
     zeroCustomers: [], zeroPage: 1, zeroTotal: 0, zeroTotalPages: 1, zeroPageJump: "1",
@@ -69,6 +70,8 @@ Page({
     nonzeroCursorStack: [null], nonzeroNextCursor: null, nonzeroTableScrollLeft: 0,
     stores: [], storeLabels: ["全部门店"], storeIndex: 0
   },
+
+  toggleRules() { this.setData({ rulesExpanded: !this.data.rulesExpanded }); },
 
   async onLoad() {
     const session = requireSession(["hq", "store"]);

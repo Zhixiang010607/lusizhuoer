@@ -1,0 +1,35 @@
+/* Shared presentation for the three operational queries. */
+.refined-query .card-title { align-items: center; }
+.refined-query .rules-toggle { width: auto !important; flex: none; min-height: 72rpx; display: inline-flex; align-items: center; justify-content: center; gap: 8rpx; margin: -12rpx 0; padding: 0 4rpx 0 16rpx; color: #74592d; background: transparent; border: 0; border-radius: 10rpx; font-size: 24rpx; font-weight: 500; line-height: 1.3; }
+.refined-query .rules-toggle text { font-size: inherit; font-weight: inherit; }
+.refined-query .query-note { margin: 6rpx 0 18rpx; padding: 16rpx 0; border-top: 1rpx solid #eadfce; color: #7c7062; font-size: 24rpx; line-height: 1.6; }
+.refined-query .summary-grid { gap: 0; padding: 18rpx 8rpx; background: #fffaf3; border: 1rpx solid #dfcfb4; border-radius: 24rpx; }
+.refined-query .summary-grid view { padding: 4rpx 8rpx; background: transparent; border: 0; border-radius: 0; }
+.refined-query .summary-grid text { min-height: 0; font-size: 22rpx; line-height: 1.5; }
+.refined-query .summary-grid .summary-value { margin-top: 6rpx; font-size: 30rpx; font-weight: 600; overflow-wrap: anywhere; }
+.refined-query .summary-grid view:first-child .summary-value { color: #74592d; }
+.refined-query .result-export { margin: 0 0 22rpx; padding: 0 0 20rpx; background: transparent; border: 0; border-bottom: 1rpx solid #eadfce; border-radius: 0; }
+.refined-query .result-export > text { font-size: 22rpx; }
+.refined-query .result-export button { min-height: 72rpx; font-weight: 500; }
+.refined-query .result-sections { gap: 24rpx; margin-top: 12rpx; }
+.refined-query .result-section { padding: 0; background: transparent; border: 0; border-radius: 0; }
+.refined-query .result-section + .result-section { padding-top: 22rpx; border-top: 1rpx solid #eadfce; }
+.refined-query .section-title { align-items: center; }
+.refined-query .section-title > view > text:first-child { font-size: 26rpx; font-weight: 600; }
+.refined-query .compact-empty { min-height: 0; margin-top: 0; padding: 22rpx 0 4rpx; }
+.refined-query .score-filter { padding: 0; background: transparent; border: 0; border-radius: 0; }
+@media (min-width: 700px) {
+  .refined-query .rules-toggle { min-height: 42px; gap: 6px; margin: -8px 0; padding: 0 2px 0 12px; font-size: 14px; }
+  .refined-query .query-note { margin: 4px 0 12px; padding: 12px 0; border-top-width: 1px; font-size: 13px; }
+  .refined-query .summary-grid { gap: 0; padding: 14px 8px; border-width: 1px; border-radius: 16px; }
+  .refined-query .summary-grid view { padding: 0 8px; }
+  .refined-query .summary-grid text { font-size: 13px; }
+  .refined-query .summary-grid .summary-value { margin-top: 4px; font-size: 22px; }
+  .refined-query .result-export { margin: 0 0 16px; padding: 0 0 14px; border-bottom-width: 1px; }
+  .refined-query .result-export > text { font-size: 13px; }
+  .refined-query .result-export button { min-height: 42px; }
+  .refined-query .result-sections { gap: 18px; margin-top: 10px; }
+  .refined-query .result-section + .result-section { padding-top: 16px; border-top-width: 1px; }
+  .refined-query .section-title > view > text:first-child { font-size: 16px; }
+  .refined-query .compact-empty { min-height: 0; margin-top: 0; padding: 14px 0 4px; }
+}

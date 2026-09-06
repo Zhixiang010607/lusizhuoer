@@ -58,7 +58,8 @@ function emptyBusinessPage() { return pageView({}); }
 Page({
   data: {
     storeRef: "", storeId: "", account: null, store: null, storeHero: {}, profileFacts: [], loading: true, statusLoading: false,
-    message: "", error: false, rangePreset: "TODAY", rangeOptions: dashboard.RANGE_OPTIONS, rangeStart: "", rangeEnd: "", customRangeVisible: false,
+    message: "", error: false, rangePreset: "TODAY", rangeOptions: dashboard.RANGE_OPTIONS,
+    rangeMoreOptions: dashboard.RANGE_OPTIONS.slice(3), rangeMoreIndex: 0, rangeMoreLabel: "更多", rangeStart: "", rangeEnd: "", customRangeVisible: false,
     summaryRows: [], totals: { ...dashboard.EMPTY_TOTALS }, businessType: "VERIFICATION", businessTabs: dashboard.tabs({}, "VERIFICATION"),
     ...businessRecordsView([], "VERIFICATION"), businessPage: pageView({}), businessPageInput: "1", businessLoading: false,
     activeCustomers: customerView(dashboard.customerGroup()), archivedCustomers: customerView(dashboard.customerGroup())
@@ -177,8 +178,15 @@ Page({
       if (current(this, "_loadRequestEpoch", request.loadEpoch)) this.setData({ loading: false });
     }
   },
+  chooseMoreRange(event) {
+    const option = this.data.rangeMoreOptions[Number(event.detail.value)];
+    if (option) this.chooseRange({ currentTarget: { dataset: { value: option.value } } });
+  },
   chooseRange(event) {
     const rangePreset = String(event.currentTarget.dataset.value || "TODAY");
+    if (!dashboard.RANGE_OPTIONS.some((item) => item.value === rangePreset)) return;
+    const moreIndex = this.data.rangeMoreOptions.findIndex((item) => item.value === rangePreset);
+    this.setData({ rangeMoreIndex: Math.max(0, moreIndex), rangeMoreLabel: moreIndex < 0 ? "更多" : this.data.rangeMoreOptions[moreIndex].label });
     const customRangeVisible = rangePreset === "CUSTOM";
     this.setData({ rangePreset, customRangeVisible, businessPage: pageView({}), businessPageInput: "1" });
     if (!customRangeVisible) this.reloadAnalytics();

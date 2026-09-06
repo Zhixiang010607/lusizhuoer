@@ -140,8 +140,9 @@ Page({
   data: {
     session: {}, roleTitle: "", roleSubtitle: "", loading: true, message: "", error: false,
     overviewMenuOpen: false, businessMenuOpen: false, queryMenuOpen: false, coreMetricsMenuOpen: false, managementMenuOpen: false, reviewMenuOpen: false,
-    rangePreset: "TODAY", rangeOptions: readyRangeOptions("TODAY"), rangeStart: "", rangeEnd: "",
-    rangeLabel: "本月", customRangeVisible: false,
+    rangePreset: "TODAY", rangeOptions: readyRangeOptions("TODAY"),
+    rangeMoreOptions: dashboard.RANGE_OPTIONS.slice(3), rangeMoreIndex: 0, rangeMoreLabel: "更多", rangeStart: "", rangeEnd: "",
+    rangeLabel: "今天", customRangeVisible: false,
     profileFacts: [], storeHero: {}, experienceBalances: [], summaryRows: [],
     totals: { ...dashboard.EMPTY_TOTALS }, businessType: "VERIFICATION",
     businessTabs: readyTabs(dashboard.EMPTY_TOTALS, "VERIFICATION"), ...businessRecordsView([], "VERIFICATION"),
@@ -586,8 +587,15 @@ Page({
     if (!/^#[a-z][a-z0-9-]*$/i.test(selector)) return;
     wx.pageScrollTo({ selector, duration: 220 });
   },
+  chooseMoreRange(event) {
+    const option = this.data.rangeMoreOptions[Number(event.detail.value)];
+    if (option) this.chooseRange({ currentTarget: { dataset: { preset: option.value } } });
+  },
   chooseRange(event) {
     const preset = event.currentTarget.dataset.preset;
+    if (!dashboard.RANGE_OPTIONS.some((item) => item.value === preset)) return;
+    const moreIndex = this.data.rangeMoreOptions.findIndex((item) => item.value === preset);
+    this.setData({ rangeMoreIndex: Math.max(0, moreIndex), rangeMoreLabel: moreIndex < 0 ? "更多" : this.data.rangeMoreOptions[moreIndex].label });
     if (preset === "CUSTOM") {
       const fallback = dashboard.scopedRange("TODAY");
       this.setData({ rangePreset: preset, rangeOptions: readyRangeOptions(preset), customRangeVisible: true,

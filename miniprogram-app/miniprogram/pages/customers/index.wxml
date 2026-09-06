@@ -27,9 +27,17 @@
     <view wx:if="{{mode !== 'browse'}}" class="button-row"><button class="primary" bindtap="search" loading="{{loading}}" disabled="{{loading}}">开始查询</button></view>
   </view>
 
-  <view class="summary-grid">
-    <view><text>当前结果</text><text class="summary-value">{{summary.selectedTotal || 0}}</text></view><view><text>活跃</text><text class="summary-value">{{summary.active || 0}}</text></view><view><text>封存</text><text class="summary-value">{{summary.archived || 0}}</text></view>
-    <view><text>有信息但没有充值</text><text class="summary-value">{{summary.informationOnly || 0}}</text></view><view><text>已充值但没有消费</text><text class="summary-value">{{summary.rechargedNoConsumption || 0}}</text></view><view><text>已充值并已有消费</text><text class="summary-value">{{summary.rechargedWithConsumption || 0}}</text></view>
+  <view class="card customer-summary">
+    <view class="summary-grid">
+      <view class="summary-primary"><text>当前结果</text><text class="summary-value">{{summary.selectedTotal || 0}}</text></view>
+      <view><text>活跃客户</text><text class="summary-value">{{summary.active || 0}}</text></view>
+      <view><text>封存客户</text><text class="summary-value">{{summary.archived || 0}}</text></view>
+    </view>
+    <view class="summary-stages">
+      <view><text>尚未充值</text><text class="stage-value">{{summary.informationOnly || 0}}</text></view>
+      <view><text>已充值未消费</text><text class="stage-value">{{summary.rechargedNoConsumption || 0}}</text></view>
+      <view><text>已充值已消费</text><text class="stage-value">{{summary.rechargedWithConsumption || 0}}</text></view>
+    </view>
   </view>
 
   <view class="card result-card">

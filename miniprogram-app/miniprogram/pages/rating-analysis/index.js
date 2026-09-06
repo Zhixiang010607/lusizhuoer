@@ -106,6 +106,7 @@ function normalizeOrders(rows = []) {
 
 Page({
   data: {
+    rulesExpanded: false,
     session: {}, loading: false, exporting: false, searched: false, message: "", error: false, tableScrollLeft: 0,
     stores: [], storeLabels: ["全部门店"], storeIndex: 0,
     products: [], productLabels: ["全部项目"], productIndex: 0,
@@ -115,6 +116,8 @@ Page({
     orders: [], summary: normalizeSummary(EMPTY_SUMMARY),
     page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1, pageJump: "1"
   },
+
+  toggleRules() { this.setData({ rulesExpanded: !this.data.rulesExpanded }); },
 
   async onLoad() {
     const session = requireSession(["hq", "store"]);

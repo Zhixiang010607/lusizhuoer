@@ -46,7 +46,7 @@ test("role homes use a bounded tablet dashboard instead of a magnified phone", (
     "teacher profile and quota cards should use the available tablet width");
   assert.match(wxss, /\.role-store \.workspace-main > \.overview-panel,[\s\S]*?\.role-store \.workspace-main > \.customer-panel,[\s\S]*?grid-column: 1 \/ -1;/,
     "wide data tables stay full width while compact profile cards may use two columns");
-  assert.match(wxss, /\.range-presets \{[^}]*grid-template-columns: repeat\(7, minmax\(0, 1fr\)\);[^}]*gap: 8px;/s);
+  assert.match(wxss, /\.range-presets \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);[^}]*gap: 8px;/s);
   assert.match(wxss, /\.record-tabs \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);[^}]*gap: 8px;/s,
     "business tabs must not overlap or float over one another on iPad");
   assert.match(wxss, /\.summary-scroll \{ height: auto !important; \}/,
@@ -142,7 +142,7 @@ test("query and review pages use compact tablet filters and five-row result view
     "customer query mode controls must use the same compact tablet density as the other query pages");
   assert.match(customersWxss, /@media \(min-width: 700px\)[\s\S]*?\.query-grid \.input, \.query-grid \.picker \{[^}]*min-height: 42px;[^}]*font-size: 14px;/s,
     "customer query filter controls must not retain magnified phone geometry on iPad");
-  assert.match(customersWxss, /@media \(min-width: 700px\)[\s\S]*?\.summary-grid text \{[^}]*min-height: 16px;[^}]*font-size: 10px;/s,
+  assert.match(customersWxss, /@media \(min-width: 700px\)[\s\S]*?\.summary-grid text \{[^}]*font-size: 13px;/s,
     "customer query summary must stay compact instead of magnifying its labels on iPad");
   assert.match(customersWxss, /\.customer-table \{[^}]*width: auto;[^}]*min-width: 100%;[^}]*display: inline-table;[^}]*table-layout: auto;/s,
     "customer query columns must derive their widths from the current page values");

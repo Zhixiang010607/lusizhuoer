@@ -86,3 +86,6 @@
   .page-jump input { width: 72px; min-height: 38px; padding: 0 8px; font-size: 12px; border-width: 1px; border-radius: 9px; }
   .page-jump button { width: 84px !important; min-height: 38px; padding: 0 8px; font-size: 12px; }
 }
+
+@import "../../styles/query-refinements.wxss";
+.refined-query .summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }

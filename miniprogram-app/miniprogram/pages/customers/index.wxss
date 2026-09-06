@@ -12,11 +12,15 @@
 .query-grid.customer-time-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .customer-query-action { min-width: 0; align-self: end; margin-bottom: 10rpx; }
 .customer-query-action button { width: 100% !important; min-height: 72rpx; padding: 0 16rpx; font-size: 24rpx; }
-.summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6rpx; margin-bottom: 12rpx; }
-.summary-grid view { min-width: 0; padding: 10rpx 6rpx; text-align: center; background: #fff; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
-.summary-grid text { display: block; }
-.summary-grid text { min-height: 34rpx; color: #7c7062; font-size: 24rpx; line-height: 1.2; }
-.summary-grid .summary-value { min-height: 0; margin-top: 2rpx; color: #302a22; font-size: 26rpx; font-weight: 800; }
+.customer-summary { padding: 22rpx 16rpx 16rpx; }
+.summary-grid, .summary-stages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12rpx; }
+.summary-grid view, .summary-stages view { min-width: 0; text-align: center; }
+.summary-grid text { display: block; color: #7c7062; font-size: 24rpx; line-height: 1.4; }
+.summary-grid .summary-value { margin-top: 6rpx; color: #302a22; font-size: 34rpx; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.summary-grid .summary-primary .summary-value { color: #74592d; }
+.summary-stages { margin-top: 18rpx; padding-top: 14rpx; border-top: 1rpx solid #eadfce; }
+.summary-stages text { display: block; color: #7c7062; font-size: 22rpx; line-height: 1.5; }
+.summary-stages .stage-value { margin-top: 4rpx; color: #554a3c; font-size: 26rpx; font-weight: 500; overflow-wrap: anywhere; }
 .result-card { min-width: 0; overflow: hidden; }
 .customer-table-scroll { width: 100%; max-width: 100%; margin-top: 14rpx; overflow-x: auto; overflow-y: hidden; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
 .customer-table-scroll[data-visible-rows="1"] { height: 138rpx; }
@@ -57,10 +61,13 @@
   .query-grid .input, .query-grid .picker { min-height: 42px; padding-right: 12px; padding-left: 12px; border-radius: 10px; font-size: 14px; }
   .search-card > .button-row { gap: 10px; }
   .search-card > .button-row button { min-height: 42px; border-radius: 10px; font-size: 14px; }
-  .summary-grid { gap: 6px; margin-bottom: 10px; }
-  .summary-grid view { padding: 4px 6px; border-width: 1px; border-radius: 9px; }
-  .summary-grid text { min-height: 16px; font-size: 10px; line-height: 1.15; }
-  .summary-grid .summary-value { min-height: 0; margin-top: 1px; font-size: 16px; }
+  .page .customer-summary { padding: 16px; }
+  .summary-grid, .summary-stages { gap: 12px; }
+  .summary-grid text { font-size: 13px; }
+  .summary-grid .summary-value { margin-top: 4px; font-size: 24px; }
+  .summary-stages { margin-top: 12px; padding-top: 10px; border-top-width: 1px; }
+  .summary-stages text { font-size: 13px; }
+  .summary-stages .stage-value { margin-top: 3px; font-size: 16px; }
   .customer-table-scroll { margin-top: 12px; border-width: 1px; border-radius: 12px; }
   .customer-table-scroll[data-visible-rows="1"] { height: 112px; }
   .customer-table-scroll[data-visible-rows="2"] { height: 170px; }

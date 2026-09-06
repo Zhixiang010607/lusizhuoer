@@ -112,7 +112,7 @@ test("all three mini-program homes preserve business content in the refreshed br
     "getStoreBusinessAnalytics", "queryStoreBusinessRecords", "getHqDashboard"]) {
     assert.match(js, new RegExp(action), `home must load ${action}`);
   }
-  for (const heading of ["我的工作台", "门店全局视图", "总部数据看板", "时间范围与业务汇总",
+  for (const heading of ["我的工作台", "门店全局视图", "总部数据看板", "业务汇总",
     "本人业务明细", "本门店业务明细", "活跃用户", "封存用户", "完整排名"]) {
     assert.match(`${js}\n${wxml}`, new RegExp(heading), `missing mobile-web heading ${heading}`);
   }
@@ -132,7 +132,7 @@ test("all three mini-program homes preserve business content in the refreshed br
   assert.match(wxml, /session\.role === 'teacher'/);
   assert.match(wxml, /session\.role === 'store'/);
   assert.match(wxml, /session\.role === 'hq'/);
-  assert.match(wxss, /\.record-tabs\s*\{[^}]*grid-template-columns:\s*repeat\(2,/s);
+  assert.match(wxss, /\.record-tabs\s*\{[^}]*grid-template-columns:\s*repeat\(4,/s);
   assert.match(wxss, /\.hq-ranking-control-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*\.85fr\)\s+minmax\(0,\s*1\.15fr\)[^}]*align-items:\s*end/s,
     "the standard-phone HQ filter card must use a compact two-by-two grid instead of four tall rows");
   assert.match(wxss, /\.hq-ranking-control-grid \.hq-dimension-tabs,\s*\.hq-ranking-control-grid \.hq-product-filter\s*\{\s*margin-bottom:\s*0;/,
@@ -152,7 +152,7 @@ test("all three mini-program homes preserve business content in the refreshed br
   assert.doesNotMatch(wxml, /class="hq-filter-actions"/);
   assert.doesNotMatch(wxml, /class="metric-grid"|hq-analysis-card|分类统计|前 10 名/,
     "the compact HQ home must not restore the redundant six metrics or duplicate Top 10 card");
-  assert.match(wxss, /\.range-presets\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)[^}]*overflow:\s*hidden[^}]*background:\s*#eee3d2/s);
+  assert.match(wxss, /\.range-presets\s*\{[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)[^}]*overflow:\s*hidden[^}]*background:\s*#eee3d2/s);
   assert.match(wxss, /\.range-button\s*\{[^}]*width:\s*100%\s*!important[^}]*max-width:\s*100%[^}]*align-items:\s*center[^}]*justify-content:\s*center/s);
   assert.match(wxss, /\.range-button\.active\s*\{[^}]*background:\s*#fffaf3[^}]*border-color:\s*#d9bd8c/s);
   assert.doesNotMatch(wxss, /\.range-presets\s*\{[^}]*background:\s*#edf2f8/s);

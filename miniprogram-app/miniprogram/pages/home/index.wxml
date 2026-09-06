@@ -96,14 +96,15 @@
 
     <block wx:if="{{session.role !== 'hq'}}">
       <view id="business-summary" class="web-panel overview-panel">
-        <view class="panel-heading"><view><text class="panel-title">时间范围与业务汇总</text><text class="panel-note">汇总仅统计{{session.role === 'teacher' ? '当前老师' : '本门店'}}在所选周期内已经生效的业务次数</text></view><text class="web-badge">{{rangeLabel}}</text></view>
+        <view class="panel-heading"><view><text class="panel-title">业务汇总</text><text class="panel-note">汇总仅统计{{session.role === 'teacher' ? '当前老师' : '本门店'}}在所选周期内已经生效的业务次数</text></view><text class="web-badge">{{rangeLabel}}</text></view>
         <view class="range-presets">
-          <button wx:for="{{rangeOptions}}" wx:key="value" class="range-button {{item.active ? 'active' : ''}}" data-preset="{{item.value}}" bindtap="chooseRange">{{item.label}}</button>
+          <block wx:for="{{rangeOptions}}" wx:key="value"><button wx:if="{{index < 3}}" class="range-button {{rangePreset === item.value ? 'active' : ''}}" data-preset="{{item.value}}" bindtap="chooseRange">{{item.label}}</button></block>
+          <picker class="range-more" range="{{rangeMoreOptions}}" range-key="label" value="{{rangeMoreIndex}}" bindchange="chooseMoreRange"><view class="range-button {{rangeMoreLabel !== '更多' ? 'active' : ''}}"><text>{{rangeMoreLabel}}</text><text class="range-chevron">⌄</text></view></picker>
         </view>
         <view wx:if="{{customRangeVisible}}" class="custom-range">
-          <label><text>开始日期</text><picker mode="date" value="{{rangeStart}}" bindchange="changeRangeStart"><view class="date-picker">{{rangeStart || '请选择'}}</view></picker></label>
-          <label><text>结束日期</text><picker mode="date" value="{{rangeEnd}}" bindchange="changeRangeEnd"><view class="date-picker">{{rangeEnd || '请选择'}}</view></picker></label>
-          <button bindtap="applyCustomRange">应用时间</button>
+          <label class="range-field"><text>开始日期</text><picker mode="date" value="{{rangeStart}}" bindchange="changeRangeStart"><view class="date-picker">{{rangeStart || '请选择'}}</view></picker></label>
+          <label class="range-field"><text>结束日期</text><picker mode="date" value="{{rangeEnd}}" bindchange="changeRangeEnd"><view class="date-picker">{{rangeEnd || '请选择'}}</view></picker></label>
+          <button class="range-apply" bindtap="applyCustomRange">应用时间</button>
         </view>
         <scroll-view class="table-scroll summary-scroll" style="height: {{68 + summaryRows.length * 72}}rpx;" scroll-x enhanced show-scrollbar="false" scroll-left="{{summaryScrollLeft}}" bindscroll="rememberSummaryScroll" wx:if="{{summaryRows.length}}">
           <view class="summary-table">
@@ -124,7 +125,7 @@
       <view id="business-records" class="web-panel business-panel">
         <view class="panel-heading"><view><text class="panel-title">{{session.role === 'teacher' ? '本人业务明细' : '本门店业务明细'}}</text><text class="panel-note">与上方业务汇总使用同一时间范围；客户可进入关联客户主页</text></view><text class="web-badge">共 {{businessPage.total}} 条</text></view>
         <view class="record-tabs">
-          <button wx:for="{{businessTabs}}" wx:key="type" class="record-tab {{item.active ? 'active' : ''}}" data-type="{{item.type}}" bindtap="selectBusinessType"><text>{{item.label}}</text><text>{{item.total}} 次</text></button>
+          <button wx:for="{{businessTabs}}" wx:key="type" class="record-tab {{item.active ? 'active' : ''}}" data-type="{{item.type}}" bindtap="selectBusinessType"><text>{{item.label}}</text><text class="record-count">{{item.total}} 次</text></button>
         </view>
         <text wx:if="{{businessScrollable}}" class="record-scroll-hint">超过 5 条，可在表格内上下滑动</text>
         <scroll-view class="table-scroll record-scroll" data-visible-rows="{{businessTabletVisibleRows}}" scroll-x scroll-y="{{businessScrollable}}" enhanced show-scrollbar="{{businessScrollable}}" style="height: {{businessViewportHeight}}rpx" scroll-left="{{businessScrollLeft}}" bindscroll="rememberBusinessScroll" wx:if="{{businessRecords.length}}">

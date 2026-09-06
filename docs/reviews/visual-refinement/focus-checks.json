@@ -1,0 +1,362 @@
+{
+  "viewport": [
+    390,
+    753
+  ],
+  "checks": [
+    {
+      "role": "teacher",
+      "quarterHeading": {
+        "id": "",
+        "dataset": {},
+        "left": 27,
+        "right": 363,
+        "top": 407.1953125,
+        "bottom": 428.1953125,
+        "width": 336,
+        "height": 21
+      }
+    },
+    {
+      "role": "teacher",
+      "sevenDigitCounts": [
+        [
+          {
+            "id": "",
+            "dataset": {
+              "type": "VERIFICATION"
+            },
+            "left": 30,
+            "right": 110.25,
+            "top": 475.6953125,
+            "bottom": 523.15625,
+            "width": 80.25,
+            "height": 47.4609375
+          },
+          {
+            "id": "",
+            "dataset": {
+              "type": "RECHARGE"
+            },
+            "left": 113.25,
+            "right": 193.5,
+            "top": 475.6953125,
+            "bottom": 523.15625,
+            "width": 80.25,
+            "height": 47.4609375
+          },
+          {
+            "id": "",
+            "dataset": {
+              "type": "EXPERIENCE"
+            },
+            "left": 196.5,
+            "right": 276.75,
+            "top": 475.6953125,
+            "bottom": 523.15625,
+            "width": 80.25,
+            "height": 47.4609375
+          },
+          {
+            "id": "",
+            "dataset": {
+              "type": "REFUND"
+            },
+            "left": 279.75,
+            "right": 360,
+            "top": 475.6953125,
+            "bottom": 523.15625,
+            "width": 80.25,
+            "height": 47.4609375
+          }
+        ],
+        [
+          {
+            "id": "",
+            "dataset": {},
+            "left": 39.4140625,
+            "right": 100.828125,
+            "top": 501.6328125,
+            "bottom": 517.15625,
+            "width": 61.4140625,
+            "height": 15.5234375
+          },
+          {
+            "id": "",
+            "dataset": {},
+            "left": 122.6640625,
+            "right": 184.078125,
+            "top": 501.6328125,
+            "bottom": 517.15625,
+            "width": 61.4140625,
+            "height": 15.5234375
+          },
+          {
+            "id": "",
+            "dataset": {},
+            "left": 205.9140625,
+            "right": 267.328125,
+            "top": 501.6328125,
+            "bottom": 517.15625,
+            "width": 61.4140625,
+            "height": 15.5234375
+          },
+          {
+            "id": "",
+            "dataset": {},
+            "left": 289.1640625,
+            "right": 350.578125,
+            "top": 501.6328125,
+            "bottom": 517.15625,
+            "width": 61.4140625,
+            "height": 15.5234375
+          }
+        ]
+      ]
+    },
+    {
+      "role": "store",
+      "quarterHeading": {
+        "id": "",
+        "dataset": {},
+        "left": 27,
+        "right": 363,
+        "top": 560.3828125,
+        "bottom": 581.3828125,
+        "width": 336,
+        "height": 21
+      }
+    },
+    {
+      "role": "store",
+      "sevenDigitCounts": [
+        [
+          {
+            "id": "",
+            "dataset": {
+              "type": "VERIFICATION"
+            },
+            "left": 30,
+            "right": 110.25,
+            "top": 428.8828125,
+            "bottom": 476.34375,
+            "width": 80.25,
+            "height": 47.4609375
+          },
+          {
+            "id": "",
+            "dataset": {
+              "type": "RECHARGE"
+            },
+            "left": 113.25,
+            "right": 193.5,
+            "top": 428.8828125,
+            "bottom": 476.34375,
+            "width": 80.25,
+            "height": 47.4609375
+          },
+          {
+            "id": "",
+            "dataset": {
+              "type": "EXPERIENCE"
+            },
+            "left": 196.5,
+            "right": 276.75,
+            "top": 428.8828125,
+            "bottom": 476.34375,
+            "width": 80.25,
+            "height": 47.4609375
+          },
+          {
+            "id": "",
+            "dataset": {
+              "type": "REFUND"
+            },
+            "left": 279.75,
+            "right": 360,
+            "top": 428.8828125,
+            "bottom": 476.34375,
+            "width": 80.25,
+            "height": 47.4609375
+          }
+        ],
+        [
+          {
+            "id": "",
+            "dataset": {},
+            "left": 39.4140625,
+            "right": 100.828125,
+            "top": 454.8203125,
+            "bottom": 470.34375,
+            "width": 61.4140625,
+            "height": 15.5234375
+          },
+          {
+            "id": "",
+            "dataset": {},
+            "left": 122.6640625,
+            "right": 184.078125,
+            "top": 454.8203125,
+            "bottom": 470.34375,
+            "width": 61.4140625,
+            "height": 15.5234375
+          },
+          {
+            "id": "",
+            "dataset": {},
+            "left": 205.9140625,
+            "right": 267.328125,
+            "top": 454.8203125,
+            "bottom": 470.34375,
+            "width": 61.4140625,
+            "height": 15.5234375
+          },
+          {
+            "id": "",
+            "dataset": {},
+            "left": 289.1640625,
+            "right": 350.578125,
+            "top": 454.8203125,
+            "bottom": 470.34375,
+            "width": 61.4140625,
+            "height": 15.5234375
+          }
+        ]
+      ]
+    },
+    {
+      "customRange": [
+        {
+          "id": "",
+          "dataset": {},
+          "left": 27,
+          "right": 363,
+          "top": 167.8828125,
+          "bottom": 263.3828125,
+          "width": 336,
+          "height": 95.5
+        },
+        {
+          "id": "",
+          "dataset": {},
+          "left": 27,
+          "right": 363,
+          "top": 223.3828125,
+          "bottom": 263.3828125,
+          "width": 336,
+          "height": 40
+        }
+      ]
+    },
+    {
+      "role": "hq",
+      "quarterHeading": {
+        "id": "",
+        "dataset": {},
+        "left": 27,
+        "right": 363,
+        "top": 430.1875,
+        "bottom": 451.1875,
+        "width": 336,
+        "height": 21
+      }
+    },
+    {
+      "role": "hq",
+      "sevenDigitCounts": [
+        [
+          {
+            "id": "",
+            "dataset": {
+              "type": "VERIFICATION"
+            },
+            "left": 30,
+            "right": 110.25,
+            "top": 309.1875,
+            "bottom": 356.6484375,
+            "width": 80.25,
+            "height": 47.4609375
+          },
+          {
+            "id": "",
+            "dataset": {
+              "type": "RECHARGE"
+            },
+            "left": 113.25,
+            "right": 193.5,
+            "top": 309.1875,
+            "bottom": 356.6484375,
+            "width": 80.25,
+            "height": 47.4609375
+          },
+          {
+            "id": "",
+            "dataset": {
+              "type": "EXPERIENCE"
+            },
+            "left": 196.5,
+            "right": 276.75,
+            "top": 309.1875,
+            "bottom": 356.6484375,
+            "width": 80.25,
+            "height": 47.4609375
+          },
+          {
+            "id": "",
+            "dataset": {
+              "type": "REFUND"
+            },
+            "left": 279.75,
+            "right": 360,
+            "top": 309.1875,
+            "bottom": 356.6484375,
+            "width": 80.25,
+            "height": 47.4609375
+          }
+        ],
+        [
+          {
+            "id": "",
+            "dataset": {},
+            "left": 39.4140625,
+            "right": 100.828125,
+            "top": 335.125,
+            "bottom": 350.6484375,
+            "width": 61.4140625,
+            "height": 15.5234375
+          },
+          {
+            "id": "",
+            "dataset": {},
+            "left": 122.6640625,
+            "right": 184.078125,
+            "top": 335.125,
+            "bottom": 350.6484375,
+            "width": 61.4140625,
+            "height": 15.5234375
+          },
+          {
+            "id": "",
+            "dataset": {},
+            "left": 205.9140625,
+            "right": 267.328125,
+            "top": 335.125,
+            "bottom": 350.6484375,
+            "width": 61.4140625,
+            "height": 15.5234375
+          },
+          {
+            "id": "",
+            "dataset": {},
+            "left": 289.1640625,
+            "right": 350.578125,
+            "top": 335.125,
+            "bottom": 350.6484375,
+            "width": 61.4140625,
+            "height": 15.5234375
+          }
+        ]
+      ]
+    }
+  ]
+}
