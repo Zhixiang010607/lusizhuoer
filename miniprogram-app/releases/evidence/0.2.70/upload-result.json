@@ -1,0 +1,17 @@
+{
+  "date": "2026-09-06",
+  "appId": "wxb053c1bd6c684d8b",
+  "version": "0.2.70",
+  "sourceCommit": "a87f2c27cf9eb39a9b124be7cdd2340796de0bad",
+  "tool": "Official WeChat Developer Tools CLI",
+  "result": "upload succeeded",
+  "successMarker": "✔ upload",
+  "developmentVersionUploaded": true,
+  "experienceVersionAssociationVerified": false,
+  "submittedForReview": false,
+  "formallyPublished": false,
+  "phoneValidationCompleted": false,
+  "ipadValidationCompleted": false,
+  "mainPackageBytes": 1814906,
+  "totalPackageBytes": 4591106
+}

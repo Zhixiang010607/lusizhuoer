@@ -1,0 +1,95 @@
+{
+  "size": {
+    "total": 4591106,
+    "packages": [
+      {
+        "name": "TOTAL",
+        "size": 4591106
+      },
+      {
+        "name": "main",
+        "size": 1814906
+      },
+      {
+        "name": "/pages/customer-create/",
+        "size": 8790
+      },
+      {
+        "name": "/pages/customer-detail/",
+        "size": 43480
+      },
+      {
+        "name": "/pages/customers/",
+        "size": 21746
+      },
+      {
+        "name": "/pages/hq-directory/",
+        "size": 15217
+      },
+      {
+        "name": "/pages/inactive-customers/",
+        "size": 792020
+      },
+      {
+        "name": "/pages/low-balance-customers/",
+        "size": 794049
+      },
+      {
+        "name": "/pages/order-detail/",
+        "size": 73683
+      },
+      {
+        "name": "/pages/product-create/",
+        "size": 6172
+      },
+      {
+        "name": "/pages/product-detail/",
+        "size": 37337
+      },
+      {
+        "name": "/pages/product-management/",
+        "size": 6992
+      },
+      {
+        "name": "/pages/product-purchase-detail/",
+        "size": 8113
+      },
+      {
+        "name": "/pages/product-purchase/",
+        "size": 15638
+      },
+      {
+        "name": "/pages/rating-analysis/",
+        "size": 799049
+      },
+      {
+        "name": "/pages/recharge/",
+        "size": 28508
+      },
+      {
+        "name": "/pages/records/",
+        "size": 25159
+      },
+      {
+        "name": "/pages/retail-product-create/",
+        "size": 5518
+      },
+      {
+        "name": "/pages/retail-product-management/",
+        "size": 9856
+      },
+      {
+        "name": "/pages/reviews/",
+        "size": 30706
+      },
+      {
+        "name": "/pages/teacher-customers/",
+        "size": 11446
+      },
+      {
+        "name": "/pages/verification/",
+        "size": 42721
+      }
+    ]
+  }
+}
