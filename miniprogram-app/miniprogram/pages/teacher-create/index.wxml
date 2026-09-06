@@ -3,14 +3,21 @@
   <view class="panel">
     <view class="section-heading"><view><text>老师账号资料</text><text>填写姓名、联系电话和初始密码即可创建</text></view><text>创建后自动生成编号</text></view>
     <view class="teacher-fields">
-      <label class="field"><text>姓名</text><input maxlength="40" data-field="name" value="{{form.name}}" bindinput="input" placeholder="请输入老师姓名" disabled="{{submitting || locked}}" /></label>
-      <label class="field"><text>联系电话</text><input type="number" maxlength="11" data-field="phone" value="{{form.phone}}" bindinput="input" placeholder="请输入中国大陆手机号" disabled="{{submitting || locked}}" /></label>
-      <label class="field"><text>初始登录密码</text><input password maxlength="32" data-field="password" value="{{form.password}}" bindinput="input" placeholder="请输入初始密码" disabled="{{submitting || locked}}" /></label>
+      <label class="field {{validationField === 'name' ? 'invalid' : ''}}"><text>姓名</text><input id="teacher-name" maxlength="40" data-field="name" value="{{form.name}}" bindinput="input" placeholder="请输入老师姓名" disabled="{{submitting || locked}}" /><text wx:if="{{validationField === 'name'}}" class="validation-error">{{message}}</text></label>
+      <label class="field {{validationField === 'phone' ? 'invalid' : ''}}"><text>联系电话</text><input id="teacher-phone" type="number" maxlength="11" data-field="phone" value="{{form.phone}}" bindinput="input" placeholder="请输入中国大陆手机号" disabled="{{submitting || locked}}" /><text wx:if="{{validationField === 'phone'}}" class="validation-error">{{message}}</text></label>
+      <view class="field {{validationField === 'password' ? 'invalid' : ''}}">
+        <text>初始登录密码</text>
+        <view class="password-control">
+          <input id="teacher-password" class="password-input" password="{{!passwordVisible}}" maxlength="32" data-field="password" value="{{form.password}}" bindinput="input" placeholder="请输入初始密码" disabled="{{submitting || locked}}" />
+          <button class="password-visibility" bindtap="togglePassword" aria-label="{{passwordVisible ? '隐藏密码' : '显示密码'}}" disabled="{{submitting || locked}}">{{passwordVisible ? '隐藏' : '显示'}}</button>
+        </view>
+        <text wx:if="{{validationField === 'password'}}" class="validation-error">{{message}}</text>
+      </view>
     </view>
     <text class="field-help">密码为 8–32 位，以字母或数字开头；大写字母、小写字母、数字、特殊字符中至少包含三类。</text>
   </view>
   <view class="panel rule-panel"><view><text>唯一身份</text><text>一个手机号只对应一个业务身份</text></view><view><text>立即激活</text><text>账号和老师主档完整创建后立即可用</text></view><view><text>客户核验</text><text>体验核销自动绑定老师，只核验客户人脸</text></view></view>
-  <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
+  <view wx:if="{{message && !validationField}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
   <view class="actions"><button class="ghost" bindtap="back" disabled="{{submitting}}">返回老师管理</button><button class="primary" bindtap="submit" loading="{{submitting}}" disabled="{{submitting || locked}}">创建老师账号</button></view>
   <view class="safe-bottom"></view>
 </view>

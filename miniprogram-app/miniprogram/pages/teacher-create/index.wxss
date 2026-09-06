@@ -1,4 +1,10 @@
 @import "../store-create/index.wxss";
+.field.invalid input { border-color: #a15a4c; }
+.field > text.validation-error { color: #8b3f35; font-size: 22rpx; font-weight: 400; line-height: 1.5; overflow-wrap: anywhere; }
+.password-control { position: relative; min-width: 0; }
+.field .password-input { padding-right: 116rpx; }
+.password-visibility { position: absolute; top: 0; right: 0; width: 108rpx !important; min-height: 82rpx; height: 100%; margin: 0; padding: 0 12rpx; display: flex; align-items: center; justify-content: center; color: #74592d; background: transparent; border: 0; border-radius: 15rpx; font-size: 23rpx; line-height: 1.3; }
+.password-visibility::after { border: 0; }
 .rule-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10rpx; }
 .rule-panel > view { display: flex; flex-direction: column; gap: 5rpx; padding: 17rpx; background: #fff; border: 1rpx solid #eadcc6; border-radius: 14rpx; }
 .rule-panel > view text:first-child { font-size: 22rpx; font-weight: 850; }
@@ -18,6 +24,9 @@
   .field { gap: 7px; margin-top: 0; }
   .field > text:not(.field-help) { font-size: 14px; }
   .field input { min-height: 50px; padding: 0 14px; border-width: 1px; border-radius: 12px; font-size: 16px; }
+  .field .password-input { padding-right: 70px; }
+  .field > text.validation-error { font-size: 13px; }
+  .password-visibility { width: 64px !important; min-height: 50px; padding: 0 8px; border-radius: 12px; font-size: 14px; }
   .rule-panel { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
   .rule-panel > view { gap: 4px; padding: 14px; border-width: 1px; border-radius: 12px; }
   .rule-panel > view text:first-child { font-size: 15px; }

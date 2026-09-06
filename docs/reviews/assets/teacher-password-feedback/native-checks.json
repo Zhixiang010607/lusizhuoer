@@ -1,0 +1,16 @@
+{
+  "viewport": [
+    390,
+    753
+  ],
+  "isolatedServices": true,
+  "missingName": true,
+  "missingPassword": true,
+  "shortPassword": true,
+  "invalidFirstCharacter": true,
+  "missingCategoryDetail": true,
+  "validationPreservesPassword": true,
+  "visibilityPreservesPassword": true,
+  "editingClearsValidation": true,
+  "accountCreationCalls": 0
+}
