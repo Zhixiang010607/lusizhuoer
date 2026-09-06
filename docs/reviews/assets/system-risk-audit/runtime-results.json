@@ -1,0 +1,32 @@
+{
+  "checkedAt": "2026-09-06",
+  "sourceBaseline": "a7c6b3dfc31113cd6416631d6050b38042596a67",
+  "scope": "Local availability and workflow diagnostics with synthetic services; no production mutations or authentication bypass tests.",
+  "checks": [
+    {
+      "name": "teacher-timeout-lock-survives-reentry",
+      "observation": "confirmed in isolated controller",
+      "detail": "A transport timeout locks creation; re-entering the page remains locked. Source inventory finds no directory-based confirmation/clear route. The pending key is not scoped by HQ UID."
+    },
+    {
+      "name": "purchase-timeout-not-found-unlocks",
+      "observation": "confirmed in isolated controller",
+      "detail": "A first not-found recovery clears an uncertain lock; a second click sends a new request ID. This does not simulate real database writes or claim confirmed duplicate orders."
+    },
+    {
+      "name": "purchase-recovered-form-still-ready",
+      "observation": "confirmed in isolated controller",
+      "detail": "Recovery of a complete prior order leaves its original purchase quantity in place and the form ready to submit again."
+    },
+    {
+      "name": "customer-timeout-loses-request-on-reentry",
+      "observation": "confirmed in isolated controller",
+      "detail": "After a timeout, re-entering with the same synthetic form produces a different request ID because it was kept only in page memory. No photos or real face APIs were used."
+    },
+    {
+      "name": "camera-reset-during-customer-submit",
+      "observation": "confirmed in isolated controller",
+      "detail": "The enabled camera reset event clears the in-memory request ID while photo validation is pending; the later register request receives an empty ID."
+    }
+  ]
+}

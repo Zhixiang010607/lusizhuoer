@@ -164,3 +164,19 @@ test("HQ invalid custom range cancels pending work and clears the previous scope
   assert.equal(page.data.hqRankingScrollLeft, 0);
   assert.equal(page.data.error, true);
 });
+
+test("HQ overview failure does not present default totals as confirmed zero", async () => {
+  const page = loadHome(async (action, input) => {
+    if (action === "listProducts") return { products: [] };
+    if (input.mode === "overview") throw new Error("overview unavailable");
+    if (input.mode === "product-summary") return { productSummary: { rows: [{ productId: "1", productName: "示例项目" }], total: 1, pageNumber: 1, pageSize: 10, totalPages: 1 } };
+    return { ranking: { rows: [], dimension: "store", rankingMetric: "recharge", productId: "", total: 0 } };
+  });
+  await page.loadHqHome();
+  assert.equal(page.data.hqProjectSummaryRows.length, 1);
+  assert.equal(page.data.hqProjectSummaryTotalsReady, false);
+  let retries = 0;
+  page.loadHqHome = async () => { retries++; };
+  await page.retryHqProjectSummary();
+  assert.equal(retries, 1, "retry must restore the unavailable totals as well as the row page");
+});

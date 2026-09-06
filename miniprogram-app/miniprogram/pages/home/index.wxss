@@ -184,7 +184,9 @@
 .hq-ranking-rank { color: #806942; font-weight: 650; }
 .hq-ranking-name { color: #5f564b; font-size: 18rpx !important; font-weight: 500; line-height: 1.35; }
 .hq-ranking-value { color: #5f564b; font-weight: 500; }
-.hq-ranking-list > .table-empty { border-top: 1rpx solid #eadcc5; }
+.hq-ranking-notice { padding: 24rpx; border: 1rpx solid #dfcfb4; border-radius: 18rpx; color: #7c7062; font-size: 24rpx; line-height: 1.6; text-align: left; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+.hq-ranking-notice > text { display: block; }
+.hq-ranking-notice .ranking-retry { width: auto !important; display: inline-flex; align-items: center; min-height: 72rpx; margin: 18rpx 0 0; padding: 0 24rpx; color: #74592d; background: #f4e7d0; border: 1rpx solid #d8bc8c; border-radius: 12rpx; font-size: 24rpx; line-height: 1.3; }
 .hq-ranking-pagination { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12rpx; }
 .hq-ranking-pagination > text { min-width: 0; text-align: center; white-space: nowrap; }
 .ranking-page-jump { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 8rpx; }
@@ -343,6 +345,8 @@
   .hq-ranking-card { border-top-width: 1px; }
   .hq-ranking-card > text { height: 54px; font-size: 14px; }
   .hq-ranking-name { font-size: 14px !important; }
+  .hq-ranking-notice { padding: 18px; border-radius: 14px; font-size: 14px; }
+  .hq-ranking-notice .ranking-retry { min-height: 42px; margin-top: 12px; padding: 0 16px; font-size: 14px; }
   .ranking-actions { gap: 10px; }
   .ranking-actions button { min-height: 44px; padding: 0 14px; border-radius: 10px; font-size: 14px; }
   .safe-bottom { height: calc(18px + env(safe-area-inset-bottom)); }

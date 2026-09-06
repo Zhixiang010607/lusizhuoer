@@ -152,7 +152,7 @@ Page({
     hqPeriod: "TODAY", hqPeriodIndex: 0, hqStart: "", hqEnd: "",
     hqMetrics: [], hqCharts: [], hqDimensions: DIMENSIONS,
     hqProjectSummaryRows: [], hqProjectSummaryPage: pageView({ pageSize: PRODUCT_SUMMARY_PAGE_SIZE }),
-    hqProjectSummaryTotals: { ...dashboard.EMPTY_TOTALS }, hqProjectSummaryLoading: false, hqProjectSummaryError: "",
+    hqProjectSummaryTotals: { ...dashboard.EMPTY_TOTALS }, hqProjectSummaryTotalsReady: false, hqProjectSummaryLoading: true, hqProjectSummaryError: "",
     hqDimensionLabels: DIMENSIONS.map((item) => item.label), hqDimension: "store", hqDimensionIndex: 0,
     hqRankingMetrics: RANKING_METRICS, hqRankingMetricLabels: RANKING_METRICS.map((item) => item.label),
     hqRankingMetric: "recharge", hqRankingMetricIndex: 0,
@@ -421,6 +421,7 @@ Page({
     const productSummaryRequestEpoch = Number(this._hqProductSummaryRequestEpoch || 0) + 1;
     this._hqProductSummaryRequestEpoch = productSummaryRequestEpoch;
     this._hqRankingRetryPage = pageNumber;
+    this._hqProductSummaryRetryPage = 1;
     const dimension = this.data.hqDimension;
     const rankingMetric = this.data.hqRankingMetric;
     const productId = this.data.hqProductId;
@@ -429,7 +430,7 @@ Page({
       loading: true, hqRankingLoading: true, hqProjectSummaryLoading: true, hqStart: range.startDate, hqEnd: range.endDate,
       hqMetrics: [], hqCharts: [], hqLoadedAt: "—",
       hqProjectSummaryRows: [], hqProjectSummaryPage: pageView({ pageSize: PRODUCT_SUMMARY_PAGE_SIZE }),
-      hqProjectSummaryTotals: { ...dashboard.EMPTY_TOTALS }, hqProjectSummaryError: "",
+      hqProjectSummaryTotals: { ...dashboard.EMPTY_TOTALS }, hqProjectSummaryTotalsReady: false, hqProjectSummaryError: "",
       ...rankingView([]), hqRankingPage: pageView({ pageSize: RANKING_PAGE_SIZE }), hqRankingInput: "1",
       hqRankingScrollLeft: 0, hqRankingError: "", message: "", error: false
     });
@@ -456,6 +457,7 @@ Page({
         ["已纳入门店", totals.stores, ""], ["已纳入老师", totals.teachers, ""]
       ].map(([label, valueText, drill], index) => ({ label, value: dashboard.count(valueText), drill, neutral: index > 3 }));
       changes.hqProjectSummaryTotals = dashboard.totals(totals);
+      changes.hqProjectSummaryTotalsReady = true;
       changes.hqLoadedAt = clockText();
     }
     if (productSummaryRequestEpoch === this._hqProductSummaryRequestEpoch) {
@@ -705,7 +707,13 @@ Page({
       hqRankingMetric: "recharge", hqRankingMetricIndex: 0
     }, () => this.loadHqHome(1));
   },
+  retryHqProjectSummary() {
+    if (this.data.hqProjectSummaryLoading) return;
+    if (!this.data.hqProjectSummaryTotalsReady) return this.loadHqHome(1);
+    return this.loadHqProjectSummary(this._hqProductSummaryRetryPage || 1);
+  },
   async loadHqProjectSummary(pageNumber) {
+    this._hqProductSummaryRetryPage = pageNumber;
     const requestEpoch = Number(this._hqProductSummaryRequestEpoch || 0) + 1;
     this._hqProductSummaryRequestEpoch = requestEpoch;
     const range = dashboard.hqRange(this.data.hqPeriod, { startDate: this.data.hqStart, endDate: this.data.hqEnd });

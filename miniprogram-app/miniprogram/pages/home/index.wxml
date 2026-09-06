@@ -170,34 +170,21 @@
       </view>
 
       <view class="web-panel hq-project-summary-panel">
-        <view class="panel-heading"><view><text class="panel-title">项目汇总</text><text class="hq-ranking-rule">当前时间范围内的全部项目，按项目名称排列</text></view><text class="web-badge">共 {{hqProjectSummaryPage.total}} 个项目</text></view>
-        <scroll-view class="table-scroll summary-scroll" style="height: {{76 + (hqProjectSummaryRows.length + 1) * 94 + (!hqProjectSummaryRows.length ? 110 : 0)}}rpx;" scroll-x enhanced show-scrollbar="false">
-          <view class="summary-table">
-            <view class="table-row table-head"><view class="summary-product">项目</view><view>核销</view><view>充值</view><view>体验</view><view>退费</view></view>
-            <view wx:for="{{hqProjectSummaryRows}}" wx:key="productId" class="table-row">
-              <view class="summary-product"><text>{{item.productName}}</text></view>
-              <view class="summary-metric"><text class="metric-number">{{item.verification}}</text><text class="metric-unit">次</text></view>
-              <view class="summary-metric"><text class="metric-number">{{item.recharge}}</text><text class="metric-unit">次</text></view>
-              <view class="summary-metric"><text class="metric-number">{{item.experience}}</text><text class="metric-unit">次</text></view>
-              <view class="summary-metric"><text class="metric-number">{{item.refund}}</text><text class="metric-unit">次</text></view>
-            </view>
-            <view class="table-row summary-total"><view class="summary-product"><text>合计</text></view><view class="summary-metric"><text class="metric-number">{{hqProjectSummaryTotals.verification}}</text><text class="metric-unit">次</text></view><view class="summary-metric"><text class="metric-number">{{hqProjectSummaryTotals.recharge}}</text><text class="metric-unit">次</text></view><view class="summary-metric"><text class="metric-number">{{hqProjectSummaryTotals.experience}}</text><text class="metric-unit">次</text></view><view class="summary-metric"><text class="metric-number">{{hqProjectSummaryTotals.refund}}</text><text class="metric-unit">次</text></view></view>
-            <view wx:if="{{!hqProjectSummaryRows.length}}" class="table-empty">{{hqProjectSummaryLoading ? '正在读取全部项目汇总…' : (hqProjectSummaryError || '当前没有项目')}}</view>
-          </view>
-        </scroll-view>
-        <view wx:if="{{hqProjectSummaryPage.totalPages > 1}}" class="table-pagination hq-project-summary-pagination"><button disabled="{{hqProjectSummaryPage.previousDisabled || hqProjectSummaryLoading}}" bindtap="previousHqProductSummaryPage">上一页</button><text>第 {{hqProjectSummaryPage.page}} / {{hqProjectSummaryPage.totalPages}} 页</text><button disabled="{{hqProjectSummaryPage.nextDisabled || hqProjectSummaryLoading}}" bindtap="nextHqProductSummaryPage">下一页</button></view>
+        <view class="panel-heading"><view><text class="panel-title">项目汇总</text><text class="hq-ranking-rule">当前时间范围内的全部项目，按项目名称排列</text></view><text wx:if="{{!hqProjectSummaryLoading && !hqProjectSummaryError}}" class="web-badge">共 {{hqProjectSummaryPage.total}} 个项目</text></view>
+        <project-summary id="hq-project-summary" rows="{{hqProjectSummaryRows}}" totals="{{hqProjectSummaryTotals}}" totals-ready="{{hqProjectSummaryTotalsReady}}" loading="{{hqProjectSummaryLoading}}" error="{{hqProjectSummaryError}}" bindretry="retryHqProjectSummary" />
+        <view wx:if="{{!hqProjectSummaryLoading && !hqProjectSummaryError && hqProjectSummaryPage.totalPages > 1}}" class="table-pagination hq-project-summary-pagination"><button disabled="{{hqProjectSummaryPage.previousDisabled || hqProjectSummaryLoading}}" bindtap="previousHqProductSummaryPage">上一页</button><text>第 {{hqProjectSummaryPage.page}} / {{hqProjectSummaryPage.totalPages}} 页</text><button disabled="{{hqProjectSummaryPage.nextDisabled || hqProjectSummaryLoading}}" bindtap="nextHqProductSummaryPage">下一页</button></view>
       </view>
 
       <view class="web-panel ranking-panel">
         <view class="panel-heading ranking-heading"><view><text class="panel-title">完整排名</text><text class="hq-ranking-rule">{{hqProductLabels[hqProductIndex]}} · 按{{hqDimensionLabels[hqDimensionIndex]}}的{{hqRankingMetricLabels[hqRankingMetricIndex]}}次数降序</text></view><view class="ranking-actions"><button bindtap="exportHqRanking" disabled="{{loading || hqRankingLoading || hqExporting || hqRankingError}}">{{hqExporting ? '正在导出…' : '导出完整报表 PDF'}}</button></view></view>
-        <scroll-view class="hq-ranking-scroll" data-visible-rows="{{hqRankingVisibleRows}}" scroll-x="true" scroll-y="{{hqRankingScrollable}}" enhanced show-scrollbar="{{hqRankingScrollable}}" style="height: {{hqRankingViewportHeight}}rpx">
+        <scroll-view wx:if="{{hqRanking.length}}" class="hq-ranking-scroll" data-visible-rows="{{hqRankingVisibleRows}}" scroll-x="true" scroll-y="{{hqRankingScrollable}}" enhanced show-scrollbar="{{hqRankingScrollable}}" style="height: {{hqRankingViewportHeight}}rpx">
         <view class="hq-ranking-list">
           <view class="hq-ranking-row hq-ranking-table-head"><text>名次</text><text>{{hqDimensionLabels[hqDimensionIndex]}}</text><text>充值</text><text>核销</text><text>体验</text><text>退费</text></view>
           <view wx:for="{{hqRanking}}" wx:key="entityId" class="hq-ranking-row hq-ranking-card"><text class="hq-ranking-rank">{{item.rank}}</text><text class="hq-ranking-name">{{item.name}}</text><text class="hq-ranking-value">{{item.recharge}} 次</text><text class="hq-ranking-value">{{item.verification}} 次</text><text class="hq-ranking-value">{{item.experience}} 次</text><text class="hq-ranking-value">{{item.refund}} 次</text></view>
-          <view wx:if="{{!hqRanking.length}}" class="table-empty">{{loading || hqRankingLoading ? '正在读取排名…' : (hqRankingError || '当前日期范围暂无有效数据')}}</view>
         </view>
         </scroll-view>
-        <view class="table-pagination hq-ranking-pagination"><button disabled="{{hqRankingPage.previousDisabled || hqRankingLoading}}" bindtap="previousHqPage">上一页</button><text>第 {{hqRankingPage.page}} / {{hqRankingPage.totalPages}} 页 · 共 {{hqRankingPage.total}} 条</text><button disabled="{{hqRankingPage.nextDisabled || hqRankingLoading}}" bindtap="nextHqPage">下一页</button><view class="ranking-page-jump"><text>跳至第</text><input type="number" value="{{hqRankingInput}}" bindinput="inputHqPage" /><text>页</text><button disabled="{{hqRankingLoading}}" bindtap="jumpHqPage">跳转</button></view><button wx:if="{{hqRankingError}}" class="ranking-retry" bindtap="retryHqRanking">重试排名</button></view>
+        <view wx:else class="hq-ranking-notice"><text>{{loading || hqRankingLoading ? '正在读取排名…' : (hqRankingError || '当前日期范围暂无有效数据')}}</text><button wx:if="{{hqRankingError && !hqRankingLoading}}" class="ranking-retry" bindtap="retryHqRanking">重新读取</button></view>
+        <view wx:if="{{hqRanking.length && !hqRankingError}}" class="table-pagination hq-ranking-pagination"><button disabled="{{hqRankingPage.previousDisabled || hqRankingLoading}}" bindtap="previousHqPage">上一页</button><text>第 {{hqRankingPage.page}} / {{hqRankingPage.totalPages}} 页 · 共 {{hqRankingPage.total}} 条</text><button disabled="{{hqRankingPage.nextDisabled || hqRankingLoading}}" bindtap="nextHqPage">下一页</button><view class="ranking-page-jump"><text>跳至第</text><input type="number" value="{{hqRankingInput}}" bindinput="inputHqPage" /><text>页</text><button disabled="{{hqRankingLoading}}" bindtap="jumpHqPage">跳转</button></view></view>
       </view>
     </block>
     <view class="safe-bottom"></view>

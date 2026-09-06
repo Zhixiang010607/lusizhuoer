@@ -78,7 +78,7 @@ test("HQ home exposes the complete web mobile rail and isolated ranking interact
   assert.match(wxml, /class="hq-ranking-list"/);
   assert.match(wxml, /项目汇总/);
   assert.match(wxml, /当前时间范围内的全部项目/);
-  for (const label of ["项目", "充值", "核销", "体验", "退费", "合计"]) assert.match(wxml, new RegExp(label));
+  for (const label of ["项目", "充值", "核销", "体验", "退费", "合计"]) assert.match(wxml + read("components", "project-summary", "index.wxml"), new RegExp(label));
   assert.match(wxml, /previousHqProductSummaryPage/);
   assert.match(wxml, /nextHqProductSummaryPage/);
   assert.match(js, /mode:\s*"product-summary", pageNumber:\s*1, pageSize:\s*PRODUCT_SUMMARY_PAGE_SIZE/,

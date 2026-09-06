@@ -1,0 +1,113 @@
+{
+  "checkedAt": "2026-09-06",
+  "scope": "Aggregate SQL and schema checks only; no production writes, no Auth directory enumeration.",
+  "checks": [
+    {
+      "file": "docs/reviews/assets/system-risk-audit/identity.sql",
+      "rows": [
+        {
+          "check_name": "staff phone unique constraint",
+          "observed_count": "1"
+        },
+        {
+          "check_name": "duplicate staff phones",
+          "observed_count": "0"
+        },
+        {
+          "check_name": "noncanonical staff phone format",
+          "observed_count": "0"
+        },
+        {
+          "check_name": "duplicate staff auth uids",
+          "observed_count": "0"
+        },
+        {
+          "check_name": "active teacher missing active staff",
+          "observed_count": "0"
+        },
+        {
+          "check_name": "active teacher account missing teacher profile",
+          "observed_count": "0"
+        }
+      ],
+      "affectedRows": 0
+    },
+    {
+      "file": "docs/reviews/assets/system-risk-audit/store-bindings.sql",
+      "rows": [
+        {
+          "check_name": "active store missing active matching account",
+          "observed_count": "0"
+        },
+        {
+          "check_name": "active store account without active store",
+          "observed_count": "0"
+        },
+        {
+          "check_name": "store contact differs from account phone",
+          "observed_count": "0"
+        },
+        {
+          "check_name": "same phone across multiple active store contacts",
+          "observed_count": "0"
+        }
+      ],
+      "error": null,
+      "affectedRows": 0
+    },
+    {
+      "file": "database/cloudbase-console/063-readonly-verify-01-access.sql",
+      "rows": [
+        {
+          "check_name": "client schema access closed",
+          "record_count": "0",
+          "status": "READY"
+        },
+        {
+          "check_name": "client table access closed",
+          "record_count": "0",
+          "status": "READY"
+        },
+        {
+          "check_name": "client sequence access closed",
+          "record_count": "0",
+          "status": "READY"
+        },
+        {
+          "check_name": "client function execution closed",
+          "record_count": "0",
+          "status": "READY"
+        }
+      ],
+      "error": null,
+      "affectedRows": 0
+    },
+    {
+      "file": "database/cloudbase-console/063-readonly-verify-02-defaults-and-balance.sql",
+      "rows": [
+        {
+          "check_name": "migration owner defaults closed",
+          "record_count": "0",
+          "status": "READY"
+        },
+        {
+          "check_name": "service role retained",
+          "record_count": "0",
+          "status": "READY"
+        },
+        {
+          "check_name": "paid verification balance trigger",
+          "record_count": "0",
+          "status": "READY"
+        },
+        {
+          "check_name": "paid verification balance guard body",
+          "record_count": "0",
+          "status": "READY"
+        }
+      ],
+      "error": null,
+      "affectedRows": 0
+    }
+  ]
+}

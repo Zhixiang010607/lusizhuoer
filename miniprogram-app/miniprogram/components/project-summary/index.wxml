@@ -1,0 +1,25 @@
+<view class="summary-frame">
+  <view wx:if="{{loading}}" class="summary-notice"><text>正在读取项目汇总…</text></view>
+  <view wx:elif="{{error}}" class="summary-notice summary-error">
+    <text class="notice-title">项目汇总读取失败</text>
+    <text class="notice-detail">{{error}}</text>
+    <button class="summary-retry" bindtap="retry">重新读取</button>
+  </view>
+  <view wx:elif="{{!rows.length}}" class="summary-notice"><text>当前没有项目</text></view>
+  <block wx:else>
+    <scroll-view class="summary-scroll" scroll-x enhanced show-scrollbar="false" style="height: {{tableHeight ? tableHeight + 'px' : 64 + (rows.length + (totalsReady ? 1 : 0)) * 72 + 'rpx'}};">
+      <view class="summary-table">
+        <view class="summary-row summary-head"><view>项目</view><view>核销</view><view>充值</view><view>体验</view><view>退费</view></view>
+        <view wx:for="{{rows}}" wx:key="productId" class="summary-row">
+          <view class="summary-name"><text class="summary-name-copy">{{item.productName}}</text></view>
+          <view>{{item.verification}}<text class="summary-unit">次</text></view>
+          <view>{{item.recharge}}<text class="summary-unit">次</text></view>
+          <view>{{item.experience}}<text class="summary-unit">次</text></view>
+          <view>{{item.refund}}<text class="summary-unit">次</text></view>
+        </view>
+        <view wx:if="{{totalsReady}}" class="summary-row summary-total"><view>合计</view><view>{{totals.verification}}<text class="summary-unit">次</text></view><view>{{totals.recharge}}<text class="summary-unit">次</text></view><view>{{totals.experience}}<text class="summary-unit">次</text></view><view>{{totals.refund}}<text class="summary-unit">次</text></view></view>
+      </view>
+    </scroll-view>
+    <view wx:if="{{!totalsReady}}" class="summary-notice totals-notice"><text>合计暂未读取成功</text><button class="summary-retry" bindtap="retry">重新读取</button></view>
+  </block>
+</view>

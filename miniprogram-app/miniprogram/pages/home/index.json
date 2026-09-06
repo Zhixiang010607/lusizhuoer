@@ -1,1 +1,8 @@
-{ "navigationBarTitleText": "露思卓儿", "enablePullDownRefresh": false, "backgroundColor": "#f3ede2" }
+{
+  "navigationBarTitleText": "露思卓儿",
+  "enablePullDownRefresh": false,
+  "backgroundColor": "#f3ede2",
+  "usingComponents": {
+    "project-summary": "../../components/project-summary/index"
+  }
+}

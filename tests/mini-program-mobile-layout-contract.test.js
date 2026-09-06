@@ -124,8 +124,11 @@ test("all three mini-program homes preserve business content in the refreshed br
     "the store anchor bar must not inherit WeChat scroll-view's device-only default height");
   assert.match(wxml, /class="table-scroll summary-scroll" style="height: \{\{summaryRows\.length \? 76 \+ summaryRows\.length \* 94 : 186\}\}rpx;"/,
     "the store/teacher project summary viewport must grow and shrink with its actual row count");
-  assert.match(wxml, /class="table-scroll summary-scroll" style="height: \{\{76 \+ \(hqProjectSummaryRows\.length \+ 1\) \* 94 \+ \(!hqProjectSummaryRows\.length \? 110 : 0\)\}\}rpx;"/,
-    "the HQ project summary viewport must also use a data-driven real-device height");
+  assert.match(wxml, /<project-summary[^>]*rows="\{\{hqProjectSummaryRows\}\}"/,
+    "HQ summary delegates geometry to the measured native component");
+  const summaryComponent = read("miniprogram-app", "miniprogram", "components", "project-summary", "index.js");
+  assert.match(summaryComponent, /boundingClientRect/,
+    "wrapped summary rows must use measured height rather than an obsolete fixed row estimate");
   assert.match(wxml, /session\.role === 'teacher'/);
   assert.match(wxml, /session\.role === 'store'/);
   assert.match(wxml, /session\.role === 'hq'/);
@@ -186,8 +189,10 @@ test("all three mini-program homes preserve business content in the refreshed br
     "store and teacher names must use the same explicit mobile typography as adjacent ranking values");
   assert.match(wxss, /\.summary-table \.table-head \.summary-product\s*\{[^}]*align-items:\s*center\s*!important;[^}]*text-align:\s*center;/s,
     "the project summary header must be centered while project rows remain left aligned");
-  assert.equal((wxml.match(/class="summary-product">项目<\/view>/g) || []).length, 2,
-    "store/teacher and HQ service summaries must use 项目 rather than the separate retail 产品 concept");
+  assert.equal((wxml.match(/class="summary-product">项目<\/view>/g) || []).length, 1,
+    "the shared store/teacher service summary must use 项目 rather than the separate retail 产品 concept");
+  assert.match(read("miniprogram-app", "miniprogram", "components", "project-summary", "index.wxml"), /<view>项目<\/view>/,
+    "the HQ summary component must use the same service-project label");
   assert.match(wxss, /\.table-pagination > text\s*\{[^}]*text-align:\s*center;[^}]*white-space:\s*nowrap;/s,
     "previous, page summary, and next must stay on one centered row");
   assert.match(storeDetailWxml, /data-code="\{\{item\.customerCode\}\}" bindtap="openCustomer">\{\{item\.customerName\}\}<\/view>/);

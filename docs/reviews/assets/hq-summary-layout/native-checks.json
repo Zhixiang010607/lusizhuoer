@@ -1,0 +1,70 @@
+{
+  "viewport": [
+    390,
+    753
+  ],
+  "isolated": true,
+  "metrics": [
+    {
+      "case": "rows-1",
+      "tableHeight": 107,
+      "viewportHeight": 107,
+      "frameHeight": 109,
+      "nameStyle": {
+        "left": 36,
+        "right": 150,
+        "top": 404.796875,
+        "bottom": 422.1953125,
+        "width": "114px",
+        "height": 17.3984375,
+        "white-space": "normal",
+        "text-align": "left",
+        "line-height": "17.4px"
+      }
+    },
+    {
+      "case": "rows-3",
+      "tableHeight": 181,
+      "viewportHeight": 181,
+      "frameHeight": 183,
+      "nameStyle": {
+        "left": 36,
+        "right": 150,
+        "top": 402.296875,
+        "bottom": 419.6953125,
+        "width": "114px",
+        "height": 17.3984375,
+        "white-space": "normal",
+        "text-align": "left",
+        "line-height": "17.4px"
+      }
+    },
+    {
+      "case": "rows-10",
+      "tableHeight": 468.1953125,
+      "viewportHeight": 469,
+      "frameHeight": 471,
+      "nameStyle": {
+        "left": 36,
+        "right": 150,
+        "top": 114.296875,
+        "bottom": 131.6953125,
+        "width": "114px",
+        "height": 17.3984375,
+        "white-space": "normal",
+        "text-align": "left",
+        "line-height": "17.4px"
+      }
+    },
+    {
+      "case": "error",
+      "noticeWidth": 334,
+      "noFalseZeroBadge": true,
+      "noFakePagination": true
+    },
+    {
+      "case": "empty",
+      "noTable": true
+    }
+  ]
+}
