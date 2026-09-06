@@ -119,3 +119,12 @@
 }
 
 @import "../../styles/query-refinements.wxss";
+
+.chart-card.large-counts .pie-total { max-width: 100%; font-size: 22rpx; white-space: nowrap; }
+.chart-card.large-counts .legend-head > text { padding-right: 12rpx; padding-left: 12rpx; font-size: 28rpx; }
+.chart-card.large-counts .legend-row > .legend-key, .chart-card.large-counts .legend-row > .legend-count, .chart-card.large-counts .legend-row > .legend-value { padding-right: 12rpx; padding-left: 12rpx; font-size: 26rpx; }
+@media (min-width: 700px) {
+  .chart-card.large-counts .pie-total { font-size: 16px; }
+  .chart-card.large-counts .legend-head > text { padding-right: 6px; padding-left: 6px; font-size: 16px; }
+  .chart-card.large-counts .legend-row > .legend-key, .chart-card.large-counts .legend-row > .legend-count, .chart-card.large-counts .legend-row > .legend-value { padding-right: 6px; padding-left: 6px; font-size: 14px; }
+}

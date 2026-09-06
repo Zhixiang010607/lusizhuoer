@@ -139,3 +139,10 @@ button::after { border: 0; }
   .page .search-card > .button-row { max-width: 240px; margin-left: auto; }
   .page .query-actions { width: 100%; max-width: 240px; justify-self: end; }
 }
+
+/* Content bounds must hold for long names, messages and large page counts. */
+page { overflow-wrap: anywhere; }
+.badge { max-width: 100%; white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }
+.picker-value { display: block; width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.page .pager > text, .page .history-pagination > text { white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
+.message, .field-help, .section-message { min-width: 0; overflow-wrap: anywhere; }

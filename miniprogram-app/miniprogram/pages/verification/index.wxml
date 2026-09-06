@@ -19,7 +19,7 @@
       <label wx:if="{{session.role === 'teacher'}}" class="field">
         <text class="field-label">办理门店</text>
         <picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="selectStore" disabled="{{busy || (qualificationActive && bleAuthorizationSent) || loadingStores || !stores.length}}">
-          <view class="picker">{{loadingStores ? '正在读取可办理门店…' : (store.id ? store.name + ' · ' + (store.code || store.id) : (stores.length ? '请选择门店' : '暂无可办理门店'))}}</view>
+          <view class="picker"><text class="picker-value">{{loadingStores ? '正在读取可办理门店…' : (store.id ? store.name + ' · ' + (store.code || store.id) : (stores.length ? '请选择门店' : '暂无可办理门店'))}}</text></view>
         </picker>
       </label>
       <button wx:if="{{session.role === 'teacher' && !loadingStores && !stores.length}}" class="secondary" bindtap="loadTeacherStores">重试门店列表</button>
@@ -36,7 +36,7 @@
       <label class="field">
         <text class="field-label">项目</text>
         <picker range="{{productLabels}}" value="{{productIndex}}" bindchange="selectProduct" disabled="{{qualificationActive || !customer || loadingOptions || !products.length}}">
-          <view class="picker">{{loadingOptions ? '正在读取可核销项目…' : (selectedProduct ? productLabels[productIndex] : (products.length ? '请选择项目' : '暂无可核销项目'))}}</view>
+          <view class="picker"><text class="picker-value">{{loadingOptions ? '正在读取可核销项目…' : (selectedProduct ? productLabels[productIndex] : (products.length ? '请选择项目' : '暂无可核销项目'))}}</text></view>
         </picker>
       </label>
       <label class="field">
@@ -47,7 +47,7 @@
         <text class="field-label">业务老师{{session.role === 'teacher' ? '（自动绑定）' : '（可选）'}}</text>
         <view wx:if="{{session.role === 'teacher'}}" class="readonly-field">{{selectedTeacher ? selectedTeacher.teacherName + (selectedTeacher.teacherCode ? ' · ' + selectedTeacher.teacherCode : '') : (store.id ? '请先确认客户并读取本人信息' : '选择门店后确认本人信息')}}</view>
         <picker wx:else range="{{teacherLabels}}" value="{{teacherIndex}}" bindchange="selectTeacher" disabled="{{qualificationActive || !customer || session.role === 'teacher' || !teacherOptionsReady}}">
-          <view class="picker">{{selectedTeacher ? selectedTeacher.teacherName + (selectedTeacher.teacherCode ? ' · ' + selectedTeacher.teacherCode : '') : '正在读取老师选项…'}}</view>
+          <view class="picker"><text class="picker-value">{{selectedTeacher ? selectedTeacher.teacherName + (selectedTeacher.teacherCode ? ' · ' + selectedTeacher.teacherCode : '') : '正在读取老师选项…'}}</text></view>
         </picker>
       </label>
       <view wx:if="{{selectedProduct}}" class="impact">{{experience ? '当前老师可用 ' + selectedProduct.availableCount + ' 次' : '当前客户剩余 ' + selectedProduct.remainingCount + ' 次'}}；请自行填写本次{{experience ? '体验' : '核销'}}次数。</view>

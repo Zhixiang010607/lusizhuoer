@@ -70,3 +70,6 @@
   .page-jump input { width: 88px; min-height: 44px; padding: 0 10px; border-width: 1px; border-radius: 10px; font-size: 14px; }
   .page-jump button { width: 110px !important; min-height: 44px; padding: 0 12px; font-size: 14px; }
 }
+
+.summary-grid.large-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 700px) { .summary-grid.large-counts { grid-template-columns: repeat(4, minmax(0, 1fr)); } }

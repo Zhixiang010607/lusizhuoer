@@ -4,12 +4,12 @@
   <view class="card search-card">
     <view class="card-title"><text>查询条件</text><button class="rules-toggle" bindtap="toggleRules" aria-expanded="{{rulesExpanded}}"><text>规则说明</text><text>{{rulesExpanded ? '−' : '＋'}}</text></button></view>
     <view class="query-grid">
-      <label wx:if="{{session.role === 'hq'}}" class="field"><text class="field-label">门店</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="chooseStore" disabled="{{loading || exporting}}"><view class="picker">{{storeLabels[storeIndex]}}</view></picker></label>
-      <label class="field"><text class="field-label">项目</text><picker range="{{productLabels}}" value="{{productIndex}}" bindchange="chooseProduct" disabled="{{loading || exporting}}"><view class="picker">{{productLabels[productIndex]}}</view></picker></label>
-      <label class="field"><text class="field-label">老师</text><picker range="{{teacherLabels}}" value="{{teacherIndex}}" bindchange="chooseTeacher" disabled="{{loading || exporting}}"><view class="picker">{{teacherLabels[teacherIndex]}}</view></picker></label>
-      <label class="field"><text class="field-label">时间范围</text><picker range="{{timeLabels}}" value="{{timeIndex}}" bindchange="chooseTime" disabled="{{loading || exporting}}"><view class="picker">{{timeLabels[timeIndex]}}</view></picker></label>
-      <label wx:if="{{customRange}}" class="field"><text class="field-label">开始日期</text><picker mode="date" value="{{startDate}}" end="{{today}}" bindchange="changeStart" disabled="{{loading || exporting}}"><view class="picker">{{startDate || '请选择'}}</view></picker></label>
-      <label wx:if="{{customRange}}" class="field"><text class="field-label">结束日期</text><picker mode="date" value="{{endDate}}" end="{{today}}" bindchange="changeEnd" disabled="{{loading || exporting}}"><view class="picker">{{endDate || '请选择'}}</view></picker></label>
+      <label wx:if="{{session.role === 'hq'}}" class="field"><text class="field-label">门店</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="chooseStore" disabled="{{loading || exporting}}"><view class="picker"><text class="picker-value">{{storeLabels[storeIndex]}}</text></view></picker></label>
+      <label class="field"><text class="field-label">项目</text><picker range="{{productLabels}}" value="{{productIndex}}" bindchange="chooseProduct" disabled="{{loading || exporting}}"><view class="picker"><text class="picker-value">{{productLabels[productIndex]}}</text></view></picker></label>
+      <label class="field"><text class="field-label">老师</text><picker range="{{teacherLabels}}" value="{{teacherIndex}}" bindchange="chooseTeacher" disabled="{{loading || exporting}}"><view class="picker"><text class="picker-value">{{teacherLabels[teacherIndex]}}</text></view></picker></label>
+      <label class="field"><text class="field-label">时间范围</text><picker range="{{timeLabels}}" value="{{timeIndex}}" bindchange="chooseTime" disabled="{{loading || exporting}}"><view class="picker"><text class="picker-value">{{timeLabels[timeIndex]}}</text></view></picker></label>
+      <label wx:if="{{customRange}}" class="field"><text class="field-label">开始日期</text><picker mode="date" value="{{startDate}}" end="{{today}}" bindchange="changeStart" disabled="{{loading || exporting}}"><view class="picker"><text class="picker-value">{{startDate || '请选择'}}</text></view></picker></label>
+      <label wx:if="{{customRange}}" class="field"><text class="field-label">结束日期</text><picker mode="date" value="{{endDate}}" end="{{today}}" bindchange="changeEnd" disabled="{{loading || exporting}}"><view class="picker"><text class="picker-value">{{endDate || '请选择'}}</text></view></picker></label>
     </view>
     <view class="score-filter">
       <text class="field-label">最低评分（可任意多选）</text>
@@ -20,7 +20,7 @@
   </view>
 
   <view wx:if="{{searched}}" class="chart-grid">
-    <view class="card chart-card">
+    <view class="card chart-card {{summary.total >= 1000000 ? 'large-counts' : ''}}">
       <view class="card-title"><text>1–5 分分布</text><text class="badge">共 {{summary.rated}} 单</text></view>
       <view class="chart-body">
         <view class="pie-chart">
@@ -34,7 +34,7 @@
       </view>
       <text class="chart-note">仅统计当前条件下已评价工单；0 分未评价不进入本图。</text>
     </view>
-    <view class="card chart-card">
+    <view class="card chart-card {{summary.total >= 1000000 ? 'large-counts' : ''}}">
       <view class="card-title"><text>评价覆盖率</text><text class="badge">{{summary.rated}} / {{summary.total}}</text></view>
       <view class="chart-body coverage-body">
         <view class="pie-chart">

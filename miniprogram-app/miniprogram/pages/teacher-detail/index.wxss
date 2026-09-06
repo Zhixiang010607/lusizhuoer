@@ -145,3 +145,20 @@
 
 .monthly-scroll-hint { display: block; margin-bottom: 12rpx; color: #7c7062; font-size: 24rpx; }
 @media (min-width: 700px) { .monthly-scroll-hint { display: none; } }
+
+.summary-grid, .quota-grid, .forms-grid { grid-template-columns: minmax(0, 1fr); }
+.summary-item, .quota-card, .action-form { min-width: 0; max-width: 100%; }
+.summary-item, .quota-head, .quota-balance { flex-wrap: wrap; }
+.summary-item > view:first-child, .quota-head > view:first-child { min-width: 0; flex: 1 1 200rpx; overflow-wrap: anywhere; }
+.summary-item > view:last-child { min-width: 0; max-width: 100%; }
+.quota-actions { flex: none; }
+.history-row > view:last-child { flex: 0 1 48%; }
+.history-row > view:last-child text:last-child { white-space: normal; overflow-wrap: anywhere; }
+@media (min-width: 700px) {
+  .summary-grid { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+  .quota-grid, .forms-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .summary-item > view:first-child, .quota-head > view:first-child { flex-basis: 140px; }
+}
+@media (min-width: 1100px) { .quota-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.quota-card.large-counts .quota-facts { grid-template-columns: minmax(0, 1fr); }

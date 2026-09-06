@@ -42,3 +42,8 @@
 }
 
 @media (min-width: 700px) { .workflow-grid .card-title > text:first-child { font-size: 18px; } .workflow-grid .textarea { height: 120px; } }
+
+.gift-list { grid-template-columns: minmax(0, 1fr); }
+.gift-row { min-width: 0; max-width: 100%; }
+.gift-copy { flex: 1; }
+.gift-remove { width: auto !important; }

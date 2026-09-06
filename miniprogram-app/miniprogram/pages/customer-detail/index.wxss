@@ -162,3 +162,18 @@
 }
 
 @media (max-width: 360px) { .recent-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.profile-facts.large-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.profile-facts.large-counts .value { text-overflow: clip; }
+.message-list { display: block; overflow-x: hidden; }
+.message-item + .message-item { margin-top: 10rpx; }
+.message-item { width: 100%; max-width: 100%; }
+.message-meta { flex-wrap: wrap; }
+.message-author { flex: 1 1 180rpx; max-width: 100%; }
+.message-content { min-width: 0; overflow-wrap: anywhere; word-break: break-all; }
+@media (min-width: 700px) {
+  page .page .profile-facts.large-counts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .message-author { flex-basis: 120px; }
+}
+
+@media (min-width: 700px) { .message-item + .message-item { margin-top: 8px; } }

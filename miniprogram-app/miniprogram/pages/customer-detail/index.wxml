@@ -15,7 +15,7 @@
       </view>
       <view wx:if="{{photoMessage}}" class="section-message {{photoError ? 'error' : ''}}">{{photoMessage}}</view>
 
-      <view class="facts profile-facts">
+      <view class="facts profile-facts {{profile.totalRechargeCount >= 10000000 || profile.totalRefundCount >= 10000000 || profile.totalVerificationCount >= 10000000 || profile.totalExperienceCount >= 10000000 ? 'large-counts' : ''}}">
         <view class="fact"><text class="label">累计充值</text><text class="value">{{profile.totalRechargeCount}} 次</text></view>
         <view class="fact"><text class="label">累计退费</text><text class="value">{{profile.totalRefundCount}} 次</text></view>
         <view class="fact"><text class="label">累计核销</text><text class="value">{{profile.totalVerificationCount}} 次</text></view>

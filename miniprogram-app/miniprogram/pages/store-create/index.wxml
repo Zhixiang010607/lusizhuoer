@@ -5,7 +5,7 @@
       <view class="section-heading"><view><text>门店资料</text></view><text>编号将在创建成功后自动生成</text></view>
       <view class="store-fields">
         <label class="field field-store-name"><text>门店名称</text><input maxlength="60" data-field="name" value="{{form.name}}" bindinput="input" placeholder="请输入门店名称" /></label>
-        <label class="field field-region"><text>省 / 市 / 区</text><picker mode="region" value="{{form.region}}" bindchange="chooseRegion"><view class="picker">{{form.regionText || '请选择省、市、区'}}</view></picker></label>
+        <label class="field field-region"><text>省 / 市 / 区</text><picker mode="region" value="{{form.region}}" bindchange="chooseRegion"><view class="picker"><text class="picker-value">{{form.regionText || '请选择省、市、区'}}</text></view></picker></label>
         <label class="field field-wide field-address"><text>门店地址</text><input maxlength="160" data-field="address" value="{{form.address}}" bindinput="input" placeholder="请输入详细地址" /></label>
       </view>
     </view>

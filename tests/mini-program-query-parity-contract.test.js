@@ -77,7 +77,7 @@ test("customer query keeps the web filter dimensions, role scope, details, and d
   assert.match(wxss, /\.query-grid \.field \{ min-width: 0; margin-bottom: 10rpx; \}/);
   assert.match(wxss, /\.query-grid \.input, \.query-grid \.picker \{ min-height: 72rpx;/,
     "customer query controls must use the compact phone density");
-  assert.match(wxml, /class="card customer-summary"[\s\S]*class="summary-grid"[\s\S]*class="summary-stages"/,
+  assert.match(wxml, /class="card customer-summary\b[^"]*"[\s\S]*class="summary-grid"[\s\S]*class="summary-stages"/,
     "all six totals share one compact overview with secondary process stages");
   assert.match(wxss, /\.summary-grid text \{[^}]*font-size: 24rpx;/);
   assert.match(wxss, /\.customer-table \{ width: auto; min-width: 100%; display: inline-table; table-layout: auto;/,
@@ -137,7 +137,7 @@ test("recharge, verification, and product query share complete filters and exact
     "completed verification query results must not repeat a status column");
   assert.match(wxml, /<text wx:if="\{\{recordType !== 'VERIFICATION'\}\}"[^>]*>\{\{item\.statusLabel\}\}<\/text>/,
     "verification rows must omit the redundant completed label while other records keep status");
-  assert.match(wxml, /<view wx:if="\{\{recordType !== 'VERIFICATION'\}\}" class="summary-grid">/,
+  assert.match(wxml, /<view wx:if="\{\{recordType !== 'VERIFICATION'\}\}" class="summary-grid\b[^"]*">/,
     "review-state summary cards belong to recharge/refund and product purchases, not completed verification queries");
   assert.match(wxml, /recordType === 'PRODUCT_PURCHASE' \? '产品' : '项目'/);
   assert.match(wxml, />来源<\/text>/,

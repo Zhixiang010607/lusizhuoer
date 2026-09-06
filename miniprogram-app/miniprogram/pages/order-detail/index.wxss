@@ -158,3 +158,7 @@
 @media (min-width: 700px) and (max-width: 899px) {
   .photo-actions { grid-template-columns: minmax(0, 1fr); }
 }
+
+.slot-placeholder > text { min-width: 0; max-width: 100%; overflow-wrap: anywhere; word-break: break-word; }
+
+@media (max-width: 699px) { .detail-grid .detail-time { grid-column: 1 / -1; } }

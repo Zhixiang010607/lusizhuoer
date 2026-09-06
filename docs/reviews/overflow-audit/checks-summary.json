@@ -1,0 +1,793 @@
+{
+  "date": "2026-09-06",
+  "repositoryTests": {
+    "passed": 314,
+    "failed": 0
+  },
+  "syntheticDataOnly": true,
+  "productionWrites": false,
+  "nativeIpadValidated": false,
+  "physicalDevicesValidated": false,
+  "stages": [
+    {
+      "stage": "390",
+      "nativeViewport": [
+        390,
+        753
+      ],
+      "contentContainerWidth": 390,
+      "caseCount": 36,
+      "cases": [
+        {
+          "name": "customer-create",
+          "page": "customer-create",
+          "verifiedRoute": null
+        },
+        {
+          "name": "customer-detail",
+          "page": "customer-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "customers",
+          "page": "customers",
+          "verifiedRoute": null
+        },
+        {
+          "name": "home",
+          "page": "home",
+          "verifiedRoute": null
+        },
+        {
+          "name": "hq-directory",
+          "page": "hq-directory",
+          "verifiedRoute": null
+        },
+        {
+          "name": "inactive-customers",
+          "page": "inactive-customers",
+          "verifiedRoute": null
+        },
+        {
+          "name": "login",
+          "page": "login",
+          "verifiedRoute": null
+        },
+        {
+          "name": "low-balance-customers",
+          "page": "low-balance-customers",
+          "verifiedRoute": null
+        },
+        {
+          "name": "order-detail",
+          "page": "order-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "password-reset",
+          "page": "password-reset",
+          "verifiedRoute": null
+        },
+        {
+          "name": "product-create",
+          "page": "product-create",
+          "verifiedRoute": null
+        },
+        {
+          "name": "product-detail",
+          "page": "product-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "product-management",
+          "page": "product-management",
+          "verifiedRoute": null
+        },
+        {
+          "name": "product-purchase",
+          "page": "product-purchase",
+          "verifiedRoute": null
+        },
+        {
+          "name": "product-purchase-detail",
+          "page": "product-purchase-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "rating-analysis",
+          "page": "rating-analysis",
+          "verifiedRoute": null
+        },
+        {
+          "name": "recharge",
+          "page": "recharge",
+          "verifiedRoute": null
+        },
+        {
+          "name": "records",
+          "page": "records",
+          "verifiedRoute": null
+        },
+        {
+          "name": "retail-product-create",
+          "page": "retail-product-create",
+          "verifiedRoute": null
+        },
+        {
+          "name": "retail-product-management",
+          "page": "retail-product-management",
+          "verifiedRoute": null
+        },
+        {
+          "name": "reviews",
+          "page": "reviews",
+          "verifiedRoute": null
+        },
+        {
+          "name": "store-create",
+          "page": "store-create",
+          "verifiedRoute": null
+        },
+        {
+          "name": "store-detail",
+          "page": "store-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "teacher-create",
+          "page": "teacher-create",
+          "verifiedRoute": null
+        },
+        {
+          "name": "teacher-customers",
+          "page": "teacher-customers",
+          "verifiedRoute": null
+        },
+        {
+          "name": "teacher-detail",
+          "page": "teacher-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "verification",
+          "page": "verification",
+          "verifiedRoute": null
+        },
+        {
+          "name": "home-store",
+          "page": "home",
+          "verifiedRoute": null
+        },
+        {
+          "name": "home-teacher",
+          "page": "home",
+          "verifiedRoute": null
+        },
+        {
+          "name": "customer-search",
+          "page": "customers",
+          "verifiedRoute": null
+        },
+        {
+          "name": "review-dialog",
+          "page": "reviews",
+          "verifiedRoute": null
+        },
+        {
+          "name": "verification-ble",
+          "page": "verification",
+          "verifiedRoute": null
+        },
+        {
+          "name": "order-photos",
+          "page": "order-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "customer-notes-edit",
+          "page": "customer-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "recharge-refund",
+          "page": "recharge",
+          "verifiedRoute": null
+        },
+        {
+          "name": "query-rules",
+          "page": "low-balance-customers",
+          "verifiedRoute": null
+        }
+      ],
+      "exceptionEvents": [],
+      "notes": "Broad scan flags were triaged; final parent-boundary results below use scroll-axis-aware handling."
+    },
+    {
+      "stage": "390-fixed",
+      "nativeViewport": [
+        390,
+        753
+      ],
+      "contentContainerWidth": 390,
+      "caseCount": 36,
+      "cases": [
+        {
+          "name": "customer-create",
+          "page": "customer-create",
+          "verifiedRoute": null
+        },
+        {
+          "name": "customer-detail",
+          "page": "customer-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "customers",
+          "page": "customers",
+          "verifiedRoute": null
+        },
+        {
+          "name": "home",
+          "page": "home",
+          "verifiedRoute": null
+        },
+        {
+          "name": "hq-directory",
+          "page": "hq-directory",
+          "verifiedRoute": null
+        },
+        {
+          "name": "inactive-customers",
+          "page": "inactive-customers",
+          "verifiedRoute": null
+        },
+        {
+          "name": "login",
+          "page": "login",
+          "verifiedRoute": null
+        },
+        {
+          "name": "low-balance-customers",
+          "page": "low-balance-customers",
+          "verifiedRoute": null
+        },
+        {
+          "name": "order-detail",
+          "page": "order-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "password-reset",
+          "page": "password-reset",
+          "verifiedRoute": null
+        },
+        {
+          "name": "product-create",
+          "page": "product-create",
+          "verifiedRoute": null
+        },
+        {
+          "name": "product-detail",
+          "page": "product-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "product-management",
+          "page": "product-management",
+          "verifiedRoute": null
+        },
+        {
+          "name": "product-purchase",
+          "page": "product-purchase",
+          "verifiedRoute": null
+        },
+        {
+          "name": "product-purchase-detail",
+          "page": "product-purchase-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "rating-analysis",
+          "page": "rating-analysis",
+          "verifiedRoute": null
+        },
+        {
+          "name": "recharge",
+          "page": "recharge",
+          "verifiedRoute": null
+        },
+        {
+          "name": "records",
+          "page": "records",
+          "verifiedRoute": null
+        },
+        {
+          "name": "retail-product-create",
+          "page": "retail-product-create",
+          "verifiedRoute": null
+        },
+        {
+          "name": "retail-product-management",
+          "page": "retail-product-management",
+          "verifiedRoute": null
+        },
+        {
+          "name": "reviews",
+          "page": "reviews",
+          "verifiedRoute": null
+        },
+        {
+          "name": "store-create",
+          "page": "store-create",
+          "verifiedRoute": null
+        },
+        {
+          "name": "store-detail",
+          "page": "store-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "teacher-create",
+          "page": "teacher-create",
+          "verifiedRoute": null
+        },
+        {
+          "name": "teacher-customers",
+          "page": "teacher-customers",
+          "verifiedRoute": null
+        },
+        {
+          "name": "teacher-detail",
+          "page": "teacher-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "verification",
+          "page": "verification",
+          "verifiedRoute": null
+        },
+        {
+          "name": "home-store",
+          "page": "home",
+          "verifiedRoute": null
+        },
+        {
+          "name": "home-teacher",
+          "page": "home",
+          "verifiedRoute": null
+        },
+        {
+          "name": "customer-search",
+          "page": "customers",
+          "verifiedRoute": null
+        },
+        {
+          "name": "review-dialog",
+          "page": "reviews",
+          "verifiedRoute": null
+        },
+        {
+          "name": "verification-ble",
+          "page": "verification",
+          "verifiedRoute": null
+        },
+        {
+          "name": "order-photos",
+          "page": "order-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "customer-notes-edit",
+          "page": "customer-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "recharge-refund",
+          "page": "recharge",
+          "verifiedRoute": null
+        },
+        {
+          "name": "query-rules",
+          "page": "low-balance-customers",
+          "verifiedRoute": null
+        }
+      ],
+      "exceptionEvents": [],
+      "notes": "Broad scan flags were triaged; final parent-boundary results below use scroll-axis-aware handling."
+    },
+    {
+      "stage": "320-container",
+      "nativeViewport": [
+        390,
+        753
+      ],
+      "contentContainerWidth": 320,
+      "caseCount": 36,
+      "cases": [
+        {
+          "name": "customer-create",
+          "page": "customer-create",
+          "verifiedRoute": null
+        },
+        {
+          "name": "customer-detail",
+          "page": "customer-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "customers",
+          "page": "customers",
+          "verifiedRoute": null
+        },
+        {
+          "name": "home",
+          "page": "home",
+          "verifiedRoute": null
+        },
+        {
+          "name": "hq-directory",
+          "page": "hq-directory",
+          "verifiedRoute": null
+        },
+        {
+          "name": "inactive-customers",
+          "page": "inactive-customers",
+          "verifiedRoute": null
+        },
+        {
+          "name": "login",
+          "page": "login",
+          "verifiedRoute": null
+        },
+        {
+          "name": "low-balance-customers",
+          "page": "low-balance-customers",
+          "verifiedRoute": null
+        },
+        {
+          "name": "order-detail",
+          "page": "order-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "password-reset",
+          "page": "password-reset",
+          "verifiedRoute": null
+        },
+        {
+          "name": "product-create",
+          "page": "product-create",
+          "verifiedRoute": null
+        },
+        {
+          "name": "product-detail",
+          "page": "product-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "product-management",
+          "page": "product-management",
+          "verifiedRoute": null
+        },
+        {
+          "name": "product-purchase",
+          "page": "product-purchase",
+          "verifiedRoute": null
+        },
+        {
+          "name": "product-purchase-detail",
+          "page": "product-purchase-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "rating-analysis",
+          "page": "rating-analysis",
+          "verifiedRoute": null
+        },
+        {
+          "name": "recharge",
+          "page": "recharge",
+          "verifiedRoute": null
+        },
+        {
+          "name": "records",
+          "page": "records",
+          "verifiedRoute": null
+        },
+        {
+          "name": "retail-product-create",
+          "page": "retail-product-create",
+          "verifiedRoute": null
+        },
+        {
+          "name": "retail-product-management",
+          "page": "retail-product-management",
+          "verifiedRoute": null
+        },
+        {
+          "name": "reviews",
+          "page": "reviews",
+          "verifiedRoute": null
+        },
+        {
+          "name": "store-create",
+          "page": "store-create",
+          "verifiedRoute": null
+        },
+        {
+          "name": "store-detail",
+          "page": "store-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "teacher-create",
+          "page": "teacher-create",
+          "verifiedRoute": null
+        },
+        {
+          "name": "teacher-customers",
+          "page": "teacher-customers",
+          "verifiedRoute": null
+        },
+        {
+          "name": "teacher-detail",
+          "page": "teacher-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "verification",
+          "page": "verification",
+          "verifiedRoute": null
+        },
+        {
+          "name": "home-store",
+          "page": "home",
+          "verifiedRoute": null
+        },
+        {
+          "name": "home-teacher",
+          "page": "home",
+          "verifiedRoute": null
+        },
+        {
+          "name": "customer-search",
+          "page": "customers",
+          "verifiedRoute": null
+        },
+        {
+          "name": "review-dialog",
+          "page": "reviews",
+          "verifiedRoute": null
+        },
+        {
+          "name": "verification-ble",
+          "page": "verification",
+          "verifiedRoute": null
+        },
+        {
+          "name": "order-photos",
+          "page": "order-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "customer-notes-edit",
+          "page": "customer-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "recharge-refund",
+          "page": "recharge",
+          "verifiedRoute": null
+        },
+        {
+          "name": "query-rules",
+          "page": "low-balance-customers",
+          "verifiedRoute": null
+        }
+      ],
+      "exceptionEvents": [],
+      "notes": "Broad scan flags were triaged; final parent-boundary results below use scroll-axis-aware handling."
+    },
+    {
+      "stage": "320-final",
+      "nativeViewport": [
+        390,
+        753
+      ],
+      "contentContainerWidth": 320,
+      "caseCount": 10,
+      "cases": [
+        {
+          "name": "home",
+          "page": "home",
+          "verifiedRoute": null
+        },
+        {
+          "name": "inactive-customers",
+          "page": "inactive-customers",
+          "verifiedRoute": null
+        },
+        {
+          "name": "low-balance-customers",
+          "page": "low-balance-customers",
+          "verifiedRoute": null
+        },
+        {
+          "name": "order-detail",
+          "page": "order-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "rating-analysis",
+          "page": "rating-analysis",
+          "verifiedRoute": null
+        },
+        {
+          "name": "records",
+          "page": "records",
+          "verifiedRoute": null
+        },
+        {
+          "name": "store-detail",
+          "page": "store-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "teacher-detail",
+          "page": "teacher-detail",
+          "verifiedRoute": null
+        },
+        {
+          "name": "home-store",
+          "page": "home",
+          "verifiedRoute": null
+        },
+        {
+          "name": "home-teacher",
+          "page": "home",
+          "verifiedRoute": null
+        }
+      ],
+      "exceptionEvents": [],
+      "notes": "Broad scan flags were triaged; final parent-boundary results below use scroll-axis-aware handling."
+    },
+    {
+      "stage": "final",
+      "nativeViewport": [
+        390,
+        753
+      ],
+      "contentContainerWidth": 390,
+      "caseCount": 13,
+      "cases": [
+        {
+          "name": "inactive-long",
+          "page": null,
+          "verifiedRoute": "pages/inactive-customers/index"
+        },
+        {
+          "name": "order-time-long",
+          "page": null,
+          "verifiedRoute": "pages/order-detail/index"
+        },
+        {
+          "name": "teacher-home-normal",
+          "page": null,
+          "verifiedRoute": "pages/home/index"
+        },
+        {
+          "name": "teacher-home-long",
+          "page": null,
+          "verifiedRoute": "pages/home/index"
+        },
+        {
+          "name": "teacher-config-long",
+          "page": null,
+          "verifiedRoute": "pages/teacher-detail/index"
+        },
+        {
+          "name": "customer-detail-long",
+          "page": null,
+          "verifiedRoute": "pages/customer-detail/index"
+        },
+        {
+          "name": "rating-long",
+          "page": null,
+          "verifiedRoute": "pages/rating-analysis/index"
+        },
+        {
+          "name": "records-long",
+          "page": null,
+          "verifiedRoute": "pages/records/index"
+        },
+        {
+          "name": "ble-errors-long",
+          "page": null,
+          "verifiedRoute": "pages/verification/index"
+        },
+        {
+          "name": "photo-errors-long",
+          "page": null,
+          "verifiedRoute": "pages/order-detail/index"
+        },
+        {
+          "name": "recharge-gifts-long",
+          "page": null,
+          "verifiedRoute": "pages/recharge/index"
+        },
+        {
+          "name": "customer-selection-long",
+          "page": null,
+          "verifiedRoute": "pages/recharge/index"
+        },
+        {
+          "name": "customer-messages-long",
+          "page": null,
+          "verifiedRoute": "pages/customer-detail/index"
+        }
+      ],
+      "exceptionEvents": null,
+      "notes": "Broad scan flags were triaged; final parent-boundary results below use scroll-axis-aware handling."
+    }
+  ],
+  "finalParentBoundaries": [
+    {
+      "name": "inactive-long",
+      "findings": []
+    },
+    {
+      "name": "order-time-long",
+      "findings": []
+    },
+    {
+      "name": "teacher-home-normal",
+      "findings": []
+    },
+    {
+      "name": "teacher-home-long",
+      "findings": []
+    },
+    {
+      "name": "teacher-config-long",
+      "findings": []
+    },
+    {
+      "name": "customer-detail-long",
+      "findings": []
+    },
+    {
+      "name": "rating-long",
+      "findings": []
+    },
+    {
+      "name": "records-long",
+      "findings": []
+    },
+    {
+      "name": "ble-errors-long",
+      "findings": []
+    },
+    {
+      "name": "photo-errors-long",
+      "findings": []
+    },
+    {
+      "name": "recharge-gifts-long",
+      "findings": []
+    },
+    {
+      "name": "customer-selection-long",
+      "findings": []
+    },
+    {
+      "name": "customer-messages-long",
+      "findings": []
+    }
+  ],
+  "textWidthScan": {
+    "engine": "WeChat offscreen 2D canvas with native computed font",
+    "checked": 142,
+    "findings": []
+  },
+  "quotaBoundaryStateCount": 20
+}

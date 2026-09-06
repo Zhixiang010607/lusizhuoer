@@ -5,3 +5,12 @@
 .store-status-badge.archived { color: #8f3a34; background: #fff0ee; }
 .form-message { margin-top: 14rpx; }
 .workspace-main { padding-bottom: 40rpx; }
+.detail-topbar { flex-wrap: wrap; }
+.detail-topbar > view:first-child { min-width: 0; }
+.topbar-actions { max-width: 100%; flex-wrap: wrap; }
+.topbar-actions button { width: auto !important; }
+@media (min-width: 700px) {
+  .detail-topbar { gap: 12px; }
+  .topbar-actions { gap: 8px; }
+  .topbar-actions button { min-width: 88px; min-height: 44px; padding: 0 14px; border-radius: 10px; font-size: 14px; }
+}

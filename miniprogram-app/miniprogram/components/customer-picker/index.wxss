@@ -65,3 +65,10 @@
   .list-retry { width: min(260px, 100%); min-height: 44px; margin: 10px auto 0; border-radius: 10px; font-size: 14px; }
   .retry { width: min(320px, 100%); margin: 10px auto 0; border-radius: 11px; font-size: 14px; }
 }
+
+/* Native v2 button defaults must not squeeze the selected birthday. */
+button { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.clear-date { flex: none; width: 112rpx !important; }
+.duplicate-option { width: 100% !important; }
+@media (min-width: 700px) { .clear-date { width: 76px !important; } }
+@media (min-width: 700px) and (max-width: 1099px) { .manual-fields { grid-template-columns: minmax(0, 1fr); } }

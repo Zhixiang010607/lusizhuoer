@@ -357,3 +357,18 @@
   .ranking-actions button { min-height: 44px; padding: 0 14px; border-radius: 10px; font-size: 14px; }
   .safe-bottom { height: calc(18px + env(safe-area-inset-bottom)); }
 }
+
+/* Keep exact values readable when a compact row no longer has enough room. */
+.record-tabs.large-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.table-pagination > text { white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
+.web-badge { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.form-message { overflow-wrap: anywhere; }
+.expanded-quota { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.expanded-quota .quota-identity { grid-column: 1 / -1; white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
+.expanded-quota .quota-metric text:last-child { text-overflow: clip; }
+@media (min-width: 700px) { .record-tabs.large-counts { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+.teacher-quota-card.large-counts { grid-template-columns: minmax(0, 1fr); }
+.teacher-quota-card.large-counts .quota-metric { flex-direction: row; justify-content: space-between; gap: 16rpx; padding: 12rpx 16rpx; }
+.teacher-quota-card.large-counts .quota-metric text { width: auto; margin-top: 0; }
+@media (min-width: 700px) { .teacher-quota-card.large-counts .quota-metric { gap: 12px; padding: 8px 12px; } }

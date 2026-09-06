@@ -7,12 +7,12 @@
       <label wx:if="{{session.role === 'teacher'}}" class="field">
       <text class="field-label">办理门店</text>
       <picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="selectStore" disabled="{{busy || loadingStores || !stores.length}}">
-        <view class="picker">{{loadingStores ? '正在读取可办理门店…' : (store.id ? store.name + ' · ' + (store.code || store.id) : (stores.length ? '请选择门店' : '暂无可办理门店'))}}</view>
+        <view class="picker"><text class="picker-value">{{loadingStores ? '正在读取可办理门店…' : (store.id ? store.name + ' · ' + (store.code || store.id) : (stores.length ? '请选择门店' : '暂无可办理门店'))}}</text></view>
       </picker>
     </label>
     <button wx:if="{{session.role === 'teacher' && !loadingStores && !stores.length}}" class="secondary" bindtap="loadTeacherStores">重试门店列表</button>
     <label class="field"><text class="field-label">客户姓名</text><input class="input" maxlength="40" value="{{name}}" bindinput="inputName" disabled="{{!store.id || busy}}" placeholder="请输入真实姓名" /></label>
-    <label class="field"><text class="field-label">生日</text><picker mode="date" value="{{birthDate}}" end="{{today}}" bindchange="inputBirthday" disabled="{{!store.id || busy}}"><view class="picker">{{birthDate || '请选择生日'}}</view></picker></label>
+    <label class="field"><text class="field-label">生日</text><picker mode="date" value="{{birthDate}}" end="{{today}}" bindchange="inputBirthday" disabled="{{!store.id || busy}}"><view class="picker"><text class="picker-value">{{birthDate || '请选择生日'}}</text></view></picker></label>
     <label class="field"><text class="field-label">客户备注（可选）</text><textarea class="textarea" maxlength="500" value="{{notes}}" bindinput="inputNotes" disabled="{{!store.id || busy}}" placeholder="最多 500 字"></textarea></label>
   </view>
   <view class="card create-photo-card {{store.id ? '' : 'disabled-card'}}">

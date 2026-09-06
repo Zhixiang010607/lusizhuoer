@@ -1,0 +1,145 @@
+{
+  "method": "Source CSS minimum-width arithmetic, not a native iPad rendering",
+  "cases": [
+    {
+      "viewport": 700,
+      "check": "store-create: both three-column form minimums",
+      "available": 614,
+      "required": 614,
+      "pass": true
+    },
+    {
+      "viewport": 700,
+      "check": "order-detail: reviewed information columns",
+      "available": 610,
+      "required": 578,
+      "pass": true
+    },
+    {
+      "viewport": 700,
+      "check": "teacher quota: full numeric row after large-count fallback",
+      "available": 252,
+      "required": 140,
+      "pass": true
+    },
+    {
+      "viewport": 700,
+      "check": "rating chart: compact three-column legend at ten digits",
+      "available": 279,
+      "required": 245,
+      "pass": true
+    },
+    {
+      "viewport": 768,
+      "check": "store-create: both three-column form minimums",
+      "available": 682,
+      "required": 614,
+      "pass": true
+    },
+    {
+      "viewport": 768,
+      "check": "order-detail: reviewed information columns",
+      "available": 678,
+      "required": 578,
+      "pass": true
+    },
+    {
+      "viewport": 768,
+      "check": "teacher quota: full numeric row after large-count fallback",
+      "available": 286,
+      "required": 140,
+      "pass": true
+    },
+    {
+      "viewport": 768,
+      "check": "rating chart: compact three-column legend at ten digits",
+      "available": 313,
+      "required": 245,
+      "pass": true
+    },
+    {
+      "viewport": 820,
+      "check": "store-create: both three-column form minimums",
+      "available": 734,
+      "required": 614,
+      "pass": true
+    },
+    {
+      "viewport": 820,
+      "check": "order-detail: reviewed information columns",
+      "available": 730,
+      "required": 578,
+      "pass": true
+    },
+    {
+      "viewport": 820,
+      "check": "teacher quota: full numeric row after large-count fallback",
+      "available": 312,
+      "required": 140,
+      "pass": true
+    },
+    {
+      "viewport": 820,
+      "check": "rating chart: compact three-column legend at ten digits",
+      "available": 339,
+      "required": 245,
+      "pass": true
+    },
+    {
+      "viewport": 1024,
+      "check": "store-create: both three-column form minimums",
+      "available": 938,
+      "required": 614,
+      "pass": true
+    },
+    {
+      "viewport": 1024,
+      "check": "order-detail: reviewed information columns",
+      "available": 934,
+      "required": 578,
+      "pass": true
+    },
+    {
+      "viewport": 1024,
+      "check": "teacher quota: full numeric row after large-count fallback",
+      "available": 414,
+      "required": 140,
+      "pass": true
+    },
+    {
+      "viewport": 1024,
+      "check": "rating chart: compact three-column legend at ten digits",
+      "available": 441,
+      "required": 245,
+      "pass": true
+    },
+    {
+      "viewport": 1366,
+      "check": "store-create: both three-column form minimums",
+      "available": 1082,
+      "required": 614,
+      "pass": true
+    },
+    {
+      "viewport": 1366,
+      "check": "order-detail: reviewed information columns",
+      "available": 1078,
+      "required": 578,
+      "pass": true
+    },
+    {
+      "viewport": 1366,
+      "check": "teacher quota: full numeric row after large-count fallback",
+      "available": 561.5,
+      "required": 140,
+      "pass": true
+    },
+    {
+      "viewport": 1366,
+      "check": "rating chart: compact three-column legend at ten digits",
+      "available": 513,
+      "required": 245,
+      "pass": true
+    }
+  ]
+}

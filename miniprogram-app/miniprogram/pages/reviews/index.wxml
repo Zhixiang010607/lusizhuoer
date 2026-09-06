@@ -8,8 +8,8 @@
     </view>
     <view class="review-filter-grid">
       <block wx:if="{{mode === 'filters'}}">
-        <label class="field"><text class="field-label">门店范围</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="chooseStore"><view class="picker">{{storeLabels[storeIndex]}}</view></picker></label>
-        <label class="field"><text class="field-label">审核状态</text><picker range="{{statusLabels}}" value="{{statusIndex}}" bindchange="chooseStatus"><view class="picker">{{statusLabels[statusIndex]}}</view></picker></label>
+        <label class="field"><text class="field-label">门店范围</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="chooseStore"><view class="picker"><text class="picker-value">{{storeLabels[storeIndex]}}</text></view></picker></label>
+        <label class="field"><text class="field-label">审核状态</text><picker range="{{statusLabels}}" value="{{statusIndex}}" bindchange="chooseStatus"><view class="picker"><text class="picker-value">{{statusLabels[statusIndex]}}</text></view></picker></label>
       </block>
       <label wx:else class="field review-code-field"><text class="field-label">完整{{noun}}工单编号</text><input value="{{code}}" bindinput="inputCode" placeholder="输入完整工单编号" confirm-type="search" bindconfirm="runQuery" /></label>
       <view class="review-action-cell"><button class="primary" bindtap="runQuery" loading="{{loading}}" disabled="{{loading}}">开始查询</button></view>

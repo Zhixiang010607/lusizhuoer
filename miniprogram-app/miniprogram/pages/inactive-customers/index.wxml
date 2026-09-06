@@ -4,7 +4,7 @@
   <view class="card search-card">
     <view class="card-title"><text>查询条件</text><button class="rules-toggle" bindtap="toggleRules" aria-expanded="{{rulesExpanded}}"><text>规则说明</text><text>{{rulesExpanded ? '−' : '＋'}}</text></button></view>
     <view class="query-grid">
-      <label wx:if="{{session.role === 'hq'}}" class="field"><text class="field-label">门店范围</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="chooseStore" disabled="{{loading || exporting}}"><view class="picker">{{storeLabels[storeIndex]}}</view></picker></label>
+      <label wx:if="{{session.role === 'hq'}}" class="field"><text class="field-label">门店范围</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="chooseStore" disabled="{{loading || exporting}}"><view class="picker"><text class="picker-value">{{storeLabels[storeIndex]}}</text></view></picker></label>
       <label class="field {{session.role === 'store' ? 'query-wide' : ''}}"><text class="field-label">核销间隔至少多少天</text><input class="input" type="number" maxlength="4" placeholder="例如：30" value="{{minimumDays}}" bindinput="inputMinimumDays" disabled="{{loading || exporting}}" /></label>
     </view>
 
@@ -12,7 +12,7 @@
     <view class="button-row"><button class="primary" bindtap="search" loading="{{loading}}" disabled="{{loading || exporting}}">开始查询</button></view>
   </view>
 
-  <view wx:if="{{searched}}" class="summary-grid">
+  <view wx:if="{{searched}}" class="summary-grid {{summary.selectedTotal >= 10000000 ? 'compact-counts' : ''}}">
     <view><text>匹配客户</text><text class="summary-value">{{summary.selectedTotal || 0}}</text></view>
     <view><text>全部项目为 0</text><text class="summary-value">{{summary.zeroBalanceCustomers || 0}}</text></view>
     <view><text>任意项目非 0</text><text class="summary-value">{{summary.nonzeroBalanceCustomers || 0}}</text></view>

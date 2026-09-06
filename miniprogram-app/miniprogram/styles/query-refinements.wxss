@@ -33,3 +33,9 @@
   .refined-query .section-title > view > text:first-child { font-size: 16px; }
   .refined-query .compact-empty { min-height: 0; margin-top: 0; padding: 14px 0 4px; }
 }
+
+.refined-query .summary-grid.large-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 700px) { .refined-query .summary-grid.large-counts { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+.refined-query .summary-grid.compact-counts .summary-value { font-size: 26rpx; }
+@media (min-width: 700px) { .refined-query .summary-grid.compact-counts .summary-value { font-size: 22px; } }
