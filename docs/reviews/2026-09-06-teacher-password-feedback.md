@@ -11,4 +11,4 @@
 - [提示效果](assets/teacher-password-feedback/password-requirement.png)
 - [原生检查结果](assets/teacher-password-feedback/native-checks.json)
 
-此次只改小程序老师创建表单的反馈与显隐，不涉及数据库、云函数、旧 Web 客户端或此前报告中的创建超时恢复风险。无需执行 SQL。发布状态见后续小程序版本记录。
+此次只改小程序老师创建表单的反馈与显隐，不涉及数据库、云函数、旧 Web 客户端或此前报告中的创建超时恢复风险。无需执行 SQL。本次修复已随 [0.2.67](../../miniprogram-app/releases/0.2.67.md) 成功上传微信开发版本；尚未进行手机端验收、提交审核或正式发布。
