@@ -77,7 +77,10 @@ function harness({ tokenLag = false, sessionFailures = 0, currentUid = uid, empt
     },
     async refreshSession() { events.push("refresh"); functionUid = currentUid; },
     async getAccessToken() { return { accessToken: "fixture-token" }; },
-    async getCurrentUser() { return { uid: currentUid }; }
+    async getCurrentUser(refresh) {
+      events.push(refresh ? "forceUserProfileRead" : "readSynchronizedUser");
+      return { uid: currentUid };
+    }
   };
   const sessionSandbox = {
     module: { exports: {} }, exports: {}, Date, setTimeout,
@@ -124,6 +127,10 @@ for (const tokenLag of [false, true]) {
     assert.equal(session.role, "teacher");
     assert.equal(h.events.filter((event) => event === "createAuth").length, 1);
     assert.equal(h.events.filter((event) => event === "passwordLogin").length, 1);
+    assert.equal(h.events.filter((event) => event === "refresh").length, 1);
+    assert.equal(h.events.includes("readSynchronizedUser"), true);
+    assert.equal(h.events.includes("forceUserProfileRead"), false,
+      "password login must not make a redundant profile request after SDK synchronization");
     assert.equal(JSON.stringify([...h.storage.values()]).includes(fixture.password), false);
   });
 }

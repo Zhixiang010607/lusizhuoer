@@ -58,7 +58,10 @@ async function stabilizeAuthenticatedIdentity(auth, authenticatedUid) {
 
   let currentUid = "";
   const readers = [
-    auth && typeof auth.getCurrentUser === "function" ? () => auth.getCurrentUser(true) : null,
+    // refreshSession has already synchronized the SDK credentials and user.
+    // Force-refreshing that user here adds another serial profile request.
+    // Read the SDK identity first; missing data still falls back to a refresh.
+    auth && typeof auth.getCurrentUser === "function" ? () => auth.getCurrentUser(false) : null,
     auth && typeof auth.getUserInfo === "function" ? () => auth.getUserInfo() : null
   ].filter(Boolean);
   for (const read of readers) {

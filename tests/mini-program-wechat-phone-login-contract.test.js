@@ -18,7 +18,7 @@ function plain(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function loadSession({ authError, authResult, staffErrorSequence = [], staffResult, storedSession } = {}) {
+function loadSession({ authError, authResult, staffErrorSequence = [], staffResult, storedSession, cachedUserMissing = false, fallbackUserUid = "staff-auth-uid" } = {}) {
   const storage = new Map();
   if (storedSession) storage.set(sessionKey, storedSession);
   const app = { globalData: { session: storedSession || null } };
@@ -28,6 +28,8 @@ function loadSession({ authError, authResult, staffErrorSequence = [], staffResu
     callStaffArgs: [],
     removedKeys: [],
     refreshSessionCalls: 0,
+    userReadModes: [],
+    fallbackUserReads: 0,
     signInArgs: [],
     signOutCalls: 0,
     storageWrites: []
@@ -50,8 +52,14 @@ function loadSession({ authError, authResult, staffErrorSequence = [], staffResu
     async getAccessToken() {
       return { accessToken: "test-token" };
     },
-    async getCurrentUser() {
+    async getCurrentUser(refresh) {
+      state.userReadModes.push(refresh);
+      if (cachedUserMissing) return null;
       return { uid: "staff-auth-uid" };
+    },
+    async getUserInfo() {
+      state.fallbackUserReads += 1;
+      return { uid: fallbackUserUid };
     }
   };
   const sandbox = {
@@ -135,6 +143,29 @@ test("WeChat phone login exchanges only phoneCode and resolves staff session by 
     "the pre-login sign-out prevents a stale SDK token from reaching staffAccount");
   assert.equal(state.refreshSessionCalls, 1,
     "phone login must refresh the SDK session before resolving the business identity");
+  assert.deepEqual(state.userReadModes, [false],
+    "after refreshing credentials, login must not force a second user-profile network read");
+  assert.equal(state.fallbackUserReads, 0, "a synchronized user must not trigger the fallback profile request");
+});
+
+test("a missing SDK user still refreshes the profile before resolving the staff identity", async () => {
+  const { api, state } = loadSession({ staffResult: activeStaff, cachedUserMissing: true });
+  const session = await api.wechatPhoneLogin("one-time-phone-code");
+  assert.equal(session.uid, activeStaff.uid);
+  assert.deepEqual(state.userReadModes, [false]);
+  assert.equal(state.fallbackUserReads, 1);
+  assert.deepEqual(state.callStaffArgs, [["session"]]);
+});
+
+test("a refreshed fallback belonging to another UID cannot reach the staff service", async () => {
+  const { api, state, storage } = loadSession({
+    staffResult: activeStaff, cachedUserMissing: true, fallbackUserUid: "different-sdk-identity"
+  });
+  await assert.rejects(api.wechatPhoneLogin("one-time-phone-code"), { code: "AUTH_IDENTITY_MISMATCH" });
+  assert.equal(state.fallbackUserReads, 1);
+  assert.deepEqual(state.callStaffArgs, []);
+  assert.equal(storage.has(sessionKey), false);
+  assert.equal(state.app.globalData.session, null);
 });
 
 test("WeChat phone login retries a transient stale-token staff session without rebinding the account", async () => {
@@ -151,6 +182,8 @@ test("WeChat phone login retries a transient stale-token staff session without r
     "only the UID-based public session action may be retried");
   assert.equal(state.refreshSessionCalls, 2,
     "the SDK session must be refreshed again after a transient stale-token response");
+  assert.deepEqual(state.userReadModes, [false, false],
+    "each retry must check the synchronized SDK identity without repeating a forced profile read");
   assert.deepEqual(state.signInArgs, [{ phoneCode: "one-time-phone-code" }],
     "a retry must not exchange or reuse the one-time phone code twice");
   assert.equal(state.signOutCalls, 1,
