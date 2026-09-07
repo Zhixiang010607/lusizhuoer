@@ -60,6 +60,7 @@ test("app exposes one startup promise and marks validation ready even when a sta
 function loadLogin(waitForStartupSession) {
   let definition;
   const launches = [];
+  const navigations = [];
   let passwordLogins = 0;
   vm.runInNewContext(read("pages", "login", "index.js"), {
     Page(value) { definition = value; },
@@ -75,11 +76,28 @@ function loadLogin(waitForStartupSession) {
       };
       throw new Error(`unexpected login dependency ${id}`);
     },
-    wx: { reLaunch({ url }) { launches.push(url); }, navigateTo() {} },
+    wx: { reLaunch({ url }) { launches.push(url); }, navigateTo(options) { navigations.push(options.url); options.complete?.(); }, showToast() {} },
     Promise, Number, String, encodeURIComponent
   }, { filename: "pages/login/index.js" });
-  return { page: pageInstance(definition), launches, passwordLoginCount: () => passwordLogins };
+  return { page: pageInstance(definition), launches, navigations, passwordLoginCount: () => passwordLogins };
 }
+
+test("public project browsing invalidates hidden login startup navigation without bypassing validation on return", async () => {
+  const validation = deferred();
+  const { page, launches, navigations, passwordLoginCount } = loadLogin(() => validation.promise);
+  const showing = page.onShow();
+  for (const project of ["ocean", "skin", "warmth"]) page.openProjectIntro({ currentTarget: { dataset: { project } } });
+  assert.deepEqual(navigations, ["ocean", "skin", "warmth"].map(key => `/pages/project-intro/index?project=${key}`));
+  for (const project of ["__proto__", "constructor", "../home/index", "skin&role=hq"]) page.openProjectIntro({ currentTarget: { dataset: { project } } });
+  assert.equal(navigations.length, 3, "only static public project keys are accepted");
+  assert.equal(passwordLoginCount(), 0, "reading public content must not trigger login");
+  page.onHide();
+  validation.resolve({ uid: "validated", role: "store", storeId: "7" });
+  await showing;
+  assert.deepEqual(launches, [], "hidden login must not interrupt the introduction with a late redirect");
+  await page.onShow();
+  assert.deepEqual(launches, ["/pages/home/index"], "returning to login still follows the validated startup session");
+});
 
 test("login never routes a stale cached identity before authoritative startup validation", async () => {
   const validation = deferred();

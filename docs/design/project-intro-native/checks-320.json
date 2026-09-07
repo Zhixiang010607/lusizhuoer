@@ -1,0 +1,254 @@
+{
+  "results": [
+    {
+      "key": "ocean",
+      "viewport": [
+        320,
+        568
+      ],
+      "chapters": [
+        0,
+        1,
+        2,
+        1,
+        0
+      ],
+      "compact": true,
+      "bounds": {
+        ".intro-toolbar:0": {
+          "left": 0,
+          "top": 0,
+          "width": 320,
+          "height": 52
+        },
+        ".hero-copy:0": {
+          "left": 0,
+          "top": 52,
+          "width": 320,
+          "height": 196.390625
+        },
+        ".hero-art:0": {
+          "left": 0,
+          "top": 201,
+          "width": 320,
+          "height": 351
+        },
+        ".hero-bottom:0": {
+          "left": 26,
+          "top": 536,
+          "width": 268,
+          "height": 44
+        },
+        ".editorial:0": {
+          "left": 0,
+          "top": 592,
+          "width": 320,
+          "height": 345.1875
+        },
+        ".editorial:1": {
+          "left": 0,
+          "top": 1517.1875,
+          "width": 320,
+          "height": 697.015625
+        },
+        ".story-stage:0": {
+          "left": 0,
+          "top": 937.1875,
+          "width": 320,
+          "height": 580
+        },
+        ".diagram:0": {
+          "left": 22,
+          "top": 991.6875,
+          "width": 276,
+          "height": 210
+        },
+        ".step-copy:0": {
+          "left": 22,
+          "top": 1225.6875,
+          "width": 276,
+          "height": 170
+        },
+        ".chapter-controls:0": {
+          "left": 22,
+          "top": 1434.1875,
+          "width": 276,
+          "height": 61
+        },
+        ".intro-footer:0": {
+          "left": 0,
+          "top": 2214.203125,
+          "width": 320,
+          "height": 327
+        }
+      }
+    },
+    {
+      "key": "skin",
+      "viewport": [
+        320,
+        568
+      ],
+      "chapters": [
+        0,
+        1,
+        2,
+        1,
+        0
+      ],
+      "compact": true,
+      "bounds": {
+        ".intro-toolbar:0": {
+          "left": 0,
+          "top": 0,
+          "width": 320,
+          "height": 52
+        },
+        ".hero-copy:0": {
+          "left": 0,
+          "top": 52,
+          "width": 320,
+          "height": 196.390625
+        },
+        ".hero-art:0": {
+          "left": 0,
+          "top": 201,
+          "width": 320,
+          "height": 351
+        },
+        ".hero-bottom:0": {
+          "left": 26,
+          "top": 536,
+          "width": 268,
+          "height": 44
+        },
+        ".editorial:0": {
+          "left": 0,
+          "top": 592,
+          "width": 320,
+          "height": 345.1875
+        },
+        ".editorial:1": {
+          "left": 0,
+          "top": 1517.1875,
+          "width": 320,
+          "height": 669.71875
+        },
+        ".story-stage:0": {
+          "left": 0,
+          "top": 937.1875,
+          "width": 320,
+          "height": 580
+        },
+        ".diagram:0": {
+          "left": 22,
+          "top": 991.6875,
+          "width": 276,
+          "height": 210
+        },
+        ".step-copy:0": {
+          "left": 22,
+          "top": 1225.6875,
+          "width": 276,
+          "height": 170
+        },
+        ".chapter-controls:0": {
+          "left": 22,
+          "top": 1434.1875,
+          "width": 276,
+          "height": 61
+        },
+        ".intro-footer:0": {
+          "left": 0,
+          "top": 2186.90625,
+          "width": 320,
+          "height": 327
+        }
+      }
+    },
+    {
+      "key": "warmth",
+      "viewport": [
+        320,
+        568
+      ],
+      "chapters": [
+        0,
+        1,
+        2,
+        1,
+        0
+      ],
+      "compact": true,
+      "bounds": {
+        ".intro-toolbar:0": {
+          "left": 0,
+          "top": 0,
+          "width": 320,
+          "height": 52
+        },
+        ".hero-copy:0": {
+          "left": 0,
+          "top": 52,
+          "width": 320,
+          "height": 196.390625
+        },
+        ".hero-art:0": {
+          "left": 0,
+          "top": 201,
+          "width": 320,
+          "height": 351
+        },
+        ".hero-bottom:0": {
+          "left": 26,
+          "top": 536,
+          "width": 268,
+          "height": 44
+        },
+        ".editorial:0": {
+          "left": 0,
+          "top": 592,
+          "width": 320,
+          "height": 372.484375
+        },
+        ".editorial:1": {
+          "left": 0,
+          "top": 1544.484375,
+          "width": 320,
+          "height": 682.7734375
+        },
+        ".story-stage:0": {
+          "left": 0,
+          "top": 964.484375,
+          "width": 320,
+          "height": 580
+        },
+        ".diagram:0": {
+          "left": 22,
+          "top": 1018.984375,
+          "width": 276,
+          "height": 210
+        },
+        ".step-copy:0": {
+          "left": 22,
+          "top": 1252.984375,
+          "width": 276,
+          "height": 170
+        },
+        ".chapter-controls:0": {
+          "left": 22,
+          "top": 1461.484375,
+          "width": 276,
+          "height": 61
+        },
+        ".intro-footer:0": {
+          "left": 0,
+          "top": 2227.2578125,
+          "width": 320,
+          "height": 327
+        }
+      }
+    }
+  ],
+  "errors": []
+}

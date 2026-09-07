@@ -12,7 +12,19 @@ Page({
     this.setData({ startupChecking: false });
     if (session) wx.reLaunch({ url: "/pages/home/index" });
   },
+  onHide() { this._startupEpoch = Number(this._startupEpoch || 0) + 1; },
   onUnload() { this._startupEpoch = Number(this._startupEpoch || 0) + 1; },
+  openProjectIntro(event) {
+    if (this.data.busy || this._openingProject) return;
+    const project = event && event.currentTarget && event.currentTarget.dataset.project;
+    if (!["ocean", "skin", "warmth"].includes(project)) return;
+    this._openingProject = true;
+    wx.navigateTo({
+      url: `/pages/project-intro/index?project=${project}`,
+      fail: () => wx.showToast({ title: "暂时无法打开，请重试", icon: "none" }),
+      complete: () => { this._openingProject = false; }
+    });
+  },
   inputPhone(event) { this.setData({ phone: event.detail.value }); },
   inputPassword(event) { this.setData({ password: event.detail.value }); },
   togglePassword() { this.setData({ passwordVisible: !this.data.passwordVisible }); },

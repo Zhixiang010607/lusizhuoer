@@ -1,0 +1,254 @@
+{
+  "results": [
+    {
+      "key": "ocean",
+      "viewport": [
+        768,
+        1024
+      ],
+      "chapters": [
+        0,
+        1,
+        2,
+        1,
+        0
+      ],
+      "compact": false,
+      "bounds": {
+        ".intro-toolbar:0": {
+          "left": 4,
+          "top": 0,
+          "width": 760,
+          "height": 52
+        },
+        ".hero-copy:0": {
+          "left": 4,
+          "top": 52,
+          "width": 760,
+          "height": 243.4921875
+        },
+        ".hero-art:0": {
+          "left": 4,
+          "top": 318,
+          "width": 760,
+          "height": 544
+        },
+        ".hero-bottom:0": {
+          "left": 30,
+          "top": 846,
+          "width": 708,
+          "height": 44
+        },
+        ".editorial:0": {
+          "left": 4,
+          "top": 902,
+          "width": 760,
+          "height": 387.078125
+        },
+        ".editorial:1": {
+          "left": 4,
+          "top": 3669.078125,
+          "width": 760,
+          "height": 711.609375
+        },
+        ".story-stage:0": {
+          "left": 4,
+          "top": 1289.078125,
+          "width": 760,
+          "height": 700
+        },
+        ".diagram:0": {
+          "left": 194,
+          "top": 1347.578125,
+          "width": 380,
+          "height": 285
+        },
+        ".step-copy:0": {
+          "left": 84,
+          "top": 1656.578125,
+          "width": 600,
+          "height": 135
+        },
+        ".chapter-controls:0": {
+          "left": 84,
+          "top": 1896.078125,
+          "width": 600,
+          "height": 61
+        },
+        ".intro-footer:0": {
+          "left": 4,
+          "top": 4380.6875,
+          "width": 760,
+          "height": 327
+        }
+      }
+    },
+    {
+      "key": "skin",
+      "viewport": [
+        768,
+        1024
+      ],
+      "chapters": [
+        0,
+        1,
+        2,
+        1,
+        0
+      ],
+      "compact": false,
+      "bounds": {
+        ".intro-toolbar:0": {
+          "left": 4,
+          "top": 0,
+          "width": 760,
+          "height": 52
+        },
+        ".hero-copy:0": {
+          "left": 4,
+          "top": 52,
+          "width": 760,
+          "height": 243.4921875
+        },
+        ".hero-art:0": {
+          "left": 4,
+          "top": 318,
+          "width": 760,
+          "height": 544
+        },
+        ".hero-bottom:0": {
+          "left": 30,
+          "top": 846,
+          "width": 708,
+          "height": 44
+        },
+        ".editorial:0": {
+          "left": 4,
+          "top": 902,
+          "width": 760,
+          "height": 355.8828125
+        },
+        ".editorial:1": {
+          "left": 4,
+          "top": 3637.8828125,
+          "width": 760,
+          "height": 711.609375
+        },
+        ".story-stage:0": {
+          "left": 4,
+          "top": 1257.8828125,
+          "width": 760,
+          "height": 700
+        },
+        ".diagram:0": {
+          "left": 194,
+          "top": 1316.3828125,
+          "width": 380,
+          "height": 285
+        },
+        ".step-copy:0": {
+          "left": 84,
+          "top": 1625.3828125,
+          "width": 600,
+          "height": 135
+        },
+        ".chapter-controls:0": {
+          "left": 84,
+          "top": 1864.8828125,
+          "width": 600,
+          "height": 61
+        },
+        ".intro-footer:0": {
+          "left": 4,
+          "top": 4349.4921875,
+          "width": 760,
+          "height": 327
+        }
+      }
+    },
+    {
+      "key": "warmth",
+      "viewport": [
+        768,
+        1024
+      ],
+      "chapters": [
+        0,
+        1,
+        2,
+        1,
+        0
+      ],
+      "compact": false,
+      "bounds": {
+        ".intro-toolbar:0": {
+          "left": 4,
+          "top": 0,
+          "width": 760,
+          "height": 52
+        },
+        ".hero-copy:0": {
+          "left": 4,
+          "top": 52,
+          "width": 760,
+          "height": 243.4921875
+        },
+        ".hero-art:0": {
+          "left": 4,
+          "top": 318,
+          "width": 760,
+          "height": 544
+        },
+        ".hero-bottom:0": {
+          "left": 30,
+          "top": 846,
+          "width": 708,
+          "height": 44
+        },
+        ".editorial:0": {
+          "left": 4,
+          "top": 902,
+          "width": 760,
+          "height": 387.078125
+        },
+        ".editorial:1": {
+          "left": 4,
+          "top": 3669.078125,
+          "width": 760,
+          "height": 693.46875
+        },
+        ".story-stage:0": {
+          "left": 4,
+          "top": 1289.078125,
+          "width": 760,
+          "height": 700
+        },
+        ".diagram:0": {
+          "left": 194,
+          "top": 1347.578125,
+          "width": 380,
+          "height": 285
+        },
+        ".step-copy:0": {
+          "left": 84,
+          "top": 1656.578125,
+          "width": 600,
+          "height": 135
+        },
+        ".chapter-controls:0": {
+          "left": 84,
+          "top": 1896.078125,
+          "width": 600,
+          "height": 61
+        },
+        ".intro-footer:0": {
+          "left": 4,
+          "top": 4362.546875,
+          "width": 760,
+          "height": 327
+        }
+      }
+    }
+  ],
+  "errors": []
+}

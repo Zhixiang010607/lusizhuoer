@@ -1,0 +1,75 @@
+<view id="intro-content" class="intro-page {{motion ? '' : 'motion-off'}} {{compact ? 'compact' : ''}}">
+  <view class="intro-toolbar">
+    <button class="intro-back" bindtap="returnToLogin">‹ 返回登录</button>
+    <text class="toolbar-name">{{project.name || '项目介绍'}}</text>
+    <button wx:if="{{project}}" class="motion-control" bindtap="toggleMotion" aria-label="{{motion ? '关闭动态效果' : '开启动态效果'}}">{{motion ? '关闭动效' : '开启动效'}}</button>
+    <view class="reading-track" aria-hidden="true"><view style="width:{{reading}}%;"></view></view>
+  </view>
+  <view wx:if="{{unavailable}}" class="intro-unavailable"><text>暂未找到这个项目</text><text>请返回登录页重新选择。</text><button bindtap="returnToLogin">返回登录</button></view>
+  <block wx:if="{{project}}">
+    <view class="intro-hero">
+      <view class="hero-copy">
+        <text class="intro-eyebrow">露思卓儿 · {{project.category}}</text>
+        <text class="hero-name">{{project.name}}</text>
+        <text class="hero-headline">{{project.headline}}</text>
+        <text class="hero-device">{{project.device}}</text>
+      </view>
+      <view class="hero-art {{heroFailed ? 'hero-fallback' : ''}}" style="{{heroStyle}}" aria-hidden="true">
+        <image wx:if="{{project.key === 'skin' && !heroFailed}}" src="/pages/project-intro/assets/skin-hero.jpg" mode="aspectFill" binderror="heroError" />
+        <image wx:if="{{project.key === 'warmth' && !heroFailed}}" src="/pages/project-intro/assets/warmth-hero.jpg" mode="aspectFill" binderror="heroError" />
+        <image wx:if="{{project.key === 'ocean' && !heroFailed}}" src="/pages/project-intro/assets/ocean-hero.jpg" mode="aspectFill" binderror="heroError" />
+        <view wx:if="{{heroFailed}}" class="fallback-pearl"></view>
+      </view>
+      <view class="hero-bottom"><text>{{project.keywords}}</text><button bindtap="explore">向下探索 ↓</button></view>
+    </view>
+    <view id="intro-concept" class="editorial concept">
+      <text class="intro-eyebrow">{{project.introLabel}}</text>
+      <text class="editorial-title">{{project.introTitle}}</text>
+      <text class="editorial-body">{{project.introduction}}</text>
+    </view>
+    <view id="intro-story" class="intro-story" style="{{compact ? '' : 'height:' + storyHeight + 'px;'}}">
+      <view class="story-stage" style="{{compact ? '' : 'height:' + stageHeight + 'px;'}}">
+        <view class="story-heading"><text>{{project.storyLabel}}</text><text>0{{chapter + 1}} / 03</text></view>
+        <view class="diagram {{project.key}}-diagram" aria-hidden="true">
+          <view wx:if="{{project.key === 'skin'}}" class="layer-scene">
+            <view class="layer-shadow"></view>
+            <view class="layer-carrier layer-bottom" style="{{layerThree}}"><view class="care-layer"></view></view>
+            <view class="layer-carrier layer-middle" style="{{layerTwo}}"><view class="care-layer"></view></view>
+            <view class="layer-carrier layer-top" style="{{layerOne}}"><view class="care-layer"></view></view>
+          </view>
+          <view wx:elif="{{project.key === 'warmth'}}" class="energy-scene">
+            <view class="heat-glow" style="{{glowStyle}}"></view>
+            <view class="magnetic-rings" style="{{ringStyle}}"><view></view><view></view><view></view></view>
+            <view class="energy-pearl"></view>
+            <view class="pulse" style="{{pulseStyle}}"><view></view><view></view><view></view><view></view><view></view><view></view></view>
+          </view>
+          <view wx:else class="contour-scene" style="{{ringStyle}}"><view class="contour contour-outer" style="{{layerOne}}"></view><view class="contour contour-middle"></view><view class="contour contour-inner" style="{{layerThree}}"></view><view class="contour-pearl"></view></view>
+        </view>
+        <view class="step-copy">
+          <view class="step-title"><text class="step-word">{{project.steps[chapter].word}}</text><text>{{project.steps[chapter].title}}</text></view>
+          <text class="step-description">{{project.steps[chapter].text}}</text>
+        </view>
+        <view class="chapter-controls">
+          <button wx:for="{{project.steps}}" wx:key="word" class="chapter-button {{chapter === index ? 'selected' : ''}}" data-chapter="{{index}}" bindtap="selectChapter" aria-label="{{'第' + (index + 1) + '章 ' + item.title}}"><text>0{{index + 1}}</text><text>{{item.word}}</text></button>
+        </view>
+      </view>
+    </view>
+    <view class="editorial details">
+      <text class="intro-eyebrow">{{project.detailLabel}}</text>
+      <text class="editorial-title">{{project.detailTitle}}</text>
+      <text class="editorial-body">{{project.detailText}}</text>
+      <view class="detail-list {{project.key === 'warmth' ? 'six-details' : ''}}">
+        <view wx:for="{{project.details}}" wx:key="title" class="detail-item"><text class="detail-number">0{{index + 1}}</text><text class="detail-name">{{item.title}}</text><text wx:if="{{item.text}}" class="detail-description">{{item.text}}</text></view>
+      </view>
+    </view>
+    <view class="intro-footer">
+      <text class="intro-eyebrow">继续探索露思卓儿</text>
+      <button class="next-project" bindtap="openNext"><view><text>{{project.nextDevice}}</text><text>{{project.nextName}}</text></view><text>↗</text></button>
+      <button class="footer-back" bindtap="returnToLogin">返回登录</button>
+      <view id="intro-notice" class="intro-notice">
+        <button class="notice-toggle" bindtap="toggleNotice" aria-label="{{noticeOpen ? '收起体验须知' : '展开体验须知'}}" aria-expanded="{{noticeOpen}}"><text>体验须知</text><text>{{noticeOpen ? '−' : '+'}}</text></button>
+        <view wx:if="{{noticeOpen}}" class="notice-copy"><text>{{project.beforeText}}</text></view>
+      </view>
+    </view>
+  </block>
+</view>

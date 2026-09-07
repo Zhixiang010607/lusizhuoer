@@ -2,8 +2,7 @@
   <image class="login-background" src="/images/login/lusizhuoer-login-bg-v4.jpg" mode="aspectFill"></image>
   <view class="login-shade"></view>
   <view class="login-shell">
-    <view class="login-card">
-      <view class="login-identity">
+    <view class="login-identity">
         <view class="login-mark" aria-hidden="true">
           <view class="login-mark-reveal">
             <view class="login-mark-surface">
@@ -12,7 +11,8 @@
           </view>
         </view>
         <view class="login-brand"><text>露思卓儿</text></view>
-      </view>
+    </view>
+    <view class="login-card">
       <view class="login-heading"><text class="login-title">欢迎回来</text><text class="login-subtitle">登录账号，开始今天的工作</text></view>
       <label class="field">
         <text class="field-label">手机号</text>
@@ -29,6 +29,23 @@
       <button id="login-submit" class="primary login-button" bindtap="submit" loading="{{busy || startupChecking}}" disabled="{{busy || startupChecking}}">登录</button>
       <button id="login-wechat-phone" class="wechat-login" open-type="getPhoneNumber" bindgetphonenumber="submitWechatPhone" loading="{{busy || startupChecking}}" disabled="{{busy || startupChecking}}"><text>微信手机号登录</text></button>
       <view id="login-message" wx:if="{{message}}" class="message {{error ? 'error' : ''}}">{{message}}</view>
+    </view>
+    <view class="login-collection">
+      <view class="collection-heading"><text>探索露思卓儿</text><text>项目介绍</text></view>
+      <view class="project-entries">
+        <button class="project-entry" data-project="ocean" bindtap="openProjectIntro" aria-label="查看海洋之蕴项目介绍">
+          <view class="entry-art entry-ocean" aria-hidden="true"><view></view><view></view><view></view></view>
+          <text class="entry-name">海洋之蕴</text><text class="entry-note">探索项目 ↗</text>
+        </button>
+        <button class="project-entry" data-project="skin" bindtap="openProjectIntro" aria-label="查看魔法柔肤项目介绍">
+          <view class="entry-art entry-skin" aria-hidden="true"><view></view><view></view><view></view></view>
+          <text class="entry-name">魔法柔肤</text><text class="entry-note">探索项目 ↗</text>
+        </button>
+        <button class="project-entry" data-project="warmth" bindtap="openProjectIntro" aria-label="查看露思康辰项目介绍">
+          <view class="entry-art entry-warmth" aria-hidden="true"><view></view><view></view><view></view></view>
+          <text class="entry-name">露思康辰</text><text class="entry-note">探索项目 ↗</text>
+        </button>
+      </view>
     </view>
   </view>
 </view>
