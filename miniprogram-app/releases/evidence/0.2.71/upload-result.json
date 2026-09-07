@@ -30,16 +30,47 @@
       "error": "Error: Timeout",
       "qrGenerated": false,
       "packageReceiptGenerated": false
+    },
+    {
+      "tool": "Official WeChat Developer Tools CLI preview on isolated previously successful source",
+      "timeMinutes": "15:25–15:30",
+      "result": "client_timeout",
+      "errorCode": 10,
+      "error": "Error: Timeout",
+      "controlSourceCommit": "efb340b6f4114ef66d8e15c3b23b0a13d778dab1",
+      "trackedClientFilesMatched": 162,
+      "qrGenerated": false,
+      "packageReceiptGenerated": false
+    },
+    {
+      "tool": "Official WeChat Developer Tools CLI upload with native backend completion verification",
+      "startedAt": "2026-09-07T15:33:04+10:00",
+      "clientResult": "code 10 / Error: Timeout after about five minutes",
+      "backendCompletedAt": "2026-09-07T16:03:16+10:00",
+      "backendResult": "progressSuccess",
+      "backendCompileAndUploadMs": 1808795,
+      "compileAndPackageMs": 2299,
+      "temporaryUploadFileBytes": 4246718,
+      "versionArgument": "0.2.71",
+      "cliPackageReceiptGenerated": false,
+      "backendEvidence": "backend-upload-completion.log"
     }
   ],
-  "developmentVersionUploaded": false,
+  "developmentVersionUploaded": true,
   "experienceVersionUpdatedVerified": false,
   "submittedForReview": false,
   "formallyPublished": false,
-  "lastConfirmedUploadedVersion": "0.2.70",
+  "lastConfirmedUploadedVersion": "0.2.71",
   "phoneValidationCompleted": false,
   "sqlRequired": false,
   "cloudFunctionDeploymentRequired": false,
   "staticWebDeploymentRequired": false,
-  "nextDiagnostic": "Repeat on another network; upload timeout root cause not confirmed."
+  "nextDiagnostic": "Official automatic preview running; verify phone delivery separately.",
+  "developmentUploadEvidence": "Official upload task reached parseError, progressSuccess and reportNewRemoteDebug after the CLI response timeout.",
+  "cliSuccessLineReceived": false,
+  "serverVersionNumberReadBack": false,
+  "experienceSelectionObservedAfterUpload": true,
+  "experiencePrompt": "上次提交已被选为体验版，本次上传将会覆盖体验版，是否继续？",
+  "experienceVerificationBoundary": "The native tool reports that the latest submission is selected as the experience version; its exact version number and phone launch have not been independently read back.",
+  "proxyRestoredToOriginalSystemMode": true
 }
