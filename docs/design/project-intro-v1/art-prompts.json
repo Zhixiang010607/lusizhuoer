@@ -1,0 +1,16 @@
+{
+  "mode": "Built-in image_gen imagegen",
+  "date": "2026-09-07",
+  "purpose": "Private review prototype for Mini Program public project introductions",
+  "assets": [
+    {
+      "file": "assets/warmth-hero.webp",
+      "prompt": "Use case: stylized-concept. Asset type: luxury Chinese beauty and wellness brand mobile project introduction hero, original artwork. Create a premium photorealistic 3D still-life symbolizing warmth and measured rhythm: three graceful broad molten champagne-gold and translucent honey-glass ribbons flow together into one open sculptural wave, suspended slightly above a matte warm ivory seamless surface. Sculptural, tactile, elegant, restrained, premium industrial-design launch photography; precise crisp silhouettes and convincing refraction, thin highlight edges, soft realistic shadow, luminous ambient studio light. Slight low-angle macro composition, sculpture fills the central 75%, clean empty background all around. Palette strictly warm ivory #f3ede2, pale champagne, antique gold #a98243, small warm dark-brown reflections; no blue, green, pink, black background, or rainbow. Wide landscape approximately 3:2. This is an abstract art metaphor, NOT a real medical device or an anatomical diagram. No people, faces, real devices, letters, words, numbers, logos, icons, watermark, particles, electric lightning, lens flare or sparkling confetti. Fine museum-object detail, smooth intentional geometry, calm beauty house art direction."
+    },
+    {
+      "file": "assets/layers-hero.webp",
+      "prompt": "Use case: stylized-concept. Asset type: luxury Chinese beauty brand 13D skincare project mobile editorial hero, original artwork. Create a premium photorealistic 3D macro still life: three thin, softly undulating translucent champagne glass and pearlescent cream membranes floating in precise separated horizontal layers. A single perfectly clear golden-toned serum droplet suspended above the top layer. This is an abstract sculpture expressing layers of a skincare ritual, NOT a scientific skin diagram or demonstration of penetration. Layers are smooth rounded square sheets, delicately curved like satin, offset slightly, with crisp lustrous edges and realistic glass refraction. Place on a seamless pale warm ivory backdrop #f3ede2, subtle soft shadows. View from a slightly elevated three-quarter angle; central sculpture fills 75 percent of a wide 3:2 image with negative space at edges. Same quiet, refined industrial-design product launch photography, boutique beauty art direction. Palette restricted to warm ivory, pearl white, champagne gold #a98243 and tiny coffee-brown shadows. No pink/blue/green, people, faces, anatomical tissue, medical apparatus, before-after comparisons, labels, words, letters, logos, watermark, glitter, stars, random spheres. High detail and sharp clean edges, no hazy bloom."
+    }
+  ],
+  "processing": "Generated originals retained at the tool output location; project copies resized to 1200px wide and encoded as WebP for the preview. No source PDF page or private customer photograph is embedded."
+}
