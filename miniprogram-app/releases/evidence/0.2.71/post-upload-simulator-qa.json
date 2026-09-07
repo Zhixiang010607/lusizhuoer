@@ -1,0 +1,24 @@
+{
+  "date": "2026-09-07",
+  "runtimeContentMatchesSourceCommit": "b69450d8c184a0858b43960bdf51330c332b8cc5",
+  "simulatorRefreshSucceeded": true,
+  "consoleErrorFilterAfterRefresh": "",
+  "screenshotsArePhysicalPhone": false,
+  "screenshotPixels": {
+    "width": 560,
+    "height": 1212
+  },
+  "nativeGuiChecks": [
+    "Login page shows the three project entry cards.",
+    "Ocean introduction opens and scrolls to its footer.",
+    "The enlarged footer return button returns to login.",
+    "Tapping the Ocean card from login opens the introduction.",
+    "The introduction header return link returns to login."
+  ],
+  "realAccountLoginPerformed": false,
+  "businessDataWritesPerformed": false,
+  "screenshots": [
+    "login-latest.jpg",
+    "ocean-footer-latest.jpg"
+  ]
+}

@@ -54,6 +54,18 @@
       "versionArgument": "0.2.71",
       "cliPackageReceiptGenerated": false,
       "backendEvidence": "backend-upload-completion.log"
+    },
+    {
+      "tool": "Official WeChat Developer Tools CLI auto-preview with native backend completion verification",
+      "startedAt": "2026-09-07T16:06:23+10:00",
+      "clientResult": "code 10 / Error: Timeout after about five minutes",
+      "backendCompletedAt": "2026-09-07T16:33:13.819+10:00",
+      "backendResult": "progressSuccess",
+      "backendCompileAndUploadMs": 1606917,
+      "compileAndPackageMs": 1159,
+      "backendEvidence": "backend-auto-preview-completion.log",
+      "cliPackageReceiptGenerated": false,
+      "qrGenerated": false
     }
   ],
   "developmentVersionUploaded": true,
@@ -65,12 +77,17 @@
   "sqlRequired": false,
   "cloudFunctionDeploymentRequired": false,
   "staticWebDeploymentRequired": false,
-  "nextDiagnostic": "Official automatic preview running; verify phone delivery separately.",
+  "nextDiagnostic": "Open the existing experience entry on the developer WeChat account and verify the displayed update; no further upload is required by this record.",
   "developmentUploadEvidence": "Official upload task reached parseError, progressSuccess and reportNewRemoteDebug after the CLI response timeout.",
   "cliSuccessLineReceived": false,
   "serverVersionNumberReadBack": false,
   "experienceSelectionObservedAfterUpload": true,
   "experiencePrompt": "上次提交已被选为体验版，本次上传将会覆盖体验版，是否继续？",
   "experienceVerificationBoundary": "The native tool reports that the latest submission is selected as the experience version; its exact version number and phone launch have not been independently read back.",
-  "proxyRestoredToOriginalSystemMode": true
+  "proxyRestoredToOriginalSystemMode": true,
+  "automaticPreviewBackendSucceeded": true,
+  "automaticPreviewBackendCompletedAt": "2026-09-07T16:33:13.819+10:00",
+  "automaticPreviewPhoneDeliveryConfirmed": false,
+  "freshScannablePreviewQrGenerated": false,
+  "automaticPreviewBoundary": "The official auto-preview upload reached its native backend success state. Phone receipt and the displayed version have not been independently observed; the CLI produced no package receipt or new QR file."
 }
