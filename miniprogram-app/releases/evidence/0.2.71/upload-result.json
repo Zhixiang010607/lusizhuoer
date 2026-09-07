@@ -1,0 +1,45 @@
+{
+  "date": "2026-09-07",
+  "timeZone": "Australia/Sydney",
+  "appId": "wxb053c1bd6c684d8b",
+  "version": "0.2.71",
+  "sourceCommit": "b69450d8c184a0858b43960bdf51330c332b8cc5",
+  "toolVersion": "2.02.2608040",
+  "buildNpmSucceeded": true,
+  "existingBuildWarning": "bson/lib/bson.cjs.js: Npm package entry file not found",
+  "sourceRegressionTestsPassed": 324,
+  "sourceNativeViewportChecks": [
+    "320x568",
+    "430x932"
+  ],
+  "loginSimulatorErrors": 0,
+  "loginSimulatorWarnings": 4,
+  "attempts": [
+    {
+      "tool": "Official WeChat Developer Tools native upload GUI",
+      "timeMinutes": "15:10–15:15",
+      "result": "failed",
+      "error": "Error: Timeout [2.02.2608040][darwin-arm64]",
+      "existingExperienceOverwritePromptObserved": true
+    },
+    {
+      "tool": "Official WeChat Developer Tools CLI preview",
+      "timeMinutes": "15:16–15:21",
+      "result": "failed",
+      "errorCode": 10,
+      "error": "Error: Timeout",
+      "qrGenerated": false,
+      "packageReceiptGenerated": false
+    }
+  ],
+  "developmentVersionUploaded": false,
+  "experienceVersionUpdatedVerified": false,
+  "submittedForReview": false,
+  "formallyPublished": false,
+  "lastConfirmedUploadedVersion": "0.2.70",
+  "phoneValidationCompleted": false,
+  "sqlRequired": false,
+  "cloudFunctionDeploymentRequired": false,
+  "staticWebDeploymentRequired": false,
+  "nextDiagnostic": "Repeat on another network; upload timeout root cause not confirmed."
+}
