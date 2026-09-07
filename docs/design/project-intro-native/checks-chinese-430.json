@@ -1,0 +1,262 @@
+{
+  "checkedSelectors": [
+    ".intro-toolbar",
+    ".hero-copy",
+    ".hero-bottom",
+    ".hero-bottom text",
+    ".editorial-title",
+    ".editorial-body",
+    ".story-stage",
+    ".step-copy",
+    ".step-title text",
+    ".step-description",
+    ".chapter-controls",
+    ".chapter-button",
+    ".chapter-button text",
+    ".detail-description",
+    ".footer-back"
+  ],
+  "projects": [
+    {
+      "key": "ocean",
+      "viewport": [
+        430,
+        932
+      ],
+      "compact": false,
+      "renderedCopyMatchesSource": true,
+      "checks": [
+        {
+          "chapter": 0,
+          "checkedElementCount": 18,
+          "horizontalOverflow": [],
+          "title": [],
+          "copy": {
+            "left": 28,
+            "top": 415.5,
+            "right": 402,
+            "bottom": 571.5,
+            "width": 374,
+            "height": 156
+          },
+          "chapterNavigation": {
+            "left": 28,
+            "top": 669,
+            "right": 402,
+            "bottom": 730,
+            "width": 374,
+            "height": 61
+          },
+          "copyOverlapsNavigation": false
+        },
+        {
+          "chapter": 1,
+          "checkedElementCount": 18,
+          "horizontalOverflow": [],
+          "title": [],
+          "copy": {
+            "left": 28,
+            "top": 415.5,
+            "right": 402,
+            "bottom": 571.5,
+            "width": 374,
+            "height": 156
+          },
+          "chapterNavigation": {
+            "left": 28,
+            "top": 669,
+            "right": 402,
+            "bottom": 730,
+            "width": 374,
+            "height": 61
+          },
+          "copyOverlapsNavigation": false
+        },
+        {
+          "chapter": 2,
+          "checkedElementCount": 18,
+          "horizontalOverflow": [],
+          "title": [],
+          "copy": {
+            "left": 28,
+            "top": 415.5,
+            "right": 402,
+            "bottom": 571.67,
+            "width": 374,
+            "height": 156.17
+          },
+          "chapterNavigation": {
+            "left": 28,
+            "top": 669,
+            "right": 402,
+            "bottom": 730,
+            "width": 374,
+            "height": 61
+          },
+          "copyOverlapsNavigation": false
+        }
+      ]
+    },
+    {
+      "key": "skin",
+      "viewport": [
+        430,
+        932
+      ],
+      "compact": false,
+      "renderedCopyMatchesSource": true,
+      "checks": [
+        {
+          "chapter": 0,
+          "checkedElementCount": 18,
+          "horizontalOverflow": [],
+          "title": [],
+          "copy": {
+            "left": 28,
+            "top": 415.5,
+            "right": 402,
+            "bottom": 571.5,
+            "width": 374,
+            "height": 156
+          },
+          "chapterNavigation": {
+            "left": 28,
+            "top": 669,
+            "right": 402,
+            "bottom": 730,
+            "width": 374,
+            "height": 61
+          },
+          "copyOverlapsNavigation": false
+        },
+        {
+          "chapter": 1,
+          "checkedElementCount": 18,
+          "horizontalOverflow": [],
+          "title": [],
+          "copy": {
+            "left": 28,
+            "top": 415.5,
+            "right": 402,
+            "bottom": 571.5,
+            "width": 374,
+            "height": 156
+          },
+          "chapterNavigation": {
+            "left": 28,
+            "top": 669,
+            "right": 402,
+            "bottom": 730,
+            "width": 374,
+            "height": 61
+          },
+          "copyOverlapsNavigation": false
+        },
+        {
+          "chapter": 2,
+          "checkedElementCount": 18,
+          "horizontalOverflow": [],
+          "title": [],
+          "copy": {
+            "left": 28,
+            "top": 415.5,
+            "right": 402,
+            "bottom": 571.5,
+            "width": 374,
+            "height": 156
+          },
+          "chapterNavigation": {
+            "left": 28,
+            "top": 669,
+            "right": 402,
+            "bottom": 730,
+            "width": 374,
+            "height": 61
+          },
+          "copyOverlapsNavigation": false
+        }
+      ]
+    },
+    {
+      "key": "warmth",
+      "viewport": [
+        430,
+        932
+      ],
+      "compact": false,
+      "renderedCopyMatchesSource": true,
+      "checks": [
+        {
+          "chapter": 0,
+          "checkedElementCount": 21,
+          "horizontalOverflow": [],
+          "title": [],
+          "copy": {
+            "left": 28,
+            "top": 415.5,
+            "right": 402,
+            "bottom": 571.5,
+            "width": 374,
+            "height": 156
+          },
+          "chapterNavigation": {
+            "left": 28,
+            "top": 669,
+            "right": 402,
+            "bottom": 730,
+            "width": 374,
+            "height": 61
+          },
+          "copyOverlapsNavigation": false
+        },
+        {
+          "chapter": 1,
+          "checkedElementCount": 21,
+          "horizontalOverflow": [],
+          "title": [],
+          "copy": {
+            "left": 28,
+            "top": 415.5,
+            "right": 402,
+            "bottom": 571.5,
+            "width": 374,
+            "height": 156
+          },
+          "chapterNavigation": {
+            "left": 28,
+            "top": 669,
+            "right": 402,
+            "bottom": 730,
+            "width": 374,
+            "height": 61
+          },
+          "copyOverlapsNavigation": false
+        },
+        {
+          "chapter": 2,
+          "checkedElementCount": 21,
+          "horizontalOverflow": [],
+          "title": [],
+          "copy": {
+            "left": 28,
+            "top": 415.5,
+            "right": 402,
+            "bottom": 571.5,
+            "width": 374,
+            "height": 156
+          },
+          "chapterNavigation": {
+            "left": 28,
+            "top": 669,
+            "right": 402,
+            "bottom": 730,
+            "width": 374,
+            "height": 61
+          },
+          "copyOverlapsNavigation": false
+        }
+      ]
+    }
+  ],
+  "runtimeErrors": []
+}

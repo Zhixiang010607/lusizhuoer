@@ -1,0 +1,262 @@
+{
+  "checkedSelectors": [
+    ".intro-toolbar",
+    ".hero-copy",
+    ".hero-bottom",
+    ".hero-bottom text",
+    ".editorial-title",
+    ".editorial-body",
+    ".story-stage",
+    ".step-copy",
+    ".step-title text",
+    ".step-description",
+    ".chapter-controls",
+    ".chapter-button",
+    ".chapter-button text",
+    ".detail-description",
+    ".footer-back"
+  ],
+  "projects": [
+    {
+      "key": "ocean",
+      "viewport": [
+        320,
+        568
+      ],
+      "compact": true,
+      "renderedCopyMatchesSource": true,
+      "checks": [
+        {
+          "chapter": 0,
+          "checkedElementCount": 18,
+          "horizontalOverflow": [],
+          "title": [],
+          "copy": {
+            "left": 22,
+            "top": 340.58,
+            "right": 298,
+            "bottom": 510.58,
+            "width": 276,
+            "height": 170
+          },
+          "chapterNavigation": {
+            "left": 22,
+            "top": 549.08,
+            "right": 298,
+            "bottom": 610.08,
+            "width": 276,
+            "height": 61
+          },
+          "copyOverlapsNavigation": false
+        },
+        {
+          "chapter": 1,
+          "checkedElementCount": 18,
+          "horizontalOverflow": [],
+          "title": [],
+          "copy": {
+            "left": 22,
+            "top": 340.58,
+            "right": 298,
+            "bottom": 510.58,
+            "width": 276,
+            "height": 170
+          },
+          "chapterNavigation": {
+            "left": 22,
+            "top": 549.08,
+            "right": 298,
+            "bottom": 610.08,
+            "width": 276,
+            "height": 61
+          },
+          "copyOverlapsNavigation": false
+        },
+        {
+          "chapter": 2,
+          "checkedElementCount": 18,
+          "horizontalOverflow": [],
+          "title": [],
+          "copy": {
+            "left": 22,
+            "top": 340.58,
+            "right": 298,
+            "bottom": 516.09,
+            "width": 276,
+            "height": 175.52
+          },
+          "chapterNavigation": {
+            "left": 22,
+            "top": 549.08,
+            "right": 298,
+            "bottom": 610.08,
+            "width": 276,
+            "height": 61
+          },
+          "copyOverlapsNavigation": false
+        }
+      ]
+    },
+    {
+      "key": "skin",
+      "viewport": [
+        320,
+        568
+      ],
+      "compact": true,
+      "renderedCopyMatchesSource": true,
+      "checks": [
+        {
+          "chapter": 0,
+          "checkedElementCount": 18,
+          "horizontalOverflow": [],
+          "title": [],
+          "copy": {
+            "left": 22,
+            "top": 340.58,
+            "right": 298,
+            "bottom": 510.58,
+            "width": 276,
+            "height": 170
+          },
+          "chapterNavigation": {
+            "left": 22,
+            "top": 549.08,
+            "right": 298,
+            "bottom": 610.08,
+            "width": 276,
+            "height": 61
+          },
+          "copyOverlapsNavigation": false
+        },
+        {
+          "chapter": 1,
+          "checkedElementCount": 18,
+          "horizontalOverflow": [],
+          "title": [],
+          "copy": {
+            "left": 22,
+            "top": 340.58,
+            "right": 298,
+            "bottom": 510.58,
+            "width": 276,
+            "height": 170
+          },
+          "chapterNavigation": {
+            "left": 22,
+            "top": 549.08,
+            "right": 298,
+            "bottom": 610.08,
+            "width": 276,
+            "height": 61
+          },
+          "copyOverlapsNavigation": false
+        },
+        {
+          "chapter": 2,
+          "checkedElementCount": 18,
+          "horizontalOverflow": [],
+          "title": [],
+          "copy": {
+            "left": 22,
+            "top": 340.58,
+            "right": 298,
+            "bottom": 510.58,
+            "width": 276,
+            "height": 170
+          },
+          "chapterNavigation": {
+            "left": 22,
+            "top": 549.08,
+            "right": 298,
+            "bottom": 610.08,
+            "width": 276,
+            "height": 61
+          },
+          "copyOverlapsNavigation": false
+        }
+      ]
+    },
+    {
+      "key": "warmth",
+      "viewport": [
+        320,
+        568
+      ],
+      "compact": true,
+      "renderedCopyMatchesSource": true,
+      "checks": [
+        {
+          "chapter": 0,
+          "checkedElementCount": 21,
+          "horizontalOverflow": [],
+          "title": [],
+          "copy": {
+            "left": 22,
+            "top": 340.38,
+            "right": 298,
+            "bottom": 510.38,
+            "width": 276,
+            "height": 170
+          },
+          "chapterNavigation": {
+            "left": 22,
+            "top": 548.88,
+            "right": 298,
+            "bottom": 609.88,
+            "width": 276,
+            "height": 61
+          },
+          "copyOverlapsNavigation": false
+        },
+        {
+          "chapter": 1,
+          "checkedElementCount": 21,
+          "horizontalOverflow": [],
+          "title": [],
+          "copy": {
+            "left": 22,
+            "top": 340.38,
+            "right": 298,
+            "bottom": 510.38,
+            "width": 276,
+            "height": 170
+          },
+          "chapterNavigation": {
+            "left": 22,
+            "top": 548.88,
+            "right": 298,
+            "bottom": 609.88,
+            "width": 276,
+            "height": 61
+          },
+          "copyOverlapsNavigation": false
+        },
+        {
+          "chapter": 2,
+          "checkedElementCount": 21,
+          "horizontalOverflow": [],
+          "title": [],
+          "copy": {
+            "left": 22,
+            "top": 340.38,
+            "right": 298,
+            "bottom": 510.38,
+            "width": 276,
+            "height": 170
+          },
+          "chapterNavigation": {
+            "left": 22,
+            "top": 548.88,
+            "right": 298,
+            "bottom": 609.88,
+            "width": 276,
+            "height": 61
+          },
+          "copyOverlapsNavigation": false
+        }
+      ]
+    }
+  ],
+  "runtimeErrors": []
+}
