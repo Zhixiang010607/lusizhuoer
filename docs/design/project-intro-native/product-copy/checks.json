@@ -291,6 +291,9 @@
     "warmth-concept-430.jpg": "763e2572fae66b9f60ca74d09ce00bb9632a658a1a3d187b7937eb9d170e259e",
     "warmth-details-430.jpg": "38870f7f5c4c4b577913f4c09faaba7609f8433815d65a0c1d6414f259e2483d"
   },
-  "uploadedToWechat": false,
-  "physicalPhoneVerified": false
+  "uploadedToWechat": true,
+  "physicalPhoneVerified": false,
+  "uploadedVersion": "0.2.72",
+  "experienceAssociationObservedAfterUpload": true,
+  "experienceVersionNumberIndependentlyReadBack": false
 }
