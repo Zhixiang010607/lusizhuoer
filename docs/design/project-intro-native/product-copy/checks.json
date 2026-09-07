@@ -1,0 +1,296 @@
+{
+  "date": "2026-09-07",
+  "source": "miniprogram-app/miniprogram/pages/project-intro/content.js",
+  "sourceSha256": "0b8fd0c401b1cc3a8d0c9c8b6158c0473910856962e47ef9348f6635fbbc4e82",
+  "tool": "official WeChat DevTools automation and simulator screenshots",
+  "checks": [
+    {
+      "project": "skin",
+      "viewport": [
+        430,
+        932
+      ],
+      "chapter": 0,
+      "compact": false,
+      "sourceMatches": true,
+      "measuredElements": 18,
+      "horizontalOverflow": false,
+      "copyOverlapsTabs": false,
+      "heroFailed": false,
+      "noticeOpen": false
+    },
+    {
+      "project": "skin",
+      "viewport": [
+        430,
+        932
+      ],
+      "chapter": 1,
+      "compact": false,
+      "sourceMatches": true,
+      "measuredElements": 18,
+      "horizontalOverflow": false,
+      "copyOverlapsTabs": false,
+      "heroFailed": false,
+      "noticeOpen": false
+    },
+    {
+      "project": "skin",
+      "viewport": [
+        430,
+        932
+      ],
+      "chapter": 2,
+      "compact": false,
+      "sourceMatches": true,
+      "measuredElements": 18,
+      "horizontalOverflow": false,
+      "copyOverlapsTabs": false,
+      "heroFailed": false,
+      "noticeOpen": false
+    },
+    {
+      "project": "warmth",
+      "viewport": [
+        430,
+        932
+      ],
+      "chapter": 0,
+      "compact": false,
+      "sourceMatches": true,
+      "measuredElements": 21,
+      "horizontalOverflow": false,
+      "copyOverlapsTabs": false,
+      "heroFailed": false,
+      "noticeOpen": false
+    },
+    {
+      "project": "warmth",
+      "viewport": [
+        430,
+        932
+      ],
+      "chapter": 1,
+      "compact": false,
+      "sourceMatches": true,
+      "measuredElements": 21,
+      "horizontalOverflow": false,
+      "copyOverlapsTabs": false,
+      "heroFailed": false,
+      "noticeOpen": false
+    },
+    {
+      "project": "warmth",
+      "viewport": [
+        430,
+        932
+      ],
+      "chapter": 2,
+      "compact": false,
+      "sourceMatches": true,
+      "measuredElements": 21,
+      "horizontalOverflow": false,
+      "copyOverlapsTabs": false,
+      "heroFailed": false,
+      "noticeOpen": false
+    },
+    {
+      "project": "ocean",
+      "viewport": [
+        430,
+        932
+      ],
+      "chapter": 0,
+      "compact": false,
+      "sourceMatches": true,
+      "measuredElements": 18,
+      "horizontalOverflow": false,
+      "copyOverlapsTabs": false,
+      "heroFailed": false,
+      "noticeOpen": false
+    },
+    {
+      "project": "ocean",
+      "viewport": [
+        430,
+        932
+      ],
+      "chapter": 1,
+      "compact": false,
+      "sourceMatches": true,
+      "measuredElements": 18,
+      "horizontalOverflow": false,
+      "copyOverlapsTabs": false,
+      "heroFailed": false,
+      "noticeOpen": false
+    },
+    {
+      "project": "ocean",
+      "viewport": [
+        430,
+        932
+      ],
+      "chapter": 2,
+      "compact": false,
+      "sourceMatches": true,
+      "measuredElements": 18,
+      "horizontalOverflow": false,
+      "copyOverlapsTabs": false,
+      "heroFailed": false,
+      "noticeOpen": false
+    },
+    {
+      "project": "ocean",
+      "viewport": [
+        320,
+        568
+      ],
+      "chapter": 0,
+      "compact": true,
+      "sourceMatches": true,
+      "measuredElements": 18,
+      "horizontalOverflow": false,
+      "copyOverlapsTabs": false,
+      "heroFailed": false,
+      "noticeOpen": false
+    },
+    {
+      "project": "ocean",
+      "viewport": [
+        320,
+        568
+      ],
+      "chapter": 1,
+      "compact": true,
+      "sourceMatches": true,
+      "measuredElements": 18,
+      "horizontalOverflow": false,
+      "copyOverlapsTabs": false,
+      "heroFailed": false,
+      "noticeOpen": false
+    },
+    {
+      "project": "ocean",
+      "viewport": [
+        320,
+        568
+      ],
+      "chapter": 2,
+      "compact": true,
+      "sourceMatches": true,
+      "measuredElements": 18,
+      "horizontalOverflow": false,
+      "copyOverlapsTabs": false,
+      "heroFailed": false,
+      "noticeOpen": false
+    },
+    {
+      "project": "skin",
+      "viewport": [
+        320,
+        568
+      ],
+      "chapter": 0,
+      "compact": true,
+      "sourceMatches": true,
+      "measuredElements": 18,
+      "horizontalOverflow": false,
+      "copyOverlapsTabs": false,
+      "heroFailed": false,
+      "noticeOpen": false
+    },
+    {
+      "project": "skin",
+      "viewport": [
+        320,
+        568
+      ],
+      "chapter": 1,
+      "compact": true,
+      "sourceMatches": true,
+      "measuredElements": 18,
+      "horizontalOverflow": false,
+      "copyOverlapsTabs": false,
+      "heroFailed": false,
+      "noticeOpen": false
+    },
+    {
+      "project": "skin",
+      "viewport": [
+        320,
+        568
+      ],
+      "chapter": 2,
+      "compact": true,
+      "sourceMatches": true,
+      "measuredElements": 18,
+      "horizontalOverflow": false,
+      "copyOverlapsTabs": false,
+      "heroFailed": false,
+      "noticeOpen": false
+    },
+    {
+      "project": "warmth",
+      "viewport": [
+        320,
+        568
+      ],
+      "chapter": 0,
+      "compact": true,
+      "sourceMatches": true,
+      "measuredElements": 21,
+      "horizontalOverflow": false,
+      "copyOverlapsTabs": false,
+      "heroFailed": false,
+      "noticeOpen": false
+    },
+    {
+      "project": "warmth",
+      "viewport": [
+        320,
+        568
+      ],
+      "chapter": 1,
+      "compact": true,
+      "sourceMatches": true,
+      "measuredElements": 21,
+      "horizontalOverflow": false,
+      "copyOverlapsTabs": false,
+      "heroFailed": false,
+      "noticeOpen": false
+    },
+    {
+      "project": "warmth",
+      "viewport": [
+        320,
+        568
+      ],
+      "chapter": 2,
+      "compact": true,
+      "sourceMatches": true,
+      "measuredElements": 21,
+      "horizontalOverflow": false,
+      "copyOverlapsTabs": false,
+      "heroFailed": false,
+      "noticeOpen": false
+    }
+  ],
+  "regression": {
+    "passed": 324,
+    "failed": 0
+  },
+  "screenshots": {
+    "ocean-chapter-2-320.jpg": "004bc7aee55b11600e5d00777dd518a4498ad0db8a02c2b37535574203b76770",
+    "ocean-concept-430.jpg": "691498c681a0247a1da06e6253935f6ef2aaaad141e978b54ca5f088fc6bff77",
+    "ocean-details-430.jpg": "b23eb4dbfb215ff039ec496888ee1da7145d0a466561adb999e0027ca0df7178",
+    "ocean-footer-320.jpg": "9c5644daeeb8cab40a2c937b43628a1c4e67059ad69d200afcc4fc1b28ba274b",
+    "skin-concept-320.jpg": "7ae47c717f16f9a5c1906b7b2d7fd91ba7268f0b5d22773764524f6b6f287d32",
+    "skin-concept-430.jpg": "1febab1eda595f2d64e6fd0dcda26f1aeda692518fec59a75b6c88305b141e2d",
+    "skin-details-430.jpg": "6f06a47a4b39e02a731fd2603d47e44cc044fe247ddc3638b7b83111b511918f",
+    "warmth-chapter-2-320.jpg": "90ef8856b54b0e8e2d2c0dbdee5fab7e06c064cb74b124f16b4809b0fa723bc3",
+    "warmth-concept-430.jpg": "763e2572fae66b9f60ca74d09ce00bb9632a658a1a3d187b7937eb9d170e259e",
+    "warmth-details-430.jpg": "38870f7f5c4c4b577913f4c09faaba7609f8433815d65a0c1d6414f259e2483d"
+  },
+  "uploadedToWechat": false,
+  "physicalPhoneVerified": false
+}
