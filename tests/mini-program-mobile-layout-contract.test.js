@@ -25,7 +25,7 @@ test("mini-program uses the shared mobile visual tokens and touch-sized controls
     "redundant action explanations should stay hidden");
 });
 
-test("mini-program login is concise and keeps both WeChat phone and password entry", () => {
+test("mini-program login is concise and keeps phone authorization and password entry", () => {
   const json = JSON.parse(read("miniprogram-app", "miniprogram", "pages", "login", "index.json"));
   const wxml = read("miniprogram-app", "miniprogram", "pages", "login", "index.wxml");
   const wxss = read("miniprogram-app", "miniprogram", "pages", "login", "index.wxss");
@@ -43,13 +43,15 @@ test("mini-program login is concise and keeps both WeChat phone and password ent
   assert.ok(fs.statSync(backgroundPath).size < 250 * 1024, "login background must stay below 250 KB for the mini-program package");
   assert.match(wxml, /class="login-brand"><text>露思卓儿<\/text><\/view>/,
     "the exact four-character wordmark must remain native WXML text");
-  assert.match(wxml, /class="login-card">[\s\S]*id="login-phone"[\s\S]*id="login-password"[\s\S]*id="login-submit"[\s\S]*id="login-wechat-phone"[\s\S]*id="login-message"/,
+  assert.match(wxml, /class="login-card">[\s\S]*id="login-phone"[\s\S]*id="login-password"[\s\S]*id="login-submit"[\s\S]*id="login-phone-quick"[\s\S]*id="login-message"/,
     "all login controls and feedback must stay inside the bounded form panel");
-  assert.doesNotMatch(wxml, /brand-rule|login-divider|登录系统|快捷登录/,
+  assert.doesNotMatch(wxml, /brand-rule|login-divider|登录系统/,
     "the login must not restore decorative or explanatory template copy");
   assert.doesNotMatch(wxml, /login-system-mark|海洋之韵/);
   assert.match(wxml, /open-type="getPhoneNumber"/);
-  assert.match(wxml, />\s*<text>微信手机号登录<\/text>\s*<\/button>/);
+  assert.match(wxml, />\s*<text>手机号快捷登录<\/text>\s*<\/button>/);
+  assert.doesNotMatch(wxml, />\s*<text>[^<]*(?:微信|WeChat)[^<]*<\/text>/i,
+    "visible phone authorization copy must not resemble an official WeChat login element");
   assert.match(wxml, /class="password-reset-row"><text class="password-reset-link" role="button" bindtap="openPasswordReset">修改密码<\/text><\/view>/);
   assert.match(wxml, /class="eye-icon \{\{passwordVisible \? 'visible' : ''\}\}"/);
   assert.doesNotMatch(wxml, /\{\{passwordVisible \? '隐藏' : '显示'\}\}/,
@@ -66,11 +68,11 @@ test("mini-program login is concise and keeps both WeChat phone and password ent
   for (const color of ["#f3ede2", "#87662f", "#675b4b", "#302a22", "#a98243"]) {
     assert.match(wxss, new RegExp(color, "i"), `login palette is missing ${color}`);
   }
-  assert.match(wxss, /\.wechat-login\s*\{[^}]*display:\s*flex[^}]*align-items:\s*center[^}]*justify-content:\s*center/s,
-    "the exact WeChat phone login wording must be centered in both axes");
-  assert.match(wxss, /\.wechat-login\s*\{[^}]*width:\s*100%\s*!important[^}]*min-width:\s*0[^}]*height:\s*96rpx[^}]*border-radius:\s*18rpx/s,
+  assert.match(wxss, /\.phone-quick-login\s*\{[^}]*display:\s*flex[^}]*align-items:\s*center[^}]*justify-content:\s*center/s,
+    "the phone quick login wording must be centered in both axes");
+  assert.match(wxss, /\.phone-quick-login\s*\{[^}]*width:\s*100%\s*!important[^}]*min-width:\s*0[^}]*height:\s*96rpx[^}]*border-radius:\s*18rpx/s,
     "both login methods must align to the same full-width form geometry");
-  assert.doesNotMatch(wxml, /alternate-line/, "WeChat phone login must not be squeezed between decorative divider lines");
+  assert.doesNotMatch(wxml, /alternate-line/, "phone quick login must not be squeezed between decorative divider lines");
   assert.match(wxml, /<view class="password-toggle" role="button"[^>]*bindtap="togglePassword">/,
     "the eye icon control must avoid the native button minimum width");
   assert.match(wxss, /\.password-toggle\s*\{[^}]*display:\s*flex[^}]*align-items:\s*center[^}]*justify-content:\s*center[^}]*width:\s*96rpx[^}]*height:\s*96rpx/s,

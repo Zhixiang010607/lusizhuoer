@@ -21,15 +21,15 @@ function authorizationFailureMessage(detail) {
   const suffix = diagnosticSuffix(detail);
 
   if (/user deny|user cancel|cancelled|canceled/.test(reason)) {
-    return "你已取消微信手机号授权；同意后才能使用微信手机号登录";
+    return "你已取消手机号授权；同意后才能使用手机号快捷登录";
   }
   if (/quota|balance|1400001|次数|额度/.test(reason)) {
-    return `微信手机号验证额度不可用，请管理员检查公众平台“付费管理 → 手机号快速验证组件”${suffix}`;
+    return `手机号验证额度不可用，请管理员检查公众平台“付费管理 → 手机号快速验证组件”${suffix}`;
   }
   if (/no permission|permission denied|api scope|not support|unsupported|not authorized|未认证|无权限/.test(reason)) {
-    return `当前小程序尚未取得微信手机号验证权限，请管理员检查微信认证、隐私保护指引和手机号能力${suffix}`;
+    return `当前小程序尚未取得手机号验证权限，请管理员检查主体认证、隐私保护指引和手机号能力${suffix}`;
   }
-  return `微信没有返回手机号授权码，请管理员根据下列信息检查微信平台配置${suffix}`;
+  return `平台没有返回手机号授权码，请管理员根据下列信息检查公众平台配置${suffix}`;
 }
 
 function parseErrorMessage(error) {
@@ -44,7 +44,7 @@ function parseErrorMessage(error) {
 }
 
 function loginFailureMessage(error) {
-  const message = parseErrorMessage(error) || "微信手机号登录失败";
+  const message = parseErrorMessage(error) || "手机号快捷登录失败";
   const code = String(error && (error.code || error.status || error.category) || "").trim();
   if (!code || message.includes(code)) return message;
   return `${message}（错误码 ${code.slice(0, 80)}）`;

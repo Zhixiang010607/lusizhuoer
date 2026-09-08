@@ -72,7 +72,7 @@ function loadLogin(waitForStartupSession) {
       };
       if (id === "../../services/wechat-phone") return {
         authorizationFailureMessage: () => "微信手机号授权失败",
-        loginFailureMessage: () => "微信手机号登录失败"
+        loginFailureMessage: () => "手机号快捷登录失败"
       };
       throw new Error(`unexpected login dependency ${id}`);
     },

@@ -187,12 +187,12 @@ async function passwordLogin(phoneValue, password) {
 
 async function wechatPhoneLogin(phoneCodeValue) {
   const phoneCode = String(phoneCodeValue || "").trim();
-  if (!phoneCode) throw new Error("请先同意使用微信绑定手机号");
+  if (!phoneCode) throw new Error("请先同意使用绑定手机号");
   const auth = getAuth();
   if (typeof auth.signInWithPhoneAuth !== "function") {
-    throw new Error("当前 CloudBase SDK 不支持微信手机号登录，请检查 npm 依赖版本");
+    throw new Error("当前认证组件不支持手机号快捷登录，请检查依赖版本");
   }
-  return signInAndFinish(auth, () => auth.signInWithPhoneAuth({ phoneCode }), "微信手机号登录失败");
+  return signInAndFinish(auth, () => auth.signInWithPhoneAuth({ phoneCode }), "手机号快捷登录失败");
 }
 
 function authData(result, fallback) {

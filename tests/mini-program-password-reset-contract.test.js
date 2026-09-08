@@ -23,7 +23,9 @@ test("mini-program keeps a safe self-service password reset from the login frame
   assert.match(loginJs, /\?phone=\$\{encodeURIComponent\(phone\)\}/,
     "a valid phone entered on login should be carried into the reset page");
   assert.match(loginWxml, /class="password-reset-row"><text class="password-reset-link" role="button" bindtap="openPasswordReset">修改密码<\/text><\/view>/);
-  assert.match(loginWxml, />\s*<text>微信手机号登录<\/text>\s*<\/button>/);
+  assert.match(loginWxml, />\s*<text>手机号快捷登录<\/text>\s*<\/button>/);
+  assert.doesNotMatch(loginWxml, />\s*<text>[^<]*(?:微信|WeChat)[^<]*<\/text>/i,
+    "visible phone authorization copy must not resemble an official WeChat login element");
   assert.match(resetWxml, /获取验证码/);
   assert.match(resetWxml, /class="reset-submit"[^>]*>\s*<text>保存新密码<\/text>\s*<\/button>/);
   assert.match(resetWxss, /\.code-field button\s*\{[^}]*width:\s*100%\s*!important[^}]*min-width:\s*0/s,

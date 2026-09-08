@@ -41,7 +41,7 @@ Page({
       this.setData({ message: authorizationFailureMessage(event && event.detail), error: true });
       return;
     }
-    this.setData({ busy: true, message: "正在验证微信手机号和业务身份…", error: false });
+    this.setData({ busy: true, message: "正在验证手机号和业务身份…", error: false });
     try {
       const session = await wechatPhoneLogin(phoneCode);
       this.setData({ password: "", message: `欢迎 ${session.staffName || "登录账号"}`, error: false });

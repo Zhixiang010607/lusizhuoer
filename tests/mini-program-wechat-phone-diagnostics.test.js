@@ -13,14 +13,14 @@ const diagnostics = require(path.resolve(
   "wechat-phone.js"
 ));
 
-test("WeChat phone authorization distinguishes denial from platform capability failures", () => {
+test("phone authorization distinguishes denial from platform capability failures", () => {
   assert.match(
     diagnostics.authorizationFailureMessage({ errMsg: "getPhoneNumber:fail user deny" }),
-    /取消微信手机号授权/
+    /取消手机号授权.*手机号快捷登录/
   );
   assert.match(
     diagnostics.authorizationFailureMessage({ errMsg: "getPhoneNumber:fail no permission", errno: 1001 }),
-    /尚未取得微信手机号验证权限.*错误码 1001/
+    /尚未取得手机号验证权限.*错误码 1001/
   );
   assert.match(
     diagnostics.authorizationFailureMessage({ errMsg: "getPhoneNumber:fail 1400001 quota exhausted" }),
@@ -28,7 +28,7 @@ test("WeChat phone authorization distinguishes denial from platform capability f
   );
 });
 
-test("WeChat phone diagnostics never echo the one-time phone code", () => {
+test("phone authorization diagnostics never echo the one-time phone code", () => {
   const oneTimeCode = "private-one-time-phone-code";
   const message = diagnostics.authorizationFailureMessage({
     code: oneTimeCode,
