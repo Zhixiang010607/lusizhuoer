@@ -14,3 +14,5 @@
 - 没有云函数、SQL、静态网页或数据库变更。
 
 原生检查截图保存在被 Git 忽略的 `output/login-phone-quick-0.2.73.jpg`，不包含手机号、密码或业务数据。
+
+整改源码 `ed9ec90e14aff7df5aee4e241aaa234c1d172d55` 已随小程序开发版本 **0.2.73** 上传。官方 CLI 在五分钟处返回客户端超时，但后台任务没有停止，并于悉尼时间 2026-09-08 15:04:17 依次记录 `parseError`、`progressSuccess` 和 `reportNewRemoteDebug`，总耗时 1,965,137 毫秒。没有 CLI 包体 JSON，不能虚构包体回执。平台重新审核和正式发布尚未执行。

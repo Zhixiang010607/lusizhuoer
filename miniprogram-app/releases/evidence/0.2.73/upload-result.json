@@ -1,0 +1,20 @@
+{
+  "version": "0.2.73",
+  "date": "2026-09-08",
+  "timeZone": "Australia/Sydney",
+  "sourceCommit": "ed9ec90e14aff7df5aee4e241aaa234c1d172d55",
+  "tool": "Official WeChat Developer Tools CLI",
+  "toolVersion": "2.02.2608040",
+  "clientResult": "code 10 / Timeout",
+  "backendCompletedAt": "2026-09-08T15:04:17.522+10:00",
+  "compileAndUploadMs": 1965137,
+  "backendSuccess": true,
+  "packageReceiptGenerated": false,
+  "testsPassed": 324,
+  "nativeLoginScreenshotChecked": true,
+  "submittedForReview": false,
+  "formallyPublished": false,
+  "sqlRequired": false,
+  "cloudFunctionDeploymentRequired": false,
+  "staticWebDeploymentRequired": false
+}
