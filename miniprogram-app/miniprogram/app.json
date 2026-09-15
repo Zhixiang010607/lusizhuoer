@@ -1,15 +1,16 @@
 {
   "pages": [
+    "pages/company-intro/index",
     "pages/login/index",
     "pages/password-reset/index",
     "pages/home/index",
     "pages/store-create/index",
-    "pages/store-detail/index",
-    "pages/teacher-create/index",
-    "pages/teacher-detail/index"
+    "pages/teacher-create/index"
   ],
   "subPackages": [
     { "root": "pages/project-intro", "pages": ["index"] },
+    { "root": "pages/store-detail", "pages": ["index"] },
+    { "root": "pages/teacher-detail", "pages": ["index"] },
     { "root": "pages/teacher-customers", "pages": ["index"] },
     { "root": "pages/product-management", "pages": ["index"] },
     { "root": "pages/product-create", "pages": ["index"] },

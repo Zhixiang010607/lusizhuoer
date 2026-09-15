@@ -109,16 +109,16 @@ Page({
       complete: () => { this._navigating = false; }
     });
   },
-  returnToLogin() {
+  returnToCompany() {
     if (this._navigating) return;
     this._navigating = true;
     const pages = getCurrentPages();
-    const loginIndex = pages.findIndex(page => page.route === "pages/login/index");
+    const companyIndex = pages.findIndex(page => page.route === "pages/company-intro/index");
     const options = {
       fail: () => wx.showToast({ title: "暂时无法返回，请重试", icon: "none" }),
       complete: () => { this._navigating = false; }
     };
-    if (loginIndex >= 0 && loginIndex < pages.length - 1) wx.navigateBack({ ...options, delta: pages.length - 1 - loginIndex });
-    else wx.reLaunch({ ...options, url: "/pages/login/index" });
+    if (companyIndex >= 0 && companyIndex < pages.length - 1) wx.navigateBack({ ...options, delta: pages.length - 1 - companyIndex });
+    else wx.reLaunch({ ...options, url: "/pages/company-intro/index" });
   }
 });

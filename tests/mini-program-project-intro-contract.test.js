@@ -8,7 +8,7 @@ const test = require("node:test");
 const directory = path.join(__dirname, "../miniprogram-app/miniprogram/pages/project-intro");
 const { getProject } = require(path.join(directory, "content.js"));
 
-function harness(height = 753, stack = [{ route: "pages/login/index" }, { route: "pages/project-intro/index" }]) {
+function harness(height = 753, stack = [{ route: "pages/company-intro/index" }, { route: "pages/project-intro/index" }]) {
   let definition;
   const pending = [], scrolls = [], navigation = [], patches = [];
   const windowInfo = { windowWidth: 390, windowHeight: height };
@@ -107,19 +107,19 @@ test("late measurement callbacks cannot mutate an unloaded introduction or overr
   assert.equal(patches.length, count);
 });
 
-test("project switching replaces its page and return preserves the original login route", () => {
+test("project switching replaces its page and return preserves the company home route", () => {
   const { page, navigation } = harness();
   page.onLoad({ project: "ocean" });
   page.openNext();
   assert.equal(navigation[0].method, "redirectTo");
   assert.equal(navigation[0].url, "/pages/project-intro/index?project=skin");
-  page.returnToLogin();
+  page.returnToCompany();
   assert.equal(navigation[1].method, "navigateBack");
   assert.equal(navigation[1].delta, 1);
   const direct = harness(753, [{ route: "pages/project-intro/index" }]);
-  direct.page.onLoad({ project: "ocean" }); direct.page.returnToLogin();
+  direct.page.onLoad({ project: "ocean" }); direct.page.returnToCompany();
   assert.equal(direct.navigation[0].method, "reLaunch");
-  assert.equal(direct.navigation[0].url, "/pages/login/index");
+  assert.equal(direct.navigation[0].url, "/pages/company-intro/index");
 });
 
 test("unknown routes and failed local images retain usable return and reading controls", () => {
@@ -127,7 +127,7 @@ test("unknown routes and failed local images retain usable return and reading co
   assert.equal(invalid.page.data.unavailable, true);
   assert.equal(invalid.pending.length, 0);
   invalid.page.openNext(); assert.equal(invalid.navigation.length, 0);
-  invalid.page.returnToLogin(); assert.equal(invalid.navigation[0].method, "navigateBack");
+  invalid.page.returnToCompany(); assert.equal(invalid.navigation[0].method, "navigateBack");
   const valid = harness(); valid.page.onLoad({ project: "ocean" }); valid.page.heroError();
   assert.equal(valid.page.data.heroFailed, true);
   assert.equal(valid.page.data.project.steps.length, 3);

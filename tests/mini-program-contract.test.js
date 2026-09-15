@@ -18,14 +18,14 @@ assert.match(read("services", "cloudbase.js"), /pnpm install --frozen-lockfile/)
 const app = JSON.parse(read("app.json"));
 assert.ok(!(app.requiredPrivateInfos || []).includes("chooseMedia"), "chooseMedia is not a valid requiredPrivateInfos entry");
 const expectedPages = [
-  "login", "password-reset", "project-intro", "home", "product-management", "product-create", "product-detail", "retail-product-management", "retail-product-create",
+  "login", "password-reset", "company-intro", "project-intro", "home", "product-management", "product-create", "product-detail", "retail-product-management", "retail-product-create",
   "hq-directory", "store-create", "store-detail", "teacher-create", "teacher-detail", "teacher-customers", "reviews",
   "customers", "inactive-customers", "low-balance-customers", "rating-analysis", "customer-detail", "customer-create", "recharge", "product-purchase", "product-purchase-detail", "verification", "records", "order-detail"
 ];
 assert.deepEqual(app.pages, [
-  "pages/login/index", "pages/password-reset/index", "pages/home/index",
-  "pages/store-create/index", "pages/store-detail/index", "pages/teacher-create/index", "pages/teacher-detail/index"
-], "only startup pages and pages sharing main-package WXSS may remain in the two-megabyte main package");
+  "pages/company-intro/index", "pages/login/index", "pages/password-reset/index", "pages/home/index",
+  "pages/store-create/index", "pages/teacher-create/index"
+], "the public company home must launch first, while heavy authenticated detail pages stay outside the main package");
 const subpackagePages = (app.subPackages || []).flatMap((subpackage) =>
   subpackage.pages.map((page) => `${subpackage.root}/${page}`));
 const registeredPages = [...app.pages, ...subpackagePages];
@@ -33,7 +33,7 @@ assert.deepEqual([...registeredPages].sort(), expectedPages.map((page) => `pages
   "the complete isolated mini-program page inventory must remain registered");
 assert.equal(new Set((app.subPackages || []).map(({ root: packageRoot }) => packageRoot)).size,
   (app.subPackages || []).length, "business subpackage roots must be unique");
-assert.equal((app.subPackages || []).length, 21, "public project introductions and business pages must stay outside the main package unless they share main-package WXSS");
+assert.equal((app.subPackages || []).length, 23, "project introductions and heavy authenticated detail pages must stay outside the main package");
 for (const page of expectedPages) {
   assert.ok(registeredPages.includes(`pages/${page}/index`), `missing mini-program page ${page}`);
   for (const extension of ["js", "json", "wxml", "wxss"]) assert.ok(fs.existsSync(path.join(mini, "pages", page, `index.${extension}`)), `${page}.${extension} missing`);

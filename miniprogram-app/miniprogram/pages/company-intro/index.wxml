@@ -1,0 +1,110 @@
+<view id="company-home" class="company-page">
+  <view class="reading-progress" aria-hidden="true"><view style="width:{{reading}}%;"></view></view>
+  <view class="company-topbar {{scrolled ? 'scrolled' : ''}}" style="{{topbarStyle}}">
+    <text wx:if="{{currentSlide > 0}}" class="topbar-brand">露思卓儿</text>
+    <button class="topbar-login" style="{{loginStyle}}" hover-class="topbar-login-hover" bindtap="openLogin" aria-label="进入内部账号登录">登录</button>
+  </view>
+
+  <swiper class="company-swiper" vertical="true" current="{{currentSlide}}" duration="560" easing-function="easeInOutCubic" bindchange="onSlideChange">
+    <swiper-item>
+      <view class="company-slide hero-slide {{currentSlide === 0 ? 'is-active' : ''}}">
+        <image class="hero-background" src="/images/login/lusizhuoer-login-bg-v4.jpg" mode="aspectFill" aria-hidden="true"></image>
+        <view class="hero-copy">
+          <text class="hero-title slide-animate delay-1">广州露思卓儿科技有限公司</text>
+          <text class="hero-statement slide-animate delay-2">让专业有温度，让美好被认真对待</text>
+          <view class="hero-lead balanced-copy slide-animate delay-3"><text>专注生活美容事业，围绕项目体系与门店支持。</text><text>关注线下体验，和认真做美容服务的人一起成长。</text></view>
+        </view>
+      </view>
+    </swiper-item>
+
+    <swiper-item>
+      <view class="company-slide about-slide {{currentSlide === 1 ? 'is-active' : ''}}">
+        <view class="slide-content">
+          <text class="section-label slide-animate delay-1">我们是谁</text>
+          <view class="section-title title-lines slide-animate delay-2"><text>以生活美容为事业</text><text>把专业与温度带到服务现场</text></view>
+          <view class="section-body balanced-copy slide-animate delay-3"><text>广州露思卓儿科技有限公司专注于生活美容领域。</text><text>我们围绕真实的线下服务场景，</text><text>持续梳理项目方向、服务表达与配套支持。</text></view>
+          <view class="section-body balanced-copy slide-animate delay-4"><text>我们希望复杂的内容变得清楚，</text><text>让门店更容易落地，让美容老师更从容地服务，</text><text>也让每一次顾客体验更细致、更自然。</text></view>
+        </view>
+      </view>
+    </swiper-item>
+
+    <swiper-item>
+      <view class="company-slide focus-slide {{currentSlide === 2 ? 'is-active' : ''}}">
+        <view class="slide-content">
+          <text class="section-label slide-animate delay-1">我们在做的事</text>
+          <view class="section-title title-lines slide-animate delay-2"><text>从清晰的方向开始</text><text>把每一次服务做好</text></view>
+          <view class="value-flow">
+            <view class="value-row slide-animate delay-3"><text class="value-index">01</text><text class="value-name">项目体系</text><text class="value-copy">围绕不同的生活美容需求，梳理清晰、容易理解的项目方向与服务重点。</text></view>
+            <view class="value-row slide-animate delay-4"><text class="value-index">02</text><text class="value-name">门店支持</text><text class="value-copy">把项目内容与落地方式讲明白，让门店和美容老师在服务现场更从容。</text></view>
+            <view class="value-row slide-animate delay-5"><text class="value-index">03</text><text class="value-name">长期陪伴</text><text class="value-copy">在持续沟通与真实服务中一起成长，让专业沉淀为稳定、值得信任的体验。</text></view>
+          </view>
+        </view>
+      </view>
+    </swiper-item>
+
+    <swiper-item>
+      <view class="company-slide partners-slide {{currentSlide === 3 ? 'is-active' : ''}}">
+        <view class="slide-content">
+          <text class="section-label slide-animate delay-1">与谁同行</text>
+          <view class="section-title title-lines slide-animate delay-2"><text>与一线服务者一起</text><text>把每一次体验做好</text></view>
+          <view class="service-lead balanced-copy slide-animate delay-3"><text>露思卓儿连接项目、门店、美容老师与顾客。</text><text>让每一个环节更清楚，让每一份用心落到真实体验中。</text></view>
+          <view class="service-list">
+            <view class="service-item slide-animate delay-3"><text>门店</text><text>得到方向清晰、容易理解和落地的项目支持。</text></view>
+            <view class="service-item slide-animate delay-4"><text>美容老师</text><text>更从容地理解项目、表达服务与陪伴顾客。</text></view>
+            <view class="service-item slide-animate delay-5"><text>顾客</text><text>在每一次线下体验中感受到尊重、细致与用心。</text></view>
+          </view>
+        </view>
+      </view>
+    </swiper-item>
+
+    <swiper-item>
+      <view class="company-slide belief-slide {{currentSlide === 4 ? 'is-active' : ''}}">
+        <view class="slide-content belief-content">
+          <text class="belief-mark">“</text>
+          <text class="section-label slide-animate delay-1">品牌理念</text>
+          <view class="belief-copy title-lines"><text class="slide-animate delay-2">用专业理解需求</text><text class="slide-animate delay-3">用温度完成服务</text><text class="slide-animate delay-4">用时间建立信任</text></view>
+          <view class="vision-block slide-animate delay-5">
+            <text class="vision-label">品牌愿景</text>
+            <view class="vision-title title-lines"><text>让生活美容服务</text><text>清晰而有温度</text></view>
+            <view class="vision-copy balanced-copy"><text>以扎实的项目、真诚的服务和长期的陪伴，</text><text>与更多认真做美容服务的人一起成长。</text></view>
+          </view>
+        </view>
+      </view>
+    </swiper-item>
+
+    <swiper-item>
+      <view class="company-slide contact-slide {{currentSlide === 5 ? 'is-active' : ''}}">
+        <view class="slide-content">
+          <text class="section-label slide-animate delay-1">加盟咨询</text>
+          <view class="section-title title-lines slide-animate delay-2"><text>了解合作方式</text><text>与露思卓儿一起成长</text></view>
+          <text class="contact-copy slide-animate delay-3">加盟合作与项目咨询，可联系乐总。</text>
+          <view class="contact-list">
+            <button class="contact-link slide-animate delay-4" hover-class="contact-link-hover" data-phone="18179422788" bindtap="callPhone" aria-label="拨打乐总加盟电话18179422788"><view><text>乐总</text><text>加盟电话</text></view><text class="contact-number">181 7942 2788</text></button>
+            <button class="contact-link slide-animate delay-5" hover-class="contact-link-hover" data-phone="18160789986" bindtap="callPhone" aria-label="拨打乐总加盟电话18160789986"><view><text>乐总</text><text>加盟电话</text></view><text class="contact-number">181 6078 9986</text></button>
+          </view>
+        </view>
+      </view>
+    </swiper-item>
+
+    <swiper-item>
+      <view class="company-slide projects-slide {{currentSlide === 6 ? 'is-active' : ''}}">
+        <view class="slide-content">
+          <text class="section-label slide-animate delay-1">项目延伸</text>
+          <view class="section-title title-lines slide-animate delay-2"><text>了解露思卓儿</text><text>生活美容项目体系</text></view>
+          <view class="project-list">
+            <button class="project-link slide-animate delay-3" hover-class="project-link-hover" data-project="ocean" bindtap="openProjectIntro" aria-label="查看海洋之蕴项目介绍"><view><text>海洋之蕴</text><text>轮廓与肤龄管理方向</text></view><text>↗</text></button>
+            <button class="project-link slide-animate delay-4" hover-class="project-link-hover" data-project="skin" bindtap="openProjectIntro" aria-label="查看魔法柔肤项目介绍"><view><text>魔法柔肤</text><text>肤质与肤色管理方向</text></view><text>↗</text></button>
+            <button class="project-link slide-animate delay-5" hover-class="project-link-hover" data-project="warmth" bindtap="openProjectIntro" aria-label="查看露思康辰项目介绍"><view><text>露思康辰</text><text>温度与身体舒适体验方向</text></view><text>↗</text></button>
+          </view>
+          <view class="slide-brand slide-animate delay-5"><text>露思卓儿</text><text>广州露思卓儿科技有限公司</text></view>
+        </view>
+      </view>
+    </swiper-item>
+  </swiper>
+
+  <view class="slide-footer" aria-hidden="true">
+    <text class="slide-number">{{slideNumbers[currentSlide]}} / 07</text>
+    <text class="swipe-guide" wx:if="{{currentSlide < 6}}">上滑继续 ↑</text>
+    <text class="swipe-guide" wx:else>最后一页</text>
+  </view>
+</view>

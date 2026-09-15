@@ -18,6 +18,7 @@ const routes = [
 const ROLE_MATRIX = Object.freeze({
   "pages/login/index": [],
   "pages/password-reset/index": [],
+  "pages/company-intro/index": [],
   "pages/project-intro/index": [],
   "pages/home/index": ["hq", "store", "teacher"],
   "pages/product-management/index": ["hq"],

@@ -1,11 +1,11 @@
 <view id="intro-content" class="intro-page {{motion ? '' : 'motion-off'}} {{compact ? 'compact' : ''}}">
   <view class="intro-toolbar">
-    <button class="intro-back" bindtap="returnToLogin">‹ 返回登录</button>
+    <button class="intro-back" bindtap="returnToCompany">‹ 返回公司主页</button>
     <text class="toolbar-name">{{project.name || '项目介绍'}}</text>
     <button wx:if="{{project}}" class="motion-control" bindtap="toggleMotion" aria-label="{{motion ? '关闭动态效果' : '开启动态效果'}}">{{motion ? '关闭动效' : '开启动效'}}</button>
     <view class="reading-track" aria-hidden="true"><view style="width:{{reading}}%;"></view></view>
   </view>
-  <view wx:if="{{unavailable}}" class="intro-unavailable"><text>暂未找到这个项目</text><text>请返回登录页重新选择。</text><button bindtap="returnToLogin">返回登录</button></view>
+  <view wx:if="{{unavailable}}" class="intro-unavailable"><text>暂未找到这个项目</text><text>请返回公司主页重新选择。</text><button bindtap="returnToCompany">返回公司主页</button></view>
   <block wx:if="{{project}}">
     <view class="intro-hero">
       <view class="hero-copy">
@@ -65,7 +65,7 @@
     <view class="intro-footer">
       <text class="intro-eyebrow">继续探索露思卓儿</text>
       <button class="next-project" bindtap="openNext"><view><text>{{project.nextDevice}}</text><text>{{project.nextName}}</text></view><text>↗</text></button>
-      <button class="footer-back" bindtap="returnToLogin">返回登录</button>
+      <button class="footer-back" bindtap="returnToCompany">返回公司主页</button>
       <view id="intro-notice" class="intro-notice">
         <button class="notice-toggle" bindtap="toggleNotice" aria-label="{{noticeOpen ? '收起体验须知' : '展开体验须知'}}" aria-expanded="{{noticeOpen}}"><text>体验须知</text><text>{{noticeOpen ? '−' : '+'}}</text></button>
         <view wx:if="{{noticeOpen}}" class="notice-copy"><text>{{project.beforeText}}</text></view>

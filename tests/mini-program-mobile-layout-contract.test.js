@@ -37,7 +37,7 @@ test("mini-program login is concise and keeps phone authorization and password e
   assert.deepEqual([...new Set(loginImageSources)], ["/images/login/lusizhuoer-login-bg-v4.jpg"],
     "the background and animated logo must reuse the refined brand artwork without adding a portrait");
   assert.match(wxml, /class="login-background" src="\/images\/login\/lusizhuoer-login-bg-v4\.jpg" mode="aspectFill"/);
-  assert.doesNotMatch(wxml, /login-brand-image|brand-team\.jpg|海洋之韵|OCEAN\s+WONDER/i,
+  assert.doesNotMatch(wxml, /login-brand-image|brand-team\.jpg|OCEAN\s+WONDER/i,
     "the login page must not restore a portrait or the combined Ocean Wonder artwork");
   assert.ok(fs.existsSync(backgroundPath), "generated Lusizhuoer login background is missing");
   assert.ok(fs.statSync(backgroundPath).size < 250 * 1024, "login background must stay below 250 KB for the mini-program package");
@@ -45,9 +45,13 @@ test("mini-program login is concise and keeps phone authorization and password e
     "the exact four-character wordmark must remain native WXML text");
   assert.match(wxml, /class="login-card">[\s\S]*id="login-phone"[\s\S]*id="login-password"[\s\S]*id="login-submit"[\s\S]*id="login-phone-quick"[\s\S]*id="login-message"/,
     "all login controls and feedback must stay inside the bounded form panel");
+  assert.match(wxml, /class="login-home" bindtap="returnToCompany"[^>]*>‹ 返回公司主页<\/button>/,
+    "the separate staff login page must return to the public company home");
+  assert.doesNotMatch(wxml, /company-entry|project-entries|login-disclosure/,
+    "the staff login page must not duplicate the public company or project home");
   assert.doesNotMatch(wxml, /brand-rule|login-divider|登录系统/,
     "the login must not restore decorative or explanatory template copy");
-  assert.doesNotMatch(wxml, /login-system-mark|海洋之韵/);
+  assert.doesNotMatch(wxml, /login-system-mark/);
   assert.match(wxml, /open-type="getPhoneNumber"/);
   assert.match(wxml, />\s*<text>手机号快捷登录<\/text>\s*<\/button>/);
   assert.doesNotMatch(wxml, />\s*<text>[^<]*(?:微信|WeChat)[^<]*<\/text>/i,
@@ -61,7 +65,7 @@ test("mini-program login is concise and keeps phone authorization and password e
   assert.match(wxml, /aria-label="\{\{passwordVisible \? '隐藏密码' : '显示密码'\}\}"/);
   assert.doesNotMatch(wxml, /安全工作台|统一入口|登录说明|温馨提示/,
     "login page should not reintroduce explanatory filler");
-  assert.match(wxss, /\.login-page\s*\{[^}]*align-items:\s*center[^}]*background:\s*#f3ede2/s);
+  assert.match(wxss, /\.login-page\s*\{[^}]*align-items:\s*flex-start[^}]*overflow-y:\s*auto[^}]*background:\s*#f3ede2/s);
   assert.match(wxss, /\.login-card\s*\{[^}]*background:\s*rgba\(255, 250, 243, \.96\)[^}]*border-radius:\s*32rpx/s,
     "the login form must keep the warm palette with restrained corners");
   assert.match(wxss, /\.login-brand text\s*\{[^}]*color:\s*#87662f[^}]*letter-spacing:\s*12rpx/s);

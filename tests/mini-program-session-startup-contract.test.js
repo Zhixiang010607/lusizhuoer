@@ -57,10 +57,11 @@ test("app exposes one startup promise and marks validation ready even when a sta
   assert.deepEqual(keepScreenCalls, [true, true], "returning to the foreground must renew the keep-awake request");
 });
 
-function loadLogin(waitForStartupSession) {
+function loadLogin(waitForStartupSession, stack = [{ route: "pages/company-intro/index" }, { route: "pages/login/index" }]) {
   let definition;
   const launches = [];
   const navigations = [];
+  const backs = [];
   let passwordLogins = 0;
   vm.runInNewContext(read("pages", "login", "index.js"), {
     Page(value) { definition = value; },
@@ -76,27 +77,37 @@ function loadLogin(waitForStartupSession) {
       };
       throw new Error(`unexpected login dependency ${id}`);
     },
-    wx: { reLaunch({ url }) { launches.push(url); }, navigateTo(options) { navigations.push(options.url); options.complete?.(); }, showToast() {} },
+    getCurrentPages: () => stack,
+    wx: {
+      reLaunch(options) { launches.push(options.url); options.complete?.(); },
+      navigateTo(options) { navigations.push(options.url); options.complete?.(); },
+      navigateBack(options) { backs.push(options.delta); options.complete?.(); },
+      showToast() {}
+    },
     Promise, Number, String, encodeURIComponent
   }, { filename: "pages/login/index.js" });
-  return { page: pageInstance(definition), launches, navigations, passwordLoginCount: () => passwordLogins };
+  return { page: pageInstance(definition), launches, navigations, backs, passwordLoginCount: () => passwordLogins };
 }
 
-test("public project browsing invalidates hidden login startup navigation without bypassing validation on return", async () => {
+test("returning from the separate login page cannot be interrupted by a late startup redirect", async () => {
   const validation = deferred();
-  const { page, launches, navigations, passwordLoginCount } = loadLogin(() => validation.promise);
+  const { page, launches, backs, passwordLoginCount } = loadLogin(() => validation.promise);
   const showing = page.onShow();
-  for (const project of ["ocean", "skin", "warmth"]) page.openProjectIntro({ currentTarget: { dataset: { project } } });
-  assert.deepEqual(navigations, ["ocean", "skin", "warmth"].map(key => `/pages/project-intro/index?project=${key}`));
-  for (const project of ["__proto__", "constructor", "../home/index", "skin&role=hq"]) page.openProjectIntro({ currentTarget: { dataset: { project } } });
-  assert.equal(navigations.length, 3, "only static public project keys are accepted");
-  assert.equal(passwordLoginCount(), 0, "reading public content must not trigger login");
+  page.returnToCompany();
+  assert.deepEqual(backs, [1]);
+  assert.equal(passwordLoginCount(), 0, "returning to the public home must not start login");
   page.onHide();
   validation.resolve({ uid: "validated", role: "store", storeId: "7" });
   await showing;
-  assert.deepEqual(launches, [], "hidden login must not interrupt the introduction with a late redirect");
+  assert.deepEqual(launches, [], "a hidden login page must not pull the company home into the staff workspace");
   await page.onShow();
-  assert.deepEqual(launches, ["/pages/home/index"], "returning to login still follows the validated startup session");
+  assert.deepEqual(launches, ["/pages/home/index"], "opening login again still follows the validated startup session");
+});
+
+test("a direct login route can return to the public company home", () => {
+  const direct = loadLogin(async () => null, [{ route: "pages/login/index" }]);
+  direct.page.returnToCompany();
+  assert.deepEqual(direct.launches, ["/pages/company-intro/index"]);
 });
 
 test("login never routes a stale cached identity before authoritative startup validation", async () => {

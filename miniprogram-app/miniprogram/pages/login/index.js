@@ -2,7 +2,10 @@ const { passwordLogin, wechatPhoneLogin, waitForStartupSession } = require("../.
 const { authorizationFailureMessage, loginFailureMessage } = require("../../services/wechat-phone");
 
 Page({
-  data: { phone: "", password: "", passwordVisible: false, busy: false, startupChecking: false, message: "", error: false },
+  data: {
+    phone: "", password: "", passwordVisible: false, busy: false,
+    startupChecking: false, message: "", error: false
+  },
   async onShow() {
     const epoch = Number(this._startupEpoch || 0) + 1;
     this._startupEpoch = epoch;
@@ -14,16 +17,20 @@ Page({
   },
   onHide() { this._startupEpoch = Number(this._startupEpoch || 0) + 1; },
   onUnload() { this._startupEpoch = Number(this._startupEpoch || 0) + 1; },
-  openProjectIntro(event) {
-    if (this.data.busy || this._openingProject) return;
-    const project = event && event.currentTarget && event.currentTarget.dataset.project;
-    if (!["ocean", "skin", "warmth"].includes(project)) return;
-    this._openingProject = true;
-    wx.navigateTo({
-      url: `/pages/project-intro/index?project=${project}`,
-      fail: () => wx.showToast({ title: "暂时无法打开，请重试", icon: "none" }),
-      complete: () => { this._openingProject = false; }
-    });
+  returnToCompany() {
+    if (this.data.busy || this._returning) return;
+    this._returning = true;
+    const pages = getCurrentPages();
+    const companyIndex = pages.findIndex(page => page.route === "pages/company-intro/index");
+    const options = {
+      fail: () => wx.showToast({ title: "暂时无法返回，请重试", icon: "none" }),
+      complete: () => { this._returning = false; }
+    };
+    if (companyIndex >= 0 && companyIndex < pages.length - 1) {
+      wx.navigateBack({ ...options, delta: pages.length - 1 - companyIndex });
+    } else {
+      wx.reLaunch({ ...options, url: "/pages/company-intro/index" });
+    }
   },
   inputPhone(event) { this.setData({ phone: event.detail.value }); },
   inputPassword(event) { this.setData({ password: event.detail.value }); },
