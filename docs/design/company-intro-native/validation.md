@@ -67,4 +67,4 @@
 - 公司叙事：[我们是谁](screenshots/company-home-about-430.png)、[我们在做的事](screenshots/company-home-focus-430.png)、[与谁同行](screenshots/company-home-service-430.png)、[品牌理念／愿景](screenshots/company-home-belief-430.png)
 - 对外入口：[服务规模与加盟信息](screenshots/company-home-service-430.png)、[项目延伸](screenshots/company-home-projects-430.png)、[独立登录](screenshots/login-430.png)
 
-当前最后确认上传的开发版仍为 `0.2.73`；本轮没有上传微信开发版、提交审核或正式发布。
+上述源码已随开发版 `0.2.74` 上传。官方上传客户端五分钟超时后后台继续执行，并于悉尼时间 20:50:20 返回 `progressSuccess`；尚未提交公众平台审核或正式发布。体验版具体版本号和物理手机打开效果未独立回读，详见[0.2.74 发布记录](../../../miniprogram-app/releases/0.2.74.md)。

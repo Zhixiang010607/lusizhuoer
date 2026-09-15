@@ -1,0 +1,4 @@
+[2026-09-15 18:50:20.134+08:00] [uploadFile] doUpload:await 1105255ms (total 1108195ms)
+[2026-09-15 18:50:20.134+08:00] [uploadFile] parseError 0ms (total 1108195ms)
+[2026-09-15 18:50:20.134+08:00] [uploadFile] progressSuccess 0ms (total 1108195ms)
+[2026-09-15 18:50:20.134+08:00] [uploadFile] reportNewRemoteDebug 0ms (total 1108195ms)
