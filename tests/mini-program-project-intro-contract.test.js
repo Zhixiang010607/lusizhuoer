@@ -49,6 +49,30 @@ test("all three published project names have static sourced chapters and bounded
   for (const key of [undefined, "", "__proto__", "constructor", "skin&role=hq", "../home"]) assert.equal(getProject(key), null);
 });
 
+test("public introductions state distinct life-beauty positioning without medical promises", () => {
+  const expected = {
+    ocean: { headline: "轮廓与肤龄观感", keywords: ["轮廓", "肤龄观感"] },
+    skin: { headline: "肤质与肤色观感", keywords: ["肤质", "肤色"] },
+    warmth: { headline: "温度与身体舒适感", keywords: ["温度", "舒适体验"] }
+  };
+  for (const [key, focus] of Object.entries(expected)) {
+    const project = getProject(key);
+    assert.match(project.category, /^生活美容/);
+    assert.match(project.headline, new RegExp(focus.headline));
+    assert.equal(project.detailLabel, "02 / 核心优势");
+    for (const keyword of focus.keywords) assert.match(project.keywords, new RegExp(keyword));
+    const promotionalCopy = [
+      project.category, project.headline, project.keywords, project.introLabel,
+      project.introTitle, project.introduction, project.storyLabel,
+      ...project.steps.flatMap(item => [item.title, item.text]),
+      project.detailLabel, project.detailTitle, project.detailText,
+      ...project.details.flatMap(item => [item.title, item.text])
+    ].join(" ");
+    assert.doesNotMatch(promotionalCopy, /解决|治愈|止痛|痛症|抗衰|逆龄|提高免疫|疏通经络|永久|保证|无副作用|疗程/);
+  }
+  assert.match(getProject("warmth").beforeText, /不以本项目替代诊疗/);
+});
+
 test("scroll transitions update chapters in both directions and motion off retains every chapter", () => {
   const { page, measure, scrolls } = harness();
   page.onLoad({ project: "skin" }); page.onReady(); measure();
