@@ -40,7 +40,8 @@ test("company introduction is a static public page focused on brand positioning"
     "public company content must not read business data or depend on a staff session");
   for (const phrase of [
     "广州露思卓儿", "科技有限公司", "生活美容领域", "我们是谁", "品牌理念",
-    "我们在做的事", "与谁同行", "品牌愿景", "把每一次体验做好"
+    "我们在做的事", "与谁同行", "品牌愿景", "把每一次体验做好",
+    "100+", "10000+", "服务门店", "累计服务顾客", "加盟合作"
   ]) assert.match(wxml, new RegExp(phrase));
   for (const project of ["海洋之蕴", "魔法柔肤", "露思康辰"]) assert.match(wxml, new RegExp(project));
   for (const phone of ["181 7942 2788", "181 6078 9986"]) assert.match(wxml, new RegExp(phone));
@@ -54,10 +55,17 @@ test("company introduction is a static public page focused on brand positioning"
   }
   assert.match(wxml, /class="company-topbar[^"]*"[\s\S]*class="topbar-login"[^>]*bindtap="openLogin"[\s\S]*>登录<\/button>/,
     "the separate staff login must be available from the upper-right company navigation");
+  assert.match(wxml, /class="hero-lead[^"]*"[\s\S]*class="hero-login[^"]*"[^>]*bindtap="openLogin"/,
+    "the opening page login must sit directly beneath the company introduction");
+  assert.match(wxml, /wx:if="\{\{currentSlide > 0\}\}" class="topbar-login"/,
+    "the top-right login must remain available after the opening page without crowding its logo composition");
   assert.match(wxml, /<swiper class="company-swiper" vertical="true"[\s\S]*bindchange="onSlideChange">/,
     "the company home must use reliable native vertical full-screen paging");
-  assert.equal((wxml.match(/<swiper-item>/g) || []).length, 7,
-    "each company chapter must occupy one of the seven complete vertical pages");
+  assert.equal((wxml.match(/<swiper-item>/g) || []).length, 6,
+    "each company chapter must occupy one of the six complete vertical pages");
+  assert.doesNotMatch(wxml, /class="company-slide contact-slide|>加盟咨询<\/text>/,
+    "the duplicated standalone contact page must stay retired after joining moves to the service-reach chapter");
+  assert.match(wxml, /\{\{slideNumbers\[currentSlide\]\}\} \/ 06/);
   assert.match(wxml, /class="value-flow"[\s\S]*class="value-row[^"]*"/,
     "brand values must read as one vertical narrative rather than a grid of cards");
   assert.doesNotMatch(wxml, /value-grid|value-card|approach-grid|focus-list|belief-card|vision-card/,
@@ -75,6 +83,8 @@ test("company introduction is a static public page focused on brand positioning"
     "the login control must be visible beside the native capsule without becoming a large primary action");
   assert.match(wxss, /\.hero-copy\s*\{[^}]*text-align:\s*center;/s,
     "the opening company statement must sit in the visual center instead of collecting at the bottom");
+  assert.match(wxss, /\.hero-login\s*\{[^}]*margin:\s*30rpx auto 0;[^}]*border-radius:\s*29rpx;/s,
+    "the opening login must remain a small centered action rather than a large primary panel");
   assert.match(wxml, /wx:if="\{\{currentSlide > 0\}\}" class="topbar-brand"/,
     "the first page must not repeat the brand name above the full company title");
   assert.match(wxml, /class="hero-title[^\"]*">广州露思卓儿科技有限公司<\/text>/);
@@ -96,6 +106,10 @@ test("company introduction is a static public page focused on brand positioning"
     "each settled page must animate headings, copy, and detail rows in a deliberate sequence");
   assert.match(wxss, /@media \(min-width: 700px\) \{/,
     "company introduction must cap typography and layout on tablets");
+  assert.match(wxml, /class="service-reach[^"]*"[\s\S]*100\+[\s\S]*10000\+[\s\S]*class="partnership-block[^"]*"[\s\S]*181 7942 2788[\s\S]*181 6078 9986/,
+    "confirmed service reach and both partnership contacts must form one continuous company chapter");
+  assert.doesNotMatch(js, /showActionSheet|openPartnership|joinOpen/,
+    "partnership contacts must be part of the page instead of a simulated popup or expandable overlay");
 });
 
 test("vertical chapter paging produces bounded active state and exact progress", () => {
@@ -106,10 +120,10 @@ test("vertical chapter paging produces bounded active state and exact progress",
   };
   definition.onSlideChange.call(instance, { detail: { current: 3 } });
   assert.deepEqual({ currentSlide: instance.data.currentSlide, reading: instance.data.reading, scrolled: instance.data.scrolled },
-    { currentSlide: 3, reading: 50, scrolled: true });
+    { currentSlide: 3, reading: 60, scrolled: true });
   definition.onSlideChange.call(instance, { detail: { current: 99 } });
   assert.deepEqual({ currentSlide: instance.data.currentSlide, reading: instance.data.reading },
-    { currentSlide: 6, reading: 100 });
+    { currentSlide: 5, reading: 100 });
 });
 
 test("company home opens the separate login and only allow-listed project introductions", () => {
@@ -129,6 +143,11 @@ test("company home opens the separate login and only allow-listed project introd
   }
   assert.equal(page.navigations.length, 4);
 
+  assert.deepEqual(page.phoneCalls, []);
+});
+
+test("inline partnership contacts only call the two approved numbers", () => {
+  const page = loadCompanyPage();
   for (const phone of ["18179422788", "18160789986"]) {
     page.definition.callPhone.call({}, { currentTarget: { dataset: { phone } } });
   }

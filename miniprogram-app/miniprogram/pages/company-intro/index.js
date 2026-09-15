@@ -1,6 +1,20 @@
 const PROJECT_KEYS = Object.freeze(["ocean", "skin", "warmth"]);
 const CONTACT_PHONES = Object.freeze(["18179422788", "18160789986"]);
-const SLIDE_NUMBERS = Object.freeze(["01", "02", "03", "04", "05", "06", "07"]);
+const SLIDE_NUMBERS = Object.freeze(["01", "02", "03", "04", "05", "06"]);
+
+function dialContact(page, phoneNumber) {
+  if (!page || page._calling || !CONTACT_PHONES.includes(phoneNumber)) return;
+  page._calling = true;
+  wx.makePhoneCall({
+    phoneNumber,
+    fail: error => {
+      if (!String(error && error.errMsg || "").includes("cancel")) {
+        wx.showToast({ title: "暂时无法拨打，请稍后重试", icon: "none" });
+      }
+    },
+    complete: () => { page._calling = false; }
+  });
+}
 
 Page({
   data: {
@@ -56,19 +70,8 @@ Page({
     });
   },
   callPhone(event) {
-    if (this._calling) return;
     const phoneNumber = event && event.currentTarget && event.currentTarget.dataset.phone;
-    if (!CONTACT_PHONES.includes(phoneNumber)) return;
-    this._calling = true;
-    wx.makePhoneCall({
-      phoneNumber,
-      fail: error => {
-        if (!String(error && error.errMsg || "").includes("cancel")) {
-          wx.showToast({ title: "暂时无法拨打，请稍后重试", icon: "none" });
-        }
-      },
-      complete: () => { this._calling = false; }
-    });
+    dialContact(this, phoneNumber);
   },
   openProjectIntro(event) {
     if (this._navigating) return;

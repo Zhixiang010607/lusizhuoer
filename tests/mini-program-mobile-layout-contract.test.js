@@ -45,8 +45,10 @@ test("mini-program login is concise and keeps phone authorization and password e
     "the exact four-character wordmark must remain native WXML text");
   assert.match(wxml, /class="login-card">[\s\S]*id="login-phone"[\s\S]*id="login-password"[\s\S]*id="login-submit"[\s\S]*id="login-phone-quick"[\s\S]*id="login-message"/,
     "all login controls and feedback must stay inside the bounded form panel");
-  assert.match(wxml, /class="login-home" bindtap="returnToCompany"[^>]*>‹ 返回公司主页<\/button>/,
+  assert.match(wxml, /class="login-home"[^>]*hover-class="login-home-hover"[^>]*catchtap="returnToCompany"[^>]*>‹ 返回公司主页<\/button>/,
     "the separate staff login page must return to the public company home");
+  assert.match(wxss, /\.login-home\s*\{[^}]*position:\s*relative;[^}]*z-index:\s*20;[^}]*min-height:\s*76rpx;[^}]*pointer-events:\s*auto;/s,
+    "the visible login return pill must own a foreground touch target");
   assert.doesNotMatch(wxml, /company-entry|project-entries|login-disclosure/,
     "the staff login page must not duplicate the public company or project home");
   assert.doesNotMatch(wxml, /brand-rule|login-divider|登录系统/,

@@ -2,7 +2,7 @@
   <image class="login-background" src="/images/login/lusizhuoer-login-bg-v4.jpg" mode="aspectFill"></image>
   <view class="login-shade"></view>
   <view class="login-shell">
-    <button class="login-home" bindtap="returnToCompany" aria-label="返回公司主页">‹ 返回公司主页</button>
+    <button class="login-home" hover-class="login-home-hover" catchtap="returnToCompany" aria-label="返回公司主页">‹ 返回公司主页</button>
     <view class="login-identity">
       <view class="login-mark" aria-hidden="true">
         <view class="login-mark-reveal">

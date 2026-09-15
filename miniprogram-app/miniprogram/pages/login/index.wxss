@@ -13,13 +13,16 @@
 .login-shade { z-index: 1; background: rgba(255, 250, 243, .24); }
 .login-shell { position: relative; z-index: 2; width: 100%; max-width: 670rpx; margin: 0 auto; padding-bottom: 20rpx; }
 .login-home {
+  position: relative;
+  z-index: 20;
   width: auto !important;
-  min-width: 0;
-  min-height: 68rpx;
+  min-width: 184rpx;
+  min-height: 76rpx;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   margin: 0 0 18rpx;
-  padding: 0 18rpx;
+  padding: 0 22rpx;
   color: #6d542f;
   background: rgba(255, 250, 243, .88);
   border: 1rpx solid #d8c4a1;
@@ -27,8 +30,11 @@
   font-size: 23rpx;
   font-weight: 500;
   line-height: 1;
+  pointer-events: auto;
+  transition: transform 160ms ease, background-color 160ms ease;
 }
 .login-home::after, .phone-quick-login::after { border: 0; }
+.login-home-hover { transform: scale(.97); background: #fffaf3; }
 .login-card {
   width: 100%;
   padding: 36rpx 40rpx 32rpx;

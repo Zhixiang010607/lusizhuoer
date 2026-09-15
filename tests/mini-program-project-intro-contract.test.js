@@ -144,6 +144,10 @@ test("project footer keeps both destinations in one compact row without an exper
   assert.match(wxss, /\.footer-actions\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:/s);
   assert.match(wxss, /\.intro-footer \.next-project\s*\{[^}]*min-height:\s*76px;/s);
   assert.match(wxss, /\.intro-footer \.footer-back\s*\{[^}]*min-height:\s*76px;/s);
+  assert.match(wxss, /\.intro-footer\s*\{[^}]*position:\s*relative;[^}]*z-index:\s*30;/s,
+    "the real footer actions must sit above the sticky story layer for physical pointer input");
+  assert.match(wxml, /class="next-project"[^>]*hover-class="footer-action-hover"[^>]*bindtap="openNext"/);
+  assert.match(wxml, /class="footer-back"[^>]*hover-class="footer-action-hover"[^>]*bindtap="returnToCompany"/);
   assert.doesNotMatch(wxml, /继续探索露思卓儿/,
     "the footer must not add a third visual layer above the two real destinations");
   assert.doesNotMatch(wxml, /体验须知|intro-notice|notice-toggle/);

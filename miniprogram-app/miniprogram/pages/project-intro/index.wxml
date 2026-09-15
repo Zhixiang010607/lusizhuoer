@@ -64,8 +64,8 @@
     </view>
     <view class="intro-footer">
       <view class="footer-actions">
-        <button class="next-project" bindtap="openNext" aria-label="查看下一个项目{{project.nextName}}"><view><text>下一个项目</text><text>{{project.nextName}}</text></view><text>↗</text></button>
-        <button class="footer-back" bindtap="returnToCompany" aria-label="返回公司主页"><text>返回</text><text>公司主页</text></button>
+        <button class="next-project" hover-class="footer-action-hover" bindtap="openNext" aria-label="查看下一个项目{{project.nextName}}"><view><text>下一个项目</text><text>{{project.nextName}}</text></view><text>↗</text></button>
+        <button class="footer-back" hover-class="footer-action-hover" bindtap="returnToCompany" aria-label="返回公司主页"><text>返回</text><text>公司主页</text></button>
       </view>
     </view>
   </block>

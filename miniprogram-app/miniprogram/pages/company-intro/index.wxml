@@ -1,8 +1,8 @@
 <view id="company-home" class="company-page">
-  <view class="reading-progress" aria-hidden="true"><view style="width:{{reading}}%;"></view></view>
+  <view class="reading-progress" aria-hidden="true"><view class="reading-progress-fill" style="width:{{reading}}%;"></view></view>
   <view class="company-topbar {{scrolled ? 'scrolled' : ''}}" style="{{topbarStyle}}">
     <text wx:if="{{currentSlide > 0}}" class="topbar-brand">露思卓儿</text>
-    <button class="topbar-login" style="{{loginStyle}}" hover-class="topbar-login-hover" bindtap="openLogin" aria-label="进入内部账号登录">登录</button>
+    <button wx:if="{{currentSlide > 0}}" class="topbar-login" style="{{loginStyle}}" hover-class="topbar-login-hover" bindtap="openLogin" aria-label="进入内部账号登录">登录</button>
   </view>
 
   <swiper class="company-swiper" vertical="true" current="{{currentSlide}}" duration="560" easing-function="easeInOutCubic" bindchange="onSlideChange">
@@ -13,6 +13,7 @@
           <text class="hero-title slide-animate delay-1">广州露思卓儿科技有限公司</text>
           <text class="hero-statement slide-animate delay-2">让专业有温度，让美好被认真对待</text>
           <view class="hero-lead balanced-copy slide-animate delay-3"><text>专注生活美容事业，围绕项目体系与门店支持。</text><text>关注线下体验，和认真做美容服务的人一起成长。</text></view>
+          <button class="hero-login slide-animate delay-4" hover-class="hero-login-hover" bindtap="openLogin" aria-label="进入登录页面">登录</button>
         </view>
       </view>
     </swiper-item>
@@ -46,12 +47,19 @@
       <view class="company-slide partners-slide {{currentSlide === 3 ? 'is-active' : ''}}">
         <view class="slide-content">
           <text class="section-label slide-animate delay-1">与谁同行</text>
-          <view class="section-title title-lines slide-animate delay-2"><text>与一线服务者一起</text><text>把每一次体验做好</text></view>
-          <view class="service-lead balanced-copy slide-animate delay-3"><text>露思卓儿连接项目、门店、美容老师与顾客。</text><text>让每一个环节更清楚，让每一份用心落到真实体验中。</text></view>
-          <view class="service-list">
-            <view class="service-item slide-animate delay-3"><text>门店</text><text>得到方向清晰、容易理解和落地的项目支持。</text></view>
-            <view class="service-item slide-animate delay-4"><text>美容老师</text><text>更从容地理解项目、表达服务与陪伴顾客。</text></view>
-            <view class="service-item slide-animate delay-5"><text>顾客</text><text>在每一次线下体验中感受到尊重、细致与用心。</text></view>
+          <view class="section-title title-lines slide-animate delay-2"><text>与 100+ 门店同行</text><text>把每一次体验做好</text></view>
+          <view class="service-lead balanced-copy slide-animate delay-3"><text>从项目体系到一线落地，露思卓儿持续陪伴认真做服务的人。</text><text>让专业进入真实场景，让每一份用心都被顾客感受到。</text></view>
+          <view class="service-reach slide-animate delay-4" aria-label="已服务超过100家门店，累计服务超过10000名顾客">
+            <view class="reach-item"><text class="reach-number">100+</text><text class="reach-label">服务门店</text></view>
+            <view class="reach-divider"></view>
+            <view class="reach-item"><text class="reach-number">10000+</text><text class="reach-label">累计服务顾客</text></view>
+          </view>
+          <view class="partnership-block slide-animate delay-5">
+            <view class="partnership-intro"><text class="partnership-title">加盟合作</text><text class="partnership-copy">欢迎了解项目合作与门店支持</text></view>
+            <view class="partnership-contacts">
+              <button class="join-phone" hover-class="join-phone-hover" data-phone="18179422788" bindtap="callPhone" aria-label="拨打乐总加盟电话18179422788"><text class="join-phone-name">乐总</text><text class="join-phone-number">181 7942 2788</text></button>
+              <button class="join-phone" hover-class="join-phone-hover" data-phone="18160789986" bindtap="callPhone" aria-label="拨打乐总加盟电话18160789986"><text class="join-phone-name">乐总</text><text class="join-phone-number">181 6078 9986</text></button>
+            </view>
           </view>
         </view>
       </view>
@@ -73,21 +81,7 @@
     </swiper-item>
 
     <swiper-item>
-      <view class="company-slide contact-slide {{currentSlide === 5 ? 'is-active' : ''}}">
-        <view class="slide-content">
-          <text class="section-label slide-animate delay-1">加盟咨询</text>
-          <view class="section-title title-lines slide-animate delay-2"><text>了解合作方式</text><text>与露思卓儿一起成长</text></view>
-          <text class="contact-copy slide-animate delay-3">加盟合作与项目咨询，可联系乐总。</text>
-          <view class="contact-list">
-            <button class="contact-link slide-animate delay-4" hover-class="contact-link-hover" data-phone="18179422788" bindtap="callPhone" aria-label="拨打乐总加盟电话18179422788"><view><text>乐总</text><text>加盟电话</text></view><text class="contact-number">181 7942 2788</text></button>
-            <button class="contact-link slide-animate delay-5" hover-class="contact-link-hover" data-phone="18160789986" bindtap="callPhone" aria-label="拨打乐总加盟电话18160789986"><view><text>乐总</text><text>加盟电话</text></view><text class="contact-number">181 6078 9986</text></button>
-          </view>
-        </view>
-      </view>
-    </swiper-item>
-
-    <swiper-item>
-      <view class="company-slide projects-slide {{currentSlide === 6 ? 'is-active' : ''}}">
+      <view class="company-slide projects-slide {{currentSlide === 5 ? 'is-active' : ''}}">
         <view class="slide-content">
           <text class="section-label slide-animate delay-1">项目延伸</text>
           <view class="section-title title-lines slide-animate delay-2"><text>了解露思卓儿</text><text>生活美容项目体系</text></view>
@@ -103,8 +97,8 @@
   </swiper>
 
   <view class="slide-footer" aria-hidden="true">
-    <text class="slide-number">{{slideNumbers[currentSlide]}} / 07</text>
-    <text class="swipe-guide" wx:if="{{currentSlide < 6}}">上滑继续 ↑</text>
+    <text class="slide-number">{{slideNumbers[currentSlide]}} / 06</text>
+    <text class="swipe-guide" wx:if="{{currentSlide < 5}}">上滑继续 ↑</text>
     <text class="swipe-guide" wx:else>最后一页</text>
   </view>
 </view>

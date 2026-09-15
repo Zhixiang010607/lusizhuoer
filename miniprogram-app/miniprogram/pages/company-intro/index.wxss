@@ -1,12 +1,12 @@
 page { height: 100%; overflow: hidden; background: #f7f1e8; }
 .company-page { position: relative; width: 100%; height: 100vh; overflow: hidden; color: #302a22; background: #f7f1e8; }
 .reading-progress { position: fixed; z-index: 30; top: 0; right: 0; left: 0; height: 4rpx; background: rgba(122,87,43,.1); }
-.reading-progress view { height: 100%; background: linear-gradient(90deg, #d4b37b, #98713b); transition: width 480ms cubic-bezier(.22,1,.36,1); }
+.reading-progress-fill { height: 100%; background: linear-gradient(90deg, #d4b37b, #98713b); transition: width 480ms cubic-bezier(.22,1,.36,1); }
 .company-topbar { position: fixed; z-index: 24; top: 0; right: 0; left: 0; height: calc(88px + env(safe-area-inset-top)); display: flex; align-items: flex-end; padding: 0 30rpx 10px; transition: background-color 320ms ease, box-shadow 320ms ease; }
 .company-topbar.scrolled { background: rgba(255,250,243,.96); box-shadow: 0 6rpx 24rpx rgba(94,67,32,.08); }
 .topbar-brand { color: #5d4428; font-family: "Songti SC", "STSong", serif; font-size: 24rpx; font-weight: 600; letter-spacing: 5rpx; }
 .topbar-login { position: absolute; right: 104px; bottom: 8px; width: 100rpx !important; min-width: 0; height: 32px; min-height: 32px; margin: 0; padding: 0; color: #634826; background: rgba(255,250,243,.68); border: 1rpx solid rgba(126,91,45,.56); border-radius: 16px; font-size: 24rpx; font-weight: 600; line-height: 31px; transition: transform 160ms ease, background-color 160ms ease; }
-.topbar-login::after, .contact-link::after, .project-link::after { border: 0; }
+.topbar-login::after, .hero-login::after, .project-link::after, .join-phone::after { border: 0; }
 .topbar-login-hover { transform: scale(.96); background: #fffaf3; }
 .company-swiper { width: 100%; height: 100vh; }
 .company-slide { position: relative; width: 100%; height: 100%; display: flex; align-items: center; overflow: hidden; padding: calc(112px + env(safe-area-inset-top)) 42rpx calc(70rpx + env(safe-area-inset-bottom)); }
@@ -17,7 +17,6 @@ page { height: 100%; overflow: hidden; background: #f7f1e8; }
 .focus-slide { background: linear-gradient(155deg, #f7f0e6, #ead9bd); }
 .partners-slide { background: linear-gradient(150deg, #f2e6d2, #e3cba3); }
 .belief-slide { background: linear-gradient(150deg, #f7f0e5, #ead4b2); }
-.contact-slide { background: linear-gradient(150deg, #faf5ed, #ead7b7); }
 .projects-slide { background: linear-gradient(150deg, #f8f1e7, #e5cea8); }
 .hero-background { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; }
 .is-active .hero-background { animation: hero-background-in 1200ms cubic-bezier(.22,1,.36,1) both; }
@@ -27,6 +26,8 @@ page { height: 100%; overflow: hidden; background: #f7f1e8; }
 .hero-title { display: block; color: #4b3620; font-family: "Songti SC", "STSong", serif; font-size: 45rpx; font-weight: 600; letter-spacing: 1rpx; line-height: 1.35; white-space: nowrap; }
 .hero-statement { display: block; margin-top: 28rpx; color: #6b4e2b; font-family: "Songti SC", "STSong", serif; font-size: 28rpx; font-weight: 600; line-height: 1.55; white-space: nowrap; }
 .hero-lead { max-width: 620rpx; margin: 24rpx auto 0; color: #6d5b46; font-size: 23rpx; line-height: 1.82; }
+.hero-login { width: 126rpx !important; min-width: 0; height: 58rpx; min-height: 58rpx; margin: 30rpx auto 0; padding: 0; color: #664923; background: rgba(255,250,243,.48); border: 1rpx solid rgba(126,91,45,.48); border-radius: 29rpx; font-size: 23rpx; font-weight: 600; line-height: 56rpx; transition: transform 160ms ease, background-color 160ms ease; }
+.hero-login-hover { transform: scale(.97); background: rgba(255,250,243,.82); }
 .section-title { margin-top: 20rpx; color: #3b3025; font-family: "Songti SC", "STSong", serif; font-size: 39rpx; font-weight: 600; line-height: 1.58; }
 .section-body { margin-top: 32rpx; color: #6c5f50; font-size: 25rpx; line-height: 1.9; }
 .value-flow { position: relative; margin-top: 42rpx; padding-left: 36rpx; border-left: 1rpx solid #c3a979; }
@@ -38,10 +39,20 @@ page { height: 100%; overflow: hidden; background: #f7f1e8; }
 .value-name { margin-top: 5rpx; color: #594126; font-family: "Songti SC", "STSong", serif; font-size: 33rpx; font-weight: 600; }
 .value-copy { margin-top: 10rpx; color: #6e604e; font-size: 23rpx; line-height: 1.68; }
 .service-lead { margin-top: 27rpx; color: #6d5b45; font-size: 25rpx; line-height: 1.82; }
-.service-list { margin-top: 38rpx; border-top: 1rpx solid rgba(119,83,40,.25); }
-.service-item { display: grid; grid-template-columns: 140rpx minmax(0,1fr); gap: 16rpx; padding: 25rpx 0; border-bottom: 1rpx solid rgba(119,83,40,.2); }
-.service-item text:first-child { color: #765328; font-size: 26rpx; font-weight: 600; }
-.service-item text:last-child { color: #665541; font-size: 23rpx; line-height: 1.65; }
+.service-reach { display: grid; grid-template-columns: minmax(0,1fr) 1rpx minmax(0,1.25fr); align-items: end; gap: 28rpx; margin-top: 42rpx; padding: 30rpx 0; border-top: 1rpx solid rgba(119,83,40,.25); border-bottom: 1rpx solid rgba(119,83,40,.2); }
+.reach-item text { display: block; }
+.reach-number { color: #69491f; font-family: Georgia, "Times New Roman", serif; font-size: 52rpx; line-height: 1; letter-spacing: -1rpx; }
+.reach-label { margin-top: 12rpx; color: #806e59; font-size: 21rpx; letter-spacing: 2rpx; }
+.reach-divider { width: 1rpx; height: 72rpx; background: rgba(119,83,40,.23); }
+.partnership-block { margin-top: 30rpx; padding-top: 24rpx; border-top: 1rpx solid rgba(119,83,40,.25); }
+.partnership-intro { display: flex; align-items: baseline; justify-content: space-between; gap: 18rpx; }
+.partnership-title { flex: none; color: #6a4a23; font-family: "Songti SC", "STSong", serif; font-size: 27rpx; font-weight: 600; letter-spacing: 2rpx; }
+.partnership-copy { color: #806e59; font-size: 20rpx; text-align: right; }
+.partnership-contacts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16rpx; margin-top: 18rpx; }
+.join-phone { width: 100% !important; min-width: 0; min-height: 68rpx; display: flex; align-items: center; justify-content: space-between; margin: 0; padding: 0 18rpx; color: #6f512b; background: rgba(255,250,243,.34); border: 1rpx solid rgba(126,91,45,.28); border-radius: 10rpx; font-size: 20rpx; line-height: 1; transition: background-color 160ms ease, transform 160ms ease; }
+.join-phone-name { color: #8c785c; font-size: 18rpx; }
+.join-phone-number { font-weight: 600; letter-spacing: .5rpx; }
+.join-phone-hover { transform: scale(.985); background: rgba(255,250,243,.72); }
 .belief-content { padding-left: 4rpx; }
 .belief-mark { position: absolute; z-index: -1; top: -92rpx; left: -18rpx; color: rgba(125,87,41,.12); font-family: Georgia, serif; font-size: 170rpx; line-height: 1; }
 .belief-copy { margin-top: 25rpx; color: #553e25; font-family: "Songti SC", "STSong", serif; font-size: 38rpx; font-weight: 600; line-height: 1.78; }
@@ -49,16 +60,9 @@ page { height: 100%; overflow: hidden; background: #f7f1e8; }
 .vision-label { display: block; color: #92703e; font-size: 21rpx; font-weight: 600; letter-spacing: 4rpx; }
 .vision-title { margin-top: 17rpx; color: #533d27; font-family: "Songti SC", "STSong", serif; font-size: 35rpx; font-weight: 600; line-height: 1.58; }
 .vision-copy { margin-top: 18rpx; color: #756654; font-size: 23rpx; line-height: 1.72; }
-.contact-copy { display: block; margin-top: 25rpx; color: #756654; font-size: 24rpx; line-height: 1.8; }
-.contact-list, .project-list { margin-top: 40rpx; border-top: 1rpx solid #cdb890; }
-.contact-link, .project-link { width: 100% !important; max-width: 100%; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 20rpx; margin: 0; padding: 22rpx 2rpx; color: #5c4328; background: transparent; border-bottom: 1rpx solid #d2bd96; border-radius: 0; line-height: 1.4; text-align: left; transition: padding 180ms ease, background-color 180ms ease; }
-.contact-link { min-height: 108rpx; }
-.contact-link view { display: flex; align-items: baseline; gap: 14rpx; }
-.contact-link view text:first-child { font-size: 28rpx; font-weight: 600; }
-.contact-link view text:last-child { color: #8b765d; font-size: 21rpx; }
-.contact-number { flex: none; color: #765328; font-size: 27rpx; font-weight: 600; letter-spacing: 1rpx; }
-.contact-link-hover, .project-link-hover { padding-right: 10rpx; background: rgba(255,250,243,.45); }
-.project-list { margin-top: 34rpx; }
+.project-list { margin-top: 34rpx; border-top: 1rpx solid #cdb890; }
+.project-link { width: 100% !important; max-width: 100%; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 20rpx; margin: 0; padding: 22rpx 2rpx; color: #5c4328; background: transparent; border-bottom: 1rpx solid #d2bd96; border-radius: 0; line-height: 1.4; text-align: left; transition: padding 180ms ease, background-color 180ms ease; }
+.project-link-hover { padding-right: 10rpx; background: rgba(255,250,243,.45); }
 .project-link { min-height: 104rpx; }
 .project-link view { min-width: 0; }
 .project-link view text { display: block; }
@@ -92,14 +96,17 @@ page { height: 100%; overflow: hidden; background: #f7f1e8; }
   .value-name { font-size: 29rpx; }
   .value-copy { margin-top: 5rpx; font-size: 21rpx; line-height: 1.5; }
   .service-lead { margin-top: 18rpx; font-size: 22rpx; line-height: 1.62; }
-  .service-list { margin-top: 22rpx; }
-  .service-item { padding: 18rpx 0; }
+  .service-reach { gap: 20rpx; margin-top: 24rpx; padding: 22rpx 0; }
+  .reach-number { font-size: 44rpx; }
+  .partnership-block { margin-top: 20rpx; padding-top: 18rpx; }
+  .partnership-contacts { margin-top: 12rpx; }
+  .join-phone { min-height: 58rpx; padding: 0 13rpx; font-size: 18rpx; }
   .belief-copy { font-size: 33rpx; line-height: 1.58; }
   .vision-block { margin-top: 30rpx; padding-top: 24rpx; }
   .vision-title { font-size: 31rpx; }
   .vision-copy { margin-top: 12rpx; font-size: 21rpx; }
-  .contact-list, .project-list { margin-top: 24rpx; }
-  .contact-link, .project-link { min-height: 86rpx; padding: 14rpx 2rpx; }
+  .project-list { margin-top: 24rpx; }
+  .project-link { min-height: 86rpx; padding: 14rpx 2rpx; }
   .slide-brand { margin-top: 20rpx; }
 }
 @media (min-width: 700px) {
@@ -113,6 +120,7 @@ page { height: 100%; overflow: hidden; background: #f7f1e8; }
   .hero-title { font-size: 38px; letter-spacing: 1px; }
   .hero-statement { margin-top: 20px; font-size: 21px; }
   .hero-lead { max-width: 720px; margin-top: 18px; font-size: 15px; }
+  .hero-login { width: 70px !important; height: 34px; min-height: 34px; margin-top: 20px; border-width: 1px; border-radius: 17px; font-size: 14px; line-height: 32px; }
   .balanced-copy text { display: inline; }
   .section-title { margin-top: 12px; font-size: 29px; }
   .section-body { max-width: 760px; margin-top: 20px; font-size: 16px; }
@@ -123,23 +131,26 @@ page { height: 100%; overflow: hidden; background: #f7f1e8; }
   .value-name { margin-top: 0; font-size: 21px; }
   .value-copy { margin-top: 0; font-size: 15px; }
   .service-lead { max-width: 720px; margin-top: 18px; font-size: 16px; }
-  .service-list { margin-top: 30px; }
-  .service-item { grid-template-columns: 110px minmax(0,1fr); gap: 15px; padding: 19px 0; }
-  .service-item text:first-child { font-size: 16px; }
-  .service-item text:last-child { font-size: 14px; }
+  .service-reach { max-width: 590px; grid-template-columns: minmax(0,1fr) 1px minmax(0,1.25fr); gap: 28px; margin-top: 30px; padding: 23px 0; }
+  .reach-number { font-size: 39px; }
+  .reach-label { margin-top: 8px; font-size: 13px; }
+  .reach-divider { width: 1px; height: 54px; }
+  .partnership-block { max-width: 590px; margin-top: 22px; padding-top: 18px; }
+  .partnership-title { font-size: 17px; }
+  .partnership-copy { font-size: 13px; }
+  .partnership-contacts { gap: 10px; margin-top: 12px; }
+  .join-phone { min-height: 40px; padding: 0 12px; border-width: 1px; border-radius: 7px; font-size: 12px; }
+  .join-phone-name { font-size: 11px; }
   .belief-content { max-width: 760px; }
   .belief-copy { margin-top: 18px; font-size: 30px; }
   .vision-block { margin-top: 38px; padding-top: 28px; }
   .vision-label { font-size: 13px; }
   .vision-title { margin-top: 10px; font-size: 27px; }
   .vision-copy { margin-top: 12px; font-size: 15px; }
-  .contact-copy { margin-top: 16px; font-size: 15px; }
-  .contact-list, .project-list { margin-top: 28px; }
-  .contact-link, .project-link { min-height: 66px; padding: 13px 2px; border-bottom-width: 1px; }
-  .contact-link view { gap: 10px; }
-  .contact-link view text:first-child, .project-link view text:first-child { font-size: 18px; }
-  .contact-link view text:last-child, .project-link view text:last-child { font-size: 13px; }
-  .contact-number { font-size: 17px; }
+  .project-list { margin-top: 28px; }
+  .project-link { min-height: 66px; padding: 13px 2px; border-bottom-width: 1px; }
+  .project-link view text:first-child { font-size: 18px; }
+  .project-link view text:last-child { font-size: 13px; }
   .project-link > text { font-size: 18px; }
   .slide-brand { margin-top: 28px; }
   .slide-brand text:first-child { font-size: 20px; }
@@ -149,5 +160,5 @@ page { height: 100%; overflow: hidden; background: #f7f1e8; }
 @media (prefers-reduced-motion: reduce) {
   .hero-background, .swipe-guide, .is-active .slide-animate { animation: none; }
   .slide-animate { opacity: 1; transform: none; }
-  .reading-progress view { transition: none; }
+  .reading-progress-fill { transition: none; }
 }
