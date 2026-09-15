@@ -7,7 +7,7 @@ Page({
     project: null, unavailable: false, motion: true, compact: false,
     stageHeight: 620, storyHeight: 1900, chapter: 0, reading: 0,
     heroStyle: "", layerOne: "", layerTwo: "", layerThree: "",
-    ringStyle: "", glowStyle: "", pulseStyle: "", heroFailed: false, noticeOpen: false
+    ringStyle: "", glowStyle: "", pulseStyle: "", heroFailed: false
   },
   onLoad(options) {
     this._alive = true;
@@ -91,13 +91,6 @@ Page({
     wx.pageScrollTo({ scrollTop: Math.round(this._storyTop + this._storyTravel * (chapter + 0.12) / 3), duration: this.data.motion ? 320 : 0 });
   },
   heroError() { this.setData({ heroFailed: true }); },
-  toggleNotice() {
-    this.setData({ noticeOpen: !this.data.noticeOpen }, () => {
-      if (!this._alive) return;
-      this.measure();
-      if (this.data.noticeOpen) wx.pageScrollTo({ selector: "#intro-notice", offsetTop: -68, duration: this.data.motion ? 240 : 0 });
-    });
-  },
   openNext() {
     if (this._navigating || !this.data.project) return;
     const project = getProject(this.data.project.nextKey);

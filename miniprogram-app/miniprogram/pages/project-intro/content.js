@@ -18,8 +18,7 @@ const PROJECTS = {
       { title: "肤龄观感", text: "将细腻度、紧致观感与整体状态感纳入日常美容管理。" },
       { title: "分层组合", text: "三项护理模块各有侧重，可根据部位与外观需求组合安排。" }
     ],
-    beforeText: "体验前请主动说明健康状况、植入物、既往手术及近期接受的其他项目，由具备相应资质的人员依据设备说明书评估风险。出现持续或明显不适，应及时就医。",
-    nextKey: "skin", nextName: "魔法柔肤", nextDevice: "柔肤仪"
+    nextKey: "skin", nextName: "魔法柔肤"
   },
   skin: {
     key: "skin", name: "魔法柔肤", device: "柔肤仪", category: "生活美容 · 肤质管理",
@@ -39,8 +38,7 @@ const PROJECTS = {
       { title: "肤色观感", text: "关注暗沉、肤色不匀与整体清透感。" },
       { title: "水润光泽", text: "兼顾肌肤的水润度、光泽感与日常状态维护。" }
     ],
-    beforeText: "请先阅读设备说明书，由具备相应资质的人员评估适用范围、禁忌与风险。正在治疗或有特殊皮肤情况时，应先咨询医生。",
-    nextKey: "warmth", nextName: "露思康辰", nextDevice: "温热身体护理"
+    nextKey: "warmth", nextName: "露思康辰"
   },
   warmth: {
     key: "warmth", name: "露思康辰", device: "温热身体护理", category: "生活美容 · 温度管理",
@@ -63,8 +61,7 @@ const PROJECTS = {
       { title: "连贯度", text: "连续而有序的手法，将局部护理串成完整体验。" },
       { title: "温度管理", text: "可调温手柄配合不同部位与个人感受安排温热体验。" }
     ],
-    beforeText: "孕妇、未成年人及部分植入物、心脏手术等情况属于设备资料列出的禁用情形。已有疼痛、肿胀、麻木或其他持续不适时，应先就医，不以本项目替代诊疗。预约前请主动说明健康与手术情况，由具备相应资质的人员依据实际设备说明书核对全部禁忌与适用范围。",
-    nextKey: "ocean", nextName: "海洋之蕴", nextDevice: "精雕仪"
+    nextKey: "ocean", nextName: "海洋之蕴"
   }
 };
 

@@ -70,7 +70,10 @@ test("public introductions state distinct life-beauty positioning without medica
     ].join(" ");
     assert.doesNotMatch(promotionalCopy, /解决|治愈|止痛|痛症|抗衰|逆龄|提高免疫|疏通经络|永久|保证|无副作用|疗程/);
   }
-  assert.match(getProject("warmth").beforeText, /不以本项目替代诊疗/);
+  for (const key of Object.keys(expected)) assert.equal("beforeText" in getProject(key), false,
+    "the retired experience notice copy must not remain in public project data");
+  for (const key of Object.keys(expected)) assert.equal("nextDevice" in getProject(key), false,
+    "the compact footer must keep only the destination project name");
 });
 
 test("scroll transitions update chapters in both directions and motion off retains every chapter", () => {
@@ -133,29 +136,17 @@ test("unknown routes and failed local images retain usable return and reading co
   assert.equal(valid.page.data.project.steps.length, 3);
 });
 
-test("experience notes start collapsed and update document measurement when opened or closed", () => {
-  const { page, pending, scrolls } = harness();
-  page.onLoad({ project: "warmth" });
-  assert.equal(page.data.noticeOpen, false);
-  page.toggleNotice();
-  assert.equal(page.data.noticeOpen, true);
-  assert.equal(pending.length, 1);
-  assert.equal(scrolls[0].selector, "#intro-notice");
-  assert.match(page.data.project.beforeText, /孕妇、未成年人/);
-  page.toggleNotice();
-  assert.equal(page.data.noticeOpen, false);
-  assert.equal(pending.length, 2, "closing must recalculate reading length too");
-  assert.equal(scrolls.length, 1, "closing must not unexpectedly scroll to another section");
-});
-
-test("a delayed notice render cannot scroll the next page after leaving the introduction", () => {
-  const { page, scrolls, pending } = harness();
-  page.onLoad({ project: "skin" });
-  let rendered;
-  page.setData = (patch, complete) => { Object.assign(page.data, patch); rendered = complete; };
-  page.toggleNotice();
-  page.onUnload();
-  rendered();
-  assert.equal(scrolls.length, 0);
-  assert.equal(pending.length, 0);
+test("project footer keeps both destinations in one compact row without an experience notice", () => {
+  const wxml = fs.readFileSync(path.join(directory, "index.wxml"), "utf8");
+  const wxss = fs.readFileSync(path.join(directory, "index.wxss"), "utf8");
+  const js = fs.readFileSync(path.join(directory, "index.js"), "utf8");
+  assert.match(wxml, /class="footer-actions"[\s\S]*class="next-project"[\s\S]*class="footer-back"/);
+  assert.match(wxss, /\.footer-actions\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:/s);
+  assert.match(wxss, /\.intro-footer \.next-project\s*\{[^}]*min-height:\s*76px;/s);
+  assert.match(wxss, /\.intro-footer \.footer-back\s*\{[^}]*min-height:\s*76px;/s);
+  assert.doesNotMatch(wxml, /继续探索露思卓儿/,
+    "the footer must not add a third visual layer above the two real destinations");
+  assert.doesNotMatch(wxml, /体验须知|intro-notice|notice-toggle/);
+  assert.doesNotMatch(wxss, /intro-notice|notice-toggle|notice-copy/);
+  assert.doesNotMatch(js, /noticeOpen|toggleNotice/);
 });
