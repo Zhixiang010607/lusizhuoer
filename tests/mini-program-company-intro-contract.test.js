@@ -63,6 +63,8 @@ test("company introduction is a static public page focused on brand positioning"
     "the company home must use reliable native vertical full-screen paging");
   assert.equal((wxml.match(/<swiper-item>/g) || []).length, 6,
     "each company chapter must occupy one of the six complete vertical pages");
+  assert.match(wxml, /about-slide \{\{currentSlide === 1[\s\S]*belief-slide \{\{currentSlide === 2[\s\S]*focus-slide \{\{currentSlide === 3[\s\S]*partners-slide \{\{currentSlide === 4[\s\S]*projects-slide \{\{currentSlide === 5/,
+    "brand belief must establish the company voice before actions, service reach, and project extensions");
   assert.doesNotMatch(wxml, /class="company-slide contact-slide|>加盟咨询<\/text>/,
     "the duplicated standalone contact page must stay retired after joining moves to the service-reach chapter");
   assert.match(wxml, /\{\{slideNumbers\[currentSlide\]\}\} \/ 06/);
@@ -97,7 +99,7 @@ test("company introduction is a static public page focused on brand positioning"
   assert.match(wxml, /class="slide-footer"[\s\S]*class="slide-number"[\s\S]*class="swipe-guide"/);
   assert.doesNotMatch(wxml, /slide-dots|slide-dot/,
     "page status must stay in the quiet footer instead of interrupting the right edge of the composition");
-  assert.match(wxml, /class="section-body balanced-copy[^"]*"[\s\S]*class="service-lead balanced-copy[^"]*"[\s\S]*class="vision-copy balanced-copy[^"]*"/,
+  assert.match(wxml, /class="section-body balanced-copy[^"]*"[\s\S]*class="vision-copy balanced-copy[^"]*"[\s\S]*class="service-lead balanced-copy[^"]*"/,
     "long mobile copy must use deliberate semantic line groups rather than leaving orphaned final characters");
   assert.match(wxss, /\.title-lines text, \.balanced-copy text, \.belief-copy text \{ display: block; \}[\s\S]*@media \(min-width: 700px\)[\s\S]*\.balanced-copy text \{ display: inline; \}/,
     "deliberate phone line breaks must return to natural flow on tablet widths");

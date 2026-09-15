@@ -30,7 +30,22 @@
     </swiper-item>
 
     <swiper-item>
-      <view class="company-slide focus-slide {{currentSlide === 2 ? 'is-active' : ''}}">
+      <view class="company-slide belief-slide {{currentSlide === 2 ? 'is-active' : ''}}">
+        <view class="slide-content belief-content">
+          <text class="belief-mark">“</text>
+          <text class="section-label slide-animate delay-1">品牌理念</text>
+          <view class="belief-copy title-lines"><text class="slide-animate delay-2">用专业理解需求</text><text class="slide-animate delay-3">用温度完成服务</text><text class="slide-animate delay-4">用时间建立信任</text></view>
+          <view class="vision-block slide-animate delay-5">
+            <text class="vision-label">品牌愿景</text>
+            <view class="vision-title title-lines"><text>让生活美容服务</text><text>清晰而有温度</text></view>
+            <view class="vision-copy balanced-copy"><text>以扎实的项目、真诚的服务和长期的陪伴，</text><text>与更多认真做美容服务的人一起成长。</text></view>
+          </view>
+        </view>
+      </view>
+    </swiper-item>
+
+    <swiper-item>
+      <view class="company-slide focus-slide {{currentSlide === 3 ? 'is-active' : ''}}">
         <view class="slide-content">
           <text class="section-label slide-animate delay-1">我们在做的事</text>
           <view class="section-title title-lines slide-animate delay-2"><text>从清晰的方向开始</text><text>把每一次服务做好</text></view>
@@ -44,7 +59,7 @@
     </swiper-item>
 
     <swiper-item>
-      <view class="company-slide partners-slide {{currentSlide === 3 ? 'is-active' : ''}}">
+      <view class="company-slide partners-slide {{currentSlide === 4 ? 'is-active' : ''}}">
         <view class="slide-content">
           <text class="section-label slide-animate delay-1">与谁同行</text>
           <view class="section-title title-lines slide-animate delay-2"><text>与 100+ 门店同行</text><text>把每一次体验做好</text></view>
@@ -60,21 +75,6 @@
               <button class="join-phone" hover-class="join-phone-hover" data-phone="18179422788" bindtap="callPhone" aria-label="拨打乐总加盟电话18179422788"><text class="join-phone-name">乐总</text><text class="join-phone-number">181 7942 2788</text></button>
               <button class="join-phone" hover-class="join-phone-hover" data-phone="18160789986" bindtap="callPhone" aria-label="拨打乐总加盟电话18160789986"><text class="join-phone-name">乐总</text><text class="join-phone-number">181 6078 9986</text></button>
             </view>
-          </view>
-        </view>
-      </view>
-    </swiper-item>
-
-    <swiper-item>
-      <view class="company-slide belief-slide {{currentSlide === 4 ? 'is-active' : ''}}">
-        <view class="slide-content belief-content">
-          <text class="belief-mark">“</text>
-          <text class="section-label slide-animate delay-1">品牌理念</text>
-          <view class="belief-copy title-lines"><text class="slide-animate delay-2">用专业理解需求</text><text class="slide-animate delay-3">用温度完成服务</text><text class="slide-animate delay-4">用时间建立信任</text></view>
-          <view class="vision-block slide-animate delay-5">
-            <text class="vision-label">品牌愿景</text>
-            <view class="vision-title title-lines"><text>让生活美容服务</text><text>清晰而有温度</text></view>
-            <view class="vision-copy balanced-copy"><text>以扎实的项目、真诚的服务和长期的陪伴，</text><text>与更多认真做美容服务的人一起成长。</text></view>
           </view>
         </view>
       </view>
