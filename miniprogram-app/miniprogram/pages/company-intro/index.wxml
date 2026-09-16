@@ -11,58 +11,96 @@
         <image class="hero-background" src="/images/login/lusizhuoer-login-bg-v4.jpg" mode="aspectFill" aria-hidden="true"></image>
         <view class="hero-copy">
           <text class="hero-title slide-animate delay-1">广州露思卓儿科技有限公司</text>
-          <text class="hero-statement slide-animate delay-2">让专业有温度，让美好被认真对待</text>
-          <view class="hero-lead balanced-copy slide-animate delay-3"><text>专注生活美容事业，围绕项目体系与门店支持。</text><text>关注线下体验，和认真做美容服务的人一起成长。</text></view>
-          <button class="hero-login slide-animate delay-4" hover-class="hero-login-hover" bindtap="openLogin" aria-label="进入登录页面">登录</button>
+          <view class="hero-philosophy slide-animate delay-2">
+            <text class="hero-section-label">企业理念</text>
+            <text class="hero-philosophy-line">用爱经营企业，企业才能基业长青！</text>
+            <text class="hero-statement">让美有温度，让业有方向！</text>
+          </view>
+          <view class="hero-overview">
+            <view class="hero-info-row slide-animate delay-3">
+              <text class="hero-info-label">企业简介</text>
+              <view class="hero-info-copy"><text>专注无创科技康美，依托三大王牌科技项目，</text><text>搭建门店售前售后客户管理体系。</text><text>坚守线下体验，以客户体验满意度为核心，</text><text>赋能门店打造专属科美事业部。</text></view>
+            </view>
+            <view class="hero-info-row slide-animate delay-4">
+              <text class="hero-info-label">企业使命</text>
+              <view class="hero-info-copy"><text>以专业技术与服务文化赋能美业生态，</text><text>依托三大王牌品项，成就客户美好人生。</text></view>
+            </view>
+            <view class="hero-info-row slide-animate delay-5">
+              <text class="hero-info-label">企业愿景</text>
+              <view class="hero-info-copy"><text>成为美业技术服务标杆企业，</text><text>打造高净值人群信赖的美业科技生态平台。</text></view>
+            </view>
+          </view>
+          <button class="hero-login slide-animate delay-5" hover-class="hero-login-hover" bindtap="openLogin" aria-label="进入登录页面">登录</button>
         </view>
       </view>
     </swiper-item>
 
     <swiper-item>
-      <view class="company-slide about-slide {{currentSlide === 1 ? 'is-active' : ''}}">
-        <view class="slide-content">
+      <view class="company-slide content-slide about-slide {{currentSlide === 1 ? 'is-active' : ''}}">
+        <image class="slide-background-art" src="/images/login/lusizhuoer-login-bg-v4.jpg" mode="aspectFill" aria-hidden="true"></image>
+        <view class="slide-content about-content">
           <text class="section-label slide-animate delay-1">我们是谁</text>
-          <view class="section-title title-lines slide-animate delay-2"><text>以生活美容为事业</text><text>把专业与温度带到服务现场</text></view>
-          <view class="section-body balanced-copy slide-animate delay-3"><text>广州露思卓儿科技有限公司专注于生活美容领域。</text><text>我们围绕真实的线下服务场景，</text><text>持续梳理项目方向、服务表达与配套支持。</text></view>
-          <view class="section-body balanced-copy slide-animate delay-4"><text>我们希望复杂的内容变得清楚，</text><text>让门店更容易落地，让美容老师更从容地服务，</text><text>也让每一次顾客体验更细致、更自然。</text></view>
+          <view class="section-title about-title title-lines slide-animate delay-2"><text>以无创科技康美为事业</text><text>把专业技术及客情管理带到服务现场</text></view>
+          <view class="about-body">
+            <text class="about-paragraph about-paragraph-primary slide-animate delay-3">广州露思卓儿科技有限公司，专注无创科技调肤、<text class="phrase-nowrap">面部三维精雕</text>、<text class="phrase-nowrap">身体痛症调理与体温管理领域。</text></text>
+            <text class="about-paragraph slide-animate delay-3">我们扎根真实线下服务场景，持续打磨项目体系、<text class="phrase-nowrap">服务话术与落地配套支持</text>。</text>
+            <text class="about-paragraph slide-animate delay-4">我们追求<text class="phrase-nowrap">高端医美级的改善效果</text>，<text class="phrase-nowrap">以生美合规的体验感与高性价比</text>，<text class="phrase-nowrap">让每一位爱美人士</text>，<text class="about-break">看见美、拥有美、享受美，收获更美好的生活。</text></text>
+            <text class="about-paragraph slide-animate delay-5">助力门店低风险落地，<text class="phrase-nowrap">轻投入快速资源变现</text>，<text class="phrase-nowrap">实现长期稳定收益</text>；三大王牌项目，成为<text class="phrase-nowrap">门店镇店核心</text>。</text>
+            <text class="about-paragraph about-paragraph-last slide-animate delay-5">赋能美容师<text class="phrase-nowrap">从容自信服务客户</text>，把更好的康养之美带给<text class="phrase-nowrap">每一位顾客</text>。</text>
+          </view>
         </view>
       </view>
     </swiper-item>
 
     <swiper-item>
-      <view class="company-slide belief-slide {{currentSlide === 2 ? 'is-active' : ''}}">
+      <view class="company-slide content-slide belief-slide {{currentSlide === 2 ? 'is-active' : ''}}">
+        <image class="slide-background-art" src="/images/login/lusizhuoer-login-bg-v4.jpg" mode="aspectFill" aria-hidden="true"></image>
         <view class="slide-content belief-content">
           <text class="belief-mark">“</text>
           <text class="section-label slide-animate delay-1">品牌理念</text>
-          <view class="belief-copy title-lines"><text class="slide-animate delay-2">用专业理解需求</text><text class="slide-animate delay-3">用温度完成服务</text><text class="slide-animate delay-4">用时间建立信任</text></view>
-          <view class="vision-block slide-animate delay-5">
-            <text class="vision-label">品牌愿景</text>
-            <view class="vision-title title-lines"><text>让生活美容服务</text><text>清晰而有温度</text></view>
-            <view class="vision-copy balanced-copy"><text>以扎实的项目、真诚的服务和长期的陪伴，</text><text>与更多认真做美容服务的人一起成长。</text></view>
+          <view class="belief-copy title-lines"><text class="slide-animate delay-2">用爱经营企业，企业才能基业长青！</text><text class="slide-animate delay-3">让美有温度，让业有方向！</text></view>
+          <view class="core-values">
+            <text class="core-values-label slide-animate delay-3">五维核心价值观</text>
+            <view class="core-value-list">
+              <view class="core-value-row slide-animate delay-3"><text class="core-value-index">01</text><view class="core-value-text"><text class="core-value-name">向阳而生</text><text class="core-value-copy">以自强立根，以成长为翼</text></view></view>
+              <view class="core-value-row slide-animate delay-4"><text class="core-value-index">02</text><view class="core-value-text"><text class="core-value-name">真诚致远</text><text class="core-value-copy">以真心换信任，以纯粹赢长久</text></view></view>
+              <view class="core-value-row slide-animate delay-4"><text class="core-value-index">03</text><view class="core-value-text"><text class="core-value-name">坚韧笃行</text><text class="core-value-copy">以拼搏为姿，以坚持为魂</text></view></view>
+              <view class="core-value-row slide-animate delay-5"><text class="core-value-index">04</text><view class="core-value-text"><text class="core-value-name">大爱利他</text><text class="core-value-copy">怀感恩之心，以行动传爱</text></view></view>
+              <view class="core-value-row core-value-row-last slide-animate delay-5"><text class="core-value-index">05</text><view class="core-value-text"><text class="core-value-name">守正创新</text><text class="core-value-copy">以文化为基，以科技赋能</text></view></view>
+            </view>
           </view>
         </view>
       </view>
     </swiper-item>
 
     <swiper-item>
-      <view class="company-slide focus-slide {{currentSlide === 3 ? 'is-active' : ''}}">
-        <view class="slide-content">
+      <view class="company-slide content-slide focus-slide {{currentSlide === 3 ? 'is-active' : ''}}">
+        <image class="slide-background-art" src="/images/login/lusizhuoer-login-bg-v4.jpg" mode="aspectFill" aria-hidden="true"></image>
+        <view class="slide-content focus-content">
           <text class="section-label slide-animate delay-1">我们在做的事</text>
-          <view class="section-title title-lines slide-animate delay-2"><text>从清晰的方向开始</text><text>把每一次服务做好</text></view>
+          <view class="section-title focus-title title-lines slide-animate delay-2"><text>从清晰正确的方向开始，</text><text>把每一次服务做好</text></view>
           <view class="value-flow">
-            <view class="value-row slide-animate delay-3"><text class="value-index">01</text><text class="value-name">项目体系</text><text class="value-copy">围绕不同的生活美容需求，梳理清晰、容易理解的项目方向与服务重点。</text></view>
-            <view class="value-row slide-animate delay-4"><text class="value-index">02</text><text class="value-name">门店支持</text><text class="value-copy">把项目内容与落地方式讲明白，让门店和美容老师在服务现场更从容。</text></view>
-            <view class="value-row slide-animate delay-5"><text class="value-index">03</text><text class="value-name">长期陪伴</text><text class="value-copy">在持续沟通与真实服务中一起成长，让专业沉淀为稳定、值得信任的体验。</text></view>
+            <view class="value-row value-row-projects slide-animate delay-3">
+              <text class="value-index">01</text><text class="value-name">项目体系</text>
+              <view class="value-project-list">
+                <text class="value-project-item value-project-item-first"><text class="value-project-name">王牌品项一｜《魔法柔肤》仪：</text>无创科技调肤，90分钟，焕现肌肤白、透、亮、润、紧。</text>
+                <text class="value-project-item"><text class="value-project-name">王牌品项二｜《海洋之蕴》三维精雕：</text>分层对抗肌肤衰老，作用胶原、肌肉、筋膜，提拉收紧，重塑年轻轮廓。</text>
+                <text class="value-project-item"><text class="value-project-name">王牌品项三｜《露思康辰》E脉通：</text>专注身体痛症调理、体温管理，调理身体亚健康。</text>
+              </view>
+            </view>
+            <view class="value-row slide-animate delay-4"><text class="value-index">02</text><text class="value-name">门店支持</text><text class="value-copy">免费帮门店搭建专属科美事业部，赋能美容师，专业从容地解决客户的美与亚健康需求。</text></view>
+            <view class="value-row value-row-last slide-animate delay-5"><text class="value-index">03</text><text class="value-name">长期陪伴</text><text class="value-copy">在持续沟通与真实服务中共同成长，让专业沉淀成稳定、值得信赖的体验。</text></view>
           </view>
         </view>
       </view>
     </swiper-item>
 
     <swiper-item>
-      <view class="company-slide partners-slide {{currentSlide === 4 ? 'is-active' : ''}}">
+      <view class="company-slide content-slide partners-slide {{currentSlide === 4 ? 'is-active' : ''}}">
+        <image class="slide-background-art" src="/images/login/lusizhuoer-login-bg-v4.jpg" mode="aspectFill" aria-hidden="true"></image>
         <view class="slide-content">
           <text class="section-label slide-animate delay-1">与谁同行</text>
-          <view class="section-title title-lines slide-animate delay-2"><text>与 100+ 门店同行</text><text>把每一次体验做好</text></view>
+          <view class="section-title title-lines slide-animate delay-2"><text>与 100+门店同行</text><text>把每一次体验做好</text></view>
           <view class="service-lead balanced-copy slide-animate delay-3"><text>从项目体系到一线落地，露思卓儿持续陪伴认真做服务的人。</text><text>让专业进入真实场景，让每一份用心都被顾客感受到。</text></view>
           <view class="service-reach slide-animate delay-4" aria-label="已服务超过100家门店，累计服务超过10000名顾客">
             <view class="reach-item"><text class="reach-number">100+</text><text class="reach-label">服务门店</text></view>
@@ -81,16 +119,17 @@
     </swiper-item>
 
     <swiper-item>
-      <view class="company-slide projects-slide {{currentSlide === 5 ? 'is-active' : ''}}">
+      <view class="company-slide content-slide projects-slide {{currentSlide === 5 ? 'is-active' : ''}}">
+        <image class="slide-background-art" src="/images/login/lusizhuoer-login-bg-v4.jpg" mode="aspectFill" aria-hidden="true"></image>
         <view class="slide-content">
           <text class="section-label slide-animate delay-1">项目延伸</text>
           <view class="section-title title-lines slide-animate delay-2"><text>了解露思卓儿</text><text>生活美容项目体系</text></view>
           <view class="project-list">
-            <button class="project-link slide-animate delay-3" hover-class="project-link-hover" data-project="ocean" bindtap="openProjectIntro" aria-label="查看海洋之蕴项目介绍"><view><text>海洋之蕴</text><text>轮廓与肤龄管理方向</text></view><text>↗</text></button>
-            <button class="project-link slide-animate delay-4" hover-class="project-link-hover" data-project="skin" bindtap="openProjectIntro" aria-label="查看魔法柔肤项目介绍"><view><text>魔法柔肤</text><text>肤质与肤色管理方向</text></view><text>↗</text></button>
-            <button class="project-link slide-animate delay-5" hover-class="project-link-hover" data-project="warmth" bindtap="openProjectIntro" aria-label="查看露思康辰项目介绍"><view><text>露思康辰</text><text>温度与身体舒适体验方向</text></view><text>↗</text></button>
+            <button class="project-link slide-animate delay-3" hover-class="project-link-hover" data-project="ocean" bindtap="openProjectIntro" aria-label="查看海洋之蕴项目介绍"><view class="project-link-copy"><text class="project-name">海洋之蕴</text><text class="project-direction">轮廓与肤龄管理方向</text></view><text class="project-arrow">↗</text></button>
+            <button class="project-link slide-animate delay-4" hover-class="project-link-hover" data-project="skin" bindtap="openProjectIntro" aria-label="查看魔法柔肤项目介绍"><view class="project-link-copy"><text class="project-name">魔法柔肤</text><text class="project-direction">肤质与肤色管理方向</text></view><text class="project-arrow">↗</text></button>
+            <button class="project-link slide-animate delay-5" hover-class="project-link-hover" data-project="warmth" bindtap="openProjectIntro" aria-label="查看露思康辰项目介绍"><view class="project-link-copy"><text class="project-name">露思康辰</text><text class="project-direction">温度与身体舒适体验方向</text></view><text class="project-arrow">↗</text></button>
           </view>
-          <view class="slide-brand slide-animate delay-5"><text>露思卓儿</text><text>广州露思卓儿科技有限公司</text></view>
+          <view class="slide-brand slide-animate delay-5"><text class="slide-brand-name">露思卓儿</text><text class="slide-brand-company">广州露思卓儿科技有限公司</text></view>
         </view>
       </view>
     </swiper-item>
