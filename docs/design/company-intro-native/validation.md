@@ -68,4 +68,4 @@
 - 公司叙事：[我们是谁](screenshots/company-home-about-430.png)、[五维核心价值观](screenshots/company-home-belief-430.png)、[我们在做的事](screenshots/company-home-focus-430.png)、[与谁同行](screenshots/company-home-service-430.png)
 - 对外入口：[服务规模与加盟信息](screenshots/company-home-service-430.png)、[项目延伸](screenshots/company-home-projects-430.png)、[独立登录](screenshots/login-430.png)
 
-此前六页公司主页源码已随开发版 `0.2.74` 上传。2026-09-16 新增的完整企业文案、五维核心价值观、第四页品项正文、全页 Logo 水印和背景动效尚未上传微信开发版、提交公众平台审核或正式发布；当前最后确认上传的开发版仍为 `0.2.74`，详见[0.2.74 发布记录](../../../miniprogram-app/releases/0.2.74.md)。
+2026-09-16 新增的完整企业文案、五维核心价值观、第四页品项正文、全页 Logo 水印、背景动效及“看见美”独立换行已随开发版 `0.2.75` 上传。微信开发者工具 Stable `2.02.2608040` 在悉尼时间约 11:58 明确显示“代码上传成功”；当前最后确认上传的开发版为 `0.2.75`，尚未提交公众平台审核或正式发布。上传前工具提示上次提交已被选为体验版且本次上传会覆盖体验版，但体验版版本号与物理手机效果未另行回读。详见[0.2.75 发布记录](../../../miniprogram-app/releases/0.2.75.md)。
