@@ -1,0 +1,11 @@
+[2026-09-24 18:26:43+08:00] attempt=1 progressStart
+[2026-09-24 18:26:49+08:00] attempt=1 compile=6127ms packCodes=17ms doUpload=start
+[2026-09-24 19:01:57+08:00] attempt=1 no success/failure terminal state after about 35 minutes; IDE restarted to clear stalled task
+[2026-09-24 19:02:26+08:00] attempt=2 progressStart
+[2026-09-24 19:02:34+08:00] attempt=2 compile=5824ms codeChecker=2134ms packCodes=32ms doUpload=start
+[2026-09-24 19:02:47+08:00] attempt=2 CLI connection ended with code=10 socket hang up
+[2026-09-24 19:07:42+08:00] attempt=3 native UI progressStart version=0.2.76 updateType=feature
+[2026-09-24 19:07:43+08:00] attempt=3 compile=721ms codeChecker=4ms packCodes=15ms doUpload=start
+[2026-09-24 19:12:42+08:00] attempt=3 native UI terminal failure Error: Timeout [2.02.2608040][darwin-arm64]
+STATUS=FAILED_NO_SUCCESS_RECEIPT
+LAST_CONFIRMED_DEVELOPMENT_VERSION=0.2.75
