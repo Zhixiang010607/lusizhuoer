@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Generate the normative BLE device interaction protocol PDF.
 
-The document intentionally mirrors the deployed v106 server and 0.2.48
-mini-program contract.  It also labels the one remaining production security
-gap (unsigned device receipts) instead of presenting it as already solved.
+The document mirrors the faceRecognition v114 and current mini-program source
+contract. It also labels the one remaining production security gap (unsigned
+device receipts) instead of presenting it as already solved.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ from reportlab.platypus import (
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 OUT_DIR = os.path.join(ROOT, "output", "pdf")
-OUT_FILE = os.path.join(OUT_DIR, "Lusizhuoer_BLE_Device_Interaction_Protocol_V3.1.pdf")
+OUT_FILE = os.path.join(OUT_DIR, "Lusizhuoer_BLE_Device_Interaction_Protocol_V3.2.pdf")
 
 PAGE_W, PAGE_H = A4
 MARGIN_X = 15 * mm
@@ -201,7 +201,7 @@ class NumberedDocTemplate(BaseDocTemplate):
             rightMargin=MARGIN_X,
             topMargin=MARGIN_TOP,
             bottomMargin=MARGIN_BOTTOM,
-            title="露思卓儿小程序 BLE 扫码核销设备交互协议 V3.1",
+            title="露思卓儿小程序 BLE 扫码核销设备交互协议 V3.2",
             author="广州露思卓儿科技有限公司",
             subject="BLE hardware integration protocol",
         )
@@ -226,7 +226,7 @@ def draw_page(canvas, doc):
     canvas.rect(0, PAGE_H - 7 * mm, PAGE_W, 7 * mm, fill=1, stroke=0)
     canvas.setFont(FONT, 6.8)
     canvas.setFillColor(MUTED)
-    canvas.drawString(MARGIN_X, 7.5 * mm, "露思卓儿 · BLE 设备交互协议 V3.1 · 受控技术文档")
+    canvas.drawString(MARGIN_X, 7.5 * mm, "露思卓儿 · BLE 设备交互协议 V3.2 · 受控技术文档")
     canvas.drawRightString(PAGE_W - MARGIN_X, 7.5 * mm, f"第 {page} 页")
     canvas.restoreState()
 
@@ -331,7 +331,7 @@ def build_story():
     story += [Spacer(1, 22 * mm)]
     story.append(rich("<font color='#7A592C'>露 思 卓 儿</font>", "CoverSubZH"))
     story.append(p("小程序 BLE 扫码核销设备交互协议", "CoverTitleZH"))
-    story.append(p("V3.1 · 实施版（硬件 / 固件 / 小程序 / 云函数 / 测试共同基线）", "CoverSubZH"))
+    story.append(p("V3.2 · 实施版（硬件 / 固件 / 小程序 / 云函数 / 测试共同基线）", "CoverSubZH"))
     story.append(Spacer(1, 10 * mm))
     story.append(callout(
         "文档用途",
@@ -342,10 +342,10 @@ def build_story():
     story.append(table(
         ["项目", "值"],
         [
-            ["文档版本", "V3.1 / 2026-08-29"],
-            ["对齐服务端", "faceRecognition v106"],
-            ["对齐小程序", "0.2.48"],
-            ["数据库基线", "迁移 066：BLE qualification / authorization（仅两张短时表）；旧三表环境执行 066-02 清理注册表"],
+            ["文档版本", "V3.2 / 2026-09-24"],
+            ["对齐服务端", "faceRecognition v114"],
+            ["对齐小程序", "当前仓库源码（0.2.75 后续，尚待上传）"],
+            ["数据库基线", "迁移 066 两张短时表 + 069 魔法柔肤 LA / LASER-BLE 格式；旧三表环境执行 066-02"],
             ["适用业务", "正常核销、体验核销"],
             ["协议传输", "微信小程序 BLE Central + GATT 透明传输；UTF-8 JSON Lines"],
             ["密钥算法", "HMAC-SHA256（对称消息认证；不是公钥加密）"],
@@ -378,7 +378,7 @@ def build_story():
         "App 不下发能量、温度、模式、光源、启停或单次服务时长。设备进入工作态后不再按具体项目限制模式。",
         "一个核销次数对应多少分钟尚未定稿，必须与米总确认后写入设备受控配置；禁止固件擅自固定为 30 分钟。",
         "二维码中的 6 位 code 不是密钥，不提供独立安全性；它只是本次扫码会话的短标识。服务端不查询设备注册表。",
-        "当前 v106 未验证设备回执的独立 MAC。本文件给出量产回执 MAC 格式，但须待服务端升级后才能形成端到端密码学闭环。",
+        "当前 v114 未验证设备回执的独立 MAC。本文件给出量产回执 MAC 格式，但须待服务端升级后才能形成端到端密码学闭环。",
     ])
     story.append(h2("1.3 业务规则（简版）"))
     story.append(table(
@@ -413,7 +413,7 @@ def build_story():
         ["1", "用户", "选择门店 / 客户 / 项目 / 次数并完成人脸验证"],
         ["2", "服务端", "创建 90 秒 qualification；此时不扣次"],
         ["3", "小程序", "人脸成功后才显示“开始设备核销”；打开二维码扫描"],
-        ["4", "小程序", "解析 nc://bind，开启蓝牙，按 NCM-xxxxxx 搜索并连接"],
+        ["4", "小程序", "解析 nc://bind，按序列号规则计算 BLE 名称并搜索连接"],
         ["5", "小程序 → 设备", "发送 get_info；读取 device_id/type/name/status/nonce"],
         ["6", "小程序 → 服务端", "提交 qualification + QR + info，请求一次性授权"],
         ["7", "服务端", "验证资格/账户/门店/客户/项目/次数/二维码结构/实时设备信息/nonce，生成 HMAC auth"],
@@ -435,10 +435,10 @@ def build_story():
     story.append(table(
         ["字段", "格式 / 示例", "约束"],
         [
-            ["sn / device_id", "NCM1F0C58D0A00", "正则 ^NCM[0-9A-F]{11}$；大写；两者必须相等"],
-            ["BLE 广播名", "NCM-8D0A00", "固定为 NCM- + device_id 最后 6 个字符；区分大小写"],
-            ["二维码", "nc://bind?sn=NCM1F0C58D0A00&code=382451", "sn 大写；code 恰好 6 位十进制数字"],
-            ["device_type", "haiyangzhiyun", "项目中文名转无声调拼音，小写，移除所有非 a-z0-9，最多 128 字符"],
+            ["sn / device_id", "LAF82E0CC8C5B9", "魔法柔肤：^LA[0-9A-F]{12}$；大写；二维码与设备必须相等"],
+            ["BLE 广播名", "LA-C8C5B9", "魔法柔肤：LA- + device_id 最后 6 个字符；区分大小写"],
+            ["二维码", "nc://bind?sn=LAF82E0CC8C5B9&code=382451", "sn 大写；code 恰好 6 位十进制数字"],
+            ["device_type", "LASER-BLE", "魔法柔肤固定值，区分大小写；签名和设备本地配置必须一致"],
             ["nonce", "0123456789abcdef0123456789abcdef", "16 随机字节编码为 32 位十六进制；每次待机授权周期唯一"],
             ["qualification token", "48 位小写十六进制", "仅小程序与服务端使用，不发送给设备"],
             ["authorization token", "48 位小写十六进制", "仅小程序与服务端使用，不发送给设备"],
@@ -448,16 +448,16 @@ def build_story():
         ],
         widths=[34, 61, 75],
     ))
-    story.append(h2("3.1 项目名到 device_type 的唯一算法"))
+    story.append(h2("3.1 项目到设备身份档案的唯一映射"))
     story += bullets([
-        "调用无声调拼音转换；按原字符顺序拼接。",
-        "转换为小写；删除空格、连字符、下划线、标点和所有非 a-z0-9 字符。",
-        "若结果为空，服务端拒绝建立资格；设备实时返回的 device_type 必须与本次项目归一化结果完全相同。",
-        "示例：海洋之蕴 → haiyangzhiyun；魔法柔肤 → mofaroufu；露思康辰 → lusikangchen。",
+        "项目名包含“魔法柔肤”时固定使用：device_id=LA + 12 位大写十六进制、ble_name=LA- + 末 6 位、device_type=LASER-BLE。",
+        "魔法柔肤不再使用旧的 mofaroufu 类型；设备 get_info 与服务端 auth canonical string 都使用 LASER-BLE。",
+        "其他项目在厂家格式未确认前继续兼容旧规则：NCM + 11 位大写十六进制、NCM- + 末 6 位，device_type 为项目名无声调小写拼音。",
+        "兼容示例：海洋之蕴 → haiyangzhiyun；露思康辰 → lusikangchen。厂家确认后必须建立各项目显式映射并升级协议。",
     ])
     story.append(callout(
         "没有 model 字段",
-        "本协议不要求 model=WD-BLE，也没有任何 WD-BLE 固定型号判断。device_type 是项目名称归一化结果；设备进入工作态后，它不限制设备端可选模式。",
+        "本协议不要求 model=WD-BLE，也没有任何 WD-BLE 固定型号判断。魔法柔肤的 device_type 固定为 LASER-BLE；设备进入工作态后，它不限制设备端可选模式。",
         "note",
     ))
     story.append(PageBreak())
@@ -467,7 +467,7 @@ def build_story():
     story.append(h2("4.1 当前小程序的服务发现规则"))
     story += bullets([
         "小程序作为 BLE Central；设备作为 Peripheral。BLE 5.4 设备必须向下兼容手机可用的 GATT 能力。",
-        "设备广播名必须等于 NCM-{SN 后六位}。发现超时 15 秒；连接超时 12 秒。",
+        "魔法柔肤广播名必须等于 LA-{SN 后六位}；兼容 NCM 设备使用 NCM-{SN 后六位}。发现超时 15 秒；连接超时 12 秒。",
         "小程序遍历 primary service，要求恰好一个 service 同时具有至少一个 write/writeNoResponse 特征和至少一个 notify/indicate 特征。",
         "若没有候选 service，报 BLE_PROTOCOL_CHANNEL_MISSING；若超过一个，报 BLE_PROTOCOL_CHANNEL_AMBIGUOUS。量产固件必须只暴露一个符合条件的业务 service。",
         "优先选择支持 write 的特征，否则 writeNoResponse；优先选择 notify 的特征，否则 indicate。",
@@ -490,7 +490,7 @@ def build_story():
     story.append(code('{"ver":"1.0","seq":1,"cmd":"get_info","ts":1788000000}\n'))
     story.append(callout(
         "ATT MTU / 分片验收",
-        "规范允许分片，但当前 0.2.48 将完整 JSON 交给微信 writeBLECharacteristicValue。硬件联调必须在 iOS 与 Android 真机验证 auth 最大帧可成功写入；若模块不能接受长写，发布前必须由 App 增加分片层，禁止在固件中静默截断。",
+        "规范允许分片，但当前小程序源码将完整 JSON 交给微信 writeBLECharacteristicValue。硬件联调必须在 iOS 与 Android 真机验证 auth 最大帧可成功写入；若模块不能接受长写，发布前必须由 App 增加分片层，禁止在固件中静默截断。",
         "warn",
     ))
     story.append(h2("4.3 设备内部串口（若使用透明传输模块）"))
@@ -500,7 +500,7 @@ def build_story():
     # 5 QR and timing
     story.append(h1("5. 二维码、人脸门禁与两个时间窗口"))
     story.append(h2("5.1 静态二维码"))
-    story.append(code("nc://bind?sn=NCM1F0C58D0A00&code=382451"))
+    story.append(code("nc://bind?sn=LAF82E0CC8C5B9&code=382451"))
     story += bullets([
         "二维码必须贴在对应设备机身，sn 与设备固件 device_id 必须一致。",
         "code 在服务端仅以 SHA-256 摘要登记；设备本身不需要读取 code。",
@@ -539,7 +539,7 @@ def build_story():
     story.append(code("openssl rand -hex 32"))
     story += bullets([
         "命令生成 32 个随机字节，并以 64 个小写十六进制字符输出。",
-        "当前 faceRecognition v106 把这 64 个字符作为 UTF-8/ASCII 密钥字节直接传给 HMAC；设备必须做同样处理。禁止把 64 字符 hex 再解码为 32 raw bytes，否则签名不同。",
+        "当前 faceRecognition v114 把这 64 个字符作为 UTF-8/ASCII 密钥字节直接传给 HMAC；设备必须做同样处理。禁止把 64 字符 hex 再解码为 32 raw bytes，否则签名不同。",
         "同一 64 字符值写入云函数环境变量 BLE_AUTH_SIGNING_KEY 和每台设备安全存储。",
         "密钥长度按 UTF-8 至少 32 字节；建议始终使用上述 64 字符格式。",
     ])
@@ -569,7 +569,7 @@ def build_story():
 
     test_key = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
     test_canonical = (
-        "command=enter_work&device_id=NCM1F0C58D0A00&device_type=haiyangzhiyun"
+        "command=enter_work&device_id=LAF82E0CC8C5B9&device_type=LASER-BLE"
         "&usage_count=3&expire_at=1788000030&issued_at=1788000000"
         "&nonce=0123456789abcdef0123456789abcdef"
     )
@@ -578,7 +578,7 @@ def build_story():
     story.append(code(f"key_utf8 = {test_key}\ncanonical = {test_canonical}\nsignature = {test_sig}"))
     story.append(callout(
         "量产安全缺口",
-        "当前设备 auth_result/status 没有被 v106 独立验 MAC。HMAC 已保护“服务端→设备”的开机授权，但“设备→服务端”的工作回执仍经客户端转发。第 12 节规定了兼容扩展字段；服务端升级验证前，不得宣称端到端完全防伪。",
+        "当前设备 auth_result/status 没有被 v114 独立验 MAC。HMAC 已保护“服务端→设备”的开机授权，但“设备→服务端”的工作回执仍经客户端转发。第 12 节规定了兼容扩展字段；服务端升级验证前，不得宣称端到端完全防伪。",
         "warn",
     ))
     story.append(PageBreak())
@@ -625,8 +625,8 @@ def build_story():
     story.append(h2("8.2 auth（seq=2）"))
     auth_example = (
         '{"ver":"1.0","seq":2,"cmd":"auth","auth":{'
-        '"command":"enter_work","device_id":"NCM1F0C58D0A00",'
-        '"device_type":"haiyangzhiyun","nonce":"0123456789abcdef0123456789abcdef",'
+        '"command":"enter_work","device_id":"LAF82E0CC8C5B9",'
+        '"device_type":"LASER-BLE","nonce":"0123456789abcdef0123456789abcdef",'
         '"usage_count":3,"issued_at":1788000000,"expire_at":1788000030,'
         f'"signature":"{test_sig}"' + "}}\n"
     )
@@ -636,7 +636,7 @@ def build_story():
         [
             ["command", "string", "必须 enter_work"],
             ["device_id", "string", "必须等于本机 SN"],
-            ["device_type", "string", "必须等于本机登记类型；仅授权前校验"],
+            ["device_type", "string", "必须等于本机安全配置类型；仅授权前校验"],
             ["nonce", "string", "必须等于当前待机 nonce，且从未使用"],
             ["usage_count", "integer", "1–999，且设备能力允许；不得强制等于 1"],
             ["issued_at", "integer", "Unix 秒；与 expire_at 构成已签名窗口"],
@@ -667,8 +667,8 @@ def build_story():
     story.append(h2("9.1 info（响应 seq=1）"))
     info_example = (
         '{"ver":"1.0","seq":1,"cmd":"info","ok":true,'
-        '"device_id":"NCM1F0C58D0A00","device_type":"haiyangzhiyun",'
-        '"ble_name":"NCM-8D0A00","status":1,'
+        '"device_id":"LAF82E0CC8C5B9","device_type":"LASER-BLE",'
+        '"ble_name":"LA-C8C5B9","status":1,'
         '"nonce":"0123456789abcdef0123456789abcdef","ts":1788000001}\n'
     )
     story.append(code(info_example))
@@ -680,7 +680,7 @@ def build_story():
             ["ok", "boolean", "成功 true；失败 false"],
             ["device_id", "string", "必须与二维码 sn 相等"],
             ["device_type", "string", "必须与本次 expectedDeviceType 相等"],
-            ["ble_name", "string", "必须等于 NCM-{sn 后 6 位}"],
+            ["ble_name", "string", "魔法柔肤必须等于 LA-{sn 后 6 位}"],
             ["status", "integer", "1=待机；2=工作中；其他值拒绝"],
             ["nonce", "string", "32 位 hex；status=1 时必须是未使用的当前随机数"],
             ["ts", "integer", "设备时间；当前小程序不强制，但建议用于诊断"],
@@ -690,7 +690,7 @@ def build_story():
     story.append(h2("9.2 auth_result 成功（响应 seq=2）"))
     auth_result = (
         '{"ver":"1.0","seq":2,"cmd":"auth_result","ok":true,'
-        '"device_id":"NCM1F0C58D0A00","device_type":"haiyangzhiyun",'
+        '"device_id":"LAF82E0CC8C5B9","device_type":"LASER-BLE",'
         '"nonce":"0123456789abcdef0123456789abcdef",'
         '"usage_count":3,"status":2}\n'
     )
@@ -706,7 +706,7 @@ def build_story():
     story.append(h2("9.4 status（响应 seq=3）"))
     status_example = (
         '{"ver":"1.0","seq":3,"cmd":"status","ok":true,'
-        '"device_id":"NCM1F0C58D0A00","device_type":"haiyangzhiyun",'
+        '"device_id":"LAF82E0CC8C5B9","device_type":"LASER-BLE",'
         '"nonce":"0123456789abcdef0123456789abcdef",'
         '"usage_count":3,"status":2}\n'
     )
@@ -722,7 +722,7 @@ def build_story():
         ["状态", "数值", "允许命令", "进入条件", "离开条件"],
         [
             ["OFF/未就绪", "0", "get_info, query_status", "上电自检失败/未就绪", "自检和安全存储可用"],
-            ["READY/待机", "1", "get_info, auth, query_status", "空闲且已登记", "有效 auth 原子提交，或本地停机"],
+            ["READY/待机", "1", "get_info, auth, query_status", "空闲且安全配置完整", "有效 auth 原子提交，或本地停机"],
             ["WORKING/工作", "2", "get_info, query_status", "HMAC 验证成功且会话持久化", "服务正常结束或本地提前结束"],
         ],
         widths=[34, 16, 49, 38, 33],
@@ -747,7 +747,7 @@ def build_story():
         widths=[59, 111],
     ))
     story.append(h2("10.3 设备进入工作态后的项目选择"))
-    story.append(p("授权前 device_type 必须与所选项目一致，用于设备兼容性与登记校验；一旦 status=2，设备不再按项目限制具体模式，操作者可在设备端自由选择该设备支持的项目/模式。usage_count 仍是本次授权总次数。"))
+    story.append(p("授权前 device_type 必须与所选项目一致，用于设备兼容性与本机配置校验；一旦 status=2，设备不再按项目限制具体模式，操作者可在设备端自由选择该设备支持的项目/模式。usage_count 仍是本次授权总次数。"))
     story.append(PageBreak())
 
     # 11 power and exit
@@ -790,7 +790,7 @@ def build_story():
 
     # 12 receipt MAC extension
     story.append(h1("12. 量产回执签名扩展（向后兼容，服务端升级后强制）"))
-    story.append(p("当前 0.2.48 会忽略未知字段，因此固件现在可以附带以下字段；但 faceRecognition v106 尚未验证它们。量产上线前应升级服务端，使 auth_result/status 的设备证明也通过 HMAC 验证。"))
+    story.append(p("当前小程序源码会忽略未知字段，因此固件现在可以附带以下字段；但 faceRecognition v114 尚未验证它们。量产上线前应升级服务端，使 auth_result/status 的设备证明也通过 HMAC 验证。"))
     story.append(h2("12.1 建议新增字段"))
     story.append(table(
         ["字段", "类型", "要求"],
@@ -834,7 +834,7 @@ def build_story():
         ["1003", "NONCE_MISMATCH", "auth nonce 不是当前 nonce", "重新读取设备；不扣次"],
         ["1004", "NONCE_USED", "nonce 已使用", "禁止重放；核对已有会话"],
         ["1005", "DEVICE_BUSY", "设备正在工作", "不得再次授权；查询原会话"],
-        ["1006", "DEVICE_ID_MISMATCH", "授权 ID 与本机不一致", "检查二维码/登记；不扣次"],
+        ["1006", "DEVICE_ID_MISMATCH", "授权 ID 与本机不一致", "检查二维码/本机配置；不扣次"],
         ["1007", "DEVICE_TYPE_MISMATCH", "授权类型与本机不一致", "更换正确设备；不扣次"],
         ["1008", "UNSUPPORTED_OPERATION", "不支持 enter_work", "升级固件；不扣次"],
         ["1009", "NOT_PROVISIONED", "设备未完成安全配置", "返厂/管理员配置；不扣次"],
@@ -861,7 +861,7 @@ def build_story():
         ["BLE_PROTOCOL_CHANNEL_MISSING", "缺少写+通知通道", "固件修复后", "否"],
         ["BLE_PROTOCOL_CHANNEL_AMBIGUOUS", "多个业务通道，无法安全选择", "固件修复后", "否"],
         ["BLE_INFO_TIMEOUT", "10 秒无 info", "是", "否"],
-        ["BLE_DEVICE_ID/TYPE/NAME_MISMATCH", "二维码、登记或设备不匹配", "换正确设备", "否"],
+        ["BLE_DEVICE_ID/TYPE/NAME_MISMATCH", "二维码、本机配置或设备不匹配", "换正确设备", "否"],
         ["BLE_NONCE_INVALID / NONCE_REUSED", "随机数格式或重放失败", "设备复位/诊断后", "否"],
         ["BLE_QUALIFICATION_EXPIRED", "90 秒资格过期", "重新人脸", "否"],
         ["BLE_AUTHORIZATION_ALREADY_ISSUED", "同一资格已锁定设备，禁止重发", "查询原设备状态", "否"],
@@ -903,9 +903,9 @@ def build_story():
     story.append(table(
         ["字段", "示例/说明", "保存位置"],
         [
-            ["device_id / qr_sn", "NCM1F0C58D0A00", "设备本地安全配置 + 二维码；服务端不建立设备注册表"],
-            ["ble_name", "NCM-8D0A00", "设备广播配置；由小程序现场读取并校验"],
-            ["device_type", "haiyangzhiyun", "设备本地安全配置；必须等于本次项目归一化结果"],
+            ["device_id / qr_sn", "LAF82E0CC8C5B9", "魔法柔肤：LA + 12 位大写十六进制；设备与二维码一致"],
+            ["ble_name", "LA-C8C5B9", "魔法柔肤：LA- + device_id 末 6 位；由小程序现场校验"],
+            ["device_type", "LASER-BLE", "魔法柔肤固定类型；设备 get_info、auth 与本地安全配置一致"],
             ["session_code", "382451", "二维码明文会话码；非密钥、非配对凭据，不持久登记"],
             ["BLE_AUTH_SIGNING_KEY", "64 hex chars", "设备安全存储 + 云函数环境变量；绝不进二维码或数据库"],
             ["unit_duration_sec", "TBD", "设备受控配置；米总确认后下发"],
@@ -921,7 +921,7 @@ def build_story():
         "上线前执行第 18 节验收；验收报告只记录 key_id/批次，不记录真实密钥。",
     ])
     story.append(h2("16.3 轮换"))
-    story.append(p("当前 v106 只读取一个 BLE_AUTH_SIGNING_KEY，没有 key_id 在线选择。轮换必须协调云函数与设备批次，安排双钥过渡或停机窗口；在服务端支持 key_id 前，禁止单方面改云端或设备端密钥。"))
+    story.append(p("当前 v114 只读取一个 BLE_AUTH_SIGNING_KEY，没有 key_id 在线选择。轮换必须协调云函数与设备批次，安排双钥过渡或停机窗口；在服务端支持 key_id 前，禁止单方面改云端或设备端密钥。"))
     story.append(PageBreak())
 
     # 17 backend contract brief
@@ -989,7 +989,7 @@ def build_story():
         ["责任方", "必须完成"],
         [
             ["硬件/固件", "唯一 GATT 业务通道；HMAC 测试向量；nonce CSPRNG；断电安全持久化；错误码；长帧/分片；提前退出"],
-            ["后端", "迁移 066 两张短时表 READY；066-02 清理旧注册表且 absent=READY；BLE_AUTH_SIGNING_KEY；90/30 秒约束；幂等核销；禁止客户端写表"],
+            ["后端", "迁移 066 两张短时表与 069 格式约束 READY；066-02 清理旧注册表；BLE_AUTH_SIGNING_KEY；90/30 秒约束；幂等核销"],
             ["小程序", "严格人脸门禁；剩余时间用服务端值；结构化中文错误；扫码关闭/重开；status=2 后跳同一工单"],
             ["安全", "密钥注入/读保护/日志检查；回执 MAC 服务端验证方案；威胁模型与轮换预案"],
             ["QA", "第 18 节 24 项真机验收，覆盖 iOS/Android、断电、弱网、通知丢失、重复包"],
@@ -1014,8 +1014,8 @@ def build_story():
     # appendix
     story.append(h1("附录 A：一眼可执行的设备实现清单"))
     checklist = [
-        "[ ] device_id 符合 NCM + 11 位大写十六进制；BLE 名称为 NCM- + 后 6 位。",
-        "[ ] device_type 为项目名全小写无声调拼音，删除所有分隔符；没有 model 字段。",
+        "[ ] 魔法柔肤 device_id 符合 LA + 12 位大写十六进制；BLE 名称为 LA- + 后 6 位。",
+        "[ ] 魔法柔肤 device_type 固定为 LASER-BLE；没有 model 字段。",
         "[ ] 唯一业务 GATT service：至少一个 write 与一个 notify；不会出现第二候选。",
         "[ ] UTF-8 JSON Lines；缓存分片，按 LF 拆帧；不会把半帧当 JSON。",
         "[ ] get_info/info、auth/auth_result、query_status/status 四组交互字段完全匹配。",
@@ -1036,8 +1036,8 @@ def build_story():
             ["服务端签名与 BLE 状态", "cloudfunctions/faceRecognition/index.js"],
             ["小程序 BLE 收发与错误", "miniprogram-app/miniprogram/services/ble-verification.js"],
             ["页面 90 秒门禁与跳转", "miniprogram-app/miniprogram/pages/verification/"],
-            ["BLE 数据库约束", "database/migrations/066_ble_verification_authorization.sql"],
-            ["只读验收", "database/cloudbase-console/066-readonly-verify.sql"],
+            ["BLE 数据库约束", "database/migrations/066_ble_verification_authorization.sql + 069_magic_soft_skin_ble_identity.sql"],
+            ["只读验收", "database/cloudbase-console/066-readonly-verify.sql + 069-readonly-verify.sql"],
             ["跨端契约测试", "tests/ble-verification-contract.test.js"],
             ["最终业务规则", "PROJECT_CONTEXT.md"],
         ],
@@ -1047,7 +1047,7 @@ def build_story():
     story.append(Spacer(1, 5 * mm))
     story.append(callout(
         "文档结束",
-        "本 PDF 是硬件交互实施基线，不携带真实密钥。交付固件时请在版本说明中写明“兼容 Lusizhuoer BLE Protocol V3.1”并附第 18 节测试报告。",
+        "本 PDF 是硬件交互实施基线，不携带真实密钥。交付魔法柔肤固件时请在版本说明中写明“兼容 Lusizhuoer BLE Protocol V3.2”并附第 18 节测试报告。",
         "ok",
     ))
     return story

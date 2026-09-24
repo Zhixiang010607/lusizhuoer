@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v10" : "v113";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v10" : "v114";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -4236,11 +4236,25 @@ async function requireVerificationBleSchema() {
 }
 
 function verificationDeviceType(productName) {
+  const normalizedProductName = String(productName || "").replace(/\s+/g, "");
+  if (normalizedProductName.includes("魔法柔肤")) return "LASER-BLE";
   pinyinFunction ||= require("pinyin-pro").pinyin;
   const segments = pinyinFunction(String(productName || ""), { toneType: "none", type: "array" });
   const value = segments.join("").toLowerCase().replace(/[^a-z0-9]/g, "");
   if (!value) fail("项目名称无法转换成有效设备类型，请先修正项目名称。", "BLE_DEVICE_TYPE_INVALID");
   return value.slice(0, 128);
+}
+
+function isSupportedVerificationDeviceSerial(value) {
+  const serial = String(value || "").trim().toUpperCase();
+  return /^LA[0-9A-F]{12}$/.test(serial) || /^NCM[0-9A-F]{11}$/.test(serial);
+}
+
+function verificationBleName(serial) {
+  const normalized = String(serial || "").trim().toUpperCase();
+  if (/^LA[0-9A-F]{12}$/.test(normalized)) return `LA-${normalized.slice(-6)}`;
+  if (/^NCM[0-9A-F]{11}$/.test(normalized)) return `NCM-${normalized.slice(-6)}`;
+  return "";
 }
 
 function sha256Text(value) {
@@ -4616,15 +4630,15 @@ async function issueVerificationBleAuthorization(event) {
   const qrCode = String(event.qrCode || "").trim();
   const device = event.deviceInfo && typeof event.deviceInfo === "object" ? event.deviceInfo : {};
   const deviceId = String(device.device_id || device.deviceId || "").trim().toUpperCase();
-  const deviceType = String(device.device_type || device.deviceType || "").trim().toLowerCase();
+  const deviceType = String(device.device_type || device.deviceType || "").trim();
   const bleName = String(device.ble_name || device.bleName || "").trim();
   const nonce = String(device.nonce || "").trim();
   const status = Number(device.status);
   if (!/^[0-9a-f]{48}$/.test(qualificationToken)) fail("BLE 核销资格无效。", "BLE_QUALIFICATION_INVALID");
-  if (!/^NCM[0-9A-F]{11}$/.test(qrSn) || !/^\d{6}$/.test(qrCode)) fail("设备二维码格式不正确。", "BLE_QR_INVALID");
+  if (!isSupportedVerificationDeviceSerial(qrSn) || !/^\d{6}$/.test(qrCode)) fail("设备二维码格式不正确。", "BLE_QR_INVALID");
   if (deviceId !== qrSn) fail("二维码编号与蓝牙设备编号不一致。", "BLE_DEVICE_ID_MISMATCH");
-  if (!/^[a-z0-9]+$/.test(deviceType)) fail("设备类型格式不正确。", "BLE_DEVICE_TYPE_INVALID");
-  if (bleName !== `NCM-${qrSn.slice(-6)}`) fail("设备蓝牙名称与二维码不一致。", "BLE_NAME_MISMATCH");
+  if (!/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/.test(deviceType)) fail("设备类型格式不正确。", "BLE_DEVICE_TYPE_INVALID");
+  if (bleName !== verificationBleName(qrSn)) fail("设备蓝牙名称与二维码不一致。", "BLE_NAME_MISMATCH");
   if (!/^[0-9a-fA-F]{32}$/.test(nonce)) fail("设备随机数格式不正确。", "BLE_NONCE_INVALID");
   if (status !== 1) fail(status === 2 ? "设备正在服务中，不能重复授权。" : "设备尚未进入待机状态。", "BLE_DEVICE_NOT_READY");
 
@@ -4662,8 +4676,14 @@ async function issueVerificationBleAuthorization(event) {
   if (Number(qualification.valid_seconds || 0) <= 0) {
     fail("90 秒 BLE 核销资格已过期，请重新拍照验证。", "BLE_QUALIFICATION_EXPIRED");
   }
-  if (qualification.expected_device_type !== deviceType) {
+  if (String(qualification.expected_device_type).toUpperCase() !== deviceType.toUpperCase()) {
     fail(`设备类型不匹配：本次需要 ${qualification.expected_device_type}。`, "BLE_DEVICE_TYPE_MISMATCH");
+  }
+  const canonicalDeviceType = String(qualification.expected_device_type);
+  const magicSoftSkinProfile = canonicalDeviceType.toUpperCase() === "LASER-BLE";
+  const magicSoftSkinSerial = /^LA[0-9A-F]{12}$/.test(qrSn);
+  if (magicSoftSkinProfile !== magicSoftSkinSerial) {
+    fail("魔法柔肤必须使用 LA 设备，其他项目不能使用 LA 设备。", "BLE_DEVICE_TYPE_MISMATCH");
   }
 
   const issuedAt = Number(qualification.server_epoch_seconds);
@@ -4673,7 +4693,7 @@ async function issueVerificationBleAuthorization(event) {
     fail("90 秒 BLE 核销资格已过期，请重新拍照验证。", "BLE_QUALIFICATION_EXPIRED");
   }
   const payload = verificationBleAuthorizationPayload({
-    deviceId, deviceType, nonce, unitCount: Number(qualification.unit_count), issuedAt, expireAt
+    deviceId, deviceType: canonicalDeviceType, nonce, unitCount: Number(qualification.unit_count), issuedAt, expireAt
   });
   const signature = verificationBleSignature(payload);
   const authorizationToken = crypto.randomBytes(24).toString("hex");
@@ -4685,7 +4705,7 @@ async function issueVerificationBleAuthorization(event) {
        VALUES
         (${sqlText(authorizationToken)}, ${sqlText(qualification.id)}::bigint,
          ${sqlText(qrSn)}, ${sqlText(sha256Text(qrCode))}, ${sqlText(deviceId)},
-         ${sqlText(deviceType)}, ${sqlText(nonce)}, ${Number(qualification.unit_count)},
+         ${sqlText(canonicalDeviceType)}, ${sqlText(nonce)}, ${Number(qualification.unit_count)},
          TO_TIMESTAMP(${issuedAt}), TO_TIMESTAMP(${expireAt}), ${sqlText(sha256Text(signature))})`
     );
   } catch (error) {
@@ -4724,7 +4744,7 @@ async function confirmVerificationBleWorkStarted(event) {
   const authorizationToken = String(event.authorizationToken || "").trim();
   const result = event.deviceResult && typeof event.deviceResult === "object" ? event.deviceResult : {};
   const deviceId = String(result.device_id || result.deviceId || "").trim().toUpperCase();
-  const deviceType = String(result.device_type || result.deviceType || "").trim().toLowerCase();
+  const deviceType = String(result.device_type || result.deviceType || "").trim();
   const nonce = String(result.nonce || "").trim();
   if (!/^[0-9a-f]{48}$/.test(authorizationToken)) fail("BLE 设备授权回执无效。", "BLE_AUTHORIZATION_INVALID");
   if (result.ok !== true || Number(result.status) !== 2) {
@@ -4749,7 +4769,7 @@ async function confirmVerificationBleWorkStarted(event) {
     fail("该 BLE 授权不属于当前账号和门店。", "FORBIDDEN");
   }
   if (deviceId !== String(authorization.device_id)
-      || deviceType !== String(authorization.device_type)
+      || deviceType.toUpperCase() !== String(authorization.device_type).toUpperCase()
       || nonce !== String(authorization.nonce)) {
     fail("设备工作回执与本次授权不一致，已禁止核销。", "BLE_DEVICE_RECEIPT_MISMATCH");
   }

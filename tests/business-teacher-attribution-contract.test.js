@@ -16,8 +16,8 @@ function section(startMarker, endMarker) {
   return cloud.slice(start, end);
 }
 
-assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v10" : "v113"/);
-assert.match(readme, /当前版本：`v113`/);
+assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v10" : "v114"/);
+assert.match(readme, /当前版本：`v114`/);
 
 const attributionSource = section("function teacherBusinessAttributionSourceCondition", "function trustedBusinessTeacherIdSql");
 const trustedTeacherId = section("function trustedBusinessTeacherIdSql", "function teacherBusinessOwnershipCondition");

@@ -1,5 +1,7 @@
 # 门店业务与总部数据系统
 
+2026-09-24 **魔法柔肤扫码开机协议已按厂家格式接入源码**：小程序可解析 `LA` 加 12 位大写十六进制的设备编号，按 `LA-` 加末 6 位查找 BLE 广播，并校验固定类型 `LASER-BLE`；服务端使用同一规范类型签发 HMAC 授权。旧 `NCM` 设备规则继续兼容。生产启用前必须依次执行迁移 069、部署 `faceRecognition v114`、上传新版小程序，再用真实设备联调；当前线上仍是旧版本，不能只更新其中一项。
+
 2026-09-16 **六页公司主页文案与品牌背景完善（开发版 `0.2.75` 已上传）**：第一页直接展示公司全称、企业理念、企业简介、企业使命和企业愿景，简介／使命／愿景字号放大并利用下方留白提高手机阅读性。第二页“我们是谁”使用用户确认的无创科技康美、专业技术及客情管理完整原文，关键词按完整语义换行；“看见美、拥有美、享受美”单独起行。第三页保留品牌理念并改为五维核心价值观；第四页完整展示三个王牌品项、门店支持与长期陪伴；第五页固定“与 100+门店同行”及两组服务数字、加盟说明和两个电话。六页均复用同一金色水滴／侧脸 Logo 原图，后五页增加浅色全屏水印、香槟金光环与缓慢背景动效，保持文字和点击优先。登录、六页顺序、项目入口和后台权限不变。微信开发者工具已明确显示“代码上传成功”，当前最后确认上传的开发版为 `0.2.75`；尚未提交审核或正式发布，详见[发布记录](miniprogram-app/releases/0.2.75.md)。
 
 2026-09-15 **小程序启动页改为六个竖向全屏公司主页分页（开发版 `0.2.74` 已上传）**：打开小程序即进入公司主页，六页依次为首屏、我们是谁、品牌理念／愿景、我们在做的事、与谁同行和项目延伸；先建立公司价值表达，再承接行动、服务规模与项目入口。每次上滑完整切页，停稳时不跨页显示。首屏复用金色水滴／侧脸 LOGO 全屏背景，公司全称、品牌主张和居中小型登录入口形成同一视觉轴；第二页起右上角继续显示登录。第五页“与谁同行”展示 `100+` 服务门店、`10000+` 累计服务顾客，并把加盟说明与两个乐总电话直接合并在正文中，不使用模拟电话弹窗、展开层或额外跳页。项目延伸为第六页。登录页返回按钮和项目页尾导航均使用独立前景触控层。暖象牙白与浅香槟金贯穿各页，标题、正文与细项按顺序上移渐显；密码登录、手机号快捷登录、修改密码、启动会话校验和后台权限均保留。验证边界见[公司主页与独立登录记录](docs/design/company-intro-native/validation.md)。官方上传客户端五分钟超时后后台继续执行，并于悉尼时间 20:50:20 返回 `progressSuccess`；当前最后确认上传的开发版为 `0.2.74`，尚未提交审核或正式发布，详见[发布记录](miniprogram-app/releases/0.2.74.md)。
@@ -49,7 +51,7 @@
 
 当前小程序开发基线为 Node.js `>=20.19.0`、pnpm `9.15.9`、CloudBase JS SDK `3.7.1` 和微信开发者工具；依赖必须按 `pnpm-lock.yaml` 冻结安装，不再使用会产生第二份锁文件的 `npm install`。当前开发 AppID 为 `wxb053c1bd6c684d8b`。2026-08-27 已完成 CloudBase 全托管认证，CloudBase 身份认证中的同 AppID 微信小程序身份源也已启用；全托管模式下不再通过旧服务商扫码入口反复修改域名。AppID 可公开但任何密钥都不得写入仓库。现有 CloudBase 是 PostgreSQL 环境，不走微信开发者工具的“云环境转换”；小程序通过 SDK 与微信适配器复用同一环境和云函数。
 
-> 当前代码版本矩阵为 `staffAccount v81`、`faceRecognition v113`、`verificationPhoto v11`、`teacherCreate v6`、`customerRating v7`，网页版为 `0.15.26`，小程序当前上传状态见页首。补充照片由服务端建立任务并签发一次性私有对象 PUT 地址，网页和小程序直接上传 JPEG 字节，独立照片函数只回读校验并原子绑定，不再接收 Base64 图片中转。迁移 068 已在环境 `rusizhuoer-d9gbcsgym07651694` 执行并取得 9 行 `READY`；评价服务继续使用独立签名密钥、正式 `rating.html` 地址、匿名登录、只放行评价路由的 OPA 策略及 `customerRating` 的 `"auth != null"` 函数安全规则。代码推送、SQL、云函数、网页发布、小程序开发版上传、设为体验版、提交审核和正式发布仍分别计算。
+> 当前代码版本矩阵为 `staffAccount v81`、`faceRecognition v114`、`verificationPhoto v11`、`teacherCreate v6`、`customerRating v7`，网页版为 `0.15.26`，小程序当前上传状态见页首。补充照片由服务端建立任务并签发一次性私有对象 PUT 地址，网页和小程序直接上传 JPEG 字节，独立照片函数只回读校验并原子绑定，不再接收 Base64 图片中转。迁移 068 已在环境 `rusizhuoer-d9gbcsgym07651694` 执行并取得 9 行 `READY`；迁移 069 尚未执行。评价服务继续使用独立签名密钥、正式 `rating.html` 地址、匿名登录、只放行评价路由的 OPA 策略及 `customerRating` 的 `"auth != null"` 函数安全规则。代码推送、SQL、云函数、网页发布、小程序开发版上传、设为体验版、提交审核和正式发布仍分别计算。
 
 2026-09-06 已完成[门店账号新增与登录排查](docs/reviews/2026-09-06-store-onboarding-audit.md)：正常隔离创建与密码登录通过；确认旧账号密码提示遗漏、空写入返回误报失败、超时／跳转失败后重复请求及缓存故障误报等问题。本次只提交排查证据，尚未修改这些实现或发布新版本。
 
@@ -232,7 +234,7 @@
 全局“完整排名”跟随上方排名对象、项目范围和业务类型三个选择；手机和平板统一使用一张紧凑表格显示四类次数及所选业务占比。结果每页20条、最多显示5行后在表格内部纵向滚动，支持页码跳转，服务端只返回当前页并据完整所选业务总和计算占比；
 老师维度同样按有效充值、核销、体验和退费四类事件显示；无归属老师，以及来源为历史总部、退役角色或错绑老师账号的旧 `teacher_id` 记录，仍保留在总量、门店和项目汇总中，不归到任何真实老师，但会合并到只读的“未指定老师”排名项供总量核对。
 
-运营管理、运营创建页和运营首页均已移除。迁移 `047_retire_operation_accounts.sql` 保留旧审核外键并封存运营身份。老师账号由 `teacherCreate v6` 只按姓名、手机号和密码创建，不采集或维护老师人脸。`staffAccount v81` 与 `faceRecognition v113` 已物理删除旧 Saga、老师人脸委托动作和兼容入口。迁移 053 删除旧 `teacher_face_operations` 表与六个私有函数，不删除老师、额度、工单或历史业务。
+运营管理、运营创建页和运营首页均已移除。迁移 `047_retire_operation_accounts.sql` 保留旧审核外键并封存运营身份。老师账号由 `teacherCreate v6` 只按姓名、手机号和密码创建，不采集或维护老师人脸。`staffAccount v81` 与 `faceRecognition v114` 已物理删除旧 Saga、老师人脸委托动作和兼容入口。迁移 053 删除旧 `teacher_face_operations` 表与六个私有函数，不删除老师、额度、工单或历史业务。
 
 老师账号的首页是 `teacher-work-orders.html`。手机版基础资料只显示老师姓名和老师短编号，同一横排等宽展示，不重复登录身份；每个体验项目按“项目、可用、每月基础、本月已用”占一条紧凑横排。总部进入老师主页后的档案、账号与体验额度管理直接使用其他内部页面同款的暖象牙白卡片、浅象牙内层和细金灰边框，深咖底色只保留给共用顶部栏及少量主按钮，不再混用多块深色或不同色相背景；业务区支持今天、本周、本月、本季度、本年、全部和自定义日期，默认今天。所选周期生成“产品为行、四类业务为列”的有效次数汇总矩阵，并控制后续分页明细。老师业务统计、客户关系和历史业务老师显示均以经服务端验证后写入工单的 `teacher_id` 为准；门店明确选择该老师提交的有效充值、退费或正常核销也计入该老师。历史读取还会校验原提交来源与业务类型：门店来源仅接受充值、退费、正常核销，老师来源仅接受提交账号本人办理的充值、退费、正常核销、体验核销；总部、已退役角色、老师错绑、门店体验和历史补录工单保留业务总量及审计记录，但老师维度按“未指定”处理，不凭该旧字段授予关系或照片读取权。允许留空且未选老师的门店充值／退费不归属任何老师。真实 `submitted_by_account_id` 始终保留原提交人，并继续唯一决定修改、补照片、作废、撤销和防重恢复等写权限；被门店选中的老师只获得统计归属和规定的客户及工单只读权。老师的活跃／封存客户列表与客户主页使用同一关系口径：本人账号创建，或本人 `teacher_id` 已存在任一已通过的正常核销、体验核销、充值或退费。获权后可只读该客户全部历史，但不得改动其他提交人的工单。老师主页只保留业务入口；点击客户建档、充值／退费、产品购买、普通核销或体验核销时直接进入完整业务主页面，不再经过单独的门店选择中间页。办理门店选择器嵌入业务页首张常规业务卡；未选真实活跃门店时只禁用客户读取、照片采集和提交等门店范围操作。老师账号的各类业务均由服务端锁定本人。体验核销入口只对老师开放，只验证所选客户的 1:1 人脸，并原子扣减老师体验额度；门店和总部既没有入口，服务端也拒绝绕过。
 
@@ -247,15 +249,15 @@
 1. 按编号依次执行尚未运行的数据库迁移；正式 migration 工具使用完整的 `037_verification_photo_evidence.sql` 与 `038_verification_profile_photo_snapshot.sql`，腾讯云 `ExecutePGSql` 控制台必须改用 `database/cloudbase-console/` 下的七个短文件并严格按 `037-01` 至 `037-03`、`038-01` 至 `038-04` 执行；若 `037-01` 已成功而旧版 `037-02` 报 `SQLSTATE 42601`，不要重跑 `037-01`，先单独执行 `ROLLBACK;`，再从当前 `037-02` 继续；
 2. 执行迁移 `039_direct_verification_photo_upload.sql`（CloudBase SQL 编辑器应依次执行独立的 `039-01` 至 `039-05`），建立短时上传任务、每单唯一进行中任务和原子提交函数；随后执行 `040_fix_verification_photo_commit_ambiguity.sql`（控制台使用 `040-01`），消除提交函数返回字段与冲突键 `photo_slot` 的 PL/pgSQL 歧义；
 3. 可选在 CloudBase PG 云存储中新建私有桶 `verification-photos`；也可把核销照片放在现有私有桶 `customer-photos`。`teacherCreate v6` 只需 `CLOUDBASE_ENV_ID`／`TCB_ENV`，不再配置任何人脸或照片桶变量。所有环境变量在控制台一项一行，不要把整段 `KEY=value` 粘贴进单个值。在现有安全规则中合并 `verificationPhoto` 与 `teacherCreate` 的非匿名登录调用权限，保留顶层 `*` 和其他函数条目；
-4. 先完成历史库必需的 046—050。部署不再读写旧 Saga 的 `staffAccount v81`、`faceRecognition v113` 和 `teacherCreate v6` 后，完整执行 `053-01-retire-legacy-teacher-face-saga.sql`，再运行 `053-readonly-verify.sql`，7 行必须全部为 `RETIRED`。已经执行过的 051/052 不需回滚；053 会只删除它们的旧操作表与私有函数；
-5. 完成 054 后执行 `055-01-remove-teacher-face-order-guards.sql`，确认最后 3 行全部为 `READY`；再执行并验收 056—067。随后整文件执行 `database/cloudbase-console/068-01-customer-work-order-ratings.sql` 并运行 `068-readonly-verify.sql`。配置 `BLE_AUTH_SIGNING_KEY`、独立的 `CUSTOMER_RATING_SIGNING_KEY`，以及实际 `rating.html` 完整 HTTPS 地址 `CUSTOMER_RATING_BASE_URL`；开启 CloudBase 匿名登录，在 OPA 用户策略中只对以 `/v1/functions/customerRating` 开头的评价函数路由追加放行，并在环境级云函数安全规则中合并 `"customerRating": { "invoke": "auth != null" }`，保留现有 `*` 与其他函数条目。所有员工动作仍必须由各函数内部按 UID 和人员主档鉴权，数据库不得向匿名角色开放，评价公开动作还必须校验工单签名令牌。部署 `faceRecognition v113`、`staffAccount v81`、`verificationPhoto v11`、`teacherCreate v6`、`customerRating v7`，分别调用 `health` 核对版本与配置；
+4. 先完成历史库必需的 046—050。部署不再读写旧 Saga 的 `staffAccount v81`、`faceRecognition v114` 和 `teacherCreate v6` 后，完整执行 `053-01-retire-legacy-teacher-face-saga.sql`，再运行 `053-readonly-verify.sql`，7 行必须全部为 `RETIRED`。已经执行过的 051/052 不需回滚；053 会只删除它们的旧操作表与私有函数；
+5. 完成 054 后执行 `055-01-remove-teacher-face-order-guards.sql`，确认最后 3 行全部为 `READY`；再执行并验收 056—067。随后依次执行并验收 068、069。配置 `BLE_AUTH_SIGNING_KEY`、独立的 `CUSTOMER_RATING_SIGNING_KEY`，以及实际 `rating.html` 完整 HTTPS 地址 `CUSTOMER_RATING_BASE_URL`；开启 CloudBase 匿名登录，在 OPA 用户策略中只对以 `/v1/functions/customerRating` 开头的评价函数路由追加放行，并在环境级云函数安全规则中合并 `"customerRating": { "invoke": "auth != null" }`，保留现有 `*` 与其他函数条目。所有员工动作仍必须由各函数内部按 UID 和人员主档鉴权，数据库不得向匿名角色开放，评价公开动作还必须校验工单签名令牌。部署 `faceRecognition v114`、`staffAccount v81`、`verificationPhoto v11`、`teacherCreate v6`、`customerRating v7`，分别调用 `health` 核对版本与配置；
 6. `staffAccount` 只保留老师体验额度的月初 Timer。从触发器配置中删除 `reconcile-teacher-face-operations`，`teacherCreate` 不配置 Timer；
 7. 部署当前静态文件到 CloudBase 静态网站托管并强制刷新浏览器；
 8. 通过总部、门店和老师真实账号完成角色边界回归，并确认历史运营账号无法获取业务会话或通过审核；验证总部没有任何办理入口且直接调用被拒绝，门店／老师可以在各自权限内办理，同时完成核销照片查看、历史总部单或当前门店／老师单的真实原提交人上传或替换、取消后重试、非提交人拒绝和 24 小时截止测试。
 
 生产库已经执行 039、但补充照片上传出现 `column reference "photo_slot" is ambiguous (SQLSTATE 42702)` 时，只需完整执行一次 040；不要重跑 037--039。040 只替换原子提交函数，不改表、不删除或重写已有照片数据。
 
-生产更新顺序固定为“确认 039、046—050 与 053 已完成 → 依次执行并验收 054—067 → 执行并验收 068 → 配置 `BLE_AUTH_SIGNING_KEY`、`CUSTOMER_RATING_SIGNING_KEY` 与 `CUSTOMER_RATING_BASE_URL` → 部署 `faceRecognition v113`、`staffAccount v81`、`verificationPhoto v11`、`teacherCreate v6`、`customerRating v7` → 五个云函数分别执行 `health` → 发布当前静态网页（含 `rating.html`）→ 上传小程序 → 强制刷新并用门店、老师、总部和未登录客户完成真机验收”。
+生产更新顺序固定为“确认 039、046—050 与 053 已完成 → 依次执行并验收 054—069 → 配置 `BLE_AUTH_SIGNING_KEY`、`CUSTOMER_RATING_SIGNING_KEY` 与 `CUSTOMER_RATING_BASE_URL` → 部署 `faceRecognition v114`、`staffAccount v81`、`verificationPhoto v11`、`teacherCreate v6`、`customerRating v7` → 五个云函数分别执行 `health` → 发布当前静态网页（含 `rating.html`）→ 上传小程序 → 强制刷新并用门店、老师、总部和未登录客户完成真机验收”。
 
 核销详情的高清原图查看器支持按钮、鼠标滚轮、键盘、拖动和手机／iPad 双指缩放。页面先显示缩略图，高清图解码完成后再替换；临时签名地址不可用时，查看器会在相同工单权限和查看审计下改用 `verificationPhoto` 的鉴权读取通道取回原图，并且只创建当前页面内存 Blob，不持久化照片。最多只保留两张已解码原图，减少连续查看照片造成的内存占用。
 

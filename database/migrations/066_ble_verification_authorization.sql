@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS public.verification_ble_qualifications (
   face_evidence_token VARCHAR(64) NOT NULL,
   idempotency_key VARCHAR(128) NOT NULL UNIQUE,
   expected_device_type VARCHAR(128) NOT NULL
-    CHECK (expected_device_type ~ '^[a-z0-9]+$'),
+    CHECK (expected_device_type ~ '^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$'),
   qualification_status VARCHAR(16) NOT NULL DEFAULT 'PENDING'
     CHECK (qualification_status IN ('PENDING', 'AUTHORIZED', 'COMPLETED', 'EXPIRED', 'CANCELLED')),
   expires_at TIMESTAMPTZ NOT NULL,
@@ -59,10 +59,12 @@ CREATE TABLE IF NOT EXISTS public.verification_ble_authorizations (
   authorization_token VARCHAR(48) NOT NULL UNIQUE,
   qualification_id BIGINT NOT NULL UNIQUE
     REFERENCES public.verification_ble_qualifications(id) ON DELETE RESTRICT,
-  qr_sn VARCHAR(32) NOT NULL CHECK (qr_sn ~ '^NCM[0-9A-F]{11}$'),
+  qr_sn VARCHAR(32) NOT NULL
+    CHECK (qr_sn ~ '^(NCM[0-9A-F]{11}|LA[0-9A-F]{12})$'),
   qr_code_hash CHAR(64) NOT NULL CHECK (qr_code_hash ~ '^[0-9a-f]{64}$'),
   device_id VARCHAR(128) NOT NULL,
-  device_type VARCHAR(128) NOT NULL CHECK (device_type ~ '^[a-z0-9]+$'),
+  device_type VARCHAR(128) NOT NULL
+    CHECK (device_type ~ '^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$'),
   nonce CHAR(32) NOT NULL CHECK (nonce ~ '^[0-9a-fA-F]{32}$'),
   unit_count INTEGER NOT NULL CHECK (unit_count BETWEEN 1 AND 999),
   issued_at TIMESTAMPTZ NOT NULL,

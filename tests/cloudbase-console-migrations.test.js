@@ -300,4 +300,23 @@ assert.match(ratingConsoleMigration, /BEGIN;[\s\S]*COMMIT;\s*$/,
 assert.doesNotMatch(ratingConsoleMigration, /^\\i\s/m,
   "CloudBase migration 068 must not depend on psql include commands");
 
+const magicDeviceMigration = fs.readFileSync(
+  path.join(root, "database", "migrations", "069_magic_soft_skin_ble_identity.sql"),
+  "utf8"
+);
+const magicDeviceConsoleMigration = fs.readFileSync(
+  path.join(consoleDir, "069-01-magic-soft-skin-ble-identity.sql"),
+  "utf8"
+);
+assert.equal(magicDeviceConsoleMigration, magicDeviceMigration,
+  "CloudBase migration 069 must match the canonical Magic Soft Skin BLE migration exactly");
+assert.ok(Buffer.byteLength(magicDeviceConsoleMigration, "utf8") < 9000,
+  "CloudBase migration 069 must remain safe to paste into the SQL editor");
+assert.match(magicDeviceConsoleMigration, /BEGIN;[\s\S]*COMMIT;\s*$/,
+  "CloudBase migration 069 must be a complete transaction");
+assert.match(magicDeviceConsoleMigration, /LA\[0-9A-F\]\{12\}/,
+  "migration 069 must accept the supplier-confirmed LA serial format");
+assert.match(magicDeviceConsoleMigration, /A-Za-z0-9/,
+  "migration 069 must accept the LASER-BLE hyphenated type format");
+
 console.log("cloudbase console migrations: PASS");

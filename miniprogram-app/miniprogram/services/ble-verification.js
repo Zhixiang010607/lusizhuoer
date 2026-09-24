@@ -54,6 +54,18 @@ function normalizeQrText(value) {
   return String(value || "").trim().replace(/&amp;/gi, "&");
 }
 
+function isSupportedDeviceSerial(value) {
+  const serial = String(value || "").trim().toUpperCase();
+  return /^LA[0-9A-F]{12}$/.test(serial) || /^NCM[0-9A-F]{11}$/.test(serial);
+}
+
+function expectedBleName(serial) {
+  const normalized = String(serial || "").trim().toUpperCase();
+  if (/^LA[0-9A-F]{12}$/.test(normalized)) return `LA-${normalized.slice(-6)}`;
+  if (/^NCM[0-9A-F]{11}$/.test(normalized)) return `NCM-${normalized.slice(-6)}`;
+  return "";
+}
+
 function parseDeviceQr(value) {
   const text = normalizeQrText(value);
   let match = text.match(/^nc:\/\/bind\?([^#]+)$/i);
@@ -66,9 +78,9 @@ function parseDeviceQr(value) {
     });
     const sn = String(params.sn || "").trim().toUpperCase();
     const code = String(params.code || "").trim();
-    if (/^NCM[0-9A-F]{11}$/.test(sn) && /^\d{6}$/.test(code)) return { sn, code };
+    if (isSupportedDeviceSerial(sn) && /^\d{6}$/.test(code)) return { sn, code };
   }
-  match = text.match(/^(NCM[0-9A-F]{11})[\s,;|]+(\d{6})$/i);
+  match = text.match(/^((?:LA[0-9A-F]{12}|NCM[0-9A-F]{11}))[\s,;|]+(\d{6})$/i);
   if (match) return { sn: match[1].toUpperCase(), code: match[2] };
   throw bleError("BLE_QR_INVALID", "这不是有效的设备二维码。请扫描设备机身上的 nc://bind 二维码。");
 }
@@ -158,7 +170,7 @@ class BleVerificationSession {
   }
 
   async discover(qr) {
-    const expectedName = `NCM-${qr.sn.slice(-6)}`;
+    const expectedName = expectedBleName(qr.sn);
     this.state("DEVICE_DISCOVERING", `正在查找 ${expectedName}`);
     await wxPromise("startBluetoothDevicesDiscovery", { allowDuplicatesKey: false, powerLevel: "high" });
     return new Promise((resolve, reject) => {
@@ -293,17 +305,23 @@ class BleVerificationSession {
 
   validateInfo(qr, info) {
     const id = String(info.device_id || info.deviceId || "").trim().toUpperCase();
-    const type = String(info.device_type || info.deviceType || "").trim().toLowerCase();
+    const type = String(info.device_type || info.deviceType || "").trim();
+    const expectedType = String(this.qualification.expectedDeviceType || "").trim();
     const name = String(info.ble_name || info.bleName || "").trim();
     const nonce = String(info.nonce || "").trim();
     if (id !== qr.sn) throw bleError("BLE_DEVICE_ID_MISMATCH", "蓝牙设备编号与二维码编号不一致，禁止授权。");
-    if (type !== String(this.qualification.expectedDeviceType || "").toLowerCase()) {
-      throw bleError("BLE_DEVICE_TYPE_MISMATCH", `当前设备类型为 ${type || "未知"}，本次项目需要 ${this.qualification.expectedDeviceType}。`);
+    const magicSoftSkinProfile = expectedType.toUpperCase() === "LASER-BLE";
+    const magicSoftSkinSerial = /^LA[0-9A-F]{12}$/.test(qr.sn);
+    if (magicSoftSkinProfile !== magicSoftSkinSerial) {
+      throw bleError("BLE_DEVICE_TYPE_MISMATCH", "魔法柔肤必须使用 LA 设备，其他项目不能使用 LA 设备。");
     }
-    if (name !== `NCM-${qr.sn.slice(-6)}`) throw bleError("BLE_NAME_MISMATCH", "蓝牙设备名称与二维码编号不一致，禁止授权。");
+    if (type.toUpperCase() !== expectedType.toUpperCase()) {
+      throw bleError("BLE_DEVICE_TYPE_MISMATCH", `当前设备类型为 ${type || "未知"}，本次项目需要 ${expectedType}。`);
+    }
+    if (name !== expectedBleName(qr.sn)) throw bleError("BLE_NAME_MISMATCH", "蓝牙设备名称与二维码编号不一致，禁止授权。");
     if (![1, 2].includes(Number(info.status))) throw bleError("BLE_DEVICE_NOT_READY", "设备未进入待机状态，请先在设备端完成复位。");
     if (!/^[0-9a-f]{32}$/i.test(nonce)) throw bleError("BLE_NONCE_INVALID", "设备没有返回有效的 32 位随机数，禁止授权。");
-    return { device_id: id, device_type: type, ble_name: name, status: Number(info.status), nonce };
+    return { device_id: id, device_type: expectedType, ble_name: name, status: Number(info.status), nonce };
   }
 
   async queryWorking(fallbackInfo) {

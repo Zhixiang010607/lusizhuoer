@@ -13,6 +13,7 @@ const bleSource = fs.readFileSync(path.join(root, 'miniprogram-app/miniprogram/s
 const migration = fs.readFileSync(path.join(root, 'database/migrations/066_ble_verification_authorization.sql'), 'utf8');
 const verifySql = fs.readFileSync(path.join(root, 'database/cloudbase-console/066-readonly-verify.sql'), 'utf8');
 const registryCleanupSql = fs.readFileSync(path.join(root, 'database/cloudbase-console/066-02-retire-legacy-device-registry.sql'), 'utf8');
+const magicDeviceMigration = fs.readFileSync(path.join(root, 'database/migrations/069_magic_soft_skin_ble_identity.sql'), 'utf8');
 
 test('BLE verification uses 90-second qualification and 30-second device authorization', () => {
   assert.match(migration, /INTERVAL '90 seconds'/);
@@ -64,6 +65,21 @@ test('device identity is checked without a device registry and QR codes stay has
   assert.match(verifySql, /BLE device registry absent/);
   assert.match(verifySql, /00:01:30/);
   assert.match(verifySql, /00:00:30/);
+});
+
+test('Magic Soft Skin uses the supplier-confirmed LA and LASER-BLE identity contract', () => {
+  assert.match(faceSource, /includes\("魔法柔肤"\)\) return "LASER-BLE"/);
+  assert.match(faceSource, /\^LA\[0-9A-F\]\{12\}\$/);
+  assert.match(faceSource, /`LA-\$\{normalized\.slice\(-6\)\}`/);
+  assert.match(faceSource, /magicSoftSkinProfile !== magicSoftSkinSerial/);
+  assert.match(faceSource, /deviceType: canonicalDeviceType/);
+  assert.match(faceSource, /sqlText\(canonicalDeviceType\)/);
+  assert.match(bleSource, /\^LA\[0-9A-F\]\{12\}\$/);
+  assert.match(bleSource, /`LA-\$\{normalized\.slice\(-6\)\}`/);
+  assert.match(bleSource, /magicSoftSkinProfile !== magicSoftSkinSerial/);
+  assert.match(magicDeviceMigration, /LA\[0-9A-F\]\{12\}/);
+  assert.match(magicDeviceMigration, /A-Za-z0-9/);
+  assert.match(magicDeviceMigration, /verification_ble_authorizations_qr_sn_check/);
 });
 
 test('BLE signing key is mandatory and qualification creation is read back safely', () => {
