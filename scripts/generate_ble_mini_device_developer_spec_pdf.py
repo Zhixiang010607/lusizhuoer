@@ -269,17 +269,17 @@ def add_cover(story):
 def add_reading_guide(story):
     story.append(h1("阅读导航：先确认边界，再开始编码"))
     story.append(p(
-        "这不是产品宣传稿，也不是只描述理想方案的协议草案。外部开发应先确认第 1 节 P0 项，"
-        "再按角色阅读对应章节；表格中标注为“当前”的内容才代表现有小程序与 faceRecognition v114 的真实行为。"
+        "这不是产品宣传稿，也不包含待选方案。外部开发应先提交第 1 节列出的参数，"
+        "再按角色阅读对应章节；正文中的字段、顺序、状态、错误码和验收项均按 V1.0 执行。"
     ))
     story.append(h2("按角色阅读"))
     story.append(table(
         ["角色", "优先章节", "交付重点"],
         [
-            ["设备固件", "1–3、6–14、19–21、附录 A", "身份烧录、GATT、分帧、HMAC、状态机、断电恢复与错误码"],
-            ["小程序", "1–8、13、15–18、20–21", "扫码细分、BLE 阶段、超时恢复、错误卡片与本机幂等"],
-            ["云函数/安全", "1–3、8–13、18–19、21", "授权签发、Key、时效、幂等确认、回执签名升级边界"],
-            ["QA/验收", "4–6、12–17、20–21", "按错误码和测试编号逐项留存 iOS/Android 真机证据"],
+            ["设备固件", "1–3、6–14、19–20、附录 A", "身份烧录、GATT、HMAC、状态机、断电恢复与错误码"],
+            ["小程序", "1–8、13、15–20", "扫码细分、BLE 阶段、超时恢复、错误卡片与本机幂等"],
+            ["云函数/安全", "1–3、8–13、18、20", "授权签发、共享 Key、时效与幂等确认"],
+            ["QA/验收", "4–6、12–17、19–20", "按错误码和测试编号逐项留存 iOS/Android 真机证据"],
         ],
         widths=[30, 48, 92],
         font_size=7.2,
@@ -288,9 +288,8 @@ def add_reading_guide(story):
     story.append(table(
         ["标记", "含义", "开发动作"],
         [
-            ["当前强制 / 当前基线", "仓库与 v114 已存在的契约", "必须兼容，不得自行改字段或顺序"],
-            ["目标细分 / 建议扩展", "为量产、可维护性或安全性补充的目标", "先由各方确认，再排期实现；不得宣称已上线"],
-            ["P0 待确认", "设备厂商资料尚不足以唯一决定的事项", "没有书面结论不得进入量产验收"],
+            ["V1.0 必须", "本次交付采用的唯一协议", "必须实现，不得自行改字段或顺序"],
+            ["接入参数", "必须由设备厂商提供的实际数值", "没有书面结果不得开始联调"],
             ["红色提示", "可能造成误启动、重复扣次或安全降级", "视为阻断项"],
         ],
         widths=[39, 69, 62],
@@ -301,7 +300,7 @@ def add_reading_guide(story):
         "GATT Service / Write / Notify UUID、属性与最大可用 MTU 记录。",
         "设备可信时间来源、允许误差及 RTC 异常时的安全拒绝规则。",
         "Key 注入方式、字节解释、批次范围、读保护和泄露处置负责人。",
-        "iOS/Android 真机型号、固件版本、App 版本和第 20 节测试责任人。",
+        "iOS/Android 真机型号、固件版本、App 版本和第 19 节测试责任人。",
     ], compact=False)
     story.append(callout(
         "放行原则",
@@ -313,13 +312,13 @@ def add_reading_guide(story):
 
 def add_scope(story):
     story.append(h1("1. 范围、术语与版本边界"))
-    story.append(p("本文描述从小程序扫描设备二维码开始，到设备确认进入工作状态、云函数完成一次核销为止的完整通信契约。设备厂商应按“当前强制”实现；标注“后续建议”的内容不得假装已经上线。"))
+    story.append(p("本文描述从小程序扫描设备二维码开始，到设备确认进入工作状态、云函数完成一次核销为止的完整通信契约。设备厂商、小程序、云函数和测试人员均按本文件 V1.0 实现，不得自行增加另一套方案。"))
     story.append(callout(
         "版本名称不要混淆",
         "本文件版本是 V1.0；线上报文的 ver 字段当前也固定为字符串 1.0。旧小程序个别错误文案曾写“固件协议 V2.0”，那只是待修正文案，不是线协议版本。设备实现一律以本文件报文和 ver=1.0 为准。",
         "warn",
     ))
-    story.append(h2("1.1 当前强制实现"))
+    story.append(h2("1.1 V1.0 必须实现"))
     story += bullets([
         "二维码：nc://bind?sn=<device_id>&code=<6 位数字>。",
         "BLE 广播名、device_id、device_type 三重一致性校验。",
@@ -328,14 +327,7 @@ def add_scope(story):
         "HMAC-SHA256 授权签名；32 hex nonce 防重放；授权有效期不超过 30 秒。",
         "设备 status=2 才允许服务端生成核销工单；同一业务请求幂等恢复。",
     ], compact=False)
-    story.append(h2("1.2 后续建议，不属于 v114 已生效能力"))
-    story += bullets([
-        "固定 Service UUID / Characteristic UUID，替代当前‘唯一候选通道’发现法。",
-        "auth_result/status 增加设备侧 receipt_signature 与单调计数器，并由服务端验签。",
-        "增加 key_id 支持双钥轮换；当前服务端只读取一个 BLE_AUTH_SIGNING_KEY。",
-        "如确需业务数据机密性，评估 BLE Secure Connections 或应用层 AES-GCM；HMAC 只做完整性与认证，不做加密。",
-    ])
-    story.append(h2("1.3 术语"))
+    story.append(h2("1.2 术语"))
     story.append(table(
         ["术语", "说明"],
         [
@@ -348,15 +340,13 @@ def add_scope(story):
         ],
         widths=[42, 128],
     ))
-    story.append(h2("1.4 外部开发开始前必须确认的 P0 项"))
+    story.append(h2("1.3 开始开发前必须提交的参数"))
     story.append(table(
-        ["事项", "当前事实", "交付前决定"],
+        ["事项", "V1.0 规则", "必须提交/通过"],
         [
-            ["GATT UUID", "小程序未写死 UUID，只按唯一 write+notify service 发现", "固件只保留一个业务候选；记录实际 UUID"],
-            ["长帧写入", "小程序当前一次写完整 auth JSON，没有主动分片", "iOS/Android 真机验证；失败则先补小程序分片"],
-            ["设备可信时间", "auth 带服务端 Unix 秒，设备仍需可信 now", "确认 RTC/安全单调时钟与允许偏差"],
-            ["Key 范围", "v114 只有一个全局共享 Key，没有 key_id", "接受共享风险或先升级为分批/每设备 Key"],
-            ["设备回执", "enter_work 有 HMAC；auth_result/status 当前未被服务端验 MAC", "量产前决定是否先完成回执签名升级"],
+            ["GATT 参数", "小程序按唯一 write+notify service 自动发现", "实际 Service/Write/Notify UUID、属性与 MTU"],
+            ["完整 auth 帧", "小程序一次写入完整 JSON，不主动分片", "至少两款 iPhone、两款 Android 全部写入成功"],
+            ["设备可信时间", "设备按可信 now 校验 30 秒授权窗口", "时间来源、±5 秒容差及异常拒绝测试"],
         ],
         widths=[34, 73, 63],
         font_size=6.8,
@@ -432,7 +422,7 @@ def add_identity_and_qr(story):
     story.append(h2("3.2 正式二维码"))
     story.append(code("nc://bind?sn=LAF82E0CC8C5B9&code=382451"))
     story += bullets([
-        "协议名 nc、路径 bind、参数名 sn/code；参数顺序建议保持 sn 在前、code 在后。",
+        "协议名 nc、路径 bind、参数名 sn/code；参数顺序固定为 sn 在前、code 在后。",
         "二维码不得包含 BLE_AUTH_SIGNING_KEY、签名、authorizationToken、用户信息或数据库主键。",
         "当前服务端只校验 6 位 code 的结构并保存其 SHA-256 摘要，不与设备登记表比对；它不是设备认证凭据，安全性来自实时设备身份、nonce 与 HMAC 授权。",
         "当前兼容纯文本：<SN><空格/逗号/分号/竖线><6 位 code>；新设备只印正式 nc://bind 形式。",
@@ -455,11 +445,11 @@ def add_identity_and_qr(story):
 
 
 def add_qr_errors(story):
-    story.append(h1("4. 扫码错误提示规范（目标细分版）"))
+    story.append(h1("4. 扫码错误提示规范"))
     story.append(callout(
-        "当前实现差异",
-        "现有小程序会把多数内容格式错误合并为 BLE_QR_INVALID。下表是开发目标：在不泄露内部安全信息的前提下拆分原因，让现场人员知道该换码、重拍、授权相机，还是联系设备方。",
-        "warn",
+        "实现要求",
+        "新版小程序必须按下表拆分扫码错误，不得把所有格式问题合并为 BLE_QR_INVALID。提示必须让现场人员明确执行重扫、开放权限、更换标签或联系设备方中的一种动作。",
+        "info",
     ))
     qr_errors = [
         ["BLE_QR_CANCELLED", "已取消扫码", "如仍在 90 秒内，可重新打开扫码。", "是"],
@@ -542,7 +532,7 @@ def add_ble_environment(story):
 
 def add_gatt(story):
     story.append(h1("6. GATT 通道发现与字节传输"))
-    story.append(h2("6.1 简单设备的统一通道方案"))
+    story.append(h2("6.1 本项目使用的统一通道"))
     story.append(p(
         "设备建立 BLE 连接后，小程序仍需要找到负责业务通信的 service 和 characteristics。"
         "可以把 Service UUID 理解为业务通信的“房间号”，Write UUID 是小程序向设备发送 get_info、auth、query_status 的“写入窗口”，"
@@ -554,27 +544,18 @@ def add_gatt(story):
         "info",
     ))
     story.append(table(
-        ["参数", "作用", "厂家必须确认"],
+        ["参数", "作用", "V1.0 要求"],
         [
-            ["Service UUID", "定位魔法柔肤业务通信服务", "量产固件中固定；不同批次不得随意变化"],
-            ["Write Characteristic UUID", "小程序发送 get_info / auth / query_status", "write 或 writeNoResponse；是否要求加密/配对"],
-            ["Notify/Indicate UUID", "设备返回 info / auth_result / status", "notify 或 indicate；订阅后才能发送业务指令"],
-            ["最大可用 MTU", "决定单次安全写入的字节数", "给出固件能力，并用 iOS/Android 记录实际可用值"],
+            ["Service UUID", "定位统一业务通信服务", "设备提供实际值；只允许一个业务候选"],
+            ["Write Characteristic UUID", "发送 get_info / auth / query_status", "只允许一个；属性为 write 或 writeNoResponse"],
+            ["Notify/Indicate UUID", "返回 info / auth_result / status", "只允许一个；属性为 notify 或 indicate"],
+            ["最大可用 MTU", "决定一次写入可承载的字节数", "设备提供实际值；完整 auth 帧必须真机通过"],
         ],
         widths=[42, 63, 65],
     ))
     story.append(callout(
-        "简单设备为什么仍建议固定 UUID",
-        "固定 UUID 不是要求设备增加更多通道，而是让所有批次始终使用同一组编号。这样小程序可精确查找统一业务通道，现场排查时也能直接核对 service、write 和 notify，避免因固件批次改变编号或枚举顺序而连接失败。",
-        "warn",
-    ))
-    story.append(p(
-        "示例仅用于说明：若业务 Service 为 FFF0、写入特征为 FFF1、通知特征为 FFF2，小程序应只通过 FFF1 发送命令并只监听 FFF2。"
-        "这些示例值不是本项目正式 UUID；正式值必须由设备厂家提供并写入双方确认记录。"
-    ))
-    story.append(callout(
-        "发给设备厂家的确认要求",
-        "请为魔法柔肤设备提供一组统一业务通道：一个 Service UUID、一个 Write Characteristic UUID、一个 Notify/Indicate Characteristic UUID；注明各特征支持的属性、是否需要配对或加密、设备支持的最大 MTU。全部简单业务指令共用这组通道并以 cmd 区分。以上 UUID 在量产固件中应保持固定，不得因设备批次随意变化。",
+        "设备厂家交付参数",
+        "提交一个 Service UUID、一个 Write Characteristic UUID、一个 Notify/Indicate Characteristic UUID，并注明特征属性、是否需要配对或加密、最大 MTU。全部业务指令共用这组通道并以 cmd 区分；验收后不得因设备批次自行改变。",
         "info",
     ))
     story.append(h2("6.2 当前通道选择算法"))
@@ -588,7 +569,7 @@ def add_gatt(story):
     ])
     story.append(callout(
         "固件要求",
-        "当前小程序没有写死 UUID，因此设备必须只暴露一个满足上述条件的业务 service，并建议该 service 中恰好只有一个业务 write 与一个业务 notify characteristic。其他 service 不得同时呈现可写+可通知组合；同一 service 内多个可写/通知特征也会依赖枚举顺序，量产固件不得这样设计。",
+        "当前小程序没有写死 UUID，因此设备必须只暴露一个满足上述条件的业务 service；该 service 中必须只有一个业务 write 与一个业务 notify characteristic。其他 service 不得同时呈现可写+可通知组合。",
         "danger",
     ))
     story += bullets([
@@ -615,7 +596,7 @@ def add_gatt(story):
     story += bullets([
         "当前小程序一次调用 writeBLECharacteristicValue 写完整 JSON 帧；设备厂商必须验证目标微信版本与固件 MTU 行为。",
         "若实机出现截断，不得私自改变 JSON 或签名字段；应在小程序 transport 层增加确定性的分片发送，并在设备侧重组到 LF。",
-        "当前小程序接收缓存也没有长度上限和半帧超时；建议后续补最大 2048 字节、5 秒无新字节即丢弃未完成帧。此项是客户端增强目标，不得要求设备靠异常长帧触发。",
+        "小程序接收缓存上限为 2048 字节；连续 5 秒没有新字节时必须丢弃未完成帧并返回协议超时。设备不得发送超过上限或长期不结束的帧。",
     ])
     story.append(callout(
         "P0 真机门槛",
@@ -636,7 +617,7 @@ def add_commands(story):
             ["ver", "string = 1.0", "是", "协议版本；未知大版本应拒绝"],
             ["seq", "integer = 1", "是", "必须对应请求；小程序只接受 seq=1"],
             ["cmd", "info 或 get_info_result", "是", "当前小程序兼容两个名称；新固件统一 info"],
-            ["ok", "boolean", "建议", "false 时同时返回 code/message"],
+            ["ok", "boolean", "是", "false 时同时返回 code/message"],
             ["device_id", "LA + 12 hex", "是", "固件安全配置中的永久设备编号"],
             ["device_type", "LASER-BLE", "是", "必须与当前项目 expectedDeviceType 一致"],
             ["ble_name", "LA-末 6 位", "是", "必须与二维码推导值一致"],
@@ -700,8 +681,8 @@ def add_auth(story):
     story += bullets([
         "issued_at/expire_at 由服务端写入签名，设备不能修改；但设备仍需可信当前时间判断是否过期。",
         "get_info 请求中的 ts 来自手机且没有签名，只能用于诊断，禁止直接拿它校准安全时钟。",
-        "量产优先使用 RTC + 防回退记录或受保护单调时钟；设备时间异常时返回 CLOCK_INVALID，不得降级成永久接受。",
-        "建议联调默认允许不超过 ±5 秒时钟偏差；最终容差须由硬件方与后端方在验收记录中签字，且不得放宽 30 秒授权总窗口。",
+        "设备必须使用 RTC + 防回退记录或受保护单调时钟；设备时间异常时返回 CLOCK_INVALID，不得降级成永久接受。",
+        "允许的时钟偏差固定为 ±5 秒，且不得放宽 30 秒授权总窗口。",
     ])
     story.append(PageBreak())
 
@@ -736,14 +717,14 @@ def add_key(story):
     ))
     story.append(h2("9.3 Key 最低要求与注入"))
     story += bullets([
-        "云函数要求 UTF-8 字节长度至少 32；正式环境建议由 CSPRNG 生成 32 字节后编码为 64 位小写 hex 文本。",
+        "云函数要求 UTF-8 字节长度至少 32；正式环境 Key 必须由 CSPRNG 生成 32 字节后编码为 64 位小写 hex 文本。",
         "生产 Key 不得通过普通小程序 BLE 通道写入。使用离线/受控工装，在设备出厂阶段注入。",
-        "烧录完成后用公开测试向量校验算法，再用受控生产验收工具校验同批设备；验收记录只保存批次/key_id，不保存 Key。",
+        "烧录完成后用公开测试向量校验算法，再用受控生产验收工具校验同批设备；验收记录只保存设备批次，不保存 Key。",
         "禁止将生产 Key 发到微信群、工单截图、邮件正文或测试报告。开发联调应使用独立测试 Key。",
     ])
     story.append(callout(
-        "当前共享 Key 的风险",
-        "v114 对全部设备使用同一个环境变量 Key，没有设备注册表和 key_id。只要任一设备能被读出生产 Key，就可能伪造其他设备的 enter_work 授权。小批量试运行必须启用芯片读保护；规模化量产前建议升级为按批次或每设备派生 Key，并同步升级服务端选择逻辑。",
+        "共享 Key 的固定规则",
+        "V1.0 全部设备使用同一个 BLE_AUTH_SIGNING_KEY，不使用 key_id，也不采用按批次或每设备 Key。所有设备必须启用芯片读保护，任何接口和日志均不得读出生产 Key。",
         "warn",
     ))
     story.append(PageBreak())
@@ -769,7 +750,7 @@ def add_signature(story):
         "字段名全小写且固定；没有空格、引号、换行或 URL 编码。",
         "usage_count、expire_at、issued_at 使用十进制文本；不得带小数、前导 +、科学计数法。",
         "device_id 使用大写规范值；device_type 使用服务端返回的规范值 LASER-BLE。",
-        "nonce 保持收到的文本值；建议设备统一输出小写 hex。",
+        "nonce 必须由设备统一输出小写 hex，签名时保持收到的文本值。",
         "最终 signature 输出 64 位小写 hex。",
     ])
     story.append(h2("10.2 非生产测试向量"))
@@ -814,8 +795,8 @@ def add_signature(story):
 
 def add_key_lifecycle(story):
     story.append(h1("11. Key 生命周期、轮换与泄露处置"))
-    story.append(h2("11.1 当前限制"))
-    story.append(p("faceRecognition v114 只读取一个 BLE_AUTH_SIGNING_KEY，auth 中没有 key_id。也就是说云端或设备端任何一方单独换 Key，都会让全部授权报 1001 INVALID_SIGNATURE。"))
+    story.append(h2("11.1 当前规则"))
+    story.append(p("faceRecognition v114 和全部设备只使用同一个 BLE_AUTH_SIGNING_KEY。云端或设备端任何一方单独换 Key，都会让全部授权报 1001 INVALID_SIGNATURE。"))
     story.append(h2("11.2 当前可执行轮换方案"))
     story.append(table(
         ["阶段", "操作", "风险控制"],
@@ -827,14 +808,7 @@ def add_key_lifecycle(story):
         ],
         widths=[28, 84, 58],
     ))
-    story.append(h2("11.3 推荐升级：key_id 双钥过渡"))
-    story += bullets([
-        "服务端维护 active 与 previous 两个受控 Key，并在 auth 中加入 key_id。",
-        "设备按 key_id 选择对应 Key；迁移完成后删除 previous。",
-        "canonical string 必须明确加入 key_id 的固定位置，并升级协议版本。",
-        "双钥窗口必须有截止日期、审计记录与回收动作，不能永久兼容旧 Key。",
-    ])
-    story.append(h2("11.4 怀疑 Key 泄露时"))
+    story.append(h2("11.3 怀疑 Key 泄露时"))
     story += bullets([
         "立即暂停设备开机授权，不要只删除聊天记录或修改二维码。",
         "确认泄露范围：生产/测试、具体批次、是否可伪造 auth。",
@@ -924,7 +898,7 @@ def add_status_recovery(story):
     ))
     story.append(callout(
         "首个确认的时效边界",
-        "当前 v114 在 authorization 仍为 ISSUED 且 expire_at 已过时，会拒绝第一次 confirm，即使设备现场已经工作。因此设备进入 status=2 后必须立即回执，小程序必须马上 confirm；网络中断测试要覆盖这个窗口。未来可用带 receipt_ts 的设备签名回执改善此边界。",
+        "当前 v114 在 authorization 仍为 ISSUED 且 expire_at 已过时，会拒绝第一次 confirm，即使设备现场已经工作。因此设备进入 status=2 后必须立即回执，小程序必须马上 confirm；网络中断测试必须覆盖这个窗口。",
         "warn",
     ))
     story.append(PageBreak())
@@ -935,7 +909,7 @@ def add_device_errors(story):
     current_errors = [
         ["400", "BAD_REQUEST", "JSON、字段或类型无法识别", "修正帧；status 不变"],
         ["403", "FORBIDDEN", "设备策略拒绝", "检查安全/本地策略"],
-        ["404", "UNSUPPORTED_COMMAND", "不支持命令", "升级固件"],
+        ["404", "UNSUPPORTED_COMMAND", "不支持命令", "设备未实现 V1.0，禁止交付"],
         ["1001", "INVALID_SIGNATURE", "HMAC 不一致", "检查 Key 字节、canonical、大小写"],
         ["1002", "AUTH_EXPIRED", "授权时间窗非法或已过期", "重新人脸签发；旧 auth 不重发"],
         ["1003", "NONCE_MISMATCH", "auth nonce 不是当前 nonce", "重读 info"],
@@ -943,24 +917,24 @@ def add_device_errors(story):
         ["1005", "DEVICE_BUSY", "设备已 WORKING", "query_status；不得再次启动"],
         ["1006", "DEVICE_ID_MISMATCH", "授权 ID 不是本机 ID", "检查标签/烧录配置"],
         ["1007", "DEVICE_TYPE_MISMATCH", "授权类型不是本机类型", "换正确项目设备"],
-        ["1008", "UNSUPPORTED_OPERATION", "不支持 enter_work", "升级固件"],
+        ["1008", "UNSUPPORTED_OPERATION", "不支持 enter_work", "设备未实现 V1.0，禁止交付"],
         ["1009", "NOT_PROVISIONED", "Key/身份/安全配置不完整", "停止使用并返厂/配置"],
         ["1011", "INVALID_USAGE_COUNT", "次数非整数、越界或能力不支持", "核对 usage_count"],
     ]
-    recommended_errors = [
+    required_additional_errors = [
         ["1010", "CLOCK_INVALID", "设备时间不可用于授权校验", "同步可信时间或修复 RTC"],
         ["1012", "PERSIST_FAILED", "WORKING 状态持久化失败", "安全停机；不得启动"],
         ["1013", "OUTPUT_START_FAILED", "已授权但执行机构未能启动", "安全停机并保留故障状态"],
         ["1014", "FRAME_TOO_LARGE", "输入帧超过上限", "丢弃到下一个 LF"],
-        ["1015", "PROTOCOL_VERSION", "协议版本不兼容", "协商/升级，禁止降级猜测"],
+        ["1015", "PROTOCOL_VERSION", "协议版本不兼容", "拒绝接入，只接受 ver=1.0"],
     ]
     story.append(h2("14.1 当前小程序已识别"))
     story.append(table(["code", "符号", "含义", "设备/现场动作"], current_errors,
                        widths=[14, 43, 54, 59], font_size=6.9))
     story.append(PageBreak())
     story.append(h1("14. 设备错误码（续）"))
-    story.append(h2("14.2 建议扩展；接入前先同步小程序"))
-    story.append(table(["code", "符号", "含义", "设备/现场动作"], recommended_errors,
+    story.append(h2("14.2 V1.0 状态与协议错误"))
+    story.append(table(["code", "符号", "含义", "设备/现场动作"], required_additional_errors,
                        widths=[14, 43, 54, 59], font_size=7.0))
     story.append(h2("14.3 统一失败回执"))
     story.append(code('{"ver":"1.0","seq":2,"cmd":"auth_result","ok":false,"code":1001,"message":"invalid signature","status":1}\n'))
@@ -968,7 +942,7 @@ def add_device_errors(story):
         "seq 必须关联原请求；cmd 与请求类型对应。",
         "message 只给简短诊断，不得包含 Key、完整签名、内存地址、堆栈或受保护配置。",
         "拒绝 auth 时设备保持安全状态，不能产生任何工作输出。",
-        "1010、1012–1015 接入前，小程序会展示通用未知设备错误；这不会绕过安全门禁，但现场提示不够精确。",
+        "小程序必须将 1010、1012–1015 映射为对应中文提示，不得只显示未知错误。",
     ])
     story.append(PageBreak())
 
@@ -978,7 +952,7 @@ def add_app_errors_one(story):
     story.append(h2("权限、发现和连接"))
     story.append(callout(
         "实现说明",
-        "表内现有代码已覆盖大部分主错误；BLE_LOCATION_DENIED、BLE_NOTIFY_ENABLE_FAILED、BLE_FRAME_TOO_LARGE、BLE_JSON_INVALID 是本规范要求进一步细分的目标错误。未完成细分前会落入微信接口失败或通用协议提示。",
+        "新版小程序必须实现表内全部错误码。每个错误必须包含稳定错误码、中文标题、处理办法和是否允许重试，不得落入 undefined、接口原文或通用失败。",
         "info",
     ))
     errors = [
@@ -1001,11 +975,11 @@ def add_app_errors_one(story):
         ["BLE_STATUS_TIMEOUT", "设备状态无法确认", "不要重发 auth；保留错误码并检查设备现场状态", "否"],
         ["BLE_AUTH_RESULT_TIMEOUT", "开机结果未返回", "系统先 query_status；等待恢复结果", "自动核对"],
     ]
-    story.append(table(["错误码", "标题", "操作建议", "重试"], errors[:9],
+    story.append(table(["错误码", "标题", "处理办法", "重试"], errors[:9],
                        widths=[49, 38, 66, 17], font_size=7.0))
     story.append(PageBreak())
     story.append(h1("15.2 小程序错误：协议与超时"))
-    story.append(table(["错误码", "标题", "操作建议", "重试"], errors[9:],
+    story.append(table(["错误码", "标题", "处理办法", "重试"], errors[9:],
                        widths=[49, 38, 66, 17], font_size=7.0))
     story.append(PageBreak())
 
@@ -1037,12 +1011,12 @@ def add_app_errors_two(story):
         ["BLE_SESSION_EXPIRED", "登录状态已失效", "重新登录并从原工单恢复"],
         ["FORBIDDEN", "当前账号无权办理", "换有该门店权限的账号"],
     ]
-    story.append(table(["错误码", "标题", "操作建议"], errors[:11],
+    story.append(table(["错误码", "标题", "处理办法"], errors[:11],
                        widths=[55, 43, 72], font_size=7.0))
     story.append(PageBreak())
     story.append(h1("16.2 小程序错误：授权与回执"))
     story.append(h2("一次性授权、设备回执和会话"))
-    story.append(table(["错误码", "标题", "操作建议"], errors[11:],
+    story.append(table(["错误码", "标题", "处理办法"], errors[11:],
                        widths=[55, 43, 72], font_size=7.0))
     story.append(callout(
         "未知错误兜底",
@@ -1113,49 +1087,15 @@ def add_backend_contract(story):
         "未过期且状态为 ISSUED/DEVICE_WORKING；已完成则恢复同一工单。",
     ])
     story.append(callout(
-        "当前已知安全缺口",
-        "v114 目前没有验证设备回执自身的 HMAC。也就是说 enter_work 指令有服务端签名保护，但 auth_result/status 仍主要依赖 BLE 会话与字段一致性。量产增强应增加 receipt_signature 并由服务端验证。",
-        "warn",
-    ))
-    story.append(PageBreak())
-
-
-def add_receipt_extension(story):
-    story.append(h1("19. 建议的设备回执签名扩展（尚未强制）"))
-    story.append(p("以下字段可以先由固件兼容输出，当前小程序会忽略未知字段；但在服务端升级并验签前，不能宣称回执已经具备独立防伪能力。"))
-    story.append(table(
-        ["字段", "类型", "说明"],
-        [
-            ["usage_count", "integer", "与 auth 一致"],
-            ["receipt_ts", "integer", "设备产生回执的可信时间/会话时间"],
-            ["receipt_counter", "integer", "设备单调递增并持久化，防止回放"],
-            ["key_id", "string", "未来选择设备回执验签 Key；当前服务端未支持"],
-            ["receipt_signature", "64 lower hex", "对回执 canonical string 做 HMAC-SHA256"],
-        ],
-        widths=[45, 38, 87],
-    ))
-    story.append(h2("19.1 auth_result canonical 建议"))
-    story.append(code(
-        "cmd=auth_result&seq=2&ok=true&device_id=<ID>&device_type=<TYPE>"
-        "&nonce=<NONCE>&status=2&usage_count=<COUNT>&receipt_ts=<TS>"
-        "&receipt_counter=<COUNTER>&key_id=<KEY_ID>"
-    ))
-    story.append(h2("19.2 status canonical 建议"))
-    story.append(code(
-        "cmd=status&seq=3&ok=true&device_id=<ID>&device_type=<TYPE>"
-        "&nonce=<NONCE>&status=<0|1|2>&usage_count=<COUNT>&receipt_ts=<TS>"
-        "&receipt_counter=<COUNTER>&key_id=<KEY_ID>"
-    ))
-    story.append(callout(
-        "变更规则",
-        "一旦服务端开始验证回执签名，必须同时升级协议版本、服务端、小程序兼容性测试与固件验收。不能只在文档里增加字段就当作安全能力已经上线。",
-        "danger",
+        "V1.0 回执校验边界",
+        "V1.0 不验证设备回执 HMAC。服务端只按 BLE 会话、authorizationToken、device_id、device_type、nonce、status 和幂等状态确认回执；开发人员不得自行增加未定义字段。",
+        "info",
     ))
     story.append(PageBreak())
 
 
 def add_test_matrix_one(story):
-    story.append(h1("20.1 联调测试：扫码、发现与传输"))
+    story.append(h1("19.1 联调测试：扫码、发现与传输"))
     tests = [
         ["Q01", "正式 nc://bind 二维码", "解析 sn/code；不泄露 Key"],
         ["Q02", "空码/非设备码/付款码", "分别提示 EMPTY/SCHEME/扫错二维码"],
@@ -1181,7 +1121,7 @@ def add_test_matrix_one(story):
 
 
 def add_test_matrix_two(story):
-    story.append(h1("20.2 联调测试：签名、状态与恢复"))
+    story.append(h1("19.2 联调测试：签名、状态与恢复"))
     tests = [
         ["A01", "正常 get_info→auth→status=2", "只生成 1 张工单；只扣选择的 usage_count"],
         ["A02", "HMAC 改 1 位", "1001；status 保持 1"],
@@ -1210,8 +1150,8 @@ def add_test_matrix_two(story):
 
 
 def add_release_checklist(story):
-    story.append(h1("21. 开发交付与发布门槛"))
-    story.append(h2("21.1 固件交付清单"))
+    story.append(h1("20. 开发交付与发布门槛"))
+    story.append(h2("20.1 固件交付清单"))
     checklist = [
         "device_id、device_type、ble_name 与二维码样品一致。",
         "唯一业务 GATT 候选；write/notify 属性在 iOS/Android 可用。",
@@ -1225,14 +1165,14 @@ def add_release_checklist(story):
         "生产 Key 安全注入、读保护、调试口和日志清理已验收。",
     ]
     story += bullets([f"[ ] {item}" for item in checklist], compact=False)
-    story.append(h2("21.2 小程序/后端交付清单"))
+    story.append(h2("20.2 小程序/后端交付清单"))
     app_checklist = [
         "扫码错误已按第 4 节拆分，错误卡片含标题、说明、下一步和错误码。",
         "资格、授权、状态恢复与本机进度均通过真机断网/杀进程测试。",
         "authorization 签发后禁止换设备、重复签发、盲目重发 auth。",
         "日志脱敏，不出现 Key、完整签名、二维码 code 或完整 token。",
         "云函数 Key 与设备测试批次一致；SQL 约束和 v114 健康检查通过。",
-        "iOS/Android 至少各两款真机完成第 20 节测试。",
+        "iOS/Android 至少各两款真机完成第 19 节测试。",
     ]
     story += bullets([f"[ ] {item}" for item in app_checklist], compact=False)
     story.append(callout(
@@ -1297,7 +1237,6 @@ def build() -> str:
     add_app_errors_two(story)
     add_error_ux(story)
     add_backend_contract(story)
-    add_receipt_extension(story)
     add_test_matrix_one(story)
     add_test_matrix_two(story)
     add_release_checklist(story)
