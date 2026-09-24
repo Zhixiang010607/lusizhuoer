@@ -41,6 +41,27 @@ OUT_FILE = os.path.join(
     "Lusizhuoer_BLE_Device_Firmware_Developer_Spec_V1.0.pdf",
 )
 
+
+def load_production_ble_key() -> str:
+    """Load the production key at build time without committing it to source."""
+    key_text = os.environ.get("BLE_DEVICE_PRODUCTION_KEY", "").strip()
+    key_file = os.environ.get("BLE_DEVICE_PRODUCTION_KEY_FILE", "").strip()
+    if key_text and key_file:
+        raise RuntimeError("只允许设置 BLE_DEVICE_PRODUCTION_KEY 或 BLE_DEVICE_PRODUCTION_KEY_FILE 之一")
+    if key_file:
+        with open(key_file, "r", encoding="utf-8") as handle:
+            raw = handle.read()
+        for line in raw.splitlines():
+            name, separator, value = line.partition("=")
+            if separator and name.strip() == "BLE_AUTH_SIGNING_KEY":
+                key_text = value.strip().strip('"').strip("'")
+                break
+        if not key_text:
+            key_text = raw.strip().strip('"').strip("'")
+    if len(key_text) != 64 or any(ch not in "0123456789abcdef" for ch in key_text):
+        raise RuntimeError("生产 Key 缺失或格式错误：必须是 64 个小写十六进制字符")
+    return key_text
+
 PAGE_W, PAGE_H = A4
 MARGIN_X = 14 * mm
 MARGIN_TOP = 16 * mm
@@ -1520,6 +1541,7 @@ def add_firmware_auth(story):
 
 
 def add_firmware_key(story):
+    production_key = load_production_ble_key()
     story.append(h1("8. BLE_AUTH_SIGNING_KEY"))
     story.append(p("设备与服务端共享同一个 HMAC-SHA256 对称认证 Key。V1.0 全部设备使用同一个 Key，不使用 key_id，不使用按设备或按批次派生 Key。"))
     story.append(h2("8.1 Key 字节解释"))
@@ -1532,15 +1554,23 @@ def add_firmware_key(story):
         "正确：key_bytes = UTF8(KEY_TEXT.trim())      # 64 chars -> 64 bytes\n"
         "错误：key_bytes = HEX_DECODE(KEY_TEXT)       # 64 hex -> 32 bytes"
     ))
-    story.append(h2("8.2 注入与存储"))
+    story.append(h2("8.2 当前生产共享 Key（设备烧录值）"))
+    story.append(callout(
+        "厂家必须写入",
+        "下列 64 个字符就是当前服务端正在使用的生产 Key。设备端必须逐字符原样写入；不得增加空格、换行或 0x 前缀，也不得转换成 32 字节二进制。",
+        "danger",
+    ))
+    story.append(code(production_key))
+    story.append(p("设备参与 HMAC 计算时，直接取上面 64 个可见字符的 ASCII/UTF-8 字节。写入完成后，可校验长度为 64、字符范围为 0-9/a-f；禁止在 BLE 响应和普通运行日志中回传该值。"))
+    story.append(h2("8.3 写入与存储"))
     story += bullets([
-        "生产 Key 只允许通过离线受控工装在出厂阶段注入，禁止通过普通 BLE 业务通道写入。",
-        "Key 保存于受保护安全区，开启芯片读保护；量产完成后关闭或锁定调试读取能力。",
-        "串口日志、故障日志、蓝牙回执、二维码、测试报告均不得出现 Key。",
-        "开发样机使用独立测试 Key；生产 Key 不得写入源代码、固件公共常量仓库或群聊。",
-        "设备启动时只校验 Key 是否存在及长度是否为 64 个 ASCII 字符，不输出内容或 hash。",
+        "厂家按自身硬件方案将本节生产 Key 写入设备配置区或生产固件常量；所有量产设备使用同一值。",
+        "禁止通过普通 BLE 业务命令修改或读取 Key；现有业务通道只处理 get_info、auth 和 query_status。",
+        "如芯片支持受保护存储或读保护，应启用；设备运行时不得在串口日志、故障日志或蓝牙回执中输出 Key。",
+        "设备启动时只校验 Key 是否存在、长度是否为 64，以及字符是否全部属于 0-9/a-f。",
+        "联调出现 1001 时，先检查是否误做 hex decode、是否带隐藏换行、是否抄错字符，再检查 canonical 字段顺序。",
     ])
-    story.append(h2("8.3 Key 更换"))
+    story.append(h2("8.4 Key 更换"))
     story += bullets([
         "Key 更换必须在受控停用窗口内同时更新全部目标设备和服务端；只改一端会使全部 auth 返回 1001。",
         "更换后逐台执行测试向量和一次受控 auth；确认无 1001 后才恢复设备使用。",
