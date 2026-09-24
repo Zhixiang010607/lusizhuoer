@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Generate the developer-only Mini Program <-> BLE device protocol spec.
+"""Generate the BLE device-side firmware implementation specification.
 
-This document deliberately excludes company, product-marketing, account, and
-general business-system material. It mirrors the currently deployed
-faceRecognition v114 and the current mini-program BLE client, while separating
-future recommendations from the active wire contract.
+The output is written for the equipment manufacturer's embedded/firmware team.
+It contains only the device responsibilities and the wire contract required by
+the current backend and controller.  Mini-program UI/API implementation,
+marketing material and future protocol proposals are deliberately excluded.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 OUT_DIR = os.path.join(ROOT, "output", "pdf")
 OUT_FILE = os.path.join(
     OUT_DIR,
-    "Lusizhuoer_MiniProgram_BLE_Device_Developer_Spec_V1.0.pdf",
+    "Lusizhuoer_BLE_Device_Firmware_Developer_Spec_V1.0.pdf",
 )
 
 PAGE_W, PAGE_H = A4
@@ -207,7 +207,7 @@ def draw_page(canvas, doc):
     canvas.line(MARGIN_X, 10.5 * mm, PAGE_W - MARGIN_X, 10.5 * mm)
     canvas.setFont(FONT, 6.7)
     canvas.setFillColor(MUTED)
-    canvas.drawString(MARGIN_X, 6.5 * mm, "小程序 ↔ BLE 设备开发规范 V1.0")
+    canvas.drawString(MARGIN_X, 6.5 * mm, "BLE 设备端固件开发与交付规范 V1.0")
     canvas.drawRightString(PAGE_W - MARGIN_X, 6.5 * mm, f"{doc.page}")
     canvas.restoreState()
 
@@ -221,9 +221,9 @@ class DevSpecTemplate(BaseDocTemplate):
             rightMargin=MARGIN_X,
             topMargin=MARGIN_TOP,
             bottomMargin=MARGIN_BOTTOM,
-            title="露思卓儿小程序与 BLE 设备通信开发规范 V1.0",
+            title="露思卓儿 BLE 设备端固件开发与交付规范 V1.0",
             author="广州露思卓儿科技有限公司",
-            subject="Mini Program BLE device developer specification",
+            subject="BLE device-side firmware implementation specification",
         )
         frame = Frame(
             self.leftMargin, self.bottomMargin, self.width, self.height,
@@ -1214,33 +1214,737 @@ def add_appendix(story):
     ))
 
 
+def add_firmware_cover(story):
+    story.append(Spacer(1, 24 * mm))
+    story.append(Paragraph("BLE 设备端固件", styles["CoverTitle"]))
+    story.append(Paragraph("开发与交付规范 V1.0", styles["CoverTitle"]))
+    story.append(Spacer(1, 3 * mm))
+    story.append(Paragraph("魔法柔肤 LASER-BLE｜设备厂家 / 嵌入式固件团队专用", styles["CoverSub"]))
+    story.append(Spacer(1, 9 * mm))
+    story.append(callout(
+        "文档用途",
+        "本文件只规定设备端必须实现的身份烧录、二维码标签、BLE 广播、GATT 通道、报文解析、HMAC 验签、状态机、掉电恢复、错误码和交付测试。调用端页面、移动端平台接口和云端业务代码不在本文交付范围内。",
+        "info",
+    ))
+    story.append(Spacer(1, 4 * mm))
+    story.append(table(
+        ["项目", "V1.0 固定值"],
+        [
+            ["设备编号", "device_id = LA + 12 位大写十六进制"],
+            ["设备类型", "device_type = LASER-BLE"],
+            ["广播名称", "ble_name = LA- + device_id 末 6 位"],
+            ["线协议", "UTF-8 JSON Lines；每条 JSON 以 LF（0x0A）结束"],
+            ["授权算法", "HMAC-SHA256；设备 nonce；授权窗口最长 30 秒"],
+            ["服务端基线", "faceRecognition v114"],
+            ["文档日期", str(date.today())],
+        ],
+        widths=[38, 132],
+    ))
+    story.append(Spacer(1, 9 * mm))
+    story.append(callout(
+        "设备启动红线",
+        "设备只有在本机身份、状态、nonce、时间窗、usage_count 和 HMAC 签名全部验证通过，并且 WORKING 状态已成功写入非易失存储后，才允许启动执行机构。任一校验失败都必须保持安全状态。",
+        "danger",
+    ))
+    story.append(PageBreak())
+
+
+def add_firmware_scope(story):
+    story.append(h1("1. 设备端交付范围"))
+    story.append(p("设备厂家按本文实现唯一一套 V1.0 固件协议。正文中的字段名、字段类型、状态值、签名顺序、错误码和测试项均为交付要求，不得自行更名、调序或增加另一套兼容协议。"))
+    story.append(h2("1.1 设备必须实现"))
+    story += bullets([
+        "烧录永久 device_id、固定 device_type、共享 BLE_AUTH_SIGNING_KEY，并启用芯片读保护。",
+        "生成与本机身份一致的 BLE 广播名和机身二维码标签。",
+        "提供一个业务 Service、一个 Write Characteristic、一个 Notify/Indicate Characteristic。",
+        "接收 get_info、auth、query_status；返回 info、auth_result、status。",
+        "按 LF 对 UTF-8 JSON 字节流分帧，支持分片、粘包、空行与异常帧恢复。",
+        "生成一次性 16 字节随机 nonce，验证 HMAC-SHA256 授权并防重放。",
+        "持久化 READY/WORKING、nonce 使用状态和当前会话；支持断线、掉电后查询恢复。",
+        "返回本文定义的结构化错误码；日志和接口不得泄露生产 Key。",
+    ], compact=False)
+    story.append(h2("1.2 不属于设备端交付"))
+    story += bullets([
+        "调用端页面、扫码交互、用户提示文案和移动端蓝牙 API 调用。",
+        "人脸验证、门店权限、数据库扣次、工单生成和云函数部署。",
+    ], compact=False)
+    story.append(h2("1.3 开发前必须回填的硬件参数"))
+    story.append(table(
+        ["参数", "厂家必须填写", "验收条件"],
+        [
+            ["Service UUID", "128-bit 完整 UUID", "所有量产批次一致"],
+            ["Write UUID", "128-bit 完整 UUID；write 或 writeNoResponse", "可接收完整 auth 字节流"],
+            ["Notify UUID", "128-bit 完整 UUID；notify 或 indicate", "CCCD 开启后可连续回帧"],
+            ["ATT MTU", "设备支持值与实际协商值", "目标 iOS/Android 真机有记录"],
+            ["固件版本", "字符串和读取方式", "每份测试报告可追溯"],
+            ["可信时间", "RTC/受保护单调时钟实现", "断电、回退、失效测试通过"],
+        ],
+        widths=[32, 73, 65],
+        font_size=6.9,
+    ))
+    story.append(PageBreak())
+
+
+def add_firmware_identity(story):
+    story.append(h1("2. 设备身份与二维码标签"))
+    story.append(h2("2.1 身份字段"))
+    story.append(table(
+        ["字段", "固定格式", "示例", "设备端处理"],
+        [
+            ["device_id", "LA + 12 位大写 0-9/A-F", "LAF82E0CC8C5B9", "永久烧录；正则 ^LA[0-9A-F]{12}$"],
+            ["device_type", "固定字符串 LASER-BLE", "LASER-BLE", "永久烧录；参与签名比较"],
+            ["ble_name", "LA- + device_id 末 6 位", "LA-C8C5B9", "启动时由 device_id 计算并广播"],
+            ["session code", "6 位十进制数字", "382451", "只用于二维码结构；不是密钥"],
+        ],
+        widths=[31, 49, 42, 48],
+        font_size=6.8,
+    ))
+    story.append(h2("2.2 机身二维码"))
+    story.append(code("nc://bind?sn=LAF82E0CC8C5B9&code=382451"))
+    story += bullets([
+        "协议固定为 nc，路径固定为 bind，参数顺序固定为 sn 在前、code 在后。",
+        "sn 必须等于设备实际烧录的 device_id；code 必须恰好 6 位数字。",
+        "二维码不得写入 BLE_AUTH_SIGNING_KEY、signature、用户资料、云端 token 或数据库编号。",
+        "同一设备的机身文字编号、二维码 sn、info.device_id 和广播名必须一一对应。",
+        "每台设备出厂前必须实际扫码解码，并把解码结果列入出厂检验记录。",
+    ])
+    story.append(h2("2.3 身份自检"))
+    story.append(table(
+        ["自检项", "失败处理"],
+        [
+            ["device_id 格式非法", "进入 NOT_READY；禁止广播为可办理状态"],
+            ["device_type 不是 LASER-BLE", "进入 NOT_READY；返回 NOT_PROVISIONED"],
+            ["Key 缺失或长度不足", "进入 NOT_READY；返回 NOT_PROVISIONED"],
+            ["ble_name 与 device_id 推导值不同", "使用推导值；记录配置故障并禁止出厂"],
+            ["非易失存储校验失败", "进入 FAULT；禁止执行机构启动"],
+        ],
+        widths=[80, 90],
+    ))
+    story.append(PageBreak())
+
+
+def add_firmware_ble(story):
+    story.append(h1("3. BLE 广播、连接与 GATT"))
+    story.append(h2("3.1 广播"))
+    story += bullets([
+        "READY 状态必须发送可连接广播；完整 local name 必须为 LA- + device_id 末 6 位。",
+        "完整名称放入 Advertising Data 或 Scan Response，不能只保存在 GAP Device Name。",
+        "名称区分大小写，不得附加空格、批次号、固件版本或其他后缀。",
+        "WORKING 状态连接断开后仍应以同一名称恢复可连接广播，供调用端重新连接并 query_status。",
+        "同一时刻只允许一个业务连接；第二个连接请求不得改变当前会话和输出状态。",
+        "业务特征不得要求系统配对或绑定；连接后通过本协议的 HMAC auth 完成业务授权。",
+    ])
+    story.append(h2("3.2 GATT 结构"))
+    story.append(table(
+        ["对象", "数量", "属性", "用途"],
+        [
+            ["业务 Service", "1", "Primary", "承载全部 V1.0 业务命令"],
+            ["Write Characteristic", "1", "write 或 writeNoResponse", "调用端向设备发送请求"],
+            ["Notify Characteristic", "1", "notify 或 indicate", "设备向调用端返回结果"],
+        ],
+        widths=[48, 20, 52, 50],
+    ))
+    story.append(callout(
+        "统一通道",
+        "身份读取、开机授权、状态查询和错误返回全部共用这一组 Service/Write/Notify，通过 JSON 的 cmd 字段区分。设备不得再暴露第二组同时具备可写和可通知属性的业务 Service。",
+        "info",
+    ))
+    story.append(h2("3.3 通知启用顺序"))
+    story += bullets([
+        "连接建立后，设备等待调用端写入 CCCD 开启 notify/indicate。",
+        "CCCD 未开启时不得主动发送业务回执；收到命令后可返回 400 或等待通知开启，但不得启动设备。",
+        "通知开启后，设备按请求 seq 返回对应结果；同一请求只返回一个终态结果。",
+        "连接断开不清除 WORKING 会话，不把 nonce_used 改回 false，也不停止已授权的本地流程。",
+    ])
+    story.append(h2("3.4 厂家 GATT 参数表"))
+    story.append(table(
+        ["字段", "厂家填写"],
+        [
+            ["Service UUID", "________________________________________"],
+            ["Write UUID / 属性", "________________________________________"],
+            ["Notify UUID / 属性", "________________________________________"],
+            ["设备最大 ATT MTU", "________________________________________"],
+            ["单次最大接收长度", "________________________________________"],
+            ["是否需要配对/绑定", "否（V1.0 固定）"],
+        ],
+        widths=[58, 112],
+    ))
+    story.append(PageBreak())
+
+
+def add_firmware_transport(story):
+    story.append(h1("4. 字节流与帧格式"))
+    story.append(code("UTF8(JSON.stringify(payload)) + LF(0x0A)"))
+    story.append(table(
+        ["规则", "设备端固定实现"],
+        [
+            ["字符编码", "UTF-8；字段名为 ASCII；禁止 GBK/本地编码"],
+            ["帧结束符", "每帧只用 LF（0x0A）；接收时可 trim 前面的 CR"],
+            ["接收分片", "把多次 Write 的字节依次追加到 RX 缓冲区，遇到 LF 才解析"],
+            ["接收粘包", "一个 Write 含多条帧时，按每个 LF 逐帧处理"],
+            ["空行", "忽略，不改变设备状态"],
+            ["非法 UTF-8/JSON", "丢弃当前帧，返回 400；不得执行任何业务动作"],
+            ["未知字段", "忽略未知扩展字段；已定义字段仍须严格校验"],
+            ["未知 cmd", "返回 404 UNSUPPORTED_COMMAND"],
+            ["未知 ver", "返回 1015 PROTOCOL_VERSION"],
+            ["RX 上限", "至少 2048 字节；超限丢弃至下一个 LF 并返回 1014"],
+            ["半帧超时", "最后一个字节后 5 秒仍无 LF：清空 RX 缓冲，不执行命令"],
+        ],
+        widths=[38, 132],
+    ))
+    story.append(h2("4.1 seq 规则"))
+    story += bullets([
+        "请求 seq 为正整数；响应必须原样回显请求 seq。",
+        "get_info 示例使用 seq=1，auth 使用 seq=2，query_status 使用 seq=3；设备不得依赖固定数值决定命令类型，实际以 cmd 为准。",
+        "收到重复 seq 且请求内容完全相同时，返回当前权威状态；不得重复启动。",
+        "收到重复 seq 但请求内容不同，返回 400 并保持原状态。",
+    ])
+    story.append(h2("4.2 发送规则"))
+    story += bullets([
+        "设备输出同样采用 UTF-8 JSON + LF。",
+        "单帧超过协商的通知长度时，按原始字节顺序分段通知；只在完整 JSON 末尾发送一个 LF。",
+        "不得把 UTF-8 多字节字符从错误位置截断；V1.0 message 使用简短 ASCII 文本即可。",
+        "设备发送缓冲区不得把两次不同请求的响应交叉穿插。",
+    ])
+    story.append(PageBreak())
+
+
+def add_firmware_commands(story):
+    story.append(h1("5. 命令总表"))
+    story.append(table(
+        ["调用端请求", "设备响应", "允许状态", "作用"],
+        [
+            ["get_info", "info", "NOT_READY / READY / WORKING", "读取设备真实身份、状态与当前 nonce"],
+            ["auth", "auth_result", "仅 READY", "验证一次性服务端授权并原子进入 WORKING"],
+            ["query_status", "status", "NOT_READY / READY / WORKING", "在通知丢失、断线或重连后读取权威状态"],
+        ],
+        widths=[35, 39, 48, 48],
+    ))
+    story.append(h2("5.1 通用请求字段"))
+    story.append(table(
+        ["字段", "类型", "要求"],
+        [
+            ["ver", "string", "固定为 1.0"],
+            ["seq", "integer", "正整数；响应原样回显"],
+            ["cmd", "string", "get_info / auth / query_status"],
+        ],
+        widths=[35, 35, 100],
+    ))
+    story.append(h2("5.2 通用失败响应"))
+    story.append(code('{"ver":"1.0","seq":2,"cmd":"auth_result","ok":false,"code":1001,"message":"invalid signature","status":1}\n'))
+    story += bullets([
+        "cmd 使用该请求对应的结果名：info、auth_result 或 status。",
+        "code 使用第 13 节固定数字；message 使用简短诊断，不得包含 Key、完整签名、内存地址或堆栈。",
+        "失败响应中的 status 必须是发送响应时的真实状态。",
+    ])
+    story.append(PageBreak())
+
+
+def add_firmware_info(story):
+    story.append(h1("6. get_info / info"))
+    story.append(h2("6.1 接收请求"))
+    story.append(code('{"ver":"1.0","seq":1,"cmd":"get_info","ts":1735689600}\n'))
+    story += bullets([
+        "ts 是未签名的调用端时间，只能写入诊断日志，禁止用它校准安全时钟。",
+        "NOT_READY、READY、WORKING 均必须响应；不能因为设备忙而不返回身份。",
+    ])
+    story.append(h2("6.2 成功响应"))
+    story.append(code('{"ver":"1.0","seq":1,"cmd":"info","ok":true,"device_id":"LAF82E0CC8C5B9","device_type":"LASER-BLE","ble_name":"LA-C8C5B9","status":1,"nonce":"00112233445566778899aabbccddeeff"}\n'))
+    story.append(table(
+        ["字段", "类型/格式", "设备端来源"],
+        [
+            ["ver", "string = 1.0", "固件协议常量"],
+            ["seq", "integer", "原样回显请求 seq"],
+            ["cmd", "string = info", "固定"],
+            ["ok", "boolean = true", "固定"],
+            ["device_id", "^LA[0-9A-F]{12}$", "受保护身份区"],
+            ["device_type", "LASER-BLE", "受保护身份区"],
+            ["ble_name", "LA- + ID 末 6 位", "运行时推导"],
+            ["status", "0 / 1 / 2", "当前持久化状态"],
+            ["nonce", "32 位 hex", "当前会话 nonce；统一输出小写"],
+        ],
+        widths=[34, 52, 84],
+    ))
+    story.append(h2("6.3 nonce 生成"))
+    story += bullets([
+        "进入新的 READY 会话时使用 CSPRNG 生成 16 bytes，并编码为 32 位小写 hex。",
+        "禁止使用 rand()、时间戳、MAC 地址、device_id、计数器单独生成 nonce。",
+        "同一 READY 会话重复 get_info 返回同一 nonce；只有完成/取消并建立新 READY 会话后才生成新 nonce。",
+        "WORKING 状态必须持续返回启动该会话的原 nonce，直到本地流程安全结束。",
+    ])
+    story.append(PageBreak())
+
+
+def add_firmware_auth(story):
+    story.append(h1("7. auth / auth_result"))
+    story.append(h2("7.1 接收授权"))
+    story.append(code(
+        '{"ver":"1.0","seq":2,"cmd":"auth","auth":{'
+        '"command":"enter_work","device_id":"LAF82E0CC8C5B9",'
+        '"device_type":"LASER-BLE","nonce":"00112233445566778899aabbccddeeff",'
+        '"usage_count":1,"issued_at":1735689600,"expire_at":1735689630,'
+        '"signature":"<64-lowercase-hex>"}}\n'
+    ))
+    story.append(table(
+        ["校验顺序", "字段", "设备端要求", "失败码"],
+        [
+            ["1", "ver/cmd", "1.0 / auth", "1015 或 404"],
+            ["2", "本机状态", "必须为 READY（status=1）", "1005"],
+            ["3", "command", "必须为 enter_work", "1008"],
+            ["4", "device_id", "必须等于本机永久 ID", "1006"],
+            ["5", "device_type", "必须等于 LASER-BLE", "1007"],
+            ["6", "nonce", "等于当前 nonce 且 nonce_used=false", "1003/1004"],
+            ["7", "usage_count", "整数 1-999，并在设备能力范围内", "1011"],
+            ["8", "时间窗", "issued_at < expire_at；差值 <=30 秒；未过期", "1002/1010"],
+            ["9", "signature", "64 位小写 hex；常量时间比较", "1001"],
+        ],
+        widths=[20, 35, 82, 33],
+        font_size=6.8,
+    ))
+    story.append(h2("7.2 成功后的原子顺序"))
+    story.append(code("validate all fields -> verify HMAC -> persist pending session -> mark nonce used -> persist WORKING -> start output -> send auth_result"))
+    story += bullets([
+        "持久化内容至少包括：status=2、nonce、nonce_used=true、usage_count、开始时间、剩余进度、协议版本。",
+        "任何持久化失败返回 1012，设备保持安全停机，不得启动执行机构。",
+        "执行机构启动失败返回 1013，并保存 FAULT/故障状态；不得返回 ok=true。",
+        "成功进入 WORKING 后，即使 BLE 通知发送失败，query_status 仍必须返回 status=2。",
+    ])
+    story.append(h2("7.3 成功响应"))
+    story.append(code('{"ver":"1.0","seq":2,"cmd":"auth_result","ok":true,"status":2,"device_id":"LAF82E0CC8C5B9","device_type":"LASER-BLE","nonce":"00112233445566778899aabbccddeeff"}\n'))
+    story.append(callout(
+        "禁止动作",
+        "不得先启动再验签；不得先回 ok=true 再写入存储；不得在连接断开后把 nonce_used 恢复为 false；不得对同一 nonce 重复启动。",
+        "danger",
+    ))
+    story.append(PageBreak())
+
+
+def add_firmware_key(story):
+    story.append(h1("8. BLE_AUTH_SIGNING_KEY"))
+    story.append(p("设备与服务端共享同一个 HMAC-SHA256 对称认证 Key。V1.0 全部设备使用同一个 Key，不使用 key_id，不使用按设备或按批次派生 Key。"))
+    story.append(h2("8.1 Key 字节解释"))
+    story.append(callout(
+        "固定规则",
+        "生产 Key 以 64 个小写十六进制字符保存，但参与 HMAC 的是这 64 个字符本身的 UTF-8/ASCII 字节，共 64 bytes。设备不得把这串字符 hex decode 成 32 bytes。",
+        "danger",
+    ))
+    story.append(code(
+        "正确：key_bytes = UTF8(KEY_TEXT.trim())      # 64 chars -> 64 bytes\n"
+        "错误：key_bytes = HEX_DECODE(KEY_TEXT)       # 64 hex -> 32 bytes"
+    ))
+    story.append(h2("8.2 注入与存储"))
+    story += bullets([
+        "生产 Key 只允许通过离线受控工装在出厂阶段注入，禁止通过普通 BLE 业务通道写入。",
+        "Key 保存于受保护安全区，开启芯片读保护；量产完成后关闭或锁定调试读取能力。",
+        "串口日志、故障日志、蓝牙回执、二维码、测试报告均不得出现 Key。",
+        "开发样机使用独立测试 Key；生产 Key 不得写入源代码、固件公共常量仓库或群聊。",
+        "设备启动时只校验 Key 是否存在及长度是否为 64 个 ASCII 字符，不输出内容或 hash。",
+    ])
+    story.append(h2("8.3 Key 更换"))
+    story += bullets([
+        "Key 更换必须在受控停用窗口内同时更新全部目标设备和服务端；只改一端会使全部 auth 返回 1001。",
+        "更换后逐台执行测试向量和一次受控 auth；确认无 1001 后才恢复设备使用。",
+        "怀疑 Key 泄露时立即停止设备授权、关闭调试接口、替换 Key，并核对异常时段的设备会话。",
+    ])
+    story.append(PageBreak())
+
+
+def add_firmware_signature(story):
+    demo_key = "0123456789abcdef" * 4
+    canonical = (
+        "command=enter_work&device_id=LAF82E0CC8C5B9&device_type=LASER-BLE"
+        "&usage_count=1&expire_at=1735689630&issued_at=1735689600"
+        "&nonce=00112233445566778899aabbccddeeff"
+    )
+    signature = hmac.new(demo_key.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256).hexdigest()
+    wrong_signature = hmac.new(bytes.fromhex(demo_key), canonical.encode("utf-8"), hashlib.sha256).hexdigest()
+    story.append(h1("9. HMAC canonical string 与测试向量"))
+    story.append(h2("9.1 固定拼接顺序"))
+    story.append(code(
+        "command=<...>&device_id=<...>&device_type=<...>&usage_count=<...>"
+        "&expire_at=<...>&issued_at=<...>&nonce=<...>"
+    ))
+    story += bullets([
+        "字段名全小写；顺序固定；字段之间只使用 &，键和值之间只使用 =。",
+        "canonical 内没有引号、空格、换行、JSON 转义或 URL 编码。",
+        "usage_count、expire_at、issued_at 使用普通十进制文本，不带小数、前导 + 或科学计数法。",
+        "device_id 使用大写规范值；device_type 固定 LASER-BLE；nonce 使用 info 中原始小写值。",
+        "HMAC 输入为 canonical 的 UTF-8 字节；输出 signature 为 64 位小写 hex。",
+    ])
+    story.append(h2("9.2 非生产测试向量"))
+    story.append(code(canonical))
+    story.append(table(
+        ["项目", "值"],
+        [
+            ["demo key", demo_key],
+            ["key bytes", "demo key 文本的 UTF-8，共 64 bytes"],
+            ["expected HMAC", signature],
+            ["错误值（把 Key hex decode）", wrong_signature],
+        ],
+        widths=[43, 127],
+        font_size=6.7,
+    ))
+    story.append(h2("9.3 设备验签伪代码"))
+    story.append(code(
+        "canonical = build_in_fixed_order(auth)\n"
+        "expected = HMAC_SHA256(key_text_as_utf8, canonical_as_utf8)\n"
+        "expected_hex = lowercase_hex(expected)\n"
+        "if !constant_time_equal(expected_hex, auth.signature): return 1001\n"
+        "continue_with_persistent_state_transition()"
+    ))
+    story.append(callout(
+        "算法验收",
+        "固件在连接真实设备流程前必须离线得到表内 expected HMAC。结果不同即停止联调，依次检查 Key 字节解释、字段顺序、数字文本、大小写和隐藏换行。",
+        "ok",
+    ))
+    story.append(PageBreak())
+
+
+def add_firmware_clock_state(story):
+    story.append(h1("10. 可信时间与状态机"))
+    story.append(h2("10.1 时间校验"))
+    story += bullets([
+        "issued_at 和 expire_at 是 Unix 秒，并包含在签名中；设备不得修改。",
+        "必须满足 issued_at < expire_at，且 expire_at - issued_at <= 30。",
+        "设备 trusted_now 不得晚于 expire_at；允许的时钟偏差固定为 ±5 秒，但不能扩展 30 秒总窗口。",
+        "设备使用 RTC 加防回退记录或受保护单调时钟；get_info.ts 不能作为可信时间。",
+        "RTC 未初始化、读失败、明显回退或偏差超限时返回 1010 CLOCK_INVALID，不得永久放行授权。",
+    ])
+    story.append(h2("10.2 状态机"))
+    story.append(table(
+        ["内部状态", "status", "允许命令", "设备行为"],
+        [
+            ["NOT_READY", "0", "get_info / query_status", "身份、Key、时间或配置未就绪；拒绝 auth"],
+            ["READY", "1", "get_info / auth / query_status", "保持当前 nonce；允许一次有效 auth"],
+            ["WORKING", "2", "get_info / query_status", "拒绝新 auth；持续返回原会话 nonce"],
+            ["COMPLETED", "内部", "本地收尾", "保存结果；安全复位；建立新 READY 会话"],
+            ["FAULT", "0", "get_info / query_status", "安全停机；返回故障；禁止 auth"],
+        ],
+        widths=[37, 18, 52, 63],
+        font_size=6.8,
+    ))
+    story.append(h2("10.3 合法转换"))
+    story.append(code(
+        "boot -> self_check -> READY\n"
+        "READY + valid auth -> persist WORKING -> start output -> WORKING\n"
+        "WORKING + local completion -> persist completion -> new nonce -> READY\n"
+        "any state + unrecoverable fault -> safe stop -> FAULT"
+    ))
+    story.append(callout(
+        "重复 auth",
+        "WORKING 状态收到任何 auth 均返回 1005 DEVICE_BUSY，不执行第二次启动。READY 状态收到已使用 nonce 返回 1004 NONCE_USED。",
+        "warn",
+    ))
+    story.append(PageBreak())
+
+
+def add_firmware_persistence(story):
+    story.append(h1("11. 非易失存储、掉电与重连"))
+    story.append(h2("11.1 必须持久化的数据"))
+    story.append(table(
+        ["数据", "写入时机", "恢复用途"],
+        [
+            ["device_id / device_type / Key", "出厂注入", "身份和验签"],
+            ["current nonce / nonce_used", "建立 READY / 接受 auth", "防重放"],
+            ["status", "状态转换前", "重启后恢复 READY/WORKING/FAULT"],
+            ["usage_count", "接受 auth 时", "恢复本次工作参数"],
+            ["开始时间 / 剩余进度", "进入和执行 WORKING 时", "断电后恢复或安全停止"],
+            ["协议版本 / 校验信息", "会话建立时", "识别损坏或不兼容记录"],
+        ],
+        widths=[48, 55, 67],
+    ))
+    story.append(h2("11.2 掉电规则"))
+    story += bullets([
+        "READY 掉电：重启后恢复同一未使用 nonce，或原子废弃旧 nonce 后生成新 nonce；不能同时存在两个有效 nonce。",
+        "WORKING 掉电：重启后读取原会话并保持 status=2；不得自动回到 READY，不得把 nonce_used 清零。",
+        "持久化记录校验失败：进入 FAULT/status=0，安全停机并返回明确错误。",
+        "Flash 写入采用双页、日志式或等效原子方案，掉电不能得到半写入的 WORKING 记录。",
+    ])
+    story.append(h2("11.3 断线规则"))
+    story += bullets([
+        "BLE 断线只影响传输，不改变业务状态。",
+        "READY 断线后继续可连接广播，并在重连后返回同一 nonce。",
+        "WORKING 断线后继续本地流程并恢复可连接广播；重连后 query_status 返回原会话 status=2。",
+        "auth_result 通知丢失不能撤销已经成功持久化的 WORKING。",
+    ])
+    story.append(PageBreak())
+
+
+def add_firmware_status(story):
+    story.append(h1("12. query_status / status"))
+    story.append(h2("12.1 请求与响应"))
+    story.append(code('{"ver":"1.0","seq":3,"cmd":"query_status"}\n'))
+    story.append(code('{"ver":"1.0","seq":3,"cmd":"status","ok":true,"status":2,"device_id":"LAF82E0CC8C5B9","device_type":"LASER-BLE","nonce":"00112233445566778899aabbccddeeff"}\n'))
+    story.append(table(
+        ["字段", "要求"],
+        [
+            ["ver", "固定 1.0"],
+            ["seq", "原样回显 query_status 的 seq"],
+            ["cmd", "固定 status"],
+            ["ok", "成功为 true；失败时带 code/message"],
+            ["status", "返回非易失存储中的权威状态 0/1/2"],
+            ["device_id/type", "始终返回本机身份"],
+            ["nonce", "READY 返回当前 nonce；WORKING 返回启动该会话的 nonce"],
+        ],
+        widths=[42, 128],
+    ))
+    story.append(h2("12.2 响应时限"))
+    story.append(table(
+        ["完整请求帧", "设备必须在", "超时结果"],
+        [
+            ["get_info", "10 秒内返回 info", "调用端关闭连接；设备不得改变状态"],
+            ["auth", "20 秒内返回 auth_result", "调用端转为 query_status；设备不得等待第二个 auth"],
+            ["query_status", "5 秒内返回 status", "状态视为未知；设备保持原权威状态"],
+        ],
+        widths=[42, 55, 73],
+    ))
+    story.append(callout(
+        "状态权威来源",
+        "status 必须来自设备持久化状态，不能根据当前 BLE 是否连接、执行机构瞬时电平或上一次发送结果临时猜测。",
+        "info",
+    ))
+    story.append(PageBreak())
+
+
+def add_firmware_errors(story):
+    story.append(h1("13. 设备错误码"))
+    rows = [
+        ["400", "BAD_REQUEST", "JSON、字段、类型或 seq 非法", "不改变状态"],
+        ["403", "FORBIDDEN", "本地安全策略拒绝", "安全停机/保持状态"],
+        ["404", "UNSUPPORTED_COMMAND", "cmd 未实现", "不改变状态"],
+        ["1001", "INVALID_SIGNATURE", "HMAC 不一致", "保持 READY"],
+        ["1002", "AUTH_EXPIRED", "授权时间窗非法或过期", "保持 READY"],
+        ["1003", "NONCE_MISMATCH", "auth nonce 不是当前 nonce", "保持 READY"],
+        ["1004", "NONCE_USED", "nonce 已使用", "不重复启动"],
+        ["1005", "DEVICE_BUSY", "已 WORKING 或不可接收新 auth", "返回当前状态"],
+        ["1006", "DEVICE_ID_MISMATCH", "授权 ID 不是本机 ID", "保持安全状态"],
+        ["1007", "DEVICE_TYPE_MISMATCH", "授权类型不是 LASER-BLE", "保持安全状态"],
+        ["1008", "UNSUPPORTED_OPERATION", "command 不是 enter_work", "不执行"],
+        ["1009", "NOT_PROVISIONED", "身份、Key 或安全配置不完整", "status=0"],
+        ["1010", "CLOCK_INVALID", "可信时间不可用", "拒绝 auth"],
+        ["1011", "INVALID_USAGE_COUNT", "次数非整数或超范围", "保持 READY"],
+        ["1012", "PERSIST_FAILED", "会话持久化失败", "安全停机"],
+        ["1013", "OUTPUT_START_FAILED", "执行机构启动失败", "进入 FAULT/status=0"],
+        ["1014", "FRAME_TOO_LARGE", "RX 帧超过 2048 字节", "丢弃到下一个 LF"],
+        ["1015", "PROTOCOL_VERSION", "ver 不是 1.0", "不执行"],
+    ]
+    story.append(table(["code", "symbol", "触发条件", "设备动作"], rows[:9],
+                       widths=[15, 48, 62, 45], font_size=6.7))
+    story.append(PageBreak())
+    story.append(h1("13. 设备错误码（续）"))
+    story.append(table(["code", "symbol", "触发条件", "设备动作"], rows[9:],
+                       widths=[15, 48, 62, 45], font_size=6.7))
+    story.append(h2("13.1 错误响应结构"))
+    story.append(code('{"ver":"1.0","seq":2,"cmd":"auth_result","ok":false,"code":1002,"message":"authorization expired","status":1}\n'))
+    story += bullets([
+        "seq 回显原请求；cmd 使用对应结果名称；status 返回错误发生后的真实状态。",
+        "同一失败原因固定返回同一 code，不能用 message 文本替代 code。",
+        "拒绝 auth 时不得产生脉冲、激光、加热、马达或其他工作输出。",
+        "错误日志只记录 code、时间、状态和脱敏会话信息，不记录 Key 或完整 signature。",
+    ])
+    story.append(PageBreak())
+
+
+def add_firmware_security(story):
+    story.append(h1("14. 安全与诊断日志"))
+    story.append(h2("14.1 必须记录"))
+    story += bullets([
+        "固件版本、启动原因、状态转换、错误码、RTC 状态、Flash 持久化结果。",
+        "BLE 连接/断开时间、收到的 cmd/seq、响应耗时、当前 status。",
+        "device_id 可完整记录在本地受控维修日志；对外测试报告只保留末 6 位。",
+        "signature 只记录校验成功/失败，不记录原值；nonce 对外日志只保留首尾各 4 位。",
+    ])
+    story.append(h2("14.2 永远禁止记录或读取"))
+    story += bullets([
+        "BLE_AUTH_SIGNING_KEY 明文、完整 Key hash、可导出 Key 的内存转储。",
+        "完整 auth.signature、云端 token、用户资料或二维码 session code 的长期明文日志。",
+        "通过 BLE 命令、串口普通命令、调试菜单或维护二维码读取生产 Key。",
+    ])
+    story.append(h2("14.3 生产保护"))
+    story += bullets([
+        "量产固件关闭测试后门、通用内存读写命令和未认证的工程模式。",
+        "烧录后启用芯片读保护；安全区擦除或校验失败时设备进入 NOT_READY。",
+        "固件中的错误 message 不包含内存地址、文件路径、断言文本或堆栈。",
+        "生产设备不得内置本文 demo key；demo key 只能用于离线算法测试。",
+    ])
+    story.append(PageBreak())
+
+
+def add_firmware_factory(story):
+    story.append(h1("15. 出厂烧录与逐台检查"))
+    story.append(h2("15.1 烧录顺序"))
+    story.append(code("write device_id -> write device_type -> inject production Key -> lock protected storage -> program firmware -> self-test -> print/scan QR -> BLE acceptance"))
+    story.append(h2("15.2 逐台记录"))
+    story.append(table(
+        ["记录项", "要求"],
+        [
+            ["设备编号", "完整 device_id；与机身文字和二维码一致"],
+            ["广播名", "手机实际扫描到的 local name"],
+            ["固件版本", "可追溯到构建产物和源码版本"],
+            ["GATT UUID", "Service/Write/Notify 完整值"],
+            ["Key 检查", "只记录已注入/保护已开启，不记录 Key 内容"],
+            ["HMAC 测试", "记录 PASS/FAIL 和测试向量版本"],
+            ["状态测试", "READY、正常 auth、重复 auth、掉电恢复"],
+            ["检验人/时间", "人员、日期、批次"],
+        ],
+        widths=[45, 125],
+    ))
+    story.append(h2("15.3 禁止出厂条件"))
+    story += bullets([
+        "device_id、二维码、广播名任意两项不一致。",
+        "存在第二个可写+可通知的业务 Service，导致通道歧义。",
+        "离线 HMAC 测试向量不通过，或设备把 Key hex decode。",
+        "重复 nonce 可以再次启动，或 WORKING 掉电后回到 READY。",
+        "Key 可通过调试口、日志、BLE 或固件镜像直接读取。",
+        "任一错误路径会启动执行机构或返回错误的 status。",
+    ])
+    story.append(PageBreak())
+
+
+def add_firmware_tests(story):
+    story.append(h1("16. 设备端必测用例"))
+    tests_one = [
+        ["ID01", "合法 device_id/type/name", "自检通过，进入 READY"],
+        ["ID02", "device_id 含小写或非 hex", "NOT_READY；禁止出厂"],
+        ["ID03", "二维码 sn 与本机 ID 不同", "出厂检查失败"],
+        ["BLE01", "READY 广播", "名称精确为 LA-末 6 位，可连接"],
+        ["BLE02", "WORKING 断线再广播", "可重连并 query_status=2"],
+        ["G01", "枚举 GATT", "仅一个业务 write+notify 候选"],
+        ["G02", "CCCD 未开启", "不启动、不丢失业务状态"],
+        ["F01", "JSON 分 2/5/20 次写入", "收到 LF 后只解析一次"],
+        ["F02", "一次 Write 含两帧", "按 LF 顺序处理两帧"],
+        ["F03", "半帧 5 秒无 LF", "清空缓存，不执行"],
+        ["F04", "非法 UTF-8/JSON", "400；状态不变"],
+        ["F05", "帧超过 2048 字节", "1014；丢弃至 LF"],
+        ["I01", "READY get_info", "身份正确、status=1、nonce 32 hex"],
+        ["I02", "重复 get_info", "同一 READY 会话返回同一 nonce"],
+    ]
+    story.append(table(["编号", "输入/场景", "设备期望结果"], tests_one,
+                       widths=[18, 78, 74], font_size=6.8))
+    story.append(PageBreak())
+    story.append(h1("16. 设备端必测用例（续）"))
+    tests_two = [
+        ["A01", "正常测试向量", "HMAC 与 expected 完全一致"],
+        ["A02", "signature 改 1 位", "1001；保持 READY"],
+        ["A03", "canonical 字段调序", "1001"],
+        ["A04", "把 64 字符 Key hex decode", "测试向量失败，禁止交付"],
+        ["A05", "expire_at 已过期", "1002；不启动"],
+        ["A06", "窗口超过 30 秒", "1002；不启动"],
+        ["A07", "RTC 失效或回退", "1010；不启动"],
+        ["A08", "nonce 不匹配", "1003"],
+        ["A09", "同一 nonce 第二次 auth", "1004/1005；只启动一次"],
+        ["A10", "ID/type 不匹配", "1006/1007"],
+        ["A11", "usage_count=0/1.5/1000", "1011"],
+        ["P01", "Flash 写入失败", "1012；执行机构无输出"],
+        ["P02", "WORKING 中断电", "重启仍为 status=2 和原 nonce"],
+        ["P03", "auth_result 通知丢失", "query_status 返回 2"],
+        ["P04", "WORKING 收到新 auth", "1005；不重复启动"],
+        ["P05", "执行机构启动失败", "1013；FAULT/status=0"],
+    ]
+    story.append(table(["编号", "输入/场景", "设备期望结果"], tests_two,
+                       widths=[18, 78, 74], font_size=6.8))
+    story.append(PageBreak())
+
+
+def add_firmware_delivery(story):
+    story.append(h1("17. 厂家交付清单"))
+    checklist = [
+        "固件二进制、固件版本号、构建日期和源码版本标识。",
+        "Service / Write / Notify UUID、特征属性、最大 ATT MTU 和最大 RX 帧长度。",
+        "不少于 3 台设备的 device_id、二维码样张、实际广播名和逐台出厂记录。",
+        "第 9 节 HMAC 测试向量的计算结果截图或串口记录，不包含生产 Key。",
+        "第 16 节全部用例的 PASS/FAIL 报告，含设备编号末 6 位、固件版本和测试时间。",
+        "至少两款 iPhone、两款 Android 的发现、连接、收发完整 auth 帧记录。",
+        "READY、正常启动、重复 auth、断线重连、WORKING 掉电恢复的视频或日志证据。",
+        "生产 Key 注入工装说明、读保护检查结果、调试口锁定结果。",
+        "设备错误码与现场维修手册的对应表。",
+        "厂家固件负责人、测试负责人和问题联系窗口。",
+    ]
+    story += bullets([f"[ ] {item}" for item in checklist], compact=False)
+    story.append(h2("17.1 联调放行条件"))
+    story.append(table(
+        ["放行项", "通过标准"],
+        [
+            ["身份", "标签、二维码、广播、info 四者一致"],
+            ["通道", "唯一业务 GATT；完整 auth 字节流可接收"],
+            ["安全", "测试向量一致；Key 不可读；nonce 不可重放"],
+            ["状态", "先持久化再启动；重复 auth 不重复动作"],
+            ["恢复", "通知丢失、断线、掉电后 query_status 仍返回权威状态"],
+            ["错误", "400/403/404/1001-1015 均有稳定结构且不会误启动"],
+            ["证据", "测试报告、设备清单、版本和负责人完整"],
+        ],
+        widths=[42, 128],
+    ))
+    story.append(callout(
+        "交付结论",
+        "任一安全、状态持久化、防重放或真实手机长帧测试未通过，设备固件不得进入量产联调。",
+        "danger",
+    ))
+    story.append(PageBreak())
+
+
+def add_firmware_appendix(story):
+    story.append(h1("附录 A：完整正常报文"))
+    story.append(h2("A.1 get_info 请求"))
+    story.append(code('{"ver":"1.0","seq":1,"cmd":"get_info","ts":1735689600}\n'))
+    story.append(h2("A.2 info 响应"))
+    story.append(code('{"ver":"1.0","seq":1,"cmd":"info","ok":true,"device_id":"LAF82E0CC8C5B9","device_type":"LASER-BLE","ble_name":"LA-C8C5B9","status":1,"nonce":"00112233445566778899aabbccddeeff"}\n'))
+    story.append(h2("A.3 auth 请求"))
+    story.append(code('{"ver":"1.0","seq":2,"cmd":"auth","auth":{"command":"enter_work","device_id":"LAF82E0CC8C5B9","device_type":"LASER-BLE","nonce":"00112233445566778899aabbccddeeff","usage_count":1,"issued_at":1735689600,"expire_at":1735689630,"signature":"<64-lowercase-hex>"}}\n'))
+    story.append(h2("A.4 auth_result 成功响应"))
+    story.append(code('{"ver":"1.0","seq":2,"cmd":"auth_result","ok":true,"status":2,"device_id":"LAF82E0CC8C5B9","device_type":"LASER-BLE","nonce":"00112233445566778899aabbccddeeff"}\n'))
+    story.append(h2("A.5 query_status 请求 / status 响应"))
+    story.append(code('{"ver":"1.0","seq":3,"cmd":"query_status"}\n'))
+    story.append(code('{"ver":"1.0","seq":3,"cmd":"status","ok":true,"status":2,"device_id":"LAF82E0CC8C5B9","device_type":"LASER-BLE","nonce":"00112233445566778899aabbccddeeff"}\n'))
+    story.append(h2("A.6 auth_result 失败响应"))
+    story.append(code('{"ver":"1.0","seq":2,"cmd":"auth_result","ok":false,"code":1001,"message":"invalid signature","status":1}\n'))
+    story.append(h1("附录 B：厂家回填页"))
+    story.append(table(
+        ["项目", "厂家回填"],
+        [
+            ["厂家 / 设备型号", "____________________________________________"],
+            ["固件版本", "____________________________________________"],
+            ["Service UUID", "____________________________________________"],
+            ["Write UUID / 属性", "____________________________________________"],
+            ["Notify UUID / 属性", "____________________________________________"],
+            ["最大 ATT MTU / RX", "____________________________________________"],
+            ["可信时间实现", "____________________________________________"],
+            ["非易失存储方案", "____________________________________________"],
+            ["Key 注入与读保护", "____________________________________________"],
+            ["固件负责人 / 联系方式", "____________________________________________"],
+            ["测试负责人 / 日期", "____________________________________________"],
+        ],
+        widths=[58, 112],
+    ))
+    story.append(callout(
+        "最终确认",
+        "厂家签字即表示已按本文实现设备端 V1.0，并确认没有使用 demo key、没有增加第二套业务 GATT、没有在验签和持久化前启动设备。",
+        "ok",
+    ))
+
+
 def build() -> str:
     os.makedirs(OUT_DIR, exist_ok=True)
     story = []
-    add_cover(story)
-    add_reading_guide(story)
-    add_scope(story)
-    add_architecture(story)
-    add_identity_and_qr(story)
-    add_qr_errors(story)
-    add_ble_environment(story)
-    add_gatt(story)
-    add_commands(story)
-    add_auth(story)
-    add_key(story)
-    add_signature(story)
-    add_key_lifecycle(story)
-    add_state_machine(story)
-    add_status_recovery(story)
-    add_device_errors(story)
-    add_app_errors_one(story)
-    add_app_errors_two(story)
-    add_error_ux(story)
-    add_backend_contract(story)
-    add_test_matrix_one(story)
-    add_test_matrix_two(story)
-    add_release_checklist(story)
-    add_appendix(story)
+    add_firmware_cover(story)
+    add_firmware_scope(story)
+    add_firmware_identity(story)
+    add_firmware_ble(story)
+    add_firmware_transport(story)
+    add_firmware_commands(story)
+    add_firmware_info(story)
+    add_firmware_auth(story)
+    add_firmware_key(story)
+    add_firmware_signature(story)
+    add_firmware_clock_state(story)
+    add_firmware_persistence(story)
+    add_firmware_status(story)
+    add_firmware_errors(story)
+    add_firmware_security(story)
+    add_firmware_factory(story)
+    add_firmware_tests(story)
+    add_firmware_delivery(story)
+    add_firmware_appendix(story)
     DevSpecTemplate(OUT_FILE).build(story)
     return OUT_FILE
 
