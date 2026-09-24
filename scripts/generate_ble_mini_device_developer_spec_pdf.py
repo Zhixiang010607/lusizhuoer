@@ -542,7 +542,42 @@ def add_ble_environment(story):
 
 def add_gatt(story):
     story.append(h1("6. GATT 通道发现与字节传输"))
-    story.append(h2("6.1 当前通道选择算法"))
+    story.append(h2("6.1 简单设备的统一通道方案"))
+    story.append(p(
+        "设备建立 BLE 连接后，小程序仍需要找到负责业务通信的 service 和 characteristics。"
+        "可以把 Service UUID 理解为业务通信的“房间号”，Write UUID 是小程序向设备发送 get_info、auth、query_status 的“写入窗口”，"
+        "Notify/Indicate UUID 是设备返回身份、开机结果和状态的“通知窗口”。UUID 是通道标识，不是设备编号，也不是密钥。"
+    ))
+    story.append(callout(
+        "本项目采用简单结构",
+        "设备只需一个统一业务 Service、一个 Write Characteristic 和一个 Notify/Indicate Characteristic。身份读取、开机授权、状态查询和必要诊断均共用这一组通道，通过 JSON 中的 cmd 区分。无需为了不同功能额外创建多组 service。",
+        "info",
+    ))
+    story.append(table(
+        ["参数", "作用", "厂家必须确认"],
+        [
+            ["Service UUID", "定位魔法柔肤业务通信服务", "量产固件中固定；不同批次不得随意变化"],
+            ["Write Characteristic UUID", "小程序发送 get_info / auth / query_status", "write 或 writeNoResponse；是否要求加密/配对"],
+            ["Notify/Indicate UUID", "设备返回 info / auth_result / status", "notify 或 indicate；订阅后才能发送业务指令"],
+            ["最大可用 MTU", "决定单次安全写入的字节数", "给出固件能力，并用 iOS/Android 记录实际可用值"],
+        ],
+        widths=[42, 63, 65],
+    ))
+    story.append(callout(
+        "简单设备为什么仍建议固定 UUID",
+        "固定 UUID 不是要求设备增加更多通道，而是让所有批次始终使用同一组编号。这样小程序可精确查找统一业务通道，现场排查时也能直接核对 service、write 和 notify，避免因固件批次改变编号或枚举顺序而连接失败。",
+        "warn",
+    ))
+    story.append(p(
+        "示例仅用于说明：若业务 Service 为 FFF0、写入特征为 FFF1、通知特征为 FFF2，小程序应只通过 FFF1 发送命令并只监听 FFF2。"
+        "这些示例值不是本项目正式 UUID；正式值必须由设备厂家提供并写入双方确认记录。"
+    ))
+    story.append(callout(
+        "发给设备厂家的确认要求",
+        "请为魔法柔肤设备提供一组统一业务通道：一个 Service UUID、一个 Write Characteristic UUID、一个 Notify/Indicate Characteristic UUID；注明各特征支持的属性、是否需要配对或加密、设备支持的最大 MTU。全部简单业务指令共用这组通道并以 cmd 区分。以上 UUID 在量产固件中应保持固定，不得因设备批次随意变化。",
+        "info",
+    ))
+    story.append(h2("6.2 当前通道选择算法"))
     story += bullets([
         "枚举所有 primary service。",
         "每个 service 枚举 characteristics。",
@@ -553,14 +588,14 @@ def add_gatt(story):
     ])
     story.append(callout(
         "固件要求",
-        "当前小程序没有写死 UUID，因此设备必须只暴露一个满足上述条件的业务 service，并建议该 service 中恰好只有一个业务 write 与一个业务 notify characteristic。系统/升级/诊断 service 不得同时呈现可写+可通知组合；同一 service 内多个可写/通知特征也会依赖枚举顺序，量产固件不得这样设计。",
+        "当前小程序没有写死 UUID，因此设备必须只暴露一个满足上述条件的业务 service，并建议该 service 中恰好只有一个业务 write 与一个业务 notify characteristic。其他 service 不得同时呈现可写+可通知组合；同一 service 内多个可写/通知特征也会依赖枚举顺序，量产固件不得这样设计。",
         "danger",
     ))
     story += bullets([
         "V1.0 不规定固定 UUID。设备方须在联调记录中提供实际 Service UUID、Write UUID、Notify UUID 和属性截图，便于问题定位。",
         "广播包的 localName/name 必须能被微信发现为 LA-末 6 位；Service UUID 是否放入广播不作为当前筛选条件。",
     ])
-    story.append(h2("6.2 帧格式"))
+    story.append(h2("6.3 帧格式"))
     story.append(code("UTF-8(JSON.stringify(payload)) + 0x0A"))
     story.append(table(
         ["规则", "要求"],
@@ -575,7 +610,8 @@ def add_gatt(story):
         ],
         widths=[35, 135],
     ))
-    story.append(h2("6.3 长帧风险"))
+    story.append(PageBreak())
+    story.append(h2("6.4 长帧风险"))
     story += bullets([
         "当前小程序一次调用 writeBLECharacteristicValue 写完整 JSON 帧；设备厂商必须验证目标微信版本与固件 MTU 行为。",
         "若实机出现截断，不得私自改变 JSON 或签名字段；应在小程序 transport 层增加确定性的分片发送，并在设备侧重组到 LF。",
@@ -586,7 +622,6 @@ def add_gatt(story):
         "在至少两款 iPhone、两款 Android 上实测完整 auth 帧。只要任一机型出现 write 失败或设备收到截断帧，就必须先给小程序补发送分片与节流，再做量产验收；不能把‘模拟器能写’当作 BLE 真机通过。",
         "warn",
     ))
-    story.append(PageBreak())
 
 
 def add_commands(story):
