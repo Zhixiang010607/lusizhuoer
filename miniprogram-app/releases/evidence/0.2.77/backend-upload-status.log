@@ -1,0 +1,16 @@
+WeChat DevTools Stable 2.02.2608040
+AppID: wxb053c1bd6c684d8b
+Version: 0.2.77
+Source baseline: 03abd7322c9d83ced812670bcd18b5ba9e0573ed
+Upload start: 2026-09-28 19:27:22 AEST
+doUpload:start: 2026-09-28 19:27:30 AEST
+doUpload:await: 2026-09-28 19:30:50 AEST
+Backend terminal state: parseError -> progressSuccess -> reportNewRemoteDebug
+Total backend duration: 207558 ms
+CLI terminal state: success
+CLI receipt: upload
+Main package bytes: 1783516
+Total package bytes: 4845643
+Experience version readback: not performed
+Review submission: not performed
+Formal release: not performed
