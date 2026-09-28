@@ -6,6 +6,27 @@ const INFO_TIMEOUT_MS = 10000;
 const AUTH_TIMEOUT_MS = 20000;
 const DISCOVERY_TIMEOUT_MS = 15000;
 
+const BLE_GATT_PROFILES = Object.freeze({
+  "LASER-BLE": Object.freeze({
+    serviceUuid: "FFE0",
+    writeCharacteristicUuid: "FFE1",
+    notifyCharacteristicUuid: "FFE1"
+  })
+});
+
+function normalizeGattUuid(value) {
+  const compact = String(value || "").trim().toUpperCase().replace(/[{}-]/g, "");
+  if (/^[0-9A-F]{4}$/.test(compact)) return compact;
+  if (/^0000[0-9A-F]{4}00001000800000805F9B34FB$/.test(compact)) return compact.slice(4, 8);
+  return compact;
+}
+
+function gattUuidMatches(actual, expected) {
+  const actualUuid = normalizeGattUuid(actual);
+  const expectedUuid = normalizeGattUuid(expected);
+  return Boolean(actualUuid && expectedUuid && actualUuid === expectedUuid);
+}
+
 function storageKey() {
   const session = readSession();
   if (!session || !session.uid) throw bleError("BLE_SESSION_EXPIRED", "登录状态已经失效，请重新登录后办理。");
@@ -211,27 +232,74 @@ class BleVerificationSession {
     this.state("PROTOCOL_DISCOVERING", "正在识别设备通信通道");
     const serviceResult = await wxPromise("getBLEDeviceServices", { deviceId: this.deviceId });
     const services = (serviceResult.services || []).filter((service) => service.isPrimary !== false);
-    const candidates = [];
-    for (const service of services) {
-      const result = await wxPromise("getBLEDeviceCharacteristics", { deviceId: this.deviceId, serviceId: service.uuid });
+    const expectedType = String(this.qualification.expectedDeviceType || "").trim().toUpperCase();
+    const configuredProfile = BLE_GATT_PROFILES[expectedType];
+
+    if (configuredProfile) {
+      const service = services.find((item) => gattUuidMatches(item.uuid, configuredProfile.serviceUuid));
+      if (!service) {
+        throw bleError(
+          "BLE_PROTOCOL_SERVICE_MISSING",
+          `${expectedType} 设备没有提供约定的 ${configuredProfile.serviceUuid} 通信服务。`
+        );
+      }
+      const result = await wxPromise("getBLEDeviceCharacteristics", {
+        deviceId: this.deviceId,
+        serviceId: service.uuid
+      });
       const characteristics = result.characteristics || [];
-      const writes = characteristics.filter((item) => item.properties?.write || item.properties?.writeNoResponse);
-      const notifies = characteristics.filter((item) => item.properties?.notify || item.properties?.indicate);
-      if (writes.length && notifies.length) candidates.push({ service, writes, notifies });
+      const writeUuidMatches = characteristics.filter((item) => gattUuidMatches(item.uuid, configuredProfile.writeCharacteristicUuid));
+      const notifyUuidMatches = characteristics.filter((item) => gattUuidMatches(item.uuid, configuredProfile.notifyCharacteristicUuid));
+      const writeCharacteristic = writeUuidMatches.find((item) => item.properties?.write || item.properties?.writeNoResponse);
+      const notifyCharacteristic = notifyUuidMatches.find((item) => item.properties?.notify || item.properties?.indicate);
+      if (!writeUuidMatches.length || !notifyUuidMatches.length) {
+        throw bleError(
+          "BLE_PROTOCOL_CHARACTERISTIC_MISSING",
+          `${expectedType} 设备的 ${configuredProfile.serviceUuid} 服务没有提供约定的 ${configuredProfile.writeCharacteristicUuid} 通信特征。`
+        );
+      }
+      if (!writeCharacteristic) {
+        throw bleError(
+          "BLE_PROTOCOL_WRITE_UNAVAILABLE",
+          `${configuredProfile.writeCharacteristicUuid} 特征不支持 write 或 writeNoResponse。`
+        );
+      }
+      if (!notifyCharacteristic) {
+        throw bleError(
+          "BLE_PROTOCOL_NOTIFY_UNAVAILABLE",
+          `${configuredProfile.notifyCharacteristicUuid} 特征不支持 notify 或 indicate。`
+        );
+      }
+      this.serviceId = service.uuid;
+      this.writeCharacteristicId = writeCharacteristic.uuid;
+      this.notifyCharacteristicId = notifyCharacteristic.uuid;
+    } else {
+      const candidates = [];
+      for (const service of services) {
+        const result = await wxPromise("getBLEDeviceCharacteristics", { deviceId: this.deviceId, serviceId: service.uuid });
+        const characteristics = result.characteristics || [];
+        const writes = characteristics.filter((item) => item.properties?.write || item.properties?.writeNoResponse);
+        const notifies = characteristics.filter((item) => item.properties?.notify || item.properties?.indicate);
+        if (writes.length && notifies.length) candidates.push({ service, writes, notifies });
+      }
+      if (!candidates.length) throw bleError("BLE_PROTOCOL_CHANNEL_MISSING", "设备没有同时支持写入和通知的通信服务，请检查设备固件。");
+      if (candidates.length > 1) throw bleError("BLE_PROTOCOL_CHANNEL_AMBIGUOUS", "设备存在多个可用通信服务，无法安全判断目标通道；请为该设备类型补充固定 GATT 配置。");
+      const selected = candidates[0];
+      this.serviceId = selected.service.uuid;
+      this.writeCharacteristicId = (selected.writes.find((item) => item.properties?.write) || selected.writes[0]).uuid;
+      this.notifyCharacteristicId = (selected.notifies.find((item) => item.properties?.notify) || selected.notifies[0]).uuid;
     }
-    if (!candidates.length) throw bleError("BLE_PROTOCOL_CHANNEL_MISSING", "设备没有同时支持写入和通知的通信服务，请检查设备固件。");
-    if (candidates.length > 1) throw bleError("BLE_PROTOCOL_CHANNEL_AMBIGUOUS", "设备存在多个可用通信服务，无法安全判断目标通道，请升级设备固件明确唯一通道。");
-    const selected = candidates[0];
-    this.serviceId = selected.service.uuid;
-    this.writeCharacteristicId = (selected.writes.find((item) => item.properties?.write) || selected.writes[0]).uuid;
-    this.notifyCharacteristicId = (selected.notifies.find((item) => item.properties?.notify) || selected.notifies[0]).uuid;
     if (typeof wx.onBLECharacteristicValueChange === "function") wx.onBLECharacteristicValueChange(this.valueHandler);
-    await wxPromise("notifyBLECharacteristicValueChange", {
-      deviceId: this.deviceId,
-      serviceId: this.serviceId,
-      characteristicId: this.notifyCharacteristicId,
-      state: true
-    });
+    try {
+      await wxPromise("notifyBLECharacteristicValueChange", {
+        deviceId: this.deviceId,
+        serviceId: this.serviceId,
+        characteristicId: this.notifyCharacteristicId,
+        state: true
+      });
+    } catch (error) {
+      throw bleError("BLE_NOTIFY_ENABLE_FAILED", "无法订阅设备通知通道，请检查特征属性和设备连接状态。", error);
+    }
   }
 
   handleValue(event) {
@@ -479,8 +547,13 @@ function errorFeedback(error) {
     BLE_DEVICE_NOT_FOUND: ["没有找到设备", "请靠近设备，确认设备已通电且未连接其他手机，再重新扫码。", true],
     BLE_CONNECTION_FAILED: ["设备连接失败", "请靠近设备并断开其他手机连接；稍后可在资格有效期内重试。", true],
     BLE_CONNECTION_CLOSED: ["蓝牙连接已断开", "请保持手机靠近设备并重新打开窗口；若设备已启动，系统会先恢复原工单。", true],
+    BLE_PROTOCOL_SERVICE_MISSING: ["设备通信服务不匹配", "魔法柔肤设备必须提供 HC-08 的 FFE0 服务；请检查模块配置或设备固件。", false],
+    BLE_PROTOCOL_CHARACTERISTIC_MISSING: ["设备通信特征缺失", "魔法柔肤设备的 FFE0 服务必须提供 FFE1 通信特征。", false],
+    BLE_PROTOCOL_WRITE_UNAVAILABLE: ["设备写入通道不可用", "FFE1 必须支持 write 或 writeNoResponse；请检查 HC-08 模块和固件配置。", false],
+    BLE_PROTOCOL_NOTIFY_UNAVAILABLE: ["设备通知通道不可用", "FFE1 必须支持 notify 或 indicate；请检查 HC-08 模块和固件配置。", false],
     BLE_PROTOCOL_CHANNEL_MISSING: ["设备通信通道缺失", "设备固件未提供写入与通知通道，请停止办理并联系设备技术人员。", false],
-    BLE_PROTOCOL_CHANNEL_AMBIGUOUS: ["设备通信通道不唯一", "为防止写错设备通道，已拒绝开机；请升级设备固件。", false],
+    BLE_PROTOCOL_CHANNEL_AMBIGUOUS: ["设备通信通道不唯一", "该设备类型尚未配置固定 GATT 通道；请提供 Service、Write 和 Notify UUID。", false],
+    BLE_NOTIFY_ENABLE_FAILED: ["设备通知开启失败", "请保持手机靠近设备；仍失败时检查 FFE1 的 notify/indicate 属性和 CCCD。", true],
     BLE_INFO_TIMEOUT: ["读取设备超时", "请保持手机靠近设备并确认设备处于待机界面，然后重试。", true],
     BLE_WRITE_FAILED: ["指令发送失败", "请保持手机靠近设备；设备未确认进入工作状态前不会扣次。", true],
     BLE_STATUS_TIMEOUT: ["设备状态无法确认", "请勿立即重复办理。页面会优先核对原授权和工单，确认未启动后才能重试。", false],
@@ -557,7 +630,9 @@ async function retryFinalization(progress) {
 }
 
 module.exports = {
+  BLE_GATT_PROFILES,
   BleVerificationSession,
+  normalizeGattUuid,
   parseDeviceQr,
   readProgress,
   saveProgress,

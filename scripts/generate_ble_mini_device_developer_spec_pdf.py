@@ -343,7 +343,7 @@ def add_scope(story):
     story += bullets([
         "二维码：nc://bind?sn=<device_id>&code=<6 位数字>。",
         "BLE 广播名、device_id、device_type 三重一致性校验。",
-        "唯一可识别的业务 GATT 通道：至少一个 write/writeNoResponse 与一个 notify/indicate。",
+        "魔法柔肤固定 GATT 通道：Service FFE0；同一 FFE1 特征同时承担 write 与 notify。",
         "get_info → info、auth → auth_result、query_status → status。",
         "HMAC-SHA256 授权签名；32 hex nonce 防重放；授权有效期不超过 30 秒。",
         "设备 status=2 才允许服务端生成核销工单；同一业务请求幂等恢复。",
@@ -365,7 +365,7 @@ def add_scope(story):
     story.append(table(
         ["事项", "V1.0 规则", "必须提交/通过"],
         [
-            ["GATT 参数", "小程序按唯一 write+notify service 自动发现", "实际 Service/Write/Notify UUID、属性与 MTU"],
+            ["GATT 参数", "LASER-BLE 固定 FFE0 / FFE1 / FFE1", "确认 FFE1 同时具有写入与通知属性，并提交 MTU"],
             ["完整 auth 帧", "小程序一次写入完整 JSON，不主动分片", "至少两款 iPhone、两款 Android 全部写入成功"],
             ["设备可信时间", "设备按可信 now 校验 30 秒授权窗口", "时间来源、±5 秒容差及异常拒绝测试"],
         ],
@@ -567,34 +567,34 @@ def add_gatt(story):
     story.append(table(
         ["参数", "作用", "V1.0 要求"],
         [
-            ["Service UUID", "定位统一业务通信服务", "设备提供实际值；只允许一个业务候选"],
-            ["Write Characteristic UUID", "发送 get_info / auth / query_status", "只允许一个；属性为 write 或 writeNoResponse"],
-            ["Notify/Indicate UUID", "返回 info / auth_result / status", "只允许一个；属性为 notify 或 indicate"],
+            ["Service UUID", "定位统一业务通信服务", "魔法柔肤固定 FFE0"],
+            ["Write Characteristic UUID", "发送 get_info / auth / query_status", "固定 FFE1；属性为 write 或 writeNoResponse"],
+            ["Notify/Indicate UUID", "返回 info / auth_result / status", "固定 FFE1；属性为 notify 或 indicate"],
             ["最大可用 MTU", "决定一次写入可承载的字节数", "设备提供实际值；完整 auth 帧必须真机通过"],
         ],
         widths=[42, 63, 65],
     ))
     story.append(callout(
         "设备厂家交付参数",
-        "提交一个 Service UUID、一个 Write Characteristic UUID、一个 Notify/Indicate Characteristic UUID，并注明特征属性、是否需要配对或加密、最大 MTU。全部业务指令共用这组通道并以 cmd 区分；验收后不得因设备批次自行改变。",
+        "魔法柔肤当前采用 HC-08：Service FFE0，Write FFE1，Notify FFE1。请确认 FFE1 同时具有写入与通知属性，并注明是否需要配对或加密、最大 MTU。全部业务指令共用这一特征并以 cmd 区分；验收后不得因设备批次自行改变。",
         "info",
     ))
     story.append(h2("6.2 当前通道选择算法"))
     story += bullets([
-        "枚举所有 primary service。",
-        "每个 service 枚举 characteristics。",
-        "候选 service 必须同时具有至少一个 write/writeNoResponse 与至少一个 notify/indicate characteristic。",
-        "候选为 0：BLE_PROTOCOL_CHANNEL_MISSING；候选大于 1：BLE_PROTOCOL_CHANNEL_AMBIGUOUS。",
-        "候选恰好 1：优先选择 write 与 notify，否则使用 writeNoResponse / indicate。",
-        "先订阅 notify/indicate，再发送 get_info，避免错过快速回执。",
+        "根据本次资格中的 expectedDeviceType 选择对应 GATT 档案；不同项目互不共用厂家 UUID。",
+        "LASER-BLE 在 primary service 中精确查找 FFE0，并在该服务中精确查找 FFE1。16 位 FFE0/FFE1 与标准 Bluetooth Base UUID 的 128 位写法视为同一 UUID。",
+        "FFE1 必须支持 write 或 writeNoResponse，同时支持 notify 或 indicate；同一 FFE1 可以同时承担收发。",
+        "HC-08 暴露的其他服务全部忽略，不再因其他服务也可写／可通知而判定通道不唯一。",
+        "其他设备类型在厂家参数未确认前继续使用唯一 write+notify service 兼容发现；候选大于 1 时拒绝开机，并要求补充该类型的固定 UUID。",
+        "先订阅 FFE1 的 notify/indicate，再发送 get_info，避免错过快速回执。",
     ])
     story.append(callout(
         "固件要求",
-        "当前小程序没有写死 UUID，因此设备必须只暴露一个满足上述条件的业务 service；该 service 中必须只有一个业务 write 与一个业务 notify characteristic。其他 service 不得同时呈现可写+可通知组合。",
+        "魔法柔肤设备必须提供 FFE0 服务与 FFE1 特征，且 FFE1 同时支持小程序写入和设备通知。设备可以保留 HC-08 的其他系统服务，小程序不会把它们误选为业务通道。",
         "danger",
     ))
     story += bullets([
-        "V1.0 不规定固定 UUID。设备方须在联调记录中提供实际 Service UUID、Write UUID、Notify UUID 和属性截图，便于问题定位。",
+        "魔法柔肤 V1.0 的固定值为 Service FFE0、Write FFE1、Notify FFE1。设备方须在联调记录中提供 FFE0/FFE1 属性截图与最大 MTU，便于问题定位。",
         "广播包的 localName/name 必须能被微信发现为 LA-末 6 位；Service UUID 是否放入广播不作为当前筛选条件。",
     ])
     story.append(h2("6.3 帧格式"))
@@ -986,8 +986,12 @@ def add_app_errors_one(story):
         ["BLE_DEVICE_ID_EMPTY", "手机未返回蓝牙标识", "停止扫描后重试；不要复用旧 deviceId", "是"],
         ["BLE_CONNECTION_FAILED", "设备连接失败", "靠近设备、断开其他手机、重启设备后重试", "是"],
         ["BLE_CONNECTION_CLOSED", "蓝牙连接已断开", "未签 auth 可重连；已签 auth 只核对原设备", "条件"],
+        ["BLE_PROTOCOL_SERVICE_MISSING", "设备通信服务不匹配", "LASER-BLE 必须提供 FFE0 服务", "修复后"],
+        ["BLE_PROTOCOL_CHARACTERISTIC_MISSING", "设备通信特征缺失", "FFE0 服务必须提供 FFE1 特征", "修复后"],
+        ["BLE_PROTOCOL_WRITE_UNAVAILABLE", "设备写入通道不可用", "FFE1 开启 write 或 writeNoResponse", "修复后"],
+        ["BLE_PROTOCOL_NOTIFY_UNAVAILABLE", "设备通知通道不可用", "FFE1 开启 notify 或 indicate", "修复后"],
         ["BLE_PROTOCOL_CHANNEL_MISSING", "设备通信通道缺失", "固件提供同一 service 下的 write + notify", "修复后"],
-        ["BLE_PROTOCOL_CHANNEL_AMBIGUOUS", "设备通信通道不唯一", "固件只保留一个业务候选 service", "修复后"],
+        ["BLE_PROTOCOL_CHANNEL_AMBIGUOUS", "设备通信通道不唯一", "为该设备类型提供固定 Service/Write/Notify UUID", "修复后"],
         ["BLE_NOTIFY_ENABLE_FAILED", "无法订阅设备通知", "检查 characteristic 属性和 CCCD", "修复后"],
         ["BLE_WRITE_FAILED", "指令发送失败", "靠近设备；核对 MTU/连接/characteristic 权限", "是"],
         ["BLE_FRAME_TOO_LARGE", "设备数据帧过长", "限制帧长；检查异常固件输出", "修复后"],

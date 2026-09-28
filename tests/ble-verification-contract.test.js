@@ -10,6 +10,11 @@ const pageSource = fs.readFileSync(path.join(root, 'miniprogram-app/miniprogram/
 const pageWxml = fs.readFileSync(path.join(root, 'miniprogram-app/miniprogram/pages/verification/index.wxml'), 'utf8');
 const pageWxss = fs.readFileSync(path.join(root, 'miniprogram-app/miniprogram/pages/verification/index.wxss'), 'utf8');
 const bleSource = fs.readFileSync(path.join(root, 'miniprogram-app/miniprogram/services/ble-verification.js'), 'utf8');
+const {
+  BLE_GATT_PROFILES,
+  BleVerificationSession,
+  normalizeGattUuid
+} = require(path.join(root, 'miniprogram-app/miniprogram/services/ble-verification.js'));
 const migration = fs.readFileSync(path.join(root, 'database/migrations/066_ble_verification_authorization.sql'), 'utf8');
 const verifySql = fs.readFileSync(path.join(root, 'database/cloudbase-console/066-readonly-verify.sql'), 'utf8');
 const registryCleanupSql = fs.readFileSync(path.join(root, 'database/cloudbase-console/066-02-retire-legacy-device-registry.sql'), 'utf8');
@@ -82,6 +87,100 @@ test('Magic Soft Skin uses the supplier-confirmed LA and LASER-BLE identity cont
   assert.match(magicDeviceMigration, /verification_ble_authorizations_qr_sn_check/);
 });
 
+test('LASER-BLE selects the fixed HC-08 FFE0/FFE1 profile even when other services are writable', async (t) => {
+  assert.deepEqual(BLE_GATT_PROFILES['LASER-BLE'], {
+    serviceUuid: 'FFE0',
+    writeCharacteristicUuid: 'FFE1',
+    notifyCharacteristicUuid: 'FFE1'
+  });
+  assert.equal(normalizeGattUuid('0000ffe0-0000-1000-8000-00805f9b34fb'), 'FFE0');
+  assert.equal(normalizeGattUuid('{FFE1}'), 'FFE1');
+
+  const previousWx = global.wx;
+  const characteristicQueries = [];
+  const notifyCalls = [];
+  global.wx = {
+    getBLEDeviceServices({ success }) {
+      success({
+        services: [
+          { uuid: '0000180F-0000-1000-8000-00805F9B34FB', isPrimary: true },
+          { uuid: '0000FFE0-0000-1000-8000-00805F9B34FB', isPrimary: true }
+        ]
+      });
+    },
+    getBLEDeviceCharacteristics({ serviceId, success }) {
+      characteristicQueries.push(serviceId);
+      success({
+        characteristics: [
+          {
+            uuid: '0000FFE1-0000-1000-8000-00805F9B34FB',
+            properties: { write: true, notify: true }
+          }
+        ]
+      });
+    },
+    onBLECharacteristicValueChange() {},
+    notifyBLECharacteristicValueChange(options) {
+      notifyCalls.push(options);
+      options.success({});
+    }
+  };
+  t.after(() => {
+    if (previousWx === undefined) delete global.wx;
+    else global.wx = previousWx;
+  });
+
+  const session = new BleVerificationSession({
+    qualification: { expectedDeviceType: 'laser-ble' },
+    clientRequestId: 'test-fixed-gatt'
+  });
+  session.deviceId = 'wechat-device-id';
+  await session.discoverProtocol();
+
+  assert.deepEqual(characteristicQueries, ['0000FFE0-0000-1000-8000-00805F9B34FB']);
+  assert.equal(session.serviceId, '0000FFE0-0000-1000-8000-00805F9B34FB');
+  assert.equal(session.writeCharacteristicId, '0000FFE1-0000-1000-8000-00805F9B34FB');
+  assert.equal(session.notifyCharacteristicId, '0000FFE1-0000-1000-8000-00805F9B34FB');
+  assert.equal(notifyCalls.length, 1);
+});
+
+test('device types without a confirmed profile retain unique-channel discovery', async (t) => {
+  const previousWx = global.wx;
+  const arbitraryService = '12345678-1234-5678-1234-56789ABCDEF0';
+  const arbitraryWrite = '12345678-1234-5678-1234-56789ABCDEF1';
+  const arbitraryNotify = '12345678-1234-5678-1234-56789ABCDEF2';
+  global.wx = {
+    getBLEDeviceServices({ success }) {
+      success({ services: [{ uuid: arbitraryService, isPrimary: true }] });
+    },
+    getBLEDeviceCharacteristics({ success }) {
+      success({
+        characteristics: [
+          { uuid: arbitraryWrite, properties: { write: true } },
+          { uuid: arbitraryNotify, properties: { notify: true } }
+        ]
+      });
+    },
+    onBLECharacteristicValueChange() {},
+    notifyBLECharacteristicValueChange({ success }) { success({}); }
+  };
+  t.after(() => {
+    if (previousWx === undefined) delete global.wx;
+    else global.wx = previousWx;
+  });
+
+  const session = new BleVerificationSession({
+    qualification: { expectedDeviceType: 'future-device-type' },
+    clientRequestId: 'test-fallback-gatt'
+  });
+  session.deviceId = 'wechat-device-id';
+  await session.discoverProtocol();
+
+  assert.equal(session.serviceId, arbitraryService);
+  assert.equal(session.writeCharacteristicId, arbitraryWrite);
+  assert.equal(session.notifyCharacteristicId, arbitraryNotify);
+});
+
 test('BLE signing key is mandatory and qualification creation is read back safely', () => {
   const creation = faceSource.slice(
     faceSource.indexOf('async function createVerificationBleQualification'),
@@ -105,7 +204,9 @@ test('BLE tables are service-only and readonly verifier cannot mutate data', () 
 test('mini-program maps QR, Bluetooth, protocol and device failures to explicit feedback', () => {
   [
     'BLE_QR_INVALID', 'BLE_QR_CANCELLED', 'BLE_SWITCH_OFF', 'BLE_DEVICE_NOT_FOUND',
-    'BLE_CONNECTION_FAILED', 'BLE_PROTOCOL_CHANNEL_MISSING', 'BLE_DEVICE_ID_MISMATCH',
+    'BLE_CONNECTION_FAILED', 'BLE_PROTOCOL_CHANNEL_MISSING', 'BLE_PROTOCOL_SERVICE_MISSING',
+    'BLE_PROTOCOL_CHARACTERISTIC_MISSING', 'BLE_PROTOCOL_WRITE_UNAVAILABLE',
+    'BLE_PROTOCOL_NOTIFY_UNAVAILABLE', 'BLE_NOTIFY_ENABLE_FAILED', 'BLE_DEVICE_ID_MISMATCH',
     'BLE_DEVICE_TYPE_MISMATCH', 'BLE_AUTHORIZATION_INVALID', 'BLE_DEVICE_NOT_WORKING'
   ].forEach((code) => assert.match(bleSource + pageSource, new RegExp(code)));
   ['1001', '1002', '1003', '1004', '1005', '1006', '1007', '1008', '1009', '1011']
