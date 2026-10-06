@@ -62,6 +62,18 @@ test('only a live device authorization locks the selected store and customer', (
   assert.match(pageWxml, /qualificationActive && bleAuthorizationSent && customer/);
 });
 
+test('a terminal stale authorization releases only the previous submission lock', () => {
+  const recovery = pageSource.slice(pageSource.indexOf('async recoverPending()'));
+  assert.match(pageSource, /function isTerminalBleFinalizationError/);
+  assert.match(pageSource, /BLE_AUTHORIZATION_EXPIRED/);
+  assert.match(pageSource, /BLE_AUTHORIZATION_NOT_ACTIVE/);
+  assert.match(pageSource, /BLE_AUTHORIZATION_NOT_FOUND/);
+  assert.match(recovery, /if \(!isTerminalBleFinalizationError\(error\)\) throw error/);
+  assert.ok(recovery.indexOf('retryFinalization(progress)') < recovery.indexOf('recoverVerificationBleQualification'));
+  assert.match(recovery, /blePermanentlyClosed: false/);
+  assert.match(recovery, /未生成核销工单、未扣次；旧锁已解除/);
+});
+
 test('device identity is checked without a device registry and QR codes stay hashed in audit', () => {
   assert.equal(facePackage.dependencies['pinyin-pro'], '3.27.0');
   assert.match(faceSource, /BLE_AUTH_SIGNING_KEY/);

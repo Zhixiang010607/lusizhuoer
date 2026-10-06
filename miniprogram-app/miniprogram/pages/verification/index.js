@@ -41,6 +41,14 @@ function orderUrl(experience, result, intent = {}) {
   return `/pages/order-detail/index?type=verification&category=${category}&recordId=${encodeURIComponent(recordId)}&recordCode=${encodeURIComponent(recordCode)}${acknowledgement}`;
 }
 
+function isTerminalBleFinalizationError(error) {
+  return [
+    "BLE_AUTHORIZATION_EXPIRED",
+    "BLE_AUTHORIZATION_NOT_ACTIVE",
+    "BLE_AUTHORIZATION_NOT_FOUND"
+  ].includes(String(error?.code || ""));
+}
+
 Page({
   data: {
     session: {}, store: {}, stores: [], storeLabels: ["请选择门店"], storeIndex: 0, loadingStores: false,
@@ -642,10 +650,16 @@ Page({
     this.setData({ recovering: true, message: "正在核对 90 秒资格、设备状态和原核销工单…", error: false });
     try {
       const progress = readBleProgress();
+      let terminalAuthorizationError = null;
       if (progress?.deviceResult && Number(progress.deviceResult.status) === 2) {
         this.setData({ locked: true, blePermanentlyClosed: true, bleWindowVisible: false });
-        const finalized = await retryFinalization(progress);
-        if (finalized?.verificationId) return this.showRecovered(finalized);
+        try {
+          const finalized = await retryFinalization(progress);
+          if (finalized?.verificationId) return this.showRecovered(finalized);
+        } catch (error) {
+          if (!isTerminalBleFinalizationError(error)) throw error;
+          terminalAuthorizationError = error;
+        }
       }
       const intent = submission.read("VERIFICATION");
       const qualification = await callFace("recoverVerificationBleQualification", { clientRequestId: intent.clientRequestId });
@@ -662,9 +676,34 @@ Page({
         return;
       }
       if (qualification?.found && !qualification.authorizationIssued) {
+        if (this._qualificationTimer) clearInterval(this._qualificationTimer);
+        this._qualificationTimer = null;
+        this._qualificationDeadline = 0;
+        if (this._bleSession) this._bleSession.cancel();
+        this._bleSession = null;
         try { clearBleProgress(); } catch (_) { /* continue */ }
         submission.clear("VERIFICATION");
-        this.setData({ locked: false, qualification: null, qualificationActive: false, qualificationSeconds: 0, bleAuthorizationSent: false, message: "上次仅完成人脸验证，尚未向设备授权、没有扣次，现已取消；可以重新选择客户。", error: false });
+        const hadTerminalAuthorization = Boolean(terminalAuthorizationError)
+          || ["EXPIRED", "FAILED"].includes(String(qualification.authorizationStatus || ""));
+        this.setData({
+          locked: false,
+          qualification: null,
+          qualificationActive: false,
+          qualificationSeconds: 0,
+          bleWindowVisible: false,
+          bleRunning: false,
+          bleAuthorizationSent: false,
+          blePermanentlyClosed: false,
+          bleStage: "",
+          bleStatusMessage: "",
+          bleErrorTitle: "",
+          bleErrorCode: "",
+          bleErrorAdvice: "",
+          message: hadTerminalAuthorization
+            ? "云端已确认上次设备授权失效且未生成核销工单、未扣次；旧锁已解除，请重新拍照并开始新一笔核销。"
+            : "上次仅完成人脸验证，尚未向设备授权、没有扣次，现已取消；可以重新选择客户。",
+          error: false
+        });
         this.resetFace();
         return;
       }
