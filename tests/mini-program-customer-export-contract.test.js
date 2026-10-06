@@ -12,7 +12,9 @@ const mini = path.join(root, "miniprogram-app", "miniprogram");
 const read = (...parts) => fs.readFileSync(path.join(mini, ...parts), "utf8");
 const exporter = require(path.join(mini, "services", "grouped-table-export.js"));
 const pdfExporter = require(path.join(mini, "services", "grouped-table-pdf.js"));
-const cjkFontArchive = fs.readFileSync(path.join(mini, "pages", "rating-analysis", "NotoSansCJKsc-Common-Identity.br"));
+const sharedFontDirectory = path.join(mini, "packages", "report-font");
+const CJK_FONT_FILENAME = "NotoSansCJKsc-Common-Identity.br";
+const cjkFontArchive = fs.readFileSync(path.join(sharedFontDirectory, "NotoSansCJKsc-Common-Identity.br"));
 const cjkFontBytes = zlib.brotliDecompressSync(cjkFontArchive);
 const CJK_FONT_SHA256 = "3f8f30776e78a3adab2be1c59f5a5b42718a9d37ec7964107523abb8bc2971f1";
 
@@ -107,32 +109,43 @@ test("grouped PDF export is vector, paginated, store-grouped, and capped at 1000
   assert.match(source, /wx\.openDocument\(\{ filePath, fileType: "pdf", showMenu: true/);
 });
 
-test("each marketing export subpackage contains the verified embedded Chinese font below the package limit", () => {
+test("marketing exports share one verified embedded Chinese font subpackage below the package limit", () => {
+  const font = zlib.brotliDecompressSync(cjkFontArchive);
+  assert.equal(crypto.createHash("sha256").update(font).digest("hex"), CJK_FONT_SHA256);
+  assert.ok(cjkFontArchive.byteLength < 800_000, "compressed embedded font must remain below 800 KB");
+  const rawFontPackageBytes = fs.readdirSync(sharedFontDirectory)
+    .reduce((sum, file) => sum + fs.statSync(path.join(sharedFontDirectory, file)).size, 0);
+  assert.ok(rawFontPackageBytes < 2 * 1024 * 1024, "shared font subpackage must remain below 2 MB");
   for (const page of ["inactive-customers", "low-balance-customers", "rating-analysis"]) {
     const pageRoot = path.join(mini, "pages", page);
-    const archive = fs.readFileSync(path.join(pageRoot, "NotoSansCJKsc-Common-Identity.br"));
-    const font = zlib.brotliDecompressSync(archive);
-    assert.equal(crypto.createHash("sha256").update(font).digest("hex"), CJK_FONT_SHA256);
-    assert.ok(archive.byteLength < 800_000, `${page} compressed embedded font must remain below 800 KB`);
+    assert.ok(!fs.existsSync(path.join(pageRoot, "NotoSansCJKsc-Common-Identity.br")),
+      `${page} must not duplicate the shared PDF font`);
     const rawPackageBytes = fs.readdirSync(pageRoot).reduce((sum, file) => sum + fs.statSync(path.join(pageRoot, file)).size, 0);
     assert.ok(rawPackageBytes < 2 * 1024 * 1024, `${page} raw subpackage must remain below 2 MB`);
   }
   const project = JSON.parse(fs.readFileSync(path.join(root, "miniprogram-app", "project.config.json"), "utf8"));
-  for (const page of ["inactive-customers", "low-balance-customers", "rating-analysis"]) {
-    assert.ok(project.packOptions.include.some((rule) => rule.type === "file"
-      && rule.value === `pages/${page}/NotoSansCJKsc-Common-Identity.br`),
-    `${page} compressed font must be forced into preview and upload packages`);
-  }
+  assert.deepEqual(project.packOptions.include.filter((rule) => rule.value.includes(CJK_FONT_FILENAME)), [
+    { type: "file", value: "packages/report-font/NotoSansCJKsc-Common-Identity.br" }
+  ]);
+  const app = JSON.parse(read("app.json"));
+  assert.ok(app.subPackages.some((item) => item.root === "packages/report-font"
+    && item.name === "report-font" && item.pages.includes("index")),
+  "app.json must register the shared report font subpackage by name");
   const license = read("services", "NotoSansCJKsc-LICENSE.txt");
   assert.match(license, /SIL OPEN FONT LICENSE Version 1\.1/);
   assert.match(license, /modified subset of Noto Sans CJK SC Regular/);
   assert.match(license, /common Simplified Chinese glyphs/);
 });
 
-test("PDF export can read the embedded font from the active WeChat subpackage", () => {
+test("PDF export loads the shared font subpackage once for concurrent callers", async () => {
   const attempts = [];
-  global.getCurrentPages = () => [{ route: "pages/rating-analysis/index" }];
+  let loadCalls = 0;
   global.wx = {
+    loadSubpackage({ name, success }) {
+      loadCalls += 1;
+      assert.equal(name, "report-font");
+      setImmediate(success);
+    },
     getFileSystemManager() {
       return {
         readCompressedFileSync({ filePath, compressionAlgorithm }) {
@@ -145,7 +158,14 @@ test("PDF export can read the embedded font from the active WeChat subpackage", 
     }
   };
   try {
+    const [firstFont, secondFont] = await Promise.all([
+      pdfExporter.loadCjkFontBytes(),
+      pdfExporter.loadCjkFontBytes()
+    ]);
+    assert.equal(loadCalls, 1);
+    assert.equal(firstFont, secondFont);
     const report = pdfExporter.createGroupedPdf({
+      cjkFontBytes: firstFont,
       title: "评价分析查询结果",
       criteria: "门店：全部门店",
       rows: [{ storeId: "1", storeName: "中心门店", name: "客户甲" }],
@@ -153,12 +173,11 @@ test("PDF export can read the embedded font from the active WeChat subpackage", 
     });
     assert.ok(report.bytes.byteLength > cjkFontBytes.byteLength);
     assert.deepEqual(attempts, [
-      "/pages/rating-analysis/NotoSansCJKsc-Common-Identity.br",
-      "pages/rating-analysis/NotoSansCJKsc-Common-Identity.br"
+      "/packages/report-font/NotoSansCJKsc-Common-Identity.br",
+      "packages/report-font/NotoSansCJKsc-Common-Identity.br"
     ]);
   } finally {
     delete global.wx;
-    delete global.getCurrentPages;
   }
 });
 

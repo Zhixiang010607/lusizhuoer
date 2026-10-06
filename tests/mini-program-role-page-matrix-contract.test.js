@@ -16,6 +16,7 @@ const routes = [
 ];
 
 const ROLE_MATRIX = Object.freeze({
+  "packages/report-font/index": [],
   "pages/login/index": [],
   "pages/password-reset/index": [],
   "pages/company-intro/index": [],

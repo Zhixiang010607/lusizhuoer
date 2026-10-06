@@ -2,6 +2,8 @@
 
 const PDF_EXPORT_MAX_ROWS = 1000;
 const CJK_FONT_FILENAME = "NotoSansCJKsc-Common-Identity.br";
+const CJK_FONT_SUBPACKAGE = "report-font";
+const CJK_FONT_DIRECTORY = "packages/report-font";
 const PAGE_WIDTH = 841.89;
 const PAGE_HEIGHT = 595.28;
 const MARGIN = 30;
@@ -181,6 +183,46 @@ function byteView(value) {
   if (ArrayBuffer.isView(value)) return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
   throw new Error("PDF 内置中文字体内容无效");
 }
+let bundledCjkFontPromise = null;
+
+function readBundledCjkFont() {
+  if (typeof wx === "undefined" || typeof wx.getFileSystemManager !== "function") {
+    throw new Error("当前环境无法读取 PDF 内置中文字体");
+  }
+  const manager = wx.getFileSystemManager();
+  if (typeof manager.readCompressedFileSync !== "function") {
+    throw new Error("当前微信版本不支持 PDF 内置中文字体，请升级微信后重试");
+  }
+  const candidates = [`/${CJK_FONT_DIRECTORY}/${CJK_FONT_FILENAME}`, `${CJK_FONT_DIRECTORY}/${CJK_FONT_FILENAME}`];
+  let latestError;
+  for (const filePath of candidates) {
+    try { return byteView(manager.readCompressedFileSync({ filePath, compressionAlgorithm: "br" })); }
+    catch (error) { latestError = error; }
+  }
+  throw new Error(`PDF 内置中文字体读取失败：${latestError?.errMsg || latestError?.message || "文件不存在"}`);
+}
+
+function loadCjkFontBytes() {
+  if (bundledCjkFontPromise) return bundledCjkFontPromise;
+  if (typeof wx === "undefined" || typeof wx.loadSubpackage !== "function") {
+    return Promise.reject(new Error("当前微信版本无法加载 PDF 中文字体，请升级微信后重试"));
+  }
+  bundledCjkFontPromise = new Promise((resolve, reject) => {
+    wx.loadSubpackage({
+      name: CJK_FONT_SUBPACKAGE,
+      success: () => {
+        try { resolve(readBundledCjkFont()); }
+        catch (error) { reject(error); }
+      },
+      fail: (error) => reject(new Error(`PDF 中文字体加载失败：${error?.errMsg || error?.message || "分包下载失败"}`))
+    });
+  }).catch((error) => {
+    bundledCjkFontPromise = null;
+    throw error;
+  });
+  return bundledCjkFontPromise;
+}
+
 function binaryStreamObject(value, dictionary = "") {
   const bytes = byteView(value);
   return concatBytes([
@@ -191,25 +233,7 @@ function binaryStreamObject(value, dictionary = "") {
 }
 function bundledCjkFontBytes(explicitBytes) {
   if (explicitBytes) return byteView(explicitBytes);
-  if (typeof wx === "undefined" || typeof wx.getFileSystemManager !== "function"
-      || typeof getCurrentPages !== "function") {
-    throw new Error("当前环境无法读取 PDF 内置中文字体");
-  }
-  const pages = getCurrentPages();
-  const route = String(pages[pages.length - 1]?.route || "").replace(/^\/+/, "");
-  if (!route) throw new Error("无法确定 PDF 字体所在页面");
-  const routeDirectory = route.includes("/") ? route.slice(0, route.lastIndexOf("/")) : route;
-  const manager = wx.getFileSystemManager();
-  if (typeof manager.readCompressedFileSync !== "function") {
-    throw new Error("当前微信版本不支持 PDF 内置中文字体，请升级微信后重试");
-  }
-  const candidates = [`/${routeDirectory}/${CJK_FONT_FILENAME}`, `${routeDirectory}/${CJK_FONT_FILENAME}`];
-  let latestError;
-  for (const filePath of candidates) {
-    try { return byteView(manager.readCompressedFileSync({ filePath, compressionAlgorithm: "br" })); }
-    catch (error) { latestError = error; }
-  }
-  throw new Error(`PDF 内置中文字体读取失败：${latestError?.errMsg || latestError?.message || "文件不存在"}`);
+  throw new Error("PDF 中文字体尚未加载，请重新点击导出");
 }
 function toUnicodeCMap(mappings) {
   const entries = [...mappings.entries()].sort((left, right) => left[0] - right[0]);
@@ -325,4 +349,4 @@ async function openPdf({ bytes, filename }) {
   return filePath;
 }
 
-module.exports = { PDF_EXPORT_MAX_ROWS, createGroupedPdf, openPdf, safeFilename };
+module.exports = { PDF_EXPORT_MAX_ROWS, createGroupedPdf, loadCjkFontBytes, openPdf, safeFilename };

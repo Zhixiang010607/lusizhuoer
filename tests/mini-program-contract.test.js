@@ -29,11 +29,15 @@ assert.deepEqual(app.pages, [
 const subpackagePages = (app.subPackages || []).flatMap((subpackage) =>
   subpackage.pages.map((page) => `${subpackage.root}/${page}`));
 const registeredPages = [...app.pages, ...subpackagePages];
-assert.deepEqual([...registeredPages].sort(), expectedPages.map((page) => `pages/${page}/index`).sort(),
+assert.deepEqual([...registeredPages].sort(), [
+  ...expectedPages.map((page) => `pages/${page}/index`),
+  "packages/report-font/index"
+].sort(),
   "the complete isolated mini-program page inventory must remain registered");
 assert.equal(new Set((app.subPackages || []).map(({ root: packageRoot }) => packageRoot)).size,
   (app.subPackages || []).length, "business subpackage roots must be unique");
-assert.equal((app.subPackages || []).length, 23, "project introductions and heavy authenticated detail pages must stay outside the main package");
+assert.equal((app.subPackages || []).length, 24,
+  "project introductions, heavy authenticated pages, and the shared PDF font must stay outside the main package");
 for (const page of expectedPages) {
   assert.ok(registeredPages.includes(`pages/${page}/index`), `missing mini-program page ${page}`);
   for (const extension of ["js", "json", "wxml", "wxss"]) assert.ok(fs.existsSync(path.join(mini, "pages", page, `index.${extension}`)), `${page}.${extension} missing`);

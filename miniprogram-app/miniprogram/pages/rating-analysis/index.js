@@ -6,7 +6,7 @@ const {
   createGroupedWorkbook,
   openWorkbook
 } = require("../../services/grouped-table-export");
-const { PDF_EXPORT_MAX_ROWS, createGroupedPdf, openPdf } = require("../../services/grouped-table-pdf");
+const { PDF_EXPORT_MAX_ROWS, createGroupedPdf, loadCjkFontBytes, openPdf } = require("../../services/grouped-table-pdf");
 const query = require("../../services/query-tools");
 
 const PAGE_SIZE = 20;
@@ -361,6 +361,7 @@ Page({
           { key: "overallScoreLabel", header: "整体体验", width: 11 }
         ]
       };
+      if (format === "pdf") reportOptions.cjkFontBytes = await loadCjkFontBytes();
       const report = format === "pdf" ? createGroupedPdf(reportOptions) : createGroupedWorkbook(reportOptions);
       if (format === "pdf") await openPdf({ bytes: report.bytes, filename: `评价分析-${today}` });
       else await openWorkbook({ bytes: report.bytes, filename: `评价分析-${today}` });
