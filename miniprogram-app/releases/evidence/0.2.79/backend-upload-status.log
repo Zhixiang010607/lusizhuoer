@@ -1,0 +1,6 @@
+2026-10-06 20:22:08 AEST uploadFile init
+2026-10-06 20:22:13 AEST upload cos step2 startCosUpload start
+2026-10-06 20:50:30 AEST uploadFile doUpload:await 1697466ms (total 1702045ms)
+2026-10-06 20:50:30 AEST uploadFile parseError 1ms (total 1702046ms)
+2026-10-06 20:50:30 AEST uploadFile progressSuccess 0ms (total 1702046ms)
+2026-10-06 20:50:30 AEST uploadFile reportNewRemoteDebug 1ms (total 1702047ms)
