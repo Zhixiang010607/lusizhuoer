@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v10" : "v114";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v10" : "v115";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -4713,7 +4713,12 @@ async function issueVerificationBleAuthorization(event) {
     if (detail.includes("qualification_id")) {
       fail("这次人脸资格已经签发过设备授权，不能重复开机。", "BLE_AUTHORIZATION_ALREADY_ISSUED");
     }
-    if (detail.includes("unique")) fail("该设备随机数已经使用，请重新读取设备状态。", "BLE_NONCE_REUSED");
+    if (detail.includes("unique")) {
+      fail(
+        "该设备会话此前已签发过一次性授权，但没有因此证明核销已完成。为防止重复开机，必须先核对原工单和设备状态，再由设备生成新随机数。",
+        "BLE_NONCE_REUSED"
+      );
+    }
     throw error;
   }
   await executeSql(
@@ -4751,15 +4756,15 @@ async function confirmVerificationBleWorkStarted(event) {
     fail("设备尚未确认进入工作状态，本次没有核销。", "BLE_DEVICE_NOT_WORKING");
   }
   const rows = await executeSql(
-    `SELECT authorization.*, qualification.verification_type, qualification.store_id,
+    `SELECT ble_authorization.*, qualification.verification_type, qualification.store_id,
             qualification.teacher_id, qualification.customer_id, qualification.product_id,
             qualification.submitted_by_account_id, qualification.message,
             qualification.face_request_id, qualification.face_evidence_token,
             qualification.idempotency_key, qualification.qualification_token
-       FROM public.verification_ble_authorizations AS authorization
+       FROM public.verification_ble_authorizations AS ble_authorization
        JOIN public.verification_ble_qualifications AS qualification
-         ON qualification.id = authorization.qualification_id
-      WHERE authorization.authorization_token = ${sqlText(authorizationToken)}
+         ON qualification.id = ble_authorization.qualification_id
+      WHERE ble_authorization.authorization_token = ${sqlText(authorizationToken)}
       LIMIT 1`
   );
   const authorization = rows[0];

@@ -38,6 +38,13 @@ test('verification deducts only after device reports working status 2', () => {
   assert.match(faceSource, /createVerificationApplication[\s\S]{0,160}BLE_REQUIRED/);
 });
 
+test('a missing auth result falls back to status query without a twenty-second stall', () => {
+  assert.match(bleSource, /const AUTH_TIMEOUT_MS = 3000/);
+  assert.match(bleSource, /设备在 3 秒内没有返回开机结果/);
+  assert.ok(bleSource.indexOf('await waiting') < bleSource.indexOf('await this.queryWorking(info)'));
+  assert.doesNotMatch(bleSource, /const AUTH_TIMEOUT_MS = 20000/);
+});
+
 test('client supports reopenable QR window and irreversible success navigation', () => {
   assert.match(pageSource, /openBleWindow/);
   assert.match(pageSource, /closeBleWindow/);
@@ -211,6 +218,8 @@ test('mini-program maps QR, Bluetooth, protocol and device failures to explicit 
   ].forEach((code) => assert.match(bleSource + pageSource, new RegExp(code)));
   ['1001', '1002', '1003', '1004', '1005', '1006', '1007', '1008', '1009', '1011']
     .forEach((code) => assert.match(bleSource, new RegExp(`${code}:`)));
+  assert.match(faceSource, /没有因此证明核销已完成/);
+  assert.match(bleSource, /这不代表核销已经完成/);
 });
 
 test('mini-program rejects incomplete qualification, hides raw technical errors and keeps the action in document flow', () => {

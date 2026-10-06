@@ -3,7 +3,7 @@ const { readSession } = require("./session");
 
 const STORAGE_PREFIX = "lusizhuoerMiniBleVerificationV1:";
 const INFO_TIMEOUT_MS = 10000;
-const AUTH_TIMEOUT_MS = 20000;
+const AUTH_TIMEOUT_MS = 3000;
 const DISCOVERY_TIMEOUT_MS = 15000;
 
 const BLE_GATT_PROFILES = Object.freeze({
@@ -482,7 +482,7 @@ class BleVerificationSession {
           && Number(payload?.seq) === 2,
         AUTH_TIMEOUT_MS,
         "BLE_AUTH_RESULT_TIMEOUT",
-        "设备在 20 秒内没有返回开机结果，正在核对设备实际状态。"
+        "设备在 3 秒内没有返回开机结果，正在立即核对设备实际状态。"
       );
       await this.write(issued.authCommand);
       this.authorizationSent = true;
@@ -583,7 +583,7 @@ function errorFeedback(error) {
     BLE_QUALIFICATION_RACE: ["资格已被其他请求使用", "已禁止重复授权；请先检查原设备和原工单状态。", false],
     BLE_AUTHORIZATION_INVALID: ["一次性授权无效", "禁止继续开机，请检查原办理记录并联系管理员。", false],
     BLE_AUTHORIZATION_NOT_FOUND: ["未找到一次性授权", "禁止重复扫码；请先检查原设备是否已经启动。", false],
-    BLE_NONCE_REUSED: ["设备随机数已经使用", "该随机数不能再次开机。请先检查是否已有对应工单，再让设备生成新随机数。", false],
+    BLE_NONCE_REUSED: ["设备会话已签发过授权", "这不代表核销已经完成。为防止设备重复启动，请先检查原工单和设备状态；确认设备已回到待机后，再让设备生成新随机数重新办理。", false],
     BLE_DEVICE_NOT_WORKING: ["设备尚未进入工作状态", "服务端不会扣次；请保持连接并等待设备明确返回工作状态。", true],
     BLE_DEVICE_RECEIPT_MISMATCH: ["设备回执不一致", "设备回执与原授权不一致，已禁止生成工单；请联系管理员核查。", false],
     BLE_ALREADY_FINALIZED: ["核销已完成", "原核销工单已经生成，禁止再次扫码或重复扣次。", false],
