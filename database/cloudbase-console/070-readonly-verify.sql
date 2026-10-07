@@ -8,7 +8,9 @@ SELECT
        AND column_name = 'rating_form_version'
        AND is_nullable = 'NO'
        AND column_default LIKE '2%'
-  ) THEN 'READY' ELSE 'NOT_READY' END AS status;
+  ) THEN 'READY' ELSE 'NOT_READY' END AS status
+
+UNION ALL
 
 SELECT
   '070 v2 score constraint' AS check_name,
@@ -19,7 +21,9 @@ SELECT
        AND conname = 'ck_verification_customer_ratings_submission'
        AND PG_GET_CONSTRAINTDEF(oid) LIKE '%rating_form_version = 1%'
        AND PG_GET_CONSTRAINTDEF(oid) LIKE '%teacher_service_score IS NOT NULL%'
-  ) THEN 'READY' ELSE 'NOT_READY' END AS status;
+  ) THEN 'READY' ELSE 'NOT_READY' END AS status
+
+UNION ALL
 
 SELECT
   '070 form version constraint' AS check_name,
@@ -29,7 +33,9 @@ SELECT
      WHERE conrelid = 'public.verification_customer_ratings'::regclass
        AND conname = 'ck_verification_customer_ratings_form_version'
        AND PG_GET_CONSTRAINTDEF(oid) LIKE '%rating_form_version%'
-  ) THEN 'READY' ELSE 'NOT_READY' END AS status;
+  ) THEN 'READY' ELSE 'NOT_READY' END AS status
+
+UNION ALL
 
 SELECT
   '070 current row compatibility' AS check_name,
@@ -60,7 +66,9 @@ SELECT
             OR submitted_at IS NOT NULL
           )
         )
-  ) THEN 'READY' ELSE 'NOT_READY' END AS status;
+  ) THEN 'READY' ELSE 'NOT_READY' END AS status
+
+UNION ALL
 
 SELECT
   '070 v2 default' AS check_name,
