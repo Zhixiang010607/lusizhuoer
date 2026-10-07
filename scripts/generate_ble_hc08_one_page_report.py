@@ -101,7 +101,7 @@ def draw_page(canvas, doc):
     canvas.setFont("CN", 7.2)
     canvas.setFillColor(MUTED)
     canvas.drawString(16 * mm, 6.7 * mm, "露思卓儿｜魔法柔肤 LASER-BLE｜设备端接入说明")
-    canvas.drawRightString(width - 16 * mm, 6.7 * mm, "2026-09-28｜第 1 页 / 共 1 页")
+    canvas.drawRightString(width - 16 * mm, 6.7 * mm, "2026-10-07｜第 1 页 / 共 1 页")
     canvas.restoreState()
 
 
@@ -150,7 +150,7 @@ def build():
         [Paragraph("方向", styles["cellhead"]), Paragraph("设备端动作", styles["cellhead"]), Paragraph("硬性要求", styles["cellhead"])],
         [Paragraph("小程序 → 设备", styles["cell"]), Paragraph("在 FFE1 接收 get_info、auth、query_status", styles["cell"]), Paragraph("FFE1 开启 write 或 writeNoResponse", styles["cell"])],
         [Paragraph("设备 → 小程序", styles["cell"]), Paragraph("在同一 FFE1 发送 info、auth_result、status", styles["cell"]), Paragraph("FFE1 开启 notify 或 indicate，并支持 CCCD 订阅", styles["cell"])],
-        [Paragraph("字节协议", styles["cell"]), Paragraph("UTF-8 JSON；每帧末尾追加 LF（0x0A）", styles["cell"]), Paragraph("按 LF 分帧；分包时先拼完整再解析", styles["cell"])],
+        [Paragraph("字节协议", styles["cell"]), Paragraph("UTF-8 JSON；每条完整报文末尾追加 LF（0x0A）", styles["cell"]), Paragraph("所有下行均分片；收到 LF 后才允许解析", styles["cell"])],
     ]
     gatt_table = Table(gatt_rows, colWidths=[29 * mm, 78 * mm, 71 * mm], repeatRows=1)
     gatt_table.setStyle(TableStyle([
@@ -163,14 +163,25 @@ def build():
         ("TOPPADDING", (0, 0), (-1, -1), 1.7 * mm),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 1.7 * mm),
     ]))
-    story += [gatt_table, Spacer(1, 3 * mm), Paragraph("三、一次完整通信顺序", styles["h2"])]
+    story += [gatt_table, Spacer(1, 2.2 * mm)]
+    story.append(box(
+        "重要：不是“每条报文固定 20 字节”，而是“每次 BLE 写入最多 20 字节”",
+        "小程序发往设备的<b>全部三种指令</b>都执行同一规则：<b>get_info、auth、query_status 全部分片</b>；"
+        "最后一片可以少于 20 字节，不补零、不补空格。auth 通常约 280-320 字节，所以会分成多片；短指令也不能依赖一次到齐。<br/>"
+        "设备端每次收到 FFE1 写入时，只把原始字节追加到 <font name=\"Courier\" size=\"7\">rx_buffer</font>；"
+        "<b>不得逐片 JSON 解析、不得每次回调清空缓冲区</b>。只有找到 LF（0x0A）后，才取出 LF 之前的完整 UTF-8 JSON 解析；"
+        "处理后删除这一帧，未完成的尾部继续保留。接收缓冲区建议至少 <b>512 字节</b>。",
+        styles,
+        tone="red",
+    ))
+    story += [Spacer(1, 2.2 * mm), Paragraph("三、一次完整通信顺序", styles["h2"])]
 
     flow_rows = [
         [Paragraph("1", styles["cellhead"]), Paragraph("连接后，小程序订阅 FFE1 通知；设备必须允许订阅成功。", styles["cell"])],
-        [Paragraph("2", styles["cellhead"]), Paragraph("收到 {ver:\"1.0\", seq:1, cmd:\"get_info\", ts:…} 后，返回 info：device_id、device_type、ble_name、status、nonce。", styles["cell"])],
-        [Paragraph("3", styles["cellhead"]), Paragraph("收到 seq:2 / auth 后，设备校验 device_id、device_type、nonce、expire_at、usage_count 与 HMAC-SHA256 签名。", styles["cell"])],
+        [Paragraph("2", styles["cellhead"]), Paragraph("把 get_info 的全部分片拼到 LF 后再解析；10 秒内返回 info：device_id、device_type、ble_name、status、nonce。", styles["cell"])],
+        [Paragraph("3", styles["cellhead"]), Paragraph("把 seq:2 / auth 的全部分片拼到 LF 后再解析；校验 device_id、device_type、nonce、expire_at、usage_count 与 HMAC-SHA256。", styles["cell"])],
         [Paragraph("4", styles["cellhead"]), Paragraph("验签通过才进入工作态并持久化 status=2；随后返回 seq:2 / auth_result / ok=true / status=2。", styles["cell"])],
-        [Paragraph("5", styles["cellhead"]), Paragraph("收到 seq:3 / query_status 时返回当前 status；断线或超时后，小程序依靠此回执恢复原办理。", styles["cell"])],
+        [Paragraph("5", styles["cellhead"]), Paragraph("把 seq:3 / query_status 的全部分片拼到 LF 后再解析；10 秒内返回真实 status。未执行 auth 时只能返回待机状态 1。", styles["cell"])],
     ]
     flow_table = Table(flow_rows, colWidths=[10 * mm, 168 * mm])
     flow_table.setStyle(TableStyle([
@@ -199,11 +210,11 @@ def build():
         [
             [
                 Paragraph("五、设备端必须做到", styles["h2"]),
-                Paragraph("• FFE0/FFE1 固定，不因批次改变。<br/>• nonce 为 16 随机字节（32 位 hex），一次一用。<br/>• HMAC Key 按正式开发规范离线烧录；不得通过 BLE 返回或写日志。<br/>• 未验签、已过期、nonce 不一致或已使用时禁止启动。<br/>• 只有真实进入工作态才能回 status=2。", styles["body"]),
+                Paragraph("• FFE0/FFE1 固定，不因批次改变。<br/>• 三种下行指令全部按字节追加到同一接收缓冲区。<br/>• nonce 为 16 随机字节（32 位 hex），一次一用。<br/>• HMAC Key 离线烧录，不得通过 BLE 返回或写日志。<br/>• 未验签、过期、nonce 不一致或已使用时禁止启动。<br/>• 只有真实进入工作态才能回 status=2。", styles["body"]),
             ],
             [
                 Paragraph("六、联调验收", styles["h2"]),
-                Paragraph("□ 微信能发现正确广播名<br/>□ 可订阅 FFE1 通知<br/>□ get_info 在 10 秒内返回<br/>□ auth 在 20 秒内返回明确结果<br/>□ query_status 可恢复真实状态<br/>□ iPhone/Android 均验证完整 auth 帧不截断", styles["body"]),
+                Paragraph("□ 微信能发现正确广播名<br/>□ 可订阅 FFE1 通知<br/>□ 每次写入 1-20 字节都能按序追加<br/>□ 三种指令均到 LF 后才解析<br/>□ 三类应答均在 10 秒内返回<br/>□ 完整 auth 不截断、不逐片报错<br/>□ 未收到 auth 时 query_status 返回 1", styles["body"]),
             ],
         ]
     ], colWidths=[91 * mm, 87 * mm])
