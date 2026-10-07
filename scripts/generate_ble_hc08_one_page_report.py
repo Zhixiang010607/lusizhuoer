@@ -179,8 +179,8 @@ def build():
     flow_rows = [
         [Paragraph("1", styles["cellhead"]), Paragraph("连接后，小程序订阅 FFE1 通知；设备必须允许订阅成功。", styles["cell"])],
         [Paragraph("2", styles["cellhead"]), Paragraph("把 get_info 的全部分片拼到 LF 后再解析；10 秒内返回 info：device_id、device_type、ble_name、status、nonce。", styles["cell"])],
-        [Paragraph("3", styles["cellhead"]), Paragraph("把 seq:2 / auth 的全部分片拼到 LF 后再解析；校验 device_id、device_type、nonce、expire_at、usage_count 与 HMAC-SHA256。", styles["cell"])],
-        [Paragraph("4", styles["cellhead"]), Paragraph("验签通过才进入工作态并持久化 status=2；随后返回 seq:2 / auth_result / ok=true / status=2。", styles["cell"])],
+        [Paragraph("3", styles["cellhead"]), Paragraph("把 seq:2 / auth 的全部分片拼到 LF 后再解析；分别校验 device_id、device_type、nonce、expire_at、usage_count，并确认 signature 与生产 Key 完全相同。", styles["cell"])],
+        [Paragraph("4", styles["cellhead"]), Paragraph("全部校验通过才进入工作态并持久化 status=2；随后返回 seq:2 / auth_result / ok=true / status=2。", styles["cell"])],
         [Paragraph("5", styles["cellhead"]), Paragraph("把 seq:3 / query_status 的全部分片拼到 LF 后再解析；10 秒内返回真实 status。未执行 auth 时只能返回待机状态 1。", styles["cell"])],
     ]
     flow_table = Table(flow_rows, colWidths=[10 * mm, 168 * mm])
@@ -196,12 +196,11 @@ def build():
     ]))
     story += [flow_table, Spacer(1, 2.5 * mm)]
     story.append(box(
-        "四、HMAC-SHA256 签名（设备必须按固定顺序计算）",
-        "canonical string：<font name=\"Courier\" size=\"6.5\">command=enter_work&amp;device_id=&lt;...&gt;&amp;device_type=LASER-BLE&amp;<br/>"
-        "usage_count=&lt;...&gt;&amp;expire_at=&lt;...&gt;&amp;issued_at=&lt;...&gt;&amp;nonce=&lt;...&gt;</font>"
-        "（这里只为排版换行，实际签名时必须连接为一行，不能加入空格或换行。）<br/>"
-        "生产共享 Key（按 64 个 ASCII 字符直接作为 HMAC key bytes，<b>不要 hex decode</b>）：<br/>"
-        f'<font name="Courier" size="7.2">{production_key}</font>　｜　signature 输出 64 位小写 hex。',
+        "四、固定 signature（设备只做字符串比较）",
+        "最终规则：<b>auth.signature 永远等于下面的生产 Key 原文</b>。不计算 HMAC-SHA256，不构造 canonical string，不做 hex decode；"
+        "按 64 个小写十六进制 ASCII 字符逐字比较即可。<br/>生产 Key：<br/>"
+        f'<font name="Courier" size="7.2">{production_key}</font><br/>'
+        "注意：固定 signature 只确认 Key 相同；设备仍必须独立校验本机 device_id、LASER-BLE、当次 nonce、usage_count、issued_at 与 expire_at。",
         styles,
     ))
     story.append(Spacer(1, 2.5 * mm))
@@ -210,7 +209,7 @@ def build():
         [
             [
                 Paragraph("五、设备端必须做到", styles["h2"]),
-                Paragraph("• FFE0/FFE1 固定，不因批次改变。<br/>• 三种下行指令全部按字节追加到同一接收缓冲区。<br/>• nonce 为 16 随机字节（32 位 hex），一次一用。<br/>• HMAC Key 离线烧录，不得通过 BLE 返回或写日志。<br/>• 未验签、过期、nonce 不一致或已使用时禁止启动。<br/>• 只有真实进入工作态才能回 status=2。", styles["body"]),
+                Paragraph("• FFE0/FFE1 固定，不因批次改变。<br/>• 三种下行指令全部按字节追加到同一接收缓冲区。<br/>• nonce 为 16 随机字节（32 位 hex），一次一用。<br/>• 生产 Key 离线烧录，不得在设备回包或日志中输出。<br/>• Key 不符、过期、nonce 不一致或已使用时禁止启动。<br/>• 只有真实进入工作态才能回 status=2。", styles["body"]),
             ],
             [
                 Paragraph("六、联调验收", styles["h2"]),

@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v10" : "v115";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v10" : "v116";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -4266,8 +4266,8 @@ function verificationBleSigningKey() {
   if (!key) {
     fail("设备签名密钥尚未配置，请管理员在 faceRecognition 云函数环境变量中配置 BLE_AUTH_SIGNING_KEY。", "BLE_SIGNING_KEY_MISSING");
   }
-  if (Buffer.byteLength(key, "utf8") < 32) {
-    fail("BLE 授权签名密钥长度不足，请配置至少 32 字节的 BLE_AUTH_SIGNING_KEY。", "BLE_SIGNING_KEY_INVALID");
+  if (!/^[0-9a-f]{64}$/.test(key)) {
+    fail("BLE 授权生产 Key 格式错误，请配置正好 64 位小写十六进制 BLE_AUTH_SIGNING_KEY。", "BLE_SIGNING_KEY_INVALID");
   }
   return key;
 }
@@ -4284,19 +4284,8 @@ function verificationBleAuthorizationPayload(input) {
   };
 }
 
-function verificationBleSignature(payload) {
-  const canonical = [
-    ["command", payload.command],
-    ["device_id", payload.device_id],
-    ["device_type", payload.device_type],
-    ["usage_count", payload.usage_count],
-    ["expire_at", payload.expire_at],
-    ["issued_at", payload.issued_at],
-    ["nonce", payload.nonce]
-  ].map(([key, value]) => `${key}=${value}`).join("&");
-  return crypto.createHmac("sha256", verificationBleSigningKey())
-    .update(canonical, "utf8")
-    .digest("hex");
+function verificationBleSignature() {
+  return verificationBleSigningKey();
 }
 
 async function createVerificationBleQualification(event) {
@@ -4695,7 +4684,7 @@ async function issueVerificationBleAuthorization(event) {
   const payload = verificationBleAuthorizationPayload({
     deviceId, deviceType: canonicalDeviceType, nonce, unitCount: Number(qualification.unit_count), issuedAt, expireAt
   });
-  const signature = verificationBleSignature(payload);
+  const signature = verificationBleSignature();
   const authorizationToken = crypto.randomBytes(24).toString("hex");
   try {
     await executeSql(

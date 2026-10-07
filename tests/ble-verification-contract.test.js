@@ -78,7 +78,6 @@ test('a terminal stale authorization releases only the previous submission lock'
 test('device identity is checked without a device registry and QR codes stay hashed in audit', () => {
   assert.equal(facePackage.dependencies['pinyin-pro'], '3.27.0');
   assert.match(faceSource, /BLE_AUTH_SIGNING_KEY/);
-  assert.match(faceSource, /createHmac\(['"]sha256['"]/);
   assert.match(faceSource, /device_id/);
   assert.match(faceSource, /device_type/);
   assert.match(faceSource, /nonce/);
@@ -393,13 +392,20 @@ test('BLE write failures expose safe command and chunk diagnostics without autho
   assert.match(pageWxml, /发送诊断：\{\{bleErrorDetail\}\}/);
 });
 
-test('BLE signing key is mandatory and qualification creation is read back safely', () => {
+test('BLE production key is mandatory, format-checked and sent directly as signature', () => {
   const creation = faceSource.slice(
     faceSource.indexOf('async function createVerificationBleQualification'),
     faceSource.indexOf('async function recoverVerificationBleQualification')
   );
+  const signing = faceSource.slice(
+    faceSource.indexOf('function verificationBleSigningKey'),
+    faceSource.indexOf('async function createVerificationBleQualification')
+  );
   assert.match(faceSource, /BLE_SIGNING_KEY_MISSING/);
-  assert.match(faceSource, /Buffer\.byteLength\(key, ["']utf8["']\) < 32/);
+  assert.match(signing, /\^\[0-9a-f\]\{64\}\$/);
+  assert.match(signing, /function verificationBleSignature\(\) \{\s*return verificationBleSigningKey\(\);\s*\}/);
+  assert.doesNotMatch(signing, /createHmac|canonical|payload/);
+  assert.match(faceSource, /const signature = verificationBleSignature\(\)/);
   assert.ok(creation.indexOf('verificationBleSigningKey();') < creation.indexOf('INSERT INTO public.verification_ble_qualifications'));
   assert.doesNotMatch(creation, /RETURNING\s+\*/i);
   assert.match(creation, /WHERE qualification\.idempotency_key/);
