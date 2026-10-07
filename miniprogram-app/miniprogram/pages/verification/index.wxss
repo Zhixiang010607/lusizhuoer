@@ -22,6 +22,7 @@
 .ble-state.has-error { border-color: #e4aaa3; background: #fff1ef; color: #8f342a; }
 .ble-state-title { color: #332d26; font-size: 30rpx; font-weight: 800; }
 .ble-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 23rpx; word-break: break-all; }
+.ble-detail { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 22rpx; line-height: 1.55; word-break: break-all; }
 .ble-advice { font-weight: 600; }
 .ble-start { margin-top: 22rpx; }
 .ble-window-note { display: block; margin-top: 16rpx; color: #827461; font-size: 23rpx; line-height: 1.5; text-align: center; }
@@ -41,7 +42,7 @@
   .ble-close { height: 42px; line-height: 42px; min-width: 76px; padding: 0 16px; border-radius: 12px; }
   .ble-context { gap: 10px; margin: 22px 0 16px; }
   .ble-context > view { padding: 13px 10px; border-radius: 12px; }
-  .ble-context text, .ble-code, .ble-window-note { font-size: 13px; }
+  .ble-context text, .ble-code, .ble-detail, .ble-window-note { font-size: 13px; }
   .ble-context-value { font-size: 16px !important; }
   .ble-state { min-height: 112px; padding: 18px; border-radius: 14px; }
   .ble-state-title { font-size: 18px; }

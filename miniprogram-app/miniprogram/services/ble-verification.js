@@ -7,7 +7,7 @@ const AUTH_TIMEOUT_MS = 10000;
 const STATUS_TIMEOUT_MS = 10000;
 const DISCOVERY_TIMEOUT_MS = 15000;
 const WRITE_CHUNK_BYTES = 20;
-const WRITE_CHUNK_GAP_MS = 20;
+const WRITE_CHUNK_GAP_MS = 50;
 
 const BLE_GATT_PROFILES = Object.freeze({
   "LASER-BLE": Object.freeze({
@@ -76,6 +76,16 @@ function wxPromise(method, options = {}) {
 
 function wait(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function sanitizeBleDiagnosticMessage(value) {
+  return String(value || "")
+    .replace(/\b(?:LA[0-9A-F]{12}|NCM[0-9A-F]{11})\b/gi, "[设备编号已隐藏]")
+    .replace(/\b[0-9A-F]{32,}\b/gi, "[长值已隐藏]")
+    .replace(/\b(device_?id|nonce|signature|authorization(?:_?token)?|token|(?:shared_?)?key)\s*[:=]\s*[^\s,;]+/gi, "$1=[已隐藏]")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 180);
 }
 
 function normalizeQrText(value) {
@@ -350,9 +360,16 @@ class BleVerificationSession {
 
   async write(payload) {
     const bytes = new Uint8Array(utf8Encode(`${JSON.stringify(payload)}\n`));
+    const command = String(payload?.cmd || "unknown").trim().toLowerCase() || "unknown";
+    const sequence = Number(payload?.seq);
+    const chunkCount = Math.ceil(bytes.byteLength / WRITE_CHUNK_BYTES);
+    let chunkIndex = 0;
+    let chunkBytes = 0;
     try {
       for (let offset = 0; offset < bytes.byteLength; offset += WRITE_CHUNK_BYTES) {
         const chunk = bytes.slice(offset, Math.min(offset + WRITE_CHUNK_BYTES, bytes.byteLength));
+        chunkIndex += 1;
+        chunkBytes = chunk.byteLength;
         await wxPromise("writeBLECharacteristicValue", {
           deviceId: this.deviceId,
           serviceId: this.serviceId,
@@ -363,7 +380,19 @@ class BleVerificationSession {
         if (offset + WRITE_CHUNK_BYTES < bytes.byteLength) await wait(WRITE_CHUNK_GAP_MS);
       }
     } catch (error) {
-      throw bleError("BLE_WRITE_FAILED", "向设备发送指令失败，请保持靠近设备后重试。", error);
+      const cause = error?.cause || error || {};
+      const failure = bleError("BLE_WRITE_FAILED", "向设备发送指令失败，请保持靠近设备后重试。", error);
+      failure.diagnostic = {
+        command,
+        sequence: Number.isFinite(sequence) ? sequence : "",
+        chunkIndex,
+        chunkCount,
+        chunkBytes,
+        writeType: String(this.writeType || "unknown"),
+        wxCode: String(cause?.errCode ?? "").trim().slice(0, 32),
+        wxMessage: sanitizeBleDiagnosticMessage(cause?.errMsg || error?.message)
+      };
+      throw failure;
     }
   }
 
@@ -621,7 +650,28 @@ function errorFeedback(error) {
     BLE_DEVICE_1011: ["设备不接受本次次数", "请核对本次次数与设备协议限制；不要擅自改成固定 1 次。", false]
   };
   const selected = catalog[code] || deviceCodes[code];
-  if (selected) return { code, message, title: selected[0], advice: selected[1], retryable: selected[2] };
+  if (selected) {
+    const diagnostic = error?.diagnostic;
+    let detail = "";
+    if (code === "BLE_WRITE_FAILED" && diagnostic && typeof diagnostic === "object") {
+      const commandLabels = {
+        get_info: "get_info（读取设备信息）",
+        auth: "auth（发送开机授权）",
+        query_status: "query_status（补查设备状态）"
+      };
+      const parts = [
+        `指令：${commandLabels[diagnostic.command] || diagnostic.command || "unknown"}`,
+        `序号：${diagnostic.sequence === "" ? "?" : diagnostic.sequence}`,
+        `分片：${diagnostic.chunkIndex || "?"}/${diagnostic.chunkCount || "?"}`,
+        `本片：${diagnostic.chunkBytes || "?"} 字节`,
+        `方式：${diagnostic.writeType || "unknown"}`
+      ];
+      if (diagnostic.wxCode) parts.push(`微信错误：${diagnostic.wxCode}`);
+      if (diagnostic.wxMessage) parts.push(`底层信息：${diagnostic.wxMessage}`);
+      detail = parts.join("；");
+    }
+    return { code, message, title: selected[0], advice: selected[1], retryable: selected[2], detail };
+  }
   const wxFailure = code.startsWith("WX_");
   const technicalFailure = /(cannot read|undefined|typeerror|syntaxerror|sqlstate|failed_precondition|stack)/i.test(message);
   return {

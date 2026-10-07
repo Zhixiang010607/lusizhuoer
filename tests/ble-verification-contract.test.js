@@ -202,6 +202,7 @@ test('device types without a confirmed profile retain unique-channel discovery',
 });
 
 test('long authorization JSON is delivered as ordered HC-08-safe writes and one LF frame', async (t) => {
+  assert.match(bleSource, /const WRITE_CHUNK_GAP_MS = 50/);
   const previousWx = global.wx;
   const writes = [];
   global.wx = {
@@ -239,6 +240,56 @@ test('long authorization JSON is delivered as ordered HC-08-safe writes and one 
   assert.ok(writes.every((item) => item.bytes.byteLength <= 20));
   assert.ok(writes.every((item) => item.writeType === 'write'));
   assert.equal(Buffer.concat(writes.map((item) => item.bytes)).toString('utf8'), `${JSON.stringify(command)}\n`);
+});
+
+test('BLE write failures expose safe command and chunk diagnostics without authorization data', async (t) => {
+  const previousWx = global.wx;
+  let writeCount = 0;
+  global.wx = {
+    writeBLECharacteristicValue(options) {
+      writeCount += 1;
+      if (writeCount === 2) {
+        options.fail({
+          errCode: 10008,
+          errMsg: 'writeBLECharacteristicValue:fail system error device_id=LAF82E0CC8C5B9 nonce=00112233445566778899aabbccddeeff'
+        });
+        return;
+      }
+      options.success({});
+    }
+  };
+  t.after(() => {
+    if (previousWx === undefined) delete global.wx;
+    else global.wx = previousWx;
+  });
+
+  const session = new BleVerificationSession({ qualification: {}, clientRequestId: 'test-write-diagnostic' });
+  session.deviceId = 'wechat-device-id';
+  session.serviceId = 'FFE0';
+  session.writeCharacteristicId = 'FFE1';
+  session.writeType = 'write';
+  const command = {
+    ver: '1.0', seq: 2, cmd: 'auth',
+    auth: {
+      device_id: 'SECRET-DEVICE-ID',
+      nonce: 'SECRET-NONCE',
+      signature: 'SECRET-SIGNATURE'
+    }
+  };
+
+  await assert.rejects(session.write(command), (error) => {
+    assert.equal(error.code, 'BLE_WRITE_FAILED');
+    const feedback = require(path.join(root, 'miniprogram-app/miniprogram/services/ble-verification.js')).errorFeedback(error);
+    assert.match(feedback.detail, /auth（发送开机授权）/);
+    assert.match(feedback.detail, /序号：2/);
+    assert.match(feedback.detail, /分片：2\/\d+/);
+    assert.match(feedback.detail, /微信错误：10008/);
+    assert.match(feedback.detail, /writeBLECharacteristicValue:fail system error/);
+    assert.doesNotMatch(feedback.detail, /LAF82E0CC8C5B9|00112233445566778899aabbccddeeff|SECRET-DEVICE-ID|SECRET-NONCE|SECRET-SIGNATURE/);
+    return true;
+  });
+  assert.equal(writeCount, 2);
+  assert.match(pageWxml, /发送诊断：\{\{bleErrorDetail\}\}/);
 });
 
 test('BLE signing key is mandatory and qualification creation is read back safely', () => {
