@@ -6,6 +6,8 @@ const INFO_TIMEOUT_MS = 10000;
 const AUTH_TIMEOUT_MS = 10000;
 const STATUS_TIMEOUT_MS = 10000;
 const DISCOVERY_TIMEOUT_MS = 15000;
+const WRITE_CHUNK_BYTES = 20;
+const WRITE_CHUNK_GAP_MS = 20;
 
 const BLE_GATT_PROFILES = Object.freeze({
   "LASER-BLE": Object.freeze({
@@ -70,6 +72,10 @@ function wxPromise(method, options = {}) {
       fail: (cause) => reject(bleError(`WX_${method.toUpperCase()}_FAILED`, cause?.errMsg || `${method} 失败`, cause))
     });
   });
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function normalizeQrText(value) {
@@ -155,6 +161,7 @@ class BleVerificationSession {
     this.serviceId = "";
     this.writeCharacteristicId = "";
     this.notifyCharacteristicId = "";
+    this.writeType = "write";
     this.receiveBuffer = "";
     this.waiters = [];
     this.cancelled = false;
@@ -274,6 +281,7 @@ class BleVerificationSession {
       this.serviceId = service.uuid;
       this.writeCharacteristicId = writeCharacteristic.uuid;
       this.notifyCharacteristicId = notifyCharacteristic.uuid;
+      this.writeType = writeCharacteristic.properties?.write ? "write" : "writeNoResponse";
     } else {
       const candidates = [];
       for (const service of services) {
@@ -287,8 +295,10 @@ class BleVerificationSession {
       if (candidates.length > 1) throw bleError("BLE_PROTOCOL_CHANNEL_AMBIGUOUS", "设备存在多个可用通信服务，无法安全判断目标通道；请为该设备类型补充固定 GATT 配置。");
       const selected = candidates[0];
       this.serviceId = selected.service.uuid;
-      this.writeCharacteristicId = (selected.writes.find((item) => item.properties?.write) || selected.writes[0]).uuid;
+      const writeCharacteristic = selected.writes.find((item) => item.properties?.write) || selected.writes[0];
+      this.writeCharacteristicId = writeCharacteristic.uuid;
       this.notifyCharacteristicId = (selected.notifies.find((item) => item.properties?.notify) || selected.notifies[0]).uuid;
+      this.writeType = writeCharacteristic.properties?.write ? "write" : "writeNoResponse";
     }
     if (typeof wx.onBLECharacteristicValueChange === "function") wx.onBLECharacteristicValueChange(this.valueHandler);
     try {
@@ -339,14 +349,19 @@ class BleVerificationSession {
   }
 
   async write(payload) {
-    const value = utf8Encode(`${JSON.stringify(payload)}\n`);
+    const bytes = new Uint8Array(utf8Encode(`${JSON.stringify(payload)}\n`));
     try {
-      await wxPromise("writeBLECharacteristicValue", {
-        deviceId: this.deviceId,
-        serviceId: this.serviceId,
-        characteristicId: this.writeCharacteristicId,
-        value
-      });
+      for (let offset = 0; offset < bytes.byteLength; offset += WRITE_CHUNK_BYTES) {
+        const chunk = bytes.slice(offset, Math.min(offset + WRITE_CHUNK_BYTES, bytes.byteLength));
+        await wxPromise("writeBLECharacteristicValue", {
+          deviceId: this.deviceId,
+          serviceId: this.serviceId,
+          characteristicId: this.writeCharacteristicId,
+          writeType: this.writeType,
+          value: chunk.buffer
+        });
+        if (offset + WRITE_CHUNK_BYTES < bytes.byteLength) await wait(WRITE_CHUNK_GAP_MS);
+      }
     } catch (error) {
       throw bleError("BLE_WRITE_FAILED", "向设备发送指令失败，请保持靠近设备后重试。", error);
     }

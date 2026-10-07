@@ -201,6 +201,46 @@ test('device types without a confirmed profile retain unique-channel discovery',
   assert.equal(session.notifyCharacteristicId, arbitraryNotify);
 });
 
+test('long authorization JSON is delivered as ordered HC-08-safe writes and one LF frame', async (t) => {
+  const previousWx = global.wx;
+  const writes = [];
+  global.wx = {
+    writeBLECharacteristicValue(options) {
+      writes.push({
+        writeType: options.writeType,
+        bytes: Buffer.from(new Uint8Array(options.value))
+      });
+      options.success({});
+    }
+  };
+  t.after(() => {
+    if (previousWx === undefined) delete global.wx;
+    else global.wx = previousWx;
+  });
+
+  const session = new BleVerificationSession({ qualification: {}, clientRequestId: 'test-chunked-auth' });
+  session.deviceId = 'wechat-device-id';
+  session.serviceId = 'FFE0';
+  session.writeCharacteristicId = 'FFE1';
+  session.writeType = 'write';
+  const command = {
+    ver: '1.0', seq: 2, cmd: 'auth',
+    auth: {
+      command: 'enter_work', device_id: 'LAF82E0CC8C5B9', device_type: 'LASER-BLE',
+      nonce: '00112233445566778899aabbccddeeff', usage_count: 1,
+      issued_at: 1791341008, expire_at: 1791341038,
+      signature: 'a'.repeat(64)
+    }
+  };
+
+  await session.write(command);
+
+  assert.ok(writes.length > 1);
+  assert.ok(writes.every((item) => item.bytes.byteLength <= 20));
+  assert.ok(writes.every((item) => item.writeType === 'write'));
+  assert.equal(Buffer.concat(writes.map((item) => item.bytes)).toString('utf8'), `${JSON.stringify(command)}\n`);
+});
+
 test('BLE signing key is mandatory and qualification creation is read back safely', () => {
   const creation = faceSource.slice(
     faceSource.indexOf('async function createVerificationBleQualification'),
