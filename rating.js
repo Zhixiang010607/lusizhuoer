@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.1.2";
+  const VERSION = "0.1.3";
   const $ = (id) => document.getElementById(id);
   const token = new URLSearchParams(location.search).get("token") || "";
   const scores = { storeEnvironmentScore: 0, teacherServiceScore: 0, overallExperienceScore: 0 };
@@ -95,7 +95,7 @@
     $("ratingComplete").hidden = false;
     const rows = [
       ["门店环境", data.storeEnvironmentScore],
-      ...(data.requiresTeacherScore ? [["老师服务", data.teacherServiceScore]] : []),
+      ["老师服务", data.teacherServiceScore],
       ["整体体验", data.overallExperienceScore]
     ];
     const scoreList = $("ratingCompleteScores");
@@ -119,8 +119,8 @@
     $("ratingTeacherName").textContent = data.teacherName || "未指定";
     $("ratingProjectName").textContent = data.projectName || "服务项目";
     $("ratingServiceTime").textContent = data.serviceTime || "—";
-    $("ratingTeacherContext").hidden = !data.requiresTeacherScore;
-    $("teacherRatingQuestion").hidden = !data.requiresTeacherScore;
+    $("ratingTeacherContext").hidden = !data.hasAssignedTeacher;
+    $("teacherRatingQuestion").hidden = false;
     $("ratingContext").hidden = false;
     $("ratingLoading").hidden = true;
     if (data.submitted || data.ratingStatus === "SUBMITTED") renderComplete(data);
@@ -150,8 +150,7 @@
 
   $("ratingForm").addEventListener("submit", async (event) => {
     event.preventDefault();
-    const requiredGroups = ["storeEnvironmentScore", "overallExperienceScore"];
-    if (ratingContext?.requiresTeacherScore) requiredGroups.splice(1, 0, "teacherServiceScore");
+    const requiredGroups = ["storeEnvironmentScore", "teacherServiceScore", "overallExperienceScore"];
     const missing = requiredGroups.find((group) => !scores[group]);
     if (missing) {
       const labels = { storeEnvironmentScore: "门店环境", teacherServiceScore: "老师服务", overallExperienceScore: "整体体验" };
@@ -167,7 +166,7 @@
       const result = await callRating("submitPublic", {
         token,
         storeEnvironmentScore: scores.storeEnvironmentScore,
-        teacherServiceScore: ratingContext?.requiresTeacherScore ? scores.teacherServiceScore : null,
+        teacherServiceScore: scores.teacherServiceScore,
         overallExperienceScore: scores.overallExperienceScore,
         customerComment: $("ratingComment").value.trim()
       });

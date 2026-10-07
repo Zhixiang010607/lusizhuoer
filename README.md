@@ -63,7 +63,7 @@
 
 当前小程序开发基线为 Node.js `>=20.19.0`、pnpm `9.15.9`、CloudBase JS SDK `3.7.1` 和微信开发者工具；依赖必须按 `pnpm-lock.yaml` 冻结安装，不再使用会产生第二份锁文件的 `npm install`。当前开发 AppID 为 `wxb053c1bd6c684d8b`。2026-08-27 已完成 CloudBase 全托管认证，CloudBase 身份认证中的同 AppID 微信小程序身份源也已启用；全托管模式下不再通过旧服务商扫码入口反复修改域名。AppID 可公开但任何密钥都不得写入仓库。现有 CloudBase 是 PostgreSQL 环境，不走微信开发者工具的“云环境转换”；小程序通过 SDK 与微信适配器复用同一环境和云函数。
 
-> 当前代码版本矩阵为 `staffAccount v81`、`faceRecognition v116`、`verificationPhoto v11`、`teacherCreate v6`、`customerRating v7`，网页版为 `0.15.26`，小程序当前上传状态见页首。补充照片由服务端建立任务并签发一次性私有对象 PUT 地址，网页和小程序直接上传 JPEG 字节，独立照片函数只回读校验并原子绑定，不再接收 Base64 图片中转。迁移 068 已在环境 `rusizhuoer-d9gbcsgym07651694` 执行并取得 9 行 `READY`；迁移 069 已在同一生产环境执行并取得 3 行 `READY`。`faceRecognition v116` 将 BLE `auth.signature` 改为固定等于 64 位小写十六进制生产 `BLE_AUTH_SIGNING_KEY`，不再计算 HMAC；设备固件与云函数必须同步切换，本次不需要新增 SQL。评价服务继续使用独立签名密钥、正式 `rating.html` 地址、匿名登录、只放行评价路由的 OPA 策略及 `customerRating` 的 `"auth != null"` 函数安全规则。代码推送、SQL、云函数、网页发布、小程序开发版上传、设为体验版、提交审核和正式发布仍分别计算。
+> 当前代码版本矩阵为 `staffAccount v81`、`faceRecognition v116`、`verificationPhoto v11`、`teacherCreate v6`、`customerRating v8`，网页版为 `0.15.26`，小程序当前上传状态见页首。补充照片由服务端建立任务并签发一次性私有对象 PUT 地址，网页和小程序直接上传 JPEG 字节，独立照片函数只回读校验并原子绑定，不再接收 Base64 图片中转。迁移 068、069 已在生产执行；本轮新增迁移 070，把新扫码评价固定为门店环境、老师服务、整体体验三项，未指定业务老师也不隐藏第 02 项。`faceRecognition v116` 将 BLE `auth.signature` 改为固定等于 64 位小写十六进制生产 `BLE_AUTH_SIGNING_KEY`，不再计算 HMAC；设备固件与云函数必须同步切换。评价服务继续使用独立签名密钥、正式 `rating.html` 地址、匿名登录、只放行评价路由的 OPA 策略及 `customerRating` 的 `"auth != null"` 函数安全规则。代码推送、SQL、云函数、网页发布、小程序开发版上传、设为体验版、提交审核和正式发布仍分别计算。
 
 2026-09-06 已完成[门店账号新增与登录排查](docs/reviews/2026-09-06-store-onboarding-audit.md)：正常隔离创建与密码登录通过；确认旧账号密码提示遗漏、空写入返回误报失败、超时／跳转失败后重复请求及缓存故障误报等问题。本次只提交排查证据，尚未修改这些实现或发布新版本。
 
@@ -262,14 +262,14 @@
 2. 执行迁移 `039_direct_verification_photo_upload.sql`（CloudBase SQL 编辑器应依次执行独立的 `039-01` 至 `039-05`），建立短时上传任务、每单唯一进行中任务和原子提交函数；随后执行 `040_fix_verification_photo_commit_ambiguity.sql`（控制台使用 `040-01`），消除提交函数返回字段与冲突键 `photo_slot` 的 PL/pgSQL 歧义；
 3. 可选在 CloudBase PG 云存储中新建私有桶 `verification-photos`；也可把核销照片放在现有私有桶 `customer-photos`。`teacherCreate v6` 只需 `CLOUDBASE_ENV_ID`／`TCB_ENV`，不再配置任何人脸或照片桶变量。所有环境变量在控制台一项一行，不要把整段 `KEY=value` 粘贴进单个值。在现有安全规则中合并 `verificationPhoto` 与 `teacherCreate` 的非匿名登录调用权限，保留顶层 `*` 和其他函数条目；
 4. 先完成历史库必需的 046—050。部署不再读写旧 Saga 的 `staffAccount v81`、`faceRecognition v116` 和 `teacherCreate v6` 后，完整执行 `053-01-retire-legacy-teacher-face-saga.sql`，再运行 `053-readonly-verify.sql`，7 行必须全部为 `RETIRED`。已经执行过的 051/052 不需回滚；053 会只删除它们的旧操作表与私有函数；
-5. 完成 054 后执行 `055-01-remove-teacher-face-order-guards.sql`，确认最后 3 行全部为 `READY`；再执行并验收 056—067。随后依次执行并验收 068、069。配置 `BLE_AUTH_SIGNING_KEY`、独立的 `CUSTOMER_RATING_SIGNING_KEY`，以及实际 `rating.html` 完整 HTTPS 地址 `CUSTOMER_RATING_BASE_URL`；开启 CloudBase 匿名登录，在 OPA 用户策略中只对以 `/v1/functions/customerRating` 开头的评价函数路由追加放行，并在环境级云函数安全规则中合并 `"customerRating": { "invoke": "auth != null" }`，保留现有 `*` 与其他函数条目。所有员工动作仍必须由各函数内部按 UID 和人员主档鉴权，数据库不得向匿名角色开放，评价公开动作还必须校验工单签名令牌。部署 `faceRecognition v116`、`staffAccount v81`、`verificationPhoto v11`、`teacherCreate v6`、`customerRating v7`，分别调用 `health` 核对版本与配置；
+5. 完成 054 后执行 `055-01-remove-teacher-face-order-guards.sql`，确认最后 3 行全部为 `READY`；再执行并验收 056—067。随后依次执行并验收 068—070。配置 `BLE_AUTH_SIGNING_KEY`、独立的 `CUSTOMER_RATING_SIGNING_KEY`，以及实际 `rating.html` 完整 HTTPS 地址 `CUSTOMER_RATING_BASE_URL`；开启 CloudBase 匿名登录，在 OPA 用户策略中只对以 `/v1/functions/customerRating` 开头的评价函数路由追加放行，并在环境级云函数安全规则中合并 `"customerRating": { "invoke": "auth != null" }`，保留现有 `*` 与其他函数条目。所有员工动作仍必须由各函数内部按 UID 和人员主档鉴权，数据库不得向匿名角色开放，评价公开动作还必须校验工单签名令牌。部署 `faceRecognition v116`、`staffAccount v81`、`verificationPhoto v11`、`teacherCreate v6`、`customerRating v8`，分别调用 `health` 核对版本与配置；
 6. `staffAccount` 只保留老师体验额度的月初 Timer。从触发器配置中删除 `reconcile-teacher-face-operations`，`teacherCreate` 不配置 Timer；
 7. 部署当前静态文件到 CloudBase 静态网站托管并强制刷新浏览器；
 8. 通过总部、门店和老师真实账号完成角色边界回归，并确认历史运营账号无法获取业务会话或通过审核；验证总部没有任何办理入口且直接调用被拒绝，门店／老师可以在各自权限内办理，同时完成核销照片查看、历史总部单或当前门店／老师单的真实原提交人上传或替换、取消后重试、非提交人拒绝和 24 小时截止测试。
 
 生产库已经执行 039、但补充照片上传出现 `column reference "photo_slot" is ambiguous (SQLSTATE 42702)` 时，只需完整执行一次 040；不要重跑 037--039。040 只替换原子提交函数，不改表、不删除或重写已有照片数据。
 
-生产更新顺序固定为“确认 039、046—050 与 053 已完成 → 依次执行并验收 054—069 → 配置 `BLE_AUTH_SIGNING_KEY`、`CUSTOMER_RATING_SIGNING_KEY` 与 `CUSTOMER_RATING_BASE_URL` → 部署 `faceRecognition v116`、`staffAccount v81`、`verificationPhoto v11`、`teacherCreate v6`、`customerRating v7` → 五个云函数分别执行 `health` → 发布当前静态网页（含 `rating.html`）→ 上传小程序 → 强制刷新并用门店、老师、总部和未登录客户完成真机验收”。
+生产更新顺序固定为“确认 039、046—050 与 053 已完成 → 依次执行并验收 054—070 → 配置 `BLE_AUTH_SIGNING_KEY`、`CUSTOMER_RATING_SIGNING_KEY` 与 `CUSTOMER_RATING_BASE_URL` → 部署 `faceRecognition v116`、`staffAccount v81`、`verificationPhoto v11`、`teacherCreate v6`、`customerRating v8` → 五个云函数分别执行 `health` → 发布当前静态网页（含 `rating.html`）→ 上传小程序 → 强制刷新并用门店、老师、总部和未登录客户完成真机验收”。
 
 核销详情的高清原图查看器支持按钮、鼠标滚轮、键盘、拖动和手机／iPad 双指缩放。页面先显示缩略图，高清图解码完成后再替换；临时签名地址不可用时，查看器会在相同工单权限和查看审计下改用 `verificationPhoto` 的鉴权读取通道取回原图，并且只创建当前页面内存 Blob，不持久化照片。最多只保留两张已解码原图，减少连续查看照片造成的内存占用。
 

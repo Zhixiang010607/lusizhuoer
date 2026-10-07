@@ -25,7 +25,7 @@
 | 客户详情 | `customer-detail.html` 资料、照片重读、备注校验、留言校验、余额与四类历史 | 读取与空值校验 `PASS-LIVE`；保存和封存／恢复 `CONFIRM-ONLY` |
 | 充值查询与详情 | `recharge-query.html` 条件、状态、客户查询、重置、分页；`recharge-detail.html` 详情、PDF、图片 | `PASS-LIVE` |
 | 核销查询与详情 | `verification-query.html` 条件、类型、客户查询、重置、分页；`verification-detail.html` 5 个照片位、原图、重读、PDF、图片、单张下载，以及工单底部客户评价 | 原有详情 `PASS-LIVE`；评价的暂无／星级／留言、三角色只读边界、总部与所属门店导出二维码及老师无二维码 `PASS-AUTO`；068 已执行，当前服务目标为 `customerRating v6`，兼容写入成功但 `RETURNING` 为空的首次签发与令牌更新，仍待总部／门店／老师真实角色复验 |
-| 客户扫码评价 | `rating.html` 匿名会话、本次服务项目／上海时区服务时间、门店环境／老师服务／整体体验 1—5 星、500 字框内滚动留言和完成态 | 服务上下文、固定高度留言框纵向滚动、手机／iPad 视觉、完成页仅保留感谢／评分／留言及公开令牌、单次提交、无老师时省略老师评分 `PASS-AUTO`；匿名登录、OPA 网关和函数安全规则仍为 `PASS-LIVE`，`customerRating v6` 已通过线上健康检查，`0.15.26` 已发布并逐文件校验；待真实工单二维码提交复验 |
+| 客户扫码评价 | `rating.html` 匿名会话、本次服务项目／上海时区服务时间、门店环境／老师服务／整体体验 1—5 星、500 字框内滚动留言和完成态 | 服务上下文、固定高度留言框纵向滚动、手机／iPad 视觉、完成页仅保留感谢／评分／留言及公开令牌、单次提交、无业务老师时仍固定显示并必填第 02 项“老师服务” `PASS-AUTO`；迁移 070、`customerRating v8` 与 `rating.html` 生产部署状态以本轮交付记录为准，待真实工单二维码提交复验 |
 | 审核 | `recharge-review.html`、`refund-review.html`、`verification-review.html` 的条件查询、工单查询、分页、详情入口、通过／驳回 | 查询 `PASS-LIVE`；审核决定 `CONFIRM-ONLY`；补录核销为历史兼容只读入口 |
 | 产品管理 | `project-management.html`、`project-create.html`、`project-detail.html` 的查询、进入详情、模板 4 页签、刷新、样例下载 | `PASS-LIVE`；创建、保存、封存与上传 `CONFIRM-ONLY` |
 | 门店管理 | `store-management.html` 名称与电话查询、新增入口、进入门店；`store-create.html` 表单；`store-detail.html` 时间范围、自定义日期、4 类业务页签、客户与统计 | 查询与只读操作 `PASS-LIVE`；创建和封存 `CONFIRM-ONLY` |

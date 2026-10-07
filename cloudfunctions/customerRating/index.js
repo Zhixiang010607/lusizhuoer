@@ -5,7 +5,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const QRCode = require("qrcode");
 
-const FUNCTION_VERSION = "v7";
+const FUNCTION_VERSION = "v8";
 const DURABLE_READ_DELAYS_MS = Object.freeze([0, 25, 75, 150, 300]);
 const RATING_ANALYSIS_EXPORT_MAX_ROWS = 1000;
 let cloudApp = null;
@@ -204,9 +204,10 @@ function publicRating(row) {
     submitted,
     storeName: row?.store_name || "",
     teacherName: row?.teacher_name || "",
+    hasAssignedTeacher: Boolean(row?.teacher_id),
     projectName: row?.product_name || "",
     serviceTime: row?.service_time || "",
-    requiresTeacherScore: Boolean(row?.teacher_id),
+    requiresTeacherScore: true,
     verificationType: row?.verification_type === "EXPERIENCE" ? "EXPERIENCE" : "NORMAL",
     storeEnvironmentScore: submitted ? Number(row?.store_environment_score || 0) : 0,
     teacherServiceScore: submitted ? Number(row?.teacher_service_score || 0) : 0,
@@ -534,11 +535,11 @@ async function issueForReceipt(event) {
     const created = await executeSql(
       `INSERT INTO public.verification_customer_ratings
          (verification_id, store_id, teacher_id, issued_by_account_id,
-          token_hash, token_version, rating_status, issued_at, updated_at)
+          token_hash, token_version, rating_form_version, rating_status, issued_at, updated_at)
        VALUES
          (${verificationId}, ${sqlId(order.store_id, "门店")},
           ${order.teacher_id ? sqlId(order.teacher_id, "老师") : "NULL"},
-          ${sqlId(staff.id, "员工")}, ${sqlText(placeholderHash)}, 1, 'OPEN', NOW(), NOW())
+          ${sqlId(staff.id, "员工")}, ${sqlText(placeholderHash)}, 1, 2, 'OPEN', NOW(), NOW())
        ON CONFLICT (verification_id) DO NOTHING
        RETURNING id, verification_id, store_id, teacher_id, token_version,
                  rating_status, submitted_at AS rating_submitted_at`
@@ -634,15 +635,13 @@ async function submitPublic(event) {
   }
   const storeScore = numberScore(event.storeEnvironmentScore, "门店环境");
   const overallScore = numberScore(event.overallExperienceScore, "整体体验");
-  const teacherScore = row.teacher_id
-    ? numberScore(event.teacherServiceScore, "老师服务")
-    : null;
+  const teacherScore = numberScore(event.teacherServiceScore, "老师服务");
   const comment = String(event.customerComment || "").trim();
   if (comment.length > 500) fail("文字评价不能超过 500 字。", "COMMENT_TOO_LONG");
   const updated = await executeSql(
     `UPDATE public.verification_customer_ratings
         SET store_environment_score = ${storeScore},
-            teacher_service_score = ${teacherScore === null ? "NULL" : teacherScore},
+            teacher_service_score = ${teacherScore},
             overall_experience_score = ${overallScore},
             customer_comment = ${sqlText(comment)},
             rating_status = 'SUBMITTED',
@@ -683,9 +682,7 @@ async function submitPublic(event) {
   if (!persisted) fail("评价提交结果暂时无法确认，请稍后扫码查看。", "RATING_SUBMIT_UNCONFIRMED");
   const sameSubmission = Number(persisted.store_environment_score || 0) === storeScore
     && Number(persisted.overall_experience_score || 0) === overallScore
-    && (teacherScore === null
-      ? persisted.teacher_service_score === null || persisted.teacher_service_score === undefined
-      : Number(persisted.teacher_service_score || 0) === teacherScore)
+    && Number(persisted.teacher_service_score || 0) === teacherScore
     && String(persisted.customer_comment || "") === comment;
   return {
     ...(sameSubmission ? { submitted: true } : { alreadySubmitted: true }),

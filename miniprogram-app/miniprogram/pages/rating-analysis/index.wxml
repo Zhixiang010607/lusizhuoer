@@ -14,7 +14,7 @@
     <view class="score-filter">
       <text class="field-label">最低评分（可任意多选）</text>
       <view class="score-options"><button wx:for="{{scoreOptions}}" wx:key="score" class="score-option {{item.selected ? 'selected' : ''}}" data-score="{{item.score}}" bindtap="toggleScore" disabled="{{loading || exporting}}">{{item.label}}</button></view>
-      <text wx:if="{{rulesExpanded}}" class="query-note">0 表示未评价；已评价工单取门店环境、老师服务和整体体验中的最低分，无业务老师时取其余两项最低分。例如 5、5、4 归为 4 分。</text>
+      <text wx:if="{{rulesExpanded}}" class="query-note">0 表示未评价；新评价固定取门店环境、老师服务和整体体验三项中的最低分。迁移前确实没有老师服务评分的历史评价，才按现有两项计算。例如 5、5、4 归为 4 分。</text>
     </view>
     <view class="button-row"><button class="primary" bindtap="search" loading="{{loading}}" disabled="{{loading || exporting}}">开始查询</button></view>
   </view>
