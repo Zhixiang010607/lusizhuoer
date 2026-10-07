@@ -1,0 +1,7 @@
+2026-10-07 14:58:36 AEDT uploadFile init
+2026-10-07 14:58:39 AEDT uploadFile doUpload:start (total 2849ms)
+2026-10-07 14:58:40 AEDT upload cos step2 startCosUpload start
+2026-10-07 15:14:21 AEDT uploadFile doUpload:await 941768ms (total 944617ms)
+2026-10-07 15:14:21 AEDT uploadFile parseError 0ms (total 944617ms)
+2026-10-07 15:14:21 AEDT uploadFile progressSuccess 1ms (total 944618ms)
+2026-10-07 15:14:21 AEDT uploadFile reportNewRemoteDebug 0ms (total 944618ms)
