@@ -389,6 +389,12 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
   includes(js, 'fileType: "jpg"', "PNG and WebP sources are re-encoded as JPEG before upload");
   includes(js, 'return "png"', "PNG source magic bytes are accepted");
   includes(js, 'return "webp"', "WebP source magic bytes are accepted");
+  includes(js, "const photoManifestFlight = verification && request.recordId", "photo manifest starts with the order-detail read");
+  includes(js, "this.loadPhotos(photoManifestFlight)", "the prefetched manifest is applied only after exact order validation");
+  includes(js, "Promise.resolve().then(() => callPhoto(\"getVerificationPhotos\"",
+    "photo prefetch accepts the same promise and synchronous test adapters");
+  includes(js, ".then((result) => ({ ok: true, result }), (error) => ({ ok: false, error }))",
+    "an early photo failure is safely captured while the order read finishes");
   includes(js, "await this.loadPhotos();", "a successful write rereads the database manifest");
   includes(js, "this.data.uploading || this.data.photoLoading", "concurrent writes and manifest reloads are isolated");
   includes(js, "const { saveImageToAlbum, isPermissionFailure }", "album permission behavior and retry classification are shared");

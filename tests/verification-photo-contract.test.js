@@ -38,7 +38,7 @@ function functionSource(source, name) {
   throw new Error(`function ${name} body is incomplete`);
 }
 
-includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v10" : "v116"', "split cloud versions");
+includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v117"', "split cloud versions");
 includes(cloud, "const MAX_VERIFICATION_IMAGE_BYTES = 3 * 1024 * 1024", "original upload limit");
 includes(cloud, "const MAX_THUMBNAIL_BYTES = 384 * 1024", "thumbnail upload limit");
 includes(cloud, "if (action === \"getVerificationPhotos\")", "thumbnail list action");
@@ -245,7 +245,7 @@ assert.ok(!detailUi.includes('action: "uploadVerificationExtraPhoto"'), "detail 
 includes(detailUi, 'loading="eager" fetchpriority="high"', "all five remote thumbnails load immediately before their short-lived addresses expire");
 includes(detailUi, 'button.dataset.photoPreviewState === "failed"', "a failed thumbnail can be clicked to retry only that photo");
 const photoListSource = functionSource(cloud, "getVerificationPhotos");
-includes(photoListSource, "mapWithConcurrency(rows, 2", "thumbnail signing has bounded concurrency");
+includes(photoListSource, "mapWithConcurrency(rows, 5", "all five thumbnails sign in one bounded wave");
 includes(photoListSource, "signVerificationPhoto(row.thumbnail_object_ref", "the gallery signs thumbnails only");
 includes(photoListSource, 'originalUrl: ""', "the gallery does not eagerly sign private originals");
 includes(photoListSource, "originalUrlExpiresIn: 0", "an absent original URL cannot advertise a stale TTL");

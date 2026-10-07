@@ -561,6 +561,14 @@ Page({
         rating: emptyRating(), ratingLoading: true, ratingError: "", ratingRestricted: false
       } : {})
     });
+    // Start the authorized thumbnail manifest while the order-detail function
+    // is still reading the same record. The result is not rendered until the
+    // exact route identity below has been verified, so this removes a serial
+    // network round trip without weakening the order or photo boundary.
+    const photoManifestFlight = verification && request.recordId
+      ? Promise.resolve().then(() => callPhoto("getVerificationPhotos", { recordId: request.recordId }))
+        .then((result) => ({ ok: true, result }), (error) => ({ ok: false, error }))
+      : null;
     try {
       const routeIdentity = routeOrderExpectation(request);
       let order;
@@ -602,7 +610,7 @@ Page({
           this.setData({ message: error.message || "工单详情已读取，但防重复提交锁尚未清除。", error: true });
         }
       }
-      if (verification) await Promise.all([this.loadPhotos(), this.loadRating()]);
+      if (verification) await Promise.all([this.loadPhotos(photoManifestFlight), this.loadRating()]);
     } catch (error) {
       this.setData({ order: null, loading: false, message: error.message || "工单详情读取失败", error: true });
     }
@@ -631,7 +639,7 @@ Page({
     return normalized;
   },
 
-  async loadPhotos() {
+  async loadPhotos(prefetchedManifest = null) {
     if (this.data.photoLoading || !this.data.order?.id) return false;
     const hadManifest = this.data.photoManifestLoaded;
     this.setData({
@@ -639,7 +647,11 @@ Page({
       ...(!hadManifest ? { photos: buildPhotoSlots("loading", labelsForManifest({}, this.data.noun)), photoCount: 0, visiblePhotoCount: 0 } : {})
     });
     try {
-      const result = await callPhoto("getVerificationPhotos", { recordId: this.data.order.id });
+      const outcome = prefetchedManifest
+        ? await prefetchedManifest
+        : { ok: true, result: await callPhoto("getVerificationPhotos", { recordId: this.data.order.id }) };
+      if (!outcome.ok) throw outcome.error;
+      const result = outcome.result;
       this.applyPhotoManifest(result);
       return true;
     } catch (error) {

@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v10" : "v116";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v117";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -6011,11 +6011,11 @@ async function getVerificationPhotos(event) {
       ORDER BY photo_slot`
   );
   const expiresIn = verificationPhotoUrlTtlSeconds();
-  // The grid needs only thumbnails. Signing five thumbnails with a bounded
-  // concurrency avoids the former 10-24 simultaneous storage-sign requests
-  // (thumbnail + original + compatibility retry). A full-size URL is issued
-  // only after the user opens or exports that photo, with fresh authorization.
-  const photos = await mapWithConcurrency(rows, 2, async (row) => {
+  // The grid needs at most five thumbnails. Sign those five in one bounded
+  // wave instead of three two-item waves; the lower reliability layer still
+  // caps total signing concurrency at six and retries transient failures.
+  // Full-size URLs remain strictly on demand after a user opens or exports.
+  const photos = await mapWithConcurrency(rows, 5, async (row) => {
     let thumbnailUrl = "";
     let thumbnailUrlExpiresIn = 0;
     let thumbnailError = "";
