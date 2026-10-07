@@ -38,11 +38,12 @@ test('verification deducts only after device reports working status 2', () => {
   assert.match(faceSource, /createVerificationApplication[\s\S]{0,160}BLE_REQUIRED/);
 });
 
-test('a missing auth result falls back to status query without a twenty-second stall', () => {
-  assert.match(bleSource, /const AUTH_TIMEOUT_MS = 3000/);
-  assert.match(bleSource, /设备在 3 秒内没有返回开机结果/);
+test('test builds allow ten seconds for both authorization and fallback status responses', () => {
+  assert.match(bleSource, /const AUTH_TIMEOUT_MS = 10000/);
+  assert.match(bleSource, /const STATUS_TIMEOUT_MS = 10000/);
+  assert.match(bleSource, /设备在 10 秒内没有返回开机结果/);
+  assert.match(bleSource, /设备在 10 秒内没有返回实际状态/);
   assert.ok(bleSource.indexOf('await waiting') < bleSource.indexOf('await this.queryWorking(info)'));
-  assert.doesNotMatch(bleSource, /const AUTH_TIMEOUT_MS = 20000/);
 });
 
 test('client supports reopenable QR window and irreversible success navigation', () => {

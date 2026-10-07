@@ -3,7 +3,8 @@ const { readSession } = require("./session");
 
 const STORAGE_PREFIX = "lusizhuoerMiniBleVerificationV1:";
 const INFO_TIMEOUT_MS = 10000;
-const AUTH_TIMEOUT_MS = 3000;
+const AUTH_TIMEOUT_MS = 10000;
+const STATUS_TIMEOUT_MS = 10000;
 const DISCOVERY_TIMEOUT_MS = 15000;
 
 const BLE_GATT_PROFILES = Object.freeze({
@@ -396,9 +397,9 @@ class BleVerificationSession {
     const waiting = this.waitFor(
       (payload) => String(payload?.cmd || payload?.type || "").toLowerCase() === "status"
         && Number(payload?.seq) === 3,
-      5000,
+      STATUS_TIMEOUT_MS,
       "BLE_STATUS_TIMEOUT",
-      "无法确认设备是否已启动。"
+      "设备在 10 秒内没有返回实际状态，无法确认是否已启动。"
     );
     await this.write({ ver: "1.0", seq: 3, cmd: "query_status" });
     const status = await waiting;
@@ -482,7 +483,7 @@ class BleVerificationSession {
           && Number(payload?.seq) === 2,
         AUTH_TIMEOUT_MS,
         "BLE_AUTH_RESULT_TIMEOUT",
-        "设备在 3 秒内没有返回开机结果，正在立即核对设备实际状态。"
+        "设备在 10 秒内没有返回开机结果，正在核对设备实际状态。"
       );
       await this.write(issued.authCommand);
       this.authorizationSent = true;
