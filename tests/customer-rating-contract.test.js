@@ -56,8 +56,9 @@ test("migration 068 binds one immutable rating to a completed normal or experien
 
 test("migration 070 makes the second score mandatory for every new rating without rewriting history", () => {
   assert.equal(consoleMigration070, migration070);
-  assert.match(migration070, /ADD COLUMN IF NOT EXISTS rating_form_version SMALLINT/);
-  assert.match(migration070, /SET rating_form_version = 1/);
+  assert.match(migration070, /ADD COLUMN IF NOT EXISTS rating_form_version SMALLINT NOT NULL DEFAULT 1/);
+  assert.doesNotMatch(migration070, /UPDATE public\.verification_customer_ratings/,
+    "historical submitted ratings must not be touched by an UPDATE trigger");
   assert.match(migration070, /ALTER COLUMN rating_form_version SET DEFAULT 2/);
   assert.match(migration070, /teacher_service_score IS NOT NULL/);
   assert.match(migration070, /rating_form_version = 1[\s\S]*teacher_id IS NULL[\s\S]*teacher_service_score IS NULL/);

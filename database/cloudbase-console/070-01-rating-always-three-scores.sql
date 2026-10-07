@@ -9,11 +9,7 @@ END;
 $$;
 
 ALTER TABLE public.verification_customer_ratings
-  ADD COLUMN IF NOT EXISTS rating_form_version SMALLINT;
-
-UPDATE public.verification_customer_ratings
-   SET rating_form_version = 1
- WHERE rating_form_version IS NULL;
+  ADD COLUMN IF NOT EXISTS rating_form_version SMALLINT NOT NULL DEFAULT 1;
 
 ALTER TABLE public.verification_customer_ratings
   ALTER COLUMN rating_form_version SET DEFAULT 2,
