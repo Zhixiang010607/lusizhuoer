@@ -13,7 +13,8 @@ const BLE_GATT_PROFILES = Object.freeze({
   "LASER-BLE": Object.freeze({
     serviceUuid: "FFE0",
     writeCharacteristicUuid: "FFE1",
-    notifyCharacteristicUuid: "FFE1"
+    notifyCharacteristicUuid: "FFE1",
+    preferredWriteType: "writeNoResponse"
   })
 });
 
@@ -28,6 +29,19 @@ function gattUuidMatches(actual, expected) {
   const actualUuid = normalizeGattUuid(actual);
   const expectedUuid = normalizeGattUuid(expected);
   return Boolean(actualUuid && expectedUuid && actualUuid === expectedUuid);
+}
+
+function characteristicWriteTypes(characteristic) {
+  const properties = characteristic?.properties || {};
+  const types = [];
+  if (properties.write) types.push("write");
+  if (properties.writeNoResponse) types.push("writeNoResponse");
+  return types;
+}
+
+function isPropertyNotSupported(error) {
+  const cause = error?.cause || error || {};
+  return Number(cause.errCode) === 10007 || /property not support/i.test(String(cause.errMsg || error?.message || ""));
 }
 
 function storageKey() {
@@ -172,6 +186,7 @@ class BleVerificationSession {
     this.writeCharacteristicId = "";
     this.notifyCharacteristicId = "";
     this.writeType = "write";
+    this.supportedWriteTypes = ["write"];
     this.receiveBuffer = "";
     this.waiters = [];
     this.cancelled = false;
@@ -291,7 +306,10 @@ class BleVerificationSession {
       this.serviceId = service.uuid;
       this.writeCharacteristicId = writeCharacteristic.uuid;
       this.notifyCharacteristicId = notifyCharacteristic.uuid;
-      this.writeType = writeCharacteristic.properties?.write ? "write" : "writeNoResponse";
+      this.supportedWriteTypes = characteristicWriteTypes(writeCharacteristic);
+      this.writeType = this.supportedWriteTypes.includes(configuredProfile.preferredWriteType)
+        ? configuredProfile.preferredWriteType
+        : this.supportedWriteTypes[0];
     } else {
       const candidates = [];
       for (const service of services) {
@@ -308,7 +326,8 @@ class BleVerificationSession {
       const writeCharacteristic = selected.writes.find((item) => item.properties?.write) || selected.writes[0];
       this.writeCharacteristicId = writeCharacteristic.uuid;
       this.notifyCharacteristicId = (selected.notifies.find((item) => item.properties?.notify) || selected.notifies[0]).uuid;
-      this.writeType = writeCharacteristic.properties?.write ? "write" : "writeNoResponse";
+      this.supportedWriteTypes = characteristicWriteTypes(writeCharacteristic);
+      this.writeType = this.supportedWriteTypes[0];
     }
     if (typeof wx.onBLECharacteristicValueChange === "function") wx.onBLECharacteristicValueChange(this.valueHandler);
     try {
@@ -370,13 +389,23 @@ class BleVerificationSession {
         const chunk = bytes.slice(offset, Math.min(offset + WRITE_CHUNK_BYTES, bytes.byteLength));
         chunkIndex += 1;
         chunkBytes = chunk.byteLength;
-        await wxPromise("writeBLECharacteristicValue", {
+        const writeChunk = (writeType) => wxPromise("writeBLECharacteristicValue", {
           deviceId: this.deviceId,
           serviceId: this.serviceId,
           characteristicId: this.writeCharacteristicId,
-          writeType: this.writeType,
+          writeType,
           value: chunk.buffer
         });
+        try {
+          await writeChunk(this.writeType);
+        } catch (error) {
+          const alternateWriteType = chunkIndex === 1 && isPropertyNotSupported(error)
+            ? this.supportedWriteTypes.find((item) => item !== this.writeType)
+            : "";
+          if (!alternateWriteType) throw error;
+          this.writeType = alternateWriteType;
+          await writeChunk(this.writeType);
+        }
         if (offset + WRITE_CHUNK_BYTES < bytes.byteLength) await wait(WRITE_CHUNK_GAP_MS);
       }
     } catch (error) {

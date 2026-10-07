@@ -111,7 +111,8 @@ test('LASER-BLE selects the fixed HC-08 FFE0/FFE1 profile even when other servic
   assert.deepEqual(BLE_GATT_PROFILES['LASER-BLE'], {
     serviceUuid: 'FFE0',
     writeCharacteristicUuid: 'FFE1',
-    notifyCharacteristicUuid: 'FFE1'
+    notifyCharacteristicUuid: 'FFE1',
+    preferredWriteType: 'writeNoResponse'
   });
   assert.equal(normalizeGattUuid('0000ffe0-0000-1000-8000-00805f9b34fb'), 'FFE0');
   assert.equal(normalizeGattUuid('{FFE1}'), 'FFE1');
@@ -134,7 +135,7 @@ test('LASER-BLE selects the fixed HC-08 FFE0/FFE1 profile even when other servic
         characteristics: [
           {
             uuid: '0000FFE1-0000-1000-8000-00805F9B34FB',
-            properties: { write: true, notify: true }
+            properties: { write: true, writeNoResponse: true, notify: true }
           }
         ]
       });
@@ -161,6 +162,8 @@ test('LASER-BLE selects the fixed HC-08 FFE0/FFE1 profile even when other servic
   assert.equal(session.serviceId, '0000FFE0-0000-1000-8000-00805F9B34FB');
   assert.equal(session.writeCharacteristicId, '0000FFE1-0000-1000-8000-00805F9B34FB');
   assert.equal(session.notifyCharacteristicId, '0000FFE1-0000-1000-8000-00805F9B34FB');
+  assert.equal(session.writeType, 'writeNoResponse');
+  assert.deepEqual(session.supportedWriteTypes, ['write', 'writeNoResponse']);
   assert.equal(notifyCalls.length, 1);
 });
 
@@ -224,6 +227,7 @@ test('long authorization JSON is delivered as ordered HC-08-safe writes and one 
   session.serviceId = 'FFE0';
   session.writeCharacteristicId = 'FFE1';
   session.writeType = 'write';
+  session.supportedWriteTypes = ['write'];
   const command = {
     ver: '1.0', seq: 2, cmd: 'auth',
     auth: {
@@ -240,6 +244,44 @@ test('long authorization JSON is delivered as ordered HC-08-safe writes and one 
   assert.ok(writes.every((item) => item.bytes.byteLength <= 20));
   assert.ok(writes.every((item) => item.writeType === 'write'));
   assert.equal(Buffer.concat(writes.map((item) => item.bytes)).toString('utf8'), `${JSON.stringify(command)}\n`);
+});
+
+test('first-chunk 10007 switches write mode once without resending a complete command', async (t) => {
+  const previousWx = global.wx;
+  const attempts = [];
+  const successfulChunks = [];
+  global.wx = {
+    writeBLECharacteristicValue(options) {
+      const bytes = Buffer.from(new Uint8Array(options.value));
+      attempts.push({ writeType: options.writeType, bytes });
+      if (attempts.length === 1) {
+        options.fail({ errCode: 10007, errMsg: 'writeBLECharacteristicValue:fail property not support' });
+        return;
+      }
+      successfulChunks.push(bytes);
+      options.success({});
+    }
+  };
+  t.after(() => {
+    if (previousWx === undefined) delete global.wx;
+    else global.wx = previousWx;
+  });
+
+  const session = new BleVerificationSession({ qualification: {}, clientRequestId: 'test-write-mode-fallback' });
+  session.deviceId = 'wechat-device-id';
+  session.serviceId = 'FFE0';
+  session.writeCharacteristicId = 'FFE1';
+  session.writeType = 'write';
+  session.supportedWriteTypes = ['write', 'writeNoResponse'];
+  const command = { ver: '1.0', seq: 1, cmd: 'get_info', ts: 1791341008 };
+
+  await session.write(command);
+
+  assert.equal(attempts[0].writeType, 'write');
+  assert.equal(attempts[1].writeType, 'writeNoResponse');
+  assert.ok(attempts.slice(1).every((item) => item.writeType === 'writeNoResponse'));
+  assert.equal(session.writeType, 'writeNoResponse');
+  assert.equal(Buffer.concat(successfulChunks).toString('utf8'), `${JSON.stringify(command)}\n`);
 });
 
 test('BLE write failures expose safe command and chunk diagnostics without authorization data', async (t) => {
@@ -268,6 +310,7 @@ test('BLE write failures expose safe command and chunk diagnostics without autho
   session.serviceId = 'FFE0';
   session.writeCharacteristicId = 'FFE1';
   session.writeType = 'write';
+  session.supportedWriteTypes = ['write'];
   const command = {
     ver: '1.0', seq: 2, cmd: 'auth',
     auth: {
