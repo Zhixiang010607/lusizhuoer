@@ -7,7 +7,6 @@ const AUTH_TIMEOUT_MS = 10000;
 const STATUS_TIMEOUT_MS = 10000;
 const DISCOVERY_TIMEOUT_MS = 15000;
 const WRITE_CHUNK_BYTES = 20;
-const WRITE_CHUNK_GAP_MS = 50;
 
 const BLE_GATT_PROFILES = Object.freeze({
   "LASER-BLE": Object.freeze({
@@ -86,10 +85,6 @@ function wxPromise(method, options = {}) {
       fail: (cause) => reject(bleError(`WX_${method.toUpperCase()}_FAILED`, cause?.errMsg || `${method} 失败`, cause))
     });
   });
-}
-
-function wait(milliseconds) {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function sanitizeBleDiagnosticMessage(value) {
@@ -531,7 +526,6 @@ class BleVerificationSession {
           this.writeType = alternateWriteType;
           await writeChunk(this.writeType);
         }
-        if (offset + WRITE_CHUNK_BYTES < bytes.byteLength) await wait(WRITE_CHUNK_GAP_MS);
       }
     } catch (error) {
       const cause = error?.cause || error || {};

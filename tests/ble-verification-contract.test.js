@@ -205,7 +205,7 @@ test('device types without a confirmed profile retain unique-channel discovery',
 });
 
 test('long authorization JSON is delivered as ordered HC-08-safe writes and one LF frame', async (t) => {
-  assert.match(bleSource, /const WRITE_CHUNK_GAP_MS = 50/);
+  assert.doesNotMatch(bleSource, /WRITE_CHUNK_GAP_MS|await wait\(/);
   const previousWx = global.wx;
   const writes = [];
   global.wx = {
