@@ -151,6 +151,35 @@ function utf8Decode(buffer) {
   try { return decodeURIComponent(escape(binary)); } catch (_) { return binary; }
 }
 
+function completeJsonObjectLength(value) {
+  const text = String(value || "");
+  if (!text.startsWith("{")) return 0;
+  let depth = 0;
+  let quoted = false;
+  let escaped = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === '"') quoted = false;
+      continue;
+    }
+    if (character === '"') quoted = true;
+    else if (character === "{") depth += 1;
+    else if (character === "}") {
+      depth -= 1;
+      if (depth === 0) return index + 1;
+      if (depth < 0) return index + 1;
+    }
+  }
+  return 0;
+}
+
+function byteHex(value) {
+  return Number.isInteger(value) ? value.toString(16).toUpperCase().padStart(2, "0") : "--";
+}
+
 function deviceName(device) {
   return String(device?.name || device?.localName || "").trim();
 }
@@ -188,6 +217,14 @@ class BleVerificationSession {
     this.writeType = "write";
     this.supportedWriteTypes = ["write"];
     this.receiveBuffer = "";
+    this.receivePacketCount = 0;
+    this.receivePacketLengths = [];
+    this.receivePacketLengthsTruncated = false;
+    this.receiveTotalBytes = 0;
+    this.receiveLfCount = 0;
+    this.receiveNullCount = 0;
+    this.lastReceiveDiagnostic = "";
+    this.lastReceiveSummary = "无";
     this.waiters = [];
     this.cancelled = false;
     this.authorizationSent = false;
@@ -345,16 +382,102 @@ class BleVerificationSession {
   handleValue(event) {
     if (String(event?.deviceId || "") !== this.deviceId) return;
     if (String(event?.characteristicId || "").toLowerCase() !== this.notifyCharacteristicId.toLowerCase()) return;
-    this.receiveBuffer += utf8Decode(event.value);
-    let newline = this.receiveBuffer.indexOf("\n");
-    while (newline >= 0) {
-      const line = this.receiveBuffer.slice(0, newline).trim();
-      this.receiveBuffer = this.receiveBuffer.slice(newline + 1);
-      if (line) {
-        try { this.dispatch(JSON.parse(line)); } catch (_) { this.state("PROTOCOL_WARNING", "设备返回了无法解析的数据，正在等待有效回执"); }
-      }
-      newline = this.receiveBuffer.indexOf("\n");
+    const bytes = new Uint8Array(event.value || new ArrayBuffer(0));
+    this.receivePacketCount += 1;
+    this.receiveTotalBytes += bytes.byteLength;
+    if (this.receivePacketLengths.length < 24) this.receivePacketLengths.push(bytes.byteLength);
+    else this.receivePacketLengthsTruncated = true;
+    for (let index = 0; index < bytes.length; index += 1) {
+      if (bytes[index] === 0x0A) this.receiveLfCount += 1;
+      if (bytes[index] === 0x00) this.receiveNullCount += 1;
     }
+    this.receiveBuffer += utf8Decode(event.value);
+    this.consumeReceiveBuffer();
+  }
+
+  receiveDiagnostic(frame = this.receiveBuffer, complete = false) {
+    const frameBytes = new Uint8Array(utf8Encode(String(frame || "")));
+    const firstByte = frameBytes.length ? frameBytes[0] : null;
+    const lastByte = frameBytes.length ? frameBytes[frameBytes.length - 1] : null;
+    const openingBraces = (String(frame || "").match(/\{/g) || []).length;
+    const closingBraces = (String(frame || "").match(/\}/g) || []).length;
+    const recordedLengths = this.receivePacketLengths.join("+") || "无";
+    const lengthSuffix = this.receivePacketLengthsTruncated ? "+…" : "";
+    return [
+      `通知片长：${recordedLengths}${lengthSuffix}（共 ${this.receivePacketCount} 片）`,
+      `累计：${this.receiveTotalBytes} 字节`,
+      `当前帧：${frameBytes.byteLength} 字节`,
+      `完整闭合：${complete ? "是" : "否"}`,
+      `首/尾：${byteHex(firstByte)}/${byteHex(lastByte)}`,
+      `LF：${this.receiveLfCount}`,
+      `0x00：${this.receiveNullCount}`,
+      `花括号：${openingBraces}/${closingBraces}`,
+      `最近回包：${this.lastReceiveSummary}`,
+      `缓冲剩余：${new Uint8Array(utf8Encode(this.receiveBuffer)).byteLength} 字节`
+    ].join("；");
+  }
+
+  protocolWarning(frame, complete) {
+    const receiveDiagnostic = this.receiveDiagnostic(frame, complete);
+    this.lastReceiveDiagnostic = receiveDiagnostic;
+    this.state("PROTOCOL_WARNING", "设备回包无法解析，正在等待有效回执", { receiveDiagnostic });
+  }
+
+  consumeReceiveBuffer() {
+    while (this.receiveBuffer) {
+      const leadingWhitespace = this.receiveBuffer.match(/^[\r\n\t ]+/);
+      if (leadingWhitespace) {
+        this.receiveBuffer = this.receiveBuffer.slice(leadingWhitespace[0].length);
+        if (!this.receiveBuffer) return;
+      }
+
+      if (this.receiveBuffer.startsWith("{")) {
+        const frameLength = completeJsonObjectLength(this.receiveBuffer);
+        if (frameLength > 0) {
+          const frame = this.receiveBuffer.slice(0, frameLength);
+          this.receiveBuffer = this.receiveBuffer.slice(frameLength);
+          try {
+            const payload = JSON.parse(frame);
+            this.recordReceiveSummary(payload);
+            this.dispatch(payload);
+          } catch (_) { this.protocolWarning(frame, true); }
+          continue;
+        }
+        const newline = this.receiveBuffer.indexOf("\n");
+        if (newline < 0) return;
+        const malformedFrame = this.receiveBuffer.slice(0, newline).trim();
+        this.receiveBuffer = this.receiveBuffer.slice(newline + 1);
+        if (malformedFrame) this.protocolWarning(malformedFrame, false);
+        continue;
+      }
+
+      const nextObject = this.receiveBuffer.indexOf("{");
+      const newline = this.receiveBuffer.indexOf("\n");
+      if (nextObject > 0 && (newline < 0 || nextObject < newline)) {
+        const invalidPrefix = this.receiveBuffer.slice(0, nextObject);
+        this.receiveBuffer = this.receiveBuffer.slice(nextObject);
+        this.protocolWarning(invalidPrefix, false);
+        continue;
+      }
+      if (newline >= 0) {
+        const invalidFrame = this.receiveBuffer.slice(0, newline).trim();
+        this.receiveBuffer = this.receiveBuffer.slice(newline + 1);
+        if (invalidFrame) this.protocolWarning(invalidFrame, false);
+      }
+      return;
+    }
+  }
+
+  recordReceiveSummary(payload) {
+    const command = String(payload?.cmd || payload?.type || "未知")
+      .replace(/[^a-z0-9_-]/gi, "")
+      .slice(0, 32) || "未知";
+    const parts = [`cmd=${command}`];
+    if (Number.isFinite(Number(payload?.seq))) parts.push(`seq=${Number(payload.seq)}`);
+    if (typeof payload?.ok === "boolean") parts.push(`ok=${payload.ok}`);
+    if (Number.isFinite(Number(payload?.status))) parts.push(`status=${Number(payload.status)}`);
+    if (Number.isFinite(Number(payload?.code))) parts.push(`code=${Number(payload.code)}`);
+    this.lastReceiveSummary = parts.join(",");
   }
 
   dispatch(payload) {
@@ -371,7 +494,9 @@ class BleVerificationSession {
       waiter.timer = setTimeout(() => {
         const index = this.waiters.indexOf(waiter);
         if (index >= 0) this.waiters.splice(index, 1);
-        reject(bleError(code, message));
+        const error = bleError(code, message);
+        error.receiveDiagnostic = this.lastReceiveDiagnostic || this.receiveDiagnostic(this.receiveBuffer, false);
+        reject(error);
       }, timeout);
       this.waiters.push(waiter);
     });
@@ -597,7 +722,9 @@ class BleVerificationSession {
   async closeConnection() {
     this.waiters.splice(0).forEach((waiter) => {
       clearTimeout(waiter.timer);
-      waiter.reject(bleError("BLE_CONNECTION_CLOSED", "蓝牙连接已关闭。"));
+      const error = bleError("BLE_CONNECTION_CLOSED", "蓝牙连接已关闭。");
+      error.receiveDiagnostic = this.lastReceiveDiagnostic || this.receiveDiagnostic(this.receiveBuffer, false);
+      waiter.reject(error);
     });
     if (typeof wx.offBLECharacteristicValueChange === "function") wx.offBLECharacteristicValueChange(this.valueHandler);
     wx.stopBluetoothDevicesDiscovery({ complete: () => {} });
@@ -699,7 +826,15 @@ function errorFeedback(error) {
       if (diagnostic.wxMessage) parts.push(`底层信息：${diagnostic.wxMessage}`);
       detail = parts.join("；");
     }
-    return { code, message, title: selected[0], advice: selected[1], retryable: selected[2], detail };
+    return {
+      code,
+      message,
+      title: selected[0],
+      advice: selected[1],
+      retryable: selected[2],
+      detail,
+      receiveDiagnostic: String(error?.receiveDiagnostic || "")
+    };
   }
   const wxFailure = code.startsWith("WX_");
   const technicalFailure = /(cannot read|undefined|typeerror|syntaxerror|sqlstate|failed_precondition|stack)/i.test(message);
@@ -708,6 +843,7 @@ function errorFeedback(error) {
     message: technicalFailure ? "设备准备失败，本次没有扣次。" : message,
     retryable: wxFailure || technicalFailure,
     title: wxFailure ? "微信蓝牙接口调用失败" : (technicalFailure ? "设备准备失败" : "未识别的设备错误"),
+    receiveDiagnostic: String(error?.receiveDiagnostic || ""),
     advice: wxFailure
       ? "请检查微信相机、蓝牙和定位权限并重试；仍失败时截图错误代码联系技术人员。"
       : (technicalFailure

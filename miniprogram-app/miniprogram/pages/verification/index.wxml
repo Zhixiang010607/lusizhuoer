@@ -92,6 +92,7 @@
         <text>{{bleStatusMessage}}</text>
         <text wx:if="{{bleErrorCode}}" class="ble-code">错误代码：{{bleErrorCode}}</text>
         <text wx:if="{{bleErrorDetail}}" class="ble-detail">发送诊断：{{bleErrorDetail}}</text>
+        <text wx:if="{{bleReceiveDiagnostic}}" class="ble-detail">接收诊断：{{bleReceiveDiagnostic}}</text>
         <text wx:if="{{bleErrorAdvice}}" class="ble-advice">{{bleErrorAdvice}}</text>
       </view>
       <button class="primary ble-start" bindtap="startBleVerification" loading="{{bleRunning}}" disabled="{{bleRunning || blePermanentlyClosed || qualificationSeconds <= 0}}">{{bleRunning ? '正在连接设备…' : (bleAuthorizationSent ? '重新连接并核对原设备' : '扫描设备二维码并开启蓝牙')}}</button>

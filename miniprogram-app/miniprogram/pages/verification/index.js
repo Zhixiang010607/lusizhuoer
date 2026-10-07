@@ -59,7 +59,7 @@ Page({
     qualification: null, qualificationActive: false, qualificationSeconds: 0,
     bleWindowVisible: false, bleRunning: false, bleAuthorizationSent: false,
     blePermanentlyClosed: false, bleStage: "", bleStatusMessage: "",
-    bleErrorTitle: "", bleErrorCode: "", bleErrorAdvice: "", bleErrorDetail: ""
+    bleErrorTitle: "", bleErrorCode: "", bleErrorAdvice: "", bleErrorDetail: "", bleReceiveDiagnostic: ""
   },
   onLoad(options) {
     const session = requireSession(["store", "teacher"]);
@@ -455,7 +455,7 @@ Page({
       bleWindowVisible: openWindow,
       bleAuthorizationSent: authorizationSent,
       blePermanentlyClosed: false,
-      bleErrorTitle: "", bleErrorCode: "", bleErrorAdvice: "", bleErrorDetail: "",
+      bleErrorTitle: "", bleErrorCode: "", bleErrorAdvice: "", bleErrorDetail: "", bleReceiveDiagnostic: "",
       bleStatusMessage: authorizationSent
         ? "授权已发送，请重新连接原设备核对状态。"
         : "90 秒内扫码连接；设备启动前不扣次。",
@@ -540,7 +540,7 @@ Page({
     try {
       const qualification = await this.refreshQualificationForBle();
       if (!qualification) return;
-      this.setData({ bleWindowVisible: true, bleErrorTitle: "", bleErrorCode: "", bleErrorAdvice: "", bleErrorDetail: "" });
+      this.setData({ bleWindowVisible: true, bleErrorTitle: "", bleErrorCode: "", bleErrorAdvice: "", bleErrorDetail: "", bleReceiveDiagnostic: "" });
     } catch (error) {
       const feedback = errorFeedback(error);
       this.setData({ bleWindowVisible: false, message: feedback.message, error: true });
@@ -571,12 +571,16 @@ Page({
     }
     this.setData({
       bleWindowVisible: true, bleRunning: true, bleStage: "QR_SCANNING", bleStatusMessage: "准备扫描设备二维码",
-      bleErrorTitle: "", bleErrorCode: "", bleErrorAdvice: "", bleErrorDetail: ""
+      bleErrorTitle: "", bleErrorCode: "", bleErrorAdvice: "", bleErrorDetail: "", bleReceiveDiagnostic: ""
     });
     const session = new BleVerificationSession({
       qualification: this.data.qualification,
       clientRequestId: intent.clientRequestId,
-      onState: (state) => this.setData({ bleStage: state.stage || "", bleStatusMessage: state.message || "" }),
+      onState: (state) => {
+        const nextState = { bleStage: state.stage || "", bleStatusMessage: state.message || "" };
+        if (state.receiveDiagnostic !== undefined) nextState.bleReceiveDiagnostic = String(state.receiveDiagnostic || "");
+        this.setData(nextState);
+      },
       onIrreversible: (state) => {
         if (state?.authorizationSent) this.setData({ bleAuthorizationSent: true, bleStatusMessage: "授权已发往设备，正在确认是否进入工作状态；请勿重新扫码。" });
         if (state?.deviceResult && Number(state.deviceResult.status) === 2) {
@@ -611,6 +615,7 @@ Page({
           bleErrorCode: feedback.code,
           bleErrorAdvice: feedback.advice,
           bleErrorDetail: feedback.detail || "",
+          bleReceiveDiagnostic: feedback.receiveDiagnostic || this.data.bleReceiveDiagnostic || "",
           bleStatusMessage: feedback.message,
           message: feedback.message,
           error: !["BLE_QR_CANCELLED", "BLE_WINDOW_CLOSED"].includes(feedback.code)
@@ -701,6 +706,7 @@ Page({
           bleErrorCode: "",
           bleErrorAdvice: "",
           bleErrorDetail: "",
+          bleReceiveDiagnostic: "",
           message: hadTerminalAuthorization
             ? "云端已确认上次设备授权失效且未生成核销工单、未扣次；旧锁已解除，请重新拍照并开始新一笔核销。"
             : "上次仅完成人脸验证，尚未向设备授权、没有扣次，现已取消；可以重新选择客户。",

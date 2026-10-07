@@ -284,6 +284,64 @@ test('first-chunk 10007 switches write mode once without resending a complete co
   assert.equal(Buffer.concat(successfulChunks).toString('utf8'), `${JSON.stringify(command)}\n`);
 });
 
+test('BLE receive accepts consecutive complete JSON responses without LF terminators', async () => {
+  const states = [];
+  const session = new BleVerificationSession({
+    qualification: {},
+    clientRequestId: 'test-receive-without-lf',
+    onState: (state) => states.push(state)
+  });
+  session.deviceId = 'wechat-device-id';
+  session.notifyCharacteristicId = '0000FFE1-0000-1000-8000-00805F9B34FB';
+  const infoResponse = { ver: '1.0', seq: 1, cmd: 'info', ok: true, status: 1 };
+  const statusResponse = { ver: '1.0', seq: 3, cmd: 'status', ok: true, status: 1 };
+  const response = `${JSON.stringify(infoResponse)}${JSON.stringify(statusResponse)}`;
+  const waitingInfo = session.waitFor((payload) => payload.cmd === 'info' && payload.seq === 1, 100, 'TEST_TIMEOUT', 'test');
+  const waitingStatus = session.waitFor((payload) => payload.cmd === 'status' && payload.seq === 3, 100, 'TEST_TIMEOUT', 'test');
+
+  for (let offset = 0; offset < response.length; offset += 20) {
+    const fragment = Buffer.from(response.slice(offset, offset + 20), 'utf8');
+    session.handleValue({
+      deviceId: 'wechat-device-id',
+      characteristicId: '0000FFE1-0000-1000-8000-00805F9B34FB',
+      value: fragment.buffer.slice(fragment.byteOffset, fragment.byteOffset + fragment.byteLength)
+    });
+  }
+
+  assert.deepEqual(await waitingInfo, infoResponse);
+  assert.deepEqual(await waitingStatus, statusResponse);
+  assert.equal(session.receiveBuffer, '');
+  assert.equal(session.receiveLfCount, 0);
+  assert.equal(session.lastReceiveSummary, 'cmd=status,seq=3,ok=true,status=1');
+  assert.equal(states.some((state) => state.stage === 'PROTOCOL_WARNING'), false);
+});
+
+test('BLE receive timeout exposes structural diagnostics without payload secrets', async () => {
+  const session = new BleVerificationSession({ qualification: {}, clientRequestId: 'test-receive-diagnostic' });
+  session.deviceId = 'wechat-device-id';
+  session.notifyCharacteristicId = 'FFE1';
+  const partial = Buffer.from('{"device_id":"LAF82E0CC8C5B9","nonce":"00112233445566778899aabbccddeeff"', 'utf8');
+  const waiting = session.waitFor(() => false, 5, 'BLE_INFO_TIMEOUT', 'test timeout');
+  session.handleValue({
+    deviceId: 'wechat-device-id',
+    characteristicId: 'FFE1',
+    value: partial.buffer.slice(partial.byteOffset, partial.byteOffset + partial.byteLength)
+  });
+
+  await assert.rejects(waiting, (error) => {
+    assert.equal(error.code, 'BLE_INFO_TIMEOUT');
+    const feedback = require(path.join(root, 'miniprogram-app/miniprogram/services/ble-verification.js')).errorFeedback(error);
+    assert.match(feedback.receiveDiagnostic, /通知片长：\d+/);
+    assert.match(feedback.receiveDiagnostic, /完整闭合：否/);
+    assert.match(feedback.receiveDiagnostic, /首\/尾：7B\/[0-9A-F]{2}/);
+    assert.match(feedback.receiveDiagnostic, /LF：0/);
+    assert.match(feedback.receiveDiagnostic, /最近回包：无/);
+    assert.doesNotMatch(feedback.receiveDiagnostic, /LAF82E0CC8C5B9|00112233445566778899aabbccddeeff|device_id|nonce/);
+    return true;
+  });
+  assert.match(pageWxml, /接收诊断：\{\{bleReceiveDiagnostic\}\}/);
+});
+
 test('BLE write failures expose safe command and chunk diagnostics without authorization data', async (t) => {
   const previousWx = global.wx;
   let writeCount = 0;
