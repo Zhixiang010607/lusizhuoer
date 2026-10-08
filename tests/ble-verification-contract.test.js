@@ -19,6 +19,8 @@ const migration = fs.readFileSync(path.join(root, 'database/migrations/066_ble_v
 const verifySql = fs.readFileSync(path.join(root, 'database/cloudbase-console/066-readonly-verify.sql'), 'utf8');
 const registryCleanupSql = fs.readFileSync(path.join(root, 'database/cloudbase-console/066-02-retire-legacy-device-registry.sql'), 'utf8');
 const magicDeviceMigration = fs.readFileSync(path.join(root, 'database/migrations/069_magic_soft_skin_ble_identity.sql'), 'utf8');
+const reusableNonceMigration = fs.readFileSync(path.join(root, 'database/migrations/071_allow_reused_ble_nonce.sql'), 'utf8');
+const reusableNonceVerifySql = fs.readFileSync(path.join(root, 'database/cloudbase-console/071-readonly-verify.sql'), 'utf8');
 
 test('BLE verification uses 90-second qualification and 30-second device authorization', () => {
   assert.match(migration, /INTERVAL '90 seconds'/);
@@ -46,27 +48,24 @@ test('test builds allow ten seconds for both authorization and fallback status r
   assert.ok(bleSource.indexOf('await waiting') < bleSource.indexOf('await this.queryWorking(info)'));
 });
 
-test('read-only get_info retries at most once without a fixed notification delay', async () => {
-  assert.match(bleSource, /const INFO_RETRY_AFTER_MS = 2000/);
+test('read-only get_info retries once only after five silent seconds inside one ten-second wait', async () => {
+  assert.match(bleSource, /const INFO_RETRY_AFTER_MS = 5000/);
   assert.doesNotMatch(bleSource, /NOTIFY_SETTLE_MS|await pause\(/);
 
   const states = [];
   const writes = [];
-  const waitCalls = [];
   const session = new BleVerificationSession({
     qualification: {},
     clientRequestId: 'test-info-retry',
     onState: (state) => states.push(state)
   });
-  session.write = async (payload) => writes.push(payload);
-  session.waitFor = (_predicate, timeout, code) => {
-    waitCalls.push({ timeout, code });
-    if (waitCalls.length === 1) {
-      const error = new Error('first info was not delivered');
-      error.code = code;
-      return Promise.reject(error);
+  session.infoRetryAfterMs = 5;
+  session.infoTimeoutMs = 50;
+  session.write = async (payload) => {
+    writes.push({ ...payload });
+    if (writes.length === 2) {
+      setTimeout(() => session.dispatch({ ver: '1.0', seq: 1, cmd: 'info', ok: true, status: 1 }), 0);
     }
-    return Promise.resolve({ ver: '1.0', seq: 1, cmd: 'info', ok: true, status: 1 });
   };
 
   const info = await session.readInfo();
@@ -74,22 +73,74 @@ test('read-only get_info retries at most once without a fixed notification delay
   assert.equal(info.cmd, 'info');
   assert.equal(writes.length, 2);
   assert.ok(writes.every((payload) => payload.cmd === 'get_info' && payload.seq === 1));
-  assert.equal(waitCalls.length, 2);
-  assert.deepEqual(waitCalls.map((item) => item.code), ['BLE_INFO_RETRY_REQUIRED', 'BLE_INFO_TIMEOUT']);
-  assert.equal(waitCalls[0].timeout, 2000);
-  assert.ok(waitCalls[1].timeout > 0 && waitCalls[1].timeout <= 10000);
+  assert.deepEqual(writes[0], writes[1]);
   assert.equal(states.some((state) => state.stage === 'DEVICE_READING_RETRY'), true);
   assert.equal(writes.some((payload) => payload.cmd === 'auth'), false);
+});
+
+test('any incoming get_info fragment suppresses the retry while the complete frame keeps assembling', async () => {
+  const states = [];
+  const writes = [];
+  const session = new BleVerificationSession({
+    qualification: {},
+    clientRequestId: 'test-info-partial',
+    onState: (state) => states.push(state)
+  });
+  session.infoRetryAfterMs = 5;
+  session.infoTimeoutMs = 50;
+  session.write = async (payload) => {
+    writes.push({ ...payload });
+    setTimeout(() => { session.receivePacketCount += 1; }, 1);
+    setTimeout(() => session.dispatch({ ver: '1.0', seq: 1, cmd: 'info', ok: true, status: 1 }), 10);
+  };
+
+  const info = await session.readInfo();
+
+  assert.equal(info.cmd, 'info');
+  assert.equal(writes.length, 1);
+  assert.equal(states.some((state) => state.stage === 'DEVICE_READING_PARTIAL'), true);
+  assert.equal(states.some((state) => state.stage === 'DEVICE_READING_RETRY'), false);
+});
+
+test('BLE cleanup unsubscribes and closes the old connection before closing the adapter', async (t) => {
+  const previousWx = global.wx;
+  const calls = [];
+  global.wx = {
+    offBLECharacteristicValueChange(handler) { calls.push(['off', handler]); },
+    stopBluetoothDevicesDiscovery({ complete }) { calls.push(['stop']); complete({}); },
+    notifyBLECharacteristicValueChange({ state, complete }) { calls.push(['notify', state]); complete({}); },
+    closeBLEConnection({ deviceId, complete }) { calls.push(['connection', deviceId]); complete({}); },
+    closeBluetoothAdapter({ complete }) { calls.push(['adapter']); complete({}); }
+  };
+  t.after(() => {
+    if (previousWx === undefined) delete global.wx;
+    else global.wx = previousWx;
+  });
+
+  const session = new BleVerificationSession({ qualification: {}, clientRequestId: 'test-cleanup' });
+  session.deviceId = 'wechat-device-id';
+  session.serviceId = 'FFE0';
+  session.notifyCharacteristicId = 'FFE1';
+  await session.closeConnection();
+  await session.closeConnection();
+
+  assert.deepEqual(calls.map((item) => item[0]), ['off', 'stop', 'notify', 'connection', 'adapter']);
+  assert.equal(calls[2][1], false);
 });
 
 test('client supports reopenable QR window and irreversible success navigation', () => {
   assert.match(pageSource, /openBleWindow/);
   assert.match(pageSource, /closeBleWindow/);
+  assert.match(pageSource, /await session\.cancel\(\)/);
+  assert.match(pageSource, /本轮连接已完全关闭，资格有效期内可重新扫码/);
+  assert.match(pageWxml, /bleAuthorizationSent \|\| bleStage === 'SERVER_AUTHORIZING'/);
   assert.match(pageSource, /blePermanentlyClosed/);
   assert.match(pageSource, /wx\.redirectTo/);
   assert.match(pageSource, /clearProgress/);
   assert.match(bleSource, /BLE_QR_CANCELLED/);
   assert.match(bleSource, /BLE_WINDOW_CLOSED/);
+  assert.match(bleSource, /await bleCleanupBarrier/);
+  assert.match(bleSource, /if \(this\.cancelled\) return/);
 });
 
 test('only a live device authorization locks the selected store and customer', () => {
@@ -113,7 +164,7 @@ test('a terminal stale authorization releases only the previous submission lock'
 
 test('device identity is checked without a device registry and QR codes stay hashed in audit', () => {
   assert.equal(facePackage.dependencies['pinyin-pro'], '3.27.0');
-  assert.match(faceSource, /BLE_AUTH_SIGNING_KEY/);
+  assert.doesNotMatch(faceSource, /BLE_AUTH_SIGNING_KEY/);
   assert.match(faceSource, /device_id/);
   assert.match(faceSource, /device_type/);
   assert.match(faceSource, /nonce/);
@@ -428,25 +479,55 @@ test('BLE write failures expose safe command and chunk diagnostics without autho
   assert.match(pageWxml, /发送诊断：\{\{bleErrorDetail\}\}/);
 });
 
-test('BLE production key is mandatory, format-checked and sent directly as signature', () => {
+test('BLE signature exactly follows the supplier Caesar example and needs no production key', () => {
   const creation = faceSource.slice(
     faceSource.indexOf('async function createVerificationBleQualification'),
     faceSource.indexOf('async function recoverVerificationBleQualification')
   );
   const signing = faceSource.slice(
-    faceSource.indexOf('function verificationBleSigningKey'),
+    faceSource.indexOf('function verificationBleSignature'),
     faceSource.indexOf('async function createVerificationBleQualification')
   );
-  assert.match(faceSource, /BLE_SIGNING_KEY_MISSING/);
-  assert.match(signing, /\^\[0-9a-f\]\{64\}\$/);
-  assert.match(signing, /function verificationBleSignature\(\) \{\s*return verificationBleSigningKey\(\);\s*\}/);
-  assert.doesNotMatch(signing, /createHmac|canonical|payload/);
-  assert.match(faceSource, /const signature = verificationBleSignature\(\)/);
-  assert.ok(creation.indexOf('verificationBleSigningKey();') < creation.indexOf('INSERT INTO public.verification_ble_qualifications'));
+  const buildSignature = new Function(
+    'fail',
+    `${signing}\nreturn verificationBleSignature;`
+  )((message, code) => {
+    const error = new Error(message);
+    error.code = code;
+    throw error;
+  });
+
+  assert.equal(
+    buildSignature('00112233445566778899aabbccddeeff'),
+    '41638537597196183052aecgeigdifkh'
+  );
+  assert.equal(
+    buildSignature('00112233445566778899AABBCCDDEEFF'),
+    '41638537597196183052aecgeigdifkh'
+  );
+  assert.match(signing, /const offset = \(4 \* \(index \+ 1\)\) % 7/);
+  assert.match(signing, /% 10/);
+  assert.match(signing, /% 26/);
+  assert.doesNotMatch(faceSource, /BLE_AUTH_SIGNING_KEY|BLE_SIGNING_KEY_MISSING/);
+  assert.doesNotMatch(signing, /createHmac|canonical|productionKey/);
+  assert.match(faceSource, /const signature = verificationBleSignature\(nonce\)/);
+  assert.ok(creation.indexOf('INSERT INTO public.verification_ble_qualifications') >= 0);
   assert.doesNotMatch(creation, /RETURNING\s+\*/i);
   assert.match(creation, /WHERE qualification\.idempotency_key/);
   assert.match(creation, /BLE_QUALIFICATION_CREATE_FAILED/);
   assert.match(creation, /qualification\?\.verification_id/);
+});
+
+test('the same device nonce may be reused by separate qualifications without weakening per-order uniqueness', () => {
+  assert.match(reusableNonceMigration, /DROP CONSTRAINT IF EXISTS verification_ble_authorizations_device_id_nonce_key/);
+  assert.match(reusableNonceMigration, /idx_verification_ble_authorization_device_nonce/);
+  assert.match(reusableNonceVerifySql, /device nonce global unique constraint removed/);
+  assert.match(reusableNonceVerifySql, /qualification remains one authorization only/);
+  assert.match(reusableNonceVerifySql, /authorization token remains unique/);
+  assert.match(faceSource, /BLE_NONCE_POLICY_NOT_MIGRATED/);
+  assert.doesNotMatch(faceSource, /BLE_NONCE_REUSED/);
+  assert.match(migration, /qualification_id BIGINT NOT NULL UNIQUE/);
+  assert.match(migration, /authorization_token VARCHAR\(48\) NOT NULL UNIQUE/);
 });
 
 test('BLE tables are service-only and readonly verifier cannot mutate data', () => {
@@ -465,8 +546,8 @@ test('mini-program maps QR, Bluetooth, protocol and device failures to explicit 
   ].forEach((code) => assert.match(bleSource + pageSource, new RegExp(code)));
   ['1001', '1002', '1003', '1004', '1005', '1006', '1007', '1008', '1009', '1011']
     .forEach((code) => assert.match(bleSource, new RegExp(`${code}:`)));
-  assert.match(faceSource, /没有因此证明核销已完成/);
-  assert.match(bleSource, /这不代表核销已经完成/);
+  assert.match(faceSource, /数据库尚未执行允许设备重复随机码的迁移 071/);
+  assert.match(bleSource, /请管理员先执行数据库迁移 071/);
 });
 
 test('mini-program rejects incomplete qualification, hides raw technical errors and keeps the action in document flow', () => {

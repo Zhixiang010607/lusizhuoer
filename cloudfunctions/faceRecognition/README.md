@@ -2,11 +2,13 @@
 
 该函数仅在 CloudBase 后端运行，用于门店与老师共享的客户建档、照片质量检测、私有照片留存、人脸人员库录入、1:1 核验和业务数据接口。总部只保留查询、审核、管理与已有记录读取，不能新建客户或业务工单。客户不需要提供身份证。核销单照片的列表、原图、导出及三个补充照片位上传已拆到独立的 `verificationPhoto v12`；当前静态前端不再把这些照片动作发给本函数。
 
-当前版本：`v117`
+当前版本：`v118`
 
-`v117` 把一张核销工单最多五张缩略图的私有地址签名从 2 路、最多 3 轮改为 5 路单轮并发；底层照片可靠性层仍把全局签名并发限制为 6，并保留瞬时存储错误的有界重试。原图仍只在用户点击、保存或导出时按权限签发，不会为了首屏速度提前读取高清照片。`v116` 的固定生产 Key BLE 协议完整保留。
+`v118` 按设备端确认的凯撒规则生成 `auth.signature`：把 32 位十六进制 `nonce` 统一为小写；对从 0 开始的字符位置 `index` 使用偏移量 `(4 × (index + 1)) mod 7`；数字在 `0—9` 内循环，小写字母在 `a—z` 内循环。固定验收样例 `00112233445566778899aabbccddeeff` 必须得到 `41638537597196183052aecgeigdifkh`。本版本不再读取 `BLE_AUTH_SIGNING_KEY`。迁移 071 同时取消 `device_id + nonce` 的跨核销全局唯一约束，允许简单设备在不同资格中重复同一个随机码；每个资格、授权令牌、最终工单和扣次事务仍保持唯一／幂等。设备固件、迁移 071 与 v118 必须协调切换。
 
-`v116` 按最终设备协议把 `auth.signature` 改为云函数环境变量 `BLE_AUTH_SIGNING_KEY` 的原值：不再计算 HMAC，也不再构造 canonical string。该变量必须正好是 64 位小写十六进制字符串；设备端收到完整 `auth` 后，将 `signature` 与本机烧录的同一生产 Key 逐字比较。`device_id`、`device_type`、`nonce`、`usage_count`、`issued_at` 和 `expire_at` 仍须独立校验。此协议与仍按 HMAC 验签的旧固件不兼容，服务端 v116 与设备固件必须同步切换；不需要新增数据库迁移。
+`v117` 把一张核销工单最多五张缩略图的私有地址签名从 2 路、最多 3 轮改为 5 路单轮并发；底层照片可靠性层仍把全局签名并发限制为 6，并保留瞬时存储错误的有界重试。原图仍只在用户点击、保存或导出时按权限签发，不会为了首屏速度提前读取高清照片。该版本当时继续使用 `v116` 的固定生产 Key BLE 协议；该协议已被 v118 明确取代。
+
+`v116` 曾把 `auth.signature` 设为云函数环境变量 `BLE_AUTH_SIGNING_KEY` 的原值。该固定 Key 协议仅用于 v116—v117，已由 v118 的 nonce 凯撒签名规则取代，不得继续作为当前设备实现依据。
 
 `v115` 修复 BLE 设备进入工作态后的服务端确认查询：不再把 PostgreSQL 保留关键字 `authorization` 用作表别名，避免 `SQLSTATE 42601` 使已进入工作态的授权无法继续完成原子核销。资格、一次性授权、随机数、次数和设备协议均未改变，也不需要新增数据库迁移。
 
@@ -32,9 +34,9 @@ v108 在 PostgreSQL 查询结果离开云函数前统一规范化 `*_at`、`*_ti
 
 v108 同时修正客户主页的历史统计口径：客户抬头和逐项目“累计充值”只汇总审核通过的 `NEW` 充值原始次数，审核通过的 `REFUND` 作为“累计退费”单独返回；退费不会倒减历史累计充值。逐项目“剩余”仍读取 `customer_product_balances.remaining_count` 的净余额，退费额度与余额风控也继续使用数据库净口径，不能用历史累计充值放宽可退额度。总部工作台原有充值／退费事件分列保持不变。
 
-v108 修复 BLE 资格写入后直接读取空结果导致的 `verification_id` TypeError：服务端现在先按幂等键写入，再按同一幂等键回查资格；未读到完整资格时返回受控错误且不扣次。缺少或不足 32 字节的 `BLE_AUTH_SIGNING_KEY` 会在创建 90 秒资格前被拒绝，小程序只显示简短中文反馈，不显示底层 SQL、TypeError 或堆栈。
+v108 修复 BLE 资格写入后直接读取空结果导致的 `verification_id` TypeError：服务端现在先按幂等键写入，再按同一幂等键回查资格；未读到完整资格时返回受控错误且不扣次。v118 不再要求 `BLE_AUTH_SIGNING_KEY`；小程序仍只显示简短中文反馈，不显示底层 SQL、TypeError 或堆栈。
 
-v108 最终取消设备注册表依赖。数据库只保留 `verification_ble_qualifications` 与 `verification_ble_authorizations` 两张短时资格／授权审计表；云函数不再查询设备主档、数据库设备白名单、预登记状态或配对码哈希。v116 起设备身份由二维码序列号、实时 BLE `get_info` 返回值、每次新 nonce、90／30 秒窗口和固定生产 Key 共同校验；更早版本的 HMAC-SHA256 规则已经退役。
+v108 最终取消设备注册表依赖。数据库只保留 `verification_ble_qualifications` 与 `verification_ble_authorizations` 两张短时资格／授权审计表；云函数不再查询设备主档、数据库设备白名单、预登记状态或配对码哈希。v118 起设备身份由二维码序列号、实时 BLE `get_info` 返回值、32 位 nonce、90／30 秒窗口和 nonce 凯撒签名共同校验；设备可以跨核销重复 nonce，但同一资格仍只能授权和扣次一次。更早版本的 HMAC-SHA256 与固定生产 Key 规则均已退役。
 
 ## 必需环境变量
 
@@ -43,7 +45,8 @@ v108 最终取消设备注册表依赖。数据库只保留 `verification_ble_qu
 - `FACE_GROUP_ID=lusizhuoerdatabase`
 - `CLOUDBASE_ENV_ID=rusizhuoer-d9gbcsgym07651694`：必须与 PostgreSQL 实例、PG 云存储桶和下面的 service role key 属于同一个 CloudBase 环境；运行平台已可靠注入同值 `TCB_ENV` 时可由它替代。
 - `CLOUDBASE_APIKEY`：平台托管的 CloudBase PG 云存储 service-role API Key，只能保存在云函数环境变量中。代码仍兼容旧变量 `CLOUDBASE_SERVICE_ROLE_KEY`；两者同时存在时优先使用 `CLOUDBASE_APIKEY`。
-- `BLE_AUTH_SIGNING_KEY`：BLE 授权报文中 `signature` 字段使用的固定生产 Key，不是门店／老师填写项。它必须正好是 64 位小写十六进制字符串；同一个值分别写入 `faceRecognition` 云函数环境变量和设备受保护固件配置。v116 直接把该字符串放进 `auth.signature`，设备逐字比较，不做 HMAC 或 hex decode。不得把 Key 写入小程序、二维码、运行日志、README 或 GitHub，也不得与 AppSecret、API Key、照片清理令牌或二维码六位验证码复用。二维码六位码只是非秘密的现场会话字段，不是 Key，也不会保存到设备注册表（系统不存在该表）。
+
+v118 不需要 `BLE_AUTH_SIGNING_KEY`。部署前可从 `faceRecognition` 环境变量中删除该旧变量；保留它也不会被代码读取。二维码六位码只作现场会话字段，不参与凯撒签名。
 
 不要把腾讯云密钥写入前端 JavaScript、README 或 GitHub。
 
@@ -52,7 +55,7 @@ v108 最终取消设备注册表依赖。数据库只保留 `verification_ble_qu
 ## 老师与门店工作台（v108）
 
 新建老师只调用独立的 `teacherCreate v6/createTeacher`，该函数只创建账号和老师
-主档，不接收图片或建立老师人脸。`faceRecognition v117` 不接受老师创建、照片检测、
+主档，不接收图片或建立老师人脸。`faceRecognition v118` 不接受老师创建、照片检测、
 补录、替换、回读、回滚或最终清理委托，也不读取迁移 051 的老师人脸操作租约。
 
 v108 允许门店和老师办理正常核销，体验核销只允许老师账号。正常核销和体验核销都要求办理人员明确选择 1—999 次，次数进入幂等匹配；数据库按同一次数原子校验并扣减客户余额或老师体验额度，设备信号只读取数据库确认后的次数。两类核销都调用同一个 `verifyCustomerFace` 与 `persistVerifiedFaceEvidence`，现场只对所选客户的 `PersonId` 做 1:1 比对。门店充值、退费、正常核销和独立产品购买的业务老师全部可选；留空时不写老师归属，选择时必须是一位主档及登录账号均活跃的真实老师。老师账号的充值、退费、正常核销、体验核销和独立产品购买都由服务端自动绑定本人并拒绝改绑。有效 `teacher_id` 是老师统计、老师客户关系和历史业务老师显示的归属依据；门店提交时老师不必是提交账号，老师账号提交时则必须与该 `teacher_id` 为同一人，总部和退役角色的旧字段不构成归属。
@@ -128,13 +131,13 @@ v99 的 `recoverBusinessSubmission` 仅允许原提交账号、原门店按同�
 - 对象路径：人脸凭证使用 `face-evidence/<store>/<staff>/<token>/...`，新版补充照片使用 `records/<verificationId>/slot-<n>/direct-<timestamp>-<server nonce>.jpg`；路径全部由云函数随机生成，浏览器输入不会进入路径，每次替换都使用新对象名且签名禁止覆盖。
 - 每单固定展示 2 张人脸照片和 3 个补充照片位。迁移 054 后，正常核销与新体验核销的前两张都是客户登记照和客户现场照；迁移 049 至 053 期间生成的历史老师脸体验单继续标记为 `TEACHER` 并如实展示，不会把旧照片伪装成客户。补充照片只保存一份高清 JPEG，提交时服务端验证实际字节数、MIME、JPEG 文件头、真实尺寸和 SHA-256；缩略图由 CloudBase 图片处理按需生成。
 - 当前网页和小程序固定调用独立的 `verificationPhoto v12`，其响应为 `uploadMode=DIRECT`：数据库先建立／复用上传请求并锁定“每单一个进行中任务”，再签发任务随机私有对象的一次性 PUT 地址。客户端直接发送 JPEG 字节，提交函数只接收工单和任务编号，并从对象存储回读校验后原子绑定。独立服务拒绝 Base64 图片事件。
-- `faceRecognition v117` 暂时保留旧客户端的 `DIRECT`／精确 `FUNCTION` 回退实现；当前生产前端不调用这组兼容照片动作。两个函数均不会接受客户端指定的桶或对象路径，独立服务签名失败时会取消精确任务而不转入函数字节中转。
+- `faceRecognition v118` 暂时保留旧客户端的 `DIRECT`／精确 `FUNCTION` 回退实现；当前生产前端不调用这组兼容照片动作。两个函数均不会接受客户端指定的桶或对象路径，独立服务签名失败时会取消精确任务而不转入函数字节中转。
 - 原图和缩略图设置私有长期缓存；数据库从不保存签名 URL。详情首屏仅以最多 2 路并发准备 5 张缩略图，不提前签发 5 张高清原图；点击时才重新校验权限、写查看审计并取得该照片的短时原图地址。页面先显示缩略图，再无闪烁替换为高清图；同页重复查看可复用仍有效的私有地址，并把已解码原图限制为最多 2 张。
 - 在本函数配置名为 `cleanup-verification-photo-drafts-hourly` 的每小时 Timer，只清除过期且未建单的人脸照片草稿。触发器使用 CloudBase `triggers` 配置，不携带 `action` 或清理凭证；v99 会严格验证平台保留的 `TRIGGER_SRC=timer`、函数名、事件类型、触发器名、时间和无终端用户 UID。取消／过期的迁移 039 补充照片任务由 `verificationPhoto` 的另一个 Timer 清理；两个触发器名不要互换。
 
 ## 部署
 
-上传包文件名必须为 `faceRecognition-v117.zip`。把本目录中的 `index.js`、`package.json` 和 `README.md` 放在 ZIP 根目录；不要再套一层目录。函数入口为 `index.main`，部署时安装 `package.json` 依赖。交付前必须回读 ZIP 根目录的 README 与运行时代码，确认两者均为 `v117`。
+上传包文件名必须为 `faceRecognition-v118.zip`。把本目录中的 `index.js`、`package.json` 和 `README.md` 放在 ZIP 根目录；不要再套一层目录。函数入口为 `index.main`，部署时安装 `package.json` 依赖。交付前必须回读 ZIP 根目录的 README 与运行时代码，确认两者均为 `v118`。
 
 在 `faceRecognition` 的触发器配置编辑器中填写以下完整配置。CloudBase 只接受顶层 `triggers` 数组；不要在这里填写业务事件、`action` 或 `cleanupToken`：
 
@@ -157,19 +160,19 @@ v99 的 `recoverBusinessSubmission` 仅允许原提交账号、原门店按同�
 1. 在完整 PostgreSQL migration 工具中执行 `database/migrations/039_direct_verification_photo_upload.sql`；腾讯云 SQL 编辑器则依次单独执行 `039-01`、`039-02`、`039-03`、`039-04`、`039-05`。
 2. 执行 `database/migrations/040_fix_verification_photo_commit_ambiguity.sql`；腾讯云 SQL 编辑器只需执行一次 `040-01-fix-verification-photo-commit-ambiguity.sql`。已经完成 039 的生产库不要重跑 039。
 3. 完成 046、总部封锁旧运营凭据、047 和 048 后，依次执行 `049-01` 至 `049-13`，再运行 `049-readonly-verify.sql`，全部必须为 `READY`。049 是向前迁移，不要修改或重跑生产已执行的 048。
-4. 执行迁移 050 的 7 段控制台 SQL并确认只读验收全部 `READY`，再按 053 指引退役旧老师人脸 Saga。`faceRecognition v117` 不依赖迁移 051／052，也不需要老师人脸操作恢复 Timer。
+4. 执行迁移 050 的 7 段控制台 SQL并确认只读验收全部 `READY`，再按 053 指引退役旧老师人脸 Saga。`faceRecognition v118` 不依赖迁移 051／052，也不需要老师人脸操作恢复 Timer。
 5. 完整执行迁移 054（CloudBase SQL 编辑器使用 `054-01-teacher-only-customer-face-experience.sql`），把新体验核销切换为老师账号赠送、客户人脸凭证。
-6. 将 `faceRecognition` 执行超时设为 **90 秒**；准备 `faceRecognition v117`、`verificationPhoto v12`、`staffAccount v81` 和 `teacherCreate v6`，但等 060—069 验收完成后再统一部署。`teacherCreate` 可设为 **60 秒、至少 256 MB**，且不再需要任何 FACE 或照片桶变量。
+6. 将 `faceRecognition` 执行超时设为 **90 秒**；准备 `faceRecognition v118`、`verificationPhoto v12`、`staffAccount v81` 和 `teacherCreate v6`，但等 060—071 验收完成后再统一部署。`teacherCreate` 可设为 **60 秒、至少 256 MB**，且不再需要任何 FACE 或照片桶变量。
 7. 完整执行迁移 055 并确认 3 行全部 `READY`，移除充值、退费、核销和体验核销中的旧老师人脸门禁；再执行 `056-01-experience-quota-column-ambiguity.sql`，确认返回 `READY`。
 8. 执行 `057-01-teacher-created-customer-access.sql`，确认字段、外键和索引 3 行全部为 `READY`。
 9. 按 `058-README.md` 执行三段 SQL，确认只读验收两行全部为 `READY`。
 10. 按 `059-README.md` 先执行只读预检，再执行写入文件和只读验收，确认业务老师矩阵全部为 `READY`。
 11. 按 060 README 建立独立产品主档，再按 061、062 README 建立并验收充值赠品明细与独立产品购买。
-12. 确认 063 的 8 行安全验收全部为 `READY`；短暂停止核销写入，执行 064。随后按 065 README 短暂停止充值、退费、核销和产品购买新建并执行 065；继续整文件执行 066，并在云函数环境变量配置独立的 `BLE_AUTH_SIGNING_KEY`。066 不登记设备，只建立短时资格和授权审计。最后在低峰期按 067 README 建立充值／退费查询索引并完成只读验收。
-13. 执行并验收 068、069、070，配置至少 32 字节的 `CUSTOMER_RATING_SIGNING_KEY` 及实际 `rating.html` 地址 `CUSTOMER_RATING_BASE_URL`，准备 `customerRating-v8.zip`。如果旧版 066 曾建立第三张设备注册表，先执行 `066-02-retire-legacy-device-registry.sql`；再部署 `faceRecognition v117` 及同轮配套函数，分别调用 `health` 核对实际版本，最后发布包含三项固定评价和新 BLE 识别规则的客户端。
+12. 确认 063 的 8 行安全验收全部为 `READY`；短暂停止核销写入，执行 064。随后按 065 README 短暂停止充值、退费、核销和产品购买新建并执行 065；继续整文件执行 066。066 不登记设备，只建立短时资格和授权审计。最后在低峰期按 067 README 建立充值／退费查询索引并完成只读验收。
+13. 执行并验收 068、069、070、071，配置至少 32 字节的 `CUSTOMER_RATING_SIGNING_KEY` 及实际 `rating.html` 地址 `CUSTOMER_RATING_BASE_URL`，准备 `customerRating-v8.zip`。如果旧版 066 曾建立第三张设备注册表，先执行 `066-02-retire-legacy-device-registry.sql`；设备固件切换到凯撒签名后再部署 `faceRecognition v118` 及同轮配套函数，分别调用 `health` 核对实际版本，最后发布包含三项固定评价和新 BLE 识别规则的客户端。
 
-当前切换顺序为“确认 048—050 与 053 已完成 → 依次执行并验收 054—065 → 执行 066 并配置 `BLE_AUTH_SIGNING_KEY` → 低峰期执行并验收 067 → 部署
-`faceRecognition v117`、同轮配套的 `verificationPhoto v12`、`staffAccount v81`、`teacherCreate v6`、`customerRating v8` → 分别 health → 运行 065—070 只读验收 →
+当前切换顺序为“确认 048—050 与 053 已完成 → 依次执行并验收 054—065 → 执行 066 → 低峰期执行并验收 067—071 → 设备固件切换凯撒签名 → 部署
+`faceRecognition v118`、同轮配套的 `verificationPhoto v12`、`staffAccount v81`、`teacherCreate v6`、`customerRating v8` → 分别 health → 运行 065—071 只读验收 →
 发布当前静态前端”。不要再发送任何老师人脸 action；新体验核销只能调用客户 1:1
 人脸验证。
 
@@ -184,7 +187,7 @@ v99 的 `recoverBusinessSubmission` 仅允许原提交账号、原门店按同�
 ```json
 {
   "ok": true,
-  "version": "v117",
+  "version": "v118",
   "photoBucketId": "customer-photos",
   "verificationPhotoBucketId": "verification-photos",
   "verificationPhotoFallbackBucketId": "customer-photos",

@@ -3,11 +3,12 @@ const { readSession } = require("./session");
 
 const STORAGE_PREFIX = "lusizhuoerMiniBleVerificationV1:";
 const INFO_TIMEOUT_MS = 10000;
-const INFO_RETRY_AFTER_MS = 2000;
+const INFO_RETRY_AFTER_MS = 5000;
 const AUTH_TIMEOUT_MS = 10000;
 const STATUS_TIMEOUT_MS = 10000;
 const DISCOVERY_TIMEOUT_MS = 15000;
 const WRITE_CHUNK_BYTES = 20;
+let bleCleanupBarrier = Promise.resolve();
 
 const BLE_GATT_PROFILES = Object.freeze({
   "LASER-BLE": Object.freeze({
@@ -85,6 +86,16 @@ function wxPromise(method, options = {}) {
       success: resolve,
       fail: (cause) => reject(bleError(`WX_${method.toUpperCase()}_FAILED`, cause?.errMsg || `${method} 失败`, cause))
     });
+  });
+}
+
+function wxComplete(method, options = {}) {
+  return new Promise((resolve) => {
+    if (typeof wx[method] !== "function") {
+      resolve();
+      return;
+    }
+    wx[method]({ ...options, complete: resolve });
   });
 }
 
@@ -225,11 +236,18 @@ class BleVerificationSession {
     this.cancelled = false;
     this.authorizationSent = false;
     this.discoveryFinish = null;
+    this.closePromise = null;
+    this.infoTimeoutMs = INFO_TIMEOUT_MS;
+    this.infoRetryAfterMs = INFO_RETRY_AFTER_MS;
     this.valueHandler = this.handleValue.bind(this);
   }
 
   state(stage, message, extra = {}) {
     this.onState({ stage, message, ...extra });
+  }
+
+  ensureActive() {
+    if (this.cancelled) throw bleError("BLE_WINDOW_CLOSED", "二维码窗口已关闭；90 秒资格仍然保留。");
   }
 
   async scanQr() {
@@ -245,6 +263,8 @@ class BleVerificationSession {
   }
 
   async openAdapter() {
+    await bleCleanupBarrier;
+    this.ensureActive();
     this.state("ADAPTER_OPENING", "正在开启蓝牙");
     try {
       await wxPromise("openBluetoothAdapter", { mode: "central" });
@@ -376,6 +396,7 @@ class BleVerificationSession {
   }
 
   handleValue(event) {
+    if (this.cancelled) return;
     if (String(event?.deviceId || "") !== this.deviceId) return;
     if (String(event?.characteristicId || "").toLowerCase() !== this.notifyCharacteristicId.toLowerCase()) return;
     const bytes = new Uint8Array(event.value || new ArrayBuffer(0));
@@ -545,13 +566,14 @@ class BleVerificationSession {
     }
   }
 
-  async readInfoAttempt(timeout, timeoutCode, timeoutMessage) {
+  async readInfo() {
+    this.state("DEVICE_READING", "正在读取设备状态");
     const waiting = this.waitFor(
       (payload) => ["info", "get_info_result"].includes(String(payload?.cmd || payload?.type || "").toLowerCase())
         && Number(payload?.seq) === 1,
-      timeout,
-      timeoutCode,
-      timeoutMessage
+      this.infoTimeoutMs,
+      "BLE_INFO_TIMEOUT",
+      "设备在 10 秒内没有返回状态，请重新连接设备。"
     );
     // Attach both handlers before writing. If the BLE write itself fails, the
     // pending waiter may be rejected during connection cleanup without ever
@@ -560,37 +582,33 @@ class BleVerificationSession {
       (value) => ({ ok: true, value }),
       (error) => ({ ok: false, error })
     );
-    await this.write({
+    const command = {
       ver: "1.0",
       seq: 1,
       cmd: "get_info",
       ts: Math.floor(Date.now() / 1000)
-    });
-    const settled = await outcome;
-    if (!settled.ok) throw settled.error;
-    return settled.value;
-  }
+    };
+    const packetsBeforeRequest = this.receivePacketCount;
+    await this.write(command);
 
-  async readInfo() {
-    this.state("DEVICE_READING", "正在读取设备状态");
-    const deadline = Date.now() + INFO_TIMEOUT_MS;
-    let info;
-    try {
-      info = await this.readInfoAttempt(
-        INFO_RETRY_AFTER_MS,
-        "BLE_INFO_RETRY_REQUIRED",
-        "首次设备状态回包未到达。"
-      );
-    } catch (error) {
-      if (error?.code !== "BLE_INFO_RETRY_REQUIRED") throw error;
-      this.state("DEVICE_READING_RETRY", "首次状态回包未到达，正在自动重试一次");
-      const remaining = Math.max(1, deadline - Date.now());
-      info = await this.readInfoAttempt(
-        remaining,
-        "BLE_INFO_TIMEOUT",
-        "设备在 10 秒内没有返回状态，请重新连接设备。"
-      );
+    let retryTimer;
+    const retryCheck = new Promise((resolve) => {
+      retryTimer = setTimeout(() => resolve({ retryCheck: true }), this.infoRetryAfterMs);
+    });
+    const firstPhase = await Promise.race([outcome, retryCheck]);
+    clearTimeout(retryTimer);
+    let settled = firstPhase;
+    if (firstPhase?.retryCheck) {
+      if (this.receivePacketCount === packetsBeforeRequest) {
+        this.state("DEVICE_READING_RETRY", "5 秒内没有收到任何设备数据，正在补发同一条读取指令");
+        await this.write(command);
+      } else {
+        this.state("DEVICE_READING_PARTIAL", "已收到设备分片，继续等待完整状态，不重复发送指令");
+      }
+      settled = await outcome;
     }
+    if (!settled.ok) throw settled.error;
+    const info = settled.value;
     if (info.ok === false || info.error || Number(info.code || 0) >= 400) throw bleError(`BLE_DEVICE_${info.code || "ERROR"}`, localProtocolError(info));
     return info;
   }
@@ -653,12 +671,17 @@ class BleVerificationSession {
     let authorizationToken = "";
     try {
       qr = await this.scanQr();
-      if (this.cancelled) throw bleError("BLE_WINDOW_CLOSED", "二维码窗口已关闭；资格仍然保留。");
+      this.ensureActive();
       await this.openAdapter();
+      this.ensureActive();
       const device = await this.discover(qr);
+      this.ensureActive();
       await this.connect(device);
+      this.ensureActive();
       await this.discoverProtocol();
+      this.ensureActive();
       info = this.validateInfo(qr, await this.readInfo());
+      this.ensureActive();
 
       const previous = readProgress();
       if (info.status === 2) {
@@ -679,6 +702,7 @@ class BleVerificationSession {
         throw bleError("BLE_AUTHORIZATION_ALREADY_ISSUED", "一次性设备授权已经签发；设备仍为待机状态，不能再次发送开机授权。");
       }
 
+      this.ensureActive();
       this.state("SERVER_AUTHORIZING", "正在向服务端申请一次性设备授权");
       const issued = await callFace("issueVerificationBleAuthorization", {
         qualificationToken: this.qualification.qualificationToken,
@@ -741,20 +765,35 @@ class BleVerificationSession {
     if (this.discoveryFinish) {
       this.discoveryFinish(bleError("BLE_WINDOW_CLOSED", "二维码窗口已关闭；90 秒资格仍然保留。"));
     }
-    if (!this.authorizationSent) this.closeConnection();
+    if (!this.authorizationSent) return this.closeConnection();
+    return Promise.resolve();
   }
 
   async closeConnection() {
-    this.waiters.splice(0).forEach((waiter) => {
-      clearTimeout(waiter.timer);
-      const error = bleError("BLE_CONNECTION_CLOSED", "蓝牙连接已关闭。");
-      error.receiveDiagnostic = this.lastReceiveDiagnostic || this.receiveDiagnostic(this.receiveBuffer, false);
-      waiter.reject(error);
-    });
-    if (typeof wx.offBLECharacteristicValueChange === "function") wx.offBLECharacteristicValueChange(this.valueHandler);
-    wx.stopBluetoothDevicesDiscovery({ complete: () => {} });
-    if (this.deviceId) wx.closeBLEConnection({ deviceId: this.deviceId, complete: () => {} });
-    wx.closeBluetoothAdapter({ complete: () => {} });
+    if (this.closePromise) return this.closePromise;
+    const cleanup = async () => {
+      this.waiters.splice(0).forEach((waiter) => {
+        clearTimeout(waiter.timer);
+        const error = bleError("BLE_CONNECTION_CLOSED", "蓝牙连接已关闭。");
+        error.receiveDiagnostic = this.lastReceiveDiagnostic || this.receiveDiagnostic(this.receiveBuffer, false);
+        waiter.reject(error);
+      });
+      if (typeof wx.offBLECharacteristicValueChange === "function") wx.offBLECharacteristicValueChange(this.valueHandler);
+      await wxComplete("stopBluetoothDevicesDiscovery");
+      if (this.deviceId && this.serviceId && this.notifyCharacteristicId) {
+        await wxComplete("notifyBLECharacteristicValueChange", {
+          deviceId: this.deviceId,
+          serviceId: this.serviceId,
+          characteristicId: this.notifyCharacteristicId,
+          state: false
+        });
+      }
+      if (this.deviceId) await wxComplete("closeBLEConnection", { deviceId: this.deviceId });
+      await wxComplete("closeBluetoothAdapter");
+    };
+    this.closePromise = bleCleanupBarrier.then(cleanup, cleanup);
+    bleCleanupBarrier = this.closePromise.catch(() => {});
+    return this.closePromise;
   }
 }
 
@@ -798,8 +837,6 @@ function errorFeedback(error) {
     BLE_AUTHORIZATION_DEVICE_LOCKED: ["资格已绑定原设备", "不能更换设备或重复开机。请连接原设备核对状态，或等待本次 90 秒资格结束后重新验证。", false],
     BLE_AUTHORIZATION_NOT_ACTIVE: ["一次性授权已失效", "禁止继续核销或重复开机，请检查原设备与原工单状态。", false],
     BLE_AUTHORIZATION_EXPIRED: ["设备开机授权已过期", "设备没有在一次性授权有效期内确认进入工作状态，本次没有核销；请检查设备状态后重新做人脸验证。", false],
-    BLE_SIGNING_KEY_MISSING: ["设备密钥未配置", "请管理员在 faceRecognition 云函数中配置 BLE_AUTH_SIGNING_KEY；本次没有扣次。", false],
-    BLE_SIGNING_KEY_INVALID: ["设备密钥配置错误", "BLE_AUTH_SIGNING_KEY 至少需要 32 字节；本次没有扣次。", false],
     BLE_SCHEMA_MISSING: ["BLE 数据表尚未部署", "请管理员执行 066 BLE 数据库脚本后再办理。", false],
     BLE_QUALIFICATION_EXPIRED: ["90 秒资格已过期", "本次没有扣次，请重新拍照做人脸验证。", false],
     BLE_QUALIFICATION_INVALID: ["设备资格无效", "资格与当前登录身份或业务参数不一致，请重新办理。", false],
@@ -809,7 +846,7 @@ function errorFeedback(error) {
     BLE_QUALIFICATION_RACE: ["资格已被其他请求使用", "已禁止重复授权；请先检查原设备和原工单状态。", false],
     BLE_AUTHORIZATION_INVALID: ["一次性授权无效", "禁止继续开机，请检查原办理记录并联系管理员。", false],
     BLE_AUTHORIZATION_NOT_FOUND: ["未找到一次性授权", "禁止重复扫码；请先检查原设备是否已经启动。", false],
-    BLE_NONCE_REUSED: ["设备会话已签发过授权", "这不代表核销已经完成。为防止设备重复启动，请先检查原工单和设备状态；确认设备已回到待机后，再让设备生成新随机数重新办理。", false],
+    BLE_NONCE_POLICY_NOT_MIGRATED: ["设备随机码兼容迁移未完成", "请管理员先执行数据库迁移 071；本次没有扣次。", false],
     BLE_DEVICE_NOT_WORKING: ["设备尚未进入工作状态", "服务端不会扣次；请保持连接并等待设备明确返回工作状态。", true],
     BLE_DEVICE_RECEIPT_MISMATCH: ["设备回执不一致", "设备回执与原授权不一致，已禁止生成工单；请联系管理员核查。", false],
     BLE_ALREADY_FINALIZED: ["核销已完成", "原核销工单已经生成，禁止再次扫码或重复扣次。", false],
@@ -819,15 +856,15 @@ function errorFeedback(error) {
     BLE_DEVICE_400: ["设备请求格式错误", "设备无法识别 V2.0 指令，请检查固件协议。", false],
     BLE_DEVICE_403: ["设备拒绝授权", "请检查设备状态和授权签名；禁止重复提交。", false],
     BLE_DEVICE_404: ["设备不支持命令", "请升级到支持 V2.0 get_info/auth/query_status 的固件。", false],
-    BLE_DEVICE_1001: ["设备判定签名无效", "请核对云函数与设备安全存储中的 HMAC 共享密钥。", false],
+    BLE_DEVICE_1001: ["设备判定签名无效", "请核对设备是否按当前 nonce 和约定凯撒规则逐字计算 signature。", false],
     BLE_DEVICE_1002: ["设备授权已过期", "本次一次性开机授权已经过期，不能重复发送；请检查设备状态后重新做人脸验证。", false],
     BLE_DEVICE_1003: ["设备随机数不一致", "请断开后重新连接，让设备返回当前随机数。", true],
-    BLE_DEVICE_1004: ["设备随机数已使用", "禁止重复开机；请先检查原工单，确认结束后生成新随机数。", false],
+    BLE_DEVICE_1004: ["设备拒绝重复授权", "不同核销允许重复 nonce；请确认设备只拦截同一笔 auth 的重复执行，不要永久封锁这个 nonce。", false],
     BLE_DEVICE_1005: ["设备正在工作", "请勿重复开机；如果是本次授权，系统会恢复原工单。", false],
     BLE_DEVICE_1006: ["设备编号不一致", "二维码设备编号与固件编号不一致，请停止使用该设备。", false],
     BLE_DEVICE_1007: ["设备类型不匹配", "请改扫当前项目对应类型的设备。", false],
     BLE_DEVICE_1008: ["设备不支持工作命令", "请升级设备固件后再办理。", false],
-    BLE_DEVICE_1009: ["设备安全配置不完整", "请检查设备固件、共享密钥和安全存储配置。", false],
+    BLE_DEVICE_1009: ["设备安全配置不完整", "请检查设备身份、凯撒签名实现和授权字段校验。", false],
     BLE_DEVICE_1011: ["设备不接受本次次数", "请核对本次次数与设备协议限制；不要擅自改成固定 1 次。", false]
   };
   const selected = catalog[code] || deviceCodes[code];

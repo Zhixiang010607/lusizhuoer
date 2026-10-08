@@ -547,11 +547,15 @@ Page({
       if (error.code === "BLE_AUTHORIZATION_RECOVERY_REQUIRED") await this.recoverPending();
     }
   },
-  closeBleWindow() {
+  async closeBleWindow() {
     if (this.data.blePermanentlyClosed) return;
-    if (this.data.bleRunning) return;
-    this.setData({ bleWindowVisible: false });
-    if (this._bleSession) this._bleSession.cancel();
+    if (this.data.bleAuthorizationSent
+      || ["SERVER_AUTHORIZING", "DEVICE_AUTHORIZING", "FINALIZING"].includes(String(this.data.bleStage || ""))) return;
+    const session = this._bleSession;
+    this.setData({ bleWindowVisible: false, bleStatusMessage: "正在关闭本轮蓝牙连接…" });
+    if (session) await session.cancel();
+    if (this._bleSession === session) this._bleSession = null;
+    this.setData({ bleRunning: false, bleStage: "", bleStatusMessage: "本轮连接已完全关闭，资格有效期内可重新扫码。" });
   },
   async startBleVerification() {
     if (this.data.bleRunning || this.data.blePermanentlyClosed) return;

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Generate the one-page HC-08 handoff sheet for the device-side team."""
 
-import os
 from pathlib import Path
 
 from reportlab.lib import colors
@@ -30,18 +29,6 @@ IVORY = colors.HexColor("#FFF9F0")
 LINE = colors.HexColor("#D7BE97")
 MUTED = colors.HexColor("#6F6255")
 RED = colors.HexColor("#A43C32")
-
-
-def load_production_key():
-    key_text = os.environ.get("BLE_DEVICE_PRODUCTION_KEY", "").strip()
-    key_file = os.environ.get("BLE_DEVICE_PRODUCTION_KEY_FILE", "").strip()
-    if key_text and key_file:
-        raise RuntimeError("只允许设置 BLE_DEVICE_PRODUCTION_KEY 或 BLE_DEVICE_PRODUCTION_KEY_FILE 之一")
-    if key_file:
-        key_text = Path(key_file).read_text(encoding="utf-8").strip().strip('"').strip("'")
-    if len(key_text) != 64 or any(ch not in "0123456789abcdef" for ch in key_text):
-        raise RuntimeError("生产 Key 缺失或格式错误：必须是 64 个小写十六进制字符")
-    return key_text
 
 
 def register_fonts():
@@ -101,13 +88,12 @@ def draw_page(canvas, doc):
     canvas.setFont("CN", 7.2)
     canvas.setFillColor(MUTED)
     canvas.drawString(16 * mm, 6.7 * mm, "露思卓儿｜魔法柔肤 LASER-BLE｜设备端接入说明")
-    canvas.drawRightString(width - 16 * mm, 6.7 * mm, "2026-10-07｜第 1 页 / 共 1 页")
+    canvas.drawRightString(width - 16 * mm, 6.7 * mm, "2026-10-08｜第 1 页 / 共 1 页")
     canvas.restoreState()
 
 
 def build():
     register_fonts()
-    production_key = load_production_key()
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     styles = {
         "title": style("title", 18, 23, align=TA_CENTER),
@@ -178,8 +164,8 @@ def build():
 
     flow_rows = [
         [Paragraph("1", styles["cellhead"]), Paragraph("连接后，小程序订阅 FFE1 通知；设备必须允许订阅成功。", styles["cell"])],
-        [Paragraph("2", styles["cellhead"]), Paragraph("把 get_info 的全部分片拼到 LF 后再解析；10 秒内返回 info：device_id、device_type、ble_name、status、nonce。", styles["cell"])],
-        [Paragraph("3", styles["cellhead"]), Paragraph("把 seq:2 / auth 的全部分片拼到 LF 后再解析；分别校验 device_id、device_type、nonce、expire_at、usage_count，并确认 signature 与生产 Key 完全相同。", styles["cell"])],
+        [Paragraph("2", styles["cellhead"]), Paragraph("把 get_info 的全部分片拼到 LF 后再解析；每条完整请求只回一条 info。手机 5 秒全静默时可能补发完全相同的请求，设备应重发缓存响应，不重复改变状态。", styles["cell"])],
+        [Paragraph("3", styles["cellhead"]), Paragraph("把 seq:2 / auth 的全部分片拼到 LF 后再解析；分别校验 device_id、device_type、nonce、expire_at、usage_count，并用本页凯撒规则重算、比较 signature。", styles["cell"])],
         [Paragraph("4", styles["cellhead"]), Paragraph("全部校验通过才进入工作态并持久化 status=2；随后返回 seq:2 / auth_result / ok=true / status=2。", styles["cell"])],
         [Paragraph("5", styles["cellhead"]), Paragraph("把 seq:3 / query_status 的全部分片拼到 LF 后再解析；10 秒内返回真实 status。未执行 auth 时只能返回待机状态 1。", styles["cell"])],
     ]
@@ -196,11 +182,13 @@ def build():
     ]))
     story += [flow_table, Spacer(1, 2.5 * mm)]
     story.append(box(
-        "四、固定 signature（设备只做字符串比较）",
-        "最终规则：<b>auth.signature 永远等于下面的生产 Key 原文</b>。不计算 HMAC-SHA256，不构造 canonical string，不做 hex decode；"
-        "按 64 个小写十六进制 ASCII 字符逐字比较即可。<br/>生产 Key：<br/>"
-        f'<font name="Courier" size="7.2">{production_key}</font><br/>'
-        "注意：固定 signature 只确认 Key 相同；设备仍必须独立校验本机 device_id、LASER-BLE、当次 nonce、usage_count、issued_at 与 expire_at。",
+        "四、signature 凯撒算法（必须与验收样例逐字一致）",
+        "输入：把 32 位十六进制 nonce 统一转成小写。对从 0 开始的每个位置 <b>index</b>，计算 "
+        "<b>offset = (4 × (index + 1)) mod 7</b>。数字只在 0-9 内循环右移；小写字母只在 a-z 内循环右移。"
+        "输出仍为 32 个 ASCII 字符，可能出现 g、i、k 等超出十六进制范围的字母。<br/>"
+        "固定验收输入：<font name=\"Courier\" size=\"7.2\">00112233445566778899aabbccddeeff</font><br/>"
+        "固定验收输出：<font name=\"Courier\" size=\"7.2\">41638537597196183052aecgeigdifkh</font><br/>"
+        "不使用生产 Key，不计算 HMAC，不构造 canonical string。设备用同一算法重算后逐字比较 signature。",
         styles,
     ))
     story.append(Spacer(1, 2.5 * mm))
@@ -209,11 +197,11 @@ def build():
         [
             [
                 Paragraph("五、设备端必须做到", styles["h2"]),
-                Paragraph("• FFE0/FFE1 固定，不因批次改变。<br/>• 三种下行指令全部按字节追加到同一接收缓冲区。<br/>• nonce 为 16 随机字节（32 位 hex），一次一用。<br/>• 生产 Key 离线烧录，不得在设备回包或日志中输出。<br/>• Key 不符、过期、nonce 不一致或已使用时禁止启动。<br/>• 只有真实进入工作态才能回 status=2。", styles["body"]),
+                Paragraph("• FFE0/FFE1 固定，不因批次改变。<br/>• 三种下行指令全部按字节追加到同一接收缓冲区。<br/>• nonce 固定为 32 位 hex；不同核销允许重复同一个 nonce。<br/>• 相同 cmd + seq + ts 的 get_info 只重发缓存响应。<br/>• 同一 auth 重复到达时不得再次启动；直接返回当前真实状态。<br/>• 只有真实进入工作态才能回 status=2。", styles["body"]),
             ],
             [
                 Paragraph("六、联调验收", styles["h2"]),
-                Paragraph("□ 微信能发现正确广播名<br/>□ 可订阅 FFE1 通知<br/>□ 每次写入 1-20 字节都能按序追加<br/>□ 三种指令均到 LF 后才解析<br/>□ 三类应答均在 10 秒内返回<br/>□ 完整 auth 不截断、不逐片报错<br/>□ 未收到 auth 时 query_status 返回 1", styles["body"]),
+                Paragraph("□ 微信能发现正确广播名<br/>□ 可订阅 FFE1 通知<br/>□ 每次写入 1-20 字节都能按序追加<br/>□ 三种指令均到 LF 后才解析<br/>□ 单条请求只发送一条响应<br/>□ 凯撒样例输出逐字一致<br/>□ 重复 nonce 的下一笔授权可正常开机<br/>□ 未收到 auth 时 query_status 返回 1", styles["body"]),
             ],
         ]
     ], colWidths=[91 * mm, 87 * mm])

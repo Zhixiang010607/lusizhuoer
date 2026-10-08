@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v117";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v118";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -4261,17 +4261,6 @@ function sha256Text(value) {
   return crypto.createHash("sha256").update(String(value || ""), "utf8").digest("hex");
 }
 
-function verificationBleSigningKey() {
-  const key = String(process.env.BLE_AUTH_SIGNING_KEY || "").trim();
-  if (!key) {
-    fail("设备签名密钥尚未配置，请管理员在 faceRecognition 云函数环境变量中配置 BLE_AUTH_SIGNING_KEY。", "BLE_SIGNING_KEY_MISSING");
-  }
-  if (!/^[0-9a-f]{64}$/.test(key)) {
-    fail("BLE 授权生产 Key 格式错误，请配置正好 64 位小写十六进制 BLE_AUTH_SIGNING_KEY。", "BLE_SIGNING_KEY_INVALID");
-  }
-  return key;
-}
-
 function verificationBleAuthorizationPayload(input) {
   return {
     command: "enter_work",
@@ -4284,8 +4273,18 @@ function verificationBleAuthorizationPayload(input) {
   };
 }
 
-function verificationBleSignature() {
-  return verificationBleSigningKey();
+function verificationBleSignature(nonce) {
+  const normalizedNonce = String(nonce || "").trim().toLowerCase();
+  if (!/^[0-9a-f]{32}$/.test(normalizedNonce)) {
+    fail("设备随机数格式不正确。", "BLE_NONCE_INVALID");
+  }
+  return Array.from(normalizedNonce, (character, index) => {
+    const offset = (4 * (index + 1)) % 7;
+    if (character >= "0" && character <= "9") {
+      return String.fromCharCode(48 + ((character.charCodeAt(0) - 48 + offset) % 10));
+    }
+    return String.fromCharCode(97 + ((character.charCodeAt(0) - 97 + offset) % 26));
+  }).join("");
 }
 
 async function createVerificationBleQualification(event) {
@@ -4293,8 +4292,6 @@ async function createVerificationBleQualification(event) {
   await requireVerificationSubmissionSchema();
   await requireVerificationFaceSubjectSchema();
   await requireVerificationBleSchema();
-  verificationBleSigningKey();
-
   const customerCode = String(event.customerCode || "").trim();
   if (!customerCode || customerCode.length > 96) fail("必须先确认本门店的活跃客户。", "CUSTOMER_REQUIRED");
   const productId = positiveDatabaseId(event.productId, "项目");
@@ -4621,7 +4618,7 @@ async function issueVerificationBleAuthorization(event) {
   const deviceId = String(device.device_id || device.deviceId || "").trim().toUpperCase();
   const deviceType = String(device.device_type || device.deviceType || "").trim();
   const bleName = String(device.ble_name || device.bleName || "").trim();
-  const nonce = String(device.nonce || "").trim();
+  const nonce = String(device.nonce || "").trim().toLowerCase();
   const status = Number(device.status);
   if (!/^[0-9a-f]{48}$/.test(qualificationToken)) fail("BLE 核销资格无效。", "BLE_QUALIFICATION_INVALID");
   if (!isSupportedVerificationDeviceSerial(qrSn) || !/^\d{6}$/.test(qrCode)) fail("设备二维码格式不正确。", "BLE_QR_INVALID");
@@ -4684,7 +4681,7 @@ async function issueVerificationBleAuthorization(event) {
   const payload = verificationBleAuthorizationPayload({
     deviceId, deviceType: canonicalDeviceType, nonce, unitCount: Number(qualification.unit_count), issuedAt, expireAt
   });
-  const signature = verificationBleSignature();
+  const signature = verificationBleSignature(nonce);
   const authorizationToken = crypto.randomBytes(24).toString("hex");
   try {
     await executeSql(
@@ -4702,10 +4699,10 @@ async function issueVerificationBleAuthorization(event) {
     if (detail.includes("qualification_id")) {
       fail("这次人脸资格已经签发过设备授权，不能重复开机。", "BLE_AUTHORIZATION_ALREADY_ISSUED");
     }
-    if (detail.includes("unique")) {
+    if (detail.includes("verification_ble_authorizations_device_id_nonce_key")) {
       fail(
-        "该设备会话此前已签发过一次性授权，但没有因此证明核销已完成。为防止重复开机，必须先核对原工单和设备状态，再由设备生成新随机数。",
-        "BLE_NONCE_REUSED"
+        "数据库尚未执行允许设备重复随机码的迁移 071，请管理员先完成迁移后重试。",
+        "BLE_NONCE_POLICY_NOT_MIGRATED"
       );
     }
     throw error;
