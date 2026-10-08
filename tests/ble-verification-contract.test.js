@@ -46,6 +46,44 @@ test('test builds allow ten seconds for both authorization and fallback status r
   assert.ok(bleSource.indexOf('await waiting') < bleSource.indexOf('await this.queryWorking(info)'));
 });
 
+test('notification setup settles once and read-only get_info retries at most once', async () => {
+  assert.match(bleSource, /const NOTIFY_SETTLE_MS = 200/);
+  assert.match(bleSource, /const INFO_RETRY_AFTER_MS = 2000/);
+  assert.match(bleSource, /await pause\(NOTIFY_SETTLE_MS\)/);
+  assert.doesNotMatch(bleSource, /await pause\([^)]*WRITE_CHUNK/);
+
+  const states = [];
+  const writes = [];
+  const waitCalls = [];
+  const session = new BleVerificationSession({
+    qualification: {},
+    clientRequestId: 'test-info-retry',
+    onState: (state) => states.push(state)
+  });
+  session.write = async (payload) => writes.push(payload);
+  session.waitFor = (_predicate, timeout, code) => {
+    waitCalls.push({ timeout, code });
+    if (waitCalls.length === 1) {
+      const error = new Error('first info was not delivered');
+      error.code = code;
+      return Promise.reject(error);
+    }
+    return Promise.resolve({ ver: '1.0', seq: 1, cmd: 'info', ok: true, status: 1 });
+  };
+
+  const info = await session.readInfo();
+
+  assert.equal(info.cmd, 'info');
+  assert.equal(writes.length, 2);
+  assert.ok(writes.every((payload) => payload.cmd === 'get_info' && payload.seq === 1));
+  assert.equal(waitCalls.length, 2);
+  assert.deepEqual(waitCalls.map((item) => item.code), ['BLE_INFO_RETRY_REQUIRED', 'BLE_INFO_TIMEOUT']);
+  assert.equal(waitCalls[0].timeout, 2000);
+  assert.ok(waitCalls[1].timeout > 0 && waitCalls[1].timeout <= 10000);
+  assert.equal(states.some((state) => state.stage === 'DEVICE_READING_RETRY'), true);
+  assert.equal(writes.some((payload) => payload.cmd === 'auth'), false);
+});
+
 test('client supports reopenable QR window and irreversible success navigation', () => {
   assert.match(pageSource, /openBleWindow/);
   assert.match(pageSource, /closeBleWindow/);

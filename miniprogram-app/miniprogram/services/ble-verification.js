@@ -3,6 +3,8 @@ const { readSession } = require("./session");
 
 const STORAGE_PREFIX = "lusizhuoerMiniBleVerificationV1:";
 const INFO_TIMEOUT_MS = 10000;
+const INFO_RETRY_AFTER_MS = 2000;
+const NOTIFY_SETTLE_MS = 200;
 const AUTH_TIMEOUT_MS = 10000;
 const STATUS_TIMEOUT_MS = 10000;
 const DISCOVERY_TIMEOUT_MS = 15000;
@@ -85,6 +87,10 @@ function wxPromise(method, options = {}) {
       fail: (cause) => reject(bleError(`WX_${method.toUpperCase()}_FAILED`, cause?.errMsg || `${method} 失败`, cause))
     });
   });
+}
+
+function pause(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(milliseconds) || 0)));
 }
 
 function sanitizeBleDiagnosticMessage(value) {
@@ -372,6 +378,11 @@ class BleVerificationSession {
     } catch (error) {
       throw bleError("BLE_NOTIFY_ENABLE_FAILED", "无法订阅设备通知通道，请检查特征属性和设备连接状态。", error);
     }
+    // WeChat can resolve the subscription call just before the phone and
+    // peripheral have fully settled the notification channel. Give that one
+    // newly-enabled channel a short setup window before the first read only;
+    // this is not a delay between 20-byte command chunks.
+    await pause(NOTIFY_SETTLE_MS);
   }
 
   handleValue(event) {
@@ -544,14 +555,20 @@ class BleVerificationSession {
     }
   }
 
-  async readInfo() {
-    this.state("DEVICE_READING", "正在读取设备状态");
+  async readInfoAttempt(timeout, timeoutCode, timeoutMessage) {
     const waiting = this.waitFor(
       (payload) => ["info", "get_info_result"].includes(String(payload?.cmd || payload?.type || "").toLowerCase())
         && Number(payload?.seq) === 1,
-      INFO_TIMEOUT_MS,
-      "BLE_INFO_TIMEOUT",
-      "设备在 10 秒内没有返回状态，请重新连接设备。"
+      timeout,
+      timeoutCode,
+      timeoutMessage
+    );
+    // Attach both handlers before writing. If the BLE write itself fails, the
+    // pending waiter may be rejected during connection cleanup without ever
+    // becoming an unhandled promise rejection.
+    const outcome = waiting.then(
+      (value) => ({ ok: true, value }),
+      (error) => ({ ok: false, error })
     );
     await this.write({
       ver: "1.0",
@@ -559,7 +576,31 @@ class BleVerificationSession {
       cmd: "get_info",
       ts: Math.floor(Date.now() / 1000)
     });
-    const info = await waiting;
+    const settled = await outcome;
+    if (!settled.ok) throw settled.error;
+    return settled.value;
+  }
+
+  async readInfo() {
+    this.state("DEVICE_READING", "正在读取设备状态");
+    const deadline = Date.now() + INFO_TIMEOUT_MS;
+    let info;
+    try {
+      info = await this.readInfoAttempt(
+        INFO_RETRY_AFTER_MS,
+        "BLE_INFO_RETRY_REQUIRED",
+        "首次设备状态回包未到达。"
+      );
+    } catch (error) {
+      if (error?.code !== "BLE_INFO_RETRY_REQUIRED") throw error;
+      this.state("DEVICE_READING_RETRY", "首次状态回包未到达，正在自动重试一次");
+      const remaining = Math.max(1, deadline - Date.now());
+      info = await this.readInfoAttempt(
+        remaining,
+        "BLE_INFO_TIMEOUT",
+        "设备在 10 秒内没有返回状态，请重新连接设备。"
+      );
+    }
     if (info.ok === false || info.error || Number(info.code || 0) >= 400) throw bleError(`BLE_DEVICE_${info.code || "ERROR"}`, localProtocolError(info));
     return info;
   }
