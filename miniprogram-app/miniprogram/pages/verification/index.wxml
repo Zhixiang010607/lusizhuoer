@@ -80,7 +80,7 @@
           <text class="ble-dialog-title">设备扫码与蓝牙连接</text>
           <text class="ble-countdown">资格剩余 {{qualificationSeconds}} 秒</text>
         </view>
-        <button wx:if="{{!blePermanentlyClosed}}" class="ble-close" bindtap="closeBleWindow" disabled="{{bleAuthorizationSent || bleStage === 'SERVER_AUTHORIZING' || bleStage === 'DEVICE_AUTHORIZING' || bleStage === 'FINALIZING'}}">关闭</button>
+        <button wx:if="{{!blePermanentlyClosed}}" class="ble-close" bindtap="closeBleWindow" disabled="{{bleAuthorizationSent || (bleRunning && bleStage !== 'QR_SCANNING' && bleStage !== 'DEVICE_DISCOVERING')}}">关闭</button>
       </view>
       <view class="ble-context">
         <view><text>项目</text><text class="ble-context-value">{{selectedProduct.productName}}</text></view>

@@ -133,7 +133,8 @@ test('client supports reopenable QR window and irreversible success navigation',
   assert.match(pageSource, /closeBleWindow/);
   assert.match(pageSource, /await session\.cancel\(\)/);
   assert.match(pageSource, /本轮连接已完全关闭，资格有效期内可重新扫码/);
-  assert.match(pageWxml, /bleAuthorizationSent \|\| bleStage === 'SERVER_AUTHORIZING'/);
+  assert.match(pageWxml, /bleRunning && bleStage !== 'QR_SCANNING' && bleStage !== 'DEVICE_DISCOVERING'/);
+  assert.match(pageSource, /const cancellableStage = \["QR_SCANNING", "DEVICE_DISCOVERING"\]/);
   assert.match(pageSource, /blePermanentlyClosed/);
   assert.match(pageSource, /wx\.redirectTo/);
   assert.match(pageSource, /clearProgress/);

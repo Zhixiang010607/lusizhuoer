@@ -549,8 +549,8 @@ Page({
   },
   async closeBleWindow() {
     if (this.data.blePermanentlyClosed) return;
-    if (this.data.bleAuthorizationSent
-      || ["SERVER_AUTHORIZING", "DEVICE_AUTHORIZING", "FINALIZING"].includes(String(this.data.bleStage || ""))) return;
+    const cancellableStage = ["QR_SCANNING", "DEVICE_DISCOVERING"].includes(String(this.data.bleStage || ""));
+    if (this.data.bleAuthorizationSent || (this.data.bleRunning && !cancellableStage)) return;
     const session = this._bleSession;
     this.setData({ bleWindowVisible: false, bleStatusMessage: "正在关闭本轮蓝牙连接…" });
     if (session) await session.cancel();

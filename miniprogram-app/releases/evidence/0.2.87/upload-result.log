@@ -1,0 +1,14 @@
+date=2026-10-08 Australia/Sydney
+version=0.2.87
+description=BLE重复回包与重扫隔离
+appid=wxb053c1bd6c684d8b
+source_commit=0c6c25af30031e78d4a807ffe4984cb15b32a5a8
+cli_result=upload success
+backend_progress=progressSuccess
+backend_remote_debug=reportNewRemoteDebug
+backend_total_ms=277572
+main_package_bytes=1791895
+total_package_bytes=3328770
+experience_version_readback=not performed
+submitted_for_review=no
+released=no

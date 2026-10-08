@@ -382,6 +382,7 @@ class BleVerificationSession {
       this.supportedWriteTypes = characteristicWriteTypes(writeCharacteristic);
       this.writeType = this.supportedWriteTypes[0];
     }
+    this.ensureActive();
     if (typeof wx.onBLECharacteristicValueChange === "function") wx.onBLECharacteristicValueChange(this.valueHandler);
     try {
       await wxPromise("notifyBLECharacteristicValueChange", {
