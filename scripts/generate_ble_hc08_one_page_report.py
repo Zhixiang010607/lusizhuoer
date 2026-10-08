@@ -96,14 +96,14 @@ def build():
     register_fonts()
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     styles = {
-        "title": style("title", 18, 23, align=TA_CENTER),
-        "sub": style("sub", 8.7, 12.5, MUTED, TA_CENTER),
-        "h2": style("h2", 10.5, 14, GOLD),
-        "body": style("body", 8.25, 12.2),
-        "small": style("small", 7.5, 10.7, MUTED),
-        "box": style("box", 8.2, 12.1),
-        "cell": style("cell", 7.8, 11.1),
-        "cellhead": style("cellhead", 7.8, 11.1, colors.white, TA_CENTER),
+        "title": style("title", 19.5, 24.5, align=TA_CENTER),
+        "sub": style("sub", 9.2, 13, MUTED, TA_CENTER),
+        "h2": style("h2", 11.2, 14.8, GOLD),
+        "body": style("body", 9.1, 13.4),
+        "small": style("small", 8.2, 11.5, MUTED),
+        "box": style("box", 9.1, 13.3),
+        "cell": style("cell", 8.6, 12.2),
+        "cellhead": style("cellhead", 8.6, 12.2, colors.white, TA_CENTER),
     }
 
     doc = SimpleDocTemplate(
@@ -119,7 +119,7 @@ def build():
 
     story = [
         Paragraph("魔法柔肤 HC-08 设备端一页接入说明", styles["title"]),
-        Paragraph("给设备固件开发／调试人员｜目的：让小程序稳定找到正确通道并完成授权开机", styles["sub"]),
+        Paragraph("给设备固件开发／调试人员｜按本页实现即可联调", styles["sub"]),
         Spacer(1, 3.5 * mm),
         box(
             "一、固定身份与 GATT（必须按此实现）",
@@ -136,7 +136,7 @@ def build():
         [Paragraph("方向", styles["cellhead"]), Paragraph("设备端动作", styles["cellhead"]), Paragraph("硬性要求", styles["cellhead"])],
         [Paragraph("小程序 → 设备", styles["cell"]), Paragraph("在 FFE1 接收 get_info、auth、query_status", styles["cell"]), Paragraph("FFE1 开启 write 或 writeNoResponse", styles["cell"])],
         [Paragraph("设备 → 小程序", styles["cell"]), Paragraph("在同一 FFE1 发送 info、auth_result、status", styles["cell"]), Paragraph("FFE1 开启 notify 或 indicate，并支持 CCCD 订阅", styles["cell"])],
-        [Paragraph("字节协议", styles["cell"]), Paragraph("UTF-8 JSON；每条完整报文末尾追加 LF（0x0A）", styles["cell"]), Paragraph("所有下行均分片；收到 LF 后才允许解析", styles["cell"])],
+        [Paragraph("字节协议", styles["cell"]), Paragraph("UTF-8 JSON；小程序下行以 LF（0x0A）结束", styles["cell"]), Paragraph("设备上行到完整 } 即可结束；可选追加 LF", styles["cell"])],
     ]
     gatt_table = Table(gatt_rows, colWidths=[29 * mm, 78 * mm, 71 * mm], repeatRows=1)
     gatt_table.setStyle(TableStyle([
@@ -151,23 +151,28 @@ def build():
     ]))
     story += [gatt_table, Spacer(1, 2.2 * mm)]
     story.append(box(
-        "重要：不是“每条报文固定 20 字节”，而是“每次 BLE 写入最多 20 字节”",
-        "小程序发往设备的<b>全部三种指令</b>都执行同一规则：<b>get_info、auth、query_status 全部分片</b>；"
-        "最后一片可以少于 20 字节，不补零、不补空格。auth 通常约 280-320 字节，所以会分成多片；短指令也不能依赖一次到齐。<br/>"
-        "设备端每次收到 FFE1 写入时，只把原始字节追加到 <font name=\"Courier\" size=\"7\">rx_buffer</font>；"
-        "<b>不得逐片 JSON 解析、不得每次回调清空缓冲区</b>。只有找到 LF（0x0A）后，才取出 LF 之前的完整 UTF-8 JSON 解析；"
-        "处理后删除这一帧，未完成的尾部继续保留。接收缓冲区建议至少 <b>512 字节</b>。",
+        "重要：20 字节是当前单片上限，不是整条报文长度",
+        "小程序 → 设备：get_info、auth、query_status 按 1-20 字节顺序写入。设备只追加到 rx_buffer，<b>不得逐片解析或清空</b>；"
+        "见到 LF 后才解析完整 JSON，缓冲区至少 512 字节。<br/>"
+        "设备 → 小程序：精简 info 为 <b>60 字节</b>，发送 20+20+20 三片；手机拼成完整顶层 JSON 后处理。可支持更大 MTU，但不能依赖大包。",
         styles,
         tone="red",
     ))
-    story += [Spacer(1, 2.2 * mm), Paragraph("三、一次完整通信顺序", styles["h2"])]
+    story += [Spacer(1, 2.2 * mm), Paragraph("三、精简 info 回包（设备收到 get_info 后返回）", styles["h2"])]
+    story.append(box(
+        "完整报文（复制实现；示例不带 LF）",
+        "<font name=\"Courier\" size=\"7.2\">{\"q\":1,\"c\":\"i\",\"s\":1,\"n\":\"00112233445566778899aabbccddeedd\"}</font><br/>"
+        "<b>q</b>=1（请求序号）；<b>c</b>=i（info）；<b>s</b>=1 待机／2 工作中；<b>n</b>=32 位十六进制 nonce。"
+        "不要加入 device_id、device_type、ble_name、ver、ok。可不带 LF；也允许最后追加 LF。",
+        styles,
+    ))
+    story += [Spacer(1, 2.2 * mm), Paragraph("四、一次完整通信顺序", styles["h2"])]
 
     flow_rows = [
-        [Paragraph("1", styles["cellhead"]), Paragraph("连接后，小程序订阅 FFE1 通知；设备必须允许订阅成功。", styles["cell"])],
-        [Paragraph("2", styles["cellhead"]), Paragraph("把 get_info 的全部分片拼到 LF 后再解析；每条完整请求只回一条 info。手机 5 秒全静默时可能补发完全相同的请求，设备应重发缓存响应，不重复改变状态。", styles["cell"])],
-        [Paragraph("3", styles["cellhead"]), Paragraph("把 seq:2 / auth 的全部分片拼到 LF 后再解析；分别校验 device_id、device_type、nonce、expire_at、usage_count，并用本页凯撒规则重算、比较 signature。", styles["cell"])],
-        [Paragraph("4", styles["cellhead"]), Paragraph("全部校验通过才进入工作态并持久化 status=2；随后返回 seq:2 / auth_result / ok=true / status=2。", styles["cell"])],
-        [Paragraph("5", styles["cellhead"]), Paragraph("把 seq:3 / query_status 的全部分片拼到 LF 后再解析；10 秒内返回真实 status。未执行 auth 时只能返回待机状态 1。", styles["cell"])],
+        [Paragraph("1", styles["cellhead"]), Paragraph("连接后允许小程序订阅 FFE1 通知。", styles["cell"])],
+        [Paragraph("2", styles["cellhead"]), Paragraph("收到完整 get_info 后返回上方精简 info。手机 5 秒未收到完整结果时最多补发一次；设备重发响应，不改变状态。", styles["cell"])],
+        [Paragraph("3", styles["cellhead"]), Paragraph("收到完整 auth 后校验 device_id、device_type、nonce、expire_at、usage_count，并按下方算法重算 signature。通过后才进入工作态并持久化 status=2，再返回 seq=2、cmd=auth_result、ok=true、status=2。", styles["cell"])],
+        [Paragraph("4", styles["cellhead"]), Paragraph("收到 query_status 后返回真实状态。未执行 auth 时只能返回 status=1；已经真实进入工作态才返回 status=2。", styles["cell"])],
     ]
     flow_table = Table(flow_rows, colWidths=[10 * mm, 168 * mm])
     flow_table.setStyle(TableStyle([
@@ -182,7 +187,7 @@ def build():
     ]))
     story += [flow_table, Spacer(1, 2.5 * mm)]
     story.append(box(
-        "四、signature 凯撒算法（必须与验收样例逐字一致）",
+        "五、signature 凯撒算法（必须与验收样例逐字一致）",
         "输入：把 32 位十六进制 nonce 统一转成小写。对从 0 开始的每个位置 <b>index</b>，计算 "
         "<b>offset = (4 × (index + 1)) mod 7</b>。数字只在 0-9 内循环右移；小写字母只在 a-z 内循环右移。"
         "输出仍为 32 个 ASCII 字符，可能出现 g、i、k 等超出十六进制范围的字母。<br/>"
@@ -194,36 +199,26 @@ def build():
     story.append(Spacer(1, 2.5 * mm))
 
     lower = Table([
-        [
-            [
-                Paragraph("五、设备端必须做到", styles["h2"]),
-                Paragraph("• FFE0/FFE1 固定，不因批次改变。<br/>• 三种下行指令全部按字节追加到同一接收缓冲区。<br/>• nonce 固定为 32 位 hex；不同核销允许重复同一个 nonce。<br/>• 相同 cmd + seq + ts 的 get_info 只重发缓存响应。<br/>• 同一 auth 重复到达时不得再次启动；直接返回当前真实状态。<br/>• 只有真实进入工作态才能回 status=2。", styles["body"]),
-            ],
-            [
-                Paragraph("六、联调验收", styles["h2"]),
-                Paragraph("□ 微信能发现正确广播名<br/>□ 可订阅 FFE1 通知<br/>□ 每次写入 1-20 字节都能按序追加<br/>□ 三种指令均到 LF 后才解析<br/>□ 单条请求只发送一条响应<br/>□ 凯撒样例输出逐字一致<br/>□ 重复 nonce 的下一笔授权可正常开机<br/>□ 未收到 auth 时 query_status 返回 1", styles["body"]),
-            ],
-        ]
-    ], colWidths=[91 * mm, 87 * mm])
+        [[
+            Paragraph("六、交付前验收", styles["h2"]),
+            Paragraph(
+                "□ 广播名与编号末 6 位一致　□ FFE1 可写且可订阅通知　□ 下行三种指令均在 LF 后解析<br/>"
+                "□ 60 字节 info 分 3 片发送　□ get_info 一次只回一条 info　□ 凯撒样例逐字一致<br/>"
+                "□ 重复 nonce 的下一笔可开机　□ 同一 auth 不重复启动　□ 未授权时 query_status 返回 1",
+                styles["body"],
+            ),
+        ]]
+    ], colWidths=[178 * mm])
     lower.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("BOX", (0, 0), (-1, -1), 0.6, LINE),
-        ("INNERGRID", (0, 0), (-1, -1), 0.45, LINE),
         ("BACKGROUND", (0, 0), (-1, -1), colors.white),
         ("LEFTPADDING", (0, 0), (-1, -1), 3 * mm),
         ("RIGHTPADDING", (0, 0), (-1, -1), 3 * mm),
         ("TOPPADDING", (0, 0), (-1, -1), 2.2 * mm),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 2.2 * mm),
     ]))
-    story += [lower, Spacer(1, 3 * mm)]
-    story.append(box(
-        "重要边界",
-        "设备可以保留 HC-08 的其他服务；小程序只按 LASER-BLE 档案查找 FFE0/FFE1。"
-        "如果缺少 FFE0、缺少 FFE1、FFE1 不可写或不可通知，小程序会分别给出明确错误并拒绝开机。"
-        "其他项目可能使用不同模块与 UUID，不能照搬本页配置。",
-        styles,
-        tone="red",
-    ))
+    story += [lower]
 
     doc.build(story, onFirstPage=draw_page)
     print(OUTPUT)

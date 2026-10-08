@@ -411,6 +411,66 @@ test('BLE receive accepts consecutive complete JSON responses without LF termina
   assert.equal(states.some((state) => state.stage === 'PROTOCOL_WARNING'), false);
 });
 
+test('LASER-BLE accepts the compact three-packet info response and reconstructs verified identity', async () => {
+  const nonce = '00112233445566778899aabbccddeedd';
+  const compactInfo = { q: 1, c: 'i', s: 1, n: nonce };
+  const encoded = JSON.stringify(compactInfo);
+  assert.equal(Buffer.byteLength(encoded, 'utf8'), 60);
+  assert.equal(Math.ceil(Buffer.byteLength(encoded, 'utf8') / 20), 3);
+
+  const session = new BleVerificationSession({
+    qualification: { expectedDeviceType: 'LASER-BLE' },
+    clientRequestId: 'test-compact-info'
+  });
+  session.connectedBleName = 'LA-C8C5B9';
+  session.write = async () => {
+    setTimeout(() => session.dispatch(compactInfo), 0);
+  };
+
+  const info = await session.readInfo();
+  assert.deepEqual(info, compactInfo);
+  assert.deepEqual(
+    session.validateInfo({ sn: 'LAF82E0CC8C5B9' }, info),
+    {
+      device_id: 'LAF82E0CC8C5B9',
+      device_type: 'LASER-BLE',
+      ble_name: 'LA-C8C5B9',
+      status: 1,
+      nonce
+    }
+  );
+});
+
+test('compact info cannot bypass the exact advertised-name or project-type checks', () => {
+  const compactInfo = { q: 1, c: 'i', s: 1, n: '00112233445566778899aabbccddeedd' };
+  const wrongName = new BleVerificationSession({
+    qualification: { expectedDeviceType: 'LASER-BLE' },
+    clientRequestId: 'test-compact-name'
+  });
+  wrongName.connectedBleName = 'LA-000000';
+  assert.throws(
+    () => wrongName.validateInfo({ sn: 'LAF82E0CC8C5B9' }, compactInfo),
+    (error) => error.code === 'BLE_NAME_MISMATCH'
+  );
+
+  const otherProject = new BleVerificationSession({
+    qualification: { expectedDeviceType: 'other-device' },
+    clientRequestId: 'test-compact-project'
+  });
+  otherProject.connectedBleName = 'LA-C8C5B9';
+  assert.throws(
+    () => otherProject.validateInfo({ sn: 'LAF82E0CC8C5B9' }, compactInfo),
+    (error) => error.code === 'BLE_DEVICE_TYPE_MISMATCH'
+  );
+});
+
+test('compact info diagnostics expose only the normalized command, sequence, and status', () => {
+  const session = new BleVerificationSession({ qualification: {}, clientRequestId: 'test-compact-summary' });
+  session.recordReceiveSummary({ q: 1, c: 'i', s: 2, n: '00112233445566778899aabbccddeedd' });
+  assert.equal(session.lastReceiveSummary, 'cmd=info,seq=1,status=2');
+  assert.doesNotMatch(session.lastReceiveSummary, /001122|nonce|\bn=/);
+});
+
 test('BLE receive timeout exposes structural diagnostics without payload secrets', async () => {
   const session = new BleVerificationSession({ qualification: {}, clientRequestId: 'test-receive-diagnostic' });
   session.deviceId = 'wechat-device-id';

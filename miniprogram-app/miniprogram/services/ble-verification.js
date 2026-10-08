@@ -218,6 +218,7 @@ class BleVerificationSession {
     this.onState = typeof onState === "function" ? onState : () => {};
     this.onIrreversible = typeof onIrreversible === "function" ? onIrreversible : () => {};
     this.deviceId = "";
+    this.connectedBleName = "";
     this.serviceId = "";
     this.writeCharacteristicId = "";
     this.notifyCharacteristicId = "";
@@ -305,6 +306,7 @@ class BleVerificationSession {
 
   async connect(device) {
     this.deviceId = String(device.deviceId || "");
+    this.connectedBleName = deviceName(device);
     if (!this.deviceId) throw bleError("BLE_DEVICE_ID_EMPTY", "微信没有返回蓝牙设备标识，请重新扫描。");
     this.state("DEVICE_CONNECTING", "正在连接设备");
     try {
@@ -487,13 +489,16 @@ class BleVerificationSession {
   }
 
   recordReceiveSummary(payload) {
-    const command = String(payload?.cmd || payload?.type || "未知")
+    const compactInfo = String(payload?.c || "").toLowerCase() === "i" && Number(payload?.q) === 1;
+    const command = String(payload?.cmd || payload?.type || (compactInfo ? "info" : "未知"))
       .replace(/[^a-z0-9_-]/gi, "")
       .slice(0, 32) || "未知";
     const parts = [`cmd=${command}`];
-    if (Number.isFinite(Number(payload?.seq))) parts.push(`seq=${Number(payload.seq)}`);
+    const sequence = payload?.seq ?? payload?.q;
+    const status = payload?.status ?? payload?.s;
+    if (Number.isFinite(Number(sequence))) parts.push(`seq=${Number(sequence)}`);
     if (typeof payload?.ok === "boolean") parts.push(`ok=${payload.ok}`);
-    if (Number.isFinite(Number(payload?.status))) parts.push(`status=${Number(payload.status)}`);
+    if (Number.isFinite(Number(status))) parts.push(`status=${Number(status)}`);
     if (Number.isFinite(Number(payload?.code))) parts.push(`code=${Number(payload.code)}`);
     this.lastReceiveSummary = parts.join(",");
   }
@@ -570,8 +575,12 @@ class BleVerificationSession {
   async readInfo() {
     this.state("DEVICE_READING", "正在读取设备状态");
     const waiting = this.waitFor(
-      (payload) => ["info", "get_info_result"].includes(String(payload?.cmd || payload?.type || "").toLowerCase())
-        && Number(payload?.seq) === 1,
+      (payload) => {
+        const legacy = ["info", "get_info_result"].includes(String(payload?.cmd || payload?.type || "").toLowerCase())
+          && Number(payload?.seq) === 1;
+        const compact = String(payload?.c || "").toLowerCase() === "i" && Number(payload?.q) === 1;
+        return legacy || compact;
+      },
       this.infoTimeoutMs,
       "BLE_INFO_TIMEOUT",
       "设备在 10 秒内没有返回状态，请重新连接设备。"
@@ -618,11 +627,22 @@ class BleVerificationSession {
   }
 
   validateInfo(qr, info) {
-    const id = String(info.device_id || info.deviceId || "").trim().toUpperCase();
-    const type = String(info.device_type || info.deviceType || "").trim();
     const expectedType = String(this.qualification.expectedDeviceType || "").trim();
-    const name = String(info.ble_name || info.bleName || "").trim();
-    const nonce = String(info.nonce || "").trim();
+    const compact = String(info?.c || "").toLowerCase() === "i" && Number(info?.q) === 1;
+    if (compact && expectedType.toUpperCase() !== "LASER-BLE") {
+      throw bleError("BLE_DEVICE_TYPE_MISMATCH", "当前设备类型不支持精简信息回包，禁止授权。");
+    }
+    const id = compact
+      ? String(qr.sn || "").trim().toUpperCase()
+      : String(info.device_id || info.deviceId || "").trim().toUpperCase();
+    const type = compact
+      ? expectedType
+      : String(info.device_type || info.deviceType || "").trim();
+    const name = compact
+      ? String(this.connectedBleName || "").trim()
+      : String(info.ble_name || info.bleName || "").trim();
+    const status = compact ? info.s : info.status;
+    const nonce = String(compact ? info.n : info.nonce || "").trim();
     if (id !== qr.sn) throw bleError("BLE_DEVICE_ID_MISMATCH", "蓝牙设备编号与二维码编号不一致，禁止授权。");
     const magicSoftSkinProfile = expectedType.toUpperCase() === "LASER-BLE";
     const magicSoftSkinSerial = /^LA[0-9A-F]{12}$/.test(qr.sn);
@@ -633,9 +653,9 @@ class BleVerificationSession {
       throw bleError("BLE_DEVICE_TYPE_MISMATCH", `当前设备类型为 ${type || "未知"}，本次项目需要 ${expectedType}。`);
     }
     if (name !== expectedBleName(qr.sn)) throw bleError("BLE_NAME_MISMATCH", "蓝牙设备名称与二维码编号不一致，禁止授权。");
-    if (![1, 2].includes(Number(info.status))) throw bleError("BLE_DEVICE_NOT_READY", "设备未进入待机状态，请先在设备端完成复位。");
+    if (![1, 2].includes(Number(status))) throw bleError("BLE_DEVICE_NOT_READY", "设备未进入待机状态，请先在设备端完成复位。");
     if (!/^[0-9a-f]{32}$/i.test(nonce)) throw bleError("BLE_NONCE_INVALID", "设备没有返回有效的 32 位随机数，禁止授权。");
-    return { device_id: id, device_type: expectedType, ble_name: name, status: Number(info.status), nonce };
+    return { device_id: id, device_type: expectedType, ble_name: name, status: Number(status), nonce };
   }
 
   async queryWorking(fallbackInfo) {
