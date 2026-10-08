@@ -1,0 +1,14 @@
+date=2026-10-08 Australia/Sydney
+version=0.2.88
+description=BLE重扫会话完全隔离
+appid=wxb053c1bd6c684d8b
+source_commit=f8a5b5122e43edc5da3e99dd2f39a02c60281eab
+cli_result=upload success
+backend_progress=progressSuccess
+backend_remote_debug=reportNewRemoteDebug
+backend_total_ms=96042
+main_package_bytes=1791912
+total_package_bytes=3328780
+experience_version_readback=not performed
+submitted_for_review=no
+released=no
