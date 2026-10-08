@@ -600,12 +600,15 @@ class BleVerificationSession {
     clearTimeout(retryTimer);
     let settled = firstPhase;
     if (firstPhase?.retryCheck) {
-      if (this.receivePacketCount === packetsBeforeRequest) {
-        this.state("DEVICE_READING_RETRY", "5 秒内没有收到任何设备数据，正在补发同一条读取指令");
-        await this.write(command);
-      } else {
-        this.state("DEVICE_READING_PARTIAL", "已收到设备分片，继续等待完整状态，不重复发送指令");
-      }
+      const receivedPartialResponse = this.receivePacketCount > packetsBeforeRequest;
+      if (receivedPartialResponse) this.receiveBuffer = "";
+      this.state(
+        "DEVICE_READING_RETRY",
+        receivedPartialResponse
+          ? "首轮设备回包不完整，已清空残片并补发同一条读取指令"
+          : "5 秒内没有收到完整设备状态，正在补发同一条读取指令"
+      );
+      await this.write(command);
       settled = await outcome;
     }
     if (!settled.ok) throw settled.error;
