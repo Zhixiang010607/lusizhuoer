@@ -134,8 +134,8 @@ def build():
 
     gatt_rows = [
         [Paragraph("方向", styles["cellhead"]), Paragraph("设备端动作", styles["cellhead"]), Paragraph("硬性要求", styles["cellhead"])],
-        [Paragraph("小程序 → 设备", styles["cell"]), Paragraph("在 FFE1 接收 get_info、auth、query_status", styles["cell"]), Paragraph("FFE1 开启 write 或 writeNoResponse", styles["cell"])],
-        [Paragraph("设备 → 小程序", styles["cell"]), Paragraph("在同一 FFE1 发送 info、auth_result、status", styles["cell"]), Paragraph("FFE1 开启 notify 或 indicate，并支持 CCCD 订阅", styles["cell"])],
+        [Paragraph("小程序 → 设备", styles["cell"]), Paragraph("在 FFE1 接收 q=1 读取、q=2 授权、q=3 查状态", styles["cell"]), Paragraph("FFE1 开启 write 或 writeNoResponse", styles["cell"])],
+        [Paragraph("设备 → 小程序", styles["cell"]), Paragraph("在同一 FFE1 返回对应的 q=1、q=2、q=3 精简 JSON", styles["cell"]), Paragraph("FFE1 开启 notify 或 indicate，并支持 CCCD 订阅", styles["cell"])],
         [Paragraph("字节协议", styles["cell"]), Paragraph("UTF-8 JSON；小程序下行以 LF（0x0A）结束", styles["cell"]), Paragraph("设备上行到完整 } 即可结束；可选追加 LF", styles["cell"])],
     ]
     gatt_table = Table(gatt_rows, colWidths=[29 * mm, 78 * mm, 71 * mm], repeatRows=1)
@@ -152,7 +152,7 @@ def build():
     story += [gatt_table, Spacer(1, 2.2 * mm)]
     story.append(box(
         "重要：20 字节是当前单片上限，不是整条报文长度",
-        "小程序 → 设备：get_info、auth、query_status 按 1-20 字节顺序写入。设备只追加到 rx_buffer，<b>不得逐片解析或清空</b>；"
+        "小程序 → 设备：q=1、q=2、q=3 报文按 1-20 字节顺序写入。设备只追加到 rx_buffer，<b>不得逐片解析或清空</b>；"
         "见到 LF 后才解析完整 JSON，缓冲区至少 512 字节。<br/>"
         "设备 → 小程序：按下表发送精简 JSON；手机拼成完整顶层 JSON 后处理。可支持更大 MTU，但不能依赖大包。",
         styles,
@@ -161,7 +161,7 @@ def build():
     story += [Spacer(1, 2.2 * mm), Paragraph("三、精简报文全集（示例数值可直接联调）", styles["h2"])]
     protocol_rows = [
         [Paragraph("方向／用途", styles["cellhead"]), Paragraph("完整 JSON（小程序下行另加 LF）", styles["cellhead"]), Paragraph("字节／片", styles["cellhead"])],
-        [Paragraph("小程序→设备<br/>读取信息", styles["cell"]), Paragraph('<font name="Courier" size="7.2">{"ver":"1.0","seq":1,"cmd":"get_info","ts":1791455307}</font>', styles["cell"]), Paragraph("54+LF／3", styles["cell"])],
+        [Paragraph("小程序→设备<br/>读取信息", styles["cell"]), Paragraph('<font name="Courier" size="7.2">{"q":1}</font>', styles["cell"]), Paragraph("7+LF／1", styles["cell"])],
         [Paragraph("设备→小程序<br/>设备信息", styles["cell"]), Paragraph('<font name="Courier" size="7.2">{"q":1,"c":"i","s":1,"n":"00112233445566778899aabbccddeedd"}</font>', styles["cell"]), Paragraph("60／3", styles["cell"])],
         [Paragraph("小程序→设备<br/>开机授权", styles["cell"]), Paragraph('<font name="Courier" size="7.2">{"q":2,"c":"a","u":2,"e":1791450472,"x":"41638537597196183052aecgeigdifkh"}</font>', styles["cell"]), Paragraph("75+LF／4", styles["cell"])],
         [Paragraph("设备→小程序<br/>授权成功", styles["cell"]), Paragraph('<font name="Courier" size="7.2">{"q":2,"o":1,"s":2}</font>', styles["cell"]), Paragraph("19／1", styles["cell"])],
@@ -184,7 +184,8 @@ def build():
         "四、字段与执行规则",
         "q=步骤号；c=i 表示设备信息、c=a 表示授权；s=1 待机／2 工作中；n=当前 32 位 nonce；"
         "u=本次次数；e=授权到期 Unix 秒；x=由当前 nonce 生成的 signature；o=1 成功／0 失败。<br/>"
-        "设备收到 auth 后用<b>当前 nonce</b>重算 x，并校验 u、e；通过后才进入并持久化工作态。失败回包："
+        "设备收到 q=1 后立即返回设备信息；5 秒未收到完整回包时，小程序只补发一次同一 q=1，<b>不发送旧长报文</b>。"
+        "收到 q=2 后用<b>当前 nonce</b>重算 x，并校验 u、e；通过后才进入并持久化工作态。失败回包："
         '<font name="Courier" size="7.2">{"q":2,"o":0,"e":1001}</font>（e 为原错误码）。同一 auth 不得重复启动。',
         styles,
     ))

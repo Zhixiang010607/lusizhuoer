@@ -569,7 +569,7 @@ class BleVerificationSession {
 
   async write(payload) {
     const bytes = new Uint8Array(utf8Encode(`${JSON.stringify(payload)}\n`));
-    const compactCommands = { 2: "auth", 3: "query_status" };
+    const compactCommands = { 1: "get_info", 2: "auth", 3: "query_status" };
     const command = String(payload?.cmd || compactCommands[Number(payload?.q)] || "unknown").trim().toLowerCase() || "unknown";
     const sequence = Number(payload?.seq ?? payload?.q);
     const chunkCount = Math.ceil(bytes.byteLength / WRITE_CHUNK_BYTES);
@@ -617,12 +617,13 @@ class BleVerificationSession {
 
   async readInfo() {
     this.state("DEVICE_READING", "正在读取设备状态");
+    const compactProfile = String(this.qualification.expectedDeviceType || "").trim().toUpperCase() === "LASER-BLE";
     const waiting = this.waitFor(
       (payload) => {
         const legacy = ["info", "get_info_result"].includes(String(payload?.cmd || payload?.type || "").toLowerCase())
           && Number(payload?.seq) === 1;
         const compact = compactResponseKind(payload) === "info";
-        return legacy || compact;
+        return compactProfile ? compact : legacy;
       },
       this.infoTimeoutMs,
       "BLE_INFO_TIMEOUT",
@@ -635,7 +636,7 @@ class BleVerificationSession {
       (value) => ({ ok: true, value }),
       (error) => ({ ok: false, error })
     );
-    const command = {
+    const command = compactProfile ? { q: 1 } : {
       ver: "1.0",
       seq: 1,
       cmd: "get_info",

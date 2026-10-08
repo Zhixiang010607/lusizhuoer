@@ -50,14 +50,14 @@ test('test builds allow ten seconds for both authorization and fallback status r
   assert.ok(bleSource.indexOf('await waiting') < bleSource.indexOf('await this.queryWorking(info)'));
 });
 
-test('read-only get_info retries once after five seconds without a complete response inside one ten-second wait', async () => {
+test('LASER-BLE get_info stays compact for both the first read and one safe retry', async () => {
   assert.match(bleSource, /const INFO_RETRY_AFTER_MS = 5000/);
   assert.doesNotMatch(bleSource, /NOTIFY_SETTLE_MS|await pause\(/);
 
   const states = [];
   const writes = [];
   const session = new BleVerificationSession({
-    qualification: {},
+    qualification: { expectedDeviceType: 'LASER-BLE' },
     clientRequestId: 'test-info-retry',
     onState: (state) => states.push(state)
   });
@@ -66,16 +66,16 @@ test('read-only get_info retries once after five seconds without a complete resp
   session.write = async (payload) => {
     writes.push({ ...payload });
     if (writes.length === 2) {
-      setTimeout(() => session.dispatch({ ver: '1.0', seq: 1, cmd: 'info', ok: true, status: 1 }), 0);
+      setTimeout(() => session.dispatch({ q: 1, c: 'i', s: 1, n: '00112233445566778899aabbccddeedd' }), 0);
     }
   };
 
   const info = await session.readInfo();
 
-  assert.equal(info.cmd, 'info');
+  assert.equal(info.c, 'i');
   assert.equal(writes.length, 2);
-  assert.ok(writes.every((payload) => payload.cmd === 'get_info' && payload.seq === 1));
-  assert.deepEqual(writes[0], writes[1]);
+  assert.deepEqual(writes[0], { q: 1 });
+  assert.deepEqual(writes[1], { q: 1 });
   assert.equal(states.some((state) => state.stage === 'DEVICE_READING_RETRY'), true);
   assert.equal(writes.some((payload) => payload.cmd === 'auth'), false);
 });
@@ -84,7 +84,7 @@ test('an incomplete get_info response is discarded before the one safe read-only
   const states = [];
   const writes = [];
   const session = new BleVerificationSession({
-    qualification: {},
+    qualification: { expectedDeviceType: 'LASER-BLE' },
     clientRequestId: 'test-info-partial',
     onState: (state) => states.push(state)
   });
@@ -95,21 +95,40 @@ test('an incomplete get_info response is discarded before the one safe read-only
     if (writes.length === 1) {
       setTimeout(() => {
         session.receivePacketCount += 1;
-        session.receiveBuffer = '{"ver":"1.0","seq":1,"cmd":"info"';
+        session.receiveBuffer = '{"q":1,"c":"i","s":1';
       }, 1);
       return;
     }
     assert.equal(session.receiveBuffer, '');
-    setTimeout(() => session.dispatch({ ver: '1.0', seq: 1, cmd: 'info', ok: true, status: 1 }), 0);
+    setTimeout(() => session.dispatch({ q: 1, c: 'i', s: 1, n: '00112233445566778899aabbccddeedd' }), 0);
   };
 
   const info = await session.readInfo();
 
-  assert.equal(info.cmd, 'info');
+  assert.equal(info.c, 'i');
   assert.equal(writes.length, 2);
-  assert.deepEqual(writes[0], writes[1]);
+  assert.deepEqual(writes[0], { q: 1 });
+  assert.deepEqual(writes[1], { q: 1 });
   assert.equal(states.some((state) => state.stage === 'DEVICE_READING_RETRY'), true);
   assert.equal(states.some((state) => /清空残片/.test(state.message)), true);
+});
+
+test('device types without the LASER-BLE compact profile keep their legacy get_info request', async () => {
+  const writes = [];
+  const session = new BleVerificationSession({
+    qualification: { expectedDeviceType: 'other-device' },
+    clientRequestId: 'test-legacy-info-command'
+  });
+  session.write = async (payload) => {
+    writes.push(payload);
+    setTimeout(() => session.dispatch({ ver: '1.0', seq: 1, cmd: 'info', ok: true, status: 1 }), 0);
+  };
+
+  const result = await session.readInfo();
+  assert.equal(result.cmd, 'info');
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].cmd, 'get_info');
+  assert.equal(writes[0].seq, 1);
 });
 
 test('BLE cleanup unsubscribes and closes the old connection before closing the adapter', async (t) => {
