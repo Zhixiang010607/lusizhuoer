@@ -46,11 +46,9 @@ test('test builds allow ten seconds for both authorization and fallback status r
   assert.ok(bleSource.indexOf('await waiting') < bleSource.indexOf('await this.queryWorking(info)'));
 });
 
-test('notification setup settles once and read-only get_info retries at most once', async () => {
-  assert.match(bleSource, /const NOTIFY_SETTLE_MS = 200/);
+test('read-only get_info retries at most once without a fixed notification delay', async () => {
   assert.match(bleSource, /const INFO_RETRY_AFTER_MS = 2000/);
-  assert.match(bleSource, /await pause\(NOTIFY_SETTLE_MS\)/);
-  assert.doesNotMatch(bleSource, /await pause\([^)]*WRITE_CHUNK/);
+  assert.doesNotMatch(bleSource, /NOTIFY_SETTLE_MS|await pause\(/);
 
   const states = [];
   const writes = [];

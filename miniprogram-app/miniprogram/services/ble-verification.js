@@ -4,7 +4,6 @@ const { readSession } = require("./session");
 const STORAGE_PREFIX = "lusizhuoerMiniBleVerificationV1:";
 const INFO_TIMEOUT_MS = 10000;
 const INFO_RETRY_AFTER_MS = 2000;
-const NOTIFY_SETTLE_MS = 200;
 const AUTH_TIMEOUT_MS = 10000;
 const STATUS_TIMEOUT_MS = 10000;
 const DISCOVERY_TIMEOUT_MS = 15000;
@@ -87,10 +86,6 @@ function wxPromise(method, options = {}) {
       fail: (cause) => reject(bleError(`WX_${method.toUpperCase()}_FAILED`, cause?.errMsg || `${method} 失败`, cause))
     });
   });
-}
-
-function pause(milliseconds) {
-  return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(milliseconds) || 0)));
 }
 
 function sanitizeBleDiagnosticMessage(value) {
@@ -378,11 +373,6 @@ class BleVerificationSession {
     } catch (error) {
       throw bleError("BLE_NOTIFY_ENABLE_FAILED", "无法订阅设备通知通道，请检查特征属性和设备连接状态。", error);
     }
-    // WeChat can resolve the subscription call just before the phone and
-    // peripheral have fully settled the notification channel. Give that one
-    // newly-enabled channel a short setup window before the first read only;
-    // this is not a delay between 20-byte command chunks.
-    await pause(NOTIFY_SETTLE_MS);
   }
 
   handleValue(event) {
