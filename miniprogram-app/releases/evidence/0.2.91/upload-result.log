@@ -1,0 +1,17 @@
+date=2026-10-08 Australia/Sydney
+version=0.2.91
+description=BLE全流程精简协议
+appid=wxb053c1bd6c684d8b
+source_commit=7a79f2acedcc2142969394f16499c7ad23177481
+cli_result=upload success
+backend_progress=progressSuccess
+backend_remote_debug=reportNewRemoteDebug
+backend_total_ms=218444
+main_package_bytes=1793662
+total_package_bytes=3330530
+tests=351 passed
+experience_version_readback=not performed
+submitted_for_review=no
+released=no
+sql_changed=no
+cloudfunctions_changed=no
