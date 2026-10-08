@@ -13,6 +13,8 @@ const bleSource = fs.readFileSync(path.join(root, 'miniprogram-app/miniprogram/s
 const {
   BLE_GATT_PROFILES,
   BleVerificationSession,
+  compactAuthorizationCommand,
+  normalizeDeviceResponse,
   normalizeGattUuid
 } = require(path.join(root, 'miniprogram-app/miniprogram/services/ble-verification.js'));
 const migration = fs.readFileSync(path.join(root, 'database/migrations/066_ble_verification_authorization.sql'), 'utf8');
@@ -439,6 +441,7 @@ test('LASER-BLE accepts the compact three-packet info response and reconstructs 
       nonce
     }
   );
+  assert.equal(session.useCompactProtocol, true);
 });
 
 test('compact info cannot bypass the exact advertised-name or project-type checks', () => {
@@ -469,6 +472,64 @@ test('compact info diagnostics expose only the normalized command, sequence, and
   session.recordReceiveSummary({ q: 1, c: 'i', s: 2, n: '00112233445566778899aabbccddeedd' });
   assert.equal(session.lastReceiveSummary, 'cmd=info,seq=1,status=2');
   assert.doesNotMatch(session.lastReceiveSummary, /001122|nonce|\bn=/);
+});
+
+test('compact post-info protocol minimizes every remaining BLE exchange', () => {
+  const signature = '41638537597196183052aecgeigdifkh';
+  const compactAuth = compactAuthorizationCommand({
+    auth: {
+      usage_count: 2,
+      expire_at: 1791450472,
+      signature,
+      device_id: 'LAF82E0CC8C5B9',
+      device_type: 'LASER-BLE',
+      nonce: '00112233445566778899aabbccddeeff',
+      issued_at: 1791450442
+    }
+  });
+  assert.deepEqual(compactAuth, { q: 2, c: 'a', u: 2, e: 1791450472, x: signature });
+
+  const frames = {
+    auth: compactAuth,
+    authResult: { q: 2, o: 1, s: 2 },
+    queryStatus: { q: 3 },
+    status: { q: 3, s: 2 }
+  };
+  assert.equal(Buffer.byteLength(JSON.stringify(frames.auth), 'utf8'), 75);
+  assert.equal(Math.ceil((Buffer.byteLength(JSON.stringify(frames.auth), 'utf8') + 1) / 20), 4);
+  assert.equal(Buffer.byteLength(JSON.stringify(frames.authResult), 'utf8'), 19);
+  assert.equal(Buffer.byteLength(JSON.stringify(frames.queryStatus), 'utf8'), 7);
+  assert.equal(Buffer.byteLength(JSON.stringify(frames.status), 'utf8'), 13);
+  assert.deepEqual(normalizeDeviceResponse(frames.authResult), {
+    ...frames.authResult, cmd: 'auth_result', seq: 2, ok: true, status: 2, code: 0
+  });
+  assert.deepEqual(normalizeDeviceResponse(frames.status), {
+    ...frames.status, cmd: 'status', seq: 3, status: 2
+  });
+});
+
+test('compact status recovery uses one short query and restores canonical device identity', async () => {
+  const writes = [];
+  const session = new BleVerificationSession({ qualification: {}, clientRequestId: 'test-compact-status' });
+  session.useCompactProtocol = true;
+  session.write = async (payload) => {
+    writes.push(payload);
+    setTimeout(() => session.dispatch({ q: 3, s: 2 }), 0);
+  };
+  const original = {
+    device_id: 'LAF82E0CC8C5B9',
+    device_type: 'LASER-BLE',
+    ble_name: 'LA-C8C5B9',
+    nonce: '00112233445566778899aabbccddeedd',
+    status: 1
+  };
+
+  const recovered = await session.queryWorking(original);
+  assert.deepEqual(writes, [{ q: 3 }]);
+  assert.equal(recovered.device_id, original.device_id);
+  assert.equal(recovered.nonce, original.nonce);
+  assert.equal(recovered.status, 2);
+  assert.equal(recovered.ok, true);
 });
 
 test('BLE receive timeout exposes structural diagnostics without payload secrets', async () => {

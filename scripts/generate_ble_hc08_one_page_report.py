@@ -154,40 +154,43 @@ def build():
         "重要：20 字节是当前单片上限，不是整条报文长度",
         "小程序 → 设备：get_info、auth、query_status 按 1-20 字节顺序写入。设备只追加到 rx_buffer，<b>不得逐片解析或清空</b>；"
         "见到 LF 后才解析完整 JSON，缓冲区至少 512 字节。<br/>"
-        "设备 → 小程序：精简 info 为 <b>60 字节</b>，发送 20+20+20 三片；手机拼成完整顶层 JSON 后处理。可支持更大 MTU，但不能依赖大包。",
+        "设备 → 小程序：按下表发送精简 JSON；手机拼成完整顶层 JSON 后处理。可支持更大 MTU，但不能依赖大包。",
         styles,
         tone="red",
     ))
-    story += [Spacer(1, 2.2 * mm), Paragraph("三、精简 info 回包（设备收到 get_info 后返回）", styles["h2"])]
-    story.append(box(
-        "完整报文（复制实现；示例不带 LF）",
-        "<font name=\"Courier\" size=\"7.2\">{\"q\":1,\"c\":\"i\",\"s\":1,\"n\":\"00112233445566778899aabbccddeedd\"}</font><br/>"
-        "<b>q</b>=1（请求序号）；<b>c</b>=i（info）；<b>s</b>=1 待机／2 工作中；<b>n</b>=32 位十六进制 nonce。"
-        "不要加入 device_id、device_type、ble_name、ver、ok。可不带 LF；也允许最后追加 LF。",
-        styles,
-    ))
-    story += [Spacer(1, 2.2 * mm), Paragraph("四、一次完整通信顺序", styles["h2"])]
-
-    flow_rows = [
-        [Paragraph("1", styles["cellhead"]), Paragraph("连接后允许小程序订阅 FFE1 通知。", styles["cell"])],
-        [Paragraph("2", styles["cellhead"]), Paragraph("收到完整 get_info 后返回上方精简 info。手机 5 秒未收到完整结果时最多补发一次；设备重发响应，不改变状态。", styles["cell"])],
-        [Paragraph("3", styles["cellhead"]), Paragraph("收到完整 auth 后校验 device_id、device_type、nonce、expire_at、usage_count，并按下方算法重算 signature。通过后才进入工作态并持久化 status=2，再返回 seq=2、cmd=auth_result、ok=true、status=2。", styles["cell"])],
-        [Paragraph("4", styles["cellhead"]), Paragraph("收到 query_status 后返回真实状态。未执行 auth 时只能返回 status=1；已经真实进入工作态才返回 status=2。", styles["cell"])],
+    story += [Spacer(1, 2.2 * mm), Paragraph("三、精简报文全集（示例数值可直接联调）", styles["h2"])]
+    protocol_rows = [
+        [Paragraph("方向／用途", styles["cellhead"]), Paragraph("完整 JSON（小程序下行另加 LF）", styles["cellhead"]), Paragraph("字节／片", styles["cellhead"])],
+        [Paragraph("小程序→设备<br/>读取信息", styles["cell"]), Paragraph('<font name="Courier" size="7.2">{"ver":"1.0","seq":1,"cmd":"get_info","ts":1791455307}</font>', styles["cell"]), Paragraph("54+LF／3", styles["cell"])],
+        [Paragraph("设备→小程序<br/>设备信息", styles["cell"]), Paragraph('<font name="Courier" size="7.2">{"q":1,"c":"i","s":1,"n":"00112233445566778899aabbccddeedd"}</font>', styles["cell"]), Paragraph("60／3", styles["cell"])],
+        [Paragraph("小程序→设备<br/>开机授权", styles["cell"]), Paragraph('<font name="Courier" size="7.2">{"q":2,"c":"a","u":2,"e":1791450472,"x":"41638537597196183052aecgeigdifkh"}</font>', styles["cell"]), Paragraph("75+LF／4", styles["cell"])],
+        [Paragraph("设备→小程序<br/>授权成功", styles["cell"]), Paragraph('<font name="Courier" size="7.2">{"q":2,"o":1,"s":2}</font>', styles["cell"]), Paragraph("19／1", styles["cell"])],
+        [Paragraph("小程序→设备<br/>查询状态", styles["cell"]), Paragraph('<font name="Courier" size="7.2">{"q":3}</font>', styles["cell"]), Paragraph("7+LF／1", styles["cell"])],
+        [Paragraph("设备→小程序<br/>真实状态", styles["cell"]), Paragraph('<font name="Courier" size="7.2">{"q":3,"s":2}</font>', styles["cell"]), Paragraph("13／1", styles["cell"])],
     ]
-    flow_table = Table(flow_rows, colWidths=[10 * mm, 168 * mm])
-    flow_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (0, -1), GOLD),
+    protocol_table = Table(protocol_rows, colWidths=[32 * mm, 126 * mm, 20 * mm], repeatRows=1)
+    protocol_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), GOLD),
         ("GRID", (0, 0), (-1, -1), 0.45, LINE),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("BACKGROUND", (1, 0), (1, -1), colors.white),
-        ("LEFTPADDING", (0, 0), (-1, -1), 2.3 * mm),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 2.3 * mm),
-        ("TOPPADDING", (0, 0), (-1, -1), 1.25 * mm),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 1.25 * mm),
+        ("BACKGROUND", (0, 1), (-1, -1), colors.white),
+        ("LEFTPADDING", (0, 0), (-1, -1), 2 * mm),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 2 * mm),
+        ("TOPPADDING", (0, 0), (-1, -1), 1.1 * mm),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 1.1 * mm),
     ]))
-    story += [flow_table, Spacer(1, 2.5 * mm)]
+    story += [protocol_table, Spacer(1, 2.2 * mm)]
     story.append(box(
-        "五、signature 凯撒算法（必须与验收样例逐字一致）",
+        "四、字段与执行规则",
+        "q=步骤号；c=i 表示设备信息、c=a 表示授权；s=1 待机／2 工作中；n=当前 32 位 nonce；"
+        "u=本次次数；e=授权到期 Unix 秒；x=由当前 nonce 生成的 signature；o=1 成功／0 失败。<br/>"
+        "设备收到 auth 后用<b>当前 nonce</b>重算 x，并校验 u、e；通过后才进入并持久化工作态。失败回包："
+        '<font name="Courier" size="7.2">{"q":2,"o":0,"e":1001}</font>（e 为原错误码）。同一 auth 不得重复启动。',
+        styles,
+    ))
+    story += [Spacer(1, 2.2 * mm)]
+    story.append(box(
+        "五、signature 凯撒算法",
         "输入：把 32 位十六进制 nonce 统一转成小写。对从 0 开始的每个位置 <b>index</b>，计算 "
         "<b>offset = (4 × (index + 1)) mod 7</b>。数字只在 0-9 内循环右移；小写字母只在 a-z 内循环右移。"
         "输出仍为 32 个 ASCII 字符，可能出现 g、i、k 等超出十六进制范围的字母。<br/>"
@@ -196,29 +199,6 @@ def build():
         "不使用生产 Key，不计算 HMAC，不构造 canonical string。设备用同一算法重算后逐字比较 signature。",
         styles,
     ))
-    story.append(Spacer(1, 2.5 * mm))
-
-    lower = Table([
-        [[
-            Paragraph("六、交付前验收", styles["h2"]),
-            Paragraph(
-                "□ 广播名与编号末 6 位一致　□ FFE1 可写且可订阅通知　□ 下行三种指令均在 LF 后解析<br/>"
-                "□ 60 字节 info 分 3 片发送　□ get_info 一次只回一条 info　□ 凯撒样例逐字一致<br/>"
-                "□ 重复 nonce 的下一笔可开机　□ 同一 auth 不重复启动　□ 未授权时 query_status 返回 1",
-                styles["body"],
-            ),
-        ]]
-    ], colWidths=[178 * mm])
-    lower.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("BOX", (0, 0), (-1, -1), 0.6, LINE),
-        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
-        ("LEFTPADDING", (0, 0), (-1, -1), 3 * mm),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 3 * mm),
-        ("TOPPADDING", (0, 0), (-1, -1), 2.2 * mm),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 2.2 * mm),
-    ]))
-    story += [lower]
 
     doc.build(story, onFirstPage=draw_page)
     print(OUTPUT)

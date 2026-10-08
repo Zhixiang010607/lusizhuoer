@@ -211,6 +211,47 @@ function localProtocolError(payload) {
   return messages[code] || String(payload?.message || payload?.error || "设备返回未知错误");
 }
 
+function compactResponseKind(payload) {
+  const sequence = Number(payload?.q);
+  const command = String(payload?.c || "").toLowerCase();
+  if (sequence === 1 && command === "i" && payload?.s !== undefined && payload?.n !== undefined) return "info";
+  if (sequence === 2 && !command && (payload?.o !== undefined || payload?.s !== undefined || payload?.e !== undefined)) return "auth_result";
+  if (sequence === 3 && !command && payload?.s !== undefined) return "status";
+  return "";
+}
+
+function normalizeDeviceResponse(payload) {
+  const kind = compactResponseKind(payload);
+  if (!kind) return payload;
+  if (kind === "info") {
+    return { ...payload, cmd: "info", seq: 1, status: Number(payload.s), nonce: String(payload.n || "") };
+  }
+  if (kind === "auth_result") {
+    return {
+      ...payload,
+      cmd: "auth_result",
+      seq: 2,
+      ok: Number(payload.o) === 1,
+      status: Number(payload.s),
+      code: Number(payload.e || 0)
+    };
+  }
+  return { ...payload, cmd: "status", seq: 3, status: Number(payload.s) };
+}
+
+function compactAuthorizationCommand(command) {
+  const auth = command?.auth || {};
+  const usageCount = Number(auth.usage_count);
+  const expireAt = Number(auth.expire_at);
+  const signature = String(auth.signature || "").trim();
+  if (!Number.isInteger(usageCount) || usageCount < 1 || usageCount > 999
+      || !Number.isInteger(expireAt) || expireAt <= 0
+      || !/^[0-9a-z]{32}$/.test(signature)) {
+    throw bleError("BLE_AUTHORIZATION_INCOMPLETE", "服务端没有返回可发送的精简设备授权，禁止开机。");
+  }
+  return { q: 2, c: "a", u: usageCount, e: expireAt, x: signature };
+}
+
 class BleVerificationSession {
   constructor({ qualification, clientRequestId, onState, onIrreversible }) {
     this.qualification = qualification || {};
@@ -236,6 +277,7 @@ class BleVerificationSession {
     this.waiters = [];
     this.cancelled = false;
     this.authorizationSent = false;
+    this.useCompactProtocol = false;
     this.discoveryFinish = null;
     this.closePromise = null;
     this.infoTimeoutMs = INFO_TIMEOUT_MS;
@@ -489,17 +531,17 @@ class BleVerificationSession {
   }
 
   recordReceiveSummary(payload) {
-    const compactInfo = String(payload?.c || "").toLowerCase() === "i" && Number(payload?.q) === 1;
-    const command = String(payload?.cmd || payload?.type || (compactInfo ? "info" : "未知"))
+    const normalized = normalizeDeviceResponse(payload);
+    const command = String(normalized?.cmd || normalized?.type || "未知")
       .replace(/[^a-z0-9_-]/gi, "")
       .slice(0, 32) || "未知";
     const parts = [`cmd=${command}`];
-    const sequence = payload?.seq ?? payload?.q;
-    const status = payload?.status ?? payload?.s;
+    const sequence = normalized?.seq;
+    const status = normalized?.status;
     if (Number.isFinite(Number(sequence))) parts.push(`seq=${Number(sequence)}`);
-    if (typeof payload?.ok === "boolean") parts.push(`ok=${payload.ok}`);
+    if (typeof normalized?.ok === "boolean") parts.push(`ok=${normalized.ok}`);
     if (Number.isFinite(Number(status))) parts.push(`status=${Number(status)}`);
-    if (Number.isFinite(Number(payload?.code))) parts.push(`code=${Number(payload.code)}`);
+    if (Number(normalized?.code) > 0) parts.push(`code=${Number(normalized.code)}`);
     this.lastReceiveSummary = parts.join(",");
   }
 
@@ -527,8 +569,9 @@ class BleVerificationSession {
 
   async write(payload) {
     const bytes = new Uint8Array(utf8Encode(`${JSON.stringify(payload)}\n`));
-    const command = String(payload?.cmd || "unknown").trim().toLowerCase() || "unknown";
-    const sequence = Number(payload?.seq);
+    const compactCommands = { 2: "auth", 3: "query_status" };
+    const command = String(payload?.cmd || compactCommands[Number(payload?.q)] || "unknown").trim().toLowerCase() || "unknown";
+    const sequence = Number(payload?.seq ?? payload?.q);
     const chunkCount = Math.ceil(bytes.byteLength / WRITE_CHUNK_BYTES);
     let chunkIndex = 0;
     let chunkBytes = 0;
@@ -578,7 +621,7 @@ class BleVerificationSession {
       (payload) => {
         const legacy = ["info", "get_info_result"].includes(String(payload?.cmd || payload?.type || "").toLowerCase())
           && Number(payload?.seq) === 1;
-        const compact = String(payload?.c || "").toLowerCase() === "i" && Number(payload?.q) === 1;
+        const compact = compactResponseKind(payload) === "info";
         return legacy || compact;
       },
       this.infoTimeoutMs,
@@ -628,7 +671,7 @@ class BleVerificationSession {
 
   validateInfo(qr, info) {
     const expectedType = String(this.qualification.expectedDeviceType || "").trim();
-    const compact = String(info?.c || "").toLowerCase() === "i" && Number(info?.q) === 1;
+    const compact = compactResponseKind(info) === "info";
     if (compact && expectedType.toUpperCase() !== "LASER-BLE") {
       throw bleError("BLE_DEVICE_TYPE_MISMATCH", "当前设备类型不支持精简信息回包，禁止授权。");
     }
@@ -655,19 +698,23 @@ class BleVerificationSession {
     if (name !== expectedBleName(qr.sn)) throw bleError("BLE_NAME_MISMATCH", "蓝牙设备名称与二维码编号不一致，禁止授权。");
     if (![1, 2].includes(Number(status))) throw bleError("BLE_DEVICE_NOT_READY", "设备未进入待机状态，请先在设备端完成复位。");
     if (!/^[0-9a-f]{32}$/i.test(nonce)) throw bleError("BLE_NONCE_INVALID", "设备没有返回有效的 32 位随机数，禁止授权。");
+    this.useCompactProtocol = compact;
     return { device_id: id, device_type: expectedType, ble_name: name, status: Number(status), nonce };
   }
 
   async queryWorking(fallbackInfo) {
     const waiting = this.waitFor(
-      (payload) => String(payload?.cmd || payload?.type || "").toLowerCase() === "status"
-        && Number(payload?.seq) === 3,
+      (payload) => {
+        const normalized = normalizeDeviceResponse(payload);
+        return String(normalized?.cmd || normalized?.type || "").toLowerCase() === "status"
+          && Number(normalized?.seq) === 3;
+      },
       STATUS_TIMEOUT_MS,
       "BLE_STATUS_TIMEOUT",
       "设备在 10 秒内没有返回实际状态，无法确认是否已启动。"
     );
-    await this.write({ ver: "1.0", seq: 3, cmd: "query_status" });
-    const status = await waiting;
+    await this.write(this.useCompactProtocol ? { q: 3 } : { ver: "1.0", seq: 3, cmd: "query_status" });
+    const status = normalizeDeviceResponse(await waiting);
     return Number(status.status) === 2 ? { ...fallbackInfo, ...status, ok: true, status: 2 } : null;
   }
 
@@ -750,18 +797,21 @@ class BleVerificationSession {
 
       this.state("DEVICE_AUTHORIZING", "正在授权设备进入工作状态");
       const waiting = this.waitFor(
-        (payload) => String(payload?.cmd || payload?.type || "").toLowerCase() === "auth_result"
-          && Number(payload?.seq) === 2,
+        (payload) => {
+          const normalized = normalizeDeviceResponse(payload);
+          return String(normalized?.cmd || normalized?.type || "").toLowerCase() === "auth_result"
+            && Number(normalized?.seq) === 2;
+        },
         AUTH_TIMEOUT_MS,
         "BLE_AUTH_RESULT_TIMEOUT",
         "设备在 10 秒内没有返回开机结果，正在核对设备实际状态。"
       );
-      await this.write(issued.authCommand);
+      await this.write(this.useCompactProtocol ? compactAuthorizationCommand(issued.authCommand) : issued.authCommand);
       this.authorizationSent = true;
       this.onIrreversible({ authorizationSent: true, permanent: false });
       let result;
       try {
-        result = await waiting;
+        result = normalizeDeviceResponse(await waiting);
       } catch (error) {
         const recovered = await this.queryWorking(info).catch(() => null);
         if (!recovered) throw error;
@@ -949,6 +999,8 @@ async function retryFinalization(progress) {
 module.exports = {
   BLE_GATT_PROFILES,
   BleVerificationSession,
+  compactAuthorizationCommand,
+  normalizeDeviceResponse,
   normalizeGattUuid,
   parseDeviceQr,
   readProgress,
