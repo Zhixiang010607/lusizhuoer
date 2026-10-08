@@ -1,0 +1,14 @@
+date=2026-10-08 Australia/Sydney
+version=0.2.89
+description=BLE残片后安全补发读取
+appid=wxb053c1bd6c684d8b
+source_commit=6147c00b49c0088bd4bf00cee4ac40cb73599dc2
+cli_result=upload success
+backend_progress=progressSuccess
+backend_remote_debug=reportNewRemoteDebug
+backend_total_ms=209423
+main_package_bytes=1791857
+total_package_bytes=3328725
+experience_version_readback=not performed
+submitted_for_review=no
+released=no
