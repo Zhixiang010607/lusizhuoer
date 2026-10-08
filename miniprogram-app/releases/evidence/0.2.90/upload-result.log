@@ -1,0 +1,16 @@
+date=2026-10-08 Australia/Sydney
+version=0.2.90
+description=BLE整链路精简回执
+appid=wxb053c1bd6c684d8b
+source_commit=39eb8d2fddc27de7e43576d17e95d482a02ad9b2
+cli_result=upload success
+backend_progress=progressSuccess
+backend_remote_debug=reportNewRemoteDebug
+backend_total_ms=154181
+main_package_bytes=1793554
+total_package_bytes=3330422
+experience_version_readback=not performed
+submitted_for_review=no
+released=no
+sql_changed=no
+cloudfunctions_changed=no
