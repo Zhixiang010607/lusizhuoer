@@ -503,6 +503,37 @@ Page({
     });
     this.resetFace();
   },
+  async releaseTerminalBleAttempt(authorizationStatus = "") {
+    if (this._qualificationTimer) clearInterval(this._qualificationTimer);
+    this._qualificationTimer = null;
+    this._qualificationDeadline = 0;
+    const session = this._bleSession;
+    if (session) await session.cancel();
+    if (this._bleSession === session) this._bleSession = null;
+    try { clearBleProgress(); } catch (_) { /* the server terminal state remains authoritative */ }
+    try { submission.clear("VERIFICATION"); } catch (_) { /* the server terminal state remains authoritative */ }
+    const failed = String(authorizationStatus || "").toUpperCase() === "FAILED";
+    this.setData({
+      locked: false,
+      qualification: null,
+      qualificationActive: false,
+      qualificationSeconds: 0,
+      bleWindowVisible: false,
+      bleRunning: false,
+      bleAuthorizationSent: false,
+      blePermanentlyClosed: false,
+      bleStage: "",
+      bleStatusMessage: "",
+      bleErrorTitle: "",
+      bleErrorCode: "",
+      bleErrorAdvice: "",
+      bleErrorDetail: "",
+      bleReceiveDiagnostic: "",
+      message: `云端已确认上次设备授权${failed ? "失败" : "失效"}且未生成核销工单、未扣次；旧连接和旧授权记录已清除，请重新拍照验证。`,
+      error: false
+    });
+    this.resetFace();
+  },
   async refreshQualificationForBle() {
     const intent = submission.read("VERIFICATION");
     if (!intent?.clientRequestId) {
@@ -515,6 +546,11 @@ Page({
     }
     if (!recovered?.found || !recovered.qualificationToken) {
       throw Object.assign(new Error("服务端未找到本次设备资格，本次没有扣次，请重新拍照验证。"), { code: "BLE_QUALIFICATION_NOT_FOUND" });
+    }
+    const authorizationStatus = String(recovered.authorizationStatus || "").toUpperCase();
+    if (["EXPIRED", "FAILED"].includes(authorizationStatus)) {
+      await this.releaseTerminalBleAttempt(authorizationStatus);
+      return null;
     }
     const authorizationIssued = Boolean(recovered.authorizationIssued);
     if (authorizationIssued) this.setData({ bleAuthorizationSent: true, locked: false });

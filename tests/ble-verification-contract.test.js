@@ -182,10 +182,19 @@ test('only a live device authorization locks the selected store and customer', (
 
 test('a terminal stale authorization releases only the previous submission lock', () => {
   const recovery = pageSource.slice(pageSource.indexOf('async recoverPending()'));
+  const preflightRecovery = pageSource.slice(
+    pageSource.indexOf('async refreshQualificationForBle()'),
+    pageSource.indexOf('async openBleWindow()')
+  );
   assert.match(pageSource, /function isTerminalBleFinalizationError/);
   assert.match(pageSource, /BLE_AUTHORIZATION_EXPIRED/);
   assert.match(pageSource, /BLE_AUTHORIZATION_NOT_ACTIVE/);
   assert.match(pageSource, /BLE_AUTHORIZATION_NOT_FOUND/);
+  assert.match(pageSource, /async releaseTerminalBleAttempt\(authorizationStatus = ""\)/);
+  assert.match(preflightRecovery, /\["EXPIRED", "FAILED"\]\.includes\(authorizationStatus\)/);
+  assert.match(preflightRecovery, /await this\.releaseTerminalBleAttempt\(authorizationStatus\)/);
+  assert.ok(preflightRecovery.indexOf('releaseTerminalBleAttempt') < preflightRecovery.indexOf('activateQualification'));
+  assert.match(pageSource, /旧连接和旧授权记录已清除，请重新拍照验证/);
   assert.match(recovery, /if \(!isTerminalBleFinalizationError\(error\)\) throw error/);
   assert.ok(recovery.indexOf('retryFinalization(progress)') < recovery.indexOf('recoverVerificationBleQualification'));
   assert.match(recovery, /blePermanentlyClosed: false/);
