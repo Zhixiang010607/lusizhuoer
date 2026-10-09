@@ -57,6 +57,37 @@ test("app exposes one startup promise and marks validation ready even when a sta
   assert.deepEqual(keepScreenCalls, [true, true], "returning to the foreground must renew the keep-awake request");
 });
 
+test("a cold app launch discards an unfinished BLE attempt but preserves a confirmed device result", async () => {
+  async function launch({ intent, progress }) {
+    let definition;
+    const calls = [];
+    vm.runInNewContext(read("app.js"), {
+      App(value) { definition = value; },
+      require(id) {
+        if (id === "./services/session") return { restoreAndValidateSession: async () => ({ uid: "u1", role: "store" }) };
+        if (id === "./services/submission") return {
+          read: () => intent,
+          clear: () => { calls.push("submission"); }
+        };
+        if (id === "./services/ble-verification") return {
+          readProgress: () => progress,
+          clearProgress: () => { calls.push("ble"); }
+        };
+        throw new Error(`unexpected app dependency ${id}`);
+      },
+      wx: { setKeepScreenOn() {} },
+      console, Promise, Number
+    }, { filename: "app.js" });
+    const app = Object.assign({}, definition, { globalData: { ...definition.globalData } });
+    await app.onLaunch();
+    return calls;
+  }
+
+  assert.deepEqual(await launch({ intent: { state: "UNCERTAIN" }, progress: {} }), ["ble", "submission"]);
+  assert.deepEqual(await launch({ intent: { state: "UNCERTAIN" }, progress: { deviceResult: { status: 2 } } }), []);
+  assert.deepEqual(await launch({ intent: { state: "CONFIRMED" }, progress: {} }), []);
+});
+
 function loadLogin(waitForStartupSession, stack = [{ route: "pages/company-intro/index" }, { route: "pages/login/index" }]) {
   let definition;
   const launches = [];

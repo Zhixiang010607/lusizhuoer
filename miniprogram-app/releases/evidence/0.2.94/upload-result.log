@@ -1,0 +1,8 @@
+version=0.2.94
+description=BLE自适应MTU大包与同设备安全重签
+appid=wxb053c1bd6c684d8b
+main_bytes=1795781
+total_bytes=3333775
+tests=355/355
+result=✔ upload
+observed_at=2026-10-09 14:14 AEDT

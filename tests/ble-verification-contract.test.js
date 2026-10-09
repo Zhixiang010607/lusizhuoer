@@ -161,9 +161,9 @@ test('client supports reopenable QR window and irreversible success navigation',
   assert.match(pageSource, /openBleWindow/);
   assert.match(pageSource, /closeBleWindow/);
   assert.match(pageSource, /await session\.cancel\(\)/);
-  assert.match(pageSource, /本轮连接已完全关闭，资格有效期内可重新扫码/);
-  assert.match(pageWxml, /bleRunning && bleStage !== 'QR_SCANNING' && bleStage !== 'DEVICE_DISCOVERING'/);
-  assert.match(pageSource, /const cancellableStage = \["QR_SCANNING", "DEVICE_DISCOVERING"\]/);
+  assert.match(pageSource, /只要90秒资格仍有效且核销未完成，就可以重新扫码/);
+  assert.doesNotMatch(pageWxml, /bleAuthorizationSent \|\| \(bleRunning/);
+  assert.match(bleSource, /const closed = bleError\("BLE_WINDOW_CLOSED"[\s\S]{0,260}this\.waiters\.splice\(0\)/);
   assert.match(pageSource, /blePermanentlyClosed/);
   assert.match(pageSource, /wx\.redirectTo/);
   assert.match(pageSource, /clearProgress/);
@@ -180,7 +180,7 @@ test('only a live device authorization locks the selected store and customer', (
   assert.match(pageWxml, /qualificationActive && bleAuthorizationSent && customer/);
 });
 
-test('a terminal stale authorization releases only the previous submission lock', () => {
+test('a terminal authorization keeps the live 90-second face qualification reusable', () => {
   const recovery = pageSource.slice(pageSource.indexOf('async recoverPending()'));
   const preflightRecovery = pageSource.slice(
     pageSource.indexOf('async refreshQualificationForBle()'),
@@ -190,15 +190,39 @@ test('a terminal stale authorization releases only the previous submission lock'
   assert.match(pageSource, /BLE_AUTHORIZATION_EXPIRED/);
   assert.match(pageSource, /BLE_AUTHORIZATION_NOT_ACTIVE/);
   assert.match(pageSource, /BLE_AUTHORIZATION_NOT_FOUND/);
-  assert.match(pageSource, /async releaseTerminalBleAttempt\(authorizationStatus = ""\)/);
+  assert.match(pageSource, /async releaseTerminalBleAttempt\(recovered, authorizationStatus = ""\)/);
   assert.match(preflightRecovery, /\["EXPIRED", "FAILED"\]\.includes\(authorizationStatus\)/);
-  assert.match(preflightRecovery, /await this\.releaseTerminalBleAttempt\(authorizationStatus\)/);
+  assert.match(preflightRecovery, /await this\.releaseTerminalBleAttempt\(recovered, authorizationStatus\)/);
   assert.ok(preflightRecovery.indexOf('releaseTerminalBleAttempt') < preflightRecovery.indexOf('activateQualification'));
-  assert.match(pageSource, /旧连接和旧授权记录已清除，请重新拍照验证/);
+  assert.match(pageSource, /人脸资格仍然有效，可重新打开扫码继续/);
+  const release = pageSource.slice(
+    pageSource.indexOf('async releaseTerminalBleAttempt'),
+    pageSource.indexOf('async refreshQualificationForBle')
+  );
+  assert.match(release, /this\.activateQualification\(recovered, false, false\)/);
+  assert.doesNotMatch(release, /submission\.clear|this\.resetFace/);
   assert.match(recovery, /if \(!isTerminalBleFinalizationError\(error\)\) throw error/);
   assert.ok(recovery.indexOf('retryFinalization(progress)') < recovery.indexOf('recoverVerificationBleQualification'));
   assert.match(recovery, /blePermanentlyClosed: false/);
-  assert.match(recovery, /未生成核销工单、未扣次；旧锁已解除/);
+  assert.match(recovery, /await this\.releaseTerminalBleAttempt\(qualification, authorizationStatus\)/);
+});
+
+test('the server replaces the token only for the same device throughout the same live qualification', () => {
+  const issue = faceSource.slice(
+    faceSource.indexOf('async function issueVerificationBleAuthorization'),
+    faceSource.indexOf('async function confirmVerificationBleWorkStarted')
+  );
+  assert.doesNotMatch(issue, /resumed:\s*true/);
+  assert.match(issue, /authorization_status IN \('ISSUED', 'EXPIRED', 'FAILED'\)/);
+  assert.match(issue, /SET authorization_token =/);
+  assert.match(issue, /authorization_status = 'ISSUED'/);
+  assert.match(issue, /重复扫码只能连接同一台设备/);
+  assert.match(issue, /AND device_id = \$\{sqlText\(deviceId\)\}/);
+  assert.match(issue, /other_qualification\.submitted_by_account_id = \$\{caller\.staffId\}/);
+  assert.match(issue, /BLE_PREVIOUS_AUTHORIZATION_ACTIVE/);
+  assert.match(bleSource, /BLE_PREVIOUS_AUTHORIZATION_ACTIVE/);
+  assert.ok(issue.indexOf('Number(qualification.valid_seconds || 0) <= 0') < issue.indexOf("authorization_status IN ('ISSUED', 'EXPIRED', 'FAILED')"));
+  assert.doesNotMatch(bleSource, /sameQualification\)[\s\S]{0,420}BLE_AUTHORIZATION_ALREADY_ISSUED/);
 });
 
 test('device identity is checked without a device registry and QR codes stay hashed in audit', () => {
@@ -329,8 +353,9 @@ test('device types without a confirmed profile retain unique-channel discovery',
   assert.equal(session.notifyCharacteristicId, arbitraryNotify);
 });
 
-test('long authorization JSON is delivered as ordered HC-08-safe writes and one LF frame', async (t) => {
+test('unknown or 23-byte MTU keeps long authorization JSON in ordered 20-byte writes and one LF frame', async (t) => {
   assert.doesNotMatch(bleSource, /WRITE_CHUNK_GAP_MS|await wait\(/);
+  assert.match(bleSource, /const DEFAULT_WRITE_CHUNK_BYTES = 20/);
   const previousWx = global.wx;
   const writes = [];
   global.wx = {
@@ -369,6 +394,74 @@ test('long authorization JSON is delivered as ordered HC-08-safe writes and one 
   assert.ok(writes.every((item) => item.bytes.byteLength <= 20));
   assert.ok(writes.every((item) => item.writeType === 'write'));
   assert.equal(Buffer.concat(writes.map((item) => item.bytes)).toString('utf8'), `${JSON.stringify(command)}\n`);
+});
+
+test('iOS uses its reported MTU to send the compact JSON authorization in one larger write', async (t) => {
+  const previousWx = global.wx;
+  const writes = [];
+  const mtuQueries = [];
+  global.wx = {
+    getDeviceInfo() { return { platform: 'ios' }; },
+    getBLEMTU(options) {
+      mtuQueries.push({ deviceId: options.deviceId, writeType: options.writeType });
+      options.success({ mtu: 100 });
+    },
+    writeBLECharacteristicValue(options) {
+      writes.push(Buffer.from(new Uint8Array(options.value)));
+      options.success({});
+    }
+  };
+  t.after(() => {
+    if (previousWx === undefined) delete global.wx;
+    else global.wx = previousWx;
+  });
+
+  const session = new BleVerificationSession({ qualification: {}, clientRequestId: 'test-ios-large-mtu' });
+  session.deviceId = 'wechat-device-id';
+  session.serviceId = 'FFE0';
+  session.writeCharacteristicId = 'FFE1';
+  session.writeType = 'writeNoResponse';
+  await session.configureWriteMtu();
+  const command = compactAuthorizationCommand({
+    auth: {
+      usage_count: 10,
+      expire_at: 1791453921,
+      signature: '41638537597196183052aecgeigdifkh'
+    }
+  });
+  await session.write(command);
+
+  assert.deepEqual(mtuQueries, [{ deviceId: 'wechat-device-id', writeType: 'writeNoResponse' }]);
+  assert.equal(session.negotiatedMtu, 100);
+  assert.equal(session.writeChunkBytes, 97);
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].toString('utf8'), `${JSON.stringify(command)}\n`);
+});
+
+test('Android requests MTU 185 and uses the confirmed ATT payload without exceeding it', async (t) => {
+  const previousWx = global.wx;
+  const requested = [];
+  global.wx = {
+    getDeviceInfo() { return { platform: 'android' }; },
+    setBLEMTU(options) {
+      requested.push(options.mtu);
+      options.success({ mtu: 185 });
+    },
+    getBLEMTU(options) { options.success({ mtu: 185 }); }
+  };
+  t.after(() => {
+    if (previousWx === undefined) delete global.wx;
+    else global.wx = previousWx;
+  });
+
+  const session = new BleVerificationSession({ qualification: {}, clientRequestId: 'test-android-large-mtu' });
+  session.deviceId = 'wechat-device-id';
+  session.writeType = 'write';
+  await session.configureWriteMtu();
+
+  assert.deepEqual(requested, [185]);
+  assert.equal(session.negotiatedMtu, 185);
+  assert.equal(session.writeChunkBytes, 182);
 });
 
 test('first-chunk 10007 switches write mode once without resending a complete command', async (t) => {

@@ -93,7 +93,7 @@ Page({
     this._productRequestEpoch = (this._productRequestEpoch || 0) + 1;
     this._faceRequestEpoch = (this._faceRequestEpoch || 0) + 1;
     if (this._qualificationTimer) clearInterval(this._qualificationTimer);
-    if (this._bleSession && !this.data.bleAuthorizationSent) this._bleSession.cancel();
+    if (this._bleSession && !this.data.blePermanentlyClosed) this._bleSession.cancel();
   },
   preventTouchMove() {},
   async loadTeacherStores() {
@@ -503,7 +503,7 @@ Page({
     });
     this.resetFace();
   },
-  async releaseTerminalBleAttempt(authorizationStatus = "") {
+  async releaseTerminalBleAttempt(recovered, authorizationStatus = "") {
     if (this._qualificationTimer) clearInterval(this._qualificationTimer);
     this._qualificationTimer = null;
     this._qualificationDeadline = 0;
@@ -511,13 +511,10 @@ Page({
     if (session) await session.cancel();
     if (this._bleSession === session) this._bleSession = null;
     try { clearBleProgress(); } catch (_) { /* the server terminal state remains authoritative */ }
-    try { submission.clear("VERIFICATION"); } catch (_) { /* the server terminal state remains authoritative */ }
     const failed = String(authorizationStatus || "").toUpperCase() === "FAILED";
+    this.activateQualification(recovered, false, false);
     this.setData({
       locked: false,
-      qualification: null,
-      qualificationActive: false,
-      qualificationSeconds: 0,
       bleWindowVisible: false,
       bleRunning: false,
       bleAuthorizationSent: false,
@@ -529,10 +526,9 @@ Page({
       bleErrorAdvice: "",
       bleErrorDetail: "",
       bleReceiveDiagnostic: "",
-      message: `云端已确认上次设备授权${failed ? "失败" : "失效"}且未生成核销工单、未扣次；旧连接和旧授权记录已清除，请重新拍照验证。`,
+      message: `上次设备授权${failed ? "失败" : "已过期"}且未生成核销工单、未扣次；人脸资格仍然有效，可重新打开扫码继续。`,
       error: false
     });
-    this.resetFace();
   },
   async refreshQualificationForBle() {
     const intent = submission.read("VERIFICATION");
@@ -549,8 +545,8 @@ Page({
     }
     const authorizationStatus = String(recovered.authorizationStatus || "").toUpperCase();
     if (["EXPIRED", "FAILED"].includes(authorizationStatus)) {
-      await this.releaseTerminalBleAttempt(authorizationStatus);
-      return null;
+      await this.releaseTerminalBleAttempt(recovered, authorizationStatus);
+      return recovered;
     }
     const authorizationIssued = Boolean(recovered.authorizationIssued);
     if (authorizationIssued) this.setData({ bleAuthorizationSent: true, locked: false });
@@ -585,13 +581,11 @@ Page({
   },
   async closeBleWindow() {
     if (this.data.blePermanentlyClosed) return;
-    const cancellableStage = ["QR_SCANNING", "DEVICE_DISCOVERING"].includes(String(this.data.bleStage || ""));
-    if (this.data.bleAuthorizationSent || (this.data.bleRunning && !cancellableStage)) return;
     const session = this._bleSession;
     this.setData({ bleWindowVisible: false, bleStatusMessage: "正在关闭本轮蓝牙连接…" });
     if (session) await session.cancel();
     if (this._bleSession === session) this._bleSession = null;
-    this.setData({ bleRunning: false, bleStage: "", bleStatusMessage: "本轮连接已完全关闭，资格有效期内可重新扫码。" });
+    this.setData({ bleRunning: false, bleStage: "", bleStatusMessage: "本轮连接已完全关闭；只要90秒资格仍有效且核销未完成，就可以重新扫码。" });
   },
   async startBleVerification() {
     if (this.data.bleRunning || this.data.blePermanentlyClosed) return;
@@ -722,6 +716,12 @@ Page({
         return;
       }
       if (qualification?.found && !qualification.authorizationIssued) {
+        const validSeconds = Number(qualification.validSeconds || 0);
+        const authorizationStatus = String(qualification.authorizationStatus || "").toUpperCase();
+        if (!qualification.expired && validSeconds > 0 && ["EXPIRED", "FAILED"].includes(authorizationStatus)) {
+          await this.releaseTerminalBleAttempt(qualification, authorizationStatus);
+          return;
+        }
         if (this._qualificationTimer) clearInterval(this._qualificationTimer);
         this._qualificationTimer = null;
         this._qualificationDeadline = 0;
@@ -729,8 +729,7 @@ Page({
         this._bleSession = null;
         try { clearBleProgress(); } catch (_) { /* continue */ }
         submission.clear("VERIFICATION");
-        const hadTerminalAuthorization = Boolean(terminalAuthorizationError)
-          || ["EXPIRED", "FAILED"].includes(String(qualification.authorizationStatus || ""));
+        const hadTerminalAuthorization = Boolean(terminalAuthorizationError);
         this.setData({
           locked: false,
           qualification: null,

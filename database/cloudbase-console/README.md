@@ -217,8 +217,8 @@ ROLLBACK;
 1. 短暂停止正常核销和体验核销新建，整文件执行
    `066-01-ble-verification-authorization.sql`；
 2. 不建立设备注册表、设备主档、数据库设备白名单或配对码表；执行过旧三表版 066 的环境先运行 `066-02-retire-legacy-device-registry.sql` 清理退役表。二维码序列号和六位码仅用于当次扫码，实时设备信息必须由 BLE `get_info` 读取；
-3. 继续按 [`071-README.md`](071-README.md) 删除 `device_id + nonce` 的跨核销唯一约束；`faceRecognition v118` 不再使用 `BLE_AUTH_SIGNING_KEY`；
-4. 按 [`067-README.md`](067-README.md) 在低峰期建立大数据充值／退费查询索引，继续执行并验收 068—071，待设备支持 nonce 凯撒签名后上传 `faceRecognition-v118.zip` 与 `customerRating-v8.zip` 并分别确认 `health` 版本；
+3. 继续按 [`071-README.md`](071-README.md) 删除 `device_id + nonce` 的跨核销唯一约束；`faceRecognition v120` 不再使用 `BLE_AUTH_SIGNING_KEY`；
+4. 按 [`067-README.md`](067-README.md) 在低峰期建立大数据充值／退费查询索引，继续执行并验收 068—071，上传 `faceRecognition-v120.zip` 与 `customerRating-v8.zip` 并分别确认 `health` 版本；
 5. 执行 `066-readonly-verify.sql`，11 行必须全部为 `READY`，并确认 `BLE device registry absent` 为 `READY`；
 6. 用真机验收人脸通过后的 90 秒扫码资格、关闭／重开、蓝牙与协议错误不扣次、
    设备状态 `2` 才扣次建单，以及成功后永久关闭扫码窗口并跳转精确工单。
@@ -235,7 +235,7 @@ ROLLBACK;
 1. 暂停充值、退费写入以及总部充值／退费查询；
 2. 整文件执行 `067-01-refund-query-performance.sql`，为门店、类型、状态、项目、提交时间和游标建立组合索引；
 3. 执行 `067-readonly-verify.sql`，确认四个索引有效；
-4. 当前整体验收继续完成 068—071，待设备支持 nonce 凯撒签名后再上传 `faceRecognition-v118.zip` 并用 `health` 确认版本；随后分别验收“今天”和“全部时间”的总部退费查询及翻页。
+4. 当前整体验收继续完成 068—071，上传 `faceRecognition-v120.zip` 并用 `health` 确认版本；随后分别验收“今天”和“全部时间”的总部退费查询及翻页。
 
 067 不修改业务数据。配套 v109 会先在业务表筛选、计数和分页，再联接当前页展示资料；历史工单按工单自己的办理门店查询，不再被客户最初建档门店误排除。
 
@@ -246,7 +246,7 @@ ROLLBACK;
 1. 整文件执行 `068-01-customer-work-order-ratings.sql`；
 2. 执行 `068-readonly-verify.sql`，9 行必须全部为 `READY`；
 3. 配置 `CUSTOMER_RATING_SIGNING_KEY`、实际 `rating.html` 完整 HTTPS 地址 `CUSTOMER_RATING_BASE_URL`，并完成匿名登录、匿名角色云函数网关权限和 `customerRating` 的 `"auth != null"` 调用规则；
-4. 继续执行并验收 069—071，上传 `customerRating-v8.zip`，确认 `health` 返回 `version=v8`、`configured=true`；待设备支持 nonce 凯撒签名后部署 `faceRecognition-v118.zip`，最后发布含 `rating.html` 的静态网页和当前小程序开发版本。
+4. 继续执行并验收 069—071，上传 `customerRating-v8.zip`，确认 `health` 返回 `version=v8`、`configured=true`；部署 `faceRecognition-v120.zip`，最后发布含 `rating.html` 的静态网页和当前小程序开发版本。
 
 068 只新增每张已完成正常／体验核销唯一、一次提交、不可删除的客户评价，不修改核销、人脸、照片、BLE、余额或体验额度。总部和工单所属门店导出凭证可带评价二维码，老师导出保持无二维码原版。
 
@@ -256,7 +256,7 @@ ROLLBACK;
 
 1. 整文件执行 `069-01-magic-soft-skin-ble-identity.sql`；
 2. 执行 `069-readonly-verify.sql`，3 行必须全部为 `READY`；
-3. 继续执行并验收迁移 071，待设备支持 nonce 凯撒签名后上传 `faceRecognition-v118.zip`，确认 `health version=v118`；
+3. 继续执行并验收迁移 071，上传 `faceRecognition-v120.zip`，确认 `health version=v120`；
 4. 最后上传包含 `LA`／`LASER-BLE` 识别规则的小程序开发版，并用真实魔法柔肤设备完成扫码、发现、读取、授权、工作态回执及只扣一次的真机验收。
 
 069 只放宽迁移 066 的设备序列号与类型格式约束，不删除或改写已有资格、授权、核销和工单。魔法柔肤固定使用 `LA` 加 12 位大写十六进制、`LASER-BLE` 和 `LA-` 加末 6 位；其他项目保留原 `NCM` 兼容规则。
@@ -268,7 +268,7 @@ ROLLBACK;
 1. 暂停新 BLE 核销写入，整文件执行 `071-01-allow-reused-ble-nonce.sql`；
 2. 执行 `071-readonly-verify.sql`，4 行必须全部为 `READY`；
 3. 确认设备端使用与文档固定样例完全一致的 nonce 凯撒算法；
-4. 上传 `faceRecognition-v118.zip` 并确认 `health version=v118`。
+4. 上传 `faceRecognition-v120.zip` 并确认 `health version=v120`。
 
 071 只取消 `device_id + nonce` 的跨核销唯一约束。每个资格仍只能签发一条授权，
 每个授权令牌与最终工单仍唯一，幂等提交和原子扣次不变。

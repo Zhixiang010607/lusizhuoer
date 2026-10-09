@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v118";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v120";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -4646,19 +4646,6 @@ async function issueVerificationBleAuthorization(event) {
   if (qualification.verification_id || qualification.qualification_status === "COMPLETED") {
     fail("这笔核销已经完成，二维码窗口已永久关闭。", "BLE_ALREADY_FINALIZED");
   }
-  const previousAuthorizationRows = await executeSql(
-    `SELECT authorization_token, authorization_status, verification_id, expires_at
-       FROM public.verification_ble_authorizations
-      WHERE qualification_id = ${sqlText(qualification.id)}::bigint
-      LIMIT 1`
-  );
-  const previousAuthorization = previousAuthorizationRows[0];
-  if (previousAuthorization) {
-    if (previousAuthorization.verification_id || previousAuthorization.authorization_status === "FINALIZED") {
-      fail("这笔核销已经完成，二维码窗口已永久关闭。", "BLE_ALREADY_FINALIZED");
-    }
-    fail("这次人脸资格已经签发过设备授权，不能更换设备或重复开机。", "BLE_AUTHORIZATION_ALREADY_ISSUED");
-  }
   if (Number(qualification.valid_seconds || 0) <= 0) {
     fail("90 秒 BLE 核销资格已过期，请重新拍照验证。", "BLE_QUALIFICATION_EXPIRED");
   }
@@ -4670,6 +4657,76 @@ async function issueVerificationBleAuthorization(event) {
   const magicSoftSkinSerial = /^LA[0-9A-F]{12}$/.test(qrSn);
   if (magicSoftSkinProfile !== magicSoftSkinSerial) {
     fail("魔法柔肤必须使用 LA 设备，其他项目不能使用 LA 设备。", "BLE_DEVICE_TYPE_MISMATCH");
+  }
+
+  const otherLiveAuthorizationRows = await executeSql(
+    `SELECT ble_authorization.device_id, ble_authorization.authorization_status
+       FROM public.verification_ble_authorizations AS ble_authorization
+       JOIN public.verification_ble_qualifications AS other_qualification
+         ON other_qualification.id = ble_authorization.qualification_id
+      WHERE other_qualification.submitted_by_account_id = ${caller.staffId}
+        AND ble_authorization.qualification_id <> ${sqlText(qualification.id)}::bigint
+        AND ble_authorization.verification_id IS NULL
+        AND (
+          ble_authorization.authorization_status = 'DEVICE_WORKING'
+          OR (
+            ble_authorization.authorization_status = 'ISSUED'
+            AND ble_authorization.expires_at > CLOCK_TIMESTAMP()
+          )
+        )
+      LIMIT 1`
+  );
+  if (otherLiveAuthorizationRows[0]) {
+    fail("上一份设备授权仍然有效，禁止扫描另一台设备或签发新授权；请等待原授权结束。", "BLE_PREVIOUS_AUTHORIZATION_ACTIVE");
+  }
+
+  const qrCodeHash = sha256Text(qrCode);
+  const previousAuthorizationRows = await executeSql(
+    `SELECT authorization_token, authorization_status, verification_id, qr_sn, qr_code_hash,
+            device_id, device_type, nonce, unit_count,
+            FLOOR(EXTRACT(EPOCH FROM issued_at))::bigint AS issued_epoch_seconds,
+            FLOOR(EXTRACT(EPOCH FROM expires_at))::bigint AS expires_epoch_seconds,
+            GREATEST(0, CEIL(EXTRACT(EPOCH FROM (expires_at - CLOCK_TIMESTAMP())))::integer) AS valid_seconds
+       FROM public.verification_ble_authorizations
+      WHERE qualification_id = ${sqlText(qualification.id)}::bigint
+      LIMIT 1`
+  );
+  let previousAuthorization = previousAuthorizationRows[0] || null;
+  if (previousAuthorization?.verification_id || previousAuthorization?.authorization_status === "FINALIZED") {
+    fail("这笔核销已经完成，二维码窗口已永久关闭。", "BLE_ALREADY_FINALIZED");
+  }
+  if (previousAuthorization?.authorization_status === "DEVICE_WORKING") {
+    fail("设备已经确认进入工作状态，正在恢复原核销工单。", "BLE_AUTHORIZATION_RECOVERY_REQUIRED");
+  }
+  if (previousAuthorization?.authorization_status === "ISSUED"
+      && Number(previousAuthorization.valid_seconds || 0) <= 0) {
+    await executeSql(
+      `UPDATE public.verification_ble_authorizations
+          SET authorization_status = 'EXPIRED', updated_at = CLOCK_TIMESTAMP()
+        WHERE qualification_id = ${sqlText(qualification.id)}::bigint
+          AND authorization_status = 'ISSUED'
+          AND verification_id IS NULL
+          AND expires_at <= CLOCK_TIMESTAMP()`
+    );
+    previousAuthorization = { ...previousAuthorization, authorization_status: "EXPIRED", valid_seconds: 0 };
+  }
+  if (previousAuthorization?.authorization_status === "ISSUED") {
+    const sameAuthorizedDevice = String(previousAuthorization.qr_sn || "") === qrSn
+      && String(previousAuthorization.qr_code_hash || "") === qrCodeHash
+      && String(previousAuthorization.device_id || "").toUpperCase() === deviceId
+      && String(previousAuthorization.device_type || "").toUpperCase() === canonicalDeviceType.toUpperCase()
+      && Number(previousAuthorization.unit_count) === Number(qualification.unit_count);
+    if (!sameAuthorizedDevice) {
+      fail("本次90秒资格已绑定原设备，重复扫码只能连接同一台设备，禁止更换设备。", "BLE_AUTHORIZATION_DEVICE_LOCKED");
+    }
+  }
+  if (previousAuthorization
+      && !["ISSUED", "EXPIRED", "FAILED"].includes(String(previousAuthorization.authorization_status || ""))) {
+    fail("原设备授权状态尚未结束，不能重复签发。", "BLE_AUTHORIZATION_ALREADY_ISSUED");
+  }
+  if (previousAuthorization
+      && String(previousAuthorization.device_id || "").toUpperCase() !== deviceId) {
+    fail("本次90秒资格已经绑定原设备，不能更换另一台设备。", "BLE_AUTHORIZATION_DEVICE_LOCKED");
   }
 
   const issuedAt = Number(qualification.server_epoch_seconds);
@@ -4684,20 +4741,52 @@ async function issueVerificationBleAuthorization(event) {
   const signature = verificationBleSignature(nonce);
   const authorizationToken = crypto.randomBytes(24).toString("hex");
   try {
-    await executeSql(
-      `INSERT INTO public.verification_ble_authorizations
-        (authorization_token, qualification_id, qr_sn, qr_code_hash, device_id,
-         device_type, nonce, unit_count, issued_at, expires_at, signature_hash)
-       VALUES
-        (${sqlText(authorizationToken)}, ${sqlText(qualification.id)}::bigint,
-         ${sqlText(qrSn)}, ${sqlText(sha256Text(qrCode))}, ${sqlText(deviceId)},
-         ${sqlText(canonicalDeviceType)}, ${sqlText(nonce)}, ${Number(qualification.unit_count)},
-         TO_TIMESTAMP(${issuedAt}), TO_TIMESTAMP(${expireAt}), ${sqlText(sha256Text(signature))})`
-    );
+    if (previousAuthorization) {
+      const rotatedRows = await executeSql(
+        `UPDATE public.verification_ble_authorizations
+            SET authorization_token = ${sqlText(authorizationToken)},
+                qr_sn = ${sqlText(qrSn)}, qr_code_hash = ${sqlText(qrCodeHash)},
+                device_id = ${sqlText(deviceId)}, device_type = ${sqlText(canonicalDeviceType)},
+                nonce = ${sqlText(nonce)}, unit_count = ${Number(qualification.unit_count)},
+                issued_at = TO_TIMESTAMP(${issuedAt}), expires_at = TO_TIMESTAMP(${expireAt}),
+                signature_hash = ${sqlText(sha256Text(signature))},
+                authorization_status = 'ISSUED', verification_id = NULL,
+                updated_at = CLOCK_TIMESTAMP()
+          WHERE qualification_id = ${sqlText(qualification.id)}::bigint
+            AND authorization_status IN ('ISSUED', 'EXPIRED', 'FAILED')
+            AND verification_id IS NULL
+            AND device_id = ${sqlText(deviceId)}
+        RETURNING authorization_token`
+      );
+      if (!rotatedRows[0]) {
+        fail("设备授权状态刚刚发生变化，请重新扫码核对原设备。", "BLE_AUTHORIZATION_ALREADY_ISSUED");
+      }
+    } else {
+      await executeSql(
+        `INSERT INTO public.verification_ble_authorizations
+          (authorization_token, qualification_id, qr_sn, qr_code_hash, device_id,
+           device_type, nonce, unit_count, issued_at, expires_at, signature_hash)
+         VALUES
+          (${sqlText(authorizationToken)}, ${sqlText(qualification.id)}::bigint,
+           ${sqlText(qrSn)}, ${sqlText(qrCodeHash)}, ${sqlText(deviceId)},
+           ${sqlText(canonicalDeviceType)}, ${sqlText(nonce)}, ${Number(qualification.unit_count)},
+           TO_TIMESTAMP(${issuedAt}), TO_TIMESTAMP(${expireAt}), ${sqlText(sha256Text(signature))})`
+      );
+    }
   } catch (error) {
     const detail = String(error?.message || "").toLowerCase();
-    if (detail.includes("qualification_id")) {
-      fail("这次人脸资格已经签发过设备授权，不能重复开机。", "BLE_AUTHORIZATION_ALREADY_ISSUED");
+    if (detail.includes("qualification_id")
+        && (detail.includes("unique") || detail.includes("duplicate") || detail.includes("23505"))) {
+      const concurrentRows = await executeSql(
+        `SELECT authorization_token
+           FROM public.verification_ble_authorizations
+          WHERE qualification_id = ${sqlText(qualification.id)}::bigint
+          LIMIT 1`
+      );
+      if (concurrentRows[0]) {
+        return issueVerificationBleAuthorization(event);
+      }
+      fail("设备授权状态刚刚发生变化，请重新扫码核对原设备。", "BLE_AUTHORIZATION_ALREADY_ISSUED");
     }
     if (detail.includes("verification_ble_authorizations_device_id_nonce_key")) {
       fail(
