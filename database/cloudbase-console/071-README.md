@@ -14,8 +14,8 @@
 2. 在腾讯 CloudBase PostgreSQL 控制台完整执行
    `071-01-allow-reused-ble-nonce.sql`。
 3. 完整执行 `071-readonly-verify.sql`，确认 4 行全部为 `READY`。
-4. 设备固件切换到约定的凯撒签名算法后，再部署当前 `faceRecognition v120`。
-5. 调用 `{ "action": "health" }`，确认返回 `version=v120`，再恢复 BLE 核销。
+4. 设备固件切换到约定的凯撒签名算法后，再部署当前 `faceRecognition v121`。
+5. 调用 `{ "action": "health" }`，确认返回 `version=v121`，再恢复 BLE 核销。
 
 迁移 071 可以先于 v118 执行；旧版 `faceRecognition v117` 在没有发生其他唯一冲突时
 仍可运行。不要在设备固件尚未支持凯撒签名时提前部署 v118。

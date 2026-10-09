@@ -62,6 +62,8 @@ Page({
     bleErrorTitle: "", bleErrorCode: "", bleErrorAdvice: "", bleErrorDetail: "", bleReceiveDiagnostic: ""
   },
   onLoad(options) {
+    this._bleStartGuard = false;
+    this._bleStartEpoch = 0;
     const session = requireSession(["store", "teacher"]);
     if (!session) return;
     const experience = String(options.mode || "NORMAL").toUpperCase() === "EXPERIENCE";
@@ -88,6 +90,8 @@ Page({
     }
   },
   onUnload() {
+    this._bleStartEpoch = (this._bleStartEpoch || 0) + 1;
+    this._bleStartGuard = false;
     this._storeRequestEpoch = (this._storeRequestEpoch || 0) + 1;
     this._teacherRequestEpoch = (this._teacherRequestEpoch || 0) + 1;
     this._productRequestEpoch = (this._productRequestEpoch || 0) + 1;
@@ -581,6 +585,8 @@ Page({
   },
   async closeBleWindow() {
     if (this.data.blePermanentlyClosed) return;
+    this._bleStartEpoch = (this._bleStartEpoch || 0) + 1;
+    this._bleStartGuard = false;
     const session = this._bleSession;
     this.setData({ bleWindowVisible: false, bleStatusMessage: "正在关闭本轮蓝牙连接…" });
     if (session) await session.cancel();
@@ -588,43 +594,45 @@ Page({
     this.setData({ bleRunning: false, bleStage: "", bleStatusMessage: "本轮连接已完全关闭；只要90秒资格仍有效且核销未完成，就可以重新扫码。" });
   },
   async startBleVerification() {
-    if (this.data.bleRunning || this.data.blePermanentlyClosed) return;
+    if (this._bleStartGuard || this.data.bleRunning || this.data.blePermanentlyClosed) return;
     if (!this.data.qualificationActive || this.data.qualificationSeconds <= 0) return this.expireQualification();
-    const intent = submission.read("VERIFICATION");
-    if (!intent?.clientRequestId) {
-      return this.setData({ locked: true, bleWindowVisible: false, message: "防重复提交编号丢失，已禁止设备授权；请联系管理员。", error: true });
-    }
-    try {
-      const qualification = await this.refreshQualificationForBle();
-      if (!qualification) return;
-    } catch (error) {
-      const feedback = errorFeedback(error);
-      this.setData({ bleWindowVisible: false, message: feedback.message, error: true });
-      if (error.code === "BLE_AUTHORIZATION_RECOVERY_REQUIRED") await this.recoverPending();
-      return;
-    }
+    const startEpoch = (this._bleStartEpoch || 0) + 1;
+    this._bleStartEpoch = startEpoch;
+    this._bleStartGuard = true;
     this.setData({
-      bleWindowVisible: true, bleRunning: true, bleStage: "QR_SCANNING", bleStatusMessage: "准备扫描设备二维码",
+      bleWindowVisible: true, bleRunning: true, bleStage: "QUALIFICATION_CHECK", bleStatusMessage: "正在核对本次核销资格",
       bleErrorTitle: "", bleErrorCode: "", bleErrorAdvice: "", bleErrorDetail: "", bleReceiveDiagnostic: ""
     });
-    const session = new BleVerificationSession({
-      qualification: this.data.qualification,
-      clientRequestId: intent.clientRequestId,
-      onState: (state) => {
-        const nextState = { bleStage: state.stage || "", bleStatusMessage: state.message || "" };
-        if (state.receiveDiagnostic !== undefined) nextState.bleReceiveDiagnostic = String(state.receiveDiagnostic || "");
-        this.setData(nextState);
-      },
-      onIrreversible: (state) => {
-        if (state?.authorizationSent) this.setData({ bleAuthorizationSent: true, bleStatusMessage: "授权已发往设备，正在确认是否进入工作状态；请勿重新扫码。" });
-        if (state?.deviceResult && Number(state.deviceResult.status) === 2) {
-          this.setData({ blePermanentlyClosed: true, bleWindowVisible: false, locked: true, message: "设备已进入工作状态，二维码窗口已永久关闭，正在生成核销工单。", error: false });
-        }
-      }
-    });
-    this._bleSession = session;
+    let session = null;
     try {
+      const intent = submission.read("VERIFICATION");
+      if (!intent?.clientRequestId) {
+        this.setData({ locked: true, bleWindowVisible: false, message: "防重复提交编号丢失，已禁止设备授权；请联系管理员。", error: true });
+        return;
+      }
+      const qualification = await this.refreshQualificationForBle();
+      if (!qualification || startEpoch !== this._bleStartEpoch) return;
+      this.setData({ bleStage: "QR_SCANNING", bleStatusMessage: "准备扫描设备二维码" });
+      session = new BleVerificationSession({
+        qualification: this.data.qualification,
+        clientRequestId: intent.clientRequestId,
+        onState: (state) => {
+          if (startEpoch !== this._bleStartEpoch) return;
+          const nextState = { bleStage: state.stage || "", bleStatusMessage: state.message || "" };
+          if (state.receiveDiagnostic !== undefined) nextState.bleReceiveDiagnostic = String(state.receiveDiagnostic || "");
+          this.setData(nextState);
+        },
+        onIrreversible: (state) => {
+          if (startEpoch !== this._bleStartEpoch) return;
+          if (state?.authorizationSent) this.setData({ bleAuthorizationSent: true, bleStatusMessage: "授权已发往设备，正在确认是否进入工作状态；请勿重新扫码。" });
+          if (state?.deviceResult && Number(state.deviceResult.status) === 2) {
+            this.setData({ blePermanentlyClosed: true, bleWindowVisible: false, locked: true, message: "设备已进入工作状态，二维码窗口已永久关闭，正在生成核销工单。", error: false });
+          }
+        }
+      });
+      this._bleSession = session;
       const result = await session.run();
+      if (startEpoch !== this._bleStartEpoch) return;
       const confirmedIntent = submission.confirm("VERIFICATION", result.verificationId);
       try { clearBleProgress(); } catch (_) { /* final record is already authoritative */ }
       if (this._qualificationTimer) clearInterval(this._qualificationTimer);
@@ -634,6 +642,13 @@ Page({
       });
       this.openSubmittedOrder(result, confirmedIntent);
     } catch (error) {
+      if (startEpoch !== this._bleStartEpoch) return;
+      if (error.code === "BLE_AUTHORIZATION_RECOVERY_REQUIRED") {
+        const feedback = errorFeedback(error);
+        this.setData({ bleWindowVisible: false, message: feedback.message, error: true });
+        await this.recoverPending();
+        return;
+      }
       const progress = readBleProgress();
       if (progress?.deviceResult && Number(progress.deviceResult.status) === 2) {
         this.setData({ blePermanentlyClosed: true, bleWindowVisible: false, locked: true, message: "设备已启动但工单响应中断，正在从数据库恢复；禁止重复扫码。", error: true });
@@ -657,8 +672,11 @@ Page({
         if (this.data.qualificationSeconds <= 0) this.expireQualification();
       }
     } finally {
-      if (this._bleSession === session) this._bleSession = null;
-      if (!this.data.blePermanentlyClosed) this.setData({ bleRunning: false });
+      if (session && this._bleSession === session) this._bleSession = null;
+      if (startEpoch === this._bleStartEpoch) {
+        this._bleStartGuard = false;
+        if (!this.data.blePermanentlyClosed) this.setData({ bleRunning: false });
+      }
     }
   },
   showRecovered(result) {

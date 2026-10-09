@@ -7,9 +7,7 @@ const INFO_RETRY_AFTER_MS = 5000;
 const AUTH_TIMEOUT_MS = 10000;
 const STATUS_TIMEOUT_MS = 10000;
 const DISCOVERY_TIMEOUT_MS = 15000;
-const DEFAULT_WRITE_CHUNK_BYTES = 20;
-const REQUESTED_ATT_MTU = 185;
-const MAX_WRITE_CHUNK_BYTES = REQUESTED_ATT_MTU - 3;
+const WRITE_CHUNK_BYTES = 20;
 let bleCleanupBarrier = Promise.resolve();
 
 const BLE_GATT_PROFILES = Object.freeze({
@@ -40,23 +38,6 @@ function characteristicWriteTypes(characteristic) {
   if (properties.write) types.push("write");
   if (properties.writeNoResponse) types.push("writeNoResponse");
   return types;
-}
-
-function devicePlatform() {
-  try {
-    if (typeof wx.getDeviceInfo === "function") {
-      return String(wx.getDeviceInfo()?.platform || "").trim().toLowerCase();
-    }
-    if (typeof wx.getSystemInfoSync === "function") {
-      return String(wx.getSystemInfoSync()?.platform || "").trim().toLowerCase();
-    }
-  } catch (_) { /* a missing platform hint only disables active Android negotiation */ }
-  return "";
-}
-
-function validAttMtu(value) {
-  const mtu = Number(value);
-  return Number.isInteger(mtu) && mtu >= 23 && mtu <= 512 ? mtu : 0;
 }
 
 function isPropertyNotSupported(error) {
@@ -284,8 +265,6 @@ class BleVerificationSession {
     this.notifyCharacteristicId = "";
     this.writeType = "write";
     this.supportedWriteTypes = ["write"];
-    this.negotiatedMtu = 23;
-    this.writeChunkBytes = DEFAULT_WRITE_CHUNK_BYTES;
     this.receiveBuffer = "";
     this.receivePacketCount = 0;
     this.receivePacketLengths = [];
@@ -447,7 +426,6 @@ class BleVerificationSession {
       this.supportedWriteTypes = characteristicWriteTypes(writeCharacteristic);
       this.writeType = this.supportedWriteTypes[0];
     }
-    await this.configureWriteMtu();
     this.ensureActive();
     if (typeof wx.onBLECharacteristicValueChange === "function") wx.onBLECharacteristicValueChange(this.valueHandler);
     try {
@@ -460,36 +438,6 @@ class BleVerificationSession {
     } catch (error) {
       throw bleError("BLE_NOTIFY_ENABLE_FAILED", "无法订阅设备通知通道，请检查特征属性和设备连接状态。", error);
     }
-  }
-
-  async configureWriteMtu() {
-    let mtu = 23;
-    if (devicePlatform() === "android" && typeof wx.setBLEMTU === "function") {
-      try {
-        const result = await wxPromise("setBLEMTU", { deviceId: this.deviceId, mtu: REQUESTED_ATT_MTU });
-        mtu = validAttMtu(result?.mtu) || mtu;
-      } catch (_) { /* retain the current connection MTU */ }
-    }
-    if (typeof wx.getBLEMTU === "function") {
-      try {
-        const result = await wxPromise("getBLEMTU", {
-          deviceId: this.deviceId,
-          writeType: this.writeType
-        });
-        mtu = validAttMtu(result?.mtu) || mtu;
-      } catch (_) { /* 23-byte ATT MTU remains the safe fallback */ }
-    }
-    this.negotiatedMtu = mtu;
-    this.writeChunkBytes = Math.max(
-      DEFAULT_WRITE_CHUNK_BYTES,
-      Math.min(MAX_WRITE_CHUNK_BYTES, mtu - 3)
-    );
-    this.state(
-      "MTU_READY",
-      this.writeChunkBytes > DEFAULT_WRITE_CHUNK_BYTES
-        ? `蓝牙已协商大包：MTU ${mtu}，单包最多 ${this.writeChunkBytes} 字节`
-        : "蓝牙使用兼容包：单包最多 20 字节"
-    );
   }
 
   handleValue(event) {
@@ -624,15 +572,12 @@ class BleVerificationSession {
     const compactCommands = { 1: "get_info", 2: "auth", 3: "query_status" };
     const command = String(payload?.cmd || compactCommands[Number(payload?.q)] || "unknown").trim().toLowerCase() || "unknown";
     const sequence = Number(payload?.seq ?? payload?.q);
-    const chunkBytesLimit = Number.isInteger(this.writeChunkBytes) && this.writeChunkBytes >= DEFAULT_WRITE_CHUNK_BYTES
-      ? this.writeChunkBytes
-      : DEFAULT_WRITE_CHUNK_BYTES;
-    const chunkCount = Math.ceil(bytes.byteLength / chunkBytesLimit);
+    const chunkCount = Math.ceil(bytes.byteLength / WRITE_CHUNK_BYTES);
     let chunkIndex = 0;
     let chunkBytes = 0;
     try {
-      for (let offset = 0; offset < bytes.byteLength; offset += chunkBytesLimit) {
-        const chunk = bytes.slice(offset, Math.min(offset + chunkBytesLimit, bytes.byteLength));
+      for (let offset = 0; offset < bytes.byteLength; offset += WRITE_CHUNK_BYTES) {
+        const chunk = bytes.slice(offset, Math.min(offset + WRITE_CHUNK_BYTES, bytes.byteLength));
         chunkIndex += 1;
         chunkBytes = chunk.byteLength;
         const writeChunk = (writeType) => wxPromise("writeBLECharacteristicValue", {
@@ -645,7 +590,7 @@ class BleVerificationSession {
         try {
           await writeChunk(this.writeType);
         } catch (error) {
-          const alternateWriteType = chunkIndex === 1 && isPropertyNotSupported(error)
+          const alternateWriteType = command !== "auth" && chunkIndex === 1 && isPropertyNotSupported(error)
             ? this.supportedWriteTypes.find((item) => item !== this.writeType)
             : "";
           if (!alternateWriteType) throw error;
@@ -662,8 +607,7 @@ class BleVerificationSession {
         chunkIndex,
         chunkCount,
         chunkBytes,
-        mtu: this.negotiatedMtu,
-        chunkBytesLimit,
+        chunkBytesLimit: WRITE_CHUNK_BYTES,
         writeType: String(this.writeType || "unknown"),
         wxCode: String(cause?.errCode ?? "").trim().slice(0, 32),
         wxMessage: sanitizeBleDiagnosticMessage(cause?.errMsg || error?.message)
@@ -968,6 +912,7 @@ function errorFeedback(error) {
     BLE_PROGRESS_SAVE_FAILED: ["无法保存防重复进度", "为避免设备启动后重复扣次，已禁止继续；请清理微信存储空间后重试。", false],
     BLE_SESSION_EXPIRED: ["登录状态已失效", "请重新登录后从原工单恢复入口继续，切勿重复发起核销。", false],
     BLE_AUTHORIZATION_INCOMPLETE: ["服务端授权不完整", "设备尚未获得完整开机指令，本次不会扣次；请联系管理员检查云函数。", false],
+    BLE_AUTHORIZATION_RACE: ["重复授权已拦截", "同一资格正在签发授权，本次请求已停止；请保持当前页面等待原请求结果。", false],
     BLE_AUTHORIZATION_ALREADY_ISSUED: ["一次性授权已经签发", "不能重复发送开机授权。请重新连接原设备核对状态；若设备仍待机，请等待本次 90 秒资格结束后重新做人脸验证。", false],
     BLE_PREVIOUS_AUTHORIZATION_ACTIVE: ["上一份授权仍然有效", "禁止扫描另一台设备或签发新授权；请等待原授权结束后再继续。", false],
     BLE_AUTHORIZATION_DEVICE_LOCKED: ["资格已绑定原设备", "不能更换设备或重复开机。请连接原设备核对状态，或等待本次 90 秒资格结束后重新验证。", false],
@@ -1018,8 +963,7 @@ function errorFeedback(error) {
         `序号：${diagnostic.sequence === "" ? "?" : diagnostic.sequence}`,
         `分片：${diagnostic.chunkIndex || "?"}/${diagnostic.chunkCount || "?"}`,
         `本片：${diagnostic.chunkBytes || "?"} 字节`,
-        `MTU：${diagnostic.mtu || 23}`,
-        `单包上限：${diagnostic.chunkBytesLimit || DEFAULT_WRITE_CHUNK_BYTES} 字节`,
+        `单包上限：${diagnostic.chunkBytesLimit || WRITE_CHUNK_BYTES} 字节`,
         `方式：${diagnostic.writeType || "unknown"}`
       ];
       if (diagnostic.wxCode) parts.push(`微信错误：${diagnostic.wxCode}`);

@@ -173,6 +173,19 @@ test('client supports reopenable QR window and irreversible success navigation',
   assert.match(bleSource, /if \(this\.cancelled\) return/);
 });
 
+test('client locks the BLE start path synchronously before any qualification await', () => {
+  const start = pageSource.slice(
+    pageSource.indexOf('async startBleVerification()'),
+    pageSource.indexOf('showRecovered(result)')
+  );
+  assert.match(start, /if \(this\._bleStartGuard \|\| this\.data\.bleRunning/);
+  assert.match(start, /this\._bleStartGuard = true/);
+  assert.ok(start.indexOf('this._bleStartGuard = true') < start.indexOf('await this.refreshQualificationForBle()'));
+  assert.match(start, /const startEpoch = \(this\._bleStartEpoch \|\| 0\) \+ 1/);
+  assert.match(start, /if \(startEpoch !== this\._bleStartEpoch\) return/);
+  assert.match(pageSource, /async closeBleWindow\(\)[\s\S]{0,180}this\._bleStartEpoch = \(this\._bleStartEpoch \|\| 0\) \+ 1/);
+});
+
 test('only a live device authorization locks the selected store and customer', () => {
   assert.match(faceSource, /\["ISSUED", "DEVICE_WORKING"\]\.includes\(authorizationStatus\)/);
   assert.match(faceSource, /authorization_status = 'EXPIRED'[\s\S]{0,240}authorization_status = 'ISSUED'[\s\S]{0,160}expires_at <= CLOCK_TIMESTAMP\(\)/);
@@ -218,8 +231,11 @@ test('the server replaces the token only for the same device throughout the same
   assert.match(issue, /authorization_status = 'ISSUED'/);
   assert.match(issue, /重复扫码只能连接同一台设备/);
   assert.match(issue, /AND device_id = \$\{sqlText\(deviceId\)\}/);
+  assert.match(issue, /AND authorization_token = \$\{sqlText\(previousAuthorization\.authorization_token\)\}/);
   assert.match(issue, /other_qualification\.submitted_by_account_id = \$\{caller\.staffId\}/);
   assert.match(issue, /BLE_PREVIOUS_AUTHORIZATION_ACTIVE/);
+  assert.match(issue, /BLE_AUTHORIZATION_RACE/);
+  assert.doesNotMatch(issue, /return issueVerificationBleAuthorization\(event\)/);
   assert.match(bleSource, /BLE_PREVIOUS_AUTHORIZATION_ACTIVE/);
   assert.ok(issue.indexOf('Number(qualification.valid_seconds || 0) <= 0') < issue.indexOf("authorization_status IN ('ISSUED', 'EXPIRED', 'FAILED')"));
   assert.doesNotMatch(bleSource, /sameQualification\)[\s\S]{0,420}BLE_AUTHORIZATION_ALREADY_ISSUED/);
@@ -353,9 +369,10 @@ test('device types without a confirmed profile retain unique-channel discovery',
   assert.equal(session.notifyCharacteristicId, arbitraryNotify);
 });
 
-test('unknown or 23-byte MTU keeps long authorization JSON in ordered 20-byte writes and one LF frame', async (t) => {
+test('every command uses ordered fixed 20-byte writes and one LF frame', async (t) => {
   assert.doesNotMatch(bleSource, /WRITE_CHUNK_GAP_MS|await wait\(/);
-  assert.match(bleSource, /const DEFAULT_WRITE_CHUNK_BYTES = 20/);
+  assert.match(bleSource, /const WRITE_CHUNK_BYTES = 20/);
+  assert.doesNotMatch(bleSource, /setBLEMTU|getBLEMTU|REQUESTED_ATT_MTU|configureWriteMtu/);
   const previousWx = global.wx;
   const writes = [];
   global.wx = {
@@ -396,74 +413,6 @@ test('unknown or 23-byte MTU keeps long authorization JSON in ordered 20-byte wr
   assert.equal(Buffer.concat(writes.map((item) => item.bytes)).toString('utf8'), `${JSON.stringify(command)}\n`);
 });
 
-test('iOS uses its reported MTU to send the compact JSON authorization in one larger write', async (t) => {
-  const previousWx = global.wx;
-  const writes = [];
-  const mtuQueries = [];
-  global.wx = {
-    getDeviceInfo() { return { platform: 'ios' }; },
-    getBLEMTU(options) {
-      mtuQueries.push({ deviceId: options.deviceId, writeType: options.writeType });
-      options.success({ mtu: 100 });
-    },
-    writeBLECharacteristicValue(options) {
-      writes.push(Buffer.from(new Uint8Array(options.value)));
-      options.success({});
-    }
-  };
-  t.after(() => {
-    if (previousWx === undefined) delete global.wx;
-    else global.wx = previousWx;
-  });
-
-  const session = new BleVerificationSession({ qualification: {}, clientRequestId: 'test-ios-large-mtu' });
-  session.deviceId = 'wechat-device-id';
-  session.serviceId = 'FFE0';
-  session.writeCharacteristicId = 'FFE1';
-  session.writeType = 'writeNoResponse';
-  await session.configureWriteMtu();
-  const command = compactAuthorizationCommand({
-    auth: {
-      usage_count: 10,
-      expire_at: 1791453921,
-      signature: '41638537597196183052aecgeigdifkh'
-    }
-  });
-  await session.write(command);
-
-  assert.deepEqual(mtuQueries, [{ deviceId: 'wechat-device-id', writeType: 'writeNoResponse' }]);
-  assert.equal(session.negotiatedMtu, 100);
-  assert.equal(session.writeChunkBytes, 97);
-  assert.equal(writes.length, 1);
-  assert.equal(writes[0].toString('utf8'), `${JSON.stringify(command)}\n`);
-});
-
-test('Android requests MTU 185 and uses the confirmed ATT payload without exceeding it', async (t) => {
-  const previousWx = global.wx;
-  const requested = [];
-  global.wx = {
-    getDeviceInfo() { return { platform: 'android' }; },
-    setBLEMTU(options) {
-      requested.push(options.mtu);
-      options.success({ mtu: 185 });
-    },
-    getBLEMTU(options) { options.success({ mtu: 185 }); }
-  };
-  t.after(() => {
-    if (previousWx === undefined) delete global.wx;
-    else global.wx = previousWx;
-  });
-
-  const session = new BleVerificationSession({ qualification: {}, clientRequestId: 'test-android-large-mtu' });
-  session.deviceId = 'wechat-device-id';
-  session.writeType = 'write';
-  await session.configureWriteMtu();
-
-  assert.deepEqual(requested, [185]);
-  assert.equal(session.negotiatedMtu, 185);
-  assert.equal(session.writeChunkBytes, 182);
-});
-
 test('first-chunk 10007 switches write mode once without resending a complete command', async (t) => {
   const previousWx = global.wx;
   const attempts = [];
@@ -500,6 +449,41 @@ test('first-chunk 10007 switches write mode once without resending a complete co
   assert.ok(attempts.slice(1).every((item) => item.writeType === 'writeNoResponse'));
   assert.equal(session.writeType, 'writeNoResponse');
   assert.equal(Buffer.concat(successfulChunks).toString('utf8'), `${JSON.stringify(command)}\n`);
+});
+
+test('auth write failure never switches mode or resends even the first chunk', async (t) => {
+  const previousWx = global.wx;
+  const attempts = [];
+  global.wx = {
+    writeBLECharacteristicValue(options) {
+      attempts.push({
+        writeType: options.writeType,
+        bytes: Buffer.from(new Uint8Array(options.value))
+      });
+      options.fail({ errCode: 10007, errMsg: 'writeBLECharacteristicValue:fail property not support' });
+    }
+  };
+  t.after(() => {
+    if (previousWx === undefined) delete global.wx;
+    else global.wx = previousWx;
+  });
+
+  const session = new BleVerificationSession({ qualification: {}, clientRequestId: 'test-auth-no-retry' });
+  session.deviceId = 'wechat-device-id';
+  session.serviceId = 'FFE0';
+  session.writeCharacteristicId = 'FFE1';
+  session.writeType = 'write';
+  session.supportedWriteTypes = ['write', 'writeNoResponse'];
+
+  await assert.rejects(
+    session.write({ q: 2, c: 'a', u: 1, e: 1791453921, x: '41638537597196183052aecgeigdifkh' }),
+    (error) => error?.code === 'BLE_WRITE_FAILED'
+  );
+
+  assert.equal(attempts.length, 1);
+  assert.equal(attempts[0].writeType, 'write');
+  assert.equal(attempts[0].bytes.byteLength, 20);
+  assert.equal(session.writeType, 'write');
 });
 
 test('BLE receive accepts consecutive complete JSON responses without LF terminators', async () => {

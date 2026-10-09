@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v120";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v121";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -4756,10 +4756,11 @@ async function issueVerificationBleAuthorization(event) {
             AND authorization_status IN ('ISSUED', 'EXPIRED', 'FAILED')
             AND verification_id IS NULL
             AND device_id = ${sqlText(deviceId)}
+            AND authorization_token = ${sqlText(previousAuthorization.authorization_token)}
         RETURNING authorization_token`
       );
       if (!rotatedRows[0]) {
-        fail("设备授权状态刚刚发生变化，请重新扫码核对原设备。", "BLE_AUTHORIZATION_ALREADY_ISSUED");
+        fail("设备授权正在由另一条请求签发，已禁止重复授权。", "BLE_AUTHORIZATION_RACE");
       }
     } else {
       await executeSql(
@@ -4777,16 +4778,7 @@ async function issueVerificationBleAuthorization(event) {
     const detail = String(error?.message || "").toLowerCase();
     if (detail.includes("qualification_id")
         && (detail.includes("unique") || detail.includes("duplicate") || detail.includes("23505"))) {
-      const concurrentRows = await executeSql(
-        `SELECT authorization_token
-           FROM public.verification_ble_authorizations
-          WHERE qualification_id = ${sqlText(qualification.id)}::bigint
-          LIMIT 1`
-      );
-      if (concurrentRows[0]) {
-        return issueVerificationBleAuthorization(event);
-      }
-      fail("设备授权状态刚刚发生变化，请重新扫码核对原设备。", "BLE_AUTHORIZATION_ALREADY_ISSUED");
+      fail("设备授权正在由另一条请求签发，已禁止重复授权。", "BLE_AUTHORIZATION_RACE");
     }
     if (detail.includes("verification_ble_authorizations_device_id_nonce_key")) {
       fail(

@@ -1,0 +1,11 @@
+version=0.2.95
+description=BLE固定20字节与双授权竞争修复
+appid=wxb053c1bd6c684d8b
+main_bytes=1794396
+total_bytes=3332888
+tests=355/355
+result=✔ upload
+observed_at=2026-10-09 14:46 AEDT
+experience_version_readback=not performed
+review_submission=not performed
+production_release=not performed

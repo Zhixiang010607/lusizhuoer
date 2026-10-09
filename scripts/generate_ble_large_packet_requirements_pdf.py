@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the one-page BLE adaptive-packet device requirements handoff."""
+"""Generate the one-page BLE fixed-20-byte device requirements handoff."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ OUT = os.path.join(
     ROOT,
     "output",
     "pdf",
-    "Lusizhuoer_BLE_Large_Packet_Device_Requirements_One_Page.pdf",
+    "Lusizhuoer_BLE_Fixed_20_Byte_Device_Requirements_One_Page.pdf",
 )
 PAGE_W, PAGE_H = A4
 MARGIN_X = 14 * mm
@@ -125,11 +125,11 @@ def requirements_table() -> Table:
         ["要求", "设备端必须做到"],
         ["接收模型", "把 FFE1 的连续写入当作同一条字节流；不得把每次 GATT write 当作一条完整 JSON。"],
         ["组帧边界", "中间分包没有 LF。仅整条下行 JSON 的最后一个字节是 LF（0x0A）；收到 LF 后再解析一次 JSON。"],
-        ["单双包兼容", "同一套程序同时接受：一包完整 JSON + LF，以及多包拼接后得到的完整 JSON + LF。"],
+        ["固定包长", "小程序每次 GATT write 最多 20 字节；不请求或回读大 MTU，不会把授权一次写完。"],
         ["缓冲区", "建议至少 512 字节。连接断开、重新连接、收到 LF 并处理完成、数据溢出或 JSON 判定无效时必须清空。"],
-        ["处理时机", "未收到 LF 前不解析、不执行、不回包；完整解析后只执行一次，并按原协议返回对应 seq 的 JSON。"],
+        ["处理时机", "未收到 LF 前不解析、不执行、不回包；完整解析后只执行一次，并按原协议返回对应 q 的 JSON。"],
         ["时序", "分包之间不能依赖固定 50ms/100ms/1s 延时。小程序按微信写回调顺序连续发送。"],
-        ["上行回包", "设备发回小程序的 JSON 格式不变；可保留现有发送方式。小程序可识别带 LF 或完整顶层 } 结束。"],
+        ["防重复启动", "设备已进入 s=2 后，迟到或重复 q=2 不得再次启动；保持原服务，并让 q=3 返回真实 s=2。"],
     ]
     data = []
     for row_index, row in enumerate(rows):
@@ -164,9 +164,9 @@ class OnePageDoc(BaseDocTemplate):
             rightMargin=MARGIN_X,
             topMargin=MARGIN_TOP,
             bottomMargin=MARGIN_BOTTOM,
-            title="露思卓儿 BLE 大包设备端新增要求（一页版）",
+            title="露思卓儿 BLE 固定 20 字节设备端要求（一页版）",
             author="广州露思卓儿科技有限公司",
-            subject="LASER-BLE adaptive ATT MTU device requirements",
+            subject="LASER-BLE fixed 20-byte writes and duplicate authorization prevention",
         )
         frame = Frame(
             self.leftMargin,
@@ -196,31 +196,31 @@ def build_story():
     story = [
         Spacer(1, 4 * mm),
         p("露 思 卓 儿", "SubtitleCN"),
-        p("BLE 大包：设备端新增要求", "TitleCN"),
-        p("一页实施版 · 对齐小程序 0.2.94 · JSON 业务协议不变", "SubtitleCN"),
+        p("BLE 固定 20 字节：设备端要求", "TitleCN"),
+        p("一页实施版 · 对齐 faceRecognition v121 / 小程序 0.2.95", "SubtitleCN"),
         callout(
-            "核心变化",
-            "以前小程序固定每次最多写 20 字节；现在按实际 ATT MTU 自动放大。设备端只需把 BLE 写入视为字节流并正确组帧。",
+            "当前规则",
+            "小程序下行固定每次最多写 20 字节，不再使用 ATT MTU 自适应大包。设备必须缓存到 LF 后只解析、执行一次。",
             SAND,
             BRONZE,
         ),
         p("设备端必须实现", "H1CN"),
         requirements_table(),
-        p("包长计算与示例", "H1CN"),
+        p("固定分片示例", "H1CN"),
         rich(
-            "单次有效载荷 = <b>ATT MTU - 3</b>。例如 MTU=23 时每包 20 字节；MTU=50 时每包 47 字节；MTU=185 时最多 182 字节。",
+            "每次写入最多 <b>20 字节</b>。q=1 与 q=3 各为 8 字节（含 LF），各 1 片；示例 q=2 约 76-77 字节（含 LF），固定为 4 片。",
             "BodyCN",
         ),
         p(
-            "MTU=50，授权帧约 76-77 字节：第1包 47 字节（无 LF）；第2包为剩余 29-30 字节 + 0A。设备拼接后只解析、执行一次。",
+            "q=2：第1-3片各 20 字节且无 LF；第4片为剩余 16-17 字节，最后一个字节是 0A。设备拼接后只解析、执行一次。",
             "CodeCN",
         ),
         p("验收用例", "H1CN"),
-        p("□ MTU=23：多包授权可正常组帧；只执行一次。　□ MTU=50：两包，只有最后一包末尾有 0A。", "BodyCN"),
-        p("□ MTU≥80：授权可一包完成并响应。　□ 扫码关闭/断连后重连：旧残片已清空，不影响新报文。", "BodyCN"),
+        p("1. q=2 四片可正常组帧且只执行一次。　2. 任意中间片缺失：不执行、不回成功，保持 s=1。", "BodyCN"),
+        p("3. 断连后重连：旧残片已清空。　4. 已经 s=2 时收到迟到/重复 q=2：不再次启动，q=3 仍回 s=2。", "BodyCN"),
         callout(
             "没有变化",
-            "JSON 字段、get_info / auth / query_status 流程、seq 对应关系、设备编号、BLE 广播名、FFE0/FFE1、随机码和签名规则全部保持现行协议。",
+            "JSON 字段、q=1/q=2/q=3 流程、设备编号、BLE 广播名、FFE0/FFE1、随机码和凯撒签名规则全部保持现行协议。",
             GREEN_BG,
             GREEN,
         ),

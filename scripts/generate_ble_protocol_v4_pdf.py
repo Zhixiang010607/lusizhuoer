@@ -25,7 +25,7 @@ from reportlab.platypus import (
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-OUT = os.path.join(ROOT, "output", "pdf", "Lusizhuoer_BLE_Device_Interaction_Protocol_V4.0.pdf")
+OUT = os.path.join(ROOT, "output", "pdf", "Lusizhuoer_BLE_Device_Interaction_Protocol_V4.1.pdf")
 PAGE_W, PAGE_H = A4
 MARGIN_X = 14 * mm
 MARGIN_TOP = 15 * mm
@@ -180,9 +180,9 @@ class ProtocolDoc(BaseDocTemplate):
             rightMargin=MARGIN_X,
             topMargin=MARGIN_TOP,
             bottomMargin=MARGIN_BOTTOM,
-            title="露思卓儿 BLE 设备交互协议 V4.0",
+            title="露思卓儿 BLE 设备交互协议 V4.1",
             author="广州露思卓儿科技有限公司",
-            subject="LASER-BLE compact JSON and adaptive ATT MTU",
+            subject="LASER-BLE compact JSON, fixed 20-byte writes, and duplicate authorization prevention",
         )
         frame = Frame(
             self.leftMargin, self.bottomMargin, self.width, self.height,
@@ -197,7 +197,7 @@ def draw_page(canvas, doc):
     canvas.rect(0, PAGE_H - 6 * mm, PAGE_W, 6 * mm, fill=1, stroke=0)
     canvas.setFont(FONT, 6.6)
     canvas.setFillColor(MUTED)
-    canvas.drawString(MARGIN_X, 6.5 * mm, "露思卓儿 · LASER-BLE 设备交互协议 V4.0")
+    canvas.drawString(MARGIN_X, 6.5 * mm, "露思卓儿 · LASER-BLE 设备交互协议 V4.1")
     canvas.drawRightString(PAGE_W - MARGIN_X, 6.5 * mm, f"第 {canvas.getPageNumber()} / 4 页")
     canvas.restoreState()
 
@@ -208,10 +208,10 @@ def build_story():
     # Page 1: identity, GATT and transport.
     story += [Spacer(1, 8 * mm), p("露 思 卓 儿", "SubtitleCN")]
     story.append(p("LASER-BLE 扫码核销设备交互协议", "TitleCN"))
-    story.append(p("V4.0 · 设备端实施版 · 对齐 faceRecognition v120 / 小程序 0.2.94", "SubtitleCN"))
+    story.append(p("V4.1 · 设备端实施版 · 对齐 faceRecognition v121 / 小程序 0.2.95", "SubtitleCN"))
     story.append(callout(
         "一句话原则",
-        "报文仍是 JSON；只把 BLE 单次写入包按实际 MTU 放大。设备必须同时兼容一包完整 JSON 和多包拼接 JSON。",
+        "报文保持精简 JSON；小程序下行固定最多 20 字节顺序分片。设备缓存到 LF 后只解析、执行一次。",
         "gold",
     ))
     story.append(h1("1. 固定设备身份与 GATT"))
@@ -228,17 +228,17 @@ def build_story():
         [35, 135],
         7.4,
     ))
-    story.append(h1("2. JSON 与自适应 MTU"))
+    story.append(h1("2. JSON 与固定 20 字节分片"))
     story += bullets([
         "下行：UTF-8 JSON object，末尾追加 LF（0x0A）。上行：可带 LF，也可在完整顶层 } 处结束。",
-        "连接后读取实际 ATT MTU。Android 请求 MTU 185；iOS 不能强制设置，使用系统与 HC-08 自动协商后微信返回的值。",
-        "单次有效载荷 = MTU - 3，代码上限 182 字节。MTU 不可读、无效或仍为 23 时，回退为 20 字节。",
-        "设备接收端必须把每次 GATT 写入追加到同一缓冲区，遇到 LF 后再解析一次 JSON；不得把一次写入当成一条固定报文。",
+        "小程序不请求 MTU 185，也不根据 MTU 放大写入；每次 GATT write 固定不超过 20 字节。",
+        "设备接收端必须把每次 GATT 写入追加到同一缓冲区，遇到 LF 后再解析一次 JSON；不得把单个 20 字节分片当成完整报文。",
+        "连接断开、重新连接、收到并处理 LF、缓冲溢出或 JSON 无效时，必须清空旧缓冲。",
         "小程序逐次等待微信写回调并保持顺序，不增加 50ms/100ms/1s 固定延时。",
     ])
     story.append(callout(
-        "为什么有时是一包",
-        "精简授权约 76-77 字节（含 LF）。实际 MTU 至少为 79-80 时可一次写完；MTU=23 时仍会拆成 4 包。HC-08 是否支持大 MTU决定最终片数。",
+        "授权固定为多片",
+        "精简授权约 76-77 字节（含 LF），固定拆成 4 次写入；只有最后一片末尾带 LF。设备拼接完整后只执行一次。",
         "blue",
     ))
     story.append(PageBreak())
@@ -246,7 +246,7 @@ def build_story():
     # Page 2: exact frames.
     story.append(h1("3. 全部线上报文（字段不得自行改名）"))
     story.append(table(
-        ["步骤", "方向", "完整报文", "默认 MTU 23"],
+        ["步骤", "方向", "完整报文", "固定 20 字节"],
         [
             ["1 读取", "小程序→设备", '{"q":1} + LF', "8 字节 / 1 包"],
             ["1 信息", "设备→小程序", '{"q":1,"c":"i","s":1,"n":"<32位nonce>"}', "60 字节 / 3 包"],
@@ -310,12 +310,17 @@ def build_story():
         "设备已为 s=2 时不再签发新 q=2，只恢复原授权与原工单；不得重复扣次。",
         "资格不足或小程序完全关闭后冷启动，才要求重新拍照做人脸验证。",
     ])
-    story.append(h2("4.2 大包失败时的处理"))
+    story.append(h2("4.2 授权写入失败与双发保护"))
     story.append(callout(
-        "不得自动降级重发授权",
-        "大包 q=2 写入结果不确定时，不能立刻把同一授权拆成小包再发一次。先用 q=3 查询真实状态；仍无法确认时关闭本轮连接。同一设备重新扫码后，由服务端生成新 token，旧 token 已失效。",
+        "不得自动重发授权",
+        "q=2 任一分片写入失败时，不能切换 write/writeNoResponse 或重发任何分片。先用 q=3 查询真实状态；仍无法确认时关闭本轮连接。同一设备重新扫码后由服务端生成新 token，旧 token 失效。",
         "red",
     ))
+    story += bullets([
+        "小程序在异步资格检查前同步锁住启动入口；快速点击或重复事件只能创建一个 BLE 会话。",
+        "服务端用旧 authorization token 做原子比较更新；并发请求只有一个能取得新 q=2，冲突请求直接停止，不递归重签。",
+        "设备一旦已经 s=2，不得因重复或迟到 q=2 再次启动；应保持原服务并返回真实工作状态。",
+    ], small=True)
     story.append(h2("4.3 状态机"))
     story.append(table(
         ["状态", "允许", "禁止"],
@@ -356,10 +361,10 @@ def build_story():
     story += bullets([
         "二维码 SN、广播名 LA-末六位和烧录编号一一对应；同场多台设备编号与广播名不重复。",
         "FFE0/FFE1 可发现；Notify 先启用；writeNoResponse / write 属性与固件真实能力一致。",
-        "MTU=23 时 q=2 分 4 次写入可正确拼接；MTU≥80 时同一 JSON 一次写入也可正确解析。",
-        "无论一次或多次写入，都只在 LF 到达后解析一次；解析成功后立即清空该帧缓冲。超时、断连和新连接都清空旧缓冲。",
+        "q=1 与 q=3 各为 1 片；示例 q=2 为 4 片。每片最多 20 字节，只有整帧最后一片带 LF。",
+        "只在 LF 到达后解析一次；解析成功后立即清空该帧缓冲。超时、断连和新连接都清空旧缓冲。",
         "q=1 首次和只读补发都能返回完整 info；重复 q=1 不改变 nonce 或工作状态。",
-        "q=2 正确时先持久化 s=2 再回成功；错误、残帧或过期时保持 s=1。q=3 永远只回真实状态。",
+        "q=2 正确时先持久化 s=2 再回成功；错误、残帧或过期时保持 s=1。迟到或重复 q=2 不能二次启动；q=3 永远只回真实状态。",
         "断电重启后，未完成服务仍恢复 s=2；同一授权不会二次启动，下一笔服务不会沿用上一笔工作状态。",
     ], small=True)
     story.append(callout(
