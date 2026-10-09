@@ -1,0 +1,11 @@
+version=0.2.96
+description=修复扫码后弹窗意外关闭
+appid=wxb053c1bd6c684d8b
+main_bytes=1794396
+total_bytes=3332953
+tests=356/356
+result=✔ upload
+observed_at=2026-10-09 AEDT
+experience_version_readback=not performed
+review_submission=not performed
+production_release=not performed

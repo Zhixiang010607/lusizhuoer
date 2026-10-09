@@ -180,10 +180,24 @@ test('client locks the BLE start path synchronously before any qualification awa
   );
   assert.match(start, /if \(this\._bleStartGuard \|\| this\.data\.bleRunning/);
   assert.match(start, /this\._bleStartGuard = true/);
-  assert.ok(start.indexOf('this._bleStartGuard = true') < start.indexOf('await this.refreshQualificationForBle()'));
+  assert.ok(start.indexOf('this._bleStartGuard = true') < start.indexOf('await this.refreshQualificationForBle(true)'));
   assert.match(start, /const startEpoch = \(this\._bleStartEpoch \|\| 0\) \+ 1/);
   assert.match(start, /if \(startEpoch !== this\._bleStartEpoch\) return/);
   assert.match(pageSource, /async closeBleWindow\(\)[\s\S]{0,180}this\._bleStartEpoch = \(this\._bleStartEpoch \|\| 0\) \+ 1/);
+});
+
+test('qualification preflight keeps an already-open BLE dialog visible', () => {
+  const refresh = pageSource.slice(
+    pageSource.indexOf('async refreshQualificationForBle'),
+    pageSource.indexOf('async openBleWindow')
+  );
+  const start = pageSource.slice(
+    pageSource.indexOf('async startBleVerification()'),
+    pageSource.indexOf('showRecovered(result)')
+  );
+  assert.match(refresh, /async refreshQualificationForBle\(keepWindowOpen = false\)/);
+  assert.match(refresh, /this\.activateQualification\(recovered, Boolean\(keepWindowOpen\), authorizationIssued\)/);
+  assert.match(start, /await this\.refreshQualificationForBle\(true\)/);
 });
 
 test('only a live device authorization locks the selected store and customer', () => {
@@ -196,7 +210,7 @@ test('only a live device authorization locks the selected store and customer', (
 test('a terminal authorization keeps the live 90-second face qualification reusable', () => {
   const recovery = pageSource.slice(pageSource.indexOf('async recoverPending()'));
   const preflightRecovery = pageSource.slice(
-    pageSource.indexOf('async refreshQualificationForBle()'),
+    pageSource.indexOf('async refreshQualificationForBle('),
     pageSource.indexOf('async openBleWindow()')
   );
   assert.match(pageSource, /function isTerminalBleFinalizationError/);
