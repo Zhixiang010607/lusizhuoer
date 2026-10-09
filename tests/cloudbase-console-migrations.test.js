@@ -319,4 +319,23 @@ assert.match(magicDeviceConsoleMigration, /LA\[0-9A-F\]\{12\}/,
 assert.match(magicDeviceConsoleMigration, /A-Za-z0-9/,
   "migration 069 must accept the LASER-BLE hyphenated type format");
 
+const bleReservationMigration = fs.readFileSync(
+  path.join(root, "database", "migrations", "072_ble_authorization_unit_reservation.sql"),
+  "utf8"
+);
+const bleReservationConsoleMigration = fs.readFileSync(
+  path.join(consoleDir, "072-01-ble-authorization-unit-reservation.sql"),
+  "utf8"
+);
+assert.equal(bleReservationConsoleMigration, bleReservationMigration,
+  "CloudBase migration 072 must exactly match the canonical BLE reservation migration");
+assert.ok(Buffer.byteLength(bleReservationConsoleMigration, "utf8") < 16000,
+  "CloudBase migration 072 must remain pasteable as one complete SQL transaction");
+assert.match(bleReservationConsoleMigration, /BEGIN;[\s\S]*COMMIT;\s*$/,
+  "CloudBase migration 072 must be a complete transaction");
+assert.match(bleReservationConsoleMigration, /reserve_verification_ble_units/);
+assert.match(bleReservationConsoleMigration, /pg_advisory_xact_lock/);
+assert.match(bleReservationConsoleMigration, /insufficient purchased units for BLE authorization/);
+assert.match(bleReservationConsoleMigration, /insufficient teacher experience quota for BLE authorization/);
+
 console.log("cloudbase console migrations: PASS");

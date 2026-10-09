@@ -6,11 +6,11 @@
 
 1. 新环境在 CloudBase PostgreSQL 控制台完整执行 [`066-01-ble-verification-authorization.sql`](066-01-ble-verification-authorization.sql)。已经存在 `verification_ble_qualifications` 与 `verification_ble_authorizations` 两张表的环境不需要重跑 SQL。
 2. 如果此前执行过会建立第三张 `verification_ble_devices` 的旧版 066，执行 [`066-02-retire-legacy-device-registry.sql`](066-02-retire-legacy-device-registry.sql)。脚本只删除这张已退役的注册表；表本来不存在时不做任何修改，资格、授权和核销记录不受影响。
-3. 迁移 066 建表时会暂时建立 `device_id + nonce` 唯一约束；当前协议必须继续执行迁移 071 删除该约束。`faceRecognition v121` 不再需要 `BLE_AUTH_SIGNING_KEY`。
+3. 迁移 066 建表时会暂时建立 `device_id + nonce` 唯一约束；当前协议必须继续执行迁移 071 删除该约束，并执行迁移 072 建立授权前次数预留。`faceRecognition v122` 不再需要 `BLE_AUTH_SIGNING_KEY`。
 4. 不建立、不查询也不维护设备注册表、设备主档、数据库设备白名单或配对码表。设备身份由二维码序列号、实时 BLE `get_info`、一次性随机数、90／30 秒窗口和 HMAC-SHA256 共享密钥共同校验。
 5. 按 [`067-README.md`](067-README.md) 在业务低峰期建立大数据充值／退费查询索引并通过只读验收。
 6. 已执行过 066 的生产库继续按 [`069-README.md`](069-README.md) 放宽魔法柔肤 `LA`／`LASER-BLE` 格式；新环境执行本文件的当前 066 后也应运行 069 只读验收。
-7. 完成迁移 071 且设备固件支持 nonce 凯撒签名后，上传 `deployments/faceRecognition-v121.zip`，安装依赖并调用 `health`，确认 `version=v121`。
+7. 完成并验收迁移 071、072，且设备固件支持 nonce 凯撒签名后，上传 `deployments/faceRecognition-v122.zip`，安装依赖并调用 `health`，确认 `version=v122`。
 8. 执行 [`066-readonly-verify.sql`](066-readonly-verify.sql)，确认 11 行全部为 `READY`，其中 `BLE device registry absent` 必须为 `READY`。
 9. 最后上传当前小程序并设为体验版。不要在 SQL 和云函数尚未生效时先发布前端。
 

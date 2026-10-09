@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v121";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v122";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -4226,12 +4226,22 @@ async function requireCustomerFaceExperienceSchema() {
 async function requireVerificationBleSchema() {
   const rows = await executeSql(
     `SELECT TO_REGCLASS('public.verification_ble_qualifications') IS NOT NULL AS qualifications,
-            TO_REGCLASS('public.verification_ble_authorizations') IS NOT NULL AS authorizations`
+            TO_REGCLASS('public.verification_ble_authorizations') IS NOT NULL AS authorizations,
+            EXISTS (
+              SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public'
+                 AND table_name = 'verification_ble_qualifications'
+                 AND column_name = 'units_reserved_at'
+            ) AS unit_reservation_column,
+            TO_REGPROCEDURE('public.reserve_verification_ble_units(bigint)') IS NOT NULL
+              AS unit_reservation_function`
   );
   const schema = rows?.[0] || {};
   if (!databaseBoolean(schema.qualifications)
-      || !databaseBoolean(schema.authorizations)) {
-    fail("BLE 核销数据库结构尚未启用，请先执行迁移 066。", "BLE_SCHEMA_MISSING");
+      || !databaseBoolean(schema.authorizations)
+      || !databaseBoolean(schema.unit_reservation_column)
+      || !databaseBoolean(schema.unit_reservation_function)) {
+    fail("BLE 授权前次数预留尚未启用，请先执行并验收数据库迁移 072。", "BLE_SCHEMA_MISSING");
   }
 }
 
@@ -4285,6 +4295,38 @@ function verificationBleSignature(nonce) {
     }
     return String.fromCharCode(97 + ((character.charCodeAt(0) - 97 + offset) % 26));
   }).join("");
+}
+
+async function reserveVerificationBleUnits(qualificationId) {
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT * FROM public.reserve_verification_ble_units(${sqlText(qualificationId)}::bigint)`
+    );
+  } catch (error) {
+    const detail = String(error?.message || "").toLowerCase();
+    if (detail.includes("insufficient purchased units for ble authorization")) {
+      fail("该客户所选项目的剩余次数不足，禁止签发设备授权。", "INSUFFICIENT_BALANCE");
+    }
+    if (detail.includes("insufficient teacher experience quota for ble authorization")) {
+      fail("该老师该项目的体验次数不足，禁止签发设备授权。", "TEACHER_EXPERIENCE_QUOTA_EXHAUSTED");
+    }
+    if (detail.includes("no active configured experience quota for ble authorization")) {
+      fail("该老师尚未配置有效的项目体验次数，禁止签发设备授权。", "TEACHER_EXPERIENCE_QUOTA_NOT_CONFIGURED");
+    }
+    if (detail.includes("ble qualification is not active")) {
+      fail("90 秒 BLE 核销资格已过期，请重新拍照验证。", "BLE_QUALIFICATION_EXPIRED");
+    }
+    if (detail.includes("ble qualification is already finalized")) {
+      fail("这笔核销已经完成，二维码窗口已永久关闭。", "BLE_ALREADY_FINALIZED");
+    }
+    throw error;
+  }
+  const reservation = rows?.[0];
+  if (!reservation) {
+    fail("数据库未确认本次核销次数预留，已禁止签发设备授权。", "BLE_UNIT_RESERVATION_FAILED");
+  }
+  return reservation;
 }
 
 async function createVerificationBleQualification(event) {
@@ -4729,6 +4771,12 @@ async function issueVerificationBleAuthorization(event) {
     fail("本次90秒资格已经绑定原设备，不能更换另一台设备。", "BLE_AUTHORIZATION_DEVICE_LOCKED");
   }
 
+  // This is the authoritative pre-authorization gate. Migration 072 locks
+  // the customer/product or teacher/product bucket, subtracts every other
+  // live qualification reservation, and records this qualification exactly
+  // once. No signature, token or device command is created before it succeeds.
+  await reserveVerificationBleUnits(qualification.id);
+
   const issuedAt = Number(qualification.server_epoch_seconds);
   const qualificationExpireAt = Number(qualification.qualification_expires_epoch);
   const expireAt = Math.min(issuedAt + 30, qualificationExpireAt);
@@ -4827,7 +4875,8 @@ async function confirmVerificationBleWorkStarted(event) {
             qualification.teacher_id, qualification.customer_id, qualification.product_id,
             qualification.submitted_by_account_id, qualification.message,
             qualification.face_request_id, qualification.face_evidence_token,
-            qualification.idempotency_key, qualification.qualification_token
+            qualification.idempotency_key, qualification.qualification_token,
+            qualification.units_reserved_at
        FROM public.verification_ble_authorizations AS ble_authorization
        JOIN public.verification_ble_qualifications AS qualification
          ON qualification.id = ble_authorization.qualification_id
@@ -4836,6 +4885,9 @@ async function confirmVerificationBleWorkStarted(event) {
   );
   const authorization = rows[0];
   if (!authorization) fail("未找到 BLE 设备授权。", "BLE_AUTHORIZATION_NOT_FOUND");
+  if (!authorization.units_reserved_at) {
+    fail("这张设备授权没有通过次数预留，已禁止核销。", "BLE_UNIT_RESERVATION_REQUIRED");
+  }
   if (String(authorization.store_id) !== String(caller.storeId)
       || String(authorization.submitted_by_account_id) !== String(caller.staffId)) {
     fail("该 BLE 授权不属于当前账号和门店。", "FORBIDDEN");

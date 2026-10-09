@@ -23,6 +23,15 @@ const registryCleanupSql = fs.readFileSync(path.join(root, 'database/cloudbase-c
 const magicDeviceMigration = fs.readFileSync(path.join(root, 'database/migrations/069_magic_soft_skin_ble_identity.sql'), 'utf8');
 const reusableNonceMigration = fs.readFileSync(path.join(root, 'database/migrations/071_allow_reused_ble_nonce.sql'), 'utf8');
 const reusableNonceVerifySql = fs.readFileSync(path.join(root, 'database/cloudbase-console/071-readonly-verify.sql'), 'utf8');
+const unitReservationMigration = fs.readFileSync(
+  path.join(root, 'database/migrations/072_ble_authorization_unit_reservation.sql'), 'utf8'
+);
+const unitReservationConsoleSql = fs.readFileSync(
+  path.join(root, 'database/cloudbase-console/072-01-ble-authorization-unit-reservation.sql'), 'utf8'
+);
+const unitReservationVerifySql = fs.readFileSync(
+  path.join(root, 'database/cloudbase-console/072-readonly-verify.sql'), 'utf8'
+);
 
 test('BLE verification uses 90-second qualification and 30-second device authorization', () => {
   assert.match(migration, /INTERVAL '90 seconds'/);
@@ -40,6 +49,36 @@ test('verification deducts only after device reports working status 2', () => {
   assert.match(confirmation, /finalizeVerificationApplicationInternal/);
   assert.ok(confirmation.indexOf('Number(result.status) !== 2') < confirmation.indexOf('finalizeVerificationApplicationInternal'));
   assert.match(faceSource, /createVerificationApplication[\s\S]{0,160}BLE_REQUIRED/);
+});
+
+test('BLE authorization reserves currently available units atomically before creating any credential', () => {
+  const issue = faceSource.slice(
+    faceSource.indexOf('async function issueVerificationBleAuthorization'),
+    faceSource.indexOf('async function confirmVerificationBleWorkStarted')
+  );
+  const reserveCall = issue.indexOf('await reserveVerificationBleUnits(qualification.id)');
+  assert.ok(reserveCall > 0);
+  assert.ok(reserveCall < issue.indexOf('const signature = verificationBleSignature(nonce)'));
+  assert.ok(reserveCall < issue.indexOf('const authorizationToken = crypto.randomBytes(24)'));
+  assert.match(faceSource, /TO_REGPROCEDURE\('public\.reserve_verification_ble_units\(bigint\)'\)/);
+  assert.match(faceSource, /BLE_UNIT_RESERVATION_REQUIRED/);
+  assert.match(faceSource, /禁止签发设备授权/);
+
+  assert.equal(unitReservationMigration, unitReservationConsoleSql);
+  assert.match(unitReservationMigration, /ADD COLUMN IF NOT EXISTS units_reserved_at TIMESTAMPTZ/);
+  assert.match(unitReservationMigration, /CREATE OR REPLACE FUNCTION public\.reserve_verification_ble_units/);
+  assert.match(unitReservationMigration, /pg_advisory_xact_lock/);
+  assert.match(unitReservationMigration, /FOR UPDATE/);
+  assert.match(unitReservationMigration, /other\.id <> qualification\.id/);
+  assert.match(unitReservationMigration, /other\.expires_at > CLOCK_TIMESTAMP\(\)/);
+  assert.match(unitReservationMigration, /insufficient purchased units for BLE authorization/);
+  assert.match(unitReservationMigration, /insufficient teacher experience quota for BLE authorization/);
+  assert.match(unitReservationMigration, /UPDATE public\.verification_ble_qualifications AS target[\s\S]*units_reserved_at = CLOCK_TIMESTAMP\(\)/);
+  assert.match(unitReservationMigration, /REVOKE ALL ON FUNCTION public\.reserve_verification_ble_units\(BIGINT\)[\s\S]*PUBLIC, anon, authenticated/);
+  assert.match(unitReservationMigration, /GRANT EXECUTE ON FUNCTION public\.reserve_verification_ble_units\(BIGINT\)[\s\S]*service_role/);
+  assert.match(unitReservationVerifySql, /live authorization without reservation/);
+  assert.match(unitReservationVerifySql, /overbooked active NORMAL reservation buckets/);
+  assert.match(unitReservationVerifySql, /overbooked active EXPERIENCE reservation buckets/);
 });
 
 test('test builds allow ten seconds for both authorization and fallback status responses', () => {
