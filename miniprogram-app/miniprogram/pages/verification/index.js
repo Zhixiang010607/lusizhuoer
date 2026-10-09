@@ -534,7 +534,7 @@ Page({
       error: false
     });
   },
-  async refreshQualificationForBle(keepWindowOpen = false) {
+  async refreshQualificationForBle() {
     const intent = submission.read("VERIFICATION");
     if (!intent?.clientRequestId) {
       throw Object.assign(new Error("防重复提交编号丢失，已禁止设备授权；请重新办理。"), { code: "BLE_SUBMISSION_INTENT_MISSING" });
@@ -567,7 +567,7 @@ Page({
       || Number(recovered.unitCount) !== Number(this.data.unitCount)) {
       throw Object.assign(new Error("页面数据与服务端设备资格不一致，已禁止扫码，请重新办理。"), { code: "BLE_QUALIFICATION_MISMATCH" });
     }
-    this.activateQualification(recovered, Boolean(keepWindowOpen), authorizationIssued);
+    this.activateQualification(recovered, false, authorizationIssued);
     return recovered;
   },
   async openBleWindow() {
@@ -610,8 +610,10 @@ Page({
         this.setData({ locked: true, bleWindowVisible: false, message: "防重复提交编号丢失，已禁止设备授权；请联系管理员。", error: true });
         return;
       }
-      const qualification = await this.refreshQualificationForBle(true);
-      if (!qualification || startEpoch !== this._bleStartEpoch) return;
+      const qualification = this.data.qualification;
+      if (!qualification?.qualificationToken || startEpoch !== this._bleStartEpoch) {
+        throw Object.assign(new Error("本次设备资格不完整，已禁止扫码；请关闭窗口后重新打开。"), { code: "BLE_QUALIFICATION_INCOMPLETE" });
+      }
       this.setData({ bleStage: "QR_SCANNING", bleStatusMessage: "准备扫描设备二维码" });
       session = new BleVerificationSession({
         qualification: this.data.qualification,

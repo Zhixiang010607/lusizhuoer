@@ -173,31 +173,39 @@ test('client supports reopenable QR window and irreversible success navigation',
   assert.match(bleSource, /if \(this\.cancelled\) return/);
 });
 
-test('client locks the BLE start path synchronously before any qualification await', () => {
+test('client locks the BLE start path and opens the native scanner without a network await', () => {
   const start = pageSource.slice(
     pageSource.indexOf('async startBleVerification()'),
     pageSource.indexOf('showRecovered(result)')
   );
   assert.match(start, /if \(this\._bleStartGuard \|\| this\.data\.bleRunning/);
   assert.match(start, /this\._bleStartGuard = true/);
-  assert.ok(start.indexOf('this._bleStartGuard = true') < start.indexOf('await this.refreshQualificationForBle(true)'));
+  assert.doesNotMatch(start, /await this\.refreshQualificationForBle/);
+  assert.match(start, /const qualification = this\.data\.qualification/);
+  assert.ok(start.indexOf('this._bleStartGuard = true') < start.indexOf('const result = await session.run()'));
   assert.match(start, /const startEpoch = \(this\._bleStartEpoch \|\| 0\) \+ 1/);
   assert.match(start, /if \(startEpoch !== this\._bleStartEpoch\) return/);
   assert.match(pageSource, /async closeBleWindow\(\)[\s\S]{0,180}this\._bleStartEpoch = \(this\._bleStartEpoch \|\| 0\) \+ 1/);
 });
 
-test('qualification preflight keeps an already-open BLE dialog visible', () => {
+test('opening the BLE dialog performs the qualification preflight only once', () => {
   const refresh = pageSource.slice(
     pageSource.indexOf('async refreshQualificationForBle'),
     pageSource.indexOf('async openBleWindow')
+  );
+  const open = pageSource.slice(
+    pageSource.indexOf('async openBleWindow'),
+    pageSource.indexOf('async closeBleWindow')
   );
   const start = pageSource.slice(
     pageSource.indexOf('async startBleVerification()'),
     pageSource.indexOf('showRecovered(result)')
   );
-  assert.match(refresh, /async refreshQualificationForBle\(keepWindowOpen = false\)/);
-  assert.match(refresh, /this\.activateQualification\(recovered, Boolean\(keepWindowOpen\), authorizationIssued\)/);
-  assert.match(start, /await this\.refreshQualificationForBle\(true\)/);
+  assert.match(refresh, /async refreshQualificationForBle\(\)/);
+  assert.match(refresh, /this\.activateQualification\(recovered, false, authorizationIssued\)/);
+  assert.match(open, /await this\.refreshQualificationForBle\(\)/);
+  assert.match(open, /bleWindowVisible: true/);
+  assert.doesNotMatch(start, /refreshQualificationForBle|callFace\(/);
 });
 
 test('only a live device authorization locks the selected store and customer', () => {

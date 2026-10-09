@@ -1,0 +1,11 @@
+version=0.2.97
+description=扫码按钮立即打开原生扫码器
+appid=wxb053c1bd6c684d8b
+main_bytes=1794396
+total_bytes=3333032
+tests=356/356
+result=✔ upload
+observed_at=2026-10-09 AEDT
+experience_version_readback=not performed
+review_submission=not performed
+production_release=not performed
