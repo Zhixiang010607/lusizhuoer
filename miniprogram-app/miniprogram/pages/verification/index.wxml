@@ -45,9 +45,9 @@
       </label>
       <label class="field">
         <text class="field-label">业务老师{{session.role === 'teacher' ? '（自动绑定）' : '（可选）'}}</text>
-        <view wx:if="{{session.role === 'teacher'}}" class="readonly-field">{{selectedTeacher ? selectedTeacher.teacherName + (selectedTeacher.teacherCode ? ' · ' + selectedTeacher.teacherCode : '') : (store.id ? '请先确认客户并读取本人信息' : '选择门店后确认本人信息')}}</view>
+        <view wx:if="{{session.role === 'teacher'}}" class="readonly-field">{{selectedTeacher ? selectedTeacher.displayName : (store.id ? '请先确认客户并读取本人信息' : '选择门店后确认本人信息')}}</view>
         <picker wx:else range="{{teacherLabels}}" value="{{teacherIndex}}" bindchange="selectTeacher" disabled="{{qualificationActive || !customer || session.role === 'teacher' || !teacherOptionsReady}}">
-          <view class="picker"><text class="picker-value">{{selectedTeacher ? selectedTeacher.teacherName + (selectedTeacher.teacherCode ? ' · ' + selectedTeacher.teacherCode : '') : '正在读取老师选项…'}}</text></view>
+          <view class="picker"><text class="picker-value">{{selectedTeacher ? selectedTeacher.displayName : '正在读取老师选项…'}}</text></view>
         </picker>
       </label>
       <view wx:if="{{selectedProduct}}" class="impact">{{experience ? '当前老师可用 ' + selectedProduct.availableCount + ' 次' : '当前客户剩余 ' + selectedProduct.remainingCount + ' 次'}}；请自行填写本次{{experience ? '体验' : '核销'}}次数。</view>

@@ -16,7 +16,7 @@
     <scroll-view wx:if="{{searchRows.length}}" class="table-scroll" scroll-x="true" data-visible-rows="{{searchRows.length > 5 ? 5 : searchRows.length}}" scroll-y="{{searchRows.length > 5}}" enhanced="true" show-scrollbar="{{searchRows.length > 5}}">
       <view class="data-table {{type}}">
         <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text></view>
-        <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>老师编号</text><text>联系电话</text><text>状态</text></view>
+        <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>联系电话</text><text>状态</text></view>
         <block wx:if="{{searched && searchRows.length}}"><template is="directoryRows" data="{{rows: searchRows, type: type}}" /></block>
       </view>
     </scroll-view>
@@ -28,7 +28,7 @@
     <scroll-view wx:if="{{activeRows.length}}" class="table-scroll" scroll-x="true" data-visible-rows="{{activeRows.length > 5 ? 5 : activeRows.length}}" scroll-y="{{activeRows.length > 5}}" enhanced="true" show-scrollbar="{{activeRows.length > 5}}">
       <view class="data-table {{type}}">
         <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text></view>
-        <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>老师编号</text><text>联系电话</text><text>状态</text></view>
+        <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>联系电话</text><text>状态</text></view>
         <template wx:if="{{activeRows.length}}" is="directoryRows" data="{{rows: activeRows, type: type}}" />
       </view>
     </scroll-view>
@@ -40,7 +40,7 @@
     <scroll-view wx:if="{{archivedRows.length}}" class="table-scroll" scroll-x="true" data-visible-rows="{{archivedRows.length > 5 ? 5 : archivedRows.length}}" scroll-y="{{archivedRows.length > 5}}" enhanced="true" show-scrollbar="{{archivedRows.length > 5}}">
       <view class="data-table {{type}}">
         <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text></view>
-        <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>老师编号</text><text>联系电话</text><text>状态</text></view>
+        <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>联系电话</text><text>状态</text></view>
         <template wx:if="{{archivedRows.length}}" is="directoryRows" data="{{rows: archivedRows, type: type}}" />
       </view>
     </scroll-view>
@@ -55,7 +55,7 @@
       <text class="link" data-ref="{{item.ref}}" bindtap="openDetail">{{item.name}}</text><text>{{item.contact}}</text><text>{{item.phone}}</text><text>{{item.address}}</text><text><text class="status {{item.archived ? 'archived' : 'active'}}">{{item.archived ? '封存' : '活跃'}}</text></text>
     </view>
     <view wx:else class="table-row teacher">
-      <text class="link" data-ref="{{item.ref}}" bindtap="openDetail">{{item.name}}</text><text>{{item.code}}</text><text>{{item.phone}}</text><text><text class="status {{item.archived ? 'archived' : 'active'}}">{{item.archived ? '封存' : '活跃'}}</text></text>
+      <text class="link" data-ref="{{item.ref}}" bindtap="openDetail">{{item.name}}</text><text>{{item.phone}}</text><text><text class="status {{item.archived ? 'archived' : 'active'}}">{{item.archived ? '封存' : '活跃'}}</text></text>
     </view>
   </block>
 </template>

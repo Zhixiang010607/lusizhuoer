@@ -31,7 +31,7 @@ test("migration 074 adds only the date-first tracker index", () => {
 });
 
 test("HQ tracker reads active teacher roster and exposes no write action", () => {
-  assert.match(cloud, /const FUNCTION_VERSION = "v90"/);
+  assert.match(cloud, /const FUNCTION_VERSION = "v91"/);
   assert.match(cloud, /async function getHqDailyReportTrackingDay\(caller/);
   assert.match(cloud, /async function getHqDailyReportDetail\(caller/);
   assert.match(cloud, /requireHq\(caller\)/);

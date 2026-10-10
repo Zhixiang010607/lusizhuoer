@@ -9,7 +9,12 @@ function product(value = {}) {
   return { id: String(value.productId || ""), code: String(value.productCode || ""), name: String(value.productName || "") };
 }
 function teacher(value = {}) {
-  return { teacherId: String(value.teacherId || ""), teacherCode: String(value.teacherCode || ""), teacherName: String(value.teacherName || "") };
+  const teacherName = String(value.teacherName || "");
+  const teacherPhone = String(value.teacherPhone || "");
+  return {
+    teacherId: String(value.teacherId || ""), teacherCode: String(value.teacherCode || ""),
+    teacherName, teacherPhone, displayName: teacherName + (teacherPhone ? ` · ${teacherPhone}` : "")
+  };
 }
 
 Page({
@@ -79,22 +84,22 @@ Page({
         const selectedTeacher = selectedIndex >= 0 ? activeTeachers[selectedIndex] : null;
         this.setData({
           teachers: activeTeachers,
-          teacherLabels: activeTeachers.map((item) => `${item.teacherName} · ${item.teacherCode}`),
+          teacherLabels: activeTeachers.map((item) => item.displayName),
           teacherIndex: Math.max(0, selectedIndex), selectedTeacher, teacherOptionsReady: true
         });
         if (!selectedTeacher) this.setData({ message: "当前老师不在该门店的可办理老师名单中，已禁止提交", error: true });
       } else {
-        const options = [{ teacherId: "", teacherCode: "", teacherName: "不指定业务老师" }, ...activeTeachers];
+        const options = [{ teacherId: "", teacherCode: "", teacherName: "不指定业务老师", teacherPhone: "", displayName: "不指定业务老师" }, ...activeTeachers];
         this.setData({
           teachers: options,
-          teacherLabels: options.map((item) => item.teacherId ? `${item.teacherName} · ${item.teacherCode}` : item.teacherName),
+          teacherLabels: options.map((item) => item.displayName),
           teacherIndex: 0, selectedTeacher: options[0], teacherOptionsReady: true
         });
       }
     } catch (error) {
       if (epoch === this._teacherEpoch && String(this.data.store.id || "") === storeId) {
         if (this.data.session.role === "store") {
-          const blankTeacher = { teacherId: "", teacherCode: "", teacherName: "不指定业务老师" };
+          const blankTeacher = { teacherId: "", teacherCode: "", teacherName: "不指定业务老师", teacherPhone: "", displayName: "不指定业务老师" };
           this.setData({
             teachers: [blankTeacher], teacherLabels: [blankTeacher.teacherName], teacherIndex: 0,
             selectedTeacher: blankTeacher, teacherOptionsReady: true,

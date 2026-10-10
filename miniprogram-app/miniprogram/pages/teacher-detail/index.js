@@ -238,7 +238,7 @@ Page({
   },
   profileView(staff) {
     const name = text(staff.staff_name, staff.teacher_name) || "老师";
-    return { name, initials: Array.from(name)[0] || "师", code: text(staff.person_code, staff.teacher_code) || "未分配", phone: text(staff.phone) || "未填写", archived: archived(staff), authUid: text(staff.auth_uid) };
+    return { name, initials: Array.from(name)[0] || "师", phone: text(staff.phone) || "未填写", archived: archived(staff), authUid: text(staff.auth_uid) };
   },
   async load() {
     if (this._unloaded) return;

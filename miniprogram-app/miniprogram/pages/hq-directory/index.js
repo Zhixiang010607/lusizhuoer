@@ -28,7 +28,7 @@ function teacherView(item) {
     .filter((value) => ["ACTIVE", "ARCHIVED"].includes(value));
   return {
     id: text(item.id), teacherId: text(item.teacher_id, item.teacherId), ref: text(item.auth_uid, item.teacher_id, item.id),
-    code: text(item.person_code, item.teacher_code) || "—", name: text(item.staff_name, item.teacher_name, item.name) || "未命名老师",
+    name: text(item.staff_name, item.teacher_name, item.name) || "未命名老师",
     phone: text(item.phone) || "—", authUid: text(item.auth_uid),
     archived: authoritative.length ? authoritative.includes("ARCHIVED") : archived(item)
   };
@@ -82,7 +82,7 @@ Page({
       const name = text(this.data.searchName).toLocaleLowerCase("zh-CN");
       const phone = normalizedPhone(this.data.searchPhone);
       const searchRows = this.data.searched ? rows.filter((item) =>
-        (!name || item.name.toLocaleLowerCase("zh-CN").includes(name) || item.code.toLocaleLowerCase("zh-CN").includes(name))
+        (!name || item.name.toLocaleLowerCase("zh-CN").includes(name))
         && (!phone || normalizedPhone(item.phone).includes(phone))) : [];
       this.setData({ rows, activeRows: rows.filter((item) => !item.archived), archivedRows: rows.filter((item) => item.archived), searchRows });
     } catch (error) {
@@ -107,7 +107,7 @@ Page({
     const name = text(this.data.searchName).toLocaleLowerCase("zh-CN");
     const phone = normalizedPhone(this.data.searchPhone);
     const rows = this.data.rows.filter((item) =>
-      (!name || item.name.toLocaleLowerCase("zh-CN").includes(name) || item.code.toLocaleLowerCase("zh-CN").includes(name))
+      (!name || item.name.toLocaleLowerCase("zh-CN").includes(name))
       && (!phone || normalizedPhone(item.phone).includes(phone)));
     this.setData({ searched: true, searchRows: rows });
   },

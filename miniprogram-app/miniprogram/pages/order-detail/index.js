@@ -612,7 +612,7 @@ Page({
         { label: "门店", value: order.storeName, note: order.storeCode || "—" },
         { label: "客户", value: order.customerName, note: order.customerCode || "—" },
         { label: "项目", value: order.productName, note: order.productCode || "—" },
-        { label: "业务老师", value: order.teacherName || "未指定", note: order.teacherCode || "—" }
+        { label: "业务老师", value: order.teacherName || "未指定" }
       ];
       const notes = [
         { label: "提交说明", value: order.message },

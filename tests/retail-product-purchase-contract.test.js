@@ -39,7 +39,7 @@ assert.match(migration, /id = NEW\.reviewed_by_account_id/, "the database mutati
 assert.match(migration, /RETAIL_PRODUCT_PURCHASE_DELETE_FORBIDDEN/, "purchase audit records must not be deletable");
 assert.match(migration, /OLD\.record_status <> 'PENDING'/, "review state must be single-transition and immutable afterwards");
 
-assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v11" : "v126"/);
+assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v11" : "v127"/);
 assert.match(face, /async function createRetailProductPurchaseApplication/);
 assert.match(face, /const caller = await activeBusinessCaller\(event\)/);
 assert.match(face, /const teacherId = caller\.role === "teacher"[\s\S]*positiveDatabaseId\(caller\.teacherId, "老师"\)[\s\S]*requestedTeacherId \? positiveDatabaseId\(requestedTeacherId, "老师"\) : ""/,
@@ -52,7 +52,7 @@ assert.match(face, /historyOptions\.type === "PRODUCT_PURCHASE"/);
 assert.match(face, /record_status = 'APPROVED'/, "customer purchase totals must include approved purchases only");
 assert.match(face, /recharge\.record_status = 'APPROVED'/, "customer gift totals must include approved recharge gifts only");
 
-assert.match(staff, /const FUNCTION_VERSION = "v90"/);
+assert.match(staff, /const FUNCTION_VERSION = "v91"/);
 assert.match(staff, /async function listRetailProductPurchaseReviews/);
 assert.match(staff, /async function reviewRetailProductPurchase/);
 assert.match(staff, /requireReviewer\(caller\)/);

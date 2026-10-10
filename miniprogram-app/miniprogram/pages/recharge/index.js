@@ -16,7 +16,12 @@ function retailProduct(value) {
   };
 }
 function teacher(value) {
-  return { teacherId: String(value.teacherId || ""), teacherCode: String(value.teacherCode || ""), teacherName: String(value.teacherName || "") };
+  const teacherName = String(value.teacherName || "");
+  const teacherPhone = String(value.teacherPhone || "");
+  return {
+    teacherId: String(value.teacherId || ""), teacherCode: String(value.teacherCode || ""),
+    teacherName, teacherPhone, displayName: teacherName + (teacherPhone ? ` · ${teacherPhone}` : "")
+  };
 }
 function businessStore(value) {
   value = value || {};
@@ -166,17 +171,17 @@ Page({
       if (this.data.session.role === "teacher") {
         const mineIndex = values.findIndex((item) => item.teacherId === String(this.data.session.teacherId || ""));
         const mine = mineIndex >= 0 ? values[mineIndex] : null;
-        this.setData({ teachers: values, teacherLabels: values.map((item) => `${item.teacherName} · ${item.teacherCode}`), selectedTeacher: mine, teacherIndex: Math.max(0, mineIndex), teacherOptionsReady: true });
+        this.setData({ teachers: values, teacherLabels: values.map((item) => item.displayName), selectedTeacher: mine, teacherIndex: Math.max(0, mineIndex), teacherOptionsReady: true });
         if (!mine) this.setData({ message: "当前老师不在该门店的可办理老师名单中，已禁止提交", error: true });
       } else {
-        const options = [{ teacherId: "", teacherCode: "", teacherName: "不指定业务老师" }, ...values];
-        this.setData({ teachers: options, teacherLabels: options.map((item) => item.teacherId ? `${item.teacherName} · ${item.teacherCode}` : item.teacherName), selectedTeacher: options[0], teacherIndex: 0, teacherOptionsReady: true });
+        const options = [{ teacherId: "", teacherCode: "", teacherName: "不指定业务老师", teacherPhone: "", displayName: "不指定业务老师" }, ...values];
+        this.setData({ teachers: options, teacherLabels: options.map((item) => item.displayName), selectedTeacher: options[0], teacherIndex: 0, teacherOptionsReady: true });
       }
       this.syncReady();
     } catch (error) {
       if (requestEpoch === this._teacherRequestEpoch && String(this.data.store.id || "") === storeId) {
         if (this.data.session.role === "store") {
-          const blankTeacher = { teacherId: "", teacherCode: "", teacherName: "不指定业务老师" };
+          const blankTeacher = { teacherId: "", teacherCode: "", teacherName: "不指定业务老师", teacherPhone: "", displayName: "不指定业务老师" };
           this.setData({
             teachers: [blankTeacher], teacherLabels: [blankTeacher.teacherName], teacherIndex: 0,
             selectedTeacher: blankTeacher, teacherOptionsReady: true,

@@ -10,7 +10,14 @@ const {
   errorFeedback
 } = require("../../services/ble-verification");
 
-function teacher(value) { return { teacherId: String(value.teacherId || ""), teacherCode: String(value.teacherCode || ""), teacherName: String(value.teacherName || "") }; }
+function teacher(value = {}) {
+  const teacherName = String(value.teacherName || "");
+  const teacherPhone = String(value.teacherPhone || "");
+  return {
+    teacherId: String(value.teacherId || ""), teacherCode: String(value.teacherCode || ""),
+    teacherName, teacherPhone, displayName: teacherName + (teacherPhone ? ` · ${teacherPhone}` : "")
+  };
+}
 function businessStore(value) {
   value = value || {};
   return {
@@ -188,7 +195,7 @@ Page({
       if (requestEpoch !== this._teacherRequestEpoch || String(this.data.store.id || "") !== storeId) return;
       const activeTeachers = (result.teachers || []).map(teacher).filter((item) => item.teacherId);
       const values = this.data.session.role === "store"
-        ? [{ teacherId: "", teacherCode: "", teacherName: "不指定业务老师" }, ...activeTeachers]
+        ? [{ teacherId: "", teacherCode: "", teacherName: "不指定业务老师", teacherPhone: "", displayName: "不指定业务老师" }, ...activeTeachers]
         : activeTeachers;
       const mineIndex = this.data.session.role === "teacher"
         ? values.findIndex((item) => item.teacherId === String(this.data.session.teacherId || ""))
@@ -196,7 +203,7 @@ Page({
       const mine = mineIndex >= 0 ? values[mineIndex] : null;
       this.setData({
         teachers: values,
-        teacherLabels: values.map((item) => item.teacherId ? `${item.teacherName} · ${item.teacherCode}` : item.teacherName),
+        teacherLabels: values.map((item) => item.displayName),
         selectedTeacher: mine,
         teacherIndex: mineIndex,
         teacherOptionsReady: true
@@ -209,7 +216,7 @@ Page({
     } catch (error) {
       if (requestEpoch === this._teacherRequestEpoch && String(this.data.store.id || "") === storeId) {
         const storeBlank = this.data.session.role === "store"
-          ? [{ teacherId: "", teacherCode: "", teacherName: "不指定业务老师" }]
+          ? [{ teacherId: "", teacherCode: "", teacherName: "不指定业务老师", teacherPhone: "", displayName: "不指定业务老师" }]
           : [];
         this.setData({
           teachers: storeBlank,

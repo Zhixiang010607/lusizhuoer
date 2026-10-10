@@ -139,13 +139,15 @@ test("HQ store and teacher workspaces reuse authoritative services without a gen
   assert.match(teacherCreate, /result && result\.ok === true && result\.completed === true && proof\.complete === true/);
   for (const label of ["查询结果", "活跃", "封存", "新增"]) assert.match(directoryWxml, new RegExp(label));
   assert.doesNotMatch(directoryWxml, /<text>查看<\/text>|进入主页/);
-  for (const label of ["老师姓名", "老师编号", "联系电话", "状态"]) assert.match(directoryWxml, new RegExp(label));
+  for (const label of ["老师姓名", "联系电话", "状态"]) assert.match(directoryWxml, new RegExp(label));
+  assert.doesNotMatch(directoryWxml, /老师编号/,
+    "the mini-program directory identifies teachers by name and unique phone without exposing an internal code");
   for (const removed of ["体验额度", "账号操作", "配置／充值"]) assert.doesNotMatch(directoryWxml, new RegExp(removed));
   assert.equal((directoryWxml.match(/class="table-row table-head store"/g) || []).length, 3,
     "all store table headers must use the same horizontal column grid as store data rows");
   assert.equal((directoryWxml.match(/class="table-row table-head teacher"/g) || []).length, 3,
     "all teacher table headers must use the same horizontal column grid as teacher data rows");
-  assert.match(directoryWxml, /class="table-row teacher">\s*<text class="link"[^>]*bindtap="openDetail">\{\{item\.name\}\}<\/text><text>\{\{item\.code\}\}<\/text><text>\{\{item\.phone\}\}<\/text><text><text class="status/);
+  assert.match(directoryWxml, /class="table-row teacher">\s*<text class="link"[^>]*bindtap="openDetail">\{\{item\.name\}\}<\/text><text>\{\{item\.phone\}\}<\/text><text><text class="status/);
   assert.equal((directoryWxml.match(/class="table-section(?: archived-section)? \{\{type\}\}"/g) || []).length, 3,
     "all three directory cards receive the role-specific gutter rule");
   assert.match(directoryWxss, /\.search-panel, \.table-section\s*\{[^}]*padding:\s*24rpx;/s,

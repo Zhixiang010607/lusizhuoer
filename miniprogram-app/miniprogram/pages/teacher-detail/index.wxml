@@ -19,7 +19,7 @@
             <view class="profile-copy">
               <text class="profile-type">老师档案</text>
               <view class="profile-title-row"><text>{{profile.name}}</text><text class="store-status-badge {{profile.archived ? 'archived' : ''}}">{{profile.archived ? '封存' : '活跃'}}</text></view>
-              <view class="teacher-profile-meta"><text>编号 {{profile.code}}</text><text>电话 {{profile.phone}}</text></view>
+              <view class="teacher-profile-meta"><text>联系电话 {{profile.phone}}</text></view>
             </view>
           </view>
           <view class="web-panel security-panel">

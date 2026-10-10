@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v90";
+const FUNCTION_VERSION = "v91";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -5132,12 +5132,15 @@ async function main(event = {}, context = {}) {
     requireHq(caller);
     const role = String(event.role || "");
     if (!ROLES.has(role)) fail("Unsupported staff role");
-    const codePrefix = role === "teacher" ? "T" : role === "hq" ? "HQ" : "S";
+    const codePrefix = role === "teacher" ? "TCH" : role === "hq" ? "HQ" : "S";
     const rows = await executeSql(
       `SELECT a.id, a.auth_uid, a.phone, a.staff_name, a.role_code, a.account_status,
               a.password_initialized_at, a.password_changed_at, a.password_change_required,
               t.id AS teacher_id, t.teacher_code, t.teacher_status,
-              ${sqlText(codePrefix)} || LPAD(a.id::text, 3, '0') AS person_code
+              CASE
+                WHEN a.role_code = 'teacher' THEN COALESCE(NULLIF(BTRIM(t.teacher_code), ''), ${sqlText(codePrefix)} || a.id::text)
+                ELSE ${sqlText(codePrefix)} || a.id::text
+              END AS person_code
        FROM public.staff_accounts a
        LEFT JOIN public.teachers t ON t.staff_account_id = a.id
        WHERE a.role_code = ${sqlText(role)} ORDER BY a.id ASC`

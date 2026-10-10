@@ -12,7 +12,7 @@ function calendarCells(month, selectedDate, serverToday) {
   for (let day = 1; day <= days; day += 1) { const date = `${month}-${pad(day)}`; cells.push({ key: date, day, date, selected: date === selectedDate, today: date === serverToday, future: date > serverToday }); }
   return cells;
 }
-function teacher(row = {}) { return { teacherId: String(row.teacherId || ""), teacherCode: String(row.teacherCode || ""), teacherName: String(row.teacherName || row.teacherCode || "未命名老师"), phone: String(row.phone || "未登记"), reportId: String(row.reportId || ""), completed: Boolean(row.completed) }; }
+function teacher(row = {}) { return { teacherId: String(row.teacherId || ""), teacherCode: String(row.teacherCode || ""), teacherName: String(row.teacherName || "未命名老师"), phone: String(row.phone || "未登记"), reportId: String(row.reportId || ""), completed: Boolean(row.completed) }; }
 function reportSections(report = {}) { return [{ label: "今日完成事项", value: report.completedWork }, { label: "客户或项目进展", value: report.customerProjectProgress }, { label: "遇到的问题", value: report.problemsAndSupport }, { label: "明日计划", value: report.tomorrowPlan }].map((item) => ({ ...item, value: String(item.value || "未填写") })); }
 
 Page({

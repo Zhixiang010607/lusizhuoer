@@ -19,7 +19,8 @@ test("teacher profile uses one warm two-column row without login identity or cha
   assert.match(wxss, /\.teacher-profile-row\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)[^}]*#dfcfb4/s);
   assert.match(wxss, /\.teacher-profile-row \.detail-info-item\s*\{[^}]*align-items:\s*center[^}]*justify-content:\s*center[^}]*text-align:\s*center[^}]*background:\s*#fff8ec;/s);
   assert.match(wxss, /\.detail-info-item text\s*\{[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
-  assert.match(dashboard, /老师姓名[\s\S]{0,180}老师短编号/);
+  assert.match(dashboard, /老师姓名[\s\S]{0,180}联系电话/);
+  assert.doesNotMatch(dashboard, /老师短编号/);
   assert.doesNotMatch(dashboard, /登录身份|老师本人/);
   assert.doesNotMatch(wxml, /身份由当前登录账号|>老师本人<\/text>/);
 });

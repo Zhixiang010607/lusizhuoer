@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const https = require("https");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v126";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v127";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -1087,7 +1087,7 @@ async function activeStoreCaller() {
          ON sa.staff_account_id = a.id AND sa.assignment_status = 'ACTIVE'
        JOIN public.stores s ON s.id = sa.store_id`;
   const rows = await executeSql(
-    `SELECT a.id AS staff_id, a.staff_name, a.role_code, a.account_status,
+    `SELECT a.id AS staff_id, a.staff_name, a.phone, a.role_code, a.account_status,
             s.id AS store_id, s.store_code, s.store_name, s.store_status
        FROM public.staff_accounts a
        ${storeJoin}
@@ -1111,7 +1111,7 @@ async function activeTeacherCaller() {
   const { uid } = app().auth().getUserInfo();
   if (!uid) fail("请先登录老师账号后再办理业务。", "UNAUTHENTICATED");
   const rows = await executeSql(
-    `SELECT a.id AS staff_id, a.staff_name, a.role_code, a.account_status,
+    `SELECT a.id AS staff_id, a.staff_name, a.phone, a.role_code, a.account_status,
             t.id AS teacher_id, t.teacher_code, t.teacher_name, t.teacher_status
        FROM public.staff_accounts a
        JOIN public.teachers t ON t.staff_account_id = a.id
@@ -1130,7 +1130,8 @@ async function activeTeacherCaller() {
     staffName: String(caller.staff_name || caller.teacher_name || ""),
     teacherId: String(caller.teacher_id),
     teacherCode: String(caller.teacher_code || ""),
-    teacherName: String(caller.teacher_name || "")
+    teacherName: String(caller.teacher_name || ""),
+    teacherPhone: String(caller.phone || "")
   };
 }
 
@@ -1138,7 +1139,7 @@ async function activeBusinessCaller(event = {}) {
   const { uid } = app().auth().getUserInfo();
   if (!uid) fail("请先登录后再办理业务。", "UNAUTHENTICATED");
   const accounts = await executeSql(
-    `SELECT a.id AS staff_id, a.role_code, a.account_status,
+    `SELECT a.id AS staff_id, a.phone, a.role_code, a.account_status,
              t.id AS teacher_id, t.teacher_code, t.teacher_name, t.teacher_status
        FROM public.staff_accounts a
        LEFT JOIN public.teachers t ON t.staff_account_id = a.id
@@ -1179,6 +1180,7 @@ async function activeBusinessCaller(event = {}) {
     teacherId: String(account.teacher_id),
     teacherCode: String(account.teacher_code || ""),
     teacherName: String(account.teacher_name || ""),
+    teacherPhone: String(account.phone || ""),
     storeId: Number(store.id),
     storeCode: String(store.store_code || ""),
     storeName: String(store.store_name || "")
@@ -1211,7 +1213,8 @@ async function getTeacherBusinessContext() {
     teacher: {
       teacherId: teacher.teacherId,
       teacherCode: teacher.teacherCode,
-      teacherName: teacher.teacherName
+      teacherName: teacher.teacherName,
+      teacherPhone: teacher.teacherPhone
     },
     stores: stores.map((store) => ({
       storeId: String(store.id),
@@ -3663,9 +3666,10 @@ async function listActiveTeachers(event = {}) {
   const rows = caller.role === "teacher" ? [{
     teacher_id: caller.teacherId,
     teacher_code: caller.teacherCode,
-    teacher_name: caller.teacherName
+    teacher_name: caller.teacherName,
+    teacher_phone: caller.teacherPhone
   }] : await executeSql(
-    `SELECT t.id AS teacher_id, t.teacher_code, t.teacher_name
+    `SELECT t.id AS teacher_id, t.teacher_code, t.teacher_name, a.phone AS teacher_phone
        FROM public.teachers t
       JOIN public.staff_accounts a ON a.id = t.staff_account_id
       WHERE t.teacher_status = 'ACTIVE'
@@ -3679,7 +3683,8 @@ async function listActiveTeachers(event = {}) {
     teachers: rows.map((teacher) => ({
       teacherId: String(teacher.teacher_id),
       teacherCode: teacher.teacher_code,
-      teacherName: teacher.teacher_name
+      teacherName: teacher.teacher_name,
+      teacherPhone: teacher.teacher_phone
     }))
   };
 }
@@ -5757,7 +5762,8 @@ async function getTeacherWorkspace(event = {}) {
   const profile = {
     teacherId: caller.teacherId,
     teacherCode: caller.teacherCode,
-    teacherName: caller.teacherName
+    teacherName: caller.teacherName,
+    teacherPhone: caller.teacherPhone
   };
   const query = async (recordType, { detailMode = false, legacyCombined = false } = {}) => {
     const config = TEACHER_WORKSPACE_TYPE_CONFIG[recordType];

@@ -255,8 +255,9 @@ test("mobile management controls stay centered without breaking data into charac
     "the teacher-management return action must not appear as an isolated boxed card");
   assert.match(teacher, /\.back-button \{[^}]*background:\s*transparent;[^}]*border:\s*0;/s,
     "the teacher-management return action must remain a lightweight text control");
-  assert.match(teacherWxml, /class="teacher-profile-meta"><text>编号 \{\{profile\.code\}\}<\/text><text>电话 \{\{profile\.phone\}\}<\/text>/,
-    "teacher code and phone move into the compact top profile hero");
+  assert.match(teacherWxml, /class="teacher-profile-meta"><text>联系电话 \{\{profile\.phone\}\}<\/text><\/view>/,
+    "the compact top profile hero identifies the teacher by the unique phone without showing an internal code");
+  assert.doesNotMatch(teacherWxml, /profile\.code|老师编号|老师短编号/);
   assert.doesNotMatch(teacherWxml, /class="web-panel teacher-record-panel"|<text class="panel-title">老师档案<\/text>/,
     "the redundant standalone teacher profile panel must be removed");
   assert.doesNotMatch(`${teacherWxml}\n${teacherJs}`, /密码状态|passwordStatus/,
