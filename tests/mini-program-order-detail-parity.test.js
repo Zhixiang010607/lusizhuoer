@@ -158,6 +158,14 @@ Page({`);
         if (options.chooseImage) return options.chooseImage(request);
         request.fail?.({ errMsg: "chooseImage:fail cancel" });
       },
+      compressImage(request) {
+        if (options.compressImage) return options.compressImage(request);
+        request.fail?.({ errMsg: "compressImage:fail not configured" });
+      },
+      getImageInfo(request) {
+        if (options.getImageInfo) return options.getImageInfo(request);
+        request.fail?.({ errMsg: "getImageInfo:fail not configured" });
+      },
       setNavigationBarTitle() {},
       stopPullDownRefresh() {}
     }
@@ -368,14 +376,98 @@ test("supplemental photo selection uses album originals and keeps camera capture
   });
   const page = pageInstance(definition);
 
-  await page.chooseExtraPhoto();
+  const albumChoice = await page.chooseExtraPhoto();
   nextTapIndex = 1;
-  await page.chooseExtraPhoto();
+  const cameraChoice = await page.chooseExtraPhoto();
 
   assert.deepEqual(choices, [
     { api: "chooseImage", sourceType: ["album"], sizeType: ["original"] },
     { api: "chooseMedia", sourceType: ["camera"], sizeType: ["compressed"] }
   ]);
+  assert.equal(albumChoice.source, "album");
+  assert.equal(cameraChoice.source, "camera");
+});
+
+test("large album JPEGs use native proportional compression and verify the returned frame ratio", async () => {
+  const requests = [];
+  const encoded = new Uint8Array(180 * 1024);
+  encoded.set([0xff, 0xd8, 0xff], 0);
+  const { page: definition } = loadHelpers({
+    compressImage(request) {
+      requests.push({
+        src: request.src,
+        quality: request.quality,
+        compressedWidth: request.compressedWidth,
+        compressedHeight: request.compressedHeight
+      });
+      request.success({ tempFilePath: "/native-portrait.jpg" });
+    },
+    getImageInfo(request) {
+      request.success({ width: 576, height: 1024 });
+    },
+    readFile(filePath) {
+      assert.equal(filePath, "/native-portrait.jpg");
+      return encoded.buffer;
+    }
+  });
+  const page = pageInstance(definition);
+  page.photoNormalizeCanvasNode = async () => {
+    throw new Error("album JPEGs must not enter the CanvasImage path");
+  };
+  const header = new Uint8Array(12);
+  header.set([0xff, 0xd8, 0xff], 0);
+
+  const normalized = await page.normalizeExtraPhoto(
+    "/album-1080x1920.jpg",
+    header.buffer,
+    { width: 1080, height: 1920 },
+    1314442,
+    "album"
+  );
+
+  assert.deepEqual(requests, [{
+    src: "/album-1080x1920.jpg",
+    quality: 58,
+    compressedWidth: undefined,
+    compressedHeight: 1024
+  }]);
+  assert.deepEqual([normalized.width, normalized.height], [576, 1024]);
+  assert.equal(normalized.previewPath, "/native-portrait.jpg");
+  assert.equal(normalized.bytes, encoded.byteLength);
+});
+
+test("an abnormal native album aspect ratio falls back to the exact server-safe JPEG bytes", async () => {
+  const original = new Uint8Array(1314442);
+  original.set([0xff, 0xd8, 0xff], 0);
+  const encoded = new Uint8Array(180 * 1024);
+  encoded.set([0xff, 0xd8, 0xff], 0);
+  const { page: definition } = loadHelpers({
+    compressImage(request) {
+      request.success({ tempFilePath: "/cropped-native.jpg" });
+    },
+    getImageInfo(request) {
+      request.success({ width: 300, height: 1024 });
+    },
+    readFile(filePath) {
+      return filePath === "/album-flower.jpg" ? original.buffer : encoded.buffer;
+    }
+  });
+  const page = pageInstance(definition);
+  const header = new Uint8Array(12);
+  header.set([0xff, 0xd8, 0xff], 0);
+
+  const normalized = await page.normalizeExtraPhoto(
+    "/album-flower.jpg",
+    header.buffer,
+    { width: 1080, height: 1920 },
+    original.byteLength,
+    "album"
+  );
+
+  assert.equal(normalized.converted, false);
+  assert.equal(normalized.buffer.byteLength, original.byteLength);
+  assert.equal(normalized.previewPath, "/album-flower.jpg");
+  assert.deepEqual([normalized.width, normalized.height], [1080, 1920]);
 });
 
 test("album normalization preserves every edge for both landscape and portrait photos", async () => {

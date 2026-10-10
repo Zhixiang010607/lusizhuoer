@@ -14,6 +14,7 @@ const PHOTO_SLOT_COUNT = 5;
 const DETAIL_PHOTO_SLOTS = Object.freeze([1, 2, 3, 4]);
 const MAX_EXTRA_FAST_PATH_BYTES = 768 * 1024;
 const MAX_EXTRA_UPLOAD_PHOTO_BYTES = 512 * 1024;
+const MAX_EXTRA_SERVER_PHOTO_BYTES = 3 * 1024 * 1024;
 const MAX_EXTRA_PHOTO_EDGE = 1024;
 const EXTRA_PHOTO_NORMALIZE_ATTEMPTS = Object.freeze([
   Object.freeze({ maxEdge: MAX_EXTRA_PHOTO_EDGE, quality: 0.58 }),
@@ -378,6 +379,28 @@ function openPdfDocument(filePath) {
   }));
 }
 function imageInfo(src) { return wxCall((resolve, reject) => wx.getImageInfo({ src, success: resolve, fail: reject })); }
+function proportionalPhotoSize(width, height, maxEdge) {
+  const sourceWidth = Number(width || 0);
+  const sourceHeight = Number(height || 0);
+  const edge = Number(maxEdge || 0);
+  const scale = Math.min(1, edge / Math.max(sourceWidth, sourceHeight));
+  return {
+    width: Math.max(1, Math.round(sourceWidth * scale)),
+    height: Math.max(1, Math.round(sourceHeight * scale))
+  };
+}
+function photoAspectEnvelope(width, height) {
+  const shorter = Math.min(Number(width || 0), Number(height || 0));
+  const longer = Math.max(Number(width || 0), Number(height || 0));
+  return shorter > 0 && longer > 0 ? longer / shorter : 0;
+}
+function assertPhotoAspect(sourceWidth, sourceHeight, outputWidth, outputHeight) {
+  const sourceAspect = photoAspectEnvelope(sourceWidth, sourceHeight);
+  const outputAspect = photoAspectEnvelope(outputWidth, outputHeight);
+  if (!sourceAspect || !outputAspect || Math.abs(Math.log(outputAspect / sourceAspect)) > 0.015) {
+    throw new Error("照片压缩后的画面比例异常，已阻止上传不完整照片");
+  }
+}
 function imageFormat(bytes) {
   if (!(bytes instanceof Uint8Array)) return "";
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "jpeg";
@@ -1109,9 +1132,9 @@ Page({
       }));
       const selected = chosen?.tempFiles?.[0] || {};
       const filePath = clean(chosen?.tempFilePaths?.[0] || selected.path || selected.tempFilePath);
-      return filePath ? { tempFiles: [{ ...selected, tempFilePath: filePath }] } : { tempFiles: [] };
+      return filePath ? { source: "album", tempFiles: [{ ...selected, tempFilePath: filePath }] } : { source: "album", tempFiles: [] };
     }
-    return wxCall((resolve, reject) => wx.chooseMedia({
+    const captured = await wxCall((resolve, reject) => wx.chooseMedia({
       count: 1,
       mediaType: ["image"],
       sourceType: ["camera"],
@@ -1122,9 +1145,54 @@ Page({
       success: resolve,
       fail: reject
     }));
+    return { ...captured, source: "camera" };
   },
 
-  async normalizeExtraPhoto(filePath, sourceBuffer, dimensions, sourceByteLength = 0) {
+  nativeAlbumPhotoJpeg(filePath, dimensions, attempt) {
+    if (typeof wx.compressImage !== "function") {
+      return Promise.reject(new Error("当前微信版本不支持完整相册压缩"));
+    }
+    const target = proportionalPhotoSize(dimensions.width, dimensions.height, attempt.maxEdge);
+    const request = {
+      src: filePath,
+      quality: Math.max(0, Math.min(100, Math.round(Number(attempt.quality) * 100)))
+    };
+    // 微信官方压缩接口只指定长边，另一边由微信按原图比例自动计算。
+    // 不同时指定宽高，也不经过 CanvasImage，避开部分 iPhone 相册图的
+    // EXIF／解码尺寸差异导致只绘出局部画面的情况。
+    if (Number(dimensions.width) >= Number(dimensions.height)) request.compressedWidth = target.width;
+    else request.compressedHeight = target.height;
+    return wxCall((resolve, reject) => wx.compressImage({ ...request, success: resolve, fail: reject }));
+  },
+
+  async normalizeAlbumJpegNative(filePath, dimensions) {
+    let lastError = null;
+    for (const attempt of EXTRA_PHOTO_NORMALIZE_ATTEMPTS) {
+      try {
+        const output = await this.nativeAlbumPhotoJpeg(filePath, dimensions, attempt);
+        const outputPath = clean(output?.tempFilePath);
+        if (!outputPath) throw new Error("微信没有返回压缩后的完整照片");
+        const [read, outputInfo] = await Promise.all([readFile(outputPath), imageInfo(outputPath)]);
+        const bytes = new Uint8Array(read.data);
+        if (imageFormat(bytes) !== "jpeg") throw new Error("微信压缩结果不是 JPEG 照片");
+        assertPhotoAspect(dimensions.width, dimensions.height, outputInfo?.width, outputInfo?.height);
+        if (bytes.byteLength <= MAX_EXTRA_UPLOAD_PHOTO_BYTES) {
+          return {
+            buffer: read.data,
+            bytes: bytes.byteLength,
+            converted: true,
+            previewPath: outputPath,
+            width: Number(outputInfo.width),
+            height: Number(outputInfo.height)
+          };
+        }
+        lastError = new Error("微信压缩结果仍然过大");
+      } catch (error) { lastError = error; }
+    }
+    throw lastError || new Error("微信未能完成完整相册压缩");
+  },
+
+  async normalizeExtraPhoto(filePath, sourceBuffer, dimensions, sourceByteLength = 0, sourceType = "") {
     const sourceBytes = new Uint8Array(sourceBuffer);
     const originalBytes = Number(sourceByteLength || sourceBytes.byteLength);
     if (!Number.isInteger(originalBytes) || originalBytes < 12 || sourceBytes.byteLength < 12) {
@@ -1153,6 +1221,32 @@ Page({
       };
     }
 
+    if (format === "jpeg" && clean(sourceType) === "album") {
+      try {
+        return await this.normalizeAlbumJpegNative(filePath, { width: sourceWidth, height: sourceHeight });
+      } catch (nativeError) {
+        // If native compression behaves unexpectedly, an already server-safe
+        // JPEG is uploaded byte-for-byte instead of ever substituting a
+        // cropped derivative. This is the full-frame safety net for unusual
+        // iCloud/HEIF-converted album assets.
+        if (originalBytes <= MAX_EXTRA_SERVER_PHOTO_BYTES) {
+          const originalRead = sourceBytes.byteLength === originalBytes ? { data: sourceBuffer } : await readFile(filePath);
+          const original = new Uint8Array(originalRead.data);
+          if (original.byteLength === originalBytes && imageFormat(original) === "jpeg") {
+            return {
+              buffer: originalRead.data,
+              bytes: original.byteLength,
+              converted: false,
+              previewPath: filePath,
+              width: sourceWidth,
+              height: sourceHeight
+            };
+          }
+        }
+        throw nativeError;
+      }
+    }
+
     const canvas = await this.photoNormalizeCanvasNode();
     const image = await loadCanvasImage(canvas, filePath);
     // The decoded canvas image is authoritative on iOS/Android because it has
@@ -1166,10 +1260,9 @@ Page({
     }
     let renderedSize = "";
     for (const attempt of EXTRA_PHOTO_NORMALIZE_ATTEMPTS) {
-      const maxEdge = Number(attempt.maxEdge);
-      const scale = Math.min(1, maxEdge / Math.max(decodedWidth, decodedHeight));
-      const width = Math.max(1, Math.round(decodedWidth * scale));
-      const height = Math.max(1, Math.round(decodedHeight * scale));
+      const target = proportionalPhotoSize(decodedWidth, decodedHeight, attempt.maxEdge);
+      const width = target.width;
+      const height = target.height;
       const sizeKey = `${width}x${height}`;
       if (renderedSize !== sizeKey) {
         canvas.width = width;
@@ -1357,7 +1450,7 @@ Page({
         ? readFile(filePath)
         : readFileHead(filePath);
       const [read, dimensions] = await Promise.all([sourceFlight, dimensionsFlight]);
-      const normalized = await this.normalizeExtraPhoto(filePath, read.data, dimensions, sourceBytes);
+      const normalized = await this.normalizeExtraPhoto(filePath, read.data, dimensions, sourceBytes, chosen.source);
       stageElapsedMs.local = Date.now() - stageStartedAt.local;
       const buffer = normalized.buffer;
       const bytes = new Uint8Array(buffer);
