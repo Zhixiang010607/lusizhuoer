@@ -29,9 +29,9 @@ test("migration 060 creates an isolated retail product master that cannot be del
   assert.match(verify, /CASE WHEN record_count = 2 THEN 'READY'/);
 });
 
-test("staffAccount v91 exposes HQ-only retail product list, create and archive APIs without delete", () => {
+test("staffAccount v92 exposes HQ-only retail product list, create and archive APIs without delete", () => {
   const cloud = read("cloudfunctions/staffAccount/index.js");
-  assert.match(cloud, /const FUNCTION_VERSION = "v91"/);
+  assert.match(cloud, /const FUNCTION_VERSION = "v92"/);
   for (const action of ["listRetailProducts", "createRetailProduct", "setRetailProductStatus"]) {
     assert.match(cloud, new RegExp(`action === "${action}"\\) \\{[\\s\\S]{0,180}requireHq\\(caller\\)`), `${action} must require headquarters`);
   }
@@ -91,6 +91,12 @@ test("mini program exposes separate project and product entries and keeps produc
   assert.match(homeJs, /type === "project"[\s\S]*pages\/product-management\/index/);
   assert.match(homeJs, /type === "product"[\s\S]*pages\/retail-product-management\/index/);
   for (const label of ["全部产品", "新增产品", "产品名称", "产品编号", "只能封存或重新激活"]) assert.match(page, new RegExp(label));
+  assert.match(pageStyles, /\.product-head \{[^}]*font-size: 24rpx/,
+    "the mobile product table header must match project-summary typography");
+  assert.match(pageStyles, /\.product-row \{[^}]*font-size: 24rpx/,
+    "the mobile product table values must match project-summary typography");
+  assert.match(pageStyles, /\.status-button \{[^}]*font-size: 24rpx/,
+    "the mobile product table action must remain readable at the shared table size");
   assert.doesNotMatch(page, /<input\b|只填写产品名称/);
   assert.match(logic, /pages\/retail-product-create\/index/);
   for (const action of ["listRetailProducts", "setRetailProductStatus"]) assert.match(logic, new RegExp(action));

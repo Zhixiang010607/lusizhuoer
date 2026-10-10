@@ -50,7 +50,7 @@ button[disabled] { opacity: .48; }
 .report-list view { display: grid; gap: 9rpx; padding: 20rpx; border-top: 1rpx solid #eadcc5; }
 .report-list view:first-child { border-top: 0; }
 .report-list text:first-child { color: #74592d; font-size: 20rpx; font-weight: 850; }
-.report-list text:last-child { font-size: 22rpx; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.report-list text:last-child { font-size: 26rpx; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
 .action-button { width: 100% !important; min-height: 76rpx; display: flex; align-items: center; justify-content: center; margin: 18rpx 0 0; color: #fff; background: #79592d; border-radius: 14rpx; font-size: 24rpx; font-weight: 750; }
 .attendance-card .punch-button { width: 100% !important; min-height: 64rpx; display: flex; align-items: center; justify-content: center; margin: 8rpx 0 0; padding: 0 8rpx; color: #fff; background: #79592d; border: 1rpx solid #79592d; border-radius: 12rpx; font-size: 21rpx; font-weight: 750; }
 .message { margin-bottom: 18rpx; padding: 16rpx 18rpx; color: #625747; background: #f5ead8; border-radius: 12rpx; font-size: 23rpx; }

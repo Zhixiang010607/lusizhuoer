@@ -21,6 +21,7 @@
   let logoReadRetryTimer = 0;
   const localPreviewMode = ["127.0.0.1", "localhost"].includes(location.hostname)
     && new URLSearchParams(location.search).get("preview") === "1";
+  const MAX_INSTRUCTION_CHARS = 1000;
 
   function setMessage(value, tone = "") {
     const target = $("productTemplateMessage");
@@ -48,7 +49,15 @@
   }
 
   function normalizedInstructions(value) {
-    return String(value ?? "").replace(/\r\n?/g, "\n").trim();
+    return String(value ?? "").replace(/\r\n?/g, "\n");
+  }
+
+  function limitedInstructions(value) {
+    return Array.from(normalizedInstructions(value)).slice(0, MAX_INSTRUCTION_CHARS).join("");
+  }
+
+  function instructionLength(value) {
+    return Array.from(normalizedInstructions(value)).length;
   }
 
   function expectedTemplateIdentity() {
@@ -239,8 +248,14 @@
   }
 
   function updateCounts() {
-    $("verificationInstructionCount").textContent = $("verificationReceiptInstructions").value.length;
-    $("rechargeInstructionCount").textContent = $("rechargeReceiptInstructions").value.length;
+    $("verificationInstructionCount").textContent = instructionLength($("verificationReceiptInstructions").value);
+    $("rechargeInstructionCount").textContent = instructionLength($("rechargeReceiptInstructions").value);
+  }
+
+  function constrainInstructionInput(event) {
+    const value = limitedInstructions(event.currentTarget.value);
+    if (event.currentTarget.value !== value) event.currentTarget.value = value;
+    updateCounts();
   }
 
   function renderTemplate() {
@@ -607,7 +622,7 @@
     else void renderPreview();
   });
   $("downloadProductPreview").addEventListener("click", downloadPreview);
-  ["verificationReceiptInstructions", "rechargeReceiptInstructions"].forEach((id) => $(id).addEventListener("input", updateCounts));
+  ["verificationReceiptInstructions", "rechargeReceiptInstructions"].forEach((id) => $(id).addEventListener("input", constrainInstructionInput));
   window.addEventListener("beforeunload", () => {
     clearPreviewUrl();
     if (logoReadRetryTimer) window.clearTimeout(logoReadRetryTimer);

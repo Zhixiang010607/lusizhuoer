@@ -98,8 +98,8 @@ CREATE TABLE IF NOT EXISTS public.products (
       AND receipt_logo_height BETWEEN 1 AND 12000)
   ),
   CONSTRAINT products_receipt_instruction_length_check CHECK (
-    CHAR_LENGTH(verification_receipt_instructions) <= 3000
-    AND CHAR_LENGTH(recharge_receipt_instructions) <= 3000
+    CHAR_LENGTH(verification_receipt_instructions) <= 1000
+    AND CHAR_LENGTH(recharge_receipt_instructions) <= 1000
   )
 );
 

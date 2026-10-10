@@ -223,7 +223,7 @@
 .report-detail-list view { display: grid; gap: 9rpx; padding: 20rpx; border-top: 1rpx solid #eadcc5; }
 .report-detail-list view:first-child { border-top: 0; }
 .report-detail-list text:first-child { color: #74592d; font-size: 20rpx; font-weight: 850; }
-.report-detail-list text:last-child { color: #423a31; font-size: 22rpx; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.report-detail-list text:last-child { color: #423a31; font-size: 26rpx; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
 .selected-report-empty { min-height: 180rpx; display: flex; align-items: center; justify-content: center; }
 .teacher-detail-grid button, .configuration-section button, .work-section button { text-align: center; }
 .face-result-toast { position: fixed; left: 50%; bottom: calc(34rpx + env(safe-area-inset-bottom)); z-index: 120; max-width: calc(100% - 64rpx); padding: 16rpx 24rpx; transform: translateX(-50%); color: #fff; background: rgba(8, 114, 95, .94); border-radius: 999rpx; box-shadow: 0 8rpx 28rpx rgba(47, 41, 33, .2); font-size: 21rpx; font-weight: 700; line-height: 1.4; text-align: center; }

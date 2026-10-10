@@ -90,7 +90,7 @@ assert.match(face, /signAttendanceLocation[\s\S]*verifiedAttendanceAddressToken/
 assert.match(clockIn, /place_name, formatted_address, address_provider/,
   "the authoritative punch write must persist signed readable location text");
 
-assert.match(staff, /const FUNCTION_VERSION = "v91"/);
+assert.match(staff, /const FUNCTION_VERSION = "v92"/);
 assert.match(staff, /async function getOwnAttendanceMonth/);
 assert.match(staff, /async function getHqAttendanceTrackingDay/);
 assert.match(staff, /attendanceStatus = hasClockIn && hasClockOut \? "COMPLETE"/);
@@ -187,6 +187,10 @@ assert.match(trackingJs, /allTeachers\.find/,
   "punch details must remain available in every tracking group");
 assert.match(trackingWxml, /class="tracking-table-scroll"[^>]*scroll-x="true"/);
 assert.match(trackingWxml, /class="tracking-row tracking-head"/);
+assert.match(trackingWxss, /\.tracking-row > text \{[^}]*display: table-cell[^}]*font-size: 24rpx/,
+  "attendance tracking headers and rows must match the mobile project-summary table size");
+assert.match(trackingWxss, /@media \(min-width: 700px\)[\s\S]*?\.tracking-row > text \{[^}]*font-size: 14px/,
+  "attendance tracking headers and rows must match the tablet project-summary table size");
 assert.doesNotMatch(trackingWxml, /teacher-card|teacher-row/);
 assert.match(trackingWxml, /<map[\s\S]*openLocation/);
 assert.match(trackingWxml, /老师姓名[\s\S]*老师电话[\s\S]*上班时间[\s\S]*上班详情[\s\S]*下班时间[\s\S]*下班详情[\s\S]*工作时长/,

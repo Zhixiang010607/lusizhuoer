@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v91";
+const FUNCTION_VERSION = "v92";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -32,7 +32,8 @@ const PRODUCT_LOGO_CHUNK_BYTES = 1536 * 1024;
 const PRODUCT_LOGO_DOWNLOAD_RETRY_DELAYS_MS = Object.freeze([80, 240]);
 const PRODUCT_LOGO_SIGN_SAFETY_MS = 30 * 1000;
 const PRODUCT_LOGO_STORAGE_MAX_CONCURRENCY = 6;
-const DAILY_REPORT_FIELD_MAX_CHARS = 200;
+const DAILY_REPORT_FIELD_MAX_CHARS = 1000;
+const PRODUCT_RECEIPT_INSTRUCTION_MAX_CHARS = 1000;
 const PRODUCT_LOGO_TYPES = new Map([
   ["image/png", "png"],
   ["image/jpeg", "jpg"],
@@ -1587,14 +1588,14 @@ async function requireDailyReportSchema() {
               SELECT 1
                 FROM pg_constraint
                WHERE conrelid = TO_REGCLASS('public.staff_daily_reports')
-                 AND conname = 'staff_daily_reports_all_fields_required_v77'
-            ) AS all_fields_required`
+                 AND conname = 'staff_daily_reports_completed_work_v84'
+            ) AS single_field_ready`
   );
   const schema = rows?.[0] || {};
   if (!databaseBoolean(schema.report_table) || !databaseBoolean(schema.today_trigger)
       || !databaseBoolean(schema.report_date_index)
-      || !databaseBoolean(schema.all_fields_required)) {
-    fail("员工日报数据库结构尚未启用，请先执行并验收迁移 073、074、076、077。", "DAILY_REPORT_SCHEMA_MISSING");
+      || !databaseBoolean(schema.single_field_ready)) {
+    fail("员工日报数据库结构尚未启用，请先执行并验收迁移 073、074、084。", "DAILY_REPORT_SCHEMA_MISSING");
   }
   dailyReportSchemaReady = true;
 }
@@ -1685,9 +1686,6 @@ async function saveOwnDailyReport(caller, event = {}) {
   const staffId = numericId(caller.profile?.staffId, "当前员工账号");
   const reportDate = validCalendarDate(event.reportDate);
   const completedWork = dailyReportField(event.completedWork, "今日完成事项", true);
-  const customerProjectProgress = dailyReportField(event.customerProjectProgress, "客户或项目进展", true);
-  const problemsAndSupport = dailyReportField(event.problemsAndSupport, "遇到的问题", true);
-  const tomorrowPlan = dailyReportField(event.tomorrowPlan, "明日计划", true);
   let rows;
   try {
     rows = await executeSql(
@@ -1698,15 +1696,14 @@ async function saveOwnDailyReport(caller, event = {}) {
            (staff_account_id, report_date, completed_work, customer_project_progress,
             problems_and_support, tomorrow_plan)
          SELECT ${staffId}::bigint, ${sqlText(reportDate)}::date,
-                ${sqlText(completedWork)}, ${sqlText(customerProjectProgress)},
-                ${sqlText(problemsAndSupport)}, ${sqlText(tomorrowPlan)}
+                ${sqlText(completedWork)}, '', '', ''
            FROM context
           WHERE ${sqlText(reportDate)}::date = context.server_today
          ON CONFLICT ON CONSTRAINT uq_staff_daily_reports_account_date DO UPDATE
            SET completed_work = EXCLUDED.completed_work,
-               customer_project_progress = EXCLUDED.customer_project_progress,
-               problems_and_support = EXCLUDED.problems_and_support,
-               tomorrow_plan = EXCLUDED.tomorrow_plan
+               customer_project_progress = '',
+               problems_and_support = '',
+               tomorrow_plan = ''
          RETURNING *
        )
        SELECT context.server_today, saved.*
@@ -3277,10 +3274,11 @@ async function discardProductLogoUpload(caller, event) {
 
 async function saveProductReceiptTemplate(caller, event) {
   const product = await productTemplateRow(event.productRef);
-  const verificationInstructions = String(event.verificationInstructions || "").trim();
-  const rechargeInstructions = String(event.rechargeInstructions || "").trim();
-  if (verificationInstructions.length > 3000 || rechargeInstructions.length > 3000) {
-    fail("单据文字说明不能超过 3000 字", "BAD_REQUEST");
+  const verificationInstructions = String(event.verificationInstructions || "").replace(/\r\n?/g, "\n");
+  const rechargeInstructions = String(event.rechargeInstructions || "").replace(/\r\n?/g, "\n");
+  if (Array.from(verificationInstructions).length > PRODUCT_RECEIPT_INSTRUCTION_MAX_CHARS
+      || Array.from(rechargeInstructions).length > PRODUCT_RECEIPT_INSTRUCTION_MAX_CHARS) {
+    fail(`单据文字说明不能超过 ${PRODUCT_RECEIPT_INSTRUCTION_MAX_CHARS} 个字符`, "BAD_REQUEST");
   }
   try {
     await executeSql(

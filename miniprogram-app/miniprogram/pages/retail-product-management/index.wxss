@@ -18,14 +18,14 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
 .count { flex: none; padding: 7rpx 13rpx; color: #785d2e; background: #f3e6c9; border-radius: 999rpx; font-size: 19rpx; font-weight: 850; white-space: nowrap; }
 .product-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) 1fr .7fr .85fr; align-items: center; min-width: 0; }
 .product-grid > text { min-width: 0; padding: 0 6rpx; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
-.product-head { min-height: 66rpx; color: #675c4e; background: #f4e8d1; border-radius: 15rpx 15rpx 0 0; font-size: 19rpx; font-weight: 850; }
-.product-row { min-height: 84rpx; background: #fffaf3; border: 1rpx solid #eadcc6; border-top: 0; font-size: 20rpx; }
+.product-head { min-height: 66rpx; color: #675c4e; background: #f4e8d1; border-radius: 15rpx 15rpx 0 0; font-size: 24rpx; font-weight: 850; }
+.product-row { min-height: 84rpx; background: #fffaf3; border: 1rpx solid #eadcc6; border-top: 0; font-size: 24rpx; }
 .product-row:last-child { border-radius: 0 0 15rpx 15rpx; }
 .product-name { font-weight: 850; }
-.status { justify-self: center; width: auto; padding: 5rpx 10rpx !important; border-radius: 999rpx; font-size: 18rpx; font-weight: 850; }
+.status { justify-self: center; width: auto; padding: 5rpx 10rpx !important; border-radius: 999rpx; font-size: inherit; font-weight: 850; }
 .status.active { color: #4f6f5d; background: #e7f1ea; }
 .status.archived { color: #985047; background: #f8e8e4; }
-.status-button { justify-self: center; display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: 104rpx !important; min-width: 0; height: 76rpx; min-height: 76rpx; margin: 0; padding: 0; color: #74582a; background: #fffaf3; border: 1rpx solid #d5b77d; border-radius: 12rpx; font-size: 18rpx; line-height: 1; }
+.status-button { justify-self: center; display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: 104rpx !important; min-width: 0; height: 76rpx; min-height: 76rpx; margin: 0; padding: 0; color: #74582a; background: #fffaf3; border: 1rpx solid #d5b77d; border-radius: 12rpx; font-size: 24rpx; line-height: 1; }
 .status-button.archive { color: #9b493f; background: #fff2ef; border-color: #dca99f; }
 .empty { padding: 42rpx 12rpx; color: #887c6d; font-size: 21rpx; text-align: center; }
 .safe-bottom { height: calc(24rpx + env(safe-area-inset-bottom)); }

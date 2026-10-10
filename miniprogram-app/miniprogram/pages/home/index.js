@@ -28,11 +28,7 @@ function readyRangeOptions(active) {
   return dashboard.RANGE_OPTIONS.map((item) => ({ ...item, active: item.value === active }));
 }
 function readyTabs(totals, active) { return dashboard.tabs(totals, active); }
-function summaryRows(products, totals) {
-  const rows = dashboard.products(products);
-  if (!rows.length) return [];
-  return [...rows, { productId: "TOTAL", productCode: "", productName: "合计", ...dashboard.totals(totals), total: true }];
-}
+function summaryRows(products) { return dashboard.products(products); }
 function pageView(page) {
   const value = dashboard.pageState(page);
   return { ...value, previousDisabled: value.page <= 1, nextDisabled: value.page >= value.totalPages };
@@ -728,6 +724,11 @@ Page({
     if (this.data.hqProjectSummaryLoading) return;
     if (!this.data.hqProjectSummaryTotalsReady) return this.loadHqHome(1);
     return this.loadHqProjectSummary(this._hqProductSummaryRetryPage || 1);
+  },
+  retryRoleProjectSummary() {
+    if (this.data.loading) return;
+    if (this.data.session.role === "teacher") return this.loadTeacherHome();
+    if (this.data.session.role === "store") return this.loadStoreHome();
   },
   async loadHqProjectSummary(pageNumber) {
     this._hqProductSummaryRetryPage = pageNumber;

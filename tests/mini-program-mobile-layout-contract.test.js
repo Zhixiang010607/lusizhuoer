@@ -129,13 +129,12 @@ test("all three mini-program homes preserve business content in the refreshed br
     "teacher iPad navigation items must stay equally compact instead of stretching the highlighted overview tab");
   assert.match(wxss, /\.role-teacher \.rail-logout\s*\{[^}]*width:\s*72px;[^}]*margin-left:\s*auto;/s,
     "the teacher logout action must remain compact and right aligned on iPad");
-  assert.match(wxml, /class="table-scroll summary-scroll"[^>]*scroll-x/);
+  assert.match(wxml, /<project-summary id="role-project-summary"[^>]*rows="\{\{summaryRows\}\}"[^>]*totals="\{\{totals\}\}"/,
+    "teacher and store homes must use the shared project-summary component");
   assert.match(wxml, /<view class="detail-anchor-nav"><view class="anchor-inner">/,
     "the four store anchors must use a content-height view instead of a real-device default-height scroll-view");
   assert.doesNotMatch(wxml, /<scroll-view class="detail-anchor-nav"/,
     "the store anchor bar must not inherit WeChat scroll-view's device-only default height");
-  assert.match(wxml, /class="table-scroll summary-scroll" style="height: \{\{68 \+ summaryRows\.length \* 72\}\}rpx;"/,
-    "the store/teacher summary height must match the compact header, rows, and border");
   assert.match(wxml, /<project-summary[^>]*rows="\{\{hqProjectSummaryRows\}\}"/,
     "HQ summary delegates geometry to the measured native component");
   const summaryComponent = read("miniprogram-app", "miniprogram", "components", "project-summary", "index.js");
@@ -155,6 +154,8 @@ test("all three mini-program homes preserve business content in the refreshed br
     "the mobile segmented controls must have the exact same outer height as the pickers");
   assert.match(wxss, /\.hq-ranking-control-grid \.hq-dimension-tabs button\s*\{[^}]*height:\s*52rpx;[^}]*min-height:\s*0;/s,
     "the inner buttons must fit inside the shared 64rpx control height instead of enlarging it");
+  assert.match(wxss, /\.hq-filters \.hq-filter-grid label > text,\s*\.hq-filters \.hq-control-label,\s*\.hq-filters \.filter-picker,\s*\.hq-filters \.hq-dimension-tabs button\s*\{\s*font-size:\s*24rpx;/s,
+    "HQ filter labels and selected values must match the 24rpx project-summary table typography");
   assert.match(wxss, /\.hq-custom-dates\s*\{[^}]*grid-column:\s*1 \/ -1;/s,
     "a custom HQ date range must remain full width below the compact controls");
   assert.match(wxml, /class="hq-control-field hq-product-filter"[\s\S]*class="hq-control-heading"[\s\S]*项目范围/);
@@ -183,7 +184,7 @@ test("all three mini-program homes preserve business content in the refreshed br
   assert.match(wxss, /\.record-scroll\s*\{[^}]*box-sizing:\s*border-box;[^}]*overflow:\s*auto;/s,
     "business detail scrolling must stay clipped inside its rounded table card");
   assert.match(wxss, /\.summary-table \.table-row, \.record-table \.table-row, \.customer-table \.table-row\s*\{[^}]*display:\s*table-row;/s);
-  assert.match(wxss, /\.summary-table \.table-row > view, \.record-table \.table-row > view, \.customer-table \.table-row > view\s*\{[^}]*display:\s*table-cell;[^}]*padding:\s*10rpx 18rpx;[^}]*font-size:\s*21rpx;[^}]*white-space:\s*nowrap;/s,
+  assert.match(wxss, /\.summary-table \.table-row > view, \.record-table \.table-row > view, \.customer-table \.table-row > view\s*\{[^}]*display:\s*table-cell;[^}]*padding:\s*10rpx 18rpx;[^}]*font-size:\s*24rpx;[^}]*white-space:\s*nowrap;/s,
     "every home table cell must share one readable font and equal horizontal spacing");
   assert.match(wxss, /\.detail-info-item text\s*\{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s,
     "profile facts must not split identifiers and phone numbers across lines");
@@ -192,16 +193,19 @@ test("all three mini-program homes preserve business content in the refreshed br
   assert.match(wxss, /\.hq-ranking-row\s*\{[^}]*display:\s*table-row;/s);
   assert.match(wxss, /\.hq-ranking-row > text\s*\{[^}]*display:\s*table-cell;[^}]*white-space:\s*nowrap;/s,
     "rank, name, and all four metrics must stay readable and horizontally scroll together");
-  assert.match(wxss, /\.hq-ranking-card > text\s*\{[^}]*font-size:\s*18rpx;/s,
-    "mobile ranking rows must stay compact even when the totals grow large");
-  assert.match(wxss, /\.hq-ranking-name\s*\{[^}]*font-size:\s*18rpx\s*!important;[^}]*font-weight:\s*500;[^}]*line-height:\s*1\.35;/s,
-    "store and teacher names must use the same explicit mobile typography as adjacent ranking values");
-  assert.match(wxss, /\.summary-table \.table-head \.summary-product\s*\{[^}]*align-items:\s*center\s*!important;[^}]*text-align:\s*center;/s,
-    "the project summary header must be centered while project rows remain left aligned");
-  assert.equal((wxml.match(/class="summary-product">项目<\/view>/g) || []).length, 1,
-    "the shared store/teacher service summary must use 项目 rather than the separate retail 产品 concept");
-  assert.match(read("miniprogram-app", "miniprogram", "components", "project-summary", "index.wxml"), /<view>项目<\/view>/,
-    "the HQ summary component must use the same service-project label");
+  assert.match(wxss, /\.hq-ranking-table-head\s*\{[^}]*font-size:\s*24rpx;/s,
+    "the complete-ranking header must match the project-summary header size");
+  assert.match(wxss, /\.hq-ranking-card > text\s*\{[^}]*font-size:\s*24rpx;/s,
+    "complete-ranking values must match the project-summary data size");
+  assert.match(wxss, /\.hq-ranking-name\s*\{[^}]*font-size:\s*24rpx\s*!important;[^}]*font-weight:\s*500;[^}]*line-height:\s*1\.35;/s,
+    "store and teacher names must use the same explicit typography as project-summary values");
+  const projectSummaryWxml = read("miniprogram-app", "miniprogram", "components", "project-summary", "index.wxml");
+  const projectSummaryWxss = read("miniprogram-app", "miniprogram", "components", "project-summary", "index.wxss");
+  assert.match(projectSummaryWxml, /<view>项目<\/view>/,
+    "the shared summary component must use the service-project label");
+  assert.match(projectSummaryWxss, /\.summary-row > \.summary-name\s*\{[^}]*text-align:\s*center;/s);
+  assert.match(projectSummaryWxss, /\.summary-name text\s*\{[^}]*text-align:\s*center;/s,
+    "project names must be centered in the shared summary template");
   assert.match(wxss, /\.table-pagination > text\s*\{[^}]*text-align:\s*center;[^}]*white-space:\s*nowrap;/s,
     "previous, page summary, and next must stay on one centered row");
   assert.match(storeDetailWxml, /data-code="\{\{item\.customerCode\}\}" bindtap="openCustomer">\{\{item\.customerName\}\}<\/view>/);

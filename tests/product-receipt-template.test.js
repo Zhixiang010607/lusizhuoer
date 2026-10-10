@@ -10,12 +10,14 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 const cloud = read("cloudfunctions/staffAccount/index.js");
 const schema = read("database/schema.sql");
 const migration = read("database/migrations/045_product_receipt_templates.sql");
+const finalInstructionMigration = read("database/migrations/085_product_receipt_instruction_1000_characters.sql");
 const detailHtml = read("project-detail.html");
 const detailUi = read("project-detail.js");
 const management = read("management.js");
 const createHtml = read("project-create.html");
 const createUi = read("project-create.js");
 const exporter = read("order-export.js");
+const miniReceipt = read("miniprogram-app/miniprogram/services/order-receipt.js");
 const businessDetail = read("business-detail.js");
 const phoneAuth = read("cloudbase-phone-auth.js");
 
@@ -50,12 +52,15 @@ for (const column of [
 assert.ok(migration.includes("receipt_logo_bytes BETWEEN 8 AND 8388608"), "original logo size is bounded without recompression");
 assert.ok(migration.includes("NORMAL and EXPERIENCE"), "verification and experience share a template");
 assert.ok(migration.includes("NEW recharge and REFUND"), "recharge and refund share a template");
+assert.ok(finalInstructionMigration.includes("verification_receipt_instructions) <= 1000"), "verification receipt instructions are capped at 1000 Unicode characters");
+assert.ok(finalInstructionMigration.includes("recharge_receipt_instructions) <= 1000"), "recharge receipt instructions are capped at 1000 Unicode characters");
+assert.ok(schema.includes("CHAR_LENGTH(verification_receipt_instructions) <= 1000"), "fresh schemas use the final receipt instruction limit");
 
 for (const action of [
   "getProductReceiptTemplate", "beginProductLogoUpload", "uploadProductLogoByFunction", "confirmProductLogoUpload", "discardProductLogoUpload",
   "saveProductReceiptTemplate", "removeProductReceiptLogo", "getProductReceiptLogoData"
 ]) assert.ok(cloud.includes(`action === "${action}"`), `cloud action ${action}`);
-assert.ok(cloud.includes('const FUNCTION_VERSION = "v91"'), "staffAccount retains the resilient project-logo read contract in v91");
+assert.ok(cloud.includes('const FUNCTION_VERSION = "v92"'), "staffAccount retains the resilient project-logo read contract in v92");
 assert.ok(cloud.includes("envId: process.env.CLOUDBASE_ENV_ID || process.env.TCB_ENV"), "manager and storage calls select the same environment");
 assert.ok(cloud.includes("signUploadObject"), "original logo uses direct signed upload");
 assert.ok(cloud.includes("canonicalProductLogoUploadUrl"), "signed upload uses a canonical HTTPS gateway target");
@@ -77,6 +82,13 @@ assert.ok(phoneAuth.includes("completeChunkedProductLogo"), "browser service rea
 assert.ok(phoneAuth.includes("productLogoDataFlights"), "browser logo reads deduplicate concurrent requests");
 assert.ok(cloud.includes("signed read unavailable; using authenticated fallback"), "a temporary read signer failure cannot hide an already persisted template");
 assert.ok(cloud.includes("receipt_template_updated_by"), "template changes retain the HQ actor");
+assert.ok(cloud.includes("const PRODUCT_RECEIPT_INSTRUCTION_MAX_CHARS = 1000"), "the server enforces the final receipt instruction limit");
+assert.ok(cloud.includes('.replace(/\\r\\n?/g, "\\n")'), "the server normalizes line endings without removing manual line breaks");
+assert.ok(cloud.includes("Array.from(verificationInstructions).length"), "the server counts Unicode characters instead of UTF-16 code units");
+assert.match(exporter, /replace\(\/\\r\/g, ""\)\.split\("\\n"\)/,
+  "web receipt rendering must preserve every explicit template line break before natural wrapping");
+assert.match(miniReceipt, /replace\(\/\\r\/g, ""\)\.split\("\\n"\)/,
+  "mini-program receipt rendering must preserve every explicit template line break before natural wrapping");
 
 const signingLogs = [];
 const signingHarness = {
@@ -404,7 +416,7 @@ assert.ok(detailUi.includes("模板文字已读取；LOGO 原图暂时不可用"
 assert.ok(detailUi.includes("void reloadTemplateLogo({ automatic: true })"), "a failed logo read schedules one bounded background retry");
 assert.ok(detailUi.includes("template?.logo && !(logoBlob instanceof Blob)"), "the existing refresh control retries a missing logo instead of only rerendering the placeholder");
 assert.ok(detailHtml.includes('cloudbase-phone-auth.js?v=0.20.4'), "template page loads the current shared auth API cache key");
-assert.ok(detailHtml.includes('project-detail.js?v=0.2.5'), "template page busts the stale-logo script cache");
+assert.ok(detailHtml.includes('project-detail.js?v=0.2.6'), "template page busts the line-preserving editor script cache");
 
 assert.ok(exporter.includes("drawDocumentHeader(context, documentData, productLogo"), "receipts place the square product logo in the header");
 assert.ok(!exporter.includes("drawProductBranding"), "receipts remove the duplicated large logo section");

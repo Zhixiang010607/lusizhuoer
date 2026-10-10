@@ -20,7 +20,7 @@
     </view>
     <view wx:if="{{selected && mode === 'report'}}" class="panel detail-panel">
       <view class="detail-heading"><view><text class="section-title">{{selected.date}} 日报</text><text class="section-note">{{teacher.teacherName}} · {{teacher.phone}}</text></view><text class="badge">{{selected.notEmployed ? '未入职' : selected.report ? '已填写' : '未填写'}}</text></view>
-      <view wx:if="{{selected.report}}" class="report-list"><view><text>今日完成事项</text><text>{{selected.report.completedWork}}</text></view><view><text>客户与项目进展</text><text>{{selected.report.customerProjectProgress}}</text></view><view><text>问题与所需支持</text><text>{{selected.report.problemsAndSupport}}</text></view><view><text>明日计划</text><text>{{selected.report.tomorrowPlan}}</text></view></view>
+      <view wx:if="{{selected.report}}" class="report-list"><view><text>今日完成事项</text><text>{{selected.report.completedWork}}</text></view></view>
       <view wx:else class="empty">{{selected.notEmployed ? '该日期尚未入职' : '当天没有日报'}}</view>
       <button wx:if="{{selected.date === serverToday}}" class="action-button" bindtap="openDailyReport"><text class="button-label">{{selected.report ? '修改今日日报' : '填写今日日报'}}</text></button>
     </view>

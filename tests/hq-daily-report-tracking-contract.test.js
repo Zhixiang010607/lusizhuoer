@@ -31,7 +31,7 @@ test("migration 074 adds only the date-first tracker index", () => {
 });
 
 test("HQ tracker reads active teacher roster and exposes no write action", () => {
-  assert.match(cloud, /const FUNCTION_VERSION = "v91"/);
+  assert.match(cloud, /const FUNCTION_VERSION = "v92"/);
   assert.match(cloud, /async function getHqDailyReportTrackingDay\(caller/);
   assert.match(cloud, /async function getHqDailyReportDetail\(caller/);
   assert.match(cloud, /requireHq\(caller\)/);
@@ -65,15 +65,18 @@ test("HQ operations menu links to a responsive read-only tracker", () => {
   assert.match(client, /getHqDailyReportDetail/);
   assert.match(client, /teacher\.phone/);
   assert.doesNotMatch(`${html}\n${client}`, /老师生日|birthDate|打卡|attendance/i);
-  assert.match(css, /@media\(max-width:1180px\)/);
-  assert.match(css, /@media\(max-width:760px\)/);
-  assert.match(css, /daily-tracking-columns\{grid-template-columns:1fr\}/);
+  assert.match(css, /@media\s*\(max-width:\s*1180px\)/);
+  assert.match(css, /@media\s*\(max-width:\s*760px\)/);
+  assert.match(css, /daily-tracking-columns\s*\{[^}]*grid-template-columns:\s*1fr/);
   assert.match(miniApp, /pages\/daily-report-tracking/);
   assert.match(miniHome, /data-type="daily-report-tracking"[\s\S]{0,80}日报追踪/);
   assert.match(miniHomeClient, /type === "daily-report-tracking"[\s\S]{0,160}\/pages\/daily-report-tracking\/index/);
   assert.match(miniClient, /requireSession\(\["hq"\]\)/);
   assert.match(miniClient, /getHqDailyReportTrackingDay/);
   assert.match(miniClient, /getHqDailyReportDetail/);
+  assert.match(client, /const sections = \[\["今日完成事项", report\.completedWork\]\]/);
+  assert.match(miniClient, /label: "今日完成事项"/);
+  assert.doesNotMatch(`${client}\n${miniClient}`, /客户或项目进展|遇到的问题|明日计划/);
   for (const text of ["老师姓名", "老师电话", "日报内容", "是否完成"]) assert.match(miniPage, new RegExp(text));
   assert.doesNotMatch(`${miniPage}\n${miniClient}`, /老师生日|birthDate/i);
   assert.match(miniPage, /class="tracking-table-scroll"[^>]*scroll-x="true"/);
@@ -82,6 +85,9 @@ test("HQ operations menu links to a responsive read-only tracker", () => {
   assert.match(miniPage, /wx:for="\{\{incomplete\}\}"[^>]*class="tracking-row"/);
   assert.doesNotMatch(miniPage, /teacher-card|teacher-row/);
   assert.match(miniCss, /\.tracking-table \{[^}]*display: inline-table/);
-  assert.match(miniCss, /\.tracking-row > text \{[^}]*display: table-cell/);
+  assert.match(miniCss, /\.tracking-row > text \{[^}]*display: table-cell[^}]*font-size: 24rpx/,
+    "daily-report tracking headers and rows must match the mobile project-summary table size");
+  assert.match(miniCss, /@media \(min-width: 700px\)[\s\S]*?\.tracking-row > text \{[^}]*font-size: 14px/,
+    "daily-report tracking headers and rows must match the tablet project-summary table size");
   assert.match(miniCss, /@media \(min-width: 700px\)/);
 });

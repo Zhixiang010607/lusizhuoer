@@ -158,8 +158,10 @@ test("HQ store and teacher workspaces reuse authoritative services without a gen
     "teacher and store columns must size to their longest content and scroll only when necessary");
   assert.match(directoryWxss, /\.table-row\s*\{[^}]*display:\s*table-row;/s,
     "directory headers and data rows must share the same content-aware table columns");
-  assert.match(directoryWxss, /\.table-row > text\s*\{[^}]*display:\s*table-cell;[^}]*padding:\s*10rpx 18rpx;[^}]*text-align:\s*center;[^}]*white-space:\s*nowrap;/s,
+  assert.match(directoryWxss, /\.table-row > text\s*\{[^}]*display:\s*table-cell;[^}]*padding:\s*10rpx 18rpx;[^}]*font-size:\s*24rpx;[^}]*text-align:\s*center;[^}]*white-space:\s*nowrap;/s,
     "directory values must keep one consistent type size and equal cell spacing without clipping");
+  assert.match(directoryWxss, /@media \(min-width: 700px\)[\s\S]*?\.table-row > text\s*\{[^}]*font-size:\s*14px;/s,
+    "store and teacher directory tables must match project-summary typography on tablets");
   assert.doesNotMatch(directoryWxml, /class="modal|detail-mask/, "directory must route to dedicated pages instead of opening a generic detail modal");
   for (const action of ["getStoreDashboard", "getStoreBusinessAnalytics", "queryStoreBusinessRecords", "setMasterStatus"]) assert.match(storeDetail, new RegExp(action));
   assert.match(storeDetail, /storeId[\s\S]*queryStoreBusinessRecords/);

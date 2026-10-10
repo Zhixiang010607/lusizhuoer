@@ -399,4 +399,48 @@ assert.match(fiveMibPhotoVerification, /EXTRA%5242880/,
 assert.match(fiveMibPhotoVerification, /083 private photo bucket[\s\S]*id = 'customer-photos'[\s\S]*public = FALSE[\s\S]*file_size_limit >= 5242880/,
   "migration 083 verifies the private JPEG bucket supports 5 MiB uploads");
 
+const singleFieldDailyReportMigration = fs.readFileSync(
+  path.join(root, "database", "migrations", "084_daily_report_single_field_1000_characters.sql"),
+  "utf8"
+);
+const singleFieldDailyReportConsoleMigration = fs.readFileSync(
+  path.join(consoleDir, "084-01-daily-report-single-field-1000-characters.sql"),
+  "utf8"
+);
+const singleFieldDailyReportVerification = fs.readFileSync(
+  path.join(consoleDir, "084-readonly-verify.sql"),
+  "utf8"
+);
+assert.equal(singleFieldDailyReportConsoleMigration, singleFieldDailyReportMigration,
+  "CloudBase migration 084 must exactly match the canonical single-field daily-report migration");
+assert.match(singleFieldDailyReportConsoleMigration, /BEGIN;[\s\S]*COMMIT;\s*$/,
+  "CloudBase migration 084 must be a complete transaction");
+assert.match(singleFieldDailyReportConsoleMigration, /staff_daily_reports_completed_work_v84/);
+assert.match(singleFieldDailyReportConsoleMigration, /CHAR_LENGTH\(BTRIM\(completed_work\)\) BETWEEN 1 AND 1000/);
+assert.match(singleFieldDailyReportConsoleMigration, /NEW\.customer_project_progress := ''/);
+assert.equal((singleFieldDailyReportVerification.match(/THEN 'READY'/g) || []).length, 3,
+  "migration 084 exposes three read-only READY checks");
+
+const receiptInstructionMigration = fs.readFileSync(
+  path.join(root, "database", "migrations", "085_product_receipt_instruction_1000_characters.sql"),
+  "utf8"
+);
+const receiptInstructionConsoleMigration = fs.readFileSync(
+  path.join(consoleDir, "085-01-product-receipt-instruction-1000-characters.sql"),
+  "utf8"
+);
+const receiptInstructionVerification = fs.readFileSync(
+  path.join(consoleDir, "085-readonly-verify.sql"),
+  "utf8"
+);
+assert.equal(receiptInstructionConsoleMigration, receiptInstructionMigration,
+  "CloudBase migration 085 must exactly match the canonical receipt-instruction migration");
+assert.match(receiptInstructionConsoleMigration, /BEGIN;[\s\S]*COMMIT;\s*$/,
+  "CloudBase migration 085 must be a complete transaction");
+assert.match(receiptInstructionConsoleMigration, /CHAR_LENGTH\(verification_receipt_instructions\) <= 1000/);
+assert.match(receiptInstructionConsoleMigration, /CHAR_LENGTH\(recharge_receipt_instructions\) <= 1000/);
+assert.match(receiptInstructionConsoleMigration, /explicit newlines, emoji, and other UTF-8 symbols/);
+assert.equal((receiptInstructionVerification.match(/THEN 'READY'/g) || []).length, 2,
+  "migration 085 exposes two read-only READY checks");
+
 console.log("cloudbase console migrations: PASS");

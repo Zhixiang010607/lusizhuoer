@@ -68,7 +68,7 @@ assert.match(face, /action === "createSupplementVerificationApplication"/);
 assert.match(face, /recordType === "SUPPLEMENT"/);
 assert.match(face, /const complete = supplement \|\|/,
   "supplement recovery must not wait for a device signal that is intentionally absent");
-assert.match(staff, /const FUNCTION_VERSION = "v91"/);
+assert.match(staff, /const FUNCTION_VERSION = "v92"/);
 assert.match(staff, /v\.verification_type = 'SUPPLEMENT' AND v\.void_request_status = 'NONE'/);
 assert.match(staff, /VERIFICATION_REVIEW_NOT_ALLOWED/,
   "HQ verification review must reject normal and experience records");

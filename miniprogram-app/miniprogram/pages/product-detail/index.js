@@ -19,9 +19,12 @@ const PREVIEWS = Object.freeze([
 ]);
 const MAX_LOGO_BYTES = 8 * 1024 * 1024;
 const FUNCTION_LOGO_BYTES = 3 * 1024 * 1024;
+const MAX_INSTRUCTION_CHARS = 1000;
 
 function text(value) { return String(value === undefined || value === null ? "" : value).trim(); }
-function normalizedInstructions(value) { return String(value === undefined || value === null ? "" : value).replace(/\r\n?/g, "\n").trim(); }
+function normalizedInstructions(value) { return String(value === undefined || value === null ? "" : value).replace(/\r\n?/g, "\n"); }
+function limitedInstructions(value) { return Array.from(normalizedInstructions(value)).slice(0, MAX_INSTRUCTION_CHARS).join(""); }
+function instructionLength(value) { return Array.from(normalizedInstructions(value)).length; }
 function previewOption(value) { return PREVIEWS.find((item) => item.value === value) || PREVIEWS[0]; }
 function formatTime(...values) {
   const formatted = displayDateTimeAny(...values);
@@ -173,8 +176,8 @@ Page({
     if (!preserveInstructions) {
       changes.verificationInstructions = template.verificationInstructions;
       changes.rechargeInstructions = template.rechargeInstructions;
-      changes.verificationCount = template.verificationInstructions.length;
-      changes.rechargeCount = template.rechargeInstructions.length;
+      changes.verificationCount = instructionLength(template.verificationInstructions);
+      changes.rechargeCount = instructionLength(template.rechargeInstructions);
     }
     if (!this._selectedLogo) changes.logoPreview = template.logo && template.logo.url || "";
     this.setData(changes);
@@ -232,13 +235,14 @@ Page({
   },
   inputInstructions(event) {
     const field = event.currentTarget.dataset.field;
-    const value = event.detail.value;
+    const value = limitedInstructions(event.detail.value);
     const current = previewOption(this.data.activePreview);
     this.setData({
       [field]: value,
-      [`${field === "verificationInstructions" ? "verification" : "recharge"}Count`]: value.length,
+      [`${field === "verificationInstructions" ? "verification" : "recharge"}Count`]: instructionLength(value),
       previewHint: `${current.hint} · 文字已修改，刷新后生效`
     });
+    return value;
   },
   async chooseLogo() {
     if (this.data.mutating) return;
@@ -260,8 +264,8 @@ Page({
         path, originalName: text(file.name) || `product-logo.${type === "jpeg" ? "jpg" : type}`,
         mimeType, bytes, width: Number(dimensions.width), height: Number(dimensions.height)
       };
-      this.setData({ selectedLogo: true, logoPreview: path, message: "已选择原图，点击“上传并保存”。", error: false });
-      await this.renderPreview();
+      this.setData({ selectedLogo: true, logoPreview: path, message: "已选择原图，正在上传并保存…", error: false });
+      await this.uploadLogo();
     } catch (error) {
       if (/cancel/i.test(String(error.errMsg || error.message || ""))) return;
       this.setData({ message: error.message || error.errMsg || "LOGO 选择失败", error: true });

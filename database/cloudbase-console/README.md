@@ -338,6 +338,28 @@ ROLLBACK;
 
 077 不改写历史日报，也不为历史空白栏伪造内容；它只约束迁移后的新增和上海当天修改必须四栏全部填写，每栏继续限制为 200 字。
 
+## 084 日报单栏 1000 字
+
+完成 083 后，按 [`084-README.md`](084-README.md) 执行：
+
+1. 整文件执行 `084-01-daily-report-single-field-1000-characters.sql`；
+2. 执行 `084-readonly-verify.sql`，三行必须全部为 `READY`；
+3. 上传 `staffAccount-v92.zip` 并确认 `health version=v92`；
+4. 发布配套网页并上传配套小程序。
+
+084 取代 076／077 的四栏 200 字写入规则：新的日报只要求“今日完成事项”，最多 1000 个 Unicode 字符，允许 emoji 和特殊符号。历史四栏数据不批量改写；历史日期只读、禁止删除、在职老师本人范围和总部只读追踪规则不变。
+
+## 085 项目单据模板文字 1000 字
+
+完成并验收 084 后，按 [`085-README.md`](085-README.md) 执行：
+
+1. 整文件执行 `085-01-product-receipt-instruction-1000-characters.sql`；
+2. 执行 `085-readonly-verify.sql`，两行必须全部为 `READY`；
+3. 上传 `staffAccount-v92.zip` 并确认 `health version=v92`；
+4. 发布配套网页并上传配套小程序。
+
+085 将核销单说明和充值单说明分别限制为最多 1000 个 Unicode 字符；`TEXT` 字段继续原样保存手动换行、emoji 和特殊符号。它不修改项目 LOGO、私有桶、工单照片、核销、BLE 或其他业务规则。
+
 ## 078 老师每日上班／下班两次打卡
 
 075—077 验收完成后，按 [`078-README.md`](078-README.md) 执行：

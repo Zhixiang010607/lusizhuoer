@@ -1,5 +1,5 @@
 <view class="page">
-  <view class="page-heading"><text class="title">项目单据模板</text><button class="ghost return-button" bindtap="back">返回项目管理</button></view>
+  <view class="page-heading"><text class="title">项目单据模板</text><button class="return-button" bindtap="back"><text>返回项目管理</text></button></view>
 
   <view wx:if="{{loading && !template}}" class="panel empty">正在读取项目模板…</view>
   <block wx:if="{{template}}">
@@ -14,13 +14,13 @@
         <view class="logo-square"><image wx:if="{{logoPreview}}" src="{{logoPreview}}" mode="aspectFit" binderror="logoError" /><text wx:else>LOGO</text></view>
         <view class="logo-controls">
           <text>共用项目 LOGO</text>
-          <view class="compact-actions"><button class="primary" bindtap="chooseLogo" disabled="{{mutating}}">选择图片</button><button class="primary" bindtap="uploadLogo" loading="{{mutating && selectedLogo}}" disabled="{{mutating || !selectedLogo}}">上传并保存</button><button class="ghost" bindtap="removeLogo" disabled="{{mutating || !template.logo}}">移除</button></view>
+          <view class="compact-actions"><button class="primary" bindtap="chooseLogo" loading="{{mutating && selectedLogo}}" disabled="{{mutating}}">选择或替换图片</button><button class="ghost" bindtap="removeLogo" disabled="{{mutating || !template.logo}}">移除图片</button></view>
         </view>
       </view>
 
       <view class="instruction-grid">
-        <label class="instruction-field"><view><text>核销单说明</text><text>正常核销与体验核销共用</text></view><textarea maxlength="3000" data-field="verificationInstructions" value="{{verificationInstructions}}" bindinput="inputInstructions" placeholder="填写核销单底部文字说明" disabled="{{mutating}}" /><text class="count">{{verificationCount}}/3000</text></label>
-        <label class="instruction-field"><view><text>充值单说明</text><text>充值与退费共用</text></view><textarea maxlength="3000" data-field="rechargeInstructions" value="{{rechargeInstructions}}" bindinput="inputInstructions" placeholder="填写充值单、退费单底部文字说明" disabled="{{mutating}}" /><text class="count">{{rechargeCount}}/3000</text></label>
+        <label class="instruction-field"><view><text>核销单说明</text><text>正常核销与体验核销共用</text></view><textarea maxlength="-1" data-field="verificationInstructions" value="{{verificationInstructions}}" bindinput="inputInstructions" placeholder="最多 1000 字；保留手动换行，支持 emoji 和特殊符号" disabled="{{mutating}}" /><text class="count">{{verificationCount}}/1000</text></label>
+        <label class="instruction-field"><view><text>充值单说明</text><text>充值与退费共用</text></view><textarea maxlength="-1" data-field="rechargeInstructions" value="{{rechargeInstructions}}" bindinput="inputInstructions" placeholder="最多 1000 字；保留手动换行，支持 emoji 和特殊符号" disabled="{{mutating}}" /><text class="count">{{rechargeCount}}/1000</text></label>
       </view>
       <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
       <view class="save-row"><button class="primary save-button" bindtap="saveInstructions" loading="{{mutating && !selectedLogo}}" disabled="{{mutating}}">保存文字说明</button></view>

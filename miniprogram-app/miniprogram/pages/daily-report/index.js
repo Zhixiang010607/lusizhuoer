@@ -1,13 +1,10 @@
 const { callStaff } = require("../../services/api");
 const { waitForStartupSession, requireSession } = require("../../services/session");
 
-const MAX_LENGTH = 200;
-const FIELDS = Object.freeze(["completedWork", "customerProjectProgress", "problemsAndSupport", "tomorrowPlan"]);
+const MAX_LENGTH = 1000;
+const FIELDS = Object.freeze(["completedWork"]);
 const FIELD_LABELS = Object.freeze({
-  completedWork: "今日完成事项",
-  customerProjectProgress: "客户或项目进展",
-  problemsAndSupport: "遇到的问题",
-  tomorrowPlan: "明日计划"
+  completedWork: "今日完成事项"
 });
 
 function pad(value) { return String(value).padStart(2, "0"); }
@@ -47,8 +44,7 @@ Page({
     authorized: false, loadingMonth: true, loadingReport: false, saving: false,
     message: "", error: false, serverToday: "", visibleMonth: "", selectedDate: "", pendingDate: "", canNextMonth: false, calendarCells: [],
     editable: false, editing: false, future: false, reportExists: false,
-    completedWork: "", customerProjectProgress: "", problemsAndSupport: "", tomorrowPlan: "",
-    completedWorkCount: 0, customerProjectProgressCount: 0, problemsAndSupportCount: 0, tomorrowPlanCount: 0
+    completedWork: "", completedWorkCount: 0
   },
   async onLoad() {
     this._unloaded = false;
@@ -139,8 +135,9 @@ Page({
   inputField(event) {
     const field = String(event.currentTarget.dataset.field || "");
     if (!FIELDS.includes(field) || !this.data.editable || !this.data.editing) return;
-    const value = String(event.detail.value || "");
+    const value = Array.from(String(event.detail.value || "")).slice(0, MAX_LENGTH).join("");
     this.setData({ [field]: value, [`${field}Count`]: Array.from(value).length });
+    return value;
   },
   edit() {
     if (this.data.editable && this.data.reportExists && !this.data.saving) this.setData({ editing: true, message: "正在编辑今日日报，修改后请点击确认提交。", error: false });
@@ -151,7 +148,7 @@ Page({
     FIELDS.forEach((field) => { payload[field] = String(this.data[field] || "").trim(); });
     const missingField = FIELDS.find((field) => !payload[field]);
     if (missingField) return this.setData({ message: `请填写${FIELD_LABELS[missingField]}。`, error: true });
-    if (FIELDS.some((field) => Array.from(payload[field]).length > MAX_LENGTH)) return this.setData({ message: `每项内容不能超过 ${MAX_LENGTH} 个字符。`, error: true });
+    if (FIELDS.some((field) => Array.from(payload[field]).length > MAX_LENGTH)) return this.setData({ message: `日报内容不能超过 ${MAX_LENGTH} 个字符。`, error: true });
     this.setData({ saving: true, message: "正在保存…", error: false });
     try {
       const result = await callStaff("saveOwnDailyReport", payload);

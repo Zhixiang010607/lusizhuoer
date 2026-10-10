@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 const root = path.join(__dirname, '../miniprogram-app/miniprogram/components/project-summary');
+const repo = path.resolve(root, '../../../..');
 function fixture() {
   let definition; const callbacks = [];
   vm.runInNewContext(fs.readFileSync(path.join(root, 'index.js'), 'utf8'), { Component(value) { definition = value; }, wx: { nextTick(callback) { callback(); } } });
@@ -24,4 +25,16 @@ test('summary loading/error and detached states cannot retain a stale table heig
   assert.equal(component.data.tableHeight,0);
   component.data.error='';component.measureTable();definition.lifetimes.detached.call(component);callbacks[1]({height:800});
   assert.equal(component.data.tableHeight,0);
+});
+test('headquarters, store, and teacher summaries share the centered native component', () => {
+  const home = fs.readFileSync(path.join(repo, 'miniprogram-app/miniprogram/pages/home/index.wxml'), 'utf8');
+  const store = fs.readFileSync(path.join(repo, 'miniprogram-app/miniprogram/pages/store-detail/index.wxml'), 'utf8');
+  const storeConfig = fs.readFileSync(path.join(repo, 'miniprogram-app/miniprogram/pages/store-detail/index.json'), 'utf8');
+  const style = fs.readFileSync(path.join(root, 'index.wxss'), 'utf8');
+  assert.match(home, /<project-summary id="role-project-summary"/);
+  assert.match(home, /<project-summary id="hq-project-summary"/);
+  assert.match(store, /<project-summary id="store-project-summary"/);
+  assert.match(storeConfig, /"project-summary":\s*"\.\.\/\.\.\/components\/project-summary\/index"/);
+  assert.match(style, /\.summary-row > \.summary-name\s*\{[^}]*text-align:\s*center;/s);
+  assert.match(style, /\.summary-name text\s*\{[^}]*text-align:\s*center;/s);
 });

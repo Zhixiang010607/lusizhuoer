@@ -1,14 +1,9 @@
 (() => {
   "use strict";
-  const VERSION = "0.2.1";
-  const MAX_LENGTH = 200;
+  const VERSION = "0.3.0";
+  const MAX_LENGTH = 1000;
   const $ = (id) => document.getElementById(id);
-  const fields = [
-    ["dailyCompletedWork", "dailyCompletedWorkCount", "completedWork", "今日完成事项"],
-    ["dailyCustomerProjectProgress", "dailyCustomerProjectProgressCount", "customerProjectProgress", "客户或项目进展"],
-    ["dailyProblemsAndSupport", "dailyProblemsAndSupportCount", "problemsAndSupport", "遇到的问题"],
-    ["dailyTomorrowPlan", "dailyTomorrowPlanCount", "tomorrowPlan", "明日计划"]
-  ];
+  const fields = [["dailyCompletedWork", "dailyCompletedWorkCount", "completedWork", "今日完成事项"]];
   const state = { serverToday: "", selectedDate: "", visibleMonth: "", reports: new Set(), loading: false, editing: false, mode: "readonly", currentReport: null };
   let app = null;
 
@@ -55,7 +50,14 @@
     $("dailyReportYear").disabled = busy;
     $("dailyReportMonth").disabled = busy;
   }
-  function updateCounts() { fields.forEach(([fieldId, countId]) => { $(countId).textContent = Array.from($(fieldId).value).length; }); }
+  function updateCounts() {
+    fields.forEach(([fieldId, countId]) => {
+      const field = $(fieldId);
+      const value = Array.from(field.value).slice(0, MAX_LENGTH).join("");
+      if (value !== field.value) field.value = value;
+      $(countId).textContent = Array.from(value).length;
+    });
+  }
   function setForm(report, mode) {
     const values = report || {};
     state.mode = mode;
@@ -138,7 +140,7 @@
     $("dailyReportEdit").hidden = true;
     $("dailyReportSave").hidden = false;
     $("dailyReportState").textContent = "编辑中";
-    $("dailyReportMessage").textContent = "修改四栏内容后，点击确认提交。";
+    $("dailyReportMessage").textContent = "修改今日完成事项后，点击确认提交。";
   });
   $("dailyReportPreviousMonth").addEventListener("click", () => loadMonth(monthShift(state.visibleMonth, -1)));
   $("dailyReportNextMonth").addEventListener("click", () => loadMonth(monthShift(state.visibleMonth, 1)));
@@ -152,7 +154,7 @@
     fields.forEach(([fieldId, , key]) => { payload[key] = $(fieldId).value.trim(); });
     const missing = fields.find(([, , key]) => !payload[key]);
     if (missing) { $("dailyReportMessage").textContent = `请填写${missing[3]}。`; $(missing[0]).focus(); return; }
-    if (fields.some(([fieldId]) => Array.from($(fieldId).value.trim()).length > MAX_LENGTH)) { $("dailyReportMessage").textContent = `每项内容不能超过 ${MAX_LENGTH} 个字符。`; return; }
+    if (fields.some(([fieldId]) => Array.from($(fieldId).value.trim()).length > MAX_LENGTH)) { $("dailyReportMessage").textContent = `日报内容不能超过 ${MAX_LENGTH} 个字符。`; return; }
     $("dailyReportSave").disabled = true;
     $("dailyReportMessage").textContent = "正在保存…";
     try {

@@ -6,8 +6,8 @@ view, text, button { box-sizing: border-box; }
 .summary-row { display: table-row; }
 .summary-row > view { display: table-cell; height: 72rpx; padding: 12rpx 16rpx; border-bottom: 1rpx solid #eadfce; vertical-align: middle; text-align: center; white-space: nowrap; font-size: 24rpx; line-height: 1.45; }
 .summary-head > view { height: 64rpx; color: #675b4b; background: #f5ead8; font-weight: 700; }
-.summary-row > .summary-name { text-align: left; background: #fff7eb; }
-.summary-name text { display: block; width: 220rpx; white-space: normal; overflow-wrap: anywhere; word-break: break-all; color: #302a22; font-weight: 600; }
+.summary-row > .summary-name { text-align: center; background: #fff7eb; }
+.summary-name text { display: block; width: 220rpx; white-space: normal; overflow-wrap: anywhere; word-break: break-all; color: #302a22; font-weight: 600; text-align: center; }
 .summary-unit { margin-left: 3rpx; color: #7c7062; font-size: inherit; }
 .summary-total > view { color: #74592d; background: #f4e7d0; font-weight: 700; }
 .summary-row:last-child > view { border-bottom: 0; }

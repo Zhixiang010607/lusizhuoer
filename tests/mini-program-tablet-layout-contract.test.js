@@ -122,11 +122,17 @@ test("query and review pages use compact tablet filters and five-row result view
   assert.match(reviewsWxss, /\.review-type-tabs button \{[^}]*width: 100%;[^}]*min-width: 0;/s,
     "recharge and refund review tabs should fill their two balanced tablet columns");
   assert.match(directoryWxss, /\.search-fields \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s);
+  assert.match(directoryWxss, /\.search-fields label > text \{[^}]*font-size: 24rpx;/s,
+    "store and teacher directory query labels must match the established phone query typography");
+  assert.match(directoryWxss, /\.search-fields input \{[^}]*font-size: 26rpx;/s,
+    "store and teacher directory query values must remain as readable as other phone query fields");
+  assert.match(directoryWxss, /\.search-actions button \{[^}]*font-size: 24rpx;/s,
+    "store and teacher directory query actions must not use a smaller phone label");
   assert.match(directoryWxss, /\.data-table \{[^}]*width: auto;[^}]*min-width: 100%;[^}]*display: inline-table;[^}]*table-layout: auto;/s,
     "directory columns must be content-driven rather than fixed by one role-specific grid");
   assert.match(directoryWxss, /\.table-row \{[^}]*display: table-row;/s,
     "directory rows must share the adaptive table layout");
-  assert.match(directoryWxss, /\.table-row > text \{[^}]*display: table-cell;[^}]*padding: 10rpx 18rpx;[^}]*font-size: 21rpx;[^}]*white-space: nowrap;/s,
+  assert.match(directoryWxss, /\.table-row > text \{[^}]*display: table-cell;[^}]*padding: 10rpx 18rpx;[^}]*font-size: 24rpx;[^}]*white-space: nowrap;/s,
     "directory cells must keep one size and scroll instead of shrinking or wrapping");
 
   assert.match(customersWxml, /data-visible-rows="\{\{customers\.length > 5 \? 5 : customers\.length\}\}" scroll-y="\{\{customers\.length > 5\}\}"/);
@@ -423,7 +429,8 @@ test("HQ ranking uses one compact table and shows all four business metrics", ()
   assert.match(homeWxss, /@media \(min-width: 700px\)[\s\S]*?\.hq-ranking-row > text\s*\{[^}]*height:\s*46px;[^}]*padding:\s*8px 12px;[^}]*font-size:\s*14px;/s);
   assert.match(homeWxss, /@media \(min-width: 700px\)[\s\S]*?\.hq-ranking-name\s*\{[^}]*font-size:\s*14px\s*!important;/s,
     "store and teacher names must use the same explicit compact tablet size as ranking metrics");
-  assert.match(homeWxss, /\.summary-product \{[^}]*align-items: center !important;[^}]*text-align: center;/s,
+  const summaryWxss = read("miniprogram-app", "miniprogram", "components", "project-summary", "index.wxss");
+  assert.match(summaryWxss, /\.summary-row > \.summary-name\s*\{[^}]*text-align:\s*center;/s,
     "project names and the global total label must share the centered summary alignment");
   assert.doesNotMatch(homeWxss, /\.hq-ranking-name \{[^}]*justify-content: flex-start|\.hq-ranking-name \{[^}]*text-align: left/s,
     "ranking entity names must align with the shared centered table columns");
@@ -447,5 +454,7 @@ test("HQ tablet filters use a balanced two-by-two control grid", () => {
   assert.match(homeWxss, /\.hq-ranking-control-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/);
   assert.match(homeWxss, /\.hq-ranking-control-grid \.hq-dimension-tabs \{[^}]*height: 46px;[^}]*min-height: 46px;[^}]*padding: 4px;/s);
   assert.match(homeWxss, /\.hq-ranking-control-grid \.hq-dimension-tabs button \{[^}]*height: 38px;[^}]*min-height: 0;/s);
+  assert.match(homeWxss, /@media \(min-width: 700px\)[\s\S]*?\.hq-filters \.hq-filter-grid label > text,\s*\.hq-filters \.hq-control-label,\s*\.hq-filters \.filter-picker,\s*\.hq-filters \.hq-dimension-tabs button\s*\{\s*font-size:\s*14px;/s,
+    "tablet HQ filter labels and values must match the 14px project-summary table typography");
   assert.doesNotMatch(homeWxss, /\.hq-inline-reset/);
 });

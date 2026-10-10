@@ -44,6 +44,7 @@ test("mini project creation is a dedicated idempotent page and continues directl
 test("mini project template shares the authoritative web services and verifies every mutation", () => {
   const js = read("pages", "product-detail", "index.js");
   const wxml = read("pages", "product-detail", "index.wxml");
+  const wxss = read("pages", "product-detail", "index.wxss");
 
   for (const action of [
     "getProductReceiptTemplate", "beginProductLogoUpload", "uploadProductLogoByFunction", "confirmProductLogoUpload",
@@ -63,6 +64,26 @@ test("mini project template shares the authoritative web services and verifies e
     assert.match(wxml, new RegExp(label), `product template UI is missing ${label}`);
   }
   for (const retired of ["logoMeta", "不压缩", "不裁切", "文件大小", "像素尺寸"]) assert.doesNotMatch(wxml, new RegExp(retired));
+  assert.equal((wxml.match(/maxlength="-1"/g) || []).length, 2);
+  assert.equal((wxml.match(/\/1000/g) || []).length, 2);
+  assert.match(wxml, /保留手动换行，支持 emoji 和特殊符号/);
+  assert.match(js, /const MAX_INSTRUCTION_CHARS = 1000/);
+  assert.match(js, /replace\(\/\\r\\n\?\/g, "\\n"\)/,
+    "manual line breaks must be normalized without collapsing them");
+  assert.match(js, /Array\.from\(normalizedInstructions\(value\)\)\.slice\(0, MAX_INSTRUCTION_CHARS\)\.join\(""\)/,
+    "the client must clamp oversized Unicode input rather than rejecting it after entry");
+  assert.match(wxss, /\.page-heading \{[^}]*position: relative;[^}]*padding-right: 196rpx;/s);
+  assert.match(wxss, /\.return-button \{[^}]*position: absolute;[^}]*right: 0;[^}]*border: 2rpx solid #c8a66d;/s,
+    "return to project management stays clearly bordered at the top right");
+  assert.match(wxml, /选择或替换图片/);
+  assert.doesNotMatch(wxml, />保存图片<|>上传并保存</,
+    "selecting a logo must upload immediately instead of requiring a third action");
+  assert.match(js, /已选择原图，正在上传并保存[\s\S]*await this\.uploadLogo\(\)/,
+    "the two-button logo workflow must persist immediately after selection");
+  assert.match(wxss, /\.compact-actions \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s,
+    "select-or-replace and remove image actions must use two equal cells");
+  assert.match(wxss, /\.instruction-field textarea \{[^}]*font-size: 27rpx;[^}]*line-height: 1\.65;/s,
+    "template text must remain readable while preserving explicit and automatic wrapping");
   assert.match(wxml, /class="preview-tab-row"/);
   for (const kind of ["verification-pdf", "verification-image", "recharge-pdf", "recharge-image"]) {
     assert.match(js, new RegExp(kind));

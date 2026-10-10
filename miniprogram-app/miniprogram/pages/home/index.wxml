@@ -123,20 +123,7 @@
           <label class="range-field"><text>结束日期</text><picker mode="date" value="{{rangeEnd}}" bindchange="changeRangeEnd"><view class="date-picker">{{rangeEnd || '请选择'}}</view></picker></label>
           <button class="range-apply" bindtap="applyCustomRange">应用时间</button>
         </view>
-        <scroll-view class="table-scroll summary-scroll" style="height: {{68 + summaryRows.length * 72}}rpx;" scroll-x enhanced show-scrollbar="false" scroll-left="{{summaryScrollLeft}}" bindscroll="rememberSummaryScroll" wx:if="{{summaryRows.length}}">
-          <view class="summary-table">
-            <view class="table-row table-head"><view class="summary-product">项目</view><view>核销</view><view>充值</view><view>体验</view><view>退费</view></view>
-            <view wx:for="{{summaryRows}}" wx:key="productId" class="table-row {{item.total ? 'summary-total' : ''}}">
-              <view class="summary-product"><text>{{item.productName}}</text><text wx:if="{{item.productCode}}">{{item.productCode}}</text></view>
-              <view class="summary-metric"><text class="metric-number">{{item.verification}}</text><text class="metric-unit">次</text></view>
-              <view class="summary-metric"><text class="metric-number">{{item.recharge}}</text><text class="metric-unit">次</text></view>
-              <view class="summary-metric"><text class="metric-number">{{item.experience}}</text><text class="metric-unit">次</text></view>
-              <view class="summary-metric"><text class="metric-number">{{item.refund}}</text><text class="metric-unit">次</text></view>
-            </view>
-
-          </view>
-        </scroll-view>
-        <view wx:else class="table-notice">{{loading ? '正在计算业务汇总…' : '所选时间内暂无有效业务'}}</view>
+        <project-summary id="role-project-summary" rows="{{summaryRows}}" totals="{{totals}}" totals-ready="{{summaryRows.length > 0}}" loading="{{loading}}" error="{{error && !summaryRows.length ? message : ''}}" bindretry="retryRoleProjectSummary" />
       </view>
 
       <view id="business-records" class="web-panel business-panel">

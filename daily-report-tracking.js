@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const VERSION = "0.1.0";
+  const VERSION = "0.2.0";
   const $ = (id) => document.getElementById(id);
   const state = { serverToday: "", selectedDate: "", visibleMonth: "", loading: false };
   let app = null;
@@ -127,7 +127,7 @@
       const report = result.report || {};
       $("dailyReportDetailTitle").textContent = `${teacher.teacherName || teacher.teacherCode || "老师"}的日报`;
       $("dailyReportDetailMeta").textContent = `${formatDate(report.reportDate)} · 电话 ${teacher.phone || "未登记"} · 只读`;
-      const sections = [["今日完成事项", report.completedWork], ["客户或项目进展", report.customerProjectProgress], ["遇到的问题", report.problemsAndSupport], ["明日计划", report.tomorrowPlan]];
+      const sections = [["今日完成事项", report.completedWork]];
       $("dailyReportDetailBody").innerHTML = sections.map(([title, value]) => `<section class="daily-report-detail-item"><h3>${title}</h3><p>${escapeHtml(value || "")}</p></section>`).join("");
       $("dailyReportDetailDialog").showModal();
     } catch (error) { $("trackingMessage").textContent = error?.message || "日报详情读取失败。"; }

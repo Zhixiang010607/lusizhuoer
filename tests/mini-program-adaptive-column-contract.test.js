@@ -13,13 +13,13 @@ function assertAutoTableContract(wxss, page) {
   assert.match(wxss, /width:\s*auto;\s*min-width:\s*100%;\s*display:\s*inline-table;\s*table-layout:\s*auto;/);
   assert.match(wxss, /display:\s*table-cell;/);
   assert.match(wxss, /padding:\s*10rpx 18rpx;/);
-  assert.match(wxss, ["home", "hq-directory", "customer-detail"].includes(page) ? /font-size:\s*21rpx;/ : /font-size:\s*24rpx;/);
+  assert.match(wxss, page === "customer-detail" ? /font-size:\s*21rpx;/ : /font-size:\s*24rpx;/);
   assert.match(wxss, /white-space:\s*nowrap;/);
   assert.match(wxss, /font-size:\s*14px;/);
 }
 
 const nativeTablePages = [
-  ["home", "summary-table"],
+  ["home", "record-table"],
   ["records", "record-table"],
   ["reviews", "review-table"],
   ["customers", "customer-table"],
@@ -57,7 +57,7 @@ test("summary values do not use dynamic compact font classes", () => {
   assert.doesNotMatch(wxss, /\.metric-number--(?:compact|dense|micro)/);
 });
 
-test("ranking names use the same calm data typography as other values", () => {
+test("ranking names use the same project-summary typography as other values", () => {
   const wxml = readMini("pages", "home", "index.wxml");
   const wxss = readMini("pages", "home", "index.wxss");
 
@@ -65,7 +65,7 @@ test("ranking names use the same calm data typography as other values", () => {
   assert.doesNotMatch(wxss, /\.hq-ranking-value\.active|\.hq-ranking-table-head\s*>\s*text\.active/);
   assert.match(
     wxss,
-    /\.hq-ranking-name\s*\{[^}]*color:\s*#5f564b;[^}]*font-size:\s*18rpx\s*!important;[^}]*font-weight:\s*500;[^}]*line-height:\s*1\.35;/s
+    /\.hq-ranking-name\s*\{[^}]*color:\s*#5f564b;[^}]*font-size:\s*24rpx\s*!important;[^}]*font-weight:\s*500;[^}]*line-height:\s*1\.35;/s
   );
 });
 

@@ -50,3 +50,15 @@ test("teacher home popover delegates store selection to business pages", () => {
   assert.match(js, /const store = getSelectedStore\(this\.data\.session\);[\s\S]*当前登录门店读取失败/,
     "store role must retain its fixed-session-store fail-closed guard");
 });
+
+test("teacher and store business tables hide internal project codes and use standard typography", () => {
+  const wxml = read("index.wxml");
+  const wxss = read("index.wxss");
+  const summaryWxml = fs.readFileSync(path.join(root, "miniprogram-app", "miniprogram", "components", "project-summary", "index.wxml"), "utf8");
+
+  assert.match(wxml, /<project-summary id="role-project-summary"[^>]*rows="\{\{summaryRows\}\}"/);
+  assert.doesNotMatch(summaryWxml, /productCode/);
+  assert.match(wxml, /<view>\{\{item\.productName\}\}<\/view><view>\{\{item\.unitCount\}\} 次<\/view>/,
+    "teacher business detail must continue to display the project name without an internal project code");
+  assert.match(wxss, /\.summary-table \.table-row > view, \.record-table \.table-row > view, \.customer-table \.table-row > view\s*\{[^}]*font-size:\s*24rpx;/s);
+});

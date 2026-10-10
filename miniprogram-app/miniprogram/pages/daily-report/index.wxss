@@ -37,7 +37,7 @@ button::after { border: 0; }
 .report-field { display: block; margin-bottom: 19rpx; }
 .report-field > view { display: flex; align-items: center; gap: 10rpx; margin-bottom: 9rpx; color: #675b4b; font-size: 24rpx; font-weight: 700; }
 .required { padding: 3rpx 8rpx; color: #8b3f35; background: #fff0ee; border-radius: 7rpx; font-size: 18rpx; }
-.report-field textarea { width: 100%; min-height: 178rpx; padding: 17rpx 19rpx; color: #302a22; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 14rpx; font-size: 25rpx; line-height: 1.55; }
+.report-field textarea { width: 100%; min-height: 420rpx; padding: 19rpx 21rpx; color: #302a22; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 14rpx; font-size: 28rpx; line-height: 1.65; }
 .report-field textarea[disabled] { color: #554a3c; background: #f6f0e7; }
 .counter { display: block; margin-top: 6rpx; color: #8a7d6d; font-size: 19rpx; text-align: right; }
 .form-message, .notice-card { color: #625747; font-size: 24rpx; line-height: 1.6; }

@@ -98,7 +98,7 @@
 .summary-table .table-row, .record-table .table-row, .customer-table .table-row { height: auto; min-height: 0; display: table-row; border-bottom: 0; font-variant-numeric: tabular-nums; }
 .table-row > view { min-width: 0; display: flex; align-items: center; padding: 14rpx 16rpx; overflow: hidden; box-sizing: border-box; color: #554a3c; font-size: 21rpx; text-overflow: ellipsis; white-space: nowrap; }
 .customer-scroll { overflow: auto; }
-.summary-table .table-row > view, .record-table .table-row > view, .customer-table .table-row > view { height: 72rpx; display: table-cell; padding: 10rpx 18rpx; overflow: visible; vertical-align: middle; border-bottom: 1rpx solid #eadfce; font-size: 21rpx; line-height: 1.25; text-align: center; text-overflow: clip; white-space: nowrap; }
+.summary-table .table-row > view, .record-table .table-row > view, .customer-table .table-row > view { height: 72rpx; display: table-cell; padding: 10rpx 18rpx; overflow: visible; vertical-align: middle; border-bottom: 1rpx solid #eadfce; font-size: 24rpx; line-height: 1.25; text-align: center; text-overflow: clip; white-space: nowrap; }
 .summary-table .table-row:last-child > view, .record-table .table-row:last-child > view, .customer-table .table-row:last-child > view { border-bottom: 0; }
 .table-head { min-height: 64rpx; background: #f5ead8; }
 .summary-table .table-head, .record-table .table-head, .customer-table .table-head { height: auto; min-height: 0; background: #f5ead8; }
@@ -164,6 +164,10 @@
 .hq-product-filter { display: block; margin-bottom: 16rpx; }
 .hq-dimension-tabs button { width: 100% !important; max-width: 100%; min-width: 0; min-height: 64rpx; display: flex; align-items: center; justify-content: center; justify-self: stretch; margin: 0; padding: 0 4rpx; overflow: hidden; color: #6f6457; background: transparent; border-radius: 13rpx; font-size: 19rpx; font-weight: 800; line-height: 1; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .hq-dimension-tabs button.active { color: #74592d; background: #fffaf3; box-shadow: 0 6rpx 18rpx rgba(93,72,39,.1); }
+.hq-filters .hq-filter-grid label > text,
+.hq-filters .hq-control-label,
+.hq-filters .filter-picker,
+.hq-filters .hq-dimension-tabs button { font-size: 24rpx; }
 .hq-top-list { max-height: 760rpx; overflow-y: auto; }
 .hq-top-row { width: 100%; box-sizing: border-box; margin-bottom: 12rpx; padding: 16rpx 18rpx; overflow: hidden; background: #fff8ec; border: 1rpx solid #dfcfb4; border-radius: 18rpx; }
 .hq-top-row:last-child { margin-bottom: 0; }
@@ -186,11 +190,11 @@
 .hq-ranking-scroll { width: 100%; overflow-x: auto; overflow-y: hidden; }
 .hq-ranking-row { min-width: 0; display: table-row; }
 .hq-ranking-row > text { min-width: 0; height: 64rpx; display: table-cell; padding: 10rpx 18rpx; overflow: visible; vertical-align: middle; text-align: center; text-overflow: clip; white-space: nowrap; }
-.hq-ranking-table-head { color: #675c4e; background: #f4e8d1; font-size: 21rpx; font-weight: 850; }
+.hq-ranking-table-head { color: #675c4e; background: #f4e8d1; font-size: 24rpx; font-weight: 850; }
 .hq-ranking-card { background: #fffaf3; border-top: 1rpx solid #eadcc5; }
-.hq-ranking-card > text { height: 72rpx; font-size: 18rpx; font-weight: 500; }
+.hq-ranking-card > text { height: 72rpx; font-size: 24rpx; font-weight: 500; }
 .hq-ranking-rank { color: #806942; font-weight: 650; }
-.hq-ranking-name { color: #5f564b; font-size: 18rpx !important; font-weight: 500; line-height: 1.35; }
+.hq-ranking-name { color: #5f564b; font-size: 24rpx !important; font-weight: 500; line-height: 1.35; }
 .hq-ranking-value { color: #5f564b; font-weight: 500; }
 .hq-ranking-notice { padding: 24rpx; border: 1rpx solid #dfcfb4; border-radius: 18rpx; color: #7c7062; font-size: 24rpx; line-height: 1.6; text-align: left; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
 .hq-ranking-notice > text { display: block; }
@@ -346,6 +350,10 @@
   .hq-control-label { margin-bottom: 6px; font-size: 13px; }
   .hq-dimension-tabs { gap: 6px; margin-bottom: 12px; padding: 6px; border-radius: 14px; }
   .hq-dimension-tabs button { min-height: 44px; padding: 0 6px; border-radius: 10px; font-size: 14px; }
+  .hq-filters .hq-filter-grid label > text,
+  .hq-filters .hq-control-label,
+  .hq-filters .filter-picker,
+  .hq-filters .hq-dimension-tabs button { font-size: 14px; }
   .hq-product-filter { margin-bottom: 14px; }
   .hq-ranking-rule { margin-top: 4px; font-size: 13px; }
   .hq-ranking-list { min-width: 100%; border-width: 1px; border-radius: 14px; }

@@ -16,7 +16,7 @@ const migration = read("database/cloudbase-console/082-01-teacher-attendance-fac
 const verify = read("database/cloudbase-console/082-readonly-verify.sql");
 const context = read("PROJECT_CONTEXT.md");
 
-assert.match(staff, /const FUNCTION_VERSION = "v91"/);
+assert.match(staff, /const FUNCTION_VERSION = "v92"/);
 assert.match(staff, /async function getHqTeacherWorkMonth/);
 assert.match(staff, /requireHq\(caller\)/);
 assert.match(staff, /JOIN target ON TRUE[\s\S]*LEFT JOIN events ON TRUE/);

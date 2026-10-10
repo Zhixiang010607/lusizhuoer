@@ -32,11 +32,7 @@ function businessRecordsView(items = [], type = "VERIFICATION") {
     businessScrollable: businessRecords.length > 5
   };
 }
-function summaryRows(items, totals) {
-  const rows = dashboard.products(items);
-  if (!rows.length) return [];
-  return [...rows, { productId: "total", productName: "合计", productCode: "", ...dashboard.totals(totals), total: true }];
-}
+function summaryRows(items) { return dashboard.products(items); }
 function hero(store = {}) {
   return {
     id: text(store.id), name: text(store.store_name, store.storeName) || "门店", code: text(store.store_code, store.storeCode) || "—",
