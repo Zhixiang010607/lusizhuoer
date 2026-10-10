@@ -142,6 +142,14 @@ Page({`);
         if (options.previewImage) return options.previewImage(request);
         request.success?.({});
       },
+      showActionSheet(request) {
+        if (options.showActionSheet) return options.showActionSheet(request);
+        request.fail?.({ errMsg: "showActionSheet:fail cancel" });
+      },
+      chooseMedia(request) {
+        if (options.chooseMedia) return options.chooseMedia(request);
+        request.fail?.({ errMsg: "chooseMedia:fail cancel" });
+      },
       setNavigationBarTitle() {},
       stopPullDownRefresh() {}
     }
@@ -305,7 +313,7 @@ test("supplemental photo normalization keeps the full frame and never exceeds tw
   ], "every draw maps the complete image into a proportional destination without a crop rectangle");
 });
 
-test("an already-compressed WeChat JPEG keeps its exact full-frame bytes without canvas work", async () => {
+test("a small full-frame JPEG keeps its exact bytes without canvas work", async () => {
   const { page: definition } = loadHelpers();
   const page = pageInstance(definition);
   page.photoNormalizeCanvasNode = async () => {
@@ -325,6 +333,33 @@ test("an already-compressed WeChat JPEG keeps its exact full-frame bytes without
   assert.equal(normalized.previewPath, "/wechat-compressed.jpg");
   assert.equal(normalized.width, 3024);
   assert.equal(normalized.height, 4032);
+});
+
+test("supplemental photo selection uses album originals and keeps camera capture compressed", async () => {
+  const choices = [];
+  let nextTapIndex = 0;
+  const { page: definition } = loadHelpers({
+    showActionSheet(request) {
+      request.success({ tapIndex: nextTapIndex });
+    },
+    chooseMedia(request) {
+      choices.push({
+        sourceType: Array.from(request.sourceType),
+        sizeType: Array.from(request.sizeType)
+      });
+      request.success({ tempFiles: [] });
+    }
+  });
+  const page = pageInstance(definition);
+
+  await page.chooseExtraPhoto();
+  nextTapIndex = 1;
+  await page.chooseExtraPhoto();
+
+  assert.deepEqual(choices, [
+    { sourceType: ["album"], sizeType: ["original"] },
+    { sourceType: ["camera"], sizeType: ["compressed"] }
+  ]);
 });
 
 test("a repeated detail read replaces the remote thumbnail with a verified 24-hour local cache", async () => {
@@ -512,10 +547,14 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
     "the mini-program supplemental-photo path never Base64-expands or relays image bytes through a cloud function");
   includes(js, "sourceBytes.byteLength > MAX_EXTRA_SOURCE_PHOTO_BYTES", "source selection is capped at 7 MB");
   includes(js, "bytes.byteLength <= MAX_EXTRA_UPLOAD_PHOTO_BYTES", "normalized JPEG remains within the faster client upload target");
-  includes(functionSource(js, "uploadExtraPhoto"), 'sizeType: ["compressed"]',
-    "supplemental photos ask WeChat for a compressed temporary image");
-  assert.doesNotMatch(functionSource(js, "uploadExtraPhoto"), /sizeType:\s*\["original"\]/,
-    "supplemental photos no longer request the original-sized temporary image");
+  includes(functionSource(js, "uploadExtraPhoto"), "chosen = await this.chooseExtraPhoto()",
+    "the upload path uses the source-specific picker");
+  includes(functionSource(js, "chooseExtraPhoto"), 'itemList: ["从相册选择", "拍照上传"]',
+    "the native action sheet keeps album and camera choices explicit");
+  includes(functionSource(js, "chooseExtraPhoto"), 'sourceType: [source]',
+    "only the selected source opens");
+  includes(functionSource(js, "chooseExtraPhoto"), 'sizeType: [source === "album" ? "original" : "compressed"]',
+    "album selection starts from complete original bytes while camera capture stays on the fast compressed path");
   includes(js, "const MAX_EXTRA_UPLOAD_PHOTO_BYTES = 512 * 1024", "supplemental uploads target at most half a MiB for fast transfer and server inspection");
   includes(js, "const MAX_EXTRA_FAST_PATH_BYTES = 768 * 1024", "already-compressed WeChat JPEGs have a no-reencode fast path");
   includes(js, "const MAX_EXTRA_PHOTO_EDGE = 1024", "supplemental uploads retain a practical full-frame long edge");

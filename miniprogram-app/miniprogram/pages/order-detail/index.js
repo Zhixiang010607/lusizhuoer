@@ -1081,6 +1081,27 @@ Page({
     }, this));
   },
 
+  async chooseExtraPhoto() {
+    const selection = await wxCall((resolve, reject) => wx.showActionSheet({
+      itemList: ["从相册选择", "拍照上传"],
+      success: resolve,
+      fail: reject
+    }));
+    const source = Number(selection.tapIndex) === 1 ? "camera" : "album";
+    return wxCall((resolve, reject) => wx.chooseMedia({
+      count: 1,
+      mediaType: ["image"],
+      sourceType: [source],
+      // Album photos must start from WeChat's original temporary file. Some
+      // phones produce an incomplete pre-compressed album file; the page will
+      // perform its own full-frame proportional compression below. Camera
+      // captures keep WeChat's compressed path for the fastest common case.
+      sizeType: [source === "album" ? "original" : "compressed"],
+      success: resolve,
+      fail: reject
+    }));
+  },
+
   async normalizeExtraPhoto(filePath, sourceBuffer, dimensions) {
     const sourceBytes = new Uint8Array(sourceBuffer);
     if (!Number.isInteger(sourceBytes.byteLength) || sourceBytes.byteLength < 12
@@ -1095,9 +1116,9 @@ Page({
         || sourceWidth < 1 || sourceHeight < 1 || sourceWidth > 10000 || sourceHeight > 10000) {
       throw new Error("补充照片尺寸无效，请重新选择");
     }
-    // wx.chooseMedia has already created a compressed JPEG. Re-encoding a
-    // reasonably small JPEG costs time and can trigger phone-specific EXIF
-    // behavior, so preserve those exact full-frame bytes as the fast path.
+    // A reasonably small JPEG is already within the transfer target. Keeping
+    // its exact full-frame bytes avoids needless quality loss and keeps camera
+    // captures fast; larger album originals continue through the canvas path.
     if (format === "jpeg" && sourceBytes.byteLength <= MAX_EXTRA_FAST_PATH_BYTES) {
       return {
         buffer: sourceBuffer,
@@ -1267,9 +1288,7 @@ Page({
       || !Number.isInteger(slot) || slot < 2 || slot > 4) return;
     let chosen;
     try {
-      chosen = await wxCall((resolve, reject) => wx.chooseMedia({
-        count: 1, mediaType: ["image"], sourceType: ["album", "camera"], sizeType: ["compressed"], success: resolve, fail: reject
-      }));
+      chosen = await this.chooseExtraPhoto();
     } catch (error) {
       if (!/cancel/i.test(String(error.errMsg || error.message || ""))) this.setData({ message: error.errMsg || "选择照片失败", error: true });
       return;
