@@ -71,6 +71,16 @@ assert.match(attendanceJs, /wx\.getLocation\([\s\S]*isHighAccuracy:\s*true/);
 assert.match(attendanceJs, /currentPlatform\([\s\S]*IPAD[\s\S]*IOS[\s\S]*ANDROID/,
   "phone and iPad platform metadata must be normalized");
 assert.match(attendanceJs, /callFace\("clockInTeacherAttendance"/);
+assert.match(attendanceJs, /async prepareCheckIn\(\)[\s\S]*await locate\(\)/,
+  "teacher must read the current location before face verification");
+assert.match(attendanceJs, /confirmCheckInContext\(\)[\s\S]*checkInStage: "face"/,
+  "teacher must explicitly confirm time and location before the camera stage");
+assert.match(attendanceJs, /120000/,
+  "a confirmed location must expire instead of being reused indefinitely");
+assert.match(attendanceWxml, /获取当前时间地点[\s\S]*确认时间地点[\s\S]*验证人脸并打卡/,
+  "the visible teacher flow must order location confirmation before face recognition");
+assert.match(attendanceWxml, /最终打卡时间以服务端记录为准/,
+  "the confirmation preview must not replace authoritative server time");
 assert.match(attendanceWxml, /现场照片仅发送给人脸验证接口，本次验证结束后不保存/);
 assert.match(attendanceWxml, /未录入考勤人脸，可以进入并查看考勤记录，但暂时不能进行人脸打卡/,
   "a legacy teacher without an attendance face must still enter and read attendance history");

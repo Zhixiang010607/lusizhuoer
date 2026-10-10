@@ -166,6 +166,12 @@ test("HQ store and teacher workspaces reuse authoritative services without a gen
   assert.match(teacherDetail, /const refreshed = await this\.refreshStaff\(\);[\s\S]*archived\(refreshed\) !== \(next === "ARCHIVED"\)/,
     "teacher status changes must be confirmed by a fresh database read on the dedicated detail page");
   for (const label of ["老师账号管理", "保存新临时密码", "配置项目当月汇总", "项目体验汇总", "已配置产品", "配置新产品", "单独充值体验次数", "额度变更记录"]) assert.match(teacherDetailWxml, new RegExp(label));
+  assert.match(teacherDetailWxml, /password="\{\{!newPasswordVisible\}\}"[\s\S]*bindtap="toggleNewPassword"[\s\S]*\{\{newPasswordVisible \? '隐藏' : '显示'\}\}/,
+    "HQ can explicitly show or hide the new temporary teacher password");
+  assert.match(teacherDetail, /toggleNewPassword\(\)[\s\S]*newPasswordVisible: !this\.data\.newPasswordVisible/,
+    "temporary password visibility is a local UI state");
+  assert.match(teacherDetail, /newPassword: "", newPasswordVisible: false, message: "新临时密码已保存。"/,
+    "a saved temporary password is cleared and hidden again");
   assert.match(teacherDetailWxml, /wx:for="\{\{entitlements\}\}"[\s\S]*基础额度[\s\S]*monthlyRechargeCount[\s\S]*monthlyExperienceCount[\s\S]*当前可用/,
     "HQ teacher overview must show a separate current-month summary for every configured project");
   assert.match(teacherDetailWxml, /删除后重新配置不会清空已完成体验/,

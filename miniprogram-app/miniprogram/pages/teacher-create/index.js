@@ -30,7 +30,7 @@ function completed(result) {
 }
 
 Page({
-  data: { form: { name: "", phone: "", password: "" }, passwordVisible: false, validationField: "", submitting: false, locked: false, message: "", error: false, consent: false, captureReady: false },
+  data: { form: { name: "", phone: "", password: "" }, passwordVisible: false, validationField: "", submitting: false, locked: false, recoveryBusy: false, recoveryCode: "", message: "", error: false, consent: false, captureReady: false },
   onLoad() {
     if (!requireSession(["hq"])) return;
     wx.setNavigationBarTitle({ title: "露思卓儿" });
@@ -40,18 +40,32 @@ Page({
       this.recoverPending(pending);
     }
   },
+  onUnload() { if (this._recoveryTimer) clearTimeout(this._recoveryTimer); },
   async recoverPending(pending) {
+    if (this.data.recoveryBusy || !pending?.requestId) return;
+    this.setData({ locked: true, recoveryBusy: true, recoveryCode: "", message: "正在核对上一笔创建结果并清理未完成残留…", error: false });
     try {
       const result = await callTeacherCreate({ action: "recoverTeacherCreation", clientRequestId: pending.requestId, phone: pending.phone || "" });
       wx.removeStorageSync(PENDING_KEY);
       if (result.completed === true) {
-        this.setData({ locked: false, message: "上一笔老师创建已经完成，正在返回老师管理。", error: false });
+        this.setData({ locked: false, recoveryBusy: false, recoveryCode: "", message: "上一笔老师创建已经完成，正在返回老师管理。", error: false });
         return wx.redirectTo({ url: "/pages/hq-directory/index?type=teacher" });
       }
-      this.setData({ locked: false, message: "上一笔未完成创建已安全清理，请重新填写并拍照。", error: false });
+      this.setData({ locked: false, recoveryBusy: false, recoveryCode: "", message: "上一笔未完成创建已安全清理，现在可以重新填写并打开摄像头。", error: false });
     } catch (error) {
-      this.setData({ locked: true, message: error.message || "上一笔创建结果仍无法确认，请先返回老师管理查询。", error: true });
+      const code = text(error.code) || "RECOVERY_REQUEST_FAILED";
+      this.setData({ locked: true, recoveryBusy: false, recoveryCode: code, message: error.message || "上一笔创建结果仍无法确认，请重新核对。", error: true });
+      if (!this._automaticRecoveryRetried) {
+        this._automaticRecoveryRetried = true;
+        this._recoveryTimer = setTimeout(() => this.recoverPending(wx.getStorageSync(PENDING_KEY)), 1500);
+      }
     }
+  },
+  retryRecovery() {
+    if (this.data.recoveryBusy) return;
+    const pending = wx.getStorageSync(PENDING_KEY);
+    if (!pending?.requestId) return this.setData({ locked: false, recoveryCode: "", message: "没有待核对的创建请求，现在可以重新填写。", error: false });
+    this.recoverPending(pending);
   },
   input(event) {
     if (this.data.submitting || this.data.locked) return;
@@ -91,7 +105,7 @@ Page({
     if (!capture) return this.setData({ message: "必须现场拍摄老师正脸照片。", error: true });
     const clientRequestId = requestId();
     wx.setStorageSync(PENDING_KEY, { requestId: clientRequestId, phone, createdAt: Date.now() });
-    this.setData({ submitting: true, passwordVisible: false, validationField: "", message: "正在检测照片并创建账号、老师主档和考勤人脸档案…", error: false });
+    this.setData({ submitting: true, passwordVisible: false, validationField: "", recoveryCode: "", message: "正在检测照片并创建账号、老师主档和考勤人脸档案…", error: false });
     try {
       const result = await callTeacherCreate({ staffName, phone, initialPassword, clientRequestId, consent: true, imageBase64: capture.imageBase64 });
       if (!completed(result)) throw new Error("服务端未返回完整的账号与老师主档激活证明，不能显示创建成功。");
@@ -107,7 +121,7 @@ Page({
       const uncertain = error.submissionUncertain === true || error.transportUncertain === true
         || signature.includes("CLIENT_REQUEST_TIMEOUT") || signature.includes("CLEANUP_INCOMPLETE");
       if (!uncertain) wx.removeStorageSync(PENDING_KEY);
-      this.setData({ locked: uncertain, message: uncertain ? "创建结果暂时无法确认，请先返回老师管理查询，禁止重复提交。" : error.message || "老师创建失败", error: true });
+      this.setData({ locked: uncertain, recoveryCode: uncertain ? text(error.code) || "CREATE_RESULT_UNCERTAIN" : "", message: uncertain ? "创建结果暂时无法确认，系统会在下次进入时核对；确认前不会重复创建。" : error.message || "老师创建失败", error: true });
     } finally { this.setData({ submitting: false }); }
   }
 });

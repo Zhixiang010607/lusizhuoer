@@ -18,8 +18,9 @@
   </view>
   <view class="panel face-panel">
     <view class="section-heading"><view><text>考勤人脸录入</text><text>仅用于老师本人打卡时的 1:1 身份验证</text></view><text>现场拍摄</text></view>
-    <camera-capture id="teacherCamera" title="老师考勤建档照片" bindchange="captureChanged"></camera-capture>
-    <label class="consent"><checkbox checked="{{consent}}" bindtap="toggleConsent" color="#a98243" /><text>已取得老师明确授权：保存本次建档照和人脸档案，仅用于本人考勤打卡验证；每次打卡的现场照片不保存。</text></label>
+    <view wx:if="{{locked}}" class="recovery-panel"><text class="recovery-title">上一笔创建正在安全核对</text><text>确认完成或确认残留已清理后，本页才会重新开放摄像头和提交；不会按时间盲目解锁。</text><text wx:if="{{recoveryCode}}" class="recovery-code">错误代码：{{recoveryCode}}</text><button class="recovery-button" bindtap="retryRecovery" loading="{{recoveryBusy}}" disabled="{{recoveryBusy}}">重新核对上一笔</button></view>
+    <block wx:else><camera-capture id="teacherCamera" title="老师考勤建档照片" bindchange="captureChanged"></camera-capture>
+    <label class="consent"><checkbox checked="{{consent}}" bindtap="toggleConsent" color="#a98243" /><text>已取得老师明确授权：保存本次建档照和人脸档案，仅用于本人考勤打卡验证；每次打卡的现场照片不保存。</text></label></block>
   </view>
   <view class="panel rule-panel"><view><text>唯一身份</text><text>一个手机号只对应一个业务身份</text></view><view><text>整体创建</text><text>账号、老师主档和考勤人脸必须全部成功</text></view><view><text>照片边界</text><text>只保存建档照，打卡现场照验证后立即丢弃</text></view></view>
   <view wx:if="{{message && !validationField}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>

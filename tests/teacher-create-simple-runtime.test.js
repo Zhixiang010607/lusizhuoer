@@ -5,6 +5,8 @@ const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
 const source = fs.readFileSync(path.join(root, "cloudfunctions", "teacherCreate", "index.js"), "utf8");
+const miniCreate = fs.readFileSync(path.join(root, "miniprogram-app", "miniprogram", "pages", "teacher-create", "index.js"), "utf8");
+const miniCreateWxml = fs.readFileSync(path.join(root, "miniprogram-app", "miniprogram", "pages", "teacher-create", "index.wxml"), "utf8");
 
 assert.match(source, /const FUNCTION_VERSION = "teacher-create-v8"/);
 assert.match(source, /actions: \["health", "createTeacher", "recoverTeacherCreation"\]/);
@@ -27,6 +29,12 @@ assert.match(source, /async function recoverTeacherCreation[\s\S]*readCompletedT
   "an uncertain client result must be recoverable before another create attempt");
 assert.match(source, /description !== `teacher-create:\$\{clientRequestId\}`/,
   "recovery may delete only an Auth user proven to belong to the same request");
+assert.match(miniCreate, /retryRecovery\(\)[\s\S]*recoverPending\(pending\)/,
+  "a transient recovery failure must be retryable without clearing the pending request");
+assert.match(miniCreate, /setTimeout\(\(\) => this\.recoverPending[\s\S]*1500\)/,
+  "the client retries reconciliation once instead of unlocking by elapsed time");
+assert.match(miniCreateWxml, /wx:if="\{\{locked\}\}"[\s\S]*不会按时间盲目解锁[\s\S]*重新核对上一笔[\s\S]*wx:else><camera-capture/,
+  "the camera is available only after the previous creation is definitively reconciled");
 assert.doesNotMatch(source, /\boperationId\b|\bworker\b|\bpoll(?:ing)?\b|setInterval\s*\(|setTimeout\s*\(/i,
   "teacher creation must remain one bounded synchronous request, not restore the retired Saga");
 

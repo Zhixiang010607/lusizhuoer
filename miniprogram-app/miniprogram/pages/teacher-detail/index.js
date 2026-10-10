@@ -112,7 +112,7 @@ Page({
     entitlements: [], summaryRows: [], history: [],
     products: [], configureProducts: [], configureLabels: [], configureIndex: 0, configureProductId: "", monthlyAllowance: "",
     rechargeProducts: [], rechargeLabels: [], rechargeIndex: 0, rechargeProductId: "", rechargeCount: "", rechargeNote: "", rechargePending: false,
-    overview: { available: 0, used: 0, lifetime: 0, activeProducts: 0 }, newPassword: ""
+    overview: { available: 0, used: 0, lifetime: 0, activeProducts: 0 }, newPassword: "", newPasswordVisible: false
   },
   onLoad(options) {
     if (!requireSession(["hq"])) return;
@@ -207,6 +207,9 @@ Page({
   chooseConfigureProduct(event) { const index = Number(event.detail.value || 0); this.setData({ configureIndex: index, configureProductId: this.data.configureProducts[index] && this.data.configureProducts[index].id || "" }); },
   chooseRechargeProduct(event) { const index = Number(event.detail.value || 0); this.setData({ rechargeIndex: index, rechargeProductId: this.data.rechargeProducts[index] && this.data.rechargeProducts[index].productId || "" }); },
   input(event) { const field = event.currentTarget.dataset.field; this.setData({ [field]: event.detail.value }); },
+  toggleNewPassword() {
+    if (!this.data.mutating && this.data.profile.authUid) this.setData({ newPasswordVisible: !this.data.newPasswordVisible });
+  },
   syncRechargePending() {
     let intent = null;
     try { intent = rechargeIntent.read(); }
@@ -354,7 +357,7 @@ Page({
       if (!current(this, "_mutationRequestEpoch", request.epoch)) return;
       const refreshed = await this.refreshStaff();
       if (!refreshed || !current(this, "_mutationRequestEpoch", request.epoch)) return;
-      this.setData({ newPassword: "", message: "新临时密码已保存。", error: false });
+      this.setData({ newPassword: "", newPasswordVisible: false, message: "新临时密码已保存。", error: false });
     } catch (error) {
       if (current(this, "_mutationRequestEpoch", request.epoch)) this.setData({ message: error.message || "密码重置失败", error: true });
     } finally {
