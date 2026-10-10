@@ -212,7 +212,7 @@ test("shared query helpers preserve Shanghai business ranges while retired statu
   assert.match(week.endDate, /^\d{4}-\d{2}-\d{2}$/);
   assert.ok(week.startDate <= week.endDate);
   assert.ok(!tools.STATUS_OPTIONS.some((item) => item.value === "CLOSED"));
-  assert.ok(tools.VERIFICATION_TYPES.some((item) => item.value === "SUPPLEMENT"));
+  assert.ok(!tools.VERIFICATION_TYPES.some((item) => item.value === "SUPPLEMENT"));
   assert.ok(!tools.RECHARGE_TYPES.some((item) => item.value === "VOID"));
   const row = tools.normalizeRecord({
     id: "9", recordCode: "R9", originalType: "REFUND", recordStatus: "APPROVED",
@@ -250,7 +250,7 @@ test("shared query helpers preserve Shanghai business ranges while retired statu
     id: "11", recordCode: "V11", originalType: "SUPPLEMENT", recordStatus: "APPROVED"
   }, "VERIFICATION");
   assert.equal(completedVerification.statusLabel, "已完成");
-  assert.equal(reviewedSupplement.statusLabel, "审核通过");
+  assert.equal(reviewedSupplement.statusLabel, "已完成");
   assert.equal(tools.statusLabel("CLOSED"), "已关闭");
   const purchase = tools.normalizeProductPurchaseRecord({
     id: "12", purchase_code: "PP20260828000001", record_status: "APPROVED",

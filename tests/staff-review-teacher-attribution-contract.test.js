@@ -26,8 +26,8 @@ function functionSource(source, name) {
   throw new Error(`function ${name} body is incomplete`);
 }
 
-assert.match(staff, /const FUNCTION_VERSION = "v86"/);
-assert.match(readme, /当前版本：`v86`/);
+assert.match(staff, /const FUNCTION_VERSION = "v87"/);
+assert.match(readme, /当前版本：`v87`/);
 
 const attribution = functionSource(staff, "reviewOrderTeacherAttributionCondition");
 assert.match(attribution, /attribution_submitter\.id = \$\{alias\}\.submitted_by_account_id/,
@@ -38,10 +38,10 @@ assert.match(attribution, /role_code = 'teacher'[\s\S]*attribution_submitter_tea
   "teacher attribution must be bound to the submitting teacher profile and allowed type");
 assert.match(attribution, /recharge_type IN \('NEW', 'REFUND'\)/,
   "only recharge and refund may display a selected teacher from recharge records");
-assert.match(attribution, /verification_type = 'NORMAL'/,
-  "store verification attribution is limited to NORMAL");
-assert.match(attribution, /verification_type IN \('NORMAL', 'EXPERIENCE'\)/,
-  "teacher verification attribution permits NORMAL and EXPERIENCE");
+assert.match(attribution, /verification_type IN \('NORMAL', 'SUPPLEMENT'\)/,
+  "store verification attribution includes approved paid verification");
+assert.match(attribution, /verification_type IN \('NORMAL', 'SUPPLEMENT', 'EXPERIENCE'\)/,
+  "teacher verification attribution permits paid verification and EXPERIENCE");
 assert.doesNotMatch(attribution, /role_code = '(?:hq|operation)'/,
   "headquarters and retired operation sources must not prove attribution");
 
@@ -59,7 +59,7 @@ assert.ok((hqEntitlements.match(/reviewOrderTeacherAttributionCondition\("usage_
 assert.match(hqEntitlements, /usage_verification\.record_status = 'APPROVED'[\s\S]*usage_verification\.verification_type = 'EXPERIENCE'/,
   "only effective EXPERIENCE orders contribute to teacher business totals");
 
-assert.match(readme, /门店来源仅限充值、退费和正常核销/);
-assert.match(readme, /老师来源仅限该提交账号本人办理的充值、退费、正常核销和体验核销/);
+assert.match(readme, /门店来源限充值、退费、正常核销和审核通过的补录核销/);
+assert.match(readme, /老师来源限该提交账号本人办理的充值、退费、正常核销、审核通过的补录核销和体验核销/);
 
 console.log("staff review teacher attribution contract: PASS");

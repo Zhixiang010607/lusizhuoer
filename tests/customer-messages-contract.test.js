@@ -27,7 +27,7 @@ for (const source of [migration, consoleMigration]) {
   assert.match(source, /REVOKE ALL ON TABLE public\.customer_messages FROM PUBLIC/);
 }
 
-assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v11" : "v124"/);
+assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v11" : "v125"/);
 assert.match(cloud, /async function listCustomerMessages\(event\)/);
 assert.match(cloud, /async function addCustomerMessage\(event\)/);
 assert.match(cloud, /const limit = Number\.isFinite\(requestedLimit\)[\s\S]*?: 20;/);
@@ -39,7 +39,7 @@ assert.doesNotMatch(cloud, /event\.(?:authorName|authorRole)/, "author identity 
 assert.match(cloud, /account\.role_code === "teacher"/);
 assert.match(cloud, /teacherBusinessAttributionCondition\(caller, "teacher_verification", "VERIFICATION"\)/);
 const teacherCustomerScope = cloud.slice(cloud.indexOf("function teacherCustomerAccessCondition"), cloud.indexOf("function customerStatusCode"));
-assert.match(teacherCustomerScope, /verification_type IN \('NORMAL', 'EXPERIENCE'\)/, "teacher profile access must include approved normal or experience verification");
+assert.match(teacherCustomerScope, /verification_type IN \('NORMAL', 'SUPPLEMENT', 'EXPERIENCE'\)/, "teacher profile access must include approved paid or experience verification");
 assert.match(teacherCustomerScope, /teacher_recharge[\s\S]*record_status = 'APPROVED'[\s\S]*recharge_type IN \('NEW', 'REFUND'\)/, "teacher profile access must include approved recharge or refund");
 assert.match(cloud, /if \(action === "listCustomerMessages"\)/);
 assert.match(cloud, /if \(action === "addCustomerMessage"\)/);

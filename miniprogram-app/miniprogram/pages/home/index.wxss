@@ -15,6 +15,9 @@
 .popover-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6rpx; }
 .popover-grid view { min-height: 88rpx; display: flex; align-items: center; justify-content: space-between; padding: 0 20rpx; color: #302a22; border-radius: 14rpx; font-size: 28rpx; font-weight: 500; }
 .popover-grid view:active { color: #74592d; background: #f4e7d0; }
+.teacher-business-sections { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12rpx; }
+.teacher-business-section { min-width: 0; padding: 8rpx; background: #fff7eb; border: 1rpx solid #eadbc2; border-radius: 16rpx; }
+.teacher-business-heading { display: block; padding: 14rpx 18rpx 10rpx; color: #87662f; font-size: 23rpx; font-weight: 700; line-height: 1.3; }
 .workspace-topbar { min-height: 104rpx; display: flex; align-items: center; padding: 32rpx 32rpx 24rpx; color: #302a22; background: #f3ede2; }
 .topbar-eyebrow, .topbar-title, .topbar-role, .topbar-subtitle { display: block; }
 .topbar-eyebrow, .topbar-subtitle, .panel-note { display: none; }
@@ -224,6 +227,10 @@
   .popover-heading + .popover-grid { margin-top: 6px; }
   .popover-grid { gap: 6px; }
   .popover-grid view { min-height: 46px; padding: 0 16px; border-radius: 10px; font-size: 15px; }
+  .business-popover.teacher-business-popover { width: 620px; }
+  .teacher-business-sections { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .teacher-business-section { padding: 8px; border-width: 1px; border-radius: 12px; }
+  .teacher-business-heading { padding: 10px 14px 8px; font-size: 14px; }
   .workspace-topbar { width: calc(100% - 48px); max-width: 1120px; min-height: 84px; margin: 0 auto; padding: 24px 0 0; }
   .topbar-title { font-size: 28px; }
   .topbar-role { margin-top: 3px; font-size: 14px; }

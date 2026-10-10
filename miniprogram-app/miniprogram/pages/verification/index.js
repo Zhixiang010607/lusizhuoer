@@ -25,20 +25,23 @@ function product(value) {
     remainingCount: Number(value.remainingCount || 0), availableCount: Number(value.availableCount || 0)
   };
 }
-function submittedOrderHint(session, experience) {
+function submittedOrderHint(session, experience, supplement = false) {
   if (session && session.role === "teacher") {
-    return `请返回“我的工作台”，在“本人业务明细”的“${experience ? '体验' : '核销'}”分类中打开`;
+    return supplement
+      ? "请等待总部审核，审核通过后可在本人核销明细中打开"
+      : `请返回“我的工作台”，在“本人业务明细”的“${experience ? '体验' : '核销'}”分类中打开`;
   }
-  return "请从核销查询进入";
+  return supplement ? "请等待总部审核，审核通过后可从核销查询进入" : "请从核销查询进入";
 }
 
-function orderUrl(experience, result, intent = {}) {
+function orderUrl(experience, supplement, result, intent = {}) {
   const recordId = String(result.verificationId || "");
   const recordCode = String(result.verificationCode || "");
   if (!recordId || !recordCode) return "";
-  const category = experience ? "EXPERIENCE" : "VERIFICATION";
+  const category = supplement ? "SUPPLEMENT" : experience ? "EXPERIENCE" : "VERIFICATION";
   const acknowledgement = intent.clientRequestId ? `&submissionClientRequestId=${encodeURIComponent(intent.clientRequestId)}` : "";
-  return `/pages/order-detail/index?type=verification&category=${category}&recordId=${encodeURIComponent(recordId)}&recordCode=${encodeURIComponent(recordCode)}${acknowledgement}`;
+  const acknowledgementType = supplement ? "&submissionRecordType=SUPPLEMENT" : "";
+  return `/pages/order-detail/index?type=verification&category=${category}&recordId=${encodeURIComponent(recordId)}&recordCode=${encodeURIComponent(recordCode)}${acknowledgement}${acknowledgementType}`;
 }
 
 function isTerminalBleFinalizationError(error) {
@@ -52,7 +55,7 @@ function isTerminalBleFinalizationError(error) {
 Page({
   data: {
     session: {}, store: {}, stores: [], storeLabels: ["请选择门店"], storeIndex: 0, loadingStores: false,
-    experience: false, customer: null, teachers: [], teacherLabels: [], teacherIndex: -1, selectedTeacher: null, teacherOptionsReady: false, teacherReady: false,
+    experience: false, supplement: false, customer: null, teachers: [], teacherLabels: [], teacherIndex: -1, selectedTeacher: null, teacherOptionsReady: false, teacherReady: false,
     products: [], productLabels: [], productIndex: -1, selectedProduct: null, unitCount: "", unitCountMax: 0, unitCountValid: false, note: "", captureReady: false, faceVerified: false,
     faceRequestId: "", faceEvidenceToken: "", faceMessage: "", faceError: false, loadingOptions: false, verifying: false,
     busy: false, locked: false, recovering: false, ready: false, message: "", error: false,
@@ -66,12 +69,14 @@ Page({
     this._bleStartEpoch = 0;
     const session = requireSession(["store", "teacher"]);
     if (!session) return;
-    const experience = String(options.mode || "NORMAL").toUpperCase() === "EXPERIENCE";
+    const mode = String(options.mode || "NORMAL").toUpperCase();
+    const experience = mode === "EXPERIENCE";
+    const supplement = mode === "SUPPLEMENT";
     if (experience && session.role !== "teacher") {
       wx.showModal({ title: "无权办理", content: "体验核销只能由老师账号赠送。", showCancel: false, complete: () => wx.reLaunch({ url: "/pages/home/index" }) });
       return;
     }
-    this.setData({ session, experience });
+    this.setData({ session, experience, supplement });
     if (session.role === "store") {
       const store = getSelectedStore(session);
       if (!store || !store.id) return wx.reLaunch({ url: "/pages/home/index" });
@@ -80,7 +85,12 @@ Page({
     } else {
       this.loadTeacherStores();
     }
-    const bleProgress = readBleProgress();
+    if (supplement && submission.read("SUPPLEMENT")) {
+      this.setData({ locked: true, message: "检测到上一次补录核销申请尚未确认，正在核对原申请。" });
+      this.recoverSupplementPending();
+      return;
+    }
+    const bleProgress = supplement ? null : readBleProgress();
     if (bleProgress?.deviceResult && Number(bleProgress.deviceResult.status) === 2) {
       this.setData({ locked: true, blePermanentlyClosed: true, message: "设备已进入工作状态，正在恢复核销工单；禁止再次扫码。" });
       this.recoverPending();
@@ -385,12 +395,13 @@ Page({
       unitCountValid: countReady,
       teacherReady,
       ready: Boolean(this.data.store.id && this.data.customer && this.data.selectedProduct && teacherReady && countReady
-        && this.data.faceVerified && this.data.faceRequestId && this.data.faceEvidenceToken
+        && (this.data.supplement || (this.data.faceVerified && this.data.faceRequestId && this.data.faceEvidenceToken))
         && !this.data.locked && !this.data.qualificationActive)
     });
   },
   async submit() {
     if (this.data.busy || this.data.qualificationActive || !this.data.ready) return;
+    if (this.data.supplement) return this.submitSupplement();
     const unitCount = Number(this.data.unitCount);
     if (!Number.isInteger(unitCount) || unitCount < 1 || unitCount > Number(this.data.unitCountMax || 0)) {
       return this.setData({ message: `核销次数必须由办理人员填写，并且是 1 至 ${this.data.unitCountMax || 0} 的整数`, error: true });
@@ -440,6 +451,50 @@ Page({
         this.setData({ locked: false, message: feedback.message, error: true });
       }
     } finally { this.setData({ busy: false }); this.syncReady(); }
+  },
+  async submitSupplement() {
+    if (this.data.busy || !this.data.ready) return;
+    const unitCount = Number(this.data.unitCount);
+    if (!Number.isInteger(unitCount) || unitCount < 1 || unitCount > Number(this.data.unitCountMax || 0)) {
+      return this.setData({ message: `核销次数必须由办理人员填写，并且是 1 至 ${this.data.unitCountMax || 0} 的整数`, error: true });
+    }
+    const identity = {
+      storeId: this.data.store.id,
+      customerCode: this.data.customer.customerCode,
+      productId: this.data.selectedProduct.productId,
+      unitCount,
+      teacherId: String(this.data.selectedTeacher?.teacherId || ""),
+      verificationType: "SUPPLEMENT",
+      message: String(this.data.note || "").trim()
+    };
+    let intent;
+    try { intent = submission.begin("SUPPLEMENT", identity); }
+    catch (error) { return this.setData({ locked: true, message: error.message, error: true }); }
+    this.setData({ busy: true, message: "正在提交总部审核；审核通过前不会扣减次数。", error: false });
+    try {
+      const result = await callFace("createSupplementVerificationApplication", {
+        ...identity,
+        clientRequestId: intent.clientRequestId
+      });
+      if (!result?.verificationId || !result?.verificationCode || String(result.recordStatus || "") !== "PENDING") {
+        throw Object.assign(new Error("服务端没有返回完整的待审核核销单。"), { code: "SUPPLEMENT_CREATE_INCOMPLETE" });
+      }
+      const confirmedIntent = submission.confirm("SUPPLEMENT", result.verificationId);
+      this.setData({ locked: false, message: `核销申请 ${result.verificationCode} 已提交总部审核，当前未扣次。`, error: false });
+      this.openSubmittedOrder(result, confirmedIntent);
+    } catch (error) {
+      if (error.submissionUncertain) {
+        submission.markUncertain("SUPPLEMENT");
+        this.setData({ locked: true, message: "申请响应中断，正在核对原申请；禁止重复提交。", error: true });
+        await this.recoverSupplementPending();
+      } else {
+        submission.clear("SUPPLEMENT");
+        this.setData({ locked: false, message: error.message || "补录核销申请提交失败", error: true });
+      }
+    } finally {
+      this.setData({ busy: false });
+      this.syncReady();
+    }
   },
   activateQualification(qualification, openWindow = false, authorizationOverride = null) {
     const seconds = Number(qualification?.validSeconds || 0);
@@ -690,9 +745,11 @@ Page({
     this.syncReady();
   },
   openSubmittedOrder(result, intent) {
-    const url = orderUrl(this.data.experience || String(result.verificationType || "").toUpperCase() === "EXPERIENCE", result, intent);
-    const experience = this.data.experience || String(result.verificationType || "").toUpperCase() === "EXPERIENCE";
-    const hint = submittedOrderHint(this.data.session, experience);
+    const resultType = String(result.verificationType || "").toUpperCase();
+    const supplement = this.data.supplement || resultType === "SUPPLEMENT";
+    const experience = this.data.experience || resultType === "EXPERIENCE";
+    const url = orderUrl(experience, supplement, result, intent);
+    const hint = submittedOrderHint(this.data.session, experience, supplement);
     if (!url) {
       this.setData({ message: `核销已写入，但服务端没有返回完整工单定位信息；${hint}，禁止重复提交。`, error: true });
       return;
@@ -704,6 +761,31 @@ Page({
         wx.showModal({ title: "核销已完成", content: `${result.verificationCode}\n原提交锁仍保留，${hint}详情`, showCancel: false });
       }
     });
+  },
+  recoverCurrentPending() {
+    return this.data.supplement ? this.recoverSupplementPending() : this.recoverPending();
+  },
+  async recoverSupplementPending() {
+    if (this.data.recovering || !submission.read("SUPPLEMENT")) return;
+    this.setData({ recovering: true, message: "正在核对上一次补录核销申请…", error: false });
+    try {
+      const result = await submission.recover("SUPPLEMENT");
+      if (result.found && result.complete && result.verificationId) {
+        const confirmedIntent = submission.confirm("SUPPLEMENT", result.verificationId);
+        this.setData({ locked: false, message: `已找到原核销申请 ${result.verificationCode}，没有重复提交。`, error: false });
+        return this.openSubmittedOrder(result, confirmedIntent);
+      }
+      if (result.found) {
+        return this.setData({ locked: true, message: "原核销申请已写入但返回信息不完整，已禁止重复提交，请联系管理员。", error: true });
+      }
+      submission.clear("SUPPLEMENT");
+      this.setData({ locked: false, message: "数据库未找到原核销申请，旧锁已解除，可以重新提交。", error: true });
+    } catch (error) {
+      this.setData({ locked: true, message: `${error.message || "暂时无法检查"}；已继续锁定重复提交。`, error: true });
+    } finally {
+      this.setData({ recovering: false });
+      this.syncReady();
+    }
   },
   async recoverPending() {
     if (this.data.recovering || !submission.read("VERIFICATION")) return;

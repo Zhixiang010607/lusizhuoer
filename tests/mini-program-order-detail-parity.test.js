@@ -313,9 +313,17 @@ test("route categories and verification completion labels remain exact", () => {
     { baseType: "RECHARGE", category: "VOID", recordId: "3", recordCode: "RV3" },
     { id: "3", recordCode: "RV3", serverBaseType: "RECHARGE", originalType: "NEW", voidStatus: "NONE" }
   ), /不是详情链接指定的作废业务/);
+  assert.doesNotThrow(() => helpers.assertExactRouteOrder(
+    { baseType: "VERIFICATION", category: "NORMAL", recordId: "4", recordCode: "VS4" },
+    { id: "4", recordCode: "VS4", serverBaseType: "VERIFICATION", originalType: "SUPPLEMENT", recordStatus: "APPROVED" }
+  ), "an approved supplement is an ordinary normal verification in query and history links");
+  assert.throws(() => helpers.assertExactRouteOrder(
+    { baseType: "VERIFICATION", category: "NORMAL", recordId: "4", recordCode: "VS4" },
+    { id: "4", recordCode: "VS4", serverBaseType: "VERIFICATION", originalType: "SUPPLEMENT", recordStatus: "PENDING" }
+  ), /业务类型与详情链接不一致/);
   assert.equal(helpers.detailStatusLabel("VERIFICATION", "NORMAL", "APPROVED"), "已完成");
   assert.equal(helpers.detailStatusLabel("VERIFICATION", "EXPERIENCE", "APPROVED"), "已完成");
-  assert.equal(helpers.detailStatusLabel("VERIFICATION", "SUPPLEMENT", "APPROVED"), "审核通过");
+  assert.equal(helpers.detailStatusLabel("VERIFICATION", "SUPPLEMENT", "APPROVED"), "已完成");
 });
 
 test("real order data is mapped into the shared web receipt semantics", () => {
@@ -350,7 +358,7 @@ test("real order data is mapped into the shared web receipt semantics", () => {
   const experience = helpers.receiptDocumentData({ ...base, typeLabel: "体验核销", originalType: "EXPERIENCE" }, "VERIFICATION", template);
   assert.doesNotMatch(JSON.stringify(experience), /审核时间/, "EXPERIENCE omits review time like NORMAL");
 
-  const supplement = helpers.receiptDocumentData({ ...base, typeLabel: "历史补录", originalType: "SUPPLEMENT" }, "VERIFICATION", template);
+  const supplement = helpers.receiptDocumentData({ ...base, typeLabel: "正常核销", originalType: "SUPPLEMENT" }, "VERIFICATION", template);
   assert.doesNotMatch(JSON.stringify(supplement), /审核时间/, "verification receipts never print an approval-time field");
 
   const refund = helpers.receiptDocumentData({ ...base, typeLabel: "退费申请", originalType: "REFUND" }, "RECHARGE", template);
@@ -389,7 +397,7 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
   includes(js, 'fileType: "jpg"', "PNG and WebP sources are re-encoded as JPEG before upload");
   includes(js, 'return "png"', "PNG source magic bytes are accepted");
   includes(js, 'return "webp"', "WebP source magic bytes are accepted");
-  includes(js, "const photoManifestFlight = verification && request.recordId", "photo manifest starts with the order-detail read");
+  includes(js, "const photoManifestFlight = verification && !supplementRequest && request.recordId", "photo manifest starts with the order-detail read only when现场证据 exists");
   includes(js, "this.loadPhotos(photoManifestFlight)", "the prefetched manifest is applied only after exact order validation");
   includes(js, "Promise.resolve().then(() => callPhoto(\"getVerificationPhotos\"",
     "photo prefetch accepts the same promise and synchronous test adapters");
@@ -714,11 +722,11 @@ test("all four order categories export actual receipts without exporting verific
   includes(wxml, 'id="receiptCanvas"', "native mini-program export canvas");
 });
 
-test("normal and experience details omit review time while supplement review remains visible", () => {
-  includes(wxml, "baseType === 'RECHARGE' || order.originalType === 'SUPPLEMENT'", "review-time visibility contract");
+test("every verification detail omits internal review time", () => {
+  includes(wxml, "baseType === 'RECHARGE'", "review-time visibility contract");
   assert.equal((wxml.match(/<text>审核时间<\/text>/g) || []).length, 1, "there is only one guarded review-time row");
-  includes(js, 'request.baseType === "RECHARGE" || clean(order.originalType).toUpperCase() === "SUPPLEMENT"',
-    "normal and experience records do not render a review note either");
+  includes(js, 'request.baseType === "RECHARGE"',
+    "verification records do not render a review note");
   includes(js, "exactOrderKind(request.baseType, order.originalType)", "database original type corrects the immutable route hint");
   includes(js, 'wx.setNavigationBarTitle({ title: "露思卓儿" })', "authenticated order pages retain the native brand title");
   assert.match(wxss, /\.detail-grid \.detail-value \{[^}]*font-weight:\s*800;/);

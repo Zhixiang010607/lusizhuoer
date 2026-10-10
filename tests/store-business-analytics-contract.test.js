@@ -113,8 +113,7 @@ assert.doesNotMatch(dashboardProjectSource, /customer_product_balances|JOIN publ
 includes(dashboardProjectSource, "CASE WHEN r.recharge_type = 'NEW' THEN r.unit_count ELSE 0 END", "gross recharge column counts NEW orders only");
 includes(dashboardProjectSource, "CASE WHEN r.recharge_type = 'REFUND' THEN r.unit_count ELSE 0 END", "refund column counts REFUND orders only");
 includes(dashboardProjectSource, "CASE WHEN r.recharge_type = 'VOID' THEN r.unit_count ELSE 0 END", "legacy void affects only the remaining calculation");
-includes(dashboardProjectSource, "v.verification_type = 'NORMAL'", "only normal verification contributes to paid verification totals");
-assert.doesNotMatch(dashboardProjectSource, /SUPPLEMENT/, "supplemental verification is absent from the current store totals");
+includes(dashboardProjectSource, "v.verification_type IN ('NORMAL', 'SUPPLEMENT')", "approved normal and supplemental records contribute to paid verification totals");
 includes(dashboardProjectSource, "v.verification_type = 'EXPERIENCE'", "experience is reported separately");
 assert.match(dashboardProjectSource, /GROUP BY event\.customer_id, event\.product_id[\s\S]*?GREATEST|GREATEST\([\s\S]*?GROUP BY event\.customer_id, event\.product_id/, "remaining units are floored at customer-product level before project aggregation");
 for (const field of [
@@ -187,7 +186,7 @@ includes(analyticsData, 'action: "getStoreBusinessAnalytics"', "frontend databas
 includes(cloud, "r.record_status = 'APPROVED'", "approved recharge/refund only");
 includes(cloud, "v.record_status = 'APPROVED'", "approved verification/experience only");
 includes(cloud, "r.recharge_type IN ('NEW', 'REFUND')", "recharge and refund metric split");
-includes(cloud, "v.verification_type IN ('NORMAL', 'EXPERIENCE')", "normal and experience split");
+includes(cloud, "v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')", "paid verification and experience split");
 includes(cloud, "WHERE p.product_status = 'ACTIVE'", "active products included with zero");
 includes(cloud, "SELECT event.product_id", "historical products with period events included");
 includes(cloud, "WHERE t.teacher_status = 'ACTIVE'", "active teachers included with zero");

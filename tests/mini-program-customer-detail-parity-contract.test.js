@@ -156,7 +156,7 @@ test("history mapper preserves refund signs, teachers, dates, and server statuse
   const supplement = sandbox.__customerDetailTest.mapHistory([{
     id: "10", verificationType: "SUPPLEMENT", unitCount: 1, recordStatus: "APPROVED"
   }], "VERIFICATION")[0];
-  assert.equal(supplement.statusLabel, "审核通过");
+  assert.equal(supplement.statusLabel, "已完成");
   const purchase = sandbox.__customerDetailTest.mapHistory([{
     id: "11", purchaseCode: "PP20260826000011", unitCount: 3, recordStatus: "PENDING"
   }], "PRODUCT_PURCHASE")[0];

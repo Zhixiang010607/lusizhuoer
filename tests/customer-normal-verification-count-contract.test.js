@@ -15,24 +15,24 @@ function functionSource(name, nextName) {
   return cloud.slice(start, end);
 }
 
-test("customer search counts approved normal verifications without experience", () => {
+test("customer search counts approved paid verifications without experience", () => {
   const source = functionSource("queryStoreCustomers", "queryStoreBusinessRecords");
   assert.match(source,
-    /FROM public\.verification_records v[\s\S]*?v\.customer_id = c\.id[\s\S]*?v\.record_status = 'APPROVED'[\s\S]*?v\.verification_type = 'NORMAL'\) AS normal_verification_count/,
-    "the customer query must derive its visible count from approved NORMAL records");
+    /FROM public\.verification_records v[\s\S]*?v\.customer_id = c\.id[\s\S]*?v\.record_status = 'APPROVED'[\s\S]*?v\.verification_type IN \('NORMAL', 'SUPPLEMENT'\)\) AS normal_verification_count/,
+    "the customer query must derive its visible count from approved paid verification records");
   assert.match(source, /totalVerificationCount:\s*Number\(customer\.normal_verification_count \|\| 0\)/,
     "the API must expose the dedicated normal-only aggregate");
   assert.doesNotMatch(source, /c\.total_verification_count|customer\.total_verification_count/,
     "the customer query must not use the historical total that also includes experience");
 });
 
-test("store dashboard customer lists use the same normal-only count", () => {
+test("store dashboard customer lists use the same paid-verification count", () => {
   const source = functionSource("getStoreDashboard", "getStoreBusinessAnalytics");
   const customerNormalAggregates = source.match(
-    /FROM public\.verification_records v[\s\S]{0,260}?v\.customer_id = c\.id[\s\S]{0,260}?v\.record_status = 'APPROVED'[\s\S]{0,260}?v\.verification_type = 'NORMAL'\) AS total_verification_count/g
+    /FROM public\.verification_records v[\s\S]{0,260}?v\.customer_id = c\.id[\s\S]{0,260}?v\.record_status = 'APPROVED'[\s\S]{0,260}?v\.verification_type IN \('NORMAL', 'SUPPLEMENT'\)\) AS total_verification_count/g
   ) || [];
   assert.equal(customerNormalAggregates.length, 1,
-    "active and archived store customer pages must share the same normal-only verification aggregate");
+    "active and archived store customer pages must share the same paid-verification aggregate");
   assert.match(source, /dashboardCustomersSql\("ACTIVE", customerOffset\)/,
     "the shared dashboard customer query must load active customers");
   assert.match(source, /dashboardCustomersSql\("ARCHIVED", archivedCustomerOffset\)/,

@@ -16,8 +16,8 @@ function section(startMarker, endMarker) {
   return cloud.slice(start, end);
 }
 
-assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v11" : "v124"/);
-assert.match(readme, /当前版本：`v124`/);
+assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v11" : "v125"/);
+assert.match(readme, /当前版本：`v125`/);
 
 const attributionSource = section("function teacherBusinessAttributionSourceCondition", "function trustedBusinessTeacherIdSql");
 const trustedTeacherId = section("function trustedBusinessTeacherIdSql", "function teacherBusinessOwnershipCondition");
@@ -33,8 +33,8 @@ assert.match(attributionSource, /attribution_submitter\.role_code = 'teacher'[\s
   "teacher-submitted orders are attributed only when bound to that same teacher");
 assert.match(attributionSource, /recordFamily === "RECHARGE"[\s\S]*recharge_type IN \('NEW', 'REFUND'\)/,
   "recharge attribution is restricted to the current NEW and REFUND categories");
-assert.match(attributionSource, /verification_type = 'NORMAL'[\s\S]*verification_type IN \('NORMAL', 'EXPERIENCE'\)/,
-  "stores may attribute only NORMAL verification while teacher-self EXPERIENCE remains valid");
+assert.match(attributionSource, /verification_type IN \('NORMAL', 'SUPPLEMENT'\)[\s\S]*verification_type IN \('NORMAL', 'SUPPLEMENT', 'EXPERIENCE'\)/,
+  "stores may attribute paid verification while teacher-self EXPERIENCE remains valid");
 assert.doesNotMatch(attributionSource, /role_code = '(?:hq|operation)'/,
   "headquarters and retired operation sources must never prove teacher attribution");
 assert.match(trustedTeacherId, /teacherBusinessAttributionSourceCondition\(alias, recordFamily\)[\s\S]*\$\{alias\}\.teacher_id[\s\S]*NULL::bigint/,

@@ -1,14 +1,14 @@
 <view class="page">
   <view class="page-heading">
-    <text class="eyebrow">{{experience ? '老师赠送体验' : '正常核销'}}</text>
-    <text class="title">{{experience ? '体验核销' : '客户项目核销'}}</text>
-    <text class="subtitle">{{store.id ? store.name + ' · 只扫客户的脸，不扫老师的脸。' : '进入业务页后先选择本次核销的发生门店。'}}</text>
+    <text class="eyebrow">{{supplement ? '总部审核申请' : (experience ? '老师赠送体验' : '正常核销')}}</text>
+    <text class="title">{{supplement ? '补录核销' : (experience ? '体验核销' : '客户项目核销')}}</text>
+    <text class="subtitle">{{store.id ? store.name + (supplement ? ' · 无需现场人脸与设备，提交后由总部审核。' : ' · 只扫客户的脸，不扫老师的脸。') : '进入业务页后先选择本次核销的发生门店。'}}</text>
   </view>
 
   <view wx:if="{{locked}}" class="card recovery-card">
     <view class="card-title"><text>上次核销结果待确认</text><text class="badge">禁止再扣</text></view>
     <text class="section-note">{{message}}</text>
-    <button class="primary" bindtap="recoverPending" loading="{{recovering}}" disabled="{{recovering}}">检查上次核销结果</button>
+    <button class="primary" bindtap="recoverCurrentPending" loading="{{recovering}}" disabled="{{recovering}}">检查上次核销结果</button>
   </view>
 
   <block wx:else>
@@ -54,7 +54,7 @@
       <label class="field"><text class="field-label">{{experience ? '老师留言' : '门店留言'}}（可选）</text><textarea class="textarea" maxlength="500" value="{{note}}" bindinput="inputNote" disabled="{{qualificationActive || !customer}}" placeholder="{{customer ? '留在本次核销单中' : '请先确认客户'}}" /></label>
     </view>
 
-    <view class="card workflow-wide {{selectedProduct && teacherReady && unitCountValid ? '' : 'disabled-card'}}">
+    <view wx:if="{{!supplement}}" class="card workflow-wide {{selectedProduct && teacherReady && unitCountValid ? '' : 'disabled-card'}}">
       <view class="card-title"><text>第三步：客户 1:1 人脸验证</text><text class="badge">{{faceVerified ? '已通过' : '待验证'}}</text></view>
       <camera-capture wx:if="{{customer && selectedProduct && teacherReady && unitCountValid && !qualificationActive}}" id="verificationCamera" title="拍照并验证客户" bindchange="captureChanged"></camera-capture>
       <view wx:elif="{{qualificationActive && faceVerified}}" class="face-locked"><text>客户人脸验证已通过</text><text>资格剩余 {{qualificationSeconds}} 秒</text></view>
@@ -63,17 +63,22 @@
       <view wx:if="{{faceMessage}}" class="message {{faceVerified ? 'success' : (faceError ? 'error' : '')}}">{{faceMessage}}</view>
     </view>
 
-    <view class="card submit-card workflow-wide">
+    <view wx:if="{{!supplement}}" class="card submit-card workflow-wide">
       <view class="card-title"><text>第四步：扫码并连接设备</text><text class="badge">{{qualificationActive ? qualificationSeconds + ' 秒' : '尚未授权'}}</text></view>
       <view class="section-note">人脸通过后，90 秒内扫码连接；设备启动成功后才扣次。</view>
       <button wx:if="{{!qualificationActive}}" class="primary" bindtap="submit" loading="{{busy}}" disabled="{{busy || !ready}}">开始设备核销</button>
       <button wx:else class="primary" bindtap="openBleWindow" disabled="{{blePermanentlyClosed || qualificationSeconds <= 0}}">扫码连接设备（{{qualificationSeconds}} 秒）</button>
     </view>
+    <view wx:else class="card submit-card workflow-wide">
+      <view class="card-title"><text>第三步：提交总部审核</text><text class="badge">待总部审核</text></view>
+      <view class="section-note">提交时不扣次；总部通过时会重新核对客户余额，并按正常核销规则扣次。</view>
+      <button class="primary" bindtap="submit" loading="{{busy}}" disabled="{{busy || !ready}}">提交核销申请</button>
+    </view>
     </view>
   </block>
   <view wx:if="{{message && !locked}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
 
-  <view wx:if="{{bleWindowVisible}}" class="ble-mask" catchtouchmove="preventTouchMove">
+  <view wx:if="{{!supplement && bleWindowVisible}}" class="ble-mask" catchtouchmove="preventTouchMove">
     <view class="ble-dialog">
       <view class="ble-dialog-head">
         <view>

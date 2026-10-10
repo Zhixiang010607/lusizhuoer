@@ -16,10 +16,9 @@ test("HQ home exposes the complete web mobile rail and isolated ranking interact
   const wxss = read("pages", "home", "index.wxss");
   const webIndex = fs.readFileSync(path.join(root, "index.html"), "utf8");
 
-  for (const label of ["客户查询", "充值查询", "核销查询", "产品查询", "项目管理", "产品管理", "门店管理", "老师管理", "充值审核", "产品购买审核"]) {
+  for (const label of ["客户查询", "充值查询", "核销查询", "产品查询", "项目管理", "产品管理", "门店管理", "老师管理", "充值审核", "核销审核", "产品购买审核"]) {
     assert.match(wxml, new RegExp(label), `HQ mobile rail is missing ${label}`);
   }
-  assert.doesNotMatch(wxml, /核销审核/, "normal and experience verification never enter a headquarters review queue");
   for (const route of ["pages/product-management/index", "pages/retail-product-management/index", "pages/hq-directory/index", "pages/reviews/index"]) assert.match(js, new RegExp(route));
   assert.match(wxml, /class="rail-current" aria-label="\{\{roleTitle\}\}"/);
   assert.match(js, /hq:\s*\{\s*title:\s*"总部数据看板"/);
@@ -208,12 +207,12 @@ test("HQ review workbenches match web filters, pagination, exact links, and guar
   assert.match(js, /decision:\s*this\.data\.decision/);
   assert.match(js, /note:\s*text\(this\.data\.reviewNote\)/);
   assert.match(js, /pages\/order-detail\/index/);
-  assert.match(js, /const category = isRefund \? "REFUND" : isVoid \? "VOID" : "RECHARGE"/,
-    "review rows preserve the exact category required by the shared detail page");
+  assert.match(js, /category: "SUPPLEMENT"/,
+    "supplement review rows preserve their internal route category for exact detail reads");
   assert.match(js, /pages\/product-purchase-detail\/index/,
     "product purchase rows must open their dedicated simple work-order page");
-  assert.doesNotMatch(js, /SUPPLEMENT|补录核销/,
-    "the retired headquarters verification-review path must not remain reachable or described");
+  assert.match(js, /type === "verification" \? "VERIFICATION"/,
+    "the headquarters verification review path must call the verification review contract");
   assert.match(js, /category=\$\{encodeURIComponent\(row\.category\)\}/,
     "review detail links carry the exact server-derived category");
   assert.match(js, /pages\/customer-detail\/index/);

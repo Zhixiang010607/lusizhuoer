@@ -12,11 +12,11 @@
 
     <view class="card detail-card">
       <view class="card-title"><text>{{noun}}信息</text><text class="badge">数据库原单</text></view>
-      <view class="detail-grid {{baseType === 'VERIFICATION' && order.originalType !== 'SUPPLEMENT' ? 'detail-grid-three' : 'detail-grid-reviewed'}}">
+      <view class="detail-grid {{baseType === 'VERIFICATION' ? 'detail-grid-three' : 'detail-grid-reviewed'}}">
         <view><text>工单类型</text><text class="detail-value">{{order.typeLabel}}</text></view>
         <view><text>次数</text><text class="detail-value">{{order.unitCount}} 次</text></view>
         <view class="detail-time"><text>提交时间</text><text class="detail-value">{{order.submittedAt}}</text></view>
-        <view wx:if="{{baseType === 'RECHARGE' || order.originalType === 'SUPPLEMENT'}}" class="detail-time"><text>审核时间</text><text class="detail-value">{{order.reviewedAt}}</text></view>
+        <view wx:if="{{baseType === 'RECHARGE'}}" class="detail-time"><text>审核时间</text><text class="detail-value">{{order.reviewedAt}}</text></view>
       </view>
     </view>
 
@@ -37,7 +37,7 @@
       </view>
     </view>
 
-    <view wx:if="{{baseType === 'VERIFICATION'}}" class="card photo-section">
+    <view wx:if="{{baseType === 'VERIFICATION' && !isSupplement}}" class="card photo-section">
       <view class="card-title photo-heading">
         <view><text>核销照片</text><text class="photo-note">展示核销身份照与三张补充照片</text></view>
         <text class="badge">{{visiblePhotoCount}} / 4</text>
@@ -78,7 +78,7 @@
       <text wx:if="{{exportProgress}}" class="export-progress">{{exportProgress}}</text>
     </view>
 
-    <view wx:if="{{baseType === 'VERIFICATION'}}" class="card rating-card">
+    <view wx:if="{{baseType === 'VERIFICATION' && !isSupplement}}" class="card rating-card">
       <view class="card-title"><text>客户评价</text><text class="badge">{{ratingRestricted ? '查看范围受限' : (rating.submitted ? '已评价' : '暂无评价')}}</text></view>
       <view wx:if="{{ratingLoading}}" class="rating-empty">正在读取客户评价…</view>
       <view wx:elif="{{ratingRestricted}}" class="rating-empty">此工单评价仅对总部、所属门店和工单绑定老师开放</view>

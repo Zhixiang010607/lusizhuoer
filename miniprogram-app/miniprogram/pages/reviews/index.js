@@ -15,7 +15,7 @@ function text(...values) {
   return String(value || "").trim();
 }
 function pick(row, snake, camel) { return row?.[snake] ?? row?.[camel] ?? ""; }
-function normalize(row, purchase = false) {
+function normalize(row, purchase = false, verification = false) {
   if (purchase) {
     const status = text(pick(row, "record_status", "recordStatus")).toUpperCase() || "PENDING";
     return {
@@ -36,6 +36,23 @@ function normalize(row, purchase = false) {
         row.approvedAt, row.approved_at
       ),
       applicantNote: text(row.message) || "无"
+    };
+  }
+  if (verification) {
+    const status = text(pick(row, "application_status", "applicationStatus")).toUpperCase() || "PENDING";
+    return {
+      id: text(row.id), recordCode: text(pick(row, "record_code", "recordCode")), status, category: "SUPPLEMENT",
+      statusLabel: { PENDING: "待审核", APPROVED: "审核通过", REJECTED: "已驳回" }[status] || status,
+      kind: "核销申请",
+      storeId: text(pick(row, "store_id", "storeId")), storeName: text(pick(row, "store_name", "storeName")) || "未命名门店",
+      storeCode: text(pick(row, "store_code", "storeCode")), customerCode: text(pick(row, "customer_code", "customerCode")),
+      customerName: text(pick(row, "customer_name", "customerName")) || "未命名客户",
+      productName: text(pick(row, "product_name", "productName")) || "未命名项目",
+      teacherName: text(pick(row, "teacher_name", "teacherName")) || "—",
+      impact: `−${Number(pick(row, "unit_count", "unitCount")) || 0} 次`,
+      submittedAt: displayDateTimeAny(row.applicationTime, row.application_time, row.originalSubmittedAt, row.original_submitted_at),
+      reviewedAt: status === "PENDING" ? "—" : displayDateTimeAny(row.originalReviewedAt, row.original_reviewed_at),
+      applicantNote: text(pick(row, "initial_store_note", "initialStoreNote")) || "无"
     };
   }
   const applicationType = text(pick(row, "application_type", "applicationType")).toUpperCase();
@@ -80,9 +97,10 @@ Page({
     const session = requireSession(["hq"]);
     if (!session) return;
     const requested = String(options.type || "recharge").toLowerCase();
-    const type = ["recharge", "refund", "product-purchase"].includes(requested) ? requested : "recharge";
-    const noun = type === "refund" ? "退费" : type === "product-purchase" ? "产品购买" : "充值";
-    this.setData({ session, type, noun, recordType: type === "product-purchase" ? "PRODUCT_PURCHASE" : "RECHARGE" });
+    const type = ["recharge", "refund", "verification", "product-purchase"].includes(requested) ? requested : "recharge";
+    const noun = type === "refund" ? "退费" : type === "verification" ? "核销" : type === "product-purchase" ? "产品购买" : "充值";
+    const recordType = type === "product-purchase" ? "PRODUCT_PURCHASE" : type === "verification" ? "VERIFICATION" : "RECHARGE";
+    this.setData({ session, type, noun, recordType });
     wx.setNavigationBarTitle({ title: "露思卓儿" });
     await this.load(1, true);
   },
@@ -121,14 +139,15 @@ Page({
     const payload = {
       recordType, recordCode,
       storeId: mode === "filters" && this.data.storeIndex > 0 ? this.data.stores[this.data.storeIndex - 1]?.id || "" : "",
-      applicationType: type === "refund" ? "REFUND" : "NEW",
       status: mode === "filters" ? STATUS[this.data.statusIndex]?.value || "" : "",
       limit: mode === "code" ? 1 : PAGE_SIZE,
       paged: mode === "filters", pageNumber: mode === "filters" ? page : undefined
     };
+    if (recordType === "RECHARGE") payload.applicationType = type === "refund" ? "REFUND" : "NEW";
     this.setData({ loading: true, message: "", error: false });
     try {
       const productPurchase = type === "product-purchase";
+      const verification = type === "verification";
       const result = productPurchase
         ? await callStaff("listRetailProductPurchaseReviews", {
           sourceType: "PURCHASE", purchaseCode: recordCode, storeId: payload.storeId, status: payload.status,
@@ -136,7 +155,7 @@ Page({
         })
         : await callStaff("listReviewOrders", payload);
       if (epoch !== this._requestEpoch) return;
-      const rows = (result.orders || []).map((row) => normalize(row, productPurchase));
+      const rows = (result.orders || []).map((row) => normalize(row, productPurchase, verification));
       const total = mode === "filters" ? Number(result.total || 0) : rows.length;
       const totalPages = mode === "filters" ? Math.max(1, Number(result.totalPages || 1)) : 1;
       const currentPage = mode === "filters" ? Math.min(totalPages, Math.max(1, Number(result.pageNumber || page))) : 1;

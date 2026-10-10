@@ -7,7 +7,7 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const cloud = fs.readFileSync(path.join(root, "cloudfunctions", "faceRecognition", "index.js"), "utf8");
 
-assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v11" : "v124"/);
+assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v11" : "v125"/);
 
 const access = cloud.slice(
   cloud.indexOf("function teacherCustomerAccessCondition"),
@@ -35,11 +35,11 @@ assert.match(attribution, /teacherBusinessAttributionSourceCondition\(alias, rec
   "business attribution must prove a valid store or same-teacher submission source");
 assert.match(attributionSource, /attribution_submitter\.id = \$\{alias\}\.submitted_by_account_id[\s\S]*role_code = 'store'[\s\S]*role_code = 'teacher'/,
   "the submitter is consulted only to validate attribution provenance");
-assert.match(attributionSource, /verification_type = 'NORMAL'[\s\S]*verification_type IN \('NORMAL', 'EXPERIENCE'\)/,
-  "store EXPERIENCE cannot grant attribution while teacher-self EXPERIENCE remains valid");
+assert.match(attributionSource, /verification_type IN \('NORMAL', 'SUPPLEMENT'\)[\s\S]*verification_type IN \('NORMAL', 'SUPPLEMENT', 'EXPERIENCE'\)/,
+  "store EXPERIENCE cannot grant attribution while approved paid verification and teacher-self EXPERIENCE remain valid");
 assert.match(access, /created_by_account_id = \$\{sqlText\(caller\.staffId\)\}::bigint/,
   "same-account creation grants teacher customer access");
-assert.match(access, /teacher_verification[\s\S]*record_status = 'APPROVED'[\s\S]*verification_type IN \('NORMAL', 'EXPERIENCE'\)/,
+assert.match(access, /teacher_verification[\s\S]*record_status = 'APPROVED'[\s\S]*verification_type IN \('NORMAL', 'SUPPLEMENT', 'EXPERIENCE'\)/,
   "approved normal or experience verification grants teacher customer access");
 assert.match(access, /teacher_recharge[\s\S]*record_status = 'APPROVED'[\s\S]*recharge_type IN \('NEW', 'REFUND'\)/,
   "approved recharge or refund grants teacher customer access");

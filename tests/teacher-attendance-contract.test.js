@@ -52,7 +52,7 @@ assert.match(teacherCreate, /INSERT INTO public\.teacher_attendance_face_profile
 assert.match(teacherCreate, /profile_photo_file_id/,
   "only the consented attendance enrollment photo is privately retained");
 
-assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v11" : "v124"/);
+assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v11" : "v125"/);
 const clockInStart = face.indexOf("async function clockInTeacherAttendance");
 const clockInEnd = face.indexOf("// Normal and teacher-gift EXPERIENCE", clockInStart);
 const clockIn = face.slice(clockInStart, clockInEnd);
@@ -68,7 +68,7 @@ assert.doesNotMatch(clockIn, /uploadVerificationPhotoObject|uploadAttendancePhot
   "clock-in photos must not be uploaded or persisted");
 assert.match(face, /action === "clockInTeacherAttendance"/);
 
-assert.match(staff, /const FUNCTION_VERSION = "v86"/);
+assert.match(staff, /const FUNCTION_VERSION = "v87"/);
 assert.match(staff, /async function getOwnAttendanceMonth/);
 assert.match(staff, /async function getHqAttendanceTrackingDay/);
 assert.match(staff, /action === "getOwnAttendanceMonth"/);

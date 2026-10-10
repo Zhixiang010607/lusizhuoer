@@ -22,15 +22,15 @@ function functionSource(name, nextName) {
   return cloud.slice(start, end);
 }
 
-test("server applies the fixed NORMAL then EXPERIENCE then customer-created baseline ladder", () => {
+test("server applies the fixed paid-verification then EXPERIENCE then customer-created baseline ladder", () => {
   const source = functionSource("queryInactiveVerificationCustomers", "lowBalanceCursor");
   assert.match(source, /activeScopedQueryCaller\(event\)/,
     "HQ may select a verified store while stores remain pinned to their own scope");
   assert.match(source, /minimumDays < 1 \|\| minimumDays > 3650/);
   assert.match(source, /v\.record_status = 'APPROVED'/);
-  assert.match(source, /v\.verification_type IN \('NORMAL', 'EXPERIENCE'\)/);
-  assert.match(source, /ORDER BY CASE WHEN v\.verification_type = 'NORMAL' THEN 0 ELSE 1 END ASC,[\s\S]*v\.submitted_at DESC, v\.id DESC/,
-    "any NORMAL history outranks EXPERIENCE, and only the newest row inside the chosen tier is used");
+  assert.match(source, /v\.verification_type IN \('NORMAL', 'SUPPLEMENT', 'EXPERIENCE'\)/);
+  assert.match(source, /ORDER BY CASE WHEN v\.verification_type IN \('NORMAL', 'SUPPLEMENT'\) THEN 0 ELSE 1 END ASC,[\s\S]*v\.submitted_at DESC, v\.id DESC/,
+    "any paid verification history outranks EXPERIENCE, and only the newest row inside the chosen tier is used");
   assert.match(source, /COALESCE\(latest\.submitted_at, c\.created_at\) AS baseline_at/,
     "customers without either verification type must fall back to customer creation time");
   assert.match(source, /CASE WHEN latest\.id IS NULL THEN 'CUSTOMER_CREATED' ELSE latest\.verification_type END AS baseline_source/);

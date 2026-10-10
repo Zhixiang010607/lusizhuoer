@@ -193,11 +193,11 @@ const orderDetail = read("pages", "order-detail", "index.js");
 assert.match(orderDetail, /function exactOrderKind/);
 assert.match(orderDetail, /exact === "EXPERIENCE" \? "体验核销" : "核销"/);
 assert.match(orderDetail, /exact === "REFUND" \? "退费" : "充值"/);
-assert.match(orderDetail, /submission\.acknowledge\(request\.baseType, request\.recordId, request\.submissionClientRequestId\)/);
+assert.match(orderDetail, /const acknowledgementType = request\.submissionRecordType \|\| request\.baseType;[\s\S]*submission\.acknowledge\(acknowledgementType, request\.recordId, request\.submissionClientRequestId\)/);
 assert.match(orderDetail, /assertExactRouteOrder\(routeIdentity, order\)/,
   "order detail must verify the server-read id, code, base type and category before acknowledging a submission");
-assert.match(read("pages", "order-detail", "index.wxml"), /baseType === 'RECHARGE' \|\| order\.originalType === 'SUPPLEMENT'/,
-  "normal and experience verification records must not render a review time");
+assert.match(read("pages", "order-detail", "index.wxml"), /wx:if="\{\{baseType === 'RECHARGE'\}\}" class="detail-time"><text>审核时间/,
+  "all verification records must omit internal review time");
 
 const photo = read("pages", "customer-detail", "index.js");
 const photoAlbum = read("services", "photo-album.js");

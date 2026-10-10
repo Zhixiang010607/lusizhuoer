@@ -98,13 +98,17 @@ function assertExactRouteOrder(route, order = {}) {
   const serverId = clean(order.id);
   const serverCode = clean(order.recordCode).toUpperCase();
   const serverOriginalType = clean(order.originalType).toUpperCase();
+  const serverStatus = clean(order.recordStatus).toUpperCase();
   const voidStatus = clean(order.voidStatus).toUpperCase();
   if (serverId !== expected.recordId) throw new Error("数据库返回的工单与详情链接编号不一致");
   if (serverCode !== expected.recordCode) throw new Error("数据库返回的完整工单号与详情链接不一致");
   if (serverBaseType !== expected.baseType) throw new Error("数据库返回的工单业务大类与详情链接不一致");
   if (expected.requireVoidRequest) {
     if (!voidStatus || voidStatus === "NONE") throw new Error("数据库返回的工单不是详情链接指定的作废业务");
-  } else if (serverOriginalType !== expected.originalType) {
+  } else if (
+    serverOriginalType !== expected.originalType &&
+    !(expected.originalType === "NORMAL" && serverOriginalType === "SUPPLEMENT" && serverStatus === "APPROVED")
+  ) {
     throw new Error("数据库返回的工单业务类型与详情链接不一致");
   }
   return expected;
@@ -114,7 +118,7 @@ function detailStatusLabel(baseType, originalType, status) {
   const family = clean(baseType).toUpperCase();
   const exact = clean(originalType).toUpperCase();
   const state = clean(status).toUpperCase();
-  if (family === "VERIFICATION" && ["NORMAL", "EXPERIENCE"].includes(exact) && state === "APPROVED") return "已完成";
+  if (family === "VERIFICATION" && ["NORMAL", "SUPPLEMENT", "EXPERIENCE"].includes(exact) && state === "APPROVED") return "已完成";
   return query.statusLabel(state);
 }
 
@@ -311,11 +315,13 @@ function normalizeStaffOrder(row, baseType) {
 function normalizeTeacherOrder(row, baseType) {
   const source = row || {};
   const record = query.normalizeRecord(source, baseType);
+  const originalType = clean(source.originalType || source.original_type || record.originalType).toUpperCase();
   const address = [source.storeProvince, source.storeCity, source.storeDistrict, source.storeAddressDetail].map(clean).filter(Boolean).join("");
   return {
     ...record,
     serverBaseType: clean(source.recordType).toUpperCase(),
-    originalType: clean(record.originalType).toUpperCase(),
+    originalType,
+    typeLabel: query.typeLabel(baseType, originalType),
     reviewedAt: query.displayDateTimeAny(
       source.reviewedAt, source.reviewed_at, source.originalReviewedAt, source.original_reviewed_at,
       source.approvedAt, source.approved_at
@@ -491,8 +497,8 @@ async function mapWithConcurrency(items, limit, mapper) {
 
 Page({
   data: {
-    session: {}, recordId: "", recordCode: "", submissionClientRequestId: "", baseType: "RECHARGE", category: "RECHARGE", noun: "充值",
-    order: null, facts: [], notes: [], loading: true,
+    session: {}, recordId: "", recordCode: "", submissionClientRequestId: "", submissionRecordType: "", baseType: "RECHARGE", category: "RECHARGE", noun: "充值",
+    order: null, facts: [], notes: [], loading: true, isSupplement: false,
     photos: buildPhotoSlots(), photoCount: 0, visiblePhotoCount: 0, photoLoading: false, photoManifestLoaded: false, photoManifestError: "",
     canEdit: false, isSubmitter: false, editableUntil: "", editableUntilLabel: "—", uploading: false, uploadingSlot: -1,
     exporting: false, exportProgress: "",
@@ -510,7 +516,8 @@ Page({
     this.setData({
       session, baseType, category, noun: routeKind.noun,
       recordId: decodeURIComponent(options.recordId || ""), recordCode: decodeURIComponent(options.recordCode || ""),
-      submissionClientRequestId: decodeURIComponent(options.submissionClientRequestId || "")
+      submissionClientRequestId: decodeURIComponent(options.submissionClientRequestId || ""),
+      submissionRecordType: decodeURIComponent(options.submissionRecordType || "")
     });
     this._photoLoadEpoch = 0;
     this._photoRetrySequence = new Map();
@@ -549,9 +556,11 @@ Page({
       category: clean(this.data.category).toUpperCase(),
       recordId: clean(this.data.recordId),
       recordCode: clean(this.data.recordCode),
-      submissionClientRequestId: clean(this.data.submissionClientRequestId)
+      submissionClientRequestId: clean(this.data.submissionClientRequestId),
+      submissionRecordType: clean(this.data.submissionRecordType).toUpperCase()
     });
     const verification = request.baseType === "VERIFICATION";
+    const supplementRequest = verification && request.category === "SUPPLEMENT";
     this._photoLoadEpoch = Number(this._photoLoadEpoch || 0) + 1;
     this.setData({
       loading: "locked", message: "", error: false,
@@ -565,7 +574,7 @@ Page({
     // is still reading the same record. The result is not rendered until the
     // exact route identity below has been verified, so this removes a serial
     // network round trip without weakening the order or photo boundary.
-    const photoManifestFlight = verification && request.recordId
+    const photoManifestFlight = verification && !supplementRequest && request.recordId
       ? Promise.resolve().then(() => callPhoto("getVerificationPhotos", { recordId: request.recordId }))
         .then((result) => ({ ok: true, result }), (error) => ({ ok: false, error }))
       : null;
@@ -585,6 +594,7 @@ Page({
       if (!order?.id) throw new Error("数据库中未找到该张工单");
       assertExactRouteOrder(routeIdentity, order);
       const exactKind = exactOrderKind(request.baseType, order.originalType);
+      const isSupplement = verification && clean(order.originalType).toUpperCase() === "SUPPLEMENT";
       order.typeLabel = exactKind.typeLabel;
       const facts = [
         { label: "门店", value: order.storeName, note: order.storeCode || "—" },
@@ -594,23 +604,24 @@ Page({
       ];
       const notes = [
         { label: "提交说明", value: order.message },
-        ...((request.baseType === "RECHARGE" || clean(order.originalType).toUpperCase() === "SUPPLEMENT")
+        ...((request.baseType === "RECHARGE")
           ? [{ label: "审核说明", value: order.reviewNote }]
           : []),
-        { label: "补录说明", value: order.supplementNote }, { label: "作废说明", value: order.voidNote },
+        ...(!isSupplement ? [{ label: "补录说明", value: order.supplementNote }] : []), { label: "作废说明", value: order.voidNote },
         { label: "作废审核说明", value: order.voidReviewNote }
       ].filter((item) => item.value);
-      this.setData({ order, facts, notes, category: routeIdentity.category, noun: exactKind.noun, loading: false });
+      this.setData({ order, facts, notes, category: routeIdentity.category, noun: exactKind.noun, isSupplement, loading: false });
       wx.setNavigationBarTitle({ title: "露思卓儿" });
       if (request.submissionClientRequestId) {
         try {
-          const acknowledged = submission.acknowledge(request.baseType, request.recordId, request.submissionClientRequestId);
+          const acknowledgementType = request.submissionRecordType || request.baseType;
+          const acknowledged = submission.acknowledge(acknowledgementType, request.recordId, request.submissionClientRequestId);
           if (!acknowledged) this.setData({ message: "工单详情已读取，但原提交确认信息不一致；防重复提交锁仍保留。", error: true });
         } catch (error) {
           this.setData({ message: error.message || "工单详情已读取，但防重复提交锁尚未清除。", error: true });
         }
       }
-      if (verification) await Promise.all([this.loadPhotos(photoManifestFlight), this.loadRating()]);
+      if (verification && !isSupplement) await Promise.all([this.loadPhotos(photoManifestFlight), this.loadRating()]);
     } catch (error) {
       this.setData({ order: null, loading: false, message: error.message || "工单详情读取失败", error: true });
     }

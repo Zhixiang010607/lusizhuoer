@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v124";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v125";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -1399,10 +1399,10 @@ async function verificationPhotoContext(event, options = {}) {
 function teacherBusinessAttributionSourceCondition(alias, recordFamily) {
   const storeCategory = recordFamily === "RECHARGE"
     ? `${alias}.recharge_type IN ('NEW', 'REFUND')`
-    : `${alias}.verification_type = 'NORMAL'`;
+    : `${alias}.verification_type IN ('NORMAL', 'SUPPLEMENT')`;
   const teacherCategory = recordFamily === "RECHARGE"
     ? `${alias}.recharge_type IN ('NEW', 'REFUND')`
-    : `${alias}.verification_type IN ('NORMAL', 'EXPERIENCE')`;
+    : `${alias}.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')`;
   if (!["RECHARGE", "VERIFICATION"].includes(recordFamily)) {
     throw new Error("Business teacher attribution requires a record family.");
   }
@@ -1452,7 +1452,7 @@ function teacherCustomerAccessCondition(caller, alias = "c") {
        WHERE teacher_verification.customer_id = ${alias}.id
          AND ${teacherBusinessAttributionCondition(caller, "teacher_verification", "VERIFICATION")}
          AND teacher_verification.record_status = 'APPROVED'
-         AND teacher_verification.verification_type IN ('NORMAL', 'EXPERIENCE')
+         AND teacher_verification.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')
     )
     OR EXISTS (
       SELECT 1 FROM public.recharge_records teacher_recharge
@@ -2381,7 +2381,7 @@ async function queryStoreCustomers(event = {}) {
                FROM public.verification_records v
               WHERE v.customer_id = c.id
                 AND v.record_status = 'APPROVED'
-                AND v.verification_type = 'NORMAL') AS normal_verification_count,
+                AND v.verification_type IN ('NORMAL', 'SUPPLEMENT')) AS normal_verification_count,
             c.created_at, c.created_store_id AS store_id, s.store_name, s.store_code,
             TO_CHAR(c.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_created_at
        FROM public.customers c
@@ -2502,8 +2502,8 @@ async function queryInactiveVerificationCustomers(event = {}) {
           JOIN public.products p ON p.id = v.product_id
          WHERE v.customer_id = c.id
            AND v.record_status = 'APPROVED'
-           AND v.verification_type IN ('NORMAL', 'EXPERIENCE')
-         ORDER BY CASE WHEN v.verification_type = 'NORMAL' THEN 0 ELSE 1 END ASC,
+           AND v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')
+         ORDER BY CASE WHEN v.verification_type IN ('NORMAL', 'SUPPLEMENT') THEN 0 ELSE 1 END ASC,
                   v.submitted_at DESC, v.id DESC
          LIMIT 1
       ) latest ON TRUE
@@ -2868,7 +2868,7 @@ async function queryStoreBusinessRecords(event = {}) {
     fail("工单状态筛选无效。", "BAD_REQUEST");
   }
   const verificationType = String(event.verificationType || "ALL").trim().toUpperCase();
-  if (!["ALL", "NORMAL", "SUPPLEMENT", "EXPERIENCE"].includes(verificationType)) {
+  if (!["ALL", "NORMAL", "EXPERIENCE"].includes(verificationType)) {
     fail("核销类型筛选无效。", "BAD_REQUEST");
   }
   const rechargeType = String(event.rechargeType || "ALL").trim().toUpperCase();
@@ -2925,7 +2925,9 @@ async function queryStoreBusinessRecords(event = {}) {
   } else {
     if (productId) baseClauses.push(`${alias}.product_id = ${productId}`);
     if (recordType === "VERIFICATION" && verificationType !== "ALL") {
-      baseClauses.push(`v.verification_type = ${sqlText(verificationType)}`);
+      baseClauses.push(verificationType === "NORMAL"
+        ? "v.verification_type IN ('NORMAL', 'SUPPLEMENT')"
+        : `v.verification_type = ${sqlText(verificationType)}`);
     }
     if (startDate) baseClauses.push(`${alias}.submitted_at >= (${sqlText(startDate)}::date::timestamp AT TIME ZONE 'Asia/Shanghai')`);
     if (endDate) baseClauses.push(`${alias}.submitted_at < ((${sqlText(endDate)}::date + 1)::timestamp AT TIME ZONE 'Asia/Shanghai')`);
@@ -3097,7 +3099,7 @@ async function getStoreDashboard(event = {}) {
                FROM public.verification_records v
               WHERE v.customer_id = c.id
                 AND v.record_status = 'APPROVED'
-                AND v.verification_type = 'NORMAL') AS total_verification_count,
+                AND v.verification_type IN ('NORMAL', 'SUPPLEMENT')) AS total_verification_count,
             COALESCE(COUNT(b.product_id) FILTER (
               WHERE b.total_recharge_count > 0 OR b.total_verification_count > 0
             ), 0) AS product_count,
@@ -3169,12 +3171,12 @@ async function getStoreDashboard(event = {}) {
               0::bigint AS recharge_count,
               0::bigint AS refund_count,
               0::bigint AS legacy_void_count,
-              CASE WHEN v.verification_type = 'NORMAL' THEN v.unit_count ELSE 0 END::bigint AS verification_count,
+              CASE WHEN v.verification_type IN ('NORMAL', 'SUPPLEMENT') THEN v.unit_count ELSE 0 END::bigint AS verification_count,
               CASE WHEN v.verification_type = 'EXPERIENCE' THEN v.unit_count ELSE 0 END::bigint AS experience_count
          FROM public.verification_records v
         WHERE v.store_id = ${storeId}::bigint
           AND v.record_status = 'APPROVED'
-          AND v.verification_type IN ('NORMAL', 'EXPERIENCE')
+          AND v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')
      ), customer_product_totals AS (
        SELECT event.customer_id, event.product_id,
               SUM(event.recharge_count) AS total_recharge_count,
@@ -3404,7 +3406,7 @@ function storeAnalyticsEventCte(storeId, range) {
         CROSS JOIN time_bounds bounds
        WHERE v.store_id = ${storeId}::bigint
          AND v.record_status = 'APPROVED'
-         AND v.verification_type IN ('NORMAL', 'EXPERIENCE')
+         AND v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')
          AND v.submitted_at >= bounds.start_at
          AND v.submitted_at < bounds.end_at
     )`;
@@ -5160,10 +5162,142 @@ async function finalizeVerificationApplicationInternal(event) {
   };
 }
 
+async function createSupplementVerificationApplication(event) {
+  const caller = await activeBusinessCaller(event);
+  const customerCode = String(event.customerCode || "").trim();
+  if (!customerCode || customerCode.length > 96) {
+    fail("必须先确认本门店的活跃客户。", "CUSTOMER_REQUIRED");
+  }
+  const productId = positiveDatabaseId(event.productId, "项目");
+  const unitCount = Number(event.unitCount);
+  if (!Number.isInteger(unitCount) || unitCount < 1 || unitCount > 999) {
+    fail("核销次数必须由办理人员填写，并且是 1 至 999 的整数。", "INVALID_UNIT_COUNT");
+  }
+  const requestedTeacherId = String(event.teacherId || "").trim();
+  if (caller.role === "teacher" && requestedTeacherId
+      && requestedTeacherId !== String(caller.teacherId)) {
+    fail("老师账号只能把核销绑定到本人。", "FORBIDDEN");
+  }
+  const teacherId = caller.role === "teacher"
+    ? positiveDatabaseId(caller.teacherId, "老师")
+    : (requestedTeacherId ? positiveDatabaseId(requestedTeacherId, "老师") : "");
+  const message = String(event.message || "").trim();
+  if (message.length > 500) fail("门店留言不能超过 500 个字符。", "MESSAGE_TOO_LONG");
+  const idempotencyKey = rechargeSubmissionKey(event.clientRequestId);
+
+  const schemaRows = await executeSql(
+    `SELECT TO_REGPROCEDURE(
+       'public.create_supplement_verification_application(bigint,bigint,bigint,bigint,integer,bigint,text,character varying)'
+     ) IS NOT NULL AS ready`
+  );
+  if (!databaseBoolean(schemaRows?.[0]?.ready)) {
+    fail("补录核销数据库尚未启用，请先执行迁移 079。", "DATABASE_SCHEMA_MISSING");
+  }
+
+  const customers = await executeSql(
+    `SELECT id, customer_code, customer_name
+       FROM public.customers
+      WHERE customer_code = ${sqlText(customerCode)}
+        AND created_store_id = ${caller.storeId}
+        AND customer_status = 'ACTIVE'
+      LIMIT 1`
+  );
+  const customer = customers[0];
+  if (!customer) fail("未找到本门店已确认的活跃客户。", "CUSTOMER_NOT_FOUND");
+
+  const products = await executeSql(
+    `SELECT p.id, p.product_code, p.product_name,
+            COALESCE(balance.remaining_count, 0) AS remaining_count
+       FROM public.products p
+  LEFT JOIN public.customer_product_balances balance
+         ON balance.customer_id = ${sqlText(customer.id)}::bigint
+        AND balance.product_id = p.id
+      WHERE p.id = ${sqlText(productId)}::bigint
+        AND p.product_status = 'ACTIVE'
+      LIMIT 1`
+  );
+  const selectedProduct = products[0];
+  if (!selectedProduct) fail("所选项目不存在或已经封存，请重新选择。", "PRODUCT_NOT_ACTIVE");
+  if (Number(selectedProduct.remaining_count || 0) < unitCount) {
+    fail("该客户所选项目的剩余次数不足，不能提交核销审核。", "INSUFFICIENT_BALANCE");
+  }
+
+  let selectedTeacher = null;
+  if (teacherId) {
+    const teachers = await executeSql(
+      `SELECT teacher.id, teacher.teacher_code, teacher.teacher_name
+         FROM public.teachers teacher
+         JOIN public.staff_accounts account ON account.id = teacher.staff_account_id
+        WHERE teacher.id = ${sqlText(teacherId)}::bigint
+          AND teacher.teacher_status = 'ACTIVE'
+          AND account.role_code = 'teacher'
+          AND account.account_status = 'ACTIVE'
+        LIMIT 1`
+    );
+    selectedTeacher = teachers[0] || null;
+    if (!selectedTeacher) fail("所选老师不存在或已经封存，请重新选择。", "TEACHER_NOT_ACTIVE");
+  }
+  const teacherIdSql = teacherId ? `${sqlText(teacherId)}::bigint` : "NULL";
+
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT * FROM public.create_supplement_verification_application(
+         ${caller.storeId}::bigint, ${teacherIdSql},
+         ${sqlText(customer.id)}::bigint, ${sqlText(productId)}::bigint,
+         ${unitCount}::integer, ${caller.staffId}::bigint,
+         ${sqlText(message)}::text, ${sqlText(idempotencyKey)}::varchar
+       )`
+    );
+  } catch (error) {
+    const detail = String(error?.message || "").toLowerCase();
+    if (detail.includes("insufficient purchased units")) {
+      fail("该客户所选项目的剩余次数不足，不能提交核销审核。", "INSUFFICIENT_BALANCE");
+    }
+    if (detail.includes("idempotency key belongs")) {
+      fail("该防重复提交编号已经用于另一张核销单，请刷新页面后重新提交。", "IDEMPOTENCY_CONFLICT");
+    }
+    throw error;
+  }
+  const record = rows?.[0];
+  if (!record) fail("补录核销申请未能写入数据库，请稍后重试。", "VERIFICATION_CREATE_FAILED");
+  const sameRequest = String(record.verification_type) === "SUPPLEMENT"
+    && String(record.store_id) === String(caller.storeId)
+    && String(record.teacher_id || "") === String(teacherId)
+    && String(record.customer_id) === String(customer.id)
+    && String(record.product_id) === String(productId)
+    && Number(record.unit_count) === unitCount
+    && String(record.message || "") === message;
+  if (!sameRequest) {
+    fail("该防重复提交编号已经用于另一张核销单，请刷新页面后重新提交。", "IDEMPOTENCY_CONFLICT");
+  }
+  return {
+    ok: true,
+    createdNow: databaseBoolean(record.created_now),
+    verificationId: String(record.id),
+    verificationCode: record.verification_code,
+    verificationType: record.verification_type,
+    recordStatus: record.record_status,
+    submittedAt: record.submitted_at,
+    unitCount: Number(record.unit_count),
+    customer: { customerCode: customer.customer_code, customerName: customer.customer_name },
+    product: {
+      productId: String(selectedProduct.id),
+      productCode: selectedProduct.product_code,
+      productName: selectedProduct.product_name
+    },
+    teacher: selectedTeacher ? {
+      teacherId: String(selectedTeacher.id),
+      teacherCode: selectedTeacher.teacher_code,
+      teacherName: selectedTeacher.teacher_name
+    } : null
+  };
+}
+
 async function recoverBusinessSubmission(event) {
   const caller = await activeBusinessCaller(event);
   const recordType = String(event.recordType || "").trim().toUpperCase();
-  if (!['RECHARGE', 'VERIFICATION', 'PRODUCT_PURCHASE'].includes(recordType)) {
+  if (!['RECHARGE', 'VERIFICATION', 'SUPPLEMENT', 'PRODUCT_PURCHASE'].includes(recordType)) {
     fail("必须指定需要恢复的充值、核销或产品购买提交。", "BAD_REQUEST");
   }
   const idempotencyKey = rechargeSubmissionKey(event.clientRequestId);
@@ -5283,19 +5417,23 @@ async function recoverBusinessSubmission(event) {
       LIMIT 1`
   );
   const record = rows[0];
-  if (!record) return { ok: true, found: false, complete: false, recordType: "VERIFICATION" };
+  if (!record) return { ok: true, found: false, complete: false, recordType };
   if (String(record.store_id) !== String(caller.storeId)
       || String(record.submitted_by_account_id) !== String(caller.staffId)) {
     fail("该防重复提交编号不属于当前账号和门店。", "FORBIDDEN");
   }
   const experience = record.verification_type === "EXPERIENCE";
-  const complete = Boolean(record.signal_id) && (!experience || Boolean(record.quota_usage_id));
+  const supplement = record.verification_type === "SUPPLEMENT";
+  if ((recordType === "SUPPLEMENT") !== supplement) {
+    fail("该防重复提交编号属于另一种核销流程。", "IDEMPOTENCY_CONFLICT");
+  }
+  const complete = supplement || (Boolean(record.signal_id) && (!experience || Boolean(record.quota_usage_id)));
   return {
     ok: true,
     found: true,
     complete,
     recovered: true,
-    recordType: "VERIFICATION",
+    recordType,
     verificationId: String(record.id),
     verificationCode: record.verification_code,
     verificationType: record.verification_type,
@@ -5369,7 +5507,7 @@ const TEACHER_WORKSPACE_TYPE_CONFIG = Object.freeze({
   VERIFICATION: Object.freeze({
     baseRecordType: "VERIFICATION", table: "verification_records", alias: "v",
     codeColumn: "verification_code", typeColumn: "verification_type",
-    categoryClause: "v.verification_type = 'NORMAL'"
+    categoryClause: "v.verification_type IN ('NORMAL', 'SUPPLEMENT')"
   }),
   RECHARGE: Object.freeze({
     baseRecordType: "RECHARGE", table: "recharge_records", alias: "r",
@@ -5530,7 +5668,7 @@ async function getTeacherBusinessCustomers(event = {}) {
       FROM public.verification_records v
      WHERE ${teacherBusinessAttributionCondition(caller, "v", "VERIFICATION")}
        AND v.record_status = 'APPROVED'
-       AND v.verification_type IN ('NORMAL', 'EXPERIENCE')
+       AND v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')
     UNION ALL
     SELECT r.customer_id, r.product_id, r.store_id,
            r.recharge_type::text AS event_type,
@@ -5737,7 +5875,7 @@ async function getTeacherWorkspace(event = {}) {
         FROM public.verification_records v
        WHERE ${teacherBusinessAttributionCondition(caller, "v", "VERIFICATION")}
          AND v.record_status = 'APPROVED'
-         AND v.verification_type IN ('NORMAL', 'EXPERIENCE')
+         AND v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')
          ${verificationDateClauses.length ? `AND ${verificationDateClauses.join(" AND ")}` : ""}
     )`;
     const [summaryRows, balanceRows] = await Promise.all([
@@ -7392,6 +7530,7 @@ exports.main = async (event = {}, context = {}) => {
     if (action === "getTeacherExperienceEntitlements") return await getTeacherExperienceEntitlements(event);
     if (action === "createRechargeApplication") return await createRechargeApplication(event);
     if (action === "createRetailProductPurchaseApplication") return await createRetailProductPurchaseApplication(event);
+    if (action === "createSupplementVerificationApplication") return await createSupplementVerificationApplication(event);
     if (action === "createVerificationBleQualification") return await createVerificationBleQualification(event);
     if (action === "recoverVerificationBleQualification") return await recoverVerificationBleQualification(event);
     if (action === "issueVerificationBleAuthorization") return await issueVerificationBleAuthorization(event);

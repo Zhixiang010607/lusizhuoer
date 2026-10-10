@@ -18,8 +18,7 @@ const STATUS_OPTIONS = Object.freeze([
 const VERIFICATION_TYPES = Object.freeze([
   { value: "ALL", label: "全部类型" },
   { value: "NORMAL", label: "正常核销" },
-  { value: "EXPERIENCE", label: "体验核销" },
-  { value: "SUPPLEMENT", label: "历史补录" }
+  { value: "EXPERIENCE", label: "体验核销" }
 ]);
 
 const RECHARGE_TYPES = Object.freeze([
@@ -175,22 +174,23 @@ function statusLabel(value) {
 
 function typeLabel(recordType, value) {
   const code = String(value || "").toUpperCase();
-  if (recordType === "VERIFICATION") return ({ NORMAL: "正常核销", EXPERIENCE: "体验核销", SUPPLEMENT: "历史补录" })[code] || "核销";
+  if (recordType === "VERIFICATION") return ({ NORMAL: "正常核销", EXPERIENCE: "体验核销", SUPPLEMENT: "正常核销" })[code] || "核销";
   return ({ NEW: "充值申请", REFUND: "退费申请", VOID: "历史作废" })[code] || "充值";
 }
 
 function normalizeRecord(item = {}, recordType = "RECHARGE") {
   const type = String(recordType || "RECHARGE").toUpperCase();
   const originalType = String(item.originalType || item.original_type || "").toUpperCase();
+  const publicOriginalType = type === "VERIFICATION" && originalType === "SUPPLEMENT" ? "NORMAL" : originalType;
   const recordStatus = String(item.recordStatus || item.record_status || item.application_status || "").toUpperCase();
   const completedWithoutReview = type === "VERIFICATION"
-    && ["NORMAL", "EXPERIENCE"].includes(originalType)
+    && ["NORMAL", "SUPPLEMENT", "EXPERIENCE"].includes(originalType)
     && recordStatus === "APPROVED";
   return {
     id: String(item.id || ""),
     recordCode: String(item.recordCode || item.record_code || "—"),
-    originalType,
-    typeLabel: typeLabel(type, originalType),
+    originalType: publicOriginalType,
+    typeLabel: typeLabel(type, publicOriginalType),
     unitCount: Number(item.unitCount !== undefined ? item.unitCount : item.unit_count || 0),
     recordStatus,
     statusLabel: completedWithoutReview ? "已完成" : statusLabel(recordStatus),

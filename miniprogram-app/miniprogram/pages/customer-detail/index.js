@@ -34,7 +34,7 @@ function orderStatus(row = {}, type = "RECHARGE") {
   if (!["RECHARGE", "REFUND"].includes(type)) {
     if (status === "VOIDED") return "历史已作废";
     const verificationType = clean(row.verificationType).toUpperCase();
-    if (["NORMAL", "EXPERIENCE"].includes(verificationType) && status === "APPROVED") return "已完成";
+    if (["NORMAL", "SUPPLEMENT", "EXPERIENCE"].includes(verificationType) && status === "APPROVED") return "已完成";
     return ({ PENDING: "待审核", APPROVED: "审核通过", REJECTED: "已驳回" })[status] || "未记录";
   }
   const voidStatus = clean(row.voidRequestStatus || "NONE").toUpperCase();
@@ -47,7 +47,8 @@ function orderStatus(row = {}, type = "RECHARGE") {
 function mapHistoryRow(row = {}, type = "RECHARGE") {
   const rechargeHistory = ["RECHARGE", "REFUND"].includes(type);
   const productPurchase = type === "PRODUCT_PURCHASE";
-  const originalType = clean(row.rechargeType || row.verificationType).toUpperCase();
+  const storedOriginalType = clean(row.rechargeType || row.verificationType).toUpperCase();
+  const originalType = !rechargeHistory && storedOriginalType === "SUPPLEMENT" ? "NORMAL" : storedOriginalType;
   const units = Math.abs(Number(row.unitCount || (rechargeHistory || productPurchase ? 0 : 1)));
   const negative = rechargeHistory && ["REFUND", "VOID"].includes(originalType);
   return {

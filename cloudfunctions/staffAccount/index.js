@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v86";
+const FUNCTION_VERSION = "v87";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -1348,10 +1348,10 @@ function hqBusinessEventsCte(startDateSql, endDateSql, productId = null) {
            v.product_id,
            CASE
              WHEN submitter.role_code = 'store'
-              AND v.verification_type = 'NORMAL' THEN v.teacher_id
+              AND v.verification_type IN ('NORMAL', 'SUPPLEMENT') THEN v.teacher_id
              WHEN submitter.role_code = 'teacher'
               AND submitting_teacher.id = v.teacher_id
-              AND v.verification_type IN ('NORMAL', 'EXPERIENCE') THEN v.teacher_id
+              AND v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE') THEN v.teacher_id
              ELSE NULL::bigint
            END AS teacher_id,
            0::bigint AS recharge_count,
@@ -3217,10 +3217,10 @@ function reviewOrderTeacherAttributionCondition(alias, recordType) {
   const recharge = recordType === "RECHARGE";
   const storeTypeCondition = recharge
     ? `${alias}.recharge_type IN ('NEW', 'REFUND')`
-    : `${alias}.verification_type = 'NORMAL'`;
+    : `${alias}.verification_type IN ('NORMAL', 'SUPPLEMENT')`;
   const teacherTypeCondition = recharge
     ? `${alias}.recharge_type IN ('NEW', 'REFUND')`
-    : `${alias}.verification_type IN ('NORMAL', 'EXPERIENCE')`;
+    : `${alias}.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')`;
   return `EXISTS (
     SELECT 1
       FROM public.staff_accounts attribution_submitter
@@ -3731,6 +3731,13 @@ async function reviewOrder(caller, event) {
     );
   } catch (error) {
     const databaseMessage = String(error?.message || "");
+    if (
+      recordType === "VERIFICATION" &&
+      decision === "APPROVED" &&
+      /insufficient purchased units/i.test(databaseMessage)
+    ) {
+      fail("客户项目剩余次数不足，不能通过该补录核销，请驳回后核对客户余额。", "INSUFFICIENT_BALANCE");
+    }
     if (
       recordType === "RECHARGE" &&
       decision === "APPROVED" &&

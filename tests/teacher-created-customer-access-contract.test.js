@@ -11,7 +11,7 @@ const migration = read("database", "migrations", "057_teacher_created_customer_a
 const consoleMigration = read("database", "cloudbase-console", "057-01-teacher-created-customer-access.sql");
 const reference = read("database", "customer-fields-reference.md");
 
-assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v11" : "v124"/);
+assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v11" : "v125"/);
 
 for (const sql of [migration, consoleMigration]) {
   assert.match(sql, /ADD COLUMN IF NOT EXISTS created_by_account_id BIGINT;/,
@@ -40,11 +40,11 @@ assert.match(attribution, /teacherBusinessAttributionSourceCondition\(alias, rec
   "business attribution must reject untrusted historical submitter roles");
 assert.match(attributionSource, /role_code = 'store'[\s\S]*role_code = 'teacher'[\s\S]*attribution_submitter_teacher\.id = \$\{alias\}\.teacher_id/,
   "store selections remain attributable while teacher submissions must be self-bound");
-assert.match(attributionSource, /recordFamily === "RECHARGE"[\s\S]*verification_type = 'NORMAL'[\s\S]*verification_type IN \('NORMAL', 'EXPERIENCE'\)/,
-  "store EXPERIENCE and retired verification categories must never create attribution");
+assert.match(attributionSource, /recordFamily === "RECHARGE"[\s\S]*verification_type IN \('NORMAL', 'SUPPLEMENT'\)[\s\S]*verification_type IN \('NORMAL', 'SUPPLEMENT', 'EXPERIENCE'\)/,
+  "store EXPERIENCE must never create attribution while approved supplemental verification remains attributable");
 assert.match(scope, /created_by_account_id = \$\{sqlText\(caller\.staffId\)\}::bigint[\s\S]*teacherBusinessAttributionCondition\(caller, "teacher_verification", "VERIFICATION"\)/,
   "teacher access must accept same-account creation and attributed approved verification relationships");
-assert.match(scope, /teacher_verification\.record_status = 'APPROVED'[\s\S]*verification_type IN \('NORMAL', 'EXPERIENCE'\)/,
+assert.match(scope, /teacher_verification\.record_status = 'APPROVED'[\s\S]*verification_type IN \('NORMAL', 'SUPPLEMENT', 'EXPERIENCE'\)/,
   "the existing effective verification relationship remains valid");
 assert.match(scope, /teacher_recharge\.record_status = 'APPROVED'[\s\S]*recharge_type IN \('NEW', 'REFUND'\)/,
   "approved recharge and refund relationships must grant the same customer access");

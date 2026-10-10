@@ -110,7 +110,7 @@ test("every page enforces the exact headquarters, store, and teacher permission 
     "only headquarters and store may open operational metrics");
   assert.match(home, /managementMenuOpen && session\.role === 'hq'/, "only headquarters may open management");
   assert.match(home, /reviewMenuOpen && session\.role === 'hq'/, "only headquarters may open reviews");
-  assert.match(home, /wx:if="\{\{session\.role === 'teacher'\}\}" bindtap="openVerification" data-mode="EXPERIENCE"/,
+  assert.match(home, /wx:if="\{\{session\.role === 'teacher'\}\}"[\s\S]*data-mode="EXPERIENCE"/,
     "experience handling must remain teacher-only");
 });
 

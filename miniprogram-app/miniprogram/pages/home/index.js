@@ -921,7 +921,7 @@ Page({
   },
   openReview(event) {
     const type = String(event.currentTarget.dataset.type || "recharge");
-    if (!["recharge", "product-purchase"].includes(type)) return;
+    if (!["recharge", "verification", "product-purchase"].includes(type)) return;
     this.closeMenus();
     wx.navigateTo({ url: `/pages/reviews/index?type=${encodeURIComponent(type)}` });
   },
