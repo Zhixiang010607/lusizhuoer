@@ -471,14 +471,16 @@
         "员工账号创建失败"
       );
     },
-    async createTeacher({ staffName, phone, initialPassword, clientRequestId }) {
+    async createTeacher({ staffName, phone, initialPassword, clientRequestId, consent, imageBase64 }) {
       const request = callTeacherCreate(
         {
           action: "createTeacher",
           staffName,
           phone: normalizePhone(phone),
           initialPassword,
-          clientRequestId
+          clientRequestId,
+          consent: consent === true,
+          imageBase64
         },
         "老师账号创建失败"
       );

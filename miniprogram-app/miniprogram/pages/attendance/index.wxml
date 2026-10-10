@@ -1,0 +1,17 @@
+<view class="page daily-page">
+  <view class="page-heading"><view><text class="title">考勤打卡</text><text class="subtitle">老师本人现场人脸验证通过后记录服务端时间和当前位置</text></view><button class="back" bindtap="back">返回工作台</button></view>
+  <view wx:if="{{!authorized}}" class="notice-card">正在确认老师账号…</view>
+  <view wx:else class="daily-layout">
+    <view class="calendar-card date-query-card"><date-selector value="{{pendingDate}}" end="{{serverToday}}" disabled="{{loading || clocking}}" bindchange="chooseDate"></date-selector><button class="confirm-button" bindtap="confirmDate" disabled="{{loading || clocking}}">确认</button></view>
+    <view class="editor-card attendance-card">
+      <view class="section-heading"><view><text class="section-title">{{selectedDate}}</text><text class="section-note">{{selectedRecord ? '已打卡' : '未打卡'}}</text></view><text class="state-badge {{selectedRecord ? 'editable' : ''}}">{{selectedRecord ? '完成' : '未完成'}}</text></view>
+      <view wx:if="{{selectedRecord}}" class="record-detail"><view><text>打卡时间</text><text>{{selectedRecord.checkedTime}}</text></view><view><text>定位精度</text><text>约 {{selectedRecord.accuracy}} 米</text></view><view><text>人脸分数</text><text>{{selectedRecord.faceScore}}</text></view><map class="attendance-map" latitude="{{selectedRecord.latitude}}" longitude="{{selectedRecord.longitude}}" markers="{{selectedRecord.markers}}" scale="17" show-location></map><button class="location-button" bindtap="openLocation">在地图中打开</button></view>
+      <block wx:elif="{{selectedDate === serverToday}}">
+        <block wx:if="{{!faceEnrolled}}"><view class="form-message">当前账号未录入考勤人脸，可以进入并查看考勤记录，但暂时不能进行人脸打卡。</view><button class="save-button" disabled>未录入人脸，暂不能打卡</button></block>
+        <block wx:else><camera-capture id="attendanceCamera" title="老师本次打卡照片" bindchange="captureChanged"></camera-capture><text class="privacy-note">现场照片仅发送给人脸验证接口，本次验证结束后不保存。</text><button class="save-button" bindtap="clockIn" loading="{{clocking}}" disabled="{{clocking || !captureReady}}">验证人脸并打卡</button></block>
+      </block>
+      <view wx:else class="notice-card inline">这一天没有打卡记录，历史日期不能补打卡。</view>
+      <view wx:if="{{message}}" class="form-message {{error ? 'error' : ''}}">{{message}}</view><button wx:if="{{permissionDenied}}" class="location-button" bindtap="openSettings">打开微信位置权限</button>
+    </view>
+  </view>
+</view>

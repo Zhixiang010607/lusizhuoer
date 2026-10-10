@@ -34,9 +34,10 @@ assert.match(staffDetail, /backToManagement[\s\S]{0,120}textContent = `返回\$\
   "shared staff detail must use a role-correct management link");
 assert.match(staffDetail, /staffSecurityTitle[\s\S]{0,100}textContent = `\$\{labels\[role\]\}账号管理`/,
   "shared staff detail must not label HQ account controls as teacher controls");
-assert.doesNotMatch(`${teacherCreateHtml}\n${teacherCreateScript}`,
-  /camera|capturedFace|faceImage|validateTeacherCreateCapture|createTeacherWithFace|老师人脸|拍照|活体/i,
-  "teacher creation must contain no photograph or teacher-face workflow");
+assert.match(teacherCreateHtml, /考勤人脸录入[\s\S]*打卡现场照不保存/,
+  "teacher creation must visibly collect only the attendance enrollment face and disclose photo retention");
+assert.match(teacherCreateScript, /capturedFace[\s\S]*consent:\s*true[\s\S]*imageBase64:\s*capturedFace/,
+  "teacher creation must submit the consented attendance enrollment image in the one synchronous request");
 assert.match(teacherCreateScript, /CloudBasePhoneAuth\.createTeacher\(\{/,
   "teacher creation must use the lightweight account-and-profile service");
 
@@ -70,12 +71,12 @@ for (const file of ["query.js", "management.js", "detail.js"]) {
     `${file} must no longer point users to the retired mock teacher page`);
 }
 
-assert.match(staffDetailHtml, /cloudbase-phone-auth\.js\?v=0\.20\.3/,
+assert.match(staffDetailHtml, /cloudbase-phone-auth\.js\?v=0\.20\.4/,
   "teacher home must refresh the shared cloud-function client");
 assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.11/,
   "teacher home must refresh its action handlers");
-assert.match(teacherCreateHtml, /teacher-create\.js\?v=0\.5\.0/,
-  "teacher creation must refresh the no-photo UI");
+assert.match(teacherCreateHtml, /teacher-create\.js\?v=0\.6\.0/,
+  "teacher creation must refresh the attendance-enrollment UI");
 assert.match(teacherManagementHtml, /teacher-management\.js\?v=0\.14\.28/,
   "teacher directory must refresh links into the current home");
 assert.match(teacherManagement, /teacher\.teacher_id \|\| teacher\.teacherId \|\| teacher\.teacher_code/,

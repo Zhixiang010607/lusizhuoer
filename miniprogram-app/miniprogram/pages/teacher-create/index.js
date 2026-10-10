@@ -30,7 +30,7 @@ function completed(result) {
 }
 
 Page({
-  data: { form: { name: "", phone: "", password: "" }, passwordVisible: false, validationField: "", submitting: false, locked: false, message: "", error: false },
+  data: { form: { name: "", phone: "", password: "" }, passwordVisible: false, validationField: "", submitting: false, locked: false, message: "", error: false, consent: false, captureReady: false },
   onLoad() {
     if (!requireSession(["hq"])) return;
     wx.setNavigationBarTitle({ title: "露思卓儿" });
@@ -48,6 +48,12 @@ Page({
   togglePassword() {
     if (!this.data.submitting && !this.data.locked) this.setData({ passwordVisible: !this.data.passwordVisible });
   },
+  toggleConsent() {
+    if (!this.data.submitting && !this.data.locked) this.setData({ consent: !this.data.consent, message: "", error: false });
+  },
+  captureChanged(event) {
+    if (!this.data.submitting && !this.data.locked) this.setData({ captureReady: event.detail.ready === true, message: "", error: false });
+  },
   back() { if (!this.data.submitting) wx.navigateBack(); },
   async submit() {
     if (this.data.submitting || this.data.locked) return;
@@ -63,14 +69,22 @@ Page({
       this.setData({ validationField: validation[0], message: validation[1], error: true });
       return;
     }
+    if (!this.data.consent) return this.setData({ message: "必须取得老师明确授权后才能录入考勤面容。", error: true });
+    const camera = this.selectComponent("#teacherCamera");
+    const capture = camera && camera.getCapture();
+    if (!capture) return this.setData({ message: "必须现场拍摄老师正脸照片。", error: true });
     const clientRequestId = requestId();
     wx.setStorageSync(PENDING_KEY, { requestId: clientRequestId, createdAt: Date.now() });
-    this.setData({ submitting: true, passwordVisible: false, validationField: "", message: "正在创建登录账号和老师主档，请勿重复提交…", error: false });
+    this.setData({ submitting: true, passwordVisible: false, validationField: "", message: "正在检测照片并创建账号、老师主档和考勤人脸档案…", error: false });
     try {
-      const result = await callTeacherCreate({ staffName, phone, initialPassword, clientRequestId });
+      const result = await callTeacherCreate({ staffName, phone, initialPassword, clientRequestId, consent: true, imageBase64: capture.imageBase64 });
       if (!completed(result)) throw new Error("服务端未返回完整的账号与老师主档激活证明，不能显示创建成功。");
+      if (result.attendanceFaceEnrolled !== true || String(result.proof?.attendanceFaceStatus || "") !== "ENROLLED") {
+        throw new Error("服务端未确认考勤人脸档案已录入，不能显示创建成功。");
+      }
       wx.removeStorageSync(PENDING_KEY);
-      this.setData({ message: "老师账号和主档均已创建并激活。", error: false });
+      camera.reset();
+      this.setData({ message: "老师账号、主档和考勤人脸均已完整创建。", error: false });
       wx.redirectTo({ url: "/pages/hq-directory/index?type=teacher" });
     } catch (error) {
       const signature = `${error.code || ""} ${error.message || ""}`.toUpperCase();

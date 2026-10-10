@@ -19,7 +19,8 @@ function fixture() {
       if (id.endsWith("/session")) return {};
       return { async callTeacherCreate(input) {
         calls.push(input);
-        return { ok: true, completed: true, uid: "fixture-teacher", teacherId: "701", proof: { complete: true, authStatus: "ACTIVE", accountStatus: "ACTIVE", teacherStatus: "ACTIVE" } };
+        return { ok: true, completed: true, uid: "fixture-teacher", teacherId: "701", attendanceFaceEnrolled: true,
+          proof: { complete: true, authStatus: "ACTIVE", accountStatus: "ACTIVE", teacherStatus: "ACTIVE", attendanceFaceStatus: "ENROLLED" } };
       } };
     }
   });
@@ -30,6 +31,9 @@ function fixture() {
     }
   };
   page.data.form = { name: "示例老师", phone: "13900000007", password: "Aa1!fixture" };
+  page.data.consent = true;
+  page.data.captureReady = true;
+  page.selectComponent = () => ({ getCapture: () => ({ imageBase64: "AQ==" }), reset() {} });
   return { page, calls, storage };
 }
 
@@ -86,6 +90,8 @@ test("valid teacher passwords keep the existing three-category rule and are subm
     await page.submit();
     assert.equal(calls.length, 1);
     assert.equal(calls[0].initialPassword, password);
+    assert.equal(calls[0].consent, true);
+    assert.equal(calls[0].imageBase64, "AQ==");
     assert.equal(page.data.passwordVisible, false, "submission should mask a previously revealed password");
     assert.equal(page.data.error, false);
     assert.equal(page.data.validationField, "");

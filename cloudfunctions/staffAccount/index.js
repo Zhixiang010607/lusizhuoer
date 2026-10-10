@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v81";
+const FUNCTION_VERSION = "v84";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -32,6 +32,7 @@ const PRODUCT_LOGO_CHUNK_BYTES = 1536 * 1024;
 const PRODUCT_LOGO_DOWNLOAD_RETRY_DELAYS_MS = Object.freeze([80, 240]);
 const PRODUCT_LOGO_SIGN_SAFETY_MS = 30 * 1000;
 const PRODUCT_LOGO_STORAGE_MAX_CONCURRENCY = 6;
+const DAILY_REPORT_FIELD_MAX_CHARS = 200;
 const PRODUCT_LOGO_TYPES = new Map([
   ["image/png", "png"],
   ["image/jpeg", "jpg"],
@@ -45,6 +46,7 @@ let storeCreationCapabilities = null;
 let productTemplateCapabilities = null;
 let retailProductCapabilities = null;
 let rechargeProductGiftSchemaReady = null;
+let dailyReportSchemaReady = null;
 const productLogoDownloadCache = new Map();
 const productLogoDownloadFlights = new Map();
 const productLogoSignCache = new Map();
@@ -1539,6 +1541,383 @@ function requireStore(caller) {
   if (caller.profile?.role !== "store" || !caller.profile?.storeId) {
     fail("仅已绑定门店的门店账号可以提交作废申请", "FORBIDDEN");
   }
+}
+
+function validCalendarDate(value, label = "日报日期") {
+  const text = String(value || "").trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+  if (!match) fail(`${label}格式必须为 YYYY-MM-DD`, "BAD_REQUEST");
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (parsed.getUTCFullYear() !== year || parsed.getUTCMonth() !== month - 1 || parsed.getUTCDate() !== day) {
+    fail(`${label}不是有效日期`, "BAD_REQUEST");
+  }
+  return text;
+}
+
+function validCalendarMonth(value) {
+  const text = String(value || "").trim();
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(text)) fail("日报月份格式必须为 YYYY-MM", "BAD_REQUEST");
+  return text;
+}
+
+function dailyReportField(value, label, required = false) {
+  const text = String(value || "").trim();
+  if (required && !text) fail(`请填写${label}`, "DAILY_REPORT_REQUIRED");
+  if (Array.from(text).length > DAILY_REPORT_FIELD_MAX_CHARS) {
+    fail(`${label}不能超过 ${DAILY_REPORT_FIELD_MAX_CHARS} 个字符`, "DAILY_REPORT_TOO_LONG");
+  }
+  return text;
+}
+
+async function requireDailyReportSchema() {
+  if (dailyReportSchemaReady === true) return;
+  const rows = await executeSql(
+    `SELECT TO_REGCLASS('public.staff_daily_reports') IS NOT NULL AS report_table,
+            EXISTS (
+              SELECT 1 FROM pg_trigger
+               WHERE tgrelid = TO_REGCLASS('public.staff_daily_reports')
+                 AND tgname = 'trg_staff_daily_report_today_v73'
+                 AND NOT tgisinternal
+            ) AS today_trigger,
+            TO_REGCLASS('public.idx_staff_daily_reports_report_date_account') IS NOT NULL AS report_date_index`
+  );
+  const schema = rows?.[0] || {};
+  if (!databaseBoolean(schema.report_table) || !databaseBoolean(schema.today_trigger)
+      || !databaseBoolean(schema.report_date_index)) {
+    fail("员工日报数据库结构尚未启用，请先执行并验收迁移 073、074。", "DAILY_REPORT_SCHEMA_MISSING");
+  }
+  dailyReportSchemaReady = true;
+}
+
+function dailyReportResponse(row = {}) {
+  if (!row.id) return null;
+  return {
+    id: String(row.id),
+    reportDate: String(row.report_date || "").slice(0, 10),
+    completedWork: String(row.completed_work || ""),
+    customerProjectProgress: String(row.customer_project_progress || ""),
+    problemsAndSupport: String(row.problems_and_support || ""),
+    tomorrowPlan: String(row.tomorrow_plan || ""),
+    createdAt: row.created_at || null,
+    updatedAt: row.updated_at || null
+  };
+}
+
+function requireDailyReportTeacher(caller) {
+  if (caller.profile?.role !== "teacher" || !caller.profile?.teacherId || caller.profile?.teacherStatus !== "ACTIVE") {
+    fail("工作日报仅限在职老师本人使用。", "FORBIDDEN");
+  }
+}
+
+async function getOwnDailyReportMonth(caller, event = {}) {
+  requireDailyReportTeacher(caller);
+  await requireDailyReportSchema();
+  const staffId = numericId(caller.profile?.staffId, "当前员工账号");
+  const month = validCalendarMonth(event.month);
+  const rows = await executeSql(
+    `WITH context AS (
+       SELECT (CLOCK_TIMESTAMP() AT TIME ZONE 'Asia/Shanghai')::DATE AS server_today
+     )
+     SELECT context.server_today, report.id, report.report_date,
+            report.created_at, report.updated_at
+       FROM context
+       LEFT JOIN public.staff_daily_reports AS report
+         ON report.staff_account_id = ${staffId}::bigint
+        AND report.report_date >= ${sqlText(`${month}-01`)}::date
+        AND report.report_date < (${sqlText(`${month}-01`)}::date + INTERVAL '1 month')
+      ORDER BY report.report_date ASC`
+  );
+  const serverToday = String(rows?.[0]?.server_today || "").slice(0, 10);
+  return {
+    ok: true,
+    month,
+    serverToday,
+    reports: (rows || []).filter((row) => row.id).map((row) => ({
+      id: String(row.id),
+      reportDate: String(row.report_date || "").slice(0, 10),
+      createdAt: row.created_at || null,
+      updatedAt: row.updated_at || null
+    }))
+  };
+}
+
+async function getOwnDailyReport(caller, event = {}) {
+  requireDailyReportTeacher(caller);
+  await requireDailyReportSchema();
+  const staffId = numericId(caller.profile?.staffId, "当前员工账号");
+  const reportDate = validCalendarDate(event.reportDate);
+  const rows = await executeSql(
+    `WITH context AS (
+       SELECT (CLOCK_TIMESTAMP() AT TIME ZONE 'Asia/Shanghai')::DATE AS server_today
+     )
+     SELECT context.server_today, report.*
+       FROM context
+       LEFT JOIN public.staff_daily_reports AS report
+         ON report.staff_account_id = ${staffId}::bigint
+        AND report.report_date = ${sqlText(reportDate)}::date
+      LIMIT 1`
+  );
+  const row = rows?.[0] || {};
+  const serverToday = String(row.server_today || "").slice(0, 10);
+  return {
+    ok: true,
+    serverToday,
+    reportDate,
+    editable: reportDate === serverToday,
+    future: Boolean(serverToday && reportDate > serverToday),
+    report: dailyReportResponse(row)
+  };
+}
+
+async function saveOwnDailyReport(caller, event = {}) {
+  requireDailyReportTeacher(caller);
+  await requireDailyReportSchema();
+  const staffId = numericId(caller.profile?.staffId, "当前员工账号");
+  const reportDate = validCalendarDate(event.reportDate);
+  const completedWork = dailyReportField(event.completedWork, "今日完成事项", true);
+  const customerProjectProgress = dailyReportField(event.customerProjectProgress, "客户或项目进展");
+  const problemsAndSupport = dailyReportField(event.problemsAndSupport, "遇到的问题");
+  const tomorrowPlan = dailyReportField(event.tomorrowPlan, "明日计划");
+  let rows;
+  try {
+    rows = await executeSql(
+      `WITH context AS (
+         SELECT (CLOCK_TIMESTAMP() AT TIME ZONE 'Asia/Shanghai')::DATE AS server_today
+       ), saved AS (
+         INSERT INTO public.staff_daily_reports
+           (staff_account_id, report_date, completed_work, customer_project_progress,
+            problems_and_support, tomorrow_plan)
+         SELECT ${staffId}::bigint, ${sqlText(reportDate)}::date,
+                ${sqlText(completedWork)}, ${sqlText(customerProjectProgress)},
+                ${sqlText(problemsAndSupport)}, ${sqlText(tomorrowPlan)}
+           FROM context
+          WHERE ${sqlText(reportDate)}::date = context.server_today
+         ON CONFLICT ON CONSTRAINT uq_staff_daily_reports_account_date DO UPDATE
+           SET completed_work = EXCLUDED.completed_work,
+               customer_project_progress = EXCLUDED.customer_project_progress,
+               problems_and_support = EXCLUDED.problems_and_support,
+               tomorrow_plan = EXCLUDED.tomorrow_plan
+         RETURNING *
+       )
+       SELECT context.server_today, saved.*
+         FROM context
+         LEFT JOIN saved ON TRUE`
+    );
+  } catch (error) {
+    const detail = String(error?.message || "").toLowerCase();
+    if (detail.includes("historical employee daily reports are immutable")
+        || detail.includes("only be written for the current shanghai date")) {
+      fail("当天结束后日报已经锁定，不能再修改。", "DAILY_REPORT_LOCKED");
+    }
+    throw error;
+  }
+  const row = rows?.[0] || {};
+  if (!row.id) fail("只能填写或修改上海时间今天的日报。", "DAILY_REPORT_NOT_TODAY");
+  return {
+    ok: true,
+    serverToday: String(row.server_today || "").slice(0, 10),
+    editable: true,
+    report: dailyReportResponse(row)
+  };
+}
+
+function hqDailyReportTeacher(row = {}) {
+  return {
+    teacherId: String(row.teacher_id || ""),
+    teacherCode: String(row.teacher_code || ""),
+    teacherName: String(row.teacher_name || ""),
+    phone: String(row.phone || ""),
+    reportId: row.report_id ? String(row.report_id) : "",
+    reportDate: String(row.report_date || "").slice(0, 10),
+    completed: Boolean(row.report_id),
+    createdAt: row.created_at || null,
+    updatedAt: row.updated_at || null
+  };
+}
+
+async function getHqDailyReportTrackingDay(caller, event = {}) {
+  requireHq(caller);
+  await requireDailyReportSchema();
+  const reportDate = validCalendarDate(event.reportDate);
+  const rows = await executeSql(
+    `WITH context AS (
+       SELECT (CLOCK_TIMESTAMP() AT TIME ZONE 'Asia/Shanghai')::DATE AS server_today
+     ), roster AS (
+       SELECT teacher.id AS teacher_id, teacher.teacher_code,
+              teacher.teacher_name, account.phone,
+              account.id AS staff_account_id
+         FROM public.teachers AS teacher
+         JOIN public.staff_accounts AS account ON account.id = teacher.staff_account_id
+        WHERE teacher.teacher_status = 'ACTIVE'
+          AND account.role_code = 'teacher'
+          AND account.account_status = 'ACTIVE'
+     )
+     SELECT context.server_today, roster.teacher_id, roster.teacher_code,
+            roster.teacher_name, roster.phone,
+            report.id AS report_id, report.report_date,
+            report.created_at, report.updated_at
+       FROM context
+       LEFT JOIN roster ON TRUE
+       LEFT JOIN public.staff_daily_reports AS report
+         ON report.staff_account_id = roster.staff_account_id
+        AND report.report_date = ${sqlText(reportDate)}::date
+      ORDER BY (report.id IS NULL) ASC, roster.teacher_name ASC, roster.teacher_id ASC`
+  );
+  const serverToday = String(rows?.[0]?.server_today || "").slice(0, 10);
+  if (serverToday && reportDate > serverToday) {
+    fail("未来日期尚未到达，不能追踪日报。", "DAILY_REPORT_FUTURE_DATE");
+  }
+  const teachers = (rows || []).filter((row) => row.teacher_id).map(hqDailyReportTeacher);
+  return {
+    ok: true,
+    reportDate,
+    serverToday,
+    completed: teachers.filter((teacher) => teacher.completed),
+    incomplete: teachers.filter((teacher) => !teacher.completed)
+  };
+}
+
+async function getHqDailyReportDetail(caller, event = {}) {
+  requireHq(caller);
+  await requireDailyReportSchema();
+  const reportId = numericId(event.reportId, "日报编号");
+  const rows = await executeSql(
+    `SELECT report.*, teacher.id AS teacher_id, teacher.teacher_code,
+            teacher.teacher_name, account.phone
+       FROM public.staff_daily_reports AS report
+       JOIN public.staff_accounts AS account ON account.id = report.staff_account_id
+      JOIN public.teachers AS teacher ON teacher.staff_account_id = account.id
+      WHERE report.id = ${reportId}::bigint
+        AND account.role_code = 'teacher'
+        AND account.account_status = 'ACTIVE'
+        AND teacher.teacher_status = 'ACTIVE'
+      LIMIT 1`
+  );
+  const row = rows?.[0];
+  if (!row) fail("未找到该老师日报。", "NOT_FOUND");
+  return {
+    ok: true,
+    teacher: hqDailyReportTeacher({
+      ...row,
+      report_id: row.id,
+      report_date: row.report_date
+    }),
+    report: dailyReportResponse(row)
+  };
+}
+
+let teacherAttendanceSchemaReady = null;
+
+async function requireTeacherAttendanceSchema() {
+  if (teacherAttendanceSchemaReady === true) return;
+  const rows = await executeSql(
+    `SELECT TO_REGCLASS('public.teacher_attendance_face_profiles') IS NOT NULL AS profile_table,
+            TO_REGCLASS('public.teacher_attendance_records') IS NOT NULL AS attendance_table,
+            TO_REGCLASS('public.idx_teacher_attendance_records_date_teacher') IS NOT NULL AS attendance_index`
+  );
+  const row = rows?.[0] || {};
+  if (!databaseBoolean(row.profile_table) || !databaseBoolean(row.attendance_table)
+      || !databaseBoolean(row.attendance_index)) {
+    fail("老师考勤数据库结构尚未启用，请先执行并验收迁移 075。", "ATTENDANCE_SCHEMA_MISSING");
+  }
+  teacherAttendanceSchemaReady = true;
+}
+
+function requireAttendanceTeacher(caller) {
+  if (caller.profile?.role !== "teacher" || !caller.profile?.teacherId || caller.profile?.teacherStatus !== "ACTIVE") {
+    fail("考勤打卡仅限在职老师本人使用。", "FORBIDDEN");
+  }
+}
+
+function attendanceResponse(row = {}) {
+  if (!row.attendance_id && !row.id) return null;
+  return {
+    id: String(row.attendance_id || row.id),
+    attendanceDate: String(row.attendance_date || "").slice(0, 10),
+    checkedInAt: row.checked_in_at || null,
+    latitude: Number(row.latitude),
+    longitude: Number(row.longitude),
+    accuracy: Number(row.accuracy_m),
+    faceScore: Number(row.face_score),
+    devicePlatform: String(row.device_platform || "UNKNOWN")
+  };
+}
+
+async function getOwnAttendanceMonth(caller, event = {}) {
+  requireAttendanceTeacher(caller);
+  await requireTeacherAttendanceSchema();
+  const staffId = numericId(caller.profile.staffId, "当前员工账号");
+  const month = validCalendarMonth(event.month);
+  const rows = await executeSql(
+    `WITH context AS (
+       SELECT (CLOCK_TIMESTAMP() AT TIME ZONE 'Asia/Shanghai')::date AS server_today,
+              EXISTS (SELECT 1 FROM public.teacher_attendance_face_profiles
+                       WHERE staff_account_id = ${staffId}::bigint) AS face_enrolled
+     )
+     SELECT context.server_today, context.face_enrolled,
+            attendance.id AS attendance_id, attendance.attendance_date,
+            attendance.checked_in_at, attendance.latitude, attendance.longitude,
+            attendance.accuracy_m, attendance.face_score, attendance.device_platform
+       FROM context
+       LEFT JOIN public.teacher_attendance_records AS attendance
+         ON attendance.staff_account_id = ${staffId}::bigint
+        AND attendance.attendance_date >= ${sqlText(`${month}-01`)}::date
+        AND attendance.attendance_date < (${sqlText(`${month}-01`)}::date + INTERVAL '1 month')
+      ORDER BY attendance.attendance_date ASC`
+  );
+  return {
+    ok: true,
+    month,
+    serverToday: String(rows?.[0]?.server_today || "").slice(0, 10),
+    faceEnrolled: databaseBoolean(rows?.[0]?.face_enrolled),
+    records: (rows || []).filter((row) => row.attendance_id).map(attendanceResponse)
+  };
+}
+
+async function getHqAttendanceTrackingDay(caller, event = {}) {
+  requireHq(caller);
+  await requireTeacherAttendanceSchema();
+  const attendanceDate = validCalendarDate(event.attendanceDate, "考勤日期");
+  const rows = await executeSql(
+    `WITH context AS (
+       SELECT (CLOCK_TIMESTAMP() AT TIME ZONE 'Asia/Shanghai')::date AS server_today
+     ), roster AS (
+       SELECT teacher.id AS teacher_id, teacher.teacher_code, teacher.teacher_name,
+              account.id AS staff_account_id, account.phone,
+              (profile.id IS NOT NULL) AS face_enrolled
+         FROM public.teachers AS teacher
+         JOIN public.staff_accounts AS account ON account.id = teacher.staff_account_id
+         LEFT JOIN public.teacher_attendance_face_profiles AS profile
+           ON profile.teacher_id = teacher.id AND profile.staff_account_id = account.id
+        WHERE teacher.teacher_status = 'ACTIVE'
+          AND account.role_code = 'teacher'
+          AND account.account_status = 'ACTIVE'
+     )
+     SELECT context.server_today, roster.*,
+            attendance.id AS attendance_id, attendance.attendance_date,
+            attendance.checked_in_at, attendance.latitude, attendance.longitude,
+            attendance.accuracy_m, attendance.face_score, attendance.device_platform
+       FROM context
+       LEFT JOIN roster ON TRUE
+       LEFT JOIN public.teacher_attendance_records AS attendance
+         ON attendance.staff_account_id = roster.staff_account_id
+        AND attendance.attendance_date = ${sqlText(attendanceDate)}::date
+      ORDER BY (attendance.id IS NULL) ASC, roster.teacher_name ASC, roster.teacher_id ASC`
+  );
+  const serverToday = String(rows?.[0]?.server_today || "").slice(0, 10);
+  if (serverToday && attendanceDate > serverToday) fail("未来日期尚未到达，不能追踪考勤。", "ATTENDANCE_FUTURE_DATE");
+  const teachers = (rows || []).filter((row) => row.teacher_id).map((row) => ({
+    teacherId: String(row.teacher_id), teacherCode: String(row.teacher_code || ""),
+    teacherName: String(row.teacher_name || ""), phone: String(row.phone || ""),
+    faceEnrolled: databaseBoolean(row.face_enrolled), completed: Boolean(row.attendance_id),
+    attendance: attendanceResponse(row)
+  }));
+  return { ok: true, attendanceDate, serverToday,
+    completed: teachers.filter((row) => row.completed),
+    incomplete: teachers.filter((row) => !row.completed) };
 }
 
 async function ensureBootstrapHq(caller) {
@@ -4439,6 +4818,27 @@ async function main(event = {}, context = {}) {
       fail("当前登录身份尚未绑定可用业务账号。", "UNASSIGNED_IDENTITY");
     }
     return { ok: true, version: FUNCTION_VERSION, uid: caller.uid, profile: caller.profile };
+  }
+  if (action === "getOwnDailyReportMonth") {
+    return await getOwnDailyReportMonth(caller, event);
+  }
+  if (action === "getOwnDailyReport") {
+    return await getOwnDailyReport(caller, event);
+  }
+  if (action === "saveOwnDailyReport") {
+    return await saveOwnDailyReport(caller, event);
+  }
+  if (action === "getHqDailyReportTrackingDay") {
+    return await getHqDailyReportTrackingDay(caller, event);
+  }
+  if (action === "getHqDailyReportDetail") {
+    return await getHqDailyReportDetail(caller, event);
+  }
+  if (action === "getOwnAttendanceMonth") {
+    return await getOwnAttendanceMonth(caller, event);
+  }
+  if (action === "getHqAttendanceTrackingDay") {
+    return await getHqAttendanceTrackingDay(caller, event);
   }
   if (action === "getHqDashboard") {
     requireHq(caller);

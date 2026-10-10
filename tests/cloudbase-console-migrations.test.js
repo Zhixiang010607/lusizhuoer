@@ -338,4 +338,19 @@ assert.match(bleReservationConsoleMigration, /pg_advisory_xact_lock/);
 assert.match(bleReservationConsoleMigration, /insufficient purchased units for BLE authorization/);
 assert.match(bleReservationConsoleMigration, /insufficient teacher experience quota for BLE authorization/);
 
+const dailyReportMigration = fs.readFileSync(
+  path.join(root, "database", "migrations", "073_staff_daily_reports.sql"),
+  "utf8"
+);
+const dailyReportConsoleMigration = fs.readFileSync(
+  path.join(consoleDir, "073-01-staff-daily-reports.sql"),
+  "utf8"
+);
+assert.equal(dailyReportConsoleMigration, dailyReportMigration,
+  "CloudBase migration 073 must exactly match the canonical teacher daily-report migration");
+assert.match(dailyReportConsoleMigration, /BEGIN;[\s\S]*COMMIT;\s*$/,
+  "CloudBase migration 073 must be a complete transaction");
+assert.match(dailyReportConsoleMigration, /restricted to active teacher accounts/);
+assert.match(dailyReportConsoleMigration, /AT TIME ZONE 'Asia\/Shanghai'/);
+
 console.log("cloudbase console migrations: PASS");

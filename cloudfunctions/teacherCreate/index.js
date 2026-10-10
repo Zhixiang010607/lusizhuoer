@@ -4,9 +4,12 @@ const crypto = require("node:crypto");
 const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 
-const FUNCTION_VERSION = "teacher-create-v6";
+const FUNCTION_VERSION = "teacher-create-v7";
+const FACE_MODEL_VERSION = "3.0";
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 let cloudApp = null;
 let managerClient = null;
+let iaiClientClass = null;
 
 function app() {
   if (!cloudApp) cloudApp = cloudbase.init({});
@@ -22,6 +25,139 @@ function envId() {
 function manager() {
   if (!managerClient) managerClient = CloudBaseManager.init({ envId: envId() });
   return managerClient;
+}
+
+function required(name) {
+  const value = String(process.env[name] || "").trim();
+  if (!value) fail(`缺少云函数环境变量 ${name}。`, "CONFIG_MISSING");
+  return value;
+}
+
+function serviceRoleKey() {
+  return required(process.env.CLOUDBASE_APIKEY ? "CLOUDBASE_APIKEY" : "CLOUDBASE_SERVICE_ROLE_KEY");
+}
+
+function numberSetting(name, fallback, minimum, maximum) {
+  const value = process.env[name];
+  if (value === undefined || value === "") return fallback;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < minimum || parsed > maximum) fail(`${name} 配置无效。`, "CONFIG_MISSING");
+  return parsed;
+}
+
+function booleanSetting(name, fallback = false) {
+  const value = process.env[name];
+  if (value === undefined || value === "") return fallback;
+  return ["1", "true", "yes", "on"].includes(String(value).trim().toLowerCase());
+}
+
+function faceSettings() {
+  return {
+    qualityThreshold: numberSetting("FACE_QUALITY_THRESHOLD", 70, 0, 100),
+    livenessEnabled: booleanSetting("FACE_LIVENESS_ENABLED", false),
+    livenessThreshold: numberSetting("FACE_LIVENESS_THRESHOLD", 40, 0, 100),
+    maxYaw: numberSetting("FACE_MAX_YAW", 20, 0, 90),
+    maxPitch: numberSetting("FACE_MAX_PITCH", 20, 0, 90),
+    maxRoll: numberSetting("FACE_MAX_ROLL", 15, 0, 90)
+  };
+}
+
+function faceClient() {
+  if (!iaiClientClass) iaiClientClass = require("tencentcloud-sdk-nodejs").iai.v20200303.Client;
+  return new iaiClientClass({
+    credential: { secretId: required("FACE_SECRET_ID"), secretKey: required("FACE_SECRET_KEY") },
+    region: "ap-guangzhou",
+    profile: { httpProfile: { endpoint: "iai.tencentcloudapi.com" } }
+  });
+}
+
+function cleanImage(value) {
+  if (typeof value !== "string" || !value.trim()) fail("必须现场拍摄老师照片。", "PHOTO_REQUIRED");
+  const base64 = value.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "").trim();
+  if (!/^[A-Za-z0-9+/=]+$/.test(base64)) fail("老师照片格式无效。", "PHOTO_FORMAT_INVALID");
+  const buffer = Buffer.from(base64, "base64");
+  if (!buffer.length || buffer.length > MAX_IMAGE_BYTES) fail("老师照片必须在 1 字节至 4MB 之间。", "PHOTO_SIZE_INVALID");
+  return { base64, buffer };
+}
+
+function rounded(value) { return Math.round((Number(value) || 0) * 100) / 100; }
+
+function storageUploadResponseMismatch(error) {
+  const detail = String(error?.message || "");
+  return detail.includes("上传成功但响应格式异常")
+    && detail.includes("Id")
+    && detail.includes("Key");
+}
+
+async function inspectFaceImage(api, base64) {
+  let result;
+  try {
+    result = await api.DetectFace({ Image: base64, MaxFaceNum: 2, MinFaceSize: 34, NeedFaceAttributes: 1,
+      NeedQualityDetection: 1, FaceModelVersion: FACE_MODEL_VERSION, NeedRotateDetection: 0 });
+  } catch (error) {
+    if (String(error?.code || "").includes("NoFaceInPhoto")) fail("没有检测到清晰人脸，请让老师正对镜头后重新拍照。", "FACE_NOT_FOUND");
+    throw error;
+  }
+  const faces = Array.isArray(result?.FaceInfos) ? result.FaceInfos : [];
+  if (!faces.length) fail("没有检测到清晰人脸，请让老师正对镜头后重新拍照。", "FACE_NOT_FOUND");
+  if (faces.length !== 1) fail("照片中只能有一位老师，请移开其他人员后重新拍照。", "MULTIPLE_FACES");
+  const face = faces[0] || {};
+  if (Number(face.Width || 0) < 100 || Number(face.Height || 0) < 100) fail("人脸距离镜头太远，请靠近后重新拍照。", "FACE_TOO_SMALL");
+  const quality = face.FaceQualityInfo || {};
+  const attributes = face.FaceAttributesInfo || {};
+  const settings = faceSettings();
+  const score = Number(quality.Score || 0);
+  if (score < settings.qualityThreshold) fail(`照片质量不足（${rounded(score)} 分），请改善光线后重拍。`, "FACE_QUALITY_LOW");
+  if (attributes.Mask === true) fail("录入照片不能佩戴口罩。", "FACE_MASKED");
+  if (attributes.EyeOpen === false) fail("检测到闭眼，请睁眼后重新拍照。", "EYES_CLOSED");
+  const yaw = Number(attributes.Yaw || 0), pitch = Number(attributes.Pitch || 0), roll = Number(attributes.Roll || 0);
+  if (Math.abs(yaw) > settings.maxYaw || Math.abs(pitch) > settings.maxPitch || Math.abs(roll) > settings.maxRoll) {
+    fail("脸部角度过大，请正对镜头后重新拍照。", "FACE_POSE_INVALID");
+  }
+  return { qualityScore: rounded(score), qualityThreshold: settings.qualityThreshold, requestId: result?.RequestId || "" };
+}
+
+async function inspectLiveness(api, base64) {
+  const settings = faceSettings();
+  if (!settings.livenessEnabled) return { checked: false, score: null, threshold: settings.livenessThreshold };
+  const result = await api.DetectLiveFaceAccurate({ Image: base64, FaceModelVersion: FACE_MODEL_VERSION });
+  const score = Number(result?.Score || 0);
+  if (score < settings.livenessThreshold) fail(`活体检测未通过（${rounded(score)} 分），请现场重拍。`, "LIVENESS_FAILED");
+  return { checked: true, score: rounded(score), threshold: settings.livenessThreshold, requestId: result?.RequestId || "" };
+}
+
+function attendancePersonId(clientRequestId) {
+  return `AT-${crypto.createHash("sha256").update(clientRequestId).digest("hex").slice(0, 28).toUpperCase()}`;
+}
+
+async function uploadAttendancePhoto(personId, buffer) {
+  const bucketId = String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim();
+  const objectName = `attendance-teachers/${personId}/${Date.now()}.jpg`;
+  try {
+    await manager().storage.uploadObject({ bucketId, objectName, body: buffer, contentType: "image/jpeg",
+      contentLength: buffer.length, cacheControl: "private, no-store", upsert: false,
+      accessToken: serviceRoleKey(), envId: envId() });
+  } catch (error) {
+    // Some manager-node releases report a response-shape mismatch after the
+    // private object has already been accepted. Only that exact case is safe.
+    if (!storageUploadResponseMismatch(error)) throw error;
+  }
+  return { bucketId, objectName, reference: `pg://${bucketId}/${objectName}` };
+}
+
+async function deleteAttendancePhoto(photo) {
+  if (!photo?.bucketId || !photo?.objectName) return;
+  await manager().storage.deleteObject({ bucketId: photo.bucketId, objectName: photo.objectName,
+    accessToken: serviceRoleKey(), envId: envId() });
+}
+
+async function deleteFacePerson(api, groupId, personId) {
+  if (!personId) return;
+  try { await api.DeletePerson({ GroupId: groupId, PersonId: personId }); }
+  catch (error) {
+    const detail = `${error?.code || ""} ${error?.message || ""}`;
+    if (!/not.?exist|not.?found/i.test(detail)) throw error;
+  }
 }
 
 function fail(message, code = "BAD_REQUEST") {
@@ -171,22 +307,30 @@ async function createActiveAuthentication({ phone, name, password, clientRequest
   return { uid };
 }
 
-async function insertTeacherRecord({ uid, phone, name }) {
+async function insertTeacherRecord({ uid, phone, name, face, hqStaffId }) {
   await executeSql(
     `WITH account AS (
        INSERT INTO public.staff_accounts
          (auth_uid, phone, staff_name, role_code, account_status)
        VALUES (${sqlText(uid)}, ${sqlText(phone)}, ${sqlText(name)}, 'teacher', 'ACTIVE')
        RETURNING id
-     )
+     ), teacher AS (
      INSERT INTO public.teachers
        (teacher_code, teacher_name, staff_account_id, teacher_status)
      SELECT 'TCHF' || account.id::text, ${sqlText(name)}, account.id, 'ACTIVE'
        FROM account
-     ON CONFLICT (staff_account_id) DO UPDATE
-       SET teacher_name = EXCLUDED.teacher_name,
-           teacher_status = 'ACTIVE',
-           updated_at = NOW()`
+     RETURNING id, staff_account_id
+     )
+     INSERT INTO public.teacher_attendance_face_profiles
+       (teacher_id, staff_account_id, face_person_id, face_id,
+        profile_photo_file_id, enrolled_by_account_id, consent_at,
+        quality_score, liveness_score, face_request_id)
+     SELECT teacher.id, teacher.staff_account_id, ${sqlText(face.personId)}, ${sqlText(face.faceId)},
+            ${sqlText(face.photo.reference)}, ${Number(hqStaffId)}::bigint, CLOCK_TIMESTAMP(),
+            ${Number(face.quality.qualityScore)}::numeric,
+            ${face.liveness.score === null ? "NULL" : `${Number(face.liveness.score)}::numeric`},
+            ${sqlText(face.requestId)}
+       FROM teacher`
   );
   const row = await readBusinessByPhone(phone);
   if (!row?.staff_id || !row?.teacher_id
@@ -196,13 +340,28 @@ async function insertTeacherRecord({ uid, phone, name }) {
       || String(row.teacher_status || "") !== "ACTIVE") {
     fail("老师资料写入后未读取到完整的活跃账号和老师主档。", "DATABASE_ERROR");
   }
+  const profiles = await executeSql(
+    `SELECT face_person_id, profile_photo_file_id FROM public.teacher_attendance_face_profiles
+      WHERE teacher_id = ${Number(row.teacher_id)}::bigint
+        AND staff_account_id = ${Number(row.staff_id)}::bigint LIMIT 1`
+  );
+  if (String(profiles?.[0]?.face_person_id || "") !== face.personId
+      || String(profiles?.[0]?.profile_photo_file_id || "") !== face.photo.reference) {
+    fail("老师资料写入后未读取到完整的考勤人脸档案。", "DATABASE_ERROR");
+  }
+  row.face_person_id = profiles[0].face_person_id;
   return row;
 }
 
 async function rollbackDatabase({ shell, uid, phone }) {
   if (!shell?.staff_id) return;
   await executeSql(
-    `WITH deleted_teacher AS (
+    `WITH deleted_profile AS (
+       DELETE FROM public.teacher_attendance_face_profiles
+        WHERE teacher_id = ${Number(shell.teacher_id)}::bigint
+          AND staff_account_id = ${Number(shell.staff_id)}::bigint
+       RETURNING teacher_id
+     ), deleted_teacher AS (
        DELETE FROM public.teachers
         WHERE id = ${Number(shell.teacher_id)}::bigint
           AND staff_account_id = ${Number(shell.staff_id)}::bigint
@@ -220,6 +379,7 @@ async function rollbackDatabase({ shell, uid, phone }) {
   if (remaining && String(remaining.auth_uid || "") === uid) {
     fail("本次新建的老师资料未清理完成。", "DATABASE_CLEANUP_INCOMPLETE");
   }
+  return true;
 }
 
 async function deleteCreatedAuth(uid) {
@@ -242,7 +402,12 @@ async function cleanupFailure(context, originalError) {
     if (context.shell && String(context.shell.auth_uid || "") !== context.uid) context.shell = null;
   }
   if (context.shell && context.databaseAttempted) {
-    await attempt("DATABASE_ROLLBACK", () => rollbackDatabase(context));
+    await attempt("DATABASE_ROLLBACK", async () => {
+      await rollbackDatabase(context);
+      context.databaseClean = true;
+    });
+  } else {
+    context.databaseClean = true;
   }
   if (context.authAttempted && context.phone) {
     const createdAuth = await exactAuthByPhone(context.phone).catch(() => null);
@@ -268,21 +433,28 @@ function successResponse({ uid, shell }) {
     uid,
     teacherId: String(shell.teacher_id),
     teacherCode: String(shell.teacher_code || ""),
+    attendanceFaceEnrolled: Boolean(shell.face_person_id),
     proof: {
       complete: true,
       teacherStatus: "ACTIVE",
       accountStatus: "ACTIVE",
-      authStatus: "ACTIVE"
+      authStatus: "ACTIVE",
+      attendanceFaceStatus: "ENROLLED"
     }
   };
 }
 
 async function createTeacher(event) {
-  await requireHq();
+  const hq = await requireHq();
   const name = teacherName(event.staffName || event.teacherName);
   const phone = phoneNumber(event.phone);
   const password = passwordValue(event.initialPassword);
   const clientRequestId = requestKey(event.clientRequestId);
+  if (event.consent !== true) fail("必须取得老师明确授权后才能采集考勤面容。", "CONSENT_REQUIRED");
+  const { base64, buffer } = cleanImage(event.imageBase64);
+  const api = faceClient();
+  const groupId = required("FACE_GROUP_ID");
+  const personId = attendancePersonId(clientRequestId);
   const context = {
     phone,
     uid: "",
@@ -290,7 +462,12 @@ async function createTeacher(event) {
     authAttempted: false,
     authCreated: false,
     databaseAttempted: false,
-    shell: null
+    shell: null,
+    databaseClean: false,
+    faceApi: api,
+    faceGroupId: groupId,
+    facePersonId: "",
+    storedPhoto: null
   };
   try {
     const [existingBusiness, existingAuth] = await Promise.all([
@@ -300,14 +477,47 @@ async function createTeacher(event) {
     if (existingBusiness || existingAuth) {
       fail("该手机号已存在人员或登录账号，不能重复创建老师。", "PHONE_ALREADY_PROVISIONED");
     }
+    const quality = await inspectFaceImage(api, base64);
+    const liveness = await inspectLiveness(api, base64);
+    const faceResult = await api.CreatePerson({ GroupId: groupId, PersonId: personId, PersonName: name,
+      Image: base64, UniquePersonControl: 0, QualityControl: 3, NeedRotateDetection: 0 });
+    if (!faceResult?.FaceId) fail("人脸服务没有返回有效 FaceId，老师未创建。", "FACE_ENROLLMENT_INCOMPLETE");
+    context.facePersonId = personId;
+    context.storedPhoto = await uploadAttendancePhoto(personId, buffer);
     const authentication = await createActiveAuthentication({
       phone, name, password, clientRequestId, lifecycle: context
     });
     context.databaseAttempted = true;
-    context.shell = await insertTeacherRecord({ uid: authentication.uid, phone, name });
+    context.shell = await insertTeacherRecord({
+      uid: authentication.uid, phone, name, hqStaffId: hq.staffId,
+      face: { personId, faceId: faceResult.FaceId, photo: context.storedPhoto, quality, liveness,
+        requestId: faceResult.RequestId || quality.requestId || "" }
+    });
     return successResponse({ uid: authentication.uid, shell: context.shell });
   } catch (error) {
-    await cleanupFailure(context, error);
+    let cleanupError = null;
+    try { await cleanupFailure(context, error); }
+    catch (failure) { cleanupError = failure; }
+    const externalFailures = [];
+    if (context.databaseClean) {
+      await deleteAttendancePhoto(context.storedPhoto).catch((failure) => {
+        externalFailures.push({ stage: "PHOTO_DELETE", code: failure?.code || "CLEANUP_FAILED" });
+        console.error("attendance photo cleanup failed", failure);
+      });
+      await deleteFacePerson(context.faceApi, context.faceGroupId, context.facePersonId)
+        .catch((failure) => {
+          externalFailures.push({ stage: "FACE_DELETE", code: failure?.code || "CLEANUP_FAILED" });
+          console.error("attendance face cleanup failed", failure);
+        });
+    }
+    if (externalFailures.length) {
+      const incomplete = cleanupError || new Error(`${error.message} 失败资料尚未全部清理，请查看云函数日志。`);
+      incomplete.code = "TEACHER_CREATE_CLEANUP_INCOMPLETE";
+      incomplete.cause ||= error;
+      incomplete.cleanup = [...(incomplete.cleanup || []), ...externalFailures];
+      throw incomplete;
+    }
+    if (cleanupError) throw cleanupError;
     throw error;
   }
 }
@@ -319,7 +529,9 @@ function health() {
     version: FUNCTION_VERSION,
     actions: ["health", "createTeacher"],
     configured: {
-      cloudbaseEnv: hasEnv("CLOUDBASE_ENV_ID") || hasEnv("TCB_ENV")
+      cloudbaseEnv: hasEnv("CLOUDBASE_ENV_ID") || hasEnv("TCB_ENV"),
+      face: hasEnv("FACE_SECRET_ID") && hasEnv("FACE_SECRET_KEY") && hasEnv("FACE_GROUP_ID"),
+      privatePhotoStorage: hasEnv("CLOUDBASE_APIKEY") || hasEnv("CLOUDBASE_SERVICE_ROLE_KEY")
     }
   };
 }

@@ -1,3 +1,4 @@
 {
-  "navigationBarTitleText": "露思卓儿"
+  "navigationBarTitleText": "露思卓儿",
+  "usingComponents": { "camera-capture": "/components/camera-capture/index" }
 }

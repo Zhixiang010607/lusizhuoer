@@ -12,6 +12,10 @@
     { "root": "pages/store-detail", "pages": ["index"] },
     { "root": "pages/teacher-detail", "pages": ["index"] },
     { "root": "pages/teacher-customers", "pages": ["index"] },
+    { "root": "pages/daily-report", "pages": ["index"] },
+    { "root": "pages/daily-report-tracking", "pages": ["index"] },
+    { "root": "pages/attendance", "pages": ["index"] },
+    { "root": "pages/attendance-tracking", "pages": ["index"] },
     { "root": "pages/product-management", "pages": ["index"] },
     { "root": "pages/product-create", "pages": ["index"] },
     { "root": "pages/product-detail", "pages": ["index"] },
@@ -41,6 +45,10 @@
     "backgroundTextStyle": "dark"
   },
   "style": "v2",
+  "permission": {
+    "scope.userLocation": { "desc": "用于老师本人考勤打卡时记录现场位置" }
+  },
+  "requiredPrivateInfos": ["getLocation"],
   "sitemapLocation": "sitemap.json",
   "lazyCodeLoading": "requiredComponents"
 }

@@ -2,6 +2,10 @@
 
 当前版本：`v12`（共享照片服务实现 `v11`）
 
+当前联动部署矩阵：`verificationPhoto v12`、`faceRecognition v123`、
+`staffAccount v84`、`teacherCreate v7`、`customerRating v8`。内部共享实现号
+`v11` 不等于 `faceRecognition` 的公开运行时版本。
+
 该函数专门处理核销单的五个照片位：列表与缩略图、按需读取高清原图、导出原图，以及三个补充照片位的开始、提交、状态恢复和取消。它不执行质量检测、活体检测、客户建档或人脸比对，也不暴露这些动作。老师本人创建客户，或作为来源可信的有效工单 `teacher_id` 与客户建立业务关系后，可以只读查看该客户的其他核销照片；来源必须是门店提交或提交老师账号与 `teacher_id` 为同一人，总部、退役角色和老师错绑旧字段本身不授予照片权。上传、替换和取消仍只允许真实原提交账号 `submitted_by_account_id`。
 
 补充照片复用迁移 039 的单任务锁、提交人权限和 24 小时截止规则。v12 继续采用签名直传，并把首屏最多五张缩略图的签名从三轮收敛为一轮有界并发：服务端先建立数据库任务并锁定随机私有对象，再只向有权提交账号返回该对象的一次性 HTTPS PUT 地址；网页或小程序把本地 JPEG 原始字节直接上传到存储，随后只把 `recordId` 和 `requestId` 提交给函数。函数从同一对象读取真实内容，重新校验桶、路径、字节数、JPEG 文件头、尺寸和 SHA-256 后原子绑定工单。CloudBase Manager 5.6.4 的相对签名路由只按当前环境 ID 补全到可信 HTTPS 网关，并核对精确桶和对象路径。旧的 Base64／`callFunction` 照片字节中转已退役，独立服务收到 `imageBase64` 会返回 `PHOTO_DIRECT_UPLOAD_REQUIRED`。
@@ -145,10 +149,10 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 
 ## 部署顺序与健康检查
 
-1. 确认迁移 039 表和真实桶均存在，并已执行完整的 `046_teacher_face_and_experience_quotas.sql`（CloudBase SQL 编辑器为 `046-01` 至 `046-08`）。
-2. 部署当前 `faceRecognition-v122.zip` 与 `staffAccount-v81.zip`，分别调用 `health` 确认 `v122`、`v81`。在仅限总部使用、已加载当前 `cloudbase-phone-auth.js` 的临时维护页面中，以已登录总部身份执行 `await CloudBasePhoneAuth.retireOperationAccounts()`；必须等待成功封锁旧运营账号的 CloudBase 凭据。该维护页不是最终静态发布。
-3. 只有该总部维护动作成功后，才在 CloudBase SQL 编辑器依次执行 `047-01-retire-operation-accounts.sql`、`047-02-hq-reviewer-guard.sql`。它保留历史业务和审核外键，但永久封存旧运营身份并将审核收紧为总部独占。
-4. 依次执行并验收 049、050；部署不再读写旧 Saga 的 `faceRecognition v122`、`staffAccount v81` 和 `teacherCreate v6` 后执行 053 并确认 7 行全部 `RETIRED`。继续依次执行并验收 054—072；删除旧 `reconcile-teacher-face-operations` Timer，保留老师额度月初 Timer。
+1. 确认迁移 039、046—072 已完成，旧运营账号维护动作及迁移 047、053 已验收；不得重新启用旧运营身份或旧老师人脸 Saga。
+2. 依次执行并验收迁移 073—076。旧 `reconcile-teacher-face-operations` Timer 必须保持删除，只保留老师额度月初 Timer、核销草稿清理 Timer 和补充照片上传清理 Timer。
+3. 当前联动版本为 `faceRecognition-v123.zip`、`staffAccount-v84.zip`、`teacherCreate-v7.zip` 与 `verificationPhoto-v12.zip`；分别调用 `health` 确认 `v123`、`v84`、`teacher-create-v7`、`v12`。
+4. 当前联动函数不再读写旧 Saga；考勤人脸只供老师打卡 1:1 验证，核销照片仍由本函数独立处理。
 5. 新建或更新函数 `verificationPhoto`，上传 `verificationPhoto-v12.zip`，配置上述环境变量、512 MB 内存和 60 秒超时。
 6. 对 `verificationPhoto` 调用 `{ "action": "health" }`，确认 `version: "v12"`、`sharedVersion: "v11"`、`uploadMode: "DIRECT"` 与全部就绪字段，再保存本节的 triggers-only 配置。
 7. 评价同轮还必须执行并验收 068 与 070、配置至少 32 字节的 `CUSTOMER_RATING_SIGNING_KEY` 及实际 `rating.html` 地址 `CUSTOMER_RATING_BASE_URL`、上传 `customerRating-v8.zip` 并确认 `health` 为 `v8` 且 `configured=true`。`verificationPhoto v12` 不读取或写入评价。

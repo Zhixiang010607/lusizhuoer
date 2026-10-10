@@ -9,6 +9,9 @@
 .rule-panel > view { display: flex; flex-direction: column; gap: 5rpx; padding: 17rpx; background: #fff; border: 1rpx solid #eadcc6; border-radius: 14rpx; }
 .rule-panel > view text:first-child { font-size: 22rpx; font-weight: 850; }
 .rule-panel > view text:last-child { color: #7c7062; font-size: 18rpx; line-height: 1.45; }
+.face-panel { overflow: hidden; }
+.consent { display: flex; align-items: flex-start; gap: 13rpx; margin-top: 22rpx; color: #675b4b; font-size: 23rpx; line-height: 1.55; }
+.consent checkbox { flex: none; transform: scale(.86); transform-origin: left top; }
 
 @media (min-width: 700px) {
   .page { width: calc(100% - 48px); max-width: 1120px; padding: 20px 0 36px; }
@@ -31,6 +34,8 @@
   .rule-panel > view { gap: 4px; padding: 14px; border-width: 1px; border-radius: 12px; }
   .rule-panel > view text:first-child { font-size: 15px; }
   .rule-panel > view text:last-child { font-size: 13px; }
+  .face-panel { max-width: 760px; margin-left: auto; margin-right: auto; }
+  .consent { gap: 10px; margin-top: 16px; font-size: 14px; }
   .actions { max-width: 560px; gap: 12px; margin: 0 auto; }
   .actions button { min-height: 48px; border-radius: 12px; font-size: 15px; }
 }

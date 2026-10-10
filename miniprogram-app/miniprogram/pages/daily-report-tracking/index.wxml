@@ -1,0 +1,19 @@
+<view class="page tracking-page">
+  <view class="page-heading"><view><text class="title">日报追踪</text><text class="subtitle">总部只读查看在职老师日报完成情况</text></view><button class="back" bindtap="back">返回工作台</button></view>
+  <view wx:if="{{!authorized}}" class="notice-card">正在确认总部账号…</view>
+  <view wx:else class="tracking-layout">
+    <view class="calendar-card date-query-card"><date-selector value="{{pendingDate}}" end="{{serverToday}}" disabled="{{loading}}" bindchange="chooseDate"></date-selector><button class="confirm-button" bindtap="confirmDate" disabled="{{loading}}">确认</button></view>
+
+    <view class="results">
+      <view class="result-summary"><view><text class="section-title">{{selectedDate}}</text><text class="section-note">在职老师日报</text></view><view class="summary-counts"><text>已填写 {{completed.length}}</text><text>未填写 {{incomplete.length}}</text></view></view>
+      <view wx:if="{{loading}}" class="notice-card">正在读取日报完成情况…</view>
+      <view wx:else class="result-columns">
+        <view class="list-card completed-list"><view class="list-heading"><text>已填写</text><text>{{completed.length}} 人</text></view><view wx:if="{{!completed.length}}" class="empty">所选日期暂无老师填写日报</view><view wx:for="{{completed}}" wx:key="teacherId" class="teacher-card"><view class="teacher-row"><text>老师姓名</text><text class="link" data-id="{{item.teacherId}}" bindtap="openTeacher">{{item.teacherName}}</text></view><view class="teacher-row"><text>老师电话</text><text>{{item.phone}}</text></view><view class="teacher-row"><text>日报内容</text><text class="link" data-id="{{item.reportId}}" bindtap="openReport">查看日报</text></view><view class="teacher-row"><text>是否完成</text><text class="status yes">是</text></view></view></view>
+        <view class="list-card incomplete-list"><view class="list-heading"><text>未填写</text><text>{{incomplete.length}} 人</text></view><view wx:if="{{!incomplete.length}}" class="empty">全部在职老师均已填写</view><view wx:for="{{incomplete}}" wx:key="teacherId" class="teacher-card"><view class="teacher-row"><text>老师姓名</text><text class="link" data-id="{{item.teacherId}}" bindtap="openTeacher">{{item.teacherName}}</text></view><view class="teacher-row"><text>老师电话</text><text>{{item.phone}}</text></view><view class="teacher-row"><text>日报内容</text><text>—</text></view><view class="teacher-row"><text>是否完成</text><text class="status no">否</text></view></view></view>
+      </view>
+      <view wx:if="{{message && !loading}}" class="form-message {{error ? 'error' : ''}}">{{message}}</view>
+    </view>
+  </view>
+</view>
+
+<view wx:if="{{detailOpen}}" class="modal-backdrop" catchtap="closeDetail"><view class="detail-dialog" catchtap="noop"><view class="detail-heading"><view><text class="section-title">{{detailTeacher.teacherName}}的日报</text><text class="section-note">{{selectedDate}} · {{detailTeacher.phone}}</text></view><button bindtap="closeDetail">关闭</button></view><view wx:for="{{detailSections}}" wx:key="label" class="detail-section"><text>{{item.label}}</text><text>{{item.value}}</text></view></view></view>

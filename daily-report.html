@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>老师工作日报</title>
+  <link rel="stylesheet" href="styles.css?v=0.15.44">
+  <link rel="stylesheet" href="daily-report.css?v=0.2.0">
+</head>
+<body data-daily-report>
+  <aside class="side-project-bar" aria-label="工作区导航">
+    <div class="side-brand"><span>日</span><div><strong>工作日报</strong><small>老师本人记录</small></div></div>
+    <nav class="side-nav"></nav>
+    <div class="side-footer"></div>
+  </aside>
+  <header class="topbar">
+    <div><p class="eyebrow">DAILY REPORT</p><h1>工作日报</h1><p class="subtitle">选择日期查看本人日报；仅上海时间当天可以填写和修改。</p></div>
+    <div class="status"><span></span>仅本人数据</div>
+  </header>
+  <main class="daily-report-main">
+    <section class="panel daily-calendar-panel" aria-labelledby="dailyCalendarTitle">
+      <div class="panel-heading daily-calendar-heading">
+        <div><h2 id="dailyCalendarTitle">选择日期</h2><p>有圆点的日期表示已提交日报；未来日期不可选择。</p></div>
+        <button id="dailyReportToday" class="secondary-button" type="button">回到今天</button>
+      </div>
+      <div class="daily-calendar-toolbar">
+        <button id="dailyReportPreviousMonth" type="button" aria-label="上个月">‹</button>
+        <label><span>年份</span><select id="dailyReportYear" aria-label="选择年份"></select></label>
+        <label><span>月份</span><select id="dailyReportMonth" aria-label="选择月份"></select></label>
+        <button id="dailyReportNextMonth" type="button" aria-label="下个月">›</button>
+      </div>
+      <div class="daily-weekdays" aria-hidden="true"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
+      <div id="dailyReportCalendar" class="daily-calendar-grid" role="grid" aria-label="日报日期"></div>
+      <p id="dailyCalendarMessage" class="form-message" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="panel daily-editor-panel" aria-labelledby="dailyEditorTitle">
+      <div class="panel-heading">
+        <div><h2 id="dailyEditorTitle">日报内容</h2><p id="dailyReportDateLabel">正在读取服务器日期…</p></div>
+        <span id="dailyReportState" class="badge">读取中</span>
+      </div>
+      <form id="dailyReportForm" novalidate>
+        <label class="daily-report-field"><span>今日完成事项 <b>必填</b></span><textarea id="dailyCompletedWork" maxlength="200" rows="6" placeholder="写下今天已经完成的工作" required></textarea><small><output id="dailyCompletedWorkCount">0</output>/200</small></label>
+        <label class="daily-report-field"><span>客户或项目进展</span><textarea id="dailyCustomerProjectProgress" maxlength="200" rows="4" placeholder="记录客户沟通、项目推进或重要结果"></textarea><small><output id="dailyCustomerProjectProgressCount">0</output>/200</small></label>
+        <label class="daily-report-field"><span>遇到的问题</span><textarea id="dailyProblemsAndSupport" maxlength="200" rows="4" placeholder="记录问题、风险或需要的协助"></textarea><small><output id="dailyProblemsAndSupportCount">0</output>/200</small></label>
+        <label class="daily-report-field"><span>明日计划</span><textarea id="dailyTomorrowPlan" maxlength="200" rows="4" placeholder="写下下一步计划"></textarea><small><output id="dailyTomorrowPlanCount">0</output>/200</small></label>
+        <div class="daily-report-actions"><p id="dailyReportMessage" class="form-message" role="status" aria-live="polite"></p><button id="dailyReportEdit" type="button" hidden>编辑</button><button id="dailyReportSave" type="submit">确认提交</button></div>
+      </form>
+    </section>
+  </main>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
+  <script src="cloudbase-auth-config.js"></script>
+  <script src="auth-ui.js?v=0.19.9"></script>
+  <script src="daily-report.js?v=0.2.0"></script>
+</body>
+</html>

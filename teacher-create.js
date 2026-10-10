@@ -6,6 +6,8 @@
   let submitting = false;
   let creationCompleted = false;
   let outcomeUncertain = false;
+  let capturedFace = "";
+  let cameraStream = null;
 
   function setMessage(message = "") {
     $("personCreateMessage").textContent = message;
@@ -52,8 +54,9 @@
   }
 
   function setFormLocked(locked) {
-    ["personCreateName", "personPhone", "personInitialPassword"]
+    ["personCreateName", "personPhone", "personInitialPassword", "teacherFaceConsent"]
       .forEach((id) => { $(id).disabled = locked === true; });
+    ["openTeacherFaceCamera", "captureTeacherFace", "retakeTeacherFace"].forEach((id) => { if ($(id)) $(id).disabled = locked === true; });
   }
 
   function showCreateProgress(message, complete = false) {
@@ -66,7 +69,8 @@
     const ready = !submitting && !creationCompleted && !outcomeUncertain
       && Boolean($("personCreateName").value.trim())
       && Boolean($("personPhone").value.trim())
-      && passwordIsValid($("personInitialPassword").value);
+      && passwordIsValid($("personInitialPassword").value)
+      && Boolean(capturedFace) && $("teacherFaceConsent").checked;
     const submit = $("createTeacherSubmit");
     submit.disabled = !ready;
     submit.setAttribute("aria-disabled", String(!ready));
@@ -78,13 +82,13 @@
     const staffName = $("personCreateName").value.trim();
     const phone = $("personPhone").value.trim();
     const initialPassword = $("personInitialPassword").value;
-    if (!staffName || !phone || !passwordIsValid(initialPassword)) {
-      setMessage("请完整填写姓名、有效手机号和符合规则的初始密码。");
+    if (!staffName || !phone || !passwordIsValid(initialPassword) || !capturedFace || !$("teacherFaceConsent").checked) {
+      setMessage("请完整填写账号资料、现场拍照并取得老师明确授权。");
       syncSubmit();
       return;
     }
     if (typeof window.CloudBasePhoneAuth?.createTeacher !== "function") {
-      setMessage("老师创建服务尚未加载，请部署最新前端和 teacherCreate v6 后刷新。");
+      setMessage("老师创建服务尚未加载，请部署最新前端和 teacherCreate v7 后刷新。");
       return;
     }
 
@@ -92,14 +96,16 @@
     submitting = true;
     setFormLocked(true);
     syncSubmit();
-    showCreateProgress("正在创建登录账号和老师主档，请勿重复提交…");
-    setMessage("老师创建不上传照片；正在等待服务端确认账号和主档均已激活。");
+    showCreateProgress("正在检测照片并创建账号、老师主档和考勤人脸，请勿重复提交…");
+    setMessage("正在等待服务端确认三个部分均已完整创建。");
     try {
       const result = await window.CloudBasePhoneAuth.createTeacher({
         staffName,
         phone,
         initialPassword,
-        clientRequestId: teacherCreateRequestId
+        clientRequestId: teacherCreateRequestId,
+        consent: true,
+        imageBase64: capturedFace
       });
       const completed = completedTeacherCreation(result);
       if (!completed) {
@@ -107,9 +113,10 @@
         error.code = "TEACHER_CREATE_INCOMPLETE";
         throw error;
       }
+      if (result.attendanceFaceEnrolled !== true || result.proof?.attendanceFaceStatus !== "ENROLLED") throw new Error("服务端未确认考勤人脸档案已录入。");
       creationCompleted = true;
       $("generatedPersonCode").textContent = completed.teacherCode || `老师 #${completed.teacherId}`;
-      showCreateProgress("老师账号和主档均已创建并激活。", true);
+      showCreateProgress("老师账号、主档和考勤人脸均已创建并激活。", true);
       setMessage("创建成功，正在返回老师管理。");
       window.setTimeout(() => window.location.assign("teacher-management.html"), 900);
     } catch (error) {
@@ -132,12 +139,32 @@
     }
   }
 
-  ["personCreateName", "personPhone", "personInitialPassword"].forEach((id) => {
+  ["personCreateName", "personPhone", "personInitialPassword", "teacherFaceConsent"].forEach((id) => {
     $(id).addEventListener("input", () => {
       if (!submitting && !creationCompleted && !outcomeUncertain) teacherCreateRequestId = "";
       syncSubmit();
     });
   });
+  function stopCamera() { if (cameraStream) cameraStream.getTracks().forEach((track) => track.stop()); cameraStream = null; $("teacherFaceCamera").srcObject = null; }
+  $("openTeacherFaceCamera").addEventListener("click", async () => {
+    try {
+      stopCamera(); capturedFace = ""; syncSubmit();
+      cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 960 }, height: { ideal: 1280 } }, audio: false });
+      const video = $("teacherFaceCamera"); video.srcObject = cameraStream; video.hidden = false; $("teacherFacePreview").hidden = true; $("teacherFacePlaceholder").hidden = true; await video.play();
+      $("captureTeacherFace").disabled = false; $("retakeTeacherFace").hidden = true; $("teacherFaceStatus").textContent = "摄像头已打开，请老师正对镜头";
+    } catch (error) { stopCamera(); setMessage(error?.message || "无法打开摄像头"); }
+  });
+  $("captureTeacherFace").addEventListener("click", () => {
+    const video = $("teacherFaceCamera"), canvas = $("teacherFaceCanvas");
+    if (!video.videoWidth || !video.videoHeight) return setMessage("摄像头画面尚未就绪");
+    const ratio = 3 / 4; let sw = video.videoWidth, sh = video.videoHeight; if (sw / sh > ratio) sw = sh * ratio; else sh = sw / ratio;
+    const h = Math.min(Math.round(sh), 1024); canvas.height = h; canvas.width = Math.round(h * ratio);
+    canvas.getContext("2d", { alpha: false }).drawImage(video, (video.videoWidth - sw) / 2, (video.videoHeight - sh) / 2, sw, sh, 0, 0, canvas.width, canvas.height);
+    capturedFace = canvas.toDataURL("image/jpeg", .85); const preview = $("teacherFacePreview"); preview.src = capturedFace; preview.hidden = false; video.hidden = true; stopCamera();
+    $("captureTeacherFace").disabled = true; $("retakeTeacherFace").hidden = false; $("teacherFaceStatus").className = "capture-status complete"; $("teacherFaceStatus").textContent = "照片已拍摄，提交时由服务端检测质量与活体"; syncSubmit();
+  });
+  $("retakeTeacherFace").addEventListener("click", () => $("openTeacherFaceCamera").click());
+  window.addEventListener("pagehide", stopCamera, { once: true });
   $("personCreateForm").addEventListener("submit", submitTeacher);
   syncSubmit();
 })();

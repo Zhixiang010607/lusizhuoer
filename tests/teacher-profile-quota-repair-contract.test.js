@@ -191,17 +191,17 @@ for (const laterWrite of [
   assert.ok(index > teacherCreationReject,
     `TEACHER_CREATE_SERVICE_REQUIRED must be raised before ${laterWrite} can touch identity or PostgreSQL`);
 }
-assert.match(read("teacher-create.html"), /老师不采集照片、不建立人脸/,
-  "new-teacher page must state that no teacher photograph or face is created");
-assert.doesNotMatch(`${read("teacher-create.html")}\n${createUi}`,
-  /teacherFaceConsent|teacherFaceCamera|capturedFaceImage|validateTeacherCreateCapture|createTeacherWithFace/,
-  "new-teacher UI must not retain any face capture path");
+assert.match(read("teacher-create.html"), /考勤人脸录入[\s\S]*打卡现场照不保存/,
+  "new-teacher page must state the attendance-only enrollment and transient clock-in photo rule");
+assert.match(`${read("teacher-create.html")}\n${createUi}`,
+  /teacherFaceConsent[\s\S]*teacherFaceCamera[\s\S]*capturedFace/,
+  "new-teacher UI must keep the required attendance enrollment capture path");
 assert.match(createUi,
   /await window\.CloudBasePhoneAuth\.createTeacher\(\{[\s\S]{0,300}staffName,[\s\S]{0,120}phone,[\s\S]{0,120}initialPassword/,
   "new-teacher UI must await one dedicated account-and-profile request");
 assert.match(phoneAuth,
-  /async createTeacher\(\{ staffName, phone, initialPassword, clientRequestId \}\)[\s\S]{0,700}action: "createTeacher"/,
-  "shared auth client must expose the dedicated one-call no-photo creation API");
+  /async createTeacher\(\{ staffName, phone, initialPassword, clientRequestId, consent, imageBase64 \}\)[\s\S]{0,800}action: "createTeacher"/,
+  "shared auth client must expose the dedicated one-call attendance-enrollment creation API");
 for (const legacy of ["beginTeacherProvisionWithFace", "getTeacherFaceOperationStatus", "readTeacherProvisionResult"]) {
   assert.equal(createUi.includes(legacy) || phoneAuth.includes(legacy), false,
     `active teacher create clients must not retain ${legacy}`);
@@ -212,8 +212,8 @@ for (const legacy of ["beginTeacherProvisionWithFace", "getTeacherFaceOperationS
 const createTeacher = jsBetween(teacherCreateService, "async function createTeacher", "function health");
 assert.match(createTeacher, /await requireHq\(\)/,
   "direct teacher creation must remain HQ-only");
-assert.doesNotMatch(createTeacher, /consent|imageBase64|inspectFace|inspectLiveness|createRemoteAssets/i,
-  "direct teacher creation must not inspect, upload or bind a teacher face");
+assert.match(createTeacher, /event\.consent !== true[\s\S]*cleanImage\(event\.imageBase64\)[\s\S]*inspectFaceImage[\s\S]*inspectLiveness/,
+  "direct teacher creation must verify consent and the attendance enrollment image");
 assert.match(createTeacher, /createActiveAuthentication\([\s\S]{0,700}insertTeacherRecord\(/,
   "teacher creation must add the phone account before the atomic business records");
 assert.doesNotMatch(createTeacher, /confirmPerson|confirmPhoto|finalReadback|user\.modifyUser\(|createBlockedAuthentication/,

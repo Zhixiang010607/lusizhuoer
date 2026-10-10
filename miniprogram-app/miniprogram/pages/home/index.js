@@ -577,6 +577,16 @@ Page({
     this.closeMenus();
     wx.navigateTo({ url: "/pages/teacher-customers/index" });
   },
+  openDailyReport() {
+    if (this.data.session.role !== "teacher") return;
+    this.closeMenus();
+    wx.navigateTo({ url: "/pages/daily-report/index" });
+  },
+  openAttendance() {
+    if (this.data.session.role !== "teacher") return;
+    this.closeMenus();
+    wx.navigateTo({ url: "/pages/attendance/index" });
+  },
   toggleBusinessMenu() { this.closeMenus({ businessMenuOpen: !this.data.businessMenuOpen }); },
   toggleQueryMenu() { this.closeMenus({ queryMenuOpen: !this.data.queryMenuOpen }); },
   toggleCoreMetricsMenu() { this.closeMenus({ coreMetricsMenuOpen: !this.data.coreMetricsMenuOpen }); },
@@ -898,6 +908,8 @@ Page({
     else if (type === "inactive-customer") wx.navigateTo({ url: "/pages/inactive-customers/index" });
     else if (type === "low-balance-customer") wx.navigateTo({ url: "/pages/low-balance-customers/index" });
     else if (type === "rating-analysis") wx.navigateTo({ url: "/pages/rating-analysis/index" });
+    else if (type === "daily-report-tracking" && this.data.session.role === "hq") wx.navigateTo({ url: "/pages/daily-report-tracking/index" });
+    else if (type === "attendance-tracking" && this.data.session.role === "hq") wx.navigateTo({ url: "/pages/attendance-tracking/index" });
     else wx.navigateTo({ url: `/pages/records/index?type=${type}` });
   },
   openManagement(event) {

@@ -8,9 +8,9 @@
   const homes = { hq: "index.html", store: "store-detail.html", teacher: "teacher-work-orders.html" };
   const labels = { hq: "总部工作区", store: "门店工作区", teacher: "老师工作区" };
   const access = {
-    hq: new Set(["index.html", "change-password.html", "store-create.html", "project-create.html", "retail-product-create.html", "teacher-create.html", "hq-account-create.html", "hq-management.html", "store-management.html", "project-management.html", "retail-product-management.html", "teacher-management.html", "staff-detail.html", "store-detail.html", "store-analysis.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "refund-review.html", "product-purchase-review.html", "verification-review.html"]),
+    hq: new Set(["index.html", "daily-report-tracking.html", "change-password.html", "store-create.html", "project-create.html", "retail-product-create.html", "teacher-create.html", "hq-account-create.html", "hq-management.html", "store-management.html", "project-management.html", "retail-product-management.html", "teacher-management.html", "staff-detail.html", "store-detail.html", "store-analysis.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "refund-review.html", "product-purchase-review.html", "verification-review.html"]),
     store: new Set(["store-detail.html", "store-analysis.html", "change-password.html", "customer-detail.html", "customer-query.html", "customer-create.html", "recharge-create.html", "product-purchase-create.html", "refund-create.html", "verification-create.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html"]),
-    teacher: new Set(["teacher-work-orders.html", "change-password.html", "teacher-work-order-detail.html", "customer-detail.html", "recharge-detail.html", "verification-detail.html", "customer-create.html", "recharge-create.html", "product-purchase-create.html", "refund-create.html", "verification-create.html", "verification-experience.html", "teacher-verification-create.html", "teacher-verification-experience.html", "teacher-recharge-create.html", "teacher-refund-create.html"])
+    teacher: new Set(["teacher-work-orders.html", "daily-report.html", "change-password.html", "teacher-work-order-detail.html", "customer-detail.html", "recharge-detail.html", "verification-detail.html", "customer-create.html", "recharge-create.html", "product-purchase-create.html", "refund-create.html", "verification-create.html", "verification-experience.html", "teacher-verification-create.html", "teacher-verification-experience.html", "teacher-recharge-create.html", "teacher-refund-create.html"])
   };
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
@@ -87,7 +87,10 @@
     primarySectionTitle.textContent = session.role === "hq" ? "数据看板" : "工作台";
     const navLabel = session.role === "hq" ? "全局视图" : session.role === "teacher" ? "我的工作台" : "门店首页";
     const navIcon = session.role === "hq" ? "总" : session.role === "teacher" ? "师" : "店";
-    primaryNav.innerHTML = `<a class="active" href="${homeUrl}"><span class="nav-icon">${navIcon}</span><span>${navLabel}</span></a>`;
+    const dailyReportNav = session.role === "teacher"
+      ? `<a class="${page === "daily-report.html" ? "active" : ""}" href="daily-report.html"><span class="nav-icon">日</span><span>工作日报</span></a>`
+      : "";
+    primaryNav.innerHTML = `<a class="${page === "daily-report.html" ? "" : "active"}" href="${homeUrl}"><span class="nav-icon">${navIcon}</span><span>${navLabel}</span></a>${dailyReportNav}`;
     if (session.role === "store") {
       document.querySelectorAll(".side-project-bar > .side-menu-group").forEach((group) => { group.hidden = true; });
       const businessLinks = [["customer-create.html", "客户建立"], ["recharge-create.html", "办卡充值"], ["product-purchase-create.html", "产品购买"], ["refund-create.html", "退费申请"], ["verification-create.html", "核销办理"]];
@@ -107,14 +110,15 @@
         if (group.querySelector("summary")?.textContent.includes("管理")) group.hidden = true;
       });
       const managementLinks = [["project-management.html", "项目管理"], ["retail-product-management.html", "产品管理"], ["store-management.html", "门店管理"], ["teacher-management.html", "老师管理"], ["hq-management.html", "总部管理"]];
-      document.querySelector('[data-menu="shared-query"]')?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="hq-management"><summary><span class="nav-icon">管</span><span>管理</span></summary><nav>${managementLinks.map(([href, text]) => `<a class="${page === href ? "active" : ""}" href="${href}">${text}</a>`).join("")}</nav></details>`);
+      document.querySelector('[data-menu="shared-query"]')?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="hq-operations"><summary><span class="nav-icon">运</span><span>运营</span></summary><nav><a class="${page === "daily-report-tracking.html" ? "active" : ""}" href="daily-report-tracking.html">日报追踪</a></nav></details>`);
+      document.querySelector('[data-menu="hq-operations"]')?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="hq-management"><summary><span class="nav-icon">管</span><span>管理</span></summary><nav>${managementLinks.map(([href, text]) => `<a class="${page === href ? "active" : ""}" href="${href}">${text}</a>`).join("")}</nav></details>`);
     }
   }
 
   if (session.role === "hq") {
     let reviewMenu = document.querySelector('[data-menu="review"]');
     if (!reviewMenu) {
-      const anchor = document.querySelector('[data-menu="hq-management"]') || document.querySelector('[data-menu="shared-query"]') || primaryNav;
+      const anchor = document.querySelector('[data-menu="hq-management"]') || document.querySelector('[data-menu="hq-operations"]') || document.querySelector('[data-menu="shared-query"]') || primaryNav;
       anchor?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="review"><summary><span class="nav-icon">审</span><span>审核</span></summary><nav></nav></details>`);
       reviewMenu = document.querySelector('[data-menu="review"]');
     }

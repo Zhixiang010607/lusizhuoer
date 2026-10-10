@@ -13,7 +13,7 @@
   </scroll-view>
   <view wx:if="{{overviewMenuOpen || businessMenuOpen || queryMenuOpen || coreMetricsMenuOpen || managementMenuOpen || reviewMenuOpen}}" class="menu-backdrop" bindtap="closeMenus"></view>
   <view wx:if="{{overviewMenuOpen && session.role === 'teacher'}}" class="business-popover overview-popover" catchtap="noop">
-    <view class="popover-grid"><view bindtap="openTeacherOverview">工作台</view><view bindtap="openTeacherCustomers">我的客户</view></view>
+    <view class="popover-grid"><view bindtap="openTeacherOverview">工作台</view><view bindtap="openTeacherCustomers">我的客户</view><view bindtap="openDailyReport">工作日报</view><view bindtap="openAttendance">考勤打卡</view></view>
   </view>
   <view wx:if="{{businessMenuOpen && session.role !== 'hq'}}" class="business-popover" catchtap="noop">
     <view class="popover-grid">
@@ -34,6 +34,8 @@
       <view data-type="inactive-customer" bindtap="openQuery">活跃预警</view>
       <view data-type="low-balance-customer" bindtap="openQuery">余次预警</view>
       <view data-type="rating-analysis" bindtap="openQuery">评价分析</view>
+      <view wx:if="{{session.role === 'hq'}}" data-type="daily-report-tracking" bindtap="openQuery">日报追踪</view>
+      <view wx:if="{{session.role === 'hq'}}" data-type="attendance-tracking" bindtap="openQuery">打卡追踪</view>
     </view>
   </view>
   <view wx:if="{{managementMenuOpen && session.role === 'hq'}}" class="business-popover management-popover" catchtap="noop">

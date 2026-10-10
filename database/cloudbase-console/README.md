@@ -286,6 +286,47 @@ ROLLBACK;
 重复扫码只复用一份预留，不同并发资格不能超订。最终工单和真实扣次仍只在设备返回
 工作状态 `2` 后执行，并继续经过原有数据库原子校验。
 
+## 073 老师工作日报
+
+072 验收完成后，按 [`073-README.md`](073-README.md) 执行：
+
+1. 整文件执行 `073-01-staff-daily-reports.sql`；
+2. 执行 `073-readonly-verify.sql`，7 行必须全部为 `READY`；
+3. 完成 074—076 后上传 `staffAccount-v84.zip` 并确认 `health version=v84`；
+4. 发布 `daily-report.html`、`daily-report.js`、`daily-report.css` 和当前 `auth-ui.js`。
+
+073 只允许在职老师通过受信服务写入和修改本人上海当天日报。历史永久只读，未来不可填写，禁止删除；总部不能代填或修改，门店、非在职老师及数据库客户端直连均无权写入。网页版与小程序共享该服务端边界。
+
+## 074 总部日报追踪索引
+
+073 验收完成后，按 [`074-README.md`](074-README.md) 执行：
+
+1. 整文件执行 `074-01-hq-daily-report-tracking.sql`；
+2. 执行 `074-readonly-verify.sql`，结果必须为 `READY`；
+3. 完成 075、076 后上传 `staffAccount-v84.zip` 并确认 `health version=v84`；
+4. 发布总部 `daily-report-tracking.html`、脚本、样式和当前 `auth-ui.js`。
+
+074 只增加日报按日期读取索引。总部追踪接口按当前在职老师名单分已填写和未填写，读取姓名、现有账号电话和只读日报内容；不增加总部写入权限。网页版和小程序均可使用同一只读接口。
+
+## 075 老师考勤
+
+074 验收完成后，按 [`075-README.md`](075-README.md) 执行：
+
+1. 整文件执行 `075-01-teacher-attendance.sql`；
+2. 执行 `075-readonly-verify.sql`，5 行必须全部为 `READY`；
+3. 配置并部署 `teacherCreate-v7.zip`、`faceRecognition-v123.zip` 与 `staffAccount-v84.zip`；
+4. 验收老师创建时的考勤人脸录入、老师本人打卡、总部追踪和两端地图。
+
+075 的打卡记录不保存当次人脸照片。私有保存的只有总部创建老师时取得明确授权的考勤建档照；考勤档案不得用于登录或客户业务。
+
+## 076 日报每栏 200 字
+
+075 验收完成后，按 [`076-README.md`](076-README.md) 执行：
+
+1. 整文件执行 `076-01-daily-report-200-character-limit.sql`；
+2. 执行 `076-readonly-verify.sql`，结果必须为 `READY`；
+3. 验收网页版和小程序的四栏日报每栏最多 200 字，整份只有一个编辑／确认提交入口。
+
 ## 070 扫码评价固定三项评分
 
 069 验收完成后，按 [`070-README.md`](070-README.md) 执行：

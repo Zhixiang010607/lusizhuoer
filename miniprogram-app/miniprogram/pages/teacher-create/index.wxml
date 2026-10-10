@@ -1,7 +1,7 @@
 <view class="page">
   <view class="page-heading"><text>老师创建</text><text>总部专属</text></view>
   <view class="panel">
-    <view class="section-heading"><view><text>老师账号资料</text><text>填写姓名、联系电话和初始密码即可创建</text></view><text>创建后自动生成编号</text></view>
+    <view class="section-heading"><view><text>老师账号资料</text><text>填写资料并现场录入考勤人脸后创建</text></view><text>创建后自动生成编号</text></view>
     <view class="teacher-fields">
       <label class="field {{validationField === 'name' ? 'invalid' : ''}}"><text>姓名</text><input id="teacher-name" maxlength="40" data-field="name" value="{{form.name}}" bindinput="input" placeholder="请输入老师姓名" disabled="{{submitting || locked}}" /><text wx:if="{{validationField === 'name'}}" class="validation-error">{{message}}</text></label>
       <label class="field {{validationField === 'phone' ? 'invalid' : ''}}"><text>联系电话</text><input id="teacher-phone" type="number" maxlength="11" data-field="phone" value="{{form.phone}}" bindinput="input" placeholder="请输入中国大陆手机号" disabled="{{submitting || locked}}" /><text wx:if="{{validationField === 'phone'}}" class="validation-error">{{message}}</text></label>
@@ -16,8 +16,13 @@
     </view>
     <text class="field-help">密码为 8–32 位，以字母或数字开头；大写字母、小写字母、数字、特殊字符中至少包含三类。</text>
   </view>
-  <view class="panel rule-panel"><view><text>唯一身份</text><text>一个手机号只对应一个业务身份</text></view><view><text>立即激活</text><text>账号和老师主档完整创建后立即可用</text></view><view><text>客户核验</text><text>体验核销自动绑定老师，只核验客户人脸</text></view></view>
+  <view class="panel face-panel">
+    <view class="section-heading"><view><text>考勤人脸录入</text><text>仅用于老师本人打卡时的 1:1 身份验证</text></view><text>现场拍摄</text></view>
+    <camera-capture id="teacherCamera" title="老师考勤建档照片" bindchange="captureChanged"></camera-capture>
+    <label class="consent"><checkbox checked="{{consent}}" bindtap="toggleConsent" color="#a98243" /><text>已取得老师明确授权：保存本次建档照和人脸档案，仅用于本人考勤打卡验证；每次打卡的现场照片不保存。</text></label>
+  </view>
+  <view class="panel rule-panel"><view><text>唯一身份</text><text>一个手机号只对应一个业务身份</text></view><view><text>整体创建</text><text>账号、老师主档和考勤人脸必须全部成功</text></view><view><text>照片边界</text><text>只保存建档照，打卡现场照验证后立即丢弃</text></view></view>
   <view wx:if="{{message && !validationField}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
-  <view class="actions"><button class="ghost" bindtap="back" disabled="{{submitting}}">返回老师管理</button><button class="primary" bindtap="submit" loading="{{submitting}}" disabled="{{submitting || locked}}">创建老师账号</button></view>
+  <view class="actions"><button class="ghost" bindtap="back" disabled="{{submitting}}">返回老师管理</button><button class="primary" bindtap="submit" loading="{{submitting}}" disabled="{{submitting || locked || !captureReady || !consent}}">验证照片并创建老师</button></view>
   <view class="safe-bottom"></view>
 </view>

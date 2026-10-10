@@ -1,0 +1,11 @@
+<view class="date-selector" aria-label="选择日期">
+  <picker class="date-part {{disabled ? 'is-disabled' : ''}}" mode="selector" range="{{years}}" value="{{yearIndex}}" bindchange="chooseYear" disabled="{{disabled}}">
+    <view class="date-button">{{selectedYear}}年</view>
+  </picker>
+  <picker class="date-part {{disabled ? 'is-disabled' : ''}}" mode="selector" range="{{months}}" value="{{monthIndex}}" bindchange="chooseMonth" disabled="{{disabled}}">
+    <view class="date-button">{{selectedMonth}}月</view>
+  </picker>
+  <picker class="date-part {{disabled ? 'is-disabled' : ''}}" mode="selector" range="{{days}}" value="{{dayIndex}}" bindchange="chooseDay" disabled="{{disabled}}">
+    <view class="date-button">{{selectedDay}}日</view>
+  </picker>
+</view>

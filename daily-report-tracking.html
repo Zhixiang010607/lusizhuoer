@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>日报追踪</title>
+  <link rel="stylesheet" href="styles.css?v=0.15.44">
+  <link rel="stylesheet" href="daily-report.css?v=0.1.0">
+  <link rel="stylesheet" href="daily-report-tracking.css?v=0.1.0">
+</head>
+<body data-daily-report-tracking>
+  <aside class="side-project-bar" aria-label="工作区导航">
+    <div class="side-brand"><span>HQ</span><div><strong>总部工作区</strong><small>日报追踪</small></div></div>
+    <nav class="side-nav"></nav>
+    <div class="side-footer"></div>
+  </aside>
+  <header class="topbar">
+    <div><p class="eyebrow">DAILY REPORT TRACKING</p><h1>日报追踪</h1><p class="subtitle">按日期查看全部在职老师的日报完成情况；总部仅可只读查看。</p></div>
+    <div class="status"><span></span>总部权限</div>
+  </header>
+  <main class="daily-tracking-main">
+    <section class="panel daily-tracking-calendar" aria-labelledby="trackingCalendarTitle">
+      <div class="panel-heading daily-calendar-heading">
+        <div><h2 id="trackingCalendarTitle">选择日期</h2><p>选择今天或历史日期，未来日期不可选择。</p></div>
+        <button id="trackingToday" class="secondary-button" type="button">回到今天</button>
+      </div>
+      <div class="daily-calendar-toolbar">
+        <button id="trackingPreviousMonth" type="button" aria-label="上个月">‹</button>
+        <label><span>年份</span><select id="trackingYear" aria-label="选择年份"></select></label>
+        <label><span>月份</span><select id="trackingMonth" aria-label="选择月份"></select></label>
+        <button id="trackingNextMonth" type="button" aria-label="下个月">›</button>
+      </div>
+      <div class="daily-weekdays" aria-hidden="true"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
+      <div id="trackingCalendar" class="daily-calendar-grid" role="grid" aria-label="日报追踪日期"></div>
+      <p id="trackingCalendarMessage" class="form-message" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="daily-tracking-results" aria-labelledby="trackingDateTitle">
+      <div class="daily-tracking-summary">
+        <div><p class="eyebrow">SELECTED DATE</p><h2 id="trackingDateTitle">正在读取服务器日期…</h2></div>
+        <div class="daily-tracking-counts"><span id="trackingCompletedSummary">已填写 0</span><span id="trackingIncompleteSummary">未填写 0</span></div>
+      </div>
+      <div class="daily-tracking-columns">
+        <section class="panel daily-tracking-list completed-list" aria-labelledby="completedTitle">
+          <div class="panel-heading"><div><h2 id="completedTitle">已填写</h2><p>已提交所选日期日报的老师</p></div><span id="trackingCompletedCount" class="badge">0 人</span></div>
+          <div class="daily-tracking-card daily-tracking-table-head" aria-hidden="true"><span>老师姓名</span><span>老师电话</span><span>日报内容</span><span>是否完成</span></div>
+          <div id="trackingCompleted" class="daily-tracking-cards" aria-live="polite"></div>
+        </section>
+        <section class="panel daily-tracking-list incomplete-list" aria-labelledby="incompleteTitle">
+          <div class="panel-heading"><div><h2 id="incompleteTitle">未填写</h2><p>尚未提交所选日期日报的老师</p></div><span id="trackingIncompleteCount" class="badge">0 人</span></div>
+          <div class="daily-tracking-card daily-tracking-table-head" aria-hidden="true"><span>老师姓名</span><span>老师电话</span><span>日报内容</span><span>是否完成</span></div>
+          <div id="trackingIncomplete" class="daily-tracking-cards" aria-live="polite"></div>
+        </section>
+      </div>
+      <p id="trackingMessage" class="form-message" role="status" aria-live="polite"></p>
+    </section>
+  </main>
+
+  <dialog id="dailyReportDetailDialog" class="daily-report-detail-dialog" aria-labelledby="dailyReportDetailTitle">
+    <form method="dialog" class="daily-report-dialog-close"><button type="submit" aria-label="关闭日报详情">关闭</button></form>
+    <div class="daily-report-dialog-heading"><p class="eyebrow">READ ONLY</p><h2 id="dailyReportDetailTitle">日报内容</h2><p id="dailyReportDetailMeta"></p></div>
+    <div id="dailyReportDetailBody" class="daily-report-detail-body"></div>
+  </dialog>
+
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
+  <script src="cloudbase-auth-config.js"></script>
+  <script src="auth-ui.js?v=0.19.9"></script>
+  <script src="daily-report-tracking.js?v=0.1.0"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+<view class="page daily-page">
+  <view class="page-heading"><view><text class="title">工作日报</text><text class="subtitle">老师本人填写；仅上海时间当天可以新增或修改</text></view><button class="back" bindtap="back">返回工作台</button></view>
+  <view wx:if="{{!authorized}}" class="notice-card">正在确认老师账号…</view>
+  <view wx:else class="daily-layout">
+    <view class="calendar-card date-query-card"><date-selector value="{{pendingDate}}" end="{{serverToday}}" disabled="{{loadingMonth || saving}}" bindchange="chooseDate"></date-selector><button class="confirm-button" bindtap="confirmDate" disabled="{{loadingMonth || saving}}">确认</button></view>
+
+    <view class="editor-card">
+      <view class="section-heading"><view><text class="section-title">日报内容</text><text class="section-note">{{selectedDate}}</text></view><text class="state-badge {{editable ? 'editable' : ''}}">{{editable ? '今天可编辑' : (future ? '未来日期' : (reportExists ? '历史只读' : '未填写'))}}</text></view>
+      <view wx:if="{{loadingReport}}" class="notice-card inline">正在读取日报…</view>
+      <block wx:else>
+        <label class="report-field"><view><text>今日完成事项</text><text class="required">必填</text></view><textarea maxlength="200" value="{{completedWork}}" data-field="completedWork" bindinput="inputField" disabled="{{!editable || !editing || saving}}" placeholder="写下今天已经完成的工作" /><text class="counter">{{completedWorkCount}}/200</text></label>
+        <label class="report-field"><view><text>客户或项目进展</text></view><textarea maxlength="200" value="{{customerProjectProgress}}" data-field="customerProjectProgress" bindinput="inputField" disabled="{{!editable || !editing || saving}}" placeholder="记录客户沟通、项目推进或重要结果" /><text class="counter">{{customerProjectProgressCount}}/200</text></label>
+        <label class="report-field"><view><text>遇到的问题</text></view><textarea maxlength="200" value="{{problemsAndSupport}}" data-field="problemsAndSupport" bindinput="inputField" disabled="{{!editable || !editing || saving}}" placeholder="记录问题、风险或需要的协助" /><text class="counter">{{problemsAndSupportCount}}/200</text></label>
+        <label class="report-field"><view><text>明日计划</text></view><textarea maxlength="200" value="{{tomorrowPlan}}" data-field="tomorrowPlan" bindinput="inputField" disabled="{{!editable || !editing || saving}}" placeholder="写下下一步计划" /><text class="counter">{{tomorrowPlanCount}}/200</text></label>
+        <view wx:if="{{message}}" class="form-message {{error ? 'error' : ''}}">{{message}}</view>
+        <button wx:if="{{editable && reportExists && !editing}}" class="edit-button" bindtap="edit" disabled="{{saving || loadingReport}}">编辑</button><button wx:if="{{editable && editing}}" class="save-button" bindtap="save" loading="{{saving}}" disabled="{{saving || loadingReport}}">确认提交</button>
+      </block>
+    </view>
+  </view>
+</view>

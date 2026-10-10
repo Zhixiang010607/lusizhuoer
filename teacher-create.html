@@ -15,7 +15,7 @@
         <div class="panel-heading">
           <div>
             <h2>老师账号资料</h2>
-            <p>填写姓名、联系电话和初始密码即可创建。老师不采集照片、不建立人脸；体验核销会自动绑定登录老师，并只核验客户人脸。</p>
+            <p>填写资料并现场拍摄老师正脸。账号、老师主档和考勤人脸档案必须整体创建成功。</p>
           </div>
           <span id="generatedPersonCode" class="badge">创建后自动生成编号</span>
         </div>
@@ -31,13 +31,21 @@
           <div>
             <h2>账号规则</h2>
           </div>
-          <span class="badge">无需照片</span>
+          <span class="badge">现场拍摄</span>
         </div>
         <div class="teacher-create-rule-grid">
           <article><strong>唯一身份</strong><span>一个手机号只对应一个总部、门店或老师身份</span></article>
           <article><strong>立即激活</strong><span>登录账号与老师主档创建成功后立即可用</span></article>
-          <article><strong>客户核验</strong><span>体验核销自动绑定老师，现场只核验客户人脸</span></article>
+          <article><strong>考勤验证</strong><span>建档照仅用于老师打卡时的 1:1 验证</span></article>
         </div>
+      </section>
+
+      <section class="hq-create-section person-create-section">
+        <div class="panel-heading"><div><h2>考勤人脸录入</h2><p>请让老师本人正对前置摄像头；每次打卡的现场照片不会保存。</p></div><span class="badge">创建必填</span></div>
+        <div class="customer-camera-stage"><video id="teacherFaceCamera" autoplay muted playsinline hidden></video><img id="teacherFacePreview" alt="老师考勤建档照预览" hidden><div id="teacherFacePlaceholder" class="camera-placeholder"><strong>等待打开摄像头</strong><span>拍摄后可预览，不满意可以重拍。</span></div><canvas id="teacherFaceCanvas" hidden></canvas></div>
+        <div id="teacherFaceStatus" class="capture-status pending">尚未拍摄</div>
+        <div class="camera-actions"><button id="openTeacherFaceCamera" type="button">打开摄像头</button><button id="captureTeacherFace" type="button" disabled>拍照</button><button id="retakeTeacherFace" type="button" hidden>重新拍照</button></div>
+        <label class="consent-row"><input id="teacherFaceConsent" type="checkbox" required> 已取得老师明确授权：保存本次建档照与考勤人脸，仅用于本人打卡身份验证；打卡现场照不保存</label>
       </section>
 
       <div id="teacherCreateProgress" class="capture-status pending" role="status" aria-live="polite" hidden>
@@ -50,6 +58,6 @@
       </div>
     </form>
   </main>
-  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.20.3"></script><script src="teacher-create.js?v=0.5.0"></script><script src="auth-ui.js?v=0.19.7"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.20.4"></script><script src="teacher-create.js?v=0.6.0"></script><script src="auth-ui.js?v=0.19.9"></script>
 </body>
 </html>

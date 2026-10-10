@@ -19,7 +19,7 @@ const app = JSON.parse(read("app.json"));
 assert.ok(!(app.requiredPrivateInfos || []).includes("chooseMedia"), "chooseMedia is not a valid requiredPrivateInfos entry");
 const expectedPages = [
   "login", "password-reset", "company-intro", "project-intro", "home", "product-management", "product-create", "product-detail", "retail-product-management", "retail-product-create",
-  "hq-directory", "store-create", "store-detail", "teacher-create", "teacher-detail", "teacher-customers", "reviews",
+  "hq-directory", "store-create", "store-detail", "teacher-create", "teacher-detail", "teacher-customers", "daily-report", "daily-report-tracking", "attendance", "attendance-tracking", "reviews",
   "customers", "inactive-customers", "low-balance-customers", "rating-analysis", "customer-detail", "customer-create", "recharge", "product-purchase", "product-purchase-detail", "verification", "records", "order-detail"
 ];
 assert.deepEqual(app.pages, [
@@ -36,7 +36,7 @@ assert.deepEqual([...registeredPages].sort(), [
   "the complete isolated mini-program page inventory must remain registered");
 assert.equal(new Set((app.subPackages || []).map(({ root: packageRoot }) => packageRoot)).size,
   (app.subPackages || []).length, "business subpackage roots must be unique");
-assert.equal((app.subPackages || []).length, 24,
+assert.equal((app.subPackages || []).length, 28,
   "project introductions, heavy authenticated pages, and the shared PDF font must stay outside the main package");
 for (const page of expectedPages) {
   assert.ok(registeredPages.includes(`pages/${page}/index`), `missing mini-program page ${page}`);

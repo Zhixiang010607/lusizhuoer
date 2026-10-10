@@ -21,6 +21,7 @@ function rowsResult(rows) {
 function harness({ tokenLag = false, sessionFailures = 0, currentUid = uid, emptyAuth = false, staffError = null } = {}) {
   let authRecord = null;
   let staffRecord = null;
+  let faceProfile = null;
   let functionUid = "";
   const events = [];
   const storage = new Map();
@@ -48,18 +49,39 @@ function harness({ tokenLag = false, sessionFailures = 0, currentUid = uid, empt
             staff_id: "501", auth_uid: uid, phone: fixture.phone, role_code: "teacher", account_status: "ACTIVE",
             teacher_id: "701", teacher_code: "TCHF501", teacher_status: "ACTIVE"
           };
+          faceProfile = {
+            face_person_id: /'(AT-[A-F0-9]+)'/.exec(Sql)?.[1] || "AT-FIXTURE",
+            profile_photo_file_id: /'(pg:\/\/customer-photos\/attendance-teachers\/[^']+)'/.exec(Sql)?.[1] || ""
+          };
           return rowsResult([]);
         }
+        if (Sql.includes("FROM public.teacher_attendance_face_profiles")) return rowsResult(faceProfile ? [faceProfile] : []);
         throw new Error("Unexpected SQL in creation fixture");
       }
+    },
+    storage: {
+      async uploadObject() { events.push("uploadAttendancePhoto"); return { ok: true }; },
+      async deleteObject() { events.push("deleteAttendancePhoto"); return { ok: true }; }
     }
   };
+  class FaceClient {
+    async DetectFace() {
+      return { RequestId: "face-detect", FaceInfos: [{ Width: 320, Height: 320,
+        FaceQualityInfo: { Score: 99 }, FaceAttributesInfo: { Mask: false, EyeOpen: true, Yaw: 0, Pitch: 0, Roll: 0 } }] };
+    }
+    async CreatePerson() { events.push("createAttendanceFace"); return { FaceId: "fixture-face", RequestId: "face-create" }; }
+    async DeletePerson() { events.push("deleteAttendanceFace"); return {}; }
+  }
   const createSandbox = {
-    exports: {}, Buffer, console: { error() {} }, process: { env: { CLOUDBASE_ENV_ID: "fixture-env" } },
+    exports: {}, Buffer, console: { error() {} }, process: { env: {
+      CLOUDBASE_ENV_ID: "fixture-env", CLOUDBASE_APIKEY: "fixture-key",
+      FACE_SECRET_ID: "fixture-id", FACE_SECRET_KEY: "fixture-secret", FACE_GROUP_ID: "fixture-group"
+    } },
     require(name) {
       if (name === "node:crypto") return crypto;
       if (name === "@cloudbase/node-sdk") return { init: () => ({ auth: () => ({ getUserInfo: () => ({ uid: "fixture-hq" }) }) }) };
       if (name === "@cloudbase/manager-node") return { init: () => manager };
+      if (name === "tencentcloud-sdk-nodejs") return { iai: { v20200303: { Client: FaceClient } } };
       throw new Error(`Unexpected creation dependency: ${name}`);
     }
   };
@@ -111,7 +133,9 @@ function harness({ tokenLag = false, sessionFailures = 0, currentUid = uid, empt
   vm.runInNewContext(sessionSource, sessionSandbox);
   return {
     session: sessionSandbox.module.exports, events, app, storage,
-    create: () => createSandbox.exports.main({ action: "createTeacher", ...fixture, initialPassword: fixture.password, clientRequestId: "fixture_create_login_01" })
+    create: () => createSandbox.exports.main({ action: "createTeacher", ...fixture,
+      initialPassword: fixture.password, clientRequestId: "fixture_create_login_01",
+      consent: true, imageBase64: "AQ==" })
   };
 }
 

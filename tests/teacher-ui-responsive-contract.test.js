@@ -21,9 +21,9 @@ for (const html of [createHtml, detailHtml, read("teacher-detail.html")]) {
 assert.match(managementHtml, /styles\.css\?v=0\.15\.58/, "teacher directory must refresh the horizontal phone table layout");
 assert.match(managementHtml, /<meta\s+name="viewport"/, "teacher directory must declare a mobile viewport");
 assert.match(managementHtml, /teacher-management\.js\?v=0\.14\.28/, "teacher directory behavior must be cache-busted");
-assert.match(createHtml, /teacher-create\.js\?v=0\.5\.0/, "teacher creation behavior must be cache-busted");
-assert.match(createHtml, /cloudbase-phone-auth\.js\?v=0\.20\.3/,
-  "teacher creation must refresh the no-photo creation API wrapper");
+assert.match(createHtml, /teacher-create\.js\?v=0\.6\.0/, "teacher creation behavior must be cache-busted");
+assert.match(createHtml, /cloudbase-phone-auth\.js\?v=0\.20\.4/,
+  "teacher creation must refresh the attendance-enrollment API wrapper");
 assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.11/, "teacher home behavior must be cache-busted");
 
 for (const label of ["老师姓名", "老师编号", "联系电话", "状态", "体验额度", "账号操作"]) {
@@ -36,23 +36,21 @@ assert.match(management, /textContent = `\$\{action\}中…`[\s\S]{0,220}aria-bu
 assert.match(management, /finally \{[\s\S]{0,160}await loadTeachers\(\)/, "teacher list must reconcile from the server even after a status request error");
 assert.match(management, /AUTH_CREDENTIAL_MISSING[\s\S]{0,120}AUTH_ACCOUNT_MISSING[\s\S]{0,320}压力测试或历史占位账号[\s\S]{0,180}安全保持封存/, "teacher list must explain that a credential-less placeholder cannot be activated");
 assert.match(management, /TEACHER_PROFILE_MISSING[\s\S]{0,260}老师资料修复迁移/, "teacher status errors must turn a missing profile code into an actionable recovery message");
-assert.match(createHtml, /老师不采集照片、不建立人脸/,
-  "new-teacher UI must state that creation has no teacher photograph or face identity");
-assert.match(createHtml, /无需照片[\s\S]{0,600}体验核销自动绑定老师，现场只核验客户人脸/,
-  "the visible account rules must make the no-photo customer-verification policy explicit");
-assert.doesNotMatch(`${createHtml}\n${create}`,
-  /teacherFaceConsent|teacherFaceCamera|capturedFaceImage|faceImageBase64|validateTeacherCreateCapture|createTeacherWithFace/,
-  "teacher creation must expose no camera, consent, face payload or face API");
+assert.match(createHtml, /考勤人脸录入[\s\S]{0,900}每次打卡的现场照片不会保存/,
+  "new-teacher UI must explain the attendance-only enrollment and transient clock-in photo boundary");
+assert.match(`${createHtml}\n${create}`,
+  /teacherFaceConsent[\s\S]*teacherFaceCamera[\s\S]*capturedFace/,
+  "teacher creation must expose the one-time camera, consent and attendance enrollment payload");
 assert.match(create,
   /Boolean\(\$\("personCreateName"\)\.value\.trim\(\)\)[\s\S]{0,180}Boolean\(\$\("personPhone"\)\.value\.trim\(\)\)[\s\S]{0,180}passwordIsValid/,
   "teacher submit readiness must depend only on name, phone and password");
-assert.match(create, /await window\.CloudBasePhoneAuth\.createTeacher\(\{[\s\S]{0,260}staffName,[\s\S]{0,120}phone,[\s\S]{0,120}initialPassword/,
-  "the page must await one lightweight teacher creation request");
+assert.match(create, /await window\.CloudBasePhoneAuth\.createTeacher\(\{[\s\S]{0,260}staffName,[\s\S]{0,120}phone,[\s\S]{0,120}initialPassword,[\s\S]{0,220}consent:\s*true,[\s\S]{0,120}imageBase64:\s*capturedFace/,
+  "the page must await one synchronous account and attendance-face creation request");
 assert.match(create,
   /function completedTeacherCreation\(result\)[\s\S]{0,1200}proof\?\.complete[\s\S]{0,1000}teacherStatus !== "ACTIVE"[\s\S]{0,240}accountStatus !== "ACTIVE"[\s\S]{0,240}authStatus !== "ACTIVE"/,
   "visible success must require the server's complete proof and all three active states");
-assert.doesNotMatch(create, /ENROLLED|personId|photoSha256|photoBytes/,
-  "visible success must not require or report any teacher face artifact");
+assert.match(create, /attendanceFaceEnrolled[\s\S]{0,180}attendanceFaceStatus !== "ENROLLED"/,
+  "visible success must require the attendance face enrollment readback");
 assert.match(create,
   /function setFormLocked\(locked\)[\s\S]{0,300}personCreateName[\s\S]{0,160}personPhone[\s\S]{0,160}personInitialPassword/,
   "the single in-flight request must lock all three identity fields");

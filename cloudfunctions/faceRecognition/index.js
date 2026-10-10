@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v122";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v123";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -6009,6 +6009,134 @@ async function validateCapture(event) {
   return { ok: true, accepted: true, quality, liveness };
 }
 
+let teacherAttendanceSchemaReady = null;
+
+async function requireTeacherAttendanceSchema() {
+  if (teacherAttendanceSchemaReady === true) return;
+  const rows = await executeSql(
+    `SELECT TO_REGCLASS('public.teacher_attendance_face_profiles') IS NOT NULL AS profile_table,
+            TO_REGCLASS('public.teacher_attendance_records') IS NOT NULL AS attendance_table,
+            EXISTS (
+              SELECT 1 FROM pg_trigger
+               WHERE tgrelid = TO_REGCLASS('public.teacher_attendance_records')
+                 AND tgname = 'trg_teacher_attendance_insert_v75'
+                 AND NOT tgisinternal
+            ) AS attendance_trigger`
+  );
+  const row = rows?.[0] || {};
+  if (!databaseBoolean(row.profile_table) || !databaseBoolean(row.attendance_table)
+      || !databaseBoolean(row.attendance_trigger)) {
+    fail("老师考勤数据库结构尚未启用，请先执行并验收迁移 075。", "ATTENDANCE_SCHEMA_MISSING");
+  }
+  teacherAttendanceSchemaReady = true;
+}
+
+function attendanceCoordinate(value, label, minimum, maximum) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < minimum || number > maximum) {
+    fail(`${label}无效，请重新获取当前位置。`, "LOCATION_INVALID");
+  }
+  return number;
+}
+
+function attendancePlatform(value) {
+  const platform = String(value || "UNKNOWN").trim().toUpperCase();
+  return ["IOS", "ANDROID", "IPAD", "OTHER", "UNKNOWN"].includes(platform) ? platform : "OTHER";
+}
+
+function attendanceRequestId(value) {
+  const requestId = String(value || "").trim();
+  if (!/^[A-Za-z0-9_-]{8,96}$/.test(requestId)) fail("打卡请求编号无效。", "BAD_REQUEST");
+  return requestId;
+}
+
+function attendanceRecord(row = {}) {
+  if (!row.id) return null;
+  return {
+    id: String(row.id),
+    attendanceDate: String(row.attendance_date || "").slice(0, 10),
+    checkedInAt: row.checked_in_at || null,
+    latitude: Number(row.latitude),
+    longitude: Number(row.longitude),
+    accuracy: Number(row.accuracy_m),
+    faceScore: Number(row.face_score),
+    faceRequestId: String(row.face_request_id || ""),
+    devicePlatform: String(row.device_platform || "UNKNOWN")
+  };
+}
+
+async function clockInTeacherAttendance(event) {
+  const caller = await activeTeacherCaller();
+  await requireTeacherAttendanceSchema();
+  const staffId = Number(caller.staffId);
+  const teacherId = Number(caller.teacherId);
+  const clientRequestId = attendanceRequestId(event.clientRequestId);
+  const existingRows = await executeSql(
+    `SELECT * FROM public.teacher_attendance_records
+      WHERE staff_account_id = ${staffId}::bigint
+        AND attendance_date = (CLOCK_TIMESTAMP() AT TIME ZONE 'Asia/Shanghai')::date
+      LIMIT 1`
+  );
+  if (existingRows[0]) return { ok: true, idempotentReplay: true, attendance: attendanceRecord(existingRows[0]) };
+
+  const profileRows = await executeSql(
+    `SELECT face_person_id FROM public.teacher_attendance_face_profiles
+      WHERE teacher_id = ${teacherId}::bigint
+        AND staff_account_id = ${staffId}::bigint
+      LIMIT 1`
+  );
+  const profile = profileRows[0];
+  if (!profile?.face_person_id) fail("当前老师没有考勤人脸档案，请联系总部重新建立老师资料。", "ATTENDANCE_FACE_MISSING");
+
+  const latitude = attendanceCoordinate(event.latitude, "纬度", -90, 90);
+  const longitude = attendanceCoordinate(event.longitude, "经度", -180, 180);
+  const accuracy = attendanceCoordinate(event.accuracy, "定位精度", 0.01, 500);
+  const platform = attendancePlatform(event.devicePlatform);
+  const { base64 } = cleanImage(event.imageBase64);
+  const api = faceClient();
+  const quality = await inspectFaceImage(api, base64);
+  const liveness = await inspectLiveness(api, base64);
+  const settings = faceSettings();
+  const result = await api.VerifyFace({
+    PersonId: String(profile.face_person_id), Image: base64,
+    QualityControl: 3, NeedRotateDetection: 0
+  });
+  const score = Number(result?.Score || 0);
+  if (result?.IsMatch !== true || score < settings.verifyThreshold) {
+    fail(`人脸验证未通过（${rounded(score)} 分），请由老师本人正对前置摄像头重试。`, "ATTENDANCE_FACE_MISMATCH");
+  }
+
+  const rows = await executeSql(
+    `WITH inserted AS (
+       INSERT INTO public.teacher_attendance_records
+         (teacher_id, staff_account_id, attendance_date, latitude, longitude,
+          accuracy_m, face_score, face_request_id, quality_score, liveness_score,
+          client_request_id, device_platform)
+       VALUES
+         (${teacherId}::bigint, ${staffId}::bigint,
+          (CLOCK_TIMESTAMP() AT TIME ZONE 'Asia/Shanghai')::date,
+          ${latitude}::numeric, ${longitude}::numeric, ${accuracy}::numeric,
+          ${rounded(score)}::numeric, ${sqlText(result?.RequestId || "")},
+          ${Number(quality.qualityScore || 0)}::numeric,
+          ${liveness.score === null ? "NULL" : `${Number(liveness.score)}::numeric`},
+          ${sqlText(clientRequestId)}, ${sqlText(platform)})
+       ON CONFLICT (staff_account_id, attendance_date) DO NOTHING
+       RETURNING *
+     )
+     SELECT * FROM inserted
+     UNION ALL
+     SELECT * FROM public.teacher_attendance_records
+      WHERE staff_account_id = ${staffId}::bigint
+        AND attendance_date = (CLOCK_TIMESTAMP() AT TIME ZONE 'Asia/Shanghai')::date
+        AND NOT EXISTS (SELECT 1 FROM inserted)
+     LIMIT 1`
+  );
+  if (!rows[0]) fail("打卡结果未能回读，请勿重复拍照并联系管理员检查。", "ATTENDANCE_RESULT_UNCONFIRMED");
+  // Deliberately do not upload or persist event.imageBase64. Only the audit
+  // metadata above survives this invocation.
+  return { ok: true, idempotentReplay: false, attendance: attendanceRecord(rows[0]) };
+}
+
 // Normal and teacher-gift EXPERIENCE verification share this customer-face
 // evidence writer. The logged-in teacher is the quota owner, never the face
 // subject; both workflows persist the selected customer's 1:1 evidence.
@@ -7216,6 +7344,7 @@ exports.main = async (event = {}, context = {}) => {
       fail("Unsupported verification photo action.", "ACTION_NOT_FOUND");
     }
     if (action === "validateCapture") return await validateCapture(event);
+    if (action === "clockInTeacherAttendance") return await clockInTeacherAttendance(event);
     if (action === "registerCustomer") return await registerCustomer(event);
     if (action === "listActiveStoreCustomers") return await listActiveStoreCustomers(event);
     if (action === "queryStoreCustomers") return await queryStoreCustomers(event);

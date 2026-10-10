@@ -1,0 +1,11 @@
+version=0.2.98
+description=老师日报考勤与总部追踪
+appid=wxb053c1bd6c684d8b
+main_bytes=1801388
+total_bytes=3411049
+tests=365/365
+result=✔ upload
+observed_at=2026-10-10 AEDT
+experience_version_readback=not performed
+review_submission=not performed
+production_release=not performed
