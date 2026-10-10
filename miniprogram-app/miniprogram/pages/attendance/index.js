@@ -3,7 +3,7 @@ const { waitForStartupSession, requireSession } = require("../../services/sessio
 
 function pad(value) { return String(value).padStart(2, "0"); }
 function localShanghaiDate() { const d = new Date(Date.now() + 8 * 3600000); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; }
-function localShanghaiTime() { const d = new Date(Date.now() + 8 * 3600000); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`; }
+function localDeviceTime() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
 function monthShift(month, amount) { const [y, m] = month.split("-").map(Number); const d = new Date(Date.UTC(y, m - 1 + amount, 1)); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}`; }
 function cells(month, selected, today, dates) {
   const [y, m] = month.split("-").map(Number), total = new Date(Date.UTC(y, m, 0)).getUTCDate();
@@ -33,13 +33,57 @@ function currentPlatform() {
   if (platform === "android") return "ANDROID";
   return "OTHER";
 }
-function locate() {
-  return new Promise((resolve, reject) => wx.getLocation({ type: "gcj02", isHighAccuracy: true, highAccuracyExpireTime: 5000, success: resolve, fail: reject }));
+function locationError(message, code, permissionAction = "") {
+  const error = new Error(message); error.code = code; error.permissionAction = permissionAction; return error;
+}
+function locationDetail(error) { return String(error?.errMsg || error?.message || error?.code || "").toLowerCase(); }
+function locationBlocked(error) {
+  return /auth deny|authorize.*fail|permission|scope\.userlocation|system.*denied|locationswitchoff|location.?service.*off|gps.*off/.test(locationDetail(error));
+}
+function getSetting() { return new Promise((resolve, reject) => wx.getSetting({ success: resolve, fail: reject })); }
+function authorizeLocation() { return new Promise((resolve, reject) => wx.authorize({ scope: "scope.userLocation", success: resolve, fail: reject })); }
+function requestLocation(type, highAccuracy) {
+  return new Promise((resolve, reject) => wx.getLocation({ type, isHighAccuracy: highAccuracy, highAccuracyExpireTime: highAccuracy ? 8000 : 5000,
+    success: (result) => resolve({ ...result, coordinateType: type }), fail: reject }));
+}
+async function ensureLocationPermission() {
+  const system = typeof wx.getSystemSetting === "function" ? wx.getSystemSetting() : {};
+  if (system?.locationEnabled === false) throw locationError("手机系统定位服务未开启。请先打开系统定位服务。", "LOCATION_SERVICE_OFF", "system");
+  const app = typeof wx.getAppAuthorizeSetting === "function" ? wx.getAppAuthorizeSetting() : {};
+  if (String(app?.locationAuthorized || "").toLowerCase() === "denied") {
+    throw locationError("手机没有允许微信使用位置。请在手机设置中允许微信使用定位，并开启精确位置。", "SYSTEM_LOCATION_PERMISSION_DENIED", "system");
+  }
+  const setting = await getSetting();
+  const granted = setting?.authSetting?.["scope.userLocation"];
+  if (granted === false) throw locationError("微信小程序位置权限未开启。请允许本小程序使用位置。", "WECHAT_LOCATION_PERMISSION_DENIED", "wechat");
+  if (granted !== true) {
+    try { await authorizeLocation(); }
+    catch (_) { throw locationError("微信小程序位置权限未开启。请允许本小程序使用位置。", "WECHAT_LOCATION_PERMISSION_DENIED", "wechat"); }
+  }
+}
+async function locate() {
+  await ensureLocationPermission();
+  try { return await requestLocation("gcj02", true); }
+  catch (primary) {
+    if (locationBlocked(primary)) throw primary;
+    try { return await requestLocation("wgs84", false); }
+    catch (fallback) { fallback.primaryLocationError = locationDetail(primary); throw fallback; }
+  }
+}
+function locationProblem(error) {
+  if (error?.permissionAction) return { message: error.message, code: error.code, action: error.permissionAction };
+  const detail = locationDetail(error);
+  if (/auth deny|authorize.*fail|scope\.userlocation/.test(detail)) return { message: "微信小程序位置权限未开启。请允许本小程序使用位置。", code: "WECHAT_LOCATION_PERMISSION_DENIED", action: "wechat" };
+  if (/permission|system.*denied/.test(detail)) return { message: "手机没有允许微信使用位置。请到手机设置中允许微信定位，并开启精确位置。", code: "SYSTEM_LOCATION_PERMISSION_DENIED", action: "system" };
+  if (/locationswitchoff|location.?service.*off|gps.*off|nocell.*wifi/.test(detail)) return { message: "手机定位服务不可用。请打开系统定位、Wi‑Fi 和精确位置后重试。", code: "LOCATION_SERVICE_OFF", action: "system" };
+  if (/timeout/.test(detail)) return { message: "定位超时。请靠近窗边或室外，并确认手机定位和网络可用后重试。", code: "LOCATION_TIMEOUT", action: "" };
+  if (/network|connect/.test(detail)) return { message: "定位网络暂时不可用，请检查网络后重试。", code: "LOCATION_NETWORK_ERROR", action: "" };
+  return { message: "暂时无法取得当前位置。已尝试境外兼容定位，请确认手机定位、精确位置和网络均已开启后重试。", code: "LOCATION_UNAVAILABLE", action: "" };
 }
 
 Page({
   data: { authorized: false, loading: true, locating: false, clocking: false, captureReady: false, faceEnrolled: false,
-    message: "", error: false, permissionDenied: false, serverToday: "", visibleMonth: "", selectedDate: "", pendingDate: "", canNextMonth: false,
+    message: "", error: false, permissionDenied: false, permissionAction: "", locationErrorCode: "", serverToday: "", visibleMonth: "", selectedDate: "", pendingDate: "", canNextMonth: false,
     calendarCells: [], selectedRecord: null, todayRecord: null, checkInStage: "idle", locationPreview: null },
   async onLoad() {
     this._unloaded = false;
@@ -49,6 +93,13 @@ Page({
     if (this._unloaded || !requireSession(["teacher"])) return;
     this.setData({ authorized: true });
     await this.loadMonth(today.slice(0, 7), today);
+  },
+  onShow() {
+    if (!this._resumeLocationAfterSettings) return;
+    this._resumeLocationAfterSettings = false;
+    setTimeout(() => {
+      if (this.data.authorized && !this.data.loading && !this.data.locating && !this.data.clocking && !this.data.todayRecord) this.prepareCheckIn();
+    }, 250);
   },
   onUnload() { this._unloaded = true; this._epoch = (this._epoch || 0) + 1; },
   onPullDownRefresh() { this.loadMonth(this.data.visibleMonth, this.data.selectedDate).finally(() => wx.stopPullDownRefresh()); },
@@ -80,13 +131,27 @@ Page({
   chooseDate(event) { const date = String(event.detail.value || ""); if (/^\d{4}-\d{2}-\d{2}$/.test(date) && date <= this.data.serverToday) this.setData({ pendingDate: date }); },
   confirmDate() { const date = String(this.data.pendingDate || ""); if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > this.data.serverToday || this.data.loading || this.data.clocking) return; if (date.slice(0, 7) !== this.data.visibleMonth) return this.loadMonth(date.slice(0, 7), date); const selectedRecord = (this._records || []).find((row) => row.attendanceDate === date) || null; this.setData({ selectedDate: date, selectedRecord }); },
   today() { return !this.data.loading && this.loadMonth(this.data.serverToday.slice(0, 7), this.data.serverToday); },
-  openSettings() { wx.openSetting({ success: () => this.setData({ permissionDenied: false, message: "请重新点击获取时间地点，系统会再次读取当前位置。", error: false }) }); },
+  openSettings() {
+    if (this.data.permissionAction === "system" && typeof wx.openAppAuthorizeSetting === "function") {
+      this._resumeLocationAfterSettings = true;
+      wx.openAppAuthorizeSetting({
+        success: () => this.setData({ message: "请在手机设置中允许微信使用位置并开启精确位置，返回后重新获取。", error: false }),
+        fail: () => { this._resumeLocationAfterSettings = false; this.setData({ message: "请手动打开手机设置，允许微信使用位置并开启精确位置。", error: true }); }
+      });
+      return;
+    }
+    wx.openSetting({ success: (result) => {
+      const granted = result?.authSetting?.["scope.userLocation"] === true;
+      this.setData({ permissionDenied: !granted, permissionAction: granted ? "" : "wechat", message: granted ? "位置权限已开启，正在重新定位…" : "仍未允许本小程序使用位置；开启后才能继续打卡。", error: !granted });
+      if (granted) setTimeout(() => this.prepareCheckIn(), 0);
+    } });
+  },
   openLocation() { const row = this.data.selectedRecord; if (row) wx.openLocation({ latitude: row.latitude, longitude: row.longitude, scale: 18, name: "老师打卡位置", address: `定位精度约 ${row.accuracy} 米` }); },
   openPreviewLocation() { const row = this.data.locationPreview; if (row) wx.openLocation({ latitude: row.latitude, longitude: row.longitude, scale: 18, name: "待确认打卡位置", address: `定位精度约 ${row.accuracy} 米` }); },
   async prepareCheckIn() {
     if (this.data.loading || this.data.locating || this.data.clocking || this.data.todayRecord) return;
     if (!this.data.faceEnrolled) return this.setData({ message: "当前账号未录入考勤人脸，可以查看考勤记录，但暂时不能打卡。", error: true });
-    this.setData({ locating: true, permissionDenied: false, message: "正在获取当前时间和位置…", error: false, checkInStage: "idle", locationPreview: null, captureReady: false });
+    this.setData({ locating: true, permissionDenied: false, permissionAction: "", locationErrorCode: "", message: "正在获取当前时间和位置…", error: false, checkInStage: "idle", locationPreview: null, captureReady: false });
     try {
       const location = await locate();
       const latitude = Number(location.latitude), longitude = Number(location.longitude), accuracy = Number(location.accuracy || 0);
@@ -97,16 +162,16 @@ Page({
         checkInStage: "confirm",
         locationPreview: {
           latitude, longitude, accuracy, capturedAtMs,
-          checkedTime: localShanghaiTime(),
+          checkedTime: localDeviceTime(),
           coordinateText: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+          coordinateType: String(location.coordinateType || "gcj02").toUpperCase(),
           markers: [{ id: 1, latitude, longitude, title: "待确认打卡位置", width: 28, height: 28 }]
         },
         message: "请确认时间和地图位置；最终打卡时间以服务端记录为准。", error: false
       });
     } catch (error) {
-      const detail = String(error.errMsg || error.message || "");
-      const denied = /auth deny|authorize|permission|scope\.userLocation/i.test(detail);
-      this.setData({ permissionDenied: denied, message: denied ? "微信位置权限未开启，不能打卡。请打开位置权限后重试。" : (error.message || "位置读取失败"), error: true });
+      const problem = locationProblem(error);
+      this.setData({ permissionDenied: Boolean(problem.action), permissionAction: problem.action, locationErrorCode: problem.code, message: problem.message, error: true });
     } finally { if (!this._unloaded) this.setData({ locating: false }); }
   },
   confirmCheckInContext() {

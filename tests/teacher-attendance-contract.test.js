@@ -67,7 +67,20 @@ assert.deepEqual(app.requiredPrivateInfos, ["getLocation"]);
 assert.match(app.permission["scope.userLocation"].desc, /老师本人考勤打卡/);
 assert.match(camera, /camera:\s*"front"/,
   "teacher enrollment and clock-in capture must request the front camera");
-assert.match(attendanceJs, /wx\.getLocation\([\s\S]*isHighAccuracy:\s*true/);
+assert.match(attendanceJs, /requestLocation\("gcj02", true\)[\s\S]*requestLocation\("wgs84", false\)/,
+  "clock-in must support both mainland GCJ-02 and overseas WGS-84 location results");
+assert.match(attendanceJs, /ensureLocationPermission\(\)[\s\S]*getSystemSetting[\s\S]*getAppAuthorizeSetting[\s\S]*scope\.userLocation/,
+  "location failures must distinguish system and mini-program authorization");
+assert.match(attendanceJs, /function localDeviceTime\(\)/,
+  "the teacher confirmation preview must use the phone timezone outside China");
+assert.match(attendanceWxml, /手机当前时间[\s\S]*坐标类型[\s\S]*定位精度/,
+  "the confirmation must identify the local preview and coordinate type");
+assert.match(attendanceWxml, /locationErrorCode[\s\S]*permissionAction === 'system'/,
+  "location failures must expose a safe code and the relevant settings entry");
+assert.match(attendanceJs, /onShow\(\)[\s\S]*_resumeLocationAfterSettings[\s\S]*prepareCheckIn\(\)/,
+  "returning from phone settings must continue the same clock-in attempt");
+assert.match(attendanceWxml, /去开启手机定位并继续打卡[\s\S]*去开启微信位置权限并继续打卡/,
+  "a teacher without location permission must receive an explicit continue-clock-in action");
 assert.match(attendanceJs, /currentPlatform\([\s\S]*IPAD[\s\S]*IOS[\s\S]*ANDROID/,
   "phone and iPad platform metadata must be normalized");
 assert.match(attendanceJs, /callFace\("clockInTeacherAttendance"/);
