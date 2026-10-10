@@ -8,8 +8,8 @@ const source = fs.readFileSync(path.join(root, "cloudfunctions", "teacherCreate"
 const miniCreate = fs.readFileSync(path.join(root, "miniprogram-app", "miniprogram", "pages", "teacher-create", "index.js"), "utf8");
 const miniCreateWxml = fs.readFileSync(path.join(root, "miniprogram-app", "miniprogram", "pages", "teacher-create", "index.wxml"), "utf8");
 
-assert.match(source, /const FUNCTION_VERSION = "teacher-create-v8"/);
-assert.match(source, /actions: \["health", "createTeacher", "recoverTeacherCreation"\]/);
+assert.match(source, /const FUNCTION_VERSION = "teacher-create-v9"/);
+assert.match(source, /actions: \["health", "createTeacher", "recoverTeacherCreation", "replaceTeacherAttendanceFace"\]/);
 assert.match(source, /await requireHq\(\)/, "teacher creation must remain headquarters-only");
 assert.match(source, /event\.consent !== true[\s\S]{0,160}CONSENT_REQUIRED/);
 assert.match(source, /cleanImage\(event\.imageBase64\)/);
@@ -38,4 +38,4 @@ assert.match(miniCreateWxml, /wx:if="\{\{locked\}\}"[\s\S]*不会按时间盲目
 assert.doesNotMatch(source, /\boperationId\b|\bworker\b|\bpoll(?:ing)?\b|setInterval\s*\(|setTimeout\s*\(/i,
   "teacher creation must remain one bounded synchronous request, not restore the retired Saga");
 
-console.log("teacherCreate v8 attendance-face synchronous contract: PASS");
+console.log("teacherCreate v9 attendance-face synchronous contract: PASS");

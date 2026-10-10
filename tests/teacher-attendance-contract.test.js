@@ -56,7 +56,7 @@ assert.match(addressMigration, /ADD COLUMN IF NOT EXISTS address_provider VARCHA
 assert.doesNotMatch(addressMigration, /verification_records|ble_|face_request_id/i,
   "readable attendance addresses must not touch verification or BLE records");
 
-assert.match(teacherCreate, /const FUNCTION_VERSION = "teacher-create-v8"/);
+assert.match(teacherCreate, /const FUNCTION_VERSION = "teacher-create-v9"/);
 assert.match(teacherCreate, /event\.consent !== true[\s\S]*cleanImage\(event\.imageBase64\)/);
 assert.match(teacherCreate, /api\.CreatePerson\(/,
   "teacher creation must create the dedicated attendance identity");
@@ -88,7 +88,7 @@ assert.match(face, /signAttendanceLocation[\s\S]*verifiedAttendanceAddressToken/
 assert.match(clockIn, /place_name, formatted_address, address_provider/,
   "the authoritative punch write must persist signed readable location text");
 
-assert.match(staff, /const FUNCTION_VERSION = "v88"/);
+assert.match(staff, /const FUNCTION_VERSION = "v89"/);
 assert.match(staff, /async function getOwnAttendanceMonth/);
 assert.match(staff, /async function getHqAttendanceTrackingDay/);
 assert.match(staff, /action === "getOwnAttendanceMonth"/);

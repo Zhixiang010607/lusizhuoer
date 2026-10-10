@@ -1,0 +1,127 @@
+{
+  "size": {
+    "total": 3480614,
+    "packages": [
+      {
+        "name": "TOTAL",
+        "size": 3480614
+      },
+      {
+        "name": "main",
+        "size": 1808310
+      },
+      {
+        "name": "/packages/report-font/",
+        "size": 764244
+      },
+      {
+        "name": "/pages/attendance-tracking/",
+        "size": 21285
+      },
+      {
+        "name": "/pages/attendance/",
+        "size": 42689
+      },
+      {
+        "name": "/pages/customer-create/",
+        "size": 8790
+      },
+      {
+        "name": "/pages/customer-detail/",
+        "size": 43576
+      },
+      {
+        "name": "/pages/customers/",
+        "size": 21746
+      },
+      {
+        "name": "/pages/daily-report-tracking/",
+        "size": 18410
+      },
+      {
+        "name": "/pages/daily-report/",
+        "size": 18884
+      },
+      {
+        "name": "/pages/hq-directory/",
+        "size": 15217
+      },
+      {
+        "name": "/pages/inactive-customers/",
+        "size": 28011
+      },
+      {
+        "name": "/pages/low-balance-customers/",
+        "size": 30040
+      },
+      {
+        "name": "/pages/order-detail/",
+        "size": 78271
+      },
+      {
+        "name": "/pages/product-create/",
+        "size": 6172
+      },
+      {
+        "name": "/pages/product-detail/",
+        "size": 37337
+      },
+      {
+        "name": "/pages/product-management/",
+        "size": 6992
+      },
+      {
+        "name": "/pages/product-purchase-detail/",
+        "size": 8113
+      },
+      {
+        "name": "/pages/product-purchase/",
+        "size": 15638
+      },
+      {
+        "name": "/pages/project-intro/",
+        "size": 213203
+      },
+      {
+        "name": "/pages/rating-analysis/",
+        "size": 35085
+      },
+      {
+        "name": "/pages/recharge/",
+        "size": 28508
+      },
+      {
+        "name": "/pages/records/",
+        "size": 25159
+      },
+      {
+        "name": "/pages/retail-product-create/",
+        "size": 5518
+      },
+      {
+        "name": "/pages/retail-product-management/",
+        "size": 9856
+      },
+      {
+        "name": "/pages/reviews/",
+        "size": 31884
+      },
+      {
+        "name": "/pages/store-detail/",
+        "size": 28808
+      },
+      {
+        "name": "/pages/teacher-customers/",
+        "size": 11446
+      },
+      {
+        "name": "/pages/teacher-detail/",
+        "size": 66309
+      },
+      {
+        "name": "/pages/verification/",
+        "size": 51113
+      }
+    ]
+  }
+}

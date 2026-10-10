@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v88";
+const FUNCTION_VERSION = "v89";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -1984,6 +1984,94 @@ async function getHqAttendanceTrackingDay(caller, event = {}) {
   return { ok: true, attendanceDate, serverToday,
     completed: teachers.filter((row) => row.completed),
     incomplete: teachers.filter((row) => !row.completed) };
+}
+
+async function getHqTeacherWorkMonth(caller, event = {}) {
+  requireHq(caller);
+  await Promise.all([requireDailyReportSchema(), requireTeacherAttendanceSchema()]);
+  const teacherId = numericId(event.teacherId, "老师编号");
+  const month = validCalendarMonth(event.month);
+  const rows = await executeSql(
+    `WITH context AS (
+       SELECT (CLOCK_TIMESTAMP() AT TIME ZONE 'Asia/Shanghai')::date AS server_today
+     ), target AS (
+       SELECT teacher.id AS teacher_id, teacher.teacher_code, teacher.teacher_name,
+              teacher.teacher_status, account.id AS staff_account_id, account.phone,
+              account.account_status, (profile.id IS NOT NULL) AS face_enrolled
+         FROM public.teachers AS teacher
+         JOIN public.staff_accounts AS account ON account.id = teacher.staff_account_id
+         LEFT JOIN public.teacher_attendance_face_profiles AS profile
+           ON profile.teacher_id = teacher.id AND profile.staff_account_id = account.id
+        WHERE teacher.id = ${teacherId}::bigint
+          AND account.role_code = 'teacher'
+        LIMIT 1
+     ), events AS (
+       SELECT 'ATTENDANCE'::text AS event_kind,
+              attendance.attendance_date AS event_date,
+              attendance.id AS attendance_id, attendance.attendance_type,
+              attendance.checked_in_at, attendance.latitude, attendance.longitude,
+              attendance.accuracy_m, attendance.face_score, attendance.device_platform,
+              attendance.place_name, attendance.formatted_address, attendance.address_provider,
+              NULL::bigint AS report_id, NULL::text AS completed_work,
+              NULL::text AS customer_project_progress, NULL::text AS problems_and_support,
+              NULL::text AS tomorrow_plan, NULL::timestamptz AS report_created_at,
+              NULL::timestamptz AS report_updated_at
+         FROM target
+         JOIN public.teacher_attendance_records AS attendance
+           ON attendance.staff_account_id = target.staff_account_id
+          AND attendance.attendance_date >= ${sqlText(`${month}-01`)}::date
+          AND attendance.attendance_date < (${sqlText(`${month}-01`)}::date + INTERVAL '1 month')
+       UNION ALL
+       SELECT 'REPORT'::text, report.report_date,
+              NULL::bigint, NULL::text, NULL::timestamptz,
+              NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric, NULL::text,
+              NULL::text, NULL::text, NULL::text,
+              report.id, report.completed_work, report.customer_project_progress,
+              report.problems_and_support, report.tomorrow_plan,
+              report.created_at, report.updated_at
+         FROM target
+         JOIN public.staff_daily_reports AS report
+           ON report.staff_account_id = target.staff_account_id
+          AND report.report_date >= ${sqlText(`${month}-01`)}::date
+          AND report.report_date < (${sqlText(`${month}-01`)}::date + INTERVAL '1 month')
+     )
+     SELECT context.server_today, target.*, events.*
+       FROM context
+       JOIN target ON TRUE
+       LEFT JOIN events ON TRUE
+      ORDER BY events.event_date ASC,
+               CASE events.event_kind WHEN 'ATTENDANCE' THEN 1 ELSE 2 END,
+               CASE events.attendance_type WHEN 'CLOCK_IN' THEN 1 ELSE 2 END`
+  );
+  const first = rows?.[0];
+  if (!first?.teacher_id) fail("未找到该老师。", "NOT_FOUND");
+  return {
+    ok: true,
+    month,
+    serverToday: String(first.server_today || "").slice(0, 10),
+    teacher: {
+      teacherId: String(first.teacher_id),
+      teacherCode: String(first.teacher_code || ""),
+      teacherName: String(first.teacher_name || ""),
+      teacherStatus: String(first.teacher_status || ""),
+      accountStatus: String(first.account_status || ""),
+      phone: String(first.phone || ""),
+      faceEnrolled: databaseBoolean(first.face_enrolled)
+    },
+    attendance: (rows || []).filter((row) => row.event_kind === "ATTENDANCE" && row.attendance_id)
+      .map((row) => attendanceResponse(row)),
+    reports: (rows || []).filter((row) => row.event_kind === "REPORT" && row.report_id)
+      .map((row) => dailyReportResponse({
+        id: row.report_id,
+        report_date: row.event_date,
+        completed_work: row.completed_work,
+        customer_project_progress: row.customer_project_progress,
+        problems_and_support: row.problems_and_support,
+        tomorrow_plan: row.tomorrow_plan,
+        created_at: row.report_created_at,
+        updated_at: row.report_updated_at
+      }))
+  };
 }
 
 async function ensureBootstrapHq(caller) {
@@ -4912,6 +5000,9 @@ async function main(event = {}, context = {}) {
   }
   if (action === "getHqAttendanceTrackingDay") {
     return await getHqAttendanceTrackingDay(caller, event);
+  }
+  if (action === "getHqTeacherWorkMonth") {
+    return await getHqTeacherWorkMonth(caller, event);
   }
   if (action === "getHqDashboard") {
     requireHq(caller);

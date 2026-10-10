@@ -4,7 +4,7 @@ const crypto = require("node:crypto");
 const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 
-const FUNCTION_VERSION = "teacher-create-v8";
+const FUNCTION_VERSION = "teacher-create-v9";
 const FACE_MODEL_VERSION = "3.0";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 let cloudApp = null;
@@ -130,6 +130,10 @@ function attendancePersonId(clientRequestId) {
   return `AT-${crypto.createHash("sha256").update(clientRequestId).digest("hex").slice(0, 28).toUpperCase()}`;
 }
 
+function replacementPersonId(teacherId, clientRequestId) {
+  return `ATR-${crypto.createHash("sha256").update(`${teacherId}:${clientRequestId}`).digest("hex").slice(0, 27).toUpperCase()}`;
+}
+
 async function uploadAttendancePhoto(personId, buffer) {
   const bucketId = String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim();
   const objectName = `attendance-teachers/${personId}/${Date.now()}.jpg`;
@@ -149,6 +153,11 @@ async function deleteAttendancePhoto(photo) {
   if (!photo?.bucketId || !photo?.objectName) return;
   await manager().storage.deleteObject({ bucketId: photo.bucketId, objectName: photo.objectName,
     accessToken: serviceRoleKey(), envId: envId() });
+}
+
+function attendancePhotoReference(reference) {
+  const match = /^pg:\/\/([^/]+)\/(.+)$/.exec(String(reference || "").trim());
+  return match ? { bucketId: match[1], objectName: match[2] } : null;
 }
 
 async function deleteFacePerson(api, _groupId, personId) {
@@ -604,12 +613,183 @@ async function createTeacher(event) {
   }
 }
 
+async function readAttendanceFaceTarget(teacherId) {
+  const rows = await executeSql(
+    `SELECT teacher.id AS teacher_id, teacher.teacher_name, teacher.teacher_status,
+            account.id AS staff_account_id, account.account_status,
+            profile.id AS profile_id, profile.face_person_id, profile.face_id,
+            profile.profile_photo_file_id, profile.replacement_count
+       FROM public.teachers AS teacher
+       JOIN public.staff_accounts AS account ON account.id = teacher.staff_account_id
+       LEFT JOIN public.teacher_attendance_face_profiles AS profile
+         ON profile.teacher_id = teacher.id AND profile.staff_account_id = account.id
+      WHERE teacher.id = ${Number(teacherId)}::bigint
+        AND account.role_code = 'teacher'
+      LIMIT 1`
+  );
+  return rows?.[0] || null;
+}
+
+async function readAttendanceFaceReplacementProof(teacherId, clientRequestId, newPersonId) {
+  const rows = await executeSql(
+    `SELECT profile.teacher_id, profile.staff_account_id, profile.face_person_id,
+            profile.profile_photo_file_id, audit.id AS audit_id,
+            audit.previous_face_person_id, audit.previous_profile_photo_file_id
+       FROM public.teacher_attendance_face_replacements AS audit
+       JOIN public.teacher_attendance_face_profiles AS profile
+         ON profile.teacher_id = audit.teacher_id
+        AND profile.staff_account_id = audit.staff_account_id
+        AND profile.face_person_id = audit.new_face_person_id
+        AND profile.profile_photo_file_id = audit.new_profile_photo_file_id
+      WHERE audit.teacher_id = ${Number(teacherId)}::bigint
+        AND audit.client_request_id = ${sqlText(clientRequestId)}
+        AND audit.new_face_person_id = ${sqlText(newPersonId)}
+      LIMIT 1`
+  );
+  return rows?.[0] || null;
+}
+
+async function replaceTeacherAttendanceFace(event) {
+  const hq = await requireHq();
+  const teacherId = String(event.teacherId || "").trim();
+  if (!/^\d+$/.test(teacherId) || Number(teacherId) <= 0) fail("老师编号无效。", "BAD_REQUEST");
+  if (event.consent !== true) fail("必须取得老师明确授权后才能重新采集考勤面容。", "CONSENT_REQUIRED");
+  const clientRequestId = requestKey(event.clientRequestId);
+  const { base64, buffer } = cleanImage(event.imageBase64);
+  const newPersonId = replacementPersonId(teacherId, clientRequestId);
+  const original = await readAttendanceFaceTarget(teacherId);
+  if (!original) fail("未找到该老师。", "NOT_FOUND");
+  if (String(original.teacher_status) !== "ACTIVE" || String(original.account_status) !== "ACTIVE") {
+    fail("封存老师不能重新录入考勤人脸，请先激活老师。", "ARCHIVED");
+  }
+  if (!original.profile_id) fail("该老师尚无考勤人脸档案，不能执行替换。", "ATTENDANCE_FACE_PROFILE_MISSING");
+  if (String(original.face_person_id || "") === newPersonId) {
+    return { ok: true, replaced: true, idempotent: true, teacherId, attendanceFaceEnrolled: true };
+  }
+
+  const api = faceClient();
+  const groupId = required("FACE_GROUP_ID");
+  let storedPhoto = null;
+  let createdPerson = false;
+  let committed = false;
+  let cleanupSafe = true;
+  try {
+    // A retry with the same request id may have left only external resources.
+    // They are never authoritative unless the profile points at newPersonId.
+    await deleteAttendancePhotoPrefix(newPersonId);
+    await deleteFacePerson(api, groupId, newPersonId);
+    const quality = await inspectFaceImage(api, base64);
+    const liveness = await inspectLiveness(api, base64);
+    const faceResult = await api.CreatePerson({
+      GroupId: groupId, PersonId: newPersonId, PersonName: String(original.teacher_name || "老师"),
+      Image: base64, UniquePersonControl: 0, QualityControl: 3, NeedRotateDetection: 0
+    });
+    if (!faceResult?.FaceId) fail("人脸服务没有返回有效 FaceId，原考勤人脸保持不变。", "FACE_ENROLLMENT_INCOMPLETE");
+    createdPerson = true;
+    storedPhoto = await uploadAttendancePhoto(newPersonId, buffer);
+    const requestId = faceResult.RequestId || quality.requestId || "";
+    let rows = [];
+    let writeError = null;
+    try {
+      rows = await executeSql(
+        `WITH target AS (
+         SELECT profile.id, profile.teacher_id, profile.staff_account_id,
+                profile.face_person_id AS previous_face_person_id,
+                profile.profile_photo_file_id AS previous_profile_photo_file_id
+           FROM public.teacher_attendance_face_profiles AS profile
+           JOIN public.teachers AS teacher ON teacher.id = profile.teacher_id
+           JOIN public.staff_accounts AS account ON account.id = profile.staff_account_id
+          WHERE profile.teacher_id = ${Number(teacherId)}::bigint
+            AND profile.staff_account_id = ${Number(original.staff_account_id)}::bigint
+            AND profile.face_person_id = ${sqlText(original.face_person_id)}
+            AND teacher.teacher_status = 'ACTIVE'
+            AND account.account_status = 'ACTIVE'
+          FOR UPDATE
+       ), updated AS (
+         UPDATE public.teacher_attendance_face_profiles AS profile
+            SET face_person_id = ${sqlText(newPersonId)},
+                face_id = ${sqlText(faceResult.FaceId)},
+                profile_photo_file_id = ${sqlText(storedPhoto.reference)},
+                enrolled_by_account_id = ${Number(hq.staffId)}::bigint,
+                consent_at = CLOCK_TIMESTAMP(),
+                quality_score = ${Number(quality.qualityScore)}::numeric,
+                liveness_score = ${liveness.score === null ? "NULL" : `${Number(liveness.score)}::numeric`},
+                face_request_id = ${sqlText(requestId)},
+                replacement_count = profile.replacement_count + 1
+           FROM target
+          WHERE profile.id = target.id
+          RETURNING profile.teacher_id, profile.staff_account_id, profile.face_person_id,
+                    profile.profile_photo_file_id, target.previous_face_person_id,
+                    target.previous_profile_photo_file_id
+       ), audit AS (
+         INSERT INTO public.teacher_attendance_face_replacements
+           (teacher_id, staff_account_id, replaced_by_account_id, client_request_id,
+            previous_face_person_id, new_face_person_id,
+            previous_profile_photo_file_id, new_profile_photo_file_id,
+            quality_score, liveness_score, face_request_id)
+         SELECT updated.teacher_id, updated.staff_account_id, ${Number(hq.staffId)}::bigint,
+                ${sqlText(clientRequestId)}, updated.previous_face_person_id,
+                updated.face_person_id, updated.previous_profile_photo_file_id,
+                updated.profile_photo_file_id, ${Number(quality.qualityScore)}::numeric,
+                ${liveness.score === null ? "NULL" : `${Number(liveness.score)}::numeric`}, ${sqlText(requestId)}
+           FROM updated
+         RETURNING id
+       )
+         SELECT updated.*, audit.id AS audit_id FROM updated CROSS JOIN audit`
+      );
+    } catch (error) {
+      writeError = error;
+    }
+    let replaced = rows?.[0] || null;
+    if (!replaced) {
+      try {
+        replaced = await readAttendanceFaceReplacementProof(teacherId, clientRequestId, newPersonId);
+      } catch (readError) {
+        cleanupSafe = false;
+        const uncertain = writeError || readError;
+        uncertain.code = "FACE_REPLACEMENT_RESULT_UNCERTAIN";
+        uncertain.submissionUncertain = true;
+        uncertain.message = "考勤人脸替换结果暂时无法从数据库确认，请勿重新提交；稍后使用同一请求继续确认。";
+        throw uncertain;
+      }
+    }
+    if (!replaced && writeError) throw writeError;
+    if (!replaced?.audit_id || String(replaced.face_person_id || "") !== newPersonId
+        || String(replaced.profile_photo_file_id || "") !== storedPhoto.reference) {
+      fail("考勤人脸替换未能完成数据库回读，原档案保持不变。", "DATABASE_ERROR");
+    }
+    committed = true;
+    const cleanup = [];
+    await deleteFacePerson(api, groupId, String(replaced.previous_face_person_id || "")).catch((error) => {
+      cleanup.push({ stage: "OLD_FACE_DELETE", code: error?.code || "CLEANUP_FAILED" });
+    });
+    const oldPhoto = attendancePhotoReference(replaced.previous_profile_photo_file_id);
+    await deleteAttendancePhoto(oldPhoto).catch((error) => {
+      cleanup.push({ stage: "OLD_PHOTO_DELETE", code: error?.code || "CLEANUP_FAILED" });
+    });
+    return {
+      ok: true,
+      replaced: true,
+      teacherId,
+      attendanceFaceEnrolled: true,
+      cleanupPending: cleanup.length > 0,
+      cleanup
+    };
+  } catch (error) {
+    if (!committed && cleanupSafe) {
+      if (storedPhoto) await deleteAttendancePhoto(storedPhoto).catch(() => {});
+      if (createdPerson) await deleteFacePerson(api, groupId, newPersonId).catch(() => {});
+    }
+    throw error;
+  }
+}
+
 function health() {
   const hasEnv = (name) => Boolean(String(process.env[name] || "").trim());
   return {
     ok: true,
     version: FUNCTION_VERSION,
-    actions: ["health", "createTeacher", "recoverTeacherCreation"],
+    actions: ["health", "createTeacher", "recoverTeacherCreation", "replaceTeacherAttendanceFace"],
     configured: {
       cloudbaseEnv: hasEnv("CLOUDBASE_ENV_ID") || hasEnv("TCB_ENV"),
       face: hasEnv("FACE_SECRET_ID") && hasEnv("FACE_SECRET_KEY") && hasEnv("FACE_GROUP_ID"),
@@ -624,6 +804,7 @@ exports.main = async (event = {}) => {
     if (action === "health") return health();
     if (action === "createTeacher") return await createTeacher(event);
     if (action === "recoverTeacherCreation") return await recoverTeacherCreation(event);
+    if (action === "replaceTeacherAttendanceFace") return await replaceTeacherAttendanceFace(event);
     fail("不支持的 teacherCreate 动作。", "UNKNOWN_ACTION");
   } catch (error) {
     return errorResponse(error);

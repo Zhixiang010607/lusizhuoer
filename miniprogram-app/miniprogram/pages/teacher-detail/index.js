@@ -1,4 +1,4 @@
-const { callStaff } = require("../../services/api");
+const { callStaff, callTeacherCreate } = require("../../services/api");
 const { requireSession } = require("../../services/session");
 const { displayDateTimeAny } = require("../../services/query-tools");
 const rechargeIntent = require("../../services/teacher-experience-recharge");
@@ -48,7 +48,18 @@ function summaryRows(rows, totals) {
 }
 function validPassword(value) { const password = String(value || ""); const groups = [/[A-Z]/, /[a-z]/, /\d/, /[^A-Za-z\d]/].filter((rule) => rule.test(password)).length; return password.length >= 8 && password.length <= 32 && /^[A-Za-z0-9]/.test(password) && groups >= 3; }
 function confirm(content, confirmText) { return new Promise((resolve) => wx.showModal({ title: "请确认", content, confirmText, success: (result) => resolve(result.confirm), fail: () => resolve(false) })); }
-const REQUEST_EPOCH_KEYS = Object.freeze(["_loadRequestEpoch", "_profileRequestEpoch", "_productsRequestEpoch", "_experienceRequestEpoch", "_mutationRequestEpoch"]);
+function faceReplacementKey(teacherId) { return `hq_teacher_attendance_face_replacement:${text(teacherId)}`; }
+function faceReplacementRequestId(teacherId) {
+  const key = faceReplacementKey(teacherId);
+  const pending = wx.getStorageSync(key);
+  if (pending && text(pending.clientRequestId)) return text(pending.clientRequestId);
+  const clientRequestId = `face-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  wx.setStorageSync(key, { clientRequestId, teacherId: text(teacherId), createdAt: Date.now() });
+  const saved = wx.getStorageSync(key);
+  if (!saved || text(saved.clientRequestId) !== clientRequestId) throw new Error("无法保存重新扫脸防重复提交编号，已停止提交");
+  return clientRequestId;
+}
+const REQUEST_EPOCH_KEYS = Object.freeze(["_loadRequestEpoch", "_profileRequestEpoch", "_productsRequestEpoch", "_experienceRequestEpoch", "_workRequestEpoch", "_mutationRequestEpoch"]);
 function bump(page, key) { const epoch = (page[key] || 0) + 1; page[key] = epoch; return epoch; }
 function current(page, key, epoch) { return !page._unloaded && page[key] === epoch; }
 function productSnapshot(products) { return Object.freeze((products || []).map((item) => Object.freeze({ ...item }))); }
@@ -106,13 +117,87 @@ function definitiveRechargeRejection(error) {
   ].includes(text(error && error.code).toUpperCase());
 }
 
+function shanghaiMonth() {
+  const shifted = new Date(Date.now() + 8 * 60 * 60 * 1000);
+  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+function shiftMonth(month, delta) {
+  const [year, number] = String(month).split("-").map(Number);
+  const date = new Date(Date.UTC(year, number - 1 + delta, 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+function monthTitle(month) {
+  const [year, number] = String(month).split("-");
+  return `${year}年${Number(number)}月`;
+}
+function durationText(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "尚未形成完整工时";
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return `${hours} 小时 ${minutes} 分钟`;
+}
+function calendarCells(month, serverToday, attendance, reports) {
+  const [year, number] = String(month).split("-").map(Number);
+  const first = new Date(Date.UTC(year, number - 1, 1));
+  const mondayOffset = (first.getUTCDay() + 6) % 7;
+  const daysInMonth = new Date(Date.UTC(year, number, 0)).getUTCDate();
+  const attendanceByDate = new Map();
+  (attendance || []).forEach((record) => {
+    const date = text(record.attendanceDate);
+    if (!attendanceByDate.has(date)) attendanceByDate.set(date, {});
+    attendanceByDate.get(date)[text(record.attendanceType)] = record;
+  });
+  const reportByDate = new Map((reports || []).map((report) => [text(report.reportDate), report]));
+  const cells = [];
+  for (let index = 0; index < 42; index += 1) {
+    const day = index - mondayOffset + 1;
+    if (day < 1 || day > daysInMonth) {
+      cells.push({ key: `blank-${index}`, blank: true });
+      continue;
+    }
+    const date = `${month}-${String(day).padStart(2, "0")}`;
+    const future = Boolean(serverToday && date > serverToday);
+    const dayAttendance = attendanceByDate.get(date) || {};
+    const report = reportByDate.get(date) || null;
+    cells.push({
+      key: date, date, day, blank: false, future,
+      clockIn: dayAttendance.CLOCK_IN || null,
+      clockOut: dayAttendance.CLOCK_OUT || null,
+      report,
+      clockInState: dayAttendance.CLOCK_IN ? "done" : future ? "future" : "missing",
+      clockOutState: dayAttendance.CLOCK_OUT ? "done" : future ? "future" : "missing",
+      reportState: report ? "done" : future ? "future" : "missing"
+    });
+  }
+  return cells;
+}
+function selectedWorkDay(cell) {
+  if (!cell || cell.blank) return null;
+  const clockIn = cell.clockIn || null;
+  const clockOut = cell.clockOut || null;
+  const duration = clockIn && clockOut
+    ? Math.max(0, (new Date(clockOut.checkedInAt).getTime() - new Date(clockIn.checkedInAt).getTime()) / 1000)
+    : NaN;
+  return {
+    date: cell.date,
+    future: cell.future,
+    clockIn: clockIn ? { ...clockIn, timeText: formatTime(clockIn.checkedInAt) } : null,
+    clockOut: clockOut ? { ...clockOut, timeText: formatTime(clockOut.checkedInAt) } : null,
+    workDurationText: durationText(duration),
+    report: cell.report || null
+  };
+}
+
 Page({
   data: {
     teacherRef: "", staff: null, teacherId: "", profile: {}, loading: true, mutating: "", message: "", error: false,
     entitlements: [], summaryRows: [], history: [],
     products: [], configureProducts: [], configureLabels: [], configureIndex: 0, configureProductId: "", monthlyAllowance: "",
     rechargeProducts: [], rechargeLabels: [], rechargeIndex: 0, rechargeProductId: "", rechargeCount: "", rechargeNote: "", rechargePending: false,
-    overview: { available: 0, used: 0, lifetime: 0, activeProducts: 0 }, newPassword: "", newPasswordVisible: false
+    overview: { available: 0, used: 0, lifetime: 0, activeProducts: 0 }, newPassword: "", newPasswordVisible: false,
+    activeSection: "basic", workMode: "attendance", workMonth: shanghaiMonth(), workMonthTitle: monthTitle(shanghaiMonth()),
+    weekdays: ["一", "二", "三", "四", "五", "六", "日"], calendarDays: [], selectedWorkDate: "", selectedWorkDay: null,
+    workLoading: false, workLoadedMonth: "", serverToday: "", faceCaptureReady: false, faceConsent: false
   },
   onLoad(options) {
     if (!requireSession(["hq"])) return;
@@ -128,6 +213,17 @@ Page({
   },
   onPullDownRefresh() { this.load().finally(() => wx.stopPullDownRefresh()); },
   back() { wx.navigateBack(); },
+  switchSection(event) {
+    const section = text(event.currentTarget.dataset.section);
+    if (!["basic", "configuration", "work"].includes(section)) return;
+    this.setData({ activeSection: section, message: "", error: false });
+    if (section === "work" && this.data.workLoadedMonth !== this.data.workMonth) this.loadWorkMonth();
+  },
+  switchWorkMode(event) {
+    const mode = text(event.currentTarget.dataset.mode);
+    if (!["attendance", "report"].includes(mode)) return;
+    this.setData({ workMode: mode });
+  },
   profileView(staff) {
     const name = text(staff.staff_name, staff.teacher_name) || "老师";
     return { name, initials: Array.from(name)[0] || "师", code: text(staff.person_code, staff.teacher_code) || "未分配", phone: text(staff.phone) || "未填写", archived: archived(staff), authUid: text(staff.auth_uid) };
@@ -202,6 +298,94 @@ Page({
       if (!current(this, "_experienceRequestEpoch", request.epoch)) return false;
       this.setData(emptyExperienceState());
       throw error;
+    }
+  },
+  async loadWorkMonth(options = {}) {
+    const teacherId = text(options.teacherId, this.data.teacherId);
+    const month = text(options.month, this.data.workMonth);
+    if (!teacherId || !/^\d{4}-\d{2}$/.test(month)) return false;
+    const epoch = bump(this, "_workRequestEpoch");
+    this.setData({ workLoading: true, message: "", error: false });
+    try {
+      const result = await callStaff("getHqTeacherWorkMonth", Object.freeze({ teacherId, month }));
+      if (!current(this, "_workRequestEpoch", epoch)) return false;
+      const days = calendarCells(month, text(result.serverToday), result.attendance, result.reports);
+      const preferredDate = this.data.selectedWorkDate.startsWith(`${month}-`)
+        ? this.data.selectedWorkDate
+        : text(result.serverToday).startsWith(`${month}-`) ? text(result.serverToday) : `${month}-01`;
+      const selected = days.find((cell) => cell.date === preferredDate) || days.find((cell) => !cell.blank);
+      this.setData({
+        calendarDays: days,
+        selectedWorkDate: selected?.date || "",
+        selectedWorkDay: selectedWorkDay(selected),
+        workLoadedMonth: month,
+        serverToday: text(result.serverToday),
+        workMonthTitle: monthTitle(month)
+      });
+      return true;
+    } catch (error) {
+      if (current(this, "_workRequestEpoch", epoch)) {
+        this.setData({ calendarDays: [], selectedWorkDay: null, workLoadedMonth: "", message: error.message || "考勤日报月历读取失败", error: true });
+      }
+      return false;
+    } finally {
+      if (current(this, "_workRequestEpoch", epoch)) this.setData({ workLoading: false });
+    }
+  },
+  changeWorkMonth(event) {
+    if (this.data.workLoading) return;
+    const workMonth = shiftMonth(this.data.workMonth, Number(event.currentTarget.dataset.delta || 0));
+    this.setData({ workMonth, workMonthTitle: monthTitle(workMonth), selectedWorkDate: "", selectedWorkDay: null });
+    this.loadWorkMonth({ month: workMonth });
+  },
+  selectWorkDate(event) {
+    const date = text(event.currentTarget.dataset.date);
+    const cell = this.data.calendarDays.find((item) => item.date === date);
+    if (!cell || cell.blank) return;
+    this.setData({ selectedWorkDate: date, selectedWorkDay: selectedWorkDay(cell) });
+  },
+  openAttendanceMap(event) {
+    const kind = text(event.currentTarget.dataset.kind);
+    const record = this.data.selectedWorkDay && this.data.selectedWorkDay[kind];
+    if (!record || !Number.isFinite(Number(record.latitude)) || !Number.isFinite(Number(record.longitude))) return;
+    wx.openLocation({
+      latitude: Number(record.latitude), longitude: Number(record.longitude), scale: 18,
+      name: text(record.placeName) || `${kind === "clockIn" ? "上班" : "下班"}打卡位置`,
+      address: text(record.formattedAddress) || `${record.latitude}, ${record.longitude}`
+    });
+  },
+  faceCaptureChange(event) { this.setData({ faceCaptureReady: Boolean(event.detail?.ready) }); },
+  faceConsentChange(event) { this.setData({ faceConsent: (event.detail.value || []).includes("consent") }); },
+  async replaceAttendanceFace() {
+    if (this.data.mutating || this.data.profile.archived || !this.data.faceConsent || !this.data.faceCaptureReady) return;
+    const capture = this.selectComponent("#attendance-face-capture")?.getCapture();
+    if (!capture?.imageBase64) return this.setData({ message: "请先现场拍摄老师正面照片。", error: true });
+    if (!await confirm(`确认用本次现场照片覆盖“${this.data.profile.name}”原有的考勤人脸档案？历史打卡不会改变。`, "确认重录")) return;
+    const epoch = bump(this, "_mutationRequestEpoch");
+    this.setData({ mutating: "face", message: "正在检查照片并替换考勤人脸…", error: false });
+    try {
+      const clientRequestId = faceReplacementRequestId(this.data.teacherId);
+      const result = await callTeacherCreate({
+        action: "replaceTeacherAttendanceFace", teacherId: text(this.data.teacherId),
+        clientRequestId,
+        consent: true, imageBase64: capture.imageBase64
+      });
+      if (!current(this, "_mutationRequestEpoch", epoch)) return;
+      wx.removeStorageSync(faceReplacementKey(this.data.teacherId));
+      this.selectComponent("#attendance-face-capture")?.reset();
+      this.setData({
+        faceCaptureReady: false, faceConsent: false,
+        message: result.cleanupPending ? "新考勤人脸已生效；旧外部档案正在等待清理。" : "考勤人脸已重新录入，历史打卡不受影响。",
+        error: false
+      });
+      if (this.data.workLoadedMonth) this.loadWorkMonth();
+    } catch (error) {
+      if (current(this, "_mutationRequestEpoch", epoch)) this.setData({
+        message: `${error.message || "考勤人脸替换失败，原档案保持不变"}。再次提交会沿用同一请求编号核对结果，不会重复建档。`,
+        error: true
+      });
+    } finally {
+      if (current(this, "_mutationRequestEpoch", epoch)) this.setData({ mutating: "" });
     }
   },
   chooseConfigureProduct(event) { const index = Number(event.detail.value || 0); this.setData({ configureIndex: index, configureProductId: this.data.configureProducts[index] && this.data.configureProducts[index].id || "" }); },

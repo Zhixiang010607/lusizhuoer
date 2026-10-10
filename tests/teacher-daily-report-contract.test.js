@@ -56,9 +56,9 @@ test("migration 077 requires all four fields without rewriting historical report
   assert.match(requiredVerifySql, /daily_report_all_fields_trigger/);
 });
 
-test("staffAccount v88 derives the teacher identity from the authenticated profile", () => {
-  assert.match(cloud, /const FUNCTION_VERSION = "v88"/);
-  assert.match(cloudReadme, /当前版本：`v88`/);
+test("staffAccount v89 derives the teacher identity from the authenticated profile", () => {
+  assert.match(cloud, /const FUNCTION_VERSION = "v89"/);
+  assert.match(cloudReadme, /当前版本：`v89`/);
   assert.match(cloud, /function requireDailyReportTeacher\(caller\)/);
   assert.match(cloud, /caller\.profile\?\.role !== "teacher"/);
   assert.match(cloud, /caller\.profile\?\.teacherStatus !== "ACTIVE"/);

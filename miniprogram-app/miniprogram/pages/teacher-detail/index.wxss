@@ -170,3 +170,78 @@
 @media (min-width: 1100px) { .quota-grid { grid-template-columns: minmax(0, 1fr); } }
 
 .quota-card.large-counts .quota-facts { grid-template-columns: minmax(0, 1fr); }
+
+.teacher-section-tabs, .work-mode-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10rpx; margin-bottom: 22rpx; padding: 8rpx; background: #eee2cf; border: 1rpx solid #dfcfb4; border-radius: 18rpx; }
+.teacher-section-tab, .work-mode-tab { width: 100% !important; min-height: 72rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 12rpx; color: #766a5b; background: transparent; border: 0; border-radius: 14rpx; font-size: 22rpx; font-weight: 800; line-height: 1.2; text-align: center; }
+.teacher-section-tab::after, .work-mode-tab::after { border: 0; }
+.teacher-section-tab.active, .work-mode-tab.active { color: #fff; background: #80602c; box-shadow: 0 3rpx 10rpx rgba(88, 59, 25, .14); }
+.work-mode-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.basic-detail-grid { align-content: start; }
+.face-reenroll-panel { min-width: 0; padding: 24rpx; border-color: #e1cfaf; background: #fffaf3; }
+.face-disabled-note { padding: 22rpx; color: #7c7062; background: #f4eadb; border-radius: 14rpx; line-height: 1.6; }
+.face-consent { margin-top: 20rpx; }
+.face-consent label { display: flex; align-items: flex-start; gap: 12rpx; color: #655c51; font-size: 20rpx; line-height: 1.6; }
+.face-consent checkbox { flex: none; margin-top: 2rpx; transform: scale(.9); transform-origin: left top; }
+.face-replace-button { min-height: 78rpx; display: flex; align-items: center; justify-content: center; margin: 20rpx 0 0; line-height: 1.2; text-align: center; }
+.configuration-section, .work-section { display: grid; gap: 20rpx; }
+.calendar-panel, .selected-day-panel { padding: 24rpx; border-color: #e1cfaf; background: #fffaf3; }
+.calendar-toolbar { display: grid; grid-template-columns: 120rpx minmax(0, 1fr) 120rpx; align-items: center; gap: 12rpx; }
+.calendar-toolbar button { width: 100% !important; min-height: 58rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0; color: #74592d; background: #fff; border: 1rpx solid #dcc8a6; border-radius: 12rpx; font-size: 19rpx; line-height: 1; text-align: center; }
+.calendar-toolbar button::after { border: 0; }
+.calendar-toolbar > text { text-align: center; font-size: 30rpx; font-weight: 900; }
+.calendar-legend { display: flex; align-items: center; flex-wrap: wrap; gap: 16rpx 24rpx; margin: 22rpx 0 14rpx; color: #756a5e; font-size: 18rpx; }
+.calendar-legend view { display: flex; align-items: center; gap: 7rpx; }
+.calendar-weekdays, .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.calendar-weekdays text { padding: 12rpx 0; color: #7d7060; font-size: 18rpx; font-weight: 800; text-align: center; }
+.calendar-grid { overflow: hidden; border-top: 1rpx solid #e4d4ba; border-left: 1rpx solid #e4d4ba; border-radius: 14rpx; }
+.calendar-day { min-width: 0; min-height: 92rpx; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 10rpx 4rpx; background: #fff; border-right: 1rpx solid #e4d4ba; border-bottom: 1rpx solid #e4d4ba; box-sizing: border-box; }
+.calendar-day.blank { background: #f5eee3; }
+.calendar-day.selected { background: #f7ead3; box-shadow: inset 0 0 0 3rpx #b98a3d; }
+.calendar-day.future { color: #aaa095; }
+.calendar-day-number { font-size: 20rpx; font-weight: 750; }
+.attendance-dots, .report-dot { min-height: 18rpx; display: flex; align-items: center; justify-content: center; gap: 8rpx; }
+.status-dot { width: 13rpx; height: 13rpx; display: inline-block; border-radius: 999rpx; background: #cfc7bc; }
+.status-dot.done { background: #3177c8; }
+.status-dot.missing { background: #c94a42; }
+.status-dot.future { background: #cfc7bc; }
+.calendar-loading { min-height: 420rpx; display: flex; align-items: center; justify-content: center; color: #81776b; }
+.attendance-detail-grid { display: grid; gap: 16rpx; }
+.attendance-detail-card { min-width: 0; display: flex; flex-direction: column; gap: 10rpx; padding: 20rpx; color: #6c6256; background: #fff8ec; border: 1rpx solid #dfcfb4; border-radius: 16rpx; font-size: 20rpx; line-height: 1.55; overflow-wrap: anywhere; }
+.attendance-detail-card .detail-kind { color: #332b23; font-size: 25rpx; font-weight: 900; }
+.attendance-detail-card .detail-time { color: #74592d; font-size: 23rpx; font-weight: 850; }
+.attendance-detail-card button { width: 100% !important; min-height: 64rpx; display: flex; align-items: center; justify-content: center; margin: 8rpx 0 0; line-height: 1.2; text-align: center; }
+.empty-detail { min-height: 118rpx; display: flex; align-items: center; justify-content: center; color: #a49a8e; }
+.report-detail-list { overflow: hidden; background: #fff; border: 1rpx solid #dfcfb4; border-radius: 16rpx; }
+.report-detail-list view { display: grid; gap: 9rpx; padding: 20rpx; border-top: 1rpx solid #eadcc5; }
+.report-detail-list view:first-child { border-top: 0; }
+.report-detail-list text:first-child { color: #74592d; font-size: 20rpx; font-weight: 850; }
+.report-detail-list text:last-child { color: #423a31; font-size: 22rpx; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.selected-report-empty { min-height: 180rpx; display: flex; align-items: center; justify-content: center; }
+.teacher-detail-grid button, .configuration-section button, .work-section button { text-align: center; }
+
+@media (min-width: 700px) {
+  .teacher-section-tabs, .work-mode-tabs { gap: 8px; margin-bottom: 16px; padding: 6px; border-width: 1px; border-radius: 14px; }
+  .teacher-section-tab, .work-mode-tab { min-height: 46px; padding: 0 10px; border-radius: 10px; font-size: 14px; }
+  .face-reenroll-panel, .calendar-panel, .selected-day-panel { padding: 20px; border-width: 1px; border-radius: 18px; }
+  .face-consent { margin-top: 14px; }
+  .face-consent label { gap: 8px; font-size: 14px; }
+  .face-replace-button { min-height: 48px; margin-top: 14px; }
+  .calendar-toolbar { grid-template-columns: 84px minmax(0, 1fr) 84px; gap: 10px; }
+  .calendar-toolbar button { min-height: 40px; border-width: 1px; border-radius: 9px; font-size: 13px; }
+  .calendar-toolbar > text { font-size: 20px; }
+  .calendar-legend { gap: 10px 18px; margin: 16px 0 10px; font-size: 13px; }
+  .calendar-weekdays text { padding: 9px 0; font-size: 13px; }
+  .calendar-day { min-height: 72px; padding: 8px 4px; border-width: 1px; }
+  .calendar-day-number { font-size: 14px; }
+  .status-dot { width: 9px; height: 9px; }
+  .attendance-dots, .report-dot { min-height: 12px; gap: 6px; }
+  .attendance-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .attendance-detail-card { gap: 8px; padding: 16px; border-width: 1px; border-radius: 13px; font-size: 14px; }
+  .attendance-detail-card .detail-kind { font-size: 18px; }
+  .attendance-detail-card .detail-time { font-size: 16px; }
+  .attendance-detail-card button { min-height: 42px; margin-top: 6px; }
+  .report-detail-list { border-width: 1px; border-radius: 13px; }
+  .report-detail-list view { grid-template-columns: 160px minmax(0, 1fr); gap: 14px; padding: 15px; border-width: 1px; }
+  .report-detail-list text:first-child { font-size: 14px; }
+  .report-detail-list text:last-child { font-size: 15px; }
+}
