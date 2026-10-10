@@ -50,7 +50,7 @@
       <view class="photo-grid">
         <view wx:for="{{photos}}" wx:key="slot" hidden="{{!item.visible}}" class="photo-card state-{{item.state}}">
           <view class="photo-frame">
-            <image wx:if="{{item.declared && item.thumbnailState === 'ready'}}" class="photo" src="{{item.thumbnailUrl}}" mode="aspectFill" data-slot="{{item.slot}}" bindtap="previewPhoto" binderror="photoThumbnailError"></image>
+            <image wx:if="{{item.declared && item.thumbnailState === 'ready'}}" class="photo" src="{{item.thumbnailUrl}}" mode="aspectFit" data-slot="{{item.slot}}" bindtap="previewPhoto" binderror="photoThumbnailError"></image>
             <view wx:elif="{{item.declared}}" class="slot-placeholder slot-error slot-retry-target" data-slot="{{item.slot}}" bindtap="retryThumbnail">
               <text wx:if="{{item.retrying}}">正在重新读取这张照片…</text>
               <text wx:elif="{{item.retryError}}">{{item.retryError}}</text>

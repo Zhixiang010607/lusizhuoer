@@ -157,6 +157,12 @@ test("history mapper preserves refund signs, teachers, dates, and server statuse
     id: "10", verificationType: "SUPPLEMENT", unitCount: 1, recordStatus: "APPROVED"
   }], "VERIFICATION")[0];
   assert.equal(supplement.statusLabel, "已完成");
+  assert.equal(supplement.originalType, "NORMAL");
+  const rejectedSupplement = sandbox.__customerDetailTest.mapHistory([{
+    id: "10-rejected", verificationType: "SUPPLEMENT", unitCount: 1, recordStatus: "REJECTED"
+  }], "VERIFICATION")[0];
+  assert.equal(rejectedSupplement.originalType, "SUPPLEMENT");
+  assert.equal(rejectedSupplement.statusLabel, "已驳回");
   const purchase = sandbox.__customerDetailTest.mapHistory([{
     id: "11", purchaseCode: "PP20260826000011", unitCount: 3, recordStatus: "PENDING"
   }], "PRODUCT_PURCHASE")[0];

@@ -93,8 +93,10 @@ assert.match(reviewsJs, /category: "SUPPLEMENT"/);
 
 assert.doesNotMatch(queryTools, /value: "SUPPLEMENT"/,
   "ordinary query filters must not expose supplement as a separate public type");
-assert.match(queryTools, /originalType === "SUPPLEMENT" \? "NORMAL" : originalType/,
-  "approved supplemental records must normalize to normal verification");
+assert.match(queryTools, /originalType === "SUPPLEMENT"[\s\S]{0,80}recordStatus === "APPROVED"[\s\S]{0,80}\? "NORMAL"/,
+  "only approved supplemental records normalize to normal verification");
+assert.match(queryTools, /: originalType;/,
+  "pending and rejected supplemental records keep their exact internal detail route");
 assert.match(orderJs, /\["NORMAL", "SUPPLEMENT", "EXPERIENCE"\]/);
 assert.match(orderJs, /verification && !supplementRequest && request\.recordId/);
 assert.match(orderWxml, /baseType === 'VERIFICATION' && !isSupplement/,

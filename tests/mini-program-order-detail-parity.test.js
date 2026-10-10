@@ -37,7 +37,7 @@ globalThis.__orderDetailHelpers = {
   buildPhotoSlots, normalizePhotoManifest,
   exactOrderKind, routeOrderExpectation, assertExactRouteOrder, detailStatusLabel,
   receiptDocumentData, requestId, jpegPdf, originalPhotoCacheKey,
-  ORIGINAL_PHOTO_CACHE_TTL_MS, ORIGINAL_PHOTO_CACHE_STORAGE_KEY
+  photoManifestIdentity, ORIGINAL_PHOTO_CACHE_TTL_MS, ORIGINAL_PHOTO_CACHE_STORAGE_KEY
 };
 Page({`);
   const files = options.files || new Map();
@@ -83,6 +83,13 @@ Page({`);
       },
       getFileSystemManager() {
         return {
+          readFile({ filePath, success, fail }) {
+            try {
+              const data = options.readFile?.(filePath);
+              if (!(data instanceof ArrayBuffer)) throw new Error("file bytes missing");
+              success?.({ data });
+            } catch (error) { fail?.(error); }
+          },
           writeFile({ filePath, data, success, fail }) {
             try {
               files.set(filePath, Number(data?.byteLength || 0));
@@ -230,8 +237,8 @@ test("server-read original type controls the exact visible business kind", () =>
   assert.equal(helpers.exactOrderKind("RECHARGE", "REFUND").noun, "退费");
   assert.match(helpers.requestId(4), /^[A-Za-z0-9][A-Za-z0-9_-]{15,63}$/);
   assert.equal(helpers.MAX_EXTRA_SOURCE_PHOTO_BYTES, 7 * 1024 * 1024);
-  assert.equal(helpers.MAX_EXTRA_UPLOAD_PHOTO_BYTES, 1200 * 1024);
-  assert.equal(helpers.MAX_EXTRA_PHOTO_EDGE, 1600);
+  assert.equal(helpers.MAX_EXTRA_UPLOAD_PHOTO_BYTES, 768 * 1024);
+  assert.equal(helpers.MAX_EXTRA_PHOTO_EDGE, 1440);
   assert.equal(helpers.imageFormat(new Uint8Array([0xff, 0xd8, 0xff, 0xd9])), "jpeg");
   assert.equal(helpers.imageFormat(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])), "png");
   assert.equal(helpers.imageFormat(new Uint8Array([
@@ -249,6 +256,87 @@ test("server-read original type controls the exact visible business kind", () =>
   assert.ok(multipage.toString("latin1").includes("/Count 2"), "tall receipts become a real multi-page PDF");
   assert.equal((multipage.toString("latin1").match(/\/MediaBox \[0 0 595\.28 841\.89\]/g) || []).length, 2,
     "every PDF page uses an A4 MediaBox");
+});
+
+test("supplemental photo normalization keeps the full frame and never exceeds three encodes", async () => {
+  const encodedSizes = [900 * 1024, 850 * 1024, 700 * 1024];
+  const drawCalls = [];
+  const { page: definition } = loadHelpers({
+    readFile(filePath) {
+      const index = Number(String(filePath).replace("/encoded-", ""));
+      const bytes = new Uint8Array(encodedSizes[index]);
+      bytes.set([0xff, 0xd8, 0xff], 0);
+      return bytes.buffer;
+    }
+  });
+  const page = pageInstance(definition);
+  const canvas = {
+    width: 0,
+    height: 0,
+    createImage() {
+      const image = {};
+      Object.defineProperty(image, "src", { set() { Promise.resolve().then(() => image.onload()); } });
+      return image;
+    },
+    getContext() {
+      return {
+        fillStyle: "",
+        fillRect() {},
+        drawImage(...args) { drawCalls.push(args); }
+      };
+    }
+  };
+  let encodeCount = 0;
+  page.photoNormalizeCanvasNode = async () => canvas;
+  page.canvasPhotoJpeg = async () => ({ tempFilePath: `/encoded-${encodeCount++}` });
+  const source = new Uint8Array(2 * 1024 * 1024);
+  source.set([0xff, 0xd8, 0xff], 0);
+
+  const normalized = await page.normalizeExtraPhoto("/selected.jpg", source.buffer, { width: 4000, height: 3000 });
+
+  assert.equal(encodeCount, 3, "a difficult image uses the bounded three attempts and then stops");
+  assert.equal(normalized.bytes, 700 * 1024);
+  assert.equal(normalized.previewPath, "/encoded-2");
+  assert.deepEqual(drawCalls.map((args) => args.slice(1)), [
+    [0, 0, 1440, 1080],
+    [0, 0, 1120, 840]
+  ], "every draw maps the complete image into a proportional destination without a crop rectangle");
+});
+
+test("a repeated detail read replaces the remote thumbnail with a verified 24-hour local cache", async () => {
+  const files = new Map();
+  const storage = new Map();
+  const photo = {
+    slot: 2,
+    declared: true,
+    thumbnailUrl: "https://private.example.test/thumbnail.jpg",
+    originalBytes: 4,
+    uploadedAt: "2026-10-10T05:00:00Z",
+    objectKey: "records/71/slot-2/photo.jpg"
+  };
+  const bootstrap = loadHelpers({ files, storage });
+  const identity = bootstrap.helpers.photoManifestIdentity(photo);
+  const localPath = "/mini-data/cached-slot-2.jpg";
+  files.set(localPath, 4);
+  storage.set(bootstrap.helpers.ORIGINAL_PHOTO_CACHE_STORAGE_KEY, {
+    "71:2": {
+      filePath: localPath,
+      identity,
+      bytes: 4,
+      cachedAt: Date.now(),
+      expiresAt: Date.now() + bootstrap.helpers.ORIGINAL_PHOTO_CACHE_TTL_MS
+    }
+  });
+  const { page: definition } = loadHelpers({ files, storage });
+  const page = pageInstance(definition, { order: { id: "71" }, noun: "核销" });
+  page._photoLoadEpoch = 3;
+
+  page.applyPhotoManifest({ maxPhotos: 5, photos: [photo] });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(page.data.photos.find((item) => item.slot === 2).thumbnailUrl, localPath);
+  assert.equal(cachedOriginalPath(page, "71:2"), localPath,
+    "the same verified local file also serves subsequent original-photo actions");
 });
 
 test("detail renders and acknowledges only the exact server-read route identity", async (context) => {
@@ -323,6 +411,10 @@ test("route categories and verification completion labels remain exact", () => {
     { baseType: "VERIFICATION", category: "NORMAL", recordId: "4", recordCode: "VS4" },
     { id: "4", recordCode: "VS4", serverBaseType: "VERIFICATION", originalType: "SUPPLEMENT", recordStatus: "PENDING" }
   ), /业务类型与详情链接不一致/);
+  assert.doesNotThrow(() => helpers.assertExactRouteOrder(
+    { baseType: "VERIFICATION", category: "SUPPLEMENT", recordId: "5", recordCode: "VS5" },
+    { id: "5", recordCode: "VS5", serverBaseType: "VERIFICATION", originalType: "SUPPLEMENT", recordStatus: "REJECTED" }
+  ), "a rejected supplement keeps its internal detail route while displaying as a normal verification");
   assert.equal(helpers.detailStatusLabel("VERIFICATION", "NORMAL", "APPROVED"), "已完成");
   assert.equal(helpers.detailStatusLabel("VERIFICATION", "EXPERIENCE", "APPROVED"), "已完成");
   assert.equal(helpers.detailStatusLabel("VERIFICATION", "SUPPLEMENT", "APPROVED"), "已完成");
@@ -400,8 +492,13 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
     "supplemental photos ask WeChat for a compressed temporary image");
   assert.doesNotMatch(functionSource(js, "uploadExtraPhoto"), /sizeType:\s*\["original"\]/,
     "supplemental photos no longer request the original-sized temporary image");
-  includes(js, "const maxEdges = [MAX_EXTRA_PHOTO_EDGE, 1280, 1080]", "supplemental photo dimensions use a bounded fast ladder");
-  includes(js, "const qualities = [0.8, 0.68, 0.56]", "supplemental photo quality uses a bounded fast ladder");
+  includes(js, "const MAX_EXTRA_UPLOAD_PHOTO_BYTES = 768 * 1024", "supplemental uploads target a sub-megabyte JPEG for fast transfer and server inspection");
+  includes(js, "const MAX_EXTRA_PHOTO_EDGE = 1440", "supplemental uploads retain a practical full-frame long edge");
+  includes(js, "EXTRA_PHOTO_NORMALIZE_ATTEMPTS", "supplemental photo compression has a named bounded attempt plan");
+  assert.equal((functionSource(js, "normalizeExtraPhoto").match(/canvasPhotoJpeg\(/g) || []).length, 1,
+    "the bounded loop has one encoder call site instead of a nested nine-encode ladder");
+  includes(functionSource(js, "normalizeExtraPhoto"), "context.drawImage(image, 0, 0, width, height)",
+    "the complete source frame is proportionally drawn without a crop rectangle");
   includes(js, 'message: "正在压缩并保存补充照片…"', "the upload status describes local compression");
   includes(js, 'fileType: "jpg"', "PNG and WebP sources are re-encoded as JPEG before upload");
   includes(js, 'return "png"', "PNG source magic bytes are accepted");
@@ -414,7 +511,7 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
     "an early photo failure is safely captured while the order read finishes");
   includes(functionSource(js, "uploadExtraPhoto"), "if (committed.photo)",
     "the normal committed upload uses the server-confirmed photo response directly");
-  includes(functionSource(js, "uploadExtraPhoto"), "await this.applyCommittedExtraPhoto(slot, committed, buffer)",
+  includes(functionSource(js, "uploadExtraPhoto"), "await this.applyCommittedExtraPhoto(slot, committed, normalized)",
     "the uploaded local JPEG is reused without rereading every photo");
   includes(functionSource(js, "uploadExtraPhoto"), "const loaded = await this.loadPhotos()",
     "a committed upload falls back to the authoritative manifest if local caching fails");
@@ -422,10 +519,18 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
     "an uncertain recovered commit still falls back to the authoritative database manifest");
   assert.doesNotMatch(functionSource(js, "applyCommittedExtraPhoto"), /callPhoto\(/,
     "the fast committed-photo apply path adds no redundant network request");
-  includes(functionSource(js, "applyCommittedExtraPhoto"), "this.localOriginalPath(slot, recordId, identity",
-    "the compressed local JPEG immediately becomes the authenticated original cache");
-  includes(functionSource(js, "applyCommittedExtraPhoto"), "thumbnailUrl = localPath",
-    "the just-uploaded local JPEG is shown immediately instead of redownloaded");
+  includes(functionSource(js, "applyCommittedExtraPhoto"), "committedPhoto.thumbnailUrl = previewPath",
+    "the just-uploaded local JPEG is shown before persistent cache I/O");
+  includes(functionSource(js, "applyCommittedExtraPhoto"), "void this.persistCommittedExtraPhotoCache",
+    "the 24-hour cache is persisted in the background after visible success");
+  includes(functionSource(js, "persistCommittedExtraPhotoCache"), "sourcePath: normalized.previewPath",
+    "background persistence uses a native local file copy instead of resending the ArrayBuffer when possible");
+  includes(functionSource(js, "persistCommittedExtraPhotoCache"), "clean(indexed?.identity) === identity",
+    "a stale background copy cannot delete a newer replacement's cache metadata");
+  includes(functionSource(js, "applyPhotoManifest"), "void this.hydratePhotoThumbnailsFromPersistentCache",
+    "a later detail read reuses valid local originals as thumbnails without another image download");
+  includes(functionSource(js, "hydratePhotoThumbnailsFromPersistentCache"), "this.persistentOriginalPhotoPath",
+    "readback verifies the cached file before displaying it");
   includes(js, "this.data.uploading || this.data.photoLoading", "concurrent writes and manifest reloads are isolated");
   includes(js, "const { saveImageToAlbum, isPermissionFailure }", "album permission behavior and retry classification are shared");
   assert.doesNotMatch(js, /wx\.saveImageToPhotosAlbum/, "order detail cannot bypass the shared permission-and-retry helper");
@@ -464,6 +569,9 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
     "the page handler also rejects a replacement while that slot's original is in flight");
   includes(wxml, "canEdit && item.slot >= 2", "server-authorized edit buttons");
   includes(wxml, 'id="photoNormalizeCanvas"', "a dedicated hidden canvas normalizes supplemental source images");
+  includes(wxml, 'mode="aspectFit"', "photo cards show the complete frame instead of cropping it");
+  assert.doesNotMatch(wxml, /class="photo"[^>]*mode="aspectFill"/,
+    "verification photo cards cannot use a crop-to-fill display mode");
   assert.match(wxss, /\.photo-card\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;/s,
     "each photo cell must clip its own controls instead of painting into its neighbor");
   assert.match(wxss, /\.photo-actions button, \.upload-button, \.compact-button\s*\{[^}]*max-width:\s*100%;[^}]*min-width:\s*0;[^}]*box-sizing:\s*border-box;[^}]*align-items:\s*center;[^}]*justify-content:\s*center;/s,

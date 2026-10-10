@@ -249,8 +249,15 @@ test("shared query helpers preserve Shanghai business ranges while retired statu
   const reviewedSupplement = tools.normalizeRecord({
     id: "11", recordCode: "V11", originalType: "SUPPLEMENT", recordStatus: "APPROVED"
   }, "VERIFICATION");
+  const rejectedSupplement = tools.normalizeRecord({
+    id: "12", recordCode: "V12", originalType: "SUPPLEMENT", recordStatus: "REJECTED"
+  }, "VERIFICATION");
   assert.equal(completedVerification.statusLabel, "已完成");
   assert.equal(reviewedSupplement.statusLabel, "已完成");
+  assert.equal(reviewedSupplement.originalType, "NORMAL");
+  assert.equal(rejectedSupplement.originalType, "SUPPLEMENT");
+  assert.equal(rejectedSupplement.typeLabel, "正常核销");
+  assert.equal(rejectedSupplement.statusLabel, "已驳回");
   assert.equal(tools.statusLabel("CLOSED"), "已关闭");
   const purchase = tools.normalizeProductPurchaseRecord({
     id: "12", purchase_code: "PP20260828000001", record_status: "APPROVED",

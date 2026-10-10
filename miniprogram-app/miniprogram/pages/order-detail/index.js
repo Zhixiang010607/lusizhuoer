@@ -13,8 +13,13 @@ const {
 const PHOTO_SLOT_COUNT = 5;
 const DETAIL_PHOTO_SLOTS = Object.freeze([1, 2, 3, 4]);
 const MAX_EXTRA_SOURCE_PHOTO_BYTES = 7 * 1024 * 1024;
-const MAX_EXTRA_UPLOAD_PHOTO_BYTES = 1200 * 1024;
-const MAX_EXTRA_PHOTO_EDGE = 1600;
+const MAX_EXTRA_UPLOAD_PHOTO_BYTES = 768 * 1024;
+const MAX_EXTRA_PHOTO_EDGE = 1440;
+const EXTRA_PHOTO_NORMALIZE_ATTEMPTS = Object.freeze([
+  Object.freeze({ maxEdge: MAX_EXTRA_PHOTO_EDGE, quality: 0.74 }),
+  Object.freeze({ maxEdge: MAX_EXTRA_PHOTO_EDGE, quality: 0.58 }),
+  Object.freeze({ maxEdge: 1120, quality: 0.52 })
+]);
 const ORIGINAL_PHOTO_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const ORIGINAL_PHOTO_CACHE_STORAGE_KEY = "order-original-photo-cache-v1";
 const PHOTO_LABELS = Object.freeze(["客户建档留存照", "客户核销照片", "补充照片 1", "补充照片 2", "补充照片 3"]);
@@ -648,7 +653,46 @@ Page({
       canEdit: result.canEdit === true, isSubmitter: result.isSubmitter === true,
       editableUntil: result.editableUntil || "", editableUntilLabel: query.displayDateTimeAny(result.editableUntil, result.editable_until)
     });
+    if (recordId) {
+      const epoch = Number(this._photoLoadEpoch || 0);
+      void this.hydratePhotoThumbnailsFromPersistentCache(recordId, normalized.slots, epoch);
+    }
     return normalized;
+  },
+
+  async hydratePhotoThumbnailsFromPersistentCache(recordId, slots, epoch) {
+    this.ensureOriginalPhotoState();
+    const cached = await Promise.all((Array.isArray(slots) ? slots : []).filter((photo) => photo.declared).map(async (photo) => {
+      const identity = photoManifestIdentity(photo);
+      const filePath = await this.persistentOriginalPhotoPath(
+        photo.slot,
+        recordId,
+        identity,
+        Number(photo.originalBytes || photo.original_bytes || 0)
+      ).catch(() => "");
+      return filePath ? { slot: Number(photo.slot), identity, filePath } : null;
+    }));
+    if (epoch !== Number(this._photoLoadEpoch || 0) || clean(this.data.order?.id) !== recordId) return false;
+    const localBySlot = new Map(cached.filter(Boolean).map((entry) => [entry.slot, entry]));
+    if (!localBySlot.size) return false;
+    localBySlot.forEach((entry, slot) => {
+      const key = originalPhotoCacheKey(recordId, slot);
+      const generation = Number(this._originalPhotoGenerations.get(key) || 0);
+      this._originalPhotoCache.set(key, {
+        generation,
+        filePath: entry.filePath,
+        persistent: true,
+        identity: entry.identity
+      });
+    });
+    this.setData({
+      photos: this.data.photos.map((photo) => {
+        const local = localBySlot.get(Number(photo.slot));
+        if (!local || photoManifestIdentity(photo) !== local.identity) return photo;
+        return { ...photo, thumbnailUrl: local.filePath, thumbnailState: "ready" };
+      })
+    });
+    return true;
   },
 
   async loadPhotos(prefetchedManifest = null) {
@@ -852,7 +896,9 @@ Page({
     const key = originalPhotoCacheKey(recordId, slot);
     const filePath = persistentOriginalPhotoFilePath(recordId, slot, identity);
     await unlinkFile(filePath).catch(() => {});
-    if (resolved.buffer) {
+    if (clean(resolved.sourcePath)) {
+      await copyFile(clean(resolved.sourcePath), filePath);
+    } else if (resolved.buffer) {
       await writeFile(filePath, resolved.buffer);
     } else {
       try {
@@ -876,12 +922,13 @@ Page({
       await unlinkFile(filePath).catch(() => {});
       throw error;
     }
+    const cachedAt = Date.now();
     this._persistentOriginalPhotoIndex[key] = {
       filePath,
       identity,
       bytes: Number(resolved.expectedBytes || 0),
-      cachedAt: Date.now(),
-      expiresAt: Date.now() + ORIGINAL_PHOTO_CACHE_TTL_MS
+      cachedAt,
+      expiresAt: cachedAt + ORIGINAL_PHOTO_CACHE_TTL_MS
     };
     writeOriginalPhotoCacheIndex(this._persistentOriginalPhotoIndex);
     return filePath;
@@ -1079,30 +1126,39 @@ Page({
     }
     if (format === "jpeg" && sourceBytes.byteLength <= MAX_EXTRA_UPLOAD_PHOTO_BYTES
         && Math.max(sourceWidth, sourceHeight) <= MAX_EXTRA_PHOTO_EDGE) {
-      return { buffer: sourceBuffer, bytes: sourceBytes.byteLength, converted: false };
+      return { buffer: sourceBuffer, bytes: sourceBytes.byteLength, converted: false, previewPath: filePath };
     }
 
     const canvas = await this.photoNormalizeCanvasNode();
     const image = await loadCanvasImage(canvas, filePath);
-    const maxEdges = [MAX_EXTRA_PHOTO_EDGE, 1280, 1080];
-    const qualities = [0.8, 0.68, 0.56];
-    for (const maxEdge of maxEdges) {
+    let renderedSize = "";
+    for (const attempt of EXTRA_PHOTO_NORMALIZE_ATTEMPTS) {
+      const maxEdge = Number(attempt.maxEdge);
       const scale = Math.min(1, maxEdge / Math.max(sourceWidth, sourceHeight));
       const width = Math.max(1, Math.round(sourceWidth * scale));
       const height = Math.max(1, Math.round(sourceHeight * scale));
-      canvas.width = width;
-      canvas.height = height;
-      const context = canvas.getContext("2d");
-      context.fillStyle = "#ffffff";
-      context.fillRect(0, 0, width, height);
-      context.drawImage(image, 0, 0, width, height);
-      for (const quality of qualities) {
-        const output = await this.canvasPhotoJpeg(canvas, width, height, quality);
-        const read = await readFile(output.tempFilePath);
-        const bytes = new Uint8Array(read.data);
-        if (imageFormat(bytes) === "jpeg" && bytes.byteLength <= MAX_EXTRA_UPLOAD_PHOTO_BYTES) {
-          return { buffer: read.data, bytes: bytes.byteLength, converted: true };
-        }
+      const sizeKey = `${width}x${height}`;
+      if (renderedSize !== sizeKey) {
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d");
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, width, height);
+        // Draw the complete source frame into the proportional destination.
+        // No source rectangle is supplied, so this path never crops any edge.
+        context.drawImage(image, 0, 0, width, height);
+        renderedSize = sizeKey;
+      }
+      const output = await this.canvasPhotoJpeg(canvas, width, height, Number(attempt.quality));
+      const read = await readFile(output.tempFilePath);
+      const bytes = new Uint8Array(read.data);
+      if (imageFormat(bytes) === "jpeg" && bytes.byteLength <= MAX_EXTRA_UPLOAD_PHOTO_BYTES) {
+        return {
+          buffer: read.data,
+          bytes: bytes.byteLength,
+          converted: true,
+          previewPath: output.tempFilePath
+        };
       }
     }
     throw new Error("照片转换后仍然过大，请选择内容更简单或尺寸更小的照片");
@@ -1133,14 +1189,48 @@ Page({
     }
   },
 
-  async applyCommittedExtraPhoto(slot, committed, buffer) {
+  async persistCommittedExtraPhotoCache(slot, recordId, identity, normalized, generation, epoch) {
+    try {
+      const localPath = await this.localOriginalPath(slot, recordId, identity, {
+        sourcePath: normalized.previewPath,
+        buffer: normalized.buffer,
+        expectedBytes: normalized.bytes
+      });
+      const key = originalPhotoCacheKey(recordId, slot);
+      const stale = epoch !== Number(this._photoLoadEpoch || 0)
+        || clean(this.data.order?.id) !== recordId
+        || generation !== Number(this._originalPhotoGenerations.get(key) || 0)
+        || clean(this._photoManifestIdentities.get(key)) !== identity;
+      if (stale) {
+        const indexed = this._persistentOriginalPhotoIndex[key];
+        if (clean(indexed?.identity) === identity && clean(indexed?.filePath) === localPath) {
+          delete this._persistentOriginalPhotoIndex[key];
+          writeOriginalPhotoCacheIndex(this._persistentOriginalPhotoIndex);
+        }
+        await unlinkFile(localPath).catch(() => {});
+        return false;
+      }
+      this._originalPhotoCache.set(key, { generation, filePath: localPath, persistent: true, identity });
+      const current = this.data.photos.find((item) => Number(item.slot) === Number(slot));
+      if (photoManifestIdentity(current) === identity) {
+        this.updatePhotoSlot(slot, { thumbnailUrl: localPath, thumbnailState: "ready" });
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  },
+
+  async applyCommittedExtraPhoto(slot, committed, normalized) {
     const recordId = clean(this.data.order?.id);
     const photo = committed?.photo;
     if (!recordId || clean(committed?.recordId) !== recordId || Number(photo?.slot) !== Number(slot)) {
       throw new Error("照片服务返回的工单或照片位置不一致");
     }
-    const bytes = new Uint8Array(buffer);
-    if (!bytes.byteLength || Number(photo.originalBytes || 0) !== bytes.byteLength) {
+    const bytes = new Uint8Array(normalized?.buffer || new ArrayBuffer(0));
+    const previewPath = clean(normalized?.previewPath);
+    if (!bytes.byteLength || Number(normalized?.bytes || 0) !== bytes.byteLength
+        || Number(photo.originalBytes || 0) !== bytes.byteLength || !previewPath) {
       throw new Error("照片服务确认的大小与本地照片不一致");
     }
     await this.clearOriginalPhotoCache(slot, recordId);
@@ -1160,15 +1250,10 @@ Page({
       originalAction: ""
     };
     const identity = photoManifestIdentity(committedPhoto);
-    const localPath = await this.localOriginalPath(slot, recordId, identity, {
-      buffer,
-      expectedBytes: bytes.byteLength
-    });
     const key = originalPhotoCacheKey(recordId, slot);
     const generation = Number(this._originalPhotoGenerations.get(key) || 0);
-    this._originalPhotoCache.set(key, { generation, filePath: localPath, persistent: true, identity });
     this._photoManifestIdentities.set(key, identity);
-    committedPhoto.thumbnailUrl = localPath;
+    committedPhoto.thumbnailUrl = previewPath;
     const photos = this.data.photos.map((item) => Number(item.slot) === Number(slot) ? committedPhoto : item);
     this.setData({
       photos,
@@ -1180,6 +1265,8 @@ Page({
       editableUntil: committed.editableUntil || this.data.editableUntil,
       editableUntilLabel: query.displayDateTimeAny(committed.editableUntil || this.data.editableUntil)
     });
+    const epoch = Number(this._photoLoadEpoch || 0);
+    void this.persistCommittedExtraPhotoCache(slot, recordId, identity, normalized, generation, epoch);
   },
 
   async uploadExtraPhoto(event) {
@@ -1200,6 +1287,7 @@ Page({
     const filePath = file && file.tempFilePath;
     if (!filePath) return;
     const uploadRequestId = requestId(slot);
+    const uploadStartedAt = Date.now();
     let requestOpened = false;
     let commitUncertain = false;
     this.setData({ uploading: true, uploadingSlot: slot, message: "正在压缩并保存补充照片…", error: false });
@@ -1246,9 +1334,10 @@ Page({
       requestOpened = false;
       if (committed.photo) {
         try {
-          await this.applyCommittedExtraPhoto(slot, committed, buffer);
+          await this.applyCommittedExtraPhoto(slot, committed, normalized);
+          const elapsedSeconds = Math.max(0.1, (Date.now() - uploadStartedAt) / 1000).toFixed(1);
           this.setData({
-            message: `${PHOTO_LABELS[slot]}已压缩保存并显示。`,
+            message: `${PHOTO_LABELS[slot]}已按完整画面保存并显示（${elapsedSeconds} 秒）。`,
             error: false
           });
         } catch (_) {

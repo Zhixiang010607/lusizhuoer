@@ -181,8 +181,16 @@ function typeLabel(recordType, value) {
 function normalizeRecord(item = {}, recordType = "RECHARGE") {
   const type = String(recordType || "RECHARGE").toUpperCase();
   const originalType = String(item.originalType || item.original_type || "").toUpperCase();
-  const publicOriginalType = type === "VERIFICATION" && originalType === "SUPPLEMENT" ? "NORMAL" : originalType;
   const recordStatus = String(item.recordStatus || item.record_status || item.application_status || "").toUpperCase();
+  // Approved supplemental verifications become ordinary completed
+  // verifications in public queries. Pending or rejected applications must
+  // retain their internal route category so the detail reader can show the
+  // review result without trying to load现场 photos or ratings.
+  const publicOriginalType = type === "VERIFICATION"
+    && originalType === "SUPPLEMENT"
+    && recordStatus === "APPROVED"
+    ? "NORMAL"
+    : originalType;
   const completedWithoutReview = type === "VERIFICATION"
     && ["NORMAL", "SUPPLEMENT", "EXPERIENCE"].includes(originalType)
     && recordStatus === "APPROVED";

@@ -48,7 +48,12 @@ function mapHistoryRow(row = {}, type = "RECHARGE") {
   const rechargeHistory = ["RECHARGE", "REFUND"].includes(type);
   const productPurchase = type === "PRODUCT_PURCHASE";
   const storedOriginalType = clean(row.rechargeType || row.verificationType).toUpperCase();
-  const originalType = !rechargeHistory && storedOriginalType === "SUPPLEMENT" ? "NORMAL" : storedOriginalType;
+  const recordStatus = clean(row.recordStatus).toUpperCase();
+  const originalType = !rechargeHistory
+    && storedOriginalType === "SUPPLEMENT"
+    && recordStatus === "APPROVED"
+    ? "NORMAL"
+    : storedOriginalType;
   const units = Math.abs(Number(row.unitCount || (rechargeHistory || productPurchase ? 0 : 1)));
   const negative = rechargeHistory && ["REFUND", "VOID"].includes(originalType);
   return {
