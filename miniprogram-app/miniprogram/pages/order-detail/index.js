@@ -14,8 +14,19 @@ const PHOTO_SLOT_COUNT = 5;
 const DETAIL_PHOTO_SLOTS = Object.freeze([1, 2, 3, 4]);
 const MAX_EXTRA_FAST_PATH_BYTES = 768 * 1024;
 const MAX_EXTRA_UPLOAD_PHOTO_BYTES = 512 * 1024;
+const MAX_EXTRA_ALBUM_UPLOAD_PHOTO_BYTES = 2560 * 1024;
 const MAX_EXTRA_SERVER_PHOTO_BYTES = 3 * 1024 * 1024;
 const MAX_EXTRA_PHOTO_EDGE = 1024;
+const EXTRA_ALBUM_JPEG_NORMALIZE_ATTEMPTS = Object.freeze([
+  Object.freeze({ maxEdge: 2560, quality: 0.88 }),
+  Object.freeze({ maxEdge: 2400, quality: 0.84 }),
+  Object.freeze({ maxEdge: 2200, quality: 0.80 }),
+  Object.freeze({ maxEdge: 2000, quality: 0.78 }),
+  Object.freeze({ maxEdge: 1800, quality: 0.74 }),
+  Object.freeze({ maxEdge: 1600, quality: 0.70 }),
+  Object.freeze({ maxEdge: 1400, quality: 0.68 }),
+  Object.freeze({ maxEdge: 1280, quality: 0.64 })
+]);
 const EXTRA_PHOTO_NORMALIZE_ATTEMPTS = Object.freeze([
   Object.freeze({ maxEdge: MAX_EXTRA_PHOTO_EDGE, quality: 0.58 }),
   Object.freeze({ maxEdge: MAX_EXTRA_PHOTO_EDGE, quality: 0.42 }),
@@ -1167,7 +1178,7 @@ Page({
 
   async normalizeAlbumJpegNative(filePath, dimensions) {
     let lastError = null;
-    for (const attempt of EXTRA_PHOTO_NORMALIZE_ATTEMPTS) {
+    for (const attempt of EXTRA_ALBUM_JPEG_NORMALIZE_ATTEMPTS) {
       try {
         const output = await this.nativeAlbumPhotoJpeg(filePath, dimensions, attempt);
         const outputPath = clean(output?.tempFilePath);
@@ -1176,7 +1187,7 @@ Page({
         const bytes = new Uint8Array(read.data);
         if (imageFormat(bytes) !== "jpeg") throw new Error("微信压缩结果不是 JPEG 照片");
         assertPhotoAspect(dimensions.width, dimensions.height, outputInfo?.width, outputInfo?.height);
-        if (bytes.byteLength <= MAX_EXTRA_UPLOAD_PHOTO_BYTES) {
+        if (bytes.byteLength <= MAX_EXTRA_ALBUM_UPLOAD_PHOTO_BYTES) {
           return {
             buffer: read.data,
             bytes: bytes.byteLength,
@@ -1221,28 +1232,30 @@ Page({
       };
     }
 
+    if (format === "jpeg" && clean(sourceType) === "album"
+        && originalBytes <= MAX_EXTRA_SERVER_PHOTO_BYTES) {
+      // Album JPEGs already accepted by the server keep their exact original
+      // bytes. Compression starts only above the hard server limit, so normal
+      // phone photos do not lose pixels or JPEG quality merely for speed.
+      const originalRead = sourceBytes.byteLength === originalBytes ? { data: sourceBuffer } : await readFile(filePath);
+      const original = new Uint8Array(originalRead.data);
+      if (original.byteLength !== originalBytes || imageFormat(original) !== "jpeg") {
+        throw new Error("相册原图读取不完整，请重新选择");
+      }
+      return {
+        buffer: originalRead.data,
+        bytes: original.byteLength,
+        converted: false,
+        previewPath: filePath,
+        width: sourceWidth,
+        height: sourceHeight
+      };
+    }
+
     if (format === "jpeg" && clean(sourceType) === "album") {
       try {
         return await this.normalizeAlbumJpegNative(filePath, { width: sourceWidth, height: sourceHeight });
       } catch (nativeError) {
-        // If native compression behaves unexpectedly, an already server-safe
-        // JPEG is uploaded byte-for-byte instead of ever substituting a
-        // cropped derivative. This is the full-frame safety net for unusual
-        // iCloud/HEIF-converted album assets.
-        if (originalBytes <= MAX_EXTRA_SERVER_PHOTO_BYTES) {
-          const originalRead = sourceBytes.byteLength === originalBytes ? { data: sourceBuffer } : await readFile(filePath);
-          const original = new Uint8Array(originalRead.data);
-          if (original.byteLength === originalBytes && imageFormat(original) === "jpeg") {
-            return {
-              buffer: originalRead.data,
-              bytes: original.byteLength,
-              converted: false,
-              previewPath: filePath,
-              width: sourceWidth,
-              height: sourceHeight
-            };
-          }
-        }
         throw nativeError;
       }
     }

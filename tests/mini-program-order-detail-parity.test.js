@@ -33,6 +33,7 @@ function loadHelpers(options = {}) {
   const instrumented = js.replace(marker, `
 globalThis.__orderDetailHelpers = {
   PHOTO_SLOT_COUNT, DETAIL_PHOTO_SLOTS, MAX_EXTRA_FAST_PATH_BYTES, MAX_EXTRA_UPLOAD_PHOTO_BYTES,
+  MAX_EXTRA_ALBUM_UPLOAD_PHOTO_BYTES, EXTRA_ALBUM_JPEG_NORMALIZE_ATTEMPTS,
   MAX_EXTRA_PHOTO_EDGE, imageFormat,
   buildPhotoSlots, normalizePhotoManifest,
   exactOrderKind, routeOrderExpectation, assertExactRouteOrder, detailStatusLabel,
@@ -390,7 +391,7 @@ test("supplemental photo selection uses album originals and keeps camera capture
 
 test("large album JPEGs use native proportional compression and verify the returned frame ratio", async () => {
   const requests = [];
-  const encoded = new Uint8Array(180 * 1024);
+  const encoded = new Uint8Array(2200 * 1024);
   encoded.set([0xff, 0xd8, 0xff], 0);
   const { page: definition } = loadHelpers({
     compressImage(request) {
@@ -403,7 +404,7 @@ test("large album JPEGs use native proportional compression and verify the retur
       request.success({ tempFilePath: "/native-portrait.jpg" });
     },
     getImageInfo(request) {
-      request.success({ width: 576, height: 1024 });
+      request.success({ width: 1440, height: 2560 });
     },
     readFile(filePath) {
       assert.equal(filePath, "/native-portrait.jpg");
@@ -420,36 +421,42 @@ test("large album JPEGs use native proportional compression and verify the retur
   const normalized = await page.normalizeExtraPhoto(
     "/album-1080x1920.jpg",
     header.buffer,
-    { width: 1080, height: 1920 },
-    1314442,
+    { width: 3000, height: 5333 },
+    6 * 1024 * 1024,
     "album"
   );
 
   assert.deepEqual(requests, [{
     src: "/album-1080x1920.jpg",
-    quality: 58,
+    quality: 88,
     compressedWidth: undefined,
-    compressedHeight: 1024
+    compressedHeight: 2560
   }]);
-  assert.deepEqual([normalized.width, normalized.height], [576, 1024]);
+  assert.deepEqual([normalized.width, normalized.height], [1440, 2560]);
   assert.equal(normalized.previewPath, "/native-portrait.jpg");
   assert.equal(normalized.bytes, encoded.byteLength);
 });
 
-test("an abnormal native album aspect ratio falls back to the exact server-safe JPEG bytes", async () => {
+test("album quality budget stays near the server ceiling while camera and compatibility paths stay unchanged", () => {
+  const { helpers } = loadHelpers();
+  assert.equal(helpers.MAX_EXTRA_UPLOAD_PHOTO_BYTES, 512 * 1024);
+  assert.equal(helpers.MAX_EXTRA_ALBUM_UPLOAD_PHOTO_BYTES, 2560 * 1024);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(helpers.EXTRA_ALBUM_JPEG_NORMALIZE_ATTEMPTS[0])),
+    { maxEdge: 2560, quality: 0.88 }
+  );
+});
+
+test("a server-safe album JPEG keeps its exact original bytes without any compression", async () => {
   const original = new Uint8Array(1314442);
   original.set([0xff, 0xd8, 0xff], 0);
-  const encoded = new Uint8Array(180 * 1024);
-  encoded.set([0xff, 0xd8, 0xff], 0);
   const { page: definition } = loadHelpers({
     compressImage(request) {
-      request.success({ tempFilePath: "/cropped-native.jpg" });
-    },
-    getImageInfo(request) {
-      request.success({ width: 300, height: 1024 });
+      request.fail(new Error("server-safe originals must never be compressed"));
     },
     readFile(filePath) {
-      return filePath === "/album-flower.jpg" ? original.buffer : encoded.buffer;
+      assert.equal(filePath, "/album-flower.jpg");
+      return original.buffer;
     }
   });
   const page = pageInstance(definition);
@@ -468,6 +475,36 @@ test("an abnormal native album aspect ratio falls back to the exact server-safe 
   assert.equal(normalized.buffer.byteLength, original.byteLength);
   assert.equal(normalized.previewPath, "/album-flower.jpg");
   assert.deepEqual([normalized.width, normalized.height], [1080, 1920]);
+});
+
+test("an oversized album JPEG with an abnormal compressed ratio is blocked instead of uploaded", async () => {
+  const encoded = new Uint8Array(2200 * 1024);
+  encoded.set([0xff, 0xd8, 0xff], 0);
+  let attempts = 0;
+  const { page: definition, helpers } = loadHelpers({
+    compressImage(request) {
+      attempts += 1;
+      request.success({ tempFilePath: `/cropped-native-${attempts}.jpg` });
+    },
+    getImageInfo(request) {
+      request.success({ width: 300, height: 2560 });
+    },
+    readFile() {
+      return encoded.buffer;
+    }
+  });
+  const page = pageInstance(definition);
+  const header = new Uint8Array(12);
+  header.set([0xff, 0xd8, 0xff], 0);
+
+  await assert.rejects(() => page.normalizeExtraPhoto(
+    "/oversized-album.jpg",
+    header.buffer,
+    { width: 1080, height: 1920 },
+    6 * 1024 * 1024,
+    "album"
+  ), /画面比例异常/);
+  assert.equal(attempts, helpers.EXTRA_ALBUM_JPEG_NORMALIZE_ATTEMPTS.length);
 });
 
 test("album normalization preserves every edge for both landscape and portrait photos", async () => {
