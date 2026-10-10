@@ -1,14 +1,14 @@
 # verificationPhoto 云函数
 
-当前版本：`v12`（共享照片服务实现 `v11`）
+当前版本：`v13`（共享照片服务实现 `v12`）
 
-当前联动部署矩阵：`verificationPhoto v12`、`faceRecognition v127`、
+当前联动部署矩阵：`verificationPhoto v13`、`faceRecognition v128`、
 `staffAccount v91`、`teacherCreate v9`、`customerRating v8`。内部共享实现号
-`v11` 不等于 `faceRecognition` 的公开运行时版本。
+`v12` 不等于 `faceRecognition` 的公开运行时版本。
 
 该函数专门处理核销单的五个照片位：列表与缩略图、按需读取高清原图、导出原图，以及三个补充照片位的开始、提交、状态恢复和取消。它不执行质量检测、活体检测、客户建档或人脸比对，也不暴露这些动作。老师本人创建客户，或作为来源可信的有效工单 `teacher_id` 与客户建立业务关系后，可以只读查看该客户的其他核销照片；来源必须是门店提交或提交老师账号与 `teacher_id` 为同一人，总部、退役角色和老师错绑旧字段本身不授予照片权。上传、替换和取消仍只允许真实原提交账号 `submitted_by_account_id`。
 
-补充照片复用迁移 039 的单任务锁、提交人权限和 24 小时截止规则。v12 继续采用签名直传，并把首屏最多五张缩略图的签名从三轮收敛为一轮有界并发：服务端先建立数据库任务并锁定随机私有对象，再只向有权提交账号返回该对象的一次性 HTTPS PUT 地址；网页或小程序把本地 JPEG 原始字节直接上传到存储，随后只把 `recordId` 和 `requestId` 提交给函数。函数从同一对象读取真实内容，重新校验桶、路径、字节数、JPEG 文件头、尺寸和 SHA-256 后原子绑定工单。CloudBase Manager 5.6.4 的相对签名路由只按当前环境 ID 补全到可信 HTTPS 网关，并核对精确桶和对象路径。旧的 Base64／`callFunction` 照片字节中转已退役，独立服务收到 `imageBase64` 会返回 `PHOTO_DIRECT_UPLOAD_REQUIRED`。
+补充照片复用迁移 039 的单任务锁、提交人权限和 24 小时截止规则。v13 配合迁移 083，把三个补充照片位的单张硬上限提升到 `5 MiB`；不超过该上限的相册原图或微信相机已经生成的 JPEG 可以保留其完整现有字节，客户端只在超过 5 MiB 时等比压缩到不超过 `4.5 MiB`，不裁切横图或竖图。现场人脸证据仍保持 3 MiB。服务继续采用签名直传，并把首屏最多五张缩略图的签名收敛为一轮有界并发：服务端先建立数据库任务并锁定随机私有对象，再只向有权提交账号返回该对象的一次性 HTTPS PUT 地址；网页或小程序把本地 JPEG 字节直接上传到存储，随后只把 `recordId` 和 `requestId` 提交给函数。函数从同一对象读取真实内容，重新校验桶、路径、字节数、JPEG 文件头、尺寸和 SHA-256 后原子绑定工单。CloudBase Manager 5.6.4 的相对签名路由只按当前环境 ID 补全到可信 HTTPS 网关，并核对精确桶和对象路径。旧的 Base64／`callFunction` 照片字节中转已退役，独立服务收到 `imageBase64` 会返回 `PHOTO_DIRECT_UPLOAD_REQUIRED`。
 
 总部、门店或老师只有在当前登录账号就是工单原提交账号、且服务器时间仍早于 `submitted_at + 24 hours` 时才能上传或替换；不同总部账号也不能互相代传。已下线的历史运营身份不能登录、查看或写入。签名失败时服务端会精确取消刚建立的任务，不能遗留进行中锁；客户端上传失败时也按原请求状态确认后取消。照片仍保持私有；一次性地址只授权任务绑定的随机对象，不公开桶，也不把 service-role Key 返回客户端。列表、原图、导出和写入均先校验当前登录账号与工单权限。
 
@@ -18,7 +18,7 @@
 - 照片查看、导出和上传流量不会挤占建档与 1:1 人脸核验函数的温实例。
 - `faceRecognition` 继续负责客户、工单和人脸流程；本函数只接受下面列出的照片动作，不能代替人脸识别。
 
-拆分函数无法改变用户网络上传 JPEG 所需的带宽。页面仍会先把照片压到不超过 3 MB 的高质量 JPEG，并且同一张核销单只允许一个进行中的补充照片任务；第一张成功、权威失败或服务器确认取消后，才可开始下一张。
+拆分函数无法改变用户网络上传 JPEG 所需的带宽。页面保留不超过 5 MiB 的相册或相机 JPEG 现有字节，只有超限时才等比压到约 4.5 MiB；同一张核销单仍只允许一个进行中的补充照片任务，第一张成功、权威失败或服务器确认取消后，才可开始下一张。
 
 ## 创建函数
 
@@ -29,7 +29,7 @@
 - 超时：`60 秒`
 - 并发／实例：先使用平台默认值；如果监控确认主要延迟来自冷启动，可为生产版本配置 `1` 个预置并发实例。预置实例持续计费，不要在没有监控证据时盲目增加。
 
-最终 `verificationPhoto-v12.zip` 的根目录必须是：
+最终 `verificationPhoto-v13.zip` 的根目录必须是：
 
 ```text
 index.js      # 由本目录 deploy-index.js 复制并改名
@@ -41,7 +41,7 @@ README.md
 
 不要把源码树中的 `index.js` 单独放进 ZIP；它使用 `../faceRecognition/index.js`，只用于本地源码与测试。必须把本目录的 `read-reliability.js` 原样放在 ZIP 根目录。不要把整个 `faceRecognition` 目录或它的 `node_modules` 复制进包；部署时让 CloudBase 按本函数的 `package.json` 安装依赖。
 
-读取适配层不会自行查询账号或绕过权限。列表、原图和导出仍先进入共享服务完成登录、工单范围校验与原图查看审计；适配层只对底层签名的瞬时 `InternalError` 做最多三次带抖动的有界重试，并把同一对象正在进行的并发签名合并为一次。适配层不再二次缓存已完成的签名，避免把短效地址重新包装成长有效期；共享服务只按地址实际剩余时间复用。v12 继承 v11 的按照片位失败隔离：首屏清单不会因为某张缩略图签名失败而批量读取其原图地址或原图字节；数据库声明存在但缩略图暂不可用的照片只返回该位置的 `thumbnailRetryable` 与 `getVerificationPhotoThumbnailData`。客户端点击哪张照片，就只让该照片再次经过权限校验并读取安全原图字节，其他已显示照片和照片位不刷新。原图预览本身的签名不可用或已过期时仍会再次通过共享的授权导出动作返回内联 JPEG。因此这些按需回退不依赖照片桶的浏览器读取 CORS，也不会向未授权请求返回 URL 或 Base64。
+读取适配层不会自行查询账号或绕过权限。列表、原图和导出仍先进入共享服务完成登录、工单范围校验与原图查看审计；适配层只对底层签名的瞬时 `InternalError` 做最多三次带抖动的有界重试，并把同一对象正在进行的并发签名合并为一次。适配层不再二次缓存已完成的签名，避免把短效地址重新包装成长有效期；共享服务只按地址实际剩余时间复用。v13 继承 v12 的按照片位失败隔离：首屏清单不会因为某张缩略图签名失败而批量读取其原图地址或原图字节；数据库声明存在但缩略图暂不可用的照片只返回该位置的 `thumbnailRetryable` 与 `getVerificationPhotoThumbnailData`。客户端点击哪张照片，就只让该照片再次经过权限校验并读取安全原图字节，其他已显示照片和照片位不刷新。原图预览本身的签名不可用或已过期时仍会再次通过共享的授权导出动作返回内联 JPEG。因此这些按需回退不依赖照片桶的浏览器读取 CORS，也不会向未授权请求返回 URL 或 Base64。
 
 ## 必需环境变量
 
@@ -136,7 +136,7 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 }
 ```
 
-该七段 Cron 在每小时第 10 分钟运行，与 `faceRecognition` 的整点清理错峰。v12 继续由共享业务实现验证 SCF 保留变量 `TRIGGER_SRC=timer`、平台函数名、事件类型、精确触发器名、时间格式和“无终端用户 UID”，普通客户端伪造 `Type: Timer` 或触发器名不能进入清理。它只清理迁移 039 中已经取消或过期、且超过安全等待期的补充照片上传对象；已绑定工单的照片不会删除。原 `faceRecognition` 的人脸草稿触发器使用另一个固定名称，两个配置不要互换。
+该七段 Cron 在每小时第 10 分钟运行，与 `faceRecognition` 的整点清理错峰。v13 继续由共享业务实现验证 SCF 保留变量 `TRIGGER_SRC=timer`、平台函数名、事件类型、精确触发器名、时间格式和“无终端用户 UID”，普通客户端伪造 `Type: Timer` 或触发器名不能进入清理。它只清理迁移 039 中已经取消或过期、且超过安全等待期的补充照片上传对象；已绑定工单的照片不会删除。原 `faceRecognition` 的人脸草稿触发器使用另一个固定名称，两个配置不要互换。
 
 控制台需要手工补跑时才使用以下测试事件，并确保调用没有终端用户 UID：
 
@@ -151,12 +151,13 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 
 1. 确认迁移 039、046—072 已完成，旧运营账号维护动作及迁移 047、053 已验收；不得重新启用旧运营身份或旧老师人脸 Saga。
 2. 依次执行并验收迁移 073—077。旧 `reconcile-teacher-face-operations` Timer 必须保持删除，只保留老师额度月初 Timer、核销草稿清理 Timer 和补充照片上传清理 Timer。
-3. 当前联动版本为 `faceRecognition-v127.zip`、`staffAccount-v91.zip`、`teacherCreate-v9.zip` 与 `verificationPhoto-v12.zip`；分别调用 `health` 确认 `v127`、`v91`、`teacher-create-v9`、`v12`。
-4. 当前联动函数不再读写旧 Saga；考勤人脸只供老师打卡 1:1 验证，核销照片仍由本函数独立处理。
-5. 新建或更新函数 `verificationPhoto`，上传 `verificationPhoto-v12.zip`，配置上述环境变量、512 MB 内存和 60 秒超时。
-6. 对 `verificationPhoto` 调用 `{ "action": "health" }`，确认 `version: "v12"`、`sharedVersion: "v11"`、`uploadMode: "DIRECT"` 与全部就绪字段，再保存本节的 triggers-only 配置。
-7. 评价同轮还必须执行并验收 068 与 070、配置至少 32 字节的 `CUSTOMER_RATING_SIGNING_KEY` 及实际 `rating.html` 地址 `CUSTOMER_RATING_BASE_URL`、上传 `customerRating-v8.zip` 并确认 `health` 为 `v8` 且 `configured=true`。`verificationPhoto v12` 不读取或写入评价。
-8. 只有相关函数均验证成功后，才发布包含 `rating.html` 的当前静态前端并强制刷新浏览器；不要先发前端。
+3. 执行并验收迁移 083，把补充照片请求和 `EXTRA` 照片边界提升到 5 MiB，同时确认 `FACE` 仍为 3 MiB。
+4. 当前联动版本为 `faceRecognition-v128.zip`、`staffAccount-v91.zip`、`teacherCreate-v9.zip` 与 `verificationPhoto-v13.zip`；分别调用 `health` 确认 `v128`、`v91`、`teacher-create-v9`、`v13`。
+5. 当前联动函数不再读写旧 Saga；考勤人脸只供老师打卡 1:1 验证，核销照片仍由本函数独立处理。
+6. 新建或更新函数 `verificationPhoto`，上传 `verificationPhoto-v13.zip`，配置上述环境变量、512 MB 内存和 60 秒超时。
+7. 对 `verificationPhoto` 调用 `{ "action": "health" }`，确认 `version: "v13"`、`sharedVersion: "v12"`、`uploadMode: "DIRECT"` 与全部就绪字段，再保存本节的 triggers-only 配置。
+8. 评价同轮还必须执行并验收 068 与 070、配置至少 32 字节的 `CUSTOMER_RATING_SIGNING_KEY` 及实际 `rating.html` 地址 `CUSTOMER_RATING_BASE_URL`、上传 `customerRating-v8.zip` 并确认 `health` 为 `v8` 且 `configured=true`。`verificationPhoto v13` 不读取或写入评价。
+9. 只有相关函数均验证成功后，才发布包含 `rating.html` 的当前静态前端并强制刷新浏览器；不要先发前端。
 
 `verificationPhoto` 应返回类似：
 
@@ -164,8 +165,8 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 {
   "ok": true,
   "ready": true,
-  "version": "v12",
-  "sharedVersion": "v11",
+  "version": "v13",
+  "sharedVersion": "v12",
   "service": "verificationPhoto",
   "uploadMode": "DIRECT",
   "photoBucketId": "customer-photos",

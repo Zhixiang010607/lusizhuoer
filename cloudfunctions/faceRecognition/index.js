@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const https = require("https");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v127";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v128";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -14,10 +14,13 @@ const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
 const EXPECTED_FUNCTION_NAME = PHOTO_ONLY_FUNCTION ? "verificationPhoto" : "faceRecognition";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 // SCF synchronous events are capped at 6 MB and Base64 adds roughly 33%.
-// These verification-photo limits leave room for the JSON envelope while
-// retaining a high-quality 1920–2400 px JPEG. Customer enrollment keeps its
-// existing independent 4 MB limit above.
+// Face evidence and the legacy function-carried fallback therefore remain at
+// 3 MiB. Supplemental photos use signed object-storage PUTs and may reach
+// 5 MiB without entering the function event. Customer enrollment keeps its
+// existing independent 4 MiB limit above.
 const MAX_VERIFICATION_IMAGE_BYTES = 3 * 1024 * 1024;
+const MAX_EXTRA_VERIFICATION_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_VERIFICATION_FUNCTION_FALLBACK_BYTES = 3 * 1024 * 1024;
 const MAX_THUMBNAIL_BYTES = 384 * 1024;
 const FACE_MODEL_VERSION = "3.0";
 let cloudApp = null;
@@ -343,7 +346,7 @@ function verificationPhotoStorageAccessError(error, storage) {
   return unavailable;
 }
 
-function verificationPhotoBucketReady(row, requiredBytes = MAX_VERIFICATION_IMAGE_BYTES) {
+function verificationPhotoBucketReady(row, requiredBytes = MAX_EXTRA_VERIFICATION_IMAGE_BYTES) {
   if (!row || databaseBoolean(row.public)) return false;
   const limit = Number(row.file_size_limit || 0);
   if (Number.isFinite(limit) && limit > 0 && limit < requiredBytes) return false;
@@ -433,7 +436,7 @@ function cleanVerificationJpeg(value, label, maximumBytes) {
   if (!/^[A-Za-z0-9+/=]+$/.test(base64)) fail(`${label}格式无效。`, "PHOTO_FORMAT_INVALID");
   const buffer = Buffer.from(base64, "base64");
   if (!buffer.length || buffer.length > maximumBytes) {
-    fail(`${label}必须小于 ${Math.ceil(maximumBytes / 1024 / 1024)} MB。`, "PHOTO_TOO_LARGE");
+    fail(`${label}不得超过 ${Math.ceil(maximumBytes / 1024 / 1024)} MB。`, "PHOTO_TOO_LARGE");
   }
   if (buffer.length < 4 || buffer[0] !== 0xff || buffer[1] !== 0xd8 || buffer[2] !== 0xff) {
     fail(`${label}内容不是有效 JPEG。`, "PHOTO_FORMAT_INVALID");
@@ -470,8 +473,8 @@ function verificationPhotoUploadRequestId(event = {}) {
 
 function verificationPhotoUploadBytes(event = {}) {
   const bytes = Number(event.originalBytes);
-  if (!Number.isInteger(bytes) || bytes < 4 || bytes > MAX_VERIFICATION_IMAGE_BYTES) {
-    fail("补充照片必须小于 3 MB。", "PHOTO_TOO_LARGE");
+  if (!Number.isInteger(bytes) || bytes < 4 || bytes > MAX_EXTRA_VERIFICATION_IMAGE_BYTES) {
+    fail("补充照片不能超过 5 MB。", "PHOTO_TOO_LARGE");
   }
   return bytes;
 }
@@ -643,13 +646,13 @@ async function inspectVerificationPhotoObject(referenceValue, expectedBytes) {
   if (returnedName && !allowedNames.includes(returnedName)) {
     fail("已上传照片的对象路径不匹配。", "PHOTO_OBJECT_MISMATCH");
   }
-  if (!Number.isInteger(bytes) || bytes !== expectedBytes || bytes < 4 || bytes > MAX_VERIFICATION_IMAGE_BYTES) {
+  if (!Number.isInteger(bytes) || bytes !== expectedBytes || bytes < 4 || bytes > MAX_EXTRA_VERIFICATION_IMAGE_BYTES) {
     fail("已上传照片大小与上传请求不一致，请取消后重试。", "PHOTO_UPLOAD_SIZE_MISMATCH");
   }
   if (contentType !== "image/jpeg") {
     fail("已上传文件不是 JPEG 照片。", "PHOTO_FORMAT_INVALID");
   }
-  const buffer = await downloadVerificationPhotoAuthenticated(referenceValue, MAX_VERIFICATION_IMAGE_BYTES);
+  const buffer = await downloadVerificationPhotoAuthenticated(referenceValue, MAX_EXTRA_VERIFICATION_IMAGE_BYTES);
   if (buffer.length !== bytes) {
     fail("已上传照片内容不完整，请取消后重试。", "PHOTO_UPLOAD_SIZE_MISMATCH");
   }
@@ -657,8 +660,8 @@ async function inspectVerificationPhotoObject(referenceValue, expectedBytes) {
 }
 
 function verificationPhotoBufferMetadata(buffer) {
-  if (!Buffer.isBuffer(buffer) || buffer.length < 4 || buffer.length > MAX_VERIFICATION_IMAGE_BYTES) {
-    fail("补充照片必须是小于 3 MB 的 JPEG。", "PHOTO_TOO_LARGE");
+  if (!Buffer.isBuffer(buffer) || buffer.length < 4 || buffer.length > MAX_EXTRA_VERIFICATION_IMAGE_BYTES) {
+    fail("补充照片必须是不超过 5 MB 的 JPEG。", "PHOTO_TOO_LARGE");
   }
   const dimensions = jpegDimensions(buffer);
   return {
@@ -701,7 +704,9 @@ async function downloadVerificationPhotoAuthenticated(referenceValue, maximumByt
   if (status !== 200 || !response?.body) {
     fail("无法读取已上传照片内容。", "PHOTO_UPLOAD_DOWNLOAD_FAILED");
   }
-  if (declaredBytes > maximumBytes) fail("补充照片超过 3 MB。", "PHOTO_TOO_LARGE");
+  if (declaredBytes > maximumBytes) {
+    fail(`补充照片超过 ${Math.floor(maximumBytes / 1024 / 1024)} MB。`, "PHOTO_TOO_LARGE");
+  }
   const chunks = [];
   let totalBytes = 0;
   for await (const chunk of response.body) {
@@ -709,7 +714,7 @@ async function downloadVerificationPhotoAuthenticated(referenceValue, maximumByt
     totalBytes += buffer.length;
     if (totalBytes > maximumBytes) {
       response.body.destroy?.();
-      fail("补充照片超过 3 MB。", "PHOTO_TOO_LARGE");
+      fail(`补充照片超过 ${Math.floor(maximumBytes / 1024 / 1024)} MB。`, "PHOTO_TOO_LARGE");
     }
     chunks.push(buffer);
   }
@@ -820,7 +825,7 @@ async function uploadVerificationPhotoReference(referenceValue, buffer) {
       // the authenticated bytes are exactly the same JPEG.
       let existing = null;
       try {
-        existing = await downloadVerificationPhotoAuthenticated(referenceValue, MAX_VERIFICATION_IMAGE_BYTES);
+        existing = await downloadVerificationPhotoAuthenticated(referenceValue, MAX_EXTRA_VERIFICATION_IMAGE_BYTES);
       } catch (_) { /* preserve the original upload error */ }
       if (existing) {
         const expectedSha = crypto.createHash("sha256").update(buffer).digest("hex");
@@ -7099,6 +7104,12 @@ async function beginVerificationPhotoUpload(event) {
       throw unavailable;
     }
     if (!signedUploadFunctionFallbackAllowed(error)) throw error;
+    if (originalBytes > MAX_VERIFICATION_FUNCTION_FALLBACK_BYTES) {
+      const unavailable = new Error("该照片超过云函数兼容通道上限，请稍后重试签名直传。");
+      unavailable.code = "PHOTO_UPLOAD_SIGN_FAILED";
+      unavailable.requestId = error?.requestId || error?.RequestId || "";
+      throw unavailable;
+    }
     await requireVerificationPhotoFunctionFallbackStorage(storedReference);
     uploadMode = "FUNCTION";
     signedUploadFailure = error;
@@ -7252,7 +7263,7 @@ async function commitVerificationPhotoUpload(event) {
     const fallbackPhoto = cleanVerificationJpeg(
       event.imageBase64,
       "补充照片",
-      MAX_VERIFICATION_IMAGE_BYTES
+      MAX_VERIFICATION_FUNCTION_FALLBACK_BYTES
     );
     if (fallbackPhoto.buffer.length !== Number(request.expected_original_bytes)) {
       fail("补充照片大小与上传请求不一致，请取消后重试。", "PHOTO_UPLOAD_SIZE_MISMATCH");
@@ -7353,7 +7364,7 @@ async function uploadVerificationExtraPhoto(event) {
   }
   const slot = Number(event.slot);
   if (!Number.isInteger(slot) || slot < 2 || slot > 4) fail("只能上传补充照片 1 至 3。", "PHOTO_SLOT_INVALID");
-  const original = cleanVerificationJpeg(event.imageBase64, "补充照片", MAX_VERIFICATION_IMAGE_BYTES);
+  const original = cleanVerificationJpeg(event.imageBase64, "补充照片", MAX_EXTRA_VERIFICATION_IMAGE_BYTES);
   const thumbnail = cleanVerificationJpeg(event.thumbnailBase64, "补充照片缩略图", MAX_THUMBNAIL_BYTES);
   const dimensions = verificationPhotoDimensions(event);
   const nonce = crypto.randomBytes(12).toString("hex");

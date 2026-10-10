@@ -541,7 +541,7 @@ for (const field of ["row.public", "row.file_size_limit", "row.allowed_mime_type
 const bucketReadyHarness = {
   module: { exports: {} },
   databaseBoolean: (value) => [true, "true", "t", 1, "1"].includes(value),
-  MAX_VERIFICATION_IMAGE_BYTES: 3 * 1024 * 1024
+  MAX_EXTRA_VERIFICATION_IMAGE_BYTES: 5 * 1024 * 1024
 };
 vm.createContext(bucketReadyHarness);
 vm.runInContext([
@@ -918,7 +918,7 @@ const fallbackObjectHarness = {
   module: { exports: {} },
   Buffer,
   crypto,
-  MAX_VERIFICATION_IMAGE_BYTES: 3 * 1024 * 1024,
+  MAX_EXTRA_VERIFICATION_IMAGE_BYTES: 5 * 1024 * 1024,
   verificationPhotoReference: () => ({ bucketId: "customer-photos", objectName: "records/71/slot-2/direct-existing.jpg" }),
   verificationPhotoStorageForEvidence: () => ({ bucketId: "customer-photos", accessToken: "token", envId: "env" }),
   storageUploadResponseMismatch: () => false,

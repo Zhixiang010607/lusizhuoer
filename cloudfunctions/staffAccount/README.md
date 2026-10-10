@@ -2,8 +2,8 @@
 
 当前版本：`v91`
 
-当前联动部署矩阵：`staffAccount v91`、`faceRecognition v127`、
-`verificationPhoto v12`、`teacherCreate v9`、`customerRating v8`。迁移 075—082
+当前联动部署矩阵：`staffAccount v91`、`faceRecognition v128`、
+`verificationPhoto v13`、`teacherCreate v9`、`customerRating v8`。迁移 075—083
 验收通过后再部署当前版本；下文较旧版本号属于历史说明。
 
 `v91` 修复人员目录把长账号 ID 通过三位 `LPAD` 截断成重复短编号的问题：老师目录的兼容 `person_code` 直接使用数据库唯一 `teacher_code`，其他角色也使用完整账号 ID，不再产生多个 `T200`。老师编号仍只用于服务端关联与旧路由兼容，小程序展示改用姓名和全局唯一登录手机号；不修改老师主键、手机号约束或任何业务归属。`v90` 修正老师个人月历的考勤日期映射，并把总部按日追踪明确拆为“完整打卡／仅上班打卡／仅下班打卡／未打卡”四组；只有上下班两笔齐全才返回工作时长。它同时返回老师入职日期，并新增仅供当前在职老师读取本人单月考勤与四栏日报的合并只读接口，供小程序内两个独立月历复用。所有本人范围都从认证会话派生，客户端不能指定老师；正常／体验／补录核销及设备交互路径不变。`v89` 新增总部老师主页的个人月历只读接口：一次返回指定老师单月的上／下班考勤与四栏日报，允许查看封存老师既有历史。`v88` 在迁移 081 之后把考勤记录中服务端保存的附近地点和具体地址返回给老师本人
@@ -52,8 +52,8 @@ Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_oper
 
 迁移 051／052 的旧表、函数和历史记录不再是本函数的运行依赖。旧 Saga 的退役
 已由迁移 053 完成；该迁移会物理删除旧操作表与六个私有函数，不影响老师及
-业务历史。当前联动版本为 `staffAccount v91`／`faceRecognition v127`／
-`teacherCreate v9`。
+业务历史。当前联动版本为 `staffAccount v91`／`faceRecognition v128`／
+`verificationPhoto v13`／`teacherCreate v9`。
 
 ## 保留能力
 
@@ -138,11 +138,11 @@ README.md
 生产切换顺序：
 
 1. 在 CloudBase 身份源中配置类型 `WX_MICRO_APP` 并绑定正确小程序 AppID；设置 `On=TRUE`、`AutoSignInWhenPhoneNumberMatch=TRUE`、`TransparentMode=FALSE`、`ReuseUserId=FALSE`，同时保留现有手机号＋密码登录方式。全托管持久身份模式可能固定回显 `AutoSignUpWithProviderUser=TRUE`；这只建立 Auth 身份，业务会话仍只认既有 UID 映射，未绑定身份必须拒绝。
-2. 依次执行并验收迁移 060—082；迁移 073—082 的只读检查必须全部 `READY`。再打包并上传 `staffAccount-v91.zip`，使用 Node.js 20，配置上述环境变量，并将安全规则限制为已登录且非匿名用户。v81 的精确充值工单详情和统一产品查询继续读取 061 中不可变的赠品明细，并通过 062 的独立函数审核产品购买单。
+2. 依次执行并验收迁移 060—083；迁移 073—083 的只读检查必须全部 `READY`。再打包并上传 `staffAccount-v91.zip`，使用 Node.js 20，配置上述环境变量，并将安全规则限制为已登录且非匿名用户。v81 的精确充值工单详情和统一产品查询继续读取 061 中不可变的赠品明细，并通过 062 的独立函数审核产品购买单。
 3. 客户评价作为独立同轮服务部署：执行并验收 068 与 070，配置至少 32 字节的 `CUSTOMER_RATING_SIGNING_KEY` 及实际 `rating.html` 地址 `CUSTOMER_RATING_BASE_URL`，上传 `customerRating-v8.zip` 并确认其 `health`。`staffAccount v91` 不签发或写入评价。
 4. 删除 `staffAccount` 上的旧人脸补偿 Timer，只保留月度额度 Timer。
 5. 部署后先调用 `{ "action": "health" }`，确认版本和配置就绪；再分别用现有已登录会话和微信手机号授权后的会话调用无参数 `{ "action": "session" }`，确认返回的 UID、角色和门店与旧密码账号完全一致。
-6. `staffAccount v91`、`faceRecognition v127` 和 `teacherCreate v9` 验收通过后才发布当前小程序；不得先发布依赖日报、考勤、老师创建或无参数 `session` 的客户端。
+6. `staffAccount v91`、`faceRecognition v128`、`verificationPhoto v13` 和 `teacherCreate v9` 验收通过后才发布当前小程序；不得先发布依赖日报、考勤、老师创建、照片 5 MiB 边界或无参数 `session` 的客户端。
 
 健康检查必须返回：
 

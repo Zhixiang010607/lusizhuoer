@@ -15,11 +15,14 @@ const PHOTO_SLOT_COUNT = 5;
 const DETAIL_PHOTO_SLOTS = Object.freeze([1, 2, 3, 4]);
 const MAX_EXTRA_FAST_PATH_BYTES = 768 * 1024;
 const MAX_EXTRA_UPLOAD_PHOTO_BYTES = 512 * 1024;
-const MAX_EXTRA_ALBUM_UPLOAD_PHOTO_BYTES = 2560 * 1024;
-const MAX_EXTRA_SERVER_PHOTO_BYTES = 3 * 1024 * 1024;
+const MAX_EXTRA_ALBUM_UPLOAD_PHOTO_BYTES = 4608 * 1024;
+const MAX_EXTRA_SERVER_PHOTO_BYTES = 5 * 1024 * 1024;
 const MAX_EXTRA_PHOTO_EDGE = 1024;
 const EXTRA_ALBUM_JPEG_NORMALIZE_ATTEMPTS = Object.freeze([
-  Object.freeze({ maxEdge: 2560, quality: 0.88 }),
+  Object.freeze({ maxEdge: 3200, quality: 0.92 }),
+  Object.freeze({ maxEdge: 3000, quality: 0.90 }),
+  Object.freeze({ maxEdge: 2800, quality: 0.88 }),
+  Object.freeze({ maxEdge: 2560, quality: 0.86 }),
   Object.freeze({ maxEdge: 2400, quality: 0.84 }),
   Object.freeze({ maxEdge: 2200, quality: 0.80 }),
   Object.freeze({ maxEdge: 2000, quality: 0.78 }),
@@ -1305,10 +1308,10 @@ Page({
         || sourceWidth < 1 || sourceHeight < 1 || sourceWidth > 30000 || sourceHeight > 30000) {
       throw new Error("补充照片尺寸无效，请重新选择");
     }
-    // A reasonably small JPEG is already within the transfer target. Keeping
-    // its exact full-frame bytes avoids needless quality loss and keeps camera
-    // captures fast; larger album originals continue through the canvas path.
-    if (format === "jpeg" && originalBytes <= MAX_EXTRA_FAST_PATH_BYTES
+    // Every supplemental JPEG within the server boundary keeps its exact
+    // full-frame bytes. This covers both album originals and WeChat camera
+    // captures, and avoids a second quality-reducing encode.
+    if (format === "jpeg" && originalBytes <= MAX_EXTRA_SERVER_PHOTO_BYTES
         && sourceBytes.byteLength === originalBytes) {
       return {
         buffer: sourceBuffer,
@@ -1320,11 +1323,9 @@ Page({
       };
     }
 
-    if (format === "jpeg" && clean(sourceType) === "album"
-        && originalBytes <= MAX_EXTRA_SERVER_PHOTO_BYTES) {
-      // Album JPEGs already accepted by the server keep their exact original
-      // bytes. Compression starts only above the hard server limit, so normal
-      // phone photos do not lose pixels or JPEG quality merely for speed.
+    if (format === "jpeg" && originalBytes <= MAX_EXTRA_SERVER_PHOTO_BYTES) {
+      // Large but accepted JPEGs were initially header-read to keep selection
+      // responsive. Read their full bytes once now and preserve them exactly.
       const originalRead = sourceBytes.byteLength === originalBytes ? { data: sourceBuffer } : await readFile(filePath);
       const original = new Uint8Array(originalRead.data);
       if (original.byteLength !== originalBytes || imageFormat(original) !== "jpeg") {
@@ -1340,7 +1341,7 @@ Page({
       };
     }
 
-    if (format === "jpeg" && clean(sourceType) === "album") {
+    if (format === "jpeg") {
       try {
         return await this.normalizeAlbumJpegNative(filePath, { width: sourceWidth, height: sourceHeight });
       } catch (nativeError) {
@@ -1520,9 +1521,11 @@ Page({
       const sourceInfo = selectedBytes > 0 ? { size: selectedBytes } : await fileInfo(filePath);
       const sourceBytes = Number(sourceInfo?.size || 0);
       if (!Number.isInteger(sourceBytes) || sourceBytes < 12) throw new Error("补充照片文件无效，请重新选择");
-      // Large album originals are never copied wholesale into JavaScript
-      // memory. Only their magic header is read before the native canvas
-      // decoder scales the complete frame into a bounded JPEG.
+      // Large selected files are never copied wholesale into JavaScript memory
+      // before their format is known. Only the magic header is read first;
+      // accepted JPEGs are then read exactly once, while oversized JPEGs use
+      // native proportional compression and other formats use the full-frame
+      // compatibility canvas path.
       const sourceFlight = sourceBytes <= MAX_EXTRA_FAST_PATH_BYTES
         ? readFile(filePath)
         : readFileHead(filePath);

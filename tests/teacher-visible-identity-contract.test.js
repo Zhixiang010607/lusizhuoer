@@ -23,7 +23,7 @@ assert.match(staff, /COALESCE\(NULLIF\(BTRIM\(t\.teacher_code\), ''\),[\s\S]*a\.
 assert.doesNotMatch(staff.slice(staff.indexOf('if (action === "listStaff")'), staff.indexOf('if (action === "listProducts")')), /LPAD\(a\.id::text, 3/,
   "staff IDs must never be truncated into duplicate three-character display codes");
 
-assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v11" : "v127"/);
+assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v12" : "v128"/);
 assert.match(face, /SELECT t\.id AS teacher_id, t\.teacher_code, t\.teacher_name, a\.phone AS teacher_phone/);
 assert.match(face, /teacherPhone: teacher\.teacher_phone/);
 assert.match(face, /teacherPhone: caller\.teacherPhone/);

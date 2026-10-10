@@ -449,7 +449,7 @@ function createVerificationPhotoMain(sharedMain, options = {}) {
     if (action === "health" && !trustedTimerEvent && result?.ok === true) {
       return {
         ...result,
-        version: "v12",
+        version: "v13",
         sharedVersion: String(result.version || ""),
         verificationPhotoReadReliability: {
           signedUrlExpiryAware: true,

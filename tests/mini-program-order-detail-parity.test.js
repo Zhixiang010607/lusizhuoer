@@ -34,7 +34,8 @@ function loadHelpers(options = {}) {
   const instrumented = js.replace(marker, `
 globalThis.__orderDetailHelpers = {
   PHOTO_SLOT_COUNT, DETAIL_PHOTO_SLOTS, MAX_EXTRA_FAST_PATH_BYTES, MAX_EXTRA_UPLOAD_PHOTO_BYTES,
-  MAX_EXTRA_ALBUM_UPLOAD_PHOTO_BYTES, EXTRA_ALBUM_JPEG_NORMALIZE_ATTEMPTS,
+  MAX_EXTRA_ALBUM_UPLOAD_PHOTO_BYTES, MAX_EXTRA_SERVER_PHOTO_BYTES,
+  EXTRA_ALBUM_JPEG_NORMALIZE_ATTEMPTS,
   MAX_EXTRA_PHOTO_EDGE, imageFormat,
   buildPhotoSlots, normalizePhotoManifest,
   exactOrderKind, routeOrderExpectation, assertExactRouteOrder, detailStatusLabel,
@@ -325,7 +326,7 @@ test("supplemental photo normalization keeps the full frame and uses a bounded f
   page.photoNormalizeCanvasNode = async () => canvas;
   page.canvasPhotoJpeg = async () => ({ tempFilePath: `/encoded-${encodeCount++}` });
   const source = new Uint8Array(2 * 1024 * 1024);
-  source.set([0xff, 0xd8, 0xff], 0);
+  source.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
 
   const normalized = await page.normalizeExtraPhoto("/selected.jpg", source.buffer, { width: 4000, height: 3000 });
 
@@ -412,7 +413,7 @@ test("large album JPEGs use native proportional compression and verify the retur
       request.success({ tempFilePath: "/native-portrait.jpg" });
     },
     getImageInfo(request) {
-      request.success({ width: 1440, height: 2560 });
+      request.success({ width: 1800, height: 3200 });
     },
     readFile(filePath) {
       assert.equal(filePath, "/native-portrait.jpg");
@@ -436,27 +437,28 @@ test("large album JPEGs use native proportional compression and verify the retur
 
   assert.deepEqual(requests, [{
     src: "/album-1080x1920.jpg",
-    quality: 88,
+    quality: 92,
     compressedWidth: undefined,
-    compressedHeight: 2560
+    compressedHeight: 3200
   }]);
-  assert.deepEqual([normalized.width, normalized.height], [1440, 2560]);
+  assert.deepEqual([normalized.width, normalized.height], [1800, 3200]);
   assert.equal(normalized.previewPath, "/native-portrait.jpg");
   assert.equal(normalized.bytes, encoded.byteLength);
 });
 
-test("album quality budget stays near the server ceiling while camera and compatibility paths stay unchanged", () => {
+test("oversized JPEG quality budget stays near the server ceiling while compatibility conversion stays bounded", () => {
   const { helpers } = loadHelpers();
   assert.equal(helpers.MAX_EXTRA_UPLOAD_PHOTO_BYTES, 512 * 1024);
-  assert.equal(helpers.MAX_EXTRA_ALBUM_UPLOAD_PHOTO_BYTES, 2560 * 1024);
+  assert.equal(helpers.MAX_EXTRA_ALBUM_UPLOAD_PHOTO_BYTES, 4608 * 1024);
+  assert.equal(helpers.MAX_EXTRA_SERVER_PHOTO_BYTES, 5 * 1024 * 1024);
   assert.deepEqual(
     JSON.parse(JSON.stringify(helpers.EXTRA_ALBUM_JPEG_NORMALIZE_ATTEMPTS[0])),
-    { maxEdge: 2560, quality: 0.88 }
+    { maxEdge: 3200, quality: 0.92 }
   );
 });
 
-test("a server-safe album JPEG keeps its exact original bytes without any compression", async () => {
-  const original = new Uint8Array(1314442);
+test("an album JPEG at the exact 5 MiB server boundary keeps its original bytes", async () => {
+  const original = new Uint8Array(5 * 1024 * 1024);
   original.set([0xff, 0xd8, 0xff], 0);
   const { page: definition } = loadHelpers({
     compressImage(request) {
@@ -483,6 +485,35 @@ test("a server-safe album JPEG keeps its exact original bytes without any compre
   assert.equal(normalized.buffer.byteLength, original.byteLength);
   assert.equal(normalized.previewPath, "/album-flower.jpg");
   assert.deepEqual([normalized.width, normalized.height], [1080, 1920]);
+});
+
+test("a camera JPEG below 5 MiB keeps its exact WeChat bytes without a second encode", async () => {
+  const original = new Uint8Array(2 * 1024 * 1024);
+  original.set([0xff, 0xd8, 0xff], 0);
+  const { page: definition } = loadHelpers({
+    compressImage(request) {
+      request.fail(new Error("server-safe camera JPEGs must never be compressed again"));
+    },
+    readFile(filePath) {
+      assert.equal(filePath, "/camera.jpg");
+      return original.buffer;
+    }
+  });
+  const page = pageInstance(definition);
+  const header = new Uint8Array(12);
+  header.set([0xff, 0xd8, 0xff], 0);
+
+  const normalized = await page.normalizeExtraPhoto(
+    "/camera.jpg",
+    header.buffer,
+    { width: 3024, height: 4032 },
+    original.byteLength,
+    "camera"
+  );
+
+  assert.equal(normalized.converted, false);
+  assert.equal(normalized.buffer.byteLength, original.byteLength);
+  assert.equal(normalized.previewPath, "/camera.jpg");
 });
 
 test("an oversized album JPEG with an abnormal compressed ratio is blocked instead of uploaded", async () => {
@@ -564,30 +595,21 @@ test("album normalization preserves every edge for both landscape and portrait p
   ], "landscape and portrait both draw the complete decoded source with no crop rectangle");
 });
 
-test("large album originals are accepted from a header-only read and keep the exact 1080x1920 frame ratio", async () => {
+test("large JPEG originals are accepted from a header-only read and native compression keeps the exact frame ratio", async () => {
   const encoded = new Uint8Array(180 * 1024);
   encoded.set([0xff, 0xd8, 0xff], 0);
-  const drawCalls = [];
-  const { page: definition } = loadHelpers({ readFile: () => encoded.buffer });
-  const page = pageInstance(definition);
-  const canvas = {
-    width: 0,
-    height: 0,
-    createImage() {
-      const image = { width: 1080, height: 1920 };
-      Object.defineProperty(image, "src", { set() { Promise.resolve().then(() => image.onload()); } });
-      return image;
+  const requests = [];
+  const { page: definition } = loadHelpers({
+    compressImage(request) {
+      requests.push(request);
+      request.success({ tempFilePath: "/encoded-large.jpg" });
     },
-    getContext() {
-      return {
-        fillStyle: "",
-        fillRect() {},
-        drawImage(...args) { drawCalls.push(args); }
-      };
-    }
-  };
-  page.photoNormalizeCanvasNode = async () => canvas;
-  page.canvasPhotoJpeg = async () => ({ tempFilePath: "/encoded-large.jpg" });
+    getImageInfo(request) {
+      request.success({ width: 576, height: 1024 });
+    },
+    readFile: () => encoded.buffer
+  });
+  const page = pageInstance(definition);
   const header = new Uint8Array(12);
   header.set([0xff, 0xd8, 0xff], 0);
 
@@ -600,14 +622,25 @@ test("large album originals are accepted from a header-only read and keep the ex
 
   assert.deepEqual([normalized.width, normalized.height], [576, 1024]);
   assert.equal(normalized.width / normalized.height, 1080 / 1920);
-  assert.deepEqual(drawCalls.map((args) => args.slice(1)), [[0, 0, 576, 1024]],
-    "the two supplied portrait examples keep all four edges without a source crop rectangle");
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].compressedHeight, 1920,
+    "native compression never upscales an already smaller portrait");
+  assert.equal(requests[0].compressedWidth, undefined,
+    "portrait compression specifies only the long edge and leaves the other edge proportional");
 });
 
 test("a complex large photo is automatically reduced until it is uploadable instead of asking the user to resize it", async () => {
-  const encodedSizes = [900, 800, 700, 620, 560, 500].map((kib) => kib * 1024);
-  const rendered = [];
+  const encodedSizes = [5000, 4900, 4800, 4700, 4650, 4500].map((kib) => kib * 1024);
+  const requests = [];
   const { page: definition } = loadHelpers({
+    compressImage(request) {
+      const index = requests.length;
+      requests.push(request);
+      request.success({ tempFilePath: `/adaptive-${index}` });
+    },
+    getImageInfo(request) {
+      request.success({ width: 3000, height: 2000 });
+    },
     readFile(filePath) {
       const index = Number(String(filePath).replace("/adaptive-", ""));
       const bytes = new Uint8Array(encodedSizes[index]);
@@ -616,25 +649,6 @@ test("a complex large photo is automatically reduced until it is uploadable inst
     }
   });
   const page = pageInstance(definition);
-  const canvas = {
-    width: 0,
-    height: 0,
-    createImage() {
-      const image = { width: 6000, height: 4000 };
-      Object.defineProperty(image, "src", { set() { Promise.resolve().then(() => image.onload()); } });
-      return image;
-    },
-    getContext() {
-      return {
-        fillStyle: "",
-        fillRect() {},
-        drawImage(...args) { rendered.push(args.slice(1)); }
-      };
-    }
-  };
-  let attempt = 0;
-  page.photoNormalizeCanvasNode = async () => canvas;
-  page.canvasPhotoJpeg = async () => ({ tempFilePath: `/adaptive-${attempt++}` });
   const header = new Uint8Array(12);
   header.set([0xff, 0xd8, 0xff], 0);
 
@@ -645,15 +659,12 @@ test("a complex large photo is automatically reduced until it is uploadable inst
     32 * 1024 * 1024
   );
 
-  assert.equal(attempt, 6);
-  assert.equal(normalized.bytes, 500 * 1024);
-  assert.deepEqual([normalized.width, normalized.height], [640, 427]);
-  assert.deepEqual(rendered, [
-    [0, 0, 1024, 683],
-    [0, 0, 896, 597],
-    [0, 0, 768, 512],
-    [0, 0, 640, 427]
-  ], "each fallback redraw still maps the complete source frame proportionally");
+  assert.equal(requests.length, 6);
+  assert.equal(normalized.bytes, 4500 * 1024);
+  assert.deepEqual([normalized.width, normalized.height], [3000, 2000]);
+  assert.deepEqual(requests.map((request) => request.compressedWidth), [3200, 3000, 2800, 2560, 2400, 2200]);
+  assert.ok(requests.every((request) => request.compressedHeight === undefined),
+    "every fallback asks WeChat for only the landscape long edge and never a crop rectangle");
 });
 
 test("a repeated detail read replaces the remote thumbnail with a verified 24-hour local cache", async () => {
@@ -892,8 +903,8 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
   assert.doesNotMatch(functionSource(js, "normalizeExtraPhoto"), /不能超过\s*7\s*MB|MAX_EXTRA_SOURCE_PHOTO_BYTES/,
     "large selected photos are compressed locally instead of being rejected by source byte size");
   includes(functionSource(js, "uploadExtraPhoto"), "readFileHead(filePath)",
-    "large originals only enter JavaScript memory as a format header before canvas scaling");
-  includes(js, "bytes.byteLength <= MAX_EXTRA_UPLOAD_PHOTO_BYTES", "normalized JPEG remains within the faster client upload target");
+    "large originals first enter JavaScript memory as a format header before native compression or exact bounded readback");
+  includes(js, "bytes.byteLength <= MAX_EXTRA_UPLOAD_PHOTO_BYTES", "PNG and WebP compatibility conversion remains within its bounded target");
   includes(functionSource(js, "uploadExtraPhoto"), "chosen = await this.chooseExtraPhoto()",
     "the upload path uses the source-specific picker");
   includes(functionSource(js, "chooseExtraPhoto"), 'itemList: ["从相册选择", "拍照上传"]',
@@ -906,8 +917,8 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
     "camera capture remains isolated from the album picker");
   includes(functionSource(js, "chooseExtraPhoto"), 'sizeType: ["compressed"]',
     "camera capture stays on the fast compressed path");
-  includes(js, "const MAX_EXTRA_UPLOAD_PHOTO_BYTES = 512 * 1024", "supplemental uploads target at most half a MiB for fast transfer and server inspection");
-  includes(js, "const MAX_EXTRA_FAST_PATH_BYTES = 768 * 1024", "already-compressed WeChat JPEGs have a no-reencode fast path");
+  includes(js, "const MAX_EXTRA_UPLOAD_PHOTO_BYTES = 512 * 1024", "PNG and WebP compatibility conversion retains its bounded transfer target");
+  includes(js, "const MAX_EXTRA_FAST_PATH_BYTES = 768 * 1024", "small local files are read directly before the unified 5 MiB JPEG decision");
   includes(js, "const MAX_EXTRA_PHOTO_EDGE = 1024", "supplemental uploads retain a practical full-frame long edge");
   includes(js, "EXTRA_PHOTO_NORMALIZE_ATTEMPTS", "supplemental photo compression has a named bounded attempt plan");
   assert.equal((functionSource(js, "normalizeExtraPhoto").match(/canvasPhotoJpeg\(/g) || []).length, 1,

@@ -36,7 +36,7 @@ function throwsCode(fn, code, label) {
   assert.throws(fn, (error) => error?.code === code, label);
 }
 
-includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v127"', "timer-compatible versions");
+includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v128"', "timer-compatible versions");
 includes(cloud, '"cleanup-verification-photo-uploads-hourly"', "photo-only timer name");
 includes(cloud, '"cleanup-verification-photo-drafts-hourly"', "face timer name");
 

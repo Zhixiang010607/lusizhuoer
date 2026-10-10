@@ -368,4 +368,35 @@ assert.match(requiredDailyReportConsoleMigration, /BEGIN;[\s\S]*COMMIT;\s*$/,
 assert.match(requiredDailyReportConsoleMigration, /staff_daily_reports_all_fields_required_v77/);
 assert.match(requiredDailyReportConsoleMigration, /all four daily report fields are required/);
 
+const fiveMibPhotoMigration = fs.readFileSync(
+  path.join(consoleDir, "083-01-verification-extra-photo-five-mb.sql"),
+  "utf8"
+);
+const fiveMibPhotoVerification = fs.readFileSync(
+  path.join(consoleDir, "083-readonly-verify.sql"),
+  "utf8"
+);
+assert.ok(Buffer.byteLength(fiveMibPhotoMigration, "utf8") < 9000,
+  "CloudBase migration 083 must remain safe to paste into the SQL editor");
+assert.match(fiveMibPhotoMigration, /BEGIN;[\s\S]*COMMIT;\s*$/,
+  "CloudBase migration 083 must be a complete transaction");
+assert.match(fiveMibPhotoMigration, /expected_original_bytes BETWEEN 4 AND 5242880/,
+  "migration 083 raises direct supplemental upload requests to 5 MiB");
+assert.match(fiveMibPhotoMigration, /photo_kind = 'EXTRA'[\s\S]*original_bytes BETWEEN 1 AND 5242880/,
+  "migration 083 raises only persisted supplemental photos to 5 MiB");
+assert.match(fiveMibPhotoMigration, /photo_kind = 'FACE'[\s\S]*original_bytes BETWEEN 1 AND 3145728/,
+  "migration 083 keeps face evidence at 3 MiB");
+assert.match(fiveMibPhotoMigration, /PG_GET_FUNCTIONDEF[\s\S]*REPLACE\(begin_function, '3145728', '5242880'\)/,
+  "migration 083 upgrades the currently deployed begin function without restoring retired SQL");
+assert.match(fiveMibPhotoMigration, /REPLACE\(commit_function, '3145728', '5242880'\)/,
+  "migration 083 upgrades the migration-040 commit function in place");
+assert.equal((fiveMibPhotoVerification.match(/THEN 'READY'/g) || []).length, 6,
+  "migration 083 exposes six read-only READY checks");
+assert.match(fiveMibPhotoVerification, /FACE%3145728/,
+  "migration 083 verification confirms the face limit is unchanged");
+assert.match(fiveMibPhotoVerification, /EXTRA%5242880/,
+  "migration 083 verification confirms the supplemental limit is 5 MiB");
+assert.match(fiveMibPhotoVerification, /083 private photo bucket[\s\S]*id = 'customer-photos'[\s\S]*public = FALSE[\s\S]*file_size_limit >= 5242880/,
+  "migration 083 verifies the private JPEG bucket supports 5 MiB uploads");
+
 console.log("cloudbase console migrations: PASS");

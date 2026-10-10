@@ -397,3 +397,17 @@ ROLLBACK;
 单独执行 `ROLLBACK;`，然后只按该 README 的现场恢复顺序执行 `09-01`、`09-02`、
 `10`、`11`、`12`、`13` 和只读的 `14`。其中 `09-02` 会安全替换体验额度独立
 充值函数；不会删除老师、客户、产品、额度或历史流水。
+
+## 083 核销补充照片 5 MiB
+
+迁移 082 验收完成后，按 [`083-README.md`](083-README.md) 执行：
+
+1. 整文件执行 [`083-01-verification-extra-photo-five-mb.sql`](083-01-verification-extra-photo-five-mb.sql)；
+2. 执行 [`083-readonly-verify.sql`](083-readonly-verify.sql)，六行必须全部为 `READY`；第六行只读确认现有私有 JPEG 桶单文件上限不少于 5 MiB；
+3. 上传 `faceRecognition-v128.zip` 与 `verificationPhoto-v13.zip`，分别确认运行时版本为 `v128`／`v13`，照片服务同时返回 `sharedVersion=v12`；
+4. 最后上传配套小程序，真机验证 5 MiB 原图边界和超过 5 MiB 后不裁切等比压到 4.5 MiB。
+
+083 只提升核销完成后三个补充照片位及直传请求的单张上限。`FACE` 现场人脸证据仍为
+3 MiB，客户建档、考勤人脸、正常／体验／补录核销、BLE、余额和扣次规则均不改变。
+迁移不会修改 `customer-photos` 的容量或公开状态，也不会增加
+`anon`／`authenticated` 策略；只读验收仅确认现有桶满足要求。

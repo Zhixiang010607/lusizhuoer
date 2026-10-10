@@ -38,8 +38,10 @@ function functionSource(source, name) {
   throw new Error(`function ${name} body is incomplete`);
 }
 
-includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v127"', "split cloud versions");
-includes(cloud, "const MAX_VERIFICATION_IMAGE_BYTES = 3 * 1024 * 1024", "original upload limit");
+includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v128"', "split cloud versions");
+includes(cloud, "const MAX_VERIFICATION_IMAGE_BYTES = 3 * 1024 * 1024", "face evidence limit");
+includes(cloud, "const MAX_EXTRA_VERIFICATION_IMAGE_BYTES = 5 * 1024 * 1024", "supplemental upload limit");
+includes(cloud, "const MAX_VERIFICATION_FUNCTION_FALLBACK_BYTES = 3 * 1024 * 1024", "synchronous fallback limit");
 includes(cloud, "const MAX_THUMBNAIL_BYTES = 384 * 1024", "thumbnail upload limit");
 includes(cloud, "if (action === \"getVerificationPhotos\")", "thumbnail list action");
 includes(cloud, "if (action === \"getVerificationPhotoOriginalUrl\")", "on-demand original action");
@@ -82,6 +84,27 @@ includes(verificationSignSource, "Verification photo signing returned no HTTPS U
 includes(cloud, "allowRetainedProfile: retainedProfile", "profile bucket is allowed only for retained customer or teacher profile evidence");
 includes(cloud, "maxPhotos: 5", "five-photo response contract");
 includes(cloud, "slot < 2 || slot > 4", "only three supplemental cloud slots are writable");
+
+const uploadBytesHarness = {
+  module: { exports: {} },
+  MAX_EXTRA_VERIFICATION_IMAGE_BYTES: 5 * 1024 * 1024,
+  fail(message, code) { throw Object.assign(new Error(message), { code }); }
+};
+vm.createContext(uploadBytesHarness);
+vm.runInContext([
+  functionSource(cloud, "verificationPhotoUploadBytes"),
+  "module.exports = { verificationPhotoUploadBytes };"
+].join("\n"), uploadBytesHarness, { filename: "verification-photo-five-mib-boundary.js" });
+assert.equal(
+  uploadBytesHarness.module.exports.verificationPhotoUploadBytes({ originalBytes: 5 * 1024 * 1024 }),
+  5 * 1024 * 1024,
+  "supplemental direct upload accepts the exact 5 MiB boundary"
+);
+assert.throws(
+  () => uploadBytesHarness.module.exports.verificationPhotoUploadBytes({ originalBytes: (5 * 1024 * 1024) + 1 }),
+  (error) => error?.code === "PHOTO_TOO_LARGE",
+  "supplemental direct upload rejects one byte above 5 MiB"
+);
 
 const worstCaseFallbackEventBytes = Math.ceil((3 * 1024 * 1024) * 4 / 3) + 32 * 1024;
 assert.ok(worstCaseFallbackEventBytes < 6 * 1024 * 1024, "single-JPEG FUNCTION fallback event must stay under the 6 MB SCF limit");
