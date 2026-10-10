@@ -38,6 +38,11 @@ test("product sample facts preserve the verification and recharge business field
     { label: "提交时间", value: "2026-08-19 12:34:56", span: 2 }
   ]);
   assert.equal(verification.productTemplate.instructions, "核销说明");
+  assert.deepEqual(verification.ratingQr, {
+    preview: true,
+    title: "扫码评价本次服务",
+    description: "二维码版式示例；正式核销工单会生成独立评价二维码。"
+  }, "verification samples show the final QR placement without issuing a real rating link");
 
   assert.equal(recharge.kind, "充值 / 退费");
   assert.equal(recharge.title, "充值单 SAMPLE001");
@@ -55,6 +60,7 @@ test("product sample facts preserve the verification and recharge business field
     { label: "审核时间", value: "2026-08-19 12:36:10" }
   ]);
   assert.equal(recharge.productTemplate.instructions, "充值说明");
+  assert.equal(recharge.ratingQr, null, "recharge and refund samples do not show a rating QR");
 
   assert.deepEqual(renderer.createProductSamplePhotos("verification-image"), []);
   assert.deepEqual(renderer.createProductSamplePhotos("recharge-pdf"), []);
@@ -89,10 +95,11 @@ test("native receipt renderer preserves the web A4 and long-image geometry", asy
     "const OUTPUT_PAGE_HEIGHT = PDF_PAGE_HEIGHT * OUTPUT_SCALE", "drawPreparedReceipt",
     'background: "#fffaf3"', 'border: "#dfcfb4"', 'title: "#302a22"',
     'accent: "#80622f"', "drawReceiptBackground", "prepareReceiptBackground",
-    "singleLine", "fittedSize", "context.fillText(value, x + 18, y + 48, maxWidth)",
-    "title: 36", "subtitle: 22", "factLabel: 22", "factValue: 36", "sectionTitle: 30",
+    "singleLine", "fittedSize", "context.fillText(value, x + 14, y + 38, maxWidth)",
+    "title: 36", "subtitle: 22", "factLabel: 18", "factValue: 28", "sectionTitle: 28",
     "instructionBody: 26", "pageNumber: 20", "drawInstructionText",
-    "Math.max(28, Math.min(normalSize", "drawInfoGrid(context, details, y, draw, paginate, 2)",
+    "Math.max(21, Math.min(normalSize", "drawInfoGrid(context, details, y, draw, paginate, 2)",
+    "drawPreviewQr", "版式示例 · 不可扫码",
     '/时间$/.test(text(firstItem && firstItem.label, ""))'
   ]) {
     assert.ok(rendererSource.includes(contract), `mini renderer is missing ${contract}`);
@@ -148,7 +155,7 @@ test("native receipt renderer preserves the web A4 and long-image geometry", asy
     "every A4 product-preview page must draw the shared Lusizhuoer background exactly once");
   assert.deepEqual(customerIdentityDraws.map((item) => item.value), ["示例客户 · C1-SAMPLE001"],
     "the customer name and number are painted once instead of wrapped into multiple lines");
-  assert.equal(customerIdentityDraws[0].maxWidth, 1076,
+  assert.equal(customerIdentityDraws[0].maxWidth, 1084,
     "the complete customer identity has a full-width row with protected inner padding");
   assert.equal(paintedTexts.some((item) => item.value.includes("绝不能打印")), false,
     "documentData messages are ignored by every PDF/image receipt render");
@@ -236,7 +243,7 @@ test("rating QR keeps its size and fits together on the current or next A4 page"
     Object.defineProperty(image, "src", { set() { queueMicrotask(() => image.onload()); } });
     return image;
   };
-  for (const lineCount of [5, 8]) {
+  for (const lineCount of [5, 20]) {
     rectangles.length = 0;
     qrDraws.length = 0;
     const documentData = renderer.createProductSampleDocument({
@@ -249,7 +256,7 @@ test("rating QR keeps its size and fits together on the current or next A4 page"
     assert.ok(ratingCard, "rating card was drawn");
     assert.deepEqual(qrDraws, [{ width: 220, height: 220 }], "QR remains at its original readable size");
     assert.equal(result.pageCount, lineCount === 5 ? 1 : 2);
-    assert.equal(ratingCard.top >= 1754, lineCount === 8,
+    assert.equal(ratingCard.top >= 1754, lineCount === 20,
       "short receipts retain the QR on page one; longer content moves the whole card");
     assert.ok(ratingCard.top % 1754 + ratingCard.height <= 1754 - 64,
       "the complete rating card remains above the page footer");

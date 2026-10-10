@@ -301,7 +301,7 @@ test("web work-order detail shows ratings while HQ and store exports request a Q
   assert.doesNotMatch(exportBody, /\["store", "hq", "teacher"\]/,
     "teacher export paths must never issue a QR");
   assert.match(webReceipt, /if \(!ratingQr\?\.enabled\) return y/);
-  assert.match(webReceipt, /if \(!source\) return \{ enabled: false, image: null \}/);
+  assert.match(webReceipt, /if \(!source\) return \{ enabled: false, image: null, preview: false \}/);
 });
 
 test("mini-program phone and iPad detail use the same HQ/store QR contract", () => {
@@ -324,5 +324,5 @@ test("mini-program phone and iPad detail use the same HQ/store QR contract", () 
   assert.doesNotMatch(exportBody, /\["store", "hq", "teacher"\]/,
     "teacher mini-program exports must never issue a QR");
   assert.match(miniReceipt, /if \(!ratingQr\?\.enabled\) return y/);
-  assert.match(miniReceipt, /if \(!source\) return \{ enabled: false, image: null \}/);
+  assert.match(miniReceipt, /if \(!source\) return \{ enabled: false, image: null, preview: false \}/);
 });

@@ -37,7 +37,7 @@ button::after { border: 0; }
 .report-field { display: block; margin-bottom: 19rpx; }
 .report-field > view { display: flex; align-items: center; gap: 10rpx; margin-bottom: 9rpx; color: #675b4b; font-size: 24rpx; font-weight: 700; }
 .required { padding: 3rpx 8rpx; color: #8b3f35; background: #fff0ee; border-radius: 7rpx; font-size: 18rpx; }
-.report-field textarea { width: 100%; min-height: 420rpx; padding: 19rpx 21rpx; color: #302a22; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 14rpx; font-size: 28rpx; line-height: 1.65; }
+.report-field textarea { width: 100%; min-height: 840rpx; padding: 19rpx 21rpx; color: #302a22; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 14rpx; font-size: 28rpx; line-height: 1.65; }
 .report-field textarea[disabled] { color: #554a3c; background: #f6f0e7; }
 .counter { display: block; margin-top: 6rpx; color: #8a7d6d; font-size: 19rpx; text-align: right; }
 .form-message, .notice-card { color: #625747; font-size: 24rpx; line-height: 1.6; }
@@ -72,7 +72,7 @@ button[disabled] { opacity: .55; }
   .report-field { margin-bottom: 15px; }
   .report-field > view { gap: 8px; margin-bottom: 7px; font-size: 14px; }
   .required { padding: 2px 6px; border-radius: 5px; font-size: 11px; }
-  .report-field textarea { min-height: 112px; padding: 13px 14px; border-width: 1px; border-radius: 11px; font-size: 15px; }
+  .report-field textarea { min-height: 224px; padding: 13px 14px; border-width: 1px; border-radius: 11px; font-size: 15px; }
   .counter { margin-top: 5px; font-size: 12px; }
   .form-message, .notice-card { font-size: 14px; }
   .form-message { margin-bottom: 12px; padding: 11px 13px; border-radius: 9px; }

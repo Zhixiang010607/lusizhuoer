@@ -88,6 +88,10 @@ test("only the teacher workspaces expose the calendar and today editor", () => {
   assert.match(html, /id="dailyReportCalendar"/);
   assert.match(html, /id="dailyCompletedWork"[^>]*required/);
   assert.equal((html.match(/<textarea[^>]*required/g) || []).length, 1);
+  assert.match(miniCss, /\.report-field textarea\s*\{[^}]*min-height:\s*840rpx/s,
+    "the phone daily-report writing area is twice the previous height");
+  assert.match(miniCss, /@media \(min-width:\s*700px\)[\s\S]*\.report-field textarea\s*\{[^}]*min-height:\s*224px/s,
+    "the tablet daily-report writing area keeps the same doubled-height contract");
   assert.match(html, /dailyCompletedWork[\s\S]*?\/1000/);
   assert.match(html, /emoji 和特殊符号/);
   assert.doesNotMatch(html, /dailyCustomerProjectProgress|dailyProblemsAndSupport|dailyTomorrowPlan/);

@@ -342,7 +342,7 @@ test("headquarters creation and project-template forms use compact tablet grids"
     "verification and recharge receipt instructions should share the tablet width");
   assert.match(productDetailWxss, /\.logo-editor \{ grid-template-columns: 110px minmax\(0, 1fr\);/,
     "the shared receipt logo must stay compact instead of scaling with the iPad");
-  assert.match(productDetailWxss, /\.instruction-field textarea \{ min-height: 190px;/);
+  assert.match(productDetailWxss, /\.instruction-field textarea \{ min-height: 320px;/);
 });
 
 test("HQ teacher detail uses a real tablet workspace instead of a magnified stack", () => {
@@ -359,11 +359,11 @@ test("HQ teacher detail uses a real tablet workspace instead of a magnified stac
   assert.match(wxss, /@media \(min-width: 1100px\)[\s\S]*?\.teacher-detail-grid \{[^}]*grid-template-columns: minmax\(280px, \.7fr\) minmax\(0, 1\.3fr\);/s,
     "profile/account and overview split only when there is room for both");
   assert.match(wxss, /\.experience-project-panel, \.experience-operations-panel \{ grid-column: 1 \/ -1; \}/);
-  assert.match(wxss, /\.monthly-overview-card \{ display: table-row; \}/);
-  assert.match(wxml, /class="monthly-overview-scroll"[^>]*scroll-x[^>]*height: \{\{entitlements\.length \* 84 \+ 2\}\}px;/,
-    "native horizontal scroll view height must follow the actual count of 84px records");
+  assert.match(wxss, /\.monthly-overview-header, \.monthly-overview-card \{[^}]*display: grid;/s);
+  assert.match(wxml, /class="monthly-overview-scroll"[^>]*scroll-x[^>]*height: \{\{entitlements\.length \* 56 \+ 42\}\}px;/,
+    "native horizontal scroll view height must follow one compact header plus the actual project rows");
   assert.match(wxss, /\.experience-project-panel \{[^}]*grid-template-columns: minmax\(0, 1fr\);/s);
-  assert.match(wxss, /\.quota-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.match(wxss, /\.quota-grid \{[^}]*min-width: 680px;/s);
   assert.match(wxss, /\.forms-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
 });
 

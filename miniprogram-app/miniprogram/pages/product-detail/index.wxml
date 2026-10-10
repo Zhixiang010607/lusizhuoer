@@ -4,7 +4,7 @@
   <view wx:if="{{loading && !template}}" class="panel empty">正在读取项目模板…</view>
   <block wx:if="{{template}}">
     <view class="panel summary-card">
-      <view class="summary-copy"><text class="type-pill">{{template.productType}}</text><text class="product-name">{{template.productName}}</text><text class="meta">{{template.productCode || '未编号'}} · {{template.statusText}} · 模板更新：{{template.updatedText}}{{template.updatedByName ? ' · ' + template.updatedByName : ''}}</text></view>
+      <view class="summary-copy"><text class="type-pill">{{template.productType}}</text><text class="product-name">{{template.productName}}</text><text class="meta">{{template.statusText}} · 更新于 {{template.updatedText}}{{template.updatedByName ? ' · ' + template.updatedByName : ''}}</text></view>
       <view class="summary-actions"><text class="template-badge {{template.ready ? 'ready' : ''}}">{{template.ready ? '模板已配置' : '模板待配置'}}</text><button class="ghost status-button" bindtap="toggleStatus" disabled="{{mutating}}">{{template.productStatus === 'ARCHIVED' ? '激活项目' : '封存项目'}}</button></view>
     </view>
 
@@ -14,24 +14,24 @@
         <view class="logo-square"><image wx:if="{{logoPreview}}" src="{{logoPreview}}" mode="aspectFit" binderror="logoError" /><text wx:else>LOGO</text></view>
         <view class="logo-controls">
           <text>共用项目 LOGO</text>
-          <view class="compact-actions"><button class="primary" bindtap="chooseLogo" loading="{{mutating && selectedLogo}}" disabled="{{mutating}}">选择或替换图片</button><button class="ghost" bindtap="removeLogo" disabled="{{mutating || !template.logo}}">移除图片</button></view>
+          <view class="logo-actions"><button class="logo-action choose" bindtap="chooseLogo" loading="{{mutating && selectedLogo}}" disabled="{{mutating}}">选择或替换图片</button><button class="logo-action remove" bindtap="removeLogo" disabled="{{mutating || !template.logo}}">移除图片</button></view>
         </view>
       </view>
 
       <view class="instruction-grid">
-        <label class="instruction-field"><view><text>核销单说明</text><text>正常核销与体验核销共用</text></view><textarea maxlength="-1" data-field="verificationInstructions" value="{{verificationInstructions}}" bindinput="inputInstructions" placeholder="最多 1000 字；保留手动换行，支持 emoji 和特殊符号" disabled="{{mutating}}" /><text class="count">{{verificationCount}}/1000</text></label>
-        <label class="instruction-field"><view><text>充值单说明</text><text>充值与退费共用</text></view><textarea maxlength="-1" data-field="rechargeInstructions" value="{{rechargeInstructions}}" bindinput="inputInstructions" placeholder="最多 1000 字；保留手动换行，支持 emoji 和特殊符号" disabled="{{mutating}}" /><text class="count">{{rechargeCount}}/1000</text></label>
+        <label class="instruction-field"><view><text>核销／体验说明</text></view><textarea maxlength="-1" data-field="verificationInstructions" value="{{verificationInstructions}}" bindinput="inputInstructions" placeholder="输入说明，最多 1000 字" disabled="{{mutating}}" /><text class="count">{{verificationCount}}/1000</text></label>
+        <label class="instruction-field"><view><text>充值／退费说明</text></view><textarea maxlength="-1" data-field="rechargeInstructions" value="{{rechargeInstructions}}" bindinput="inputInstructions" placeholder="输入说明，最多 1000 字" disabled="{{mutating}}" /><text class="count">{{rechargeCount}}/1000</text></label>
       </view>
       <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
       <view class="save-row"><button class="primary save-button" bindtap="saveInstructions" loading="{{mutating && !selectedLogo}}" disabled="{{mutating}}">保存文字说明</button></view>
     </view>
 
     <view class="panel preview-card">
-      <view class="section-heading"><text>四种成品预览</text><text>核销/体验共用一套，充值/退费共用一套；PDF 与图片分别预览。</text></view>
+      <view class="section-heading preview-heading"><text>四种成品预览</text><text wx:if="{{isVerification}}">含二维码版式示例</text></view>
       <scroll-view class="preview-tabs" scroll-x enhanced show-scrollbar="false">
         <view class="preview-tab-row"><view wx:for="{{previews}}" wx:key="value" class="preview-tab {{item.active ? 'active' : ''}}" data-value="{{item.value}}" bindtap="choosePreview">{{item.label}}</view></view>
       </scroll-view>
-      <view class="preview-toolbar"><view><text>{{previewTitle}}</text><text>{{previewHint}}</text></view><view><button class="ghost" bindtap="refreshPreview" disabled="{{previewLoading}}">刷新预览</button><button class="primary" bindtap="downloadPreview" loading="{{exporting}}" disabled="{{exporting || logoLoading || previewLoading}}">下载样例</button></view></view>
+      <view class="preview-toolbar"><view><text>{{previewTitle}}</text></view><view><button class="ghost" bindtap="refreshPreview" disabled="{{previewLoading}}">刷新</button><button class="primary" bindtap="downloadPreview" loading="{{exporting}}" disabled="{{exporting || logoLoading || previewLoading}}">下载样例</button></view></view>
       <view class="receipt-preview">
         <view wx:if="{{previewLoading}}" class="preview-state">正在生成高清预览…</view>
         <view wx:elif="{{previewError}}" class="preview-state error">{{previewError}}</view>

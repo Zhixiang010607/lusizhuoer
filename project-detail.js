@@ -4,10 +4,10 @@
   const $ = (id) => document.getElementById(id);
   const projectRef = new URLSearchParams(location.search).get("projectId") || "";
   const previewLabels = {
-    "verification-pdf": ["核销 PDF", "正常核销与体验核销共用 · A4 分页"],
-    "verification-image": ["核销图片", "正常核销与体验核销共用 · 高清长图"],
-    "recharge-pdf": ["充值 PDF", "充值与退费共用 · A4 分页"],
-    "recharge-image": ["充值图片", "充值与退费共用 · 高清长图"]
+    "verification-pdf": ["核销 PDF", "含二维码版式示例"],
+    "verification-image": ["核销图片", "含二维码版式示例"],
+    "recharge-pdf": ["充值 PDF", "A4 分页"],
+    "recharge-image": ["充值图片", "高清长图"]
   };
   let template = null;
   let logoBlob = null;
@@ -303,7 +303,13 @@
         { label: "提交时间", value: "2026-08-19 12:34:56" },
         { label: "审核时间", value: "2026-08-19 12:36:10" }
       ],
-      messages: [], productTemplate
+      messages: [],
+      ratingQr: verification ? {
+        preview: true,
+        title: "扫码评价本次服务",
+        description: "二维码版式示例；正式核销工单会生成独立评价二维码。"
+      } : null,
+      productTemplate
     };
   }
 

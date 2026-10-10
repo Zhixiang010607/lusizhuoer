@@ -17,47 +17,35 @@
 .temporary-password-toggle::after { border: 0; }
 .monthly-summary-note { display: block; }
 .monthly-overview-scroll { width: 100%; max-width: 100%; box-sizing: border-box; border: 1px solid #dfcfb4; border-radius: 14px; }
-.monthly-overview-grid { display: inline-table; width: auto; min-width: 100%; border-collapse: collapse; table-layout: auto; }
-.monthly-overview-card { display: table-row; }
-.monthly-project-head, .monthly-metric { display: table-cell; height: 84px; padding: 12px; border-bottom: 1px solid #eadcc5; vertical-align: middle; text-align: center; white-space: nowrap; }
-.monthly-overview-card:last-child > view { border-bottom: 0; }
-.monthly-project-head { background: #f6ead7; }
-.monthly-project-head text, .monthly-metric text { display: block; font-size: 13px; white-space: nowrap; }
-.monthly-project-head text:first-child { color: #4a3825; font-weight: 750; }
-.monthly-project-head text:last-child { margin-top: 6px; color: #85745d; font-size: 12px; }
-.monthly-metric { background: #fffaf3; }
-.monthly-metric text:first-child { color: #7c7062; font-size: 12px; }
-.monthly-metric text:last-child { margin-top: 6px; color: #4a3825; font-size: 15px; font-weight: 750; }
+.monthly-overview-grid { width: 100%; min-width: 650rpx; }
+.monthly-overview-header, .monthly-overview-card { display: grid; grid-template-columns: minmax(170rpx, 1.45fr) repeat(4, minmax(120rpx, 1fr)); align-items: stretch; }
+.monthly-overview-header { min-height: 42px; color: #6f604e; background: #f4e7d1; font-size: 19rpx; font-weight: 800; }
+.monthly-overview-header text, .monthly-project-head, .monthly-metric { min-width: 0; display: flex; align-items: center; justify-content: center; padding: 8rpx 10rpx; box-sizing: border-box; text-align: center; white-space: nowrap; }
+.monthly-overview-card { min-height: 56px; border-top: 1px solid #eadcc5; background: #fffaf3; }
+.monthly-project-head { color: #4a3825; background: #f9efdf; font-size: 22rpx; font-weight: 800; }
+.monthly-project-head text, .monthly-metric text { display: block; white-space: nowrap; }
+.monthly-metric { color: #4a3825; font-size: 21rpx; font-weight: 750; }
 .monthly-available { background: #f7ead3; }
-.monthly-available text:last-child { color: #80602c; }
+.monthly-available text { color: #80602c; }
 .monthly-overview-empty { min-height: 112rpx; display: flex; align-items: center; justify-content: center; }
 .subsection { margin-top: 26rpx; padding-top: 24rpx; border-top: 1rpx solid #e5d6bd; }
 .experience-project-panel > .subsection:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 .subsection-title { display: block; margin-bottom: 16rpx; font-size: 27rpx; font-weight: 850; }
-.summary-grid, .quota-grid { display: grid; gap: 12rpx; }
-.summary-item { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; padding: 18rpx; background: #fff8ec; border: 1rpx solid #dfcfb4; border-radius: 16rpx; }
-.summary-item > view { min-width: 0; }
-.summary-item > view:last-child { flex: none; text-align: right; }
-.summary-item text { display: block; }
-.summary-item > view:first-child text:first-child { font-weight: 850; }
-.summary-item > view:first-child text:last-child, .summary-item > view:last-child text:last-child { margin-top: 5rpx; color: #7c7062; font-size: 18rpx; }
-.summary-item > view:last-child text:first-child { color: #74592d; font-size: 31rpx; font-weight: 900; }
-.quota-card { padding: 20rpx; background: #fff8ec; border: 1rpx solid #dfcfb4; border-radius: 18rpx; }
-.quota-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12rpx; }
-.quota-head text { display: block; }
-.quota-head > view:first-child text:first-child { font-size: 25rpx; font-weight: 850; }
-.quota-head > view:first-child text:last-child { margin-top: 4rpx; color: #7c7062; font-size: 18rpx; }
-.quota-actions button { width: auto !important; min-height: 54rpx; margin: 0; padding: 0 12rpx; font-size: 17rpx; }
-.quota-actions .delete-configuration { min-width: 126rpx; min-height: 62rpx; padding: 0 16rpx; font-size: 20rpx; }
-.quota-balance { display: flex; align-items: baseline; gap: 12rpx; margin: 20rpx 0; color: #74592d; }
-.quota-balance > text:first-child { color: #74695c; font-size: 19rpx; }
-.quota-balance > text:last-child { font-size: 42rpx; font-weight: 900; }
-.quota-balance .unit { margin-left: 6rpx; font-size: 18rpx; }
-.quota-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; }
-.quota-facts view { min-width: 0; min-height: 104rpx; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 14rpx 10rpx; background: #fffaf3; border: 1rpx solid #e5d6bd; border-radius: 12rpx; text-align: center; }
-.quota-facts text { display: block; }
-.quota-facts text:first-child { color: #7c7062; font-size: 19rpx; }
-.quota-facts text:last-child { width: 100%; min-width: 0; margin-top: 7rpx; font-size: 24rpx; font-weight: 850; white-space: nowrap; }
+.summary-grid, .quota-grid { overflow: hidden; background: #fffaf3; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
+.summary-head, .summary-item { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180rpx, .62fr); align-items: center; }
+.summary-head { min-height: 58rpx; color: #6f604e; background: #f4e7d1; font-size: 19rpx; font-weight: 800; }
+.summary-head text, .summary-item text { min-width: 0; padding: 10rpx 16rpx; text-align: center; }
+.summary-item { min-height: 66rpx; border-top: 1rpx solid #eadcc5; font-size: 22rpx; }
+.summary-item text:first-child { color: #4a3825; font-weight: 800; }
+.summary-item text:last-child { color: #74592d; font-weight: 850; white-space: nowrap; }
+.quota-table-scroll { width: 100%; max-width: 100%; box-sizing: border-box; border-radius: 14rpx; }
+.quota-grid { width: 100%; min-width: 680rpx; box-sizing: border-box; }
+.quota-table-head, .quota-card { display: grid; grid-template-columns: minmax(170rpx, 1.25fr) repeat(3, minmax(112rpx, .9fr)) minmax(88rpx, .65fr); align-items: center; }
+.quota-table-head { min-height: 42px; color: #6f604e; background: #f4e7d1; font-size: 18rpx; font-weight: 800; }
+.quota-table-head text, .quota-card > text { min-width: 0; padding: 8rpx; box-sizing: border-box; text-align: center; white-space: nowrap; }
+.quota-card { min-height: 52px; color: #4a3825; background: #fffaf3; border-top: 1px solid #eadcc5; font-size: 20rpx; }
+.quota-project-name { font-weight: 800; }
+.quota-card .delete-configuration { width: auto !important; min-width: 72rpx; min-height: 40rpx; margin: 0 8rpx; padding: 0 10rpx; border-radius: 9rpx; font-size: 17rpx; line-height: 1; }
 .forms-grid { display: grid; gap: 18rpx; margin-top: 26rpx; }
 .experience-operations-panel > .forms-grid { margin-top: 0; }
 .action-form { padding: 20rpx; background: #fff8ec; border: 1rpx solid #dfcfb4; border-radius: 20rpx; }
@@ -99,33 +87,24 @@
   .temporary-password-control .input { padding-right: 70px; }
   .temporary-password-toggle { width: 64px !important; min-height: 50px; padding: 0 8px; border-radius: 12px; font-size: 14px; }
 
-  .monthly-project-head text:first-child { font-size: 16px; }
-  .monthly-metric text:first-child { font-size: 13px; }
-  .monthly-metric text:last-child { font-size: 16px; }
+  .monthly-overview-grid { min-width: 680px; }
+  .monthly-overview-header, .monthly-overview-card { grid-template-columns: minmax(170px, 1.45fr) repeat(4, minmax(110px, 1fr)); }
+  .monthly-overview-header { font-size: 13px; }
+  .monthly-project-head, .monthly-metric { padding: 7px 10px; font-size: 14px; }
   .monthly-overview-empty { min-height: 76px; }
 
   .experience-project-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-items: start; }
   .experience-project-panel > .subsection { min-width: 0; margin-top: 0; padding-top: 0; border-top: 0; }
   .subsection-title { margin-bottom: 12px; font-size: 19px; }
-  .summary-grid { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
-  .summary-item { gap: 12px; padding: 14px; border-width: 1px; border-radius: 13px; }
-  .summary-item > view:first-child text:last-child, .summary-item > view:last-child text:last-child { margin-top: 4px; font-size: 13px; }
-  .summary-item > view:last-child text:first-child { font-size: 22px; }
-  .quota-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .quota-card { padding: 14px; border-width: 1px; border-radius: 14px; }
-  .quota-head { flex-wrap: wrap; }
-  .quota-head > view:first-child { flex: 1 1 180px; }
-  .quota-head > view:first-child text:first-child { font-size: 17px; line-height: 1.5; overflow-wrap: anywhere; }
-  .quota-head > view:first-child text:last-child { margin-top: 3px; font-size: 13px; }
-  .quota-actions .delete-configuration { min-width: 96px; min-height: 42px; padding: 0 12px; font-size: 14px; }
-  .quota-balance { gap: 8px; margin: 12px 0; }
-  .quota-balance > text:first-child { font-size: 13px; }
-  .quota-balance > text:last-child { font-size: 28px; }
-  .quota-balance .unit { margin-left: 4px; font-size: 13px; }
-  .quota-facts { gap: 8px; }
-  .quota-facts view { min-height: 72px; padding: 10px 8px; border-width: 1px; border-radius: 10px; }
-  .quota-facts text:first-child { font-size: 12px; }
-  .quota-facts text:last-child { margin-top: 5px; font-size: 17px; }
+  .summary-grid, .quota-grid { border-width: 1px; border-radius: 12px; }
+  .summary-head { min-height: 38px; font-size: 13px; }
+  .summary-head text, .summary-item text { padding: 7px 12px; }
+  .summary-item { min-height: 46px; font-size: 14px; }
+  .quota-grid { min-width: 680px; }
+  .quota-table-head, .quota-card { grid-template-columns: minmax(170px, 1.25fr) repeat(3, minmax(110px, .9fr)) minmax(82px, .65fr); }
+  .quota-table-head { font-size: 13px; }
+  .quota-card { font-size: 14px; }
+  .quota-card .delete-configuration { min-width: 58px; min-height: 34px; margin: 0 8px; padding: 0 9px; border-radius: 8px; font-size: 12px; }
 
   .forms-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
   .action-form { padding: 16px; border-width: 1px; border-radius: 16px; }
@@ -150,28 +129,18 @@
   .teacher-detail-grid { grid-template-columns: minmax(280px, .7fr) minmax(0, 1.3fr); }
   .teacher-detail-sidebar { grid-template-columns: minmax(0, 1fr); }
   .experience-project-panel { grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); }
-  .quota-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 .monthly-scroll-hint { display: block; margin-bottom: 12rpx; color: #7c7062; font-size: 24rpx; }
 @media (min-width: 700px) { .monthly-scroll-hint { display: none; } }
 
-.summary-grid, .quota-grid, .forms-grid { grid-template-columns: minmax(0, 1fr); }
+.forms-grid { grid-template-columns: minmax(0, 1fr); }
 .summary-item, .quota-card, .action-form { min-width: 0; max-width: 100%; }
-.summary-item, .quota-head, .quota-balance { flex-wrap: wrap; }
-.summary-item > view:first-child, .quota-head > view:first-child { min-width: 0; flex: 1 1 200rpx; overflow-wrap: anywhere; }
-.summary-item > view:last-child { min-width: 0; max-width: 100%; }
-.quota-actions { flex: none; }
 .history-row > view:last-child { flex: 0 1 48%; }
 .history-row > view:last-child text:last-child { white-space: normal; overflow-wrap: anywhere; }
 @media (min-width: 700px) {
-  .summary-grid { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
-  .quota-grid, .forms-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .summary-item > view:first-child, .quota-head > view:first-child { flex-basis: 140px; }
+  .forms-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@media (min-width: 1100px) { .quota-grid { grid-template-columns: minmax(0, 1fr); } }
-
-.quota-card.large-counts .quota-facts { grid-template-columns: minmax(0, 1fr); }
 
 .teacher-section-tabs, .work-mode-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10rpx; margin-bottom: 22rpx; padding: 8rpx; background: #eee2cf; border: 1rpx solid #dfcfb4; border-radius: 18rpx; }
 .teacher-section-tab, .work-mode-tab { width: 100% !important; min-height: 72rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 12rpx; color: #766a5b; background: transparent; border: 0; border-radius: 14rpx; font-size: 22rpx; font-weight: 800; line-height: 1.2; text-align: center; }

@@ -60,13 +60,13 @@ test("mini project template shares the authoritative web services and verifies e
   assert.match(js, /wx\.openDocument/);
   assert.match(js, /fileType:\s*"pdf"[\s\S]*showMenu:\s*true/);
   assert.doesNotMatch(js, /shareFileMessage/, "async PDF generation must open the native document viewer instead of losing the original TAP gesture");
-  for (const label of ["项目单据模板", "模板内容", "共用项目 LOGO", "正常核销与体验核销共用", "充值与退费共用", "保存文字说明", "四种成品预览", "刷新预览", "下载样例"]) {
+  for (const label of ["项目单据模板", "模板内容", "共用项目 LOGO", "核销／体验说明", "充值／退费说明", "保存文字说明", "四种成品预览", "刷新", "下载样例"]) {
     assert.match(wxml, new RegExp(label), `product template UI is missing ${label}`);
   }
   for (const retired of ["logoMeta", "不压缩", "不裁切", "文件大小", "像素尺寸"]) assert.doesNotMatch(wxml, new RegExp(retired));
   assert.equal((wxml.match(/maxlength="-1"/g) || []).length, 2);
   assert.equal((wxml.match(/\/1000/g) || []).length, 2);
-  assert.match(wxml, /保留手动换行，支持 emoji 和特殊符号/);
+  assert.match(wxml, /输入说明，最多 1000 字/);
   assert.match(js, /const MAX_INSTRUCTION_CHARS = 1000/);
   assert.match(js, /replace\(\/\\r\\n\?\/g, "\\n"\)/,
     "manual line breaks must be normalized without collapsing them");
@@ -80,10 +80,14 @@ test("mini project template shares the authoritative web services and verifies e
     "selecting a logo must upload immediately instead of requiring a third action");
   assert.match(js, /已选择原图，正在上传并保存[\s\S]*await this\.uploadLogo\(\)/,
     "the two-button logo workflow must persist immediately after selection");
-  assert.match(wxss, /\.compact-actions \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s,
-    "select-or-replace and remove image actions must use two equal cells");
-  assert.match(wxss, /\.instruction-field textarea \{[^}]*font-size: 27rpx;[^}]*line-height: 1\.65;/s,
+  assert.match(wxss, /\.logo-actions \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s,
+    "select-or-replace and remove image actions must use two equal compact cells");
+  assert.match(wxss, /\.logo-action \{[^}]*height: 58rpx;[^}]*background: transparent;/s,
+    "logo actions use one quiet segmented control instead of two oversized blocks");
+  assert.match(wxss, /\.instruction-field textarea \{[^}]*min-height: 600rpx;[^}]*font-size: 27rpx;[^}]*line-height: 1\.65;/s,
     "template text must remain readable while preserving explicit and automatic wrapping");
+  assert.doesNotMatch(wxml, /template\.productCode|正常核销与体验核销共用|充值与退费共用/,
+    "the template page omits internal codes and repetitive helper copy");
   assert.match(wxml, /class="preview-tab-row"/);
   for (const kind of ["verification-pdf", "verification-image", "recharge-pdf", "recharge-image"]) {
     assert.match(js, new RegExp(kind));

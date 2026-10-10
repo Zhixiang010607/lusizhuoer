@@ -204,8 +204,8 @@ test("all three mini-program homes preserve business content in the refreshed br
   assert.match(projectSummaryWxml, /<view>项目<\/view>/,
     "the shared summary component must use the service-project label");
   assert.match(projectSummaryWxss, /\.summary-row > \.summary-name\s*\{[^}]*text-align:\s*center;/s);
-  assert.match(projectSummaryWxss, /\.summary-name text\s*\{[^}]*text-align:\s*center;/s,
-    "project names must be centered in the shared summary template");
+  assert.match(projectSummaryWxss, /\.summary-name text\s*\{[^}]*margin:\s*0 auto;[^}]*text-align:\s*center;/s,
+    "project names must use the same visual center line as the shared 项目 header");
   assert.match(wxss, /\.table-pagination > text\s*\{[^}]*text-align:\s*center;[^}]*white-space:\s*nowrap;/s,
     "previous, page summary, and next must stay on one centered row");
   assert.match(storeDetailWxml, /data-code="\{\{item\.customerCode\}\}" bindtap="openCustomer">\{\{item\.customerName\}\}<\/view>/);
@@ -225,25 +225,22 @@ test("mobile management controls stay centered without breaking data into charac
     assert.match(reviews, new RegExp(`\\.${escaped}\\s*\\{[^}]*display:\\s*(?:inline-)?flex;[^}]*align-items:\\s*center;[^}]*justify-content:\\s*center;[^}]*white-space:\\s*nowrap;`, "s"),
       `${selector} must center its label in both axes`);
   }
-  assert.match(teacher, /\.quota-facts\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);[^}]*gap:\s*12rpx;/s,
-    "each configured product must use a real two-by-two fact grid");
-  assert.match(teacher, /\.quota-facts view\s*\{[^}]*min-height:\s*104rpx;[^}]*display:\s*flex;[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*text-align:\s*center;/s,
-    "configured-product facts must be centered inside equal cells");
-  assert.match(teacher, /\.quota-facts text:first-child\s*\{[^}]*font-size:\s*19rpx;/s);
-  assert.match(teacher, /\.quota-facts text:last-child\s*\{[^}]*font-size:\s*24rpx;[^}]*white-space:\s*nowrap;/s);
+  assert.match(teacher, /\.quota-table-head, \.quota-card\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(170rpx,\s*1\.25fr\)\s+repeat\(3,\s*minmax\(112rpx,\s*\.9fr\)\)\s+minmax\(88rpx,\s*\.65fr\);/s,
+    "configured projects must use one compact shared-header table instead of oversized cards");
+  assert.match(teacher, /\.quota-card\s*\{[^}]*min-height:\s*52px;[^}]*font-size:\s*20rpx;/s);
   assert.match(teacher, /\.history-row text\s*\{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s);
   assert.match(teacher, /\.history-row > view:first-child text:nth-child\(3\)\s*\{[^}]*overflow-wrap:\s*anywhere;[^}]*white-space:\s*normal;/s,
     "only a free-form history note may wrap; dates, counts, names, and codes stay intact");
   assert.match(teacher, /\.teacher-profile-hero, \.security-panel, \.experience-panel\s*\{[^}]*border-color:\s*#e1cfaf;[^}]*background:\s*#fffaf3/s,
     "HQ teacher profile, account, and quota panels must use the same card palette as other pages");
   assert.match(teacher, /\.monthly-overview-scroll\s*\{[^}]*max-width:\s*100%;[^}]*border:\s*1px solid #dfcfb4;/s);
-  assert.match(teacher, /\.monthly-overview-grid\s*\{[^}]*display:\s*inline-table;[^}]*min-width:\s*100%;[^}]*table-layout:\s*auto;/s,
-    "monthly summary columns must expand for complete names and counts inside their own scroll view");
-  assert.match(teacher, /\.monthly-overview-card\s*\{[^}]*display:\s*table-row;/s,
-    "each project and its four monthly metrics remain one horizontal record");
-  assert.match(teacher, /\.monthly-project-head, \.monthly-metric\s*\{[^}]*display:\s*table-cell;[^}]*vertical-align:\s*middle;[^}]*text-align:\s*center;[^}]*white-space:\s*nowrap;/s);
-  assert.match(teacher, /\.monthly-project-head\s*\{[^}]*background:\s*#f6ead7/s);
-  assert.match(teacher, /\.monthly-metric\s*\{[^}]*background:\s*#fffaf3/s);
+  assert.match(teacher, /\.monthly-overview-grid\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*650rpx;/s,
+    "monthly summary columns must stay complete inside their own scroll view");
+  assert.match(teacher, /\.monthly-overview-header, \.monthly-overview-card\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:/s,
+    "one shared header and every project row must use the exact same column tracks");
+  assert.match(teacher, /\.monthly-overview-card\s*\{[^}]*min-height:\s*56px;/s,
+    "monthly project rows use the compact height chosen for phone and tablet");
+  assert.match(teacher, /\.monthly-project-head\s*\{[^}]*background:\s*#f9efdf/s);
   assert.doesNotMatch(teacher, /\.monthly-(?:project-head|metric)[^{]*\{[^}]*text-overflow:\s*ellipsis/s,
     "monthly counts and project names must never become ellipses");
   assert.doesNotMatch(teacher, /#f4dfba|#eef3e9|#f2ebf0|#f8ead7/,
@@ -266,9 +263,9 @@ test("mobile management controls stay centered without breaking data into charac
     "the redundant standalone teacher profile panel must be removed");
   assert.doesNotMatch(`${teacherWxml}\n${teacherJs}`, /密码状态|passwordStatus/,
     "HQ teacher profile must not repeat a derived password status above the password-management form");
-  assert.match(teacherWxml, /class="quota-facts"><view><text>每月基础<\/text>[\s\S]*<view><text>本月已体验<\/text>/);
-  assert.doesNotMatch(teacherWxml, /class="quota-facts">[\s\S]{0,260}<text>单独充值<\/text>|class="quota-facts">[\s\S]{0,260}<text>最近更新<\/text>|manualRechargeCount|monthlyResetText/,
-    "configured product cards show only the monthly base and current-month usage");
+  assert.match(teacherWxml, /class="quota-table-head"><text>项目<\/text><text>当前可用<\/text><text>每月基础<\/text><text>本月体验<\/text><text>操作<\/text>/);
+  assert.doesNotMatch(teacherWxml, /class="quota-(?:table-head|card)"[^>]*>[\s\S]{0,500}productCode|class="monthly-project-head"[^>]*>[\s\S]{0,100}productCode/,
+    "teacher project configuration keeps internal project codes out of all compact tables");
   assert.match(teacherWxml, /class="monthly-overview-grid"[\s\S]*monthlyAllowance[\s\S]*monthlyRechargeCount[\s\S]*monthlyExperienceCount[\s\S]*availableCount/,
     "the former aggregate overview must become one monthly summary card per configured project");
   assert.match(teacherWxml, /<text class="subsection-title">单独充值体验次数<\/text>/,

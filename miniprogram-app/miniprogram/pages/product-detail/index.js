@@ -12,10 +12,10 @@ const {
 } = require("../../services/order-receipt");
 
 const PREVIEWS = Object.freeze([
-  { value: "verification-pdf", label: "核销 PDF", hint: "正常核销与体验核销共用 · 300 DPI A4 分页" },
-  { value: "verification-image", label: "核销图片", hint: "正常核销与体验核销共用 · 2480 像素高清长图" },
-  { value: "recharge-pdf", label: "充值 PDF", hint: "充值与退费共用 · 300 DPI A4 分页" },
-  { value: "recharge-image", label: "充值图片", hint: "充值与退费共用 · 2480 像素高清长图" }
+  { value: "verification-pdf", label: "核销 PDF", hint: "含二维码版式示例" },
+  { value: "verification-image", label: "核销图片", hint: "含二维码版式示例" },
+  { value: "recharge-pdf", label: "充值 PDF", hint: "A4 分页" },
+  { value: "recharge-image", label: "充值图片", hint: "高清长图" }
 ]);
 const MAX_LOGO_BYTES = 8 * 1024 * 1024;
 const FUNCTION_LOGO_BYTES = 3 * 1024 * 1024;

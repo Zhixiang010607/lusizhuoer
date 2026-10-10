@@ -36,5 +36,6 @@ test('headquarters, store, and teacher summaries share the centered native compo
   assert.match(store, /<project-summary id="store-project-summary"/);
   assert.match(storeConfig, /"project-summary":\s*"\.\.\/\.\.\/components\/project-summary\/index"/);
   assert.match(style, /\.summary-row > \.summary-name\s*\{[^}]*text-align:\s*center;/s);
-  assert.match(style, /\.summary-name text\s*\{[^}]*text-align:\s*center;/s);
+  assert.match(style, /\.summary-name text\s*\{[^}]*margin:\s*0 auto;[^}]*text-align:\s*center;/s,
+    'project-name text must sit on the exact center line of the shared header cell');
 });

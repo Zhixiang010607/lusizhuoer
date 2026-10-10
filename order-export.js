@@ -18,13 +18,13 @@
     accentSoft: "#f4e7d0"
   });
   const RECEIPT_FONT_SIZES = Object.freeze({
-    kind: 28,
-    title: 46,
-    subtitle: 28,
-    factLabel: 30,
-    factValue: 48,
-    sectionTitle: 38,
-    sectionSubtitle: 28,
+    kind: 22,
+    title: 36,
+    subtitle: 22,
+    factLabel: 18,
+    factValue: 28,
+    sectionTitle: 28,
+    sectionSubtitle: 20,
     giftName: 38,
     giftCount: 42,
     photoLabel: 34,
@@ -109,9 +109,9 @@
     setFont(context, RECEIPT_FONT_SIZES.factValue, 500);
     const singleLine = item && item.singleLine === true;
     const value = singleLine ? text(item.value).replace(/\s+/g, " ") : text(item.value);
-    const valueLines = singleLine ? [value] : wrapLines(context, value, width - 36);
-    const valueLineHeight = 62;
-    const height = Math.max(154, 74 + valueLines.length * valueLineHeight);
+    const valueLines = singleLine ? [value] : wrapLines(context, value, width - 28);
+    const valueLineHeight = 38;
+    const height = Math.max(90, 46 + valueLines.length * valueLineHeight);
     if (draw) {
       context.fillStyle = RECEIPT_COLORS.panel;
       context.strokeStyle = RECEIPT_COLORS.border;
@@ -122,23 +122,23 @@
       context.fillStyle = RECEIPT_COLORS.secondary;
       setFont(context, RECEIPT_FONT_SIZES.factLabel, 600);
       context.textBaseline = "top";
-      context.fillText(text(item.label), x + 18, y + 17);
+      context.fillText(text(item.label), x + 14, y + 12);
       if (singleLine) {
-        const maxWidth = width - 36;
+        const maxWidth = width - 28;
         const normalSize = RECEIPT_FONT_SIZES.factValue;
         setFont(context, normalSize, 750);
         const measured = Math.max(1, context.measureText(value).width);
-        const fittedSize = Math.max(34, Math.min(normalSize, Math.floor(normalSize * maxWidth / measured)));
+        const fittedSize = Math.max(21, Math.min(normalSize, Math.floor(normalSize * maxWidth / measured)));
         context.save();
-        roundedRect(context, x + 16, y + 53, maxWidth + 4, 78, 0);
+        roundedRect(context, x + 12, y + 33, maxWidth + 4, 45, 0);
         context.clip();
         context.fillStyle = RECEIPT_COLORS.title;
         setFont(context, fittedSize, 750);
         context.textBaseline = "top";
-        context.fillText(value, x + 18, y + 61, maxWidth);
+        context.fillText(value, x + 14, y + 38, maxWidth);
         context.restore();
       } else {
-        drawWrappedText(context, value, x + 18, y + 61, width - 36, {
+        drawWrappedText(context, value, x + 14, y + 38, width - 28, {
           draw: true,
           size: RECEIPT_FONT_SIZES.factValue,
           lineHeight: valueLineHeight,
@@ -243,7 +243,7 @@
   }
 
   function drawInfoGrid(context, items, y, draw, paginate, columns = 2) {
-    const gap = 14;
+    const gap = 10;
     const columnCount = Math.max(1, Math.min(3, Number(columns) || 2));
     const width = (CONTENT_WIDTH - gap * (columnCount - 1)) / columnCount;
     for (let index = 0; index < items.length;) {
@@ -254,9 +254,9 @@
       if (requestedSpan === columnCount) {
         const item = items[index];
         const rowHeight = drawLabelValueCard(context, item, PAGE_MARGIN, y, CONTENT_WIDTH, false);
-        y = ensureSpace(y, rowHeight + 14, paginate);
+        y = ensureSpace(y, rowHeight + 10, paginate);
         drawLabelValueCard(context, item, PAGE_MARGIN, y, CONTENT_WIDTH, draw);
-        y += rowHeight + 14;
+        y += rowHeight + 10;
         index += 1;
         continue;
       }
@@ -270,9 +270,9 @@
       if (!row.length) continue;
       const rowWidth = row.length === 1 ? CONTENT_WIDTH : width;
       const rowHeight = Math.max(...row.map((item) => drawLabelValueCard(context, item, PAGE_MARGIN, y, rowWidth, false)));
-      y = ensureSpace(y, rowHeight + 14, paginate);
+      y = ensureSpace(y, rowHeight + 10, paginate);
       row.forEach((item, column) => drawLabelValueCard(context, item, PAGE_MARGIN + column * (rowWidth + gap), y, rowWidth, draw));
-      y += rowHeight + 14;
+      y += rowHeight + 10;
     }
     return y;
   }
@@ -464,39 +464,74 @@
 
   function drawRatingQr(context, documentData, ratingQr, y, draw, paginate) {
     if (!ratingQr?.enabled) return y;
-    y += 16;
-    y = ensureSpace(y, 350, paginate);
-    y = drawSectionHeading(context, "客户评价", "本二维码仅与当前核销工单绑定", y, draw);
-    const height = 310;
+    const qrSize = 220;
+    const textWidth = CONTENT_WIDTH - qrSize - 74;
+    const description = text(documentData.ratingQr?.description, "选择 1–5 星并留下您的意见。");
+    const descriptionMetrics = drawWrappedText(context, description, 0, 0, textWidth, {
+      draw: false, size: 24, lineHeight: 36
+    });
+    const height = Math.max(qrSize + 40, 66 + descriptionMetrics.height + 22 + 20 + 18);
+    y = ensureSpace(y + 16, height + 14, paginate);
     if (draw) {
-      if (!ratingQr.image) throw new Error("客户评价二维码尚未完整载入，本次没有生成文件。");
+      if (!ratingQr.image && !ratingQr.preview) throw new Error("客户评价二维码尚未完整载入，本次没有生成文件。");
       context.fillStyle = RECEIPT_COLORS.panel;
       context.strokeStyle = RECEIPT_COLORS.border;
       context.lineWidth = 1;
       roundedRect(context, PAGE_MARGIN, y, CONTENT_WIDTH, height, 14);
       context.fill();
       context.stroke();
-      const qrSize = 220;
       const qrX = PAGE_MARGIN + 20;
       const qrY = y + 20;
       context.fillStyle = "#ffffff";
       roundedRect(context, qrX, qrY, qrSize, qrSize, 10);
       context.fill();
-      drawImageCover(context, ratingQr.image, qrX, qrY, qrSize, qrSize);
+      if (ratingQr.preview) drawPreviewQr(context, qrX, qrY, qrSize);
+      else drawImageCover(context, ratingQr.image, qrX, qrY, qrSize, qrSize);
       const textX = qrX + qrSize + 34;
-      const textWidth = CONTENT_WIDTH - qrSize - 74;
-      context.fillStyle = RECEIPT_COLORS.title;
-      setFont(context, 40, 850);
+      context.fillStyle = RECEIPT_COLORS.accent;
+      setFont(context, 18, 800);
       context.textBaseline = "top";
+      context.fillText("客户评价", textX, y + 24, textWidth);
+      context.fillStyle = RECEIPT_COLORS.title;
+      setFont(context, 28, 850);
       context.fillText(text(documentData.ratingQr?.title, "扫码评价本次服务"), textX, y + 50, textWidth);
-      drawWrappedText(context, text(documentData.ratingQr?.description, "选择 1–5 星并留下您的意见。"), textX, y + 102, textWidth, {
-        draw: true, size: 32, lineHeight: 48, color: RECEIPT_COLORS.secondary
+      drawWrappedText(context, description, textX, y + 88, textWidth, {
+        draw: true, size: 24, lineHeight: 36, color: RECEIPT_COLORS.secondary
       });
       context.fillStyle = RECEIPT_COLORS.accent;
-      setFont(context, 28, 750);
-      context.fillText("请使用微信扫码 · 每张工单仅可评价一次", textX, y + 250, textWidth);
+      setFont(context, 20, 750);
+      context.fillText(ratingQr.preview ? "版式示例 · 不可扫码" : "请使用微信扫码 · 每张工单仅可评价一次", textX, y + height - 38, textWidth);
     }
     return y + height + 14;
+  }
+
+  function drawPreviewQr(context, x, y, size) {
+    const cells = 25;
+    const cell = size / cells;
+    const finder = (left, top) => {
+      context.fillStyle = RECEIPT_COLORS.title;
+      context.fillRect(x + left * cell, y + top * cell, 7 * cell, 7 * cell);
+      context.fillStyle = "#ffffff";
+      context.fillRect(x + (left + 1) * cell, y + (top + 1) * cell, 5 * cell, 5 * cell);
+      context.fillStyle = RECEIPT_COLORS.title;
+      context.fillRect(x + (left + 2) * cell, y + (top + 2) * cell, 3 * cell, 3 * cell);
+    };
+    context.fillStyle = "#ffffff";
+    context.fillRect(x, y, size, size);
+    finder(1, 1);
+    finder(cells - 8, 1);
+    finder(1, cells - 8);
+    context.fillStyle = RECEIPT_COLORS.title;
+    for (let row = 1; row < cells - 1; row += 1) {
+      for (let column = 1; column < cells - 1; column += 1) {
+        const inFinder = (column <= 7 && row <= 7)
+          || (column >= cells - 8 && row <= 7)
+          || (column <= 7 && row >= cells - 8);
+        if (!inFinder && ((row * 7 + column * 11 + row * column) % 5 < 2)) {
+          context.fillRect(x + column * cell, y + row * cell, Math.ceil(cell), Math.ceil(cell));
+        }
+      }
+    }
   }
 
   function drawReceiptBackground(context, backgroundImage) {
@@ -639,7 +674,9 @@
 
   async function prepareRatingQr(documentData) {
     const source = String(documentData?.ratingQr?.source || "").trim();
-    if (!source) return { enabled: false, image: null };
+    const preview = documentData?.ratingQr?.preview === true;
+    if (preview) return { enabled: true, image: null, preview: true };
+    if (!source) return { enabled: false, image: null, preview: false };
     if (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/i.test(source)) {
       throw new Error("客户评价二维码格式无效，本次没有生成文件。");
     }
@@ -650,7 +687,7 @@
       element.addEventListener("error", () => reject(new Error("客户评价二维码解码失败，本次没有生成文件。请重试。")), { once: true });
       element.src = source;
     });
-    return { enabled: true, image };
+    return { enabled: true, image, preview: false };
   }
 
   function prepareReceiptBackground() {
