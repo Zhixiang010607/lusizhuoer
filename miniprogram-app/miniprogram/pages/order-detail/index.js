@@ -3,6 +3,7 @@ const { requireSession } = require("../../services/session");
 const query = require("../../services/query-tools");
 const submission = require("../../services/submission");
 const { saveImageToAlbum, isPermissionFailure } = require("../../services/photo-album");
+const photoUploadQueue = require("../../services/verification-photo-upload-queue");
 const {
   renderReceiptCanvas,
   exportReceiptJpegs,
@@ -35,7 +36,6 @@ const EXTRA_PHOTO_NORMALIZE_ATTEMPTS = Object.freeze([
   Object.freeze({ maxEdge: 768, quality: 0.27 }),
   Object.freeze({ maxEdge: 640, quality: 0.24 })
 ]);
-const EXTRA_PHOTO_DIRECT_UPLOAD_RETRY_DELAY_MS = 300;
 const ORIGINAL_PHOTO_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const ORIGINAL_PHOTO_CACHE_STORAGE_KEY = "order-original-photo-cache-v1";
 const PHOTO_LABELS = Object.freeze(["客户建档留存照", "客户核销照片", "补充照片 1", "补充照片 2", "补充照片 3"]);
@@ -260,7 +260,10 @@ function buildPhotoSlots(state = "empty", labels = PHOTO_LABELS) {
     retrying: false,
     retryError: "",
     originalBusy: false,
-    originalAction: ""
+    originalAction: "",
+    uploadState: "",
+    uploadError: "",
+    pendingTaskId: ""
   }));
 }
 
@@ -503,6 +506,12 @@ function persistentOriginalPhotoFilePath(recordId, slot, identity) {
   return `${wx.env.USER_DATA_PATH}/order-photo-cache-${safeRecord}-${Number(slot)}-${shortHash(identity)}.jpg`;
 }
 
+function pendingUploadPhotoFilePath(recordId, slot, uploadRequestId) {
+  const safeRecord = clean(recordId).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 48) || "record";
+  const safeRequest = clean(uploadRequestId).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64) || "pending";
+  return `${wx.env.USER_DATA_PATH}/order-photo-pending-${safeRecord}-${Number(slot)}-${safeRequest}.jpg`;
+}
+
 function readOriginalPhotoCacheIndex() {
   try {
     const stored = typeof wx.getStorageSync === "function" ? wx.getStorageSync(ORIGINAL_PHOTO_CACHE_STORAGE_KEY) : {};
@@ -577,13 +586,23 @@ Page({
     this._ownedPhotoFiles = new Set();
     this._photoPageToken = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
     this._photoFileSequence = 0;
+    this._pageAlive = true;
+    this._photoQueueUnsubscribe = photoUploadQueue.subscribe((event) => this.onPhotoQueueEvent(event));
     wx.setNavigationBarTitle({ title: "露思卓儿" });
     this.load();
+  },
+
+  onShow() {
+    if (this.data.order?.id) this.applyPendingPhotoTasks();
+    void photoUploadQueue.resume({ retryFailed: true });
   },
 
   onPullDownRefresh() { this.load().finally(() => wx.stopPullDownRefresh()); },
 
   onUnload() {
+    this._pageAlive = false;
+    if (this._photoQueueUnsubscribe) this._photoQueueUnsubscribe();
+    this._photoQueueUnsubscribe = null;
     this._photoLoadEpoch = Number(this._photoLoadEpoch || 0) + 1;
     if (this._photoRetrySequence) this._photoRetrySequence.clear();
     if (this._originalPhotoFlights) this._originalPhotoFlights.clear();
@@ -696,6 +715,7 @@ Page({
       canEdit: result.canEdit === true, isSubmitter: result.isSubmitter === true,
       editableUntil: result.editableUntil || "", editableUntilLabel: query.displayDateTimeAny(result.editableUntil, result.editable_until)
     });
+    this.applyPendingPhotoTasks();
     if (recordId) {
       const epoch = Number(this._photoLoadEpoch || 0);
       void this.hydratePhotoThumbnailsFromPersistentCache(recordId, normalized.slots, epoch);
@@ -801,7 +821,79 @@ Page({
   },
 
   updatePhotoSlot(slot, changes) {
-    this.setData({ photos: this.data.photos.map((photo) => Number(photo.slot) === Number(slot) ? { ...photo, ...changes } : photo) });
+    const photos = this.data.photos.map((photo) => Number(photo.slot) === Number(slot) ? { ...photo, ...changes } : photo);
+    this.setData({
+      photos,
+      photoCount: photos.filter((item) => item.declared).length,
+      visiblePhotoCount: photos.filter((item) => item.visible && item.declared).length
+    });
+  },
+
+  applyPendingPhotoTasks() {
+    const recordId = clean(this.data.order?.id || this.data.recordId);
+    if (!recordId || !Array.isArray(this.data.photos)) return false;
+    const pendingBySlot = new Map(photoUploadQueue.tasksForRecord(recordId).map((task) => [Number(task.slot), task]));
+    if (!pendingBySlot.size) return false;
+    const photos = this.data.photos.map((photo) => {
+      const task = pendingBySlot.get(Number(photo.slot));
+      if (!task) return photo;
+      return {
+        ...photo,
+        state: "pending",
+        declared: true,
+        thumbnailUrl: task.filePath,
+        thumbnailState: "ready",
+        retrying: false,
+        retryError: "",
+        uploadState: task.state,
+        uploadError: task.error || "",
+        pendingTaskId: task.id
+      };
+    });
+    this.setData({
+      photos,
+      photoCount: photos.filter((item) => item.declared).length,
+      visiblePhotoCount: photos.filter((item) => item.visible && item.declared).length
+    });
+    return true;
+  },
+
+  async onPhotoQueueEvent(event = {}) {
+    const task = event.task || {};
+    if (!this._pageAlive || clean(task.recordId) !== clean(this.data.order?.id || this.data.recordId)) return;
+    if (event.type !== "committed") {
+      this.applyPendingPhotoTasks();
+      if (event.type === "failed") {
+        this.setData({ message: `${PHOTO_LABELS[task.slot] || "照片"}后台上传暂未完成，可点照片下方按钮立即重试。`, error: true });
+      }
+      return;
+    }
+    try {
+      if (event.committed?.photo) {
+        const read = await readFile(task.filePath);
+        await this.applyCommittedExtraPhoto(task.slot, event.committed, {
+          buffer: read.data,
+          bytes: task.bytes,
+          previewPath: task.filePath,
+          width: task.width,
+          height: task.height
+        });
+      } else {
+        await this.loadPhotos();
+      }
+      if (this._pageAlive) this.setData({ message: `${PHOTO_LABELS[task.slot] || "照片"}已在后台完整上传。`, error: false });
+    } catch (_) {
+      if (this._pageAlive) await this.loadPhotos();
+    }
+  },
+
+  retryPendingPhotoUpload(event) {
+    const taskId = clean(event.currentTarget.dataset.taskId);
+    if (!taskId) return;
+    if (photoUploadQueue.retry(taskId)) {
+      this.applyPendingPhotoTasks();
+      this.setData({ message: "已重新开始后台上传；可以离开当前页面。", error: false });
+    }
   },
 
   photoThumbnailError(event) {
@@ -983,6 +1075,10 @@ Page({
     if (!recordId || !Number.isInteger(Number(slot))) throw new Error("工单照片参数无效");
     const photo = this.data.photos.find((item) => Number(item.slot) === Number(slot));
     if (!photo?.declared) throw new Error("该照片位置尚未上传");
+    if (photo.pendingTaskId && clean(photo.thumbnailUrl)) {
+      await fileInfo(clean(photo.thumbnailUrl));
+      return clean(photo.thumbnailUrl);
+    }
     const identity = photoManifestIdentity(photo);
     const expectedBytes = Number(photo.originalBytes || photo.original_bytes || 0);
     const key = originalPhotoCacheKey(recordId, slot);
@@ -1102,14 +1198,6 @@ Page({
       const message = originalPhotoErrorMessage(error, "照片转发失败，请稍后重试");
       if (message) this.setData({ message, error: true });
     } finally { this.setOriginalPhotoBusy(slot, false); }
-  },
-
-  async callPhotoWithTransportRetry(action, payload) {
-    try { return await callPhoto(action, payload); }
-    catch (error) {
-      if (!error.submissionUncertain) throw error;
-      return callPhoto(action, payload);
-    }
   },
 
   photoNormalizeCanvasNode() {
@@ -1305,45 +1393,6 @@ Page({
     throw new Error("当前微信未能完成照片压缩，请重试或重新打开小程序后再上传");
   },
 
-  async uploadExtraPhotoDirect(upload, buffer) {
-    const url = clean(upload?.url || upload?.signedUrl);
-    const method = clean(upload?.method || "PUT").toUpperCase();
-    const expectedBytes = Number(upload?.expectedBytes || 0);
-    if (!/^https:\/\//i.test(url) || method !== "PUT") {
-      throw new Error("照片服务没有返回有效的签名直传地址");
-    }
-    if (expectedBytes > 0 && expectedBytes !== new Uint8Array(buffer).byteLength) {
-      throw new Error("补充照片大小与服务器授权不一致，请重新选择");
-    }
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      let response;
-      try {
-        response = await wxCall((resolve, reject) => wx.request({
-          url,
-          method: "PUT",
-          data: buffer,
-          header: { "Content-Type": "image/jpeg" },
-          responseType: "text",
-          timeout: 180000,
-          success: resolve,
-          fail: reject
-        }));
-      } catch (error) {
-        if (attempt === 1) throw error;
-        await new Promise((resolve) => setTimeout(resolve, EXTRA_PHOTO_DIRECT_UPLOAD_RETRY_DELAY_MS));
-        continue;
-      }
-      const statusCode = Number(response.statusCode || 0);
-      if (statusCode >= 200 && statusCode < 300) return;
-      const transient = statusCode === 408 || statusCode === 429 || statusCode >= 500;
-      if (attempt === 0 && transient) {
-        await new Promise((resolve) => setTimeout(resolve, EXTRA_PHOTO_DIRECT_UPLOAD_RETRY_DELAY_MS));
-        continue;
-      }
-      throw new Error(`补充照片直传失败（HTTP ${response.statusCode || "—"}）`);
-    }
-  },
-
   async persistCommittedExtraPhotoCache(slot, recordId, identity, normalized, generation, epoch) {
     try {
       const localPath = await this.localOriginalPath(slot, recordId, identity, {
@@ -1421,13 +1470,16 @@ Page({
       editableUntilLabel: query.displayDateTimeAny(committed.editableUntil || this.data.editableUntil)
     });
     const epoch = Number(this._photoLoadEpoch || 0);
-    void this.persistCommittedExtraPhotoCache(slot, recordId, identity, normalized, generation, epoch);
+    // The queue deletes its durable pending file only after listeners settle.
+    // Finish this native copy first so the newly committed thumbnail/original
+    // never points at a file that the queue is about to remove.
+    await this.persistCommittedExtraPhotoCache(slot, recordId, identity, normalized, generation, epoch);
   },
 
   async uploadExtraPhoto(event) {
     const slot = Number(event.currentTarget.dataset.slot);
     const photo = this.data.photos.find((item) => Number(item.slot) === slot);
-    if (!this.data.canEdit || this.data.uploading || this.data.photoLoading || photo?.originalBusy
+    if (!this.data.canEdit || this.data.uploading || this.data.photoLoading || photo?.originalBusy || photo?.pendingTaskId
       || !Number.isInteger(slot) || slot < 2 || slot > 4) return;
     let chosen;
     try {
@@ -1440,12 +1492,24 @@ Page({
     const filePath = file && file.tempFilePath;
     if (!filePath) return;
     const uploadRequestId = requestId(slot);
-    const uploadStartedAt = Date.now();
-    const stageStartedAt = { local: uploadStartedAt, authorization: 0, transfer: 0, confirmation: 0 };
-    const stageElapsedMs = { local: 0, authorization: 0, transfer: 0, confirmation: 0 };
-    let requestOpened = false;
-    let commitUncertain = false;
-    this.setData({ uploading: true, uploadingSlot: slot, message: "正在压缩并保存补充照片…", error: false });
+    const previousPhoto = { ...photo };
+    // 先把用户刚选中的完整本地文件放到画面上。网络授权、存储上传和
+    // 服务端确认全部在后面执行，用户不用盯着空白格等待。
+    this.updatePhotoSlot(slot, {
+      state: "pending",
+      declared: true,
+      thumbnailUrl: filePath,
+      thumbnailState: "ready",
+      uploadState: "PREPARING",
+      uploadError: "",
+      pendingTaskId: uploadRequestId
+    });
+    this.setData({
+      uploading: true,
+      uploadingSlot: slot,
+      message: "照片已先完整显示，正在准备后台上传…",
+      error: false
+    });
     try {
       const selectedWidth = Number(file.width || 0);
       const selectedHeight = Number(file.height || 0);
@@ -1464,76 +1528,40 @@ Page({
         : readFileHead(filePath);
       const [read, dimensions] = await Promise.all([sourceFlight, dimensionsFlight]);
       const normalized = await this.normalizeExtraPhoto(filePath, read.data, dimensions, sourceBytes, chosen.source);
-      stageElapsedMs.local = Date.now() - stageStartedAt.local;
       const buffer = normalized.buffer;
       const bytes = new Uint8Array(buffer);
-      stageStartedAt.authorization = Date.now();
-      const begin = await this.callPhotoWithTransportRetry("beginVerificationPhotoUpload", {
-        recordId: this.data.order.id, slot, requestId: uploadRequestId, originalBytes: bytes.byteLength
+      const pendingPath = pendingUploadPhotoFilePath(this.data.order.id, slot, uploadRequestId);
+      await unlinkFile(pendingPath).catch(() => {});
+      await writeFile(pendingPath, buffer);
+      const persisted = await fileInfo(pendingPath);
+      if (Number(persisted?.size || 0) !== bytes.byteLength) {
+        await unlinkFile(pendingPath).catch(() => {});
+        throw new Error("照片本地保存不完整，请重新选择");
+      }
+      const task = photoUploadQueue.enqueue({
+        recordId: this.data.order.id,
+        slot,
+        requestId: uploadRequestId,
+        filePath: pendingPath,
+        bytes: bytes.byteLength,
+        width: normalized.width,
+        height: normalized.height
       });
-      stageElapsedMs.authorization = Date.now() - stageStartedAt.authorization;
-      requestOpened = !begin.alreadyCommitted;
-      if (begin.alreadyCommitted) {
-        this.setData({ message: "该补充照片已经保存，正在重新读取照片清单。", error: false });
-        await this.clearOriginalPhotoCache(slot);
-        await this.loadPhotos();
-        return;
-      }
-      if (begin.uploadMode !== "DIRECT" || !begin.originalUpload) {
-        throw new Error("照片服务没有返回有效的签名直传授权");
-      }
-      let committed;
-      try {
-        this.setData({ message: "正在将补充照片直传到私有存储，请勿关闭页面…", error: false });
-        stageStartedAt.transfer = Date.now();
-        await this.uploadExtraPhotoDirect(begin.originalUpload, buffer);
-        stageElapsedMs.transfer = Date.now() - stageStartedAt.transfer;
-        this.setData({ message: "上传完成，正在校验完整性并绑定工单…", error: false });
-        stageStartedAt.confirmation = Date.now();
-        committed = await this.callPhotoWithTransportRetry("commitVerificationPhotoUpload", {
-          recordId: this.data.order.id, requestId: uploadRequestId
-        });
-        stageElapsedMs.confirmation = Date.now() - stageStartedAt.confirmation;
-      } catch (error) {
-        commitUncertain = error.submissionUncertain === true;
-        let status = null;
-        try { status = await callPhoto("getVerificationPhotoUploadStatus", { recordId: this.data.order.id, requestId: uploadRequestId }); }
-        catch (_) { status = null; }
-        if (status?.status === "COMMITTED") committed = status;
-        else {
-          if (status?.status === "UPLOADING" || (!commitUncertain && requestOpened)) {
-            try { await callPhoto("cancelVerificationPhotoUpload", { recordId: this.data.order.id, requestId: uploadRequestId }); } catch (_) {}
-          }
-          throw error;
-        }
-      }
-      if (clean(committed?.status) !== "COMMITTED") throw new Error("照片服务没有确认保存结果");
-      requestOpened = false;
-      if (committed.photo) {
-        try {
-          await this.applyCommittedExtraPhoto(slot, committed, normalized);
-          const elapsedSeconds = Math.max(0.1, (Date.now() - uploadStartedAt) / 1000).toFixed(1);
-          const stageSeconds = ["local", "authorization", "transfer", "confirmation"]
-            .map((name) => (Math.max(0, stageElapsedMs[name]) / 1000).toFixed(1))
-            .join("/");
-          this.setData({
-            message: `${PHOTO_LABELS[slot]}已完整保存并显示（${elapsedSeconds} 秒；处理/授权/传输/确认 ${stageSeconds}）。`,
-            error: false
-          });
-        } catch (_) {
-          await this.clearOriginalPhotoCache(slot);
-          const loaded = await this.loadPhotos();
-          if (loaded) this.setData({ message: `${PHOTO_LABELS[slot]}已保存并刷新。`, error: false });
-        }
-      } else {
-        this.setData({ message: `${PHOTO_LABELS[slot]}已保存，正在确认照片清单。`, error: false });
-        await this.clearOriginalPhotoCache(slot);
-        await this.loadPhotos();
-      }
+      this.updatePhotoSlot(slot, {
+        state: "pending",
+        declared: true,
+        thumbnailUrl: pendingPath,
+        thumbnailState: "ready",
+        uploadState: task.state,
+        uploadError: "",
+        pendingTaskId: task.id
+      });
+      this.setData({
+        message: `${PHOTO_LABELS[slot]}已先完整显示，正在后台上传；离开此页面也会继续。`,
+        error: false
+      });
     } catch (error) {
-      if (requestOpened && !commitUncertain) {
-        try { await callPhoto("cancelVerificationPhotoUpload", { recordId: this.data.order.id, requestId: uploadRequestId }); } catch (_) {}
-      }
+      this.updatePhotoSlot(slot, previousPhoto);
       this.setData({ message: error.message || error.errMsg || "补充照片保存失败", error: true });
     } finally { this.setData({ uploading: false, uploadingSlot: -1 }); }
   },

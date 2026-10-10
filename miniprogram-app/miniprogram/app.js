@@ -1,4 +1,5 @@
 const { restoreAndValidateSession } = require("./services/session");
+const verificationPhotoUploadQueue = require("./services/verification-photo-upload-queue");
 
 function clearColdStartBleAttempt() {
   const submission = require("./services/submission");
@@ -37,11 +38,18 @@ App({
         } catch (error) {
           console.warn("[app] 清理冷启动前的未完成设备资格失败", error?.message || error);
         }
+        // 补充照片任务属于小程序，而不是某一个详情页。冷启动恢复登录后
+        // 立即续传，页面即使已经返回也不会丢失本次选择。
+        void verificationPhotoUploadQueue.resume({ retryFailed: true });
       }
       this.globalData.startupReady = true;
       return this.globalData.session;
     })();
     return this.globalData.startupPromise;
   },
-  onShow() { keepScreenAwake(); }
+  onShow() {
+    keepScreenAwake();
+    const startup = this.globalData.startupPromise || Promise.resolve(this.globalData.session);
+    void startup.then((session) => session && verificationPhotoUploadQueue.resume({ retryFailed: true }));
+  }
 });

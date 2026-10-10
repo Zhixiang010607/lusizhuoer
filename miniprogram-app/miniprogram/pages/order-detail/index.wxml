@@ -61,13 +61,21 @@
             <view wx:elif="{{item.state === 'list-error'}}" class="slot-placeholder slot-error"><text>清单读取失败</text></view>
             <view wx:else class="slot-placeholder"><text>{{isSupplement && item.slot === 1 ? '补录核销无现场留存照片' : '此照片位尚未上传'}}</text></view>
           </view>
-          <view class="photo-meta"><text>{{isSupplement && item.slot === 1 ? '现场留存' : item.label}}</text><text>{{isSupplement && item.slot === 1 ? '固定为空' : (item.declared ? '已留存' : (item.state === 'empty' ? '空照片位' : '状态待确认'))}}</text></view>
+          <view class="photo-meta">
+            <text>{{isSupplement && item.slot === 1 ? '现场留存' : item.label}}</text>
+            <text wx:if="{{item.pendingTaskId}}" class="photo-upload-state state-{{item.uploadState}}">{{item.uploadState === 'PREPARING' ? '正在准备后台上传' : (item.uploadState === 'UPLOADING' ? '后台上传中，可离开页面' : (item.uploadState === 'FAILED' ? '后台上传暂停' : '已排队后台上传'))}}</text>
+            <text wx:else>{{isSupplement && item.slot === 1 ? '固定为空' : (item.declared ? '已留存' : (item.state === 'empty' ? '空照片位' : '状态待确认'))}}</text>
+          </view>
           <view wx:if="{{item.declared}}" class="photo-actions">
             <button data-slot="{{item.slot}}" bindtap="previewPhoto" loading="{{item.originalBusy && item.originalAction === 'preview'}}" disabled="{{item.originalBusy || uploading}}">查看原图</button>
             <button data-slot="{{item.slot}}" bindtap="savePhoto" loading="{{item.originalBusy && item.originalAction === 'save'}}" disabled="{{item.originalBusy || uploading}}">保存相册</button>
             <button data-slot="{{item.slot}}" bindtap="sharePhoto" loading="{{item.originalBusy && item.originalAction === 'share'}}" disabled="{{item.originalBusy || uploading}}">转发照片</button>
           </view>
-          <button wx:if="{{canEdit && item.slot >= 2}}" class="upload-button" data-slot="{{item.slot}}" bindtap="uploadExtraPhoto" loading="{{uploading && uploadingSlot === item.slot}}" disabled="{{uploading || exporting || photoLoading || item.originalBusy}}">{{item.declared ? '选择或拍摄替换' : '选择或拍摄补充'}}</button>
+          <view wx:if="{{item.pendingTaskId && item.uploadState === 'FAILED'}}" class="photo-upload-error">
+            <text>{{item.uploadError || '网络暂时不可用，照片已保存在本机'}}</text>
+            <button class="secondary compact-button" data-task-id="{{item.pendingTaskId}}" bindtap="retryPendingPhotoUpload">立即重试</button>
+          </view>
+          <button wx:if="{{canEdit && item.slot >= 2}}" class="upload-button" data-slot="{{item.slot}}" bindtap="uploadExtraPhoto" loading="{{uploading && uploadingSlot === item.slot}}" disabled="{{uploading || exporting || photoLoading || item.originalBusy || item.pendingTaskId}}">{{item.pendingTaskId ? '正在后台上传' : (item.declared ? '选择或拍摄替换' : '选择或拍摄补充')}}</button>
         </view>
       </view>
     </view>

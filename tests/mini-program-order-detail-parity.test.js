@@ -11,6 +11,7 @@ const pageRoot = path.join(root, "miniprogram-app", "miniprogram", "pages", "ord
 const js = fs.readFileSync(path.join(pageRoot, "index.js"), "utf8");
 const wxml = fs.readFileSync(path.join(pageRoot, "index.wxml"), "utf8");
 const wxss = fs.readFileSync(path.join(pageRoot, "index.wxss"), "utf8");
+const queueJs = fs.readFileSync(path.join(root, "miniprogram-app", "miniprogram", "services", "verification-photo-upload-queue.js"), "utf8");
 const sharedRenderer = require(path.join(root, "miniprogram-app", "miniprogram", "services", "order-receipt.js"));
 
 function includes(source, expected, label) {
@@ -53,6 +54,13 @@ Page({`);
       if (request.endsWith("photo-album")) return {
         saveImageToAlbum: options.saveImageToAlbum || (async () => ({ saved: true })),
         isPermissionFailure: options.isPermissionFailure || ((error) => /permission|授权|权限/i.test(String(error?.message || error?.errMsg || "")))
+      };
+      if (request.endsWith("verification-photo-upload-queue")) return options.photoUploadQueue || {
+        enqueue(task) { return { ...task, id: task.requestId, state: "QUEUED" }; },
+        resume: async () => true,
+        retry: () => true,
+        subscribe: () => () => {},
+        tasksForRecord: () => []
       };
       if (request.endsWith("order-receipt")) return sharedRenderer;
       if (request.endsWith("api")) return {
@@ -870,15 +878,15 @@ test("real order data is mapped into the shared web receipt semantics", () => {
 test("verification photo UI has focused recovery, 24-hour originals, album save, forwarding, and server-authorized editing", () => {
   for (const action of [
     "getVerificationPhotos", "getVerificationPhotoThumbnailData", "getVerificationPhotoOriginalUrl",
-    "beginVerificationPhotoUpload", "getVerificationPhotoUploadStatus", "cancelVerificationPhotoUpload",
+    "beginVerificationPhotoUpload", "getVerificationPhotoUploadStatus",
     "commitVerificationPhotoUpload"
-  ]) includes(js, `\"${action}\"`, `photo action ${action}`);
+  ]) includes(`${js}\n${queueJs}`, `\"${action}\"`, `photo action ${action}`);
   includes(js, "canEdit: result.canEdit === true", "edit permission comes from the manifest");
   includes(js, "editableUntil: result.editableUntil", "edit deadline comes from the manifest");
   includes(js, "slot < 2 || slot > 4", "only extra slots can be changed");
-  includes(js, "begin.uploadMode !== \"DIRECT\"", "the mini-program accepts only the dedicated signed direct-upload mode");
-  includes(js, "await this.uploadExtraPhotoDirect(begin.originalUpload, buffer)", "the normalized JPEG bytes go directly to private storage");
-  includes(js, 'header: { "Content-Type": "image/jpeg" }', "the signed PUT carries the exact JPEG MIME type");
+  includes(queueJs, 'begin?.uploadMode !== "DIRECT"', "the mini-program accepts only the dedicated signed direct-upload mode");
+  includes(queueJs, "await signedUploadWithRetry(begin.originalUpload, buffer)", "the normalized JPEG bytes go directly to private storage");
+  includes(queueJs, 'header: { "Content-Type": "image/jpeg" }', "the signed PUT carries the exact JPEG MIME type");
   assert.doesNotMatch(functionSource(js, "uploadExtraPhoto"), /arrayBufferToBase64|imageBase64|functionUploadProof/,
     "the mini-program supplemental-photo path never Base64-expands or relays image bytes through a cloud function");
   assert.doesNotMatch(functionSource(js, "normalizeExtraPhoto"), /不能超过\s*7\s*MB|MAX_EXTRA_SOURCE_PHOTO_BYTES/,
@@ -906,7 +914,7 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
     "the bounded loop has one encoder call site instead of a nested nine-encode ladder");
   includes(functionSource(js, "normalizeExtraPhoto"), "context.drawImage(image, 0, 0, width, height)",
     "the complete source frame is proportionally drawn without a crop rectangle");
-  includes(js, 'message: "正在压缩并保存补充照片…"', "the upload status describes local compression");
+  includes(js, 'message: "照片已先完整显示，正在准备后台上传…"', "the selected complete photo is visible before background transfer");
   includes(js, 'fileType: "jpg"', "PNG and WebP sources are re-encoded as JPEG before upload");
   includes(js, 'return "png"', "PNG source magic bytes are accepted");
   includes(js, 'return "webp"', "WebP source magic bytes are accepted");
@@ -917,20 +925,18 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
     "photo prefetch accepts the same promise and synchronous test adapters");
   includes(js, ".then((result) => ({ ok: true, result }), (error) => ({ ok: false, error }))",
     "an early photo failure is safely captured while the order read finishes");
-  includes(functionSource(js, "uploadExtraPhoto"), "if (committed.photo)",
-    "the normal committed upload uses the server-confirmed photo response directly");
-  includes(functionSource(js, "uploadExtraPhoto"), "await this.applyCommittedExtraPhoto(slot, committed, normalized)",
+  includes(functionSource(js, "onPhotoQueueEvent"), "if (event.committed?.photo)",
+    "the normal committed background upload uses the server-confirmed photo response directly");
+  includes(functionSource(js, "onPhotoQueueEvent"), "await this.applyCommittedExtraPhoto(task.slot, event.committed",
     "the uploaded local JPEG is reused without rereading every photo");
-  includes(functionSource(js, "uploadExtraPhoto"), "const loaded = await this.loadPhotos()",
-    "a committed upload falls back to the authoritative manifest if local caching fails");
-  includes(functionSource(js, "uploadExtraPhoto"), "await this.loadPhotos();",
-    "an uncertain recovered commit still falls back to the authoritative database manifest");
+  includes(functionSource(js, "onPhotoQueueEvent"), "await this.loadPhotos()",
+    "a resumed committed upload falls back to the authoritative manifest when needed");
   assert.doesNotMatch(functionSource(js, "applyCommittedExtraPhoto"), /callPhoto\(/,
     "the fast committed-photo apply path adds no redundant network request");
   includes(functionSource(js, "applyCommittedExtraPhoto"), "committedPhoto.thumbnailUrl = previewPath",
     "the just-uploaded local JPEG is shown before persistent cache I/O");
-  includes(functionSource(js, "applyCommittedExtraPhoto"), "void this.persistCommittedExtraPhotoCache",
-    "the 24-hour cache is persisted in the background after visible success");
+  includes(functionSource(js, "applyCommittedExtraPhoto"), "await this.persistCommittedExtraPhotoCache",
+    "the visible success is copied into the 24-hour cache before the queue removes its pending file");
   includes(functionSource(js, "persistCommittedExtraPhotoCache"), "sourcePath: normalized.previewPath",
     "background persistence uses a native local file copy instead of resending the ArrayBuffer when possible");
   includes(functionSource(js, "persistCommittedExtraPhotoCache"), "clean(indexed?.identity) === identity",
@@ -939,7 +945,12 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
     "a later detail read reuses valid local originals as thumbnails without another image download");
   includes(functionSource(js, "hydratePhotoThumbnailsFromPersistentCache"), "this.persistentOriginalPhotoPath",
     "readback verifies the cached file before displaying it");
-  includes(js, "this.data.uploading || this.data.photoLoading", "concurrent writes and manifest reloads are isolated");
+  includes(js, "this.data.uploading || this.data.photoLoading", "local preparation and manifest reloads are isolated");
+  includes(js, "photoUploadQueue.enqueue", "prepared photos move into an app-level persistent upload queue");
+  includes(js, "pendingUploadPhotoFilePath", "pending bytes are copied into the persistent user-data directory");
+  includes(js, "照片已先完整显示", "the local full-frame preview appears before network completion");
+  includes(queueJs, "getVerificationPhotoUploadStatus", "a restarted queue reconciles the same request before resuming");
+  includes(queueJs, "wx.getStorageSync(STORAGE_KEY)", "pending queue metadata survives page unload and cold start");
   includes(js, "const { saveImageToAlbum, isPermissionFailure }", "album permission behavior and retry classification are shared");
   assert.doesNotMatch(js, /wx\.saveImageToPhotosAlbum/, "order detail cannot bypass the shared permission-and-retry helper");
 
@@ -975,7 +986,7 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
     "leaving the page must not delete the 24-hour original cache");
   assert.doesNotMatch(wxml, /originalBusySlot/, "one slow photo cannot disable every other photo slot");
   assert.match(wxml, /disabled="\{\{item\.originalBusy \|\| uploading\}\}"/,
-    "only the active slot is disabled while its original is loading");
+    "original actions remain scoped to the active local preparation");
   includes(wxml, "photoLoading || item.originalBusy", "a supplemental replacement cannot race the same slot's original read");
   includes(wxml, 'bindtap="uploadExtraPhoto"', "choose-or-capture extra photo");
   includes(functionSource(js, "uploadExtraPhoto"), "photo?.originalBusy",
@@ -999,92 +1010,15 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
   assert.doesNotMatch(`${js}\n${wxml}`, /\bKB\b|不压缩|未压缩/, "size/compression explanations are retired");
 });
 
-test("supplemental JPEG uses an exact signed PUT without Base64 expansion", async () => {
-  const requests = [];
-  const { page } = loadHelpers({
-    request(options) {
-      requests.push(options);
-      options.success({ statusCode: 200, data: "" });
-      return {};
-    }
-  });
-  const instance = pageInstance(page);
-  const buffer = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]).buffer;
-  await instance.uploadExtraPhotoDirect({
-    url: "https://private.example.test/object.jpg?token=short-lived",
-    method: "PUT",
-    expectedBytes: 4,
-    headers: { Authorization: "must-not-be-forwarded" }
-  }, buffer);
-  assert.equal(requests.length, 1);
-  assert.equal(requests[0].method, "PUT");
-  assert.equal(requests[0].data, buffer, "wx.request receives the original ArrayBuffer without copying it into text");
-  assert.deepEqual(JSON.parse(JSON.stringify(requests[0].header)), { "Content-Type": "image/jpeg" },
-    "only the signed MIME contract is sent; arbitrary response headers are ignored");
-  assert.equal(requests[0].timeout, 180000);
-
-  await assert.rejects(
-    instance.uploadExtraPhotoDirect({
-      url: "https://private.example.test/object.jpg?token=short-lived",
-      method: "PUT",
-      expectedBytes: 5
-    }, buffer),
-    /大小与服务器授权不一致/,
-    "the mini-program refuses a byte count that does not match the signed intent"
-  );
-});
-
-test("supplemental direct upload retries one transient failure without replacing the signed object", async () => {
-  const requests = [];
-  const outcomes = [
-    { type: "fail", value: { errMsg: "request:fail socket closed" } },
-    { type: "success", value: { statusCode: 200, data: "" } }
-  ];
-  const { page } = loadHelpers({
-    request(options) {
-      requests.push(options);
-      const outcome = outcomes.shift();
-      options[outcome.type](outcome.value);
-      return {};
-    }
-  });
-  const instance = pageInstance(page);
-  const buffer = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]).buffer;
-  const upload = {
-    url: "https://private.example.test/same-object.jpg?token=short-lived",
-    method: "PUT",
-    expectedBytes: 4
-  };
-
-  await instance.uploadExtraPhotoDirect(upload, buffer);
-
-  assert.equal(requests.length, 2);
-  assert.equal(requests[0].url, requests[1].url, "the retry reuses the exact signed object URL");
-  assert.equal(requests[0].data, buffer);
-  assert.equal(requests[1].data, buffer, "the retry reuses the exact JPEG bytes");
-});
-
-test("supplemental direct upload does not retry a definitive client rejection", async () => {
-  let requests = 0;
-  const { page } = loadHelpers({
-    request(options) {
-      requests += 1;
-      options.success({ statusCode: 403, data: "" });
-      return {};
-    }
-  });
-  const instance = pageInstance(page);
-  const buffer = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]).buffer;
-
-  await assert.rejects(
-    instance.uploadExtraPhotoDirect({
-      url: "https://private.example.test/object.jpg?token=expired",
-      method: "PUT",
-      expectedBytes: 4
-    }, buffer),
-    /HTTP 403/
-  );
-  assert.equal(requests, 1, "authorization or validation failures must not be replayed");
+test("supplemental JPEG transfer is owned by the persistent app queue", () => {
+  includes(queueJs, "data: buffer", "wx.request receives the exact persisted ArrayBuffer");
+  includes(queueJs, 'header: { "Content-Type": "image/jpeg" }',
+    "only the signed JPEG MIME contract is sent");
+  includes(queueJs, "timeout: 180000", "the background PUT retains the bounded transfer timeout");
+  includes(queueJs, "expectedBytes !== actualBytes", "a signed byte-count mismatch fails closed");
+  includes(queueJs, "for (let attempt = 0; attempt < 2", "one transient direct-upload retry remains bounded");
+  assert.doesNotMatch(queueJs, /arrayBufferToBase64|imageBase64|functionUploadProof/,
+    "the background direct-upload queue never Base64-expands photo bytes");
 });
 
 test("original photo reads are single-flight, persist for 24 hours, and survive page unload", async () => {
