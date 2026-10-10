@@ -151,6 +151,10 @@ Page({`);
         if (options.chooseMedia) return options.chooseMedia(request);
         request.fail?.({ errMsg: "chooseMedia:fail cancel" });
       },
+      chooseImage(request) {
+        if (options.chooseImage) return options.chooseImage(request);
+        request.fail?.({ errMsg: "chooseImage:fail cancel" });
+      },
       setNavigationBarTitle() {},
       stopPullDownRefresh() {}
     }
@@ -343,8 +347,17 @@ test("supplemental photo selection uses album originals and keeps camera capture
     showActionSheet(request) {
       request.success({ tapIndex: nextTapIndex });
     },
+    chooseImage(request) {
+      choices.push({
+        api: "chooseImage",
+        sourceType: Array.from(request.sourceType),
+        sizeType: Array.from(request.sizeType)
+      });
+      request.success({ tempFilePaths: ["/album-original.jpg"] });
+    },
     chooseMedia(request) {
       choices.push({
+        api: "chooseMedia",
         sourceType: Array.from(request.sourceType),
         sizeType: Array.from(request.sizeType)
       });
@@ -358,9 +371,58 @@ test("supplemental photo selection uses album originals and keeps camera capture
   await page.chooseExtraPhoto();
 
   assert.deepEqual(choices, [
-    { sourceType: ["album"], sizeType: ["original"] },
-    { sourceType: ["camera"], sizeType: ["compressed"] }
+    { api: "chooseImage", sourceType: ["album"], sizeType: ["original"] },
+    { api: "chooseMedia", sourceType: ["camera"], sizeType: ["compressed"] }
   ]);
+});
+
+test("album normalization preserves every edge for both landscape and portrait photos", async () => {
+  const encoded = new Uint8Array(120 * 1024);
+  encoded.set([0xff, 0xd8, 0xff], 0);
+  const drawCalls = [];
+  const { page: definition } = loadHelpers({ readFile: () => encoded.buffer });
+  const page = pageInstance(definition);
+  const canvas = {
+    width: 0,
+    height: 0,
+    createImage() {
+      const image = { width: 1, height: 1 };
+      Object.defineProperty(image, "src", {
+        set(source) {
+          if (String(source).includes("landscape")) {
+            image.width = 4000;
+            image.height = 2000;
+          } else {
+            image.width = 2000;
+            image.height = 4000;
+          }
+          Promise.resolve().then(() => image.onload());
+        }
+      });
+      return image;
+    },
+    getContext() {
+      return {
+        fillStyle: "",
+        fillRect() {},
+        drawImage(...args) { drawCalls.push(args); }
+      };
+    }
+  };
+  page.photoNormalizeCanvasNode = async () => canvas;
+  page.canvasPhotoJpeg = async () => ({ tempFilePath: "/encoded.jpg" });
+  const source = new Uint8Array(1024);
+  source.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+
+  const landscape = await page.normalizeExtraPhoto("/album-landscape.png", source.buffer, { width: 4000, height: 2000 });
+  const portrait = await page.normalizeExtraPhoto("/album-portrait.png", source.buffer, { width: 2000, height: 4000 });
+
+  assert.deepEqual([landscape.width, landscape.height], [1024, 512]);
+  assert.deepEqual([portrait.width, portrait.height], [512, 1024]);
+  assert.deepEqual(drawCalls.map((args) => args.slice(1)), [
+    [0, 0, 1024, 512],
+    [0, 0, 512, 1024]
+  ], "landscape and portrait both draw the complete decoded source with no crop rectangle");
 });
 
 test("a repeated detail read replaces the remote thumbnail with a verified 24-hour local cache", async () => {
@@ -449,6 +511,56 @@ test("detail renders and acknowledges only the exact server-read route identity"
   assert.ok(wrongRequest.instance.data.order, "an exact readable order may render even when the local request id differs");
   assert.equal(wrongRequest.instance.data.error, true);
   assert.match(wrongRequest.instance.data.message, /防重复提交锁仍保留/);
+});
+
+test("supplement detail loads only three writable extras and never requests a rating", async () => {
+  const photoCalls = [];
+  const ratingCalls = [];
+  const record = {
+    id: "51", recordType: "VERIFICATION", recordCode: "VS202610100051",
+    originalType: "SUPPLEMENT", recordStatus: "PENDING", unitCount: 2,
+    submittedAt: "2026-10-10T05:19:00.000Z",
+    storeName: "测试门店", customerName: "测试客户", productName: "魔法柔肤", teacherName: "测试老师"
+  };
+  const { page: definition } = loadHelpers({
+    callFace: async () => ({ record }),
+    async callPhoto(action, payload) {
+      photoCalls.push({ action, payload });
+      return {
+        ok: true,
+        recordId: "51",
+        maxPhotos: 5,
+        canEdit: true,
+        isSubmitter: true,
+        editableUntil: "2026-10-11T05:19:00.000Z",
+        photos: [{ slot: 2, kind: "EXTRA", thumbnailUrl: "https://example.test/extra-1.jpg", originalBytes: 120 }]
+      };
+    },
+    async callRating(action, payload) {
+      ratingCalls.push({ action, payload });
+      return { submitted: false };
+    }
+  });
+  const page = pageInstance(definition, {
+    session: { role: "teacher" }, loading: false,
+    baseType: "VERIFICATION", category: "SUPPLEMENT",
+    recordId: "51", recordCode: "VS202610100051"
+  });
+  page._photoLoadEpoch = 0;
+
+  await page.load();
+
+  assert.equal(page.data.isSupplement, true);
+  assert.equal(photoCalls.length, 1);
+  assert.equal(photoCalls[0].action, "getVerificationPhotos");
+  assert.equal(photoCalls[0].payload.recordId, "51");
+  assert.equal(ratingCalls.length, 0, "supplement orders never enter the customer-rating service");
+  assert.equal(page.data.photos.find((photo) => photo.slot === 1).declared, false,
+    "the onsite evidence slot remains empty");
+  assert.equal(page.data.photos.find((photo) => photo.slot === 2).declared, true,
+    "the first supplemental slot is readable");
+  assert.equal(page.data.photos.filter((photo) => photo.visible && photo.slot >= 2).length, 3,
+    "exactly three supplemental slots stay visible and writable by the existing server permission");
 });
 
 test("route categories and verification completion labels remain exact", () => {
@@ -552,10 +664,14 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
     "the upload path uses the source-specific picker");
   includes(functionSource(js, "chooseExtraPhoto"), 'itemList: ["从相册选择", "拍照上传"]',
     "the native action sheet keeps album and camera choices explicit");
-  includes(functionSource(js, "chooseExtraPhoto"), 'sourceType: [source]',
-    "only the selected source opens");
-  includes(functionSource(js, "chooseExtraPhoto"), 'sizeType: [source === "album" ? "original" : "compressed"]',
-    "album selection starts from complete original bytes while camera capture stays on the fast compressed path");
+  includes(functionSource(js, "chooseExtraPhoto"), 'wx.chooseImage({',
+    "album selection uses the focused original-image picker for stable iPhone and iPad behavior");
+  includes(functionSource(js, "chooseExtraPhoto"), 'sizeType: ["original"]',
+    "album selection starts from complete original bytes");
+  includes(functionSource(js, "chooseExtraPhoto"), 'sourceType: ["camera"]',
+    "camera capture remains isolated from the album picker");
+  includes(functionSource(js, "chooseExtraPhoto"), 'sizeType: ["compressed"]',
+    "camera capture stays on the fast compressed path");
   includes(js, "const MAX_EXTRA_UPLOAD_PHOTO_BYTES = 512 * 1024", "supplemental uploads target at most half a MiB for fast transfer and server inspection");
   includes(js, "const MAX_EXTRA_FAST_PATH_BYTES = 768 * 1024", "already-compressed WeChat JPEGs have a no-reencode fast path");
   includes(js, "const MAX_EXTRA_PHOTO_EDGE = 1024", "supplemental uploads retain a practical full-frame long edge");
@@ -568,8 +684,9 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
   includes(js, 'fileType: "jpg"', "PNG and WebP sources are re-encoded as JPEG before upload");
   includes(js, 'return "png"', "PNG source magic bytes are accepted");
   includes(js, 'return "webp"', "WebP source magic bytes are accepted");
-  includes(js, "const photoManifestFlight = verification && !supplementRequest && request.recordId", "photo manifest starts with the order-detail read only when现场证据 exists");
+  includes(js, "const photoManifestFlight = verification && request.recordId", "every verification detail starts its authorized photo manifest with the order read");
   includes(js, "this.loadPhotos(photoManifestFlight)", "the prefetched manifest is applied only after exact order validation");
+  includes(js, "if (isSupplement) await this.loadPhotos(photoManifestFlight)", "supplement details load supplemental photos without requesting ratings");
   includes(js, "Promise.resolve().then(() => callPhoto(\"getVerificationPhotos\"",
     "photo prefetch accepts the same promise and synchronous test adapters");
   includes(js, ".then((result) => ({ ok: true, result }), (error) => ({ ok: false, error }))",

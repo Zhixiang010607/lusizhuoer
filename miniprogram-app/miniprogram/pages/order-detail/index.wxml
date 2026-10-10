@@ -37,16 +37,16 @@
       </view>
     </view>
 
-    <view wx:if="{{baseType === 'VERIFICATION' && !isSupplement}}" class="card photo-section">
+    <view wx:if="{{baseType === 'VERIFICATION'}}" class="card photo-section">
       <view class="card-title photo-heading">
-        <view><text>核销照片</text><text class="photo-note">展示核销身份照与三张补充照片</text></view>
-        <text class="badge">{{visiblePhotoCount}} / 4</text>
+        <view><text>{{isSupplement ? '补录核销照片' : '核销照片'}}</text><text class="photo-note">{{isSupplement ? '现场留存固定为空，可上传三张补充照片' : '展示核销身份照与三张补充照片'}}</text></view>
+        <text class="badge">{{visiblePhotoCount}} / {{isSupplement ? 3 : 4}}</text>
       </view>
       <view wx:if="{{photoManifestError}}" class="photo-list-error">
         <text>照片清单读取失败：{{photoManifestError}}</text>
         <button class="secondary compact-button" bindtap="retryPhotoList" loading="{{photoLoading}}" disabled="{{photoLoading || uploading || exporting}}">重试清单</button>
       </view>
-      <view wx:if="{{canEdit}}" class="edit-window">可补充或替换照片位 3–5；服务端授权截止 {{editableUntilLabel}}</view>
+      <view wx:if="{{canEdit}}" class="edit-window">可上传或替换三张补充照片；服务端授权截止 {{editableUntilLabel}}</view>
       <view class="photo-grid">
         <view wx:for="{{photos}}" wx:key="slot" hidden="{{!item.visible}}" class="photo-card state-{{item.state}}">
           <view class="photo-frame">
@@ -59,9 +59,9 @@
             </view>
             <view wx:elif="{{item.state === 'loading'}}" class="slot-placeholder"><text>正在读取此照片位…</text></view>
             <view wx:elif="{{item.state === 'list-error'}}" class="slot-placeholder slot-error"><text>清单读取失败</text></view>
-            <view wx:else class="slot-placeholder"><text>此照片位尚未上传</text></view>
+            <view wx:else class="slot-placeholder"><text>{{isSupplement && item.slot === 1 ? '补录核销无现场留存照片' : '此照片位尚未上传'}}</text></view>
           </view>
-          <view class="photo-meta"><text>{{item.label}}</text><text>{{item.declared ? '已留存' : (item.state === 'empty' ? '空照片位' : '状态待确认')}}</text></view>
+          <view class="photo-meta"><text>{{isSupplement && item.slot === 1 ? '现场留存' : item.label}}</text><text>{{isSupplement && item.slot === 1 ? '固定为空' : (item.declared ? '已留存' : (item.state === 'empty' ? '空照片位' : '状态待确认'))}}</text></view>
           <view wx:if="{{item.declared}}" class="photo-actions">
             <button data-slot="{{item.slot}}" bindtap="previewPhoto" loading="{{item.originalBusy && item.originalAction === 'preview'}}" disabled="{{item.originalBusy || uploading}}">查看原图</button>
             <button data-slot="{{item.slot}}" bindtap="savePhoto" loading="{{item.originalBusy && item.originalAction === 'save'}}" disabled="{{item.originalBusy || uploading}}">保存相册</button>

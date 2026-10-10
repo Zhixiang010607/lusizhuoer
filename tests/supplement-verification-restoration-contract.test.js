@@ -98,8 +98,15 @@ assert.match(queryTools, /originalType === "SUPPLEMENT"[\s\S]{0,80}recordStatus 
 assert.match(queryTools, /: originalType;/,
   "pending and rejected supplemental records keep their exact internal detail route");
 assert.match(orderJs, /\["NORMAL", "SUPPLEMENT", "EXPERIENCE"\]/);
-assert.match(orderJs, /verification && !supplementRequest && request\.recordId/);
-assert.match(orderWxml, /baseType === 'VERIFICATION' && !isSupplement/,
-  "supplement detail must omit现场照片 and rating sections");
+assert.match(orderJs, /const photoManifestFlight = verification && request\.recordId/,
+  "supplement details must fetch the same authorized photo manifest as other verification orders");
+assert.match(orderJs, /if \(isSupplement\) await this\.loadPhotos\(photoManifestFlight\)/,
+  "supplement details load photos without loading customer ratings");
+assert.match(orderWxml, /wx:if="\{\{baseType === 'VERIFICATION'\}\}" class="card photo-section"/,
+  "supplement detail must expose its three supplemental photo slots");
+assert.match(orderWxml, /补录核销无现场留存照片/,
+  "supplement detail must keep the onsite evidence slot visibly and immutably empty");
+assert.match(orderWxml, /baseType === 'VERIFICATION' && !isSupplement[\s\S]*class="card rating-card"/,
+  "supplement detail must still omit the customer rating section");
 
 console.log("supplement verification restoration contract: PASS");

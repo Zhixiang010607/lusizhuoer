@@ -565,7 +565,6 @@ Page({
       submissionRecordType: clean(this.data.submissionRecordType).toUpperCase()
     });
     const verification = request.baseType === "VERIFICATION";
-    const supplementRequest = verification && request.category === "SUPPLEMENT";
     this._photoLoadEpoch = Number(this._photoLoadEpoch || 0) + 1;
     this.setData({
       loading: "locked", message: "", error: false,
@@ -579,7 +578,7 @@ Page({
     // is still reading the same record. The result is not rendered until the
     // exact route identity below has been verified, so this removes a serial
     // network round trip without weakening the order or photo boundary.
-    const photoManifestFlight = verification && !supplementRequest && request.recordId
+    const photoManifestFlight = verification && request.recordId
       ? Promise.resolve().then(() => callPhoto("getVerificationPhotos", { recordId: request.recordId }))
         .then((result) => ({ ok: true, result }), (error) => ({ ok: false, error }))
       : null;
@@ -626,7 +625,10 @@ Page({
           this.setData({ message: error.message || "工单详情已读取，但防重复提交锁尚未清除。", error: true });
         }
       }
-      if (verification && !isSupplement) await Promise.all([this.loadPhotos(photoManifestFlight), this.loadRating()]);
+      if (verification) {
+        if (isSupplement) await this.loadPhotos(photoManifestFlight);
+        else await Promise.all([this.loadPhotos(photoManifestFlight), this.loadRating()]);
+      }
     } catch (error) {
       this.setData({ order: null, loading: false, message: error.message || "工单详情读取失败", error: true });
     }
@@ -1089,15 +1091,25 @@ Page({
       fail: reject
     }));
     const source = Number(selection.tapIndex) === 1 ? "camera" : "album";
+    if (source === "album") {
+      const chosen = await wxCall((resolve, reject) => wx.chooseImage({
+        count: 1,
+        sizeType: ["original"],
+        sourceType: ["album"],
+        success: resolve,
+        fail: reject
+      }));
+      const filePath = clean(chosen?.tempFilePaths?.[0] || chosen?.tempFiles?.[0]?.path || chosen?.tempFiles?.[0]?.tempFilePath);
+      return filePath ? { tempFiles: [{ tempFilePath: filePath }] } : { tempFiles: [] };
+    }
     return wxCall((resolve, reject) => wx.chooseMedia({
       count: 1,
       mediaType: ["image"],
-      sourceType: [source],
-      // Album photos must start from WeChat's original temporary file. Some
-      // phones produce an incomplete pre-compressed album file; the page will
-      // perform its own full-frame proportional compression below. Camera
-      // captures keep WeChat's compressed path for the fastest common case.
-      sizeType: [source === "album" ? "original" : "compressed"],
+      sourceType: ["camera"],
+      // Album selection uses the older, focused chooseImage API above because
+      // it has the most stable original-file behavior across iPhone and iPad.
+      // Camera captures keep WeChat's compressed path for the fastest common case.
+      sizeType: ["compressed"],
       success: resolve,
       fail: reject
     }));
