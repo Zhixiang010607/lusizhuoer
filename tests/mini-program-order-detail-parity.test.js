@@ -32,7 +32,7 @@ function loadHelpers(options = {}) {
   assert.ok(js.includes(marker), "order-detail helper injection marker exists");
   const instrumented = js.replace(marker, `
 globalThis.__orderDetailHelpers = {
-  PHOTO_SLOT_COUNT, DETAIL_PHOTO_SLOTS, MAX_EXTRA_SOURCE_PHOTO_BYTES, MAX_EXTRA_UPLOAD_PHOTO_BYTES,
+  PHOTO_SLOT_COUNT, DETAIL_PHOTO_SLOTS, MAX_EXTRA_SOURCE_PHOTO_BYTES, MAX_EXTRA_FAST_PATH_BYTES, MAX_EXTRA_UPLOAD_PHOTO_BYTES,
   MAX_EXTRA_PHOTO_EDGE, imageFormat,
   buildPhotoSlots, normalizePhotoManifest,
   exactOrderKind, routeOrderExpectation, assertExactRouteOrder, detailStatusLabel,
@@ -237,8 +237,9 @@ test("server-read original type controls the exact visible business kind", () =>
   assert.equal(helpers.exactOrderKind("RECHARGE", "REFUND").noun, "退费");
   assert.match(helpers.requestId(4), /^[A-Za-z0-9][A-Za-z0-9_-]{15,63}$/);
   assert.equal(helpers.MAX_EXTRA_SOURCE_PHOTO_BYTES, 7 * 1024 * 1024);
-  assert.equal(helpers.MAX_EXTRA_UPLOAD_PHOTO_BYTES, 768 * 1024);
-  assert.equal(helpers.MAX_EXTRA_PHOTO_EDGE, 1440);
+  assert.equal(helpers.MAX_EXTRA_FAST_PATH_BYTES, 768 * 1024);
+  assert.equal(helpers.MAX_EXTRA_UPLOAD_PHOTO_BYTES, 512 * 1024);
+  assert.equal(helpers.MAX_EXTRA_PHOTO_EDGE, 1024);
   assert.equal(helpers.imageFormat(new Uint8Array([0xff, 0xd8, 0xff, 0xd9])), "jpeg");
   assert.equal(helpers.imageFormat(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])), "png");
   assert.equal(helpers.imageFormat(new Uint8Array([
@@ -258,8 +259,8 @@ test("server-read original type controls the exact visible business kind", () =>
     "every PDF page uses an A4 MediaBox");
 });
 
-test("supplemental photo normalization keeps the full frame and never exceeds three encodes", async () => {
-  const encodedSizes = [900 * 1024, 850 * 1024, 700 * 1024];
+test("supplemental photo normalization keeps the full frame and never exceeds two encodes", async () => {
+  const encodedSizes = [700 * 1024, 480 * 1024];
   const drawCalls = [];
   const { page: definition } = loadHelpers({
     readFile(filePath) {
@@ -274,7 +275,9 @@ test("supplemental photo normalization keeps the full frame and never exceeds th
     width: 0,
     height: 0,
     createImage() {
-      const image = {};
+      // Simulate an iPhone portrait whose pre-decode EXIF dimensions are
+      // landscape. The decoded canvas dimensions must win to avoid clipping.
+      const image = { width: 3000, height: 4000 };
       Object.defineProperty(image, "src", { set() { Promise.resolve().then(() => image.onload()); } });
       return image;
     },
@@ -294,13 +297,34 @@ test("supplemental photo normalization keeps the full frame and never exceeds th
 
   const normalized = await page.normalizeExtraPhoto("/selected.jpg", source.buffer, { width: 4000, height: 3000 });
 
-  assert.equal(encodeCount, 3, "a difficult image uses the bounded three attempts and then stops");
-  assert.equal(normalized.bytes, 700 * 1024);
-  assert.equal(normalized.previewPath, "/encoded-2");
+  assert.equal(encodeCount, 2, "a difficult image uses the bounded two attempts and then stops");
+  assert.equal(normalized.bytes, 480 * 1024);
+  assert.equal(normalized.previewPath, "/encoded-1");
   assert.deepEqual(drawCalls.map((args) => args.slice(1)), [
-    [0, 0, 1440, 1080],
-    [0, 0, 1120, 840]
+    [0, 0, 768, 1024]
   ], "every draw maps the complete image into a proportional destination without a crop rectangle");
+});
+
+test("an already-compressed WeChat JPEG keeps its exact full-frame bytes without canvas work", async () => {
+  const { page: definition } = loadHelpers();
+  const page = pageInstance(definition);
+  page.photoNormalizeCanvasNode = async () => {
+    throw new Error("the fast path must not open the normalization canvas");
+  };
+  const source = new Uint8Array(700 * 1024);
+  source.set([0xff, 0xd8, 0xff], 0);
+
+  const normalized = await page.normalizeExtraPhoto("/wechat-compressed.jpg", source.buffer, {
+    width: 3024,
+    height: 4032
+  });
+
+  assert.equal(normalized.converted, false);
+  assert.equal(normalized.bytes, source.byteLength);
+  assert.equal(normalized.buffer, source.buffer);
+  assert.equal(normalized.previewPath, "/wechat-compressed.jpg");
+  assert.equal(normalized.width, 3024);
+  assert.equal(normalized.height, 4032);
 });
 
 test("a repeated detail read replaces the remote thumbnail with a verified 24-hour local cache", async () => {
@@ -492,8 +516,9 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
     "supplemental photos ask WeChat for a compressed temporary image");
   assert.doesNotMatch(functionSource(js, "uploadExtraPhoto"), /sizeType:\s*\["original"\]/,
     "supplemental photos no longer request the original-sized temporary image");
-  includes(js, "const MAX_EXTRA_UPLOAD_PHOTO_BYTES = 768 * 1024", "supplemental uploads target a sub-megabyte JPEG for fast transfer and server inspection");
-  includes(js, "const MAX_EXTRA_PHOTO_EDGE = 1440", "supplemental uploads retain a practical full-frame long edge");
+  includes(js, "const MAX_EXTRA_UPLOAD_PHOTO_BYTES = 512 * 1024", "supplemental uploads target at most half a MiB for fast transfer and server inspection");
+  includes(js, "const MAX_EXTRA_FAST_PATH_BYTES = 768 * 1024", "already-compressed WeChat JPEGs have a no-reencode fast path");
+  includes(js, "const MAX_EXTRA_PHOTO_EDGE = 1024", "supplemental uploads retain a practical full-frame long edge");
   includes(js, "EXTRA_PHOTO_NORMALIZE_ATTEMPTS", "supplemental photo compression has a named bounded attempt plan");
   assert.equal((functionSource(js, "normalizeExtraPhoto").match(/canvasPhotoJpeg\(/g) || []).length, 1,
     "the bounded loop has one encoder call site instead of a nested nine-encode ladder");
@@ -569,7 +594,10 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
     "the page handler also rejects a replacement while that slot's original is in flight");
   includes(wxml, "canEdit && item.slot >= 2", "server-authorized edit buttons");
   includes(wxml, 'id="photoNormalizeCanvas"', "a dedicated hidden canvas normalizes supplemental source images");
-  includes(wxml, 'mode="aspectFit"', "photo cards show the complete frame instead of cropping it");
+  includes(wxml, 'mode="widthFix"', "photo cards expand to the complete image ratio instead of cropping it");
+  includes(wxml, "photo-frame-ready", "a loaded photo leaves the fixed-height placeholder frame");
+  assert.match(wxss, /\.photo-frame\.photo-frame-ready\s*\{[^}]*height:\s*auto;[^}]*overflow:\s*visible;/s,
+    "loaded photos use their full natural height without clipping");
   assert.doesNotMatch(wxml, /class="photo"[^>]*mode="aspectFill"/,
     "verification photo cards cannot use a crop-to-fill display mode");
   assert.match(wxss, /\.photo-card\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;/s,

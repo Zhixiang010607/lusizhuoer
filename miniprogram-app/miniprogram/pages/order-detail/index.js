@@ -13,12 +13,12 @@ const {
 const PHOTO_SLOT_COUNT = 5;
 const DETAIL_PHOTO_SLOTS = Object.freeze([1, 2, 3, 4]);
 const MAX_EXTRA_SOURCE_PHOTO_BYTES = 7 * 1024 * 1024;
-const MAX_EXTRA_UPLOAD_PHOTO_BYTES = 768 * 1024;
-const MAX_EXTRA_PHOTO_EDGE = 1440;
+const MAX_EXTRA_FAST_PATH_BYTES = 768 * 1024;
+const MAX_EXTRA_UPLOAD_PHOTO_BYTES = 512 * 1024;
+const MAX_EXTRA_PHOTO_EDGE = 1024;
 const EXTRA_PHOTO_NORMALIZE_ATTEMPTS = Object.freeze([
-  Object.freeze({ maxEdge: MAX_EXTRA_PHOTO_EDGE, quality: 0.74 }),
   Object.freeze({ maxEdge: MAX_EXTRA_PHOTO_EDGE, quality: 0.58 }),
-  Object.freeze({ maxEdge: 1120, quality: 0.52 })
+  Object.freeze({ maxEdge: MAX_EXTRA_PHOTO_EDGE, quality: 0.42 })
 ]);
 const ORIGINAL_PHOTO_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const ORIGINAL_PHOTO_CACHE_STORAGE_KEY = "order-original-photo-cache-v1";
@@ -1124,19 +1124,37 @@ Page({
         || sourceWidth < 1 || sourceHeight < 1 || sourceWidth > 10000 || sourceHeight > 10000) {
       throw new Error("补充照片尺寸无效，请重新选择");
     }
-    if (format === "jpeg" && sourceBytes.byteLength <= MAX_EXTRA_UPLOAD_PHOTO_BYTES
-        && Math.max(sourceWidth, sourceHeight) <= MAX_EXTRA_PHOTO_EDGE) {
-      return { buffer: sourceBuffer, bytes: sourceBytes.byteLength, converted: false, previewPath: filePath };
+    // wx.chooseMedia has already created a compressed JPEG. Re-encoding a
+    // reasonably small JPEG costs time and can trigger phone-specific EXIF
+    // behavior, so preserve those exact full-frame bytes as the fast path.
+    if (format === "jpeg" && sourceBytes.byteLength <= MAX_EXTRA_FAST_PATH_BYTES) {
+      return {
+        buffer: sourceBuffer,
+        bytes: sourceBytes.byteLength,
+        converted: false,
+        previewPath: filePath,
+        width: sourceWidth,
+        height: sourceHeight
+      };
     }
 
     const canvas = await this.photoNormalizeCanvasNode();
     const image = await loadCanvasImage(canvas, filePath);
+    // The decoded canvas image is authoritative on iOS/Android because it has
+    // already applied EXIF orientation. Using the pre-decode dimensions here
+    // can swap portrait width/height on some phones and clip an edge.
+    const decodedWidth = Number(image.width || image.naturalWidth || sourceWidth);
+    const decodedHeight = Number(image.height || image.naturalHeight || sourceHeight);
+    if (!Number.isFinite(decodedWidth) || !Number.isFinite(decodedHeight)
+        || decodedWidth < 1 || decodedHeight < 1) {
+      throw new Error("照片解码尺寸无效，请重新选择");
+    }
     let renderedSize = "";
     for (const attempt of EXTRA_PHOTO_NORMALIZE_ATTEMPTS) {
       const maxEdge = Number(attempt.maxEdge);
-      const scale = Math.min(1, maxEdge / Math.max(sourceWidth, sourceHeight));
-      const width = Math.max(1, Math.round(sourceWidth * scale));
-      const height = Math.max(1, Math.round(sourceHeight * scale));
+      const scale = Math.min(1, maxEdge / Math.max(decodedWidth, decodedHeight));
+      const width = Math.max(1, Math.round(decodedWidth * scale));
+      const height = Math.max(1, Math.round(decodedHeight * scale));
       const sizeKey = `${width}x${height}`;
       if (renderedSize !== sizeKey) {
         canvas.width = width;
@@ -1157,7 +1175,9 @@ Page({
           buffer: read.data,
           bytes: bytes.byteLength,
           converted: true,
-          previewPath: output.tempFilePath
+          previewPath: output.tempFilePath,
+          width,
+          height
         };
       }
     }
@@ -1288,17 +1308,27 @@ Page({
     if (!filePath) return;
     const uploadRequestId = requestId(slot);
     const uploadStartedAt = Date.now();
+    const stageStartedAt = { local: uploadStartedAt, authorization: 0, transfer: 0, confirmation: 0 };
+    const stageElapsedMs = { local: 0, authorization: 0, transfer: 0, confirmation: 0 };
     let requestOpened = false;
     let commitUncertain = false;
     this.setData({ uploading: true, uploadingSlot: slot, message: "正在压缩并保存补充照片…", error: false });
     try {
-      const [read, dimensions] = await Promise.all([readFile(filePath), imageInfo(filePath)]);
+      const selectedWidth = Number(file.width || 0);
+      const selectedHeight = Number(file.height || 0);
+      const dimensionsFlight = selectedWidth > 0 && selectedHeight > 0
+        ? Promise.resolve({ width: selectedWidth, height: selectedHeight })
+        : imageInfo(filePath);
+      const [read, dimensions] = await Promise.all([readFile(filePath), dimensionsFlight]);
       const normalized = await this.normalizeExtraPhoto(filePath, read.data, dimensions);
+      stageElapsedMs.local = Date.now() - stageStartedAt.local;
       const buffer = normalized.buffer;
       const bytes = new Uint8Array(buffer);
+      stageStartedAt.authorization = Date.now();
       const begin = await this.callPhotoWithTransportRetry("beginVerificationPhotoUpload", {
         recordId: this.data.order.id, slot, requestId: uploadRequestId, originalBytes: bytes.byteLength
       });
+      stageElapsedMs.authorization = Date.now() - stageStartedAt.authorization;
       requestOpened = !begin.alreadyCommitted;
       if (begin.alreadyCommitted) {
         this.setData({ message: "该补充照片已经保存，正在重新读取照片清单。", error: false });
@@ -1312,11 +1342,15 @@ Page({
       let committed;
       try {
         this.setData({ message: "正在将补充照片直传到私有存储，请勿关闭页面…", error: false });
+        stageStartedAt.transfer = Date.now();
         await this.uploadExtraPhotoDirect(begin.originalUpload, buffer);
+        stageElapsedMs.transfer = Date.now() - stageStartedAt.transfer;
         this.setData({ message: "上传完成，正在校验完整性并绑定工单…", error: false });
+        stageStartedAt.confirmation = Date.now();
         committed = await this.callPhotoWithTransportRetry("commitVerificationPhotoUpload", {
           recordId: this.data.order.id, requestId: uploadRequestId
         });
+        stageElapsedMs.confirmation = Date.now() - stageStartedAt.confirmation;
       } catch (error) {
         commitUncertain = error.submissionUncertain === true;
         let status = null;
@@ -1336,8 +1370,11 @@ Page({
         try {
           await this.applyCommittedExtraPhoto(slot, committed, normalized);
           const elapsedSeconds = Math.max(0.1, (Date.now() - uploadStartedAt) / 1000).toFixed(1);
+          const stageSeconds = ["local", "authorization", "transfer", "confirmation"]
+            .map((name) => (Math.max(0, stageElapsedMs[name]) / 1000).toFixed(1))
+            .join("/");
           this.setData({
-            message: `${PHOTO_LABELS[slot]}已按完整画面保存并显示（${elapsedSeconds} 秒）。`,
+            message: `${PHOTO_LABELS[slot]}已完整保存并显示（${elapsedSeconds} 秒；处理/授权/传输/确认 ${stageSeconds}）。`,
             error: false
           });
         } catch (_) {
