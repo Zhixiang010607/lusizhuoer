@@ -80,6 +80,10 @@ button[disabled] { opacity: .55; }
 }
 
 .attendance-card { min-width: 0; }
+.punch-card { margin-bottom: 18rpx; padding: 18rpx; background: #fff; border: 1rpx solid #eadfce; border-radius: 16rpx; }
+.punch-heading { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; padding-bottom: 10rpx; border-bottom: 1rpx solid #eadfce; }
+.punch-heading text:first-child { color: #74592d; font-size: 25rpx; font-weight: 700; }
+.punch-heading text:last-child { font-size: 22rpx; font-variant-numeric: tabular-nums; }
 .record-detail > view { display: flex; justify-content: space-between; gap: 18rpx; padding: 14rpx 0; border-bottom: 1rpx solid #eadfce; font-size: 24rpx; }
 .record-detail > view text:first-child { color: #7c7062; }
 .attendance-map { width: 100%; height: 420rpx; margin-top: 20rpx; border-radius: 16rpx; overflow: hidden; }
@@ -99,8 +103,19 @@ button[disabled] { opacity: .55; }
 .confirmed-context text { display: block; font-size: 21rpx; line-height: 1.5; }
 .confirmed-context text + text { margin-top: 5rpx; color: #7c7062; }
 .face-submit { margin-top: 14rpx; }
+.work-duration, .next-punch { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin: 16rpx 0; padding: 16rpx 18rpx; background: #f5ead8; border-radius: 13rpx; font-size: 23rpx; }
+.work-duration text:last-child, .next-punch text:last-child { color: #74592d; font-weight: 700; }
+.permission-actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10rpx; }
+.permission-actions .location-button { margin-top: 0; }
+.permission-help { display: block; margin-top: 12rpx; padding: 16rpx 18rpx; color: #6e5e4b; background: #fff8eb; border: 1rpx solid #dfcfb4; border-radius: 13rpx; font-size: 21rpx; line-height: 1.55; }
+.permission-help text { display: block; }
+.permission-help text + text { margin-top: 8rpx; }
 
 @media (min-width: 700px) {
+  .punch-card { margin-bottom: 14px; padding: 15px; border-width: 1px; border-radius: 12px; }
+  .punch-heading { gap: 12px; padding-bottom: 9px; border-width: 1px; }
+  .punch-heading text:first-child { font-size: 15px; }
+  .punch-heading text:last-child { font-size: 13px; }
   .attendance-map { height: 320px; margin-top: 16px; border-radius: 12px; }
   .record-detail > view { gap: 12px; padding: 11px 0; border-width: 1px; font-size: 14px; }
   .location-button { min-height: 44px; margin-top: 12px; border-width: 1px; border-radius: 10px; font-size: 14px; }
@@ -117,4 +132,8 @@ button[disabled] { opacity: .55; }
   .confirmed-context text { font-size: 13px; }
   .confirmed-context text + text { margin-top: 4px; }
   .face-submit { margin-top: 10px; }
+  .work-duration, .next-punch { gap: 12px; margin: 12px 0; padding: 12px 14px; border-radius: 10px; font-size: 14px; }
+  .permission-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .permission-help { margin-top: 9px; padding: 12px 14px; border-width: 1px; border-radius: 10px; font-size: 13px; }
+  .permission-help text + text { margin-top: 6px; }
 }

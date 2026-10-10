@@ -5,7 +5,7 @@ const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v123";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v124";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -6019,14 +6019,20 @@ async function requireTeacherAttendanceSchema() {
             EXISTS (
               SELECT 1 FROM pg_trigger
                WHERE tgrelid = TO_REGCLASS('public.teacher_attendance_records')
-                 AND tgname = 'trg_teacher_attendance_insert_v75'
+                 AND tgname = 'trg_teacher_attendance_insert_v78'
                  AND NOT tgisinternal
-            ) AS attendance_trigger`
+            ) AS attendance_trigger,
+            EXISTS (
+              SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public'
+                 AND table_name = 'teacher_attendance_records'
+                 AND column_name = 'attendance_type'
+            ) AS attendance_type_ready`
   );
   const row = rows?.[0] || {};
   if (!databaseBoolean(row.profile_table) || !databaseBoolean(row.attendance_table)
-      || !databaseBoolean(row.attendance_trigger)) {
-    fail("老师考勤数据库结构尚未启用，请先执行并验收迁移 075。", "ATTENDANCE_SCHEMA_MISSING");
+      || !databaseBoolean(row.attendance_trigger) || !databaseBoolean(row.attendance_type_ready)) {
+    fail("老师上下班考勤数据库结构尚未启用，请先执行并验收迁移 078。", "ATTENDANCE_SCHEMA_MISSING");
   }
   teacherAttendanceSchemaReady = true;
 }
@@ -6050,11 +6056,18 @@ function attendanceRequestId(value) {
   return requestId;
 }
 
+function attendanceType(value) {
+  const type = String(value || "CLOCK_IN").trim().toUpperCase();
+  if (!['CLOCK_IN', 'CLOCK_OUT'].includes(type)) fail("打卡类型无效。", "BAD_REQUEST");
+  return type;
+}
+
 function attendanceRecord(row = {}) {
   if (!row.id) return null;
   return {
     id: String(row.id),
     attendanceDate: String(row.attendance_date || "").slice(0, 10),
+    attendanceType: String(row.attendance_type || "CLOCK_IN"),
     checkedInAt: row.checked_in_at || null,
     latitude: Number(row.latitude),
     longitude: Number(row.longitude),
@@ -6070,14 +6083,28 @@ async function clockInTeacherAttendance(event) {
   await requireTeacherAttendanceSchema();
   const staffId = Number(caller.staffId);
   const teacherId = Number(caller.teacherId);
+  const type = attendanceType(event.attendanceType);
   const clientRequestId = attendanceRequestId(event.clientRequestId);
   const existingRows = await executeSql(
     `SELECT * FROM public.teacher_attendance_records
       WHERE staff_account_id = ${staffId}::bigint
         AND attendance_date = (CLOCK_TIMESTAMP() AT TIME ZONE 'Asia/Shanghai')::date
+        AND attendance_type = ${sqlText(type)}
       LIMIT 1`
   );
   if (existingRows[0]) return { ok: true, idempotentReplay: true, attendance: attendanceRecord(existingRows[0]) };
+
+  if (type === "CLOCK_OUT") {
+    const clockInRows = await executeSql(
+      `SELECT id FROM public.teacher_attendance_records
+        WHERE teacher_id = ${teacherId}::bigint
+          AND staff_account_id = ${staffId}::bigint
+          AND attendance_date = (CLOCK_TIMESTAMP() AT TIME ZONE 'Asia/Shanghai')::date
+          AND attendance_type = 'CLOCK_IN'
+        LIMIT 1`
+    );
+    if (!clockInRows[0]) fail("请先完成今天的上班打卡，再进行下班打卡。", "ATTENDANCE_CLOCK_IN_REQUIRED");
+  }
 
   const profileRows = await executeSql(
     `SELECT face_person_id FROM public.teacher_attendance_face_profiles
@@ -6109,18 +6136,19 @@ async function clockInTeacherAttendance(event) {
   const rows = await executeSql(
     `WITH inserted AS (
        INSERT INTO public.teacher_attendance_records
-         (teacher_id, staff_account_id, attendance_date, latitude, longitude,
+         (teacher_id, staff_account_id, attendance_date, attendance_type, latitude, longitude,
           accuracy_m, face_score, face_request_id, quality_score, liveness_score,
           client_request_id, device_platform)
        VALUES
          (${teacherId}::bigint, ${staffId}::bigint,
           (CLOCK_TIMESTAMP() AT TIME ZONE 'Asia/Shanghai')::date,
+          ${sqlText(type)},
           ${latitude}::numeric, ${longitude}::numeric, ${accuracy}::numeric,
           ${rounded(score)}::numeric, ${sqlText(result?.RequestId || "")},
           ${Number(quality.qualityScore || 0)}::numeric,
           ${liveness.score === null ? "NULL" : `${Number(liveness.score)}::numeric`},
           ${sqlText(clientRequestId)}, ${sqlText(platform)})
-       ON CONFLICT (staff_account_id, attendance_date) DO NOTHING
+       ON CONFLICT (staff_account_id, attendance_date, attendance_type) DO NOTHING
        RETURNING *
      )
      SELECT * FROM inserted
@@ -6128,6 +6156,7 @@ async function clockInTeacherAttendance(event) {
      SELECT * FROM public.teacher_attendance_records
       WHERE staff_account_id = ${staffId}::bigint
         AND attendance_date = (CLOCK_TIMESTAMP() AT TIME ZONE 'Asia/Shanghai')::date
+        AND attendance_type = ${sqlText(type)}
         AND NOT EXISTS (SELECT 1 FROM inserted)
      LIMIT 1`
   );

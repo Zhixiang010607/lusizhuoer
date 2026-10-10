@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v85";
+const FUNCTION_VERSION = "v86";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -1823,12 +1823,18 @@ async function requireTeacherAttendanceSchema() {
   const rows = await executeSql(
     `SELECT TO_REGCLASS('public.teacher_attendance_face_profiles') IS NOT NULL AS profile_table,
             TO_REGCLASS('public.teacher_attendance_records') IS NOT NULL AS attendance_table,
-            TO_REGCLASS('public.idx_teacher_attendance_records_date_teacher') IS NOT NULL AS attendance_index`
+            TO_REGCLASS('public.idx_teacher_attendance_records_date_type_teacher') IS NOT NULL AS attendance_index,
+            EXISTS (
+              SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public'
+                 AND table_name = 'teacher_attendance_records'
+                 AND column_name = 'attendance_type'
+            ) AS attendance_type_ready`
   );
   const row = rows?.[0] || {};
   if (!databaseBoolean(row.profile_table) || !databaseBoolean(row.attendance_table)
-      || !databaseBoolean(row.attendance_index)) {
-    fail("老师考勤数据库结构尚未启用，请先执行并验收迁移 075。", "ATTENDANCE_SCHEMA_MISSING");
+      || !databaseBoolean(row.attendance_index) || !databaseBoolean(row.attendance_type_ready)) {
+    fail("老师上下班考勤数据库结构尚未启用，请先执行并验收迁移 078。", "ATTENDANCE_SCHEMA_MISSING");
   }
   teacherAttendanceSchemaReady = true;
 }
@@ -1844,6 +1850,7 @@ function attendanceResponse(row = {}) {
   return {
     id: String(row.attendance_id || row.id),
     attendanceDate: String(row.attendance_date || "").slice(0, 10),
+    attendanceType: String(row.attendance_type || "CLOCK_IN"),
     checkedInAt: row.checked_in_at || null,
     latitude: Number(row.latitude),
     longitude: Number(row.longitude),
@@ -1866,14 +1873,15 @@ async function getOwnAttendanceMonth(caller, event = {}) {
      )
      SELECT context.server_today, context.face_enrolled,
             attendance.id AS attendance_id, attendance.attendance_date,
-            attendance.checked_in_at, attendance.latitude, attendance.longitude,
+            attendance.attendance_type, attendance.checked_in_at, attendance.latitude, attendance.longitude,
             attendance.accuracy_m, attendance.face_score, attendance.device_platform
        FROM context
        LEFT JOIN public.teacher_attendance_records AS attendance
          ON attendance.staff_account_id = ${staffId}::bigint
         AND attendance.attendance_date >= ${sqlText(`${month}-01`)}::date
         AND attendance.attendance_date < (${sqlText(`${month}-01`)}::date + INTERVAL '1 month')
-      ORDER BY attendance.attendance_date ASC`
+      ORDER BY attendance.attendance_date ASC,
+               CASE attendance.attendance_type WHEN 'CLOCK_IN' THEN 1 ELSE 2 END ASC`
   );
   return {
     ok: true,
@@ -1904,23 +1912,55 @@ async function getHqAttendanceTrackingDay(caller, event = {}) {
           AND account.account_status = 'ACTIVE'
      )
      SELECT context.server_today, roster.*,
-            attendance.id AS attendance_id, attendance.attendance_date,
-            attendance.checked_in_at, attendance.latitude, attendance.longitude,
-            attendance.accuracy_m, attendance.face_score, attendance.device_platform
+            clock_in.id AS clock_in_id, clock_in.attendance_date AS clock_in_attendance_date,
+            clock_in.attendance_type AS clock_in_attendance_type,
+            clock_in.checked_in_at AS clock_in_checked_in_at,
+            clock_in.latitude AS clock_in_latitude, clock_in.longitude AS clock_in_longitude,
+            clock_in.accuracy_m AS clock_in_accuracy_m, clock_in.face_score AS clock_in_face_score,
+            clock_in.device_platform AS clock_in_device_platform,
+            clock_out.id AS clock_out_id, clock_out.attendance_date AS clock_out_attendance_date,
+            clock_out.attendance_type AS clock_out_attendance_type,
+            clock_out.checked_in_at AS clock_out_checked_in_at,
+            clock_out.latitude AS clock_out_latitude, clock_out.longitude AS clock_out_longitude,
+            clock_out.accuracy_m AS clock_out_accuracy_m, clock_out.face_score AS clock_out_face_score,
+            clock_out.device_platform AS clock_out_device_platform,
+            CASE WHEN clock_in.id IS NOT NULL AND clock_out.id IS NOT NULL
+                 THEN FLOOR(EXTRACT(EPOCH FROM (clock_out.checked_in_at - clock_in.checked_in_at)))::bigint
+                 ELSE NULL END AS work_duration_seconds
        FROM context
        LEFT JOIN roster ON TRUE
-       LEFT JOIN public.teacher_attendance_records AS attendance
-         ON attendance.staff_account_id = roster.staff_account_id
-        AND attendance.attendance_date = ${sqlText(attendanceDate)}::date
-      ORDER BY (attendance.id IS NULL) ASC, roster.teacher_name ASC, roster.teacher_id ASC`
+       LEFT JOIN public.teacher_attendance_records AS clock_in
+         ON clock_in.staff_account_id = roster.staff_account_id
+        AND clock_in.attendance_date = ${sqlText(attendanceDate)}::date
+        AND clock_in.attendance_type = 'CLOCK_IN'
+       LEFT JOIN public.teacher_attendance_records AS clock_out
+         ON clock_out.staff_account_id = roster.staff_account_id
+        AND clock_out.attendance_date = ${sqlText(attendanceDate)}::date
+        AND clock_out.attendance_type = 'CLOCK_OUT'
+      ORDER BY (clock_in.id IS NULL) ASC, roster.teacher_name ASC, roster.teacher_id ASC`
   );
   const serverToday = String(rows?.[0]?.server_today || "").slice(0, 10);
   if (serverToday && attendanceDate > serverToday) fail("未来日期尚未到达，不能追踪考勤。", "ATTENDANCE_FUTURE_DATE");
   const teachers = (rows || []).filter((row) => row.teacher_id).map((row) => ({
     teacherId: String(row.teacher_id), teacherCode: String(row.teacher_code || ""),
     teacherName: String(row.teacher_name || ""), phone: String(row.phone || ""),
-    faceEnrolled: databaseBoolean(row.face_enrolled), completed: Boolean(row.attendance_id),
-    attendance: attendanceResponse(row)
+    faceEnrolled: databaseBoolean(row.face_enrolled), completed: Boolean(row.clock_in_id),
+    clockIn: attendanceResponse({
+      attendance_id: row.clock_in_id, attendance_date: row.clock_in_attendance_date,
+      attendance_type: row.clock_in_attendance_type, checked_in_at: row.clock_in_checked_in_at,
+      latitude: row.clock_in_latitude, longitude: row.clock_in_longitude,
+      accuracy_m: row.clock_in_accuracy_m, face_score: row.clock_in_face_score,
+      device_platform: row.clock_in_device_platform
+    }),
+    clockOut: attendanceResponse({
+      attendance_id: row.clock_out_id, attendance_date: row.clock_out_attendance_date,
+      attendance_type: row.clock_out_attendance_type, checked_in_at: row.clock_out_checked_in_at,
+      latitude: row.clock_out_latitude, longitude: row.clock_out_longitude,
+      accuracy_m: row.clock_out_accuracy_m, face_score: row.clock_out_face_score,
+      device_platform: row.clock_out_device_platform
+    }),
+    workDurationSeconds: row.work_duration_seconds === null || row.work_duration_seconds === undefined
+      ? null : Math.max(0, Number(row.work_duration_seconds))
   }));
   return { ok: true, attendanceDate, serverToday,
     completed: teachers.filter((row) => row.completed),
