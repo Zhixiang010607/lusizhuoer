@@ -15,6 +15,7 @@
     { "root": "pages/daily-report", "pages": ["index"] },
     { "root": "pages/daily-report-tracking", "pages": ["index"] },
     { "root": "pages/attendance", "pages": ["index"] },
+    { "root": "pages/work-calendar", "pages": ["index"] },
     { "root": "pages/attendance-tracking", "pages": ["index"] },
     { "root": "pages/product-management", "pages": ["index"] },
     { "root": "pages/product-create", "pages": ["index"] },

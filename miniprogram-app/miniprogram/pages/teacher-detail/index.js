@@ -130,13 +130,20 @@ function monthTitle(month) {
   const [year, number] = String(month).split("-");
   return `${year}年${Number(number)}月`;
 }
+function monthNavigationState(month, maximum = shanghaiMonth()) {
+  return {
+    canNextWorkMonth: shiftMonth(month, 1) <= maximum,
+    canNextWorkYear: shiftMonth(month, 12) <= maximum,
+    workMonthPickerEnd: maximum
+  };
+}
 function durationText(seconds) {
   if (!Number.isFinite(seconds) || seconds < 0) return "尚未形成完整工时";
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   return `${hours} 小时 ${minutes} 分钟`;
 }
-function calendarCells(month, serverToday, attendance, reports) {
+function calendarCells(month, serverToday, employmentStartDate, attendance, reports) {
   const [year, number] = String(month).split("-").map(Number);
   const first = new Date(Date.UTC(year, number - 1, 1));
   const mondayOffset = (first.getUTCDay() + 6) % 7;
@@ -157,16 +164,17 @@ function calendarCells(month, serverToday, attendance, reports) {
     }
     const date = `${month}-${String(day).padStart(2, "0")}`;
     const future = Boolean(serverToday && date > serverToday);
+    const notEmployed = Boolean(employmentStartDate && date < employmentStartDate);
     const dayAttendance = attendanceByDate.get(date) || {};
     const report = reportByDate.get(date) || null;
     cells.push({
-      key: date, date, day, blank: false, future,
+      key: date, date, day, blank: false, future, notEmployed,
       clockIn: dayAttendance.CLOCK_IN || null,
       clockOut: dayAttendance.CLOCK_OUT || null,
       report,
-      clockInState: dayAttendance.CLOCK_IN ? "done" : future ? "future" : "missing",
-      clockOutState: dayAttendance.CLOCK_OUT ? "done" : future ? "future" : "missing",
-      reportState: report ? "done" : future ? "future" : "missing"
+      clockInState: dayAttendance.CLOCK_IN ? "done" : notEmployed ? "not-employed" : future ? "future" : "missing",
+      clockOutState: dayAttendance.CLOCK_OUT ? "done" : notEmployed ? "not-employed" : future ? "future" : "missing",
+      reportState: report ? "done" : notEmployed ? "not-employed" : future ? "future" : "missing"
     });
   }
   return cells;
@@ -181,6 +189,7 @@ function selectedWorkDay(cell) {
   return {
     date: cell.date,
     future: cell.future,
+    notEmployed: cell.notEmployed,
     clockIn: clockIn ? { ...clockIn, timeText: formatTime(clockIn.checkedInAt) } : null,
     clockOut: clockOut ? { ...clockOut, timeText: formatTime(clockOut.checkedInAt) } : null,
     workDurationText: durationText(duration),
@@ -196,8 +205,10 @@ Page({
     rechargeProducts: [], rechargeLabels: [], rechargeIndex: 0, rechargeProductId: "", rechargeCount: "", rechargeNote: "", rechargePending: false,
     overview: { available: 0, used: 0, lifetime: 0, activeProducts: 0 }, newPassword: "", newPasswordVisible: false,
     activeSection: "basic", workMode: "attendance", workMonth: shanghaiMonth(), workMonthTitle: monthTitle(shanghaiMonth()),
+    ...monthNavigationState(shanghaiMonth()), employmentStartDate: "",
     weekdays: ["一", "二", "三", "四", "五", "六", "日"], calendarDays: [], selectedWorkDate: "", selectedWorkDay: null,
-    workLoading: false, workLoadedMonth: "", serverToday: "", faceCaptureReady: false, faceConsent: false
+    workLoading: false, workLoadedMonth: "", serverToday: "", faceCaptureReady: false, faceConsent: false,
+    faceResultToast: "", faceResultToastError: false
   },
   onLoad(options) {
     if (!requireSession(["hq"])) return;
@@ -209,6 +220,7 @@ Page({
   },
   onUnload() {
     this._unloaded = true;
+    if (this._faceResultToastTimer) clearTimeout(this._faceResultToastTimer);
     REQUEST_EPOCH_KEYS.forEach((key) => bump(this, key));
   },
   onPullDownRefresh() { this.load().finally(() => wx.stopPullDownRefresh()); },
@@ -309,7 +321,9 @@ Page({
     try {
       const result = await callStaff("getHqTeacherWorkMonth", Object.freeze({ teacherId, month }));
       if (!current(this, "_workRequestEpoch", epoch)) return false;
-      const days = calendarCells(month, text(result.serverToday), result.attendance, result.reports);
+      const employmentStartDate = text(result.teacher?.employmentStartDate);
+      const maximum = text(result.serverToday).slice(0, 7) || shanghaiMonth();
+      const days = calendarCells(month, text(result.serverToday), employmentStartDate, result.attendance, result.reports);
       const preferredDate = this.data.selectedWorkDate.startsWith(`${month}-`)
         ? this.data.selectedWorkDate
         : text(result.serverToday).startsWith(`${month}-`) ? text(result.serverToday) : `${month}-01`;
@@ -320,7 +334,9 @@ Page({
         selectedWorkDay: selectedWorkDay(selected),
         workLoadedMonth: month,
         serverToday: text(result.serverToday),
-        workMonthTitle: monthTitle(month)
+        employmentStartDate,
+        workMonthTitle: monthTitle(month),
+        ...monthNavigationState(month, maximum)
       });
       return true;
     } catch (error) {
@@ -335,7 +351,15 @@ Page({
   changeWorkMonth(event) {
     if (this.data.workLoading) return;
     const workMonth = shiftMonth(this.data.workMonth, Number(event.currentTarget.dataset.delta || 0));
-    this.setData({ workMonth, workMonthTitle: monthTitle(workMonth), selectedWorkDate: "", selectedWorkDay: null });
+    if (workMonth > this.data.workMonthPickerEnd) return;
+    this.setData({ workMonth, workMonthTitle: monthTitle(workMonth), selectedWorkDate: "", selectedWorkDay: null, ...monthNavigationState(workMonth, this.data.workMonthPickerEnd) });
+    this.loadWorkMonth({ month: workMonth });
+  },
+  chooseWorkMonth(event) {
+    if (this.data.workLoading) return;
+    const workMonth = text(event.detail?.value).slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(workMonth) || workMonth > this.data.workMonthPickerEnd) return;
+    this.setData({ workMonth, workMonthTitle: monthTitle(workMonth), selectedWorkDate: "", selectedWorkDay: null, ...monthNavigationState(workMonth, this.data.workMonthPickerEnd) });
     this.loadWorkMonth({ month: workMonth });
   },
   selectWorkDate(event) {
@@ -356,6 +380,13 @@ Page({
   },
   faceCaptureChange(event) { this.setData({ faceCaptureReady: Boolean(event.detail?.ready) }); },
   faceConsentChange(event) { this.setData({ faceConsent: (event.detail.value || []).includes("consent") }); },
+  showFaceResultToast(message, error = false) {
+    if (this._faceResultToastTimer) clearTimeout(this._faceResultToastTimer);
+    this.setData({ faceResultToast: message, faceResultToastError: error });
+    this._faceResultToastTimer = setTimeout(() => {
+      if (!this._unloaded) this.setData({ faceResultToast: "", faceResultToastError: false });
+    }, error ? 4200 : 2800);
+  },
   async replaceAttendanceFace() {
     if (this.data.mutating || this.data.profile.archived || !this.data.faceConsent || !this.data.faceCaptureReady) return;
     const capture = this.selectComponent("#attendance-face-capture")?.getCapture();
@@ -378,12 +409,16 @@ Page({
         message: result.cleanupPending ? "新考勤人脸已生效；旧外部档案正在等待清理。" : "考勤人脸已重新录入，历史打卡不受影响。",
         error: false
       });
+      this.showFaceResultToast("重新扫脸成功，新的考勤人脸已生效");
       if (this.data.workLoadedMonth) this.loadWorkMonth();
     } catch (error) {
-      if (current(this, "_mutationRequestEpoch", epoch)) this.setData({
+      if (current(this, "_mutationRequestEpoch", epoch)) {
+        this.showFaceResultToast(error.message || "重新扫脸失败，原人脸档案未改变", true);
+        this.setData({
         message: `${error.message || "考勤人脸替换失败，原档案保持不变"}。再次提交会沿用同一请求编号核对结果，不会重复建档。`,
         error: true
-      });
+        });
+      }
     } finally {
       if (current(this, "_mutationRequestEpoch", epoch)) this.setData({ mutating: "" });
     }

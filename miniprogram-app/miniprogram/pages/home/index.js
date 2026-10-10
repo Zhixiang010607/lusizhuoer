@@ -580,12 +580,12 @@ Page({
   openDailyReport() {
     if (this.data.session.role !== "teacher") return;
     this.closeMenus();
-    wx.navigateTo({ url: "/pages/daily-report/index" });
+    wx.navigateTo({ url: "/pages/work-calendar/index?mode=report" });
   },
   openAttendance() {
     if (this.data.session.role !== "teacher") return;
     this.closeMenus();
-    wx.navigateTo({ url: "/pages/attendance/index" });
+    wx.navigateTo({ url: "/pages/work-calendar/index?mode=attendance" });
   },
   toggleBusinessMenu() { this.closeMenus({ businessMenuOpen: !this.data.businessMenuOpen }); },
   toggleQueryMenu() { this.closeMenus({ queryMenuOpen: !this.data.queryMenuOpen }); },

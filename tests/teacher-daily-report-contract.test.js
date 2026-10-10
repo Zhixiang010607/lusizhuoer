@@ -24,6 +24,8 @@ const miniHomeClient = read("miniprogram-app/miniprogram/pages/home/index.js");
 const miniPage = read("miniprogram-app/miniprogram/pages/daily-report/index.wxml");
 const miniClient = read("miniprogram-app/miniprogram/pages/daily-report/index.js");
 const miniCss = read("miniprogram-app/miniprogram/pages/daily-report/index.wxss");
+const miniWorkCalendar = read("miniprogram-app/miniprogram/pages/work-calendar/index.wxml");
+const miniWorkCalendarClient = read("miniprogram-app/miniprogram/pages/work-calendar/index.js");
 const context = read("PROJECT_CONTEXT.md");
 
 test("migration 073 makes teacher daily reports unique, today-only and immutable", () => {
@@ -56,9 +58,9 @@ test("migration 077 requires all four fields without rewriting historical report
   assert.match(requiredVerifySql, /daily_report_all_fields_trigger/);
 });
 
-test("staffAccount v89 derives the teacher identity from the authenticated profile", () => {
-  assert.match(cloud, /const FUNCTION_VERSION = "v89"/);
-  assert.match(cloudReadme, /当前版本：`v89`/);
+test("staffAccount v90 derives the teacher identity from the authenticated profile", () => {
+  assert.match(cloud, /const FUNCTION_VERSION = "v90"/);
+  assert.match(cloudReadme, /当前版本：`v90`/);
   assert.match(cloud, /function requireDailyReportTeacher\(caller\)/);
   assert.match(cloud, /caller\.profile\?\.role !== "teacher"/);
   assert.match(cloud, /caller\.profile\?\.teacherStatus !== "ACTIVE"/);
@@ -90,7 +92,10 @@ test("only the teacher workspaces expose the calendar and today editor", () => {
   assert.match(client, /state\.selectedDate !== state\.serverToday/);
   assert.match(miniApp, /pages\/daily-report/);
   assert.match(miniHome, /bindtap="openDailyReport">工作日报/);
-  assert.match(miniHomeClient, /session\.role !== "teacher"[\s\S]{0,180}\/pages\/daily-report\/index/);
+  assert.match(miniHomeClient, /session\.role !== "teacher"[\s\S]{0,180}\/pages\/work-calendar\/index\?mode=report/);
+  assert.match(miniWorkCalendar, /日报月历/);
+  assert.match(miniWorkCalendar, /填写今日日报/);
+  assert.match(miniWorkCalendarClient, /\/pages\/daily-report\/index/);
   assert.match(miniPage, /<date-selector[^>]*value="\{\{pendingDate\}\}"/);
   assert.match(miniPage, /class="confirm-button"[^>]*bindtap="confirmDate"/);
   assert.match(miniPage, /data-field="completedWork"/);

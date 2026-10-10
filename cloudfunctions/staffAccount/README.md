@@ -1,12 +1,12 @@
 # staffAccount 云函数
 
-当前版本：`v89`
+当前版本：`v90`
 
-当前联动部署矩阵：`staffAccount v89`、`faceRecognition v126`、
+当前联动部署矩阵：`staffAccount v90`、`faceRecognition v126`、
 `verificationPhoto v12`、`teacherCreate v9`、`customerRating v8`。迁移 075—082
 验收通过后再部署当前版本；下文较旧版本号属于历史说明。
 
-`v89` 新增总部老师主页的个人月历只读接口：一次返回指定老师单月的上／下班考勤与四栏日报，允许查看封存老师既有历史，但不改变原有仅追踪活跃老师的按日总表。`v88` 在迁移 081 之后把考勤记录中服务端保存的附近地点和具体地址返回给老师本人
+`v90` 修正老师个人月历的考勤日期映射，并把总部按日追踪明确拆为“完整打卡／仅上班打卡／仅下班打卡／未打卡”四组；只有上下班两笔齐全才返回工作时长。它同时返回老师入职日期，并新增仅供当前在职老师读取本人单月考勤与四栏日报的合并只读接口，供小程序内两个独立月历复用。所有本人范围都从认证会话派生，客户端不能指定老师；正常／体验／补录核销及设备交互路径不变。`v89` 新增总部老师主页的个人月历只读接口：一次返回指定老师单月的上／下班考勤与四栏日报，允许查看封存老师既有历史。`v88` 在迁移 081 之后把考勤记录中服务端保存的附近地点和具体地址返回给老师本人
 与总部打卡详情。旧记录没有地址时继续显示经纬度和地图，不虚构文字地址；地址不
 参与权限、人脸或上下班顺序判断。`v87` 把迁移 079 审核通过的补录核销纳入与正常核销相同的老师归属、客户关系、
 总部统计和查询口径，并继续由现有 `reviewOrder` 事务完成通过／驳回；待审补录只
@@ -16,7 +16,7 @@
 
 ## 登录与会话边界
 
-`staffAccount v89` 同时支持现有手机号＋密码登录和微信小程序手机号快捷登录。两种方式必须在 CloudBase 身份源中关联到同一个已有 Auth 用户和同一 UID；业务角色、账号状态和门店范围仍只从该 UID 对应的 PostgreSQL `staff_accounts` 回读。总部老师维度统计只认来源与业务类型都符合矩阵的 `teacher_id`：门店来源限充值、退费、正常核销和审核通过的补录核销，老师来源限该提交账号本人办理的充值、退费、正常核销、审核通过的补录核销和体验核销。历史总部、退役角色、老师错绑或门店体验仍保留在总量、门店和项目统计中，但不会产生老师归属；排名将这些有效事实单独汇总为“未指定老师”，不会计到任何真实老师名下。总部审核与门店精确工单读取采用相同口径；其他历史工单保留但显示“未指定”。
+`staffAccount v90` 同时支持现有手机号＋密码登录和微信小程序手机号快捷登录。两种方式必须在 CloudBase 身份源中关联到同一个已有 Auth 用户和同一 UID；业务角色、账号状态和门店范围仍只从该 UID 对应的 PostgreSQL `staff_accounts` 回读。总部老师维度统计只认来源与业务类型都符合矩阵的 `teacher_id`：门店来源限充值、退费、正常核销和审核通过的补录核销，老师来源限该提交账号本人办理的充值、退费、正常核销、审核通过的补录核销和体验核销。历史总部、退役角色、老师错绑或门店体验仍保留在总量、门店和项目统计中，但不会产生老师归属；排名将这些有效事实单独汇总为“未指定老师”，不会计到任何真实老师名下。总部审核与门店精确工单读取采用相同口径；其他历史工单保留但显示“未指定”。
 
 小程序快捷登录流程为：
 
@@ -38,7 +38,7 @@
 老师只能通过独立 `teacherCreate v9` 创建。创建需要姓名、手机号、初始密码、
 老师明确同意以及当场拍摄的正面照片；照片只用于建立考勤专用 1:1 人脸档案，
 不参与登录、激活、客户业务、正常核销或体验核销。总部老师主页可调用 `teacherCreate v9`
-现场原子替换考勤专用人脸；门店和老师本人无权调用。`staffAccount v89` 已彻底移除旧的业务老师人脸
+现场原子替换考勤专用人脸；门店和老师本人无权调用。`staffAccount v90` 已彻底移除旧的业务老师人脸
 Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_operations`：
 
 - `beginTeacherProvisionWithFace`
@@ -52,7 +52,7 @@ Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_oper
 
 迁移 051／052 的旧表、函数和历史记录不再是本函数的运行依赖。旧 Saga 的退役
 已由迁移 053 完成；该迁移会物理删除旧操作表与六个私有函数，不影响老师及
-业务历史。当前联动版本为 `staffAccount v89`／`faceRecognition v126`／
+业务历史。当前联动版本为 `staffAccount v90`／`faceRecognition v126`／
 `teacherCreate v9`。
 
 ## 保留能力
@@ -68,6 +68,8 @@ Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_oper
 - `resetTeacherExperienceQuotas()`：总部手动补跑月度重置。
 - `getOwnDailyReportMonth`／`getOwnDailyReport`／`saveOwnDailyReport`：仅在职老师按当前 UID 绑定的老师账号读取本人日报；只有上海时间当天可保存，四栏全部必填且每栏最多 200 字，整份日报通过一个确认动作提交，历史只读且不能删除。总部、门店和客户端传入的人员编号均不能扩大范围。
 - `getHqDailyReportTrackingDay`／`getHqDailyReportDetail`：仅总部按日期只读查看当前全部在职老师的完成名单和日报详情；老师主档或账号任一已封存就从名单中排除，且不能凭日报编号绕过状态限制读取详情。接口不接受客户端传入的老师范围，不提供总部代填、修改或删除动作。门店和老师不能调用总部追踪动作。
+- `getOwnTeacherWorkMonth({ month })`：仅当前在职老师读取本人指定月份的上／下班考勤和四栏日报；老师与员工编号只取认证会话，不能从客户端扩大范围。它只负责月历查询，不代替现有打卡、人脸验证或日报保存动作。
+- `getHqAttendanceTrackingDay({ attendanceDate })`：仅总部按日期把当前在职老师拆成完整打卡、仅上班、仅下班和未打卡四组。只有完整打卡返回工作时长；任一缺失记录都不得伪造时间、详情或工时。
 
 老师状态与额度依赖既有 046、048、049、050 数据库能力。目录与历史额度仍可查询。
 老师赠送体验核销时，服务端按登录账号绑定老师额度，并只核验和保存所选客户的人脸。
@@ -123,7 +125,7 @@ Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_oper
 
 ## 部署与验收
 
-上传包文件名必须为 `staffAccount-v89.zip`。ZIP 根目录直接包含：
+上传包文件名必须为 `staffAccount-v90.zip`。ZIP 根目录直接包含：
 
 ```text
 index.js
@@ -131,23 +133,23 @@ package.json
 README.md
 ```
 
-不得在 ZIP 中再套 `staffAccount/` 目录。平台按根目录 `package.json` 安装依赖；交付前必须回读 ZIP 根目录的 `README.md`，确认其显示当前版本 `v89`，并确认 ZIP 内 `index.js` 的运行时版本同样为 `v89`。
+不得在 ZIP 中再套 `staffAccount/` 目录。平台按根目录 `package.json` 安装依赖；交付前必须回读 ZIP 根目录的 `README.md`，确认其显示当前版本 `v90`，并确认 ZIP 内 `index.js` 的运行时版本同样为 `v90`。
 
 生产切换顺序：
 
 1. 在 CloudBase 身份源中配置类型 `WX_MICRO_APP` 并绑定正确小程序 AppID；设置 `On=TRUE`、`AutoSignInWhenPhoneNumberMatch=TRUE`、`TransparentMode=FALSE`、`ReuseUserId=FALSE`，同时保留现有手机号＋密码登录方式。全托管持久身份模式可能固定回显 `AutoSignUpWithProviderUser=TRUE`；这只建立 Auth 身份，业务会话仍只认既有 UID 映射，未绑定身份必须拒绝。
-2. 依次执行并验收迁移 060—082；迁移 073—082 的只读检查必须全部 `READY`。再打包并上传 `staffAccount-v89.zip`，使用 Node.js 20，配置上述环境变量，并将安全规则限制为已登录且非匿名用户。v81 的精确充值工单详情和统一产品查询继续读取 061 中不可变的赠品明细，并通过 062 的独立函数审核产品购买单。
-3. 客户评价作为独立同轮服务部署：执行并验收 068 与 070，配置至少 32 字节的 `CUSTOMER_RATING_SIGNING_KEY` 及实际 `rating.html` 地址 `CUSTOMER_RATING_BASE_URL`，上传 `customerRating-v8.zip` 并确认其 `health`。`staffAccount v89` 不签发或写入评价。
+2. 依次执行并验收迁移 060—082；迁移 073—082 的只读检查必须全部 `READY`。再打包并上传 `staffAccount-v90.zip`，使用 Node.js 20，配置上述环境变量，并将安全规则限制为已登录且非匿名用户。v81 的精确充值工单详情和统一产品查询继续读取 061 中不可变的赠品明细，并通过 062 的独立函数审核产品购买单。
+3. 客户评价作为独立同轮服务部署：执行并验收 068 与 070，配置至少 32 字节的 `CUSTOMER_RATING_SIGNING_KEY` 及实际 `rating.html` 地址 `CUSTOMER_RATING_BASE_URL`，上传 `customerRating-v8.zip` 并确认其 `health`。`staffAccount v90` 不签发或写入评价。
 4. 删除 `staffAccount` 上的旧人脸补偿 Timer，只保留月度额度 Timer。
 5. 部署后先调用 `{ "action": "health" }`，确认版本和配置就绪；再分别用现有已登录会话和微信手机号授权后的会话调用无参数 `{ "action": "session" }`，确认返回的 UID、角色和门店与旧密码账号完全一致。
-6. `staffAccount v89`、`faceRecognition v126` 和 `teacherCreate v9` 验收通过后才发布当前小程序；不得先发布依赖日报、考勤、老师创建或无参数 `session` 的客户端。
+6. `staffAccount v90`、`faceRecognition v126` 和 `teacherCreate v9` 验收通过后才发布当前小程序；不得先发布依赖日报、考勤、老师创建或无参数 `session` 的客户端。
 
 健康检查必须返回：
 
 ```json
 {
   "ok": true,
-  "version": "v89",
+  "version": "v90",
   "managerNodeInstalled": true,
   "teacherExperienceResetTimerTriggerName": "reset-teacher-experience-quotas-monthly",
   "teacherCreationService": "teacherCreate"

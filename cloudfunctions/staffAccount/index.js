@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v89";
+const FUNCTION_VERSION = "v90";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -1958,32 +1958,78 @@ async function getHqAttendanceTrackingDay(caller, event = {}) {
   );
   const serverToday = String(rows?.[0]?.server_today || "").slice(0, 10);
   if (serverToday && attendanceDate > serverToday) fail("未来日期尚未到达，不能追踪考勤。", "ATTENDANCE_FUTURE_DATE");
-  const teachers = (rows || []).filter((row) => row.teacher_id).map((row) => ({
-    teacherId: String(row.teacher_id), teacherCode: String(row.teacher_code || ""),
-    teacherName: String(row.teacher_name || ""), phone: String(row.phone || ""),
-    faceEnrolled: databaseBoolean(row.face_enrolled), completed: Boolean(row.clock_in_id),
-    clockIn: attendanceResponse({
-      attendance_id: row.clock_in_id, attendance_date: row.clock_in_attendance_date,
-      attendance_type: row.clock_in_attendance_type, checked_in_at: row.clock_in_checked_in_at,
-      latitude: row.clock_in_latitude, longitude: row.clock_in_longitude,
-      accuracy_m: row.clock_in_accuracy_m, face_score: row.clock_in_face_score,
-      device_platform: row.clock_in_device_platform, place_name: row.clock_in_place_name,
-      formatted_address: row.clock_in_formatted_address, address_provider: row.clock_in_address_provider
-    }),
-    clockOut: attendanceResponse({
-      attendance_id: row.clock_out_id, attendance_date: row.clock_out_attendance_date,
-      attendance_type: row.clock_out_attendance_type, checked_in_at: row.clock_out_checked_in_at,
-      latitude: row.clock_out_latitude, longitude: row.clock_out_longitude,
-      accuracy_m: row.clock_out_accuracy_m, face_score: row.clock_out_face_score,
-      device_platform: row.clock_out_device_platform, place_name: row.clock_out_place_name,
-      formatted_address: row.clock_out_formatted_address, address_provider: row.clock_out_address_provider
-    }),
-    workDurationSeconds: row.work_duration_seconds === null || row.work_duration_seconds === undefined
-      ? null : Math.max(0, Number(row.work_duration_seconds))
-  }));
+  const teachers = (rows || []).filter((row) => row.teacher_id).map((row) => {
+    const hasClockIn = Boolean(row.clock_in_id);
+    const hasClockOut = Boolean(row.clock_out_id);
+    const attendanceStatus = hasClockIn && hasClockOut ? "COMPLETE"
+      : hasClockIn ? "CLOCK_IN_ONLY"
+        : hasClockOut ? "CLOCK_OUT_ONLY" : "MISSING";
+    return {
+      teacherId: String(row.teacher_id), teacherCode: String(row.teacher_code || ""),
+      teacherName: String(row.teacher_name || ""), phone: String(row.phone || ""),
+      faceEnrolled: databaseBoolean(row.face_enrolled),
+      attendanceStatus, completed: attendanceStatus === "COMPLETE",
+      clockIn: attendanceResponse({
+        attendance_id: row.clock_in_id, attendance_date: row.clock_in_attendance_date,
+        attendance_type: row.clock_in_attendance_type, checked_in_at: row.clock_in_checked_in_at,
+        latitude: row.clock_in_latitude, longitude: row.clock_in_longitude,
+        accuracy_m: row.clock_in_accuracy_m, face_score: row.clock_in_face_score,
+        device_platform: row.clock_in_device_platform, place_name: row.clock_in_place_name,
+        formatted_address: row.clock_in_formatted_address, address_provider: row.clock_in_address_provider
+      }),
+      clockOut: attendanceResponse({
+        attendance_id: row.clock_out_id, attendance_date: row.clock_out_attendance_date,
+        attendance_type: row.clock_out_attendance_type, checked_in_at: row.clock_out_checked_in_at,
+        latitude: row.clock_out_latitude, longitude: row.clock_out_longitude,
+        accuracy_m: row.clock_out_accuracy_m, face_score: row.clock_out_face_score,
+        device_platform: row.clock_out_device_platform, place_name: row.clock_out_place_name,
+        formatted_address: row.clock_out_formatted_address, address_provider: row.clock_out_address_provider
+      }),
+      workDurationSeconds: attendanceStatus !== "COMPLETE" || row.work_duration_seconds === null || row.work_duration_seconds === undefined
+        ? null : Math.max(0, Number(row.work_duration_seconds))
+    };
+  });
+  const completed = teachers.filter((row) => row.attendanceStatus === "COMPLETE");
+  const clockInOnly = teachers.filter((row) => row.attendanceStatus === "CLOCK_IN_ONLY");
+  const clockOutOnly = teachers.filter((row) => row.attendanceStatus === "CLOCK_OUT_ONLY");
+  const missing = teachers.filter((row) => row.attendanceStatus === "MISSING");
   return { ok: true, attendanceDate, serverToday,
-    completed: teachers.filter((row) => row.completed),
-    incomplete: teachers.filter((row) => !row.completed) };
+    completed, clockInOnly, clockOutOnly, missing,
+    // Compatibility alias for clients that still call the fourth group `incomplete`.
+    incomplete: missing };
+}
+
+function teacherWorkMonthResponse(rows, month) {
+  const first = rows?.[0];
+  if (!first?.teacher_id) fail("未找到该老师。", "NOT_FOUND");
+  return {
+    ok: true,
+    month,
+    serverToday: String(first.server_today || "").slice(0, 10),
+    teacher: {
+      teacherId: String(first.teacher_id),
+      teacherCode: String(first.teacher_code || ""),
+      teacherName: String(first.teacher_name || ""),
+      teacherStatus: String(first.teacher_status || ""),
+      accountStatus: String(first.account_status || ""),
+      phone: String(first.phone || ""),
+      faceEnrolled: databaseBoolean(first.face_enrolled),
+      employmentStartDate: String(first.employment_start_date || "").slice(0, 10)
+    },
+    attendance: (rows || []).filter((row) => row.event_kind === "ATTENDANCE" && row.attendance_id)
+      .map((row) => attendanceResponse({ ...row, attendance_date: row.event_date })),
+    reports: (rows || []).filter((row) => row.event_kind === "REPORT" && row.report_id)
+      .map((row) => dailyReportResponse({
+        id: row.report_id,
+        report_date: row.event_date,
+        completed_work: row.completed_work,
+        customer_project_progress: row.customer_project_progress,
+        problems_and_support: row.problems_and_support,
+        tomorrow_plan: row.tomorrow_plan,
+        created_at: row.report_created_at,
+        updated_at: row.report_updated_at
+      }))
+  };
 }
 
 async function getHqTeacherWorkMonth(caller, event = {}) {
@@ -1996,7 +2042,9 @@ async function getHqTeacherWorkMonth(caller, event = {}) {
        SELECT (CLOCK_TIMESTAMP() AT TIME ZONE 'Asia/Shanghai')::date AS server_today
      ), target AS (
        SELECT teacher.id AS teacher_id, teacher.teacher_code, teacher.teacher_name,
-              teacher.teacher_status, account.id AS staff_account_id, account.phone,
+              teacher.teacher_status,
+              (teacher.created_at AT TIME ZONE 'Asia/Shanghai')::date AS employment_start_date,
+              account.id AS staff_account_id, account.phone,
               account.account_status, (profile.id IS NOT NULL) AS face_enrolled
          FROM public.teachers AS teacher
          JOIN public.staff_accounts AS account ON account.id = teacher.staff_account_id
@@ -2043,35 +2091,73 @@ async function getHqTeacherWorkMonth(caller, event = {}) {
                CASE events.event_kind WHEN 'ATTENDANCE' THEN 1 ELSE 2 END,
                CASE events.attendance_type WHEN 'CLOCK_IN' THEN 1 ELSE 2 END`
   );
-  const first = rows?.[0];
-  if (!first?.teacher_id) fail("未找到该老师。", "NOT_FOUND");
-  return {
-    ok: true,
-    month,
-    serverToday: String(first.server_today || "").slice(0, 10),
-    teacher: {
-      teacherId: String(first.teacher_id),
-      teacherCode: String(first.teacher_code || ""),
-      teacherName: String(first.teacher_name || ""),
-      teacherStatus: String(first.teacher_status || ""),
-      accountStatus: String(first.account_status || ""),
-      phone: String(first.phone || ""),
-      faceEnrolled: databaseBoolean(first.face_enrolled)
-    },
-    attendance: (rows || []).filter((row) => row.event_kind === "ATTENDANCE" && row.attendance_id)
-      .map((row) => attendanceResponse(row)),
-    reports: (rows || []).filter((row) => row.event_kind === "REPORT" && row.report_id)
-      .map((row) => dailyReportResponse({
-        id: row.report_id,
-        report_date: row.event_date,
-        completed_work: row.completed_work,
-        customer_project_progress: row.customer_project_progress,
-        problems_and_support: row.problems_and_support,
-        tomorrow_plan: row.tomorrow_plan,
-        created_at: row.report_created_at,
-        updated_at: row.report_updated_at
-      }))
-  };
+  return teacherWorkMonthResponse(rows, month);
+}
+
+async function getOwnTeacherWorkMonth(caller, event = {}) {
+  requireAttendanceTeacher(caller);
+  await Promise.all([requireDailyReportSchema(), requireTeacherAttendanceSchema()]);
+  const teacherId = numericId(caller.profile.teacherId, "当前老师编号");
+  const staffId = numericId(caller.profile.staffId, "当前员工账号");
+  const month = validCalendarMonth(event.month);
+  const rows = await executeSql(
+    `WITH context AS (
+       SELECT (CLOCK_TIMESTAMP() AT TIME ZONE 'Asia/Shanghai')::date AS server_today
+     ), target AS (
+       SELECT teacher.id AS teacher_id, teacher.teacher_code, teacher.teacher_name,
+              teacher.teacher_status,
+              (teacher.created_at AT TIME ZONE 'Asia/Shanghai')::date AS employment_start_date,
+              account.id AS staff_account_id, account.phone,
+              account.account_status, (profile.id IS NOT NULL) AS face_enrolled
+         FROM public.teachers AS teacher
+         JOIN public.staff_accounts AS account ON account.id = teacher.staff_account_id
+         LEFT JOIN public.teacher_attendance_face_profiles AS profile
+           ON profile.teacher_id = teacher.id AND profile.staff_account_id = account.id
+        WHERE teacher.id = ${teacherId}::bigint
+          AND account.id = ${staffId}::bigint
+          AND teacher.teacher_status = 'ACTIVE'
+          AND account.role_code = 'teacher'
+          AND account.account_status = 'ACTIVE'
+        LIMIT 1
+     ), events AS (
+       SELECT 'ATTENDANCE'::text AS event_kind,
+              attendance.attendance_date AS event_date,
+              attendance.id AS attendance_id, attendance.attendance_type,
+              attendance.checked_in_at, attendance.latitude, attendance.longitude,
+              attendance.accuracy_m, attendance.face_score, attendance.device_platform,
+              attendance.place_name, attendance.formatted_address, attendance.address_provider,
+              NULL::bigint AS report_id, NULL::text AS completed_work,
+              NULL::text AS customer_project_progress, NULL::text AS problems_and_support,
+              NULL::text AS tomorrow_plan, NULL::timestamptz AS report_created_at,
+              NULL::timestamptz AS report_updated_at
+         FROM target
+         JOIN public.teacher_attendance_records AS attendance
+           ON attendance.staff_account_id = target.staff_account_id
+          AND attendance.attendance_date >= ${sqlText(`${month}-01`)}::date
+          AND attendance.attendance_date < (${sqlText(`${month}-01`)}::date + INTERVAL '1 month')
+       UNION ALL
+       SELECT 'REPORT'::text, report.report_date,
+              NULL::bigint, NULL::text, NULL::timestamptz,
+              NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric, NULL::text,
+              NULL::text, NULL::text, NULL::text,
+              report.id, report.completed_work, report.customer_project_progress,
+              report.problems_and_support, report.tomorrow_plan,
+              report.created_at, report.updated_at
+         FROM target
+         JOIN public.staff_daily_reports AS report
+           ON report.staff_account_id = target.staff_account_id
+          AND report.report_date >= ${sqlText(`${month}-01`)}::date
+          AND report.report_date < (${sqlText(`${month}-01`)}::date + INTERVAL '1 month')
+     )
+     SELECT context.server_today, target.*, events.*
+       FROM context
+       JOIN target ON TRUE
+       LEFT JOIN events ON TRUE
+      ORDER BY events.event_date ASC,
+               CASE events.event_kind WHEN 'ATTENDANCE' THEN 1 ELSE 2 END,
+               CASE events.attendance_type WHEN 'CLOCK_IN' THEN 1 ELSE 2 END`
+  );
+  return teacherWorkMonthResponse(rows, month);
 }
 
 async function ensureBootstrapHq(caller) {
@@ -4997,6 +5083,9 @@ async function main(event = {}, context = {}) {
   }
   if (action === "getOwnAttendanceMonth") {
     return await getOwnAttendanceMonth(caller, event);
+  }
+  if (action === "getOwnTeacherWorkMonth") {
+    return await getOwnTeacherWorkMonth(caller, event);
   }
   if (action === "getHqAttendanceTrackingDay") {
     return await getHqAttendanceTrackingDay(caller, event);

@@ -1,7 +1,6 @@
 <view class="workspace-page">
   <view class="workspace-topbar detail-topbar">
-    <view><text class="topbar-title">老师主页</text></view>
-    <button class="back-button" bindtap="back"><text>返回老师管理</text></button>
+    <view class="detail-heading-block"><button class="back-button" bindtap="back"><text>‹ 返回老师管理</text></button><text class="topbar-title">老师主页</text></view>
   </view>
   <view class="workspace-main">
     <view wx:if="{{message}}" class="form-message {{error ? 'error' : ''}}">{{message}}</view>
@@ -62,29 +61,32 @@
       <view wx:if="{{activeSection === 'work'}}" class="work-section">
         <view class="work-mode-tabs"><button class="work-mode-tab {{workMode === 'attendance' ? 'active' : ''}}" data-mode="attendance" bindtap="switchWorkMode">考勤月历</button><button class="work-mode-tab {{workMode === 'report' ? 'active' : ''}}" data-mode="report" bindtap="switchWorkMode">日报月历</button></view>
         <view class="web-panel calendar-panel">
-          <view class="calendar-toolbar"><button data-delta="-1" bindtap="changeWorkMonth" disabled="{{workLoading}}">上月</button><text>{{workMonthTitle}}</text><button data-delta="1" bindtap="changeWorkMonth" disabled="{{workLoading}}">下月</button></view>
-          <view wx:if="{{workMode === 'attendance'}}" class="calendar-legend"><view><text class="status-dot done"></text><text>已打卡</text></view><view><text class="status-dot missing"></text><text>未打卡</text></view><text>每格左点上班、右点下班</text></view>
-          <view wx:else class="calendar-legend"><view><text class="status-dot done"></text><text>已写日报</text></view><view><text class="status-dot missing"></text><text>未写日报</text></view></view>
+          <picker class="calendar-month-picker" mode="date" fields="month" value="{{workMonth}}" end="{{workMonthPickerEnd}}" bindchange="chooseWorkMonth" disabled="{{workLoading}}"><view><text>{{workMonthTitle}}</text><text>点此直接选择年月</text></view></picker>
+          <view class="calendar-toolbar"><button data-delta="-12" bindtap="changeWorkMonth" disabled="{{workLoading}}">上一年</button><button data-delta="-1" bindtap="changeWorkMonth" disabled="{{workLoading}}">上月</button><button data-delta="1" bindtap="changeWorkMonth" disabled="{{workLoading || !canNextWorkMonth}}">下月</button><button data-delta="12" bindtap="changeWorkMonth" disabled="{{workLoading || !canNextWorkYear}}">下一年</button></view>
+          <view wx:if="{{workMode === 'attendance'}}" class="calendar-legend"><view><text class="status-dot done"></text><text>已打卡</text></view><view><text class="status-dot missing"></text><text>未打卡</text></view><view><text class="status-dot not-employed"></text><text>未入职</text></view><text>每格左点上班、右点下班</text></view>
+          <view wx:else class="calendar-legend"><view><text class="status-dot done"></text><text>已写日报</text></view><view><text class="status-dot missing"></text><text>未写日报</text></view><view><text class="status-dot not-employed"></text><text>未入职</text></view></view>
           <view class="calendar-weekdays"><text wx:for="{{weekdays}}" wx:key="*this">{{item}}</text></view>
           <view wx:if="{{workLoading}}" class="calendar-loading">正在读取月度记录…</view>
-          <view wx:else class="calendar-grid"><view wx:for="{{calendarDays}}" wx:key="key" class="calendar-day {{item.blank ? 'blank' : ''}} {{selectedWorkDate === item.date ? 'selected' : ''}} {{item.future ? 'future' : ''}}" data-date="{{item.date}}" bindtap="selectWorkDate"><text wx:if="{{!item.blank}}" class="calendar-day-number">{{item.day}}</text><view wx:if="{{!item.blank && workMode === 'attendance'}}" class="attendance-dots"><text class="status-dot {{item.clockInState}}"></text><text class="status-dot {{item.clockOutState}}"></text></view><view wx:if="{{!item.blank && workMode === 'report'}}" class="report-dot"><text class="status-dot {{item.reportState}}"></text></view></view></view>
+          <view wx:else class="calendar-grid"><view wx:for="{{calendarDays}}" wx:key="key" class="calendar-day {{item.blank ? 'blank' : ''}} {{selectedWorkDate === item.date ? 'selected' : ''}} {{item.future ? 'future' : ''}} {{item.notEmployed ? 'not-employed' : ''}}" data-date="{{item.date}}" bindtap="selectWorkDate"><text wx:if="{{!item.blank}}" class="calendar-day-number">{{item.day}}</text><text wx:if="{{!item.blank && item.notEmployed}}" class="not-employed-label">未入职</text><view wx:elif="{{!item.blank && workMode === 'attendance'}}" class="attendance-dots"><text class="status-dot {{item.clockInState}}"></text><text class="status-dot {{item.clockOutState}}"></text></view><view wx:elif="{{!item.blank && workMode === 'report'}}" class="report-dot"><text class="status-dot {{item.reportState}}"></text></view></view></view>
         </view>
 
         <view wx:if="{{selectedWorkDay && workMode === 'attendance'}}" class="web-panel selected-day-panel">
-          <view class="panel-heading"><view><text class="panel-title">{{selectedWorkDay.date}} 考勤详情</text><text class="panel-note">{{profile.name}} · {{profile.phone}}</text></view><text class="web-badge">{{selectedWorkDay.workDurationText}}</text></view>
-          <view class="attendance-detail-grid">
+          <view class="panel-heading"><view><text class="panel-title">{{selectedWorkDay.date}} 考勤详情</text><text class="panel-note">{{profile.name}} · {{profile.phone}}</text></view><text class="web-badge">{{selectedWorkDay.notEmployed ? '未入职' : selectedWorkDay.workDurationText}}</text></view>
+          <view wx:if="{{selectedWorkDay.notEmployed}}" class="empty selected-report-empty">该日期老师尚未入职</view>
+          <view wx:else class="attendance-detail-grid">
             <view class="attendance-detail-card"><text class="detail-kind">上班打卡</text><block wx:if="{{selectedWorkDay.clockIn}}"><text class="detail-time">{{selectedWorkDay.clockIn.timeText}}</text><text>{{selectedWorkDay.clockIn.placeName || '未解析附近地点'}}</text><text>{{selectedWorkDay.clockIn.formattedAddress || '暂无文字地址'}}</text><text>精度约 {{selectedWorkDay.clockIn.accuracy}} 米</text><button class="secondary" data-kind="clockIn" bindtap="openAttendanceMap">在地图中打开</button></block><text wx:else class="empty-detail">未打卡</text></view>
             <view class="attendance-detail-card"><text class="detail-kind">下班打卡</text><block wx:if="{{selectedWorkDay.clockOut}}"><text class="detail-time">{{selectedWorkDay.clockOut.timeText}}</text><text>{{selectedWorkDay.clockOut.placeName || '未解析附近地点'}}</text><text>{{selectedWorkDay.clockOut.formattedAddress || '暂无文字地址'}}</text><text>精度约 {{selectedWorkDay.clockOut.accuracy}} 米</text><button class="secondary" data-kind="clockOut" bindtap="openAttendanceMap">在地图中打开</button></block><text wx:else class="empty-detail">未打卡</text></view>
           </view>
         </view>
 
         <view wx:if="{{selectedWorkDay && workMode === 'report'}}" class="web-panel selected-day-panel">
-          <view class="panel-heading"><view><text class="panel-title">{{selectedWorkDay.date}} 日报</text><text class="panel-note">{{profile.name}} · {{profile.phone}}</text></view><text class="web-badge">{{selectedWorkDay.report ? '已填写' : '未填写'}}</text></view>
+          <view class="panel-heading"><view><text class="panel-title">{{selectedWorkDay.date}} 日报</text><text class="panel-note">{{profile.name}} · {{profile.phone}}</text></view><text class="web-badge">{{selectedWorkDay.notEmployed ? '未入职' : selectedWorkDay.report ? '已填写' : '未填写'}}</text></view>
           <view wx:if="{{selectedWorkDay.report}}" class="report-detail-list"><view><text>今日完成事项</text><text>{{selectedWorkDay.report.completedWork}}</text></view><view><text>客户与项目进展</text><text>{{selectedWorkDay.report.customerProjectProgress}}</text></view><view><text>问题与所需支持</text><text>{{selectedWorkDay.report.problemsAndSupport}}</text></view><view><text>明日计划</text><text>{{selectedWorkDay.report.tomorrowPlan}}</text></view></view>
-          <view wx:else class="empty selected-report-empty">当天没有日报</view>
+          <view wx:else class="empty selected-report-empty">{{selectedWorkDay.notEmployed ? '该日期老师尚未入职' : '当天没有日报'}}</view>
         </view>
       </view>
     </block>
   </view>
   <view class="safe-bottom"></view>
+  <view wx:if="{{faceResultToast}}" class="face-result-toast {{faceResultToastError ? 'error' : ''}}">{{faceResultToast}}</view>
 </view>

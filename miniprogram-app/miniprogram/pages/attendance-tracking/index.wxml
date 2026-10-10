@@ -4,26 +4,16 @@
   <view wx:else class="tracking-layout">
     <view class="calendar-card date-query-card"><date-selector value="{{pendingDate}}" end="{{serverToday}}" disabled="{{loading}}" bindchange="chooseDate"></date-selector><button class="confirm-button" bindtap="confirmDate" disabled="{{loading}}"><text class="button-label">确认</text></button></view>
     <view class="results">
-      <view class="result-summary"><view><text class="section-title">{{selectedDate}}</text><text class="section-note">在职老师考勤</text></view><view class="summary-counts"><text>已上班 {{completed.length}}</text><text>未上班 {{incomplete.length}}</text></view></view>
+      <view class="result-summary"><view><text class="section-title">{{selectedDate}}</text><text class="section-note">在职老师考勤</text></view><view class="summary-counts"><text>完整打卡 {{completed.length}}</text><text>仅上班打卡 {{clockInOnly.length}}</text><text>仅下班打卡 {{clockOutOnly.length}}</text><text>未打卡 {{missing.length}}</text></view></view>
       <view wx:if="{{loading}}" class="notice-card">正在读取上下班打卡情况…</view>
       <view wx:else class="result-columns">
-        <view class="list-card completed-list">
-          <view class="list-heading"><text>已上班打卡</text><text>{{completed.length}} 人</text></view>
-          <view wx:if="{{!completed.length}}" class="empty">所选日期暂无老师上班打卡</view>
-          <scroll-view wx:else class="tracking-table-scroll" scroll-x="true" data-visible-rows="{{completed.length > 5 ? 5 : completed.length}}" scroll-y="{{completed.length > 5}}" enhanced="true" show-scrollbar="{{completed.length > 5}}">
+        <view wx:for="{{statusGroups}}" wx:for-item="group" wx:key="key" class="list-card status-list status-{{group.key}}">
+          <view class="list-heading"><text>{{group.title}}</text><text>{{group.items.length}} 人</text></view>
+          <view wx:if="{{!group.items.length}}" class="empty">{{group.empty}}</view>
+          <scroll-view wx:else class="tracking-table-scroll" scroll-x="true" data-visible-rows="{{group.items.length > 5 ? 5 : group.items.length}}" scroll-y="{{group.items.length > 5}}" enhanced="true" show-scrollbar="{{group.items.length > 5}}">
             <view class="tracking-table">
               <view class="tracking-row tracking-head"><text>老师姓名</text><text>老师电话</text><text>上班时间（北京）</text><text>上班详情</text><text>下班时间（北京）</text><text>下班详情</text><text>工作时长</text></view>
-              <view wx:for="{{completed}}" wx:key="teacherId" class="tracking-row"><text class="link" data-id="{{item.teacherId}}" bindtap="openTeacher">{{item.teacherName}}</text><text>{{item.phone}}</text><text>{{item.clockInTime}}</text><text class="link" data-id="{{item.teacherId}}" data-kind="clockIn" bindtap="openDetail">查看详情</text><text>{{item.clockOutTime}}</text><text wx:if="{{item.clockOut}}" class="link" data-id="{{item.teacherId}}" data-kind="clockOut" bindtap="openDetail">查看详情</text><text wx:else>—</text><text>{{item.workDurationText}}</text></view>
-            </view>
-          </scroll-view>
-        </view>
-        <view class="list-card incomplete-list">
-          <view class="list-heading"><text>未上班打卡</text><text>{{incomplete.length}} 人</text></view>
-          <view wx:if="{{!incomplete.length}}" class="empty">全部在职老师均已上班打卡</view>
-          <scroll-view wx:else class="tracking-table-scroll" scroll-x="true" data-visible-rows="{{incomplete.length > 5 ? 5 : incomplete.length}}" scroll-y="{{incomplete.length > 5}}" enhanced="true" show-scrollbar="{{incomplete.length > 5}}">
-            <view class="tracking-table">
-              <view class="tracking-row tracking-head"><text>老师姓名</text><text>老师电话</text><text>上班时间（北京）</text><text>上班详情</text><text>下班时间（北京）</text><text>下班详情</text><text>工作时长</text></view>
-              <view wx:for="{{incomplete}}" wx:key="teacherId" class="tracking-row"><text class="link" data-id="{{item.teacherId}}" bindtap="openTeacher">{{item.teacherName}}</text><text>{{item.phone}}</text><text>—</text><text>—</text><text>—</text><text>—</text><text>—</text></view>
+              <view wx:for="{{group.items}}" wx:for-item="person" wx:key="teacherId" class="tracking-row"><text class="link" data-id="{{person.teacherId}}" bindtap="openTeacher">{{person.teacherName}}</text><text>{{person.phone}}</text><text>{{person.clockInTime}}</text><text wx:if="{{person.clockIn}}" class="link" data-id="{{person.teacherId}}" data-kind="clockIn" bindtap="openDetail">查看详情</text><text wx:else>—</text><text>{{person.clockOutTime}}</text><text wx:if="{{person.clockOut}}" class="link" data-id="{{person.teacherId}}" data-kind="clockOut" bindtap="openDetail">查看详情</text><text wx:else>—</text><text>{{person.workDurationText}}</text></view>
             </view>
           </scroll-view>
         </view>

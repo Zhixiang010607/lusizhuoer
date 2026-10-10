@@ -23,6 +23,8 @@ const attendanceWxss = read("miniprogram-app/miniprogram/pages/attendance/index.
 const trackingJs = read("miniprogram-app/miniprogram/pages/attendance-tracking/index.js");
 const trackingWxml = read("miniprogram-app/miniprogram/pages/attendance-tracking/index.wxml");
 const trackingWxss = read("miniprogram-app/miniprogram/pages/attendance-tracking/index.wxss");
+const workCalendarJs = read("miniprogram-app/miniprogram/pages/work-calendar/index.js");
+const workCalendarWxml = read("miniprogram-app/miniprogram/pages/work-calendar/index.wxml");
 const camera = read("miniprogram-app/miniprogram/components/camera-capture/index.js");
 const cameraWxml = read("miniprogram-app/miniprogram/components/camera-capture/index.wxml");
 const cameraWxss = read("miniprogram-app/miniprogram/components/camera-capture/index.wxss");
@@ -88,14 +90,21 @@ assert.match(face, /signAttendanceLocation[\s\S]*verifiedAttendanceAddressToken/
 assert.match(clockIn, /place_name, formatted_address, address_provider/,
   "the authoritative punch write must persist signed readable location text");
 
-assert.match(staff, /const FUNCTION_VERSION = "v89"/);
+assert.match(staff, /const FUNCTION_VERSION = "v90"/);
 assert.match(staff, /async function getOwnAttendanceMonth/);
 assert.match(staff, /async function getHqAttendanceTrackingDay/);
+assert.match(staff, /attendanceStatus = hasClockIn && hasClockOut \? "COMPLETE"/);
+assert.match(staff, /clockInOnly, clockOutOnly, missing/);
+assert.match(staff, /workDurationSeconds: attendanceStatus !== "COMPLETE"/,
+  "work duration must exist only after both punches");
+assert.match(staff, /async function getOwnTeacherWorkMonth/);
 assert.match(staff, /action === "getOwnAttendanceMonth"/);
+assert.match(staff, /action === "getOwnTeacherWorkMonth"/);
 assert.match(staff, /action === "getHqAttendanceTrackingDay"/);
 
 const subpackageRoots = new Set(app.subPackages.map((entry) => entry.root));
 assert.equal(subpackageRoots.has("pages/attendance"), true);
+assert.equal(subpackageRoots.has("pages/work-calendar"), true);
 assert.equal(subpackageRoots.has("pages/attendance-tracking"), true);
 assert.deepEqual(app.requiredPrivateInfos, ["getLocation"]);
 assert.match(app.permission["scope.userLocation"].desc, /老师本人考勤打卡/);
@@ -173,7 +182,9 @@ assert.match(cameraWxss, /\.buttons button \{[^}]*height: 82rpx;[^}]*display: fl
   "shared camera actions must use the same explicit vertical-centering geometry");
 assert.match(attendanceWxml, /<map[\s\S]*openLocation/);
 assert.match(trackingJs, /callStaff\("getHqAttendanceTrackingDay"/);
-assert.match(trackingWxml, /已上班打卡[\s\S]*未上班打卡/);
+assert.match(trackingWxml, /完整打卡[\s\S]*仅上班打卡[\s\S]*仅下班打卡[\s\S]*未打卡/);
+assert.match(trackingJs, /allTeachers\.find/,
+  "punch details must remain available in every tracking group");
 assert.match(trackingWxml, /class="tracking-table-scroll"[^>]*scroll-x="true"/);
 assert.match(trackingWxml, /class="tracking-row tracking-head"/);
 assert.doesNotMatch(trackingWxml, /teacher-card|teacher-row/);
@@ -192,5 +203,11 @@ assert.equal((trackingWxml.match(/<button/g) || []).length, (trackingWxml.match(
   "every HQ attendance action must use the same iOS-safe centered label layer");
 assert.match(trackingWxss, /\.map-button \{[^}]*height: 74rpx;[^}]*display: flex;[^}]*align-items: center;[^}]*justify-content: center;/s,
   "the attendance detail map action must be vertically centered");
+assert.match(workCalendarJs, /callStaff\("getOwnTeacherWorkMonth"/);
+assert.match(workCalendarWxml, /考勤月历[\s\S]*日报月历/);
+assert.match(workCalendarWxml, /办理上班打卡[\s\S]*办理下班打卡/);
+assert.match(workCalendarWxml, /填写今日日报/);
+assert.match(workCalendarWxml, /上一年[\s\S]*上月[\s\S]*下月[\s\S]*下一年/);
+assert.match(workCalendarWxml, /未入职/);
 
 console.log("teacher attendance contract: PASS");
