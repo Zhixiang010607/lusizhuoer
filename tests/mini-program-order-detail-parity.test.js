@@ -32,7 +32,8 @@ function loadHelpers(options = {}) {
   assert.ok(js.includes(marker), "order-detail helper injection marker exists");
   const instrumented = js.replace(marker, `
 globalThis.__orderDetailHelpers = {
-  PHOTO_SLOT_COUNT, DETAIL_PHOTO_SLOTS, MAX_EXTRA_SOURCE_PHOTO_BYTES, MAX_EXTRA_UPLOAD_PHOTO_BYTES, imageFormat,
+  PHOTO_SLOT_COUNT, DETAIL_PHOTO_SLOTS, MAX_EXTRA_SOURCE_PHOTO_BYTES, MAX_EXTRA_UPLOAD_PHOTO_BYTES,
+  MAX_EXTRA_PHOTO_EDGE, imageFormat,
   buildPhotoSlots, normalizePhotoManifest,
   exactOrderKind, routeOrderExpectation, assertExactRouteOrder, detailStatusLabel,
   receiptDocumentData, requestId, jpegPdf, originalPhotoCacheKey,
@@ -229,7 +230,8 @@ test("server-read original type controls the exact visible business kind", () =>
   assert.equal(helpers.exactOrderKind("RECHARGE", "REFUND").noun, "退费");
   assert.match(helpers.requestId(4), /^[A-Za-z0-9][A-Za-z0-9_-]{15,63}$/);
   assert.equal(helpers.MAX_EXTRA_SOURCE_PHOTO_BYTES, 7 * 1024 * 1024);
-  assert.equal(helpers.MAX_EXTRA_UPLOAD_PHOTO_BYTES, 3 * 1024 * 1024);
+  assert.equal(helpers.MAX_EXTRA_UPLOAD_PHOTO_BYTES, 1200 * 1024);
+  assert.equal(helpers.MAX_EXTRA_PHOTO_EDGE, 1600);
   assert.equal(helpers.imageFormat(new Uint8Array([0xff, 0xd8, 0xff, 0xd9])), "jpeg");
   assert.equal(helpers.imageFormat(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])), "png");
   assert.equal(helpers.imageFormat(new Uint8Array([
@@ -393,7 +395,14 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
   assert.doesNotMatch(functionSource(js, "uploadExtraPhoto"), /arrayBufferToBase64|imageBase64|functionUploadProof/,
     "the mini-program supplemental-photo path never Base64-expands or relays image bytes through a cloud function");
   includes(js, "sourceBytes.byteLength > MAX_EXTRA_SOURCE_PHOTO_BYTES", "source selection is capped at 7 MB");
-  includes(js, "bytes.byteLength <= MAX_EXTRA_UPLOAD_PHOTO_BYTES", "normalized JPEG remains within the server's 3 MB contract");
+  includes(js, "bytes.byteLength <= MAX_EXTRA_UPLOAD_PHOTO_BYTES", "normalized JPEG remains within the faster client upload target");
+  includes(functionSource(js, "uploadExtraPhoto"), 'sizeType: ["compressed"]',
+    "supplemental photos ask WeChat for a compressed temporary image");
+  assert.doesNotMatch(functionSource(js, "uploadExtraPhoto"), /sizeType:\s*\["original"\]/,
+    "supplemental photos no longer request the original-sized temporary image");
+  includes(js, "const maxEdges = [MAX_EXTRA_PHOTO_EDGE, 1280, 1080]", "supplemental photo dimensions use a bounded fast ladder");
+  includes(js, "const qualities = [0.8, 0.68, 0.56]", "supplemental photo quality uses a bounded fast ladder");
+  includes(js, 'message: "正在压缩并保存补充照片…"', "the upload status describes local compression");
   includes(js, 'fileType: "jpg"', "PNG and WebP sources are re-encoded as JPEG before upload");
   includes(js, 'return "png"', "PNG source magic bytes are accepted");
   includes(js, 'return "webp"', "WebP source magic bytes are accepted");
@@ -403,7 +412,20 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
     "photo prefetch accepts the same promise and synchronous test adapters");
   includes(js, ".then((result) => ({ ok: true, result }), (error) => ({ ok: false, error }))",
     "an early photo failure is safely captured while the order read finishes");
-  includes(js, "await this.loadPhotos();", "a successful write rereads the database manifest");
+  includes(functionSource(js, "uploadExtraPhoto"), "if (committed.photo)",
+    "the normal committed upload uses the server-confirmed photo response directly");
+  includes(functionSource(js, "uploadExtraPhoto"), "await this.applyCommittedExtraPhoto(slot, committed, buffer)",
+    "the uploaded local JPEG is reused without rereading every photo");
+  includes(functionSource(js, "uploadExtraPhoto"), "const loaded = await this.loadPhotos()",
+    "a committed upload falls back to the authoritative manifest if local caching fails");
+  includes(functionSource(js, "uploadExtraPhoto"), "await this.loadPhotos();",
+    "an uncertain recovered commit still falls back to the authoritative database manifest");
+  assert.doesNotMatch(functionSource(js, "applyCommittedExtraPhoto"), /callPhoto\(/,
+    "the fast committed-photo apply path adds no redundant network request");
+  includes(functionSource(js, "applyCommittedExtraPhoto"), "this.localOriginalPath(slot, recordId, identity",
+    "the compressed local JPEG immediately becomes the authenticated original cache");
+  includes(functionSource(js, "applyCommittedExtraPhoto"), "thumbnailUrl = localPath",
+    "the just-uploaded local JPEG is shown immediately instead of redownloaded");
   includes(js, "this.data.uploading || this.data.photoLoading", "concurrent writes and manifest reloads are isolated");
   includes(js, "const { saveImageToAlbum, isPermissionFailure }", "album permission behavior and retry classification are shared");
   assert.doesNotMatch(js, /wx\.saveImageToPhotosAlbum/, "order detail cannot bypass the shared permission-and-retry helper");

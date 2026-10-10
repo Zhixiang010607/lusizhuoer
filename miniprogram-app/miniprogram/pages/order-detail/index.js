@@ -13,7 +13,8 @@ const {
 const PHOTO_SLOT_COUNT = 5;
 const DETAIL_PHOTO_SLOTS = Object.freeze([1, 2, 3, 4]);
 const MAX_EXTRA_SOURCE_PHOTO_BYTES = 7 * 1024 * 1024;
-const MAX_EXTRA_UPLOAD_PHOTO_BYTES = 3 * 1024 * 1024;
+const MAX_EXTRA_UPLOAD_PHOTO_BYTES = 1200 * 1024;
+const MAX_EXTRA_PHOTO_EDGE = 1600;
 const ORIGINAL_PHOTO_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const ORIGINAL_PHOTO_CACHE_STORAGE_KEY = "order-original-photo-cache-v1";
 const PHOTO_LABELS = Object.freeze(["客户建档留存照", "客户核销照片", "补充照片 1", "补充照片 2", "补充照片 3"]);
@@ -1070,20 +1071,21 @@ Page({
     }
     const format = imageFormat(sourceBytes);
     if (!format) throw new Error("补充照片支持 JPG、JPEG、PNG 或 WebP");
-    if (format === "jpeg" && sourceBytes.byteLength <= MAX_EXTRA_UPLOAD_PHOTO_BYTES) {
-      return { buffer: sourceBuffer, bytes: sourceBytes.byteLength, converted: false };
-    }
-
     const sourceWidth = Number(dimensions?.width || 0);
     const sourceHeight = Number(dimensions?.height || 0);
     if (!Number.isInteger(sourceWidth) || !Number.isInteger(sourceHeight)
         || sourceWidth < 1 || sourceHeight < 1 || sourceWidth > 10000 || sourceHeight > 10000) {
       throw new Error("补充照片尺寸无效，请重新选择");
     }
+    if (format === "jpeg" && sourceBytes.byteLength <= MAX_EXTRA_UPLOAD_PHOTO_BYTES
+        && Math.max(sourceWidth, sourceHeight) <= MAX_EXTRA_PHOTO_EDGE) {
+      return { buffer: sourceBuffer, bytes: sourceBytes.byteLength, converted: false };
+    }
+
     const canvas = await this.photoNormalizeCanvasNode();
     const image = await loadCanvasImage(canvas, filePath);
-    const maxEdges = [2400, 2000, 1600, 1280];
-    const qualities = [0.92, 0.86, 0.78, 0.7];
+    const maxEdges = [MAX_EXTRA_PHOTO_EDGE, 1280, 1080];
+    const qualities = [0.8, 0.68, 0.56];
     for (const maxEdge of maxEdges) {
       const scale = Math.min(1, maxEdge / Math.max(sourceWidth, sourceHeight));
       const width = Math.max(1, Math.round(sourceWidth * scale));
@@ -1131,6 +1133,55 @@ Page({
     }
   },
 
+  async applyCommittedExtraPhoto(slot, committed, buffer) {
+    const recordId = clean(this.data.order?.id);
+    const photo = committed?.photo;
+    if (!recordId || clean(committed?.recordId) !== recordId || Number(photo?.slot) !== Number(slot)) {
+      throw new Error("照片服务返回的工单或照片位置不一致");
+    }
+    const bytes = new Uint8Array(buffer);
+    if (!bytes.byteLength || Number(photo.originalBytes || 0) !== bytes.byteLength) {
+      throw new Error("照片服务确认的大小与本地照片不一致");
+    }
+    await this.clearOriginalPhotoCache(slot, recordId);
+    this.ensureOriginalPhotoState();
+    const committedPhoto = {
+      ...photo,
+      slot: Number(slot),
+      kind: "EXTRA",
+      state: "ready",
+      declared: true,
+      visible: DETAIL_PHOTO_SLOTS.includes(Number(slot)),
+      label: PHOTO_LABELS[slot] || `照片 ${Number(slot) + 1}`,
+      thumbnailState: "ready",
+      retrying: false,
+      retryError: "",
+      originalBusy: false,
+      originalAction: ""
+    };
+    const identity = photoManifestIdentity(committedPhoto);
+    const localPath = await this.localOriginalPath(slot, recordId, identity, {
+      buffer,
+      expectedBytes: bytes.byteLength
+    });
+    const key = originalPhotoCacheKey(recordId, slot);
+    const generation = Number(this._originalPhotoGenerations.get(key) || 0);
+    this._originalPhotoCache.set(key, { generation, filePath: localPath, persistent: true, identity });
+    this._photoManifestIdentities.set(key, identity);
+    committedPhoto.thumbnailUrl = localPath;
+    const photos = this.data.photos.map((item) => Number(item.slot) === Number(slot) ? committedPhoto : item);
+    this.setData({
+      photos,
+      photoCount: photos.filter((item) => item.declared).length,
+      visiblePhotoCount: photos.filter((item) => item.visible && item.declared).length,
+      photoManifestLoaded: true,
+      photoManifestError: "",
+      canEdit: committed.canEdit === true,
+      editableUntil: committed.editableUntil || this.data.editableUntil,
+      editableUntilLabel: query.displayDateTimeAny(committed.editableUntil || this.data.editableUntil)
+    });
+  },
+
   async uploadExtraPhoto(event) {
     const slot = Number(event.currentTarget.dataset.slot);
     const photo = this.data.photos.find((item) => Number(item.slot) === slot);
@@ -1139,7 +1190,7 @@ Page({
     let chosen;
     try {
       chosen = await wxCall((resolve, reject) => wx.chooseMedia({
-        count: 1, mediaType: ["image"], sourceType: ["album", "camera"], sizeType: ["original"], success: resolve, fail: reject
+        count: 1, mediaType: ["image"], sourceType: ["album", "camera"], sizeType: ["compressed"], success: resolve, fail: reject
       }));
     } catch (error) {
       if (!/cancel/i.test(String(error.errMsg || error.message || ""))) this.setData({ message: error.errMsg || "选择照片失败", error: true });
@@ -1151,7 +1202,7 @@ Page({
     const uploadRequestId = requestId(slot);
     let requestOpened = false;
     let commitUncertain = false;
-    this.setData({ uploading: true, uploadingSlot: slot, message: "正在校验并保存补充照片…", error: false });
+    this.setData({ uploading: true, uploadingSlot: slot, message: "正在压缩并保存补充照片…", error: false });
     try {
       const [read, dimensions] = await Promise.all([readFile(filePath), imageInfo(filePath)]);
       const normalized = await this.normalizeExtraPhoto(filePath, read.data, dimensions);
@@ -1193,12 +1244,23 @@ Page({
       }
       if (clean(committed?.status) !== "COMMITTED") throw new Error("照片服务没有确认保存结果");
       requestOpened = false;
-      this.setData({
-        message: `${PHOTO_LABELS[slot]}已保存${normalized.converted ? "（已安全转换为 JPEG）" : ""}，正在重新读取数据库照片清单。`,
-        error: false
-      });
-      await this.clearOriginalPhotoCache(slot);
-      await this.loadPhotos();
+      if (committed.photo) {
+        try {
+          await this.applyCommittedExtraPhoto(slot, committed, buffer);
+          this.setData({
+            message: `${PHOTO_LABELS[slot]}已压缩保存并显示。`,
+            error: false
+          });
+        } catch (_) {
+          await this.clearOriginalPhotoCache(slot);
+          const loaded = await this.loadPhotos();
+          if (loaded) this.setData({ message: `${PHOTO_LABELS[slot]}已保存并刷新。`, error: false });
+        }
+      } else {
+        this.setData({ message: `${PHOTO_LABELS[slot]}已保存，正在确认照片清单。`, error: false });
+        await this.clearOriginalPhotoCache(slot);
+        await this.loadPhotos();
+      }
     } catch (error) {
       if (requestOpened && !commitUncertain) {
         try { await callPhoto("cancelVerificationPhotoUpload", { recordId: this.data.order.id, requestId: uploadRequestId }); } catch (_) {}

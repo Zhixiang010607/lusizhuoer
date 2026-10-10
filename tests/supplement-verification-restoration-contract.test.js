@@ -10,6 +10,9 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 const migration = read("database/migrations/079_supplement_verification_review.sql");
 const consoleSql = read("database/cloudbase-console/079-01-supplement-verification-review.sql");
 const verifySql = read("database/cloudbase-console/079-readonly-verify.sql");
+const hotfixMigration = read("database/migrations/080_fix_supplement_verification_id_ambiguity.sql");
+const hotfixConsoleSql = read("database/cloudbase-console/080-01-fix-supplement-verification-id-ambiguity.sql");
+const hotfixVerifySql = read("database/cloudbase-console/080-readonly-verify.sql");
 const face = read("cloudfunctions/faceRecognition/index.js");
 const staff = read("cloudfunctions/staffAccount/index.js");
 const verificationJs = read("miniprogram-app/miniprogram/pages/verification/index.js");
@@ -22,6 +25,7 @@ const orderJs = read("miniprogram-app/miniprogram/pages/order-detail/index.js");
 const orderWxml = read("miniprogram-app/miniprogram/pages/order-detail/index.wxml");
 
 assert.equal(consoleSql, migration, "079 CloudBase SQL must exactly match the canonical migration");
+assert.equal(hotfixConsoleSql, hotfixMigration, "080 CloudBase SQL must exactly match the canonical migration");
 assert.match(migration, /CURRENT_VERIFICATION_INTEGRITY_V79/);
 assert.match(migration, /verification_type = 'SUPPLEMENT' AND NEW\.record_status <> 'PENDING'/);
 assert.match(migration, /SUPPLEMENT_VERIFICATION_CREATE_V79/);
@@ -42,6 +46,19 @@ for (const marker of [
   "supplement_create_function", "supplement_pending_integrity", "supplement_teacher_matrix",
   "approval_balance_guard", "supplement_no_device_signal", "supplement_service_role_only"
 ]) assert.match(verifySql, new RegExp(marker));
+for (const source of [migration, hotfixMigration]) {
+  const submissionFunction = source.slice(source.indexOf(
+    "CREATE OR REPLACE FUNCTION public.create_supplement_verification_application"
+  ));
+  assert.match(submissionFunction, /store\.id = p_store_id/);
+  assert.match(submissionFunction, /product\.id = p_product_id/);
+  assert.match(submissionFunction, /submitter\.id = p_submitted_by_account_id/);
+  assert.doesNotMatch(submissionFunction, /WHERE id = p_(?:store|product|submitted_by_account)_id/,
+    "supplement submission must qualify table identifiers that conflict with output columns");
+}
+assert.match(hotfixMigration, /SUPPLEMENT_VERIFICATION_CREATE_V80/);
+assert.match(hotfixVerifySql, /supplement_qualified_identifiers/);
+assert.match(hotfixVerifySql, /supplement_service_role_only/);
 
 assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v11" : "v125"/);
 assert.match(face, /async function createSupplementVerificationApplication\(event\)/);

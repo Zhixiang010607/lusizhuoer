@@ -252,13 +252,13 @@ BEGIN
       USING ERRCODE = '23514';
   END IF;
 
-  PERFORM 1 FROM public.stores
-   WHERE id = p_store_id AND store_status = 'ACTIVE' FOR SHARE;
+  PERFORM 1 FROM public.stores AS store
+   WHERE store.id = p_store_id AND store.store_status = 'ACTIVE' FOR SHARE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'store is missing or archived' USING ERRCODE = '23514';
   END IF;
-  PERFORM 1 FROM public.products
-   WHERE id = p_product_id AND product_status = 'ACTIVE' FOR SHARE;
+  PERFORM 1 FROM public.products AS product
+   WHERE product.id = p_product_id AND product.product_status = 'ACTIVE' FOR SHARE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'product is missing or archived' USING ERRCODE = '23514';
   END IF;
@@ -275,8 +275,10 @@ BEGIN
       RAISE EXCEPTION 'teacher is missing or archived' USING ERRCODE = '23514';
     END IF;
   END IF;
-  PERFORM 1 FROM public.staff_accounts
-   WHERE id = p_submitted_by_account_id AND account_status = 'ACTIVE' FOR SHARE;
+  PERFORM 1 FROM public.staff_accounts AS submitter
+   WHERE submitter.id = p_submitted_by_account_id
+     AND submitter.account_status = 'ACTIVE'
+   FOR SHARE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'submitting account is missing or archived' USING ERRCODE = '23514';
   END IF;
