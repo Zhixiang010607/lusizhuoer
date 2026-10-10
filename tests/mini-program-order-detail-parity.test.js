@@ -581,8 +581,13 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
   includes(js, "STALE_PHOTO_GENERATION", "a replaced manifest invalidates an older original-photo generation");
   includes(js, "wx.showShareImageMenu", "downloaded originals can be forwarded from WeChat");
   includes(wxml, 'bindtap="sharePhoto"', "each original has a direct forward action");
-  includes(wxml, 'wx:if="{{photoViewerOpen}}"', "the enlarged viewer is app-controlled");
-  assert.match(wxml, /(?:bindtap|catchtap)="shareViewerPhoto"/, "the enlarged viewer also exposes forwarding");
+  includes(functionSource(js, "previewPhoto"), "await this.originalPhotoLocalPath(slot)",
+    "the native viewer receives the actual server-bound original file");
+  includes(functionSource(js, "previewPhoto"), "wx.previewImage({", "original viewing uses WeChat's native full-screen viewer");
+  includes(functionSource(js, "previewPhoto"), "current: filePath", "the exact local original is selected in the native viewer");
+  includes(functionSource(js, "previewPhoto"), "urls: [filePath]", "the native viewer contains only the requested original");
+  assert.doesNotMatch(`${js}\n${wxml}\n${wxss}`, /photoViewer|photo-viewer/,
+    "the retired fixed-size custom viewer cannot crop or constrain the original");
   assert.doesNotMatch(functionSource(js, "onUnload"), /clearOriginalPhotoCache/,
     "leaving the page must not delete the 24-hour original cache");
   assert.doesNotMatch(wxml, /originalBusySlot/, "one slow photo cannot disable every other photo slot");
@@ -594,10 +599,11 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
     "the page handler also rejects a replacement while that slot's original is in flight");
   includes(wxml, "canEdit && item.slot >= 2", "server-authorized edit buttons");
   includes(wxml, 'id="photoNormalizeCanvas"', "a dedicated hidden canvas normalizes supplemental source images");
-  includes(wxml, 'mode="widthFix"', "photo cards expand to the complete image ratio instead of cropping it");
-  includes(wxml, "photo-frame-ready", "a loaded photo leaves the fixed-height placeholder frame");
-  assert.match(wxss, /\.photo-frame\.photo-frame-ready\s*\{[^}]*height:\s*auto;[^}]*overflow:\s*visible;/s,
-    "loaded photos use their full natural height without clipping");
+  includes(wxml, 'mode="aspectFit"', "photo cards keep a compact fixed frame while shrinking the complete image into it");
+  assert.doesNotMatch(wxml, /photo-frame-ready|mode="widthFix"/,
+    "the compact photo grid must not expand to each source image's natural height");
+  assert.match(wxss, /\.photo-frame\s*\{[^}]*height:\s*250rpx;[^}]*overflow:\s*hidden;/s,
+    "phone photo cards keep one compact fixed thumbnail height");
   assert.doesNotMatch(wxml, /class="photo"[^>]*mode="aspectFill"/,
     "verification photo cards cannot use a crop-to-fill display mode");
   assert.match(wxss, /\.photo-card\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;/s,
@@ -807,8 +813,9 @@ test("a manifest replacement invalidates the old slot generation and rejects its
     "the late old flight cannot overwrite the replacement generation's cache");
 });
 
-test("preview, album save, direct forwarding, and viewer forwarding reuse one local original", async () => {
+test("native preview, album save, and direct forwarding reuse one local original", async () => {
   let photoCalls = 0;
+  let previewCalls = 0;
   let saveCalls = 0;
   let shareCalls = 0;
   const { page: definition } = loadHelpers({
@@ -820,6 +827,13 @@ test("preview, album save, direct forwarding, and viewer forwarding reuse one lo
     async saveImageToAlbum() {
       saveCalls += 1;
       return { saved: true };
+    },
+    previewImage(request) {
+      previewCalls += 1;
+      assert.equal(request.current, firstSlotPath);
+      assert.deepEqual(Array.from(request.urls), [firstSlotPath]);
+      assert.equal(request.showmenu, true);
+      request.success({});
     },
     showShareImageMenu(request) {
       shareCalls += 1;
@@ -838,18 +852,15 @@ test("preview, album save, direct forwarding, and viewer forwarding reuse one lo
   assert.equal(photoCalls, 1);
 
   await page.previewPhoto({ currentTarget: { dataset: { slot: 0 } } });
-  assert.equal(page.data.photoViewerOpen, true);
-  assert.equal(page.data.photoViewerPath, firstSlotPath);
+  assert.equal(previewCalls, 1);
   assert.equal(page.data.error, false);
 
   await page.savePhoto({ currentTarget: { dataset: { slot: 0 } } });
   await page.sharePhoto({ currentTarget: { dataset: { slot: 0 } } });
-  await page.saveViewerPhoto();
-  await page.shareViewerPhoto();
-  assert.equal(saveCalls, 2);
-  assert.equal(shareCalls, 2);
+  assert.equal(saveCalls, 1);
+  assert.equal(shareCalls, 1);
   assert.equal(photoCalls, 1, "all actions reuse the exact same local original without repeat requests");
-  assert.equal(page.data.message, "原图已保存到系统相册。");
+  assert.equal(page.data.error, false);
 });
 
 test("all four order categories export actual receipts without exporting verification photos", () => {

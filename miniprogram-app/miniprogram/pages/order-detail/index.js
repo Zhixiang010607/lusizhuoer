@@ -509,7 +509,6 @@ Page({
     canEdit: false, isSubmitter: false, editableUntil: "", editableUntilLabel: "—", uploading: false, uploadingSlot: -1,
     exporting: false, exportProgress: "",
     rating: emptyRating(), ratingLoading: false, ratingError: "", ratingRestricted: false,
-    photoViewerOpen: false, photoViewerPath: "", photoViewerSlot: -1, photoViewerLabel: "",
     message: "", error: false
   },
 
@@ -548,7 +547,6 @@ Page({
     if (this._originalPhotoCache) this._originalPhotoCache.clear();
     if (this._originalPhotoGenerations) this._originalPhotoGenerations.clear();
     if (this._photoManifestIdentities) this._photoManifestIdentities.clear();
-    this.setData({ photoViewerOpen: false, photoViewerPath: "", photoViewerSlot: -1, photoViewerLabel: "" });
     const owned = this._ownedPhotoFiles ? Array.from(this._ownedPhotoFiles) : [];
     if (this._ownedPhotoFiles) this._ownedPhotoFiles.clear();
     owned.forEach((filePath) => unlinkFile(filePath).catch(() => {}));
@@ -1015,12 +1013,13 @@ Page({
     this.setData({ message: "", error: false });
     try {
       const filePath = await this.originalPhotoLocalPath(slot);
-      this.setData({
-        photoViewerOpen: true,
-        photoViewerPath: filePath,
-        photoViewerSlot: slot,
-        photoViewerLabel: photo.label || "核销照片"
-      });
+      await wxCall((resolve, reject) => wx.previewImage({
+        current: filePath,
+        urls: [filePath],
+        showmenu: true,
+        success: resolve,
+        fail: reject
+      }));
     } catch (error) {
       const message = originalPhotoErrorMessage(error);
       if (message) this.setData({ message, error: true });
@@ -1058,34 +1057,6 @@ Page({
       const message = originalPhotoErrorMessage(error, "照片转发失败，请稍后重试");
       if (message) this.setData({ message, error: true });
     } finally { this.setOriginalPhotoBusy(slot, false); }
-  },
-
-  closePhotoViewer() {
-    this.setData({ photoViewerOpen: false, photoViewerPath: "", photoViewerSlot: -1, photoViewerLabel: "" });
-  },
-
-  stopViewerEvent() {},
-
-  async saveViewerPhoto() {
-    const slot = Number(this.data.photoViewerSlot);
-    if (!Number.isInteger(slot) || slot < 0) return;
-    try {
-      await this.runOriginalPhotoAction(slot, (filePath) => saveImageToAlbum(filePath));
-      this.setData({ message: "原图已保存到系统相册。", error: false });
-    } catch (error) {
-      const message = originalPhotoErrorMessage(error, "原图保存失败，请检查相册权限后重试");
-      if (message) this.setData({ message, error: true });
-    }
-  },
-
-  async shareViewerPhoto() {
-    const slot = Number(this.data.photoViewerSlot);
-    if (!Number.isInteger(slot) || slot < 0) return;
-    try { await this.runOriginalPhotoAction(slot, (filePath) => this.shareImageFile(filePath)); }
-    catch (error) {
-      const message = originalPhotoErrorMessage(error, "照片转发失败，请稍后重试");
-      if (message) this.setData({ message, error: true });
-    }
   },
 
   async callPhotoWithTransportRetry(action, payload) {

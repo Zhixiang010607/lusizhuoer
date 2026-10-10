@@ -49,8 +49,8 @@
       <view wx:if="{{canEdit}}" class="edit-window">可补充或替换照片位 3–5；服务端授权截止 {{editableUntilLabel}}</view>
       <view class="photo-grid">
         <view wx:for="{{photos}}" wx:key="slot" hidden="{{!item.visible}}" class="photo-card state-{{item.state}}">
-          <view class="photo-frame {{item.declared && item.thumbnailState === 'ready' ? 'photo-frame-ready' : ''}}">
-            <image wx:if="{{item.declared && item.thumbnailState === 'ready'}}" class="photo" src="{{item.thumbnailUrl}}" mode="widthFix" data-slot="{{item.slot}}" bindtap="previewPhoto" binderror="photoThumbnailError"></image>
+          <view class="photo-frame">
+            <image wx:if="{{item.declared && item.thumbnailState === 'ready'}}" class="photo" src="{{item.thumbnailUrl}}" mode="aspectFit" data-slot="{{item.slot}}" bindtap="previewPhoto" binderror="photoThumbnailError"></image>
             <view wx:elif="{{item.declared}}" class="slot-placeholder slot-error slot-retry-target" data-slot="{{item.slot}}" bindtap="retryThumbnail">
               <text wx:if="{{item.retrying}}">正在重新读取这张照片…</text>
               <text wx:elif="{{item.retryError}}">{{item.retryError}}</text>
@@ -97,19 +97,6 @@
     </view>
   </block>
   <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
-  <view wx:if="{{photoViewerOpen}}" class="photo-viewer" catchtouchmove="stopViewerEvent" bindtap="closePhotoViewer">
-    <view class="photo-viewer-panel" catchtap="stopViewerEvent">
-      <view class="photo-viewer-head">
-        <text>{{photoViewerLabel}}</text>
-        <button class="photo-viewer-close" catchtap="closePhotoViewer">关闭</button>
-      </view>
-      <image class="photo-viewer-image" src="{{photoViewerPath}}" mode="aspectFit"></image>
-      <view class="photo-viewer-actions">
-        <button class="secondary" catchtap="saveViewerPhoto">保存相册</button>
-        <button class="primary" catchtap="shareViewerPhoto">转发照片</button>
-      </view>
-    </view>
-  </view>
   <canvas id="receiptCanvas" type="2d" class="export-canvas"></canvas>
   <canvas id="photoNormalizeCanvas" type="2d" class="export-canvas"></canvas>
   <view class="safe-bottom"></view>
