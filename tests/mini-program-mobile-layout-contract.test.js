@@ -249,6 +249,12 @@ test("mobile management controls stay centered without breaking data into charac
   assert.doesNotMatch(teacher, /\.quota-card\s*\{[^}]*background:\s*#fff;/s);
   const teacherWxml = read("miniprogram-app", "miniprogram", "pages", "teacher-detail", "index.wxml");
   const teacherJs = read("miniprogram-app", "miniprogram", "pages", "teacher-detail", "index.js");
+  assert.match(teacherWxml, /class="workspace-topbar detail-topbar"[\s\S]*class="back-button"[\s\S]*返回老师管理/,
+    "teacher detail must keep its return action aligned with the page title");
+  assert.doesNotMatch(teacherWxml, /class="ghost back-button"/,
+    "the teacher-management return action must not appear as an isolated boxed card");
+  assert.match(teacher, /\.back-button \{[^}]*background:\s*transparent;[^}]*border:\s*0;/s,
+    "the teacher-management return action must remain a lightweight text control");
   assert.match(teacherWxml, /class="teacher-profile-meta"><text>编号 \{\{profile\.code\}\}<\/text><text>电话 \{\{profile\.phone\}\}<\/text>/,
     "teacher code and phone move into the compact top profile hero");
   assert.doesNotMatch(teacherWxml, /class="web-panel teacher-record-panel"|<text class="panel-title">老师档案<\/text>/,

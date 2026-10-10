@@ -10,7 +10,8 @@ page { background: #f3ede2; color: #302a22; }
 .section-note { margin-top: 6rpx; color: #7c7062; font-size: 22rpx; }
 button::after { border: 0; }
 .back, .today-button, .confirm-button, .month-toolbar button, .detail-heading button { width: auto !important; min-width: 0; margin: 0; color: #74592d; background: #fffaf3; border: 1rpx solid #d8c5a3; }
-.back, .today-button, .confirm-button, .detail-heading button { min-height: 72rpx; display: flex; align-items: center; justify-content: center; padding: 0 20rpx; border-radius: 13rpx; font-size: 23rpx; line-height: 1; text-align: center; }
+.back, .today-button, .confirm-button, .detail-heading button { height: 72rpx; min-height: 72rpx; display: flex; align-items: center; justify-content: center; padding: 0 20rpx; border-radius: 13rpx; font-size: 23rpx; line-height: 1; text-align: center; }
+.button-label { display: block; line-height: 1.2; transform: translateY(-1rpx); }
 .back { position: absolute; top: 0; right: 0; margin-left: auto !important; background: transparent; border-color: transparent; }
 .tracking-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18rpx; }
 .date-query-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 14rpx; }
@@ -67,13 +68,16 @@ button::after { border: 0; }
 .detail-meta text { display: block; }
 .detail-meta text:first-child { color: #7c7062; font-size: 20rpx; }
 .detail-meta text:last-child { margin-top: 7rpx; color: #302a22; font-size: 23rpx; font-weight: 700; font-variant-numeric: tabular-nums; }
+.detail-meta .address-meta { grid-column: 1 / -1; }
+.detail-meta .address-meta text:last-child { overflow-wrap: anywhere; line-height: 1.5; }
 button[disabled] { opacity: .55; }
 @media (min-width: 700px) {
   .page { width: calc(100% - 48px); max-width: 1120px; padding: 24px 0 40px; }
   .page-heading { min-height: 44px; margin-bottom: 20px; padding-right: 132px; }
   .title { font-size: 28px; }
   .subtitle { margin-top: 5px; font-size: 14px; }
-  .back, .today-button, .confirm-button, .detail-heading button { min-height: 44px; padding: 0 16px; border-width: 1px; border-radius: 10px; font-size: 14px; }
+  .back, .today-button, .confirm-button, .detail-heading button { height: 44px; min-height: 44px; padding: 0 16px; border-width: 1px; border-radius: 10px; font-size: 14px; }
+  .button-label { transform: translateY(-1px); }
   .tracking-layout { grid-template-columns: minmax(0, 1fr); align-items: start; gap: 18px; }
   .date-query-card { grid-template-columns: minmax(0, 1fr) auto; gap: 14px; }
   .confirm-button { min-width: 82px !important; }
@@ -115,9 +119,9 @@ button[disabled] { opacity: .55; }
 }
 
 .tracking-map { width: 100%; height: 480rpx; border-radius: 16rpx; overflow: hidden; }
-.map-button { width: 100% !important; min-height: 74rpx; margin: 16rpx 0 0; color: #74592d; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 13rpx; font-size: 24rpx; }
+.map-button { width: 100% !important; height: 74rpx; min-height: 74rpx; display: flex; align-items: center; justify-content: center; box-sizing: border-box; margin: 16rpx 0 0; padding: 0 18rpx; color: #74592d; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 13rpx; font-size: 24rpx; line-height: 1; text-align: center; }
 
 @media (min-width: 700px) {
   .tracking-map { height: 420px; border-radius: 12px; }
-  .map-button { min-height: 44px; margin-top: 12px; border-width: 1px; border-radius: 10px; font-size: 14px; }
+  .map-button { height: 44px; min-height: 44px; margin-top: 12px; padding: 0 12px; border-width: 1px; border-radius: 10px; font-size: 14px; }
 }

@@ -75,6 +75,7 @@ function runtime() {
     setTimeout, clearTimeout, setInterval, clearInterval,
     require(name) {
       if (name === "crypto") return require("node:crypto");
+      if (name === "https") return require("node:https");
       if (name === "@cloudbase/node-sdk") {
         return { init: () => ({ auth: () => ({ getUserInfo: () => ({ uid: "hq-auth-uid" }) }) }) };
       }

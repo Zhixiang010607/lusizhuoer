@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v87";
+const FUNCTION_VERSION = "v88";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -1829,12 +1829,19 @@ async function requireTeacherAttendanceSchema() {
                WHERE table_schema = 'public'
                  AND table_name = 'teacher_attendance_records'
                  AND column_name = 'attendance_type'
-            ) AS attendance_type_ready`
+            ) AS attendance_type_ready,
+            EXISTS (
+              SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public'
+                 AND table_name = 'teacher_attendance_records'
+                 AND column_name = 'formatted_address'
+            ) AS attendance_address_ready`
   );
   const row = rows?.[0] || {};
   if (!databaseBoolean(row.profile_table) || !databaseBoolean(row.attendance_table)
-      || !databaseBoolean(row.attendance_index) || !databaseBoolean(row.attendance_type_ready)) {
-    fail("老师上下班考勤数据库结构尚未启用，请先执行并验收迁移 078。", "ATTENDANCE_SCHEMA_MISSING");
+      || !databaseBoolean(row.attendance_index) || !databaseBoolean(row.attendance_type_ready)
+      || !databaseBoolean(row.attendance_address_ready)) {
+    fail("老师考勤地址数据库结构尚未启用，请先执行并验收迁移 081。", "ATTENDANCE_SCHEMA_MISSING");
   }
   teacherAttendanceSchemaReady = true;
 }
@@ -1856,7 +1863,10 @@ function attendanceResponse(row = {}) {
     longitude: Number(row.longitude),
     accuracy: Number(row.accuracy_m),
     faceScore: Number(row.face_score),
-    devicePlatform: String(row.device_platform || "UNKNOWN")
+    devicePlatform: String(row.device_platform || "UNKNOWN"),
+    placeName: String(row.place_name || ""),
+    formattedAddress: String(row.formatted_address || ""),
+    addressProvider: String(row.address_provider || "")
   };
 }
 
@@ -1874,7 +1884,8 @@ async function getOwnAttendanceMonth(caller, event = {}) {
      SELECT context.server_today, context.face_enrolled,
             attendance.id AS attendance_id, attendance.attendance_date,
             attendance.attendance_type, attendance.checked_in_at, attendance.latitude, attendance.longitude,
-            attendance.accuracy_m, attendance.face_score, attendance.device_platform
+            attendance.accuracy_m, attendance.face_score, attendance.device_platform,
+            attendance.place_name, attendance.formatted_address, attendance.address_provider
        FROM context
        LEFT JOIN public.teacher_attendance_records AS attendance
          ON attendance.staff_account_id = ${staffId}::bigint
@@ -1918,12 +1929,18 @@ async function getHqAttendanceTrackingDay(caller, event = {}) {
             clock_in.latitude AS clock_in_latitude, clock_in.longitude AS clock_in_longitude,
             clock_in.accuracy_m AS clock_in_accuracy_m, clock_in.face_score AS clock_in_face_score,
             clock_in.device_platform AS clock_in_device_platform,
+            clock_in.place_name AS clock_in_place_name,
+            clock_in.formatted_address AS clock_in_formatted_address,
+            clock_in.address_provider AS clock_in_address_provider,
             clock_out.id AS clock_out_id, clock_out.attendance_date AS clock_out_attendance_date,
             clock_out.attendance_type AS clock_out_attendance_type,
             clock_out.checked_in_at AS clock_out_checked_in_at,
             clock_out.latitude AS clock_out_latitude, clock_out.longitude AS clock_out_longitude,
             clock_out.accuracy_m AS clock_out_accuracy_m, clock_out.face_score AS clock_out_face_score,
             clock_out.device_platform AS clock_out_device_platform,
+            clock_out.place_name AS clock_out_place_name,
+            clock_out.formatted_address AS clock_out_formatted_address,
+            clock_out.address_provider AS clock_out_address_provider,
             CASE WHEN clock_in.id IS NOT NULL AND clock_out.id IS NOT NULL
                  THEN FLOOR(EXTRACT(EPOCH FROM (clock_out.checked_in_at - clock_in.checked_in_at)))::bigint
                  ELSE NULL END AS work_duration_seconds
@@ -1950,14 +1967,16 @@ async function getHqAttendanceTrackingDay(caller, event = {}) {
       attendance_type: row.clock_in_attendance_type, checked_in_at: row.clock_in_checked_in_at,
       latitude: row.clock_in_latitude, longitude: row.clock_in_longitude,
       accuracy_m: row.clock_in_accuracy_m, face_score: row.clock_in_face_score,
-      device_platform: row.clock_in_device_platform
+      device_platform: row.clock_in_device_platform, place_name: row.clock_in_place_name,
+      formatted_address: row.clock_in_formatted_address, address_provider: row.clock_in_address_provider
     }),
     clockOut: attendanceResponse({
       attendance_id: row.clock_out_id, attendance_date: row.clock_out_attendance_date,
       attendance_type: row.clock_out_attendance_type, checked_in_at: row.clock_out_checked_in_at,
       latitude: row.clock_out_latitude, longitude: row.clock_out_longitude,
       accuracy_m: row.clock_out_accuracy_m, face_score: row.clock_out_face_score,
-      device_platform: row.clock_out_device_platform
+      device_platform: row.clock_out_device_platform, place_name: row.clock_out_place_name,
+      formatted_address: row.clock_out_formatted_address, address_provider: row.clock_out_address_provider
     }),
     workDurationSeconds: row.work_duration_seconds === null || row.work_duration_seconds === undefined
       ? null : Math.max(0, Number(row.work_duration_seconds))

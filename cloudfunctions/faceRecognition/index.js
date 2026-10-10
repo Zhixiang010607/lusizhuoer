@@ -3,9 +3,10 @@
 const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
+const https = require("https");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v125";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v11" : "v126";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -6165,12 +6166,19 @@ async function requireTeacherAttendanceSchema() {
                WHERE table_schema = 'public'
                  AND table_name = 'teacher_attendance_records'
                  AND column_name = 'attendance_type'
-            ) AS attendance_type_ready`
+            ) AS attendance_type_ready,
+            EXISTS (
+              SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public'
+                 AND table_name = 'teacher_attendance_records'
+                 AND column_name = 'formatted_address'
+            ) AS attendance_address_ready`
   );
   const row = rows?.[0] || {};
   if (!databaseBoolean(row.profile_table) || !databaseBoolean(row.attendance_table)
-      || !databaseBoolean(row.attendance_trigger) || !databaseBoolean(row.attendance_type_ready)) {
-    fail("老师上下班考勤数据库结构尚未启用，请先执行并验收迁移 078。", "ATTENDANCE_SCHEMA_MISSING");
+      || !databaseBoolean(row.attendance_trigger) || !databaseBoolean(row.attendance_type_ready)
+      || !databaseBoolean(row.attendance_address_ready)) {
+    fail("老师考勤地址数据库结构尚未启用，请先执行并验收迁移 081。", "ATTENDANCE_SCHEMA_MISSING");
   }
   teacherAttendanceSchemaReady = true;
 }
@@ -6200,6 +6208,210 @@ function attendanceType(value) {
   return type;
 }
 
+function attendanceCoordinateType(value) {
+  const type = String(value || "GCJ02").trim().toUpperCase();
+  return ["GCJ02", "WGS84"].includes(type) ? type : "GCJ02";
+}
+
+function attendanceAddressText(value, maximum) {
+  return String(value || "").trim().replace(/\s+/g, " ").slice(0, maximum);
+}
+
+function mainlandChinaCoordinate(latitude, longitude) {
+  return latitude >= 18.0 && latitude <= 53.6 && longitude >= 73.5 && longitude <= 135.1;
+}
+
+function getJson(url, timeoutMs = 2800) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const request = https.get(url, { headers: { Accept: "application/json", "User-Agent": "lusizhuoer-attendance/1.0" } }, (response) => {
+      const chunks = [];
+      let bytes = 0;
+      response.on("data", (chunk) => {
+        bytes += chunk.length;
+        if (bytes > 512 * 1024) {
+          response.destroy(new Error("reverse geocode response is too large"));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      response.on("end", () => {
+        if (settled) return;
+        settled = true;
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          reject(new Error(`reverse geocode HTTP ${response.statusCode}`));
+          return;
+        }
+        try { resolve(JSON.parse(Buffer.concat(chunks).toString("utf8"))); }
+        catch (_) { reject(new Error("reverse geocode returned invalid JSON")); }
+      });
+    });
+    request.setTimeout(timeoutMs, () => request.destroy(new Error("reverse geocode timed out")));
+    request.on("error", (error) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    });
+  });
+}
+
+async function tencentAttendanceAddress(latitude, longitude) {
+  const key = String(process.env.TENCENT_MAP_KEY || "").trim();
+  if (!key) return null;
+  const query = new URLSearchParams({
+    location: `${latitude},${longitude}`,
+    key,
+    output: "json",
+    get_poi: "1",
+    poi_options: "policy=1;radius=1000;page_size=5;page_index=1"
+  });
+  const payload = await getJson(`https://apis.map.qq.com/ws/geocoder/v1/?${query.toString()}`);
+  if (Number(payload?.status) !== 0 || !payload?.result) throw new Error(`Tencent reverse geocode failed: ${payload?.status || "unknown"}`);
+  const result = payload.result;
+  const poi = Array.isArray(result.pois) ? result.pois[0] : null;
+  const reference = result.address_reference || {};
+  const component = result.address_component || {};
+  const formatted = result.formatted_addresses || {};
+  const placeName = [
+    poi?.title,
+    reference.landmark_l2?.title,
+    reference.landmark_l1?.title,
+    formatted.recommend,
+    component.street_number,
+    component.street
+  ].map((item) => attendanceAddressText(item, 160)).find(Boolean) || "";
+  const formattedAddress = attendanceAddressText(
+    result.address || poi?.address || formatted.recommend || formatted.rough || placeName,
+    500
+  );
+  if (!placeName && !formattedAddress) throw new Error("Tencent reverse geocode returned no address");
+  return { placeName, formattedAddress, provider: "TENCENT" };
+}
+
+async function hereAttendanceAddress(latitude, longitude) {
+  const key = String(process.env.HERE_GEOCODING_API_KEY || "").trim();
+  if (!key) return null;
+  const query = new URLSearchParams({
+    at: `${latitude},${longitude}`,
+    lang: "zh-CN",
+    limit: "5",
+    apiKey: key
+  });
+  const payload = await getJson(`https://revgeocode.search.hereapi.com/v1/revgeocode?${query.toString()}`);
+  const item = Array.isArray(payload?.items) ? payload.items[0] : null;
+  if (!item) throw new Error("HERE reverse geocode returned no address");
+  const address = item.address || {};
+  const placeName = [
+    item.title,
+    address.houseNumber && address.street ? `${address.street} ${address.houseNumber}` : "",
+    address.street,
+    address.district,
+    address.city
+  ].map((value) => attendanceAddressText(value, 160)).find(Boolean) || "";
+  const formattedAddress = attendanceAddressText(address.label || item.title || placeName, 500);
+  return { placeName, formattedAddress, provider: "HERE" };
+}
+
+async function resolveAttendanceAddress(latitude, longitude) {
+  const china = mainlandChinaCoordinate(latitude, longitude);
+  const providers = china
+    ? [tencentAttendanceAddress, hereAttendanceAddress]
+    : [hereAttendanceAddress, tencentAttendanceAddress];
+  let configured = false;
+  for (const provider of providers) {
+    const isTencent = provider === tencentAttendanceAddress;
+    if (isTencent ? process.env.TENCENT_MAP_KEY : process.env.HERE_GEOCODING_API_KEY) configured = true;
+    try {
+      const result = await provider(latitude, longitude);
+      if (result) return { ...result, resolved: true, warning: "" };
+    } catch (error) {
+      console.warn("Attendance reverse geocode provider failed", isTencent ? "TENCENT" : "HERE", error?.message || error);
+    }
+  }
+  return {
+    placeName: "",
+    formattedAddress: "",
+    provider: "",
+    resolved: false,
+    warning: configured ? "附近地点暂时未能匹配，经纬度和地图位置仍会正常保存。" : "地址服务尚未配置，经纬度和地图位置仍会正常保存。"
+  };
+}
+
+function attendanceLocationSigningKey() {
+  return crypto.createHash("sha256")
+    .update("lusizhuoer-attendance-location-v1\0")
+    .update(cloudbaseServiceRoleKey())
+    .digest();
+}
+
+function base64UrlEncode(value) {
+  return Buffer.from(value).toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+}
+
+function base64UrlDecode(value) {
+  const text = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
+  return Buffer.from(text + "=".repeat((4 - text.length % 4) % 4), "base64").toString("utf8");
+}
+
+function signAttendanceLocation(payload) {
+  const body = base64UrlEncode(JSON.stringify(payload));
+  const signature = crypto.createHmac("sha256", attendanceLocationSigningKey()).update(body).digest("base64")
+    .replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+  return `${body}.${signature}`;
+}
+
+function verifiedAttendanceAddressToken(token, staffId, latitude, longitude) {
+  const value = String(token || "").trim();
+  if (!value) return null;
+  const [body, signature, extra] = value.split(".");
+  if (!body || !signature || extra) fail("打卡地址确认已失效，请重新获取当前位置。", "ATTENDANCE_LOCATION_TOKEN_INVALID");
+  const expected = crypto.createHmac("sha256", attendanceLocationSigningKey()).update(body).digest("base64")
+    .replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+  const left = Buffer.from(signature), right = Buffer.from(expected);
+  if (left.length !== right.length || !crypto.timingSafeEqual(left, right)) {
+    fail("打卡地址确认已失效，请重新获取当前位置。", "ATTENDANCE_LOCATION_TOKEN_INVALID");
+  }
+  let payload;
+  try { payload = JSON.parse(base64UrlDecode(body)); }
+  catch (_) { fail("打卡地址确认已失效，请重新获取当前位置。", "ATTENDANCE_LOCATION_TOKEN_INVALID"); }
+  if (Number(payload.v) !== 1 || Number(payload.s) !== Number(staffId) || Number(payload.exp) < Date.now()
+      || Math.abs(Number(payload.lat) - latitude) > 0.0001
+      || Math.abs(Number(payload.lng) - longitude) > 0.0001) {
+    fail("打卡地址确认已超过有效期或位置已变化，请重新获取。", "ATTENDANCE_LOCATION_TOKEN_EXPIRED");
+  }
+  return {
+    placeName: attendanceAddressText(payload.pn, 160),
+    formattedAddress: attendanceAddressText(payload.fa, 500),
+    provider: attendanceAddressText(payload.pr, 24),
+    resolved: Boolean(payload.pn || payload.fa)
+  };
+}
+
+async function resolveTeacherAttendanceLocation(event) {
+  const caller = await activeTeacherCaller();
+  await requireTeacherAttendanceSchema();
+  const latitude = attendanceCoordinate(event.latitude, "纬度", -90, 90);
+  const longitude = attendanceCoordinate(event.longitude, "经度", -180, 180);
+  const accuracy = attendanceCoordinate(event.accuracy, "定位精度", 0.01, 500);
+  const coordinateType = attendanceCoordinateType(event.coordinateType);
+  const address = await resolveAttendanceAddress(latitude, longitude);
+  const issuedAt = Date.now();
+  const locationToken = signAttendanceLocation({
+    v: 1,
+    s: Number(caller.staffId),
+    lat: Number(latitude.toFixed(6)),
+    lng: Number(longitude.toFixed(6)),
+    a: Number(accuracy.toFixed(2)),
+    ct: coordinateType,
+    pn: address.placeName,
+    fa: address.formattedAddress,
+    pr: address.provider,
+    iat: issuedAt,
+    exp: issuedAt + 5 * 60 * 1000
+  });
+  return { ok: true, ...address, locationToken, expiresAt: issuedAt + 5 * 60 * 1000 };
+}
+
 function attendanceRecord(row = {}) {
   if (!row.id) return null;
   return {
@@ -6212,7 +6424,10 @@ function attendanceRecord(row = {}) {
     accuracy: Number(row.accuracy_m),
     faceScore: Number(row.face_score),
     faceRequestId: String(row.face_request_id || ""),
-    devicePlatform: String(row.device_platform || "UNKNOWN")
+    devicePlatform: String(row.device_platform || "UNKNOWN"),
+    placeName: String(row.place_name || ""),
+    formattedAddress: String(row.formatted_address || ""),
+    addressProvider: String(row.address_provider || "")
   };
 }
 
@@ -6257,6 +6472,8 @@ async function clockInTeacherAttendance(event) {
   const longitude = attendanceCoordinate(event.longitude, "经度", -180, 180);
   const accuracy = attendanceCoordinate(event.accuracy, "定位精度", 0.01, 500);
   const platform = attendancePlatform(event.devicePlatform);
+  const address = verifiedAttendanceAddressToken(event.locationToken, staffId, latitude, longitude)
+    || await resolveAttendanceAddress(latitude, longitude);
   const { base64 } = cleanImage(event.imageBase64);
   const api = faceClient();
   const quality = await inspectFaceImage(api, base64);
@@ -6276,7 +6493,7 @@ async function clockInTeacherAttendance(event) {
        INSERT INTO public.teacher_attendance_records
          (teacher_id, staff_account_id, attendance_date, attendance_type, latitude, longitude,
           accuracy_m, face_score, face_request_id, quality_score, liveness_score,
-          client_request_id, device_platform)
+          client_request_id, device_platform, place_name, formatted_address, address_provider)
        VALUES
          (${teacherId}::bigint, ${staffId}::bigint,
           (CLOCK_TIMESTAMP() AT TIME ZONE 'Asia/Shanghai')::date,
@@ -6285,7 +6502,10 @@ async function clockInTeacherAttendance(event) {
           ${rounded(score)}::numeric, ${sqlText(result?.RequestId || "")},
           ${Number(quality.qualityScore || 0)}::numeric,
           ${liveness.score === null ? "NULL" : `${Number(liveness.score)}::numeric`},
-          ${sqlText(clientRequestId)}, ${sqlText(platform)})
+          ${sqlText(clientRequestId)}, ${sqlText(platform)},
+          ${address.placeName ? sqlText(address.placeName) : "NULL"},
+          ${address.formattedAddress ? sqlText(address.formattedAddress) : "NULL"},
+          ${address.provider ? sqlText(address.provider) : "NULL"})
        ON CONFLICT (staff_account_id, attendance_date, attendance_type) DO NOTHING
        RETURNING *
      )
@@ -7495,6 +7715,8 @@ exports.main = async (event = {}, context = {}) => {
         verificationPhotoServiceRoleStorageReady: storageHealth.serviceRoleStorageReady,
         verificationPhotoServiceRoleStorageError: storageHealth.serviceRoleStorageError || undefined,
         verificationPhotoServiceRoleStorageRequestId: storageHealth.serviceRoleStorageRequestId || undefined,
+        attendanceTencentGeocoderConfigured: Boolean(String(process.env.TENCENT_MAP_KEY || "").trim()),
+        attendanceHereGeocoderConfigured: Boolean(String(process.env.HERE_GEOCODING_API_KEY || "").trim()),
         livenessEnabled: faceSettings().livenessEnabled,
         message: "Face customer enrollment and private verification photos are ready."
       };
@@ -7511,6 +7733,7 @@ exports.main = async (event = {}, context = {}) => {
       fail("Unsupported verification photo action.", "ACTION_NOT_FOUND");
     }
     if (action === "validateCapture") return await validateCapture(event);
+    if (action === "resolveTeacherAttendanceLocation") return await resolveTeacherAttendanceLocation(event);
     if (action === "clockInTeacherAttendance") return await clockInTeacherAttendance(event);
     if (action === "registerCustomer") return await registerCustomer(event);
     if (action === "listActiveStoreCustomers") return await listActiveStoreCustomers(event);

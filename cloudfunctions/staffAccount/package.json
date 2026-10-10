@@ -1,6 +1,6 @@
 {
   "name": "staff-account",
-  "version": "86.0.0",
+  "version": "88.0.0",
   "private": true,
   "main": "index.js",
   "dependencies": {

@@ -1,6 +1,7 @@
 @import "../home/index.wxss";
-.detail-topbar { justify-content: space-between; gap: 14rpx; }
-.back-button { width: auto !important; min-width: 154rpx; min-height: 60rpx; margin: 0; padding: 0 14rpx; border-radius: 11rpx; font-size: 24rpx; }
+.detail-topbar { width: calc(100% - 48rpx); min-height: 104rpx; justify-content: space-between; gap: 20rpx; margin: 0 auto; padding: 32rpx 0 24rpx; box-sizing: border-box; }
+.back-button { width: auto !important; min-width: 0; min-height: 60rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0; color: #74592d; background: transparent; border: 0; border-radius: 0; font-size: 23rpx; font-weight: 600; line-height: 1; text-align: right; }
+.back-button::after { border: 0; }
 .teacher-detail-grid, .teacher-detail-sidebar { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
 .store-status-badge.archived { color: #8f3a34; background: #fff0ee; }
 .teacher-profile-hero, .security-panel, .experience-panel { border-color: #e1cfaf; background: #fffaf3; }
@@ -138,7 +139,8 @@
 .security-panel .button-row { margin-top: 20rpx; flex-wrap: wrap; }
 .security-panel .button-row button { flex: 1 1 220rpx; }
 @media (min-width: 700px) {
-  .detail-topbar .back-button { min-width: 116px; min-height: 44px; padding: 0 14px; font-size: 14px; }
+  .detail-topbar { width: calc(100% - 48px); max-width: 1120px; min-height: 84px; padding: 24px 0 0; }
+  .detail-topbar .back-button { min-width: 0; min-height: 44px; padding: 0; font-size: 14px; }
   .security-panel .button-row { margin-top: 14px; }
   .security-panel .button-row button { flex-basis: 120px; }
 }

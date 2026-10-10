@@ -60,7 +60,7 @@ assert.match(hotfixMigration, /SUPPLEMENT_VERIFICATION_CREATE_V80/);
 assert.match(hotfixVerifySql, /supplement_qualified_identifiers/);
 assert.match(hotfixVerifySql, /supplement_service_role_only/);
 
-assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v11" : "v125"/);
+assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v11" : "v126"/);
 assert.match(face, /async function createSupplementVerificationApplication\(event\)/);
 assert.match(face, /caller\.role === "teacher"[\s\S]*requestedTeacherId !== String\(caller\.teacherId\)/);
 assert.match(face, /create_supplement_verification_application\(/);
@@ -68,7 +68,7 @@ assert.match(face, /action === "createSupplementVerificationApplication"/);
 assert.match(face, /recordType === "SUPPLEMENT"/);
 assert.match(face, /const complete = supplement \|\|/,
   "supplement recovery must not wait for a device signal that is intentionally absent");
-assert.match(staff, /const FUNCTION_VERSION = "v87"/);
+assert.match(staff, /const FUNCTION_VERSION = "v88"/);
 assert.match(staff, /v\.verification_type = 'SUPPLEMENT' AND v\.void_request_status = 'NONE'/);
 assert.match(staff, /VERIFICATION_REVIEW_NOT_ALLOWED/,
   "HQ verification review must reject normal and experience records");

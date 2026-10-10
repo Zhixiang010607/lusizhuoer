@@ -9,7 +9,8 @@
 .placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40rpx; color: #7c7062; background: #f3eadc; text-align: center; line-height: 1.55; }
 .placeholder-title { margin-bottom: 10rpx; color: #554a3c; font-weight: 800; }
 .buttons { display: flex; gap: 14rpx; margin-top: 18rpx; }
-.buttons button { flex: 1; min-height: 82rpx; margin: 0; border-radius: 15rpx; font-size: 26rpx; font-weight: 750; }
+.buttons button { flex: 1; height: 82rpx; min-height: 82rpx; display: flex; align-items: center; justify-content: center; box-sizing: border-box; margin: 0; padding: 0 18rpx; border-radius: 15rpx; font-size: 26rpx; font-weight: 750; line-height: 1; text-align: center; }
+.button-label { display: block; line-height: 1.2; transform: translateY(-1rpx); }
 .capture { background: #6f532e !important; }
 .clear { color: #8f322e; background: #fff; border: 1rpx solid #efc6c2; }
 .clear::after { border: 0; }
@@ -26,6 +27,7 @@
   .placeholder { padding: 28px; font-size: 14px; }
   .placeholder-title { margin-bottom: 7px; }
   .buttons { gap: 10px; margin-top: 14px; }
-  .buttons button { min-height: 48px; border-radius: 11px; font-size: 16px; }
+  .buttons button { height: 48px; min-height: 48px; padding: 0 12px; border-radius: 11px; font-size: 16px; }
+  .button-label { transform: translateY(-1px); }
   .capture-message { margin-top: 10px; font-size: 14px; }
 }

@@ -38,7 +38,7 @@ test("migration 064 replaces fixed-one constraints with bounded selected counts"
 test("the database and cloud service remain the count authority", () => {
   assert.match(read("database/migrations/063_lock_down_database_client_access.sql"), /available_units < NEW\.unit_count/,
     "paid verification must still reject insufficient balance at the database boundary");
-  assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v11" : "v125"/);
+  assert.match(cloud, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v11" : "v126"/);
   assert.match(cloud, /const unitCount = Number\(event\.unitCount\)/);
   assert.match(cloud, /unitCount < 1 \|\| unitCount > 999/);
   assert.match(cloud, /Number\(record\.unit_count\) === unitCount/,

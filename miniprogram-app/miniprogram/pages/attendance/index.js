@@ -1,5 +1,6 @@
 const { callFace, callStaff } = require("../../services/api");
 const { waitForStartupSession, requireSession } = require("../../services/session");
+const { formatShanghaiTimestamp } = require("../../services/business-time");
 
 function pad(value) { return String(value).padStart(2, "0"); }
 function localShanghaiDate() { const d = new Date(Date.now() + 8 * 3600000); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; }
@@ -16,11 +17,13 @@ function recordView(row) {
   if (!row || !row.id) return null;
   const latitude = Number(row.latitude), longitude = Number(row.longitude);
   const attendanceType = String(row.attendanceType || "CLOCK_IN");
+  const placeName = String(row.placeName || ""), formattedAddress = String(row.formattedAddress || "");
   return { ...row, attendanceType, latitude, longitude, accuracy: Number(row.accuracy || 0),
-    checkedTime: String(row.checkedInAt || "").replace("T", " ").slice(0, 19),
+    placeName, formattedAddress,
+    checkedTime: formatShanghaiTimestamp(row.checkedInAt),
     typeLabel: attendanceType === "CLOCK_OUT" ? "下班打卡" : "上班打卡",
     markers: [{ id: attendanceType === "CLOCK_OUT" ? 2 : 1, latitude, longitude,
-      title: attendanceType === "CLOCK_OUT" ? "下班打卡位置" : "上班打卡位置", width: 28, height: 28 }] };
+      title: placeName || (attendanceType === "CLOCK_OUT" ? "下班打卡位置" : "上班打卡位置"), width: 28, height: 28 }] };
 }
 function durationText(seconds) {
   if (!Number.isFinite(seconds) || seconds < 0) return "—";
@@ -206,8 +209,8 @@ Page({
     this._resumeLocationAfterSettings = false;
     wx.showModal({ title: "打开系统定位", content: "iPhone：设置 → 隐私与安全性 → 定位服务 → 微信 → 使用 App 期间，并打开精确位置。\n\nAndroid：设置 → 应用 → 微信 → 权限 → 位置信息 → 仅使用期间允许，并允许精确位置。", showCancel: false });
   },
-  openLocation(event) { const kind = String(event.currentTarget.dataset.kind || "clockIn"), row = this.data.selectedAttendance?.[kind]; if (row) wx.openLocation({ latitude: row.latitude, longitude: row.longitude, scale: 18, name: row.typeLabel, address: `定位精度约 ${row.accuracy} 米` }); },
-  openPreviewLocation() { const row = this.data.locationPreview; if (row) wx.openLocation({ latitude: row.latitude, longitude: row.longitude, scale: 18, name: "待确认打卡位置", address: `定位精度约 ${row.accuracy} 米` }); },
+  openLocation(event) { const kind = String(event.currentTarget.dataset.kind || "clockIn"), row = this.data.selectedAttendance?.[kind]; if (row) wx.openLocation({ latitude: row.latitude, longitude: row.longitude, scale: 18, name: row.placeName || row.typeLabel, address: row.formattedAddress || `定位精度约 ${row.accuracy} 米` }); },
+  openPreviewLocation() { const row = this.data.locationPreview; if (row) wx.openLocation({ latitude: row.latitude, longitude: row.longitude, scale: 18, name: row.placeName || "待确认打卡位置", address: row.formattedAddress || `定位精度约 ${row.accuracy} 米` }); },
   async prepareCheckIn() {
     if (this.data.loading || this.data.locating || this.data.clocking || this.data.todayAttendance?.completed) return;
     if (!this.data.faceEnrolled) return this.setData({ message: "当前账号未录入考勤人脸，可以查看考勤记录，但暂时不能打卡。", error: true });
@@ -220,6 +223,15 @@ Page({
       if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) throw Object.assign(new Error("微信没有返回有效位置，请打开精确定位后重试。"), { code: "LOCATION_INVALID" });
       if (!Number.isFinite(accuracy) || accuracy <= 0 || accuracy > 500) throw Object.assign(new Error("当前位置精度超过 500 米，请打开系统精确定位并靠近 Wi‑Fi 或室外后重试。"), { code: "LOCATION_INACCURATE" });
       const capturedAtMs = Date.now();
+      let readable = { placeName: "", formattedAddress: "", provider: "", locationToken: "", warning: "" };
+      try {
+        this.setData({ message: "定位成功，正在匹配附近地点和道路…", error: false });
+        readable = await callFace("resolveTeacherAttendanceLocation", {
+          latitude, longitude, accuracy, coordinateType: String(location.coordinateType || "gcj02")
+        });
+      } catch (_) {
+        readable.warning = "附近地点暂时未能匹配，经纬度和地图位置仍会正常保存。";
+      }
       this.setData({
         checkInStage: "confirm",
         locationPreview: {
@@ -227,9 +239,14 @@ Page({
           checkedTime: localDeviceTime(),
           coordinateText: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
           coordinateType: String(location.coordinateType || "gcj02").toUpperCase(),
-          markers: [{ id: 1, latitude, longitude, title: `待确认${pendingAttendanceLabel}位置`, width: 28, height: 28 }]
+          placeName: String(readable.placeName || ""),
+          formattedAddress: String(readable.formattedAddress || ""),
+          addressProvider: String(readable.provider || ""),
+          locationToken: String(readable.locationToken || ""),
+          addressWarning: String(readable.warning || ""),
+          markers: [{ id: 1, latitude, longitude, title: String(readable.placeName || `待确认${pendingAttendanceLabel}位置`), width: 28, height: 28 }]
         },
-        message: "请确认时间和地图位置；最终打卡时间以服务端记录为准。", error: false
+        message: readable.warning || "请确认时间、具体地点和地图位置；最终打卡时间以服务端记录为准。", error: false
       });
     } catch (error) {
       const problem = locationProblem(error);
@@ -260,6 +277,7 @@ Page({
       const attendanceLabel = attendanceType === "CLOCK_OUT" ? "下班打卡" : "上班打卡";
       const result = await callFace("clockInTeacherAttendance", { attendanceType, imageBase64: capture.imageBase64,
         latitude: preview.latitude, longitude: preview.longitude, accuracy: preview.accuracy,
+        coordinateType: preview.coordinateType, locationToken: preview.locationToken,
         devicePlatform: currentPlatform(), clientRequestId: requestId(this.data.serverToday, attendanceType) });
       if (!result.attendance?.id) throw new Error("服务端没有返回可确认的打卡记录。");
       wx.removeStorageSync(`teacherAttendanceRequest:${this.data.serverToday}:${attendanceType}`);
