@@ -66,6 +66,7 @@ Page({`);
     ArrayBuffer,
     Map,
     Promise,
+    setTimeout,
     Date,
     Math,
     String,
@@ -688,6 +689,59 @@ test("supplemental JPEG uses an exact signed PUT without Base64 expansion", asyn
     /大小与服务器授权不一致/,
     "the mini-program refuses a byte count that does not match the signed intent"
   );
+});
+
+test("supplemental direct upload retries one transient failure without replacing the signed object", async () => {
+  const requests = [];
+  const outcomes = [
+    { type: "fail", value: { errMsg: "request:fail socket closed" } },
+    { type: "success", value: { statusCode: 200, data: "" } }
+  ];
+  const { page } = loadHelpers({
+    request(options) {
+      requests.push(options);
+      const outcome = outcomes.shift();
+      options[outcome.type](outcome.value);
+      return {};
+    }
+  });
+  const instance = pageInstance(page);
+  const buffer = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]).buffer;
+  const upload = {
+    url: "https://private.example.test/same-object.jpg?token=short-lived",
+    method: "PUT",
+    expectedBytes: 4
+  };
+
+  await instance.uploadExtraPhotoDirect(upload, buffer);
+
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].url, requests[1].url, "the retry reuses the exact signed object URL");
+  assert.equal(requests[0].data, buffer);
+  assert.equal(requests[1].data, buffer, "the retry reuses the exact JPEG bytes");
+});
+
+test("supplemental direct upload does not retry a definitive client rejection", async () => {
+  let requests = 0;
+  const { page } = loadHelpers({
+    request(options) {
+      requests += 1;
+      options.success({ statusCode: 403, data: "" });
+      return {};
+    }
+  });
+  const instance = pageInstance(page);
+  const buffer = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]).buffer;
+
+  await assert.rejects(
+    instance.uploadExtraPhotoDirect({
+      url: "https://private.example.test/object.jpg?token=expired",
+      method: "PUT",
+      expectedBytes: 4
+    }, buffer),
+    /HTTP 403/
+  );
+  assert.equal(requests, 1, "authorization or validation failures must not be replayed");
 });
 
 test("original photo reads are single-flight, persist for 24 hours, and survive page unload", async () => {

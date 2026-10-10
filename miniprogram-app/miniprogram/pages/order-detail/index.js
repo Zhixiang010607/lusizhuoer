@@ -20,6 +20,7 @@ const EXTRA_PHOTO_NORMALIZE_ATTEMPTS = Object.freeze([
   Object.freeze({ maxEdge: MAX_EXTRA_PHOTO_EDGE, quality: 0.58 }),
   Object.freeze({ maxEdge: MAX_EXTRA_PHOTO_EDGE, quality: 0.42 })
 ]);
+const EXTRA_PHOTO_DIRECT_UPLOAD_RETRY_DELAY_MS = 300;
 const ORIGINAL_PHOTO_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const ORIGINAL_PHOTO_CACHE_STORAGE_KEY = "order-original-photo-cache-v1";
 const PHOTO_LABELS = Object.freeze(["客户建档留存照", "客户核销照片", "补充照片 1", "补充照片 2", "补充照片 3"]);
@@ -1186,17 +1187,31 @@ Page({
     if (expectedBytes > 0 && expectedBytes !== new Uint8Array(buffer).byteLength) {
       throw new Error("补充照片大小与服务器授权不一致，请重新选择");
     }
-    const response = await wxCall((resolve, reject) => wx.request({
-      url,
-      method: "PUT",
-      data: buffer,
-      header: { "Content-Type": "image/jpeg" },
-      responseType: "text",
-      timeout: 180000,
-      success: resolve,
-      fail: reject
-    }));
-    if (Number(response.statusCode) < 200 || Number(response.statusCode) >= 300) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      let response;
+      try {
+        response = await wxCall((resolve, reject) => wx.request({
+          url,
+          method: "PUT",
+          data: buffer,
+          header: { "Content-Type": "image/jpeg" },
+          responseType: "text",
+          timeout: 180000,
+          success: resolve,
+          fail: reject
+        }));
+      } catch (error) {
+        if (attempt === 1) throw error;
+        await new Promise((resolve) => setTimeout(resolve, EXTRA_PHOTO_DIRECT_UPLOAD_RETRY_DELAY_MS));
+        continue;
+      }
+      const statusCode = Number(response.statusCode || 0);
+      if (statusCode >= 200 && statusCode < 300) return;
+      const transient = statusCode === 408 || statusCode === 429 || statusCode >= 500;
+      if (attempt === 0 && transient) {
+        await new Promise((resolve) => setTimeout(resolve, EXTRA_PHOTO_DIRECT_UPLOAD_RETRY_DELAY_MS));
+        continue;
+      }
       throw new Error(`补充照片直传失败（HTTP ${response.statusCode || "—"}）`);
     }
   },
