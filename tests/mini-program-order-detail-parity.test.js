@@ -32,7 +32,7 @@ function loadHelpers(options = {}) {
   assert.ok(js.includes(marker), "order-detail helper injection marker exists");
   const instrumented = js.replace(marker, `
 globalThis.__orderDetailHelpers = {
-  PHOTO_SLOT_COUNT, DETAIL_PHOTO_SLOTS, MAX_EXTRA_SOURCE_PHOTO_BYTES, MAX_EXTRA_FAST_PATH_BYTES, MAX_EXTRA_UPLOAD_PHOTO_BYTES,
+  PHOTO_SLOT_COUNT, DETAIL_PHOTO_SLOTS, MAX_EXTRA_FAST_PATH_BYTES, MAX_EXTRA_UPLOAD_PHOTO_BYTES,
   MAX_EXTRA_PHOTO_EDGE, imageFormat,
   buildPhotoSlots, normalizePhotoManifest,
   exactOrderKind, routeOrderExpectation, assertExactRouteOrder, detailStatusLabel,
@@ -84,9 +84,12 @@ Page({`);
       },
       getFileSystemManager() {
         return {
-          readFile({ filePath, success, fail }) {
+          readFile({ filePath, position, length, success, fail }) {
             try {
-              const data = options.readFile?.(filePath);
+              const original = options.readFile?.(filePath, { position, length });
+              const data = original instanceof ArrayBuffer && Number.isInteger(length)
+                ? original.slice(Number(position || 0), Number(position || 0) + length)
+                : original;
               if (!(data instanceof ArrayBuffer)) throw new Error("file bytes missing");
               success?.({ data });
             } catch (error) { fail?.(error); }
@@ -249,7 +252,6 @@ test("server-read original type controls the exact visible business kind", () =>
   assert.equal(helpers.exactOrderKind("RECHARGE", "NEW").noun, "充值");
   assert.equal(helpers.exactOrderKind("RECHARGE", "REFUND").noun, "退费");
   assert.match(helpers.requestId(4), /^[A-Za-z0-9][A-Za-z0-9_-]{15,63}$/);
-  assert.equal(helpers.MAX_EXTRA_SOURCE_PHOTO_BYTES, 7 * 1024 * 1024);
   assert.equal(helpers.MAX_EXTRA_FAST_PATH_BYTES, 768 * 1024);
   assert.equal(helpers.MAX_EXTRA_UPLOAD_PHOTO_BYTES, 512 * 1024);
   assert.equal(helpers.MAX_EXTRA_PHOTO_EDGE, 1024);
@@ -272,7 +274,7 @@ test("server-read original type controls the exact visible business kind", () =>
     "every PDF page uses an A4 MediaBox");
 });
 
-test("supplemental photo normalization keeps the full frame and never exceeds two encodes", async () => {
+test("supplemental photo normalization keeps the full frame and uses a bounded fallback plan", async () => {
   const encodedSizes = [700 * 1024, 480 * 1024];
   const drawCalls = [];
   const { page: definition } = loadHelpers({
@@ -310,7 +312,7 @@ test("supplemental photo normalization keeps the full frame and never exceeds tw
 
   const normalized = await page.normalizeExtraPhoto("/selected.jpg", source.buffer, { width: 4000, height: 3000 });
 
-  assert.equal(encodeCount, 2, "a difficult image uses the bounded two attempts and then stops");
+  assert.equal(encodeCount, 2, "a difficult image stops as soon as the transfer target is met");
   assert.equal(normalized.bytes, 480 * 1024);
   assert.equal(normalized.previewPath, "/encoded-1");
   assert.deepEqual(drawCalls.map((args) => args.slice(1)), [
@@ -423,6 +425,98 @@ test("album normalization preserves every edge for both landscape and portrait p
     [0, 0, 1024, 512],
     [0, 0, 512, 1024]
   ], "landscape and portrait both draw the complete decoded source with no crop rectangle");
+});
+
+test("large album originals are accepted from a header-only read and keep the exact 1080x1920 frame ratio", async () => {
+  const encoded = new Uint8Array(180 * 1024);
+  encoded.set([0xff, 0xd8, 0xff], 0);
+  const drawCalls = [];
+  const { page: definition } = loadHelpers({ readFile: () => encoded.buffer });
+  const page = pageInstance(definition);
+  const canvas = {
+    width: 0,
+    height: 0,
+    createImage() {
+      const image = { width: 1080, height: 1920 };
+      Object.defineProperty(image, "src", { set() { Promise.resolve().then(() => image.onload()); } });
+      return image;
+    },
+    getContext() {
+      return {
+        fillStyle: "",
+        fillRect() {},
+        drawImage(...args) { drawCalls.push(args); }
+      };
+    }
+  };
+  page.photoNormalizeCanvasNode = async () => canvas;
+  page.canvasPhotoJpeg = async () => ({ tempFilePath: "/encoded-large.jpg" });
+  const header = new Uint8Array(12);
+  header.set([0xff, 0xd8, 0xff], 0);
+
+  const normalized = await page.normalizeExtraPhoto(
+    "/album-1080x1920.jpg",
+    header.buffer,
+    { width: 1080, height: 1920 },
+    18 * 1024 * 1024
+  );
+
+  assert.deepEqual([normalized.width, normalized.height], [576, 1024]);
+  assert.equal(normalized.width / normalized.height, 1080 / 1920);
+  assert.deepEqual(drawCalls.map((args) => args.slice(1)), [[0, 0, 576, 1024]],
+    "the two supplied portrait examples keep all four edges without a source crop rectangle");
+});
+
+test("a complex large photo is automatically reduced until it is uploadable instead of asking the user to resize it", async () => {
+  const encodedSizes = [900, 800, 700, 620, 560, 500].map((kib) => kib * 1024);
+  const rendered = [];
+  const { page: definition } = loadHelpers({
+    readFile(filePath) {
+      const index = Number(String(filePath).replace("/adaptive-", ""));
+      const bytes = new Uint8Array(encodedSizes[index]);
+      bytes.set([0xff, 0xd8, 0xff], 0);
+      return bytes.buffer;
+    }
+  });
+  const page = pageInstance(definition);
+  const canvas = {
+    width: 0,
+    height: 0,
+    createImage() {
+      const image = { width: 6000, height: 4000 };
+      Object.defineProperty(image, "src", { set() { Promise.resolve().then(() => image.onload()); } });
+      return image;
+    },
+    getContext() {
+      return {
+        fillStyle: "",
+        fillRect() {},
+        drawImage(...args) { rendered.push(args.slice(1)); }
+      };
+    }
+  };
+  let attempt = 0;
+  page.photoNormalizeCanvasNode = async () => canvas;
+  page.canvasPhotoJpeg = async () => ({ tempFilePath: `/adaptive-${attempt++}` });
+  const header = new Uint8Array(12);
+  header.set([0xff, 0xd8, 0xff], 0);
+
+  const normalized = await page.normalizeExtraPhoto(
+    "/very-large-album.jpg",
+    header.buffer,
+    { width: 6000, height: 4000 },
+    32 * 1024 * 1024
+  );
+
+  assert.equal(attempt, 6);
+  assert.equal(normalized.bytes, 500 * 1024);
+  assert.deepEqual([normalized.width, normalized.height], [640, 427]);
+  assert.deepEqual(rendered, [
+    [0, 0, 1024, 683],
+    [0, 0, 896, 597],
+    [0, 0, 768, 512],
+    [0, 0, 640, 427]
+  ], "each fallback redraw still maps the complete source frame proportionally");
 });
 
 test("a repeated detail read replaces the remote thumbnail with a verified 24-hour local cache", async () => {
@@ -658,7 +752,10 @@ test("verification photo UI has focused recovery, 24-hour originals, album save,
   includes(js, 'header: { "Content-Type": "image/jpeg" }', "the signed PUT carries the exact JPEG MIME type");
   assert.doesNotMatch(functionSource(js, "uploadExtraPhoto"), /arrayBufferToBase64|imageBase64|functionUploadProof/,
     "the mini-program supplemental-photo path never Base64-expands or relays image bytes through a cloud function");
-  includes(js, "sourceBytes.byteLength > MAX_EXTRA_SOURCE_PHOTO_BYTES", "source selection is capped at 7 MB");
+  assert.doesNotMatch(functionSource(js, "normalizeExtraPhoto"), /不能超过\s*7\s*MB|MAX_EXTRA_SOURCE_PHOTO_BYTES/,
+    "large selected photos are compressed locally instead of being rejected by source byte size");
+  includes(functionSource(js, "uploadExtraPhoto"), "readFileHead(filePath)",
+    "large originals only enter JavaScript memory as a format header before canvas scaling");
   includes(js, "bytes.byteLength <= MAX_EXTRA_UPLOAD_PHOTO_BYTES", "normalized JPEG remains within the faster client upload target");
   includes(functionSource(js, "uploadExtraPhoto"), "chosen = await this.chooseExtraPhoto()",
     "the upload path uses the source-specific picker");

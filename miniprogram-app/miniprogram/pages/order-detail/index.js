@@ -12,13 +12,16 @@ const {
 
 const PHOTO_SLOT_COUNT = 5;
 const DETAIL_PHOTO_SLOTS = Object.freeze([1, 2, 3, 4]);
-const MAX_EXTRA_SOURCE_PHOTO_BYTES = 7 * 1024 * 1024;
 const MAX_EXTRA_FAST_PATH_BYTES = 768 * 1024;
 const MAX_EXTRA_UPLOAD_PHOTO_BYTES = 512 * 1024;
 const MAX_EXTRA_PHOTO_EDGE = 1024;
 const EXTRA_PHOTO_NORMALIZE_ATTEMPTS = Object.freeze([
   Object.freeze({ maxEdge: MAX_EXTRA_PHOTO_EDGE, quality: 0.58 }),
-  Object.freeze({ maxEdge: MAX_EXTRA_PHOTO_EDGE, quality: 0.42 })
+  Object.freeze({ maxEdge: MAX_EXTRA_PHOTO_EDGE, quality: 0.42 }),
+  Object.freeze({ maxEdge: MAX_EXTRA_PHOTO_EDGE, quality: 0.32 }),
+  Object.freeze({ maxEdge: 896, quality: 0.30 }),
+  Object.freeze({ maxEdge: 768, quality: 0.27 }),
+  Object.freeze({ maxEdge: 640, quality: 0.24 })
 ]);
 const EXTRA_PHOTO_DIRECT_UPLOAD_RETRY_DELAY_MS = 300;
 const ORIGINAL_PHOTO_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -344,6 +347,11 @@ function normalizeTeacherOrder(row, baseType) {
 function wxCall(invoke) { return new Promise((resolve, reject) => invoke(resolve, reject)); }
 function readFile(filePath, encoding) {
   return wxCall((resolve, reject) => wx.getFileSystemManager().readFile({ filePath, ...(encoding ? { encoding } : {}), success: resolve, fail: reject }));
+}
+function readFileHead(filePath, length = 12) {
+  return wxCall((resolve, reject) => wx.getFileSystemManager().readFile({
+    filePath, position: 0, length, success: resolve, fail: reject
+  }));
 }
 function writeFile(filePath, data) {
   return wxCall((resolve, reject) => wx.getFileSystemManager().writeFile({ filePath, data, success: resolve, fail: reject }));
@@ -1099,8 +1107,9 @@ Page({
         success: resolve,
         fail: reject
       }));
-      const filePath = clean(chosen?.tempFilePaths?.[0] || chosen?.tempFiles?.[0]?.path || chosen?.tempFiles?.[0]?.tempFilePath);
-      return filePath ? { tempFiles: [{ tempFilePath: filePath }] } : { tempFiles: [] };
+      const selected = chosen?.tempFiles?.[0] || {};
+      const filePath = clean(chosen?.tempFilePaths?.[0] || selected.path || selected.tempFilePath);
+      return filePath ? { tempFiles: [{ ...selected, tempFilePath: filePath }] } : { tempFiles: [] };
     }
     return wxCall((resolve, reject) => wx.chooseMedia({
       count: 1,
@@ -1115,27 +1124,28 @@ Page({
     }));
   },
 
-  async normalizeExtraPhoto(filePath, sourceBuffer, dimensions) {
+  async normalizeExtraPhoto(filePath, sourceBuffer, dimensions, sourceByteLength = 0) {
     const sourceBytes = new Uint8Array(sourceBuffer);
-    if (!Number.isInteger(sourceBytes.byteLength) || sourceBytes.byteLength < 12
-        || sourceBytes.byteLength > MAX_EXTRA_SOURCE_PHOTO_BYTES) {
-      throw new Error("补充照片单张不能超过 7 MB");
+    const originalBytes = Number(sourceByteLength || sourceBytes.byteLength);
+    if (!Number.isInteger(originalBytes) || originalBytes < 12 || sourceBytes.byteLength < 12) {
+      throw new Error("补充照片文件无效，请重新选择");
     }
     const format = imageFormat(sourceBytes);
     if (!format) throw new Error("补充照片支持 JPG、JPEG、PNG 或 WebP");
     const sourceWidth = Number(dimensions?.width || 0);
     const sourceHeight = Number(dimensions?.height || 0);
     if (!Number.isInteger(sourceWidth) || !Number.isInteger(sourceHeight)
-        || sourceWidth < 1 || sourceHeight < 1 || sourceWidth > 10000 || sourceHeight > 10000) {
+        || sourceWidth < 1 || sourceHeight < 1 || sourceWidth > 30000 || sourceHeight > 30000) {
       throw new Error("补充照片尺寸无效，请重新选择");
     }
     // A reasonably small JPEG is already within the transfer target. Keeping
     // its exact full-frame bytes avoids needless quality loss and keeps camera
     // captures fast; larger album originals continue through the canvas path.
-    if (format === "jpeg" && sourceBytes.byteLength <= MAX_EXTRA_FAST_PATH_BYTES) {
+    if (format === "jpeg" && originalBytes <= MAX_EXTRA_FAST_PATH_BYTES
+        && sourceBytes.byteLength === originalBytes) {
       return {
         buffer: sourceBuffer,
-        bytes: sourceBytes.byteLength,
+        bytes: originalBytes,
         converted: false,
         previewPath: filePath,
         width: sourceWidth,
@@ -1186,7 +1196,7 @@ Page({
         };
       }
     }
-    throw new Error("照片转换后仍然过大，请选择内容更简单或尺寸更小的照片");
+    throw new Error("当前微信未能完成照片压缩，请重试或重新打开小程序后再上传");
   },
 
   async uploadExtraPhotoDirect(upload, buffer) {
@@ -1336,8 +1346,18 @@ Page({
       const dimensionsFlight = selectedWidth > 0 && selectedHeight > 0
         ? Promise.resolve({ width: selectedWidth, height: selectedHeight })
         : imageInfo(filePath);
-      const [read, dimensions] = await Promise.all([readFile(filePath), dimensionsFlight]);
-      const normalized = await this.normalizeExtraPhoto(filePath, read.data, dimensions);
+      const selectedBytes = Number(file.size || 0);
+      const sourceInfo = selectedBytes > 0 ? { size: selectedBytes } : await fileInfo(filePath);
+      const sourceBytes = Number(sourceInfo?.size || 0);
+      if (!Number.isInteger(sourceBytes) || sourceBytes < 12) throw new Error("补充照片文件无效，请重新选择");
+      // Large album originals are never copied wholesale into JavaScript
+      // memory. Only their magic header is read before the native canvas
+      // decoder scales the complete frame into a bounded JPEG.
+      const sourceFlight = sourceBytes <= MAX_EXTRA_FAST_PATH_BYTES
+        ? readFile(filePath)
+        : readFileHead(filePath);
+      const [read, dimensions] = await Promise.all([sourceFlight, dimensionsFlight]);
+      const normalized = await this.normalizeExtraPhoto(filePath, read.data, dimensions, sourceBytes);
       stageElapsedMs.local = Date.now() - stageStartedAt.local;
       const buffer = normalized.buffer;
       const bytes = new Uint8Array(buffer);
