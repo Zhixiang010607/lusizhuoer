@@ -353,4 +353,19 @@ assert.match(dailyReportConsoleMigration, /BEGIN;[\s\S]*COMMIT;\s*$/,
 assert.match(dailyReportConsoleMigration, /restricted to active teacher accounts/);
 assert.match(dailyReportConsoleMigration, /AT TIME ZONE 'Asia\/Shanghai'/);
 
+const requiredDailyReportMigration = fs.readFileSync(
+  path.join(root, "database", "migrations", "077_daily_report_all_fields_required.sql"),
+  "utf8"
+);
+const requiredDailyReportConsoleMigration = fs.readFileSync(
+  path.join(consoleDir, "077-01-daily-report-all-fields-required.sql"),
+  "utf8"
+);
+assert.equal(requiredDailyReportConsoleMigration, requiredDailyReportMigration,
+  "CloudBase migration 077 must exactly match the canonical all-fields-required migration");
+assert.match(requiredDailyReportConsoleMigration, /BEGIN;[\s\S]*COMMIT;\s*$/,
+  "CloudBase migration 077 must be a complete transaction");
+assert.match(requiredDailyReportConsoleMigration, /staff_daily_reports_all_fields_required_v77/);
+assert.match(requiredDailyReportConsoleMigration, /all four daily report fields are required/);
+
 console.log("cloudbase console migrations: PASS");

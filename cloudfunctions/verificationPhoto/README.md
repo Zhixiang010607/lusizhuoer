@@ -3,7 +3,7 @@
 当前版本：`v12`（共享照片服务实现 `v11`）
 
 当前联动部署矩阵：`verificationPhoto v12`、`faceRecognition v123`、
-`staffAccount v84`、`teacherCreate v7`、`customerRating v8`。内部共享实现号
+`staffAccount v85`、`teacherCreate v8`、`customerRating v8`。内部共享实现号
 `v11` 不等于 `faceRecognition` 的公开运行时版本。
 
 该函数专门处理核销单的五个照片位：列表与缩略图、按需读取高清原图、导出原图，以及三个补充照片位的开始、提交、状态恢复和取消。它不执行质量检测、活体检测、客户建档或人脸比对，也不暴露这些动作。老师本人创建客户，或作为来源可信的有效工单 `teacher_id` 与客户建立业务关系后，可以只读查看该客户的其他核销照片；来源必须是门店提交或提交老师账号与 `teacher_id` 为同一人，总部、退役角色和老师错绑旧字段本身不授予照片权。上传、替换和取消仍只允许真实原提交账号 `submitted_by_account_id`。
@@ -150,8 +150,8 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 ## 部署顺序与健康检查
 
 1. 确认迁移 039、046—072 已完成，旧运营账号维护动作及迁移 047、053 已验收；不得重新启用旧运营身份或旧老师人脸 Saga。
-2. 依次执行并验收迁移 073—076。旧 `reconcile-teacher-face-operations` Timer 必须保持删除，只保留老师额度月初 Timer、核销草稿清理 Timer 和补充照片上传清理 Timer。
-3. 当前联动版本为 `faceRecognition-v123.zip`、`staffAccount-v84.zip`、`teacherCreate-v7.zip` 与 `verificationPhoto-v12.zip`；分别调用 `health` 确认 `v123`、`v84`、`teacher-create-v7`、`v12`。
+2. 依次执行并验收迁移 073—077。旧 `reconcile-teacher-face-operations` Timer 必须保持删除，只保留老师额度月初 Timer、核销草稿清理 Timer 和补充照片上传清理 Timer。
+3. 当前联动版本为 `faceRecognition-v123.zip`、`staffAccount-v85.zip`、`teacherCreate-v8.zip` 与 `verificationPhoto-v12.zip`；分别调用 `health` 确认 `v123`、`v84`、`teacher-create-v8`、`v12`。
 4. 当前联动函数不再读写旧 Saga；考勤人脸只供老师打卡 1:1 验证，核销照片仍由本函数独立处理。
 5. 新建或更新函数 `verificationPhoto`，上传 `verificationPhoto-v12.zip`，配置上述环境变量、512 MB 内存和 60 秒超时。
 6. 对 `verificationPhoto` 调用 `{ "action": "health" }`，确认 `version: "v12"`、`sharedVersion: "v11"`、`uploadMode: "DIRECT"` 与全部就绪字段，再保存本节的 triggers-only 配置。

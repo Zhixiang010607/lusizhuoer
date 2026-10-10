@@ -35,11 +35,18 @@ button::after { border: 0; }
 .result-columns { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18rpx; }
 .list-heading { margin-bottom: 16rpx; }
 .list-heading text:first-child { font-size: 29rpx; font-weight: 700; }
-.teacher-card { margin-top: 14rpx; overflow: hidden; background: #fff; border: 1rpx solid #eadfce; border-radius: 16rpx; }
-.teacher-row { display: grid; grid-template-columns: 150rpx minmax(0, 1fr); gap: 12rpx; padding: 14rpx 16rpx; border-top: 1rpx solid #eee3d2; font-size: 23rpx; line-height: 1.45; }
-.teacher-row:first-child { border-top: 0; }
-.teacher-row > text:first-child { color: #7c7062; }
-.teacher-row > text:last-child { min-width: 0; overflow-wrap: anywhere; text-align: right; }
+.tracking-table-scroll { width: 100%; max-width: 100%; min-width: 0; overflow-x: auto; overflow-y: hidden; border: 1rpx solid #dfcfb4; border-radius: 14rpx; box-sizing: border-box; }
+.tracking-table-scroll[data-visible-rows="1"] { height: 146rpx; }
+.tracking-table-scroll[data-visible-rows="2"] { height: 224rpx; }
+.tracking-table-scroll[data-visible-rows="3"] { height: 302rpx; }
+.tracking-table-scroll[data-visible-rows="4"] { height: 380rpx; }
+.tracking-table-scroll[data-visible-rows="5"] { height: 458rpx; }
+.tracking-table { width: auto; min-width: 100%; display: inline-table; table-layout: auto; border-collapse: collapse; background: #fff; }
+.tracking-row { display: table-row; font-variant-numeric: tabular-nums; }
+.tracking-row > text { height: 78rpx; display: table-cell; padding: 10rpx 18rpx; box-sizing: border-box; vertical-align: middle; border-top: 1rpx solid #eadfce; font-size: 21rpx; line-height: 1.25; text-align: center; white-space: nowrap; }
+.tracking-row:first-child > text { border-top: 0; }
+.tracking-head { height: 68rpx; color: #5a4e3e; background: #f4e8d4; font-weight: 850; }
+.tracking-head > text { height: 68rpx; }
 .link { color: #74592d; font-weight: 700; text-decoration: underline; }
 .status { font-weight: 700; }
 .status.yes { color: #08725f; }
@@ -78,11 +85,17 @@ button[disabled] { opacity: .55; }
   .result-summary { margin-bottom: 14px; padding: 2px; }
   .summary-counts { gap: 6px; }
   .summary-counts text, .list-heading text:last-child { padding: 5px 9px; font-size: 12px; }
-  .result-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .result-columns { grid-template-columns: minmax(0, 1fr); gap: 14px; }
   .list-heading { margin-bottom: 12px; }
   .list-heading text:first-child { font-size: 19px; }
-  .teacher-card { margin-top: 11px; border-width: 1px; border-radius: 12px; }
-  .teacher-row { grid-template-columns: 88px minmax(0, 1fr); gap: 10px; padding: 10px 12px; border-width: 1px; font-size: 13px; }
+  .tracking-table-scroll { border-width: 1px; border-radius: 12px; }
+  .tracking-table-scroll[data-visible-rows="1"] { height: 108px; }
+  .tracking-table-scroll[data-visible-rows="2"] { height: 164px; }
+  .tracking-table-scroll[data-visible-rows="3"] { height: 220px; }
+  .tracking-table-scroll[data-visible-rows="4"] { height: 276px; }
+  .tracking-table-scroll[data-visible-rows="5"] { height: 332px; }
+  .tracking-row > text { height: 56px; padding: 8px 12px; border-width: 1px; font-size: 14px; }
+  .tracking-head, .tracking-head > text { height: 52px; }
   .empty, .notice-card, .form-message { font-size: 14px; }
   .modal-backdrop { align-items: center; padding: 32px; }
   .detail-dialog { max-width: 720px; max-height: 84vh; padding: 24px; border-radius: 18px; }

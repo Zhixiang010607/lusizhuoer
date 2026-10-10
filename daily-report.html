@@ -41,9 +41,9 @@
       </div>
       <form id="dailyReportForm" novalidate>
         <label class="daily-report-field"><span>今日完成事项 <b>必填</b></span><textarea id="dailyCompletedWork" maxlength="200" rows="6" placeholder="写下今天已经完成的工作" required></textarea><small><output id="dailyCompletedWorkCount">0</output>/200</small></label>
-        <label class="daily-report-field"><span>客户或项目进展</span><textarea id="dailyCustomerProjectProgress" maxlength="200" rows="4" placeholder="记录客户沟通、项目推进或重要结果"></textarea><small><output id="dailyCustomerProjectProgressCount">0</output>/200</small></label>
-        <label class="daily-report-field"><span>遇到的问题</span><textarea id="dailyProblemsAndSupport" maxlength="200" rows="4" placeholder="记录问题、风险或需要的协助"></textarea><small><output id="dailyProblemsAndSupportCount">0</output>/200</small></label>
-        <label class="daily-report-field"><span>明日计划</span><textarea id="dailyTomorrowPlan" maxlength="200" rows="4" placeholder="写下下一步计划"></textarea><small><output id="dailyTomorrowPlanCount">0</output>/200</small></label>
+        <label class="daily-report-field"><span>客户或项目进展 <b>必填</b></span><textarea id="dailyCustomerProjectProgress" maxlength="200" rows="4" placeholder="记录客户沟通、项目推进或重要结果" required></textarea><small><output id="dailyCustomerProjectProgressCount">0</output>/200</small></label>
+        <label class="daily-report-field"><span>遇到的问题 <b>必填</b></span><textarea id="dailyProblemsAndSupport" maxlength="200" rows="4" placeholder="记录问题、风险或需要的协助" required></textarea><small><output id="dailyProblemsAndSupportCount">0</output>/200</small></label>
+        <label class="daily-report-field"><span>明日计划 <b>必填</b></span><textarea id="dailyTomorrowPlan" maxlength="200" rows="4" placeholder="写下下一步计划" required></textarea><small><output id="dailyTomorrowPlanCount">0</output>/200</small></label>
         <div class="daily-report-actions"><p id="dailyReportMessage" class="form-message" role="status" aria-live="polite"></p><button id="dailyReportEdit" type="button" hidden>编辑</button><button id="dailyReportSave" type="submit">确认提交</button></div>
       </form>
     </section>

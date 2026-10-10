@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v84";
+const FUNCTION_VERSION = "v85";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -1582,12 +1582,19 @@ async function requireDailyReportSchema() {
                  AND tgname = 'trg_staff_daily_report_today_v73'
                  AND NOT tgisinternal
             ) AS today_trigger,
-            TO_REGCLASS('public.idx_staff_daily_reports_report_date_account') IS NOT NULL AS report_date_index`
+            TO_REGCLASS('public.idx_staff_daily_reports_report_date_account') IS NOT NULL AS report_date_index,
+            EXISTS (
+              SELECT 1
+                FROM pg_constraint
+               WHERE conrelid = TO_REGCLASS('public.staff_daily_reports')
+                 AND conname = 'staff_daily_reports_all_fields_required_v77'
+            ) AS all_fields_required`
   );
   const schema = rows?.[0] || {};
   if (!databaseBoolean(schema.report_table) || !databaseBoolean(schema.today_trigger)
-      || !databaseBoolean(schema.report_date_index)) {
-    fail("员工日报数据库结构尚未启用，请先执行并验收迁移 073、074。", "DAILY_REPORT_SCHEMA_MISSING");
+      || !databaseBoolean(schema.report_date_index)
+      || !databaseBoolean(schema.all_fields_required)) {
+    fail("员工日报数据库结构尚未启用，请先执行并验收迁移 073、074、076、077。", "DAILY_REPORT_SCHEMA_MISSING");
   }
   dailyReportSchemaReady = true;
 }
@@ -1678,9 +1685,9 @@ async function saveOwnDailyReport(caller, event = {}) {
   const staffId = numericId(caller.profile?.staffId, "当前员工账号");
   const reportDate = validCalendarDate(event.reportDate);
   const completedWork = dailyReportField(event.completedWork, "今日完成事项", true);
-  const customerProjectProgress = dailyReportField(event.customerProjectProgress, "客户或项目进展");
-  const problemsAndSupport = dailyReportField(event.problemsAndSupport, "遇到的问题");
-  const tomorrowPlan = dailyReportField(event.tomorrowPlan, "明日计划");
+  const customerProjectProgress = dailyReportField(event.customerProjectProgress, "客户或项目进展", true);
+  const problemsAndSupport = dailyReportField(event.problemsAndSupport, "遇到的问题", true);
+  const tomorrowPlan = dailyReportField(event.tomorrowPlan, "明日计划", true);
   let rows;
   try {
     rows = await executeSql(

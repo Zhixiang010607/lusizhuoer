@@ -79,7 +79,8 @@ function callRating(action, data = {}) {
 }
 
 function callTeacherCreate(data = {}) {
-  return call(config.teacherCreateFunction, { action: "createTeacher", ...data }, "老师账号创建服务没有返回有效结果");
+  const { action = "createTeacher", ...payload } = data;
+  return call(config.teacherCreateFunction, { action, ...payload }, "老师账号创建服务没有返回有效结果");
 }
 
 module.exports = { callFace, callPhoto, callStaff, callRating, callTeacherCreate, resultData };

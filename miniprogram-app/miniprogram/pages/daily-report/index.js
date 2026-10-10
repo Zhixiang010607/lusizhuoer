@@ -3,6 +3,12 @@ const { waitForStartupSession, requireSession } = require("../../services/sessio
 
 const MAX_LENGTH = 200;
 const FIELDS = Object.freeze(["completedWork", "customerProjectProgress", "problemsAndSupport", "tomorrowPlan"]);
+const FIELD_LABELS = Object.freeze({
+  completedWork: "今日完成事项",
+  customerProjectProgress: "客户或项目进展",
+  problemsAndSupport: "遇到的问题",
+  tomorrowPlan: "明日计划"
+});
 
 function pad(value) { return String(value).padStart(2, "0"); }
 function localShanghaiDate() {
@@ -143,7 +149,8 @@ Page({
     if (!this.data.editable || !this.data.editing || this.data.selectedDate !== this.data.serverToday || this.data.saving) return;
     const payload = { reportDate: this.data.selectedDate };
     FIELDS.forEach((field) => { payload[field] = String(this.data[field] || "").trim(); });
-    if (!payload.completedWork) return this.setData({ message: "请填写今日完成事项。", error: true });
+    const missingField = FIELDS.find((field) => !payload[field]);
+    if (missingField) return this.setData({ message: `请填写${FIELD_LABELS[missingField]}。`, error: true });
     if (FIELDS.some((field) => Array.from(payload[field]).length > MAX_LENGTH)) return this.setData({ message: `每项内容不能超过 ${MAX_LENGTH} 个字符。`, error: true });
     this.setData({ saving: true, message: "正在保存…", error: false });
     try {

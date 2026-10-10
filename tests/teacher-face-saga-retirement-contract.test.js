@@ -12,7 +12,7 @@ for (const retired of ["teacher_face_operations", "delegateTeacherFace", "upsert
   "getTeacherFaceOperationStatus", "teacherProvisionWorker", "reconcile-teacher-face-operations"]) {
   assert.equal((teacher + staff + face + browser).includes(retired), false, `retired teacher-face Saga token must stay absent: ${retired}`);
 }
-assert.match(teacher, /const FUNCTION_VERSION = "teacher-create-v7"/);
+assert.match(teacher, /const FUNCTION_VERSION = "teacher-create-v8"/);
 assert.match(teacher, /if \(action === "createTeacher"\) return await createTeacher\(event\)/);
 assert.match(browser, /CloudBasePhoneAuth\.createTeacher\(/);
 assert.match(teacher, /teacher_attendance_face_profiles/,

@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.1.3";
+  const VERSION = "0.1.4";
   const $ = (id) => document.getElementById(id);
   const token = new URLSearchParams(location.search).get("token") || "";
   const scores = { storeEnvironmentScore: 0, teacherServiceScore: 0, overallExperienceScore: 0 };
@@ -124,7 +124,11 @@
     $("ratingContext").hidden = false;
     $("ratingLoading").hidden = true;
     if (data.submitted || data.ratingStatus === "SUBMITTED") renderComplete(data);
-    else $("ratingForm").hidden = false;
+    else {
+      $("ratingForm").hidden = false;
+      $("submitRating").disabled = false;
+      $("submitRating").textContent = "提交评价";
+    }
   }
 
   function showError(message) {
@@ -140,6 +144,7 @@
       showError("评价链接无效，请使用门店发送的最新二维码重新进入。");
       return;
     }
+    $("ratingForm").hidden = false;
     try { renderContext(await callRating("getPublic", { token })); }
     catch (error) { showError(error?.message || "评价信息读取失败，请稍后重试。"); }
   }
@@ -150,6 +155,10 @@
 
   $("ratingForm").addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (!ratingContext) {
+      $("ratingFormMessage").textContent = "正在确认本次服务，请稍候。";
+      return;
+    }
     const requiredGroups = ["storeEnvironmentScore", "teacherServiceScore", "overallExperienceScore"];
     const missing = requiredGroups.find((group) => !scores[group]);
     if (missing) {

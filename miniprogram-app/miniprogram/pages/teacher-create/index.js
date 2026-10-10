@@ -35,7 +35,23 @@ Page({
     if (!requireSession(["hq"])) return;
     wx.setNavigationBarTitle({ title: "露思卓儿" });
     const pending = wx.getStorageSync(PENDING_KEY);
-    if (pending && pending.requestId) this.setData({ locked: true, message: "上一笔老师创建结果仍待确认，请先返回老师管理查询，禁止重复提交。", error: true });
+    if (pending && pending.requestId) {
+      this.setData({ locked: true, message: "正在核对并清理上一笔未完成的老师创建…", error: false });
+      this.recoverPending(pending);
+    }
+  },
+  async recoverPending(pending) {
+    try {
+      const result = await callTeacherCreate({ action: "recoverTeacherCreation", clientRequestId: pending.requestId, phone: pending.phone || "" });
+      wx.removeStorageSync(PENDING_KEY);
+      if (result.completed === true) {
+        this.setData({ locked: false, message: "上一笔老师创建已经完成，正在返回老师管理。", error: false });
+        return wx.redirectTo({ url: "/pages/hq-directory/index?type=teacher" });
+      }
+      this.setData({ locked: false, message: "上一笔未完成创建已安全清理，请重新填写并拍照。", error: false });
+    } catch (error) {
+      this.setData({ locked: true, message: error.message || "上一笔创建结果仍无法确认，请先返回老师管理查询。", error: true });
+    }
   },
   input(event) {
     if (this.data.submitting || this.data.locked) return;
@@ -74,7 +90,7 @@ Page({
     const capture = camera && camera.getCapture();
     if (!capture) return this.setData({ message: "必须现场拍摄老师正脸照片。", error: true });
     const clientRequestId = requestId();
-    wx.setStorageSync(PENDING_KEY, { requestId: clientRequestId, createdAt: Date.now() });
+    wx.setStorageSync(PENDING_KEY, { requestId: clientRequestId, phone, createdAt: Date.now() });
     this.setData({ submitting: true, passwordVisible: false, validationField: "", message: "正在检测照片并创建账号、老师主档和考勤人脸档案…", error: false });
     try {
       const result = await callTeacherCreate({ staffName, phone, initialPassword, clientRequestId, consent: true, imageBase64: capture.imageBase64 });

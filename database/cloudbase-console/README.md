@@ -292,7 +292,7 @@ ROLLBACK;
 
 1. 整文件执行 `073-01-staff-daily-reports.sql`；
 2. 执行 `073-readonly-verify.sql`，7 行必须全部为 `READY`；
-3. 完成 074—076 后上传 `staffAccount-v84.zip` 并确认 `health version=v84`；
+3. 完成 074—077 后上传 `staffAccount-v85.zip` 并确认 `health version=v85`；
 4. 发布 `daily-report.html`、`daily-report.js`、`daily-report.css` 和当前 `auth-ui.js`。
 
 073 只允许在职老师通过受信服务写入和修改本人上海当天日报。历史永久只读，未来不可填写，禁止删除；总部不能代填或修改，门店、非在职老师及数据库客户端直连均无权写入。网页版与小程序共享该服务端边界。
@@ -303,7 +303,7 @@ ROLLBACK;
 
 1. 整文件执行 `074-01-hq-daily-report-tracking.sql`；
 2. 执行 `074-readonly-verify.sql`，结果必须为 `READY`；
-3. 完成 075、076 后上传 `staffAccount-v84.zip` 并确认 `health version=v84`；
+3. 完成 075—077 后上传 `staffAccount-v85.zip` 并确认 `health version=v85`；
 4. 发布总部 `daily-report-tracking.html`、脚本、样式和当前 `auth-ui.js`。
 
 074 只增加日报按日期读取索引。总部追踪接口按当前在职老师名单分已填写和未填写，读取姓名、现有账号电话和只读日报内容；不增加总部写入权限。网页版和小程序均可使用同一只读接口。
@@ -314,7 +314,7 @@ ROLLBACK;
 
 1. 整文件执行 `075-01-teacher-attendance.sql`；
 2. 执行 `075-readonly-verify.sql`，5 行必须全部为 `READY`；
-3. 配置并部署 `teacherCreate-v7.zip`、`faceRecognition-v123.zip` 与 `staffAccount-v84.zip`；
+3. 配置并部署 `teacherCreate-v8.zip`、`faceRecognition-v123.zip` 与 `staffAccount-v85.zip`；
 4. 验收老师创建时的考勤人脸录入、老师本人打卡、总部追踪和两端地图。
 
 075 的打卡记录不保存当次人脸照片。私有保存的只有总部创建老师时取得明确授权的考勤建档照；考勤档案不得用于登录或客户业务。
@@ -326,6 +326,17 @@ ROLLBACK;
 1. 整文件执行 `076-01-daily-report-200-character-limit.sql`；
 2. 执行 `076-readonly-verify.sql`，结果必须为 `READY`；
 3. 验收网页版和小程序的四栏日报每栏最多 200 字，整份只有一个编辑／确认提交入口。
+
+## 077 日报四栏全部必填
+
+076 验收完成后，按 [`077-README.md`](077-README.md) 执行：
+
+1. 整文件执行 `077-01-daily-report-all-fields-required.sql`；
+2. 执行 `077-readonly-verify.sql`，两行必须全部为 `READY`；
+3. 上传 `staffAccount-v85.zip` 并确认 `health version=v85`；
+4. 上传包含四栏必填校验的当前小程序，并验证任意一栏空白都不能提交。
+
+077 不改写历史日报，也不为历史空白栏伪造内容；它只约束迁移后的新增和上海当天修改必须四栏全部填写，每栏继续限制为 200 字。
 
 ## 070 扫码评价固定三项评分
 

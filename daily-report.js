@@ -1,13 +1,13 @@
 (() => {
   "use strict";
-  const VERSION = "0.2.0";
+  const VERSION = "0.2.1";
   const MAX_LENGTH = 200;
   const $ = (id) => document.getElementById(id);
   const fields = [
-    ["dailyCompletedWork", "dailyCompletedWorkCount", "completedWork"],
-    ["dailyCustomerProjectProgress", "dailyCustomerProjectProgressCount", "customerProjectProgress"],
-    ["dailyProblemsAndSupport", "dailyProblemsAndSupportCount", "problemsAndSupport"],
-    ["dailyTomorrowPlan", "dailyTomorrowPlanCount", "tomorrowPlan"]
+    ["dailyCompletedWork", "dailyCompletedWorkCount", "completedWork", "今日完成事项"],
+    ["dailyCustomerProjectProgress", "dailyCustomerProjectProgressCount", "customerProjectProgress", "客户或项目进展"],
+    ["dailyProblemsAndSupport", "dailyProblemsAndSupportCount", "problemsAndSupport", "遇到的问题"],
+    ["dailyTomorrowPlan", "dailyTomorrowPlanCount", "tomorrowPlan", "明日计划"]
   ];
   const state = { serverToday: "", selectedDate: "", visibleMonth: "", reports: new Set(), loading: false, editing: false, mode: "readonly", currentReport: null };
   let app = null;
@@ -150,7 +150,8 @@
     if (state.selectedDate !== state.serverToday) return;
     const payload = { reportDate: state.selectedDate };
     fields.forEach(([fieldId, , key]) => { payload[key] = $(fieldId).value.trim(); });
-    if (!payload.completedWork) { $("dailyReportMessage").textContent = "请填写今日完成事项。"; $("dailyCompletedWork").focus(); return; }
+    const missing = fields.find(([, , key]) => !payload[key]);
+    if (missing) { $("dailyReportMessage").textContent = `请填写${missing[3]}。`; $(missing[0]).focus(); return; }
     if (fields.some(([fieldId]) => Array.from($(fieldId).value.trim()).length > MAX_LENGTH)) { $("dailyReportMessage").textContent = `每项内容不能超过 ${MAX_LENGTH} 个字符。`; return; }
     $("dailyReportSave").disabled = true;
     $("dailyReportMessage").textContent = "正在保存…";

@@ -33,7 +33,7 @@ assert.match(recordTable, /UNIQUE \(staff_account_id, attendance_date\)/,
 assert.match(migration, /BEFORE INSERT OR UPDATE OR DELETE ON public\.teacher_attendance_records/,
   "the database must guard the immutable attendance ledger");
 
-assert.match(teacherCreate, /const FUNCTION_VERSION = "teacher-create-v7"/);
+assert.match(teacherCreate, /const FUNCTION_VERSION = "teacher-create-v8"/);
 assert.match(teacherCreate, /event\.consent !== true[\s\S]*cleanImage\(event\.imageBase64\)/);
 assert.match(teacherCreate, /api\.CreatePerson\(/,
   "teacher creation must create the dedicated attendance identity");
@@ -54,7 +54,7 @@ assert.doesNotMatch(clockIn, /uploadVerificationPhotoObject|uploadAttendancePhot
   "clock-in photos must not be uploaded or persisted");
 assert.match(face, /action === "clockInTeacherAttendance"/);
 
-assert.match(staff, /const FUNCTION_VERSION = "v84"/);
+assert.match(staff, /const FUNCTION_VERSION = "v85"/);
 assert.match(staff, /async function getOwnAttendanceMonth/);
 assert.match(staff, /async function getHqAttendanceTrackingDay/);
 assert.match(staff, /action === "getOwnAttendanceMonth"/);
@@ -79,6 +79,13 @@ assert.match(attendanceWxml, /未录入人脸，暂不能打卡/,
 assert.match(attendanceWxml, /<map[\s\S]*openLocation/);
 assert.match(trackingJs, /callStaff\("getHqAttendanceTrackingDay"/);
 assert.match(trackingWxml, /已打卡[\s\S]*未打卡/);
+assert.match(trackingWxml, /class="tracking-table-scroll"[^>]*scroll-x="true"/);
+assert.match(trackingWxml, /class="tracking-row tracking-head"/);
+assert.doesNotMatch(trackingWxml, /teacher-card|teacher-row/);
 assert.match(trackingWxml, /<map[\s\S]*openLocation/);
+assert.match(trackingWxml, /打卡时间[\s\S]*打卡详情[\s\S]*人脸档案/,
+  "attendance rows must expose exact time and a map detail link, with face profile last");
+assert.match(trackingWxml, /打卡时间：\{\{detail\.attendance\.checkedTime\}\}/,
+  "attendance detail must show the full date and second-level time beside the map");
 
 console.log("teacher attendance contract: PASS");

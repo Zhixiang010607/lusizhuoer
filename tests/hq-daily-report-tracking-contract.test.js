@@ -31,7 +31,7 @@ test("migration 074 adds only the date-first tracker index", () => {
 });
 
 test("HQ tracker reads active teacher roster and exposes no write action", () => {
-  assert.match(cloud, /const FUNCTION_VERSION = "v84"/);
+  assert.match(cloud, /const FUNCTION_VERSION = "v85"/);
   assert.match(cloud, /async function getHqDailyReportTrackingDay\(caller/);
   assert.match(cloud, /async function getHqDailyReportDetail\(caller/);
   assert.match(cloud, /requireHq\(caller\)/);
@@ -76,5 +76,12 @@ test("HQ operations menu links to a responsive read-only tracker", () => {
   assert.match(miniClient, /getHqDailyReportDetail/);
   for (const text of ["老师姓名", "老师电话", "日报内容", "是否完成"]) assert.match(miniPage, new RegExp(text));
   assert.doesNotMatch(`${miniPage}\n${miniClient}`, /老师生日|birthDate/i);
-  assert.match(miniCss, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(miniPage, /class="tracking-table-scroll"[^>]*scroll-x="true"/);
+  assert.match(miniPage, /class="tracking-row tracking-head"/);
+  assert.match(miniPage, /wx:for="\{\{completed\}\}"[^>]*class="tracking-row"/);
+  assert.match(miniPage, /wx:for="\{\{incomplete\}\}"[^>]*class="tracking-row"/);
+  assert.doesNotMatch(miniPage, /teacher-card|teacher-row/);
+  assert.match(miniCss, /\.tracking-table \{[^}]*display: inline-table/);
+  assert.match(miniCss, /\.tracking-row > text \{[^}]*display: table-cell/);
+  assert.match(miniCss, /@media \(min-width: 700px\)/);
 });

@@ -1,4 +1,48 @@
-<view class="page tracking-page"><view class="page-heading"><view><text class="title">打卡追踪</text><text class="subtitle">总部按日期查看在职老师打卡时间和位置</text></view><button class="back" bindtap="back">返回工作台</button></view>
-<view wx:if="{{!authorized}}" class="notice-card">正在确认总部账号…</view><view wx:else class="tracking-layout"><view class="calendar-card date-query-card"><date-selector value="{{pendingDate}}" end="{{serverToday}}" disabled="{{loading}}" bindchange="chooseDate"></date-selector><button class="confirm-button" bindtap="confirmDate" disabled="{{loading}}">确认</button></view>
-<view class="results"><view class="result-summary"><view><text class="section-title">{{selectedDate}}</text><text class="section-note">在职老师考勤</text></view><view class="summary-counts"><text>已打卡 {{completed.length}}</text><text>未打卡 {{incomplete.length}}</text></view></view><view wx:if="{{loading}}" class="notice-card">正在读取打卡情况…</view><view wx:else class="result-columns"><view class="list-card completed-list"><view class="list-heading"><text>已打卡</text><text>{{completed.length}} 人</text></view><view wx:if="{{!completed.length}}" class="empty">所选日期暂无老师打卡</view><view wx:for="{{completed}}" wx:key="teacherId" class="teacher-card"><view class="teacher-row"><text>老师姓名</text><text class="link" data-id="{{item.teacherId}}" bindtap="openTeacher">{{item.teacherName}}</text></view><view class="teacher-row"><text>老师电话</text><text>{{item.phone}}</text></view><view class="teacher-row"><text>打卡时间</text><text>{{item.attendance.checkedTime}}</text></view><view class="teacher-row"><text>打卡位置</text><text class="link" data-id="{{item.teacherId}}" bindtap="openDetail">查看地图</text></view></view></view><view class="list-card incomplete-list"><view class="list-heading"><text>未打卡</text><text>{{incomplete.length}} 人</text></view><view wx:if="{{!incomplete.length}}" class="empty">全部在职老师均已打卡</view><view wx:for="{{incomplete}}" wx:key="teacherId" class="teacher-card"><view class="teacher-row"><text>老师姓名</text><text class="link" data-id="{{item.teacherId}}" bindtap="openTeacher">{{item.teacherName}}</text></view><view class="teacher-row"><text>老师电话</text><text>{{item.phone}}</text></view><view class="teacher-row"><text>人脸档案</text><text>{{item.faceEnrolled ? '已录入' : '缺失'}}</text></view><view class="teacher-row"><text>是否完成</text><text class="status no">否</text></view></view></view></view><view wx:if="{{message && !loading}}" class="form-message {{error ? 'error' : ''}}">{{message}}</view></view></view></view>
-<view wx:if="{{detailOpen}}" class="modal-backdrop" catchtap="closeDetail"><view class="detail-dialog" catchtap="noop"><view class="detail-heading"><view><text class="section-title">{{detail.teacherName}}的打卡位置</text><text class="section-note">{{detail.attendance.checkedTime}} · 精度约 {{detail.attendance.accuracy}} 米</text></view><button bindtap="closeDetail">关闭</button></view><map class="tracking-map" latitude="{{detail.attendance.latitude}}" longitude="{{detail.attendance.longitude}}" markers="{{detail.attendance.markers}}" scale="17" show-location></map><button class="map-button" bindtap="openLocation">在地图中打开</button></view></view>
+<view class="page tracking-page">
+  <view class="page-heading">
+    <view><text class="title">打卡追踪</text><text class="subtitle">总部按日期查看在职老师打卡时间和位置</text></view>
+    <button class="back" bindtap="back">返回工作台</button>
+  </view>
+
+  <view wx:if="{{!authorized}}" class="notice-card">正在确认总部账号…</view>
+  <view wx:else class="tracking-layout">
+    <view class="calendar-card date-query-card">
+      <date-selector value="{{pendingDate}}" end="{{serverToday}}" disabled="{{loading}}" bindchange="chooseDate"></date-selector>
+      <button class="confirm-button" bindtap="confirmDate" disabled="{{loading}}">确认</button>
+    </view>
+
+    <view class="results">
+      <view class="result-summary">
+        <view><text class="section-title">{{selectedDate}}</text><text class="section-note">在职老师考勤</text></view>
+        <view class="summary-counts"><text>已打卡 {{completed.length}}</text><text>未打卡 {{incomplete.length}}</text></view>
+      </view>
+      <view wx:if="{{loading}}" class="notice-card">正在读取打卡情况…</view>
+      <view wx:else class="result-columns">
+        <view class="list-card completed-list">
+          <view class="list-heading"><text>已打卡</text><text>{{completed.length}} 人</text></view>
+          <view wx:if="{{!completed.length}}" class="empty">所选日期暂无老师打卡</view>
+          <scroll-view wx:else class="tracking-table-scroll" scroll-x="true" data-visible-rows="{{completed.length > 5 ? 5 : completed.length}}" scroll-y="{{completed.length > 5}}" enhanced="true" show-scrollbar="{{completed.length > 5}}">
+            <view class="tracking-table">
+              <view class="tracking-row tracking-head"><text>老师姓名</text><text>老师电话</text><text>是否完成</text><text>打卡时间</text><text>打卡详情</text><text>人脸档案</text></view>
+              <view wx:for="{{completed}}" wx:key="teacherId" class="tracking-row"><text class="link" data-id="{{item.teacherId}}" bindtap="openTeacher">{{item.teacherName}}</text><text>{{item.phone}}</text><text class="status yes">是</text><text>{{item.attendance.checkedTime}}</text><text class="link" data-id="{{item.teacherId}}" bindtap="openDetail">查看详情</text><text>{{item.faceEnrolled ? '已录入' : '缺失'}}</text></view>
+            </view>
+          </scroll-view>
+        </view>
+
+        <view class="list-card incomplete-list">
+          <view class="list-heading"><text>未打卡</text><text>{{incomplete.length}} 人</text></view>
+          <view wx:if="{{!incomplete.length}}" class="empty">全部在职老师均已打卡</view>
+          <scroll-view wx:else class="tracking-table-scroll" scroll-x="true" data-visible-rows="{{incomplete.length > 5 ? 5 : incomplete.length}}" scroll-y="{{incomplete.length > 5}}" enhanced="true" show-scrollbar="{{incomplete.length > 5}}">
+            <view class="tracking-table">
+              <view class="tracking-row tracking-head"><text>老师姓名</text><text>老师电话</text><text>是否完成</text><text>打卡时间</text><text>打卡详情</text><text>人脸档案</text></view>
+              <view wx:for="{{incomplete}}" wx:key="teacherId" class="tracking-row"><text class="link" data-id="{{item.teacherId}}" bindtap="openTeacher">{{item.teacherName}}</text><text>{{item.phone}}</text><text class="status no">否</text><text>—</text><text>—</text><text>{{item.faceEnrolled ? '已录入' : '缺失'}}</text></view>
+            </view>
+          </scroll-view>
+        </view>
+      </view>
+      <view wx:if="{{message && !loading}}" class="form-message {{error ? 'error' : ''}}">{{message}}</view>
+    </view>
+  </view>
+</view>
+
+<view wx:if="{{detailOpen}}" class="modal-backdrop" catchtap="closeDetail"><view class="detail-dialog" catchtap="noop"><view class="detail-heading"><view><text class="section-title">{{detail.teacherName}}的打卡详情</text><text class="section-note">打卡时间：{{detail.attendance.checkedTime}}</text></view><button bindtap="closeDetail">关闭</button></view><view class="detail-meta"><view><text>打卡时间</text><text>{{detail.attendance.checkedTime}}</text></view><view><text>定位精度</text><text>约 {{detail.attendance.accuracy}} 米</text></view></view><map class="tracking-map" latitude="{{detail.attendance.latitude}}" longitude="{{detail.attendance.longitude}}" markers="{{detail.attendance.markers}}" scale="17" show-location></map><button class="map-button" bindtap="openLocation">在地图中打开</button></view></view>

@@ -272,8 +272,13 @@ test("public rating page shows service context, three star groups, and scrollabl
   assert.doesNotMatch(miniRatingAnalysisWxml, /无业务老师时取其余两项最低分/);
   assert.doesNotMatch(publicHtml, /本次评价已经提交|老师、门店和总部可以在对应工单中查看/,
     "the completed customer page keeps only the result and removes redundant staff-facing instructions");
-  assert.match(publicHtml, /rating\.css\?v=0\.1\.3/);
-  assert.match(publicHtml, /rating\.js\?v=0\.1\.3/);
+  assert.match(publicHtml, /rating\.css\?v=0\.1\.4/);
+  assert.match(publicHtml, /rating\.js\?v=0\.1\.4/);
+  assert.equal((publicHtml.match(/<script defer /g) || []).length, 5,
+    "the public page must discover and download CloudBase dependencies in parallel during HTML parsing");
+  assert.match(publicHtml, /rel="preconnect" href="https:\/\/static\.cloudbase\.net"/);
+  assert.match(publicJs, /\$\("ratingForm"\)\.hidden = false;[\s\S]*callRating\("getPublic"/,
+    "the rating controls must render immediately while public context is loading");
   assert.match(publicCss, /\.rating-comment textarea \{[\s\S]*height: 132px;[\s\S]*max-height: 132px;[\s\S]*overflow-y: auto;[\s\S]*resize: none;/,
     "long comments must scroll vertically inside a stable-height textarea");
   assert.doesNotMatch(publicJs, /auth-ui|location\.href\s*=\s*["']login/,

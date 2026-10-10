@@ -4,7 +4,7 @@ const crypto = require("node:crypto");
 const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 
-const FUNCTION_VERSION = "teacher-create-v7";
+const FUNCTION_VERSION = "teacher-create-v8";
 const FACE_MODEL_VERSION = "3.0";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 let cloudApp = null;
@@ -151,9 +151,9 @@ async function deleteAttendancePhoto(photo) {
     accessToken: serviceRoleKey(), envId: envId() });
 }
 
-async function deleteFacePerson(api, groupId, personId) {
+async function deleteFacePerson(api, _groupId, personId) {
   if (!personId) return;
-  try { await api.DeletePerson({ GroupId: groupId, PersonId: personId }); }
+  try { await api.DeletePerson({ PersonId: personId }); }
   catch (error) {
     const detail = `${error?.code || ""} ${error?.message || ""}`;
     if (!/not.?exist|not.?found/i.test(detail)) throw error;
@@ -277,6 +277,88 @@ async function readBusinessByPhone(phone) {
   );
   if (rows.length > 1) fail("同一手机号对应多份人员主档。", "PHONE_AMBIGUOUS");
   return rows[0] || null;
+}
+
+async function readCompletedTeacherByPersonId(personId) {
+  const rows = await executeSql(
+    `SELECT account.auth_uid, account.phone, account.account_status,
+            teacher.id AS teacher_id, teacher.teacher_code, teacher.teacher_status,
+            profile.face_person_id
+       FROM public.teacher_attendance_face_profiles AS profile
+       JOIN public.teachers AS teacher
+         ON teacher.id = profile.teacher_id
+        AND teacher.staff_account_id = profile.staff_account_id
+       JOIN public.staff_accounts AS account
+         ON account.id = profile.staff_account_id
+      WHERE profile.face_person_id = ${sqlText(personId)}
+      LIMIT 1`
+  );
+  return rows[0] || null;
+}
+
+async function deleteAttendancePhotoPrefix(personId) {
+  const bucketId = String(process.env.CUSTOMER_PHOTO_BUCKET_ID || "customer-photos").trim();
+  const prefix = `attendance-teachers/${personId}/`;
+  const rows = await executeSql(
+    `SELECT name FROM storage.objects
+      WHERE bucket_id = ${sqlText(bucketId)}
+        AND name LIKE ${sqlText(`${prefix}%`)}
+      ORDER BY name`
+  );
+  for (const row of rows) {
+    const objectName = String(row.name || "");
+    if (!objectName.startsWith(prefix)) continue;
+    await manager().storage.deleteObject({
+      bucketId, objectName, accessToken: serviceRoleKey(), envId: envId()
+    });
+  }
+}
+
+async function recoverTeacherCreation(event) {
+  await requireHq();
+  const rawRequestId = String(event.clientRequestId || "").trim();
+  if (!rawRequestId) fail("缺少待核对的老师创建请求编号。", "BAD_REQUEST");
+  const clientRequestId = requestKey(rawRequestId);
+  const phone = event.phone ? phoneNumber(event.phone) : "";
+  const personId = attendancePersonId(clientRequestId);
+  const completed = await readCompletedTeacherByPersonId(personId);
+  if (completed?.teacher_id && completed?.auth_uid) {
+    return successResponse({ uid: String(completed.auth_uid), shell: {
+      ...completed,
+      face_person_id: completed.face_person_id
+    } });
+  }
+  if (phone) {
+    const business = await readBusinessByPhone(phone);
+    if (business) {
+      fail("检测到该手机号已存在老师资料，请返回老师管理核对，系统没有删除任何业务资料。", "RECOVERY_REVIEW_REQUIRED");
+    }
+  }
+  const api = faceClient();
+  const failures = [];
+  const attempt = async (stage, task) => {
+    try { await task(); }
+    catch (error) { failures.push({ stage, code: error?.code || "CLEANUP_FAILED" }); }
+  };
+  await attempt("PHOTO_DELETE", () => deleteAttendancePhotoPrefix(personId));
+  await attempt("FACE_DELETE", () => deleteFacePerson(api, required("FACE_GROUP_ID"), personId));
+  if (phone) {
+    const existingAuth = await exactAuthByPhone(phone);
+    if (existingAuth) {
+      const description = String(existingAuth?.Description ?? existingAuth?.description ?? "").trim();
+      if (description !== `teacher-create:${clientRequestId}`) {
+        fail("检测到该手机号已有非本次创建的登录账号，请返回老师管理核对。", "RECOVERY_REVIEW_REQUIRED");
+      }
+      await attempt("AUTH_DELETE", () => deleteCreatedAuth(String(existingAuth.Uid || "")));
+    }
+  }
+  if (failures.length) {
+    const error = new Error("上一笔老师创建尚未清理完整，请稍后重新进入本页继续恢复。");
+    error.code = "TEACHER_CREATE_CLEANUP_INCOMPLETE";
+    error.cleanup = failures;
+    throw error;
+  }
+  return { ok: true, completed: false, cleaned: true };
 }
 
 async function createActiveAuthentication({ phone, name, password, clientRequestId, lifecycle }) {
@@ -527,7 +609,7 @@ function health() {
   return {
     ok: true,
     version: FUNCTION_VERSION,
-    actions: ["health", "createTeacher"],
+    actions: ["health", "createTeacher", "recoverTeacherCreation"],
     configured: {
       cloudbaseEnv: hasEnv("CLOUDBASE_ENV_ID") || hasEnv("TCB_ENV"),
       face: hasEnv("FACE_SECRET_ID") && hasEnv("FACE_SECRET_KEY") && hasEnv("FACE_GROUP_ID"),
@@ -541,6 +623,7 @@ exports.main = async (event = {}) => {
     const action = String(event.action || "health").trim();
     if (action === "health") return health();
     if (action === "createTeacher") return await createTeacher(event);
+    if (action === "recoverTeacherCreation") return await recoverTeacherCreation(event);
     fail("不支持的 teacherCreate 动作。", "UNKNOWN_ACTION");
   } catch (error) {
     return errorResponse(error);
