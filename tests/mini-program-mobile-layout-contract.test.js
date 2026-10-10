@@ -125,6 +125,10 @@ test("all three mini-program homes preserve business content in the refreshed br
     assert.match(`${js}\n${wxml}`, new RegExp(heading), `missing mobile-web heading ${heading}`);
   }
   assert.match(wxml, /class="workspace-rail"[^>]*scroll-x/);
+  assert.match(wxss, /\.role-teacher \.rail-current, \.role-teacher \.rail-link\s*\{[^}]*width:\s*92px;[^}]*flex:\s*0 0 92px;/s,
+    "teacher iPad navigation items must stay equally compact instead of stretching the highlighted overview tab");
+  assert.match(wxss, /\.role-teacher \.rail-logout\s*\{[^}]*width:\s*72px;[^}]*margin-left:\s*auto;/s,
+    "the teacher logout action must remain compact and right aligned on iPad");
   assert.match(wxml, /class="table-scroll summary-scroll"[^>]*scroll-x/);
   assert.match(wxml, /<view class="detail-anchor-nav"><view class="anchor-inner">/,
     "the four store anchors must use a content-height view instead of a real-device default-height scroll-view");
