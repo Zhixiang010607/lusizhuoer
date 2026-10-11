@@ -4,7 +4,20 @@ const { authorizationFailureMessage, loginFailureMessage } = require("../../serv
 Page({
   data: {
     phone: "", password: "", passwordVisible: false, busy: false,
-    startupChecking: false, message: "", error: false
+    startupChecking: false, message: "", error: false,
+    tabletLandscape: false
+  },
+  onLoad() { this.configureViewport(); },
+  onResize(event) { this.configureViewport(event && event.size); },
+  configureViewport(viewport) {
+    if (!viewport && typeof wx.getWindowInfo !== "function") return;
+    const windowInfo = viewport || wx.getWindowInfo();
+    const windowWidth = Number(windowInfo.windowWidth) || 0;
+    const windowHeight = Number(windowInfo.windowHeight) || 0;
+    this.setData({
+      tabletLandscape: windowWidth >= 600 && windowHeight > 0
+        && (windowWidth > windowHeight || windowWidth / windowHeight >= 0.86)
+    });
   },
   async onShow() {
     const epoch = Number(this._startupEpoch || 0) + 1;

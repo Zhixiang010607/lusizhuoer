@@ -11,6 +11,7 @@
       { "type": "file", "value": ".npmrc" },
       { "type": "file", "value": "package.json" },
       { "type": "file", "value": "pnpm-lock.yaml" },
+      { "type": "file", "value": "images/login/lusizhuoer-login-bg-v3.jpg" },
       { "type": "file", "value": "services/Untitled.png" }
     ],
     "include": [

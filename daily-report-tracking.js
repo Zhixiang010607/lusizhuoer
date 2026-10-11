@@ -1,7 +1,8 @@
 (() => {
   "use strict";
-  const VERSION = "0.2.0";
+  const VERSION = "0.2.1";
   const $ = (id) => document.getElementById(id);
+  const shanghaiDateTime = window.WebWorkCommon?.shanghaiDateTime || (() => "—");
   const state = { serverToday: "", selectedDate: "", visibleMonth: "", loading: false };
   let app = null;
 
@@ -42,6 +43,15 @@
   function dateText(date) { return date.toISOString().slice(0, 10); }
   function monthShift(monthText, amount) { const [year, month] = monthText.split("-").map(Number); return dateText(new Date(Date.UTC(year, month - 1 + amount, 1))).slice(0, 7); }
   function formatDate(text) { const date = dateFromText(text); return `${date.getUTCFullYear()}年${date.getUTCMonth() + 1}月${date.getUTCDate()}日`; }
+  function submittedDateTime(teacher) {
+    if (!teacher?.completed) return "—";
+    return shanghaiDateTime(teacher.updatedAt || teacher.updated_at);
+  }
+  function submittedTime(teacher) {
+    const value = submittedDateTime(teacher);
+    const match = value.match(/(\d{2}:\d{2})(?::\d{2})?/);
+    return match ? match[1] : "—";
+  }
   function setBusy(busy) {
     state.loading = busy;
     $("trackingPreviousMonth").disabled = busy;
@@ -80,6 +90,7 @@
       <a class="record-link" href="${teacherLink}"><span class="daily-tracking-card-label">老师姓名</span>${escapeHtml(teacher.teacherName || teacher.teacherCode || "未命名老师")}</a>
       <span><span class="daily-tracking-card-label">老师电话</span>${escapeHtml(teacher.phone || "未登记")}</span>
       ${teacher.completed ? `<a class="record-link" href="${detailLink}"><span class="daily-tracking-card-label">日报内容</span>查看日报</a>` : '<span><span class="daily-tracking-card-label">日报内容</span>—</span>'}
+      <span><span class="daily-tracking-card-label">提交时间</span>${escapeHtml(submittedTime(teacher))}</span>
       <span class="daily-tracking-status ${teacher.completed ? "complete" : "incomplete"}"><span class="daily-tracking-card-label">日报完成</span>${teacher.completed ? "是" : "否"}</span>
     </article>`;
   }
@@ -126,7 +137,8 @@
       const teacher = result.teacher || {};
       const report = result.report || {};
       $("dailyReportDetailTitle").textContent = `${teacher.teacherName || teacher.teacherCode || "老师"}的日报`;
-      $("dailyReportDetailMeta").textContent = `${formatDate(report.reportDate)} · 电话 ${teacher.phone || "未登记"} · 只读`;
+      const submittedAt = shanghaiDateTime(report.updatedAt || report.updated_at);
+      $("dailyReportDetailMeta").textContent = `${formatDate(report.reportDate)} · 提交时间 ${submittedAt}（上海时间） · 电话 ${teacher.phone || "未登记"} · 只读`;
       const sections = [["今日完成事项", report.completedWork]];
       $("dailyReportDetailBody").innerHTML = sections.map(([title, value]) => `<section class="daily-report-detail-item"><h3>${title}</h3><p>${escapeHtml(value || "")}</p></section>`).join("");
       $("dailyReportDetailDialog").showModal();

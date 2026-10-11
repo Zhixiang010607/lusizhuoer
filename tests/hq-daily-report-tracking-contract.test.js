@@ -46,6 +46,7 @@ test("HQ tracker reads active teacher roster and exposes no write action", () =>
   assert.match(cloud, /account\.phone/);
   assert.match(cloud, /completed: teachers\.filter/);
   assert.match(cloud, /incomplete: teachers\.filter/);
+  assert.match(cloud, /updatedAt: row\.updated_at \|\| null/);
   assert.doesNotMatch(cloud, /saveHqDailyReport|updateHqDailyReport|deleteHqDailyReport/);
 });
 
@@ -58,13 +59,16 @@ test("HQ operations menu links to a responsive read-only tracker", () => {
   assert.doesNotMatch(teacherAccess, /daily-report-tracking\.html/);
   assert.match(authUi, /const operationLinks = \[[\s\S]*?日报追踪[\s\S]*?\];/);
   assert.match(authUi, /data-menu="hq-operations"[\s\S]*?operationLinks\.map/);
-  for (const text of ["已填写", "未填写", "老师姓名", "老师电话", "日报内容", "是否完成"]) {
+  for (const text of ["已填写", "未填写", "老师姓名", "老师电话", "日报内容", "提交时间", "是否完成"]) {
     assert.match(html, new RegExp(text));
   }
   assert.match(client, /staff-detail\.html\?role=teacher/);
   assert.match(client, /getHqDailyReportTrackingDay/);
   assert.match(client, /getHqDailyReportDetail/);
   assert.match(client, /teacher\.phone/);
+  assert.match(client, /teacher\.updatedAt \|\| teacher\.updated_at/);
+  assert.match(client, /if \(!teacher\?\.completed\) return "—"/);
+  assert.match(client, /提交时间 \$\{submittedAt\}（上海时间）/);
   assert.doesNotMatch(`${html}\n${client}`, /老师生日|birthDate|打卡|attendance/i);
   assert.match(css, /@media\s*\(max-width:\s*1180px\)/);
   assert.match(css, /@media\s*\(max-width:\s*760px\)/);
@@ -78,7 +82,11 @@ test("HQ operations menu links to a responsive read-only tracker", () => {
   assert.match(client, /const sections = \[\["今日完成事项", report\.completedWork\]\]/);
   assert.match(miniClient, /label: "今日完成事项"/);
   assert.doesNotMatch(`${client}\n${miniClient}`, /客户或项目进展|遇到的问题|明日计划/);
-  for (const text of ["老师姓名", "老师电话", "日报内容", "是否完成"]) assert.match(miniPage, new RegExp(text));
+  for (const text of ["老师姓名", "老师电话", "日报内容", "提交时间", "是否完成"]) assert.match(miniPage, new RegExp(text));
+  assert.match(miniClient, /formatShanghaiTimestamp/);
+  assert.match(miniClient, /if \(!row\.completed\) return "—"/);
+  assert.match(miniPage, /\{\{item\.submittedAt\}\}/);
+  assert.match(miniPage, /<text>—<\/text><text>—<\/text><text class="status no">否<\/text>/);
   assert.doesNotMatch(`${miniPage}\n${miniClient}`, /老师生日|birthDate/i);
   assert.match(miniPage, /class="tracking-table-scroll"[^>]*scroll-x="true"/);
   assert.match(miniPage, /class="tracking-row tracking-head"/);

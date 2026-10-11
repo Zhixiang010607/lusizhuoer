@@ -57,6 +57,8 @@ for (const file of [".npmrc", "package.json", "pnpm-lock.yaml"]) {
 }
 assert.ok(project.packOptions?.ignore?.some((rule) => rule.type === "file" && rule.value === "services/Untitled.png"),
   "the unreferenced local image must stay outside the upload package");
+assert.ok(project.packOptions?.ignore?.some((rule) => rule.type === "file" && rule.value === "images/login/lusizhuoer-login-bg-v3.jpg"),
+  "the retired v3 login artwork must stay outside the upload package");
 
 const subpackageRoots = new Set((app.subPackages || []).map(({ root: packageRoot }) => path.join(mini, packageRoot)));
 const excludedUploadFiles = new Set((project.packOptions?.ignore || [])

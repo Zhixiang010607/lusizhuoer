@@ -1,5 +1,6 @@
 const { callStaff } = require("../../services/api");
 const { waitForStartupSession, requireSession } = require("../../services/session");
+const { formatShanghaiTimestamp } = require("../../services/business-time");
 
 function pad(value) { return String(value).padStart(2, "0"); }
 function localShanghaiDate() { const date = new Date(Date.now() + 8 * 60 * 60 * 1000); return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`; }
@@ -12,8 +13,19 @@ function calendarCells(month, selectedDate, serverToday) {
   for (let day = 1; day <= days; day += 1) { const date = `${month}-${pad(day)}`; cells.push({ key: date, day, date, selected: date === selectedDate, today: date === serverToday, future: date > serverToday }); }
   return cells;
 }
-function teacher(row = {}) { return { teacherId: String(row.teacherId || ""), teacherCode: String(row.teacherCode || ""), teacherName: String(row.teacherName || "未命名老师"), phone: String(row.phone || "未登记"), reportId: String(row.reportId || ""), completed: Boolean(row.completed) }; }
-function reportSections(report = {}) { return [{ label: "今日完成事项", value: String(report.completedWork || "未填写") }]; }
+function submittedAt(row = {}) {
+  if (!row.completed) return "—";
+  const value = formatShanghaiTimestamp(row.updatedAt || row.updated_at);
+  const match = value.match(/(\d{2}:\d{2})(?::\d{2})?$/);
+  return match ? match[1] : "—";
+}
+function teacher(row = {}) { return { teacherId: String(row.teacherId || ""), teacherCode: String(row.teacherCode || ""), teacherName: String(row.teacherName || "未命名老师"), phone: String(row.phone || "未登记"), reportId: String(row.reportId || ""), completed: Boolean(row.completed), submittedAt: submittedAt(row) }; }
+function reportSections(report = {}) {
+  return [
+    { label: "提交时间", value: formatShanghaiTimestamp(report.updatedAt || report.updated_at) || "—" },
+    { label: "今日完成事项", value: String(report.completedWork || "未填写") }
+  ];
+}
 
 Page({
   data: { authorized: false, loading: true, detailLoading: false, serverToday: "", visibleMonth: "", selectedDate: "", pendingDate: "", canNextMonth: false, calendarCells: [], completed: [], incomplete: [], message: "", error: false, detailOpen: false, detailTeacher: {}, detailSections: [] },

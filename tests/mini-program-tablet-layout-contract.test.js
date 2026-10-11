@@ -21,16 +21,30 @@ test("mini-program shared controls stop scaling after the tablet breakpoint", ()
 });
 
 test("login and password reset use bounded tablet forms", () => {
+  const loginJs = read("miniprogram-app", "miniprogram", "pages", "login", "index.js");
+  const loginWxml = read("miniprogram-app", "miniprogram", "pages", "login", "index.wxml");
   const login = read("miniprogram-app", "miniprogram", "pages", "login", "index.wxss");
   const reset = read("miniprogram-app", "miniprogram", "pages", "password-reset", "index.wxss");
 
-  assert.match(login, /@media \(min-width: 700px\) \{/);
+  assert.match(login, /@media \(min-width: 600px\) \{/,
+    "compact and full-size tablets must both enter the dedicated public-login layout");
   assert.match(login, /\.login-shell \{ max-width: 460px; \}/);
   assert.match(login, /\.login-card \{[^}]*padding: 28px 32px 26px;[^}]*border-radius: 20px;/s);
   assert.match(login, /\.login-card \.input \{[^}]*min-height: 48px;[^}]*font-size: 16px;/s);
   assert.match(login, /\.phone-quick-login \{[^}]*width: 100% !important;[^}]*height: 48px;/s);
-  assert.match(login, /\.login-background \{[^}]*width: 520px;[^}]*margin-left: -260px;/s,
-    "the iPad login must show the complete centered portrait artwork without aspect-fill cropping");
+  assert.match(login, /\.login-background \{[^}]*left: 0;[^}]*width: 100%;[^}]*margin-left: 0;/s,
+    "tablet portrait login must not retain the narrow 520px image strip or side colour seam");
+  assert.doesNotMatch(login, /width: 520px|margin-left: -260px/,
+    "the retired fixed-width tablet artwork must not return");
+  assert.match(login, /@media \(min-width: 600px\)[\s\S]*?\.login-page\.tablet-side-layout \.login-background\.tablet-art-landscape \{[^}]*width: 44vw;[^}]*height: 100%;/s,
+    "landscape and short near-square tablets must reserve a complete uncropped artwork region beside the bounded form");
+  assert.match(loginWxml, /wx:if="\{\{tabletLandscape\}\}" class="tablet-art-seam"/);
+  assert.match(login, /\.login-page\.tablet-side-layout > \.tablet-art-seam \{[^}]*background: linear-gradient\(90deg, transparent 52%/s,
+    "side-layout artwork must fade into the warm page instead of showing a differently coloured rectangle");
+  assert.match(loginWxml, /mode="\{\{tabletLandscape \? 'aspectFit' : 'widthFix'\}\}"/,
+    "tablet rotation must switch the brand art to a complete landscape fit");
+  assert.match(loginJs, /tabletLandscape: windowWidth >= 600 && windowHeight > 0[\s\S]*?windowWidth > windowHeight \|\| windowWidth \/ windowHeight >= 0\.86/,
+    "other tablet widths, near-square foldables, and orientation changes must use the same login artwork contract");
   assert.match(reset, /@media \(min-width: 700px\) \{/);
   assert.match(reset, /\.reset-card \{[^}]*max-width: 540px;[^}]*padding: 42px 44px 36px;/s);
 });

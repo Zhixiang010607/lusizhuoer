@@ -78,9 +78,9 @@ test("Web operations preserve server categories, cursors, scores, paging, export
 test("daily tracker stacks complete tables and production CSS has a new cache key", () => {
   const html = read("daily-report-tracking.html");
   const trackerCss = read("daily-report-tracking.css");
-  assert.match(html, /daily-report-tracking\.css\?v=0\.2\.1/);
+  assert.match(html, /daily-report-tracking\.css\?v=0\.2\.2/);
   assert.match(trackerCss, /\.daily-tracking-columns\s*\{[^}]*grid-template-columns:\s*1fr/);
-  assert.match(trackerCss, /grid-template-columns:\s*minmax\(120px, 1fr\) minmax\(150px, 1fr\) minmax\(120px, 0\.9fr\) 92px/);
+  assert.match(trackerCss, /grid-template-columns:\s*minmax\(120px, 1fr\) minmax\(150px, 1fr\) minmax\(110px, 0\.8fr\) minmax\(88px, 0\.7fr\) 92px/);
 });
 
 test("receipt preview is bounded and recharge review uses a compact no-wrap table", () => {

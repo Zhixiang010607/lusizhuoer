@@ -73,10 +73,12 @@ test("company introduction is a static public page focused on brand positioning"
   ]) assert.match(wxml, new RegExp(phrase));
   for (const project of ["海洋之蕴", "魔法柔肤", "露思康辰"]) assert.match(wxml, new RegExp(project));
   for (const phone of ["181 7942 2788", "181 6078 9986"]) assert.match(wxml, new RegExp(phone));
-  assert.match(wxml, /<image class="hero-background" src="\/images\/login\/lusizhuoer-login-bg-v4\.jpg" mode="widthFix"/,
-    "the first company page must show the complete confirmed Lusizhuoer logo artwork without iPad cropping");
+  assert.match(wxml, /<image class="hero-background \{\{tabletLandscape \? 'tablet-art-landscape' : ''\}\}" src="\/images\/login\/lusizhuoer-login-bg-v4\.jpg" mode="\{\{tabletLandscape \? 'aspectFit' : 'widthFix'\}\}"/,
+    "the first company page must keep the full portrait artwork and switch to a complete landscape fit on tablets");
   assert.equal((wxml.match(/src="\/images\/login\/lusizhuoer-login-bg-v4\.jpg"/g) || []).length, 6,
     "the confirmed Lusizhuoer logo artwork must remain visible as a background element on every company page");
+  assert.equal((wxml.match(/mode="\{\{tabletLandscape \? 'aspectFit' : \(tabletLayout \? 'widthFix' : 'aspectFill'\)\}\}"/g) || []).length, 5,
+    "all five later chapters must stop aspect-fill cropping on every tablet while preserving the phone treatment");
   for (const systemCopy of ["内部系统", "数据填报", "数据协同", "在线购买", "支付或交易", "小程序服务边界"]) {
     assert.ok(!wxml.includes(systemCopy), `company promotion must not foreground ${systemCopy}`);
   }
@@ -103,8 +105,8 @@ test("company introduction is a static public page focused on brand positioning"
   assert.doesNotMatch(wxml, /value-grid|value-card|approach-grid|focus-list|belief-card|vision-card/,
     "the company home must not fall back to a modular card grid");
   assert.match(wxss, /\.company-swiper\s*\{[^}]*height:\s*100vh;/s);
-  assert.match(wxss, /@media \(min-width: 700px\) and \(max-height: 900px\)[\s\S]*?\.company-slide \{[^}]*padding: calc\(78px \+ env\(safe-area-inset-top\)\) 50px calc\(44px \+ env\(safe-area-inset-bottom\)\);/s,
-    "iPad landscape must use the compact-height company layout after the general tablet rules");
+  assert.match(wxss, /@media \(min-width: 600px\)[\s\S]*?\.company-page\.tablet-side-layout \.company-slide \{[^}]*padding: calc\(78px \+ env\(safe-area-inset-top\)\) 40px calc\(44px \+ env\(safe-area-inset-bottom\)\) calc\(38vw \+ 24px\);/s,
+    "landscape and short near-square tablets must use the compact two-region company layout after the general tablet rules");
   assert.match(wxss, /\.company-slide\s*\{[^}]*height:\s*100%;[^}]*align-items:\s*center;[^}]*overflow:\s*hidden;/s,
     "resting pages must never expose part of the next or previous chapter");
   assert.match(js, /onSlideChange\(event\)[\s\S]*currentSlide[\s\S]*reading:[\s\S]*scrolled:/,
@@ -137,7 +139,7 @@ test("company introduction is a static public page focused on brand positioning"
     "page status must stay in the quiet footer instead of interrupting the right edge of the composition");
   assert.match(wxml, /class="about-body"[\s\S]*class="about-paragraph[^\"]*"[\s\S]*class="core-value-list"[\s\S]*class="service-lead balanced-copy[^"]*"/,
     "long mobile copy must use deliberate editorial paragraphs and compact value rows rather than leaving orphaned final characters");
-  assert.match(wxss, /\.title-lines text, \.balanced-copy text, \.belief-copy text, \.hero-info-copy text \{ display: block; \}[\s\S]*@media \(min-width: 700px\)[\s\S]*\.balanced-copy text \{ display: inline; \}/,
+  assert.match(wxss, /\.title-lines text, \.balanced-copy text, \.belief-copy text, \.hero-info-copy text \{ display: block; \}[\s\S]*@media \(min-width: 600px\)[\s\S]*\.balanced-copy text \{ display: inline; \}/,
     "deliberate phone line breaks must return to natural flow on tablet widths");
   assert.match(wxss, /\.slide-animate\s*\{[^}]*opacity:\s*0;[^}]*translateY\(30rpx\);/s);
   assert.match(wxss, /\.slide-background-art\s*\{[^}]*opacity:\s*\.34;[^}]*pointer-events:\s*none;/s);
@@ -145,8 +147,17 @@ test("company introduction is a static public page focused on brand positioning"
     "subsequent pages must add restrained moving champagne-gold background effects without blocking content");
   assert.match(wxss, /\.is-active \.delay-1[\s\S]*\.is-active \.delay-5[\s\S]*@keyframes text-rise/,
     "each settled page must animate headings, copy, and detail rows in a deliberate sequence");
-  assert.match(wxss, /@media \(min-width: 700px\) \{/,
+  assert.match(wxss, /@media \(min-width: 600px\) \{/,
     "company introduction must cap typography and layout on tablets");
+  assert.match(wxss, /@media \(min-width: 600px\)[\s\S]*?\.hero-background, \.slide-background-art \{[^}]*left: 0;[^}]*width: 100%;[^}]*height: auto;[^}]*margin: 0;/s,
+    "tablet portrait must use the full available width instead of a visibly different centre strip");
+  assert.doesNotMatch(wxss, /width: 520px|margin-left: -260px/,
+    "the retired fixed-width tablet artwork must not return on any company chapter");
+  assert.match(wxss, /\.company-page\.tablet-side-layout \.hero-background\.tablet-art-landscape,[\s\S]*?\.company-page\.tablet-side-layout \.slide-background-art\.tablet-art-landscape \{[^}]*width: 36vw;[^}]*height: 100%;/s,
+    "wide or height-constrained tablets must preserve the complete logo in a dedicated artwork region");
+  assert.match(wxml, /wx:if="\{\{tabletLandscape\}\}" class="tablet-art-seam"/);
+  assert.match(wxss, /\.company-page\.tablet-side-layout > \.tablet-art-seam \{[^}]*background: linear-gradient\(90deg, transparent 52%/s,
+    "side-layout artwork must blend into the warm background without a hard colour seam");
   assert.match(wxml, /class="service-reach[^"]*"[\s\S]*100\+[\s\S]*10000\+[\s\S]*class="partnership-block[^"]*"[\s\S]*181 7942 2788[\s\S]*181 6078 9986/,
     "confirmed service reach and both partnership contacts must form one continuous company chapter");
   assert.doesNotMatch(js, /showActionSheet|openPartnership|joinOpen/,
@@ -165,6 +176,27 @@ test("vertical chapter paging produces bounded active state and exact progress",
   definition.onSlideChange.call(instance, { detail: { current: 99 } });
   assert.deepEqual({ currentSlide: instance.data.currentSlide, reading: instance.data.reading },
     { currentSlide: 5, reading: 100 });
+});
+
+test("company artwork reacts to compact tablets and orientation changes", () => {
+  const { definition } = loadCompanyPage();
+  const instance = {
+    data: { ...definition.data },
+    setData(update) { Object.assign(this.data, update); }
+  };
+  for (const [windowWidth, windowHeight] of [[600, 900], [768, 1024], [834, 1194]]) {
+    definition.configureTopbar.call(instance, { windowWidth, windowHeight, statusBarHeight: 24 });
+    assert.equal(instance.data.tabletLayout, true, `${windowWidth}x${windowHeight} must use tablet sizing`);
+    assert.equal(instance.data.tabletLandscape, false, `${windowWidth}x${windowHeight} must retain the full-width portrait artwork`);
+  }
+  for (const [windowWidth, windowHeight] of [[717, 781], [800, 600], [940, 665], [1024, 768], [1366, 1024]]) {
+    definition.configureTopbar.call(instance, { windowWidth, windowHeight, statusBarHeight: 24 });
+    assert.equal(instance.data.tabletLayout, true, `${windowWidth}x${windowHeight} must use tablet sizing`);
+    assert.equal(instance.data.tabletLandscape, true, `${windowWidth}x${windowHeight} must use the complete left-art side layout`);
+  }
+  definition.configureTopbar.call(instance, { windowWidth: 430, windowHeight: 932, statusBarHeight: 24 });
+  assert.equal(instance.data.tabletLayout, false);
+  assert.equal(instance.data.tabletLandscape, false);
 });
 
 test("company home opens the separate login and only allow-listed project introductions", () => {

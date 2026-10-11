@@ -22,13 +22,18 @@ Page({
     reading: 0,
     scrolled: false,
     slideNumbers: SLIDE_NUMBERS,
+    tabletLayout: false,
+    tabletLandscape: false,
     topbarStyle: "",
     loginStyle: ""
   },
   onLoad() { this.configureTopbar(); },
-  configureTopbar() {
-    if (typeof wx.getWindowInfo !== "function") return;
-    const windowInfo = wx.getWindowInfo();
+  onResize(event) { this.configureTopbar(event && event.size); },
+  configureTopbar(viewport) {
+    if (!viewport && typeof wx.getWindowInfo !== "function") return;
+    const windowInfo = viewport || wx.getWindowInfo();
+    const windowWidth = Number(windowInfo.windowWidth) || 0;
+    const windowHeight = Number(windowInfo.windowHeight) || 0;
     const statusBarHeight = Math.max(20, Number(windowInfo.statusBarHeight) || 24);
     let topbarHeight = statusBarHeight + 44;
     let loginRight = 104;
@@ -40,11 +45,14 @@ Page({
       if (menuTop > 0 && menuBottom > menuTop) {
         topbarHeight = menuBottom + Math.max(4, menuTop - statusBarHeight);
       }
-      if (menuLeft > 0 && Number(windowInfo.windowWidth) > menuLeft) {
-        loginRight = Number(windowInfo.windowWidth) - menuLeft + 10;
+      if (menuLeft > 0 && windowWidth > menuLeft) {
+        loginRight = windowWidth - menuLeft + 10;
       }
     }
     this.setData({
+      tabletLayout: windowWidth >= 600,
+      tabletLandscape: windowWidth >= 600 && windowHeight > 0
+        && (windowWidth > windowHeight || windowWidth / windowHeight >= 0.86),
       topbarStyle: `height:${Math.ceil(topbarHeight)}px;`,
       loginStyle: `right:${Math.ceil(loginRight)}px;`
     });

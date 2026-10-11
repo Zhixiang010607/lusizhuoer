@@ -53,7 +53,7 @@
 }
 .daily-tracking-card {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) minmax(150px, 1fr) minmax(120px, 0.9fr) 92px;
+  grid-template-columns: minmax(120px, 1fr) minmax(150px, 1fr) minmax(110px, 0.8fr) minmax(88px, 0.7fr) 92px;
   gap: 10px;
   align-items: center;
   padding: 13px 14px;

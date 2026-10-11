@@ -1,5 +1,6 @@
-<view class="login-page">
-  <image class="login-background" src="/images/login/lusizhuoer-login-bg-v4.jpg" mode="widthFix"></image>
+<view class="login-page {{tabletLandscape ? 'tablet-side-layout' : ''}}">
+  <image class="login-background {{tabletLandscape ? 'tablet-art-landscape' : ''}}" src="/images/login/lusizhuoer-login-bg-v4.jpg" mode="{{tabletLandscape ? 'aspectFit' : 'widthFix'}}"></image>
+  <view wx:if="{{tabletLandscape}}" class="tablet-art-seam" aria-hidden="true"></view>
   <view class="login-shade"></view>
   <view class="login-shell">
     <button class="login-home" hover-class="login-home-hover" catchtap="returnToCompany" aria-label="返回公司主页">‹ 返回公司主页</button>
