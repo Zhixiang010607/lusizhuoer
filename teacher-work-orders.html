@@ -32,8 +32,8 @@
         <button type="button" data-range-preset="CUSTOM">自定义</button>
       </div>
       <div id="teacherCustomRange" class="teacher-custom-range" hidden>
-        <label>开始日期<input id="teacherRangeStart" type="date"></label>
-        <label>结束日期<input id="teacherRangeEnd" type="date"></label>
+        <label>开始日期<input id="teacherRangeStart" type="hidden" data-chinese-date></label>
+        <label>结束日期<input id="teacherRangeEnd" type="hidden" data-chinese-date></label>
         <button id="teacherApplyCustomRange" type="button">应用时间</button>
       </div>
       <div class="table-scroll teacher-summary-scroll" tabindex="0" aria-label="按项目汇总的业务次数">
@@ -76,6 +76,6 @@
   <script src="cloudbase-auth-config.js"></script>
   <script src="datetime.js?v=0.1.2"></script>
   <script src="teacher-work-orders.js?v=0.16.5"></script>
-  <script src="auth-ui.js?v=0.20.9"></script>
+  <script src="auth-ui.js?v=0.21.0"></script>
 </body>
 </html>

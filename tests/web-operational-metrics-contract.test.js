@@ -32,9 +32,9 @@ test("three Web operational pages use the shared responsive implementation", () 
   for (const [file, scope] of [["inactive-customers.html", "inactive"], ["low-balance-customers.html", "balance"], ["rating-analysis.html", "rating"]]) {
     const html = read(file);
     assert.match(html, new RegExp(`data-operation-metric="${scope}"`));
-    assert.match(html, /operational-metrics\.css\?v=1\.0\.1/);
-    assert.match(html, /operational-metrics\.js\?v=1\.0\.0/);
-    assert.match(html, /auth-ui\.js\?v=0\.20\.9/);
+    assert.match(html, /operational-metrics\.css\?v=1\.0\.2/);
+    assert.match(html, /operational-metrics\.js\?v=1\.0\.1/);
+    assert.match(html, /auth-ui\.js\?v=0\.21\.0/);
     assert.match(html, /id="operationsPrint"/);
     assert.match(html, /id="operationsExport"/);
     assert.match(html, /打印 \/ PDF/);
@@ -48,6 +48,23 @@ test("three Web operational pages use the shared responsive implementation", () 
   assert.match(css, /\.operations-empty \{ min-height: 72px;[\s\S]{0,100}padding: 14px;/);
   assert.match(css, /.operations-table-scroll[\s\S]*overflow: auto/);
   assert.match(css, /@media \(max-width: 620px\)/);
+});
+
+test("Web rating analysis uses the iPad time-range choices and never opens a locale-dependent native date picker", () => {
+  const html = read("rating-analysis.html");
+  for (const label of ["今天", "全部时间", "近 7 天", "近 1 个月", "本季度", "本年度", "自定义日期"]) {
+    assert.match(client, new RegExp(label.replace(" ", "\\s*")));
+  }
+  assert.match(client, /时间范围<select id="operationsPeriod"/);
+  assert.match(client, /data-rating-custom-date hidden/);
+  assert.match(client, /aria-label="\$\{label\}年份"/);
+  assert.match(client, /chineseDateMarkup\("operationsStart", "开始日期", today\)/);
+  assert.match(client, /chineseDateMarkup\("operationsEnd", "结束日期", today\)/);
+  assert.doesNotMatch(client, /type="date"/);
+  assert.doesNotMatch(html, /type="date"/);
+  assert.match(client, /period === "ALL"[\s\S]*startDate: "", endDate: ""/);
+  assert.match(client, /自定义时间范围不能超过 366 天/);
+  assert.match(css, /body\[data-operation-metric="rating"\] \.operations-filter-grid \{ grid-template-columns: repeat\(4, minmax\(0, 1fr\)\); \}/);
 });
 
 test("Web operations preserve server categories, cursors, scores, paging, export and detail links", () => {

@@ -37,15 +37,15 @@
             </div>
             <div class="customer-query-row customer-query-time-row">
               <label>时间范围<select id="recordTimeRange"><option value="all" selected>全部时间</option><option value="sevenDays">近 7 天</option><option value="month">近 1 个月</option><option value="quarter">本季度</option><option value="year">本年度</option><option value="custom">自定义日期</option></select></label>
-              <label>开始日期<input id="recordDateStart" type="date"></label>
-              <label>结束日期<input id="recordDateEnd" type="date"></label>
+              <label>开始日期<input id="recordDateStart" type="hidden" data-chinese-date></label>
+              <label>结束日期<input id="recordDateEnd" type="hidden" data-chinese-date></label>
             </div>
           </section>
           <section class="customer-query-method" data-record-query-panel="manual">
             <button class="customer-query-method-heading" type="button" data-record-query-mode="manual"><span>方式二</span><strong>按姓名＋生日查询</strong><small>可单独填写一项，也可以联合查询</small></button>
             <div class="customer-query-method-fields">
               <label>客户姓名<input id="recordCustomerName" placeholder="输入姓名；同名客户全部显示"></label>
-              <label>生日<input id="recordCustomerBirthday" type="date"></label>
+              <label>生日<input id="recordCustomerBirthday" type="hidden"></label>
             </div>
           </section>
         </div>
@@ -60,10 +60,10 @@
   </main>
 
   <main id="legacyRecordQueryMain">
-    <section class="panel query-filter-panel"><div class="record-query-grid"><label>门店<select id="queryStore"></select></label><div class="record-customer-filter"><span class="field-label">客户查找方式</span><div class="lookup-mode-switch query-lookup-switch"><button class="active" type="button" data-query-mode="select">选择现有客户</button><button type="button" data-query-mode="manual">手动输入姓名＋生日</button></div></div><label id="querySelectCustomerField">现有客户<select id="queryCustomerSelect"></select></label><label id="querySelectBirthdayField">生日<input id="querySelectBirthday" readonly placeholder="选择客户后显示"></label><label id="queryManualCustomerField" hidden>客户姓名<input id="queryCustomerManual" placeholder="输入姓名；同名客户全部显示"></label><label id="queryManualBirthdayField" hidden>生日<input id="queryCustomerBirthday" type="date"></label><label>项目名称<select id="queryProject"></select></label><label>时间范围<select id="queryTimeRange"><option value="sevenDays">近 7 天</option><option value="month">近 1 个月</option><option value="quarter">本季度</option><option value="year">本年度</option><option value="custom" selected>自定义：过去一年</option></select></label><label>开始日期<input id="queryDateStart" type="date"></label><label>结束日期<input id="queryDateEnd" type="date"></label></div><div id="queryCustomerMatches" class="query-customer-matches">选择具体客户可按客户编号精确查询。</div><div class="query-filter-actions"><span id="querySummary">0条记录</span><button id="resetQuery">重置条件</button></div></section>
+    <section class="panel query-filter-panel"><div class="record-query-grid"><label>门店<select id="queryStore"></select></label><div class="record-customer-filter"><span class="field-label">客户查找方式</span><div class="lookup-mode-switch query-lookup-switch"><button class="active" type="button" data-query-mode="select">选择现有客户</button><button type="button" data-query-mode="manual">手动输入姓名＋生日</button></div></div><label id="querySelectCustomerField">现有客户<select id="queryCustomerSelect"></select></label><label id="querySelectBirthdayField">生日<input id="querySelectBirthday" readonly placeholder="选择客户后显示"></label><label id="queryManualCustomerField" hidden>客户姓名<input id="queryCustomerManual" placeholder="输入姓名；同名客户全部显示"></label><label id="queryManualBirthdayField" hidden>生日<input id="queryCustomerBirthday" type="hidden"></label><label>项目名称<select id="queryProject"></select></label><label>时间范围<select id="queryTimeRange"><option value="sevenDays">近 7 天</option><option value="month">近 1 个月</option><option value="quarter">本季度</option><option value="year">本年度</option><option value="custom" selected>自定义：过去一年</option></select></label><label>开始日期<input id="queryDateStart" type="hidden" data-chinese-date></label><label>结束日期<input id="queryDateEnd" type="hidden" data-chinese-date></label></div><div id="queryCustomerMatches" class="query-customer-matches">选择具体客户可按客户编号精确查询。</div><div class="query-filter-actions"><span id="querySummary">0条记录</span><button id="resetQuery">重置条件</button></div></section>
     <section class="panel table-card query-results"><div class="panel-heading"><div><h2>充值记录</h2></div><span class="badge">充值</span></div><div class="table-scroll"><table class="record-query-results-table legacy-record-results-table"><thead><tr><th>充值编号（可查看）</th><th>客户编号</th><th>客户姓名</th><th>生日</th><th>门店</th><th>项目</th><th>充值次数</th><th>提交时间</th><th>审核进度</th></tr></thead><tbody id="queryBody"></tbody></table></div></section>
   </main>
 
-  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.20.4"></script><script src="datetime.js?v=0.1.2"></script><script src="query.js?v=0.15.11"></script><script src="auth-ui.js?v=0.20.9"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.20.4"></script><script src="datetime.js?v=0.1.2"></script><script src="query.js?v=0.15.11"></script><script src="auth-ui.js?v=0.21.0"></script>
 </body>
 </html>

@@ -3,6 +3,15 @@
 
   const PAGE_SIZE = 20;
   const EXPORT_LIMIT = 1000;
+  const RATING_TIME_OPTIONS = Object.freeze([
+    { value: "TODAY", label: "今天" },
+    { value: "ALL", label: "全部时间" },
+    { value: "LAST_7", label: "近 7 天" },
+    { value: "LAST_MONTH", label: "近 1 个月" },
+    { value: "QUARTER", label: "本季度" },
+    { value: "YEAR", label: "本年度" },
+    { value: "CUSTOM", label: "自定义日期" }
+  ]);
   const type = document.body.dataset.operationMetric;
   const $ = (id) => document.getElementById(id);
   const state = {
@@ -17,7 +26,44 @@
   const clean = (value) => String(value ?? "").trim();
 
   function businessToday() {
-    return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    const parts = new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" })
+      .formatToParts(new Date()).reduce((result, part) => ({ ...result, [part.type]: part.value }), {});
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  }
+
+  function dateParts(value) {
+    const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return match ? { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) } : null;
+  }
+
+  function dateText(date) {
+    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+  }
+
+  function addDays(value, amount) {
+    const parts = dateParts(value);
+    if (!parts) return "";
+    const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+    date.setUTCDate(date.getUTCDate() + amount);
+    return dateText(date);
+  }
+
+  function ratingTimeRange(value, custom = {}) {
+    const period = String(value || "TODAY").toUpperCase();
+    const today = businessToday();
+    const current = dateParts(today);
+    if (period === "TODAY") return { startDate: today, endDate: today };
+    if (period === "ALL") return { startDate: "", endDate: "" };
+    if (period === "CUSTOM") return { startDate: custom.startDate || today, endDate: custom.endDate || today };
+    if (period === "LAST_7") return { startDate: addDays(today, -6), endDate: today };
+    if (period === "LAST_MONTH") {
+      const start = new Date(Date.UTC(current.year, current.month - 1, current.day));
+      start.setUTCMonth(start.getUTCMonth() - 1);
+      return { startDate: dateText(start), endDate: today };
+    }
+    if (period === "QUARTER") return { startDate: `${current.year}-${String(Math.floor((current.month - 1) / 3) * 3 + 1).padStart(2, "0")}-01`, endDate: today };
+    if (period === "YEAR") return { startDate: `${current.year}-01-01`, endDate: today };
+    return { startDate: today, endDate: today };
   }
 
   function resultObject(raw, marker) {
@@ -71,6 +117,61 @@
     return `<div class="operations-filter-actions"><button id="operationsSearch" type="button">开始查询</button><button id="operationsReset" class="secondary-button" type="button">重置</button></div>`;
   }
 
+  function selectOptions(values, selected, suffix) {
+    return values.map((value) => `<option value="${value}" ${value === selected ? "selected" : ""}>${value} ${suffix}</option>`).join("");
+  }
+
+  function chineseDateMarkup(id, label, value) {
+    const today = dateParts(businessToday());
+    const selected = dateParts(value) || today;
+    const years = Array.from({ length: today.year - 1990 + 1 }, (_, index) => today.year - index);
+    const months = Array.from({ length: 12 }, (_, index) => index + 1);
+    const days = Array.from({ length: 31 }, (_, index) => index + 1);
+    return `<label class="operations-date-field" data-date-field="${id}"><span>${label}</span><input id="${id}" type="hidden" value="${escapeHtml(value)}"><span class="operations-date-selectors"><select id="${id}Year" aria-label="${label}年份">${selectOptions(years, selected.year, "年")}</select><select id="${id}Month" aria-label="${label}月份">${selectOptions(months, selected.month, "月")}</select><select id="${id}Day" aria-label="${label}日期">${selectOptions(days, selected.day, "日")}</select></span></label>`;
+  }
+
+  function updateChineseDate(id) {
+    const hidden = $(id);
+    const year = Number($(`${id}Year`)?.value);
+    const monthSelect = $(`${id}Month`);
+    const daySelect = $(`${id}Day`);
+    if (!hidden || !year || !monthSelect || !daySelect) return;
+    const today = dateParts(businessToday());
+    const maximumMonth = year === today.year ? today.month : 12;
+    const month = Math.min(Math.max(1, Number(monthSelect.value) || 1), maximumMonth);
+    monthSelect.innerHTML = selectOptions(Array.from({ length: maximumMonth }, (_, index) => index + 1), month, "月");
+    const calendarDays = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const maximumDay = year === today.year && month === today.month ? Math.min(calendarDays, today.day) : calendarDays;
+    const selectedDay = Math.min(Math.max(1, Number(daySelect.value) || 1), maximumDay);
+    daySelect.innerHTML = selectOptions(Array.from({ length: maximumDay }, (_, index) => index + 1), selectedDay, "日");
+    hidden.value = `${year}-${String(month).padStart(2, "0")}-${String(selectedDay).padStart(2, "0")}`;
+  }
+
+  function setChineseDate(id, value) {
+    const selected = dateParts(value) || dateParts(businessToday());
+    $(`${id}Year`).value = String(selected.year);
+    $(`${id}Month`).value = String(selected.month);
+    $(`${id}Day`).value = String(selected.day);
+    updateChineseDate(id);
+  }
+
+  function bindChineseDate(id) {
+    for (const part of ["Year", "Month", "Day"]) {
+      $(`${id}${part}`).addEventListener("change", () => { updateChineseDate(id); clearResults(); });
+    }
+    updateChineseDate(id);
+  }
+
+  function applyRatingPeriod(period) {
+    const isCustom = period === "CUSTOM";
+    document.querySelectorAll("[data-rating-custom-date]").forEach((field) => { field.hidden = !isCustom; });
+    const range = ratingTimeRange(period, { startDate: $("operationsStart")?.value, endDate: $("operationsEnd")?.value });
+    if (range.startDate) setChineseDate("operationsStart", range.startDate);
+    else $("operationsStart").value = "";
+    if (range.endDate) setChineseDate("operationsEnd", range.endDate);
+    else $("operationsEnd").value = "";
+  }
+
   function renderFilters() {
     if (type === "inactive") {
       $("operationsFilters").innerHTML = `<label>门店范围<select id="operationsStore">${optionMarkup(state.stores, "全部门店")}</select></label><label>核销间隔至少多少天<input id="operationsThreshold" type="number" min="1" max="3650" placeholder="例如：30"></label>${standardActions()}`;
@@ -81,8 +182,12 @@
     } else {
       const today = businessToday();
       const teacherOptions = `<option value="">全部老师</option><option value="NONE">未指定老师</option>${state.teachers.map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.label || row.name)}</option>`).join("")}`;
-      $("operationsFilters").innerHTML = `<label>门店范围<select id="operationsStore">${optionMarkup(state.stores, "全部门店")}</select></label><label>项目范围<select id="operationsProduct">${optionMarkup(state.products, "全部项目")}</select></label><label>老师范围<select id="operationsTeacher">${teacherOptions}</select></label><label>开始日期<input id="operationsStart" type="date" value="${today}"></label><label>结束日期<input id="operationsEnd" type="date" value="${today}"></label>${standardActions()}<div class="operations-score-filter" aria-label="最低评分">${[0, 1, 2, 3, 4, 5].map((score) => `<button class="active" type="button" data-score="${score}">${score === 0 ? "0 未评价" : `${score} 分`}</button>`).join("")}</div>`;
+      const periodOptions = RATING_TIME_OPTIONS.map((item) => `<option value="${item.value}" ${item.value === "TODAY" ? "selected" : ""}>${item.label}</option>`).join("");
+      $("operationsFilters").innerHTML = `<label>门店范围<select id="operationsStore">${optionMarkup(state.stores, "全部门店")}</select></label><label>项目范围<select id="operationsProduct">${optionMarkup(state.products, "全部项目")}</select></label><label>老师范围<select id="operationsTeacher">${teacherOptions}</select></label><label>时间范围<select id="operationsPeriod">${periodOptions}</select></label><div data-rating-custom-date hidden>${chineseDateMarkup("operationsStart", "开始日期", today)}</div><div data-rating-custom-date hidden>${chineseDateMarkup("operationsEnd", "结束日期", today)}</div>${standardActions()}<div class="operations-score-filter" aria-label="最低评分">${[0, 1, 2, 3, 4, 5].map((score) => `<button class="active" type="button" data-score="${score}">${score === 0 ? "0 未评价" : `${score} 分`}</button>`).join("")}</div>`;
       $("operationsRules").textContent = "查询允许选择 0–5 分；0 分只代表未评价。评分分布只统计已评价的 1–5 分，未评价只进入评价覆盖率。";
+      bindChineseDate("operationsStart");
+      bindChineseDate("operationsEnd");
+      $("operationsPeriod").addEventListener("change", (event) => { applyRatingPeriod(event.target.value); clearResults(); });
       document.querySelectorAll("[data-score]").forEach((button) => button.addEventListener("click", () => {
         const score = Number(button.dataset.score);
         if (state.scores.has(score) && state.scores.size === 1) { setMessage("至少保留一个评分条件", "error"); return; }
@@ -136,9 +241,9 @@
   function ratingPayload(page = 1, pageSize = PAGE_SIZE) {
     const startDate = $("operationsStart").value;
     const endDate = $("operationsEnd").value;
-    if (!startDate || !endDate) throw new Error("开始日期和结束日期必须同时填写");
+    if ((!startDate && endDate) || (startDate && !endDate)) throw new Error("开始日期和结束日期必须同时填写");
     if (startDate > endDate) throw new Error("开始日期不能晚于结束日期");
-    if ((Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86400000 > 366) throw new Error("日期范围不能超过 366 天");
+    if (startDate && (Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86400000 > 366) throw new Error("自定义时间范围不能超过 366 天");
     const payload = { pageNumber: page, pageSize, startDate, endDate, scores: [...state.scores].sort() };
     for (const [id, key] of [["operationsStore", "storeId"], ["operationsProduct", "productId"], ["operationsTeacher", "teacherId"]]) {
       const value = clean($(id)?.value); if (value) payload[key] = value;
@@ -315,6 +420,7 @@
   }
 
   function reset() {
+    if (type === "rating") state.scores = new Set([0, 1, 2, 3, 4, 5]);
     renderFilters(); clearResults();
   }
 

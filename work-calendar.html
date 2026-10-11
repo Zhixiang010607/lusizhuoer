@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>老师工作月历</title>
   <link rel="stylesheet" href="styles.css?v=0.15.44">
-  <link rel="stylesheet" href="web-attendance.css?v=1.0.0">
+  <link rel="stylesheet" href="web-attendance.css?v=1.0.1">
 </head>
 <body data-work-calendar>
   <aside class="side-project-bar" aria-label="工作区导航"><div class="side-brand"><span>师</span><div><strong>老师工作区</strong><small>工作月历</small></div></div><nav class="side-nav"></nav><div class="side-footer"></div></aside>
@@ -13,7 +13,7 @@
   <main class="work-calendar-main">
     <nav class="work-mode-tabs" aria-label="工作月历类型"><button id="workAttendanceMode" class="active" type="button">考勤月历</button><button id="workReportMode" type="button">日报月历</button></nav>
     <section class="panel" aria-labelledby="workMonthTitle">
-      <div class="work-month-picker"><button id="workPreviousYear" class="secondary-button" type="button">上一年</button><label><span id="workMonthTitle">直接选择年月</span><input id="workMonth" type="month" min="2020-01"></label><button id="workNextYear" class="secondary-button" type="button">下一年</button></div>
+      <div class="work-month-picker"><button id="workPreviousYear" class="secondary-button" type="button">上一年</button><label><span id="workMonthTitle">直接选择年月</span><select id="workMonth" aria-label="选择年月"></select></label><button id="workNextYear" class="secondary-button" type="button">下一年</button></div>
       <div class="work-month-actions"><button id="workPreviousMonth" class="secondary-button" type="button">上月</button><button id="workToday" class="secondary-button" type="button">本月</button><button id="workNextMonth" class="secondary-button" type="button">下月</button><button id="workReload" class="secondary-button" type="button">重新读取</button></div>
       <div id="workLegend" class="work-calendar-legend"></div>
       <div class="work-weekdays" aria-hidden="true"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
@@ -26,8 +26,8 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
-  <script src="auth-ui.js?v=0.20.9"></script>
+  <script src="auth-ui.js?v=0.21.0"></script>
   <script src="web-work-common.js?v=1.0.0"></script>
-  <script src="work-calendar.js?v=1.0.0"></script>
+  <script src="work-calendar.js?v=1.0.1"></script>
 </body>
 </html>

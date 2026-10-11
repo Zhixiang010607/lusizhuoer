@@ -11,7 +11,7 @@
   <aside class="side-project-bar" aria-label="工作区导航"><div class="side-brand"><span>勤</span><div><strong>老师工作区</strong><small>考勤打卡</small></div></div><nav class="side-nav"></nav><div class="side-footer"></div></aside>
   <header class="topbar"><div><p class="eyebrow">ATTENDANCE</p><h1>考勤打卡</h1><p class="subtitle">每天分别完成上班和下班打卡。</p></div><div class="status"><span></span>实时定位与前置摄像头</div></header>
   <main class="attendance-main">
-    <section class="panel"><div class="attendance-date-picker"><input id="attendanceDate" type="date" aria-label="选择考勤日期"><button id="attendanceConfirmDate" type="button">确认日期</button></div></section>
+    <section class="panel"><div class="attendance-date-picker"><input id="attendanceDate" type="hidden" data-chinese-date aria-label="选择考勤日期"><button id="attendanceConfirmDate" type="button">确认日期</button></div></section>
     <section id="attendanceRecords" class="panel" aria-live="polite"><div class="empty-copy">正在读取考勤记录…</div></section>
     <section id="attendanceAction" class="panel attendance-flow" hidden>
       <div class="panel-heading"><div><h2 id="attendanceActionTitle">本次办理</h2><p>最终时间以服务端北京时间记录为准。</p></div><span id="attendanceActionState" class="badge">第一步</span></div>
@@ -24,7 +24,7 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
-  <script src="auth-ui.js?v=0.20.9"></script>
+  <script src="auth-ui.js?v=0.21.0"></script>
   <script src="web-work-common.js?v=1.0.0"></script>
   <script src="attendance.js?v=1.0.0"></script>
 </body>

@@ -486,12 +486,15 @@
   }
 
   function initializeChineseDateInputs() {
-    if (!document.body.matches("[data-query], [data-customer-query], [data-view], [data-attendance], [data-attendance-tracking]")) return;
-    const inputs = Array.from(document.querySelectorAll('input[type="date"]'));
+    const inputs = Array.from(document.querySelectorAll("input[data-chinese-date]"));
     if (!inputs.length) return;
     const pad2 = (value) => String(value).padStart(2, "0");
     const today = new Date();
-    const currentTodayIso = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date());
+    const currentTodayIso = () => {
+      const parts = new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" })
+        .formatToParts(new Date()).reduce((result, part) => ({ ...result, [part.type]: part.value }), {});
+      return `${parts.year}-${parts.month}-${parts.day}`;
+    };
     const weekdayNames = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
     const formatVisibleDate = (value) => {
       const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -637,7 +640,7 @@
       calendar.style.top = `${Math.round(top)}px`;
     };
     const openCalendar = (input, trigger) => {
-      if (input.disabled) return;
+      if (input.disabled || input.readOnly) return;
       const selected = parseIsoDate(input.value) || parseIsoDate(currentTodayIso());
       activeInput = input;
       activeTrigger?.setAttribute("aria-expanded", "false");
@@ -766,10 +769,11 @@
         const hasValue = /^\d{4}-\d{2}-\d{2}$/.test(String(input.value || ""));
         visibleValue.textContent = formatVisibleDate(input.value);
         wrapper.classList.toggle("is-empty", !hasValue);
-        wrapper.classList.toggle("is-disabled", input.disabled);
-        trigger.disabled = input.disabled;
+        const unavailable = input.disabled || input.readOnly;
+        wrapper.classList.toggle("is-disabled", unavailable);
+        trigger.disabled = unavailable;
         trigger.setAttribute("aria-label", `${inputLabel(input)}：${visibleValue.textContent}`);
-        if (activeInput === input && input.disabled) closeCalendar(false);
+        if (activeInput === input && unavailable) closeCalendar(false);
       };
       input.syncChineseDate = sync;
       input.addEventListener("input", sync);

@@ -4,6 +4,21 @@
   const C = window.WebWorkCommon;
   const state = { mode: "attendance", month: "", serverToday: "", selectedDate: "", data: null, loading: false };
   const recordTime = (row) => C.shanghaiDateTime(row?.checkedInAt);
+  function renderMonthOptions(maxMonth) {
+    const select = $("workMonth");
+    const selected = state.month || select.value;
+    const [maximumYear, maximumMonth] = String(maxMonth || "").split("-").map(Number);
+    const options = [];
+    for (let year = 2020; year <= maximumYear; year += 1) {
+      const lastMonth = year === maximumYear ? maximumMonth : 12;
+      for (let month = 1; month <= lastMonth; month += 1) {
+        const value = `${year}-${String(month).padStart(2, "0")}`;
+        options.push(new Option(`${year}年${month}月`, value));
+      }
+    }
+    select.replaceChildren(...options);
+    select.value = selected && selected <= maxMonth ? selected : maxMonth;
+  }
   function attendanceByDate() {
     const map = new Map();
     for (const row of state.data?.attendance || []) {
@@ -38,8 +53,10 @@
     }
     $("workCalendar").innerHTML = cells.join("");
     $("workCalendar").querySelectorAll("[data-date]").forEach((button) => button.addEventListener("click", () => { state.selectedDate = button.dataset.date; renderCalendar(); renderDetail(); }));
+    renderMonthOptions(state.serverToday.slice(0, 7));
     $("workMonth").value = state.month;
-    $("workMonth").max = state.serverToday.slice(0, 7);
+    $("workPreviousMonth").disabled = C.monthShift(state.month, -1) < "2020-01";
+    $("workPreviousYear").disabled = C.monthShift(state.month, -12) < "2020-01";
     $("workNextMonth").disabled = C.monthShift(state.month, 1) > state.serverToday.slice(0, 7);
     $("workNextYear").disabled = C.monthShift(state.month, 12) > state.serverToday.slice(0, 7);
     renderLegend();
@@ -91,10 +108,12 @@
   $("workNextMonth").addEventListener("click", () => load(C.monthShift(state.month, 1)));
   $("workToday").addEventListener("click", () => load(state.serverToday.slice(0, 7), state.serverToday));
   $("workReload").addEventListener("click", () => load(state.month, state.selectedDate));
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date());
+  const todayParts = new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" })
+    .formatToParts(new Date()).reduce((result, part) => ({ ...result, [part.type]: part.value }), {});
+  const today = `${todayParts.year}-${todayParts.month}-${todayParts.day}`;
   state.month = today.slice(0, 7);
+  renderMonthOptions(state.month);
   $("workMonth").value = state.month;
-  $("workMonth").max = state.month;
   state.mode = new URLSearchParams(location.search).get("mode") === "report" ? "report" : "attendance";
   setMode(state.mode);
   load(state.month, today);

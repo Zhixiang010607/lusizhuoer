@@ -49,8 +49,8 @@
             <option value="custom">自定义</option>
           </select>
         </label>
-        <label class="dashboard-custom-date" hidden>开始日期<input id="dateFrom" type="date"></label>
-        <label class="dashboard-custom-date" hidden>结束日期<input id="dateTo" type="date"></label>
+        <label class="dashboard-custom-date" hidden>开始日期<input id="dateFrom" type="hidden" data-chinese-date></label>
+        <label class="dashboard-custom-date" hidden>结束日期<input id="dateTo" type="hidden" data-chinese-date></label>
       </div>
       <div id="dashboardRankingControls" class="dashboard-ranking-controls" aria-label="排名筛选"></div>
       <div class="hidden-controls" aria-hidden="true">
@@ -132,6 +132,6 @@
   <script src="cloudbase-phone-auth.js?v=0.20.4"></script>
   <script src="hq-dashboard-report.js?v=0.1.0"></script>
   <script src="app.js?v=0.15.26"></script>
-  <script src="auth-ui.js?v=0.20.9"></script>
+  <script src="auth-ui.js?v=0.21.0"></script>
 </body>
 </html>

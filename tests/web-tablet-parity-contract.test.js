@@ -124,7 +124,7 @@ test("teacher Web attendance requires live location and front camera", () => {
   assert.match(attendanceJs, /toDataURL\("image\/jpeg"/);
   assert.doesNotMatch(`${attendanceHtml}\n${attendanceJs}`, /<input[^>]+type="file"|showOpenFilePicker|FileReader/);
   assert.match(common, /timeZone: "Asia\/Shanghai"/);
-  assert.match(auth, /data-attendance-tracking/);
+  assert.match(auth, /input\[data-chinese-date\]/);
   assert.match(auth, /timeZone: "Asia\/Shanghai"/);
   assert.match(attendanceHtml, /现场照片只发送给人脸验证接口|实时定位与前置摄像头/);
 });

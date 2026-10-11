@@ -4,7 +4,7 @@
 .work-mode-tabs button.active { color: #fff !important; background: #86652f !important; }
 .work-month-picker { display: grid; grid-template-columns: 110px 1fr 110px; gap: 10px; align-items: end; }
 .work-month-picker label { display: grid; gap: 5px; text-align: center; }
-.work-month-picker input { width: 100%; min-height: 46px; text-align: center; font-size: 18px; font-weight: 800; }
+.work-month-picker input, .work-month-picker select { width: 100%; min-height: 46px; text-align: center; font-size: 18px; font-weight: 800; }
 .work-month-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
 .work-calendar-legend { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 18px; margin: 16px 0 10px; color: #756a5e; font-size: 13px; }
 .work-calendar-legend span { display: inline-flex; align-items: center; gap: 6px; }
