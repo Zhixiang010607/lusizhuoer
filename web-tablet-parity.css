@@ -67,7 +67,6 @@ body.login-page .password-field button {
   font-size: 11px !important;
   white-space: nowrap;
 }
-body.login-page #smsLoginField .password-field input,
 body.login-page #passwordResetForm .password-field input { padding-right: 100px !important; }
 body:not(.login-page) {
   min-width: 0;

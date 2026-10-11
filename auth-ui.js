@@ -30,6 +30,17 @@
     location.replace(`login.html?reason=${encodeURIComponent("请先选择身份并登录")}`);
     return;
   }
+  if (!isLocalPreview && session.role !== "hq") {
+    SESSION_KEYS.forEach((key) => sessionStorage.removeItem(key));
+    const reason = "网页版仅允许总部账号登录；老师和门店账号请使用微信小程序。";
+    const redirect = () => location.replace(`login.html?reason=${encodeURIComponent(reason)}`);
+    if (typeof window.CloudBasePhoneAuth?.signOut === "function") {
+      Promise.resolve(window.CloudBasePhoneAuth.signOut()).catch(() => {}).finally(redirect);
+    } else {
+      redirect();
+    }
+    return;
+  }
   const legacyTeacherBusinessRoutes = {
     "teacher-recharge-create.html": "recharge-create.html",
     "teacher-refund-create.html": "refund-create.html",

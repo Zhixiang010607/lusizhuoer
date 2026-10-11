@@ -1,8 +1,9 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.17.4";
+  const VERSION = "0.17.6";
   const SMS_BRAND = "露思卓儿";
+  const WEB_HQ_ONLY_ERROR = "网页版仅允许总部账号登录；老师和门店账号请使用微信小程序。";
   const $ = (id) => document.getElementById(id);
   const roles = {
     hq: { name: "总部", target: "index.html" },
@@ -15,34 +16,23 @@
     "13900000004": { password: "Demo@TC2026", role: "teacher", staffName: "本地老师演示", uid: "local-demo-teacher" }
   };
   const isLocalPreview = ["127.0.0.1", "localhost"].includes(location.hostname);
-  let loginMode = "password";
   let activeSession = null;
   let passwordResetCodeSent = false;
   const bootstrapMode = new URLSearchParams(location.search).get("bootstrap") === "1";
 
   function setError(message = "") { $("loginError").textContent = message; }
+  function clearWorkspaceSession() {
+    ["prototypeSession", "prototypeRole", "prototypeAccount", "prototypeStore", "prototypeAccessMessage"]
+      .forEach((key) => sessionStorage.removeItem(key));
+    activeSession = null;
+  }
+  async function closeUnauthorizedWebSession() {
+    clearWorkspaceSession();
+    try { await window.CloudBasePhoneAuth?.signOut?.(); } catch (_) { /* keep the HQ-only denial visible */ }
+  }
   function setBusy(button, busy, normalText) {
     button.disabled = busy;
     button.textContent = busy ? "处理中…" : normalText;
-  }
-  function selectLoginMode(mode) {
-    loginMode = mode;
-    const password = mode === "password";
-    $("passwordLoginMode").classList.toggle("active", password);
-    $("smsLoginMode").classList.toggle("active", !password);
-    $("passwordLoginMode").setAttribute("aria-selected", String(password));
-    $("smsLoginMode").setAttribute("aria-selected", String(!password));
-    $("passwordLoginField").hidden = !password;
-    $("smsLoginField").hidden = password;
-    setError();
-  }
-  function refreshSmsButton() {
-    const button = $("sendSmsCode");
-    if (!button || loginMode !== "sms") return;
-    let remaining = 0;
-    try { remaining = window.CloudBasePhoneAuth?.smsCooldownRemaining?.($("loginPhone").value) || 0; } catch (_) { remaining = 0; }
-    button.disabled = remaining > 0;
-    button.textContent = remaining > 0 ? `${remaining}秒后重发` : "获取验证码";
   }
   function setResetError(message = "") { $("passwordResetMessage").textContent = message; }
   function showPasswordReset(show) {
@@ -97,9 +87,6 @@
     window.location.replace(target + suffix);
   }
 
-  $("passwordLoginMode").addEventListener("click", () => selectLoginMode("password"));
-  $("smsLoginMode").addEventListener("click", () => { selectLoginMode("sms"); refreshSmsButton(); });
-  $("loginPhone").addEventListener("input", refreshSmsButton);
   $("togglePassword").addEventListener("click", () => {
     const visible = $("loginPassword").type === "text";
     $("loginPassword").type = visible ? "password" : "text";
@@ -141,7 +128,7 @@
       setResetError(); setBusy(button, true, "验证并修改密码");
       await window.CloudBasePhoneAuth.signInWithCode(code);
       await window.CloudBasePhoneAuth.changeOwnPassword(password);
-      window.CloudBasePhoneAuth.announceAuthenticationChanged?.();
+      await window.CloudBasePhoneAuth.signOut();
       form.reset();
       passwordResetCodeSent = false;
       window.setTimeout(() => { showPasswordReset(false); setError("密码已修改，请使用新密码登录。"); }, 700);
@@ -149,52 +136,40 @@
       setResetError(error?.message || "密码修改失败，请检查验证码或联系总部。");
     } finally { setBusy(button, false, "验证并修改密码"); }
   });
-  $("sendSmsCode").addEventListener("click", async () => {
-    const button = $("sendSmsCode");
-    try {
-      setError(); setBusy(button, true, "获取验证码");
-      await window.CloudBasePhoneAuth.sendCode($("loginPhone").value);
-      setError(`${SMS_BRAND}验证码已发送。60 秒内不可重发；请尽快完成登录。`);
-      refreshSmsButton();
-    } catch (error) {
-      setError(error.message || "验证码发送失败，请稍后重试");
-    } finally { setBusy(button, false, "获取验证码"); }
-  });
   $("loginForm").addEventListener("submit", async (event) => {
     event.preventDefault();
     const phone = $("loginPhone").value.trim();
     const password = $("loginPassword").value;
-    const code = $("loginSmsCode").value;
     const submit = event.currentTarget.querySelector('[type="submit"]');
     if (!phone) return setError("请输入中国大陆手机号");
-    if (loginMode === "password" && !password) return setError("请输入登录密码");
-    if (loginMode === "sms" && !code) return setError("请输入短信验证码");
+    if (!password) return setError("请输入登录密码");
     const localDemo = isLocalPreview ? localDemoAccounts[phone] : null;
     if (localDemo) {
-      if (loginMode !== "password") return setError("本地演示账号请使用密码登录");
       if (password !== localDemo.password) return setError("本地演示账号密码不正确");
+      if (localDemo.role !== "hq") return setError(WEB_HQ_ONLY_ERROR);
       activeSession = createSession({ user: { id: localDemo.uid } }, { uid: localDemo.uid, profile: localDemo });
       enterWorkspace(activeSession);
       return;
     }
     try {
       setError(); setBusy(submit, true, "登录系统");
-      const identity = loginMode === "password"
-        ? await window.CloudBasePhoneAuth.signInWithPassword(phone, password)
-        : await window.CloudBasePhoneAuth.signInWithCode(code);
+      const identity = await window.CloudBasePhoneAuth.signInWithPassword(phone, password);
       if (bootstrapMode) await window.CloudBasePhoneAuth.bootstrapHq();
       const staff = await window.CloudBasePhoneAuth.getStaffSession();
       if (!roles[staff?.profile?.role]) throw new Error("该账号角色已下线，无法进入系统。请联系总部。");
+      if (staff.profile.role !== "hq") {
+        await closeUnauthorizedWebSession();
+        throw new Error(WEB_HQ_ONLY_ERROR);
+      }
       activeSession = createSession(identity, staff);
       window.CloudBasePhoneAuth.announceWorkspaceSession?.(activeSession);
       enterWorkspace(activeSession);
     } catch (error) {
-      setError(error.message || "登录失败，请检查手机号、密码或验证码");
+      setError(error.message || "登录失败，请检查手机号和密码");
     } finally { setBusy(submit, false, "登录系统"); }
   });
   document.documentElement.dataset.prototypeVersion = VERSION;
-  selectLoginMode("password");
-  window.setInterval(() => { refreshSmsButton(); refreshResetSmsButton(); }, 1000);
+  window.setInterval(refreshResetSmsButton, 1000);
   showPasswordReset(new URLSearchParams(location.search).get("mode") === "reset");
   const redirectReason = new URLSearchParams(location.search).get("reason");
   if (redirectReason && !new URLSearchParams(location.search).has("mode")) setError(redirectReason);
