@@ -30,7 +30,7 @@ test("Web uses the warm tablet visual language without importing Mini Program so
   for (const color of ["#f3ede2", "#fffaf3", "#6f532e", "#a98243", "#302a22", "#2f2921"]) assert.match(theme, new RegExp(color, "i"));
   assert.match(theme, /width: min\(1120px/);
   assert.match(theme, /\.side-project-bar[\s\S]*position: sticky/);
-  assert.match(auth, /web-tablet-parity\.css\?v=1\.0\.3/);
+  assert.match(auth, /web-tablet-parity\.css\?v=1\.0\.4/);
   assert.match(theme, /button, \.button-link,[\s\S]{0,220}min-height: 44px !important;[\s\S]{0,220}text-align: center !important;/);
   assert.doesNotMatch(`${theme}\n${auth}`, /miniprogram-app|\.wxss|\.wxml/);
   assert.match(context, /网页版也采用同一套平板横屏视觉与功能信息架构/);
@@ -38,8 +38,28 @@ test("Web uses the warm tablet visual language without importing Mini Program so
 });
 
 test("public login and rating pages load the current tablet stylesheet", () => {
-  assert.match(login, /web-tablet-parity\.css\?v=1\.0\.3/);
-  assert.match(rating, /web-tablet-parity\.css\?v=1\.0\.3/);
+  assert.match(login, /web-tablet-parity\.css\?v=1\.0\.4/);
+  assert.match(rating, /web-tablet-parity\.css\?v=1\.0\.4/);
+  assert.match(theme, /body\.login-page \.login-shell[\s\S]{0,160}width: min\(590px, calc\(100% - 32px\)\) !important;[\s\S]{0,120}max-width: 590px !important;/);
+  assert.match(theme, /@media \(max-width: 600px\)[\s\S]*body\.login-page \.login-shell[\s\S]{0,120}width: 100% !important;/);
+});
+
+test("neighbouring Web actions keep a visible gap instead of sticking together", () => {
+  for (const selector of ["review-query-mode", "camera-actions", "product-preview-tabs", "review-filter-fields"]) {
+    assert.match(theme, new RegExp(`\\.${selector}[\\s\\S]{0,260}gap: (?:8|10)px !important;`));
+  }
+  assert.match(theme, /\.product-logo-actions[\s\S]{0,180}grid-template-columns: minmax\(0, 1\.4fr\) minmax\(0, \.8fr\) !important;/);
+  assert.match(theme, /\.product-logo-actions > button \{ padding-inline: 10px !important;/);
+  assert.match(theme, /\.workflow-capture-panel \{ overflow: visible !important; \}/);
+  assert.match(theme, /\.dashboard-ranking-controls:empty \{ display: none !important; \}/);
+});
+
+test("tablet-width Web navigation and customer query remain readable", () => {
+  assert.match(theme, /@media \(max-width: 1100px\)[\s\S]*\.side-nav > a span:last-child,[\s\S]*display: inline !important;/);
+  assert.match(theme, /body\[data-customer-query\] \.customer-query-filters[\s\S]{0,160}grid-template-columns: minmax\(0, 1fr\) !important;/);
+  assert.match(theme, /body\[data-customer-query\] \.customer-query-methods[\s\S]{0,200}grid-template-columns: minmax\(0, 1\.4fr\) minmax\(0, 1fr\) !important;/);
+  assert.match(theme, /@media \(max-width: 700px\)[\s\S]*\.side-nav > a span:last-child,[\s\S]*display: none !important;/);
+  assert.match(theme, /body\[data-customer-query\] \.customer-query-methods \{ grid-template-columns: 1fr !important; \}/);
 });
 
 test("every review menu receives the shared horizontal navigation layout", () => {

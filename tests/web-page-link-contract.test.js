@@ -29,7 +29,7 @@ test("every root Web page resolves all static local links and assets", () => {
       assert.ok(fs.existsSync(path.join(root, target)), `${page} references missing local target ${target}`);
     }
     if (!["login.html", "rating.html", "teacher-detail.html"].includes(page)) {
-      assert.match(html, /auth-ui\.js\?v=0\.20\.4/, `${page} must use the current permission/navigation shell`);
+      assert.match(html, /auth-ui\.js\?v=0\.20\.5/, `${page} must use the current permission/navigation shell`);
     }
   }
 });

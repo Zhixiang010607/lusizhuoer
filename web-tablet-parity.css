@@ -302,7 +302,7 @@ body[data-management="teacher"] .teacher-directory-table th { white-space: norma
 
 .product-logo-actions {
   display: grid !important;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, .8fr) !important;
   gap: 8px !important;
   padding: 5px !important;
   background: #f4ead9 !important;
@@ -311,7 +311,7 @@ body[data-management="teacher"] .teacher-directory-table th { white-space: norma
 .product-logo-actions > button { width: 100% !important; min-height: 44px !important; }
 .product-logo-editor { grid-template-columns: 112px minmax(0, 1fr) !important; }
 .product-logo-square { width: 112px !important; }
-.product-logo-actions > button { padding-inline: 5px !important; font-size: 12px !important; white-space: nowrap !important; }
+.product-logo-actions > button { padding-inline: 10px !important; font-size: 12px !important; white-space: nowrap !important; }
 .product-template-text textarea {
   min-height: 220px !important;
   font-size: 15px !important;
@@ -334,6 +334,33 @@ body[data-management="teacher"] #addEntity {
   box-shadow: 0 0 0 2px #e8d5b5 !important;
 }
 
+/* Every neighbouring action must remain visually separate on the Web canvas. */
+.review-query-mode {
+  gap: 8px !important;
+  padding: 5px !important;
+}
+.person-create-section > .camera-actions {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  margin-top: 12px !important;
+}
+.person-create-section > .camera-actions > button { width: 100% !important; }
+.product-preview-tabs {
+  gap: 8px !important;
+  padding: 6px !important;
+}
+.review-filter-fields {
+  display: grid !important;
+  grid-template-columns: minmax(170px, 1fr) minmax(150px, .8fr) minmax(220px, 1.2fr) auto auto !important;
+  align-items: end !important;
+  gap: 10px !important;
+}
+
+/* Runtime messages may add lines; the Web page must grow and remain scrollable. */
+.workflow-capture-panel { overflow: visible !important; }
+.dashboard-ranking-controls:empty { display: none !important; }
+
 .form-message, .notice-card, .customer-permission-banner {
   color: #675b4b !important;
   background: #f5ead8 !important;
@@ -350,20 +377,45 @@ dialog::backdrop { background: #241b1599 !important; }
 }
 .rating-page { background: var(--page); }
 
+/* The shared main canvas must not stretch the public login form. */
+body.login-page .login-shell {
+  width: min(590px, calc(100% - 32px)) !important;
+  max-width: 590px !important;
+}
+
 @media (max-width: 1100px) {
   .side-project-bar { min-height: 68px; padding: 8px 14px !important; overflow-x: auto !important; }
   .side-brand { min-width: 52px; margin-right: 4px !important; }
   .side-brand div { display: none !important; }
   .side-nav > a, .side-menu-group > summary, .mobile-account-menu > summary { min-height: 44px; padding: 0 14px !important; }
+  .side-nav > a span:last-child,
+  .side-menu-group > summary span:last-of-type { display: inline !important; }
+  .side-menu-group > summary::after { display: inline-block !important; }
   .side-menu-group > nav { position: static; }
   .side-footer { display: none !important; }
   .mobile-account-menu { display: block !important; margin-left: auto; }
+  body[data-customer-query] .customer-query-filters {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  body[data-customer-query] .customer-query-toolbar,
+  body[data-customer-query] .customer-query-notice,
+  body[data-customer-query] .customer-query-methods {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  body[data-customer-query] .customer-query-methods {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) !important;
+  }
 }
 
 @media (max-width: 700px) {
   .side-project-bar { min-height: 60px; gap: 3px; padding: 7px 8px !important; }
   .side-brand { display: none !important; }
   .side-nav > a, .side-menu-group > summary, .mobile-account-menu > summary { min-height: 42px; padding: 0 11px !important; font-size: 13px !important; }
+  .side-nav > a span:last-child,
+  .side-menu-group > summary span:last-of-type,
+  .side-menu-group > summary::after { display: none !important; }
   .topbar, main, body[data-query] main, body[data-customer-query] main,
   body[data-store-business] .store-business-main, body[data-teacher-service] .teacher-service-main,
   body[data-hq-create] .hq-create-main, body[data-teacher-workspace] .teacher-workspace-main,
@@ -375,4 +427,14 @@ dialog::backdrop { background: #241b1599 !important; }
   .panel-heading h2 { font-size: 19px !important; }
   table, th, td { font-size: 13px !important; }
   th, td { padding: 10px 8px !important; }
+  .review-filter-fields { grid-template-columns: 1fr 1fr !important; }
+  .review-filter-fields > label { grid-column: 1 / -1; }
+  body[data-customer-query] .customer-query-methods { grid-template-columns: 1fr !important; }
+}
+
+@media (max-width: 600px) {
+  body.login-page .login-shell {
+    width: 100% !important;
+    max-width: none !important;
+  }
 }
