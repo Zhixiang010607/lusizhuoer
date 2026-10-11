@@ -205,6 +205,14 @@ test("operational core queries keep compact tablet controls and independent resu
     assert.match(wxss, new RegExp(`@media \\(min-width: 700px\\)[\\s\\S]*?\\.${tableClass}-table-scroll\\[data-visible-rows="5"\\] \\{ height: 344px; \\}`, "s"),
       "each category keeps a bounded five-row tablet viewport");
   }
+  assert.match(inactiveWxml, /class="query-grid"[\s\S]*门店范围[\s\S]*核销间隔至少多少天[\s\S]*class="button-row query-action-cell[^\"]*"[\s\S]*开始查询[\s\S]*<\/view>/,
+    "active-warning fields and its query action must share one grid container");
+  assert.match(inactiveWxss, /\.query-action-cell \{[^}]*grid-column: 1 \/ -1;/,
+    "the active-warning query action must remain a full-width row on phones");
+  assert.match(inactiveWxss, /@media \(min-width: 700px\)[\s\S]*?\.query-grid \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);[\s\S]*?\.query-action-cell \{[^}]*grid-column: 3;[^}]*grid-row: 1;/s,
+    "store scope, inactivity threshold, and query action must share one aligned iPad row");
+  assert.match(inactiveWxss, /\.query-action-cell::before \{[^}]*height: 16px;[^}]*margin-bottom: 5px;/,
+    "the iPad query action must reserve the same label line as its adjacent fields");
   assert.match(ratingWxss, /\.chart-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/,
     "rating charts remain side by side without overlap on an iPad");
   assert.match(ratingWxml, /导出 PDF[\s\S]*导出 Excel/,

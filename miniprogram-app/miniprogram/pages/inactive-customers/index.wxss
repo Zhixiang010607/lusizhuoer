@@ -5,8 +5,9 @@
 .query-grid .field-label { margin-bottom: 6rpx; font-size: 24rpx; }
 .query-grid .input, .query-grid .picker { min-height: 72rpx; padding-right: 16rpx; padding-left: 16rpx; font-size: 24rpx; }
 .query-grid .query-wide { grid-column: 1 / -1; }
-.query-note { display: block; margin: 2rpx 0 14rpx; color: #7c7062; font-size: 24rpx; line-height: 1.5; }
-.search-card > .button-row button { min-height: 72rpx; font-size: 24rpx; }
+.query-note { grid-column: 1 / -1; display: block; margin: 2rpx 0 14rpx; color: #7c7062; font-size: 24rpx; line-height: 1.5; }
+.query-action-cell { min-width: 0; grid-column: 1 / -1; margin: 0; }
+.query-action-cell button { width: 100%; min-height: 72rpx; margin: 0; font-size: 24rpx; }
 .summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6rpx; margin-bottom: 12rpx; }
 .summary-grid view { min-width: 0; padding: 10rpx 6rpx; text-align: center; background: #fff; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
 .summary-grid text { min-height: 34rpx; display: block; color: #7c7062; font-size: 24rpx; line-height: 1.2; }
@@ -53,9 +54,11 @@
   .query-grid .field { margin-bottom: 10px; }
   .query-grid .field-label { margin-bottom: 5px; font-size: 13px; }
   .query-grid .input, .query-grid .picker { min-height: 42px; padding-right: 12px; padding-left: 12px; font-size: 14px; }
-  .query-note { margin: 0 0 10px; font-size: 12px; }
-  .search-card > .button-row { gap: 10px; }
-  .search-card > .button-row button { min-height: 42px; font-size: 14px; }
+  .query-note { grid-column: 1 / -1; grid-row: 2; margin: 0 0 10px; font-size: 12px; }
+  .query-action-cell { grid-column: 3; grid-row: 1; align-self: start; margin: 0 0 10px; }
+  .query-action-cell.store-query-action { grid-column: 2; }
+  .query-action-cell::before { content: ""; display: block; height: 16px; margin-bottom: 5px; }
+  .query-action-cell button { min-height: 42px; height: 42px; font-size: 14px; }
   .summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
   .summary-grid view { padding: 8px 6px; border-width: 1px; border-radius: 11px; }
   .summary-grid text { min-height: 16px; font-size: 10px; }

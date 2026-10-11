@@ -6,10 +6,9 @@
     <view class="query-grid">
       <label wx:if="{{session.role === 'hq'}}" class="field"><text class="field-label">门店范围</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="chooseStore" disabled="{{loading || exporting}}"><view class="picker"><text class="picker-value">{{storeLabels[storeIndex]}}</text></view></picker></label>
       <label class="field {{session.role === 'store' ? 'query-wide' : ''}}"><text class="field-label">核销间隔至少多少天</text><input class="input" type="number" maxlength="4" placeholder="例如：30" value="{{minimumDays}}" bindinput="inputMinimumDays" disabled="{{loading || exporting}}" /></label>
+      <text wx:if="{{rulesExpanded}}" class="query-note">有正常核销时取最新正常核销；没有正常核销才取最新体验核销；两类都没有时取客户建档时间。只查询未封存客户。</text>
+      <view class="button-row query-action-cell {{session.role === 'store' ? 'store-query-action' : ''}}"><button class="primary" bindtap="search" loading="{{loading}}" disabled="{{loading || exporting}}">开始查询</button></view>
     </view>
-
-    <text wx:if="{{rulesExpanded}}" class="query-note">有正常核销时取最新正常核销；没有正常核销才取最新体验核销；两类都没有时取客户建档时间。只查询未封存客户。</text>
-    <view class="button-row"><button class="primary" bindtap="search" loading="{{loading}}" disabled="{{loading || exporting}}">开始查询</button></view>
   </view>
 
   <view wx:if="{{searched}}" class="summary-grid {{summary.selectedTotal >= 10000000 ? 'compact-counts' : ''}}">
