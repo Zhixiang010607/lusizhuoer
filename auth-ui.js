@@ -131,6 +131,7 @@
       reviewMenu = document.querySelector('[data-menu="review"]');
     }
     if (reviewMenu) {
+      reviewMenu.classList.add("side-menu-group");
       reviewMenu.querySelector("nav").innerHTML = `<a class="${page === "recharge-review.html" ? "active" : ""}" href="recharge-review.html">充值审核</a><a class="${page === "refund-review.html" ? "active" : ""}" href="refund-review.html">退费审核</a><a class="${page === "product-purchase-review.html" ? "active" : ""}" href="product-purchase-review.html">产品购买审核</a>`;
       reviewMenu.hidden = false;
       reviewMenu.open = true;

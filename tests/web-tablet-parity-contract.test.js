@@ -42,6 +42,11 @@ test("public login and rating pages load the current tablet stylesheet", () => {
   assert.match(rating, /web-tablet-parity\.css\?v=1\.0\.3/);
 });
 
+test("every review menu receives the shared horizontal navigation layout", () => {
+  assert.match(read("product-purchase-review.html"), /<details class="side-menu-group" data-menu="review"/);
+  assert.match(auth, /reviewMenu\.classList\.add\("side-menu-group"\)/);
+});
+
 test("role navigation exposes Web work calendars and tracking only to authorized roles", () => {
   const hq = auth.slice(auth.indexOf("hq: new Set"), auth.indexOf("store: new Set"));
   const store = auth.slice(auth.indexOf("store: new Set"), auth.indexOf("teacher: new Set"));
