@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>人员主页</title>
   <link rel="stylesheet" href="styles.css?v=0.15.61">
+  <link rel="stylesheet" href="web-tablet-parity.css?v=1.0.12" data-web-tablet-parity>
 </head>
 <body data-staff-detail>
   <aside class="side-project-bar" aria-label="项目栏">
@@ -52,9 +53,7 @@
     <section id="teacherExperiencePanel" class="panel teacher-experience-panel" hidden aria-labelledby="teacherExperienceTitle">
       <header class="teacher-experience-heading">
         <div>
-          <p class="teacher-experience-kicker">总部专用 · 老师体验次数</p>
-          <h2 id="teacherExperienceTitle">体验额度工作台</h2>
-          <p>各配置项目按上海自然月独立汇总基础额度、单独充值、已体验和当前可用次数；删除后重新配置不会清空历史体验核销。</p>
+          <h2 id="teacherExperienceTitle">配置项目当月汇总</h2>
         </div>
         <span id="teacherExperienceState" class="teacher-experience-state">正在读取</span>
       </header>
@@ -65,9 +64,7 @@
         <section class="teacher-experience-list-card" aria-labelledby="teacherExperienceListTitle">
           <header class="teacher-experience-section-heading teacher-experience-summary-heading">
             <div>
-              <p class="teacher-experience-action-eyebrow">累计数据</p>
               <h3 id="teacherExperienceListTitle">项目体验汇总</h3>
-              <p>按产品汇总该老师累计完成的体验次数；封存后的历史数据仍保留在统计中。</p>
             </div>
           </header>
           <div id="teacherExperienceSummaryRows" class="teacher-experience-summary-grid" aria-live="polite">
@@ -76,9 +73,7 @@
 
           <header class="teacher-experience-section-heading teacher-experience-configured-heading">
             <div>
-              <p class="teacher-experience-action-eyebrow">当前设置</p>
-              <h3>已配置的体验产品</h3>
-              <p>可删除某项配置后重新设置；删除不会抹去此前的体验、充值或月度更新记录。</p>
+              <h3>已配置项目</h3>
             </div>
           </header>
           <div id="teacherExperienceRows" class="teacher-experience-quota-grid" aria-live="polite">
@@ -89,9 +84,7 @@
         <aside class="teacher-experience-action-stack">
           <section class="teacher-experience-config" aria-labelledby="teacherExperienceConfigTitle">
             <div class="teacher-experience-action-copy">
-              <p class="teacher-experience-action-eyebrow">基础额度设置</p>
-              <h3 id="teacherExperienceConfigTitle">新增 / 重新配置产品</h3>
-              <p>每种产品只能配置一次。保存后立即把该产品当前可用次数改为所填数值，不累加、不保留旧余额；此数值也会成为每月自动更新的基础额度。</p>
+              <h3 id="teacherExperienceConfigTitle">配置新产品</h3>
             </div>
             <form id="teacherExperienceConfigForm" class="teacher-experience-form">
               <label>活跃产品<select id="teacherExperienceProduct" required disabled><option value="">正在读取可配置产品…</option></select></label>
@@ -103,9 +96,8 @@
 
           <section id="teacherExperienceRechargePanel" class="teacher-experience-recharge" aria-labelledby="teacherExperienceRechargeTitle">
             <div class="teacher-experience-action-copy">
-              <p class="teacher-experience-action-eyebrow">总部单独充值</p>
-              <h3 id="teacherExperienceRechargeTitle">为老师补充体验次数</h3>
-              <p id="teacherExperienceRechargeTarget">选择已配置的活跃产品和次数后，额度立即增加；不会影响客户购买或剩余次数。</p>
+              <h3 id="teacherExperienceRechargeTitle">单独充值体验次数</h3>
+              <p id="teacherExperienceRechargeTarget"></p>
             </div>
             <form id="teacherExperienceRechargeForm" class="teacher-experience-form">
               <label>已配置产品<select id="teacherExperienceRechargeProduct" required disabled><option value="">正在读取可充值产品…</option></select></label>
@@ -125,7 +117,6 @@
         <header class="teacher-experience-section-heading">
           <div>
             <h3 id="teacherExperienceHistoryTitle">最近额度变更</h3>
-            <p>保留配置、月初更新、体验消耗和总部单独充值记录；封存后仍可查询。</p>
           </div>
         </header>
         <div id="teacherExperienceHistoryRows" class="teacher-experience-history-list" aria-live="polite">
@@ -167,7 +158,7 @@
   <script src="cloudbase-auth-config.js"></script>
   <script src="cloudbase-phone-auth.js?v=0.20.5"></script>
   <script src="datetime.js?v=0.1.2"></script>
-  <script src="staff-detail.js?v=0.15.13"></script>
+  <script src="staff-detail.js?v=0.15.14"></script>
   <script src="auth-ui.js?v=0.21.3"></script>
 </body>
 </html>

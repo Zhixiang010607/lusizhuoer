@@ -327,7 +327,7 @@
   }
 
   function rowProductLabel(row) {
-    return `${row.productName}${row.productCode ? `（${row.productCode}）` : ""}`;
+    return row.productName;
   }
 
   function normalizeExperienceHistory(row = {}) {
@@ -354,7 +354,7 @@
         ? "老师已封存，不能新增配置"
         : "没有可新增的活跃产品";
     select.innerHTML = eligible.length
-      ? `<option value="">请选择尚未配置的活跃产品</option>${eligible.map((product) => `<option value="${escapeHtml(product.id)}">${escapeHtml(product.name)}${product.code ? `（${escapeHtml(product.code)}）` : ""}</option>`).join("")}`
+      ? `<option value="">请选择尚未配置的活跃产品</option>${eligible.map((product) => `<option value="${escapeHtml(product.id)}">${escapeHtml(product.name)}</option>`).join("")}`
       : `<option value="">${unavailableMessage}</option>`;
     select.disabled = disabled;
     $("teacherExperienceMonthlyCount").disabled = disabled;
@@ -369,16 +369,14 @@
     const target = $("teacherExperienceRechargeTarget");
     if (!target) return;
     if (isStaffArchived()) {
-      target.textContent = "老师已封存，体验额度与充值历史仍可查询，但不能再充值。";
+      target.textContent = "老师已封存，仅可查询。";
       return;
     }
     if (!row) {
-      target.textContent = activeRechargeRows().length
-        ? "选择已配置的活跃产品和次数后，额度立即增加；不会影响客户购买或剩余次数。"
-        : "请先配置至少一个活跃产品，才能为老师单独充值。";
+      target.textContent = activeRechargeRows().length ? "" : "请先配置体验项目。";
       return;
     }
-    target.textContent = `正在为 ${rowProductLabel(row)} 单独充值；提交后会立即增加该产品的体验次数，不会影响客户余额。`;
+    target.textContent = `为 ${rowProductLabel(row)} 充值`;
   }
 
   function renderExperienceRechargeProductSelect() {
@@ -407,7 +405,7 @@
     const target = $("teacherExperienceRows");
     if (!target) return;
     if (!experience.rows.length) {
-      target.innerHTML = '<div class="teacher-experience-empty"><strong>尚未配置体验产品</strong><span>从右侧选择一个活跃产品，保存后会立即设为该产品当前可用的体验次数。</span></div>';
+      target.innerHTML = '<div class="teacher-experience-empty"><strong>尚未配置体验项目</strong></div>';
       return;
     }
     target.innerHTML = experience.rows.map((row) => {
@@ -421,15 +419,13 @@
           </div>`;
       return `<article class="teacher-experience-quota-card${unavailable ? " is-readonly" : ""}">
         <header>
-          <div><h4>${escapeHtml(row.productName)}</h4>${row.productCode ? `<p>${escapeHtml(row.productCode)}</p>` : ""}</div>
+          <div><h4>${escapeHtml(row.productName)}</h4></div>
           ${action}
         </header>
         <div class="teacher-experience-balance"><span>当前可用</span><strong>${row.availableCount}<small>次</small></strong></div>
         <dl class="teacher-experience-quota-facts">
           <div><dt>每月基础</dt><dd>${row.monthlyAllowance} 次</dd></div>
           <div><dt>本月已体验</dt><dd>${row.monthlyExperienceCount} 次</dd></div>
-          <div><dt>单独充值</dt><dd>${row.manualRechargeCount} 次</dd></div>
-          <div><dt>最近更新</dt><dd>${escapeHtml(formatTime(row.monthlyResetAt))}</dd></div>
         </dl>
       </article>`;
     }).join("");
@@ -474,15 +470,13 @@
     if (!target) return;
     const rows = experienceSummaryRows();
     if (!rows.length) {
-      target.innerHTML = '<div class="teacher-experience-empty"><strong>暂无项目体验数据</strong><span>配置产品并完成体验核销后，这里会按产品显示累计体验次数。</span></div>';
+      target.innerHTML = '<div class="teacher-experience-empty"><strong>暂无项目体验数据</strong></div>';
       return;
     }
     target.innerHTML = rows.map((row) => {
-      const isAllTime = row.totalExperienceCount !== null;
       return `<article class="teacher-experience-summary-item${row.productStatus === "ARCHIVED" ? " is-archived" : ""}">
-        <div><strong>${escapeHtml(row.productName)}</strong>${row.productCode ? `<span>${escapeHtml(row.productCode)}</span>` : ""}</div>
+        <div><strong>${escapeHtml(row.productName)}</strong></div>
         <b>${totalExperienceFor(row)}<small>次</small></b>
-        <p>${isAllTime ? "累计完成体验" : "本月体验次数"}</p>
       </article>`;
     }).join("");
   }
@@ -507,13 +501,13 @@
           <span class="teacher-experience-history-dot" aria-hidden="true"></span>
           <div class="teacher-experience-history-main">
             <strong>${escapeHtml(row.type)}</strong>
-            <span>${escapeHtml(row.productName)}${row.productCode ? ` · ${escapeHtml(row.productCode)}` : ""}</span>
+            <span>${escapeHtml(row.productName)}</span>
             ${row.note ? `<small>${escapeHtml(row.note)}</small>` : ""}
           </div>
           <div class="teacher-experience-history-meta"><strong>${sign}${row.count} 次</strong><span>${escapeHtml(formatTime(row.at))}</span><small>${escapeHtml(row.actorName)}</small></div>
         </article>`;
       }).join("")}${experience.history.length > 10 ? `<button type="button" class="teacher-experience-history-toggle" data-experience-history-toggle="true">${experience.historyExpanded ? "收起记录" : `查看全部 ${experience.history.length} 条记录`}</button>` : ""}`
-      : '<div class="teacher-experience-empty"><strong>暂无额度变更记录</strong><span>设置体验产品、月初更新、体验消耗和单独充值都会在这里保留记录。</span></div>';
+      : '<div class="teacher-experience-empty"><strong>暂无额度变更记录</strong></div>';
     target.querySelector("[data-experience-history-toggle]")?.addEventListener("click", () => {
       experience.historyExpanded = !experience.historyExpanded;
       renderExperienceHistory();
@@ -527,7 +521,7 @@
     overview.setAttribute("aria-busy", "false");
     overview.innerHTML = experience.rows.length
       ? experience.rows.map((row) => `<article class="teacher-experience-monthly-item">
-          <header><div><strong>${escapeHtml(row.productName)}</strong>${row.productCode ? `<span>${escapeHtml(row.productCode)}</span>` : ""}</div><em>本月</em></header>
+          <header><div><strong>${escapeHtml(row.productName)}</strong></div></header>
           <dl>
             <div><dt>基础额度</dt><dd>${row.monthlyAllowance}<small>次</small></dd></div>
             <div><dt>单独充值</dt><dd>${row.monthlyRechargeCount}<small>次</small></dd></div>
@@ -535,7 +529,7 @@
             <div class="available"><dt>当前可用</dt><dd>${row.availableCount}<small>次</small></dd></div>
           </dl>
         </article>`).join("")
-      : '<div class="teacher-experience-empty"><strong>尚未配置体验项目</strong><span>配置后会按项目分别显示当月基础、充值、已体验和当前可用次数。</span></div>';
+      : '<div class="teacher-experience-empty"><strong>尚未配置体验项目</strong></div>';
   }
 
   function renderExperience(data = {}) {
@@ -554,8 +548,8 @@
     overview.setAttribute("aria-busy", "false");
     overview.innerHTML = `<article class="teacher-experience-problem"><strong>${escapeHtml(title)}</strong><p>${message}</p></article>`;
     $("teacherExperienceRows").innerHTML = `<div class="teacher-experience-empty is-error"><strong>${escapeHtml(title)}</strong><span>${message}</span></div>`;
-    $("teacherExperienceSummaryRows").innerHTML = '<div class="teacher-experience-empty"><strong>暂无可汇总的体验数据</strong><span>服务恢复后会按产品显示累计体验次数。</span></div>';
-    $("teacherExperienceHistoryRows").innerHTML = '<div class="teacher-experience-empty"><strong>暂无可显示的额度记录</strong><span>服务恢复后会显示该老师的配置、充值和体验历史。</span></div>';
+    $("teacherExperienceSummaryRows").innerHTML = '<div class="teacher-experience-empty"><strong>暂无可汇总的体验数据</strong></div>';
+    $("teacherExperienceHistoryRows").innerHTML = '<div class="teacher-experience-empty"><strong>暂无可显示的额度记录</strong></div>';
     experience.rows = [];
     experience.totals = [];
     experience.history = [];

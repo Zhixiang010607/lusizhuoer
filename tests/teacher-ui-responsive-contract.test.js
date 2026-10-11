@@ -25,7 +25,7 @@ assert.match(managementHtml, /teacher-management\.js\?v=0\.14\.29/, "teacher dir
 assert.match(createHtml, /teacher-create\.js\?v=0\.6\.0/, "teacher creation behavior must be cache-busted");
 assert.match(createHtml, /cloudbase-phone-auth\.js\?v=0\.20\.5/,
   "teacher creation must refresh the attendance-enrollment API wrapper");
-assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.13/, "teacher home behavior must be cache-busted");
+assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.14/, "teacher home behavior must be cache-busted");
 
 for (const label of ["老师姓名", "联系电话", "状态"]) {
   assert.ok(management.includes(`data-label="${label}"`), `mobile teacher cards must expose the ${label} field label`);
@@ -77,6 +77,13 @@ assert.doesNotMatch(`${detailHtml}\n${detail}`,
   "teacher home must expose no face add, replacement or modification workflow");
 assert.match(detailHtml, /data-staff-section="basic"[\s\S]*data-staff-section="configuration"[\s\S]*data-staff-section="work"/,
   "teacher home must use the compact iPad-style basic, project and attendance sections");
+assert.match(detailHtml, /<h2 id="teacherExperienceTitle">配置项目当月汇总<\/h2>/,
+  "teacher project configuration must use the same concise title as iPad");
+for (const retiredCopy of ["体验额度工作台", "总部专用 · 老师体验次数", "累计数据", "当前设置", "基础额度设置", "总部单独充值"]) {
+  assert.equal(detailHtml.includes(retiredCopy), false, `teacher project configuration must remove verbose Web-only copy: ${retiredCopy}`);
+}
+assert.doesNotMatch(detail, /配置后会按项目分别显示|配置产品并完成体验核销后|设置体验产品、月初更新/,
+  "teacher project empty states must stay as concise as iPad");
 
 assert.match(css, /--teacher-action:\s*#173a66/, "teacher primary actions must use the restrained navy palette");
 assert.match(css, /--teacher-danger-bg:\s*#fff6f5[\s\S]{0,160}--teacher-danger-ink:\s*#96342d/, "teacher destructive actions must use a soft archived-status red palette");

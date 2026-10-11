@@ -599,10 +599,31 @@ body[data-staff-detail] .teacher-experience-balance {
 }
 body[data-staff-detail] .teacher-experience-quota-card { min-height: 0 !important; }
 body[data-staff-detail] .teacher-experience-empty {
-  min-height: 84px !important;
+  min-height: 56px !important;
+  padding: 12px !important;
   color: var(--muted) !important;
   background: #fffaf3 !important;
 }
+body[data-staff-detail] .teacher-experience-heading { padding: 16px 18px !important; }
+body[data-staff-detail] .teacher-experience-heading h2 { margin: 0 !important; font-size: 18px !important; }
+body[data-staff-detail] .teacher-experience-overview { padding: 14px 18px !important; }
+body[data-staff-detail] .teacher-experience-workspace { gap: 14px !important; padding: 16px 18px !important; }
+body[data-staff-detail] :is(.teacher-experience-list-card, .teacher-experience-history-card, .teacher-experience-config, .teacher-experience-recharge) { padding: 16px !important; }
+body[data-staff-detail] .teacher-experience-section-heading { margin-bottom: 10px !important; }
+body[data-staff-detail] .teacher-experience-section-heading h3,
+body[data-staff-detail] .teacher-experience-action-copy h3 { margin: 0 !important; }
+body[data-staff-detail] .teacher-experience-summary-item {
+  min-height: 64px !important;
+  grid-template-rows: auto !important;
+  align-items: center !important;
+  padding: 12px !important;
+}
+body[data-staff-detail] .teacher-experience-summary-item p { display: none !important; }
+body[data-staff-detail] .teacher-experience-configured-heading { margin-top: 14px !important; padding-top: 14px !important; }
+body[data-staff-detail] .teacher-experience-quota-card { gap: 10px !important; padding: 14px !important; }
+body[data-staff-detail] .teacher-experience-quota-facts { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+body[data-staff-detail] .teacher-experience-action-copy p:empty { display: none !important; }
+body[data-staff-detail] .teacher-experience-history-card { margin: 0 18px 18px !important; }
 body[data-staff-detail] .staff-work-section { display: grid; gap: 16px; }
 body[data-staff-detail] .staff-work-month-controls {
   display: grid;
