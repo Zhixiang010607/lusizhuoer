@@ -9,6 +9,8 @@ const root = path.resolve(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 const auth = read("auth-ui.js");
 const theme = read("web-tablet-parity.css");
+const login = read("login.html");
+const rating = read("rating.html");
 const common = read("web-work-common.js");
 const calendarHtml = read("work-calendar.html");
 const calendarJs = read("work-calendar.js");
@@ -28,11 +30,16 @@ test("Web uses the warm tablet visual language without importing Mini Program so
   for (const color of ["#f3ede2", "#fffaf3", "#6f532e", "#a98243", "#302a22", "#2f2921"]) assert.match(theme, new RegExp(color, "i"));
   assert.match(theme, /width: min\(1120px/);
   assert.match(theme, /\.side-project-bar[\s\S]*position: sticky/);
-  assert.match(auth, /web-tablet-parity\.css\?v=1\.0\.2/);
+  assert.match(auth, /web-tablet-parity\.css\?v=1\.0\.3/);
   assert.match(theme, /button, \.button-link,[\s\S]{0,220}min-height: 44px !important;[\s\S]{0,220}text-align: center !important;/);
   assert.doesNotMatch(`${theme}\n${auth}`, /miniprogram-app|\.wxss|\.wxml/);
   assert.match(context, /网页版也采用同一套平板横屏视觉与功能信息架构/);
   assert.match(context, /只扩展网页入口，不改变正常／体验／补录核销/);
+});
+
+test("public login and rating pages load the current tablet stylesheet", () => {
+  assert.match(login, /web-tablet-parity\.css\?v=1\.0\.3/);
+  assert.match(rating, /web-tablet-parity\.css\?v=1\.0\.3/);
 });
 
 test("role navigation exposes Web work calendars and tracking only to authorized roles", () => {
