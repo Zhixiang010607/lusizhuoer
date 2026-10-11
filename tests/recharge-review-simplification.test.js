@@ -40,19 +40,24 @@ assert.doesNotMatch(queryUi, /function voidStatusTag|voidPending|作废待审核
 
 assert.doesNotMatch(reviewHtml, /id="reviewType"|退费审核记录|充值 \/ 退费/);
 assert.match(reviewHtml, /data-review="recharge"[\s\S]*<h2>充值审核记录<\/h2>/);
-assert.match(reviewHtml, /href="refund-review\.html">退费审核<\/a>/);
-assert.doesNotMatch(reviewHtml, /href="verification-review\.html">核销审核<\/a>/);
+assert.match(reviewHtml, /class="review-type-tabs"[\s\S]*href="recharge-review\.html">充值审核<\/a>[\s\S]*href="refund-review\.html">退费审核<\/a>/);
+assert.match(reviewHtml, /href="verification-review\.html">核销审核<\/a>/);
 assert.match(refundReviewHtml, /data-review="refund"[\s\S]*<h1>退费审核<\/h1>[\s\S]*<h2>退费审核记录<\/h2>/);
 assert.doesNotMatch(refundReviewHtml, /id="reviewType"|充值与退费审核记录/);
+assert.match(refundReviewHtml, /class="review-type-tabs"[\s\S]*href="recharge-review\.html">充值审核<\/a>[\s\S]*aria-current="page" href="refund-review\.html">退费审核<\/a>/);
 assert.doesNotMatch(reviewHtml, /作废充值/);
 assert.match(reviewHtml, /value="approved">审核通过<\/option>/);
-assert.match(reviewHtml, /review\.js\?v=0\.18\.4/);
-assert.match(refundReviewHtml, /review\.js\?v=0\.18\.4/);
+assert.match(reviewHtml, /review\.js\?v=0\.18\.5/);
+assert.match(refundReviewHtml, /review\.js\?v=0\.18\.5/);
 for (const html of [reviewHtml, refundReviewHtml]) {
   assert.match(html, /<dialog id="reviewDialog"/);
   assert.match(html, /<button id="confirmReview" type="button">确认<\/button>/);
 }
-assert.match(reviewUi, /const VERSION = "0\.18\.4"/);
+assert.match(reviewUi, /const VERSION = "0\.18\.5"/);
+assert.doesNotMatch(reviewUi, /item\.customerName\}\$\{item\.customerId/, "visible customer names must not append internal ids");
+assert.doesNotMatch(reviewUi, /item\.teacherName\}\$\{item\.teacherId/, "visible teacher names must not append internal ids");
+assert.doesNotMatch(reviewUi, /item\.store\.code\s*\?/, "visible store names must not append internal codes");
+assert.doesNotMatch(reviewUi, /reviewerCode/, "review confirmation must not expose the reviewer code");
 assert.match(reviewUi, /if \(pageType === "recharge"\) return "NEW";/);
 assert.match(reviewUi, /if \(pageType === "refund"\) return "REFUND";/);
 assert.match(reviewUi, /applicationType: applicationTypeFilter\(\)/);
@@ -62,7 +67,10 @@ assert.match(reviewUi, /button\.disabled = true; button\.textContent = "正在�
 assert.match(reviewUi, /CloudBasePhoneAuth\.reviewOrder\(\{ recordType, recordId: pendingAction\.item\.id, decision: pendingAction\.action, note \}\)/, "the confirmed decision and note still use the guarded backend action");
 assert.doesNotMatch(reviewUi, /\b(?:window\.)?confirm\s*\(/, "confirming the review dialog must not open a second browser confirmation");
 assert.match(authUi, /"recharge-review\.html", "refund-review\.html"/);
-assert.match(authUi, /href="refund-review\.html">退费审核/);
+assert.match(authUi, /href="recharge-review\.html">充值审核/);
+assert.match(authUi, /href="verification-review\.html">核销审核/);
+assert.match(authUi, /href="product-purchase-review\.html">产品购买审核/);
+assert.doesNotMatch(authUi, /href="refund-review\.html">退费审核/);
 
 assert.match(queryCloud, /\["ALL", "PENDING", "APPROVED", "REJECTED"\]/);
 assert.doesNotMatch(queryCloud, /\["ALL", "PENDING", "APPROVED", "REJECTED", "CLOSED"\]/);

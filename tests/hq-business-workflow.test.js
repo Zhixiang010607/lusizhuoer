@@ -61,7 +61,7 @@ for (const page of pages) {
   assert.ok(!fs.existsSync(path.join(root, `hq-${page}`)), `${page} must not have a duplicated HQ page`);
 }
 for (const file of fs.readdirSync(root).filter((file) => file.endsWith(".html") && read(file).includes("auth-ui.js?v="))) {
-  const expectedAuthVersion = "0.21.0";
+  const expectedAuthVersion = "0.21.3";
   includes(read(file), `auth-ui.js?v=${expectedAuthVersion}`, `${file} auth cache key`);
 }
 for (const page of teacherBusinessPages) includes(read(page), "store-business.js?v=0.14.62", `${page} shared script version`);
@@ -90,10 +90,13 @@ assert.ok(!authUi.includes("teacher-verification-supplemental.html"), "retired t
 const hqAccess = authUi.slice(authUi.indexOf("hq: new Set"), authUi.indexOf("store: new Set"));
 for (const page of pages) assert.ok(!hqAccess.includes(`"${page}"`), `HQ must not access ${page}`);
 assert.ok(!authUi.includes('data-menu="hq-business"'), "HQ business navigation group must be removed");
-includes(authUi, 'a[href^="verification-review.html"]', "verification-review entry is hidden without deleting its route");
-includes(authUi, 'link.hidden = true', "retired verification-review entry is not displayed");
-assert.ok(authUi.includes('"verification-review.html"'), "historical verification-review access route must remain available");
-assert.ok(fs.existsSync(path.join(root, "verification-review.html")), "historical verification-review implementation must remain on disk");
+for (const [href, label] of [
+  ["recharge-review.html", "充值审核"],
+  ["verification-review.html", "核销审核"],
+  ["product-purchase-review.html", "产品购买审核"]
+]) includes(authUi, `href="${href}">${label}`, `HQ review navigation ${label}`);
+assert.ok(!authUi.includes('a[href^="verification-review.html"]'), "the active supplemental-verification queue must not be hidden");
+assert.ok(fs.existsSync(path.join(root, "verification-review.html")), "verification-review implementation must remain available");
 
 // The selector is created only for HQ on the shared, non-teacher pages. It
 // starts with an empty prompt, locks the whole workflow with inert, and reloads

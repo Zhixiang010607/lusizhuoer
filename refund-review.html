@@ -13,7 +13,7 @@
     <nav class="side-nav"><a href="index.html"><span class="nav-icon">全</span><span>全局视图</span></a></nav>
     <details class="side-menu-group" open data-menu="review">
       <summary><span class="nav-icon">审</span><span>审核</span></summary>
-      <nav><a href="recharge-review.html">充值审核</a><a class="active" href="refund-review.html">退费审核</a></nav>
+      <nav><a class="active" aria-current="page" href="recharge-review.html">充值审核</a><a href="verification-review.html">核销审核</a><a href="product-purchase-review.html">产品购买审核</a></nav>
     </details>
     <div class="side-footer">总部工作台</div>
   </aside>
@@ -25,9 +25,15 @@
 
   <main>
     <section class="panel review-toolbar">
-      <div class="review-query-mode" role="tablist" aria-label="审核查询方式">
-        <button id="reviewModeFilters" class="active" type="button" role="tab" aria-selected="true">按条件查询</button>
-        <button id="reviewModeCode" type="button" role="tab" aria-selected="false">按编号查询</button>
+      <div class="review-switches">
+        <nav class="review-type-tabs" role="tablist" aria-label="充值审核类型">
+          <a role="tab" aria-selected="false" href="recharge-review.html">充值审核</a>
+          <a class="active" role="tab" aria-selected="true" aria-current="page" href="refund-review.html">退费审核</a>
+        </nav>
+        <div class="review-query-mode" role="tablist" aria-label="审核查询方式">
+          <button id="reviewModeFilters" class="active" type="button" role="tab" aria-selected="true">按条件查询</button>
+          <button id="reviewModeCode" type="button" role="tab" aria-selected="false">按编号查询</button>
+        </div>
       </div>
       <div id="reviewFilterPanel" class="review-filter-row review-query-panel">
         <label>门店<select id="reviewStore"></select></label>
@@ -71,9 +77,9 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
-  <script src="cloudbase-phone-auth.js?v=0.20.4"></script>
+  <script src="cloudbase-phone-auth.js?v=0.20.5"></script>
   <script src="datetime.js?v=0.1.2"></script>
-  <script src="review.js?v=0.18.4"></script>
-  <script src="auth-ui.js?v=0.21.0"></script>
+  <script src="review.js?v=0.18.5"></script>
+  <script src="auth-ui.js?v=0.21.3"></script>
 </body>
 </html>

@@ -148,8 +148,8 @@ for (const id of [
 assert.doesNotMatch(`${read("staff-detail.html")}\n${detailUi}`,
   /staffFaceAction|teacherFaceUpdate|upsertTeacherFace|补录老师人脸|更换老师人脸/,
   "teacher detail must expose no face maintenance surface");
-assert.match(detailUi, /现场只核验客户人脸/,
-  "teacher detail must explain that experience verification scans the customer");
+assert.match(read("staff-detail.html"), /data-staff-section="configuration"[\s\S]*id="teacherExperiencePanel"/,
+  "teacher detail must keep experience configuration inside the iPad-style project configuration section");
 const quotaGuard = jsBetween(detailUi, "function canManageTeacherExperience", "function teacherId");
 assert.match(quotaGuard, /isStaffArchived\(\)[\s\S]{0,260}不能配置、删除或充值/,
   "archived teachers must be explicitly read-only for configuration, deletion and top-up");

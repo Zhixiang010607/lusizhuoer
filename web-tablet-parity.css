@@ -167,8 +167,14 @@ body:not(.login-page) *::after { box-sizing: border-box; }
   text-decoration: none;
   white-space: nowrap;
 }
-.side-menu-group > nav a.active,
-.side-menu-group > nav a:hover { color: #fff !important; background: #86652f !important; }
+.side-menu-group > nav a:hover:not(.active) {
+  color: #745f40 !important;
+  background: #f4e7d0 !important;
+}
+.side-menu-group > nav a.active {
+  color: #fff !important;
+  background: #86652f !important;
+}
 .side-footer { margin-left: auto !important; padding: 0 !important; border: 0 !important; }
 .side-footer span { display: none !important; }
 .side-footer button {
@@ -291,6 +297,140 @@ button:hover:not(:disabled), .button-link:hover { filter: brightness(.97); }
 }
 .danger-button { color: #99574b !important; background: #fff1ee !important; border-color: #edc9c2 !important; }
 button:disabled { opacity: .48 !important; cursor: not-allowed; }
+
+/*
+ * Selection controls must remain visually distinct from ordinary action
+ * buttons. The Web-wide primary-button skin above is intentionally broad,
+ * so every tab/segmented control is reset here: neutral choices are white
+ * and only the current choice uses the warm brand fill.
+ */
+:is(
+  .dashboard-dimension-tabs,
+  .teacher-record-tabs,
+  .teacher-range-presets,
+  .lookup-mode-switch,
+  .review-type-tabs,
+  .review-query-mode,
+  .product-preview-tabs,
+  .work-mode-tabs,
+  .operations-score-filter,
+  .login-method-switch,
+  .role-switch
+) {
+  background: #eee1cd !important;
+  border-color: #dfcfb4 !important;
+}
+:is(
+  .dashboard-dimension-tabs,
+  .teacher-record-tabs,
+  .teacher-range-presets,
+  .lookup-mode-switch,
+  .review-type-tabs,
+  .review-query-mode,
+  .product-preview-tabs,
+  .work-mode-tabs,
+  .operations-score-filter,
+  .login-method-switch,
+  .role-switch
+) > button,
+[role="tablist"] > a,
+[role="tablist"] > button {
+  color: #745f40 !important;
+  background: #fff !important;
+  border: 1px solid #dcc8a6 !important;
+  box-shadow: none !important;
+}
+:is(
+  .dashboard-dimension-tabs,
+  .teacher-record-tabs,
+  .teacher-range-presets,
+  .lookup-mode-switch,
+  .review-type-tabs,
+  .review-query-mode,
+  .product-preview-tabs,
+  .work-mode-tabs,
+  .operations-score-filter,
+  .login-method-switch,
+  .role-switch
+) > button:is(.active, [aria-selected="true"]),
+[role="tablist"] > a:is(.active, [aria-selected="true"]),
+[role="tablist"] > button:is(.active, [aria-selected="true"]) {
+  color: #fff !important;
+  background: #86652f !important;
+  border-color: #86652f !important;
+  box-shadow: 0 4px 12px rgba(121, 89, 45, .18) !important;
+}
+.teacher-record-tabs > button:is(.active, [aria-selected="true"]) small {
+  color: #fff !important;
+}
+
+/* The Chinese date picker and public rating stars are controls, not primary actions. */
+.chinese-date-calendar-header button,
+.chinese-date-calendar-footer button,
+.chinese-date-calendar-day {
+  color: #745f40 !important;
+  background: #fff !important;
+  border-color: #dcc8a6 !important;
+  box-shadow: none !important;
+}
+.chinese-date-calendar-day.is-selected,
+.chinese-date-calendar-day[aria-selected="true"] {
+  color: #fff !important;
+  background: #86652f !important;
+  border-color: #86652f !important;
+}
+.rating-page .star-button {
+  color: #d9c5a2 !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+.rating-page .star-button.is-active { color: #bd8732 !important; }
+
+/* Card choices and calendar cells follow the same neutral/selected contract. */
+.customer-category-card,
+.service-customer-option,
+.daily-calendar-day {
+  color: #745f40 !important;
+  background: #fff !important;
+  border-color: #dcc8a6 !important;
+}
+.customer-category-card,
+.service-customer-option { box-shadow: none !important; }
+.customer-category-card.selected,
+.service-customer-option.selected,
+.daily-calendar-day.selected {
+  color: #fff !important;
+  background: #86652f !important;
+  border-color: #86652f !important;
+  box-shadow: 0 4px 12px rgba(121, 89, 45, .18) !important;
+}
+.customer-category-card.selected :is(span, strong, small),
+.service-customer-option.selected :is(span, strong, small) { color: #fff !important; }
+.daily-calendar-day.today:not(.selected) {
+  box-shadow: inset 0 0 0 2px #c8a768 !important;
+}
+
+/* Store analysis uses links as tabs, so it needs the same explicit states. */
+.store-analysis-tabs {
+  gap: 8px !important;
+  padding: 6px !important;
+  background: #eee1cd !important;
+  border-color: #dfcfb4 !important;
+}
+.store-analysis-tabs a {
+  color: #745f40 !important;
+  background: #fff !important;
+  border: 1px solid #dcc8a6 !important;
+  box-shadow: none !important;
+}
+.store-analysis-tabs a.active,
+.store-analysis-tabs a[aria-current="page"] {
+  color: #fff !important;
+  background: #86652f !important;
+  border-color: #86652f !important;
+  box-shadow: 0 4px 12px rgba(121, 89, 45, .18) !important;
+}
 input, select, textarea { color: var(--ink) !important; background: #fff !important; border-color: #dccfb9 !important; border-radius: 10px !important; }
 input:focus, select:focus, textarea:focus { outline: 2px solid #d8bb82 !important; border-color: #9a763b !important; }
 label, .field-label { color: #675b4b !important; }
@@ -308,6 +448,209 @@ th, td { padding: 12px 10px !important; border-color: #eadfce !important; }
 td:first-child, th:first-child { text-align: center !important; }
 .record-link, table a { color: #79592d !important; }
 
+/* Short table labels, order numbers and dates are atomic data on Web. Keep
+   them on one line and let the table container own horizontal scrolling. */
+.table-scroll {
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.table-scroll > table {
+  width: max-content !important;
+  min-width: 100% !important;
+  table-layout: auto !important;
+}
+.table-scroll th,
+.table-scroll td {
+  width: auto !important;
+  white-space: nowrap !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+}
+
+/* Customer profile follows the iPad information architecture: all five
+   histories share one compact card and one table, switched by tabs. */
+body[data-customer-profile] .customer-history-panel {
+  display: grid !important;
+  grid-template-rows: auto auto minmax(0, auto) auto !important;
+  gap: 12px !important;
+}
+body[data-customer-profile] .customer-history-tabs {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+  padding: 6px !important;
+  background: #eee1cd !important;
+  border: 1px solid #dfcfb4 !important;
+  border-radius: 12px !important;
+}
+body[data-customer-profile] .customer-history-tabs > button {
+  min-width: 0 !important;
+  color: #745f40 !important;
+  background: #fff !important;
+  border: 1px solid #dcc8a6 !important;
+  box-shadow: none !important;
+  white-space: nowrap !important;
+}
+body[data-customer-profile] .customer-history-tabs > button.active,
+body[data-customer-profile] .customer-history-tabs > button[aria-selected="true"] {
+  color: #fff !important;
+  background: #86652f !important;
+  border-color: #86652f !important;
+}
+body[data-customer-profile] .customer-history-panel .customer-record-scroll {
+  height: auto !important;
+  max-height: 308px !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+body[data-customer-profile] .customer-history-panel .customer-record-scroll table {
+  width: max-content !important;
+  min-width: 100% !important;
+  table-layout: auto !important;
+}
+body[data-customer-profile] .customer-history-panel .customer-record-scroll th,
+body[data-customer-profile] .customer-history-panel .customer-record-scroll td {
+  width: auto !important;
+  padding: 10px 12px !important;
+  font-size: 13px !important;
+  white-space: nowrap !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+}
+body[data-customer-profile] .customer-history-load-row {
+  display: flex;
+  justify-content: center;
+}
+body[data-customer-profile] .customer-history-load-row:has(button[hidden]) { display: none; }
+
+/* HQ teacher detail mirrors the iPad's warm three-section workspace. */
+body[data-staff-detail] .staff-page-kicker,
+body[data-staff-detail] .staff-page-description { display: none !important; }
+body[data-staff-detail] .staff-detail-main { display: grid !important; gap: 16px !important; }
+body[data-staff-detail] .staff-detail-section[hidden] { display: none !important; }
+body[data-staff-detail] .staff-section-tabs,
+body[data-staff-detail] .staff-work-mode-tabs {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  padding: 6px !important;
+  background: #eee1cd !important;
+  border: 1px solid #dfcfb4 !important;
+  border-radius: 14px !important;
+}
+body[data-staff-detail] .staff-work-mode-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+body[data-staff-detail] :is(.staff-section-tabs, .staff-work-mode-tabs) > button {
+  color: #745f40 !important;
+  background: #fff !important;
+  border: 1px solid #dcc8a6 !important;
+  box-shadow: none !important;
+}
+body[data-staff-detail] :is(.staff-section-tabs, .staff-work-mode-tabs) > button:is(.active, [aria-selected="true"]) {
+  color: #fff !important;
+  background: #86652f !important;
+  border-color: #86652f !important;
+}
+body[data-staff-detail] .staff-profile-workspace {
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, .6fr) !important;
+  gap: 16px !important;
+}
+body[data-staff-detail] :is(.teacher-profile-hero, .staff-status-panel, .teacher-experience-panel, .teacher-experience-list-card, .teacher-experience-history-card, .teacher-experience-config, .teacher-experience-recharge) {
+  color: var(--ink) !important;
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+  box-shadow: none !important;
+}
+body[data-staff-detail] .teacher-profile-hero {
+  min-height: 0 !important;
+  padding: 20px !important;
+}
+body[data-staff-detail] .teacher-profile-avatar {
+  color: #fff !important;
+  background: #86652f !important;
+  box-shadow: none !important;
+}
+body[data-staff-detail] :is(.teacher-profile-kicker, .staff-panel-kicker, .teacher-experience-kicker, .teacher-experience-action-eyebrow) { color: #80602c !important; }
+body[data-staff-detail] :is(.teacher-profile-name-row h2, .staff-status-panel h2, .teacher-experience-heading h2, .teacher-experience-section-heading h3, .teacher-experience-action-copy h3) { color: var(--ink) !important; }
+body[data-staff-detail] :is(.staff-status-panel p, .teacher-experience-heading p, .teacher-experience-section-heading p, .teacher-experience-action-copy p) { color: var(--muted) !important; }
+body[data-staff-detail] .teacher-profile-meta {
+  grid-template-columns: minmax(0, 260px) !important;
+  gap: 10px !important;
+}
+body[data-staff-detail] .teacher-profile-meta > div,
+body[data-staff-detail] .teacher-experience-summary-item,
+body[data-staff-detail] .teacher-experience-quota-card,
+body[data-staff-detail] .teacher-experience-history-item {
+  background: #fffaf3 !important;
+  border-color: #eadcc5 !important;
+  box-shadow: none !important;
+}
+body[data-staff-detail] .teacher-experience-heading,
+body[data-staff-detail] .teacher-experience-overview {
+  background: #fffaf3 !important;
+  border-color: #eadcc5 !important;
+}
+body[data-staff-detail] .teacher-experience-state,
+body[data-staff-detail] .teacher-experience-balance {
+  color: #74592d !important;
+  background: #f4e7d0 !important;
+  border-color: #dfcfb4 !important;
+}
+body[data-staff-detail] .teacher-experience-quota-card { min-height: 0 !important; }
+body[data-staff-detail] .teacher-experience-empty {
+  min-height: 84px !important;
+  color: var(--muted) !important;
+  background: #fffaf3 !important;
+}
+body[data-staff-detail] .staff-work-section { display: grid; gap: 16px; }
+body[data-staff-detail] .staff-work-month-controls {
+  display: grid;
+  grid-template-columns: repeat(2, auto) repeat(2, minmax(120px, 1fr)) repeat(2, auto);
+  align-items: end;
+  gap: 10px;
+}
+body[data-staff-detail] .staff-work-month-controls label { min-width: 0; display: grid; gap: 5px; }
+body[data-staff-detail] .staff-work-month-controls label > span { color: var(--muted); font-size: 12px; font-weight: 700; }
+body[data-staff-detail] .staff-work-month-controls select { width: 100%; min-height: 44px; }
+body[data-staff-detail] .staff-work-legend { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin: 14px 0 8px; color: var(--muted); font-size: 12px; }
+body[data-staff-detail] .staff-work-legend span { display: inline-flex; align-items: center; gap: 6px; }
+body[data-staff-detail] .staff-work-legend i,
+body[data-staff-detail] .staff-work-day i { width: 9px; height: 9px; display: inline-block; border-radius: 50%; background: #cfc7bc; }
+body[data-staff-detail] :is(.staff-work-legend i, .staff-work-day i).done { background: #607c6a; }
+body[data-staff-detail] :is(.staff-work-legend i, .staff-work-day i).missing { background: #99574b; }
+body[data-staff-detail] :is(.staff-work-legend i, .staff-work-day i).not-employed { background: #9f9689; }
+body[data-staff-detail] .staff-work-weekdays,
+body[data-staff-detail] .staff-work-calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+body[data-staff-detail] .staff-work-weekdays span { padding: 9px 0; color: var(--muted); font-size: 12px; font-weight: 800; text-align: center; }
+body[data-staff-detail] .staff-work-calendar { overflow: hidden; border-top: 1px solid #e4d4ba; border-left: 1px solid #e4d4ba; border-radius: 12px; }
+body[data-staff-detail] .staff-work-day {
+  min-width: 0 !important;
+  min-height: 68px !important;
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 4px !important;
+  color: var(--ink) !important;
+  background: #fff !important;
+  border: 0 !important;
+  border-right: 1px solid #e4d4ba !important;
+  border-bottom: 1px solid #e4d4ba !important;
+  border-radius: 0 !important;
+}
+body[data-staff-detail] .staff-work-day.blank { background: #f5eee3 !important; }
+body[data-staff-detail] .staff-work-day.selected { background: #f7ead3 !important; box-shadow: inset 0 0 0 2px #b98a3d !important; }
+body[data-staff-detail] .staff-work-day.not-employed { color: #9c9286 !important; background: #f1ece4 !important; }
+body[data-staff-detail] .staff-work-day small { font-size: 10px; }
+body[data-staff-detail] .staff-work-day-content { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+body[data-staff-detail] :is(.staff-attendance-detail, .staff-report-detail) { min-width: 0; display: grid; gap: 8px; padding: 16px; background: #fff8ec; border: 1px solid #dfcfb4; border-radius: 13px; }
+body[data-staff-detail] .staff-attendance-detail b { color: #74592d; }
+body[data-staff-detail] .staff-attendance-detail span { color: var(--muted); }
+body[data-staff-detail] .staff-report-detail { grid-column: 1 / -1; }
+body[data-staff-detail] .staff-report-detail p { margin: 0; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+body[data-staff-detail] .staff-work-empty { grid-column: 1 / -1; margin: 0; padding: 24px; color: var(--muted); text-align: center; }
+
 body[data-management="teacher"] .teacher-directory-table {
   width: 100% !important;
   min-width: 0 !important;
@@ -317,7 +660,7 @@ body[data-management="teacher"] .teacher-directory-table .teacher-name-column { 
 body[data-management="teacher"] .teacher-directory-table .teacher-phone-column { width: 42% !important; }
 body[data-management="teacher"] .teacher-directory-table .teacher-status-column { width: 24% !important; }
 body[data-management="teacher"] .teacher-directory-table td,
-body[data-management="teacher"] .teacher-directory-table th { white-space: normal !important; }
+body[data-management="teacher"] .teacher-directory-table th { white-space: nowrap !important; }
 
 .product-logo-actions {
   display: grid !important;
@@ -356,12 +699,12 @@ body[data-management="teacher"] #addEntity {
 /* Keep the three query pages on one calm palette and contain the birthday picker. */
 body[data-customer-query] .customer-query-method {
   color: var(--ink) !important;
-  background: #fffaf3 !important;
+  background: #fff !important;
   border-color: #dfcfb4 !important;
   opacity: 1 !important;
 }
 body[data-customer-query] .customer-query-method.active {
-  background: #fffaf3 !important;
+  background: #f4e7d0 !important;
   border-color: #a98243 !important;
 }
 body[data-customer-query] .customer-query-method-heading {
@@ -404,19 +747,49 @@ body[data-customer-query] .chinese-birthday-input {
   max-width: 100% !important;
 }
 
-/* Align every dashboard filter from its label baseline, then center the shared project column. */
+/* Keep the common dashboard filters on one aligned row, including iPad landscape. */
+body[data-view="global"] .dashboard-filter-layout {
+  display: grid !important;
+  grid-template-columns: minmax(150px, .75fr) minmax(180px, .9fr) minmax(190px, 1fr) minmax(300px, 1.5fr) !important;
+  align-items: start !important;
+  gap: 12px !important;
+}
+body[data-view="global"] .global-filter-grid,
 body[data-view="global"] .dashboard-ranking-controls {
-  grid-template-columns: minmax(180px, .9fr) minmax(220px, 1fr) minmax(320px, 1.5fr) !important;
+  display: contents !important;
+}
+body[data-view="global"] .global-filter-grid > label,
+body[data-view="global"] .dashboard-ranking-controls > * {
+  min-width: 0 !important;
+  align-self: start !important;
+}
+body[data-view="global"] .global-filter-grid > label > select,
+body[data-view="global"] .dashboard-ranking-product select,
+body[data-view="global"] .dashboard-dimension-tabs {
+  width: 100% !important;
+  min-height: 44px !important;
+}
+body[data-view="global"] .dashboard-custom-date:not([hidden]) {
+  display: block !important;
+}
+body[data-view="global"] .dashboard-custom-date:not([hidden]) + .dashboard-custom-date:not([hidden]) {
+  display: block !important;
+}
+body[data-view="global"] .dashboard-ranking-controls {
   align-items: start !important;
 }
 body[data-view="global"] .dashboard-dimension-tabs { margin-bottom: 0 !important; }
-body[data-view="global"] .dashboard-ranking-product select,
-body[data-view="global"] .dashboard-dimension-tabs { min-height: 44px !important; }
 body[data-view="global"] .hq-project-summary-row > :first-child {
   justify-content: center !important;
   padding-left: 5px !important;
   padding-right: 5px !important;
   text-align: center !important;
+}
+
+@media (max-width: 760px) {
+  body[data-view="global"] .dashboard-filter-layout {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
 }
 
 /* Every neighbouring action must remain visually separate on the Web canvas. */
@@ -452,7 +825,39 @@ body[data-view="global"] .hq-project-summary-row > :first-child {
   gap: 12px 16px !important;
   padding: 16px 18px !important;
 }
-.review-toolbar .review-query-mode { grid-area: mode !important; }
+.review-toolbar > .review-query-mode,
+.review-toolbar .review-switches { grid-area: mode !important; }
+.review-switches {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(220px, 1fr)) !important;
+  align-items: center !important;
+  gap: 14px !important;
+  width: min(100%, 760px) !important;
+}
+.review-type-tabs,
+.review-query-mode {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+  width: 100% !important;
+  padding: 5px !important;
+  background: #eee1cd !important;
+  border: 1px solid #dfcfb4 !important;
+  border-radius: 10px !important;
+}
+.review-type-tabs > a {
+  display: flex !important;
+  min-height: 36px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 6px 12px !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+}
 .review-toolbar .review-query-panel {
   grid-area: query !important;
   width: 100% !important;
@@ -578,6 +983,10 @@ body.login-page .login-shell {
   body[data-customer-query] .customer-query-methods {
     grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) !important;
   }
+  body[data-staff-detail] .staff-profile-workspace { grid-template-columns: 1fr !important; }
+  body[data-staff-detail] .staff-work-month-controls {
+    grid-template-columns: repeat(2, auto) repeat(2, minmax(100px, 1fr)) repeat(2, auto);
+  }
 }
 
 @media (max-width: 700px) {
@@ -604,10 +1013,16 @@ body.login-page .login-shell {
     grid-template-columns: 1fr !important;
     grid-template-areas: "mode" "query" "count" !important;
   }
+  .review-switches { grid-template-columns: 1fr !important; width: 100% !important; }
   .review-filters { grid-template-columns: 1fr !important; }
   .review-toolbar .review-count,
   .review-filters .review-count { justify-self: end !important; }
   body[data-customer-query] .customer-query-methods { grid-template-columns: 1fr !important; }
+  body[data-staff-detail] .staff-section-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  body[data-staff-detail] .staff-work-month-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body[data-staff-detail] .staff-work-day-content { grid-template-columns: 1fr; }
+  body[data-staff-detail] .staff-work-day { min-height: 58px !important; }
+  body[data-customer-profile] .customer-history-tabs { grid-template-columns: repeat(5, minmax(58px, 1fr)) !important; overflow-x: auto; }
 }
 
 @media (max-width: 600px) {

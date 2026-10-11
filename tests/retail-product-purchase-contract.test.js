@@ -88,7 +88,8 @@ assert.match(storeBusiness, /setupLookup\(\)/, "web product purchase must reuse 
 assert.match(storeBusiness, /createRetailProductPurchaseApplication/);
 assert.match(webReview, /产品购买审核记录/);
 assert.match(webCustomer, /产品名称<\/th><th>购买<\/th><th>赠送/);
-assert.match(webCustomer, /<h2>产品记录<\/h2>/);
+assert.match(webCustomer, /data-history-type="PRODUCT_PURCHASE"[^>]*[\s\S]{0,80}>产品<\/button>/,
+  "Web customer history must expose product purchases through the shared iPad-style business tabs");
 
 assert.match(authUi, /\["product-purchase-create\.html", "产品购买"\]/);
 assert.match(authUi, /product-purchase-review\.html/);

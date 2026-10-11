@@ -23,9 +23,9 @@ assert.match(managementHtml, /styles\.css\?v=0\.15\.58/, "teacher directory must
 assert.match(managementHtml, /<meta\s+name="viewport"/, "teacher directory must declare a mobile viewport");
 assert.match(managementHtml, /teacher-management\.js\?v=0\.14\.29/, "teacher directory behavior must be cache-busted");
 assert.match(createHtml, /teacher-create\.js\?v=0\.6\.0/, "teacher creation behavior must be cache-busted");
-assert.match(createHtml, /cloudbase-phone-auth\.js\?v=0\.20\.4/,
+assert.match(createHtml, /cloudbase-phone-auth\.js\?v=0\.20\.5/,
   "teacher creation must refresh the attendance-enrollment API wrapper");
-assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.12/, "teacher home behavior must be cache-busted");
+assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.13/, "teacher home behavior must be cache-busted");
 
 for (const label of ["老师姓名", "联系电话", "状态"]) {
   assert.ok(management.includes(`data-label="${label}"`), `mobile teacher cards must expose the ${label} field label`);
@@ -75,8 +75,8 @@ assert.match(detail, /AUTH_CREDENTIAL_MISSING[\s\S]{0,120}AUTH_ACCOUNT_MISSING[\
 assert.doesNotMatch(`${detailHtml}\n${detail}`,
   /staffFaceAction|teacherFaceUpdate|upsertTeacherFace|补录老师人脸|更换老师人脸/,
   "teacher home must expose no face add, replacement or modification workflow");
-assert.match(detail, /现场只核验客户人脸/,
-  "teacher home must explain that experience verification scans only the customer");
+assert.match(detailHtml, /data-staff-section="basic"[\s\S]*data-staff-section="configuration"[\s\S]*data-staff-section="work"/,
+  "teacher home must use the compact iPad-style basic, project and attendance sections");
 
 assert.match(css, /--teacher-action:\s*#173a66/, "teacher primary actions must use the restrained navy palette");
 assert.match(css, /--teacher-danger-bg:\s*#fff6f5[\s\S]{0,160}--teacher-danger-ink:\s*#96342d/, "teacher destructive actions must use a soft archived-status red palette");

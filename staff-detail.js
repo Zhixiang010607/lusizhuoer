@@ -19,6 +19,24 @@
   let staff = null;
   let hasHonoredExperienceHash = false;
   const experience = { rows: [], totals: [], history: [], activeProducts: [], loading: false, savingConfig: false, savingRecharge: false, rechargeRequestId: "", historyExpanded: false, deletingProductId: "", productCatalogError: "" };
+  const work = { section:"basic", mode:"attendance", month:"", serverToday:"", employmentStartDate:"", attendance:[], reports:[], selectedDate:"", loadedMonth:"", loading:false };
+
+  function shanghaiMonth() {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone:"Asia/Shanghai", year:"numeric", month:"2-digit" }).formatToParts(new Date());
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    return `${values.year}-${values.month}`;
+  }
+  work.month = shanghaiMonth();
+
+  function shiftMonth(value, delta) {
+    const [year, month] = String(value).split("-").map(Number);
+    const date = new Date(Date.UTC(year, month - 1 + Number(delta || 0), 1));
+    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+  }
+
+  function formatDateTime(value) {
+    return window.AppDateTime?.format?.(value, "未记录") || String(value || "未记录");
+  }
 
   function setButtonPending(button, pending, pendingLabel = "处理中…") {
     if (!button) return;
@@ -130,6 +148,146 @@
 
   function teacherId() {
     return stringValue(staff, ["teacher_id", "teacherId"]);
+  }
+
+  function setStaffSection(section) {
+    if (role !== "teacher" || !["basic", "configuration", "work"].includes(section)) return;
+    work.section = section;
+    $("staffBasicSection").hidden = section !== "basic";
+    $("staffConfigurationSection").hidden = section !== "configuration";
+    $("staffWorkSection").hidden = section !== "work";
+    document.querySelectorAll("[data-staff-section]").forEach((button) => {
+      const selected = button.dataset.staffSection === section;
+      button.classList.toggle("active", selected);
+      button.setAttribute("aria-selected", selected ? "true" : "false");
+    });
+    if (section === "work" && work.loadedMonth !== work.month) void loadTeacherWorkMonth();
+  }
+
+  function setWorkMode(mode) {
+    if (!["attendance", "report"].includes(mode)) return;
+    work.mode = mode;
+    document.querySelectorAll("[data-work-mode]").forEach((button) => {
+      const selected = button.dataset.workMode === mode;
+      button.classList.toggle("active", selected);
+      button.setAttribute("aria-selected", selected ? "true" : "false");
+    });
+    $("staffWorkCalendarTitle").textContent = mode === "attendance" ? "考勤月历" : "日报月历";
+    renderTeacherWorkCalendar();
+  }
+
+  function populateWorkMonthSelectors() {
+    const maximum = (work.serverToday || `${work.month}-01`).slice(0, 7);
+    const maxYear = Number(maximum.slice(0, 4));
+    const currentYear = Number(work.month.slice(0, 4));
+    $("staffWorkYear").innerHTML = Array.from({ length:Math.max(1, maxYear - 2019) }, (_, index) => 2020 + index)
+      .map((year) => `<option value="${year}">${year}年</option>`).join("");
+    $("staffWorkMonth").innerHTML = Array.from({ length:12 }, (_, index) => `<option value="${String(index + 1).padStart(2, "0")}">${index + 1}月</option>`).join("");
+    $("staffWorkYear").value = String(Math.max(2020, currentYear));
+    $("staffWorkMonth").value = work.month.slice(5, 7);
+    document.querySelectorAll("[data-work-shift]").forEach((button) => {
+      const target = shiftMonth(work.month, Number(button.dataset.workShift));
+      button.disabled = work.loading || target > maximum;
+    });
+  }
+
+  function attendanceForDate(date) {
+    const rows = work.attendance.filter((row) => String(row.attendanceDate || "").slice(0, 10) === date);
+    return {
+      clockIn: rows.find((row) => row.attendanceType === "CLOCK_IN") || null,
+      clockOut: rows.find((row) => row.attendanceType === "CLOCK_OUT") || null
+    };
+  }
+
+  function reportForDate(date) {
+    return work.reports.find((row) => String(row.reportDate || "").slice(0, 10) === date) || null;
+  }
+
+  function renderTeacherWorkDay() {
+    const date = work.selectedDate;
+    if (!date) {
+      $("staffWorkDayTitle").textContent = "请选择日期";
+      $("staffWorkDayState").textContent = "—";
+      $("staffWorkDayContent").innerHTML = '<p class="staff-work-empty">选择月历中的日期查看详情</p>';
+      return;
+    }
+    $("staffWorkDayTitle").textContent = `${date} ${work.mode === "attendance" ? "考勤详情" : "日报"}`;
+    if (work.employmentStartDate && date < work.employmentStartDate) {
+      $("staffWorkDayState").textContent = "未入职";
+      $("staffWorkDayContent").innerHTML = '<p class="staff-work-empty">该日期老师尚未入职</p>';
+      return;
+    }
+    if (work.mode === "report") {
+      const report = reportForDate(date);
+      $("staffWorkDayState").textContent = report ? "已填写" : "未填写";
+      $("staffWorkDayContent").innerHTML = report
+        ? `<article class="staff-report-detail"><strong>今日完成事项</strong><p>${escapeHtml(report.completedWork || "")}</p></article>`
+        : '<p class="staff-work-empty">当天没有日报</p>';
+      return;
+    }
+    const day = attendanceForDate(date);
+    const attendanceCard = (title, row) => {
+      if (!row) return `<article class="staff-attendance-detail"><strong>${title}</strong><p class="staff-work-empty">未打卡</p></article>`;
+      const coordinates = Number.isFinite(Number(row.latitude)) && Number.isFinite(Number(row.longitude));
+      const map = coordinates ? `https://uri.amap.com/marker?position=${encodeURIComponent(`${row.longitude},${row.latitude}`)}&name=${encodeURIComponent(row.placeName || title)}` : "";
+      return `<article class="staff-attendance-detail"><strong>${title}</strong><b>${escapeHtml(formatDateTime(row.checkedInAt))}</b><span>${escapeHtml(row.placeName || "未解析附近地点")}</span><span>${escapeHtml(row.formattedAddress || "暂无文字地址")}</span><span>精度约 ${escapeHtml(row.accuracy || "—")} 米</span>${map ? `<a class="button-link secondary-button" target="_blank" rel="noopener noreferrer" href="${map}">在地图中打开</a>` : ""}</article>`;
+    };
+    $("staffWorkDayState").textContent = day.clockIn && day.clockOut ? "完整打卡" : day.clockIn || day.clockOut ? "部分打卡" : "未打卡";
+    $("staffWorkDayContent").innerHTML = attendanceCard("上班打卡", day.clockIn) + attendanceCard("下班打卡", day.clockOut);
+  }
+
+  function renderTeacherWorkCalendar() {
+    populateWorkMonthSelectors();
+    const [year, month] = work.month.split("-").map(Number);
+    const days = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const blanks = (new Date(Date.UTC(year, month - 1, 1)).getUTCDay() + 6) % 7;
+    const cells = Array.from({ length:blanks }, () => '<span class="staff-work-day blank" aria-hidden="true"></span>');
+    for (let day = 1; day <= days; day += 1) {
+      const date = `${work.month}-${String(day).padStart(2, "0")}`;
+      const notEmployed = Boolean(work.employmentStartDate && date < work.employmentStartDate);
+      const future = Boolean(work.serverToday && date > work.serverToday);
+      const attendance = attendanceForDate(date);
+      const report = reportForDate(date);
+      const done = work.mode === "attendance" ? Boolean(attendance.clockIn || attendance.clockOut) : Boolean(report);
+      const selected = date === work.selectedDate;
+      cells.push(`<button type="button" class="staff-work-day${selected ? " selected" : ""}${notEmployed ? " not-employed" : ""}" data-work-date="${date}" role="gridcell" ${future ? "disabled" : ""}><span>${day}</span>${notEmployed ? '<small>未入职</small>' : `<i class="${done ? "done" : future ? "future" : "missing"}"></i>`}</button>`);
+    }
+    $("staffWorkCalendar").innerHTML = cells.join("");
+    $("staffWorkLegend").innerHTML = work.mode === "attendance"
+      ? '<span><i class="done"></i>有打卡</span><span><i class="missing"></i>未打卡</span><span><i class="not-employed"></i>未入职</span>'
+      : '<span><i class="done"></i>已写日报</span><span><i class="missing"></i>未写日报</span><span><i class="not-employed"></i>未入职</span>';
+    $("staffWorkCalendar").querySelectorAll("[data-work-date]").forEach((button) => button.addEventListener("click", () => {
+      work.selectedDate = button.dataset.workDate;
+      renderTeacherWorkCalendar();
+      renderTeacherWorkDay();
+    }));
+    renderTeacherWorkDay();
+  }
+
+  async function loadTeacherWorkMonth() {
+    if (!teacherId() || work.loading || typeof window.CloudBasePhoneAuth?.getHqTeacherWorkMonth !== "function") return;
+    work.loading = true;
+    $("staffWorkState").textContent = "正在读取";
+    renderTeacherWorkCalendar();
+    try {
+      const data = await window.CloudBasePhoneAuth.getHqTeacherWorkMonth({ teacherId:teacherId(), month:work.month });
+      work.serverToday = String(data.serverToday || "").slice(0, 10);
+      work.employmentStartDate = String(data.teacher?.employmentStartDate || "").slice(0, 10);
+      work.attendance = Array.isArray(data.attendance) ? data.attendance : [];
+      work.reports = Array.isArray(data.reports) ? data.reports : [];
+      work.loadedMonth = work.month;
+      const todayInMonth = work.serverToday.startsWith(`${work.month}-`) ? work.serverToday : "";
+      work.selectedDate = todayInMonth || `${work.month}-01`;
+      $("staffWorkState").textContent = `${work.month.slice(0, 4)}年${Number(work.month.slice(5, 7))}月`;
+    } catch (error) {
+      work.attendance = [];
+      work.reports = [];
+      $("staffWorkState").textContent = "读取失败";
+      $("staffWorkDayContent").innerHTML = `<p class="staff-work-empty error">${escapeHtml(error?.message || "考勤日报月历读取失败")}</p>`;
+    } finally {
+      work.loading = false;
+      renderTeacherWorkCalendar();
+    }
   }
 
   function setExperienceMessage(id, message = "", tone = "") {
@@ -558,15 +716,19 @@
     const isTeacher = role === "teacher";
     const staffName = stringValue(staff, ["staff_name", "teacher_name"], labels[role]);
     const initials = Array.from(staffName.trim() || labels[role]).slice(0, 1).join("");
-    $("staffDetailEyebrow").textContent = isTeacher ? "TEACHER WORKSPACE" : "ACCOUNT PROFILE";
-    $("staffDetailTitle").textContent = isTeacher ? `${staffName} · 老师主页` : `${staffName} · ${labels[role]}主页`;
+    $("staffDetailEyebrow").textContent = isTeacher ? "老师主页" : "人员主页";
+    $("staffDetailEyebrow").hidden = isTeacher;
+    $("staffDetailTitle").textContent = isTeacher ? "老师主页" : `${staffName} · ${labels[role]}主页`;
     $("staffDetailSubtitle").textContent = isTeacher
-      ? "总部在这里配置该老师的体验次数、单独充值与账号安全。"
+      ? ""
       : "总部查看该账号自身范围的数据与账号安全。";
+    $("staffDetailSubtitle").hidden = isTeacher;
     $("backToManagement").href = pages[role];
     $("backToManagement").textContent = `返回${isTeacher ? "老师管理" : "总部管理"}`;
     document.title = isTeacher ? "老师主页" : `${labels[role]}主页`;
     document.querySelector(".staff-profile-workspace")?.setAttribute("aria-label", `${labels[role]}档案与账号管理`);
+    $("staffSectionTabs").hidden = !isTeacher;
+    if (isTeacher) setStaffSection(work.section);
     $("staffSecurityTitle").textContent = `${labels[role]}账号管理`;
     $("staffDetailContent").innerHTML = isTeacher
       ? `<section class="teacher-profile-hero">
@@ -574,10 +736,8 @@
           <div class="teacher-profile-copy">
             <p class="teacher-profile-kicker">老师档案</p>
             <div class="teacher-profile-name-row"><h2>${escapeHtml(staffName)}</h2><span class="teacher-profile-status ${status === "活跃" ? "active" : "archived"}">${status}</span></div>
-            <p class="teacher-profile-description">老师身份由登录手机号和账号主档绑定。体验核销自动使用当前老师的体验额度，现场只核验客户人脸。</p>
             <dl class="teacher-profile-meta">
               <div><dt>联系电话</dt><dd>${escapeHtml(staff.phone || "未填写")}</dd></div>
-              <div><dt>密码状态</dt><dd>${escapeHtml(credentialStatus())}</dd></div>
             </dl>
           </div>
         </section>`
@@ -779,5 +939,23 @@
     const row = activeRechargeRows().find((item) => item.productId === $("teacherExperienceRechargeProduct").value) || null;
     setRechargeTarget(row);
   });
+  document.querySelectorAll("[data-staff-section]").forEach((button) => button.addEventListener("click", () => setStaffSection(button.dataset.staffSection)));
+  document.querySelectorAll("[data-work-mode]").forEach((button) => button.addEventListener("click", () => setWorkMode(button.dataset.workMode)));
+  document.querySelectorAll("[data-work-shift]").forEach((button) => button.addEventListener("click", () => {
+    const target = shiftMonth(work.month, Number(button.dataset.workShift));
+    const maximum = (work.serverToday || shanghaiMonth()).slice(0, 7);
+    if (target > maximum || target < "2020-01") return;
+    work.month = target;
+    work.selectedDate = "";
+    void loadTeacherWorkMonth();
+  }));
+  ["staffWorkYear", "staffWorkMonth"].forEach((id) => $(id)?.addEventListener("change", () => {
+    const target = `${$("staffWorkYear").value}-${$("staffWorkMonth").value}`;
+    const maximum = (work.serverToday || shanghaiMonth()).slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(target) || target > maximum) return populateWorkMonthSelectors();
+    work.month = target;
+    work.selectedDate = "";
+    void loadTeacherWorkMonth();
+  }));
   void load();
 })();

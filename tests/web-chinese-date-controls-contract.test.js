@@ -12,7 +12,7 @@ test("every production Web page avoids locale-dependent native date and month pi
     const html = read(file);
     assert.doesNotMatch(html, /type=["'](?:date|month|week|time|datetime-local)["']/i, `${file} must not expose a browser-native date or time picker`);
     if (html.includes("data-chinese-date")) {
-      assert.match(html, /auth-ui\.js\?v=0\.21\.0/, `${file} must load the current Chinese date controller`);
+      assert.match(html, /auth-ui\.js\?v=0\.21\.3/, `${file} must load the current Chinese date controller`);
     }
   }
 });

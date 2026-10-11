@@ -26,8 +26,12 @@ for (const retired of [
   assert.equal(staffDetailHtml.includes(retired) || staffDetail.includes(retired), false,
     `teacher detail must expose no post-creation face write surface: ${retired}`);
 }
-assert.match(staffDetail, /老师身份由登录手机号和账号主档绑定[\s\S]{0,160}现场只核验客户人脸/,
-  "teacher home must explain account binding and customer-only experience verification");
+assert.match(staffDetailHtml, /id="staffSectionTabs"[\s\S]*data-staff-section="basic"[\s\S]*data-staff-section="configuration"[\s\S]*data-staff-section="work"/,
+  "teacher home must follow the iPad three-section information architecture");
+assert.match(staffDetailHtml, /id="staffWorkYear"[\s\S]*id="staffWorkMonth"[\s\S]*id="staffWorkCalendar"/,
+  "teacher home must expose Chinese year/month controls and the shared attendance-report calendar");
+assert.match(staffDetail, /CloudBasePhoneAuth\.getHqTeacherWorkMonth/,
+  "teacher home must read attendance and daily reports through the existing HQ work-month action");
 assert.match(staffDetail, /document\.title = isTeacher \? "老师主页" : `\$\{labels\[role\]\}主页`/,
   "shared staff detail must use a role-correct browser title");
 assert.match(staffDetail, /backToManagement[\s\S]{0,120}textContent = `返回\$\{isTeacher \? "老师管理" : "总部管理"\}`/,
@@ -71,9 +75,9 @@ for (const file of ["query.js", "management.js", "detail.js"]) {
     `${file} must no longer point users to the retired mock teacher page`);
 }
 
-assert.match(staffDetailHtml, /cloudbase-phone-auth\.js\?v=0\.20\.4/,
+assert.match(staffDetailHtml, /cloudbase-phone-auth\.js\?v=0\.20\.5/,
   "teacher home must refresh the shared cloud-function client");
-assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.12/,
+assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.13/,
   "teacher home must refresh its action handlers");
 assert.match(teacherCreateHtml, /teacher-create\.js\?v=0\.6\.0/,
   "teacher creation must refresh the attendance-enrollment UI");

@@ -23,6 +23,13 @@
   </header>
 
   <main class="staff-detail-main">
+    <nav id="staffSectionTabs" class="staff-section-tabs" role="tablist" aria-label="老师主页栏目" hidden>
+      <button type="button" class="active" data-staff-section="basic" role="tab" aria-selected="true">基本资料</button>
+      <button type="button" data-staff-section="configuration" role="tab" aria-selected="false">项目配置</button>
+      <button type="button" data-staff-section="work" role="tab" aria-selected="false">考勤日报</button>
+    </nav>
+
+    <section id="staffBasicSection" class="staff-detail-section">
     <section class="staff-profile-workspace" aria-label="人员档案与账号管理">
       <section id="staffDetailContent" class="staff-profile-shell" aria-live="polite">
         <div class="staff-profile-loading">正在读取人员资料…</div>
@@ -39,7 +46,9 @@
         </div>
       </aside>
     </section>
+    </section>
 
+    <section id="staffConfigurationSection" class="staff-detail-section" hidden>
     <section id="teacherExperiencePanel" class="panel teacher-experience-panel" hidden aria-labelledby="teacherExperienceTitle">
       <header class="teacher-experience-heading">
         <div>
@@ -124,15 +133,41 @@
         </div>
       </section>
     </section>
+    </section>
+
+    <section id="staffWorkSection" class="staff-detail-section staff-work-section" hidden>
+      <div class="staff-work-mode-tabs" role="tablist" aria-label="考勤日报类型">
+        <button type="button" class="active" data-work-mode="attendance" role="tab" aria-selected="true">考勤月历</button>
+        <button type="button" data-work-mode="report" role="tab" aria-selected="false">日报月历</button>
+      </div>
+      <section class="panel staff-work-calendar-panel">
+        <div class="panel-heading"><div><h2 id="staffWorkCalendarTitle">考勤月历</h2></div><span id="staffWorkState" class="badge">尚未读取</span></div>
+        <div class="staff-work-month-controls">
+          <button type="button" class="secondary-button" data-work-shift="-12">上一年</button>
+          <button type="button" class="secondary-button" data-work-shift="-1">上月</button>
+          <label><span>年份</span><select id="staffWorkYear" aria-label="选择年份"></select></label>
+          <label><span>月份</span><select id="staffWorkMonth" aria-label="选择月份"></select></label>
+          <button type="button" class="secondary-button" data-work-shift="1">下月</button>
+          <button type="button" class="secondary-button" data-work-shift="12">下一年</button>
+        </div>
+        <div id="staffWorkLegend" class="staff-work-legend"></div>
+        <div class="staff-work-weekdays" aria-hidden="true"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
+        <div id="staffWorkCalendar" class="staff-work-calendar" role="grid" aria-label="老师考勤日报月历"></div>
+      </section>
+      <section id="staffWorkDayPanel" class="panel staff-work-day-panel">
+        <div class="panel-heading"><div><h2 id="staffWorkDayTitle">请选择日期</h2></div><span id="staffWorkDayState" class="badge">—</span></div>
+        <div id="staffWorkDayContent" class="staff-work-day-content"><p class="staff-work-empty">选择月历中的日期查看详情</p></div>
+      </section>
+    </section>
   </main>
 
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
-  <script src="cloudbase-phone-auth.js?v=0.20.4"></script>
+  <script src="cloudbase-phone-auth.js?v=0.20.5"></script>
   <script src="datetime.js?v=0.1.2"></script>
-  <script src="staff-detail.js?v=0.15.12"></script>
-  <script src="auth-ui.js?v=0.21.0"></script>
+  <script src="staff-detail.js?v=0.15.13"></script>
+  <script src="auth-ui.js?v=0.21.3"></script>
 </body>
 </html>

@@ -33,26 +33,28 @@
 
   <main id="dashboardMain" aria-busy="true">
     <section class="panel filters" aria-label="全局时间筛选">
-      <div class="filter-grid global-filter-grid">
-        <label>时间周期
-          <select id="period">
-            <option value="today" selected>今天</option>
-            <option value="thisWeek">本周（周一至今天）</option>
-            <option value="thisMonth">本月（1日至今天）</option>
-            <option value="last7">近 7 日</option>
-            <option value="last30">近 30 日</option>
-            <option value="q1">本年第一季度（1—3月）</option>
-            <option value="q2">本年第二季度（4—6月）</option>
-            <option value="q3">本年第三季度（7—9月）</option>
-            <option value="q4">本年第四季度（10—12月）</option>
-            <option value="ytd">本年截至今天</option>
-            <option value="custom">自定义</option>
-          </select>
-        </label>
-        <label class="dashboard-custom-date" hidden>开始日期<input id="dateFrom" type="hidden" data-chinese-date></label>
-        <label class="dashboard-custom-date" hidden>结束日期<input id="dateTo" type="hidden" data-chinese-date></label>
+      <div class="dashboard-filter-layout">
+        <div class="filter-grid global-filter-grid">
+          <label>时间周期
+            <select id="period">
+              <option value="today" selected>今天</option>
+              <option value="thisWeek">本周（周一至今天）</option>
+              <option value="thisMonth">本月（1日至今天）</option>
+              <option value="last7">近 7 日</option>
+              <option value="last30">近 30 日</option>
+              <option value="q1">本年第一季度（1—3月）</option>
+              <option value="q2">本年第二季度（4—6月）</option>
+              <option value="q3">本年第三季度（7—9月）</option>
+              <option value="q4">本年第四季度（10—12月）</option>
+              <option value="ytd">本年截至今天</option>
+              <option value="custom">自定义</option>
+            </select>
+          </label>
+          <label class="dashboard-custom-date" hidden>开始日期<input id="dateFrom" type="hidden" data-chinese-date></label>
+          <label class="dashboard-custom-date" hidden>结束日期<input id="dateTo" type="hidden" data-chinese-date></label>
+        </div>
+        <div id="dashboardRankingControls" class="dashboard-ranking-controls" aria-label="排名筛选"></div>
       </div>
-      <div id="dashboardRankingControls" class="dashboard-ranking-controls" aria-label="排名筛选"></div>
       <div class="hidden-controls" aria-hidden="true">
         <select id="store"><option value="all">全部门店</option></select>
         <select id="project"><option value="all">全部项目</option></select>
@@ -129,9 +131,9 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
-  <script src="cloudbase-phone-auth.js?v=0.20.4"></script>
+  <script src="cloudbase-phone-auth.js?v=0.20.5"></script>
   <script src="hq-dashboard-report.js?v=0.1.0"></script>
-  <script src="app.js?v=0.15.26"></script>
-  <script src="auth-ui.js?v=0.21.0"></script>
+  <script src="app.js?v=0.15.27"></script>
+  <script src="auth-ui.js?v=0.21.3"></script>
 </body>
 </html>

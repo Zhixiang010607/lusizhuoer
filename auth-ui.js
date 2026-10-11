@@ -3,7 +3,7 @@
   if (!document.querySelector('link[data-web-tablet-parity]')) {
     const parityStyles = document.createElement("link");
     parityStyles.rel = "stylesheet";
-    parityStyles.href = "web-tablet-parity.css?v=1.0.8";
+    parityStyles.href = "web-tablet-parity.css?v=1.0.11";
     parityStyles.dataset.webTabletParity = "true";
     document.head.append(parityStyles);
   }
@@ -144,16 +144,12 @@
     }
     if (reviewMenu) {
       reviewMenu.classList.add("side-menu-group");
-      reviewMenu.querySelector("nav").innerHTML = `<a class="${page === "recharge-review.html" ? "active" : ""}" href="recharge-review.html">充值审核</a><a class="${page === "refund-review.html" ? "active" : ""}" href="refund-review.html">退费审核</a><a class="${page === "product-purchase-review.html" ? "active" : ""}" href="product-purchase-review.html">产品购买审核</a>`;
+      const rechargeFamilyActive = page === "recharge-review.html" || page === "refund-review.html";
+      reviewMenu.querySelector("nav").innerHTML = `<a class="${rechargeFamilyActive ? "active" : ""}" ${rechargeFamilyActive ? 'aria-current="page"' : ""} href="recharge-review.html">充值审核</a><a class="${page === "verification-review.html" ? "active" : ""}" ${page === "verification-review.html" ? 'aria-current="page"' : ""} href="verification-review.html">核销审核</a><a class="${page === "product-purchase-review.html" ? "active" : ""}" ${page === "product-purchase-review.html" ? 'aria-current="page"' : ""} href="product-purchase-review.html">产品购买审核</a>`;
       reviewMenu.hidden = false;
       reviewMenu.open = true;
     }
   }
-
-  // Supplemental verification creation is retired, so there is no current
-  // verification queue to expose. Keep the route and implementation intact
-  // for historical compatibility and a possible future re-enable.
-  document.querySelectorAll('a[href^="verification-review.html"]').forEach((link) => { link.hidden = true; });
 
   document.querySelectorAll("a[href]").forEach((link) => {
     const target = link.getAttribute("href").split(/[?#]/)[0];

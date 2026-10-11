@@ -34,7 +34,7 @@ test("three Web operational pages use the shared responsive implementation", () 
     assert.match(html, new RegExp(`data-operation-metric="${scope}"`));
     assert.match(html, /operational-metrics\.css\?v=1\.0\.2/);
     assert.match(html, /operational-metrics\.js\?v=1\.0\.1/);
-    assert.match(html, /auth-ui\.js\?v=0\.21\.0/);
+    assert.match(html, /auth-ui\.js\?v=0\.21\.3/);
     assert.match(html, /id="operationsPrint"/);
     assert.match(html, /id="operationsExport"/);
     assert.match(html, /打印 \/ PDF/);

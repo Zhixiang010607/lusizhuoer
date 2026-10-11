@@ -25,12 +25,13 @@ const customerQuery = read("customer-query.js");
 const customerProfile = read("customer-profile.js");
 const projectDetailHtml = read("project-detail.html");
 const projectDetailJs = read("project-detail.js");
+const dashboard = read("app.js");
 
 test("Web uses the warm tablet visual language without importing Mini Program source", () => {
   for (const color of ["#f3ede2", "#fffaf3", "#6f532e", "#a98243", "#302a22", "#2f2921"]) assert.match(theme, new RegExp(color, "i"));
   assert.match(theme, /width: min\(1120px/);
   assert.match(theme, /\.side-project-bar[\s\S]*position: sticky/);
-  assert.match(auth, /web-tablet-parity\.css\?v=1\.0\.8/);
+  assert.match(auth, /web-tablet-parity\.css\?v=1\.0\.11/);
   assert.match(theme, /button, \.button-link,[\s\S]{0,220}min-height: 44px !important;[\s\S]{0,220}text-align: center !important;/);
   assert.doesNotMatch(`${theme}\n${auth}`, /miniprogram-app|\.wxss|\.wxml/);
   assert.match(context, /网页版也采用同一套平板横屏视觉与功能信息架构/);
@@ -38,8 +39,8 @@ test("Web uses the warm tablet visual language without importing Mini Program so
 });
 
 test("public login and rating pages load the current tablet stylesheet", () => {
-  assert.match(login, /web-tablet-parity\.css\?v=1\.0\.8/);
-  assert.match(rating, /web-tablet-parity\.css\?v=1\.0\.8/);
+  assert.match(login, /web-tablet-parity\.css\?v=1\.0\.11/);
+  assert.match(rating, /web-tablet-parity\.css\?v=1\.0\.11/);
   assert.match(theme, /body\.login-page \.password-field button[\s\S]{0,220}min-height: 32px !important;[\s\S]{0,220}transform: translateY\(-50%\)/);
   assert.match(theme, /body\.login-page \.login-shell[\s\S]{0,160}width: min\(590px, calc\(100% - 32px\)\) !important;[\s\S]{0,120}max-width: 590px !important;/);
   assert.match(theme, /@media \(max-width: 600px\)[\s\S]*body\.login-page \.login-shell[\s\S]{0,120}width: 100% !important;/);
@@ -56,6 +57,11 @@ test("neighbouring Web actions keep a visible gap instead of sticking together",
   assert.match(theme, /body\[data-review\] main,[\s\S]{0,120}\.review-main \{[\s\S]{0,120}gap: 16px !important;/);
   assert.match(theme, /body:not\(\.login-page\) \*,[\s\S]{0,150}box-sizing: border-box;/);
   assert.match(theme, /\.panel, \.chart-card, \.table-card,[\s\S]{0,240}min-width: 0 !important;[\s\S]{0,80}max-width: 100% !important;/);
+});
+
+test("all Web data tables keep short headings, dates and order numbers on one line", () => {
+  assert.match(theme, /\.table-scroll > table \{[\s\S]{0,180}width: max-content !important;[\s\S]{0,120}min-width: 100% !important;/);
+  assert.match(theme, /\.table-scroll th,[\s\S]{0,60}\.table-scroll td \{[\s\S]{0,180}white-space: nowrap !important;[\s\S]{0,120}word-break: normal !important;/);
 });
 
 test("review result counts use a separated warm compact badge", () => {
@@ -83,13 +89,55 @@ test("tablet-width Web navigation and customer query remain readable", () => {
 });
 
 test("HQ dashboard aligns filter controls and centers every project-summary name", () => {
-  assert.match(theme, /body\[data-view="global"\] \.dashboard-ranking-controls[\s\S]{0,220}align-items: start !important;/);
+  assert.match(read("index.html"), /class="dashboard-filter-layout"[\s\S]{0,1800}id="period"[\s\S]{0,1800}id="dashboardRankingControls"/);
+  assert.match(theme, /body\[data-view="global"\] \.dashboard-filter-layout \{[\s\S]{0,260}grid-template-columns: minmax\(150px, \.75fr\) minmax\(180px, \.9fr\) minmax\(190px, 1fr\) minmax\(300px, 1\.5fr\) !important;[\s\S]{0,120}align-items: start !important;/);
+  assert.match(theme, /body\[data-view="global"\] \.global-filter-grid,[\s\S]{0,100}body\[data-view="global"\] \.dashboard-ranking-controls \{[\s\S]{0,80}display: contents !important;/);
   assert.match(theme, /body\[data-view="global"\] \.hq-project-summary-row > :first-child[\s\S]{0,180}justify-content: center !important;[\s\S]{0,180}text-align: center !important;/);
+});
+
+test("every Web selection group keeps neutral choices white and highlights only the current choice", () => {
+  for (const selector of [
+    "dashboard-dimension-tabs",
+    "teacher-record-tabs",
+    "teacher-range-presets",
+    "lookup-mode-switch",
+    "review-type-tabs",
+    "review-query-mode",
+    "product-preview-tabs",
+    "work-mode-tabs",
+    "operations-score-filter",
+    "login-method-switch",
+    "role-switch",
+  ]) {
+    assert.match(theme, new RegExp(`\\.${selector.replaceAll("-", "\\-")}`));
+  }
+  assert.match(theme, /\) > button,\s*\[role="tablist"\] > a,\s*\[role="tablist"\] > button \{[\s\S]{0,260}background: #fff !important;[\s\S]{0,180}border: 1px solid #dcc8a6 !important;/);
+  assert.match(theme, /\[role="tablist"\] > button:is\(\.active, \[aria-selected="true"\]\) \{[\s\S]{0,160}color: #fff !important;[\s\S]{0,140}background: #86652f !important;/);
+  assert.match(theme, /\[role="tablist"\] > a:is\(\.active, \[aria-selected="true"\]\)[\s\S]{0,260}background: #86652f !important;/);
+  assert.match(theme, /\.chinese-date-calendar-day\.is-selected,[\s\S]{0,220}background: #86652f !important;/);
+  assert.match(theme, /\.rating-page \.star-button \{[\s\S]{0,180}background: transparent !important;/);
+  for (const selector of ["customer-category-card", "service-customer-option", "daily-calendar-day"]) {
+    assert.match(theme, new RegExp(`\\.${selector.replaceAll("-", "\\-")}\\.selected[\\s\\S]{0,240}background: #86652f !important;`));
+  }
+  assert.match(theme, /body\[data-customer-query\] \.customer-query-method \{[\s\S]{0,180}background: #fff !important;/);
+  assert.match(theme, /body\[data-customer-query\] \.customer-query-method\.active \{[\s\S]{0,180}background: #f4e7d0 !important;/);
+  assert.match(theme, /\.store-analysis-tabs a \{[\s\S]{0,180}background: #fff !important;/);
+  assert.match(theme, /\.store-analysis-tabs a\.active,[\s\S]{0,220}background: #86652f !important;/);
+  assert.match(dashboard, /dashboard-dimension-tabs" role="tablist" aria-label="排名对象"/);
+  assert.match(dashboard, /role="tab" aria-selected="\$\{active\}" data-dashboard-dimension/);
+  assert.match(dashboard, /role="tab" aria-selected="\$\{active\}" data-dashboard-metric/);
 });
 
 test("every review menu receives the shared horizontal navigation layout", () => {
   assert.match(read("product-purchase-review.html"), /<details class="side-menu-group" data-menu="review"/);
   assert.match(auth, /reviewMenu\.classList\.add\("side-menu-group"\)/);
+  assert.match(auth, /href="recharge-review\.html">充值审核<\/a>[\s\S]*href="verification-review\.html">核销审核<\/a>[\s\S]*href="product-purchase-review\.html">产品购买审核<\/a>/);
+  assert.match(auth, /page === "recharge-review\.html" \|\| page === "refund-review\.html"/);
+  assert.doesNotMatch(auth, /href="refund-review\.html">退费审核<\/a>/);
+  assert.match(read("recharge-review.html"), /class="review-switches"[\s\S]*class="review-type-tabs"[\s\S]*class="review-query-mode"/);
+  assert.match(theme, /\.review-switches \{[\s\S]{0,220}grid-template-columns: repeat\(2, minmax\(220px, 1fr\)\) !important;/);
+  assert.match(theme, /\.side-menu-group > nav a:hover:not\(\.active\)[\s\S]{0,140}background: #f4e7d0 !important;/);
+  assert.match(theme, /\.side-menu-group > nav a\.active[\s\S]{0,140}background: #86652f !important;/);
 });
 
 test("role navigation exposes Web work calendars and tracking only to authorized roles", () => {

@@ -538,6 +538,12 @@
         "老师体验额度读取失败"
       );
     },
+    async getHqTeacherWorkMonth({ teacherId, month }) {
+      return callStaffAccount(
+        { action: "getHqTeacherWorkMonth", teacherId, month },
+        "老师考勤日报月历读取失败"
+      );
+    },
     async upsertTeacherExperienceEntitlement({ teacherId, productId, monthlyAllowance }) {
       return callStaffAccount(
         { action: "upsertTeacherExperienceEntitlement", teacherId, productId, monthlyAllowance },

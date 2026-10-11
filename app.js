@@ -2,7 +2,7 @@
   "use strict";
 
   // 文档同步约束：每次业务或界面变更都必须同步更新 main.tex 与 README.md。
-  const PROTOTYPE_VERSION = "0.15.26";
+  const PROTOTYPE_VERSION = "0.15.27";
   const BUSINESS_TIME_ZONE = "Asia/Shanghai";
   const RANKING_PAGE_SIZE = 100;
   const PRODUCT_SUMMARY_PAGE_SIZE = 10;
@@ -522,7 +522,7 @@
 
   function rankingControlsMarkup(activeDimension) {
     const productControl = `<label class="dashboard-ranking-product"><span>项目范围</span><select id="dashboardRankingProduct"><option value="">全部项目</option>${state.rankingProducts.map((product) => `<option value="${escapeHtml(product.id)}" ${product.id === state.rankingProductId ? "selected" : ""}>${escapeHtml(product.label)}</option>`).join("")}</select></label>`;
-    return `<div class="dashboard-ranking-control"><span class="dashboard-control-label">排名对象</span><div class="dashboard-dimension-tabs" aria-label="排名对象">${["store", "teacher"].map((dimension) => `<button type="button" data-dashboard-dimension="${dimension}" class="${dimension === activeDimension ? "active" : ""}">${dimensionLabels[dimension]}</button>`).join("")}</div></div>${productControl}<div class="dashboard-ranking-control"><span class="dashboard-control-label">排序指标</span><div class="dashboard-dimension-tabs dashboard-metric-tabs" aria-label="排序指标">${Object.entries(rankingMetricLabels).map(([metric, label]) => `<button type="button" data-dashboard-metric="${metric}" class="${metric === state.rankingMetric ? "active" : ""}">${label}</button>`).join("")}</div></div>`;
+    return `<div class="dashboard-ranking-control"><span class="dashboard-control-label">排名对象</span><div class="dashboard-dimension-tabs" role="tablist" aria-label="排名对象">${["store", "teacher"].map((dimension) => { const active = dimension === activeDimension; return `<button type="button" role="tab" aria-selected="${active}" data-dashboard-dimension="${dimension}" class="${active ? "active" : ""}">${dimensionLabels[dimension]}</button>`; }).join("")}</div></div>${productControl}<div class="dashboard-ranking-control"><span class="dashboard-control-label">排序指标</span><div class="dashboard-dimension-tabs dashboard-metric-tabs" role="tablist" aria-label="排序指标">${Object.entries(rankingMetricLabels).map(([metric, label]) => { const active = metric === state.rankingMetric; return `<button type="button" role="tab" aria-selected="${active}" data-dashboard-metric="${metric}" class="${active ? "active" : ""}">${label}</button>`; }).join("")}</div></div>`;
   }
 
   function renderAnalysis(rows, teacherRows) {

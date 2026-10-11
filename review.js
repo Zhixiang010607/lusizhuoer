@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const VERSION = "0.18.4";
+  const VERSION = "0.18.5";
   const pageType = document.body.dataset.review;
   const rechargeWorkflow = ["recharge", "refund"].includes(pageType);
   const recordType = rechargeWorkflow ? "RECHARGE" : "VERIFICATION";
@@ -123,7 +123,7 @@
       };
       return [store.id, store];
     })).values()].filter((store) => store.id).sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
-    $("reviewStore").innerHTML = `<option value="all">全部门店</option>${stores.map((store) => `<option value="${escapeHtml(store.id)}">${escapeHtml(store.name)}（${escapeHtml(store.code || store.id)}）</option>`).join("")}`;
+    $("reviewStore").innerHTML = `<option value="all">全部门店</option>${stores.map((store) => `<option value="${escapeHtml(store.id)}">${escapeHtml(store.name)}</option>`).join("")}`;
     if ([...$("reviewStore").options].some((option) => option.value === selected)) $("reviewStore").value = selected;
   }
   function impactText(item) {
@@ -155,13 +155,13 @@
     $("reviewBody").innerHTML = rows.map((item) => {
       const actions = item.status === "PENDING" && canDecide ? `<div class="review-actions"><button data-id="${escapeHtml(item.id)}" data-action="APPROVED">通过</button><button class="reject" data-id="${escapeHtml(item.id)}" data-action="REJECTED">驳回</button></div>` : `<span class="record-status status-${escapeHtml(statusText[item.status] || item.status)}">${escapeHtml(statusText[item.status] || item.status)}</span>`;
       const teacherName = item.teacherName || "—";
-      const teacher = item.teacherName ? `${item.teacherName}${item.teacherId ? `（${item.teacherId}）` : ""}` : "—";
+      const teacher = item.teacherName || "—";
       const detailPage = rechargeWorkflow ? "recharge-detail.html" : "verification-detail.html";
       const canOpenSupportingPages = session?.role === "hq";
       const orderCode = item.id && canOpenSupportingPages
         ? `<a class="record-link" href="${detailPage}?recordId=${encodeURIComponent(item.id)}&recordCode=${encodeURIComponent(item.recordCode)}&source=review" title="查看${pageNoun}工单 ${escapeHtml(item.recordCode)}">${escapeHtml(item.recordCode)}</a>`
         : escapeHtml(item.recordCode);
-      const customerText = `${item.customerName}${item.customerId ? `（${item.customerId}）` : ""}`;
+      const customerText = item.customerName;
       const customerHref = item.customerCode && item.id
         ? `customer-detail.html?customerId=${encodeURIComponent(item.customerCode)}&source=review&reviewRecordType=${encodeURIComponent(recordType)}&reviewRecordId=${encodeURIComponent(item.id)}`
         : "";
@@ -174,7 +174,7 @@
           : escapeHtml(item.customerName);
         return `<tr><td>${orderCode}</td><td>${escapeHtml(item.store.name)}</td><td>${rechargeCustomer}</td><td>${escapeHtml(item.project)}</td><td>${escapeHtml(teacherName)}</td><td>${escapeHtml(impactText(item))}</td><td>${escapeHtml(formatTime(item.time))}</td><td>${actions}</td><td>${escapeHtml(item.status === "PENDING" ? "—" : formatTime(item.reviewedAt))}</td></tr>`;
       }
-      return `<tr><td>${orderCode}</td><td>${escapeHtml(item.kind)}</td><td>${escapeHtml(item.store.name)}${item.store.code ? `（${escapeHtml(item.store.code)}）` : ""}</td><td>${customer}</td><td>${escapeHtml(item.project)}</td><td>${escapeHtml(teacher)}</td><td>${escapeHtml(impactText(item))}</td><td>${escapeHtml(formatTime(item.time))}</td><td>${actions}</td><td>${escapeHtml(item.status === "PENDING" ? "—" : formatTime(item.reviewedAt))}</td></tr>`;
+      return `<tr><td>${orderCode}</td><td>${escapeHtml(item.kind)}</td><td>${escapeHtml(item.store.name)}</td><td>${customer}</td><td>${escapeHtml(item.project)}</td><td>${escapeHtml(teacher)}</td><td>${escapeHtml(impactText(item))}</td><td>${escapeHtml(formatTime(item.time))}</td><td>${actions}</td><td>${escapeHtml(item.status === "PENDING" ? "—" : formatTime(item.reviewedAt))}</td></tr>`;
     }).join("") || `<tr><td colspan="${columnCount}" class="query-empty">当前条件下没有审核记录</td></tr>`;
     document.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", () => openReview(button.dataset.id, button.dataset.action)));
     renderPagination();
@@ -248,9 +248,8 @@
     pendingAction = { item, action };
     $("reviewDialogTitle").textContent = action === "APPROVED" ? "确认通过" : "确认驳回";
     const reviewerName = clean(session?.staffName) || reviewerRole;
-    const reviewerCode = clean(session?.staffCode) || staffCodeFor(clean(session?.role).toLowerCase(), session?.staffId);
     const refundImpact = item.isRefund ? `<span>申请时剩余：${item.balanceBeforeCount} 次 · 本次退费：${item.amount} 次 · 审核通过后：${Math.max(item.balanceBeforeCount - item.amount, 0)} 次</span>` : "";
-    $("reviewDialogSummary").innerHTML = `<strong>${escapeHtml(item.recordCode)} · ${escapeHtml(item.kind)}</strong><span>${escapeHtml(item.store.name)} · ${escapeHtml(item.customerName)}（${escapeHtml(item.customerId)}） · ${escapeHtml(item.project)}</span>${refundImpact}<span>审核人员：${escapeHtml(reviewerName)}${reviewerCode ? ` · ${escapeHtml(reviewerCode)}` : ""}</span>`;
+    $("reviewDialogSummary").innerHTML = `<strong>${escapeHtml(item.recordCode)} · ${escapeHtml(item.kind)}</strong><span>${escapeHtml(item.store.name)} · ${escapeHtml(item.customerName)} · ${escapeHtml(item.project)}</span>${refundImpact}<span>审核人员：${escapeHtml(reviewerName)}</span>`;
     $("reviewNote").value = ""; $("confirmReview").classList.toggle("danger-button", action === "REJECTED"); renderReviewCommunications(item); $("reviewDialog").showModal();
   }
   function closeDialog() { pendingAction = null; $("reviewDialog").close(); }
