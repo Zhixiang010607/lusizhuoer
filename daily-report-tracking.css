@@ -40,7 +40,7 @@
 }
 .daily-tracking-columns {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 16px;
   align-items: start;
 }
@@ -53,10 +53,7 @@
 }
 .daily-tracking-card {
   display: grid;
-  grid-template-columns: minmax(118px, 1fr) minmax(100px, 0.8fr) minmax(
-      88px,
-      0.7fr
-    ) 72px;
+  grid-template-columns: minmax(120px, 1fr) minmax(150px, 1fr) minmax(120px, 0.9fr) 92px;
   gap: 10px;
   align-items: center;
   padding: 13px 14px;

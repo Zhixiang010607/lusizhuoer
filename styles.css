@@ -1103,7 +1103,9 @@ body[data-store-business] .form-submit-row button:disabled {
 .review-count strong { color: var(--ink); font-size: 22px; }
 .review-table { margin-top: 9px; }
 .review-table .table-scroll { max-height: 650px; }
-body[data-review="recharge"] .review-table table { min-width: 960px; }
+body[data-review="recharge"] .review-table table { min-width: 1180px; }
+body[data-review="recharge"] .review-table th,
+body[data-review="recharge"] .review-table td { white-space: nowrap; }
 .review-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 14px; padding-top: 13px; border-top: 1px solid var(--line); }
 .review-pagination button { min-width: 68px; min-height: 34px; padding: 6px 11px; border: 1px solid var(--line); color: var(--ink); background: #fff; font-size: 11px; font-weight: 800; }
 .review-pagination button:hover:not(:disabled) { border-color: #9db9e7; color: #174f9b; background: #f5f9ff; }

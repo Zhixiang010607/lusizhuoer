@@ -1,11 +1,11 @@
 (() => {
   "use strict";
-  const VERSION = "0.18.3";
+  const VERSION = "0.18.4";
   const pageType = document.body.dataset.review;
   const rechargeWorkflow = ["recharge", "refund"].includes(pageType);
   const recordType = rechargeWorkflow ? "RECHARGE" : "VERIFICATION";
   const pageNoun = pageType === "refund" ? "退费" : pageType === "recharge" ? "充值" : "核销";
-  const columnCount = 10;
+  const columnCount = pageType === "recharge" ? 9 : 10;
   const $ = (id) => document.getElementById(id);
   const statusText = { PENDING: "待审核", APPROVED: "审核通过", REJECTED: "已驳回" };
   const PAGE_SIZE = 100;
@@ -154,6 +154,7 @@
       : `<strong>${rows.length}</strong><span>条符合条件</span>`;
     $("reviewBody").innerHTML = rows.map((item) => {
       const actions = item.status === "PENDING" && canDecide ? `<div class="review-actions"><button data-id="${escapeHtml(item.id)}" data-action="APPROVED">通过</button><button class="reject" data-id="${escapeHtml(item.id)}" data-action="REJECTED">驳回</button></div>` : `<span class="record-status status-${escapeHtml(statusText[item.status] || item.status)}">${escapeHtml(statusText[item.status] || item.status)}</span>`;
+      const teacherName = item.teacherName || "—";
       const teacher = item.teacherName ? `${item.teacherName}${item.teacherId ? `（${item.teacherId}）` : ""}` : "—";
       const detailPage = rechargeWorkflow ? "recharge-detail.html" : "verification-detail.html";
       const canOpenSupportingPages = session?.role === "hq";
@@ -167,6 +168,12 @@
       const customer = customerHref && canOpenSupportingPages
         ? `<a class="record-link" href="${escapeHtml(customerHref)}" title="查看客户主页 ${escapeHtml(item.customerName)}">${escapeHtml(customerText)}</a>`
         : escapeHtml(customerText);
+      if (pageType === "recharge") {
+        const rechargeCustomer = customerHref && canOpenSupportingPages
+          ? `<a class="record-link" href="${escapeHtml(customerHref)}" title="查看客户主页 ${escapeHtml(item.customerName)}">${escapeHtml(item.customerName)}</a>`
+          : escapeHtml(item.customerName);
+        return `<tr><td>${orderCode}</td><td>${escapeHtml(item.store.name)}</td><td>${rechargeCustomer}</td><td>${escapeHtml(item.project)}</td><td>${escapeHtml(teacherName)}</td><td>${escapeHtml(impactText(item))}</td><td>${escapeHtml(formatTime(item.time))}</td><td>${actions}</td><td>${escapeHtml(item.status === "PENDING" ? "—" : formatTime(item.reviewedAt))}</td></tr>`;
+      }
       return `<tr><td>${orderCode}</td><td>${escapeHtml(item.kind)}</td><td>${escapeHtml(item.store.name)}${item.store.code ? `（${escapeHtml(item.store.code)}）` : ""}</td><td>${customer}</td><td>${escapeHtml(item.project)}</td><td>${escapeHtml(teacher)}</td><td>${escapeHtml(impactText(item))}</td><td>${escapeHtml(formatTime(item.time))}</td><td>${actions}</td><td>${escapeHtml(item.status === "PENDING" ? "—" : formatTime(item.reviewedAt))}</td></tr>`;
     }).join("") || `<tr><td colspan="${columnCount}" class="query-empty">当前条件下没有审核记录</td></tr>`;
     document.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", () => openReview(button.dataset.id, button.dataset.action)));

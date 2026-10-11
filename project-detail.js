@@ -22,6 +22,17 @@
   const localPreviewMode = ["127.0.0.1", "localhost"].includes(location.hostname)
     && new URLSearchParams(location.search).get("preview") === "1";
   const MAX_INSTRUCTION_CHARS = 1000;
+  const PREVIEW_TIMEOUT_MS = 15000;
+
+  function previewWithTimeout(task) {
+    let timeoutId = 0;
+    return Promise.race([
+      task,
+      new Promise((_, reject) => {
+        timeoutId = window.setTimeout(() => reject(new Error("预览生成超过 15 秒，请点击“重新生成”再试")), PREVIEW_TIMEOUT_MS);
+      })
+    ]).finally(() => window.clearTimeout(timeoutId));
+  }
 
   function setMessage(value, tone = "") {
     const target = $("productTemplateMessage");
@@ -339,14 +350,14 @@
     try {
       const options = { documentData: sampleDocument(previewKind), photos: samplePhotos(previewKind) };
       if (previewKind.endsWith("pdf")) {
-        const blob = await window.OrderExporter.createOrderPdfBlob(options);
+        const blob = await previewWithTimeout(window.OrderExporter.createOrderPdfBlob(options));
         previewObjectUrl = URL.createObjectURL(blob);
         const frame = document.createElement("iframe");
         frame.title = `${title} 预览`;
         frame.src = `${previewObjectUrl}#toolbar=0&navpanes=0&view=FitH`;
         $("productPreviewFrame").replaceChildren(frame);
       } else {
-        const canvas = await window.OrderExporter.renderOrderCanvas({ ...options, paginate: false });
+        const canvas = await previewWithTimeout(window.OrderExporter.renderOrderCanvas({ ...options, paginate: false }));
         canvas.setAttribute("aria-label", `${title} 预览`);
         $("productPreviewFrame").replaceChildren(canvas);
       }
@@ -354,7 +365,7 @@
       $("downloadProductPreview").disabled = false;
     } catch (error) {
       $("productPreviewHint").textContent = error?.message || "预览生成失败";
-      $("productPreviewFrame").innerHTML = '<div class="product-preview-loading is-error">预览生成失败</div>';
+      $("productPreviewFrame").innerHTML = '<div class="product-preview-loading is-error">本次预览没有生成，请点击“重新生成”</div>';
     } finally {
       previewBusy = false;
       if (previewQueued) void renderPreview();

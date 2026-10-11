@@ -346,6 +346,72 @@ body[data-management="teacher"] #addEntity {
   box-shadow: 0 0 0 2px #e8d5b5 !important;
 }
 
+/* Keep the three query pages on one calm palette and contain the birthday picker. */
+body[data-customer-query] .customer-query-method {
+  color: var(--ink) !important;
+  background: #fffaf3 !important;
+  border-color: #dfcfb4 !important;
+  opacity: 1 !important;
+}
+body[data-customer-query] .customer-query-method.active {
+  background: #fffaf3 !important;
+  border-color: #a98243 !important;
+}
+body[data-customer-query] .customer-query-method-heading {
+  min-height: 52px !important;
+  color: var(--ink) !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+body[data-customer-query] .customer-query-method-heading span {
+  color: #74592d !important;
+  background: #f4e7d0 !important;
+}
+body[data-customer-query] .customer-query-method.active .customer-query-method-heading span {
+  color: #fffaf3 !important;
+  background: #8a672f !important;
+}
+body[data-customer-query] .customer-query-store-context {
+  color: var(--ink) !important;
+  background: #fbf4e9 !important;
+  border-color: #dfcfb4 !important;
+}
+body[data-customer-query] .customer-query-store-context strong,
+body[data-customer-query] .customer-query-notice { color: #74592d !important; }
+body[data-customer-query] .customer-query-toolbar-actions #resetCustomerQuery,
+body[data-customer-query] .customer-query-toolbar-actions #resetRecordQuery {
+  color: #74592d !important;
+  background: #fff !important;
+  border: 1px solid #dcc8a6 !important;
+}
+body[data-customer-query] .customer-query-method-fields {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 10px !important;
+}
+body[data-customer-query] .customer-query-method-fields > label,
+body[data-customer-query] .chinese-birthday-input { min-width: 0 !important; }
+body[data-customer-query] .chinese-birthday-input {
+  grid-template-columns: minmax(0, 1.35fr) auto minmax(0, 1fr) auto minmax(0, 1fr) auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Align every dashboard filter from its label baseline, then center the shared project column. */
+body[data-view="global"] .dashboard-ranking-controls {
+  grid-template-columns: minmax(180px, .9fr) minmax(220px, 1fr) minmax(320px, 1.5fr) !important;
+  align-items: start !important;
+}
+body[data-view="global"] .dashboard-dimension-tabs { margin-bottom: 0 !important; }
+body[data-view="global"] .dashboard-ranking-product select,
+body[data-view="global"] .dashboard-dimension-tabs { min-height: 44px !important; }
+body[data-view="global"] .hq-project-summary-row > :first-child {
+  justify-content: center !important;
+  padding-left: 5px !important;
+  padding-right: 5px !important;
+  text-align: center !important;
+}
+
 /* Every neighbouring action must remain visually separate on the Web canvas. */
 .review-query-mode {
   gap: 8px !important;

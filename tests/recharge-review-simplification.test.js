@@ -46,13 +46,13 @@ assert.match(refundReviewHtml, /data-review="refund"[\s\S]*<h1>退费审核<\/h1
 assert.doesNotMatch(refundReviewHtml, /id="reviewType"|充值与退费审核记录/);
 assert.doesNotMatch(reviewHtml, /作废充值/);
 assert.match(reviewHtml, /value="approved">审核通过<\/option>/);
-assert.match(reviewHtml, /review\.js\?v=0\.18\.3/);
-assert.match(refundReviewHtml, /review\.js\?v=0\.18\.3/);
+assert.match(reviewHtml, /review\.js\?v=0\.18\.4/);
+assert.match(refundReviewHtml, /review\.js\?v=0\.18\.4/);
 for (const html of [reviewHtml, refundReviewHtml]) {
   assert.match(html, /<dialog id="reviewDialog"/);
   assert.match(html, /<button id="confirmReview" type="button">确认<\/button>/);
 }
-assert.match(reviewUi, /const VERSION = "0\.18\.3"/);
+assert.match(reviewUi, /const VERSION = "0\.18\.4"/);
 assert.match(reviewUi, /if \(pageType === "recharge"\) return "NEW";/);
 assert.match(reviewUi, /if \(pageType === "refund"\) return "REFUND";/);
 assert.match(reviewUi, /applicationType: applicationTypeFilter\(\)/);

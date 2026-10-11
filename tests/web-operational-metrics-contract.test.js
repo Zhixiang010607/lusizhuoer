@@ -1,0 +1,77 @@
+"use strict";
+
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const test = require("node:test");
+
+const root = path.resolve(__dirname, "..");
+const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
+const auth = read("auth-ui.js");
+const client = read("operational-metrics.js");
+const css = read("operational-metrics.css");
+const context = read("PROJECT_CONTEXT.md");
+
+test("HQ Web operations menu exposes all five tablet-equivalent routes", () => {
+  const routes = [
+    ["inactive-customers.html", "活跃预警"],
+    ["low-balance-customers.html", "余次预警"],
+    ["rating-analysis.html", "评价分析"],
+    ["daily-report-tracking.html", "日报追踪"],
+    ["attendance-tracking.html", "打卡追踪"]
+  ];
+  const hqAccess = auth.slice(auth.indexOf("hq: new Set"), auth.indexOf("store: new Set"));
+  for (const [route, label] of routes) {
+    assert.match(hqAccess, new RegExp(route.replace(".", "\\.")));
+    assert.match(auth, new RegExp(`\\[\\"${route.replace(".", "\\.")}\\", \\"${label}\\"\\]`));
+  }
+  assert.match(context, /总部“运营”固定完整显示活跃预警、余次预警、评价分析、日报追踪、打卡追踪五个入口/);
+});
+
+test("three Web operational pages use the shared responsive implementation", () => {
+  for (const [file, scope] of [["inactive-customers.html", "inactive"], ["low-balance-customers.html", "balance"], ["rating-analysis.html", "rating"]]) {
+    const html = read(file);
+    assert.match(html, new RegExp(`data-operation-metric="${scope}"`));
+    assert.match(html, /operational-metrics\.css\?v=1\.0\.0/);
+    assert.match(html, /operational-metrics\.js\?v=1\.0\.0/);
+    assert.match(html, /auth-ui\.js\?v=0\.20\.9/);
+    assert.match(html, /id="operationsPrint"/);
+    assert.match(html, /id="operationsExport"/);
+    assert.match(html, /打印 \/ PDF/);
+  }
+  assert.match(css, /.operations-filter-grid[\s\S]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(css, /.operations-table-scroll[\s\S]*overflow: auto/);
+  assert.match(css, /@media \(max-width: 620px\)/);
+});
+
+test("Web operations preserve server categories, cursors, scores, paging, export and detail links", () => {
+  for (const action of ["queryInactiveVerificationCustomers", "queryLowBalanceCustomers", "getRatingAnalysisOptions", "queryRatingAnalysis"]) assert.match(client, new RegExp(action));
+  for (const token of ["balanceCategory: \"BOTH\"", "cursorBaselineAt", "cursorCustomerId", "cursorRemainingCount", "cursorProductId", "scores:", "exportAll: true", "EXPORT_LIMIT = 1000"]) assert.match(client, new RegExp(token));
+  assert.match(client, /customer-detail\.html\?customerId=/);
+  assert.match(client, /verification-detail\.html\?recordId=/);
+  assert.match(client, /text\/csv;charset=utf-8/);
+});
+
+test("daily tracker stacks complete tables and production CSS has a new cache key", () => {
+  const html = read("daily-report-tracking.html");
+  const trackerCss = read("daily-report-tracking.css");
+  assert.match(html, /daily-report-tracking\.css\?v=0\.2\.1/);
+  assert.match(trackerCss, /\.daily-tracking-columns\s*\{[^}]*grid-template-columns:\s*1fr/);
+  assert.match(trackerCss, /grid-template-columns:\s*minmax\(120px, 1fr\) minmax\(150px, 1fr\) minmax\(120px, 0\.9fr\) 92px/);
+});
+
+test("receipt preview is bounded and recharge review uses a compact no-wrap table", () => {
+  const projectHtml = read("project-detail.html");
+  const projectClient = read("project-detail.js");
+  const rechargeHtml = read("recharge-review.html");
+  const reviewClient = read("review.js");
+  const styles = read("styles.css");
+  assert.match(projectHtml, /project-detail\.js\?v=0\.2\.8/);
+  assert.match(projectHtml, />重新生成</);
+  assert.match(projectClient, /PREVIEW_TIMEOUT_MS = 15000/);
+  assert.match(projectClient, /预览生成超过 15 秒/);
+  assert.doesNotMatch(rechargeHtml, /<th>类型<\/th>/);
+  for (const heading of ["项目", "次数", "提交时间", "审核结果", "审核时间"]) assert.match(rechargeHtml, new RegExp(`<th>${heading}<\\/th>`));
+  assert.match(reviewClient, /pageType === "recharge" \? 9 : 10/);
+  assert.match(styles, /body\[data-review="recharge"\] \.review-table th,[\s\S]*white-space:\s*nowrap/);
+});

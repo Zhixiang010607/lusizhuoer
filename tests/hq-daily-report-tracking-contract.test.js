@@ -56,7 +56,8 @@ test("HQ operations menu links to a responsive read-only tracker", () => {
   assert.match(hqAccess, /daily-report-tracking\.html/);
   assert.doesNotMatch(storeAccess, /daily-report-tracking\.html/);
   assert.doesNotMatch(teacherAccess, /daily-report-tracking\.html/);
-  assert.match(authUi, /data-menu="hq-operations"[\s\S]{0,300}日报追踪/);
+  assert.match(authUi, /const operationLinks = \[[\s\S]*?日报追踪[\s\S]*?\];/);
+  assert.match(authUi, /data-menu="hq-operations"[\s\S]*?operationLinks\.map/);
   for (const text of ["已填写", "未填写", "老师姓名", "老师电话", "日报内容", "是否完成"]) {
     assert.match(html, new RegExp(text));
   }

@@ -29,7 +29,7 @@ test("every root Web page resolves all static local links and assets", () => {
       assert.ok(fs.existsSync(path.join(root, target)), `${page} references missing local target ${target}`);
     }
     if (!["login.html", "rating.html", "teacher-detail.html"].includes(page)) {
-      assert.match(html, /auth-ui\.js\?v=0\.20\.7/, `${page} must use the current permission/navigation shell`);
+      assert.match(html, /auth-ui\.js\?v=0\.20\.9/, `${page} must use the current permission/navigation shell`);
     }
   }
 });
@@ -66,7 +66,7 @@ test("each role's generated navigation routes are authorized for that role", () 
   const hq = auth.slice(auth.indexOf("hq: new Set"), auth.indexOf("store: new Set"));
   const store = auth.slice(auth.indexOf("store: new Set"), auth.indexOf("teacher: new Set"));
   const teacher = auth.slice(auth.indexOf("teacher: new Set"), auth.indexOf("};", auth.indexOf("teacher: new Set")));
-  for (const route of ["index.html", "daily-report-tracking.html", "attendance-tracking.html", "project-management.html", "store-management.html", "teacher-management.html", "customer-query.html", "recharge-query.html", "verification-query.html"]) assert.match(hq, new RegExp(route.replace(".", "\\.")), `HQ must authorize ${route}`);
+  for (const route of ["index.html", "inactive-customers.html", "low-balance-customers.html", "rating-analysis.html", "daily-report-tracking.html", "attendance-tracking.html", "project-management.html", "store-management.html", "teacher-management.html", "customer-query.html", "recharge-query.html", "verification-query.html"]) assert.match(hq, new RegExp(route.replace(".", "\\.")), `HQ must authorize ${route}`);
   for (const route of ["store-detail.html", "customer-create.html", "recharge-create.html", "product-purchase-create.html", "refund-create.html", "verification-create.html", "customer-query.html", "recharge-query.html", "verification-query.html"]) assert.match(store, new RegExp(route.replace(".", "\\.")), `store must authorize ${route}`);
   for (const route of ["teacher-work-orders.html", "work-calendar.html", "daily-report.html", "attendance.html", "customer-create.html", "recharge-create.html", "product-purchase-create.html", "refund-create.html", "verification-create.html", "verification-experience.html"]) assert.match(teacher, new RegExp(route.replace(".", "\\.")), `teacher must authorize ${route}`);
 });

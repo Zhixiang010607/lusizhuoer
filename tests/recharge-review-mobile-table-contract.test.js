@@ -9,7 +9,7 @@ const css = fs.readFileSync(path.join(root, "styles.css"), "utf8");
 const html = fs.readFileSync(path.join(root, "recharge-review.html"), "utf8");
 
 assert.match(html, /<body data-review="recharge">/, "recharge review must expose a page-specific responsive scope");
-assert.match(html, /styles\.css\?v=0\.15\.49/, "recharge review must refresh the responsive stylesheet");
+assert.match(html, /styles\.css\?v=0\.15\.50/, "recharge review must refresh the responsive stylesheet");
 
 const phoneCss = css.slice(css.indexOf("@media (max-width: 760px)"));
 assert.match(phoneCss, /body\[data-review="recharge"\] \.review-table \.table-scroll \{[^}]*overflow-x:\s*auto;[^}]*overscroll-behavior-x:\s*contain;/,
