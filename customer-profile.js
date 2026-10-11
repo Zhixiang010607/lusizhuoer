@@ -214,10 +214,9 @@
     return base;
   }
   function renderBasic() {
-    const store = [profile.storeName, profile.storeCode].filter(Boolean).join(" · ") || "—";
+    const store = profile.storeName || "—";
     $("customerBasicInfo").innerHTML = [
-      infoCard("客户姓名", profile.customerName), infoCard("客户编号", profile.customerCode),
-      infoCard("生日", birthdayText(profile.birthDate)), infoCard("所属门店", store)
+      infoCard("客户姓名", profile.customerName), infoCard("生日", birthdayText(profile.birthDate)), infoCard("所属门店", store)
     ].join("");
     $("customerNotes").value = profile.notes || "";
     notesOriginal = profile.notes || "";
@@ -283,9 +282,7 @@
   }
   function businessTeacher(row) {
     const name = String(row?.teacherName || "").trim();
-    if (!name) return "";
-    const code = String(row?.teacherCode || "").trim();
-    return code ? `${name} · ${code}` : name;
+    return name;
   }
   function renderRecords() {
     $("customerRechargeRecords").innerHTML = recharges.length ? recharges.map((row) => {

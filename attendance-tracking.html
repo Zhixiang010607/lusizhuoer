@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>总部打卡追踪</title>
+  <link rel="stylesheet" href="styles.css?v=0.15.44">
+  <link rel="stylesheet" href="web-attendance.css?v=1.0.0">
+</head>
+<body data-attendance-tracking>
+  <aside class="side-project-bar" aria-label="工作区导航"><div class="side-brand"><span>HQ</span><div><strong>总部工作区</strong><small>打卡追踪</small></div></div><nav class="side-nav"></nav><div class="side-footer"></div></aside>
+  <header class="topbar"><div><p class="eyebrow">ATTENDANCE TRACKING</p><h1>打卡追踪</h1><p class="subtitle">按日期查看在职老师完整、单次和未打卡情况。</p></div><div class="status"><span></span>总部只读</div></header>
+  <main class="attendance-tracking-main">
+    <section class="panel"><div class="attendance-date-picker"><input id="trackingAttendanceDate" type="date" aria-label="选择追踪日期"><button id="trackingAttendanceConfirm" type="button">确认日期</button></div><p id="attendanceTrackingMessage" class="form-message" role="status" aria-live="polite"></p></section>
+    <section class="panel"><div class="panel-heading"><div><h2 id="attendanceTrackingTitle">正在读取…</h2><p>只有上下班两次均完成才计算工作时长。</p></div></div><div id="attendanceTrackingSummary" class="tracking-summary"></div></section>
+    <div id="attendanceTrackingGroups"></div>
+  </main>
+  <dialog id="attendanceTrackingDialog" class="attendance-dialog"><header><div><h2 id="attendanceDialogTitle">打卡详情</h2><p id="attendanceDialogMeta"></p></div><form method="dialog"><button class="dialog-close secondary-button" type="submit">关闭</button></form></header><div id="attendanceDialogBody" class="attendance-dialog-body"></div></dialog>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
+  <script src="cloudbase-auth-config.js"></script>
+  <script src="auth-ui.js?v=0.20.2"></script>
+  <script src="web-work-common.js?v=1.0.0"></script>
+  <script src="attendance-tracking.js?v=1.0.0"></script>
+</body>
+</html>

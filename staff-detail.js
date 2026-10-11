@@ -10,6 +10,10 @@
   const personId = params.get("id") || params.get("teacherId") || params.get("teacherCode");
   const labels = { teacher: "老师", hq: "总部人员" };
   const pages = { teacher: "teacher-management.html", hq: "hq-management.html" };
+  if (pages[role]) {
+    $("backToManagement").href = pages[role];
+    $("backToManagement").textContent = `返回${role === "teacher" ? "老师管理" : "总部管理"}`;
+  }
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>\"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char]);
   const truthy = (value) => [true, "true", "t", 1, "1"].includes(value);
   let staff = null;
@@ -553,7 +557,6 @@
     const status = isStaffArchived() ? "封存" : "活跃";
     const isTeacher = role === "teacher";
     const staffName = stringValue(staff, ["staff_name", "teacher_name"], labels[role]);
-    const teacherCode = stringValue(staff, ["person_code", "teacher_code"], "未分配");
     const initials = Array.from(staffName.trim() || labels[role]).slice(0, 1).join("");
     $("staffDetailEyebrow").textContent = isTeacher ? "TEACHER WORKSPACE" : "ACCOUNT PROFILE";
     $("staffDetailTitle").textContent = isTeacher ? `${staffName} · 老师主页` : `${staffName} · ${labels[role]}主页`;
@@ -573,7 +576,6 @@
             <div class="teacher-profile-name-row"><h2>${escapeHtml(staffName)}</h2><span class="teacher-profile-status ${status === "活跃" ? "active" : "archived"}">${status}</span></div>
             <p class="teacher-profile-description">老师身份由登录手机号和账号主档绑定。体验核销自动使用当前老师的体验额度，现场只核验客户人脸。</p>
             <dl class="teacher-profile-meta">
-              <div><dt>老师编号</dt><dd>${escapeHtml(teacherCode)}</dd></div>
               <div><dt>联系电话</dt><dd>${escapeHtml(staff.phone || "未填写")}</dd></div>
               <div><dt>密码状态</dt><dd>${escapeHtml(credentialStatus())}</dd></div>
             </dl>

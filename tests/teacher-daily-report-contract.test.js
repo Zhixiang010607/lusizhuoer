@@ -84,7 +84,7 @@ test("only the teacher workspaces expose the calendar and today editor", () => {
   assert.doesNotMatch(hqAccess, /daily-report\.html/);
   assert.doesNotMatch(storeAccess, /daily-report\.html/);
   assert.match(teacherAccess, /daily-report\.html/);
-  assert.match(authUi, /session\.role === "teacher"[\s\S]{0,220}工作日报/);
+  assert.match(authUi, /session\.role === "teacher"[\s\S]{0,520}工作日报/);
   assert.match(html, /id="dailyReportCalendar"/);
   assert.match(html, /id="dailyCompletedWork"[^>]*required/);
   assert.equal((html.match(/<textarea[^>]*required/g) || []).length, 1);

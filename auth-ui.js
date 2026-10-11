@@ -1,5 +1,12 @@
 (() => {
   "use strict";
+  if (!document.querySelector('link[data-web-tablet-parity]')) {
+    const parityStyles = document.createElement("link");
+    parityStyles.rel = "stylesheet";
+    parityStyles.href = "web-tablet-parity.css?v=1.0.2";
+    parityStyles.dataset.webTabletParity = "true";
+    document.head.append(parityStyles);
+  }
   const page = location.pathname.split("/").pop() || "index.html";
   const AUTH_CHANNEL_NAME = "lusizhuoer-auth-session-v1";
   const AUTH_STATE_KEY = "lusizhuoerActiveAuth";
@@ -8,9 +15,9 @@
   const homes = { hq: "index.html", store: "store-detail.html", teacher: "teacher-work-orders.html" };
   const labels = { hq: "总部工作区", store: "门店工作区", teacher: "老师工作区" };
   const access = {
-    hq: new Set(["index.html", "daily-report-tracking.html", "change-password.html", "store-create.html", "project-create.html", "retail-product-create.html", "teacher-create.html", "hq-account-create.html", "hq-management.html", "store-management.html", "project-management.html", "retail-product-management.html", "teacher-management.html", "staff-detail.html", "store-detail.html", "store-analysis.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "refund-review.html", "product-purchase-review.html", "verification-review.html"]),
+    hq: new Set(["index.html", "daily-report-tracking.html", "attendance-tracking.html", "change-password.html", "store-create.html", "project-create.html", "retail-product-create.html", "teacher-create.html", "hq-account-create.html", "hq-management.html", "store-management.html", "project-management.html", "retail-product-management.html", "teacher-management.html", "staff-detail.html", "store-detail.html", "store-analysis.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "refund-review.html", "product-purchase-review.html", "verification-review.html"]),
     store: new Set(["store-detail.html", "store-analysis.html", "change-password.html", "customer-detail.html", "customer-query.html", "customer-create.html", "recharge-create.html", "product-purchase-create.html", "refund-create.html", "verification-create.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html"]),
-    teacher: new Set(["teacher-work-orders.html", "daily-report.html", "change-password.html", "teacher-work-order-detail.html", "customer-detail.html", "recharge-detail.html", "verification-detail.html", "customer-create.html", "recharge-create.html", "product-purchase-create.html", "refund-create.html", "verification-create.html", "verification-experience.html", "teacher-verification-create.html", "teacher-verification-experience.html", "teacher-recharge-create.html", "teacher-refund-create.html"])
+    teacher: new Set(["teacher-work-orders.html", "work-calendar.html", "attendance.html", "daily-report.html", "change-password.html", "teacher-work-order-detail.html", "customer-detail.html", "recharge-detail.html", "verification-detail.html", "customer-create.html", "recharge-create.html", "product-purchase-create.html", "refund-create.html", "verification-create.html", "verification-experience.html", "teacher-verification-create.html", "teacher-verification-experience.html", "teacher-recharge-create.html", "teacher-refund-create.html"])
   };
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }
@@ -87,10 +94,11 @@
     primarySectionTitle.textContent = session.role === "hq" ? "数据看板" : "工作台";
     const navLabel = session.role === "hq" ? "全局视图" : session.role === "teacher" ? "我的工作台" : "门店首页";
     const navIcon = session.role === "hq" ? "总" : session.role === "teacher" ? "师" : "店";
-    const dailyReportNav = session.role === "teacher"
-      ? `<a class="${page === "daily-report.html" ? "active" : ""}" href="daily-report.html"><span class="nav-icon">日</span><span>工作日报</span></a>`
+    const teacherWorkNav = session.role === "teacher"
+      ? `<a class="${page === "work-calendar.html" ? "active" : ""}" href="work-calendar.html"><span class="nav-icon">历</span><span>工作月历</span></a><a class="${page === "daily-report.html" ? "active" : ""}" href="daily-report.html"><span class="nav-icon">日</span><span>工作日报</span></a><a class="${page === "attendance.html" ? "active" : ""}" href="attendance.html"><span class="nav-icon">勤</span><span>考勤打卡</span></a>`
       : "";
-    primaryNav.innerHTML = `<a class="${page === "daily-report.html" ? "" : "active"}" href="${homeUrl}"><span class="nav-icon">${navIcon}</span><span>${navLabel}</span></a>${dailyReportNav}`;
+    const homeActive = !["work-calendar.html", "daily-report.html", "attendance.html"].includes(page);
+    primaryNav.innerHTML = `<a class="${homeActive ? "active" : ""}" href="${homeUrl}"><span class="nav-icon">${navIcon}</span><span>${navLabel}</span></a>${teacherWorkNav}`;
     if (session.role === "store") {
       document.querySelectorAll(".side-project-bar > .side-menu-group").forEach((group) => { group.hidden = true; });
       const businessLinks = [["customer-create.html", "客户建立"], ["recharge-create.html", "办卡充值"], ["product-purchase-create.html", "产品购买"], ["refund-create.html", "退费申请"], ["verification-create.html", "核销办理"]];
@@ -110,7 +118,7 @@
         if (group.querySelector("summary")?.textContent.includes("管理")) group.hidden = true;
       });
       const managementLinks = [["project-management.html", "项目管理"], ["retail-product-management.html", "产品管理"], ["store-management.html", "门店管理"], ["teacher-management.html", "老师管理"], ["hq-management.html", "总部管理"]];
-      document.querySelector('[data-menu="shared-query"]')?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="hq-operations"><summary><span class="nav-icon">运</span><span>运营</span></summary><nav><a class="${page === "daily-report-tracking.html" ? "active" : ""}" href="daily-report-tracking.html">日报追踪</a></nav></details>`);
+      document.querySelector('[data-menu="shared-query"]')?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="hq-operations"><summary><span class="nav-icon">运</span><span>运营</span></summary><nav><a class="${page === "daily-report-tracking.html" ? "active" : ""}" href="daily-report-tracking.html">日报追踪</a><a class="${page === "attendance-tracking.html" ? "active" : ""}" href="attendance-tracking.html">打卡追踪</a></nav></details>`);
       document.querySelector('[data-menu="hq-operations"]')?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="hq-management"><summary><span class="nav-icon">管</span><span>管理</span></summary><nav>${managementLinks.map(([href, text]) => `<a class="${page === href ? "active" : ""}" href="${href}">${text}</a>`).join("")}</nav></details>`);
     }
   }
@@ -198,11 +206,11 @@
         maxHeight: "calc(100dvh - 62px - env(safe-area-inset-top))",
         padding: "8px",
         overflowY: "auto",
-        border: "1px solid #ffffff20",
+        border: "1px solid #dfcfb4",
         borderRadius: "9px",
-        color: "#d9e5f2",
-        background: "#0d1d31",
-        boxShadow: "0 14px 36px #06122666"
+        color: "#302a22",
+        background: "#fffaf3",
+        boxShadow: "none"
       });
       if (window.matchMedia("(max-width: 760px)").matches) {
         Object.assign(compactNavigationPopover.style, {
@@ -228,8 +236,8 @@
           display: link.hidden ? "none" : "block",
           padding: "8px 10px",
           borderRadius: "7px",
-          color: link.classList.contains("active") ? "#ffffff" : "#b9c9da",
-          background: link.classList.contains("active") ? "#1f5eff" : "transparent",
+          color: link.classList.contains("active") ? "#ffffff" : "#675b4b",
+          background: link.classList.contains("active") ? "#86652f" : "transparent",
           textDecoration: "none",
           fontSize: "12px",
           fontWeight: "700"
@@ -465,15 +473,12 @@
   }
 
   function initializeChineseDateInputs() {
-    if (!document.body.matches("[data-query], [data-customer-query], [data-view]")) return;
+    if (!document.body.matches("[data-query], [data-customer-query], [data-view], [data-attendance], [data-attendance-tracking]")) return;
     const inputs = Array.from(document.querySelectorAll('input[type="date"]'));
     if (!inputs.length) return;
     const pad2 = (value) => String(value).padStart(2, "0");
     const today = new Date();
-    const currentTodayIso = () => {
-      const current = new Date();
-      return `${current.getFullYear()}-${pad2(current.getMonth() + 1)}-${pad2(current.getDate())}`;
-    };
+    const currentTodayIso = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date());
     const weekdayNames = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
     const formatVisibleDate = (value) => {
       const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);

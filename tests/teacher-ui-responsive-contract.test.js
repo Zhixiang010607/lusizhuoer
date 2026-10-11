@@ -7,6 +7,7 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 const css = read("styles.css");
+const tabletCss = read("web-tablet-parity.css");
 const management = read("teacher-management.js");
 const managementHtml = read("teacher-management.html");
 const create = read("teacher-create.js");
@@ -20,22 +21,23 @@ for (const html of [createHtml, detailHtml, read("teacher-detail.html")]) {
 }
 assert.match(managementHtml, /styles\.css\?v=0\.15\.58/, "teacher directory must refresh the horizontal phone table layout");
 assert.match(managementHtml, /<meta\s+name="viewport"/, "teacher directory must declare a mobile viewport");
-assert.match(managementHtml, /teacher-management\.js\?v=0\.14\.28/, "teacher directory behavior must be cache-busted");
+assert.match(managementHtml, /teacher-management\.js\?v=0\.14\.29/, "teacher directory behavior must be cache-busted");
 assert.match(createHtml, /teacher-create\.js\?v=0\.6\.0/, "teacher creation behavior must be cache-busted");
 assert.match(createHtml, /cloudbase-phone-auth\.js\?v=0\.20\.4/,
   "teacher creation must refresh the attendance-enrollment API wrapper");
-assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.11/, "teacher home behavior must be cache-busted");
+assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.12/, "teacher home behavior must be cache-busted");
 
-for (const label of ["老师姓名", "老师编号", "联系电话", "状态", "体验额度", "账号操作"]) {
+for (const label of ["老师姓名", "联系电话", "状态"]) {
   assert.ok(management.includes(`data-label="${label}"`), `mobile teacher cards must expose the ${label} field label`);
 }
-assert.match(management, /teacher-archive-button/, "teacher archive must use the restrained destructive action class");
-assert.match(management, /teacher-activate-button/, "teacher activation must have a distinct restorative action class");
+for (const retired of ["老师编号", "体验额度", "账号操作"]) {
+  assert.equal(management.includes(`data-label="${retired}"`), false, `teacher list must not display ${retired}`);
+}
+assert.match(tabletCss, /body\[data-management="teacher"\] \.teacher-directory-table\s*\{[\s\S]{0,180}width:\s*100% !important;[\s\S]{0,180}min-width:\s*0 !important;/,
+  "tablet Web teacher directory must use the compact three-column table");
 assert.match(management, /const authoritative = \[teacher\.account_status, teacher\.teacher_status\][\s\S]{0,260}if \(authoritative\.length\) return authoritative\.includes\("ARCHIVED"\)/, "teacher list status must prefer account and teacher master fields over a stale compatibility status");
-assert.match(management, /textContent = `\$\{action\}中…`[\s\S]{0,220}aria-busy/, "teacher status writes must expose a visible and semantic pending state");
-assert.match(management, /finally \{[\s\S]{0,160}await loadTeachers\(\)/, "teacher list must reconcile from the server even after a status request error");
-assert.match(management, /AUTH_CREDENTIAL_MISSING[\s\S]{0,120}AUTH_ACCOUNT_MISSING[\s\S]{0,320}压力测试或历史占位账号[\s\S]{0,180}安全保持封存/, "teacher list must explain that a credential-less placeholder cannot be activated");
-assert.match(management, /TEACHER_PROFILE_MISSING[\s\S]{0,260}老师资料修复迁移/, "teacher status errors must turn a missing profile code into an actionable recovery message");
+assert.doesNotMatch(management, /data-teacher-status-ref|setMasterStatus|setStaffStatus/,
+  "teacher list must keep status mutations on the teacher profile rather than duplicating them in the directory");
 assert.match(createHtml, /考勤人脸录入[\s\S]{0,900}每次打卡的现场照片不会保存/,
   "new-teacher UI must explain the attendance-only enrollment and transient clock-in photo boundary");
 assert.match(`${createHtml}\n${create}`,
@@ -88,7 +90,6 @@ assert.match(mobile, /teacher-directory-table\s*\{[\s\S]{0,180}width:\s*860px[\s
 assert.match(mobile, /teacher-directory-table colgroup\s*\{\s*display:\s*table-column-group/, "phone teacher table must retain its declared responsive column widths");
 assert.match(mobile, /teacher-directory-table tbody\s*\{\s*display:\s*table-row-group/, "phone teacher records must stay one teacher per horizontal table row");
 assert.match(mobile, /teacher-directory-table td::before\s*\{\s*display:\s*none;\s*content:\s*none/, "phone horizontal rows must not inject stacked card field labels");
-assert.match(mobile, /teacher-directory-table \.teacher-status-action\s*\{\s*width:\s*auto;\s*min-height:\s*44px/, "phone teacher account actions must stay inline while meeting the 44px touch target");
 assert.match(mobile, /body\[data-hq-create="teacher"\] \.hq-create-main,[\s\S]{0,180}width:\s*calc\(100% - 16px\)/, "teacher create and detail pages must use the phone width without horizontal overflow");
 assert.doesNotMatch(createHtml, /teacher-face-enrollment-layout/,
   "the teacher creation page must not retain the obsolete face-enrollment layout");

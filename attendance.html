@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>老师考勤打卡</title>
+  <link rel="stylesheet" href="styles.css?v=0.15.44">
+  <link rel="stylesheet" href="web-attendance.css?v=1.0.0">
+</head>
+<body data-attendance>
+  <aside class="side-project-bar" aria-label="工作区导航"><div class="side-brand"><span>勤</span><div><strong>老师工作区</strong><small>考勤打卡</small></div></div><nav class="side-nav"></nav><div class="side-footer"></div></aside>
+  <header class="topbar"><div><p class="eyebrow">ATTENDANCE</p><h1>考勤打卡</h1><p class="subtitle">每天分别完成上班和下班打卡。</p></div><div class="status"><span></span>实时定位与前置摄像头</div></header>
+  <main class="attendance-main">
+    <section class="panel"><div class="attendance-date-picker"><input id="attendanceDate" type="date" aria-label="选择考勤日期"><button id="attendanceConfirmDate" type="button">确认日期</button></div></section>
+    <section id="attendanceRecords" class="panel" aria-live="polite"><div class="empty-copy">正在读取考勤记录…</div></section>
+    <section id="attendanceAction" class="panel attendance-flow" hidden>
+      <div class="panel-heading"><div><h2 id="attendanceActionTitle">本次办理</h2><p>最终时间以服务端北京时间记录为准。</p></div><span id="attendanceActionState" class="badge">第一步</span></div>
+      <div id="attendanceStage"></div>
+      <p id="attendanceMessage" class="form-message" role="status" aria-live="polite"></p>
+    </section>
+  </main>
+  <canvas id="attendanceCanvas" hidden></canvas>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
+  <script src="cloudbase-auth-config.js"></script>
+  <script src="auth-ui.js?v=0.20.2"></script>
+  <script src="web-work-common.js?v=1.0.0"></script>
+  <script src="attendance.js?v=1.0.0"></script>
+</body>
+</html>

@@ -1,12 +1,20 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.4";
+  const VERSION = "0.15.5";
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   })[character]);
   const localDateText = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const shanghaiDate = (value) => {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return "—";
+    return new Intl.DateTimeFormat("zh-CN", {
+      timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit"
+    }).format(date);
+  };
   const stage = {
     INFORMATION_ONLY: "有信息但没有充值",
     RECHARGED_NO_CONSUMPTION: "已充值但没有消费",
@@ -267,11 +275,8 @@
       const archived = customer.customerStatus === "ARCHIVED";
       const birthday = String(customer.birthDate || "").replace(/^(\d{4})-(\d{2})-(\d{2}).*/, "$1年$2月$3日");
       const link = `customer-detail.html?customerId=${encodeURIComponent(customer.customerCode)}&customerName=${encodeURIComponent(customer.customerName)}&storeId=${encodeURIComponent(customer.storeId || "")}`;
-      return `<tr><td><a class="record-link" href="${link}">${escapeHtml(customer.customerCode)}</a></td><td>${escapeHtml(customer.customerName)}</td><td>${birthday || "—"}</td><td>${escapeHtml([customer.storeName, customer.storeCode].filter(Boolean).join(" · ") || "—")}</td><td>${escapeHtml(stage[customer.customerProcessStatus] || "—")}</td><td>${Number(customer.totalRechargeCount || 0)}</td><td>${Number(customer.totalVerificationCount || 0)}</td><td><span class="record-status ${archived ? "status-已作废" : "status-正常"}">${archived ? "封存" : "活跃"}</span></td><td><button class="archive-customer-button" data-code="${escapeHtml(customer.customerCode)}" data-status="${customer.customerStatus}">${archived ? "恢复为活跃" : "封存客户"}</button></td></tr>`;
-    }).join("") || '<tr><td colspan="9" class="query-empty">没有符合条件的客户</td></tr>';
-    document.querySelectorAll("[data-code]").forEach((button) => {
-      button.onclick = () => openStatus(button.dataset.code, button.dataset.status);
-    });
+      return `<tr><td><a class="record-link" href="${link}">${escapeHtml(customer.customerName)}</a></td><td>${Number(customer.totalRechargeCount || 0)}</td><td>${Number(customer.totalVerificationCount || 0)}</td><td>${escapeHtml(customer.storeName || "—")}</td><td>${birthday || "—"}</td><td>${escapeHtml(stage[customer.customerProcessStatus] || "—")}</td><td>${escapeHtml(shanghaiDate(customer.createdAt))}</td><td><span class="record-status ${archived ? "status-已作废" : "status-正常"}">${archived ? "封存" : "活跃"}</span></td></tr>`;
+    }).join("") || '<tr><td colspan="8" class="query-empty">没有符合条件的客户</td></tr>';
 
     const total = selectedTotal();
     $("customerSummary").textContent = `当前条件 ${total} 位；本页 ${rows.length} 位；活跃 ${Number(summary.active || 0)} 位，封存 ${Number(summary.archived || 0)} 位`;
@@ -311,7 +316,7 @@
     isPageLoading = true;
     const currentScope = scopeLabel();
     notice(`正在从数据库读取${currentScope}客户…`);
-    $("customerQueryBody").innerHTML = `<tr><td colspan="9" class="query-empty">正在从数据库读取${escapeHtml(currentScope)}客户…</td></tr>`;
+    $("customerQueryBody").innerHTML = `<tr><td colspan="8" class="query-empty">正在从数据库读取${escapeHtml(currentScope)}客户…</td></tr>`;
     $("runCustomerQuery").disabled = true;
     updateCustomerPager();
     try {
@@ -333,7 +338,7 @@
       hasMore = false;
       nextCursor = null;
       $("customerSummary").textContent = "数据库读取失败";
-      $("customerQueryBody").innerHTML = `<tr><td colspan="9" class="query-empty">${escapeHtml(error.message)}</td></tr>`;
+      $("customerQueryBody").innerHTML = `<tr><td colspan="8" class="query-empty">${escapeHtml(error.message)}</td></tr>`;
       $("customerCategoryGrid").innerHTML = "";
       updateCustomerPager();
       notice(error.message || "数据库读取失败", true);
@@ -423,7 +428,7 @@
     $("customerStoreScope").hidden = false;
     $("customerBrowseTitle").textContent = "筛选全部门店或指定门店的客户";
     $("customerPermissionTitle").textContent = "总部权限";
-    $("customerPermissionText").textContent = "可查看全部门店或指定门店客户，并将客户档案存档或恢复为活跃。";
+    $("customerPermissionText").textContent = "可查看全部门店或指定门店客户；点击客户姓名进入主页后查看详情及办理状态操作。";
   }
 
   function bindEvents() {

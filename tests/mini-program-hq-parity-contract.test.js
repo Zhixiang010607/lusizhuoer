@@ -274,5 +274,6 @@ test("mini internal palette is isolated warm ivory, champagne gold, and espresso
   for (const route of ["pages/store-create/index", "pages/store-detail/index", "pages/teacher-create/index", "pages/teacher-detail/index"]) assert.ok(registeredPages.includes(route));
   assert.ok(registeredPages.includes("pages/reviews/index"));
   assert.match(context, /不得恢复旧版高饱和蓝色工作台主题/);
-  assert.match(context, /只修改小程序 WXML／WXSS，不反向覆盖网页版客户端样式/);
+  assert.match(context, /网页版也采用同一套平板横屏视觉与功能信息架构/);
+  assert.match(context, /不得跨目录运行时引用/);
 });

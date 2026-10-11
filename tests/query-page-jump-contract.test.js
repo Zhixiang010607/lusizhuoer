@@ -21,7 +21,7 @@ for (const page of ["recharge-query.html", "verification-query.html"]) {
 const customerPage = read("customer-query.html");
 assert.match(customerPage, /id="customerPageJumpInput"[^>]*type="number"[^>]*min="1"[^>]*step="1"/, "customer query exposes a positive-integer page input");
 assert.match(customerPage, /id="customerPageJumpButton"[^>]*>跳转<\//, "customer query exposes an explicit page-jump action");
-assert.match(customerPage, /customer-query\.js\?v=0\.15\.4/, "customer query busts its script cache");
+assert.match(customerPage, /customer-query\.js\?v=0\.15\.5/, "customer query busts its script cache");
 assert.match(customerPage, /styles\.css\?v=0\.15\.48/, "customer query busts the pager-style cache");
 
 for (const [source, prefix] of [[recordQuery, "Record"], [customerQuery, "Customer"]]) {

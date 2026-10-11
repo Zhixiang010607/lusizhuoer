@@ -224,13 +224,11 @@ assert.doesNotMatch(teacherCreateService,
 assert.doesNotMatch(`${staff}\n${faceService || ""}`, /teacher_face_operations|upsertDelegatedTeacherFace|delegateTeacherFace/,
   "retired staff/face services must not retain the Saga implementation");
 
-// A mobile directory must not hide these same actions behind a fixed-height
-// pane; responsive specifics live in the UI-agent contract, while this check
-// keeps the business row wired to the action buttons.
-const directoryStatusAction = jsBetween(managementUi, "async function toggleTeacherStatus", "document.addEventListener");
-assert.match(directoryStatusAction, /window\.CloudBasePhoneAuth\.setMasterStatus\(\{ teacherId, status: next \}\)/,
-  "directory archive/restore must prefer the teacher-master status route");
-assert.match(directoryStatusAction, /window\.CloudBasePhoneAuth\.setStaffStatus\(\{[\s\S]{0,180}uid: String\(teacher\.auth_uid \|\| ""\), phone: teacherPhone\(teacher\), status: next/,
-  "directory archive/restore must retain the legacy account route for historical rows");
+// The compact directory is read-only. Account status changes remain on the
+// teacher profile, where the full context and authoritative readback are shown.
+assert.doesNotMatch(managementUi, /data-teacher-status-ref|setMasterStatus|setStaffStatus/,
+  "directory rows must link to the teacher profile instead of duplicating status mutations");
+assert.match(managementUi, /staff-detail\.html\?role=teacher&id=/,
+  "every resolvable teacher row must enter the profile that owns status actions");
 
 console.log("teacher profile/quota repair contract: PASS");

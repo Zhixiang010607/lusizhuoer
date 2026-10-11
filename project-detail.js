@@ -240,10 +240,7 @@
       target.replaceChildren(image);
     }
     const meta = selectedLogoMeta || template?.logo;
-    $("productLogoMeta").textContent = meta
-      ? `${meta.originalName || "LOGO"} · ${formatBytes(meta.bytes)} · ${meta.width} × ${meta.height}`
-      : "尚未上传";
-    $("uploadProductLogo").disabled = localPreviewMode || !(selectedLogo && selectedLogoMeta);
+    $("productLogoMeta").textContent = meta ? "图片已就绪" : "尚未上传";
     $("removeProductLogo").disabled = localPreviewMode || !template?.logo;
   }
 
@@ -261,7 +258,7 @@
   function renderTemplate() {
     $("productTemplateType").textContent = template.productType || "未分类";
     $("productTemplateName").textContent = template.productName || "项目单据模板";
-    $("productTemplateMeta").textContent = `${template.productCode || "未编号"} · ${template.productStatus === "ARCHIVED" ? "封存" : "活跃"} · 模板更新：${formatTime(template.updatedAt)}${template.updatedByName ? ` · ${template.updatedByName}` : ""}`;
+    $("productTemplateMeta").textContent = `${template.productStatus === "ARCHIVED" ? "封存" : "活跃"} · 模板更新：${formatTime(template.updatedAt)}${template.updatedByName ? ` · ${template.updatedByName}` : ""}`;
     const ready = Boolean(template.logo && template.verificationInstructions && template.rechargeInstructions);
     $("productTemplateState").textContent = ready ? "模板已配置" : "模板待配置";
     $("productTemplateState").classList.toggle("is-ready", ready);
@@ -402,8 +399,9 @@
     selectedLogo = file;
     selectedLogoMeta = { originalName: file.name, mimeType: file.type, bytes: file.size, ...dimensions };
     renderLogo();
-    setMessage("已选择原图，点击“上传并保存”。");
+    setMessage("已选择原图，正在上传并保存…");
     void renderPreview();
+    await uploadLogo();
   }
 
   function uploadToSignedUrl(upload, file) {
@@ -457,8 +455,8 @@
       return;
     }
     if (!selectedLogo || !selectedLogoMeta) return;
-    $("uploadProductLogo").disabled = true;
     $("chooseProductLogo").disabled = true;
+    $("removeProductLogo").disabled = true;
     $("productLogoProgress").hidden = false;
     $("productLogoProgress").value = 0;
     setMessage("正在取得私有存储上传地址…");
@@ -503,6 +501,7 @@
     } finally {
       $("chooseProductLogo").disabled = false;
       $("productLogoProgress").hidden = true;
+      renderLogo();
     }
   }
 
@@ -619,7 +618,6 @@
   }));
   $("chooseProductLogo").addEventListener("click", () => $("productLogoFile").click());
   $("productLogoFile").addEventListener("change", (event) => selectLogo(event.target.files?.[0]).catch((error) => setMessage(error.message, "error")));
-  $("uploadProductLogo").addEventListener("click", uploadLogo);
   $("removeProductLogo").addEventListener("click", removeLogo);
   $("saveProductTemplate").addEventListener("click", saveInstructions);
   $("toggleProductStatus").addEventListener("click", toggleStatus);

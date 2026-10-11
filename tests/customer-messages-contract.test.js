@@ -51,8 +51,8 @@ assert.ok(notesIndex >= 0 && notesIndex < messagesIndex && messagesIndex < proje
 assert.match(html, /class="customer-notes-messages-grid"[\s\S]*class="panel customer-notes-panel"[\s\S]*id="customerMessagesPanel"/, "notes and messages must share one responsive grid");
 assert.match(html, /id="customerMessageInput"[^>]*maxlength="100"/);
 assert.match(html, /id="customerMessageList"[^>]*tabindex="0"/);
-assert.match(html, /customer-profile\.js\?v=0\.15\.16/);
-assert.match(html, /auth-ui\.js\?v=0\.19\.9/);
+assert.match(html, /customer-profile\.js\?v=0\.15\.17/);
+assert.match(html, /auth-ui\.js\?v=0\.20\.2/);
 
 assert.match(ui, /hq:"总部", store:"门店", teacher:"老师"/);
 assert.match(ui, /年\$\{match\[2\]\}月\$\{match\[3\]\}日 \$\{match\[4\]\}:\$\{match\[5\]\}:\$\{match\[6\]\}/);

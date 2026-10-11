@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>本地网页回归入口</title></head>
+<body>
+  <p>正在建立本地网页回归会话…</p>
+  <script>
+    (() => {
+      if (!["127.0.0.1", "localhost"].includes(location.hostname)) {
+        location.replace("../login.html");
+        return;
+      }
+      const params = new URLSearchParams(location.search);
+      const role = ["hq", "store", "teacher"].includes(params.get("role")) ? params.get("role") : "hq";
+      const target = String(params.get("target") || (role === "hq" ? "index.html" : role === "store" ? "store-detail.html" : "teacher-work-orders.html"));
+      if (!/^[a-z0-9-]+\.html(?:\?[^#]*)?(?:#.*)?$/i.test(target)) throw new Error("无效的本地回归目标页");
+      sessionStorage.setItem("prototypeSession", JSON.stringify({
+        role,
+        account: `local-${role}-preview`,
+        name: "本地页面回归",
+        store: role === "store" ? "S001" : "",
+        cloudbaseUserId: `local-${role}-preview`
+      }));
+      location.replace(`../${target}`);
+    })();
+  </script>
+</body>
+</html>

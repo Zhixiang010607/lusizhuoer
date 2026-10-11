@@ -21,6 +21,11 @@ const miniReceipt = read("miniprogram-app/miniprogram/services/order-receipt.js"
 const businessDetail = read("business-detail.js");
 const phoneAuth = read("cloudbase-phone-auth.js");
 
+assert.match(detailHtml, /选择或替换图片/);
+assert.match(detailHtml, /移除图片/);
+assert.doesNotMatch(detailHtml, /id="uploadProductLogo"|上传并保存/);
+assert.match(detailUi, /await uploadLogo\(\)/, "selecting a Web logo uploads it immediately");
+
 function functionSource(source, name) {
   const marker = new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\(`);
   const match = marker.exec(source);
@@ -410,13 +415,14 @@ assert.ok(detailUi.includes('setTemplateControlsReady(false);'), "load failure k
 assert.ok(detailUi.includes("assertTemplateRoundTrip(saved"), "save response must match the current product and submitted instructions");
 assert.ok(detailUi.includes("const reread = await window.CloudBasePhoneAuth.getProductReceiptTemplate"), "save success requires an independent database reread");
 assert.ok(detailUi.includes("已保存并从数据库复核"), "success message states that persistence was verified");
-assert.ok(detailUi.includes('`${template.productCode || "未编号"} ·'), "the editor always identifies which product owns the template");
+assert.ok(detailUi.includes('$("productTemplateName").textContent = template.productName'), "the editor identifies the template owner by its visible project name");
+assert.ok(!detailUi.includes('$("productTemplateMeta").textContent = `${template.productCode'), "the editor does not expose the internal project code in its summary");
 assert.ok(detailUi.includes("if (previewQueued) void renderPreview()"), "a save cannot lose its preview refresh behind an older render");
 assert.ok(detailUi.includes("模板文字已读取；LOGO 原图暂时不可用"), "a logo outage keeps persisted template text visible and editable");
 assert.ok(detailUi.includes("void reloadTemplateLogo({ automatic: true })"), "a failed logo read schedules one bounded background retry");
 assert.ok(detailUi.includes("template?.logo && !(logoBlob instanceof Blob)"), "the existing refresh control retries a missing logo instead of only rerendering the placeholder");
 assert.ok(detailHtml.includes('cloudbase-phone-auth.js?v=0.20.4'), "template page loads the current shared auth API cache key");
-assert.ok(detailHtml.includes('project-detail.js?v=0.2.6'), "template page busts the line-preserving editor script cache");
+assert.ok(detailHtml.includes('project-detail.js?v=0.2.7'), "template page busts the immediate-upload editor script cache");
 
 assert.ok(exporter.includes("drawDocumentHeader(context, documentData, productLogo"), "receipts place the square product logo in the header");
 assert.ok(!exporter.includes("drawProductBranding"), "receipts remove the duplicated large logo section");

@@ -26,7 +26,7 @@ assert.match(css, /\.customer-notes-title-row \{[^}]*display: flex;[^}]*align-it
 assert.match(html, /class="customer-notes-messages-grid"[\s\S]*customer-notes-panel[\s\S]*customer-messages-panel/, "customer notes and messages must share the same layout row");
 assert.match(ui, /action:"updateCustomerNotes"/, "customer notes must save through the database service");
 assert.match(ui, /const canEditNotes = \["hq", "store", "teacher"\]/, "HQ, store and teacher may edit customer notes");
-assert.match(html, /customer-profile\.js\?v=0\.15\.16/, "customer business-history display must bust the profile script cache");
+assert.match(html, /customer-profile\.js\?v=0\.15\.17/, "customer business-history display must bust the profile script cache");
 assert.match(html, /id="customerRefundRecords"/, "refund records must have an independent customer-profile table");
 assert.match(html, /id="customerProductPurchaseRecords"/, "product purchases must have an independent customer-profile table");
 assert.match(ui, /EXPERIENCE:\s*\{ hasMore:false/, "experience records must paginate independently");
@@ -39,7 +39,8 @@ assert.match(cloud, /r\.recharge_type = '\$\{refundOnly \? "REFUND" : "NEW"\}'/,
 assert.equal((html.match(/<th>业务老师<\/th>/g) || []).length, 5, "all five customer histories must display a business-teacher column");
 assert.match(cloud, /function mapCustomerProductPurchases\(rows\)/);
 assert.match(cloud, /FROM public\.retail_product_purchase_records purchase[\s\S]*purchase\.customer_id/);
-assert.match(ui, /function businessTeacher\(row\)[\s\S]*row\?\.teacherName[\s\S]*row\?\.teacherCode/, "customer histories must render only the server-provided business teacher");
+assert.match(ui, /function businessTeacher\(row\)[\s\S]*row\?\.teacherName/, "customer histories must render the server-provided business teacher name");
+assert.doesNotMatch(ui, /function businessTeacher\(row\)[\s\S]{0,240}teacherCode/, "customer histories must not expose the internal teacher code");
 assert.match(cloud, /LEFT JOIN public\.teachers business_teacher[\s\S]*business_teacher\.id = r\.teacher_id/, "recharge history must display the teacher selected on the order");
 assert.match(cloud, /LEFT JOIN public\.teachers business_teacher[\s\S]*business_teacher\.id = v\.teacher_id/, "verification and experience history must display the teacher selected on the order");
 assert.doesNotMatch(cloud, /business_teacher\.staff_account_id = [rv]\.submitted_by_account_id/, "store-submitted orders must not hide their selected business teacher");
