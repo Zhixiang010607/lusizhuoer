@@ -77,6 +77,9 @@ body:not(.login-page) {
   font-size: 14px;
   line-height: 1.55;
 }
+body:not(.login-page) *,
+body:not(.login-page) *::before,
+body:not(.login-page) *::after { box-sizing: border-box; }
 
 /* The existing permission script still owns all links; CSS only changes its layout. */
 .side-project-bar {
@@ -240,18 +243,22 @@ body[data-teacher-workspace] .teacher-workspace-main,
   padding: 0 !important;
   overflow: visible !important;
 }
+main > * { min-width: 0 !important; }
 
 .panel, .chart-card, .table-card, .metric-card, .customer-category-card,
 .teacher-profile-card, .teacher-quota-card, .teacher-config-row,
 .store-card, .project-card, .product-card, dialog {
+  min-width: 0 !important;
+  max-width: 100% !important;
   color: var(--ink) !important;
   background: var(--surface) !important;
   border: 1px solid var(--line) !important;
   border-radius: 18px !important;
   box-shadow: none !important;
 }
-.panel, .chart-card, .table-card { padding: 20px !important; }
-.panel-heading { gap: 12px !important; margin-bottom: 14px !important; }
+.panel, .chart-card, .table-card { padding: 16px !important; }
+.panel > *, .chart-card > *, .table-card > * { min-width: 0; }
+.panel-heading { gap: 12px !important; margin-bottom: 10px !important; }
 .panel-heading h2 { color: var(--ink) !important; font-size: 20px !important; line-height: 1.3; }
 .panel-heading p { color: var(--muted) !important; font-size: 13px !important; }
 .badge, .pill, .status-badge, .state-badge {
@@ -315,8 +322,8 @@ body[data-management="teacher"] .teacher-directory-table th { white-space: norma
 .product-logo-actions {
   display: grid !important;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, .8fr) !important;
-  gap: 8px !important;
-  padding: 5px !important;
+  gap: 12px !important;
+  padding: 6px !important;
   background: #f4ead9 !important;
   border-radius: 12px !important;
 }
@@ -414,31 +421,81 @@ body[data-view="global"] .hq-project-summary-row > :first-child {
 
 /* Every neighbouring action must remain visually separate on the Web canvas. */
 .review-query-mode {
-  gap: 8px !important;
-  padding: 5px !important;
+  gap: 12px !important;
+  padding: 6px !important;
 }
 .person-create-section > .camera-actions {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  gap: 10px !important;
+  gap: 12px !important;
   margin-top: 12px !important;
 }
 .person-create-section > .camera-actions > button { width: 100% !important; }
 .product-preview-tabs {
-  gap: 8px !important;
+  gap: 12px !important;
   padding: 6px !important;
 }
 .review-filter-fields {
   display: grid !important;
-  grid-template-columns: minmax(170px, 1fr) minmax(150px, .8fr) minmax(220px, 1.2fr) auto auto !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, .8fr) minmax(0, 1.2fr) minmax(96px, .55fr) minmax(96px, .55fr) !important;
   align-items: end !important;
-  gap: 10px !important;
-}
-.review-toolbar,
-.review-filters {
-  display: grid !important;
   gap: 14px !important;
 }
+.review-filter-fields > *,
+.review-filter-row > *,
+.review-code-panel > * { min-width: 0 !important; }
+.review-toolbar {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  grid-template-areas: "mode mode" "query count" !important;
+  align-items: end !important;
+  gap: 12px 16px !important;
+  padding: 16px 18px !important;
+}
+.review-toolbar .review-query-mode { grid-area: mode !important; }
+.review-toolbar .review-query-panel {
+  grid-area: query !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  justify-self: stretch !important;
+}
+.review-toolbar .review-count { grid-area: count !important; }
+body[data-review] main,
+.review-main {
+  display: grid !important;
+  gap: 16px !important;
+  align-content: start !important;
+}
+body[data-review="recharge"] .review-filter-row,
+body[data-review="refund"] .review-filter-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(150px, .85fr) !important;
+}
+body[data-review="verification"] .review-filter-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(140px, .75fr) !important;
+}
+.review-filter-row,
+.review-code-panel { gap: 14px !important; }
+.review-filters {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: end !important;
+  gap: 16px !important;
+  padding: 16px 18px !important;
+}
+.review-toolbar label,
+.review-filters label { font-size: 13px !important; line-height: 1.35 !important; }
+.review-toolbar input,
+.review-toolbar select,
+.review-filters input,
+.review-filters select {
+  height: 44px !important;
+  min-height: 44px !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+}
+.review-toolbar button,
+.review-filters button { min-height: 44px !important; font-size: 14px !important; }
 .review-count {
   width: fit-content !important;
   max-width: 100% !important;
@@ -446,7 +503,7 @@ body[data-view="global"] .hq-project-summary-row > :first-child {
   min-height: 38px !important;
   justify-self: end !important;
   align-items: center !important;
-  margin-top: 4px !important;
+  margin: 0 !important;
   padding: 7px 14px !important;
   color: #74592d !important;
   background: #f4e7d0 !important;
@@ -457,6 +514,19 @@ body[data-view="global"] .hq-project-summary-row > :first-child {
   text-align: center !important;
 }
 .review-count strong { color: #6f532e !important; font-size: 16px !important; }
+.review-table { margin: 0 !important; }
+.review-table { min-width: 0 !important; overflow: hidden !important; }
+.review-table .table-scroll {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  overscroll-behavior-x: contain !important;
+  -webkit-overflow-scrolling: touch;
+}
+.review-table table { width: max-content !important; min-width: 100% !important; }
+.review-table th,
+.review-table td { white-space: nowrap !important; }
+.query-empty { padding: 24px 16px !important; }
 
 /* Runtime messages may add lines; the Web page must grow and remain scrollable. */
 .workflow-capture-panel { overflow: visible !important; }
@@ -530,6 +600,13 @@ body.login-page .login-shell {
   th, td { padding: 10px 8px !important; }
   .review-filter-fields { grid-template-columns: 1fr 1fr !important; }
   .review-filter-fields > label { grid-column: 1 / -1; }
+  .review-toolbar {
+    grid-template-columns: 1fr !important;
+    grid-template-areas: "mode" "query" "count" !important;
+  }
+  .review-filters { grid-template-columns: 1fr !important; }
+  .review-toolbar .review-count,
+  .review-filters .review-count { justify-self: end !important; }
   body[data-customer-query] .customer-query-methods { grid-template-columns: 1fr !important; }
 }
 

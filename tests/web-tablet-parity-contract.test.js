@@ -30,7 +30,7 @@ test("Web uses the warm tablet visual language without importing Mini Program so
   for (const color of ["#f3ede2", "#fffaf3", "#6f532e", "#a98243", "#302a22", "#2f2921"]) assert.match(theme, new RegExp(color, "i"));
   assert.match(theme, /width: min\(1120px/);
   assert.match(theme, /\.side-project-bar[\s\S]*position: sticky/);
-  assert.match(auth, /web-tablet-parity\.css\?v=1\.0\.7/);
+  assert.match(auth, /web-tablet-parity\.css\?v=1\.0\.8/);
   assert.match(theme, /button, \.button-link,[\s\S]{0,220}min-height: 44px !important;[\s\S]{0,220}text-align: center !important;/);
   assert.doesNotMatch(`${theme}\n${auth}`, /miniprogram-app|\.wxss|\.wxml/);
   assert.match(context, /网页版也采用同一套平板横屏视觉与功能信息架构/);
@@ -38,8 +38,8 @@ test("Web uses the warm tablet visual language without importing Mini Program so
 });
 
 test("public login and rating pages load the current tablet stylesheet", () => {
-  assert.match(login, /web-tablet-parity\.css\?v=1\.0\.7/);
-  assert.match(rating, /web-tablet-parity\.css\?v=1\.0\.7/);
+  assert.match(login, /web-tablet-parity\.css\?v=1\.0\.8/);
+  assert.match(rating, /web-tablet-parity\.css\?v=1\.0\.8/);
   assert.match(theme, /body\.login-page \.password-field button[\s\S]{0,220}min-height: 32px !important;[\s\S]{0,220}transform: translateY\(-50%\)/);
   assert.match(theme, /body\.login-page \.login-shell[\s\S]{0,160}width: min\(590px, calc\(100% - 32px\)\) !important;[\s\S]{0,120}max-width: 590px !important;/);
   assert.match(theme, /@media \(max-width: 600px\)[\s\S]*body\.login-page \.login-shell[\s\S]{0,120}width: 100% !important;/);
@@ -47,17 +47,27 @@ test("public login and rating pages load the current tablet stylesheet", () => {
 
 test("neighbouring Web actions keep a visible gap instead of sticking together", () => {
   for (const selector of ["review-query-mode", "camera-actions", "product-preview-tabs", "review-filter-fields"]) {
-    assert.match(theme, new RegExp(`\\.${selector}[\\s\\S]{0,260}gap: (?:8|10)px !important;`));
+    assert.match(theme, new RegExp(`\\.${selector}[\\s\\S]{0,260}gap: (?:12|14)px !important;`));
   }
   assert.match(theme, /\.product-logo-actions[\s\S]{0,180}grid-template-columns: minmax\(0, 1\.4fr\) minmax\(0, \.8fr\) !important;/);
   assert.match(theme, /\.product-logo-actions > button \{ padding-inline: 10px !important;/);
   assert.match(theme, /\.workflow-capture-panel \{ overflow: visible !important; \}/);
   assert.match(theme, /\.dashboard-ranking-controls:empty \{ display: none !important; \}/);
+  assert.match(theme, /body\[data-review\] main,[\s\S]{0,120}\.review-main \{[\s\S]{0,120}gap: 16px !important;/);
+  assert.match(theme, /body:not\(\.login-page\) \*,[\s\S]{0,150}box-sizing: border-box;/);
+  assert.match(theme, /\.panel, \.chart-card, \.table-card,[\s\S]{0,240}min-width: 0 !important;[\s\S]{0,80}max-width: 100% !important;/);
 });
 
 test("review result counts use a separated warm compact badge", () => {
-  assert.match(theme, /\.review-toolbar,[\s\S]{0,80}\.review-filters \{[\s\S]{0,100}gap: 14px !important;/);
-  assert.match(theme, /\.review-count \{[\s\S]{0,520}justify-self: end !important;[\s\S]{0,260}margin-top: 4px !important;[\s\S]{0,260}background: #f4e7d0 !important;[\s\S]{0,180}border: 1px solid #dfcfb4 !important;/);
+  assert.match(theme, /\.review-toolbar \{[\s\S]{0,260}grid-template-areas: "mode mode" "query count" !important;[\s\S]{0,180}gap: 12px 16px !important;[\s\S]{0,100}padding: 16px 18px !important;/);
+  assert.match(theme, /\.review-filters \{[\s\S]{0,180}grid-template-columns: minmax\(0, 1fr\) auto !important;[\s\S]{0,140}gap: 16px !important;/);
+  assert.match(theme, /body\[data-review="recharge"\] \.review-filter-row,[\s\S]{0,120}grid-template-columns: repeat\(2, minmax\(0, 1fr\)\) minmax\(150px, \.85fr\) !important;/);
+  assert.match(theme, /\.review-count \{[\s\S]{0,520}justify-self: end !important;[\s\S]{0,260}margin: 0 !important;[\s\S]{0,260}background: #f4e7d0 !important;[\s\S]{0,180}border: 1px solid #dfcfb4 !important;/);
+  assert.match(theme, /\.review-table \{ margin: 0 !important; \}/);
+  assert.match(theme, /\.review-table \.table-scroll \{[\s\S]{0,180}overflow-x: auto !important;/);
+  assert.match(theme, /\.review-table table \{ width: max-content !important; min-width: 100% !important; \}/);
+  assert.match(theme, /\.review-table th,[\s\S]{0,50}\.review-table td \{ white-space: nowrap !important; \}/);
+  assert.match(theme, /\.query-empty \{ padding: 24px 16px !important; \}/);
   assert.doesNotMatch(theme.match(/\.review-count \{[\s\S]*?\}/)?.[0] || "", /#f4f7fa|#edf|#eef/);
 });
 

@@ -32,7 +32,7 @@ test("three Web operational pages use the shared responsive implementation", () 
   for (const [file, scope] of [["inactive-customers.html", "inactive"], ["low-balance-customers.html", "balance"], ["rating-analysis.html", "rating"]]) {
     const html = read(file);
     assert.match(html, new RegExp(`data-operation-metric="${scope}"`));
-    assert.match(html, /operational-metrics\.css\?v=1\.0\.0/);
+    assert.match(html, /operational-metrics\.css\?v=1\.0\.1/);
     assert.match(html, /operational-metrics\.js\?v=1\.0\.0/);
     assert.match(html, /auth-ui\.js\?v=0\.20\.9/);
     assert.match(html, /id="operationsPrint"/);
@@ -40,6 +40,12 @@ test("three Web operational pages use the shared responsive implementation", () 
     assert.match(html, /打印 \/ PDF/);
   }
   assert.match(css, /.operations-filter-grid[\s\S]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(css, /body\[data-operation-metric="inactive"\] \.operations-filter-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\) minmax\(250px, 1fr\); \}/);
+  assert.match(css, /body\[data-operation-metric="balance"\] \.operations-filter-grid \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\) minmax\(250px, 1fr\); \}/);
+  assert.match(css, /body\[data-operation-metric="inactive"\] \.operations-filter-grid input,[\s\S]*height: 44px;[\s\S]*margin-top: 0;[\s\S]*font-size: 14px;/);
+  assert.match(css, /\.operations-filter-grid > \* \{ min-width: 0; \}/);
+  assert.match(css, /\.operations-filter-actions \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); gap: 12px;/);
+  assert.match(css, /\.operations-empty \{ min-height: 72px;[\s\S]{0,100}padding: 14px;/);
   assert.match(css, /.operations-table-scroll[\s\S]*overflow: auto/);
   assert.match(css, /@media \(max-width: 620px\)/);
 });
