@@ -56,6 +56,19 @@ body.login-page .login-options a {
   color: #79592d !important;
 }
 body.login-page .login-options input { accent-color: #79592d !important; }
+body.login-page .password-field button {
+  top: 50% !important;
+  right: 4px !important;
+  min-height: 32px !important;
+  height: 32px !important;
+  padding: 0 10px !important;
+  transform: translateY(-50%);
+  border-radius: 8px !important;
+  font-size: 11px !important;
+  white-space: nowrap;
+}
+body.login-page #smsLoginField .password-field input,
+body.login-page #passwordResetForm .password-field input { padding-right: 100px !important; }
 body:not(.login-page) {
   min-width: 0;
   padding: 0 !important;
