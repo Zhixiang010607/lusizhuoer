@@ -586,6 +586,30 @@
       const data = await callStaffAccount({ action: "listRetailProducts" }, "产品列表读取失败");
       return data.products || [];
     },
+    async listTrainingMaterials({ keyword = "" } = {}) {
+      return callStaffAccount({ action: "listTrainingMaterials", keyword }, "培训资料读取失败");
+    },
+    async beginTrainingMaterialUpload({ clientRequestId, title, category = "", originalName, mimeType, bytes }) {
+      return callStaffAccount(
+        { action: "beginTrainingMaterialUpload", clientRequestId, title, category, originalName, mimeType, bytes },
+        "培训资料上传准备失败"
+      );
+    },
+    async confirmTrainingMaterialUpload({ clientRequestId, title, category = "", originalName, mimeType, bytes, reference }) {
+      return callStaffAccount(
+        { action: "confirmTrainingMaterialUpload", clientRequestId, title, category, originalName, mimeType, bytes, reference },
+        "培训资料发布确认失败"
+      );
+    },
+    async discardTrainingMaterialUpload({ reference }) {
+      return callStaffAccount({ action: "discardTrainingMaterialUpload", reference }, "培训资料临时文件清理失败");
+    },
+    async setTrainingMaterialStatus({ materialId, status }) {
+      return callStaffAccount({ action: "setTrainingMaterialStatus", materialId, status }, "培训资料状态更新失败");
+    },
+    async getTrainingMaterialAccess({ materialId }) {
+      return callStaffAccount({ action: "getTrainingMaterialAccess", materialId }, "培训资料阅读地址获取失败");
+    },
     async createRetailProduct({ productName, clientRequestId = "" }) {
       return callStaffAccount(
         { action: "createRetailProduct", productName, clientRequestId },

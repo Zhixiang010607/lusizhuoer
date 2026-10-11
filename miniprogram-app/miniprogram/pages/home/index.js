@@ -135,7 +135,7 @@ function hqRangePayload(period, range) {
 Page({
   data: {
     session: {}, roleTitle: "", roleSubtitle: "", loading: true, message: "", error: false,
-    overviewMenuOpen: false, businessMenuOpen: false, queryMenuOpen: false, coreMetricsMenuOpen: false, managementMenuOpen: false, reviewMenuOpen: false,
+    overviewMenuOpen: false, businessMenuOpen: false, learningMenuOpen: false, queryMenuOpen: false, coreMetricsMenuOpen: false, managementMenuOpen: false, reviewMenuOpen: false,
     rangePreset: "TODAY", rangeOptions: readyRangeOptions("TODAY"),
     rangeMoreOptions: dashboard.RANGE_OPTIONS.slice(3), rangeMoreIndex: 0, rangeMoreLabel: "更多", rangeStart: "", rangeEnd: "",
     rangeLabel: "今天", customRangeVisible: false,
@@ -562,7 +562,7 @@ Page({
   },
 
   closeMenus(changes = {}) {
-    this.setData({ overviewMenuOpen: false, businessMenuOpen: false, queryMenuOpen: false, coreMetricsMenuOpen: false, managementMenuOpen: false, reviewMenuOpen: false, ...changes });
+    this.setData({ overviewMenuOpen: false, businessMenuOpen: false, learningMenuOpen: false, queryMenuOpen: false, coreMetricsMenuOpen: false, managementMenuOpen: false, reviewMenuOpen: false, ...changes });
   },
   toggleOverviewMenu() {
     if (this.data.session.role === "teacher") this.closeMenus({ overviewMenuOpen: !this.data.overviewMenuOpen });
@@ -583,7 +583,15 @@ Page({
     this.closeMenus();
     wx.navigateTo({ url: "/pages/work-calendar/index?mode=attendance" });
   },
+  openTrainingMaterials() {
+    if (!["hq", "teacher"].includes(String(this.data.session?.role || ""))) return;
+    this.closeMenus();
+    wx.navigateTo({ url: "/pages/training-materials/index" });
+  },
   toggleBusinessMenu() { this.closeMenus({ businessMenuOpen: !this.data.businessMenuOpen }); },
+  toggleLearningMenu() {
+    if (this.data.session.role === "teacher") this.closeMenus({ learningMenuOpen: !this.data.learningMenuOpen });
+  },
   toggleQueryMenu() { this.closeMenus({ queryMenuOpen: !this.data.queryMenuOpen }); },
   toggleCoreMetricsMenu() { this.closeMenus({ coreMetricsMenuOpen: !this.data.coreMetricsMenuOpen }); },
   toggleManagementMenu() { this.closeMenus({ managementMenuOpen: !this.data.managementMenuOpen }); },

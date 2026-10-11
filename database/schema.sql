@@ -105,6 +105,26 @@ CREATE TABLE IF NOT EXISTS public.products (
 
 CREATE INDEX IF NOT EXISTS idx_product_status ON public.products (product_status);
 
+CREATE TABLE IF NOT EXISTS public.training_materials (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  title VARCHAR(160) NOT NULL CHECK (BTRIM(title) <> ''),
+  category VARCHAR(80) NOT NULL DEFAULT '',
+  file_reference VARCHAR(768) NOT NULL UNIQUE CHECK (file_reference LIKE 'pg://%'),
+  original_file_name VARCHAR(255) NOT NULL CHECK (BTRIM(original_file_name) <> ''),
+  file_bytes BIGINT NOT NULL CONSTRAINT training_materials_file_bytes_check
+    CHECK (file_bytes BETWEEN 8 AND 104857600),
+  client_request_id VARCHAR(64) NOT NULL UNIQUE,
+  material_status VARCHAR(16) NOT NULL DEFAULT 'PUBLISHED'
+    CHECK (material_status IN ('PUBLISHED', 'ARCHIVED')),
+  created_by_staff_account_id BIGINT NOT NULL REFERENCES public.staff_accounts(id),
+  published_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_training_materials_status_time
+  ON public.training_materials (material_status, published_at DESC, id DESC);
+
 CREATE TABLE IF NOT EXISTS public.customers (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   customer_code VARCHAR(32) NOT NULL UNIQUE,
@@ -183,6 +203,7 @@ ALTER TABLE public.stores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.staff_store_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.teachers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.training_materials ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recharge_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.verification_records ENABLE ROW LEVEL SECURITY;

@@ -45,6 +45,28 @@ available:
 A source push does not mean that SQL, cloud functions, static hosting, or a
 mini-program release has been deployed. Report each deployment state separately.
 
+# Production database backup rule
+
+Treat every production database row and schema object as critical data. Before
+every production database write, migration, cleanup, repair, import, or manual
+SQL change:
+
+1. Run a read-only preview that resolves the exact environment and targets.
+2. Use `scripts/cloudbase-pg-change.js` to create a transaction-consistent
+   snapshot of every `public` base table and the current public sequence values.
+3. Verify the backup manifest has no row-count mismatch before applying the
+   change. If backup creation or verification fails, stop; never run the write
+   directly as a workaround.
+4. Execute the scoped SQL only through the same backup gate, then run an
+   independent read-only post-change verification.
+5. Preserve the backup schema and the private local receipt until the user has
+   accepted the result. Do not commit production data, account identifiers, or
+   backup contents to Git.
+
+Creating the verified backup itself is the only initial database write exempt
+from needing an earlier backup. Every subsequent production mutation is covered,
+including one-off console SQL and data-only changes with no migration file.
+
 # Client isolation rule
 
 - The current root-level HTML/CSS/JavaScript files are the legacy Web client.

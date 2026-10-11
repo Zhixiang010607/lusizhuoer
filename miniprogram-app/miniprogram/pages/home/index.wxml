@@ -4,6 +4,7 @@
       <view wx:if="{{session.role === 'teacher'}}" class="rail-current" bindtap="toggleOverviewMenu" role="button" aria-label="总览菜单" aria-expanded="{{overviewMenuOpen}}"><text class="rail-icon">总览</text><text class="rail-chevron">⌄</text></view>
       <view wx:else class="rail-current" aria-label="{{roleTitle}}"><text class="rail-icon">总览</text></view>
       <view wx:if="{{session.role !== 'hq'}}" class="rail-link {{businessMenuOpen ? 'active' : ''}}" bindtap="toggleBusinessMenu" role="button" aria-label="业务办理" aria-expanded="{{businessMenuOpen}}">办理</view>
+      <view wx:if="{{session.role === 'teacher'}}" class="rail-link {{learningMenuOpen ? 'active' : ''}}" bindtap="toggleLearningMenu" role="button" aria-label="学习" aria-expanded="{{learningMenuOpen}}">学习</view>
       <view wx:if="{{session.role !== 'teacher'}}" class="rail-link {{queryMenuOpen ? 'active' : ''}}" bindtap="toggleQueryMenu" role="button" aria-label="业务查询" aria-expanded="{{queryMenuOpen}}">查询</view>
       <view wx:if="{{session.role !== 'teacher'}}" class="rail-link {{coreMetricsMenuOpen ? 'active' : ''}}" bindtap="toggleCoreMetricsMenu" role="button" aria-label="运营核心指标查询" aria-expanded="{{coreMetricsMenuOpen}}">运营</view>
       <view wx:if="{{session.role === 'hq'}}" class="rail-link {{managementMenuOpen ? 'active' : ''}}" bindtap="toggleManagementMenu" role="button" aria-label="管理" aria-expanded="{{managementMenuOpen}}">管理</view>
@@ -11,9 +12,12 @@
       <view class="rail-link rail-logout" bindtap="logout" role="button" aria-label="退出登录">退出</view>
     </view>
   </scroll-view>
-  <view wx:if="{{overviewMenuOpen || businessMenuOpen || queryMenuOpen || coreMetricsMenuOpen || managementMenuOpen || reviewMenuOpen}}" class="menu-backdrop" bindtap="closeMenus"></view>
+  <view wx:if="{{overviewMenuOpen || businessMenuOpen || learningMenuOpen || queryMenuOpen || coreMetricsMenuOpen || managementMenuOpen || reviewMenuOpen}}" class="menu-backdrop" bindtap="closeMenus"></view>
   <view wx:if="{{overviewMenuOpen && session.role === 'teacher'}}" class="business-popover overview-popover" catchtap="noop">
     <view class="popover-grid"><view bindtap="openTeacherOverview">工作台</view><view bindtap="openTeacherCustomers">我的客户</view><view bindtap="openDailyReport">工作日报</view><view bindtap="openAttendance">考勤打卡</view></view>
+  </view>
+  <view wx:if="{{learningMenuOpen && session.role === 'teacher'}}" class="business-popover learning-popover" catchtap="noop">
+    <view class="popover-grid"><view bindtap="openTrainingMaterials">培训学习</view></view>
   </view>
   <view wx:if="{{businessMenuOpen && session.role !== 'hq'}}" class="business-popover {{session.role === 'teacher' ? 'teacher-business-popover' : ''}}" catchtap="noop">
     <view wx:if="{{session.role === 'teacher'}}" class="teacher-business-sections">
@@ -58,6 +62,7 @@
       <view data-type="product" bindtap="openManagement">产品管理</view>
       <view data-type="store" bindtap="openManagement">门店管理</view>
       <view data-type="teacher" bindtap="openManagement">老师管理</view>
+      <view bindtap="openTrainingMaterials">培训学习</view>
     </view>
   </view>
   <view wx:if="{{reviewMenuOpen && session.role === 'hq'}}" class="business-popover review-popover" catchtap="noop">

@@ -1,5 +1,34 @@
 # 腾讯云 CloudBase SQL 编辑器执行说明
 
+## 生产写入前必须备份
+
+生产数据库中的结构和记录全部属于关键数据。任何迁移、清理、修复、
+导入或手工写入之前，都必须先从仓库根目录通过统一入口创建并验证
+完整快照；备份失败时入口会拒绝执行后续 SQL：
+
+```bash
+node scripts/cloudbase-pg-change.js \
+  --env <生产环境 ID> \
+  --label <本次变更短标签> \
+  --sql database/cloudbase-console/<待执行文件>.sql \
+  --apply
+```
+
+该入口会先把所有 `public` 基础表和公共序列值保存到独立的
+`backup_lsg_*` schema，逐表校验源表与备份行数，并在
+`.codex-private/database-backups/` 保存不入库的私有回执。只有校验成功后
+才执行指定 SQL。执行后仍必须单独运行对应的只读验收文件。不得为了
+省事直接调用控制台或 CLI 绕过这个入口。
+
+只读验收文件可以通过下列入口执行；它会拒绝包含写入或结构变更关键字
+的 SQL：
+
+```bash
+node scripts/cloudbase-pg-readonly.js \
+  --env <生产环境 ID> \
+  --sql database/cloudbase-console/<只读验收文件>.sql
+```
+
 `ExecutePGSql` SQL 编辑器不适合一次提交包含多个 PL/pgSQL 函数的长迁移。完整的 `037`--`047` 文件保留给正式 migration 工具；在腾讯云控制台中请改用本目录的短文件。
 
 如果控制台此前已经出现红色事务错误，先新建一次独立查询，仅执行：
@@ -344,7 +373,7 @@ ROLLBACK;
 
 1. 整文件执行 `084-01-daily-report-single-field-1000-characters.sql`；
 2. 执行 `084-readonly-verify.sql`，三行必须全部为 `READY`；
-3. 上传 `staffAccount-v92.zip` 并确认 `health version=v92`；
+3. 上传 `staffAccount-v93.zip` 并确认 `health version=v93`；
 4. 发布配套网页并上传配套小程序。
 
 084 取代 076／077 的四栏 200 字写入规则：新的日报只要求“今日完成事项”，最多 1000 个 Unicode 字符，允许 emoji 和特殊符号。历史四栏数据不批量改写；历史日期只读、禁止删除、在职老师本人范围和总部只读追踪规则不变。
@@ -355,10 +384,22 @@ ROLLBACK;
 
 1. 整文件执行 `085-01-product-receipt-instruction-1000-characters.sql`；
 2. 执行 `085-readonly-verify.sql`，两行必须全部为 `READY`；
-3. 上传 `staffAccount-v92.zip` 并确认 `health version=v92`；
+3. 上传 `staffAccount-v93.zip` 并确认 `health version=v93`；
 4. 发布配套网页并上传配套小程序。
 
 085 将核销单说明和充值单说明分别限制为最多 1000 个 Unicode 字符；`TEXT` 字段继续原样保存手动换行、emoji 和特殊符号。它不修改项目 LOGO、私有桶、工单照片、核销、BLE 或其他业务规则。
+
+## 086 培训学习 PDF
+
+完成并验收 085 后，按 [`086-README.md`](086-README.md) 执行：
+
+1. 整文件执行 `086-01-training-materials.sql`；
+2. 执行 `086-readonly-verify.sql`，四行必须全部为 `READY`；
+3. 创建或确认私有桶 `training-materials`；
+4. 上传 `staffAccount-v93.zip` 并确认 `health version=v93`；
+5. 上传配套小程序开发版，以总部、老师、门店账号分别验收。
+
+086 只服务小程序培训学习：总部在“管理”上传有标题的 PDF，并可删除（下架）或重新发布；老师从顶部“学习 → 培训学习”只读已发布资料；门店没有入口且服务端拒绝。老师端不提供下载、分享或永久保存入口。
 
 ## 078 老师每日上班／下班两次打卡
 

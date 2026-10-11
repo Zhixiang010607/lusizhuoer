@@ -60,9 +60,9 @@ test("migration 084 makes completed work the single 1000-character UTF-8 field",
   assert.match(finalVerifySql, /daily_report_single_field_trigger/);
 });
 
-test("staffAccount v92 derives the teacher identity from the authenticated profile", () => {
-  assert.match(cloud, /const FUNCTION_VERSION = "v92"/);
-  assert.match(cloudReadme, /当前版本：`v92`/);
+test("staffAccount v93 derives the teacher identity from the authenticated profile", () => {
+  assert.match(cloud, /const FUNCTION_VERSION = "v93"/);
+  assert.match(cloudReadme, /当前版本：`v93`/);
   assert.match(cloud, /function requireDailyReportTeacher\(caller\)/);
   assert.match(cloud, /caller\.profile\?\.role !== "teacher"/);
   assert.match(cloud, /caller\.profile\?\.teacherStatus !== "ACTIVE"/);

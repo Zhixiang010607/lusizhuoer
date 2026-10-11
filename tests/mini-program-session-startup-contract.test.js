@@ -36,6 +36,7 @@ test("app exposes one startup promise and marks validation ready even when a sta
     require(id) {
       if (id === "./services/session") return { restoreAndValidateSession: () => validation.promise };
       if (id === "./services/verification-photo-upload-queue") return { resume: async () => true };
+      if (id === "./services/training-material-upload-queue") return { resume: async () => true };
       throw new Error(`unexpected app dependency ${id}`);
     },
     wx: { setKeepScreenOn(options) { keepScreenCalls.push(options.keepScreenOn); } },
@@ -67,6 +68,7 @@ test("a cold app launch discards an unfinished BLE attempt but preserves a confi
       require(id) {
         if (id === "./services/session") return { restoreAndValidateSession: async () => ({ uid: "u1", role: "store" }) };
         if (id === "./services/verification-photo-upload-queue") return { resume: async () => true };
+        if (id === "./services/training-material-upload-queue") return { resume: async () => true };
         if (id === "./services/submission") return {
           read: () => intent,
           clear: () => { calls.push("submission"); }

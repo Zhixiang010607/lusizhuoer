@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v92";
+const FUNCTION_VERSION = "v93";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -34,6 +34,7 @@ const PRODUCT_LOGO_SIGN_SAFETY_MS = 30 * 1000;
 const PRODUCT_LOGO_STORAGE_MAX_CONCURRENCY = 6;
 const DAILY_REPORT_FIELD_MAX_CHARS = 1000;
 const PRODUCT_RECEIPT_INSTRUCTION_MAX_CHARS = 1000;
+const TRAINING_MATERIAL_MAX_BYTES = 100 * 1024 * 1024;
 const PRODUCT_LOGO_TYPES = new Map([
   ["image/png", "png"],
   ["image/jpeg", "jpg"],
@@ -48,6 +49,7 @@ let productTemplateCapabilities = null;
 let retailProductCapabilities = null;
 let rechargeProductGiftSchemaReady = null;
 let dailyReportSchemaReady = null;
+let trainingMaterialSchemaReady = null;
 const productLogoDownloadCache = new Map();
 const productLogoDownloadFlights = new Map();
 const productLogoSignCache = new Map();
@@ -86,6 +88,16 @@ function productTemplateStorageSettings() {
   if (!envId) fail("项目模板存储缺少 CLOUDBASE_ENV_ID 或 TCB_ENV", "PRODUCT_STORAGE_NOT_CONFIGURED");
   if (!accessToken) fail("项目模板存储缺少 CLOUDBASE_APIKEY", "PRODUCT_STORAGE_NOT_CONFIGURED");
   if (!bucketId) fail("项目模板私有存储桶编号不能为空", "PRODUCT_STORAGE_NOT_CONFIGURED");
+  return { envId, accessToken, bucketId };
+}
+
+function trainingMaterialStorageSettings() {
+  const envId = String(process.env.CLOUDBASE_ENV_ID || process.env.TCB_ENV || "").trim();
+  const accessToken = String(process.env.CLOUDBASE_APIKEY || process.env.CLOUDBASE_SERVICE_ROLE_KEY || "").trim();
+  const bucketId = String(process.env.TRAINING_MATERIAL_BUCKET_ID || "training-materials").trim();
+  if (!envId) fail("培训资料存储缺少 CLOUDBASE_ENV_ID 或 TCB_ENV", "TRAINING_STORAGE_NOT_CONFIGURED");
+  if (!accessToken) fail("培训资料存储缺少 CLOUDBASE_APIKEY", "TRAINING_STORAGE_NOT_CONFIGURED");
+  if (!bucketId) fail("培训资料私有存储桶编号不能为空", "TRAINING_STORAGE_NOT_CONFIGURED");
   return { envId, accessToken, bucketId };
 }
 
@@ -5039,6 +5051,341 @@ async function retireOperationAccounts() {
   };
 }
 
+function requireTrainingReader(caller) {
+  const role = String(caller.profile?.role || "");
+  if (!['hq', 'teacher'].includes(role)) {
+    fail("培训学习仅向总部和在职老师开放", "FORBIDDEN");
+  }
+  if (role === "teacher" && String(caller.profile?.teacherStatus || "") !== "ACTIVE") {
+    fail("当前老师账号已封存，无法读取培训资料", "FORBIDDEN");
+  }
+  return role;
+}
+
+async function requireTrainingMaterialSchema() {
+  if (trainingMaterialSchemaReady) return trainingMaterialSchemaReady;
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT COUNT(*)::integer AS column_count
+         FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'training_materials'
+          AND column_name IN (
+            'id', 'title', 'category', 'file_reference', 'original_file_name',
+            'file_bytes', 'client_request_id', 'material_status', 'created_by_staff_account_id',
+            'published_at', 'created_at', 'updated_at'
+          )`
+    );
+  } catch (error) {
+    asDatabaseError(error, "读取培训资料数据库结构");
+  }
+  if (Number(rows?.[0]?.column_count || 0) !== 12) {
+    fail("培训资料数据库尚未升级，请先执行 086-01-training-materials.sql", "DATABASE_SCHEMA_MISSING");
+  }
+  trainingMaterialSchemaReady = { ready: true };
+  return trainingMaterialSchemaReady;
+}
+
+function trainingMaterialInput(event) {
+  const title = String(event.title || "").trim();
+  const category = String(event.category || "").trim();
+  const bytes = Number(event.bytes);
+  const originalName = String(event.originalName || "资料.pdf")
+    .replace(/[\\/\u0000-\u001f<>:"|?*]/g, "_").trim().slice(0, 255) || "资料.pdf";
+  const mimeType = String(event.mimeType || "application/pdf").trim().toLowerCase();
+  if (!title || Array.from(title).length > 160) fail("请填写 1—160 个字符的资料标题", "BAD_REQUEST");
+  if (Array.from(category).length > 80) fail("资料分类不能超过 80 个字符", "BAD_REQUEST");
+  if (!/\.pdf$/i.test(originalName) || !["application/pdf", "application/octet-stream"].includes(mimeType)) {
+    fail("培训资料只支持 PDF 文件", "TRAINING_MATERIAL_TYPE_INVALID");
+  }
+  if (!Number.isSafeInteger(bytes) || bytes < 8 || bytes > TRAINING_MATERIAL_MAX_BYTES) {
+    fail("培训 PDF 不能超过 100 MB", "TRAINING_MATERIAL_TOO_LARGE");
+  }
+  return { title, category, bytes, originalName, mimeType: "application/pdf" };
+}
+
+function parseTrainingMaterialReference(value) {
+  const reference = String(value || "").trim();
+  if (!reference.startsWith("pg://")) fail("培训资料存储引用无效", "TRAINING_MATERIAL_REFERENCE_INVALID");
+  const path = reference.slice(5);
+  const slash = path.indexOf("/");
+  if (slash < 1 || slash === path.length - 1) fail("培训资料存储引用无效", "TRAINING_MATERIAL_REFERENCE_INVALID");
+  return { bucketId: path.slice(0, slash), objectName: path.slice(slash + 1), reference };
+}
+
+function validateTrainingMaterialReference(reference, storage) {
+  if (reference.bucketId !== storage.bucketId
+      || !/^training-materials\/\d{4}\/[A-Za-z0-9_-]+\.pdf$/.test(reference.objectName)) {
+    fail("培训资料不属于指定私有存储桶", "TRAINING_MATERIAL_BUCKET_MISMATCH");
+  }
+}
+
+async function deleteTrainingMaterialObject(referenceValue) {
+  if (!referenceValue) return true;
+  try {
+    const reference = parseTrainingMaterialReference(referenceValue);
+    const storage = trainingMaterialStorageSettings();
+    validateTrainingMaterialReference(reference, storage);
+    await manager().storage.deleteObject({
+      bucketId: reference.bucketId,
+      objectName: reference.objectName,
+      accessToken: storage.accessToken,
+      envId: storage.envId
+    });
+    return true;
+  } catch (error) {
+    console.warn("training material cleanup failed", error?.code || error?.message || error);
+    return false;
+  }
+}
+
+async function beginTrainingMaterialUpload(event) {
+  await requireTrainingMaterialSchema();
+  const input = trainingMaterialInput(event);
+  const storage = trainingMaterialStorageSettings();
+  const year = new Date().getUTCFullYear();
+  const objectName = `training-materials/${year}/${Date.now()}-${crypto.randomBytes(18).toString("base64url")}.pdf`;
+  try {
+    const response = await manager().storage.signUploadObject({
+      bucketId: storage.bucketId,
+      objectName,
+      upsert: false,
+      accessToken: storage.accessToken,
+      envId: storage.envId
+    });
+    return {
+      reference: `pg://${storage.bucketId}/${objectName}`,
+      upload: signedStorageUpload(response, storage, objectName, "application/pdf"),
+      expected: input
+    };
+  } catch (error) {
+    const wrapped = new Error(`培训 PDF 上传地址生成失败：${error?.message || "请检查私有存储桶"}`);
+    wrapped.code = "TRAINING_MATERIAL_UPLOAD_SIGN_FAILED";
+    throw wrapped;
+  }
+}
+
+async function inspectTrainingMaterial(referenceValue, expected) {
+  const reference = parseTrainingMaterialReference(referenceValue);
+  const storage = trainingMaterialStorageSettings();
+  validateTrainingMaterialReference(reference, storage);
+  let response;
+  try {
+    response = await manager().storage.getObjectInfoAuthenticated({
+      bucketId: reference.bucketId,
+      objectName: reference.objectName,
+      method: "GET",
+      accessToken: storage.accessToken,
+      envId: storage.envId
+    });
+  } catch (error) {
+    fail("培训 PDF 尚未上传完成", "TRAINING_MATERIAL_UPLOAD_INCOMPLETE");
+  }
+  const info = storageObjectInfo(response);
+  const bytes = Number(info?.size ?? response?.headers?.["content-length"]);
+  const contentType = String(info?.content_type || response?.headers?.["content-type"] || "")
+    .split(";", 1)[0].trim().toLowerCase();
+  if (!Number.isSafeInteger(bytes) || bytes !== expected.bytes) {
+    fail("培训 PDF 大小与上传前不一致", "TRAINING_MATERIAL_SIZE_MISMATCH");
+  }
+  if (contentType && !["application/pdf", "application/octet-stream"].includes(contentType)) {
+    fail("培训资料不是 PDF 文件", "TRAINING_MATERIAL_TYPE_INVALID");
+  }
+  let prefixResponse;
+  try {
+    prefixResponse = await manager().storage.downloadAuthenticatedObject({
+      bucketId: reference.bucketId,
+      objectName: reference.objectName,
+      method: "GET",
+      range: "bytes=0-7",
+      accessToken: storage.accessToken,
+      envId: storage.envId
+    });
+  } catch (error) {
+    fail("培训 PDF 内容校验失败", "TRAINING_MATERIAL_READ_FAILED");
+  }
+  const prefix = await productLogoResponseBuffer(prefixResponse, 8, { start: 0, end: 7, total: bytes });
+  if (prefix.toString("ascii", 0, 5) !== "%PDF-") {
+    fail("上传文件不是有效的 PDF", "TRAINING_MATERIAL_FORMAT_INVALID");
+  }
+  return { reference, bytes };
+}
+
+function trainingMaterialPayload(row) {
+  return {
+    id: String(row.id),
+    title: String(row.title || ""),
+    category: String(row.category || ""),
+    originalName: String(row.original_file_name || ""),
+    bytes: Number(row.file_bytes || 0),
+    status: String(row.material_status || ""),
+    publishedAt: row.published_at || null,
+    createdAt: row.created_at || null,
+    createdByName: String(row.created_by_name || "")
+  };
+}
+
+function sameTrainingMaterialRequest(row, input, reference) {
+  return String(row.title || "") === input.title
+    && String(row.category || "") === input.category
+    && String(row.original_file_name || "") === input.originalName
+    && Number(row.file_bytes || 0) === input.bytes
+    && String(row.file_reference || "") === reference.reference;
+}
+
+async function listTrainingMaterials(caller, event = {}) {
+  const role = requireTrainingReader(caller);
+  await requireTrainingMaterialSchema();
+  const keyword = String(event.keyword || "").trim();
+  if (Array.from(keyword).length > 80) fail("标题搜索不能超过 80 个字符", "BAD_REQUEST");
+  const clauses = ["material.material_status = 'PUBLISHED'"];
+  if (keyword) clauses.push(`material.title ILIKE '%' || ${sqlText(keyword)} || '%'`);
+  let rows;
+  try {
+    rows = await executeSql(
+      `SELECT material.id, material.title, material.category, material.original_file_name,
+              material.file_bytes, material.material_status, material.published_at,
+              material.created_at, creator.staff_name AS created_by_name
+         FROM public.training_materials material
+         LEFT JOIN public.staff_accounts creator ON creator.id = material.created_by_staff_account_id
+        ${clauses.length ? `WHERE ${clauses.join(" AND ")}` : ""}
+        ORDER BY material.published_at DESC, material.id DESC
+        LIMIT 200`
+    );
+  } catch (error) {
+    asDatabaseError(error, "读取培训资料");
+  }
+  return { materials: (rows || []).map(trainingMaterialPayload), canManage: role === "hq" };
+}
+
+async function confirmTrainingMaterialUpload(caller, event) {
+  await requireTrainingMaterialSchema();
+  const input = trainingMaterialInput(event);
+  const clientRequestId = String(event.clientRequestId || "").trim();
+  if (!/^[A-Za-z0-9_-]{16,64}$/.test(clientRequestId)) fail("培训资料上传请求编号无效", "BAD_REQUEST");
+  const reference = parseTrainingMaterialReference(event.reference);
+  const existing = await executeSql(
+    `SELECT material.id, material.title, material.category, material.original_file_name,
+            material.file_reference, material.file_bytes, material.material_status, material.published_at,
+            material.created_at, creator.staff_name AS created_by_name
+       FROM public.training_materials material
+       LEFT JOIN public.staff_accounts creator ON creator.id = material.created_by_staff_account_id
+      WHERE material.client_request_id = ${sqlText(clientRequestId)}
+      LIMIT 1`
+  );
+  if (existing?.[0]) {
+    if (!sameTrainingMaterialRequest(existing[0], input, reference)) {
+      fail("培训资料上传请求编号已用于另一份文件", "IDEMPOTENCY_CONFLICT");
+    }
+    return trainingMaterialPayload(existing[0]);
+  }
+  const verified = await inspectTrainingMaterial(event.reference, input).catch(async (error) => {
+    await deleteTrainingMaterialObject(event.reference);
+    throw error;
+  });
+  let rows;
+  try {
+    rows = await executeSql(
+      `INSERT INTO public.training_materials
+         (title, category, file_reference, original_file_name, file_bytes, client_request_id,
+          material_status, created_by_staff_account_id, published_at, created_at, updated_at)
+       VALUES
+         (${sqlText(input.title)}, ${sqlText(input.category)}, ${sqlText(verified.reference.reference)},
+          ${sqlText(input.originalName)}, ${input.bytes}, ${sqlText(clientRequestId)}, 'PUBLISHED',
+          ${numericId(caller.profile.staffId, "总部账号编号")}, NOW(), NOW(), NOW())
+       RETURNING id, title, category, original_file_name, file_bytes, material_status,
+                 published_at, created_at`
+    );
+  } catch (error) {
+    const duplicate = await executeSql(
+      `SELECT material.id, material.title, material.category, material.original_file_name,
+              material.file_reference, material.file_bytes, material.material_status,
+              material.published_at, material.created_at, creator.staff_name AS created_by_name
+         FROM public.training_materials material
+         LEFT JOIN public.staff_accounts creator ON creator.id = material.created_by_staff_account_id
+        WHERE material.client_request_id = ${sqlText(clientRequestId)}
+        LIMIT 1`
+    ).catch(() => []);
+    if (duplicate?.[0]) {
+      if (!sameTrainingMaterialRequest(duplicate[0], input, verified.reference)) {
+        await deleteTrainingMaterialObject(verified.reference.reference);
+        fail("培训资料上传请求编号已用于另一份文件", "IDEMPOTENCY_CONFLICT");
+      }
+      return trainingMaterialPayload(duplicate[0]);
+    }
+    await deleteTrainingMaterialObject(verified.reference.reference);
+    asDatabaseError(error, "保存培训资料");
+  }
+  return trainingMaterialPayload({ ...rows?.[0], created_by_name: caller.profile.staffName });
+}
+
+async function discardTrainingMaterialUpload(event) {
+  const reference = parseTrainingMaterialReference(event.reference);
+  const storage = trainingMaterialStorageSettings();
+  validateTrainingMaterialReference(reference, storage);
+  const bound = await executeSql(
+    `SELECT id FROM public.training_materials WHERE file_reference = ${sqlText(reference.reference)} LIMIT 1`
+  );
+  if (bound?.length) return { discarded: false, currentlyBound: true };
+  return { discarded: await deleteTrainingMaterialObject(reference.reference), currentlyBound: false };
+}
+
+async function setTrainingMaterialStatus(event) {
+  await requireTrainingMaterialSchema();
+  const id = numericId(event.materialId, "培训资料编号");
+  const status = String(event.status || "").trim().toUpperCase();
+  if (status !== "ARCHIVED") fail("培训资料只能下架，不能重新发布", "BAD_REQUEST");
+  let rows;
+  try {
+    rows = await executeSql(
+      `UPDATE public.training_materials
+          SET material_status = 'ARCHIVED',
+              updated_at = NOW()
+        WHERE id = ${id}
+      RETURNING id, title, category, original_file_name, file_bytes, material_status,
+                published_at, created_at`
+    );
+  } catch (error) {
+    asDatabaseError(error, "更新培训资料状态");
+  }
+  if (!rows?.[0]) fail("未找到培训资料", "NOT_FOUND");
+  return trainingMaterialPayload(rows[0]);
+}
+
+async function getTrainingMaterialAccess(caller, event) {
+  const role = requireTrainingReader(caller);
+  await requireTrainingMaterialSchema();
+  const id = numericId(event.materialId, "培训资料编号");
+  const rows = await executeSql(
+    `SELECT id, title, file_reference, material_status
+       FROM public.training_materials
+      WHERE id = ${id}
+      LIMIT 1`
+  );
+  const row = rows?.[0];
+  if (!row || (role === "teacher" && String(row.material_status) !== "PUBLISHED")) {
+    fail("未找到可阅读的培训资料", "NOT_FOUND");
+  }
+  const reference = parseTrainingMaterialReference(row.file_reference);
+  const storage = trainingMaterialStorageSettings();
+  validateTrainingMaterialReference(reference, storage);
+  let signed;
+  try {
+    const response = await manager().storage.signObject({
+      bucketId: reference.bucketId,
+      objectName: reference.objectName,
+      expiresIn: 300,
+      accessToken: storage.accessToken,
+      envId: storage.envId
+    });
+    signed = validatedProductLogoSignedUrl(response, storage, reference);
+  } catch (error) {
+    signed = "";
+  }
+  if (!signed) fail("培训 PDF 临时阅读地址生成失败", "TRAINING_MATERIAL_SIGN_FAILED");
+  return { materialId: String(row.id), title: String(row.title || ""), url: signed, expiresIn: 300 };
+}
+
 async function main(event = {}, context = {}) {
   const scheduledReset = await handleTrustedTeacherExperienceResetTimer(event, context);
   if (scheduledReset) return scheduledReset;
@@ -5063,6 +5410,28 @@ async function main(event = {}, context = {}) {
       fail("当前登录身份尚未绑定可用业务账号。", "UNASSIGNED_IDENTITY");
     }
     return { ok: true, version: FUNCTION_VERSION, uid: caller.uid, profile: caller.profile };
+  }
+  if (action === "listTrainingMaterials") {
+    return { ok: true, ...(await listTrainingMaterials(caller, event)) };
+  }
+  if (action === "getTrainingMaterialAccess") {
+    return { ok: true, access: await getTrainingMaterialAccess(caller, event) };
+  }
+  if (action === "beginTrainingMaterialUpload") {
+    requireHq(caller);
+    return { ok: true, ...(await beginTrainingMaterialUpload(event)) };
+  }
+  if (action === "confirmTrainingMaterialUpload") {
+    requireHq(caller);
+    return { ok: true, material: await confirmTrainingMaterialUpload(caller, event) };
+  }
+  if (action === "discardTrainingMaterialUpload") {
+    requireHq(caller);
+    return { ok: true, ...(await discardTrainingMaterialUpload(event)) };
+  }
+  if (action === "setTrainingMaterialStatus") {
+    requireHq(caller);
+    return { ok: true, material: await setTrainingMaterialStatus(event) };
   }
   if (action === "getOwnDailyReportMonth") {
     return await getOwnDailyReportMonth(caller, event);

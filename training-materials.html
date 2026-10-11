@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>培训学习</title>
+  <link rel="stylesheet" href="styles.css?v=0.15.60">
+  <link rel="stylesheet" href="training-materials.css?v=0.1.0">
+</head>
+<body data-training-materials>
+  <aside class="side-project-bar" aria-label="项目栏">
+    <div class="side-brand"><span>HQ</span><div><strong>总部工作台</strong><small>项目栏</small></div></div>
+    <nav class="side-nav"></nav>
+    <div class="side-footer">总部权限</div>
+  </aside>
+  <header class="topbar"><div><h1>培训学习</h1></div></header>
+  <main class="training-main">
+    <section class="panel training-upload-panel">
+      <div class="panel-heading"><div><h2>发布资料</h2></div></div>
+      <form id="trainingUploadForm" class="training-upload-form">
+        <label><span>标题</span><input id="trainingTitle" required maxlength="160" autocomplete="off" placeholder="输入资料标题"></label>
+        <label class="training-file-field"><span>PDF 文件</span><input id="trainingFile" class="training-file-input" required type="file" accept="application/pdf,.pdf"><span id="trainingFilePicker" class="training-file-picker">选择 PDF</span></label>
+        <button id="trainingUploadButton" type="submit">上传并发布</button>
+      </form>
+      <progress id="trainingUploadProgress" max="100" value="0" hidden></progress>
+    </section>
+
+    <p id="trainingMessage" class="training-message" role="status" aria-live="polite"></p>
+
+    <section class="panel training-library-panel">
+      <div class="training-library-heading"><h2>学习资料</h2><span id="trainingCount" class="badge">0 份</span></div>
+      <form id="trainingSearchForm" class="training-search-form">
+        <input id="trainingKeyword" maxlength="80" autocomplete="off" placeholder="按标题搜索">
+        <button type="submit">搜索</button>
+      </form>
+      <div id="trainingList" class="training-list is-empty"></div>
+    </section>
+  </main>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
+  <script src="cloudbase-auth-config.js"></script>
+  <script src="cloudbase-phone-auth.js?v=0.20.6"></script>
+  <script src="training-materials.js?v=0.1.0"></script>
+  <script src="auth-ui.js?v=0.21.4"></script>
+</body>
+</html>

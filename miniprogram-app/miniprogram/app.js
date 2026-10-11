@@ -1,5 +1,6 @@
 const { restoreAndValidateSession } = require("./services/session");
 const verificationPhotoUploadQueue = require("./services/verification-photo-upload-queue");
+const trainingMaterialUploadQueue = require("./services/training-material-upload-queue");
 
 function clearColdStartBleAttempt() {
   const submission = require("./services/submission");
@@ -41,6 +42,7 @@ App({
         // 补充照片任务属于小程序，而不是某一个详情页。冷启动恢复登录后
         // 立即续传，页面即使已经返回也不会丢失本次选择。
         void verificationPhotoUploadQueue.resume({ retryFailed: true });
+        if (this.globalData.session.role === "hq") void trainingMaterialUploadQueue.resume({ retryFailed: true, ownerStaffId: this.globalData.session.staffId });
       }
       this.globalData.startupReady = true;
       return this.globalData.session;
@@ -50,6 +52,10 @@ App({
   onShow() {
     keepScreenAwake();
     const startup = this.globalData.startupPromise || Promise.resolve(this.globalData.session);
-    void startup.then((session) => session && verificationPhotoUploadQueue.resume({ retryFailed: true }));
+    void startup.then((session) => {
+      if (!session) return;
+      void verificationPhotoUploadQueue.resume({ retryFailed: true });
+      if (session.role === "hq") void trainingMaterialUploadQueue.resume({ retryFailed: true, ownerStaffId: session.staffId });
+    });
   }
 });

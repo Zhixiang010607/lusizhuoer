@@ -275,7 +275,7 @@ test("cold start reconciles and resumes the same saved request id", async () => 
 test("app launch and foreground both resume the durable queue", () => {
   assert.match(appSource, /verificationPhotoUploadQueue\.resume\(\{ retryFailed: true \}\)/,
     "a restored session resumes pending uploads on cold launch");
-  assert.match(appSource, /onShow\(\)[\s\S]*startup\.then\(\(session\) => session && verificationPhotoUploadQueue\.resume/,
+  assert.match(appSource, /onShow\(\)[\s\S]*startup\.then\(\(session\) => \{[\s\S]*if \(!session\) return;[\s\S]*verificationPhotoUploadQueue\.resume/,
     "returning to the foreground resumes a task interrupted by WeChat suspension");
   assert.doesNotMatch(pageSource.slice(pageSource.indexOf("  onUnload()"), pageSource.indexOf("\n  async load()")),
     /cancelVerificationPhotoUpload|verificationPhotoUploadQueue\.remove/,

@@ -1,0 +1,44 @@
+body[data-training-materials] { color: #302a22; background: #f3ede2; }
+body[data-training-materials] .training-main { width: min(1120px, calc(100% - 40px)); display: grid; gap: 16px; }
+body[data-training-materials] .panel { padding: 20px; border: 1px solid #dfcfb4; border-radius: 16px; background: #fffaf3; box-shadow: none; }
+body[data-training-materials] h2 { margin: 0; color: #302a22; font-size: 20px; }
+.training-upload-form { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(240px, 1fr) 160px; align-items: end; gap: 14px; }
+.training-upload-form label { min-width: 0; display: grid; gap: 7px; color: #675b4b; font-weight: 700; }
+.training-upload-form input:not([type="file"]), .training-search-form input { width: 100%; height: 46px; margin: 0; padding: 0 14px; box-sizing: border-box; border: 1px solid #d8c5a3; border-radius: 10px; color: #302a22; background: #fff; }
+.training-file-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.training-file-picker { width: 100%; height: 46px; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 0 14px; border: 1px solid #d8c5a3; border-radius: 10px; box-sizing: border-box; color: #74592d; background: #fff; font-weight: 750; line-height: 1; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.training-upload-form button, .training-search-form button, .training-row button { display: flex; align-items: center; justify-content: center; margin: 0; box-sizing: border-box; border: 1px solid #86642f; border-radius: 10px; color: #fff; background: #86642f; font-weight: 750; line-height: 1; white-space: nowrap; }
+.training-upload-form button, .training-search-form button { height: 46px; min-height: 46px; padding: 0 14px; }
+.training-upload-form button:disabled, .training-row button:disabled { opacity: .55; cursor: not-allowed; }
+#trainingUploadProgress { width: 100%; height: 8px; display: block; margin-top: 14px; accent-color: #86642f; }
+#trainingUploadProgress[hidden] { display: none; }
+.training-message { min-height: 0; margin: 0; padding: 0 4px; color: #4f664f; }
+.training-message:empty { display: none; }
+.training-message.error { color: #9a302b; }
+.training-library-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.training-search-form { display: grid; grid-template-columns: minmax(0, 1fr) 90px; gap: 10px; margin-bottom: 14px; }
+.training-list { overflow: hidden; border: 1px solid #e2d4bd; border-radius: 12px; background: #fff; }
+.training-list.is-empty { display: none; }
+.training-row { min-height: 78px; display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-top: 1px solid #eadfce; }
+.training-row:first-child { border-top: 0; }
+.training-row-main { min-width: 0; flex: 1; }
+.training-row-title, .training-row-meta { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.training-row-title { color: #302a22; font-size: 16px; font-weight: 800; }
+.training-row-meta { margin-top: 5px; color: #7c7062; font-size: 12px; }
+.training-row-actions { flex: none; display: flex; gap: 9px; }
+.training-row button { height: 38px; min-height: 38px; padding: 0 14px; }
+.training-row .training-read { color: #fff; background: #86642f; }
+.training-row .training-status { color: #934b40; border-color: #dfb8ad; background: #fff; }
+.training-empty { padding: 12px 4px 0; color: #887c6d; text-align: left; }
+@media (max-width: 820px) {
+  body[data-training-materials] .training-main { width: min(100% - 24px, 720px); }
+  .training-upload-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .training-upload-form button { grid-column: 1 / -1; }
+}
+@media (max-width: 560px) {
+  .training-upload-form { grid-template-columns: minmax(0, 1fr); }
+  .training-upload-form button { grid-column: auto; }
+  .training-row { align-items: flex-start; flex-direction: column; }
+  .training-row-actions { width: 100%; }
+  .training-row-actions button { flex: 1; }
+}

@@ -14,6 +14,7 @@
     { "root": "pages/teacher-customers", "pages": ["index"] },
     { "root": "pages/daily-report", "pages": ["index"] },
     { "root": "pages/daily-report-tracking", "pages": ["index"] },
+    { "root": "pages/training-materials", "pages": ["index"] },
     { "root": "pages/attendance", "pages": ["index"] },
     { "root": "pages/work-calendar", "pages": ["index"] },
     { "root": "pages/attendance-tracking", "pages": ["index"] },

@@ -7,7 +7,7 @@
 1. 完成并验收迁移 084；
 2. 整文件执行 `085-01-product-receipt-instruction-1000-characters.sql`；
 3. 执行 `085-readonly-verify.sql`，两行必须全部返回 `READY`；
-4. 上传并验收 `staffAccount-v92.zip`；
+4. 上传并验收 `staffAccount-v93.zip`；
 5. 发布配套网页并上传配套小程序。
 
 迁移不裁剪或改写已有模板内容。约束以 `NOT VALID` 添加，避免迁移时修改历史文本；迁移后新增或修改的模板必须遵守 1000 字上限。项目 LOGO 私有桶、原图直传／鉴权回读、正常／体验／补录核销和 BLE 流程均不改变。
