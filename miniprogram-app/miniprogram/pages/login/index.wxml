@@ -1,5 +1,5 @@
 <view class="login-page">
-  <image class="login-background" src="/images/login/lusizhuoer-login-bg-v4.jpg" mode="aspectFill"></image>
+  <image class="login-background" src="/images/login/lusizhuoer-login-bg-v4.jpg" mode="widthFix"></image>
   <view class="login-shade"></view>
   <view class="login-shell">
     <button class="login-home" hover-class="login-home-hover" catchtap="returnToCompany" aria-label="返回公司主页">‹ 返回公司主页</button>

@@ -8,7 +8,7 @@
   <swiper class="company-swiper" vertical="true" current="{{currentSlide}}" duration="560" easing-function="easeInOutCubic" bindchange="onSlideChange">
     <swiper-item>
       <view class="company-slide hero-slide {{currentSlide === 0 ? 'is-active' : ''}}">
-        <image class="hero-background" src="/images/login/lusizhuoer-login-bg-v4.jpg" mode="aspectFill" aria-hidden="true"></image>
+        <image class="hero-background" src="/images/login/lusizhuoer-login-bg-v4.jpg" mode="widthFix" aria-hidden="true"></image>
         <view class="hero-copy">
           <text class="hero-title slide-animate delay-1">广州露思卓儿科技有限公司</text>
           <view class="hero-philosophy slide-animate delay-2">

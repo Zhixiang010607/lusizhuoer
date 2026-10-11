@@ -24,7 +24,7 @@ page { height: 100%; overflow: hidden; background: #f7f1e8; }
 .is-active.content-slide::before { animation: logo-float 5600ms ease-in-out infinite alternate; }
 .is-active.content-slide::after { animation: glow-drift 6200ms ease-in-out infinite alternate; }
 .is-active .slide-background-art { animation: slide-art-in 1500ms cubic-bezier(.22,1,.36,1) both; }
-.hero-background { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; }
+.hero-background { position: absolute; z-index: 0; top: 0; left: 0; width: 100%; height: auto; }
 .is-active .hero-background { animation: hero-background-in 1200ms cubic-bezier(.22,1,.36,1) both; }
 .hero-copy { position: relative; z-index: 3; width: 100%; max-width: 680rpx; margin: 0 auto; transform: translateY(-24rpx); text-align: center; }
 .section-label { display: block; color: #8c6632; font-size: 22rpx; font-weight: 600; letter-spacing: 5rpx; line-height: 1.4; }
@@ -170,6 +170,7 @@ page { height: 100%; overflow: hidden; background: #f7f1e8; }
   .topbar-brand { font-size: 15px; letter-spacing: 4px; }
   .topbar-login { width: 58px !important; height: 32px; min-height: 32px; border-width: 1px; border-radius: 16px; font-size: 14px; line-height: 31px; }
   .company-slide { padding: calc(112px + env(safe-area-inset-top)) 50px calc(62px + env(safe-area-inset-bottom)); }
+  .hero-background { left: 50%; width: 520px; margin-left: -260px; }
   .slide-content { max-width: 800px; }
   .hero-copy { max-width: 850px; margin-top: 18px; }
   .section-label { font-size: 13px; letter-spacing: 3px; }
@@ -230,6 +231,20 @@ page { height: 100%; overflow: hidden; background: #f7f1e8; }
   .slide-brand-name { font-size: 20px; }
   .slide-brand-company { font-size: 12px; }
   .slide-footer { right: 28px; bottom: calc(20px + env(safe-area-inset-bottom)); left: 28px; font-size: 12px; }
+}
+@media (min-width: 700px) and (max-height: 900px) {
+  .company-topbar { height: calc(72px + env(safe-area-inset-top)); padding-bottom: 8px; }
+  .company-slide { padding: calc(78px + env(safe-area-inset-top)) 50px calc(44px + env(safe-area-inset-bottom)); }
+  .hero-copy { max-width: 780px; margin-top: 0; transform: none; }
+  .hero-title { font-size: 28px; }
+  .hero-philosophy { margin-top: 10px; padding-bottom: 8px; }
+  .hero-philosophy-line { margin-top: 4px; font-size: 16px; line-height: 1.35; }
+  .hero-statement { margin-top: 2px; font-size: 19px; line-height: 1.35; }
+  .hero-overview { margin-top: 5px; }
+  .hero-info-row { padding: 6px 0; }
+  .hero-info-copy { line-height: 1.4; }
+  .hero-login { margin-top: 10px; }
+  .slide-footer { bottom: calc(12px + env(safe-area-inset-bottom)); }
 }
 @media (prefers-reduced-motion: reduce) {
   .hero-background, .slide-background-art, .content-slide::before, .content-slide::after, .swipe-guide, .is-active .slide-animate { animation: none; }

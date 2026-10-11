@@ -8,8 +8,8 @@
   padding: calc(44px + env(safe-area-inset-top)) 40rpx calc(28rpx + env(safe-area-inset-bottom));
   background: #f3ede2;
 }
-.login-background, .login-shade { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.login-background { z-index: 0; }
+.login-background { position: absolute; z-index: 0; top: 0; left: 0; width: 100%; height: auto; pointer-events: none; }
+.login-shade { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .login-shade { z-index: 1; background: rgba(255, 250, 243, .24); }
 .login-shell { position: relative; z-index: 2; width: 100%; max-width: 670rpx; margin: 0 auto; padding-bottom: 20rpx; }
 .login-home {
@@ -44,7 +44,7 @@
   box-shadow: 0 16rpx 48rpx rgba(120, 91, 43, .09);
 }
 .login-identity { display: flex; align-items: center; gap: 20rpx; margin: 0 8rpx 24rpx; }
-.login-mark { position: relative; flex: none; width: 88rpx; height: 88rpx; overflow: hidden; border-radius: 50%; pointer-events: none; }
+.login-mark { position: relative; flex: none; width: 88rpx; height: 88rpx; overflow: hidden; border-radius: 18rpx; pointer-events: none; }
 .login-mark-reveal, .login-mark-surface { position: absolute; inset: 0; width: 100%; height: 100%; }
 .login-mark-reveal { overflow: hidden; animation: login-emblem-window 1050ms cubic-bezier(.22, 1, .36, 1) both; }
 .login-mark-surface { animation: login-emblem-surface 1050ms cubic-bezier(.22, 1, .36, 1) both; }
@@ -80,30 +80,31 @@
   .login-identity { gap: 18rpx; margin-bottom: 20rpx; }
 }
 @media (min-width: 700px) {
-  .login-page { padding: calc(44px + env(safe-area-inset-top)) 40px calc(36px + env(safe-area-inset-bottom)); }
-  .login-shell { max-width: 500px; }
-  .login-home { min-height: 38px; margin-bottom: 14px; padding: 0 14px; border-width: 1px; border-radius: 19px; font-size: 14px; }
-  .login-card { padding: 46px 44px 38px; border-width: 1px; border-radius: 24px; box-shadow: 0 12px 40px rgba(120, 91, 43, .09); }
-  .login-identity { gap: 16px; margin-bottom: 28px; }
-  .login-mark { width: 72px; height: 72px; }
-  .login-mark-art { width: 118px; height: 255px; left: -24px; top: -15px; }
-  .login-brand text { font-size: 36px; letter-spacing: 8px; }
-  .login-heading { margin-bottom: 28px; }
-  .login-title { font-size: 25px; }
-  .login-subtitle { margin-top: 7px; font-size: 15px; }
-  .login-card .field { margin-bottom: 20px; }
-  .login-card .field-label { margin-bottom: 8px; font-size: 15px; }
-  .login-card .input { height: 54px; min-height: 54px; padding: 0 18px; border-width: 1px; border-radius: 10px; font-size: 17px; }
-  .password-field .input { padding-right: 66px; }
-  .password-toggle { right: 2px; width: 58px; height: 54px; min-height: 54px; border-radius: 10px; }
+  .login-page { padding: calc(20px + env(safe-area-inset-top)) 40px calc(24px + env(safe-area-inset-bottom)); }
+  .login-background { left: 50%; width: 520px; margin-left: -260px; }
+  .login-shell { max-width: 460px; }
+  .login-home { min-height: 34px; margin-bottom: 10px; padding: 0 13px; border-width: 1px; border-radius: 17px; font-size: 13px; }
+  .login-card { padding: 28px 32px 26px; border-width: 1px; border-radius: 20px; box-shadow: 0 10px 34px rgba(120, 91, 43, .08); }
+  .login-identity { gap: 14px; margin-bottom: 18px; }
+  .login-mark { width: 68px; height: 68px; border-radius: 12px; }
+  .login-mark-art { width: 112px; height: 243px; left: -22px; top: -14px; }
+  .login-brand text { font-size: 32px; letter-spacing: 7px; }
+  .login-heading { margin-bottom: 18px; }
+  .login-title { font-size: 23px; }
+  .login-subtitle { margin-top: 5px; font-size: 14px; }
+  .login-card .field { margin-bottom: 14px; }
+  .login-card .field-label { margin-bottom: 6px; font-size: 14px; }
+  .login-card .input { height: 48px; min-height: 48px; padding: 0 16px; border-width: 1px; border-radius: 10px; font-size: 16px; }
+  .password-field .input { padding-right: 60px; }
+  .password-toggle { right: 2px; width: 54px; height: 48px; min-height: 48px; border-radius: 10px; }
   .eye-icon { width: 25px; height: 16px; border-width: 1.5px; }
   .eye-icon view { width: 6px; height: 6px; }
   .eye-icon:not(.visible)::after { top: 6px; left: -3px; width: 31px; height: 1.5px; box-shadow: 0 0 0 2px #fffaf3; }
-  .password-reset-row { margin-top: 6px; }
-  .password-reset-link { min-height: 38px; padding-left: 16px; font-size: 14px; }
-  .login-button { height: 54px; min-height: 54px; margin-top: 8px; border-radius: 10px; font-size: 17px; letter-spacing: 2px; text-indent: 2px; }
-  .phone-quick-login { width: 100% !important; height: 54px; min-height: 54px; margin-top: 14px; border-width: 1px; border-radius: 10px; font-size: 16px; }
-  .login-card .message { margin-top: 18px; padding: 12px 14px; border-width: 1px; border-radius: 10px; font-size: 14px; }
+  .password-reset-row { margin-top: 2px; }
+  .password-reset-link { min-height: 32px; padding-left: 14px; font-size: 13px; }
+  .login-button { height: 48px; min-height: 48px; margin-top: 6px; border-radius: 10px; font-size: 16px; letter-spacing: 2px; text-indent: 2px; }
+  .phone-quick-login { width: 100% !important; height: 48px; min-height: 48px; margin-top: 10px; border-width: 1px; border-radius: 10px; font-size: 15px; }
+  .login-card .message { margin-top: 12px; padding: 10px 12px; border-width: 1px; border-radius: 10px; font-size: 13px; }
 }
 @keyframes login-emblem-window { from { transform: translateY(102%); } to { transform: none; } }
 @keyframes login-emblem-surface { from { transform: translateY(-102%); } to { transform: none; } }

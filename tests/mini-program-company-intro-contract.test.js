@@ -73,8 +73,8 @@ test("company introduction is a static public page focused on brand positioning"
   ]) assert.match(wxml, new RegExp(phrase));
   for (const project of ["海洋之蕴", "魔法柔肤", "露思康辰"]) assert.match(wxml, new RegExp(project));
   for (const phone of ["181 7942 2788", "181 6078 9986"]) assert.match(wxml, new RegExp(phone));
-  assert.match(wxml, /<image class="hero-background" src="\/images\/login\/lusizhuoer-login-bg-v4\.jpg" mode="aspectFill"/,
-    "the first company page must reuse the confirmed Lusizhuoer logo artwork");
+  assert.match(wxml, /<image class="hero-background" src="\/images\/login\/lusizhuoer-login-bg-v4\.jpg" mode="widthFix"/,
+    "the first company page must show the complete confirmed Lusizhuoer logo artwork without iPad cropping");
   assert.equal((wxml.match(/src="\/images\/login\/lusizhuoer-login-bg-v4\.jpg"/g) || []).length, 6,
     "the confirmed Lusizhuoer logo artwork must remain visible as a background element on every company page");
   for (const systemCopy of ["内部系统", "数据填报", "数据协同", "在线购买", "支付或交易", "小程序服务边界"]) {
@@ -103,6 +103,8 @@ test("company introduction is a static public page focused on brand positioning"
   assert.doesNotMatch(wxml, /value-grid|value-card|approach-grid|focus-list|belief-card|vision-card/,
     "the company home must not fall back to a modular card grid");
   assert.match(wxss, /\.company-swiper\s*\{[^}]*height:\s*100vh;/s);
+  assert.match(wxss, /@media \(min-width: 700px\) and \(max-height: 900px\)[\s\S]*?\.company-slide \{[^}]*padding: calc\(78px \+ env\(safe-area-inset-top\)\) 50px calc\(44px \+ env\(safe-area-inset-bottom\)\);/s,
+    "iPad landscape must use the compact-height company layout after the general tablet rules");
   assert.match(wxss, /\.company-slide\s*\{[^}]*height:\s*100%;[^}]*align-items:\s*center;[^}]*overflow:\s*hidden;/s,
     "resting pages must never expose part of the next or previous chapter");
   assert.match(js, /onSlideChange\(event\)[\s\S]*currentSlide[\s\S]*reading:[\s\S]*scrolled:/,

@@ -25,10 +25,12 @@ test("login and password reset use bounded tablet forms", () => {
   const reset = read("miniprogram-app", "miniprogram", "pages", "password-reset", "index.wxss");
 
   assert.match(login, /@media \(min-width: 700px\) \{/);
-  assert.match(login, /\.login-shell \{ max-width: 500px; \}/);
-  assert.match(login, /\.login-card \{[^}]*padding: 46px 44px 38px;[^}]*border-radius: 24px;/s);
-  assert.match(login, /\.login-card \.input \{[^}]*min-height: 54px;[^}]*font-size: 17px;/s);
-  assert.match(login, /\.phone-quick-login \{[^}]*width: 100% !important;[^}]*height: 54px;/s);
+  assert.match(login, /\.login-shell \{ max-width: 460px; \}/);
+  assert.match(login, /\.login-card \{[^}]*padding: 28px 32px 26px;[^}]*border-radius: 20px;/s);
+  assert.match(login, /\.login-card \.input \{[^}]*min-height: 48px;[^}]*font-size: 16px;/s);
+  assert.match(login, /\.phone-quick-login \{[^}]*width: 100% !important;[^}]*height: 48px;/s);
+  assert.match(login, /\.login-background \{[^}]*width: 520px;[^}]*margin-left: -260px;/s,
+    "the iPad login must show the complete centered portrait artwork without aspect-fill cropping");
   assert.match(reset, /@media \(min-width: 700px\) \{/);
   assert.match(reset, /\.reset-card \{[^}]*max-width: 540px;[^}]*padding: 42px 44px 36px;/s);
 });

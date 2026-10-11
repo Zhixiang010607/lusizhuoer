@@ -36,7 +36,8 @@ test("mini-program login is concise and keeps phone authorization and password e
   const loginImageSources = [...wxml.matchAll(/<image\b[^>]*\bsrc="([^"]+)"/g)].map((match) => match[1]);
   assert.deepEqual([...new Set(loginImageSources)], ["/images/login/lusizhuoer-login-bg-v4.jpg"],
     "the background and animated logo must reuse the refined brand artwork without adding a portrait");
-  assert.match(wxml, /class="login-background" src="\/images\/login\/lusizhuoer-login-bg-v4\.jpg" mode="aspectFill"/);
+  assert.match(wxml, /class="login-background" src="\/images\/login\/lusizhuoer-login-bg-v4\.jpg" mode="widthFix"/,
+    "the complete portrait brand artwork must remain visible instead of being center-cropped on iPad");
   assert.doesNotMatch(wxml, /login-brand-image|brand-team\.jpg|OCEAN\s+WONDER/i,
     "the login page must not restore a portrait or the combined Ocean Wonder artwork");
   assert.ok(fs.existsSync(backgroundPath), "generated Lusizhuoer login background is missing");
@@ -71,6 +72,8 @@ test("mini-program login is concise and keeps phone authorization and password e
   assert.match(wxss, /\.login-card\s*\{[^}]*background:\s*rgba\(255, 250, 243, \.96\)[^}]*border-radius:\s*32rpx/s,
     "the login form must keep the warm palette with restrained corners");
   assert.match(wxss, /\.login-brand text\s*\{[^}]*color:\s*#87662f[^}]*letter-spacing:\s*12rpx/s);
+  assert.match(wxss, /\.login-mark\s*\{[^}]*border-radius:\s*18rpx;/s,
+    "the emblem must use a soft rectangle instead of a circular crop that removes its corners");
   for (const color of ["#f3ede2", "#87662f", "#675b4b", "#302a22", "#a98243"]) {
     assert.match(wxss, new RegExp(color, "i"), `login palette is missing ${color}`);
   }
