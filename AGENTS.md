@@ -45,6 +45,22 @@ available:
 A source push does not mean that SQL, cloud functions, static hosting, or a
 mini-program release has been deployed. Report each deployment state separately.
 
+# Upload transport and verification rule
+
+For release work, use the `lusizhuoer-release-upload` skill when available.
+Prefer the verified official WeChat DevTools cloud-function deployment route
+with an explicit function path. Before standalone CloudBase CLI upload, inspect
+the actual packing scope; some CLI versions can resolve `functionPath: '.'`
+against the working directory even when `--dir` is supplied. Never upload the
+repository root as a function package.
+
+Use `scripts/wechat_upload_fast.py check` before the Mini Program COS upload
+helper. Preserve TLS validation, keep uploads serialized, and check remote state
+after a timeout before retrying. A completed cloud-function upload additionally
+requires runtime-version verification and downloaded-code comparison; a Mini
+Program upload requires the official final upload receipt. Static Web publishing
+uses a scoped staging directory with `--safe --verify` and public-byte readback.
+
 # Production database backup rule
 
 Treat every production database row and schema object as critical data. Before
