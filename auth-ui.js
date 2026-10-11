@@ -3,7 +3,7 @@
   if (!document.querySelector('link[data-web-tablet-parity]')) {
     const parityStyles = document.createElement("link");
     parityStyles.rel = "stylesheet";
-    parityStyles.href = "web-tablet-parity.css?v=1.0.6";
+    parityStyles.href = "web-tablet-parity.css?v=1.0.7";
     parityStyles.dataset.webTabletParity = "true";
     document.head.append(parityStyles);
   }

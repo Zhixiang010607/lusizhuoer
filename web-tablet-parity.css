@@ -434,6 +434,29 @@ body[data-view="global"] .hq-project-summary-row > :first-child {
   align-items: end !important;
   gap: 10px !important;
 }
+.review-toolbar,
+.review-filters {
+  display: grid !important;
+  gap: 14px !important;
+}
+.review-count {
+  width: fit-content !important;
+  max-width: 100% !important;
+  min-width: 96px !important;
+  min-height: 38px !important;
+  justify-self: end !important;
+  align-items: center !important;
+  margin-top: 4px !important;
+  padding: 7px 14px !important;
+  color: #74592d !important;
+  background: #f4e7d0 !important;
+  border: 1px solid #dfcfb4 !important;
+  border-radius: 999px !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+  text-align: center !important;
+}
+.review-count strong { color: #6f532e !important; font-size: 16px !important; }
 
 /* Runtime messages may add lines; the Web page must grow and remain scrollable. */
 .workflow-capture-panel { overflow: visible !important; }

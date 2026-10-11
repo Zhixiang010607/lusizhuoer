@@ -30,7 +30,7 @@ test("Web uses the warm tablet visual language without importing Mini Program so
   for (const color of ["#f3ede2", "#fffaf3", "#6f532e", "#a98243", "#302a22", "#2f2921"]) assert.match(theme, new RegExp(color, "i"));
   assert.match(theme, /width: min\(1120px/);
   assert.match(theme, /\.side-project-bar[\s\S]*position: sticky/);
-  assert.match(auth, /web-tablet-parity\.css\?v=1\.0\.6/);
+  assert.match(auth, /web-tablet-parity\.css\?v=1\.0\.7/);
   assert.match(theme, /button, \.button-link,[\s\S]{0,220}min-height: 44px !important;[\s\S]{0,220}text-align: center !important;/);
   assert.doesNotMatch(`${theme}\n${auth}`, /miniprogram-app|\.wxss|\.wxml/);
   assert.match(context, /网页版也采用同一套平板横屏视觉与功能信息架构/);
@@ -38,8 +38,8 @@ test("Web uses the warm tablet visual language without importing Mini Program so
 });
 
 test("public login and rating pages load the current tablet stylesheet", () => {
-  assert.match(login, /web-tablet-parity\.css\?v=1\.0\.6/);
-  assert.match(rating, /web-tablet-parity\.css\?v=1\.0\.6/);
+  assert.match(login, /web-tablet-parity\.css\?v=1\.0\.7/);
+  assert.match(rating, /web-tablet-parity\.css\?v=1\.0\.7/);
   assert.match(theme, /body\.login-page \.password-field button[\s\S]{0,220}min-height: 32px !important;[\s\S]{0,220}transform: translateY\(-50%\)/);
   assert.match(theme, /body\.login-page \.login-shell[\s\S]{0,160}width: min\(590px, calc\(100% - 32px\)\) !important;[\s\S]{0,120}max-width: 590px !important;/);
   assert.match(theme, /@media \(max-width: 600px\)[\s\S]*body\.login-page \.login-shell[\s\S]{0,120}width: 100% !important;/);
@@ -53,6 +53,12 @@ test("neighbouring Web actions keep a visible gap instead of sticking together",
   assert.match(theme, /\.product-logo-actions > button \{ padding-inline: 10px !important;/);
   assert.match(theme, /\.workflow-capture-panel \{ overflow: visible !important; \}/);
   assert.match(theme, /\.dashboard-ranking-controls:empty \{ display: none !important; \}/);
+});
+
+test("review result counts use a separated warm compact badge", () => {
+  assert.match(theme, /\.review-toolbar,[\s\S]{0,80}\.review-filters \{[\s\S]{0,100}gap: 14px !important;/);
+  assert.match(theme, /\.review-count \{[\s\S]{0,520}justify-self: end !important;[\s\S]{0,260}margin-top: 4px !important;[\s\S]{0,260}background: #f4e7d0 !important;[\s\S]{0,180}border: 1px solid #dfcfb4 !important;/);
+  assert.doesNotMatch(theme.match(/\.review-count \{[\s\S]*?\}/)?.[0] || "", /#f4f7fa|#edf|#eef/);
 });
 
 test("tablet-width Web navigation and customer query remain readable", () => {
