@@ -28,7 +28,7 @@ test("login and password reset use bounded tablet forms", () => {
 
   assert.match(login, /@media \(min-width: 600px\) \{/,
     "compact and full-size tablets must both enter the dedicated public-login layout");
-  assert.match(login, /\.login-shell \{ max-width: 460px; \}/);
+  assert.match(login, /\.login-shell \{ max-width: 460px; padding-bottom: 0; \}/);
   assert.match(login, /\.login-card \{[^}]*padding: 28px 32px 26px;[^}]*border-radius: 20px;/s);
   assert.match(login, /\.login-card \.input \{[^}]*min-height: 48px;[^}]*font-size: 16px;/s);
   assert.match(login, /\.phone-quick-login \{[^}]*width: 100% !important;[^}]*height: 48px;/s);
@@ -41,7 +41,7 @@ test("login and password reset use bounded tablet forms", () => {
   assert.match(loginWxml, /wx:if="\{\{tabletLandscape\}\}" class="tablet-art-seam"/);
   assert.match(login, /\.login-page\.tablet-side-layout > \.tablet-art-seam \{[^}]*background: linear-gradient\(90deg, transparent 52%/s,
     "side-layout artwork must fade into the warm page instead of showing a differently coloured rectangle");
-  assert.match(loginWxml, /mode="\{\{tabletLandscape \? 'aspectFit' : 'widthFix'\}\}"/,
+  assert.match(loginWxml, /mode="\{\{tabletLayout \? 'aspectFit' : 'widthFix'\}\}"/,
     "tablet rotation must switch the brand art to a complete landscape fit");
   assert.match(loginJs, /tabletLandscape: windowWidth >= 600 && windowHeight > 0[\s\S]*?windowWidth > windowHeight \|\| windowWidth \/ windowHeight >= 0\.86/,
     "other tablet widths, near-square foldables, and orientation changes must use the same login artwork contract");

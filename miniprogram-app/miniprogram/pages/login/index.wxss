@@ -82,13 +82,18 @@
 }
 @media (min-width: 600px) {
   .login-page {
-    padding: calc(49vh + env(safe-area-inset-top)) 40px calc(24px + env(safe-area-inset-bottom));
+    height: 100vh;
+    min-height: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+    padding: min(34vh, calc(100vh - 680px)) 40px calc(24px + env(safe-area-inset-bottom));
     background: linear-gradient(90deg, #ead1a1 0%, #f5e5ca 18%, #fff8ee 50%, #f5e5ca 82%, #ead1a1 100%);
   }
-  .login-background { left: 0; width: 100%; margin-left: 0; }
-  .login-shade { background: rgba(255, 250, 243, .12); }
-  .login-shell { max-width: 460px; }
+  .login-background { left: 0; width: 100%; height: 100%; margin-left: 0; }
+  .login-shade { background: linear-gradient(90deg, rgba(234,209,161,.95) 0%, rgba(245,229,202,.78) 18%, rgba(255,248,238,.12) 38%, rgba(255,248,238,.12) 62%, rgba(245,229,202,.78) 82%, rgba(234,209,161,.95) 100%); }
+  .login-shell { max-width: 460px; padding-bottom: 0; }
   .login-home { min-height: 34px; margin-bottom: 10px; padding: 0 13px; border-width: 1px; border-radius: 17px; font-size: 13px; }
+  .login-page:not(.tablet-side-layout) .login-home { position: fixed; top: calc(44px + env(safe-area-inset-top)); left: 40px; margin: 0; }
   .login-card { padding: 28px 32px 26px; border-width: 1px; border-radius: 20px; box-shadow: 0 10px 34px rgba(120, 91, 43, .08); }
   .login-identity { gap: 14px; margin-bottom: 18px; }
   .login-mark { width: 68px; height: 68px; border-radius: 12px; }
@@ -109,13 +114,13 @@
   .password-reset-link { min-height: 32px; padding-left: 14px; font-size: 13px; }
   .login-button { height: 48px; min-height: 48px; margin-top: 6px; border-radius: 10px; font-size: 16px; letter-spacing: 2px; text-indent: 2px; }
   .phone-quick-login { width: 100% !important; height: 48px; min-height: 48px; margin-top: 10px; border-width: 1px; border-radius: 10px; font-size: 15px; }
-  .login-card .message { margin-top: 12px; padding: 10px 12px; border-width: 1px; border-radius: 10px; font-size: 13px; }
+  .login-card .message { max-height: 84px; overflow-y: auto; margin-top: 12px; padding: 10px 12px; border-width: 1px; border-radius: 10px; font-size: 13px; }
 }
 @media (min-width: 600px) {
   .login-page.tablet-side-layout {
     align-items: center;
     justify-content: flex-end;
-    min-height: 100vh;
+    min-height: 0;
     padding: calc(18px + env(safe-area-inset-top)) 4vw calc(18px + env(safe-area-inset-bottom));
   }
   .login-page.tablet-side-layout .login-background.tablet-art-landscape {
@@ -141,6 +146,9 @@
     pointer-events: none;
   }
   .login-page.tablet-side-layout .login-shell { width: 46vw; max-width: 440px; margin: 0; }
+  .login-page.tablet-keyboard-open { align-items: flex-start; padding-top: calc(48px + env(safe-area-inset-top)); }
+  .login-page.tablet-keyboard-open .login-home { margin-bottom: 8px; }
+  .login-page.tablet-keyboard-open .login-identity { display: none; }
 }
 @keyframes login-emblem-window { from { transform: translateY(102%); } to { transform: none; } }
 @keyframes login-emblem-surface { from { transform: translateY(-102%); } to { transform: none; } }

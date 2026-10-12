@@ -1,5 +1,6 @@
-<view class="login-page {{tabletLandscape ? 'tablet-side-layout' : ''}}">
-  <image class="login-background {{tabletLandscape ? 'tablet-art-landscape' : ''}}" src="/images/login/lusizhuoer-login-bg-v4.jpg" mode="{{tabletLandscape ? 'aspectFit' : 'widthFix'}}"></image>
+<page-meta page-style="{{tabletLayout ? 'height: 100%; overflow: hidden;' : ''}}"></page-meta>
+<view class="login-page {{tabletLandscape ? 'tablet-side-layout' : ''}} {{tabletLayout && keyboardHeight > 0 ? 'tablet-keyboard-open' : ''}}">
+  <image class="login-background {{tabletLandscape ? 'tablet-art-landscape' : ''}}" src="/images/login/lusizhuoer-login-bg-v4.jpg" mode="{{tabletLayout ? 'aspectFit' : 'widthFix'}}"></image>
   <view wx:if="{{tabletLandscape}}" class="tablet-art-seam" aria-hidden="true"></view>
   <view class="login-shade"></view>
   <view class="login-shell">
@@ -18,12 +19,12 @@
       <view class="login-heading"><text class="login-title">内部账号登录</text><text class="login-subtitle">登录账号，开始今天的工作</text></view>
       <label class="field">
         <text class="field-label">手机号</text>
-        <input id="login-phone" class="input" type="number" maxlength="11" placeholder="请输入手机号" placeholder-class="login-placeholder" value="{{phone}}" bindinput="inputPhone" />
+        <input id="login-phone" class="input" type="number" maxlength="11" placeholder="请输入手机号" placeholder-class="login-placeholder" value="{{phone}}" bindinput="inputPhone" bindkeyboardheightchange="keyboardHeightChange" />
       </label>
       <view class="field password-login-field">
         <text class="field-label">登录密码</text>
         <view class="password-field">
-          <input id="login-password" class="input" password="{{!passwordVisible}}" maxlength="32" placeholder="请输入登录密码" placeholder-class="login-placeholder" value="{{password}}" bindinput="inputPassword" />
+          <input id="login-password" class="input" password="{{!passwordVisible}}" maxlength="32" placeholder="请输入登录密码" placeholder-class="login-placeholder" value="{{password}}" bindinput="inputPassword" bindkeyboardheightchange="keyboardHeightChange" />
           <view class="password-toggle" role="button" aria-label="{{passwordVisible ? '隐藏密码' : '显示密码'}}" bindtap="togglePassword"><view class="eye-icon {{passwordVisible ? 'visible' : ''}}"><view></view></view></view>
         </view>
         <view class="password-reset-row"><text class="password-reset-link" role="button" bindtap="openPasswordReset">修改密码</text></view>

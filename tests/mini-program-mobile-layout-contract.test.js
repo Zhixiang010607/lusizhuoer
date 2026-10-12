@@ -36,7 +36,7 @@ test("mini-program login is concise and keeps phone authorization and password e
   const loginImageSources = [...wxml.matchAll(/<image\b[^>]*\bsrc="([^"]+)"/g)].map((match) => match[1]);
   assert.deepEqual([...new Set(loginImageSources)], ["/images/login/lusizhuoer-login-bg-v4.jpg"],
     "the background and animated logo must reuse the refined brand artwork without adding a portrait");
-  assert.match(wxml, /class="login-background \{\{tabletLandscape \? 'tablet-art-landscape' : ''\}\}" src="\/images\/login\/lusizhuoer-login-bg-v4\.jpg" mode="\{\{tabletLandscape \? 'aspectFit' : 'widthFix'\}\}"/,
+  assert.match(wxml, /class="login-background \{\{tabletLandscape \? 'tablet-art-landscape' : ''\}\}" src="\/images\/login\/lusizhuoer-login-bg-v4\.jpg" mode="\{\{tabletLayout \? 'aspectFit' : 'widthFix'\}\}"/,
     "phones must retain widthFix while tablet landscape uses a complete, uncropped brand artwork");
   assert.doesNotMatch(wxml, /login-brand-image|brand-team\.jpg|OCEAN\s+WONDER/i,
     "the login page must not restore a portrait or the combined Ocean Wonder artwork");

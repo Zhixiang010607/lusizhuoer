@@ -5,7 +5,7 @@ Page({
   data: {
     phone: "", password: "", passwordVisible: false, busy: false,
     startupChecking: false, message: "", error: false,
-    tabletLandscape: false
+    tabletLayout: false, tabletLandscape: false, keyboardHeight: 0
   },
   onLoad() { this.configureViewport(); },
   onResize(event) { this.configureViewport(event && event.size); },
@@ -15,9 +15,13 @@ Page({
     const windowWidth = Number(windowInfo.windowWidth) || 0;
     const windowHeight = Number(windowInfo.windowHeight) || 0;
     this.setData({
+      tabletLayout: windowWidth >= 600,
       tabletLandscape: windowWidth >= 600 && windowHeight > 0
-        && (windowWidth > windowHeight || windowWidth / windowHeight >= 0.86)
+        && (windowWidth > windowHeight || windowWidth / windowHeight >= 0.86 || windowHeight < 900)
     });
+  },
+  keyboardHeightChange(event) {
+    this.setData({ keyboardHeight: Math.max(0, Number(event && event.detail && event.detail.height) || 0) });
   },
   async onShow() {
     const epoch = Number(this._startupEpoch || 0) + 1;
