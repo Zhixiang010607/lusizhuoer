@@ -176,7 +176,7 @@ test("all three mini-program homes preserve business content in the refreshed br
     "home tables must derive each column from the longest visible header or value");
   assert.match(wxss, /\.detail-anchor-nav\s*\{[^}]*height:\s*84rpx;[^}]*overflow:\s*hidden/s);
   assert.match(wxss, /\.anchor-inner\s*\{[^}]*width:\s*100%;[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/s);
-  assert.match(wxss, /\.anchor-inner text\s*\{[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*font-size:\s*23rpx/s);
+  assert.match(wxss, /\.anchor-inner text\s*\{[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*font-size:\s*24rpx/s);
   assert.match(wxss, /\.summary-scroll\s*\{[^}]*box-sizing:\s*border-box/s);
   assert.match(js, /function businessRecordsView\(items, type\)[\s\S]*businessViewportHeight:\s*64 \+ \(visibleRows \? visibleRows \* 72 : 104\)[\s\S]*businessScrollable:\s*businessRecords\.length > 5/,
     "business detail must grow for one to five rows and become internally scrollable only after five rows");
@@ -230,7 +230,7 @@ test("mobile management controls stay centered without breaking data into charac
   }
   assert.match(teacher, /\.quota-table-head, \.quota-card\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(170rpx,\s*1\.25fr\)\s+repeat\(3,\s*minmax\(112rpx,\s*\.9fr\)\)\s+minmax\(88rpx,\s*\.65fr\);/s,
     "configured projects must use one compact shared-header table instead of oversized cards");
-  assert.match(teacher, /\.quota-card\s*\{[^}]*min-height:\s*52px;[^}]*font-size:\s*20rpx;/s);
+  assert.match(teacher, /\.quota-card\s*\{[^}]*min-height:\s*52px;[^}]*font-size:\s*24rpx;/s);
   assert.match(teacher, /\.history-row text\s*\{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s);
   assert.match(teacher, /\.history-row > view:first-child text:nth-child\(3\)\s*\{[^}]*overflow-wrap:\s*anywhere;[^}]*white-space:\s*normal;/s,
     "only a free-form history note may wrap; dates, counts, names, and codes stay intact");

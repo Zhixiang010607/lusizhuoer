@@ -667,7 +667,7 @@ Page({
       const facts = [
         { label: "门店", value: order.storeName, note: order.storeCode || "—" },
         { label: "客户", value: order.customerName, note: order.customerCode || "—" },
-        { label: "项目", value: order.productName, note: order.productCode || "—" },
+        { label: "项目", value: order.productName },
         { label: "业务老师", value: order.teacherName || "未指定" }
       ];
       const notes = [

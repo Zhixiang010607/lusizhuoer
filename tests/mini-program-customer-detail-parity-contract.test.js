@@ -93,7 +93,7 @@ test("balance and history tables have exact centered single-line column widths",
   assert.match(wxss, /\.history-tabs \{[^}]*grid-template-columns: repeat\(5, minmax\(0, 1fr\)\);/);
   assert.match(wxss, /\.record-table\s*\{[^}]*width:\s*auto;[^}]*min-width:\s*100%;[^}]*display:\s*inline-table;[^}]*table-layout:\s*auto;/s);
   assert.match(wxss, /\.record-row\s*\{[^}]*display:\s*table-row;/s);
-  assert.match(wxss, /\.balance-table-row text, \.record-row text\s*\{[^}]*display:\s*table-cell;[^}]*padding:\s*10rpx 18rpx;[^}]*font-size:\s*21rpx;[^}]*text-align:\s*center;[^}]*vertical-align:\s*middle;[^}]*white-space:\s*nowrap;/s);
+  assert.match(wxss, /\.balance-table-row text, \.record-row text\s*\{[^}]*display:\s*table-cell;[^}]*padding:\s*10rpx 18rpx;[^}]*font-size:\s*24rpx;[^}]*text-align:\s*center;[^}]*vertical-align:\s*middle;[^}]*white-space:\s*nowrap;/s);
   assert.match(wxss, /\.history-tabs button \{[^}]*align-items: center;[^}]*justify-content: center;[^}]*text-align: center;[^}]*white-space: nowrap;/s);
 });
 

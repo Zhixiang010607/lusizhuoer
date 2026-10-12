@@ -13,7 +13,7 @@ function assertAutoTableContract(wxss, page) {
   assert.match(wxss, /width:\s*auto;\s*min-width:\s*100%;\s*display:\s*inline-table;\s*table-layout:\s*auto;/);
   assert.match(wxss, /display:\s*table-cell;/);
   assert.match(wxss, /padding:\s*10rpx 18rpx;/);
-  assert.match(wxss, page === "customer-detail" ? /font-size:\s*21rpx;/ : /font-size:\s*24rpx;/);
+  assert.match(wxss, /font-size:\s*24rpx;/);
   assert.match(wxss, /white-space:\s*nowrap;/);
   assert.match(wxss, /font-size:\s*14px;/);
 }

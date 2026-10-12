@@ -84,36 +84,36 @@ button::after { border: 0; }
 @media (min-width: 700px) {
   .page { width: calc(100% - 48px); max-width: 1120px; padding: 16px 0 32px; }
   .page-heading { gap: 4px; margin: 0 0 12px; }
-  .eyebrow { font-size: 12px; letter-spacing: 2px; }
+  .eyebrow { font-size: 14px; letter-spacing: 2px; }
   .title { font-size: 23px; }
-  .subtitle { font-size: 13px; }
+  .subtitle { font-size: 14px; }
   .card { margin-bottom: 14px; padding: 16px 18px; border-width: 1px; border-radius: 16px; box-shadow: 0 7px 20px rgba(93,72,39,.07); }
   .filter-card { padding: 14px 16px; }
   .filter-switches.has-review-types { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .review-type-tabs { gap: 4px; padding: 4px; border-radius: 10px; }
   .mode-tabs { gap: 4px; padding: 4px; border-radius: 10px; }
-  .filter-card .review-type-tabs button, .filter-card .mode-tabs button { height: 36px; min-height: 36px; padding: 0 10px; border-radius: 8px; font-size: 13px; line-height: 1; }
-  button { min-height: 38px; border-radius: 9px; font-size: 13px; }
+  .filter-card .review-type-tabs button, .filter-card .mode-tabs button { height: 36px; min-height: 36px; padding: 0 10px; border-radius: 8px; font-size: 14px; line-height: 1; }
+  button { min-height: 38px; border-radius: 9px; font-size: 14px; }
   .review-filter-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 12px; row-gap: 0; margin-top: 10px; align-items: start; }
   .review-filter-grid .field { min-width: 0; margin-top: 0; }
   .review-code-field { grid-column: span 2; }
   .field { gap: 5px; margin-top: 12px; }
-  .field > text { font-size: 13px; line-height: 16px; }
-  .review-filter-grid .field > .field-label { margin-bottom: 0; font-size: 13px; font-weight: 700; }
+  .field > text { font-size: 14px; line-height: 16px; }
+  .review-filter-grid .field > .field-label { margin-bottom: 0; font-size: 14px; font-weight: 700; }
   .field input, .field textarea, .picker,
-  .review-filter-grid .field input, .review-filter-grid .picker { min-height: 38px; height: 38px; padding: 0 11px; border-width: 1px; border-radius: 9px; font-size: 13px; line-height: 1; }
+  .review-filter-grid .field input, .review-filter-grid .picker { min-height: 38px; height: 38px; padding: 0 11px; border-width: 1px; border-radius: 9px; font-size: 14px; line-height: 1; }
   .field textarea { min-height: 120px; padding-top: 14px; }
   .button-row, .dialog-actions { gap: 10px; margin-top: 12px; }
   .review-action-cell { grid-column: auto; align-self: start; margin-top: 0; }
   .review-action-cell::before { content: ""; display: block; height: 16px; margin-bottom: 5px; }
-  .filter-card .review-action-cell button { width: 100%; height: 38px; min-height: 38px; display: flex; align-items: center; justify-content: center; padding: 0 11px; border-radius: 9px; font-size: 13px; line-height: 1; text-align: center; }
+  .filter-card .review-action-cell button { width: 100%; height: 38px; min-height: 38px; display: flex; align-items: center; justify-content: center; padding: 0 11px; border-radius: 9px; font-size: 14px; line-height: 1; text-align: center; }
   .compact { min-width: 104px; min-height: 44px; padding: 0 14px; }
   .message { margin-bottom: 16px; padding: 12px 14px; border-width: 1px; border-radius: 10px; font-size: 14px; }
   .card-title { gap: 14px; margin-bottom: 16px; }
   .card-title > view { gap: 4px; }
   .card-title > view text:first-child { font-size: 22px; }
-  .card-title > view text:last-child { font-size: 13px; }
-  .badge { padding: 5px 10px; font-size: 13px; }
+  .card-title > view text:last-child { font-size: 14px; }
+  .badge { padding: 5px 10px; font-size: 14px; }
   .table-scroll { border-width: 1px; border-radius: 12px; }
   .table-scroll[data-visible-rows="1"] { height: 100px; }
   .table-scroll[data-visible-rows="2"] { height: 152px; }
@@ -139,7 +139,7 @@ button::after { border: 0; }
   .dialog-heading { gap: 16px; }
   .dialog-heading > view:first-child { gap: 4px; }
   .dialog-heading > view:first-child text:first-child { font-size: 24px; }
-  .dialog-heading > view:first-child text:last-child { font-size: 13px; }
+  .dialog-heading > view:first-child text:last-child { font-size: 14px; }
   .dialog-heading > view:last-child { width: 44px; height: 44px; font-size: 30px; }
   .summary { gap: 7px; margin-top: 16px; padding: 14px; border-radius: 12px; font-size: 14px; }
 }

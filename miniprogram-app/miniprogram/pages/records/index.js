@@ -149,7 +149,7 @@ Page({
         productId: String(product.productId || product.retail_product_id || product.id || ""),
         label: [
           product.productName || product.product_name || "未命名产品",
-          product.productCode || product.product_code || "",
+          recordType === "PRODUCT_PURCHASE" ? product.productCode || product.product_code || "" : "",
           String(product.productStatus || product.product_status || "").toUpperCase() === "ARCHIVED" ? "（已封存）" : ""
         ].filter(Boolean).join(" · ")
       }));

@@ -95,7 +95,7 @@ test("HQ home exposes the complete web mobile rail and isolated ranking interact
   assert.match(wxss, /\.business-popover\s*\{[^}]*position:\s*fixed;[^}]*top:\s*56px;[^}]*max-width:\s*560rpx;/s);
   assert.match(wxss, /\.popover-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
   assert.doesNotMatch(wxss, /\.popover-grid\s*\{[^}]*repeat\(2,/s);
-  assert.match(wxss, /\.table-pagination button\s*\{[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*font-size:\s*18rpx;[^}]*line-height:\s*1;/s);
+  assert.match(wxss, /\.table-pagination button\s*\{[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*font-size:\s*24rpx;[^}]*line-height:\s*1;/s);
   assert.match(wxss, /\.hq-ranking-pagination\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*auto minmax\(0,\s*1fr\) auto;/s);
   assert.match(wxss, /\.hq-dimension-tabs button\s*\{[^}]*width:\s*100%\s*!important;[^}]*max-width:\s*100%;[^}]*overflow:\s*hidden/s,
     "four metric controls must remain centered and contained on narrow screens");

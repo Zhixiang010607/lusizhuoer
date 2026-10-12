@@ -51,25 +51,25 @@
   .query-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 12px; }
   .query-grid .query-wide { grid-column: auto; }
   .query-grid .field { margin-bottom: 10px; }
-  .query-grid .field-label { margin-bottom: 5px; font-size: 13px; }
+  .query-grid .field-label { margin-bottom: 5px; font-size: 14px; }
   .query-grid .input, .query-grid .picker { min-height: 42px; padding-right: 12px; padding-left: 12px; font-size: 14px; }
-  .query-note { margin: 0 0 10px; font-size: 12px; }
+  .query-note { margin: 0 0 10px; font-size: 14px; }
   .search-card > .button-row { gap: 10px; }
   .search-card > .button-row button { min-height: 42px; font-size: 14px; }
   .summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
   .summary-grid view { padding: 8px 6px; border-width: 1px; border-radius: 11px; }
-  .summary-grid text { min-height: 16px; font-size: 10px; }
+  .summary-grid text { min-height: 16px; font-size: 14px; }
   .summary-grid .summary-value { margin-top: 1px; font-size: 17px; }
   .result-card { padding: 14px 16px; }
   .result-export { display: grid; grid-template-columns: minmax(0, 1fr) 310px; align-items: center; gap: 10px; margin-top: 10px; padding: 9px 12px; border-width: 1px; border-radius: 10px; }
-  .result-export text { font-size: 12px; }
+  .result-export text { font-size: 14px; }
   .export-buttons { gap: 8px; }
-  .result-export button { min-height: 38px; padding: 0 8px; font-size: 13px; }
+  .result-export button { min-height: 38px; padding: 0 8px; font-size: 14px; }
   .result-sections { gap: 14px; margin-top: 14px; }
   .result-section { padding: 12px; border-width: 1px; border-radius: 12px; }
   .section-title { gap: 10px; }
   .section-title > view > text:first-child { font-size: 17px; }
-  .section-note { margin-top: 3px; font-size: 11px; }
+  .section-note { margin-top: 3px; font-size: 14px; }
   .compact-empty { min-height: 80px; margin-top: 10px; }
   .low-balance-table-scroll { margin-top: 10px; border-width: 1px; border-radius: 11px; }
   .low-balance-table-scroll[data-visible-rows="1"] { height: 104px; }
@@ -80,11 +80,11 @@
   .low-balance-row text { height: 60px; padding: 8px 14px; border-top-width: 1px; font-size: 14px; }
   .low-balance-head text { height: 44px; }
   .pager { grid-template-columns: 84px minmax(0, 1fr) 84px; gap: 8px; padding-top: 14px; border-top-width: 1px; }
-  .pager button { width: 84px !important; min-height: 38px; padding: 0 8px; font-size: 12px; }
-  .pager text { font-size: 12px; }
+  .pager button { width: 84px !important; min-height: 38px; padding: 0 8px; font-size: 14px; }
+  .pager text { font-size: 14px; }
   .page-jump { gap: 6px; margin-top: 8px; }
-  .page-jump input { width: 72px; min-height: 38px; padding: 0 8px; font-size: 12px; border-width: 1px; border-radius: 9px; }
-  .page-jump button { width: 84px !important; min-height: 38px; padding: 0 8px; font-size: 12px; }
+  .page-jump input { width: 72px; min-height: 38px; padding: 0 8px; font-size: 14px; border-width: 1px; border-radius: 9px; }
+  .page-jump button { width: 84px !important; min-height: 38px; padding: 0 8px; font-size: 14px; }
 }
 
 @import "../../styles/query-refinements.wxss";

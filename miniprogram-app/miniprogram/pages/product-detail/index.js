@@ -51,7 +51,7 @@ function assertUrlProduct(candidate, requested) {
   const result = templateView(candidate);
   const ref = text(requested);
   const matches = /^\d+$/.test(ref) ? result.id === ref : result.productCode.toUpperCase() === ref.toUpperCase();
-  if (!ref || !matches) throw new Error(`页面项目与读取结果不一致（请求 ${ref || "—"}，返回 ${result.productCode || result.id || "无编号"}）`);
+  if (!ref || !matches) throw new Error("页面项目与读取结果不一致，请重新进入");
   return result;
 }
 function assertRoundTrip(candidate, expected, verificationInstructions, rechargeInstructions) {
@@ -137,7 +137,7 @@ Page({
         loading: false, logoLoading: false, template: null, logoPreview: "", selectedLogo: false,
         verificationInstructions: "", rechargeInstructions: "", verificationCount: 0, rechargeCount: 0,
         previewLoading: false, previewError: "", previewImages: [], previewPageCount: 0,
-        previewHint: currentPreview.hint, message: "缺少项目编号", error: true
+        previewHint: currentPreview.hint, message: "缺少项目资料，请重新进入", error: true
       });
       return;
     }
@@ -359,7 +359,7 @@ Page({
       const template = assertRoundTrip(reread.template, expected, verificationInstructions, rechargeInstructions);
       this.applyTemplate(template);
       await this.renderPreview();
-      this.setData({ message: `${expected.productName}${expected.productCode ? `（${expected.productCode}）` : ""}的两组文字说明已保存并从数据库复核。`, error: false });
+      this.setData({ message: `${expected.productName}的两组文字说明已保存并从数据库复核。`, error: false });
     } catch (error) {
       this.setData({ message: error.message || "文字说明保存失败", error: true });
     } finally { this.setData({ mutating: false }); }

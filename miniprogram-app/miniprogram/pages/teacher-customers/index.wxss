@@ -4,14 +4,14 @@ page { color: #302a22; background: #f3ede2; }
 .page-heading > view { min-width: 0; flex: 1; }
 .title, .subtitle { display: block; }
 .title { font-size: 36rpx; font-weight: 600; line-height: 1.4; }
-.subtitle { margin-top: 8rpx; color: #7c7062; font-size: 23rpx; line-height: 1.5; }
+.subtitle { margin-top: 8rpx; color: #7c7062; font-size: 24rpx; line-height: 1.5; }
 .page button { display: flex; align-items: center; justify-content: center; width: auto !important; min-width: 0; max-width: 100%; min-height: 76rpx; margin: 0; padding: 0 20rpx; border: 1rpx solid #d8c5a3; border-radius: 14rpx; color: #74592d; background: #fffaf3; font-size: 24rpx; line-height: 1.4; }
 button::after { border: 0; }
-.back { flex: none; font-size: 23rpx; }
+.back { flex: none; font-size: 24rpx; }
 .status-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10rpx; margin-bottom: 22rpx; padding: 8rpx; border-radius: 20rpx; background: #eee4d6; }
 .status-tabs button { width: 100% !important; gap: 14rpx; border-color: transparent; background: transparent; }
 .status-tabs button.active { border-color: #dfcfb4; background: #fffaf3; font-weight: 600; }
-.status-tabs text { font-size: 22rpx; color: #7c7062; }
+.status-tabs text { font-size: 24rpx; color: #7c7062; }
 .panel { padding: 24rpx; border: 1rpx solid #e1cfaf; border-radius: 24rpx; background: #fffaf3; }
 .notice { padding: 20rpx 4rpx; color: #7c7062; font-size: 25rpx; line-height: 1.6; text-align: left; white-space: normal; overflow-wrap: anywhere; }
 .notice > text { display: block; }
@@ -25,13 +25,13 @@ button::after { border: 0; }
 .table-row:last-child > view { border-bottom: 0; }
 .table-row > .customer-link { color: #74592d; font-weight: 600; text-decoration: underline; }
 .pagination { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12rpx; margin-top: 22rpx; }
-.pagination > text { min-width: 0; text-align: center; color: #7c7062; font-size: 21rpx; line-height: 1.5; }
-.pagination button { min-height: 68rpx; padding: 0 16rpx; font-size: 22rpx; }
+.pagination > text { min-width: 0; text-align: center; color: #7c7062; font-size: 24rpx; line-height: 1.5; }
+.pagination button { min-height: 68rpx; padding: 0 16rpx; font-size: 24rpx; }
 button[disabled] { color: #9b9082; background: #f4eee5; }
-.page-jump { display: flex; align-items: center; justify-content: center; gap: 12rpx; margin-top: 16rpx; color: #7c7062; font-size: 22rpx; }
+.page-jump { display: flex; align-items: center; justify-content: center; gap: 12rpx; margin-top: 16rpx; color: #7c7062; font-size: 24rpx; }
 .page-jump input { width: 108rpx; height: 68rpx; border: 1rpx solid #dcc8a6; border-radius: 12rpx; background: #fff; text-align: center; }
 .page-jump button { min-height: 68rpx; }
-.page-message { display: block; margin-top: 16rpx; color: #8b3f35; font-size: 23rpx; }
+.page-message { display: block; margin-top: 16rpx; color: #8b3f35; font-size: 24rpx; }
 @media (min-width: 700px) {
   .page { width: calc(100% - 48px); max-width: 1120px; padding: 24px 0 40px; }
   .page-heading { margin: 0 4px 20px; }
@@ -39,7 +39,7 @@ button[disabled] { color: #9b9082; background: #f4eee5; }
   .subtitle { margin-top: 6px; font-size: 14px; }
   .page button, .page .back { min-height: 44px; padding: 0 16px; border-radius: 10px; font-size: 14px; }
   .status-tabs { max-width: 460px; gap: 8px; margin-bottom: 18px; padding: 6px; border-radius: 14px; }
-  .status-tabs text { font-size: 13px; }
+  .status-tabs text { font-size: 14px; }
   .panel { padding: 20px; border-radius: 18px; }
   .notice { padding: 14px 4px; font-size: 15px; }
   .retry { margin-top: 14px; }

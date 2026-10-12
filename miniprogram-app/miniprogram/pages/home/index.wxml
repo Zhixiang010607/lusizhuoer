@@ -93,7 +93,7 @@
         <view class="panel-heading"><view><text class="panel-title">体验项目剩余次数</text><text class="panel-note">按已配置项目自动排列；项目数量变化时页面会自动调整</text></view><text class="web-badge">{{experienceBalances.length}} 个项目</text></view>
         <view wx:if="{{experienceBalances.length}}" class="teacher-quota-grid">
           <view wx:for="{{experienceBalances}}" wx:key="productId" class="teacher-quota-card {{item.productName.length > 12 || item.availableCount >= 1000 || item.usedCount >= 1000 || item.monthlyAllowance >= 1000 ? 'expanded-quota' : ''}} {{item.availableCount >= 10000000 || item.usedCount >= 10000000 || item.monthlyAllowance >= 10000000 ? 'large-counts' : ''}}">
-            <text class="quota-identity">{{item.productName}} · {{item.productCode || '—'}}</text>
+            <text class="quota-identity">{{item.productName}}</text>
             <view class="quota-metric quota-available"><text>可用</text><text>{{item.availableCount}} 次</text></view>
             <view class="quota-metric"><text>每月基础</text><text>{{item.monthlyAllowance}} 次</text></view>
             <view class="quota-metric"><text>本月已用</text><text>{{item.usedCount}} 次</text></view>

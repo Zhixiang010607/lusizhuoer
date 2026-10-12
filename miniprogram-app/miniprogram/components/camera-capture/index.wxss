@@ -1,8 +1,8 @@
 .capture-card { padding: 24rpx; background: #fff8ec; border: 1rpx solid #dfcfb4; border-radius: 20rpx; }
 .capture-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18rpx; margin-bottom: 20rpx; }
 .capture-heading .title { display: block; color: #302a22; font-size: 29rpx; font-weight: 800; }
-.capture-heading .hint { display: block; margin-top: 6rpx; color: #7c7062; font-size: 21rpx; }
-.state { flex: none; padding: 7rpx 13rpx; color: #8a6812; background: #fff3ca; border-radius: 999rpx; font-size: 20rpx; font-weight: 700; }
+.capture-heading .hint { display: block; margin-top: 6rpx; color: #7c7062; font-size: 24rpx; }
+.state { flex: none; padding: 7rpx 13rpx; color: #8a6812; background: #fff3ca; border-radius: 999rpx; font-size: 24rpx; font-weight: 700; }
 .state.ready { color: #08725f; background: #dcf7ee; }
 .preview, .placeholder { width: 100%; height: 520rpx; border-radius: 18rpx; }
 .preview { background: #eee4d6; }
@@ -14,15 +14,15 @@
 .capture { background: #6f532e !important; }
 .clear { color: #8f322e; background: #fff; border: 1rpx solid #efc6c2; }
 .clear::after { border: 0; }
-.capture-message { display: block; margin-top: 14rpx; color: #675b4b; font-size: 22rpx; line-height: 1.45; }
+.capture-message { display: block; margin-top: 14rpx; color: #675b4b; font-size: 24rpx; line-height: 1.45; }
 .capture-message.error { color: #a1332e; }
 
 @media (min-width: 700px) {
   .capture-card { padding: 16px; border-width: 1px; border-radius: 16px; }
   .capture-heading { gap: 12px; margin-bottom: 14px; }
   .capture-heading .title { font-size: 19px; }
-  .capture-heading .hint { margin-top: 4px; font-size: 13px; }
-  .state { padding: 5px 9px; border-radius: 999px; font-size: 12px; }
+  .capture-heading .hint { margin-top: 4px; font-size: 14px; }
+  .state { padding: 5px 9px; border-radius: 999px; font-size: 14px; }
   .preview, .placeholder { height: 300px; border-radius: 14px; }
   .placeholder { padding: 28px; font-size: 14px; }
   .placeholder-title { margin-bottom: 7px; }

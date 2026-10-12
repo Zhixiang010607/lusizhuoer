@@ -5,11 +5,11 @@
 .refined-query .query-note { margin: 6rpx 0 18rpx; padding: 16rpx 0; border-top: 1rpx solid #eadfce; color: #7c7062; font-size: 24rpx; line-height: 1.6; }
 .refined-query .summary-grid { gap: 0; padding: 18rpx 8rpx; background: #fffaf3; border: 1rpx solid #dfcfb4; border-radius: 24rpx; }
 .refined-query .summary-grid view { padding: 4rpx 8rpx; background: transparent; border: 0; border-radius: 0; }
-.refined-query .summary-grid text { min-height: 0; font-size: 22rpx; line-height: 1.5; }
+.refined-query .summary-grid text { min-height: 0; font-size: 24rpx; line-height: 1.5; }
 .refined-query .summary-grid .summary-value { margin-top: 6rpx; font-size: 30rpx; font-weight: 600; overflow-wrap: anywhere; }
 .refined-query .summary-grid view:first-child .summary-value { color: #74592d; }
 .refined-query .result-export { margin: 0 0 22rpx; padding: 0 0 20rpx; background: transparent; border: 0; border-bottom: 1rpx solid #eadfce; border-radius: 0; }
-.refined-query .result-export > text { font-size: 22rpx; }
+.refined-query .result-export > text { font-size: 24rpx; }
 .refined-query .result-export button { min-height: 72rpx; font-weight: 500; }
 .refined-query .result-sections { gap: 24rpx; margin-top: 12rpx; }
 .refined-query .result-section { padding: 0; background: transparent; border: 0; border-radius: 0; }
@@ -20,13 +20,13 @@
 .refined-query .score-filter { padding: 0; background: transparent; border: 0; border-radius: 0; }
 @media (min-width: 700px) {
   .refined-query .rules-toggle { min-height: 42px; gap: 6px; margin: -8px 0; padding: 0 2px 0 12px; font-size: 14px; }
-  .refined-query .query-note { margin: 4px 0 12px; padding: 12px 0; border-top-width: 1px; font-size: 13px; }
+  .refined-query .query-note { margin: 4px 0 12px; padding: 12px 0; border-top-width: 1px; font-size: 14px; }
   .refined-query .summary-grid { gap: 0; padding: 14px 8px; border-width: 1px; border-radius: 16px; }
   .refined-query .summary-grid view { padding: 0 8px; }
-  .refined-query .summary-grid text { font-size: 13px; }
+  .refined-query .summary-grid text { font-size: 14px; }
   .refined-query .summary-grid .summary-value { margin-top: 4px; font-size: 22px; }
   .refined-query .result-export { margin: 0 0 16px; padding: 0 0 14px; border-bottom-width: 1px; }
-  .refined-query .result-export > text { font-size: 13px; }
+  .refined-query .result-export > text { font-size: 14px; }
   .refined-query .result-export button { min-height: 42px; }
   .refined-query .result-sections { gap: 18px; margin-top: 10px; }
   .refined-query .result-section + .result-section { padding-top: 16px; border-top-width: 1px; }

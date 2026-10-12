@@ -88,9 +88,9 @@ function experienceState(data, productSource, selected) {
     ? selected.rechargeProductId : rechargeProducts[0] && rechargeProducts[0].productId || "";
   return {
     entitlements: rows, summaryRows: summary, history,
-    configureProducts, configureLabels: configureProducts.map((item) => `${item.name}${item.code ? `（${item.code}）` : ""}`),
+    configureProducts, configureLabels: configureProducts.map((item) => item.name),
     configureIndex: Math.max(0, configureProducts.findIndex((item) => item.id === configureProductId)), configureProductId,
-    rechargeProducts, rechargeLabels: rechargeProducts.map((item) => `${item.productName}${item.productCode ? `（${item.productCode}）` : ""}`),
+    rechargeProducts, rechargeLabels: rechargeProducts.map((item) => item.productName),
     rechargeIndex: Math.max(0, rechargeProducts.findIndex((item) => item.productId === rechargeProductId)), rechargeProductId,
     overview: { activeProducts: rechargeProducts.length }
   };

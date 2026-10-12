@@ -468,7 +468,7 @@ Page({
     if (productResult.status === "fulfilled") {
       const products = [{ id: "", label: "全部项目" }, ...(productResult.value.products || []).map((item) => ({
         id: String(item.id || ""),
-        label: `${String(item.product_name || item.productName || "未命名项目")}${item.product_code ? ` · ${item.product_code}` : ""}${String(item.product_status || "").toUpperCase() === "ARCHIVED" ? "（已封存）" : ""}`
+        label: `${String(item.product_name || item.productName || "未命名项目")}${String(item.product_status || "").toUpperCase() === "ARCHIVED" ? "（已封存）" : ""}`
       })).filter((item) => item.id)];
       changes.hqProducts = products;
       changes.hqProductLabels = products.map((item) => item.label);

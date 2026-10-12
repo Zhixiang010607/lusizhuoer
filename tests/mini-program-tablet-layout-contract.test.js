@@ -109,21 +109,21 @@ test("query and review pages use compact tablet filters and five-row result view
   assert.match(reviewsWxss, /\.filter-switches\.has-review-types \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s);
   assert.match(reviewsWxss, /\.review-filter-grid \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/s,
     "review store, status, and query must be three equal outer columns on tablets");
-  assert.match(reviewsWxss, /\.filter-card \.review-type-tabs button, \.filter-card \.mode-tabs button \{[^}]*height: 36px;[^}]*min-height: 36px;[^}]*font-size: 13px;/s,
+  assert.match(reviewsWxss, /\.filter-card \.review-type-tabs button, \.filter-card \.mode-tabs button \{[^}]*height: 36px;[^}]*min-height: 36px;[^}]*font-size: 14px;/s,
     "review switches must stop at one compact tablet height");
   assert.match(reviewsWxss, /\.review-filter-grid \.field > \.field-label \{[^}]*font-size: 24rpx;[^}]*font-weight: 700;/s,
-    "phone review labels must use the same 22rpx query typography as customer and record queries");
-  assert.match(reviewsWxss, /@media \(min-width: 700px\)[\s\S]*?\.review-filter-grid \.field > \.field-label \{[^}]*font-size: 13px;[^}]*font-weight: 700;/s,
-    "tablet review labels must use the same 13px query typography as customer and record queries");
-  assert.match(reviewsWxss, /\.field input, \.field textarea, \.picker,\s*\.review-filter-grid \.field input, \.review-filter-grid \.picker \{[^}]*min-height: 38px;[^}]*height: 38px;[^}]*font-size: 13px;/s,
+    "phone review labels must use the same 24rpx query typography as customer and record queries");
+  assert.match(reviewsWxss, /@media \(min-width: 700px\)[\s\S]*?\.review-filter-grid \.field > \.field-label \{[^}]*font-size: 14px;[^}]*font-weight: 700;/s,
+    "tablet review labels must use the same 14px query typography as customer and record queries");
+  assert.match(reviewsWxss, /\.field input, \.field textarea, \.picker,\s*\.review-filter-grid \.field input, \.review-filter-grid \.picker \{[^}]*min-height: 38px;[^}]*height: 38px;[^}]*font-size: 14px;/s,
     "the tablet override must match the earlier high-specificity review picker rule so fields really align on one compact physical baseline");
   assert.match(reviewsWxss, /\.review-action-cell \{ grid-column: auto; align-self: start; margin-top: 0; \}/,
     "each review action must occupy one direct tablet grid cell from the same top baseline");
-  assert.match(reviewsWxss, /\.review-filter-grid \.field > \.field-label \{[^}]*font-size: 13px;[^}]*font-weight: 700;/s,
+  assert.match(reviewsWxss, /\.review-filter-grid \.field > \.field-label \{[^}]*font-size: 14px;[^}]*font-weight: 700;/s,
     "the tablet override must match the earlier high-specificity review label rule and reuse the established query label typography");
   assert.match(reviewsWxss, /\.review-action-cell::before \{[^}]*height: 16px;[^}]*margin-bottom: 5px;/s,
     "review actions must reserve the same label line so their controls align with the picker top edge");
-  assert.match(reviewsWxss, /\.filter-card \.review-action-cell button \{[^}]*width: 100%;[^}]*height: 38px;[^}]*min-height: 38px;[^}]*font-size: 13px;/s,
+  assert.match(reviewsWxss, /\.filter-card \.review-action-cell button \{[^}]*width: 100%;[^}]*height: 38px;[^}]*min-height: 38px;[^}]*font-size: 14px;/s,
     "review query actions must exactly match the adjacent filter field height");
   assert.doesNotMatch(reviewsWxml, /button-row review-query-actions/,
     "review query actions must not be nested into a separate two-column wrapper");
@@ -164,7 +164,7 @@ test("query and review pages use compact tablet filters and five-row result view
     "customer query mode controls must use the same compact tablet density as the other query pages");
   assert.match(customersWxss, /@media \(min-width: 700px\)[\s\S]*?\.query-grid \.input, \.query-grid \.picker \{[^}]*min-height: 42px;[^}]*font-size: 14px;/s,
     "customer query filter controls must not retain magnified phone geometry on iPad");
-  assert.match(customersWxss, /@media \(min-width: 700px\)[\s\S]*?\.summary-grid text \{[^}]*font-size: 13px;/s,
+  assert.match(customersWxss, /@media \(min-width: 700px\)[\s\S]*?\.summary-grid text \{[^}]*font-size: 14px;/s,
     "customer query summary must stay compact instead of magnifying its labels on iPad");
   assert.match(customersWxss, /\.customer-table \{[^}]*width: auto;[^}]*min-width: 100%;[^}]*display: inline-table;[^}]*table-layout: auto;/s,
     "customer query columns must derive their widths from the current page values");

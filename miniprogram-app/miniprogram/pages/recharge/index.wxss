@@ -14,9 +14,9 @@
 .gift-row { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; padding: 16rpx 18rpx; background: #fff7eb; border: 1rpx solid #dfcfb4; border-radius: 14rpx; }
 .gift-copy { min-width: 0; }
 .gift-copy text { display: block; overflow: hidden; color: #302a22; font-size: 24rpx; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
-.gift-copy text:last-child { margin-top: 5rpx; color: #7c7062; font-size: 20rpx; font-weight: 500; }
-.gift-remove { flex: none; width: auto; min-height: 58rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 18rpx; color: #934d43; background: #fff0ed; border: 1rpx solid #e5bfb9; border-radius: 12rpx; font-size: 21rpx; line-height: 1; }
-.gift-empty { display: block; margin-top: 18rpx; color: #8b7f70; font-size: 21rpx; text-align: center; }
+.gift-copy text:last-child { margin-top: 5rpx; color: #7c7062; font-size: 24rpx; font-weight: 500; }
+.gift-remove { flex: none; width: auto; min-height: 58rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 18rpx; color: #934d43; background: #fff0ed; border: 1rpx solid #e5bfb9; border-radius: 12rpx; font-size: 24rpx; line-height: 1; }
+.gift-empty { display: block; margin-top: 18rpx; color: #8b7f70; font-size: 24rpx; text-align: center; }
 .submit-card { padding-top: 22rpx; padding-bottom: 22rpx; }
 @media (max-width: 360px) {
   .gift-add-row { gap: 8rpx; }
@@ -34,7 +34,7 @@
   .gift-list { gap: 8px; margin-top: 14px; }
   .gift-row { gap: 12px; padding: 12px 14px; border-width: 1px; border-radius: 12px; }
   .gift-copy text { font-size: 16px; }
-  .gift-copy text:last-child { margin-top: 4px; font-size: 13px; }
+  .gift-copy text:last-child { margin-top: 4px; font-size: 14px; }
   .gift-remove { min-height: 42px; padding: 0 14px; border-width: 1px; border-radius: 10px; font-size: 14px; }
   .gift-empty { margin-top: 14px; font-size: 14px; }
   .impact { margin: -2px 0 16px; padding: 13px 14px; border-left-width: 4px; border-radius: 10px; font-size: 14px; }

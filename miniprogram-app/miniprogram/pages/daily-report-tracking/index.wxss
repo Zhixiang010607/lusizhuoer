@@ -5,12 +5,12 @@ page { background: #f3ede2; color: #302a22; }
 .page-heading > view, .section-heading > view, .result-summary > view, .detail-heading > view { min-width: 0; }
 .title, .subtitle, .section-title, .section-note { display: block; }
 .title { font-size: 38rpx; font-weight: 700; }
-.subtitle { margin-top: 7rpx; color: #7c7062; font-size: 22rpx; }
+.subtitle { margin-top: 7rpx; color: #7c7062; font-size: 24rpx; }
 .section-title { font-size: 30rpx; font-weight: 700; }
-.section-note { margin-top: 6rpx; color: #7c7062; font-size: 22rpx; }
+.section-note { margin-top: 6rpx; color: #7c7062; font-size: 24rpx; }
 button::after { border: 0; }
 .back, .today-button, .confirm-button, .month-toolbar button, .detail-heading button { width: auto !important; min-width: 0; margin: 0; color: #74592d; background: #fffaf3; border: 1rpx solid #d8c5a3; }
-.back, .today-button, .confirm-button, .detail-heading button { min-height: 72rpx; display: flex; align-items: center; justify-content: center; padding: 0 20rpx; border-radius: 13rpx; font-size: 23rpx; line-height: 1; text-align: center; }
+.back, .today-button, .confirm-button, .detail-heading button { min-height: 72rpx; display: flex; align-items: center; justify-content: center; padding: 0 20rpx; border-radius: 13rpx; font-size: 24rpx; line-height: 1; text-align: center; }
 .back { position: absolute; top: 0; right: 0; margin-left: auto !important; background: transparent; border-color: transparent; }
 .tracking-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18rpx; }
 .date-query-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 14rpx; }
@@ -23,7 +23,7 @@ button::after { border: 0; }
 .month-toolbar button { width: 64rpx !important; height: 64rpx; min-height: 0; padding: 0; border-radius: 12rpx; font-size: 38rpx; line-height: 1; }
 .month-picker { min-height: 64rpx; display: flex; align-items: center; justify-content: center; color: #5f4a2f; background: #f5ead8; border: 1rpx solid #d8c5a3; border-radius: 12rpx; font-size: 26rpx; font-weight: 700; }
 .weekdays, .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7rpx; }
-.weekdays { margin-bottom: 8rpx; color: #847766; font-size: 20rpx; text-align: center; }
+.weekdays { margin-bottom: 8rpx; color: #847766; font-size: 24rpx; text-align: center; }
 .day { width: 100% !important; min-width: 0; height: 76rpx; min-height: 0; margin: 0; padding: 0; color: #4e4336; background: #fff; border: 1rpx solid #eadfce; border-radius: 13rpx; font-size: 24rpx; }
 .day.blank { background: transparent; border-color: transparent; }
 .day.today { border-color: #a98243; }
@@ -31,7 +31,7 @@ button::after { border: 0; }
 .day[disabled] { color: #b7ab9b; background: #f5efe7; }
 .result-summary { margin-bottom: 16rpx; padding: 4rpx 4rpx 0; }
 .summary-counts { display: flex; gap: 8rpx; }
-.summary-counts text, .list-heading text:last-child { padding: 7rpx 12rpx; color: #74592d; background: #f4e7d0; border-radius: 999rpx; font-size: 20rpx; white-space: nowrap; }
+.summary-counts text, .list-heading text:last-child { padding: 7rpx 12rpx; color: #74592d; background: #f4e7d0; border-radius: 999rpx; font-size: 24rpx; white-space: nowrap; }
 .result-columns { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18rpx; }
 .list-heading { margin-bottom: 16rpx; }
 .list-heading text:first-child { font-size: 29rpx; font-weight: 700; }
@@ -60,7 +60,7 @@ button::after { border: 0; }
 .detail-heading { align-items: flex-start; margin-bottom: 18rpx; }
 .detail-section { margin-top: 14rpx; padding: 18rpx; background: #fff; border: 1rpx solid #eadfce; border-radius: 14rpx; }
 .detail-section > text { display: block; }
-.detail-section > text:first-child { color: #74592d; font-size: 23rpx; font-weight: 700; }
+.detail-section > text:first-child { color: #74592d; font-size: 24rpx; font-weight: 700; }
 .detail-section > text:last-child { margin-top: 10rpx; color: #3f372d; font-size: 28rpx; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
 button[disabled] { opacity: .55; }
 @media (min-width: 700px) {
@@ -75,16 +75,16 @@ button[disabled] { opacity: .55; }
   .calendar-card, .list-card, .notice-card { padding: 20px; border-width: 1px; border-radius: 18px; }
   .section-heading { gap: 12px; margin-bottom: 16px; }
   .section-title { font-size: 20px; }
-  .section-note { margin-top: 5px; font-size: 13px; }
+  .section-note { margin-top: 5px; font-size: 14px; }
   .month-toolbar { grid-template-columns: 42px minmax(0, 1fr) 42px; gap: 8px; margin-bottom: 12px; }
   .month-toolbar button { width: 42px !important; height: 42px; border-width: 1px; border-radius: 9px; font-size: 24px; }
   .month-picker { min-height: 42px; border-width: 1px; border-radius: 9px; font-size: 15px; }
   .weekdays, .calendar-grid { gap: 5px; }
-  .weekdays { margin-bottom: 6px; font-size: 12px; }
+  .weekdays { margin-bottom: 6px; font-size: 14px; }
   .day { height: 48px; border-width: 1px; border-radius: 9px; font-size: 14px; }
   .result-summary { margin-bottom: 14px; padding: 2px; }
   .summary-counts { gap: 6px; }
-  .summary-counts text, .list-heading text:last-child { padding: 5px 9px; font-size: 12px; }
+  .summary-counts text, .list-heading text:last-child { padding: 5px 9px; font-size: 14px; }
   .result-columns { grid-template-columns: minmax(0, 1fr); gap: 14px; }
   .list-heading { margin-bottom: 12px; }
   .list-heading text:first-child { font-size: 19px; }
