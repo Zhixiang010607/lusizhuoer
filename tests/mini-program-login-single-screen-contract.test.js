@@ -66,6 +66,13 @@ test("portrait tablet login masks the fitted artwork edges without cropping the 
     "seam blending must not revert to cropping the brand image");
 });
 
+test("side-layout tablet login blends artwork into the same opaque warm background", () => {
+  const css = read("index.wxss");
+  assert.match(css, /\.login-page\.tablet-side-layout\s*\{[^}]*background: #f7eddd;/s);
+  assert.match(css, /\.login-page\.tablet-side-layout \.login-shade\s*\{[^}]*#f7eddd 8%[^}]*#f7eddd 40%[^}]*#f7eddd 100%/s);
+  assert.match(css, /\.login-page\.tablet-side-layout > \.tablet-art-seam\s*\{[^}]*background: linear-gradient\(90deg, transparent 52%, rgba\(247,237,221,\.62\) 80%, #f7eddd 100%\);/s);
+});
+
 test("keyboard avoidance restores the initial one-screen state without starting authentication", () => {
   const { page, calls } = loginPage(768, 1024);
   page.keyboardHeightChange({ detail: { height: 320 } });

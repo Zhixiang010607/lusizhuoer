@@ -122,6 +122,7 @@
     justify-content: flex-end;
     min-height: 0;
     padding: calc(18px + env(safe-area-inset-top)) 4vw calc(18px + env(safe-area-inset-bottom));
+    background: #f7eddd;
   }
   .login-page.tablet-side-layout .login-background.tablet-art-landscape {
     top: 0;
@@ -132,7 +133,7 @@
     opacity: .58;
   }
   .login-page.tablet-side-layout .login-shade {
-    background: linear-gradient(90deg, rgba(255,250,243,.06) 0%, rgba(255,250,243,.16) 48%, rgba(247,237,220,.72) 58%, rgba(247,237,220,.92) 100%);
+    background: linear-gradient(90deg, #f7eddd 0%, #f7eddd 8%, rgba(247,237,221,.06) 15%, rgba(247,237,221,.06) 32%, #f7eddd 40%, #f7eddd 100%);
   }
   .login-page.tablet-side-layout > .tablet-art-seam {
     position: absolute;
@@ -142,7 +143,7 @@
     width: 44vw;
     height: 100%;
     display: block;
-    background: linear-gradient(90deg, transparent 52%, rgba(247,232,207,.62) 80%, rgba(247,232,207,.98) 100%);
+    background: linear-gradient(90deg, transparent 52%, rgba(247,237,221,.62) 80%, #f7eddd 100%);
     pointer-events: none;
   }
   .login-page.tablet-side-layout .login-shell { width: 46vw; max-width: 440px; margin: 0; }
