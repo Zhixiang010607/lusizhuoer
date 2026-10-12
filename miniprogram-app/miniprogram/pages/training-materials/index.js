@@ -6,6 +6,10 @@ const uploadQueue = require("../../services/training-material-upload-queue");
 const materialCache = require("../../services/training-material-cache");
 
 const MAX_PDF_BYTES = 100 * 1024 * 1024;
+const UPLOAD_PHASES = {
+  PREPARING: "准备文件", SIGNING: "申请上传地址", TRANSFERRING: "正在上传",
+  VERIFYING: "校验并发布", RECOVERING: "核对上次上传结果"
+};
 
 function wxCall(executor) {
   return new Promise((resolve, reject) => executor(resolve, reject));
@@ -45,6 +49,21 @@ function userFacingError(error, fallback) {
   return message;
 }
 
+function readingError(error, stage) {
+  const code = String(error?.code || "").toUpperCase();
+  const message = String(error?.message || error?.errMsg || "");
+  if (["UNAUTHENTICATED", "UNASSIGNED_IDENTITY"].includes(code)) return "登录已失效，请重新登录后阅读";
+  if (code === "FORBIDDEN") return "当前账号没有阅读权限";
+  if (code === "NOT_FOUND") return "资料已下架或不存在，请刷新列表";
+  if (/domain list|合法域名|not.*domain|url not in/i.test(message)) return "PDF 下载域名未配置，请联系总部";
+  if (/timeout|timed out|超时/i.test(message)) return "PDF 读取超时，请重试";
+  if (/network|connect|网络/i.test(message)) return "网络连接失败，请重试";
+  if (stage === "ACCESS") return "未取得 PDF 阅读地址，请重试";
+  if (stage === "DOWNLOAD") return "PDF 文件读取失败，请重试";
+  if (stage === "VALIDATE") return "PDF 文件不完整，请重新读取";
+  return "PDF 打开失败，请重试；仍失败请联系总部检查文件";
+}
+
 function materialView(item = {}) {
   return {
     id: String(item.id || ""),
@@ -65,44 +84,74 @@ function materialView(item = {}) {
 Page({
   data: {
     session: {}, isHq: false, loading: true, busy: false, openingId: "", keyword: "",
-    title: "", selectedFile: null, materials: [], pendingTasks: [],
+    title: "", selectedFile: null, materials: [], pendingTasks: [], failedTasks: [],
     message: "", error: false
   },
   onLoad() {
+    this._unloaded = false;
     let session;
     try { session = requireSession(["hq", "teacher"]); }
     catch (_) { return wx.reLaunch({ url: "/pages/home/index" }); }
+    if (!session) return;
     this.setData({ session, isHq: session.role === "hq" });
     if (session.role === "hq") {
       this._unsubscribe = uploadQueue.subscribe((event) => this.onUploadQueueEvent(event));
       this.syncPendingTasks();
-      void uploadQueue.resume({ retryFailed: true, ownerStaffId: session.staffId });
+      void uploadQueue.resume({ ownerStaffId: session.staffId });
     }
     this.loadMaterials();
   },
   onShow() {
+    this._visible = true;
     if (this.data.isHq) { this.syncPendingTasks(); void uploadQueue.resume({ ownerStaffId: this.data.session.staffId }); }
   },
+  onHide() { this._visible = false; this.stopProgressTicker(); },
   onUnload() {
+    this._unloaded = true;
+    this._visible = false;
+    this.stopProgressTicker();
+    this._downloadTask?.abort?.();
+    this._downloadTask = null;
     this._epoch = Number(this._epoch || 0) + 1;
     this._unsubscribe?.();
     this._unsubscribe = null;
   },
   syncPendingTasks() {
-    this.setData({ pendingTasks: uploadQueue.allTasks().filter((task) => task.ownerStaffId === String(this.data.session.staffId || "") && task.state !== "COMMITTED").map((task) => ({
-      ...task,
-      stateLabel: task.state === "FAILED" ? "等待重试" : task.state === "UPLOADING" ? "后台上传中" : "等待上传",
-      sizeLabel: readableBytes(task.bytes)
-    })) });
+    const now = Date.now();
+    const tasks = uploadQueue.allTasks().filter((task) => task.ownerStaffId === String(this.data.session.staffId || "") && task.state !== "COMMITTED").map((task) => {
+      const stage = UPLOAD_PHASES[task.phase] || "准备文件";
+      const seconds = Math.max(0, Math.floor((now - Number(task.phaseStartedAt || now)) / 1000));
+      const retrySeconds = Math.max(0, Math.ceil((Number(task.nextAttemptAt || 0) - now) / 1000));
+      return {
+        ...task, sizeLabel: readableBytes(task.bytes),
+        stateLabel: task.state === "FAILED" ? (retrySeconds ? `${retrySeconds} 秒后重试` : "可重试或移除")
+          : task.state === "UPLOADING" ? stage : "等待上传",
+        elapsedLabel: task.state === "UPLOADING" ? `已等待 ${seconds} 秒` : "",
+        transferLabel: task.state === "UPLOADING" && task.uploadedBytes > 0 ? `已传 ${readableBytes(task.uploadedBytes)} / ${readableBytes(task.bytes)}` : "",
+        phaseIndex: task.phase === "TRANSFERRING" ? 1 : ["VERIFYING", "RECOVERING"].includes(task.phase) ? 2 : 0,
+        error: task.error ? userFacingError({ message: task.error }, "上传失败，请重试") : ""
+      };
+    });
+    this.setData({ pendingTasks: tasks.filter((task) => task.state !== "FAILED"), failedTasks: tasks.filter((task) => task.state === "FAILED") });
+    if (this._visible && tasks.length && !this._progressTimer) {
+      this._progressTimer = setInterval(() => this.syncPendingTasks(), 1000);
+    } else if (!tasks.length) this.stopProgressTicker();
+  },
+  stopProgressTicker() {
+    if (this._progressTimer) clearInterval(this._progressTimer);
+    this._progressTimer = null;
   },
   async onUploadQueueEvent(event = {}) {
-    if (!this.data.isHq) return;
+    if (this._unloaded || !this.data.isHq || event.task?.ownerStaffId !== String(this.data.session.staffId || "")) return;
     this.syncPendingTasks();
     if (event.type === "committed") {
       await this.loadMaterials();
+      if (this._unloaded) return;
       this.setData({ message: `《${event.task?.title || "培训资料"}》已在后台上传并发布。`, error: false });
     } else if (event.type === "failed") {
-      this.setData({ message: `《${event.task?.title || "培训资料"}》后台上传暂未完成，将自动重试。`, error: true });
+      this.setData({ message: event.task?.nextAttemptAt ? "上传未完成，稍后自动重试。" : "上传失败，可重试或移除任务。", error: true });
+    } else if (event.type === "removed" || event.type === "settled") {
+      this.setData({ message: "", error: false });
     }
   },
   async loadMaterials() {
@@ -112,7 +161,7 @@ Page({
     try {
       const result = await callStaff("listTrainingMaterials", { keyword: String(this.data.keyword || "").trim() });
       if (epoch !== this._epoch) return;
-      this.setData({ materials: (result.materials || []).map(materialView) });
+      this.setData({ materials: (result.materials || []).filter((item) => item.status === "PUBLISHED").map(materialView) });
     } catch (error) {
       if (epoch === this._epoch) this.setData({ message: userFacingError(error, "培训资料读取失败，请稍后重试"), error: true });
     } finally {
@@ -180,35 +229,108 @@ Page({
       this.setData({ message: "已重新开始后台上传。", error: false });
     }
   },
+  async removeFailedUpload(event) {
+    if (!this.data.isHq) return;
+    const id = String(event.currentTarget.dataset.id || "");
+    if (!this.data.failedTasks.some((task) => task.id === id)) return;
+    const confirmed = await wxCall((resolve) => wx.showModal({
+      title: "移除失败任务", content: "仅停止这条任务的重试，已发布资料不受影响。", confirmText: "移除",
+      success: (value) => resolve(Boolean(value.confirm)), fail: () => resolve(false)
+    }));
+    if (!confirmed) return;
+    const removed = await uploadQueue.dismissFailed(id);
+    if (this._unloaded) return;
+    this.syncPendingTasks();
+    this.setData({ message: removed ? "失败任务已移除。" : "任务已继续上传，请稍后再操作。", error: !removed });
+  },
   async openMaterial(event) {
     const id = String(event.currentTarget.dataset.id || "");
     if (!id || this.data.openingId) return;
     this.setData({ openingId: id, message: "正在打开全屏 PDF…", error: false });
     wx.showLoading({ title: "正在打开", mask: true });
+    const owner = { ...this.data.session };
+    let stage = "ACCESS";
+    const assertCurrentReader = () => {
+      let current;
+      if (!this._unloaded) {
+        try { const data = getApp().globalData; current = data.startupReady === true ? data.session : null; } catch (_) {}
+      }
+      if (!current || !["hq", "teacher"].includes(current.role) || current.staffId !== owner.staffId || current.uid !== owner.uid || current.role !== owner.role || current.loginAt !== owner.loginAt) {
+        const error = new Error("阅读已取消");
+        error.code = "READER_CANCELLED";
+        throw error;
+      }
+    };
     try {
       const material = this.data.materials.find((item) => item.id === id);
       if (!material) throw new Error("未找到培训资料");
+      assertCurrentReader();
+      // A local file is not permission: recheck publication and the current UID
+      // before using it. The signed URL itself is never persisted or logged.
+      const result = await callStaff("getTrainingMaterialAccess", { materialId: id });
+      assertCurrentReader();
+      const url = String(result.access?.url || "");
+      if (!/^https:\/\//.test(url)) throw new Error("没有取得有效的临时阅读地址");
       let filePath = await materialCache.find(material);
-      if (!filePath) {
-        const result = await callStaff("getTrainingMaterialAccess", { materialId: id });
-        const url = String(result.access?.url || "");
-        if (!/^https:\/\//.test(url)) throw new Error("没有取得有效的临时阅读地址");
-        const downloaded = await wxCall((resolve, reject) => wx.downloadFile({ url, timeout: 300000, success: resolve, fail: reject }));
+      assertCurrentReader();
+      const fromCache = Boolean(filePath);
+      const readFreshFile = async () => {
+        stage = "DOWNLOAD";
+        wx.showLoading({ title: "读取 PDF", mask: true });
+        let lastProgress = -1;
+        const downloaded = await wxCall((resolve, reject) => {
+          this._downloadTask = wx.downloadFile({ url, timeout: 300000, success: resolve, fail: reject });
+          this._downloadTask?.onProgressUpdate?.((progress) => {
+            const percent = Number(progress?.progress);
+            if (this._unloaded || !Number.isFinite(percent) || percent < 0 || percent > 100 || percent === lastProgress) return;
+            try { assertCurrentReader(); } catch (_) { return; }
+            lastProgress = percent;
+            wx.showLoading({ title: `读取 PDF ${Math.floor(percent)}%`, mask: true });
+          });
+        });
+        this._downloadTask = null;
+        assertCurrentReader();
         if (Number(downloaded.statusCode) < 200 || Number(downloaded.statusCode) >= 300 || !downloaded.tempFilePath) {
           throw new Error("PDF 临时读取失败");
         }
-        filePath = await materialCache.store(downloaded.tempFilePath, material).catch(() => downloaded.tempFilePath);
+        stage = "VALIDATE";
+        const info = await wxCall((resolve, reject) => wx.getFileSystemManager().getFileInfo({ filePath: downloaded.tempFilePath, success: resolve, fail: reject }));
+        assertCurrentReader();
+        if (!Number.isSafeInteger(material.bytes) || material.bytes < 8 || material.bytes > MAX_PDF_BYTES || Number(info.size) !== material.bytes) throw new Error("PDF 文件不完整");
+        // Only a byte-verified temporary file may be the fallback when local
+        // cache storage is full/unavailable. Never open a partial transfer.
+        const cached = await materialCache.store(downloaded.tempFilePath, material).catch(() => "");
+        assertCurrentReader();
+        return cached || downloaded.tempFilePath;
+      };
+      const openFile = async (path) => {
+        assertCurrentReader();
+        stage = "OPEN";
+        wx.hideLoading();
+        await wxCall((resolve, reject) => wx.openDocument({ filePath: path, fileType: "pdf", showMenu: false, success: resolve, fail: reject }));
+      };
+      if (!filePath) filePath = await readFreshFile();
+      try { await openFile(filePath); }
+      catch (error) {
+        if (error.code === "READER_CANCELLED") throw error;
+        await materialCache.invalidate(id);
+        if (!fromCache) throw error;
+        assertCurrentReader();
+        filePath = await readFreshFile();
+        try { await openFile(filePath); }
+        catch (retryError) { await materialCache.invalidate(id); throw retryError; }
       }
-      wx.hideLoading();
-      await wxCall((resolve, reject) => wx.openDocument({
-        filePath, fileType: "pdf", showMenu: false,
-        success: resolve, fail: reject
-      }));
+      if (this._unloaded) return;
       this.setData({ message: "", error: false });
     } catch (error) {
       wx.hideLoading();
-      this.setData({ message: userFacingError(error, "PDF 打开失败"), error: true });
-    } finally { this.setData({ openingId: "" }); }
+      if (this._unloaded || error.code === "READER_CANCELLED") return;
+      if (["NOT_FOUND", "FORBIDDEN"].includes(String(error.code || "").toUpperCase())) await materialCache.invalidate(id);
+      if (!this._unloaded) this.setData({ message: readingError(error, stage), error: true });
+    } finally {
+      this._downloadTask = null;
+      if (!this._unloaded) this.setData({ openingId: "" });
+    }
   },
   async archiveMaterial(event) {
     if (!this.data.isHq || this.data.busy) return;

@@ -20,7 +20,7 @@ page { min-height: 100%; background: #f3ede2; color: #302a22; }
 .selected-file-name { min-width: 0; overflow: hidden; font-size: 24rpx; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .selected-file-size { flex: none; }
 .publish-button { align-self: end; width: 100%; height: 82rpx; min-height: 82rpx; margin: 0; box-sizing: border-box; color: #fff; background: #7c5a2b; border-radius: 14rpx; font-size: 25rpx; font-weight: 800; line-height: 82rpx; text-align: center; }
-.publish-button[disabled] { color: #9b9082; background: #e7ddce; }
+.upload-grid .publish-button.is-disabled { color: #675b4b !important; background: #e7ddce !important; opacity: 1; }
 .message { margin-bottom: 16rpx; padding: 16rpx 18rpx; border-radius: 14rpx; font-size: 21rpx; line-height: 1.5; }
 .message.success { color: #4f664f; background: #f0f6ec; border: 1rpx solid #c9dbc0; }
 .message.error { color: #8b3f35; background: #fff1ed; border: 1rpx solid #e4bdb4; }
@@ -29,6 +29,11 @@ page { min-height: 100%; background: #f3ede2; color: #302a22; }
 .search-card .search-row { margin-bottom: 0; }
 .pending-row { width: 100%; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; gap: 14rpx; padding: 14rpx 0; border-top: 1rpx solid #eadfce; box-sizing: border-box; }
 .pending-row.has-retry { grid-template-columns: minmax(0, 1fr) 132rpx; }
+.failed-actions { width: 100%; min-width: 0; display: grid; gap: 10rpx; }
+.pending-row .retry-button.remove-task-button { color: #934b40; border-color: #e4bdb4; background: #fff3ef; }
+.upload-stages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8rpx; margin-top: 12rpx; }
+.upload-stage { min-width: 0; padding: 10rpx 4rpx; border: 1rpx solid #dfcfb4; border-radius: 10rpx; color: #7c7062; background: #fff; font-size: 21rpx; line-height: 1; text-align: center; }
+.upload-stage.current { color: #fff; background: #7c5a2b; border-color: #7c5a2b; }
 .pending-row:first-of-type { border-top: 0; }
 .pending-row > view { min-width: 0; flex: 1; }
 .pending-title { display: block; overflow: hidden; font-size: 26rpx; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
@@ -87,6 +92,9 @@ page { min-height: 100%; background: #f3ede2; color: #302a22; }
   .search-row button { height: 48px; min-height: 48px; border-radius: 11px; font-size: 14px; line-height: 48px; }
   .pending-row { gap: 14px; padding: 12px 0; border-width: 1px; }
   .pending-row.has-retry { grid-template-columns: minmax(0, 1fr) 96px; }
+  .failed-actions { gap: 8px; }
+  .upload-stages { gap: 8px; margin-top: 10px; }
+  .upload-stage { padding: 9px 4px; border-width: 1px; border-radius: 8px; font-size: 13px; }
   .pending-title { font-size: 17px; }
   .pending-error { margin-top: 4px; font-size: 13px; }
   .pending-row .retry-button { height: 48px; min-height: 48px; padding: 0 13px; border-width: 1px; border-radius: 9px; font-size: 13px; }

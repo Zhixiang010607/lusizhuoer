@@ -10,6 +10,7 @@ let processing = false;
 let rerunRequested = false;
 let wakeTimer = null;
 let wakeAt = 0;
+let activeTaskId = "";
 
 function clean(value) { return String(value ?? "").trim(); }
 function currentOwnerStaffId() {
@@ -37,6 +38,8 @@ function normalizeTask(task = {}) {
     createdAt, updatedAt: Number(task.updatedAt || createdAt),
     attemptCount: Math.max(0, Number(task.attemptCount || 0)),
     state: clean(task.state || "QUEUED").toUpperCase(), error: clean(task.error),
+    phase: clean(task.phase), phaseStartedAt: Math.max(0, Number(task.phaseStartedAt || 0)),
+    uploadedBytes: Math.max(0, Math.min(Number(task.bytes || 0), Number(task.uploadedBytes || 0))),
     nextAttemptAt: Math.max(0, Number(task.nextAttemptAt || 0))
   };
 }
@@ -79,6 +82,29 @@ async function emit(event) {
   if (pending.length) await Promise.allSettled(pending);
 }
 
+async function setPhase(task, phase) {
+  assertOwner(task);
+  updateTask(task, { phase, phaseStartedAt: Date.now() });
+  await emit({ type: "progress", task });
+  assertOwner(task);
+}
+
+function uploadFailure(error, task) {
+  const code = clean(error?.code).toUpperCase();
+  const message = clean(error?.message || error?.errMsg);
+  if (code === "TRAINING_UPLOAD_OWNER_CHANGED") return "请用提交资料的总部账号登录后继续上传";
+  if (["UNAUTHENTICATED", "UNASSIGNED_IDENTITY"].includes(code)) return "登录已失效，请重新登录后重试";
+  if (code === "FORBIDDEN") return "当前账号没有上传权限";
+  if (/domain list|not.*domain|合法域名/i.test(message)) return "PDF 上传域名未配置，请联系总部";
+  if (/timeout|timed out|超时/i.test(message)) return "PDF 上传超时，请重试";
+  // Never persist a signed URL or platform credentials from a transport error.
+  if (/[\u4e00-\u9fff]/.test(message) && !/https?:|token=|signature|不支持的操作/i.test(message)) return message;
+  if (task.phase === "PREPARING") return "本地 PDF 读取失败，请重新选择";
+  if (task.phase === "SIGNING") return "PDF 上传地址申请失败，请重试";
+  if (["VERIFYING", "RECOVERING"].includes(task.phase)) return "PDF 发布结果暂未确认，请用原任务重试";
+  return "PDF 传输失败，请检查网络后重试";
+}
+
 function signedUpload(upload, buffer) {
   const url = clean(upload?.url);
   const bytes = new Uint8Array(buffer).byteLength;
@@ -118,25 +144,32 @@ function confirmPayload(task) {
 
 async function processTask(task) {
   assertOwner(task);
-  const info = await fileInfo(task.filePath);
-  assertOwner(task);
-  if (Number(info?.size || 0) !== task.bytes) throw new Error("待传 PDF 文件不完整，请重新选择");
   if (task.reference) {
+    await setPhase(task, "RECOVERING");
     try { return await callStaff("confirmTrainingMaterialUpload", confirmPayload(task)); }
     catch (error) {
       if (!["TRAINING_MATERIAL_UPLOAD_INCOMPLETE", "TRAINING_MATERIAL_REFERENCE_INVALID", "TRAINING_MATERIAL_BUCKET_MISMATCH"].includes(clean(error?.code).toUpperCase())) throw error;
       assertOwner(task);
       await callStaff("discardTrainingMaterialUpload", { reference: task.reference }).catch(() => {});
-      updateTask(task, { reference: "" });
+      updateTask(task, { reference: "", uploadedBytes: 0 });
     }
   }
+  await setPhase(task, "PREPARING");
+  const info = await fileInfo(task.filePath);
+  assertOwner(task);
+  if (Number(info?.size || 0) !== task.bytes) throw new Error("待传 PDF 文件不完整，请重新选择");
   const read = await readFile(task.filePath);
   assertOwner(task);
   if (new Uint8Array(read.data).byteLength !== task.bytes) throw new Error("待传 PDF 读取不完整，请重新选择");
+  await setPhase(task, "SIGNING");
   const pending = await callStaff("beginTrainingMaterialUpload", confirmPayload(task));
-  updateTask(task, { reference: clean(pending.reference) });
+  assertOwner(task);
+  updateTask(task, { reference: clean(pending.reference), uploadedBytes: 0 });
+  await setPhase(task, "TRANSFERRING");
   await signedUploadWithRetry(pending.upload || {}, read.data, task);
   assertOwner(task);
+  updateTask(task, { uploadedBytes: task.bytes });
+  await setPhase(task, "VERIFYING");
   return callStaff("confirmTrainingMaterialUpload", confirmPayload(task));
 }
 
@@ -151,7 +184,7 @@ function scheduleWake(delay) {
 async function cleanupExpiredTasks(tasks, ownerStaffId) {
   const now = Date.now();
   for (const task of tasks) {
-    if (task.ownerStaffId === ownerStaffId && now - task.createdAt > MAX_TASK_AGE_MS) {
+    if (task.ownerStaffId === ownerStaffId && task.state !== "COMMITTED" && now - task.createdAt > MAX_TASK_AGE_MS) {
       assertOwner(task);
       if (task.reference) await callStaff("discardTrainingMaterialUpload", { reference: task.reference }).catch(() => {});
       assertOwner(task);
@@ -176,11 +209,22 @@ async function resume(options = {}) {
     }
     for (const stored of tasks) {
       if (currentOwnerStaffId() !== ownerStaffId) break;
-      const task = normalizeTask(stored);
+      // A failed job can be removed while another job is awaiting the network.
+      // Re-read rather than resurrecting a cancelled job from the old snapshot.
+      const current = readTasks().find((item) => item.id === stored.id && item.ownerStaffId === ownerStaffId);
+      if (!current) continue;
+      const task = normalizeTask(current);
+      if (task.state === "COMMITTED") {
+        removeTask(task);
+        await unlinkFile(task.filePath).catch(() => {});
+        await emit({ type: "settled", task });
+        continue;
+      }
       const now = Date.now();
       if (task.state === "FAILED" && task.nextAttemptAt > now) { scheduleWake(task.nextAttemptAt - now); continue; }
       if (task.state === "FAILED" && task.attemptCount > RETRY_DELAYS_MS.length) continue;
-      updateTask(task, { state: "UPLOADING", error: "", attemptCount: task.attemptCount + 1, nextAttemptAt: 0 });
+      activeTaskId = task.id;
+      updateTask(task, { state: "UPLOADING", phase: "PREPARING", phaseStartedAt: now, error: "", attemptCount: task.attemptCount + 1, nextAttemptAt: 0 });
       await emit({ type: "state", task });
       try {
         const result = await processTask(task);
@@ -190,7 +234,7 @@ async function resume(options = {}) {
         removeTask(task);
         await unlinkFile(task.filePath).catch(() => {});
       } catch (error) {
-        const message = clean(error?.message || error?.errMsg) || "培训 PDF 后台上传失败";
+        const message = uploadFailure(error, task);
         const retryIndex = Math.min(task.attemptCount - 1, RETRY_DELAYS_MS.length - 1);
         const canRetry = task.attemptCount <= RETRY_DELAYS_MS.length;
         const nextAttemptAt = canRetry ? Date.now() + RETRY_DELAYS_MS[retryIndex] : 0;
@@ -198,6 +242,8 @@ async function resume(options = {}) {
         await emit({ type: "failed", task, error: message });
         if (canRetry) scheduleWake(RETRY_DELAYS_MS[retryIndex]);
         if (error?.code === "TRAINING_UPLOAD_OWNER_CHANGED") break;
+      } finally {
+        activeTaskId = "";
       }
     }
     return true;
@@ -233,9 +279,24 @@ function retry(taskId) {
   const task = readTasks().find((item) => item.id === clean(taskId));
   if (!task) return false;
   if (currentOwnerStaffId() !== task.ownerStaffId) return false;
+  if (task.state !== "FAILED" || activeTaskId === task.id) return false;
   updateTask(task, { state: "QUEUED", error: "", attemptCount: 0, nextAttemptAt: 0 });
   void resume();
   return true;
 }
 
-module.exports = { STORAGE_KEY, enqueue, resume, retry, subscribe, allTasks };
+async function dismissFailed(taskId) {
+  const task = readTasks().find((item) => item.id === clean(taskId));
+  if (!task || task.state !== "FAILED" || activeTaskId === task.id
+      || currentOwnerStaffId() !== task.ownerStaffId) return false;
+  removeTask(task); // Stop retries before asynchronous cleanup starts.
+  await emit({ type: "removed", task });
+  // Existing server cancellation refuses to delete a published/bound object.
+  if (task.reference && currentOwnerStaffId() === task.ownerStaffId) {
+    await callStaff("discardTrainingMaterialUpload", { reference: task.reference }).catch(() => {});
+  }
+  await unlinkFile(task.filePath).catch(() => {});
+  return true;
+}
+
+module.exports = { STORAGE_KEY, enqueue, resume, retry, dismissFailed, subscribe, allTasks };

@@ -9,7 +9,7 @@
     <view class="upload-grid">
       <label class="field title-field"><text class="field-label">标题</text><input class="input" maxlength="160" value="{{title}}" bindinput="inputTitle" placeholder="输入资料标题" /></label>
       <view class="field file-field"><text class="field-label">PDF 文件</text><button class="ghost choose-button" bindtap="choosePdf" disabled="{{busy}}">{{selectedFile ? '重新选择 PDF' : '选择 PDF'}}</button></view>
-      <view class="field action-field"><text class="field-label">操作</text><button class="primary publish-button" bindtap="uploadPdf" disabled="{{busy || !selectedFile || !title}}">{{busy ? '正在处理…' : '上传并发布'}}</button></view>
+      <view class="field action-field"><text class="field-label">操作</text><button class="primary publish-button {{busy || !selectedFile || !title ? 'is-disabled' : ''}}" bindtap="uploadPdf" disabled="{{busy || !selectedFile || !title}}">{{busy ? '正在处理…' : '上传并发布'}}</button></view>
     </view>
     <view wx:if="{{selectedFile}}" class="selected-file"><text class="selected-file-name">{{selectedFile.name}}</text><text class="selected-file-size">{{selectedFile.sizeLabel}}</text></view>
   </view>
@@ -17,10 +17,22 @@
   <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
 
   <view wx:if="{{isHq && pendingTasks.length}}" class="card pending-card">
-    <view class="card-title"><text>后台上传任务</text><text class="badge">{{pendingTasks.length}} 个</text></view>
-    <view wx:for="{{pendingTasks}}" wx:key="id" class="pending-row {{item.state === 'FAILED' ? 'has-retry' : ''}}">
+    <view class="card-title"><text>上传进度</text><text class="badge">{{pendingTasks.length}} 个</text></view>
+    <view wx:for="{{pendingTasks}}" wx:key="id" class="pending-row">
+      <view><text class="pending-title">{{item.title}}</text><text class="material-meta">{{item.sizeLabel}} · {{item.stateLabel}}<text wx:if="{{item.elapsedLabel}}"> · {{item.elapsedLabel}}</text></text>
+        <text wx:if="{{item.transferLabel}}" class="material-meta">{{item.transferLabel}}</text>
+        <view wx:if="{{item.state === 'UPLOADING'}}" class="upload-stages">
+          <text class="upload-stage {{item.phaseIndex === 0 ? 'current' : ''}}">准备</text><text class="upload-stage {{item.phaseIndex === 1 ? 'current' : ''}}">上传</text><text class="upload-stage {{item.phaseIndex === 2 ? 'current' : ''}}">发布</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{isHq && failedTasks.length}}" class="card failed-card">
+    <view class="card-title"><text>上传失败</text><text class="badge">{{failedTasks.length}} 个</text></view>
+    <view wx:for="{{failedTasks}}" wx:key="id" class="pending-row has-retry">
       <view><text class="pending-title">{{item.title}}</text><text class="material-meta">{{item.sizeLabel}} · {{item.stateLabel}}</text><text wx:if="{{item.error}}" class="pending-error">{{item.error}}</text></view>
-      <button wx:if="{{item.state === 'FAILED'}}" class="retry-button" data-id="{{item.id}}" bindtap="retryUpload">立即重试</button>
+      <view class="failed-actions"><button class="retry-button" data-id="{{item.id}}" bindtap="retryUpload">立即重试</button><button class="retry-button remove-task-button" data-id="{{item.id}}" bindtap="removeFailedUpload">移除</button></view>
     </view>
   </view>
 

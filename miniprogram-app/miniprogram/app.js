@@ -42,7 +42,7 @@ App({
         // 补充照片任务属于小程序，而不是某一个详情页。冷启动恢复登录后
         // 立即续传，页面即使已经返回也不会丢失本次选择。
         void verificationPhotoUploadQueue.resume({ retryFailed: true });
-        if (this.globalData.session.role === "hq") void trainingMaterialUploadQueue.resume({ retryFailed: true, ownerStaffId: this.globalData.session.staffId });
+        if (this.globalData.session.role === "hq") void trainingMaterialUploadQueue.resume({ ownerStaffId: this.globalData.session.staffId });
       }
       this.globalData.startupReady = true;
       return this.globalData.session;
@@ -55,7 +55,7 @@ App({
     void startup.then((session) => {
       if (!session) return;
       void verificationPhotoUploadQueue.resume({ retryFailed: true });
-      if (session.role === "hq") void trainingMaterialUploadQueue.resume({ retryFailed: true, ownerStaffId: session.staffId });
+      if (session.role === "hq") void trainingMaterialUploadQueue.resume({ ownerStaffId: session.staffId });
     });
   }
 });

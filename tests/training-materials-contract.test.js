@@ -82,7 +82,8 @@ test("mini-program exposes a simple role-specific training interface", () => {
   assert.match(pageStyles, /\.back \{[^}]*width: 176rpx !important;[^}]*display: flex;[^}]*justify-content: center/);
   assert.match(pageStyles, /@media \(max-width: 699px\)[\s\S]*\.upload-grid \{ display: flex; flex-direction: column; align-items: stretch; \}/);
   assert.match(pageStyles, /\.search-row button \{ width: 128rpx !important; min-width: 128rpx; flex: 0 0 128rpx/);
-  assert.match(pageMarkup, /class="field action-field"[\s\S]*class="field-label">操作<\/text>[\s\S]*class="primary publish-button"/);
+  assert.match(pageMarkup, /class="field action-field"[\s\S]*class="field-label">操作<\/text>[\s\S]*class="primary publish-button \{\{busy \|\| !selectedFile \|\| !title \? 'is-disabled' : ''\}\}"/);
+  assert.match(pageMarkup, /bindtap="uploadPdf" disabled="\{\{busy \|\| !selectedFile \|\| !title\}\}"/);
   assert.match(pageStyles, /\.action-field \.field-label \{ visibility: hidden; \}/);
   assert.match(page, /不支持的操作\|unsupported\|unknown action/);
 });
