@@ -83,6 +83,16 @@ Creating the verified backup itself is the only initial database write exempt
 from needing an earlier backup. Every subsequent production mutation is covered,
 including one-off console SQL and data-only changes with no migration file.
 
+Database cleanup does not release a phone while its CloudBase Auth identity
+remains BLOCKED. Phone release requires explicit user authorization, a fresh
+verified backup, a private Auth metadata receipt, and an inventory of all Auth
+phone identities, including ones missing from staff_accounts. Protect current
+business/contact mappings by both UID and normalized phone, including newly
+created accounts. Delete only exact rechecked unbound UIDs and independently
+verify phone absence plus preserved identities. Auth passwords cannot be
+restored from the database snapshot. Never turn this maintenance operation into
+an automatic login/account-creation fallback or normal archive behavior.
+
 # Client isolation rule
 
 - The current root-level HTML/CSS/JavaScript files are the legacy Web client.
