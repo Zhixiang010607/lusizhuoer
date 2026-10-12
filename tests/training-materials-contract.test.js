@@ -27,10 +27,10 @@ const webJs = read("training-materials.js");
 const authUi = read("auth-ui.js");
 const phoneAuth = read("cloudbase-phone-auth.js");
 
-test("staffAccount v95 and migration 086 define the private training library", () => {
-  assert.match(cloud, /const FUNCTION_VERSION = "v95"/);
-  assert.equal(cloudPackage.version, "95.0.0");
-  assert.match(cloudReadme, /当前版本：`v95`/);
+test("staffAccount v96 and migration 086 define the private training library", () => {
+  assert.match(cloud, /const FUNCTION_VERSION = "v96"/);
+  assert.equal(cloudPackage.version, "96.0.0");
+  assert.match(cloudReadme, /当前版本：`v96`/);
   assert.equal(consoleMigration, migration);
   assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.training_materials/);
   assert.match(migration, /client_request_id VARCHAR\(64\) NOT NULL UNIQUE/);
@@ -54,7 +54,7 @@ test("service keeps HQ management, active-teacher reading and store denial separ
     assert.match(cloud, new RegExp(`action === "${action}"[\\s\\S]{0,100}requireHq\\(caller\\)`));
   }
   assert.match(cloud, /material\.title ILIKE '%' \|\|/);
-  assert.match(cloud, /const clauses = \["material\.material_status = 'PUBLISHED'"\]/);
+  assert.match(cloud, /role === "hq" \? "material\.material_status IN \('PUBLISHED', 'ARCHIVED'\)" : "material\.material_status = 'PUBLISHED'"/);
   assert.match(cloud, /if \(status !== "ARCHIVED"\) fail\("培训资料只能下架，不能重新发布"/);
   assert.match(cloud, /prefix\.toString\("ascii", 0, 5\) !== "%PDF-"/);
   assert.match(cloud, /expiresIn: 300/);

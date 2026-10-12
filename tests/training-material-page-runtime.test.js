@@ -6,21 +6,23 @@ const vm = require("node:vm");
 const directory = path.join(__dirname, "../miniprogram-app/miniprogram/pages/training-materials");
 const source = fs.readFileSync(path.join(directory, "index.js"), "utf8");
 
-function harness(tasks = []) {
+function harness(tasks = [], options = {}) {
   let page;
-  const retryIds = [], removedIds = [], intervals = new Map();
+  const retryIds = [], removedIds = [], intervals = new Map(), calls = [], modals = [], invalidated = [];
   let now = 100000, id = 0, list = [];
   const queue = { allTasks: () => tasks, retry: (id) => { retryIds.push(id); return true; }, dismissFailed: async (id) => { removedIds.push(id); return true; } };
   vm.runInNewContext(source, {
     Page: (value) => { page = value; },
-    require: (id) => id.endsWith("training-material-upload-queue") ? queue : id.endsWith("api") ? { callStaff: async () => ({ materials: list }) } : {},
+    require: (id) => id.endsWith("training-material-upload-queue") ? queue
+      : id.endsWith("training-material-cache") ? { invalidate: async (id) => invalidated.push(id) }
+      : id.endsWith("api") ? { callStaff: async (action, input) => { calls.push({ action, input }); return options.api ? options.api(action, input) : { materials: list }; } } : {},
     Date: { now: () => now },
     setInterval: (fn) => { const key = ++id; intervals.set(key, fn); return key; }, clearInterval: (key) => intervals.delete(key),
-    wx: { showModal: ({ success }) => success({ confirm: true }) }
+    wx: { showModal: (modal) => { modals.push(modal); if (!options.deferModal) modal.success({ confirm: options.confirm !== false }); } }
   });
   page.data = { ...page.data, session: { staffId: "owner" }, isHq: true };
   page.setData = (data) => Object.assign(page.data, data);
-  return { page, retryIds, removedIds, intervals, advance: (seconds) => { now += seconds * 1000; for (const fn of intervals.values()) fn(); }, setList: (value) => { list = value; } };
+  return { page, retryIds, removedIds, intervals, calls, modals, invalidated, advance: (seconds) => { now += seconds * 1000; for (const fn of intervals.values()) fn(); }, setList: (value) => { list = value; } };
 }
 
 test("pending PDF list excludes committed and other-owner jobs", () => {
@@ -81,9 +83,52 @@ test("visible upload stages tick real elapsed time, reset per phase and stop whi
 
 test("published list never includes failed, archived or unknown states", async () => {
   const h = harness();
+  h.page.data.isHq = false;
   h.setList([{ id: "ok", title: "完整 PDF", status: "PUBLISHED" }, { id: "failed", status: "FAILED" }, { id: "old", status: "ARCHIVED" }, { id: "unknown" }]);
   await h.page.loadMaterials();
   assert.deepEqual(Array.from(h.page.data.materials, (item) => item.id), ["ok"]);
+});
+
+test("HQ retains stopped-reading rows only for retrying deletion", async () => {
+  const h = harness();
+  h.setList([{ id: "pending", status: "ARCHIVED" }, { id: "failed", status: "FAILED" }]);
+  await h.page.loadMaterials();
+  assert.deepEqual(Array.from(h.page.data.materials, x => x.id), ["pending"]);
+});
+
+test("cancelled PDF deletion never calls the server or invalidates cache", async () => {
+  const h = harness([], { confirm: false });
+  h.page.data.materials = [{ id: "1", title: "设备学习" }];
+  await h.page.archiveMaterial({ currentTarget: { dataset: { id: "1" } } });
+  assert.match(h.modals[0].content, /设备学习.*云端 PDF 和资料记录.*无法恢复/);
+  assert.equal(h.calls.length, 0);
+  assert.equal(h.invalidated.length, 0);
+  assert.equal(h.page.data.materials.length, 1);
+});
+
+test("rapid taps share one confirmation, then remove only the exact server-confirmed row", async () => {
+  const h = harness([], { deferModal: true, api: async (action, input) => ({ material: { id: input.materialId, deleted: true } }) });
+  h.page.data.materials = [{ id: "1", title: "设备学习" }, { id: "2", title: "另一份" }];
+  const event = { currentTarget: { dataset: { id: "1" } } };
+  const pending = h.page.archiveMaterial(event);
+  await h.page.archiveMaterial(event);
+  assert.equal(h.modals.length, 1);
+  h.modals[0].success({ confirm: true });
+  await pending;
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.calls[0].input.confirmDeletion, true);
+  assert.deepEqual(Array.from(h.page.data.materials, x => x.id), ["2"]);
+  assert.deepEqual(h.invalidated, ["1"]);
+});
+
+test("leaving during confirmation prevents deletion", async () => {
+  const h = harness([], { deferModal: true });
+  h.page.data.materials = [{ id: "1", title: "测试" }];
+  const pending = h.page.archiveMaterial({ currentTarget: { dataset: { id: "1" } } });
+  h.page.onUnload();
+  h.modals[0].success({ confirm: true });
+  await pending;
+  assert.equal(h.calls.length, 0);
 });
 
 test("failed task removal is confirmed, exact and separate from library archival", async () => {

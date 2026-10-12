@@ -23,7 +23,7 @@ assert.match(managementHtml, /styles\.css\?v=0\.15\.58/, "teacher directory must
 assert.match(managementHtml, /<meta\s+name="viewport"/, "teacher directory must declare a mobile viewport");
 assert.match(managementHtml, /teacher-management\.js\?v=0\.14\.29/, "teacher directory behavior must be cache-busted");
 assert.match(createHtml, /teacher-create\.js\?v=0\.6\.0/, "teacher creation behavior must be cache-busted");
-assert.match(createHtml, /cloudbase-phone-auth\.js\?v=0\.20\.6/,
+assert.match(createHtml, /cloudbase-phone-auth\.js\?v=0\.20\.7/,
   "teacher creation must refresh the attendance-enrollment API wrapper");
 assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.14/, "teacher home behavior must be cache-busted");
 

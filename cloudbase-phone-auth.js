@@ -604,8 +604,8 @@
     async discardTrainingMaterialUpload({ reference }) {
       return callStaffAccount({ action: "discardTrainingMaterialUpload", reference }, "培训资料临时文件清理失败");
     },
-    async setTrainingMaterialStatus({ materialId, status }) {
-      return callStaffAccount({ action: "setTrainingMaterialStatus", materialId, status }, "培训资料状态更新失败");
+    async setTrainingMaterialStatus({ materialId, status, confirmDeletion = false }) {
+      return callStaffAccount({ action: "setTrainingMaterialStatus", materialId, status, confirmDeletion }, "培训资料删除失败");
     },
     async getTrainingMaterialAccess({ materialId }) {
       return callStaffAccount({ action: "getTrainingMaterialAccess", materialId }, "培训资料阅读地址获取失败");

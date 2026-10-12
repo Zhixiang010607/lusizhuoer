@@ -275,7 +275,7 @@ async function resume(options = {}) {
         const status = Number(error?.statusCode || 0);
         const terminal = (status >= 400 && status < 500 && status !== 408 && status !== 429)
           || ["FORBIDDEN", "UNAUTHENTICATED", "UNASSIGNED_IDENTITY", "BAD_REQUEST", "IDEMPOTENCY_CONFLICT",
-            "TRAINING_MATERIAL_SIZE_MISMATCH", "TRAINING_MATERIAL_TYPE_INVALID", "TRAINING_MATERIAL_FORMAT_INVALID"].includes(clean(error?.code).toUpperCase());
+            "TRAINING_MATERIAL_SIZE_MISMATCH", "TRAINING_MATERIAL_TYPE_INVALID", "TRAINING_MATERIAL_FORMAT_INVALID", "TRAINING_MATERIAL_DELETED"].includes(clean(error?.code).toUpperCase());
         const canRetry = !terminal && task.attemptCount <= RETRY_DELAYS_MS.length;
         const nextAttemptAt = canRetry ? Date.now() + RETRY_DELAYS_MS[retryIndex] : 0;
         updateTask(task, { state: "FAILED", error: message, nextAttemptAt,

@@ -174,7 +174,7 @@ Page({
     try {
       const result = await callStaff("listTrainingMaterials", { keyword: String(this.data.keyword || "").trim() });
       if (epoch !== this._epoch) return;
-      this.setData({ materials: (result.materials || []).filter((item) => item.status === "PUBLISHED").map(materialView) });
+      this.setData({ materials: (result.materials || []).filter((item) => item.status === "PUBLISHED" || this.data.isHq && item.status === "ARCHIVED").map(materialView) });
     } catch (error) {
       if (epoch === this._epoch) this.setData({ message: userFacingError(error, "培训资料读取失败，请稍后重试"), error: true });
     } finally {
@@ -258,7 +258,7 @@ Page({
   },
   async openMaterial(event) {
     const id = String(event.currentTarget.dataset.id || "");
-    if (!id || this.data.openingId) return;
+    if (!id || this.data.openingId || this.data.busy || this.data.materials.find((item) => item.id === id)?.status === "ARCHIVED") return;
     this.setData({ openingId: id, message: "正在打开全屏 PDF…", error: false });
     wx.showLoading({ title: "正在打开", mask: true });
     const owner = { ...this.data.session };
@@ -369,24 +369,33 @@ Page({
     }
   },
   async archiveMaterial(event) {
-    if (!this.data.isHq || this.data.busy) return;
+    if (!this.data.isHq || this.data.busy || this.data.openingId || this._deleteConfirming) return;
     const id = String(event.currentTarget.dataset.id || "");
+    const material = this.data.materials.find((item) => item.id === id);
+    if (!material) return;
+    this._deleteConfirming = true;
     const confirmed = await wxCall((resolve) => wx.showModal({
       title: "删除资料",
-      content: "删除后这份资料将下架，不再显示。",
+      content: `确定删除《${material.title}》？云端 PDF 和资料记录将一起删除，无法恢复。`,
       confirmText: "删除",
+      cancelText: "取消",
       success: (value) => resolve(Boolean(value.confirm)), fail: () => resolve(false)
     }));
-    if (!confirmed) return;
-    this.setData({ busy: true, message: "正在更新资料状态…", error: false });
+    this._deleteConfirming = false;
+    if (!confirmed || this._unloaded || !this.data.isHq || this.data.busy) return;
+    this.setData({ busy: true, message: "正在删除资料…", error: false });
     try {
-      await callStaff("setTrainingMaterialStatus", { materialId: id, status: "ARCHIVED" });
-      await materialCache.invalidate(id);
-      await this.loadMaterials();
-      this.setData({ message: "资料已删除。", error: false });
+      const result = await callStaff("setTrainingMaterialStatus", { materialId: id, status: "ARCHIVED", confirmDeletion: true });
+      if (result.material?.id !== id || result.material?.deleted !== true) throw new Error("删除结果未确认，请重试");
+      await materialCache.invalidate(id).catch(() => {});
+      this._epoch = Number(this._epoch || 0) + 1;
+      if (!this._unloaded) this.setData({ materials: this.data.materials.filter((item) => item.id !== id), loading: false, message: "资料已删除。", error: false });
     } catch (error) {
-      this.setData({ message: userFacingError(error, "资料状态更新失败"), error: true });
-    } finally { this.setData({ busy: false }); }
+      if (!this._unloaded) {
+        await this.loadMaterials();
+        this.setData({ message: userFacingError(error, "删除失败，请重试"), error: true });
+      }
+    } finally { if (!this._unloaded) this.setData({ busy: false }); }
   },
   back() {
     if (getCurrentPages().length > 1) wx.navigateBack();

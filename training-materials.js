@@ -40,7 +40,7 @@
     $("trainingList").innerHTML = materials.map((material) => {
       return `<article class="training-row">
         <div class="training-row-main"><strong class="training-row-title">${escapeHtml(material.title)}</strong><span class="training-row-meta">${escapeHtml(readableDate(material.publishedAt || material.createdAt))} · ${escapeHtml(readableBytes(material.bytes))}</span></div>
-        <div class="training-row-actions"><button class="training-read" type="button" data-read-id="${escapeHtml(material.id)}">阅读全文</button><button class="training-status" type="button" data-status-id="${escapeHtml(material.id)}">删除</button></div>
+        <div class="training-row-actions"><button class="training-read" type="button" data-read-id="${escapeHtml(material.id)}" ${material.status === "ARCHIVED" ? "disabled" : ""}>${material.status === "ARCHIVED" ? "待清理" : "阅读全文"}</button><button class="training-status" type="button" data-status-id="${escapeHtml(material.id)}">删除</button></div>
       </article>`;
     }).join("");
   }
@@ -131,14 +131,18 @@
     }
     if (!statusButton || busy) return;
     const material = materials.find((item) => String(item.id) === statusButton.dataset.statusId);
-    if (!window.confirm(`删除《${material?.title || "培训资料"}》？删除后将下架且不再显示。`)) return;
+    if (!material || !window.confirm(`确定删除《${material.title}》？云端 PDF 和资料记录将一起删除，无法恢复。`)) return;
     busy = true;
     statusButton.disabled = true;
     try {
-      await window.CloudBasePhoneAuth.setTrainingMaterialStatus({ materialId: statusButton.dataset.statusId, status: "ARCHIVED" });
-      await loadMaterials();
+      const id = String(material.id);
+      const result = await window.CloudBasePhoneAuth.setTrainingMaterialStatus({ materialId: id, status: "ARCHIVED", confirmDeletion: true });
+      if (String(result.material?.id) !== id || result.material?.deleted !== true) throw new Error("删除结果未确认，请重试");
+      materials = materials.filter((item) => String(item.id) !== id);
+      render();
       setMessage("资料已删除。");
     } catch (error) {
+      await loadMaterials();
       setMessage(error?.message || "删除失败", true);
     } finally { busy = false; statusButton.disabled = false; }
   }

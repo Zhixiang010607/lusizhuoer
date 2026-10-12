@@ -50,7 +50,7 @@
           <text class="material-meta">{{item.dateLabel}} · {{item.sizeLabel}}</text>
         </view>
         <view class="material-actions">
-          <button class="read-button" data-id="{{item.id}}" bindtap="openMaterial" disabled="{{openingId}}">{{openingId === item.id ? '打开中…' : '阅读全文'}}</button>
+          <button class="read-button" data-id="{{item.id}}" bindtap="openMaterial" disabled="{{openingId || busy || item.status !== 'PUBLISHED'}}">{{item.status === 'ARCHIVED' ? '待清理' : openingId === item.id ? '打开中…' : '阅读全文'}}</button>
           <button wx:if="{{isHq}}" class="status-button" data-id="{{item.id}}" bindtap="archiveMaterial" disabled="{{busy}}">删除</button>
         </view>
       </view>

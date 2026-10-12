@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v95";
+const FUNCTION_VERSION = "v96";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -5134,7 +5134,8 @@ async function deleteTrainingMaterialObject(referenceValue) {
     });
     return true;
   } catch (error) {
-    console.warn("training material cleanup failed", error?.code || error?.message || error);
+    if (error?.code === "HTTP_404" || error?.statusCode === 404) return true;
+    console.warn("training material cleanup failed", String(error?.code || "STORAGE_ERROR"));
     return false;
   }
 }
@@ -5233,7 +5234,7 @@ async function listTrainingMaterials(caller, event = {}) {
   await requireTrainingMaterialSchema();
   const keyword = String(event.keyword || "").trim();
   if (Array.from(keyword).length > 80) fail("标题搜索不能超过 80 个字符", "BAD_REQUEST");
-  const clauses = ["material.material_status = 'PUBLISHED'"];
+  const clauses = [role === "hq" ? "material.material_status IN ('PUBLISHED', 'ARCHIVED')" : "material.material_status = 'PUBLISHED'"];
   if (keyword) clauses.push(`material.title ILIKE '%' || ${sqlText(keyword)} || '%'`);
   let rows;
   try {
@@ -5258,6 +5259,8 @@ async function confirmTrainingMaterialUpload(caller, event) {
   const input = trainingMaterialInput(event);
   const clientRequestId = String(event.clientRequestId || "").trim();
   if (!/^[A-Za-z0-9_-]{16,64}$/.test(clientRequestId)) fail("培训资料上传请求编号无效", "BAD_REQUEST");
+  const retired = await executeSql(`SELECT client_request_id FROM public.training_material_deleted_requests WHERE client_request_id = ${sqlText(clientRequestId)} LIMIT 1`);
+  if (retired?.length) fail("这份资料已删除，请重新选择文件上传", "TRAINING_MATERIAL_DELETED");
   const reference = parseTrainingMaterialReference(event.reference);
   const existing = await executeSql(
     `SELECT material.id, material.title, material.category, material.original_file_name,
@@ -5272,6 +5275,7 @@ async function confirmTrainingMaterialUpload(caller, event) {
     if (!sameTrainingMaterialRequest(existing[0], input, reference)) {
       fail("培训资料上传请求编号已用于另一份文件", "IDEMPOTENCY_CONFLICT");
     }
+    if (String(existing[0].material_status) !== "PUBLISHED") fail("这份资料已删除或正在删除", "TRAINING_MATERIAL_DELETED");
     return trainingMaterialPayload(existing[0]);
   }
   const verified = await inspectTrainingMaterial(event.reference, input).catch(async (error) => {
@@ -5308,6 +5312,7 @@ async function confirmTrainingMaterialUpload(caller, event) {
         await deleteTrainingMaterialObject(verified.reference.reference);
         fail("培训资料上传请求编号已用于另一份文件", "IDEMPOTENCY_CONFLICT");
       }
+      if (String(duplicate[0].material_status) !== "PUBLISHED") fail("这份资料已删除或正在删除", "TRAINING_MATERIAL_DELETED");
       return trainingMaterialPayload(duplicate[0]);
     }
     await deleteTrainingMaterialObject(verified.reference.reference);
@@ -5332,21 +5337,40 @@ async function setTrainingMaterialStatus(event) {
   const id = numericId(event.materialId, "培训资料编号");
   const status = String(event.status || "").trim().toUpperCase();
   if (status !== "ARCHIVED") fail("培训资料只能下架，不能重新发布", "BAD_REQUEST");
+  if (event.confirmDeletion !== true) fail("请更新客户端并确认删除 PDF 和资料记录", "TRAINING_MATERIAL_DELETE_CONFIRMATION_REQUIRED");
+  const ready = await executeSql(`SELECT to_regprocedure('public.finalize_training_material_deletion(bigint,text)') IS NOT NULL AS ready`);
+  if (!databaseBoolean(ready?.[0]?.ready)) fail("培训资料删除尚未升级，请联系总部", "DATABASE_SCHEMA_MISSING");
+  const before = await executeSql(`SELECT id, file_reference FROM public.training_materials WHERE id = ${id} LIMIT 1`);
+  if (!before?.[0]) return { id: String(id), deleted: true, alreadyDeleted: true };
+  const reference = String(before[0].file_reference || "");
+  validateTrainingMaterialReference(parseTrainingMaterialReference(reference), trainingMaterialStorageSettings());
   let rows;
   try {
     rows = await executeSql(
       `UPDATE public.training_materials
           SET material_status = 'ARCHIVED',
               updated_at = NOW()
-        WHERE id = ${id}
+        WHERE id = ${id} AND file_reference = ${sqlText(reference)}
       RETURNING id, title, category, original_file_name, file_bytes, material_status,
                 published_at, created_at`
     );
   } catch (error) {
     asDatabaseError(error, "更新培训资料状态");
   }
-  if (!rows?.[0]) fail("未找到培训资料", "NOT_FOUND");
-  return trainingMaterialPayload(rows[0]);
+  // CloudBase may commit UPDATE while omitting RETURNING rows. Read the exact
+  // row back before touching storage; an empty write response is not absence.
+  const hidden = await executeSql(`SELECT id, file_reference, material_status FROM public.training_materials WHERE id = ${id} LIMIT 1`);
+  if (!hidden?.length) return { id: String(id), deleted: true, alreadyDeleted: true };
+  if (String(hidden[0].file_reference) !== reference || hidden[0].material_status !== "ARCHIVED") {
+    fail("删除状态尚未确认，请重试", "TRAINING_MATERIAL_DELETE_PENDING");
+  }
+  if (!await deleteTrainingMaterialObject(reference)) {
+    fail("资料已停止阅读，PDF 清理未完成，请重试删除", "TRAINING_MATERIAL_DELETE_PENDING");
+  }
+  await executeSql(`SELECT public.finalize_training_material_deletion(${id}, ${sqlText(reference)}) AS deleted`);
+  const remaining = await executeSql(`SELECT id FROM public.training_materials WHERE id = ${id} LIMIT 1`);
+  if (remaining?.length) fail("PDF 已清理，资料记录删除未完成，请重试", "TRAINING_MATERIAL_DELETE_PENDING");
+  return { id: String(id), deleted: true };
 }
 
 function validatedTrainingMaterialSignedUrl(response, storage, reference) {
