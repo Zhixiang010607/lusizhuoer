@@ -14,9 +14,13 @@ test("training PDF cache reuses the same private file and invalidates changed co
     setStorageSync(_key, value) { stored = JSON.parse(JSON.stringify(value)); },
     getFileSystemManager() {
       return {
-        getFileInfo({ filePath, success, fail }) {
-          if (files.has(filePath)) success({ size: files.get(filePath) });
+        stat({ path, recursive, success, fail }) {
+          assert.equal(recursive, false);
+          if (files.has(path)) success({ stats: { size: files.get(path) } });
           else fail({ errMsg: "not found" });
+        },
+        getFileInfo({ filePath, success, fail }) {
+          throw new Error("must not hash a PDF just to check its size");
         },
         copyFile({ srcPath, destPath, success, fail }) {
           if (!files.has(srcPath)) return fail({ errMsg: "not found" });
@@ -41,6 +45,9 @@ test("training PDF cache reuses the same private file and invalidates changed co
   assert.equal(copyCount, 1);
   assert.equal(await cache.find(first), cachedPath);
   assert.equal(copyCount, 1, "reopening the same PDF must not download or copy it again");
+  await Promise.all([cache.store("/tmp/first.pdf", { ...first, id: "8" }), cache.store("/tmp/first.pdf", { ...first, id: "9" })]);
+  assert.equal(stored.length, 3, "background cache copies must not lose another file's index");
+  await cache.invalidate("8"); await cache.invalidate("9");
 
   const changed = { ...first, publishedAt: "2026-10-12T02:00:00Z" };
   assert.equal(await cache.find(changed), "");

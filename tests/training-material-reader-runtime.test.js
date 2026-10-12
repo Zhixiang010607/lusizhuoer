@@ -14,15 +14,16 @@ function harness(options = {}) {
     getApp: () => ({ globalData: { startupReady: true, session: current } }),
     require: (name) => {
       if (name.endsWith("session")) return { requireSession: () => current };
-      if (name.endsWith("api")) return { callStaff: async (action) => {
+      if (name.endsWith("api")) return { callStaff: async (action, payload) => {
         calls.push(action);
-        if (options.access) return options.access();
+        if (options.access) return options.access(payload);
         if (options.denied) throw Object.assign(new Error("denied"), { code: options.denied });
         return { access: { url: "https://private.example.test/signed" } };
       } };
       if (name.endsWith("training-material-cache")) return {
+        hasEntry: () => Boolean(options.cached || options.staleEntry),
         find: async () => { calls.push("cache"); return options.cached || ""; },
-        store: async () => { calls.push("store"); if (options.cacheFull) throw new Error("disk full"); return options.emptyCache ? "" : "/private/good.pdf"; },
+        store: async () => { calls.push("store"); if (options.store) await options.store(); if (options.cacheFull) throw new Error("disk full"); return options.emptyCache ? "" : "/private/good.pdf"; },
         invalidate: async (id) => { invalidated.push(id); }
       };
       return {};
@@ -57,11 +58,50 @@ test("teacher reauthorizes cached PDF, reuses bytes and disables native document
   assert.deepEqual(h.opened, [{ filePath: "/private/cached.pdf", showMenu: false, fileType: "pdf" }]);
 });
 
+test("valid private cache opens after permission without signing or downloading", async () => {
+  const h = harness({ cached: "/private/cached.pdf", access: async (payload) => {
+    assert.equal(payload.authorizeOnly, true);
+    return { access: { cacheAuthorized: true } };
+  } });
+  await h.page.openMaterial(tap);
+  assert.equal(h.opened[0].filePath, "/private/cached.pdf");
+  assert.equal(h.calls.filter((x) => x === "getTrainingMaterialAccess").length, 1);
+  assert.ok(!h.calls.includes("download"));
+});
+
+test("missing indexed cache requests a fresh signed address once", async () => {
+  const h = harness({ staleEntry: true, access: async (payload) => payload.authorizeOnly
+    ? { access: { cacheAuthorized: true } } : { access: { url: "https://private.example.test/signed" } } });
+  await h.page.openMaterial(tap);
+  assert.equal(h.calls.filter((x) => x === "getTrainingMaterialAccess").length, 2);
+  assert.equal(h.calls.filter((x) => x === "download").length, 1);
+  assert.equal(h.opened[0].filePath, "/temp/new.pdf");
+});
+
+test("changed authoritative PDF metadata cannot reuse the old private cache", async () => {
+  const h = harness({ cached: "/private/old.pdf", access: async (payload) => ({ access: {
+    material: { id: "pdf", status: "PUBLISHED", bytes: 280 * 1024, publishedAt: "new-version" },
+    ...(payload.authorizeOnly ? { cacheAuthorized: true } : { url: "https://private.example.test/signed" })
+  } }) });
+  await h.page.openMaterial(tap);
+  assert.equal(h.opened.length, 1);
+  assert.equal(h.opened[0].filePath, "/temp/new.pdf");
+});
+
+test("complete downloaded PDF opens before a slow cache copy finishes", async () => {
+  let copied = false, release;
+  const h = harness({ store: () => new Promise((resolve) => { release = () => { copied = true; resolve(); }; }) });
+  await h.page.openMaterial(tap);
+  assert.equal(h.opened.length, 1);
+  assert.equal(copied, false);
+  release();
+});
+
 test("downlisted or forbidden PDF cannot be opened from teacher cache", async () => {
   for (const denied of ["NOT_FOUND", "FORBIDDEN"]) {
     const h = harness({ cached: "/private/cached.pdf", denied });
     await h.page.openMaterial(tap);
-    assert.deepEqual(h.calls, ["getTrainingMaterialAccess"]);
+    assert.deepEqual(h.calls, ["getTrainingMaterialAccess", "cache"]);
     assert.equal(h.opened.length, 0);
     assert.deepEqual(h.invalidated, ["pdf"]);
     assert.equal(h.page.data.error, true);
@@ -72,7 +112,7 @@ test("fresh PDF uses real download progress and byte validation before caching",
   const h = harness(); await h.page.openMaterial(tap);
   assert.deepEqual(h.calls, ["getTrainingMaterialAccess", "cache", "download", "store"]);
   assert.ok(h.loading.includes("读取 PDF 34%"));
-  assert.equal(h.opened[0].filePath, "/private/good.pdf");
+  assert.equal(h.opened[0].filePath, "/temp/new.pdf");
 });
 
 test("partial PDF is never cached or opened", async () => {
@@ -127,6 +167,6 @@ test("unloaded page or switched account cannot open a late authorized document",
     resolveAccess({ access: { url: "https://private.example.test/signed" } });
     await operation;
     assert.equal(h.opened.length, 0);
-    assert.ok(!h.calls.includes("cache"));
+    assert.ok(!h.calls.includes("download"));
   }
 });

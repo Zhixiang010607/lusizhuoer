@@ -2,10 +2,21 @@
 
 const STORAGE_KEY = "training-material-private-cache-v1";
 const MAX_CACHE_BYTES = 120 * 1024 * 1024;
+let mutation = Promise.resolve();
+function serialize(operation) {
+  const next = mutation.then(operation, operation);
+  mutation = next.catch(() => {});
+  return next;
+}
 
 function clean(value) { return String(value ?? "").trim(); }
 function fileSystem() { return wx.getFileSystemManager(); }
-function fileInfo(filePath) { return new Promise((resolve, reject) => fileSystem().getFileInfo({ filePath, success: resolve, fail: reject })); }
+function fileInfo(filePath) {
+  const fs = fileSystem();
+  return new Promise((resolve, reject) => typeof fs.stat === "function"
+    ? fs.stat({ path: filePath, recursive: false, success: (result) => resolve({ size: result.stats?.size }), fail: reject })
+    : fs.getFileInfo({ filePath, success: resolve, fail: reject }));
+}
 function copyFile(sourcePath, destinationPath) {
   return new Promise((resolve, reject) => fileSystem().copyFile({ srcPath: sourcePath, destPath: destinationPath, success: resolve, fail: reject }));
 }
@@ -61,17 +72,22 @@ async function find(material) {
     const info = await fileInfo(matching.filePath);
     const expectedBytes = Number(material?.bytes || matching.bytes || 0);
     if (!Number(info?.size || 0) || (expectedBytes && Number(info.size) !== expectedBytes)) throw new Error("cache size mismatch");
-    matching.lastOpenedAt = Date.now();
-    writeEntries(entries);
+    writeEntries(readEntries().map((entry) => entry.fingerprint === wanted && entry.filePath === matching.filePath
+      ? { ...entry, lastOpenedAt: Date.now() } : entry));
     return matching.filePath;
   } catch (_) {
     await removeEntry(matching);
-    writeEntries(entries.filter((entry) => entry !== matching));
+    writeEntries(readEntries().filter((entry) => entry.fingerprint !== wanted || entry.filePath !== matching.filePath));
     return "";
   }
 }
 
-async function store(tempFilePath, material) {
+function hasEntry(material) {
+  const wanted = fingerprint(material);
+  return readEntries().some((entry) => entry.id === clean(material?.id) && entry.fingerprint === wanted);
+}
+
+async function storeUnqueued(tempFilePath, material) {
   const bytes = Number(material?.bytes || 0);
   if (!tempFilePath || !Number.isSafeInteger(bytes) || bytes < 8 || bytes > 100 * 1024 * 1024) return "";
   const wanted = fingerprint(material);
@@ -108,7 +124,7 @@ async function store(tempFilePath, material) {
   return filePath;
 }
 
-async function invalidate(materialId) {
+async function invalidateUnqueued(materialId) {
   const id = clean(materialId);
   const entries = readEntries();
   const targets = entries.filter((entry) => entry.id === id);
@@ -116,4 +132,6 @@ async function invalidate(materialId) {
   writeEntries(entries.filter((entry) => entry.id !== id));
 }
 
-module.exports = { STORAGE_KEY, MAX_CACHE_BYTES, find, store, invalidate };
+function store(tempFilePath, material) { return serialize(() => storeUnqueued(tempFilePath, material)); }
+function invalidate(materialId) { return serialize(() => invalidateUnqueued(materialId)); }
+module.exports = { STORAGE_KEY, MAX_CACHE_BYTES, hasEntry, find, store, invalidate };

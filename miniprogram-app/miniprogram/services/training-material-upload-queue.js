@@ -1,6 +1,7 @@
 "use strict";
 
 const { callStaff } = require("./api");
+const materialCache = require("./training-material-cache");
 
 const STORAGE_KEY = "training-material-upload-queue-v1";
 const MAX_TASK_AGE_MS = 24 * 60 * 60 * 1000;
@@ -25,7 +26,12 @@ function assertOwner(task) {
   }
 }
 function readFile(filePath) { return new Promise((resolve, reject) => wx.getFileSystemManager().readFile({ filePath, success: resolve, fail: reject })); }
-function fileInfo(filePath) { return new Promise((resolve, reject) => wx.getFileSystemManager().getFileInfo({ filePath, success: resolve, fail: reject })); }
+function fileInfo(filePath) {
+  const fs = wx.getFileSystemManager();
+  return new Promise((resolve, reject) => typeof fs.stat === "function"
+    ? fs.stat({ path: filePath, recursive: false, success: (result) => resolve({ size: result.stats?.size }), fail: reject })
+    : fs.getFileInfo({ filePath, success: resolve, fail: reject }));
+}
 function unlinkFile(filePath) { return new Promise((resolve, reject) => wx.getFileSystemManager().unlink({ filePath, success: resolve, fail: reject })); }
 
 function normalizeTask(task = {}) {
@@ -118,7 +124,7 @@ function signedUpload(upload, buffer) {
     success(response) {
       const code = Number(response?.statusCode || 0);
       if (code >= 200 && code < 300) resolve(response);
-      else reject(new Error(`培训 PDF 上传失败（HTTP ${code || "—"}，${bytes} 字节）`));
+      else reject(Object.assign(new Error(`培训 PDF 上传失败（HTTP ${code || "—"}，${bytes} 字节）`), { statusCode: code }));
     },
     fail: reject
   }));
@@ -129,7 +135,25 @@ async function signedUploadWithRetry(upload, buffer, task) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     assertOwner(task);
     try { return await signedUpload(upload, buffer); }
-    catch (error) { lastError = error; if (!attempt) await new Promise((resolve) => setTimeout(resolve, 350)); }
+    catch (error) {
+      lastError = error;
+      const status = Number(error?.statusCode || 0);
+      if (status && status !== 408 && status !== 429 && status < 500) throw error;
+      if (!attempt) {
+        // A lost PUT acknowledgement may mean the file is already complete.
+        // Recover the same request before retransmitting identical bytes.
+        try {
+          const recovered = await callStaff("confirmTrainingMaterialUpload", confirmPayload(task));
+          assertOwner(task);
+          if (recovered?.material?.id) return recovered;
+          throw new Error("培训资料服务没有确认发布结果");
+        } catch (recoveryError) {
+          if (clean(recoveryError?.code).toUpperCase() !== "TRAINING_MATERIAL_UPLOAD_INCOMPLETE") throw recoveryError;
+        }
+        assertOwner(task);
+        await new Promise((resolve) => setTimeout(resolve, 350));
+      }
+    }
   }
   throw lastError || new Error("培训 PDF 上传失败");
 }
@@ -158,18 +182,27 @@ async function processTask(task) {
   const info = await fileInfo(task.filePath);
   assertOwner(task);
   if (Number(info?.size || 0) !== task.bytes) throw new Error("待传 PDF 文件不完整，请重新选择");
-  const read = await readFile(task.filePath);
-  assertOwner(task);
-  if (new Uint8Array(read.data).byteLength !== task.bytes) throw new Error("待传 PDF 读取不完整，请重新选择");
   await setPhase(task, "SIGNING");
-  const pending = await callStaff("beginTrainingMaterialUpload", confirmPayload(task));
+  // File IO and remote signing are independent. Keep both results, including
+  // failures, so a failed local read cannot leak a newly allocated reference.
+  const [local, signed] = await Promise.allSettled([
+    readFile(task.filePath), callStaff("beginTrainingMaterialUpload", confirmPayload(task))
+  ]);
   assertOwner(task);
+  if (signed.status === "rejected") throw signed.reason;
+  const pending = signed.value;
   updateTask(task, { reference: clean(pending.reference), uploadedBytes: 0 });
+  if (local.status === "rejected" || new Uint8Array(local.value.data).byteLength !== task.bytes) {
+    await callStaff("discardTrainingMaterialUpload", { reference: task.reference }).catch(() => {});
+    updateTask(task, { reference: "" });
+    throw local.status === "rejected" ? new Error("本地 PDF 读取失败，请重新选择") : new Error("待传 PDF 读取不完整，请重新选择");
+  }
   await setPhase(task, "TRANSFERRING");
-  await signedUploadWithRetry(pending.upload || {}, read.data, task);
+  const recovered = await signedUploadWithRetry(pending.upload || {}, local.value.data, task);
   assertOwner(task);
   updateTask(task, { uploadedBytes: task.bytes });
   await setPhase(task, "VERIFYING");
+  if (recovered?.material?.id) return recovered;
   return callStaff("confirmTrainingMaterialUpload", confirmPayload(task));
 }
 
@@ -232,13 +265,21 @@ async function resume(options = {}) {
         updateTask(task, { state: "COMMITTED", error: "", nextAttemptAt: 0 });
         await emit({ type: "committed", task, material: result.material });
         removeTask(task);
+        // The confirmed upload itself is a valid local read source for HQ.
+        // Keep it until the private cache copy finishes, after the UI settles.
+        if (result.material.status === "PUBLISHED") await materialCache.store(task.filePath, result.material).catch(() => {});
         await unlinkFile(task.filePath).catch(() => {});
       } catch (error) {
         const message = uploadFailure(error, task);
         const retryIndex = Math.min(task.attemptCount - 1, RETRY_DELAYS_MS.length - 1);
-        const canRetry = task.attemptCount <= RETRY_DELAYS_MS.length;
+        const status = Number(error?.statusCode || 0);
+        const terminal = (status >= 400 && status < 500 && status !== 408 && status !== 429)
+          || ["FORBIDDEN", "UNAUTHENTICATED", "UNASSIGNED_IDENTITY", "BAD_REQUEST", "IDEMPOTENCY_CONFLICT",
+            "TRAINING_MATERIAL_SIZE_MISMATCH", "TRAINING_MATERIAL_TYPE_INVALID", "TRAINING_MATERIAL_FORMAT_INVALID"].includes(clean(error?.code).toUpperCase());
+        const canRetry = !terminal && task.attemptCount <= RETRY_DELAYS_MS.length;
         const nextAttemptAt = canRetry ? Date.now() + RETRY_DELAYS_MS[retryIndex] : 0;
-        updateTask(task, { state: "FAILED", error: message, nextAttemptAt });
+        updateTask(task, { state: "FAILED", error: message, nextAttemptAt,
+          attemptCount: terminal ? RETRY_DELAYS_MS.length + 1 : task.attemptCount });
         await emit({ type: "failed", task, error: message });
         if (canRetry) scheduleWake(RETRY_DELAYS_MS[retryIndex]);
         if (error?.code === "TRAINING_UPLOAD_OWNER_CHANGED") break;

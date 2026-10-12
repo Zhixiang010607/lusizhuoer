@@ -14,12 +14,13 @@ const reference = { bucketId: storage.bucketId, objectName: "training-materials/
 const pathname = `/v1/storages/object/sign/${reference.bucketId}/${reference.objectName}`;
 const query = "?token=fixture%2Btoken%2Fvalue&other=keep%20escaping";
 const origin = "https://test-env.api.tcloudbasegateway.com";
-function harness(response) {
+function harness(response, status = "PUBLISHED") {
   const calls = [];
   const sandbox = {
     URL,
     requireTrainingMaterialSchema: async () => {}, numericId: (id) => id,
-    executeSql: async () => [{ id: 1, title: "测试资料", material_status: "PUBLISHED", file_reference: "test" }],
+    executeSql: async () => [{ id: 1, title: "测试资料", material_status: status, file_reference: "test", file_bytes: 291840, published_at: "2026-10-12T00:00:00Z" }],
+    trainingMaterialPayload: (row) => ({ id: String(row.id), bytes: row.file_bytes, status: row.material_status, publishedAt: row.published_at }),
     parseTrainingMaterialReference: () => reference,
     trainingMaterialStorageSettings: () => storage,
     validateTrainingMaterialReference: () => {},
@@ -48,6 +49,21 @@ test("SDK relative PDF signing response becomes exact trusted HTTPS URL without 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].objectName, reference.objectName);
   assert.equal(calls[0].expiresIn, 300);
+});
+test("cache authorization returns current publication metadata without any storage signer", async () => {
+  const { sandbox, calls } = harness({});
+  const result = await sandbox.getTrainingMaterialAccess({ role: "teacher", status: "ACTIVE" }, { materialId: 1, authorizeOnly: true });
+  assert.equal(result.cacheAuthorized, true);
+  assert.equal(result.material.bytes, 291840);
+  assert.equal(result.url, undefined);
+  assert.equal(calls.length, 0);
+});
+test("archive blocks cached and fresh reads for both headquarters and teachers", async () => {
+  const { sandbox, calls } = harness({}, "ARCHIVED");
+  for (const caller of [{ role: "hq" }, { role: "teacher", status: "ACTIVE" }]) {
+    for (const authorizeOnly of [true, false]) await assert.rejects(sandbox.getTrainingMaterialAccess(caller, { materialId: 1, authorizeOnly }), { code: "NOT_FOUND" });
+  }
+  assert.equal(calls.length, 0);
 });
 test("full signed URL remains unchanged and active teacher uses the same private signer", async () => {
   const { sandbox } = harness({ signedURL: origin + pathname + query });

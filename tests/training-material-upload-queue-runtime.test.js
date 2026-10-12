@@ -10,7 +10,7 @@ function harness() {
   const module = { exports: {} }, storage = new Map(), calls = [], timers = new Map();
   const data = { startupReady: true, session: { role: "hq", staffId: "test-owner" } };
   let clock = 100000000, timerId = 0;
-  const faults = { begin: null, confirm: null, unlink: null, read: null, info: null, request: null };
+  const faults = { begin: null, confirm: null, unlink: null, read: null, info: null, request: null, http: 200, published: false, cache: null };
   const wx = {
     getStorageSync: (key) => storage.get(key), setStorageSync: (key, value) => storage.set(key, structuredClone(value)),
     getFileSystemManager: () => ({
@@ -20,14 +20,14 @@ function harness() {
       },
       unlink: async ({ filePath, success }) => { if (faults.unlink) await faults.unlink(filePath); success({}); }
     }),
-    request: async ({ success, fail }) => { calls.push("PUT"); try { if (faults.request) await faults.request(); success({ statusCode: 200 }); } catch (error) { fail(error); } }
+    request: async ({ success, fail }) => { calls.push("PUT"); try { if (faults.request) await faults.request(); success({ statusCode: faults.http }); } catch (error) { fail(error); } }
   };
   vm.runInNewContext(source, {
     module, wx, getApp: () => ({ globalData: data }), Uint8Array,
     Date: { now: () => clock },
     setTimeout: (fn, delay) => { const id = ++timerId; timers.set(id, { fn, at: clock + delay }); return id; },
     clearTimeout: (id) => timers.delete(id),
-    require: () => ({ callStaff: async (action, payload) => {
+    require: (name) => name.endsWith("training-material-cache") ? { store: async () => { calls.push("cache"); if (faults.cache) await faults.cache(); } } : ({ callStaff: async (action, payload) => {
       calls.push(action);
       if (action === "beginTrainingMaterialUpload") {
         if (faults.begin) await faults.begin(payload);
@@ -35,7 +35,7 @@ function harness() {
       }
       if (action === "confirmTrainingMaterialUpload") {
         if (faults.confirm) await faults.confirm(payload);
-        return { material: { id: payload.clientRequestId } };
+        return { material: { id: payload.clientRequestId, ...(faults.published ? { status: "PUBLISHED" } : {}) } };
       }
       return {};
     } })
@@ -53,6 +53,65 @@ test("280KB enqueue starts upload immediately without page re-entry", async () =
   await h.flush();
   assert.deepEqual(h.calls, ["beginTrainingMaterialUpload", "PUT", "confirmTrainingMaterialUpload"]);
   assert.equal(h.queue.allTasks().length, 0);
+});
+
+test("missing object after ambiguous PUT retries the same upload only after original-result confirmation", async () => {
+  const h = harness(); let attempts = 0;
+  h.faults.request = async () => { if (++attempts === 1) throw new Error("connection failed before transfer"); };
+  h.faults.confirm = async () => { if (attempts === 1) throw Object.assign(new Error("missing"), { code: "TRAINING_MATERIAL_UPLOAD_INCOMPLETE" }); };
+  h.queue.enqueue(h.input()); await h.flush();
+  assert.deepEqual(h.calls, ["beginTrainingMaterialUpload", "PUT", "confirmTrainingMaterialUpload"]);
+  await h.wake();
+  assert.deepEqual(h.calls, ["beginTrainingMaterialUpload", "PUT", "confirmTrainingMaterialUpload", "PUT", "confirmTrainingMaterialUpload"]);
+  assert.equal(h.queue.allTasks().length, 0);
+});
+
+test("confirmed upload settles UI before private caching, but preserves source until copy finishes", async () => {
+  const h = harness(); let release, committed = false, removed = false;
+  h.faults.published = true;
+  h.faults.cache = () => new Promise((resolve) => { release = resolve; });
+  h.faults.unlink = async () => { removed = true; };
+  h.queue.subscribe((event) => { if (event.type === "committed") committed = true; });
+  h.queue.enqueue(h.input()); await h.flush();
+  assert.equal(committed, true);
+  assert.equal(removed, false);
+  assert.equal(h.queue.allTasks().length, 0);
+  release(); await h.flush();
+  assert.equal(removed, true);
+});
+
+test("lost PUT acknowledgement recovers publication before any duplicate transfer", async () => {
+  const h = harness();
+  h.faults.request = async () => { throw new Error("network connection reset after storage commit"); };
+  h.queue.enqueue(h.input()); await h.flush();
+  assert.deepEqual(h.calls, ["beginTrainingMaterialUpload", "PUT", "confirmTrainingMaterialUpload"]);
+  assert.equal(h.queue.allTasks().length, 0);
+});
+
+test("HTTP permission failure stops automatic upload retries rather than wasting minutes", async () => {
+  const h = harness(); h.faults.http = 403;
+  h.queue.enqueue(h.input()); await h.flush();
+  assert.equal(h.calls.filter((x) => x === "PUT").length, 1);
+  assert.equal(h.timers.size, 0);
+  assert.equal(h.queue.allTasks()[0].nextAttemptAt, 0);
+  await h.queue.resume();
+  assert.equal(h.calls.filter((x) => x === "PUT").length, 1);
+});
+
+test("local file reading and signing overlap, with no PUT until both complete", async () => {
+  const h = harness(); let release;
+  h.faults.read = () => new Promise((resolve) => { release = resolve; });
+  h.queue.enqueue(h.input()); await h.flush();
+  assert.deepEqual(h.calls, ["beginTrainingMaterialUpload"]);
+  release(); await h.flush();
+  assert.equal(h.calls.filter((x) => x === "PUT").length, 1);
+});
+
+test("failed local read cleans its allocated upload reference without transfer", async () => {
+  const h = harness(); h.faults.read = async () => { throw new Error("read failed"); };
+  h.queue.enqueue(h.input()); await h.flush();
+  assert.deepEqual(h.calls, ["beginTrainingMaterialUpload", "discardTrainingMaterialUpload"]);
+  assert.equal(h.queue.allTasks()[0].reference, "");
 });
 
 test("upload stages persist actual milestones and never invent a byte percentage", async () => {

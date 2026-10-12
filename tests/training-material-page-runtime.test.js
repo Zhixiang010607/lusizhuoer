@@ -37,6 +37,15 @@ test("pending PDF list excludes committed and other-owner jobs", () => {
   assert.equal(page.data.pendingTasks[0].stateLabel, "准备文件");
 });
 
+test("confirmed upload updates library immediately without a redundant list refresh", async () => {
+  const h = harness();
+  h.page.loadMaterials = () => { throw new Error("redundant library request"); };
+  await h.page.onUploadQueueEvent({ type: "committed", task: { ownerStaffId: "owner", title: "秒级资料" },
+    material: { id: "confirmed", title: "秒级资料", status: "PUBLISHED", bytes: 280 * 1024 } });
+  assert.equal(h.page.data.materials[0].id, "confirmed");
+  assert.equal(h.page.data.loading, false);
+});
+
 test("retry action reuses the original task and never chooses or enqueues a second PDF", () => {
   const { page, retryIds } = harness();
   page.retryUpload({ currentTarget: { dataset: { id: "original-request-id" } } });

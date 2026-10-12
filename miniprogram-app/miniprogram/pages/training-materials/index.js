@@ -27,6 +27,13 @@ function copyFile(sourcePath, destinationPath) {
   return new Promise((resolve, reject) => wx.getFileSystemManager().copyFile({ srcPath: sourcePath, destPath: destinationPath, success: resolve, fail: reject }));
 }
 
+function fileInfo(filePath) {
+  const fs = wx.getFileSystemManager();
+  return new Promise((resolve, reject) => typeof fs.stat === "function"
+    ? fs.stat({ path: filePath, recursive: false, success: (result) => resolve({ size: result.stats?.size }), fail: reject })
+    : fs.getFileInfo({ filePath, success: resolve, fail: reject }));
+}
+
 function unlinkFile(filePath) {
   return new Promise((resolve, reject) => wx.getFileSystemManager().unlink({ filePath, success: resolve, fail: reject }));
 }
@@ -145,8 +152,14 @@ Page({
     if (this._unloaded || !this.data.isHq || event.task?.ownerStaffId !== String(this.data.session.staffId || "")) return;
     this.syncPendingTasks();
     if (event.type === "committed") {
-      await this.loadMaterials();
-      if (this._unloaded) return;
+      // The server-confirmed row is already authoritative. Do not block queue
+      // settlement on another full library request (or resurrect an old list).
+      const item = materialView(event.material);
+      const keyword = String(this.data.keyword || "").trim().toLowerCase();
+      const rows = this.data.materials.filter((row) => row.id !== item.id);
+      if (item.id && item.status === "PUBLISHED" && (!keyword || item.title.toLowerCase().includes(keyword))) rows.unshift(item);
+      this._epoch = Number(this._epoch || 0) + 1;
+      this.setData({ materials: rows, loading: false });
       this.setData({ message: `《${event.task?.title || "培训资料"}》已在后台上传并发布。`, error: false });
     } else if (event.type === "failed") {
       this.setData({ message: event.task?.nextAttemptAt ? "上传未完成，稍后自动重试。" : "上传失败，可重试或移除任务。", error: true });
@@ -209,7 +222,7 @@ Page({
     try {
       await unlinkFile(filePath).catch(() => {});
       await copyFile(file.path, filePath);
-      const info = await wxCall((resolve, reject) => wx.getFileSystemManager().getFileInfo({ filePath, success: resolve, fail: reject }));
+      const info = await fileInfo(filePath);
       if (Number(info?.size || 0) !== Number(file.bytes)) throw new Error("PDF 本地任务文件保存不完整");
       uploadQueue.enqueue({
         clientRequestId, ownerStaffId: String(this.data.session.staffId || ""), title, category: "",
@@ -262,19 +275,40 @@ Page({
       }
     };
     try {
-      const material = this.data.materials.find((item) => item.id === id);
+      let material = this.data.materials.find((item) => item.id === id);
       if (!material) throw new Error("未找到培训资料");
       assertCurrentReader();
       // A local file is not permission: recheck publication and the current UID
       // before using it. The signed URL itself is never persisted or logged.
-      const result = await callStaff("getTrainingMaterialAccess", { materialId: id });
+      const authorizeOnly = Boolean(materialCache.hasEntry?.(material));
+      const [result, cachedPath] = await Promise.all([
+        callStaff("getTrainingMaterialAccess", { materialId: id, authorizeOnly }),
+        materialCache.find(material)
+      ]);
       assertCurrentReader();
-      const url = String(result.access?.url || "");
-      if (!/^https:\/\//.test(url)) throw new Error("没有取得有效的临时阅读地址");
-      let filePath = await materialCache.find(material);
+      let url = String(result.access?.url || "");
+      let filePath = cachedPath;
+      if (result.access?.material) {
+        const latest = materialView(result.access.material);
+        if (latest.id !== id || latest.status !== "PUBLISHED") throw new Error("没有取得有效的资料信息");
+        if (latest.bytes !== material.bytes || latest.publishedAt !== material.publishedAt || latest.createdAt !== material.createdAt) filePath = "";
+        material = latest;
+      }
       assertCurrentReader();
       const fromCache = Boolean(filePath);
       const readFreshFile = async () => {
+        if (!/^https:\/\//.test(url)) {
+          stage = "ACCESS";
+          const fresh = await callStaff("getTrainingMaterialAccess", { materialId: id });
+          assertCurrentReader();
+          url = String(fresh.access?.url || "");
+          if (!/^https:\/\//.test(url)) throw new Error("没有取得有效的临时阅读地址");
+          if (fresh.access?.material) {
+            const latest = materialView(fresh.access.material);
+            if (latest.id !== id || latest.status !== "PUBLISHED") throw new Error("没有取得有效的资料信息");
+            material = latest;
+          }
+        }
         stage = "DOWNLOAD";
         wx.showLoading({ title: "读取 PDF", mask: true });
         let lastProgress = -1;
@@ -294,14 +328,12 @@ Page({
           throw new Error("PDF 临时读取失败");
         }
         stage = "VALIDATE";
-        const info = await wxCall((resolve, reject) => wx.getFileSystemManager().getFileInfo({ filePath: downloaded.tempFilePath, success: resolve, fail: reject }));
+        const info = await fileInfo(downloaded.tempFilePath);
         assertCurrentReader();
         if (!Number.isSafeInteger(material.bytes) || material.bytes < 8 || material.bytes > MAX_PDF_BYTES || Number(info.size) !== material.bytes) throw new Error("PDF 文件不完整");
         // Only a byte-verified temporary file may be the fallback when local
         // cache storage is full/unavailable. Never open a partial transfer.
-        const cached = await materialCache.store(downloaded.tempFilePath, material).catch(() => "");
-        assertCurrentReader();
-        return cached || downloaded.tempFilePath;
+        return downloaded.tempFilePath;
       };
       const openFile = async (path) => {
         assertCurrentReader();
@@ -321,6 +353,10 @@ Page({
         catch (retryError) { await materialCache.invalidate(id); throw retryError; }
       }
       if (this._unloaded) return;
+      assertCurrentReader();
+      // Open the complete native temporary file first. Copying a 100MB PDF
+      // into private cache must not sit on the reader's critical path.
+      if (!fromCache || filePath !== cachedPath) void materialCache.store(filePath, material).catch(() => {});
       this.setData({ message: "", error: false });
     } catch (error) {
       wx.hideLoading();

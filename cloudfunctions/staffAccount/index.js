@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v94";
+const FUNCTION_VERSION = "v95";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -5171,29 +5171,9 @@ async function inspectTrainingMaterial(referenceValue, expected) {
   validateTrainingMaterialReference(reference, storage);
   let response;
   try {
-    response = await manager().storage.getObjectInfoAuthenticated({
-      bucketId: reference.bucketId,
-      objectName: reference.objectName,
-      method: "GET",
-      accessToken: storage.accessToken,
-      envId: storage.envId
-    });
-  } catch (error) {
-    fail("培训 PDF 尚未上传完成", "TRAINING_MATERIAL_UPLOAD_INCOMPLETE");
-  }
-  const info = storageObjectInfo(response);
-  const bytes = Number(info?.size ?? response?.headers?.["content-length"]);
-  const contentType = String(info?.content_type || response?.headers?.["content-type"] || "")
-    .split(";", 1)[0].trim().toLowerCase();
-  if (!Number.isSafeInteger(bytes) || bytes !== expected.bytes) {
-    fail("培训 PDF 大小与上传前不一致", "TRAINING_MATERIAL_SIZE_MISMATCH");
-  }
-  if (contentType && !["application/pdf", "application/octet-stream"].includes(contentType)) {
-    fail("培训资料不是 PDF 文件", "TRAINING_MATERIAL_TYPE_INVALID");
-  }
-  let prefixResponse;
-  try {
-    prefixResponse = await manager().storage.downloadAuthenticatedObject({
+    // One eight-byte range proves total size (Content-Range), type and PDF
+    // magic. A separate object-metadata request would be redundant.
+    response = await manager().storage.downloadAuthenticatedObject({
       bucketId: reference.bucketId,
       objectName: reference.objectName,
       method: "GET",
@@ -5202,9 +5182,24 @@ async function inspectTrainingMaterial(referenceValue, expected) {
       envId: storage.envId
     });
   } catch (error) {
-    fail("培训 PDF 内容校验失败", "TRAINING_MATERIAL_READ_FAILED");
+    if (/404|not.?found/i.test(String(error?.code || "") + " " + String(error?.message || ""))) {
+      fail("培训 PDF 尚未上传完成", "TRAINING_MATERIAL_UPLOAD_INCOMPLETE");
+    }
+    fail("培训 PDF 内容暂时无法校验，请重试原任务", "TRAINING_MATERIAL_READ_FAILED");
   }
-  const prefix = await productLogoResponseBuffer(prefixResponse, 8, { start: 0, end: 7, total: bytes });
+  const range = /^bytes 0-7\/(\d+)$/.exec(String(response?.headers?.["content-range"] || "").trim());
+  const bytes = range ? Number(range[1]) : NaN;
+  const contentType = String(response?.headers?.["content-type"] || "")
+    .split(";", 1)[0].trim().toLowerCase();
+  if (!Number.isSafeInteger(bytes) || bytes !== expected.bytes) {
+    response.body?.destroy?.();
+    fail("培训 PDF 大小与上传前不一致", "TRAINING_MATERIAL_SIZE_MISMATCH");
+  }
+  if (contentType && !["application/pdf", "application/octet-stream"].includes(contentType)) {
+    response.body?.destroy?.();
+    fail("培训资料不是 PDF 文件", "TRAINING_MATERIAL_TYPE_INVALID");
+  }
+  const prefix = await productLogoResponseBuffer(response, 8, { start: 0, end: 7, total: bytes });
   if (prefix.toString("ascii", 0, 5) !== "%PDF-") {
     fail("上传文件不是有效的 PDF", "TRAINING_MATERIAL_FORMAT_INVALID");
   }
@@ -5280,7 +5275,9 @@ async function confirmTrainingMaterialUpload(caller, event) {
     return trainingMaterialPayload(existing[0]);
   }
   const verified = await inspectTrainingMaterial(event.reference, input).catch(async (error) => {
-    await deleteTrainingMaterialObject(event.reference);
+    if (["TRAINING_MATERIAL_SIZE_MISMATCH", "TRAINING_MATERIAL_TYPE_INVALID", "TRAINING_MATERIAL_FORMAT_INVALID"].includes(error?.code)) {
+      await deleteTrainingMaterialObject(event.reference);
+    }
     throw error;
   });
   let rows;
@@ -5366,18 +5363,25 @@ function validatedTrainingMaterialSignedUrl(response, storage, reference) {
 }
 
 async function getTrainingMaterialAccess(caller, event) {
-  const role = requireTrainingReader(caller);
+  requireTrainingReader(caller);
   await requireTrainingMaterialSchema();
   const id = numericId(event.materialId, "培训资料编号");
   const rows = await executeSql(
-    `SELECT id, title, file_reference, material_status
+    `SELECT id, title, file_reference, material_status, file_bytes,
+            original_file_name, category, published_at, created_at
        FROM public.training_materials
       WHERE id = ${id}
       LIMIT 1`
   );
   const row = rows?.[0];
-  if (!row || (role === "teacher" && String(row.material_status) !== "PUBLISHED")) {
+  if (!row || String(row.material_status) !== "PUBLISHED") {
     fail("未找到可阅读的培训资料", "NOT_FOUND");
+  }
+  // A cache hit still checks the current authenticated account and publication
+  // in the database, but needs no storage signing or file network request.
+  const material = trainingMaterialPayload(row);
+  if (event.authorizeOnly === true) {
+    return { materialId: String(row.id), title: String(row.title || ""), material, cacheAuthorized: true };
   }
   const reference = parseTrainingMaterialReference(row.file_reference);
   const storage = trainingMaterialStorageSettings();
@@ -5396,7 +5400,7 @@ async function getTrainingMaterialAccess(caller, event) {
     signed = "";
   }
   if (!signed) fail("培训 PDF 临时阅读地址生成失败", "TRAINING_MATERIAL_SIGN_FAILED");
-  return { materialId: String(row.id), title: String(row.title || ""), url: signed, expiresIn: 300 };
+  return { materialId: String(row.id), title: String(row.title || ""), material, url: signed, expiresIn: 300 };
 }
 
 async function main(event = {}, context = {}) {
