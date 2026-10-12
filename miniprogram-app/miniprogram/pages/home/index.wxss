@@ -57,7 +57,7 @@
 .teacher-profile-row .detail-info-item text:last-child { color: #4a3825; font-size: 28rpx; font-weight: 600; }
 .teacher-quota-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18rpx; }
 .teacher-quota-card { min-height: 96rpx; display: grid; grid-template-columns: minmax(0, 1.75fr) repeat(3, minmax(92rpx, .72fr)); align-items: stretch; gap: 1rpx; padding: 0; overflow: hidden; border: 1rpx solid #dfc9a4; border-radius: 18rpx; background: #dfc9a4; }
-.quota-identity { min-width: 0; display: flex; align-items: center; padding: 12rpx 16rpx; overflow: hidden; color: #3f3326; background: #fffaf3; font-size: 24rpx; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.quota-identity { min-width: 0; display: flex; align-items: center; justify-content: center; padding: 12rpx 16rpx; overflow: hidden; color: #3f3326; background: #fffaf3; font-size: 24rpx; font-weight: 600; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .quota-metric { min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10rpx 4rpx; overflow: hidden; background: #fff8ec; text-align: center; }
 .quota-metric text { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .quota-metric text:first-child { color: #85745d; font-size: 24rpx; }

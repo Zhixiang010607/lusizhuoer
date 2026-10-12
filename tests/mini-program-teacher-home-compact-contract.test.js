@@ -34,6 +34,8 @@ test("each teacher quota is one compact horizontal row with protected single-lin
   for (const label of ["可用", "每月基础", "本月已用"]) assert.match(wxml, new RegExp(`>${label}<\\/text>`));
   assert.match(wxss, /\.teacher-quota-card\s*\{[^}]*min-height:\s*96rpx[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(0, 1\.75fr\) repeat\(3, minmax\(92rpx, \.72fr\)\)/s);
   assert.match(wxss, /\.quota-identity\s*\{[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
+  assert.match(wxss, /\.quota-identity\s*\{[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*text-align:\s*center;/s,
+    "project names must be centered in their own quota cell on phone and tablet, including expanded rows");
   assert.match(wxss, /\.quota-metric text\s*\{[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
   assert.doesNotMatch(wxml, /quota-name|quota-code|quota-facts/);
 });

@@ -59,6 +59,13 @@ test("target iPads select portrait login while short tablets and rotations selec
   }
 });
 
+test("portrait tablet login masks the fitted artwork edges without cropping the logo", () => {
+  const css = read("index.wxss");
+  assert.match(css, /\.login-shade\s*\{ background: linear-gradient\(90deg, #ead1a1 0%, #f5e5ca 22%, rgba\(255,248,238,\.12\) 38%, rgba\(255,248,238,\.12\) 62%, #f5e5ca 78%, #ead1a1 100%\); \}/);
+  assert.match(read("index.wxml"), /tabletLayout \? 'aspectFit' : 'widthFix'/,
+    "seam blending must not revert to cropping the brand image");
+});
+
 test("keyboard avoidance restores the initial one-screen state without starting authentication", () => {
   const { page, calls } = loginPage(768, 1024);
   page.keyboardHeightChange({ detail: { height: 320 } });
