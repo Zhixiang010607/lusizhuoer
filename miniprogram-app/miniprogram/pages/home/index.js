@@ -135,7 +135,7 @@ function hqRangePayload(period, range) {
 Page({
   data: {
     session: {}, roleTitle: "", roleSubtitle: "", loading: true, message: "", error: false,
-    overviewMenuOpen: false, businessMenuOpen: false, learningMenuOpen: false, queryMenuOpen: false, coreMetricsMenuOpen: false, managementMenuOpen: false, reviewMenuOpen: false,
+    overviewMenuOpen: false, businessMenuOpen: false, learningMenuOpen: false, learningPopoverStyle: "", queryMenuOpen: false, coreMetricsMenuOpen: false, managementMenuOpen: false, reviewMenuOpen: false,
     rangePreset: "TODAY", rangeOptions: readyRangeOptions("TODAY"),
     rangeMoreOptions: dashboard.RANGE_OPTIONS.slice(3), rangeMoreIndex: 0, rangeMoreLabel: "更多", rangeStart: "", rangeEnd: "",
     rangeLabel: "今天", customRangeVisible: false,
@@ -173,6 +173,7 @@ Page({
   },
 
   onUnload() {
+    this._menuPlacementEpoch = Number(this._menuPlacementEpoch || 0) + 1;
     this._startupEpoch = Number(this._startupEpoch || 0) + 1;
     for (const key of [
       "_teacherHomeRequestEpoch", "_storeHomeRequestEpoch", "_businessRequestEpoch",
@@ -562,6 +563,7 @@ Page({
   },
 
   closeMenus(changes = {}) {
+    this._menuPlacementEpoch = Number(this._menuPlacementEpoch || 0) + 1;
     this.setData({ overviewMenuOpen: false, businessMenuOpen: false, learningMenuOpen: false, queryMenuOpen: false, coreMetricsMenuOpen: false, managementMenuOpen: false, reviewMenuOpen: false, ...changes });
   },
   toggleOverviewMenu() {
@@ -590,8 +592,26 @@ Page({
   },
   toggleBusinessMenu() { this.closeMenus({ businessMenuOpen: !this.data.businessMenuOpen }); },
   toggleLearningMenu() {
-    if (this.data.session.role === "teacher") this.closeMenus({ learningMenuOpen: !this.data.learningMenuOpen });
+    if (this.data.session.role !== "teacher") return;
+    const wasOpen = this.data.learningMenuOpen;
+    this.closeMenus();
+    if (wasOpen) return;
+    const epoch = this._menuPlacementEpoch;
+    this.createSelectorQuery()
+      .select("#learning-menu-trigger").boundingClientRect()
+      .select(".workspace-rail").boundingClientRect()
+      .exec((rects) => {
+        if (epoch !== this._menuPlacementEpoch || this.data.session.role !== "teacher") return;
+        const [trigger, rail] = rects || [];
+        if (!trigger || !rail || !Number.isFinite(trigger.left) || !Number.isFinite(rail.bottom) || !(rail.width > 0)) return;
+        const margin = rail.width >= 700 ? 24 : 12;
+        const left = Math.max(margin, Math.min(trigger.left, rail.width - margin - 100));
+        const width = Math.min(rail.width >= 700 ? 360 : rail.width * 560 / 750, rail.width - left - margin);
+        this.setData({ learningMenuOpen: true, learningPopoverStyle: `left:${left}px;top:${rail.bottom}px;width:${width}px;` });
+      });
   },
+  onResize() { this.closeMenus(); },
+  onHide() { this.closeMenus(); },
   toggleQueryMenu() { this.closeMenus({ queryMenuOpen: !this.data.queryMenuOpen }); },
   toggleCoreMetricsMenu() { this.closeMenus({ coreMetricsMenuOpen: !this.data.coreMetricsMenuOpen }); },
   toggleManagementMenu() { this.closeMenus({ managementMenuOpen: !this.data.managementMenuOpen }); },

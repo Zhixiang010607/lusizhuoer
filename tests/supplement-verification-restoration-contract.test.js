@@ -68,7 +68,7 @@ assert.match(face, /action === "createSupplementVerificationApplication"/);
 assert.match(face, /recordType === "SUPPLEMENT"/);
 assert.match(face, /const complete = supplement \|\|/,
   "supplement recovery must not wait for a device signal that is intentionally absent");
-assert.match(staff, /const FUNCTION_VERSION = "v93"/);
+assert.match(staff, /const FUNCTION_VERSION = "v94"/);
 assert.match(staff, /v\.verification_type = 'SUPPLEMENT' AND v\.void_request_status = 'NONE'/);
 assert.match(staff, /VERIFICATION_REVIEW_NOT_ALLOWED/,
   "HQ verification review must reject normal and experience records");
@@ -77,7 +77,8 @@ assert.match(staff, /insufficient purchased units[\s\S]*INSUFFICIENT_BALANCE/,
 
 assert.match(homeWxml, /teacher-business-heading">客户<\/text>/);
 assert.match(homeWxml, /teacher-business-heading">核销<\/text>/);
-assert.match(homeWxml, /data-mode="SUPPLEMENT">补录核销申请<\/view>/);
+assert.equal((homeWxml.match(/data-mode="SUPPLEMENT">补录核销<\/view>/g) || []).length, 2);
+assert.doesNotMatch(homeWxml, /data-mode="SUPPLEMENT">补录核销申请/);
 assert.match(homeWxss, /teacher-business-sections[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
 assert.match(homeWxss, /@media \(min-width: 700px\)[\s\S]*teacher-business-sections \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
 assert.match(verificationJs, /if \(this\.data\.supplement\) return this\.submitSupplement\(\)/);

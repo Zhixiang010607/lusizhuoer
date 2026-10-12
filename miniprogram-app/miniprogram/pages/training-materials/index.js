@@ -89,7 +89,7 @@ Page({
     this._unsubscribe = null;
   },
   syncPendingTasks() {
-    this.setData({ pendingTasks: uploadQueue.allTasks().filter((task) => task.ownerStaffId === String(this.data.session.staffId || "")).map((task) => ({
+    this.setData({ pendingTasks: uploadQueue.allTasks().filter((task) => task.ownerStaffId === String(this.data.session.staffId || "") && task.state !== "COMMITTED").map((task) => ({
       ...task,
       stateLabel: task.state === "FAILED" ? "等待重试" : task.state === "UPLOADING" ? "后台上传中" : "等待上传",
       sizeLabel: readableBytes(task.bytes)

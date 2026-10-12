@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v93";
+const FUNCTION_VERSION = "v94";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -5352,6 +5352,19 @@ async function setTrainingMaterialStatus(event) {
   return trainingMaterialPayload(rows[0]);
 }
 
+function validatedTrainingMaterialSignedUrl(response, storage, reference) {
+  const absolute = validatedProductLogoSignedUrl(response, storage, reference);
+  if (absolute) return absolute;
+  // manager-node 5.6.4 retains signedURL but drops fullSignedURL. The gateway
+  // returns a root-relative signedURL; attach only our configured HTTPS origin
+  // and then reapply the exact bucket/object/token checks, without reserializing.
+  const relative = typeof response?.signedURL === "string" ? response.signedURL.trim() : "";
+  if (!relative.startsWith("/v1/storages/object/sign/")) return "";
+  return validatedProductLogoSignedUrl(
+    { signedURL: `https://${storage.envId}.api.tcloudbasegateway.com${relative}` }, storage, reference
+  );
+}
+
 async function getTrainingMaterialAccess(caller, event) {
   const role = requireTrainingReader(caller);
   await requireTrainingMaterialSchema();
@@ -5378,7 +5391,7 @@ async function getTrainingMaterialAccess(caller, event) {
       accessToken: storage.accessToken,
       envId: storage.envId
     });
-    signed = validatedProductLogoSignedUrl(response, storage, reference);
+    signed = validatedTrainingMaterialSignedUrl(response, storage, reference);
   } catch (error) {
     signed = "";
   }

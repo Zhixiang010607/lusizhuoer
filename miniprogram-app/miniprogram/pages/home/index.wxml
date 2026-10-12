@@ -4,7 +4,7 @@
       <view wx:if="{{session.role === 'teacher'}}" class="rail-current" bindtap="toggleOverviewMenu" role="button" aria-label="总览菜单" aria-expanded="{{overviewMenuOpen}}"><text class="rail-icon">总览</text><text class="rail-chevron">⌄</text></view>
       <view wx:else class="rail-current" aria-label="{{roleTitle}}"><text class="rail-icon">总览</text></view>
       <view wx:if="{{session.role !== 'hq'}}" class="rail-link {{businessMenuOpen ? 'active' : ''}}" bindtap="toggleBusinessMenu" role="button" aria-label="业务办理" aria-expanded="{{businessMenuOpen}}">办理</view>
-      <view wx:if="{{session.role === 'teacher'}}" class="rail-link {{learningMenuOpen ? 'active' : ''}}" bindtap="toggleLearningMenu" role="button" aria-label="学习" aria-expanded="{{learningMenuOpen}}">学习</view>
+      <view wx:if="{{session.role === 'teacher'}}" id="learning-menu-trigger" class="rail-link {{learningMenuOpen ? 'active' : ''}}" bindtap="toggleLearningMenu" role="button" aria-label="学习" aria-expanded="{{learningMenuOpen}}">学习</view>
       <view wx:if="{{session.role !== 'teacher'}}" class="rail-link {{queryMenuOpen ? 'active' : ''}}" bindtap="toggleQueryMenu" role="button" aria-label="业务查询" aria-expanded="{{queryMenuOpen}}">查询</view>
       <view wx:if="{{session.role !== 'teacher'}}" class="rail-link {{coreMetricsMenuOpen ? 'active' : ''}}" bindtap="toggleCoreMetricsMenu" role="button" aria-label="运营核心指标查询" aria-expanded="{{coreMetricsMenuOpen}}">运营</view>
       <view wx:if="{{session.role === 'hq'}}" class="rail-link {{managementMenuOpen ? 'active' : ''}}" bindtap="toggleManagementMenu" role="button" aria-label="管理" aria-expanded="{{managementMenuOpen}}">管理</view>
@@ -16,7 +16,7 @@
   <view wx:if="{{overviewMenuOpen && session.role === 'teacher'}}" class="business-popover overview-popover" catchtap="noop">
     <view class="popover-grid"><view bindtap="openTeacherOverview">工作台</view><view bindtap="openTeacherCustomers">我的客户</view><view bindtap="openDailyReport">工作日报</view><view bindtap="openAttendance">考勤打卡</view></view>
   </view>
-  <view wx:if="{{learningMenuOpen && session.role === 'teacher'}}" class="business-popover learning-popover" catchtap="noop">
+  <view wx:if="{{learningMenuOpen && session.role === 'teacher'}}" class="business-popover learning-popover" style="{{learningPopoverStyle}}" catchtap="noop">
     <view class="popover-grid"><view bindtap="openTrainingMaterials">培训学习</view></view>
   </view>
   <view wx:if="{{businessMenuOpen && session.role !== 'hq'}}" class="business-popover {{session.role === 'teacher' ? 'teacher-business-popover' : ''}}" catchtap="noop">
@@ -30,12 +30,12 @@
       <view class="teacher-business-section">
         <text class="teacher-business-heading">核销</text>
         <view class="popover-grid">
-          <view bindtap="openVerification" data-mode="NORMAL">核销办理</view><view bindtap="openVerification" data-mode="SUPPLEMENT">补录核销申请</view><view bindtap="openVerification" data-mode="EXPERIENCE">体验核销</view>
+          <view bindtap="openVerification" data-mode="NORMAL">核销办理</view><view bindtap="openVerification" data-mode="SUPPLEMENT">补录核销</view><view bindtap="openVerification" data-mode="EXPERIENCE">体验核销</view>
         </view>
       </view>
     </view>
     <view wx:else class="popover-grid">
-      <view bindtap="openCustomerCreate">客户建立</view><view bindtap="openRecharge" data-mode="NEW">办卡充值</view><view bindtap="openProductPurchase">产品购买</view><view bindtap="openRecharge" data-mode="REFUND">退费申请</view><view bindtap="openVerification" data-mode="NORMAL">核销办理</view><view bindtap="openVerification" data-mode="SUPPLEMENT">补录核销申请</view>
+      <view bindtap="openCustomerCreate">客户建立</view><view bindtap="openRecharge" data-mode="NEW">办卡充值</view><view bindtap="openProductPurchase">产品购买</view><view bindtap="openRecharge" data-mode="REFUND">退费申请</view><view bindtap="openVerification" data-mode="NORMAL">核销办理</view><view bindtap="openVerification" data-mode="SUPPLEMENT">补录核销</view>
     </view>
   </view>
   <view wx:if="{{queryMenuOpen && session.role !== 'teacher'}}" class="business-popover query-popover" catchtap="noop">

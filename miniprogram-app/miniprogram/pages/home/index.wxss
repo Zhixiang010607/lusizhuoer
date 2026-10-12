@@ -5,7 +5,7 @@
 .rail-icon { display: block; color: #fffdf8; font-size: inherit; line-height: 1; }
 .rail-chevron { margin-left: 10rpx; font-size: 24rpx; line-height: 1; }
 .business-popover.overview-popover { margin-right: auto; margin-left: 0; }
-.business-popover.learning-popover { margin-right: auto; margin-left: 0; }
+.business-popover.learning-popover { right: auto; margin: 0; }
 .rail-current { color: #fffdf8; background: #a98243; box-shadow: none; }
 .rail-link.active { color: #fffdf8; background: rgba(255,255,255,.12); }
 .rail-logout { margin-left: 8rpx; color: #eadfce; box-shadow: none; }

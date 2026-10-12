@@ -27,10 +27,10 @@ const webJs = read("training-materials.js");
 const authUi = read("auth-ui.js");
 const phoneAuth = read("cloudbase-phone-auth.js");
 
-test("staffAccount v93 and migration 086 define the private training library", () => {
-  assert.match(cloud, /const FUNCTION_VERSION = "v93"/);
-  assert.equal(cloudPackage.version, "93.0.0");
-  assert.match(cloudReadme, /当前版本：`v93`/);
+test("staffAccount v94 and migration 086 define the private training library", () => {
+  assert.match(cloud, /const FUNCTION_VERSION = "v94"/);
+  assert.equal(cloudPackage.version, "94.0.0");
+  assert.match(cloudReadme, /当前版本：`v94`/);
   assert.equal(consoleMigration, migration);
   assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.training_materials/);
   assert.match(migration, /client_request_id VARCHAR\(64\) NOT NULL UNIQUE/);

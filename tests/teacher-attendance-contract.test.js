@@ -90,7 +90,7 @@ assert.match(face, /signAttendanceLocation[\s\S]*verifiedAttendanceAddressToken/
 assert.match(clockIn, /place_name, formatted_address, address_provider/,
   "the authoritative punch write must persist signed readable location text");
 
-assert.match(staff, /const FUNCTION_VERSION = "v93"/);
+assert.match(staff, /const FUNCTION_VERSION = "v94"/);
 assert.match(staff, /async function getOwnAttendanceMonth/);
 assert.match(staff, /async function getHqAttendanceTrackingDay/);
 assert.match(staff, /attendanceStatus = hasClockIn && hasClockOut \? "COMPLETE"/);
