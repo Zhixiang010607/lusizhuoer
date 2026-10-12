@@ -38,3 +38,12 @@
 - 小程序页面布局文件未改；流程使用运行时测试验证，真实老师手机上传和阅读耗时仍待验证。
 - 服务端部署、小程序开发版上传与正式发布状态分别记录，未获得对应回执前不宣称上线。
 - `deployments/staffAccount-v95.zip` 三文件与源码逐字节相等，版本一致；SHA-256 `a0809cda444508fbb92e4afad53c9393c588bcf5fd346c1410585ae5e3fc11d5`。
+
+## 实际部署回执
+
+- 源码提交 `d6e17e09b09366fd301e1fd64369a18b94c8aaaf` 已推送到 origin/main；252 个已跟踪 JavaScript 文件语法检查通过。
+- 官方 DevTools 云函数部署在读取环境列表前返回“需要重新登录”，未开始该通道的代码传输。
+- 随后使用已有独立 CloudBase CLI 认证。先检查 3.8.6 安装实现与参数，确认无配置分支的 functionPath 为当前目录；从精确 staffAccount 三文件目录运行 fn code update，使用 ZIP base64（非 COS），保持现有运行时、依赖安装和环境配置。
+- 独立 CLI 返回 Code updated。下载 $LATEST 的 index.js / README.md / package.json 与源码分别逐字节一致；线上 health 返回 ok=true、version=v95、managerNodeInstalled=true。首次并行 health 调用遇到认证失败，代码下载成功后串行复核成功；今后此客户端认证刷新及部署验收保持串行。
+- 小程序尚未上传新开发版：Mac 锁屏，DevTools 认证已过期，需用户解锁并重新扫码。当前最后成功开发版仍为 0.3.35；本轮未启动新的 Mini Program 上传，也未提交审核或正式发布。
+- 无 SQL、数据库结构/业务写入、静态网站发布或真实 PDF 增删。health 的 5ms 是健康动作执行时间，不是 PDF 上传/读取时间，不能作为秒级验收。
