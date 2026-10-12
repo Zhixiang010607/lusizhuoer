@@ -100,7 +100,7 @@
         <text wx:if="{{bleReceiveDiagnostic}}" class="ble-detail">接收诊断：{{bleReceiveDiagnostic}}</text>
         <text wx:if="{{bleErrorAdvice}}" class="ble-advice">{{bleErrorAdvice}}</text>
       </view>
-      <button class="primary ble-start" bindtap="startBleVerification" loading="{{bleRunning}}" disabled="{{bleRunning || blePermanentlyClosed || qualificationSeconds <= 0}}">{{bleRunning ? '正在连接设备…' : (bleAuthorizationSent ? '重新连接并核对原设备' : '扫描设备二维码并开启蓝牙')}}</button>
+      <button class="primary ble-start" bindtap="startBleVerification" loading="{{bleRunning}}" disabled="{{bleRunning || blePermanentlyClosed || qualificationSeconds <= 0}}"><text wx:if="{{bleRunning || bleAuthorizationSent}}">{{bleRunning ? '正在连接设备…' : '重新连接并核对原设备'}}</text><view wx:else class="ble-start-label"><text>扫码设备二维码</text><text>开启蓝牙</text></view></button>
       <text class="ble-window-note">90 秒内可重新打开；设备启动后永久关闭。</text>
     </view>
   </view>

@@ -276,7 +276,7 @@ test('a terminal authorization keeps the live 90-second face qualification reusa
   assert.match(release, /this\.activateQualification\(recovered, false, false\)/);
   assert.doesNotMatch(release, /submission\.clear|this\.resetFace/);
   assert.match(recovery, /if \(!isTerminalBleFinalizationError\(error\)\) throw error/);
-  assert.ok(recovery.indexOf('retryFinalization(progress)') < recovery.indexOf('recoverVerificationBleQualification'));
+  assert.ok(recovery.indexOf('retryFinalization(progress, storeId)') < recovery.indexOf('recoverVerificationBleQualification'));
   assert.match(recovery, /blePermanentlyClosed: false/);
   assert.match(recovery, /await this\.releaseTerminalBleAttempt\(qualification, authorizationStatus\)/);
 });

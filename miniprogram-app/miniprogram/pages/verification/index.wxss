@@ -25,9 +25,12 @@
 .ble-detail { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 22rpx; line-height: 1.55; word-break: break-all; }
 .ble-advice { font-weight: 600; }
 .ble-start { margin-top: 22rpx; }
+.ble-start-label { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6rpx; padding: 10rpx 0; line-height: 1.25; }
+.ble-start-label text { display: block; white-space: nowrap; }
 .ble-window-note { display: block; margin-top: 16rpx; color: #827461; font-size: 23rpx; line-height: 1.5; text-align: center; }
 
 @media (min-width: 700px) {
+  .ble-start-label { gap: 4px; padding: 6px 0; }
   .workflow-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 16px; }
   .workflow-grid > .card { height: auto; margin: 0; }
   .workflow-grid .workflow-wide { grid-column: 1 / -1; height: auto; }

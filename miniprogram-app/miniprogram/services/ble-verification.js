@@ -75,6 +75,17 @@ function bleError(code, message, cause) {
   return error;
 }
 
+function verificationStoreId(value, fallback) {
+  const storeId = String(value || fallback || "").trim();
+  if (!/^[1-9]\d{0,18}$/.test(storeId)) {
+    throw bleError("BLE_STORE_CONTEXT_MISSING", "本次核销的门店信息缺失，已禁止设备授权；请重新办理。");
+  }
+  if (value && fallback && storeId !== String(fallback).trim()) {
+    throw bleError("BLE_STORE_CONTEXT_MISMATCH", "本次核销与设备进度的门店不一致，已禁止继续授权。");
+  }
+  return storeId;
+}
+
 function wxPromise(method, options = {}) {
   return new Promise((resolve, reject) => {
     if (typeof wx[method] !== "function") {
@@ -253,9 +264,10 @@ function compactAuthorizationCommand(command) {
 }
 
 class BleVerificationSession {
-  constructor({ qualification, clientRequestId, onState, onIrreversible }) {
+  constructor({ qualification, clientRequestId, storeId, onState, onIrreversible }) {
     this.qualification = qualification || {};
     this.clientRequestId = String(clientRequestId || "");
+    Object.defineProperty(this, "storeId", { value: String(storeId || "").trim(), enumerable: true });
     this.onState = typeof onState === "function" ? onState : () => {};
     this.onIrreversible = typeof onIrreversible === "function" ? onIrreversible : () => {};
     this.deviceId = "";
@@ -721,8 +733,10 @@ class BleVerificationSession {
   }
 
   async finalize(authorizationToken, deviceResult) {
+    const storeId = verificationStoreId(this.storeId);
     const receipt = {
       clientRequestId: this.clientRequestId,
+      storeId,
       qualificationToken: this.qualification.qualificationToken,
       qualificationExpiresAt: this.qualification.expiresAt,
       authorizationToken,
@@ -733,7 +747,7 @@ class BleVerificationSession {
     saveProgress(receipt);
     this.onIrreversible(receipt);
     this.state("FINALIZING", "设备已进入工作状态，正在生成核销工单；请勿重复扫码", { irreversible: true });
-    const result = await callFace("confirmVerificationBleWorkStarted", { authorizationToken, deviceResult });
+    const result = await callFace("confirmVerificationBleWorkStarted", { storeId, authorizationToken, deviceResult });
     saveProgress({ ...receipt, state: "FINALIZED", verificationId: result.verificationId, verificationCode: result.verificationCode });
     return result;
   }
@@ -743,6 +757,7 @@ class BleVerificationSession {
     let info;
     let authorizationToken = "";
     try {
+      const storeId = verificationStoreId(this.storeId);
       qr = await this.scanQr();
       this.ensureActive();
       await this.openAdapter();
@@ -757,6 +772,7 @@ class BleVerificationSession {
       this.ensureActive();
 
       const previous = readProgress();
+      if (previous?.storeId) verificationStoreId(previous.storeId, storeId);
       if (info.status === 2) {
         if (!previous?.authorizationToken || String(previous.deviceId || previous.deviceResult?.device_id || "").toUpperCase() !== info.device_id) {
           throw bleError("BLE_DEVICE_BUSY_OTHER_SESSION", "设备正在服务中，但本机没有对应授权记录，禁止生成核销工单。");
@@ -777,6 +793,7 @@ class BleVerificationSession {
       this.ensureActive();
       this.state("SERVER_AUTHORIZING", "正在向服务端申请一次性设备授权");
       const issued = await callFace("issueVerificationBleAuthorization", {
+        storeId,
         qualificationToken: this.qualification.qualificationToken,
         qrSn: qr.sn,
         qrCode: qr.code,
@@ -786,6 +803,7 @@ class BleVerificationSession {
       if (!authorizationToken || !issued.authCommand) throw bleError("BLE_AUTHORIZATION_INCOMPLETE", "服务端没有返回完整设备授权，禁止开机。");
       saveProgress({
         clientRequestId: this.clientRequestId,
+        storeId,
         qualificationToken: this.qualification.qualificationToken,
         qualificationExpiresAt: this.qualification.expiresAt,
         authorizationToken,
@@ -996,9 +1014,10 @@ function errorFeedback(error) {
   };
 }
 
-async function retryFinalization(progress) {
+async function retryFinalization(progress, originalStoreId) {
   if (!progress?.authorizationToken || !progress?.deviceResult || Number(progress.deviceResult.status) !== 2) return null;
   return callFace("confirmVerificationBleWorkStarted", {
+    storeId: verificationStoreId(progress.storeId, originalStoreId),
     authorizationToken: progress.authorizationToken,
     deviceResult: progress.deviceResult
   });
@@ -1015,5 +1034,6 @@ module.exports = {
   saveProgress,
   clearProgress,
   retryFinalization,
+  verificationStoreId,
   errorFeedback
 };

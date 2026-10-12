@@ -7,6 +7,7 @@ const {
   saveProgress: saveBleProgress,
   clearProgress: clearBleProgress,
   retryFinalization,
+  verificationStoreId,
   errorFeedback
 } = require("../../services/ble-verification");
 
@@ -441,6 +442,7 @@ Page({
         state: "QUALIFIED",
         irreversible: false,
         clientRequestId: intent.clientRequestId,
+        storeId: verificationStoreId(intent.storeId),
         qualificationToken: qualification.qualificationToken,
         qualificationExpiresAt: qualification.expiresAt,
         qualification
@@ -601,7 +603,7 @@ Page({
     if (!intent?.clientRequestId) {
       throw Object.assign(new Error("防重复提交编号丢失，已禁止设备授权；请重新办理。"), { code: "BLE_SUBMISSION_INTENT_MISSING" });
     }
-    const recovered = await callFace("recoverVerificationBleQualification", { clientRequestId: intent.clientRequestId });
+    const recovered = await callFace("recoverVerificationBleQualification", { clientRequestId: intent.clientRequestId, storeId: verificationStoreId(intent.storeId) });
     if (recovered?.complete && recovered.verificationId) {
       this.showRecovered(recovered);
       return null;
@@ -680,6 +682,7 @@ Page({
       session = new BleVerificationSession({
         qualification: this.data.qualification,
         clientRequestId: intent.clientRequestId,
+        storeId: verificationStoreId(intent.storeId),
         onState: (state) => {
           if (startEpoch !== this._bleStartEpoch) return;
           const nextState = { bleStage: state.stage || "", bleStatusMessage: state.message || "" };
@@ -798,20 +801,21 @@ Page({
     if (this.data.recovering || !submission.read("VERIFICATION")) return;
     this.setData({ recovering: true, message: "正在核对 90 秒资格、设备状态和原核销工单…", error: false });
     try {
+      const intent = submission.read("VERIFICATION");
+      const storeId = verificationStoreId(intent.storeId);
       const progress = readBleProgress();
       let terminalAuthorizationError = null;
       if (progress?.deviceResult && Number(progress.deviceResult.status) === 2) {
         this.setData({ locked: true, blePermanentlyClosed: true, bleWindowVisible: false });
         try {
-          const finalized = await retryFinalization(progress);
+          const finalized = await retryFinalization(progress, storeId);
           if (finalized?.verificationId) return this.showRecovered(finalized);
         } catch (error) {
           if (!isTerminalBleFinalizationError(error)) throw error;
           terminalAuthorizationError = error;
         }
       }
-      const intent = submission.read("VERIFICATION");
-      const qualification = await callFace("recoverVerificationBleQualification", { clientRequestId: intent.clientRequestId });
+      const qualification = await callFace("recoverVerificationBleQualification", { clientRequestId: intent.clientRequestId, storeId });
       if (qualification?.found && qualification.complete) return this.showRecovered(qualification);
       if (qualification?.found && qualification.authorizationIssued && !qualification.expired && qualification.qualificationToken) {
         this.setData({ locked: false, bleAuthorizationSent: true });
