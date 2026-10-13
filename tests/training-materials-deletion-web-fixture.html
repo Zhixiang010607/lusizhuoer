@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN" data-auth-ready="true">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>培训删除确认隔离测试</title>
+  <link rel="stylesheet" href="../styles.css"><link rel="stylesheet" href="../training-materials.css">
+</head>
+<body data-training-materials>
+  <header class="topbar"><h1>培训学习</h1></header>
+  <main class="training-main">
+    <section class="panel training-upload-panel">
+      <div class="panel-heading"><h2>发布资料</h2></div>
+      <form id="trainingUploadForm" class="training-upload-form">
+        <label><span>标题</span><input id="trainingTitle" required placeholder="输入资料标题"></label>
+        <label class="training-file-field"><span>PDF 文件</span><input id="trainingFile" class="training-file-input" type="file"><span id="trainingFilePicker" class="training-file-picker">选择 PDF</span></label>
+        <button id="trainingUploadButton" type="submit" disabled>上传并发布</button>
+      </form><progress id="trainingUploadProgress" hidden></progress>
+    </section>
+    <p id="trainingMessage" class="training-message" role="status"></p>
+    <section class="panel training-library-panel">
+      <div class="training-library-heading"><h2>学习资料</h2><span id="trainingCount" class="badge">0 份</span></div>
+      <form id="trainingSearchForm" class="training-search-form"><input id="trainingKeyword" placeholder="按标题搜索"><button type="submit">搜索</button></form>
+      <div id="trainingList" class="training-list"></div>
+    </section>
+    <output id="fixtureCalls">删除调用：0</output>
+  </main>
+  <script>
+    // Local fixture only: no SDK, authentication, upload or remote deletion.
+    const fixtureRows = [
+      { id: 'fixture-published', title: '删除确认版式测试资料', status: 'PUBLISHED', bytes: 291840, publishedAt: '2026-10-13' },
+      { id: 'fixture-pending', title: '清理失败后可重试资料', status: 'ARCHIVED', bytes: 142336, publishedAt: '2026-10-13' }
+    ];
+    let fixtureCalls = 0;
+    window.CloudBasePhoneAuth = {
+      listTrainingMaterials: async ({ keyword }) => ({ materials: fixtureRows.filter(row => !keyword || row.title.includes(keyword)) }),
+      setTrainingMaterialStatus: async ({ materialId, confirmDeletion }) => {
+        if (confirmDeletion !== true) throw new Error('没有明确确认');
+        fixtureCalls += 1;
+        document.getElementById('fixtureCalls').textContent = '删除调用：' + fixtureCalls;
+        return { material: { id: materialId, deleted: true } };
+      },
+      getTrainingMaterialAccess: async () => { throw new Error('隔离测试不读取文件'); }
+    };
+  </script>
+  <script src="../training-materials.js?v=0.1.1"></script>
+</body></html>
