@@ -40,9 +40,13 @@ test("company introduction is a static public page focused on brand positioning"
     "public company content must not read business data or depend on a staff session");
   for (const phrase of [
     "广州露思卓儿", "科技有限公司", "我们是谁", "企业理念", "品牌理念",
-    "我们在做的事", "与谁同行", "与 100\\+门店同行", "企业愿景", "五维核心价值观", "把每一次体验做好",
-    "100+", "10000+", "服务门店", "累计服务顾客", "加盟合作"
+    "我们在做的事", "与谁同行", "与 10000\\+门店同行", "企业愿景", "五维核心价值观", "把每一次体验做好",
+    "10000\\+", "300000\\+", "服务门店", "累计服务顾客", "加盟合作"
   ]) assert.match(wxml, new RegExp(phrase));
+  assert.match(wxml, /class="reach-number">10000\+<\/text><text class="reach-label">服务门店/);
+  assert.match(wxml, /class="reach-number">300000\+<\/text><text class="reach-label">累计服务顾客/);
+  assert.match(wxml, /aria-label="已服务超过10000家门店，累计服务超过300000名顾客"/);
+  assert.doesNotMatch(wxml, /与 100\+门店同行|reach-number">100\+<\/text>/);
   for (const phrase of [
     "用爱经营企业，企业才能基业长青！", "让美有温度，让业有方向！",
     "专注无创科技康美，依托三大王牌科技项目，", "搭建门店售前售后客户管理体系。",
@@ -158,7 +162,7 @@ test("company introduction is a static public page focused on brand positioning"
   assert.match(wxml, /wx:if="\{\{tabletLandscape\}\}" class="tablet-art-seam"/);
   assert.match(wxss, /\.company-page\.tablet-side-layout > \.tablet-art-seam \{[^}]*background: linear-gradient\(90deg, transparent 52%/s,
     "side-layout artwork must blend into the warm background without a hard colour seam");
-  assert.match(wxml, /class="service-reach[^"]*"[\s\S]*100\+[\s\S]*10000\+[\s\S]*class="partnership-block[^"]*"[\s\S]*181 7942 2788[\s\S]*181 6078 9986/,
+  assert.match(wxml, /class="service-reach[^"]*"[\s\S]*10000\+[\s\S]*300000\+[\s\S]*class="partnership-block[^"]*"[\s\S]*181 7942 2788[\s\S]*181 6078 9986/,
     "confirmed service reach and both partnership contacts must form one continuous company chapter");
   assert.doesNotMatch(js, /showActionSheet|openPartnership|joinOpen/,
     "partnership contacts must be part of the page instead of a simulated popup or expandable overlay");
