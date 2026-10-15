@@ -107,3 +107,20 @@ test("completed attendance hides diagnostics while pre-punch location confirmati
     }
   }
 });
+test("completed attendance omits numeric coordinates while confirmation and map coordinates remain", ()=>{
+  const pages=path.join(__dirname,"../miniprogram-app/miniprogram/pages");
+  for (const route of ["attendance-tracking","teacher-detail","work-calendar"]) {
+    const markup=fs.readFileSync(path.join(pages,route,"index.wxml"),"utf8");
+    assert.doesNotMatch(markup,/经纬度|coordinateText/);
+    assert.match(markup,/<map\b/);
+    assert.match(markup,/latitude="\{\{[^}]+\.latitude\}\}"/);
+    assert.match(markup,/longitude="\{\{[^}]+\.longitude\}\}"/);
+    assert.match(markup,/markers="\{\{[^}]+\.markers\}\}"/);
+    assert.match(markup,/<attendance-photo\b/);
+  }
+  const attendance=fs.readFileSync(path.join(pages,"attendance/index.wxml"),"utf8");
+  assert.match(attendance,/<text>经纬度<\/text><text>\{\{locationPreview.coordinateText\}\}/);
+  assert.doesNotMatch(attendance,/selectedAttendance\.clock(?:In|Out)\.coordinateText/);
+  const tracking=fs.readFileSync(path.join(pages,"attendance-tracking/index.js"),"utf8");
+  assert.match(tracking,/wx\.openLocation\(\{ latitude: a.latitude, longitude: a.longitude/);
+});

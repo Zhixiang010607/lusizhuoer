@@ -199,8 +199,10 @@ assert.doesNotMatch(trackingWxml, /人脸档案/,
   "the retired face-profile result column must not displace the seven attendance fields");
 assert.match(trackingWxml, /detail\.teacherName[\s\S]*detail\.phone[\s\S]*detail\.attendance\.checkedTime[\s\S]*<map/,
   "each punch detail must identify the teacher, phone, exact time and map");
-assert.match(trackingWxml, /附近地点[\s\S]*具体地址[\s\S]*经纬度/,
-  "HQ punch details must show the matched place and readable address while retaining coordinates");
+assert.match(trackingWxml, /附近地点[\s\S]*具体地址[\s\S]*<map/,
+  "HQ punch details show place and address followed by the recorded map");
+assert.doesNotMatch(trackingWxml, /经纬度|coordinateText/,
+  "completed punch details hide numeric coordinates, not the map location");
 assert.match(trackingWxml, /打卡时间（北京时间）/,
   "attendance detail must state the timezone instead of showing an ambiguous clock value");
 assert.equal((trackingWxml.match(/<button/g) || []).length, (trackingWxml.match(/class="button-label"/g) || []).length,
