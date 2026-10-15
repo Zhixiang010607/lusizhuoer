@@ -17,9 +17,14 @@ function usable(entry, expectedBytes) {
   if (!entry || entry.expires <= Date.now()) return false;
   try { return wx.getFileSystemManager().statSync(entry.path).size === expectedBytes; } catch (_) { return false; }
 }
+function aspectPercent(photo) {
+  const width = Number(photo?.width), height = Number(photo?.height);
+  return Number.isFinite(width) && Number.isFinite(height) && width >= 160 && width <= 1280 && height >= 160 && height <= 1280
+    ? Number((height / width * 100).toFixed(4)) : 133.3333;
+}
 Component({
   properties: { fill: { type: Boolean, value: false }, attendanceId: { type: String, value: "", observer() { if (this._alive) this.load(); } } },
-  data: { url: "", loading: false, missing: false, error: "", reading: false },
+  data: { url: "", aspectPercent: 133.3333, loading: false, missing: false, error: "", reading: false },
   lifetimes: {
     attached() { this._alive = true; this.load(); },
     detached() { this._alive = false; this._epoch = (this._epoch || 0) + 1; }
@@ -28,13 +33,13 @@ Component({
     current(epoch, account) { return this._alive && this._epoch === epoch && identity() === account; },
     async load() {
       const id = this.properties.attendanceId, epoch = this._epoch = (this._epoch || 0) + 1, account = identity();
-      this.setData({ url: "", missing: false, error: "", reading: false, loading: Boolean(id) });
+      this.setData({ url: "", aspectPercent: 133.3333, missing: false, error: "", reading: false, loading: Boolean(id) });
       if (!id) return;
       try {
         const result = await callFace("getAttendancePhoto", { attendanceId: id });
         if (!this.current(epoch, account)) return;
         if (result.attendanceId !== id) throw new Error("打卡照片不匹配");
-        this.setData({ url: result.photo?.url || "", missing: !result.photo });
+        this.setData({ url: result.photo?.url || "", aspectPercent: aspectPercent(result.photo), missing: !result.photo });
       } catch (_) { if (this.current(epoch, account)) this.setData({ error: "照片读取失败，点击重读" }); }
       finally { if (this.current(epoch, account)) this.setData({ loading: false }); }
     },

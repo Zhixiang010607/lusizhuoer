@@ -83,9 +83,9 @@ button[disabled] { opacity: .55; }
 
 .attendance-card { min-width: 0; }
 .punch-card { margin-bottom: 18rpx; padding: 18rpx; background: #fff; border: 1rpx solid #eadfce; border-radius: 16rpx; }
-.punch-heading { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; padding-bottom: 10rpx; border-bottom: 1rpx solid #eadfce; }
-.punch-heading text:first-child { color: #74592d; font-size: 25rpx; font-weight: 700; }
-.punch-heading text:last-child { font-size: 24rpx; font-variant-numeric: tabular-nums; }
+.punch-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8rpx 16rpx; padding-bottom: 10rpx; border-bottom: 1rpx solid #eadfce; }
+.punch-heading text:first-child { flex: none; color: #74592d; font-size: 28rpx; font-weight: 700; }
+.punch-heading text:last-child { max-width: 100%; font-size: 26rpx; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .record-detail > view { display: flex; justify-content: space-between; gap: 18rpx; padding: 14rpx 0; border-bottom: 1rpx solid #eadfce; font-size: 24rpx; }
 .record-detail > view text:first-child { color: #7c7062; }
 .record-detail > view text:last-child { max-width: 68%; text-align: right; overflow-wrap: anywhere; }

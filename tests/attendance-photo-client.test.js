@@ -2,7 +2,7 @@
 const test = require("node:test"), assert = require("node:assert/strict");
 const fs = require("node:fs"), vm = require("node:vm"), path = require("node:path");
 const source = fs.readFileSync(path.join(__dirname, "../miniprogram-app/miniprogram/components/attendance-photo/index.js"), "utf8");
-function fixture() {
+function fixture(photoMetadata = {}) {
   let definition, staffId = "7", bytesReads = 0, authorizations = 0;
   const files = new Map(), previews = [], calls = [];
   const image = Buffer.from("test-photo");
@@ -10,7 +10,7 @@ function fixture() {
     calls.push(input);
     if (input.authorizeOnly) authorizations++;
     if (input.readBytes) { bytesReads++; return {attendanceId: input.attendanceId, photo: {imageBase64:image.toString("base64"), bytes:image.length}}; }
-    return {attendanceId:input.attendanceId, photo:{url:"https://example.invalid/private", bytes:image.length}};
+    return {attendanceId:input.attendanceId, photo:{url:"https://example.invalid/private", bytes:image.length, ...photoMetadata}};
   };
   const fileSystem = {
     writeFile(o) {files.set(o.filePath, Buffer.from(o.data, "base64")); o.success();},
@@ -41,4 +41,45 @@ test("switching account never reuses another staff cache or preview", async()=>{
 test("new attendance identity resets a stale reading state", async()=>{
   const h=fixture(); h.c.data.reading=true; await h.c.load(); assert.equal(h.c.data.reading,false);
   assert.equal(h.c.data.url,"https://example.invalid/private");
+});
+test("attendance preview follows verified photo dimensions without cropping", async()=>{
+  for (const [metadata, expected] of [
+    [{width:720,height:1280},177.7778], [{width:1280,height:720},56.25],
+    [{width:960,height:1280},133.3333], [{},133.3333],
+    [{width:0,height:1280},133.3333], [{width:720,height:99999},133.3333],
+    [{width:"NaN",height:1280},133.3333]
+  ]) {
+    const h=fixture(metadata); await h.c.load();
+    assert.equal(h.c.data.aspectPercent,expected);
+    h.c.properties.attendanceId=""; await h.c.load();
+    assert.equal(h.c.data.aspectPercent,133.3333);
+    assert.equal(h.c.data.url,"");
+  }
+});
+test("photo layout reserves the full aspect ratio on phones and retains tablet split layout", ()=>{
+  const root=path.join(__dirname,"../miniprogram-app/miniprogram");
+  const markup=fs.readFileSync(path.join(root,"components/attendance-photo/index.wxml"),"utf8");
+  const styles=fs.readFileSync(path.join(root,"components/attendance-photo/index.wxss"),"utf8");
+  assert.match(markup,/padding-top: \{\{aspectPercent\}\}%/);
+  assert.match(markup,/mode="aspectFit"/);
+  assert.match(styles,/\.photo \{[^}]*width: 100%; height: 100%/);
+  assert.doesNotMatch(styles,/height: (?:320rpx|200px)/);
+  assert.match(styles,/@media \(min-width: 700px\)/);
+  assert.match(styles,/\.fill \.photo-frame \{[^}]*padding-top: 0 !important/);
+  assert.match(styles,/\.fill \.photo-button \{[^}]*height: 44px/);
+  assert.match(markup,/reading \? 'busy' : ''/);
+  assert.match(styles,/\.busy \.photo-label \{ color: #6c5b45/);
+});
+test("completed attendance hides diagnostics while pre-punch location confirmation keeps accuracy", ()=>{
+  const pages=path.join(__dirname,"../miniprogram-app/miniprogram/pages");
+  for (const route of ["attendance","attendance-tracking","teacher-detail","work-calendar"]) {
+    const markup=fs.readFileSync(path.join(pages,route,"index.wxml"),"utf8");
+    assert.doesNotMatch(markup,/faceScore|人脸分数/);
+    if(route!=="attendance") assert.doesNotMatch(markup,/\.accuracy/);
+    else {
+      assert.doesNotMatch(markup,/selectedAttendance\.clock(?:In|Out)\.accuracy/);
+      assert.match(markup,/定位精度/);
+      assert.match(markup,/locationPreview\.accuracy/);
+    }
+  }
 });
