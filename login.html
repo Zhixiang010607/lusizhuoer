@@ -1,8 +1,58 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>系统登录</title><link rel="stylesheet" href="styles.css?v=0.15.59"><link rel="stylesheet" href="web-tablet-parity.css?v=1.0.11" data-web-tablet-parity></head>
-<body class="login-page">
-  <main class="login-shell">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>系统登录</title><link rel="stylesheet" href="styles.css?v=0.15.59"><link rel="stylesheet" href="web-tablet-parity.css?v=1.0.13" data-web-tablet-parity><link rel="stylesheet" href="company-portal.css?v=1.0.1"></head>
+<body class="login-page company-portal">
+  <aside class="company-sidebar">
+    <a class="company-brand" href="#overview"><span class="company-brand-art"><img src="assets/company-brand-bg-v4.jpg" alt="露思卓儿标志"></span><strong>露思卓儿</strong></a>
+    <nav aria-label="公司栏目">
+      <a href="#overview" data-company-nav="overview" aria-current="page">公司介绍</a>
+      <a href="#about" data-company-nav="about">我们是谁</a>
+      <a href="#values" data-company-nav="values">品牌理念</a>
+      <a href="#services" data-company-nav="services">我们在做的事</a>
+      <a href="#partners" data-company-nav="partners">与谁同行</a>
+      <a href="#projects" data-company-nav="projects">项目介绍</a>
+      <a href="#login" data-company-nav="login">账号登录</a>
+    </nav>
+  </aside>
+  <div class="company-content">
+    <section class="company-section company-overview" data-company-section="overview" aria-labelledby="companyTitle">
+      <h1 id="companyTitle">广州露思卓儿科技有限公司</h1>
+      <p class="company-eyebrow">企业理念</p>
+      <p class="company-motto">用爱经营企业，企业才能基业长青！<br>让美有温度，让业有方向！</p>
+      <dl class="company-facts">
+        <div><dt>企业简介</dt><dd>专注无创科技康美，依托三大王牌科技项目，搭建门店售前售后客户管理体系。<br>坚守线下体验，以客户体验满意度为核心，赋能门店打造专属科美事业部。</dd></div>
+        <div><dt>企业使命</dt><dd>以专业技术与服务文化赋能美业生态，依托三大王牌品项，成就客户美好人生。</dd></div>
+        <div><dt>企业愿景</dt><dd>成为美业技术服务标杆企业，打造高净值人群信赖的美业科技生态平台。</dd></div>
+      </dl>
+      <a class="company-login-link" href="#login">登录</a>
+    </section>
+    <section class="company-section" data-company-section="about" hidden>
+      <h1>我们是谁</h1><h2>以无创科技康美为事业<br>把专业技术及客情管理带到服务现场</h2>
+      <p>广州露思卓儿科技有限公司，专注无创科技调肤、面部三维精雕、身体痛症调理与体温管理领域。</p>
+      <p>我们扎根真实线下服务场景，持续打磨项目体系、服务话术与落地配套支持。</p>
+      <p>我们追求高端医美级的改善效果，以生美合规的体验感与高性价比，让每一位爱美人士，<br>看见美、拥有美、享受美，收获更美好的生活。</p>
+      <p>助力门店低风险落地，轻投入快速资源变现，实现长期稳定收益；三大王牌项目，成为门店镇店核心。</p>
+      <p>赋能美容师从容自信服务客户，把更好的康养之美带给每一位顾客。</p>
+    </section>
+    <section class="company-section" data-company-section="values" hidden>
+      <h1>品牌理念</h1><p class="company-motto">用爱经营企业，企业才能基业长青！<br>让美有温度，让业有方向！</p>
+      <h2>五维核心价值观</h2><dl class="company-facts"><div><dt>向阳而生</dt><dd>以自强立根，以成长为翼</dd></div><div><dt>真诚致远</dt><dd>以真心换信任，以纯粹赢长久</dd></div><div><dt>坚韧笃行</dt><dd>以拼搏为姿，以坚持为魂</dd></div><div><dt>大爱利他</dt><dd>怀感恩之心，以行动传爱</dd></div><div><dt>守正创新</dt><dd>以文化为基，以科技赋能</dd></div></dl>
+    </section>
+    <section class="company-section" data-company-section="services" hidden>
+      <h1>我们在做的事</h1><h2>从清晰正确的方向开始，把每一次服务做好</h2>
+      <dl class="company-facts"><div><dt>项目体系</dt><dd><p>王牌品项一｜《魔法柔肤》仪：无创科技调肤，90分钟，焕现肌肤白、透、亮、润、紧。</p><p>王牌品项二｜《海洋之蕴》三维精雕：分层对抗肌肤衰老，作用胶原、肌肉、筋膜，提拉收紧，重塑年轻轮廓。</p><p>王牌品项三｜《露思康辰》E脉通：专注身体痛症调理、体温管理，调理身体亚健康。</p></dd></div><div><dt>门店支持</dt><dd>免费帮门店搭建专属科美事业部，赋能美容师，专业从容地解决客户的美与亚健康需求。</dd></div><div><dt>长期陪伴</dt><dd>在持续沟通与真实服务中共同成长，让专业沉淀成稳定、值得信赖的体验。</dd></div></dl>
+    </section>
+    <section class="company-section" data-company-section="partners" hidden>
+      <h1>与 10000+门店同行</h1><h2>把每一次体验做好</h2>
+      <p>从项目体系到一线落地，露思卓儿持续陪伴认真做服务的人。<br>让专业进入真实场景，让每一份用心都被顾客感受到。</p>
+      <div class="company-stats"><p><strong>10000+</strong>服务门店</p><p><strong>300000+</strong>累计服务顾客</p></div>
+      <h2>加盟合作</h2><p>欢迎了解项目合作与门店支持</p><p><a href="tel:18179422788">乐总 18179422788</a></p><p><a href="tel:18160789986">乐总 18160789986</a></p>
+    </section>
+    <section class="company-section" data-company-section="projects" hidden>
+      <h1>项目介绍</h1>
+      <dl class="company-facts"><div><dt><a href="public-project.html?project=ocean">海洋之蕴 →</a></dt><dd>生活美容 · 以轮廓为主线，兼顾肤质与肤龄观感。<br>微聚焦超声／聚焦射频／生物电射频。</dd></div><div><dt><a href="public-project.html?project=skin">魔法柔肤 →</a></dt><dd>生活美容 · 以肤质、肤色及肌肤外观状态为主线。<br>纳秒光、多种护理模式与清促建理念。</dd></div><div><dt><a href="public-project.html?project=warmth">露思康辰 →</a></dt><dd>生活美容 · 以温度管理和身体舒适体验为主线。<br>电磁热护理与可调温手柄。</dd></div></dl>
+    </section>
+  <main class="login-shell" data-company-section="login" hidden>
     <section class="login-form-panel">
       <div class="login-form-wrap">
         <div id="loginWelcomeHeading" class="login-heading"><span class="login-system-mark">HQ</span><h2>登录</h2></div>
@@ -26,5 +76,7 @@
       </div>
     </section>
   </main>
+  </div>
+  <script src="company-portal.js?v=1.0.0"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.20.7"></script><script src="login.js?v=0.17.6"></script>
 </body></html>

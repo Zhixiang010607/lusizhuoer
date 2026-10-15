@@ -28,8 +28,8 @@ test("every root Web page resolves all static local links and assets", () => {
       if (!target) continue;
       assert.ok(fs.existsSync(path.join(root, target)), `${page} references missing local target ${target}`);
     }
-    if (!["login.html", "rating.html", "teacher-detail.html"].includes(page)) {
-      assert.match(html, /auth-ui\.js\?v=0\.21\.4/, `${page} must use the current permission/navigation shell`);
+    if (!["login.html", "public-project.html", "rating.html", "teacher-detail.html"].includes(page)) {
+      assert.match(html, /auth-ui\.js\?v=0\.21\.5/, `${page} must use the current permission/navigation shell`);
     }
   }
 });
@@ -75,6 +75,12 @@ test("the role browser matrix covers every root Web page, including public and r
   const auth = read("auth-ui.js");
   const accessSource = auth.slice(auth.indexOf("const access ="), auth.indexOf("let session ="));
   const covered = new Set([...accessSource.matchAll(/"([a-z0-9-]+\.html)"/gi)].map((match) => match[1]));
-  ["login.html", "rating.html", "teacher-detail.html"].forEach((page) => covered.add(page));
+  ["login.html", "public-project.html", "rating.html", "teacher-detail.html"].forEach((page) => covered.add(page));
   assert.deepEqual([...covered].sort(), rootHtml, "no Web page may sit outside the public/redirect/HQ/store/teacher browser matrix");
+});
+
+test("public project introduction contains no staff SDK, auth bypass or business requests", () => {
+  assert.doesNotMatch(read("public-project.html"), /cloudbase|auth-ui|sessionStorage/i);
+  assert.doesNotMatch(read("public-project.js"), /fetch\(|CloudBase|localStorage|sessionStorage|\.wxss|\.wxml/);
+  for (const key of ["ocean", "skin", "warmth"]) assert.match(read("login.html"), new RegExp(`public-project.html\\?project=${key}`));
 });

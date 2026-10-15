@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Web 隔离布局验收</title><style>html,body,iframe{width:100%;height:100%;margin:0;border:0}iframe{display:block}</style></head>
+<body><iframe id="audit" title="生产结构隔离预览" sandbox="allow-scripts allow-same-origin"></iframe>
+<script>
+/* Local-only fixtures: load production markup/styles, never production SDKs or data. */
+(async () => {
+  if (!['localhost','127.0.0.1'].includes(location.hostname)) return;
+  const width=Number(new URLSearchParams(location.search).get('width'));
+  const height=Number(new URLSearchParams(location.search).get('height'));
+  if ([390,1024,1280,1440,1920].includes(width)) {
+    document.getElementById('audit').style.width=width+'px';
+    document.getElementById('audit').style.height=([768,800,900,1080].includes(height)?height:900)+'px';
+  }
+  const routes = ['login.html','public-project.html','index.html','customer-query.html','recharge-query.html','verification-query.html','inactive-customers.html','low-balance-customers.html','rating-analysis.html','daily-report-tracking.html','attendance-tracking.html','project-management.html','retail-product-management.html','store-management.html','teacher-management.html','hq-management.html','training-materials.html','recharge-review.html','refund-review.html','verification-review.html','product-purchase-review.html','staff-detail.html','store-create.html','teacher-create.html','project-create.html','retail-product-create.html'];
+  const route = new URLSearchParams(location.search).get('route') || 'index.html';
+  if (!routes.includes(route)) return;
+  const doc = new DOMParser().parseFromString(await (await fetch('/'+route)).text(),'text/html');
+  doc.querySelectorAll('script').forEach(s=>s.remove());
+  doc.documentElement.dataset.authReady='true';
+  doc.body.dataset.uiAuditRoute=route;
+  const base=doc.createElement('base');base.href=location.origin+'/';doc.head.prepend(base);
+  const link=doc.createElement('link');link.rel='stylesheet';link.href='/web-tablet-parity.css';doc.head.append(link);
+  if(route==='index.html') {
+    const source=await (await fetch('/app.js')).text();
+    const markup=source.slice(source.indexOf('  function rankingControlsMarkup('),source.indexOf('  function renderAnalysis('));
+    const render=new Function('state','escapeHtml','dimensionLabels','rankingMetricLabels',markup+';return rankingControlsMarkup("store")');
+    doc.getElementById('dashboardRankingControls').innerHTML=render({rankingProducts:[{id:'1',label:'完整项目名称测试'}],rankingProductId:'',rankingMetric:'recharge'},s=>s,{store:'门店',teacher:'老师'},{recharge:'充值',verification:'核销',experience:'体验',refund:'退费'});
+  }
+  if(route==='staff-detail.html') {
+    doc.getElementById('staffSectionTabs').hidden=false;
+    doc.getElementById('staffCredentialAction').hidden=false;
+    doc.getElementById('staffStatusAction').hidden=false;
+    doc.getElementById('staffDetailContent').innerHTML='<section class="teacher-profile-hero"><h2>布局样例老师</h2><span class="badge">活跃</span></section>';
+    doc.getElementById('staffPasswordForm').hidden=false;
+    doc.getElementById('staffConfigurationSection').hidden=false;
+    doc.getElementById('teacherExperiencePanel').hidden=false;
+  }
+  // Make empty native selectors measurable without changing any real business data.
+  doc.querySelectorAll('select').forEach(s=>{if(!s.options.length)s.add(new Option('全部范围',''));});
+  if (route==='login.html') {
+    const section=new URLSearchParams(location.search).get('section')||'overview';
+    doc.querySelectorAll('[data-company-section]').forEach(s=>{s.hidden=s.dataset.companySection!==section;});
+  }
+  if (route==='public-project.html') {
+    const runtime=doc.createElement('script');runtime.src='/public-project.js';doc.body.append(runtime);
+  }
+  doc.querySelector('.side-project-bar')?.remove();
+  if (['inactive-customers.html','low-balance-customers.html','rating-analysis.html'].includes(route)) {
+    const stub=doc.createElement('script');
+    stub.textContent='window.CloudBasePhoneAuth={listStores:async()=>[],listProducts:async()=>[]};window.CloudBaseAuthConfig={};window.cloudbase={init:()=>({callFunction:async()=>({result:{ok:true,stores:[],products:[],teachers:[]}})})};';
+    doc.body.append(stub);
+    const runtime=doc.createElement('script');runtime.src='/operational-metrics.js';doc.body.append(runtime);
+  }
+  if (route==='staff-detail.html') {
+    const stub=doc.createElement('script');
+    stub.textContent='window.CloudBasePhoneAuth={listStaff:async()=>[{auth_uid:"isolated-qa",teacher_id:"7",staff_name:"布局样例老师",phone:"13900000007",account_status:"ACTIVE",teacher_status:"ACTIVE"}],getTeacherExperienceEntitlements:async()=>({entitlements:[],history:[],experienceTotals:[]}),listProducts:async()=>[],resetStaffPassword:async()=>{throw Error("隔离验收不写入账号");},setStaffStatus:async()=>{throw Error("隔离验收不写入账号");}};';
+    doc.body.append(stub);
+    doc.getElementById('staffPasswordForm').hidden=true;
+    const runtime=doc.createElement('script');
+    runtime.textContent=(await(await fetch('/staff-detail.js')).text()).replace('new URLSearchParams(location.search)','new URLSearchParams("role=teacher&id=isolated-qa")');doc.body.append(runtime);
+  }
+  if (route==='attendance-tracking.html') {
+    const stub=doc.createElement('script');
+    stub.textContent=`window.WebWorkCommon={escapeHtml:s=>String(s||""),shanghaiDateTime:()=>"2026-10-16 09:02:03",duration:()=>"8小时0分钟",mapEmbed:()=>"about:blank",mapLink:()=>"about:blank",call:async(_f,a,d)=>a==="getAttendancePhoto"?{attendanceId:d.attendanceId,photo:{url:'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="720" height="1280"><rect width="720" height="1280" fill="#ead9bd"/><text x="360" y="600" text-anchor="middle" font-size="60" fill="#74592d">合成照片</text><text x="680" y="1220" text-anchor="end" font-size="32" fill="#302a22">上班打卡 09:02:03</text></svg>')}}:{attendanceDate:"2026-10-16",serverToday:"2026-10-16",completed:[],clockInOnly:[{teacherId:"7",teacherName:"布局样例老师",phone:"13900000007",clockIn:{id:"31",checkedInAt:"2026-10-16T01:02:03Z",latitude:23,longitude:113,accuracy:10,placeName:"合成位置",formattedAddress:"仅作排版验证"}}],clockOutOnly:[],missing:[]}};`;
+    doc.body.append(stub);
+    const photos=doc.createElement('script');photos.src='/attendance-photo.js';doc.body.append(photos);
+    const runtime=doc.createElement('script');runtime.textContent=(await(await fetch('/attendance-tracking.js')).text()).replace(/history\.replaceState\([^;]+;/,'');doc.body.append(runtime);
+  }
+  doc.body.insertAdjacentHTML('afterbegin','<p style="margin:12px 24px;color:#74592d">隔离布局样例 · '+route+'</p>');
+  document.getElementById('audit').srcdoc='<!doctype html>'+doc.documentElement.outerHTML;
+})();
+</script></body></html>

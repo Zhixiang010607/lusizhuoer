@@ -77,9 +77,9 @@ for (const file of ["query.js", "management.js", "detail.js"]) {
 
 assert.match(staffDetailHtml, /cloudbase-phone-auth\.js\?v=0\.20\.7/,
   "teacher home must refresh the shared cloud-function client");
-assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.15/,
+assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.16/,
   "teacher home must refresh its action handlers");
-assert.match(staffDetailHtml, /web-tablet-parity\.css\?v=1\.0\.12" data-web-tablet-parity/,
+assert.match(staffDetailHtml, /web-tablet-parity\.css\?v=1\.0\.13" data-web-tablet-parity/,
   "teacher home must load the compact iPad-parity layer before the shared navigation script");
 assert.match(teacherCreateHtml, /teacher-create\.js\?v=0\.6\.0/,
   "teacher creation must refresh the attendance-enrollment UI");

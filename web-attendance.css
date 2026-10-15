@@ -67,7 +67,10 @@
 .attendance-dialog header { display: flex; justify-content: space-between; gap: 16px; align-items: start; }
 .attendance-dialog h2 { margin: 0; }
 .attendance-dialog .dialog-close { min-width: 76px; }
-.attendance-dialog-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
+.attendance-dialog-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 16px; }
+.punch-record { min-width: 0; align-content: start; }
+.punch-record-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.punch-record-location { min-width: 0; display: grid; gap: 12px; }
 .punch-meta { display: grid; grid-template-columns: 100px 1fr; gap: 6px 10px; }
 .punch-meta dt, .punch-meta dd { margin: 0; }
 .punch-meta dt { color: #7c7062; }
@@ -77,6 +80,7 @@
   .work-month-actions { grid-template-columns: repeat(2, 1fr); }
   .work-day { min-height: 62px; }
   .work-detail-grid, .camera-shell, .attendance-dialog-body { grid-template-columns: 1fr; }
+  .punch-record-layout { grid-template-columns: minmax(0, 1fr); }
   .attendance-date-picker { grid-template-columns: 1fr; }
   .location-grid { grid-template-columns: 110px 1fr; }
 }

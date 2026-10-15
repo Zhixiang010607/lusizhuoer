@@ -25,7 +25,7 @@ assert.match(managementHtml, /teacher-management\.js\?v=0\.14\.29/, "teacher dir
 assert.match(createHtml, /teacher-create\.js\?v=0\.6\.0/, "teacher creation behavior must be cache-busted");
 assert.match(createHtml, /cloudbase-phone-auth\.js\?v=0\.20\.7/,
   "teacher creation must refresh the attendance-enrollment API wrapper");
-assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.15/, "teacher home behavior must be cache-busted");
+assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.16/, "teacher home behavior must be cache-busted");
 
 for (const label of ["老师姓名", "联系电话", "状态"]) {
   assert.ok(management.includes(`data-label="${label}"`), `mobile teacher cards must expose the ${label} field label`);

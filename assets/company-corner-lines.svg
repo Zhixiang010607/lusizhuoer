@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360" viewBox="0 0 480 360" fill="none">
+  <defs>
+    <linearGradient id="silk" x1="0" y1="0" x2="280" y2="230" gradientUnits="userSpaceOnUse"><stop stop-color="#e7c88e" stop-opacity=".68"/><stop offset="1" stop-color="#fffaf3" stop-opacity="0"/></linearGradient>
+    <linearGradient id="gold" x1="0" y1="300" x2="420" y2="0" gradientUnits="userSpaceOnUse"><stop stop-color="#c7a16a" stop-opacity="0"/><stop offset=".42" stop-color="#bb914c" stop-opacity=".65"/><stop offset="1" stop-color="#e4c994" stop-opacity="0"/></linearGradient>
+  </defs>
+  <path d="M0 0H430C236 26 87 116 0 320Z" fill="url(#silk)"/>
+  <path d="M0 314C80 127 224 38 468 0M0 266C81 100 238 20 407 0M0 210C74 77 206 18 332 0" stroke="url(#gold)" stroke-width="1.4"/>
+  <path d="M0 302C81 121 226 33 459 0M0 254C81 94 235 16 393 0M0 198C78 71 203 13 316 0" stroke="#fff" stroke-opacity=".85" stroke-width="2"/>
+</svg>

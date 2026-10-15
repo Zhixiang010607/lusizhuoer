@@ -66,7 +66,14 @@ body.login-page .password-field button {
   border-radius: 8px !important;
   font-size: 11px !important;
   white-space: nowrap;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+  margin: 0 !important;
 }
+body.login-page .password-field { display: block; position: relative; }
+body.login-page .password-field input { display: block; margin: 0; }
 body.login-page #passwordResetForm .password-field input { padding-right: 100px !important; }
 body:not(.login-page) {
   min-width: 0;
@@ -80,6 +87,45 @@ body:not(.login-page) {
 body:not(.login-page) *,
 body:not(.login-page) *::before,
 body:not(.login-page) *::after { box-sizing: border-box; }
+/* Retire the legacy teacher-specific navy action tokens as well as their hover states. */
+body[data-staff-detail], body[data-management="teacher"], body[data-hq-create="teacher"] {
+  --teacher-action: #79592d;
+  --teacher-action-hover: #654822;
+  --teacher-brand: #a98243;
+  --teacher-brand-hover: #86652f;
+  --teacher-secondary-ink: #74592d;
+  --teacher-secondary-hover: #fbf2e4;
+  --teacher-secondary-border: #dcc8a6;
+}
+body[data-staff-detail] .staff-admin-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+}
+body[data-staff-detail] .staff-admin-actions #staffStatusAction { grid-column: auto !important; }
+body[data-staff-detail] .staff-admin-actions button { width: 100%; min-height: 44px !important; display: flex; align-items: center; justify-content: center; text-align: center; }
+body[data-staff-detail] .teacher-profile-hero::before { background: linear-gradient(90deg, #a98243, #e8d3ae) !important; }
+body[data-staff-detail] .teacher-profile-avatar { border-color: #f0e2cc !important; }
+body[data-staff-detail] :is(.staff-password-form, #staffPasswordMessage) { grid-column: 1 / -1; width: 100%; min-width: 0; }
+body[data-staff-detail] :is(#saveTeacherExperienceConfig, #saveTeacherExperienceRecharge, #saveStaffPassword) {
+  color: #fff !important;
+  background: #79592d !important;
+  border-color: #79592d !important;
+}
+body[data-staff-detail] :is(#saveTeacherExperienceConfig, #saveTeacherExperienceRecharge, #saveStaffPassword):hover:not(:disabled) {
+  background: #654822 !important;
+  border-color: #654822 !important;
+}
+body[data-staff-detail] :is(.teacher-profile-hero, .teacher-profile-meta > div) { border-color: var(--line) !important; }
+body[data-staff-detail] .teacher-profile-meta :is(dt, dd) { color: var(--ink) !important; }
+.staff-password-form:not([hidden]) { display: grid; gap: 10px; margin-top: 14px; }
+.staff-password-form input { height: 44px; margin: 0; padding-right: 70px; }
+.staff-password-form .password-field { display: block; position: relative; }
+.staff-password-form .password-field button { right: 6px; top: 50%; transform: translateY(-50%); min-height: 32px !important; height: 32px; padding: 0 10px; margin: 0; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
+.staff-password-form small { color: var(--muted); font-size: 14px; }
+.staff-password-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+#staffPasswordMessage:empty { display: none; }
+body[data-staff-detail] :is(.teacher-experience-empty, .staff-profile-shell, .staff-contact-card, .staff-profile-avatar) { color: var(--ink) !important; border-color: var(--line) !important; }
 
 /* The existing permission script still owns all links; CSS only changes its layout. */
 .side-project-bar {
@@ -432,6 +478,20 @@ button:disabled { opacity: .48 !important; cursor: not-allowed; }
   box-shadow: 0 4px 12px rgba(121, 89, 45, .18) !important;
 }
 input, select, textarea { color: var(--ink) !important; background: #fff !important; border-color: #dccfb9 !important; border-radius: 10px !important; }
+/* Keep the native popup/keyboard behavior, but give its arrow a stable inset. */
+select:not([multiple]):not([size]) {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  padding-inline: 14px 42px !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m3 6 5 5 5-5' fill='none' stroke='%2374592d' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 14px center !important;
+  background-size: 16px 16px !important;
+}
+select:disabled { opacity: .65; }
 input:focus, select:focus, textarea:focus { outline: 2px solid #d8bb82 !important; border-color: #9a763b !important; }
 label, .field-label { color: #675b4b !important; }
 .chinese-date-trigger {
@@ -771,7 +831,7 @@ body[data-customer-query] .chinese-birthday-input {
 /* Keep the common dashboard filters on one aligned row, including iPad landscape. */
 body[data-view="global"] .dashboard-filter-layout {
   display: grid !important;
-  grid-template-columns: minmax(150px, .75fr) minmax(180px, .9fr) minmax(190px, 1fr) minmax(300px, 1.5fr) !important;
+  grid-template-columns: minmax(150px, .75fr) minmax(190px, 1fr) minmax(180px, .9fr) minmax(300px, 1.5fr) !important;
   align-items: start !important;
   gap: 12px !important;
 }
@@ -799,7 +859,8 @@ body[data-view="global"] .dashboard-custom-date:not([hidden]) + .dashboard-custo
 body[data-view="global"] .dashboard-ranking-controls {
   align-items: start !important;
 }
-body[data-view="global"] .dashboard-dimension-tabs { margin-bottom: 0 !important; }
+body[data-view="global"] .dashboard-dimension-tabs { height: 44px !important; margin: 5px 0 0 !important; padding: 4px !important; }
+body[data-view="global"] .dashboard-dimension-tabs > button { min-height: 0 !important; height: 34px !important; padding-block: 0 !important; }
 body[data-view="global"] .hq-project-summary-row > :first-child {
   justify-content: center !important;
   padding-left: 5px !important;

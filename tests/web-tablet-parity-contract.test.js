@@ -31,7 +31,7 @@ test("Web uses the warm tablet visual language without importing Mini Program so
   for (const color of ["#f3ede2", "#fffaf3", "#6f532e", "#a98243", "#302a22", "#2f2921"]) assert.match(theme, new RegExp(color, "i"));
   assert.match(theme, /width: min\(1120px/);
   assert.match(theme, /\.side-project-bar[\s\S]*position: sticky/);
-  assert.match(auth, /web-tablet-parity\.css\?v=1\.0\.11/);
+  assert.match(auth, /web-tablet-parity\.css\?v=1\.0\.13/);
   assert.match(theme, /button, \.button-link,[\s\S]{0,220}min-height: 44px !important;[\s\S]{0,220}text-align: center !important;/);
   assert.doesNotMatch(`${theme}\n${auth}`, /miniprogram-app|\.wxss|\.wxml/);
   assert.match(context, /网页版也采用同一套平板横屏视觉与功能信息架构/);
@@ -39,8 +39,8 @@ test("Web uses the warm tablet visual language without importing Mini Program so
 });
 
 test("public login and rating pages load the current tablet stylesheet", () => {
-  assert.match(login, /web-tablet-parity\.css\?v=1\.0\.11/);
-  assert.match(rating, /web-tablet-parity\.css\?v=1\.0\.11/);
+  assert.match(login, /web-tablet-parity\.css\?v=1\.0\.13/);
+  assert.match(rating, /web-tablet-parity\.css\?v=1\.0\.13/);
   assert.match(theme, /body\.login-page \.password-field button[\s\S]{0,220}min-height: 32px !important;[\s\S]{0,220}transform: translateY\(-50%\)/);
   assert.match(theme, /body\.login-page \.login-shell[\s\S]{0,160}width: min\(590px, calc\(100% - 32px\)\) !important;[\s\S]{0,120}max-width: 590px !important;/);
   assert.match(theme, /@media \(max-width: 600px\)[\s\S]*body\.login-page \.login-shell[\s\S]{0,120}width: 100% !important;/);
@@ -90,7 +90,7 @@ test("tablet-width Web navigation and customer query remain readable", () => {
 
 test("HQ dashboard aligns filter controls and centers every project-summary name", () => {
   assert.match(read("index.html"), /class="dashboard-filter-layout"[\s\S]{0,1800}id="period"[\s\S]{0,1800}id="dashboardRankingControls"/);
-  assert.match(theme, /body\[data-view="global"\] \.dashboard-filter-layout \{[\s\S]{0,260}grid-template-columns: minmax\(150px, \.75fr\) minmax\(180px, \.9fr\) minmax\(190px, 1fr\) minmax\(300px, 1\.5fr\) !important;[\s\S]{0,120}align-items: start !important;/);
+  assert.match(theme, /body\[data-view="global"\] \.dashboard-filter-layout \{[\s\S]{0,260}grid-template-columns: minmax\(150px, \.75fr\) minmax\(190px, 1fr\) minmax\(180px, \.9fr\) minmax\(300px, 1\.5fr\) !important;[\s\S]{0,120}align-items: start !important;/);
   assert.match(theme, /body\[data-view="global"\] \.global-filter-grid,[\s\S]{0,100}body\[data-view="global"\] \.dashboard-ranking-controls \{[\s\S]{0,80}display: contents !important;/);
   assert.match(theme, /body\[data-view="global"\] \.hq-project-summary-row > :first-child[\s\S]{0,180}justify-content: center !important;[\s\S]{0,180}text-align: center !important;/);
 });

@@ -791,28 +791,63 @@
     }
   }
 
-  $("staffCredentialAction").addEventListener("click", async () => {
+  let passwordSaving = false;
+  function closePasswordForm() {
+    $("staffPasswordForm").hidden = true;
+    $("staffNewPassword").value = "";
+    $("staffNewPassword").type = "password";
+    $("toggleStaffPassword").textContent = "显示";
+    $("staffCredentialAction").setAttribute("aria-expanded", "false");
+  }
+  $("staffCredentialAction").addEventListener("click", () => {
+    if (passwordSaving) return;
+    $("staffPasswordMessage").textContent = "";
+    const open = $("staffPasswordForm").hidden;
+    closePasswordForm();
+    if (open) {
+      $("staffPasswordForm").hidden = false;
+      $("staffCredentialAction").setAttribute("aria-expanded", "true");
+      $("staffNewPassword").focus();
+    }
+  });
+  $("cancelStaffPassword").addEventListener("click", () => { if (!passwordSaving) closePasswordForm(); });
+  $("toggleStaffPassword").addEventListener("click", () => {
+    const visible = $("staffNewPassword").type === "text";
+    $("staffNewPassword").type = visible ? "password" : "text";
+    $("toggleStaffPassword").textContent = visible ? "显示" : "隐藏";
+  });
+  $("staffPasswordForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (passwordSaving) return;
     if (!staff?.auth_uid) return;
     if (!hasPhoneAuthMethod("resetStaffPassword")) {
-      window.alert("密码重置服务尚未加载，请部署最新后台后刷新本页。");
+      $("staffPasswordMessage").textContent = "密码重置服务尚未加载，请刷新本页。";
       return;
     }
-    const newPassword = window.prompt("输入新的临时密码（8–32 位，至少包含大写、小写、数字、特殊字符中的三类）：");
-    if (newPassword === null) return;
+    const newPassword = $("staffNewPassword").value;
     const groups = [/[A-Z]/, /[a-z]/, /\d/, /[^A-Za-z\d]/].filter((rule) => rule.test(newPassword)).length;
-    if (newPassword.length < 8 || newPassword.length > 32 || groups < 3) return window.alert("密码格式不符合要求。");
-    if (!window.confirm(`确认重置“${staffDisplayName()}”的密码？旧密码不会显示或保留。`)) return;
-    const button = $("staffCredentialAction");
+    if (newPassword.length < 8 || newPassword.length > 32 || groups < 3) {
+      $("staffPasswordMessage").textContent = "密码需为 8–32 位，且至少包含三类字符。";
+      return;
+    }
+    const button = $("saveStaffPassword");
+    passwordSaving = true;
+    $("staffNewPassword").disabled = true;
+    $("cancelStaffPassword").disabled = true;
     setButtonPending(button, true, "正在重置…");
     try {
       await window.CloudBasePhoneAuth.resetStaffPassword({ uid: staff.auth_uid, newPassword });
       staff.password_change_required = true;
       staff.password_changed_at = new Date().toISOString();
       render();
-      window.alert("已重置临时密码。请通过安全渠道单独告知本人。该人员下次应立即修改密码。");
+      closePasswordForm();
+      $("staffPasswordMessage").textContent = "临时密码已保存，请通过安全渠道告知本人。";
     } catch (error) {
-      window.alert(error?.message || "密码重置失败，请稍后重试。");
+      $("staffPasswordMessage").textContent = error?.message || "密码重置失败，请稍后重试。";
     } finally {
+      passwordSaving = false;
+      $("staffNewPassword").disabled = false;
+      $("cancelStaffPassword").disabled = false;
       setButtonPending(button, false);
       button.disabled = false;
     }
