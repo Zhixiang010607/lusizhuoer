@@ -2,6 +2,7 @@ const { callStaff, callTeacherCreate } = require("../../services/api");
 const { requireSession } = require("../../services/session");
 const { displayDateTimeAny } = require("../../services/query-tools");
 const rechargeIntent = require("../../services/teacher-experience-recharge");
+const { attendanceMap } = require("../../services/attendance-map");
 
 function text(...values) { return String(values.find((value) => value !== undefined && value !== null && String(value).trim()) || "").trim(); }
 function number(row, names, fallback = 0) { for (const name of names) { const value = Number(row && row[name]); if (Number.isFinite(value)) return value; } return fallback; }
@@ -190,8 +191,8 @@ function selectedWorkDay(cell) {
     date: cell.date,
     future: cell.future,
     notEmployed: cell.notEmployed,
-    clockIn: clockIn ? { ...clockIn, timeText: formatTime(clockIn.checkedInAt) } : null,
-    clockOut: clockOut ? { ...clockOut, timeText: formatTime(clockOut.checkedInAt) } : null,
+    clockIn: clockIn ? { ...clockIn, ...attendanceMap(clockIn), timeText: formatTime(clockIn.checkedInAt) } : null,
+    clockOut: clockOut ? { ...clockOut, ...attendanceMap(clockOut), timeText: formatTime(clockOut.checkedInAt) } : null,
     workDurationText: durationText(duration),
     report: cell.report || null
   };
@@ -371,9 +372,11 @@ Page({
   openAttendanceMap(event) {
     const kind = text(event.currentTarget.dataset.kind);
     const record = this.data.selectedWorkDay && this.data.selectedWorkDay[kind];
-    if (!record || !Number.isFinite(Number(record.latitude)) || !Number.isFinite(Number(record.longitude))) return;
+    if (!record) return;
+    const { mapReady, latitude, longitude } = attendanceMap(record);
+    if (!mapReady) return;
     wx.openLocation({
-      latitude: Number(record.latitude), longitude: Number(record.longitude), scale: 18,
+      latitude, longitude, scale: 18,
       name: text(record.placeName) || `${kind === "clockIn" ? "上班" : "下班"}打卡位置`,
       address: text(record.formattedAddress) || `${record.latitude}, ${record.longitude}`
     });

@@ -1,6 +1,7 @@
 const { callStaff } = require("../../services/api");
 const { waitForStartupSession, requireSession } = require("../../services/session");
 const { formatShanghaiTimestamp } = require("../../services/business-time");
+const { attendanceMap } = require("../../services/attendance-map");
 
 function text(value) { return String(value === undefined || value === null ? "" : value).trim(); }
 function currentMonth() { const date = new Date(Date.now() + 8 * 3600000); return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`; }
@@ -8,7 +9,7 @@ function shiftMonth(month, delta) { const [year, number] = month.split("-").map(
 function monthTitle(month) { const [year, number] = month.split("-"); return `${year}年${Number(number)}月`; }
 function navigation(month, maximum) { return { canNextMonth: shiftMonth(month, 1) <= maximum, canNextYear: shiftMonth(month, 12) <= maximum, monthPickerEnd: maximum }; }
 function durationText(clockIn, clockOut) { if (!clockIn || !clockOut) return "尚未形成完整工时"; const seconds = Math.max(0, (new Date(clockOut.checkedInAt).getTime() - new Date(clockIn.checkedInAt).getTime()) / 1000), hours = Math.floor(seconds / 3600), minutes = Math.floor((seconds % 3600) / 60); return `${hours} 小时 ${minutes} 分钟`; }
-function recordView(record) { return record ? { ...record, timeText: formatShanghaiTimestamp(record.checkedInAt) } : null; }
+function recordView(record) { return record ? { ...record, ...attendanceMap(record), timeText: formatShanghaiTimestamp(record.checkedInAt) } : null; }
 function calendarCells(month, serverToday, employmentStartDate, attendance, reports) {
   const [year, number] = month.split("-").map(Number), offset = (new Date(Date.UTC(year, number - 1, 1)).getUTCDay() + 6) % 7, total = new Date(Date.UTC(year, number, 0)).getUTCDate();
   const attendanceByDate = new Map();
@@ -47,7 +48,7 @@ Page({
   changeMonth(event) { if (this.data.loading) return; const month = shiftMonth(this.data.month, Number(event.currentTarget.dataset.delta || 0)); if (month <= this.data.monthPickerEnd) this.loadMonth(month); },
   chooseMonth(event) { if (this.data.loading) return; const month = text(event.detail?.value).slice(0, 7); if (/^\d{4}-\d{2}$/.test(month) && month <= this.data.monthPickerEnd) this.loadMonth(month); },
   selectDate(event) { const date = text(event.currentTarget.dataset.date), cell = this.data.days.find((item) => item.date === date); if (cell && !cell.blank) this.setData({ selectedDate: date, selected: selectedDay(cell) }); },
-  openMap(event) { const kind = text(event.currentTarget.dataset.kind), record = this.data.selected?.[kind], latitude = Number(record?.latitude), longitude = Number(record?.longitude); if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return; wx.openLocation({ latitude, longitude, scale: 18, name: text(record.placeName) || `${kind === "clockIn" ? "上班" : "下班"}打卡位置`, address: text(record.formattedAddress) || `${latitude}, ${longitude}` }); },
+  openMap(event) { const kind = text(event.currentTarget.dataset.kind), record = this.data.selected?.[kind]; if (!record) return; const { mapReady, latitude, longitude } = attendanceMap(record); if (!mapReady) return; wx.openLocation({ latitude, longitude, scale: 18, name: text(record.placeName) || `${kind === "clockIn" ? "上班" : "下班"}打卡位置`, address: text(record.formattedAddress) || `${latitude}, ${longitude}` }); },
   openAttendance() { wx.navigateTo({ url: "/pages/attendance/index" }); },
   openDailyReport() { wx.navigateTo({ url: "/pages/daily-report/index" }); }
 });
