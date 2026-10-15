@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const https = require("https");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v129";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v130";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -7799,6 +7799,8 @@ exports.main = async (event = {}, context = {}) => {
         verificationPhotoServiceRoleStorageRequestId: storageHealth.serviceRoleStorageRequestId || undefined,
         attendanceTencentGeocoderConfigured: Boolean(String(process.env.TENCENT_MAP_KEY || "").trim()),
         attendanceHereGeocoderConfigured: Boolean(String(process.env.HERE_GEOCODING_API_KEY || "").trim()),
+        attendancePhotoRuntime: event.attendancePhotoProbe === true
+          ? await require("./attendance-photo").probeAttendancePhotoRuntime() : undefined,
         livenessEnabled: faceSettings().livenessEnabled,
         message: "Face customer enrollment and private verification photos are ready."
       };

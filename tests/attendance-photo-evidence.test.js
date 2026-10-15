@@ -5,6 +5,19 @@ const root = path.resolve(__dirname, ".."), read = (p) => fs.readFileSync(path.j
 const source = read("cloudfunctions/faceRecognition/index.js");
 const image = require("../cloudfunctions/faceRecognition/attendance-photo");
 
+test("release probe detects missing native dependency without business writes", async () => {
+  const context = { Buffer, process: { versions: { node: "20.19.0" }, platform: "linux", arch: "x64" }, module: { exports: {} },
+    require(name) { if (name === "./attendance-glyphs.json") return { glyphs: {} }; throw Error("missing native module"); } };
+  vm.createContext(context); vm.runInContext(read("cloudfunctions/faceRecognition/attendance-photo.js"), context);
+  const probe = await context.module.exports.probeAttendancePhotoRuntime();
+  assert.equal(probe.ready, false); assert.equal(probe.errorCode, "ATTENDANCE_PHOTO_RUNTIME_UNAVAILABLE");
+  assert.equal(probe.node, "20.19.0");
+  assert.match(source, /event\.attendancePhotoProbe === true[\s\S]*probeAttendancePhotoRuntime/);
+  const pkg = JSON.parse(read("cloudfunctions/faceRecognition/package.json"));
+  assert.equal(pkg.dependencies["@img/sharp-linux-x64"], pkg.dependencies.sharp);
+  assert.equal(pkg.engines.node, ">=20.19.0");
+});
+
 function harness(options = {}) {
   const calls = [], reference = `pg://customer-photos/attendance/${"a".repeat(48)}.jpg`;
   const photo = Buffer.from("test-compressed-photo"), crypto = require("node:crypto");

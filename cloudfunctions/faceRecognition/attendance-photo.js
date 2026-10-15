@@ -46,4 +46,28 @@ async function prepareAttendancePhoto(buffer, timestamp, attendanceType) {
   throw new Error("Attendance image exceeds compressed size limit");
 }
 
-module.exports = { prepareAttendancePhoto, shanghaiStamp, stampSvg };
+// Explicit release probe: synthetic pixels only, no identity, storage or SQL.
+// Cache per warm instance so repeated health requests do not repeat image work.
+let runtimeProbe;
+function probeAttendancePhotoRuntime() {
+  if (!runtimeProbe) runtimeProbe = (async () => {
+    const runtime = { node: process.versions.node, platform: process.platform, arch: process.arch };
+    try {
+      const sharp = require("sharp");
+      const input = await sharp({ create: { width: 320, height: 240, channels: 3, background: "#cdbb9c" } }).jpeg().toBuffer();
+      const bytes = [];
+      for (const type of ["CLOCK_IN", "CLOCK_OUT"]) {
+        const result = await prepareAttendancePhoto(input, "2026-10-15T01:02:03Z", type);
+        const metadata = await sharp(result.buffer).metadata();
+        if (metadata.format !== "jpeg" || metadata.width !== 320 || metadata.height !== 240 || result.buffer.length > 524288) throw new Error("probe failed");
+        bytes.push(result.buffer.length);
+      }
+      return { ready: true, ...runtime, sharp: sharp.versions.sharp, jpegBytes: bytes };
+    } catch (_) {
+      return { ready: false, ...runtime, errorCode: "ATTENDANCE_PHOTO_RUNTIME_UNAVAILABLE" };
+    }
+  })();
+  return runtimeProbe;
+}
+
+module.exports = { prepareAttendancePhoto, shanghaiStamp, stampSvg, probeAttendancePhotoRuntime };

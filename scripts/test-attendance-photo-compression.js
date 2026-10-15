@@ -1,8 +1,10 @@
 "use strict";
 // Development-only synthetic fixtures. No personal photo, network or database.
 const assert = require("node:assert/strict"), crypto = require("node:crypto"), sharp = require("sharp");
-const {prepareAttendancePhoto} = require("../cloudfunctions/faceRecognition/attendance-photo");
+const {prepareAttendancePhoto, probeAttendancePhotoRuntime} = require("../cloudfunctions/faceRecognition/attendance-photo");
 (async()=>{
+  const probe = await probeAttendancePhotoRuntime(); assert.equal(probe.ready, true);
+  assert.equal(probe.jpegBytes.length, 2); console.log("Synthetic release runtime probe PASS");
   for (const [width,height] of [[1920,2560],[2560,1920],[640,480]]) {
     const raw=crypto.randomBytes(width*height*3);
     const input=await sharp(raw,{raw:{width,height,channels:3}}).jpeg({quality:95}).toBuffer();

@@ -67,7 +67,7 @@ assert.match(teacherCreate, /INSERT INTO public\.teacher_attendance_face_profile
 assert.match(teacherCreate, /profile_photo_file_id/,
   "only the consented attendance enrollment photo is privately retained");
 
-assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v12" : "v129"/);
+assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v12" : "v130"/);
 const clockInStart = face.indexOf("async function clockInTeacherAttendance");
 const clockInEnd = face.indexOf("// Normal and teacher-gift EXPERIENCE", clockInStart);
 const clockIn = face.slice(clockInStart, clockInEnd);
