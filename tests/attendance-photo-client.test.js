@@ -42,6 +42,23 @@ test("new attendance identity resets a stale reading state", async()=>{
   const h=fixture(); h.c.data.reading=true; await h.c.load(); assert.equal(h.c.data.reading,false);
   assert.equal(h.c.data.url,"https://example.invalid/private");
 });
+test("first display requests the original directly without requiring a preview tap", async()=>{
+  const h=fixture({width:2160,height:3840},3*1024*1024);
+  await h.c.load();
+  assert.equal(h.calls.length,1); assert.equal(h.calls[0].original,true);
+  assert.equal(h.c.data.url,"https://example.invalid/private");
+  assert.equal(h.previews.length,0); assert.equal(h.c.data.loading,false);
+});
+test("first display reauthorizes and reuses a verified cached original, not a thumbnail", async()=>{
+  const h=fixture(); await h.c.read();
+  const cached=h.c.data.url; await h.c.load();
+  assert.equal(h.c.data.url,cached); assert.equal(h.calls.at(-1).original,true);
+  assert.equal(h.bytesReads,1);
+  h.files.set(cached,Buffer.from('truncated')); await h.c.load();
+  assert.equal(h.c.data.url,"https://example.invalid/private");
+  h.setAccount('8'); await h.c.load();
+  assert.equal(h.c.data.url,"https://example.invalid/private");
+});
 test("attendance preview follows verified photo dimensions without cropping", async()=>{
   for (const [metadata, expected] of [
     [{width:720,height:1280},177.7778], [{width:1280,height:720},56.25],

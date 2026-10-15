@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const https = require("https");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v131";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v132";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -6604,7 +6604,7 @@ async function getAttendancePhoto(event) {
     return { ok: true, attendanceId: id, photo: { imageBase64: buffer.toString("base64"), bytes: buffer.length } };
   }
   if (event.authorizeOnly === true) return { ok: true, attendanceId: id, photo: { bytes: Number(row.photo_bytes) } };
-  const signed = await signVerificationPhoto(row.photo_object_ref, 120, { allowAttendance: true, thumbnailTransform: event.original !== true });
+  const signed = await signVerificationPhoto(row.photo_object_ref, 120, { allowAttendance: true, thumbnailTransform: false });
   return { ok: true, attendanceId: id, photo: { url: signed.url, expiresIn: signed.expiresIn,
     checkedInAt: row.checked_in_at, bytes: Number(row.photo_bytes), width: Number(row.photo_width), height: Number(row.photo_height) } };
 }

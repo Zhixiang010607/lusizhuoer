@@ -36,10 +36,13 @@ Component({
       this.setData({ url: "", aspectPercent: 133.3333, missing: false, error: "", reading: false, loading: Boolean(id) });
       if (!id) return;
       try {
-        const result = await callFace("getAttendancePhoto", { attendanceId: id });
+        // Request the stored original even against the older compatible server.
+        const result = await callFace("getAttendancePhoto", { attendanceId: id, original: true });
         if (!this.current(epoch, account)) return;
         if (result.attendanceId !== id) throw new Error("打卡照片不匹配");
-        this.setData({ url: result.photo?.url || "", aspectPercent: aspectPercent(result.photo), missing: !result.photo });
+        const cached = localFiles.get(`${account}:${id}`);
+        this.setData({ url: result.photo && usable(cached, Number(result.photo.bytes)) ? cached.path : result.photo?.url || "",
+          aspectPercent: aspectPercent(result.photo), missing: !result.photo });
       } catch (_) { if (this.current(epoch, account)) this.setData({ error: "照片读取失败，点击重读" }); }
       finally { if (this.current(epoch, account)) this.setData({ loading: false }); }
     },

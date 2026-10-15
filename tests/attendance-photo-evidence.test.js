@@ -63,7 +63,7 @@ function harness(options = {}) {
     downloadVerificationPhotoAuthenticated = mock.download;
     deleteVerificationPhotoObject = async () => { mock.calls.push('DELETE'); };
     app = () => ({auth: () => ({getUserInfo: () => ({uid: 'test-authorized-uid'})})});
-    signVerificationPhoto = async () => { mock.calls.push('SIGN'); return {url: 'https://example.invalid/private', expiresIn:120}; };
+    signVerificationPhoto = async (_reference, _ttl, options) => { mock.calls.push('SIGN', ['SIGN_OPTIONS', options]); return {url: 'https://example.invalid/private', expiresIn:120}; };
     module.exports = {clockInTeacherAttendance, getAttendancePhoto, verificationPhotoStorageForEvidence};
   `, context);
   return { ...mock, ...context.module.exports };
@@ -114,14 +114,15 @@ test("authorized byte fallback validates integrity and does not need a signed UR
   assert.equal(h.calls.includes("SIGN"), false);
   await assert.rejects(harness({ corrupt: true }).getAttendancePhoto({ attendanceId: "31", readBytes: true }));
 });
-test("attendance shares work-order HD byte boundaries and thumbnail/original transport without altering verification evidence", () => {
+test("attendance shares work-order HD byte boundaries but always displays the stored original", () => {
   const pipeline=read("cloudfunctions/faceRecognition/attendance-photo.js");
   assert.doesNotMatch(pipeline,/\.resize\(|for \(const (?:edge|quality)/);
   assert.match(pipeline,/quality: 92, chromaSubsampling: "4:4:4"/);
   assert.match(pipeline,/ATTENDANCE_HD_PHOTO_TOO_LARGE/);
   const attendance=source.slice(source.indexOf("async function clockInTeacherAttendance"),source.indexOf("async function persistVerifiedFaceEvidence"));
   assert.equal((attendance.match(/downloadVerificationPhotoAuthenticated\([^\n]*MAX_VERIFICATION_IMAGE_BYTES/g)||[]).length,2);
-  assert.match(attendance,/thumbnailTransform: event.original !== true/);
+  assert.match(attendance,/thumbnailTransform: false/);
+  assert.doesNotMatch(attendance,/thumbnailTransform: (?:true|event\.)/);
   assert.doesNotMatch(attendance,/512 \* 1024|524288/);
   const migration=read("database/migrations/089_teacher_attendance_hd_photo.sql");
   assert.equal(migration,read("database/cloudbase-console/089-01-teacher-attendance-hd-photo.sql"));
@@ -136,7 +137,7 @@ test("watermark uses correct Beijing date across UTC midnight and distinguishes 
   assert.throws(() => image.stampSvg("2026-10-15 09:00:00", 960, "OTHER"));
   assert.doesNotMatch(image.stampSvg("2026-10-15 09:00:00", 960, "CLOCK_IN").toString(), /<text|font-family/);
 });
-test("only the timestamp is enlarged and bold; complete date fits even the smallest accepted capture", () => {
+test("only the timestamp is three times the original size and bold; complete date always fits", () => {
   for (const width of [160,240,320,480,720,960,1280]) {
     for (const type of ["CLOCK_IN","CLOCK_OUT"]) {
       const svg=image.stampSvg("2026-10-15 09:02:03",width,type).toString();
@@ -149,11 +150,21 @@ test("only the timestamp is enlarged and bold; complete date fits even the small
       const labelScale=Number(/scale\(([^,]+)/.exec(labels[0])[1]);
       assert.equal(labelScale,Math.round(Math.max(12,Math.round(width/36))*.8)/1000);
       const dateScale=Number(/scale\(([^,]+)/.exec(date[0])[1]);
-      if(width>=480) assert.ok(dateScale>=Math.max(12,Math.round(width/36))*1.9/1000);
+      if(width>=480) assert.equal(dateScale,Math.max(12,Math.round(width/36))*3/1000);
       else if(width===320) assert.ok(dateScale>=.018);
       date.forEach(p=>assert.match(p,/stroke-width="18"/));
       labels.forEach(p=>assert.match(p,/stroke-width="0"/));
     }
+  }
+});
+test("default and explicit attendance photo reads never request a thumbnail transform", async () => {
+  for (const original of [undefined, true, false]) {
+    const h = harness();
+    const result = await h.getAttendancePhoto({ attendanceId: "31", ...(original === undefined ? {} : { original }) });
+    assert.equal(result.photo.url, "https://example.invalid/private");
+    const options = h.calls.find(c => Array.isArray(c) && c[0] === "SIGN_OPTIONS")[1];
+    assert.equal(options.allowAttendance, true);
+    assert.equal(options.thumbnailTransform, false);
   }
 });
 test("migration remains scoped, immutable, private and does not fabricate historical photos", () => {

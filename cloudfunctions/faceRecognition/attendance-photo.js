@@ -20,7 +20,7 @@ function stampSvg(text, imageWidth, attendanceType, imageHeight = Infinity) {
   const padding = Math.round(originalSize * .5);
   // Enlarge only the timestamp, not the punch label. Clamp small captures so
   // the complete authoritative date/time stays inside the original image.
-  const size = Math.min(Math.max(16, Math.round(imageWidth / 18)), Math.floor((imageWidth - padding * 2) * 1000 / units(text)));
+  const size = Math.min(originalSize * 3, Math.floor((imageWidth - padding * 2) * 1000 / units(text)));
   const gap = Math.max(4, Math.round(originalSize * .3));
   const width = Math.ceil(Math.max(units(text) * size, units(label) * labelSize) / 1000) + padding * 2;
   const height = Math.ceil(labelSize + gap + size * 1.2) + padding * 2;
