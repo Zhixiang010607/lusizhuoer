@@ -1,0 +1,22 @@
+WeChat DevTools Stable 2.02.2608040 official CLI (sanitized receipt)
+Development version: 0.3.41
+AppID: wxb053c1bd6c684d8b
+Source commit: e78d2a0f7b7dff252eda56b650f82f46ced556d1
+Description: 考勤高清原图兼容与照片内时间水印放大
+Upload completed: 2026-10-15T12:37:27.989Z
+✔ 使用 AppID: wxb053c1bd6c684d8b
+TOTAL bytes: 3390075
+main bytes: 1656619
+/pages/attendance/ bytes: 44218
+/pages/attendance-tracking/ bytes: 22846
+/pages/work-calendar/ bytes: 20499
+/pages/teacher-detail/ bytes: 68521
+/pages/verification/ bytes: 51699
+✔ upload
+Official CLI exit code: 0
+Same-task backend events: doUpload:await; progressSuccess; reportNewRemoteDebug
+Backend elapsed (packing and upload): 212991 ms
+Backend upload await: 194701 ms
+Experience version selection: awaiting user confirmation
+Formal release / review submission: not performed
+Database migration 089 / faceRecognition v131 activation: not performed
