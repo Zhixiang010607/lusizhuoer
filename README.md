@@ -1,5 +1,7 @@
 # 门店业务与总部数据系统
 
+2026-10-16 打卡类型水印追加更新：`faceRecognition v133` 已原地部署、运行时探针与六文件回下载验收通过；“上班打卡／下班打卡”为原标签字号两倍，日期时间保持三倍，“北京时间”不变。533 项回归通过，核销核心、数据库、小程序和 Web 均无改动，不重跑 089；只影响之后新拍的照片，旧凭证不覆盖。详见 [v133 验收](docs/reviews/2026-10-16-attendance-punch-label-v133.md)。
+
 2026-10-16 考勤高清原图与三倍时间水印后台已上线：用户确认 [0.3.42](miniprogram-app/releases/0.3.42.md) 体验版更新后，完整备份 40 张 public 表、147 行及 45 个序列值，执行 [089](database/cloudbase-console/089-README.md) 并取得四项 READY；`faceRecognition v132` 原地部署后 health、Linux sharp 合成探针及六文件代码回下载均通过。现网保持 Nodejs18.15，运行时、环境变量和定时器未变，未重建函数。新打卡保留拍摄像素、按工单 3 MiB 原图边界一次高清编码，照片内日期时间为原始字号三倍、首屏直接显示存储原图；不生成 480px 预览或独立缩略文件，不覆盖旧凭证，旧水印不会自动变大。核销与 BLE 核心逐字节未变，533 项回归通过。微信审核／正式发布与后台上线分开，详见 [生产验收](docs/reviews/2026-10-16-attendance-hd-v132-production-deploy.md)。
 
 2026-10-13：开发版 **0.3.37 已上传**，网页版培训删除确认已同步，32 个静态文件与线上 SHA-256 一致。包含总部删除前确认、PDF／资料记录同删，以及手机打卡／日报日期换行和统计越界修正。506 项测试及 256 个 JavaScript 语法检查通过；未批量清理真实资料，核销逻辑不变。配套迁移 087 和 staffAccount v96 已在前轮完成备份与部署。未设为体验版、提交审核或正式发布。详见 [发布回执](miniprogram-app/releases/0.3.37.md)、[删除检查](docs/reviews/2026-10-12-training-physical-deletion.md)与[排版检查](docs/reviews/2026-10-13-tracking-summary-layout.md)。
