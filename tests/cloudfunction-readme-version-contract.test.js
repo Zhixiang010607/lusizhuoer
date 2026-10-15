@@ -13,6 +13,8 @@ const faceVersions = /PHOTO_ONLY_FUNCTION \? "(v\d+)" : "(v\d+)"/.exec(faceSourc
 assert.ok(faceVersions, "faceRecognition must expose photo-only and face runtime versions");
 assert.match(faceReadme, new RegExp(`当前版本：\`${faceVersions[2]}\``),
   "faceRecognition README must match its runtime version");
+assert.equal(`v${JSON.parse(read("cloudfunctions/faceRecognition/package.json")).version.split(".")[0]}`,faceVersions[2]);
+assert.match(faceReadme,new RegExp(`faceRecognition-${faceVersions[2]}\\.zip`));
 
 const staffSource = read("cloudfunctions/staffAccount/index.js");
 const staffReadme = read("cloudfunctions/staffAccount/README.md");
@@ -43,6 +45,8 @@ assert.match(faceReadme, new RegExp(`staffAccount ${staffVersion}`),
   "faceRecognition deployment matrix must name the current staffAccount runtime");
 assert.match(photoReadme, new RegExp(`staffAccount(?:-| )${staffVersion}`),
   "verificationPhoto deployment matrix must name the current staffAccount runtime and ZIP");
+assert.match(photoReadme,new RegExp(`确认\\s+\`${faceVersions[2]}\``),
+  "verificationPhoto matrix health example must name the current faceRecognition version");
 assert.match(staffReadme, new RegExp(`faceRecognition ${faceVersions[2]}`),
   "staffAccount deployment matrix must name the current faceRecognition runtime");
 

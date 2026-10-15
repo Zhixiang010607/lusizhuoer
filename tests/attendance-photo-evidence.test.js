@@ -114,11 +114,47 @@ test("authorized byte fallback validates integrity and does not need a signed UR
   assert.equal(h.calls.includes("SIGN"), false);
   await assert.rejects(harness({ corrupt: true }).getAttendancePhoto({ attendanceId: "31", readBytes: true }));
 });
+test("attendance shares work-order HD byte boundaries and thumbnail/original transport without altering verification evidence", () => {
+  const pipeline=read("cloudfunctions/faceRecognition/attendance-photo.js");
+  assert.doesNotMatch(pipeline,/\.resize\(|for \(const (?:edge|quality)/);
+  assert.match(pipeline,/quality: 92, chromaSubsampling: "4:4:4"/);
+  assert.match(pipeline,/ATTENDANCE_HD_PHOTO_TOO_LARGE/);
+  const attendance=source.slice(source.indexOf("async function clockInTeacherAttendance"),source.indexOf("async function persistVerifiedFaceEvidence"));
+  assert.equal((attendance.match(/downloadVerificationPhotoAuthenticated\([^\n]*MAX_VERIFICATION_IMAGE_BYTES/g)||[]).length,2);
+  assert.match(attendance,/thumbnailTransform: event.original !== true/);
+  assert.doesNotMatch(attendance,/512 \* 1024|524288/);
+  const migration=read("database/migrations/089_teacher_attendance_hd_photo.sql");
+  assert.equal(migration,read("database/cloudbase-console/089-01-teacher-attendance-hd-photo.sql"));
+  assert.match(migration,/photo_bytes BETWEEN 4 AND 3145728/);
+  assert.match(migration,/photo_width BETWEEN 160 AND 10000/);
+  assert.match(migration,/photo_taken_at = checked_in_at/);
+  assert.doesNotMatch(migration,/UPDATE |DELETE FROM|verification_records|DROP TRIGGER|CREATE.*FUNCTION/);
+});
 test("watermark uses correct Beijing date across UTC midnight and distinguishes punches", () => {
   assert.equal(image.shanghaiStamp("2026-10-14T18:02:03.123Z"), "2026-10-15 02:02:03");
   assert.notDeepEqual(image.stampSvg("2026-10-15 09:00:00", 960, "CLOCK_IN"), image.stampSvg("2026-10-15 09:00:00", 960, "CLOCK_OUT"));
   assert.throws(() => image.stampSvg("2026-10-15 09:00:00", 960, "OTHER"));
   assert.doesNotMatch(image.stampSvg("2026-10-15 09:00:00", 960, "CLOCK_IN").toString(), /<text|font-family/);
+});
+test("only the timestamp is enlarged and bold; complete date fits even the smallest accepted capture", () => {
+  for (const width of [160,240,320,480,720,960,1280]) {
+    for (const type of ["CLOCK_IN","CLOCK_OUT"]) {
+      const svg=image.stampSvg("2026-10-15 09:02:03",width,type).toString();
+      const overlayWidth=Number(/<svg[^>]*width="(\d+)"/.exec(svg)[1]);
+      assert.ok(overlayWidth<=width,`${width}: overlay ${overlayWidth} must fit`);
+      const paths=[...svg.matchAll(/<path[^>]+>/g)].map(x=>x[0]);
+      const date=paths.filter(x=>x.includes('fill="#fff"'));
+      const labels=paths.filter(x=>x.includes('fill="#f8ddb0"'));
+      assert.equal(date.length,19); assert.equal(labels.length,9);
+      const labelScale=Number(/scale\(([^,]+)/.exec(labels[0])[1]);
+      assert.equal(labelScale,Math.round(Math.max(12,Math.round(width/36))*.8)/1000);
+      const dateScale=Number(/scale\(([^,]+)/.exec(date[0])[1]);
+      if(width>=480) assert.ok(dateScale>=Math.max(12,Math.round(width/36))*1.9/1000);
+      else if(width===320) assert.ok(dateScale>=.018);
+      date.forEach(p=>assert.match(p,/stroke-width="18"/));
+      labels.forEach(p=>assert.match(p,/stroke-width="0"/));
+    }
+  }
 });
 test("migration remains scoped, immutable, private and does not fabricate historical photos", () => {
   const sql = read("database/migrations/088_teacher_attendance_photo_evidence.sql");

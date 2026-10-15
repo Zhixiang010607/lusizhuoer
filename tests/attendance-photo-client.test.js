@@ -2,10 +2,10 @@
 const test = require("node:test"), assert = require("node:assert/strict");
 const fs = require("node:fs"), vm = require("node:vm"), path = require("node:path");
 const source = fs.readFileSync(path.join(__dirname, "../miniprogram-app/miniprogram/components/attendance-photo/index.js"), "utf8");
-function fixture(photoMetadata = {}) {
+function fixture(photoMetadata = {}, imageBytes = 10) {
   let definition, staffId = "7", bytesReads = 0, authorizations = 0;
   const files = new Map(), previews = [], calls = [];
-  const image = Buffer.from("test-photo");
+  const image = Buffer.alloc(imageBytes,1);
   const api = async (_action, input) => {
     calls.push(input);
     if (input.authorizeOnly) authorizations++;
@@ -45,7 +45,7 @@ test("new attendance identity resets a stale reading state", async()=>{
 test("attendance preview follows verified photo dimensions without cropping", async()=>{
   for (const [metadata, expected] of [
     [{width:720,height:1280},177.7778], [{width:1280,height:720},56.25],
-    [{width:960,height:1280},133.3333], [{},133.3333],
+    [{width:960,height:1280},133.3333], [{width:2160,height:3840},177.7778], [{},133.3333],
     [{width:0,height:1280},133.3333], [{width:720,height:99999},133.3333],
     [{width:"NaN",height:1280},133.3333]
   ]) {
@@ -55,6 +55,13 @@ test("attendance preview follows verified photo dimensions without cropping", as
     assert.equal(h.c.data.aspectPercent,133.3333);
     assert.equal(h.c.data.url,"");
   }
+});
+test("HD original larger than old 512 KiB ceiling is readable up to the work-order limit", async()=>{
+  const h=fixture({},3*1024*1024); await h.c.read();
+  assert.equal(h.previews.length,1); assert.equal(h.c.data.error,"");
+  assert.equal([...h.files.values()][0].length,3*1024*1024);
+  const excessive=fixture({},3*1024*1024+1); await excessive.c.read();
+  assert.equal(excessive.previews.length,0); assert.notEqual(excessive.c.data.error,"");
 });
 test("photo layout reserves the full aspect ratio on phones and retains tablet split layout", ()=>{
   const root=path.join(__dirname,"../miniprogram-app/miniprogram");

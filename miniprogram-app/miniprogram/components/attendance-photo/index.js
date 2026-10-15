@@ -4,7 +4,7 @@ function identity() { return String(getApp().globalData?.session?.profile?.staff
 function privateFile(id, base64, expectedBytes) {
   const path = `${wx.env.USER_DATA_PATH}/attendance_${id}_${Date.now()}.jpg`;
   const text = String(base64 || ""), bytes = text.length * 3 / 4 - (text.endsWith("==") ? 2 : text.endsWith("=") ? 1 : 0);
-  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(text) || bytes !== expectedBytes || bytes > 512 * 1024) return Promise.reject(new Error("照片读取不完整"));
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(text) || bytes !== expectedBytes || bytes > 3 * 1024 * 1024) return Promise.reject(new Error("照片读取不完整"));
   const fs = wx.getFileSystemManager();
   return new Promise((resolve, reject) => fs.writeFile({ filePath: path, data: text, encoding: "base64", success: () => {
     fs.getFileInfo({ filePath: path, success: (info) => {
@@ -19,7 +19,7 @@ function usable(entry, expectedBytes) {
 }
 function aspectPercent(photo) {
   const width = Number(photo?.width), height = Number(photo?.height);
-  return Number.isFinite(width) && Number.isFinite(height) && width >= 160 && width <= 1280 && height >= 160 && height <= 1280
+  return Number.isFinite(width) && Number.isFinite(height) && width >= 160 && width <= 10000 && height >= 160 && height <= 10000
     ? Number((height / width * 100).toFixed(4)) : 133.3333;
 }
 Component({

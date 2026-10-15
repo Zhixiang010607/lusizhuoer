@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const https = require("https");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v130";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v131";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -6187,13 +6187,16 @@ async function requireTeacherAttendanceSchema() {
                  AND EXISTS (SELECT 1 FROM pg_trigger
                               WHERE tgrelid = TO_REGCLASS('public.teacher_attendance_records')
                                 AND tgname = 'trg_z_teacher_attendance_photo_v88' AND NOT tgisinternal)
+                 AND EXISTS (SELECT 1 FROM pg_constraint
+                              WHERE conrelid = TO_REGCLASS('public.teacher_attendance_records')
+                                AND conname = 'teacher_attendance_photo_check_v89' AND convalidated)
             ) AS attendance_address_ready`
   );
   const row = rows?.[0] || {};
   if (!databaseBoolean(row.profile_table) || !databaseBoolean(row.attendance_table)
       || !databaseBoolean(row.attendance_trigger) || !databaseBoolean(row.attendance_type_ready)
       || !databaseBoolean(row.attendance_address_ready)) {
-    fail("老师考勤照片数据库结构尚未启用，请先执行并验收迁移 088。", "ATTENDANCE_SCHEMA_MISSING");
+    fail("老师考勤高清照片数据库结构尚未启用，请先执行并验收迁移 089。", "ATTENDANCE_SCHEMA_MISSING");
   }
   teacherAttendanceSchemaReady = true;
 }
@@ -6491,6 +6494,9 @@ async function clockInTeacherAttendance(event) {
   const address = verifiedAttendanceAddressToken(event.locationToken, staffId, latitude, longitude)
     || await resolveAttendanceAddress(latitude, longitude);
   const { base64 } = cleanImage(event.imageBase64);
+  if (Buffer.byteLength(base64, "base64") > MAX_VERIFICATION_IMAGE_BYTES) {
+    fail("现场照片不得超过 3MB，请重新拍摄。", "PHOTO_TOO_LARGE");
+  }
   const api = faceClient();
   const quality = await inspectFaceImage(api, base64);
   const liveness = await inspectLiveness(api, base64);
@@ -6511,10 +6517,13 @@ async function clockInTeacherAttendance(event) {
   const { prepareAttendancePhoto } = require("./attendance-photo");
   let photo;
   try { photo = await prepareAttendancePhoto(Buffer.from(base64, "base64"), clock.photo_taken_at, type); }
-  catch (_) { fail("打卡照片处理失败，请重新拍照。", "ATTENDANCE_PHOTO_PROCESSING_FAILED"); }
+  catch (error) {
+    if (error?.code === "ATTENDANCE_HD_PHOTO_TOO_LARGE") fail("高清打卡照片超过 3MB，请减少复杂背景后重新拍摄；未自动降低清晰度。", "ATTENDANCE_HD_PHOTO_TOO_LARGE");
+    fail("打卡照片处理失败，请重新拍照。", "ATTENDANCE_PHOTO_PROCESSING_FAILED");
+  }
   const digest = crypto.createHash("sha256").update(photo.buffer).digest("hex");
   const uploaded = await uploadVerificationPhotoObject(`attendance/${crypto.randomBytes(24).toString("hex")}.jpg`, photo.buffer);
-  const stored = await downloadVerificationPhotoAuthenticated(uploaded.reference, 512 * 1024, { allowAttendance: true });
+  const stored = await downloadVerificationPhotoAuthenticated(uploaded.reference, MAX_VERIFICATION_IMAGE_BYTES, { allowAttendance: true });
   if (stored.length !== photo.buffer.length || crypto.createHash("sha256").update(stored).digest("hex") !== digest) {
     fail("打卡照片保存校验失败，尚未完成打卡。", "ATTENDANCE_PHOTO_INCOMPLETE");
   }
@@ -6588,7 +6597,7 @@ async function getAttendancePhoto(event) {
   const reference = verificationPhotoReference(row.photo_object_ref);
   if (!/^attendance\/[a-f0-9]{48}\.jpg$/.test(reference.objectName)) fail("打卡照片引用异常。", "ATTENDANCE_PHOTO_INVALID");
   if (event.readBytes === true) {
-    const buffer = await downloadVerificationPhotoAuthenticated(row.photo_object_ref, 512 * 1024, { allowAttendance: true });
+    const buffer = await downloadVerificationPhotoAuthenticated(row.photo_object_ref, MAX_VERIFICATION_IMAGE_BYTES, { allowAttendance: true });
     if (buffer.length !== Number(row.photo_bytes) || crypto.createHash("sha256").update(buffer).digest("hex") !== row.photo_sha256) {
       fail("打卡照片读取不完整，请重新读取。", "ATTENDANCE_PHOTO_INCOMPLETE");
     }

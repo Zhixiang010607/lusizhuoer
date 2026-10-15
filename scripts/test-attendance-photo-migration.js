@@ -45,6 +45,26 @@ async function main() {
     const checks = await db.query(fs.readFileSync(path.join(root, "database/cloudbase-console/088-readonly-verify.sql"), "utf8"));
     assert.equal(checks.rows.length, 4); assert.ok(checks.rows.every((r) => r.status === "READY"));
     console.log("Isolated PostgreSQL: legacy absence, order, byte limit, timestamp/TTL, archived rejection, two-punch uniqueness, immutable photo and 4 READY checks: PASS");
+    const originalRows=await db.query("SELECT * FROM teacher_attendance_records ORDER BY id");
+    const guards=()=>db.query("SELECT tgname,pg_get_triggerdef(oid) AS def,pg_get_functiondef(tgfoid) AS func FROM pg_trigger WHERE tgrelid='teacher_attendance_records'::regclass ORDER BY tgname");
+    const beforeGuards=await guards();
+    await db.exec(fs.readFileSync(path.join(root,"database/cloudbase-console/089-01-teacher-attendance-hd-photo.sql"),"utf8"));
+    assert.deepEqual((await db.query("SELECT * FROM teacher_attendance_records ORDER BY id")).rows,originalRows.rows);
+    assert.deepEqual((await guards()).rows,beforeGuards.rows);
+    await db.exec("INSERT INTO staff_accounts VALUES (3,'teacher','ACTIVE'); INSERT INTO teachers VALUES (3,3,'ACTIVE'); INSERT INTO teacher_attendance_face_profiles VALUES (3,3,3)");
+    const hd={teacher:"3",account:"3",width:"2160",height:"3840",bytes:"3145728"};
+    await assert.rejects(insert("CLOCK_OUT",hd));
+    await assert.rejects(insert("CLOCK_IN",{...hd,bytes:"3145729"}));
+    await assert.rejects(insert("CLOCK_IN",{...hd,width:"10001"}));
+    await assert.rejects(insert("CLOCK_IN",{...hd,width:"8000",height:"8000"}));
+    const hdIn=(await insert("CLOCK_IN",hd)).rows[0]; assert.equal(hdIn.same_time,true);
+    await assert.rejects(insert("CLOCK_IN",hd));
+    await insert("CLOCK_OUT",hd);
+    await assert.rejects(db.query(`UPDATE teacher_attendance_records SET photo_bytes=1000 WHERE id=${hdIn.id}`));
+    await assert.rejects(db.query(`DELETE FROM teacher_attendance_records WHERE id=${hdIn.id}`));
+    const hdChecks=await db.query(fs.readFileSync(path.join(root,"database/cloudbase-console/089-readonly-verify.sql"),"utf8"));
+    assert.equal(hdChecks.rows.length,4); assert.ok(hdChecks.rows.every(r=>r.status==="READY"));
+    console.log("089 isolated PostgreSQL: native HD 3 MiB accepted; overflow/order/duplicate/mutation rejected; prior rows and guard definitions unchanged; 4 READY: PASS");
   } finally { await db.close(); }
 }
 main().catch((error) => { console.error(error.message); process.exitCode = 1; });
