@@ -22,10 +22,22 @@
 
 说明：上述页面布局使用仓库隔离 fixture，真实生产类名、样式和重点运行代码，只有合成资料，不连接生产业务服务。不能把它等同于真实账号全业务操作或实际相机／地图解析／设备联调验收。初次浏览器 viewport override 没有影响既有后台标签，已舍弃该批尺寸数据，改用明确尺寸的真实 iframe 视口重测；本记录只采用后者。
 
-本地截图：`output/web-ui-refinement-20261016/company-projects.jpg`（生成物，不提交 Git）。
+本地截图：`output/web-ui-refinement-20261016/company-projects.jpg`；发布后公网实测截图：`output/web-ui-refinement-20261016/production-company.jpg`（生成物，不提交 Git）。
+
+## 发布工具路径问题
+
+- 发布源码固定为 `04604d8d2ac4065526256a600baa0edcf7563aef`。精确 staging 只有 65 个 Web 资源、836870 字节，其中 50 个 HTML；不包含仓库文档、测试、其他客户端、凭据或私有资料。
+- 发布前重新执行 549 项测试，全部通过；现网 `styles.css`、`login.js`、`cloudbase-phone-auth.js`、`cloudbase-auth-config.js`、`attendance-photo.js`、`datetime.js`、`web-work-common.js` 的 SHA-256 与当前源码一致。
+- 首次 CloudBase CLI 3.8.7 使用 `cloudPath=/`，资源和 HTML 均传输完成，但一致性 manifest 错把本地键保留为 `/文件名`，而远端 COS 键没有前导斜杠，65 项全部被判 missing。自动回滚将原有目标也当成新增键移除；独立回读确认 `login.html`、`index.html`、`app.js` 返回 404。因此不能把工具的“已回滚”提示当成旧站已恢复。
+- 首次发布前备份保留在 `.cloudbase-backup/1792107298563/`，失败日志和回滚后检查保存在忽略 Git 的私有回执目录。未清理该备份；数据库、业务照片、云函数和小程序未受此次静态路径错误影响。
+- 已检查官方 CLI 实现，修正为省略 `cloudPath`、使用空根目录，保留 `--safe --verify --concurrency 1`、资源先传／HTML 最后传和禁止 prune。对应防误用规则已加入 `AGENTS.md`。最终完成状态以以下独立回读验收为准。
 
 ## 交付状态
 
-- 本轮只完成 Web 源码与验证；未执行 SQL、生产数据／账号写入、云函数部署、小程序上传或生产静态托管发布。
+- Web 已上线：2026-10-16 10:47:20 Australia/Sydney，官方 CLI 退出码 0，`totalFiles=65`、`successCount=65`、`failedCount=0`、`verified=true`。第二次发布备份 `.cloudbase-backup/1792107729623/` 与首次备份均保留，不执行 prune 或备份清理。
+- 10:47:49 独立公网缓存破除回读完成，65/65 HTTP 成功、字节数及 SHA-256 与发布 manifest 全部一致；包括原临时 404 的首页、登录及 app.js。之后浏览器实际打开公司栏目和三个独立项目，核对热／射频／建章节切换、返回入口及账号登录表单，均正常；没有填写凭据或提交业务操作。
+- 网站为 `https://rusizhuoer-d9gbcsgym07651694-1465086870.tcloudbaseapp.com/login.html`。腾讯云临时域名首次浏览会展示服务商的访问提示，不是本轮新增的登录步骤；未购买／绑定其他域名。
+- 官方原始日志、两次结果、manifest、7 项既有依赖预检和独立公网散列记录保存在忽略 Git 的 `.codex-private/web-ui-refinement-release-20261016/`。Git 只保存去敏发布事实，不提交凭据、私有业务内容或回滚备份。
+- 未执行 SQL、生产数据／账号写入、云函数部署或小程序上传；核销、体验、补录、扣次、BLE 和既有权限核心未改动。没有把布局 fixture 或公开页面访问当成真实业务联调验收。
 - 小程序上一笔隐藏结果经纬度源码为独立提交 `7a7ca03`，不是本轮 Web 发布的一部分。
-- 发布前仍须使用精确 Web staging、安全覆盖和线上字节回读；不得把源码推送当成生产网页已更新。
+- 本次生产静态托管发布、官方校验和独立回读已全部完成；与源代码推送、小程序开发／体验上传、微信审核及正式发布分开记录。

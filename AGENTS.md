@@ -60,6 +60,11 @@ after a timeout before retrying. A completed cloud-function upload additionally
 requires runtime-version verification and downloaded-code comparison; a Mini
 Program upload requires the official final upload receipt. Static Web publishing
 uses a scoped staging directory with `--safe --verify` and public-byte readback.
+For CloudBase CLI 3.8.7 static hosting at the bucket root, omit the optional
+`cloudPath` argument (empty root); do not pass `/`. Its consistent-deploy
+manifest can retain the leading slash while COS keys do not, causing false
+missing-file verification and an unsafe rollback scope. Preserve failed-attempt
+receipts, recheck remote state, and correct the path before retrying.
 
 # Production database backup rule
 
