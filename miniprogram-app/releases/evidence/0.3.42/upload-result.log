@@ -20,3 +20,11 @@ Backend upload await: 256869 ms
 Experience version selection: awaiting user confirmation
 Formal release / review submission: not performed
 Database migration 089 / faceRecognition v132 activation: not performed
+
+Post-upload continuation (2026-10-16 Australia/Sydney):
+Experience version update and re-entry: explicitly confirmed by user
+Migration 089: applied through a fresh verified backup gate; 4 READY
+Backup: 40 public tables, 147 rows, 45 public sequence values; 0 table-count mismatches
+faceRecognition v132: deployed; health/native synthetic probe passed; 6 downloaded source files match
+Function runtime/environment/timer settings: preserved
+Formal release / review submission: not performed by this task
