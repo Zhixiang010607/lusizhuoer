@@ -1,0 +1,17 @@
+2026-10-15 official WeChat DevTools CLI development upload
+AppID: wxb053c1bd6c684d8b
+Environment: rusizhuoer-d9gbcsgym07651694
+Source: 85ee075f6ba2ad9d09e380e66a155e3ebd6a005b
+Version: 0.3.39
+Result: ✔ upload
+Exit code: 0
+Backend terminal events: doUpload:await, progressSuccess, reportNewRemoteDebug
+TOTAL bytes: 3390009
+main bytes: 1655949
+attendance bytes: 44493
+attendance-tracking bytes: 22935
+teacher-detail bytes: 68648
+work-calendar bytes: 20612
+verification bytes: 51699
+Release type: development upload only; no experience/review/formal release verified
+Sanitized from official command receipt and same-task backend terminal events.
