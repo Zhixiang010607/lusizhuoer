@@ -15,24 +15,25 @@ function shanghaiStamp(timestamp) {
 function stampSvg(text, imageWidth, attendanceType, imageHeight = Infinity) {
   if (!["CLOCK_IN", "CLOCK_OUT"].includes(attendanceType)) throw new Error("Invalid punch type");
   const originalSize = Math.max(12, Math.round(imageWidth / 36)), labelSize = Math.round(originalSize * .8);
-  const label = `${attendanceType === "CLOCK_OUT" ? "下班打卡" : "上班打卡"} 北京时间`;
+  const label = attendanceType === "CLOCK_OUT" ? "下班打卡" : "上班打卡";
+  const zone = " 北京时间", punchSize = labelSize * 2;
   const units = (line) => [...line].reduce((sum, c) => sum + GLYPHS[c].width, 0);
   const padding = Math.round(originalSize * .5);
-  // Enlarge only the timestamp, not the punch label. Clamp small captures so
-  // the complete authoritative date/time stays inside the original image.
+  // Timestamp stays 3x; punch type is 2x, while the timezone stays unchanged.
+  // Clamp small captures so the complete date/time remains inside the image.
   const size = Math.min(originalSize * 3, Math.floor((imageWidth - padding * 2) * 1000 / units(text)));
   const gap = Math.max(4, Math.round(originalSize * .3));
-  const width = Math.ceil(Math.max(units(text) * size, units(label) * labelSize) / 1000) + padding * 2;
-  const height = Math.ceil(labelSize + gap + size * 1.2) + padding * 2;
+  const width = Math.ceil(Math.max(units(text) * size, units(label) * punchSize + units(zone) * labelSize) / 1000) + padding * 2;
+  const height = Math.ceil(punchSize + gap + size * 1.2) + padding * 2;
   const scale = Math.min(1, imageHeight / height);
-  const line = (value, fontSize, baseline, color, weight = 0) => {
-    let x = padding;
+  const line = (value, fontSize, baseline, color, weight = 0, startX = padding) => {
+    let x = startX;
     return [...value].map((c) => {
       const glyph = GLYPHS[c], path = `<path d="${glyph.path}" fill="${color}" stroke="${color}" stroke-width="${weight}" stroke-linejoin="round" transform="translate(${x},${baseline}) scale(${fontSize / 1000},${-fontSize / 1000})"/>`;
       x += glyph.width * fontSize / 1000; return path;
     }).join("");
   };
-  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(width * scale)}" height="${Math.ceil(height * scale)}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" rx="${padding / 2}" fill="#000" fill-opacity=".6"/>${line(label, labelSize, padding + labelSize, "#f8ddb0")}${line(text, size, padding + labelSize + gap + size, "#fff", 18)}</svg>`);
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(width * scale)}" height="${Math.ceil(height * scale)}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" rx="${padding / 2}" fill="#000" fill-opacity=".6"/>${line(label, punchSize, padding + punchSize, "#f8ddb0")}${line(zone, labelSize, padding + punchSize, "#f8ddb0", 0, padding + units(label) * punchSize / 1000)}${line(text, size, padding + punchSize + gap + size, "#fff", 18)}</svg>`);
 }
 
 async function prepareAttendancePhoto(buffer, timestamp, attendanceType) {

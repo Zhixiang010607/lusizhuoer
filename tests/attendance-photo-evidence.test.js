@@ -137,7 +137,7 @@ test("watermark uses correct Beijing date across UTC midnight and distinguishes 
   assert.throws(() => image.stampSvg("2026-10-15 09:00:00", 960, "OTHER"));
   assert.doesNotMatch(image.stampSvg("2026-10-15 09:00:00", 960, "CLOCK_IN").toString(), /<text|font-family/);
 });
-test("only the timestamp is three times the original size and bold; complete date always fits", () => {
+test("watermark keeps 3x date, doubles punch type only, and fits complete text", () => {
   for (const width of [160,240,320,480,720,960,1280]) {
     for (const type of ["CLOCK_IN","CLOCK_OUT"]) {
       const svg=image.stampSvg("2026-10-15 09:02:03",width,type).toString();
@@ -147,8 +147,11 @@ test("only the timestamp is three times the original size and bold; complete dat
       const date=paths.filter(x=>x.includes('fill="#fff"'));
       const labels=paths.filter(x=>x.includes('fill="#f8ddb0"'));
       assert.equal(date.length,19); assert.equal(labels.length,9);
+      const oldLabelSize=Math.round(Math.max(12,Math.round(width/36))*.8);
       const labelScale=Number(/scale\(([^,]+)/.exec(labels[0])[1]);
-      assert.equal(labelScale,Math.round(Math.max(12,Math.round(width/36))*.8)/1000);
+      assert.equal(labelScale,oldLabelSize*2/1000);
+      labels.slice(0,4).forEach(p=>assert.equal(Number(/scale\(([^,]+)/.exec(p)[1]),oldLabelSize*2/1000));
+      labels.slice(4).forEach(p=>assert.equal(Number(/scale\(([^,]+)/.exec(p)[1]),oldLabelSize/1000));
       const dateScale=Number(/scale\(([^,]+)/.exec(date[0])[1]);
       if(width>=480) assert.equal(dateScale,Math.max(12,Math.round(width/36))*3/1000);
       else if(width===320) assert.ok(dateScale>=.018);

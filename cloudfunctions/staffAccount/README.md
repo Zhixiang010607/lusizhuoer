@@ -2,7 +2,7 @@
 
 当前版本：`v96`
 
-当前联动部署矩阵：`staffAccount v96`、`faceRecognition v132`、
+当前联动部署矩阵：`staffAccount v96`、`faceRecognition v133`、
 `verificationPhoto v13`、`teacherCreate v9`、`customerRating v8`。迁移 075—086
 验收通过后再部署当前版本；本版另须先执行并验收迁移 087。下文较旧版本号属于历史说明。
 
@@ -62,7 +62,7 @@ Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_oper
 
 迁移 051／052 的旧表、函数和历史记录不再是本函数的运行依赖。旧 Saga 的退役
 已由迁移 053 完成；该迁移会物理删除旧操作表与六个私有函数，不影响老师及
-业务历史。当前联动版本为 `staffAccount v96`／`faceRecognition v132`／
+业务历史。当前联动版本为 `staffAccount v96`／`faceRecognition v133`／
 `verificationPhoto v13`／`teacherCreate v9`。
 
 ## 保留能力
@@ -156,7 +156,7 @@ README.md
 3. 客户评价作为独立同轮服务部署：执行并验收 068 与 070，配置至少 32 字节的 `CUSTOMER_RATING_SIGNING_KEY` 及实际 `rating.html` 地址 `CUSTOMER_RATING_BASE_URL`，上传 `customerRating-v8.zip` 并确认其 `health`。`staffAccount v96` 不签发或写入评价。
 4. 删除 `staffAccount` 上的旧人脸补偿 Timer，只保留月度额度 Timer。
 5. 部署后先调用 `{ "action": "health" }`，确认版本和配置就绪；再分别用现有已登录会话和微信手机号授权后的会话调用无参数 `{ "action": "session" }`，确认返回的 UID、角色和门店与旧密码账号完全一致。
-6. `staffAccount v96`、`faceRecognition v132`、`verificationPhoto v13` 和 `teacherCreate v9` 验收通过后才发布依赖新后端契约的小程序；不得先发布依赖培训资料、日报、考勤、老师创建、照片 5 MiB 边界或无参数 `session` 的客户端。v130 → v132 的高清读取兼容客户端放宽本地图片字节／尺寸校验，并明确用旧服务端已有 original=true 参数首屏读取原图；与旧服务端兼容，应先让实际使用者更新，再完整备份执行 089 并更新考勤函数。不会引入新 action，也不因矩阵变更重复部署本函数。
+6. `staffAccount v96`、`faceRecognition v133`、`verificationPhoto v13` 和 `teacherCreate v9` 验收通过后才发布依赖新后端契约的小程序；不得先发布依赖培训资料、日报、考勤、老师创建、照片 5 MiB 边界或无参数 `session` 的客户端。v130 → v133 的高清读取兼容客户端放宽本地图片字节／尺寸校验，并明确用旧服务端已有 original=true 参数首屏读取原图；与旧服务端兼容，应先让实际使用者更新，再完整备份执行 089 并更新考勤函数。不会引入新 action，也不因矩阵变更重复部署本函数。
 
 健康检查必须返回：
 
