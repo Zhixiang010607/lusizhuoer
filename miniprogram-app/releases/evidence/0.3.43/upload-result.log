@@ -1,0 +1,14 @@
+WeChat DevTools Stable 2.02.2608040 official CLI (sanitized receipt)
+Development version: 0.3.43
+AppID: wxb053c1bd6c684d8b
+Source commit: d4cd83313720877749eec8699ade3b2dd258f4cb
+Description: 补齐本人月历和老师主页上下班地图，手机平板对齐，核销不变
+Local receipt finalized: 2026-10-15T13:54:56.728Z
+✔ 使用 AppID: wxb053c1bd6c684d8b
+TOTAL bytes: 3392747
+main bytes: 1657280
+/pages/work-calendar/ bytes: 21453
+/pages/teacher-detail/ bytes: 69578
+✔ upload
+Process exit code: 0
+Status: development upload complete; experience/review/formal release not independently verified
