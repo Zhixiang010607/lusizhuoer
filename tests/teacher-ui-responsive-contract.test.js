@@ -25,7 +25,7 @@ assert.match(managementHtml, /teacher-management\.js\?v=0\.14\.29/, "teacher dir
 assert.match(createHtml, /teacher-create\.js\?v=0\.6\.0/, "teacher creation behavior must be cache-busted");
 assert.match(createHtml, /cloudbase-phone-auth\.js\?v=0\.20\.7/,
   "teacher creation must refresh the attendance-enrollment API wrapper");
-assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.14/, "teacher home behavior must be cache-busted");
+assert.match(detailHtml, /staff-detail\.js\?v=0\.15\.15/, "teacher home behavior must be cache-busted");
 
 for (const label of ["老师姓名", "联系电话", "状态"]) {
   assert.ok(management.includes(`data-label="${label}"`), `mobile teacher cards must expose the ${label} field label`);
@@ -38,8 +38,8 @@ assert.match(tabletCss, /body\[data-management="teacher"\] \.teacher-directory-t
 assert.match(management, /const authoritative = \[teacher\.account_status, teacher\.teacher_status\][\s\S]{0,260}if \(authoritative\.length\) return authoritative\.includes\("ARCHIVED"\)/, "teacher list status must prefer account and teacher master fields over a stale compatibility status");
 assert.doesNotMatch(management, /data-teacher-status-ref|setMasterStatus|setStaffStatus/,
   "teacher list must keep status mutations on the teacher profile rather than duplicating them in the directory");
-assert.match(createHtml, /考勤人脸录入[\s\S]{0,900}每次打卡的现场照片不会保存/,
-  "new-teacher UI must explain the attendance-only enrollment and transient clock-in photo boundary");
+assert.match(createHtml, /考勤人脸录入[\s\S]{0,900}打卡现场照按本人授权保存为考勤凭证/,
+  "new-teacher UI must explain the attendance-only enrollment and consented private clock-in photo boundary");
 assert.match(`${createHtml}\n${create}`,
   /teacherFaceConsent[\s\S]*teacherFaceCamera[\s\S]*capturedFace/,
   "teacher creation must expose the one-time camera, consent and attendance enrollment payload");

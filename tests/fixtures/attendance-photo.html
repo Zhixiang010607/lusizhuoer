@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN" data-auth-ready>
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>考勤照片隔离界面验收</title>
+  <link rel="stylesheet" href="../../styles.css">
+  <link rel="stylesheet" href="../../web-tablet-parity.css">
+  <link rel="stylesheet" href="../../web-attendance.css">
+  <link rel="stylesheet" href="../../attendance-photo.css">
+</head>
+<body data-staff-detail>
+  <main style="margin:24px;max-width:1400px">
+    <h1>考勤照片隔离样例</h1>
+    <p>本页仅用合成图，不连接生产服务、不提交打卡。</p>
+    <section class="panel">
+      <div class="staff-work-day-content">
+        <article class="staff-attendance-detail"><strong>上班打卡</strong><b>2026-10-15 09:02:03（北京时间）</b><div data-attendance-photo="31"></div></article>
+        <article class="staff-attendance-detail"><strong>下班打卡</strong><b>2026-10-15 17:02:03（北京时间）</b><div data-attendance-photo="32"></div></article>
+      </div>
+    </section>
+    <section class="panel"><h2>历史记录</h2><div data-attendance-photo="33"></div></section>
+    <section class="panel"><h2>读取失败</h2><div data-attendance-photo="34"></div></section>
+  </main>
+  <script>
+    window.WebWorkCommon={async call(_service,_action,input){
+      if(input.attendanceId==="33")return {ok:true,attendanceId:"33",photo:null};
+      if(input.attendanceId==="34")throw new Error("isolated failure");
+      const url=`../../output/attendance-photo-qa/${input.attendanceId==="32"?"CLOCK_OUT":"CLOCK_IN"}.jpg`;
+      if(!input.readBytes)return {ok:true,attendanceId:input.attendanceId,photo:{url}};
+      const bytes=new Uint8Array(await (await fetch(url)).arrayBuffer());
+      return {ok:true,attendanceId:input.attendanceId,photo:{bytes:bytes.length,imageBase64:btoa(Array.from(bytes,b=>String.fromCharCode(b)).join(""))}};
+    }};
+  </script>
+  <script src="../../attendance-photo.js"></script>
+</body>
+</html>

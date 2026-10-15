@@ -26,7 +26,7 @@
   function mapBlock(row) { return `<iframe class="map-frame" title="打卡位置地图" loading="lazy" referrerpolicy="no-referrer" src="${C.mapEmbed(row)}"></iframe><a class="button-link secondary-button" target="_blank" rel="noopener noreferrer" href="${C.mapLink(row)}">在地图中打开</a>`; }
   function punch(title, row, teacher) {
     if (!row) return `<article class="punch-record"><h3>${title}</h3><div class="empty-copy">没有该次打卡</div></article>`;
-    return `<article class="punch-record"><h3>${title}</h3><dl class="punch-meta"><dt>老师</dt><dd>${C.escapeHtml(teacher.teacherName)}</dd><dt>电话</dt><dd>${C.escapeHtml(teacher.phone)}</dd><dt>完整时间</dt><dd>${time(row)}</dd><dt>附近地点</dt><dd>${C.escapeHtml(row.placeName || "未解析")}</dd><dt>具体地址</dt><dd>${C.escapeHtml(row.formattedAddress || "暂无文字地址")}</dd><dt>经纬度</dt><dd>${Number(row.latitude).toFixed(6)}, ${Number(row.longitude).toFixed(6)}</dd><dt>定位精度</dt><dd>约 ${C.escapeHtml(row.accuracy)} 米</dd></dl>${mapBlock(row)}</article>`;
+    return `<article class="punch-record"><h3>${title}</h3><dl class="punch-meta"><dt>老师</dt><dd>${C.escapeHtml(teacher.teacherName)}</dd><dt>电话</dt><dd>${C.escapeHtml(teacher.phone)}</dd><dt>完整时间</dt><dd>${time(row)}</dd><dt>附近地点</dt><dd>${C.escapeHtml(row.placeName || "未解析")}</dd><dt>具体地址</dt><dd>${C.escapeHtml(row.formattedAddress || "暂无文字地址")}</dd><dt>经纬度</dt><dd>${Number(row.latitude).toFixed(6)}, ${Number(row.longitude).toFixed(6)}</dd><dt>定位精度</dt><dd>约 ${C.escapeHtml(row.accuracy)} 米</dd></dl><div data-attendance-photo="${C.escapeHtml(row.id)}"></div>${mapBlock(row)}</article>`;
   }
   function openDetail(id, kind) {
     const teacher = state.teachers.get(String(id));

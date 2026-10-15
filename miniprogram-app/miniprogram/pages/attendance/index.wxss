@@ -141,3 +141,15 @@ button[disabled] { opacity: .55; }
   .permission-help { margin-top: 9px; padding: 12px 14px; border-width: 1px; border-radius: 10px; font-size: 14px; }
   .permission-help text + text { margin-top: 6px; }
 }
+.photo-consent { display: flex; align-items: center; gap: 12rpx; margin: 16rpx 0; color: #6c6256; font-size: 24rpx; }
+@media (min-width: 600px) { .photo-consent { gap: 8px; margin: 12px 0; font-size: 14px; } }
+.punch-body { display: flex; flex-direction: column; min-width: 0; }
+.punch-location, .attendance-evidence { min-width: 0; box-sizing: border-box; }
+.punch-body .attendance-evidence { order: -1; }
+@media (min-width: 700px) {
+  .punch-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 16px; margin-top: 12px; }
+  .punch-body .attendance-evidence { order: 0; }
+  .punch-location { display: flex; flex-direction: column; }
+  .punch-body .attendance-map { height: 220px; min-height: 220px; margin-top: 12px; }
+  .punch-body .location-button { flex: none; margin-top: 12px; }
+}

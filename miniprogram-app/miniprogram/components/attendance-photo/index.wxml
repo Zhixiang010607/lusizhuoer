@@ -1,0 +1,7 @@
+<view class="attendance-photo {{fill && url ? 'fill' : ''}}">
+  <image wx:if="{{url}}" class="photo" src="{{url}}" mode="aspectFit" bindtap="read" binderror="imageError" />
+  <text wx:if="{{missing}}" class="note">此记录未留存照片</text>
+  <text wx:elif="{{loading}}" class="note">正在读取打卡照片…</text>
+  <button wx:elif="{{error}}" class="photo-button" bindtap="read" loading="{{reading}}" disabled="{{reading}}"><text>{{error}}</text></button>
+  <button wx:elif="{{url}}" class="photo-button" bindtap="read" loading="{{reading}}" disabled="{{reading}}"><text>查看打卡照片</text></button>
+</view>

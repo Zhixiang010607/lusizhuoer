@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const https = require("https");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v128";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v129";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -674,7 +674,7 @@ function verificationPhotoBufferMetadata(buffer) {
 
 async function downloadVerificationPhotoAuthenticated(referenceValue, maximumBytes, options = {}) {
   const reference = verificationPhotoReference(referenceValue);
-  const verificationStorage = verificationPhotoStorageForEvidence(reference);
+  const verificationStorage = verificationPhotoStorageForEvidence(reference, options.allowAttendance === true);
   const customerStorage = photoStorageSettings();
   const retainedProfile = options.allowRetainedProfile === true
     && reference.bucketId === customerStorage.bucketId;
@@ -840,16 +840,17 @@ async function uploadVerificationPhotoReference(referenceValue, buffer) {
   return reference;
 }
 
-function verificationPhotoStorageForEvidence(reference) {
-  if (!/^(?:face-evidence|records)\//.test(reference.objectName)) return null;
+function verificationPhotoStorageForEvidence(reference, allowAttendance = false) {
+  if (!/^(?:face-evidence|records)\//.test(reference.objectName)
+      && !(allowAttendance && /^attendance\/[a-f0-9]{48}\.jpg$/.test(reference.objectName))) return null;
   return verificationPhotoStorageCandidates().find((storage) => storage.bucketId === reference.bucketId) || null;
 }
 
-async function deleteVerificationPhotoObject(referenceValue) {
+async function deleteVerificationPhotoObject(referenceValue, options = {}) {
   if (!referenceValue) return true;
   try {
     const reference = verificationPhotoReference(referenceValue);
-    const storage = verificationPhotoStorageForEvidence(reference);
+    const storage = verificationPhotoStorageForEvidence(reference, options.allowAttendance === true);
     if (!storage) return false;
     await manager().storage.deleteObject({
       bucketId: reference.bucketId,
@@ -882,7 +883,7 @@ function thumbnailTransformUrl(url) {
 async function signVerificationPhoto(referenceValue, expiresIn, options = {}) {
   const reference = verificationPhotoReference(referenceValue);
   const customerStorage = photoStorageSettings();
-  const verificationStorage = verificationPhotoStorageForEvidence(reference);
+  const verificationStorage = verificationPhotoStorageForEvidence(reference, options.allowAttendance === true);
   const isVerificationObject = Boolean(verificationStorage);
   const isRetainedProfile = options.allowRetainedProfile === true && reference.bucketId === customerStorage.bucketId;
   if (!isVerificationObject && !isRetainedProfile) {
@@ -6182,14 +6183,17 @@ async function requireTeacherAttendanceSchema() {
               SELECT 1 FROM information_schema.columns
                WHERE table_schema = 'public'
                  AND table_name = 'teacher_attendance_records'
-                 AND column_name = 'formatted_address'
+                 AND column_name = 'photo_object_ref'
+                 AND EXISTS (SELECT 1 FROM pg_trigger
+                              WHERE tgrelid = TO_REGCLASS('public.teacher_attendance_records')
+                                AND tgname = 'trg_z_teacher_attendance_photo_v88' AND NOT tgisinternal)
             ) AS attendance_address_ready`
   );
   const row = rows?.[0] || {};
   if (!databaseBoolean(row.profile_table) || !databaseBoolean(row.attendance_table)
       || !databaseBoolean(row.attendance_trigger) || !databaseBoolean(row.attendance_type_ready)
       || !databaseBoolean(row.attendance_address_ready)) {
-    fail("老师考勤地址数据库结构尚未启用，请先执行并验收迁移 081。", "ATTENDANCE_SCHEMA_MISSING");
+    fail("老师考勤照片数据库结构尚未启用，请先执行并验收迁移 088。", "ATTENDANCE_SCHEMA_MISSING");
   }
   teacherAttendanceSchemaReady = true;
 }
@@ -6457,6 +6461,7 @@ async function clockInTeacherAttendance(event) {
       LIMIT 1`
   );
   if (existingRows[0]) return { ok: true, idempotentReplay: true, attendance: attendanceRecord(existingRows[0]) };
+  if (event.photoEvidenceConsent !== true) fail("请更新客户端并同意保存本次打卡照片。", "ATTENDANCE_PHOTO_CONSENT_REQUIRED");
 
   if (type === "CLOCK_OUT") {
     const clockInRows = await executeSql(
@@ -6499,12 +6504,28 @@ async function clockInTeacherAttendance(event) {
     fail(`人脸验证未通过（${rounded(score)} 分），请由老师本人正对前置摄像头重试。`, "ATTENDANCE_FACE_MISMATCH");
   }
 
+  // Derive only from the exact bytes just verified, never a second client photo.
+  // DB time is shared by the baked-in stamp and the immutable punch timestamp.
+  const [clock] = await executeSql("SELECT CLOCK_TIMESTAMP() AS photo_taken_at");
+  if (!clock?.photo_taken_at) fail("无法确认打卡时间，请稍后重试。", "ATTENDANCE_TIME_UNAVAILABLE");
+  const { prepareAttendancePhoto } = require("./attendance-photo");
+  let photo;
+  try { photo = await prepareAttendancePhoto(Buffer.from(base64, "base64"), clock.photo_taken_at, type); }
+  catch (_) { fail("打卡照片处理失败，请重新拍照。", "ATTENDANCE_PHOTO_PROCESSING_FAILED"); }
+  const digest = crypto.createHash("sha256").update(photo.buffer).digest("hex");
+  const uploaded = await uploadVerificationPhotoObject(`attendance/${crypto.randomBytes(24).toString("hex")}.jpg`, photo.buffer);
+  const stored = await downloadVerificationPhotoAuthenticated(uploaded.reference, 512 * 1024, { allowAttendance: true });
+  if (stored.length !== photo.buffer.length || crypto.createHash("sha256").update(stored).digest("hex") !== digest) {
+    fail("打卡照片保存校验失败，尚未完成打卡。", "ATTENDANCE_PHOTO_INCOMPLETE");
+  }
+
   const rows = await executeSql(
     `WITH inserted AS (
        INSERT INTO public.teacher_attendance_records
          (teacher_id, staff_account_id, attendance_date, attendance_type, latitude, longitude,
           accuracy_m, face_score, face_request_id, quality_score, liveness_score,
-          client_request_id, device_platform, place_name, formatted_address, address_provider)
+          client_request_id, device_platform, place_name, formatted_address, address_provider,
+          photo_object_ref, photo_bytes, photo_sha256, photo_width, photo_height, photo_taken_at)
        VALUES
          (${teacherId}::bigint, ${staffId}::bigint,
           (CLOCK_TIMESTAMP() AT TIME ZONE 'Asia/Shanghai')::date,
@@ -6516,7 +6537,9 @@ async function clockInTeacherAttendance(event) {
           ${sqlText(clientRequestId)}, ${sqlText(platform)},
           ${address.placeName ? sqlText(address.placeName) : "NULL"},
           ${address.formattedAddress ? sqlText(address.formattedAddress) : "NULL"},
-          ${address.provider ? sqlText(address.provider) : "NULL"})
+          ${address.provider ? sqlText(address.provider) : "NULL"},
+          ${sqlText(uploaded.reference)}, ${photo.buffer.length}, ${sqlText(digest)},
+          ${photo.width}, ${photo.height}, ${sqlText(clock.photo_taken_at)}::timestamptz)
        ON CONFLICT (staff_account_id, attendance_date, attendance_type) DO NOTHING
        RETURNING *
      )
@@ -6529,10 +6552,52 @@ async function clockInTeacherAttendance(event) {
         AND NOT EXISTS (SELECT 1 FROM inserted)
      LIMIT 1`
   );
-  if (!rows[0]) fail("打卡结果未能回读，请勿重复拍照并联系管理员检查。", "ATTENDANCE_RESULT_UNCONFIRMED");
-  // Deliberately do not upload or persist event.imageBase64. Only the audit
-  // metadata above survives this invocation.
-  return { ok: true, idempotentReplay: false, attendance: attendanceRecord(rows[0]) };
+  // A committed CloudBase write can return no RETURNING rows. Never delete
+  // an uploaded object on an uncertain result, or overwrite a concurrent winner.
+  const confirmed = rows[0] || (await executeSql(
+    `SELECT * FROM public.teacher_attendance_records
+      WHERE staff_account_id = ${staffId}::bigint
+        AND client_request_id = ${sqlText(clientRequestId)} LIMIT 1`
+  ))[0];
+  if (!confirmed) fail("打卡结果未能回读，请勿重复拍照并联系管理员检查。", "ATTENDANCE_RESULT_UNCONFIRMED");
+  if (confirmed.photo_object_ref !== uploaded.reference) await deleteVerificationPhotoObject(uploaded.reference, { allowAttendance: true });
+  return { ok: true, idempotentReplay: confirmed.client_request_id !== clientRequestId, attendance: attendanceRecord(confirmed) };
+}
+
+async function getAttendancePhoto(event) {
+  const { uid } = app().auth().getUserInfo();
+  if (!uid) fail("请先登录。", "UNAUTHENTICATED");
+  const id = String(event.attendanceId || "");
+  if (!/^[1-9]\d{0,17}$/.test(id)) fail("打卡记录无效。", "BAD_REQUEST");
+  await requireTeacherAttendanceSchema();
+  const rows = await executeSql(
+    `SELECT attendance.id, attendance.checked_in_at, attendance.photo_object_ref,
+            attendance.photo_bytes, attendance.photo_sha256, attendance.photo_width, attendance.photo_height
+       FROM public.teacher_attendance_records AS attendance
+       JOIN public.staff_accounts AS actor ON actor.auth_uid = ${sqlText(uid)}
+       JOIN public.teachers AS teacher ON teacher.id = attendance.teacher_id
+      WHERE attendance.id = ${id}::bigint AND actor.account_status = 'ACTIVE'
+        AND (actor.role_code = 'hq' OR
+             (actor.role_code = 'teacher' AND actor.id = attendance.staff_account_id
+              AND teacher.staff_account_id = actor.id AND teacher.teacher_status = 'ACTIVE'))
+      LIMIT 1`
+  );
+  const row = rows[0];
+  if (!row) fail("无权查看该次打卡照片。", "FORBIDDEN");
+  if (!row.photo_object_ref) return { ok: true, attendanceId: id, photo: null };
+  const reference = verificationPhotoReference(row.photo_object_ref);
+  if (!/^attendance\/[a-f0-9]{48}\.jpg$/.test(reference.objectName)) fail("打卡照片引用异常。", "ATTENDANCE_PHOTO_INVALID");
+  if (event.readBytes === true) {
+    const buffer = await downloadVerificationPhotoAuthenticated(row.photo_object_ref, 512 * 1024, { allowAttendance: true });
+    if (buffer.length !== Number(row.photo_bytes) || crypto.createHash("sha256").update(buffer).digest("hex") !== row.photo_sha256) {
+      fail("打卡照片读取不完整，请重新读取。", "ATTENDANCE_PHOTO_INCOMPLETE");
+    }
+    return { ok: true, attendanceId: id, photo: { imageBase64: buffer.toString("base64"), bytes: buffer.length } };
+  }
+  if (event.authorizeOnly === true) return { ok: true, attendanceId: id, photo: { bytes: Number(row.photo_bytes) } };
+  const signed = await signVerificationPhoto(row.photo_object_ref, 120, { allowAttendance: true, thumbnailTransform: event.original !== true });
+  return { ok: true, attendanceId: id, photo: { url: signed.url, expiresIn: signed.expiresIn,
+    checkedInAt: row.checked_in_at, bytes: Number(row.photo_bytes), width: Number(row.photo_width), height: Number(row.photo_height) } };
 }
 
 // Normal and teacher-gift EXPERIENCE verification share this customer-face
@@ -7752,6 +7817,7 @@ exports.main = async (event = {}, context = {}) => {
     if (action === "validateCapture") return await validateCapture(event);
     if (action === "resolveTeacherAttendanceLocation") return await resolveTeacherAttendanceLocation(event);
     if (action === "clockInTeacherAttendance") return await clockInTeacherAttendance(event);
+    if (action === "getAttendancePhoto") return await getAttendancePhoto(event);
     if (action === "registerCustomer") return await registerCustomer(event);
     if (action === "listActiveStoreCustomers") return await listActiveStoreCustomers(event);
     if (action === "queryStoreCustomers") return await queryStoreCustomers(event);

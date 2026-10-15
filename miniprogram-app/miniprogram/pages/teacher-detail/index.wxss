@@ -218,7 +218,7 @@
   .not-employed-label { font-size: 14px; }
   .status-dot { width: 9px; height: 9px; }
   .attendance-dots, .report-dot { min-height: 12px; gap: 6px; }
-  .attendance-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .attendance-detail-grid { grid-template-columns: minmax(0, 1fr); gap: 14px; }
   .attendance-detail-card { gap: 8px; padding: 16px; border-width: 1px; border-radius: 13px; font-size: 14px; }
   .attendance-detail-card .detail-kind { font-size: 18px; }
   .attendance-detail-card .detail-time { font-size: 16px; }
@@ -228,4 +228,13 @@
   .report-detail-list text:first-child { font-size: 14px; }
   .report-detail-list text:last-child { font-size: 15px; }
   .face-result-toast { bottom: 28px; max-width: 720px; padding: 12px 18px; box-shadow: 0 6px 20px rgba(47, 41, 33, .2); font-size: 14px; }
+}
+.punch-body { display: flex; flex-direction: column; gap: 10rpx; min-width: 0; }
+.punch-location { display: flex; flex-direction: column; gap: 10rpx; min-width: 0; }
+.punch-body .attendance-evidence { order: -1; min-width: 0; }
+@media (min-width: 700px) {
+  .punch-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+  .punch-location { gap: 8px; }
+  .punch-body .attendance-evidence { order: 0; }
+  .punch-location button { height: 44px; min-height: 44px; margin-top: auto; }
 }

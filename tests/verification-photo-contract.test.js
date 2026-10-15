@@ -38,7 +38,7 @@ function functionSource(source, name) {
   throw new Error(`function ${name} body is incomplete`);
 }
 
-includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v128"', "split cloud versions");
+includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v129"', "split cloud versions");
 includes(cloud, "const MAX_VERIFICATION_IMAGE_BYTES = 3 * 1024 * 1024", "face evidence limit");
 includes(cloud, "const MAX_EXTRA_VERIFICATION_IMAGE_BYTES = 5 * 1024 * 1024", "supplemental upload limit");
 includes(cloud, "const MAX_VERIFICATION_FUNCTION_FALLBACK_BYTES = 3 * 1024 * 1024", "synchronous fallback limit");

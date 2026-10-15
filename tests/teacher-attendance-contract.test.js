@@ -67,7 +67,7 @@ assert.match(teacherCreate, /INSERT INTO public\.teacher_attendance_face_profile
 assert.match(teacherCreate, /profile_photo_file_id/,
   "only the consented attendance enrollment photo is privately retained");
 
-assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v12" : "v128"/);
+assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v12" : "v129"/);
 const clockInStart = face.indexOf("async function clockInTeacherAttendance");
 const clockInEnd = face.indexOf("// Normal and teacher-gift EXPERIENCE", clockInStart);
 const clockIn = face.slice(clockInStart, clockInEnd);
@@ -79,8 +79,8 @@ assert.match(clockIn, /attendanceType\(event\.attendanceType\)/);
 assert.match(clockIn, /ATTENDANCE_CLOCK_IN_REQUIRED/,
   "clock-out must be rejected before expensive face verification if clock-in is absent");
 assert.match(clockIn, /ON CONFLICT \(staff_account_id, attendance_date, attendance_type\)/);
-assert.doesNotMatch(clockIn, /uploadVerificationPhotoObject|uploadAttendancePhoto|profile_photo_file_id/,
-  "clock-in photos must not be uploaded or persisted");
+assert.match(clockIn, /prepareAttendancePhoto[\s\S]*uploadVerificationPhotoObject[\s\S]*photo_object_ref/,
+  "clock-in retains the same verified capture as private timestamped evidence");
 assert.match(face, /action === "clockInTeacherAttendance"/);
 assert.match(face, /action === "resolveTeacherAttendanceLocation"/);
 assert.match(face, /TENCENT_MAP_KEY[\s\S]*HERE_GEOCODING_API_KEY/,
@@ -165,7 +165,7 @@ assert.match(attendanceWxml, /获取\{\{selectedAttendance\.clockIn \? '下班' 
   "the visible teacher flow must order location confirmation before face recognition");
 assert.match(attendanceWxml, /最终打卡时间以服务端记录为准/,
   "the confirmation preview must not replace authoritative server time");
-assert.match(attendanceWxml, /现场照片仅发送给人脸验证接口，本次验证结束后不保存/);
+assert.match(attendanceWxml, /同意保存本次打卡照片[\s\S]*仅本人和总部可查看/);
 assert.match(attendanceWxml, /未录入考勤人脸，可以进入并查看考勤记录，但暂时不能进行人脸打卡/,
   "a legacy teacher without an attendance face must still enter and read attendance history");
 assert.match(attendanceWxml, /未录入人脸，暂不能打卡/,

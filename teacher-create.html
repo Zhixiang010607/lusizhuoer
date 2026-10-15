@@ -41,11 +41,11 @@
       </section>
 
       <section class="hq-create-section person-create-section">
-        <div class="panel-heading"><div><h2>考勤人脸录入</h2><p>请让老师本人正对前置摄像头；每次打卡的现场照片不会保存。</p></div><span class="badge">创建必填</span></div>
+        <div class="panel-heading"><div><h2>考勤人脸录入</h2><p>请让老师本人正对前置摄像头；打卡现场照按本人授权保存为考勤凭证。</p></div><span class="badge">创建必填</span></div>
         <div class="customer-camera-stage"><video id="teacherFaceCamera" autoplay muted playsinline hidden></video><img id="teacherFacePreview" alt="老师考勤建档照预览" hidden><div id="teacherFacePlaceholder" class="camera-placeholder"><strong>等待打开摄像头</strong><span>拍摄后可预览，不满意可以重拍。</span></div><canvas id="teacherFaceCanvas" hidden></canvas></div>
         <div id="teacherFaceStatus" class="capture-status pending">尚未拍摄</div>
         <div class="camera-actions"><button id="openTeacherFaceCamera" type="button">打开摄像头</button><button id="captureTeacherFace" type="button" disabled>拍照</button><button id="retakeTeacherFace" type="button" hidden>重新拍照</button></div>
-        <label class="consent-row"><input id="teacherFaceConsent" type="checkbox" required> 已取得老师明确授权：保存本次建档照与考勤人脸，仅用于本人打卡身份验证；打卡现场照不保存</label>
+        <label class="consent-row"><input id="teacherFaceConsent" type="checkbox" required> 已取得老师明确授权：保存本次建档照与考勤人脸，仅用于本人打卡身份验证；打卡现场照仅本人和总部可查看</label>
       </section>
 
       <div id="teacherCreateProgress" class="capture-status pending" role="status" aria-live="polite" hidden>

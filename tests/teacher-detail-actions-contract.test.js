@@ -38,7 +38,7 @@ assert.match(staffDetail, /backToManagement[\s\S]{0,120}textContent = `返回\$\
   "shared staff detail must use a role-correct management link");
 assert.match(staffDetail, /staffSecurityTitle[\s\S]{0,100}textContent = `\$\{labels\[role\]\}账号管理`/,
   "shared staff detail must not label HQ account controls as teacher controls");
-assert.match(teacherCreateHtml, /考勤人脸录入[\s\S]*打卡现场照不保存/,
+assert.match(teacherCreateHtml, /考勤人脸录入[\s\S]*打卡现场照仅本人和总部可查看/,
   "teacher creation must visibly collect only the attendance enrollment face and disclose photo retention");
 assert.match(teacherCreateScript, /capturedFace[\s\S]*consent:\s*true[\s\S]*imageBase64:\s*capturedFace/,
   "teacher creation must submit the consented attendance enrollment image in the one synchronous request");
@@ -77,7 +77,7 @@ for (const file of ["query.js", "management.js", "detail.js"]) {
 
 assert.match(staffDetailHtml, /cloudbase-phone-auth\.js\?v=0\.20\.7/,
   "teacher home must refresh the shared cloud-function client");
-assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.14/,
+assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.15/,
   "teacher home must refresh its action handlers");
 assert.match(staffDetailHtml, /web-tablet-parity\.css\?v=1\.0\.12" data-web-tablet-parity/,
   "teacher home must load the compact iPad-parity layer before the shared navigation script");

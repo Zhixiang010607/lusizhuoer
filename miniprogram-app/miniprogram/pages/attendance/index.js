@@ -119,7 +119,7 @@ Page({
     message: "", error: false, permissionDenied: false, permissionAction: "", locationErrorCode: "", serverToday: "", visibleMonth: "", selectedDate: "", pendingDate: "", canNextMonth: false,
     calendarCells: [], selectedAttendance: { clockIn: null, clockOut: null, started: false, completed: false, workDurationText: "—" },
     todayAttendance: { clockIn: null, clockOut: null, started: false, completed: false, workDurationText: "—" },
-    pendingAttendanceType: "", pendingAttendanceLabel: "", checkInStage: "idle", locationPreview: null },
+    pendingAttendanceType: "", pendingAttendanceLabel: "", checkInStage: "idle", locationPreview: null, photoConsent: false },
   async onLoad() {
     this._unloaded = false;
     const today = localShanghaiDate();
@@ -140,6 +140,7 @@ Page({
   onPullDownRefresh() { this.loadMonth(this.data.visibleMonth, this.data.selectedDate).finally(() => wx.stopPullDownRefresh()); },
   back() { if (getCurrentPages().length > 1) wx.navigateBack(); else wx.reLaunch({ url: "/pages/home/index" }); },
   captureChanged(event) { this.setData({ captureReady: event.detail.ready === true, message: "", error: false }); },
+  photoConsentChanged(event) { this.setData({ photoConsent: (event.detail.value || []).includes("save") }); },
   async loadMonth(month, preferredDate) {
     const epoch = this._epoch = (this._epoch || 0) + 1;
     this.setData({ loading: true, message: "正在读取考勤记录…", error: false });
@@ -155,7 +156,7 @@ Page({
       this.setData({ serverToday: today, visibleMonth, selectedDate: selected, pendingDate: selected, faceEnrolled: result.faceEnrolled === true,
         selectedAttendance, todayAttendance, canNextMonth: monthShift(visibleMonth, 1) <= today.slice(0, 7),
         calendarCells: cells(visibleMonth, selected, today, this._records.map((row) => row.attendanceDate)),
-        pendingAttendanceType: "", pendingAttendanceLabel: "", checkInStage: "idle", locationPreview: null, captureReady: false, message: "", error: false });
+        pendingAttendanceType: "", pendingAttendanceLabel: "", checkInStage: "idle", locationPreview: null, captureReady: false, photoConsent: false, message: "", error: false });
     } catch (error) { if (!this._unloaded && epoch === this._epoch) this.setData({ message: error.message || "考勤读取失败", error: true }); }
     finally { if (!this._unloaded && epoch === this._epoch) this.setData({ loading: false }); }
   },
@@ -271,11 +272,12 @@ Page({
     if (Date.now() - Number(preview.capturedAtMs || 0) > 120000) return this.setData({ checkInStage: "idle", locationPreview: null, captureReady: false, message: "时间地点确认已超过 2 分钟，请重新获取。", error: true });
     const camera = this.selectComponent("#attendanceCamera"), capture = camera && camera.getCapture();
     if (!capture) return this.setData({ message: "请先由老师本人使用前置摄像头现场拍照。", error: true });
+    if (!this.data.photoConsent) return this.setData({ message: "请先同意保存本次打卡照片。", error: true });
     this.setData({ clocking: true, permissionDenied: false, message: "正在进行照片质量、活体和 1:1 人脸验证…", error: false });
     try {
       const attendanceType = this.data.pendingAttendanceType || (this.data.todayAttendance?.clockIn ? "CLOCK_OUT" : "CLOCK_IN");
       const attendanceLabel = attendanceType === "CLOCK_OUT" ? "下班打卡" : "上班打卡";
-      const result = await callFace("clockInTeacherAttendance", { attendanceType, imageBase64: capture.imageBase64,
+      const result = await callFace("clockInTeacherAttendance", { attendanceType, imageBase64: capture.imageBase64, photoEvidenceConsent: true,
         latitude: preview.latitude, longitude: preview.longitude, accuracy: preview.accuracy,
         coordinateType: preview.coordinateType, locationToken: preview.locationToken,
         devicePlatform: currentPlatform(), clientRequestId: requestId(this.data.serverToday, attendanceType) });
@@ -283,7 +285,7 @@ Page({
       wx.removeStorageSync(`teacherAttendanceRequest:${this.data.serverToday}:${attendanceType}`);
       camera.reset();
       await this.loadMonth(this.data.serverToday.slice(0, 7), this.data.serverToday);
-      this.setData({ message: result.idempotentReplay ? `${attendanceLabel}已经完成，已显示原记录。` : `${attendanceLabel}成功；现场照片未保存。`, error: false });
+      this.setData({ message: result.idempotentReplay ? `${attendanceLabel}已经完成，已显示原记录。` : `${attendanceLabel}成功。`, error: false });
     } catch (error) {
       this.setData({ message: error.message || "打卡失败", error: true });
     } finally { if (!this._unloaded) this.setData({ clocking: false }); }

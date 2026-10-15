@@ -228,7 +228,7 @@ assert.doesNotMatch(functionSource(faceCloud, "getTeacherExperienceEntitlements"
 assert.match(verificationQualification, /TEACHER_EXPERIENCE_QUOTA_EXHAUSTED/,
   "the verification endpoint must surface an exhausted teacher quota distinctly from customer balance exhaustion");
 
-assert.match(teacherCreate, /考勤人脸录入[\s\S]*打卡现场照不保存/,
+assert.match(teacherCreate, /考勤人脸录入[\s\S]*打卡现场照仅本人和总部可查看/,
   "teacher creation UI must state that only an attendance face is enrolled");
 assert.match(teacherCreateScript,
   /capturedFace[\s\S]*consent:\s*true[\s\S]*imageBase64:\s*capturedFace/i,

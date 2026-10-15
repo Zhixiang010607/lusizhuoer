@@ -21,6 +21,6 @@ assert.doesNotMatch(teacher, /user\.modifyUser\(|createBlockedAuthentication|ope
 assert.doesNotMatch(staff, /requireCompleteTeacherFaceForActivation|TEACHER_FACE_REQUIRED/,
   "attendance face must never become an activation gate");
 assert.match(face, /clockInTeacherAttendance/);
-assert.match(face, /Deliberately do not upload or persist event\.imageBase64/,
+assert.match(face, /prepareAttendancePhoto/,
   "clock-in photos must not be retained");
 console.log("retired Saga stays retired while isolated attendance face is enabled: PASS");

@@ -193,7 +193,7 @@ for (const laterWrite of [
   assert.ok(index > teacherCreationReject,
     `TEACHER_CREATE_SERVICE_REQUIRED must be raised before ${laterWrite} can touch identity or PostgreSQL`);
 }
-assert.match(read("teacher-create.html"), /考勤人脸录入[\s\S]*打卡现场照不保存/,
+assert.match(read("teacher-create.html"), /考勤人脸录入[\s\S]*打卡现场照仅本人和总部可查看/,
   "new-teacher page must state the attendance-only enrollment and transient clock-in photo rule");
 assert.match(`${read("teacher-create.html")}\n${createUi}`,
   /teacherFaceConsent[\s\S]*teacherFaceCamera[\s\S]*capturedFace/,

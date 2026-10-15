@@ -230,7 +230,7 @@
       if (!row) return `<article class="staff-attendance-detail"><strong>${title}</strong><p class="staff-work-empty">未打卡</p></article>`;
       const coordinates = Number.isFinite(Number(row.latitude)) && Number.isFinite(Number(row.longitude));
       const map = coordinates ? `https://uri.amap.com/marker?position=${encodeURIComponent(`${row.longitude},${row.latitude}`)}&name=${encodeURIComponent(row.placeName || title)}` : "";
-      return `<article class="staff-attendance-detail"><strong>${title}</strong><b>${escapeHtml(formatDateTime(row.checkedInAt))}</b><span>${escapeHtml(row.placeName || "未解析附近地点")}</span><span>${escapeHtml(row.formattedAddress || "暂无文字地址")}</span><span>精度约 ${escapeHtml(row.accuracy || "—")} 米</span>${map ? `<a class="button-link secondary-button" target="_blank" rel="noopener noreferrer" href="${map}">在地图中打开</a>` : ""}</article>`;
+      return `<article class="staff-attendance-detail"><strong>${title}</strong><b>${escapeHtml(formatDateTime(row.checkedInAt))}</b><div data-attendance-photo="${escapeHtml(row.id)}"></div><span>${escapeHtml(row.placeName || "未解析附近地点")}</span><span>${escapeHtml(row.formattedAddress || "暂无文字地址")}</span><span>精度约 ${escapeHtml(row.accuracy || "—")} 米</span>${map ? `<a class="button-link secondary-button" target="_blank" rel="noopener noreferrer" href="${map}">在地图中打开</a>` : ""}</article>`;
     };
     $("staffWorkDayState").textContent = day.clockIn && day.clockOut ? "完整打卡" : day.clockIn || day.clockOut ? "部分打卡" : "未打卡";
     $("staffWorkDayContent").innerHTML = attendanceCard("上班打卡", day.clockIn) + attendanceCard("下班打卡", day.clockOut);

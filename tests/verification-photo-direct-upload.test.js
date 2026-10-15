@@ -763,7 +763,7 @@ assert.ok(!inspectObject.includes("allowRetainedProfile"), "upload commit inspec
 
 const authenticatedDownload = functionSource(cloud, "downloadVerificationPhotoAuthenticated");
 for (const securityCheck of [
-  "verificationPhotoReference(referenceValue)", "verificationPhotoStorageForEvidence(reference)",
+  "verificationPhotoReference(referenceValue)", "verificationPhotoStorageForEvidence(reference, options.allowAttendance === true)",
   "downloadAuthenticatedObject", "bucketId: reference.bucketId", "objectName,",
   "declaredBytes > maximumBytes", "totalBytes > maximumBytes", "Buffer.concat(chunks)",
   "storageObjectMissing(error)"
