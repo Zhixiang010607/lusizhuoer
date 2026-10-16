@@ -6,6 +6,9 @@ const materialCache = require("./training-material-cache");
 const STORAGE_KEY = "training-material-upload-queue-v1";
 const MAX_TASK_AGE_MS = 24 * 60 * 60 * 1000;
 const RETRY_DELAYS_MS = Object.freeze([1000, 3000, 8000, 20000, 60000]);
+const SMALL_PDF_BYTES = 1024 * 1024;
+const SLOW_ACK_CHECK_MS = 8000;
+const DIRECT_TRANSFER_TIMEOUT_MS = 180000;
 const listeners = new Set();
 let processing = false;
 let rerunRequested = false;
@@ -111,48 +114,131 @@ function uploadFailure(error, task) {
   return "PDF 传输失败，请检查网络后重试";
 }
 
-function signedUpload(upload, buffer) {
+async function recoverUpload(task) {
+  await setPhase(task, "RECOVERING");
+  const recovered = await callStaff("confirmTrainingMaterialUpload", confirmPayload(task));
+  assertOwner(task);
+  if (!recovered?.material?.id) throw new Error("培训资料服务没有确认发布结果");
+  return recovered;
+}
+
+function reportSlowTransfer(result, startedAt, bytes) {
+  const elapsedMs = Math.max(0, Date.now() - startedAt);
+  const status = Number(result?.statusCode || 0);
+  if (elapsedMs < 5000 && status >= 200 && status < 300) return;
+  const profile = result?.profile || {};
+  const duration = (start, end) => Number.isFinite(profile[start]) && Number.isFinite(profile[end])
+    ? Math.max(0, profile[end] - profile[start]) : null;
+  // Only numeric timings. Never log URLs, headers, tokens, filenames or UID.
+  console.info("training PDF direct transport", {
+    bytes, elapsedMs, status,
+    dnsMs: duration("domainLookUpStart", "domainLookUpEnd"),
+    connectMs: duration("connectStart", "connectEnd"),
+    tlsMs: duration("SSLconnectionStart", "SSLconnectionEnd"),
+    untilResponseMs: duration("requestStart", "responseStart")
+  });
+}
+
+async function signedUpload(upload, buffer, task) {
   const url = clean(upload?.url);
   const bytes = new Uint8Array(buffer).byteLength;
   if (!/^https:\/\//i.test(url) || clean(upload?.method || "PUT").toUpperCase() !== "PUT") {
-    return Promise.reject(new Error("培训资料服务没有返回有效上传地址"));
+    throw new Error("培训资料服务没有返回有效上传地址");
   }
-  return new Promise((resolve, reject) => wx.request({
+  let requestTask;
+  let checkpointTimer;
+  let checkpointFlight;
+  let cancelled = false;
+  const startedAt = Date.now();
+  const cancel = () => { if (!cancelled) { cancelled = true; requestTask?.abort?.(); } };
+  const response = new Promise((resolve, reject) => { requestTask = wx.request({
     url, method: "PUT", data: buffer,
     header: { ...(upload.headers || {}), "Content-Type": "application/pdf" },
-    responseType: "text", timeout: 180000,
+    dataType: "text", responseType: "text", enableHttp2: true, enableProfile: true,
+    // Do not cut off a slow-but-progressing PUT just to report a shorter time.
+    // The verified checkpoint shortens lost-ack waits without forcing retries.
+    timeout: DIRECT_TRANSFER_TIMEOUT_MS,
     success(response) {
+      if (!cancelled) reportSlowTransfer(response, startedAt, bytes);
       const code = Number(response?.statusCode || 0);
       if (code >= 200 && code < 300) resolve(response);
       else reject(Object.assign(new Error(`培训 PDF 上传失败（HTTP ${code || "—"}，${bytes} 字节）`), { statusCode: code }));
     },
-    fail: reject
-  }));
+    fail(error) {
+      if (!cancelled) reportSlowTransfer(error, startedAt, bytes);
+      reject(error);
+    }
+  }); });
+  // Consume both native outcomes even when authoritative recovery wins first.
+  // A local preview or HTTP response headers alone are never publication proof.
+  const nativeOutcome = response.then((value) => ({ value }), (error) => ({ error }));
+  const checkpoint = new Promise((resolve) => {
+    if (bytes > SMALL_PDF_BYTES) return;
+    checkpointTimer = setTimeout(() => {
+      checkpointFlight = (async () => {
+        try { return { recovered: await recoverUpload(task) }; }
+        catch (error) {
+          const code = clean(error?.code).toUpperCase();
+          if (code === "TRAINING_MATERIAL_UPLOAD_INCOMPLETE" || code === "TRAINING_MATERIAL_READ_FAILED" || error?.submissionUncertain) {
+            await setPhase(task, "TRANSFERRING");
+            return { error, incomplete: code === "TRAINING_MATERIAL_UPLOAD_INCOMPLETE" };
+          }
+          return { error, stop: true };
+        }
+      })().catch((error) => ({ error, stop: true }));
+      checkpointFlight.then((outcome) => {
+        if (outcome.recovered || outcome.stop) resolve({ checkpoint: outcome });
+      });
+    }, SLOW_ACK_CHECK_MS);
+  });
+  try {
+    const first = await Promise.race([nativeOutcome, checkpoint]);
+    clearTimeout(checkpointTimer);
+    const checked = first.checkpoint || (checkpointFlight ? await checkpointFlight : null);
+    assertOwner(task);
+    if (checked?.recovered) { cancel(); return checked.recovered; }
+    if (checked?.stop) { cancel(); checked.error.trainingRecoveryStopped = true; throw checked.error; }
+    if (first.error) {
+      const status = Number(first.error?.statusCode || 0);
+      // A prior read outage must not hide the PUT's authoritative rejection
+      // and accidentally turn HTTP 403/400 into an automatic retry.
+      if (status >= 400 && status < 500 && ![408, 409, 429].includes(status)) throw first.error;
+      if (checked?.error && !checked.incomplete) {
+        checked.error.trainingRecoveryStopped = true;
+        throw checked.error; // Unknown result: never blindly resend.
+      }
+      throw first.error;
+    }
+    return first.value;
+  } finally {
+    clearTimeout(checkpointTimer);
+    if (currentOwnerStaffId() !== task.ownerStaffId) cancel();
+  }
 }
 
 async function signedUploadWithRetry(upload, buffer, task) {
   let lastError;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     assertOwner(task);
-    try { return await signedUpload(upload, buffer); }
+    try { return await signedUpload(upload, buffer, task); }
     catch (error) {
       lastError = error;
+      if (error.trainingRecoveryStopped) throw error;
       const status = Number(error?.statusCode || 0);
-      if (status && status !== 408 && status !== 429 && status < 500) throw error;
-      if (!attempt) {
-        // A lost PUT acknowledgement may mean the file is already complete.
-        // Recover the same request before retransmitting identical bytes.
-        try {
-          const recovered = await callStaff("confirmTrainingMaterialUpload", confirmPayload(task));
-          assertOwner(task);
-          if (recovered?.material?.id) return recovered;
-          throw new Error("培训资料服务没有确认发布结果");
-        } catch (recoveryError) {
-          if (clean(recoveryError?.code).toUpperCase() !== "TRAINING_MATERIAL_UPLOAD_INCOMPLETE") throw recoveryError;
-        }
-        assertOwner(task);
-        await new Promise((resolve) => setTimeout(resolve, 350));
+      if (status && status !== 408 && status !== 409 && status !== 429 && status < 500) throw error;
+      // A lost PUT acknowledgement may mean the file is already complete.
+      // Reconcile AFTER every uncertain attempt, including the final one.
+      // An earlier missing-object checkpoint is stale while PUT is in flight.
+      try {
+        return await recoverUpload(task);
+      } catch (recoveryError) {
+        if (clean(recoveryError?.code).toUpperCase() !== "TRAINING_MATERIAL_UPLOAD_INCOMPLETE") throw recoveryError;
       }
+      assertOwner(task);
+      if (status === 409 || attempt === 1) throw error;
+      // The original request is authoritatively missing. No extra fixed
+      // sleep, new request ID or second file read is needed before retry.
+      await setPhase(task, "TRANSFERRING");
     }
   }
   throw lastError || new Error("培训 PDF 上传失败");
@@ -276,7 +362,8 @@ async function resume(options = {}) {
         const terminal = (status >= 400 && status < 500 && status !== 408 && status !== 429)
           || ["FORBIDDEN", "UNAUTHENTICATED", "UNASSIGNED_IDENTITY", "BAD_REQUEST", "IDEMPOTENCY_CONFLICT",
             "TRAINING_MATERIAL_SIZE_MISMATCH", "TRAINING_MATERIAL_TYPE_INVALID", "TRAINING_MATERIAL_FORMAT_INVALID", "TRAINING_MATERIAL_DELETED"].includes(clean(error?.code).toUpperCase());
-        const canRetry = !terminal && task.attemptCount <= RETRY_DELAYS_MS.length;
+        const canRetry = !terminal && error?.code !== "TRAINING_UPLOAD_OWNER_CHANGED"
+          && task.attemptCount <= RETRY_DELAYS_MS.length;
         const nextAttemptAt = canRetry ? Date.now() + RETRY_DELAYS_MS[retryIndex] : 0;
         updateTask(task, { state: "FAILED", error: message, nextAttemptAt,
           attemptCount: terminal ? RETRY_DELAYS_MS.length + 1 : task.attemptCount });

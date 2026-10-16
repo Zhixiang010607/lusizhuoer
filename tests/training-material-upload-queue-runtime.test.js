@@ -6,24 +6,32 @@ const vm = require("node:vm");
 const source = fs.readFileSync(path.join(__dirname, "../miniprogram-app/miniprogram/services/training-material-upload-queue.js"), "utf8");
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
-function harness() {
-  const module = { exports: {} }, storage = new Map(), calls = [], timers = new Map();
+function harness({ bytes = 280 * 1024 } = {}) {
+  const module = { exports: {} }, storage = new Map(), calls = [], timers = new Map(), requests = [], diagnostics = [];
   const data = { startupReady: true, session: { role: "hq", staffId: "test-owner" } };
-  let clock = 100000000, timerId = 0;
-  const faults = { begin: null, confirm: null, unlink: null, read: null, info: null, request: null, http: 200, published: false, cache: null };
+  let clock = 100000000, timerId = 0, abortCount = 0;
+  const faults = { begin: null, confirm: null, unlink: null, read: null, info: null, request: null, http: 200, published: false, cache: null, profile: null };
   const wx = {
     getStorageSync: (key) => storage.get(key), setStorageSync: (key, value) => storage.set(key, structuredClone(value)),
     getFileSystemManager: () => ({
-      getFileInfo: ({ success, fail }) => { if (faults.info) fail(new Error("local file missing")); else success({ size: 280 * 1024 }); },
+      getFileInfo: ({ success, fail }) => { if (faults.info) fail(new Error("local file missing")); else success({ size: bytes }); },
       readFile: async ({ success, fail }) => {
-        try { if (faults.read) await faults.read(); success({ data: new ArrayBuffer(280 * 1024) }); } catch (error) { fail(error); }
+        try { if (faults.read) await faults.read(); success({ data: new ArrayBuffer(bytes) }); } catch (error) { fail(error); }
       },
       unlink: async ({ filePath, success }) => { if (faults.unlink) await faults.unlink(filePath); success({}); }
     }),
-    request: async ({ success, fail }) => { calls.push("PUT"); try { if (faults.request) await faults.request(); success({ statusCode: faults.http }); } catch (error) { fail(error); } }
+    request: (options) => {
+      calls.push("PUT"); requests.push(options);
+      void (async () => {
+        try { if (faults.request) await faults.request(options); options.success({ statusCode: faults.http, profile: faults.profile }); }
+        catch (error) { options.fail(error); }
+      })();
+      return { abort() { abortCount += 1; options.fail(new Error("request:fail abort")); } };
+    }
   };
   vm.runInNewContext(source, {
     module, wx, getApp: () => ({ globalData: data }), Uint8Array,
+    console: { info: (...args) => diagnostics.push(args) },
     Date: { now: () => clock },
     setTimeout: (fn, delay) => { const id = ++timerId; timers.set(id, { fn, at: clock + delay }); return id; },
     clearTimeout: (id) => timers.delete(id),
@@ -41,16 +49,190 @@ function harness() {
     } })
   });
   const queue = module.exports;
-  const input = (suffix = "one", ownerStaffId = "test-owner") => ({ ownerStaffId, clientRequestId: `test_request_${suffix}_123456`, title: "测试", originalName: "test.pdf", bytes: 280 * 1024, filePath: `/private/${suffix}.pdf` });
+  const input = (suffix = "one", ownerStaffId = "test-owner") => ({ ownerStaffId, clientRequestId: `test_request_${suffix}_123456`, title: "测试", originalName: "test.pdf", bytes, filePath: `/private/${suffix}.pdf` });
   const flush = async () => { for (let i = 0; i < 12; i++) await tick(); };
   const wake = async () => { const [id, timer] = [...timers.entries()].sort((a, b) => a[1].at - b[1].at)[0]; timers.delete(id); clock = timer.at; timer.fn(); await flush(); };
-  return { queue, calls, data, faults, timers, storage, input, flush, wake, now: () => clock };
+  return { queue, calls, data, faults, timers, requests, diagnostics, storage, input, flush, wake, now: () => clock, aborts: () => abortCount };
 }
 
 test("280KB enqueue starts upload immediately without page re-entry", async () => {
   const h = harness();
   h.queue.enqueue(h.input());
   await h.flush();
+  assert.deepEqual(h.calls, ["beginTrainingMaterialUpload", "PUT", "confirmTrainingMaterialUpload"]);
+  assert.equal(h.queue.allTasks().length, 0);
+  assert.equal(h.requests[0].method, "PUT");
+  assert.ok(h.requests[0].data instanceof ArrayBuffer);
+  assert.equal(h.requests[0].header["Content-Type"], "application/pdf");
+  assert.equal(h.requests[0].timeout, 180000, "preserve slow-but-progressing uploads");
+  assert.equal(h.requests[0].enableHttp2, true);
+  assert.equal(h.requests[0].enableProfile, true);
+  assert.equal(h.requests[0].dataType, "text");
+  assert.equal(h.timers.size, 0);
+});
+
+test("small PDF with a lost acknowledgement finishes from verified original result at eight seconds", async () => {
+  const h = harness(), events = [];
+  h.queue.subscribe((event) => { events.push(event); });
+  h.faults.request = () => new Promise(() => {});
+  h.queue.enqueue(h.input()); await h.flush();
+  assert.equal(h.queue.allTasks()[0].uploadedBytes, 0);
+  const before = h.now();
+  await h.wake();
+  assert.equal(h.now() - before, 8000);
+  assert.deepEqual(h.calls, ["beginTrainingMaterialUpload", "PUT", "confirmTrainingMaterialUpload"]);
+  assert.equal(h.aborts(), 1, "only abandon the native wait after authoritative publication");
+  assert.equal(h.queue.allTasks().length, 0);
+  assert.ok(events.some((event) => event.task?.phase === "RECOVERING"));
+});
+
+test("early incomplete result neither cancels nor retransmits a still-running PUT", async () => {
+  const h = harness(); let release;
+  h.faults.request = () => new Promise((resolve) => { release = resolve; });
+  h.faults.confirm = async () => { throw Object.assign(new Error("missing"), { code: "TRAINING_MATERIAL_UPLOAD_INCOMPLETE" }); };
+  h.queue.enqueue(h.input()); await h.flush(); await h.wake();
+  assert.equal(h.aborts(), 0);
+  assert.equal(h.calls.filter((action) => action === "PUT").length, 1);
+  assert.equal(h.queue.allTasks()[0].phase, "TRANSFERRING");
+  assert.equal(h.queue.allTasks()[0].uploadedBytes, 0);
+  assert.equal(h.timers.size, 0, "only one early checkpoint, not a polling loop");
+  h.faults.confirm = null; release(); await h.flush();
+  assert.equal(h.queue.allTasks().length, 0);
+  assert.equal(h.calls.filter((action) => action === "PUT").length, 1);
+});
+
+test("PUT completion during an in-flight checkpoint reuses that confirmation", async () => {
+  const h = harness(); let finishPut, finishConfirmation;
+  h.faults.request = () => new Promise((resolve) => { finishPut = resolve; });
+  h.faults.confirm = () => new Promise((resolve) => { finishConfirmation = resolve; });
+  h.queue.enqueue(h.input()); await h.flush(); await h.wake();
+  finishPut(); await h.flush();
+  assert.equal(h.queue.allTasks()[0].phase, "RECOVERING");
+  assert.equal(h.calls.filter((action) => action === "confirmTrainingMaterialUpload").length, 1);
+  finishConfirmation(); await h.flush();
+  assert.equal(h.queue.allTasks().length, 0);
+  assert.equal(h.calls.filter((action) => action === "confirmTrainingMaterialUpload").length, 1);
+});
+
+test("slow-transfer diagnostics expose only numeric timing, never signed URLs or private profile fields", async () => {
+  const h = harness(); let finish;
+  h.faults.request = () => new Promise((resolve) => { finish = resolve; });
+  h.faults.confirm = async () => { throw Object.assign(new Error("missing"), { code: "TRAINING_MATERIAL_UPLOAD_INCOMPLETE" }); };
+  h.faults.profile = {
+    domainLookUpStart: 10, domainLookUpEnd: 30, connectStart: 30, connectEnd: 80,
+    SSLconnectionStart: 40, SSLconnectionEnd: 80, requestStart: 80, responseStart: 200,
+    url: "https://private.invalid/?token=not-for-logs", privateUid: "not-for-logs"
+  };
+  h.queue.enqueue(h.input()); await h.flush(); await h.wake();
+  h.faults.confirm = null; finish(); await h.flush();
+  const diagnostic = h.diagnostics[0][1];
+  assert.equal(diagnostic.elapsedMs, 8000);
+  assert.equal(diagnostic.dnsMs, 20);
+  assert.equal(diagnostic.connectMs, 50);
+  assert.equal(diagnostic.tlsMs, 40);
+  assert.equal(diagnostic.untilResponseMs, 120);
+  assert.ok(Object.values(diagnostic).every((value) => typeof value === "number" || value === null));
+  assert.doesNotMatch(JSON.stringify(h.diagnostics), /private\.invalid|token=|not-for-logs/);
+});
+
+test("owner change before the checkpoint aborts transport without publishing or deleting", async () => {
+  const h = harness(); h.faults.request = () => new Promise(() => {});
+  h.queue.enqueue(h.input()); await h.flush();
+  h.data.session = { role: "teacher", staffId: "other-owner" };
+  await h.wake();
+  assert.deepEqual(h.calls, ["beginTrainingMaterialUpload", "PUT"]);
+  assert.equal(h.aborts(), 1);
+  assert.equal(h.queue.allTasks().length, 1);
+  assert.equal(h.timers.size, 0);
+});
+
+test("uncertain early storage read cannot authorize retransmission after a native failure", async () => {
+  const h = harness(); let failPut;
+  h.faults.request = () => new Promise((_, reject) => { failPut = reject; });
+  h.faults.confirm = async () => { throw Object.assign(new Error("temporarily unreadable"), { code: "TRAINING_MATERIAL_READ_FAILED" }); };
+  h.queue.enqueue(h.input()); await h.flush(); await h.wake();
+  failPut(new Error("connection lost")); await h.flush();
+  assert.deepEqual(h.calls, ["beginTrainingMaterialUpload", "PUT", "confirmTrainingMaterialUpload"]);
+  assert.equal(h.queue.allTasks()[0].state, "FAILED");
+  assert.equal(h.queue.allTasks()[0].reference, "test-private-reference");
+});
+
+test("a transient checkpoint error cannot mask a later terminal PUT rejection or schedule another upload", async () => {
+  const h = harness(); let finishPut;
+  h.faults.request = () => new Promise((resolve) => { finishPut = resolve; });
+  h.faults.confirm = async () => { throw Object.assign(new Error("read unavailable"), { code: "TRAINING_MATERIAL_READ_FAILED" }); };
+  h.queue.enqueue(h.input()); await h.flush(); await h.wake();
+  h.faults.http = 403; finishPut(); await h.flush();
+  assert.equal(h.queue.allTasks()[0].state, "FAILED");
+  assert.equal(h.queue.allTasks()[0].nextAttemptAt, 0);
+  assert.equal(h.timers.size, 0);
+  h.faults.confirm = async () => { throw Object.assign(new Error("missing"), { code: "TRAINING_MATERIAL_UPLOAD_INCOMPLETE" }); };
+  await h.queue.resume();
+  assert.deepEqual(h.calls, ["beginTrainingMaterialUpload", "PUT", "confirmTrainingMaterialUpload"]);
+});
+
+test("an early missing-object checkpoint is refreshed after the PUT later commits but loses its acknowledgement", async () => {
+  const h = harness(); let failPut;
+  h.faults.request = () => new Promise((_, reject) => { failPut = reject; });
+  h.faults.confirm = async () => { throw Object.assign(new Error("not uploaded yet"), { code: "TRAINING_MATERIAL_UPLOAD_INCOMPLETE" }); };
+  h.queue.enqueue(h.input()); await h.flush(); await h.wake();
+  h.faults.confirm = null; // Storage commits after the early checkpoint.
+  failPut(new Error("timeout after storage commit")); await h.flush();
+  assert.deepEqual(h.calls, ["beginTrainingMaterialUpload", "PUT", "confirmTrainingMaterialUpload", "confirmTrainingMaterialUpload"]);
+  assert.equal(h.queue.allTasks().length, 0);
+});
+
+test("the final PUT cannot reuse a stale missing-object checkpoint to report false failure", async () => {
+  const h = harness(); let failSecondPut, count = 0;
+  h.faults.request = async () => {
+    if (++count === 1) throw new Error("first connection failed");
+    await new Promise((_, reject) => { failSecondPut = reject; });
+  };
+  h.faults.confirm = async () => { throw Object.assign(new Error("missing"), { code: "TRAINING_MATERIAL_UPLOAD_INCOMPLETE" }); };
+  h.queue.enqueue(h.input()); await h.flush(); await h.wake();
+  h.faults.confirm = null;
+  failSecondPut(new Error("lost final acknowledgement")); await h.flush();
+  assert.equal(h.calls.filter((action) => action === "PUT").length, 2);
+  assert.equal(h.calls.filter((action) => action === "confirmTrainingMaterialUpload").length, 3);
+  assert.equal(h.queue.allTasks().length, 0);
+});
+
+test("the final uncertain transfer is reconciled before reporting failure or scheduling another upload", async () => {
+  const h = harness(); let putCount = 0;
+  h.faults.request = async () => { putCount += 1; throw new Error("lost acknowledgement"); };
+  h.faults.confirm = async () => {
+    if (putCount === 1) throw Object.assign(new Error("missing"), { code: "TRAINING_MATERIAL_UPLOAD_INCOMPLETE" });
+  };
+  h.queue.enqueue(h.input()); await h.flush();
+  assert.deepEqual(h.calls, ["beginTrainingMaterialUpload", "PUT", "confirmTrainingMaterialUpload", "PUT", "confirmTrainingMaterialUpload"]);
+  assert.equal(h.requests[0].url, h.requests[1].url);
+  assert.equal(h.requests[0].data, h.requests[1].data, "retry keeps exact original bytes");
+  assert.equal(h.queue.allTasks().length, 0);
+});
+
+test("HTTP conflict recovers a previously completed immutable object without another PUT", async () => {
+  const h = harness(); h.faults.http = 409;
+  h.queue.enqueue(h.input()); await h.flush();
+  assert.deepEqual(h.calls, ["beginTrainingMaterialUpload", "PUT", "confirmTrainingMaterialUpload"]);
+  assert.equal(h.queue.allTasks().length, 0);
+});
+
+test("large PDFs keep direct bytes, bounded timeout and no early incomplete-object polling", async () => {
+  assert.match(source, /DIRECT_TRANSFER_TIMEOUT_MS = 180000/);
+  assert.match(source, /timeout: DIRECT_TRANSFER_TIMEOUT_MS/);
+  assert.match(source, /if \(bytes > SMALL_PDF_BYTES\) return/);
+  assert.doesNotMatch(source, /wx\.uploadFile|uploadTrainingMaterialByFunction|imageBase64|encoding:\s*["']base64/);
+});
+
+test("above-one-MiB actual queue path has a single binary PUT and no checkpoint request", async () => {
+  const h = harness({ bytes: 2 * 1024 * 1024 }); let finish;
+  h.faults.request = () => new Promise((resolve) => { finish = resolve; });
+  h.queue.enqueue(h.input()); await h.flush();
+  assert.deepEqual(h.calls, ["beginTrainingMaterialUpload", "PUT"]);
+  assert.equal(h.timers.size, 0);
+  assert.equal(h.requests[0].data.byteLength, 2 * 1024 * 1024);
+  assert.equal(h.requests[0].timeout, 180000);
+  finish(); await h.flush();
   assert.deepEqual(h.calls, ["beginTrainingMaterialUpload", "PUT", "confirmTrainingMaterialUpload"]);
   assert.equal(h.queue.allTasks().length, 0);
 });
@@ -60,9 +242,8 @@ test("missing object after ambiguous PUT retries the same upload only after orig
   h.faults.request = async () => { if (++attempts === 1) throw new Error("connection failed before transfer"); };
   h.faults.confirm = async () => { if (attempts === 1) throw Object.assign(new Error("missing"), { code: "TRAINING_MATERIAL_UPLOAD_INCOMPLETE" }); };
   h.queue.enqueue(h.input()); await h.flush();
-  assert.deepEqual(h.calls, ["beginTrainingMaterialUpload", "PUT", "confirmTrainingMaterialUpload"]);
-  await h.wake();
   assert.deepEqual(h.calls, ["beginTrainingMaterialUpload", "PUT", "confirmTrainingMaterialUpload", "PUT", "confirmTrainingMaterialUpload"]);
+  assert.equal(h.timers.size, 0, "confirmed-missing retry has no redundant sleep");
   assert.equal(h.queue.allTasks().length, 0);
 });
 

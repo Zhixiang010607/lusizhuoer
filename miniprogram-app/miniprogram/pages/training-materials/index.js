@@ -8,7 +8,7 @@ const materialCache = require("../../services/training-material-cache");
 const MAX_PDF_BYTES = 100 * 1024 * 1024;
 const UPLOAD_PHASES = {
   PREPARING: "准备文件", SIGNING: "申请上传地址", TRANSFERRING: "正在上传",
-  VERIFYING: "校验并发布", RECOVERING: "核对上次上传结果"
+  VERIFYING: "校验并发布", RECOVERING: "核对上传结果"
 };
 
 function wxCall(executor) {
