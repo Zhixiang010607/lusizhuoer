@@ -9,7 +9,14 @@ const RETRY_DELAYS_MS = Object.freeze([1000, 3000, 8000, 20000, 60000]);
 const SMALL_PDF_BYTES = 1024 * 1024;
 const SLOW_ACK_CHECK_MS = 8000;
 const DIRECT_TRANSFER_TIMEOUT_MS = 180000;
+// Abort is not proof that storage stopped writing. Retain the exact reference
+// for one bounded eight-minute reconciliation window before deferred cleanup.
+// This is best-effort orphan cleanup, not a claim about signed URL expiry or
+// server-atomic cancellation. Never send another PUT for the cancelled job.
+const CANCEL_RECONCILE_DELAY_MS = 8 * 60 * 1000;
 const listeners = new Set();
+const activeOperations = new Map();
+const cancellationCleanups = new Map();
 let processing = false;
 let rerunRequested = false;
 let wakeTimer = null;
@@ -17,6 +24,10 @@ let wakeAt = 0;
 let activeTaskId = "";
 
 function clean(value) { return String(value ?? "").trim(); }
+function cancellationError() { return Object.assign(new Error("上传已取消"), { code: "TRAINING_UPLOAD_CANCELLED" }); }
+function isCancelled(task) {
+  return task.state === "CANCELLED" || readTasks().some((item) => item.id === task.id && item.state === "CANCELLED");
+}
 function currentOwnerStaffId() {
   try {
     const data = getApp().globalData;
@@ -27,6 +38,7 @@ function assertOwner(task) {
   if (!task.ownerStaffId || currentOwnerStaffId() !== task.ownerStaffId) {
     throw Object.assign(new Error("请用提交资料的总部账号登录后继续上传"), { code: "TRAINING_UPLOAD_OWNER_CHANGED" });
   }
+  if (isCancelled(task)) throw cancellationError();
 }
 function readFile(filePath) { return new Promise((resolve, reject) => wx.getFileSystemManager().readFile({ filePath, success: resolve, fail: reject })); }
 function fileInfo(filePath) {
@@ -47,6 +59,12 @@ function normalizeTask(task = {}) {
     createdAt, updatedAt: Number(task.updatedAt || createdAt),
     attemptCount: Math.max(0, Number(task.attemptCount || 0)),
     state: clean(task.state || "QUEUED").toUpperCase(), error: clean(task.error),
+    // A legacy reference may already have a confirmation in flight. Unknown
+    // history is not proof that deleting its object is safe.
+    publicationStarted: task.publicationStarted === true || Boolean(task.reference) && task.publicationStarted !== false,
+    cancelRemoteCleaned: task.cancelRemoteCleaned === true,
+    cancelLocalCleaned: task.cancelLocalCleaned === true,
+    cancelReconcileAt: Math.max(0, Number(task.cancelReconcileAt || 0)),
     phase: clean(task.phase), phaseStartedAt: Math.max(0, Number(task.phaseStartedAt || 0)),
     uploadedBytes: Math.max(0, Math.min(Number(task.bytes || 0), Number(task.uploadedBytes || 0))),
     nextAttemptAt: Math.max(0, Number(task.nextAttemptAt || 0))
@@ -72,9 +90,10 @@ function writeTasks(tasks) {
 }
 
 function updateTask(task, changes) {
-  Object.assign(task, changes, { updatedAt: Date.now() });
   const tasks = readTasks();
   const index = tasks.findIndex((item) => item.id === task.id);
+  if (index >= 0 && tasks[index].state === "CANCELLED" && changes.state !== "CANCELLED") throw cancellationError();
+  Object.assign(task, changes, { updatedAt: Date.now() });
   if (index >= 0) tasks[index] = normalizeTask(task); else tasks.push(normalizeTask(task));
   writeTasks(tasks);
   return task;
@@ -116,10 +135,65 @@ function uploadFailure(error, task) {
 
 async function recoverUpload(task) {
   await setPhase(task, "RECOVERING");
-  const recovered = await callStaff("confirmTrainingMaterialUpload", confirmPayload(task));
+  const recovered = await confirmUpload(task);
   assertOwner(task);
   if (!recovered?.material?.id) throw new Error("培训资料服务没有确认发布结果");
   return recovered;
+}
+
+async function confirmUpload(task) {
+  assertOwner(task);
+  // Once publication may be running, cancellation must never delete its
+  // object, even if the confirmation response is delayed or lost.
+  updateTask(task, { publicationStarted: true });
+  if (!readTasks().some((item) => item.id === task.id && item.publicationStarted)) {
+    throw new Error("发布状态未保存，请重试");
+  }
+  const result = await callStaff("confirmTrainingMaterialUpload", confirmPayload(task));
+  if (isCancelled(task) && currentOwnerStaffId() === task.ownerStaffId && result?.material?.status === "PUBLISHED") {
+    await emit({ type: "committed", task, material: result.material, cancelled: true });
+  }
+  return result;
+}
+
+function cleanupCancelledTask(task) {
+  if (cancellationCleanups.has(task.id)) return cancellationCleanups.get(task.id);
+  const cleanup = (async () => {
+    const stored = readTasks().find((item) => item.id === task.id && item.state === "CANCELLED");
+    if (!stored || currentOwnerStaffId() !== stored.ownerStaffId || activeOperations.has(task.id)) return;
+    if (!stored.cancelLocalCleaned) {
+      await unlinkFile(stored.filePath).catch((error) => {
+        if (!/ENOENT|no such file|not exist/i.test(clean(error?.message || error?.errMsg))) throw error;
+      });
+      if (currentOwnerStaffId() !== stored.ownerStaffId) return;
+      updateTask(stored, { state: "CANCELLED", cancelLocalCleaned: true });
+    }
+    if (!stored.publicationStarted && stored.cancelReconcileAt > Date.now()) {
+      scheduleWake(stored.cancelReconcileAt - Date.now());
+      return;
+    }
+    // Never race a possible publish with discard: the existing server discard
+    // is a bound-object check, not an atomic cancellation of publication.
+    if (!stored.cancelRemoteCleaned) {
+      if (stored.reference && !stored.publicationStarted) {
+        const result = await callStaff("discardTrainingMaterialUpload", { reference: stored.reference });
+        if (!result?.discarded && !result?.currentlyBound) return;
+      }
+      if (currentOwnerStaffId() !== stored.ownerStaffId) return;
+      updateTask(stored, { state: "CANCELLED", cancelRemoteCleaned: true });
+    }
+    // All old work has settled and keeps its own in-memory cancelled state.
+    // Compact the durable tombstone rather than repeating cleanup forever.
+    if (currentOwnerStaffId() === stored.ownerStaffId && !activeOperations.has(task.id)) removeTask(stored);
+  })().catch(() => {}).finally(() => cancellationCleanups.delete(task.id));
+  cancellationCleanups.set(task.id, cleanup);
+  return cleanup;
+}
+
+function finishOperation(task, operation) {
+  if (!operation.settled || !operation.drained) return;
+  if (activeOperations.get(task.id) === operation) activeOperations.delete(task.id);
+  if (isCancelled(task)) void cleanupCancelledTask(task);
 }
 
 function reportSlowTransfer(result, startedAt, bytes) {
@@ -150,7 +224,9 @@ async function signedUpload(upload, buffer, task) {
   let checkpointFlight;
   let cancelled = false;
   const startedAt = Date.now();
-  const cancel = () => { if (!cancelled) { cancelled = true; requestTask?.abort?.(); } };
+  const cancel = () => { if (!cancelled) { cancelled = true; clearTimeout(checkpointTimer); requestTask?.abort?.(); } };
+  const operation = activeOperations.get(task.id);
+  if (operation) operation.abort = cancel;
   const response = new Promise((resolve, reject) => { requestTask = wx.request({
     url, method: "PUT", data: buffer,
     header: { ...(upload.headers || {}), "Content-Type": "application/pdf" },
@@ -212,7 +288,8 @@ async function signedUpload(upload, buffer, task) {
     return first.value;
   } finally {
     clearTimeout(checkpointTimer);
-    if (currentOwnerStaffId() !== task.ownerStaffId) cancel();
+    if (operation?.abort === cancel) operation.abort = null;
+    if (currentOwnerStaffId() !== task.ownerStaffId || isCancelled(task)) cancel();
   }
 }
 
@@ -222,6 +299,7 @@ async function signedUploadWithRetry(upload, buffer, task) {
     assertOwner(task);
     try { return await signedUpload(upload, buffer, task); }
     catch (error) {
+      assertOwner(task);
       lastError = error;
       if (error.trainingRecoveryStopped) throw error;
       const status = Number(error?.statusCode || 0);
@@ -256,7 +334,7 @@ async function processTask(task) {
   assertOwner(task);
   if (task.reference) {
     await setPhase(task, "RECOVERING");
-    try { return await callStaff("confirmTrainingMaterialUpload", confirmPayload(task)); }
+    try { return await confirmUpload(task); }
     catch (error) {
       if (!["TRAINING_MATERIAL_UPLOAD_INCOMPLETE", "TRAINING_MATERIAL_REFERENCE_INVALID", "TRAINING_MATERIAL_BUCKET_MISMATCH"].includes(clean(error?.code).toUpperCase())) throw error;
       assertOwner(task);
@@ -274,6 +352,10 @@ async function processTask(task) {
   const [local, signed] = await Promise.allSettled([
     readFile(task.filePath), callStaff("beginTrainingMaterialUpload", confirmPayload(task))
   ]);
+  if (isCancelled(task) && signed.status === "fulfilled") {
+    // A delayed signing response belongs only to this cancelled request.
+    updateTask(task, { state: "CANCELLED", reference: clean(signed.value?.reference) });
+  }
   assertOwner(task);
   if (signed.status === "rejected") throw signed.reason;
   const pending = signed.value;
@@ -289,7 +371,7 @@ async function processTask(task) {
   updateTask(task, { uploadedBytes: task.bytes });
   await setPhase(task, "VERIFYING");
   if (recovered?.material?.id) return recovered;
-  return callStaff("confirmTrainingMaterialUpload", confirmPayload(task));
+  return confirmUpload(task);
 }
 
 function scheduleWake(delay) {
@@ -303,6 +385,10 @@ function scheduleWake(delay) {
 async function cleanupExpiredTasks(tasks, ownerStaffId) {
   const now = Date.now();
   for (const task of tasks) {
+    if (task.ownerStaffId === ownerStaffId && task.state === "CANCELLED") {
+      if (!activeOperations.has(task.id)) void cleanupCancelledTask(task);
+      continue;
+    }
     if (task.ownerStaffId === ownerStaffId && task.state !== "COMMITTED" && now - task.createdAt > MAX_TASK_AGE_MS) {
       assertOwner(task);
       if (task.reference) await callStaff("discardTrainingMaterialUpload", { reference: task.reference }).catch(() => {});
@@ -333,6 +419,7 @@ async function resume(options = {}) {
       const current = readTasks().find((item) => item.id === stored.id && item.ownerStaffId === ownerStaffId);
       if (!current) continue;
       const task = normalizeTask(current);
+      if (task.state === "CANCELLED") continue;
       if (task.state === "COMMITTED") {
         removeTask(task);
         await unlinkFile(task.filePath).catch(() => {});
@@ -345,8 +432,17 @@ async function resume(options = {}) {
       activeTaskId = task.id;
       updateTask(task, { state: "UPLOADING", phase: "PREPARING", phaseStartedAt: now, error: "", attemptCount: task.attemptCount + 1, nextAttemptAt: 0 });
       await emit({ type: "state", task });
+      if (!readTasks().some((item) => item.id === task.id && item.state !== "CANCELLED")) { activeTaskId = ""; continue; }
+      const operation = { task, abort: null, cancel: null, settled: false, drained: false };
+      const cancellation = new Promise((_, reject) => { operation.cancel = () => { operation.abort?.(); reject(cancellationError()); }; });
+      activeOperations.set(task.id, operation);
+      const work = processTask(task).finally(() => {
+        operation.settled = true;
+        finishOperation(task, operation);
+      });
       try {
-        const result = await processTask(task);
+        const result = await Promise.race([work, cancellation]);
+        assertOwner(task);
         if (!result?.material?.id) throw new Error("培训资料服务没有确认发布结果");
         updateTask(task, { state: "COMMITTED", error: "", nextAttemptAt: 0 });
         await emit({ type: "committed", task, material: result.material });
@@ -356,6 +452,7 @@ async function resume(options = {}) {
         if (result.material.status === "PUBLISHED") await materialCache.store(task.filePath, result.material).catch(() => {});
         await unlinkFile(task.filePath).catch(() => {});
       } catch (error) {
+        if (error?.code === "TRAINING_UPLOAD_CANCELLED" || isCancelled(task)) continue;
         const message = uploadFailure(error, task);
         const retryIndex = Math.min(task.attemptCount - 1, RETRY_DELAYS_MS.length - 1);
         const status = Number(error?.statusCode || 0);
@@ -372,6 +469,8 @@ async function resume(options = {}) {
         if (error?.code === "TRAINING_UPLOAD_OWNER_CHANGED") break;
       } finally {
         activeTaskId = "";
+        operation.drained = true;
+        finishOperation(task, operation);
       }
     }
     return true;
@@ -402,7 +501,28 @@ function subscribe(listener) {
   return () => listeners.delete(listener);
 }
 
-function allTasks() { return readTasks().map(snapshot); }
+function allTasks() { return readTasks().filter((task) => task.state !== "CANCELLED").map(snapshot); }
+
+async function cancel(taskId) {
+  const task = readTasks().find((item) => item.id === clean(taskId));
+  if (!task || currentOwnerStaffId() !== task.ownerStaffId || task.state === "COMMITTED") return false;
+  if (task.state === "CANCELLED") return true;
+  // Persist and verify before aborting. This tombstone prevents cold starts,
+  // retry timers and late asynchronous callbacks from resurrecting the job.
+  const operation = activeOperations.get(task.id);
+  const uncertainPut = !task.publicationStarted && (operation?.abort || task.phase === "TRANSFERRING");
+  updateTask(task, { state: "CANCELLED", nextAttemptAt: 0, error: "",
+    cancelReconcileAt: uncertainPut ? Date.now() + CANCEL_RECONCILE_DELAY_MS : 0 });
+  if (!readTasks().some((item) => item.id === task.id && item.state === "CANCELLED")) {
+    throw new Error("取消未保存，请重试；暂未停止原任务");
+  }
+  if (operation) operation.task.state = "CANCELLED";
+  operation?.cancel();
+  await emit({ type: "cancelled", task });
+  if (!operation) void cleanupCancelledTask(task);
+  void resume();
+  return true;
+}
 function retry(taskId) {
   const task = readTasks().find((item) => item.id === clean(taskId));
   if (!task) return false;
@@ -427,4 +547,4 @@ async function dismissFailed(taskId) {
   return true;
 }
 
-module.exports = { STORAGE_KEY, enqueue, resume, retry, dismissFailed, subscribe, allTasks };
+module.exports = { STORAGE_KEY, enqueue, resume, retry, cancel, dismissFailed, subscribe, allTasks };

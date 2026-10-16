@@ -101,7 +101,7 @@ function sameReader(session) {
 Page({
   data: {
     session: {}, isHq: false, loading: true, busy: false, openingId: "", keyword: "",
-    title: "", selectedFile: null, materials: [], pendingTasks: [], failedTasks: [],
+    title: "", selectedFile: null, materials: [], pendingTasks: [], failedTasks: [], cancellingId: "",
     message: "", error: false
   },
   onLoad() {
@@ -174,11 +174,16 @@ Page({
       // Show the authoritative publication immediately, even when an old
       // search would hide it. Refresh metadata without delaying queue cleanup.
       this.setData({ materials: rows, keyword: "", loading: false,
-        message: `《${event.task?.title || "培训资料"}》已在后台上传并发布。`, error: false });
+        message: event.cancelled ? `《${event.task?.title || "培训资料"}》已完成发布，资料已保留。`
+          : `《${event.task?.title || "培训资料"}》已在后台上传并发布。`, error: false });
       if (this._visible === false) this._refreshOnShow = true;
       else void this.loadMaterials({ background: true, confirmedMaterial: item });
     } else if (event.type === "failed") {
       this.setData({ message: event.task?.nextAttemptAt ? "上传未完成，稍后自动重试。" : "上传失败，可重试或移除任务。", error: true });
+    } else if (event.type === "cancelled") {
+      this.setData({ message: "已取消该任务，不再自动续传；其余任务会继续上传。已发布资料不会删除。", error: false });
+      if (this._visible === false) this._refreshOnShow = true;
+      else void this.loadMaterials({ background: true });
     } else if (event.type === "removed" || event.type === "settled") {
       this.setData({ message: "", error: false });
     }
@@ -270,6 +275,32 @@ Page({
       this.syncPendingTasks();
       this.setData({ message: "已重新开始后台上传。", error: false });
     }
+  },
+  async cancelUpload(event) {
+    if (!this.data.isHq || this._unloaded || !sameReader(this.data.session) || this._cancelConfirming || this.data.cancellingId) return;
+    const id = String(event.currentTarget.dataset.id || "");
+    const task = this.data.pendingTasks.find((item) => item.id === id);
+    if (!task) return;
+    this._cancelConfirming = true;
+    const confirmed = await wxCall((resolve) => wx.showModal({
+      title: "取消上传", content: `停止上传《${task.title}》？取消后不再自动续传，其余任务继续；已进入发布确认的资料可能已成功，已发布资料不会删除。`,
+      confirmText: "取消上传", cancelText: "继续上传",
+      success: (value) => resolve(Boolean(value.confirm)), fail: () => resolve(false)
+    }));
+    this._cancelConfirming = false;
+    if (!confirmed || this._unloaded || !sameReader(this.data.session)) return;
+    this.setData({ cancellingId: id });
+    try {
+      const cancelled = await uploadQueue.cancel(id);
+      if (this._unloaded || !sameReader(this.data.session)) return;
+      this.syncPendingTasks();
+      if (!cancelled) {
+        this.setData({ message: "任务已完成或状态已变化，正在刷新资料列表。", error: false });
+        void this.loadMaterials({ background: true });
+      }
+    } catch (error) {
+      if (!this._unloaded && sameReader(this.data.session)) this.setData({ message: userFacingError(error, "取消未成功，请重试"), error: true });
+    } finally { if (!this._unloaded) this.setData({ cancellingId: "" }); }
   },
   async removeFailedUpload(event) {
     if (!this.data.isHq) return;

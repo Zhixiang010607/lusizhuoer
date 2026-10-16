@@ -8,11 +8,12 @@ const source = fs.readFileSync(path.join(directory, "index.js"), "utf8");
 
 function harness(tasks = [], options = {}) {
   let page;
-  const retryIds = [], removedIds = [], intervals = new Map(), calls = [], modals = [], invalidated = [];
+  const retryIds = [], removedIds = [], cancelledIds = [], intervals = new Map(), calls = [], modals = [], invalidated = [];
   let now = 100000, id = 0, list = [];
   let session = { staffId: "owner", uid: "owner-uid", role: "hq", loginAt: "session-1" };
   let subscriber;
   const queue = { allTasks: () => tasks, retry: (id) => { retryIds.push(id); return true; }, dismissFailed: async (id) => { removedIds.push(id); return true; },
+    cancel: async id => { cancelledIds.push(id); return options.cancel ? options.cancel(id) : true; },
     subscribe: (listener) => { subscriber = listener; return () => { subscriber = null; }; }, resume: async () => {} };
   vm.runInNewContext(source, {
     Page: (value) => { page = value; },
@@ -27,7 +28,7 @@ function harness(tasks = [], options = {}) {
   });
   page.data = { ...page.data, session: { ...session }, isHq: true };
   page.setData = (data) => Object.assign(page.data, data);
-  return { page, retryIds, removedIds, intervals, calls, modals, invalidated,
+  return { page, retryIds, removedIds, cancelledIds, intervals, calls, modals, invalidated,
     advance: (seconds) => { now += seconds * 1000; for (const fn of intervals.values()) fn(); }, setList: (value) => { list = value; },
     switchActor: () => { session = { ...session, staffId: "other", uid: "other-uid" }; },
     notify: (event) => subscriber?.(event) };
@@ -188,6 +189,70 @@ test("retry action reuses the original task and never chooses or enqueues a seco
   page.retryUpload({ currentTarget: { dataset: { id: "original-request-id" } } });
   assert.deepEqual(retryIds, ["original-request-id"]);
   assert.equal(page.data.error, false);
+});
+
+test("active and queued PDFs both expose a bounded warm cancellation control", () => {
+  const markup = fs.readFileSync(path.join(directory, "index.wxml"), "utf8");
+  const css = fs.readFileSync(path.join(directory, "index.wxss"), "utf8");
+  assert.match(markup, /class="retry-button cancel-upload-button"[^>]*bindtap="cancelUpload"/);
+  assert.match(markup, /取消排队.*取消上传/);
+  assert.match(css, /\.pending-summary \{[^}]*grid-template-columns: minmax\(0, 1fr\) 132rpx;[^}]*box-sizing: border-box/);
+  assert.match(css, /@media \(min-width: 700px\)[\s\S]*\.pending-summary \{[^}]*96px/);
+});
+
+test("cancelling an active or queued PDF confirms the exact title and preserves published materials", async () => {
+  for (const state of ["UPLOADING", "QUEUED"]) {
+    const h = harness([{ id: "cancel-this", ownerStaffId: "owner", title: "大文件", state, bytes: 57 * 1024 * 1024 }]);
+    h.page.syncPendingTasks();
+    await h.page.cancelUpload({ currentTarget: { dataset: { id: "cancel-this" } } });
+    assert.equal(h.modals.length, 1);
+    assert.match(h.modals[0].content, /大文件.*不再自动续传.*已发布资料不会删除/);
+    assert.deepEqual(h.cancelledIds, ["cancel-this"]);
+    assert.equal(h.calls.length, 0, "page never invokes archival/deletion as cancellation");
+    assert.equal(h.page.data.cancellingId, "");
+  }
+});
+
+test("declining cancellation or targeting an absent task never cancels anything", async () => {
+  const h = harness([{ id: "active", title: "大文件", ownerStaffId: "owner", state: "UPLOADING", bytes: 100 }], { confirm: false });
+  h.page.syncPendingTasks();
+  await h.page.cancelUpload({ currentTarget: { dataset: { id: "absent" } } });
+  await h.page.cancelUpload({ currentTarget: { dataset: { id: "active" } } });
+  assert.equal(h.modals.length, 1);
+  assert.equal(h.cancelledIds.length, 0);
+});
+
+test("rapid cancellation taps share one confirmation and unload/account change stop its submission", async () => {
+  for (const stop of [h => h.page.onUnload(), h => h.switchActor()]) {
+    const h = harness([{ id: "active", title: "文件", ownerStaffId: "owner", state: "UPLOADING", bytes: 100 }], { deferModal: true });
+    h.page.syncPendingTasks();
+    const event = { currentTarget: { dataset: { id: "active" } } };
+    const pending = h.page.cancelUpload(event);
+    await h.page.cancelUpload(event);
+    assert.equal(h.modals.length, 1);
+    stop(h); h.modals[0].success({ confirm: true }); await pending;
+    assert.equal(h.cancelledIds.length, 0);
+  }
+});
+
+test("cancellation failure releases the button and never claims success", async () => {
+  const h = harness([{ id: "active", title: "文件", ownerStaffId: "owner", state: "UPLOADING", bytes: 100 }], { cancel: async () => { throw new Error("取消未保存，请重试"); } });
+  h.page.syncPendingTasks();
+  await h.page.cancelUpload({ currentTarget: { dataset: { id: "active" } } });
+  assert.equal(h.page.data.cancellingId, "");
+  assert.equal(h.page.data.error, true);
+  assert.match(h.page.data.message, /取消未保存/);
+});
+
+test("cancellation event refreshes only metadata and a late completed publication remains visible", async () => {
+  const h = harness();
+  await h.page.onUploadQueueEvent({ type: "cancelled", task: { ownerStaffId: "owner" } });
+  assert.equal(h.calls[0].action, "listTrainingMaterials");
+  assert.match(h.page.data.message, /已取消.*其余任务会继续上传/);
+  await h.page.onUploadQueueEvent({ ...committed(), cancelled: true });
+  await new Promise(setImmediate);
+  assert.equal(h.page.data.materials[0].id, "new");
+  assert.match(h.page.data.message, /已完成发布.*已保留/);
 });
 
 test("PDF retry and list actions have bounded centered controls at both breakpoints", () => {

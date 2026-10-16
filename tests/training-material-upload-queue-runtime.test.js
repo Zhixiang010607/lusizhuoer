@@ -6,19 +6,22 @@ const vm = require("node:vm");
 const source = fs.readFileSync(path.join(__dirname, "../miniprogram-app/miniprogram/services/training-material-upload-queue.js"), "utf8");
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
-function harness({ bytes = 280 * 1024 } = {}) {
-  const module = { exports: {} }, storage = new Map(), calls = [], timers = new Map(), requests = [], diagnostics = [];
+function harness({ bytes = 280 * 1024, savedStorage = null } = {}) {
+  const module = { exports: {} }, storage = savedStorage || new Map(), calls = [], timers = new Map(), requests = [], diagnostics = [], unlinked = [];
   const data = { startupReady: true, session: { role: "hq", staffId: "test-owner" } };
   let clock = 100000000, timerId = 0, abortCount = 0;
-  const faults = { begin: null, confirm: null, unlink: null, read: null, info: null, request: null, http: 200, published: false, cache: null, profile: null };
+  const faults = { begin: null, confirm: null, unlink: null, read: null, info: null, request: null, http: 200, published: false, cache: null, profile: null, storage: null, discard: null };
   const wx = {
-    getStorageSync: (key) => storage.get(key), setStorageSync: (key, value) => storage.set(key, structuredClone(value)),
+    getStorageSync: (key) => storage.get(key), setStorageSync: (key, value) => { if (faults.storage) faults.storage(value); storage.set(key, structuredClone(value)); },
     getFileSystemManager: () => ({
       getFileInfo: ({ success, fail }) => { if (faults.info) fail(new Error("local file missing")); else success({ size: bytes }); },
       readFile: async ({ success, fail }) => {
         try { if (faults.read) await faults.read(); success({ data: new ArrayBuffer(bytes) }); } catch (error) { fail(error); }
       },
-      unlink: async ({ filePath, success }) => { if (faults.unlink) await faults.unlink(filePath); success({}); }
+      unlink: async ({ filePath, success, fail }) => {
+        try { if (faults.unlink) await faults.unlink(filePath); unlinked.push(filePath); success({}); }
+        catch (error) { fail(error); }
+      }
     }),
     request: (options) => {
       calls.push("PUT"); requests.push(options);
@@ -45,6 +48,7 @@ function harness({ bytes = 280 * 1024 } = {}) {
         if (faults.confirm) await faults.confirm(payload);
         return { material: { id: payload.clientRequestId, ...(faults.published ? { status: "PUBLISHED" } : {}) } };
       }
+      if (action === "discardTrainingMaterialUpload") { if (faults.discard) await faults.discard(); return { discarded: true }; }
       return {};
     } })
   });
@@ -52,8 +56,207 @@ function harness({ bytes = 280 * 1024 } = {}) {
   const input = (suffix = "one", ownerStaffId = "test-owner") => ({ ownerStaffId, clientRequestId: `test_request_${suffix}_123456`, title: "测试", originalName: "test.pdf", bytes, filePath: `/private/${suffix}.pdf` });
   const flush = async () => { for (let i = 0; i < 12; i++) await tick(); };
   const wake = async () => { const [id, timer] = [...timers.entries()].sort((a, b) => a[1].at - b[1].at)[0]; timers.delete(id); clock = timer.at; timer.fn(); await flush(); };
-  return { queue, calls, data, faults, timers, requests, diagnostics, storage, input, flush, wake, now: () => clock, aborts: () => abortCount };
+  return { queue, calls, data, faults, timers, requests, diagnostics, storage, unlinked, input, flush, wake, now: () => clock, aborts: () => abortCount };
 }
+
+test("cancelling an active large PUT aborts it and immediately drains the next job", async () => {
+  const h = harness({ bytes: 2 * 1024 * 1024 }), events = [];
+  h.queue.subscribe(event => events.push(event));
+  h.faults.request = options => options === h.requests[0] ? new Promise(() => {}) : Promise.resolve();
+  h.queue.enqueue(h.input("large")); await h.flush();
+  h.queue.enqueue(h.input("small")); await h.flush();
+  assert.equal(h.requests.length, 1);
+  assert.equal(await h.queue.cancel(h.input("large").clientRequestId), true);
+  await h.flush();
+  assert.equal(h.aborts(), 1);
+  assert.equal(h.requests.length, 2);
+  assert.equal(h.calls.filter(x => x === "confirmTrainingMaterialUpload").length, 1, "only the next job publishes");
+  assert.equal(h.queue.allTasks().length, 0);
+  assert.ok(events.some(x => x.type === "cancelled"));
+  assert.equal(events.some(x => x.type === "failed"), false);
+  assert.ok(h.unlinked.includes("/private/large.pdf"));
+});
+
+test("queued cancellation never starts that file while the active upload completes", async () => {
+  const h = harness({ bytes: 2 * 1024 * 1024 }); let release;
+  h.faults.request = () => new Promise(resolve => { release = resolve; });
+  h.queue.enqueue(h.input("active")); await h.flush();
+  h.queue.enqueue(h.input("queued")); await h.flush();
+  await h.queue.cancel(h.input("queued").clientRequestId);
+  assert.equal(h.aborts(), 0);
+  release(); await h.flush();
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.queue.allTasks().length, 0);
+  assert.ok(h.unlinked.includes("/private/queued.pdf"));
+});
+
+test("cancelled tasks remain cancelled across cold start, foreground and manual retry", async () => {
+  const h = harness({ bytes: 2 * 1024 * 1024 });
+  h.faults.request = () => new Promise(() => {});
+  h.queue.enqueue(h.input()); await h.flush();
+  await h.queue.cancel(h.input().clientRequestId); await h.flush();
+  const fresh = harness({ savedStorage: h.storage });
+  await fresh.queue.resume({ retryFailed: true }); await fresh.flush();
+  assert.equal(fresh.calls.includes("PUT"), false);
+  assert.equal(fresh.calls.includes("beginTrainingMaterialUpload"), false);
+  assert.equal(fresh.calls.includes("confirmTrainingMaterialUpload"), false);
+  assert.equal(fresh.queue.retry(h.input().clientRequestId), false);
+  assert.equal(fresh.queue.allTasks().length, 0);
+});
+
+test("cold start during cancelled signing skips the persisted tombstone and starts a later job", async () => {
+  const h = harness();
+  h.faults.begin = () => new Promise(() => {});
+  h.queue.enqueue(h.input("cancelled")); await h.flush();
+  await h.queue.cancel(h.input("cancelled").clientRequestId); await h.flush();
+  assert.equal(h.storage.get(h.queue.STORAGE_KEY)[0].state, "CANCELLED");
+  h.storage.get(h.queue.STORAGE_KEY).push({ ...h.input("next"), state: "QUEUED" });
+  const fresh = harness({ savedStorage: h.storage });
+  await fresh.queue.resume(); await fresh.flush();
+  assert.equal(fresh.requests.length, 1);
+  assert.equal(fresh.queue.allTasks().length, 0);
+  assert.equal(fresh.calls.filter(x => x === "confirmTrainingMaterialUpload").length, 1);
+});
+
+test("cancellation during a hung signing or file read frees the queue and ignores late work", async () => {
+  for (const phase of ["begin", "read"]) {
+    const h = harness(); let release;
+    h.faults[phase] = () => new Promise(resolve => { release = resolve; });
+    h.queue.enqueue(h.input("cancel")); await h.flush();
+    h.faults[phase] = null;
+    h.queue.enqueue(h.input("next"));
+    await h.queue.cancel(h.input("cancel").clientRequestId); await h.flush();
+    assert.equal(h.requests.length, 1, "next job advances without waiting for cancelled IO");
+    release(); await h.flush();
+    assert.equal(h.requests.length, 1, "late old IO cannot create a PUT");
+    assert.equal(h.queue.allTasks().length, 0);
+    assert.ok(h.calls.includes("discardTrainingMaterialUpload"));
+  }
+});
+
+test("late native success after abort cannot publish or resurrect a cancelled job", async () => {
+  const h = harness({ bytes: 2 * 1024 * 1024 }); let release;
+  h.faults.request = () => new Promise(resolve => { release = resolve; });
+  h.queue.enqueue(h.input()); await h.flush();
+  await h.queue.cancel(h.input().clientRequestId); await h.flush();
+  release(); await h.flush();
+  assert.equal(h.calls.includes("confirmTrainingMaterialUpload"), false);
+  assert.equal(h.queue.allTasks().length, 0);
+  await h.wake();
+  assert.equal(h.timers.size, 0);
+});
+
+test("cancelling during publication preserves the object and reports late published material", async () => {
+  const h = harness(), events = []; let release;
+  h.faults.published = true;
+  h.faults.confirm = () => new Promise(resolve => { release = resolve; });
+  h.queue.subscribe(event => events.push(event));
+  h.queue.enqueue(h.input()); await h.flush();
+  await h.queue.cancel(h.input().clientRequestId); await h.flush();
+  assert.equal(h.calls.includes("discardTrainingMaterialUpload"), false);
+  release(); await h.flush();
+  assert.equal(h.calls.includes("discardTrainingMaterialUpload"), false);
+  assert.ok(events.some(x => x.type === "committed" && x.cancelled && x.material.status === "PUBLISHED"));
+  assert.equal(h.queue.allTasks().length, 0);
+});
+
+test("cancelling during the eight-second checkpoint aborts without deleting a possible publication", async () => {
+  const h = harness(); let release;
+  h.faults.request = () => new Promise(() => {});
+  h.faults.confirm = () => new Promise(resolve => { release = resolve; });
+  h.queue.enqueue(h.input()); await h.flush(); await h.wake();
+  await h.queue.cancel(h.input().clientRequestId); await h.flush();
+  assert.equal(h.aborts(), 1);
+  assert.equal(h.calls.includes("discardTrainingMaterialUpload"), false);
+  release(); await h.flush();
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.queue.allTasks().length, 0);
+});
+
+test("unknown legacy confirmation history cannot authorize cancellation object deletion", async () => {
+  const h = harness();
+  h.storage.set(h.queue.STORAGE_KEY, [{ ...h.input(), state: "FAILED", reference: "legacy-reference" }]);
+  await h.queue.cancel(h.input().clientRequestId); await h.flush();
+  assert.equal(h.calls.includes("discardTrainingMaterialUpload"), false);
+});
+
+test("foreign-owner and completed jobs cannot be cancelled or deleted", async () => {
+  const h = harness();
+  h.storage.set(h.queue.STORAGE_KEY, [{ ...h.input("other", "other-owner"), state: "QUEUED" }, { ...h.input("done"), state: "COMMITTED" }]);
+  assert.equal(await h.queue.cancel(h.input("other").clientRequestId), false);
+  assert.equal(await h.queue.cancel(h.input("done").clientRequestId), false);
+  assert.equal(h.calls.length, 0);
+  assert.equal(h.unlinked.length, 0);
+});
+
+test("failed cancellation persistence neither aborts nor falsely reports cancellation", async () => {
+  const h = harness({ bytes: 2 * 1024 * 1024 }); let release;
+  h.faults.request = () => new Promise(resolve => { release = resolve; });
+  h.queue.enqueue(h.input()); await h.flush();
+  h.faults.storage = value => { if (value.some(x => x.state === "CANCELLED")) throw new Error("disk full"); };
+  await assert.rejects(h.queue.cancel(h.input().clientRequestId), /取消未保存/);
+  assert.equal(h.aborts(), 0);
+  assert.equal(h.queue.allTasks()[0].state, "UPLOADING");
+  h.faults.storage = null; release(); await h.flush();
+  assert.equal(h.queue.allTasks().length, 0);
+});
+
+test("publication does not start unless its durable cancellation safety marker is stored", async () => {
+  const h = harness();
+  h.faults.storage = value => { if (value.some(x => x.publicationStarted)) throw new Error("disk full"); };
+  h.queue.enqueue(h.input()); await h.flush();
+  assert.equal(h.calls.includes("confirmTrainingMaterialUpload"), false);
+});
+
+test("cancel cleanup is deduplicated and compacted, not replayed on every foreground", async () => {
+  const h = harness({ bytes: 2 * 1024 * 1024 });
+  h.faults.request = () => new Promise(() => {});
+  h.queue.enqueue(h.input()); await h.flush();
+  await h.queue.cancel(h.input().clientRequestId); await h.flush();
+  for (let i = 0; i < 3; i++) { await h.queue.resume(); await h.flush(); }
+  assert.equal(h.calls.filter(x => x === "discardTrainingMaterialUpload").length, 0, "await cancelled PUT quiescence");
+  await h.wake();
+  assert.equal(h.calls.filter(x => x === "discardTrainingMaterialUpload").length, 1);
+  assert.equal(h.unlinked.filter(x => x === "/private/one.pdf").length, 1);
+  assert.equal(h.storage.get(h.queue.STORAGE_KEY).length, 0);
+});
+
+test("failed local cancellation cleanup never repeats cloud cleanup and eventually compacts", async () => {
+  const h = harness(); let attempts = 0;
+  h.storage.set(h.queue.STORAGE_KEY, [{ ...h.input(), state: "QUEUED", reference: "known-unconfirmed", publicationStarted: false }]);
+  h.faults.unlink = async () => { if (++attempts === 1) throw new Error("temporarily busy"); };
+  await h.queue.cancel(h.input().clientRequestId); await h.flush();
+  await h.queue.resume(); await h.flush();
+  assert.equal(h.calls.filter(x => x === "discardTrainingMaterialUpload").length, 1);
+  assert.equal(h.storage.get(h.queue.STORAGE_KEY).length, 0);
+});
+
+test("cancelled PUT retains its exact reference for deferred reconciliation after a late server commit", async () => {
+  const h = harness({ bytes: 2 * 1024 * 1024 }); let finishServer, objectPresent = false;
+  h.faults.request = () => new Promise(resolve => { finishServer = () => { objectPresent = true; resolve(); }; });
+  h.faults.discard = async () => { objectPresent = false; };
+  h.queue.enqueue(h.input()); await h.flush();
+  await h.queue.cancel(h.input().clientRequestId); await h.flush();
+  assert.equal(h.storage.get(h.queue.STORAGE_KEY)[0].reference, "test-private-reference");
+  assert.ok(h.storage.get(h.queue.STORAGE_KEY)[0].cancelReconcileAt > h.now());
+  assert.equal(h.calls.includes("discardTrainingMaterialUpload"), false);
+  finishServer(); await h.flush();
+  assert.equal(objectPresent, true, "native abort did not prove server-side cancellation");
+  await h.wake();
+  assert.equal(objectPresent, false);
+  assert.equal(h.calls.filter(x => x === "discardTrainingMaterialUpload").length, 1);
+  assert.equal(h.storage.get(h.queue.STORAGE_KEY).length, 0);
+  assert.equal(h.calls.includes("confirmTrainingMaterialUpload"), false);
+});
+
+test("cancellation from the state notification cannot resurrect work after fast cleanup", async () => {
+  const h = harness();
+  h.queue.subscribe(async event => { if (event.type === "state") await h.queue.cancel(event.task.id); });
+  h.queue.enqueue(h.input()); await h.flush();
+  assert.equal(h.calls.includes("PUT"), false);
+  assert.equal(h.calls.includes("beginTrainingMaterialUpload"), false);
+  assert.equal(h.queue.allTasks().length, 0);
+});
 
 test("280KB enqueue starts upload immediately without page re-entry", async () => {
   const h = harness();

@@ -29,6 +29,9 @@ page { min-height: 100%; background: #f3ede2; color: #302a22; }
 .search-card .search-row { margin-bottom: 0; }
 .pending-row { width: 100%; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; gap: 14rpx; padding: 14rpx 0; border-top: 1rpx solid #eadfce; box-sizing: border-box; }
 .pending-row.has-retry { grid-template-columns: minmax(0, 1fr) 132rpx; }
+.pending-summary { width: 100%; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 132rpx; gap: 14rpx; align-items: center; box-sizing: border-box; }
+.pending-info { min-width: 0; }
+.pending-row .cancel-upload-button { color: #934b40; border-color: #e4bdb4; background: #fff3ef; }
 .failed-actions { width: 100%; min-width: 0; display: grid; gap: 10rpx; }
 .pending-row .retry-button.remove-task-button { color: #934b40; border-color: #e4bdb4; background: #fff3ef; }
 .upload-stages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8rpx; margin-top: 12rpx; }
@@ -92,6 +95,7 @@ page { min-height: 100%; background: #f3ede2; color: #302a22; }
   .search-row button { height: 48px; min-height: 48px; border-radius: 11px; font-size: 14px; line-height: 48px; }
   .pending-row { gap: 14px; padding: 12px 0; border-width: 1px; }
   .pending-row.has-retry { grid-template-columns: minmax(0, 1fr) 96px; }
+  .pending-summary { grid-template-columns: minmax(0, 1fr) 96px; gap: 14px; }
   .failed-actions { gap: 8px; }
   .upload-stages { gap: 8px; margin-top: 10px; }
   .upload-stage { padding: 9px 4px; border-width: 1px; border-radius: 8px; font-size: 14px; }
