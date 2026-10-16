@@ -88,6 +88,16 @@ function materialView(item = {}) {
   };
 }
 
+function sameReader(session) {
+  try {
+    const data = getApp().globalData;
+    const current = data.startupReady === true ? data.session : null;
+    return current && ["hq", "teacher"].includes(current.role)
+      && current.staffId === session.staffId && current.uid === session.uid
+      && current.role === session.role && current.loginAt === session.loginAt;
+  } catch (_) { return false; }
+}
+
 Page({
   data: {
     session: {}, isHq: false, loading: true, busy: false, openingId: "", keyword: "",
@@ -111,8 +121,12 @@ Page({
   onShow() {
     this._visible = true;
     if (this.data.isHq) { this.syncPendingTasks(); void uploadQueue.resume({ ownerStaffId: this.data.session.staffId }); }
+    if (this._refreshOnShow) {
+      this._refreshOnShow = false;
+      void this.loadMaterials({ background: true });
+    }
   },
-  onHide() { this._visible = false; this.stopProgressTicker(); },
+  onHide() { this._visible = false; this._refreshOnShow = true; this.stopProgressTicker(); },
   onUnload() {
     this._unloaded = true;
     this._visible = false;
@@ -149,36 +163,51 @@ Page({
     this._progressTimer = null;
   },
   async onUploadQueueEvent(event = {}) {
-    if (this._unloaded || !this.data.isHq || event.task?.ownerStaffId !== String(this.data.session.staffId || "")) return;
+    if (this._unloaded || !sameReader(this.data.session) || !this.data.isHq || event.task?.ownerStaffId !== String(this.data.session.staffId || "")) return;
     this.syncPendingTasks();
     if (event.type === "committed") {
-      // The server-confirmed row is already authoritative. Do not block queue
-      // settlement on another full library request (or resurrect an old list).
       const item = materialView(event.material);
-      const keyword = String(this.data.keyword || "").trim().toLowerCase();
+      if (!item.id || item.status !== "PUBLISHED") return;
       const rows = this.data.materials.filter((row) => row.id !== item.id);
-      if (item.id && item.status === "PUBLISHED" && (!keyword || item.title.toLowerCase().includes(keyword))) rows.unshift(item);
+      rows.unshift(item);
       this._epoch = Number(this._epoch || 0) + 1;
-      this.setData({ materials: rows, loading: false });
-      this.setData({ message: `《${event.task?.title || "培训资料"}》已在后台上传并发布。`, error: false });
+      // Show the authoritative publication immediately, even when an old
+      // search would hide it. Refresh metadata without delaying queue cleanup.
+      this.setData({ materials: rows, keyword: "", loading: false,
+        message: `《${event.task?.title || "培训资料"}》已在后台上传并发布。`, error: false });
+      if (this._visible === false) this._refreshOnShow = true;
+      else void this.loadMaterials({ background: true, confirmedMaterial: item });
     } else if (event.type === "failed") {
       this.setData({ message: event.task?.nextAttemptAt ? "上传未完成，稍后自动重试。" : "上传失败，可重试或移除任务。", error: true });
     } else if (event.type === "removed" || event.type === "settled") {
       this.setData({ message: "", error: false });
     }
   },
-  async loadMaterials() {
+  async loadMaterials(options = {}) {
+    if (this._unloaded || !sameReader(this.data.session)) return;
     const epoch = Number(this._epoch || 0) + 1;
     this._epoch = epoch;
-    this.setData({ loading: true, message: "", error: false });
+    const owner = { ...this.data.session };
+    const keyword = String(this.data.keyword || "").trim();
+    const background = options.background === true;
+    if (!background) this.setData({ loading: true, message: "", error: false });
+    const isCurrent = () => !this._unloaded && epoch === this._epoch && sameReader(owner)
+      && keyword === String(this.data.keyword || "").trim();
     try {
-      const result = await callStaff("listTrainingMaterials", { keyword: String(this.data.keyword || "").trim() });
-      if (epoch !== this._epoch) return;
-      this.setData({ materials: (result.materials || []).filter((item) => item.status === "PUBLISHED" || this.data.isHq && item.status === "ARCHIVED").map(materialView) });
+      const result = await callStaff("listTrainingMaterials", { keyword });
+      if (!isCurrent()) return;
+      const rows = (result.materials || []).filter((item) => item.status === "PUBLISHED" || this.data.isHq && item.status === "ARCHIVED").map(materialView);
+      // A just-confirmed publication must not vanish behind a lagging list
+      // snapshot. Later searches/returns still use the current server list.
+      const confirmed = options.confirmedMaterial;
+      if (confirmed?.id && !rows.some((item) => item.id === confirmed.id)) rows.unshift(confirmed);
+      this.setData({ materials: rows });
     } catch (error) {
-      if (epoch === this._epoch) this.setData({ message: userFacingError(error, "培训资料读取失败，请稍后重试"), error: true });
+      if (isCurrent()) this.setData({ message: options.confirmedMaterial
+        ? "上传已成功，资料列表刷新失败，请点搜索重试。"
+        : userFacingError(error, "培训资料读取失败，请稍后重试"), error: true });
     } finally {
-      if (epoch === this._epoch) this.setData({ loading: false });
+      if (!this._unloaded && epoch === this._epoch && sameReader(owner)) this.setData({ loading: false });
     }
   },
   inputTitle(event) {
