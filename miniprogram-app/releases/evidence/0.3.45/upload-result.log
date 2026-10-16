@@ -1,0 +1,12 @@
+WeChat DevTools Stable 2.02.2608040 official CLI (sanitized receipt)
+Development version: 0.3.45
+AppID: wxb053c1bd6c684d8b
+Source commit: 5db3869970b1b17139b851b657fc8ecb4a346f02
+Description: 培训PDF取消上传和排队，后续文件继续，成功后自动刷新
+Receipt verified: 2026-10-16 15:25:22 Australia/Sydney (AEDT)
+✔ 使用 AppID: wxb053c1bd6c684d8b
+TOTAL bytes: 3402541
+main bytes: 1663929
+✔ upload
+Process exit code: 0
+Status: development upload complete; experience/review/formal release not independently verified
