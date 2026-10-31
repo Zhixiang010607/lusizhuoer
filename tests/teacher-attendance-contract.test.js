@@ -67,7 +67,7 @@ assert.match(teacherCreate, /INSERT INTO public\.teacher_attendance_face_profile
 assert.match(teacherCreate, /profile_photo_file_id/,
   "only the consented attendance enrollment photo is privately retained");
 
-assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v12" : "v135"/);
+assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v12" : "v136"/);
 const clockInStart = face.indexOf("async function clockInTeacherAttendance");
 const clockInEnd = face.indexOf("// Normal and teacher-gift EXPERIENCE", clockInStart);
 const clockIn = face.slice(clockInStart, clockInEnd);
@@ -213,7 +213,9 @@ assert.match(workCalendarJs, /callStaff\("getOwnTeacherWorkMonth"/);
 assert.match(workCalendarWxml, /考勤月历[\s\S]*日报月历/);
 assert.match(workCalendarWxml, /办理上班打卡[\s\S]*办理下班打卡/);
 assert.match(workCalendarWxml, /填写今日日报/);
-assert.match(workCalendarWxml, /上一年[\s\S]*上月[\s\S]*下月[\s\S]*下一年/);
+assert.match(workCalendarWxml, /<month-selector[^>]*bindchange="chooseMonth"/);
+assert.doesNotMatch(workCalendarWxml, /bindtap="changeMonth"|fields="month"/);
+assert.match(workCalendarWxml, /<punch-tabs[^>]*bindchange="choosePunch"/);
 assert.match(workCalendarWxml, /未入职/);
 
 console.log("teacher attendance contract: PASS");

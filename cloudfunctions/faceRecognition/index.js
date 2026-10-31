@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const https = require("https");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v135";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v136";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -2494,7 +2494,9 @@ async function queryInactiveVerificationCustomers(event = {}) {
            latest.verification_type AS last_verification_type,
            latest.product_name AS last_product_name,
            COALESCE(latest.submitted_at, c.created_at) AS baseline_at,
-           CASE WHEN latest.id IS NULL THEN 'CUSTOMER_CREATED' ELSE latest.verification_type END AS baseline_source,
+           CASE WHEN latest.id IS NULL THEN 'CUSTOMER_CREATED'
+                WHEN latest.verification_type = 'SUPPLEMENT' THEN 'NORMAL'
+                ELSE latest.verification_type END AS baseline_source,
            CASE WHEN EXISTS (
              SELECT 1
                FROM public.customer_product_balances balance
@@ -2607,7 +2609,7 @@ async function queryInactiveVerificationCustomers(event = {}) {
     daysSince: Number(customer.days_since || 0),
     lastVerificationId: customer.last_verification_id ? String(customer.last_verification_id) : "",
     lastVerificationCode: customer.last_verification_code || "",
-    lastVerificationType: customer.last_verification_type || "",
+    lastVerificationType: customer.last_verification_type === "SUPPLEMENT" ? "NORMAL" : customer.last_verification_type || "",
     lastProductName: customer.last_product_name || ""
   });
   const categoryPage = (category) => {
@@ -5704,7 +5706,7 @@ async function getTeacherBusinessCustomers(event = {}) {
   ), teacher_customer_totals AS (
     SELECT event.customer_id,
            COUNT(DISTINCT event.product_id)::bigint AS product_count,
-           COALESCE(SUM(event.unit_count) FILTER (WHERE event.event_type = 'NORMAL'), 0)::bigint AS verification_count,
+           COALESCE(SUM(event.unit_count) FILTER (WHERE event.event_type IN ('NORMAL', 'SUPPLEMENT')), 0)::bigint AS verification_count,
            COALESCE(SUM(event.unit_count) FILTER (WHERE event.event_type = 'EXPERIENCE'), 0)::bigint AS experience_count,
            COALESCE(SUM(event.unit_count) FILTER (WHERE event.event_type = 'NEW'), 0)::bigint AS recharge_count,
            COALESCE(SUM(event.unit_count), 0)::bigint AS total_count,

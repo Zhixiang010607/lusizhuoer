@@ -2,5 +2,5 @@
   "navigationBarTitleText": "露思卓儿",
   "backgroundColor": "#f3ede2",
   "enablePullDownRefresh": true,
-  "usingComponents": { "attendance-photo": "/components/attendance-photo/index" }
+  "usingComponents": { "month-selector": "/components/month-selector/index", "punch-tabs": "/components/punch-tabs/index", "attendance-photo": "/components/attendance-photo/index" }
 }

@@ -1,0 +1,4 @@
+<view class="punch-tabs" role="tablist" aria-label="切换打卡记录">
+  <button class="punch-tab {{value === 'clockIn' ? 'active' : ''}}" role="tab" aria-selected="{{value === 'clockIn'}}" data-kind="clockIn" bindtap="choose" disabled="{{disabled}}">上班打卡</button>
+  <button class="punch-tab {{value === 'clockOut' ? 'active' : ''}}" role="tab" aria-selected="{{value === 'clockOut'}}" data-kind="clockOut" bindtap="choose" disabled="{{disabled}}">下班打卡</button>
+</view>

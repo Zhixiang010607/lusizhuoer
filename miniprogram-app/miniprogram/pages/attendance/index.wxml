@@ -5,7 +5,8 @@
     <view class="calendar-card date-query-card"><date-selector value="{{pendingDate}}" end="{{serverToday}}" disabled="{{loading || locating || clocking}}" bindchange="chooseDate"></date-selector><button class="confirm-button" bindtap="confirmDate" disabled="{{loading || locating || clocking}}"><text class="button-label">确认</text></button></view>
     <view class="editor-card attendance-card">
       <view class="section-heading"><view><text class="section-title">{{selectedDate}}</text><text class="section-note">{{selectedAttendance.completed ? '上下班均已打卡' : (selectedAttendance.started ? '已上班打卡，待下班打卡' : '尚未上班打卡')}}</text></view><text class="state-badge {{selectedAttendance.started ? 'editable' : ''}}">{{selectedAttendance.completed ? '已完成' : (selectedAttendance.started ? '进行中' : '未打卡')}}</text></view>
-      <view wx:if="{{selectedAttendance.clockIn}}" class="punch-card">
+      <punch-tabs value="{{punchKind}}" disabled="{{locating || clocking}}" bindchange="choosePunch" />
+      <view wx:if="{{punchKind === 'clockIn' && selectedAttendance.clockIn}}" class="punch-card">
         <view class="punch-heading"><text>上班打卡</text><text>{{selectedAttendance.clockIn.checkedTime}}（北京时间）</text></view>
         <view class="punch-body"><view class="punch-location">
         <view class="record-detail"><view wx:if="{{selectedAttendance.clockIn.placeName}}"><text>附近地点</text><text>{{selectedAttendance.clockIn.placeName}}</text></view><view wx:if="{{selectedAttendance.clockIn.formattedAddress}}"><text>具体地址</text><text>{{selectedAttendance.clockIn.formattedAddress}}</text></view></view>
@@ -13,7 +14,7 @@
         <button class="location-button" data-kind="clockIn" bindtap="openLocation"><text class="button-label">查看上班打卡位置</text></button>
         </view><attendance-photo attendance-id="{{selectedAttendance.clockIn.id}}" class="attendance-evidence" fill="{{true}}" /></view>
       </view>
-      <view wx:if="{{selectedAttendance.clockOut}}" class="punch-card">
+      <view wx:if="{{punchKind === 'clockOut' && selectedAttendance.clockOut}}" class="punch-card">
         <view class="punch-heading"><text>下班打卡</text><text>{{selectedAttendance.clockOut.checkedTime}}（北京时间）</text></view>
         <view class="punch-body"><view class="punch-location">
         <view class="record-detail"><view wx:if="{{selectedAttendance.clockOut.placeName}}"><text>附近地点</text><text>{{selectedAttendance.clockOut.placeName}}</text></view><view wx:if="{{selectedAttendance.clockOut.formattedAddress}}"><text>具体地址</text><text>{{selectedAttendance.clockOut.formattedAddress}}</text></view></view>
@@ -21,6 +22,7 @@
         <button class="location-button" data-kind="clockOut" bindtap="openLocation"><text class="button-label">查看下班打卡位置</text></button>
         </view><attendance-photo attendance-id="{{selectedAttendance.clockOut.id}}" class="attendance-evidence" fill="{{true}}" /></view>
       </view>
+      <view wx:if="{{(punchKind === 'clockIn' && !selectedAttendance.clockIn) || (punchKind === 'clockOut' && !selectedAttendance.clockOut)}}" class="notice-card inline">{{punchKind === 'clockIn' ? '暂无上班打卡记录' : '暂无下班打卡记录'}}</view>
       <view wx:if="{{selectedAttendance.completed}}" class="work-duration"><text>工作时长</text><text>{{selectedAttendance.workDurationText}}</text></view>
       <block wx:if="{{selectedDate === serverToday && !selectedAttendance.completed}}">
         <view class="next-punch"><text>本次办理</text><text>{{selectedAttendance.clockIn ? '下班打卡' : '上班打卡'}}</text></view>

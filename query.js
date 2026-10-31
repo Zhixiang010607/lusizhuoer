@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.13";
+  const VERSION = "0.15.14";
   const type = document.body.dataset.query;
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
@@ -219,13 +219,16 @@
       const [label, className] = states[String(code || "").toUpperCase()] || ["未记录", ""];
       return `<span class="record-status ${className}">${label}</span>`;
     }
-    function verificationTypeTag(code) {
+    function verificationTypeTag(code, status) {
+      const originalType = String(code || "").toUpperCase();
+      const publicType = originalType === "SUPPLEMENT" && String(status || "").toUpperCase() === "APPROVED"
+        ? "NORMAL" : originalType;
       const states = {
         NORMAL: ["正常核销", "status-正常"],
         SUPPLEMENT: ["补录核销", "status-补录"],
         EXPERIENCE: ["体验核销", ""]
       };
-      const [label, className] = states[String(code || "").toUpperCase()] || ["未记录", ""];
+      const [label, className] = states[publicType] || ["未记录", ""];
       return `<span class="record-status ${className}">${label}</span>`;
     }
     function rechargeTypeTag(code) {
@@ -342,7 +345,7 @@
           return `${commonStart}<td>${rechargeTypeTag(record.originalType)}</td><td>${signedUnits}</td><td>${escapeHtml(formatDateTime(record.submittedAt))}</td><td>${statusTag(record.recordStatus)}</td></tr>`;
         }
         const teacher = [record.teacherName, record.teacherCode].filter(Boolean).join(" · ") || "未记录";
-        return `${commonStart}<td>${escapeHtml(teacher)}</td><td>${verificationTypeTag(record.originalType)}</td><td>${escapeHtml(formatDateTime(record.submittedAt))}</td></tr>`;
+        return `${commonStart}<td>${escapeHtml(teacher)}</td><td>${verificationTypeTag(record.originalType, record.recordStatus)}</td><td>${escapeHtml(formatDateTime(record.submittedAt))}</td></tr>`;
       }).join("") || `<tr><td colspan="${columnCount}" class="query-empty">没有符合条件的${noun}记录</td></tr>`;
 
       const selectedCount = selectedRecordTotal();

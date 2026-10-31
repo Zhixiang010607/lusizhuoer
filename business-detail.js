@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.30";
+  const VERSION = "0.16.31";
   const PRODUCT_LOGO_DETAIL_RETRY_DELAYS_MS = Object.freeze([0, 360, 1080]);
   const type = document.body.dataset.recordDetail;
   const params = new URLSearchParams(location.search);
@@ -124,10 +124,12 @@
   function normalizeDatabaseOrder(row) {
     if (!row) return null;
     const originalType = clean(field(row, "original_type", "originalType")).toUpperCase();
+    const publicType = originalType === "SUPPLEMENT" && clean(field(row, "original_status", "originalStatus")).toUpperCase() === "APPROVED"
+      ? "NORMAL" : originalType;
     const voidStatusValue = clean(field(row, "void_request_status", "voidRequestStatus")).toUpperCase();
     const originalKind = type === "recharge"
       ? ({ NEW: "充值申请", REFUND: "退费申请", VOID: "历史作废" }[originalType] || originalType || "充值")
-      : ({ NORMAL: "正常核销", SUPPLEMENT: "补录核销", EXPERIENCE: "体验核销" }[originalType] || originalType || "核销");
+      : ({ NORMAL: "正常核销", SUPPLEMENT: "补录核销", EXPERIENCE: "体验核销" }[publicType] || publicType || "核销");
     return {
       id: clean(row.id),
       recordCode: field(row, "record_code", "recordCode"),
@@ -174,10 +176,12 @@
   function normalizeTeacherOrder(row) {
     if (!row) return null;
     const originalType = clean(row.originalType).toUpperCase();
+    const publicType = originalType === "SUPPLEMENT" && clean(row.recordStatus).toUpperCase() === "APPROVED"
+      ? "NORMAL" : originalType;
     const voidRequestStatus = clean(row.voidRequestStatus).toUpperCase() || "NONE";
     const originalKind = type === "recharge"
       ? ({ NEW: "充值申请", REFUND: "退费申请", VOID: "历史作废" }[originalType] || originalType || "充值")
-      : ({ NORMAL: "正常核销", SUPPLEMENT: "补录核销", EXPERIENCE: "体验核销" }[originalType] || originalType || "核销");
+      : ({ NORMAL: "正常核销", SUPPLEMENT: "补录核销", EXPERIENCE: "体验核销" }[publicType] || publicType || "核销");
     return {
       id: clean(row.id),
       recordCode: clean(row.recordCode),

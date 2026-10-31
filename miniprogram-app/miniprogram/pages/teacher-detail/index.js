@@ -200,6 +200,7 @@ function selectedWorkDay(cell) {
 
 Page({
   data: {
+    punchKind: "clockIn",
     teacherRef: "", staff: null, teacherId: "", profile: {}, loading: true, mutating: "", message: "", error: false,
     entitlements: [], summaryRows: [], history: [],
     products: [], configureProducts: [], configureLabels: [], configureIndex: 0, configureProductId: "", monthlyAllowance: "",
@@ -375,6 +376,7 @@ Page({
     if (!cell || cell.blank) return;
     this.setData({ selectedWorkDate: date, selectedWorkDay: selectedWorkDay(cell) });
   },
+  choosePunch(event) { const kind = text(event.detail?.kind); if (["clockIn", "clockOut"].includes(kind)) this.setData({ punchKind: kind }); },
   openAttendanceMap(event) {
     const kind = text(event.currentTarget.dataset.kind);
     const record = this.data.selectedWorkDay && this.data.selectedWorkDay[kind];

@@ -27,7 +27,8 @@ function calendarCells(month, serverToday, employmentStartDate, attendance, repo
 function selectedDay(cell) { if (!cell || cell.blank) return null; const clockIn = recordView(cell.clockIn), clockOut = recordView(cell.clockOut); return { date: cell.date, future: cell.future, notEmployed: cell.notEmployed, clockIn, clockOut, workDurationText: durationText(clockIn, clockOut), report: cell.report || null }; }
 
 Page({
-  data: { authorized: false, loading: true, mode: "attendance", month: currentMonth(), monthTitle: monthTitle(currentMonth()), ...navigation(currentMonth(), currentMonth()), weekdays: ["一", "二", "三", "四", "五", "六", "日"], days: [], selectedDate: "", selected: null, teacher: {}, serverToday: "", employmentStartDate: "", message: "", error: false },
+  choosePunch(event) { const kind = text(event.detail?.kind); if (["clockIn", "clockOut"].includes(kind)) this.setData({ punchKind: kind }); },
+  data: { punchKind: "clockIn", authorized: false, loading: true, mode: "attendance", month: currentMonth(), monthTitle: monthTitle(currentMonth()), ...navigation(currentMonth(), currentMonth()), weekdays: ["一", "二", "三", "四", "五", "六", "日"], days: [], selectedDate: "", selected: null, teacher: {}, serverToday: "", employmentStartDate: "", message: "", error: false },
   async onLoad(options = {}) { this._unloaded = false; const mode = text(options.mode); if (["attendance", "report"].includes(mode)) this.setData({ mode }); await waitForStartupSession(); if (this._unloaded || !requireSession(["teacher"])) return; this.setData({ authorized: true }); await this.loadMonth(this.data.month); },
   onShow() { if (!this._shownOnce) { this._shownOnce = true; return; } if (this.data.authorized && !this.data.loading) this.loadMonth(this.data.month); },
   onUnload() { this._unloaded = true; this._epoch = Number(this._epoch || 0) + 1; },

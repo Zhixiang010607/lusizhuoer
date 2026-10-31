@@ -24,7 +24,7 @@ assert.match(detailHtml, /<h2 id="reviewPanelTitle">总部审核<\/h2>/);
 assert.match(detailHtml, /id="rechargeStoreMessage"[\s\S]*id="rechargeHqMessage"/);
 assert.match(detailHtml, /门店原申请留言[\s\S]*总部回复/);
 assert.doesNotMatch(detailHtml, /id="storeVoidAction"|id="submitVoidApplication"|<h2>留言记录<\/h2>|id="orderComments"/);
-assert.match(detailHtml, /business-detail\.js\?v=0\.16\.30/);
+assert.match(detailHtml, /business-detail\.js\?v=0\.16\.31/);
 assert.match(detailUi, /function renderRechargeReviewMessages\(record\)/);
 assert.match(detailUi, /renderRechargeReviewMessages\(record\);/);
 assert.doesNotMatch(detailUi, /setupVoidApplication\(record, normalKind/);
@@ -33,7 +33,7 @@ assert.match(queryHtml, /value="PENDING">待审核<\/option><option value="APPRO
 assert.doesNotMatch(queryHtml, /value="CLOSED"|作废状态|record-col-void-status/);
 assert.match(queryHtml, /<th>审核状态<\/th>/);
 assert.doesNotMatch(queryHtml, /<th>状态<\/th>/);
-assert.match(queryHtml, /query\.js\?v=0\.15\.13/);
+assert.match(queryHtml, /query\.js\?v=0\.15\.14/);
 assert.match(queryUi, /REJECTED: "已驳回"/);
 assert.match(queryUi, /APPROVED: "审核通过"/);
 assert.doesNotMatch(queryUi, /function voidStatusTag|voidPending|作废待审核/);

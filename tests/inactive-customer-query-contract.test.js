@@ -33,7 +33,7 @@ test("server applies the fixed paid-verification then EXPERIENCE then customer-c
     "any paid verification history outranks EXPERIENCE, and only the newest row inside the chosen tier is used");
   assert.match(source, /COALESCE\(latest\.submitted_at, c\.created_at\) AS baseline_at/,
     "customers without either verification type must fall back to customer creation time");
-  assert.match(source, /CASE WHEN latest\.id IS NULL THEN 'CUSTOMER_CREATED' ELSE latest\.verification_type END AS baseline_source/);
+  assert.match(source, /CASE WHEN latest\.id IS NULL THEN 'CUSTOMER_CREATED'[\s\S]*WHEN latest\.verification_type = 'SUPPLEMENT' THEN 'NORMAL'[\s\S]*ELSE latest\.verification_type END AS baseline_source/);
   assert.match(source, /CURRENT_TIMESTAMP AT TIME ZONE 'Asia\/Shanghai'/,
     "the user-entered interval must be calculated in the business timezone");
   assert.match(source, /scopedStoreClause\(caller, "c\.created_store_id"\)/);

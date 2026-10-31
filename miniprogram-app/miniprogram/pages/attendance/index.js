@@ -115,7 +115,8 @@ function locationProblem(error) {
 }
 
 Page({
-  data: { authorized: false, loading: true, locating: false, clocking: false, captureReady: false, faceEnrolled: false,
+  choosePunch(event) { const kind = String(event.detail?.kind || ""); if (!this.data.locating && !this.data.clocking && ["clockIn", "clockOut"].includes(kind)) this.setData({ punchKind: kind }); },
+  data: { punchKind: "clockIn", authorized: false, loading: true, locating: false, clocking: false, captureReady: false, faceEnrolled: false,
     message: "", error: false, permissionDenied: false, permissionAction: "", locationErrorCode: "", serverToday: "", visibleMonth: "", selectedDate: "", pendingDate: "", canNextMonth: false,
     calendarCells: [], selectedAttendance: { clockIn: null, clockOut: null, started: false, completed: false, workDurationText: "—" },
     todayAttendance: { clockIn: null, clockOut: null, started: false, completed: false, workDurationText: "—" },

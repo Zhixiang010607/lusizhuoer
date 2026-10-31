@@ -1,0 +1,4 @@
+<view class="month-selector" aria-label="直接选择年和月">
+  <picker class="month-part" mode="selector" range="{{years}}" range-key="label" value="{{yearIndex}}" bindchange="chooseYear" disabled="{{disabled}}"><view class="month-button {{disabled ? 'disabled' : ''}}"><text>{{year}}年</text><text class="chevron">⌄</text></view></picker>
+  <picker class="month-part" mode="selector" range="{{months}}" range-key="label" value="{{monthIndex}}" bindchange="chooseMonth" disabled="{{disabled}}"><view class="month-button {{disabled ? 'disabled' : ''}}"><text>{{month}}月</text><text class="chevron">⌄</text></view></picker>
+</view>

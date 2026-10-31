@@ -2,6 +2,8 @@
   "navigationBarTitleText": "露思卓儿",
   "enablePullDownRefresh": true,
   "usingComponents": {
+    "month-selector": "/components/month-selector/index",
+    "punch-tabs": "/components/punch-tabs/index",
     "teacher-workspace": "/components/teacher-workspace/index",
     "attendance-photo": "/components/attendance-photo/index",
     "camera-capture": "/components/camera-capture/index"
