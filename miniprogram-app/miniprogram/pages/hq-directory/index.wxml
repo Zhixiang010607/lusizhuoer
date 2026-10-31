@@ -63,4 +63,18 @@
   </block>
 </template>
 
-<template name="directoryPager"><view class="directory-pagination"><button data-kind="{{kind}}" data-direction="-1" bindtap="directoryPage" disabled="{{loading || page <= 1}}">上一页</button><text>第 {{page}} / {{pages}} 页</text><button data-kind="{{kind}}" data-direction="1" bindtap="directoryPage" disabled="{{loading || page >= pages}}">下一页</button><view class="directory-page-jump"><text>跳至第</text><input type="number" min="1" value="{{value}}" data-kind="{{kind}}" bindinput="inputDirectoryPage" disabled="{{loading}}" /><text>页</text><button data-kind="{{kind}}" bindtap="directoryPage" disabled="{{loading}}">跳转</button></view></view></template>
+<template name="directoryPager">
+  <view class="directory-pagination">
+    <view class="directory-page-controls">
+      <button data-kind="{{kind}}" data-direction="-1" bindtap="directoryPage" disabled="{{loading || page <= 1}}">上一页</button>
+      <text class="directory-page-status">第 {{page}} / {{pages}} 页</text>
+      <button data-kind="{{kind}}" data-direction="1" bindtap="directoryPage" disabled="{{loading || page >= pages}}">下一页</button>
+    </view>
+    <view class="directory-page-jump">
+      <text>跳至第</text>
+      <input type="number" min="1" value="{{value}}" data-kind="{{kind}}" bindinput="inputDirectoryPage" bindconfirm="directoryPage" confirm-type="done" aria-label="跳转到第几页" disabled="{{loading}}" />
+      <text>页</text>
+      <button class="directory-jump-button" data-kind="{{kind}}" bindtap="directoryPage" disabled="{{loading}}">跳转</button>
+    </view>
+  </view>
+</template>

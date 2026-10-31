@@ -42,15 +42,22 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
 .message.error { color: #8b3f35; background: #fff1ed; border: 1rpx solid #e4bdb4; }
 .message.success { color: #4f664f; background: #f0f6ec; border: 1rpx solid #c9dbc0; }
 .safe-bottom { height: calc(24rpx + env(safe-area-inset-bottom)); }
-.directory-pagination { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12rpx; margin-top: 18rpx; text-align: center; font-size: 24rpx; }
-.directory-pagination button { min-height: 72rpx; margin: 0; padding: 0 18rpx; display: flex; align-items: center; justify-content: center; color: #74592d; background: #fffaf3; border: 1rpx solid #dfcfb4; font-size: inherit; }
-.directory-page-jump { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 10rpx; }
-.directory-page-jump input { width: 100rpx; height: 72rpx; text-align: center; border: 1rpx solid #dfcfb4; border-radius: 12rpx; background: #fff; }
+.directory-pagination { width: 100%; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 16rpx; margin-top: 20rpx; color: #74592d; text-align: center; font-size: 24rpx; }
+.directory-page-controls { width: 100%; min-width: 0; display: grid; grid-template-columns: 144rpx minmax(0, 1fr) 144rpx; align-items: center; gap: 12rpx; }
+.directory-pagination button { width: 144rpx; min-width: 0; max-width: 100%; height: 80rpx; min-height: 80rpx; margin: 0; padding: 0 16rpx; display: flex; align-items: center; justify-content: center; box-sizing: border-box; border-radius: 12rpx; color: #74592d; background: #fff; border: 1rpx solid #d8c5a3; font-size: inherit; font-weight: 700; line-height: 1; white-space: nowrap; }
+.directory-page-status { min-width: 0; height: 80rpx; display: flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; line-height: 1.25; white-space: nowrap; }
+.directory-page-jump { min-width: 0; max-width: 100%; display: grid; grid-template-columns: auto 112rpx auto 144rpx; align-items: center; justify-content: center; gap: 12rpx; white-space: nowrap; }
+.directory-page-jump input { width: 112rpx; min-width: 0; height: 80rpx; min-height: 80rpx; margin: 0; padding: 0 12rpx; box-sizing: border-box; color: #302a22; text-align: center; border: 1rpx solid #d8c5a3; border-radius: 12rpx; background: #fff; font-size: inherit; }
+.directory-pagination .directory-jump-button { color: #fffdf8; background: #6f532e; border-color: #6f532e; }
+.directory-pagination button[disabled] { color: #9b9082; background: #f4eee5; border-color: #dfcfb4; opacity: 1; }
+.directory-page-jump input[disabled] { color: #9b9082; background: #f4eee5; }
 @media (min-width: 700px) {
-  .directory-pagination { gap: 10px; margin-top: 14px; font-size: 14px; }
-  .directory-pagination button { min-height: 42px; padding: 0 14px; }
-  .directory-page-jump { gap: 8px; }
-  .directory-page-jump input { width: 72px; height: 42px; border-radius: 8px; }
+  .directory-pagination { flex-direction: row; justify-content: center; gap: 16px; margin-top: 16px; font-size: 14px; }
+  .directory-page-controls { width: auto; grid-template-columns: 80px auto 80px; gap: 10px; }
+  .directory-pagination button { width: 80px; height: 42px; min-height: 42px; padding: 0 12px; border-width: 1px; border-radius: 8px; }
+  .directory-page-status { min-width: 96px; height: 42px; }
+  .directory-page-jump { grid-template-columns: auto 72px auto 80px; gap: 8px; }
+  .directory-page-jump input { width: 72px; height: 42px; min-height: 42px; padding: 0 8px; border-width: 1px; border-radius: 8px; }
 }
 
 @media (min-width: 700px) {
