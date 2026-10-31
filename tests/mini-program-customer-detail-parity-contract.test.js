@@ -34,7 +34,7 @@ test("mini customer profile paginates every business history at twenty rows", ()
   assert.match(wxml, /bindtap="loadMoreMessages"/);
   assert.match(wxml, /bindtap="submitMessage"[^>]*>发送留言<\/button>/);
   assert.match(wxss, /\.message-compose \{[^}]*flex-direction: column;[^}]*align-items: stretch;/s);
-  assert.match(wxss, /\.submit-message-button \{[^}]*width: 100%;[^}]*align-items: center;[^}]*justify-content: center;[^}]*text-align: center;/s);
+  assert.match(wxss, /\.messages-card \.submit-message-button \{[^}]*width: 184rpx;[^}]*align-items: center;[^}]*justify-content: center;[^}]*text-align: center;/s);
 });
 
 test("notes, customer status, recent dates, and photo failures retain role boundaries", () => {
@@ -68,7 +68,8 @@ test("notes and messages keep symmetric in-card spacing and the warm internal pa
   assert.match(wxss, /\.notes-input \{[^}]*background: #fff7eb;[^}]*border-color: #d8bc8c;/s);
   assert.match(wxss, /\.message-list \{[^}]*width: 100%;[^}]*box-sizing: border-box;/s);
   assert.match(wxss, /\.message-item \{[^}]*background: #f9edda;[^}]*border: 1rpx solid #dfc69e;/s);
-  assert.match(wxss, /\.message-compose \{[^}]*padding: 16rpx;[^}]*background: #f5ead8;[^}]*border: 1rpx solid #dfc69e;[^}]*border-radius: 18rpx;/s);
+  assert.match(wxss, /\.message-compose \{[^}]*padding: 0;[^}]*background: transparent;[^}]*border: 0;/s,
+    "the compact composer must not introduce another padded panel");
   assert.match(wxss, /\.message-input \{[^}]*background: #fffaf3;[^}]*border-color: #d8bc8c;/s);
 });
 

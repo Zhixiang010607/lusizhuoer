@@ -58,7 +58,7 @@
 
     <view class="card messages-card">
       <view class="card-title"><text>客户留言</text><text class="badge">{{messageTotal}} 条</text></view>
-      <scroll-view class="message-list" scroll-y enhanced show-scrollbar="false">
+      <scroll-view class="message-list {{messages.length ? 'has-messages' : ''}}" scroll-y enhanced show-scrollbar="false">
         <view wx:if="{{messagesLoading && !messages.length}}" class="message-empty">正在读取留言…</view>
         <view wx:elif="{{!messages.length}}" class="message-empty">暂无客户留言</view>
         <view wx:for="{{messages}}" wx:key="id" class="message-item">
@@ -74,9 +74,11 @@
       <view class="message-compose">
         <view class="message-input-wrap">
           <textarea class="textarea message-input" maxlength="100" value="{{messageText}}" bindinput="inputMessage" disabled="{{messageSubmitting}}" placeholder="输入客户留言，最多100字"></textarea>
-          <text class="character-count {{messageLength >= 100 ? 'limit' : ''}}">{{messageLength}} / 100</text>
         </view>
-        <button class="primary submit-message-button" bindtap="submitMessage" loading="{{messageSubmitting}}" disabled="{{messageSubmitting || !messageLength}}">发送留言</button>
+        <view class="message-compose-footer">
+          <text class="character-count {{messageLength >= 100 ? 'limit' : ''}}">{{messageLength}} / 100</text>
+          <button class="primary submit-message-button" bindtap="submitMessage" loading="{{messageSubmitting}}" disabled="{{messageSubmitting || !messageLength}}">发送留言</button>
+        </view>
       </view>
       <view wx:if="{{messageMessage}}" class="section-message {{messageError ? 'error' : ''}}">{{messageMessage}}</view>
     </view>
