@@ -148,7 +148,7 @@ Page({
     hqPeriodOptions: dashboard.HQ_PERIOD_OPTIONS, hqPeriodLabels: dashboard.HQ_PERIOD_OPTIONS.map((item) => item.label),
     hqPeriod: "TODAY", hqPeriodIndex: 0, hqStart: "", hqEnd: "",
     hqMetrics: [], hqCharts: [], hqDimensions: DIMENSIONS,
-    hqProjectSummaryRows: [], hqProjectSummaryPage: pageView({ pageSize: PRODUCT_SUMMARY_PAGE_SIZE }), hqProjectSummaryInput: "1",
+    hqProjectSummaryRows: [], hqProjectSummaryPage: pageView({ pageSize: PRODUCT_SUMMARY_PAGE_SIZE }),
     hqProjectSummaryTotals: { ...dashboard.EMPTY_TOTALS }, hqProjectSummaryTotalsReady: false, hqProjectSummaryLoading: true, hqProjectSummaryError: "",
     hqDimensionLabels: DIMENSIONS.map((item) => item.label), hqDimension: "store", hqDimensionIndex: 0,
     hqRankingMetrics: RANKING_METRICS, hqRankingMetricLabels: RANKING_METRICS.map((item) => item.label),
@@ -455,7 +455,6 @@ Page({
           const summary = hqProductSummaryView(productSummaryResult.value);
           changes.hqProjectSummaryRows = summary.rows;
           changes.hqProjectSummaryPage = summary.page;
-          changes.hqProjectSummaryInput = String(summary.page.page);
           changes.hqProjectSummaryError = "";
         } catch (summaryError) {
           changes.hqProjectSummaryRows = [];
@@ -780,7 +779,6 @@ Page({
         hqProjectSummaryLoading: false,
         hqProjectSummaryRows: summary.rows,
         hqProjectSummaryPage: summary.page,
-        hqProjectSummaryInput: String(summary.page.page),
         hqProjectSummaryError: ""
       });
     } catch (error) {
@@ -801,13 +799,6 @@ Page({
     if (!this.data.hqProjectSummaryPage.nextDisabled && !this.data.hqProjectSummaryLoading) {
       this.loadHqProjectSummary(this.data.hqProjectSummaryPage.page + 1);
     }
-  },
-  inputHqProductSummaryPage(event) { this.setData({ hqProjectSummaryInput: String(event.detail.value || "") }); },
-  jumpHqProductSummaryPage() {
-    const raw = String(this.data.hqProjectSummaryInput || "").trim();
-    const page = Number(raw);
-    if (this.data.hqProjectSummaryLoading || !/^\d+$/.test(raw) || !Number.isSafeInteger(page) || page < 1 || page > this.data.hqProjectSummaryPage.totalPages) return;
-    this.loadHqProjectSummary(page);
   },
   chooseHqDimension(event) {
     if (this.data.hqRankingLoading || this.data.hqExporting) return;
