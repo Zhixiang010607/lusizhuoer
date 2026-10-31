@@ -28,10 +28,10 @@
     <view wx:elif="{{searched}}" class="result-sections">
       <view class="result-section">
         <view class="section-title"><view><text>全部项目为 0</text></view><text class="badge">{{zeroTotal}} 位</text></view>
-        <scroll-view wx:if="{{zeroCustomers.length}}" class="inactive-table-scroll" scroll-x="true" data-visible-rows="{{zeroCustomers.length > 5 ? 5 : zeroCustomers.length}}" scroll-y="{{zeroCustomers.length > 5}}" scroll-left="{{zeroTableScrollLeft}}" enhanced="true" show-scrollbar="{{zeroCustomers.length > 5}}">
+        <scroll-view wx:if="{{zeroCustomers.length}}" class="inactive-table-scroll" scroll-x="true" data-visible-rows="{{zeroCustomers.length > 10 ? 10 : zeroCustomers.length}}" scroll-left="{{zeroTableScrollLeft}}" enhanced="true" show-scrollbar="{{false}}">
           <view class="inactive-table">
-            <view class="inactive-row inactive-head"><text>客户</text><text>门店</text><text>间隔时间</text><text>计算起点</text><text>上次核销</text></view>
-            <view wx:for="{{zeroCustomers}}" wx:key="customerCode" class="inactive-row" data-code="{{item.customerCode}}" bindtap="openCustomer"><text class="customer-name">{{item.customerName}}</text><text>{{item.storeName}}</text><text class="days-since">{{item.daysSince}} 天</text><text>{{item.baselineSourceLabel}}</text><text>{{item.lastVerificationLabel}}</text></view>
+            <view class="inactive-row inactive-head"><text class="list-row-number">序号</text><text>客户</text><text>门店</text><text>间隔时间</text><text>计算起点</text><text>上次核销</text></view>
+            <view wx:for="{{zeroCustomers}}" wx:key="customerCode" class="inactive-row" data-code="{{item.customerCode}}" bindtap="openCustomer"><text class="list-row-number">{{index + 1}}</text><text class="customer-name">{{item.customerName}}</text><text>{{item.storeName}}</text><text class="days-since">{{item.daysSince}} 天</text><text>{{item.baselineSourceLabel}}</text><text>{{item.lastVerificationLabel}}</text></view>
           </view>
         </scroll-view>
         <view wx:else class="empty compact-empty">当前条件下没有这类客户</view>
@@ -41,10 +41,10 @@
 
       <view class="result-section">
         <view class="section-title"><view><text>任意项目非 0</text></view><text class="badge">{{nonzeroTotal}} 位</text></view>
-        <scroll-view wx:if="{{nonzeroCustomers.length}}" class="inactive-table-scroll" scroll-x="true" data-visible-rows="{{nonzeroCustomers.length > 5 ? 5 : nonzeroCustomers.length}}" scroll-y="{{nonzeroCustomers.length > 5}}" scroll-left="{{nonzeroTableScrollLeft}}" enhanced="true" show-scrollbar="{{nonzeroCustomers.length > 5}}">
+        <scroll-view wx:if="{{nonzeroCustomers.length}}" class="inactive-table-scroll" scroll-x="true" data-visible-rows="{{nonzeroCustomers.length > 10 ? 10 : nonzeroCustomers.length}}" scroll-left="{{nonzeroTableScrollLeft}}" enhanced="true" show-scrollbar="{{false}}">
           <view class="inactive-table">
-            <view class="inactive-row inactive-head"><text>客户</text><text>门店</text><text>间隔时间</text><text>计算起点</text><text>上次核销</text></view>
-            <view wx:for="{{nonzeroCustomers}}" wx:key="customerCode" class="inactive-row" data-code="{{item.customerCode}}" bindtap="openCustomer"><text class="customer-name">{{item.customerName}}</text><text>{{item.storeName}}</text><text class="days-since">{{item.daysSince}} 天</text><text>{{item.baselineSourceLabel}}</text><text>{{item.lastVerificationLabel}}</text></view>
+            <view class="inactive-row inactive-head"><text class="list-row-number">序号</text><text>客户</text><text>门店</text><text>间隔时间</text><text>计算起点</text><text>上次核销</text></view>
+            <view wx:for="{{nonzeroCustomers}}" wx:key="customerCode" class="inactive-row" data-code="{{item.customerCode}}" bindtap="openCustomer"><text class="list-row-number">{{index + 1}}</text><text class="customer-name">{{item.customerName}}</text><text>{{item.storeName}}</text><text class="days-since">{{item.daysSince}} 天</text><text>{{item.baselineSourceLabel}}</text><text>{{item.lastVerificationLabel}}</text></view>
           </view>
         </scroll-view>
         <view wx:else class="empty compact-empty">当前条件下没有这类客户</view>

@@ -68,7 +68,7 @@ test("role homes use a bounded tablet dashboard instead of a magnified phone", (
   assert.match(wxss, /\.summary-scroll \{ height: auto !important; \}/,
     "project summary height must follow its real tablet rows");
   assert.match(wxss, /\.record-scroll\[data-visible-rows="5"\], \.customer-scroll\[data-visible-rows="5"\] \{ height: 308px !important; \}/,
-    "long tablet lists must stop at five compact rows before internal scrolling");
+    "tablet lists retain compact per-row sizing, with ten-row extensions tested separately");
   assert.match(wxss, /\.summary-table, \.record-table, \.customer-table \{ width: auto; min-width: 100%; \}/,
     "tablet tables should size columns from their longest values and scroll only when needed");
   assert.match(wxss, /\.summary-table \.table-row > view, \.record-table \.table-row > view, \.customer-table \.table-row > view \{[^}]*height: 52px;[^}]*padding: 8px 12px;[^}]*font-size: 14px;/s,
@@ -78,11 +78,11 @@ test("role homes use a bounded tablet dashboard instead of a magnified phone", (
   assert.match(wxml, /class="table-scroll record-scroll" data-visible-rows="\{\{businessTabletVisibleRows\}\}"/);
   assert.match(wxml, /class="table-scroll customer-scroll" data-visible-rows="\{\{activeCustomers\.tabletVisibleRows\}\}"/);
   assert.match(js, /businessTabletVisibleRows: visibleRows/);
-  assert.match(js, /tabletVisibleRows: Math\.min\(5, rows\.length\)/);
+  assert.match(js, /tabletVisibleRows: Math\.min\(10, rows\.length\)/);
   assert.match(context, /小程序在平板（含 iPad）上不得把手机 `rpx` 版面按屏宽整体放大/);
 });
 
-test("query and review pages use compact tablet filters and five-row result viewports", () => {
+test("query and review pages use compact tablet filters and ten-row result viewports", () => {
   const customersWxml = read("miniprogram-app", "miniprogram", "pages", "customers", "index.wxml");
   const customersWxss = read("miniprogram-app", "miniprogram", "pages", "customers", "index.wxss");
   const recordsWxml = read("miniprogram-app", "miniprogram", "pages", "records", "index.wxml");
@@ -151,11 +151,11 @@ test("query and review pages use compact tablet filters and five-row result view
   assert.match(directoryWxss, /\.table-row > text \{[^}]*display: table-cell;[^}]*padding: 10rpx 18rpx;[^}]*font-size: 24rpx;[^}]*white-space: nowrap;/s,
     "directory cells must keep one size and scroll instead of shrinking or wrapping");
 
-  assert.match(customersWxml, /data-visible-rows="\{\{customers\.length > 5 \? 5 : customers\.length\}\}" scroll-y="\{\{customers\.length > 5\}\}"/);
-  assert.match(recordsWxml, /data-visible-rows="\{\{records\.length > 5 \? 5 : records\.length\}\}" scroll-y="\{\{records\.length > 5\}\}"/);
-  assert.match(reviewsWxml, /data-visible-rows="\{\{rows\.length > 5 \? 5 : rows\.length\}\}" scroll-y="\{\{rows\.length > 5\}\}"/);
+  assert.match(customersWxml, /data-visible-rows="\{\{customers\.length > 10 \? 10 : customers\.length\}\}"/);
+  assert.match(recordsWxml, /data-visible-rows="\{\{records\.length > 10 \? 10 : records\.length\}\}"/);
+  assert.match(reviewsWxml, /data-visible-rows="\{\{rows\.length > 10 \? 10 : rows\.length\}\}"/);
   assert.equal((directoryWxml.match(/data-visible-rows=/g) || []).length, 3,
-    "search, active and archived directory tables each own a five-row viewport");
+    "search, active and archived directory tables each own a ten-row page");
   assert.match(customersWxss, /\.customer-table-scroll\[data-visible-rows="5"\] \{ height: 344px; \}/);
   assert.match(recordsWxss, /\.record-scroll\[data-visible-rows="5"\] \{ height: 344px; \}/);
   assert.match(reviewsWxss, /\.table-scroll\[data-visible-rows="5"\] \{ height: 308px; \}/);

@@ -87,3 +87,15 @@
 
 .large-counts .summary-grid, .large-counts .summary-stages { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (min-width: 700px) { .large-counts .summary-grid, .large-counts .summary-stages { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* Ten complete rows; keep physical-pixel tablet sizes separate from phone rpx. */
+.customer-table-scroll[data-visible-rows="6"] { height: 498rpx; }
+.customer-table-scroll[data-visible-rows="7"] { height: 570rpx; }
+.customer-table-scroll[data-visible-rows="8"] { height: 642rpx; }
+.customer-table-scroll[data-visible-rows="9"] { height: 714rpx; }
+.customer-table-scroll[data-visible-rows="10"] { height: 786rpx; }
+@media (min-width: 700px) { .customer-table-scroll[data-visible-rows="6"] { height: 402px; } }
+@media (min-width: 700px) { .customer-table-scroll[data-visible-rows="7"] { height: 460px; } }
+@media (min-width: 700px) { .customer-table-scroll[data-visible-rows="8"] { height: 518px; } }
+@media (min-width: 700px) { .customer-table-scroll[data-visible-rows="9"] { height: 576px; } }
+@media (min-width: 700px) { .customer-table-scroll[data-visible-rows="10"] { height: 634px; } }

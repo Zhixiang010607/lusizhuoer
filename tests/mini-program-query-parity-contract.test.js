@@ -65,7 +65,7 @@ test("customer query keeps the web filter dimensions, role scope, details, and d
     "HQ and store customer queries must open on today's Shanghai business date");
   assert.match(js, /resetSearch\(\)[\s\S]*\.\.\.query\.defaultTimeFilter\(\)/,
     "resetting a customer query must return the time range to today");
-  assert.match(wxml, /<view class="customer-row customer-head"><text>姓名<\/text><text>充值<\/text><text>核销<\/text><text>门店<\/text><text>生日<\/text><text>业务阶段<\/text><text>建档日期<\/text><text>客户状态<\/text><\/view>/,
+  assert.match(wxml, /<view class="customer-row customer-head"><text class="list-row-number">序号<\/text><text>姓名<\/text><text>充值<\/text><text>核销<\/text><text>门店<\/text><text>年龄<\/text><text>业务阶段<\/text><text>建档日期<\/text><text>客户状态<\/text><\/view>/,
     "customer result columns keep recharge and verification after the name and status last");
   assert.match(wxml, /wx:if="\{\{session\.role === 'hq'\}\}" class="field query-wide"><text class="field-label">门店范围<\/text>/);
   assert.match(wxml, /class="query-grid customer-time-actions"[\s\S]*建档时间[\s\S]*class="customer-query-action"[\s\S]*开始查询/,

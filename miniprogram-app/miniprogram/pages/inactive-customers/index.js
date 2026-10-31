@@ -9,7 +9,7 @@ const {
 const { PDF_EXPORT_MAX_ROWS, createGroupedPdf, loadCjkFontBytes, openPdf } = require("../../services/grouped-table-pdf");
 const query = require("../../services/query-tools");
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 const CATEGORIES = Object.freeze(["ZERO", "NONZERO"]);
 const EMPTY_SUMMARY = Object.freeze({
   selectedTotal: 0,

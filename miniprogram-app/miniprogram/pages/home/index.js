@@ -18,8 +18,8 @@ const RANKING_METRICS = Object.freeze([
   { value: "experience", label: "体验" },
   { value: "refund", label: "退费" }
 ]);
-const PAGE_SIZE = 20;
-const RANKING_PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
+const RANKING_PAGE_SIZE = 10;
 const PRODUCT_SUMMARY_PAGE_SIZE = 10;
 const REPORT_EXPORT_PAGE_SIZE = 500;
 const REPORT_EXPORT_MAX_ROWS = 10000;
@@ -43,34 +43,34 @@ function quotaRows(items = []) {
 }
 function customerView(group) {
   const rows = Array.isArray(group?.rows) ? group.rows : [];
-  const visibleRows = Math.min(5, Math.max(1, rows.length));
+  const visibleRows = Math.min(10, Math.max(1, rows.length));
   const page = pageView(group);
   return {
     ...group, ...page,
     pageInput: String(page.page),
     viewportHeight: 64 + visibleRows * 72,
-    tabletVisibleRows: Math.min(5, rows.length),
-    scrollable: rows.length > 5
+    tabletVisibleRows: Math.min(10, rows.length),
+    scrollable: rows.length > 10
   };
 }
 function businessRecordsView(items, type) {
   const businessRecords = dashboard.records(items, type);
-  const visibleRows = Math.min(5, businessRecords.length);
+  const visibleRows = Math.min(10, businessRecords.length);
   return {
     businessRecords,
     businessViewportHeight: 64 + (visibleRows ? visibleRows * 72 : 104),
     businessTabletVisibleRows: visibleRows,
-    businessScrollable: businessRecords.length > 5
+    businessScrollable: businessRecords.length > 10
   };
 }
 function rankingView(items = []) {
   const rows = Array.isArray(items) ? items : [];
-  const visibleRows = Math.min(5, rows.length);
+  const visibleRows = Math.min(10, rows.length);
   return {
     hqRanking: rows,
     hqRankingVisibleRows: visibleRows,
     hqRankingViewportHeight: 64 + (visibleRows ? visibleRows * 72 : 104),
-    hqRankingScrollable: rows.length > 5
+    hqRankingScrollable: rows.length > 10
   };
 }
 function rejectedMessage(results, fallback) {
@@ -148,7 +148,7 @@ Page({
     hqPeriodOptions: dashboard.HQ_PERIOD_OPTIONS, hqPeriodLabels: dashboard.HQ_PERIOD_OPTIONS.map((item) => item.label),
     hqPeriod: "TODAY", hqPeriodIndex: 0, hqStart: "", hqEnd: "",
     hqMetrics: [], hqCharts: [], hqDimensions: DIMENSIONS,
-    hqProjectSummaryRows: [], hqProjectSummaryPage: pageView({ pageSize: PRODUCT_SUMMARY_PAGE_SIZE }),
+    hqProjectSummaryRows: [], hqProjectSummaryPage: pageView({ pageSize: PRODUCT_SUMMARY_PAGE_SIZE }), hqProjectSummaryInput: "1",
     hqProjectSummaryTotals: { ...dashboard.EMPTY_TOTALS }, hqProjectSummaryTotalsReady: false, hqProjectSummaryLoading: true, hqProjectSummaryError: "",
     hqDimensionLabels: DIMENSIONS.map((item) => item.label), hqDimension: "store", hqDimensionIndex: 0,
     hqRankingMetrics: RANKING_METRICS, hqRankingMetricLabels: RANKING_METRICS.map((item) => item.label),
@@ -259,7 +259,7 @@ Page({
     });
     const [storeResult, analyticsResult, recordsResult] = await Promise.allSettled([
       callFace("getStoreDashboard", {
-        activeCustomerPage, archivedCustomerPage
+        activeCustomerPage, archivedCustomerPage, customerPageSize: PAGE_SIZE
       }),
       callFace("getStoreBusinessAnalytics", { ...rangeData, allTime: !range.startDate }),
       callFace("queryStoreBusinessRecords", {
@@ -380,14 +380,14 @@ Page({
     this.setData({ ...targetChanges, message: "", error: false });
     try {
       if (this.data.session.role === "teacher") {
-        const value = await callFace("getTeacherBusinessCustomers", { activePage, archivedPage });
+        const value = await callFace("getTeacherBusinessCustomers", { activePage, archivedPage, customerPageSize: PAGE_SIZE });
         if (requestEpoch !== this._customerPageRequestEpochs[status]) return;
         const group = status === "ARCHIVED" ? value.archived : value.active;
         this.setData(status === "ARCHIVED"
           ? { archivedCustomers: customerView(dashboard.customerGroup(group)) }
           : { activeCustomers: customerView(dashboard.customerGroup(group)) });
       } else {
-        const value = await callFace("getStoreDashboard", { activeCustomerPage: activePage, archivedCustomerPage: archivedPage });
+        const value = await callFace("getStoreDashboard", { activeCustomerPage: activePage, archivedCustomerPage: archivedPage, customerPageSize: PAGE_SIZE });
         const groups = dashboard.storeCustomerGroups(value.store);
         if (requestEpoch !== this._customerPageRequestEpochs[status]) return;
         this.setData(status === "ARCHIVED"
@@ -455,6 +455,7 @@ Page({
           const summary = hqProductSummaryView(productSummaryResult.value);
           changes.hqProjectSummaryRows = summary.rows;
           changes.hqProjectSummaryPage = summary.page;
+          changes.hqProjectSummaryInput = String(summary.page.page);
           changes.hqProjectSummaryError = "";
         } catch (summaryError) {
           changes.hqProjectSummaryRows = [];
@@ -779,6 +780,7 @@ Page({
         hqProjectSummaryLoading: false,
         hqProjectSummaryRows: summary.rows,
         hqProjectSummaryPage: summary.page,
+        hqProjectSummaryInput: String(summary.page.page),
         hqProjectSummaryError: ""
       });
     } catch (error) {
@@ -799,6 +801,13 @@ Page({
     if (!this.data.hqProjectSummaryPage.nextDisabled && !this.data.hqProjectSummaryLoading) {
       this.loadHqProjectSummary(this.data.hqProjectSummaryPage.page + 1);
     }
+  },
+  inputHqProductSummaryPage(event) { this.setData({ hqProjectSummaryInput: String(event.detail.value || "") }); },
+  jumpHqProductSummaryPage() {
+    const raw = String(this.data.hqProjectSummaryInput || "").trim();
+    const page = Number(raw);
+    if (this.data.hqProjectSummaryLoading || !/^\d+$/.test(raw) || !Number.isSafeInteger(page) || page < 1 || page > this.data.hqProjectSummaryPage.totalPages) return;
+    this.loadHqProjectSummary(page);
   },
   chooseHqDimension(event) {
     if (this.data.hqRankingLoading || this.data.hqExporting) return;

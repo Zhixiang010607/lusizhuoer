@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>老师工作台</title>
   <link rel="stylesheet" href="styles.css?v=0.15.59">
-</head>
+<link rel="stylesheet" href="list-row-numbers.css?v=1.0.0"></head>
 <body data-teacher-workspace>
   <aside class="side-project-bar" aria-label="老师工作台"><div class="side-brand"><span>师</span><div><strong>老师工作台</strong><small>本人业务</small></div></div><nav class="side-nav"></nav><div class="side-footer">老师账号</div></aside>
   <header class="topbar"><div><p class="eyebrow">MY WORKSPACE</p><h1>我的工作台</h1><p class="subtitle">查看本人有效业务、项目汇总与体验项目剩余次数</p></div><div class="status"><span></span>仅本人数据</div></header>
@@ -59,13 +59,13 @@
 
     <section class="panel teacher-customer-panel" aria-labelledby="teacherActiveCustomersTitle">
       <div class="panel-heading"><div><h2 id="teacherActiveCustomersTitle">活跃用户</h2><p>只显示本老师核销过的活跃客户；点击用户可进入客户主页</p></div><span id="teacherActiveCustomerCount" class="badge">读取中</span></div>
-      <div class="table-scroll teacher-customer-scroll" tabindex="0" aria-label="活跃用户表格，可横向滑动"><table><thead><tr><th>姓名</th><th>门店</th><th>生日</th><th>充值次数</th><th>核销次数</th></tr></thead><tbody id="teacherActiveCustomerBody"><tr><td colspan="5" class="teacher-empty">正在读取活跃客户…</td></tr></tbody></table></div>
+      <div class="table-scroll teacher-customer-scroll" tabindex="0" aria-label="活跃用户表格，可横向滑动"><table><thead><tr><th>姓名</th><th>门店</th><th>年龄</th><th>充值次数</th><th>核销次数</th></tr></thead><tbody id="teacherActiveCustomerBody"><tr><td colspan="5" class="teacher-empty">正在读取活跃客户…</td></tr></tbody></table></div>
       <div id="teacherActiveCustomerPagination" class="table-pagination" aria-label="老师活跃客户分页"></div>
     </section>
 
     <section class="panel teacher-customer-panel archived-customer-section" aria-labelledby="teacherArchivedCustomersTitle">
       <div class="panel-heading"><div><h2 id="teacherArchivedCustomersTitle">封存用户</h2><p>本老师核销过的封存客户仍保留历史关联；点击用户可进入客户主页</p></div><span id="teacherArchivedCustomerCount" class="badge archived-customer-badge">读取中</span></div>
-      <div class="table-scroll teacher-customer-scroll" tabindex="0" aria-label="封存用户表格，可横向滑动"><table><thead><tr><th>姓名</th><th>门店</th><th>生日</th><th>充值次数</th><th>核销次数</th></tr></thead><tbody id="teacherArchivedCustomerBody"><tr><td colspan="5" class="teacher-empty">正在读取封存客户…</td></tr></tbody></table></div>
+      <div class="table-scroll teacher-customer-scroll" tabindex="0" aria-label="封存用户表格，可横向滑动"><table><thead><tr><th>姓名</th><th>门店</th><th>年龄</th><th>充值次数</th><th>核销次数</th></tr></thead><tbody id="teacherArchivedCustomerBody"><tr><td colspan="5" class="teacher-empty">正在读取封存客户…</td></tr></tbody></table></div>
       <div id="teacherArchivedCustomerPagination" class="table-pagination" aria-label="老师封存客户分页"></div>
     </section>
 
@@ -75,7 +75,7 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
   <script src="datetime.js?v=0.1.2"></script>
-  <script src="teacher-work-orders.js?v=0.16.5"></script>
+  <script src="customer-age.js?v=1.0.0"></script><script src="teacher-work-orders.js?v=0.16.6"></script>
   <script src="auth-ui.js?v=0.21.5"></script>
-</body>
+<script src="list-row-numbers.js?v=1.0.0"></script></body>
 </html>

@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.5";
+  const VERSION = "0.15.6";
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -145,7 +145,7 @@
     const data = {
       action: "queryStoreCustomers",
       mode: mode === "manual" ? "manual" : "browse",
-      limit: 100
+      limit: 10
     };
     if (isHq && $("customerStoreScope").value !== "ALL") data.storeId = $("customerStoreScope").value;
     if (mode === "manual") {
@@ -177,7 +177,7 @@
   }
 
   function customerPageCount() {
-    return Math.max(1, Math.ceil(Math.max(0, Number(selectedTotal()) || 0) / 100));
+    return Math.max(1, Math.ceil(Math.max(0, Number(selectedTotal()) || 0) / 10));
   }
 
   function updateCustomerPager() {
@@ -273,9 +273,9 @@
   function renderRows() {
     $("customerQueryBody").innerHTML = rows.map((customer) => {
       const archived = customer.customerStatus === "ARCHIVED";
-      const birthday = String(customer.birthDate || "").replace(/^(\d{4})-(\d{2})-(\d{2}).*/, "$1年$2月$3日");
+      const age = window.CustomerAge.format(customer.birthDate);
       const link = `customer-detail.html?customerId=${encodeURIComponent(customer.customerCode)}&customerName=${encodeURIComponent(customer.customerName)}&storeId=${encodeURIComponent(customer.storeId || "")}`;
-      return `<tr><td><a class="record-link" href="${link}">${escapeHtml(customer.customerName)}</a></td><td>${Number(customer.totalRechargeCount || 0)}</td><td>${Number(customer.totalVerificationCount || 0)}</td><td>${escapeHtml(customer.storeName || "—")}</td><td>${birthday || "—"}</td><td>${escapeHtml(stage[customer.customerProcessStatus] || "—")}</td><td>${escapeHtml(shanghaiDate(customer.createdAt))}</td><td><span class="record-status ${archived ? "status-已作废" : "status-正常"}">${archived ? "封存" : "活跃"}</span></td></tr>`;
+      return `<tr><td><a class="record-link" href="${link}">${escapeHtml(customer.customerName)}</a></td><td>${Number(customer.totalRechargeCount || 0)}</td><td>${Number(customer.totalVerificationCount || 0)}</td><td>${escapeHtml(customer.storeName || "—")}</td><td>${age}</td><td>${escapeHtml(stage[customer.customerProcessStatus] || "—")}</td><td>${escapeHtml(shanghaiDate(customer.createdAt))}</td><td><span class="record-status ${archived ? "status-已作废" : "status-正常"}">${archived ? "封存" : "活跃"}</span></td></tr>`;
     }).join("") || '<tr><td colspan="8" class="query-empty">没有符合条件的客户</td></tr>';
 
     const total = selectedTotal();

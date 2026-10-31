@@ -242,6 +242,7 @@ test("record queries reset horizontal scroll and keep order codes inside their o
     },
     "../../services/session": { requireSession: () => null },
     "../../services/query-tools": queryTools,
+    "../../services/customer-age": require(path.join(mini, "services", "customer-age.js")),
     wx: { navigateTo() {} }
   });
   page.data = { ...page.data, session: { role: "store" }, tableScrollLeft: 720, page: 1, totalPages: 2 };

@@ -1,4 +1,5 @@
 const { displayDateAny, displayDateTimeAny } = require("./query-tools");
+const { formatCustomerAge } = require("./customer-age");
 
 const RANGE_OPTIONS = Object.freeze([
   { value: "TODAY", label: "今天" },
@@ -197,6 +198,7 @@ function customers(items = []) {
     customerName: String(item.customerName || item.customer_name || "未命名客户"),
     storeName: String(item.storeName || item.store_name || "—"),
     birthDate: displayDateAny(item.birthDate, item.birth_date),
+    ageLabel: formatCustomerAge(displayDateAny(item.birthDate, item.birth_date)),
     rechargeCount: count(item.rechargeCount !== undefined ? item.rechargeCount : item.total_recharge_count),
     verificationCount: count(item.verificationCount !== undefined ? item.verificationCount : item.total_verification_count)
   }));

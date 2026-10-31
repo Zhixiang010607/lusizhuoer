@@ -21,10 +21,10 @@
   <view class="card result-card">
     <view class="card-title"><view><text>{{noun}}审核工单</text><text>待审核记录可通过或驳回，留言会写入数据库</text></view><text class="badge">{{total}} 条</text></view>
     <view wx:if="{{loading}}" class="empty">正在读取审核工单…</view>
-    <scroll-view wx:elif="{{rows.length}}" class="table-scroll" scroll-x="true" data-visible-rows="{{rows.length > 5 ? 5 : rows.length}}" scroll-y="{{rows.length > 5}}" enhanced="true" show-scrollbar="{{rows.length > 5}}">
+    <scroll-view wx:elif="{{rows.length}}" class="table-scroll" scroll-x="true" data-visible-rows="{{rows.length > 10 ? 10 : rows.length}}" enhanced="true" show-scrollbar="{{false}}">
       <view class="review-table">
-        <view class="review-row head"><text class="review-cell review-cell--order">工单号</text><text class="review-cell review-cell--store">门店</text><text class="review-cell review-cell--customer">客户</text><text class="review-cell review-cell--item">{{type === 'product-purchase' ? '产品' : '项目'}}</text><text class="review-cell review-cell--teacher">老师</text><text class="review-cell review-cell--impact">影响</text><text class="review-cell review-cell--time">申请时间</text><text class="review-cell review-cell--decision">审核</text><text class="review-cell review-cell--time">审核时间</text></view>
-        <view wx:for="{{rows}}" wx:key="id" class="review-row">
+        <view class="review-row head"><text class="list-row-number">序号</text><text class="review-cell review-cell--order">工单号</text><text class="review-cell review-cell--store">门店</text><text class="review-cell review-cell--customer">客户</text><text class="review-cell review-cell--item">{{type === 'product-purchase' ? '产品' : '项目'}}</text><text class="review-cell review-cell--teacher">老师</text><text class="review-cell review-cell--impact">影响</text><text class="review-cell review-cell--time">申请时间</text><text class="review-cell review-cell--decision">审核</text><text class="review-cell review-cell--time">审核时间</text></view>
+        <view wx:for="{{rows}}" wx:key="id" class="review-row"><text class="list-row-number">{{index + 1}}</text>
           <text class="review-cell review-cell--order link" data-id="{{item.id}}" data-code="{{item.recordCode}}" bindtap="openOrder">{{item.recordCode}}</text><text class="review-cell review-cell--store">{{item.storeName}}</text><text class="review-cell review-cell--customer link" data-code="{{item.customerCode}}" bindtap="openCustomer">{{item.customerName}}</text><text class="review-cell review-cell--item">{{item.productName}}</text><text class="review-cell review-cell--teacher">{{item.teacherName}}</text><text class="review-cell review-cell--impact">{{item.impact}}</text><text class="review-cell review-cell--time">{{item.submittedAt}}</text>
           <view class="review-cell review-cell--decision review-action"><block wx:if="{{item.status === 'PENDING'}}"><button data-id="{{item.id}}" data-decision="APPROVED" bindtap="openDecision">通过</button><button class="reject" data-id="{{item.id}}" data-decision="REJECTED" bindtap="openDecision">驳回</button></block><text wx:else class="status {{item.status}}">{{item.statusLabel}}</text></view>
           <text class="review-cell review-cell--time">{{item.reviewedAt}}</text>
@@ -32,8 +32,8 @@
       </view>
     </scroll-view>
     <view wx:else class="empty">当前条件下没有审核记录</view>
-    <view wx:if="{{mode === 'filters' && !loading && (totalPages > 1 || page > 1)}}" class="pager"><button class="ghost" bindtap="previousPage" disabled="{{loading || page <= 1}}">上一页</button><text>第 {{page}} / {{totalPages}} 页</text><button class="ghost" bindtap="nextPage" disabled="{{loading || page >= totalPages}}">下一页</button></view>
-    <view wx:if="{{mode === 'filters' && !loading && totalPages > 1}}" class="page-jump"><text>跳至</text><input type="number" value="{{pageJump}}" bindinput="inputPage" /><text>页</text><button class="primary compact" bindtap="jumpPage" disabled="{{loading}}">跳转</button></view>
+    <view wx:if="{{mode === 'filters' && !loading && total > 0}}" class="pager"><button class="ghost" bindtap="previousPage" disabled="{{loading || page <= 1}}">上一页</button><text>第 {{page}} / {{totalPages}} 页</text><button class="ghost" bindtap="nextPage" disabled="{{loading || page >= totalPages}}">下一页</button></view>
+    <view wx:if="{{mode === 'filters' && !loading && total > 0}}" class="page-jump"><text>跳至</text><input type="number" value="{{pageJump}}" bindinput="inputPage" /><text>页</text><button class="primary compact" bindtap="jumpPage" disabled="{{loading}}">跳转</button></view>
   </view>
 
   <view wx:if="{{pendingOpen && pending}}" class="mask" catchtouchmove="noop" bindtap="closeDecision">

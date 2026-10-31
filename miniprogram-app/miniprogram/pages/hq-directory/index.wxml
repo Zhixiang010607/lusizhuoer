@@ -13,49 +13,54 @@
 
   <view class="table-section {{type}}">
     <view class="section-heading"><text>查询结果</text><text>{{searched ? searchRows.length : 0}} {{unit}}</text></view>
-    <scroll-view wx:if="{{searchRows.length}}" class="table-scroll" scroll-x="true" data-visible-rows="{{searchRows.length > 5 ? 5 : searchRows.length}}" scroll-y="{{searchRows.length > 5}}" enhanced="true" show-scrollbar="{{searchRows.length > 5}}">
+    <scroll-view wx:if="{{searchRows.length}}" class="table-scroll" scroll-x="true" data-visible-rows="{{searchPageRows.length}}" enhanced="true" show-scrollbar="{{false}}">
       <view class="data-table {{type}}">
-        <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text></view>
-        <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>联系电话</text><text>状态</text></view>
-        <block wx:if="{{searched && searchRows.length}}"><template is="directoryRows" data="{{rows: searchRows, type: type}}" /></block>
+        <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text class="list-row-number">序号</text><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text></view>
+        <view class="table-row table-head teacher" wx:else><text class="list-row-number">序号</text><text>老师姓名</text><text>联系电话</text><text>状态</text></view>
+        <block wx:if="{{searched && searchRows.length}}"><template is="directoryRows" data="{{rows: searchPageRows, type: type}}" /></block>
       </view>
     </scroll-view>
     <view wx:else class="table-empty">{{loading ? '正在读取数据库…' : (error ? '数据读取失败，请刷新后重试' : (searched ? '没有符合条件的' + noun : '填写条件后开始查询'))}}</view>
+    <template wx:if="{{searchRows.length}}" is="directoryPager" data="{{kind: 'search', page: searchPage, pages: searchPages, value: searchPageInput, loading: loading}}" />
   </view>
 
   <view class="table-section {{type}}">
     <view class="section-heading"><text>活跃{{noun}}</text><text>{{activeRows.length}} {{unit}}</text></view>
-    <scroll-view wx:if="{{activeRows.length}}" class="table-scroll" scroll-x="true" data-visible-rows="{{activeRows.length > 5 ? 5 : activeRows.length}}" scroll-y="{{activeRows.length > 5}}" enhanced="true" show-scrollbar="{{activeRows.length > 5}}">
+    <scroll-view wx:if="{{activeRows.length}}" class="table-scroll" scroll-x="true" data-visible-rows="{{activePageRows.length}}" enhanced="true" show-scrollbar="{{false}}">
       <view class="data-table {{type}}">
-        <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text></view>
-        <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>联系电话</text><text>状态</text></view>
-        <template wx:if="{{activeRows.length}}" is="directoryRows" data="{{rows: activeRows, type: type}}" />
+        <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text class="list-row-number">序号</text><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text></view>
+        <view class="table-row table-head teacher" wx:else><text class="list-row-number">序号</text><text>老师姓名</text><text>联系电话</text><text>状态</text></view>
+        <template wx:if="{{activeRows.length}}" is="directoryRows" data="{{rows: activePageRows, type: type}}" />
       </view>
     </scroll-view>
     <view wx:else class="table-empty">{{loading ? '正在读取数据库…' : (error ? '数据读取失败，请刷新后重试' : '暂无活跃' + noun)}}</view>
+    <template wx:if="{{activeRows.length}}" is="directoryPager" data="{{kind: 'active', page: activePage, pages: activePages, value: activePageInput, loading: loading}}" />
   </view>
 
   <view class="table-section archived-section {{type}}">
     <view class="section-heading"><text>封存{{noun}}</text><text>{{archivedRows.length}} {{unit}}</text></view>
-    <scroll-view wx:if="{{archivedRows.length}}" class="table-scroll" scroll-x="true" data-visible-rows="{{archivedRows.length > 5 ? 5 : archivedRows.length}}" scroll-y="{{archivedRows.length > 5}}" enhanced="true" show-scrollbar="{{archivedRows.length > 5}}">
+    <scroll-view wx:if="{{archivedRows.length}}" class="table-scroll" scroll-x="true" data-visible-rows="{{archivedPageRows.length}}" enhanced="true" show-scrollbar="{{false}}">
       <view class="data-table {{type}}">
-        <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text></view>
-        <view class="table-row table-head teacher" wx:else><text>老师姓名</text><text>联系电话</text><text>状态</text></view>
-        <template wx:if="{{archivedRows.length}}" is="directoryRows" data="{{rows: archivedRows, type: type}}" />
+        <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text class="list-row-number">序号</text><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text></view>
+        <view class="table-row table-head teacher" wx:else><text class="list-row-number">序号</text><text>老师姓名</text><text>联系电话</text><text>状态</text></view>
+        <template wx:if="{{archivedRows.length}}" is="directoryRows" data="{{rows: archivedPageRows, type: type}}" />
       </view>
     </scroll-view>
     <view wx:else class="table-empty">{{loading ? '正在读取数据库…' : (error ? '数据读取失败，请刷新后重试' : '暂无封存' + noun)}}</view>
+    <template wx:if="{{archivedRows.length}}" is="directoryPager" data="{{kind: 'archived', page: archivedPage, pages: archivedPages, value: archivedPageInput, loading: loading}}" />
   </view>
   <view class="safe-bottom"></view>
 </view>
 
 <template name="directoryRows">
   <block wx:for="{{rows}}" wx:key="ref">
-    <view wx:if="{{type === 'store'}}" class="table-row store">
+    <view wx:if="{{type === 'store'}}" class="table-row store"><text class="list-row-number">{{index + 1}}</text>
       <text class="link" data-ref="{{item.ref}}" bindtap="openDetail">{{item.name}}</text><text>{{item.contact}}</text><text>{{item.phone}}</text><text>{{item.address}}</text><text><text class="status {{item.archived ? 'archived' : 'active'}}">{{item.archived ? '封存' : '活跃'}}</text></text>
     </view>
-    <view wx:else class="table-row teacher">
+    <view wx:else class="table-row teacher"><text class="list-row-number">{{index + 1}}</text>
       <text class="link" data-ref="{{item.ref}}" bindtap="openDetail">{{item.name}}</text><text>{{item.phone}}</text><text><text class="status {{item.archived ? 'archived' : 'active'}}">{{item.archived ? '封存' : '活跃'}}</text></text>
     </view>
   </block>
 </template>
+
+<template name="directoryPager"><view class="directory-pagination"><button data-kind="{{kind}}" data-direction="-1" bindtap="directoryPage" disabled="{{loading || page <= 1}}">上一页</button><text>第 {{page}} / {{pages}} 页</text><button data-kind="{{kind}}" data-direction="1" bindtap="directoryPage" disabled="{{loading || page >= pages}}">下一页</button><view class="directory-page-jump"><text>跳至第</text><input type="number" min="1" value="{{value}}" data-kind="{{kind}}" bindinput="inputDirectoryPage" disabled="{{loading}}" /><text>页</text><button data-kind="{{kind}}" bindtap="directoryPage" disabled="{{loading}}">跳转</button></view></view></template>

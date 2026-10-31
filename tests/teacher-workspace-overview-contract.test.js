@@ -24,13 +24,13 @@ assert.match(html, /id="teacherExperienceBalances"[^>]*teacher-quota-grid/, "exp
 assert.match(html, /<th scope="col">产品<\/th><th scope="col">核销<\/th><th scope="col">充值<\/th><th scope="col">体验<\/th><th scope="col">退费<\/th>/, "summary matrix axes must match the product and four business metrics");
 assert.doesNotMatch(html, /<th[^>]*>[^<]*(?:人脸|状态)[^<]*<\/th>/, "teacher workspace tables must not show face or status columns");
 assert.match(html, /styles\.css\?v=0\.15\.59/);
-assert.match(html, /teacher-work-orders\.js\?v=0\.16\.5/);
+assert.match(html, /teacher-work-orders\.js\?v=0\.16\.6/);
 assert.match(ui, /preset:\s*"TODAY"/);
 assert.match(ui, /applyRange\("TODAY"\)/);
 assert.ok(html.indexOf('id="teacherBusinessDetails"') > html.indexOf('id="teacherOverviewTitle"'), "teacher details must follow the summary");
 assert.ok(html.indexOf('id="teacherBusinessDetails"') < html.indexOf('id="teacherActiveCustomersTitle"'), "teacher details must precede customer lists");
 assert.match(html, /id="teacherBusinessPagination"[^>]*business-record-pagination/, "teacher details must own numbered pagination");
-assert.match(html, /<th>姓名<\/th><th>门店<\/th><th>生日<\/th><th>充值次数<\/th><th>核销次数<\/th>/, "teacher customer lists use the shared five columns");
+assert.match(html, /<th>姓名<\/th><th>门店<\/th><th>年龄<\/th><th>充值次数<\/th><th>核销次数<\/th>/, "teacher customer lists use the shared five columns");
 for (const [status, label] of [["Active", "活跃"], ["Archived", "封存"]]) {
   assert.match(html, new RegExp(`id="teacher${status}CustomerBody"`), `${label}客户必须有独立列表`);
   assert.match(html, new RegExp(`id="teacher${status}CustomerPagination"`), `${label}客户必须有独立分页`);
@@ -52,7 +52,7 @@ assert.match(ui, /data-teacher-customer-status/, "teacher active and archived cu
 assert.match(ui, /data-teacher-record-page/, "teacher business records must have previous and next page controls");
 assert.match(ui, /data-teacher-record-jump/, "teacher business records must preserve direct page jump");
 assert.doesNotMatch(ui, /teacherLoadMore|继续加载|cursorSubmittedAt/, "teacher details must not use endless cursor loading");
-for (const label of ["姓名", "门店", "生日", "充值次数", "核销次数"]) {
+for (const label of ["姓名", "门店", "年龄", "充值次数", "核销次数"]) {
   assert.ok(ui.includes(`data-label="${label}"`), `teacher customer rows expose ${label}`);
 }
 

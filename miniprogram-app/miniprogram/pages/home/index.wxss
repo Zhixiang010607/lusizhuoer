@@ -391,3 +391,16 @@
 .teacher-quota-card.large-counts .quota-metric { flex-direction: row; justify-content: space-between; gap: 16rpx; padding: 12rpx 16rpx; }
 .teacher-quota-card.large-counts .quota-metric text { width: auto; margin-top: 0; }
 @media (min-width: 700px) { .teacher-quota-card.large-counts .quota-metric { gap: 12px; padding: 8px 12px; } }
+
+@media (min-width: 700px) {
+  .record-scroll[data-visible-rows="6"], .customer-scroll[data-visible-rows="6"] { height: 360px !important; }
+  .hq-ranking-scroll[data-visible-rows="6"] { height: 370px !important; }
+  .record-scroll[data-visible-rows="7"], .customer-scroll[data-visible-rows="7"] { height: 412px !important; }
+  .hq-ranking-scroll[data-visible-rows="7"] { height: 424px !important; }
+  .record-scroll[data-visible-rows="8"], .customer-scroll[data-visible-rows="8"] { height: 464px !important; }
+  .hq-ranking-scroll[data-visible-rows="8"] { height: 478px !important; }
+  .record-scroll[data-visible-rows="9"], .customer-scroll[data-visible-rows="9"] { height: 516px !important; }
+  .hq-ranking-scroll[data-visible-rows="9"] { height: 532px !important; }
+  .record-scroll[data-visible-rows="10"], .customer-scroll[data-visible-rows="10"] { height: 568px !important; }
+  .hq-ranking-scroll[data-visible-rows="10"] { height: 586px !important; }
+}

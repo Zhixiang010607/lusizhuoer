@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const VERSION = "0.18.5";
+  const VERSION = "0.18.6";
   const pageType = document.body.dataset.review;
   const rechargeWorkflow = ["recharge", "refund"].includes(pageType);
   const recordType = rechargeWorkflow ? "RECHARGE" : "VERIFICATION";
@@ -8,7 +8,7 @@
   const columnCount = pageType === "recharge" ? 9 : 10;
   const $ = (id) => document.getElementById(id);
   const statusText = { PENDING: "待审核", APPROVED: "审核通过", REJECTED: "已驳回" };
-  const PAGE_SIZE = 100;
+  const PAGE_SIZE = 10;
   let rows = [], pendingAction = null, loadingSequence = 0, session = null, queryMode = "filters";
   let pageNumber = 1, totalRows = 0, totalPages = 1, listLoading = false;
   try { session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null"); } catch (_) { session = null; }

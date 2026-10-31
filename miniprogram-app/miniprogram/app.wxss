@@ -17,6 +17,20 @@ page {
 }
 
 view, text, input, textarea, picker, button, image { box-sizing: border-box; }
+/* Display-only result-list column; table cells retain their page's row height/type. */
+.page .list-row-number {
+  width: 76rpx;
+  min-width: 76rpx;
+  padding-right: 12rpx;
+  padding-left: 12rpx;
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+@media (min-width: 700px) {
+  .page .list-row-number { width: 48px; min-width: 48px; padding-right: 8px; padding-left: 8px; }
+}
 button::after { border: 0; }
 .page { min-height: 100vh; padding: 16rpx 14rpx 48rpx; }
 .page-heading { margin-bottom: 14rpx; padding: 18rpx 22rpx; color: #fffdf8; background: linear-gradient(115deg, #6f532e, #a98243); border-radius: 18rpx; }

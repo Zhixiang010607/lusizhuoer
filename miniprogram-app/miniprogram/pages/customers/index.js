@@ -1,8 +1,9 @@
 const { callFace, callStaff } = require("../../services/api");
 const { requireSession } = require("../../services/session");
 const query = require("../../services/query-tools");
+const { formatCustomerAge } = require("../../services/customer-age");
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 const EMPTY_SUMMARY = Object.freeze({ total: 0, selectedTotal: 0, active: 0, archived: 0, informationOnly: 0, rechargedNoConsumption: 0, rechargedWithConsumption: 0 });
 function labels(options) { return options.map((item) => item.label); }
 function values(options) { return options.map((item) => item.value); }
@@ -17,7 +18,7 @@ function customerRows(rows = []) {
   return rows.map((item) => ({
     ...item,
     customerCode: String(item.customerCode || ""), customerName: String(item.customerName || "—"),
-    birthDate: query.displayDateAny(item.birthDate, item.birth_date), storeName: String(item.storeName || item.store_name || "—"),
+    birthDate: query.displayDateAny(item.birthDate, item.birth_date), ageLabel: formatCustomerAge(query.displayDateAny(item.birthDate, item.birth_date)), storeName: String(item.storeName || item.store_name || "—"),
     statusLabel: String(item.customerStatus || "").toUpperCase() === "ARCHIVED" ? "已封存" : "活跃",
     processLabel: processLabel(item.customerProcessStatus),
     rechargeCount: Number(item.totalRechargeCount !== undefined ? item.totalRechargeCount : item.rechargeCount || 0),

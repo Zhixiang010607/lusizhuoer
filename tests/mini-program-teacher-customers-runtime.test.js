@@ -7,8 +7,8 @@ const dashboard = require("../miniprogram-app/miniprogram/services/home-dashboar
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
 function response(activePage = 1, archivedPage = 1, total = 61) {
   return {
-    active: { records: [{ customerCode: `A-${activePage}`, customerName: "示例客户" }], total, page: activePage, pageSize: 20 },
-    archived: { records: [{ customerCode: `B-${archivedPage}`, customerName: "示例客户" }], total, page: archivedPage, pageSize: 20 }
+    active: { records: [{ customerCode: `A-${activePage}`, customerName: "示例客户" }], total, page: activePage, pageSize: 10 },
+    archived: { records: [{ customerCode: `B-${archivedPage}`, customerName: "示例客户" }], total, page: archivedPage, pageSize: 10 }
   };
 }
 function fixture(callFace, startup = Promise.resolve(), session = { uid: "fixture-teacher", role: "teacher" }) {
@@ -47,7 +47,7 @@ test("teacher customer tabs keep separate page positions and customer links", as
   await page.chooseStatus({ currentTarget: { dataset: { status: "ACTIVE" } } });
   assert.equal(page.data.group.page, 3);
   assert.deepEqual(JSON.parse(JSON.stringify(page.data.pages)), { ACTIVE: 3, ARCHIVED: 2 });
-  assert.deepEqual(calls.at(-1), { action: "getTeacherBusinessCustomers", activePage: 3, archivedPage: 2 });
+  assert.deepEqual(calls.at(-1), { action: "getTeacherBusinessCustomers", activePage: 3, archivedPage: 2, customerPageSize: 10 });
   page.openCustomer({ currentTarget: { dataset: { code: "A-3" } } });
   assert.deepEqual(navigations, ["/pages/customer-detail/index?code=A-3"]);
 });
@@ -77,7 +77,7 @@ test("customer read failures and malformed results clear old rows and retry the 
 });
 test("valid empty customer results stay empty and invalid page input does not query", async () => {
   let calls = 0;
-  const { page } = fixture(async () => { calls++; return { active: { records: [], total: 0, page: 1, pageSize: 20 }, archived: { records: [], total: 0, page: 1, pageSize: 20 } }; });
+  const { page } = fixture(async () => { calls++; return { active: { records: [], total: 0, page: 1, pageSize: 10 }, archived: { records: [], total: 0, page: 1, pageSize: 10 } }; });
   await page.onShow(); assert.equal(page.data.error, false); assert.equal(page.data.group.rows.length, 0);
   page.inputPage({ detail: { value: "0" } }); page.jumpPage(); assert.equal(calls, 1);
 });

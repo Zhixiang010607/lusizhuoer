@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>总部数据看板</title>
   <link rel="stylesheet" href="styles.css?v=0.15.49">
-</head>
+<link rel="stylesheet" href="list-row-numbers.css?v=1.0.0"></head>
 <body data-view="global">
   <aside class="side-project-bar" aria-label="项目栏">
     <div class="side-brand"><span>HQ</span><div><strong>总部工作台</strong><small>项目栏</small></div></div>
@@ -86,13 +86,14 @@
         <button id="productSummaryPrevious" type="button">上一页</button>
         <span id="productSummaryPageLabel">第 1 / 1 页</span>
         <button id="productSummaryNext" type="button">下一页</button>
+        <label class="ranking-page-jump">跳至第 <input id="productSummaryPageInput" type="number" min="1" step="1" value="1" inputmode="numeric" aria-label="项目汇总页码"> 页 <button id="productSummaryJump" type="button">跳转</button></label>
       </div>
     </section>
 
     <section class="dashboard-grid">
       <article class="panel table-card wide">
         <div class="panel-heading">
-          <div><h2>完整排名</h2><p id="rankingRule">全部项目 · 按门店的充值次数降序；每页 100 条</p></div>
+          <div><h2>完整排名</h2><p id="rankingRule">全部项目 · 按门店的充值次数降序；每页 10 条</p></div>
           <div class="ranking-actions">
             <label class="ranking-dimension" hidden>分类维度
               <select id="rankingDimension" aria-label="选择排名分类维度">
@@ -133,7 +134,7 @@
   <script src="cloudbase-auth-config.js"></script>
   <script src="cloudbase-phone-auth.js?v=0.20.7"></script>
   <script src="hq-dashboard-report.js?v=0.1.0"></script>
-  <script src="app.js?v=0.15.28"></script>
+  <script src="app.js?v=0.15.29"></script>
   <script src="auth-ui.js?v=0.21.5"></script>
-</body>
+<script src="list-row-numbers.js?v=1.0.0"></script></body>
 </html>

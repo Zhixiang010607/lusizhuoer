@@ -40,13 +40,13 @@ assert.ok(html.indexOf('id="storeBusinessDetails"') < html.indexOf('id="storeAct
 assert.ok(html.indexOf('id="storeActiveCustomers"') < html.indexOf('id="storeArchivedCustomers"'), "active users precede archived users");
 for (const [section, status] of [[activeCustomerSection, "active"], [archivedCustomerSection, "archived"]]) {
   assert.doesNotMatch(section, /<th>最近业务<\/th>|<th>状态<\/th>/, `${status} customer table removes time and status columns`);
-  includes(section, '<th>姓名</th><th>门店</th><th>生日</th><th>充值次数</th><th>核销次数</th>', `${status} customer table uses the shared five columns`);
+  includes(section, '<th>姓名</th><th>门店</th><th>年龄</th><th>充值次数</th><th>核销次数</th>', `${status} customer table uses the shared five columns`);
 }
 includes(activeCustomerSection, 'id="storeActiveCustomerBody"', "active bound customers have a dedicated table");
 includes(archivedCustomerSection, 'id="storeArchivedCustomerBody"', "archived bound customers have a dedicated table");
 includes(activeCustomerSection, '<h2 id="storeActiveCustomersTitle">活跃用户</h2>', "active customer heading matches teacher terminology");
 includes(archivedCustomerSection, '<h2 id="storeArchivedCustomersTitle">封存用户</h2>', "archived customer heading matches teacher terminology");
-includes(html, 'store-detail.js?v=0.16.7', "store detail script cache bust");
+includes(html, 'store-detail.js?v=0.16.8', "store detail script cache bust");
 includes(html, 'store-analytics-data.js?v=0.2.1', "store analytics helper cache bust");
 includes(html, 'styles.css?v=0.15.60', "store detail stylesheet cache bust");
 for (const [type, label] of [["VERIFICATION", "核销"], ["RECHARGE", "充值"], ["EXPERIENCE", "体验"], ["REFUND", "退费"]]) {

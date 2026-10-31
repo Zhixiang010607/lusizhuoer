@@ -36,7 +36,11 @@ function teacherView(item) {
 Page({
   data: {
     type: "store", title: "门店管理", noun: "门店", unit: "家", loading: true, message: "", error: false,
-    rows: [], activeRows: [], archivedRows: [], searched: false, searchRows: [], searchName: "", searchPhone: ""
+    rows: [], activeRows: [], archivedRows: [], searched: false, searchRows: [], searchName: "", searchPhone: "",
+    activePageRows: [], archivedPageRows: [], searchPageRows: [],
+    activePage: 1, archivedPage: 1, searchPage: 1,
+    activePages: 1, archivedPages: 1, searchPages: 1,
+    activePageInput: "1", archivedPageInput: "1", searchPageInput: "1"
   },
   onLoad(options) {
     if (!requireSession(["hq"])) return;
@@ -84,10 +88,10 @@ Page({
       const searchRows = this.data.searched ? rows.filter((item) =>
         (!name || item.name.toLocaleLowerCase("zh-CN").includes(name))
         && (!phone || normalizedPhone(item.phone).includes(phone))) : [];
-      this.setData({ rows, activeRows: rows.filter((item) => !item.archived), archivedRows: rows.filter((item) => item.archived), searchRows });
+      this.setData({ rows, activeRows: rows.filter((item) => !item.archived), archivedRows: rows.filter((item) => item.archived), searchRows }, () => this.syncDirectoryPages(true));
     } catch (error) {
       if (this._unloaded || request.epoch !== this._requestEpoch || request.type !== this.data.type) return;
-      this.setData({ rows: [], activeRows: [], archivedRows: [], searchRows: [], message: error.message || `${request.noun}数据读取失败`, error: true });
+      this.setData({ rows: [], activeRows: [], archivedRows: [], searchRows: [], message: error.message || `${request.noun}数据读取失败`, error: true }, () => this.syncDirectoryPages(true));
     } finally {
       if (!this._unloaded && request.epoch === this._requestEpoch && request.type === this.data.type) this.setData({ loading: false });
     }
@@ -98,7 +102,7 @@ Page({
     const name = text(this.data.searchName).toLocaleLowerCase("zh-CN");
     const phone = normalizedPhone(this.data.searchPhone);
     if (!name && !phone) {
-      this.setData({ searched: false, searchRows: [] });
+      this.setData({ searched: false, searchRows: [] }, () => this.syncDirectoryPages(true));
       return;
     }
     this.applySearch();
@@ -109,7 +113,35 @@ Page({
     const rows = this.data.rows.filter((item) =>
       (!name || item.name.toLocaleLowerCase("zh-CN").includes(name))
       && (!phone || normalizedPhone(item.phone).includes(phone)));
-    this.setData({ searched: true, searchRows: rows });
+    this.setData({ searched: true, searchRows: rows }, () => this.syncDirectoryPages(true));
+  },
+  syncDirectoryPages(reset = false) {
+    const patch = {};
+    for (const kind of ["active", "archived", "search"]) {
+      const rows = this.data[`${kind}Rows`] || [];
+      const pages = Math.max(1, Math.ceil(rows.length / 10));
+      const page = reset ? 1 : Math.min(Math.max(1, this.data[`${kind}Page`] || 1), pages);
+      patch[`${kind}Pages`] = pages;
+      patch[`${kind}Page`] = page;
+      patch[`${kind}PageInput`] = String(page);
+      patch[`${kind}PageRows`] = rows.slice((page - 1) * 10, page * 10);
+    }
+    this.setData(patch);
+  },
+  inputDirectoryPage(event) {
+    const kind = event.currentTarget.dataset.kind;
+    if (["active", "archived", "search"].includes(kind)) this.setData({ [`${kind}PageInput`]: event.detail.value });
+  },
+  directoryPage(event) {
+    if (this.data.loading) return;
+    const { kind, direction } = event.currentTarget.dataset;
+    if (!["active", "archived", "search"].includes(kind)) return;
+    const raw = direction ? String(this.data[`${kind}Page`] + Number(direction)) : String(this.data[`${kind}PageInput`] || "").trim();
+    const page = Number(raw);
+    if (!/^\d+$/.test(raw) || !Number.isSafeInteger(page) || page < 1 || page > this.data[`${kind}Pages`]) {
+      this.setData({ message: `请输入 1 到 ${this.data[`${kind}Pages`]} 的整数页码`, error: true }); return;
+    }
+    this.setData({ [`${kind}Page`]: page, message: "", error: false }, () => this.syncDirectoryPages());
   },
   openCreate() {
     wx.navigateTo({ url: this.data.type === "store" ? "/pages/store-create/index" : "/pages/teacher-create/index" });

@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const VERSION = "0.16.5";
+  const VERSION = "0.16.6";
   const CUSTOMER_PAGE_SIZE = 10;
   const RECORD_PAGE_SIZE = 10;
   const TYPES = Object.freeze(["VERIFICATION", "RECHARGE", "EXPERIENCE", "REFUND"]);
@@ -168,8 +168,8 @@
     const group = state.customers[status];
     const target = $(`teacher${prefix}CustomerPagination`);
     const pages = Math.max(1, Math.ceil(group.total / group.pageSize));
-    if (group.total <= group.pageSize) { target.innerHTML = ""; return; }
-    target.innerHTML = `<button type="button" data-teacher-customer-status="${status}" data-page="${group.page - 1}" ${group.page <= 1 ? "disabled" : ""}>上一页</button><span>第 ${group.page} / ${pages} 页</span><button type="button" data-teacher-customer-status="${status}" data-page="${group.page + 1}" ${group.page >= pages ? "disabled" : ""}>下一页</button>`;
+    if (!group.total) { target.innerHTML = ""; return; }
+    target.innerHTML = `<button type="button" data-teacher-customer-status="${status}" data-page="${group.page - 1}" ${group.page <= 1 ? "disabled" : ""}>上一页</button><span>第 ${group.page} / ${pages} 页</span><button type="button" data-teacher-customer-status="${status}" data-page="${group.page + 1}" ${group.page >= pages ? "disabled" : ""}>下一页</button><label class="list-page-jump">跳至第 <input type="number" min="1" max="${pages}" value="${group.page}" aria-label="跳转到第几页"> 页</label><button type="button" data-teacher-customer-status="${status}" data-jump="true">跳转</button>`;
   }
 
   function renderBusinessCustomers(status) {
@@ -184,7 +184,7 @@
       return `<tr>
         <td data-label="姓名"><a class="teacher-order-link" href="${escapeHtml(href)}">${escapeHtml(row.customerName || "未命名客户")}</a></td>
         <td data-label="门店">${escapeHtml(row.storeName || "—")}</td>
-        <td data-label="生日">${escapeHtml(formatBirthday(row.birthDate))}</td>
+        <td data-label="年龄">${window.CustomerAge.format(row.birthDate)}</td>
         <td data-label="充值次数">${formatCount(row.rechargeCount)} 次</td>
         <td data-label="核销次数"><strong>${formatCount(row.verificationCount)} 次</strong></td>
       </tr>`;
@@ -196,7 +196,7 @@
     if (state.customerLoading) return;
     state.customerLoading = true;
     try {
-      const result = await callFaceFunction("getTeacherBusinessCustomers", { activePage, archivedPage });
+      const result = await callFaceFunction("getTeacherBusinessCustomers", { activePage, archivedPage, customerPageSize: CUSTOMER_PAGE_SIZE });
       for (const [status, key] of [["ACTIVE", "active"], ["ARCHIVED", "archived"]]) {
         const group = result[key] || {};
         state.customers[status] = {
@@ -379,8 +379,11 @@
       const button = event.target.closest("button[data-teacher-customer-status]");
       if (!button || button.disabled) return;
       const status = button.dataset.teacherCustomerStatus;
-      const page = Number(button.dataset.page);
+      const raw = button.dataset.jump ? button.parentElement.querySelector("input")?.value : button.dataset.page;
+      if (!/^\d+$/.test(String(raw || "")) || !Number.isSafeInteger(Number(raw))) return;
+      const page = Number(raw);
       if (!["ACTIVE", "ARCHIVED"].includes(status) || !Number.isInteger(page) || page < 1) return;
+      if (page > Math.max(1, Math.ceil(state.customers[status].total / state.customers[status].pageSize))) return;
       const activePage = status === "ACTIVE" ? page : state.customers.ACTIVE.page;
       const archivedPage = status === "ARCHIVED" ? page : state.customers.ARCHIVED.page;
       void loadBusinessCustomers(activePage, archivedPage);

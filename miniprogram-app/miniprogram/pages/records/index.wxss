@@ -73,3 +73,15 @@
 
 .summary-grid.large-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (min-width: 700px) { .summary-grid.large-counts { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+/* Ten complete rows; keep physical-pixel tablet sizes separate from phone rpx. */
+.record-scroll[data-visible-rows="6"] { height: 536rpx; }
+.record-scroll[data-visible-rows="7"] { height: 614rpx; }
+.record-scroll[data-visible-rows="8"] { height: 692rpx; }
+.record-scroll[data-visible-rows="9"] { height: 770rpx; }
+.record-scroll[data-visible-rows="10"] { height: 848rpx; }
+@media (min-width: 700px) { .record-scroll[data-visible-rows="6"] { height: 402px; } }
+@media (min-width: 700px) { .record-scroll[data-visible-rows="7"] { height: 460px; } }
+@media (min-width: 700px) { .record-scroll[data-visible-rows="8"] { height: 518px; } }
+@media (min-width: 700px) { .record-scroll[data-visible-rows="9"] { height: 576px; } }
+@media (min-width: 700px) { .record-scroll[data-visible-rows="10"] { height: 634px; } }

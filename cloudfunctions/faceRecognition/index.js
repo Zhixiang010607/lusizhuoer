@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const https = require("https");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v133";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v134";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -3088,6 +3088,12 @@ async function queryStoreBusinessRecords(event = {}) {
   };
 }
 
+function customerListPageSize(event = {}) {
+  const size = event.customerPageSize === undefined ? 20 : Number(event.customerPageSize);
+  if (!Number.isInteger(size) || size < 1 || size > 100) fail("客户列表每页数量必须是 1 至 100。", "BAD_REQUEST");
+  return size;
+}
+
 async function getStoreDashboard(event = {}) {
   const caller = await activeScopedQueryCaller(event);
   if (!caller.storeId) fail("总部查看门店主页时必须选择具体门店。", "STORE_REQUIRED");
@@ -3099,7 +3105,7 @@ async function getStoreDashboard(event = {}) {
   };
   const customerPage = dashboardCustomerPage(event.activeCustomerPage || event.customerPage, "活跃客户");
   const archivedCustomerPage = dashboardCustomerPage(event.archivedCustomerPage, "封存客户");
-  const customerPageSize = 20;
+  const customerPageSize = customerListPageSize(event);
   const customerOffset = (customerPage - 1) * customerPageSize;
   const archivedCustomerOffset = (archivedCustomerPage - 1) * customerPageSize;
   const dashboardCustomersSql = (status, offset) =>
@@ -5663,7 +5669,7 @@ function teacherBusinessCustomerPage(value, label) {
 async function getTeacherBusinessCustomers(event = {}) {
   const caller = await activeTeacherCaller();
   const teacherId = positiveDatabaseId(caller.teacherId, "老师");
-  const pageSize = 20;
+  const pageSize = customerListPageSize(event);
   const activePage = teacherBusinessCustomerPage(event.activePage, "活跃客户");
   const archivedPage = teacherBusinessCustomerPage(event.archivedPage, "封存客户");
   const eventCte = `teacher_customer_events AS (

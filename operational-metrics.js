@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const PAGE_SIZE = 20;
+  const PAGE_SIZE = 10;
   const EXPORT_LIMIT = 1000;
   const RATING_TIME_OPTIONS = Object.freeze([
     { value: "TODAY", label: "今天" },

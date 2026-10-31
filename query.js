@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.11";
+  const VERSION = "0.15.13";
   const type = document.body.dataset.query;
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
@@ -180,7 +180,7 @@
         action: "queryStoreBusinessRecords",
         recordType,
         mode,
-        limit: 100
+        limit: 10
       };
       if (isHq && $("recordStoreScope").value !== "ALL") data.storeId = $("recordStoreScope").value;
       if (mode === "manual") {
@@ -239,7 +239,7 @@
         : summary.total;
     }
     function recordPageCount() {
-      return Math.max(1, Math.ceil(Math.max(0, Number(selectedRecordTotal()) || 0) / 100));
+      return Math.max(1, Math.ceil(Math.max(0, Number(selectedRecordTotal()) || 0) / 10));
     }
     function updateRecordPager() {
       const totalPages = recordPageCount();
@@ -335,7 +335,7 @@
         const customerLink = `customer-detail.html?customerId=${encodeURIComponent(record.customerCode)}&customerName=${encodeURIComponent(record.customerName)}&storeId=${encodeURIComponent(record.storeId)}`;
         const store = [record.storeName, record.storeCode].filter(Boolean).join(" · ") || "—";
         const product = record.productName || "—";
-        const commonStart = `<tr><td><a class="record-link" href="${detailLink}">${escapeHtml(record.recordCode)}</a></td><td><a class="record-link" href="${customerLink}">${escapeHtml(record.customerCode)}</a></td><td>${escapeHtml(record.customerName)}</td><td>${escapeHtml(formatBirthday(record.birthDate))}</td><td>${escapeHtml(store)}</td><td>${escapeHtml(product)}</td>`;
+        const commonStart = `<tr><td><a class="record-link" href="${detailLink}">${escapeHtml(record.recordCode)}</a></td><td><a class="record-link" href="${customerLink}">${escapeHtml(record.customerCode)}</a></td><td>${escapeHtml(record.customerName)}</td><td>${escapeHtml(window.CustomerAge.format(record.birthDate))}</td><td>${escapeHtml(store)}</td><td>${escapeHtml(product)}</td>`;
         if (recordType === "RECHARGE") {
           const refund = ["VOID", "REFUND"].includes(String(record.originalType || "").toUpperCase());
           const signedUnits = `${refund ? "−" : "+"}${Number(record.unitCount || 0)}`;
@@ -603,7 +603,7 @@
         const teacherLink = canOpenAggregates ? `<a class="record-link" href="staff-detail.html?role=teacher&id=${encodeURIComponent(record.teacher.id)}">${record.teacher.name}（${record.teacher.id}）</a>` : `${record.teacher.name}（${record.teacher.id}）`;
         const storeLink = canOpenAggregates ? `<a class="record-link" href="store-detail.html?storeId=${encodeURIComponent(record.store.id)}">${record.store.name}</a>` : record.store.name;
         const projectLink = canOpenAggregates ? `<a class="record-link" href="project-detail.html?projectId=${encodeURIComponent(record.project.id)}">${record.project.name}</a>` : record.project.name;
-        return type === "recharge" ? `<tr><td>${recordLink}</td><td>${customerLink}</td><td>${record.customer.displayName}</td><td>${formatBirthday(record.customer.birthday)}</td><td>${storeLink}</td><td>${projectLink}</td><td>+${record.amount}</td><td>${date}</td><td>${statusTag(record.reviewProgress)}</td></tr>` : `<tr><td>${recordLink}</td><td>${customerLink}</td><td>${record.customer.displayName}</td><td>${formatBirthday(record.customer.birthday)}</td><td>${storeLink}</td><td>${projectLink}</td><td>${teacherLink}</td><td>${date}</td><td>${statusTag(record.status)}</td></tr>`;
+        return type === "recharge" ? `<tr><td>${recordLink}</td><td>${customerLink}</td><td>${record.customer.displayName}</td><td>${window.CustomerAge.format(record.customer.birthday)}</td><td>${storeLink}</td><td>${projectLink}</td><td>+${record.amount}</td><td>${date}</td><td>${statusTag(record.reviewProgress)}</td></tr>` : `<tr><td>${recordLink}</td><td>${customerLink}</td><td>${record.customer.displayName}</td><td>${window.CustomerAge.format(record.customer.birthday)}</td><td>${storeLink}</td><td>${projectLink}</td><td>${teacherLink}</td><td>${date}</td><td>${statusTag(record.status)}</td></tr>`;
       }).join("") || '<tr><td colspan="9" class="query-empty">当前组合条件下没有记录</td></tr>';
     }
     function setLookupMode(next) {

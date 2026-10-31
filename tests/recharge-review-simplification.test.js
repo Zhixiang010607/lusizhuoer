@@ -33,7 +33,7 @@ assert.match(queryHtml, /value="PENDING">待审核<\/option><option value="APPRO
 assert.doesNotMatch(queryHtml, /value="CLOSED"|作废状态|record-col-void-status/);
 assert.match(queryHtml, /<th>审核状态<\/th>/);
 assert.doesNotMatch(queryHtml, /<th>状态<\/th>/);
-assert.match(queryHtml, /query\.js\?v=0\.15\.11/);
+assert.match(queryHtml, /query\.js\?v=0\.15\.13/);
 assert.match(queryUi, /REJECTED: "已驳回"/);
 assert.match(queryUi, /APPROVED: "审核通过"/);
 assert.doesNotMatch(queryUi, /function voidStatusTag|voidPending|作废待审核/);
@@ -47,13 +47,13 @@ assert.doesNotMatch(refundReviewHtml, /id="reviewType"|充值与退费审核记�
 assert.match(refundReviewHtml, /class="review-type-tabs"[\s\S]*href="recharge-review\.html">充值审核<\/a>[\s\S]*aria-current="page" href="refund-review\.html">退费审核<\/a>/);
 assert.doesNotMatch(reviewHtml, /作废充值/);
 assert.match(reviewHtml, /value="approved">审核通过<\/option>/);
-assert.match(reviewHtml, /review\.js\?v=0\.18\.5/);
-assert.match(refundReviewHtml, /review\.js\?v=0\.18\.5/);
+assert.match(reviewHtml, /review\.js\?v=0\.18\.6/);
+assert.match(refundReviewHtml, /review\.js\?v=0\.18\.6/);
 for (const html of [reviewHtml, refundReviewHtml]) {
   assert.match(html, /<dialog id="reviewDialog"/);
   assert.match(html, /<button id="confirmReview" type="button">确认<\/button>/);
 }
-assert.match(reviewUi, /const VERSION = "0\.18\.5"/);
+assert.match(reviewUi, /const VERSION = "0\.18\.6"/);
 assert.doesNotMatch(reviewUi, /item\.customerName\}\$\{item\.customerId/, "visible customer names must not append internal ids");
 assert.doesNotMatch(reviewUi, /item\.teacherName\}\$\{item\.teacherId/, "visible teacher names must not append internal ids");
 assert.doesNotMatch(reviewUi, /item\.store\.code\s*\?/, "visible store names must not append internal codes");

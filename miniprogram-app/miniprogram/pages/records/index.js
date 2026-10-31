@@ -1,8 +1,9 @@
 const { callFace, callStaff } = require("../../services/api");
 const { requireSession } = require("../../services/session");
 const query = require("../../services/query-tools");
+const { formatCustomerAge } = require("../../services/customer-age");
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 const EMPTY_SUMMARY = Object.freeze({ total: 0, purchase: 0, gift: 0, pending: 0, approved: 0, rejected: 0 });
 const PRODUCT_SOURCES = Object.freeze([
   { label: "全部来源", value: "" },
@@ -159,7 +160,10 @@ Page({
       const actualPage = Math.min(totalPages, Math.max(1, Number(result.page || result.pageNumber || page)));
       this.setData({
         records: (recordType === "PRODUCT_PURCHASE" ? result.orders || [] : result.records || [])
-          .map((item) => recordType === "PRODUCT_PURCHASE" ? query.normalizeProductPurchaseRecord(item) : query.normalizeRecord(item, recordType)),
+          .map((item) => {
+            const row = recordType === "PRODUCT_PURCHASE" ? query.normalizeProductPurchaseRecord(item) : query.normalizeRecord(item, recordType);
+            return { ...row, ageLabel: formatCustomerAge(row.birthDate) };
+          }),
         summary: result.summary || { ...EMPTY_SUMMARY },
         products, productLabels: [recordType === "PRODUCT_PURCHASE" ? "全部产品" : "全部项目", ...products.map((product) => product.label)], productIndex: nextProductIndex,
         page: actualPage, pageJump: String(actualPage), total: Number(result.total || 0), totalPages

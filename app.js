@@ -2,9 +2,9 @@
   "use strict";
 
   // 文档同步约束：每次业务或界面变更都必须同步更新 main.tex 与 README.md。
-  const PROTOTYPE_VERSION = "0.15.28";
+  const PROTOTYPE_VERSION = "0.15.29";
   const BUSINESS_TIME_ZONE = "Asia/Shanghai";
-  const RANKING_PAGE_SIZE = 100;
+  const RANKING_PAGE_SIZE = 10;
   const PRODUCT_SUMMARY_PAGE_SIZE = 10;
   const RANKING_MAX_PAGE_NUMBER = 10000;
   const PDF_EXPORT_PAGE_SIZE = 500;
@@ -443,11 +443,13 @@
     $("productSummaryVerification").textContent = fmt.format(finiteCount(totals.verification, 0));
     $("productSummaryExperience").textContent = fmt.format(finiteCount(totals.experience, 0));
     $("productSummaryRefund").textContent = fmt.format(finiteCount(totals.refund, 0));
-    const multiplePages = summary.totalPages > 1;
-    $("productSummaryPager").hidden = !multiplePages;
+    $("productSummaryPager").hidden = !summary.total;
     $("productSummaryPageLabel").textContent = `第 ${fmt.format(summary.pageNumber)} / ${fmt.format(summary.totalPages)} 页`;
     $("productSummaryPrevious").disabled = state.productSummaryLoading || summary.pageNumber <= 1;
     $("productSummaryNext").disabled = state.productSummaryLoading || summary.pageNumber >= summary.totalPages;
+    $("productSummaryPageInput").value = String(summary.pageNumber);
+    $("productSummaryPageInput").max = String(summary.totalPages);
+    $("productSummaryJump").disabled = state.productSummaryLoading;
   }
 
   function limited(items) {
@@ -1053,6 +1055,14 @@
     $("productSummaryNext").addEventListener("click", () => {
       void loadProductSummaryPage(Math.min(Number(state.productSummary.totalPages || 1), Number(state.productSummary.pageNumber || 1) + 1));
     });
+    const jumpSummary = () => {
+      const raw = String($("productSummaryPageInput").value).trim();
+      const page = Number(raw);
+      if (state.productSummaryLoading || !/^\d+$/.test(raw) || !Number.isSafeInteger(page) || page < 1 || page > state.productSummary.totalPages) return;
+      void loadProductSummaryPage(page);
+    };
+    $("productSummaryJump").addEventListener("click", jumpSummary);
+    $("productSummaryPageInput").addEventListener("keydown", (event) => { if (event.key === "Enter") jumpSummary(); });
     $("exportBtn").addEventListener("click", exportPdf);
     if ($("rankingDimension")) $("rankingDimension").addEventListener("change", () => {
       if (state.requestState !== "ready") return;

@@ -89,3 +89,15 @@
 
 @import "../../styles/query-refinements.wxss";
 .refined-query .summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+/* Ten complete rows; keep physical-pixel tablet sizes separate from phone rpx. */
+.low-balance-table-scroll[data-visible-rows="6"] { height: 498rpx; }
+.low-balance-table-scroll[data-visible-rows="7"] { height: 570rpx; }
+.low-balance-table-scroll[data-visible-rows="8"] { height: 642rpx; }
+.low-balance-table-scroll[data-visible-rows="9"] { height: 714rpx; }
+.low-balance-table-scroll[data-visible-rows="10"] { height: 786rpx; }
+@media (min-width: 700px) { .low-balance-table-scroll[data-visible-rows="6"] { height: 404px; } }
+@media (min-width: 700px) { .low-balance-table-scroll[data-visible-rows="7"] { height: 464px; } }
+@media (min-width: 700px) { .low-balance-table-scroll[data-visible-rows="8"] { height: 524px; } }
+@media (min-width: 700px) { .low-balance-table-scroll[data-visible-rows="9"] { height: 584px; } }
+@media (min-width: 700px) { .low-balance-table-scroll[data-visible-rows="10"] { height: 644px; } }

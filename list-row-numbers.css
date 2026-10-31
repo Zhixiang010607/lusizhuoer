@@ -1,0 +1,26 @@
+/* Isolated short column: retain each list's existing typography and scroll region. */
+table.numbered-result-table > thead > tr > .list-row-number,
+table.numbered-result-table > tbody > tr > .list-row-number,
+table.numbered-result-table > colgroup > .list-row-number {
+  width: 48px;
+  min-width: 48px;
+  max-width: 48px;
+  box-sizing: border-box;
+  padding-inline: 8px;
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+table.numbered-result-table > tbody > tr > .list-row-number {
+  color: #7c7062;
+  font-weight: 400;
+}
+table.numbered-result-table > tbody > tr[data-list-page-hidden="true"] { display: none !important; }
+.list-pagination, .list-page-jump { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; }
+.list-pagination { margin-top: 16px; }
+.list-page-jump input { width: 72px; min-height: 40px; padding: 6px 10px; text-align: center; box-sizing: border-box; }
+.list-pagination button { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
+.list-pagination[hidden] { display: none; }
+body .numbered-list-scroll { height: auto !important; min-height: 0 !important; max-height: none !important; overflow-x: auto; }
+.table-card > .record-query-pager { margin-top: 16px; justify-content: center; }

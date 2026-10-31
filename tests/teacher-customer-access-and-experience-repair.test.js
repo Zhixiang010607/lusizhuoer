@@ -50,7 +50,7 @@ for (const html of [teacherHtml, storeHtml]) {
     "teacher and store use the same project-by-business matrix");
   assert.match(html, />活跃用户<\/h2>/);
   assert.match(html, />封存用户<\/h2>/);
-  assert.match(html, /<th>姓名<\/th><th>门店<\/th><th>生日<\/th><th>充值次数<\/th><th>核销次数<\/th>/,
+  assert.match(html, /<th>姓名<\/th><th>门店<\/th><th>年龄<\/th><th>充值次数<\/th><th>核销次数<\/th>/,
     "teacher and store customer lists use identical columns");
 }
 assert.ok(teacherHtml.indexOf('id="teacherBusinessDetails"') < teacherHtml.indexOf('id="teacherActiveCustomersTitle"'),

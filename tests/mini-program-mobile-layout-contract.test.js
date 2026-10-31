@@ -178,12 +178,12 @@ test("all three mini-program homes preserve business content in the refreshed br
   assert.match(wxss, /\.anchor-inner\s*\{[^}]*width:\s*100%;[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/s);
   assert.match(wxss, /\.anchor-inner text\s*\{[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*font-size:\s*24rpx/s);
   assert.match(wxss, /\.summary-scroll\s*\{[^}]*box-sizing:\s*border-box/s);
-  assert.match(js, /function businessRecordsView\(items, type\)[\s\S]*businessViewportHeight:\s*64 \+ \(visibleRows \? visibleRows \* 72 : 104\)[\s\S]*businessScrollable:\s*businessRecords\.length > 5/,
-    "business detail must grow for one to five rows and become internally scrollable only after five rows");
-  assert.match(wxml, /class="table-scroll record-scroll"[^>]*scroll-x[^>]*scroll-y="\{\{businessScrollable\}\}"[^>]*show-scrollbar="\{\{businessScrollable\}\}"[^>]*style="height: \{\{businessViewportHeight\}\}rpx"/,
+  assert.match(js, /function businessRecordsView\(items, type\)[\s\S]*businessViewportHeight:\s*64 \+ \(visibleRows \? visibleRows \* 72 : 104\)[\s\S]*businessScrollable:\s*businessRecords\.length > 10/,
+    "business detail must grow for one to ten full rows without vertical table scrolling");
+  assert.match(wxml, /class="table-scroll record-scroll"[^>]*scroll-x[^>]*show-scrollbar="\{\{false\}\}"[^>]*style="height: \{\{businessViewportHeight\}\}rpx"/,
     "the calculated business-detail viewport must drive the real-device scroll-view height");
-  assert.match(wxml, /wx:if="\{\{businessScrollable\}\}" class="record-scroll-hint">超过 5 条，可在表格内上下滑动<\/text>/,
-    "a long business list must visibly explain its internal vertical scrolling");
+  assert.doesNotMatch(wxml, /record-scroll-hint|可在表格内上下滑动/,
+    "ten-row pages must not retain the retired vertical scrolling hint");
   assert.match(wxss, /\.record-scroll\s*\{[^}]*box-sizing:\s*border-box;[^}]*overflow:\s*auto;/s,
     "business detail scrolling must stay clipped inside its rounded table card");
   assert.match(wxss, /\.summary-table \.table-row, \.record-table \.table-row, \.customer-table \.table-row\s*\{[^}]*display:\s*table-row;/s);

@@ -147,7 +147,7 @@ test("HQ store and teacher workspaces reuse authoritative services without a gen
     "all store table headers must use the same horizontal column grid as store data rows");
   assert.equal((directoryWxml.match(/class="table-row table-head teacher"/g) || []).length, 3,
     "all teacher table headers must use the same horizontal column grid as teacher data rows");
-  assert.match(directoryWxml, /class="table-row teacher">\s*<text class="link"[^>]*bindtap="openDetail">\{\{item\.name\}\}<\/text><text>\{\{item\.phone\}\}<\/text><text><text class="status/);
+  assert.match(directoryWxml, /class="table-row teacher"><text class="list-row-number">\{\{index \+ 1\}\}<\/text>\s*<text class="link"[^>]*bindtap="openDetail">\{\{item\.name\}\}<\/text><text>\{\{item\.phone\}\}<\/text><text><text class="status/);
   assert.equal((directoryWxml.match(/class="table-section(?: archived-section)? \{\{type\}\}"/g) || []).length, 3,
     "all three directory cards receive the role-specific gutter rule");
   assert.match(directoryWxss, /\.search-panel, \.table-section\s*\{[^}]*padding:\s*24rpx;/s,
@@ -194,7 +194,7 @@ test("HQ review workbenches match web filters, pagination, exact links, and guar
   const wxml = read("pages", "reviews", "index.wxml");
   const wxss = read("pages", "reviews", "index.wxss");
 
-  assert.match(js, /const PAGE_SIZE = 20/);
+  assert.match(js, /const PAGE_SIZE = 10/);
   assert.match(js, /statusLabels: STATUS\.map\(\(item\) => item\.label\), statusIndex: 1/,
     "all review workbenches must open on pending records instead of loading every historical status");
   assert.match(js, /resetQuery\(\) \{ this\.invalidateRequest\(\{ storeIndex: 0, statusIndex: 1/,
@@ -223,9 +223,9 @@ test("HQ review workbenches match web filters, pagination, exact links, and guar
   for (const label of ["充值审核", "退费审核", "按条件查询", "按工单编号", "门店范围", "审核状态", "上一页", "下一页", "跳至", "通过", "驳回", "审核留言（可选）"]) {
     assert.match(wxml, new RegExp(label), `HQ review UI is missing ${label}`);
   }
-  assert.match(wxml, /wx:if="\{\{mode === 'filters' && !loading && \(totalPages > 1 \|\| page > 1\)\}\}" class="pager"/,
+  assert.match(wxml, /wx:if="\{\{mode === 'filters' && !loading && total > 0\}\}" class="pager"/,
     "empty review results must not reserve a pagination row");
-  assert.match(wxml, /wx:if="\{\{mode === 'filters' && !loading && totalPages > 1\}\}" class="page-jump"/,
+  assert.match(wxml, /wx:if="\{\{mode === 'filters' && !loading && total > 0\}\}" class="page-jump"/,
     "empty review results must not reserve a page-jump row");
   assert.match(wxss, /\.review-table\s*\{[^}]*width:\s*auto;[^}]*min-width:\s*100%;[^}]*display:\s*inline-table;[^}]*table-layout:\s*auto;/s,
     "review columns must size to their longest value and scroll only when necessary");

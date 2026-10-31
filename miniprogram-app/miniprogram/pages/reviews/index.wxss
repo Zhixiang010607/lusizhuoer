@@ -70,6 +70,9 @@ button::after { border: 0; }
 .page-jump { display: flex; align-items: center; justify-content: center; gap: 10rpx; margin-top: 14rpx; color: #74695c; font-size: 24rpx; }
 .page-jump input { width: 104rpx; height: 80rpx; padding: 0 10rpx; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 12rpx; box-sizing: border-box; font-size: 24rpx; text-align: center; }
 .page-jump button { width: 132rpx !important; min-height: 80rpx; display: flex; align-items: center; justify-content: center; padding: 0 14rpx; font-size: 24rpx; line-height: 1; }
+.page .page-jump { display: grid; grid-template-columns: auto 104rpx auto 132rpx; justify-content: center; }
+.page .page-jump > text { white-space: nowrap; }
+.page .page-jump > button { margin: 0; }
 .empty { padding: 40rpx 12rpx; color: #887c6d; font-size: 24rpx; text-align: center; }
 .mask { position: fixed; inset: 0; z-index: 300; display: flex; align-items: center; justify-content: center; padding: 28rpx; background: rgba(47,41,33,.56); box-sizing: border-box; }
 .dialog { width: 100%; max-height: 88vh; padding: 28rpx; overflow-y: auto; background: #fffaf3; border: 1rpx solid #d9bd8c; border-radius: 28rpx; box-sizing: border-box; box-shadow: 0 34rpx 90rpx rgba(47,41,33,.32); }
@@ -130,6 +133,7 @@ button::after { border: 0; }
   .pager button { width: 120px !important; min-height: 44px; padding: 0 12px; font-size: 14px; }
   .pager > text { font-size: 14px; }
   .page-jump { gap: 8px; margin-top: 12px; font-size: 14px; }
+  .page .page-jump { grid-template-columns: auto 88px auto 100px; }
   .page-jump input { width: 88px; height: 44px; padding: 0 10px; border-width: 1px; border-radius: 10px; font-size: 14px; }
   .page-jump button { width: 100px !important; min-height: 44px; padding: 0 12px; font-size: 14px; }
   .result-card { padding: 16px 18px; }
@@ -147,3 +151,15 @@ button::after { border: 0; }
 .dialog .decision-message { margin: 18rpx 0 0; line-height: 1.6; }
 .dialog-actions button { width: 100% !important; min-height: 84rpx; }
 @media (min-width: 700px) { .dialog-actions button { min-height: 48px; } }
+
+/* Ten complete rows; keep physical-pixel tablet sizes separate from phone rpx. */
+.table-scroll[data-visible-rows="6"] { height: 496rpx; }
+.table-scroll[data-visible-rows="7"] { height: 568rpx; }
+.table-scroll[data-visible-rows="8"] { height: 640rpx; }
+.table-scroll[data-visible-rows="9"] { height: 712rpx; }
+.table-scroll[data-visible-rows="10"] { height: 784rpx; }
+@media (min-width: 700px) { .table-scroll[data-visible-rows="6"] { height: 360px; } }
+@media (min-width: 700px) { .table-scroll[data-visible-rows="7"] { height: 412px; } }
+@media (min-width: 700px) { .table-scroll[data-visible-rows="8"] { height: 464px; } }
+@media (min-width: 700px) { .table-scroll[data-visible-rows="9"] { height: 516px; } }
+@media (min-width: 700px) { .table-scroll[data-visible-rows="10"] { height: 568px; } }

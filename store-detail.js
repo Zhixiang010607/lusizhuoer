@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.16.7";
+  const VERSION = "0.16.8";
   const CUSTOMER_PAGE_SIZE = 10;
   const BUSINESS_PAGE_SIZE = 10;
   const params = new URLSearchParams(location.search);
@@ -69,7 +69,7 @@
     }
     registerCloudBaseComponent(window.registerAuth, "auth");
     registerCloudBaseComponent(window.registerFunctions, "functions");
-    const request = { action: "getStoreDashboard", activeCustomerPage, archivedCustomerPage };
+    const request = { action: "getStoreDashboard", activeCustomerPage, archivedCustomerPage, customerPageSize: CUSTOMER_PAGE_SIZE };
     if (storeId) request.storeId = String(storeId);
     const result = await window.cloudbase.init(window.CloudBaseAuthConfig).callFunction({
       name: "faceRecognition",
@@ -113,11 +113,11 @@
     const target = $(targetId);
     if (!target) return;
     const pages = Math.max(1, Math.ceil(total / pageSize));
-    if (total <= pageSize) {
+    if (total === 0) {
       target.innerHTML = "";
       return;
     }
-    target.innerHTML = `<button type="button" data-page-target="${dataPage}" data-page="${page - 1}" ${page <= 1 ? "disabled" : ""}>上一页</button><span>第 ${page} / ${pages} 页</span><button type="button" data-page-target="${dataPage}" data-page="${page + 1}" ${page >= pages ? "disabled" : ""}>下一页</button>`;
+    target.innerHTML = `<button type="button" data-page-target="${dataPage}" data-page="${page - 1}" ${page <= 1 ? "disabled" : ""}>上一页</button><span>第 ${page} / ${pages} 页</span><button type="button" data-page-target="${dataPage}" data-page="${page + 1}" ${page >= pages ? "disabled" : ""}>下一页</button><label class="list-page-jump">跳至第 <input type="number" min="1" max="${pages}" value="${page}" aria-label="跳转到第几页"> 页</label><button type="button" data-page-target="${dataPage}" data-jump="true">跳转</button>`;
   }
 
   function renderCustomers(status) {
@@ -142,7 +142,7 @@
         const reference = code || id;
         const customer = reference ? `<a class="record-link" href="customer-detail.html?customerId=${encodeURIComponent(reference)}">${escapeHtml(name)}</a>` : escapeHtml(name);
         const storeName = firstValue(state.currentStore, ["store_name"], "—");
-        return `<tr><td data-label="姓名">${customer}</td><td data-label="门店">${escapeHtml(storeName)}</td><td data-label="生日">${escapeHtml(formatBirthday(firstValue(row, ["birthday", "birth_date"], "")))}</td><td data-label="充值次数">${escapeHtml(firstValue(row, ["total_recharge_count", "purchase_count"], 0))} 次</td><td data-label="核销次数"><strong>${escapeHtml(firstValue(row, ["total_verification_count", "verification_count"], 0))} 次</strong></td></tr>`;
+        return `<tr><td data-label="姓名">${customer}</td><td data-label="门店">${escapeHtml(storeName)}</td><td data-label="年龄">${window.CustomerAge.format(firstValue(row, ["birthday", "birth_date"], ""))}</td><td data-label="充值次数">${escapeHtml(firstValue(row, ["total_recharge_count", "purchase_count"], 0))} 次</td><td data-label="核销次数"><strong>${escapeHtml(firstValue(row, ["total_verification_count", "verification_count"], 0))} 次</strong></td></tr>`;
       }).join("");
     }
     if ($(`store${prefix}CustomerCount`)) $(`store${prefix}CustomerCount`).textContent = `${total} 位用户`;
@@ -308,7 +308,7 @@
     const pageSize = Number(state.businessPageSizes[type] || BUSINESS_PAGE_SIZE);
     const totalPages = Math.max(1, Number(state.businessTotalPages[type] || Math.ceil(total / pageSize)));
     const page = Math.min(Math.max(1, Number(state.businessPages[type] || 1)), totalPages);
-    if (total <= pageSize) { target.innerHTML = ""; return; }
+    if (total === 0) { target.innerHTML = ""; return; }
     target.innerHTML = `<button type="button" data-store-business-page="${page - 1}" ${page <= 1 ? "disabled" : ""}>上一页</button><span>第 ${page} / ${totalPages} 页 · 共 ${total.toLocaleString("zh-CN")} 条</span><button type="button" data-store-business-page="${page + 1}" ${page >= totalPages ? "disabled" : ""}>下一页</button><label class="ranking-page-jump">跳转到第 <input id="storeBusinessPageInput" type="number" min="1" max="${totalPages}" value="${page}" inputmode="numeric" aria-label="门店业务明细页码"> 页 <button type="button" data-store-business-jump>跳转</button></label>`;
   }
 
@@ -474,7 +474,10 @@
     }
     const button = event.target.closest("button[data-page-target]");
     if (!button || button.disabled) return;
-    const page = Number(button.dataset.page);
+    const raw = button.dataset.jump ? button.parentElement.querySelector("input")?.value : button.dataset.page;
+    if (!/^\d+$/.test(String(raw || "")) || !Number.isSafeInteger(Number(raw))) return;
+    const page = Number(raw);
+    if (page < 1 || page > Number(button.parentElement.querySelector("input")?.max || 1)) return;
     if (["activeCustomer", "archivedCustomer"].includes(button.dataset.pageTarget)) {
       void loadCustomerPage(button.dataset.pageTarget, page);
     }

@@ -36,7 +36,8 @@ Page({
     const epoch = this._requestEpoch = (this._requestEpoch || 0) + 1;
     const payload = {
       activePage: status === "ACTIVE" ? page : this.data.pages.ACTIVE,
-      archivedPage: status === "ARCHIVED" ? page : this.data.pages.ARCHIVED
+      archivedPage: status === "ARCHIVED" ? page : this.data.pages.ARCHIVED,
+      customerPageSize: 10
     };
     this._retryPage = page;
     this._measureEpoch = (this._measureEpoch || 0) + 1;

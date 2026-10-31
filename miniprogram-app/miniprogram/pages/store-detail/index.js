@@ -2,7 +2,7 @@ const { callFace, callStaff } = require("../../services/api");
 const { requireSession } = require("../../services/session");
 const dashboard = require("../../services/home-dashboard");
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 function text(...values) { return String(values.find((value) => value !== undefined && value !== null && String(value).trim()) || "").trim(); }
 function archived(row = {}) { return [row.store_status, row.account_status, row.status].some((value) => text(value).toUpperCase() === "ARCHIVED"); }
 function pageView(source = {}) {
@@ -11,25 +11,25 @@ function pageView(source = {}) {
 }
 function customerView(source = {}) {
   const rows = Array.isArray(source.rows) ? source.rows : [];
-  const visibleRows = Math.min(5, Math.max(1, rows.length));
+  const visibleRows = Math.min(10, Math.max(1, rows.length));
   return {
     ...source,
     previousDisabled: source.page <= 1,
     nextDisabled: source.page >= source.totalPages,
     pageInput: String(source.page || 1),
     viewportHeight: 64 + visibleRows * 72,
-    tabletVisibleRows: Math.min(5, rows.length),
-    scrollable: rows.length > 5
+    tabletVisibleRows: Math.min(10, rows.length),
+    scrollable: rows.length > 10
   };
 }
 function businessRecordsView(items = [], type = "VERIFICATION") {
   const businessRecords = dashboard.records(items, type);
-  const visibleRows = Math.min(5, businessRecords.length);
+  const visibleRows = Math.min(10, businessRecords.length);
   return {
     businessRecords,
     businessVisibleRows: visibleRows,
     businessViewportHeight: 64 + (visibleRows ? visibleRows * 72 : 104),
-    businessScrollable: businessRecords.length > 5
+    businessScrollable: businessRecords.length > 10
   };
 }
 function summaryRows(items) { return dashboard.products(items); }
@@ -117,7 +117,7 @@ Page({
       const config = dashboard.TYPE_CONFIG[request.businessType];
       const rangePayload = dashboard.payload(range.startDate, range.endDate);
       const [storeRead, analyticsRead, recordsRead] = await Promise.allSettled([
-        callFace("getStoreDashboard", Object.freeze({ storeId, activeCustomerPage: request.activeCustomerPage, archivedCustomerPage: request.archivedCustomerPage })),
+        callFace("getStoreDashboard", Object.freeze({ storeId, activeCustomerPage: request.activeCustomerPage, archivedCustomerPage: request.archivedCustomerPage, customerPageSize: PAGE_SIZE })),
         callFace("getStoreBusinessAnalytics", Object.freeze({ storeId, ...rangePayload, allTime: !range.startDate })),
         callFace("queryStoreBusinessRecords", Object.freeze({ storeId, mode: "browse", statusCategory: "APPROVED", recordType: config.recordType, verificationType: config.verificationType, rechargeType: config.rechargeType, page: request.businessPage, pageSize: PAGE_SIZE, ...rangePayload }))
       ]);
@@ -295,7 +295,7 @@ Page({
     });
     this.setData({ message: "", error: false });
     try {
-      const payload = Object.freeze({ storeId: request.storeId, activeCustomerPage: request.activeCustomerPage, archivedCustomerPage: request.archivedCustomerPage });
+      const payload = Object.freeze({ storeId: request.storeId, activeCustomerPage: request.activeCustomerPage, archivedCustomerPage: request.archivedCustomerPage, customerPageSize: PAGE_SIZE });
       const result = await callFace("getStoreDashboard", payload);
       if (!current(this, request.epochKey, request.epoch)) return;
       const groups = dashboard.storeCustomerGroups(result.store || {});
@@ -356,7 +356,7 @@ Page({
       if (text(result.status).toUpperCase() !== request.next) throw new Error("门店状态服务没有确认保存结果");
       const profileEpoch = bump(this, "_profileRequestEpoch");
       ownedProfileEpoch = profileEpoch;
-      const verify = await callFace("getStoreDashboard", Object.freeze({ storeId: request.storeId, activeCustomerPage: request.activeCustomerPage, archivedCustomerPage: request.archivedCustomerPage }));
+      const verify = await callFace("getStoreDashboard", Object.freeze({ storeId: request.storeId, activeCustomerPage: request.activeCustomerPage, archivedCustomerPage: request.archivedCustomerPage, customerPageSize: PAGE_SIZE }));
       if (!current(this, "_statusRequestEpoch", request.epoch) || !current(this, "_profileRequestEpoch", profileEpoch)) return;
       const store = verify.store || {};
       if (archived(store) !== (request.next === "ARCHIVED")) throw new Error("数据库回读状态与本次操作不一致");

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>门店全局视图</title>
   <link rel="stylesheet" href="styles.css?v=0.15.60">
-</head>
+<link rel="stylesheet" href="list-row-numbers.css?v=1.0.0"></head>
 <body data-store-dashboard>
   <aside class="side-project-bar" aria-label="项目栏">
     <div class="side-brand"><span>HQ</span><div><strong>总部工作台</strong><small>项目栏</small></div></div>
@@ -57,13 +57,13 @@
       <div class="table-scroll teacher-record-scroll" tabindex="0" aria-label="本门店业务明细表格，可横向滑动"><table><thead id="storeBusinessDetailHead"><tr><th>单号</th><th>门店</th><th>客户</th><th>项目</th><th>次数</th><th>提交时间</th></tr></thead><tbody id="storeBusinessDetailBody"><tr><td colspan="6" class="teacher-empty">正在读取核销明细…</td></tr></tbody></table></div>
       <div id="storeBusinessPagination" class="table-pagination business-record-pagination dashboard-ranking-pagination" aria-label="本门店业务明细分页"></div>
     </section>
-    <section id="storeActiveCustomers" class="panel teacher-customer-panel store-customer-section" aria-labelledby="storeActiveCustomersTitle"><div class="panel-heading"><div><h2 id="storeActiveCustomersTitle">活跃用户</h2><p>只显示绑定本门店的活跃客户；点击姓名可进入客户主页</p></div><span id="storeActiveCustomerCount" class="badge">读取中</span></div><div class="table-scroll teacher-customer-scroll" tabindex="0" aria-label="活跃用户表格，可横向滑动"><table><thead><tr><th>姓名</th><th>门店</th><th>生日</th><th>充值次数</th><th>核销次数</th></tr></thead><tbody id="storeActiveCustomerBody"></tbody></table></div><div id="storeActiveCustomerPagination" class="table-pagination" aria-label="门店活跃用户分页"></div></section>
-    <section id="storeArchivedCustomers" class="panel teacher-customer-panel store-customer-section archived-customer-section" aria-labelledby="storeArchivedCustomersTitle"><div class="panel-heading"><div><h2 id="storeArchivedCustomersTitle">封存用户</h2><p>封存用户仍保留与本门店的历史绑定；点击姓名可进入客户主页</p></div><span id="storeArchivedCustomerCount" class="badge archived-customer-badge">读取中</span></div><div class="table-scroll teacher-customer-scroll" tabindex="0" aria-label="封存用户表格，可横向滑动"><table><thead><tr><th>姓名</th><th>门店</th><th>生日</th><th>充值次数</th><th>核销次数</th></tr></thead><tbody id="storeArchivedCustomerBody"></tbody></table></div><div id="storeArchivedCustomerPagination" class="table-pagination" aria-label="门店封存用户分页"></div></section>
+    <section id="storeActiveCustomers" class="panel teacher-customer-panel store-customer-section" aria-labelledby="storeActiveCustomersTitle"><div class="panel-heading"><div><h2 id="storeActiveCustomersTitle">活跃用户</h2><p>只显示绑定本门店的活跃客户；点击姓名可进入客户主页</p></div><span id="storeActiveCustomerCount" class="badge">读取中</span></div><div class="table-scroll teacher-customer-scroll" tabindex="0" aria-label="活跃用户表格，可横向滑动"><table><thead><tr><th>姓名</th><th>门店</th><th>年龄</th><th>充值次数</th><th>核销次数</th></tr></thead><tbody id="storeActiveCustomerBody"></tbody></table></div><div id="storeActiveCustomerPagination" class="table-pagination" aria-label="门店活跃用户分页"></div></section>
+    <section id="storeArchivedCustomers" class="panel teacher-customer-panel store-customer-section archived-customer-section" aria-labelledby="storeArchivedCustomersTitle"><div class="panel-heading"><div><h2 id="storeArchivedCustomersTitle">封存用户</h2><p>封存用户仍保留与本门店的历史绑定；点击姓名可进入客户主页</p></div><span id="storeArchivedCustomerCount" class="badge archived-customer-badge">读取中</span></div><div class="table-scroll teacher-customer-scroll" tabindex="0" aria-label="封存用户表格，可横向滑动"><table><thead><tr><th>姓名</th><th>门店</th><th>年龄</th><th>充值次数</th><th>核销次数</th></tr></thead><tbody id="storeArchivedCustomerBody"></tbody></table></div><div id="storeArchivedCustomerPagination" class="table-pagination" aria-label="门店封存用户分页"></div></section>
   </main>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.20.7"></script><script src="datetime.js?v=0.1.2"></script>
-  <script src="store-analytics-data.js?v=0.2.1"></script><script src="store-detail.js?v=0.16.7"></script><script src="auth-ui.js?v=0.21.5"></script>
-</body>
+  <script src="store-analytics-data.js?v=0.2.1"></script><script src="customer-age.js?v=1.0.0"></script><script src="store-detail.js?v=0.16.8"></script><script src="auth-ui.js?v=0.21.5"></script>
+<script src="list-row-numbers.js?v=1.0.0"></script></body>
 </html>

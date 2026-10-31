@@ -120,6 +120,18 @@
 
 @import "../../styles/query-refinements.wxss";
 
+/* Ten complete rows, with tablet values in physical pixels. */
+.rating-table-scroll[data-visible-rows="6"] { height: 498rpx; }
+.rating-table-scroll[data-visible-rows="7"] { height: 570rpx; }
+.rating-table-scroll[data-visible-rows="8"] { height: 642rpx; }
+.rating-table-scroll[data-visible-rows="9"] { height: 714rpx; }
+.rating-table-scroll[data-visible-rows="10"] { height: 786rpx; }
+@media (min-width: 700px) { .rating-table-scroll[data-visible-rows="6"] { height: 404px; } }
+@media (min-width: 700px) { .rating-table-scroll[data-visible-rows="7"] { height: 464px; } }
+@media (min-width: 700px) { .rating-table-scroll[data-visible-rows="8"] { height: 524px; } }
+@media (min-width: 700px) { .rating-table-scroll[data-visible-rows="9"] { height: 584px; } }
+@media (min-width: 700px) { .rating-table-scroll[data-visible-rows="10"] { height: 644px; } }
+
 .chart-card.large-counts .pie-total { max-width: 100%; font-size: 24rpx; white-space: nowrap; }
 .chart-card.large-counts .legend-head > text { padding-right: 12rpx; padding-left: 12rpx; font-size: 28rpx; }
 .chart-card.large-counts .legend-row > .legend-key, .chart-card.large-counts .legend-row > .legend-count, .chart-card.large-counts .legend-row > .legend-value { padding-right: 12rpx; padding-left: 12rpx; font-size: 26rpx; }

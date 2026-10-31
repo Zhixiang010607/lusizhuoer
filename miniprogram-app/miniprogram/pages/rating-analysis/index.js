@@ -9,7 +9,7 @@ const {
 const { PDF_EXPORT_MAX_ROWS, createGroupedPdf, loadCjkFontBytes, openPdf } = require("../../services/grouped-table-pdf");
 const query = require("../../services/query-tools");
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 const SCORE_COLORS = Object.freeze(["#b9aea0", "#a9554b", "#c87348", "#c39945", "#82905e", "#47745e"]);
 const EMPTY_SUMMARY = Object.freeze({ total: 0, rated: 0, unrated: 0, scoreCounts: [0, 0, 0, 0, 0, 0] });
 
