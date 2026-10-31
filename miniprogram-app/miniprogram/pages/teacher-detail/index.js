@@ -205,7 +205,7 @@ Page({
     products: [], configureProducts: [], configureLabels: [], configureIndex: 0, configureProductId: "", monthlyAllowance: "",
     rechargeProducts: [], rechargeLabels: [], rechargeIndex: 0, rechargeProductId: "", rechargeCount: "", rechargeNote: "", rechargePending: false,
     overview: { available: 0, used: 0, lifetime: 0, activeProducts: 0 }, newPassword: "", newPasswordVisible: false,
-    activeSection: "basic", workMode: "attendance", workMonth: shanghaiMonth(), workMonthTitle: monthTitle(shanghaiMonth()),
+    activeSection: "home", workMode: "attendance", workMonth: shanghaiMonth(), workMonthTitle: monthTitle(shanghaiMonth()),
     ...monthNavigationState(shanghaiMonth()), employmentStartDate: "",
     weekdays: ["一", "二", "三", "四", "五", "六", "日"], calendarDays: [], selectedWorkDate: "", selectedWorkDay: null,
     workLoading: false, workLoadedMonth: "", serverToday: "", faceCaptureReady: false, faceConsent: false,
@@ -224,11 +224,17 @@ Page({
     if (this._faceResultToastTimer) clearTimeout(this._faceResultToastTimer);
     REQUEST_EPOCH_KEYS.forEach((key) => bump(this, key));
   },
-  onPullDownRefresh() { this.load().finally(() => wx.stopPullDownRefresh()); },
+  async onPullDownRefresh() {
+    try {
+      await this.load();
+      const home = this.selectComponent("#teacher-workspace");
+      if (home) await home.retry();
+    } finally { wx.stopPullDownRefresh(); }
+  },
   back() { wx.navigateBack(); },
   switchSection(event) {
     const section = text(event.currentTarget.dataset.section);
-    if (!["basic", "configuration", "work"].includes(section)) return;
+    if (!["home", "basic", "configuration", "work"].includes(section)) return;
     this.setData({ activeSection: section, message: "", error: false });
     if (section === "work" && this.data.workLoadedMonth !== this.data.workMonth) this.loadWorkMonth();
   },

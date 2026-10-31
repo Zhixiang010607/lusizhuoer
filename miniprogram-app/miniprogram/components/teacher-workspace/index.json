@@ -1,0 +1,4 @@
+{
+  "component": true,
+  "usingComponents": { "project-summary": "/components/project-summary/index" }
+}

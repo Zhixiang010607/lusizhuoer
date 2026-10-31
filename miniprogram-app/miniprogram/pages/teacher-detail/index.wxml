@@ -7,10 +7,13 @@
     <view wx:if="{{loading && !staff}}" class="web-panel empty">正在读取老师数据库…</view>
     <block wx:if="{{staff}}">
       <view class="teacher-section-tabs" role="tablist">
+        <button class="teacher-section-tab {{activeSection === 'home' ? 'active' : ''}}" data-section="home" bindtap="switchSection">老师主页</button>
         <button class="teacher-section-tab {{activeSection === 'basic' ? 'active' : ''}}" data-section="basic" bindtap="switchSection">基本资料</button>
         <button class="teacher-section-tab {{activeSection === 'configuration' ? 'active' : ''}}" data-section="configuration" bindtap="switchSection">项目配置</button>
         <button class="teacher-section-tab {{activeSection === 'work' ? 'active' : ''}}" data-section="work" bindtap="switchSection">考勤日报</button>
       </view>
+
+      <teacher-workspace wx:if="{{activeSection === 'home'}}" id="teacher-workspace" teacher-id="{{teacherId}}" teacher-name="{{profile.name}}" teacher-phone="{{profile.phone}}" balances="{{entitlements}}" />
 
       <view wx:if="{{activeSection === 'basic'}}" class="teacher-detail-grid">
         <view class="teacher-detail-sidebar">

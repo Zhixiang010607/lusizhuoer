@@ -1,6 +1,6 @@
 {
   "name": "lusizhuoer-face-recognition",
-  "version": "134.0.0",
+  "version": "135.0.0",
   "private": true,
   "main": "index.js",
   "engines": { "node": ">=20.19.0" },

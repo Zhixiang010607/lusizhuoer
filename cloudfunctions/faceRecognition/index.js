@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const https = require("https");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v134";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v135";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -5768,8 +5768,10 @@ async function getTeacherBusinessCustomers(event = {}) {
   };
 }
 
-async function getTeacherWorkspace(event = {}) {
-  const caller = await activeTeacherCaller();
+async function getTeacherWorkspace(event = {}, hqTarget = null) {
+  // hqTarget is supplied only by the independently authenticated HQ read action.
+  // The public teacher action never accepts a target identity from event.
+  const caller = hqTarget || await activeTeacherCaller();
   const options = teacherWorkspaceOptions(event);
   const profile = {
     teacherId: caller.teacherId,
@@ -5871,7 +5873,7 @@ async function getTeacherWorkspace(event = {}) {
   const loadOverview = async () => {
     await requireTeacherExperienceQuotaLifecycleSchema();
     const teacherId = positiveDatabaseId(caller.teacherId, "老师");
-    await executeSql(
+    if (!hqTarget) await executeSql(
       `SELECT public.reset_teacher_experience_quota(q.id)
          FROM public.teacher_product_experience_quotas q
         WHERE q.teacher_id = ${sqlText(teacherId)}::bigint
@@ -5918,7 +5920,7 @@ async function getTeacherWorkspace(event = {}) {
           GROUP BY p.id, p.product_code, p.product_name
           ORDER BY p.product_name, p.product_code`
       ),
-      executeSql(
+      hqTarget ? Promise.resolve([]) : executeSql(
         `SELECT q.id, q.product_id, q.monthly_allowance, q.quota_month,
                 q.available_count, q.used_count, q.manual_recharge_count, q.monthly_reset_at,
                 p.product_code, p.product_name
@@ -5990,6 +5992,29 @@ async function getTeacherWorkspace(event = {}) {
     recharges: { records: rechargePage.records, ...rechargePage.page },
     verifications: { records: verificationPage.records, ...verificationPage.page }
   };
+}
+
+async function getHqTeacherWorkspace(event = {}) {
+  const viewer = await activeScopedQueryCaller();
+  if (viewer.role !== "hq") fail("只有总部可以查看指定老师主页。", "FORBIDDEN");
+  const teacherId = positiveDatabaseId(event.teacherId, "老师");
+  // This action is a read-only overview/list, not a new order-detail/write route.
+  if (event.recordId) fail("请从工单入口读取业务详情。", "BAD_REQUEST");
+  const rows = await executeSql(
+    `SELECT t.id AS teacher_id, t.teacher_code, t.teacher_name,
+            a.id AS staff_id, a.phone, a.role_code
+       FROM public.teachers t
+       LEFT JOIN public.staff_accounts a ON a.id = t.staff_account_id
+      WHERE t.id = ${sqlText(teacherId)}::bigint
+      LIMIT 1`
+  );
+  const target = rows[0];
+  if (!target || (target.staff_id && target.role_code !== "teacher")) fail("未找到该老师资料。", "TEACHER_NOT_FOUND");
+  return getTeacherWorkspace({ ...event, recordType: event.recordType || "VERIFICATION" }, Object.freeze({
+    role: "hq", teacherId: String(target.teacher_id), teacherCode: String(target.teacher_code || ""),
+    teacherName: String(target.teacher_name || ""), teacherPhone: String(target.phone || ""),
+    staffId: Number(target.staff_id || 0)
+  }));
 }
 
 async function deleteFacePerson(api, groupId, personId) {
@@ -7846,6 +7871,7 @@ exports.main = async (event = {}, context = {}) => {
     if (action === "getHqBusinessContext") return await getHqBusinessContext();
     if (action === "getTeacherBusinessContext") return await getTeacherBusinessContext();
     if (action === "getTeacherWorkspace") return await getTeacherWorkspace(event);
+    if (action === "getHqTeacherWorkspace") return await getHqTeacherWorkspace(event);
     if (action === "getTeacherBusinessCustomers") return await getTeacherBusinessCustomers(event);
     if (action === "listActiveTeachers") return await listActiveTeachers(event);
     if (action === "listActiveProducts") return await listActiveProducts(event);

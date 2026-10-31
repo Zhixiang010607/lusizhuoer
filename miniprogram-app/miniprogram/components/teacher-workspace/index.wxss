@@ -1,0 +1,20 @@
+@import "../../pages/home/index.wxss";
+:host { display: block; min-width: 0; max-width: 100%; }
+.teacher-home { min-width: 0; }
+.teacher-home-profile { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14rpx; }
+.teacher-home-profile > view { min-width: 0; display: grid; gap: 8rpx; padding: 14rpx 8rpx; background: #fff8ec; border: 1rpx solid #e4d4ba; border-radius: 14rpx; text-align: center; }
+.teacher-home-profile text { font-size: 24rpx; white-space: nowrap; }
+.teacher-home-profile text:last-child { color: #4a3825; font-weight: 800; }
+.quota-overview { min-width: 0; border: 1rpx solid #dfcfb4; border-radius: 14rpx; overflow: hidden; }
+.quota-line { display: grid; grid-template-columns: minmax(0, 1.3fr) repeat(3, minmax(0, 1fr)); align-items: stretch; border-top: 1rpx solid #eadcc5; }
+.quota-line:first-child { border-top: 0; }
+.quota-line text { min-width: 0; display: flex; align-items: center; justify-content: center; padding: 16rpx 4rpx; font-size: 24rpx; text-align: center; overflow-wrap: anywhere; }
+.quota-head { background: #f4e7d1; color: #6f604e; font-weight: 800; }
+@media (min-width: 700px) {
+  .teacher-home-profile { gap: 12px; }
+  .teacher-home-profile > view { gap: 6px; padding: 12px; border-width: 1px; border-radius: 10px; }
+  .teacher-home-profile text { font-size: 14px; }
+  .quota-overview { border-width: 1px; border-radius: 10px; }
+  .quota-line { border-width: 1px; }
+  .quota-line text { padding: 12px 8px; font-size: 14px; }
+}

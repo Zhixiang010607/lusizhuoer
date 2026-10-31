@@ -142,9 +142,10 @@
   .forms-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-.teacher-section-tabs, .work-mode-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10rpx; margin-bottom: 22rpx; padding: 8rpx; background: #eee2cf; border: 1rpx solid #dfcfb4; border-radius: 18rpx; }
+.teacher-section-tabs, .work-mode-tabs { min-width: 0; width: 100%; box-sizing: border-box; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8rpx; margin-bottom: 22rpx; padding: 8rpx; background: #eee2cf; border: 1rpx solid #dfcfb4; border-radius: 18rpx; }
 .teacher-section-tab, .work-mode-tab { width: 100% !important; min-height: 72rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 12rpx; color: #766a5b; background: transparent; border: 0; border-radius: 14rpx; font-size: 24rpx; font-weight: 800; line-height: 1.2; text-align: center; }
 .teacher-section-tab::after, .work-mode-tab::after { border: 0; }
+.teacher-section-tab { min-width: 0; box-sizing: border-box; padding: 0 4rpx; white-space: nowrap; line-height: 1; }
 .teacher-section-tab.active, .work-mode-tab.active { color: #fff; background: #80602c; box-shadow: 0 3rpx 10rpx rgba(88, 59, 25, .14); }
 .work-mode-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .basic-detail-grid { align-content: start; }

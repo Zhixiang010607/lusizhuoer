@@ -64,7 +64,7 @@ assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.teacher_attendance_f
 assert.match(migration, /GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public\.teacher_attendance_face_profiles TO service_role/);
 assert.match(migration, /teacher attendance face profile ownership is immutable/);
 assert.match(verify, /082 replacement guard/);
-assert.match(context, /“基本资料／项目配置／考勤日报”/);
+assert.match(context, /“老师主页／基本资料／项目配置／考勤日报”/);
 assert.match(context, /不改变任何核销链路/);
 
 console.log("HQ teacher monthly work calendar and attendance-face replacement contract: PASS");
