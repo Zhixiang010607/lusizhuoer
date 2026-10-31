@@ -1,0 +1,47 @@
+WeChat DevTools official CLI (sanitized receipt)
+Development version: 0.3.46
+AppID: wxb053c1bd6c684d8b
+Source commit: e6d3bbee8fb3f512dedb8bdeeb5c6983514ab4fa
+Description: 客户列表年龄、十条分页序号及三端布局；主页资料保留生日
+Receipt verified: 2026-10-31 21:24:47 Australia/Sydney (AEDT)
+Tracked client files compared before/after upload: 206, all identical
+User project configuration: unchanged during upload
+User services/Untitled.png: excluded from package
+TLS verification: enabled; both current COS routes reachable
+✔ 使用 AppID: wxb053c1bd6c684d8b
+Package bytes:
+TOTAL: 3414207
+main: 1666633
+/packages/report-font/: 764244
+/pages/attendance-tracking/: 22762
+/pages/attendance/: 44218
+/pages/customer-create/: 8790
+/pages/customer-detail/: 43556
+/pages/customers/: 22508
+/pages/daily-report-tracking/: 19115
+/pages/daily-report/: 17491
+/pages/hq-directory/: 19425
+/pages/inactive-customers/: 29061
+/pages/low-balance-customers/: 30767
+/pages/order-detail/: 82112
+/pages/product-create/: 6172
+/pages/product-detail/: 38365
+/pages/product-management/: 6992
+/pages/product-purchase-detail/: 8113
+/pages/product-purchase/: 15653
+/pages/project-intro/: 213203
+/pages/rating-analysis/: 35720
+/pages/recharge/: 28492
+/pages/records/: 25864
+/pages/retail-product-create/: 5518
+/pages/retail-product-management/: 9843
+/pages/reviews/: 32702
+/pages/store-detail/: 27945
+/pages/teacher-customers/: 11536
+/pages/teacher-detail/: 69578
+/pages/training-materials/: 34677
+/pages/verification/: 51699
+/pages/work-calendar/: 21453
+✔ upload
+Process exit code: 0
+Status: development upload complete; experience/review/formal release not independently verified
