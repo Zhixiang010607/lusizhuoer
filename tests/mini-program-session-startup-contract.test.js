@@ -210,7 +210,7 @@ test("home waits for startup validation and store section links perform real pag
   assert.equal(scrolls.length, 1, "only declared page selectors may be scrolled to");
 
   const wxml = read("pages", "home", "index.wxml");
-  for (const id of ["business-summary", "business-records", "active-customers", "archived-customers"]) {
+  for (const id of ["business-summary", "business-records", "store-customers"]) {
     assert.match(wxml, new RegExp(`id="${id}"`));
     assert.match(wxml, new RegExp(`data-target="#${id}"[^>]*bindtap="jumpToSection"`));
   }

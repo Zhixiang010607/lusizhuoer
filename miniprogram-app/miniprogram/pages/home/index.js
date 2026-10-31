@@ -144,7 +144,7 @@ Page({
     businessTabs: readyTabs(dashboard.EMPTY_TOTALS, "VERIFICATION"), ...businessRecordsView([], "VERIFICATION"),
     businessPage: pageView({}), businessPageInput: "1", businessScrollLeft: 0, summaryScrollLeft: 0, businessLoading: false,
     activeCustomers: customerView(dashboard.customerGroup()), archivedCustomers: customerView(dashboard.customerGroup()),
-    activeCustomerScrollLeft: 0, archivedCustomerScrollLeft: 0,
+    activeCustomerScrollLeft: 0, archivedCustomerScrollLeft: 0, customerStatus: "ACTIVE",
     hqPeriodOptions: dashboard.HQ_PERIOD_OPTIONS, hqPeriodLabels: dashboard.HQ_PERIOD_OPTIONS.map((item) => item.label),
     hqPeriod: "TODAY", hqPeriodIndex: 0, hqStart: "", hqEnd: "",
     hqMetrics: [], hqCharts: [], hqDimensions: DIMENSIONS,
@@ -688,6 +688,11 @@ Page({
     if (!Number.isFinite(value) || value < 0) return;
     if (status === "ARCHIVED") this.data.archivedCustomerScrollLeft = value;
     else this.data.activeCustomerScrollLeft = value;
+  },
+  selectCustomerStatus(event) {
+    const status = String(event.currentTarget.dataset.status || "");
+    if (this.data.session.role !== "store" || !["ACTIVE", "ARCHIVED"].includes(status) || status === this.data.customerStatus) return;
+    this.setData({ customerStatus: status });
   },
   customerPage(event) {
     const status = event.currentTarget.dataset.status;

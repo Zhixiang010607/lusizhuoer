@@ -58,7 +58,7 @@ Page({
     rangeMoreOptions: dashboard.RANGE_OPTIONS.slice(3), rangeMoreIndex: 0, rangeMoreLabel: "更多", rangeStart: "", rangeEnd: "", customRangeVisible: false,
     summaryRows: [], totals: { ...dashboard.EMPTY_TOTALS }, businessType: "VERIFICATION", businessTabs: dashboard.tabs({}, "VERIFICATION"),
     ...businessRecordsView([], "VERIFICATION"), businessPage: pageView({}), businessPageInput: "1", businessLoading: false,
-    activeCustomers: customerView(dashboard.customerGroup()), archivedCustomers: customerView(dashboard.customerGroup())
+    activeCustomers: customerView(dashboard.customerGroup()), archivedCustomers: customerView(dashboard.customerGroup()), customerStatus: "ACTIVE"
   },
   onLoad(options) {
     if (!requireSession(["hq"])) return;
@@ -306,6 +306,11 @@ Page({
       if (!current(this, request.epochKey, request.epoch)) return;
       this.setData({ [request.status === "ACTIVE" ? "activeCustomers" : "archivedCustomers"]: emptyCustomers(), message: error.message || "客户列表读取失败", error: true });
     }
+  },
+  selectCustomerStatus(event) {
+    const status = String(event.currentTarget.dataset.status || "");
+    if (this._unloaded || !["ACTIVE", "ARCHIVED"].includes(status) || status === this.data.customerStatus) return;
+    this.setData({ customerStatus: status });
   },
   previousCustomer(event) { const status = event.currentTarget.dataset.status; const group = status === "ACTIVE" ? this.data.activeCustomers : this.data.archivedCustomers; this.loadCustomerPage(status, group.page - 1); },
   nextCustomer(event) { const status = event.currentTarget.dataset.status; const group = status === "ACTIVE" ? this.data.activeCustomers : this.data.archivedCustomers; this.loadCustomerPage(status, group.page + 1); },

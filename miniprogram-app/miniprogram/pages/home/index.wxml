@@ -113,7 +113,7 @@
           <view wx:for="{{profileFacts}}" wx:key="label" class="detail-info-item {{item.wide ? 'store-address-fact' : ''}}"><text>{{item.label}}</text><text>{{item.value}}</text></view>
         </view>
       </view>
-      <view class="detail-anchor-nav"><view class="anchor-inner"><text role="button" data-target="#business-summary" bindtap="jumpToSection">业务汇总</text><text role="button" data-target="#business-records" bindtap="jumpToSection">业务明细</text><text role="button" data-target="#active-customers" bindtap="jumpToSection">活跃用户</text><text role="button" data-target="#archived-customers" bindtap="jumpToSection">封存用户</text></view></view>
+      <view class="detail-anchor-nav"><view class="anchor-inner"><text role="button" data-target="#business-summary" bindtap="jumpToSection">业务汇总</text><text role="button" data-target="#business-records" bindtap="jumpToSection">业务明细</text><text role="button" data-target="#store-customers" bindtap="jumpToSection">客户名单</text></view></view>
     </block>
 
     <block wx:if="{{session.role !== 'hq'}}">
@@ -147,8 +147,13 @@
         <view wx:if="{{businessPage.total > 0}}" class="table-pagination business-pagination"><button disabled="{{businessPage.previousDisabled || businessLoading}}" bindtap="previousBusinessPage">上一页</button><text>第 {{businessPage.page}} / {{businessPage.totalPages}} 页</text><button disabled="{{businessPage.nextDisabled || businessLoading}}" bindtap="nextBusinessPage">下一页</button><view class="business-page-jump"><text>跳至第</text><input type="number" value="{{businessPageInput}}" bindinput="inputBusinessPage" /><text>页</text><button disabled="{{businessLoading}}" bindtap="jumpBusinessPage">跳转</button></view></view>
       </view>
 
-      <view wx:if="{{session.role === 'store'}}" id="active-customers" class="web-panel customer-panel">
-        <view class="panel-heading"><view><text class="panel-title">活跃用户</text><text class="panel-note">点击姓名可进入客户主页</text></view><text class="web-badge">{{activeCustomers.total}} 位用户</text></view>
+      <view wx:if="{{session.role === 'store'}}" id="store-customers" class="web-panel customer-panel">
+        <view class="panel-heading"><view><text class="panel-title">客户名单</text></view><text class="web-badge">{{customerStatus === 'ARCHIVED' ? archivedCustomers.total : activeCustomers.total}} 位用户</text></view>
+        <view class="customer-status-tabs">
+          <button class="{{customerStatus === 'ACTIVE' ? 'active' : ''}}" data-status="ACTIVE" bindtap="selectCustomerStatus">活跃用户</button>
+          <button class="{{customerStatus === 'ARCHIVED' ? 'active' : ''}}" data-status="ARCHIVED" bindtap="selectCustomerStatus">封存用户</button>
+        </view>
+        <block wx:if="{{customerStatus === 'ACTIVE'}}">
         <scroll-view class="table-scroll customer-scroll" data-visible-rows="{{activeCustomers.tabletVisibleRows}}" scroll-x enhanced show-scrollbar="{{false}}" style="height: {{activeCustomers.viewportHeight}}rpx" scroll-left="{{activeCustomerScrollLeft}}" data-status="ACTIVE" bindscroll="rememberCustomerScroll" wx:if="{{activeCustomers.rows.length}}">
           <view class="customer-table">
             <view class="table-row table-head"><view class="list-row-number">序号</view><view>姓名</view><view>门店</view><view>年龄</view><view>充值次数</view><view>核销次数</view></view>
@@ -157,11 +162,9 @@
           </view>
         </scroll-view>
         <view wx:else class="table-notice">{{loading ? '正在读取活跃客户…' : '暂无活跃客户'}}</view>
-        <view wx:if="{{activeCustomers.total > 0}}" class="table-pagination customer-pagination"><button disabled="{{activeCustomers.previousDisabled}}" data-status="ACTIVE" data-direction="-1" bindtap="customerPage">上一页</button><text>第 {{activeCustomers.page}} / {{activeCustomers.totalPages}} 页</text><button disabled="{{activeCustomers.nextDisabled}}" data-status="ACTIVE" data-direction="1" bindtap="customerPage">下一页</button><view class="customer-page-jump"><text>跳至第</text><input type="number" value="{{activeCustomers.pageInput}}" data-status="ACTIVE" bindinput="inputCustomerPage" /><text>页</text><button data-status="ACTIVE" bindtap="jumpCustomerPage">跳转</button></view></view>
-      </view>
-
-      <view wx:if="{{session.role === 'store'}}" id="archived-customers" class="web-panel customer-panel archived-section">
-        <view class="panel-heading"><view><text class="panel-title">封存用户</text><text class="panel-note">封存客户仍保留历史关联；点击姓名可进入客户主页</text></view><text class="web-badge archived-badge">{{archivedCustomers.total}} 位用户</text></view>
+        <view wx:if="{{activeCustomers.total > 0}}" class="table-pagination customer-pagination"><view class="customer-page-controls"><button disabled="{{activeCustomers.previousDisabled}}" data-status="ACTIVE" data-direction="-1" bindtap="customerPage">上一页</button><text>第 {{activeCustomers.page}} / {{activeCustomers.totalPages}} 页</text><button disabled="{{activeCustomers.nextDisabled}}" data-status="ACTIVE" data-direction="1" bindtap="customerPage">下一页</button></view><view class="customer-page-jump"><text>跳至第</text><input type="number" value="{{activeCustomers.pageInput}}" data-status="ACTIVE" bindinput="inputCustomerPage" bindconfirm="jumpCustomerPage" confirm-type="done" aria-label="活跃用户跳转页码" /><text>页</text><button data-status="ACTIVE" bindtap="jumpCustomerPage">跳转</button></view></view>
+        </block>
+        <block wx:else>
         <scroll-view class="table-scroll customer-scroll" data-visible-rows="{{archivedCustomers.tabletVisibleRows}}" scroll-x enhanced show-scrollbar="{{false}}" style="height: {{archivedCustomers.viewportHeight}}rpx" scroll-left="{{archivedCustomerScrollLeft}}" data-status="ARCHIVED" bindscroll="rememberCustomerScroll" wx:if="{{archivedCustomers.rows.length}}">
           <view class="customer-table">
             <view class="table-row table-head"><view class="list-row-number">序号</view><view>姓名</view><view>门店</view><view>年龄</view><view>充值次数</view><view>核销次数</view></view>
@@ -170,7 +173,8 @@
           </view>
         </scroll-view>
         <view wx:else class="table-notice">{{loading ? '正在读取封存客户…' : '暂无封存客户'}}</view>
-        <view wx:if="{{archivedCustomers.total > 0}}" class="table-pagination customer-pagination"><button disabled="{{archivedCustomers.previousDisabled}}" data-status="ARCHIVED" data-direction="-1" bindtap="customerPage">上一页</button><text>第 {{archivedCustomers.page}} / {{archivedCustomers.totalPages}} 页</text><button disabled="{{archivedCustomers.nextDisabled}}" data-status="ARCHIVED" data-direction="1" bindtap="customerPage">下一页</button><view class="customer-page-jump"><text>跳至第</text><input type="number" value="{{archivedCustomers.pageInput}}" data-status="ARCHIVED" bindinput="inputCustomerPage" /><text>页</text><button data-status="ARCHIVED" bindtap="jumpCustomerPage">跳转</button></view></view>
+        <view wx:if="{{archivedCustomers.total > 0}}" class="table-pagination customer-pagination"><view class="customer-page-controls"><button disabled="{{archivedCustomers.previousDisabled}}" data-status="ARCHIVED" data-direction="-1" bindtap="customerPage">上一页</button><text>第 {{archivedCustomers.page}} / {{archivedCustomers.totalPages}} 页</text><button disabled="{{archivedCustomers.nextDisabled}}" data-status="ARCHIVED" data-direction="1" bindtap="customerPage">下一页</button></view><view class="customer-page-jump"><text>跳至第</text><input type="number" value="{{archivedCustomers.pageInput}}" data-status="ARCHIVED" bindinput="inputCustomerPage" bindconfirm="jumpCustomerPage" confirm-type="done" aria-label="封存用户跳转页码" /><text>页</text><button data-status="ARCHIVED" bindtap="jumpCustomerPage">跳转</button></view></view>
+        </block>
       </view>
     </block>
 
