@@ -64,7 +64,12 @@ function businessRecordsView(items, type) {
   };
 }
 function rankingView(items = []) {
-  const rows = Array.isArray(items) ? items : [];
+  const rows = (Array.isArray(items) ? items : []).map((row) => ({
+    ...row,
+    // Use the master code accepted by both existing detail routes; numeric
+    // teacher IDs can otherwise collide with an unrelated staff-account ID.
+    profileRef: /^[1-9]\d*$/.test(String(row.entityId || "")) ? String(row.entityCode || "").trim() : ""
+  }));
   const visibleRows = Math.min(10, rows.length);
   return {
     hqRanking: rows,
@@ -825,6 +830,15 @@ Page({
   },
   previousHqPage() { if (!this.data.hqRankingPage.previousDisabled) this.loadHqRanking(this.data.hqRankingPage.page - 1); },
   nextHqPage() { if (!this.data.hqRankingPage.nextDisabled) this.loadHqRanking(this.data.hqRankingPage.page + 1); },
+  openHqRankedProfile(event) {
+    const { id, dimension } = event.currentTarget.dataset;
+    if (this.data.session?.role !== "hq" || this.data.hqRankingLoading || this.data.hqRankingError
+      || !["store", "teacher"].includes(dimension) || dimension !== this.data.hqDimension) return;
+    const row = this.data.hqRanking.find((item) => String(item.entityId) === String(id));
+    if (!row?.profileRef) return;
+    const route = dimension === "store" ? "store-detail/index?storeRef" : "teacher-detail/index?teacherRef";
+    wx.navigateTo({ url: `/pages/${route}=${encodeURIComponent(row.profileRef)}` });
+  },
   rememberHqRankingScroll(event) {
     const scrollLeft = Number(event.detail && event.detail.scrollLeft);
     if (Number.isFinite(scrollLeft) && scrollLeft >= 0) this.data.hqRankingScrollLeft = scrollLeft;

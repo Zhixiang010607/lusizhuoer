@@ -143,8 +143,9 @@ Page({
       const stage = UPLOAD_PHASES[task.phase] || "准备文件";
       const seconds = Math.max(0, Math.floor((now - Number(task.phaseStartedAt || now)) / 1000));
       const retrySeconds = Math.max(0, Math.ceil((Number(task.nextAttemptAt || 0) - now) / 1000));
+      const publicationOnly = task.bytes > 0 && task.uploadedBytes === task.bytes;
       return {
-        ...task, sizeLabel: readableBytes(task.bytes),
+        ...task, publicationOnly, sizeLabel: readableBytes(task.bytes),
         stateLabel: task.state === "FAILED" ? (retrySeconds ? `${retrySeconds} 秒后重试` : "可重试或移除")
           : task.state === "UPLOADING" ? stage : "等待上传",
         elapsedLabel: task.state === "UPLOADING" ? `已等待 ${seconds} 秒` : "",
@@ -179,7 +180,9 @@ Page({
       if (this._visible === false) this._refreshOnShow = true;
       else void this.loadMaterials({ background: true, confirmedMaterial: item });
     } else if (event.type === "failed") {
-      this.setData({ message: event.task?.nextAttemptAt ? "上传未完成，稍后自动重试。" : "上传失败，可重试或移除任务。", error: true });
+      const publicationOnly = event.task?.bytes > 0 && event.task.uploadedBytes === event.task.bytes;
+      this.setData({ message: publicationOnly ? "PDF 已上传，发布尚未确认；重试无需重传文件。"
+        : event.task?.nextAttemptAt ? "上传未完成，稍后自动重试。" : "上传失败，可重试或移除任务。", error: true });
     } else if (event.type === "cancelled") {
       this.setData({ message: "已取消该任务，不再自动续传；其余任务会继续上传。已发布资料不会删除。", error: false });
       if (this._visible === false) this._refreshOnShow = true;
@@ -273,7 +276,8 @@ Page({
     const id = String(event.currentTarget.dataset.id || "");
     if (id && uploadQueue.retry(id)) {
       this.syncPendingTasks();
-      this.setData({ message: "已重新开始后台上传。", error: false });
+      const task = [...this.data.pendingTasks, ...this.data.failedTasks].find(item => item.id === id);
+      this.setData({ message: task?.publicationOnly ? "正在确认原文件的发布结果，无需重新上传。" : "已重新开始后台上传。", error: false });
     }
   },
   async cancelUpload(event) {

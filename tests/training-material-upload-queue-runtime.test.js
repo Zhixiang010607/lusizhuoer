@@ -7,10 +7,11 @@ const source = fs.readFileSync(path.join(__dirname, "../miniprogram-app/miniprog
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
 function harness({ bytes = 280 * 1024, savedStorage = null } = {}) {
-  const module = { exports: {} }, storage = savedStorage || new Map(), calls = [], timers = new Map(), requests = [], diagnostics = [], unlinked = [];
+  const module = { exports: {} }, storage = savedStorage || new Map(), calls = [], timers = new Map(), requests = [], diagnostics = [], unlinked = [], caches = [];
   const data = { startupReady: true, session: { role: "hq", staffId: "test-owner" } };
   let clock = 100000000, timerId = 0, abortCount = 0;
-  const faults = { begin: null, confirm: null, unlink: null, read: null, info: null, request: null, http: 200, published: false, cache: null, profile: null, storage: null, discard: null };
+  const faults = { begin: null, confirm: null, unlink: null, read: null, info: null, request: null, http: 200, published: true, cache: null, profile: null, storage: null, discard: null, material: null };
+  const headerListeners = [];
   const wx = {
     getStorageSync: (key) => storage.get(key), setStorageSync: (key, value) => { if (faults.storage) faults.storage(value); storage.set(key, structuredClone(value)); },
     getFileSystemManager: () => ({
@@ -29,7 +30,7 @@ function harness({ bytes = 280 * 1024, savedStorage = null } = {}) {
         try { if (faults.request) await faults.request(options); options.success({ statusCode: faults.http, profile: faults.profile }); }
         catch (error) { options.fail(error); }
       })();
-      return { abort() { abortCount += 1; options.fail(new Error("request:fail abort")); } };
+      return { abort() { abortCount += 1; options.fail(new Error("request:fail abort")); }, onHeadersReceived(fn) { headerListeners.push(fn); } };
     }
   };
   vm.runInNewContext(source, {
@@ -38,7 +39,7 @@ function harness({ bytes = 280 * 1024, savedStorage = null } = {}) {
     Date: { now: () => clock },
     setTimeout: (fn, delay) => { const id = ++timerId; timers.set(id, { fn, at: clock + delay }); return id; },
     clearTimeout: (id) => timers.delete(id),
-    require: (name) => name.endsWith("training-material-cache") ? { store: async () => { calls.push("cache"); if (faults.cache) await faults.cache(); } } : ({ callStaff: async (action, payload) => {
+    require: (name) => name.endsWith("training-material-cache") ? { store: async (file) => { caches.push(file); if (faults.cache) await faults.cache(); } } : ({ callStaff: async (action, payload) => {
       calls.push(action);
       if (action === "beginTrainingMaterialUpload") {
         if (faults.begin) await faults.begin(payload);
@@ -46,7 +47,7 @@ function harness({ bytes = 280 * 1024, savedStorage = null } = {}) {
       }
       if (action === "confirmTrainingMaterialUpload") {
         if (faults.confirm) await faults.confirm(payload);
-        return { material: { id: payload.clientRequestId, ...(faults.published ? { status: "PUBLISHED" } : {}) } };
+        return { material: faults.material || { id: "71", ...(faults.published ? { status: "PUBLISHED" } : {}) } };
       }
       if (action === "discardTrainingMaterialUpload") { if (faults.discard) await faults.discard(); return { discarded: true }; }
       return {};
@@ -56,7 +57,7 @@ function harness({ bytes = 280 * 1024, savedStorage = null } = {}) {
   const input = (suffix = "one", ownerStaffId = "test-owner") => ({ ownerStaffId, clientRequestId: `test_request_${suffix}_123456`, title: "测试", originalName: "test.pdf", bytes, filePath: `/private/${suffix}.pdf` });
   const flush = async () => { for (let i = 0; i < 12; i++) await tick(); };
   const wake = async () => { const [id, timer] = [...timers.entries()].sort((a, b) => a[1].at - b[1].at)[0]; timers.delete(id); clock = timer.at; timer.fn(); await flush(); };
-  return { queue, calls, data, faults, timers, requests, diagnostics, storage, unlinked, input, flush, wake, now: () => clock, aborts: () => abortCount };
+  return { queue, calls, data, faults, timers, requests, diagnostics, storage, unlinked, caches, input, flush, wake, headerListeners, now: () => clock, aborts: () => abortCount };
 }
 
 test("cancelling an active large PUT aborts it and immediately drains the next job", async () => {
@@ -423,7 +424,7 @@ test("HTTP conflict recovers a previously completed immutable object without ano
 test("large PDFs keep direct bytes, bounded timeout and no early incomplete-object polling", async () => {
   assert.match(source, /DIRECT_TRANSFER_TIMEOUT_MS = 180000/);
   assert.match(source, /timeout: DIRECT_TRANSFER_TIMEOUT_MS/);
-  assert.match(source, /if \(bytes > SMALL_PDF_BYTES\) return/);
+  assert.match(source, /if \(bytes <= SMALL_PDF_BYTES\) checkpointTimer/);
   assert.doesNotMatch(source, /wx\.uploadFile|uploadTrainingMaterialByFunction|imageBase64|encoding:\s*["']base64/);
 });
 
@@ -462,6 +463,77 @@ test("confirmed upload settles UI before private caching, but preserves source u
   assert.equal(h.queue.allTasks().length, 0);
   release(); await h.flush();
   assert.equal(removed, true);
+});
+
+test("a completed eight-MiB PUT retries publication without discarding or retransferring", async () => {
+  const h = harness({ bytes: 8 * 1024 * 1024 });
+  h.faults.confirm = async () => { throw Object.assign(new Error("not readable yet"), { code: "TRAINING_MATERIAL_UPLOAD_INCOMPLETE" }); };
+  h.queue.enqueue(h.input()); await h.flush();
+  assert.equal(h.queue.allTasks()[0].uploadedBytes, 8 * 1024 * 1024);
+  await h.wake();
+  assert.equal(h.calls.filter(x => x === "PUT").length, 1);
+  assert.equal(h.calls.includes("discardTrainingMaterialUpload"), false);
+  assert.equal(h.calls.filter(x => x === "beginTrainingMaterialUpload").length, 1);
+  const fresh = harness({ bytes: 8 * 1024 * 1024, savedStorage: h.storage });
+  fresh.faults.info = true; // No local source is needed to confirm the result.
+  await fresh.queue.resume({ retryFailed: true }); await fresh.flush();
+  assert.deepEqual(fresh.calls, ["confirmTrainingMaterialUpload"]);
+  assert.equal(fresh.queue.allTasks().length, 0);
+});
+
+test("invalid publication responses never settle, cache or erase a durable upload", async () => {
+  for (const material of [{ id: "undefined", status: "PUBLISHED" }, { id: "71", status: "ARCHIVED" }, { id: "71" }]) {
+    const h = harness(); h.faults.material = material;
+    h.queue.enqueue(h.input()); await h.flush();
+    assert.equal(h.queue.allTasks()[0].state, "FAILED");
+    assert.equal(h.caches.length, 0);
+    assert.equal(h.unlinked.length, 0);
+    assert.equal(h.calls.filter(x => x === "PUT").length, 1);
+    h.faults.material = null; await h.wake();
+    assert.equal(h.calls.filter(x => x === "PUT").length, 1);
+    assert.equal(h.queue.allTasks().length, 0);
+  }
+});
+
+test("optional local cache copying cannot hold up the next upload", async () => {
+  const h = harness(); let release;
+  h.faults.cache = () => new Promise(resolve => { release = resolve; });
+  h.queue.enqueue(h.input("first")); await h.flush();
+  h.queue.enqueue(h.input("second")); await h.flush();
+  assert.equal(h.requests.length, 2);
+  assert.equal(h.queue.allTasks().length, 0);
+  assert.equal(h.caches.length, 2);
+  assert.equal(h.unlinked.length, 0, "sources survive their own pending cache copy");
+  release(); await h.flush();
+  assert.equal(h.unlinked.includes("/private/second.pdf"), true);
+  assert.equal(h.unlinked.includes("/private/first.pdf"), false);
+});
+
+test("large PDF successful headers can confirm the original publication before a delayed body callback", async () => {
+  const h = harness({ bytes: 8 * 1024 * 1024 });
+  h.faults.request = () => new Promise(() => {});
+  h.queue.enqueue(h.input()); await h.flush();
+  assert.equal(h.timers.size, 0, "no periodic incomplete-object probes for large files");
+  h.headerListeners[0]({ statusCode: 200 }); await h.flush();
+  assert.deepEqual(h.calls, ["beginTrainingMaterialUpload", "PUT", "confirmTrainingMaterialUpload"]);
+  assert.equal(h.aborts(), 1, "stop only after authoritative PUBLISHED result");
+  assert.equal(h.queue.allTasks().length, 0);
+});
+
+test("headers alone never count as published, start another PUT or create a polling loop", async () => {
+  const h = harness({ bytes: 8 * 1024 * 1024 }); let finish;
+  h.faults.request = () => new Promise(resolve => { finish = resolve; });
+  h.faults.confirm = async () => { throw Object.assign(new Error("missing"), { code: "TRAINING_MATERIAL_UPLOAD_INCOMPLETE" }); };
+  h.queue.enqueue(h.input()); await h.flush();
+  h.headerListeners[0]({ statusCode: 200 }); await h.flush();
+  h.headerListeners[0]({ statusCode: 200 }); await h.flush();
+  assert.equal(h.calls.filter(x => x === "confirmTrainingMaterialUpload").length, 1);
+  assert.equal(h.queue.allTasks()[0].uploadedBytes, 0);
+  assert.equal(h.aborts(), 0);
+  assert.equal(h.timers.size, 0);
+  h.faults.confirm = null; finish(); await h.flush();
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.queue.allTasks().length, 0);
 });
 
 test("lost PUT acknowledgement recovers publication before any duplicate transfer", async () => {
@@ -538,7 +610,8 @@ test("removing a failed task cannot resurrect it from another upload's queue sna
   assert.equal(await h.queue.dismissFailed(h.input("two").clientRequestId), true);
   h.faults.begin = null; release(); await pending; await h.flush();
   assert.equal(h.calls.filter((action) => action === "PUT").length, 1);
-  assert.equal(h.calls.filter((action) => action === "discardTrainingMaterialUpload").length, 1);
+  assert.equal(h.calls.filter((action) => action === "discardTrainingMaterialUpload").length, 0,
+    "unknown legacy confirmation history cannot authorize deletion");
   assert.equal(h.queue.allTasks().length, 0);
 });
 
@@ -565,7 +638,7 @@ test("failed publish stages are actionable and never retain signed URLs", async 
   h.faults.confirm = async () => { throw new Error("request:fail https://private.example.test/?token=secret"); };
   h.queue.enqueue(h.input()); await h.flush();
   assert.equal(h.queue.allTasks()[0].phase, "VERIFYING");
-  assert.equal(h.queue.allTasks()[0].error, "PDF 发布结果暂未确认，请用原任务重试");
+  assert.equal(h.queue.allTasks()[0].error, "PDF 已上传，发布暂未确认；重试只确认发布，无需重新上传");
   assert.ok(!JSON.stringify(h.queue.allTasks()).includes("token=secret"));
 });
 

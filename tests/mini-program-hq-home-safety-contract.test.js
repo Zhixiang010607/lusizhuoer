@@ -20,7 +20,7 @@ function deferred() {
 
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
 
-function loadHome(callStaff) {
+function loadHome(callStaff, navigateTo = () => {}) {
   let definition;
   vm.runInNewContext(read("pages", "home", "index.js"), {
     Page(value) { definition = value; },
@@ -33,7 +33,7 @@ function loadHome(callStaff) {
       if (id === "../../services/hq-dashboard-report") return { createReportPdf: () => ({ bytes: new Uint8Array(), pages: 1 }), safeFilename: () => "report" };
       throw new Error(`unexpected home dependency ${id}`);
     },
-    wx: { navigateTo() {}, reLaunch() {}, getFileSystemManager: () => ({}) },
+    wx: { navigateTo, reLaunch() {}, getFileSystemManager: () => ({}) },
     console, Date, Math, Promise, String, Number, Boolean, Object, encodeURIComponent
   }, { filename: "pages/home/index.js" });
   assert.ok(definition);
@@ -137,9 +137,59 @@ test("HQ ranking keeps uniform columns and scrolls only inside its table", () =>
   assert.match(wxml, /class="hq-ranking-scroll"[^>]*scroll-x="true"/);
   assert.match(wxml, /class="hq-ranking-list"/);
   assert.match(wxml, /class="hq-ranking-row hq-ranking-table-head"/);
+  const ranking = wxml.slice(wxml.indexOf('<view class="hq-ranking-list">'), wxml.indexOf('<view wx:else class="hq-ranking-notice">'));
+  assert.doesNotMatch(ranking, /list-row-number|序号|index \+ 1/);
+  assert.match(ranking, /hq-ranking-rank">\{\{item.rank\}\}/);
+  assert.match(ranking, /wx:if="\{\{item.profileRef\}\}"[^>]*hq-ranking-link[^>]*role="link"[^>]*data-id="\{\{item.entityId\}\}"[^>]*data-dimension="\{\{hqDimension\}\}"[^>]*bindtap="openHqRankedProfile"/);
+  assert.match(ranking, /wx:else class="hq-ranking-name"/);
+  assert.match(wxss, /\.hq-ranking-card > \.hq-ranking-link\s*\{[^}]*text-decoration:\s*underline/);
   assert.match(wxss, /\.hq-ranking-list\s*\{[^}]*width:\s*auto;[^}]*min-width:\s*100%;[^}]*display:\s*inline-table;[^}]*table-layout:\s*auto;[^}]*overflow:\s*visible;[^}]*border:[^}]*border-radius:/s);
   assert.match(wxss, /\.hq-ranking-row\s*\{[^}]*display:\s*table-row;/s);
   assert.match(wxss, /\.hq-ranking-row > text\s*\{[^}]*display:\s*table-cell;[^}]*white-space:\s*nowrap;/s);
+});
+
+test("HQ ranking profile links preserve cross-page ranks, master-code identity and read-only scope", async () => {
+  const navigations = [], calls = [];
+  const page = loadHome(async (action, payload) => {
+    calls.push({ action, payload });
+    return { ranking: { dimension: payload.dimension, rankingMetric: payload.rankingMetric, productId: payload.productId,
+      pageNumber: 2, pageSize: 10, totalPages: 2, total: 14,
+      rows: [
+        { entityId: '17', entityCode: payload.dimension === 'store' ? 'STR/QA' : 'TCH/QA', entityName: '合成名称', recharge: 20 },
+        { entityId: '0', entityCode: 'UNASSIGNED', entityName: '未指定老师', recharge: 5 },
+        { entityId: '18', entityCode: '', entityName: '缺少主档代码', recharge: 1 }
+      ] } };
+  }, value => navigations.push(value.url));
+  Object.assign(page.data, { session: { role: 'hq' }, hqPeriod: 'ALL' });
+  const tap = (id, dimension) => page.openHqRankedProfile({ currentTarget: { dataset: { id, dimension, ref: 'forged' } } });
+  for (const dimension of ['store', 'teacher']) {
+    page.data.hqDimension = dimension;
+    await page.loadHqRanking(2);
+    assert.equal(page.data.hqRanking[0].rank, 11);
+    assert.equal(page.data.hqRanking[1].rank, 12);
+    assert.equal(page.data.hqRanking[1].profileRef, '');
+    assert.equal(page.data.hqRanking[2].profileRef, '');
+    const before = clone(page.data), reads = calls.length;
+    tap('17', dimension);
+    assert.equal(navigations.at(-1), dimension === 'store'
+      ? '/pages/store-detail/index?storeRef=STR%2FQA' : '/pages/teacher-detail/index?teacherRef=TCH%2FQA');
+    assert.deepEqual(clone(page.data), before);
+    const count = navigations.length;
+    for (const invalid of ['0', '18', '999', '17?teacherRef=1']) tap(invalid, dimension);
+    tap('17', dimension === 'store' ? 'teacher' : 'store');
+    tap('17', 'project');
+    page.data.hqRankingLoading = true; tap('17', dimension); page.data.hqRankingLoading = false;
+    page.data.hqRankingError = '读取失败'; tap('17', dimension); page.data.hqRankingError = '';
+    for (const role of ['teacher', 'store', '']) { page.data.session.role = role; tap('17', dimension); }
+    page.data.session.role = 'hq';
+    assert.equal(navigations.length, count);
+    assert.equal(calls.length, reads);
+  }
+  assert(calls.every(call => call.action === 'getHqDashboard' && call.payload.mode === 'ranking' && call.payload.pageSize === 10));
+  const config = JSON.parse(read('app.json'));
+  const routes = [...config.pages, ...config.subPackages.flatMap(pack => pack.pages.map(p => pack.root + '/' + p))];
+  assert(routes.includes('pages/teacher-detail/index'));
+  assert(routes.includes('pages/store-detail/index'));
 });
 
 test("HQ invalid custom range cancels pending work and clears the previous scope", () => {

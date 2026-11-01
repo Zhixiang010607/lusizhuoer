@@ -9,7 +9,7 @@
 `v135` 新增总部专用只读 `getHqTeacherWorkspace`：先按当前认证 UID 复核总部身份，再从老师主档解析目标；复用老师本人的有效业务归属、四类统计和分页读取，不切换为老师会话、不新增写入权限，也不执行额度月度重置。老师原 `getTeacherWorkspace` 路由仍只按本人身份读取，忽略客户端指定的老师身份。新接口不接受工单详情编号，工单链接继续走既有总部详情入口。小程序老师详情新增“老师主页”页签，先部署并核验本函数，再上传依赖新 action 的客户端。无 SQL、运行时或环境变量变更；不改核销创建、人脸、BLE、照片、扣次或审核决策。
 
 当前联动部署矩阵：`faceRecognition v136`、`verificationPhoto v13`、
-`staffAccount v96`、`teacherCreate v9`、`customerRating v8`。迁移 075—086
+`staffAccount v97`、`teacherCreate v9`、`customerRating v8`。迁移 075—086
 验收通过后再部署这些当前版本；下文出现的旧版本号只用于历史发布记录，不能作为
 本次上传包名称或运行时验收依据。当前考勤高清照片版本另须迁移 088 和 089 四项 READY。
 
@@ -225,7 +225,7 @@ v99 的 `recoverBusinessSubmission` 仅允许原提交账号、原门店按同�
 3. 完成 046、总部封锁旧运营凭据、047 和 048 后，依次执行 `049-01` 至 `049-13`，再运行 `049-readonly-verify.sql`，全部必须为 `READY`。049 是向前迁移，不要修改或重跑生产已执行的 048。
 4. 执行迁移 050 的 7 段控制台 SQL并确认只读验收全部 `READY`，再按 053 指引退役旧老师人脸 Saga。当前 `faceRecognition v136` 不依赖迁移 051／052，也不需要老师人脸操作恢复 Timer。
 5. 完整执行迁移 054（CloudBase SQL 编辑器使用 `054-01-teacher-only-customer-face-experience.sql`），把新体验核销切换为老师账号赠送、客户人脸凭证。
-6. 将 `faceRecognition` 执行超时设为 **90 秒**；当前联动包为 `faceRecognition v136`、`verificationPhoto v13`、`staffAccount v96` 和 `teacherCreate v9`。`teacherCreate` 建议设为 **90 秒、至少 256 MB**，并配置与考勤 1:1 验证一致的人脸和私有照片桶变量。
+6. 将 `faceRecognition` 执行超时设为 **90 秒**；当前联动包为 `faceRecognition v136`、`verificationPhoto v13`、`staffAccount v97` 和 `teacherCreate v9`。`teacherCreate` 建议设为 **90 秒、至少 256 MB**，并配置与考勤 1:1 验证一致的人脸和私有照片桶变量。
 7. 完整执行迁移 055 并确认 3 行全部 `READY`，移除充值、退费、核销和体验核销中的旧老师人脸门禁；再执行 `056-01-experience-quota-column-ambiguity.sql`，确认返回 `READY`。
 8. 执行 `057-01-teacher-created-customer-access.sql`，确认字段、外键和索引 3 行全部为 `READY`。
 9. 按 `058-README.md` 执行三段 SQL，确认只读验收两行全部为 `READY`。
@@ -235,7 +235,7 @@ v99 的 `recoverBusinessSubmission` 仅允许原提交账号、原门店按同�
 13. 执行并验收 068—083，配置至少 32 字节的 `CUSTOMER_RATING_SIGNING_KEY` 及实际 `rating.html` 地址 `CUSTOMER_RATING_BASE_URL`，准备 `customerRating-v8.zip`。如果旧版 066 曾建立第三张设备注册表，先执行 `066-02-retire-legacy-device-registry.sql`；设备固件切换到凯撒签名且迁移 072 预留验收通过后，再部署 `faceRecognition v136` 及同轮配套函数，分别调用 `health` 核对实际版本，最后发布当前客户端。
 
 当前从 v128 升级的顺序为“只读确认既有 078／081／087 与私有照片桶 → 经完整备份门禁依次执行 088-01、088-02 → 088 四项只读验收 READY → 部署
-`faceRecognition v136` 并安装 Linux sharp 依赖 → health 和线上代码回下载核对 → 同步隐私保护指引与当前小程序／Web 客户端”。`verificationPhoto v13`、`staffAccount v96`、`teacherCreate v9`、`customerRating v8` 保持原生产实现，不因本文档矩阵更新而重复部署；v133 另要求先更新兼容高清原图的小程序，再完整备份并执行迁移 089，不能只跑 088。既有 v130 原地升级不重建／删除函数、不改运行时；详细顺序见 `database/cloudbase-console/089-README.md`。旧业务老师人脸 action 继续禁用；考勤只使用创建老师时录入的独立
+`faceRecognition v136` 并安装 Linux sharp 依赖 → health 和线上代码回下载核对 → 同步隐私保护指引与当前小程序／Web 客户端”。该考勤升级当时保留 `verificationPhoto v13`、`staffAccount v96`、`teacherCreate v9`、`customerRating v8`，不因文档矩阵更新而重复部署；当前 `staffAccount v97` 是另一次培训发布确认修复，须按其 README 单独上传并核验，无需新 SQL，不修改本函数。v133 另要求先更新兼容高清原图的小程序，再完整备份并执行迁移 089，不能只跑 088。既有 v130 原地升级不重建／删除函数、不改运行时；详细顺序见 `database/cloudbase-console/089-README.md`。旧业务老师人脸 action 继续禁用；考勤只使用创建老师时录入的独立
 考勤人脸档案，新体验核销仍只能调用客户 1:1 人脸验证。
 
 部署后测试：

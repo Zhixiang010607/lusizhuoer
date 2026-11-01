@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v96";
+const FUNCTION_VERSION = "v97";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -5262,7 +5262,7 @@ async function confirmTrainingMaterialUpload(caller, event) {
   const retired = await executeSql(`SELECT client_request_id FROM public.training_material_deleted_requests WHERE client_request_id = ${sqlText(clientRequestId)} LIMIT 1`);
   if (retired?.length) fail("这份资料已删除，请重新选择文件上传", "TRAINING_MATERIAL_DELETED");
   const reference = parseTrainingMaterialReference(event.reference);
-  const existing = await executeSql(
+  const readOriginal = () => executeSql(
     `SELECT material.id, material.title, material.category, material.original_file_name,
             material.file_reference, material.file_bytes, material.material_status, material.published_at,
             material.created_at, creator.staff_name AS created_by_name
@@ -5271,12 +5271,16 @@ async function confirmTrainingMaterialUpload(caller, event) {
       WHERE material.client_request_id = ${sqlText(clientRequestId)}
       LIMIT 1`
   );
-  if (existing?.[0]) {
-    if (!sameTrainingMaterialRequest(existing[0], input, reference)) {
+  const publishedResult = (row) => {
+    if (!sameTrainingMaterialRequest(row, input, reference)) {
       fail("培训资料上传请求编号已用于另一份文件", "IDEMPOTENCY_CONFLICT");
     }
-    if (String(existing[0].material_status) !== "PUBLISHED") fail("这份资料已删除或正在删除", "TRAINING_MATERIAL_DELETED");
-    return trainingMaterialPayload(existing[0]);
+    if (String(row.material_status) !== "PUBLISHED") fail("这份资料已删除或正在删除", "TRAINING_MATERIAL_DELETED");
+    return trainingMaterialPayload(row);
+  };
+  const existing = await readOriginal();
+  if (existing?.[0]) {
+    return publishedResult(existing[0]);
   }
   const verified = await inspectTrainingMaterial(event.reference, input).catch(async (error) => {
     if (["TRAINING_MATERIAL_SIZE_MISMATCH", "TRAINING_MATERIAL_TYPE_INVALID", "TRAINING_MATERIAL_FORMAT_INVALID"].includes(error?.code)) {
@@ -5297,28 +5301,20 @@ async function confirmTrainingMaterialUpload(caller, event) {
        RETURNING id, title, category, original_file_name, file_bytes, material_status,
                  published_at, created_at`
     );
-  } catch (error) {
-    const duplicate = await executeSql(
-      `SELECT material.id, material.title, material.category, material.original_file_name,
-              material.file_reference, material.file_bytes, material.material_status,
-              material.published_at, material.created_at, creator.staff_name AS created_by_name
-         FROM public.training_materials material
-         LEFT JOIN public.staff_accounts creator ON creator.id = material.created_by_staff_account_id
-        WHERE material.client_request_id = ${sqlText(clientRequestId)}
-        LIMIT 1`
-    ).catch(() => []);
-    if (duplicate?.[0]) {
-      if (!sameTrainingMaterialRequest(duplicate[0], input, verified.reference)) {
-        await deleteTrainingMaterialObject(verified.reference.reference);
-        fail("培训资料上传请求编号已用于另一份文件", "IDEMPOTENCY_CONFLICT");
-      }
-      if (String(duplicate[0].material_status) !== "PUBLISHED") fail("这份资料已删除或正在删除", "TRAINING_MATERIAL_DELETED");
-      return trainingMaterialPayload(duplicate[0]);
-    }
-    await deleteTrainingMaterialObject(verified.reference.reference);
-    asDatabaseError(error, "保存培训资料");
+  } catch (_) {
+    // INSERT may have committed even when its acknowledgement was lost.
+    // Never delete the complete PDF on an uncertain database result: the
+    // original request can confirm it later without retransferring bytes.
+    rows = [];
   }
-  return trainingMaterialPayload({ ...rows?.[0], created_by_name: caller.profile.staffName });
+  if (rows?.[0]?.id && rows[0].material_status === "PUBLISHED") {
+    return trainingMaterialPayload({ ...rows[0], created_by_name: caller.profile.staffName });
+  }
+  // CloudBase can omit RETURNING even after a successful write. Empty rows
+  // are not an absent record, and String(undefined) is not a material ID.
+  const confirmed = await readOriginal().catch(() => []);
+  if (confirmed?.[0]) return publishedResult(confirmed[0]);
+  fail("PDF 已上传，发布结果暂未确认，请重试原任务，无需重新上传", "TRAINING_MATERIAL_PUBLISH_PENDING");
 }
 
 async function discardTrainingMaterialUpload(event) {

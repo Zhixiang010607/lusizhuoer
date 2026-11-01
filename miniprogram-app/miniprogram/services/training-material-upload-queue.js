@@ -123,6 +123,10 @@ function uploadFailure(error, task) {
   if (code === "TRAINING_UPLOAD_OWNER_CHANGED") return "请用提交资料的总部账号登录后继续上传";
   if (["UNAUTHENTICATED", "UNASSIGNED_IDENTITY"].includes(code)) return "登录已失效，请重新登录后重试";
   if (code === "FORBIDDEN") return "当前账号没有上传权限";
+  if (task.uploadedBytes === task.bytes && ["VERIFYING", "RECOVERING"].includes(task.phase)
+      && !["TRAINING_MATERIAL_SIZE_MISMATCH", "TRAINING_MATERIAL_TYPE_INVALID", "TRAINING_MATERIAL_FORMAT_INVALID", "TRAINING_MATERIAL_DELETED", "IDEMPOTENCY_CONFLICT"].includes(code)) {
+    return "PDF 已上传，发布暂未确认；重试只确认发布，无需重新上传";
+  }
   if (/domain list|not.*domain|合法域名/i.test(message)) return "PDF 上传域名未配置，请联系总部";
   if (/timeout|timed out|超时/i.test(message)) return "PDF 上传超时，请重试";
   // Never persist a signed URL or platform credentials from a transport error.
@@ -150,6 +154,9 @@ async function confirmUpload(task) {
     throw new Error("发布状态未保存，请重试");
   }
   const result = await callStaff("confirmTrainingMaterialUpload", confirmPayload(task));
+  if (!/^[1-9]\d*$/.test(clean(result?.material?.id)) || result.material.status !== "PUBLISHED") {
+    throw Object.assign(new Error("PDF 发布结果暂未确认，请重试原任务"), { code: "TRAINING_MATERIAL_PUBLISH_PENDING" });
+  }
   if (isCancelled(task) && currentOwnerStaffId() === task.ownerStaffId && result?.material?.status === "PUBLISHED") {
     await emit({ type: "committed", task, material: result.material, cancelled: true });
   }
@@ -222,6 +229,8 @@ async function signedUpload(upload, buffer, task) {
   let requestTask;
   let checkpointTimer;
   let checkpointFlight;
+  let nativeSettled = false;
+  let resolveCheckpoint;
   let cancelled = false;
   const startedAt = Date.now();
   const cancel = () => { if (!cancelled) { cancelled = true; clearTimeout(checkpointTimer); requestTask?.abort?.(); } };
@@ -247,25 +256,34 @@ async function signedUpload(upload, buffer, task) {
   }); });
   // Consume both native outcomes even when authoritative recovery wins first.
   // A local preview or HTTP response headers alone are never publication proof.
-  const nativeOutcome = response.then((value) => ({ value }), (error) => ({ error }));
-  const checkpoint = new Promise((resolve) => {
-    if (bytes > SMALL_PDF_BYTES) return;
-    checkpointTimer = setTimeout(() => {
-      checkpointFlight = (async () => {
-        try { return { recovered: await recoverUpload(task) }; }
-        catch (error) {
-          const code = clean(error?.code).toUpperCase();
-          if (code === "TRAINING_MATERIAL_UPLOAD_INCOMPLETE" || code === "TRAINING_MATERIAL_READ_FAILED" || error?.submissionUncertain) {
-            await setPhase(task, "TRANSFERRING");
-            return { error, incomplete: code === "TRAINING_MATERIAL_UPLOAD_INCOMPLETE" };
-          }
-          return { error, stop: true };
+  const nativeOutcome = response.then((value) => { nativeSettled = true; return { value }; },
+    (error) => { nativeSettled = true; return { error }; });
+  const checkpoint = new Promise((resolve) => { resolveCheckpoint = resolve; });
+  const checkOriginal = () => {
+    if (checkpointFlight || cancelled || nativeSettled) return;
+    clearTimeout(checkpointTimer);
+    checkpointFlight = (async () => {
+      try { return { recovered: await recoverUpload(task) }; }
+      catch (error) {
+        const code = clean(error?.code).toUpperCase();
+        if (["TRAINING_MATERIAL_UPLOAD_INCOMPLETE", "TRAINING_MATERIAL_READ_FAILED", "TRAINING_MATERIAL_PUBLISH_PENDING"].includes(code) || error?.submissionUncertain) {
+          await setPhase(task, "TRANSFERRING");
+          return { error, incomplete: code === "TRAINING_MATERIAL_UPLOAD_INCOMPLETE" };
         }
-      })().catch((error) => ({ error, stop: true }));
-      checkpointFlight.then((outcome) => {
-        if (outcome.recovered || outcome.stop) resolve({ checkpoint: outcome });
-      });
-    }, SLOW_ACK_CHECK_MS);
+        return { error, stop: true };
+      }
+    })().catch((error) => ({ error, stop: true }));
+    checkpointFlight.then((outcome) => {
+      if (outcome.recovered || outcome.stop) resolveCheckpoint({ checkpoint: outcome });
+    });
+  };
+  if (bytes <= SMALL_PDF_BYTES) checkpointTimer = setTimeout(checkOriginal, SLOW_ACK_CHECK_MS);
+  // A successful response header is a reason to confirm, never publication
+  // proof. For any file size this avoids waiting for a delayed native body
+  // callback, without polling incomplete objects or sending a second PUT.
+  requestTask?.onHeadersReceived?.((headers) => {
+    const status = Number(headers?.statusCode || 0);
+    if (status >= 200 && status < 300) checkOriginal();
   });
   try {
     const first = await Promise.race([nativeOutcome, checkpoint]);
@@ -336,6 +354,9 @@ async function processTask(task) {
     await setPhase(task, "RECOVERING");
     try { return await confirmUpload(task); }
     catch (error) {
+      // A complete PUT receipt is durable. A temporarily missing/read-failed
+      // confirmation must not discard it and start uploading all bytes again.
+      if (task.uploadedBytes === task.bytes) throw error;
       if (!["TRAINING_MATERIAL_UPLOAD_INCOMPLETE", "TRAINING_MATERIAL_REFERENCE_INVALID", "TRAINING_MATERIAL_BUCKET_MISMATCH"].includes(clean(error?.code).toUpperCase())) throw error;
       assertOwner(task);
       await callStaff("discardTrainingMaterialUpload", { reference: task.reference }).catch(() => {});
@@ -391,7 +412,7 @@ async function cleanupExpiredTasks(tasks, ownerStaffId) {
     }
     if (task.ownerStaffId === ownerStaffId && task.state !== "COMMITTED" && now - task.createdAt > MAX_TASK_AGE_MS) {
       assertOwner(task);
-      if (task.reference) await callStaff("discardTrainingMaterialUpload", { reference: task.reference }).catch(() => {});
+      if (task.reference && !task.publicationStarted) await callStaff("discardTrainingMaterialUpload", { reference: task.reference }).catch(() => {});
       assertOwner(task);
       await unlinkFile(task.filePath).catch(() => {});
       removeTask(task);
@@ -449,8 +470,11 @@ async function resume(options = {}) {
         removeTask(task);
         // The confirmed upload itself is a valid local read source for HQ.
         // Keep it until the private cache copy finishes, after the UI settles.
-        if (result.material.status === "PUBLISHED") await materialCache.store(task.filePath, result.material).catch(() => {});
-        await unlinkFile(task.filePath).catch(() => {});
+        // Cache copying is optional local work, not a queue-wide upload lock.
+        // Keep this exact source alive until its copy settles, but let the next
+        // file start signing/transferring immediately.
+        void materialCache.store(task.filePath, result.material).catch(() => {})
+          .then(() => unlinkFile(task.filePath).catch(() => {}));
       } catch (error) {
         if (error?.code === "TRAINING_UPLOAD_CANCELLED" || isCancelled(task)) continue;
         const message = uploadFailure(error, task);
@@ -540,7 +564,7 @@ async function dismissFailed(taskId) {
   removeTask(task); // Stop retries before asynchronous cleanup starts.
   await emit({ type: "removed", task });
   // Existing server cancellation refuses to delete a published/bound object.
-  if (task.reference && currentOwnerStaffId() === task.ownerStaffId) {
+  if (task.reference && !task.publicationStarted && currentOwnerStaffId() === task.ownerStaffId) {
     await callStaff("discardTrainingMaterialUpload", { reference: task.reference }).catch(() => {});
   }
   await unlinkFile(task.filePath).catch(() => {});

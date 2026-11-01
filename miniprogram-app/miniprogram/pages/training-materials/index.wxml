@@ -32,10 +32,10 @@
   </view>
 
   <view wx:if="{{isHq && failedTasks.length}}" class="card failed-card">
-    <view class="card-title"><text>上传失败</text><text class="badge">{{failedTasks.length}} 个</text></view>
+    <view class="card-title"><text>待处理任务</text><text class="badge">{{failedTasks.length}} 个</text></view>
     <view wx:for="{{failedTasks}}" wx:key="id" class="pending-row has-retry">
       <view><text class="pending-title">{{item.title}}</text><text class="material-meta">{{item.sizeLabel}} · {{item.stateLabel}}</text><text wx:if="{{item.error}}" class="pending-error">{{item.error}}</text></view>
-      <view class="failed-actions"><button class="retry-button" data-id="{{item.id}}" bindtap="retryUpload">立即重试</button><button class="retry-button remove-task-button" data-id="{{item.id}}" bindtap="removeFailedUpload">移除</button></view>
+      <view class="failed-actions"><button class="retry-button" data-id="{{item.id}}" bindtap="retryUpload">{{item.publicationOnly ? '重试发布' : '立即重试'}}</button><button class="retry-button remove-task-button" data-id="{{item.id}}" bindtap="removeFailedUpload">移除</button></view>
     </view>
   </view>
 

@@ -196,6 +196,7 @@
 .hq-ranking-card > text { height: 72rpx; font-size: 24rpx; font-weight: 500; }
 .hq-ranking-rank { color: #806942; font-weight: 650; }
 .hq-ranking-name { color: #5f564b; font-size: 24rpx !important; font-weight: 500; line-height: 1.35; }
+.hq-ranking-card > .hq-ranking-link { color: #7b5a29; font-weight: 750; text-decoration: underline; }
 .hq-ranking-value { color: #5f564b; font-weight: 500; }
 .hq-ranking-notice { padding: 24rpx; border: 1rpx solid #dfcfb4; border-radius: 18rpx; color: #7c7062; font-size: 24rpx; line-height: 1.6; text-align: left; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
 .hq-ranking-notice > text { display: block; }

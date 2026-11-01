@@ -48,6 +48,21 @@ test("pending PDF list excludes committed and other-owner jobs", () => {
   assert.equal(page.data.pendingTasks[0].stateLabel, "准备文件");
 });
 
+test("completed PDF transport is distinguished from an unconfirmed publication", async () => {
+  const task = { id: "publish-original", ownerStaffId: "owner", state: "FAILED", bytes: 8 * 1024 * 1024,
+    uploadedBytes: 8 * 1024 * 1024, phase: "VERIFYING" };
+  const h = harness([task]);
+  h.page.syncPendingTasks();
+  assert.equal(h.page.data.failedTasks[0].publicationOnly, true);
+  await h.page.onUploadQueueEvent({ type: "failed", task });
+  assert.equal(h.page.data.message, "PDF 已上传，发布尚未确认；重试无需重传文件。");
+  h.page.retryUpload({ currentTarget: { dataset: { id: task.id } } });
+  assert.deepEqual(h.retryIds, [task.id]);
+  assert.equal(h.page.data.message, "正在确认原文件的发布结果，无需重新上传。");
+  const markup = fs.readFileSync(path.join(directory, "index.wxml"), "utf8");
+  assert.match(markup, /item\.publicationOnly \? '重试发布' : '立即重试'/);
+});
+
 test("confirmed upload updates library immediately and refreshes metadata without waiting", async () => {
   let resolveList;
   const h = harness([], { api: () => new Promise((resolve) => { resolveList = resolve; }) });
