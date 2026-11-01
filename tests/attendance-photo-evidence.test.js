@@ -22,7 +22,7 @@ function harness(options = {}) {
   const calls = [], reference = `pg://customer-photos/attendance/${"a".repeat(48)}.jpg`;
   const photo = Buffer.from("test-compressed-photo"), crypto = require("node:crypto");
   const row = { id: "31", staff_account_id: 7, attendance_date: "2026-10-15", attendance_type: "CLOCK_IN",
-    checked_in_at: "2026-10-15T01:02:03Z", photo_object_ref: reference, photo_bytes: photo.length,
+    checked_in_at: "2026-10-15T01:02:03Z", attendance_method: "PHOTO", face_score: null, photo_object_ref: reference, photo_bytes: photo.length,
     photo_sha256: crypto.createHash("sha256").update(photo).digest("hex"), client_request_id: "attendance_request_123" };
   let writes = 0;
   const mock = {
@@ -54,11 +54,12 @@ function harness(options = {}) {
     executeSql = mock.executeSql;
     activeTeacherCaller = mock.active;
     requireTeacherAttendanceSchema = async () => {};
+    requireTeacherPhotoAttendanceSchema = async () => {};
     verifiedAttendanceAddressToken = () => ({placeName: '', formattedAddress: '', provider: ''});
     cleanImage = () => ({base64: Buffer.from('same-verified-capture').toString('base64')});
-    faceClient = () => ({VerifyFace: async () => ({IsMatch: ${!options.mismatch}, Score: 99})});
-    inspectFaceImage = async () => ({qualityScore: 99}); inspectLiveness = async () => ({score: null});
-    faceSettings = () => ({verifyThreshold: 60});
+    faceClient = () => { mock.calls.push('IAI'); throw Error('IAI forbidden for attendance'); };
+    inspectFaceImage = inspectLiveness = async () => { mock.calls.push('IAI'); throw Error('IAI forbidden for attendance'); };
+    faceSettings = () => ({verifyThreshold: 60, livenessEnabled: true});
     uploadVerificationPhotoObject = mock.upload;
     downloadVerificationPhotoAuthenticated = mock.download;
     deleteVerificationPhotoObject = async () => { mock.calls.push('DELETE'); };
@@ -71,15 +72,20 @@ function harness(options = {}) {
 const event = { attendanceType: "CLOCK_IN", clientRequestId: "attendance_request_123", photoEvidenceConsent: true,
   latitude: 30, longitude: 120, accuracy: 10, locationToken: "test" };
 
-test("new punch binds only the same verified capture after private readback", async () => {
+test("new photo-only punch binds the capture after private readback without any IAI or profile lookup", async () => {
   const h = harness(); const result = await h.clockInTeacherAttendance(event);
   assert.equal(result.attendance.id, "31");
   assert.deepEqual(h.calls.find(Array.isArray), ["PREPARE", "same-verified-capture", "2026-10-15T01:02:03Z", "CLOCK_IN"]);
   const insert = h.calls.find((s) => typeof s === "string" && s.includes("INSERT INTO public.teacher_attendance_records"));
   assert.ok(insert.includes("photo_object_ref, photo_bytes, photo_sha256"));
   assert.ok(h.calls.indexOf("DOWNLOAD") < h.calls.indexOf(insert));
+  assert.equal(result.attendance.faceScore, null);
+  assert.equal(result.attendance.attendanceMethod, "PHOTO");
+  assert.match(insert, /attendance_method[\s\S]*'PHOTO'[\s\S]*NULL, NULL, NULL, NULL/);
+  assert.equal(h.calls.includes("IAI"), false);
+  assert.equal(h.calls.some(s => typeof s === "string" && /teacher_attendance_face_profiles/.test(s)), false);
 });
-for (const [name, options] of [["face mismatch", { mismatch: true }], ["upload failure", { uploadFailure: true }], ["corrupt object", { corrupt: true }], ["archived caller", { inactive: true }]]) {
+for (const [name, options] of [["upload failure", { uploadFailure: true }], ["corrupt object", { corrupt: true }], ["archived caller", { inactive: true }]]) {
   test(`${name} never inserts a punch`, async () => {
     const h = harness(options); await assert.rejects(h.clockInTeacherAttendance(event));
     assert.equal(h.calls.some((s) => typeof s === "string" && s.includes("INSERT INTO")), false);
@@ -88,6 +94,12 @@ for (const [name, options] of [["face mismatch", { mismatch: true }], ["upload f
 test("no retention consent never uploads or inserts", async () => {
   const h = harness(); await assert.rejects(h.clockInTeacherAttendance({ ...event, photoEvidenceConsent: false }));
   assert.equal(h.calls.includes("UPLOAD"), false);
+});
+test("clock-out without clock-in and invalid position stop before photo upload", async () => {
+  for (const payload of [{ ...event, attendanceType: "CLOCK_OUT" }, { ...event, accuracy: 501 }, { ...event, latitude: 91 }]) {
+    const h = harness(); await assert.rejects(h.clockInTeacherAttendance(payload));
+    assert.equal(h.calls.includes("UPLOAD"), false); assert.equal(h.calls.includes("IAI"), false);
+  }
 });
 test("existing daily punch is returned without replacing its photo", async () => {
   const h = harness({ existing: [{ id: "30" }] }); const result = await h.clockInTeacherAttendance(event);

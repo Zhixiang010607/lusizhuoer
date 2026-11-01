@@ -35,7 +35,7 @@ test("Web uses the warm tablet visual language without importing Mini Program so
   assert.match(theme, /button, \.button-link,[\s\S]{0,220}min-height: 44px !important;[\s\S]{0,220}text-align: center !important;/);
   assert.doesNotMatch(`${theme}\n${auth}`, /miniprogram-app|\.wxss|\.wxml/);
   assert.match(context, /网页版也采用同一套平板横屏视觉与功能信息架构/);
-  assert.match(context, /只扩展网页入口，不改变正常／体验／补录核销/);
+  assert.match(context, /老师 Web 入口已由后文“仅总部可登录”规则退役/);
 });
 
 test("public login and rating pages load the current tablet stylesheet", () => {

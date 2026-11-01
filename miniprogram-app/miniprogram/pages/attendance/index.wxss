@@ -106,7 +106,8 @@ button[disabled] { opacity: .55; }
 .confirmed-context { margin-bottom: 16rpx; padding: 15rpx 17rpx; color: #5d5142; background: #f5ead8; border-radius: 12rpx; }
 .confirmed-context text { display: block; font-size: 24rpx; line-height: 1.5; }
 .confirmed-context text + text { margin-top: 5rpx; color: #7c7062; }
-.face-submit { margin-top: 14rpx; }
+.photo-submit { margin-top: 14rpx; }
+.photo-submit[disabled] { color: #6c6256 !important; background: #e8ddcb !important; opacity: 1; }
 .work-duration, .next-punch { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin: 16rpx 0; padding: 16rpx 18rpx; background: #f5ead8; border-radius: 13rpx; font-size: 24rpx; }
 .work-duration text:last-child, .next-punch text:last-child { color: #74592d; font-weight: 700; }
 .permission-actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10rpx; }
@@ -135,7 +136,7 @@ button[disabled] { opacity: .55; }
   .confirmed-context { margin-bottom: 12px; padding: 11px 13px; border-radius: 9px; }
   .confirmed-context text { font-size: 14px; }
   .confirmed-context text + text { margin-top: 4px; }
-  .face-submit { margin-top: 10px; }
+  .photo-submit { margin-top: 10px; }
   .work-duration, .next-punch { gap: 12px; margin: 12px 0; padding: 12px 14px; border-radius: 10px; font-size: 14px; }
   .permission-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .permission-help { margin-top: 9px; padding: 12px 14px; border-width: 1px; border-radius: 10px; font-size: 14px; }

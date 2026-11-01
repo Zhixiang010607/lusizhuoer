@@ -15,7 +15,7 @@ function base64(path, mimeType = "image/jpeg") {
 }
 
 Component({
-  properties: { title: { type: String, value: "现场拍照" } },
+  properties: { title: { type: String, value: "现场拍照" }, photoOnly: { type: Boolean, value: false } },
   data: { previewPath: "", captureReady: false, busy: false, message: "", error: false },
   lifetimes: { detached() { this.clearCapture(); } },
   methods: {
@@ -35,27 +35,27 @@ Component({
         }
         if (Number(originalInfo.size) > ORIGINAL_MAX_BYTES) throw new Error("照片超过 3MB，请改善光线后重新拍摄");
         const dimensions = await imageInfo(originalPath);
-        let thumbnailPath = await compress(originalPath, 25);
-        let thumbnailInfo = await fileInfo(thumbnailPath);
-        if (Number(thumbnailInfo.size) > THUMBNAIL_MAX_BYTES) {
+        let thumbnailPath = this.properties.photoOnly ? "" : await compress(originalPath, 25);
+        let thumbnailInfo = thumbnailPath ? await fileInfo(thumbnailPath) : { size: 0 };
+        if (thumbnailPath && Number(thumbnailInfo.size) > THUMBNAIL_MAX_BYTES) {
           thumbnailPath = await compress(originalPath, 10);
           thumbnailInfo = await fileInfo(thumbnailPath);
         }
         if (Number(thumbnailInfo.size) > THUMBNAIL_MAX_BYTES) throw new Error("缩略图仍然过大，请重新拍摄并减少复杂背景");
-        const thumbnailDimensions = await imageInfo(thumbnailPath);
+        const thumbnailDimensions = thumbnailPath ? await imageInfo(thumbnailPath) : {};
         const originalMime = String(dimensions.type || "jpeg").toLowerCase() === "png" ? "image/png" : "image/jpeg";
         const thumbnailMime = String(thumbnailDimensions.type || "jpeg").toLowerCase() === "png" ? "image/png" : "image/jpeg";
         this._capture = {
           originalPath,
           thumbnailPath,
           imageBase64: await base64(originalPath, originalMime),
-          thumbnailBase64: await base64(thumbnailPath, thumbnailMime),
+          thumbnailBase64: thumbnailPath ? await base64(thumbnailPath, thumbnailMime) : "",
           imageWidth: Number(dimensions.width || 0),
           imageHeight: Number(dimensions.height || 0),
           originalBytes: Number(originalInfo.size || 0),
           thumbnailBytes: Number(thumbnailInfo.size || 0)
         };
-        this.setData({ previewPath: originalPath, captureReady: true, message: "照片已拍摄；提交前仍需由服务端完成质量、活体与人脸检查", error: false });
+        this.setData({ previewPath: originalPath, captureReady: true, message: this.properties.photoOnly ? "照片已拍摄，请确认后提交打卡" : "照片已拍摄；提交前仍需由服务端完成质量、活体与人脸检查", error: false });
         this.triggerEvent("change", { ready: true });
       } catch (error) {
         const cancelled = /cancel/i.test(String(error && (error.errMsg || error.message) || ""));

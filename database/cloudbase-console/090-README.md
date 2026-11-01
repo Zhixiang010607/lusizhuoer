@@ -1,0 +1,17 @@
+# 090：老师只拍照打卡
+
+状态：源码已准备，**未在生产执行**。不删除历史考勤、照片、人脸档案；不涉及客户、工单、余额、审核或 BLE。
+
+1. 取得本次生产迁移授权后，先执行 `090-preview.sql`，确认原环境及考勤记录数／照片数／历史摘要，回执私下保存。
+2. 只通过完整备份门禁执行 `090-01-teacher-photo-attendance.sql`：
+
+   ```sh
+   node scripts/cloudbase-pg-change.js --env rusizhuoer-d9gbcsgym07651694 --label teacher-photo-attendance --sql database/cloudbase-console/090-01-teacher-photo-attendance.sql --apply
+   ```
+
+   必须验证全部 public 基础表行数及序列快照，失败不得直接执行 SQL。保留备份及私有回执。
+3. 独立执行 `090-readonly-verify.sql`，四项全部 READY；重跑 preview，历史行数、照片数、历史摘要及 v88 照片守卫摘要必须不变。v78 守卫只有本次明确调整的内容允许变化。
+4. 上传 `faceRecognition-v137.zip`、`staffAccount-v98.zip`，分别核验 health 和下载代码；再上传小程序。无新环境变量、无函数重建、无需部署其他函数或 Web。
+5. 经授权用真实老师验证先上班后下班、前置摄像头、照片留存、原图和时间水印。未录入考勤人脸也能打卡；历史 FACE 记录保留原分数，新 PHOTO 记录四项人脸审计字段必须为 NULL。不得用测试插入覆盖真实当天记录。
+
+数据库旧客户端缺省 FACE，仍执行旧档案守卫，兼容迁移至新函数期间的在途请求；新函数一律由服务端指定 PHOTO，不接受客户端选择验证方式。照片元数据、3 MiB 限制、同日、顺序、唯一性与不可变守卫继续生效。照片打卡不是人脸身份验证，服务端不能证明照片确由实时相机拍摄；客户端仅开放相机，不作反代拍承诺。

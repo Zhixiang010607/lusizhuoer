@@ -1,6 +1,6 @@
 "use strict";
 
-// Attendance adds its authoritative timestamp to the same verified capture.
+// Attendance adds its authoritative timestamp to the submitted live capture.
 // Keep native pixels and work-order HD JPEG quality; never use a low-res loop.
 // Customer/verification evidence never enters this watermark-only pipeline.
 const GLYPHS = require("./attendance-glyphs.json").glyphs;

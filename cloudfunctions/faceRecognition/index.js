@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const https = require("https");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v136";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v137";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -6234,6 +6234,20 @@ async function requireTeacherAttendanceSchema() {
   teacherAttendanceSchemaReady = true;
 }
 
+let teacherPhotoAttendanceSchemaReady = false;
+async function requireTeacherPhotoAttendanceSchema() {
+  if (teacherPhotoAttendanceSchemaReady) return;
+  const [row] = await executeSql(`SELECT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = TO_REGCLASS('public.teacher_attendance_records')
+      AND conname = 'teacher_attendance_method_check_v90' AND convalidated
+  ) AS photo_attendance_ready`);
+  if (!databaseBoolean(row?.photo_attendance_ready)) {
+    fail("照片打卡数据库结构尚未启用，请先执行并验收迁移 090。", "ATTENDANCE_PHOTO_SCHEMA_MISSING");
+  }
+  teacherPhotoAttendanceSchemaReady = true;
+}
+
 function attendanceCoordinate(value, label, minimum, maximum) {
   const number = Number(value);
   if (!Number.isFinite(number) || number < minimum || number > maximum) {
@@ -6473,8 +6487,9 @@ function attendanceRecord(row = {}) {
     latitude: Number(row.latitude),
     longitude: Number(row.longitude),
     accuracy: Number(row.accuracy_m),
-    faceScore: Number(row.face_score),
-    faceRequestId: String(row.face_request_id || ""),
+    attendanceMethod: String(row.attendance_method || "FACE"),
+    faceScore: row.face_score == null ? null : Number(row.face_score),
+    faceRequestId: row.face_request_id == null ? null : String(row.face_request_id),
     devicePlatform: String(row.device_platform || "UNKNOWN"),
     placeName: String(row.place_name || ""),
     formattedAddress: String(row.formatted_address || ""),
@@ -6485,6 +6500,7 @@ function attendanceRecord(row = {}) {
 async function clockInTeacherAttendance(event) {
   const caller = await activeTeacherCaller();
   await requireTeacherAttendanceSchema();
+  await requireTeacherPhotoAttendanceSchema();
   const staffId = Number(caller.staffId);
   const teacherId = Number(caller.teacherId);
   const type = attendanceType(event.attendanceType);
@@ -6511,15 +6527,6 @@ async function clockInTeacherAttendance(event) {
     if (!clockInRows[0]) fail("请先完成今天的上班打卡，再进行下班打卡。", "ATTENDANCE_CLOCK_IN_REQUIRED");
   }
 
-  const profileRows = await executeSql(
-    `SELECT face_person_id FROM public.teacher_attendance_face_profiles
-      WHERE teacher_id = ${teacherId}::bigint
-        AND staff_account_id = ${staffId}::bigint
-      LIMIT 1`
-  );
-  const profile = profileRows[0];
-  if (!profile?.face_person_id) fail("当前老师没有考勤人脸档案，请联系总部重新建立老师资料。", "ATTENDANCE_FACE_MISSING");
-
   const latitude = attendanceCoordinate(event.latitude, "纬度", -90, 90);
   const longitude = attendanceCoordinate(event.longitude, "经度", -180, 180);
   const accuracy = attendanceCoordinate(event.accuracy, "定位精度", 0.01, 500);
@@ -6530,20 +6537,8 @@ async function clockInTeacherAttendance(event) {
   if (Buffer.byteLength(base64, "base64") > MAX_VERIFICATION_IMAGE_BYTES) {
     fail("现场照片不得超过 3MB，请重新拍摄。", "PHOTO_TOO_LARGE");
   }
-  const api = faceClient();
-  const quality = await inspectFaceImage(api, base64);
-  const liveness = await inspectLiveness(api, base64);
-  const settings = faceSettings();
-  const result = await api.VerifyFace({
-    PersonId: String(profile.face_person_id), Image: base64,
-    QualityControl: 3, NeedRotateDetection: 0
-  });
-  const score = Number(result?.Score || 0);
-  if (result?.IsMatch !== true || score < settings.verifyThreshold) {
-    fail(`人脸验证未通过（${rounded(score)} 分），请由老师本人正对前置摄像头重试。`, "ATTENDANCE_FACE_MISMATCH");
-  }
-
-  // Derive only from the exact bytes just verified, never a second client photo.
+  // Photo-only attendance: decode/validate the submitted capture, not a face.
+  // Never call IAI here or require an enrollment; customer verification is separate.
   // DB time is shared by the baked-in stamp and the immutable punch timestamp.
   const [clock] = await executeSql("SELECT CLOCK_TIMESTAMP() AS photo_taken_at");
   if (!clock?.photo_taken_at) fail("无法确认打卡时间，请稍后重试。", "ATTENDANCE_TIME_UNAVAILABLE");
@@ -6564,18 +6559,16 @@ async function clockInTeacherAttendance(event) {
   const rows = await executeSql(
     `WITH inserted AS (
        INSERT INTO public.teacher_attendance_records
-         (teacher_id, staff_account_id, attendance_date, attendance_type, latitude, longitude,
+         (teacher_id, staff_account_id, attendance_date, attendance_type, attendance_method, latitude, longitude,
           accuracy_m, face_score, face_request_id, quality_score, liveness_score,
           client_request_id, device_platform, place_name, formatted_address, address_provider,
           photo_object_ref, photo_bytes, photo_sha256, photo_width, photo_height, photo_taken_at)
        VALUES
          (${teacherId}::bigint, ${staffId}::bigint,
           (CLOCK_TIMESTAMP() AT TIME ZONE 'Asia/Shanghai')::date,
-          ${sqlText(type)},
+          ${sqlText(type)}, 'PHOTO',
           ${latitude}::numeric, ${longitude}::numeric, ${accuracy}::numeric,
-          ${rounded(score)}::numeric, ${sqlText(result?.RequestId || "")},
-          ${Number(quality.qualityScore || 0)}::numeric,
-          ${liveness.score === null ? "NULL" : `${Number(liveness.score)}::numeric`},
+          NULL, NULL, NULL, NULL,
           ${sqlText(clientRequestId)}, ${sqlText(platform)},
           ${address.placeName ? sqlText(address.placeName) : "NULL"},
           ${address.formattedAddress ? sqlText(address.formattedAddress) : "NULL"},

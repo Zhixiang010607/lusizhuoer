@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v97";
+const FUNCTION_VERSION = "v98";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -1871,7 +1871,7 @@ function attendanceResponse(row = {}) {
     latitude: Number(row.latitude),
     longitude: Number(row.longitude),
     accuracy: Number(row.accuracy_m),
-    faceScore: Number(row.face_score),
+    faceScore: row.face_score == null ? null : Number(row.face_score),
     devicePlatform: String(row.device_platform || "UNKNOWN"),
     placeName: String(row.place_name || ""),
     formattedAddress: String(row.formatted_address || ""),

@@ -215,7 +215,6 @@ Page({
   openPreviewLocation() { const row = this.data.locationPreview; if (row) wx.openLocation({ latitude: row.latitude, longitude: row.longitude, scale: 18, name: row.placeName || "待确认打卡位置", address: row.formattedAddress || `定位精度约 ${row.accuracy} 米` }); },
   async prepareCheckIn() {
     if (this.data.loading || this.data.locating || this.data.clocking || this.data.todayAttendance?.completed) return;
-    if (!this.data.faceEnrolled) return this.setData({ message: "当前账号未录入考勤人脸，可以查看考勤记录，但暂时不能打卡。", error: true });
     const pendingAttendanceType = this.data.todayAttendance?.clockIn ? "CLOCK_OUT" : "CLOCK_IN";
     const pendingAttendanceLabel = pendingAttendanceType === "CLOCK_OUT" ? "下班打卡" : "上班打卡";
     this.setData({ locating: true, pendingAttendanceType, pendingAttendanceLabel, permissionDenied: false, permissionAction: "", locationErrorCode: "", message: `正在获取${pendingAttendanceLabel}的当前时间和位置…`, error: false, checkInStage: "idle", locationPreview: null, captureReady: false });
@@ -260,21 +259,18 @@ Page({
     if (!preview || Date.now() - Number(preview.capturedAtMs || 0) > 120000) {
       return this.setData({ checkInStage: "idle", locationPreview: null, message: "时间地点确认已超过 2 分钟，请重新获取。", error: true });
     }
-    this.setData({ checkInStage: "face", captureReady: false, message: "时间地点已确认，请由老师本人现场拍照并完成人脸识别。", error: false });
+    this.setData({ checkInStage: "photo", captureReady: false, message: "时间地点已确认，请由老师本人现场拍照。", error: false });
   },
   resetCheckInContext() { if (!this.data.clocking) this.setData({ checkInStage: "idle", locationPreview: null, captureReady: false, message: `请重新获取并确认${this.data.pendingAttendanceLabel || "打卡"}的当前时间地点。`, error: false }); },
   async clockIn() {
     if (this.data.clocking || this.data.todayAttendance?.completed) return;
-    if (!this.data.faceEnrolled) {
-      return this.setData({ message: "当前账号未录入考勤人脸，可以查看考勤记录，但暂时不能打卡。", error: true });
-    }
     const preview = this.data.locationPreview;
-    if (this.data.checkInStage !== "face" || !preview) return this.setData({ message: "请先获取并确认当前时间地点。", error: true });
+    if (this.data.checkInStage !== "photo" || !preview) return this.setData({ message: "请先获取并确认当前时间地点。", error: true });
     if (Date.now() - Number(preview.capturedAtMs || 0) > 120000) return this.setData({ checkInStage: "idle", locationPreview: null, captureReady: false, message: "时间地点确认已超过 2 分钟，请重新获取。", error: true });
     const camera = this.selectComponent("#attendanceCamera"), capture = camera && camera.getCapture();
     if (!capture) return this.setData({ message: "请先由老师本人使用前置摄像头现场拍照。", error: true });
     if (!this.data.photoConsent) return this.setData({ message: "请先同意保存本次打卡照片。", error: true });
-    this.setData({ clocking: true, permissionDenied: false, message: "正在进行照片质量、活体和 1:1 人脸验证…", error: false });
+    this.setData({ clocking: true, permissionDenied: false, message: "正在保存打卡照片并提交…", error: false });
     try {
       const attendanceType = this.data.pendingAttendanceType || (this.data.todayAttendance?.clockIn ? "CLOCK_OUT" : "CLOCK_IN");
       const attendanceLabel = attendanceType === "CLOCK_OUT" ? "下班打卡" : "上班打卡";

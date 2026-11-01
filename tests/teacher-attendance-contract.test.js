@@ -67,12 +67,13 @@ assert.match(teacherCreate, /INSERT INTO public\.teacher_attendance_face_profile
 assert.match(teacherCreate, /profile_photo_file_id/,
   "only the consented attendance enrollment photo is privately retained");
 
-assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v12" : "v136"/);
+assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v12" : "v137"/);
 const clockInStart = face.indexOf("async function clockInTeacherAttendance");
 const clockInEnd = face.indexOf("// Normal and teacher-gift EXPERIENCE", clockInStart);
 const clockIn = face.slice(clockInStart, clockInEnd);
-assert.match(clockIn, /activeTeacherCaller\(\)[\s\S]*teacher_attendance_face_profiles/);
-assert.match(clockIn, /inspectFaceImage[\s\S]*inspectLiveness[\s\S]*VerifyFace/);
+assert.match(clockIn, /activeTeacherCaller\(\)[\s\S]*requireTeacherPhotoAttendanceSchema\(\)/);
+assert.doesNotMatch(clockIn, /teacher_attendance_face_profiles|inspectFaceImage|inspectLiveness|VerifyFace|faceClient\(/);
+assert.match(clockIn, /attendance_method[\s\S]*'PHOTO'[\s\S]*NULL, NULL, NULL, NULL/);
 assert.match(clockIn, /accuracy[\s\S]*500/);
 assert.match(clockIn, /teacher_attendance_records/);
 assert.match(clockIn, /attendanceType\(event\.attendanceType\)/);
@@ -90,7 +91,7 @@ assert.match(face, /signAttendanceLocation[\s\S]*verifiedAttendanceAddressToken/
 assert.match(clockIn, /place_name, formatted_address, address_provider/,
   "the authoritative punch write must persist signed readable location text");
 
-assert.match(staff, /const FUNCTION_VERSION = "v97"/);
+assert.match(staff, /const FUNCTION_VERSION = "v98"/);
 assert.match(staff, /async function getOwnAttendanceMonth/);
 assert.match(staff, /async function getHqAttendanceTrackingDay/);
 assert.match(staff, /attendanceStatus = hasClockIn && hasClockOut \? "COMPLETE"/);
@@ -157,19 +158,19 @@ assert.match(attendanceJs, /async prepareCheckIn\(\)[\s\S]*await locate\(\)/,
   "teacher must read the current location before face verification");
 assert.match(attendanceJs, /callFace\("resolveTeacherAttendanceLocation"[\s\S]*locationToken/,
   "teacher confirmation must automatically resolve and retain a signed nearby location");
-assert.match(attendanceJs, /confirmCheckInContext\(\)[\s\S]*checkInStage: "face"/,
+assert.match(attendanceJs, /confirmCheckInContext\(\)[\s\S]*checkInStage: "photo"/,
   "teacher must explicitly confirm time and location before the camera stage");
 assert.match(attendanceJs, /120000/,
   "a confirmed location must expire instead of being reused indefinitely");
-assert.match(attendanceWxml, /获取\{\{selectedAttendance\.clockIn \? '下班' : '上班'\}\}打卡时间地点[\s\S]*确认时间地点[\s\S]*验证人脸并提交/,
-  "the visible teacher flow must order location confirmation before face recognition");
+assert.match(attendanceWxml, /获取\{\{selectedAttendance\.clockIn \? '下班' : '上班'\}\}打卡时间地点[\s\S]*确认时间地点[\s\S]*提交\{\{pendingAttendanceLabel\}\}/,
+  "the visible teacher flow orders location confirmation before photo submission");
 assert.match(attendanceWxml, /最终打卡时间以服务端记录为准/,
   "the confirmation preview must not replace authoritative server time");
 assert.match(attendanceWxml, /同意保存本次打卡照片[\s\S]*仅本人和总部可查看/);
-assert.match(attendanceWxml, /未录入考勤人脸，可以进入并查看考勤记录，但暂时不能进行人脸打卡/,
-  "a legacy teacher without an attendance face must still enter and read attendance history");
-assert.match(attendanceWxml, /未录入人脸，暂不能打卡/,
-  "only the clock-in action is disabled when the attendance face is missing");
+assert.doesNotMatch(attendanceWxml, /!faceEnrolled|未录入人脸|验证人脸并提交/);
+assert.doesNotMatch(attendanceJs, /if \(!this\.data\.faceEnrolled\)/,
+  "photo attendance must not require an enrolled face");
+assert.match(attendanceWxml, /photo-only="\{\{true\}\}"/);
 assert.equal((attendanceWxml.match(/<button/g) || []).length, (attendanceWxml.match(/class="button-label"/g) || []).length,
   "every attendance button must use an explicit label layer so iOS does not offset raw button text");
 assert.match(attendanceWxss, /\.location-button \{[^}]*height: 74rpx;[^}]*display: flex;[^}]*align-items: center;[^}]*justify-content: center;/s,
