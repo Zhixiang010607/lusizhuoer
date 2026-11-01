@@ -50,6 +50,6 @@ Page({
   chooseMonth(event) { if (this.data.loading) return; const month = text(event.detail?.value).slice(0, 7); if (/^\d{4}-\d{2}$/.test(month) && month <= this.data.monthPickerEnd) this.loadMonth(month); },
   selectDate(event) { const date = text(event.currentTarget.dataset.date), cell = this.data.days.find((item) => item.date === date); if (cell && !cell.blank) this.setData({ selectedDate: date, selected: selectedDay(cell) }); },
   openMap(event) { const kind = text(event.currentTarget.dataset.kind), record = this.data.selected?.[kind]; if (!record) return; const { mapReady, latitude, longitude } = attendanceMap(record); if (!mapReady) return; wx.openLocation({ latitude, longitude, scale: 18, name: text(record.placeName) || `${kind === "clockIn" ? "上班" : "下班"}打卡位置`, address: text(record.formattedAddress) || `${latitude}, ${longitude}` }); },
-  openAttendance() { wx.navigateTo({ url: "/pages/attendance/index" }); },
+  openAttendance() { wx.navigateTo({ url: `/pages/attendance/index?kind=${this.data.punchKind === "clockOut" ? "clockOut" : "clockIn"}` }); },
   openDailyReport() { wx.navigateTo({ url: "/pages/daily-report/index" }); }
 });

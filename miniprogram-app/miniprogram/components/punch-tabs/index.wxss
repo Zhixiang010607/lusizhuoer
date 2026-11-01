@@ -2,4 +2,6 @@
 .punch-tab { width: 100% !important; min-width: 0; height: 76rpx; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0 10rpx; box-sizing: border-box; color: #74592d; background: #fff; border: 1rpx solid #d8c5a3; border-radius: 12rpx; font-size: 27rpx; font-weight: 800; line-height: 1; white-space: nowrap; }
 .punch-tab::after { border: 0; }
 .punch-tab.active { color: #fff; background: #80602c; border-color: #80602c; }
+.punch-tab[disabled] { color: #776957 !important; background: #f6efe4 !important; border-color: #dfcfb4; opacity: 1 !important; }
+.punch-tab.active[disabled] { color: #fff !important; background: #91754a !important; border-color: #91754a; }
 @media (min-width: 700px) { .punch-tabs { gap: 10px; margin-bottom: 14px; padding: 6px; border-width: 1px; border-radius: 13px; } .punch-tab { height: 48px; padding: 0 10px; border-width: 1px; border-radius: 9px; font-size: 16px; } }

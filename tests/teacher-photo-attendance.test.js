@@ -31,7 +31,7 @@ function pageFixture() {
     }
   });
   const camera = { getCapture: () => ({ imageBase64: "live-photo" }), reset() {} };
-  const p = { ...definition, data: { ...definition.data, serverToday: "2026-11-01", faceEnrolled: false,
+  const p = { ...definition, data: { ...definition.data, serverToday: "2026-11-01", selectedDate: "2026-11-01", pendingAttendanceType: "CLOCK_IN", faceEnrolled: false,
     todayAttendance: { completed: false }, photoConsent: true, loading: false,
     locationPreview: { capturedAtMs: Date.now(), latitude: 30, longitude: 120, accuracy: 10 } },
     setData(d) { Object.assign(this.data, d); }, selectComponent: () => camera, loadMonth: async () => {} };

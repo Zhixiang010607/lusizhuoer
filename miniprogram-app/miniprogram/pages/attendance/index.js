@@ -39,6 +39,14 @@ function dayView(date, records) {
   if (clockIn && clockOut) seconds = Math.max(0, Math.floor((new Date(clockOut.checkedInAt).getTime() - new Date(clockIn.checkedInAt).getTime()) / 1000));
   return { attendanceDate: date, clockIn, clockOut, started: Boolean(clockIn), completed: Boolean(clockIn && clockOut), workDurationText: durationText(seconds) };
 }
+function availablePunchType(data) {
+  if (!data.serverToday || data.selectedDate !== data.serverToday || data.loading) return "";
+  const today = data.todayAttendance || {};
+  if (today.completed) return "";
+  if (data.punchKind === "clockIn" && !today.clockIn) return "CLOCK_IN";
+  if (data.punchKind === "clockOut" && today.clockIn && !today.clockOut) return "CLOCK_OUT";
+  return "";
+}
 function requestId(date, attendanceType) {
   const key = `teacherAttendanceRequest:${date}:${attendanceType}`;
   let value = wx.getStorageSync(key);
@@ -115,16 +123,28 @@ function locationProblem(error) {
 }
 
 Page({
-  choosePunch(event) { const kind = String(event.detail?.kind || ""); if (!this.data.locating && !this.data.clocking && ["clockIn", "clockOut"].includes(kind)) this.setData({ punchKind: kind }); },
+  resetPunchDraft(values = {}) {
+    this.selectComponent?.("#attendanceCamera")?.reset();
+    this._resumeLocationAfterSettings = false;
+    this.setData({ pendingAttendanceType: "", pendingAttendanceLabel: "", checkInStage: "idle", locationPreview: null,
+      captureReady: false, photoConsent: false, permissionDenied: false, permissionAction: "", locationErrorCode: "",
+      message: "", error: false, ...values });
+  },
+  choosePunch(event) {
+    const kind = String(event.detail?.kind || "");
+    if (this.data.loading || this.data.locating || this.data.clocking || !["clockIn", "clockOut"].includes(kind) || kind === this.data.punchKind) return;
+    this.resetPunchDraft({ punchKind: kind });
+  },
   data: { punchKind: "clockIn", authorized: false, loading: true, locating: false, clocking: false, captureReady: false, faceEnrolled: false,
     message: "", error: false, permissionDenied: false, permissionAction: "", locationErrorCode: "", serverToday: "", visibleMonth: "", selectedDate: "", pendingDate: "", canNextMonth: false,
     calendarCells: [], selectedAttendance: { clockIn: null, clockOut: null, started: false, completed: false, workDurationText: "—" },
     todayAttendance: { clockIn: null, clockOut: null, started: false, completed: false, workDurationText: "—" },
     pendingAttendanceType: "", pendingAttendanceLabel: "", checkInStage: "idle", locationPreview: null, photoConsent: false },
-  async onLoad() {
+  async onLoad(options = {}) {
     this._unloaded = false;
     const today = localShanghaiDate();
-    this.setData({ serverToday: today, visibleMonth: today.slice(0, 7), selectedDate: today, pendingDate: today });
+    this.setData({ punchKind: options.kind === "clockOut" ? "clockOut" : "clockIn",
+      serverToday: today, visibleMonth: today.slice(0, 7), selectedDate: today, pendingDate: today });
     await waitForStartupSession();
     if (this._unloaded || !requireSession(["teacher"])) return;
     this.setData({ authorized: true });
@@ -154,19 +174,19 @@ Page({
       this._records = (result.records || []).map(recordView);
       const selectedAttendance = dayView(selected, this._records);
       const todayAttendance = dayView(today, this._records);
-      this.setData({ serverToday: today, visibleMonth, selectedDate: selected, pendingDate: selected, faceEnrolled: result.faceEnrolled === true,
+      this.resetPunchDraft({ serverToday: today, visibleMonth, selectedDate: selected, pendingDate: selected, faceEnrolled: result.faceEnrolled === true,
         selectedAttendance, todayAttendance, canNextMonth: monthShift(visibleMonth, 1) <= today.slice(0, 7),
         calendarCells: cells(visibleMonth, selected, today, this._records.map((row) => row.attendanceDate)),
         pendingAttendanceType: "", pendingAttendanceLabel: "", checkInStage: "idle", locationPreview: null, captureReady: false, photoConsent: false, message: "", error: false });
     } catch (error) { if (!this._unloaded && epoch === this._epoch) this.setData({ message: error.message || "考勤读取失败", error: true }); }
     finally { if (!this._unloaded && epoch === this._epoch) this.setData({ loading: false }); }
   },
-  selectDate(event) { const date = String(event.currentTarget.dataset.date || ""); if (!date || date > this.data.serverToday || this.data.loading) return; this.setData({ selectedDate: date, selectedAttendance: dayView(date, this._records || []), calendarCells: cells(this.data.visibleMonth, date, this.data.serverToday, (this._records || []).map((row) => row.attendanceDate)) }); },
+  selectDate(event) { const date = String(event.currentTarget.dataset.date || ""); if (!date || date === this.data.selectedDate || date > this.data.serverToday || this.data.loading || this.data.locating || this.data.clocking) return; this.resetPunchDraft({ selectedDate: date, pendingDate: date, selectedAttendance: dayView(date, this._records || []), calendarCells: cells(this.data.visibleMonth, date, this.data.serverToday, (this._records || []).map((row) => row.attendanceDate)) }); },
   previousMonth() { return !this.data.loading && this.loadMonth(monthShift(this.data.visibleMonth, -1), ""); },
   nextMonth() { const next = monthShift(this.data.visibleMonth, 1); if (!this.data.loading && next <= this.data.serverToday.slice(0, 7)) return this.loadMonth(next, ""); },
   chooseMonth(event) { const month = String(event.detail.value || "").slice(0, 7); if (/^\d{4}-\d{2}$/.test(month) && month <= this.data.serverToday.slice(0, 7)) return this.loadMonth(month, ""); },
   chooseDate(event) { const date = String(event.detail.value || ""); if (/^\d{4}-\d{2}-\d{2}$/.test(date) && date <= this.data.serverToday) this.setData({ pendingDate: date }); },
-  confirmDate() { const date = String(this.data.pendingDate || ""); if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > this.data.serverToday || this.data.loading || this.data.clocking) return; if (date.slice(0, 7) !== this.data.visibleMonth) return this.loadMonth(date.slice(0, 7), date); this.setData({ selectedDate: date, selectedAttendance: dayView(date, this._records || []) }); },
+  confirmDate() { const date = String(this.data.pendingDate || ""); if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > this.data.serverToday || this.data.loading || this.data.locating || this.data.clocking) return; if (date.slice(0, 7) !== this.data.visibleMonth) return this.loadMonth(date.slice(0, 7), date); this.selectDate({ currentTarget: { dataset: { date } } }); },
   today() { return !this.data.loading && this.loadMonth(this.data.serverToday.slice(0, 7), this.data.serverToday); },
   openSettings() {
     if (this.data.permissionAction === "system" && typeof wx.openAppAuthorizeSetting === "function") {
@@ -214,8 +234,8 @@ Page({
   openLocation(event) { const kind = String(event.currentTarget.dataset.kind || "clockIn"), row = this.data.selectedAttendance?.[kind]; if (row) wx.openLocation({ latitude: row.latitude, longitude: row.longitude, scale: 18, name: row.placeName || row.typeLabel, address: row.formattedAddress || `定位精度约 ${row.accuracy} 米` }); },
   openPreviewLocation() { const row = this.data.locationPreview; if (row) wx.openLocation({ latitude: row.latitude, longitude: row.longitude, scale: 18, name: row.placeName || "待确认打卡位置", address: row.formattedAddress || `定位精度约 ${row.accuracy} 米` }); },
   async prepareCheckIn() {
-    if (this.data.loading || this.data.locating || this.data.clocking || this.data.todayAttendance?.completed) return;
-    const pendingAttendanceType = this.data.todayAttendance?.clockIn ? "CLOCK_OUT" : "CLOCK_IN";
+    const pendingAttendanceType = availablePunchType(this.data);
+    if (!pendingAttendanceType || this.data.locating || this.data.clocking) return;
     const pendingAttendanceLabel = pendingAttendanceType === "CLOCK_OUT" ? "下班打卡" : "上班打卡";
     this.setData({ locating: true, pendingAttendanceType, pendingAttendanceLabel, permissionDenied: false, permissionAction: "", locationErrorCode: "", message: `正在获取${pendingAttendanceLabel}的当前时间和位置…`, error: false, checkInStage: "idle", locationPreview: null, captureReady: false });
     try {
@@ -255,6 +275,7 @@ Page({
     } finally { if (!this._unloaded) this.setData({ locating: false }); }
   },
   confirmCheckInContext() {
+    if (!availablePunchType(this.data) || availablePunchType(this.data) !== this.data.pendingAttendanceType) return;
     const preview = this.data.locationPreview;
     if (!preview || Date.now() - Number(preview.capturedAtMs || 0) > 120000) {
       return this.setData({ checkInStage: "idle", locationPreview: null, message: "时间地点确认已超过 2 分钟，请重新获取。", error: true });
@@ -264,6 +285,8 @@ Page({
   resetCheckInContext() { if (!this.data.clocking) this.setData({ checkInStage: "idle", locationPreview: null, captureReady: false, message: `请重新获取并确认${this.data.pendingAttendanceLabel || "打卡"}的当前时间地点。`, error: false }); },
   async clockIn() {
     if (this.data.clocking || this.data.todayAttendance?.completed) return;
+    const availableType = availablePunchType(this.data);
+    if (!availableType || availableType !== this.data.pendingAttendanceType) return;
     const preview = this.data.locationPreview;
     if (this.data.checkInStage !== "photo" || !preview) return this.setData({ message: "请先获取并确认当前时间地点。", error: true });
     if (Date.now() - Number(preview.capturedAtMs || 0) > 120000) return this.setData({ checkInStage: "idle", locationPreview: null, captureReady: false, message: "时间地点确认已超过 2 分钟，请重新获取。", error: true });
@@ -282,7 +305,9 @@ Page({
       wx.removeStorageSync(`teacherAttendanceRequest:${this.data.serverToday}:${attendanceType}`);
       camera.reset();
       await this.loadMonth(this.data.serverToday.slice(0, 7), this.data.serverToday);
-      this.setData({ message: result.idempotentReplay ? `${attendanceLabel}已经完成，已显示原记录。` : `${attendanceLabel}成功。`, error: false });
+      this.setData({ punchKind: attendanceType === "CLOCK_OUT" ? "clockOut" : "clockIn",
+        message: result.idempotentReplay ? `${attendanceLabel}已经完成，已显示原记录。` : `${attendanceLabel}成功。`, error: false });
+      if (typeof wx.pageScrollTo === "function") wx.pageScrollTo({ scrollTop: 0, duration: 0 });
     } catch (error) {
       this.setData({ message: error.message || "打卡失败", error: true });
     } finally { if (!this._unloaded) this.setData({ clocking: false }); }
