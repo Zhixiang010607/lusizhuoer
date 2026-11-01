@@ -12,6 +12,14 @@ test("090 is standalone, scoped, immutable and does not rewrite historical recor
   assert.doesNotMatch(sql, /DELETE FROM|UPDATE public\.|verification_records|ble_|DROP TRIGGER/);
   assert.ok(Buffer.byteLength(sql.replace(/\n/g, "\r\n")) < 3500);
 });
+test("090 preview keeps counts, historical digest and guard digests in one CLI result", () => {
+  const sql = read("database/cloudbase-console/090-preview.sql").replace(/--[^\n]*/g, "");
+  assert.equal(sql.split(";").filter(s => s.trim()).length, 1);
+  assert.match(sql, /COUNT\(\*\) AS records, COUNT\(photo_object_ref\) AS photos/);
+  assert.match(sql, /TO_JSONB\(r\) - 'attendance_method'/);
+  assert.match(sql, /JSONB_AGG\(JSONB_BUILD_OBJECT/);
+  assert.match(sql, /MD5\(pg_get_functiondef\(tgfoid\)\)/);
+});
 function pageFixture() {
   let definition; const calls = [];
   vm.runInNewContext(read("miniprogram-app/miniprogram/pages/attendance/index.js"), {

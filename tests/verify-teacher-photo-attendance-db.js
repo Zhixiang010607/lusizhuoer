@@ -24,12 +24,19 @@ const read = p => fs.readFileSync(path.join(__dirname, "..", p), "utf8");
     (teacher_id,staff_account_id,attendance_date,latitude,longitude,accuracy_m,face_score,face_request_id,client_request_id)
     VALUES(1,1,(CLOCK_TIMESTAMP() AT TIME ZONE 'Asia/Shanghai')::date,30,120,10,98,'legacy-request','legacy-punch');`);
   for (const p of ["088_teacher_attendance_photo_evidence", "089_teacher_attendance_hd_photo"]) await exec(read(`database/migrations/${p}.sql`));
-  const before = (await rows(read("database/cloudbase-console/090-preview.sql").split("SELECT tgname")[0]))[0];
+  const before = (await rows(read("database/cloudbase-console/090-preview.sql")))[0];
   const protectedBefore = await rows("SELECT * FROM verification_records");
   const photoGuard = (await rows("SELECT md5(pg_get_functiondef('enforce_teacher_attendance_photo_v88()'::regprocedure)) AS hash"))[0].hash;
   await exec(read("database/migrations/090_teacher_photo_attendance.sql"));
-  const after = (await rows(read("database/cloudbase-console/090-preview.sql").split("SELECT tgname")[0]))[0];
-  assert.deepEqual(after, before); passed.push("historical rows, absent photos and digest unchanged");
+  const after = (await rows(read("database/cloudbase-console/090-preview.sql")))[0];
+  const { guards: beforeGuards, ...beforeHistory } = before;
+  const { guards: afterGuards, ...afterHistory } = after;
+  assert.deepEqual(afterHistory, beforeHistory);
+  assert.deepEqual(afterGuards.filter(g => g.name !== "trg_teacher_attendance_insert_v78"),
+    beforeGuards.filter(g => g.name !== "trg_teacher_attendance_insert_v78"));
+  assert.equal(afterGuards.length, beforeGuards.length);
+  assert.ok(afterGuards.every(g => g.enabled === "O"));
+  passed.push("historical rows, absent photos and digest unchanged; only v78 guard changes");
   assert.deepEqual(await rows("SELECT * FROM verification_records"), protectedBefore);
   assert.equal((await rows("SELECT md5(pg_get_functiondef('enforce_teacher_attendance_photo_v88()'::regprocedure)) AS hash"))[0].hash, photoGuard);
   passed.push("customer sentinel and private-photo guard unchanged");
