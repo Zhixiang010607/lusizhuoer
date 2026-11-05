@@ -3,6 +3,7 @@
   "enablePullDownRefresh": false,
   "usingComponents": {
     "customer-picker": "/components/customer-picker/index",
+    "store-search": "/components/store-search/index",
     "camera-capture": "/components/camera-capture/index"
   }
 }

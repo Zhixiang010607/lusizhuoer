@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const https = require("https");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v137";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v138";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -5416,7 +5416,7 @@ async function recoverBusinessSubmission(event) {
             t.teacher_code, t.teacher_name,
             signal.id AS signal_id, signal.signal_type, signal.signal_status,
             signal.created_at AS signal_created_at,
-            usage.id AS quota_usage_id, usage.available_before_count,
+            usage.verification_id AS quota_usage_id, usage.available_before_count,
             usage.available_after_count
        FROM public.verification_records v
        JOIN public.customers c ON c.id = v.customer_id

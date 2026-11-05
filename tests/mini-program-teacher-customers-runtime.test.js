@@ -49,7 +49,38 @@ test("teacher customer tabs keep separate page positions and customer links", as
   assert.deepEqual(JSON.parse(JSON.stringify(page.data.pages)), { ACTIVE: 3, ARCHIVED: 2 });
   assert.deepEqual(calls.at(-1), { action: "getTeacherBusinessCustomers", activePage: 3, archivedPage: 2, customerPageSize: 10 });
   page.openCustomer({ currentTarget: { dataset: { code: "A-3" } } });
-  assert.deepEqual(navigations, ["/pages/customer-detail/index?code=A-3"]);
+  assert.deepEqual(navigations, ["/pages/customer-detail/index?customerCode=A-3"]);
+});
+test("teacher customer name links round-trip through the real customer-detail loader", async () => {
+  const code = "QA/customer +?档案";
+  const { page, navigations } = fixture(async () => ({
+    active: { records: [{ customerCode: code, customerName: "合成客户" }], total: 1, page: 1, pageSize: 10 },
+    archived: { records: [], total: 0, page: 1, pageSize: 10 }
+  }));
+  await page.onShow();
+  page.openCustomer({ currentTarget: { dataset: { code } } });
+  let detail;
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../miniprogram-app/miniprogram/pages/customer-detail/index.js"), "utf8"), {
+    Page(value) { detail = value; },
+    require(id) { return id.endsWith("/session") ? { requireSession: () => ({ role: "teacher" }) } : {}; }
+  });
+  detail.setData = changes => Object.assign(detail.data, changes);
+  let loadedCode;
+  detail.load = () => { loadedCode = detail.data.customerCode; };
+  // WeChat passes raw encoded query values to onLoad, which owns decoding.
+  const options = Object.fromEntries(navigations[0].split("?")[1].split("&").map(pair => pair.split("=")));
+  detail.onLoad(options);
+  assert.equal(loadedCode, code);
+  assert.equal(detail.data.canManageStatus, false);
+  assert.equal(detail.data.session.role, "teacher");
+});
+test("customer links reject missing, foreign and loading rows", async () => {
+  const { page, navigations } = fixture(async () => response());
+  await page.onShow();
+  for (const code of ["", "not-on-this-page"]) page.openCustomer({ currentTarget: { dataset: { code } } });
+  page.data.loading = true;
+  page.openCustomer({ currentTarget: { dataset: { code: "A-1" } } });
+  assert.deepEqual(navigations, []);
 });
 test("switching customer status discards an older response and unloading discards pending work", async () => {
   const old = deferred(); const newer = deferred();

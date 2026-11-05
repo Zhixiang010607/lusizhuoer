@@ -146,12 +146,12 @@ Page({
     }
   },
   selectStore(event) {
-    if (this.data.busy || this.data.locked || (this.data.qualificationActive && this.data.bleAuthorizationSent)) return;
-    this.abandonReversibleQualification();
+    if (this.data.session.role !== "teacher" || this.data.busy || this.data.locked || this.data.loadingStores || this.data.verifying || this.data.bleRunning || (this.data.qualificationActive && this.data.bleAuthorizationSent)) return;
     const pickerIndex = Number(event.detail.value);
-    const index = pickerIndex - 1;
-    const store = this.data.stores[index];
-    if (!store || !store.id || store.id === String(this.data.store.id || "")) return;
+    if (!Number.isInteger(pickerIndex) || pickerIndex < 0 || pickerIndex > this.data.stores.length) return;
+    const store = pickerIndex ? this.data.stores[pickerIndex - 1] : { id: "", code: "", name: "" };
+    if (!store || (pickerIndex && !store.id) || store.id === String(this.data.store.id || "")) return;
+    this.abandonReversibleQualification();
     const camera = this.selectComponent("#verificationCamera");
     if (camera) camera.reset();
     setSelectedStore(store, this.data.session);
@@ -165,9 +165,9 @@ Page({
       products: [], productLabels: [], productIndex: -1, selectedProduct: null, unitCount: "", unitCountMax: 0, unitCountValid: false,
       note: "", captureReady: false, faceVerified: false, faceRequestId: "", faceEvidenceToken: "",
       faceMessage: "", faceError: false, loadingOptions: false, verifying: false, ready: false,
-      message: `已选择 ${store.name}，请确认客户`, error: false
+      message: store.id ? `已选择 ${store.name}，请确认客户` : "请先选择本次业务的门店", error: false
     });
-    this.loadTeachers();
+    if (store.id) this.loadTeachers();
   },
   customerChanged() {
     if (this.data.qualificationActive && this.data.bleAuthorizationSent) return;
@@ -791,7 +791,10 @@ Page({
       submission.clear("SUPPLEMENT");
       this.setData({ locked: false, message: "数据库未找到原核销申请，旧锁已解除，可以重新提交。", error: true });
     } catch (error) {
-      this.setData({ locked: true, message: `${error.message || "暂时无法检查"}；已继续锁定重复提交。`, error: true });
+      const message = /SQLSTATE|column .+ does not exist|TypeError|stack/i.test(String(error.message || ""))
+        ? "暂时无法核对原申请，请稍后重试"
+        : error.message || "暂时无法检查";
+      this.setData({ locked: true, message: `${message}；已继续锁定重复提交。`, error: true });
     } finally {
       this.setData({ recovering: false });
       this.syncReady();

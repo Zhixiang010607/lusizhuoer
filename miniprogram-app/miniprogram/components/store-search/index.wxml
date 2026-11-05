@@ -1,0 +1,21 @@
+<view class="store-search">
+  <text class="search-label">办理门店</text>
+  <view class="search-box {{disabled || loading ? 'disabled' : ''}}">
+    <text class="search-icon" aria-hidden="true">⌕</text>
+    <input class="search-input" value="{{keyword}}" bindinput="input" bindfocus="focus" disabled="{{disabled || loading}}" maxlength="80" placeholder="{{loading ? '正在读取可办理门店…' : '输入门店名称关键词'}}" aria-label="搜索办理门店" />
+    <button wx:if="{{keyword}}" class="search-action" bindtap="clear" disabled="{{disabled || loading}}" aria-label="清除门店选择">×</button>
+    <button class="search-action" bindtap="toggle" disabled="{{disabled || loading}}" aria-label="展开或收起门店结果" aria-expanded="{{expanded}}">{{expanded ? '⌃' : '⌄'}}</button>
+  </view>
+  <view wx:if="{{expanded && !loading && !disabled}}" class="search-results">
+    <text class="result-count">{{keyword ? '找到' : '可选'}} {{matchCount}} 家门店</text>
+    <scroll-view wx:if="{{matchCount}}" class="result-list" scroll-y enhanced bindscrolltolower="more" lower-threshold="60" style="height: {{(matches.length > 4 ? 4 : matches.length) * (tablet ? 60 : 124)}}{{tablet ? 'px' : 'rpx'}}">
+      <button wx:for="{{matches}}" wx:key="id" class="result-row" data-value="{{item.value}}" bindtap="choose" aria-label="{{'选择' + item.name}}">
+        <view class="result-copy"><view class="result-name"><text>{{item.before}}</text><text class="match">{{item.match}}</text><text>{{item.after}}</text></view><text wx:if="{{item.code}}" class="result-code">{{item.code}}</text></view>
+        <text class="result-arrow">{{item.id === selectedId ? '✓' : '›'}}</text>
+      </button>
+    </scroll-view>
+    <text wx:else class="result-empty">{{stores.length ? '未找到匹配门店，试试其他关键词' : '暂无可办理的活跃门店'}}</text>
+  </view>
+  <text wx:if="{{selectedName && !expanded}}" class="selected-store">✓ 已选择 {{selectedName}}</text>
+  <text wx:else class="search-hint">支持模糊搜索，点选结果后确认门店</text>
+</view>

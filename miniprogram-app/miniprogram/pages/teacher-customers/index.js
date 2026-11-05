@@ -80,8 +80,8 @@ Page({
   retry() { if (!this.data.loading) return this.loadPage(this._retryPage || 1); },
   openCustomer(event) {
     const code = String(event.currentTarget.dataset.code || "");
-    if (this.data.loading || !this.data.group.rows.some((row) => row.customerCode === code)) return;
-    wx.navigateTo({ url: `/pages/customer-detail/index?code=${encodeURIComponent(code)}` });
+    if (!code || this.data.loading || !this.data.group.rows.some((row) => row.customerCode === code)) return;
+    wx.navigateTo({ url: `/pages/customer-detail/index?customerCode=${encodeURIComponent(code)}` });
   },
   back() {
     if (getCurrentPages().length > 1) wx.navigateBack();

@@ -16,12 +16,7 @@
     <view class="card customer-step-card">
       <view class="card-title"><text>第一步：确认客户</text><text class="badge">本门店活跃客户</text></view>
       <view wx:if="{{session.role === 'store' && store.id}}" class="business-context"><text>办理门店</text><text>{{store.name}}</text></view>
-      <label wx:if="{{session.role === 'teacher'}}" class="field">
-        <text class="field-label">办理门店</text>
-        <picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="selectStore" disabled="{{busy || (qualificationActive && bleAuthorizationSent) || loadingStores || !stores.length}}">
-          <view class="picker"><text class="picker-value">{{loadingStores ? '正在读取可办理门店…' : (store.id ? store.name + ' · ' + (store.code || store.id) : (stores.length ? '请选择门店' : '暂无可办理门店'))}}</text></view>
-        </picker>
-      </label>
+      <store-search wx:if="{{session.role === 'teacher'}}" stores="{{stores}}" selected-id="{{store.id || ''}}" loading="{{loadingStores}}" disabled="{{busy || locked || verifying || bleRunning || (qualificationActive && bleAuthorizationSent)}}" bindchange="selectStore"></store-search>
       <button wx:if="{{session.role === 'teacher' && !loadingStores && !stores.length}}" class="secondary" bindtap="loadTeacherStores">重试门店列表</button>
       <customer-picker wx:if="{{store.id && (!qualificationActive || !bleAuthorizationSent)}}" store-id="{{store.id}}" bindconfirm="customerConfirmed" bindchange="customerChanged"></customer-picker>
       <view wx:elif="{{qualificationActive && bleAuthorizationSent && customer}}" class="locked-summary">

@@ -55,9 +55,11 @@ Page({
     } finally { if (epoch === this._storeEpoch) this.setData({ loadingStores: false }); }
   },
   selectStore(event) {
-    if (this.data.busy || this.data.locked) return;
-    const pickerIndex = Number(event.detail.value); const selected = this.data.stores[pickerIndex - 1];
-    if (!selected?.id) return;
+    if (this.data.session.role !== "teacher" || this.data.busy || this.data.locked || this.data.loadingStores) return;
+    const pickerIndex = Number(event.detail.value);
+    if (!Number.isInteger(pickerIndex) || pickerIndex < 0 || pickerIndex > this.data.stores.length) return;
+    const selected = pickerIndex ? this.data.stores[pickerIndex - 1] : { id: "", code: "", name: "" };
+    if (!selected || (pickerIndex && !selected.id) || selected.id === String(this.data.store.id || "")) return;
     setSelectedStore(selected, this.data.session);
     this._productEpoch = Number(this._productEpoch || 0) + 1;
     this._teacherEpoch = Number(this._teacherEpoch || 0) + 1;
@@ -65,9 +67,11 @@ Page({
       store: selected, storeIndex: pickerIndex, customer: null, lastPurchaseCode: "",
       products: [], productLabels: ["请选择激活产品"], productIndex: 0, selectedProduct: null,
       teachers: [], teacherLabels: ["正在读取业务老师…"], teacherIndex: 0, selectedTeacher: null,
-      teacherOptionsReady: false, unitCount: "", note: "", message: `已选择 ${selected.name}，请确认客户`, error: false
+      teacherOptionsReady: false, loadingTeachers: false, loadingProducts: false, ready: false,
+      unitCount: "", note: "", message: selected.id ? `已选择 ${selected.name}，请确认客户` : "请先选择本次业务的门店", error: false
     });
-    this.loadTeachers(); this.loadProducts(); this.syncReady();
+    if (selected.id) { this.loadTeachers(); this.loadProducts(); }
+    this.syncReady();
   },
   customerChanged() { this.setData({ customer: null, lastPurchaseCode: "", unitCount: "", note: "", message: "", error: false }); this.syncReady(); },
   customerConfirmed(event) { const customer = event.detail.customer; this.setData({ customer, lastPurchaseCode: "", message: `已确认 ${customer.customerName}`, error: false }); this.syncReady(); },

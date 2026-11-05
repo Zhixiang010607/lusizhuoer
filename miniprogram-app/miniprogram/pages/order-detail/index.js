@@ -650,7 +650,10 @@ Page({
       const routeIdentity = routeOrderExpectation(request);
       let order;
       if (request.role === "teacher") {
-        const result = await callFace("getTeacherWorkspace", { recordType: request.category, recordId: request.recordId });
+        // SUPPLEMENT is an exact detail/acknowledgement type, not a workspace tab.
+        // Keep that route identity while reading the existing verification family.
+        const recordType = routeIdentity.category === "SUPPLEMENT" ? "VERIFICATION" : routeIdentity.category;
+        const result = await callFace("getTeacherWorkspace", { recordType, recordId: request.recordId });
         order = normalizeTeacherOrder(result.record, request.baseType);
       } else {
         const result = await callStaff("listReviewOrders", {

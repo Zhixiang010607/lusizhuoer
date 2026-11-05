@@ -758,6 +758,7 @@ test("detail renders and acknowledges only the exact server-read route identity"
 test("supplement detail loads only three writable extras and never requests a rating", async () => {
   const photoCalls = [];
   const ratingCalls = [];
+  const faceCalls = [];
   const record = {
     id: "51", recordType: "VERIFICATION", recordCode: "VS202610100051",
     originalType: "SUPPLEMENT", recordStatus: "PENDING", unitCount: 2,
@@ -765,7 +766,12 @@ test("supplement detail loads only three writable extras and never requests a ra
     storeName: "测试门店", customerName: "测试客户", productName: "魔法柔肤", teacherName: "测试老师"
   };
   const { page: definition } = loadHelpers({
-    callFace: async () => ({ record }),
+    callFace: async (action, payload) => {
+      faceCalls.push({ action, ...payload });
+      assert.equal(action, "getTeacherWorkspace");
+      assert.equal(payload.recordType, "VERIFICATION", "SUPPLEMENT is not a supported workspace type");
+      return { record };
+    },
     async callPhoto(action, payload) {
       photoCalls.push({ action, payload });
       return {
@@ -793,6 +799,7 @@ test("supplement detail loads only three writable extras and never requests a ra
   await page.load();
 
   assert.equal(page.data.isSupplement, true);
+  assert.deepEqual(faceCalls, [{ action: "getTeacherWorkspace", recordType: "VERIFICATION", recordId: "51" }]);
   assert.equal(photoCalls.length, 1);
   assert.equal(photoCalls[0].action, "getVerificationPhotos");
   assert.equal(photoCalls[0].payload.recordId, "51");
@@ -803,6 +810,46 @@ test("supplement detail loads only three writable extras and never requests a ra
     "the first supplemental slot is readable");
   assert.equal(page.data.photos.filter((photo) => photo.visible && photo.slot >= 2).length, 3,
     "exactly three supplemental slots stay visible and writable by the existing server permission");
+});
+
+test("teacher supplement detail reads supported family while acknowledging the original supplement only", async () => {
+  for (const status of ["PENDING", "REJECTED", "APPROVED"]) {
+    const acknowledgements = [], calls = [];
+    const { page: definition } = loadHelpers({
+      async callFace(action, payload) {
+        calls.push({ action, ...payload });
+        assert.equal(payload.recordType, "VERIFICATION");
+        return { record: { id: "51", recordType: "VERIFICATION", recordCode: "VS51", originalType: "SUPPLEMENT", recordStatus: status } };
+      },
+      acknowledge(...args) { acknowledgements.push(args); return true; }
+    });
+    const page = pageInstance(definition, { session: { role: "teacher" }, baseType: "VERIFICATION", category: "SUPPLEMENT",
+      recordId: "51", recordCode: "VS51", submissionRecordType: "SUPPLEMENT", submissionClientRequestId: "original-request" });
+    page.loadPhotos = async () => {}; page.preloadPhotoManifest = () => null;
+    await page.load();
+    assert.equal(page.data.order?.id, "51"); assert.equal(page.data.order.originalType, "SUPPLEMENT");
+    assert.equal(page.data.order.recordStatus, status);
+    assert.deepEqual(acknowledgements, [["SUPPLEMENT", "51", "original-request"]]);
+    assert.deepEqual(calls, [{ action: "getTeacherWorkspace", recordType: "VERIFICATION", recordId: "51" }]);
+  }
+});
+
+test("teacher supplement unreadable or wrong-subtype detail retains the original submission lock", async () => {
+  for (const failRead of [true, false]) {
+    const acknowledgements = [];
+    const { page: definition } = loadHelpers({
+      async callFace() {
+        if (failRead) throw Error("当前账号无权读取此工单");
+        return { record: { id: "51", recordType: "VERIFICATION", recordCode: "VS51", originalType: "NORMAL", recordStatus: "APPROVED" } };
+      },
+      acknowledge(...args) { acknowledgements.push(args); return true; }
+    });
+    const page = pageInstance(definition, { session: { role: "teacher" }, baseType: "VERIFICATION", category: "SUPPLEMENT",
+      recordId: "51", recordCode: "VS51", submissionRecordType: "SUPPLEMENT", submissionClientRequestId: "original-request" });
+    page.loadPhotos = async () => {}; page.preloadPhotoManifest = () => null;
+    await page.load(); assert.equal(page.data.order, null); assert.equal(page.data.error, true);
+    assert.equal(acknowledgements.length, 0);
+  }
 });
 
 test("route categories and verification completion labels remain exact", () => {

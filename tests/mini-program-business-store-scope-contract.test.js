@@ -50,7 +50,7 @@ function responseFor(action) {
   throw new Error(`unexpected face action ${action}`);
 }
 
-function loadPage(relativeFile, session = teacherSession) {
+function loadPage(relativeFile, session = teacherSession, submissionOverrides = {}) {
   const source = fs.readFileSync(path.join(mini, relativeFile), "utf8");
   const calls = [];
   const persistedStores = [];
@@ -86,7 +86,8 @@ function loadPage(relativeFile, session = teacherSession) {
           begin: () => ({ clientRequestId: "unused" }),
           clear() {},
           markUncertain() {},
-          recover: async () => ({ found: false, complete: false })
+          recover: async () => ({ found: false, complete: false }),
+          ...submissionOverrides
         };
       }
       if (id === "../../services/ble-verification") {
@@ -240,8 +241,8 @@ test("store accounts use only their bound store and never fetch the teacher busi
 test("teacher business pages embed store selection in the first normal card and never restore a standalone store step", () => {
   for (const pageName of ["customer-create", "recharge", "product-purchase", "verification"]) {
     const markup = fs.readFileSync(path.join(mini, "pages", pageName, "index.wxml"), "utf8");
-    assert.match(markup, /wx:if="\{\{session\.role === 'teacher'\}\}" class="field"/,
-      `${pageName} must keep the teacher store picker inside a regular business card`);
+    assert.match(markup, /<store-search wx:if="\{\{session\.role === 'teacher'\}\}"[^>]+bindchange="selectStore"/,
+      `${pageName} must keep the teacher fuzzy store search inside a regular business card`);
     assert.match(markup, />办理门店</);
     assert.doesNotMatch(markup, /store-picker-card|第一步：\s*选择办理门店/,
       `${pageName} must not render a standalone store-selection step`);
@@ -249,6 +250,70 @@ test("teacher business pages embed store selection in the first normal card and 
       `${pageName} must render the complete workflow before a store is selected`);
   }
 });
+
+const sevenEntries = [
+  ["客户建立", "customer-create", {}], ["办卡充值", "recharge", { mode: "NEW" }],
+  ["产品购买", "product-purchase", {}], ["退费申请", "recharge", { mode: "REFUND" }],
+  ...["NORMAL", "SUPPLEMENT", "EXPERIENCE"].map(mode => [mode, "verification", { mode }])
+];
+test("supplement recovery read failure keeps lock and hides technical database details", async () => {
+  let clears = 0;
+  const { page } = loadPage("pages/verification/index.js", teacherSession, {
+    read: () => ({ clientRequestId: "same-request" }),
+    recover: async () => { throw Error("column usage.id does not exist (SQLSTATE 42703)"); },
+    clear() { clears++; }
+  });
+  page.setData({ session: teacherSession, supplement: true, locked: true, store: selectedStore });
+  await page.recoverSupplementPending();
+  assert.equal(page.data.locked, true); assert.equal(page.data.recovering, false); assert.equal(clears, 0);
+  assert.doesNotMatch(page.data.message, /SQLSTATE|usage\.id/);
+  assert.match(page.data.message, /继续锁定/);
+});
+for (const [label, name, options] of sevenEntries) {
+  test(`${label}: editing the selected store clears dependent state and does not fetch unscoped data`, async () => {
+    const { page, calls, persistedStores } = loadPage(`pages/${name}/index.js`);
+    page.onLoad(options);
+    await selectFirstTeacherStore(page, calls);
+    page.setData({ customer: { customerCode: "OLD" }, selectedProduct: { id: "old" },
+      name: "旧资料", birthDate: "2000-01-01", notes: "旧备注", note: "旧备注", unitCount: "3",
+      captureReady: true, consent: true, ready: true, faceVerified: true, faceEvidenceToken: "old-token" });
+    const before = calls.length;
+    page.selectStore({ detail: { value: 0 } });
+    await settlePageTasks();
+    assert.equal(page.data.store.id, "");
+    assert.equal(persistedStores.at(-1).id, "");
+    assert.equal(calls.length, before, "clearing selection must not start requests without a store");
+    if (name === "customer-create") {
+      assert.equal(page.data.name, ""); assert.equal(page.data.birthDate, "");
+      assert.equal(page.data.consent, false); assert.equal(page.data.captureReady, false);
+    } else {
+      assert.equal(page.data.customer, null); assert.equal(page.data.selectedProduct, null);
+      assert.equal(page.data.unitCount, ""); assert.equal(page.data.note, ""); assert.equal(page.data.ready, false);
+    }
+    if (name === "verification") { assert.equal(page.data.faceVerified, false); assert.equal(page.data.faceEvidenceToken, ""); }
+    page.selectStore({ detail: { value: 2 } });
+    await settlePageTasks();
+    assert.equal(page.data.store.id, "84", "filtered results must use the original store index");
+    page.selectStore({ detail: { value: 2.5 } });
+    page.selectStore({ detail: { value: 999 } });
+    assert.equal(page.data.store.id, "84");
+    page.setData({ busy: true }); page.selectStore({ detail: { value: 0 } });
+    assert.equal(page.data.store.id, "84");
+    page.setData({ busy: false });
+    for (const flag of name === "verification" ? ["locked", "verifying", "bleRunning"] : name === "customer-create" ? [] : ["locked"]) {
+      page.setData({ [flag]: true }); page.selectStore({ detail: { value: 0 } });
+      assert.equal(page.data.store.id, "84", `${flag} must prevent clearing the original store`);
+      page.setData({ [flag]: false });
+    }
+    if (name === "verification") {
+      page.setData({ qualificationActive: true, bleAuthorizationSent: true }); page.selectStore({ detail: { value: 1 } });
+      assert.equal(page.data.store.id, "84", "issued device authorization cannot switch store");
+      page.setData({ qualificationActive: false, bleAuthorizationSent: false });
+    }
+    page.setData({ busy: false, session: storeSession }); page.selectStore({ detail: { value: 1 } });
+    assert.equal(page.data.store.id, "84", "store account cannot invoke teacher store switching");
+  });
+}
 
 test("store-scoped controls stay disabled until the embedded store and customer flow is ready", () => {
   const recharge = fs.readFileSync(path.join(mini, "pages", "recharge", "index.wxml"), "utf8");

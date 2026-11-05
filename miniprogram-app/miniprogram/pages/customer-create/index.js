@@ -56,11 +56,11 @@ Page({
     }
   },
   selectStore(event) {
-    if (this.data.busy) return;
+    if (this.data.session.role !== "teacher" || this.data.busy || this.data.loadingStores) return;
     const pickerIndex = Number(event.detail.value);
-    const index = pickerIndex - 1;
-    const store = this.data.stores[index];
-    if (!store || !store.id) return;
+    if (!Number.isInteger(pickerIndex) || pickerIndex < 0 || pickerIndex > this.data.stores.length) return;
+    const store = pickerIndex ? this.data.stores[pickerIndex - 1] : { id: "", code: "", name: "" };
+    if (!store || (pickerIndex && !store.id) || store.id === String(this.data.store.id || "")) return;
     const camera = this.selectComponent("#customerCamera");
     if (camera) camera.reset();
     setSelectedStore(store, this.data.session);
@@ -68,7 +68,7 @@ Page({
     this.setData({
       store, storeIndex: pickerIndex,
       name: "", birthDate: "", notes: "", consent: false, captureReady: false,
-      message: `已选择 ${store.name}，请填写客户资料`, error: false
+      message: store.id ? `已选择 ${store.name}，请填写客户资料` : "请先选择本次建立客户的门店", error: false
     });
   },
   inputName(event) { this.setData({ name: event.detail.value }); this._requestId = ""; },

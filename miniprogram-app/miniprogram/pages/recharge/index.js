@@ -109,11 +109,11 @@ Page({
     }
   },
   selectStore(event) {
-    if (this.data.busy || this.data.locked) return;
+    if (this.data.session.role !== "teacher" || this.data.busy || this.data.locked || this.data.loadingStores) return;
     const pickerIndex = Number(event.detail.value);
-    const index = pickerIndex - 1;
-    const store = this.data.stores[index];
-    if (!store || !store.id || store.id === String(this.data.store.id || "")) return;
+    if (!Number.isInteger(pickerIndex) || pickerIndex < 0 || pickerIndex > this.data.stores.length) return;
+    const store = pickerIndex ? this.data.stores[pickerIndex - 1] : { id: "", code: "", name: "" };
+    if (!store || (pickerIndex && !store.id) || store.id === String(this.data.store.id || "")) return;
     setSelectedStore(store, this.data.session);
     this._teacherRequestEpoch = (this._teacherRequestEpoch || 0) + 1;
     this._productRequestEpoch = (this._productRequestEpoch || 0) + 1;
@@ -126,10 +126,12 @@ Page({
       giftProducts: [], giftProductLabels: ["请选择激活产品"], giftProductIndex: 0,
       selectedGiftProduct: null, giftProductQuantity: "", productGifts: [], loadingGiftProducts: false,
       unitCount: "", note: "", loadingOptions: false, ready: false,
-      message: `已选择 ${store.name}，请确认客户`, error: false
+      message: store.id ? `已选择 ${store.name}，请确认客户` : "请先选择本次业务的门店", error: false
     });
-    this.loadTeachers();
-    if (!this.data.refund) { this.loadProducts(); this.loadGiftProducts(); }
+    if (store.id) {
+      this.loadTeachers();
+      if (!this.data.refund) { this.loadProducts(); this.loadGiftProducts(); }
+    }
   },
   customerChanged() {
     if (this.data.refund) this._productRequestEpoch = (this._productRequestEpoch || 0) + 1;
