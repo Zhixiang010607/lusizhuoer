@@ -852,6 +852,26 @@ test("teacher supplement unreadable or wrong-subtype detail retains the original
   }
 });
 
+test("teacher, store and headquarters recharge detail preserve medical-mask gift snapshots in every review state", async () => {
+  for (const role of ["teacher", "store", "hq"]) for (const status of ["PENDING", "APPROVED", "REJECTED"]) {
+    const gift = { retailProductId: "7", productCode: "QA-MASK", productName: "医用面膜", unitCount: 3, displayOrder: 1 };
+    const { page: definition } = loadHelpers({
+      async callFace(action, payload) {
+        assert.equal(action, "getTeacherWorkspace"); assert.equal(payload.recordType, "RECHARGE");
+        return { record: { id: "901", recordType: "RECHARGE", recordCode: "RC-QA-901", originalType: "NEW", recordStatus: status, productGifts: [gift] } };
+      },
+      async callStaff(action, payload) {
+        assert.equal(action, "listReviewOrders"); assert.equal(payload.recordId, "901");
+        return { orders: [{ id: "901", record_type: "RECHARGE", record_code: "RC-QA-901", original_type: "NEW", original_status: status,
+          product_gifts: JSON.stringify([gift]) }] };
+      }
+    });
+    const page = pageInstance(definition, { session: { role }, baseType: "RECHARGE", category: "RECHARGE", recordId: "901", recordCode: "RC-QA-901" });
+    await page.load(); assert.equal(page.data.order?.productGifts.length, 1, `${role}/${status}`);
+    assert.equal(page.data.order.productGifts[0].productName, "医用面膜"); assert.equal(page.data.order.productGifts[0].unitCount, 3);
+  }
+});
+
 test("route categories and verification completion labels remain exact", () => {
   const { helpers } = loadHelpers();
   assert.equal(helpers.routeOrderExpectation({ baseType: "RECHARGE", category: "NEW", recordId: "1", recordCode: "RC1" }).category, "RECHARGE");

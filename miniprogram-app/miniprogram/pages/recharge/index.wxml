@@ -44,7 +44,7 @@
 
     <view wx:if="{{!refund}}" class="card workflow-wide {{customer ? '' : 'disabled-card'}}">
       <view class="card-title"><text>第三步：填写产品赠予</text><text class="badge">可选</text></view>
-      <text class="section-note">先选择当前激活产品，再填写数量，最后点“＋”加入清单。</text>
+      <text class="section-note">选好产品、填好数量后可直接提交；点“＋”可继续添加其他赠品。</text>
       <view class="gift-add-row">
         <picker class="gift-product-picker" range="{{giftProductLabels}}" value="{{giftProductIndex}}" bindchange="selectGiftProduct" disabled="{{!customer || loadingGiftProducts || !giftProducts.length}}">
           <view class="picker"><text class="picker-value">{{loadingGiftProducts ? '正在读取激活产品…' : giftProductLabels[giftProductIndex]}}</text></view>

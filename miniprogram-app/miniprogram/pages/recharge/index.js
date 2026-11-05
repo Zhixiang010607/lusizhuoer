@@ -272,17 +272,17 @@ Page({
   },
   inputGiftQuantity(event) { this.setData({ giftProductQuantity: event.detail.value, message: "", error: false }); },
   addProductGift() {
-    if (this.data.busy || this.data.locked || !this.data.customer) return;
+    if (this.data.busy || this.data.locked || !this.data.customer) return false;
     const selected = this.data.selectedGiftProduct;
     const unitCount = Number(this.data.giftProductQuantity);
-    if (!selected?.productId) return this.setData({ message: "请先选择一个当前激活的赠予产品。", error: true });
+    if (!selected?.productId) { this.setData({ message: "请先选择一个当前激活的赠予产品。", error: true }); return false; }
     if (!Number.isInteger(unitCount) || unitCount < 1 || unitCount > 999) {
-      return this.setData({ message: "赠予数量必须是 1 至 999 的整数。", error: true });
+      this.setData({ message: "赠予数量必须是 1 至 999 的整数。", error: true }); return false;
     }
     if (this.data.productGifts.some((item) => item.retailProductId === selected.productId)) {
-      return this.setData({ message: "该产品已经加入赠予清单；如需修改，请先删除后重新加入。", error: true });
+      this.setData({ message: "该产品已经加入赠予清单；如需修改，请先删除后重新加入。", error: true }); return false;
     }
-    if (this.data.productGifts.length >= 20) return this.setData({ message: "一张充值单最多加入 20 种赠予产品。", error: true });
+    if (this.data.productGifts.length >= 20) { this.setData({ message: "一张充值单最多加入 20 种赠予产品。", error: true }); return false; }
     this.setData({
       productGifts: [...this.data.productGifts, {
         retailProductId: selected.productId, productCode: selected.productCode,
@@ -291,6 +291,7 @@ Page({
       giftProductIndex: 0, selectedGiftProduct: null, giftProductQuantity: "",
       message: `已加入 ${selected.productName} × ${unitCount}`, error: false
     });
+    return true;
   },
   removeProductGift(event) {
     if (this.data.busy || this.data.locked) return;
@@ -314,7 +315,12 @@ Page({
     this.setData({ ready: Boolean(this.data.store.id && this.data.customer && this.data.selectedProduct && teacherReady && validCount && refundAllowed && !this.data.locked) });
   },
   async submit() {
-    if (this.data.busy || !this.data.ready) return;
+    if (this.data.busy || this.data.locked || !this.data.ready) return;
+    // A completed last gift row is part of this application even without tapping ＋.
+    // Partial, duplicate or over-limit rows must never be silently discarded.
+    if (!this.data.refund && (this.data.selectedGiftProduct || String(this.data.giftProductQuantity || "").trim())) {
+      if (!this.addProductGift()) return;
+    }
     const count = Number(this.data.unitCount);
     const payload = {
       storeId: this.data.store.id, applicationType: this.data.refund ? "REFUND" : "NEW", customerCode: this.data.customer.customerCode,

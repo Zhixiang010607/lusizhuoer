@@ -31,6 +31,6 @@
 
 ## 交付状态
 
-源码与版本包完成，不代表上线。没有新 SQL，无需用户执行 SQL。本轮没有云函数部署、小程序开发版上传、体验版选择、微信审核或正式发布；Web 未变。最后确认开发版仍为 0.3.52，生产函数仍为 faceRecognition v137／staffAccount v98。
+没有新 SQL，无需用户执行 SQL。用户随后要求上传／部署：faceRecognition v138 已通过官方 DevTools 部署，health 与六文件下载比对通过；小程序开发版 0.3.53 已取得官方最终上传回执，用户确认补录正常。Web 未变，staffAccount 仍为 v98。体验版选择、微信审核与正式发布未独立确认。见 [0.3.53 回执](../../miniprogram-app/releases/0.3.53.md)。
 
-`deployments/faceRecognition-v138.zip` 含六个根文件，已逐文件比对当前函数目录，README 当前版本、运行时 v138、package 138.0.0 与文件名一致；108788 字节，SHA-256 `74581adfdd5f2c9c6c0d6aac6cbdd6e500e8b378f7d0f930af3aae624bea0a80`。后续先部署该函数并完成 health 与线上下载代码比对，再上传小程序；不重跑 088／089／090，不重新部署其余未变化函数。
+`deployments/faceRecognition-v138.zip` 含六个根文件，已逐文件比对当前函数目录，README 当前版本、运行时 v138、package 138.0.0 与文件名一致；最终包 108801 字节，SHA-256 `0a2aeef5350154430bbfde0faffbf8e33e2218682a3e9361c2beaafb7b17fcaa`。首轮成功后，仅把 README 的打包时“尚未部署”说明换为外部回执引用，重新核验六文件包并按同一官方路径同步；运行代码和版本未改，随后 health 与六文件再次回下载一致。不重跑 088／089／090，不重新部署其余未变化函数。
