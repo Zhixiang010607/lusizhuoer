@@ -157,6 +157,7 @@ test("recharge detail keeps gift traceability while exports use name and quantit
   assert.match(miniPage, /wx:if="\{\{baseType === 'RECHARGE' && order\.productGifts\.length\}\}" class="card gift-detail-card"/,
     "the mini order must render product gifts only when a recharge has gift lines");
   assert.match(miniPage, /产品赠予/);
-  assert.match(miniPage, /item\.productCode/);
+  assert.doesNotMatch(miniPage, /item\.productCode/,
+    "gift detail displays product names and quantity without internal codes");
   assert.match(miniPage, /item\.unitCount/);
 });

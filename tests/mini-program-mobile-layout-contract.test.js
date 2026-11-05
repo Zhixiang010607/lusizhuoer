@@ -305,8 +305,9 @@ test("home dashboard mapper preserves web metric and profile column semantics", 
     "region and detailed address must use safe full-width cards while contact facts remain compact");
   assert.match(js, /rangePreset:\s*"TODAY", rangeOptions:\s*readyRangeOptions\("TODAY"\)/,
     "teacher and store role homes must default to today");
-  assert.match(storeDetailWxml, /<text class="profile-type">门店<\/text>[\s\S]*业务编号 \{\{storeHero\.code\}\}/,
-    "the store hero must show the useful business code instead of the long Auth UID");
+  assert.match(storeDetailWxml, /<text class="profile-type">门店<\/text>[\s\S]*\{\{storeHero\.name\}\}/);
+  assert.doesNotMatch(storeDetailWxml, /业务编号|storeHero\.code/,
+    "the store hero displays the name and status without internal identifiers");
   assert.match(storeDetailWxml, /class="panel-title">联系与地址<\/text>[\s\S]*class="detail-info-grid store-profile-facts"/,
     "the store profile must not repeat identity facts already present in the hero");
   assert.match(wxss, /\.store-profile-facts\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)[^}]*background:\s*transparent/s,

@@ -42,7 +42,7 @@ Page({
         const result = await callStaff("createStoreWithAccount", payload);
         const store = result.store || result;
         const storeId = text(store.id || result.storeId);
-        if (!storeId) throw new Error("门店已创建，但未获得门店编号；请返回门店管理核对后再试");
+        if (!storeId) throw new Error("门店已创建，但创建结果暂未确认；请返回门店管理核对后再试");
         wx.removeStorageSync(pendingKey(contactPhone));
         wx.redirectTo({ url: `/pages/store-detail/index?storeRef=${encodeURIComponent(storeId)}` });
       } catch (error) {

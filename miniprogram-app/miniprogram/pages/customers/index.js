@@ -67,7 +67,7 @@ Page({
       const result = await callStaff("listStores");
       const stores = (result.stores || []).map((store) => ({
         id: String(store.id || store.store_id || ""),
-        label: [store.store_name || store.storeName || "未命名门店", store.store_code || store.storeCode || ""].filter(Boolean).join(" · ")
+        label: String(store.store_name || store.storeName || "未命名门店")
       })).filter((store) => store.id);
       this.setData({ stores, storeLabels: ["全部门店", ...stores.map((store) => store.label)] });
     } catch (error) { this.setData({ message: error.message || "门店范围读取失败", error: true }); }

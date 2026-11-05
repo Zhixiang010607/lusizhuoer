@@ -80,7 +80,7 @@ function mapProfile(value = {}) {
     customerCode: clean(value.customerCode),
     customerName: clean(value.customerName) || "—",
     birthDateLabel: query.displayDateAny(value.birthDate, value.birth_date),
-    storeLabel: [clean(value.storeName), clean(value.storeCode)].filter(Boolean).join(" · ") || "—",
+    storeLabel: clean(value.storeName) || "—",
     latestRechargeLabel: query.displayDateAny(value.latestRechargeAt, value.latest_recharge_at),
     latestVerificationLabel: query.displayDateAny(value.latestVerificationAt, value.latest_verification_at),
     createdAtLabel: query.displayDateAny(value.createdAt, value.created_at),

@@ -25,7 +25,7 @@ Component({
       const keyword = String(this.data.keyword || "").trim().toLowerCase();
       const matches = (this.data.stores || []).map((store, index) => {
         const name = String(store.name || ""), at = name.toLowerCase().indexOf(keyword);
-        return { id: String(store.id || ""), name, code: String(store.code || ""), value: index + 1,
+        return { id: String(store.id || ""), name, value: index + 1,
           before: keyword && at >= 0 ? name.slice(0, at) : name,
           match: keyword && at >= 0 ? name.slice(at, at + keyword.length) : "",
           after: keyword && at >= 0 ? name.slice(at + keyword.length) : "", at };

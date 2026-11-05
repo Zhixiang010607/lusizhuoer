@@ -37,7 +37,7 @@ Page({
         productName, productType, description, clientRequestId: pendingRequestId()
       });
       const productCode = text(result.product && result.product.product_code);
-      if (!productCode) throw new Error("项目已写入，但服务未返回项目编号");
+      if (!productCode) throw new Error("项目已保存，但创建结果暂未确认；请返回项目管理核对");
       wx.removeStorageSync(PENDING_KEY);
       wx.redirectTo({ url: `/pages/product-detail/index?productRef=${encodeURIComponent(productCode)}&created=1` });
     } catch (error) {

@@ -36,7 +36,8 @@ test("project code is hidden in quota rows, selectors, detail facts and save fee
   assert.match(teacher, /configureLabels: configureProducts\.map\(\(item\) => item\.name\)/);
   assert.match(teacher, /rechargeLabels: rechargeProducts\.map\(\(item\) => item\.productName\)/);
   assert.match(teacher, /productId: request\.productId/);
-  assert.match(read("pages/records/index.js"), /recordType === "PRODUCT_PURCHASE" \? product\.productCode \|\| product\.product_code \|\| "" : ""/);
+  assert.doesNotMatch(read("pages/records/index.js"), /product\.productCode|product\.product_code/,
+    "product query selectors display names and status without product codes");
   const order = read("pages/order-detail/index.js");
   assert.match(order, /\{ label: "项目", value: order\.productName \}/);
   assert.doesNotMatch(order, /label: "项目"[^\n]*note: order\.productCode/);

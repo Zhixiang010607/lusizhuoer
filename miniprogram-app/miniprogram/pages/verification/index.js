@@ -128,7 +128,7 @@ Page({
       const stores = (result.stores || []).map(businessStore).filter((item) => item.id && item.name);
       this.setData({
         stores,
-        storeLabels: ["请选择门店", ...stores.map((item) => `${item.name} · ${item.code || item.id}`)],
+        storeLabels: ["请选择门店", ...stores.map((item) => item.name || "未命名门店")],
         ...(!this.data.locked ? {
           message: stores.length ? "请先选择本次核销的发生门店" : "暂无可办理的活跃门店",
           error: !stores.length

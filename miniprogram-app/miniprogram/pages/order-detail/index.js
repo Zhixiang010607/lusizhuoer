@@ -668,7 +668,7 @@ Page({
       const isSupplement = verification && clean(order.originalType).toUpperCase() === "SUPPLEMENT";
       order.typeLabel = exactKind.typeLabel;
       const facts = [
-        { label: "门店", value: order.storeName, note: order.storeCode || "—" },
+        { label: "门店", value: order.storeName },
         { label: "客户", value: order.customerName, note: order.customerCode || "—" },
         { label: "项目", value: order.productName },
         { label: "业务老师", value: order.teacherName || "未指定" }
@@ -1603,7 +1603,7 @@ Page({
 
   async loadReceiptTemplate() {
     const productRef = clean(this.data.order.productId || this.data.order.productCode);
-    if (!productRef) throw new Error("工单没有可读取的产品编号");
+    if (!productRef) throw new Error("工单未关联有效项目，请重新进入工单");
     const response = await callStaff("getProductReceiptTemplate", { productRef });
     const template = response.template;
     if (!template || !clean(template.id)) throw new Error("服务器没有返回产品单据模板");

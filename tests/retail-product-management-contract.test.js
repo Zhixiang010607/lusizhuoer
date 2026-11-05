@@ -90,7 +90,8 @@ test("mini program exposes separate project and product entries and keeps produc
   assert.match(home, /data-type="product"[^>]*>产品管理</);
   assert.match(homeJs, /type === "project"[\s\S]*pages\/product-management\/index/);
   assert.match(homeJs, /type === "product"[\s\S]*pages\/retail-product-management\/index/);
-  for (const label of ["全部产品", "新增产品", "产品名称", "产品编号", "只能封存或重新激活"]) assert.match(page, new RegExp(label));
+  for (const label of ["全部产品", "新增产品", "产品名称", "只能封存或重新激活"]) assert.match(page, new RegExp(label));
+  assert.doesNotMatch(page, /产品编号|item\.code/);
   assert.match(pageStyles, /\.product-head \{[^}]*font-size: 24rpx/,
     "the mobile product table header must match project-summary typography");
   assert.match(pageStyles, /\.product-row \{[^}]*font-size: 24rpx/,

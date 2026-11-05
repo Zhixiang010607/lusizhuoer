@@ -91,7 +91,7 @@ Page({
       const stores = (result.stores || []).map(businessStore).filter((item) => item.id && item.name);
       this.setData({
         stores,
-        storeLabels: ["请选择门店", ...stores.map((item) => `${item.name} · ${item.code || item.id}`)],
+        storeLabels: ["请选择门店", ...stores.map((item) => item.name || "未命名门店")],
         ...(!this.data.locked ? {
           message: stores.length ? "请先选择本次业务的发生门店" : "暂无可办理的活跃门店",
           error: !stores.length
@@ -221,7 +221,7 @@ Page({
         .filter((item) => item.productId && (!refund || item.purchasedCount > 0));
       this.setData({
         products: values,
-        productLabels: values.map((item) => refund ? `${item.productName}（剩余 ${item.remainingCount}，可退 ${item.purchasedCount}）` : `${item.productName} · ${item.productCode}`)
+        productLabels: values.map((item) => refund ? `${item.productName}（剩余 ${item.remainingCount}，可退 ${item.purchasedCount}）` : item.productName || "未命名产品")
       });
     } catch (error) {
       if (requestEpoch === this._productRequestEpoch && (!refund || String(this.data.customer?.customerCode || "") === customerCode)) {
@@ -249,7 +249,7 @@ Page({
       const values = (result.products || []).map(retailProduct).filter((item) => item.productId && item.productName);
       this.setData({
         giftProducts: values,
-        giftProductLabels: ["请选择激活产品", ...values.map((item) => `${item.productName} · ${item.productCode}`)]
+        giftProductLabels: ["请选择激活产品", ...values.map((item) => item.productName || "未命名产品")]
       });
     } catch (error) {
       if (requestEpoch === this._giftProductRequestEpoch && String(this.data.store.id || "") === storeId) {

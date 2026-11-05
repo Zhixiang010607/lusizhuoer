@@ -428,10 +428,13 @@ test("HQ retail product management uses compact adaptive tablet cards", () => {
   assert.match(wxss, /\.product-list \{[^}]*grid-template-columns: repeat\(auto-fill, minmax\(260px, 1fr\)\);/s,
     "tablet width should automatically choose two or three compact retail product cards per row");
   assert.match(wxss, /\.product-head \{ display: none; \}/,
-    "the magnified four-column phone header must retire on tablets");
+    "the compact phone table header must retire on tablets");
   assert.match(wxss, /\.status-button \{[^}]*width: 82px !important;[^}]*height: 38px;/s,
     "product status actions must remain compact and separate from card text");
-  assert.match(context, /产品按可用宽度自动使用两列或三列卡片展示名称、编号、状态和操作/);
+  assert.match(context, /产品按可用宽度自动使用两列或三列卡片展示名称、状态和操作/);
+  assert.doesNotMatch(wxml, /产品编号|product-code|item\.code/);
+  assert.doesNotMatch(wxss, /grid-row:\s*3|product-code/,
+    "removing the product code must also remove the empty tablet grid row");
 });
 
 test("HQ ranking uses one compact table and shows all four business metrics", () => {

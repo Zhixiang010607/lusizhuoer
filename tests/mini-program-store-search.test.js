@@ -46,3 +46,15 @@ test("busy or loading freezes search, clearing and selection; resize tracks tabl
     c.resize({ size: { windowWidth: 390 } }); assert.equal(c.data.tablet, false);
   }
 });
+
+test("identical store names remain separate choices without displaying their codes", () => {
+  const { c, events } = component([
+    { id: "91", name: "同名门店", code: "STR091" },
+    { id: "92", name: "同名门店", code: "STR092" }
+  ]);
+  c.focus(); c.choose({ currentTarget: { dataset: { value: 2 } } });
+  assert.equal(events[0].detail.value, 2);
+  assert.equal(c.data.matches[1].id, "92");
+  assert.equal(c.data.keyword, "同名门店");
+  assert.doesNotMatch(fs.readFileSync(path.join(dir, "index.wxml"), "utf8"), /item\.code|result-code/);
+});

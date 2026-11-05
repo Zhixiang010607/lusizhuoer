@@ -105,7 +105,7 @@
 
     <block wx:if="{{session.role === 'store'}}">
       <view class="web-panel profile-hero">
-        <view class="profile-avatar">店</view><view class="profile-copy"><text class="profile-type">门店</text><view class="profile-title-row"><text>{{storeHero.name || session.storeName}}</text><text class="store-status-badge">{{storeHero.status}}</text></view><text>业务编号 {{storeHero.code || session.storeCode || '—'}}</text></view>
+        <view class="profile-avatar">店</view><view class="profile-copy"><text class="profile-type">门店</text><view class="profile-title-row"><text>{{storeHero.name || session.storeName}}</text><text class="store-status-badge">{{storeHero.status}}</text></view></view>
       </view>
       <view class="web-panel detail-section store-contact-panel">
         <view class="panel-heading"><view><text class="panel-title">联系与地址</text></view></view>

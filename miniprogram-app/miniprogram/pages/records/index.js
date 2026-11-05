@@ -87,7 +87,7 @@ Page({
       const result = await callStaff("listStores");
       const stores = (result.stores || []).map((store) => ({
         id: String(store.id || store.store_id || ""),
-        label: [store.store_name || store.storeName || "未命名门店", store.store_code || store.storeCode || ""].filter(Boolean).join(" · ")
+        label: String(store.store_name || store.storeName || "未命名门店")
       })).filter((store) => store.id);
       this.setData({ stores, storeLabels: ["全部门店", ...stores.map((store) => store.label)] });
     } catch (error) {
@@ -150,7 +150,6 @@ Page({
         productId: String(product.productId || product.retail_product_id || product.id || ""),
         label: [
           product.productName || product.product_name || "未命名产品",
-          recordType === "PRODUCT_PURCHASE" ? product.productCode || product.product_code || "" : "",
           String(product.productStatus || product.product_status || "").toUpperCase() === "ARCHIVED" ? "（已封存）" : ""
         ].filter(Boolean).join(" · ")
       }));

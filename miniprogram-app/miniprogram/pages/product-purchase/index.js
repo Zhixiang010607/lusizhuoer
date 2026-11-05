@@ -49,7 +49,7 @@ Page({
       const result = await callFace("getTeacherBusinessContext");
       if (epoch !== this._storeEpoch) return;
       const stores = (result.stores || []).map(store).filter((item) => item.id && item.name);
-      this.setData({ stores, storeLabels: ["请选择门店", ...stores.map((item) => `${item.name} · ${item.code || item.id}`)] });
+      this.setData({ stores, storeLabels: ["请选择门店", ...stores.map((item) => item.name || "未命名门店")] });
     } catch (error) {
       if (epoch === this._storeEpoch) this.setData({ message: error.message || "可办理门店读取失败", error: true });
     } finally { if (epoch === this._storeEpoch) this.setData({ loadingStores: false }); }
@@ -128,7 +128,7 @@ Page({
       const result = await callFace("listActiveRetailProducts", { storeId });
       if (epoch !== this._productEpoch || String(this.data.store.id || "") !== storeId) return;
       const products = (result.products || []).map(product).filter((item) => item.id && item.name);
-      this.setData({ products, productLabels: ["请选择激活产品", ...products.map((item) => `${item.name} · ${item.code}`)] });
+      this.setData({ products, productLabels: ["请选择激活产品", ...products.map((item) => item.name || "未命名产品")] });
     } catch (error) {
       if (epoch === this._productEpoch) this.setData({ products: [], productLabels: ["激活产品读取失败"], message: error.message || "激活产品读取失败", error: true });
     } finally { if (epoch === this._productEpoch) { this.setData({ loadingProducts: false }); this.syncReady(); } }

@@ -14,7 +14,6 @@
 .result-copy { min-width: 0; flex: 1; }
 .result-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
 .match { color: #8a642b; }
-.result-code { display: block; color: #817566; font-size: 24rpx; }
 .result-arrow { flex: none; color: #78572d; font-size: 30rpx; }
 .result-empty { display: block; padding: 22rpx 20rpx; color: #817566; font-size: 24rpx; }
 .search-hint, .selected-store { display: block; margin-top: 10rpx; color: #817566; font-size: 24rpx; overflow-wrap: anywhere; }
@@ -30,7 +29,7 @@
   .result-count { padding: 7px 12px; font-size: 14px; }
   .result-list { max-height: 240px; }
   .result-row { height: 60px; padding: 8px 12px; gap: 10px; border-top-width: 1px; font-size: 16px; }
-  .result-code, .result-empty, .search-hint, .selected-store { font-size: 14px; }
+  .result-empty, .search-hint, .selected-store { font-size: 14px; }
   .result-arrow { font-size: 20px; }
   .result-empty { padding: 14px 12px; }
   .search-hint, .selected-store { margin-top: 6px; }

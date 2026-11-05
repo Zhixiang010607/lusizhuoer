@@ -34,7 +34,7 @@ Page({
     const created = wx.getStorageSync(CREATED_KEY);
     if (created && text(created.code)) {
       wx.removeStorageSync(CREATED_KEY);
-      this.setData({ message: `产品 ${text(created.code)} 已新增。`, error: false });
+      this.setData({ message: text(created.name) ? `产品“${text(created.name)}”已新增。` : "产品已新增。", error: false });
       this.load({ keepMessage: true });
       return;
     }
@@ -72,7 +72,7 @@ Page({
     const action = product.archived ? "重新激活" : "封存";
     const confirmed = await confirmModal({
       title: `${action}产品`,
-      content: `确认${action}“${product.name}”（${product.code}）？`,
+      content: `确认${action}“${product.name}”？`,
       confirmText: product.archived ? "激活" : "封存"
     });
     if (!confirmed) return;

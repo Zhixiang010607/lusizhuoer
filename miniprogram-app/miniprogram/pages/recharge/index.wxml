@@ -55,7 +55,7 @@
       <button wx:if="{{!loadingGiftProducts && !giftProducts.length}}" class="secondary gift-retry" bindtap="loadGiftProducts" disabled="{{!customer}}">重试激活产品列表</button>
       <view wx:if="{{productGifts.length}}" class="gift-list">
         <view wx:for="{{productGifts}}" wx:key="retailProductId" class="gift-row">
-          <view class="gift-copy"><text>{{item.productName}}</text><text>{{item.productCode}} · {{item.unitCount}} 件</text></view>
+          <view class="gift-copy"><text>{{item.productName}}</text><text>{{item.unitCount}} 件</text></view>
           <button class="gift-remove" type="button" data-index="{{index}}" bindtap="removeProductGift" disabled="{{busy || locked}}">删除</button>
         </view>
       </view>

@@ -163,7 +163,7 @@ Page({
       if (reloadStores || this.data.storeLabels.length <= 1) {
         const source = result.stores || [];
         changes.stores = source.map((store) => ({
-          id: text(store.store_id, store.id), label: [text(store.store_name, store.name) || "未命名门店", text(store.store_code, store.code)].filter(Boolean).join(" · ")
+          id: text(store.store_id, store.id), label: text(store.store_name, store.name) || "未命名门店"
         })).filter((store) => store.id);
         changes.storeLabels = ["全部门店", ...changes.stores.map((store) => store.label)];
         changes.storeIndex = 0;

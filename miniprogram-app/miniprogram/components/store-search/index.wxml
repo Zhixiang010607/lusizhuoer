@@ -10,7 +10,7 @@
     <text class="result-count">{{keyword ? '找到' : '可选'}} {{matchCount}} 家门店</text>
     <scroll-view wx:if="{{matchCount}}" class="result-list" scroll-y enhanced bindscrolltolower="more" lower-threshold="60" style="height: {{(matches.length > 4 ? 4 : matches.length) * (tablet ? 60 : 124)}}{{tablet ? 'px' : 'rpx'}}">
       <button wx:for="{{matches}}" wx:key="id" class="result-row" data-value="{{item.value}}" bindtap="choose" aria-label="{{'选择' + item.name}}">
-        <view class="result-copy"><view class="result-name"><text>{{item.before}}</text><text class="match">{{item.match}}</text><text>{{item.after}}</text></view><text wx:if="{{item.code}}" class="result-code">{{item.code}}</text></view>
+        <view class="result-copy"><view class="result-name"><text>{{item.before}}</text><text class="match">{{item.match}}</text><text>{{item.after}}</text></view></view>
         <text class="result-arrow">{{item.id === selectedId ? '✓' : '›'}}</text>
       </button>
     </scroll-view>

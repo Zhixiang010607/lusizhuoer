@@ -37,9 +37,9 @@ Page({
         clientRequestId: pendingRequestId()
       });
       const productCode = text(result.product && result.product.product_code);
-      if (!productCode) throw new Error("产品已写入，但数据库没有返回产品编号");
+      if (!productCode) throw new Error("产品已保存，但创建结果暂未确认；请返回产品管理核对");
       wx.removeStorageSync(PENDING_KEY);
-      wx.setStorageSync(CREATED_KEY, { code: productCode, createdAt: Date.now() });
+      wx.setStorageSync(CREATED_KEY, { code: productCode, name: productName, createdAt: Date.now() });
       if (getCurrentPages().length > 1) wx.navigateBack();
       else wx.redirectTo({ url: "/pages/retail-product-management/index" });
     } catch (error) {
